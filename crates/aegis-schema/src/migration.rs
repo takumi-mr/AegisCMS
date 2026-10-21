@@ -124,17 +124,10 @@ impl SchemaMigration {
 
             let mut def = format!("{} {}", field.name, sql_type);
             if field.required && !field.nullable {
-                match dialect {
-                    SqlDialect::Sqlite | SqlDialect::Postgres => {
-                        def.push_str(" NOT NULL DEFAULT ''")
-                    }
-                    SqlDialect::MySql => {
-                        if sql_type.contains("TEXT") || sql_type.contains("JSON") {
-                            def.push_str(" NOT NULL");
-                        } else {
-                            def.push_str(" NOT NULL DEFAULT ''");
-                        }
-                    }
+                def.push_str(" NOT NULL");
+                if let Some(default) = Self::not_null_default(field.field_type, dialect, sql_type) {
+                    def.push_str(" DEFAULT ");
+                    def.push_str(default);
                 }
             }
             if field.unique {
@@ -167,6 +160,25 @@ impl SchemaMigration {
         );
 
         (create_table_sql, indices)
+    }
+
+    /// `NOT NULL` 列に付与する、列型に合った既定値リテラル（付与できない型は `None`）
+    fn not_null_default(
+        field_type: FieldType,
+        dialect: SqlDialect,
+        sql_type: &str,
+    ) -> Option<&'static str> {
+        match (field_type, dialect) {
+            (FieldType::Integer, _) => Some("0"),
+            (FieldType::Boolean, SqlDialect::Sqlite) => Some("0"),
+            (FieldType::Boolean, _) => Some("FALSE"),
+            // MySQL の JSON 型はリテラルの既定値を持てない
+            (FieldType::Jsonb, SqlDialect::MySql) => None,
+            (FieldType::Jsonb, _) => Some("'{}'"),
+            // MySQL の TEXT 系はリテラルの既定値を持てない
+            (_, SqlDialect::MySql) if sql_type.contains("TEXT") => None,
+            _ => Some("''"),
+        }
     }
 
     pub fn generate_schema_migration_sql(
