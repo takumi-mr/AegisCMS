@@ -1,33 +1,77 @@
 use crate::definition::{FieldType, SchemaDefinition};
 
-pub struct SqliteMigration;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SqlDialect {
+    #[default]
+    Sqlite,
+    Postgres,
+    MySql,
+}
 
-impl SqliteMigration {
-    pub fn generate_create_table(schema: &SchemaDefinition) -> (String, Vec<String>) {
+pub struct SchemaMigration;
+
+impl SchemaMigration {
+    pub fn generate_create_table(
+        schema: &SchemaDefinition,
+        dialect: SqlDialect,
+    ) -> (String, Vec<String>) {
         let table = schema.table_name();
-        let mut col_defs = vec![
-            "id TEXT PRIMARY KEY".to_string(),
-            "content_type TEXT NOT NULL".to_string(),
-            "title TEXT NOT NULL".to_string(),
-            "slug TEXT NOT NULL UNIQUE".to_string(),
-            "status TEXT NOT NULL DEFAULT 'draft'".to_string(),
-            "blocks_json TEXT NOT NULL DEFAULT '[]'".to_string(),
-            "author_id TEXT".to_string(),
-            "published_at TEXT".to_string(),
-            "created_at TEXT NOT NULL".to_string(),
-            "updated_at TEXT NOT NULL".to_string(),
-        ];
 
-        let mut indices = vec![
-            format!(
-                "CREATE INDEX IF NOT EXISTS idx_{}_slug ON {} (slug);",
-                table, table
-            ),
-            format!(
-                "CREATE INDEX IF NOT EXISTS idx_{}_status ON {} (status);",
-                table, table
-            ),
-        ];
+        let mut col_defs = match dialect {
+            SqlDialect::Sqlite => vec![
+                "id TEXT PRIMARY KEY".to_string(),
+                "content_type TEXT NOT NULL".to_string(),
+                "title TEXT NOT NULL".to_string(),
+                "slug TEXT NOT NULL UNIQUE".to_string(),
+                "status TEXT NOT NULL DEFAULT 'draft'".to_string(),
+                "blocks_json TEXT NOT NULL DEFAULT '[]'".to_string(),
+                "author_id TEXT".to_string(),
+                "published_at TEXT".to_string(),
+                "created_at TEXT NOT NULL".to_string(),
+                "updated_at TEXT NOT NULL".to_string(),
+            ],
+            SqlDialect::Postgres => vec![
+                "id VARCHAR(64) PRIMARY KEY".to_string(),
+                "content_type VARCHAR(64) NOT NULL".to_string(),
+                "title VARCHAR(255) NOT NULL".to_string(),
+                "slug VARCHAR(255) NOT NULL UNIQUE".to_string(),
+                "status VARCHAR(32) NOT NULL DEFAULT 'draft'".to_string(),
+                "blocks_json TEXT NOT NULL DEFAULT '[]'".to_string(),
+                "author_id VARCHAR(64)".to_string(),
+                "published_at VARCHAR(64)".to_string(),
+                "created_at VARCHAR(64) NOT NULL".to_string(),
+                "updated_at VARCHAR(64) NOT NULL".to_string(),
+            ],
+            SqlDialect::MySql => vec![
+                "id VARCHAR(64) PRIMARY KEY".to_string(),
+                "content_type VARCHAR(64) NOT NULL".to_string(),
+                "title VARCHAR(255) NOT NULL".to_string(),
+                "slug VARCHAR(255) NOT NULL UNIQUE".to_string(),
+                "status VARCHAR(32) NOT NULL DEFAULT 'draft'".to_string(),
+                "blocks_json LONGTEXT NOT NULL".to_string(),
+                "author_id VARCHAR(64)".to_string(),
+                "published_at VARCHAR(64)".to_string(),
+                "created_at VARCHAR(64) NOT NULL".to_string(),
+                "updated_at VARCHAR(64) NOT NULL".to_string(),
+            ],
+        };
+
+        let mut indices = match dialect {
+            SqlDialect::Sqlite | SqlDialect::Postgres => vec![
+                format!(
+                    "CREATE INDEX IF NOT EXISTS idx_{}_slug ON {} (slug);",
+                    table, table
+                ),
+                format!(
+                    "CREATE INDEX IF NOT EXISTS idx_{}_status ON {} (status);",
+                    table, table
+                ),
+            ],
+            SqlDialect::MySql => vec![
+                format!("CREATE INDEX idx_{}_slug ON {} (slug);", table, table),
+                format!("CREATE INDEX idx_{}_status ON {} (status);", table, table),
+            ],
+        };
 
         for field in &schema.fields {
             // 予約語やデフォルトカラムと被らない場合のみ追加
@@ -48,19 +92,50 @@ impl SqliteMigration {
                 continue;
             }
 
-            let sql_type = match field.field_type {
-                FieldType::String => "TEXT",
-                FieldType::Text => "TEXT",
-                FieldType::Integer => "INTEGER",
-                FieldType::Boolean => "INTEGER",
-                FieldType::Timestamp => "TEXT",
-                FieldType::Relation => "TEXT",
-                FieldType::Jsonb => "TEXT",
+            let sql_type = match (field.field_type, dialect) {
+                (FieldType::String, SqlDialect::Sqlite) => "TEXT",
+                (FieldType::String, SqlDialect::Postgres) => "VARCHAR(255)",
+                (FieldType::String, SqlDialect::MySql) => "VARCHAR(255)",
+
+                (FieldType::Text, SqlDialect::Sqlite) => "TEXT",
+                (FieldType::Text, SqlDialect::Postgres) => "TEXT",
+                (FieldType::Text, SqlDialect::MySql) => "LONGTEXT",
+
+                (FieldType::Integer, SqlDialect::Sqlite) => "INTEGER",
+                (FieldType::Integer, SqlDialect::Postgres) => "BIGINT",
+                (FieldType::Integer, SqlDialect::MySql) => "BIGINT",
+
+                (FieldType::Boolean, SqlDialect::Sqlite) => "INTEGER",
+                (FieldType::Boolean, SqlDialect::Postgres) => "BOOLEAN",
+                (FieldType::Boolean, SqlDialect::MySql) => "BOOLEAN",
+
+                (FieldType::Timestamp, SqlDialect::Sqlite) => "TEXT",
+                (FieldType::Timestamp, SqlDialect::Postgres) => "VARCHAR(64)",
+                (FieldType::Timestamp, SqlDialect::MySql) => "VARCHAR(64)",
+
+                (FieldType::Relation, SqlDialect::Sqlite) => "TEXT",
+                (FieldType::Relation, SqlDialect::Postgres) => "VARCHAR(64)",
+                (FieldType::Relation, SqlDialect::MySql) => "VARCHAR(64)",
+
+                (FieldType::Jsonb, SqlDialect::Sqlite) => "TEXT",
+                (FieldType::Jsonb, SqlDialect::Postgres) => "JSONB",
+                (FieldType::Jsonb, SqlDialect::MySql) => "JSON",
             };
 
             let mut def = format!("{} {}", field.name, sql_type);
             if field.required && !field.nullable {
-                def.push_str(" NOT NULL DEFAULT ''");
+                match dialect {
+                    SqlDialect::Sqlite | SqlDialect::Postgres => {
+                        def.push_str(" NOT NULL DEFAULT ''")
+                    }
+                    SqlDialect::MySql => {
+                        if sql_type.contains("TEXT") || sql_type.contains("JSON") {
+                            def.push_str(" NOT NULL");
+                        } else {
+                            def.push_str(" NOT NULL DEFAULT ''");
+                        }
+                    }
+                }
             }
             if field.unique {
                 def.push_str(" UNIQUE");
@@ -68,10 +143,20 @@ impl SqliteMigration {
             col_defs.push(def);
 
             if field.index {
-                indices.push(format!(
-                    "CREATE INDEX IF NOT EXISTS idx_{}_{} ON {} ({});",
-                    table, field.name, table, field.name
-                ));
+                match dialect {
+                    SqlDialect::Sqlite | SqlDialect::Postgres => {
+                        indices.push(format!(
+                            "CREATE INDEX IF NOT EXISTS idx_{}_{} ON {} ({});",
+                            table, field.name, table, field.name
+                        ));
+                    }
+                    SqlDialect::MySql => {
+                        indices.push(format!(
+                            "CREATE INDEX idx_{}_{} ON {} ({});",
+                            table, field.name, table, field.name
+                        ));
+                    }
+                }
             }
         }
 
@@ -84,10 +169,25 @@ impl SqliteMigration {
         (create_table_sql, indices)
     }
 
-    pub fn generate_schema_migration_sql(schema: &SchemaDefinition) -> Vec<String> {
-        let (create_table, indices) = Self::generate_create_table(schema);
+    pub fn generate_schema_migration_sql(
+        schema: &SchemaDefinition,
+        dialect: SqlDialect,
+    ) -> Vec<String> {
+        let (create_table, indices) = Self::generate_create_table(schema, dialect);
         let mut stmts = vec![create_table];
         stmts.extend(indices);
         stmts
+    }
+}
+
+pub struct SqliteMigration;
+
+impl SqliteMigration {
+    pub fn generate_create_table(schema: &SchemaDefinition) -> (String, Vec<String>) {
+        SchemaMigration::generate_create_table(schema, SqlDialect::Sqlite)
+    }
+
+    pub fn generate_schema_migration_sql(schema: &SchemaDefinition) -> Vec<String> {
+        SchemaMigration::generate_schema_migration_sql(schema, SqlDialect::Sqlite)
     }
 }

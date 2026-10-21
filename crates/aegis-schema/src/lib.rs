@@ -6,7 +6,7 @@ pub mod migration;
 pub use codegen::{OpenApiGenerator, TypeScriptGenerator};
 pub use definition::{FieldDefinition, FieldType, RelationTarget, SchemaDefinition};
 pub use loader::SchemaLoader;
-pub use migration::SqliteMigration;
+pub use migration::{SchemaMigration, SqlDialect, SqliteMigration};
 
 #[cfg(test)]
 mod tests {
@@ -42,6 +42,7 @@ fields:
         assert_eq!(schema.content_type, "article");
         assert_eq!(schema.fields.len(), 5);
 
+        // 1. SQLite DDL
         let sqls = SqliteMigration::generate_schema_migration_sql(&schema);
         assert!(!sqls.is_empty());
         let create_table = &sqls[0];
@@ -52,6 +53,16 @@ fields:
         // インデックス確認
         let indices_joined = sqls[1..].join("\n");
         assert!(indices_joined.contains("idx_content_article_slug"));
+
+        // 2. Postgres DDL
+        let pg_sqls = SchemaMigration::generate_schema_migration_sql(&schema, SqlDialect::Postgres);
+        assert!(pg_sqls[0].contains("custom_meta JSONB"));
+        assert!(pg_sqls[0].contains("id VARCHAR(64) PRIMARY KEY"));
+
+        // 3. MySQL DDL
+        let mysql_sqls = SchemaMigration::generate_schema_migration_sql(&schema, SqlDialect::MySql);
+        assert!(mysql_sqls[0].contains("custom_meta JSON"));
+        assert!(mysql_sqls[0].contains("blocks_json LONGTEXT NOT NULL"));
 
         // リレーション定義の解決確認
         let relations = schema.relation_fields();

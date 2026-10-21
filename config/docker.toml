@@ -3,8 +3,27 @@ host = "0.0.0.0"
 port = 8080
 
 [database]
+# Backend: "sqlite" | "postgres" | "mysql" (auto-inferred from url if omitted)
+backend = "sqlite"
 url = "sqlite:///app/data/aegis.db?mode=rwc"
 max_connections = 10
+
+[storage]
+# Backend: "local" (disk/volume mount) | "s3" (AWS S3 / Cloudflare R2 / MinIO)
+backend = "local"
+
+[storage.local]
+upload_dir = "/app/data/uploads"
+public_url_prefix = "/uploads"
+
+[storage.s3]
+bucket = "aegis-bucket"
+region = "auto"
+# endpoint = "https://<account_id>.r2.cloudflarestorage.com"
+# access_key_id = "..."
+# secret_access_key = "..."
+# force_path_style = false
+# public_url_prefix = "https://cdn.example.com"
 
 [paths]
 schemas_dir = "schemas"
@@ -23,4 +42,3 @@ open_external_links_in_new_tab = false
 internal_domains = []
 enforce_image_lazy_loading = true
 enforce_image_async_decoding = true
-
