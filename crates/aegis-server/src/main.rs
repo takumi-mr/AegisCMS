@@ -13,6 +13,8 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod auth;
+mod cache;
 mod db;
 mod handlers;
 mod state;
@@ -134,6 +136,7 @@ async fn main() -> anyhow::Result<()> {
                 config.database.url
             );
             tracing::info!("Storage backend: {:?}", config.storage.backend);
+            tracing::info!("Cache backend: {:?}", config.cache.backend);
 
             // 1. スキーマ読み込み
             let schemas_vec = SchemaLoader::load_dir(&config.paths.schemas_dir)?;
@@ -154,7 +157,14 @@ async fn main() -> anyhow::Result<()> {
             // 3. ストレージバックエンド初期化
             let storage = storage::create_storage_backend(&config.storage)?;
 
-            // 4. Wasm プラグインスーパーバイザー初期化
+            // 4. キャッシュ & セッションサービス初期化 (ステートレス対応)
+            let cache = cache::create_cache_backend(&config.cache).await?;
+            let sessions = Arc::new(auth::SessionService::new(
+                cache.clone(),
+                config.cache.default_ttl_secs,
+            ));
+
+            // 5. Wasm プラグインスーパーバイザー初期化
             let mut supervisor = PluginSupervisor::new();
             if config.runtime.enable_wasm_plugins {
                 tracing::info!("Initializing Wasmtime runtime engine...");
@@ -183,11 +193,13 @@ async fn main() -> anyhow::Result<()> {
                 config.clone(),
                 db_adapter,
                 storage,
+                cache,
+                sessions,
                 schemas,
                 supervisor,
             ));
 
-            // 5. CORS & Router 設定
+            // 6. CORS & Router 設定
             let cors = CorsLayer::new()
                 .allow_origin(Any)
                 .allow_methods(Any)
@@ -206,7 +218,13 @@ async fn main() -> anyhow::Result<()> {
                     "/api/v1/contents/{content_type}/{slug}",
                     get(handlers::get_content),
                 )
-                .route("/api/v1/storage/upload", post(handlers::upload_file));
+                .route("/api/v1/storage/upload", post(handlers::upload_file))
+                .route(
+                    "/api/v1/auth/session",
+                    post(handlers::create_session)
+                        .get(handlers::get_current_session)
+                        .delete(handlers::delete_session),
+                );
 
             // ローカルストレージの場合、/uploads で静的ファイル配信
             if config.storage.backend == StorageBackendKind::Local {

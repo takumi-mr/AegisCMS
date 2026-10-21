@@ -1,12 +1,14 @@
+pub mod cache;
 pub mod config;
 pub mod entity;
 pub mod error;
 pub mod manifest;
 pub mod storage;
 
+pub use cache::{CacheBackend, CacheBackendKind};
 pub use config::{
-    AegisConfig, DatabaseBackendKind, DatabaseConfig, LocalStorageConfig, S3StorageConfig,
-    SecurityConfig, StorageConfig,
+    AegisConfig, CacheConfig, DatabaseBackendKind, DatabaseConfig, LocalStorageConfig,
+    RedisCacheConfig, S3StorageConfig, SecurityConfig, StorageConfig,
 };
 pub use entity::{Post, PostContext, PostId, PostStatus};
 pub use error::{AegisError, Result};

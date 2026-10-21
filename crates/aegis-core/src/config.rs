@@ -1,3 +1,4 @@
+use crate::cache::CacheBackendKind;
 use crate::error::{AegisError, Result};
 use crate::storage::StorageBackendKind;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,8 @@ pub struct AegisConfig {
     pub database: DatabaseConfig,
     #[serde(default)]
     pub storage: StorageConfig,
+    #[serde(default)]
+    pub cache: CacheConfig,
     #[serde(default)]
     pub paths: PathsConfig,
     #[serde(default)]
@@ -155,6 +158,50 @@ impl Default for S3StorageConfig {
             secret_access_key: String::new(),
             force_path_style: false,
             public_url_prefix: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheConfig {
+    #[serde(default)]
+    pub backend: CacheBackendKind,
+    #[serde(default = "default_cache_ttl")]
+    pub default_ttl_secs: u64,
+    #[serde(default)]
+    pub redis: RedisCacheConfig,
+}
+
+fn default_cache_ttl() -> u64 {
+    3600 // 1 hour
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            backend: CacheBackendKind::Memory,
+            default_ttl_secs: default_cache_ttl(),
+            redis: RedisCacheConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedisCacheConfig {
+    pub url: String,
+    #[serde(default = "default_redis_timeout")]
+    pub timeout_ms: u64,
+}
+
+fn default_redis_timeout() -> u64 {
+    2000
+}
+
+impl Default for RedisCacheConfig {
+    fn default() -> Self {
+        Self {
+            url: "redis://127.0.0.1:6379".to_string(),
+            timeout_ms: default_redis_timeout(),
         }
     }
 }

@@ -25,6 +25,15 @@ region = "auto"
 # force_path_style = false
 # public_url_prefix = "https://cdn.example.com"
 
+[cache]
+# Backend: "memory" (default, in-memory TTL cache) | "redis" (distributed cache & stateless sessions)
+backend = "memory"
+default_ttl_secs = 3600
+
+[cache.redis]
+url = "redis://redis:6379"
+timeout_ms = 2000
+
 [paths]
 schemas_dir = "schemas"
 plugins_dir = "plugins"

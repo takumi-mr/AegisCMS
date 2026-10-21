@@ -33,4 +33,10 @@ pub enum AegisError {
     NotFound(String),
 }
 
+impl From<serde_json::Error> for AegisError {
+    fn from(err: serde_json::Error) -> Self {
+        AegisError::Serialization(err.to_string())
+    }
+}
+
 pub type Result<T> = std::result::Result<T, AegisError>;
