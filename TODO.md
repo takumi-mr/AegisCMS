@@ -172,7 +172,7 @@
 #### 不具合・ドキュメント整備時に判明した課題
 - [x] **PostgreSQL でコンテンツ作成が失敗していた問題を修正**: カスタムフィールドを常に文字列でバインドしていたため、`jsonb` 列（`custom_meta`）への `INSERT` が値の有無にかかわらず失敗していた。`PostgresAdapter` でスキーマの列型に合わせて `jsonb` / `BIGINT` / `BOOLEAN` を型付きでバインド・デコードするよう修正（読み出し時に `jsonb` 列が黙って欠落する問題も解消）。
 - [x] DDL で `required: true` かつ `nullable: false` のフィールドに型を問わず `DEFAULT ''` が付与され、PostgreSQL では `integer` / `boolean` / `jsonb` のテーブル作成が失敗していた問題を修正（型ごとの既定値: integer `0`、boolean `0` / `FALSE`、jsonb `'{}'`。MySQL の TEXT / JSON 型は既定値なし）。
-- [ ] 監査ログの MySQL 実機検証（実装はコンパイル確認のみ。SQLite / PostgreSQL は E2E 確認済み）。
+- [x] **MySQL 実機検証と修正**（MySQL 8.4 / strict モード）: 起動時のカラム走査で `information_schema` の列名が大文字（`COLUMN_NAME`）で返り `unwrap()` がパニックしてサーバーが起動できなかった問題、`JSON` 列が読み出し時に欠落する問題、`null` の JSON 値が空文字列として保存されエラーになる問題を修正。インデックスの重複エラー（1061）以外を握りつぶしていた処理も改善。コンテンツ CRUD・リレーション解決・アップロード・監査ログの記録と検索を E2E 確認済み。
 - [ ] 監査ログの保持期間（古いレコードの削除）ポリシーと、Admin Studio の監査ログ閲覧画面。
 - [x] **同梱設定ファイルがパースに失敗し既定値で起動していた問題を修正**: 全設定構造体に `#[serde(default)]` を付与して全項目を省略可能にし、`load_or_default` はファイルが存在しない場合のみ既定値（警告ログ付き）、パース失敗時はエラーで起動中止するよう変更。同梱設定ファイルのパースを単体テストで検証。
 - [ ] `on-before-save` フックの戻り値 (`PostContext`) が保存データに反映されない。反映するか、検証専用フックとして仕様を明確化する。
@@ -199,6 +199,10 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **カスタムフィールドの型付きバインド (PostgreSQL / MySQL)**:
+  - `db::CustomFieldValue::from_json` がスキーマのフィールド型に合わせて値を変換し（jsonb → JSON、integer → i64、boolean → bool、その他は文字列）、変換できない値は `AegisError::Validation`（API は 400）を返します。SQLite は従来どおり文字列で保存します。
+  - 読み出しも各アダプターの `custom_fields_from_row` でフィールド型ごとにデコードします。新しいフィールド型を追加する際は、`SchemaMigration` の型対応・`CustomFieldValue`・各アダプターのデコードを揃えて更新してください。
+  - MySQL は `CREATE INDEX IF NOT EXISTS` に対応していないため、既存インデックスの重複エラー（1061）のみ無視しています。
 - **監査ログ (`AuditSink`) の設計**:
   - 出力先は `aegis_core::AuditSink` トレイトで抽象化し、`AuditService` が `[audit].sinks` に列挙された全出力先へ順に配送します。出力先の失敗はエラーログに留め、リクエストは失敗させません。
   - `occurred_at` は UTC・マイクロ秒精度・`Z` 終端の RFC 3339 に正規化して保存するため、DB 上の文字列比較で期間検索できます。API の `since` / `until` も同じ形式に正規化してから比較します。

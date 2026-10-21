@@ -3,12 +3,13 @@ use std::collections::{HashMap, HashSet};
 use aegis_core::{AegisError, AuditEvent, AuditQuery, Result};
 use aegis_schema::{FieldType, SchemaDefinition, SchemaMigration, SqlDialect};
 use async_trait::async_trait;
-use sqlx::mysql::MySqlPoolOptions;
+use sqlx::mysql::{MySqlDatabaseError, MySqlPoolOptions, MySqlRow};
 use sqlx::{MySql, Pool, Row};
 
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_insert, build_audit_select,
-    is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation, AUDIT_TABLE,
+    is_standard_column, ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation,
+    AUDIT_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -31,6 +32,53 @@ impl MySqlAdapter {
     pub fn new(pool: Pool<MySql>) -> Self {
         Self { pool }
     }
+}
+
+/// MySQL のエラー番号 1061 (ER_DUP_KEYNAME: 同名インデックスが既に存在する) か
+fn is_duplicate_key_name(error: &sqlx::Error) -> bool {
+    error
+        .as_database_error()
+        .and_then(|e| e.try_downcast_ref::<MySqlDatabaseError>())
+        .is_some_and(|e| e.number() == 1061)
+}
+
+/// 行からスキーマ定義の列型に合わせてカスタムフィールドを読み出す（NULL の列は含めない）
+fn custom_fields_from_row(
+    schema: &SchemaDefinition,
+    row: &MySqlRow,
+) -> HashMap<String, serde_json::Value> {
+    let mut custom_fields = HashMap::new();
+    for field in &schema.fields {
+        if is_standard_column(&field.name) {
+            continue;
+        }
+        let name = field.name.as_str();
+        let value = match field.field_type {
+            FieldType::Jsonb => row
+                .try_get::<Option<serde_json::Value>, _>(name)
+                .ok()
+                .flatten(),
+            FieldType::Integer => row
+                .try_get::<Option<i64>, _>(name)
+                .ok()
+                .flatten()
+                .map(serde_json::Value::from),
+            FieldType::Boolean => row
+                .try_get::<Option<bool>, _>(name)
+                .ok()
+                .flatten()
+                .map(serde_json::Value::Bool),
+            _ => row
+                .try_get::<Option<String>, _>(name)
+                .ok()
+                .flatten()
+                .map(|s| serde_json::from_str(&s).unwrap_or(serde_json::Value::String(s))),
+        };
+        if let Some(value) = value {
+            custom_fields.insert(field.name.clone(), value);
+        }
+    }
+    custom_fields
 }
 
 #[async_trait]
@@ -103,7 +151,7 @@ impl DatabaseAdapter for MySqlAdapter {
 
             // 2. 既存カラム一覧を取得し、未追加カラムを ALTER TABLE で追加
             let rows = sqlx::query(
-                "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?;",
+                "SELECT column_name AS column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?;",
             )
             .bind(&table)
             .fetch_all(&self.pool)
@@ -141,9 +189,16 @@ impl DatabaseAdapter for MySqlAdapter {
                 }
             }
 
-            // 3. インデックス作成 (既存インデックスの重複エラーを無視または確認)
+            // 3. インデックス作成（MySQL は CREATE INDEX IF NOT EXISTS 非対応のため、既存インデックスの重複エラーのみ無視）
             for idx_sql in indices {
-                let _ = sqlx::query(&idx_sql).execute(&self.pool).await;
+                if let Err(e) = sqlx::query(&idx_sql).execute(&self.pool).await {
+                    if !is_duplicate_key_name(&e) {
+                        return Err(AegisError::Database(format!(
+                            "MySQL index creation failed: {} - SQL: {}",
+                            e, idx_sql
+                        )));
+                    }
+                }
             }
 
             let now = chrono::Utc::now().to_rfc3339();
@@ -182,31 +237,17 @@ impl DatabaseAdapter for MySqlAdapter {
             "created_at".to_string(),
             "updated_at".to_string(),
         ];
-        let mut custom_values: Vec<Option<String>> = Vec::new();
+        let mut custom_values: Vec<CustomFieldValue> = Vec::new();
 
         for field in &schema.fields {
             if is_standard_column(&field.name) {
                 continue;
             }
             columns.push(field.name.clone());
-            if let Some(val) = record.custom_fields.get(&field.name) {
-                let s = match val {
-                    serde_json::Value::String(s) => s.clone(),
-                    serde_json::Value::Number(n) => n.to_string(),
-                    serde_json::Value::Bool(b) => {
-                        if *b {
-                            "1".to_string()
-                        } else {
-                            "0".to_string()
-                        }
-                    }
-                    serde_json::Value::Null => String::new(),
-                    other => other.to_string(),
-                };
-                custom_values.push(Some(s));
-            } else {
-                custom_values.push(None);
-            }
+            custom_values.push(CustomFieldValue::from_json(
+                field,
+                record.custom_fields.get(&field.name),
+            )?);
         }
 
         let placeholders: Vec<String> = vec!["?".to_string(); columns.len()];
@@ -229,8 +270,13 @@ impl DatabaseAdapter for MySqlAdapter {
             .bind(&record.created_at)
             .bind(&record.updated_at);
 
-        for val in &custom_values {
-            query = query.bind(val);
+        for val in custom_values {
+            query = match val {
+                CustomFieldValue::Text(v) => query.bind(v),
+                CustomFieldValue::BigInt(v) => query.bind(v),
+                CustomFieldValue::Bool(v) => query.bind(v),
+                CustomFieldValue::Json(v) => query.bind(v.map(sqlx::types::Json)),
+            };
         }
 
         query
@@ -258,20 +304,7 @@ impl DatabaseAdapter for MySqlAdapter {
 
         match row {
             Some(r) => {
-                let mut custom_fields = HashMap::new();
-                for field in &schema.fields {
-                    if is_standard_column(&field.name) {
-                        continue;
-                    }
-                    if let Ok(val) = r.try_get::<String, _>(field.name.as_str()) {
-                        let parsed: serde_json::Value =
-                            serde_json::from_str(&val).unwrap_or(serde_json::Value::String(val));
-                        custom_fields.insert(field.name.clone(), parsed);
-                    } else if let Ok(val) = r.try_get::<i64, _>(field.name.as_str()) {
-                        custom_fields
-                            .insert(field.name.clone(), serde_json::Value::Number(val.into()));
-                    }
-                }
+                let custom_fields = custom_fields_from_row(schema, &r);
 
                 Ok(Some(ContentRecord {
                     id: r.get("id"),
@@ -302,19 +335,7 @@ impl DatabaseAdapter for MySqlAdapter {
 
         let mut results = Vec::new();
         for r in rows {
-            let mut custom_fields = HashMap::new();
-            for field in &schema.fields {
-                if is_standard_column(&field.name) {
-                    continue;
-                }
-                if let Ok(val) = r.try_get::<String, _>(field.name.as_str()) {
-                    let parsed: serde_json::Value =
-                        serde_json::from_str(&val).unwrap_or(serde_json::Value::String(val));
-                    custom_fields.insert(field.name.clone(), parsed);
-                } else if let Ok(val) = r.try_get::<i64, _>(field.name.as_str()) {
-                    custom_fields.insert(field.name.clone(), serde_json::Value::Number(val.into()));
-                }
-            }
+            let custom_fields = custom_fields_from_row(schema, &r);
 
             results.push(ContentRecord {
                 id: r.get("id"),

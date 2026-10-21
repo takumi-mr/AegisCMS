@@ -17,7 +17,7 @@ use aegis_ast::{
     AstPipeline, BlockNode, HeadingIdTransformer, HtmlRenderer, HtmlRewriterConfig,
     StreamingHtmlRewriter,
 };
-use aegis_core::{AuditAction, AuditOutcome, PostContext};
+use aegis_core::{AegisError, AuditAction, AuditOutcome, PostContext};
 use aegis_schema::SchemaDefinition;
 
 #[derive(Debug, Deserialize)]
@@ -246,6 +246,13 @@ pub async fn create_content(
                 json!({ "error": e.to_string() }),
             ))
             .await;
+        // カスタムフィールドの値が列型に変換できない場合はクライアントの入力エラー
+        if let AegisError::Validation(_) = e {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": e.to_string() })),
+            ));
+        }
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": format!("Database error: {}", e) })),
