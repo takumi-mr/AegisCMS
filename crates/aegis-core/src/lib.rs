@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod cache;
 pub mod config;
 pub mod entity;
@@ -5,6 +6,7 @@ pub mod error;
 pub mod manifest;
 pub mod storage;
 
+pub use auth::{AuthCredentials, AuthIdentity, AuthProvider, AuthRedirect};
 pub use cache::{CacheBackend, CacheBackendKind};
 pub use config::{
     AegisConfig, CacheConfig, DatabaseBackendKind, DatabaseConfig, LocalStorageConfig,

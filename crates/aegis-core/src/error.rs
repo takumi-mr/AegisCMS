@@ -31,6 +31,9 @@ pub enum AegisError {
 
     #[error("Not found: {0}")]
     NotFound(String),
+
+    #[error("Authentication error: {0}")]
+    Authentication(String),
 }
 
 impl From<serde_json::Error> for AegisError {
