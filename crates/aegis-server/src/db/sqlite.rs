@@ -1,13 +1,17 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
-use aegis_core::{AegisError, Result};
+use aegis_core::{AegisError, AuditEvent, AuditQuery, Result};
 use aegis_schema::{FieldType, SchemaDefinition, SchemaMigration, SqlDialect};
 use async_trait::async_trait;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Row, Sqlite};
 
-use super::{is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation};
+use super::{
+    audit_insert_values, audit_row_from_sqlx, build_audit_insert, build_audit_select,
+    is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation, AUDIT_INDEXES,
+    AUDIT_TABLE,
+};
 
 #[derive(Debug, Clone)]
 pub struct SqliteAdapter {
@@ -50,6 +54,41 @@ impl DatabaseAdapter for SqliteAdapter {
         .execute(&self.pool)
         .await
         .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // 監査ログテーブル
+        let audit_table_sql = format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS {} (
+                id TEXT PRIMARY KEY,
+                occurred_at TEXT NOT NULL,
+                action TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                actor_id TEXT,
+                actor_role TEXT,
+                resource_type TEXT,
+                resource_id TEXT,
+                ip TEXT,
+                user_agent TEXT,
+                details_json TEXT NOT NULL DEFAULT '{{}}'
+            );
+            "#,
+            AUDIT_TABLE
+        );
+        sqlx::query(&audit_table_sql)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        for (index_name, columns) in AUDIT_INDEXES {
+            let sql = format!(
+                "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
+                index_name, AUDIT_TABLE, columns
+            );
+            sqlx::query(&sql)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
 
         Ok(())
     }
@@ -339,5 +378,160 @@ impl DatabaseAdapter for SqliteAdapter {
             })),
             None => Ok(None),
         }
+    }
+
+    async fn insert_audit_event(&self, event: &AuditEvent) -> Result<()> {
+        let sql = build_audit_insert(|i| format!("?{}", i));
+        let mut query = sqlx::query(&sql);
+        for value in audit_insert_values(event) {
+            query = query.bind(value);
+        }
+        query
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn query_audit_events(&self, audit_query: &AuditQuery) -> Result<Vec<AuditEvent>> {
+        let (sql, binds) = build_audit_select(audit_query, |i| format!("?{}", i));
+        let mut query = sqlx::query(&sql);
+        for value in binds {
+            query = query.bind(value);
+        }
+        let rows = query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        let mut events = Vec::with_capacity(rows.len());
+        for row in &rows {
+            events.push(audit_row_from_sqlx!(row).into_event()?);
+        }
+        Ok(events)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use aegis_core::{AuditAction, AuditActor, AuditOutcome};
+
+    async fn memory_adapter() -> SqliteAdapter {
+        // インメモリ DB は接続ごとに別 DB になるため接続数を 1 に固定する
+        let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
+        adapter.init().await.unwrap();
+        adapter
+    }
+
+    fn event_at(
+        occurred_at: &str,
+        action: AuditAction,
+        outcome: AuditOutcome,
+        user_id: &str,
+    ) -> AuditEvent {
+        let mut event = AuditEvent::new(action, outcome)
+            .with_actor(Some(AuditActor {
+                user_id: user_id.to_string(),
+                role: "editor".to_string(),
+            }))
+            .with_resource("article", Some(format!("res-{}", user_id)))
+            .with_client(Some("10.0.0.1".to_string()), Some("curl/8".to_string()))
+            .with_details(serde_json::json!({ "slug": "hello" }));
+        event.occurred_at = occurred_at.to_string();
+        event
+    }
+
+    #[tokio::test]
+    async fn test_audit_events_roundtrip_and_filters() {
+        let adapter = memory_adapter().await;
+        // init は冪等であること
+        adapter.init().await.unwrap();
+
+        let e1 = event_at(
+            "2026-10-21T10:00:00.000000Z",
+            AuditAction::ContentCreate,
+            AuditOutcome::Success,
+            "alice",
+        );
+        let e2 = event_at(
+            "2026-10-21T11:00:00.000000Z",
+            AuditAction::ContentCreate,
+            AuditOutcome::Denied,
+            "bob",
+        );
+        let mut e3 = AuditEvent::new(AuditAction::PluginError, AuditOutcome::Failure);
+        e3.occurred_at = "2026-10-21T12:00:00.000000Z".to_string();
+
+        for e in [&e1, &e2, &e3] {
+            adapter.insert_audit_event(e).await.unwrap();
+        }
+
+        let all = adapter
+            .query_audit_events(&AuditQuery {
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(all, vec![e3.clone(), e2.clone(), e1.clone()]);
+
+        let by_action = adapter
+            .query_audit_events(&AuditQuery {
+                action: Some(AuditAction::ContentCreate),
+                outcome: Some(AuditOutcome::Success),
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(by_action, vec![e1.clone()]);
+
+        let by_actor_and_time = adapter
+            .query_audit_events(&AuditQuery {
+                actor_id: Some("bob".to_string()),
+                resource_type: Some("article".to_string()),
+                since: Some("2026-10-21T11:00:00.000000Z".to_string()),
+                until: Some("2026-10-21T12:00:00.000000Z".to_string()),
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(by_actor_and_time, vec![e2.clone()]);
+
+        let paged = adapter
+            .query_audit_events(&AuditQuery {
+                limit: 1,
+                offset: 1,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(paged, vec![e2]);
+    }
+
+    #[tokio::test]
+    async fn test_audit_query_values_are_bound_not_interpolated() {
+        let adapter = memory_adapter().await;
+        adapter
+            .insert_audit_event(&event_at(
+                "2026-10-21T10:00:00.000000Z",
+                AuditAction::SessionCreate,
+                AuditOutcome::Success,
+                "alice",
+            ))
+            .await
+            .unwrap();
+
+        let result = adapter
+            .query_audit_events(&AuditQuery {
+                actor_id: Some("x' OR '1'='1".to_string()),
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert!(result.is_empty());
     }
 }

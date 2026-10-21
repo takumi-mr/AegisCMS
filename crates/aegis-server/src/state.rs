@@ -1,3 +1,4 @@
+use crate::audit::AuditService;
 use crate::auth::SessionService;
 use crate::db::DatabaseAdapter;
 use aegis_core::{AegisConfig, CacheBackend, StorageBackend};
@@ -17,9 +18,11 @@ pub struct AppState {
     pub sessions: Arc<SessionService>,
     pub schemas: Arc<RwLock<HashMap<String, SchemaDefinition>>>,
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
+    pub audit: Arc<AuditService>,
 }
 
 impl AppState {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: AegisConfig,
         db: Arc<dyn DatabaseAdapter>,
@@ -28,6 +31,7 @@ impl AppState {
         sessions: Arc<SessionService>,
         schemas: HashMap<String, SchemaDefinition>,
         supervisor: PluginSupervisor,
+        audit: Arc<AuditService>,
     ) -> Self {
         Self {
             config,
@@ -37,6 +41,7 @@ impl AppState {
             sessions,
             schemas: Arc::new(RwLock::new(schemas)),
             supervisor: Arc::new(RwLock::new(supervisor)),
+            audit,
         }
     }
 }

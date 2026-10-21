@@ -13,6 +13,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod audit;
 mod auth;
 mod cache;
 mod db;
@@ -189,6 +190,12 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
 
+            // 6. 監査ログサービス初期化
+            let audit = Arc::new(audit::AuditService::from_config(
+                &config.audit,
+                db_adapter.clone(),
+            ));
+
             let app_state = Arc::new(AppState::new(
                 config.clone(),
                 db_adapter,
@@ -197,9 +204,10 @@ async fn main() -> anyhow::Result<()> {
                 sessions,
                 schemas,
                 supervisor,
+                audit,
             ));
 
-            // 6. CORS & Router 設定
+            // 7. CORS & Router 設定
             let cors = CorsLayer::new()
                 .allow_origin(Any)
                 .allow_methods(Any)
@@ -224,7 +232,9 @@ async fn main() -> anyhow::Result<()> {
                     post(handlers::create_session)
                         .get(handlers::get_current_session)
                         .delete(handlers::delete_session),
-                );
+                )
+                .route("/api/v1/audit-logs", get(handlers::list_audit_logs))
+                .route("/metrics", get(handlers::get_metrics));
 
             // ローカルストレージの場合、/uploads で静的ファイル配信
             if config.storage.backend == StorageBackendKind::Local {
@@ -250,7 +260,11 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("AegisCMS API Gateway listening on http://{}", addr);
 
             let listener = tokio::net::TcpListener::bind(addr).await?;
-            axum::serve(listener, app).await?;
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await?;
         }
     }
 

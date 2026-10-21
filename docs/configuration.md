@@ -164,6 +164,16 @@ public_url_prefix = "https://cdn.example.com"
 | `enforce_image_lazy_loading` | bool | `true` | `loading` 未指定の `<img>` に `loading="lazy"` を付与 |
 | `enforce_image_async_decoding` | bool | `true` | `decoding` 未指定の `<img>` に `decoding="async"` を付与 |
 
+### 2.8 `[audit]` — 監査ログ
+
+操作の監査イベントを記録します。記録対象・出力形式・参照 API の詳細は [監査ログリファレンス](./audit.md) を参照してください。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `true` | `false` で監査ログの記録を無効化 |
+| `sinks` | (`"database"` \| `"log"` \| `"prometheus"`)[] | `["database"]` | 出力先（複数指定可）。`database`: DB テーブル + 参照 API / `log`: 構造化ログ / `prometheus`: `/metrics` のカウンタ |
+| `trust_forwarded_for` | bool | `false` | `true` で `X-Forwarded-For` の先頭アドレスをクライアント IP として記録。信頼できるリバースプロキシ配下でのみ有効化 |
+
 ---
 
 ## 3. 完全な設定例
@@ -221,4 +231,9 @@ open_external_links_in_new_tab = false
 internal_domains = []
 enforce_image_lazy_loading = true
 enforce_image_async_decoding = true
+
+[audit]
+enabled = true
+sinks = ["database"]
+trust_forwarded_for = false
 ```

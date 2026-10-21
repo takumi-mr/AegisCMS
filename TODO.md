@@ -119,6 +119,13 @@
 - [x] **リファレンスドキュメント整備**
   - [x] `docs/configuration.md`: `config/*.toml` の全設定項目（既定値・省略可否・CLI/環境変数オーバーライド）リファレンス
   - [x] `docs/plugin_hooks.md`: プラグインフック一覧（実行順・エラー時挙動）、マニフェスト、リソース制限、ホスト API リファレンス
+- [x] **監査ログ基盤 (`AuditSink` 抽象化)**
+  - [x] `aegis-core`: `AuditEvent` / `AuditAction` / `AuditOutcome` / `AuditQuery` 型と `AuditSink` トレイト、`[audit]` 設定 (`enabled`, `sinks`, `trust_forwarded_for`)
+  - [x] `aegis-server`: `DatabaseAdapter` に `insert_audit_event` / `query_audit_events` を追加（`_aegis_audit_logs` テーブル、SQLite / PostgreSQL / MySQL）
+  - [x] `aegis-server`: 出力先 `database`（DB 永続化）/ `log`（`aegis::audit` 構造化 JSON ログ）/ `prometheus`（`GET /metrics` の `aegis_audit_events_total`）と配送サービス `AuditService`
+  - [x] 記録対象: `content.create`, `session.create`, `session.delete`, `storage.upload`, `plugin.error`（セッショントークンは記録せず SHA-256 指紋のみ）
+  - [x] 参照 API `GET /api/v1/audit-logs`（`admin` ロール必須、action / outcome / actor / resource / 期間での絞り込み、ページング）
+  - [x] `docs/audit.md` の作成、`docs/configuration.md` と `config/*.toml` への `[audit]` 追記
 
 ---
 
@@ -139,6 +146,9 @@
 ---
 
 #### 不具合・ドキュメント整備時に判明した課題
+- [ ] **PostgreSQL でコンテンツ作成が失敗する**: `jsonb` 型フィールド（`articles` / `pages` の `custom_meta`）へ文字列をバインドしており、`column "custom_meta" is of type jsonb but expression is of type text` で `INSERT` が失敗する（監査ログ実装時の E2E で判明）。`PostgresAdapter::insert_content` で `::jsonb` キャストするなどの修正が必要。
+- [ ] 監査ログの MySQL 実機検証（実装はコンパイル確認のみ。SQLite / PostgreSQL は E2E 確認済み）。
+- [ ] 監査ログの保持期間（古いレコードの削除）ポリシーと、Admin Studio の監査ログ閲覧画面。
 - [x] **同梱設定ファイルがパースに失敗し既定値で起動していた問題を修正**: 全設定構造体に `#[serde(default)]` を付与して全項目を省略可能にし、`load_or_default` はファイルが存在しない場合のみ既定値（警告ログ付き）、パース失敗時はエラーで起動中止するよう変更。同梱設定ファイルのパースを単体テストで検証。
 - [ ] `on-before-save` フックの戻り値 (`PostContext`) が保存データに反映されない。反映するか、検証専用フックとして仕様を明確化する。
 - [ ] SDK でトレイトメソッドが `Err` を返しても保存が拒否されない（生成コードが入力をそのまま返す）。拒否を表現できる ABI を設計する。
@@ -163,6 +173,11 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **監査ログ (`AuditSink`) の設計**:
+  - 出力先は `aegis_core::AuditSink` トレイトで抽象化し、`AuditService` が `[audit].sinks` に列挙された全出力先へ順に配送します。出力先の失敗はエラーログに留め、リクエストは失敗させません。
+  - `occurred_at` は UTC・マイクロ秒精度・`Z` 終端の RFC 3339 に正規化して保存するため、DB 上の文字列比較で期間検索できます。API の `since` / `until` も同じ形式に正規化してから比較します。
+  - 操作主体はリクエストのセッションから解決する `AuditContext` エクストラクターで取得します（`FromRequestParts`、失敗しない）。クライアント IP 取得のため、サーバーは `into_make_service_with_connect_info::<SocketAddr>()` で起動しています。
+  - セッショントークンは Bearer 認証情報のため保存せず、`auth::session_fingerprint`（SHA-256 先頭 16 桁）で突き合わせます。
 - **設定ファイルの読み込み方針**:
   - `AegisConfig` 配下の全構造体は `#[serde(default)]` 付きで、任意のセクション・項目を省略しても `Default` 実装の値で補完されます。新しい設定項目を追加する際は、必ず `Default` 実装に既定値を追加してください。
   - `AegisConfig::load_or_default` はファイル不在時のみ既定値へフォールバックし、パースエラーは `Err` を返してサーバー起動を中止します（設定ミスに気付かず既定値で動き続けることを防ぐため）。
