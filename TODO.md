@@ -116,6 +116,9 @@
   - [x] `Taskfile.yml`: `task plugin:build` による Wasm バイナリ最適化ビルドコマンドの追加
   - [x] `docs/plugin_sdk_guide.md`: Wasm プラグイン開発公式ガイドの作成
   - [x] `crates/aegis-runtime`: SDK ビルド済み Wasm バイナリを用いた E2E サンドボックス実行テストの追加・パス
+- [x] **リファレンスドキュメント整備**
+  - [x] `docs/configuration.md`: `config/*.toml` の全設定項目（既定値・省略可否・CLI/環境変数オーバーライド）リファレンス
+  - [x] `docs/plugin_hooks.md`: プラグインフック一覧（実行順・エラー時挙動）、マニフェスト、リソース制限、ホスト API リファレンス
 
 ---
 
@@ -132,6 +135,14 @@
   - [ ] 記事一覧テーブルにカテゴリバッジを表示
   - [ ] カテゴリ別フィルタリング機能
 
+
+---
+
+#### 不具合・ドキュメント整備時に判明した課題
+- [ ] **同梱設定ファイルがパースに失敗し既定値で起動している**: `config/default.toml` / `config/docker.toml` の `[storage.s3]` に必須項目 (`access_key_id`, `secret_access_key`, `force_path_style`) が無く、`load_or_default` が黙って既定値にフォールバックしている（Docker で `host = "0.0.0.0"` や `/app/data` が反映されない）。設定構造体へ `#[serde(default)]` を付与し、パース失敗時はエラー/警告を出すよう修正する。
+- [ ] `on-before-save` フックの戻り値 (`PostContext`) が保存データに反映されない。反映するか、検証専用フックとして仕様を明確化する。
+- [ ] SDK でトレイトメソッドが `Err` を返しても保存が拒否されない（生成コードが入力をそのまま返す）。拒否を表現できる ABI を設計する。
+- [ ] `[runtime].default_*`、マニフェストの `max_memory_mb`、`[cache.redis].timeout_ms` が未使用。ランタイムへ適用する。
 
 ---
 
