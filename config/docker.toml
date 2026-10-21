@@ -16,3 +16,11 @@ enable_wasm_plugins = true
 default_max_memory_mb = 16
 default_max_fuel_units = 100000000
 default_timeout_ms = 250
+
+[security]
+enforce_external_link_rel = true
+open_external_links_in_new_tab = false
+internal_domains = []
+enforce_image_lazy_loading = true
+enforce_image_async_decoding = true
+

@@ -12,6 +12,8 @@ pub struct AegisConfig {
     pub paths: PathsConfig,
     #[serde(default)]
     pub runtime: RuntimeConfig,
+    #[serde(default)]
+    pub security: SecurityConfig,
 }
 
 impl AegisConfig {
@@ -90,6 +92,27 @@ impl Default for RuntimeConfig {
             default_max_memory_mb: 16,
             default_max_fuel_units: 100_000_000,
             default_timeout_ms: 250,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    pub enforce_external_link_rel: bool,
+    pub open_external_links_in_new_tab: bool,
+    pub internal_domains: Vec<String>,
+    pub enforce_image_lazy_loading: bool,
+    pub enforce_image_async_decoding: bool,
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            enforce_external_link_rel: true,
+            open_external_links_in_new_tab: false,
+            internal_domains: Vec::new(),
+            enforce_image_lazy_loading: true,
+            enforce_image_async_decoding: true,
         }
     }
 }

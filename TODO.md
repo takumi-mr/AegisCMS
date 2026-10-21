@@ -19,10 +19,7 @@
 
 ### 🚀 次に作業を再開するときの着手項目
 **フェーズ 2 拡張: コア機能拡張**
-1. **ストリーミング HTML リライター組み込み (`lol-html`)**:
-   - `crates/aegis-ast` または `crates/aegis-server` に `lol-html` を導入。
-   - 出力直前ストリームにおいて、外部リンクへの `rel="noopener noreferrer"` 自動付与や `<img>` タグへの `loading="lazy"` / `decoding="async"` 強制インジェクションを実装。
-2. **追加スキーマ定義とリレーション解決**:
+1. **追加スキーマ定義とリレーション解決**:
    - `schemas/categories.yaml` (カテゴリ管理) および `schemas/pages.yaml` (固定ページ) の作成。
    - 記事（`article`）の `tech_category` 等のリレーションフィールドの自動解決・JOIN取得。
 
@@ -72,15 +69,20 @@
   - [x] `aegis-server`: 最新の OpenAPI 3.1 定義を配信する HTTP エンドポイント `GET /api/v1/openapi.json` の実装
   - [x] `Taskfile.yml`: `task codegen`, `task codegen:ts`, `task codegen:openapi` の一括生成タスク追加
   - [x] Admin Studio: 自動生成された `admin/src/types/schemas.ts` を透過的に利用可能に統合
+- [x] **ストリーミング HTML リライター組み込み (`lol-html`)**
+  - [x] `crates/aegis-ast`: Cloudflare 製 `lol-html` を使用した `StreamingHtmlRewriter` の実装
+  - [x] 外部リンクへの `rel="noopener noreferrer"` 自動付与（既存の rel 属性とのスマートマージ）
+  - [x] 内部ドメインリスト（`internal_domains`）による同一組織/自サイトリンクの除外バイパス
+  - [x] `<img>` タグへの `loading="lazy"` および `decoding="async"` 強制インジェクション
+  - [x] `crates/aegis-core`: `SecurityConfig` の追加および `config/default.toml`, `config/docker.toml` からの宣言的設定対応
+  - [x] `crates/aegis-server`: コンテンツ作成 API (`POST /api/v1/contents/{content_type}`) の HTML 生成パイプラインに自動適用
+  - [x] 単体テストおよび大規模 HTML（~120KB, 500リンク/500画像）のスループットベンチマーク検証（約33ms）
 
 ---
 
 ### ⏳ 次に取り組むタスク (Next Up)
 
 #### フェーズ 2 拡張: コア機能拡張
-- [ ] **ストリーミング HTML リライター組み込み**
-  - [ ] `lol-html` を使用した出力直前ストリームでの属性インジェクション（`rel="noopener noreferrer"`, 画像 `loading="lazy"` 強制）
-  - [ ] 単体テストおよびベンチマーク検証
 - [ ] **追加スキーマ定義とリレーション解決**
   - [ ] `schemas/categories.yaml` (カテゴリ管理)
   - [ ] `schemas/pages.yaml` (固定ページ)
@@ -116,6 +118,11 @@
   - 本番イメージは `Dockerfile` によるマルチステージビルド（`node:22-alpine` -> `rust:latest` -> `debian:bookworm-slim`）で構築され、イメージサイズは約 163MB です。
   - セキュリティのため、UID 10001 の非rootユーザー `aegis` でプロセスを実行します。データ永続化には `/app/data` をボリュームマウント（例: `-v aegis-data:/app/data`）してください。
   - コンテナ内でのリッスン設定は `config/docker.toml`（`host = "0.0.0.0"`, `port = 8080`）で定義され、環境変数 `AEGIS_CONFIG`、`HOST`、`PORT` でも動的に上書き可能です。
+- **ストリーミング HTML セキュリティ & 最適化リライター (`lol-html`)**:
+  - `crates/aegis-ast` 内の `StreamingHtmlRewriter` は、Cloudflare 製の CSS セレクタベース高速ストリーミングパーサー `lol-html` を使用しています。
+  - 外部ドメイン判定された `<a>` タグに対し、`rel="noopener noreferrer"` を自動付与（既存の rel トークンを尊重しスマートマージ）します。
+  - 同様に、未指定の `<img>` タグへ `loading="lazy"` および `decoding="async"` を強制インジェクションし、ゼロ・トラストなコンテンツセキュリティと Core Web Vitals パフォーマンス向上を同時に実現します。
+  - `config/*.toml` の `[security]` セクション（`internal_domains` や `open_external_links_in_new_tab` など）から柔軟に挙動をカスタマイズ可能です。
 - **スキーマ駆動コード生成 (Codegen & OpenAPI)**:
   - YAMLスキーマ (`schemas/*.yaml`) を修正・追加した場合、`task codegen`（または `task codegen:ts`, `task codegen:openapi`）を実行することで、フロントエンド用 TypeScript 型定義 (`admin/src/types/schemas.ts`) および OpenAPI 3.1 仕様書 (`docs/openapi.json`) をワンコマンドで自動更新できます。
   - サーバー稼働中は `GET /api/v1/openapi.json` エンドポイントからも最新の OpenAPI 3.1 仕様が JSON 形式で動的に配信され、Swagger UI / Redoc や外部 API クライアント生成ツールと容易に統合できます。

@@ -1,9 +1,11 @@
 pub mod node;
 pub mod renderer;
+pub mod rewriter;
 pub mod transform;
 
 pub use node::BlockNode;
 pub use renderer::HtmlRenderer;
+pub use rewriter::{HtmlRewriterConfig, RewriterError, StreamingHtmlRewriter};
 pub use transform::{AstPipeline, AstTransformer, HeadingIdTransformer};
 
 #[cfg(test)]

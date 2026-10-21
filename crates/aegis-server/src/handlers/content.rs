@@ -11,7 +11,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::state::AppState;
-use aegis_ast::{AstPipeline, BlockNode, HeadingIdTransformer, HtmlRenderer};
+use aegis_ast::{
+    AstPipeline, BlockNode, HeadingIdTransformer, HtmlRenderer, HtmlRewriterConfig,
+    StreamingHtmlRewriter,
+};
 use aegis_core::PostContext;
 
 #[derive(Debug, Deserialize)]
@@ -95,7 +98,10 @@ pub async fn create_content(
 
     let blocks_json =
         serde_json::to_string(&transformed_blocks).unwrap_or_else(|_| "[]".to_string());
-    let rendered_html = HtmlRenderer::render_nodes(&transformed_blocks);
+    let raw_html = HtmlRenderer::render_nodes(&transformed_blocks);
+    let rewriter_config = HtmlRewriterConfig::from(state.config.security.clone());
+    let rendered_html =
+        StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html);
 
     let query = format!(
         r#"

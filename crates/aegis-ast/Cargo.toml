@@ -13,3 +13,4 @@ aegis-core = { path = "../aegis-core" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+lol_html.workspace = true
