@@ -13,6 +13,8 @@ aegis-core = { path = "../aegis-core" }
 aegis-ast = { path = "../aegis-ast" }
 aegis-schema = { path = "../aegis-schema" }
 aegis-runtime = { path = "../aegis-runtime" }
+aegis-theme = { path = "../aegis-theme" }
+
 
 tokio.workspace = true
 axum.workspace = true

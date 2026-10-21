@@ -132,6 +132,50 @@ impl From<serde_json::Error> for PluginError {
 
 pub type Result<T> = std::result::Result<T, PluginError>;
 
+/// ページレンダリング時にプラグインへ渡されるコンテキスト
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ContentSummary {
+    pub id: String,
+    pub content_type: String,
+    pub title: String,
+    pub slug: String,
+    #[serde(default)]
+    pub excerpt: String,
+    pub author_id: Option<String>,
+    pub published_at: Option<String>,
+    pub created_at: String,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub fields: HashMap<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub relations: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct PageRenderContext {
+    pub site_title: String,
+    pub site_description: String,
+    pub template: String,
+    pub content_type: String,
+    pub title: String,
+    pub slug: String,
+    pub content_html: String,
+    pub author: Option<String>,
+    pub published_at: Option<String>,
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub fields: HashMap<String, serde_json::Value>,
+    #[serde(default)]
+    pub relations: HashMap<String, serde_json::Value>,
+    #[serde(default)]
+    pub items: Vec<ContentSummary>,
+    #[serde(default)]
+    pub extra_css: String,
+    #[serde(default)]
+    pub extra_head: String,
+    #[serde(default)]
+    pub theme_vars: HashMap<String, String>,
+}
+
 /// AegisCMS プラグインが実装するコアトレイト
 pub trait Plugin: Default {
     /// 記事保存前フック (`on-before-save`)
@@ -144,5 +188,11 @@ pub trait Plugin: Default {
     /// 見出しへのアンカー自動付与、ショートコード展開、シンタックスハイライト加工などを実行可能
     fn transform_content_ast(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<BlockNode>> {
         Ok(blocks)
+    }
+
+    /// ページ描画前フック (`on-render-page`)
+    /// テーマの動的切り替え、カスタムCSS/メタタグのインジェクション、テーマ変数の書き換えなどを実行可能
+    fn on_render_page(&mut self, ctx: PageRenderContext) -> Result<PageRenderContext> {
+        Ok(ctx)
     }
 }

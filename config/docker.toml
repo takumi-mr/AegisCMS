@@ -38,6 +38,7 @@ timeout_ms = 2000
 schemas_dir = "schemas"
 plugins_dir = "plugins"
 admin_dist_dir = "admin/dist"
+themes_dir = "themes"
 
 [runtime]
 enable_wasm_plugins = true
@@ -58,3 +59,9 @@ enabled = true
 sinks = ["database"]
 # Record the first X-Forwarded-For address as the client IP (enable only behind a trusted reverse proxy)
 trust_forwarded_for = false
+
+[theme]
+active = "default"
+site_title = "AegisCMS Production"
+site_description = "Next-Generation High-Performance Secure CMS"
+

@@ -34,6 +34,12 @@ pub enum AegisError {
 
     #[error("Authentication error: {0}")]
     Authentication(String),
+
+    #[error("Theme error: {0}")]
+    Theme(String),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl From<serde_json::Error> for AegisError {

@@ -22,6 +22,8 @@ pub struct AegisConfig {
     pub security: SecurityConfig,
     #[serde(default)]
     pub audit: AuditConfig,
+    #[serde(default)]
+    pub theme: ThemeConfig,
 }
 
 impl AegisConfig {
@@ -231,6 +233,12 @@ pub struct PathsConfig {
     pub schemas_dir: PathBuf,
     pub plugins_dir: PathBuf,
     pub admin_dist_dir: PathBuf,
+    #[serde(default = "default_themes_dir")]
+    pub themes_dir: PathBuf,
+}
+
+fn default_themes_dir() -> PathBuf {
+    PathBuf::from("themes")
 }
 
 impl Default for PathsConfig {
@@ -239,6 +247,27 @@ impl Default for PathsConfig {
             schemas_dir: PathBuf::from("schemas"),
             plugins_dir: PathBuf::from("plugins"),
             admin_dist_dir: PathBuf::from("admin/dist"),
+            themes_dir: default_themes_dir(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeConfig {
+    pub active: String,
+    pub site_title: String,
+    pub site_description: String,
+    #[serde(default)]
+    pub custom_css: Option<String>,
+}
+
+impl Default for ThemeConfig {
+    fn default() -> Self {
+        Self {
+            active: "default".to_string(),
+            site_title: "AegisCMS".to_string(),
+            site_description: "Next-Generation Secure CMS with Sandboxed Extensibility".to_string(),
+            custom_css: None,
         }
     }
 }

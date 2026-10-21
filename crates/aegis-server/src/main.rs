@@ -190,6 +190,16 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
 
+            // 5.5 テーマエンジンの初期化 & プラグイン登録テンプレートの同期
+            let theme_engine = Arc::new(aegis_theme::ThemeEngine::new(
+                &config.paths.themes_dir,
+                &config.theme.active,
+            ));
+            let plugin_templates = supervisor.collect_plugin_templates();
+            for (name, content) in plugin_templates {
+                theme_engine.register_template(&name, &content);
+            }
+
             // 6. 監査ログサービス初期化
             let audit = Arc::new(audit::AuditService::from_config(
                 &config.audit,
@@ -205,6 +215,7 @@ async fn main() -> anyhow::Result<()> {
                 schemas,
                 supervisor,
                 audit,
+                theme_engine,
             ));
 
             // 7. CORS & Router 設定
@@ -234,7 +245,12 @@ async fn main() -> anyhow::Result<()> {
                         .delete(handlers::delete_session),
                 )
                 .route("/api/v1/audit-logs", get(handlers::list_audit_logs))
-                .route("/metrics", get(handlers::get_metrics));
+                .route("/metrics", get(handlers::get_metrics))
+                // --- 公開フロントエンド（テンプレートレンダリング） ---
+                .route("/", get(handlers::render_index))
+                .route("/articles", get(handlers::render_index))
+                .route("/articles/{slug}", get(handlers::render_article))
+                .route("/{slug}", get(handlers::render_page_or_slug));
 
             // ローカルストレージの場合、/uploads で静的ファイル配信
             if config.storage.backend == StorageBackendKind::Local {
@@ -243,11 +259,26 @@ async fn main() -> anyhow::Result<()> {
                 app = app.nest_service(&prefix, ServeDir::new(&config.storage.local.upload_dir));
             }
 
+            // テーマアセット配信 (/theme/assets/*)
+            let theme_assets_dir = config
+                .paths
+                .themes_dir
+                .join(&config.theme.active)
+                .join("assets");
+            if theme_assets_dir.exists() {
+                app = app.nest_service("/theme/assets", ServeDir::new(theme_assets_dir));
+            }
+
+            // Admin Studio SPA 配信 (/admin および /assets)
             if config.paths.admin_dist_dir.exists() {
                 let index_file = config.paths.admin_dist_dir.join("index.html");
-                let serve_service = ServeDir::new(&config.paths.admin_dist_dir)
+                let admin_assets_dir = config.paths.admin_dist_dir.join("assets");
+                if admin_assets_dir.exists() {
+                    app = app.nest_service("/assets", ServeDir::new(admin_assets_dir));
+                }
+                let admin_serve = ServeDir::new(&config.paths.admin_dist_dir)
                     .not_found_service(ServeFile::new(index_file));
-                app = app.fallback_service(serve_service);
+                app = app.nest_service("/admin", admin_serve);
             }
 
             let app = app

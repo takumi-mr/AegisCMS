@@ -111,6 +111,35 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
         }
+
+        #[no_mangle]
+        pub extern "C" fn on_render_page(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                let in_bytes = ::aegis_plugin_sdk::abi::read_bytes_from_host(ptr, len);
+                let ctx: ::aegis_plugin_sdk::types::PageRenderContext = match ::serde_json::from_slice(&in_bytes) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        ::aegis_plugin_sdk::log_error!("Failed to deserialize PageRenderContext: {}", e);
+                        return ::aegis_plugin_sdk::abi::pack_ptr_len(ptr, len);
+                    }
+                };
+
+                let mut plugin = <#ident_type as ::std::default::Default>::default();
+                match <#ident_type as ::aegis_plugin_sdk::types::Plugin>::on_render_page(&mut plugin, ctx) {
+                    Ok(updated_ctx) => match ::serde_json::to_vec(&updated_ctx) {
+                        Ok(out_bytes) => ::aegis_plugin_sdk::abi::write_bytes_to_host(out_bytes),
+                        Err(e) => {
+                            ::aegis_plugin_sdk::log_error!("Failed to serialize updated PageRenderContext: {}", e);
+                            ::aegis_plugin_sdk::abi::pack_ptr_len(ptr, len)
+                        }
+                    },
+                    Err(e) => {
+                        ::aegis_plugin_sdk::log_error!("Plugin on_render_page error: {}", e);
+                        ::aegis_plugin_sdk::abi::pack_ptr_len(ptr, len)
+                    }
+                }
+            }
+        }
     };
 
     TokenStream::from(expanded)

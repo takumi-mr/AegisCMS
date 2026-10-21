@@ -78,6 +78,39 @@ macro_rules! register_plugin {
                 }
             }
         }
+
+        #[no_mangle]
+        pub extern "C" fn on_render_page(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                let in_bytes = $crate::abi::read_bytes_from_host(ptr, len);
+                let ctx: $crate::types::PageRenderContext =
+                    match ::serde_json::from_slice(&in_bytes) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            $crate::log_error!("Failed to deserialize PageRenderContext: {}", e);
+                            return $crate::abi::pack_ptr_len(ptr, len);
+                        }
+                    };
+
+                let mut plugin = <$plugin_type as ::std::default::Default>::default();
+                match <$plugin_type as $crate::types::Plugin>::on_render_page(&mut plugin, ctx) {
+                    Ok(updated_ctx) => match ::serde_json::to_vec(&updated_ctx) {
+                        Ok(out_bytes) => $crate::abi::write_bytes_to_host(out_bytes),
+                        Err(e) => {
+                            $crate::log_error!(
+                                "Failed to serialize updated PageRenderContext: {}",
+                                e
+                            );
+                            $crate::abi::pack_ptr_len(ptr, len)
+                        }
+                    },
+                    Err(e) => {
+                        $crate::log_error!("Plugin on_render_page error: {}", e);
+                        $crate::abi::pack_ptr_len(ptr, len)
+                    }
+                }
+            }
+        }
     };
 }
 
@@ -99,6 +132,12 @@ mod tests {
             blocks.push(BlockNode::paragraph("Appended text"));
             Ok(blocks)
         }
+
+        fn on_render_page(&mut self, mut ctx: PageRenderContext) -> Result<PageRenderContext> {
+            ctx.site_title = format!("{} (Themed)", ctx.site_title);
+            ctx.extra_css.push_str("body { color: #00ffcc; }");
+            Ok(ctx)
+        }
     }
 
     #[test]
@@ -115,6 +154,14 @@ mod tests {
         assert_eq!(transformed[0].name, "core/heading");
         assert_eq!(transformed[1].name, "core/paragraph");
         assert_eq!(transformed[1].text.as_deref(), Some("Appended text"));
+
+        let ctx = PageRenderContext {
+            site_title: "My Site".to_string(),
+            ..Default::default()
+        };
+        let updated_ctx = plugin.on_render_page(ctx).unwrap();
+        assert_eq!(updated_ctx.site_title, "My Site (Themed)");
+        assert!(updated_ctx.extra_css.contains("#00ffcc"));
     }
 
     #[test]

@@ -210,4 +210,55 @@ impl AegisPlugin for WasmPluginInstance {
 
         Ok(blocks)
     }
+
+    async fn on_render_page(
+        &self,
+        ctx: aegis_core::PageRenderContext,
+    ) -> Result<aegis_core::PageRenderContext> {
+        let host_state = PluginHostState::new(self.manifest.clone(), self.kv_storage.clone());
+        host_state.guard().check_hook("on-render-page")?;
+
+        let (mut store, instance) = self.instantiate().await?;
+
+        if let Ok(func) = instance.get_typed_func::<(i32, i32), i64>(&mut store, "on_render_page") {
+            let json_bytes =
+                serde_json::to_vec(&ctx).map_err(|e| AegisError::Serialization(e.to_string()))?;
+
+            let (ptr, len) = Self::write_to_guest(&mut store, &instance, &json_bytes).await?;
+
+            let timeout_ms = self.manifest.resource_limits.execution_timeout_ms.max(50);
+            let duration = std::time::Duration::from_millis(timeout_ms);
+
+            let packed_res =
+                match tokio::time::timeout(duration, func.call_async(&mut store, (ptr, len))).await
+                {
+                    Ok(res) => res.map_err(|e| {
+                        AegisError::PluginRuntime(format!("Hook 'on_render_page' error: {}", e))
+                    })?,
+                    Err(_) => {
+                        return Err(AegisError::ResourceLimitExceeded(format!(
+                            "Plugin '{}' exceeded timeout limit of {}ms",
+                            self.manifest.name, timeout_ms
+                        )))
+                    }
+                };
+
+            let res_ptr = (packed_res >> 32) as i32;
+            let res_len = (packed_res & 0xFFFF_FFFF) as i32;
+
+            if res_len > 0 {
+                let out_bytes = Self::read_from_guest(&mut store, &instance, res_ptr, res_len)?;
+                let updated_ctx: aegis_core::PageRenderContext = serde_json::from_slice(&out_bytes)
+                    .map_err(|e| {
+                        AegisError::Serialization(format!(
+                            "Invalid PageRenderContext returned: {}",
+                            e
+                        ))
+                    })?;
+                return Ok(updated_ctx);
+            }
+        }
+
+        Ok(ctx)
+    }
 }

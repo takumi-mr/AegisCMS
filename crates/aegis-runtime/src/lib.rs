@@ -189,4 +189,56 @@ mod tests {
         assert_eq!(transformed.len(), 2);
         assert_eq!(transformed[1].name, "core/paragraph");
     }
+
+    #[tokio::test]
+    async fn test_wasm_on_render_page_theme_hook() {
+        let engine = WasmEngine::new().expect("WasmEngine initialization failed");
+        let kv = Arc::new(Mutex::new(HashMap::new()));
+
+        let wat_src = r#"
+        (module
+            (memory (export "memory") 1)
+            (func (export "allocate") (param $len i32) (result i32)
+                i32.const 64
+            )
+            (func (export "on_render_page") (param $ptr i32) (param $len i32) (result i64)
+                (i64.or
+                    (i64.shl (i64.extend_i32_u (local.get $ptr)) (i64.const 32))
+                    (i64.extend_i32_u (local.get $len))
+                )
+            )
+        )
+        "#;
+
+        let wasm_bytes = wat::parse_str(wat_src).expect("WAT parse failed");
+        let manifest = make_sample_manifest(vec!["on-render-page".to_string()]);
+
+        let instance = WasmPluginInstance::from_bytes(engine, manifest, &wasm_bytes, kv)
+            .expect("Instance creation failed");
+
+        let ctx = aegis_core::PageRenderContext {
+            site_title: "My Site".to_string(),
+            site_description: "A fast site".to_string(),
+            template: "article.html".to_string(),
+            content_type: "article".to_string(),
+            title: "Post".to_string(),
+            slug: "post".to_string(),
+            content_html: "<p>Text</p>".to_string(),
+            author: None,
+            published_at: None,
+            updated_at: None,
+            fields: HashMap::new(),
+            relations: HashMap::new(),
+            items: vec![],
+            extra_css: "".to_string(),
+            extra_head: "".to_string(),
+            theme_vars: HashMap::new(),
+        };
+
+        let result = instance.on_render_page(ctx).await;
+        assert!(result.is_ok());
+        let res_ctx = result.unwrap();
+        assert_eq!(res_ctx.site_title, "My Site");
+        assert_eq!(res_ctx.template, "article.html");
+    }
 }
