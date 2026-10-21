@@ -25,8 +25,6 @@
 2. **追加スキーマ定義とリレーション解決**:
    - `schemas/categories.yaml` (カテゴリ管理) および `schemas/pages.yaml` (固定ページ) の作成。
    - 記事（`article`）の `tech_category` 等のリレーションフィールドの自動解決・JOIN取得。
-3. **OpenAPI / TypeScript 型定義 自動生成**:
-   - YAMLスキーマ定義からフロントエンド向けの TypeScript 型定義（`admin/src/types/schemas.d.ts` 等）を自動生成する CLI サブコマンド (`aegis-server codegen-types`)。
 
 ---
 
@@ -67,6 +65,13 @@
   - [x] CLI 引数および環境変数による host/port オーバーライド対応（`AEGIS_CONFIG`, `HOST`, `PORT`）
   - [x] `go-task` 構成ファイル (`Taskfile.yml`) の作成（dev, test, lint, fmt, check, build, docker コマンド一元化）
   - [x] Admin Studio ドキュメント刷新・最新化 (`admin/README.md`)
+- [x] **OpenAPI / TypeScript 型定義 自動生成基盤**
+  - [x] `aegis-schema`: スキーマ定義から TypeScript インターフェースを生成する `TypeScriptGenerator` の実装
+  - [x] `aegis-schema`: スキーマ定義および標準エンドポイントから OpenAPI 3.1 仕様書を生成する `OpenApiGenerator` の実装
+  - [x] `aegis-server`: CLI サブコマンド `aegis codegen --target <typescript|openapi> --output <path>` の実装
+  - [x] `aegis-server`: 最新の OpenAPI 3.1 定義を配信する HTTP エンドポイント `GET /api/v1/openapi.json` の実装
+  - [x] `Taskfile.yml`: `task codegen`, `task codegen:ts`, `task codegen:openapi` の一括生成タスク追加
+  - [x] Admin Studio: 自動生成された `admin/src/types/schemas.ts` を透過的に利用可能に統合
 
 ---
 
@@ -80,8 +85,6 @@
   - [ ] `schemas/categories.yaml` (カテゴリ管理)
   - [ ] `schemas/pages.yaml` (固定ページ)
   - [ ] リレーションフィールドの解決ロジック
-- [ ] **OpenAPI / TypeScript型定義 自動生成**
-  - [ ] スキーマ定義から TypeScript 型ファイルを出力するコマンド
 
 ---
 
@@ -113,3 +116,6 @@
   - 本番イメージは `Dockerfile` によるマルチステージビルド（`node:22-alpine` -> `rust:latest` -> `debian:bookworm-slim`）で構築され、イメージサイズは約 163MB です。
   - セキュリティのため、UID 10001 の非rootユーザー `aegis` でプロセスを実行します。データ永続化には `/app/data` をボリュームマウント（例: `-v aegis-data:/app/data`）してください。
   - コンテナ内でのリッスン設定は `config/docker.toml`（`host = "0.0.0.0"`, `port = 8080`）で定義され、環境変数 `AEGIS_CONFIG`、`HOST`、`PORT` でも動的に上書き可能です。
+- **スキーマ駆動コード生成 (Codegen & OpenAPI)**:
+  - YAMLスキーマ (`schemas/*.yaml`) を修正・追加した場合、`task codegen`（または `task codegen:ts`, `task codegen:openapi`）を実行することで、フロントエンド用 TypeScript 型定義 (`admin/src/types/schemas.ts`) および OpenAPI 3.1 仕様書 (`docs/openapi.json`) をワンコマンドで自動更新できます。
+  - サーバー稼働中は `GET /api/v1/openapi.json` エンドポイントからも最新の OpenAPI 3.1 仕様が JSON 形式で動的に配信され、Swagger UI / Redoc や外部 API クライアント生成ツールと容易に統合できます。

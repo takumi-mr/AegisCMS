@@ -29,6 +29,25 @@ tasks:
       - cargo run -p aegis-server -- migrate
 
   # ============================================================================
+  # ⚙️ コード生成タスク (TypeScript / OpenAPI)
+  # ============================================================================
+  codegen:
+    desc: スキーマから TypeScript 型定義および OpenAPI 仕様を一括生成
+    cmds:
+      - task: codegen:ts
+      - task: codegen:openapi
+
+  codegen:ts:
+    desc: スキーマから TypeScript 型定義を自動生成 (admin/src/types/schemas.ts)
+    cmds:
+      - cargo run -p aegis-server -- codegen --target typescript --output admin/src/types/schemas.ts
+
+  codegen:openapi:
+    desc: スキーマから OpenAPI 3.1 仕様書を自動生成 (docs/openapi.json)
+    cmds:
+      - cargo run -p aegis-server -- codegen --target openapi --output docs/openapi.json
+
+  # ============================================================================
   # 🔍 テスト・リント・コード品質タスク (ゼロ警告ポリシー)
   # ============================================================================
   test:

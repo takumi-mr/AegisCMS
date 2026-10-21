@@ -16,7 +16,7 @@ mod state;
 
 use aegis_core::AegisConfig;
 use aegis_runtime::PluginSupervisor;
-use aegis_schema::SchemaLoader;
+use aegis_schema::{OpenApiGenerator, SchemaLoader, TypeScriptGenerator};
 use state::AppState;
 
 #[derive(Parser, Debug)]
@@ -50,6 +50,16 @@ enum Commands {
     },
     /// Run schema migrations against the configured database
     Migrate,
+    /// Generate TypeScript type definitions or OpenAPI specifications from schemas
+    Codegen {
+        /// Target format: "typescript" (or "ts"), "openapi" (or "json")
+        #[arg(short, long, default_value = "typescript")]
+        target: String,
+
+        /// Output file path (defaults to stdout if omitted)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -80,6 +90,30 @@ async fn main() -> anyhow::Result<()> {
             let pool = db::init_db(&config.database.url, config.database.max_connections).await?;
             db::run_migrations(&pool, &schemas).await?;
             tracing::info!("Schema migrations completed successfully.");
+        }
+        Commands::Codegen { target, output } => {
+            tracing::info!("Loading schemas from {:?}", config.paths.schemas_dir);
+            let schemas_vec = SchemaLoader::load_dir(&config.paths.schemas_dir)?;
+            let content = match target.to_lowercase().as_str() {
+                "typescript" | "ts" => TypeScriptGenerator::generate(&schemas_vec),
+                "openapi" | "json" => OpenApiGenerator::generate_json(&schemas_vec),
+                unknown => {
+                    anyhow::bail!(
+                        "Unknown codegen target '{}'. Supported: 'typescript' ('ts'), 'openapi' ('json')",
+                        unknown
+                    );
+                }
+            };
+
+            if let Some(out_path) = output {
+                if let Some(parent) = out_path.parent() {
+                    tokio::fs::create_dir_all(parent).await?;
+                }
+                tokio::fs::write(&out_path, &content).await?;
+                tracing::info!("Successfully generated {:?} ({})", out_path, target);
+            } else {
+                print!("{}", content);
+            }
         }
         Commands::Run { port, host } => {
             if let Some(p) = port {
@@ -143,6 +177,7 @@ async fn main() -> anyhow::Result<()> {
 
             let mut app = Router::new()
                 .route("/api/v1/health", get(handlers::health_check))
+                .route("/api/v1/openapi.json", get(handlers::get_openapi_spec))
                 .route("/api/v1/schemas", get(handlers::list_schemas))
                 .route("/api/v1/schemas/{content_type}", get(handlers::get_schema))
                 .route(
