@@ -136,6 +136,14 @@
 ---
 
 ### 🔮 将来のロードマップ (Future)
+- [ ] **認証プロバイダ抽象化 & Wasm 認証後フック (`on_user_authenticated`)**
+  - [x] `aegis-core`: `AuthProvider` トレイト（Local, SAML, OIDC などの抽象化）、`AuthIdentity`, `AuthCredentials`, `AuthRedirect` 定義と単体テスト完了
+  - [ ] 認証判定・暗号署名検証・通信は Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装
+  - [ ] `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・監査通知用 Wasm プラグインフック `on_user_authenticated` の追加
+- [ ] **テーマエンジン & 静的アセット配信システム**
+  - [ ] ページ全体のテンプレート描画エンジンの導入（Tera / Liquid 等によるレイアウト・スケルトンの定義）
+  - [ ] テーマプラグイン向け静的アセット（CSS/JS/画像）配信ルーティング機構（`/themes/{theme_id}/assets/*`）
+  - [ ] Admin Studio / 公開フロントエンドへのテーマ CSS やカスタムブロックコンポーネント注入仕様の策定
 - [ ] Wasm プラグイン向け AssemblyScript / TypeScript SDK テンプレート整備
 - [ ] PostgreSQL / libSQL 対応（分散ストレージモード）
 - [ ] On-demand ISR / Cache-Tag Purge によるエッジキャッシュ制御
@@ -194,4 +202,11 @@
   - `StorageBackend` トレイト（`put`, `get`, `delete`, `public_url`）により、ローカルディスク/ブロックストレージ (`LocalStorageBackend`) と S3 互換オブジェクトストレージ (`S3StorageBackend`) を Config ベースで透過的に切り替え可能。
   - `S3StorageBackend` は AWS SigV4 認証プロトコルをネイティブ実装しているため、重量級の AWS SDK を追加することなく、AWS S3, Cloudflare R2, MinIO, Wasabi と完全互換で高速・軽量に動作します。
   - マルチパートファイルアップロード API (`POST /api/v1/storage/upload`) により、メディアやアセットの柔軟な保存と URL 返却に対応しています。
+- **認証拡張方針（Crate 抽象化と Wasm プラグインフックの役割分担）**:
+  - 認証・認可におけるセキュリティリスク（認証バイパス、暗号脆弱性、トークン漏洩）を防ぐため、認証判定や暗号処理（SAML XML-DSIG、OIDC JWT/JWKS 検証など）をサードパーティ Wasm プラグインには直接開放しません。
+  - 代わりに `aegis-core` の `AuthProvider` トレイトによる Rust Crate（静的コンパイル / Cargo Features）として安全に実装・分離します。
+  - 一方で、認証成功後のメタデータ付加、部署属性によるロールマッピング、Slack/Teams へのログイン監査通知などの安全な拡張ロジックのみを Wasm プラグイン（`on_user_authenticated` フック）に委譲する設計を採用します。
+- **テーマ拡張のアーキテクチャ検討事項**:
+  - 現在の AegisCMS は Headless CMS であり、本文ブロックの HTML レンダリング（`HtmlRenderer` + `StreamingHtmlRewriter`）のみ対応しています。
+  - 完全なテーマ拡張には「テンプレートエンジン（Tera 等）によるページ全体のレイアウト描画」「テーマ専用アセット（CSS/JS/画像）の配信ルーティング」「管理画面/フロントエンドへの CSS/コンポーネント注入」の 3 つの要素が必要であり、将来のページ配信機能追加時に合わせて設計を具体化します。
 
