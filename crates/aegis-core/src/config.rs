@@ -31,12 +31,23 @@ impl AegisConfig {
         Ok(config)
     }
 
-    pub fn load_or_default<P: AsRef<Path>>(path: P) -> Self {
-        Self::load_from_file(path).unwrap_or_default()
+    /// 設定ファイルが存在しない場合のみ既定値を返す。
+    /// 読み込み・パースに失敗した場合は黙ってフォールバックせずエラーを返す。
+    pub fn load_or_default<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let path = path.as_ref();
+        if !path.exists() {
+            tracing::warn!(
+                "Config file {:?} not found - starting with built-in defaults",
+                path
+            );
+            return Ok(Self::default());
+        }
+        Self::load_from_file(path)
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
@@ -74,6 +85,7 @@ impl DatabaseBackendKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DatabaseConfig {
     #[serde(default)]
     pub backend: DatabaseBackendKind,
@@ -103,6 +115,7 @@ impl DatabaseConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct StorageConfig {
     #[serde(default)]
     pub backend: StorageBackendKind,
@@ -123,6 +136,7 @@ impl Default for StorageConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LocalStorageConfig {
     pub upload_dir: PathBuf,
     pub public_url_prefix: String,
@@ -138,6 +152,7 @@ impl Default for LocalStorageConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct S3StorageConfig {
     pub bucket: String,
     pub region: String,
@@ -163,6 +178,7 @@ impl Default for S3StorageConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct CacheConfig {
     #[serde(default)]
     pub backend: CacheBackendKind,
@@ -187,6 +203,7 @@ impl Default for CacheConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RedisCacheConfig {
     pub url: String,
     #[serde(default = "default_redis_timeout")]
@@ -207,6 +224,7 @@ impl Default for RedisCacheConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PathsConfig {
     pub schemas_dir: PathBuf,
     pub plugins_dir: PathBuf,
@@ -224,6 +242,7 @@ impl Default for PathsConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RuntimeConfig {
     pub enable_wasm_plugins: bool,
     pub default_max_memory_mb: u32,
@@ -243,6 +262,7 @@ impl Default for RuntimeConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SecurityConfig {
     pub enforce_external_link_rel: bool,
     pub open_external_links_in_new_tab: bool,
@@ -260,5 +280,65 @@ impl Default for SecurityConfig {
             enforce_image_lazy_loading: true,
             enforce_image_async_decoding: true,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bundled_config_files_parse() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config");
+        for name in ["default.toml", "docker.toml"] {
+            let path = root.join(name);
+            if let Err(e) = AegisConfig::load_from_file(&path) {
+                panic!("{:?} failed to parse: {}", path, e);
+            }
+        }
+
+        let docker = AegisConfig::load_from_file(root.join("docker.toml")).unwrap();
+        assert_eq!(docker.server.host, "0.0.0.0");
+        assert_eq!(
+            docker.storage.local.upload_dir,
+            PathBuf::from("/app/data/uploads")
+        );
+    }
+
+    #[test]
+    fn test_partial_sections_fall_back_to_field_defaults() {
+        let config: AegisConfig = toml::from_str(
+            r#"
+            [server]
+            port = 9000
+
+            [storage.s3]
+            bucket = "my-bucket"
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(config.server.port, 9000);
+        assert_eq!(config.server.host, "127.0.0.1");
+        assert_eq!(config.storage.s3.bucket, "my-bucket");
+        assert_eq!(config.storage.s3.region, "auto");
+        assert!(config.storage.s3.access_key_id.is_empty());
+        assert!(!config.storage.s3.force_path_style);
+    }
+
+    #[test]
+    fn test_load_or_default_missing_file_uses_defaults() {
+        let config = AegisConfig::load_or_default("does/not/exist.toml").unwrap();
+        assert_eq!(config.server.port, 8080);
+    }
+
+    #[test]
+    fn test_load_or_default_rejects_invalid_file() {
+        let path =
+            std::env::temp_dir().join(format!("aegis-invalid-config-{}.toml", std::process::id()));
+        std::fs::write(&path, "[server]\nport = \"not-a-number\"\n").unwrap();
+        let result = AegisConfig::load_or_default(&path);
+        let _ = std::fs::remove_file(&path);
+        assert!(result.is_err());
     }
 }
