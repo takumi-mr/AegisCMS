@@ -60,11 +60,13 @@
   - [x] リアルタイムプレビュー（ASTからレンダリングされたHTMLの表示）
   - [x] 記事保存・更新・公開ステータス切替
   - [x] コアサーバーによる Admin SPA 配信 (`/` -> `admin/dist/index.html`)
-- [x] **CI/CD & コンテナ基盤整備**
+- [x] **CI/CD & コンテナ・タスク自動化基盤整備**
   - [x] GitHub Actions 自動テスト・リント・ビルド CI パイプライン構築 (`.github/workflows/ci.yml`)
   - [x] マルチステージ本番 Dockerfile の作成（Node.js + Rust 最新版 + 最小 Debian 実行層、非 root ユーザー実行、サイズ 163MB、HEALTHCHECK 内蔵）
   - [x] Docker 用設定ファイル (`config/docker.toml`) および `.dockerignore` の追加
   - [x] CLI 引数および環境変数による host/port オーバーライド対応（`AEGIS_CONFIG`, `HOST`, `PORT`）
+  - [x] `go-task` 構成ファイル (`Taskfile.yml`) の作成（dev, test, lint, fmt, check, build, docker コマンド一元化）
+  - [x] Admin Studio ドキュメント刷新・最新化 (`admin/README.md`)
 
 ---
 

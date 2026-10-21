@@ -1,0 +1,119 @@
+# https://taskfile.dev
+version: '3'
+
+dotenv: ['.env']
+
+tasks:
+  default:
+    desc: 利用可能なタスク一覧を表示
+    cmds:
+      - task --list
+    silent: true
+
+  # ============================================================================
+  # 🚀 開発 & サーバー実行タスク
+  # ============================================================================
+  dev:
+    desc: AegisCMS コアサーバーを起動 (ポート 8080)
+    cmds:
+      - cargo run -p aegis-server -- run {{.CLI_ARGS}}
+
+  dev:admin:
+    desc: Admin Studio フロントエンド開発サーバーを起動 (Vite HMR)
+    cmds:
+      - npm --prefix admin run dev
+
+  migrate:
+    desc: 宣言的スキーマの SQLite 自動マイグレーションを実行
+    cmds:
+      - cargo run -p aegis-server -- migrate
+
+  # ============================================================================
+  # 🔍 テスト・リント・コード品質タスク (ゼロ警告ポリシー)
+  # ============================================================================
+  test:
+    desc: ワークスペース内の全クレートでテストを実行
+    cmds:
+      - cargo test --workspace {{.CLI_ARGS}}
+
+  lint:
+    desc: Clippy による静的解析を実行 (ゼロ警告ポリシー)
+    cmds:
+      - cargo clippy --workspace -- -D warnings
+
+  fmt:
+    desc: rustfmt によるコードフォーマットを適用
+    cmds:
+      - cargo fmt
+
+  fmt:check:
+    desc: rustfmt によるコードフォーマットを検証
+    cmds:
+      - cargo fmt --check
+
+  check:
+    desc: PR・コミット前の全検証チェックを一括実行 (fmt, clippy, test, admin:build)
+    cmds:
+      - task: fmt:check
+      - task: lint
+      - task: test
+      - task: build:admin
+    summary: |
+      AGENTS.md の PR 作成前チェックリスト（フォーマット検証、Clippy、全テスト、フロントエンドビルド）を
+      すべて順次実行して検証します。
+
+  # ============================================================================
+  # 🏗️ ビルドタスク
+  # ============================================================================
+  build:
+    desc: バックエンドおよびフロントエンドの本番ビルドを一括実行
+    cmds:
+      - task: build:admin
+      - task: build:server
+
+  build:server:
+    desc: aegis-server コアエンジンの最適化リリースバイナリをビルド
+    cmds:
+      - cargo build --release -p aegis-server
+
+  build:admin:
+    desc: Admin Studio フロントエンドの本番バンドルをビルド (admin/dist/)
+    cmds:
+      - npm --prefix admin run build
+
+  build:wasm:
+    desc: サンプル Wasm プラグイン (plugins/slack-notifier/plugin.wasm) を生成
+    cmds:
+      - cargo run -p aegis-runtime --bin build_sample_wasm
+
+  # ============================================================================
+  # 🐳 Docker タスク
+  # ============================================================================
+  docker:build:
+    desc: 本番対応マルチステージ Docker イメージをビルド (aegiscms:latest)
+    cmds:
+      - docker build -t aegiscms:latest .
+
+  docker:run:
+    desc: Docker コンテナをバックグラウンドで起動 (ポート 8080)
+    cmds:
+      - docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data aegiscms:latest
+
+  docker:stop:
+    desc: 実行中の Docker コンテナを停止・削除
+    cmds:
+      - docker rm -f aegiscms
+
+  docker:logs:
+    desc: Docker コンテナのログをリアルタイム表示
+    cmds:
+      - docker logs -f aegiscms
+
+  # ============================================================================
+  # 🧹 メンテナンス & クリーンアップ
+  # ============================================================================
+  clean:
+    desc: ビルド生成物 (target/, admin/dist/) をクリーンアップ
+    cmds:
+      - cargo clean
+      - cmd /c "if exist admin\\dist rmdir /s /q admin\\dist"

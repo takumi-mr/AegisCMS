@@ -13,27 +13,40 @@
 
 ---
 
-## 2. 開発環境・基本コマンド
+## 2. 開発環境・基本コマンド (go-task 対応)
+
+プロジェクトルートで `task` コマンドを使用することで、主要なビルド・テスト・検証を簡単に実行できます。
 
 ```bash
-# 全クレートのテスト実行
-cargo test --workspace
+# 全タスク一覧の表示
+task
 
-# フォーマット検証・適用
-cargo fmt --check
-cargo fmt
-
-# 静的解析・リント検証 (ゼロ警告ポリシー)
-cargo clippy --workspace -- -D warnings
-
-# Admin Studio フロントエンドの型検証・ビルド
-npm --prefix admin run build
-
-# 宣言的スキーマのSQLiteマイグレーション実行
-cargo run -p aegis-server -- migrate
+# PR/コミット前の全検証チェック一括実行 (fmt, clippy, test, admin:build)
+task check
 
 # コアサーバーの起動 (ポート 8080)
-cargo run -p aegis-server -- run
+task dev
+
+# 宣言的スキーマの SQLite 自動マイグレーション実行
+task migrate
+
+# ワークスペース全体のテスト実行
+task test
+
+# 静的解析・リント検証 (ゼロ警告ポリシー)
+task lint
+
+# コードフォーマット適用 / 検証
+task fmt
+task fmt:check
+
+# Admin Studio フロントエンドの本番ビルド / 開発サーバー
+task build:admin
+task dev:admin
+
+# Docker イメージビルド / 起動
+task docker:build
+task docker:run
 ```
 
 ---
