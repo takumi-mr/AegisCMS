@@ -6,7 +6,7 @@ use aegis_core::{
     AegisError, AuditActor, AuditEvent, AuditQuery, DatabaseBackendKind, DatabaseConfig, Result,
 };
 
-use aegis_schema::SchemaDefinition;
+use aegis_schema::{FieldDefinition, FieldType, SchemaDefinition};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -125,6 +125,60 @@ pub fn is_standard_column(name: &str) -> bool {
             | "created_at"
             | "updated_at"
     )
+}
+
+/// 列型（`SchemaMigration` の型対応）に合わせてバインドするカスタムフィールド値（PostgreSQL / MySQL）
+#[derive(Debug, Clone, PartialEq)]
+pub enum CustomFieldValue {
+    Text(Option<String>),
+    BigInt(Option<i64>),
+    Bool(Option<bool>),
+    Json(Option<serde_json::Value>),
+}
+
+impl CustomFieldValue {
+    pub fn from_json(field: &FieldDefinition, value: Option<&serde_json::Value>) -> Result<Self> {
+        use serde_json::Value;
+
+        let invalid = |v: &Value| {
+            AegisError::Validation(format!(
+                "Field '{}' expects {:?} but got {}",
+                field.name, field.field_type, v
+            ))
+        };
+        let present = value.filter(|v| !v.is_null());
+
+        Ok(match field.field_type {
+            FieldType::Jsonb => Self::Json(present.cloned()),
+            FieldType::Integer => Self::BigInt(match present {
+                None => None,
+                Some(v @ Value::Number(n)) => Some(n.as_i64().ok_or_else(|| invalid(v))?),
+                Some(v @ Value::String(s)) => Some(s.trim().parse().map_err(|_| invalid(v))?),
+                Some(v) => return Err(invalid(v)),
+            }),
+            FieldType::Boolean => Self::Bool(match present {
+                None => None,
+                Some(Value::Bool(b)) => Some(*b),
+                Some(v @ Value::String(s)) => match s.trim().to_ascii_lowercase().as_str() {
+                    "true" | "1" => Some(true),
+                    "false" | "0" => Some(false),
+                    _ => return Err(invalid(v)),
+                },
+                Some(v @ Value::Number(n)) => match n.as_i64() {
+                    Some(1) => Some(true),
+                    Some(0) => Some(false),
+                    _ => return Err(invalid(v)),
+                },
+                Some(v) => return Err(invalid(v)),
+            }),
+            // テキスト系の列は従来どおり文字列化して保存する（null は空文字列）
+            _ => Self::Text(value.map(|v| match v {
+                Value::String(s) => s.clone(),
+                Value::Null => String::new(),
+                other => other.to_string(),
+            })),
+        })
+    }
 }
 
 /// 監査ログテーブル名（コンテンツテーブル `content_*` と衝突しないシステムテーブル）
@@ -303,3 +357,90 @@ macro_rules! audit_row_from_sqlx {
     }};
 }
 pub(crate) use audit_row_from_sqlx;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn field(name: &str, field_type: FieldType) -> FieldDefinition {
+        serde_json::from_value(json!({
+            "name": name,
+            "type": serde_json::to_value(&field_type).unwrap(),
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn test_jsonb_values_bind_as_json_and_null_as_sql_null() {
+        let meta = field("custom_meta", FieldType::Jsonb);
+        let object = json!({ "seo": { "title": "x" }, "tags": ["a"] });
+        assert_eq!(
+            CustomFieldValue::from_json(&meta, Some(&object)).unwrap(),
+            CustomFieldValue::Json(Some(object))
+        );
+        assert_eq!(
+            CustomFieldValue::from_json(&meta, Some(&json!("plain"))).unwrap(),
+            CustomFieldValue::Json(Some(json!("plain")))
+        );
+        assert_eq!(
+            CustomFieldValue::from_json(&meta, Some(&serde_json::Value::Null)).unwrap(),
+            CustomFieldValue::Json(None)
+        );
+        assert_eq!(
+            CustomFieldValue::from_json(&meta, None).unwrap(),
+            CustomFieldValue::Json(None)
+        );
+    }
+
+    #[test]
+    fn test_integer_and_boolean_values_are_converted_or_rejected() {
+        let count = field("count", FieldType::Integer);
+        assert_eq!(
+            CustomFieldValue::from_json(&count, Some(&json!(42))).unwrap(),
+            CustomFieldValue::BigInt(Some(42))
+        );
+        assert_eq!(
+            CustomFieldValue::from_json(&count, Some(&json!(" 7 "))).unwrap(),
+            CustomFieldValue::BigInt(Some(7))
+        );
+        assert!(CustomFieldValue::from_json(&count, Some(&json!(1.5))).is_err());
+        assert!(CustomFieldValue::from_json(&count, Some(&json!("many"))).is_err());
+
+        let flag = field("featured", FieldType::Boolean);
+        assert_eq!(
+            CustomFieldValue::from_json(&flag, Some(&json!(true))).unwrap(),
+            CustomFieldValue::Bool(Some(true))
+        );
+        assert_eq!(
+            CustomFieldValue::from_json(&flag, Some(&json!("0"))).unwrap(),
+            CustomFieldValue::Bool(Some(false))
+        );
+        assert!(CustomFieldValue::from_json(&flag, Some(&json!("yes"))).is_err());
+        assert_eq!(
+            CustomFieldValue::from_json(&flag, None).unwrap(),
+            CustomFieldValue::Bool(None)
+        );
+    }
+
+    #[test]
+    fn test_text_values_keep_previous_stringification() {
+        let title = field("subtitle", FieldType::String);
+        assert_eq!(
+            CustomFieldValue::from_json(&title, Some(&json!("hello"))).unwrap(),
+            CustomFieldValue::Text(Some("hello".to_string()))
+        );
+        assert_eq!(
+            CustomFieldValue::from_json(&title, Some(&json!(3))).unwrap(),
+            CustomFieldValue::Text(Some("3".to_string()))
+        );
+        assert_eq!(
+            CustomFieldValue::from_json(&title, Some(&serde_json::Value::Null)).unwrap(),
+            CustomFieldValue::Text(Some(String::new()))
+        );
+        assert_eq!(
+            CustomFieldValue::from_json(&title, None).unwrap(),
+            CustomFieldValue::Text(None)
+        );
+    }
+}
