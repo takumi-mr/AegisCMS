@@ -8,7 +8,9 @@
           },
           {
             "properties": {
-              "category": {
+              "category_id": {
+                "description": "Foreign key relation to category.id",
+                "nullable": true,
                 "type": "string"
               },
               "custom_meta": {
@@ -126,6 +128,40 @@
         ],
         "type": "object"
       },
+      "CategoryContent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BaseContentItem"
+          },
+          {
+            "properties": {
+              "color": {
+                "nullable": true,
+                "type": "string"
+              },
+              "description": {
+                "nullable": true,
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "description": "記事やコンテンツを分類するためのカテゴリ定義",
+                "maxLength": 100,
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "slug"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "Content model for カテゴリ",
+        "type": "object"
+      },
       "ContentStatus": {
         "enum": [
           "draft",
@@ -208,6 +244,40 @@
           "name",
           "type"
         ],
+        "type": "object"
+      },
+      "PageContent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BaseContentItem"
+          },
+          {
+            "properties": {
+              "custom_meta": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "layout": {
+                "nullable": true,
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "description": "会社概要、利用規約、プライバシーポリシー等の静的・固定ページ",
+                "maxLength": 255,
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "slug"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "Content model for 固定ページ",
         "type": "object"
       },
       "SchemaDefinition": {

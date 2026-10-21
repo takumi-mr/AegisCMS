@@ -19,9 +19,11 @@ fields:
     type: timestamp
     nullable: true
     index: true
-  - name: category
-    type: string
+  - name: category_id
+    type: relation
+    target: category.id
     required: false
+    nullable: true
     index: true
   - name: custom_meta
     type: jsonb

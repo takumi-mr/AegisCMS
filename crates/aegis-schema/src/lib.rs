@@ -4,7 +4,7 @@ pub mod loader;
 pub mod migration;
 
 pub use codegen::{OpenApiGenerator, TypeScriptGenerator};
-pub use definition::{FieldDefinition, FieldType, SchemaDefinition};
+pub use definition::{FieldDefinition, FieldType, RelationTarget, SchemaDefinition};
 pub use loader::SchemaLoader;
 pub use migration::SqliteMigration;
 
@@ -52,5 +52,12 @@ fields:
         // インデックス確認
         let indices_joined = sqls[1..].join("\n");
         assert!(indices_joined.contains("idx_content_article_slug"));
+
+        // リレーション定義の解決確認
+        let relations = schema.relation_fields();
+        assert_eq!(relations.len(), 1);
+        assert_eq!(relations[0].0.name, "tech_category");
+        assert_eq!(relations[0].1.content_type, "category");
+        assert_eq!(relations[0].1.field, "id");
     }
 }
