@@ -170,7 +170,8 @@
 ---
 
 #### 不具合・ドキュメント整備時に判明した課題
-- [ ] **PostgreSQL でコンテンツ作成が失敗する**: `jsonb` 型フィールド（`articles` / `pages` の `custom_meta`）へ文字列をバインドしており、`column "custom_meta" is of type jsonb but expression is of type text` で `INSERT` が失敗する（監査ログ実装時の E2E で判明）。`PostgresAdapter::insert_content` で `::jsonb` キャストするなどの修正が必要。
+- [x] **PostgreSQL でコンテンツ作成が失敗していた問題を修正**: カスタムフィールドを常に文字列でバインドしていたため、`jsonb` 列（`custom_meta`）への `INSERT` が値の有無にかかわらず失敗していた。`PostgresAdapter` でスキーマの列型に合わせて `jsonb` / `BIGINT` / `BOOLEAN` を型付きでバインド・デコードするよう修正（読み出し時に `jsonb` 列が黙って欠落する問題も解消）。
+- [x] DDL で `required: true` かつ `nullable: false` のフィールドに型を問わず `DEFAULT ''` が付与され、PostgreSQL では `integer` / `boolean` / `jsonb` のテーブル作成が失敗していた問題を修正（型ごとの既定値: integer `0`、boolean `0` / `FALSE`、jsonb `'{}'`。MySQL の TEXT / JSON 型は既定値なし）。
 - [ ] 監査ログの MySQL 実機検証（実装はコンパイル確認のみ。SQLite / PostgreSQL は E2E 確認済み）。
 - [ ] 監査ログの保持期間（古いレコードの削除）ポリシーと、Admin Studio の監査ログ閲覧画面。
 - [x] **同梱設定ファイルがパースに失敗し既定値で起動していた問題を修正**: 全設定構造体に `#[serde(default)]` を付与して全項目を省略可能にし、`load_or_default` はファイルが存在しない場合のみ既定値（警告ログ付き）、パース失敗時はエラーで起動中止するよう変更。同梱設定ファイルのパースを単体テストで検証。

@@ -71,4 +71,49 @@ fields:
         assert_eq!(relations[0].1.content_type, "category");
         assert_eq!(relations[0].1.field, "id");
     }
+
+    #[test]
+    fn test_required_fields_get_type_appropriate_defaults() {
+        let yaml = r#"
+content_type: product
+label: "商品"
+fields:
+  - name: sku
+    type: string
+    required: true
+  - name: description
+    type: text
+    required: true
+  - name: stock
+    type: integer
+    required: true
+  - name: on_sale
+    type: boolean
+    required: true
+  - name: specs
+    type: jsonb
+    required: true
+"#;
+        let schema = SchemaLoader::load_from_str(yaml).unwrap();
+
+        let (sqlite, _) = SchemaMigration::generate_create_table(&schema, SqlDialect::Sqlite);
+        assert!(sqlite.contains("sku TEXT NOT NULL DEFAULT ''"));
+        assert!(sqlite.contains("stock INTEGER NOT NULL DEFAULT 0"));
+        assert!(sqlite.contains("on_sale INTEGER NOT NULL DEFAULT 0"));
+        assert!(sqlite.contains("specs TEXT NOT NULL DEFAULT '{}'"));
+
+        let (pg, _) = SchemaMigration::generate_create_table(&schema, SqlDialect::Postgres);
+        assert!(pg.contains("sku VARCHAR(255) NOT NULL DEFAULT ''"));
+        assert!(pg.contains("description TEXT NOT NULL DEFAULT ''"));
+        assert!(pg.contains("stock BIGINT NOT NULL DEFAULT 0"));
+        assert!(pg.contains("on_sale BOOLEAN NOT NULL DEFAULT FALSE"));
+        assert!(pg.contains("specs JSONB NOT NULL DEFAULT '{}'"));
+
+        let (mysql, _) = SchemaMigration::generate_create_table(&schema, SqlDialect::MySql);
+        assert!(mysql.contains("sku VARCHAR(255) NOT NULL DEFAULT ''"));
+        assert!(mysql.contains("description LONGTEXT NOT NULL,"));
+        assert!(mysql.contains("stock BIGINT NOT NULL DEFAULT 0"));
+        assert!(mysql.contains("on_sale BOOLEAN NOT NULL DEFAULT FALSE"));
+        assert!(mysql.contains("specs JSON NOT NULL\n"));
+    }
 }
