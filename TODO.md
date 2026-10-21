@@ -8,19 +8,25 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: フェーズ 1（コア基盤・Wasmランタイム PoC）完了。
+- **現在のステータス**: フェーズ 2（Admin Studio SPA & ブロックエディタ統合）完了。
 - **動作確認済み**:
   - Rust ワークスペース（`aegis-core`, `aegis-ast`, `aegis-schema`, `aegis-runtime`, `aegis-server`）のビルド・単体テスト (`cargo test --workspace`) 100% 成功。
   - YAMLスキーマ (`schemas/articles.yaml`) から SQLite テーブルへの自動マイグレーション動作。
   - Wasmtime による Wasm プラグイン（`plugins/slack-notifier`）のサンドボックス隔離実行・ホストAPI連携 (`host:log`)・タイムアウト保護。
   - REST API Gateway による記事作成 (`POST /api/v1/contents/article`)、AST変換、HTML決定論的レンダリング。
+  - Vite + React + TypeScript による Admin Studio SPA の構築（ダークモード＆グラスモフィズム、ブロックエディタ、リアルタイムプレビュー、スキーマ・記事一覧同期）。
+  - `aegis-server` からの Admin Studio 静的アセット SPA 配信 (`fallback_service(ServeDir)`) と E2E ブラウザ疎通完了。
 
 ### 🚀 次に作業を再開するときの着手項目
-**Admin Studio（管理画面フロントエンド: TypeScript + React / Vite）のプロトタイプ構築**
-1. `admin/` ディレクトリに Vite + React + TypeScript プロジェクトを立ち上げ。
-2. コアサーバーの API Gateway (`http://127.0.0.1:8080`) と疎通（CORS設定済み）。
-3. スキーマ一覧 (`GET /api/v1/schemas`) および記事一覧・詳細の表示。
-4. ドラッグ＆ドロップ対応のブロックエディタ UI（見出し、段落、コードブロック追加・編集・保存）。
+**フェーズ 2 拡張: コア機能拡張**
+1. **ストリーミング HTML リライター組み込み (`lol-html`)**:
+   - `crates/aegis-ast` または `crates/aegis-server` に `lol-html` を導入。
+   - 出力直前ストリームにおいて、外部リンクへの `rel="noopener noreferrer"` 自動付与や `<img>` タグへの `loading="lazy"` / `decoding="async"` 強制インジェクションを実装。
+2. **追加スキーマ定義とリレーション解決**:
+   - `schemas/categories.yaml` (カテゴリ管理) および `schemas/pages.yaml` (固定ページ) の作成。
+   - 記事（`article`）の `tech_category` 等のリレーションフィールドの自動解決・JOIN取得。
+3. **OpenAPI / TypeScript 型定義 自動生成**:
+   - YAMLスキーマ定義からフロントエンド向けの TypeScript 型定義（`admin/src/types/schemas.d.ts` 等）を自動生成する CLI サブコマンド (`aegis-server codegen-types`)。
 
 ---
 
@@ -43,26 +49,26 @@
 - [x] `CLAUDE.md` シンボリックリンクの作成 (`CLAUDE.md -> AGENTS.md`)
 - [x] Linter & Formatter 設定の追加 (`rustfmt.toml`, `.editorconfig`, `[workspace.lints]`, Clippy ゼロ警告達成)
 - [x] モノレポ構造の整合性確保（クレート別ネスト `.git` の解消）および `main` ブランチでのファーストコミット作成
+- [x] **Admin Studio SPA セットアップ**
+  - [x] `admin/` ディレクトリに Vite + React (TypeScript) プロジェクトを初期化
+  - [x] リッチなモダンUIデザインシステム（ダークテーマ、グラスモフィズム、洗練されたタイポグラフィ）の構築
+  - [x] API クライアント（`/api/v1/schemas`, `/api/v1/contents`）の実装
+- [x] **ブロックエディタ UI 実装**
+  - [x] ブロック追加メニュー（見出し、段落、コード、画像、カスタム要素）
+  - [x] ブロック並び替え（Up/Down）・削除
+  - [x] リアルタイムプレビュー（ASTからレンダリングされたHTMLの表示）
+  - [x] 記事保存・更新・公開ステータス切替
+  - [x] コアサーバーによる Admin SPA 配信 (`/` -> `admin/dist/index.html`)
 
 ---
 
 ### ⏳ 次に取り組むタスク (Next Up)
 
-#### フェーズ 2: Admin Studio (フロントエンド) & エディタ統合
-- [ ] **Admin Studio SPA セットアップ**
-  - [ ] `admin/` ディレクトリに Vite + React (TypeScript) プロジェクトを初期化
-  - [ ] リッチなモダンUIデザインシステム（ダークテーマ、グラスモフィズム、洗練されたタイポグラフィ）の構築
-  - [ ] API クライアント（`/api/v1/schemas`, `/api/v1/contents`）の実装
-- [ ] **ブロックエディタ UI 実装**
-  - [ ] ブロック追加メニュー（見出し、段落、コード、画像、カスタム要素）
-  - [ ] ドラッグ＆ドロップによるブロック並び替え
-  - [ ] リアルタイムプレビュー（ASTからレンダリングされたHTMLの表示）
-  - [ ] 記事保存・更新・公開ステータス切替
-
 #### フェーズ 2 拡張: コア機能拡張
 - [ ] **ストリーミング HTML リライター組み込み**
-  - [ ] `lol-html` を使用した出力直前ストリームでの属性インジェクション（`rel="noopener"`, 画像Lazy-load強制）
-- [ ] **追加スキーマ定義**
+  - [ ] `lol-html` を使用した出力直前ストリームでの属性インジェクション（`rel="noopener noreferrer"`, 画像 `loading="lazy"` 強制）
+  - [ ] 単体テストおよびベンチマーク検証
+- [ ] **追加スキーマ定義とリレーション解決**
   - [ ] `schemas/categories.yaml` (カテゴリ管理)
   - [ ] `schemas/pages.yaml` (固定ページ)
   - [ ] リレーションフィールドの解決ロジック
@@ -80,6 +86,12 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **Admin Studio SPA 配信**:
+  - `aegis-server` は起動時に `admin/dist/index.html` の存在をチェックし、存在すれば `tower_http::services::ServeDir` と `ServeFile` による SPA フォールバック配信を行います。
+  - フロントエンド更新時は `npm --prefix admin run build` を実行すれば、サーバーの再コンパイル不要で即座に反映されます。
+- **コンテンツ API ペイロード仕様**:
+  - `POST /api/v1/contents/{content_type}` の JSON ペイロードはトップレベルに `title`, `slug`, `status`, `blocks`, `author_id` を持ちます。
+  - `blocks` 配列内の各要素は `BlockNode` (`{ "name": "core/heading", "attributes": { "level": 1 }, "text": "...", "children": [] }`) 形式です。
 - **Wasmtime と Windows 環境の非同期実行**:
   - Windows MSVC 環境では、Wasmtime の同期呼び出しで Trap が発生した場合に Rust 1.98 の `extern "C"` non-unwinding 境界チェックと競合して abort するケースがあります。
   - そのため `aegis-runtime` では `config.async_support(true)` を有効化し、`tokio::time::timeout` でタイムアウトを明示的に強制する多層防御設計を採用しています。
