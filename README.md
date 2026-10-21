@@ -151,6 +151,9 @@ Axum を基盤とした REST API Gateway サーバーであり、すべてのイ
 - **ネイティブテストモック内蔵**: Wasm 環境にビルドせずとも通常の `cargo test` でプラグインのビジネスロジックを単体テスト可能。
 - **公式テンプレート**: 即座に開発を開始できる [`plugins/template-rust`](file:///d:/projects/cms/plugins/template-rust) を同梱（詳細は [Wasm プラグイン開発ガイド](file:///d:/projects/cms/docs/plugin_sdk_guide.md) を参照）。
 
+> [!TIP]
+> 関連リファレンス: [設定リファレンス (`docs/configuration.md`)](docs/configuration.md) / [プラグインフック & ホスト API リファレンス (`docs/plugin_hooks.md`)](docs/plugin_hooks.md)
+
 ---
 
 ## 3. プラグイン・サンドボックスアーキテクチャ
