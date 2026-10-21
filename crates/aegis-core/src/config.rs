@@ -333,6 +333,10 @@ pub struct AuditConfig {
     pub sinks: Vec<AuditSinkKind>,
     /// `X-Forwarded-For` の先頭アドレスをクライアント IP として記録する（信頼できるリバースプロキシ配下でのみ有効化）
     pub trust_forwarded_for: bool,
+    /// `database` 出力先に保存した監査ログの保持日数。これより古いログは定期的に削除する（0 で無期限）
+    pub retention_days: u32,
+    /// 保持期間切れのログを削除する間隔（秒）
+    pub purge_interval_secs: u64,
 }
 
 impl Default for AuditConfig {
@@ -341,6 +345,8 @@ impl Default for AuditConfig {
             enabled: true,
             sinks: vec![AuditSinkKind::Database],
             trust_forwarded_for: false,
+            retention_days: 0,
+            purge_interval_secs: 3600,
         }
     }
 }
@@ -398,9 +404,13 @@ mod tests {
             r#"
             [audit]
             sinks = ["database", "log", "prometheus"]
+            retention_days = 90
             "#,
         )
         .unwrap();
+        assert_eq!(config.audit.retention_days, 90);
+        assert_eq!(config.audit.purge_interval_secs, 3600);
+        assert_eq!(default.audit.retention_days, 0);
         assert!(config.audit.enabled);
         assert_eq!(
             config.audit.sinks,

@@ -74,6 +74,9 @@ pub trait DatabaseAdapter: Send + Sync {
 
     /// Search audit events, newest first
     async fn query_audit_events(&self, query: &AuditQuery) -> Result<Vec<AuditEvent>>;
+
+    /// Delete audit events that occurred before `cutoff` (normalized timestamp) and return the count
+    async fn delete_audit_events_before(&self, cutoff: &str) -> Result<u64>;
 }
 
 pub async fn create_database_adapter(config: &DatabaseConfig) -> Result<Arc<dyn DatabaseAdapter>> {
@@ -235,6 +238,14 @@ pub fn build_audit_insert(placeholder: impl Fn(usize) -> String) -> String {
         AUDIT_TABLE,
         AUDIT_COLUMNS.join(", "),
         placeholders.join(", ")
+    )
+}
+
+/// 保持期間切れの監査ログを削除する DELETE 文を組み立てる（プレースホルダは 1 つ）
+pub fn build_audit_delete_before(placeholder: &str) -> String {
+    format!(
+        "DELETE FROM {} WHERE occurred_at < {};",
+        AUDIT_TABLE, placeholder
     )
 }
 

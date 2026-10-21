@@ -205,6 +205,7 @@ async fn main() -> anyhow::Result<()> {
                 &config.audit,
                 db_adapter.clone(),
             ));
+            audit.spawn_retention_task();
 
             let app_state = Arc::new(AppState::new(
                 config.clone(),

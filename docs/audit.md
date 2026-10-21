@@ -18,6 +18,8 @@ AegisCMS は、コンテンツ作成・セッション操作・ファイルア�
 enabled = true
 sinks = ["database", "log", "prometheus"]
 trust_forwarded_for = false
+retention_days = 90
+purge_interval_secs = 3600
 ```
 
 各項目の説明は [設定リファレンス](./configuration.md#28-audit--監査ログ) を参照してください。
@@ -42,6 +44,7 @@ trust_forwarded_for = false
 | `session.delete` | `DELETE /api/v1/auth/session` | `success` / `failure` | `session` / セッション指紋 | `error` |
 | `storage.upload` | `POST /api/v1/storage/upload` | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `original_name`, `content_type`, `size`, `url`, `error` |
 | `plugin.error` | Wasm プラグインフックの実行失敗（トラップ、タイムアウト、Fuel 枯渇など） | `failure` | `content` / コンテンツ ID | `hook`, `content_type`, `error` |
+| `audit.purge` | 保持期間切れの監査ログを 1 件以上削除したとき（[5. 保持期間](#5-保持期間と自動削除)） | `success` | `audit_log` / なし | `deleted`, `cutoff`, `retention_days` |
 
 - 入力不備（必須フィールド欠落、存在しないスキーマなど）で処理に入る前に弾かれたリクエストは記録しません。
 - `on-before-save` フックが失敗した場合は、`plugin.error` と `content.create`（`denied`）の 2 件が記録されます。
@@ -110,10 +113,10 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```json
-{ "items": [ { "id": "...", "action": "content.create", "...": "..." } ], "limit": 20, "offset": 0 }
+{ "items": [ { "id": "...", "action": "content.create", "...": "..." } ], "limit": 20, "offset": 0, "retention_days": 90 }
 ```
 
-結果は `occurred_at` の新しい順です。
+結果は `occurred_at` の新しい順です。`retention_days` は保持期間の日数で、無期限の場合は `null` です。
 
 | ステータス | 条件 |
 | --- | --- |
@@ -127,7 +130,40 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ---
 
-## 5. 構造化ログ (`log`)
+## 5. 保持期間と自動削除
+
+`retention_days` に 1 以上を設定すると、`database` 出力先に保存した監査ログのうち、保持日数より古いものを定期的に削除します。
+
+| 設定 | 既定値 | 説明 |
+| --- | --- | --- |
+| `retention_days` | `0` | 保持日数。`0` は無期限（削除しない） |
+| `purge_interval_secs` | `3600` | 削除を実行する間隔（秒、最小 60）。サーバー起動直後にも 1 回実行 |
+
+- 削除の基準時刻は「実行時刻 − `retention_days` 日」で、`occurred_at` がこれより前のイベントを削除します。
+- 1 件以上削除した場合は、削除したこと自体を `audit.purge` イベント（`deleted`: 削除件数、`cutoff`: 基準時刻）として記録します。監査ログが消えた事実を後から追跡できるようにするためです。
+- 対象は `database` 出力先のみです。`log` 出力先の保存期間は転送先（CloudWatch Logs のロググループ設定など）で、`prometheus` は再起動でリセットされるため対象外です。`database` 出力先が無効なまま `retention_days` を設定すると、起動時に警告ログを出します。
+- 複数インスタンス構成では各インスタンスが削除を実行しますが、同じ条件の `DELETE` なので結果は変わりません。
+
+---
+
+## 6. Admin Studio の閲覧画面
+
+Admin Studio（`/admin`）のヘッダーで **Audit Logs** に切り替えると、監査ログを閲覧できます。
+
+- **認証**: `admin` ロールのセッショントークン（`ses_...`）を入力して **Connect** を押します。トークンはブラウザのタブを閉じるまで `sessionStorage` に保持します。
+  - 現在の `POST /api/v1/auth/session` は任意のロールを指定できるため（[4. 参照 API](#4-参照-api-get-apiv1audit-logs) の注意参照）、画面から admin セッションを発行する機能は設けていません。開発時は `curl` などで発行してください:
+    ```bash
+    curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
+      -H 'Content-Type: application/json' -d '{"user_id":"admin1","role":"admin"}'
+    ```
+- **絞り込み**: action / outcome / actor / resource（種別・ID）/ 期間（since・until。ブラウザのローカル時刻で入力し、UTC に変換して送信）
+- **一覧**: 新しい順に 50 件ずつ表示し、**Newer** / **Older** でページ送り。行をクリックすると、イベント ID・User-Agent・`details` の JSON を展開表示
+- 右上に、サーバーに設定された保持期間を表示（無期限なら `unlimited`）
+- 401 / 403 / 404 の場合は、原因（トークン無効、ロール不足、`database` 出力先が無効）を画面に表示
+
+---
+
+## 7. 構造化ログ (`log`)
 
 `aegis::audit` ターゲットへ `INFO` レベルで、イベント JSON をメッセージとして 1 行ずつ出力します。
 
@@ -141,7 +177,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ---
 
-## 6. メトリクス (`prometheus`)
+## 8. メトリクス (`prometheus`)
 
 `GET /metrics` で Prometheus テキスト形式のカウンタを公開します。全 `action` × `outcome` の組み合わせを 0 から公開するため、イベント発生前からアラートルールを書けます。
 
@@ -167,7 +203,7 @@ aegis_audit_events_total{action="plugin.error",outcome="failure"} 0
 
 ---
 
-## 7. 出力先の追加
+## 9. 出力先の追加
 
 `aegis_core::AuditSink` を実装し、`AuditService::from_config`（`crates/aegis-server/src/audit/mod.rs`）に登録します。
 

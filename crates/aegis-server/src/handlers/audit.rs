@@ -114,6 +114,7 @@ pub async fn list_audit_logs(
         "items": items,
         "limit": query.limit,
         "offset": query.offset,
+        "retention_days": state.audit.retention_days(),
     })))
 }
 

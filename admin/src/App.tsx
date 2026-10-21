@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Hash, AlignLeft, Code2, Image as ImageIcon, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Header } from './components/Header';
+import { Header, type AppView } from './components/Header';
+import { AuditLogView } from './components/AuditLogView';
 import { ContentList } from './components/ContentList';
 import { BlockItem } from './components/BlockItem';
 import { Preview } from './components/Preview';
@@ -8,6 +9,7 @@ import { aegisApi } from './api/client';
 import type { BlockNode, ContentItem } from './types';
 
 export const App: React.FC = () => {
+  const [view, setView] = useState<AppView>('editor');
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType] = useState<string>('article');
   const [contents, setContents] = useState<ContentItem[]>([]);
@@ -145,11 +147,16 @@ export const App: React.FC = () => {
   return (
     <div className="app-container">
       <Header
+        view={view}
+        onViewChange={setView}
         isOnline={isOnline}
         onSave={handleSave}
         isSaving={isSaving}
       />
 
+      {view === 'audit' ? (
+        <AuditLogView />
+      ) : (
       <div className="workspace-body">
         {/* Sidebar */}
         <ContentList
@@ -279,6 +286,7 @@ export const App: React.FC = () => {
           <Preview title={title} blocks={blocks} />
         </main>
       </div>
+      )}
 
       {/* Toast Feedback */}
       {toast && (

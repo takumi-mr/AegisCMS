@@ -173,7 +173,7 @@
 - [x] **PostgreSQL でコンテンツ作成が失敗していた問題を修正**: カスタムフィールドを常に文字列でバインドしていたため、`jsonb` 列（`custom_meta`）への `INSERT` が値の有無にかかわらず失敗していた。`PostgresAdapter` でスキーマの列型に合わせて `jsonb` / `BIGINT` / `BOOLEAN` を型付きでバインド・デコードするよう修正（読み出し時に `jsonb` 列が黙って欠落する問題も解消）。
 - [x] DDL で `required: true` かつ `nullable: false` のフィールドに型を問わず `DEFAULT ''` が付与され、PostgreSQL では `integer` / `boolean` / `jsonb` のテーブル作成が失敗していた問題を修正（型ごとの既定値: integer `0`、boolean `0` / `FALSE`、jsonb `'{}'`。MySQL の TEXT / JSON 型は既定値なし）。
 - [x] **MySQL 実機検証と修正**（MySQL 8.4 / strict モード）: 起動時のカラム走査で `information_schema` の列名が大文字（`COLUMN_NAME`）で返り `unwrap()` がパニックしてサーバーが起動できなかった問題、`JSON` 列が読み出し時に欠落する問題、`null` の JSON 値が空文字列として保存されエラーになる問題を修正。インデックスの重複エラー（1061）以外を握りつぶしていた処理も改善。コンテンツ CRUD・リレーション解決・アップロード・監査ログの記録と検索を E2E 確認済み。
-- [ ] 監査ログの保持期間（古いレコードの削除）ポリシーと、Admin Studio の監査ログ閲覧画面。
+- [x] **監査ログの保持期間と閲覧画面**: `[audit].retention_days` / `purge_interval_secs` による定期削除（削除自体を `audit.purge` として記録）と、Admin Studio の Audit Logs 画面（絞り込み・ページ送り・詳細表示）を追加。
 - [x] **同梱設定ファイルがパースに失敗し既定値で起動していた問題を修正**: 全設定構造体に `#[serde(default)]` を付与して全項目を省略可能にし、`load_or_default` はファイルが存在しない場合のみ既定値（警告ログ付き）、パース失敗時はエラーで起動中止するよう変更。同梱設定ファイルのパースを単体テストで検証。
 - [ ] `on-before-save` フックの戻り値 (`PostContext`) が保存データに反映されない。反映するか、検証専用フックとして仕様を明確化する。
 - [ ] SDK でトレイトメソッドが `Err` を返しても保存が拒否されない（生成コードが入力をそのまま返す）。拒否を表現できる ABI を設計する。
@@ -199,6 +199,11 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **監査ログの保持期間**:
+  - `AuditService::spawn_retention_task` が起動直後と `purge_interval_secs` ごとに `purge_expired` を実行し、`DatabaseAdapter::delete_audit_events_before` で `occurred_at < 基準時刻` のレコードを削除します。削除が 1 件以上あれば `audit.purge` を記録します。
+  - 既定値は `retention_days = 0`（無期限）です。既存環境でアップデート後に監査ログが意図せず消えないよう、明示的に設定した場合のみ削除します。
+- **Admin Studio の配信パスと API 接続先**:
+  - Admin Studio は `/admin` で配信されます（`/` はテーマエンジンの公開サイト）。API の接続先は `admin/src/api/client.ts` の `API_BASE`（`http://127.0.0.1:8080/api/v1`）に固定されているため、別ホスト・別ポートで動かす場合は変更が必要です。
 - **カスタムフィールドの型付きバインド (PostgreSQL / MySQL)**:
   - `db::CustomFieldValue::from_json` がスキーマのフィールド型に合わせて値を変換し（jsonb → JSON、integer → i64、boolean → bool、その他は文字列）、変換できない値は `AegisError::Validation`（API は 400）を返します。SQLite は従来どおり文字列で保存します。
   - 読み出しも各アダプターの `custom_fields_from_row` でフィールド型ごとにデコードします。新しいフィールド型を追加する際は、`SchemaMigration` の型対応・`CustomFieldValue`・各アダプターのデコードを揃えて更新してください。
