@@ -1,9 +1,4 @@
-export interface BlockNode {
-  name: string;
-  attributes: Record<string, any>;
-  children?: BlockNode[];
-  text?: string;
-}
+export * from './schemas';
 
 export interface FieldDefinition {
   name: string;
@@ -24,24 +19,6 @@ export interface SchemaDefinition {
   fields: FieldDefinition[];
 }
 
-export interface ContentItem {
-  id: string;
-  content_type: string;
-  title: string;
-  slug: string;
-  status: 'draft' | 'published' | 'archived';
-  blocks: BlockNode[];
-  rendered_html: string;
-  author_id?: string;
-  published_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CreateContentPayload {
-  title: string;
-  slug: string;
-  status: string;
-  blocks: BlockNode[];
-  author_id?: string;
-}
+// Backward compatibility alias for generic content lists
+export type ContentItem = import('./schemas').BaseContentItem;
+export type CreateContentPayload = import('./schemas').CreateArticlePayload;

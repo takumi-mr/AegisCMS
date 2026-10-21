@@ -1,7 +1,9 @@
+pub mod codegen;
 pub mod definition;
 pub mod loader;
 pub mod migration;
 
+pub use codegen::{OpenApiGenerator, TypeScriptGenerator};
 pub use definition::{FieldDefinition, FieldType, SchemaDefinition};
 pub use loader::SchemaLoader;
 pub use migration::SqliteMigration;
