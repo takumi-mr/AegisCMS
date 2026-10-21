@@ -3,7 +3,10 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::{routing::get, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use clap::{Parser, Subcommand};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
@@ -13,8 +16,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod db;
 mod handlers;
 mod state;
+mod storage;
 
-use aegis_core::AegisConfig;
+use aegis_core::{AegisConfig, StorageBackendKind};
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::{OpenApiGenerator, SchemaLoader, TypeScriptGenerator};
 use state::AppState;
@@ -87,8 +91,8 @@ async fn main() -> anyhow::Result<()> {
                 .map(|s| (s.content_type.clone(), s))
                 .collect();
 
-            let pool = db::init_db(&config.database.url, config.database.max_connections).await?;
-            db::run_migrations(&pool, &schemas).await?;
+            let db_adapter = db::create_database_adapter(&config.database).await?;
+            db_adapter.run_migrations(&schemas).await?;
             tracing::info!("Schema migrations completed successfully.");
         }
         Commands::Codegen { target, output } => {
@@ -124,7 +128,12 @@ async fn main() -> anyhow::Result<()> {
             }
 
             tracing::info!("Starting AegisCMS core engine...");
-            tracing::info!("Database URL: {}", config.database.url);
+            tracing::info!(
+                "Database backend: {:?} (URL: {})",
+                config.database.resolved_backend(),
+                config.database.url
+            );
+            tracing::info!("Storage backend: {:?}", config.storage.backend);
 
             // 1. スキーマ読み込み
             let schemas_vec = SchemaLoader::load_dir(&config.paths.schemas_dir)?;
@@ -139,10 +148,13 @@ async fn main() -> anyhow::Result<()> {
             );
 
             // 2. DB初期化とマイグレーション
-            let pool = db::init_db(&config.database.url, config.database.max_connections).await?;
-            db::run_migrations(&pool, &schemas).await?;
+            let db_adapter = db::create_database_adapter(&config.database).await?;
+            db_adapter.run_migrations(&schemas).await?;
 
-            // 3. Wasm プラグインスーパーバイザー初期化
+            // 3. ストレージバックエンド初期化
+            let storage = storage::create_storage_backend(&config.storage)?;
+
+            // 4. Wasm プラグインスーパーバイザー初期化
             let mut supervisor = PluginSupervisor::new();
             if config.runtime.enable_wasm_plugins {
                 tracing::info!("Initializing Wasmtime runtime engine...");
@@ -167,9 +179,15 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
 
-            let app_state = Arc::new(AppState::new(config.clone(), pool, schemas, supervisor));
+            let app_state = Arc::new(AppState::new(
+                config.clone(),
+                db_adapter,
+                storage,
+                schemas,
+                supervisor,
+            ));
 
-            // 4. CORS & Router 設定
+            // 5. CORS & Router 設定
             let cors = CorsLayer::new()
                 .allow_origin(Any)
                 .allow_methods(Any)
@@ -188,9 +206,14 @@ async fn main() -> anyhow::Result<()> {
                     "/api/v1/contents/{content_type}/{slug}",
                     get(handlers::get_content),
                 )
-                .layer(cors)
-                .layer(TraceLayer::new_for_http())
-                .with_state(app_state);
+                .route("/api/v1/storage/upload", post(handlers::upload_file));
+
+            // ローカルストレージの場合、/uploads で静的ファイル配信
+            if config.storage.backend == StorageBackendKind::Local {
+                let _ = std::fs::create_dir_all(&config.storage.local.upload_dir);
+                let prefix = config.storage.local.public_url_prefix.clone();
+                app = app.nest_service(&prefix, ServeDir::new(&config.storage.local.upload_dir));
+            }
 
             if config.paths.admin_dist_dir.exists() {
                 let index_file = config.paths.admin_dist_dir.join("index.html");
@@ -198,6 +221,11 @@ async fn main() -> anyhow::Result<()> {
                     .not_found_service(ServeFile::new(index_file));
                 app = app.fallback_service(serve_service);
             }
+
+            let app = app
+                .layer(cors)
+                .layer(TraceLayer::new_for_http())
+                .with_state(app_state);
 
             let addr: SocketAddr =
                 format!("{}:{}", config.server.host, config.server.port).parse()?;

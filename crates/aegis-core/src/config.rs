@@ -1,4 +1,5 @@
 use crate::error::{AegisError, Result};
+use crate::storage::StorageBackendKind;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -8,6 +9,8 @@ pub struct AegisConfig {
     pub server: ServerConfig,
     #[serde(default)]
     pub database: DatabaseConfig,
+    #[serde(default)]
+    pub storage: StorageConfig,
     #[serde(default)]
     pub paths: PathsConfig,
     #[serde(default)]
@@ -45,8 +48,32 @@ impl Default for ServerConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DatabaseBackendKind {
+    #[default]
+    Sqlite,
+    Postgres,
+    Mysql,
+}
+
+impl DatabaseBackendKind {
+    pub fn infer_from_url(url: &str) -> Self {
+        let lower = url.to_ascii_lowercase();
+        if lower.starts_with("postgres://") || lower.starts_with("postgresql://") {
+            Self::Postgres
+        } else if lower.starts_with("mysql://") || lower.starts_with("mariadb://") {
+            Self::Mysql
+        } else {
+            Self::Sqlite
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
+    #[serde(default)]
+    pub backend: DatabaseBackendKind,
     pub url: String,
     pub max_connections: u32,
 }
@@ -54,8 +81,80 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
+            backend: DatabaseBackendKind::Sqlite,
             url: "sqlite://aegis.db?mode=rwc".to_string(),
             max_connections: 10,
+        }
+    }
+}
+
+impl DatabaseConfig {
+    pub fn resolved_backend(&self) -> DatabaseBackendKind {
+        // If explicit non-default or matches, or infer from URL
+        if self.backend != DatabaseBackendKind::Sqlite {
+            self.backend
+        } else {
+            DatabaseBackendKind::infer_from_url(&self.url)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageConfig {
+    #[serde(default)]
+    pub backend: StorageBackendKind,
+    #[serde(default)]
+    pub local: LocalStorageConfig,
+    #[serde(default)]
+    pub s3: S3StorageConfig,
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self {
+            backend: StorageBackendKind::Local,
+            local: LocalStorageConfig::default(),
+            s3: S3StorageConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalStorageConfig {
+    pub upload_dir: PathBuf,
+    pub public_url_prefix: String,
+}
+
+impl Default for LocalStorageConfig {
+    fn default() -> Self {
+        Self {
+            upload_dir: PathBuf::from("data/uploads"),
+            public_url_prefix: "/uploads".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct S3StorageConfig {
+    pub bucket: String,
+    pub region: String,
+    pub endpoint: Option<String>,
+    pub access_key_id: String,
+    pub secret_access_key: String,
+    pub force_path_style: bool,
+    pub public_url_prefix: Option<String>,
+}
+
+impl Default for S3StorageConfig {
+    fn default() -> Self {
+        Self {
+            bucket: "aegis-bucket".to_string(),
+            region: "auto".to_string(),
+            endpoint: None,
+            access_key_id: String::new(),
+            secret_access_key: String::new(),
+            force_path_style: false,
+            public_url_prefix: None,
         }
     }
 }

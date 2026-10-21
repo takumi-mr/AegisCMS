@@ -27,3 +27,9 @@ clap.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 anyhow.workspace = true
+async-trait.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+

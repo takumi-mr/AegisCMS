@@ -8,24 +8,22 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: フェーズ 2 拡張（OpenAPI/TS型定義自動生成、ストリーミングHTMLリライター、カテゴリ・固定ページスキーマおよび動的リレーション解決）完了。
+- **現在のステータス**: フェーズ 2 拡張（インフラ抽象化: マルチRDBMS & マルチストレージ対応）完了。
 - **動作確認済み**:
-  - Rust ワークスペース（`aegis-core`, `aegis-ast`, `aegis-schema`, `aegis-runtime`, `aegis-server`）のビルド・単体テスト (`cargo test --workspace`) 100% 成功（17 tests 全パス）。
-  - YAMLスキーマ (`schemas/*.yaml`) から SQLite テーブルへの自動マイグレーションおよび既存テーブルへの安全な差分カラム追加（`ALTER TABLE ... ADD COLUMN`）自動スキーマ進化。
-  - Wasmtime による Wasm プラグイン（`plugins/slack-notifier`）のサンドボックス隔離実行・ホストAPI連携 (`host:log`)・タイムアウト保護。
-  - REST API Gateway による記事作成 (`POST /api/v1/contents/article`)、AST変換、HTML決定論的レンダリング、`lol-html` によるセキュリティ属性インジェクション。
-  - コンテンツ API でのリレーション自動解決（`category_id` から関連モデル情報を JOIN/検索しレスポンスに `relations` として付与）。
-  - Vite + React + TypeScript による Admin Studio SPA の構築（ダークモード＆グラスモフィズム、ブロックエディタ、リアルタイムプレビュー、スキーマ・記事一覧同期）。
-  - `aegis-server` からの Admin Studio 静的アセット SPA 配信 (`fallback_service(ServeDir)`) と E2E ブラウザ疎通完了。
-  - スキーマ駆動 OpenAPI 3.1 & TypeScript 型定義自動生成 (`task codegen`)。
+  - Rust ワークスペース（`aegis-core`, `aegis-ast`, `aegis-schema`, `aegis-runtime`, `aegis-server`）のビルド・単体テスト (`cargo test --workspace`) 100% 成功（21 tests 全パス）。
+  - RDB 抽象化レイヤー (`DatabaseAdapter`): SQLite, PostgreSQL, MySQL への接続プール、スキーマDDL生成、差分カラム自動追加マイグレーション、コンテンツCRUD、リレーション解決のトレイト抽象化完了。
+  - ストレージ抽象化レイヤー (`StorageBackend`): ローカルディスク/ブロックストレージ (`LocalStorageBackend`) および AWS S3 / Cloudflare R2 / MinIO 互換ストレージ (`S3StorageBackend` ネイティブ SigV4 署名実装) の完全統合。
+  - アセットアップロード API (`POST /api/v1/storage/upload`) およびローカルアセット配信サービス (`/uploads/*`)。
+  - Config ベースでの動的切り替え（`config/*.toml` の `[database]` および `[storage]` セクション）。
+  - Wasmtime サンドボックスランタイム統合、AST変換、ストリーミング HTML リライター (`lol-html`)、Admin Studio SPA 配信、OpenAPI 3.1 & TypeScript 型定義自動生成。
 
 ### 🚀 次に作業を再開するときの着手項目
-**フェーズ 2 拡張: Admin Studio リレーション連携 & コンテンツ管理強化**
+**フェーズ 2 拡張: Admin Studio リレーション連携 & メディア管理 UI**
 1. **Admin Studio でのカテゴリ・リレーション選択 UI 統合**:
    - 記事エディタに `category_id` を選択可能なカテゴリドロップダウン / セレクトボックスを追加。
    - `schemas/categories.yaml` に基づくカテゴリ一覧・作成モーダル/画面の提供。
-2. **コンテンツ一覧での関連データ表示・フィルタリング**:
-   - 記事一覧テーブルでカテゴリ名（リレーション解決結果）を表示し、カテゴリ別絞り込みを可能にする。
+2. **Admin Studio メディアアップローダー UI**:
+   - 画像ブロックやメディア挿入時に `/api/v1/storage/upload` へドラッグ＆ドロップで画像をアップロードし、URL をブロックへ自動反映する UI。
 
 ---
 
@@ -89,18 +87,34 @@
   - [x] `aegis-server`: `PRAGMA table_info` を走査し、既存テーブルへ差分カラムを自動追加する `ALTER TABLE ... ADD COLUMN` スキーマ進化マイグレーションの実装
   - [x] `aegis-server`: 動的カスタムフィールドの永続化およびリレーション自動解決（JOIN / 関連モデル情報の `relations` オブジェクト注入）
   - [x] TypeScript 型定義および OpenAPI 仕様書の更新 (`task codegen`)
+- [x] **インフラ周りの抽象化（RDB & ストレージ）**
+  - [x] `aegis-core`: `DatabaseBackendKind` (`sqlite`, `postgres`, `mysql`), `StorageBackendKind` (`local`, `s3`), `StorageConfig`, `StorageBackend` トレイト、`StorageMeta` 定義
+  - [x] `aegis-schema`: マルチダイアレクト DDL 生成 (`SqlDialect`: SQLite, Postgres, MySQL) および単体テスト
+  - [x] `aegis-server`: `DatabaseAdapter` トレイトの定義（init, run_migrations, insert_content, get_content, list_contents, resolve_relation）
+  - [x] `aegis-server`: `SqliteAdapter` 実装（`sqlx::SqlitePool` カプセル化）
+  - [x] `aegis-server`: `PostgresAdapter` 実装（`sqlx::PgPool`, `$1` パラメータ, `information_schema` 走査マイグレーション）
+  - [x] `aegis-server`: `MySqlAdapter` 実装（`sqlx::MySqlPool`, `?` パラメータ, `information_schema` 走査マイグレーション）
+  - [x] `aegis-server`: `LocalStorageBackend` 実装（ローカルディスク/ブロックストレージ、ディレクトリ自動作成、パストラバーサル防止）
+  - [x] `aegis-server`: `S3StorageBackend` 実装（AWS S3 / Cloudflare R2 / MinIO 互換, AWS SigV4 認証署名ネイティブ実装）
+  - [x] `aegis-server`: アセットアップロード API (`POST /api/v1/storage/upload`) & 静的配信統合
+  - [x] `AppState` および `handlers/content.rs` を `DatabaseAdapter` & `StorageBackend` ベースに全面リファクタリング
+  - [x] `config/default.toml` および `config/docker.toml` での `[database]` & `[storage]` 設定の体系化
 
 ---
 
 ### ⏳ 次に取り組むタスク (Next Up)
 
-#### フェーズ 2 拡張: Admin Studio 連携 & コンテンツ機能拡張
+#### フェーズ 2 拡張: Admin Studio 連携 & メディア管理
 - [ ] **Admin Studio: カテゴリ選択 & リレーション編集 UI**
   - [ ] 記事作成・編集フォームへのカテゴリ選択ドロップダウンの追加
   - [ ] カテゴリ一覧・新規登録 UI の追加
+- [ ] **Admin Studio: メディアアップローダー UI**
+  - [ ] 画像ブロックからのファイルアップロード (`/api/v1/storage/upload`) 連携
+  - [ ] アップロード画像のプレビューおよびメディア一覧表示
 - [ ] **コンテンツ一覧のフィルタリングとリレーション表示**
   - [ ] 記事一覧テーブルにカテゴリバッジを表示
   - [ ] カテゴリ別フィルタリング機能
+
 
 ---
 
@@ -147,3 +161,12 @@
 - **動的リレーション自動解決 (Automatic Relation Resolution)**:
   - スキーマのフィールド定義で `type: relation` および `target: category.id` （`<target_schema>.<target_column>`）が指定されている場合、API レスポンスの `relations` マップに自動解決された関連リソース情報（`id`, `content_type`, `title`, `slug`）が埋め込まれます。
   - フロントエンドは個別に追加 API リクエストを発行することなく、単一のコンテンツ取得クエリでリレーション先のメタデータ（カテゴリ名やスラッグ）を即座に描画・利用可能です。
+- **マルチRDBMS 抽象化アーキテクチャ (`DatabaseAdapter`)**:
+  - `DatabaseAdapter` トレイトによって SQLite / PostgreSQL / MySQL の SQL 方言・プレースホルダ構文（`?1` vs `$1` vs `?`）・接続プール・カラム情報スキーマ走査（`PRAGMA table_info` vs `information_schema.columns`）の違いを完全に隠蔽。
+  - ハンドラ層は `DatabaseAdapter` 経由でコンテンツ CRUD やリレーション解決を行うため、特定の RDBMS に一切ロックインされません。
+  - `config/*.toml` の `[database]` セクションで `backend = "sqlite" | "postgres" | "mysql"` と `url` を指定するだけで、サーバー再コンパイル不要でデータベースを切り替え可能です。
+- **マルチストレージ抽象化アーキテクチャ (`StorageBackend`)**:
+  - `StorageBackend` トレイト（`put`, `get`, `delete`, `public_url`）により、ローカルディスク/ブロックストレージ (`LocalStorageBackend`) と S3 互換オブジェクトストレージ (`S3StorageBackend`) を Config ベースで透過的に切り替え可能。
+  - `S3StorageBackend` は AWS SigV4 認証プロトコルをネイティブ実装しているため、重量級の AWS SDK を追加することなく、AWS S3, Cloudflare R2, MinIO, Wasabi と完全互換で高速・軽量に動作します。
+  - マルチパートファイルアップロード API (`POST /api/v1/storage/upload`) により、メディアやアセットの柔軟な保存と URL 返却に対応しています。
+
