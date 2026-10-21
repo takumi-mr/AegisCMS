@@ -79,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cli = Cli::parse();
-    let mut config = AegisConfig::load_or_default(&cli.config);
+    let mut config = AegisConfig::load_or_default(&cli.config)?;
 
     match cli.command.unwrap_or(Commands::Run {
         port: None,
