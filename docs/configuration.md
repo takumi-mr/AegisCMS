@@ -173,6 +173,8 @@ public_url_prefix = "https://cdn.example.com"
 | `enabled` | bool | `true` | `false` で監査ログの記録を無効化 |
 | `sinks` | (`"database"` \| `"log"` \| `"prometheus"`)[] | `["database"]` | 出力先（複数指定可）。`database`: DB テーブル + 参照 API / `log`: 構造化ログ / `prometheus`: `/metrics` のカウンタ |
 | `trust_forwarded_for` | bool | `false` | `true` で `X-Forwarded-For` の先頭アドレスをクライアント IP として記録。信頼できるリバースプロキシ配下でのみ有効化 |
+| `retention_days` | integer (u32) | `0` | `database` 出力先の監査ログを保持する日数。これより古いログを定期的に削除（`0` で無期限） |
+| `purge_interval_secs` | integer (u64) | `3600` | 保持期間切れのログを削除する間隔（秒、最小 60）。起動直後にも 1 回実行 |
 
 ---
 
@@ -236,4 +238,6 @@ enforce_image_async_decoding = true
 enabled = true
 sinks = ["database"]
 trust_forwarded_for = false
+retention_days = 0
+purge_interval_secs = 3600
 ```

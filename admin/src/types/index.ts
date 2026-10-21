@@ -22,3 +22,46 @@ export interface SchemaDefinition {
 // Backward compatibility alias for generic content lists
 export type ContentItem = import('./schemas').BaseContentItem;
 export type CreateContentPayload = import('./schemas').CreateArticlePayload;
+
+export type AuditAction =
+  | 'content.create'
+  | 'session.create'
+  | 'session.delete'
+  | 'storage.upload'
+  | 'plugin.error'
+  | 'audit.purge';
+
+export type AuditOutcome = 'success' | 'failure' | 'denied';
+
+export interface AuditEvent {
+  id: string;
+  occurred_at: string;
+  action: AuditAction;
+  outcome: AuditOutcome;
+  actor: { user_id: string; role: string } | null;
+  resource_type: string | null;
+  resource_id: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface AuditLogQuery {
+  action?: string;
+  outcome?: string;
+  actor_id?: string;
+  resource_type?: string;
+  resource_id?: string;
+  since?: string;
+  until?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AuditLogPage {
+  items: AuditEvent[];
+  limit: number;
+  offset: number;
+  /** Retention in days, or null when audit events are kept forever */
+  retention_days: number | null;
+}

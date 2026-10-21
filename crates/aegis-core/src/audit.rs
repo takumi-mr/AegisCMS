@@ -17,15 +17,18 @@ pub enum AuditAction {
     StorageUpload,
     #[serde(rename = "plugin.error")]
     PluginError,
+    #[serde(rename = "audit.purge")]
+    AuditPurge,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 5] = [
+    pub const ALL: [AuditAction; 6] = [
         Self::ContentCreate,
         Self::SessionCreate,
         Self::SessionDelete,
         Self::StorageUpload,
         Self::PluginError,
+        Self::AuditPurge,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -35,6 +38,7 @@ impl AuditAction {
             Self::SessionDelete => "session.delete",
             Self::StorageUpload => "storage.upload",
             Self::PluginError => "plugin.error",
+            Self::AuditPurge => "audit.purge",
         }
     }
 }

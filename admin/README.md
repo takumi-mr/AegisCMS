@@ -18,6 +18,9 @@
   - TailwindCSS 等のフレームワークに依存せず、ゼロランタイムの Vanilla CSS と CSS 変数（デザインシステムトークン）で構築。
   - 目に優しく視認性の高いダークテーマ、美しいすりガラス効果（Glassmorphism）、洗練されたマイクロインタラクション。
   - タイポグラフィに `Plus Jakarta Sans` / `Outfit` / `JetBrains Mono` を採用。
+- **監査ログ閲覧画面 (Audit Logs)**:
+  - ヘッダーの切り替えで、監査ログ（`GET /api/v1/audit-logs`）を一覧表示。action / outcome / actor / resource / 期間での絞り込み、ページ送り、イベント詳細（JSON）の展開に対応。
+  - 閲覧には `admin` ロールのセッショントークンが必要（詳細は [監査ログリファレンス](../docs/audit.md#6-admin-studio-の閲覧画面)）。
 - **Core Engine との透過的連携**:
   - スキーマ一覧（`/api/v1/schemas`）および記事一覧・詳細・作成（`/api/v1/contents/{content_type}`）とのリアルタイム同期。
   - バックエンドサーバーのヘルスチェック（`/api/v1/health`）による接続ステータス表示。
@@ -46,7 +49,8 @@ admin/
 │   │   └── client.ts       # REST API Gateway 連携クライアント
 │   ├── assets/             # 静的画像・ベクター素材
 │   ├── components/         # UI コンポーネント群
-│   │   ├── Header.tsx      # ヘッダー・サーバー状態インジケーター
+│   │   ├── Header.tsx      # ヘッダー・画面切り替え・サーバー状態インジケーター
+│   │   ├── AuditLogView.tsx # 監査ログ閲覧画面
 │   │   ├── ContentList.tsx # 記事・コンテンツ一覧サイドバー
 │   │   ├── BlockItem.tsx   # 各種 AST ブロックエディタ
 │   │   └── Preview.tsx     # リアルタイム HTML / ソースコードプレビュー

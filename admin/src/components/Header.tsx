@@ -1,13 +1,17 @@
 import React from 'react';
-import { ShieldCheck, Activity, Send } from 'lucide-react';
+import { ShieldCheck, Activity, Send, PenSquare, ScrollText } from 'lucide-react';
+
+export type AppView = 'editor' | 'audit';
 
 interface HeaderProps {
+  view: AppView;
+  onViewChange: (view: AppView) => void;
   isOnline: boolean;
   onSave: () => void;
   isSaving: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ isOnline, onSave, isSaving }) => {
+export const Header: React.FC<HeaderProps> = ({ view, onViewChange, isOnline, onSave, isSaving }) => {
   return (
     <header className="app-header">
       <div className="header-left">
@@ -18,6 +22,22 @@ export const Header: React.FC<HeaderProps> = ({ isOnline, onSave, isSaving }) =>
           <span>AegisCMS</span>
         </div>
         <span className="brand-badge">Zero-Trust Sandbox</span>
+        <nav className="view-tabs" aria-label="Views">
+          <button
+            className={`view-tab ${view === 'editor' ? 'active' : ''}`}
+            onClick={() => onViewChange('editor')}
+          >
+            <PenSquare size={14} />
+            <span>Editor</span>
+          </button>
+          <button
+            className={`view-tab ${view === 'audit' ? 'active' : ''}`}
+            onClick={() => onViewChange('audit')}
+          >
+            <ScrollText size={14} />
+            <span>Audit Logs</span>
+          </button>
+        </nav>
       </div>
 
       <div className="header-right">
@@ -26,19 +46,21 @@ export const Header: React.FC<HeaderProps> = ({ isOnline, onSave, isSaving }) =>
           <span>Core Gateway: {isOnline ? 'Connected' : 'Offline'}</span>
         </div>
 
-        <button 
-          className="btn btn-primary" 
-          onClick={onSave}
-          disabled={isSaving}
-          title="Save content and trigger Wasm guest hooks"
-        >
-          {isSaving ? (
-            <Activity className="animate-spin" size={16} />
-          ) : (
-            <Send size={16} />
-          )}
-          <span>{isSaving ? 'Executing Hooks...' : 'Save & Run Hooks'}</span>
-        </button>
+        {view === 'editor' && (
+          <button
+            className="btn btn-primary"
+            onClick={onSave}
+            disabled={isSaving}
+            title="Save content and trigger Wasm guest hooks"
+          >
+            {isSaving ? (
+              <Activity className="animate-spin" size={16} />
+            ) : (
+              <Send size={16} />
+            )}
+            <span>{isSaving ? 'Executing Hooks...' : 'Save & Run Hooks'}</span>
+          </button>
+        )}
       </div>
     </header>
   );

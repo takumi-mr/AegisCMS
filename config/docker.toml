@@ -59,6 +59,10 @@ enabled = true
 sinks = ["database"]
 # Record the first X-Forwarded-For address as the client IP (enable only behind a trusted reverse proxy)
 trust_forwarded_for = false
+# Days to keep audit events in the database sink; older events are purged periodically (0 = keep forever)
+retention_days = 0
+# How often to purge expired audit events, in seconds (minimum 60)
+purge_interval_secs = 3600
 
 [theme]
 active = "default"

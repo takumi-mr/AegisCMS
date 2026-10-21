@@ -7,9 +7,9 @@ use sqlx::mysql::{MySqlDatabaseError, MySqlPoolOptions, MySqlRow};
 use sqlx::{MySql, Pool, Row};
 
 use super::{
-    audit_insert_values, audit_row_from_sqlx, build_audit_insert, build_audit_select,
-    is_standard_column, ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation,
-    AUDIT_TABLE,
+    audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
+    build_audit_select, is_standard_column, ContentRecord, CustomFieldValue, DatabaseAdapter,
+    ResolvedRelation, AUDIT_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -413,5 +413,14 @@ impl DatabaseAdapter for MySqlAdapter {
             events.push(audit_row_from_sqlx!(row).into_event()?);
         }
         Ok(events)
+    }
+
+    async fn delete_audit_events_before(&self, cutoff: &str) -> Result<u64> {
+        let result = sqlx::query(&build_audit_delete_before("?"))
+            .bind(cutoff)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(result.rows_affected())
     }
 }
