@@ -6,6 +6,7 @@ use std::sync::Arc;
 use axum::{routing::get, Router};
 use clap::{Parser, Subcommand};
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -126,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
                 .allow_methods(Any)
                 .allow_headers(Any);
 
-            let app = Router::new()
+            let mut app = Router::new()
                 .route("/api/v1/health", get(handlers::health_check))
                 .route("/api/v1/schemas", get(handlers::list_schemas))
                 .route("/api/v1/schemas/{content_type}", get(handlers::get_schema))
@@ -141,6 +142,13 @@ async fn main() -> anyhow::Result<()> {
                 .layer(cors)
                 .layer(TraceLayer::new_for_http())
                 .with_state(app_state);
+
+            if config.paths.admin_dist_dir.exists() {
+                let index_file = config.paths.admin_dist_dir.join("index.html");
+                let serve_service = ServeDir::new(&config.paths.admin_dist_dir)
+                    .not_found_service(ServeFile::new(index_file));
+                app = app.fallback_service(serve_service);
+            }
 
             let addr: SocketAddr =
                 format!("{}:{}", config.server.host, config.server.port).parse()?;

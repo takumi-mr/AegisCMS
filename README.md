@@ -157,23 +157,23 @@ world plugin-runtime {
 
 ```json
 {
-  "name": "aegis-plugin-slack-notifier",
-  "version": "1.0.0",
-  "entrypoint": "plugin.wasm",
-  "capabilities": {
-    "network": {
-      "allowed_domains": ["hooks.slack.com"]
+    "name": "aegis-plugin-slack-notifier",
+    "version": "1.0.0",
+    "entrypoint": "plugin.wasm",
+    "capabilities": {
+        "network": {
+            "allowed_domains": ["hooks.slack.com"]
+        },
+        "storage": {
+            "kv_namespace": "slack_notifier_state"
+        },
+        "hooks": ["on-before-save", "transform-content-ast"]
     },
-    "storage": {
-      "kv_namespace": "slack_notifier_state"
-    },
-    "hooks": ["on-before-save", "transform-content-ast"]
-  },
-  "resource_limits": {
-    "max_memory_mb": 16,
-    "max_fuel_units": 100000000,
-    "execution_timeout_ms": 250
-  }
+    "resource_limits": {
+        "max_memory_mb": 16,
+        "max_fuel_units": 100000000,
+        "execution_timeout_ms": 250
+    }
 }
 ```
 
@@ -242,26 +242,26 @@ EAVパターンを完全廃止し、コンテンツタイプはYAML形式で定�
 content_type: article
 label: "技術記事"
 fields:
-  - name: title
-    type: string
-    required: true
-    max_length: 255
-    index: true
-  - name: slug
-    type: string
-    required: true
-    unique: true
-  - name: published_at
-    type: timestamp
-    nullable: true
-    index: true
-  - name: tech_category
-    type: relation
-    target: category.id
-  - name: custom_meta
-    type: jsonb
-    indexed_paths:
-      - "seo.canonical_url"
+    - name: title
+      type: string
+      required: true
+      max_length: 255
+      index: true
+    - name: slug
+      type: string
+      required: true
+      unique: true
+    - name: published_at
+      type: timestamp
+      nullable: true
+      index: true
+    - name: tech_category
+      type: relation
+      target: category.id
+    - name: custom_meta
+      type: jsonb
+      indexed_paths:
+          - "seo.canonical_url"
 ```
 
 - **自動マイグレーション**: コアエンジン起動時またはスキーマ同期コマンド実行時に、スキーマ差分を検出し内部テーブル（PostgreSQL/SQLite）へ自動マイグレーションを実行。
@@ -284,30 +284,27 @@ fields:
 
 ## 6. 技術スタック選定基準
 
-| レイヤー               | 採用技術                                | 選定理由・技術的トレードオフ                                                                                                 |
-| ---------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **コアエンジン**       | **Rust**                                | メモリ安全性、ゼロコスト抽象化、起動速度。Wasmtimeランタイムとのネイティブ親和性。単一バイナリ配布が可能。                   |
-| **ストレージ**         | **SQLite (libSQL) / PostgreSQL**        | エッジ/単一サーバー運用時はZero-Configで動くSQLiteを使用。クラスタリング時はPostgreSQL/JSONBインデックスへ透過的に切替可能。 |
-| **サンドボックス**     | **Wasmtime + Extism**                   | Bytecode Alliance準拠の安定したランタイム。Extismをラッパーに採用することでマルチ言語SDKの生成コストを圧縮。                 |
-| **プラグイン開発言語** | **Tier 1: AssemblyScript / TinyGo**<br> |
-
-<br>**Tier 2: Rust** | **Tier 1**: 軽量GC・型安全・数十〜数百KBのコンパクトバイナリでWeb開発者の参入障壁を低減。<br>
-
-<br>**Tier 2**: 極限のパフォーマンスとメモリ制御を要する処理用。 |
-| **管理画面** | **TypeScript + Solid.js / React** | 細粒度リアクティビティまたは巨大なReactコンポーネント資産を活用したブロック編集UIの高速動作。 |
+| レイヤー               | 採用技術                            | 選定理由・技術的トレードオフ                                                                                                 |
+| ---------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **コアエンジン**       | **Rust**                            | メモリ安全性、ゼロコスト抽象化、起動速度。Wasmtimeランタイムとのネイティブ親和性。単一バイナリ配布が可能。                   |
+| **ストレージ**         | **SQLite (libSQL) / PostgreSQL**    | エッジ/単一サーバー運用時はZero-Configで動くSQLiteを使用。クラスタリング時はPostgreSQL/JSONBインデックスへ透過的に切替可能。 |
+| **サンドボックス**     | **Wasmtime + Extism**               | Bytecode Alliance準拠の安定したランタイム。Extismをラッパーに採用することでマルチ言語SDKの生成コストを圧縮。                 |
+| **プラグイン開発言語** | **Tier 1: AssemblyScript / TinyGo** | **Tier 1**: 軽量GC・型安全・数十〜数百KBのコンパクトバイナリでWeb開発者の参入障壁を低減。                                    |
+| **プラグイン開発言語** | **Tier 2: Rust**                    | **Tier 2**: 極限のパフォーマンスとメモリ制御を要する処理用。                                                                 |
+| **管理画面**           | **TypeScript + Solid.js / React**   | 細粒度リアクティビティまたは巨大なReactコンポーネント資産を活用したブロック編集UIの高速動作。                                |
 
 ---
 
 ## 7. 開発・運用ロードマップ
 
 - **フェーズ 1 (PoC・コア基盤確立)**
-- Rust製コアエンジンとWasmtime組み込みのプロトタイプ実装。
-- AST変換フックおよびメモリ受け渡し（Fat Pointer方式）のベンチマーク検証。
+    - Rust製コアエンジンとWasmtime組み込みのプロトタイプ実装。
+    - AST変換フックおよびメモリ受け渡し（Fat Pointer方式）のベンチマーク検証。
 
 - **フェーズ 2 (スキーマエンジンとエディタ統合)**
-- YAMLスキーマからのDB自動マイグレーションエンジン実装。
-- 基本ブロックエディタUIとREST/GraphQL APIの疎結合結合。
+    - YAMLスキーマからのDB自動マイグレーションエンジン実装。
+    - 基本ブロックエディタUIとREST/GraphQL APIの疎結合結合。
 
 - **フェーズ 3 (SDK整備とエコシステム公開)**
-- AssemblyScript / TinyGo向け公式プラグインSDKの提供。
-- ケイパビリティ検証ガードおよびマニフェストパーサーのセキュリティ監査。
+    - AssemblyScript / TinyGo向け公式プラグインSDKの提供。
+    - ケイパビリティ検証ガードおよびマニフェストパーサーのセキュリティ監査。
