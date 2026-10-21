@@ -1,0 +1,15 @@
+[package]
+name = "aegis-plugin-sdk"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Official Rust SDK for AegisCMS WebAssembly (Wasm) plugins"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+aegis-plugin-macros = { path = "../aegis-plugin-macros", version = "0.1.0" }

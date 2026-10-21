@@ -90,6 +90,7 @@ mod tests {
 
         let post = PostContext {
             id: "uuid-1234".to_string(),
+            title: "Secure Architecture".to_string(),
             slug: "secure-architecture".to_string(),
             author_id: "takumi".to_string(),
             blocks_json: "[]".to_string(),
@@ -140,5 +141,52 @@ mod tests {
         assert_eq!(output.len(), 2);
         assert_eq!(output[0].name, "core/heading");
         assert_eq!(output[1].name, "core/paragraph");
+    }
+
+    #[tokio::test]
+    async fn test_wasm_compiled_plugin_from_sdk() {
+        let wasm_path = std::path::Path::new("../../plugins/template-rust/plugin.wasm");
+        let fallback_path = std::path::Path::new("plugins/template-rust/plugin.wasm");
+        let path = if wasm_path.exists() {
+            wasm_path
+        } else if fallback_path.exists() {
+            fallback_path
+        } else {
+            return;
+        };
+
+        let wasm_bytes = std::fs::read(path).expect("Failed to read plugin.wasm");
+        let engine = WasmEngine::new().expect("WasmEngine initialization failed");
+        let kv = Arc::new(Mutex::new(HashMap::new()));
+
+        let manifest = make_sample_manifest(vec![
+            "on-before-save".to_string(),
+            "transform-content-ast".to_string(),
+        ]);
+
+        let instance = WasmPluginInstance::from_bytes(engine, manifest, &wasm_bytes, kv)
+            .expect("Instance creation failed");
+
+        let post = PostContext {
+            id: "uuid-1234".to_string(),
+            title: "  Trimmed Post Title  ".to_string(),
+            slug: "trimmed-post".to_string(),
+            author_id: "author-1".to_string(),
+            blocks_json: "[]".to_string(),
+        };
+
+        let saved = instance
+            .on_before_save(post)
+            .await
+            .expect("on_before_save failed");
+        assert_eq!(saved.title, "Trimmed Post Title");
+
+        let blocks = vec![BlockNode::heading(1, "Test Heading")];
+        let transformed = instance
+            .transform_content_ast(blocks)
+            .await
+            .expect("transform_content_ast failed");
+        assert_eq!(transformed.len(), 2);
+        assert_eq!(transformed[1].name, "core/paragraph");
     }
 }
