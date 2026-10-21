@@ -107,6 +107,15 @@
   - [x] `aegis-server`: セッション HTTP REST API ハンドラー（`POST /api/v1/auth/session`, `GET /api/v1/auth/session`, `DELETE /api/v1/auth/session`、`Authorization: Bearer <token>` / `X-Session-Id` 両対応）
   - [x] `config/default.toml` および `config/docker.toml` への `[cache]` 宣言的設定ブロック追加
   - [x] 単体テスト追加（メモリキャッシュ TTL CRUD、Redis URL 検証、ステートレスセッションのライフサイクル検証）
+- [x] **Wasm プラグイン向け公式 SDK (`aegis-plugin-sdk`) & 開発テンプレート整備**
+  - [x] `crates/aegis-plugin-macros`: `#[aegis_plugin]` 手続型マクロの実装（`allocate` アロケータ自動生成、JSON 直列化/逆直列化、packed `(ptr << 32) | len` 隠蔽）
+  - [x] `crates/aegis-plugin-sdk`: 型安全な `Plugin` トレイト、`PostContext`、`BlockNode` 定義とヘルパー群
+  - [x] `crates/aegis-plugin-sdk`: ホスト API ラッパー（`log_info!`/`log_warn!`、`net::is_allowed`、`kv::set`/`kv::set_json`）
+  - [x] `crates/aegis-plugin-sdk`: ネイティブ環境（`cargo test`）向けのモック・メモリハンドル内蔵（Wasm ビルド不要でロジックを高速単体テスト可能）
+  - [x] `plugins/template-rust`: 公式開発テンプレートの整備（マニフェスト、フック実装、ローカルテスト）
+  - [x] `Taskfile.yml`: `task plugin:build` による Wasm バイナリ最適化ビルドコマンドの追加
+  - [x] `docs/plugin_sdk_guide.md`: Wasm プラグイン開発公式ガイドの作成
+  - [x] `crates/aegis-runtime`: SDK ビルド済み Wasm バイナリを用いた E2E サンドボックス実行テストの追加・パス
 
 ---
 
@@ -127,7 +136,7 @@
 ---
 
 ### 🔮 将来のロードマップ (Future)
-- [ ] Wasm プラグイン向け公式 SDK（AssemblyScript / Rust）テンプレートリポジトリ整備
+- [ ] Wasm プラグイン向け AssemblyScript / TypeScript SDK テンプレート整備
 - [ ] PostgreSQL / libSQL 対応（分散ストレージモード）
 - [ ] On-demand ISR / Cache-Tag Purge によるエッジキャッシュ制御
 
@@ -135,6 +144,9 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **Wasm プラグイン公式 SDK の設計とメモリ境界**:
+  - `#[aegis_plugin]` マクロは、ホストが要求する `allocate(len: i32) -> i32`、`on_before_save(ptr, len) -> i64`、`transform_content_ast(ptr, len) -> i64` を完全に自動生成し、ポインタパッキング（`(ptr << 32) | len`）と JSON 変換を隠蔽します。
+  - Wasm 32bit リニアメモリ上では生ポインタ（`*mut u8` as `i32`）として動作し、64bit ネイティブ環境での `cargo test` 時にはポインタ上位 32bit の消失を防ぐため ID ハンドルマッピング機構を内蔵しています。これによりプラグイン開発者は Wasm ターゲットを意識せずローカルで高速にテスト可能です。
 - **ステートレスセッション & キャッシュ設計**:
   - セッションデータは `SessionData` として JSON 直列化され、抽象化された `CacheBackend` に格納されます。
   - セッショントークンは `ses_{UUIDv4}` 形式で発行され、HTTP リクエストの `Authorization: Bearer <token>` または `X-Session-Id` ヘッダーから抽出されます。

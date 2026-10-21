@@ -105,6 +105,13 @@ tasks:
     cmds:
       - cargo run -p aegis-runtime --bin build_sample_wasm
 
+  plugin:build:
+    desc: Rust プラグインテンプレートを Wasm にビルド (wasm32-unknown-unknown)
+    cmds:
+      - cargo build -p aegis-plugin-template --target wasm32-unknown-unknown --release
+      - cmd /c "if exist target\\wasm32-unknown-unknown\\release\\aegis_plugin_template.wasm copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_template.wasm plugins\\template-rust\\plugin.wasm"
+
+
   # ============================================================================
   # 🐳 Docker タスク
   # ============================================================================

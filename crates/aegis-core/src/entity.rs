@@ -49,6 +49,8 @@ pub struct Post {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostContext {
     pub id: String,
+    #[serde(default)]
+    pub title: String,
     pub slug: String,
     pub author_id: String,
     pub blocks_json: String,

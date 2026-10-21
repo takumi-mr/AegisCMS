@@ -124,6 +124,7 @@ pub async fn create_content(
         // on-before-save フック実行
         let post_ctx = PostContext {
             id: id.clone(),
+            title: payload.title.clone(),
             slug: payload.slug.clone(),
             author_id: payload.author_id.clone().unwrap_or_default(),
             blocks_json: serde_json::to_string(&transformed_blocks).unwrap_or_default(),
