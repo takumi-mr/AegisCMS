@@ -60,6 +60,11 @@
   - [x] リアルタイムプレビュー（ASTからレンダリングされたHTMLの表示）
   - [x] 記事保存・更新・公開ステータス切替
   - [x] コアサーバーによる Admin SPA 配信 (`/` -> `admin/dist/index.html`)
+- [x] **CI/CD & コンテナ基盤整備**
+  - [x] GitHub Actions 自動テスト・リント・ビルド CI パイプライン構築 (`.github/workflows/ci.yml`)
+  - [x] マルチステージ本番 Dockerfile の作成（Node.js + Rust 最新版 + 最小 Debian 実行層、非 root ユーザー実行、サイズ 163MB、HEALTHCHECK 内蔵）
+  - [x] Docker 用設定ファイル (`config/docker.toml`) および `.dockerignore` の追加
+  - [x] CLI 引数および環境変数による host/port オーバーライド対応（`AEGIS_CONFIG`, `HOST`, `PORT`）
 
 ---
 
@@ -102,3 +107,7 @@
 - **データベーステーブル命名規則**:
   - スキーマ `content_type: article` の場合、テーブル名は `content_article` となります。
   - ASTブロック配列は `blocks_json TEXT NOT NULL DEFAULT '[]'` カラムに格納されます。
+- **Docker コンテナ運用と再現性**:
+  - 本番イメージは `Dockerfile` によるマルチステージビルド（`node:22-alpine` -> `rust:latest` -> `debian:bookworm-slim`）で構築され、イメージサイズは約 163MB です。
+  - セキュリティのため、UID 10001 の非rootユーザー `aegis` でプロセスを実行します。データ永続化には `/app/data` をボリュームマウント（例: `-v aegis-data:/app/data`）してください。
+  - コンテナ内でのリッスン設定は `config/docker.toml`（`host = "0.0.0.0"`, `port = 8080`）で定義され、環境変数 `AEGIS_CONFIG`、`HOST`、`PORT` でも動的に上書き可能です。

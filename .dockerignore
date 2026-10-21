@@ -1,0 +1,13 @@
+target/
+admin/node_modules/
+admin/dist/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+data/
+.git/
+.github/
+.vscode/
+.idea/
+*.log

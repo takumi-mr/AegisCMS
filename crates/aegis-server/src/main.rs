@@ -29,7 +29,12 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
-    #[arg(short, long, default_value = "config/default.toml")]
+    #[arg(
+        short,
+        long,
+        env = "AEGIS_CONFIG",
+        default_value = "config/default.toml"
+    )]
     config: PathBuf,
 }
 
@@ -37,8 +42,11 @@ struct Cli {
 enum Commands {
     /// Start the AegisCMS API Gateway server
     Run {
-        #[arg(short, long)]
+        #[arg(short, long, env = "PORT")]
         port: Option<u16>,
+
+        #[arg(short = 'H', long, env = "HOST")]
+        host: Option<String>,
     },
     /// Run schema migrations against the configured database
     Migrate,
@@ -57,7 +65,10 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let mut config = AegisConfig::load_or_default(&cli.config);
 
-    match cli.command.unwrap_or(Commands::Run { port: None }) {
+    match cli.command.unwrap_or(Commands::Run {
+        port: None,
+        host: None,
+    }) {
         Commands::Migrate => {
             tracing::info!("Loading schemas from {:?}", config.paths.schemas_dir);
             let schemas_vec = SchemaLoader::load_dir(&config.paths.schemas_dir)?;
@@ -70,9 +81,12 @@ async fn main() -> anyhow::Result<()> {
             db::run_migrations(&pool, &schemas).await?;
             tracing::info!("Schema migrations completed successfully.");
         }
-        Commands::Run { port } => {
+        Commands::Run { port, host } => {
             if let Some(p) = port {
                 config.server.port = p;
+            }
+            if let Some(h) = host {
+                config.server.host = h;
             }
 
             tracing::info!("Starting AegisCMS core engine...");
