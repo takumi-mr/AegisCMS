@@ -8,6 +8,7 @@ members = [
     "crates/aegis-server",
     "crates/aegis-plugin-macros",
     "crates/aegis-plugin-sdk",
+    "crates/aegis-theme",
     "plugins/template-rust",
 ]
 
@@ -40,6 +41,8 @@ redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
+minijinja = { version = "2.7", features = ["loader", "json"] }
+
 
 
 [workspace.lints.rust]

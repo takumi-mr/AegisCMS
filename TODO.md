@@ -8,14 +8,25 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: フェーズ 2 拡張（インフラ抽象化: マルチRDBMS & マルチストレージ対応）完了。
+- **現在のステータス**: コンテンツ公開機能 & テンプレートエンジン (`MiniJinja`) 導入、およびプラグインによる動的テーマ書き換え機能の実装完了。
 - **動作確認済み**:
-  - Rust ワークスペース（`aegis-core`, `aegis-ast`, `aegis-schema`, `aegis-runtime`, `aegis-server`）のビルド・単体テスト (`cargo test --workspace`) 100% 成功（21 tests 全パス）。
-  - RDB 抽象化レイヤー (`DatabaseAdapter`): SQLite, PostgreSQL, MySQL への接続プール、スキーマDDL生成、差分カラム自動追加マイグレーション、コンテンツCRUD、リレーション解決のトレイト抽象化完了。
-  - ストレージ抽象化レイヤー (`StorageBackend`): ローカルディスク/ブロックストレージ (`LocalStorageBackend`) および AWS S3 / Cloudflare R2 / MinIO 互換ストレージ (`S3StorageBackend` ネイティブ SigV4 署名実装) の完全統合。
-  - アセットアップロード API (`POST /api/v1/storage/upload`) およびローカルアセット配信サービス (`/uploads/*`)。
-  - Config ベースでの動的切り替え（`config/*.toml` の `[database]` および `[storage]` セクション）。
-  - Wasmtime サンドボックスランタイム統合、AST変換、ストリーミング HTML リライター (`lol-html`)、Admin Studio SPA 配信、OpenAPI 3.1 & TypeScript 型定義自動生成。
+  - Rust ワークスペース全体 (`cargo test --workspace`) 100% 成功（全35 tests パス）。
+  - コードフォーマット (`cargo fmt --check`) および Clippy ゼロ警告 (`cargo clippy --workspace -- -D warnings`) 達成。
+  - フロントエンド本番ビルド (`npm --prefix admin run build`) 成功。
+  - `task check` (fmt, clippy, test, admin:build) 全パス。
+  - テンプレートエンジン (`crates/aegis-theme`):
+    - `MiniJinja` を採用した高速・軽量・堅牢なテンプレート描画エンジン。
+    - 美しくモダンなビルトインデフォルトテンプレート（`base.html`, `index.html`, `article.html`, `page.html`, `404.html`）の内蔵。
+    - ファイルシステム（`themes/{active}/templates/`）およびプラグイン動的登録テンプレートの 3 層探索フォールバック。
+  - 公開フロントエンド配信 (`aegis-server`):
+    - `GET /` & `GET /articles`: 最新の公開記事一覧ページ (`index.html`)。
+    - `GET /articles/{slug}`: 記事詳細ページ (`article.html`)。`status == "published"` のみ一般公開し、下書きはゼロトラストに 404 を返却。
+    - `GET /{slug}`: 固定ページまたは記事へのスマートフォールバック。
+    - `GET /theme/assets/*`: テーマ静的アセット（CSS/JS/画像）配信。
+    - `GET /admin` & `/admin/*`: Admin Studio SPA 配信の分離共存。
+  - プラグインによるテーマ書き換え機構 (`aegis-runtime` & `aegis-plugin-sdk`):
+    - `on-render-page` フック: `PageRenderContext`（タイトル、カスタム CSS、`<head>` タグ、テーマ変数、使用テンプレート名）の動的書き換え。
+    - `ThemeEngine::register_template`: プラグインからのテンプレート動的完全オーバーライド。
 
 ### 🚀 次に作業を再開するときの着手項目
 **フェーズ 2 拡張: Admin Studio リレーション連携 & メディア管理 UI**
@@ -24,6 +35,7 @@
    - `schemas/categories.yaml` に基づくカテゴリ一覧・作成モーダル/画面の提供。
 2. **Admin Studio メディアアップローダー UI**:
    - 画像ブロックやメディア挿入時に `/api/v1/storage/upload` へドラッグ＆ドロップで画像をアップロードし、URL をブロックへ自動反映する UI。
+
 
 ---
 
@@ -115,7 +127,6 @@
   - [x] `plugins/template-rust`: 公式開発テンプレートの整備（マニフェスト、フック実装、ローカルテスト）
   - [x] `Taskfile.yml`: `task plugin:build` による Wasm バイナリ最適化ビルドコマンドの追加
   - [x] `docs/plugin_sdk_guide.md`: Wasm プラグイン開発公式ガイドの作成
-  - [x] `crates/aegis-runtime`: SDK ビルド済み Wasm バイナリを用いた E2E サンドボックス実行テストの追加・パス
 - [x] **リファレンスドキュメント整備**
   - [x] `docs/configuration.md`: `config/*.toml` の全設定項目（既定値・省略可否・CLI/環境変数オーバーライド）リファレンス
   - [x] `docs/plugin_hooks.md`: プラグインフック一覧（実行順・エラー時挙動）、マニフェスト、リソース制限、ホスト API リファレンス
@@ -126,6 +137,19 @@
   - [x] 記録対象: `content.create`, `session.create`, `session.delete`, `storage.upload`, `plugin.error`（セッショントークンは記録せず SHA-256 指紋のみ）
   - [x] 参照 API `GET /api/v1/audit-logs`（`admin` ロール必須、action / outcome / actor / resource / 期間での絞り込み、ページング）
   - [x] `docs/audit.md` の作成、`docs/configuration.md` と `config/*.toml` への `[audit]` 追記
+- [x] **コンテンツ公開機能 & テーマエンジン (`MiniJinja`) & プラグイン動的テーマ書き換え**
+  - [x] `aegis-core`: `ThemeConfig`、`PageRenderContext`、`ContentSummary` のデータ構造定義
+  - [x] `crates/aegis-theme`: `MiniJinja` をコアとしたテーマエンジン実装
+  - [x] 洗練されたビルトインモダンテンプレート（`base.html`, `index.html`, `article.html`, `page.html`, `404.html`）の内蔵
+  - [x] ファイルシステム（`themes/{active}/templates/`）およびプラグイン動的登録テンプレートの 3 層フォールバック
+  - [x] `aegis-runtime` & `aegis-plugin-sdk`: `on-render-page` フックおよび `provide_templates` メソッドの実装
+  - [x] `aegis-plugin-macros`: `#[aegis_plugin]` マクロへの `on_render_page` ABI 自動生成の統合
+  - [x] `aegis-server`: 公開ページ配信ハンドラー（`GET /`, `GET /articles`, `GET /articles/{slug}`, `GET /{slug}`）の実装
+  - [x] ゼロトラストな公開制御（`status == "published"` のみ公開、下書き・存在しない slug は 404 レンダリング）
+  - [x] テーマ静的アセット配信ルーティング（`/theme/assets/*`）および Admin Studio SPA（`/admin` & `/assets`）の完全分離共存
+  - [x] `config/*.toml` への `[theme]` 宣言的設定セクションの追加
+  - [x] `docs/theme_and_publishing_guide.md`: コンテンツ公開 & テーマプラグイン開発公式ガイドの作成
+  - [x] 単体テスト & 結合テスト（トップページ公開表示、下書き 404、プラグインによるタイトル・CSS・テンプレート書き換え）の追加・全パス
 
 ---
 
@@ -161,13 +185,14 @@
   - [x] `aegis-core`: `AuthProvider` トレイト（Local, SAML, OIDC などの抽象化）、`AuthIdentity`, `AuthCredentials`, `AuthRedirect` 定義と単体テスト完了
   - [ ] 認証判定・暗号署名検証・通信は Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装
   - [ ] `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・監査通知用 Wasm プラグインフック `on_user_authenticated` の追加
-- [ ] **テーマエンジン & 静的アセット配信システム**
-  - [ ] ページ全体のテンプレート描画エンジンの導入（Tera / Liquid 等によるレイアウト・スケルトンの定義）
-  - [ ] テーマプラグイン向け静的アセット（CSS/JS/画像）配信ルーティング機構（`/themes/{theme_id}/assets/*`）
-  - [ ] Admin Studio / 公開フロントエンドへのテーマ CSS やカスタムブロックコンポーネント注入仕様の策定
+- [x] **テーマエンジン & 静的アセット配信システム**
+  - [x] ページ全体のテンプレート描画エンジンの導入（MiniJinja によるレイアウト・スケルトンの定義）
+  - [x] テーマ向け静的アセット（CSS/JS/画像）配信ルーティング機構（`/theme/assets/*`）
+  - [x] プラグインによる動的テーマ CSS / `<head>` / コンテキスト書き換えおよびテンプレート動的オーバーライド機能の実装
 - [ ] Wasm プラグイン向け AssemblyScript / TypeScript SDK テンプレート整備
 - [ ] PostgreSQL / libSQL 対応（分散ストレージモード）
 - [ ] On-demand ISR / Cache-Tag Purge によるエッジキャッシュ制御
+
 
 ---
 
@@ -235,7 +260,10 @@
   - 認証・認可におけるセキュリティリスク（認証バイパス、暗号脆弱性、トークン漏洩）を防ぐため、認証判定や暗号処理（SAML XML-DSIG、OIDC JWT/JWKS 検証など）をサードパーティ Wasm プラグインには直接開放しません。
   - 代わりに `aegis-core` の `AuthProvider` トレイトによる Rust Crate（静的コンパイル / Cargo Features）として安全に実装・分離します。
   - 一方で、認証成功後のメタデータ付加、部署属性によるロールマッピング、Slack/Teams へのログイン監査通知などの安全な拡張ロジックのみを Wasm プラグイン（`on_user_authenticated` フック）に委譲する設計を採用します。
-- **テーマ拡張のアーキテクチャ検討事項**:
-  - 現在の AegisCMS は Headless CMS であり、本文ブロックの HTML レンダリング（`HtmlRenderer` + `StreamingHtmlRewriter`）のみ対応しています。
-  - 完全なテーマ拡張には「テンプレートエンジン（Tera 等）によるページ全体のレイアウト描画」「テーマ専用アセット（CSS/JS/画像）の配信ルーティング」「管理画面/フロントエンドへの CSS/コンポーネント注入」の 3 つの要素が必要であり、将来のページ配信機能追加時に合わせて設計を具体化します。
+- **コンテンツ公開 & テーマエンジン・プラグイン書き換えアーキテクチャ**:
+  - `MiniJinja` をコアエンジンとした `aegis-theme` クレートを導入。ビルトインのデフォルトテンプレート（`base.html`, `index.html`, `article.html`, `page.html`, `404.html`）をバイナリ内にコンパイル時埋め込みしているため、追加のテーマファイルなしでも即座に洗練されたモダン Web サイトを配信可能です。
+  - テンプレートの探索は「プラグイン/インメモリ動的登録 (`register_template`)」→「ファイルシステムテーマ (`themes/{active}/templates/`)」→「ビルトインデフォルト」の 3 層フォールバック機構を採用。
+  - プラグインフック `on_render_page` により、ページレンダリング直前に `PageRenderContext` をプログラマブルに書き換え可能（サイトタイトル修飾、カスタム CSS 注入、`<head>` タグ追加、テーマ変数の動的更新、テンプレート差し替え）。
+  - 一般公開ルート（`GET /`, `GET /articles`, `GET /articles/{slug}`, `GET /{slug}`）と管理画面（`GET /admin` & `/assets`）を同一サーバー上でルーティング分離し、下書き記事はゼロトラストに 404 で遮断。記事本文は `StreamingHtmlRewriter` を透過しセキュリティ・パフォーマンス最適化（rel 属性付与、画像遅延読み込み等）が自動適用されます。
+
 

@@ -4,6 +4,8 @@ use aegis_core::{PluginManifest, PostContext, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
 
+use std::collections::HashMap;
+
 #[async_trait]
 pub trait AegisPlugin: Send + Sync {
     fn manifest(&self) -> &PluginManifest;
@@ -18,6 +20,19 @@ pub trait AegisPlugin: Send + Sync {
         let guard = CapabilityGuard::new(self.manifest());
         guard.check_hook("transform-content-ast")?;
         Ok(blocks)
+    }
+
+    async fn on_render_page(
+        &self,
+        ctx: aegis_core::PageRenderContext,
+    ) -> Result<aegis_core::PageRenderContext> {
+        let guard = CapabilityGuard::new(self.manifest());
+        guard.check_hook("on-render-page")?;
+        Ok(ctx)
+    }
+
+    fn provide_templates(&self) -> HashMap<String, String> {
+        HashMap::new()
     }
 }
 
@@ -71,5 +86,34 @@ impl PluginSupervisor {
             }
         }
         Ok(blocks)
+    }
+
+    pub async fn apply_render_page(
+        &self,
+        mut ctx: aegis_core::PageRenderContext,
+    ) -> Result<aegis_core::PageRenderContext> {
+        for plugin in &self.plugins {
+            if plugin
+                .manifest()
+                .capabilities
+                .hooks
+                .iter()
+                .any(|h| h == "on-render-page")
+            {
+                ctx = plugin.on_render_page(ctx).await?;
+            }
+        }
+        Ok(ctx)
+    }
+
+    pub fn collect_plugin_templates(&self) -> HashMap<String, String> {
+        let mut all_templates = HashMap::new();
+        for plugin in &self.plugins {
+            let tpls = plugin.provide_templates();
+            for (k, v) in tpls {
+                all_templates.insert(k, v);
+            }
+        }
+        all_templates
     }
 }

@@ -4,6 +4,7 @@ use crate::db::DatabaseAdapter;
 use aegis_core::{AegisConfig, CacheBackend, StorageBackend};
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::SchemaDefinition;
+use aegis_theme::ThemeEngine;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -19,6 +20,7 @@ pub struct AppState {
     pub schemas: Arc<RwLock<HashMap<String, SchemaDefinition>>>,
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
     pub audit: Arc<AuditService>,
+    pub theme: Arc<ThemeEngine>,
 }
 
 impl AppState {
@@ -32,6 +34,7 @@ impl AppState {
         schemas: HashMap<String, SchemaDefinition>,
         supervisor: PluginSupervisor,
         audit: Arc<AuditService>,
+        theme: Arc<ThemeEngine>,
     ) -> Self {
         Self {
             config,
@@ -42,6 +45,7 @@ impl AppState {
             schemas: Arc::new(RwLock::new(schemas)),
             supervisor: Arc::new(RwLock::new(supervisor)),
             audit,
+            theme,
         }
     }
 }

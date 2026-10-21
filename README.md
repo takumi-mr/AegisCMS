@@ -1,4 +1,4 @@
-# 次世代セキュアCMS「AegisCMS (仮称)」基本設計書
+# 次世代セキュアCMS「AegisCMS」
 
 ---
 
@@ -92,18 +92,20 @@ crates/
 └── aegis-server     # Axum API Gateway、RDB/ストレージアダプタ、CLI、Admin SPA配信
 ```
 
-| クレート名 | 役割・責務 | 主な構成モジュール・対応技術 |
-| :--- | :--- | :--- |
-| [aegis-core](file:///d:/projects/cms/crates/aegis-core) | システム共通ドメイン基盤・設定・抽象トレイト | `config` (TOML設定ローダー), `storage` (`StorageBackend` トレイト), `entity` (`Post`, `PostContext`), `manifest` (`PluginManifest`), `error` (`AegisError`) |
-| [aegis-ast](file:///d:/projects/cms/crates/aegis-ast) | コンテンツ構造化表現・レンダリング・セキュリティ属性付与 | `ast` (`BlockNode`), `pipeline` (`AstPipeline`), `renderer` (`HtmlRenderer`), `rewriter` (`StreamingHtmlRewriter`, Cloudflare `lol-html`) |
-| [aegis-schema](file:///d:/projects/cms/crates/aegis-schema) | 宣言的スキーマ定義・マルチDB DDL生成・型定義生成 | `definition` (`SchemaDefinition`, `RelationTarget`), `loader` (`SchemaLoader`), `migration` (`SchemaMigration`, `SqlDialect`), `codegen` (TypeScript, OpenAPI 3.1) |
-| [aegis-runtime](file:///d:/projects/cms/crates/aegis-runtime) | WebAssembly サンドボックス隔離実行・権限制御 | `engine` (Wasmtime, Fuel制限, タイムアウト), `guard` (`CapabilityGuard`), `host_api` (ホストAPI), `instance` (`WasmPluginInstance`), `supervisor` (`PluginSupervisor`) |
-| [aegis-server](file:///d:/projects/cms/crates/aegis-server) | コア HTTP サーバー・インフラアダプタ・SPA配信 | `db` (`DatabaseAdapter`, SQLite/Postgres/MySQL), `storage` (`LocalStorageBackend`, S3 SigV4 `S3StorageBackend`), `handlers` (CRUD, アップロード), `main` (CLI) |
+| クレート名                                                    | 役割・責務                                               | 主な構成モジュール・対応技術                                                                                                                                           |
+| :------------------------------------------------------------ | :------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [aegis-core](file:///d:/projects/cms/crates/aegis-core)       | システム共通ドメイン基盤・設定・抽象トレイト             | `config` (TOML設定ローダー), `storage` (`StorageBackend` トレイト), `entity` (`Post`, `PostContext`), `manifest` (`PluginManifest`), `error` (`AegisError`)            |
+| [aegis-ast](file:///d:/projects/cms/crates/aegis-ast)         | コンテンツ構造化表現・レンダリング・セキュリティ属性付与 | `ast` (`BlockNode`), `pipeline` (`AstPipeline`), `renderer` (`HtmlRenderer`), `rewriter` (`StreamingHtmlRewriter`, Cloudflare `lol-html`)                              |
+| [aegis-schema](file:///d:/projects/cms/crates/aegis-schema)   | 宣言的スキーマ定義・マルチDB DDL生成・型定義生成         | `definition` (`SchemaDefinition`, `RelationTarget`), `loader` (`SchemaLoader`), `migration` (`SchemaMigration`, `SqlDialect`), `codegen` (TypeScript, OpenAPI 3.1)     |
+| [aegis-runtime](file:///d:/projects/cms/crates/aegis-runtime) | WebAssembly サンドボックス隔離実行・権限制御             | `engine` (Wasmtime, Fuel制限, タイムアウト), `guard` (`CapabilityGuard`), `host_api` (ホストAPI), `instance` (`WasmPluginInstance`), `supervisor` (`PluginSupervisor`) |
+| [aegis-server](file:///d:/projects/cms/crates/aegis-server)   | コア HTTP サーバー・インフラアダプタ・SPA配信            | `db` (`DatabaseAdapter`, SQLite/Postgres/MySQL), `storage` (`LocalStorageBackend`, S3 SigV4 `S3StorageBackend`), `handlers` (CRUD, アップロード), `main` (CLI)         |
 
 ---
 
 #### 1. `crates/aegis-core` (ドメインモデル & 共通基盤)
+
 システム全体で共有されるデータモデル、エラー型、設定構造体、抽象インターフェースを集中管理する最下層クレートです。
+
 - **`config`**: `AegisConfig`（サーバー、データベース、ストレージ、キャッシュ、パス、ランタイム、セキュリティ設定）。`config/*.toml` からの読み込みおよび環境変数オーバーライドに対応。
 - **`storage`**: ストレージ抽象化トレイト `StorageBackend`（`put`, `get`, `delete`, `public_url`）およびメタデータ `StorageMeta` の定義。
 - **`cache`**: キャッシュ抽象化トレイト `CacheBackend`（`get`, `set`, `delete`, `exists`）およびバックエンド種別 `CacheBackendKind`（`Memory`, `Redis`）の定義。
@@ -112,21 +114,27 @@ crates/
 - **`error`**: システム統一エラー列挙体 `AegisError` および `Result` 型エイリアス。
 
 #### 2. `crates/aegis-ast` (コンテンツ AST & レンダリングパイプライン)
+
 コンテンツを生 HTML ではなく構造化された AST（抽象構文木）として扱い、安全なレンダリングと高速な HTML 改変を担当します。
+
 - **`ast`**: 見出し、段落、コード、画像、カスタム要素を表現する木構造 `BlockNode`。
 - **`pipeline`**: AST 変換処理を直列実行する `AstPipeline` およびビルトイントランスフォーマー `HeadingIdTransformer`。
 - **`renderer`**: AST を決定論的かつ安全に HTML 文字列へ展開する `HtmlRenderer`。
 - **`rewriter`**: Cloudflare 製 CSS セレクタストリーミングパーサー `lol-html` を用いた `StreamingHtmlRewriter`。外部リンクへの `rel="noopener noreferrer"` 自動付与（自サイト除外バイパス対応）や、`<img>` タグへの `loading="lazy"` / `decoding="async"` 強制インジェクションを実行。
 
 #### 3. `crates/aegis-schema` (宣言的スキーマ & コード生成エンジン)
+
 YAML で記述されたコンテンツスキーマを解析し、マルチ RDBMS 向けのマイグレーション DDL やクライアント向けの型定義を自動生成します。
+
 - **`definition`**: スキーマ定義構造体 `SchemaDefinition`、フィールド型 `FieldType`、およびリレーション先参照 `RelationTarget`（例: `category.id`）。
 - **`loader`**: 指定ディレクトリ（`schemas/`）から YAML ファイルを自動走査・読み込む `SchemaLoader`。
 - **`migration`**: `SqlDialect`（`Sqlite`, `Postgres`, `MySql`）に対応した DDL 自動生成エンジン `SchemaMigration`。型マッピング、ユニーク制約、インデックス定義を各 RDBMS 向けに出力。
 - **`codegen`**: スキーマ定義からフロントエンド用 TypeScript 型定義を出力する `TypeScriptGenerator`、および REST API 仕様を出力する `OpenApiGenerator`（OpenAPI 3.1 仕様）。
 
 #### 4. `crates/aegis-runtime` (ゼロ・トラスト Wasm プラグインランタイム)
+
 WebAssembly（Wasm）サンドボックスによるサードパーティ拡張の安全な隔離実行を提供します。
+
 - **`engine`**: Wasmtime をカプセル化した `WasmEngine`。Fuel（命令数クォータ）計測と非同期タイムアウトによる二重の暴走・DoS 防御。
 - **`guard`**: プラグインの `plugin.manifest.json` に基づき、未許可のネットワーク通信・KVSアクセス・未登録フック実行を遮断する `CapabilityGuard`。
 - **`host_api`**: サンドボックス内からホスト側の機能（ロギング `host:log`、HTTP通信 `host:http_fetch`、Key-Value操作 `host:kv_get`/`host:kv_set`）を安全に呼び出すリンカー。
@@ -134,7 +142,9 @@ WebAssembly（Wasm）サンドボックスによるサードパーティ拡張�
 - **`supervisor` / `loader`**: ディレクトリ内の全プラグインを自動発見・初期化し、ライフサイクルフック（`on-before-save`, `transform-content-ast`）を実行する `PluginSupervisor`。
 
 #### 5. `crates/aegis-server` (HTTP Gateway, インフラアダプタ & Admin SPA 配信)
+
 Axum を基盤とした REST API Gateway サーバーであり、すべてのインフラ接続と HTTP ハンドラーを統合します。
+
 - **`db`**: `DatabaseAdapter` トレイトに基づくマルチ RDBMS 具象実装（`SqliteAdapter`, `PostgresAdapter`, `MySqlAdapter`）。`PRAGMA table_info` や `information_schema.columns` を走査し、既存テーブルへの未反映カラムを自動追加するスキーマ進化マイグレーション（`ALTER TABLE ... ADD COLUMN`）を内蔵。
 - **`storage`**: `StorageBackend` トレイトに基づくマルチストレージ具象実装。ローカルディスク・ブロックストレージ対応の `LocalStorageBackend` と、AWS S3 / Cloudflare R2 / MinIO 対応の `S3StorageBackend`（ネイティブ AWS SigV4 認証署名エンジン内蔵）。
 - **`cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
@@ -144,7 +154,9 @@ Axum を基盤とした REST API Gateway サーバーであり、すべてのイ
 - **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`）および Admin Studio SPA の静的アセット配信（`fallback_service`）。
 
 #### 6. `crates/aegis-plugin-sdk` & `crates/aegis-plugin-macros` (公式 Wasm プラグイン SDK)
+
 サードパーティ開発者が安全・高速に WebAssembly プラグインを開発するための公式 SDK です。
+
 - **`#[aegis_plugin]`**: メモリアロケータ（`allocate`）、ポインタパッキング、JSON シリアライズ/デシリアライズを完全自動隠蔽する高水準手続型マクロ。
 - **`Plugin` トレイト**: ライフサイクルフック（記事保存前 `on_before_save`、コンテンツ AST 変換 `transform_content_ast`）の型安全な実装インターフェース。
 - **`host` API**: ホスト側ロガー（`log_info!`, `log_warn!`）、ネットワークアクセス事前検証（`net::is_allowed`）、ネームスペース分離 KVS 操作（`kv::set`）をラップした型安全関数群。
