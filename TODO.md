@@ -8,20 +8,24 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: フェーズ 2（Admin Studio SPA & ブロックエディタ統合）完了。
+- **現在のステータス**: フェーズ 2 拡張（OpenAPI/TS型定義自動生成、ストリーミングHTMLリライター、カテゴリ・固定ページスキーマおよび動的リレーション解決）完了。
 - **動作確認済み**:
-  - Rust ワークスペース（`aegis-core`, `aegis-ast`, `aegis-schema`, `aegis-runtime`, `aegis-server`）のビルド・単体テスト (`cargo test --workspace`) 100% 成功。
-  - YAMLスキーマ (`schemas/articles.yaml`) から SQLite テーブルへの自動マイグレーション動作。
+  - Rust ワークスペース（`aegis-core`, `aegis-ast`, `aegis-schema`, `aegis-runtime`, `aegis-server`）のビルド・単体テスト (`cargo test --workspace`) 100% 成功（17 tests 全パス）。
+  - YAMLスキーマ (`schemas/*.yaml`) から SQLite テーブルへの自動マイグレーションおよび既存テーブルへの安全な差分カラム追加（`ALTER TABLE ... ADD COLUMN`）自動スキーマ進化。
   - Wasmtime による Wasm プラグイン（`plugins/slack-notifier`）のサンドボックス隔離実行・ホストAPI連携 (`host:log`)・タイムアウト保護。
-  - REST API Gateway による記事作成 (`POST /api/v1/contents/article`)、AST変換、HTML決定論的レンダリング。
+  - REST API Gateway による記事作成 (`POST /api/v1/contents/article`)、AST変換、HTML決定論的レンダリング、`lol-html` によるセキュリティ属性インジェクション。
+  - コンテンツ API でのリレーション自動解決（`category_id` から関連モデル情報を JOIN/検索しレスポンスに `relations` として付与）。
   - Vite + React + TypeScript による Admin Studio SPA の構築（ダークモード＆グラスモフィズム、ブロックエディタ、リアルタイムプレビュー、スキーマ・記事一覧同期）。
   - `aegis-server` からの Admin Studio 静的アセット SPA 配信 (`fallback_service(ServeDir)`) と E2E ブラウザ疎通完了。
+  - スキーマ駆動 OpenAPI 3.1 & TypeScript 型定義自動生成 (`task codegen`)。
 
 ### 🚀 次に作業を再開するときの着手項目
-**フェーズ 2 拡張: コア機能拡張**
-1. **追加スキーマ定義とリレーション解決**:
-   - `schemas/categories.yaml` (カテゴリ管理) および `schemas/pages.yaml` (固定ページ) の作成。
-   - 記事（`article`）の `tech_category` 等のリレーションフィールドの自動解決・JOIN取得。
+**フェーズ 2 拡張: Admin Studio リレーション連携 & コンテンツ管理強化**
+1. **Admin Studio でのカテゴリ・リレーション選択 UI 統合**:
+   - 記事エディタに `category_id` を選択可能なカテゴリドロップダウン / セレクトボックスを追加。
+   - `schemas/categories.yaml` に基づくカテゴリ一覧・作成モーダル/画面の提供。
+2. **コンテンツ一覧での関連データ表示・フィルタリング**:
+   - 記事一覧テーブルでカテゴリ名（リレーション解決結果）を表示し、カテゴリ別絞り込みを可能にする。
 
 ---
 
@@ -77,16 +81,26 @@
   - [x] `crates/aegis-core`: `SecurityConfig` の追加および `config/default.toml`, `config/docker.toml` からの宣言的設定対応
   - [x] `crates/aegis-server`: コンテンツ作成 API (`POST /api/v1/contents/{content_type}`) の HTML 生成パイプラインに自動適用
   - [x] 単体テストおよび大規模 HTML（~120KB, 500リンク/500画像）のスループットベンチマーク検証（約33ms）
+- [x] **追加スキーマ定義とリレーション解決**
+  - [x] `schemas/categories.yaml` (カテゴリ管理: title, slug, description, color) の作成
+  - [x] `schemas/pages.yaml` (固定ページ: title, slug, layout, custom_meta) の作成
+  - [x] `schemas/articles.yaml` への `category_id` (type: relation, target: category.id) の定義追加
+  - [x] `aegis-schema`: `RelationTarget` パース機能および `SchemaDefinition::relation_fields()` の実装
+  - [x] `aegis-server`: `PRAGMA table_info` を走査し、既存テーブルへ差分カラムを自動追加する `ALTER TABLE ... ADD COLUMN` スキーマ進化マイグレーションの実装
+  - [x] `aegis-server`: 動的カスタムフィールドの永続化およびリレーション自動解決（JOIN / 関連モデル情報の `relations` オブジェクト注入）
+  - [x] TypeScript 型定義および OpenAPI 仕様書の更新 (`task codegen`)
 
 ---
 
 ### ⏳ 次に取り組むタスク (Next Up)
 
-#### フェーズ 2 拡張: コア機能拡張
-- [ ] **追加スキーマ定義とリレーション解決**
-  - [ ] `schemas/categories.yaml` (カテゴリ管理)
-  - [ ] `schemas/pages.yaml` (固定ページ)
-  - [ ] リレーションフィールドの解決ロジック
+#### フェーズ 2 拡張: Admin Studio 連携 & コンテンツ機能拡張
+- [ ] **Admin Studio: カテゴリ選択 & リレーション編集 UI**
+  - [ ] 記事作成・編集フォームへのカテゴリ選択ドロップダウンの追加
+  - [ ] カテゴリ一覧・新規登録 UI の追加
+- [ ] **コンテンツ一覧のフィルタリングとリレーション表示**
+  - [ ] 記事一覧テーブルにカテゴリバッジを表示
+  - [ ] カテゴリ別フィルタリング機能
 
 ---
 
@@ -126,3 +140,10 @@
 - **スキーマ駆動コード生成 (Codegen & OpenAPI)**:
   - YAMLスキーマ (`schemas/*.yaml`) を修正・追加した場合、`task codegen`（または `task codegen:ts`, `task codegen:openapi`）を実行することで、フロントエンド用 TypeScript 型定義 (`admin/src/types/schemas.ts`) および OpenAPI 3.1 仕様書 (`docs/openapi.json`) をワンコマンドで自動更新できます。
   - サーバー稼働中は `GET /api/v1/openapi.json` エンドポイントからも最新の OpenAPI 3.1 仕様が JSON 形式で動的に配信され、Swagger UI / Redoc や外部 API クライアント生成ツールと容易に統合できます。
+- **宣言的スキーマ進化 (SQLite 自動カラム追加マイグレーション)**:
+  - `aegis-server` の起動時マイグレーション (`run_migrations`) は、テーブル作成 (`CREATE TABLE IF NOT EXISTS`) だけでなく、`PRAGMA table_info` を走査して既存テーブルの既存カラム定義を取得します。
+  - YAML スキーマに新しく定義されたフィールド（例: `category_id`）が既存テーブルに存在しない場合、自動的に `ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}` を実行してからインデックスを生成します。
+  - これにより、開発中やリリース後のスキーマ変更時でも、手動マイグレーションスクリプトを書くことなく、既存データを保持したまま安全にスキーマを進化させることが可能です。
+- **動的リレーション自動解決 (Automatic Relation Resolution)**:
+  - スキーマのフィールド定義で `type: relation` および `target: category.id` （`<target_schema>.<target_column>`）が指定されている場合、API レスポンスの `relations` マップに自動解決された関連リソース情報（`id`, `content_type`, `title`, `slug`）が埋め込まれます。
+  - フロントエンドは個別に追加 API リクエストを発行することなく、単一のコンテンツ取得クエリでリレーション先のメタデータ（カテゴリ名やスラッグ）を即座に描画・利用可能です。

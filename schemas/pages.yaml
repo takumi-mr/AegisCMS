@@ -1,0 +1,19 @@
+content_type: page
+label: "固定ページ"
+description: "会社概要、利用規約、プライバシーポリシー等の静的・固定ページ"
+fields:
+  - name: title
+    type: string
+    required: true
+    max_length: 255
+    index: true
+  - name: slug
+    type: string
+    required: true
+    unique: true
+  - name: layout
+    type: string
+    required: false
+    nullable: true
+  - name: custom_meta
+    type: jsonb

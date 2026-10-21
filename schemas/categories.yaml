@@ -1,0 +1,20 @@
+content_type: category
+label: "カテゴリ"
+description: "記事やコンテンツを分類するためのカテゴリ定義"
+fields:
+  - name: title
+    type: string
+    required: true
+    max_length: 100
+    index: true
+  - name: slug
+    type: string
+    required: true
+    unique: true
+  - name: description
+    type: text
+    nullable: true
+  - name: color
+    type: string
+    required: false
+    nullable: true
