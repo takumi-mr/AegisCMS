@@ -1,0 +1,29 @@
+[package]
+name = "aegis-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-ast = { path = "../aegis-ast" }
+aegis-schema = { path = "../aegis-schema" }
+aegis-runtime = { path = "../aegis-runtime" }
+
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+anyhow.workspace = true

@@ -1,0 +1,29 @@
+content_type: article
+label: "技術記事"
+description: "技術ブログ記事やドキュメント向けのスキーマ"
+fields:
+  - name: title
+    type: string
+    required: true
+    max_length: 255
+    index: true
+  - name: slug
+    type: string
+    required: true
+    unique: true
+  - name: excerpt
+    type: string
+    required: false
+    max_length: 500
+  - name: published_at
+    type: timestamp
+    nullable: true
+    index: true
+  - name: category
+    type: string
+    required: false
+    index: true
+  - name: custom_meta
+    type: jsonb
+    indexed_paths:
+      - "seo.canonical_url"

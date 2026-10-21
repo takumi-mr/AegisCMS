@@ -1,0 +1,19 @@
+{
+  "name": "aegis-plugin-slack-notifier",
+  "version": "1.0.0",
+  "entrypoint": "plugin.wasm",
+  "capabilities": {
+    "network": {
+      "allowed_domains": ["hooks.slack.com"]
+    },
+    "storage": {
+      "kv_namespace": "slack_notifier_state"
+    },
+    "hooks": ["on-before-save", "transform-content-ast"]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 100000000,
+    "execution_timeout_ms": 250
+  }
+}

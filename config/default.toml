@@ -1,0 +1,19 @@
+[server]
+host = "127.0.0.1"
+port = 8080
+
+[database]
+# "sqlite://data/aegis.db" or "postgres://user:pass@localhost/aegis"
+url = "sqlite://aegis.db?mode=rwc"
+max_connections = 10
+
+[paths]
+schemas_dir = "schemas"
+plugins_dir = "plugins"
+admin_dist_dir = "admin/dist"
+
+[runtime]
+enable_wasm_plugins = true
+default_max_memory_mb = 16
+default_max_fuel_units = 100000000
+default_timeout_ms = 250

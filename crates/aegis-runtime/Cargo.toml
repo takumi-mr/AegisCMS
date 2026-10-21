@@ -1,0 +1,21 @@
+[package]
+name = "aegis-runtime"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-ast = { path = "../aegis-ast" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["time"] }
+wasmtime = "26.0"
+wat = "1.220"

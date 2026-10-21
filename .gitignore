@@ -1,0 +1,21 @@
+/target/
+**/*.rs.bk
+Cargo.lock
+*.pdb
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# SQLite data files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+data/
+
+# Node / Admin Studio
+node_modules/
+dist/
+.DS_Store
