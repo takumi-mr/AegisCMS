@@ -99,6 +99,14 @@
   - [x] `aegis-server`: アセットアップロード API (`POST /api/v1/storage/upload`) & 静的配信統合
   - [x] `AppState` および `handlers/content.rs` を `DatabaseAdapter` & `StorageBackend` ベースに全面リファクタリング
   - [x] `config/default.toml` および `config/docker.toml` での `[database]` & `[storage]` 設定の体系化
+- [x] **Redis キャッシュ & ステートレスセッション管理 (オプショナル Redis / デフォルトインメモリ)**
+  - [x] `aegis-core`: `CacheBackend` トレイト（`get`, `set`, `delete`, `exists`）および `CacheBackendKind` (`Memory`, `Redis`), `CacheConfig`, `RedisCacheConfig` の定義
+  - [x] `aegis-server`: `MemoryCacheBackend` の実装（TTL 有効期限管理、Tokio `RwLock`、外部ミドルウェア不要なデフォルト動作）
+  - [x] `aegis-server`: `RedisCacheBackend` の実装（非同期 `ConnectionManager` による自動再接続、`GET`/`SETEX`/`DEL`/`EXISTS` コマンド統合）
+  - [x] `aegis-server`: ステートレスセッション管理 `SessionService`（Bearer トークン `ses_{UUID}` 発行・検証・失効、メタデータ属性保持、TTL 連動）
+  - [x] `aegis-server`: セッション HTTP REST API ハンドラー（`POST /api/v1/auth/session`, `GET /api/v1/auth/session`, `DELETE /api/v1/auth/session`、`Authorization: Bearer <token>` / `X-Session-Id` 両対応）
+  - [x] `config/default.toml` および `config/docker.toml` への `[cache]` 宣言的設定ブロック追加
+  - [x] 単体テスト追加（メモリキャッシュ TTL CRUD、Redis URL 検証、ステートレスセッションのライフサイクル検証）
 
 ---
 
@@ -127,6 +135,11 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **ステートレスセッション & キャッシュ設計**:
+  - セッションデータは `SessionData` として JSON 直列化され、抽象化された `CacheBackend` に格納されます。
+  - セッショントークンは `ses_{UUIDv4}` 形式で発行され、HTTP リクエストの `Authorization: Bearer <token>` または `X-Session-Id` ヘッダーから抽出されます。
+  - バックエンドとして `backend = "redis"` を指定した場合は Redis クラスター/スタンドアロンでセッションが共有され、サーバープロセス自体は完全なステートレスとして水平スケール可能です。
+  - デフォルトは `backend = "memory"` となっており、追加のミドルウェアや環境構築なしに即座にローカル実行・テストが可能です。
 - **Admin Studio SPA 配信**:
   - `aegis-server` は起動時に `admin/dist/index.html` の存在をチェックし、存在すれば `tower_http::services::ServeDir` と `ServeFile` による SPA フォールバック配信を行います。
   - フロントエンド更新時は `npm --prefix admin run build` を実行すれば、サーバーの再コンパイル不要で即座に反映されます。

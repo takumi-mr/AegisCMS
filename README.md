@@ -104,8 +104,9 @@ crates/
 
 #### 1. `crates/aegis-core` (ドメインモデル & 共通基盤)
 システム全体で共有されるデータモデル、エラー型、設定構造体、抽象インターフェースを集中管理する最下層クレートです。
-- **`config`**: `AegisConfig`（サーバー、データベース、ストレージ、パス、ランタイム、セキュリティ設定）。`config/*.toml` からの読み込みおよび環境変数オーバーライドに対応。
+- **`config`**: `AegisConfig`（サーバー、データベース、ストレージ、キャッシュ、パス、ランタイム、セキュリティ設定）。`config/*.toml` からの読み込みおよび環境変数オーバーライドに対応。
 - **`storage`**: ストレージ抽象化トレイト `StorageBackend`（`put`, `get`, `delete`, `public_url`）およびメタデータ `StorageMeta` の定義。
+- **`cache`**: キャッシュ抽象化トレイト `CacheBackend`（`get`, `set`, `delete`, `exists`）およびバックエンド種別 `CacheBackendKind`（`Memory`, `Redis`）の定義。
 - **`entity`**: 記事・コンテンツエンティティの共通構造（`Post`, `PostContext`, `PostStatus`, `PostId`）。
 - **`manifest`**: プラグインが要求する権限（ネットワークドメイン、KVSネームスペース、利用フック、メモリ/Fuel制限）を定義する `PluginManifest`。
 - **`error`**: システム統一エラー列挙体 `AegisError` および `Result` 型エイリアス。
@@ -136,8 +137,10 @@ WebAssembly（Wasm）サンドボックスによるサードパーティ拡張�
 Axum を基盤とした REST API Gateway サーバーであり、すべてのインフラ接続と HTTP ハンドラーを統合します。
 - **`db`**: `DatabaseAdapter` トレイトに基づくマルチ RDBMS 具象実装（`SqliteAdapter`, `PostgresAdapter`, `MySqlAdapter`）。`PRAGMA table_info` や `information_schema.columns` を走査し、既存テーブルへの未反映カラムを自動追加するスキーマ進化マイグレーション（`ALTER TABLE ... ADD COLUMN`）を内蔵。
 - **`storage`**: `StorageBackend` トレイトに基づくマルチストレージ具象実装。ローカルディスク・ブロックストレージ対応の `LocalStorageBackend` と、AWS S3 / Cloudflare R2 / MinIO 対応の `S3StorageBackend`（ネイティブ AWS SigV4 認証署名エンジン内蔵）。
-- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、ヘルスチェック）。
-- **`state`**: 抽象化された `DatabaseAdapter`、`StorageBackend`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
+- **`cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
+- **`auth`**: `CacheBackend` をバックストアとして活用したステートレスセッション管理 `SessionService`。Bearer トークン / `X-Session-Id` による認証状態の永続化と検証。
+- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`、ヘルスチェック）。
+- **`state`**: 抽象化された `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
 - **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`）および Admin Studio SPA の静的アセット配信（`fallback_service`）。
 
 ---
