@@ -8,10 +8,13 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::audit::AuditContext;
 use crate::state::AppState;
+use aegis_core::{AuditAction, AuditOutcome};
 
 pub async fn upload_file(
     State(state): State<Arc<AppState>>,
+    audit: AuditContext,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let mut file_data: Option<Vec<u8>> = None;
@@ -65,16 +68,44 @@ pub async fn upload_file(
 
     let ct = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
 
-    let meta = state
-        .storage
-        .put(&storage_key, &data, &ct)
-        .await
-        .map_err(|e| {
-            (
+    let upload_event = |outcome: AuditOutcome, extra: serde_json::Value| {
+        let mut details = json!({
+            "original_name": original_name,
+            "content_type": ct,
+            "size": data.len(),
+        });
+        if let (Some(map), serde_json::Value::Object(extra)) = (details.as_object_mut(), extra) {
+            map.extend(extra);
+        }
+        audit
+            .event(AuditAction::StorageUpload, outcome)
+            .with_resource("asset", Some(storage_key.clone()))
+            .with_details(details)
+    };
+
+    let meta = match state.storage.put(&storage_key, &data, &ct).await {
+        Ok(meta) => meta,
+        Err(e) => {
+            state
+                .audit
+                .record(upload_event(
+                    AuditOutcome::Failure,
+                    json!({ "error": e.to_string() }),
+                ))
+                .await;
+            return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": format!("Storage put error: {}", e) })),
-            )
-        })?;
+            ));
+        }
+    };
+    state
+        .audit
+        .record(upload_event(
+            AuditOutcome::Success,
+            json!({ "url": meta.url }),
+        ))
+        .await;
 
     Ok((StatusCode::CREATED, Json(meta)))
 }

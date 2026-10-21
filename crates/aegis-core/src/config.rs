@@ -20,6 +20,8 @@ pub struct AegisConfig {
     pub runtime: RuntimeConfig,
     #[serde(default)]
     pub security: SecurityConfig,
+    #[serde(default)]
+    pub audit: AuditConfig,
 }
 
 impl AegisConfig {
@@ -283,6 +285,37 @@ impl Default for SecurityConfig {
     }
 }
 
+/// 監査イベントの出力先
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuditSinkKind {
+    /// `_aegis_audit_logs` テーブルへ永続化し、`GET /api/v1/audit-logs` で検索可能にする
+    Database,
+    /// `aegis::audit` ターゲットの構造化ログ (1 行 1 JSON) として出力する
+    Log,
+    /// `aegis_audit_events_total` カウンタを `GET /metrics` で公開する
+    Prometheus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AuditConfig {
+    pub enabled: bool,
+    pub sinks: Vec<AuditSinkKind>,
+    /// `X-Forwarded-For` の先頭アドレスをクライアント IP として記録する（信頼できるリバースプロキシ配下でのみ有効化）
+    pub trust_forwarded_for: bool,
+}
+
+impl Default for AuditConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            sinks: vec![AuditSinkKind::Database],
+            trust_forwarded_for: false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -324,6 +357,34 @@ mod tests {
         assert_eq!(config.storage.s3.region, "auto");
         assert!(config.storage.s3.access_key_id.is_empty());
         assert!(!config.storage.s3.force_path_style);
+    }
+
+    #[test]
+    fn test_audit_config_parsing() {
+        let default = AegisConfig::default();
+        assert!(default.audit.enabled);
+        assert_eq!(default.audit.sinks, vec![AuditSinkKind::Database]);
+
+        let config: AegisConfig = toml::from_str(
+            r#"
+            [audit]
+            sinks = ["database", "log", "prometheus"]
+            "#,
+        )
+        .unwrap();
+        assert!(config.audit.enabled);
+        assert_eq!(
+            config.audit.sinks,
+            vec![
+                AuditSinkKind::Database,
+                AuditSinkKind::Log,
+                AuditSinkKind::Prometheus
+            ]
+        );
+
+        let invalid: std::result::Result<AegisConfig, _> =
+            toml::from_str("[audit]\nsinks = [\"cloudwatch\"]\n");
+        assert!(invalid.is_err());
     }
 
     #[test]

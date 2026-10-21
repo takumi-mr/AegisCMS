@@ -1,12 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
-use aegis_core::{AegisError, Result};
+use aegis_core::{AegisError, AuditEvent, AuditQuery, Result};
 use aegis_schema::{FieldType, SchemaDefinition, SchemaMigration, SqlDialect};
 use async_trait::async_trait;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{Pool, Postgres, Row};
 
-use super::{is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation};
+use super::{
+    audit_insert_values, audit_row_from_sqlx, build_audit_insert, build_audit_select,
+    is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation, AUDIT_INDEXES,
+    AUDIT_TABLE,
+};
 
 #[derive(Debug, Clone)]
 pub struct PostgresAdapter {
@@ -45,6 +49,41 @@ impl DatabaseAdapter for PostgresAdapter {
         .execute(&self.pool)
         .await
         .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // 監査ログテーブル
+        let audit_table_sql = format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS {} (
+                id VARCHAR(64) PRIMARY KEY,
+                occurred_at VARCHAR(32) NOT NULL,
+                action VARCHAR(64) NOT NULL,
+                outcome VARCHAR(16) NOT NULL,
+                actor_id VARCHAR(255),
+                actor_role VARCHAR(64),
+                resource_type VARCHAR(64),
+                resource_id VARCHAR(255),
+                ip VARCHAR(64),
+                user_agent TEXT,
+                details_json TEXT NOT NULL DEFAULT '{{}}'
+            );
+            "#,
+            AUDIT_TABLE
+        );
+        sqlx::query(&audit_table_sql)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        for (index_name, columns) in AUDIT_INDEXES {
+            let sql = format!(
+                "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
+                index_name, AUDIT_TABLE, columns
+            );
+            sqlx::query(&sql)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
 
         Ok(())
     }
@@ -339,5 +378,36 @@ impl DatabaseAdapter for PostgresAdapter {
             })),
             None => Ok(None),
         }
+    }
+
+    async fn insert_audit_event(&self, event: &AuditEvent) -> Result<()> {
+        let sql = build_audit_insert(|i| format!("${}", i));
+        let mut query = sqlx::query(&sql);
+        for value in audit_insert_values(event) {
+            query = query.bind(value);
+        }
+        query
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn query_audit_events(&self, audit_query: &AuditQuery) -> Result<Vec<AuditEvent>> {
+        let (sql, binds) = build_audit_select(audit_query, |i| format!("${}", i));
+        let mut query = sqlx::query(&sql);
+        for value in binds {
+            query = query.bind(value);
+        }
+        let rows = query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        let mut events = Vec::with_capacity(rows.len());
+        for row in &rows {
+            events.push(audit_row_from_sqlx!(row).into_event()?);
+        }
+        Ok(events)
     }
 }

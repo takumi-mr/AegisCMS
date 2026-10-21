@@ -9,7 +9,10 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::audit::AuditContext;
+use crate::auth::{extract_session_id, session_fingerprint};
 use crate::state::AppState;
+use aegis_core::{AuditAction, AuditActor, AuditOutcome};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateSessionRequest {
@@ -26,35 +29,16 @@ fn default_role() -> String {
     "editor".to_string()
 }
 
-fn extract_session_id(headers: &HeaderMap) -> Option<String> {
-    if let Some(auth_val) = headers.get("authorization") {
-        if let Ok(auth_str) = auth_val.to_str() {
-            if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                let trimmed = token.trim();
-                if !trimmed.is_empty() {
-                    return Some(trimmed.to_string());
-                }
-            }
-        }
-    }
-
-    if let Some(header_val) = headers.get("x-session-id") {
-        if let Ok(val_str) = header_val.to_str() {
-            let trimmed = val_str.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed.to_string());
-            }
-        }
-    }
-
-    None
-}
-
 pub async fn create_session(
     State(state): State<Arc<AppState>>,
+    audit: AuditContext,
     Json(payload): Json<CreateSessionRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let session = state
+    let actor = Some(AuditActor {
+        user_id: payload.user_id.clone(),
+        role: payload.role.clone(),
+    });
+    let result = state
         .sessions
         .create_session(
             &payload.user_id,
@@ -62,13 +46,39 @@ pub async fn create_session(
             payload.metadata,
             payload.ttl_secs,
         )
-        .await
-        .map_err(|e| {
-            (
+        .await;
+
+    let session = match result {
+        Ok(session) => {
+            state
+                .audit
+                .record(
+                    audit
+                        .event(AuditAction::SessionCreate, AuditOutcome::Success)
+                        .with_actor(actor)
+                        .with_resource("session", Some(session_fingerprint(&session.id)))
+                        .with_details(json!({ "expires_at": session.expires_at })),
+                )
+                .await;
+            session
+        }
+        Err(e) => {
+            state
+                .audit
+                .record(
+                    audit
+                        .event(AuditAction::SessionCreate, AuditOutcome::Failure)
+                        .with_actor(actor)
+                        .with_resource("session", None)
+                        .with_details(json!({ "error": e.to_string() })),
+                )
+                .await;
+            return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": format!("Failed to create session: {}", e) })),
-            )
-        })?;
+            ));
+        }
+    };
 
     Ok((StatusCode::CREATED, Json(session)))
 }
@@ -106,6 +116,7 @@ pub async fn get_current_session(
 
 pub async fn delete_session(
     State(state): State<Arc<AppState>>,
+    audit: AuditContext,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let session_id = extract_session_id(&headers).ok_or_else(|| {
@@ -115,16 +126,32 @@ pub async fn delete_session(
         )
     })?;
 
+    let result = state.sessions.destroy_session(&session_id).await;
+    let outcome = if result.is_ok() {
+        AuditOutcome::Success
+    } else {
+        AuditOutcome::Failure
+    };
+    let details = match &result {
+        Ok(()) => json!({}),
+        Err(e) => json!({ "error": e.to_string() }),
+    };
     state
-        .sessions
-        .destroy_session(&session_id)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("Failed to delete session: {}", e) })),
-            )
-        })?;
+        .audit
+        .record(
+            audit
+                .event(AuditAction::SessionDelete, outcome)
+                .with_resource("session", Some(session_fingerprint(&session_id)))
+                .with_details(details),
+        )
+        .await;
+
+    result.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("Failed to delete session: {}", e) })),
+        )
+    })?;
 
     Ok((StatusCode::OK, Json(json!({ "status": "logged_out" }))))
 }

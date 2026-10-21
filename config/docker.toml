@@ -51,3 +51,10 @@ open_external_links_in_new_tab = false
 internal_domains = []
 enforce_image_lazy_loading = true
 enforce_image_async_decoding = true
+
+[audit]
+enabled = true
+# Sinks: "database" (audit_logs table + GET /api/v1/audit-logs) | "log" (JSON lines on the aegis::audit target) | "prometheus" (GET /metrics)
+sinks = ["database"]
+# Record the first X-Forwarded-For address as the client IP (enable only behind a trusted reverse proxy)
+trust_forwarded_for = false

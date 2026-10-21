@@ -10,13 +10,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::audit::AuditContext;
 use crate::db::{is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation};
 use crate::state::AppState;
 use aegis_ast::{
     AstPipeline, BlockNode, HeadingIdTransformer, HtmlRenderer, HtmlRewriterConfig,
     StreamingHtmlRewriter,
 };
-use aegis_core::PostContext;
+use aegis_core::{AuditAction, AuditOutcome, PostContext};
 use aegis_schema::SchemaDefinition;
 
 #[derive(Debug, Deserialize)]
@@ -91,6 +92,7 @@ async fn resolve_relations_for_item(
 pub async fn create_content(
     State(state): State<Arc<AppState>>,
     Path(content_type): Path<String>,
+    audit: AuditContext,
     Json(payload): Json<CreateContentRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let schema_clone = {
@@ -114,11 +116,28 @@ pub async fn create_content(
     // 2. プラグインスーパーバイザーによるAST変換フックの適用
     {
         let supervisor = state.supervisor.read().await;
-        if let Ok(ast_result) = supervisor
+        match supervisor
             .apply_ast_transforms(transformed_blocks.clone())
             .await
         {
-            transformed_blocks = ast_result;
+            Ok(ast_result) => transformed_blocks = ast_result,
+            Err(e) => {
+                // AST 変換フックの失敗は保存を妨げない（組み込みパイプラインの結果で続行）
+                tracing::warn!("Plugin hook 'transform-content-ast' failed: {}", e);
+                state
+                    .audit
+                    .record(
+                        audit
+                            .event(AuditAction::PluginError, AuditOutcome::Failure)
+                            .with_resource("content", Some(id.clone()))
+                            .with_details(json!({
+                                "hook": "transform-content-ast",
+                                "content_type": content_type,
+                                "error": e.to_string(),
+                            })),
+                    )
+                    .await;
+            }
         }
 
         // on-before-save フック実行
@@ -130,6 +149,33 @@ pub async fn create_content(
             blocks_json: serde_json::to_string(&transformed_blocks).unwrap_or_default(),
         };
         if let Err(e) = supervisor.apply_before_save(post_ctx).await {
+            state
+                .audit
+                .record(
+                    audit
+                        .event(AuditAction::PluginError, AuditOutcome::Failure)
+                        .with_resource("content", Some(id.clone()))
+                        .with_details(json!({
+                            "hook": "on-before-save",
+                            "content_type": content_type,
+                            "error": e.to_string(),
+                        })),
+                )
+                .await;
+            state
+                .audit
+                .record(
+                    audit
+                        .event(AuditAction::ContentCreate, AuditOutcome::Denied)
+                        .with_resource("content", Some(id.clone()))
+                        .with_details(json!({
+                            "content_type": content_type,
+                            "slug": payload.slug,
+                            "title": payload.title,
+                            "reason": e.to_string(),
+                        })),
+                )
+                .await;
             return Err((
                 StatusCode::BAD_REQUEST,
                 Json(json!({ "error": format!("Plugin hook rejected save: {}", e) })),
@@ -176,16 +222,39 @@ pub async fn create_content(
         custom_fields: custom_fields_saved.clone(),
     };
 
+    let content_event = |outcome: AuditOutcome, extra: serde_json::Value| {
+        let mut details = json!({
+            "content_type": content_type,
+            "slug": record.slug,
+            "title": record.title,
+            "status": record.status,
+        });
+        if let (Some(map), serde_json::Value::Object(extra)) = (details.as_object_mut(), extra) {
+            map.extend(extra);
+        }
+        audit
+            .event(AuditAction::ContentCreate, outcome)
+            .with_resource("content", Some(record.id.clone()))
+            .with_details(details)
+    };
+
+    if let Err(e) = state.db.insert_content(&schema_clone, &record).await {
+        state
+            .audit
+            .record(content_event(
+                AuditOutcome::Failure,
+                json!({ "error": e.to_string() }),
+            ))
+            .await;
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("Database error: {}", e) })),
+        ));
+    }
     state
-        .db
-        .insert_content(&schema_clone, &record)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("Database error: {}", e) })),
-            )
-        })?;
+        .audit
+        .record(content_event(AuditOutcome::Success, json!({})))
+        .await;
 
     // 5. リレーション解決
     let relations = {
