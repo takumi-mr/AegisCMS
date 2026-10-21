@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use aegis_core::{AegisError, AuditEvent, AuditQuery, Result};
-use aegis_schema::{FieldType, SchemaDefinition, SchemaMigration, SqlDialect};
+use aegis_schema::{FieldDefinition, FieldType, SchemaDefinition, SchemaMigration, SqlDialect};
 use async_trait::async_trait;
-use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{Pool, Postgres, Row};
 
 use super::{
@@ -32,6 +32,99 @@ impl PostgresAdapter {
     pub fn new(pool: Pool<Postgres>) -> Self {
         Self { pool }
     }
+}
+
+/// PostgreSQL の列型（`SchemaMigration` の型対応）に合わせてバインドするカスタムフィールド値
+#[derive(Debug, Clone, PartialEq)]
+enum PgFieldValue {
+    Text(Option<String>),
+    BigInt(Option<i64>),
+    Bool(Option<bool>),
+    Json(Option<serde_json::Value>),
+}
+
+impl PgFieldValue {
+    fn from_json(field: &FieldDefinition, value: Option<&serde_json::Value>) -> Result<Self> {
+        use serde_json::Value;
+
+        let invalid = |v: &Value| {
+            AegisError::Validation(format!(
+                "Field '{}' expects {:?} but got {}",
+                field.name, field.field_type, v
+            ))
+        };
+        let present = value.filter(|v| !v.is_null());
+
+        Ok(match field.field_type {
+            FieldType::Jsonb => Self::Json(present.cloned()),
+            FieldType::Integer => Self::BigInt(match present {
+                None => None,
+                Some(v @ Value::Number(n)) => Some(n.as_i64().ok_or_else(|| invalid(v))?),
+                Some(v @ Value::String(s)) => Some(s.trim().parse().map_err(|_| invalid(v))?),
+                Some(v) => return Err(invalid(v)),
+            }),
+            FieldType::Boolean => Self::Bool(match present {
+                None => None,
+                Some(Value::Bool(b)) => Some(*b),
+                Some(v @ Value::String(s)) => match s.trim().to_ascii_lowercase().as_str() {
+                    "true" | "1" => Some(true),
+                    "false" | "0" => Some(false),
+                    _ => return Err(invalid(v)),
+                },
+                Some(v @ Value::Number(n)) => match n.as_i64() {
+                    Some(1) => Some(true),
+                    Some(0) => Some(false),
+                    _ => return Err(invalid(v)),
+                },
+                Some(v) => return Err(invalid(v)),
+            }),
+            // テキスト系の列は従来どおり文字列化して保存する（null は空文字列）
+            _ => Self::Text(value.map(|v| match v {
+                Value::String(s) => s.clone(),
+                Value::Null => String::new(),
+                other => other.to_string(),
+            })),
+        })
+    }
+}
+
+/// 行からスキーマ定義の列型に合わせてカスタムフィールドを読み出す（NULL の列は含めない）
+fn custom_fields_from_row(
+    schema: &SchemaDefinition,
+    row: &PgRow,
+) -> HashMap<String, serde_json::Value> {
+    let mut custom_fields = HashMap::new();
+    for field in &schema.fields {
+        if is_standard_column(&field.name) {
+            continue;
+        }
+        let name = field.name.as_str();
+        let value = match field.field_type {
+            FieldType::Jsonb => row
+                .try_get::<Option<serde_json::Value>, _>(name)
+                .ok()
+                .flatten(),
+            FieldType::Integer => row
+                .try_get::<Option<i64>, _>(name)
+                .ok()
+                .flatten()
+                .map(serde_json::Value::from),
+            FieldType::Boolean => row
+                .try_get::<Option<bool>, _>(name)
+                .ok()
+                .flatten()
+                .map(serde_json::Value::Bool),
+            _ => row
+                .try_get::<Option<String>, _>(name)
+                .ok()
+                .flatten()
+                .map(|s| serde_json::from_str(&s).unwrap_or(serde_json::Value::String(s))),
+        };
+        if let Some(value) = value {
+            custom_fields.insert(field.name.clone(), value);
+        }
+    }
+    custom_fields
 }
 
 #[async_trait]
@@ -197,31 +290,17 @@ impl DatabaseAdapter for PostgresAdapter {
             "created_at".to_string(),
             "updated_at".to_string(),
         ];
-        let mut custom_values: Vec<Option<String>> = Vec::new();
+        let mut custom_values: Vec<PgFieldValue> = Vec::new();
 
         for field in &schema.fields {
             if is_standard_column(&field.name) {
                 continue;
             }
             columns.push(field.name.clone());
-            if let Some(val) = record.custom_fields.get(&field.name) {
-                let s = match val {
-                    serde_json::Value::String(s) => s.clone(),
-                    serde_json::Value::Number(n) => n.to_string(),
-                    serde_json::Value::Bool(b) => {
-                        if *b {
-                            "true".to_string()
-                        } else {
-                            "false".to_string()
-                        }
-                    }
-                    serde_json::Value::Null => String::new(),
-                    other => other.to_string(),
-                };
-                custom_values.push(Some(s));
-            } else {
-                custom_values.push(None);
-            }
+            custom_values.push(PgFieldValue::from_json(
+                field,
+                record.custom_fields.get(&field.name),
+            )?);
         }
 
         let placeholders: Vec<String> = (1..=columns.len()).map(|i| format!("${}", i)).collect();
@@ -244,8 +323,13 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(&record.created_at)
             .bind(&record.updated_at);
 
-        for val in &custom_values {
-            query = query.bind(val);
+        for val in custom_values {
+            query = match val {
+                PgFieldValue::Text(v) => query.bind(v),
+                PgFieldValue::BigInt(v) => query.bind(v),
+                PgFieldValue::Bool(v) => query.bind(v),
+                PgFieldValue::Json(v) => query.bind(v.map(sqlx::types::Json)),
+            };
         }
 
         query
@@ -275,20 +359,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
         match row {
             Some(r) => {
-                let mut custom_fields = HashMap::new();
-                for field in &schema.fields {
-                    if is_standard_column(&field.name) {
-                        continue;
-                    }
-                    if let Ok(val) = r.try_get::<String, _>(field.name.as_str()) {
-                        let parsed: serde_json::Value =
-                            serde_json::from_str(&val).unwrap_or(serde_json::Value::String(val));
-                        custom_fields.insert(field.name.clone(), parsed);
-                    } else if let Ok(val) = r.try_get::<i64, _>(field.name.as_str()) {
-                        custom_fields
-                            .insert(field.name.clone(), serde_json::Value::Number(val.into()));
-                    }
-                }
+                let custom_fields = custom_fields_from_row(schema, &r);
 
                 Ok(Some(ContentRecord {
                     id: r.get("id"),
@@ -319,19 +390,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
         let mut results = Vec::new();
         for r in rows {
-            let mut custom_fields = HashMap::new();
-            for field in &schema.fields {
-                if is_standard_column(&field.name) {
-                    continue;
-                }
-                if let Ok(val) = r.try_get::<String, _>(field.name.as_str()) {
-                    let parsed: serde_json::Value =
-                        serde_json::from_str(&val).unwrap_or(serde_json::Value::String(val));
-                    custom_fields.insert(field.name.clone(), parsed);
-                } else if let Ok(val) = r.try_get::<i64, _>(field.name.as_str()) {
-                    custom_fields.insert(field.name.clone(), serde_json::Value::Number(val.into()));
-                }
-            }
+            let custom_fields = custom_fields_from_row(schema, &r);
 
             results.push(ContentRecord {
                 id: r.get("id"),
@@ -409,5 +468,92 @@ impl DatabaseAdapter for PostgresAdapter {
             events.push(audit_row_from_sqlx!(row).into_event()?);
         }
         Ok(events)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn field(name: &str, field_type: FieldType) -> FieldDefinition {
+        serde_json::from_value(json!({
+            "name": name,
+            "type": serde_json::to_value(&field_type).unwrap(),
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn test_jsonb_values_bind_as_json_and_null_as_sql_null() {
+        let meta = field("custom_meta", FieldType::Jsonb);
+        let object = json!({ "seo": { "title": "x" }, "tags": ["a"] });
+        assert_eq!(
+            PgFieldValue::from_json(&meta, Some(&object)).unwrap(),
+            PgFieldValue::Json(Some(object))
+        );
+        assert_eq!(
+            PgFieldValue::from_json(&meta, Some(&json!("plain"))).unwrap(),
+            PgFieldValue::Json(Some(json!("plain")))
+        );
+        assert_eq!(
+            PgFieldValue::from_json(&meta, Some(&serde_json::Value::Null)).unwrap(),
+            PgFieldValue::Json(None)
+        );
+        assert_eq!(
+            PgFieldValue::from_json(&meta, None).unwrap(),
+            PgFieldValue::Json(None)
+        );
+    }
+
+    #[test]
+    fn test_integer_and_boolean_values_are_converted_or_rejected() {
+        let count = field("count", FieldType::Integer);
+        assert_eq!(
+            PgFieldValue::from_json(&count, Some(&json!(42))).unwrap(),
+            PgFieldValue::BigInt(Some(42))
+        );
+        assert_eq!(
+            PgFieldValue::from_json(&count, Some(&json!(" 7 "))).unwrap(),
+            PgFieldValue::BigInt(Some(7))
+        );
+        assert!(PgFieldValue::from_json(&count, Some(&json!(1.5))).is_err());
+        assert!(PgFieldValue::from_json(&count, Some(&json!("many"))).is_err());
+
+        let flag = field("featured", FieldType::Boolean);
+        assert_eq!(
+            PgFieldValue::from_json(&flag, Some(&json!(true))).unwrap(),
+            PgFieldValue::Bool(Some(true))
+        );
+        assert_eq!(
+            PgFieldValue::from_json(&flag, Some(&json!("0"))).unwrap(),
+            PgFieldValue::Bool(Some(false))
+        );
+        assert!(PgFieldValue::from_json(&flag, Some(&json!("yes"))).is_err());
+        assert_eq!(
+            PgFieldValue::from_json(&flag, None).unwrap(),
+            PgFieldValue::Bool(None)
+        );
+    }
+
+    #[test]
+    fn test_text_values_keep_previous_stringification() {
+        let title = field("subtitle", FieldType::String);
+        assert_eq!(
+            PgFieldValue::from_json(&title, Some(&json!("hello"))).unwrap(),
+            PgFieldValue::Text(Some("hello".to_string()))
+        );
+        assert_eq!(
+            PgFieldValue::from_json(&title, Some(&json!(3))).unwrap(),
+            PgFieldValue::Text(Some("3".to_string()))
+        );
+        assert_eq!(
+            PgFieldValue::from_json(&title, Some(&serde_json::Value::Null)).unwrap(),
+            PgFieldValue::Text(Some(String::new()))
+        );
+        assert_eq!(
+            PgFieldValue::from_json(&title, None).unwrap(),
+            PgFieldValue::Text(None)
+        );
     }
 }
