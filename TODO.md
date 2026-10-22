@@ -173,7 +173,7 @@
 - [x] **プレビュー API とサーバーレンダリングのプレビュー**: `POST /api/v1/preview`（`viewer` 以上、保存しない）で、保存時と同じ変換（見出し id・プラグインの `transform-content-ast`）と公開ページと同じレンダリング（`HtmlRenderer` + `[security]` リライター）を実行して HTML を返す。Admin Studio のプレビューを JavaScript の簡易レンダラーからこの API に置き換え（300ms デバウンス、プラグインのエラーは警告表示）。HTML 生成を `render.rs`（`transform_blocks` / `render_blocks_html`）に集約し、コンテンツ取得・一覧 API の `rendered_html` にリライターが適用されていなかった不整合も解消
 - [x] **UI の小さな不具合・アクセシビリティ**: ツールバーのラベル・ボタン名を折り返さない（`nowrap`、収まらない幅ではボタンごと次の行へ）。記事一覧のカードを `button` に、プレビューのタブを `role="tablist"` / `tab` の `button` にしてキーボード操作可能に（見た目は変更なし）。新規の画像ブロックを空の `src` / `alt` で開始し、アップロード・メディア選択で alt を補完。`src` が空の画像ブロックはサーバーでも出力しない（`<img src="">` による壊れた画像表示と再リクエストを防止）
 - [x] **テーマ適用済みページのプレビュー**: プレビュー API が `page_html`（`on-render-page` フック + テーマテンプレート、カテゴリなどのリレーション解決込み）も返し、Admin Studio の「Themed Page」タブで `sandbox` 付き `iframe` に表示。公開ページの組み立てを `render::render_page` に集約し、`/{slug}` の記事フォールバックでリレーションが解決されていなかった不整合も解消
-- [ ] **サンプルプラグイン（`plugins/template-rust`）の `transform-content-ast` が冪等でない**: 保存済みの記事を開くと「— Enhanced by AegisCMS Rust Wasm Plugin —」段落が二重に追加される（プレビュー・再保存とも）。すでに追加済みなら追加しないよう修正し、`plugin.wasm` を再ビルドする
+- [x] **サンプルプラグイン（`plugins/template-rust`）の `transform-content-ast` を冪等に**: 署名段落が追加済みなら追加しないよう修正し（2 回適用しても結果が変わらないことを単体テストで確認）、`plugin.wasm` を再ビルド。`task plugin:build` / `task clean` の Windows 専用コマンド（`cmd /c`）を `platforms` で Linux / macOS にも対応。SDK ガイド・テンプレート README のサンプルコードも冪等な書き方に修正
 
 ---
 

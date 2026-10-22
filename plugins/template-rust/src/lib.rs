@@ -1,5 +1,8 @@
 use aegis_plugin_sdk::prelude::*;
 
+/// 末尾に追加する署名段落
+const FOOTER_TEXT: &str = "— Enhanced by AegisCMS Rust Wasm Plugin —";
+
 #[derive(Default)]
 pub struct TemplatePlugin;
 
@@ -56,8 +59,14 @@ impl Plugin for TemplatePlugin {
         }
 
         // 2. プラグインによる新規ブロックの末尾自動追加 (例: 署名/フッター)
-        let footer_block = BlockNode::paragraph("— Enhanced by AegisCMS Rust Wasm Plugin —");
-        blocks.push(footer_block);
+        // このフックは保存済み（変換済み）のブロックにも再適用される（再保存・エディタのプレビュー）ため、
+        // 追加済みなら追加しない（冪等にする）
+        let has_footer = blocks
+            .iter()
+            .any(|b| b.name == "core/paragraph" && b.text.as_deref() == Some(FOOTER_TEXT));
+        if !has_footer {
+            blocks.push(BlockNode::paragraph(FOOTER_TEXT));
+        }
 
         Ok(blocks)
     }
@@ -87,5 +96,18 @@ mod tests {
             Some(&serde_json::json!("aegis-template-plugin"))
         );
         assert_eq!(transformed[1].name, "core/paragraph");
+    }
+
+    #[test]
+    fn test_transform_content_ast_is_idempotent() {
+        let mut plugin = TemplatePlugin::default();
+        let once = plugin
+            .transform_content_ast(vec![BlockNode::heading(2, "Section 1")])
+            .expect("AST hook should succeed");
+        // Saved blocks are transformed again on re-save and on every editor preview
+        let twice = plugin
+            .transform_content_ast(once.clone())
+            .expect("AST hook should succeed");
+        assert_eq!(twice, once);
     }
 }
