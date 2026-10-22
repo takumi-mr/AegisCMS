@@ -26,7 +26,7 @@ AegisCMS のプラグインシステムは、**Bytecode Alliance 製 WebAssembly
 
 ### 2.1 テンプレートの準備
 
-公式テンプレート [`plugins/template-rust`](file:///d:/projects/cms/plugins/template-rust) をコピーして新しいプラグインを作成できます。
+公式テンプレート [`sdk/templates/rust`](../sdk/templates/rust) をコピーして新しいプラグインを作成できます。
 
 `Cargo.toml` の設定:
 
@@ -198,15 +198,22 @@ copy target\wasm32-unknown-unknown\release\<plugin_name>.wasm plugin.wasm
 
 ### 4.3 AegisCMS へのデプロイ
 
-AegisCMS サーバーの `plugins/<plugin-name>/` ディレクトリを作成し、以下を配置します。
+AegisCMS サーバーの `plugins/<name>/` ディレクトリ（`<name>` はマニフェストの `name`）を作成し、以下を配置します。
 
 ```
 plugins/my-plugin/
-  ├── plugin.manifest.json
+  ├── plugin.manifest.json   # "name": "my-plugin"
   └── plugin.wasm
 ```
 
-AegisCMS サーバー起動時、またはリロード時に自動走査・初期化されます。
+配置しただけでは読み込まれません。設定ファイルの `[plugins].enabled` に名前を追加してサーバーを再起動すると有効になります（フックは書いた順に実行）。
+
+```toml
+[plugins]
+enabled = ["my-plugin"]
+```
+
+`aegis plugin list` でインストール済みのプラグインと有効・無効、読み込めない理由を確認できます。有効にしたプラグインが読み込めない場合はサーバーが起動しません（[プラグインフックリファレンス](plugin_hooks.md#5-インストールと有効化)）。
 
 ---
 
@@ -216,9 +223,9 @@ AegisCMS では、Rust だけでなくフロントエンド/Web 開発者に親�
 
 | 言語 | 公式テンプレート | SDK の場所 | 対象者・特徴 |
 |---|---|---|---|
-| **Rust** | [`plugins/template-rust`](../plugins/template-rust) | [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk) | 型安全・極限のパフォーマンス・ネイティブテスト |
-| **AssemblyScript** | [`plugins/template-assemblyscript`](../plugins/template-assemblyscript) | `plugins/template-assemblyscript/assembly/sdk` | TypeScript 風構文・Node/npm 親和性 |
-| **TinyGo** | [`plugins/template-tinygo`](../plugins/template-tinygo) | `plugins/template-tinygo/sdk` | Go 構文・軽量シングル Wasm バイナリ |
+| **Rust** | [`sdk/templates/rust`](../sdk/templates/rust) | [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk) | 型安全・極限のパフォーマンス・ネイティブテスト |
+| **AssemblyScript** | [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript) | `sdk/templates/assemblyscript/assembly/sdk` | TypeScript 風構文・Node/npm 親和性 |
+| **TinyGo** | [`sdk/templates/tinygo`](../sdk/templates/tinygo) | `sdk/templates/tinygo/sdk` | Go 構文・軽量シングル Wasm バイナリ |
 
 ---
 
@@ -228,7 +235,7 @@ AssemblyScript は TypeScript のサブセット構文から WebAssembly を直�
 
 ```bash
 # テンプレートディレクトリへの移動
-cd plugins/template-assemblyscript
+cd sdk/templates/assemblyscript
 
 # 依存パッケージのインストール
 npm install
@@ -268,7 +275,9 @@ export function on_before_save(ptr: i32, len: i32): i64 {
 }
 ```
 
-詳細は [`plugins/template-assemblyscript/README.md`](../plugins/template-assemblyscript/README.md) を参照してください。
+`asconfig.json` の `"use": ["abort=assembly/sdk/host/abort"]` は削除しないでください。AssemblyScript は既定で実行時エラーの処理に `env.abort` をインポートしますが、ホストは `host` モジュールしか提供しないため、この設定が無いとプラグインを読み込めません。
+
+詳細は [`sdk/templates/assemblyscript/README.md`](../sdk/templates/assemblyscript/README.md) を参照してください。
 
 ---
 
@@ -278,10 +287,10 @@ TinyGo は Go 構文から極めて小さな Wasm バイナリを生成するコ
 
 ```bash
 # テンプレートディレクトリへの移動
-cd plugins/template-tinygo
+cd sdk/templates/tinygo
 
 # Wasm ビルド (plugin.wasm を出力)
-tinygo build -target=wasi -opt=z -no-debug -o plugin.wasm main.go
+tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go
 ```
 
 ライフサイクルフックの実装例 (`main.go`):
@@ -321,7 +330,9 @@ func on_before_save(ptr int32, length int32) int64 {
 func main() {}
 ```
 
-詳細は [`plugins/template-tinygo/README.md`](../plugins/template-tinygo/README.md) を参照してください。
+ターゲットは `wasm-unknown`（TinyGo 0.30+）を使ってください。`wasi` ターゲットはホストが提供しない WASI の関数をインポートするため読み込めません。`wasm-unknown` のモジュールがエクスポートする `_initialize`（ランタイムとグローバル変数の初期化）は、ホストがフックより先に呼び出します。
+
+詳細は [`sdk/templates/tinygo/README.md`](../sdk/templates/tinygo/README.md) を参照してください。
 
 ---
 

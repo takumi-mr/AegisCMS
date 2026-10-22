@@ -60,6 +60,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/api/v1/auth/oidc/login", get(handlers::oidc_login))
         .route("/api/v1/auth/oidc/callback", get(handlers::oidc_callback))
         .route("/api/v1/audit-logs", get(handlers::list_audit_logs))
+        .route("/api/v1/plugins", get(handlers::list_plugins))
         .route("/api/v1/themes", get(handlers::list_themes))
         .route(
             "/api/v1/themes/active",

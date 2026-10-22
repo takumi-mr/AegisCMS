@@ -36,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
-COPY plugins/ ./plugins/
+COPY sdk/ ./sdk/
 RUN cargo chef prepare --recipe-path recipe.json
 
 # 2-2. 依存クレートだけを先にビルド（レシピが同じならこのレイヤーはキャッシュされる）
@@ -48,7 +48,7 @@ RUN cargo chef cook --release -p aegis-server --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 COPY schemas/ ./schemas/
-COPY plugins/ ./plugins/
+COPY sdk/ ./sdk/
 RUN cargo build --release -p aegis-server
 
 # ==========================================

@@ -16,7 +16,7 @@ import {
   PageRenderContext,
   parsePostContext,
   serializePostContext,
-  serializeBlockNodes,
+  appendBlockNodes,
   parsePageRenderContext,
   serializePageRenderContext,
 } from "./sdk";
@@ -55,16 +55,21 @@ export function on_before_save(ptr: i32, len: i32): i64 {
   return writeString(outJson);
 }
 
+const SIGNATURE = "Transformed by AssemblyScript Plugin";
+
 // --- Lifecycle Hook: transform_content_ast ---
 export function transform_content_ast(ptr: i32, len: i32): i64 {
+  const inJson = readString(ptr, len);
   log.info("[AssemblyScript] transform_content_ast called");
 
-  // サンプル: 末尾にプラグイン署名ブロックを追加
-  const blocks = new Array<BlockNode>();
-  blocks.push(BlockNode.paragraph("Transformed by AssemblyScript Plugin"));
+  // 保存のたびに呼ばれるため、追加済みなら何もしない（0 を返すと「変更なし」）
+  if (inJson.includes(SIGNATURE)) return 0;
 
-  const outJson = serializeBlockNodes(blocks);
-  return writeString(outJson);
+  // サンプル: 既存のブロックを残したまま、末尾にプラグイン署名ブロックを追加
+  const blocks = new Array<BlockNode>();
+  blocks.push(BlockNode.paragraph(SIGNATURE));
+
+  return writeString(appendBlockNodes(inJson, blocks));
 }
 
 // --- Lifecycle Hook: on_render_page ---

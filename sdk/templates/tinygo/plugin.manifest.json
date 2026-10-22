@@ -1,0 +1,37 @@
+{
+  "name": "template-tinygo",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "TinyGo Plugin Template",
+  "description": "Official TinyGo plugin template: validates titles on save, appends a block and injects CSS into themed pages.",
+  "author": {
+    "name": "AegisCMS Contributors",
+    "url": "https://github.com/takumi-mr/AegisCMS"
+  },
+  "license": "Apache-2.0",
+  "tags": [
+    "template",
+    "tinygo"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "network": {
+      "allowed_domains": [
+        "api.example.com"
+      ]
+    },
+    "storage": {
+      "kv_namespace": "template_tinygo_state"
+    },
+    "hooks": [
+      "on-before-save",
+      "transform-content-ast",
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 100000000,
+    "execution_timeout_ms": 250
+  }
+}

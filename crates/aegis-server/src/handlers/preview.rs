@@ -126,6 +126,7 @@ mod tests {
                         ],
                     },
                     resource_limits: PluginResourceLimits::default(),
+                    ..Default::default()
                 },
                 fail,
             })

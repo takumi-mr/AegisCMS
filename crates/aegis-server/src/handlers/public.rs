@@ -550,6 +550,7 @@ mod tests {
                     hooks: vec!["on-render-page".to_string()],
                 },
                 resource_limits: PluginResourceLimits::default(),
+                ..Default::default()
             },
         });
         supervisor.register(plugin);

@@ -4,7 +4,9 @@ pub mod wasm;
 
 pub use guard::CapabilityGuard;
 pub use plugin::{AegisPlugin, PluginSupervisor};
-pub use wasm::{PluginHostState, WasmEngine, WasmPluginInstance, WasmPluginLoader};
+pub use wasm::{
+    InstalledPlugin, PluginHostState, PluginInfo, WasmEngine, WasmPluginInstance, WasmPluginLoader,
+};
 
 #[cfg(test)]
 mod tests {
@@ -33,6 +35,7 @@ mod tests {
                 max_fuel_units: 100_000,
                 execution_timeout_ms: 250,
             },
+            ..Default::default()
         }
     }
 
@@ -54,6 +57,41 @@ mod tests {
 
         assert!(guard.check_hook("on-before-save").is_ok());
         assert!(guard.check_hook("transform-content-ast").is_err());
+    }
+
+    #[tokio::test]
+    async fn test_render_page_output_only_overrides_returned_fields() {
+        // `{"extra_css":"x"}` だけを返すプラグイン
+        let wat_src = r#"
+        (module
+            (memory (export "memory") 1)
+            (data (i32.const 256) "{\"extra_css\":\"x\"}")
+            (func (export "allocate") (param $len i32) (result i32) i32.const 1024)
+            (func (export "on_render_page") (param $ptr i32) (param $len i32) (result i64)
+                (i64.or (i64.shl (i64.const 256) (i64.const 32)) (i64.const 17))))
+        "#;
+        let instance = WasmPluginInstance::from_bytes(
+            WasmEngine::new().unwrap(),
+            make_sample_manifest(vec!["on-render-page".to_string()]),
+            &wat::parse_str(wat_src).unwrap(),
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+        .unwrap();
+        let ctx = aegis_core::PageRenderContext {
+            site_title: "Site".to_string(),
+            template: "index.html".to_string(),
+            items: vec![aegis_core::ContentSummary {
+                slug: "first".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let rendered = instance.on_render_page(ctx).await.unwrap();
+        assert_eq!(rendered.extra_css, "x");
+        assert_eq!(rendered.site_title, "Site");
+        assert_eq!(rendered.template, "index.html");
+        assert_eq!(rendered.items.len(), 1);
     }
 
     #[tokio::test]
@@ -238,8 +276,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_wasm_compiled_plugin_from_sdk() {
-        let wasm_path = std::path::Path::new("../../plugins/template-rust/plugin.wasm");
-        let fallback_path = std::path::Path::new("plugins/template-rust/plugin.wasm");
+        let wasm_path = std::path::Path::new("../../sdk/templates/rust/plugin.wasm");
+        let fallback_path = std::path::Path::new("sdk/templates/rust/plugin.wasm");
         let path = if wasm_path.exists() {
             wasm_path
         } else if fallback_path.exists() {

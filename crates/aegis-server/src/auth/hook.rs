@@ -122,6 +122,7 @@ pub(crate) mod tests {
                     hooks: vec!["on-user-authenticated".to_string()],
                 },
                 resource_limits: Default::default(),
+                ..Default::default()
             },
             mode,
         })

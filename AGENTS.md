@@ -96,7 +96,7 @@ Conventional Commits 形式に準拠します。
   - `runtime`: `crates/aegis-runtime`
   - `server`: `crates/aegis-server`
   - `admin`: `admin/` (Admin Studio フロントエンド)
-  - `plugin`: `plugins/` (Wasm プラグイン)
+  - `plugin`: `sdk/` (Wasm プラグインのテンプレート・サンプル)、`crates/aegis-plugin-sdk`
 - **記述例**:
   - `feat(ast): integrate lol-html streaming rewriter for security attributes`
   - `fix(runtime): resolve msvc trap handling in wasm engine`

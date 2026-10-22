@@ -85,6 +85,13 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 
 プラグインは、ホスト環境から提供される機能を以下のインポートシグネチャを通じて利用できます。モジュール名はすべて `"host"` です。
 
+**インポートできるのは以下の `host` モジュールの関数だけです。** それ以外（`env.abort`、`wasi_snapshot_preview1.*` など）をインポートするモジュールは読み込み時に拒否されます。
+
+- AssemblyScript: 既定の `env.abort` を `asconfig.json` の `"use": ["abort=assembly/sdk/host/abort"]` で SDK の実装に差し替える。
+- TinyGo: `-target=wasm-unknown` でビルドする（`wasi` ターゲットは WASI をインポートする）。
+
+モジュールが `_initialize`（引数・戻り値なし）をエクスポートしている場合、ホストはインスタンス化の直後、他のエクスポートより先に呼び出します（WASI のリアクター形式の慣例。TinyGo の `wasm-unknown` はランタイムとグローバル変数をここで初期化する）。
+
 ### 3.1 `host.log`
 
 ホストの構造化ログ機構（`tracing`）経由で安全にログを出力します。
@@ -229,16 +236,27 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 ```json
 {
   "site_title": "AegisCMS サイト",
-  "page_title": "ブログ記事一覧",
-  "slug": "articles",
-  "template_name": "article.html",
+  "site_description": "サイトの説明",
+  "template": "article.html",
+  "content_type": "article",
+  "title": "記事タイトル",
+  "slug": "hello-world",
+  "content_html": "<p>本文</p>",
+  "author": "admin",
+  "published_at": "2026-10-22T00:00:00Z",
+  "updated_at": null,
+  "fields": {},
+  "relations": {},
+  "items": [],
   "extra_css": "body { background: #fafafa; }",
   "extra_head": "<meta name=\"author\" content=\"AegisCMS\">",
-  "variables": {
-    "custom_var": "custom_value"
-  }
+  "theme_vars": { "accent": "#10b981" }
 }
 ```
+
+### 5.3.1 オブジェクトを返すフックの部分更新
+
+`on_before_save`・`on_render_page`・`on_user_authenticated` の返り値（JSON オブジェクト）は、**トップレベルのキー単位で入力に上書き**されます。変更したフィールドだけを返してもよく、返さなかったフィールドやプラグインが知らないフィールドは入力の値のまま保たれます（例: `{"extra_css": "..."}` だけを返す）。長さ 0 を返した場合は「変更なし」です。
 
 ### 5.4 エラーエンベロープ (Error Envelope)
 ```json
@@ -279,6 +297,8 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 ```
 
 - **`capabilities.hooks`**: プラグインが受領するフックの一覧（ケバブケース）。ここに未列挙のフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
+- **`name`**: プラグインの識別子（英小文字・数字・`-`・`_`）。インストール先は `plugins/<name>/` で、`[plugins].enabled` に書くと有効になる。
+- **`display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version`**: ストア・一覧表示用のメタデータ（任意）。
 - **`resource_limits`**: メモリ上限（MB単位）、Fuel 上限、タイムアウト（ミリ秒単位）。
 
 ---
@@ -287,9 +307,9 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 
 | 項目 | Rust | AssemblyScript | TinyGo |
 |---|---|---|---|
-| **公式 SDK** | `crates/aegis-plugin-sdk` | `plugins/template-assemblyscript/assembly/sdk` | `plugins/template-tinygo/sdk` |
-| **公式テンプレート** | `plugins/template-rust` | `plugins/template-assemblyscript` | `plugins/template-tinygo` |
-| **ビルドコマンド** | `cargo build --target wasm32-unknown-unknown --release` | `npm run asbuild` | `tinygo build -target=wasi -o plugin.wasm main.go` |
+| **公式 SDK** | `crates/aegis-plugin-sdk` | `sdk/templates/assemblyscript/assembly/sdk` | `sdk/templates/tinygo/sdk` |
+| **公式テンプレート** | `sdk/templates/rust` | `sdk/templates/assemblyscript` | `sdk/templates/tinygo` |
+| **ビルドコマンド** | `cargo build --target wasm32-unknown-unknown --release` | `npm run asbuild` | `tinygo build -target=wasm-unknown -o plugin.wasm main.go` |
 | **ホストインポート** | `#[link(wasm_import_module = "host")] extern "C"` | `@external("host", "...")` | `//go:wasmimport host ...` |
 | **メモリアロケータ** | `std::alloc::alloc` | `heap.alloc` | `unsafe.Pointer(&buf[0])` / `malloc` |
 | **JSON ハンドリング** | `serde_json` | 軽量 JSON ビルダー / パーサー | `encoding/json` |
