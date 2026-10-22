@@ -59,7 +59,7 @@ default_timeout_ms = 250
 # Plugins to load, by name (installed as <plugins_dir>/<name>/ with a plugin.manifest.json).
 # Hooks run in this order. The server does not start if a listed plugin is missing or cannot load.
 # Templates and samples live in sdk/; see docs/plugin_hooks.md "インストールと有効化"
-enabled = []
+enabled = ["official-code-enhancer"]
 
 [security]
 enforce_external_link_rel = true
