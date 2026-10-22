@@ -1,4 +1,5 @@
 export * from './schemas';
+import type { BlockNode } from './schemas';
 
 export interface FieldDefinition {
   name: string;
@@ -133,4 +134,14 @@ export interface SessionInfo {
     email?: string;
     [key: string]: unknown;
   };
+}
+
+/** Returned by `POST /api/v1/preview` */
+export interface PreviewResult {
+  /** Same HTML the published page shows for these blocks */
+  html: string;
+  /** Blocks after the heading-id pipeline and plugin `transform-content-ast` hooks */
+  blocks: BlockNode[];
+  /** E.g. a plugin hook that failed (the preview then shows the built-in pipeline's result) */
+  warnings: string[];
 }
