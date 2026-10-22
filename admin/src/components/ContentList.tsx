@@ -2,6 +2,15 @@ import React, { useState } from 'react';
 import { Plus, FileText } from 'lucide-react';
 import type { ContentItem } from '../types';
 import { categoryColor, categoryIdOf } from '../utils/category';
+import { cx } from '../utils/cx';
+import { Button } from './ui/Button';
+import { Field } from './ui/Field';
+import styles from './ContentList.module.css';
+
+const STATUS_BADGE: Record<string, string | undefined> = {
+  published: styles.published,
+  draft: styles.draft,
+};
 
 /** Category filter: every item, items without a category, or a category id */
 const ALL = '__all__';
@@ -44,21 +53,20 @@ export const ContentList: React.FC<ContentListProps> = ({
   };
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-header">
-        <span className="sidebar-title">
+    <aside className={styles.sidebar}>
+      <div className={styles.header}>
+        <span className={styles.title}>
           {contentType}s (
           {filter === ALL ? contents.length : `${visible.length}/${contents.length}`})
         </span>
-        <button className="tool-btn" onClick={onNew} title="Create new content">
+        <Button variant="tool" onClick={onNew} title="Create new content">
           <Plus size={14} />
           <span>New</span>
-        </button>
+        </Button>
       </div>
 
-      <div className="sidebar-filter">
-        <div className="input-field">
-          <span className="input-prefix">category:</span>
+      <div className={styles.filter}>
+        <Field label="category:" className={styles.filterField}>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -72,47 +80,47 @@ export const ContentList: React.FC<ContentListProps> = ({
               </option>
             ))}
           </select>
-        </div>
+        </Field>
       </div>
 
-      <div className="content-list">
+      <div className={styles.list}>
         {visible.map((item) => {
           const category = categoryOf(item);
           return (
             <div
               key={item.id}
-              className={`content-card ${selectedId === item.id ? 'active' : ''}`}
+              className={cx(styles.card, selectedId === item.id && styles.active)}
               onClick={() => onSelect(item)}
             >
-              <div className="content-card-title">{item.title || 'Untitled'}</div>
+              <div className={styles.cardTitle}>{item.title || 'Untitled'}</div>
               {category && (
-                <span className="badge-category" title={`Category: ${category.title}`}>
+                <span className={styles.categoryBadge} title={`Category: ${category.title}`}>
                   <span
-                    className="category-swatch"
+                    className={styles.swatch}
                     style={{ background: category.color ?? 'var(--border-medium)' }}
                   />
                   {category.title}
                 </span>
               )}
-              <div className="content-card-meta">
+              <div className={styles.cardMeta}>
                 <span>/{item.slug}</span>
-                <span className={`badge-status ${item.status}`}>{item.status}</span>
+                <span className={cx(styles.status, STATUS_BADGE[item.status])}>{item.status}</span>
               </div>
             </div>
           );
         })}
 
         {visible.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
-            <FileText size={32} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
+          <div className={styles.empty}>
+            <FileText size={32} className={styles.emptyIcon} />
             {contents.length === 0 ? (
-              <p style={{ fontSize: '0.85rem' }}>
+              <p>
                 No articles yet.
                 <br />
                 Click "+ New" to create one.
               </p>
             ) : (
-              <p style={{ fontSize: '0.85rem' }}>No articles match this category.</p>
+              <p>No articles match this category.</p>
             )}
           </div>
         )}

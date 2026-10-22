@@ -15,7 +15,7 @@
   - エディタで編集中のブロック構造からレンダリングされた HTML を即座に確認可能。
   - レンダリング結果をタブでプレビューと HTML ソースコード表示に切り替え可能。
 - **プレミアム・グラスモフィズム UI**:
-  - TailwindCSS 等のフレームワークに依存せず、ゼロランタイムの Vanilla CSS と CSS 変数（デザインシステムトークン）で構築。
+  - TailwindCSS 等のフレームワークに依存せず、ゼロランタイムの CSS Modules と CSS 変数（デザインシステムトークン）で構築。
   - 目に優しく視認性の高いダークテーマ、美しいすりガラス効果（Glassmorphism）、洗練されたマイクロインタラクション。
   - タイポグラフィに `Plus Jakarta Sans` / `Outfit` / `JetBrains Mono` を採用。
 - **画像アップロード**:
@@ -57,30 +57,44 @@
 
 ```text
 admin/
-├── public/                 # 静的ファビコン・アセット
 ├── src/
 │   ├── api/
-│   │   └── client.ts       # REST API Gateway 連携クライアント
-│   ├── assets/             # 静的画像・ベクター素材
-│   ├── components/         # UI コンポーネント群
-│   │   ├── Header.tsx      # ヘッダー・画面切り替え・サーバー状態インジケーター
+│   │   ├── client.ts       # REST API Gateway 連携クライアント（Bearer 付与・401 通知）
+│   │   └── session.ts      # セッショントークンの保持（sessionStorage）
+│   ├── components/         # 画面単位のコンポーネント（各 *.tsx の隣に同名の *.module.css）
+│   │   ├── ui/             # 共通部品
+│   │   │   ├── Button.tsx  # ボタン（primary / secondary / tool / icon）
+│   │   │   ├── Field.tsx   # ラベル付き入力欄 Field と横並びの FieldRow
+│   │   │   ├── Modal.tsx   # モーダル（Escape・外側クリックで閉じる、フォーカストラップ）
+│   │   │   └── BrandMark.tsx # ロゴマーク
+│   │   ├── Header.tsx      # ヘッダー・画面切り替え・サーバー状態・ログインユーザー
+│   │   ├── LoginView.tsx   # ログイン画面
 │   │   ├── AuditLogView.tsx # 監査ログ閲覧画面
 │   │   ├── CategoryManager.tsx # カテゴリ一覧・作成モーダル
+│   │   ├── MediaLibrary.tsx # アップロード済み画像の選択モーダル
 │   │   ├── ImageUploader.tsx # 画像ブロックのアップロード欄（ドラッグ＆ドロップ）
 │   │   ├── ContentList.tsx # 記事・コンテンツ一覧サイドバー
 │   │   ├── BlockItem.tsx   # 各種 AST ブロックエディタ
 │   │   └── Preview.tsx     # リアルタイム HTML / ソースコードプレビュー
-│   ├── utils/
-│   │   └── category.ts     # カテゴリの判定・色の取得ヘルパー
+│   ├── utils/              # カテゴリ・メディア・ロール判定、クラス名結合 cx などのヘルパー
 │   ├── types/
-│   │   └── index.ts        # AST ノード・スキーマ・コンテンツ型定義
+│   │   ├── index.ts        # AST ノード・スキーマ・コンテンツ型定義
+│   │   └── schemas.ts      # スキーマから自動生成された型（task codegen:ts）
 │   ├── App.tsx             # メインアプリケーションコンポーネント
-│   ├── index.css           # グローバルデザイントークン & グラスモフィズムスタイル
+│   ├── App.module.css
+│   ├── index.css           # グローバル: デザイントークン（CSS 変数）・リセット・基本要素のみ
 │   └── main.tsx            # エントリーポイント
 ├── index.html              # HTML テンプレート
 ├── package.json
 └── vite.config.ts
 ```
+
+### スタイルの書き方
+
+- コンポーネントのスタイルは隣の `*.module.css`（CSS Modules）に書き、`import styles from './X.module.css'` で `className={styles.foo}` と参照します。クラス名はビルド時にファイルごとにスコープされるため、他のコンポーネントと衝突しません。
+- 色・余白・角丸・フォントなどは `index.css` の CSS 変数（`var(--bg-surface)` など）を使います。`style={{...}}` のインライン指定は、カテゴリ色のように実行時に決まる値だけにします。
+- ボタン・入力欄・モーダルは `components/ui/` の共通部品を使います。親から共通部品の見た目を調整するときは、`className` を渡し、親のモジュールで `.parent .child` のように子孫セレクタで指定します（CSS の読み込み順に依存せず上書きできるため）。
+- 複数のクラスの結合には `utils/cx.ts` の `cx(styles.a, active && styles.b)` を使います。
 
 ---
 
