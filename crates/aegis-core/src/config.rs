@@ -58,6 +58,9 @@ impl AegisConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    /// リバースプロキシのサブパス配下で公開する場合のパス（例: `/cms`）。空ならルートで公開。
+    /// 読み出しは `normalized_base_path` を使う
+    pub base_path: String,
 }
 
 impl Default for ServerConfig {
@@ -65,7 +68,34 @@ impl Default for ServerConfig {
         Self {
             host: "127.0.0.1".to_string(),
             port: 8080,
+            base_path: String::new(),
         }
+    }
+}
+
+impl ServerConfig {
+    /// `base_path` を `""`（ルート）または末尾 `/` なしの `/segment[/segment...]` に正規化する。
+    /// URL や HTML 属性にそのまま書き込むため、使える文字は `A-Z a-z 0-9 - . _ ~` のみ
+    pub fn normalized_base_path(&self) -> Result<String> {
+        let trimmed = self.base_path.trim().trim_matches('/');
+        if trimmed.is_empty() {
+            return Ok(String::new());
+        }
+        for segment in trimmed.split('/') {
+            let valid = !segment.is_empty()
+                && segment != "."
+                && segment != ".."
+                && segment
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~'));
+            if !valid {
+                return Err(AegisError::Config(format!(
+                    "[server].base_path {:?} is invalid: use a path like \"/cms\" (letters, digits, '-', '.', '_', '~')",
+                    self.base_path
+                )));
+            }
+        }
+        Ok(format!("/{}", trimmed))
     }
 }
 
@@ -569,6 +599,7 @@ mod tests {
     fn test_load_or_default_missing_file_uses_defaults() {
         let config = AegisConfig::load_or_default("does/not/exist.toml").unwrap();
         assert_eq!(config.server.port, 8080);
+        assert_eq!(config.server.base_path, "");
     }
 
     #[test]
@@ -579,5 +610,24 @@ mod tests {
         let result = AegisConfig::load_or_default(&path);
         let _ = std::fs::remove_file(&path);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_normalized_base_path() {
+        let base = |value: &str| {
+            ServerConfig {
+                base_path: value.to_string(),
+                ..Default::default()
+            }
+            .normalized_base_path()
+        };
+        assert_eq!(base("").unwrap(), "");
+        assert_eq!(base("/").unwrap(), "");
+        assert_eq!(base("cms").unwrap(), "/cms");
+        assert_eq!(base("/cms/").unwrap(), "/cms");
+        assert_eq!(base(" /sites/cms_2.v1 ").unwrap(), "/sites/cms_2.v1");
+        for invalid in ["/a//b", "/../cms", "/cms?x=1", "/c ms", "/cms#top", "/\"x"] {
+            assert!(base(invalid).is_err(), "{} should be rejected", invalid);
+        }
     }
 }

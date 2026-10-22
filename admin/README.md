@@ -114,7 +114,7 @@ npm run dev
 ```
 
 デフォルトで `http://localhost:5173/` が起動します。  
-※ 開発サーバーは `http://127.0.0.1:8080` のコアサーバー（`cargo run -p aegis-server -- run`）に接続します（CORS は許可済み）。別の場所のサーバーに接続する場合は `VITE_AEGIS_SERVER_ORIGIN=https://cms.example.com npm run dev` のように指定します。
+※ 開発サーバーは `http://127.0.0.1:8080` のコアサーバー（`cargo run -p aegis-server -- run`）に接続します（CORS は許可済み）。別の場所のサーバーに接続する場合は `VITE_AEGIS_SERVER_URL=https://example.com/cms npm run dev` のように指定します。
 
 ### 3. 型検証 & 本番ビルド
 
@@ -123,7 +123,7 @@ npm run build
 ```
 
 TypeScript の型チェック（`tsc -b`）を実行後、最適化された静的アセットが `dist/` に出力されます。  
-生成された `dist/` は、コアサーバー起動時に自動的に読み込まれ、`/admin` で配信されます。本番ビルドは配信元と同じオリジンの API に接続するため、リバースプロキシ配下・任意のサブドメインでもそのまま動きます。Admin Studio だけを別オリジン（`admin.example.com` など）で配信する場合は、ビルド時に `VITE_AEGIS_SERVER_ORIGIN` で API サーバーのオリジンを指定してください（[docs/configuration.md](../docs/configuration.md#4-リバースプロキシ配下での運用)）。
+生成された `dist/` は、コアサーバー起動時に自動的に読み込まれ、`/admin/` で配信されます。アセットは相対パス（`base: './'`）で参照し、API の接続先はバンドルの URL（`{サーバー}/admin/assets/*.js`）から求めるため、リバースプロキシ配下・任意のサブドメイン・`[server].base_path` のサブパスでも再ビルドせずに動きます。Admin Studio だけを別の場所（`admin.example.com` など）で配信する場合は、ビルド時に `VITE_AEGIS_SERVER_URL` で AegisCMS サーバーの URL を指定してください（[docs/configuration.md](../docs/configuration.md#43-admin-studio-の接続先)）。
 
 ### 4. ビルドプレビュー
 

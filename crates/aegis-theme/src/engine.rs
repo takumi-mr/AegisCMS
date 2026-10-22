@@ -11,6 +11,7 @@ pub struct ThemeEngine {
     active_theme: String,
     theme_templates_dir: Option<PathBuf>,
     dynamic_templates: Arc<RwLock<HashMap<String, String>>>,
+    base_path: String,
 }
 
 impl ThemeEngine {
@@ -27,7 +28,15 @@ impl ThemeEngine {
             active_theme: active,
             theme_templates_dir,
             dynamic_templates: Arc::new(RwLock::new(HashMap::new())),
+            base_path: String::new(),
         }
+    }
+
+    /// サイトを公開するパス（`[server].base_path` の正規化済みの値、例: `/cms`）。
+    /// テンプレートからはグローバル変数 `base_path` として `{{ base_path }}/articles/...` のように使う
+    pub fn with_base_path(mut self, base_path: &str) -> Self {
+        self.base_path = base_path.to_string();
+        self
     }
 
     pub fn active_theme(&self) -> &str {
@@ -49,6 +58,11 @@ impl ThemeEngine {
     /// テンプレートと PageRenderContext から HTML を描画する
     pub fn render(&self, template_name: &str, ctx: &PageRenderContext) -> Result<String> {
         let mut env = Environment::new();
+        // `[server].base_path` の正規化済みの値（URL で安全な文字のみ）なので自動エスケープ（`/` → `&#x2f;`）しない
+        env.add_global(
+            "base_path",
+            minijinja::Value::from_safe_string(self.base_path.clone()),
+        );
 
         env.add_filter("date_short", |val: &str| -> String {
             if val.len() >= 10 {
@@ -179,6 +193,28 @@ mod tests {
         assert!(html.contains("First Post"));
         assert!(html.contains("/articles/first-post"));
         assert!(html.contains("Powered by <strong>AegisCMS</strong>"));
+    }
+
+    #[test]
+    fn test_render_links_under_base_path() {
+        let engine =
+            ThemeEngine::new(Path::new("non_existent_dir"), "default").with_base_path("/cms");
+        let ctx = PageRenderContext {
+            site_title: "Sub-path Site".to_string(),
+            template: "index.html".to_string(),
+            items: vec![ContentSummary {
+                title: "First Post".to_string(),
+                slug: "first-post".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let html = engine.render("index.html", &ctx).expect("Render failed");
+        assert!(html.contains(r#"href="/cms/articles/first-post""#));
+        assert!(html.contains(r#"href="/cms/admin/""#));
+        assert!(html.contains(r#"href="/cms/""#));
+        assert!(!html.contains(r#"href="/articles/"#));
     }
 
     #[test]

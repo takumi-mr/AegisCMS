@@ -17,22 +17,26 @@ import type {
 import { getSessionToken } from './session';
 
 /**
- * Origin of the AegisCMS server (serves the API, the public site, theme assets and uploads).
- * `VITE_AEGIS_SERVER_ORIGIN` at build time wins (Admin Studio hosted on another origin, e.g.
- * `https://admin.example.com` talking to `https://cms.example.com`). Otherwise the dev server
- * talks to a local core server, and the production build to the origin that served it, so it
- * works behind a reverse proxy on any (sub)domain without rebuilding.
+ * Base URL of the AegisCMS server (origin plus `[server].base_path`, without a trailing slash),
+ * which serves the API, the public site, theme assets and uploads. `VITE_AEGIS_SERVER_URL` at
+ * build time wins (Admin Studio hosted elsewhere, e.g. `https://admin.example.com` talking to
+ * `https://example.com/cms`). Otherwise the dev server talks to a local core server, and the
+ * production build to the server that served it: the bundle lives at
+ * `{server}/admin/assets/*.js`, so it works behind a reverse proxy on any domain and sub-path
+ * without rebuilding.
  */
-const resolveServerOrigin = (): string => {
-  const configured = import.meta.env.VITE_AEGIS_SERVER_ORIGIN?.trim();
-  if (configured) return new URL(configured).origin;
+const resolveServerUrl = (): string => {
+  const configured = import.meta.env.VITE_AEGIS_SERVER_URL?.trim();
+  if (configured) return new URL(configured).href.replace(/\/+$/, '');
   if (import.meta.env.DEV) return 'http://127.0.0.1:8080';
-  return window.location.origin;
+  // Held in a variable so Vite does not treat `new URL(..., import.meta.url)` as an asset import
+  const moduleUrl = import.meta.url;
+  return new URL('../../', moduleUrl).href.replace(/\/+$/, '');
 };
 
-export const SERVER_ORIGIN = resolveServerOrigin();
+export const SERVER_URL = resolveServerUrl();
 
-const API_BASE = `${SERVER_ORIGIN}/api/v1`;
+const API_BASE = `${SERVER_URL}/api/v1`;
 
 export class ApiError extends Error {
   status: number;

@@ -49,6 +49,7 @@ AegisCMS コアサーバー (`aegis-server`) の設定ファイル (`config/*.to
 | --- | --- | --- | --- |
 | `host` | string | `"127.0.0.1"` | リッスンするアドレス。コンテナでは `"0.0.0.0"` を指定 |
 | `port` | integer (u16) | `8080` | リッスンするポート |
+| `base_path` | string | `""` | サブパス配下で公開する場合のパス（例: `"/cms"`）。空ならルート `/` で公開。使える文字は英数字と `- . _ ~`（不正な値はサーバーが起動しない）。[4.2](#42-サブパスで公開する) を参照 |
 
 ### 2.2 `[database]` — データベース
 
@@ -207,7 +208,7 @@ public_url_prefix = "https://cdn.example.com"
 | `default_role` | string | `"viewer"` | 新規ユーザーのロール。`role_claim` 使用時はどのグループにも一致しない場合のロール |
 | `role_claim` | string | `""` | ロールを決めるクレーム（例: `groups`）。空ならロールは AegisCMS のユーザーアカウントで決まる |
 | `role_mapping` | table | `{}` | `role_claim` の値 → ロール（`admin` / `editor` / `viewer`）。複数一致した場合は最も強いロール |
-| `post_login_redirect` | string | `"/admin/"` | ログイン後に戻る Admin Studio の URL（`#session=` / `#login_error=` を付ける）。Admin Studio を別オリジン（開発サーバーなど）で動かす場合は絶対 URL |
+| `post_login_redirect` | string | `"/admin/"` | ログイン後に戻る Admin Studio の URL（`#session=` / `#login_error=` を付ける）。`/` で始まる場合は `[server].base_path` が付く。Admin Studio を別オリジン（開発サーバーなど）で動かす場合は絶対 URL |
 
 > [!NOTE]
 > `client_secret` は設定ファイルに平文で書くため、ファイルの権限を制限してください。
@@ -222,6 +223,7 @@ public_url_prefix = "https://cdn.example.com"
 [server]
 host = "127.0.0.1"
 port = 8080
+base_path = ""
 
 [database]
 backend = "sqlite"
@@ -306,23 +308,48 @@ post_login_redirect = "/admin/"
 
 ## 4. リバースプロキシ配下での運用
 
-nginx / Caddy / ALB などのリバースプロキシの後ろで、`cms.example.com` のようなサブドメインのルートに公開できます。公開サイト（`/`）、Admin Studio（`/admin`）、API（`/api/v1`）は同じオリジンで動きます。
+nginx / Caddy / ALB などのリバースプロキシの後ろで、サブドメイン（`cms.example.com`）のルートにも、サブパス（`example.com/cms/`）にも公開できます。公開サイト（`/`）、Admin Studio（`/admin/`）、API（`/api/v1`）、アップロード（`/uploads`）、テーマアセット（`/theme/assets`）は同じオリジン・同じパスの配下で動きます。
 
-- **Admin Studio**: 本番ビルドは自分を配信したオリジン（`window.location.origin`）の `/api/v1` に接続するため、ドメインごとのビルドは不要です。
-- **Admin Studio を別のサブドメインに置く場合**（例: `admin.example.com` から `cms.example.com` の API を使う）: ビルド時に `VITE_AEGIS_SERVER_ORIGIN=https://cms.example.com` を指定してください（Docker では `docker build --build-arg VITE_AEGIS_SERVER_ORIGIN=...`）。API は Bearer トークンで認証し CORS を全オリジンに許可しているため、サーバー側の追加設定は不要です。プレビューのテーマアセット・アップロード画像や SSO のログイン URL もこのオリジンを使います。
-- **サブパス（`example.com/cms/` など）での公開は未対応**です。サーバーのルートやアセットの URL が `/` 起点のため、サブドメインを使ってください。
+### 4.1 サブドメインで公開する
 
-プロキシ配下では、次の設定もあわせて確認してください。
+例: `https://cms.example.com/`
+
+`[server]` の設定は不要です。プロキシから AegisCMS にそのまま転送してください（下の nginx の例）。
+
+### 4.2 サブパスで公開する
+
+例: `https://example.com/cms/`
+
+`[server].base_path` に公開するパスを指定します。
+
+```toml
+[server]
+base_path = "/cms"
+```
+
+- サーバーが生成する URL（テーマのリンク、アップロードしたファイルの URL、`/admin` のリダイレクト、SSO ログイン後の戻り先）にベースパスが付きます。
+- プロキシはパスを**そのまま**（`/cms/...` のまま）転送してください。ベースパスを取り除いて転送する設定でも動きますが、ベースパスと同じ名前のスラッグ（`/cms/cms`）が開けなくなります。ベースパスの無いリクエスト（`/api/v1/health` など）もそのまま受け付けるため、コンテナのヘルスチェックは変更不要です。
+- 独自テーマのテンプレートでは、リンクにグローバル変数 `base_path` を付けてください（`<a href="{{ base_path }}/articles/{{ item.slug }}">`。[テーマガイド](./theme_and_publishing_guide.md#テンプレートで使えるグローバル変数)）。
+- 本文に手で書いたルート起点のリンク（`/about` など）は書き換えません。`/cms/about` のようにベースパスを含めて書いてください。
+- アップロードしたファイルの URL はベースパス込みで本文に保存されます。**後から `base_path` を変えると、保存済みのコンテンツ内の画像・リンクは古いパスのまま**になるため、運用開始前に決めてください。
+
+### 4.3 Admin Studio の接続先
+
+本番ビルドは、自分を配信したサーバー（`{サーバー}/admin/assets/*.js` から逆算したオリジンとベースパス）の `/api/v1` に接続するため、ドメインやベースパスごとのビルドは不要です。
+
+Admin Studio だけを別の場所で配信する場合（例: `admin.example.com` から `example.com/cms` の API を使う）は、ビルド時に `VITE_AEGIS_SERVER_URL=https://example.com/cms` を指定してください（Docker では `docker build --build-arg VITE_AEGIS_SERVER_URL=...`）。API は Bearer トークンで認証し CORS を全オリジンに許可しているため、サーバー側の追加設定は不要です。プレビューのテーマアセット・アップロード画像や SSO のログイン URL もこの URL を使います。
+
+### 4.4 あわせて確認する設定
 
 | 設定 | 内容 |
 | --- | --- |
 | `[audit].trust_forwarded_for = true` | 監査ログ・ログインのレート制限のクライアント IP を `X-Forwarded-For` から取る。無効のままだと全員がプロキシの IP として数えられ、IP 単位のロックが全ユーザーに効く |
-| `[auth.oidc].redirect_url` | 公開 URL（`https://cms.example.com/api/v1/auth/oidc/callback`）にする。既定の `127.0.0.1` のままでは IdP から戻れない |
-| `[auth.oidc].post_login_redirect` | Admin Studio を別のサブドメインに置く場合は絶対 URL（`https://admin.example.com/admin/`） |
+| `[auth.oidc].redirect_url` | 公開 URL（`https://cms.example.com/api/v1/auth/oidc/callback`、サブパスなら `https://example.com/cms/api/v1/auth/oidc/callback`）にする。既定の `127.0.0.1` のままでは IdP から戻れない |
+| `[auth.oidc].post_login_redirect` | `/` で始まる値（既定の `/admin/`）にはベースパスが自動で付く。Admin Studio を別の場所に置く場合は絶対 URL（`https://admin.example.com/admin/`） |
 | `[security].internal_domains` | 本文中の自サイトへの絶対 URL を外部リンク扱い（`rel="noopener ..."` 付与）にしないよう、`["example.com"]` のように指定（サブドメインも含めて内部扱い） |
 | `[storage].max_upload_mb` | プロキシ側の上限（nginx の `client_max_body_size` など）も同じ値以上にする |
 
-nginx の例:
+nginx の例（サブドメイン）:
 
 ```nginx
 server {
@@ -337,6 +364,28 @@ server {
         # AegisCMS は先頭のアドレスを使うため、クライアントが送った値は引き継がない
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+nginx の例（サブパス、`base_path = "/cms"`）:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name example.com;
+
+    client_max_body_size 10m;
+
+    # proxy_pass に URI（末尾の / など）を付けないことで、/cms/... のまま転送する
+    location /cms/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location = /cms {
+        return 308 /cms/;
     }
 }
 ```

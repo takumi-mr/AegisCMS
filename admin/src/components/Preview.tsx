@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useState } from 'react';
 import { Eye, Code, LayoutTemplate, ShieldAlert } from 'lucide-react';
-import { aegisApi, SERVER_ORIGIN } from '../api/client';
+import { aegisApi, SERVER_URL } from '../api/client';
 import type { BlockNode, PreviewRequest } from '../types';
 import { cx } from '../utils/cx';
 import styles from './Preview.module.css';
@@ -43,7 +43,7 @@ interface PreviewResult {
  * `<base>` makes root-relative theme assets and uploads load from the AegisCMS server.
  */
 const withBase = (pageHtml: string): string => {
-  const base = `<base href="${SERVER_ORIGIN}/">`;
+  const base = `<base href="${SERVER_URL}/">`;
   return /<head[^>]*>/i.test(pageHtml)
     ? pageHtml.replace(/<head[^>]*>/i, (head) => `${head}${base}`)
     : `${base}${pageHtml}`;

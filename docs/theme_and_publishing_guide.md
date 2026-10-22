@@ -46,6 +46,9 @@ AegisCMS では Jinja2 / Django 互換で高速・軽量・堅牢なテンプレ
 - `page.html`: 固定ページ用レイアウト。
 - `404.html`: 404 エラーページ。
 
+### テンプレートで使えるグローバル変数
+- `base_path`: サイトを公開しているパス（`[server].base_path`、例: `/cms`。ルートで公開している場合は空文字）。サイト内へのリンクやテーマアセットは `{{ base_path }}/articles/{{ item.slug }}`、`{{ base_path }}/theme/assets/style.css` のように先頭に付けてください。付けなくてもルート公開では動きますが、サブパス配下（[設定リファレンス](./configuration.md#42-サブパスで公開する)）ではリンク切れになります。
+
 ---
 
 ## 3. Plugin によるテーマ書き換え機構

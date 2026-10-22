@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { KeyRound, Loader2, LogIn } from 'lucide-react';
-import { aegisApi, ApiError, SERVER_ORIGIN } from '../api/client';
+import { aegisApi, ApiError, SERVER_URL } from '../api/client';
 import type { AuthProviders, SessionInfo } from '../types';
 import { BrandMark } from './ui/BrandMark';
 import { Button } from './ui/Button';
@@ -112,7 +112,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn, notice, initia
             <div className={styles.divider}>
               <span>or</span>
             </div>
-            <a className={styles.sso} href={`${SERVER_ORIGIN}${providers.oidc.login_url}`}>
+            <a className={styles.sso} href={`${SERVER_URL}${providers.oidc.login_url}`}>
               <KeyRound size={16} />
               <span>Sign in with {providers.oidc.display_name}</span>
             </a>
