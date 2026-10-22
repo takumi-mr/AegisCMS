@@ -2,15 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Hash, AlignLeft, Code2, Image as ImageIcon, CheckCircle2, AlertCircle, Tags } from 'lucide-react';
 import { Header, type AppView } from './components/Header';
 import { AuditLogView } from './components/AuditLogView';
+import { LoginView } from './components/LoginView';
 import { CategoryManager } from './components/CategoryManager';
 import { ContentList } from './components/ContentList';
 import { BlockItem } from './components/BlockItem';
 import { Preview } from './components/Preview';
-import { aegisApi } from './api/client';
-import type { BlockNode, ContentItem } from './types';
+import { aegisApi, setUnauthorizedHandler } from './api/client';
+import { setSessionToken } from './api/session';
+import type { BlockNode, ContentItem, SessionInfo } from './types';
 import { categoryIdOf } from './utils/category';
+import { canEdit, isAdmin } from './utils/roles';
 
 export const App: React.FC = () => {
+  // undefined = still checking the stored token, null = logged out
+  const [session, setSession] = useState<SessionInfo | null | undefined>(undefined);
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
   const [view, setView] = useState<AppView>('editor');
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType] = useState<string>('article');
@@ -58,15 +64,44 @@ export const App: React.FC = () => {
     }
   };
 
-  // 1. Initial health and data loading
+  const loadContents = async () => {
+    try {
+      const list = await aegisApi.getContents(contentType);
+      setContents(list);
+    } catch (err) {
+      console.warn('Could not load contents:', err);
+    }
+  };
+
+  // 1. Restore the session of the stored token; any later 401 returns to the login screen
+  useEffect(() => {
+    aegisApi
+      .getCurrentSession()
+      .then((current) => {
+        if (!current) setSessionToken('');
+        setSession(current);
+      })
+      .catch(() => {
+        // Server unreachable: keep the token and ask to sign in once it is back
+        setLoginNotice('Cannot reach the AegisCMS server. Check that it is running.');
+        setSession(null);
+      });
+
+    setUnauthorizedHandler(() => {
+      setSessionToken('');
+      setSession(null);
+      setLoginNotice('Your session has expired. Sign in again.');
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // 2. Server health indicator
   useEffect(() => {
     const checkServer = async () => {
       try {
         await aegisApi.checkHealth();
         setIsOnline(true);
-        loadContents();
-        loadCategories();
-      } catch (e) {
+      } catch {
         setIsOnline(false);
       }
     };
@@ -75,13 +110,33 @@ export const App: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const loadContents = async () => {
+  // 3. Load data whenever a user logs in
+  const sessionId = session?.id;
+  useEffect(() => {
+    if (!sessionId) return;
+    loadContents();
+    loadCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  const handleLoggedIn = (loggedIn: SessionInfo) => {
+    setSessionToken(loggedIn.id);
+    setLoginNotice(null);
+    setSession(loggedIn);
+  };
+
+  const handleLogout = async () => {
     try {
-      const list = await aegisApi.getContents(contentType);
-      setContents(list);
+      await aegisApi.logout();
     } catch (err) {
-      console.warn('Could not load contents:', err);
+      console.warn('Logout request failed:', err);
     }
+    setSessionToken('');
+    setSession(null);
+    setLoginNotice('You have signed out.');
+    setView('editor');
+    setContents([]);
+    setCategories([]);
   };
 
   const handleCategoryCreated = (category: ContentItem) => {
@@ -168,6 +223,19 @@ export const App: React.FC = () => {
     }
   };
 
+  if (session === undefined) {
+    return (
+      <div className="login-screen">
+        <span className="login-checking">Checking session...</span>
+      </div>
+    );
+  }
+  if (session === null) {
+    return <LoginView onLoggedIn={handleLoggedIn} notice={loginNotice} />;
+  }
+
+  const editable = canEdit(session);
+
   return (
     <div className="app-container">
       <Header
@@ -176,9 +244,13 @@ export const App: React.FC = () => {
         isOnline={isOnline}
         onSave={handleSave}
         isSaving={isSaving}
+        session={session}
+        canSave={editable}
+        canViewAudit={isAdmin(session)}
+        onLogout={handleLogout}
       />
 
-      {view === 'audit' ? (
+      {view === 'audit' && isAdmin(session) ? (
         <AuditLogView />
       ) : (
       <div className="workspace-body">
@@ -260,7 +332,8 @@ export const App: React.FC = () => {
                 <button
                   className="tool-btn"
                   onClick={() => setIsCategoryManagerOpen(true)}
-                  title="List and create categories"
+                  disabled={!editable}
+                  title={editable ? 'List and create categories' : 'Requires the editor role'}
                 >
                   <Tags size={14} />
                   <span>Manage</span>
@@ -318,6 +391,7 @@ export const App: React.FC = () => {
                   onMoveUp={() => moveBlock(idx, 'up')}
                   onMoveDown={() => moveBlock(idx, 'down')}
                   onDelete={() => deleteBlock(idx)}
+                  canUpload={editable}
                 />
               ))}
 

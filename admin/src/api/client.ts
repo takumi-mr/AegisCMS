@@ -5,6 +5,7 @@ import type {
   CreateCategoryPayload,
   CreateContentPayload,
   SchemaDefinition,
+  SessionInfo,
   StorageMeta,
   StorageObjectPage,
   StorageObjectQuery,
@@ -21,10 +22,36 @@ export class ApiError extends Error {
   }
 }
 
-/** Headers carrying the current session token (the server requires one for every API but health) */
-const authHeaders = (extra: Record<string, string> = {}): Record<string, string> => {
+// Called when an authenticated request comes back 401 (expired or revoked session)
+let unauthorizedHandler: (() => void) | null = null;
+
+export const setUnauthorizedHandler = (handler: (() => void) | null) => {
+  unauthorizedHandler = handler;
+};
+
+const toQuery = (query: object): string => {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  }
+  return params.toString();
+};
+
+/**
+ * Fetches an API endpoint with the session token as `Authorization: Bearer`. A 401 notifies
+ * the unauthorized handler (the app returns to the login screen) before the error is thrown.
+ */
+const request = async <T>(path: string, init: RequestInit, fallbackError: string): Promise<T> => {
   const token = getSessionToken();
-  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+  const headers = new Headers(init.headers);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  if (!res.ok) {
+    if (res.status === 401 && token) unauthorizedHandler?.();
+    const err = await res.json().catch(() => ({ error: fallbackError }));
+    throw new ApiError(res.status, err.error || fallbackError);
+  }
+  return res.json();
 };
 
 export const aegisApi = {
@@ -34,26 +61,56 @@ export const aegisApi = {
     return res.json();
   },
 
+  /** Logs in with a username and password; a wrong password is an `ApiError` with status 401 */
+  async login(username: string, password: string): Promise<SessionInfo> {
+    const res = await fetch(`${API_BASE}/auth/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to log in' }));
+      throw new ApiError(res.status, err.error || 'Failed to log in');
+    }
+    return res.json();
+  },
+
+  /** The session for the stored token, or null when it is missing, expired or revoked */
+  async getCurrentSession(): Promise<SessionInfo | null> {
+    const token = getSessionToken();
+    if (!token) return null;
+    const res = await fetch(`${API_BASE}/auth/session`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401) return null;
+    if (!res.ok) throw new ApiError(res.status, 'Failed to check the session');
+    return res.json();
+  },
+
+  async logout(): Promise<void> {
+    await request('/auth/session', { method: 'DELETE' }, 'Failed to log out');
+  },
+
   async getSchemas(): Promise<SchemaDefinition[]> {
-    const res = await fetch(`${API_BASE}/schemas`, { headers: authHeaders() });
-    if (!res.ok) throw new ApiError(res.status, 'Failed to fetch schemas');
-    const data = await res.json();
+    const data = await request<{ schemas?: SchemaDefinition[] }>(
+      '/schemas',
+      {},
+      'Failed to fetch schemas'
+    );
     return data.schemas || [];
   },
 
   async getContents(contentType: string): Promise<ContentItem[]> {
-    const res = await fetch(`${API_BASE}/contents/${contentType}`, { headers: authHeaders() });
-    if (!res.ok) throw new ApiError(res.status, `Failed to fetch contents for ${contentType}`);
-    const data = await res.json();
+    const data = await request<{ contents?: ContentItem[] }>(
+      `/contents/${contentType}`,
+      {},
+      `Failed to fetch contents for ${contentType}`
+    );
     return data.contents || [];
   },
 
   async getContent(contentType: string, slugOrId: string): Promise<ContentItem> {
-    const res = await fetch(`${API_BASE}/contents/${contentType}/${slugOrId}`, {
-      headers: authHeaders(),
-    });
-    if (!res.ok) throw new ApiError(res.status, `Content not found`);
-    return res.json();
+    return request(`/contents/${contentType}/${slugOrId}`, {}, 'Content not found');
   },
 
   async createCategory(payload: CreateCategoryPayload): Promise<ContentItem> {
@@ -64,60 +121,28 @@ export const aegisApi = {
     contentType: string,
     payload: CreateContentPayload | CreateCategoryPayload
   ): Promise<ContentItem> {
-    const res = await fetch(`${API_BASE}/contents/${contentType}`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Unknown server error' }));
-      throw new ApiError(res.status, err.error || 'Failed to save content');
-    }
-    return res.json();
+    return request(
+      `/contents/${contentType}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      'Failed to save content'
+    );
   },
 
   async getAuditLogs(query: AuditLogQuery): Promise<AuditLogPage> {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(query)) {
-      if (value !== undefined && value !== '') params.set(key, String(value));
-    }
-    const res = await fetch(`${API_BASE}/audit-logs?${params.toString()}`, {
-      headers: authHeaders(),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Unknown server error' }));
-      throw new ApiError(res.status, err.error || 'Failed to fetch audit logs');
-    }
-    return res.json();
+    return request(`/audit-logs?${toQuery(query)}`, {}, 'Failed to fetch audit logs');
   },
 
   async listStorageObjects(query: StorageObjectQuery): Promise<StorageObjectPage> {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(query)) {
-      if (value !== undefined && value !== '') params.set(key, String(value));
-    }
-    const res = await fetch(`${API_BASE}/storage/objects?${params.toString()}`, {
-      headers: authHeaders(),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Unknown server error' }));
-      throw new ApiError(res.status, err.error || 'Failed to fetch media');
-    }
-    return res.json();
+    return request(`/storage/objects?${toQuery(query)}`, {}, 'Failed to fetch media');
   },
 
   async uploadFile(file: File): Promise<StorageMeta> {
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(`${API_BASE}/storage/upload`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: form,
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Unknown server error' }));
-      throw new ApiError(res.status, err.error || 'Failed to upload file');
-    }
-    return res.json();
+    return request('/storage/upload', { method: 'POST', body: form }, 'Failed to upload file');
   },
 };

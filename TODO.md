@@ -29,8 +29,8 @@
     - `ThemeEngine::register_template`: プラグインからのテンプレート動的完全オーバーライド。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①②③は完了**
-1. **④ Admin Studio のログイン画面**（最優先）: ③で API がセッション必須になったため、現状の Admin Studio は Audit Logs 画面でトークンを手動 Connect しないとエディタが空になる。ユーザー名 / パスワードのログイン画面（未ログイン時は全画面で表示）、ログアウト、401 時のログイン画面への復帰、ログインユーザー名・ロールのヘッダー表示を追加し、Audit Logs 画面のトークン入力を削除する。ロールに応じて Save / アップロード / Audit Logs タブを無効化する。
+**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①〜④は完了**
+1. **ログイン試行のレート制限**（インターネット公開前に必要）: `/api/v1/auth/session` への失敗回数をユーザー名・IP 単位で数え、一定回数で一時的に拒否する（キャッシュバックエンドで計数）。
 2. ⑤ `on_user_authenticated` フック、OIDC / SAML プロバイダ。
 4. その他の未着手: `on-before-save` フックの戻り値の扱い、メディアの削除 API / UI、ログイン試行のレート制限。
 
@@ -187,7 +187,7 @@
   - [x] CLI `aegis user add|passwd|role|disable|enable|list`（パスワードは `AEGIS_USER_PASSWORD` / 非表示プロンプト / 標準入力）、`docs/authentication.md`
   - [x] API の認可: extractor `RequireRole`（`ViewerSession` / `EditorSession` / `AdminSession`、401 / 403）で、閲覧 API は `viewer`、コンテンツ作成・アップロードは `editor`、監査ログは `admin` 以上を要求。`author_id` の既定をログインユーザーにし、他人の指定は `admin` のみ。Admin Studio はトークンを全 API に付与
   - [ ] 権限拒否（401 / 403）の監査ログ記録
-  - [ ] Admin Studio のログイン画面
+  - [x] Admin Studio のログイン画面: 未ログイン時の全画面ログインフォーム、リロード時のセッション復元（`GET /api/v1/auth/session`）、ヘッダーの表示名・ロール・ログアウト、API の 401 でログイン画面へ復帰、ロールに応じた操作の無効化（`viewer` の Save / アップロード / カテゴリ作成、`admin` 以外の Audit Logs タブ）。Audit Logs 画面の手動トークン入力は削除
   - [ ] ログイン試行のレート制限・アカウントロック
   - [ ] 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信は Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装
   - [ ] `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・監査通知用 Wasm プラグインフック `on_user_authenticated` の追加
