@@ -6,8 +6,9 @@ use axum::{
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::render;
 use crate::state::AppState;
-use aegis_ast::{BlockNode, HtmlRenderer, HtmlRewriterConfig, StreamingHtmlRewriter};
+use aegis_ast::BlockNode;
 use aegis_core::{ContentSummary, PageRenderContext};
 
 /// ブロックノードから先頭段落を抽出して抜粋を生成
@@ -179,42 +180,9 @@ pub async fn render_article(
 
     // AST から HTML 変換 & ストリーミングリライター適用
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
-    let raw_html = HtmlRenderer::render_nodes(&blocks);
-    let rewriter_config = HtmlRewriterConfig::from(state.config.security.clone());
-    let content_html =
-        StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html);
+    let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
-    // リレーション解決
-    let mut relations = HashMap::new();
-    {
-        let schemas_guard = state.schemas.read().await;
-        for (field_def, target) in schema.relation_fields() {
-            if let Some(val_json) = record.custom_fields.get(&field_def.name) {
-                if let Some(ref_id) = val_json.as_str() {
-                    if let Some(target_schema) = schemas_guard.get(&target.content_type) {
-                        if let Ok(Some(rel)) = state
-                            .db
-                            .resolve_relation(target_schema, &target.field, ref_id)
-                            .await
-                        {
-                            relations.insert(
-                                field_def.name.clone(),
-                                serde_json::json!({
-                                    "id": rel.id,
-                                    "title": rel.title,
-                                    "slug": rel.slug,
-                                }),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    let mut ctx = PageRenderContext {
-        site_title: state.config.theme.site_title.clone(),
-        site_description: state.config.theme.site_description.clone(),
+    let page = render::PageInput {
         template: "article.html".to_string(),
         content_type: "article".to_string(),
         title: record.title,
@@ -224,20 +192,13 @@ pub async fn render_article(
         published_at: record.published_at,
         updated_at: Some(record.updated_at),
         fields: record.custom_fields,
-        relations,
-        extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
-        ..Default::default()
     };
+    themed_response(render::render_page(&state, &schema, page).await)
+}
 
-    // プラグインによるテーマ・コンテキスト書き換えフックの適用
-    {
-        let supervisor = state.supervisor.read().await;
-        if let Ok(hooked_ctx) = supervisor.apply_render_page(ctx.clone()).await {
-            ctx = hooked_ctx;
-        }
-    }
-
-    match state.theme.render(&ctx.template, &ctx) {
+/// Turns a rendered page (or a template error) into the HTTP response
+fn themed_response(result: Result<String, String>) -> Response {
+    match result {
         Ok(html) => (StatusCode::OK, Html(html)).into_response(),
         Err(e) => {
             tracing::error!("Template rendering error: {}", e);
@@ -266,14 +227,9 @@ pub async fn render_page_or_slug(
             if record.status == "published" {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
-                let raw_html = HtmlRenderer::render_nodes(&blocks);
-                let rewriter_config = HtmlRewriterConfig::from(state.config.security.clone());
-                let content_html =
-                    StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html);
+                let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
-                let mut ctx = PageRenderContext {
-                    site_title: state.config.theme.site_title.clone(),
-                    site_description: state.config.theme.site_description.clone(),
+                let page = render::PageInput {
                     template: "page.html".to_string(),
                     content_type: "page".to_string(),
                     title: record.title,
@@ -283,23 +239,8 @@ pub async fn render_page_or_slug(
                     published_at: record.published_at,
                     updated_at: Some(record.updated_at),
                     fields: record.custom_fields,
-                    extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
-                    ..Default::default()
                 };
-
-                let supervisor = state.supervisor.read().await;
-                if let Ok(hooked_ctx) = supervisor.apply_render_page(ctx.clone()).await {
-                    ctx = hooked_ctx;
-                }
-
-                return match state.theme.render(&ctx.template, &ctx) {
-                    Ok(html) => (StatusCode::OK, Html(html)).into_response(),
-                    Err(e) => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Html(format!("<h1>Internal Server Error</h1><p>{}</p>", e)),
-                    )
-                        .into_response(),
-                };
+                return themed_response(render::render_page(&state, &schema, page).await);
             }
         }
     }
@@ -315,14 +256,9 @@ pub async fn render_page_or_slug(
             if record.status == "published" {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
-                let raw_html = HtmlRenderer::render_nodes(&blocks);
-                let rewriter_config = HtmlRewriterConfig::from(state.config.security.clone());
-                let content_html =
-                    StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html);
+                let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
-                let mut ctx = PageRenderContext {
-                    site_title: state.config.theme.site_title.clone(),
-                    site_description: state.config.theme.site_description.clone(),
+                let page = render::PageInput {
                     template: "article.html".to_string(),
                     content_type: "article".to_string(),
                     title: record.title,
@@ -332,23 +268,8 @@ pub async fn render_page_or_slug(
                     published_at: record.published_at,
                     updated_at: Some(record.updated_at),
                     fields: record.custom_fields,
-                    extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
-                    ..Default::default()
                 };
-
-                let supervisor = state.supervisor.read().await;
-                if let Ok(hooked_ctx) = supervisor.apply_render_page(ctx.clone()).await {
-                    ctx = hooked_ctx;
-                }
-
-                return match state.theme.render(&ctx.template, &ctx) {
-                    Ok(html) => (StatusCode::OK, Html(html)).into_response(),
-                    Err(e) => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Html(format!("<h1>Internal Server Error</h1><p>{}</p>", e)),
-                    )
-                        .into_response(),
-                };
+                return themed_response(render::render_page(&state, &schema, page).await);
             }
         }
     }

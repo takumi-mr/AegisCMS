@@ -149,7 +149,7 @@ Axum を基盤とした REST API Gateway サーバーであり、すべてのイ
 - **`storage`**: `StorageBackend` トレイトに基づくマルチストレージ具象実装。ローカルディスク・ブロックストレージ対応の `LocalStorageBackend` と、AWS S3 / Cloudflare R2 / MinIO 対応の `S3StorageBackend`（ネイティブ AWS SigV4 認証署名エンジン内蔵）。
 - **`cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
 - **`auth`**: `CacheBackend` をバックストアとして活用したステートレスセッション管理 `SessionService`。Bearer トークン / `X-Session-Id` による認証状態の永続化と検証。
-- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン、[docs/authentication.md](docs/authentication.md)）、ヘルスチェック）。
+- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`、エディタのプレビュー `POST /api/v1/preview`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン、[docs/authentication.md](docs/authentication.md)）、ヘルスチェック）。
 - **`state`**: 抽象化された `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
 - **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、ユーザー管理 `user add|passwd|role|disable|enable|list`）および Admin Studio SPA の静的アセット配信（`fallback_service`）。
 

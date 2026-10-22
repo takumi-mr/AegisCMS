@@ -103,10 +103,6 @@ mod tests {
         }
     }
 
-    async fn test_state() -> Arc<AppState> {
-        crate::state::test_support::test_state(aegis_core::AegisConfig::default()).await
-    }
-
     async fn extract<const MIN_LEVEL: u8>(
         state: &Arc<AppState>,
         token: Option<&str>,
@@ -123,7 +119,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_require_role_extractor() {
-        let state = test_state().await;
+        let state = crate::test_support::test_state(aegis_runtime::PluginSupervisor::new()).await;
         let session = |role: &'static str| {
             let state = state.clone();
             async move {

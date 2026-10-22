@@ -309,7 +309,11 @@ mod tests {
             max_failures_per_ip: 0,
             ..Default::default()
         };
-        let state = crate::state::test_support::test_state(config).await;
+        let state = crate::test_support::test_state_with_config(
+            config,
+            aegis_runtime::PluginSupervisor::new(),
+        )
+        .await;
         create_user(
             state.db.as_ref(),
             NewUser {

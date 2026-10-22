@@ -87,12 +87,14 @@ export const ContentList: React.FC<ContentListProps> = ({
         {visible.map((item) => {
           const category = categoryOf(item);
           return (
-            <div
+            <button
               key={item.id}
+              type="button"
               className={cx(styles.card, selectedId === item.id && styles.active)}
+              aria-current={selectedId === item.id ? 'true' : undefined}
               onClick={() => onSelect(item)}
             >
-              <div className={styles.cardTitle}>{item.title || 'Untitled'}</div>
+              <span className={styles.cardTitle}>{item.title || 'Untitled'}</span>
               {category && (
                 <span className={styles.categoryBadge} title={`Category: ${category.title}`}>
                   <span
@@ -102,11 +104,11 @@ export const ContentList: React.FC<ContentListProps> = ({
                   {category.title}
                 </span>
               )}
-              <div className={styles.cardMeta}>
+              <span className={styles.cardMeta}>
                 <span>/{item.slug}</span>
                 <span className={cx(styles.status, STATUS_BADGE[item.status])}>{item.status}</span>
-              </div>
-            </div>
+              </span>
+            </button>
           );
         })}
 

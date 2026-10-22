@@ -4,6 +4,8 @@ import type {
   ContentItem,
   CreateCategoryPayload,
   CreateContentPayload,
+  PreviewRequest,
+  PreviewResult,
   SchemaDefinition,
   SessionInfo,
   StorageMeta,
@@ -13,6 +15,9 @@ import type {
 import { getSessionToken } from './session';
 
 const API_BASE = 'http://127.0.0.1:8080/api/v1';
+
+/** Origin of the AegisCMS server (serves the public site, theme assets and uploads) */
+export const SERVER_ORIGIN = new URL(API_BASE).origin;
 
 export class ApiError extends Error {
   status: number;
@@ -146,6 +151,19 @@ export const aegisApi = {
 
   async listStorageObjects(query: StorageObjectQuery): Promise<StorageObjectPage> {
     return request(`/storage/objects?${toQuery(query)}`, {}, 'Failed to fetch media');
+  },
+
+  /** Renders unsaved content with the server's save + publish pipeline (nothing is stored) */
+  async previewContent(preview: PreviewRequest): Promise<PreviewResult> {
+    return request(
+      '/preview',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preview),
+      },
+      'Failed to render the preview'
+    );
   },
 
   async uploadFile(file: File): Promise<StorageMeta> {

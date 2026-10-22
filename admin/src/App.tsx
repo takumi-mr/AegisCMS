@@ -370,10 +370,8 @@ export const App: React.FC = () => {
                 <Button
                   variant="tool"
                   onClick={() =>
-                    addBlock('core/image', '', {
-                      src: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
-                      alt: 'Abstract gradient art',
-                    })
+                    // Starts empty: the image and its alt text come from an upload or the media library
+                    addBlock('core/image', '', { src: '', alt: '' })
                   }
                 >
                   <ImageIcon size={14} />
@@ -409,7 +407,13 @@ export const App: React.FC = () => {
             </div>
 
             {/* Right Live Preview Column */}
-            <Preview title={title} blocks={blocks} />
+            <Preview
+              contentType={contentType}
+              title={title}
+              slug={slug}
+              categoryId={categoryId}
+              blocks={blocks}
+            />
           </main>
         </div>
       )}

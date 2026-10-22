@@ -1,87 +1,170 @@
-import React, { useState } from 'react';
-import { Eye, Code, ShieldAlert } from 'lucide-react';
-import type { BlockNode } from '../types';
+import React, { useEffect, useId, useState } from 'react';
+import { Eye, Code, LayoutTemplate, ShieldAlert } from 'lucide-react';
+import { aegisApi, SERVER_ORIGIN } from '../api/client';
+import type { BlockNode, PreviewRequest } from '../types';
 import { cx } from '../utils/cx';
 import styles from './Preview.module.css';
 
+/** Wait for a pause in typing before asking the server to render */
+const PREVIEW_DEBOUNCE_MS = 300;
+
+type PreviewTab = 'html' | 'page' | 'ast';
+
+const TABS: Array<{ id: PreviewTab; label: string; icon: React.ReactNode }> = [
+  { id: 'html', label: 'Live HTML Output', icon: <Eye size={14} className={styles.tabIcon} /> },
+  {
+    id: 'page',
+    label: 'Themed Page',
+    icon: <LayoutTemplate size={14} className={styles.tabIcon} />,
+  },
+  { id: 'ast', label: 'Block AST (JSON)', icon: <Code size={14} className={styles.tabIcon} /> },
+];
+
 interface PreviewProps {
+  contentType: string;
   title: string;
+  slug: string;
+  /** Selected category id, or '' for none */
+  categoryId: string;
   blocks: BlockNode[];
-  serverHtml?: string;
 }
 
-// クライアント側でも Rust 側 HtmlRenderer と完全に同一のルールで即座にプレビュー描画
-function renderAstToHtml(nodes: BlockNode[]): string {
-  return nodes
-    .map((node) => {
-      const escape = (str?: string) =>
-        (str || '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;');
-
-      switch (node.name) {
-        case 'core/heading': {
-          const level = Math.min(Math.max(node.attributes?.level || 2, 1), 6);
-          const slug = (node.text || '')
-            .toLowerCase()
-            .replace(/[^a-z0-9-]+/g, '-')
-            .replace(/^-|-$/g, '');
-          const idAttr = slug ? ` id="${escape(slug)}"` : '';
-          return `<h${level}${idAttr}>${escape(node.text)}</h${level}>\n`;
-        }
-        case 'core/paragraph':
-          return `<p>${escape(node.text)}</p>\n`;
-        case 'core/code': {
-          const lang = escape(node.attributes?.language || 'text');
-          return `<pre><code class="language-${lang}">${escape(node.text)}</code></pre>\n`;
-        }
-        case 'core/image': {
-          const src = escape(node.attributes?.src);
-          const alt = escape(node.attributes?.alt);
-          return `<figure><img src="${src}" alt="${alt}" loading="lazy" /></figure>\n`;
-        }
-        default:
-          return `<div class="${escape(node.name)}">${escape(node.text)}</div>\n`;
-      }
-    })
-    .join('');
+interface PreviewResult {
+  /** The request (serialized) this result was rendered from */
+  key: string;
+  html: string;
+  pageHtml: string | null;
+  warnings: string[];
+  error: string | null;
 }
 
-export const Preview: React.FC<PreviewProps> = ({ title, blocks, serverHtml }) => {
-  const [tab, setTab] = useState<'html' | 'ast'>('html');
+/**
+ * The themed page is shown in a sandboxed iframe (no scripts, no access to the admin origin).
+ * `<base>` makes root-relative theme assets and uploads load from the AegisCMS server.
+ */
+const withBase = (pageHtml: string): string => {
+  const base = `<base href="${SERVER_ORIGIN}/">`;
+  return /<head[^>]*>/i.test(pageHtml)
+    ? pageHtml.replace(/<head[^>]*>/i, (head) => `${head}${base}`)
+    : `${base}${pageHtml}`;
+};
 
-  const renderedHtml = serverHtml || renderAstToHtml(blocks);
+/**
+ * Live preview rendered by the server (`POST /api/v1/preview`) with the same pipeline as saving
+ * and the public site: heading ids, plugin hooks, HtmlRenderer, the security rewriter and, for
+ * the themed page, the `on-render-page` hook and theme template.
+ */
+export const Preview: React.FC<PreviewProps> = ({
+  contentType,
+  title,
+  slug,
+  categoryId,
+  blocks,
+}) => {
+  const [tab, setTab] = useState<PreviewTab>('html');
+  const [result, setResult] = useState<PreviewResult | null>(null);
+  const idPrefix = useId();
+
+  // A result is current when it was rendered from the content shown now
+  const request: PreviewRequest = {
+    content_type: contentType,
+    title,
+    slug,
+    fields: categoryId ? { category_id: categoryId } : {},
+    blocks,
+  };
+  const requestKey = JSON.stringify(request);
+  const isRendering = result?.key !== requestKey;
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      aegisApi
+        .previewContent(JSON.parse(requestKey) as PreviewRequest)
+        .then((preview) => ({
+          html: preview.html,
+          pageHtml: preview.page_html,
+          warnings: preview.warnings,
+          error: null,
+        }))
+        .catch((err: unknown) => ({
+          html: null,
+          pageHtml: null,
+          warnings: [],
+          error: err instanceof Error ? err.message : 'Failed to render the preview',
+        }))
+        .then((outcome) => {
+          if (cancelled) return;
+          // Keep the last good output on screen when a render fails
+          setResult((prev) => ({
+            key: requestKey,
+            html: outcome.html ?? prev?.html ?? '',
+            pageHtml: outcome.error ? (prev?.pageHtml ?? null) : outcome.pageHtml,
+            warnings: outcome.warnings,
+            error: outcome.error,
+          }));
+        });
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [requestKey]);
+
+  const status = result?.error
+    ? `⚠ Preview failed: ${result.error}`
+    : isRendering
+      ? 'Rendering on the server...'
+      : '✓ Rendered by the server (same HTML as the published page)';
+
+  const statusLines = (
+    <>
+      <div className={cx(styles.status, result?.error && styles.statusError)}>{status}</div>
+      {result?.warnings.map((warning) => (
+        <div key={warning} className={cx(styles.status, styles.statusError)}>
+          ⚠ {warning}
+        </div>
+      ))}
+    </>
+  );
 
   return (
     <aside className={styles.column}>
-      <div className={styles.tabs}>
-        <div
-          className={cx(styles.tab, tab === 'html' && styles.active)}
-          onClick={() => setTab('html')}
-        >
-          <Eye size={14} className={styles.tabIcon} />
-          Live HTML Output
-        </div>
-        <div
-          className={cx(styles.tab, tab === 'ast' && styles.active)}
-          onClick={() => setTab('ast')}
-        >
-          <Code size={14} className={styles.tabIcon} />
-          Block AST (JSON)
-        </div>
+      <div className={styles.tabs} role="tablist" aria-label="Preview">
+        {TABS.map(({ id, label, icon }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            id={`${idPrefix}-tab-${id}`}
+            aria-selected={tab === id}
+            aria-controls={`${idPrefix}-panel`}
+            className={cx(styles.tab, tab === id && styles.active)}
+            onClick={() => setTab(id)}
+          >
+            {icon}
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div className={styles.content}>
-        {tab === 'html' ? (
+      <div
+        id={`${idPrefix}-panel`}
+        role="tabpanel"
+        aria-labelledby={`${idPrefix}-tab-${tab}`}
+        className={cx(styles.content, tab === 'page' && styles.pageContent)}
+      >
+        {tab === 'html' && (
           <div>
             <div className={styles.titleBlock}>
               <h1 className={styles.title}>{title || 'Untitled Article'}</h1>
-              <div className={styles.sanitized}>✓ Deterministic HTML Stream Sanitized</div>
+              {statusLines}
             </div>
 
-            <div className={styles.htmlOutput} dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+            <div
+              className={cx(styles.htmlOutput, isRendering && styles.stale)}
+              dangerouslySetInnerHTML={{ __html: result?.html ?? '' }}
+            />
 
             {blocks.length === 0 && (
               <div className={styles.empty}>
@@ -90,9 +173,27 @@ export const Preview: React.FC<PreviewProps> = ({ title, blocks, serverHtml }) =
               </div>
             )}
           </div>
-        ) : (
-          <pre className={styles.ast}>{JSON.stringify(blocks, null, 2)}</pre>
         )}
+
+        {tab === 'page' && (
+          <>
+            <div className={styles.pageStatus}>{statusLines}</div>
+            {result?.pageHtml ? (
+              <iframe
+                className={cx(styles.pageFrame, isRendering && styles.stale)}
+                title="Themed page preview"
+                sandbox=""
+                srcDoc={withBase(result.pageHtml)}
+              />
+            ) : (
+              <div className={styles.empty}>
+                <p>The themed page appears here once the server has rendered it.</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === 'ast' && <pre className={styles.ast}>{JSON.stringify(blocks, null, 2)}</pre>}
       </div>
     </aside>
   );

@@ -1,4 +1,5 @@
 export * from './schemas';
+import type { BlockNode } from './schemas';
 
 export interface FieldDefinition {
   name: string;
@@ -133,4 +134,27 @@ export interface SessionInfo {
     email?: string;
     [key: string]: unknown;
   };
+}
+
+/** Body of `POST /api/v1/preview` */
+export interface PreviewRequest {
+  /** Schema whose theme template renders the page (`article` → `article.html`) */
+  content_type: string;
+  title: string;
+  slug: string;
+  /** Custom fields, e.g. `category_id` */
+  fields: Record<string, unknown>;
+  blocks: BlockNode[];
+}
+
+/** Returned by `POST /api/v1/preview` */
+export interface PreviewResult {
+  /** Same body HTML the published page shows for these blocks */
+  html: string;
+  /** The whole themed page (null when the template failed; see `warnings`) */
+  page_html: string | null;
+  /** Blocks after the heading-id pipeline and plugin `transform-content-ast` hooks */
+  blocks: BlockNode[];
+  /** E.g. a plugin hook that failed (the preview then shows the built-in pipeline's result) */
+  warnings: string[];
 }

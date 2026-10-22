@@ -32,6 +32,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}` | `viewer` |
 | `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
 | `GET /api/v1/storage/objects` | `viewer` |
+| `POST /api/v1/preview`（エディタのプレビュー。保存しない） | `viewer` |
 | `POST /api/v1/contents/{type}` | `editor` |
 | `POST /api/v1/storage/upload` | `editor` |
 | `GET /api/v1/audit-logs` | `admin` |
