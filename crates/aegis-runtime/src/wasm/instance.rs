@@ -40,6 +40,8 @@ impl WasmPluginInstance {
     async fn instantiate(&self) -> Result<(Store<PluginHostState>, Instance)> {
         let host_state = PluginHostState::new(self.manifest.clone(), self.kv_storage.clone());
         let mut store = Store::new(self.engine.engine(), host_state);
+        // メモリ上限（max_memory_mb）。初期メモリが上限を超えるモジュールはインスタンス化で失敗する
+        store.limiter(|state| &mut state.limits);
 
         // Fuel設定（CPU暴走・無限ループ防止）
         store

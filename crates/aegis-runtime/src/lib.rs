@@ -241,4 +241,52 @@ mod tests {
         assert_eq!(res_ctx.site_title, "My Site");
         assert_eq!(res_ctx.template, "article.html");
     }
+
+    /// Grows its memory by 32 pages (2 MiB) and then echoes the AST back
+    const GROWING_PLUGIN_WAT: &str = r#"
+    (module
+        (memory (export "memory") 1)
+        (func (export "allocate") (param $len i32) (result i32)
+            i32.const 32
+        )
+        (func (export "transform_content_ast") (param $ptr i32) (param $len i32) (result i64)
+            (drop (memory.grow (i32.const 32)))
+            (i64.or
+                (i64.shl (i64.extend_i32_u (local.get $ptr)) (i64.const 32))
+                (i64.extend_i32_u (local.get $len))
+            )
+        )
+    )
+    "#;
+
+    async fn run_growing_plugin(max_memory_mb: u32) -> aegis_core::Result<Vec<BlockNode>> {
+        let engine = WasmEngine::new().expect("WasmEngine initialization failed");
+        let mut manifest = make_sample_manifest(vec!["transform-content-ast".to_string()]);
+        manifest.resource_limits.max_memory_mb = max_memory_mb;
+        let wasm_bytes = wat::parse_str(GROWING_PLUGIN_WAT).expect("WAT parse failed");
+        let instance = WasmPluginInstance::from_bytes(
+            engine,
+            manifest,
+            &wasm_bytes,
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+        .expect("Instance creation failed");
+        instance
+            .transform_content_ast(vec![BlockNode::paragraph("memory test")])
+            .await
+    }
+
+    #[tokio::test]
+    async fn test_wasm_memory_limit_is_enforced() {
+        // 1 page + 32 pages (~2.1 MiB) fits in 16 MiB
+        assert!(run_growing_plugin(16).await.is_ok());
+
+        // ...but not in 1 MiB: growing past max_memory_mb traps instead of succeeding
+        let err = run_growing_plugin(1).await.unwrap_err();
+        assert!(
+            err.to_string().contains("memory"),
+            "unexpected error: {}",
+            err
+        );
+    }
 }
