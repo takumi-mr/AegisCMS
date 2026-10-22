@@ -32,7 +32,7 @@ pub async fn create_session(
     audit: AuditContext,
     ClientIp(client_ip): ClientIp,
     Json(payload): Json<CreateSessionRequest>,
-) -> Result<impl IntoResponse, Response> {
+) -> Response {
     let username = payload.username.trim().to_string();
     let ip = client_ip.as_deref();
     let provider = state.auth_provider.provider_id();
@@ -54,11 +54,11 @@ pub async fn create_session(
                         })),
                 )
                 .await;
-            return Err((
+            return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": format!("Failed to check login rate limit: {}", e) })),
             )
-                .into_response());
+                .into_response();
         }
     };
     if let Some(lockout) = lockout {
@@ -77,7 +77,7 @@ pub async fn create_session(
                     })),
             )
             .await;
-        return Err(too_many_attempts(lockout.retry_after_secs));
+        return too_many_attempts(lockout.retry_after_secs);
     }
 
     let credentials = AuthCredentials {
@@ -127,7 +127,7 @@ pub async fn create_session(
                         .with_details(details),
                 )
                 .await;
-            return Err((status, Json(json!({ "error": message }))).into_response());
+            return (status, Json(json!({ "error": message }))).into_response();
         }
     };
 
@@ -183,15 +183,15 @@ pub async fn create_session(
                         .with_details(json!({ "error": e.to_string() })),
                 )
                 .await;
-            return Err((
+            return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": format!("Failed to create session: {}", e) })),
             )
-                .into_response());
+                .into_response();
         }
     };
 
-    Ok((StatusCode::CREATED, Json(session)))
+    (StatusCode::CREATED, Json(session)).into_response()
 }
 
 /// ログインのロック中に返す `429`。応答ではユーザー名と IP のどちらでロックされたかを区別しない
@@ -292,17 +292,13 @@ mod tests {
             password: password.to_string(),
             ttl_secs: None,
         };
-        match create_session(
+        create_session(
             State(state.clone()),
             AuditContext::default(),
             ClientIp(Some(ip.to_string())),
             Json(payload),
         )
         .await
-        {
-            Ok(resp) => resp.into_response(),
-            Err(resp) => resp,
-        }
     }
 
     #[tokio::test]
