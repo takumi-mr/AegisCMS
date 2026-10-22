@@ -153,7 +153,7 @@ export const App: React.FC = () => {
         slug,
         status,
         blocks,
-        author_id: 'usr_takumi',
+        // author_id is omitted so the server records the logged-in user
         // Omit the relation entirely when no category is selected
         ...(categoryId ? { category_id: categoryId } : {}),
       });

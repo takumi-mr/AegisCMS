@@ -1,3 +1,4 @@
+use crate::auth::ViewerSession;
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},
@@ -8,7 +9,10 @@ use axum::{
 use serde_json::json;
 use std::sync::Arc;
 
-pub async fn list_schemas(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+pub async fn list_schemas(
+    State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
+) -> impl IntoResponse {
     let schemas = state.schemas.read().await;
     let list: Vec<_> = schemas.values().cloned().collect();
     Json(json!({
@@ -19,6 +23,7 @@ pub async fn list_schemas(State(state): State<Arc<AppState>>) -> impl IntoRespon
 
 pub async fn get_schema(
     State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
     Path(content_type): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let schemas = state.schemas.read().await;

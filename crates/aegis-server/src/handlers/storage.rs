@@ -10,6 +10,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::audit::AuditContext;
+use crate::auth::{EditorSession, ViewerSession};
 use crate::state::AppState;
 use aegis_core::{AuditAction, AuditOutcome, StorageObject};
 
@@ -59,6 +60,7 @@ fn select_objects(
 /// `GET /api/v1/storage/objects` — アップロード済みファイルを新しい順に一覧する
 pub async fn list_objects(
     State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
     Query(params): Query<ListObjectsParams>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let non_empty = |v: Option<String>| v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
@@ -104,6 +106,7 @@ pub async fn list_objects(
 
 pub async fn upload_file(
     State(state): State<Arc<AppState>>,
+    _session: EditorSession,
     audit: AuditContext,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {

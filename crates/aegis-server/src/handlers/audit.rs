@@ -1,6 +1,6 @@
 use axum::{
     extract::{Query, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{header, StatusCode},
     response::IntoResponse,
     Json,
 };
@@ -9,12 +9,10 @@ use serde_json::json;
 use std::sync::Arc;
 
 use crate::audit::metrics::PROMETHEUS_CONTENT_TYPE;
-use crate::auth::extract_session_id;
+use crate::auth::AdminSession;
 use crate::state::AppState;
 use aegis_core::{normalize_audit_timestamp, AuditQuery};
 
-/// 監査ログの参照に必要なロール
-const AUDIT_READER_ROLE: &str = "admin";
 const DEFAULT_LIMIT: u32 = 50;
 const MAX_LIMIT: u32 = 500;
 
@@ -63,36 +61,9 @@ impl AuditLogParams {
 /// `GET /api/v1/audit-logs` — 監査ログの検索（`admin` ロールのセッションが必要）
 pub async fn list_audit_logs(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    _session: AdminSession,
     Query(params): Query<AuditLogParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let session_id = extract_session_id(&headers).ok_or_else(|| {
-        api_error(
-            StatusCode::UNAUTHORIZED,
-            "Missing Authorization Bearer token or X-Session-Id header",
-        )
-    })?;
-    let session = state
-        .sessions
-        .get_session(&session_id)
-        .await
-        .map_err(|e| {
-            api_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Session query error: {}", e),
-            )
-        })?
-        .ok_or_else(|| api_error(StatusCode::UNAUTHORIZED, "Invalid or expired session"))?;
-    if session.role != AUDIT_READER_ROLE {
-        return Err(api_error(
-            StatusCode::FORBIDDEN,
-            format!(
-                "Role '{}' is required to read audit logs",
-                AUDIT_READER_ROLE
-            ),
-        ));
-    }
-
     let reader = state.audit.reader().ok_or_else(|| {
         api_error(
             StatusCode::NOT_FOUND,
