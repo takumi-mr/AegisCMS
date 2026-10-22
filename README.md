@@ -25,40 +25,43 @@
 
 ### 2.1 全体構成図
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ Client Tier                                                            │
-│  - Edge Browser (Blocks / Web Components in Shadow DOM)               │
-│  - Admin SPA (React / Solid.js Block Editor)                           │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ HTTPS (JSON-RPC / GraphQL / REST)
-┌───────────────────────────────────▼────────────────────────────────────┐
-│ Host Engine Tier (Core Binary: Rust)                                   │
-│  ┌───────────────────────┐  ┌────────────────────────────────────────┐ │
-│  │ HTTP / API Gateway    │  │ Schema & Migration Engine (Declarative)│ │
-│  └───────────┬───────────┘  └───────────────────┬────────────────────┘ │
-│              │                                  │                      │
-│  ┌───────────▼──────────────────────────────────▼────────────────────┐ │
-│  │ Content Pipeline (Block AST Parser / Streaming HTMLRewriter)      │ │
-│  └───────────┬───────────────────────────────────────────────────────┘ │
-│              │                                                         │
-│  ┌───────────▼───────────┐         ┌─────────────────────────────────┐ │
-│  │ Capability Guard      │         │ Wasm Runtime Engine (Wasmtime)  │ │
-│  │ (Permission Manifest) │◄───────►│  ┌───────────────────────────┐  │ │
-│  └───────────────────────┘         │  │ Linear Memory Sandbox     │  │ │
-│                                    │  │  - Extism / WIT ABI Layer │  │ │
-│                                    │  │  - Plugin Guests          │  │ │
-│                                    │  │    (AssemblyScript/TinyGo)│  │ │
-│                                    │  └───────────────────────────┘  │ │
-│                                    └─────────────────────────────────┘ │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ SQL (Prepared Statements)
-┌───────────────────────────────────▼────────────────────────────────────┐
-│ Storage Tier                                                           │
-│  - SQLite / libSQL (Single-Node Zero-Config)                           │
-│  - PostgreSQL / MySQL (Distributed Enterprise)                         │
-└────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph ClientTier["Client Tier"]
+        Browser["Edge Browser (Blocks / Public Site)"]
+        AdminSPA["Admin Studio SPA (React Block Editor)"]
+    end
 
+    subgraph HostTier["Host Engine Tier (Core Binary: Rust)"]
+        Gateway["HTTP / API Gateway (Axum)"]
+        SchemaEngine["Schema & Migration Engine (Declarative YAML / DDL)"]
+        ContentPipe["Content Pipeline (Block AST Parser / Streaming HTMLRewriter / MiniJinja)"]
+        CapGuard["Capability Guard (Permission Manifest / Sandbox Guard)"]
+
+        subgraph WasmEngine["Wasm Runtime Engine (Wasmtime)"]
+            subgraph Sandbox["Linear Memory Sandbox"]
+                PluginGuests["Plugin Guests (Rust / Wasm ABI)"]
+            end
+        end
+    end
+
+    subgraph StorageTier["Storage Tier"]
+        DB[("RDBMS (SQLite / PostgreSQL / MySQL)")]
+        Storage[("Asset Storage (Local Disk / S3 Object Storage)")]
+        Cache[("Session & Cache (In-Memory / Redis)")]
+    end
+
+    Browser -->|"HTTPS (Public Pages / Assets)"| Gateway
+    AdminSPA -->|"HTTPS (REST API / Bearer Auth)"| Gateway
+
+    Gateway --> ContentPipe
+    SchemaEngine --> ContentPipe
+    ContentPipe --> CapGuard
+    CapGuard <-->|"Fuel & Timeout Guard / ABI Invocation"| WasmEngine
+
+    Gateway -->|"SQL (Prepared Statements)"| DB
+    Gateway -->|"Blob Read / Write"| Storage
+    Gateway -->|"Session / Rate Limit"| Cache
 ```
 
 ### 2.2 主要コンポーネント構成
@@ -67,7 +70,7 @@
 
 - シングルバイナリ配布（Zero-Config）。起動時に設定・スキーマ定義を読み込み、ローカルDB（SQLite/libSQL）または外部DBへ接続。
 
-2. **Admin Studio (TypeScript + React / Solid.js)**
+2. **Admin Studio (TypeScript + React)**
 
 - Gutenbergライクなドラッグ＆ドロップ対応ブロックエディタ。UIはAPI経由でコアと完全疎結合に動作。
 
@@ -273,35 +276,32 @@ world plugin-runtime {
 
 生HTMLの正規表現置換や直接挿入によるXSS・DOM破損リスクを排除するため、操作対象に応じた3層の改変モデルを提供する。
 
-```
-              ┌──────────────────────────────────────────────┐
-              │             Content Raw Storage              │
-              └──────────────────────┬───────────────────────┘
-                                     │
-                        Parse to Block AST (JSON)
-                                     │
-                                     ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│ 1. AST Transformation Layer (Wasm)                                         │
-│   - 見出しID自動生成、目次（TOC）ツリー構築、コンテンツ検閲                  │
-└────────────────────────────────────┬───────────────────────────────────────┘
-                                     │
-                          Render Base HTML Stream
-                                     │
-                                     ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│ 2. Streaming Rewriter Layer (Host Engine: lol-html)                       │
-│   - セレクタベースの属性付与 (`rel="noopener"`, 画像Lazy-load属性強制)       │
-└────────────────────────────────────┬───────────────────────────────────────┘
-                                     │
-                         Output to Client Browser
-                                     │
-                                     ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│ 3. Client Isolation Layer (Browser DOM)                                    │
-│   - Web Components + Shadow DOM による動的UI（フォーム、スライダー）       │
-└────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Storage[("Content Raw Storage (blocks_json)")]
 
+    subgraph Layer1["1. AST Transformation Layer (Wasm)"]
+        AST["AstPipeline / プラグインフック
+・見出しID自動生成
+・目次 (TOC) ツリー構築
+・コンテンツ構造検証・検閲"]
+    end
+
+    subgraph Layer2["2. Streaming Rewriter Layer (Host Engine: lol-html)"]
+        Rewriter["StreamingHtmlRewriter
+・外部リンク属性付与 (rel='noopener noreferrer')
+・画像読み込み最適化 (loading='lazy' / decoding='async')"]
+    end
+
+    subgraph Layer3["3. Client Isolation Layer (Browser DOM)"]
+        Client["Web Components & Shadow DOM
+・動的UIコンポーネント (フォーム、スライダー等)
+・テーマやグローバルCSS/JSとの完全隔離"]
+    end
+
+    Storage -->|"Parse to Block AST (JSON)"| Layer1
+    Layer1 -->|"Render Base HTML Stream"| Layer2
+    Layer2 -->|"Output to Client Browser"| Layer3
 ```
 
 1. **AST（抽象構文木）変換**:
@@ -378,7 +378,7 @@ fields:
 | **サンドボックス**     | **Wasmtime + Extism**               | Bytecode Alliance準拠の安定したランタイム。Extismをラッパーに採用することでマルチ言語SDKの生成コストを圧縮。                 |
 | **プラグイン開発言語** | **Tier 1: AssemblyScript / TinyGo** | **Tier 1**: 軽量GC・型安全・数十〜数百KBのコンパクトバイナリでWeb開発者の参入障壁を低減。                                    |
 | **プラグイン開発言語** | **Tier 2: Rust**                    | **Tier 2**: 極限のパフォーマンスとメモリ制御を要する処理用。                                                                 |
-| **管理画面**           | **TypeScript + Solid.js / React**   | 細粒度リアクティビティまたは巨大なReactコンポーネント資産を活用したブロック編集UIの高速動作。                                |
+| **管理画面**           | **TypeScript + React**              | 豊富なReactエコシステムと洗練されたモダンUI（CSS Modules）によるブロック編集UIの高速動作。                                  |
 
 ---
 
