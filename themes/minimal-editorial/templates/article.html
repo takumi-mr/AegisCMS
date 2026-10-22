@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="ed-article">
+  <header class="ed-article-header">
+    <div class="ed-article-meta">
+      {% if published_at %}
+      <span>Published {{ published_at | date_short }}</span>
+      {% endif %}
+      {% if author %}
+      <span>&bull; Written by {{ author }}</span>
+      {% endif %}
+    </div>
+    <h1 class="ed-article-title">{{ title }}</h1>
+  </header>
+
+  <div class="ed-article-body">
+    {{ content_html | safe }}
+  </div>
+
+  <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--ed-border);">
+    <a href="/articles" class="ed-card-link">&larr; Return to Journal Archives</a>
+  </div>
+</article>
+{% endblock %}

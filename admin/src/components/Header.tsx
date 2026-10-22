@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Send, PenSquare, ScrollText, LogOut, UserRound } from 'lucide-react';
+import { Activity, Send, PenSquare, ScrollText, LogOut, UserRound, Palette } from 'lucide-react';
 import type { SessionInfo } from '../types';
 import { cx } from '../utils/cx';
 import { displayNameOf } from '../utils/roles';
@@ -12,7 +12,7 @@ const ROLE_BADGE: Record<string, string | undefined> = {
   editor: styles.roleEditor,
 };
 
-export type AppView = 'editor' | 'audit';
+export type AppView = 'editor' | 'audit' | 'themes';
 
 interface HeaderProps {
   view: AppView;
@@ -54,6 +54,13 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <PenSquare size={14} />
             <span>Editor</span>
+          </button>
+          <button
+            className={cx(styles.tab, view === 'themes' && styles.active)}
+            onClick={() => onViewChange('themes')}
+          >
+            <Palette size={14} />
+            <span>Themes</span>
           </button>
           {canViewAudit && (
             <button

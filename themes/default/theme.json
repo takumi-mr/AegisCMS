@@ -1,0 +1,15 @@
+{
+  "id": "default",
+  "name": "Aegis Horizon",
+  "version": "1.0.0",
+  "description": "The quintessential AegisCMS theme featuring deep space navy tones, violet gradients, and high-readability typography.",
+  "author": {
+    "name": "Aegis Design Studio",
+    "url": "https://aegiscms.dev"
+  },
+  "license": "MIT",
+  "preview_image": "preview.svg",
+  "tags": ["dark", "indigo", "modern", "official", "tech"],
+  "homepage": "https://aegiscms.dev/themes/default",
+  "min_aegis_version": "0.1.0"
+}

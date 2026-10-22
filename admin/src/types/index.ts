@@ -46,7 +46,8 @@ export type AuditAction =
   | 'storage.delete'
   | 'plugin.error'
   | 'audit.purge'
-  | 'access.denied';
+  | 'access.denied'
+  | 'theme.switch';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 
@@ -167,4 +168,33 @@ export interface PreviewResult {
   blocks: BlockNode[];
   /** E.g. a plugin hook that failed (the preview then shows the built-in pipeline's result) */
   warnings: string[];
+}
+
+export type ThemeAuthor =
+  | string
+  | {
+      name: string;
+      email?: string;
+      url?: string;
+    };
+
+export interface ThemeManifest {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: ThemeAuthor;
+  license?: string;
+  preview_image?: string;
+  tags: string[];
+  homepage?: string;
+  repository?: string;
+  min_aegis_version?: string;
+}
+
+export interface ThemeInfo extends ThemeManifest {
+  is_active: boolean;
+  has_templates: boolean;
+  has_assets: boolean;
+  preview_url?: string;
 }

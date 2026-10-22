@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if title %}{{ title }} // {% endif %}{{ site_title }}</title>
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Tokyo Cyber Neon Theme{% endif %}">
+  <link rel="stylesheet" href="/theme/assets/style.css">
+  {% if extra_css %}
+  <style>{{ extra_css }}</style>
+  {% endif %}
+  {{ extra_head | safe }}
+</head>
+<body>
+  <div class="cyber-ambient"></div>
+  <header class="cyber-header">
+    <div class="header-container">
+      <a href="/" class="cyber-brand">
+        <span class="cyber-badge-icon">&gt;_</span>
+        <span>{{ site_title }}</span>
+      </a>
+      <nav class="cyber-nav-links">
+        <a href="/" class="cyber-nav-link">[ TERMINAL ]</a>
+        <a href="/articles" class="cyber-nav-link">[ ARCHIVES ]</a>
+        <a href="/admin" class="cyber-status-tag">&bull; ADMIN MATRIX</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cyber-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="cyber-footer">
+    <div class="footer-container">
+      <p>&copy; {{ site_title }} // SECURED BY <strong style="color: var(--cyber-cyan);">AEGIS-WASM</strong></p>
+    </div>
+  </footer>
+</body>
+</html>

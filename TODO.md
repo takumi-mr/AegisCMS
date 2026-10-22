@@ -9,33 +9,29 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: 言語非依存 Wasm プラグイン共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)、AssemblyScript / TinyGo 向け公式プラグイン SDK & 開発テンプレート、MiniJinja テンプレートエンジン、プラグイン動的テーマ書き換え、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、Admin Studio ログイン画面、メディア削除機能 (`DELETE /api/v1/storage/objects/{key}`) & メディアライブラリ UI の実装が完了。
+- **現在のステータス**: 公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
-  - Rust ワークスペース全体 (`cargo test --workspace`) 成功。
+  - Rust ワークスペース全体 (`cargo test`) 成功、全 68 件のテストパス。
   - コードフォーマット (`cargo fmt --check`) および Clippy ゼロ警告 (`cargo clippy --workspace -- -D warnings`) 達成。
-  - フロントエンド本番ビルド (`npm --prefix admin run build`) および oxlint ゼロ警告達成。
+  - フロントエンド本番ビルド (`npm --prefix admin run build`)、oxlint ゼロ警告、Prettier 整形パス。
+  - テーマシステム & マーケットプレイス準備 (`crates/aegis-theme`, `crates/aegis-server`, `themes/`, `admin/`):
+    - 独立テーマパッケージ仕様: `theme.json`（ID、バージョン、作者、タグ、ライセンス、最小バージョン等）、`preview.svg`、`templates/`、`assets/style.css`。将来のマーケットからの ZIP 導入を見据えた `validate_theme_package` 機構。
+    - 4つの公式テーマ:
+      - `default` (Aegis Horizon): 宇宙感・インディゴ/パープルグラデーションの公式ダークテーマ。
+      - `cyber-neon` (Tokyo Cyber Neon): ネオンシアン/ピンク、サイバーグリッド、グラスモーフィズム、等幅フォントの超近未来サイバーパンクテーマ。
+      - `minimal-editorial` (Nordic Minimal Editorial): 北欧エディトリアル風、上質なセリフタイポグラフィ、アイボリー背景、長文読書に極上のライトテーマ。
+      - `emerald-luxury` (Emerald & Obsidian Studio): 黒曜石・エメラルド・シャンパンゴールドの高級感あふれるラグジュアリースタジオテーマ。
+    - スレッドセーフな動的テーマ切り替え API (`PUT /api/v1/themes/active`): 管理者権限で即座に公開サイトの見た目とアセットを切り替え、監査ログ `theme.switch` に記録。
+    - 動的アセット配信 (`GET /theme/assets/{*path}`): 切り替えられたテーマの CSS/画像を自動解決・配信（パストラバーサル防御付き）。
+    - Admin Studio テーマ管理画面 (`ThemeManager.tsx`): インストール済みテーマのカード表示、美麗なプレビュー画像、ワンクリック適用、ライブサイト確認、将来のテーママーケットプレイス（Marketplace v1 Preview & ZIP インポート案内）画面。
   - Wasm プラグインエコシステム:
     - 言語非依存の共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)。
-    - AssemblyScript 公式テンプレート (`plugins/template-assemblyscript/`)、型定義、軽量 JSON パーサー/シリアライザ、ホスト API ラッパー。
-    - TinyGo 公式テンプレート (`plugins/template-tinygo/`)、`//go:wasmimport` ホスト API ラッパー、メモリ管理、GC 追跡保護、JSON シリアライズ。
-    - `Taskfile.yml` への `plugin:build:as` / `plugin:build:tinygo` ビルドタスク統合。
-  - テンプレートエンジン & 公開配信 (`crates/aegis-theme` & `aegis-server`):
-    - MiniJinja によるテンプレート描画、3層探索フォールバック。
-    - `GET /`, `GET /articles`, `GET /articles/{slug}`, `GET /{slug}` による公開サイト配信。
-    - プラグイン `on-render-page` フックおよび `register_template` による動的カスタマイズ。
+    - AssemblyScript / TinyGo 公式テンプレート (`plugins/template-assemblyscript/`, `plugins/template-tinygo/`)。
   - 認証・認可・セキュリティ:
-    - ローカル認証 (`LocalAuthProvider`: Argon2id, タイミング攻撃対策)。
-    - セッション管理、RBAC 認可 (`RequireRole`: `ViewerSession` / `EditorSession` / `AdminSession`)。
-    - ログイン試行レート制限 (`[auth.login_rate_limit]`: アカウントロック・429)。
-    - Admin Studio ログイン画面・セッション復元・ロール別 UI 制御。
-  - メディア管理 & 監査ログ:
-    - `POST /api/v1/storage/upload`（ファイル保存・`editor` 必須・`storage.upload` 監査記録）。
-    - `GET /api/v1/storage/objects`（一覧・`viewer` 必須）。
-    - `DELETE /api/v1/storage/objects/{key}`（削除・`editor` 必須・使用中なら 409 で参照元返却・`?force=true` 強制削除・`storage.delete` 監査記録）。
-    - Admin Studio メディアライブラリでの削除確認・使用中参照表示ダイアログ。
+    - ローカル認証 (`LocalAuthProvider`: Argon2id)、セッション管理、RBAC 認可 (`RequireRole`)、レート制限、監査ログ。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除、プラグイン SDK、Wasm 認証後フック（on-user-authenticated）は完了）**
+**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除、プラグイン SDK、Wasm 認証後フック（on-user-authenticated）、コンテンツ向けマルチテーマ基盤は完了）**
 1. **外部 IdP 認証プロバイダ (OIDC / SAML)**:
    - 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信を Rust Crate（Cargo Features / 静的コンパイル）で安全に分離実装。
 
@@ -47,15 +43,24 @@
 
 ### ⏳ 直近のタスク (Next Up)
 
-#### 公式プラグイン SDK & マルチ言語エコシステムの整備 (Completed)
-- [x] **言語非依存 Wasm プラグイン共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)**
-  - リニアメモリ・アロケーション規則・64bit パッキング・ホスト API・ライフサイクルフック・JSON 型定義の標準化。
-- [x] **AssemblyScript 向け公式プラグイン SDK & テンプレート (`plugins/template-assemblyscript`)**
-  - TypeScript / AssemblyScript 開発者向け SDK、マニフェスト、ビルド設定、サンプル実装。
-- [x] **TinyGo 向け公式プラグイン SDK & テンプレート (`plugins/template-tinygo`)**
-  - Go / TinyGo 開発者向け SDK (`//go:wasmimport`)、メモリ管理、マニフェスト、サンプル実装。
-- [x] **ガイド・リファレンスドキュメントの更新 & Taskfile ビルド連携**
-  - `docs/plugin_sdk_guide.md` へのマルチ言語開発ガイド追記、`Taskfile.yml` へのビルドタスク追加。
+#### コンテンツ向けマルチテーマ & マーケットプレイス設計 (Completed)
+- [x] **将来のMarket連携を見据えたテーマパッケージ仕様 (`theme.json`)**
+  - テーマメタデータマニフェスト (`ThemeManifest`, `ThemeInfo`)、`theme.json` 自動読み込み、ディレクトリからのフォールバック推論、将来の ZIP 展開を見据えたバリデーション (`validate_theme_package`)。
+- [x] **かっこいいテーマのラインナップ作成 (`themes/`)**
+  - `default` (Aegis Horizon): ダーク＆インディゴグラデーションの標準公式テーマ。
+  - `cyber-neon` (Tokyo Cyber Neon): ネオンシアン/ピンク、サイバーグリッド、ハイテクグラスモーフィズム。
+  - `minimal-editorial` (Nordic Minimal Editorial): ウォームアイボリー、洗練されたセリフ見出し、雑誌・長文読書に極上のライトテーマ。
+  - `emerald-luxury` (Emerald & Obsidian Studio): 黒曜石・エメラルドグリーン・シャンパンゴールドのラグジュアリーダークテーマ。
+  - 各テーマに美麗なベクターSVGプレビュー画像 (`preview.svg`)、スタイルシート (`assets/style.css`)、MiniJinja テンプレート群 (`templates/`) を同梱。
+- [x] **スレッドセーフな動的テーマ切り替え基盤 (`crates/aegis-theme` & `aegis-server`)**
+  - `ThemeEngine` のスレッドセーフ化 (`RwLock`)、`set_active_theme` による即時反映。
+  - `GET /api/v1/themes`, `GET /api/v1/themes/active`, `PUT /api/v1/themes/active` (AdminSession, 監査ログ `theme.switch` 記録)。
+  - `GET /theme/assets/{*path}` 動的アセット解決配信（パストラバーサル防止）、`GET /themes/{id}/preview` プレビュー画像配信。
+- [x] **Admin Studio テーマ管理画面 (`admin/src/components/ThemeManager.tsx`)**
+  - ナビゲーションに「Themes」タブ（Palette アイコン）を追加。
+  - インストール済みテーマ一覧カード（SVGプレビュー、タグ、作者、Activeバッジ、ワンクリック切り替え、ライブサイトリンク）。
+  - 将来のマーケットプレイスを見据えた「Theme Marketplace」タブ（コミュニティテーマ探索、カテゴリフィルター、ZIP インポート案内）。
+  - 画面全体の縦スクロール対応（親の `height: 100vh; overflow: hidden;` に対し、`flex: 1; overflow-y: auto;` な `<main>` ラッパーを配置し、画面外の全テーマへのアクセス・操作性を確保）。
 
 #### 認証・認可基盤の完成
 - [x] **Wasm 認証後フック (`on-user-authenticated`)**: 資格情報の確認後・セッション発行前に `UserAuthContext`（provider / user_id / email / display_name / role / metadata）をプラグインに渡し、ロール・表示名・metadata の変更をセッションに反映。`Err` でログイン拒否（403、`session.create` denied）、失敗時もログイン失敗（500、`plugin.error`）。ロール変更は `details.role_mapped` に記録。外部 IdP 対応時もこのフックを通す（`auth::hook::run_auth_hook`）。
@@ -209,3 +214,21 @@
   - テンプレートの探索は「プラグイン/インメモリ動的登録 (`register_template`)」→「ファイルシステムテーマ (`themes/{active}/templates/`)」→「ビルトインデフォルト」の 3 層フォールバック機構を採用。
   - プラグインフック `on_render_page` により、ページレンダリング直前に `PageRenderContext` をプログラマブルに書き換え可能（サイトタイトル修飾、カスタム CSS 注入、`<head>` タグ追加、テーマ変数の動的更新、テンプレート差し替え）。
   - 一般公開ルート（`GET /`, `GET /articles`, `GET /articles/{slug}`, `GET /{slug}`）と管理画面（`GET /admin` & `/assets`）を同一サーバー上でルーティング分離し、下書き記事はゼロトラストに 404 で遮断。記事本文は `StreamingHtmlRewriter` を透過しセキュリティ・パフォーマンス最適化（rel 属性付与、画像遅延読み込み等）が自動適用されます。
+- **将来のマーケットプレイスを見据えた独立テーマパッケージ仕様 & 動的切り替え設計**:
+  - 各テーマは `themes/{theme_id}/` ディレクトリ配下に完全カプセル化されます。
+    - `theme.json`: テーマの一意識別子 (`id`)、表示名 (`name`)、バージョン (`version`)、説明 (`description`)、作者情報 (`author`)、ライセンス (`license`)、プレビュー画像ファイル (`preview_image`)、タグ配列 (`tags`)、ホームページ/リポジトリ URL、対応 AegisCMS 最小バージョン (`min_aegis_version`) を定義。
+    - `preview.svg` / `preview.png`: 管理画面やマーケットプレイスで表示される高品質なベクター/ラスタープレビューサムネイル。
+    - `assets/style.css`: テーマ固有の CSS・画像・フォント等の静的アセット。
+    - `templates/`: MiniJinja テンプレート群 (`base.html`, `index.html`, `article.html`, `page.html`, `404.html`)。
+  - `ThemeEngine` はスレッドセーフな `RwLock` 内部状態を持ち、`ThemeEngine::set_active_theme` を呼ぶことでサーバー再起動不要で即座にアクティブテーマおよびテンプレート探索ディレクトリを更新可能。
+  - 動的アセット配信ハンドラー (`GET /theme/assets/{*path}`) により、アクティブテーマのアセットディレクトリをリクエスト時に動的に解決して配信。パストラバーサル（`..` やルートアクセス）を厳格にブロックし安全性を担保。
+  - テーマ切り替え API (`PUT /api/v1/themes/active`) は `AdminSession` 必須の RBAC 認可と監査ログ `theme.switch`（変更前後のテーマID）の自動記録を内蔵。
+  - 将来のマーケット導入を見据えたバリデーション API `ThemeEngine::validate_theme_package` を備え、ZIP 展開時や外部レジストリからのインポート時にパッケージの整合性を検証できます。
+- **テンプレートフィルタの型安全性と None-safety (`date_short`, `truncate`)**:
+  - MiniJinja のフィルタ定義において、引数型を `val: &str` にすると `None`（`Value::from(())`）や未定義値が渡った際に `invalid operation: value is not a string` ランタイムエラーが発生します。
+  - そのため `engine.rs` では `val: minijinja::Value` を受け取り、`val.as_str()` でフォールバック（空文字等）を安全に処理する堅牢な実装を採用。記事の `author` や `published_at` が未設定の場合でも 500 エラーにならず安定描画されます。
+- **Web アセット MIME タイプ解決 (`guess_content_type`) とスタイルシート配信**:
+  - `aegis-core` の `guess_content_type` に Web アセット用の MIME 定義（`.css` -> `text/css`, `.js` -> `application/javascript`, `.woff2` -> `font/woff2`, `.wasm` -> `application/wasm` 等）を完備。
+  - ブラウザの厳格なスタイルシート MIME チェック（`strict MIME checking`）により `application/octet-stream` では CSS の適用が拒否される問題を防ぎ、全テーマの外部 CSS が確実に解釈・レンダリングされます。
+- **Admin Studio フルスクリーンビューのスクロール設計**:
+  - `App.module.css` のルート `.app` は `height: 100vh; overflow: hidden;` で固定されているため、`AuditLogView` や `ThemeManager` などの全幅ビューは必ず直下に `flex: 1; overflow-y: auto;` を持つラッパー `<main>` を配置し、下部パディングを確保してスクロール可能にする必要があります。

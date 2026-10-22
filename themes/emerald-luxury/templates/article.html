@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="lux-article">
+  <header class="lux-article-header">
+    <div class="lux-article-meta">
+      {% if published_at %}
+      <span>Archived {{ published_at | date_short }}</span>
+      {% endif %}
+      {% if author %}
+      <span>&bull; Curated by {{ author }}</span>
+      {% endif %}
+    </div>
+    <h1 class="lux-article-title">{{ title }}</h1>
+  </header>
+
+  <div class="lux-article-body">
+    {{ content_html | safe }}
+  </div>
+
+  <div style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--lux-border); text-align: center;">
+    <a href="/articles" class="lux-card-link">&larr; Return to Exhibition Archives</a>
+  </div>
+</article>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="lux-hero">
+  <div class="lux-hero-subtitle">Haute Computation &bull; Private Edition</div>
+  <h1 class="lux-hero-title">{{ site_title }}</h1>
+  {% if site_description %}
+  <p class="lux-hero-desc">{{ site_description }}</p>
+  {% endif %}
+</section>
+
+<section class="lux-grid">
+  {% for item in items %}
+  <article class="lux-card">
+    <div class="lux-card-tag">{{ item.content_type | upper }}</div>
+    <h2 class="lux-card-title">
+      <a href="/articles/{{ item.slug }}">{{ item.title }}</a>
+    </h2>
+    <p class="lux-card-excerpt">{{ item.excerpt | truncate(150) }}</p>
+    <div class="lux-card-footer">
+      <span>{{ item.published_at | date_short }}</span>
+      <a href="/articles/{{ item.slug }}" class="lux-card-link">View Exhibit &rarr;</a>
+    </div>
+  </article>
+  {% else %}
+  <div style="grid-column: 1 / -1; padding: 5rem; text-align: center; color: var(--lux-muted);">
+    No published works are currently on exhibition.
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

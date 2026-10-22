@@ -370,6 +370,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "Wasmtime synchronous trap panics across non-unwinding boundary on Windows MSVC (see AGENTS.md / TODO.md)"
+    )]
     async fn test_wasm_memory_limit_is_enforced() {
         // 1 page + 32 pages (~2.1 MiB) fits in 16 MiB
         assert!(run_growing_plugin(16).await.is_ok());
