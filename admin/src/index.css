@@ -1105,3 +1105,38 @@ body {
   font-size: 0.8rem;
   color: #fda4af;
 }
+
+/* Sidebar Category Filter & Badge */
+.sidebar-filter {
+  padding: 12px 12px 0;
+}
+
+.sidebar-filter .input-field {
+  padding: 6px 10px;
+}
+
+.sidebar-filter select option {
+  background: var(--bg-surface);
+}
+
+.badge-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-category .category-swatch {
+  width: 8px;
+  height: 8px;
+}
