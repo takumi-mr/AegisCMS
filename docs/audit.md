@@ -148,18 +148,12 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ## 6. Admin Studio の閲覧画面
 
-Admin Studio（`/admin`）のヘッダーで **Audit Logs** に切り替えると、監査ログを閲覧できます。
+Admin Studio（`/admin`）に `admin` ロールのユーザーでログインすると、ヘッダーに **Audit Logs** タブが表示され、監査ログを閲覧できます（`editor` / `viewer` には表示されません）。ユーザーの作成は [認証 & ユーザー管理](authentication.md) を参照してください。
 
-- **認証**: `admin` ロールのセッショントークン（`ses_...`）を入力して **Connect** を押します。トークンはブラウザのタブを閉じるまで `sessionStorage` に保持します。
-  - Admin Studio にはまだログイン画面が無いため、ログインして発行したトークンを貼り付けてください。このトークンはエディタなど Admin Studio のすべての API 呼び出しにも使われます（ユーザーの作成は [認証 & ユーザー管理](authentication.md)）:
-    ```bash
-    curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
-      -H 'Content-Type: application/json' -d '{"username":"admin","password":"change-me-please"}'
-    ```
 - **絞り込み**: action / outcome / actor / resource（種別・ID）/ 期間（since・until。ブラウザのローカル時刻で入力し、UTC に変換して送信）
 - **一覧**: 新しい順に 50 件ずつ表示し、**Newer** / **Older** でページ送り。行をクリックすると、イベント ID・User-Agent・`details` の JSON を展開表示
 - 右上に、サーバーに設定された保持期間を表示（無期限なら `unlimited`）
-- 401 / 403 / 404 の場合は、原因（トークン無効、ロール不足、`database` 出力先が無効）を画面に表示
+- 403 / 404 の場合は、原因（ロール不足、`database` 出力先が無効）を画面に表示。セッションが切れた（401）場合はログイン画面に戻る
 
 ---
 

@@ -115,3 +115,22 @@ export interface StorageObjectPage {
   /** True when the storage holds more files than the server scans for one listing */
   truncated: boolean;
 }
+
+export type UserRole = 'admin' | 'editor' | 'viewer';
+
+/** Session returned by `POST /api/v1/auth/session` (login) and `GET /api/v1/auth/session` */
+export interface SessionInfo {
+  /** Bearer token (`ses_...`) */
+  id: string;
+  /** Username of the logged-in user */
+  user_id: string;
+  role: UserRole | string;
+  created_at: string;
+  expires_at: string;
+  metadata: {
+    provider?: string;
+    display_name?: string;
+    email?: string;
+    [key: string]: unknown;
+  };
+}

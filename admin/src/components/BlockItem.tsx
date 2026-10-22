@@ -22,6 +22,8 @@ interface BlockItemProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDelete: () => void;
+  /** Uploading needs the editor role; viewers can still pick from the media library */
+  canUpload: boolean;
 }
 
 export const BlockItem: React.FC<BlockItemProps> = ({
@@ -32,6 +34,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
   onMoveUp,
   onMoveDown,
   onDelete,
+  canUpload,
 }) => {
   const [isLibraryOpen, setIsLibraryOpen] = useState<boolean>(false);
 
@@ -182,6 +185,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
 
       {block.name === 'core/image' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {canUpload && (
           <ImageUploader
             onUploaded={(meta, file) =>
               onChange({
@@ -195,6 +199,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
               })
             }
           />
+          )}
           <button
             type="button"
             className="btn btn-secondary media-library-open"

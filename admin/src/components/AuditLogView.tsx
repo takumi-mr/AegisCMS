@@ -4,13 +4,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  KeyRound,
   RefreshCw,
   ScrollText,
   Search,
 } from 'lucide-react';
 import { aegisApi, ApiError } from '../api/client';
-import { getSessionToken, setSessionToken } from '../api/session';
 import type { AuditEvent, AuditLogPage, AuditLogQuery } from '../types';
 
 const PAGE_SIZE = 50;
@@ -57,8 +55,6 @@ const formatTimestamp = (iso: string): string => {
 const describeError = (err: unknown): string => {
   if (err instanceof ApiError) {
     switch (err.status) {
-      case 401:
-        return 'Session token is missing, invalid or expired.';
       case 403:
         return 'This session does not have the "admin" role required to read audit logs.';
       case 404:
@@ -71,8 +67,6 @@ const describeError = (err: unknown): string => {
 };
 
 export const AuditLogView: React.FC = () => {
-  const [tokenInput, setTokenInput] = useState<string>(getSessionToken);
-  const [token, setToken] = useState<string>(getSessionToken);
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [offset, setOffset] = useState<number>(0);
@@ -98,14 +92,13 @@ export const AuditLogView: React.FC = () => {
     }),
     [filters, offset]
   );
-  // A request is identified by its token, query and reload counter; loading = no result for it yet
-  const requestKey = JSON.stringify([token, query, reloadCount]);
-  const isLoading = token !== '' && result?.key !== requestKey;
+  // A request is identified by its query and reload counter; loading = no result for it yet
+  const requestKey = JSON.stringify([query, reloadCount]);
+  const isLoading = result?.key !== requestKey;
   const page = result?.key === requestKey ? result.page : (result?.page ?? null);
   const error = result?.key === requestKey ? result.error : null;
 
   useEffect(() => {
-    if (!token) return;
     let cancelled = false;
     aegisApi
       .getAuditLogs(query)
@@ -117,17 +110,9 @@ export const AuditLogView: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [token, query, requestKey]);
+  }, [query, requestKey]);
 
   const reload = () => setReloadCount((n) => n + 1);
-
-  const handleConnect = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = tokenInput.trim();
-    setSessionToken(trimmed);
-    setToken(trimmed);
-    setOffset(0);
-  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,23 +148,6 @@ export const AuditLogView: React.FC = () => {
             </span>
           )}
         </div>
-
-        <form className="audit-token-row" onSubmit={handleConnect}>
-          <div className="input-field">
-            <KeyRound size={14} className="input-prefix" />
-            <input
-              type="password"
-              placeholder="Session token (ses_...)"
-              value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value)}
-              autoComplete="off"
-              aria-label="Session token"
-            />
-          </div>
-          <button type="submit" className="btn btn-secondary">
-            Connect
-          </button>
-        </form>
 
         <form className="audit-filters" onSubmit={handleSearch}>
           <div className="input-field">
@@ -230,7 +198,7 @@ export const AuditLogView: React.FC = () => {
             <input type="datetime-local" value={draft.until} onChange={updateDraft('until')} />
           </div>
           <div className="audit-filter-actions">
-            <button type="submit" className="btn btn-primary" disabled={!token}>
+            <button type="submit" className="btn btn-primary">
               <Search size={16} />
               <span>Search</span>
             </button>
@@ -241,7 +209,7 @@ export const AuditLogView: React.FC = () => {
               type="button"
               className="tool-btn"
               onClick={reload}
-              disabled={!token || isLoading}
+              disabled={isLoading}
               title="Reload"
             >
               <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
@@ -250,15 +218,9 @@ export const AuditLogView: React.FC = () => {
           </div>
         </form>
 
-        {!token && (
-          <div className="audit-notice">
-            Enter a session token to read audit logs. Reading requires a session whose role is{' '}
-            <code>admin</code>. The token is also used by the editor for every API request.
-          </div>
-        )}
         {error && <div className="audit-notice error">{error}</div>}
 
-        {token && !error && (
+        {!error && (
           <div className="audit-table-wrap">
             <table className="audit-table">
               <thead>
