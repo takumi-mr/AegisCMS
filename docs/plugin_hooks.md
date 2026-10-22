@@ -169,12 +169,12 @@ SDK ヘルパー:
 
 | フィールド | 型 | 説明 |
 | --- | --- | --- |
-| `provider` | string | 認証したプロバイダ（現在は `local`）。変更は無視される |
+| `provider` | string | 認証したプロバイダ（`local` / `oidc`）。変更は無視される |
 | `user_id` | string | セッションの `user_id`（ローカル認証ではユーザー名）。変更は無視される |
 | `email` | string | メールアドレス（未登録なら空文字列） |
 | `display_name` | string \| null | 表示名 |
 | `role` | string | `admin` / `editor` / `viewer` |
-| `metadata` | object | プロバイダ固有の属性（外部 IdP のクレーム・グループなど。ローカル認証では空） |
+| `metadata` | object | プロバイダ固有の属性。OIDC では `issuer`、`sub`、`claims`（ID トークンのクレーム。`groups` などのマッピングに使える）、ローカル認証では空 |
 
 ### 2.4 `PluginError`（SDK）
 

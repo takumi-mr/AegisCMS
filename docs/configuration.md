@@ -189,6 +189,29 @@ public_url_prefix = "https://cdn.example.com"
 | `window_secs` | integer (u64) | `900` | 失敗回数を数える期間（秒）。最初の失敗から数え、過ぎると 0 に戻る |
 | `lockout_secs` | integer (u64) | `900` | ロックの継続時間（秒）。ロック中は正しいパスワードでもログインできない |
 
+### 2.10 `[auth.oidc]` — シングルサインオン (OpenID Connect)
+
+外部 IdP によるログイン（認可コードフロー + PKCE）。使い方は [認証ドキュメント](./authentication.md#5-シングルサインオン-openid-connect) を参照してください。`enabled = true` で必須項目が欠けている、またはロール名が不正な場合はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で SSO を有効化 |
+| `display_name` | string | `"SSO"` | ログイン画面のボタン名（`Sign in with ...`） |
+| `issuer_url` | string | `""` | IdP の Issuer（必須）。`{issuer_url}/.well-known/openid-configuration` からエンドポイントを取得する |
+| `client_id` | string | `""` | クライアント ID（必須） |
+| `client_secret` | string | `""` | クライアントシークレット |
+| `redirect_url` | string | `""` | IdP に登録したコールバック URL（必須）。`https://<ホスト>/api/v1/auth/oidc/callback` |
+| `scopes` | array of string | `["openid", "profile", "email"]` | 要求するスコープ（`openid` は常に付ける） |
+| `username_claim` | string | `"preferred_username"` | 新規ユーザーのユーザー名にするクレーム（無ければ `email`） |
+| `auto_create_users` | bool | `true` | 未登録のユーザーを初回ログイン時に作成する。`false` なら `aegis user link-oidc` で紐付けたユーザーのみ |
+| `default_role` | string | `"viewer"` | 新規ユーザーのロール。`role_claim` 使用時はどのグループにも一致しない場合のロール |
+| `role_claim` | string | `""` | ロールを決めるクレーム（例: `groups`）。空ならロールは AegisCMS のユーザーアカウントで決まる |
+| `role_mapping` | table | `{}` | `role_claim` の値 → ロール（`admin` / `editor` / `viewer`）。複数一致した場合は最も強いロール |
+| `post_login_redirect` | string | `"/admin/"` | ログイン後に戻る Admin Studio の URL（`#session=` / `#login_error=` を付ける）。Admin Studio を別オリジン（開発サーバーなど）で動かす場合は絶対 URL |
+
+> [!NOTE]
+> `client_secret` は設定ファイルに平文で書くため、ファイルの権限を制限してください。
+
 ---
 
 ## 3. 完全な設定例
@@ -261,4 +284,20 @@ max_failures_per_user = 5
 max_failures_per_ip = 20
 window_secs = 900
 lockout_secs = 900
+
+[auth.oidc]
+enabled = false
+display_name = "SSO"
+issuer_url = ""
+client_id = ""
+client_secret = ""
+redirect_url = ""
+scopes = ["openid", "profile", "email"]
+username_claim = "preferred_username"
+auto_create_users = true
+default_role = "viewer"
+role_claim = ""
+post_login_redirect = "/admin/"
+
+[auth.oidc.role_mapping]
 ```

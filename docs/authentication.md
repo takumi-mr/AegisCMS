@@ -2,7 +2,7 @@
 
 AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider` が検証したときだけセッション（Bearer トークン）を発行します。ロールはリクエストではなく、サーバーに登録されたユーザーアカウントで決まります。
 
-現在のプロバイダはローカル認証（`LocalAuthProvider`、`_aegis_users` テーブル）のみです。OIDC / SAML は今後 `AuthProvider` の実装として追加します。
+プロバイダはローカル認証（`LocalAuthProvider`、`_aegis_users` テーブル）と、外部 IdP の OpenID Connect（[5. シングルサインオン](#5-シングルサインオン-openid-connect)、`[auth.oidc]`）です。SAML は未対応です。
 
 ---
 
@@ -29,6 +29,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `GET /api/v1/health`, `GET /api/v1/openapi.json`, `/metrics` | 不要（公開） |
 | 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
 | `POST /api/v1/auth/session`（ログイン）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッションで判定） |
+| `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#5-シングルサインオン-openid-connect)） | 不要 |
 | `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}` | `viewer` |
 | `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
 | `GET /api/v1/storage/objects` | `viewer` |
@@ -62,6 +63,7 @@ aegis-server user role editor1 admin    # ロール変更（次回ログイン�
 aegis-server user disable editor1       # ログイン不可にする
 aegis-server user enable editor1
 aegis-server user list
+aegis-server user link-oidc alice 248289761001   # 既存ユーザーを IdP のアカウント（sub）に紐付ける
 ```
 
 - 開発時は `cargo run -p aegis-server -- user add ...`、Docker では `docker exec -it <container> aegis-server user add ...` で実行します。設定ファイル（`-c` / `AEGIS_CONFIG`）の `[database]` に接続します。
@@ -132,3 +134,70 @@ Admin Studio（`/admin`）はログイン画面からこの API でログイン�
   - 失敗回数は `[cache]` のバックエンドに保存します（キー `login:fail:*` / `login:lock:*`）。`memory` ではプロセスごと・再起動で消えるため、複数インスタンスで運用する場合は `redis` を使ってください。
   - リバースプロキシ配下では全リクエストがプロキシの IP になるため、`[audit].trust_forwarded_for = true` にしてください（有効にすると `X-Forwarded-For` を偽装できるため、信頼できるプロキシ配下でのみ）。
   - ユーザー名単位のロックは、第三者がわざと失敗してそのユーザーを一時的にログインできなくすることにも使えます。運用で問題になる場合は `max_failures_per_user` を大きくし、IP 単位の制限を主に使ってください。ロックを手動で解除するにはキャッシュの `login:lock:*` キーを削除します（`memory` ではサーバーの再起動）。
+
+---
+
+## 5. シングルサインオン (OpenID Connect)
+
+`[auth.oidc]`（[設定リファレンス](configuration.md#210-authoidc--シングルサインオン-openid-connect)）を有効にすると、Admin Studio のログイン画面に **Sign in with {display_name}** ボタンが表示され、外部 IdP（Microsoft Entra ID、Google、Okta、Keycloak など OpenID Connect 対応のもの）でログインできます。パスワードによるローカルログインもそのまま使えます。
+
+### 5.1 IdP 側の設定
+
+1. IdP に「Web アプリケーション」（コンフィデンシャルクライアント）を登録し、クライアント ID とシークレットを発行します。
+2. リダイレクト URI に `https://<AegisCMS のホスト>/api/v1/auth/oidc/callback` を登録し、同じ値を `redirect_url` に設定します。
+3. ロールをグループで分けたい場合は、ID トークンに `groups` などのクレームが入るよう IdP を設定します。
+
+```toml
+[auth.oidc]
+enabled = true
+display_name = "Company SSO"
+issuer_url = "https://login.example.com/realms/staff"
+client_id = "aegis-cms"
+client_secret = "..."
+redirect_url = "https://cms.example.com/api/v1/auth/oidc/callback"
+role_claim = "groups"
+post_login_redirect = "https://cms.example.com/admin/"
+
+[auth.oidc.role_mapping]
+cms-admins = "admin"
+cms-editors = "editor"
+```
+
+### 5.2 ログインの流れ
+
+1. ボタン（`GET /api/v1/auth/oidc/login`）が IdP の認可エンドポイントへリダイレクトします。`state`・`nonce`・PKCE（`S256`）の検証値は 10 分間キャッシュ（`[cache]`）に保存します。
+2. IdP でのログイン後、`GET /api/v1/auth/oidc/callback` が認可コードをトークンに交換し、ID トークンを検証します（JWKS による署名、`iss`、`aud`、`exp`、`nonce`、`azp`。署名アルゴリズムは RS / PS / ES 系のみ）。`state` は 1 回限りです。
+3. ユーザーを決め（5.3）、`on-user-authenticated` フック（[プラグインフック](plugin_hooks.md#14-on-user-authenticated)）を通してセッションを発行します。
+4. `post_login_redirect` に `#session=<トークン>` を付けてリダイレクトし、Admin Studio がトークンを保存してアドレスバーから消します。失敗時は `#login_error=<理由>` で戻り、ログイン画面に表示します。
+
+フラグメント（`#` 以降）はサーバーのログや `Referer` に残らないため、トークンの受け渡しに使っています。
+
+### 5.3 ユーザーとロール
+
+- IdP のアカウント（Issuer + `sub`）と AegisCMS のユーザーの対応は `_aegis_user_identities` テーブルに保存します。
+- **初回ログイン**: `auto_create_users = true`（既定）なら、`username_claim`（既定 `preferred_username`、無ければ `email`）をユーザー名にしてユーザーを作成し、紐付けます。パスワードは誰も知らないランダム値なので、そのユーザーはパスワードではログインできません。
+- **同名のユーザーが既にいる場合は紐付けません**（`username_taken`）。IdP 側で同じ名前を名乗るだけで既存のアカウント（ローカルの管理者など）に入れてしまうのを防ぐためです。そのアカウントで SSO を使うには、管理者が `aegis-server user link-oidc <username> <sub>` で紐付けます。
+- `auto_create_users = false` なら、紐付け済みのユーザーだけがログインできます（それ以外は `not_provisioned`）。
+- **ロール**: `role_claim` を設定すると、ログインのたびにそのクレームの値を `role_mapping` で変換し（複数一致なら最も強いロール、一致しなければ `default_role`）、ユーザーアカウントのロールも更新します。`role_claim` が空なら、ロールはユーザーアカウントのもの（`aegis user role` で変更）で、新規ユーザーは `default_role` です。どちらの場合も `on-user-authenticated` プラグインで上書きできます。
+- メールアドレス・表示名（`email` / `name` クレーム）はログインのたびにユーザーアカウントへ反映します。
+- 無効化したユーザー（`aegis user disable`）は SSO でもログインできません（`account_disabled`）。
+- セッションの `metadata` には `provider: "oidc"`、`issuer`、`sub`、`claims`（ID トークンのクレーム）が入ります。
+
+### 5.4 失敗時の理由（`login_error`・監査ログ `session.create` の `error`）
+
+| 理由 | 内容 |
+| --- | --- |
+| `idp_error` | IdP がエラーを返した（ユーザーがキャンセルしたなど） |
+| `invalid_state` | `state` が無い・期限切れ・使用済み |
+| `invalid_token` | トークン交換の失敗、ID トークンの検証失敗（詳細はサーバーの警告ログ） |
+| `missing_username` | ユーザー名にするクレームが無い・使えない文字を含む |
+| `username_taken` | 同名の（紐付けられていない）ユーザーが既にいる |
+| `not_provisioned` | `auto_create_users = false` で、紐付けられたユーザーがいない |
+| `account_disabled` | ユーザーが無効化されている |
+| `server_error` | IdP に接続できない・DB エラーなど（詳細はサーバーのエラーログ） |
+
+`on-user-authenticated` プラグインが拒否した場合は、プラグインのメッセージが `login_error` になります。
+
+> [!NOTE]
+> SSO のログインは IdP 側で保護されるため、`[auth.login_rate_limit]` の対象外です。ディスカバリー文書（`/.well-known/openid-configuration`）は初回ログイン時に取得してプロセス内にキャッシュし、JWKS は未知の `kid` が来たとき（最短 60 秒間隔）に再取得します。IdP の Issuer を変更した場合はサーバーを再起動してください。
+
