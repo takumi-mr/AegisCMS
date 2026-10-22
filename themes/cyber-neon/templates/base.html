@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} // {% endif %}{{ site_title }}</title>
   <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Tokyo Cyber Neon Theme{% endif %}">
-  <link rel="stylesheet" href="/theme/assets/style.css">
+  <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
   {% if extra_css %}
   <style>{{ extra_css }}</style>
   {% endif %}
@@ -15,14 +15,14 @@
   <div class="cyber-ambient"></div>
   <header class="cyber-header">
     <div class="header-container">
-      <a href="/" class="cyber-brand">
+      <a href="{{ base_path }}/" class="cyber-brand">
         <span class="cyber-badge-icon">&gt;_</span>
         <span>{{ site_title }}</span>
       </a>
       <nav class="cyber-nav-links">
-        <a href="/" class="cyber-nav-link">[ TERMINAL ]</a>
-        <a href="/articles" class="cyber-nav-link">[ ARCHIVES ]</a>
-        <a href="/admin" class="cyber-status-tag">&bull; ADMIN MATRIX</a>
+        <a href="{{ base_path }}/" class="cyber-nav-link">[ TERMINAL ]</a>
+        <a href="{{ base_path }}/articles" class="cyber-nav-link">[ ARCHIVES ]</a>
+        <a href="{{ base_path }}/admin/" class="cyber-status-tag">&bull; ADMIN MATRIX</a>
       </nav>
     </div>
   </header>

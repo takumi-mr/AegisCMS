@@ -91,4 +91,8 @@ lockout_secs = 900
 active = "default"
 site_title = "AegisCMS Production"
 site_description = "Next-Generation High-Performance Secure CMS"
+# Articles per page on the index page (/?page=N)
+posts_per_page = 10
+# Re-read theme templates on every render (for theme development; keep false in production)
+reload_templates = false
 

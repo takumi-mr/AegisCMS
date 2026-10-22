@@ -10,7 +10,7 @@ AegisCMS は Headless API Gateway、管理画面 Admin Studio、および高速�
 
 | パス / ルート | 配信内容 | 備考 |
 |---|---|---|
-| `GET /` | 公開トップページ（最新記事一覧） | テンプレート `index.html` 描画 |
+| `GET /` | 公開トップページ（最新記事一覧） | テンプレート `index.html` 描画。`[theme].posts_per_page` 件ずつ、`?page=N` でページ送り（範囲外は 404） |
 | `GET /articles` | 記事一覧 | 同上 |
 | `GET /articles/{slug}` | 記事詳細ページ | テンプレート `article.html` 描画 (`status == "published"` のみ公開) |
 | `GET /{slug}` | 固定ページまたは記事詳細 | テンプレート `page.html` または `article.html` 描画 |
@@ -48,6 +48,20 @@ AegisCMS では Jinja2 / Django 互換で高速・軽量・堅牢なテンプレ
 
 ### テンプレートで使えるグローバル変数
 - `base_path`: サイトを公開しているパス（`[server].base_path`、例: `/cms`。ルートで公開している場合は空文字）。サイト内へのリンクやテーマアセットは `{{ base_path }}/articles/{{ item.slug }}`、`{{ base_path }}/theme/assets/style.css` のように先頭に付けてください。付けなくてもルート公開では動きますが、サブパス配下（[設定リファレンス](./configuration.md#42-サブパスで公開する)）ではリンク切れになります。
+- `pagination`（`index.html` のみ）: `page`（1 始まり）、`per_page`、`total_items`、`total_pages`、`prev_url` / `next_url`（`base_path` 込み。無ければ空）。例:
+
+```jinja
+{% if pagination and pagination.total_pages > 1 %}
+<nav>
+  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">Newer</a>{% endif %}
+  Page {{ pagination.page }} / {{ pagination.total_pages }}
+  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">Older</a>{% endif %}
+</nav>
+{% endif %}
+```
+
+### テンプレートのキャッシュ
+コンパイルしたテンプレートは再利用し、テーマの切り替え（`PUT /api/v1/themes/active`）とプラグインによるテンプレートの登録時に読み直します。テーマのファイルを編集しながら確認する場合は `[theme].reload_templates = true` にすると、描画のたびに読み直します（本番では `false` のままにしてください）。
 
 ---
 
@@ -80,6 +94,7 @@ pub struct PageRenderContext {
     pub extra_css: String,                   // 注入するカスタム CSS
     pub extra_head: String,                  // <head> に注入する HTML タグ
     pub theme_vars: HashMap<String, String>, // テーマカラーなどの動的変数
+    pub pagination: Option<Pagination>,      // トップページのページ送り（index.html のみ）
 }
 ```
 
@@ -134,6 +149,8 @@ active = "default"
 site_title = "AegisCMS Official Site"
 site_description = "Next-Generation High-Performance Secure CMS with Sandboxed WebAssembly Extensibility"
 # custom_css = ":root { --accent: #10b981; }" # オプション: グローバルカスタム CSS
+posts_per_page = 10        # トップページの 1 ページあたりの記事数（?page=N でページ送り）
+reload_templates = false   # true でテンプレートを描画のたびに読み直す（テーマ開発用）
 
 [paths]
 themes_dir = "themes"

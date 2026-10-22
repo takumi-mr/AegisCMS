@@ -115,4 +115,8 @@ post_login_redirect = "/admin/"
 active = "default"
 site_title = "AegisCMS Official Site"
 site_description = "Next-Generation High-Performance Secure CMS with Sandboxed WebAssembly Extensibility"
+# Articles per page on the index page (/?page=N)
+posts_per_page = 10
+# Re-read theme templates on every render (for theme development; keep false in production)
+reload_templates = false
 

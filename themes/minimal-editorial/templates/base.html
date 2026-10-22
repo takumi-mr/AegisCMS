@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} &bull; {% endif %}{{ site_title }}</title>
   <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Nordic Minimal Editorial Theme{% endif %}">
-  <link rel="stylesheet" href="/theme/assets/style.css">
+  <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
   {% if extra_css %}
   <style>{{ extra_css }}</style>
   {% endif %}
@@ -14,11 +14,11 @@
 <body>
   <header class="ed-header">
     <div class="ed-header-inner">
-      <a href="/" class="ed-brand">{{ site_title }}</a>
+      <a href="{{ base_path }}/" class="ed-brand">{{ site_title }}</a>
       <nav class="ed-nav">
-        <a href="/" class="ed-nav-link">Journal</a>
-        <a href="/articles" class="ed-nav-link">Archives</a>
-        <a href="/admin" class="ed-admin-btn">Studio</a>
+        <a href="{{ base_path }}/" class="ed-nav-link">Journal</a>
+        <a href="{{ base_path }}/articles" class="ed-nav-link">Archives</a>
+        <a href="{{ base_path }}/admin/" class="ed-admin-btn">Studio</a>
       </nav>
     </div>
   </header>

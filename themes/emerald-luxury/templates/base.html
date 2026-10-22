@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
   <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Emerald & Obsidian Studio Theme{% endif %}">
-  <link rel="stylesheet" href="/theme/assets/style.css">
+  <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
   {% if extra_css %}
   <style>{{ extra_css }}</style>
   {% endif %}
@@ -15,14 +15,14 @@
   <div class="lux-ambient"></div>
   <header class="lux-header">
     <div class="lux-header-inner">
-      <a href="/" class="lux-brand">
+      <a href="{{ base_path }}/" class="lux-brand">
         <span class="lux-brand-orb"></span>
         <span>{{ site_title }}</span>
       </a>
       <nav class="lux-nav">
-        <a href="/" class="lux-nav-link">Atelier</a>
-        <a href="/articles" class="lux-nav-link">Exhibits</a>
-        <a href="/admin" class="lux-admin-link">Console</a>
+        <a href="{{ base_path }}/" class="lux-nav-link">Atelier</a>
+        <a href="{{ base_path }}/articles" class="lux-nav-link">Exhibits</a>
+        <a href="{{ base_path }}/admin/" class="lux-admin-link">Console</a>
       </nav>
     </div>
   </header>

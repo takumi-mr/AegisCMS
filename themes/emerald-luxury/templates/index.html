@@ -14,12 +14,12 @@
   <article class="lux-card">
     <div class="lux-card-tag">{{ item.content_type | upper }}</div>
     <h2 class="lux-card-title">
-      <a href="/articles/{{ item.slug }}">{{ item.title }}</a>
+      <a href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a>
     </h2>
     <p class="lux-card-excerpt">{{ item.excerpt | truncate(150) }}</p>
     <div class="lux-card-footer">
       <span>{{ item.published_at | date_short }}</span>
-      <a href="/articles/{{ item.slug }}" class="lux-card-link">View Exhibit &rarr;</a>
+      <a href="{{ base_path }}/articles/{{ item.slug }}" class="lux-card-link">View Exhibit &rarr;</a>
     </div>
   </article>
   {% else %}
@@ -28,4 +28,11 @@
   </div>
   {% endfor %}
 </section>
+{% if pagination and pagination.total_pages > 1 %}
+<nav class="pagination" aria-label="Pagination" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem;">
+  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="lux-card-link">&larr; Newer Exhibits</a>{% else %}<span></span>{% endif %}
+  <span>Page {{ pagination.page }} / {{ pagination.total_pages }}</span>
+  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="lux-card-link">Older Exhibits &rarr;</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
 {% endblock %}

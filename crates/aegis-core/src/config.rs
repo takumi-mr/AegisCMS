@@ -309,6 +309,17 @@ pub struct ThemeConfig {
     pub site_description: String,
     #[serde(default)]
     pub custom_css: Option<String>,
+    /// トップページ（記事一覧）の 1 ページあたりの件数（`/?page=N` でページ送り）
+    #[serde(default = "default_posts_per_page")]
+    pub posts_per_page: u64,
+    /// `true` でテンプレートをリクエストごとに読み直す（テーマ開発用）。
+    /// `false`（既定）ではコンパイル済みのテンプレートを再利用し、テーマの切り替え時に読み直す
+    #[serde(default)]
+    pub reload_templates: bool,
+}
+
+fn default_posts_per_page() -> u64 {
+    10
 }
 
 impl Default for ThemeConfig {
@@ -318,6 +329,8 @@ impl Default for ThemeConfig {
             site_title: "AegisCMS".to_string(),
             site_description: "Next-Generation Secure CMS with Sandboxed Extensibility".to_string(),
             custom_css: None,
+            posts_per_page: default_posts_per_page(),
+            reload_templates: false,
         }
     }
 }

@@ -337,7 +337,7 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
 <section class="articles-section">
   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
     <h2 style="font-size: 1.35rem; font-weight: 700; color: #ffffff;">Latest Published Stories</h2>
-    <span style="font-size: 0.85rem; color: var(--text-dim);">{{ items | length }} posts</span>
+    <span style="font-size: 0.85rem; color: var(--text-dim);">{% if pagination %}{{ pagination.total_items }}{% else %}{{ items | length }}{% endif %} posts</span>
   </div>
 
   {% if items and items | length > 0 %}
@@ -387,6 +387,13 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
     <a href="{{ base_path }}/admin/" class="admin-pill" style="display: inline-block; padding: 0.5rem 1.25rem;">Launch Admin Studio</a>
   </div>
   {% endif %}
+{% if pagination and pagination.total_pages > 1 %}
+<nav class="pagination" aria-label="Pagination" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem; color: var(--text-dim); font-size: 0.85rem;">
+  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="admin-pill">&larr; Newer stories</a>{% else %}<span></span>{% endif %}
+  <span>Page {{ pagination.page }} / {{ pagination.total_pages }}</span>
+  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="admin-pill">Older stories &rarr;</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
 </section>
 {% endblock %}
 "#;

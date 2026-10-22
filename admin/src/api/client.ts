@@ -140,13 +140,20 @@ export const aegisApi = {
     return data.schemas || [];
   },
 
+  /** Every item of the content type (the list API returns at most 500 per page) */
   async getContents(contentType: string): Promise<ContentItem[]> {
-    const data = await request<{ contents?: ContentItem[] }>(
-      `/contents/${contentType}`,
-      {},
-      `Failed to fetch contents for ${contentType}`
-    );
-    return data.contents || [];
+    const pageSize = 500;
+    const items: ContentItem[] = [];
+    for (;;) {
+      const data = await request<{ contents?: ContentItem[]; total?: number }>(
+        `/contents/${contentType}?${toQuery({ limit: pageSize, offset: items.length })}`,
+        {},
+        `Failed to fetch contents for ${contentType}`
+      );
+      const page = data.contents || [];
+      items.push(...page);
+      if (page.length < pageSize || items.length >= (data.total ?? 0)) return items;
+    }
   },
 
   async getContent(contentType: string, slugOrId: string): Promise<ContentItem> {
