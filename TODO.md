@@ -171,10 +171,9 @@
 - [x] **Prettier 導入 & VS Code 保存時自動整形**: `admin/` に Prettier（バージョン固定）、`.prettierrc.json` / `.prettierignore`、`npm run format` / `format:check`、`task fmt:admin` / `fmt:admin:check`（`task check` と CI に組み込み）。oxlint も `--deny-warnings`（ゼロ警告）で CI・`task check`（`task lint:admin`）に追加。`.vscode/settings.json` で TS / TSX / JS / CSS / HTML / JSON の保存時整形、`.vscode/extensions.json` で拡張機能を推奨。`.editorconfig` の CSS / HTML のインデントを実態どおり 2 スペースに修正
 - [x] **フロントエンドの整理（見た目は変更なし）**: Vite テンプレートの残骸（未使用の `App.css`・`src/assets/`・`public/`）を削除。1,389 行のグローバル `index.css` をコンポーネントごとの CSS Modules に分割し、`index.css` はトークン・リセット・基本要素のみに。静的なインライン `style` を廃止。共通部品 `components/ui/`（`Button` / `Field` / `FieldRow` / `Modal` / `BrandMark`）を追加し、モーダルの Escape・外側クリック・フォーカストラップ・閉じた後のフォーカス復帰を `Modal` に集約（従来はフォーカストラップなし）
 - [x] **プレビュー API とサーバーレンダリングのプレビュー**: `POST /api/v1/preview`（`viewer` 以上、保存しない）で、保存時と同じ変換（見出し id・プラグインの `transform-content-ast`）と公開ページと同じレンダリング（`HtmlRenderer` + `[security]` リライター）を実行して HTML を返す。Admin Studio のプレビューを JavaScript の簡易レンダラーからこの API に置き換え（300ms デバウンス、プラグインのエラーは警告表示）。HTML 生成を `render.rs`（`transform_blocks` / `render_blocks_html`）に集約し、コンテンツ取得・一覧 API の `rendered_html` にリライターが適用されていなかった不整合も解消
-- [ ] **UI の小さな不具合・アクセシビリティ**（上記の整理では見た目を変えないため見送り）:
-  - エディタの「ADD BLOCK」ツールバーが幅不足で「ADD BLOCK」「Code Block」が 2 行に折り返す
-  - 記事一覧のカード・プレビューのタブがクリック可能な `div` でキーボード操作できない（`button` 化）
-  - 新規ブロックの画像の既定 alt（「Abstract gradient art」）が残り、メディア選択・アップロードで alt が補完されない
+- [x] **UI の小さな不具合・アクセシビリティ**: ツールバーのラベル・ボタン名を折り返さない（`nowrap`、収まらない幅ではボタンごと次の行へ）。記事一覧のカードを `button` に、プレビューのタブを `role="tablist"` / `tab` の `button` にしてキーボード操作可能に（見た目は変更なし）。新規の画像ブロックを空の `src` / `alt` で開始し、アップロード・メディア選択で alt を補完。`src` が空の画像ブロックはサーバーでも出力しない（`<img src="">` による壊れた画像表示と再リクエストを防止）
+- [x] **テーマ適用済みページのプレビュー**: プレビュー API が `page_html`（`on-render-page` フック + テーマテンプレート、カテゴリなどのリレーション解決込み）も返し、Admin Studio の「Themed Page」タブで `sandbox` 付き `iframe` に表示。公開ページの組み立てを `render::render_page` に集約し、`/{slug}` の記事フォールバックでリレーションが解決されていなかった不整合も解消
+- [ ] **サンプルプラグイン（`plugins/template-rust`）の `transform-content-ast` が冪等でない**: 保存済みの記事を開くと「— Enhanced by AegisCMS Rust Wasm Plugin —」段落が二重に追加される（プレビュー・再保存とも）。すでに追加済みなら追加しないよう修正し、`plugin.wasm` を再ビルドする
 
 ---
 
@@ -218,7 +217,8 @@
 - **HTML の生成経路 (`crates/aegis-server/src/render.rs`)**:
   - 保存（`transform_blocks` → `render_blocks_html`）、公開ページ・コンテンツ API（保存済みブロックを `render_blocks_html`）、エディタのプレビュー（`transform_blocks` → `render_blocks_html`）はすべてこのモジュールを通します。レンダリング手順を変えるときはここだけを変更してください。
   - プレビューは編集のたびにプラグインの `transform-content-ast` を呼ぶため、このフックは副作用なしが前提です（`docs/plugin_hooks.md`）。
-  - テーマ（MiniJinja テンプレート・`on-render-page`）を含むページ全体のプレビューは未対応です。必要になったら、プレビュー API でページ HTML も返し、`iframe` の `srcdoc` で表示する方法が使えます。
+  - テーマ適用済みのページ全体は `render::render_page`（リレーション解決 → `on-render-page` → テンプレート）で組み立てます。公開ページ（`/articles/{slug}`、`/{slug}`）とプレビューの `page_html` が共通で使います。
+  - Admin Studio は `page_html` に `<base href="{サーバーのオリジン}/">` を差し込んで `iframe`（`sandbox=""`）の `srcdoc` に表示します。テーマのアセット（`/theme/assets/*`）やアップロード画像は AegisCMS サーバーから読み込まれます。
 - **フロントエンドのスタイル (CSS Modules)**:
   - 書き方は `admin/README.md` の「スタイルの書き方」を参照。共通部品の見た目を親から変えるときは子孫セレクタ（`.toolbar .searchField`）で指定し、CSS の出力順に依存しないようにしています。
   - 見た目を変えないリファクタリングの検証には、Playwright で全画面の `getComputedStyle`（約 90 プロパティ × 全要素）を取得して前後比較しました（13 画面で差分はキーフレーム名のハッシュ化のみ）。
