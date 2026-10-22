@@ -1,9 +1,11 @@
 //! Helpers shared by unit tests that need a full `AppState`
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use aegis_core::AegisConfig;
 use aegis_runtime::PluginSupervisor;
+use aegis_schema::SchemaDefinition;
 
 use crate::audit::AuditService;
 use crate::auth::{LocalAuthProvider, SessionService};
@@ -12,12 +14,21 @@ use crate::db::{DatabaseAdapter, SqliteAdapter};
 use crate::state::AppState;
 use crate::storage::LocalStorageBackend;
 
-/// App state backed by an in-memory SQLite database, a memory cache and no schemas
+/// App state backed by an in-memory SQLite database and a memory cache, with a minimal
+/// `article` schema (title only) migrated
 pub async fn test_state(supervisor: PluginSupervisor) -> Arc<AppState> {
     let config = AegisConfig::default();
     let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
     adapter.init().await.unwrap();
     let db: Arc<dyn DatabaseAdapter> = Arc::new(adapter);
+    let article: SchemaDefinition = serde_json::from_value(serde_json::json!({
+        "content_type": "article",
+        "label": "Articles",
+        "fields": [{ "name": "title", "type": "string", "required": true }]
+    }))
+    .unwrap();
+    let schemas = HashMap::from([("article".to_string(), article)]);
+    db.run_migrations(&schemas).await.unwrap();
     let cache = Arc::new(MemoryCacheBackend::new());
     let audit = Arc::new(AuditService::from_config(&config.audit, db.clone()));
     Arc::new(AppState::new(
@@ -27,7 +38,7 @@ pub async fn test_state(supervisor: PluginSupervisor) -> Arc<AppState> {
         cache.clone(),
         Arc::new(SessionService::new(cache, 3600)),
         Arc::new(LocalAuthProvider::new(db)),
-        Default::default(),
+        schemas,
         supervisor,
         audit,
         Arc::new(aegis_theme::ThemeEngine::new(

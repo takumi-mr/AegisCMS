@@ -5,7 +5,9 @@ use aegis_ast::{
     AstPipeline, BlockNode, HeadingIdTransformer, HtmlRenderer, HtmlRewriterConfig,
     StreamingHtmlRewriter,
 };
-use aegis_core::SecurityConfig;
+use aegis_core::{PageRenderContext, SecurityConfig};
+use aegis_schema::SchemaDefinition;
+use std::collections::HashMap;
 
 use crate::state::AppState;
 
@@ -42,6 +44,88 @@ pub fn render_blocks_html(security: &SecurityConfig, blocks: &[BlockNode]) -> St
     let raw_html = HtmlRenderer::render_nodes(blocks);
     let rewriter_config = HtmlRewriterConfig::from(security.clone());
     StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html)
+}
+
+/// Content-specific inputs of a themed page (from a stored record, or from the editor for previews)
+pub struct PageInput {
+    /// Template to render, e.g. `article.html` (plugins may switch it in `on-render-page`)
+    pub template: String,
+    pub content_type: String,
+    pub title: String,
+    pub slug: String,
+    /// Body HTML from [`render_blocks_html`]
+    pub content_html: String,
+    pub author: Option<String>,
+    pub published_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub fields: HashMap<String, serde_json::Value>,
+}
+
+/// Resolves the schema's relation fields to `{ id, title, slug }` objects for the templates
+async fn resolve_page_relations(
+    state: &AppState,
+    schema: &SchemaDefinition,
+    fields: &HashMap<String, serde_json::Value>,
+) -> HashMap<String, serde_json::Value> {
+    let mut relations = HashMap::new();
+    let schemas = state.schemas.read().await;
+    for (field_def, target) in schema.relation_fields() {
+        let Some(ref_id) = fields.get(&field_def.name).and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(target_schema) = schemas.get(&target.content_type) else {
+            continue;
+        };
+        if let Ok(Some(rel)) = state
+            .db
+            .resolve_relation(target_schema, &target.field, ref_id)
+            .await
+        {
+            relations.insert(
+                field_def.name.clone(),
+                serde_json::json!({ "id": rel.id, "title": rel.title, "slug": rel.slug }),
+            );
+        }
+    }
+    relations
+}
+
+/// Renders a full themed page: resolves relations, applies the plugins' `on-render-page`
+/// hook (a failing hook keeps the original context) and renders the theme template
+pub async fn render_page(
+    state: &AppState,
+    schema: &SchemaDefinition,
+    page: PageInput,
+) -> Result<String, String> {
+    let relations = resolve_page_relations(state, schema, &page.fields).await;
+    let mut ctx = PageRenderContext {
+        site_title: state.config.theme.site_title.clone(),
+        site_description: state.config.theme.site_description.clone(),
+        template: page.template,
+        content_type: page.content_type,
+        title: page.title,
+        slug: page.slug,
+        content_html: page.content_html,
+        author: page.author,
+        published_at: page.published_at,
+        updated_at: page.updated_at,
+        fields: page.fields,
+        relations,
+        extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
+        ..Default::default()
+    };
+
+    {
+        let supervisor = state.supervisor.read().await;
+        if let Ok(hooked_ctx) = supervisor.apply_render_page(ctx.clone()).await {
+            ctx = hooked_ctx;
+        }
+    }
+
+    state
+        .theme
+        .render(&ctx.template, &ctx)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
