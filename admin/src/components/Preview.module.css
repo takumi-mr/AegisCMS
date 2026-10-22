@@ -17,12 +17,25 @@
   flex: 1;
   padding: 12px;
   text-align: center;
+  font-family: inherit;
   font-size: 0.8rem;
   font-weight: 600;
+  line-height: inherit;
   color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
   cursor: pointer;
   transition: all var(--transition-fast);
-  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  color: var(--text-secondary);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--accent-indigo);
+  outline-offset: -2px;
 }
 
 .tab.active {
@@ -40,6 +53,35 @@
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+}
+
+/* Themed page tab: the iframe fills the panel */
+.content.pageContent {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.pageStatus {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pageStatus .status {
+  margin-top: 0;
+}
+
+.pageFrame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+  transition: opacity var(--transition-fast);
+}
+
+.pageFrame.stale {
+  opacity: 0.6;
 }
 
 .titleBlock {

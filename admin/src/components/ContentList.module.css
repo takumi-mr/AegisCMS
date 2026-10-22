@@ -47,10 +47,14 @@
 }
 
 .card {
+  width: 100%;
   padding: 12px 14px;
   border-radius: var(--radius-md);
   background: var(--bg-surface);
   border: 1px solid transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   transition: all var(--transition-fast);
   display: flex;
@@ -64,6 +68,11 @@
   transform: translateY(-1px);
 }
 
+.card:focus-visible {
+  outline: 2px solid var(--accent-indigo);
+  outline-offset: 1px;
+}
+
 .card.active {
   background: rgba(99, 102, 241, 0.12);
   border-color: var(--accent-indigo);
@@ -71,6 +80,7 @@
 }
 
 .cardTitle {
+  display: block;
   font-weight: 600;
   font-size: 0.95rem;
   color: var(--text-primary);
