@@ -31,7 +31,7 @@ cargo test
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-生成されたバイナリを本ディレクトリ直下に `plugin.wasm` として配置します。
+生成されたバイナリを本ディレクトリ直下に `plugin.wasm` として配置します（リポジトリ直下で `task plugin:build` を実行すると、ビルドと配置をまとめて行います）。
 
 ```bash
 # Windows (PowerShell)
@@ -89,9 +89,12 @@ impl Plugin for MyPlugin {
         Ok(post)
     }
 
-    /// AST 変換フック
+    /// AST 変換フック（保存済みのブロックにも再適用されるため、冪等に書く）
     fn transform_content_ast(&mut self, mut blocks: Vec<BlockNode>) -> Result<Vec<BlockNode>> {
-        blocks.push(BlockNode::paragraph("Appended by plugin"));
+        let text = "Appended by plugin";
+        if !blocks.iter().any(|b| b.text.as_deref() == Some(text)) {
+            blocks.push(BlockNode::paragraph(text));
+        }
         Ok(blocks)
     }
 }

@@ -110,7 +110,12 @@ impl Plugin for MyPlugin {
         }
 
         // 記事末尾にカスタムブロックを追加
-        blocks.push(BlockNode::paragraph("— Processed by MyPlugin —"));
+        // このフックは保存済み（変換済み）のブロックにも再適用される（再保存・エディタのプレビュー）ため、
+        // 追加済みなら追加しない（冪等にする）
+        let footer = "— Processed by MyPlugin —";
+        if !blocks.iter().any(|b| b.text.as_deref() == Some(footer)) {
+            blocks.push(BlockNode::paragraph(footer));
+        }
 
         Ok(blocks)
     }
@@ -179,7 +184,9 @@ rustup target add wasm32-unknown-unknown
 # 最適化ビルド
 cargo build --target wasm32-unknown-unknown --release
 
-# バイナリの配置
+# バイナリの配置 (Linux / macOS)
+cp target/wasm32-unknown-unknown/release/<plugin_name>.wasm plugin.wasm
+# バイナリの配置 (Windows)
 copy target\wasm32-unknown-unknown\release\<plugin_name>.wasm plugin.wasm
 ```
 
