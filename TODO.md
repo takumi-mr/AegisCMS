@@ -196,7 +196,7 @@
   - [x] `POST /api/v1/auth/session` を認証必須に変更（ユーザー名 / パスワード。ロールはアカウントから決定し、リクエストで指定不可。`ttl_secs` は `[cache].default_ttl_secs` が上限。失敗理由は応答では区別せず監査ログにのみ記録）
   - [x] CLI `aegis user add|passwd|role|disable|enable|list`（パスワードは `AEGIS_USER_PASSWORD` / 非表示プロンプト / 標準入力）、`docs/authentication.md`
   - [x] API の認可: extractor `RequireRole`（`ViewerSession` / `EditorSession` / `AdminSession`、401 / 403）で、閲覧 API は `viewer`、コンテンツ作成・アップロードは `editor`、監査ログは `admin` 以上を要求。`author_id` の既定をログインユーザーにし、他人の指定は `admin` のみ。Admin Studio はトークンを全 API に付与
-  - [ ] 権限拒否（401 / 403）の監査ログ記録
+  - [x] 権限拒否（401 / 403）の監査ログ記録: `RequireRole` で拒否したリクエストを `access.denied` / `denied` として記録（`resource` はクエリ文字列を除いた `メソッド パス`、`details` に理由 `missing_session` / `invalid_session` / `insufficient_role` と必要なロール。403 は actor にユーザー、無効なトークンは指紋のみ）。Admin Studio の監査ログの絞り込みにも追加
   - [x] Admin Studio のログイン画面: 未ログイン時の全画面ログインフォーム、リロード時のセッション復元（`GET /api/v1/auth/session`）、ヘッダーの表示名・ロール・ログアウト、API の 401 でログイン画面へ復帰、ロールに応じた操作の無効化（`viewer` の Save / アップロード / カテゴリ作成、`admin` 以外の Audit Logs タブ）。Audit Logs 画面の手動トークン入力は削除
   - [ ] ログイン試行のレート制限・アカウントロック
   - [ ] 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信は Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装
