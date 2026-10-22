@@ -1,10 +1,18 @@
+pub mod local;
+pub mod password;
 pub mod session;
+pub mod users;
 
 use axum::http::HeaderMap;
 use sha2::{Digest, Sha256};
 
 #[allow(unused_imports)]
 pub use session::{SessionData, SessionService};
+
+pub use local::LocalAuthProvider;
+
+/// システムロール（権限の強い順）
+pub const ROLES: [&str; 3] = ["admin", "editor", "viewer"];
 
 /// `Authorization: Bearer <token>` または `X-Session-Id` ヘッダーからセッション ID を取り出す
 pub fn extract_session_id(headers: &HeaderMap) -> Option<String> {

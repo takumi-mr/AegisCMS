@@ -40,7 +40,7 @@ purge_interval_secs = 3600
 | `action` | 記録タイミング | `outcome` | `resource_type` / `resource_id` | 主な `details` |
 | --- | --- | --- | --- | --- |
 | `content.create` | `POST /api/v1/contents/{content_type}` | `success` / `denied`（`on-before-save` フックが拒否）/ `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `status`, `reason` / `error` |
-| `session.create` | `POST /api/v1/auth/session` | `success` / `failure` | `session` / セッション指紋 | `expires_at`, `error` |
+| `session.create` | `POST /api/v1/auth/session`（ログイン） | `success` / `failure`（認証失敗を含む） | `session` / セッション指紋 | `expires_at`, `provider`, `username`（失敗時）, `error`（失敗理由: `unknown_user` / `invalid_password` / `account_disabled` など） |
 | `session.delete` | `DELETE /api/v1/auth/session` | `success` / `failure` | `session` / セッション指紋 | `error` |
 | `storage.upload` | `POST /api/v1/storage/upload` | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `original_name`, `content_type`, `size`, `url`, `error` |
 | `plugin.error` | Wasm プラグインフックの実行失敗（トラップ、タイムアウト、Fuel 枯渇など） | `failure` | `content` / コンテンツ ID | `hook`, `content_type`, `error` |
@@ -125,8 +125,8 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 | `400` | 不正な `action` / `outcome` / 日時 |
 | `404` | `database` 出力先が無効 |
 
-> [!IMPORTANT]
-> 現在の `POST /api/v1/auth/session` はリクエストボディで任意のロールを指定できるため、`admin` ロールのチェックは本格的な認可にはなりません。認証プロバイダ（`AuthProvider`）の実装時に、セッション発行側で権限を検証する必要があります。
+> [!NOTE]
+> セッションのロールは、ログイン（`POST /api/v1/auth/session`）時にユーザーアカウントから決まります。`admin` ユーザーの作成方法は [認証 & ユーザー管理](authentication.md) を参照してください。
 
 ---
 
@@ -151,10 +151,10 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 Admin Studio（`/admin`）のヘッダーで **Audit Logs** に切り替えると、監査ログを閲覧できます。
 
 - **認証**: `admin` ロールのセッショントークン（`ses_...`）を入力して **Connect** を押します。トークンはブラウザのタブを閉じるまで `sessionStorage` に保持します。
-  - 現在の `POST /api/v1/auth/session` は任意のロールを指定できるため（[4. 参照 API](#4-参照-api-get-apiv1audit-logs) の注意参照）、画面から admin セッションを発行する機能は設けていません。開発時は `curl` などで発行してください:
+  - Admin Studio にはまだログイン画面が無いため、`admin` ユーザーでログインして発行したトークンを貼り付けてください（ユーザーの作成は [認証 & ユーザー管理](authentication.md)）:
     ```bash
     curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
-      -H 'Content-Type: application/json' -d '{"user_id":"admin1","role":"admin"}'
+      -H 'Content-Type: application/json' -d '{"username":"admin","password":"change-me-please"}'
     ```
 - **絞り込み**: action / outcome / actor / resource（種別・ID）/ 期間（since・until。ブラウザのローカル時刻で入力し、UTC に変換して送信）
 - **一覧**: 新しい順に 50 件ずつ表示し、**Newer** / **Older** でページ送り。行をクリックすると、イベント ID・User-Agent・`details` の JSON を展開表示

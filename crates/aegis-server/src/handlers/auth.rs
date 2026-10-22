@@ -10,42 +10,89 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::audit::AuditContext;
+use crate::auth::local::PASSWORD_CREDENTIALS;
 use crate::auth::{extract_session_id, session_fingerprint};
 use crate::state::AppState;
-use aegis_core::{AuditAction, AuditActor, AuditOutcome};
+use aegis_core::{AegisError, AuditAction, AuditActor, AuditOutcome, AuthCredentials};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateSessionRequest {
-    pub user_id: String,
-    #[serde(default = "default_role")]
-    pub role: String,
-    #[serde(default)]
-    pub metadata: HashMap<String, serde_json::Value>,
+    pub username: String,
+    pub password: String,
+    /// 有効期限（秒）。サーバーの既定値（`[cache].default_ttl_secs`）より長くはできない
     #[serde(default)]
     pub ttl_secs: Option<u64>,
 }
 
-fn default_role() -> String {
-    "editor".to_string()
-}
-
+/// `POST /api/v1/auth/session` — ユーザー名 / パスワードで認証し、セッションを発行する。
+/// ロールはリクエストではなくユーザーアカウントから決まる
 pub async fn create_session(
     State(state): State<Arc<AppState>>,
     audit: AuditContext,
     Json(payload): Json<CreateSessionRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let username = payload.username.trim().to_string();
+    let credentials = AuthCredentials {
+        kind: PASSWORD_CREDENTIALS.to_string(),
+        identifier: Some(username.clone()),
+        secret: Some(payload.password),
+        ..Default::default()
+    };
+
+    let identity = match state.auth_provider.authenticate(&credentials).await {
+        Ok(identity) => identity,
+        Err(e) => {
+            // 失敗理由（ユーザー不在・パスワード不一致・無効化）は監査ログにだけ残し、応答では区別しない
+            let (status, message, reason) = match &e {
+                AegisError::Authentication(reason) => (
+                    StatusCode::UNAUTHORIZED,
+                    "Invalid username or password".to_string(),
+                    reason.clone(),
+                ),
+                other => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to authenticate: {}", other),
+                    other.to_string(),
+                ),
+            };
+            state
+                .audit
+                .record(
+                    audit
+                        .event(AuditAction::SessionCreate, AuditOutcome::Failure)
+                        .with_resource("session", None)
+                        .with_details(json!({
+                            "username": username,
+                            "provider": state.auth_provider.provider_id(),
+                            "error": reason,
+                        })),
+                )
+                .await;
+            return Err((status, Json(json!({ "error": message }))));
+        }
+    };
+
     let actor = Some(AuditActor {
-        user_id: payload.user_id.clone(),
-        role: payload.role.clone(),
+        user_id: identity.external_id.clone(),
+        role: identity.role.clone(),
     });
+    let mut metadata = HashMap::new();
+    metadata.insert(
+        "provider".to_string(),
+        json!(state.auth_provider.provider_id()),
+    );
+    if let Some(display_name) = &identity.display_name {
+        metadata.insert("display_name".to_string(), json!(display_name));
+    }
+    if !identity.email.is_empty() {
+        metadata.insert("email".to_string(), json!(identity.email));
+    }
+    let max_ttl = state.config.cache.default_ttl_secs;
+    let ttl_secs = payload.ttl_secs.map(|ttl| ttl.clamp(1, max_ttl));
+
     let result = state
         .sessions
-        .create_session(
-            &payload.user_id,
-            &payload.role,
-            payload.metadata,
-            payload.ttl_secs,
-        )
+        .create_session(&identity.external_id, &identity.role, metadata, ttl_secs)
         .await;
 
     let session = match result {
@@ -57,7 +104,10 @@ pub async fn create_session(
                         .event(AuditAction::SessionCreate, AuditOutcome::Success)
                         .with_actor(actor)
                         .with_resource("session", Some(session_fingerprint(&session.id)))
-                        .with_details(json!({ "expires_at": session.expires_at })),
+                        .with_details(json!({
+                            "expires_at": session.expires_at,
+                            "provider": state.auth_provider.provider_id(),
+                        })),
                 )
                 .await;
             session

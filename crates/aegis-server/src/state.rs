@@ -1,7 +1,7 @@
 use crate::audit::AuditService;
 use crate::auth::SessionService;
 use crate::db::DatabaseAdapter;
-use aegis_core::{AegisConfig, CacheBackend, StorageBackend};
+use aegis_core::{AegisConfig, AuthProvider, CacheBackend, StorageBackend};
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::SchemaDefinition;
 use aegis_theme::ThemeEngine;
@@ -17,6 +17,8 @@ pub struct AppState {
     #[allow(dead_code)]
     pub cache: Arc<dyn CacheBackend>,
     pub sessions: Arc<SessionService>,
+    /// ログイン（`POST /api/v1/auth/session`）で資格情報を検証するプロバイダ
+    pub auth_provider: Arc<dyn AuthProvider>,
     pub schemas: Arc<RwLock<HashMap<String, SchemaDefinition>>>,
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
     pub audit: Arc<AuditService>,
@@ -31,6 +33,7 @@ impl AppState {
         storage: Arc<dyn StorageBackend>,
         cache: Arc<dyn CacheBackend>,
         sessions: Arc<SessionService>,
+        auth_provider: Arc<dyn AuthProvider>,
         schemas: HashMap<String, SchemaDefinition>,
         supervisor: PluginSupervisor,
         audit: Arc<AuditService>,
@@ -42,6 +45,7 @@ impl AppState {
             storage,
             cache,
             sessions,
+            auth_provider,
             schemas: Arc::new(RwLock::new(schemas)),
             supervisor: Arc::new(RwLock::new(supervisor)),
             audit,
