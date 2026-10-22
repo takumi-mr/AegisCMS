@@ -39,7 +39,7 @@ purge_interval_secs = 3600
 
 | `action` | 記録タイミング | `outcome` | `resource_type` / `resource_id` | 主な `details` |
 | --- | --- | --- | --- | --- |
-| `content.create` | `POST /api/v1/contents/{content_type}` | `success` / `denied`（`on-before-save` フックが拒否）/ `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `status`, `reason` / `error` |
+| `content.create` | `POST /api/v1/contents/{content_type}` | `success` / `denied`（`on-before-save` フックが拒否・失敗）/ `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `status`, `reason` / `error` |
 | `session.create` | `POST /api/v1/auth/session`（ログイン） | `success` / `failure`（認証失敗を含む）/ `denied`（ログイン試行のレート制限でロック中） | `session` / セッション指紋 | `expires_at`, `provider`, `username`（失敗・拒否時）, `error`（失敗理由: `unknown_user` / `invalid_password` / `account_disabled` / `rate_limited` など）, `locked`（その失敗でロックがかかった単位: `username` / `ip`）, `lock_scope` / `retry_after_secs`（`denied` 時） |
 | `session.delete` | `DELETE /api/v1/auth/session` | `success` / `failure` | `session` / セッション指紋 | `error` |
 | `storage.upload` | `POST /api/v1/storage/upload` | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `original_name`, `content_type`, `size`, `url`, `error` |
@@ -48,7 +48,7 @@ purge_interval_secs = 3600
 | `access.denied` | セッションとロールが必要な API（[必要なロール](authentication.md#ロールと-api-の権限)）を、セッション無し・無効（401）またはロール不足（403）で拒否したとき | `denied` | `endpoint` / `メソッド パス`（例: `POST /api/v1/contents/article`。クエリ文字列は含めない） | `reason`（`missing_session` / `invalid_session` / `insufficient_role`）, `required_role`, `session`（無効なトークンの指紋。`invalid_session` のみ） |
 
 - 入力不備（必須フィールド欠落、存在しないスキーマなど）で処理に入る前に弾かれたリクエストは記録しません。
-- `on-before-save` フックが失敗した場合は、`plugin.error` と `content.create`（`denied`）の 2 件が記録されます。
+- `on-before-save` フックが失敗した場合（トラップ、タイムアウトなど）は、`plugin.error` と `content.create`（`denied`）の 2 件が記録されます。プラグインが `Err` を返して保存を拒否した場合はプラグインの失敗ではないため、`content.create`（`denied`。`reason` に拒否理由）の 1 件だけです。
 - `access.denied` の `actor` は、ロール不足（403）ならそのセッションのユーザー、401 なら空です。ログイン失敗（`POST /api/v1/auth/session` の 401）は `access.denied` ではなく `session.create`（`failure`）として記録します。
 - `access.denied` はセッションを持たないリクエストでも記録されるため、インターネットに公開した API への機械的なアクセスで件数が増えます。`retention_days` による定期削除や、リバースプロキシでのアクセス元制限・レート制限と組み合わせてください。
 

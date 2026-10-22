@@ -18,7 +18,7 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 | マニフェストのフック名 | Wasm エクスポート名 | SDK トレイトメソッド | 入力 | 出力 | 状態 |
 | --- | --- | --- | --- | --- | --- |
 | `transform-content-ast` | `transform_content_ast` | `Plugin::transform_content_ast` | `BlockNode[]` | `BlockNode[]` | ✅ 実装済み |
-| `on-before-save` | `on_before_save` | `Plugin::on_before_save` | `PostContext` | `PostContext` | ✅ 実装済み（戻り値は保存に未反映、後述） |
+| `on-before-save` | `on_before_save` | `Plugin::on_before_save` | `PostContext` | `PostContext` | ✅ 実装済み（`title` / `slug` / 本文の変更、保存の拒否） |
 | `on-user-authenticated` | — | — | — | — | 🔮 計画中（未実装） |
 
 - フックを有効にするには、**マニフェストの `capabilities.hooks` にフック名（ケバブケース）を列挙**する必要があります。列挙されていないフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
@@ -34,7 +34,7 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
   │
   ├─ 1. 組み込み AST パイプライン (HeadingIdTransformer: 見出しに id を付与)
   ├─ 2. transform-content-ast  … 全プラグインを順に連鎖適用
-  ├─ 3. on-before-save         … 全プラグインを順に連鎖適用（保存可否の判定）
+  ├─ 3. on-before-save         … 全プラグインを順に連鎖適用（title / slug / 本文の変更、保存の拒否）
   ├─ 4. HTML レンダリング (HtmlRenderer)
   ├─ 5. ストリーミング HTML リライター ([security] 設定)
   └─ 6. データベースへ保存
@@ -60,20 +60,30 @@ fn transform_content_ast(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<BlockN
 
 ### 1.3 `on-before-save`
 
-保存直前の記事情報を受け取ります。バリデーション、監査ログ、外部通知などに使います。
+保存直前の記事情報を受け取ります。バリデーション（保存の拒否）、保存値の補正、外部通知などに使います。プレビューでは呼ばれないため、保存時に一度だけ行いたい副作用はここに置きます。
 
 ```rust
 fn on_before_save(&mut self, post: PostContext) -> Result<PostContext>;
 ```
 
 - 入力: `PostContext`（`blocks_json` は `transform-content-ast` 適用後の内容）
-- 出力: `PostContext`。次のプラグインへの入力になります。
-- エラー時の挙動: ホスト側エラーが発生すると保存は中止され、API は `400 Bad Request` と `{"error": "Plugin hook rejected save: ..."}` を返します。
+- 出力: `PostContext`。次のプラグインへの入力になり、最後のプラグインの出力が保存されます。
+  - **`title` / `slug` / `blocks_json` の変更は保存に反映されます**（API の応答も変更後の値。Admin Studio は保存後に保存された内容をエディタに表示します）。
+  - `id` と `author_id` の変更は無視されます（警告ログのみ）。プラグインが著者を差し替えることはできません。
+  - `blocks_json` を変更した場合、組み込み AST パイプライン（見出しの id 付与）を再度適用してから保存します。HTML のレンダリングとセキュリティリライターは通常どおり適用されます。`transform-content-ast` は再実行されません。
+  - 空の `slug`、`BlockNode[]` としてパースできない `blocks_json` を返すとプラグインエラーとして保存を中止します（`blocks_json` を空文字列にした場合は空の本文）。
+- **保存の拒否**: SDK でトレイトメソッドから `Err(...)` を返すと保存は中止され、API は `422 Unprocessable Entity` と `{"error": "Rejected by plugin: <プラグイン名>: <メッセージ>"}` を返します（Admin Studio ではエラーのトーストに表示）。利用者に見せるメッセージには `PluginError::Rejected` を使ってください（他のバリアントは `Execution error: ...` のように種別が前に付きます）。監査ログには `content.create`（`denied`）だけを記録します。
 
-> [!IMPORTANT]
-> **現状の制限事項**
-> - `on_before_save` が返した `PostContext` の変更（`title` の書き換えなど）は、**保存されるデータには反映されません**。保存されるのはリクエストの値と `transform-content-ast` の結果です。本文を変更したい場合は `transform-content-ast` を使ってください。
-> - SDK でトレイトメソッドから `Err(...)` を返した場合、生成コードはエラーログを出したうえで**入力をそのまま返す**ため、保存は拒否されません。保存が中止されるのは、パニック（Wasm トラップ）、タイムアウト、Fuel 枯渇など、ホスト側でエラーとして検出される場合のみです。
+  ```rust
+  fn on_before_save(&mut self, post: PostContext) -> Result<PostContext> {
+      if post.title.trim().is_empty() {
+          return Err(PluginError::Rejected("title is required".to_string()));
+      }
+      Ok(post)
+  }
+  ```
+
+- **プラグインの失敗**: パニック（Wasm トラップ）、タイムアウト、Fuel 枯渇、メモリ上限超過、不正な JSON の返却などでも保存は中止され、API は `400 Bad Request` と `{"error": "Plugin hook rejected save: ..."}` を返します。監査ログには `plugin.error` と `content.create`（`denied`）を記録します。
 
 ### 1.4 `on-user-authenticated`（計画中）
 
@@ -112,7 +122,7 @@ SDK ヘルパー:
 | フィールド | 型 | 説明 |
 | --- | --- | --- |
 | `name` | string | ブロック種別（`core/heading`, `core/paragraph`, `core/code`, `core/image` など） |
-| `attributes` | object | 任意の属性 |
+| `attributes` | object \| null | 任意の属性。属性を省略して保存されたブロックは `null` で渡される（SDK は空のマップとして読む） |
 | `text` | string \| null | テキスト内容 |
 | `children` | `BlockNode[]` | 子ブロック |
 
@@ -248,4 +258,5 @@ SDK ヘルパー:
 | `on_before_save` | `(ptr: i32, len: i32) -> i64` | | 入力 `PostContext` JSON、戻り値 `(ptr << 32) \| len` |
 
 - 戻り値の `len` が `0` の場合、ホストは入力をそのまま採用します。
+- `on_before_save` で保存を拒否するには、`PostContext` の代わりに `{"error": "<メッセージ>"}` を返します（SDK の `abi::write_error_to_host`）。`error` キーを持つオブジェクトはすべて拒否として扱います。
 - 返却された JSON が期待する型としてパースできない場合はホスト側エラー（[1.2](#12-transform-content-ast) / [1.3](#13-on-before-save) のエラー時の挙動を参照）になります。

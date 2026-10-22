@@ -29,10 +29,9 @@
     - `ThemeEngine::register_template`: プラグインからのテンプレート動的完全オーバーライド。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①〜④とログイン試行のレート制限は完了**
-1. **権限拒否（401 / 403）の監査ログ記録**: `RequireRole` extractor の拒否を監査イベントとして残す（総当たり・権限昇格の試行の検知用）。
-2. ⑤ `on_user_authenticated` フック、OIDC / SAML プロバイダ。
-3. その他の未着手: `on-before-save` フックの戻り値の扱い、メディアの削除 API / UI、`[cache.redis].timeout_ms` などの未使用設定。
+**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録は完了**
+1. ⑤ `on_user_authenticated` フック、OIDC / SAML プロバイダ。
+2. その他の未着手: メディアの削除 API / UI。
 
 ---
 
@@ -183,8 +182,9 @@
 - [x] **MySQL 実機検証と修正**（MySQL 8.4 / strict モード）: 起動時のカラム走査で `information_schema` の列名が大文字（`COLUMN_NAME`）で返り `unwrap()` がパニックしてサーバーが起動できなかった問題、`JSON` 列が読み出し時に欠落する問題、`null` の JSON 値が空文字列として保存されエラーになる問題を修正。インデックスの重複エラー（1061）以外を握りつぶしていた処理も改善。コンテンツ CRUD・リレーション解決・アップロード・監査ログの記録と検索を E2E 確認済み。
 - [x] **監査ログの保持期間と閲覧画面**: `[audit].retention_days` / `purge_interval_secs` による定期削除（削除自体を `audit.purge` として記録）と、Admin Studio の Audit Logs 画面（絞り込み・ページ送り・詳細表示）を追加。
 - [x] **同梱設定ファイルがパースに失敗し既定値で起動していた問題を修正**: 全設定構造体に `#[serde(default)]` を付与して全項目を省略可能にし、`load_or_default` はファイルが存在しない場合のみ既定値（警告ログ付き）、パース失敗時はエラーで起動中止するよう変更。同梱設定ファイルのパースを単体テストで検証。
-- [ ] `on-before-save` フックの戻り値 (`PostContext`) が保存データに反映されない。反映するか、検証専用フックとして仕様を明確化する。
-- [ ] SDK でトレイトメソッドが `Err` を返しても保存が拒否されない（生成コードが入力をそのまま返す）。拒否を表現できる ABI を設計する。
+- [x] **`on-before-save` の戻り値を保存に反映**: プラグインが返した `title` / `slug` / `blocks_json` を保存（`id` / `author_id` の変更は無視）。変更された本文には組み込みパイプライン（見出し id）を再適用。Admin Studio は保存後に保存された内容をエディタに表示。
+- [x] **SDK の `Err` で保存を拒否**: 生成コードが `{"error": "..."}` を返し、ホストは `AegisError::PluginRejected` として保存を中止（API は `422`、監査は `content.create` の `denied` のみ）。トラップ等の失敗は従来どおり `400` + `plugin.error`。`PluginError::Rejected` を追加。
+- [x] **SDK が属性の無いブロックを読めなかった問題を修正**: ホストは `attributes` を省略したブロックを `"attributes": null` で渡すが、SDK の `BlockNode` はマップしか受け付けず、SDK 製プラグインの `transform-content-ast` が失敗して結果が黙って破棄されていた（`on-before-save` の拒否を実装して E2E で発覚）。null を空マップとして読むよう修正。
 - [x] **未使用だった設定を適用**: `[runtime].default_*` をマニフェストの `resource_limits` で省略された項目の既定値として適用（これまでは一部だけ指定するとパースに失敗していた）。`max_memory_mb` を wasmtime の `StoreLimits` で強制（超過時はトラップ）。`[cache.redis].timeout_ms` を接続・応答タイムアウトに適用し、redis 0.27 既定の再試行（待機が 100 秒単位に伸びる）を最大 2 回・待機最大 1 秒に制限
 
 ---
@@ -265,6 +265,9 @@
   - `AegisConfig::load_or_default` はファイル不在時のみ既定値へフォールバックし、パースエラーは `Err` を返してサーバー起動を中止します（設定ミスに気付かず既定値で動き続けることを防ぐため）。
 - **Wasm プラグイン公式 SDK の設計とメモリ境界**:
   - `#[aegis_plugin]` マクロは、ホストが要求する `allocate(len: i32) -> i32`、`on_before_save(ptr, len) -> i64`、`transform_content_ast(ptr, len) -> i64` を完全に自動生成し、ポインタパッキング（`(ptr << 32) | len`）と JSON 変換を隠蔽します。
+  - `on_before_save` の結果 JSON は `PostContext` か `{"error": "<メッセージ>"}`（`abi::write_error_to_host`）。ホストは `error` キーを持つオブジェクトを拒否として扱う（`PostContext` に `error` フィールドは無いので既存プラグインと互換）。入力 JSON のパース失敗も拒否にしている（検証フックが黙って素通りしないように）。
+  - `transform_content_ast` / `on_render_page` で `Err` を返した場合は、これまでどおりエラーログを出して入力をそのまま返す（そのプラグインの変更だけが無効になる）。これらで処理全体を失敗させたくなった場合は同じエンベロープを使える。
+  - `plugins/template-rust/plugin.wasm` は SDK 変更後に `task plugin:build` で再ビルドしてコミットする（`plugins/slack-notifier/plugin.wasm` は手書き WAT から生成されるため SDK とは無関係）。
   - Wasm 32bit リニアメモリ上では生ポインタ（`*mut u8` as `i32`）として動作し、64bit ネイティブ環境での `cargo test` 時にはポインタ上位 32bit の消失を防ぐため ID ハンドルマッピング機構を内蔵しています。これによりプラグイン開発者は Wasm ターゲットを意識せずローカルで高速にテスト可能です。
 - **ステートレスセッション & キャッシュ設計**:
   - セッションデータは `SessionData` として JSON 直列化され、抽象化された `CacheBackend` に格納されます。
