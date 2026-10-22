@@ -45,9 +45,12 @@ purge_interval_secs = 3600
 | `storage.upload` | `POST /api/v1/storage/upload` | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `original_name`, `content_type`, `size`, `url`, `error` |
 | `plugin.error` | Wasm プラグインフックの実行失敗（トラップ、タイムアウト、Fuel 枯渇など） | `failure` | `content` / コンテンツ ID | `hook`, `content_type`, `error` |
 | `audit.purge` | 保持期間切れの監査ログを 1 件以上削除したとき（[5. 保持期間](#5-保持期間と自動削除)） | `success` | `audit_log` / なし | `deleted`, `cutoff`, `retention_days` |
+| `access.denied` | セッションとロールが必要な API（[必要なロール](authentication.md#ロールと-api-の権限)）を、セッション無し・無効（401）またはロール不足（403）で拒否したとき | `denied` | `endpoint` / `メソッド パス`（例: `POST /api/v1/contents/article`。クエリ文字列は含めない） | `reason`（`missing_session` / `invalid_session` / `insufficient_role`）, `required_role`, `session`（無効なトークンの指紋。`invalid_session` のみ） |
 
 - 入力不備（必須フィールド欠落、存在しないスキーマなど）で処理に入る前に弾かれたリクエストは記録しません。
 - `on-before-save` フックが失敗した場合は、`plugin.error` と `content.create`（`denied`）の 2 件が記録されます。
+- `access.denied` の `actor` は、ロール不足（403）ならそのセッションのユーザー、401 なら空です。ログイン失敗（`POST /api/v1/auth/session` の 401）は `access.denied` ではなく `session.create`（`failure`）として記録します。
+- `access.denied` はセッションを持たないリクエストでも記録されるため、インターネットに公開した API への機械的なアクセスで件数が増えます。`retention_days` による定期削除や、リバースプロキシでのアクセス元制限・レート制限と組み合わせてください。
 
 ### 2.1 操作主体 (`actor`)
 

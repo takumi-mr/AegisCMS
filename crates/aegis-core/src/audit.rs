@@ -19,16 +19,20 @@ pub enum AuditAction {
     PluginError,
     #[serde(rename = "audit.purge")]
     AuditPurge,
+    /// API request rejected for a missing / invalid session (401) or an insufficient role (403)
+    #[serde(rename = "access.denied")]
+    AccessDenied,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 6] = [
+    pub const ALL: [AuditAction; 7] = [
         Self::ContentCreate,
         Self::SessionCreate,
         Self::SessionDelete,
         Self::StorageUpload,
         Self::PluginError,
         Self::AuditPurge,
+        Self::AccessDenied,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -39,6 +43,7 @@ impl AuditAction {
             Self::StorageUpload => "storage.upload",
             Self::PluginError => "plugin.error",
             Self::AuditPurge => "audit.purge",
+            Self::AccessDenied => "access.denied",
         }
     }
 }
@@ -62,7 +67,7 @@ pub enum AuditOutcome {
     Success,
     /// サーバー側のエラーで操作が失敗した
     Failure,
-    /// ポリシー（プラグインフックなど）により操作が拒否された
+    /// ポリシー（プラグインフック、認証・ロールの検証など）により操作が拒否された
     Denied,
 }
 
