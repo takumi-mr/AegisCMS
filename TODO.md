@@ -147,7 +147,10 @@
   - `on_before_save` の結果 JSON は `PostContext` か `{"error": "<メッセージ>"}`（`abi::write_error_to_host`）。ホストは `error` キーを持つオブジェクトを拒否として扱う（`PostContext` に `error` フィールドは無いので既存プラグインと互換）。入力 JSON のパース失敗も拒否にしている（検証フックが黙って素通りしないように）。
   - `transform_content_ast` / `on_render_page` で `Err` を返した場合は、これまでどおりエラーログを出して入力をそのまま返す（そのプラグインの変更だけが無効になる）。これらで処理全体を失敗させたくなった場合は同じエンベロープを使える。
   - `plugins/template-rust/plugin.wasm` は SDK 変更後に `task plugin:build` で再ビルドしてコミットする（`plugins/slack-notifier/plugin.wasm` は手書き WAT から生成されるため SDK とは無関係）。
-  - Wasm 32bit リニアメモリ上では生ポインタ（`*mut u8` as `i32`）として動作し、64bit ネイティブ環境での `cargo test` 時にはポインタ上位 32bit の消失を防ぐため ID ハンドルマッピング機構を内蔵しています。これによりプラグイン開発者は Wasm ターゲットを意識せずローカルで高速にテスト可能です。
+- **AssemblyScript プラグイン開発と TypeScript/IDE 型定義**:
+  - AssemblyScript の独自型（`i32`, `i64`, `f32`, `bool` 等）は、`assemblyscript/std/assembly.json` の型定義 (`declare type i32 = number`) を介して IDE に認識されます。
+  - `tsconfig.json` には TS 6.0 以降の非推奨オプションエラー (`TS5101`) を回避するための `"ignoreDeprecations": "6.0"` が必要です。
+  - 公式規約に従い `assembly/tsconfig.json` とプロジェクトルートの `tsconfig.json` を整備し、ホストインポート関数のデコレータ (`@external`) には `// @ts-ignore` を付与して標準 TSServer との互換性を確保しています。
 - **ステートレスセッション & キャッシュ設計**:
   - セッションデータは `SessionData` として JSON 直列化され、抽象化された `CacheBackend` に格納されます。
   - セッショントークンは `ses_{UUIDv4}` 形式で発行され、HTTP リクエストの `Authorization: Bearer <token>` または `X-Session-Id` ヘッダーから抽出されます。

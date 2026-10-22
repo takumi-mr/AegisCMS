@@ -18,7 +18,7 @@ import {
   serializePostContext,
   serializeBlockNodes,
   parsePageRenderContext,
-  serializePageRenderContext
+  serializePageRenderContext,
 } from "./sdk";
 
 // --- Required Export: Memory Allocator ---
@@ -75,7 +75,8 @@ export function on_render_page(ptr: i32, len: i32): i64 {
   log.info("[AssemblyScript] on_render_page called for: " + ctx.site_title);
 
   // テーマ修飾
-  ctx.extra_css += "\n/* Injected by AssemblyScript Plugin */\n.as-badge { color: #2b7489; font-weight: bold; }";
+  ctx.extra_css +=
+    "\n/* Injected by AssemblyScript Plugin */\n.as-badge { color: #2b7489; font-weight: bold; }";
 
   const outJson = serializePageRenderContext(ctx);
   return writeString(outJson);

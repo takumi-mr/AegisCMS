@@ -3,12 +3,15 @@
  */
 
 // --- Low-level host imports ---
+// @ts-ignore
 @external("host", "log")
 declare function host_log(level: i32, ptr: i32, len: i32): void;
 
+// @ts-ignore
 @external("host", "http_check_allowed")
 declare function host_http_check_allowed(ptr: i32, len: i32): i32;
 
+// @ts-ignore
 @external("host", "kv_set")
 declare function host_kv_set(k_ptr: i32, k_len: i32, v_ptr: i32, v_len: i32): i32;
 
