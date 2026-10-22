@@ -116,7 +116,15 @@ TypeScript の型チェック（`tsc -b`）を実行後、最適化された静�
 npm run preview
 ```
 
-### 5. コードフォーマット (Prettier)
+### 5. 静的解析 (oxlint)
+
+```bash
+npm run lint   # oxlint --deny-warnings（警告 1 件でも失敗。CI でも実行）
+```
+
+ルールは `.oxlintrc.json`。Rust 側の Clippy（`-D warnings`）と同じくゼロ警告ポリシーです。
+
+### 6. コードフォーマット (Prettier)
 
 ```bash
 npm run format        # 整形を適用

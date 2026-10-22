@@ -21,7 +21,7 @@
 # 全タスク一覧の表示
 task
 
-# PR/コミット前の全検証チェック一括実行 (fmt, prettier, clippy, test, admin:build)
+# PR/コミット前の全検証チェック一括実行 (fmt, prettier, clippy, oxlint, test, admin:build)
 task check
 
 # コアサーバーの起動 (ポート 8080)
@@ -33,8 +33,9 @@ task migrate
 # ワークスペース全体のテスト実行
 task test
 
-# 静的解析・リント検証 (ゼロ警告ポリシー)
+# 静的解析・リント検証 (ゼロ警告ポリシー: Rust は Clippy、Admin Studio は oxlint)
 task lint
+task lint:admin
 
 # コードフォーマット適用 / 検証 (Rust: rustfmt)
 task fmt
@@ -114,6 +115,7 @@ Conventional Commits 形式に準拠します。
    - [ ] `cargo clippy --workspace -- -D warnings` で警告が 0 件であること
    - [ ] （フロントエンド変更時）`npm --prefix admin run build` でビルドが成功すること
    - [ ] （フロントエンド変更時）`npm --prefix admin run format:check` に違反がないこと（VS Code では保存時に自動整形）
+   - [ ] （フロントエンド変更時）`npm --prefix admin run lint`（oxlint `--deny-warnings`）で警告が 0 件であること
 3. **PR テンプレート構造**:
    - **概要 (Summary)**: 変更の背景と目的を簡潔に記述。
    - **変更内容 (Changes)**: 具体的な追加・修正内容を箇条書き。

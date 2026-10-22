@@ -168,7 +168,7 @@
 ---
 
 #### 開発環境・フロントエンド整備
-- [x] **Prettier 導入 & VS Code 保存時自動整形**: `admin/` に Prettier（バージョン固定）、`.prettierrc.json` / `.prettierignore`、`npm run format` / `format:check`、`task fmt:admin` / `fmt:admin:check`（`task check` と CI に組み込み）。`.vscode/settings.json` で TS / TSX / JS / CSS / HTML / JSON の保存時整形、`.vscode/extensions.json` で拡張機能を推奨。`.editorconfig` の CSS / HTML のインデントを実態どおり 2 スペースに修正
+- [x] **Prettier 導入 & VS Code 保存時自動整形**: `admin/` に Prettier（バージョン固定）、`.prettierrc.json` / `.prettierignore`、`npm run format` / `format:check`、`task fmt:admin` / `fmt:admin:check`（`task check` と CI に組み込み）。oxlint も `--deny-warnings`（ゼロ警告）で CI・`task check`（`task lint:admin`）に追加。`.vscode/settings.json` で TS / TSX / JS / CSS / HTML / JSON の保存時整形、`.vscode/extensions.json` で拡張機能を推奨。`.editorconfig` の CSS / HTML のインデントを実態どおり 2 スペースに修正
 
 ---
 
