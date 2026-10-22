@@ -127,6 +127,20 @@ pub struct StorageConfig {
     pub local: LocalStorageConfig,
     #[serde(default)]
     pub s3: S3StorageConfig,
+    /// アップロード 1 回あたりの最大リクエストサイズ（MB）
+    #[serde(default = "default_max_upload_mb")]
+    pub max_upload_mb: u64,
+}
+
+fn default_max_upload_mb() -> u64 {
+    10
+}
+
+impl StorageConfig {
+    /// アップロード API に適用するリクエストボディの上限（バイト）
+    pub fn max_upload_bytes(&self) -> usize {
+        usize::try_from(self.max_upload_mb.saturating_mul(1024 * 1024)).unwrap_or(usize::MAX)
+    }
 }
 
 impl Default for StorageConfig {
@@ -135,6 +149,7 @@ impl Default for StorageConfig {
             backend: StorageBackendKind::Local,
             local: LocalStorageConfig::default(),
             s3: S3StorageConfig::default(),
+            max_upload_mb: default_max_upload_mb(),
         }
     }
 }
@@ -424,6 +439,16 @@ mod tests {
         let invalid: std::result::Result<AegisConfig, _> =
             toml::from_str("[audit]\nsinks = [\"cloudwatch\"]\n");
         assert!(invalid.is_err());
+    }
+
+    #[test]
+    fn test_storage_upload_limit() {
+        let default = AegisConfig::default();
+        assert_eq!(default.storage.max_upload_mb, 10);
+        assert_eq!(default.storage.max_upload_bytes(), 10 * 1024 * 1024);
+
+        let config: AegisConfig = toml::from_str("[storage]\nmax_upload_mb = 25\n").unwrap();
+        assert_eq!(config.storage.max_upload_bytes(), 25 * 1024 * 1024);
     }
 
     #[test]
