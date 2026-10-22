@@ -1,7 +1,7 @@
 use crate::plugin::PluginSupervisor;
 use crate::wasm::engine::WasmEngine;
 use crate::wasm::instance::WasmPluginInstance;
-use aegis_core::{AegisError, PluginManifest, Result};
+use aegis_core::{AegisError, PluginManifest, PluginResourceLimits, Result};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -9,10 +9,13 @@ use std::sync::{Arc, Mutex};
 pub struct WasmPluginLoader;
 
 impl WasmPluginLoader {
+    /// Loads one plugin directory. `default_limits` (the server's `[runtime].default_*`) fills
+    /// the `resource_limits` fields its manifest omits.
     pub fn load_plugin<P: AsRef<Path>>(
         plugin_dir: P,
         engine: WasmEngine,
         kv_storage: Arc<Mutex<HashMap<String, String>>>,
+        default_limits: &PluginResourceLimits,
     ) -> Result<Arc<WasmPluginInstance>> {
         let dir = plugin_dir.as_ref();
         let manifest_path = dir.join("plugin.manifest.json");
@@ -25,7 +28,7 @@ impl WasmPluginLoader {
 
         let manifest_str = std::fs::read_to_string(&manifest_path)
             .map_err(|e| AegisError::Config(format!("Failed to read manifest: {}", e)))?;
-        let manifest: PluginManifest = serde_json::from_str(&manifest_str)
+        let manifest = PluginManifest::from_json_with_defaults(&manifest_str, default_limits)
             .map_err(|e| AegisError::Config(format!("Failed to parse manifest: {}", e)))?;
 
         let wasm_path = dir.join(&manifest.entrypoint);
@@ -52,6 +55,7 @@ impl WasmPluginLoader {
         engine: WasmEngine,
         supervisor: &mut PluginSupervisor,
         kv_storage: Arc<Mutex<HashMap<String, String>>>,
+        default_limits: &PluginResourceLimits,
     ) -> Result<usize> {
         let path = plugins_dir.as_ref();
         if !path.exists() {
@@ -64,11 +68,20 @@ impl WasmPluginLoader {
             let entry = entry.map_err(AegisError::Io)?;
             let entry_path = entry.path();
             if entry_path.is_dir() {
-                match Self::load_plugin(&entry_path, engine.clone(), kv_storage.clone()) {
+                match Self::load_plugin(
+                    &entry_path,
+                    engine.clone(),
+                    kv_storage.clone(),
+                    default_limits,
+                ) {
                     Ok(instance) => {
+                        let limits = &instance.manifest.resource_limits;
                         tracing::info!(
-                            "Successfully loaded Wasm plugin: {}",
-                            instance.manifest.name
+                            "Successfully loaded Wasm plugin: {} (memory {} MiB, fuel {}, timeout {} ms)",
+                            instance.manifest.name,
+                            limits.max_memory_mb,
+                            limits.max_fuel_units,
+                            limits.execution_timeout_ms
                         );
                         supervisor.register(instance);
                         count += 1;

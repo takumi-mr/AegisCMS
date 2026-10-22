@@ -1,5 +1,6 @@
 use crate::cache::CacheBackendKind;
 use crate::error::{AegisError, Result};
+use crate::manifest::PluginResourceLimits;
 use crate::storage::StorageBackendKind;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -296,6 +297,17 @@ pub struct RuntimeConfig {
     pub default_max_memory_mb: u32,
     pub default_max_fuel_units: u64,
     pub default_timeout_ms: u64,
+}
+
+impl RuntimeConfig {
+    /// Resource limits applied to plugins whose manifest omits them (field by field)
+    pub fn default_resource_limits(&self) -> PluginResourceLimits {
+        PluginResourceLimits {
+            max_memory_mb: self.default_max_memory_mb,
+            max_fuel_units: self.default_max_fuel_units,
+            execution_timeout_ms: self.default_timeout_ms,
+        }
+    }
 }
 
 impl Default for RuntimeConfig {

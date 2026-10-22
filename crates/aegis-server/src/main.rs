@@ -300,6 +300,7 @@ async fn main() -> anyhow::Result<()> {
                             engine,
                             &mut supervisor,
                             kv_storage,
+                            &config.runtime.default_resource_limits(),
                         )?;
                         tracing::info!(
                             "Loaded {} Wasm plugins from {:?}",
