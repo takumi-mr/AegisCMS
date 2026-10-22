@@ -11,8 +11,8 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 - 権限チェック: [`crates/aegis-runtime/src/guard.rs`](../crates/aegis-runtime/src/guard.rs)
 - 共通 ABI 仕様書: [`docs/plugin_abi_specification.md`](./plugin_abi_specification.md)
 - Rust SDK: [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk)
-- AssemblyScript テンプレート: [`plugins/template-assemblyscript`](../plugins/template-assemblyscript)
-- TinyGo テンプレート: [`plugins/template-tinygo`](../plugins/template-tinygo)
+- AssemblyScript テンプレート: [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript)
+- TinyGo テンプレート: [`sdk/templates/tinygo`](../sdk/templates/tinygo)
 
 ---
 
@@ -46,7 +46,7 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 - プレビュー API は手順 1・2・4・5 を実行し（保存・`on-before-save` はなし）、保存して公開ページで表示した場合と同じ HTML を返します。テーマを適用したページ全体（`page_html`）のため、`on-render-page` フック（[テーマガイド](theme_and_publishing_guide.md)）もプレビューのたびに呼ばれます。
 - 保存済みの記事を開いて再保存・プレビューすると、`transform-content-ast` は保存済み（変換済み）のブロックに再度適用されます。ブロックを追加するプラグインは、すでに追加済みなら追加しない（冪等な）実装にしてください。
 - 複数プラグインがある場合、前のプラグインの出力が次のプラグインの入力になります。
-- プラグインの実行順は `paths.plugins_dir` 配下のディレクトリ走査順（ファイルシステム依存）であり、**順序は保証されません**。順序に依存しない実装にしてください。
+- プラグインの実行順は設定ファイルの `[plugins].enabled` に書いた順です（[設定リファレンス](configuration.md#plugins--プラグインの有効化)）。
 
 ### 1.2 `transform-content-ast`
 
@@ -86,7 +86,7 @@ fn on_before_save(&mut self, post: PostContext) -> Result<PostContext>;
   }
   ```
 
-- **プラグインの失敗**: パニック（Wasm トラップ）、タイムアウト、Fuel 枯渇、メモリ上限超過、不正な JSON の返却などでも保存は中止され、API は `400 Bad Request` と `{"error": "Plugin hook rejected save: ..."}` を返します。監査ログには `plugin.error` と `content.create`（`denied`）を記録します。
+- **プラグインの失敗**: パニック（Wasm トラップ）、タイムアウト、Fuel 枯渇、メモリ上限超過、不正な JSON の返却などでも保存は中止され、API は `500 Internal Server Error` と `{"error": "Plugin hook failed: ..."}` を返します。監査ログには `plugin.error` と `content.create`（`denied`）を記録します。
 
 ### 1.4 `on-user-authenticated`
 
@@ -192,7 +192,7 @@ SDK ヘルパー:
 
 ## 3. マニフェスト (`plugin.manifest.json`)
 
-各プラグインは `plugins_dir` 直下のサブディレクトリに配置し、`plugin.manifest.json` を置きます。
+各プラグインは `plugins_dir` 直下の `<name>/`（`<name>` はマニフェストの `name`）に配置し、`plugin.manifest.json` を置きます。配置しただけでは読み込まれず、`[plugins].enabled` に名前を追加すると有効になります（[5. インストールと有効化](#5-インストールと有効化)）。
 
 ```json
 {
@@ -214,15 +214,16 @@ SDK ヘルパー:
 
 | キー | 型 | 必須 | 説明 |
 | --- | --- | --- | --- |
-| `name` | string | ✅ | プラグイン名。ログのタグ (`[Wasm:<name>]`) に使用 |
+| `name` | string | ✅ | プラグインの識別子。英小文字・数字で始まり、英小文字・数字・`-`・`_` のみ（64 文字以内）。インストール先のディレクトリ名・`[plugins].enabled`・ログのタグ (`[Wasm:<name>]`) に使用 |
 | `version` | string | ✅ | バージョン |
 | `entrypoint` | string | ✅ | Wasm バイナリのパス（マニフェストからの相対） |
+| `display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version` | | | ストアや一覧表示用のメタデータ（テーマの `theme.json` と同じ項目。`author` は文字列または `{"name", "email", "url"}`）。動作には影響しない |
 | `capabilities.network.allowed_domains` | string[] | | `net::is_allowed` で許可するドメイン。完全一致またはサブドメイン一致 |
 | `capabilities.storage.kv_namespace` | string | | KVS のネームスペース。未宣言の場合 `kv::set` は権限エラー |
 | `capabilities.hooks` | string[] | | 有効にするフック名（[1. フック一覧](#1-フック一覧)） |
 | `resource_limits` | object | | 省略した項目（または全体）はサーバー設定 `[runtime].default_*` で補われる（下記） |
 
-マニフェストのパースに失敗した場合や `entrypoint` のファイルが無い場合、そのプラグインは読み込まれずスキップされます（`debug` レベルでログ出力）。
+有効にしたプラグインのマニフェストが読めない、`name` とディレクトリ名が違う、`entrypoint` のファイルが無い、ホストに無い関数をインポートしている（[ABI 仕様](plugin_abi_specification.md#3-ホスト-api-インポート仕様-host-モジュール)）場合は、**サーバーが起動しません**。アクセス制限などを実装したプラグインが黙って外れたまま動き続けることを防ぐためです。有効にしていないプラグインの不備は警告ログと `aegis plugin list` に表示されます。
 
 ## 4. リソース制限 (`resource_limits`)
 
@@ -304,3 +305,19 @@ SDK ヘルパー:
 - 戻り値の `len` が `0` の場合、ホストは入力をそのまま採用します。
 - `on_before_save` で保存を、`on_user_authenticated` でログインを拒否するには、入力の型の代わりに `{"error": "<メッセージ>"}` を返します（SDK の `abi::write_error_to_host`）。`error` キーを持つオブジェクトはすべて拒否として扱います。
 - 返却された JSON が期待する型としてパースできない場合はホスト側エラー（[1.2](#12-transform-content-ast) / [1.3](#13-on-before-save) のエラー時の挙動を参照）になります。
+
+## 5. インストールと有効化
+
+テーマ（`themes/<id>/` + `[theme].active`）と同じく、プラグインも「インストール」と「有効化」を分けて管理します。将来のストアからのインストールもこの形（`plugins/<name>/` への展開）を前提にしています。
+
+1. **インストール**: `plugin.manifest.json` と `plugin.wasm` を `plugins/<name>/` に置く（`<name>` はマニフェストの `name`）。
+2. **有効化**: 設定ファイルの `[plugins].enabled` に `<name>` を追加してサーバーを再起動する。フックは `enabled` に書いた順に実行されます。
+
+```toml
+[plugins]
+enabled = ["seo-tools", "slack-notifier"]
+```
+
+- インストール済みのプラグインと状態は `aegis plugin list`（CLI）または `GET /api/v1/plugins`（admin 権限）で確認できます。
+- `[runtime].enable_wasm_plugins = false` にすると、`enabled` に関係なくすべてのプラグインを読み込みません。
+- テンプレートとサンプルは `sdk/templates/*`・`sdk/examples/*` にあり、`plugins/` には含まれません（既定ではプラグインは 1 つも有効になっていません）。

@@ -29,10 +29,10 @@
     - スレッドセーフな動的テーマ切り替え API (`PUT /api/v1/themes/active`): 管理者権限で即座に公開サイトの見た目とアセットを切り替え、監査ログ `theme.switch` に記録。
     - 動的アセット配信 (`GET /theme/assets/{*path}`): 切り替えられたテーマの CSS/画像を自動解決・配信（パストラバーサル防御付き）。
     - Admin Studio テーマ管理画面 (`ThemeManager.tsx`): インストール済みテーマのカード表示、美麗なプレビュー画像、ワンクリック適用、ライブサイト確認、将来のテーママーケットプレイス（Marketplace v1 Preview & ZIP インポート案内）画面。
-  - Wasm プラグインエコシステム:
-    - 言語非依存の共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)。
-    - 公式 Code & Diagram Enhancer プラグイン (`plugins/official-code-enhancer/`)。
-    - AssemblyScript / TinyGo 公式テンプレート (`plugins/template-assemblyscript/`, `plugins/template-tinygo/`)。
+    - Wasm プラグインエコシステム:
+      - 言語非依存の共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)。
+      - 公式 Code & Diagram Enhancer プラグイン (`plugins/official-code-enhancer/`)。
+      - Rust / AssemblyScript / TinyGo 公式テンプレート (`sdk/templates/*`) とサンプル (`sdk/examples/*`)。`plugins/` はインストール先で、`[plugins].enabled` に書いたものだけを読み込む。
   - 認証・認可・セキュリティ:
     - ローカル認証 (`LocalAuthProvider`: Argon2id)、セッション管理、RBAC 認可 (`RequireRole`)、レート制限、監査ログ。
 
@@ -79,6 +79,16 @@
   - 将来のマーケットプレイスを見据えた「Theme Marketplace」タブ（コミュニティテーマ探索、カテゴリフィルター、ZIP インポート案内）。
   - 画面全体の縦スクロール対応（親の `height: 100vh; overflow: hidden;` に対し、`flex: 1; overflow-y: auto;` な `<main>` ラッパーを配置し、画面外の全テーマへのアクセス・操作性を確保）。
 
+#### プラグインのインストール・有効化の分離（ストア対応の土台）
+- [x] **SDK テンプレートを `plugins/` から `sdk/` へ移動**: テンプレート（`sdk/templates/{rust,assemblyscript,tinygo}`）とサンプル（`sdk/examples/slack-notifier`）が既定の構成・Docker イメージで有効になり、全記事を書き換えていた／AssemblyScript 版が `env.abort` のインポートで全保存を失敗させていた問題を解消。
+- [x] **`[plugins].enabled` による有効化**: `plugins/<name>/`（`name` はマニフェストの `name`）にインストールし、設定に書いたものだけを書いた順（= フックの実行順）に読み込む。有効にしたプラグインが未インストール・読み込めない場合は起動を中止。`aegis plugin list`、`GET /api/v1/plugins`（admin）。
+- [x] **マニフェストのストア用メタデータ**: `display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version`（`theme.json` と同じ項目、任意）。
+- [x] **ランタイムの堅牢化**: 読み込み時にインポートを検査（`InstancePre`）、`_initialize` の呼び出し、オブジェクトを返すフックの部分更新（入力に上書き）、プラグイン障害時の保存 API を 400 → 500。
+- [x] **テンプレートの修正**: AssemblyScript（`abort` の差し替え、本文を置き換えず追記、`PageRenderContext` のフィールド名をホストに合わせる）、TinyGo（`-target=wasm-unknown`、`PageRenderContext` のフィールド名）。`crates/aegis-runtime/tests/sdk_plugins.rs` で全テンプレートを実ホストで実行。
+- [ ] **Admin Studio のプラグイン管理画面**（`GET /api/v1/plugins` の一覧表示。テーマ管理画面と同じ構成）。
+- [ ] **実行時の有効・無効の切り替え**（現状は設定ファイル + 再起動。テーマの `PUT /api/v1/themes/active` のように API で切り替えるには、有効化リストの永続化（DB）と `PluginSupervisor` の差し替えが必要）。
+- [ ] **ストアからのインストール**（パッケージの検証・展開先は `plugins/<name>/`。テーマの `validate_theme_package` に相当する検証と、署名・`min_aegis_version` の確認）。
+
 #### 認証・認可基盤の完成
 - [x] **Wasm 認証後フック (`on-user-authenticated`)**: 資格情報の確認後・セッション発行前に `UserAuthContext`（provider / user_id / email / display_name / role / metadata）をプラグインに渡し、ロール・表示名・metadata の変更をセッションに反映。`Err` でログイン拒否（403、`session.create` denied）、失敗時もログイン失敗（500、`plugin.error`）。ロール変更は `details.role_mapped` に記録。外部 IdP 対応時もこのフックを通す（`auth::hook::run_auth_hook`）。
 - [x] **OpenID Connect によるシングルサインオン** (`[auth.oidc]`、Cargo feature `oidc`、既定で有効): 認可コードフロー + PKCE、ID トークン検証（JWKS 署名・iss・aud・exp・nonce・azp、非対称アルゴリズムのみ）。IdP アカウント（Issuer + sub）と `_aegis_users` を `_aegis_user_identities` で紐付け、初回ログイン時に自動作成（同名ユーザーがいれば `username_taken` で拒否）。`role_claim` + `role_mapping` でロールを同期、`on-user-authenticated` フックも適用。`aegis user link-oidc` で既存ユーザーを紐付け。Admin Studio のログイン画面に SSO ボタン、`#session=` / `#login_error=` の受け取り。[docs/authentication.md](docs/authentication.md#5-シングルサインオン-openid-connect)
@@ -119,6 +129,13 @@
   - **ワンクリックコードコピー**:
     - `<pre>` ブロックの右上にホバー時に浮かび上がる「Copy」ボタンを動的付与。クリック時に `navigator.clipboard.writeText` でクリップボードへ保存し、`Copied!` 表示に遷移。
 
+- **プラグインのインストールと有効化 (`aegis_runtime::WasmPluginLoader`)**:
+  - インストール = `plugins_dir/<name>/plugin.manifest.json`（ディレクトリ名とマニフェストの `name` は一致必須、`aegis_core::is_valid_plugin_name`）。有効化 = `[plugins].enabled`（順序 = フックの実行順）。テーマの `themes/<id>/` + `[theme].active` と同じ考え方で、ストアからのインストールもこの形に展開する前提。
+  - `load_enabled` は有効なものだけをコンパイルし、失敗したら起動を止める（fail-closed。アクセス制限系のプラグインが黙って外れるのを防ぐ）。無効なものは `discover` でマニフェストだけ読み、不備は警告ログ・`aegis plugin list`・`GET /api/v1/plugins` に出す。
+  - `WasmPluginInstance::from_bytes` で `Linker::instantiate_pre` してインポートを検査する（以前は呼び出しのたびのインスタンス化で初めて失敗し、起動ログは「Successfully loaded」のままだった）。`_initialize` があればインスタンス化直後に呼ぶ（TinyGo `wasm-unknown`）。
+  - オブジェクトを返すフック（`on_before_save` / `on_render_page` / `on_user_authenticated`）の返り値はトップレベルのキー単位で入力に上書きする（`parse_object_output`）。軽量 JSON しか持たない言語の SDK が一部のフィールドだけを返しても、記事一覧などが消えない。
+  - テンプレートのビルド済み `plugin.wasm` はコミットしており、`crates/aegis-runtime/tests/sdk_plugins.rs` が実ホストで全フックを実行する。テンプレートを変えたら `task plugin:build*` で再ビルドしてコミットすること（AssemblyScript は npm、TinyGo は 0.30+ が必要）。
+
 - **Markdown 編集モード & スマート貼り付けアーキテクチャ (`admin/src/utils/markdown.ts`, `MarkdownEditor.tsx`, `PasteMarkdownModal.tsx`)**:
   - **双方向変換と完全同期**:
     - `blocksToMarkdown(blocks)`: `core/heading` (#), `core/paragraph`, `core/code` (```lang), `core/image` (![]()), `core/list` (- / 1.) を標準 Markdown テキストへ直列化。
@@ -138,10 +155,10 @@
   - テストは `auth::oidc_mock::MockIdp`（テスト内で起動する axum の IdP。鍵は起動ごとに P-256 を生成し、秘密鍵はリポジトリに置かない）。E2E は Python の簡易 IdP（対話フォーム付き）で確認した。
 - **マルチ言語 Wasm プラグイン SDK 設計 (`docs/plugin_abi_specification.md`)**:
   - ホストとゲスト間は 32bit リニアメモリおよび `(ptr << 32) | len` の 64bit パック整数で疎結合に連携します。
-  - **AssemblyScript テンプレート (`plugins/template-assemblyscript/`)**:
+  - **AssemblyScript テンプレート (`sdk/templates/assemblyscript/`)**:
     - `heap.alloc` によるアロケータ (`allocate(len: i32) -> i32`)、`String.UTF8` による文字列変換、外部 npm 依存なしのゼロ依存 JSON パーサー/シリアライザ (`assembly/sdk/json.ts`) を同梱。
     - ホスト API は `@external("host", ...)` でバインド。
-  - **TinyGo テンプレート (`plugins/template-tinygo/`)**:
+  - **TinyGo テンプレート (`sdk/templates/tinygo/`)**:
     - Go 1.21+ / TinyGo の `//go:wasmimport host <func>` ディレクティブにより型安全にホスト関数をインポート。
     - ホストから渡されたメモリバッファが TinyGo GC により回収されないよう、`allocatedBuffers` マップによるポインタ追跡保護機構を内蔵。
     - Go 標準の `encoding/json` により柔軟に `PostContext` / `BlockNode` を構造体マッピング。
@@ -149,7 +166,7 @@
 - **認証後フック (`auth::hook::run_auth_hook`)**:
   - プロバイダに依存しない形で `AuthIdentity` を受け取り返すので、OIDC / SAML のコールバックからも同じ関数を呼ぶ。`provider` / `user_id` は変更不可（ユーザーのなりすましを防ぐ）、`role` は `auth::ROLES` のみ許可。
   - フックの拒否・失敗はログイン試行の失敗回数に数えない（`login_limiter.record_success` は資格情報確認の直後に呼ぶ）。失敗時にログインを通す（fail-open）と、プラグインで実装したアクセス制限を障害で迂回できてしまうため、失敗も拒否として扱う。
-  - Wasm インスタンスのフック呼び出しは `WasmPluginInstance::call_hook`（インスタンス化・入力の書き込み・タイムアウト付き呼び出し・結果の読み出し）に集約した。拒否できるフック（`on_before_save` / `on_user_authenticated`）は `parse_refusable_output` で `{"error": ...}` を `PluginRejected` に変換する。
+  - Wasm インスタンスのフック呼び出しは `WasmPluginInstance::call_hook`（インスタンス化・入力の書き込み・タイムアウト付き呼び出し・結果の読み出し）に集約した。拒否できるフック（`on_before_save` / `on_user_authenticated`）は `parse_object_output` で `{"error": ...}` を `PluginRejected` に変換する。
 - **HTML の生成経路 (`crates/aegis-server/src/render.rs`)**:
   - 保存（`transform_blocks` → `render_blocks_html`）、公開ページ・コンテンツ API（保存済みブロックを `render_blocks_html`）、エディタのプレビュー（`transform_blocks` → `render_blocks_html`）はすべてこのモジュールを通します。レンダリング手順を変えるときはここだけを変更してください。
   - プレビューは編集のたびにプラグインの `transform-content-ast` を呼ぶため、このフックは副作用なしが前提です（`docs/plugin_hooks.md`）。
@@ -163,7 +180,7 @@
   - クライアント IP は `audit::ClientIp` extractor（`AuditContext` と同じ判定。`[audit].trust_forwarded_for` で `X-Forwarded-For` を優先）で取得します。監査ログが無効でも IP は取得されます。
   - チェック時のキャッシュエラーは安全側に倒して 500 を返し、失敗・成功の記録時のエラーは警告ログのみにしています。サーバー側エラー（DB 障害など）は失敗回数に数えません。
   - `MemoryCacheBackend` は読まれないまま期限切れになったキー（ランダムなユーザー名での試行など）が溜まらないよう、書き込み時にエントリ数が閾値（掃除後の 2 倍、最小 1024）を超えたら期限切れを一括削除します。
-  - `cargo clippy --workspace --all-targets` は `plugins/template-rust` のテストで `default_constructed_unit_structs` が出ます（main でも同じ。CI / `task check` は `--all-targets` なしなので未対応）。
+  - `cargo clippy --workspace --all-targets` は `sdk/templates/rust` のテストで `default_constructed_unit_structs` が出ます（main でも同じ。CI / `task check` は `--all-targets` なしなので未対応）。
 - **Prettier / VS Code**:
   - Prettier は `.editorconfig` のインデント設定を読みます。`[*]` の 4 スペースが CSS / HTML に効いていたため、`[*.{ts,tsx,js,jsx,css,html}]` に CSS / HTML を追加しました。
   - VS Code の Prettier 拡張は既定でワークスペース直下の `.prettierignore` を探すため、`.vscode/settings.json` で `prettier.ignorePath` を `admin/.prettierignore` に向けています。`prettier.requireConfig` により設定ファイルの無い `admin/` 外の JSON 等は整形しません。
@@ -212,7 +229,7 @@
   - `#[aegis_plugin]` マクロは、ホストが要求する `allocate(len: i32) -> i32`、`on_before_save(ptr, len) -> i64`、`transform_content_ast(ptr, len) -> i64` を完全に自動生成し、ポインタパッキング（`(ptr << 32) | len`）と JSON 変換を隠蔽します。
   - `on_before_save` の結果 JSON は `PostContext` か `{"error": "<メッセージ>"}`（`abi::write_error_to_host`）。ホストは `error` キーを持つオブジェクトを拒否として扱う（`PostContext` に `error` フィールドは無いので既存プラグインと互換）。入力 JSON のパース失敗も拒否にしている（検証フックが黙って素通りしないように）。
   - `transform_content_ast` / `on_render_page` で `Err` を返した場合は、これまでどおりエラーログを出して入力をそのまま返す（そのプラグインの変更だけが無効になる）。これらで処理全体を失敗させたくなった場合は同じエンベロープを使える。
-  - `plugins/template-rust/plugin.wasm` は SDK 変更後に `task plugin:build` で再ビルドしてコミットする（`plugins/slack-notifier/plugin.wasm` は手書き WAT から生成されるため SDK とは無関係）。
+  - `sdk/templates/rust/plugin.wasm` は SDK 変更後に `task plugin:build` で再ビルドしてコミットする（`sdk/examples/slack-notifier/plugin.wasm` は手書き WAT から生成されるため SDK とは無関係）。
 - **AssemblyScript プラグイン開発と TypeScript/IDE 型定義**:
   - AssemblyScript の独自型（`i32`, `i64`, `f32`, `bool` 等）は、`assemblyscript/std/assembly.json` の型定義 (`declare type i32 = number`) を介して IDE に認識されます。
   - `tsconfig.json` には TS 6.0 以降の非推奨オプションエラー (`TS5101`) を回避するための `"ignoreDeprecations": "6.0"` が必要です。

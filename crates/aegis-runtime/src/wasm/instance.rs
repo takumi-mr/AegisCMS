@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use wasmtime::{Instance, Module, Store, TypedFunc};
+use wasmtime::{Instance, InstancePre, Module, Store, TypedFunc};
 
 use aegis_ast::BlockNode;
 use aegis_core::{
@@ -16,6 +16,8 @@ pub struct WasmPluginInstance {
     pub manifest: PluginManifest,
     pub engine: WasmEngine,
     pub module: Module,
+    /// インポートをホスト API に解決済みのモジュール（呼び出しごとのインスタンス化に使う）
+    instance_pre: InstancePre<PluginHostState>,
     pub kv_storage: Arc<Mutex<HashMap<String, String>>>,
 }
 
@@ -29,11 +31,21 @@ impl WasmPluginInstance {
         let module = Module::new(engine.engine(), wasm_bytes).map_err(|e| {
             AegisError::PluginRuntime(format!("Failed to compile Wasm module: {}", e))
         })?;
+        // ホストに無い関数のインポート（AssemblyScript の `env.abort`、TinyGo の WASI など）は、
+        // 呼び出し時ではなく読み込み時にエラーにする
+        let instance_pre = engine.linker().instantiate_pre(&module).map_err(|e| {
+            AegisError::PluginRuntime(format!(
+                "The module imports a function the host does not provide ({}). Plugins may only \
+                 import the `host` module (docs/plugin_abi_specification.md)",
+                e
+            ))
+        })?;
 
         Ok(Self {
             manifest,
             engine,
             module,
+            instance_pre,
             kv_storage,
         })
     }
@@ -51,13 +63,37 @@ impl WasmPluginInstance {
             .map_err(|e| AegisError::ResourceLimitExceeded(e.to_string()))?;
 
         let instance = self
-            .engine
-            .linker()
-            .instantiate_async(&mut store, &self.module)
+            .instance_pre
+            .instantiate_async(&mut store)
             .await
             .map_err(|e| AegisError::PluginRuntime(format!("Instantiation failed: {}", e)))?;
 
+        // リアクター形式のモジュール（TinyGo の wasm-unknown など）は、ランタイムとグローバル変数の
+        // 初期化関数 `_initialize` を他のエクスポートより先に呼ぶ必要がある
+        if let Ok(initialize) = instance.get_typed_func::<(), ()>(&mut store, "_initialize") {
+            self.with_timeout("_initialize", initialize.call_async(&mut store, ()))
+                .await?;
+        }
+
         Ok((store, instance))
+    }
+
+    /// `execution_timeout_ms`（最低 50ms）以内に終わらなければ `ResourceLimitExceeded`
+    async fn with_timeout<T>(
+        &self,
+        export: &str,
+        call: impl std::future::Future<Output = wasmtime::Result<T>>,
+    ) -> Result<T> {
+        let timeout_ms = self.manifest.resource_limits.execution_timeout_ms.max(50);
+        let duration = std::time::Duration::from_millis(timeout_ms);
+        match tokio::time::timeout(duration, call).await {
+            Ok(res) => res
+                .map_err(|e| AegisError::PluginRuntime(format!("Hook '{}' error: {}", export, e))),
+            Err(_) => Err(AegisError::ResourceLimitExceeded(format!(
+                "Plugin '{}' exceeded timeout limit of {}ms",
+                self.manifest.name, timeout_ms
+            ))),
+        }
     }
 
     /// ゲストメモリに文字列・データを安全に書き込む
@@ -121,20 +157,9 @@ impl WasmPluginInstance {
         };
         let (ptr, len) = Self::write_to_guest(&mut store, &instance, input).await?;
 
-        let timeout_ms = self.manifest.resource_limits.execution_timeout_ms.max(50);
-        let duration = std::time::Duration::from_millis(timeout_ms);
-        let packed_res =
-            match tokio::time::timeout(duration, func.call_async(&mut store, (ptr, len))).await {
-                Ok(res) => res.map_err(|e| {
-                    AegisError::PluginRuntime(format!("Hook '{}' error: {}", export, e))
-                })?,
-                Err(_) => {
-                    return Err(AegisError::ResourceLimitExceeded(format!(
-                        "Plugin '{}' exceeded timeout limit of {}ms",
-                        self.manifest.name, timeout_ms
-                    )))
-                }
-            };
+        let packed_res = self
+            .with_timeout(export, func.call_async(&mut store, (ptr, len)))
+            .await?;
 
         // 返り値は i64: 上位32bitがptr、下位32bitがlen
         let res_ptr = (packed_res >> 32) as i32;
@@ -146,29 +171,45 @@ impl WasmPluginInstance {
     }
 }
 
-/// Reads what a hook that may refuse (`on_before_save`, `on_user_authenticated`) returned: the
-/// (possibly updated) value, or `{"error": "<message>"}` when the plugin refuses
-/// (`abi::write_error_to_host` in the SDK)
-fn parse_refusable_output<T: serde::de::DeserializeOwned>(
+/// Reads the JSON object a hook returned (`on_before_save`, `on_render_page`,
+/// `on_user_authenticated`). Its top-level keys are applied over `input`, so a plugin may return
+/// only the fields it changed and fields it does not know about stay as they were. A hook that may
+/// refuse (`refusable`) returns `{"error": "<message>"}` to refuse (`abi::write_error_to_host` in
+/// the SDK).
+fn parse_object_output<T: serde::Serialize + serde::de::DeserializeOwned>(
     plugin: &str,
     type_name: &str,
+    input: &T,
     out_bytes: &[u8],
+    refusable: bool,
 ) -> Result<T> {
     let invalid = |e: serde_json::Error| {
         AegisError::Serialization(format!("Invalid {} returned: {}", type_name, e))
     };
     let value: serde_json::Value = serde_json::from_slice(out_bytes).map_err(invalid)?;
-    if let Some(error) = value.get("error") {
-        let message = error
-            .as_str()
-            .map(str::to_string)
-            .unwrap_or_else(|| error.to_string());
-        return Err(AegisError::PluginRejected(format!(
-            "{}: {}",
-            plugin, message
-        )));
+    if refusable {
+        if let Some(error) = value.get("error") {
+            let message = error
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| error.to_string());
+            return Err(AegisError::PluginRejected(format!(
+                "{}: {}",
+                plugin, message
+            )));
+        }
     }
-    serde_json::from_value(value).map_err(invalid)
+    let serde_json::Value::Object(changes) = value else {
+        return Err(AegisError::Serialization(format!(
+            "Invalid {} returned: expected a JSON object",
+            type_name
+        )));
+    };
+    let mut merged = serde_json::to_value(input).map_err(invalid)?;
+    if let Some(fields) = merged.as_object_mut() {
+        fields.extend(changes);
+    }
+    serde_json::from_value(merged).map_err(invalid)
 }
 
 fn to_json<T: serde::Serialize>(value: &T) -> Result<Vec<u8>> {
@@ -186,7 +227,7 @@ impl AegisPlugin for WasmPluginInstance {
             .call_hook("on-before-save", "on_before_save", &to_json(&post)?)
             .await?
         {
-            Some(out) => parse_refusable_output(&self.manifest.name, "PostContext", &out),
+            Some(out) => parse_object_output(&self.manifest.name, "PostContext", &post, &out, true),
             None => Ok(post),
         }
     }
@@ -212,9 +253,9 @@ impl AegisPlugin for WasmPluginInstance {
             .call_hook("on-render-page", "on_render_page", &to_json(&ctx)?)
             .await?
         {
-            Some(out) => serde_json::from_slice(&out).map_err(|e| {
-                AegisError::Serialization(format!("Invalid PageRenderContext returned: {}", e))
-            }),
+            Some(out) => {
+                parse_object_output(&self.manifest.name, "PageRenderContext", &ctx, &out, false)
+            }
             None => Ok(ctx),
         }
     }
@@ -228,7 +269,9 @@ impl AegisPlugin for WasmPluginInstance {
             )
             .await?
         {
-            Some(out) => parse_refusable_output(&self.manifest.name, "UserAuthContext", &out),
+            Some(out) => {
+                parse_object_output(&self.manifest.name, "UserAuthContext", &ctx, &out, true)
+            }
             None => Ok(ctx),
         }
     }

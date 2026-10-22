@@ -6,4 +6,4 @@ pub mod loader;
 pub use engine::WasmEngine;
 pub use host_state::PluginHostState;
 pub use instance::WasmPluginInstance;
-pub use loader::WasmPluginLoader;
+pub use loader::{InstalledPlugin, PluginInfo, WasmPluginLoader};

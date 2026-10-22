@@ -64,6 +64,11 @@ impl PluginSupervisor {
         self.plugins.push(plugin);
     }
 
+    /// 登録済みのプラグイン（フックの実行順）
+    pub fn plugins(&self) -> &[Arc<dyn AegisPlugin>] {
+        &self.plugins
+    }
+
     pub async fn apply_before_save(&self, mut post: PostContext) -> Result<PostContext> {
         for plugin in &self.plugins {
             if plugin

@@ -245,9 +245,10 @@ pub async fn create_content(
                     Json(json!({ "error": e.to_string() })),
                 )
             } else {
+                // プラグインの不具合（トラップ・タイムアウト・不正な出力）はサーバー側のエラー
                 (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({ "error": format!("Plugin hook rejected save: {}", e) })),
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("Plugin hook failed: {}", e) })),
                 )
             });
         }
@@ -667,6 +668,7 @@ mod tests {
                     hooks: vec!["on-before-save".to_string()],
                 },
                 resource_limits: Default::default(),
+                ..Default::default()
             },
             mode,
         }));
@@ -769,7 +771,7 @@ mod tests {
     async fn test_before_save_failure_blocks_the_save() {
         let state = state_with(BeforeSave::Fail).await;
         let (status, _) = create(&state).await.unwrap_err();
-        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
 
         let schema = state.schemas.read().await["article"].clone();
         assert!(state.db.list_contents(&schema).await.unwrap().is_empty());

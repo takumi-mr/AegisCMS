@@ -118,17 +118,17 @@ tasks:
       - npm --prefix admin run build
 
   build:wasm:
-    desc: サンプル Wasm プラグイン (plugins/slack-notifier/plugin.wasm) を生成
+    desc: サンプル Wasm プラグイン (sdk/examples/slack-notifier/plugin.wasm) を生成
     cmds:
       - cargo run -p aegis-runtime --bin build_sample_wasm
 
   plugin:build:
-    desc: Rust プラグインテンプレートを Wasm にビルドし plugins/template-rust/plugin.wasm を更新 (要 rustup target add wasm32-unknown-unknown)
+    desc: Rust プラグインテンプレートを Wasm にビルドし sdk/templates/rust/plugin.wasm を更新 (要 rustup target add wasm32-unknown-unknown)
     cmds:
       - cargo build -p aegis-plugin-template --target wasm32-unknown-unknown --release
-      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_template.wasm plugins\\template-rust\\plugin.wasm"
+      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_template.wasm sdk\\templates\\rust\\plugin.wasm"
         platforms: [windows]
-      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_template.wasm plugins/template-rust/plugin.wasm
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_template.wasm sdk/templates/rust/plugin.wasm
         platforms: [linux, darwin]
 
   plugin:build:code-enhancer:
@@ -141,16 +141,16 @@ tasks:
         platforms: [linux, darwin]
 
   plugin:build:as:
-    desc: AssemblyScript プラグインテンプレートを Wasm にビルドし plugins/template-assemblyscript/plugin.wasm を生成
+    desc: AssemblyScript プラグインテンプレートを Wasm にビルドし sdk/templates/assemblyscript/plugin.wasm を生成
     cmds:
-      - npm --prefix plugins/template-assemblyscript run build
+      - npm --prefix sdk/templates/assemblyscript run build
 
   plugin:build:tinygo:
-    desc: TinyGo プラグインテンプレートを Wasm にビルドし plugins/template-tinygo/plugin.wasm を生成 (要 TinyGo 0.31+)
+    desc: TinyGo プラグインテンプレートを Wasm にビルドし sdk/templates/tinygo/plugin.wasm を生成 (要 TinyGo 0.31+)
     cmds:
-      - cmd: cmd /c "cd plugins\\template-tinygo && tinygo build -target=wasi -opt=z -no-debug -o plugin.wasm main.go"
+      - cmd: cmd /c "cd sdk\\templates\\tinygo && tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go"
         platforms: [windows]
-      - cmd: "cd plugins/template-tinygo && tinygo build -target=wasi -opt=z -no-debug -o plugin.wasm main.go"
+      - cmd: "cd sdk/templates/tinygo && tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go"
         platforms: [linux, darwin]
 
 

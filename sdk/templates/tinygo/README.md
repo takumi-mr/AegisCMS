@@ -16,23 +16,23 @@ TinyGo のインストール手順は [TinyGo 公式ドキュメント](https://
 
 ### 2. WebAssembly バイナリのビルド
 
-TinyGo コンパイラを使用して、`wasi` または `wasm` ターゲットでビルドします。
+TinyGo コンパイラを使用して、`wasm-unknown` ターゲットでビルドします（TinyGo 0.30+）。`wasi` ターゲットはホストが提供しない WASI の関数をインポートするため、AegisCMS では読み込めません。ホストはモジュールが `_initialize` をエクスポートしていれば、フックより先に呼び出してランタイムを初期化します。
 
 ```bash
-tinygo build -target=wasi -o plugin.wasm main.go
+tinygo build -target=wasm-unknown -o plugin.wasm main.go
 ```
 
 最適化とサイズ削減を行う場合：
 
 ```bash
-tinygo build -target=wasi -opt=z -no-debug -o plugin.wasm main.go
+tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go
 ```
 
 コンパイルに成功すると、ディレクトリ直下に `plugin.wasm` が出力されます。
 
 ### 3. AegisCMS への配置
 
-AegisCMS サーバーの `plugins/<plugin-name>/` ディレクトリに、以下のファイルを配置するだけでサーバー起動時に自動検出・ロードされます。
+AegisCMS サーバーの `plugins/<name>/`（`<name>` はマニフェストの `name`）に以下のファイルを配置し、設定ファイルの `[plugins].enabled` に `<name>` を追加してサーバーを再起動すると有効になります（配置しただけでは読み込まれません）。
 
 - `plugin.manifest.json` (権限・リソース制限・フック定義)
 - `plugin.wasm` (コンパイル済み Wasm バイナリ)
@@ -42,7 +42,7 @@ AegisCMS サーバーの `plugins/<plugin-name>/` ディレクトリに、以下
 ## 🧩 プラグイン構造
 
 ```text
-plugins/template-tinygo/
+sdk/templates/tinygo/
 ├── go.mod                     # Go モジュール定義
 ├── plugin.manifest.json       # プラグインマニフェスト (権限・フック宣言)
 ├── plugin.wasm                # ビルド済み Wasm バイナリ

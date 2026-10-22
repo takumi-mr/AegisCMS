@@ -41,12 +41,18 @@ export class BlockNode {
   }
 }
 
+/**
+ * `on_render_page` で扱うページ情報（ホストの `PageRenderContext` の文字列フィールド）。
+ * ホストは返した JSON のフィールドだけを上書きするため、本文 (`content_html`) や記事一覧
+ * (`items`) などここに無いフィールドはそのまま保たれる
+ */
 export class PageRenderContext {
   site_title: string = "";
-  page_title: string = "";
+  site_description: string = "";
+  template: string = "";
+  content_type: string = "";
+  title: string = "";
   slug: string = "";
-  template_name: string = "article.html";
   extra_css: string = "";
   extra_head: string = "";
-  variables: Map<string, string> = new Map<string, string>();
 }

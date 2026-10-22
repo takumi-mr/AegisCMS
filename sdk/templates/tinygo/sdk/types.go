@@ -45,14 +45,20 @@ func NewHeading(level int, text string) BlockNode {
 }
 
 // PageRenderContext は公開ページ描画時にプラグインへ渡されるレンダリングコンテキスト
+//
+// ホストは返した JSON のフィールドだけを上書きするため、記事一覧 (items) やカスタムフィールドなど
+// ここに無いフィールドはそのまま保たれる
 type PageRenderContext struct {
-	SiteTitle    string                 `json:"site_title"`
-	PageTitle    string                 `json:"page_title"`
-	Slug         string                 `json:"slug"`
-	TemplateName string                 `json:"template_name"`
-	ExtraCSS     string                 `json:"extra_css"`
-	ExtraHead    string                 `json:"extra_head"`
-	Variables    map[string]interface{} `json:"variables"`
+	SiteTitle       string            `json:"site_title"`
+	SiteDescription string            `json:"site_description"`
+	Template        string            `json:"template"`
+	ContentType     string            `json:"content_type"`
+	Title           string            `json:"title"`
+	Slug            string            `json:"slug"`
+	ContentHTML     string            `json:"content_html"`
+	ExtraCSS        string            `json:"extra_css"`
+	ExtraHead       string            `json:"extra_head"`
+	ThemeVars       map[string]string `json:"theme_vars,omitempty"`
 }
 
 // ErrorEnvelope はフック拒否時にホストへ返却するエラー構造体

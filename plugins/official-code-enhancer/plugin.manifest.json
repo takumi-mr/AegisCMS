@@ -1,5 +1,5 @@
 {
-  "name": "aegis-code-enhancer",
+  "name": "official-code-enhancer",
   "version": "0.1.0",
   "entrypoint": "plugin.wasm",
   "description": "Official code syntax highlighter, external theme loader, and Mermaid diagram renderer",

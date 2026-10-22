@@ -69,6 +69,17 @@ enum Commands {
         #[command(subcommand)]
         action: UserCommand,
     },
+    /// Inspect Wasm plugins installed in [paths].plugins_dir (enable them with [plugins].enabled)
+    Plugin {
+        #[command(subcommand)]
+        action: PluginCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum PluginCommand {
+    /// List installed and enabled plugins
+    List,
 }
 
 #[derive(Subcommand, Debug)]
@@ -100,6 +111,52 @@ enum UserCommand {
         /// The `sub` claim of the user at the IdP
         sub: String,
     },
+}
+
+fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyhow::Result<()> {
+    match action {
+        PluginCommand::List => {
+            config.plugins.validate()?;
+            let plugins = aegis_runtime::WasmPluginLoader::list(
+                &config.paths.plugins_dir,
+                &config.plugins.enabled,
+                &config.runtime.default_resource_limits(),
+            )?;
+            if plugins.is_empty() {
+                println!(
+                    "No plugins installed in {}",
+                    config.paths.plugins_dir.display()
+                );
+                return Ok(());
+            }
+            println!(
+                "{:<28} {:<10} {:<9} HOOKS / PROBLEM",
+                "NAME", "VERSION", "STATUS"
+            );
+            for plugin in plugins {
+                let version = plugin
+                    .manifest
+                    .as_ref()
+                    .map(|m| m.version.as_str())
+                    .unwrap_or("-");
+                let status = if plugin.is_enabled {
+                    "enabled"
+                } else {
+                    "disabled"
+                };
+                let detail = match (&plugin.problem, &plugin.manifest) {
+                    (Some(problem), _) => format!("! {}", problem),
+                    (None, Some(manifest)) => manifest.capabilities.hooks.join(", "),
+                    (None, None) => String::new(),
+                };
+                println!(
+                    "{:<28} {:<10} {:<9} {}",
+                    plugin.name, version, status, detail
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 /// 新しいパスワードを読み込む: 環境変数 `AEGIS_USER_PASSWORD` → 端末なら非表示入力（確認つき）→ 標準入力の 1 行
@@ -243,6 +300,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Commands::User { action } => run_user_command(&config, action).await?,
+        Commands::Plugin { action } => run_plugin_command(&config, action)?,
         Commands::Run { port, host } => {
             if let Some(p) = port {
                 config.server.port = p;
@@ -252,6 +310,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let base_path = config.server.normalized_base_path()?;
+            config.plugins.validate()?;
 
             tracing::info!("Starting AegisCMS core engine...");
             tracing::info!(
@@ -298,30 +357,31 @@ async fn main() -> anyhow::Result<()> {
                 config.auth.login_rate_limit.clone(),
             ));
 
-            // 5. Wasm プラグインスーパーバイザー初期化
+            // 5. Wasm プラグインスーパーバイザー初期化（[plugins].enabled のプラグインをその順に読み込む）
             let mut supervisor = PluginSupervisor::new();
-            if config.runtime.enable_wasm_plugins {
-                tracing::info!("Initializing Wasmtime runtime engine...");
-                match aegis_runtime::WasmEngine::new() {
-                    Ok(engine) => {
-                        let kv_storage = Arc::new(std::sync::Mutex::new(HashMap::new()));
-                        let loaded = aegis_runtime::WasmPluginLoader::load_all_plugins(
-                            &config.paths.plugins_dir,
-                            engine,
-                            &mut supervisor,
-                            kv_storage,
-                            &config.runtime.default_resource_limits(),
-                        )?;
-                        tracing::info!(
-                            "Loaded {} Wasm plugins from {:?}",
-                            loaded,
-                            config.paths.plugins_dir
-                        );
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to initialize Wasmtime runtime: {}", e);
-                    }
+            if !config.runtime.enable_wasm_plugins {
+                if !config.plugins.enabled.is_empty() {
+                    tracing::warn!(
+                        "[runtime].enable_wasm_plugins = false: plugins in [plugins].enabled are not loaded"
+                    );
                 }
+            } else {
+                tracing::info!("Initializing Wasmtime runtime engine...");
+                let engine = aegis_runtime::WasmEngine::new()?;
+                let kv_storage = Arc::new(std::sync::Mutex::new(HashMap::new()));
+                let loaded = aegis_runtime::WasmPluginLoader::load_enabled(
+                    &config.paths.plugins_dir,
+                    &config.plugins.enabled,
+                    engine,
+                    &mut supervisor,
+                    kv_storage,
+                    &config.runtime.default_resource_limits(),
+                )?;
+                tracing::info!(
+                    "Loaded {} Wasm plugins from {:?}",
+                    loaded,
+                    config.paths.plugins_dir
+                );
             }
 
             // 5.5 テーマエンジンの初期化 & プラグイン登録テンプレートの同期

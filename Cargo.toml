@@ -9,7 +9,7 @@ members = [
     "crates/aegis-plugin-macros",
     "crates/aegis-plugin-sdk",
     "crates/aegis-theme",
-    "plugins/template-rust",
+    "sdk/templates/rust",
     "plugins/official-code-enhancer",
 ]
 

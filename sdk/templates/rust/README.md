@@ -43,7 +43,7 @@ cp target/wasm32-unknown-unknown/release/aegis_plugin_template.wasm plugin.wasm
 
 ### 4. AegisCMS への配置
 
-AegisCMS サーバーの `plugins/<plugin-name>/` ディレクトリに、以下のファイルを配置するだけでサーバー起動時に自動検出・ロードされます。
+AegisCMS サーバーの `plugins/<name>/`（`<name>` はマニフェストの `name`）に以下のファイルを配置し、設定ファイルの `[plugins].enabled` に `<name>` を追加してサーバーを再起動すると有効になります（配置しただけでは読み込まれません）。
 
 - `plugin.manifest.json` (権限・リソース制限・フック定義)
 - `plugin.wasm` (コンパイル済み Wasm バイナリ)
