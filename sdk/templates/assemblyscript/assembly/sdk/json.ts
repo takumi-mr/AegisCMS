@@ -151,25 +151,44 @@ export function serializeBlockNodes(blocks: Array<BlockNode>): string {
   return res;
 }
 
+/**
+ * ブロック配列の JSON（`transform_content_ast` の入力）の末尾にブロックを追加した JSON を返す。
+ * 既存のブロックはパースせずにそのまま残す
+ */
+export function appendBlockNodes(blocksJson: string, blocks: Array<BlockNode>): string {
+  const trimmed = blocksJson.trim();
+  const end = trimmed.lastIndexOf("]");
+  if (!trimmed.startsWith("[") || end < 0) return serializeBlockNodes(blocks);
+  const items = serializeBlockNodes(blocks);
+  const added = items.substring(1, items.length - 1);
+  if (added.length == 0) return trimmed;
+  const existing = trimmed.substring(1, end).trim();
+  return "[" + existing + (existing.length > 0 ? "," : "") + added + "]";
+}
+
 export function parsePageRenderContext(json: string): PageRenderContext {
   const ctx = new PageRenderContext();
   ctx.site_title = findStringField(json, "site_title");
-  ctx.page_title = findStringField(json, "page_title");
+  ctx.site_description = findStringField(json, "site_description");
+  ctx.template = findStringField(json, "template");
+  ctx.content_type = findStringField(json, "content_type");
+  ctx.title = findStringField(json, "title");
   ctx.slug = findStringField(json, "slug");
-  ctx.template_name = findStringField(json, "template_name");
   ctx.extra_css = findStringField(json, "extra_css");
   ctx.extra_head = findStringField(json, "extra_head");
   return ctx;
 }
 
+/** 返したフィールドだけがホスト側で上書きされる（docs/plugin_abi_specification.md） */
 export function serializePageRenderContext(ctx: PageRenderContext): string {
   return "{"
     + "\"site_title\":\"" + escapeJson(ctx.site_title) + "\","
-    + "\"page_title\":\"" + escapeJson(ctx.page_title) + "\","
+    + "\"site_description\":\"" + escapeJson(ctx.site_description) + "\","
+    + "\"template\":\"" + escapeJson(ctx.template) + "\","
+    + "\"content_type\":\"" + escapeJson(ctx.content_type) + "\","
+    + "\"title\":\"" + escapeJson(ctx.title) + "\","
     + "\"slug\":\"" + escapeJson(ctx.slug) + "\","
-    + "\"template_name\":\"" + escapeJson(ctx.template_name) + "\","
     + "\"extra_css\":\"" + escapeJson(ctx.extra_css) + "\","
-    + "\"extra_head\":\"" + escapeJson(ctx.extra_head) + "\","
-    + "\"variables\":{}"
+    + "\"extra_head\":\"" + escapeJson(ctx.extra_head) + "\""
     + "}";
 }

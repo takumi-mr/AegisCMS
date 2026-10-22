@@ -20,7 +20,7 @@ fn main() {
     "#;
 
     let wasm_bytes = wat::parse_str(wat_src).expect("Failed to compile WAT");
-    let out_path = std::path::Path::new("plugins/slack-notifier/plugin.wasm");
+    let out_path = std::path::Path::new("sdk/examples/slack-notifier/plugin.wasm");
     std::fs::write(out_path, &wasm_bytes).expect("Failed to write plugin.wasm");
     println!(
         "Compiled and written {} bytes to {:?}",

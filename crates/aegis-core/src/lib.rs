@@ -16,14 +16,15 @@ pub use cache::{CacheBackend, CacheBackendKind};
 pub use config::{
     AegisConfig, AuditConfig, AuditSinkKind, AuthConfig, CacheConfig, DatabaseBackendKind,
     DatabaseConfig, LocalStorageConfig, LoginRateLimitConfig, OidcConfig, PathsConfig,
-    RedisCacheConfig, S3StorageConfig, SecurityConfig, StorageConfig, ThemeConfig,
+    PluginsConfig, RedisCacheConfig, S3StorageConfig, SecurityConfig, StorageConfig, ThemeConfig,
 };
 
 pub use entity::{ContentSummary, PageRenderContext, Post, PostContext, PostId, PostStatus};
 
 pub use error::{AegisError, Result};
 pub use manifest::{
-    NetworkCapability, PluginCapabilities, PluginManifest, PluginResourceLimits, StorageCapability,
+    is_valid_plugin_name, NetworkCapability, PackageAuthor, PluginCapabilities, PluginManifest,
+    PluginResourceLimits, StorageCapability,
 };
 pub use storage::{
     guess_content_type, StorageBackend, StorageBackendKind, StorageMeta, StorageObject,

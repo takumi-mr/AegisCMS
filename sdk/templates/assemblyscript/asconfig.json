@@ -21,6 +21,9 @@
     }
   },
   "options": {
-    "bindings": "esm"
+    "bindings": "esm",
+    "use": [
+      "abort=assembly/sdk/host/abort"
+    ]
   }
 }

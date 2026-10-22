@@ -164,7 +164,7 @@ Axum を基盤とした REST API Gateway サーバーであり、すべてのイ
 - **`Plugin` トレイト**: ライフサイクルフック（記事保存前 `on_before_save`、コンテンツ AST 変換 `transform_content_ast`）の型安全な実装インターフェース。
 - **`host` API**: ホスト側ロガー（`log_info!`, `log_warn!`）、ネットワークアクセス事前検証（`net::is_allowed`）、ネームスペース分離 KVS 操作（`kv::set`）をラップした型安全関数群。
 - **ネイティブテストモック内蔵**: Wasm 環境にビルドせずとも通常の `cargo test` でプラグインのビジネスロジックを単体テスト可能。
-- **公式テンプレート**: 即座に開発を開始できる [`plugins/template-rust`](file:///d:/projects/cms/plugins/template-rust) を同梱（詳細は [Wasm プラグイン開発ガイド](file:///d:/projects/cms/docs/plugin_sdk_guide.md) を参照）。
+- **公式テンプレート**: 即座に開発を開始できる [`sdk/templates/rust`](sdk/templates/rust)（AssemblyScript / TinyGo 版も `sdk/templates/` に）を同梱（詳細は [Wasm プラグイン開発ガイド](file:///d:/projects/cms/docs/plugin_sdk_guide.md) を参照）。
 
 > [!TIP]
 > 関連リファレンス: [設定リファレンス (`docs/configuration.md`)](docs/configuration.md) / [プラグインフック & ホスト API リファレンス (`docs/plugin_hooks.md`)](docs/plugin_hooks.md) / [監査ログリファレンス (`docs/audit.md`)](docs/audit.md)
@@ -359,7 +359,7 @@ fields:
 - **リポジトリ管理対象（Code-as-Configuration）**:
     - スキーマ定義ファイル (`/schemas/*.yaml`)
     - サイト設定・権限ロール設定 (`/config/*.json`)
-    - プラグイン構成・有効化リスト (`/plugins/manifest.lock`)
+    - インストール済みプラグイン (`/plugins/<name>/`) と有効化リスト（設定ファイルの `[plugins].enabled`）
     - テーマ・UIテンプレート (`/themes/*`)
 
 - **データベース管理対象**:

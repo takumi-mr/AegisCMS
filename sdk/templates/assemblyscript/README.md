@@ -26,9 +26,11 @@ npm run build
 
 コンパイルに成功すると、ディレクトリ直下に `plugin.wasm` が出力されます。
 
+`asconfig.json` の `"use": ["abort=assembly/sdk/host/abort"]` は削除しないでください。AssemblyScript は既定で実行時エラーの処理に `env.abort` をインポートしますが、ホストは `host` モジュールしか提供しないため、この設定が無いとプラグインを読み込めません（SDK の `abort` に差し替えて、ログを出してから停止します）。
+
 ### 3. AegisCMS への配置
 
-AegisCMS サーバーの `plugins/<plugin-name>/` ディレクトリに、以下のファイルを配置するだけでサーバー起動時に自動検出・ロードされます。
+AegisCMS サーバーの `plugins/<name>/`（`<name>` はマニフェストの `name`）に以下のファイルを配置し、設定ファイルの `[plugins].enabled` に `<name>` を追加してサーバーを再起動すると有効になります（配置しただけでは読み込まれません）。
 
 - `plugin.manifest.json` (権限・リソース制限・フック定義)
 - `plugin.wasm` (コンパイル済み Wasm バイナリ)
@@ -38,7 +40,7 @@ AegisCMS サーバーの `plugins/<plugin-name>/` ディレクトリに、以下
 ## 🧩 プラグイン構造
 
 ```text
-plugins/template-assemblyscript/
+sdk/templates/assemblyscript/
 ├── package.json               # npm 依存関係およびビルドスクリプト
 ├── asconfig.json              # AssemblyScript コンパイラ設定
 ├── plugin.manifest.json       # プラグインマニフェスト (権限・フック宣言)

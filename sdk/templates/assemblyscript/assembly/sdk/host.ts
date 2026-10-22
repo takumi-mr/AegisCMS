@@ -61,3 +61,28 @@ export namespace kv {
     return res === 0;
   }
 }
+
+/**
+ * AssemblyScript の実行時エラー（境界外アクセス・assert など）のハンドラー。
+ * 既定のコンパイラ設定は `env.abort` をインポートするが、ホストは `host` モジュールしか
+ * 提供しないため、asconfig.json の `"use": ["abort=assembly/sdk/host/abort"]` でこの関数に差し替える
+ * （差し替えないとプラグインを読み込めない）。ログを出してから実行を中止（トラップ）する。
+ */
+export function abort(
+  message: string | null,
+  fileName: string | null,
+  lineNumber: u32,
+  columnNumber: u32,
+): void {
+  log.error(
+    "abort: " +
+      (message ? message : "") +
+      " at " +
+      (fileName ? fileName : "?") +
+      ":" +
+      lineNumber.toString() +
+      ":" +
+      columnNumber.toString(),
+  );
+  unreachable();
+}

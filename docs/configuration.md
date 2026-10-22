@@ -138,7 +138,7 @@ public_url_prefix = "https://cdn.example.com"
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `schemas_dir` | path | `"schemas"` | 宣言的スキーマ (`*.yaml`) の読み込み元 |
-| `plugins_dir` | path | `"plugins"` | Wasm プラグインの走査ディレクトリ（直下の各サブディレクトリを 1 プラグインとして読み込む） |
+| `plugins_dir` | path | `"plugins"` | Wasm プラグインのインストール先（`<plugins_dir>/<name>/` に 1 プラグイン）。読み込むのは `[plugins].enabled` に書いたものだけ |
 | `admin_dist_dir` | path | `"admin/dist"` | Admin Studio ビルド成果物。存在すれば `/` で SPA として配信 |
 
 ### 2.6 `[runtime]` — Wasm プラグインランタイム
@@ -152,6 +152,18 @@ public_url_prefix = "https://cdn.example.com"
 
 > [!NOTE]
 > `default_*` は既定値であり上限ではありません。プラグインの `plugin.manifest.json` の `resource_limits` に値があればそちらが優先され、省略した項目（または `resource_limits` 全体）だけがこの設定で補われます（[プラグインフックリファレンス](./plugin_hooks.md#4-リソース制限-resource_limits) を参照）。読み込んだプラグインごとの実際の値は起動時の `INFO` ログに出力されます。
+
+#### `[plugins]` — プラグインの有効化
+
+`plugins_dir` にインストールしたプラグインのうち、読み込むものを指定します（テーマの `[theme].active` と同じく、インストールと有効化を分けています）。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | array of string | `[]` | 有効にするプラグイン名（マニフェストの `name` = `plugins_dir` 直下のディレクトリ名）。フックはこの順に実行される |
+
+- 列挙したプラグインが未インストール・読み込めない（マニフェストの不備、ホストに無い関数のインポートなど）場合、名前の形式が不正・重複している場合は**サーバーが起動しません**。
+- `[runtime].enable_wasm_plugins = false` の場合は読み込みません。
+- 状態は `aegis plugin list` で確認できます（[プラグインフックリファレンス](./plugin_hooks.md#5-インストールと有効化)）。
 
 ### 2.7 `[security]` — HTML 出力のセキュリティ / 最適化
 
@@ -265,6 +277,9 @@ enable_wasm_plugins = true
 default_max_memory_mb = 16
 default_max_fuel_units = 100000000
 default_timeout_ms = 250
+
+[plugins]
+enabled = []
 
 [security]
 enforce_external_link_rel = true

@@ -20,6 +20,8 @@ pub struct AegisConfig {
     #[serde(default)]
     pub runtime: RuntimeConfig,
     #[serde(default)]
+    pub plugins: PluginsConfig,
+    #[serde(default)]
     pub security: SecurityConfig,
     #[serde(default)]
     pub audit: AuditConfig,
@@ -317,6 +319,37 @@ impl Default for ThemeConfig {
             site_description: "Next-Generation Secure CMS with Sandboxed Extensibility".to_string(),
             custom_css: None,
         }
+    }
+}
+
+/// `[plugins]` — インストール済みプラグイン（`[paths].plugins_dir/<name>/`）のうち有効にするもの
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PluginsConfig {
+    /// 有効にするプラグイン名（マニフェストの `name`）。フックはこの順に実行する。
+    /// 列挙したプラグインが見つからない・読み込めない場合はサーバーを起動しない
+    pub enabled: Vec<String>,
+}
+
+impl PluginsConfig {
+    /// 名前の形式（`is_valid_plugin_name`）と重複を検証する
+    pub fn validate(&self) -> Result<()> {
+        let mut seen = std::collections::HashSet::new();
+        for name in &self.enabled {
+            if !crate::manifest::is_valid_plugin_name(name) {
+                return Err(AegisError::Config(format!(
+                    "[plugins].enabled: {:?} is not a valid plugin name (lowercase letters, digits, '-', '_')",
+                    name
+                )));
+            }
+            if !seen.insert(name) {
+                return Err(AegisError::Config(format!(
+                    "[plugins].enabled: {:?} is listed more than once",
+                    name
+                )));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -628,6 +661,24 @@ mod tests {
         assert_eq!(base(" /sites/cms_2.v1 ").unwrap(), "/sites/cms_2.v1");
         for invalid in ["/a//b", "/../cms", "/cms?x=1", "/c ms", "/cms#top", "/\"x"] {
             assert!(base(invalid).is_err(), "{} should be rejected", invalid);
+        }
+    }
+
+    #[test]
+    fn test_plugins_config() {
+        let config: AegisConfig = toml::from_str("").unwrap();
+        assert!(config.plugins.enabled.is_empty());
+        assert!(config.plugins.validate().is_ok());
+
+        let config: AegisConfig =
+            toml::from_str("[plugins]\nenabled = [\"slack-notifier\", \"seo_tools\"]\n").unwrap();
+        assert_eq!(config.plugins.enabled, vec!["slack-notifier", "seo_tools"]);
+        assert!(config.plugins.validate().is_ok());
+
+        for invalid in [r#"["../etc"]"#, r#"["Slack"]"#, r#"["a", "a"]"#] {
+            let config: AegisConfig =
+                toml::from_str(&format!("[plugins]\nenabled = {}\n", invalid)).unwrap();
+            assert!(config.plugins.validate().is_err(), "{}", invalid);
         }
     }
 }
