@@ -1,4 +1,5 @@
 pub mod authorize;
+pub mod hook;
 pub mod local;
 pub mod password;
 pub mod rate_limit;

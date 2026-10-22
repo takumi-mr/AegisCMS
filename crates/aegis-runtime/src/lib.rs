@@ -147,6 +147,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_wasm_user_authenticated_hook() {
+        // Returns a fixed body from a data segment: a role mapping, or a rejection
+        async fn run(body: &str) -> aegis_core::Result<aegis_core::UserAuthContext> {
+            let engine = WasmEngine::new().expect("WasmEngine initialization failed");
+            let kv = Arc::new(Mutex::new(HashMap::new()));
+            let wat_src = format!(
+                r#"
+            (module
+                (memory (export "memory") 1)
+                (data (i32.const 1024) "{data}")
+                (func (export "allocate") (param $len i32) (result i32)
+                    i32.const 16
+                )
+                (func (export "on_user_authenticated") (param $ptr i32) (param $len i32) (result i64)
+                    (i64.or (i64.shl (i64.const 1024) (i64.const 32)) (i64.const {len}))
+                )
+            )
+            "#,
+                data = body.replace('"', "\\22"),
+                len = body.len()
+            );
+            let wasm_bytes = wat::parse_str(&wat_src).expect("WAT parse failed");
+            let manifest = make_sample_manifest(vec!["on-user-authenticated".to_string()]);
+            let instance = WasmPluginInstance::from_bytes(engine, manifest, &wasm_bytes, kv)
+                .expect("Instance creation failed");
+            instance
+                .on_user_authenticated(aegis_core::UserAuthContext {
+                    provider: "oidc".to_string(),
+                    user_id: "alice".to_string(),
+                    email: "alice@example.com".to_string(),
+                    display_name: None,
+                    role: "viewer".to_string(),
+                    metadata: HashMap::new(),
+                })
+                .await
+        }
+
+        let mapped = run(r#"{"provider":"oidc","user_id":"alice","role":"admin"}"#)
+            .await
+            .unwrap();
+        assert_eq!(mapped.role, "admin");
+        match run(r#"{"error":"not allowed"}"#).await {
+            Err(aegis_core::AegisError::PluginRejected(message)) => {
+                assert_eq!(message, "test-plugin: not allowed");
+            }
+            other => panic!("expected a rejection, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
     async fn test_wasm_ast_transform_hook() {
         let engine = WasmEngine::new().expect("WasmEngine initialization failed");
         let kv = Arc::new(Mutex::new(HashMap::new()));

@@ -4,7 +4,9 @@ use std::sync::{Arc, Mutex};
 use wasmtime::{Instance, Module, Store, TypedFunc};
 
 use aegis_ast::BlockNode;
-use aegis_core::{AegisError, PluginManifest, PostContext, Result};
+use aegis_core::{
+    AegisError, PageRenderContext, PluginManifest, PostContext, Result, UserAuthContext,
+};
 
 use super::engine::WasmEngine;
 use super::host_state::PluginHostState;
@@ -105,13 +107,57 @@ impl WasmPluginInstance {
 
         Ok(buffer)
     }
+
+    /// Calls `export` with `input` as JSON in a fresh instance, under the manifest's timeout.
+    /// Returns the JSON the guest wrote back, or `None` when the module does not export the
+    /// function or returned nothing (length 0), meaning "unchanged".
+    async fn call_hook(&self, hook: &str, export: &str, input: &[u8]) -> Result<Option<Vec<u8>>> {
+        let host_state = PluginHostState::new(self.manifest.clone(), self.kv_storage.clone());
+        host_state.guard().check_hook(hook)?;
+
+        let (mut store, instance) = self.instantiate().await?;
+        let Ok(func) = instance.get_typed_func::<(i32, i32), i64>(&mut store, export) else {
+            return Ok(None);
+        };
+        let (ptr, len) = Self::write_to_guest(&mut store, &instance, input).await?;
+
+        let timeout_ms = self.manifest.resource_limits.execution_timeout_ms.max(50);
+        let duration = std::time::Duration::from_millis(timeout_ms);
+        let packed_res =
+            match tokio::time::timeout(duration, func.call_async(&mut store, (ptr, len))).await {
+                Ok(res) => res.map_err(|e| {
+                    AegisError::PluginRuntime(format!("Hook '{}' error: {}", export, e))
+                })?,
+                Err(_) => {
+                    return Err(AegisError::ResourceLimitExceeded(format!(
+                        "Plugin '{}' exceeded timeout limit of {}ms",
+                        self.manifest.name, timeout_ms
+                    )))
+                }
+            };
+
+        // 返り値は i64: 上位32bitがptr、下位32bitがlen
+        let res_ptr = (packed_res >> 32) as i32;
+        let res_len = (packed_res & 0xFFFF_FFFF) as i32;
+        if res_len <= 0 {
+            return Ok(None);
+        }
+        Self::read_from_guest(&mut store, &instance, res_ptr, res_len).map(Some)
+    }
 }
 
-/// Reads what `on_before_save` returned: the (possibly updated) `PostContext`, or
-/// `{"error": "<message>"}` when the plugin rejects the save (`abi::write_error_to_host` in the SDK)
-fn parse_before_save_output(plugin: &str, out_bytes: &[u8]) -> Result<PostContext> {
-    let value: serde_json::Value = serde_json::from_slice(out_bytes)
-        .map_err(|e| AegisError::Serialization(format!("Invalid PostContext returned: {}", e)))?;
+/// Reads what a hook that may refuse (`on_before_save`, `on_user_authenticated`) returned: the
+/// (possibly updated) value, or `{"error": "<message>"}` when the plugin refuses
+/// (`abi::write_error_to_host` in the SDK)
+fn parse_refusable_output<T: serde::de::DeserializeOwned>(
+    plugin: &str,
+    type_name: &str,
+    out_bytes: &[u8],
+) -> Result<T> {
+    let invalid = |e: serde_json::Error| {
+        AegisError::Serialization(format!("Invalid {} returned: {}", type_name, e))
+    };
+    let value: serde_json::Value = serde_json::from_slice(out_bytes).map_err(invalid)?;
     if let Some(error) = value.get("error") {
         let message = error
             .as_str()
@@ -122,8 +168,11 @@ fn parse_before_save_output(plugin: &str, out_bytes: &[u8]) -> Result<PostContex
             plugin, message
         )));
     }
-    serde_json::from_value(value)
-        .map_err(|e| AegisError::Serialization(format!("Invalid PostContext returned: {}", e)))
+    serde_json::from_value(value).map_err(invalid)
+}
+
+fn to_json<T: serde::Serialize>(value: &T) -> Result<Vec<u8>> {
+    serde_json::to_vec(value).map_err(|e| AegisError::Serialization(e.to_string()))
 }
 
 #[async_trait]
@@ -133,149 +182,54 @@ impl AegisPlugin for WasmPluginInstance {
     }
 
     async fn on_before_save(&self, post: PostContext) -> Result<PostContext> {
-        let host_state = PluginHostState::new(self.manifest.clone(), self.kv_storage.clone());
-        host_state.guard().check_hook("on-before-save")?;
-
-        let (mut store, instance) = self.instantiate().await?;
-
-        // プラグインが on_before_save をエクスポートしているか確認
-        if let Ok(func) = instance.get_typed_func::<(i32, i32), i64>(&mut store, "on_before_save") {
-            let json_bytes =
-                serde_json::to_vec(&post).map_err(|e| AegisError::Serialization(e.to_string()))?;
-
-            let (ptr, len) = Self::write_to_guest(&mut store, &instance, &json_bytes).await?;
-
-            let timeout_ms = self.manifest.resource_limits.execution_timeout_ms.max(50);
-            let duration = std::time::Duration::from_millis(timeout_ms);
-
-            let packed_res =
-                match tokio::time::timeout(duration, func.call_async(&mut store, (ptr, len))).await
-                {
-                    Ok(res) => res.map_err(|e| {
-                        AegisError::PluginRuntime(format!("Hook 'on_before_save' error: {}", e))
-                    })?,
-                    Err(_) => {
-                        return Err(AegisError::ResourceLimitExceeded(format!(
-                            "Plugin '{}' exceeded timeout limit of {}ms",
-                            self.manifest.name, timeout_ms
-                        )))
-                    }
-                };
-
-            // 返り値は i64: 上位32bitがptr、下位32bitがlen
-            let res_ptr = (packed_res >> 32) as i32;
-            let res_len = (packed_res & 0xFFFF_FFFF) as i32;
-
-            if res_len > 0 {
-                let out_bytes = Self::read_from_guest(&mut store, &instance, res_ptr, res_len)?;
-                return parse_before_save_output(&self.manifest.name, &out_bytes);
-            }
+        match self
+            .call_hook("on-before-save", "on_before_save", &to_json(&post)?)
+            .await?
+        {
+            Some(out) => parse_refusable_output(&self.manifest.name, "PostContext", &out),
+            None => Ok(post),
         }
-
-        Ok(post)
     }
 
     async fn transform_content_ast(&self, blocks: Vec<BlockNode>) -> Result<Vec<BlockNode>> {
-        let host_state = PluginHostState::new(self.manifest.clone(), self.kv_storage.clone());
-        host_state.guard().check_hook("transform-content-ast")?;
-
-        let (mut store, instance) = self.instantiate().await?;
-
-        if let Ok(func) =
-            instance.get_typed_func::<(i32, i32), i64>(&mut store, "transform_content_ast")
+        match self
+            .call_hook(
+                "transform-content-ast",
+                "transform_content_ast",
+                &to_json(&blocks)?,
+            )
+            .await?
         {
-            let json_bytes = serde_json::to_vec(&blocks)
-                .map_err(|e| AegisError::Serialization(e.to_string()))?;
-
-            let (ptr, len) = Self::write_to_guest(&mut store, &instance, &json_bytes).await?;
-
-            let timeout_ms = self.manifest.resource_limits.execution_timeout_ms.max(50);
-            let duration = std::time::Duration::from_millis(timeout_ms);
-
-            let packed_res =
-                match tokio::time::timeout(duration, func.call_async(&mut store, (ptr, len))).await
-                {
-                    Ok(res) => res.map_err(|e| {
-                        AegisError::PluginRuntime(format!(
-                            "Hook 'transform_content_ast' error: {}",
-                            e
-                        ))
-                    })?,
-                    Err(_) => {
-                        return Err(AegisError::ResourceLimitExceeded(format!(
-                            "Plugin '{}' exceeded timeout limit of {}ms",
-                            self.manifest.name, timeout_ms
-                        )))
-                    }
-                };
-
-            let res_ptr = (packed_res >> 32) as i32;
-            let res_len = (packed_res & 0xFFFF_FFFF) as i32;
-
-            if res_len > 0 {
-                let out_bytes = Self::read_from_guest(&mut store, &instance, res_ptr, res_len)?;
-                let transformed: Vec<BlockNode> =
-                    serde_json::from_slice(&out_bytes).map_err(|e| {
-                        AegisError::Serialization(format!(
-                            "Invalid BlockNode array returned: {}",
-                            e
-                        ))
-                    })?;
-                return Ok(transformed);
-            }
+            Some(out) => serde_json::from_slice(&out).map_err(|e| {
+                AegisError::Serialization(format!("Invalid BlockNode array returned: {}", e))
+            }),
+            None => Ok(blocks),
         }
-
-        Ok(blocks)
     }
 
-    async fn on_render_page(
-        &self,
-        ctx: aegis_core::PageRenderContext,
-    ) -> Result<aegis_core::PageRenderContext> {
-        let host_state = PluginHostState::new(self.manifest.clone(), self.kv_storage.clone());
-        host_state.guard().check_hook("on-render-page")?;
-
-        let (mut store, instance) = self.instantiate().await?;
-
-        if let Ok(func) = instance.get_typed_func::<(i32, i32), i64>(&mut store, "on_render_page") {
-            let json_bytes =
-                serde_json::to_vec(&ctx).map_err(|e| AegisError::Serialization(e.to_string()))?;
-
-            let (ptr, len) = Self::write_to_guest(&mut store, &instance, &json_bytes).await?;
-
-            let timeout_ms = self.manifest.resource_limits.execution_timeout_ms.max(50);
-            let duration = std::time::Duration::from_millis(timeout_ms);
-
-            let packed_res =
-                match tokio::time::timeout(duration, func.call_async(&mut store, (ptr, len))).await
-                {
-                    Ok(res) => res.map_err(|e| {
-                        AegisError::PluginRuntime(format!("Hook 'on_render_page' error: {}", e))
-                    })?,
-                    Err(_) => {
-                        return Err(AegisError::ResourceLimitExceeded(format!(
-                            "Plugin '{}' exceeded timeout limit of {}ms",
-                            self.manifest.name, timeout_ms
-                        )))
-                    }
-                };
-
-            let res_ptr = (packed_res >> 32) as i32;
-            let res_len = (packed_res & 0xFFFF_FFFF) as i32;
-
-            if res_len > 0 {
-                let out_bytes = Self::read_from_guest(&mut store, &instance, res_ptr, res_len)?;
-                let updated_ctx: aegis_core::PageRenderContext = serde_json::from_slice(&out_bytes)
-                    .map_err(|e| {
-                        AegisError::Serialization(format!(
-                            "Invalid PageRenderContext returned: {}",
-                            e
-                        ))
-                    })?;
-                return Ok(updated_ctx);
-            }
+    async fn on_render_page(&self, ctx: PageRenderContext) -> Result<PageRenderContext> {
+        match self
+            .call_hook("on-render-page", "on_render_page", &to_json(&ctx)?)
+            .await?
+        {
+            Some(out) => serde_json::from_slice(&out).map_err(|e| {
+                AegisError::Serialization(format!("Invalid PageRenderContext returned: {}", e))
+            }),
+            None => Ok(ctx),
         }
+    }
 
-        Ok(ctx)
+    async fn on_user_authenticated(&self, ctx: UserAuthContext) -> Result<UserAuthContext> {
+        match self
+            .call_hook(
+                "on-user-authenticated",
+                "on_user_authenticated",
+                &to_json(&ctx)?,
+            )
+            .await?
+        {
+            Some(out) => parse_refusable_output(&self.manifest.name, "UserAuthContext", &out),
+            None => Ok(ctx),
+        }
     }
 }

@@ -1,6 +1,6 @@
 use crate::guard::CapabilityGuard;
 use aegis_ast::BlockNode;
-use aegis_core::{PluginManifest, PostContext, Result};
+use aegis_core::{PluginManifest, PostContext, Result, UserAuthContext};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -28,6 +28,12 @@ pub trait AegisPlugin: Send + Sync {
     ) -> Result<aegis_core::PageRenderContext> {
         let guard = CapabilityGuard::new(self.manifest());
         guard.check_hook("on-render-page")?;
+        Ok(ctx)
+    }
+
+    async fn on_user_authenticated(&self, ctx: UserAuthContext) -> Result<UserAuthContext> {
+        let guard = CapabilityGuard::new(self.manifest());
+        guard.check_hook("on-user-authenticated")?;
         Ok(ctx)
     }
 
@@ -101,6 +107,26 @@ impl PluginSupervisor {
                 .any(|h| h == "on-render-page")
             {
                 ctx = plugin.on_render_page(ctx).await?;
+            }
+        }
+        Ok(ctx)
+    }
+
+    /// Runs every `on-user-authenticated` plugin in turn after a successful login. An error
+    /// (a rejection or a failure) stops the chain; the login must then be refused
+    pub async fn apply_user_authenticated(
+        &self,
+        mut ctx: UserAuthContext,
+    ) -> Result<UserAuthContext> {
+        for plugin in &self.plugins {
+            if plugin
+                .manifest()
+                .capabilities
+                .hooks
+                .iter()
+                .any(|h| h == "on-user-authenticated")
+            {
+                ctx = plugin.on_user_authenticated(ctx).await?;
             }
         }
         Ok(ctx)
