@@ -31,7 +31,6 @@
 ### 🚀 次に作業を再開するときの着手項目
 **認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録は完了**
 1. ⑤ `on_user_authenticated` フック、OIDC / SAML プロバイダ。
-2. その他の未着手: メディアの削除 API / UI。
 
 ---
 
@@ -159,6 +158,7 @@
   - [x] 画像ブロックからのファイルアップロード (`/api/v1/storage/upload`) 連携（ドラッグ＆ドロップ / ファイル選択、URL と alt の自動反映、画像以外・上限超過のエラー表示）
   - [x] アップロード上限の設定化（`[storage].max_upload_mb`、既定 10MB。axum 既定の 2MB 制限で 2MB 超の画像が分かりにくい 400 で失敗していた問題を解消し、超過時は 413 を返す）
   - [x] メディア一覧表示: `StorageBackend::list`（ローカル: ディレクトリ走査、S3: ListObjectsV2 + SigV4 クエリ署名）と `GET /api/v1/storage/objects`（新しい順、`prefix` / `content_type` / `q` 絞り込み、`limit` / `offset` ページング）、Admin Studio のメディアライブラリ（画像ブロックから既存画像を選択・再利用、ファイル名検索、追加読み込み）
+  - [x] メディアの削除: `DELETE /api/v1/storage/objects/{key}`（`editor`、`storage.delete` を監査記録）。保存済みコンテンツが公開 URL を参照している場合は `409` で参照元を返し、`?force=true` のときだけ削除。メディアライブラリに削除ボタン（editor のみ）と確認ダイアログ（使用中なら参照元を表示して「Delete anyway」）。[docs/media.md](docs/media.md)
 - [x] **コンテンツ一覧のフィルタリングとリレーション表示**
   - [x] 記事一覧（サイドバー）にカテゴリバッジを表示（カテゴリの色・名前。カテゴリ一覧に無い場合はサーバーが解決した `relations.category_id` の名前を表示）
   - [x] カテゴリ別フィルタリング機能（All / Uncategorized / 各カテゴリ。件数は「表示件数/全件数」で表示。API に絞り込み機能が無いため Admin Studio 内で絞り込み）
@@ -240,7 +240,11 @@
 - **メディア一覧 API (`GET /api/v1/storage/objects`)**:
   - ストレージ側に並び順・絞り込みの機能が無いため、サーバーは最大 10,000 件（`MAX_LIST_SCAN`）を走査してからメモリ上で絞り込み・新しい順の並び替え・ページングを行います。超過時はレスポンスの `truncated: true` で通知します（`q` / `content_type` は走査後の絞り込みなので、超過分を探すには `prefix` を使う）。
   - バックエンドはアップロード時の mime type を保持していないため、一覧の `content_type` は拡張子から推定します（`aegis_core::guess_content_type`）。ローカルでは隠しファイル・シンボリックリンクを除外、S3 では末尾 `/` の「フォルダ」オブジェクトを除外します。
-  - アップロード API と同様に現状は認証不要です。
+  - 一覧は `viewer`、アップロード・削除は `editor` が必要です（[docs/authentication.md](docs/authentication.md)）。
+- **メディア削除 API (`DELETE /api/v1/storage/objects/{key}`)**:
+  - 存在確認に `StorageBackend::exists` を追加（既定はキーを prefix にした `list` での完全一致。ローカルは `metadata` で上書き）。S3 の DELETE は存在しないキーでも成功するため、404 を返すには事前の確認が必要。
+  - 使用中の判定は全スキーマの `list_contents` を読み、`blocks_json` とカスタムフィールドの JSON に公開 URL が含まれるかの文字列一致。コンテンツ数が増えて遅くなった場合は、保存時に参照する URL を別テーブルに記録する方式に切り替える。
+  - 使用中で拒否した `409` は監査に記録しない（入力不備と同じ扱い）。削除した場合は `details.references` に削除時点の参照元の件数を残す。
 - **アップロードのサイズ上限**:
   - axum の `Multipart` は既定でリクエストボディを 2MB に制限します。`/api/v1/storage/upload` には `DefaultBodyLimit::max(config.storage.max_upload_bytes())` を個別に設定しているため、上限を変える場合は `[storage].max_upload_mb` を変更してください（リバースプロキシ側の上限、例: nginx の `client_max_body_size` も合わせる必要があります）。
   - アップロード API は現状認証なしで受け付けます（監査ログには記録されます）。認証プロバイダの実装時に保護対象へ含めてください。

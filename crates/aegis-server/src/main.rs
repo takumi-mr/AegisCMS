@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use axum::{
     extract::DefaultBodyLimit,
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use clap::{Parser, Subcommand};
@@ -371,6 +371,10 @@ async fn main() -> anyhow::Result<()> {
                         .layer(DefaultBodyLimit::max(config.storage.max_upload_bytes())),
                 )
                 .route("/api/v1/storage/objects", get(handlers::list_objects))
+                .route(
+                    "/api/v1/storage/objects/{*key}",
+                    delete(handlers::delete_object),
+                )
                 .route("/api/v1/preview", post(handlers::preview_content))
                 .route(
                     "/api/v1/auth/session",

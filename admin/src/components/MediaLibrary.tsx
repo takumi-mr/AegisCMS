@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Images, Loader2, RefreshCw, Search } from 'lucide-react';
+import { Images, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { aegisApi } from '../api/client';
-import type { StorageObject } from '../types';
+import type { ObjectReference, StorageObject } from '../types';
 import { fileNameFromKey, formatSize } from '../utils/media';
 import { Button } from './ui/Button';
 import { Field } from './ui/Field';
@@ -15,13 +15,29 @@ interface MediaLibraryProps {
   /** Called with the chosen file; the parent closes the library */
   onSelect: (object: StorageObject) => void;
   onClose: () => void;
+  /** Show delete buttons (deleting needs the editor role) */
+  canDelete?: boolean;
+}
+
+interface PendingDelete {
+  object: StorageObject;
+  /** Contents still using the file (the server refused to delete it), or null before asking */
+  references: ObjectReference[] | null;
+  busy: boolean;
+  error: string | null;
 }
 
 /**
  * Modal that lists uploaded images (`GET /api/v1/storage/objects`, newest first)
  * so an image block can reuse an existing file instead of uploading it again.
+ * Editors can also delete files (`DELETE /api/v1/storage/objects/{key}`); a file that saved
+ * contents still use is only deleted after a second confirmation.
  */
-export const MediaLibrary: React.FC<MediaLibraryProps> = ({ onSelect, onClose }) => {
+export const MediaLibrary: React.FC<MediaLibraryProps> = ({
+  onSelect,
+  onClose,
+  canDelete = false,
+}) => {
   const [search, setSearch] = useState<string>('');
   const [query, setQuery] = useState<string>('');
   // Offset of the latest requested page; 0 starts a fresh listing, more appends
@@ -34,6 +50,8 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ onSelect, onClose })
     truncated: boolean;
     error: string | null;
   } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -89,6 +107,43 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ onSelect, onClose })
     setReloadCount((n) => n + 1);
   };
 
+  const askDelete = (object: StorageObject) => {
+    setNotice(null);
+    setPendingDelete({ object, references: null, busy: false, error: null });
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { object, references } = pendingDelete;
+    setPendingDelete({ ...pendingDelete, busy: true, error: null });
+    try {
+      // The second confirmation (after the server listed the contents using it) forces it
+      const result = await aegisApi.deleteStorageObject(object.key, references !== null);
+      if (!result.deleted) {
+        setPendingDelete({ object, references: result.references, busy: false, error: null });
+        return;
+      }
+      setResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              objects: prev.objects.filter((o) => o.key !== object.key),
+              total: Math.max(prev.total - 1, 0),
+            }
+          : prev
+      );
+      setPendingDelete(null);
+      setNotice(`Deleted ${fileNameFromKey(object.key)}`);
+    } catch (err: unknown) {
+      setPendingDelete({
+        object,
+        references,
+        busy: false,
+        error: err instanceof Error ? err.message : 'Failed to delete the file',
+      });
+    }
+  };
+
   return (
     <Modal
       title="Media Library"
@@ -124,6 +179,52 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ onSelect, onClose })
       </div>
 
       <div className={styles.body}>
+        {pendingDelete && (
+          <div className={styles.confirm} role="alertdialog" aria-label="Delete file">
+            <p>
+              Delete <strong>{fileNameFromKey(pendingDelete.object.key)}</strong>? This cannot be
+              undone.
+            </p>
+            {pendingDelete.references && (
+              <>
+                <p className={styles.warning}>
+                  It is used by {pendingDelete.references.length} saved content item(s). Their
+                  images will break if you delete it:
+                </p>
+                <ul className={styles.references}>
+                  {pendingDelete.references.map((ref) => (
+                    <li key={`${ref.content_type}/${ref.id}`}>
+                      {ref.title || ref.slug}{' '}
+                      <span className={styles.referenceMeta}>
+                        ({ref.content_type}/{ref.slug})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {pendingDelete.error && <div className={styles.error}>{pendingDelete.error}</div>}
+            <div className={styles.confirmActions}>
+              <Button onClick={() => setPendingDelete(null)} disabled={pendingDelete.busy}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                className={styles.deleteButton}
+                onClick={confirmDelete}
+                disabled={pendingDelete.busy}
+              >
+                {pendingDelete.busy && <Loader2 size={14} className="animate-spin" />}
+                {pendingDelete.references ? 'Delete anyway' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        )}
+        {notice && (
+          <div className={styles.notice} role="status">
+            {notice}
+          </div>
+        )}
         {error && <div className={styles.error}>{error}</div>}
         {!error && !isLoading && objects.length === 0 && (
           <div className={styles.empty}>
@@ -132,21 +233,35 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ onSelect, onClose })
         )}
         <div className={styles.grid}>
           {objects.map((object) => (
-            <button
-              key={object.key}
-              type="button"
-              className={styles.item}
-              onClick={() => onSelect(object)}
-              title={object.key}
-            >
-              <img src={object.url} alt="" loading="lazy" decoding="async" />
-              <span className={styles.itemName}>{fileNameFromKey(object.key)}</span>
-              <span className={styles.itemMeta}>
-                {formatSize(object.size)}
-                {object.last_modified &&
-                  ` · ${new Date(object.last_modified).toLocaleDateString()}`}
-              </span>
-            </button>
+            <div key={object.key} className={styles.itemWrap}>
+              <button
+                type="button"
+                className={styles.item}
+                onClick={() => onSelect(object)}
+                title={object.key}
+              >
+                <img src={object.url} alt="" loading="lazy" decoding="async" />
+                <span className={styles.itemName}>{fileNameFromKey(object.key)}</span>
+                <span className={styles.itemMeta}>
+                  {formatSize(object.size)}
+                  {object.last_modified &&
+                    ` · ${new Date(object.last_modified).toLocaleDateString()}`}
+                </span>
+              </button>
+              {canDelete && (
+                <Button
+                  variant="icon"
+                  danger
+                  className={styles.itemDelete}
+                  onClick={() => askDelete(object)}
+                  disabled={pendingDelete?.busy}
+                  aria-label={`Delete ${fileNameFromKey(object.key)}`}
+                  title="Delete"
+                >
+                  <Trash2 size={14} />
+                </Button>
+              )}
+            </div>
           ))}
         </div>
         {isLoading && (
