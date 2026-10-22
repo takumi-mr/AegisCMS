@@ -74,7 +74,13 @@ export const Preview: React.FC<PreviewProps> = ({ title, blocks, serverHtml }) =
       <div className="preview-content">
         {tab === 'html' ? (
           <div>
-            <div style={{ marginBottom: '16px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+            <div
+              style={{
+                marginBottom: '16px',
+                borderBottom: '1px solid var(--border-subtle)',
+                paddingBottom: '12px',
+              }}
+            >
               <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.6rem', color: '#fff' }}>
                 {title || 'Untitled Article'}
               </h1>
@@ -83,15 +89,14 @@ export const Preview: React.FC<PreviewProps> = ({ title, blocks, serverHtml }) =
               </div>
             </div>
 
-            <div
-              className="html-output"
-              dangerouslySetInnerHTML={{ __html: renderedHtml }}
-            />
+            <div className="html-output" dangerouslySetInnerHTML={{ __html: renderedHtml }} />
 
             {blocks.length === 0 && (
               <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
                 <ShieldAlert size={36} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
-                <p style={{ fontSize: '0.85rem' }}>Add blocks from the toolbar to see live deterministic output.</p>
+                <p style={{ fontSize: '0.85rem' }}>
+                  Add blocks from the toolbar to see live deterministic output.
+                </p>
               </div>
             )}
           </div>

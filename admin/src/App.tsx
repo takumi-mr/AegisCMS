@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Hash, AlignLeft, Code2, Image as ImageIcon, CheckCircle2, AlertCircle, Tags } from 'lucide-react';
+import {
+  Plus,
+  Hash,
+  AlignLeft,
+  Code2,
+  Image as ImageIcon,
+  CheckCircle2,
+  AlertCircle,
+  Tags,
+} from 'lucide-react';
 import { Header, type AppView } from './components/Header';
 import { AuditLogView } from './components/AuditLogView';
 import { LoginView } from './components/LoginView';
@@ -253,167 +262,163 @@ export const App: React.FC = () => {
       {view === 'audit' && isAdmin(session) ? (
         <AuditLogView />
       ) : (
-      <div className="workspace-body">
-        {/* Sidebar */}
-        <ContentList
-          contents={contents}
-          categories={categories}
-          selectedId={selectedId}
-          onSelect={handleSelectContent}
-          onNew={handleNew}
-          contentType={contentType}
-        />
+        <div className="workspace-body">
+          {/* Sidebar */}
+          <ContentList
+            contents={contents}
+            categories={categories}
+            selectedId={selectedId}
+            onSelect={handleSelectContent}
+            onNew={handleNew}
+            contentType={contentType}
+          />
 
-        {/* Main Editor Center Column */}
-        <main className="editor-main">
-          <div className="editor-column">
-            {/* Meta Section */}
-            <div className="meta-section">
-              <input
-                type="text"
-                className="title-input"
-                placeholder="Enter post title..."
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  if (!selectedId) {
-                    setSlug(
-                      e.target.value
-                        .toLowerCase()
-                        .replace(/[^a-z0-9-]+/g, '-')
-                        .replace(/^-|-$/g, '')
-                    );
-                  }
-                }}
-              />
-
-              <div className="meta-row">
-                <div className="input-field">
-                  <span className="input-prefix">slug:</span>
-                  <input
-                    type="text"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    placeholder="post-slug"
-                  />
-                </div>
-
-                <div className="input-field" style={{ maxWidth: '180px' }}>
-                  <span className="input-prefix">status:</span>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as any)}
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="meta-row">
-                <div className="input-field">
-                  <span className="input-prefix">category:</span>
-                  <select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    aria-label="Category"
-                  >
-                    <option value="">No category</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.title}
-                      </option>
-                    ))}
-                    {categoryId && !categories.some((c) => c.id === categoryId) && (
-                      <option value={categoryId}>Unknown category ({categoryId.slice(0, 8)})</option>
-                    )}
-                  </select>
-                </div>
-                <button
-                  className="tool-btn"
-                  onClick={() => setIsCategoryManagerOpen(true)}
-                  disabled={!editable}
-                  title={editable ? 'List and create categories' : 'Requires the editor role'}
-                >
-                  <Tags size={14} />
-                  <span>Manage</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Block Insertion Toolbar */}
-            <div className="block-toolbar">
-              <span className="toolbar-label">Add Block</span>
-              <button
-                className="tool-btn"
-                onClick={() => addBlock('core/heading', 'Section Title', { level: 2 })}
-              >
-                <Hash size={14} />
-                <span>Heading</span>
-              </button>
-              <button
-                className="tool-btn"
-                onClick={() => addBlock('core/paragraph', '')}
-              >
-                <AlignLeft size={14} />
-                <span>Paragraph</span>
-              </button>
-              <button
-                className="tool-btn"
-                onClick={() => addBlock('core/code', '', { language: 'rust' })}
-              >
-                <Code2 size={14} />
-                <span>Code Block</span>
-              </button>
-              <button
-                className="tool-btn"
-                onClick={() =>
-                  addBlock('core/image', '', {
-                    src: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
-                    alt: 'Abstract gradient art',
-                  })
-                }
-              >
-                <ImageIcon size={14} />
-                <span>Image</span>
-              </button>
-            </div>
-
-            {/* Block Canvas */}
-            <div className="blocks-list">
-              {blocks.map((block, idx) => (
-                <BlockItem
-                  key={idx}
-                  block={block}
-                  index={idx}
-                  total={blocks.length}
-                  onChange={(updated) => updateBlock(idx, updated)}
-                  onMoveUp={() => moveBlock(idx, 'up')}
-                  onMoveDown={() => moveBlock(idx, 'down')}
-                  onDelete={() => deleteBlock(idx)}
-                  canUpload={editable}
+          {/* Main Editor Center Column */}
+          <main className="editor-main">
+            <div className="editor-column">
+              {/* Meta Section */}
+              <div className="meta-section">
+                <input
+                  type="text"
+                  className="title-input"
+                  placeholder="Enter post title..."
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    if (!selectedId) {
+                      setSlug(
+                        e.target.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9-]+/g, '-')
+                          .replace(/^-|-$/g, '')
+                      );
+                    }
+                  }}
                 />
-              ))}
 
-              {blocks.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                  <p>This post has no content blocks.</p>
+                <div className="meta-row">
+                  <div className="input-field">
+                    <span className="input-prefix">slug:</span>
+                    <input
+                      type="text"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value)}
+                      placeholder="post-slug"
+                    />
+                  </div>
+
+                  <div className="input-field" style={{ maxWidth: '180px' }}>
+                    <span className="input-prefix">status:</span>
+                    <select value={status} onChange={(e) => setStatus(e.target.value as any)}>
+                      <option value="draft">Draft</option>
+                      <option value="published">Published</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="meta-row">
+                  <div className="input-field">
+                    <span className="input-prefix">category:</span>
+                    <select
+                      value={categoryId}
+                      onChange={(e) => setCategoryId(e.target.value)}
+                      aria-label="Category"
+                    >
+                      <option value="">No category</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.title}
+                        </option>
+                      ))}
+                      {categoryId && !categories.some((c) => c.id === categoryId) && (
+                        <option value={categoryId}>
+                          Unknown category ({categoryId.slice(0, 8)})
+                        </option>
+                      )}
+                    </select>
+                  </div>
                   <button
-                    className="btn btn-secondary"
-                    style={{ marginTop: '12px' }}
-                    onClick={() => addBlock('core/paragraph')}
+                    className="tool-btn"
+                    onClick={() => setIsCategoryManagerOpen(true)}
+                    disabled={!editable}
+                    title={editable ? 'List and create categories' : 'Requires the editor role'}
                   >
-                    <Plus size={16} /> Add First Paragraph
+                    <Tags size={14} />
+                    <span>Manage</span>
                   </button>
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
 
-          {/* Right Live Preview Column */}
-          <Preview title={title} blocks={blocks} />
-        </main>
-      </div>
+              {/* Block Insertion Toolbar */}
+              <div className="block-toolbar">
+                <span className="toolbar-label">Add Block</span>
+                <button
+                  className="tool-btn"
+                  onClick={() => addBlock('core/heading', 'Section Title', { level: 2 })}
+                >
+                  <Hash size={14} />
+                  <span>Heading</span>
+                </button>
+                <button className="tool-btn" onClick={() => addBlock('core/paragraph', '')}>
+                  <AlignLeft size={14} />
+                  <span>Paragraph</span>
+                </button>
+                <button
+                  className="tool-btn"
+                  onClick={() => addBlock('core/code', '', { language: 'rust' })}
+                >
+                  <Code2 size={14} />
+                  <span>Code Block</span>
+                </button>
+                <button
+                  className="tool-btn"
+                  onClick={() =>
+                    addBlock('core/image', '', {
+                      src: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
+                      alt: 'Abstract gradient art',
+                    })
+                  }
+                >
+                  <ImageIcon size={14} />
+                  <span>Image</span>
+                </button>
+              </div>
+
+              {/* Block Canvas */}
+              <div className="blocks-list">
+                {blocks.map((block, idx) => (
+                  <BlockItem
+                    key={idx}
+                    block={block}
+                    index={idx}
+                    total={blocks.length}
+                    onChange={(updated) => updateBlock(idx, updated)}
+                    onMoveUp={() => moveBlock(idx, 'up')}
+                    onMoveDown={() => moveBlock(idx, 'down')}
+                    onDelete={() => deleteBlock(idx)}
+                    canUpload={editable}
+                  />
+                ))}
+
+                {blocks.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                    <p>This post has no content blocks.</p>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ marginTop: '12px' }}
+                      onClick={() => addBlock('core/paragraph')}
+                    >
+                      <Plus size={16} /> Add First Paragraph
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Live Preview Column */}
+            <Preview title={title} blocks={blocks} />
+          </main>
+        </div>
       )}
 
       {isCategoryManagerOpen && (
@@ -428,11 +433,7 @@ export const App: React.FC = () => {
       {toast && (
         <div className="toast-container">
           <div className={`toast ${toast.type}`}>
-            {toast.type === 'success' ? (
-              <CheckCircle2 size={18} />
-            ) : (
-              <AlertCircle size={18} />
-            )}
+            {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
             <span>{toast.message}</span>
           </div>
         </div>

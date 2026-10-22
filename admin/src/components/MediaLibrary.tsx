@@ -182,8 +182,8 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ onSelect, onClose })
           )}
           {result?.truncated && (
             <div className="media-library-note">
-              The storage holds more files than the server scans for one listing (10,000), so
-              some images are not shown.
+              The storage holds more files than the server scans for one listing (10,000), so some
+              images are not shown.
             </div>
           )}
         </div>

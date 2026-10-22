@@ -167,6 +167,11 @@
 
 ---
 
+#### 開発環境・フロントエンド整備
+- [x] **Prettier 導入 & VS Code 保存時自動整形**: `admin/` に Prettier（バージョン固定）、`.prettierrc.json` / `.prettierignore`、`npm run format` / `format:check`、`task fmt:admin` / `fmt:admin:check`（`task check` と CI に組み込み）。oxlint も `--deny-warnings`（ゼロ警告）で CI・`task check`（`task lint:admin`）に追加。`.vscode/settings.json` で TS / TSX / JS / CSS / HTML / JSON の保存時整形、`.vscode/extensions.json` で拡張機能を推奨。`.editorconfig` の CSS / HTML のインデントを実態どおり 2 スペースに修正
+
+---
+
 #### 不具合・ドキュメント整備時に判明した課題
 - [x] **PostgreSQL でコンテンツ作成が失敗していた問題を修正**: カスタムフィールドを常に文字列でバインドしていたため、`jsonb` 列（`custom_meta`）への `INSERT` が値の有無にかかわらず失敗していた。`PostgresAdapter` でスキーマの列型に合わせて `jsonb` / `BIGINT` / `BOOLEAN` を型付きでバインド・デコードするよう修正（読み出し時に `jsonb` 列が黙って欠落する問題も解消）。
 - [x] DDL で `required: true` かつ `nullable: false` のフィールドに型を問わず `DEFAULT ''` が付与され、PostgreSQL では `integer` / `boolean` / `jsonb` のテーブル作成が失敗していた問題を修正（型ごとの既定値: integer `0`、boolean `0` / `FALSE`、jsonb `'{}'`。MySQL の TEXT / JSON 型は既定値なし）。
@@ -204,6 +209,10 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **Prettier / VS Code**:
+  - Prettier は `.editorconfig` のインデント設定を読みます。`[*]` の 4 スペースが CSS / HTML に効いていたため、`[*.{ts,tsx,js,jsx,css,html}]` に CSS / HTML を追加しました。
+  - VS Code の Prettier 拡張は既定でワークスペース直下の `.prettierignore` を探すため、`.vscode/settings.json` で `prettier.ignorePath` を `admin/.prettierignore` に向けています。`prettier.requireConfig` により設定ファイルの無い `admin/` 外の JSON 等は整形しません。
+  - `src/types/schemas.ts`（`task codegen:ts` の生成物）と Markdown は整形対象外です。
 - **ローカル認証 (`docs/authentication.md`)**:
   - セッションの `user_id` はユーザー名（変更不可）で、監査ログの actor もユーザー名になります。ユーザーの改名機能を作る場合はこの前提を見直してください。
   - ロール変更・無効化・パスワード変更は発行済みセッションに反映されません（セッションはキャッシュにのみ保存され、ユーザーとの紐付け索引が無いため）。即時失効が必要になったら、ユーザー単位のセッション索引か、リクエストごとのユーザー状態確認を追加します。

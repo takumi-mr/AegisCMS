@@ -1,5 +1,7 @@
 export const formatSize = (bytes: number): string =>
-  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
+  bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.ceil(bytes / 1024)} KB`;
 
 /** File name part of a storage key (`2026/10/abcd1234-photo.png` -> `abcd1234-photo.png`) */
 export const fileNameFromKey = (key: string): string => key.slice(key.lastIndexOf('/') + 1);
