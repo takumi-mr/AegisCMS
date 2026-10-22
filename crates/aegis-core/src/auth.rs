@@ -38,6 +38,25 @@ impl AuthIdentity {
     }
 }
 
+/// `on-user-authenticated` フックの入出力。プロバイダが認証に成功した後、セッション発行前に
+/// プラグインへ渡される（ロールマッピング・属性の補完・ログインの拒否に使う）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct UserAuthContext {
+    /// 認証したプロバイダ (例: "local", "oidc")。プラグインは変更できない
+    pub provider: String,
+    /// セッションの `user_id` になる識別子。プラグインは変更できない
+    pub user_id: String,
+    #[serde(default)]
+    pub email: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    /// システムロール (`admin` / `editor` / `viewer`)
+    pub role: String,
+    /// プロバイダ固有の属性（IdP のクレーム・グループなど）。返した値はセッションの `metadata` に入る
+    #[serde(default)]
+    pub metadata: HashMap<String, serde_json::Value>,
+}
+
 /// 認証リクエスト時の入力ペイロード（ID/PW、SAMLResponse、OIDC 認可コードなど）
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AuthCredentials {

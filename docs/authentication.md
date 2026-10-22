@@ -41,6 +41,10 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 - コンテンツ作成時の `author_id` は省略するとログインユーザー（`user_id`）になります。他のユーザーを `author_id` に指定できるのは `admin` だけです（それ以外は `403`）。
 - `/metrics`（Prometheus）は監視系からの取得を想定して公開のままです。外部に公開する場合はリバースプロキシなどでアクセス元を制限してください。
 
+### プラグインによるロールマッピング・ログイン制限
+
+資格情報の確認後・セッション発行前に `on-user-authenticated` フック（[プラグインフック](plugin_hooks.md#14-on-user-authenticated)）が呼ばれます。プラグインはセッションのロール・表示名・`metadata` を変えたり、ログインを拒否（`403`）したりできます。ロールを変えた場合は監査ログ `session.create` の `details.role_mapped` に記録されます。
+
 ---
 
 ## 2. CLI でのユーザー管理 (`aegis user`)
@@ -101,9 +105,10 @@ curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
 | ステータス | 条件 |
 | --- | --- |
 | `401` | ユーザーが存在しない・パスワード不一致・アカウント無効（応答はすべて `Invalid username or password` で区別しない） |
+| `403` | 資格情報は正しいが、`on-user-authenticated` プラグインがログインを拒否した（本文はプラグインのメッセージ） |
 | `422` | `username` / `password` が無い（以前の `{"user_id", "role"}` 形式は受け付けない） |
 | `429` | ログイン失敗が続いたためロック中（`Retry-After` ヘッダーと本文の `retry_after_secs` に解除までの秒数。正しいパスワードでも拒否） |
-| `500` | DB・キャッシュのエラー |
+| `500` | DB・キャッシュのエラー、`on-user-authenticated` プラグインの失敗 |
 
 ### `GET /api/v1/auth/session` / `DELETE /api/v1/auth/session`
 

@@ -11,7 +11,7 @@ pub use audit::{
     format_audit_timestamp, normalize_audit_timestamp, AuditAction, AuditActor, AuditEvent,
     AuditOutcome, AuditQuery, AuditSink,
 };
-pub use auth::{AuthCredentials, AuthIdentity, AuthProvider, AuthRedirect};
+pub use auth::{AuthCredentials, AuthIdentity, AuthProvider, AuthRedirect, UserAuthContext};
 pub use cache::{CacheBackend, CacheBackendKind};
 pub use config::{
     AegisConfig, AuditConfig, AuditSinkKind, AuthConfig, CacheConfig, DatabaseBackendKind,

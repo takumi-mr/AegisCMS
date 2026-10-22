@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::audit::{AuditContext, ClientIp};
+use crate::auth::hook::{run_auth_hook, RESERVED_METADATA_KEYS};
 use crate::auth::local::PASSWORD_CREDENTIALS;
 use crate::auth::{extract_session_id, session_fingerprint};
 use crate::state::AppState;
@@ -135,11 +136,24 @@ pub async fn create_session(
         tracing::warn!("Failed to reset login failures: {}", e);
     }
 
+    // on-user-authenticated プラグイン（ロールマッピング・属性の補完・ログインの拒否）
+    let authenticated_role = identity.role.clone();
+    let identity = match run_auth_hook(&state, provider, identity).await {
+        Ok(identity) => identity,
+        Err(e) => return refuse_after_auth_hook(&state, &audit, &username, provider, e).await,
+    };
+
     let actor = Some(AuditActor {
         user_id: identity.external_id.clone(),
         role: identity.role.clone(),
     });
-    let mut metadata = HashMap::new();
+    // プラグイン・プロバイダの属性。サーバーが設定するキーは上書きさせない
+    let mut metadata: HashMap<String, serde_json::Value> = identity
+        .metadata
+        .iter()
+        .filter(|(key, _)| !RESERVED_METADATA_KEYS.contains(&key.as_str()))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
     metadata.insert("provider".to_string(), json!(provider));
     if let Some(display_name) = &identity.display_name {
         metadata.insert("display_name".to_string(), json!(display_name));
@@ -164,10 +178,18 @@ pub async fn create_session(
                         .event(AuditAction::SessionCreate, AuditOutcome::Success)
                         .with_actor(actor)
                         .with_resource("session", Some(session_fingerprint(&session.id)))
-                        .with_details(json!({
-                            "expires_at": session.expires_at,
-                            "provider": provider,
-                        })),
+                        .with_details(if identity.role == authenticated_role {
+                            json!({
+                                "expires_at": session.expires_at,
+                                "provider": provider,
+                            })
+                        } else {
+                            json!({
+                                "expires_at": session.expires_at,
+                                "provider": provider,
+                                "role_mapped": { "from": authenticated_role, "to": identity.role },
+                            })
+                        }),
                 )
                 .await;
             session
@@ -192,6 +214,67 @@ pub async fn create_session(
     };
 
     (StatusCode::CREATED, Json(session)).into_response()
+}
+
+/// 資格情報は正しかったが `on-user-authenticated` がログインを拒否した・失敗したときの応答。
+/// 拒否は `403`（プラグインのメッセージを返す）、失敗は `500`。どちらもログイン失敗回数には数えない
+async fn refuse_after_auth_hook(
+    state: &AppState,
+    audit: &AuditContext,
+    username: &str,
+    provider: &str,
+    error: AegisError,
+) -> Response {
+    let rejected = matches!(error, AegisError::PluginRejected(_));
+    if !rejected {
+        state
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::PluginError, AuditOutcome::Failure)
+                    .with_resource("session", None)
+                    .with_details(json!({
+                        "hook": "on-user-authenticated",
+                        "username": username,
+                        "error": error.to_string(),
+                    })),
+            )
+            .await;
+    }
+    state
+        .audit
+        .record(
+            audit
+                .event(
+                    AuditAction::SessionCreate,
+                    if rejected {
+                        AuditOutcome::Denied
+                    } else {
+                        AuditOutcome::Failure
+                    },
+                )
+                .with_resource("session", None)
+                .with_details(json!({
+                    "username": username,
+                    "provider": provider,
+                    "error": if rejected { "plugin_rejected" } else { "plugin_failed" },
+                    "reason": error.to_string(),
+                })),
+        )
+        .await;
+    if rejected {
+        (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": error.to_string() })),
+        )
+            .into_response()
+    } else {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("Login hook failed: {}", error) })),
+        )
+            .into_response()
+    }
 }
 
 /// ログインのロック中に返す `429`。応答ではユーザー名と IP のどちらでロックされたかを区別しない
@@ -356,6 +439,106 @@ mod tests {
         assert_eq!(
             login(&state, "nobody", "wrong", ip).await.status(),
             StatusCode::TOO_MANY_REQUESTS
+        );
+    }
+
+    async fn state_with_auth_plugin(mode: crate::auth::hook::tests::Mode) -> Arc<AppState> {
+        let mut supervisor = aegis_runtime::PluginSupervisor::new();
+        supervisor.register(crate::auth::hook::tests::auth_plugin(mode));
+        let state = crate::test_support::test_state(supervisor).await;
+        create_user(
+            state.db.as_ref(),
+            NewUser {
+                username: "alice".to_string(),
+                password: "correct horse battery".to_string(),
+                role: "viewer".to_string(),
+                email: Some("alice@example.com".to_string()),
+                display_name: None,
+            },
+        )
+        .await
+        .unwrap();
+        state
+    }
+
+    async fn body(resp: Response) -> serde_json::Value {
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    async fn login_events(state: &Arc<AppState>) -> Vec<aegis_core::AuditEvent> {
+        let mut events = state
+            .db
+            .query_audit_events(&aegis_core::AuditQuery {
+                limit: 50,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        events.reverse();
+        events
+    }
+
+    #[tokio::test]
+    async fn test_auth_hook_maps_the_session() {
+        use crate::auth::hook::tests::Mode;
+        // The local viewer has no groups, so the plugin maps her to editor
+        let state = state_with_auth_plugin(Mode::Map).await;
+        let resp = login(&state, "alice", "correct horse battery", "203.0.113.7").await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let session = body(resp).await;
+        assert_eq!(session["user_id"], "alice");
+        assert_eq!(session["role"], "editor");
+        assert_eq!(session["metadata"]["display_name"], "Alice A.");
+        assert_eq!(session["metadata"]["department"], "docs");
+        assert_eq!(session["metadata"]["provider"], "local");
+
+        let events = login_events(&state).await;
+        assert_eq!(events[0].outcome, AuditOutcome::Success);
+        assert_eq!(events[0].actor.as_ref().unwrap().role, "editor");
+        assert_eq!(
+            events[0].details["role_mapped"],
+            json!({ "from": "viewer", "to": "editor" })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_auth_hook_rejection_is_a_403_without_a_session() {
+        use crate::auth::hook::tests::Mode;
+        let state = state_with_auth_plugin(Mode::Reject).await;
+        let resp = login(&state, "alice", "correct horse battery", "203.0.113.7").await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            body(resp).await["error"],
+            "Rejected by plugin: guard: account is suspended"
+        );
+
+        let events = login_events(&state).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].action, AuditAction::SessionCreate);
+        assert_eq!(events[0].outcome, AuditOutcome::Denied);
+        assert_eq!(events[0].details["error"], "plugin_rejected");
+    }
+
+    #[tokio::test]
+    async fn test_auth_hook_failure_refuses_the_login() {
+        use crate::auth::hook::tests::Mode;
+        let state = state_with_auth_plugin(Mode::Fail).await;
+        let resp = login(&state, "alice", "correct horse battery", "203.0.113.7").await;
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let actions: Vec<_> = login_events(&state)
+            .await
+            .into_iter()
+            .map(|e| (e.action, e.outcome))
+            .collect();
+        assert_eq!(
+            actions,
+            vec![
+                (AuditAction::PluginError, AuditOutcome::Failure),
+                (AuditAction::SessionCreate, AuditOutcome::Failure),
+            ]
         );
     }
 }

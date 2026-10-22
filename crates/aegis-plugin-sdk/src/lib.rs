@@ -5,7 +5,7 @@ pub mod types;
 
 pub use aegis_plugin_macros::aegis_plugin;
 pub use host::{kv, log, net};
-pub use types::{BlockNode, Plugin, PluginError, PostContext, Result};
+pub use types::{BlockNode, Plugin, PluginError, PostContext, Result, UserAuthContext};
 
 /// 宣言的マクロによる Wasm プラグイン登録
 /// `#[aegis_plugin]` 属性マクロと同等の ABI エクスポートを生成します。
@@ -40,6 +40,48 @@ macro_rules! register_plugin {
                             $crate::log_error!("Failed to serialize updated PostContext: {}", e);
                             $crate::abi::write_error_to_host(&::std::format!(
                                 "Failed to serialize PostContext: {}",
+                                e
+                            ))
+                        }
+                    },
+                    Err(e) => {
+                        // ホストは保存を中止する
+                        $crate::abi::write_error_to_host(&e.to_string())
+                    }
+                }
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn on_user_authenticated(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                let in_bytes = $crate::abi::read_bytes_from_host(ptr, len);
+                let ctx: $crate::types::UserAuthContext = match ::serde_json::from_slice(&in_bytes)
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        $crate::log_error!("Failed to deserialize UserAuthContext: {}", e);
+                        return $crate::abi::write_error_to_host(&::std::format!(
+                            "Invalid UserAuthContext: {}",
+                            e
+                        ));
+                    }
+                };
+
+                let mut plugin = <$plugin_type as ::std::default::Default>::default();
+                match <$plugin_type as $crate::types::Plugin>::on_user_authenticated(
+                    &mut plugin,
+                    ctx,
+                ) {
+                    Ok(updated_ctx) => match ::serde_json::to_vec(&updated_ctx) {
+                        Ok(out_bytes) => $crate::abi::write_bytes_to_host(out_bytes),
+                        Err(e) => {
+                            $crate::log_error!(
+                                "Failed to serialize updated UserAuthContext: {}",
+                                e
+                            );
+                            $crate::abi::write_error_to_host(&::std::format!(
+                                "Failed to serialize UserAuthContext: {}",
                                 e
                             ))
                         }

@@ -35,10 +35,8 @@
     - Admin Studio メディアライブラリでの削除確認・使用中参照表示ダイアログ。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除、プラグイン SDK は完了）**
-1. **Wasm 認証後フック (`on_user_authenticated`)**:
-   - `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・監査通知用 Wasm プラグインフックの実装。
-2. **外部 IdP 認証プロバイダ (OIDC / SAML)**:
+**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除、プラグイン SDK、Wasm 認証後フック（on-user-authenticated）は完了）**
+1. **外部 IdP 認証プロバイダ (OIDC / SAML)**:
    - 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信を Rust Crate（Cargo Features / 静的コンパイル）で安全に分離実装。
 
 ---
@@ -60,9 +58,7 @@
   - `docs/plugin_sdk_guide.md` へのマルチ言語開発ガイド追記、`Taskfile.yml` へのビルドタスク追加。
 
 #### 認証・認可基盤の完成
-- [ ] **Wasm 認証後フック (`on_user_authenticated`)**
-  - `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・外部通知（Slack/Teams 等）用 Wasm プラグインフックの追加。
-  - マニフェスト権限および ABI の拡張。
+- [x] **Wasm 認証後フック (`on-user-authenticated`)**: 資格情報の確認後・セッション発行前に `UserAuthContext`（provider / user_id / email / display_name / role / metadata）をプラグインに渡し、ロール・表示名・metadata の変更をセッションに反映。`Err` でログイン拒否（403、`session.create` denied）、失敗時もログイン失敗（500、`plugin.error`）。ロール変更は `details.role_mapped` に記録。外部 IdP 対応時もこのフックを通す（`auth::hook::run_auth_hook`）。
 - [ ] **外部 IdP（OIDC / SAML）認証プロバイダ**
   - 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信を Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装。
   - リダイレクトフローおよびコールバックハンドラーの実装。
@@ -90,6 +86,10 @@
     - ホストから渡されたメモリバッファが TinyGo GC により回収されないよう、`allocatedBuffers` マップによるポインタ追跡保護機構を内蔵。
     - Go 標準の `encoding/json` により柔軟に `PostContext` / `BlockNode` を構造体マッピング。
   - `Taskfile.yml` に `plugin:build:as` および `plugin:build:tinygo` を追加し、ワンコマンドでのビルドに対応。
+- **認証後フック (`auth::hook::run_auth_hook`)**:
+  - プロバイダに依存しない形で `AuthIdentity` を受け取り返すので、OIDC / SAML のコールバックからも同じ関数を呼ぶ。`provider` / `user_id` は変更不可（ユーザーのなりすましを防ぐ）、`role` は `auth::ROLES` のみ許可。
+  - フックの拒否・失敗はログイン試行の失敗回数に数えない（`login_limiter.record_success` は資格情報確認の直後に呼ぶ）。失敗時にログインを通す（fail-open）と、プラグインで実装したアクセス制限を障害で迂回できてしまうため、失敗も拒否として扱う。
+  - Wasm インスタンスのフック呼び出しは `WasmPluginInstance::call_hook`（インスタンス化・入力の書き込み・タイムアウト付き呼び出し・結果の読み出し）に集約した。拒否できるフック（`on_before_save` / `on_user_authenticated`）は `parse_refusable_output` で `{"error": ...}` を `PluginRejected` に変換する。
 - **HTML の生成経路 (`crates/aegis-server/src/render.rs`)**:
   - 保存（`transform_blocks` → `render_blocks_html`）、公開ページ・コンテンツ API（保存済みブロックを `render_blocks_html`）、エディタのプレビュー（`transform_blocks` → `render_blocks_html`）はすべてこのモジュールを通します。レンダリング手順を変えるときはここだけを変更してください。
   - プレビューは編集のたびにプラグインの `transform-content-ast` を呼ぶため、このフックは副作用なしが前提です（`docs/plugin_hooks.md`）。

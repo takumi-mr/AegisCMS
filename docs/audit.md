@@ -40,11 +40,11 @@ purge_interval_secs = 3600
 | `action` | 記録タイミング | `outcome` | `resource_type` / `resource_id` | 主な `details` |
 | --- | --- | --- | --- | --- |
 | `content.create` | `POST /api/v1/contents/{content_type}` | `success` / `denied`（`on-before-save` フックが拒否・失敗）/ `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `status`, `reason` / `error` |
-| `session.create` | `POST /api/v1/auth/session`（ログイン） | `success` / `failure`（認証失敗を含む）/ `denied`（ログイン試行のレート制限でロック中） | `session` / セッション指紋 | `expires_at`, `provider`, `username`（失敗・拒否時）, `error`（失敗理由: `unknown_user` / `invalid_password` / `account_disabled` / `rate_limited` など）, `locked`（その失敗でロックがかかった単位: `username` / `ip`）, `lock_scope` / `retry_after_secs`（`denied` 時） |
+| `session.create` | `POST /api/v1/auth/session`（ログイン） | `success` / `failure`（認証失敗を含む）/ `denied`（ログイン試行のレート制限でロック中、`on-user-authenticated` プラグインが拒否） | `session` / セッション指紋 | `expires_at`, `provider`, `username`（失敗・拒否時）, `error`（失敗理由: `unknown_user` / `invalid_password` / `account_disabled` / `rate_limited` / `plugin_rejected` / `plugin_failed` など）, `reason`（プラグインの拒否・失敗の内容）, `role_mapped`（プラグインがロールを変えた場合の `from` / `to`）, `locked`（その失敗でロックがかかった単位: `username` / `ip`）, `lock_scope` / `retry_after_secs`（`denied` 時） |
 | `session.delete` | `DELETE /api/v1/auth/session` | `success` / `failure` | `session` / セッション指紋 | `error` |
 | `storage.upload` | `POST /api/v1/storage/upload` | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `original_name`, `content_type`, `size`, `url`, `error` |
 | `storage.delete` | `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md#ファイルの削除--delete-apiv1storageobjectskey)） | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `url`, `force`, `references`（参照元の件数）, `error` |
-| `plugin.error` | Wasm プラグインフックの実行失敗（トラップ、タイムアウト、Fuel 枯渇など） | `failure` | `content` / コンテンツ ID | `hook`, `content_type`, `error` |
+| `plugin.error` | Wasm プラグインフックの実行失敗（トラップ、タイムアウト、Fuel 枯渇など） | `failure` | `content` / コンテンツ ID（`on-user-authenticated` では `session` / なし） | `hook`, `content_type` / `username`, `error` |
 | `audit.purge` | 保持期間切れの監査ログを 1 件以上削除したとき（[5. 保持期間](#5-保持期間と自動削除)） | `success` | `audit_log` / なし | `deleted`, `cutoff`, `retention_days` |
 | `access.denied` | セッションとロールが必要な API（[必要なロール](authentication.md#ロールと-api-の権限)）を、セッション無し・無効（401）またはロール不足（403）で拒否したとき | `denied` | `endpoint` / `メソッド パス`（例: `POST /api/v1/contents/article`。クエリ文字列は含めない） | `reason`（`missing_session` / `invalid_session` / `insufficient_role`）, `required_role`, `session`（無効なトークンの指紋。`invalid_session` のみ） |
 
