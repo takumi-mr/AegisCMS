@@ -79,3 +79,11 @@ export interface AuditLogPage {
   /** Retention in days, or null when audit events are kept forever */
   retention_days: number | null;
 }
+
+/** Stored asset returned by `POST /api/v1/storage/upload` */
+export interface StorageMeta {
+  key: string;
+  url: string;
+  size: number;
+  content_type: string;
+}

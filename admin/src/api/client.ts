@@ -5,6 +5,7 @@ import type {
   CreateCategoryPayload,
   CreateContentPayload,
   SchemaDefinition,
+  StorageMeta,
 } from '../types';
 
 const API_BASE = 'http://127.0.0.1:8080/api/v1';
@@ -75,6 +76,17 @@ export const aegisApi = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Unknown server error' }));
       throw new ApiError(res.status, err.error || 'Failed to fetch audit logs');
+    }
+    return res.json();
+  },
+
+  async uploadFile(file: File): Promise<StorageMeta> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${API_BASE}/storage/upload`, { method: 'POST', body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Unknown server error' }));
+      throw new ApiError(res.status, err.error || 'Failed to upload file');
     }
     return res.json();
   },

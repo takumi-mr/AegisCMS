@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post},
     Router,
 };
@@ -238,7 +239,12 @@ async fn main() -> anyhow::Result<()> {
                     "/api/v1/contents/{content_type}/{slug}",
                     get(handlers::get_content),
                 )
-                .route("/api/v1/storage/upload", post(handlers::upload_file))
+                .route(
+                    "/api/v1/storage/upload",
+                    // axum の既定 (2MB) ではなく設定値をアップロードの上限にする
+                    post(handlers::upload_file)
+                        .layer(DefaultBodyLimit::max(config.storage.max_upload_bytes())),
+                )
                 .route(
                     "/api/v1/auth/session",
                     post(handlers::create_session)

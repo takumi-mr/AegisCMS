@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowUp, ArrowDown, Trash2, Hash, AlignLeft, Code2, Image as ImageIcon } from 'lucide-react';
 import type { BlockNode } from '../types';
+import { ImageUploader } from './ImageUploader';
 
 interface BlockItemProps {
   block: BlockNode;
@@ -168,6 +169,19 @@ export const BlockItem: React.FC<BlockItemProps> = ({
 
       {block.name === 'core/image' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <ImageUploader
+            onUploaded={(meta, file) =>
+              onChange({
+                ...block,
+                attributes: {
+                  ...block.attributes,
+                  src: meta.url,
+                  // Keep an existing alt text; otherwise derive one from the file name
+                  alt: block.attributes?.alt || file.name.replace(/\.[^.]+$/, ''),
+                },
+              })
+            }
+          />
           <input
             type="text"
             placeholder="Image URL (e.g. https://images.unsplash.com/...)"
@@ -210,6 +224,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           />
           {block.attributes?.src && (
             <img
+              // Re-mount when the URL changes so an earlier load error does not keep it hidden
+              key={block.attributes.src}
               src={block.attributes.src}
               alt={block.attributes.alt || 'Preview'}
               style={{

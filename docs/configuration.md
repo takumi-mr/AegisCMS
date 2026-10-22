@@ -77,6 +77,7 @@ max_connections = 10
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `backend` | `"local"` \| `"s3"` | `"local"` | アップロードファイルの保存先 |
+| `max_upload_mb` | integer (u64) | `10` | アップロード 1 回あたりの最大サイズ（MB）。超過すると `413 Payload Too Large`。リバースプロキシを置く場合はその上限（nginx の `client_max_body_size` など）も合わせる |
 
 #### `[storage.local]` — ローカルディスク
 
@@ -194,6 +195,7 @@ max_connections = 10
 
 [storage]
 backend = "local"
+max_upload_mb = 10
 
 [storage.local]
 upload_dir = "data/uploads"

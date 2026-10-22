@@ -11,6 +11,8 @@ max_connections = 10
 [storage]
 # Backend: "local" (disk/volume mount) | "s3" (AWS S3 / Cloudflare R2 / MinIO)
 backend = "local"
+# Maximum size of a single upload, in MB (responds 413 when exceeded)
+max_upload_mb = 10
 
 [storage.local]
 upload_dir = "/app/data/uploads"

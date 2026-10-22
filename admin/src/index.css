@@ -1069,3 +1069,39 @@ body {
   display: flex;
   justify-content: flex-end;
 }
+
+/* Image Uploader */
+.image-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px;
+  border: 1px dashed var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.image-dropzone:hover,
+.image-dropzone:focus-visible,
+.image-dropzone.dragging {
+  border-color: var(--accent-indigo);
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent-indigo-light);
+  outline: none;
+}
+
+.image-dropzone.uploading {
+  cursor: progress;
+  color: var(--accent-indigo-light);
+}
+
+.image-upload-error {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #fda4af;
+}
