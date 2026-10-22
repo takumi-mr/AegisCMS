@@ -16,10 +16,23 @@ import type {
 } from '../types';
 import { getSessionToken } from './session';
 
-const API_BASE = 'http://127.0.0.1:8080/api/v1';
+/**
+ * Origin of the AegisCMS server (serves the API, the public site, theme assets and uploads).
+ * `VITE_AEGIS_SERVER_ORIGIN` at build time wins (Admin Studio hosted on another origin, e.g.
+ * `https://admin.example.com` talking to `https://cms.example.com`). Otherwise the dev server
+ * talks to a local core server, and the production build to the origin that served it, so it
+ * works behind a reverse proxy on any (sub)domain without rebuilding.
+ */
+const resolveServerOrigin = (): string => {
+  const configured = import.meta.env.VITE_AEGIS_SERVER_ORIGIN?.trim();
+  if (configured) return new URL(configured).origin;
+  if (import.meta.env.DEV) return 'http://127.0.0.1:8080';
+  return window.location.origin;
+};
 
-/** Origin of the AegisCMS server (serves the public site, theme assets and uploads) */
-export const SERVER_ORIGIN = new URL(API_BASE).origin;
+export const SERVER_ORIGIN = resolveServerOrigin();
+
+const API_BASE = `${SERVER_ORIGIN}/api/v1`;
 
 export class ApiError extends Error {
   status: number;

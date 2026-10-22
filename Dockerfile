@@ -10,6 +10,10 @@ RUN npm ci
 
 # フロントエンドソースコードをコピーしてビルド
 COPY admin/ ./
+# Admin Studio を別オリジンで配信する場合のみ API サーバーのオリジンを指定する
+# （未指定なら配信元と同じオリジンに接続。docs/configuration.md の「リバースプロキシ配下での運用」）
+ARG VITE_AEGIS_SERVER_ORIGIN=""
+ENV VITE_AEGIS_SERVER_ORIGIN=${VITE_AEGIS_SERVER_ORIGIN}
 RUN npm run build
 
 # ==========================================

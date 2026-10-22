@@ -301,3 +301,45 @@ post_login_redirect = "/admin/"
 
 [auth.oidc.role_mapping]
 ```
+
+---
+
+## 4. リバースプロキシ配下での運用
+
+nginx / Caddy / ALB などのリバースプロキシの後ろで、`cms.example.com` のようなサブドメインのルートに公開できます。公開サイト（`/`）、Admin Studio（`/admin`）、API（`/api/v1`）は同じオリジンで動きます。
+
+- **Admin Studio**: 本番ビルドは自分を配信したオリジン（`window.location.origin`）の `/api/v1` に接続するため、ドメインごとのビルドは不要です。
+- **Admin Studio を別のサブドメインに置く場合**（例: `admin.example.com` から `cms.example.com` の API を使う）: ビルド時に `VITE_AEGIS_SERVER_ORIGIN=https://cms.example.com` を指定してください（Docker では `docker build --build-arg VITE_AEGIS_SERVER_ORIGIN=...`）。API は Bearer トークンで認証し CORS を全オリジンに許可しているため、サーバー側の追加設定は不要です。プレビューのテーマアセット・アップロード画像や SSO のログイン URL もこのオリジンを使います。
+- **サブパス（`example.com/cms/` など）での公開は未対応**です。サーバーのルートやアセットの URL が `/` 起点のため、サブドメインを使ってください。
+
+プロキシ配下では、次の設定もあわせて確認してください。
+
+| 設定 | 内容 |
+| --- | --- |
+| `[audit].trust_forwarded_for = true` | 監査ログ・ログインのレート制限のクライアント IP を `X-Forwarded-For` から取る。無効のままだと全員がプロキシの IP として数えられ、IP 単位のロックが全ユーザーに効く |
+| `[auth.oidc].redirect_url` | 公開 URL（`https://cms.example.com/api/v1/auth/oidc/callback`）にする。既定の `127.0.0.1` のままでは IdP から戻れない |
+| `[auth.oidc].post_login_redirect` | Admin Studio を別のサブドメインに置く場合は絶対 URL（`https://admin.example.com/admin/`） |
+| `[security].internal_domains` | 本文中の自サイトへの絶対 URL を外部リンク扱い（`rel="noopener ..."` 付与）にしないよう、`["example.com"]` のように指定（サブドメインも含めて内部扱い） |
+| `[storage].max_upload_mb` | プロキシ側の上限（nginx の `client_max_body_size` など）も同じ値以上にする |
+
+nginx の例:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name cms.example.com;
+
+    client_max_body_size 10m;  # [storage].max_upload_mb に合わせる
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        # AegisCMS は先頭のアドレスを使うため、クライアントが送った値は引き継がない
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+> [!NOTE]
+> `X-Forwarded-For` はクライアントが自由に設定できます。`trust_forwarded_for` を有効にする場合は、AegisCMS に直接アクセスできないようにし（`[server].host = "127.0.0.1"` やファイアウォール）、上の例のようにプロキシ側で受け取った `X-Forwarded-For` を上書きしてください（`$proxy_add_x_forwarded_for` は受け取った値の後ろに追記するため、先頭を偽装できます）。プロキシを多段にする場合は、最も外側のプロキシで上書きしてください。
