@@ -89,6 +89,54 @@ async fn resolve_relations_for_item(
     relations
 }
 
+/// The parts of a post `on-before-save` may change
+#[derive(Debug)]
+struct BeforeSaveOutput {
+    title: String,
+    slug: String,
+    blocks: Vec<BlockNode>,
+}
+
+/// Takes the title, slug and blocks from the post the `on-before-save` chain returned. `id` and
+/// `author_id` stay the server's: a plugin cannot reassign the record or its authorship. Blocks a
+/// plugin changed go through the built-in transforms again (heading ids) and are sanitized when
+/// rendered, like any other blocks.
+fn accept_before_save(
+    original: &PostContext,
+    original_blocks: Vec<BlockNode>,
+    returned: PostContext,
+) -> Result<BeforeSaveOutput, AegisError> {
+    if returned.id != original.id || returned.author_id != original.author_id {
+        tracing::warn!(
+            "Plugin hook 'on-before-save' changed id or author_id of '{}'; the change is ignored",
+            original.slug
+        );
+    }
+    if returned.slug.trim().is_empty() {
+        return Err(AegisError::PluginRuntime(
+            "on-before-save returned an empty slug".to_string(),
+        ));
+    }
+    let blocks = if returned.blocks_json == original.blocks_json {
+        original_blocks
+    } else if returned.blocks_json.trim().is_empty() {
+        Vec::new()
+    } else {
+        let blocks = serde_json::from_str(&returned.blocks_json).map_err(|e| {
+            AegisError::PluginRuntime(format!(
+                "on-before-save returned invalid blocks_json: {}",
+                e
+            ))
+        })?;
+        render::builtin_transforms(blocks)
+    };
+    Ok(BeforeSaveOutput {
+        title: returned.title,
+        slug: returned.slug,
+        blocks,
+    })
+}
+
 pub async fn create_content(
     State(state): State<Arc<AppState>>,
     RequireRole(session): EditorSession,
@@ -143,30 +191,40 @@ pub async fn create_content(
     }
     let transformed_blocks = transformed.blocks;
 
-    // 2. on-before-save フック
-    {
+    // 2. on-before-save フック（プラグインが返した title / slug / blocks を保存する）
+    let post_ctx = PostContext {
+        id: id.clone(),
+        title: payload.title.clone(),
+        slug: payload.slug.clone(),
+        author_id: payload.author_id.clone().unwrap_or_default(),
+        blocks_json: serde_json::to_string(&transformed_blocks).unwrap_or_default(),
+    };
+    let hook_result = {
         let supervisor = state.supervisor.read().await;
-        let post_ctx = PostContext {
-            id: id.clone(),
-            title: payload.title.clone(),
-            slug: payload.slug.clone(),
-            author_id: payload.author_id.clone().unwrap_or_default(),
-            blocks_json: serde_json::to_string(&transformed_blocks).unwrap_or_default(),
-        };
-        if let Err(e) = supervisor.apply_before_save(post_ctx).await {
-            state
-                .audit
-                .record(
-                    audit
-                        .event(AuditAction::PluginError, AuditOutcome::Failure)
-                        .with_resource("content", Some(id.clone()))
-                        .with_details(json!({
-                            "hook": "on-before-save",
-                            "content_type": content_type,
-                            "error": e.to_string(),
-                        })),
-                )
-                .await;
+        supervisor.apply_before_save(post_ctx.clone()).await
+    };
+    let saved = match hook_result
+        .and_then(|post| accept_before_save(&post_ctx, transformed_blocks, post))
+    {
+        Ok(saved) => saved,
+        Err(e) => {
+            let rejected = matches!(e, AegisError::PluginRejected(_));
+            // 明示的な拒否はプラグインの失敗ではないので plugin.error は記録しない
+            if !rejected {
+                state
+                    .audit
+                    .record(
+                        audit
+                            .event(AuditAction::PluginError, AuditOutcome::Failure)
+                            .with_resource("content", Some(id.clone()))
+                            .with_details(json!({
+                                "hook": "on-before-save",
+                                "content_type": content_type,
+                                "error": e.to_string(),
+                            })),
+                    )
+                    .await;
+            }
             state
                 .audit
                 .record(
@@ -181,12 +239,22 @@ pub async fn create_content(
                         })),
                 )
                 .await;
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "error": format!("Plugin hook rejected save: {}", e) })),
-            ));
+            return Err(if rejected {
+                (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(json!({ "error": e.to_string() })),
+                )
+            } else {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({ "error": format!("Plugin hook rejected save: {}", e) })),
+                )
+            });
         }
-    }
+    };
+    payload.title = saved.title;
+    payload.slug = saved.slug;
+    let transformed_blocks = saved.blocks;
 
     let blocks_json =
         serde_json::to_string(&transformed_blocks).unwrap_or_else(|_| "[]".to_string());
@@ -540,5 +608,200 @@ mod tests {
                 .await;
 
         assert!(empty_relations.is_empty());
+    }
+
+    /// What the test `on-before-save` plugin does
+    #[derive(Clone, Copy)]
+    enum BeforeSave {
+        /// Rewrites the title and slug, appends a heading, and tries to change the author
+        Edit,
+        /// Rejects the save (an SDK plugin returning `Err`)
+        Reject,
+        /// Fails (a trap or timeout)
+        Fail,
+    }
+
+    struct BeforeSavePlugin {
+        manifest: aegis_core::PluginManifest,
+        mode: BeforeSave,
+    }
+
+    #[async_trait::async_trait]
+    impl aegis_runtime::AegisPlugin for BeforeSavePlugin {
+        fn manifest(&self) -> &aegis_core::PluginManifest {
+            &self.manifest
+        }
+
+        async fn on_before_save(&self, mut post: PostContext) -> aegis_core::Result<PostContext> {
+            match self.mode {
+                BeforeSave::Edit => {
+                    post.title = format!("{} (edited)", post.title.trim());
+                    post.slug = post.slug.to_lowercase();
+                    post.author_id = "mallory".to_string();
+                    let mut blocks: Vec<BlockNode> = serde_json::from_str(&post.blocks_json)?;
+                    let mut heading = BlockNode::new("core/heading");
+                    heading.attributes = json!({ "level": 2 });
+                    heading.text = Some("Added Section".to_string());
+                    blocks.push(heading);
+                    post.blocks_json = serde_json::to_string(&blocks)?;
+                    Ok(post)
+                }
+                BeforeSave::Reject => Err(AegisError::PluginRejected(
+                    "guard: title is required".to_string(),
+                )),
+                BeforeSave::Fail => Err(AegisError::PluginRuntime("trap".to_string())),
+            }
+        }
+    }
+
+    async fn state_with(mode: BeforeSave) -> Arc<AppState> {
+        let mut supervisor = aegis_runtime::PluginSupervisor::new();
+        supervisor.register(Arc::new(BeforeSavePlugin {
+            manifest: aegis_core::PluginManifest {
+                name: "guard".to_string(),
+                version: "1.0.0".to_string(),
+                entrypoint: "plugin.wasm".to_string(),
+                capabilities: aegis_core::PluginCapabilities {
+                    network: None,
+                    storage: None,
+                    hooks: vec!["on-before-save".to_string()],
+                },
+                resource_limits: Default::default(),
+            },
+            mode,
+        }));
+        crate::test_support::test_state(supervisor).await
+    }
+
+    async fn create(
+        state: &Arc<AppState>,
+    ) -> Result<ContentResponse, (StatusCode, serde_json::Value)> {
+        let editor = RequireRole(crate::auth::SessionData {
+            id: "ses_test".to_string(),
+            user_id: "editor1".to_string(),
+            role: "editor".to_string(),
+            created_at: String::new(),
+            expires_at: String::new(),
+            metadata: Default::default(),
+        });
+        let payload: CreateContentRequest = serde_json::from_value(json!({
+            "title": "Hello",
+            "slug": "Hello-World",
+            "blocks": [{ "name": "core/paragraph", "text": "Body" }]
+        }))
+        .unwrap();
+        let response = create_content(
+            State(state.clone()),
+            editor,
+            Path("article".to_string()),
+            AuditContext::default(),
+            Json(payload),
+        )
+        .await
+        .map_err(|(status, Json(body))| (status, body))?
+        .into_response();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        Ok(serde_json::from_slice(&bytes).unwrap())
+    }
+
+    async fn audit_actions(state: &Arc<AppState>) -> Vec<(AuditAction, AuditOutcome)> {
+        let mut events = state
+            .db
+            .query_audit_events(&aegis_core::AuditQuery {
+                limit: 50,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        events.reverse();
+        events.into_iter().map(|e| (e.action, e.outcome)).collect()
+    }
+
+    #[tokio::test]
+    async fn test_before_save_changes_are_saved() {
+        let state = state_with(BeforeSave::Edit).await;
+        let created = create(&state).await.unwrap();
+        assert_eq!(created.title, "Hello (edited)");
+        assert_eq!(created.slug, "hello-world");
+        // A plugin cannot reassign authorship
+        assert_eq!(created.author_id.as_deref(), Some("editor1"));
+        // The added heading goes through the built-in transforms and the renderer
+        assert_eq!(created.blocks.len(), 2);
+        assert_eq!(created.blocks[1].attributes["id"], json!("added-section"));
+        assert!(created
+            .rendered_html
+            .contains("<h2 id=\"added-section\">Added Section</h2>"));
+
+        let schema = state.schemas.read().await["article"].clone();
+        let stored = state
+            .db
+            .get_content(&schema, "hello-world")
+            .await
+            .unwrap()
+            .expect("saved under the slug the plugin returned");
+        assert_eq!(stored.title, "Hello (edited)");
+        assert_eq!(stored.author_id.as_deref(), Some("editor1"));
+        assert!(stored.blocks_json.contains("Added Section"));
+    }
+
+    #[tokio::test]
+    async fn test_before_save_rejection_blocks_the_save() {
+        let state = state_with(BeforeSave::Reject).await;
+        let (status, body) = create(&state).await.unwrap_err();
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            body["error"],
+            "Rejected by plugin: guard: title is required"
+        );
+
+        let schema = state.schemas.read().await["article"].clone();
+        assert!(state.db.list_contents(&schema).await.unwrap().is_empty());
+        // A rejection is not a plugin failure
+        assert_eq!(
+            audit_actions(&state).await,
+            vec![(AuditAction::ContentCreate, AuditOutcome::Denied)]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_before_save_failure_blocks_the_save() {
+        let state = state_with(BeforeSave::Fail).await;
+        let (status, _) = create(&state).await.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+
+        let schema = state.schemas.read().await["article"].clone();
+        assert!(state.db.list_contents(&schema).await.unwrap().is_empty());
+        assert_eq!(
+            audit_actions(&state).await,
+            vec![
+                (AuditAction::PluginError, AuditOutcome::Failure),
+                (AuditAction::ContentCreate, AuditOutcome::Denied),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_accept_before_save_validates_the_returned_post() {
+        let original = PostContext {
+            id: "id-1".to_string(),
+            title: "T".to_string(),
+            slug: "t".to_string(),
+            author_id: "editor1".to_string(),
+            blocks_json: "[]".to_string(),
+        };
+        let with = |f: fn(&mut PostContext)| {
+            let mut post = original.clone();
+            f(&mut post);
+            accept_before_save(&original, Vec::new(), post)
+        };
+        assert!(with(|p| p.slug = "  ".to_string()).is_err());
+        assert!(with(|p| p.blocks_json = "{not json".to_string()).is_err());
+        assert!(with(|p| p.blocks_json = String::new())
+            .unwrap()
+            .blocks
+            .is_empty());
+        assert_eq!(with(|_| {}).unwrap().title, "T");
     }
 }

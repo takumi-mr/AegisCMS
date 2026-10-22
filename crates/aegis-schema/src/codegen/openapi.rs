@@ -170,8 +170,9 @@ impl OpenApiGenerator {
                                 }
                             }
                         },
-                        "400": { "description": "Invalid payload or validation failed" },
-                        "404": { "description": "Schema content_type not registered" }
+                        "400": { "description": "Invalid payload, validation failed or an on-before-save plugin hook failed" },
+                        "404": { "description": "Schema content_type not registered" },
+                        "422": { "description": "Rejected by an on-before-save plugin hook, or a JSON body that does not match the request type" }
                     }
                 }
             }),

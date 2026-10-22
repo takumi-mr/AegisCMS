@@ -228,7 +228,8 @@ export const App: React.FC = () => {
 
       showToast(`Saved! Wasm plugin hooks executed successfully (ID: ${saved.id.slice(0, 8)})`);
       loadContents();
-      setSelectedId(saved.id);
+      // Show what was stored: plugins may change the title, slug and blocks on save
+      handleSelectContent(saved);
     } catch (err: any) {
       showToast(err.message || 'Failed to save', 'error');
     } finally {
