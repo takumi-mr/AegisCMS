@@ -16,9 +16,12 @@ const API_BASE = 'http://127.0.0.1:8080/api/v1';
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** Seconds until the request may be retried (`retry_after_secs` of a 429 response) */
+  retryAfterSecs?: number;
+  constructor(status: number, message: string, retryAfterSecs?: number) {
     super(message);
     this.status = status;
+    this.retryAfterSecs = retryAfterSecs;
   }
 }
 
@@ -61,7 +64,10 @@ export const aegisApi = {
     return res.json();
   },
 
-  /** Logs in with a username and password; a wrong password is an `ApiError` with status 401 */
+  /**
+   * Logs in with a username and password. A wrong password is an `ApiError` with status 401,
+   * and too many failed attempts an `ApiError` with status 429 and `retryAfterSecs`
+   */
   async login(username: string, password: string): Promise<SessionInfo> {
     const res = await fetch(`${API_BASE}/auth/session`, {
       method: 'POST',
@@ -70,7 +76,9 @@ export const aegisApi = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to log in' }));
-      throw new ApiError(res.status, err.error || 'Failed to log in');
+      const retryAfter =
+        typeof err.retry_after_secs === 'number' ? err.retry_after_secs : undefined;
+      throw new ApiError(res.status, err.error || 'Failed to log in', retryAfter);
     }
     return res.json();
   },

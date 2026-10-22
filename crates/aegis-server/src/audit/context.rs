@@ -53,15 +53,7 @@ impl FromRequestParts<Arc<AppState>> for AuditContext {
             None => None,
         };
 
-        let peer = parts
-            .extensions
-            .get::<ConnectInfo<SocketAddr>>()
-            .map(|ConnectInfo(addr)| addr.ip().to_string());
-        let ip = if state.audit.trust_forwarded_for() {
-            forwarded_for(&parts.headers).or(peer)
-        } else {
-            peer
-        };
+        let ip = client_ip(parts, state.audit.trust_forwarded_for());
 
         let user_agent = parts
             .headers
@@ -74,6 +66,34 @@ impl FromRequestParts<Arc<AppState>> for AuditContext {
             ip,
             user_agent,
         })
+    }
+}
+
+/// リクエストのクライアント IP（`[audit].trust_forwarded_for` が有効なら `X-Forwarded-For` の先頭を優先）
+/// 抽出は失敗しない。接続情報が無い場合は `None` になる
+#[derive(Debug, Clone, Default)]
+pub struct ClientIp(pub Option<String>);
+
+impl FromRequestParts<Arc<AppState>> for ClientIp {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Arc<AppState>,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(client_ip(parts, state.audit.trust_forwarded_for())))
+    }
+}
+
+fn client_ip(parts: &Parts, trust_forwarded_for: bool) -> Option<String> {
+    let peer = parts
+        .extensions
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| addr.ip().to_string());
+    if trust_forwarded_for {
+        forwarded_for(&parts.headers).or(peer)
+    } else {
+        peer
     }
 }
 

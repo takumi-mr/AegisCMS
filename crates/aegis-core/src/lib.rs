@@ -14,9 +14,9 @@ pub use audit::{
 pub use auth::{AuthCredentials, AuthIdentity, AuthProvider, AuthRedirect};
 pub use cache::{CacheBackend, CacheBackendKind};
 pub use config::{
-    AegisConfig, AuditConfig, AuditSinkKind, CacheConfig, DatabaseBackendKind, DatabaseConfig,
-    LocalStorageConfig, PathsConfig, RedisCacheConfig, S3StorageConfig, SecurityConfig,
-    StorageConfig, ThemeConfig,
+    AegisConfig, AuditConfig, AuditSinkKind, AuthConfig, CacheConfig, DatabaseBackendKind,
+    DatabaseConfig, LocalStorageConfig, LoginRateLimitConfig, PathsConfig, RedisCacheConfig,
+    S3StorageConfig, SecurityConfig, StorageConfig, ThemeConfig,
 };
 
 pub use entity::{ContentSummary, PageRenderContext, Post, PostContext, PostId, PostStatus};

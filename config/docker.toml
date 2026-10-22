@@ -59,12 +59,24 @@ enforce_image_async_decoding = true
 enabled = true
 # Sinks: "database" (audit_logs table + GET /api/v1/audit-logs) | "log" (JSON lines on the aegis::audit target) | "prometheus" (GET /metrics)
 sinks = ["database"]
-# Record the first X-Forwarded-For address as the client IP (enable only behind a trusted reverse proxy)
+# Use the first X-Forwarded-For address as the client IP for audit logs and login rate limits
+# (enable only behind a trusted reverse proxy)
 trust_forwarded_for = false
 # Days to keep audit events in the database sink; older events are purged periodically (0 = keep forever)
 retention_days = 0
 # How often to purge expired audit events, in seconds (minimum 60)
 purge_interval_secs = 3600
+
+[auth.login_rate_limit]
+# Temporarily lock logins (POST /api/v1/auth/session) after repeated failures.
+# Failures are counted in the [cache] backend, so use "redis" to share the limits across servers.
+enabled = true
+# Failed logins per username / per client IP within window_secs before locking (0 = unlimited)
+max_failures_per_user = 5
+max_failures_per_ip = 20
+window_secs = 900
+# How long a lock lasts, in seconds (logins are rejected with 429 even with the right password)
+lockout_secs = 900
 
 [theme]
 active = "default"

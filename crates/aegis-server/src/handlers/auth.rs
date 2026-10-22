@@ -1,7 +1,7 @@
 use axum::{
     extract::State,
-    http::{HeaderMap, StatusCode},
-    response::IntoResponse,
+    http::{header, HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
 use serde::Deserialize;
@@ -9,7 +9,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::audit::AuditContext;
+use crate::audit::{AuditContext, ClientIp};
 use crate::auth::local::PASSWORD_CREDENTIALS;
 use crate::auth::{extract_session_id, session_fingerprint};
 use crate::state::AppState;
@@ -25,13 +25,61 @@ pub struct CreateSessionRequest {
 }
 
 /// `POST /api/v1/auth/session` — ユーザー名 / パスワードで認証し、セッションを発行する。
-/// ロールはリクエストではなくユーザーアカウントから決まる
+/// ロールはリクエストではなくユーザーアカウントから決まる。
+/// 失敗が続いたユーザー名・クライアント IP は `[auth.login_rate_limit]` に従い一時的に `429` で拒否する
 pub async fn create_session(
     State(state): State<Arc<AppState>>,
     audit: AuditContext,
+    ClientIp(client_ip): ClientIp,
     Json(payload): Json<CreateSessionRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<impl IntoResponse, Response> {
     let username = payload.username.trim().to_string();
+    let ip = client_ip.as_deref();
+    let provider = state.auth_provider.provider_id();
+
+    // ロック中は資格情報を検証しない（Argon2 の負荷もかけさせない）
+    let lockout = match state.login_limiter.check(&username, ip).await {
+        Ok(lockout) => lockout,
+        Err(e) => {
+            state
+                .audit
+                .record(
+                    audit
+                        .event(AuditAction::SessionCreate, AuditOutcome::Failure)
+                        .with_resource("session", None)
+                        .with_details(json!({
+                            "username": username,
+                            "provider": provider,
+                            "error": format!("rate_limit_check_failed: {}", e),
+                        })),
+                )
+                .await;
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("Failed to check login rate limit: {}", e) })),
+            )
+                .into_response());
+        }
+    };
+    if let Some(lockout) = lockout {
+        state
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::SessionCreate, AuditOutcome::Denied)
+                    .with_resource("session", None)
+                    .with_details(json!({
+                        "username": username,
+                        "provider": provider,
+                        "error": "rate_limited",
+                        "lock_scope": lockout.scope.as_str(),
+                        "retry_after_secs": lockout.retry_after_secs,
+                    })),
+            )
+            .await;
+        return Err(too_many_attempts(lockout.retry_after_secs));
+    }
+
     let credentials = AuthCredentials {
         kind: PASSWORD_CREDENTIALS.to_string(),
         identifier: Some(username.clone()),
@@ -55,32 +103,44 @@ pub async fn create_session(
                     other.to_string(),
                 ),
             };
+            let mut details = json!({
+                "username": username,
+                "provider": provider,
+                "error": reason,
+            });
+            // サーバー側のエラーは利用者の失敗として数えない
+            if status == StatusCode::UNAUTHORIZED {
+                match state.login_limiter.record_failure(&username, ip).await {
+                    Ok(Some(locked)) => {
+                        details["locked"] = json!(locked.scope.as_str());
+                    }
+                    Ok(None) => {}
+                    Err(e) => tracing::warn!("Failed to record login failure: {}", e),
+                }
+            }
             state
                 .audit
                 .record(
                     audit
                         .event(AuditAction::SessionCreate, AuditOutcome::Failure)
                         .with_resource("session", None)
-                        .with_details(json!({
-                            "username": username,
-                            "provider": state.auth_provider.provider_id(),
-                            "error": reason,
-                        })),
+                        .with_details(details),
                 )
                 .await;
-            return Err((status, Json(json!({ "error": message }))));
+            return Err((status, Json(json!({ "error": message }))).into_response());
         }
     };
+
+    if let Err(e) = state.login_limiter.record_success(&username).await {
+        tracing::warn!("Failed to reset login failures: {}", e);
+    }
 
     let actor = Some(AuditActor {
         user_id: identity.external_id.clone(),
         role: identity.role.clone(),
     });
     let mut metadata = HashMap::new();
-    metadata.insert(
-        "provider".to_string(),
-        json!(state.auth_provider.provider_id()),
-    );
+    metadata.insert("provider".to_string(), json!(provider));
     if let Some(display_name) = &identity.display_name {
         metadata.insert("display_name".to_string(), json!(display_name));
     }
@@ -106,7 +166,7 @@ pub async fn create_session(
                         .with_resource("session", Some(session_fingerprint(&session.id)))
                         .with_details(json!({
                             "expires_at": session.expires_at,
-                            "provider": state.auth_provider.provider_id(),
+                            "provider": provider,
                         })),
                 )
                 .await;
@@ -126,11 +186,25 @@ pub async fn create_session(
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": format!("Failed to create session: {}", e) })),
-            ));
+            )
+                .into_response());
         }
     };
 
     Ok((StatusCode::CREATED, Json(session)))
+}
+
+/// ログインのロック中に返す `429`。応答ではユーザー名と IP のどちらでロックされたかを区別しない
+fn too_many_attempts(retry_after_secs: u64) -> Response {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        [(header::RETRY_AFTER, retry_after_secs.to_string())],
+        Json(json!({
+            "error": "Too many failed login attempts. Try again later.",
+            "retry_after_secs": retry_after_secs,
+        })),
+    )
+        .into_response()
 }
 
 pub async fn get_current_session(
@@ -204,4 +278,84 @@ pub async fn delete_session(
     })?;
 
     Ok((StatusCode::OK, Json(json!({ "status": "logged_out" }))))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::auth::users::{create_user, NewUser};
+    use aegis_core::{AegisConfig, LoginRateLimitConfig};
+
+    async fn login(state: &Arc<AppState>, username: &str, password: &str, ip: &str) -> Response {
+        let payload = CreateSessionRequest {
+            username: username.to_string(),
+            password: password.to_string(),
+            ttl_secs: None,
+        };
+        match create_session(
+            State(state.clone()),
+            AuditContext::default(),
+            ClientIp(Some(ip.to_string())),
+            Json(payload),
+        )
+        .await
+        {
+            Ok(resp) => resp.into_response(),
+            Err(resp) => resp,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_login_is_locked_after_repeated_failures() {
+        let mut config = AegisConfig::default();
+        config.auth.login_rate_limit = LoginRateLimitConfig {
+            max_failures_per_user: 3,
+            max_failures_per_ip: 0,
+            ..Default::default()
+        };
+        let state = crate::state::test_support::test_state(config).await;
+        create_user(
+            state.db.as_ref(),
+            NewUser {
+                username: "alice".to_string(),
+                password: "correct horse battery".to_string(),
+                role: "editor".to_string(),
+                email: None,
+                display_name: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // 成功するとそれまでの失敗回数はリセットされる
+        let ip = "203.0.113.7";
+        login(&state, "alice", "wrong", ip).await;
+        login(&state, "alice", "wrong", ip).await;
+        let ok = login(&state, "alice", "correct horse battery", ip).await;
+        assert_eq!(ok.status(), StatusCode::CREATED);
+
+        for _ in 0..3 {
+            let resp = login(&state, "alice", "wrong", ip).await;
+            assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        }
+
+        // ロック中は正しいパスワードでも拒否し、Retry-After を返す
+        let locked = login(&state, "alice", "correct horse battery", "198.51.100.1").await;
+        assert_eq!(locked.status(), StatusCode::TOO_MANY_REQUESTS);
+        let retry_after: u64 = locked.headers()[header::RETRY_AFTER]
+            .to_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!(retry_after > 0 && retry_after <= 900);
+
+        // 存在しないユーザーへの試行も同じように数える
+        for _ in 0..3 {
+            login(&state, "nobody", "wrong", ip).await;
+        }
+        assert_eq!(
+            login(&state, "nobody", "wrong", ip).await.status(),
+            StatusCode::TOO_MANY_REQUESTS
+        );
+    }
 }

@@ -3,7 +3,7 @@ pub mod database;
 pub mod log;
 pub mod metrics;
 
-pub use context::AuditContext;
+pub use context::{AuditContext, ClientIp};
 pub use database::DatabaseAuditSink;
 pub use log::LogAuditSink;
 pub use metrics::PrometheusAuditSink;

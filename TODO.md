@@ -10,7 +10,7 @@
 
 - **現在のステータス**: コンテンツ公開機能 & テンプレートエンジン (`MiniJinja`) 導入、およびプラグインによる動的テーマ書き換え機能の実装完了。
 - **動作確認済み**:
-  - Rust ワークスペース全体 (`cargo test --workspace`) 100% 成功（全35 tests パス）。
+  - Rust ワークスペース全体 (`cargo test --workspace`) 100% 成功（全テストパス）。
   - コードフォーマット (`cargo fmt --check`) および Clippy ゼロ警告 (`cargo clippy --workspace -- -D warnings`) 達成。
   - フロントエンド本番ビルド (`npm --prefix admin run build`) 成功。
   - `task check` (fmt, clippy, test, admin:build) 全パス。
@@ -29,10 +29,10 @@
     - `ThemeEngine::register_template`: プラグインからのテンプレート動的完全オーバーライド。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①〜④は完了**
-1. **ログイン試行のレート制限**（インターネット公開前に必要）: `/api/v1/auth/session` への失敗回数をユーザー名・IP 単位で数え、一定回数で一時的に拒否する（キャッシュバックエンドで計数）。
+**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①〜④とログイン試行のレート制限は完了**
+1. **権限拒否（401 / 403）の監査ログ記録**: `RequireRole` extractor の拒否を監査イベントとして残す（総当たり・権限昇格の試行の検知用）。
 2. ⑤ `on_user_authenticated` フック、OIDC / SAML プロバイダ。
-4. その他の未着手: `on-before-save` フックの戻り値の扱い、メディアの削除 API / UI、ログイン試行のレート制限。
+3. その他の未着手: `on-before-save` フックの戻り値の扱い、メディアの削除 API / UI、`[cache.redis].timeout_ms` などの未使用設定。
 
 ---
 
@@ -193,7 +193,7 @@
   - [x] API の認可: extractor `RequireRole`（`ViewerSession` / `EditorSession` / `AdminSession`、401 / 403）で、閲覧 API は `viewer`、コンテンツ作成・アップロードは `editor`、監査ログは `admin` 以上を要求。`author_id` の既定をログインユーザーにし、他人の指定は `admin` のみ。Admin Studio はトークンを全 API に付与
   - [ ] 権限拒否（401 / 403）の監査ログ記録
   - [x] Admin Studio のログイン画面: 未ログイン時の全画面ログインフォーム、リロード時のセッション復元（`GET /api/v1/auth/session`）、ヘッダーの表示名・ロール・ログアウト、API の 401 でログイン画面へ復帰、ロールに応じた操作の無効化（`viewer` の Save / アップロード / カテゴリ作成、`admin` 以外の Audit Logs タブ）。Audit Logs 画面の手動トークン入力は削除
-  - [ ] ログイン試行のレート制限・アカウントロック
+  - [x] ログイン試行のレート制限・アカウントロック（`[auth.login_rate_limit]`: ユーザー名（大文字・小文字を区別しない）/ クライアント IP ごとに `window_secs` 内の失敗を数え、上限で `lockout_secs` の間 `429` + `Retry-After`。ロック中は資格情報を検証しない。成功でユーザー名の計数のみリセット。拒否は監査ログに `session.create` / `denied` / `rate_limited`。Admin Studio のログイン画面に残り時間つきのメッセージ）
   - [ ] 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信は Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装
   - [ ] `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・監査通知用 Wasm プラグインフック `on_user_authenticated` の追加
 - [x] **テーマエンジン & 静的アセット配信システム**
@@ -208,6 +208,13 @@
 ---
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
+
+- **ログイン試行のレート制限 (`auth::rate_limit::LoginRateLimiter`)**:
+  - 失敗回数は `CacheBackend::increment`（存在しないキーは 0 から数え、TTL は作成時のみ設定する固定ウィンドウ）で数えます。Redis では `INCR` と初回のみの `EXPIRE` を Lua スクリプトで原子的に実行します。上限到達で `login:lock:{scope}:{id}` に解除時刻（UNIX 秒）を TTL 付きで書き、計数キーは削除します。ユーザー名のキーは小文字化した名前の SHA-256 です。
+  - クライアント IP は `audit::ClientIp` extractor（`AuditContext` と同じ判定。`[audit].trust_forwarded_for` で `X-Forwarded-For` を優先）で取得します。監査ログが無効でも IP は取得されます。
+  - チェック時のキャッシュエラーは安全側に倒して 500 を返し、失敗・成功の記録時のエラーは警告ログのみにしています。サーバー側エラー（DB 障害など）は失敗回数に数えません。
+  - `MemoryCacheBackend` は読まれないまま期限切れになったキー（ランダムなユーザー名での試行など）が溜まらないよう、書き込み時にエントリ数が閾値（掃除後の 2 倍、最小 1024）を超えたら期限切れを一括削除します。
+  - `cargo clippy --workspace --all-targets` は `plugins/template-rust` のテストで `default_constructed_unit_structs` が出ます（main でも同じ。CI / `task check` は `--all-targets` なしなので未対応）。
 
 - **Prettier / VS Code**:
   - Prettier は `.editorconfig` のインデント設定を読みます。`[*]` の 4 スペースが CSS / HTML に効いていたため、`[*.{ts,tsx,js,jsx,css,html}]` に CSS / HTML を追加しました。
