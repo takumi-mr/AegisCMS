@@ -14,4 +14,4 @@ pub use health::health_check;
 pub use openapi::get_openapi_spec;
 pub use public::{render_article, render_index, render_page_or_slug};
 pub use schemas::{get_schema, list_schemas};
-pub use storage::upload_file;
+pub use storage::{list_objects, upload_file};

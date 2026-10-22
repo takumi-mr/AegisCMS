@@ -245,6 +245,7 @@ async fn main() -> anyhow::Result<()> {
                     post(handlers::upload_file)
                         .layer(DefaultBodyLimit::max(config.storage.max_upload_bytes())),
                 )
+                .route("/api/v1/storage/objects", get(handlers::list_objects))
                 .route(
                     "/api/v1/auth/session",
                     post(handlers::create_session)

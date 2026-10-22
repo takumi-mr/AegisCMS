@@ -1,7 +1,18 @@
-import React from 'react';
-import { ArrowUp, ArrowDown, Trash2, Hash, AlignLeft, Code2, Image as ImageIcon } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  ArrowUp,
+  ArrowDown,
+  Trash2,
+  Hash,
+  AlignLeft,
+  Code2,
+  Image as ImageIcon,
+  Images,
+} from 'lucide-react';
 import type { BlockNode } from '../types';
 import { ImageUploader } from './ImageUploader';
+import { MediaLibrary } from './MediaLibrary';
+import { altFromKey } from '../utils/media';
 
 interface BlockItemProps {
   block: BlockNode;
@@ -22,6 +33,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
   onMoveDown,
   onDelete,
 }) => {
+  const [isLibraryOpen, setIsLibraryOpen] = useState<boolean>(false);
+
   const getIcon = () => {
     switch (block.name) {
       case 'core/heading':
@@ -182,6 +195,30 @@ export const BlockItem: React.FC<BlockItemProps> = ({
               })
             }
           />
+          <button
+            type="button"
+            className="btn btn-secondary media-library-open"
+            onClick={() => setIsLibraryOpen(true)}
+          >
+            <Images size={14} />
+            <span>Choose from media library</span>
+          </button>
+          {isLibraryOpen && (
+            <MediaLibrary
+              onClose={() => setIsLibraryOpen(false)}
+              onSelect={(object) => {
+                setIsLibraryOpen(false);
+                onChange({
+                  ...block,
+                  attributes: {
+                    ...block.attributes,
+                    src: object.url,
+                    alt: block.attributes?.alt || altFromKey(object.key),
+                  },
+                });
+              }}
+            />
+          )}
           <input
             type="text"
             placeholder="Image URL (e.g. https://images.unsplash.com/...)"

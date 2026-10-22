@@ -2,14 +2,12 @@ import React, { useRef, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
 import { aegisApi } from '../api/client';
 import type { StorageMeta } from '../types';
+import { formatSize } from '../utils/media';
 
 interface ImageUploaderProps {
   /** Called with the stored asset and the original file once the upload succeeds */
   onUploaded: (meta: StorageMeta, file: File) => void;
 }
-
-const formatSize = (bytes: number): string =>
-  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
 
 /**
  * Drop zone for image blocks: accepts a dropped or chosen image file and uploads it
