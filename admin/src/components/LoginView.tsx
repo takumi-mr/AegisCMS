@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, LogIn } from 'lucide-react';
-import { aegisApi, ApiError } from '../api/client';
-import type { SessionInfo } from '../types';
+import { KeyRound, Loader2, LogIn } from 'lucide-react';
+import { aegisApi, ApiError, SERVER_URL } from '../api/client';
+import type { AuthProviders, SessionInfo } from '../types';
 import { BrandMark } from './ui/BrandMark';
 import { Button } from './ui/Button';
 import styles from './LoginView.module.css';
@@ -10,6 +10,8 @@ interface LoginViewProps {
   onLoggedIn: (session: SessionInfo) => void;
   /** Shown above the form, e.g. after the previous session expired */
   notice?: string | null;
+  /** Error to show first, e.g. a failed single sign-on */
+  initialError?: string | null;
 }
 
 const describeError = (err: unknown): string => {
@@ -26,15 +28,21 @@ const describeError = (err: unknown): string => {
 };
 
 /** Full-screen username / password form shown until the user has a valid session */
-export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn, notice }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn, notice, initialError }) => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
+  const [providers, setProviders] = useState<AuthProviders | null>(null);
   const usernameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     usernameRef.current?.focus();
+    // Without the list (older server, offline) only the password form is shown
+    aegisApi
+      .getAuthProviders()
+      .then(setProviders)
+      .catch(() => setProviders(null));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -98,6 +106,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn, notice }) => {
           {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
           <span>{isSubmitting ? 'Signing in...' : 'Sign in'}</span>
         </Button>
+
+        {providers?.oidc && (
+          <>
+            <div className={styles.divider}>
+              <span>or</span>
+            </div>
+            <a className={styles.sso} href={`${SERVER_URL}${providers.oidc.login_url}`}>
+              <KeyRound size={16} />
+              <span>Sign in with {providers.oidc.display_name}</span>
+            </a>
+          </>
+        )}
 
         <p className={styles.hint}>
           No account yet? Create one on the server with{' '}

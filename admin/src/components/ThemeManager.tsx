@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   RefreshCw,
 } from 'lucide-react';
-import { aegisApi, SERVER_ORIGIN } from '../api/client';
+import { aegisApi, SERVER_URL } from '../api/client';
 import type { SessionInfo, ThemeInfo } from '../types';
 import { isAdmin } from '../utils/roles';
 import { cx } from '../utils/cx';
@@ -111,7 +111,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <a
-                href={`${SERVER_ORIGIN}/`}
+                href={`${SERVER_URL}/`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.previewBtn}
@@ -164,7 +164,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                 const isCurrent = theme.is_active;
                 const isSwitching = switchingThemeId === theme.id;
                 const previewSrc = theme.preview_url
-                  ? `${SERVER_ORIGIN}${theme.preview_url}`
+                  ? `${SERVER_URL}${theme.preview_url}`
                   : undefined;
 
                 return (
@@ -257,7 +257,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                         )}
 
                         <a
-                          href={`${SERVER_ORIGIN}/`}
+                          href={`${SERVER_URL}/`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className={styles.previewBtn}

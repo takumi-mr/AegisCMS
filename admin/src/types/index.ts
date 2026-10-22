@@ -130,6 +130,13 @@ export interface ObjectReference {
 
 export type UserRole = 'admin' | 'editor' | 'viewer';
 
+/** Sign-in methods offered by the server (`GET /api/v1/auth/providers`) */
+export interface AuthProviders {
+  local: boolean;
+  /** Single sign-on with OpenID Connect, or null when it is not enabled */
+  oidc: { display_name: string; login_url: string } | null;
+}
+
 /** Session returned by `POST /api/v1/auth/session` (login) and `GET /api/v1/auth/session` */
 export interface SessionInfo {
   /** Bearer token (`ses_...`) */

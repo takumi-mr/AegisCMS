@@ -19,6 +19,7 @@ import { BlockItem } from './components/BlockItem';
 import { Preview } from './components/Preview';
 import { aegisApi, setUnauthorizedHandler } from './api/client';
 import { setSessionToken } from './api/session';
+import { takeLoginRedirect } from './utils/loginRedirect';
 import type { BlockNode, ContentItem, SessionInfo } from './types';
 import { categoryIdOf } from './utils/category';
 import { canEdit, isAdmin } from './utils/roles';
@@ -31,6 +32,8 @@ export const App: React.FC = () => {
   // undefined = still checking the stored token, null = logged out
   const [session, setSession] = useState<SessionInfo | null | undefined>(undefined);
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
+  // Single sign-on returns here with the session token (stored before the session check) or an error
+  const [ssoError] = useState<string | null>(takeLoginRedirect);
   const [view, setView] = useState<AppView>('editor');
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType] = useState<string>('article');
@@ -242,7 +245,7 @@ export const App: React.FC = () => {
     return <SessionCheckingScreen />;
   }
   if (session === null) {
-    return <LoginView onLoggedIn={handleLoggedIn} notice={loginNotice} />;
+    return <LoginView onLoggedIn={handleLoggedIn} notice={loginNotice} initialError={ssoError} />;
   }
 
   const editable = canEdit(session);

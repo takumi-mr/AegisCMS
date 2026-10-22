@@ -58,6 +58,9 @@ impl AegisConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    /// リバースプロキシのサブパス配下で公開する場合のパス（例: `/cms`）。空ならルートで公開。
+    /// 読み出しは `normalized_base_path` を使う
+    pub base_path: String,
 }
 
 impl Default for ServerConfig {
@@ -65,7 +68,34 @@ impl Default for ServerConfig {
         Self {
             host: "127.0.0.1".to_string(),
             port: 8080,
+            base_path: String::new(),
         }
+    }
+}
+
+impl ServerConfig {
+    /// `base_path` を `""`（ルート）または末尾 `/` なしの `/segment[/segment...]` に正規化する。
+    /// URL や HTML 属性にそのまま書き込むため、使える文字は `A-Z a-z 0-9 - . _ ~` のみ
+    pub fn normalized_base_path(&self) -> Result<String> {
+        let trimmed = self.base_path.trim().trim_matches('/');
+        if trimmed.is_empty() {
+            return Ok(String::new());
+        }
+        for segment in trimmed.split('/') {
+            let valid = !segment.is_empty()
+                && segment != "."
+                && segment != ".."
+                && segment
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~'));
+            if !valid {
+                return Err(AegisError::Config(format!(
+                    "[server].base_path {:?} is invalid: use a path like \"/cms\" (letters, digits, '-', '.', '_', '~')",
+                    self.base_path
+                )));
+            }
+        }
+        Ok(format!("/{}", trimmed))
     }
 }
 
@@ -385,6 +415,59 @@ impl Default for AuditConfig {
 #[serde(default)]
 pub struct AuthConfig {
     pub login_rate_limit: LoginRateLimitConfig,
+    pub oidc: OidcConfig,
+}
+
+/// OpenID Connect（認可コードフロー + PKCE）による外部 IdP ログイン
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OidcConfig {
+    pub enabled: bool,
+    /// ログイン画面のボタンに表示する名前
+    pub display_name: String,
+    /// IdP の Issuer（`{issuer_url}/.well-known/openid-configuration` からエンドポイントを取得する）
+    pub issuer_url: String,
+    pub client_id: String,
+    pub client_secret: String,
+    /// IdP に登録するコールバック URL（`https://cms.example.com/api/v1/auth/oidc/callback`）
+    pub redirect_url: String,
+    pub scopes: Vec<String>,
+    /// AegisCMS のユーザー名にするクレーム（無ければ `email`）
+    pub username_claim: String,
+    /// 未登録のユーザーを初回ログイン時に作成する（`false` なら IdP と紐付け済みのユーザーのみ）
+    pub auto_create_users: bool,
+    /// クレームからロールが決まらない場合のロール（新規ユーザーの初期ロール）
+    pub default_role: String,
+    /// ロールの決定に使うクレーム（例: `groups`）。空ならロールは AegisCMS のユーザーアカウントで決まる
+    pub role_claim: String,
+    /// `role_claim` の値 → ロール。複数一致した場合は最も強いロール
+    pub role_mapping: std::collections::HashMap<String, String>,
+    /// ログイン後に戻る Admin Studio の URL（セッショントークンを `#session=` で渡す）
+    pub post_login_redirect: String,
+}
+
+impl Default for OidcConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            display_name: "SSO".to_string(),
+            issuer_url: String::new(),
+            client_id: String::new(),
+            client_secret: String::new(),
+            redirect_url: String::new(),
+            scopes: vec![
+                "openid".to_string(),
+                "profile".to_string(),
+                "email".to_string(),
+            ],
+            username_claim: "preferred_username".to_string(),
+            auto_create_users: true,
+            default_role: "viewer".to_string(),
+            role_claim: String::new(),
+            role_mapping: std::collections::HashMap::new(),
+            post_login_redirect: "/admin/".to_string(),
+        }
+    }
 }
 
 /// `POST /api/v1/auth/session` のログイン失敗回数の制限。
@@ -516,6 +599,7 @@ mod tests {
     fn test_load_or_default_missing_file_uses_defaults() {
         let config = AegisConfig::load_or_default("does/not/exist.toml").unwrap();
         assert_eq!(config.server.port, 8080);
+        assert_eq!(config.server.base_path, "");
     }
 
     #[test]
@@ -526,5 +610,24 @@ mod tests {
         let result = AegisConfig::load_or_default(&path);
         let _ = std::fs::remove_file(&path);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_normalized_base_path() {
+        let base = |value: &str| {
+            ServerConfig {
+                base_path: value.to_string(),
+                ..Default::default()
+            }
+            .normalized_base_path()
+        };
+        assert_eq!(base("").unwrap(), "");
+        assert_eq!(base("/").unwrap(), "");
+        assert_eq!(base("cms").unwrap(), "/cms");
+        assert_eq!(base("/cms/").unwrap(), "/cms");
+        assert_eq!(base(" /sites/cms_2.v1 ").unwrap(), "/sites/cms_2.v1");
+        for invalid in ["/a//b", "/../cms", "/cms?x=1", "/c ms", "/cms#top", "/\"x"] {
+            assert!(base(invalid).is_err(), "{} should be rejected", invalid);
+        }
     }
 }

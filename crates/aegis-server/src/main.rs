@@ -3,17 +3,10 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::{
-    extract::DefaultBodyLimit,
-    routing::{delete, get, post},
-    Router,
-};
 use clap::{Parser, Subcommand};
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::{ServeDir, ServeFile};
-use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod app;
 mod audit;
 mod auth;
 mod cache;
@@ -25,7 +18,7 @@ mod storage;
 #[cfg(test)]
 mod test_support;
 
-use aegis_core::{AegisConfig, StorageBackendKind};
+use aegis_core::AegisConfig;
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::{OpenApiGenerator, SchemaLoader, TypeScriptGenerator};
 use state::AppState;
@@ -101,6 +94,12 @@ enum UserCommand {
     Enable { username: String },
     /// List users
     List,
+    /// Link an existing user to an OpenID Connect account ([auth.oidc].issuer_url + the IdP's `sub`)
+    LinkOidc {
+        username: String,
+        /// The `sub` claim of the user at the IdP
+        sub: String,
+    },
 }
 
 /// 新しいパスワードを読み込む: 環境変数 `AEGIS_USER_PASSWORD` → 端末なら非表示入力（確認つき）→ 標準入力の 1 行
@@ -161,6 +160,15 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
         UserCommand::Enable { username } => {
             auth::users::set_disabled(db, &username, false).await?;
             println!("Enabled '{}'", username);
+        }
+        UserCommand::LinkOidc { username, sub } => {
+            anyhow::ensure!(
+                !config.auth.oidc.issuer_url.trim().is_empty(),
+                "[auth.oidc].issuer_url is not set"
+            );
+            let subject = auth::oidc_subject(&config.auth.oidc.issuer_url, &sub);
+            auth::users::link_identity(db, &username, auth::OIDC_PROVIDER, &subject).await?;
+            println!("Linked '{}' to OIDC subject {}", username, subject);
         }
         UserCommand::List => {
             let users = db.list_users().await?;
@@ -243,6 +251,8 @@ async fn main() -> anyhow::Result<()> {
                 config.server.host = h;
             }
 
+            let base_path = config.server.normalized_base_path()?;
+
             tracing::info!("Starting AegisCMS core engine...");
             tracing::info!(
                 "Database backend: {:?} (URL: {})",
@@ -275,7 +285,7 @@ async fn main() -> anyhow::Result<()> {
             let auth_provider = Arc::new(auth::LocalAuthProvider::new(db_adapter.clone()));
 
             // 3. ストレージバックエンド初期化
-            let storage = storage::create_storage_backend(&config.storage)?;
+            let storage = storage::create_storage_backend(&config.storage, &base_path)?;
 
             // 4. キャッシュ & セッションサービス初期化 (ステートレス対応)
             let cache = cache::create_cache_backend(&config.cache).await?;
@@ -315,10 +325,10 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // 5.5 テーマエンジンの初期化 & プラグイン登録テンプレートの同期
-            let theme_engine = Arc::new(aegis_theme::ThemeEngine::new(
-                &config.paths.themes_dir,
-                &config.theme.active,
-            ));
+            let theme_engine = Arc::new(
+                aegis_theme::ThemeEngine::new(&config.paths.themes_dir, &config.theme.active)
+                    .with_base_path(&base_path),
+            );
             let plugin_templates = supervisor.collect_plugin_templates();
             for (name, content) in plugin_templates {
                 theme_engine.register_template(&name, &content);
@@ -331,7 +341,19 @@ async fn main() -> anyhow::Result<()> {
             ));
             audit.spawn_retention_task();
 
-            let app_state = Arc::new(AppState::new(
+            // 6.5 外部 IdP ログイン（[auth.oidc]）
+            let oidc = if config.auth.oidc.enabled {
+                Some(build_oidc_login(
+                    &config.auth.oidc,
+                    &base_path,
+                    cache.clone(),
+                    db_adapter.clone(),
+                )?)
+            } else {
+                None
+            };
+
+            let app_state = AppState::new(
                 config.clone(),
                 db_adapter,
                 storage,
@@ -343,97 +365,22 @@ async fn main() -> anyhow::Result<()> {
                 supervisor,
                 audit,
                 theme_engine,
-            ));
+            );
+            let app_state = Arc::new(match oidc {
+                Some(oidc) => app_state.with_oidc(oidc),
+                None => app_state,
+            });
 
-            // 7. CORS & Router 設定
-            let cors = CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any);
-
-            let mut app = Router::new()
-                .route("/api/v1/health", get(handlers::health_check))
-                .route("/api/v1/openapi.json", get(handlers::get_openapi_spec))
-                .route("/api/v1/schemas", get(handlers::list_schemas))
-                .route("/api/v1/schemas/{content_type}", get(handlers::get_schema))
-                .route(
-                    "/api/v1/contents/{content_type}",
-                    get(handlers::list_content).post(handlers::create_content),
-                )
-                .route(
-                    "/api/v1/contents/{content_type}/{slug}",
-                    get(handlers::get_content),
-                )
-                .route(
-                    "/api/v1/storage/upload",
-                    // axum の既定 (2MB) ではなく設定値をアップロードの上限にする
-                    post(handlers::upload_file)
-                        .layer(DefaultBodyLimit::max(config.storage.max_upload_bytes())),
-                )
-                .route("/api/v1/storage/objects", get(handlers::list_objects))
-                .route(
-                    "/api/v1/storage/objects/{*key}",
-                    delete(handlers::delete_object),
-                )
-                .route("/api/v1/preview", post(handlers::preview_content))
-                .route(
-                    "/api/v1/auth/session",
-                    post(handlers::create_session)
-                        .get(handlers::get_current_session)
-                        .delete(handlers::delete_session),
-                )
-                .route("/api/v1/audit-logs", get(handlers::list_audit_logs))
-                .route("/api/v1/themes", get(handlers::list_themes))
-                .route(
-                    "/api/v1/themes/active",
-                    get(handlers::get_active_theme).put(handlers::switch_active_theme),
-                )
-                .route(
-                    "/themes/{theme_id}/preview",
-                    get(handlers::get_theme_preview),
-                )
-                .route(
-                    "/themes/{theme_id}/assets/{*path}",
-                    get(handlers::get_specific_theme_asset),
-                )
-                .route(
-                    "/theme/assets/{*path}",
-                    get(handlers::get_active_theme_asset),
-                )
-                .route("/metrics", get(handlers::get_metrics))
-                // --- 公開フロントエンド（テンプレートレンダリング） ---
-                .route("/", get(handlers::render_index))
-                .route("/articles", get(handlers::render_index))
-                .route("/articles/{slug}", get(handlers::render_article))
-                .route("/{slug}", get(handlers::render_page_or_slug));
-
-            // ローカルストレージの場合、/uploads で静的ファイル配信
-            if config.storage.backend == StorageBackendKind::Local {
-                let _ = std::fs::create_dir_all(&config.storage.local.upload_dir);
-                let prefix = config.storage.local.public_url_prefix.clone();
-                app = app.nest_service(&prefix, ServeDir::new(&config.storage.local.upload_dir));
-            }
-
-            // Admin Studio SPA 配信 (/admin および /assets)
-            if config.paths.admin_dist_dir.exists() {
-                let index_file = config.paths.admin_dist_dir.join("index.html");
-                let admin_assets_dir = config.paths.admin_dist_dir.join("assets");
-                if admin_assets_dir.exists() {
-                    app = app.nest_service("/assets", ServeDir::new(admin_assets_dir));
-                }
-                let admin_serve = ServeDir::new(&config.paths.admin_dist_dir)
-                    .not_found_service(ServeFile::new(index_file));
-                app = app.nest_service("/admin", admin_serve);
-            }
-
-            let app = app
-                .layer(cors)
-                .layer(TraceLayer::new_for_http())
-                .with_state(app_state);
+            // 7. Router 設定（[server].base_path 配下で公開）
+            let app = app::with_base_path(app::router(&config, app_state), &base_path);
 
             let addr: SocketAddr =
                 format!("{}:{}", config.server.host, config.server.port).parse()?;
-            tracing::info!("AegisCMS API Gateway listening on http://{}", addr);
+            tracing::info!(
+                "AegisCMS API Gateway listening on http://{}{}/",
+                addr,
+                base_path
+            );
 
             let listener = tokio::net::TcpListener::bind(addr).await?;
             axum::serve(
@@ -445,4 +392,35 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// `[auth.oidc]` を検証し、OpenID Connect ログインを組み立てる（IdP への接続は初回ログイン時）
+#[cfg(feature = "oidc")]
+fn build_oidc_login(
+    config: &aegis_core::OidcConfig,
+    base_path: &str,
+    cache: Arc<dyn aegis_core::CacheBackend>,
+    db: Arc<dyn db::DatabaseAdapter>,
+) -> anyhow::Result<state::OidcLogin> {
+    let provider = auth::oidc::OidcAuthProvider::new(config.clone(), cache, db)?;
+    tracing::info!(
+        "OIDC login enabled (issuer: {}, client_id: {})",
+        config.issuer_url,
+        config.client_id
+    );
+    Ok(state::OidcLogin {
+        provider: Arc::new(provider),
+        display_name: config.display_name.clone(),
+        post_login_redirect: app::under_base_path(base_path, &config.post_login_redirect),
+    })
+}
+
+#[cfg(not(feature = "oidc"))]
+fn build_oidc_login(
+    _config: &aegis_core::OidcConfig,
+    _base_path: &str,
+    _cache: Arc<dyn aegis_core::CacheBackend>,
+    _db: Arc<dyn db::DatabaseAdapter>,
+) -> anyhow::Result<state::OidcLogin> {
+    anyhow::bail!("[auth.oidc] is enabled, but this build of aegis-server has no 'oidc' feature")
 }

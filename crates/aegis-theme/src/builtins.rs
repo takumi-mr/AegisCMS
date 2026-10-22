@@ -288,15 +288,15 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
 
   <header class="site-header">
     <div class="nav-container">
-      <a href="/" class="brand-logo">
+      <a href="{{ base_path }}/" class="brand-logo">
         <div class="logo-icon">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.67-3.13 9.03-7 10.18-3.87-1.15-7-5.51-7-10.18V6.3l7-3.12z"/></svg>
         </div>
         <span>{{ site_title }}</span>
       </a>
       <nav class="nav-links">
-        <a href="/" class="nav-link">Home</a>
-        <a href="/admin" class="admin-pill">Admin Studio</a>
+        <a href="{{ base_path }}/" class="nav-link">Home</a>
+        <a href="{{ base_path }}/admin/" class="admin-pill">Admin Studio</a>
       </nav>
     </div>
   </header>
@@ -356,7 +356,7 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
           {% endif %}
         </div>
         <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.65rem; line-height: 1.4;">
-          <a href="/articles/{{ item.slug }}" style="color: #ffffff; text-decoration: none; transition: color 0.15s ease;">
+          <a href="{{ base_path }}/articles/{{ item.slug }}" style="color: #ffffff; text-decoration: none; transition: color 0.15s ease;">
             {{ item.title }}
           </a>
         </h3>
@@ -370,7 +370,7 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
         <span style="font-size: 0.8rem; color: var(--text-dim);">
           {% if item.author_id %}By {{ item.author_id }}{% else %}Aegis Team{% endif %}
         </span>
-        <a href="/articles/{{ item.slug }}" style="font-size: 0.85rem; font-weight: 600; color: #818cf8; text-decoration: none; display: flex; align-items: center; gap: 0.25rem;">
+        <a href="{{ base_path }}/articles/{{ item.slug }}" style="font-size: 0.85rem; font-weight: 600; color: #818cf8; text-decoration: none; display: flex; align-items: center; gap: 0.25rem;">
           Read story &rarr;
         </a>
       </div>
@@ -384,7 +384,7 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
     </div>
     <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; color: #ffffff;">No Published Content Yet</h3>
     <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">Create and publish articles from Admin Studio to see them listed here.</p>
-    <a href="/admin" class="admin-pill" style="display: inline-block; padding: 0.5rem 1.25rem;">Launch Admin Studio</a>
+    <a href="{{ base_path }}/admin/" class="admin-pill" style="display: inline-block; padding: 0.5rem 1.25rem;">Launch Admin Studio</a>
   </div>
   {% endif %}
 </section>
@@ -396,7 +396,7 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% block content %}
 <article class="article-detail" style="max-width: 820px; margin: 0 auto;">
   <nav class="breadcrumb" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1.75rem;">
-    <a href="/" style="color: var(--text-dim); text-decoration: none;">Home</a>
+    <a href="{{ base_path }}/" style="color: var(--text-dim); text-decoration: none;">Home</a>
     <span>/</span>
     <span style="text-transform: capitalize;">{{ content_type }}</span>
     <span>/</span>
@@ -437,7 +437,7 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
   </div>
 
   <footer class="article-footer" style="margin-top: 3.5rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
-    <a href="/" style="color: #818cf8; font-size: 0.9rem; text-decoration: none; font-weight: 600;">
+    <a href="{{ base_path }}/" style="color: #818cf8; font-size: 0.9rem; text-decoration: none; font-weight: 600;">
       &larr; Back to all stories
     </a>
     <button onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); padding: 0.4rem 0.85rem; border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; transition: all 0.2s ease;">
@@ -476,7 +476,7 @@ pub const NOT_FOUND_TEMPLATE: &str = r#"{% extends "base.html" %}
   <p style="font-size: 1rem; color: var(--text-muted); max-width: 480px; margin: 0 auto 2rem auto;">
     The page or article you are looking for does not exist, has been archived, or is in draft status.
   </p>
-  <a href="/" style="background: var(--accent-gradient); color: #ffffff; text-decoration: none; padding: 0.65rem 1.5rem; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.95rem; display: inline-block;">
+  <a href="{{ base_path }}/" style="background: var(--accent-gradient); color: #ffffff; text-decoration: none; padding: 0.65rem 1.5rem; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.95rem; display: inline-block;">
     Return to Homepage
   </a>
 </div>

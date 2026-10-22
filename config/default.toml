@@ -1,6 +1,9 @@
 [server]
 host = "127.0.0.1"
 port = 8080
+# Path to serve under behind a reverse proxy, e.g. "/cms" for https://example.com/cms/ (empty: the root).
+# See docs/configuration.md "リバースプロキシ配下での運用"
+base_path = ""
 
 [database]
 # Backend: "sqlite" | "postgres" | "mysql" (auto-inferred from url if omitted)
@@ -81,6 +84,26 @@ max_failures_per_ip = 20
 window_secs = 900
 # How long a lock lasts, in seconds (logins are rejected with 429 even with the right password)
 lockout_secs = 900
+
+[auth.oidc]
+# Single sign-on with an OpenID Connect provider (Entra ID, Google, Okta, Keycloak, ...).
+# Register https://<host>/api/v1/auth/oidc/callback as the redirect URI. See docs/authentication.md
+enabled = false
+display_name = "SSO"
+issuer_url = ""
+client_id = ""
+client_secret = ""
+redirect_url = "http://127.0.0.1:8080/api/v1/auth/oidc/callback"
+# Create unknown users on their first login (false: only users linked with `aegis user link-oidc`)
+auto_create_users = true
+default_role = "viewer"
+# Claim that decides the role on every login, e.g. "groups" (empty: the account's role applies)
+role_claim = ""
+post_login_redirect = "/admin/"
+
+[auth.oidc.role_mapping]
+# cms-admins = "admin"
+# cms-editors = "editor"
 
 [theme]
 active = "default"

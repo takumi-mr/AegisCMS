@@ -146,7 +146,7 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 | `on-before-save` | `on_before_save` | `(ptr: i32, len: i32)` | `i64` | 記事保存直前の検証・値補正・保存拒否 |
 | `transform-content-ast` | `transform_content_ast` | `(ptr: i32, len: i32)` | `i64` | ブロック AST 配列の変換・装飾 |
 | `on-render-page` | `on_render_page` | `(ptr: i32, len: i32)` | `i64` | 公開ページ描画コンテキストの動的変更 |
-| `on-user-authenticated` | *(計画中)* | `(ptr: i32, len: i32)` | `i64` | ログイン成功後の属性同期・監査通知 |
+| `on-user-authenticated` | `on_user_authenticated` | `(ptr: i32, len: i32)` | `i64` | ログイン成功後のロールマッピング・属性の補完・ログイン拒否 |
 
 ### 4.1 `on_before_save`
 
@@ -177,6 +177,17 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 - **戻り値**: 変更後の `PageRenderContext` を UTF-8 JSON 化し、パックした `i64`
 - **注意事項**:
   - サイトタイトル (`site_title`)、追加 CSS (`extra_css`)、追加ヘッダー (`extra_head`)、テンプレート変数 (`variables`) を動的に更新できます。
+
+### 4.4 `on_user_authenticated`
+
+ログイン（パスワード・OpenID Connect）で資格情報を確認した後、セッションを発行する前に呼び出されます。
+
+- **入力**: UTF-8 JSON エンコードされた `UserAuthContext`（`provider`, `user_id`, `email`, `display_name`, `role`, `metadata`。詳細は [プラグインフック](plugin_hooks.md#23-userauthcontext)）
+- **戻り値**:
+  - 成功時: 変更後の `UserAuthContext` を UTF-8 JSON 化し、パックした `i64`（`role` / `display_name` / `email` / `metadata` がセッションに反映。`provider` / `user_id` の変更は無視）
+  - ログイン拒否時: エラーエンベロープ `{"error": "<拒否理由メッセージ>"}`。API は `403 Forbidden` を返します
+- **注意事項**:
+  - `role` は `admin` / `editor` / `viewer` のいずれか。それ以外やトラップ・タイムアウトもログイン失敗になります（安全側に倒す）。
 
 ---
 

@@ -1,5 +1,6 @@
 import type {
   AuditLogPage,
+  AuthProviders,
   AuditLogQuery,
   ContentItem,
   CreateCategoryPayload,
@@ -16,10 +17,27 @@ import type {
 } from '../types';
 import { getSessionToken } from './session';
 
-const API_BASE = 'http://127.0.0.1:8080/api/v1';
+/**
+ * Base URL of the AegisCMS server (origin plus `[server].base_path`, without a trailing slash),
+ * which serves the API, the public site, theme assets and uploads. `VITE_AEGIS_SERVER_URL` at
+ * build time wins (Admin Studio hosted elsewhere, e.g. `https://admin.example.com` talking to
+ * `https://example.com/cms`). Otherwise the dev server talks to a local core server, and the
+ * production build to the server that served it: the bundle lives at
+ * `{server}/admin/assets/*.js`, so it works behind a reverse proxy on any domain and sub-path
+ * without rebuilding.
+ */
+const resolveServerUrl = (): string => {
+  const configured = import.meta.env.VITE_AEGIS_SERVER_URL?.trim();
+  if (configured) return new URL(configured).href.replace(/\/+$/, '');
+  if (import.meta.env.DEV) return 'http://127.0.0.1:8080';
+  // Held in a variable so Vite does not treat `new URL(..., import.meta.url)` as an asset import
+  const moduleUrl = import.meta.url;
+  return new URL('../../', moduleUrl).href.replace(/\/+$/, '');
+};
 
-/** Origin of the AegisCMS server (serves the public site, theme assets and uploads) */
-export const SERVER_ORIGIN = new URL(API_BASE).origin;
+export const SERVER_URL = resolveServerUrl();
+
+const API_BASE = `${SERVER_URL}/api/v1`;
 
 export class ApiError extends Error {
   status: number;
@@ -87,6 +105,13 @@ export const aegisApi = {
         typeof err.retry_after_secs === 'number' ? err.retry_after_secs : undefined;
       throw new ApiError(res.status, err.error || 'Failed to log in', retryAfter);
     }
+    return res.json();
+  },
+
+  /** Sign-in methods for the login screen */
+  async getAuthProviders(): Promise<AuthProviders> {
+    const res = await fetch(`${API_BASE}/auth/providers`);
+    if (!res.ok) throw new ApiError(res.status, 'Failed to fetch sign-in methods');
     return res.json();
   },
 

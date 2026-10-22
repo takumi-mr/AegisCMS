@@ -89,6 +89,17 @@ pub trait DatabaseAdapter: Send + Sync {
 
     /// List local user accounts ordered by username
     async fn list_users(&self) -> Result<Vec<UserRecord>>;
+
+    /// Username linked to an external identity (`provider`, e.g. `oidc`, and the IdP's subject)
+    async fn get_identity_link(&self, provider: &str, subject: &str) -> Result<Option<String>>;
+
+    /// Link an external identity to a username (fails if the identity is already linked)
+    async fn insert_identity_link(
+        &self,
+        provider: &str,
+        subject: &str,
+        username: &str,
+    ) -> Result<()>;
 }
 
 /// ローカル認証のユーザーアカウント（`_aegis_users` テーブルの 1 行）
@@ -161,6 +172,47 @@ pub fn build_user_select(where_clause: Option<&str>) -> String {
         where_clause
             .map(|w| format!(" WHERE {}", w))
             .unwrap_or_default()
+    )
+}
+
+/// 外部 IdP のアイデンティティ（プロバイダ + subject）と `_aegis_users` のユーザー名の対応表。
+/// ローカルユーザーと同名の IdP ユーザーがそのアカウントに入れないよう、紐付けはここでだけ行う
+pub const IDENTITY_TABLE: &str = "_aegis_user_identities";
+
+/// 対応表の CREATE 文。`text` は文字列カラムの型（SQLite は `TEXT`、PostgreSQL / MySQL は
+/// 主キーに使えるよう `VARCHAR(255)`）
+pub fn build_identity_table(text: &str) -> String {
+    format!(
+        "CREATE TABLE IF NOT EXISTS {} (\
+         provider {text} NOT NULL, \
+         subject {text} NOT NULL, \
+         username {text} NOT NULL, \
+         created_at {text} NOT NULL, \
+         PRIMARY KEY (provider, subject));",
+        IDENTITY_TABLE,
+        text = text
+    )
+}
+
+/// 対応表の INSERT 文。バインド順は provider, subject, username, created_at
+pub fn build_identity_insert(placeholder: impl Fn(usize) -> String) -> String {
+    format!(
+        "INSERT INTO {} (provider, subject, username, created_at) VALUES ({}, {}, {}, {});",
+        IDENTITY_TABLE,
+        placeholder(1),
+        placeholder(2),
+        placeholder(3),
+        placeholder(4)
+    )
+}
+
+/// 対応表の SELECT 文。バインド順は provider, subject
+pub fn build_identity_select(placeholder: impl Fn(usize) -> String) -> String {
+    format!(
+        "SELECT username FROM {} WHERE provider = {} AND subject = {};",
+        IDENTITY_TABLE,
+        placeholder(1),
+        placeholder(2)
     )
 }
 

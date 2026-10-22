@@ -37,5 +37,17 @@ hex = "0.4"
 argon2 = "0.5"
 rpassword = "7"
 redis.workspace = true
+jsonwebtoken = { version = "9.3", optional = true }
+base64 = { version = "0.22", optional = true }
+
+[dev-dependencies]
+# Test-only signing keys for the mock OIDC provider
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem", "jwk"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+
+[features]
+default = ["oidc"]
+# OpenID Connect login ([auth.oidc]): ID token signature verification via JWKS
+oidc = ["dep:jsonwebtoken", "dep:base64"]
 
 

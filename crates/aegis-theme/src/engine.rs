@@ -11,6 +11,7 @@ struct ThemeEngineInner {
     active_theme: String,
     theme_templates_dir: Option<PathBuf>,
     dynamic_templates: HashMap<String, String>,
+    base_path: String,
 }
 
 #[derive(Clone)]
@@ -35,8 +36,16 @@ impl ThemeEngine {
                 active_theme: active,
                 theme_templates_dir,
                 dynamic_templates: HashMap::new(),
+                base_path: String::new(),
             })),
         }
+    }
+
+    /// サイトを公開するパス（`[server].base_path` の正規化済みの値、例: `/cms`）。
+    /// テンプレートからはグローバル変数 `base_path` として `{{ base_path }}/articles/...` のように使う
+    pub fn with_base_path(self, base_path: &str) -> Self {
+        self.inner.write().unwrap().base_path = base_path.to_string();
+        self
     }
 
     /// 現在アクティブなテーマ識別子を取得
@@ -274,6 +283,15 @@ impl ThemeEngine {
 
     /// テンプレートと PageRenderContext から HTML を描画する
     pub fn render(&self, template_name: &str, ctx: &PageRenderContext) -> Result<String> {
+        let (dynamic_templates, fs_dir, base_path) = {
+            let inner = self.inner.read().unwrap();
+            (
+                inner.dynamic_templates.clone(),
+                inner.theme_templates_dir.clone(),
+                inner.base_path.clone(),
+            )
+        };
+
         let mut env = Environment::new();
 
         env.add_filter("date_short", |val: minijinja::Value| -> String {
@@ -308,13 +326,8 @@ impl ThemeEngine {
             },
         );
 
-        let (dynamic_templates, fs_dir) = {
-            let inner = self.inner.read().unwrap();
-            (
-                inner.dynamic_templates.clone(),
-                inner.theme_templates_dir.clone(),
-            )
-        };
+        // `[server].base_path` の正規化済みの値（URL で安全な文字のみ）なので自動エスケープ（`/` → `&#x2f;`）しない
+        env.add_global("base_path", minijinja::Value::from_safe_string(base_path));
 
         env.set_loader(
             move |name: &str| -> std::result::Result<Option<String>, minijinja::Error> {
@@ -413,6 +426,28 @@ mod tests {
         assert!(html.contains("First Post"));
         assert!(html.contains("/articles/first-post"));
         assert!(html.contains("Powered by <strong>AegisCMS</strong>"));
+    }
+
+    #[test]
+    fn test_render_links_under_base_path() {
+        let engine =
+            ThemeEngine::new(Path::new("non_existent_dir"), "default").with_base_path("/cms");
+        let ctx = PageRenderContext {
+            site_title: "Sub-path Site".to_string(),
+            template: "index.html".to_string(),
+            items: vec![ContentSummary {
+                title: "First Post".to_string(),
+                slug: "first-post".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let html = engine.render("index.html", &ctx).expect("Render failed");
+        assert!(html.contains(r#"href="/cms/articles/first-post""#));
+        assert!(html.contains(r#"href="/cms/admin/""#));
+        assert!(html.contains(r#"href="/cms/""#));
+        assert!(!html.contains(r#"href="/articles/"#));
     }
 
     #[test]
