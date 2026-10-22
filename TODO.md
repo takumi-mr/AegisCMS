@@ -2,213 +2,66 @@
 
 > [!NOTE]
 > 作業を再開する際は、まず本ドキュメントの「現在の状況と直近の再開手順」および「TODOタスク一覧」を確認してください。  
-> **ルール**: 各修正・実装ステップの終了後には、必ず本ドキュメントを更新してください。
+> **ルール**: 各修正・実装ステップの終了後には、必ず本ドキュメントを更新してください。  
+> **アーカイブ**: これまでに完了したタスク・実装実績は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に整理・記録されています。
 
 ---
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: コンテンツ公開機能 & テンプレートエンジン (`MiniJinja`) 導入、およびプラグインによる動的テーマ書き換え機能の実装完了。
+- **現在のステータス**: コンテンツ公開機能 & テンプレートエンジン (`MiniJinja`)、プラグイン動的テーマ書き換え、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、Admin Studio ログイン画面、メディア削除機能 (`DELETE /api/v1/storage/objects/{key}`) & メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
   - Rust ワークスペース全体 (`cargo test --workspace`) 100% 成功（全テストパス）。
   - コードフォーマット (`cargo fmt --check`) および Clippy ゼロ警告 (`cargo clippy --workspace -- -D warnings`) 達成。
-  - フロントエンド本番ビルド (`npm --prefix admin run build`) 成功。
-  - `task check` (fmt, clippy, test, admin:build) 全パス。
-  - テンプレートエンジン (`crates/aegis-theme`):
-    - `MiniJinja` を採用した高速・軽量・堅牢なテンプレート描画エンジン。
-    - 美しくモダンなビルトインデフォルトテンプレート（`base.html`, `index.html`, `article.html`, `page.html`, `404.html`）の内蔵。
-    - ファイルシステム（`themes/{active}/templates/`）およびプラグイン動的登録テンプレートの 3 層探索フォールバック。
-  - 公開フロントエンド配信 (`aegis-server`):
-    - `GET /` & `GET /articles`: 最新の公開記事一覧ページ (`index.html`)。
-    - `GET /articles/{slug}`: 記事詳細ページ (`article.html`)。`status == "published"` のみ一般公開し、下書きはゼロトラストに 404 を返却。
-    - `GET /{slug}`: 固定ページまたは記事へのスマートフォールバック。
-    - `GET /theme/assets/*`: テーマ静的アセット（CSS/JS/画像）配信。
-    - `GET /admin` & `/admin/*`: Admin Studio SPA 配信の分離共存。
-  - プラグインによるテーマ書き換え機構 (`aegis-runtime` & `aegis-plugin-sdk`):
-    - `on-render-page` フック: `PageRenderContext`（タイトル、カスタム CSS、`<head>` タグ、テーマ変数、使用テンプレート名）の動的書き換え。
-    - `ThemeEngine::register_template`: プラグインからのテンプレート動的完全オーバーライド。
+  - フロントエンド本番ビルド (`npm --prefix admin run build`) および oxlint ゼロ警告達成。
+  - テンプレートエンジン & 公開配信 (`crates/aegis-theme` & `aegis-server`):
+    - MiniJinja によるテンプレート描画、3層探索フォールバック。
+    - `GET /`, `GET /articles`, `GET /articles/{slug}`, `GET /{slug}` による公開サイト配信。
+    - プラグイン `on-render-page` フックおよび `register_template` による動的カスタマイズ。
+  - 認証・認可・セキュリティ:
+    - ローカル認証 (`LocalAuthProvider`: Argon2id, タイミング攻撃対策)。
+    - セッション管理、RBAC 認可 (`RequireRole`: `ViewerSession` / `EditorSession` / `AdminSession`)。
+    - ログイン試行レート制限 (`[auth.login_rate_limit]`: アカウントロック・429)。
+    - Admin Studio ログイン画面・セッション復元・ロール別 UI 制御。
+  - メディア管理 & 監査ログ:
+    - `POST /api/v1/storage/upload`（ファイル保存・`editor` 必須・`storage.upload` 監査記録）。
+    - `GET /api/v1/storage/objects`（一覧・`viewer` 必須）。
+    - `DELETE /api/v1/storage/objects/{key}`（削除・`editor` 必須・使用中なら 409 で参照元返却・`?force=true` 強制削除・`storage.delete` 監査記録）。
+    - Admin Studio メディアライブラリでの削除確認・使用中参照表示ダイアログ。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録は完了**
-1. ⑤ `on_user_authenticated` フック、OIDC / SAML プロバイダ。
+**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除は完了）**
+1. **Wasm 認証後フック (`on_user_authenticated`)**:
+   - `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・監査通知用 Wasm プラグインフックの実装。
+2. **外部 IdP 認証プロバイダ (OIDC / SAML)**:
+   - 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信を Rust Crate（Cargo Features / 静的コンパイル）で安全に分離実装。
 
 ---
 
 ## 2. TODOタスク一覧
 
-### ✅ 完了済み (Done)
-- [x] プロジェクト全体のモノレポ構成セットアップ (`Cargo.toml`, `.gitignore`)
-- [x] `aegis-core`: 共通エンティティ (`Post`, `PostContext`)、設定ローダー、マニフェスト定義、エラーモデル
-- [x] `aegis-ast`: Block AST データ構造 (`BlockNode`)、ASTトランスフォーマーパイプライン、決定論的HTMLレンダラー
-- [x] `aegis-schema`: 宣言的YAMLスキーマパーサー、SQLite DDL生成、自動マイグレーション機構
-- [x] `aegis-runtime`:
-  - [x] ケイパビリティ検証ガード (`CapabilityGuard`: ドメインホワイトリスト、フック権限、KVSネームスペース)
-  - [x] Wasmtime サンドボックスランタイム統合 (`WasmEngine`, `WasmPluginInstance`)
-  - [x] ホストAPIリンカー (`host:log`, `host:http_check_allowed`, `host:kv_set`)
-  - [x] タイムアウト多層防御 (`tokio::time::timeout` + Fuelリソースクォータ)
-  - [x] ディレクトリ走査型プラグインローダー (`WasmPluginLoader`)
-- [x] `aegis-server`: Axum HTTP/REST API Gateway、SQLite接続プール、マイグレーション統合、コンテンツCRUD API
-- [x] サンプルプラグイン実バイナリ (`plugins/slack-notifier/plugin.wasm`) の生成およびエンドツーエンド疎通確認
-- [x] エージェント運用規約 (`AGENTS.md`) および TODO 管理票 (`TODO.md`) の作成
-- [x] `CLAUDE.md` シンボリックリンクの作成 (`CLAUDE.md -> AGENTS.md`)
-- [x] エージェント運用規約 (`AGENTS.md`) の拡張（ブランチ戦略、Conventional Commits、PR運用規約・チェックリストの策定）
-- [x] Linter & Formatter 設定の追加 (`rustfmt.toml`, `.editorconfig`, `[workspace.lints]`, Clippy ゼロ警告達成)
-- [x] モノレポ構造の整合性確保（クレート別ネスト `.git` の解消）および `main` ブランチでのファーストコミット作成
-- [x] **Admin Studio SPA セットアップ**
-  - [x] `admin/` ディレクトリに Vite + React (TypeScript) プロジェクトを初期化
-  - [x] リッチなモダンUIデザインシステム（ダークテーマ、グラスモフィズム、洗練されたタイポグラフィ）の構築
-  - [x] API クライアント（`/api/v1/schemas`, `/api/v1/contents`）の実装
-- [x] **ブロックエディタ UI 実装**
-  - [x] ブロック追加メニュー（見出し、段落、コード、画像、カスタム要素）
-  - [x] ブロック並び替え（Up/Down）・削除
-  - [x] リアルタイムプレビュー（ASTからレンダリングされたHTMLの表示）
-  - [x] 記事保存・更新・公開ステータス切替
-  - [x] コアサーバーによる Admin SPA 配信 (`/` -> `admin/dist/index.html`)
-- [x] **CI/CD & コンテナ・タスク自動化基盤整備**
-  - [x] GitHub Actions 自動テスト・リント・ビルド CI パイプライン構築 (`.github/workflows/ci.yml`)
-  - [x] マルチステージ本番 Dockerfile の作成（Node.js + Rust 最新版 + 最小 Debian 実行層、非 root ユーザー実行、サイズ 163MB、HEALTHCHECK 内蔵）
-  - [x] Docker 用設定ファイル (`config/docker.toml`) および `.dockerignore` の追加
-  - [x] CLI 引数および環境変数による host/port オーバーライド対応（`AEGIS_CONFIG`, `HOST`, `PORT`）
-  - [x] `go-task` 構成ファイル (`Taskfile.yml`) の作成（dev, test, lint, fmt, check, build, docker コマンド一元化）
-  - [x] Admin Studio ドキュメント刷新・最新化 (`admin/README.md`)
-- [x] **OpenAPI / TypeScript 型定義 自動生成基盤**
-  - [x] `aegis-schema`: スキーマ定義から TypeScript インターフェースを生成する `TypeScriptGenerator` の実装
-  - [x] `aegis-schema`: スキーマ定義および標準エンドポイントから OpenAPI 3.1 仕様書を生成する `OpenApiGenerator` の実装
-  - [x] `aegis-server`: CLI サブコマンド `aegis codegen --target <typescript|openapi> --output <path>` の実装
-  - [x] `aegis-server`: 最新の OpenAPI 3.1 定義を配信する HTTP エンドポイント `GET /api/v1/openapi.json` の実装
-  - [x] `Taskfile.yml`: `task codegen`, `task codegen:ts`, `task codegen:openapi` の一括生成タスク追加
-  - [x] Admin Studio: 自動生成された `admin/src/types/schemas.ts` を透過的に利用可能に統合
-- [x] **ストリーミング HTML リライター組み込み (`lol-html`)**
-  - [x] `crates/aegis-ast`: Cloudflare 製 `lol-html` を使用した `StreamingHtmlRewriter` の実装
-  - [x] 外部リンクへの `rel="noopener noreferrer"` 自動付与（既存の rel 属性とのスマートマージ）
-  - [x] 内部ドメインリスト（`internal_domains`）による同一組織/自サイトリンクの除外バイパス
-  - [x] `<img>` タグへの `loading="lazy"` および `decoding="async"` 強制インジェクション
-  - [x] `crates/aegis-core`: `SecurityConfig` の追加および `config/default.toml`, `config/docker.toml` からの宣言的設定対応
-  - [x] `crates/aegis-server`: コンテンツ作成 API (`POST /api/v1/contents/{content_type}`) の HTML 生成パイプラインに自動適用
-  - [x] 単体テストおよび大規模 HTML（~120KB, 500リンク/500画像）のスループットベンチマーク検証（約33ms）
-- [x] **追加スキーマ定義とリレーション解決**
-  - [x] `schemas/categories.yaml` (カテゴリ管理: title, slug, description, color) の作成
-  - [x] `schemas/pages.yaml` (固定ページ: title, slug, layout, custom_meta) の作成
-  - [x] `schemas/articles.yaml` への `category_id` (type: relation, target: category.id) の定義追加
-  - [x] `aegis-schema`: `RelationTarget` パース機能および `SchemaDefinition::relation_fields()` の実装
-  - [x] `aegis-server`: `PRAGMA table_info` を走査し、既存テーブルへ差分カラムを自動追加する `ALTER TABLE ... ADD COLUMN` スキーマ進化マイグレーションの実装
-  - [x] `aegis-server`: 動的カスタムフィールドの永続化およびリレーション自動解決（JOIN / 関連モデル情報の `relations` オブジェクト注入）
-  - [x] TypeScript 型定義および OpenAPI 仕様書の更新 (`task codegen`)
-- [x] **インフラ周りの抽象化（RDB & ストレージ）**
-  - [x] `aegis-core`: `DatabaseBackendKind` (`sqlite`, `postgres`, `mysql`), `StorageBackendKind` (`local`, `s3`), `StorageConfig`, `StorageBackend` トレイト、`StorageMeta` 定義
-  - [x] `aegis-schema`: マルチダイアレクト DDL 生成 (`SqlDialect`: SQLite, Postgres, MySQL) および単体テスト
-  - [x] `aegis-server`: `DatabaseAdapter` トレイトの定義（init, run_migrations, insert_content, get_content, list_contents, resolve_relation）
-  - [x] `aegis-server`: `SqliteAdapter` 実装（`sqlx::SqlitePool` カプセル化）
-  - [x] `aegis-server`: `PostgresAdapter` 実装（`sqlx::PgPool`, `$1` パラメータ, `information_schema` 走査マイグレーション）
-  - [x] `aegis-server`: `MySqlAdapter` 実装（`sqlx::MySqlPool`, `?` パラメータ, `information_schema` 走査マイグレーション）
-  - [x] `aegis-server`: `LocalStorageBackend` 実装（ローカルディスク/ブロックストレージ、ディレクトリ自動作成、パストラバーサル防止）
-  - [x] `aegis-server`: `S3StorageBackend` 実装（AWS S3 / Cloudflare R2 / MinIO 互換, AWS SigV4 認証署名ネイティブ実装）
-  - [x] `aegis-server`: アセットアップロード API (`POST /api/v1/storage/upload`) & 静的配信統合
-  - [x] `AppState` および `handlers/content.rs` を `DatabaseAdapter` & `StorageBackend` ベースに全面リファクタリング
-  - [x] `config/default.toml` および `config/docker.toml` での `[database]` & `[storage]` 設定の体系化
-- [x] **Redis キャッシュ & ステートレスセッション管理 (オプショナル Redis / デフォルトインメモリ)**
-  - [x] `aegis-core`: `CacheBackend` トレイト（`get`, `set`, `delete`, `exists`）および `CacheBackendKind` (`Memory`, `Redis`), `CacheConfig`, `RedisCacheConfig` の定義
-  - [x] `aegis-server`: `MemoryCacheBackend` の実装（TTL 有効期限管理、Tokio `RwLock`、外部ミドルウェア不要なデフォルト動作）
-  - [x] `aegis-server`: `RedisCacheBackend` の実装（非同期 `ConnectionManager` による自動再接続、`GET`/`SETEX`/`DEL`/`EXISTS` コマンド統合）
-  - [x] `aegis-server`: ステートレスセッション管理 `SessionService`（Bearer トークン `ses_{UUID}` 発行・検証・失効、メタデータ属性保持、TTL 連動）
-  - [x] `aegis-server`: セッション HTTP REST API ハンドラー（`POST /api/v1/auth/session`, `GET /api/v1/auth/session`, `DELETE /api/v1/auth/session`、`Authorization: Bearer <token>` / `X-Session-Id` 両対応）
-  - [x] `config/default.toml` および `config/docker.toml` への `[cache]` 宣言的設定ブロック追加
-  - [x] 単体テスト追加（メモリキャッシュ TTL CRUD、Redis URL 検証、ステートレスセッションのライフサイクル検証）
-- [x] **Wasm プラグイン向け公式 SDK (`aegis-plugin-sdk`) & 開発テンプレート整備**
-  - [x] `crates/aegis-plugin-macros`: `#[aegis_plugin]` 手続型マクロの実装（`allocate` アロケータ自動生成、JSON 直列化/逆直列化、packed `(ptr << 32) | len` 隠蔽）
-  - [x] `crates/aegis-plugin-sdk`: 型安全な `Plugin` トレイト、`PostContext`、`BlockNode` 定義とヘルパー群
-  - [x] `crates/aegis-plugin-sdk`: ホスト API ラッパー（`log_info!`/`log_warn!`、`net::is_allowed`、`kv::set`/`kv::set_json`）
-  - [x] `crates/aegis-plugin-sdk`: ネイティブ環境（`cargo test`）向けのモック・メモリハンドル内蔵（Wasm ビルド不要でロジックを高速単体テスト可能）
-  - [x] `plugins/template-rust`: 公式開発テンプレートの整備（マニフェスト、フック実装、ローカルテスト）
-  - [x] `Taskfile.yml`: `task plugin:build` による Wasm バイナリ最適化ビルドコマンドの追加
-  - [x] `docs/plugin_sdk_guide.md`: Wasm プラグイン開発公式ガイドの作成
-- [x] **リファレンスドキュメント整備**
-  - [x] `docs/configuration.md`: `config/*.toml` の全設定項目（既定値・省略可否・CLI/環境変数オーバーライド）リファレンス
-  - [x] `docs/plugin_hooks.md`: プラグインフック一覧（実行順・エラー時挙動）、マニフェスト、リソース制限、ホスト API リファレンス
-- [x] **監査ログ基盤 (`AuditSink` 抽象化)**
-  - [x] `aegis-core`: `AuditEvent` / `AuditAction` / `AuditOutcome` / `AuditQuery` 型と `AuditSink` トレイト、`[audit]` 設定 (`enabled`, `sinks`, `trust_forwarded_for`)
-  - [x] `aegis-server`: `DatabaseAdapter` に `insert_audit_event` / `query_audit_events` を追加（`_aegis_audit_logs` テーブル、SQLite / PostgreSQL / MySQL）
-  - [x] `aegis-server`: 出力先 `database`（DB 永続化）/ `log`（`aegis::audit` 構造化 JSON ログ）/ `prometheus`（`GET /metrics` の `aegis_audit_events_total`）と配送サービス `AuditService`
-  - [x] 記録対象: `content.create`, `session.create`, `session.delete`, `storage.upload`, `plugin.error`（セッショントークンは記録せず SHA-256 指紋のみ）
-  - [x] 参照 API `GET /api/v1/audit-logs`（`admin` ロール必須、action / outcome / actor / resource / 期間での絞り込み、ページング）
-  - [x] `docs/audit.md` の作成、`docs/configuration.md` と `config/*.toml` への `[audit]` 追記
-- [x] **コンテンツ公開機能 & テーマエンジン (`MiniJinja`) & プラグイン動的テーマ書き換え**
-  - [x] `aegis-core`: `ThemeConfig`、`PageRenderContext`、`ContentSummary` のデータ構造定義
-  - [x] `crates/aegis-theme`: `MiniJinja` をコアとしたテーマエンジン実装
-  - [x] 洗練されたビルトインモダンテンプレート（`base.html`, `index.html`, `article.html`, `page.html`, `404.html`）の内蔵
-  - [x] ファイルシステム（`themes/{active}/templates/`）およびプラグイン動的登録テンプレートの 3 層フォールバック
-  - [x] `aegis-runtime` & `aegis-plugin-sdk`: `on-render-page` フックおよび `provide_templates` メソッドの実装
-  - [x] `aegis-plugin-macros`: `#[aegis_plugin]` マクロへの `on_render_page` ABI 自動生成の統合
-  - [x] `aegis-server`: 公開ページ配信ハンドラー（`GET /`, `GET /articles`, `GET /articles/{slug}`, `GET /{slug}`）の実装
-  - [x] ゼロトラストな公開制御（`status == "published"` のみ公開、下書き・存在しない slug は 404 レンダリング）
-  - [x] テーマ静的アセット配信ルーティング（`/theme/assets/*`）および Admin Studio SPA（`/admin` & `/assets`）の完全分離共存
-  - [x] `config/*.toml` への `[theme]` 宣言的設定セクションの追加
-  - [x] `docs/theme_and_publishing_guide.md`: コンテンツ公開 & テーマプラグイン開発公式ガイドの作成
-  - [x] 単体テスト & 結合テスト（トップページ公開表示、下書き 404、プラグインによるタイトル・CSS・テンプレート書き換え）の追加・全パス
+> 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
----
+### ⏳ 直近のタスク (Next Up)
 
-### ⏳ 次に取り組むタスク (Next Up)
-
-#### フェーズ 2 拡張: Admin Studio 連携 & メディア管理
-- [x] **Admin Studio: カテゴリ選択 & リレーション編集 UI**
-  - [x] 記事作成・編集フォームへのカテゴリ選択ドロップダウンの追加（既存記事を開くと `fields.category_id` から選択を復元、未選択時は `category_id` を送信しない）
-  - [x] カテゴリ一覧・新規登録 UI の追加（`CategoryManager` モーダル: 色・説明つき一覧、slug 自動生成、重複 slug の事前チェック、作成したカテゴリを自動選択）
-- [x] **Admin Studio: メディアアップローダー UI**
-  - [x] 画像ブロックからのファイルアップロード (`/api/v1/storage/upload`) 連携（ドラッグ＆ドロップ / ファイル選択、URL と alt の自動反映、画像以外・上限超過のエラー表示）
-  - [x] アップロード上限の設定化（`[storage].max_upload_mb`、既定 10MB。axum 既定の 2MB 制限で 2MB 超の画像が分かりにくい 400 で失敗していた問題を解消し、超過時は 413 を返す）
-  - [x] メディア一覧表示: `StorageBackend::list`（ローカル: ディレクトリ走査、S3: ListObjectsV2 + SigV4 クエリ署名）と `GET /api/v1/storage/objects`（新しい順、`prefix` / `content_type` / `q` 絞り込み、`limit` / `offset` ページング）、Admin Studio のメディアライブラリ（画像ブロックから既存画像を選択・再利用、ファイル名検索、追加読み込み）
-  - [x] メディアの削除: `DELETE /api/v1/storage/objects/{key}`（`editor`、`storage.delete` を監査記録）。保存済みコンテンツが公開 URL を参照している場合は `409` で参照元を返し、`?force=true` のときだけ削除。メディアライブラリに削除ボタン（editor のみ）と確認ダイアログ（使用中なら参照元を表示して「Delete anyway」）。[docs/media.md](docs/media.md)
-- [x] **コンテンツ一覧のフィルタリングとリレーション表示**
-  - [x] 記事一覧（サイドバー）にカテゴリバッジを表示（カテゴリの色・名前。カテゴリ一覧に無い場合はサーバーが解決した `relations.category_id` の名前を表示）
-  - [x] カテゴリ別フィルタリング機能（All / Uncategorized / 各カテゴリ。件数は「表示件数/全件数」で表示。API に絞り込み機能が無いため Admin Studio 内で絞り込み）
-
-
----
-
-#### 開発環境・フロントエンド整備
-- [x] **Prettier 導入 & VS Code 保存時自動整形**: `admin/` に Prettier（バージョン固定）、`.prettierrc.json` / `.prettierignore`、`npm run format` / `format:check`、`task fmt:admin` / `fmt:admin:check`（`task check` と CI に組み込み）。oxlint も `--deny-warnings`（ゼロ警告）で CI・`task check`（`task lint:admin`）に追加。`.vscode/settings.json` で TS / TSX / JS / CSS / HTML / JSON の保存時整形、`.vscode/extensions.json` で拡張機能を推奨。`.editorconfig` の CSS / HTML のインデントを実態どおり 2 スペースに修正
-- [x] **フロントエンドの整理（見た目は変更なし）**: Vite テンプレートの残骸（未使用の `App.css`・`src/assets/`・`public/`）を削除。1,389 行のグローバル `index.css` をコンポーネントごとの CSS Modules に分割し、`index.css` はトークン・リセット・基本要素のみに。静的なインライン `style` を廃止。共通部品 `components/ui/`（`Button` / `Field` / `FieldRow` / `Modal` / `BrandMark`）を追加し、モーダルの Escape・外側クリック・フォーカストラップ・閉じた後のフォーカス復帰を `Modal` に集約（従来はフォーカストラップなし）
-- [x] **プレビュー API とサーバーレンダリングのプレビュー**: `POST /api/v1/preview`（`viewer` 以上、保存しない）で、保存時と同じ変換（見出し id・プラグインの `transform-content-ast`）と公開ページと同じレンダリング（`HtmlRenderer` + `[security]` リライター）を実行して HTML を返す。Admin Studio のプレビューを JavaScript の簡易レンダラーからこの API に置き換え（300ms デバウンス、プラグインのエラーは警告表示）。HTML 生成を `render.rs`（`transform_blocks` / `render_blocks_html`）に集約し、コンテンツ取得・一覧 API の `rendered_html` にリライターが適用されていなかった不整合も解消
-- [x] **UI の小さな不具合・アクセシビリティ**: ツールバーのラベル・ボタン名を折り返さない（`nowrap`、収まらない幅ではボタンごと次の行へ）。記事一覧のカードを `button` に、プレビューのタブを `role="tablist"` / `tab` の `button` にしてキーボード操作可能に（見た目は変更なし）。新規の画像ブロックを空の `src` / `alt` で開始し、アップロード・メディア選択で alt を補完。`src` が空の画像ブロックはサーバーでも出力しない（`<img src="">` による壊れた画像表示と再リクエストを防止）
-- [x] **テーマ適用済みページのプレビュー**: プレビュー API が `page_html`（`on-render-page` フック + テーマテンプレート、カテゴリなどのリレーション解決込み）も返し、Admin Studio の「Themed Page」タブで `sandbox` 付き `iframe` に表示。公開ページの組み立てを `render::render_page` に集約し、`/{slug}` の記事フォールバックでリレーションが解決されていなかった不整合も解消
-- [x] **サンプルプラグイン（`plugins/template-rust`）の `transform-content-ast` を冪等に**: 署名段落が追加済みなら追加しないよう修正し（2 回適用しても結果が変わらないことを単体テストで確認）、`plugin.wasm` を再ビルド。`task plugin:build` / `task clean` の Windows 専用コマンド（`cmd /c`）を `platforms` で Linux / macOS にも対応。SDK ガイド・テンプレート README のサンプルコードも冪等な書き方に修正
-
----
-
-#### 不具合・ドキュメント整備時に判明した課題
-- [x] **PostgreSQL でコンテンツ作成が失敗していた問題を修正**: カスタムフィールドを常に文字列でバインドしていたため、`jsonb` 列（`custom_meta`）への `INSERT` が値の有無にかかわらず失敗していた。`PostgresAdapter` でスキーマの列型に合わせて `jsonb` / `BIGINT` / `BOOLEAN` を型付きでバインド・デコードするよう修正（読み出し時に `jsonb` 列が黙って欠落する問題も解消）。
-- [x] DDL で `required: true` かつ `nullable: false` のフィールドに型を問わず `DEFAULT ''` が付与され、PostgreSQL では `integer` / `boolean` / `jsonb` のテーブル作成が失敗していた問題を修正（型ごとの既定値: integer `0`、boolean `0` / `FALSE`、jsonb `'{}'`。MySQL の TEXT / JSON 型は既定値なし）。
-- [x] **MySQL 実機検証と修正**（MySQL 8.4 / strict モード）: 起動時のカラム走査で `information_schema` の列名が大文字（`COLUMN_NAME`）で返り `unwrap()` がパニックしてサーバーが起動できなかった問題、`JSON` 列が読み出し時に欠落する問題、`null` の JSON 値が空文字列として保存されエラーになる問題を修正。インデックスの重複エラー（1061）以外を握りつぶしていた処理も改善。コンテンツ CRUD・リレーション解決・アップロード・監査ログの記録と検索を E2E 確認済み。
-- [x] **監査ログの保持期間と閲覧画面**: `[audit].retention_days` / `purge_interval_secs` による定期削除（削除自体を `audit.purge` として記録）と、Admin Studio の Audit Logs 画面（絞り込み・ページ送り・詳細表示）を追加。
-- [x] **同梱設定ファイルがパースに失敗し既定値で起動していた問題を修正**: 全設定構造体に `#[serde(default)]` を付与して全項目を省略可能にし、`load_or_default` はファイルが存在しない場合のみ既定値（警告ログ付き）、パース失敗時はエラーで起動中止するよう変更。同梱設定ファイルのパースを単体テストで検証。
-- [x] **`on-before-save` の戻り値を保存に反映**: プラグインが返した `title` / `slug` / `blocks_json` を保存（`id` / `author_id` の変更は無視）。変更された本文には組み込みパイプライン（見出し id）を再適用。Admin Studio は保存後に保存された内容をエディタに表示。
-- [x] **SDK の `Err` で保存を拒否**: 生成コードが `{"error": "..."}` を返し、ホストは `AegisError::PluginRejected` として保存を中止（API は `422`、監査は `content.create` の `denied` のみ）。トラップ等の失敗は従来どおり `400` + `plugin.error`。`PluginError::Rejected` を追加。
-- [x] **SDK が属性の無いブロックを読めなかった問題を修正**: ホストは `attributes` を省略したブロックを `"attributes": null` で渡すが、SDK の `BlockNode` はマップしか受け付けず、SDK 製プラグインの `transform-content-ast` が失敗して結果が黙って破棄されていた（`on-before-save` の拒否を実装して E2E で発覚）。null を空マップとして読むよう修正。
-- [x] **未使用だった設定を適用**: `[runtime].default_*` をマニフェストの `resource_limits` で省略された項目の既定値として適用（これまでは一部だけ指定するとパースに失敗していた）。`max_memory_mb` を wasmtime の `StoreLimits` で強制（超過時はトラップ）。`[cache.redis].timeout_ms` を接続・応答タイムアウトに適用し、redis 0.27 既定の再試行（待機が 100 秒単位に伸びる）を最大 2 回・待機最大 1 秒に制限
+#### 認証・認可基盤の完成
+- [ ] **Wasm 認証後フック (`on_user_authenticated`)**
+  - `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・外部通知（Slack/Teams 等）用 Wasm プラグインフックの追加。
+  - マニフェスト権限および ABI の拡張。
+- [ ] **外部 IdP（OIDC / SAML）認証プロバイダ**
+  - 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信を Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装。
+  - リダイレクトフローおよびコールバックハンドラーの実装。
 
 ---
 
 ### 🔮 将来のロードマップ (Future)
-- [ ] **認証プロバイダ抽象化 & Wasm 認証後フック (`on_user_authenticated`)**
-  - [x] `aegis-core`: `AuthProvider` トレイト（Local, SAML, OIDC などの抽象化）、`AuthIdentity`, `AuthCredentials`, `AuthRedirect` 定義と単体テスト完了
-  - [x] ローカル認証プロバイダ `LocalAuthProvider`（`_aegis_users` テーブル: SQLite / PostgreSQL / MySQL、Argon2id パスワードハッシュ、存在しないユーザーへのダミー検証でタイミング差を抑制、無効化アカウント）
-  - [x] `POST /api/v1/auth/session` を認証必須に変更（ユーザー名 / パスワード。ロールはアカウントから決定し、リクエストで指定不可。`ttl_secs` は `[cache].default_ttl_secs` が上限。失敗理由は応答では区別せず監査ログにのみ記録）
-  - [x] CLI `aegis user add|passwd|role|disable|enable|list`（パスワードは `AEGIS_USER_PASSWORD` / 非表示プロンプト / 標準入力）、`docs/authentication.md`
-  - [x] API の認可: extractor `RequireRole`（`ViewerSession` / `EditorSession` / `AdminSession`、401 / 403）で、閲覧 API は `viewer`、コンテンツ作成・アップロードは `editor`、監査ログは `admin` 以上を要求。`author_id` の既定をログインユーザーにし、他人の指定は `admin` のみ。Admin Studio はトークンを全 API に付与
-  - [x] 権限拒否（401 / 403）の監査ログ記録: `RequireRole` で拒否したリクエストを `access.denied` / `denied` として記録（`resource` はクエリ文字列を除いた `メソッド パス`、`details` に理由 `missing_session` / `invalid_session` / `insufficient_role` と必要なロール。403 は actor にユーザー、無効なトークンは指紋のみ）。Admin Studio の監査ログの絞り込みにも追加
-  - [x] Admin Studio のログイン画面: 未ログイン時の全画面ログインフォーム、リロード時のセッション復元（`GET /api/v1/auth/session`）、ヘッダーの表示名・ロール・ログアウト、API の 401 でログイン画面へ復帰、ロールに応じた操作の無効化（`viewer` の Save / アップロード / カテゴリ作成、`admin` 以外の Audit Logs タブ）。Audit Logs 画面の手動トークン入力は削除
-  - [x] ログイン試行のレート制限・アカウントロック（`[auth.login_rate_limit]`: ユーザー名（大文字・小文字を区別しない）/ クライアント IP ごとに `window_secs` 内の失敗を数え、上限で `lockout_secs` の間 `429` + `Retry-After`。ロック中は資格情報を検証しない。成功でユーザー名の計数のみリセット。拒否は監査ログに `session.create` / `denied` / `rate_limited`。Admin Studio のログイン画面に残り時間つきのメッセージ）
-  - [ ] 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信は Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装
-  - [ ] `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・監査通知用 Wasm プラグインフック `on_user_authenticated` の追加
-- [x] **テーマエンジン & 静的アセット配信システム**
-  - [x] ページ全体のテンプレート描画エンジンの導入（MiniJinja によるレイアウト・スケルトンの定義）
-  - [x] テーマ向け静的アセット（CSS/JS/画像）配信ルーティング機構（`/theme/assets/*`）
-  - [x] プラグインによる動的テーマ CSS / `<head>` / コンテキスト書き換えおよびテンプレート動的オーバーライド機能の実装
-- [ ] Wasm プラグイン向け AssemblyScript / TypeScript SDK テンプレート整備
-- [ ] PostgreSQL / libSQL 対応（分散ストレージモード）
-- [ ] On-demand ISR / Cache-Tag Purge によるエッジキャッシュ制御
 
+- [ ] **Wasm プラグイン向け AssemblyScript / TypeScript SDK テンプレート整備**
+  - TypeScript / AssemblyScript 開発者向けの公式 SDK およびテンプレートリポジトリの作成。
+- [ ] **PostgreSQL / libSQL 対応（分散ストレージモード）**
+  - 分散 SQLite / libSQL (Turso) への対応検証およびクラスタリング環境の最適化。
+- [ ] **On-demand ISR / Cache-Tag Purge によるエッジキャッシュ制御**
+  - コンテンツ更新時の Cloudflare / CDN エッジキャッシュ無効化・タグパージ連動。
 
 ---
 
@@ -240,14 +93,13 @@
 - **メディア一覧 API (`GET /api/v1/storage/objects`)**:
   - ストレージ側に並び順・絞り込みの機能が無いため、サーバーは最大 10,000 件（`MAX_LIST_SCAN`）を走査してからメモリ上で絞り込み・新しい順の並び替え・ページングを行います。超過時はレスポンスの `truncated: true` で通知します（`q` / `content_type` は走査後の絞り込みなので、超過分を探すには `prefix` を使う）。
   - バックエンドはアップロード時の mime type を保持していないため、一覧の `content_type` は拡張子から推定します（`aegis_core::guess_content_type`）。ローカルでは隠しファイル・シンボリックリンクを除外、S3 では末尾 `/` の「フォルダ」オブジェクトを除外します。
-  - 一覧は `viewer`、アップロード・削除は `editor` が必要です（[docs/authentication.md](docs/authentication.md)）。
+  - 一覧は `viewer`、アップロード・削除は `editor` が必要です（[docs/authentication.md](file:///d:/projects/cms/docs/authentication.md)）。
 - **メディア削除 API (`DELETE /api/v1/storage/objects/{key}`)**:
   - 存在確認に `StorageBackend::exists` を追加（既定はキーを prefix にした `list` での完全一致。ローカルは `metadata` で上書き）。S3 の DELETE は存在しないキーでも成功するため、404 を返すには事前の確認が必要。
   - 使用中の判定は全スキーマの `list_contents` を読み、`blocks_json` とカスタムフィールドの JSON に公開 URL が含まれるかの文字列一致。コンテンツ数が増えて遅くなった場合は、保存時に参照する URL を別テーブルに記録する方式に切り替える。
   - 使用中で拒否した `409` は監査に記録しない（入力不備と同じ扱い）。削除した場合は `details.references` に削除時点の参照元の件数を残す。
 - **アップロードのサイズ上限**:
   - axum の `Multipart` は既定でリクエストボディを 2MB に制限します。`/api/v1/storage/upload` には `DefaultBodyLimit::max(config.storage.max_upload_bytes())` を個別に設定しているため、上限を変える場合は `[storage].max_upload_mb` を変更してください（リバースプロキシ側の上限、例: nginx の `client_max_body_size` も合わせる必要があります）。
-  - アップロード API は現状認証なしで受け付けます（監査ログには記録されます）。認証プロバイダの実装時に保護対象へ含めてください。
 - **Admin Studio のコンテンツ型と API レスポンスの差異**:
   - 自動生成の `admin/src/types/schemas.ts`（`ArticleContent` など）はカスタムフィールドをトップレベルに持ちますが、実際のコンテンツ API はカスタムフィールドを `fields`、解決済みリレーションを `relations` に入れて返します。Admin Studio では `types/index.ts` の `ContentItem`（`BaseContentItem` + `fields` / `relations`）を使ってください。作成時のペイロードはトップレベル（`CreateArticlePayload` など）で正しいです。
 - **監査ログの保持期間**:
@@ -319,7 +171,7 @@
   - ハンドラ層は `DatabaseAdapter` 経由でコンテンツ CRUD やリレーション解決を行うため、特定の RDBMS に一切ロックインされません。
   - `config/*.toml` の `[database]` セクションで `backend = "sqlite" | "postgres" | "mysql"` と `url` を指定するだけで、サーバー再コンパイル不要でデータベースを切り替え可能です。
 - **マルチストレージ抽象化アーキテクチャ (`StorageBackend`)**:
-  - `StorageBackend` トレイト（`put`, `get`, `delete`, `public_url`）により、ローカルディスク/ブロックストレージ (`LocalStorageBackend`) と S3 互換オブジェクトストレージ (`S3StorageBackend`) を Config ベースで透過的に切り替え可能。
+  - `StorageBackend` トレイト（`put`, `get`, `delete`, `exists`, `list`, `public_url`）により、ローカルディスク/ブロックストレージ (`LocalStorageBackend`) と S3 互換オブジェクトストレージ (`S3StorageBackend`) を Config ベースで透過的に切り替え可能。
   - `S3StorageBackend` は AWS SigV4 認証プロトコルをネイティブ実装しているため、重量級の AWS SDK を追加することなく、AWS S3, Cloudflare R2, MinIO, Wasabi と完全互換で高速・軽量に動作します。
   - マルチパートファイルアップロード API (`POST /api/v1/storage/upload`) により、メディアやアセットの柔軟な保存と URL 返却に対応しています。
 - **認証拡張方針（Crate 抽象化と Wasm プラグインフックの役割分担）**:
@@ -331,5 +183,3 @@
   - テンプレートの探索は「プラグイン/インメモリ動的登録 (`register_template`)」→「ファイルシステムテーマ (`themes/{active}/templates/`)」→「ビルトインデフォルト」の 3 層フォールバック機構を採用。
   - プラグインフック `on_render_page` により、ページレンダリング直前に `PageRenderContext` をプログラマブルに書き換え可能（サイトタイトル修飾、カスタム CSS 注入、`<head>` タグ追加、テーマ変数の動的更新、テンプレート差し替え）。
   - 一般公開ルート（`GET /`, `GET /articles`, `GET /articles/{slug}`, `GET /{slug}`）と管理画面（`GET /admin` & `/assets`）を同一サーバー上でルーティング分離し、下書き記事はゼロトラストに 404 で遮断。記事本文は `StreamingHtmlRewriter` を透過しセキュリティ・パフォーマンス最適化（rel 属性付与、画像遅延読み込み等）が自動適用されます。
-
-
