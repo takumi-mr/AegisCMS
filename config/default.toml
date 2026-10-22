@@ -54,6 +54,11 @@ enable_wasm_plugins = true
 default_max_memory_mb = 16
 default_max_fuel_units = 100000000
 default_timeout_ms = 250
+# Wasm instance pool: concurrent hook calls (extra calls wait for a free slot); 0 = allocate per call.
+# Each slot reserves ~6 GiB of virtual address space (not RAM). See docs/configuration.md
+instance_pool_size = 64
+# Linear memory per pool slot (MiB); plugins with a larger resource_limits.max_memory_mb do not load
+pool_max_memory_mb = 64
 
 [plugins]
 # Plugins to load, by name (installed as <plugins_dir>/<name>/ with a plugin.manifest.json).

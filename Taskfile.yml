@@ -145,6 +145,11 @@ tasks:
     cmds:
       - npm --prefix sdk/templates/assemblyscript run build
 
+  bench:plugins:
+    desc: Wasm プラグインのフック 1 回あたりの所要時間（段階別）と同時実行時のスループットを計測 (sdk/ と plugins/ のプラグイン)
+    cmds:
+      - cargo run --release -p aegis-runtime --example plugin_profile
+
   plugin:build:tinygo:
     desc: TinyGo プラグインテンプレートを Wasm にビルドし sdk/templates/tinygo/plugin.wasm を生成 (要 TinyGo 0.31+)
     cmds:

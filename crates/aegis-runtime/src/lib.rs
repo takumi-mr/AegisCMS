@@ -5,7 +5,8 @@ pub mod wasm;
 pub use guard::CapabilityGuard;
 pub use plugin::{AegisPlugin, PluginSupervisor};
 pub use wasm::{
-    InstalledPlugin, PluginHostState, PluginInfo, WasmEngine, WasmPluginInstance, WasmPluginLoader,
+    InstalledPlugin, InstancePoolConfig, PluginHostState, PluginInfo, WasmEngine,
+    WasmPluginInstance, WasmPluginLoader,
 };
 
 #[cfg(test)]
@@ -423,6 +424,102 @@ mod tests {
             err.to_string().contains("memory"),
             "unexpected error: {}",
             err
+        );
+    }
+
+    /// 呼び出しのたびにメモリ上のカウンター（4096 番地）を 1 増やし、その値をタイトルとして返すプラグイン
+    const COUNTER_WAT: &str = r#"
+    (module
+        (memory (export "memory") 1)
+        (data (i32.const 256) "{\"title\":\"0\"}")
+        (func (export "allocate") (param i32) (result i32) i32.const 1024)
+        (func (export "on_before_save") (param i32 i32) (result i64)
+            (i32.store (i32.const 4096) (i32.add (i32.load (i32.const 4096)) (i32.const 1)))
+            (i32.store8 (i32.const 266) (i32.add (i32.const 48) (i32.load (i32.const 4096))))
+            (i64.or (i64.shl (i64.const 256) (i64.const 32)) (i64.const 13))))
+    "#;
+
+    fn pooled_engine(size: u32) -> WasmEngine {
+        WasmEngine::with_instance_pool(InstancePoolConfig {
+            size,
+            max_memory_mb: 16,
+        })
+        .expect("pooled engine")
+    }
+
+    fn counter_plugin(engine: WasmEngine) -> Arc<WasmPluginInstance> {
+        Arc::new(
+            WasmPluginInstance::from_bytes(
+                engine,
+                make_sample_manifest(vec!["on-before-save".to_string()]),
+                &wat::parse_str(COUNTER_WAT).unwrap(),
+                Arc::new(Mutex::new(HashMap::new())),
+            )
+            .unwrap(),
+        )
+    }
+
+    fn post() -> PostContext {
+        PostContext {
+            id: "id".to_string(),
+            title: "t".to_string(),
+            slug: "s".to_string(),
+            author_id: "a".to_string(),
+            blocks_json: "[]".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pooled_instances_start_from_a_clean_memory() {
+        // 1 枠のプールでは毎回同じ枠を使い回すが、返却時にゼロへ戻されるので状態は残らない
+        let plugin = counter_plugin(pooled_engine(1));
+        for _ in 0..5 {
+            assert_eq!(plugin.on_before_save(post()).await.unwrap().title, "1");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pooled_calls_wait_for_a_free_slot() {
+        // 枠より多い同時呼び出しは失敗せず、空きを待って実行される
+        let plugin = counter_plugin(pooled_engine(2));
+        let calls: Vec<_> = (0..32)
+            .map(|_| {
+                let plugin = plugin.clone();
+                tokio::spawn(async move { plugin.on_before_save(post()).await })
+            })
+            .collect();
+        for call in calls {
+            assert_eq!(call.await.unwrap().unwrap().title, "1");
+        }
+    }
+
+    #[test]
+    fn test_plugins_larger_than_a_pool_slot_are_rejected_at_load() {
+        let mut manifest = make_sample_manifest(vec!["on-before-save".to_string()]);
+        manifest.resource_limits.max_memory_mb = 32;
+        let wasm = wat::parse_str(COUNTER_WAT).unwrap();
+        let kv = Arc::new(Mutex::new(HashMap::new()));
+        let error =
+            WasmPluginInstance::from_bytes(pooled_engine(1), manifest.clone(), &wasm, kv.clone())
+                .err()
+                .expect("max_memory_mb above the slot size")
+                .to_string();
+        assert!(error.contains("pool_max_memory_mb"), "{}", error);
+
+        // 初期メモリ（32 MiB = 512 ページ）が枠に収まらないモジュール
+        manifest.resource_limits.max_memory_mb = 16;
+        let large = wat::parse_str(r#"(module (memory (export "memory") 512))"#).unwrap();
+        assert!(WasmPluginInstance::from_bytes(
+            pooled_engine(1),
+            manifest.clone(),
+            &large,
+            kv.clone()
+        )
+        .is_err());
+        // プールを使わないエンジンでは枠の制限は無い（max_memory_mb は StoreLimits で別に効く）
+        assert!(
+            WasmPluginInstance::from_bytes(WasmEngine::new().unwrap(), manifest, &large, kv)
+                .is_ok()
         );
     }
 }

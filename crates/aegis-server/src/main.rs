@@ -367,7 +367,7 @@ async fn main() -> anyhow::Result<()> {
                 }
             } else {
                 tracing::info!("Initializing Wasmtime runtime engine...");
-                let engine = aegis_runtime::WasmEngine::new()?;
+                let engine = create_wasm_engine(&config.runtime)?;
                 let kv_storage = Arc::new(std::sync::Mutex::new(HashMap::new()));
                 let loaded = aegis_runtime::WasmPluginLoader::load_enabled(
                     &config.paths.plugins_dir,
@@ -453,6 +453,38 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// `[runtime].instance_pool_size` が 1 以上ならプーリングアロケータを使うエンジンを作る。
+/// プールのアドレス空間を確保できない環境（仮想メモリの上限など）では、警告を出して通常のエンジンにする
+fn create_wasm_engine(
+    runtime: &aegis_core::config::RuntimeConfig,
+) -> anyhow::Result<aegis_runtime::WasmEngine> {
+    if runtime.instance_pool_size == 0 {
+        return Ok(aegis_runtime::WasmEngine::new()?);
+    }
+    let pool = aegis_runtime::InstancePoolConfig {
+        size: runtime.instance_pool_size,
+        max_memory_mb: runtime.pool_max_memory_mb,
+    };
+    match aegis_runtime::WasmEngine::with_instance_pool(pool) {
+        Ok(engine) => {
+            tracing::info!(
+                "Wasm instance pool: {} slots, {} MiB of memory per slot",
+                pool.size,
+                pool.max_memory_mb
+            );
+            Ok(engine)
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Could not reserve the Wasm instance pool ({}); allocating instances on demand. \
+                 Lower [runtime].instance_pool_size or set it to 0 to silence this warning",
+                e
+            );
+            Ok(aegis_runtime::WasmEngine::new()?)
+        }
+    }
 }
 
 /// `[auth.oidc]` を検証し、OpenID Connect ログインを組み立てる（IdP への接続は初回ログイン時）

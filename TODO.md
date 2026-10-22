@@ -87,7 +87,10 @@
 - [x] **一覧のインデックス**: `(created_at, id)` / `(status, created_at, id)`。並べ替えを避け、記事数に関係なく一定の速さにする。
 - [x] **テンプレートのキャッシュ**: コンパイル済みの MiniJinja 環境を再利用（テーマ切り替え・テンプレート登録で破棄。`[theme].reload_templates = true` で毎回読み直す）。
 - [x] #39 のテーマ（cyber-neon / emerald-luxury / minimal-editorial）のリンクに `{{ base_path }}` を付けた（サブパス配下でリンク切れになっていた）。
-- [ ] **プラグインのインスタンスの再利用（プール化）**: フック 1 回あたり約 1ms（呼び出しごとのインスタンス化）。呼び出しごとの完全な分離という設計方針との兼ね合いで保留。
+- [x] **プラグイン呼び出しの内訳の計測**（`task bench:plugins` = `crates/aegis-runtime/examples/plugin_profile.rs`）: 単発では 1 回 40〜190µs（インスタンス化は 10〜20µs）。遅かったのは同時実行時で、32 並列にするとスループットが 0.2〜0.5 倍に落ちていた（線形メモリ・非同期スタックの呼び出しごとの `mmap` / `munmap` のカーネル内の競合）。
+- [x] **Wasmtime のプーリングアロケータ**（`[runtime].instance_pool_size` 既定 64・`pool_max_memory_mb` 既定 64）: インスタンスは今までどおり呼び出しごとに新しく作る（枠はゼロに戻して再利用）。32 並列のスループットが 3〜8 倍、`official-code-enhancer` を有効にした記事ページが 2,600 → 4,500 req/s。枠が足りなければ待つ（セマフォ）、枠に収まらないプラグインは読み込み時にエラー、予約できない環境では従来方式にフォールバック。
+- [ ] **インスタンスそのものの再利用**: 状態が呼び出し間に残る（別ユーザーのデータの持ち越し、トラップ後の壊れたヒープ）ため行わない方針。必要になったら、失敗したインスタンスの破棄・回数制限・機密フック（`on_user_authenticated`）の除外・マニフェストでの明示を条件に検討する。
+- [ ] **AssemblyScript SDK の JSON 処理**: `escapeJson` / `findStringField` が 1 文字ずつ文字列を連結するため入力の大きさに対して二乗で遅い（`on_before_save` で約 2ms、`official-code-enhancer` と併用すると `on_render_page` が約 13ms）。テンプレートの SDK の改善として別途対応。
 
 #### プラグインのインストール・有効化の分離（ストア対応の土台）
 - [x] **SDK テンプレートを `plugins/` から `sdk/` へ移動**: テンプレート（`sdk/templates/{rust,assemblyscript,tinygo}`）とサンプル（`sdk/examples/slack-notifier`）が既定の構成・Docker イメージで有効になり、全記事を書き換えていた／AssemblyScript 版が `env.abort` のインポートで全保存を失敗させていた問題を解消。
@@ -138,6 +141,11 @@
     - **動的テーマ切り替え API**: `window.AegisCodeEnhancer.setThemeUrl(url)` により、ブラウザ上や Admin Studio プレビューから動的にスタイルシートを適用可能。
   - **ワンクリックコードコピー**:
     - `<pre>` ブロックの右上にホバー時に浮かび上がる「Copy」ボタンを動的付与。クリック時に `navigator.clipboard.writeText` でクリップボードへ保存し、`Copied!` 表示に遷移。
+- **Wasm インスタンスのプール (`WasmEngine::with_instance_pool`)**:
+  - サーバーは `[runtime].instance_pool_size` が 1 以上ならプーリングアロケータのエンジンを使う（`main.rs` の `create_wasm_engine`）。`WasmEngine::new()`（テスト・ツール用）は従来の方式のまま。テストで多数のエンジンを作ると枠ごとの仮想アドレス空間の予約が重なるため。
+  - 枠と同じ数のセマフォで同時実行数を制限し、`call_hook` で Store より先に枠を確保する（Store の破棄で枠が返るまで保持するため。ローカル変数は宣言の逆順に破棄される）。
+  - プールでは線形メモリの上限・テーブル要素数が枠の大きさで固定されるため、`WasmEngine::check_fits_pool` で `max_memory_mb`・初期メモリ（Wasm のページ単位）・テーブルを読み込み時に確かめる。GC ヒープの枠（`total_gc_heaps`）もインスタンスごとに 1 つ要る（0 にするとインスタンス化に失敗する）。
+  - `linear_memory_keep_resident`（解放時に `madvise` ではなく memset でゼロに戻す）は、小さいモジュール（TinyGo / AssemblyScript）では速くなったが、既定で有効な Rust 製の `official-code-enhancer` では単発・並列とも遅くなったため使っていない。
 - **一覧の取得とベンチマーク**:
   - 一覧は `DatabaseAdapter::list_contents_page`（`ContentListQuery`: status / limit / offset、`ORDER BY created_at DESC, id DESC`）で取得し、総件数は同じ条件の `COUNT(*)`。全件が必要な処理（メディアの使用中チェック）だけ `list_contents` を使う。
   - リレーションは `resolve_relations_for_records` でまとめて解決する（単一レコードもこれを使う）。参照の値は `db::relation_ref`（空文字・文字列以外は参照なし）。

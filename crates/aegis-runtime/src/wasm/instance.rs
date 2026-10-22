@@ -40,6 +40,7 @@ impl WasmPluginInstance {
                 e
             ))
         })?;
+        engine.check_fits_pool(&manifest, &module)?;
 
         Ok(Self {
             manifest,
@@ -151,6 +152,9 @@ impl WasmPluginInstance {
         let host_state = PluginHostState::new(self.manifest.clone(), self.kv_storage.clone());
         host_state.guard().check_hook(hook)?;
 
+        // プールの枠（プーリングアロケータ使用時）。Store を捨てて枠が返るまで保持するため、
+        // Store より先に宣言する（ローカル変数は宣言の逆順に破棄される）
+        let _slot = self.engine.acquire_slot().await;
         let (mut store, instance) = self.instantiate().await?;
         let Ok(func) = instance.get_typed_func::<(i32, i32), i64>(&mut store, export) else {
             return Ok(None);
