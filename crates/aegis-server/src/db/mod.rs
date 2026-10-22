@@ -120,6 +120,9 @@ pub trait DatabaseAdapter: Send + Sync {
     /// List local user accounts ordered by username
     async fn list_users(&self) -> Result<Vec<UserRecord>>;
 
+    /// Delete a local user account (matched by `id`) and its external identity links
+    async fn delete_user(&self, user: &UserRecord) -> Result<()>;
+
     /// Username linked to an external identity (`provider`, e.g. `oidc`, and the IdP's subject)
     async fn get_identity_link(&self, provider: &str, subject: &str) -> Result<Option<String>>;
 
@@ -144,6 +147,8 @@ pub struct UserRecord {
     /// Argon2id の PHC 文字列
     pub password_hash: String,
     pub disabled: bool,
+    /// アバター画像のストレージキー（`avatars/...`）。公開 URL は `StorageBackend::public_url` で求める
+    pub avatar_key: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -152,7 +157,7 @@ pub struct UserRecord {
 pub const USER_TABLE: &str = "_aegis_users";
 
 /// INSERT / SELECT で使うユーザーテーブルのカラム（順序固定）
-pub const USER_COLUMNS: [&str; 9] = [
+pub const USER_COLUMNS: [&str; 10] = [
     "id",
     "username",
     "email",
@@ -162,7 +167,11 @@ pub const USER_COLUMNS: [&str; 9] = [
     "disabled",
     "created_at",
     "updated_at",
+    "avatar_key",
 ];
+
+/// 後から追加したユーザーテーブルのカラム（既存の DB には起動時に `ALTER TABLE` で追加する）
+pub const USER_AVATAR_COLUMN: &str = "avatar_key";
 
 /// プレースホルダ生成関数（1 始まりの番号を受け取る）を使ってユーザーの INSERT 文を組み立てる。
 /// バインド順は `USER_COLUMNS` の順
@@ -177,11 +186,11 @@ pub fn build_user_insert(placeholder: impl Fn(usize) -> String) -> String {
 }
 
 /// ユーザーの UPDATE 文。バインド順は email, display_name, role, password_hash, disabled,
-/// updated_at, id
+/// avatar_key, updated_at, id
 pub fn build_user_update(placeholder: impl Fn(usize) -> String) -> String {
     format!(
         "UPDATE {} SET email = {}, display_name = {}, role = {}, password_hash = {}, \
-         disabled = {}, updated_at = {} WHERE id = {};",
+         disabled = {}, avatar_key = {}, updated_at = {} WHERE id = {};",
         USER_TABLE,
         placeholder(1),
         placeholder(2),
@@ -189,7 +198,20 @@ pub fn build_user_update(placeholder: impl Fn(usize) -> String) -> String {
         placeholder(4),
         placeholder(5),
         placeholder(6),
-        placeholder(7)
+        placeholder(7),
+        placeholder(8)
+    )
+}
+
+/// ユーザーの DELETE 文と、そのユーザーの ID 連携を消す DELETE 文。バインドはそれぞれ id / username
+pub fn build_user_delete(placeholder: impl Fn(usize) -> String) -> (String, String) {
+    (
+        format!("DELETE FROM {} WHERE id = {};", USER_TABLE, placeholder(1)),
+        format!(
+            "DELETE FROM {} WHERE username = {};",
+            IDENTITY_TABLE,
+            placeholder(1)
+        ),
     )
 }
 
@@ -260,6 +282,7 @@ macro_rules! user_row_from_sqlx {
             role: row.try_get("role").map_err(get)?,
             password_hash: row.try_get("password_hash").map_err(get)?,
             disabled: row.try_get::<i64, _>("disabled").map_err(get)? != 0,
+            avatar_key: row.try_get("avatar_key").map_err(get)?,
             created_at: row.try_get("created_at").map_err(get)?,
             updated_at: row.try_get("updated_at").map_err(get)?,
         }

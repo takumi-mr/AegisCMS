@@ -9,10 +9,10 @@ use sqlx::{Pool, Postgres, Row};
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
     build_audit_select, build_content_list, build_identity_insert, build_identity_select,
-    build_identity_table, build_relation_lookup, build_user_insert, build_user_select,
-    build_user_update, is_standard_column, user_row_from_sqlx, ContentListQuery, ContentPage,
-    ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES,
-    AUDIT_TABLE, USER_TABLE,
+    build_identity_table, build_relation_lookup, build_user_delete, build_user_insert,
+    build_user_select, build_user_update, is_standard_column, user_row_from_sqlx, ContentListQuery,
+    ContentPage, ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord,
+    AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -155,7 +155,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 password_hash TEXT NOT NULL,
                 disabled BIGINT NOT NULL DEFAULT 0,
                 created_at VARCHAR(64) NOT NULL,
-                updated_at VARCHAR(64) NOT NULL
+                updated_at VARCHAR(64) NOT NULL,
+                avatar_key TEXT
             );
             "#,
             USER_TABLE
@@ -164,6 +165,15 @@ impl DatabaseAdapter for PostgresAdapter {
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // 以前のバージョンで作成したテーブルに後から追加したカラムを足す
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} TEXT;",
+            USER_TABLE, USER_AVATAR_COLUMN
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
 
         // 外部 IdP のアイデンティティとユーザーの対応表
         sqlx::query(&build_identity_table("VARCHAR(255)"))
@@ -473,6 +483,7 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(i64::from(user.disabled))
             .bind(&user.created_at)
             .bind(&user.updated_at)
+            .bind(&user.avatar_key)
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -527,6 +538,7 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(&user.role)
             .bind(&user.password_hash)
             .bind(i64::from(user.disabled))
+            .bind(&user.avatar_key)
             .bind(&user.updated_at)
             .bind(&user.id)
             .execute(&self.pool)
@@ -545,5 +557,27 @@ impl DatabaseAdapter for PostgresAdapter {
             users.push(user_row_from_sqlx!(row));
         }
         Ok(users)
+    }
+
+    async fn delete_user(&self, user: &UserRecord) -> Result<()> {
+        let (delete_user, delete_links) = build_user_delete(|i| format!("${}", i));
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        sqlx::query(&delete_links)
+            .bind(&user.username)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        sqlx::query(&delete_user)
+            .bind(&user.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))
     }
 }

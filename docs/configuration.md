@@ -198,7 +198,7 @@ public_url_prefix = "https://cdn.example.com"
 
 ### 2.9 `[auth.login_rate_limit]` — ログイン試行のレート制限
 
-`POST /api/v1/auth/session` の認証失敗をユーザー名・クライアント IP 単位で数え、上限に達すると一定時間 `429 Too Many Requests` で拒否します（詳細は [認証ドキュメント](./authentication.md#4-セキュリティ上の挙動)）。失敗回数は `[cache]` のバックエンドに保存するため、複数インスタンスで制限を共有するには `backend = "redis"` にしてください。
+`POST /api/v1/auth/session` の認証失敗をユーザー名・クライアント IP 単位で数え、上限に達すると一定時間 `429 Too Many Requests` で拒否します（詳細は [認証ドキュメント](./authentication.md#5-セキュリティ上の挙動)）。失敗回数は `[cache]` のバックエンドに保存するため、複数インスタンスで制限を共有するには `backend = "redis"` にしてください。
 
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
@@ -210,7 +210,7 @@ public_url_prefix = "https://cdn.example.com"
 
 ### 2.10 `[auth.oidc]` — シングルサインオン (OpenID Connect)
 
-外部 IdP によるログイン（認可コードフロー + PKCE）。使い方は [認証ドキュメント](./authentication.md#5-シングルサインオン-openid-connect) を参照してください。`enabled = true` で必須項目が欠けている、またはロール名が不正な場合はサーバーが起動しません。
+外部 IdP によるログイン（認可コードフロー + PKCE）。使い方は [認証ドキュメント](./authentication.md#6-シングルサインオン-openid-connect) を参照してください。`enabled = true` で必須項目が欠けている、またはロール名が不正な場合はサーバーが起動しません。
 
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |

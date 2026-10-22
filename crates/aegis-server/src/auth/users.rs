@@ -74,6 +74,7 @@ pub async fn create_user(db: &dyn DatabaseAdapter, new_user: NewUser) -> Result<
         role: new_user.role,
         password_hash: hash_password(&new_user.password)?,
         disabled: false,
+        avatar_key: None,
         created_at: now.clone(),
         updated_at: now,
     };
@@ -104,6 +105,101 @@ pub async fn set_disabled(db: &dyn DatabaseAdapter, username: &str, disabled: bo
     user.disabled = disabled;
     user.updated_at = now();
     db.update_user(&user).await
+}
+
+/// API（Admin Studio のユーザー管理・プロフィール）からの変更。`None` の項目は変更しない。
+/// `email` / `display_name` は空文字（空白のみ）で削除する
+#[derive(Debug, Clone, Default)]
+pub struct UserChanges {
+    pub email: Option<String>,
+    pub display_name: Option<String>,
+    pub role: Option<String>,
+    pub disabled: Option<bool>,
+    pub password: Option<String>,
+}
+
+fn optional_text(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_string())
+}
+
+fn is_active_admin(user: &UserRecord) -> bool {
+    user.role == "admin" && !user.disabled
+}
+
+/// `user` が有効な admin でなくなる（降格・無効化・削除）とき、ほかに有効な admin が残るかを確かめる。
+/// API から全員を締め出せないようにする（CLI の `aegis user role` などは復旧用に確かめない）
+async fn ensure_other_admin(db: &dyn DatabaseAdapter, user: &UserRecord) -> Result<()> {
+    if !is_active_admin(user) {
+        return Ok(());
+    }
+    let others = db
+        .list_users()
+        .await?
+        .iter()
+        .filter(|u| u.id != user.id && is_active_admin(u))
+        .count();
+    if others == 0 {
+        return Err(AegisError::Validation(
+            "At least one active admin must remain".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// ユーザーの属性をまとめて変更する（ロール・無効化は既存のセッションには反映されない）
+pub async fn update_user(
+    db: &dyn DatabaseAdapter,
+    username: &str,
+    changes: UserChanges,
+) -> Result<UserRecord> {
+    let current = find_user(db, username).await?;
+    let mut user = current.clone();
+    if let Some(email) = changes.email {
+        user.email = optional_text(email);
+    }
+    if let Some(display_name) = changes.display_name {
+        user.display_name = optional_text(display_name);
+    }
+    if let Some(role) = changes.role {
+        validate_role(&role)?;
+        user.role = role;
+    }
+    if let Some(disabled) = changes.disabled {
+        user.disabled = disabled;
+    }
+    if is_active_admin(&current) && !is_active_admin(&user) {
+        ensure_other_admin(db, &current).await?;
+    }
+    if let Some(password) = changes.password {
+        user.password_hash = hash_password(&password)?;
+    }
+    if user != current {
+        user.updated_at = now();
+        db.update_user(&user).await?;
+    }
+    Ok(user)
+}
+
+/// アバター画像のストレージキーを設定（`None` で解除）し、更新後のユーザーと以前のキーを返す
+pub async fn set_avatar(
+    db: &dyn DatabaseAdapter,
+    username: &str,
+    avatar_key: Option<String>,
+) -> Result<(UserRecord, Option<String>)> {
+    let mut user = find_user(db, username).await?;
+    let previous = std::mem::replace(&mut user.avatar_key, avatar_key);
+    user.updated_at = now();
+    db.update_user(&user).await?;
+    Ok((user, previous))
+}
+
+/// ユーザーと ID 連携を削除し、削除したユーザーを返す（最後の有効な admin は削除できない）
+pub async fn delete_user(db: &dyn DatabaseAdapter, username: &str) -> Result<UserRecord> {
+    let user = find_user(db, username).await?;
+    ensure_other_admin(db, &user).await?;
+    db.delete_user(&user).await?;
+    Ok(user)
 }
 
 /// 既存のユーザーを外部 IdP のアカウント（Issuer + `sub`）に紐付ける。
@@ -179,6 +275,69 @@ mod tests {
             .map(|u| u.username)
             .collect();
         assert_eq!(usernames, ["admin", "editor1"]);
+    }
+
+    #[tokio::test]
+    async fn test_update_and_delete_keep_an_admin() {
+        let db = memory_db().await;
+        create_user(&db, new_user("root", "admin")).await.unwrap();
+        create_user(&db, new_user("editor1", "editor"))
+            .await
+            .unwrap();
+
+        // The only admin can be neither demoted, disabled nor deleted
+        let demote = UserChanges {
+            role: Some("editor".to_string()),
+            ..Default::default()
+        };
+        let disable = UserChanges {
+            disabled: Some(true),
+            ..Default::default()
+        };
+        assert!(update_user(&db, "root", demote.clone()).await.is_err());
+        assert!(update_user(&db, "root", disable.clone()).await.is_err());
+        assert!(delete_user(&db, "root").await.is_err());
+
+        let updated = update_user(
+            &db,
+            "editor1",
+            UserChanges {
+                role: Some("admin".to_string()),
+                email: Some(" editor@example.com ".to_string()),
+                display_name: Some("  ".to_string()),
+                password: Some("brand-new-pass".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(updated.email.as_deref(), Some("editor@example.com"));
+        assert_eq!(updated.display_name, None);
+        assert!(verify_password("brand-new-pass", &updated.password_hash).unwrap());
+
+        // With a second admin, the first one can step down
+        update_user(&db, "root", demote).await.unwrap();
+        assert!(update_user(&db, "editor1", disable).await.is_err());
+
+        let (with_avatar, previous) = set_avatar(&db, "editor1", Some("avatars/a.png".to_string()))
+            .await
+            .unwrap();
+        assert_eq!(with_avatar.avatar_key.as_deref(), Some("avatars/a.png"));
+        assert_eq!(previous, None);
+        let (_, previous) = set_avatar(&db, "editor1", None).await.unwrap();
+        assert_eq!(previous.as_deref(), Some("avatars/a.png"));
+
+        link_identity(&db, "root", "oidc", "https://idp#root")
+            .await
+            .unwrap();
+        delete_user(&db, "root").await.unwrap();
+        assert!(db.get_user_by_username("root").await.unwrap().is_none());
+        assert_eq!(
+            db.get_identity_link("oidc", "https://idp#root")
+                .await
+                .unwrap(),
+            None
+        );
     }
 
     #[tokio::test]

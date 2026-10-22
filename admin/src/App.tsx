@@ -16,6 +16,8 @@ import {
 import { Header, type AppView } from './components/Header';
 import { AuditLogView } from './components/AuditLogView';
 import { ThemeManager } from './components/ThemeManager';
+import { UserManager } from './components/UserManager';
+import { ProfileModal } from './components/ProfileModal';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { CategoryManager } from './components/CategoryManager';
 import { ContentList } from './components/ContentList';
@@ -26,7 +28,7 @@ import { PasteMarkdownModal } from './components/PasteMarkdownModal';
 import { aegisApi, setUnauthorizedHandler } from './api/client';
 import { setSessionToken } from './api/session';
 import { takeLoginRedirect } from './utils/loginRedirect';
-import type { BlockNode, ContentItem, SessionInfo } from './types';
+import type { BlockNode, ContentItem, SessionInfo, UserAccount } from './types';
 import { categoryIdOf } from './utils/category';
 import { canEdit, isAdmin } from './utils/roles';
 import { cx } from './utils/cx';
@@ -39,6 +41,9 @@ export const App: React.FC = () => {
   // undefined = still checking the stored token, null = logged out
   const [session, setSession] = useState<SessionInfo | null | undefined>(undefined);
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
+  // The signed-in user's account (avatar, profile); null until loaded or for unknown accounts
+  const [profile, setProfile] = useState<UserAccount | null>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   // Single sign-on returns here with the session token (stored before the session check) or an error
   const [ssoError] = useState<string | null>(takeLoginRedirect);
   const [view, setView] = useState<AppView>('editor');
@@ -137,6 +142,8 @@ export const App: React.FC = () => {
     setUnauthorizedHandler(() => {
       setSessionToken('');
       setSession(null);
+      setProfile(null);
+      setIsProfileOpen(false);
       setLoginNotice('Your session has expired. Sign in again.');
     });
     return () => setUnauthorizedHandler(null);
@@ -159,6 +166,7 @@ export const App: React.FC = () => {
 
   // 3. Load data whenever a user logs in
   const sessionId = session?.id;
+  const sessionUser = session?.user_id;
   useEffect(() => {
     if (!sessionId) return;
     loadContents();
@@ -166,8 +174,23 @@ export const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
+  useEffect(() => {
+    if (!sessionId || !sessionUser) return;
+    let cancelled = false;
+    aegisApi
+      .getUser(sessionUser)
+      .then((account) => {
+        if (!cancelled) setProfile(account);
+      })
+      .catch((err) => console.warn('Could not load the profile:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, sessionUser]);
+
   const handleLoggedIn = (loggedIn: SessionInfo) => {
     setSessionToken(loggedIn.id);
+    setProfile(null);
     setLoginNotice(null);
     setSession(loggedIn);
   };
@@ -180,6 +203,8 @@ export const App: React.FC = () => {
     }
     setSessionToken('');
     setSession(null);
+    setProfile(null);
+    setIsProfileOpen(false);
     setLoginNotice('You have signed out.');
     setView('editor');
     setContents([]);
@@ -351,11 +376,18 @@ export const App: React.FC = () => {
         session={session}
         canSave={editable}
         canViewAudit={isAdmin(session)}
+        canManageUsers={isAdmin(session)}
+        profile={profile}
+        onOpenProfile={() =>
+          profile ? setIsProfileOpen(true) : showToast('Your profile could not be loaded', 'error')
+        }
         onLogout={handleLogout}
       />
 
       {view === 'audit' && isAdmin(session) ? (
         <AuditLogView />
+      ) : view === 'users' && isAdmin(session) ? (
+        <UserManager session={session} onSelfUpdated={setProfile} onShowToast={showToast} />
       ) : view === 'themes' ? (
         <ThemeManager session={session} onShowToast={showToast} />
       ) : (
@@ -578,6 +610,16 @@ export const App: React.FC = () => {
           categories={categories}
           onCreated={handleCategoryCreated}
           onClose={() => setIsCategoryManagerOpen(false)}
+        />
+      )}
+
+      {isProfileOpen && profile && (
+        <ProfileModal
+          user={profile}
+          canChangePassword={session.metadata?.provider !== 'oidc'}
+          onUpdated={setProfile}
+          onShowToast={showToast}
+          onClose={() => setIsProfileOpen(false)}
         />
       )}
 

@@ -104,7 +104,7 @@ fn on_user_authenticated(&mut self, ctx: UserAuthContext) -> Result<UserAuthCont
   - ロールを変更した場合は、監査ログ `session.create`（`success`）の `details.role_mapped` に `{ "from": 元のロール, "to": 新しいロール }` を記録します。
 - **ログインの拒否**: `Err(PluginError::Rejected("..."))` を返すと、API は `403 Forbidden` と `{"error": "Rejected by plugin: <プラグイン名>: <メッセージ>"}` を返し、セッションは発行されません。監査ログは `session.create`（`denied`、`details.error = "plugin_rejected"`）です。
 - **プラグインの失敗**: トラップ・タイムアウト・不正な JSON・不明なロールなどでもログインは失敗します（安全側に倒す）。API は `500` を返し、監査ログに `plugin.error` と `session.create`（`failure`、`details.error = "plugin_failed"`）を記録します。
-- 拒否・失敗はどちらもログイン試行の失敗回数（[レート制限](authentication.md#4-セキュリティ上の挙動)）には数えません（資格情報は正しいため）。
+- 拒否・失敗はどちらもログイン試行の失敗回数（[レート制限](authentication.md#5-セキュリティ上の挙動)）には数えません（資格情報は正しいため）。
 - ログインのたびに呼ばれます。外部への通知など時間のかかる処理は `execution_timeout_ms` に収まるようにしてください。
 
 ```rust

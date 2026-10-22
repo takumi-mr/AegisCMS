@@ -27,10 +27,19 @@ pub enum AuditAction {
     /// Active theme switched via admin/API
     #[serde(rename = "theme.switch")]
     ThemeSwitch,
+    /// User account created via the user management API
+    #[serde(rename = "user.create")]
+    UserCreate,
+    /// User account or profile changed (attributes, password, avatar)
+    #[serde(rename = "user.update")]
+    UserUpdate,
+    /// User account deleted via the user management API
+    #[serde(rename = "user.delete")]
+    UserDelete,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 9] = [
+    pub const ALL: [AuditAction; 12] = [
         Self::ContentCreate,
         Self::SessionCreate,
         Self::SessionDelete,
@@ -40,6 +49,9 @@ impl AuditAction {
         Self::AuditPurge,
         Self::AccessDenied,
         Self::ThemeSwitch,
+        Self::UserCreate,
+        Self::UserUpdate,
+        Self::UserDelete,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -53,6 +65,9 @@ impl AuditAction {
             Self::AuditPurge => "audit.purge",
             Self::AccessDenied => "access.denied",
             Self::ThemeSwitch => "theme.switch",
+            Self::UserCreate => "user.create",
+            Self::UserUpdate => "user.update",
+            Self::UserDelete => "user.delete",
         }
     }
 }

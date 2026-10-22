@@ -6,7 +6,7 @@ use axum::{
     extract::{DefaultBodyLimit, Request},
     http::{uri::PathAndQuery, Uri},
     response::Redirect,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Router,
 };
 use tower::ServiceBuilder;
@@ -60,6 +60,23 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/api/v1/auth/oidc/login", get(handlers::oidc_login))
         .route("/api/v1/auth/oidc/callback", get(handlers::oidc_callback))
         .route("/api/v1/audit-logs", get(handlers::list_audit_logs))
+        .route(
+            "/api/v1/users",
+            get(handlers::list_users).post(handlers::create_user),
+        )
+        .route(
+            "/api/v1/users/{username}",
+            get(handlers::get_user)
+                .patch(handlers::update_user)
+                .delete(handlers::delete_user),
+        )
+        .route(
+            "/api/v1/users/{username}/avatar",
+            // multipart のヘッダー分の余裕を持たせる（画像そのものの上限はハンドラーで確かめる）
+            put(handlers::upload_avatar)
+                .delete(handlers::delete_avatar)
+                .layer(DefaultBodyLimit::max(handlers::users::MAX_AVATAR_BYTES + 64 * 1024)),
+        )
         .route("/api/v1/plugins", get(handlers::list_plugins))
         .route("/api/v1/themes", get(handlers::list_themes))
         .route(

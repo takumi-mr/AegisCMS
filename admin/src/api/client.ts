@@ -5,6 +5,7 @@ import type {
   ContentItem,
   CreateCategoryPayload,
   CreateContentPayload,
+  CreateUserPayload,
   ObjectReference,
   PreviewRequest,
   PreviewResult,
@@ -14,6 +15,8 @@ import type {
   StorageObjectPage,
   StorageObjectQuery,
   ThemeInfo,
+  UpdateUserPayload,
+  UserAccount,
 } from '../types';
 import { getSessionToken } from './session';
 
@@ -38,6 +41,13 @@ const resolveServerUrl = (): string => {
 export const SERVER_URL = resolveServerUrl();
 
 const API_BASE = `${SERVER_URL}/api/v1`;
+
+/**
+ * Absolute URL of a server path such as an avatar (`/uploads/avatars/...`, which already
+ * includes `[server].base_path`), so it also loads when Admin Studio runs on another origin
+ */
+export const serverAssetUrl = (url: string): string =>
+  url.startsWith('/') && !url.startsWith('//') ? `${new URL(SERVER_URL).origin}${url}` : url;
 
 export class ApiError extends Error {
   status: number;
@@ -229,6 +239,74 @@ export const aegisApi = {
     const form = new FormData();
     form.append('file', file);
     return request('/storage/upload', { method: 'POST', body: form }, 'Failed to upload file');
+  },
+
+  /** Every user account (admin only) */
+  async listUsers(): Promise<UserAccount[]> {
+    const data = await request<{ users?: UserAccount[] }>('/users', {}, 'Failed to fetch users');
+    return data.users || [];
+  },
+
+  /** The logged-in user's own account, or any account for admins */
+  async getUser(username: string): Promise<UserAccount> {
+    return request(`/users/${encodeURIComponent(username)}`, {}, 'Failed to fetch the user');
+  },
+
+  async createUser(payload: CreateUserPayload): Promise<UserAccount> {
+    return request(
+      '/users',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      'Failed to create the user'
+    );
+  },
+
+  async updateUser(username: string, payload: UpdateUserPayload): Promise<UserAccount> {
+    return request(
+      `/users/${encodeURIComponent(username)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      'Failed to update the user'
+    );
+  },
+
+  async deleteUser(username: string): Promise<void> {
+    const token = getSessionToken();
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/users/${encodeURIComponent(username)}`, {
+      method: 'DELETE',
+      headers,
+    });
+    if (res.ok) return;
+    if (res.status === 401 && token) unauthorizedHandler?.();
+    const err = await res.json().catch(() => ({ error: 'Failed to delete the user' }));
+    throw new ApiError(res.status, err.error || 'Failed to delete the user');
+  },
+
+  /** Sets the avatar (PNG, JPEG, GIF or WebP up to 2 MB) of the user */
+  async uploadAvatar(username: string, file: File): Promise<UserAccount> {
+    const form = new FormData();
+    form.append('file', file);
+    return request(
+      `/users/${encodeURIComponent(username)}/avatar`,
+      { method: 'PUT', body: form },
+      'Failed to upload the avatar'
+    );
+  },
+
+  async deleteAvatar(username: string): Promise<UserAccount> {
+    return request(
+      `/users/${encodeURIComponent(username)}/avatar`,
+      { method: 'DELETE' },
+      'Failed to remove the avatar'
+    );
   },
 
   async listThemes(): Promise<ThemeInfo[]> {
