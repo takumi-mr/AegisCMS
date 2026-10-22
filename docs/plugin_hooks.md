@@ -9,7 +9,10 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 - Wasm 呼び出し: [`crates/aegis-runtime/src/wasm/instance.rs`](../crates/aegis-runtime/src/wasm/instance.rs)
 - ホスト API: [`crates/aegis-runtime/src/wasm/engine.rs`](../crates/aegis-runtime/src/wasm/engine.rs)
 - 権限チェック: [`crates/aegis-runtime/src/guard.rs`](../crates/aegis-runtime/src/guard.rs)
-- SDK: [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk)
+- 共通 ABI 仕様書: [`docs/plugin_abi_specification.md`](./plugin_abi_specification.md)
+- Rust SDK: [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk)
+- AssemblyScript テンプレート: [`plugins/template-assemblyscript`](../plugins/template-assemblyscript)
+- TinyGo テンプレート: [`plugins/template-tinygo`](../plugins/template-tinygo)
 
 ---
 

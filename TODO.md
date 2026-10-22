@@ -9,11 +9,16 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: コンテンツ公開機能 & テンプレートエンジン (`MiniJinja`)、プラグイン動的テーマ書き換え、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、Admin Studio ログイン画面、メディア削除機能 (`DELETE /api/v1/storage/objects/{key}`) & メディアライブラリ UI の実装が完了。
+- **現在のステータス**: 言語非依存 Wasm プラグイン共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)、AssemblyScript / TinyGo 向け公式プラグイン SDK & 開発テンプレート、MiniJinja テンプレートエンジン、プラグイン動的テーマ書き換え、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、Admin Studio ログイン画面、メディア削除機能 (`DELETE /api/v1/storage/objects/{key}`) & メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
-  - Rust ワークスペース全体 (`cargo test --workspace`) 100% 成功（全テストパス）。
+  - Rust ワークスペース全体 (`cargo test --workspace`) 成功。
   - コードフォーマット (`cargo fmt --check`) および Clippy ゼロ警告 (`cargo clippy --workspace -- -D warnings`) 達成。
   - フロントエンド本番ビルド (`npm --prefix admin run build`) および oxlint ゼロ警告達成。
+  - Wasm プラグインエコシステム:
+    - 言語非依存の共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)。
+    - AssemblyScript 公式テンプレート (`plugins/template-assemblyscript/`)、型定義、軽量 JSON パーサー/シリアライザ、ホスト API ラッパー。
+    - TinyGo 公式テンプレート (`plugins/template-tinygo/`)、`//go:wasmimport` ホスト API ラッパー、メモリ管理、GC 追跡保護、JSON シリアライズ。
+    - `Taskfile.yml` への `plugin:build:as` / `plugin:build:tinygo` ビルドタスク統合。
   - テンプレートエンジン & 公開配信 (`crates/aegis-theme` & `aegis-server`):
     - MiniJinja によるテンプレート描画、3層探索フォールバック。
     - `GET /`, `GET /articles`, `GET /articles/{slug}`, `GET /{slug}` による公開サイト配信。
@@ -30,7 +35,7 @@
     - Admin Studio メディアライブラリでの削除確認・使用中参照表示ダイアログ。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除は完了）**
+**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除、プラグイン SDK は完了）**
 1. **Wasm 認証後フック (`on_user_authenticated`)**:
    - `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・監査通知用 Wasm プラグインフックの実装。
 2. **外部 IdP 認証プロバイダ (OIDC / SAML)**:
@@ -44,6 +49,16 @@
 
 ### ⏳ 直近のタスク (Next Up)
 
+#### 公式プラグイン SDK & マルチ言語エコシステムの整備 (Completed)
+- [x] **言語非依存 Wasm プラグイン共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)**
+  - リニアメモリ・アロケーション規則・64bit パッキング・ホスト API・ライフサイクルフック・JSON 型定義の標準化。
+- [x] **AssemblyScript 向け公式プラグイン SDK & テンプレート (`plugins/template-assemblyscript`)**
+  - TypeScript / AssemblyScript 開発者向け SDK、マニフェスト、ビルド設定、サンプル実装。
+- [x] **TinyGo 向け公式プラグイン SDK & テンプレート (`plugins/template-tinygo`)**
+  - Go / TinyGo 開発者向け SDK (`//go:wasmimport`)、メモリ管理、マニフェスト、サンプル実装。
+- [x] **ガイド・リファレンスドキュメントの更新 & Taskfile ビルド連携**
+  - `docs/plugin_sdk_guide.md` へのマルチ言語開発ガイド追記、`Taskfile.yml` へのビルドタスク追加。
+
 #### 認証・認可基盤の完成
 - [ ] **Wasm 認証後フック (`on_user_authenticated`)**
   - `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・外部通知（Slack/Teams 等）用 Wasm プラグインフックの追加。
@@ -56,8 +71,6 @@
 
 ### 🔮 将来のロードマップ (Future)
 
-- [ ] **Wasm プラグイン向け AssemblyScript / TypeScript SDK テンプレート整備**
-  - TypeScript / AssemblyScript 開発者向けの公式 SDK およびテンプレートリポジトリの作成。
 - [ ] **PostgreSQL / libSQL 対応（分散ストレージモード）**
   - 分散 SQLite / libSQL (Turso) への対応検証およびクラスタリング環境の最適化。
 - [ ] **On-demand ISR / Cache-Tag Purge によるエッジキャッシュ制御**
@@ -67,6 +80,16 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **マルチ言語 Wasm プラグイン SDK 設計 (`docs/plugin_abi_specification.md`)**:
+  - ホストとゲスト間は 32bit リニアメモリおよび `(ptr << 32) | len` の 64bit パック整数で疎結合に連携します。
+  - **AssemblyScript テンプレート (`plugins/template-assemblyscript/`)**:
+    - `heap.alloc` によるアロケータ (`allocate(len: i32) -> i32`)、`String.UTF8` による文字列変換、外部 npm 依存なしのゼロ依存 JSON パーサー/シリアライザ (`assembly/sdk/json.ts`) を同梱。
+    - ホスト API は `@external("host", ...)` でバインド。
+  - **TinyGo テンプレート (`plugins/template-tinygo/`)**:
+    - Go 1.21+ / TinyGo の `//go:wasmimport host <func>` ディレクティブにより型安全にホスト関数をインポート。
+    - ホストから渡されたメモリバッファが TinyGo GC により回収されないよう、`allocatedBuffers` マップによるポインタ追跡保護機構を内蔵。
+    - Go 標準の `encoding/json` により柔軟に `PostContext` / `BlockNode` を構造体マッピング。
+  - `Taskfile.yml` に `plugin:build:as` および `plugin:build:tinygo` を追加し、ワンコマンドでのビルドに対応。
 - **HTML の生成経路 (`crates/aegis-server/src/render.rs`)**:
   - 保存（`transform_blocks` → `render_blocks_html`）、公開ページ・コンテンツ API（保存済みブロックを `render_blocks_html`）、エディタのプレビュー（`transform_blocks` → `render_blocks_html`）はすべてこのモジュールを通します。レンダリング手順を変えるときはここだけを変更してください。
   - プレビューは編集のたびにプラグインの `transform-content-ast` を呼ぶため、このフックは副作用なしが前提です（`docs/plugin_hooks.md`）。

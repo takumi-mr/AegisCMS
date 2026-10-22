@@ -1,0 +1,284 @@
+# AegisCMS WebAssembly プラグイン 共通 ABI 仕様書 (ABI Specification)
+
+本ドキュメントは、AegisCMS のゼロ・トラスト WebAssembly プラグインとホストランタイム (`aegis-runtime`) 間で取り交わされる低レイヤー ABI (Application Binary Interface)、メモリモデル、ホスト API、ライフサイクルフック、およびデータ交換規約を定義する言語非依存の標準仕様書です。
+
+Rust のみならず、**AssemblyScript**、**TinyGo**、**C/C++**、**Zig** などの任意の WebAssembly 対応言語でプラグインや SDK を実装する際の準拠標準となります。
+
+---
+
+## 1. アーキテクチャと実行モデル
+
+AegisCMS のプラグインシステムは、Bytecode Alliance 製 WebAssembly ランタイム `Wasmtime` をホストエンジンとして採用しています。
+
+- **サンドボックス隔離**: プラグインはゲストの 32bit リニアメモリ空間内に完全に隔離され、ホストの物理メモリや OS リソースへの直接アクセスは不可能です。
+- **インスタンス完全分離**: フック呼び出しごとに独立した `Store` および `Instance` が生成され、状態の汚染やプラグイン間メモリ共有を防ぎます（永続状態はホスト提供の KVS を使用）。
+- **ゼロ・トラスト実行制御**:
+  - **Fuel（CPU クォータ）**: 各フック呼び出しで使用可能な命令数を厳格に制限（無限ループや DoS 対策）。
+  - **非同期タイムアウト**: 指定ミリ秒（例: 250ms）を超過したフック呼び出しはホストによって強制終了。
+  - **ケイパビリティガード**: `plugin.manifest.json` で宣言されていないネットワークやストレージアクセスは、ホスト API 呼び出し時に即座に遮断。
+
+---
+
+## 2. メモリ管理 & パスバイバリュー規約
+
+### 2.1 WebAssembly メモリエクスポート
+
+プラグインモジュールは、自身のリニアメモリを `"memory"` という名前で必ずエクスポートする必要があります。
+
+```wat
+(export "memory" (memory 0))
+```
+
+### 2.2 メモリアロケータエクスポート (`allocate`)
+
+ホストがプラグインへ文字列や JSON データを書き込む領域を確保するため、プラグインは以下のシグネチャを持つアロケーション関数を必ずエクスポートしなければなりません。
+
+```text
+allocate(len: i32) -> i32
+```
+
+- **引数**:
+  - `len` (i32): 確保したいバイトサイズ。
+- **戻り値**:
+  - 確保されたゲストリニアメモリ上の先頭オフセットアドレス (`ptr`: i32)。
+  - メモリ枯渇等で確保に失敗した場合は `0` を返します。
+
+### 2.3 ホストからゲストへのデータ渡し手順
+
+1. ホストはプラグインのエクスポート関数 `allocate(len)` を呼び出し、必要なバイト長 `len` 分のバッファをゲストメモリ内に確保させます。
+2. ホストは返却された先頭アドレス `ptr` を起点として、UTF-8 エンコードされた JSON バイト列をゲストメモリに直接書き込みます。
+3. ホストは対象のライフサイクルフック関数（例: `on_before_save(ptr, len)`）を呼び出します。
+4. ゲスト側は `ptr` から `len` バイトを読み取り、JSON をデシリアライズします。使用後の入力バッファはゲスト側の責任でメモリ解放または GC に委ねます。
+
+### 2.4 ゲストからホストへの結果返却 (Fat Pointer パッキング)
+
+ライフサイクルフック関数は、変換後のデータや実行結果を単一の **64bit 符号付き整数 (`i64`)** にパックしてホストへ返却します。
+
+#### パッキング規則
+- **上位 32bit**: 結果データが格納されたゲストメモリの先頭ポインタ (`ptr` as i32)
+- **下位 32bit**: 結果データのバイト長 (`len` as u32)
+
+```text
+packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
+```
+
+#### 各言語でのパッキング実装例
+- **Rust**:
+  ```rust
+  ((ptr as i64) << 32) | ((len as u32) as i64)
+  ```
+- **AssemblyScript**:
+  ```typescript
+  ((ptr as i64) << 32) | ((len as i64) & 0xFFFFFFFF)
+  ```
+- **TinyGo / Go**:
+  ```go
+  (int64(ptr) << 32) | (int64(uint32(length)) & 0xFFFFFFFF)
+  ```
+
+#### ホスト側のアンパック処理
+ホストは受け取った `i64` から `(packed >> 32) as i32` でポインタを、`packed as u32` でバイト長を復元し、ゲストメモリから結果バイト列を読み取ります。
+
+---
+
+## 3. ホスト API インポート仕様 (`host` モジュール)
+
+プラグインは、ホスト環境から提供される機能を以下のインポートシグネチャを通じて利用できます。モジュール名はすべて `"host"` です。
+
+### 3.1 `host.log`
+
+ホストの構造化ログ機構（`tracing`）経由で安全にログを出力します。
+
+```text
+(import "host" "log" (func (param i32 i32 i32)))
+```
+
+- **引数**:
+  - `level` (i32): ログレベル
+    - `0`: DEBUG
+    - `1`: INFO
+    - `2`: WARN
+    - `3` (またはその他): ERROR
+  - `ptr` (i32): ログメッセージ文字列 (UTF-8) の先頭ポインタ
+  - `len` (i32): ログメッセージ文字列のバイト長
+
+### 3.2 `host.http_check_allowed`
+
+アクセス先 URL がプラグインマニフェストの `capabilities.network.allowed_domains` で許可されているかをホスト側で検証します。
+
+```text
+(import "host" "http_check_allowed" (func (param i32 i32) (result i32)))
+```
+
+- **引数**:
+  - `ptr` (i32): 検証対象 URL 文字列 (UTF-8) の先頭ポインタ
+  - `len` (i32): URL 文字列のバイト長
+- **戻り値** (i32):
+  - `1`: 許可 (Allowed)
+  - `0`: 拒否 (Denied / 不正な URL)
+
+### 3.3 `host.kv_set`
+
+プラグイン専用ネームスペースの Key-Value ストアへデータを永続化・更新します。マニフェストの `capabilities.storage.kv_namespace` で許可されている必要があります。
+
+```text
+(import "host" "kv_set" (func (param i32 i32 i32 i32) (result i32)))
+```
+
+- **引数**:
+  - `k_ptr` (i32): キー文字列 (UTF-8) の先頭ポインタ
+  - `k_len` (i32): キー文字列のバイト長
+  - `v_ptr` (i32): 値文字列 (UTF-8) の先頭ポインタ
+  - `v_len` (i32): 値文字列のバイト長
+- **戻り値** (i32):
+  - `0`: 成功 (Ok)
+  - `1`: 権限不足 (Denied: マニフェストに storage 権限が未宣言)
+  - `2`: エラー (Internal Error: メモリアクセス失敗やロック競合)
+
+---
+
+## 4. ライフサイクルフック仕様 (ゲストエクスポート関数)
+
+プラグインは、実行したいフックに対応する以下の関数をエクスポートします。マニフェストの `capabilities.hooks` に該当フック名（ケバブケース）が宣言されている場合のみホストから呼び出されます。
+
+| マニフェストフック名 | Wasm エクスポート関数名 | 引数 | 戻り値 | 役割 |
+|---|---|---|---|---|
+| `on-before-save` | `on_before_save` | `(ptr: i32, len: i32)` | `i64` | 記事保存直前の検証・値補正・保存拒否 |
+| `transform-content-ast` | `transform_content_ast` | `(ptr: i32, len: i32)` | `i64` | ブロック AST 配列の変換・装飾 |
+| `on-render-page` | `on_render_page` | `(ptr: i32, len: i32)` | `i64` | 公開ページ描画コンテキストの動的変更 |
+| `on-user-authenticated` | *(計画中)* | `(ptr: i32, len: i32)` | `i64` | ログイン成功後の属性同期・監査通知 |
+
+### 4.1 `on_before_save`
+
+記事がデータベースに保存される直前に呼び出されます。
+
+- **入力**: UTF-8 JSON エンコードされた `PostContext`
+- **戻り値**:
+  - 成功時: 変更後の `PostContext` を UTF-8 JSON 化し、パックした `i64`
+  - 保存拒否時: エラーエンベロープ `{"error": "<拒否理由メッセージ>"}` を UTF-8 JSON 化し、パックした `i64`
+- **保存拒否の挙動**:
+  - エラーエンベロープが返されると、ホストは記事の保存処理を即座に中断し、API は `422 Unprocessable Entity` を返します。
+
+### 4.2 `transform_content_ast`
+
+記事本文のブロック AST 配列を変換します。保存時および管理画面のリアルタイムプレビュー時に実行されます。
+
+- **入力**: UTF-8 JSON エンコードされた `BlockNode[]` 配列
+- **戻り値**: 変換後の `BlockNode[]` 配列を UTF-8 JSON 化し、パックした `i64`
+- **注意事項**:
+  - ブロック配列を変更しない場合、引数で渡された `(ptr, len)` をそのままパックして返却可能です。
+  - プレビューのたびに実行されるため、外部副作用（HTTP リクエストや KVS 書き込み）を持たせないでください。
+
+### 4.3 `on_render_page`
+
+一般公開ページ (`GET /`, `GET /articles/{slug}`) またはプレビュー全体のレンダリング直前に呼び出されます。
+
+- **入力**: UTF-8 JSON エンコードされた `PageRenderContext`
+- **戻り値**: 変更後の `PageRenderContext` を UTF-8 JSON 化し、パックした `i64`
+- **注意事項**:
+  - サイトタイトル (`site_title`)、追加 CSS (`extra_css`)、追加ヘッダー (`extra_head`)、テンプレート変数 (`variables`) を動的に更新できます。
+
+---
+
+## 5. データ構造仕様 (JSON Schemas)
+
+全データ型は JSON 形式でシリアライズされ、リニアメモリ経由で受け渡されます。
+
+### 5.1 `PostContext`
+```json
+{
+  "id": "post_01hgbc3...",
+  "title": "記事タイトル",
+  "slug": "article-slug",
+  "content_type": "article",
+  "status": "draft",
+  "author_id": "usr_01hgbc...",
+  "blocks_json": "[{\"name\":\"core/paragraph\",\"attributes\":{},\"children\":[],\"text\":\"Hello\"}]",
+  "created_at": 1729600000,
+  "updated_at": 1729600000
+}
+```
+
+### 5.2 `BlockNode`
+```json
+{
+  "name": "core/paragraph",
+  "attributes": {
+    "level": 1
+  },
+  "children": [],
+  "text": "テキスト内容"
+}
+```
+- `attributes`: 属性のキー・バリューオブジェクト（未指定時は `{}` または `null`）。
+- `children`: 入れ子の子 `BlockNode` 配列。
+- `text`: ブロックのテキスト本文（未指定時は `""` または `null`）。
+
+### 5.3 `PageRenderContext`
+```json
+{
+  "site_title": "AegisCMS サイト",
+  "page_title": "ブログ記事一覧",
+  "slug": "articles",
+  "template_name": "article.html",
+  "extra_css": "body { background: #fafafa; }",
+  "extra_head": "<meta name=\"author\" content=\"AegisCMS\">",
+  "variables": {
+    "custom_var": "custom_value"
+  }
+}
+```
+
+### 5.4 エラーエンベロープ (Error Envelope)
+```json
+{
+  "error": "タイトルは必須入力項目です"
+}
+```
+フックが処理を拒否したい場合、この JSON をホストへ返却します。
+
+---
+
+## 6. プラグインマニフェスト仕様 (`plugin.manifest.json`)
+
+```json
+{
+  "name": "sample-plugin",
+  "version": "1.0.0",
+  "entrypoint": "plugin.wasm",
+  "capabilities": {
+    "network": {
+      "allowed_domains": ["api.example.com"]
+    },
+    "storage": {
+      "kv_namespace": "sample_state"
+    },
+    "hooks": [
+      "on-before-save",
+      "transform-content-ast",
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 100000000,
+    "execution_timeout_ms": 250
+  }
+}
+```
+
+- **`capabilities.hooks`**: プラグインが受領するフックの一覧（ケバブケース）。ここに未列挙のフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
+- **`resource_limits`**: メモリ上限（MB単位）、Fuel 上限、タイムアウト（ミリ秒単位）。
+
+---
+
+## 7. 言語別実装ガイドライン
+
+| 項目 | Rust | AssemblyScript | TinyGo |
+|---|---|---|---|
+| **公式 SDK** | `crates/aegis-plugin-sdk` | `plugins/template-assemblyscript/assembly/sdk` | `plugins/template-tinygo/sdk` |
+| **公式テンプレート** | `plugins/template-rust` | `plugins/template-assemblyscript` | `plugins/template-tinygo` |
+| **ビルドコマンド** | `cargo build --target wasm32-unknown-unknown --release` | `npm run asbuild` | `tinygo build -target=wasi -o plugin.wasm main.go` |
+| **ホストインポート** | `#[link(wasm_import_module = "host")] extern "C"` | `@external("host", "...")` | `//go:wasmimport host ...` |
+| **メモリアロケータ** | `std::alloc::alloc` | `heap.alloc` | `unsafe.Pointer(&buf[0])` / `malloc` |
+| **JSON ハンドリング** | `serde_json` | 軽量 JSON ビルダー / パーサー | `encoding/json` |

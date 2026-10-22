@@ -1,0 +1,23 @@
+{
+  "name": "template-assemblyscript",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "capabilities": {
+    "network": {
+      "allowed_domains": ["api.example.com"]
+    },
+    "storage": {
+      "kv_namespace": "template_as_state"
+    },
+    "hooks": [
+      "on-before-save",
+      "transform-content-ast",
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 100000000,
+    "execution_timeout_ms": 250
+  }
+}
