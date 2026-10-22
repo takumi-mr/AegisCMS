@@ -69,6 +69,9 @@ pub fn guess_content_type(key: &str) -> &'static str {
     }
 }
 
+/// Objects sharing the key as a prefix that the default `exists` scans
+const EXISTS_SCAN_LIMIT: usize = 1000;
+
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
     /// Save an object/blob into storage with given key, data, and mime type
@@ -79,6 +82,16 @@ pub trait StorageBackend: Send + Sync {
 
     /// Delete an object by key
     async fn delete(&self, key: &str) -> Result<()>;
+
+    /// Whether an object with exactly this key exists. The default looks the key up with
+    /// [`list`](Self::list); backends with a cheaper check override it.
+    async fn exists(&self, key: &str) -> Result<bool> {
+        Ok(self
+            .list(key, EXISTS_SCAN_LIMIT)
+            .await?
+            .iter()
+            .any(|o| o.key == key))
+    }
 
     /// List the stored objects whose key starts with `prefix` (`""` lists everything).
     /// At most `max_objects` are returned; the order is backend-specific.

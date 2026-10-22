@@ -16,4 +16,4 @@ pub use openapi::get_openapi_spec;
 pub use preview::preview_content;
 pub use public::{render_article, render_index, render_page_or_slug};
 pub use schemas::{get_schema, list_schemas};
-pub use storage::{list_objects, upload_file};
+pub use storage::{delete_object, list_objects, upload_file};

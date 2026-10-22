@@ -70,6 +70,12 @@ impl StorageBackend for LocalStorageBackend {
         Ok(())
     }
 
+    async fn exists(&self, key: &str) -> Result<bool> {
+        Ok(tokio::fs::metadata(self.resolve_path(key)?)
+            .await
+            .is_ok_and(|m| m.is_file()))
+    }
+
     async fn list(&self, prefix: &str, max_objects: usize) -> Result<Vec<StorageObject>> {
         let mut objects = Vec::new();
         if !self.upload_dir.exists() {

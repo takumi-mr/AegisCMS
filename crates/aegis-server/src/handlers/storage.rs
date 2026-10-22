@@ -1,10 +1,10 @@
 use axum::{
-    extract::{Multipart, Query, State},
+    extract::{Multipart, Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -210,6 +210,128 @@ pub async fn upload_file(
     Ok((StatusCode::CREATED, Json(meta)))
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct DeleteObjectParams {
+    /// 使用中（コンテンツから参照されている）でも削除する
+    #[serde(default)]
+    pub force: bool,
+}
+
+/// A saved content item that refers to a stored file
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ObjectReference {
+    pub content_type: String,
+    pub id: String,
+    pub slug: String,
+    pub title: String,
+}
+
+/// Saved contents whose blocks or custom fields contain `url` (image blocks store the public
+/// URL as `src`). Scans every content type, so the cost grows with the number of contents.
+async fn find_references(state: &AppState, url: &str) -> aegis_core::Result<Vec<ObjectReference>> {
+    let schemas: Vec<_> = state.schemas.read().await.values().cloned().collect();
+    let mut references = Vec::new();
+    for schema in &schemas {
+        for record in state.db.list_contents(schema).await? {
+            let in_fields = || {
+                serde_json::to_string(&record.custom_fields)
+                    .is_ok_and(|fields| fields.contains(url))
+            };
+            if record.blocks_json.contains(url) || in_fields() {
+                references.push(ObjectReference {
+                    content_type: record.content_type,
+                    id: record.id,
+                    slug: record.slug,
+                    title: record.title,
+                });
+            }
+        }
+    }
+    references.sort_by(|a, b| (&a.content_type, &a.slug).cmp(&(&b.content_type, &b.slug)));
+    Ok(references)
+}
+
+/// `DELETE /api/v1/storage/objects/{*key}` — 保存済みファイルを削除する。
+/// コンテンツから参照されている場合は `409` と参照元を返し、`?force=true` のときだけ削除する
+pub async fn delete_object(
+    State(state): State<Arc<AppState>>,
+    _session: EditorSession,
+    Path(key): Path<String>,
+    Query(params): Query<DeleteObjectParams>,
+    audit: AuditContext,
+) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
+    let key = key.trim().trim_start_matches('/').to_string();
+    if key.is_empty() || key.split(['/', '\\']).any(|part| part == "..") {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Invalid storage key" })),
+        ));
+    }
+    let storage_error = |e: aegis_core::AegisError| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("Storage error: {}", e) })),
+        )
+    };
+
+    if !state.storage.exists(&key).await.map_err(storage_error)? {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": format!("File '{}' not found", key) })),
+        ));
+    }
+
+    let url = state.storage.public_url(&key);
+    let references = find_references(&state, &url).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("Database error: {}", e) })),
+        )
+    })?;
+    if !references.is_empty() && !params.force {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(json!({
+                "error": format!(
+                    "File is used by {} content item(s); pass force=true to delete it anyway",
+                    references.len()
+                ),
+                "references": references,
+            })),
+        ));
+    }
+
+    let delete_event = |outcome: AuditOutcome, extra: serde_json::Value| {
+        let mut details = json!({
+            "url": url,
+            "force": params.force,
+            "references": references.len(),
+        });
+        if let (Some(map), serde_json::Value::Object(extra)) = (details.as_object_mut(), extra) {
+            map.extend(extra);
+        }
+        audit
+            .event(AuditAction::StorageDelete, outcome)
+            .with_resource("asset", Some(key.clone()))
+            .with_details(details)
+    };
+    if let Err(e) = state.storage.delete(&key).await {
+        state
+            .audit
+            .record(delete_event(
+                AuditOutcome::Failure,
+                json!({ "error": e.to_string() }),
+            ))
+            .await;
+        return Err(storage_error(e));
+    }
+    state
+        .audit
+        .record(delete_event(AuditOutcome::Success, json!({})))
+        .await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,5 +378,129 @@ mod tests {
         let (found, total) = select_objects(objects, Some("image/"), Some("cat"), 50, 0);
         assert_eq!(total, 1);
         assert_eq!(keys(&found), ["2026/10/new-Cat.jpg"]);
+    }
+
+    use crate::auth::authorize::RequireRole;
+    use crate::db::ContentRecord;
+
+    fn editor() -> EditorSession {
+        RequireRole(crate::auth::SessionData {
+            id: "ses_test".to_string(),
+            user_id: "editor1".to_string(),
+            role: "editor".to_string(),
+            created_at: String::new(),
+            expires_at: String::new(),
+            metadata: Default::default(),
+        })
+    }
+
+    async fn delete(
+        state: &Arc<AppState>,
+        key: &str,
+        force: bool,
+    ) -> Result<StatusCode, (StatusCode, serde_json::Value)> {
+        delete_object(
+            State(state.clone()),
+            editor(),
+            Path(key.to_string()),
+            Query(DeleteObjectParams { force }),
+            AuditContext::default(),
+        )
+        .await
+        .map_err(|(status, Json(body))| (status, body))
+    }
+
+    async fn save_article(state: &Arc<AppState>, slug: &str, blocks_json: String) {
+        let schema = state.schemas.read().await["article"].clone();
+        let now = chrono::Utc::now().to_rfc3339();
+        let record = ContentRecord {
+            id: Uuid::new_v4().to_string(),
+            content_type: "article".to_string(),
+            title: format!("Title of {}", slug),
+            slug: slug.to_string(),
+            status: "published".to_string(),
+            blocks_json,
+            author_id: Some("editor1".to_string()),
+            published_at: Some(now.clone()),
+            created_at: now.clone(),
+            updated_at: now,
+            custom_fields: Default::default(),
+        };
+        state.db.insert_content(&schema, &record).await.unwrap();
+    }
+
+    async fn delete_events(state: &Arc<AppState>) -> Vec<aegis_core::AuditEvent> {
+        state
+            .db
+            .query_audit_events(&aegis_core::AuditQuery {
+                limit: 50,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|e| e.action == AuditAction::StorageDelete)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn test_delete_unused_object() {
+        let state = crate::test_support::test_state(aegis_runtime::PluginSupervisor::new()).await;
+        let key = format!("tests/{}-unused.png", Uuid::new_v4());
+        state.storage.put(&key, b"png", "image/png").await.unwrap();
+
+        assert_eq!(
+            delete(&state, &key, false).await,
+            Ok(StatusCode::NO_CONTENT)
+        );
+        assert!(!state.storage.exists(&key).await.unwrap());
+        // Deleting again is a 404
+        assert_eq!(
+            delete(&state, &key, false).await.unwrap_err().0,
+            StatusCode::NOT_FOUND
+        );
+
+        let events = delete_events(&state).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].outcome, AuditOutcome::Success);
+        assert_eq!(events[0].resource_id.as_deref(), Some(key.as_str()));
+        assert_eq!(events[0].details["references"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_delete_object_in_use_needs_force() {
+        let state = crate::test_support::test_state(aegis_runtime::PluginSupervisor::new()).await;
+        let key = format!("tests/{}-used.png", Uuid::new_v4());
+        let meta = state.storage.put(&key, b"png", "image/png").await.unwrap();
+        let blocks = json!([{ "name": "core/image", "attributes": { "src": meta.url } }]);
+        save_article(&state, "uses-image", blocks.to_string()).await;
+        save_article(&state, "other", "[]".to_string()).await;
+
+        let (status, body) = delete(&state, &key, false).await.unwrap_err();
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(body["references"].as_array().unwrap().len(), 1);
+        assert_eq!(body["references"][0]["slug"], "uses-image");
+        assert_eq!(body["references"][0]["content_type"], "article");
+        assert!(state.storage.exists(&key).await.unwrap());
+        assert!(delete_events(&state).await.is_empty());
+
+        assert_eq!(delete(&state, &key, true).await, Ok(StatusCode::NO_CONTENT));
+        assert!(!state.storage.exists(&key).await.unwrap());
+        let events = delete_events(&state).await;
+        assert_eq!(events[0].details["force"], true);
+        assert_eq!(events[0].details["references"], 1);
+    }
+
+    #[tokio::test]
+    async fn test_delete_rejects_invalid_keys() {
+        let state = crate::test_support::test_state(aegis_runtime::PluginSupervisor::new()).await;
+        for key in ["", "  ", "../secret.txt", "a/../../b.png"] {
+            assert_eq!(
+                delete(&state, key, true).await.unwrap_err().0,
+                StatusCode::BAD_REQUEST,
+                "{:?}",
+                key
+            );
+        }
     }
 }

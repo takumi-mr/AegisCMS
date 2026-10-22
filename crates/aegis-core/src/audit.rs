@@ -15,6 +15,8 @@ pub enum AuditAction {
     SessionDelete,
     #[serde(rename = "storage.upload")]
     StorageUpload,
+    #[serde(rename = "storage.delete")]
+    StorageDelete,
     #[serde(rename = "plugin.error")]
     PluginError,
     #[serde(rename = "audit.purge")]
@@ -25,11 +27,12 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 7] = [
+    pub const ALL: [AuditAction; 8] = [
         Self::ContentCreate,
         Self::SessionCreate,
         Self::SessionDelete,
         Self::StorageUpload,
+        Self::StorageDelete,
         Self::PluginError,
         Self::AuditPurge,
         Self::AccessDenied,
@@ -41,6 +44,7 @@ impl AuditAction {
             Self::SessionCreate => "session.create",
             Self::SessionDelete => "session.delete",
             Self::StorageUpload => "storage.upload",
+            Self::StorageDelete => "storage.delete",
             Self::PluginError => "plugin.error",
             Self::AuditPurge => "audit.purge",
             Self::AccessDenied => "access.denied",
