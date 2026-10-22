@@ -210,25 +210,123 @@ AegisCMS サーバー起動時、またはリロード時に自動走査・初�
 
 ---
 
-## 5. 低水準 ABI 仕様 (AssemblyScript / 他言語開発者向け)
+## 5. マルチ言語サポートと公式テンプレート
 
-Rust 以外の言語（AssemblyScript, C/C++, TinyGo 等）でプラグインを開発する場合の標準 ABI 仕様です。
+AegisCMS では、Rust だけでなくフロントエンド/Web 開発者に親和性の高い **AssemblyScript**、および Go 開発者向けの **TinyGo** に対応した公式 SDK および開発テンプレートを提供しています。
 
-### エクスポート必須関数・シンボル
+| 言語 | 公式テンプレート | SDK の場所 | 対象者・特徴 |
+|---|---|---|---|
+| **Rust** | [`plugins/template-rust`](../plugins/template-rust) | [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk) | 型安全・極限のパフォーマンス・ネイティブテスト |
+| **AssemblyScript** | [`plugins/template-assemblyscript`](../plugins/template-assemblyscript) | `plugins/template-assemblyscript/assembly/sdk` | TypeScript 風構文・Node/npm 親和性 |
+| **TinyGo** | [`plugins/template-tinygo`](../plugins/template-tinygo) | `plugins/template-tinygo/sdk` | Go 構文・軽量シングル Wasm バイナリ |
 
-1. **`memory`**: WebAssembly リニアメモリのエクスポート。
-2. **`allocate(len: i32) -> i32`**: ホストがゲストメモリにデータを書き込むためのバッファ確保関数。確保先アドレスのポインタ（`ptr`）を返す。
-3. **`on_before_save(ptr: i32, len: i32) -> i64`** (オプション):
-   - 引数: `PostContext` の JSON 文字列が配置された `(ptr, len)`。
-   - 戻り値: 結果 JSON のポインタと長さをパックした 64bit 整数 `(ptr << 32) | len`。結果 JSON は更新後の `PostContext`（`title` / `slug` / `blocks_json` の変更が保存される）、または保存を拒否する `{"error": "<メッセージ>"}`。
-4. **`transform_content_ast(ptr: i32, len: i32) -> i64`** (オプション):
-   - 引数: `BlockNode[]` の JSON 配列が配置された `(ptr, len)`。
-   - 戻り値: 変換後 `BlockNode[]` の JSON の `(ptr << 32) | len`。
+---
 
-### ホストインポート関数 (`host` モジュール)
+### 5.1 AssemblyScript プラグイン開発
 
-```wat
-(import "host" "log" (func $log (param i32 i32 i32))) ;; level, ptr, len
-(import "host" "http_check_allowed" (func $check (param i32 i32) (result i32))) ;; ptr, len -> 1/0
-(import "host" "kv_set" (func $kv_set (param i32 i32 i32 i32) (result i32))) ;; k_ptr, k_len, v_ptr, v_len -> 0:ok, 1:denied, 2:err
+AssemblyScript は TypeScript のサブセット構文から WebAssembly を直接出力する言語です。npm エコシステムで簡単にプラグインを構築できます。
+
+```bash
+# テンプレートディレクトリへの移動
+cd plugins/template-assemblyscript
+
+# 依存パッケージのインストール
+npm install
+
+# Wasm ビルド (plugin.wasm を出力)
+npm run build
 ```
+
+ライフサイクルフックの実装例 (`assembly/index.ts`):
+```typescript
+import {
+  allocate as sdkAllocate,
+  readString,
+  writeString,
+  writeError,
+  log,
+  parsePostContext,
+  serializePostContext,
+  PostContext
+} from "./sdk";
+
+export function allocate(len: i32): i32 {
+  return sdkAllocate(len);
+}
+
+export function on_before_save(ptr: i32, len: i32): i64 {
+  const post = parsePostContext(readString(ptr, len));
+
+  if (post.title.trim().length === 0) {
+    return writeError("Post title cannot be empty");
+  }
+
+  log.info("Processing post: " + post.title);
+  post.title = "[AS-Plugin] " + post.title;
+
+  return writeString(serializePostContext(post));
+}
+```
+
+詳細は [`plugins/template-assemblyscript/README.md`](../plugins/template-assemblyscript/README.md) を参照してください。
+
+---
+
+### 5.2 TinyGo プラグイン開発
+
+TinyGo は Go 構文から極めて小さな Wasm バイナリを生成するコンパイラです。`//go:wasmimport` を用いてホスト API を型安全に呼び出せます。
+
+```bash
+# テンプレートディレクトリへの移動
+cd plugins/template-tinygo
+
+# Wasm ビルド (plugin.wasm を出力)
+tinygo build -target=wasi -opt=z -no-debug -o plugin.wasm main.go
+```
+
+ライフサイクルフックの実装例 (`main.go`):
+```go
+package main
+
+import (
+	"encoding/json"
+	"strings"
+	"aegis-plugin-template-tinygo/sdk"
+)
+
+//export allocate
+func allocate(size int32) uintptr {
+	return sdk.Allocate(size)
+}
+
+//export on_before_save
+func on_before_save(ptr int32, length int32) int64 {
+	inBytes := sdk.ReadBytes(uintptr(ptr), length)
+
+	var post sdk.PostContext
+	if err := json.Unmarshal(inBytes, &post); err != nil {
+		return sdk.WriteError("Invalid PostContext payload")
+	}
+
+	if strings.TrimSpace(post.Title) == "" {
+		return sdk.WriteError("Post title cannot be empty")
+	}
+
+	sdk.LogInfo("[TinyGo] Processing: " + post.Title)
+	post.Title = "[TinyGo] " + post.Title
+
+	return sdk.WriteJSON(&post)
+}
+
+func main() {}
+```
+
+詳細は [`plugins/template-tinygo/README.md`](../plugins/template-tinygo/README.md) を参照してください。
+
+---
+
+## 6. 低水準 ABI 仕様 (共通仕様書)
+
+すべての言語で共通の WebAssembly メモリレイアウト、ポインタパッキング規約、ホスト API インポート・エクスポート仕様、JSON スキーマについては、以下の仕様書を参照してください。
+
+👉 **[AegisCMS WebAssembly プラグイン 共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)](./plugin_abi_specification.md)**

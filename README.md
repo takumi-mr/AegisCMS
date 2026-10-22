@@ -393,5 +393,5 @@ fields:
     - 基本ブロックエディタUIとREST/GraphQL APIの疎結合結合。
 
 - **フェーズ 3 (SDK整備とエコシステム公開)**
-    - AssemblyScript / TinyGo向け公式プラグインSDKの提供。
+    - ✅ 言語非依存 共通 ABI 仕様書および Rust / AssemblyScript / TinyGo 向け公式プラグイン SDK & テンプレートの提供。
     - ケイパビリティ検証ガードおよびマニフェストパーサーのセキュリティ監査。
