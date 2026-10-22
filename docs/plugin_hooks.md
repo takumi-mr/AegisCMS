@@ -19,11 +19,11 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 | --- | --- | --- | --- | --- | --- |
 | `transform-content-ast` | `transform_content_ast` | `Plugin::transform_content_ast` | `BlockNode[]` | `BlockNode[]` | ✅ 実装済み |
 | `on-before-save` | `on_before_save` | `Plugin::on_before_save` | `PostContext` | `PostContext` | ✅ 実装済み（`title` / `slug` / 本文の変更、保存の拒否） |
-| `on-user-authenticated` | — | — | — | — | 🔮 計画中（未実装） |
+| `on-user-authenticated` | `on_user_authenticated` | `Plugin::on_user_authenticated` | `UserAuthContext` | `UserAuthContext` | ✅ 実装済み（ロールマッピング、属性の補完、ログインの拒否） |
 
 - フックを有効にするには、**マニフェストの `capabilities.hooks` にフック名（ケバブケース）を列挙**する必要があります。列挙されていないフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
 - 逆に、マニフェストに列挙されていても該当の関数がエクスポートされていない場合は、入力がそのまま次へ渡されます（エラーにはなりません）。
-- SDK の `#[aegis_plugin]` マクロ（または `register_plugin!`）は両方のエクスポートを常に生成します。実装しなかったメソッドはトレイトの既定実装（入力をそのまま返す）になります。
+- SDK の `#[aegis_plugin]` マクロ（または `register_plugin!`）はすべてのフックのエクスポートを常に生成します。実装しなかったメソッドはトレイトの既定実装（入力をそのまま返す）になります。
 
 ### 1.1 実行タイミングと順序
 
@@ -85,9 +85,37 @@ fn on_before_save(&mut self, post: PostContext) -> Result<PostContext>;
 
 - **プラグインの失敗**: パニック（Wasm トラップ）、タイムアウト、Fuel 枯渇、メモリ上限超過、不正な JSON の返却などでも保存は中止され、API は `400 Bad Request` と `{"error": "Plugin hook rejected save: ..."}` を返します。監査ログには `plugin.error` と `content.create`（`denied`）を記録します。
 
-### 1.4 `on-user-authenticated`（計画中）
+### 1.4 `on-user-authenticated`
 
-認証成功後のユーザー属性同期、ロールマッピング、ログイン監査通知のためのフックとして計画されています（[TODO.md](../TODO.md) の「将来のロードマップ」参照）。認証判定そのものはプラグインには開放されません。
+ログイン（`POST /api/v1/auth/session`）で認証プロバイダが資格情報を確認した**後**、セッションを発行する**前**に呼ばれます。IdP のグループからのロールマッピング、表示名・属性の補完、ドメインや時間帯によるログインの制限、ログイン通知などに使います。資格情報の検証そのもの（パスワード・IdP の署名の確認）はプラグインには開放されません。
+
+```rust
+fn on_user_authenticated(&mut self, ctx: UserAuthContext) -> Result<UserAuthContext>;
+```
+
+- 入力: `UserAuthContext`（[2.3](#23-userauthcontext)）。`role` はユーザーアカウント（ローカル認証）またはプロバイダが決めたロールです。
+- 出力: `UserAuthContext`。次のプラグインへの入力になり、最後のプラグインの出力でセッションを発行します。
+  - `role` / `display_name` / `email` / `metadata` の変更はセッションに反映されます。`metadata` はセッションの `metadata` に入ります（`provider` / `display_name` / `email` のキーはサーバーが設定するため上書きできません）。
+  - `provider` と `user_id` の変更は無視されます（警告ログのみ）。
+  - `role` は `admin` / `editor` / `viewer` のいずれかでなければならず、それ以外を返すとプラグインエラーとしてログインは失敗します。
+  - ロールを変更した場合は、監査ログ `session.create`（`success`）の `details.role_mapped` に `{ "from": 元のロール, "to": 新しいロール }` を記録します。
+- **ログインの拒否**: `Err(PluginError::Rejected("..."))` を返すと、API は `403 Forbidden` と `{"error": "Rejected by plugin: <プラグイン名>: <メッセージ>"}` を返し、セッションは発行されません。監査ログは `session.create`（`denied`、`details.error = "plugin_rejected"`）です。
+- **プラグインの失敗**: トラップ・タイムアウト・不正な JSON・不明なロールなどでもログインは失敗します（安全側に倒す）。API は `500` を返し、監査ログに `plugin.error` と `session.create`（`failure`、`details.error = "plugin_failed"`）を記録します。
+- 拒否・失敗はどちらもログイン試行の失敗回数（[レート制限](authentication.md#4-セキュリティ上の挙動)）には数えません（資格情報は正しいため）。
+- ログインのたびに呼ばれます。外部への通知など時間のかかる処理は `execution_timeout_ms` に収まるようにしてください。
+
+```rust
+fn on_user_authenticated(&mut self, mut ctx: UserAuthContext) -> Result<UserAuthContext> {
+    if !ctx.email.ends_with("@example.com") {
+        return Err(PluginError::Rejected("only example.com accounts may sign in".to_string()));
+    }
+    let groups = ctx.metadata.get("groups").and_then(|g| g.as_array());
+    if groups.is_some_and(|g| g.iter().any(|v| v == "cms-admins")) {
+        ctx.role = "admin".to_string();
+    }
+    Ok(ctx)
+}
+```
 
 ---
 
@@ -137,10 +165,22 @@ SDK ヘルパー:
 | `block.attribute(key)` | 属性を取得 |
 | `block.set_attribute(key, value)` | 属性を設定 |
 
-### 2.3 `PluginError`（SDK）
+### 2.3 `UserAuthContext`
+
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `provider` | string | 認証したプロバイダ（現在は `local`）。変更は無視される |
+| `user_id` | string | セッションの `user_id`（ローカル認証ではユーザー名）。変更は無視される |
+| `email` | string | メールアドレス（未登録なら空文字列） |
+| `display_name` | string \| null | 表示名 |
+| `role` | string | `admin` / `editor` / `viewer` |
+| `metadata` | object | プロバイダ固有の属性（外部 IdP のクレーム・グループなど。ローカル認証では空） |
+
+### 2.4 `PluginError`（SDK）
 
 | バリアント | 用途 |
 | --- | --- |
+| `PluginError::Rejected(String)` | 入力を受け付けない（`on_before_save` の保存拒否、`on_user_authenticated` のログイン拒否）。メッセージがそのまま API の応答に出る |
 | `PluginError::Execution(String)` | プラグインロジックのエラー |
 | `PluginError::Serialization(String)` | JSON 変換エラー（`serde_json::Error` から自動変換） |
 | `PluginError::Host(String)` | ホスト API 呼び出しのエラー |
@@ -256,7 +296,8 @@ SDK ヘルパー:
 | `allocate` | `(len: i32) -> i32` | ✅ | ホストが入力 JSON を書き込む領域を確保し、ポインタを返す |
 | `transform_content_ast` | `(ptr: i32, len: i32) -> i64` | | 入力 `BlockNode[]` JSON、戻り値 `(ptr << 32) \| len` |
 | `on_before_save` | `(ptr: i32, len: i32) -> i64` | | 入力 `PostContext` JSON、戻り値 `(ptr << 32) \| len` |
+| `on_user_authenticated` | `(ptr: i32, len: i32) -> i64` | | 入力 `UserAuthContext` JSON、戻り値 `(ptr << 32) \| len` |
 
 - 戻り値の `len` が `0` の場合、ホストは入力をそのまま採用します。
-- `on_before_save` で保存を拒否するには、`PostContext` の代わりに `{"error": "<メッセージ>"}` を返します（SDK の `abi::write_error_to_host`）。`error` キーを持つオブジェクトはすべて拒否として扱います。
+- `on_before_save` で保存を、`on_user_authenticated` でログインを拒否するには、入力の型の代わりに `{"error": "<メッセージ>"}` を返します（SDK の `abi::write_error_to_host`）。`error` キーを持つオブジェクトはすべて拒否として扱います。
 - 返却された JSON が期待する型としてパースできない場合はホスト側エラー（[1.2](#12-transform-content-ast) / [1.3](#13-on-before-save) のエラー時の挙動を参照）になります。
