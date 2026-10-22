@@ -1,5 +1,6 @@
 import type {
   AuditLogPage,
+  AuthProviders,
   AuditLogQuery,
   ContentItem,
   CreateCategoryPayload,
@@ -86,6 +87,13 @@ export const aegisApi = {
         typeof err.retry_after_secs === 'number' ? err.retry_after_secs : undefined;
       throw new ApiError(res.status, err.error || 'Failed to log in', retryAfter);
     }
+    return res.json();
+  },
+
+  /** Sign-in methods for the login screen */
+  async getAuthProviders(): Promise<AuthProviders> {
+    const res = await fetch(`${API_BASE}/auth/providers`);
+    if (!res.ok) throw new ApiError(res.status, 'Failed to fetch sign-in methods');
     return res.json();
   },
 
