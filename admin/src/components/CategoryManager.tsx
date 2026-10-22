@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Plus, Tags, X } from 'lucide-react';
 import { aegisApi } from '../api/client';
 import type { ContentItem } from '../types';
+import { categoryColor } from '../utils/category';
 
 const DEFAULT_COLOR = '#6366f1';
 
@@ -17,12 +18,6 @@ const toSlug = (value: string): string =>
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/^-|-$/g, '');
-
-/** Returns the category's `color` field when it is a CSS hex color */
-const categoryColor = (category: ContentItem): string | undefined => {
-  const color = category.fields?.color;
-  return typeof color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : undefined;
-};
 
 export const CategoryManager: React.FC<CategoryManagerProps> = ({
   categories,

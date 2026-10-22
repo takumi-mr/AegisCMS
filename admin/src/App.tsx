@@ -8,6 +8,7 @@ import { BlockItem } from './components/BlockItem';
 import { Preview } from './components/Preview';
 import { aegisApi } from './api/client';
 import type { BlockNode, ContentItem } from './types';
+import { categoryIdOf } from './utils/category';
 
 export const App: React.FC = () => {
   const [view, setView] = useState<AppView>('editor');
@@ -95,8 +96,7 @@ export const App: React.FC = () => {
     setSlug(item.slug);
     setStatus(item.status === 'published' ? 'published' : 'draft');
     setBlocks(item.blocks || []);
-    const itemCategory = item.fields?.category_id;
-    setCategoryId(typeof itemCategory === 'string' ? itemCategory : '');
+    setCategoryId(categoryIdOf(item) ?? '');
   };
 
   const handleNew = () => {
@@ -185,6 +185,7 @@ export const App: React.FC = () => {
         {/* Sidebar */}
         <ContentList
           contents={contents}
+          categories={categories}
           selectedId={selectedId}
           onSelect={handleSelectContent}
           onNew={handleNew}
