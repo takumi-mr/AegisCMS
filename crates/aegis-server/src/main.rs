@@ -19,8 +19,11 @@ mod auth;
 mod cache;
 mod db;
 mod handlers;
+mod render;
 mod state;
 mod storage;
+#[cfg(test)]
+mod test_support;
 
 use aegis_core::{AegisConfig, StorageBackendKind};
 use aegis_runtime::PluginSupervisor;
@@ -362,6 +365,7 @@ async fn main() -> anyhow::Result<()> {
                         .layer(DefaultBodyLimit::max(config.storage.max_upload_bytes())),
                 )
                 .route("/api/v1/storage/objects", get(handlers::list_objects))
+                .route("/api/v1/preview", post(handlers::preview_content))
                 .route(
                     "/api/v1/auth/session",
                     post(handlers::create_session)

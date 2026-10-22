@@ -1,9 +1,11 @@
 import type {
   AuditLogPage,
+  BlockNode,
   AuditLogQuery,
   ContentItem,
   CreateCategoryPayload,
   CreateContentPayload,
+  PreviewResult,
   SchemaDefinition,
   SessionInfo,
   StorageMeta,
@@ -138,6 +140,19 @@ export const aegisApi = {
 
   async listStorageObjects(query: StorageObjectQuery): Promise<StorageObjectPage> {
     return request(`/storage/objects?${toQuery(query)}`, {}, 'Failed to fetch media');
+  },
+
+  /** Renders unsaved blocks with the server's save + publish pipeline (nothing is stored) */
+  async previewContent(blocks: BlockNode[]): Promise<PreviewResult> {
+    return request(
+      '/preview',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blocks }),
+      },
+      'Failed to render the preview'
+    );
   },
 
   async uploadFile(file: File): Promise<StorageMeta> {

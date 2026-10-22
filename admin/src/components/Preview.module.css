@@ -54,15 +54,25 @@
   color: #fff;
 }
 
-.sanitized {
+.status {
   font-size: 0.75rem;
   color: var(--accent-teal);
   margin-top: 4px;
 }
 
-/* Rendered article HTML */
+.status.statusError {
+  color: #fda4af;
+}
+
+/* Rendered article HTML (from the server) */
 .htmlOutput {
   color: #e2e8f0;
+  transition: opacity var(--transition-fast);
+}
+
+/* Older HTML stays visible, dimmed, until the server answers for the latest edit */
+.htmlOutput.stale {
+  opacity: 0.6;
 }
 
 .htmlOutput h1,

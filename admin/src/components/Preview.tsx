@@ -1,58 +1,71 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Eye, Code, ShieldAlert } from 'lucide-react';
+import { aegisApi } from '../api/client';
 import type { BlockNode } from '../types';
 import { cx } from '../utils/cx';
 import styles from './Preview.module.css';
 
+/** Wait for a pause in typing before asking the server to render */
+const PREVIEW_DEBOUNCE_MS = 300;
+
 interface PreviewProps {
   title: string;
   blocks: BlockNode[];
-  serverHtml?: string;
 }
 
-// クライアント側でも Rust 側 HtmlRenderer と完全に同一のルールで即座にプレビュー描画
-function renderAstToHtml(nodes: BlockNode[]): string {
-  return nodes
-    .map((node) => {
-      const escape = (str?: string) =>
-        (str || '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;');
-
-      switch (node.name) {
-        case 'core/heading': {
-          const level = Math.min(Math.max(node.attributes?.level || 2, 1), 6);
-          const slug = (node.text || '')
-            .toLowerCase()
-            .replace(/[^a-z0-9-]+/g, '-')
-            .replace(/^-|-$/g, '');
-          const idAttr = slug ? ` id="${escape(slug)}"` : '';
-          return `<h${level}${idAttr}>${escape(node.text)}</h${level}>\n`;
-        }
-        case 'core/paragraph':
-          return `<p>${escape(node.text)}</p>\n`;
-        case 'core/code': {
-          const lang = escape(node.attributes?.language || 'text');
-          return `<pre><code class="language-${lang}">${escape(node.text)}</code></pre>\n`;
-        }
-        case 'core/image': {
-          const src = escape(node.attributes?.src);
-          const alt = escape(node.attributes?.alt);
-          return `<figure><img src="${src}" alt="${alt}" loading="lazy" /></figure>\n`;
-        }
-        default:
-          return `<div class="${escape(node.name)}">${escape(node.text)}</div>\n`;
-      }
-    })
-    .join('');
+interface PreviewResult {
+  /** The blocks (serialized) this result was rendered from */
+  key: string;
+  html: string;
+  warnings: string[];
+  error: string | null;
 }
 
-export const Preview: React.FC<PreviewProps> = ({ title, blocks, serverHtml }) => {
+/**
+ * Live preview rendered by the server (`POST /api/v1/preview`) with the same pipeline as saving
+ * and the public site: heading ids, plugin AST hooks, HtmlRenderer and the security rewriter.
+ */
+export const Preview: React.FC<PreviewProps> = ({ title, blocks }) => {
   const [tab, setTab] = useState<'html' | 'ast'>('html');
+  const [result, setResult] = useState<PreviewResult | null>(null);
 
-  const renderedHtml = serverHtml || renderAstToHtml(blocks);
+  // A result is current when it was rendered from the blocks shown now
+  const requestKey = JSON.stringify(blocks);
+  const isRendering = result?.key !== requestKey;
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      aegisApi
+        .previewContent(JSON.parse(requestKey) as BlockNode[])
+        .then((preview) => ({ html: preview.html, warnings: preview.warnings, error: null }))
+        .catch((err: unknown) => ({
+          html: null,
+          warnings: [],
+          error: err instanceof Error ? err.message : 'Failed to render the preview',
+        }))
+        .then((outcome) => {
+          if (cancelled) return;
+          // Keep the last good HTML on screen when a render fails
+          setResult((prev) => ({
+            key: requestKey,
+            html: outcome.html ?? prev?.html ?? '',
+            warnings: outcome.warnings,
+            error: outcome.error,
+          }));
+        });
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [requestKey]);
+
+  const status = result?.error
+    ? `⚠ Preview failed: ${result.error}`
+    : isRendering
+      ? 'Rendering on the server...'
+      : '✓ Rendered by the server (same HTML as the published page)';
 
   return (
     <aside className={styles.column}>
@@ -78,10 +91,18 @@ export const Preview: React.FC<PreviewProps> = ({ title, blocks, serverHtml }) =
           <div>
             <div className={styles.titleBlock}>
               <h1 className={styles.title}>{title || 'Untitled Article'}</h1>
-              <div className={styles.sanitized}>✓ Deterministic HTML Stream Sanitized</div>
+              <div className={cx(styles.status, result?.error && styles.statusError)}>{status}</div>
+              {result?.warnings.map((warning) => (
+                <div key={warning} className={cx(styles.status, styles.statusError)}>
+                  ⚠ {warning}
+                </div>
+              ))}
             </div>
 
-            <div className={styles.htmlOutput} dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+            <div
+              className={cx(styles.htmlOutput, isRendering && styles.stale)}
+              dangerouslySetInnerHTML={{ __html: result?.html ?? '' }}
+            />
 
             {blocks.length === 0 && (
               <div className={styles.empty}>
