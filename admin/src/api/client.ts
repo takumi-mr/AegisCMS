@@ -13,6 +13,7 @@ import type {
   StorageMeta,
   StorageObjectPage,
   StorageObjectQuery,
+  ThemeInfo,
 } from '../types';
 import { getSessionToken } from './session';
 
@@ -221,5 +222,25 @@ export const aegisApi = {
     const form = new FormData();
     form.append('file', file);
     return request('/storage/upload', { method: 'POST', body: form }, 'Failed to upload file');
+  },
+
+  async listThemes(): Promise<ThemeInfo[]> {
+    return request('/themes', {}, 'Failed to fetch themes');
+  },
+
+  async getActiveTheme(): Promise<ThemeInfo> {
+    return request('/themes/active', {}, 'Failed to fetch active theme');
+  },
+
+  async switchActiveTheme(themeId: string): Promise<ThemeInfo> {
+    return request(
+      '/themes/active',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme_id: themeId }),
+      },
+      'Failed to switch active theme'
+    );
   },
 };

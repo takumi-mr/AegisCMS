@@ -60,6 +60,23 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/api/v1/auth/oidc/login", get(handlers::oidc_login))
         .route("/api/v1/auth/oidc/callback", get(handlers::oidc_callback))
         .route("/api/v1/audit-logs", get(handlers::list_audit_logs))
+        .route("/api/v1/themes", get(handlers::list_themes))
+        .route(
+            "/api/v1/themes/active",
+            get(handlers::get_active_theme).put(handlers::switch_active_theme),
+        )
+        .route(
+            "/themes/{theme_id}/preview",
+            get(handlers::get_theme_preview),
+        )
+        .route(
+            "/themes/{theme_id}/assets/{*path}",
+            get(handlers::get_specific_theme_asset),
+        )
+        .route(
+            "/theme/assets/{*path}",
+            get(handlers::get_active_theme_asset),
+        )
         .route("/metrics", get(handlers::get_metrics))
         // --- 公開フロントエンド（テンプレートレンダリング） ---
         .route("/", get(handlers::render_index))
@@ -72,16 +89,6 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         let _ = std::fs::create_dir_all(&config.storage.local.upload_dir);
         let prefix = config.storage.local.public_url_prefix.clone();
         app = app.nest_service(&prefix, ServeDir::new(&config.storage.local.upload_dir));
-    }
-
-    // テーマアセット配信 (/theme/assets/*)
-    let theme_assets_dir = config
-        .paths
-        .themes_dir
-        .join(&config.theme.active)
-        .join("assets");
-    if theme_assets_dir.exists() {
-        app = app.nest_service("/theme/assets", ServeDir::new(theme_assets_dir));
     }
 
     // Admin Studio SPA 配信 (/admin/)。ビルドはアセットを相対パス（./assets/）で参照するため、

@@ -61,6 +61,14 @@ pub fn guess_content_type(key: &str) -> &'static str {
         "json" => "application/json",
         "txt" => "text/plain",
         "csv" => "text/csv",
+        "css" => "text/css",
+        "js" | "mjs" => "application/javascript",
+        "woff2" => "font/woff2",
+        "woff" => "font/woff",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
+        "wasm" => "application/wasm",
+        "html" | "htm" => "text/html",
         "mp4" => "video/mp4",
         "webm" => "video/webm",
         "mp3" => "audio/mpeg",
@@ -110,6 +118,12 @@ mod tests {
         assert_eq!(guess_content_type("2026/10/abcd-photo.JPG"), "image/jpeg");
         assert_eq!(guess_content_type("logo.svg"), "image/svg+xml");
         assert_eq!(guess_content_type("docs/report.pdf"), "application/pdf");
+        assert_eq!(guess_content_type("style.css"), "text/css");
+        assert_eq!(
+            guess_content_type("theme/assets/app.js"),
+            "application/javascript"
+        );
+        assert_eq!(guess_content_type("fonts/inter.woff2"), "font/woff2");
         assert_eq!(
             guess_content_type("no-extension"),
             "application/octet-stream"

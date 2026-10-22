@@ -1,0 +1,15 @@
+{
+  "id": "cyber-neon",
+  "name": "Tokyo Cyber Neon",
+  "version": "1.0.0",
+  "description": "High-octane cyberpunk theme featuring luminous cyan and magenta neon accents, cyber-grid backdrops, and futuristic typography.",
+  "author": {
+    "name": "NeoTokyo Creative Lab",
+    "url": "https://aegiscms.dev/creators/neotokyo"
+  },
+  "license": "MIT",
+  "preview_image": "preview.svg",
+  "tags": ["cyberpunk", "neon", "dark", "futuristic", "tech"],
+  "homepage": "https://aegiscms.dev/themes/cyber-neon",
+  "min_aegis_version": "0.1.0"
+}

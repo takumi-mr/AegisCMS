@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Header, type AppView } from './components/Header';
 import { AuditLogView } from './components/AuditLogView';
+import { ThemeManager } from './components/ThemeManager';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { CategoryManager } from './components/CategoryManager';
 import { ContentList } from './components/ContentList';
@@ -265,6 +266,8 @@ export const App: React.FC = () => {
 
       {view === 'audit' && isAdmin(session) ? (
         <AuditLogView />
+      ) : view === 'themes' ? (
+        <ThemeManager session={session} onShowToast={showToast} />
       ) : (
         <div className={styles.workspace}>
           {/* Sidebar */}

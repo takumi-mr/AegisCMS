@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="lux-article">
+  <header class="lux-article-header">
+    <h1 class="lux-article-title">{{ title }}</h1>
+  </header>
+  <div class="lux-article-body">
+    {{ content_html | safe }}
+  </div>
+</article>
+{% endblock %}

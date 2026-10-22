@@ -24,10 +24,13 @@ pub enum AuditAction {
     /// API request rejected for a missing / invalid session (401) or an insufficient role (403)
     #[serde(rename = "access.denied")]
     AccessDenied,
+    /// Active theme switched via admin/API
+    #[serde(rename = "theme.switch")]
+    ThemeSwitch,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 8] = [
+    pub const ALL: [AuditAction; 9] = [
         Self::ContentCreate,
         Self::SessionCreate,
         Self::SessionDelete,
@@ -36,6 +39,7 @@ impl AuditAction {
         Self::PluginError,
         Self::AuditPurge,
         Self::AccessDenied,
+        Self::ThemeSwitch,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -48,6 +52,7 @@ impl AuditAction {
             Self::PluginError => "plugin.error",
             Self::AuditPurge => "audit.purge",
             Self::AccessDenied => "access.denied",
+            Self::ThemeSwitch => "theme.switch",
         }
     }
 }

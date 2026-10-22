@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="cyber-article">
+  <header class="cyber-article-header">
+    <h1 class="cyber-article-title">{{ title }}</h1>
+  </header>
+  <div class="cyber-article-body">
+    {{ content_html | safe }}
+  </div>
+</article>
+{% endblock %}

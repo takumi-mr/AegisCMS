@@ -410,7 +410,7 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
       </span>
       {% if published_at %}
       <time style="font-size: 0.85rem; color: var(--text-dim);" datetime="{{ published_at }}">
-        Published on {{ published_at | truncate(10, True, "") }}
+        Published on {{ published_at | date_short }}
       </time>
       {% endif %}
     </div>
@@ -421,7 +421,7 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 
     <div style="display: flex; align-items: center; gap: 1rem;">
       <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: #ffffff;">
-        {{ (author | default("A")) | truncate(1, True, "") }}
+        {% if author %}{{ author | truncate(1, True, "") | upper }}{% else %}A{% endif %}
       </div>
       <div>
         <div style="font-size: 0.9rem; font-weight: 600; color: #ffffff;">

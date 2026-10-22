@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="cyber-article">
+  <header class="cyber-article-header">
+    <div class="cyber-card-meta" style="margin-bottom: 0.8rem;">
+      <span>// NODE ID: {{ slug }}</span>
+      {% if published_at %}
+      <span>&bull; TIMESTAMP: {{ published_at | date_short }}</span>
+      {% endif %}
+      {% if author %}
+      <span>&bull; OPERATOR: {{ author }}</span>
+      {% endif %}
+    </div>
+    <h1 class="cyber-article-title">{{ title }}</h1>
+  </header>
+
+  <div class="cyber-article-body">
+    {{ content_html | safe }}
+  </div>
+
+  <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--cyber-border);">
+    <a href="/articles" class="cyber-card-link">&larr; [ RETURN TO ARCHIVES ]</a>
+  </div>
+</article>
+{% endblock %}

@@ -1,0 +1,321 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --lux-bg: #050807;
+  --lux-surface: #0a110d;
+  --lux-surface-elevated: #0f1a14;
+  --lux-emerald: #10b981;
+  --lux-emerald-bright: #34d399;
+  --lux-emerald-glow: 0 0 24px rgba(16, 185, 129, 0.28);
+  --lux-gold: #f59e0b;
+  --lux-gold-light: #fef3c7;
+  --lux-gold-gradient: linear-gradient(135deg, #fef08a 0%, #f59e0b 50%, #b45309 100%);
+  --lux-border: rgba(16, 185, 129, 0.2);
+  --lux-border-gold: rgba(245, 158, 11, 0.35);
+  --lux-text: #f1f5f9;
+  --lux-muted: #94a3b8;
+  --lux-dim: #64748b;
+  --font-serif: 'Cinzel', 'Times New Roman', serif;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--lux-bg);
+  color: var(--lux-text);
+  font-family: var(--font-sans);
+  line-height: 1.8;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ambient Radial Emerald Glow */
+.lux-ambient {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 500px;
+  background: radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.16) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Header */
+header.lux-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(5, 8, 7, 0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--lux-border);
+}
+
+.lux-header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lux-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  text-decoration: none;
+  color: #ffffff;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 1.3rem;
+  letter-spacing: 2px;
+}
+
+.lux-brand-orb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--lux-emerald);
+  box-shadow: var(--lux-emerald-glow);
+}
+
+.lux-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.lux-nav-link {
+  color: var(--lux-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.lux-nav-link:hover {
+  color: var(--lux-emerald-bright);
+}
+
+.lux-admin-link {
+  border: 1px solid var(--lux-border-gold);
+  color: var(--lux-gold-light);
+  padding: 0.35rem 0.85rem;
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.lux-admin-link:hover {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: var(--lux-gold);
+}
+
+/* Main */
+main.lux-main {
+  flex: 1;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 6rem 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* Hero */
+.lux-hero {
+  margin-bottom: 4rem;
+  text-align: center;
+  padding-bottom: 3rem;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.lux-hero-subtitle {
+  color: var(--lux-gold);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.lux-hero-title {
+  font-family: var(--font-serif);
+  font-size: 3.2rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ffffff;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.lux-hero-desc {
+  color: var(--lux-muted);
+  font-size: 1.15rem;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* Cards Grid */
+.lux-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 2.5rem;
+}
+
+.lux-card {
+  background: var(--lux-surface);
+  border: 1px solid var(--lux-border);
+  padding: 2.2rem;
+  position: relative;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.lux-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--lux-gold-gradient);
+}
+
+.lux-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: var(--lux-emerald-glow);
+  background: var(--lux-surface-elevated);
+}
+
+.lux-card-tag {
+  color: var(--lux-gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 0.8rem;
+}
+
+.lux-card-title {
+  font-family: var(--font-serif);
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 1rem;
+  line-height: 1.35;
+}
+
+.lux-card-title a {
+  color: #ffffff;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.lux-card-title a:hover {
+  color: var(--lux-emerald-bright);
+}
+
+.lux-card-excerpt {
+  color: var(--lux-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-bottom: 1.8rem;
+  flex: 1;
+}
+
+.lux-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--lux-dim);
+}
+
+.lux-card-link {
+  color: var(--lux-emerald-bright);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.lux-card-link:hover {
+  color: #ffffff;
+}
+
+/* Article View */
+.lux-article-header {
+  text-align: center;
+  margin-bottom: 3.5rem;
+  padding-bottom: 2.5rem;
+  border-bottom: 1px solid var(--lux-border);
+}
+
+.lux-article-meta {
+  color: var(--lux-gold);
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 1.25rem;
+}
+
+.lux-article-title {
+  font-family: var(--font-serif);
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ffffff;
+  line-height: 1.25;
+}
+
+.lux-article-body {
+  font-size: 1.15rem;
+  line-height: 1.9;
+  color: #e2e8f0;
+}
+
+.lux-article-body p {
+  margin-bottom: 1.8rem;
+}
+
+.lux-article-body h2 {
+  font-family: var(--font-serif);
+  font-size: 1.8rem;
+  color: #ffffff;
+  margin: 3.5rem 0 1.2rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--lux-border);
+}
+
+.lux-article-body pre {
+  background: #020403;
+  border: 1px solid var(--lux-border);
+  padding: 1.4rem;
+  overflow-x: auto;
+  margin: 2rem 0;
+  color: var(--lux-emerald-bright);
+}
+
+/* Footer */
+footer.lux-footer {
+  border-top: 1px solid var(--lux-border);
+  padding: 3rem 1.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--lux-dim);
+  letter-spacing: 1px;
+}

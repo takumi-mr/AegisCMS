@@ -1,0 +1,15 @@
+{
+  "id": "emerald-luxury",
+  "name": "Emerald & Obsidian Studio",
+  "version": "1.0.0",
+  "description": "A prestigious, luxury dark theme combining deep obsidian blacks, lustrous emerald gradients, and brushed champagne gold accents.",
+  "author": {
+    "name": "Maison Aegis Design",
+    "url": "https://aegiscms.dev/creators/maison"
+  },
+  "license": "MIT",
+  "preview_image": "preview.svg",
+  "tags": ["luxury", "dark", "emerald", "gold", "portfolio"],
+  "homepage": "https://aegiscms.dev/themes/emerald-luxury",
+  "min_aegis_version": "0.1.0"
+}

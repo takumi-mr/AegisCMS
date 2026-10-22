@@ -1,0 +1,15 @@
+{
+  "id": "minimal-editorial",
+  "name": "Nordic Minimal Editorial",
+  "version": "1.0.0",
+  "description": "An elegant, publication-grade light theme inspired by Scandinavian literary journals, featuring exquisite serif typography and generous whitespace.",
+  "author": {
+    "name": "Kobenhavn Type Foundry",
+    "url": "https://aegiscms.dev/creators/kobenhavn"
+  },
+  "license": "MIT",
+  "preview_image": "preview.svg",
+  "tags": ["light", "minimal", "editorial", "journal", "typography"],
+  "homepage": "https://aegiscms.dev/themes/minimal-editorial",
+  "min_aegis_version": "0.1.0"
+}

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if title %}{{ title }} &bull; {% endif %}{{ site_title }}</title>
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Nordic Minimal Editorial Theme{% endif %}">
+  <link rel="stylesheet" href="/theme/assets/style.css">
+  {% if extra_css %}
+  <style>{{ extra_css }}</style>
+  {% endif %}
+  {{ extra_head | safe }}
+</head>
+<body>
+  <header class="ed-header">
+    <div class="ed-header-inner">
+      <a href="/" class="ed-brand">{{ site_title }}</a>
+      <nav class="ed-nav">
+        <a href="/" class="ed-nav-link">Journal</a>
+        <a href="/articles" class="ed-nav-link">Archives</a>
+        <a href="/admin" class="ed-admin-btn">Studio</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="ed-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="ed-footer">
+    <div class="ed-footer-inner">
+      <p>&copy; {{ site_title }}. Powered by <strong>AegisCMS</strong> Zero-Trust Engine.</p>
+    </div>
+  </footer>
+</body>
+</html>
