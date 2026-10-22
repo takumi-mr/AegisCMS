@@ -1,0 +1,36 @@
+{
+  // Admin Studio (admin/): format with Prettier on save using admin/.prettierrc.json
+  // (the extension resolves Prettier from admin/node_modules; run `npm --prefix admin install`)
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  // Only format when a Prettier config applies, so JSON outside admin/ is left untouched
+  "prettier.requireConfig": true,
+  // The extension looks for .prettierignore at the workspace root by default
+  "prettier.ignorePath": "admin/.prettierignore"
+}

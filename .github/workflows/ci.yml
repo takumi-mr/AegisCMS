@@ -53,6 +53,9 @@ jobs:
       - name: Install dependencies
         run: npm --prefix admin ci
 
+      - name: Check formatting (Prettier)
+        run: npm --prefix admin run format:check
+
       - name: Typecheck and build Admin Studio
         run: npm --prefix admin run build
 

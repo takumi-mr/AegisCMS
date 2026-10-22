@@ -116,6 +116,23 @@ TypeScript の型チェック（`tsc -b`）を実行後、最適化された静�
 npm run preview
 ```
 
+### 5. コードフォーマット (Prettier)
+
+```bash
+npm run format        # 整形を適用
+npm run format:check  # 整形済みか検証（CI でも実行）
+```
+
+設定は `.prettierrc.json`（シングルクォート、1 行 100 文字、ES5 の末尾カンマ）。インデントは `.editorconfig`（2 スペース）に従います。自動生成ファイル `src/types/schemas.ts` と Markdown は対象外です（`.prettierignore`）。
+
+**VS Code で保存時に自動整形する**: リポジトリ直下の `.vscode/settings.json` で、TS / TSX / JS / CSS / HTML / JSON の保存時に Prettier で整形するよう設定済みです。
+
+1. 推奨拡張機能 **Prettier - Code formatter**（`esbenp.prettier-vscode`）をインストール（`.vscode/extensions.json` に登録済みのため、開くと推奨表示されます）
+2. `npm install`（Prettier は `admin/node_modules` のものが使われ、バージョンが固定されます）
+3. リポジトリのルート（`AegisCMS/`）を VS Code で開く
+
+`prettier.requireConfig` を有効にしているため、Prettier 設定の無い `admin/` 外のファイル（`config/` 等の JSON）は整形されません。
+
 ---
 
 ## 🔗 関連リンク
