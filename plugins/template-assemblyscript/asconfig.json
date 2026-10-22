@@ -1,0 +1,26 @@
+{
+  "targets": {
+    "debug": {
+      "outFile": "build/debug.wasm",
+      "textFile": "build/debug.wat",
+      "sourceMap": true,
+      "debug": true,
+      "exportRuntime": true,
+      "exportMemory": true
+    },
+    "release": {
+      "outFile": "plugin.wasm",
+      "textFile": "build/release.wat",
+      "sourceMap": false,
+      "optimizeLevel": 3,
+      "shrinkLevel": 2,
+      "converge": true,
+      "noAssert": true,
+      "exportRuntime": true,
+      "exportMemory": true
+    }
+  },
+  "options": {
+    "bindings": "esm"
+  }
+}

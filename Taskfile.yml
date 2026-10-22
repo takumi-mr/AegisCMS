@@ -131,6 +131,19 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_template.wasm plugins/template-rust/plugin.wasm
         platforms: [linux, darwin]
 
+  plugin:build:as:
+    desc: AssemblyScript プラグインテンプレートを Wasm にビルドし plugins/template-assemblyscript/plugin.wasm を生成
+    cmds:
+      - npm --prefix plugins/template-assemblyscript run build
+
+  plugin:build:tinygo:
+    desc: TinyGo プラグインテンプレートを Wasm にビルドし plugins/template-tinygo/plugin.wasm を生成 (要 TinyGo 0.31+)
+    cmds:
+      - cmd: cmd /c "cd plugins\\template-tinygo && tinygo build -target=wasi -opt=z -no-debug -o plugin.wasm main.go"
+        platforms: [windows]
+      - cmd: "cd plugins/template-tinygo && tinygo build -target=wasi -opt=z -no-debug -o plugin.wasm main.go"
+        platforms: [linux, darwin]
+
 
   # ============================================================================
   # 🐳 Docker タスク

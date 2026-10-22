@@ -9,11 +9,16 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: コンテンツ公開機能 & テンプレートエンジン (`MiniJinja`)、プラグイン動的テーマ書き換え、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、Admin Studio ログイン画面、メディア削除機能 (`DELETE /api/v1/storage/objects/{key}`) & メディアライブラリ UI の実装が完了。
+- **現在のステータス**: 言語非依存 Wasm プラグイン共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)、AssemblyScript / TinyGo 向け公式プラグイン SDK & 開発テンプレート、MiniJinja テンプレートエンジン、プラグイン動的テーマ書き換え、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、Admin Studio ログイン画面、メディア削除機能 (`DELETE /api/v1/storage/objects/{key}`) & メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
-  - Rust ワークスペース全体 (`cargo test --workspace`) 100% 成功（全テストパス）。
+  - Rust ワークスペース全体 (`cargo test --workspace`) 成功。
   - コードフォーマット (`cargo fmt --check`) および Clippy ゼロ警告 (`cargo clippy --workspace -- -D warnings`) 達成。
   - フロントエンド本番ビルド (`npm --prefix admin run build`) および oxlint ゼロ警告達成。
+  - Wasm プラグインエコシステム:
+    - 言語非依存の共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)。
+    - AssemblyScript 公式テンプレート (`plugins/template-assemblyscript/`)、型定義、軽量 JSON パーサー/シリアライザ、ホスト API ラッパー。
+    - TinyGo 公式テンプレート (`plugins/template-tinygo/`)、`//go:wasmimport` ホスト API ラッパー、メモリ管理、GC 追跡保護、JSON シリアライズ。
+    - `Taskfile.yml` への `plugin:build:as` / `plugin:build:tinygo` ビルドタスク統合。
   - テンプレートエンジン & 公開配信 (`crates/aegis-theme` & `aegis-server`):
     - MiniJinja によるテンプレート描画、3層探索フォールバック。
     - `GET /`, `GET /articles`, `GET /articles/{slug}`, `GET /{slug}` による公開サイト配信。
@@ -30,8 +35,8 @@
     - Admin Studio メディアライブラリでの削除確認・使用中参照表示ダイアログ。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除は完了）**
-1. **SAML 2.0 認証プロバイダ**（OIDC は完了。SAML は XML 署名検証のネイティブ依存が重いため後回しで合意）。
+**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除、プラグイン SDK、Wasm 認証後フック（on-user-authenticated）、OIDC シングルサインオンは完了）**
+1. **SAML 2.0 認証プロバイダ**（SAML は XML 署名検証のネイティブ依存が重いため後回しで合意）。
 
 ---
 
@@ -40,6 +45,16 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### 公式プラグイン SDK & マルチ言語エコシステムの整備 (Completed)
+- [x] **言語非依存 Wasm プラグイン共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)**
+  - リニアメモリ・アロケーション規則・64bit パッキング・ホスト API・ライフサイクルフック・JSON 型定義の標準化。
+- [x] **AssemblyScript 向け公式プラグイン SDK & テンプレート (`plugins/template-assemblyscript`)**
+  - TypeScript / AssemblyScript 開発者向け SDK、マニフェスト、ビルド設定、サンプル実装。
+- [x] **TinyGo 向け公式プラグイン SDK & テンプレート (`plugins/template-tinygo`)**
+  - Go / TinyGo 開発者向け SDK (`//go:wasmimport`)、メモリ管理、マニフェスト、サンプル実装。
+- [x] **ガイド・リファレンスドキュメントの更新 & Taskfile ビルド連携**
+  - `docs/plugin_sdk_guide.md` へのマルチ言語開発ガイド追記、`Taskfile.yml` へのビルドタスク追加。
 
 #### 認証・認可基盤の完成
 - [x] **Wasm 認証後フック (`on-user-authenticated`)**: 資格情報の確認後・セッション発行前に `UserAuthContext`（provider / user_id / email / display_name / role / metadata）をプラグインに渡し、ロール・表示名・metadata の変更をセッションに反映。`Err` でログイン拒否（403、`session.create` denied）、失敗時もログイン失敗（500、`plugin.error`）。ロール変更は `details.role_mapped` に記録。外部 IdP 対応時もこのフックを通す（`auth::hook::run_auth_hook`）。
@@ -50,8 +65,6 @@
 
 ### 🔮 将来のロードマップ (Future)
 
-- [ ] **Wasm プラグイン向け AssemblyScript / TypeScript SDK テンプレート整備**
-  - TypeScript / AssemblyScript 開発者向けの公式 SDK およびテンプレートリポジトリの作成。
 - [ ] **PostgreSQL / libSQL 対応（分散ストレージモード）**
   - 分散 SQLite / libSQL (Turso) への対応検証およびクラスタリング環境の最適化。
 - [ ] **On-demand ISR / Cache-Tag Purge によるエッジキャッシュ制御**
@@ -67,6 +80,16 @@
   - ID 連携テーブルの subject は `oidc_subject(issuer, sub)`（`{issuer}#{sub}`、末尾 `/` を除去）。Issuer を変えると既存の紐付けは使えなくなる。
   - トークンエンドポイントの認証は `client_secret_basic`（IdP が `token_endpoint_auth_methods_supported` で basic を挙げない場合のみ `client_secret_post`）。
   - テストは `auth::oidc_mock::MockIdp`（テスト内で起動する axum の IdP。鍵は起動ごとに P-256 を生成し、秘密鍵はリポジトリに置かない）。E2E は Python の簡易 IdP（対話フォーム付き）で確認した。
+- **マルチ言語 Wasm プラグイン SDK 設計 (`docs/plugin_abi_specification.md`)**:
+  - ホストとゲスト間は 32bit リニアメモリおよび `(ptr << 32) | len` の 64bit パック整数で疎結合に連携します。
+  - **AssemblyScript テンプレート (`plugins/template-assemblyscript/`)**:
+    - `heap.alloc` によるアロケータ (`allocate(len: i32) -> i32`)、`String.UTF8` による文字列変換、外部 npm 依存なしのゼロ依存 JSON パーサー/シリアライザ (`assembly/sdk/json.ts`) を同梱。
+    - ホスト API は `@external("host", ...)` でバインド。
+  - **TinyGo テンプレート (`plugins/template-tinygo/`)**:
+    - Go 1.21+ / TinyGo の `//go:wasmimport host <func>` ディレクティブにより型安全にホスト関数をインポート。
+    - ホストから渡されたメモリバッファが TinyGo GC により回収されないよう、`allocatedBuffers` マップによるポインタ追跡保護機構を内蔵。
+    - Go 標準の `encoding/json` により柔軟に `PostContext` / `BlockNode` を構造体マッピング。
+  - `Taskfile.yml` に `plugin:build:as` および `plugin:build:tinygo` を追加し、ワンコマンドでのビルドに対応。
 - **認証後フック (`auth::hook::run_auth_hook`)**:
   - プロバイダに依存しない形で `AuthIdentity` を受け取り返すので、OIDC / SAML のコールバックからも同じ関数を呼ぶ。`provider` / `user_id` は変更不可（ユーザーのなりすましを防ぐ）、`role` は `auth::ROLES` のみ許可。
   - フックの拒否・失敗はログイン試行の失敗回数に数えない（`login_limiter.record_success` は資格情報確認の直後に呼ぶ）。失敗時にログインを通す（fail-open）と、プラグインで実装したアクセス制限を障害で迂回できてしまうため、失敗も拒否として扱う。
@@ -128,7 +151,10 @@
   - `on_before_save` の結果 JSON は `PostContext` か `{"error": "<メッセージ>"}`（`abi::write_error_to_host`）。ホストは `error` キーを持つオブジェクトを拒否として扱う（`PostContext` に `error` フィールドは無いので既存プラグインと互換）。入力 JSON のパース失敗も拒否にしている（検証フックが黙って素通りしないように）。
   - `transform_content_ast` / `on_render_page` で `Err` を返した場合は、これまでどおりエラーログを出して入力をそのまま返す（そのプラグインの変更だけが無効になる）。これらで処理全体を失敗させたくなった場合は同じエンベロープを使える。
   - `plugins/template-rust/plugin.wasm` は SDK 変更後に `task plugin:build` で再ビルドしてコミットする（`plugins/slack-notifier/plugin.wasm` は手書き WAT から生成されるため SDK とは無関係）。
-  - Wasm 32bit リニアメモリ上では生ポインタ（`*mut u8` as `i32`）として動作し、64bit ネイティブ環境での `cargo test` 時にはポインタ上位 32bit の消失を防ぐため ID ハンドルマッピング機構を内蔵しています。これによりプラグイン開発者は Wasm ターゲットを意識せずローカルで高速にテスト可能です。
+- **AssemblyScript プラグイン開発と TypeScript/IDE 型定義**:
+  - AssemblyScript の独自型（`i32`, `i64`, `f32`, `bool` 等）は、`assemblyscript/std/assembly.json` の型定義 (`declare type i32 = number`) を介して IDE に認識されます。
+  - `tsconfig.json` には TS 6.0 以降の非推奨オプションエラー (`TS5101`) を回避するための `"ignoreDeprecations": "6.0"` が必要です。
+  - 公式規約に従い `assembly/tsconfig.json` とプロジェクトルートの `tsconfig.json` を整備し、ホストインポート関数のデコレータ (`@external`) には `// @ts-ignore` を付与して標準 TSServer との互換性を確保しています。
 - **ステートレスセッション & キャッシュ設計**:
   - セッションデータは `SessionData` として JSON 直列化され、抽象化された `CacheBackend` に格納されます。
   - セッショントークンは `ses_{UUIDv4}` 形式で発行され、HTTP リクエストの `Authorization: Bearer <token>` または `X-Session-Id` ヘッダーから抽出されます。
