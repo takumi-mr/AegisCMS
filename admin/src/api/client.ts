@@ -2,6 +2,7 @@ import type {
   AuditLogPage,
   AuditLogQuery,
   ContentItem,
+  CreateCategoryPayload,
   CreateContentPayload,
   SchemaDefinition,
 } from '../types';
@@ -43,7 +44,14 @@ export const aegisApi = {
     return res.json();
   },
 
-  async createContent(contentType: string, payload: CreateContentPayload): Promise<ContentItem> {
+  async createCategory(payload: CreateCategoryPayload): Promise<ContentItem> {
+    return this.createContent('category', payload);
+  },
+
+  async createContent(
+    contentType: string,
+    payload: CreateContentPayload | CreateCategoryPayload
+  ): Promise<ContentItem> {
     const res = await fetch(`${API_BASE}/contents/${contentType}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

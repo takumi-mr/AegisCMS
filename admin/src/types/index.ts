@@ -19,8 +19,22 @@ export interface SchemaDefinition {
   fields: FieldDefinition[];
 }
 
-// Backward compatibility alias for generic content lists
-export type ContentItem = import('./schemas').BaseContentItem;
+/** Related item resolved by the server for a `relation` field (`relations` in API responses) */
+export interface ResolvedRelation {
+  id: string;
+  content_type: string;
+  title: string;
+  slug: string;
+}
+
+/**
+ * Content item as returned by the content API.
+ * Schema-specific custom fields are returned under `fields` and resolved relations under `relations`.
+ */
+export type ContentItem = import('./schemas').BaseContentItem & {
+  fields?: Record<string, unknown>;
+  relations?: Record<string, ResolvedRelation>;
+};
 export type CreateContentPayload = import('./schemas').CreateArticlePayload;
 
 export type AuditAction =

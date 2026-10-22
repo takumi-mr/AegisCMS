@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Hash, AlignLeft, Code2, Image as ImageIcon, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Hash, AlignLeft, Code2, Image as ImageIcon, CheckCircle2, AlertCircle, Tags } from 'lucide-react';
 import { Header, type AppView } from './components/Header';
 import { AuditLogView } from './components/AuditLogView';
+import { CategoryManager } from './components/CategoryManager';
 import { ContentList } from './components/ContentList';
 import { BlockItem } from './components/BlockItem';
 import { Preview } from './components/Preview';
@@ -14,6 +15,9 @@ export const App: React.FC = () => {
   const [contentType] = useState<string>('article');
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<ContentItem[]>([]);
+  const [categoryId, setCategoryId] = useState<string>('');
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState<boolean>(false);
 
   // Editor Form State
   const [title, setTitle] = useState<string>('Next-Gen WebAssembly CMS with Aegis');
@@ -45,6 +49,14 @@ export const App: React.FC = () => {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const loadCategories = async () => {
+    try {
+      setCategories(await aegisApi.getContents('category'));
+    } catch (err) {
+      console.warn('Could not load categories:', err);
+    }
+  };
+
   // 1. Initial health and data loading
   useEffect(() => {
     const checkServer = async () => {
@@ -52,6 +64,7 @@ export const App: React.FC = () => {
         await aegisApi.checkHealth();
         setIsOnline(true);
         loadContents();
+        loadCategories();
       } catch (e) {
         setIsOnline(false);
       }
@@ -70,12 +83,20 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleCategoryCreated = (category: ContentItem) => {
+    setCategories((prev) => [category, ...prev.filter((c) => c.id !== category.id)]);
+    setCategoryId(category.id);
+    showToast(`Category "${category.title}" created`);
+  };
+
   const handleSelectContent = (item: ContentItem) => {
     setSelectedId(item.id);
     setTitle(item.title);
     setSlug(item.slug);
     setStatus(item.status === 'published' ? 'published' : 'draft');
     setBlocks(item.blocks || []);
+    const itemCategory = item.fields?.category_id;
+    setCategoryId(typeof itemCategory === 'string' ? itemCategory : '');
   };
 
   const handleNew = () => {
@@ -83,6 +104,7 @@ export const App: React.FC = () => {
     setTitle('Untitled Document');
     setSlug(`untitled-${Date.now().toString(36)}`);
     setStatus('draft');
+    setCategoryId('');
     setBlocks([
       { name: 'core/heading', attributes: { level: 2 }, text: 'New Heading' },
       { name: 'core/paragraph', attributes: {}, text: '' },
@@ -132,6 +154,8 @@ export const App: React.FC = () => {
         status,
         blocks,
         author_id: 'usr_takumi',
+        // Omit the relation entirely when no category is selected
+        ...(categoryId ? { category_id: categoryId } : {}),
       });
 
       showToast(`Saved! Wasm plugin hooks executed successfully (ID: ${saved.id.slice(0, 8)})`);
@@ -212,6 +236,35 @@ export const App: React.FC = () => {
                   </select>
                 </div>
               </div>
+
+              <div className="meta-row">
+                <div className="input-field">
+                  <span className="input-prefix">category:</span>
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    aria-label="Category"
+                  >
+                    <option value="">No category</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.title}
+                      </option>
+                    ))}
+                    {categoryId && !categories.some((c) => c.id === categoryId) && (
+                      <option value={categoryId}>Unknown category ({categoryId.slice(0, 8)})</option>
+                    )}
+                  </select>
+                </div>
+                <button
+                  className="tool-btn"
+                  onClick={() => setIsCategoryManagerOpen(true)}
+                  title="List and create categories"
+                >
+                  <Tags size={14} />
+                  <span>Manage</span>
+                </button>
+              </div>
             </div>
 
             {/* Block Insertion Toolbar */}
@@ -286,6 +339,14 @@ export const App: React.FC = () => {
           <Preview title={title} blocks={blocks} />
         </main>
       </div>
+      )}
+
+      {isCategoryManagerOpen && (
+        <CategoryManager
+          categories={categories}
+          onCreated={handleCategoryCreated}
+          onClose={() => setIsCategoryManagerOpen(false)}
+        />
       )}
 
       {/* Toast Feedback */}
