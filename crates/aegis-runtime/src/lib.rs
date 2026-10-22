@@ -104,6 +104,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_wasm_before_save_rejection() {
+        let engine = WasmEngine::new().expect("WasmEngine initialization failed");
+        let kv = Arc::new(Mutex::new(HashMap::new()));
+
+        // on_before_save always returns {"error": "title is required"} (what the SDK writes for Err)
+        let body = r#"{"error":"title is required"}"#;
+        let wat_src = format!(
+            r#"
+        (module
+            (memory (export "memory") 1)
+            (data (i32.const 1024) "{data}")
+            (func (export "allocate") (param $len i32) (result i32)
+                i32.const 16
+            )
+            (func (export "on_before_save") (param $ptr i32) (param $len i32) (result i64)
+                (i64.or (i64.shl (i64.const 1024) (i64.const 32)) (i64.const {len}))
+            )
+        )
+        "#,
+            data = body.replace('"', "\\22"),
+            len = body.len()
+        );
+        let wasm_bytes = wat::parse_str(&wat_src).expect("WAT parse failed");
+        let manifest = make_sample_manifest(vec!["on-before-save".to_string()]);
+        let instance = WasmPluginInstance::from_bytes(engine, manifest, &wasm_bytes, kv)
+            .expect("Instance creation failed");
+
+        let post = PostContext {
+            id: "uuid-1234".to_string(),
+            title: String::new(),
+            slug: "untitled".to_string(),
+            author_id: "takumi".to_string(),
+            blocks_json: "[]".to_string(),
+        };
+        match instance.on_before_save(post).await {
+            Err(aegis_core::AegisError::PluginRejected(message)) => {
+                assert!(message.ends_with(": title is required"), "{}", message);
+            }
+            other => panic!("expected a rejection, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
     async fn test_wasm_ast_transform_hook() {
         let engine = WasmEngine::new().expect("WasmEngine initialization failed");
         let kv = Arc::new(Mutex::new(HashMap::new()));

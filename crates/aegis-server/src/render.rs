@@ -22,8 +22,7 @@ pub struct TransformedBlocks {
 /// Save-time transforms: the built-in AST pipeline (heading ids), then every plugin's
 /// `transform-content-ast` hook
 pub async fn transform_blocks(state: &AppState, blocks: Vec<BlockNode>) -> TransformedBlocks {
-    let pipeline = AstPipeline::new().add(HeadingIdTransformer);
-    let blocks = pipeline.execute(blocks);
+    let blocks = builtin_transforms(blocks);
 
     let supervisor = state.supervisor.read().await;
     match supervisor.apply_ast_transforms(blocks.clone()).await {
@@ -36,6 +35,12 @@ pub async fn transform_blocks(state: &AppState, blocks: Vec<BlockNode>) -> Trans
             plugin_error: Some(e.to_string()),
         },
     }
+}
+
+/// The built-in AST pipeline alone (heading ids). Idempotent: it only fills in what is missing,
+/// so it can run again on blocks a plugin changed in `on-before-save`
+pub fn builtin_transforms(blocks: Vec<BlockNode>) -> Vec<BlockNode> {
+    AstPipeline::new().add(HeadingIdTransformer).execute(blocks)
 }
 
 /// Renders stored (already transformed) blocks to the HTML the public site shows:

@@ -94,9 +94,15 @@ impl Plugin for MyPlugin {
             log_info!("Slack webhook is authorized");
         }
 
+        // 検証: Err を返すと保存は中止され、API は 422 でメッセージを返す
+        if post.title.is_empty() {
+            return Err(PluginError::Rejected("title is required".to_string()));
+        }
+
         // KVS に状態を永続化
         kv::set("last_saved_slug", &post.slug)?;
 
+        // 返した title / slug / blocks_json が保存される
         Ok(post)
     }
 
@@ -214,7 +220,7 @@ Rust 以外の言語（AssemblyScript, C/C++, TinyGo 等）でプラグインを
 2. **`allocate(len: i32) -> i32`**: ホストがゲストメモリにデータを書き込むためのバッファ確保関数。確保先アドレスのポインタ（`ptr`）を返す。
 3. **`on_before_save(ptr: i32, len: i32) -> i64`** (オプション):
    - 引数: `PostContext` の JSON 文字列が配置された `(ptr, len)`。
-   - 戻り値: 結果 JSON のポインタと長さをパックした 64bit 整数 `(ptr << 32) | len`。
+   - 戻り値: 結果 JSON のポインタと長さをパックした 64bit 整数 `(ptr << 32) | len`。結果 JSON は更新後の `PostContext`（`title` / `slug` / `blocks_json` の変更が保存される）、または保存を拒否する `{"error": "<メッセージ>"}`。
 4. **`transform_content_ast(ptr: i32, len: i32) -> i64`** (オプション):
    - 引数: `BlockNode[]` の JSON 配列が配置された `(ptr, len)`。
    - 戻り値: 変換後 `BlockNode[]` の JSON の `(ptr << 32) | len`。

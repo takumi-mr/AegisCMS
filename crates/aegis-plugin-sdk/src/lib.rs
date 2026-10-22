@@ -25,7 +25,10 @@ macro_rules! register_plugin {
                     Ok(p) => p,
                     Err(e) => {
                         $crate::log_error!("Failed to deserialize PostContext: {}", e);
-                        return $crate::abi::pack_ptr_len(ptr, len);
+                        return $crate::abi::write_error_to_host(&::std::format!(
+                            "Invalid PostContext: {}",
+                            e
+                        ));
                     }
                 };
 
@@ -35,12 +38,15 @@ macro_rules! register_plugin {
                         Ok(out_bytes) => $crate::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             $crate::log_error!("Failed to serialize updated PostContext: {}", e);
-                            $crate::abi::pack_ptr_len(ptr, len)
+                            $crate::abi::write_error_to_host(&::std::format!(
+                                "Failed to serialize PostContext: {}",
+                                e
+                            ))
                         }
                     },
                     Err(e) => {
-                        $crate::log_error!("Plugin on_before_save error: {}", e);
-                        $crate::abi::pack_ptr_len(ptr, len)
+                        // ホストは保存を中止する
+                        $crate::abi::write_error_to_host(&e.to_string())
                     }
                 }
             }
@@ -162,6 +168,17 @@ mod tests {
         let updated_ctx = plugin.on_render_page(ctx).unwrap();
         assert_eq!(updated_ctx.site_title, "My Site (Themed)");
         assert!(updated_ctx.extra_css.contains("#00ffcc"));
+    }
+
+    #[test]
+    fn test_block_attributes_may_be_null() {
+        // What the host sends for a block saved without attributes
+        let blocks: Vec<BlockNode> = serde_json::from_str(
+            r#"[{"name":"core/paragraph","attributes":null,"children":[],"text":"Body"}]"#,
+        )
+        .unwrap();
+        assert!(blocks[0].attributes.is_empty());
+        assert_eq!(blocks[0].text.as_deref(), Some("Body"));
     }
 
     #[test]

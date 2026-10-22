@@ -107,6 +107,25 @@ impl WasmPluginInstance {
     }
 }
 
+/// Reads what `on_before_save` returned: the (possibly updated) `PostContext`, or
+/// `{"error": "<message>"}` when the plugin rejects the save (`abi::write_error_to_host` in the SDK)
+fn parse_before_save_output(plugin: &str, out_bytes: &[u8]) -> Result<PostContext> {
+    let value: serde_json::Value = serde_json::from_slice(out_bytes)
+        .map_err(|e| AegisError::Serialization(format!("Invalid PostContext returned: {}", e)))?;
+    if let Some(error) = value.get("error") {
+        let message = error
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| error.to_string());
+        return Err(AegisError::PluginRejected(format!(
+            "{}: {}",
+            plugin, message
+        )));
+    }
+    serde_json::from_value(value)
+        .map_err(|e| AegisError::Serialization(format!("Invalid PostContext returned: {}", e)))
+}
+
 #[async_trait]
 impl AegisPlugin for WasmPluginInstance {
     fn manifest(&self) -> &PluginManifest {
@@ -149,11 +168,7 @@ impl AegisPlugin for WasmPluginInstance {
 
             if res_len > 0 {
                 let out_bytes = Self::read_from_guest(&mut store, &instance, res_ptr, res_len)?;
-                let updated_post: PostContext =
-                    serde_json::from_slice(&out_bytes).map_err(|e| {
-                        AegisError::Serialization(format!("Invalid PostContext returned: {}", e))
-                    })?;
-                return Ok(updated_post);
+                return parse_before_save_output(&self.manifest.name, &out_bytes);
             }
         }
 

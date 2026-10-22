@@ -20,6 +20,10 @@ pub enum AegisError {
     #[error("Plugin runtime error: {0}")]
     PluginRuntime(String),
 
+    /// A plugin turned the input down (`on-before-save` returned an error), as opposed to failing
+    #[error("Rejected by plugin: {0}")]
+    PluginRejected(String),
+
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
 
