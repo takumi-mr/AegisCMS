@@ -10,10 +10,10 @@ import {
   Search,
 } from 'lucide-react';
 import { aegisApi, ApiError } from '../api/client';
+import { getSessionToken, setSessionToken } from '../api/session';
 import type { AuditEvent, AuditLogPage, AuditLogQuery } from '../types';
 
 const PAGE_SIZE = 50;
-const TOKEN_STORAGE_KEY = 'aegis.auditSessionToken';
 
 const ACTIONS = [
   'content.create',
@@ -45,24 +45,6 @@ const EMPTY_FILTERS: Filters = {
   until: '',
 };
 
-// sessionStorage can be unavailable (private mode, blocked storage); the token is a convenience only
-const readStoredToken = (): string => {
-  try {
-    return sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? '';
-  } catch {
-    return '';
-  }
-};
-
-const storeToken = (token: string) => {
-  try {
-    if (token) sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
-    else sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-  } catch {
-    // ignore
-  }
-};
-
 /** Converts a `datetime-local` value (local time, no zone) to an RFC 3339 UTC timestamp */
 const toRfc3339 = (localValue: string): string | undefined =>
   localValue ? new Date(localValue).toISOString() : undefined;
@@ -89,8 +71,8 @@ const describeError = (err: unknown): string => {
 };
 
 export const AuditLogView: React.FC = () => {
-  const [tokenInput, setTokenInput] = useState<string>(readStoredToken);
-  const [token, setToken] = useState<string>(readStoredToken);
+  const [tokenInput, setTokenInput] = useState<string>(getSessionToken);
+  const [token, setToken] = useState<string>(getSessionToken);
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [offset, setOffset] = useState<number>(0);
@@ -126,7 +108,7 @@ export const AuditLogView: React.FC = () => {
     if (!token) return;
     let cancelled = false;
     aegisApi
-      .getAuditLogs(token, query)
+      .getAuditLogs(query)
       .then((loaded) => ({ page: loaded, error: null }))
       .catch((err: unknown) => ({ page: null, error: describeError(err) }))
       .then((outcome) => {
@@ -142,7 +124,7 @@ export const AuditLogView: React.FC = () => {
   const handleConnect = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = tokenInput.trim();
-    storeToken(trimmed);
+    setSessionToken(trimmed);
     setToken(trimmed);
     setOffset(0);
   };
@@ -187,11 +169,11 @@ export const AuditLogView: React.FC = () => {
             <KeyRound size={14} className="input-prefix" />
             <input
               type="password"
-              placeholder="Admin session token (ses_...)"
+              placeholder="Session token (ses_...)"
               value={tokenInput}
               onChange={(e) => setTokenInput(e.target.value)}
               autoComplete="off"
-              aria-label="Admin session token"
+              aria-label="Session token"
             />
           </div>
           <button type="submit" className="btn btn-secondary">
@@ -270,8 +252,8 @@ export const AuditLogView: React.FC = () => {
 
         {!token && (
           <div className="audit-notice">
-            Enter an admin session token to read audit logs. Reading requires a session whose
-            role is <code>admin</code>.
+            Enter a session token to read audit logs. Reading requires a session whose role is{' '}
+            <code>admin</code>. The token is also used by the editor for every API request.
           </div>
         )}
         {error && <div className="audit-notice error">{error}</div>}

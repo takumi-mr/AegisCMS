@@ -20,16 +20,25 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `disabled` | `1` ならログイン不可 |
 | `created_at` / `updated_at` | RFC 3339 (UTC) |
 
-### ロール
+### ロールと API の権限
 
-| ロール | 現在の用途 |
+ロールは `admin` ⊃ `editor` ⊃ `viewer` の包含関係です（上位ロールは下位ロールの操作をすべて行える）。
+
+| API | 必要なロール |
 | --- | --- |
-| `admin` | 監査ログの参照（`GET /api/v1/audit-logs`） |
-| `editor` | — |
-| `viewer` | — |
+| `GET /api/v1/health`, `GET /api/v1/openapi.json`, `/metrics` | 不要（公開） |
+| 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
+| `POST /api/v1/auth/session`（ログイン）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッションで判定） |
+| `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}` | `viewer` |
+| `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
+| `GET /api/v1/storage/objects` | `viewer` |
+| `POST /api/v1/contents/{type}` | `editor` |
+| `POST /api/v1/storage/upload` | `editor` |
+| `GET /api/v1/audit-logs` | `admin` |
 
-> [!WARNING]
-> 現時点でロールを確認しているのは監査ログ API だけです。コンテンツ作成・アップロードなど他の API はまだ認証なしで呼び出せます（TODO.md の「認証プロバイダ」項目で対応予定）。
+- セッションが無い・無効・期限切れなら `401`、ロールが足りなければ `403` を返します。
+- コンテンツ作成時の `author_id` は省略するとログインユーザー（`user_id`）になります。他のユーザーを `author_id` に指定できるのは `admin` だけです（それ以外は `403`）。
+- `/metrics`（Prometheus）は監視系からの取得を想定して公開のままです。外部に公開する場合はリバースプロキシなどでアクセス元を制限してください。
 
 ---
 

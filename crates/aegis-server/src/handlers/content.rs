@@ -11,6 +11,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::audit::AuditContext;
+use crate::auth::authorize::{role_level, RequireRole, ADMIN};
+use crate::auth::{EditorSession, ViewerSession};
 use crate::db::{is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation};
 use crate::state::AppState;
 use aegis_ast::{
@@ -91,10 +93,23 @@ async fn resolve_relations_for_item(
 
 pub async fn create_content(
     State(state): State<Arc<AppState>>,
+    RequireRole(session): EditorSession,
     Path(content_type): Path<String>,
     audit: AuditContext,
-    Json(payload): Json<CreateContentRequest>,
+    Json(mut payload): Json<CreateContentRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    // 著者は既定でログインユーザー。他人を著者にできるのは admin のみ
+    match &payload.author_id {
+        None => payload.author_id = Some(session.user_id.clone()),
+        Some(author) if author != &session.user_id && role_level(&session.role) < ADMIN => {
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(json!({ "error": "Only admins can set another user as the author" })),
+            ));
+        }
+        Some(_) => {}
+    }
+
     let schema_clone = {
         let schemas = state.schemas.read().await;
         let schema = schemas.get(&content_type).ok_or_else(|| {
@@ -291,6 +306,7 @@ pub async fn create_content(
 
 pub async fn list_content(
     State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
     Path(content_type): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let schema_clone = {
@@ -346,6 +362,7 @@ pub async fn list_content(
 
 pub async fn get_content(
     State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
     Path((content_type, slug_or_id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let schema_clone = {

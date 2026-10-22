@@ -1,3 +1,4 @@
+pub mod authorize;
 pub mod local;
 pub mod password;
 pub mod session;
@@ -9,6 +10,7 @@ use sha2::{Digest, Sha256};
 #[allow(unused_imports)]
 pub use session::{SessionData, SessionService};
 
+pub use authorize::{AdminSession, EditorSession, ViewerSession};
 pub use local::LocalAuthProvider;
 
 /// システムロール（権限の強い順）

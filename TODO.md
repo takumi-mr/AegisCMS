@@ -29,10 +29,9 @@
     - `ThemeEngine::register_template`: プラグインからのテンプレート動的完全オーバーライド。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①②は完了**
-1. **③ API の認可**: 書き込み系 API（`POST /api/v1/contents/*`、`POST /api/v1/storage/upload`）と管理系 API にセッション・ロールの検証を入れる（axum の extractor `RequireRole` などで共通化）。どのロールに何を許すか（例: `viewer` は読み取りのみ、`editor` は作成・アップロード、`admin` は全て）を決める。
-2. **④ Admin Studio のログイン画面**: ユーザー名 / パスワードでログインし、トークンを保持して API に付与。監査ログ画面の手動トークン入力を置き換える。
-3. ⑤ `on_user_authenticated` フック、OIDC / SAML プロバイダ。
+**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①②③は完了**
+1. **④ Admin Studio のログイン画面**（最優先）: ③で API がセッション必須になったため、現状の Admin Studio は Audit Logs 画面でトークンを手動 Connect しないとエディタが空になる。ユーザー名 / パスワードのログイン画面（未ログイン時は全画面で表示）、ログアウト、401 時のログイン画面への復帰、ログインユーザー名・ロールのヘッダー表示を追加し、Audit Logs 画面のトークン入力を削除する。ロールに応じて Save / アップロード / Audit Logs タブを無効化する。
+2. ⑤ `on_user_authenticated` フック、OIDC / SAML プロバイダ。
 4. その他の未着手: `on-before-save` フックの戻り値の扱い、メディアの削除 API / UI、ログイン試行のレート制限。
 
 ---
@@ -186,7 +185,8 @@
   - [x] ローカル認証プロバイダ `LocalAuthProvider`（`_aegis_users` テーブル: SQLite / PostgreSQL / MySQL、Argon2id パスワードハッシュ、存在しないユーザーへのダミー検証でタイミング差を抑制、無効化アカウント）
   - [x] `POST /api/v1/auth/session` を認証必須に変更（ユーザー名 / パスワード。ロールはアカウントから決定し、リクエストで指定不可。`ttl_secs` は `[cache].default_ttl_secs` が上限。失敗理由は応答では区別せず監査ログにのみ記録）
   - [x] CLI `aegis user add|passwd|role|disable|enable|list`（パスワードは `AEGIS_USER_PASSWORD` / 非表示プロンプト / 標準入力）、`docs/authentication.md`
-  - [ ] API の認可（書き込み系・管理系 API でセッションとロールを検証）
+  - [x] API の認可: extractor `RequireRole`（`ViewerSession` / `EditorSession` / `AdminSession`、401 / 403）で、閲覧 API は `viewer`、コンテンツ作成・アップロードは `editor`、監査ログは `admin` 以上を要求。`author_id` の既定をログインユーザーにし、他人の指定は `admin` のみ。Admin Studio はトークンを全 API に付与
+  - [ ] 権限拒否（401 / 403）の監査ログ記録
   - [ ] Admin Studio のログイン画面
   - [ ] ログイン試行のレート制限・アカウントロック
   - [ ] 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信は Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装
@@ -207,6 +207,7 @@
 - **ローカル認証 (`docs/authentication.md`)**:
   - セッションの `user_id` はユーザー名（変更不可）で、監査ログの actor もユーザー名になります。ユーザーの改名機能を作る場合はこの前提を見直してください。
   - ロール変更・無効化・パスワード変更は発行済みセッションに反映されません（セッションはキャッシュにのみ保存され、ユーザーとの紐付け索引が無いため）。即時失効が必要になったら、ユーザー単位のセッション索引か、リクエストごとのユーザー状態確認を追加します。
+  - ロールの包含関係（`admin` ⊃ `editor` ⊃ `viewer`）は `auth::authorize::role_level` で一元管理しています。API に権限を付けるときはハンドラーの引数に `ViewerSession` / `EditorSession` / `AdminSession` を追加します（Body を読む extractor より前に置く）。`/metrics` は監視系のため公開のままです。
   - 以前の `POST /api/v1/auth/session`（`{"user_id", "role"}` で誰でも任意ロールのセッションを発行できた）は廃止。この形式は 422 になります。
 - **メディア一覧 API (`GET /api/v1/storage/objects`)**:
   - ストレージ側に並び順・絞り込みの機能が無いため、サーバーは最大 10,000 件（`MAX_LIST_SCAN`）を走査してからメモリ上で絞り込み・新しい順の並び替え・ページングを行います。超過時はレスポンスの `truncated: true` で通知します（`q` / `content_type` は走査後の絞り込みなので、超過分を探すには `prefix` を使う）。

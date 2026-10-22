@@ -121,7 +121,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 | ステータス | 条件 |
 | --- | --- |
 | `401` | セッションヘッダーが無い、またはセッションが無効 |
-| `403` | セッションのロールが `admin` ではない |
+| `403` | セッションのロールが `admin` ではない（API ごとの必要ロールは [認証 & ユーザー管理](authentication.md#ロールと-api-の権限)） |
 | `400` | 不正な `action` / `outcome` / 日時 |
 | `404` | `database` 出力先が無効 |
 
@@ -151,7 +151,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 Admin Studio（`/admin`）のヘッダーで **Audit Logs** に切り替えると、監査ログを閲覧できます。
 
 - **認証**: `admin` ロールのセッショントークン（`ses_...`）を入力して **Connect** を押します。トークンはブラウザのタブを閉じるまで `sessionStorage` に保持します。
-  - Admin Studio にはまだログイン画面が無いため、`admin` ユーザーでログインして発行したトークンを貼り付けてください（ユーザーの作成は [認証 & ユーザー管理](authentication.md)）:
+  - Admin Studio にはまだログイン画面が無いため、ログインして発行したトークンを貼り付けてください。このトークンはエディタなど Admin Studio のすべての API 呼び出しにも使われます（ユーザーの作成は [認証 & ユーザー管理](authentication.md)）:
     ```bash
     curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
       -H 'Content-Type: application/json' -d '{"username":"admin","password":"change-me-please"}'

@@ -31,6 +31,9 @@
 - **監査ログ閲覧画面 (Audit Logs)**:
   - ヘッダーの切り替えで、監査ログ（`GET /api/v1/audit-logs`）を一覧表示。action / outcome / actor / resource / 期間での絞り込み、ページ送り、イベント詳細（JSON）の展開に対応。
   - 閲覧には `admin` ロールのセッショントークンが必要（詳細は [監査ログリファレンス](../docs/audit.md#6-admin-studio-の閲覧画面)）。
+- **API 認証**:
+  - サーバーの API はセッションが必須です（閲覧 `viewer`、作成・アップロード `editor`、監査ログ `admin`。[認証 & ユーザー管理](../docs/authentication.md)）。
+  - Audit Logs 画面で **Connect** したトークンを `sessionStorage` に保持し、すべての API 呼び出しに `Authorization: Bearer` として付与する（ログイン画面は今後追加予定）。
 - **Core Engine との透過的連携**:
   - スキーマ一覧（`/api/v1/schemas`）および記事一覧・詳細・作成（`/api/v1/contents/{content_type}`）とのリアルタイム同期。
   - バックエンドサーバーのヘルスチェック（`/api/v1/health`）による接続ステータス表示。
