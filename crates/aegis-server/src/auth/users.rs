@@ -106,6 +106,24 @@ pub async fn set_disabled(db: &dyn DatabaseAdapter, username: &str, disabled: bo
     db.update_user(&user).await
 }
 
+/// 既存のユーザーを外部 IdP のアカウント（Issuer + `sub`）に紐付ける。
+/// `[auth.oidc].auto_create_users = false` の運用や、IdP と同名のローカルユーザーを使い続けるために使う
+pub async fn link_identity(
+    db: &dyn DatabaseAdapter,
+    username: &str,
+    provider: &str,
+    subject: &str,
+) -> Result<()> {
+    find_user(db, username).await?;
+    if let Some(linked) = db.get_identity_link(provider, subject).await? {
+        return Err(AegisError::Validation(format!(
+            "This {} account is already linked to user '{}'",
+            provider, linked
+        )));
+    }
+    db.insert_identity_link(provider, subject, username).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

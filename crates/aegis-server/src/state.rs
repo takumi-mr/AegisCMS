@@ -25,6 +25,19 @@ pub struct AppState {
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
     pub audit: Arc<AuditService>,
     pub theme: Arc<ThemeEngine>,
+    /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
+    pub oidc: Option<OidcLogin>,
+}
+
+/// OpenID Connect ログインの設定済みプロバイダと、ログイン画面・リダイレクトに使う値
+#[derive(Clone)]
+pub struct OidcLogin {
+    /// `initiate_login` で IdP への URL を作り、`authenticate` でコールバックを検証する
+    pub provider: Arc<dyn AuthProvider>,
+    /// ログイン画面のボタンに表示する名前
+    pub display_name: String,
+    /// ログイン後（成功・失敗とも）に戻る Admin Studio の URL
+    pub post_login_redirect: String,
 }
 
 impl AppState {
@@ -54,6 +67,13 @@ impl AppState {
             supervisor: Arc::new(RwLock::new(supervisor)),
             audit,
             theme,
+            oidc: None,
         }
+    }
+
+    /// OpenID Connect ログインを有効にする
+    pub fn with_oidc(mut self, oidc: OidcLogin) -> Self {
+        self.oidc = Some(oidc);
+        self
     }
 }

@@ -12,9 +12,11 @@ use std::sync::Arc;
 use crate::audit::{AuditContext, ClientIp};
 use crate::auth::hook::{run_auth_hook, RESERVED_METADATA_KEYS};
 use crate::auth::local::PASSWORD_CREDENTIALS;
-use crate::auth::{extract_session_id, session_fingerprint};
+use crate::auth::{extract_session_id, session_fingerprint, SessionData};
 use crate::state::AppState;
-use aegis_core::{AegisError, AuditAction, AuditActor, AuditOutcome, AuthCredentials};
+use aegis_core::{
+    AegisError, AuditAction, AuditActor, AuditOutcome, AuthCredentials, AuthIdentity,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateSessionRequest {
@@ -136,11 +138,44 @@ pub async fn create_session(
         tracing::warn!("Failed to reset login failures: {}", e);
     }
 
-    // on-user-authenticated プラグイン（ロールマッピング・属性の補完・ログインの拒否）
+    let max_ttl = state.config.cache.default_ttl_secs;
+    let ttl_secs = payload.ttl_secs.map(|ttl| ttl.clamp(1, max_ttl));
+    match complete_login(&state, &audit, provider, identity, ttl_secs).await {
+        Ok(session) => (StatusCode::CREATED, Json(session)).into_response(),
+        Err(LoginRefusal::Rejected(message)) => {
+            (StatusCode::FORBIDDEN, Json(json!({ "error": message }))).into_response()
+        }
+        Err(LoginRefusal::Failed(message)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": message })),
+        )
+            .into_response(),
+    }
+}
+
+/// Why a login whose credentials a provider verified did not end in a session
+pub(crate) enum LoginRefusal {
+    /// An `on-user-authenticated` plugin turned the user away (the plugin's message; 403)
+    Rejected(String),
+    /// A plugin or the session store failed (500)
+    Failed(String),
+}
+
+/// 資格情報を検証済みのアイデンティティに `on-user-authenticated` プラグイン（ロールマッピング・
+/// 属性の補完・ログインの拒否）を適用し、セッションを発行する。結果は `session.create`
+/// （プラグインの失敗は `plugin.error` も）として監査する。拒否・失敗はログイン失敗回数には数えない
+pub(crate) async fn complete_login(
+    state: &AppState,
+    audit: &AuditContext,
+    provider: &str,
+    identity: AuthIdentity,
+    ttl_secs: Option<u64>,
+) -> Result<SessionData, LoginRefusal> {
+    let username = identity.external_id.clone();
     let authenticated_role = identity.role.clone();
-    let identity = match run_auth_hook(&state, provider, identity).await {
+    let identity = match run_auth_hook(state, provider, identity).await {
         Ok(identity) => identity,
-        Err(e) => return refuse_after_auth_hook(&state, &audit, &username, provider, e).await,
+        Err(e) => return Err(refuse_after_auth_hook(state, audit, &username, provider, e).await),
     };
 
     let actor = Some(AuditActor {
@@ -161,16 +196,20 @@ pub async fn create_session(
     if !identity.email.is_empty() {
         metadata.insert("email".to_string(), json!(identity.email));
     }
-    let max_ttl = state.config.cache.default_ttl_secs;
-    let ttl_secs = payload.ttl_secs.map(|ttl| ttl.clamp(1, max_ttl));
 
     let result = state
         .sessions
         .create_session(&identity.external_id, &identity.role, metadata, ttl_secs)
         .await;
-
-    let session = match result {
+    match result {
         Ok(session) => {
+            let mut details = json!({
+                "expires_at": session.expires_at,
+                "provider": provider,
+            });
+            if identity.role != authenticated_role {
+                details["role_mapped"] = json!({ "from": authenticated_role, "to": identity.role });
+            }
             state
                 .audit
                 .record(
@@ -178,21 +217,10 @@ pub async fn create_session(
                         .event(AuditAction::SessionCreate, AuditOutcome::Success)
                         .with_actor(actor)
                         .with_resource("session", Some(session_fingerprint(&session.id)))
-                        .with_details(if identity.role == authenticated_role {
-                            json!({
-                                "expires_at": session.expires_at,
-                                "provider": provider,
-                            })
-                        } else {
-                            json!({
-                                "expires_at": session.expires_at,
-                                "provider": provider,
-                                "role_mapped": { "from": authenticated_role, "to": identity.role },
-                            })
-                        }),
+                        .with_details(details),
                 )
                 .await;
-            session
+            Ok(session)
         }
         Err(e) => {
             state
@@ -205,26 +233,22 @@ pub async fn create_session(
                         .with_details(json!({ "error": e.to_string() })),
                 )
                 .await;
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("Failed to create session: {}", e) })),
-            )
-                .into_response();
+            Err(LoginRefusal::Failed(format!(
+                "Failed to create session: {}",
+                e
+            )))
         }
-    };
-
-    (StatusCode::CREATED, Json(session)).into_response()
+    }
 }
 
-/// 資格情報は正しかったが `on-user-authenticated` がログインを拒否した・失敗したときの応答。
-/// 拒否は `403`（プラグインのメッセージを返す）、失敗は `500`。どちらもログイン失敗回数には数えない
+/// `on-user-authenticated` がログインを拒否した・失敗したときの監査記録
 async fn refuse_after_auth_hook(
     state: &AppState,
     audit: &AuditContext,
     username: &str,
     provider: &str,
     error: AegisError,
-) -> Response {
+) -> LoginRefusal {
     let rejected = matches!(error, AegisError::PluginRejected(_));
     if !rejected {
         state
@@ -263,17 +287,9 @@ async fn refuse_after_auth_hook(
         )
         .await;
     if rejected {
-        (
-            StatusCode::FORBIDDEN,
-            Json(json!({ "error": error.to_string() })),
-        )
-            .into_response()
+        LoginRefusal::Rejected(error.to_string())
     } else {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("Login hook failed: {}", error) })),
-        )
-            .into_response()
+        LoginRefusal::Failed(format!("Login hook failed: {}", error))
     }
 }
 
