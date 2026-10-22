@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Frontend Builder (Admin Studio)
 # ==========================================
-FROM node:22-alpine AS frontend-builder
+FROM node:22.22-alpine AS frontend-builder
 WORKDIR /build/admin
 
 # キャッシュ最適化のため package.json を先行コピー
@@ -15,22 +15,36 @@ RUN npm run build
 # ==========================================
 # Stage 2: Rust Builder (Aegis Core Server)
 # ==========================================
-FROM rust:latest AS rust-builder
+# ベースイメージはバージョンを固定する（`latest` は Rust のリリースごとに変わり、
+# レイヤーキャッシュが無効になるうえ、実行環境 (bookworm) と OS がずれるため）
+FROM rust:1.99.1-slim-bookworm AS chef
 WORKDIR /build
 
-# ビルドツール（OpenSSLやビルド補助）の準備
+# ビルドツール（OpenSSLやビルド補助）と cargo-chef の準備
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && cargo install cargo-chef --version 0.1.78 --locked
 
-# ソースコード全体をコピー
+# 2-1. 依存関係のレシピ (recipe.json) を作成
+#      Cargo.toml / Cargo.lock から依存だけを抜き出すため、ソースの変更ではレシピは変わらない
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+COPY plugins/ ./plugins/
+RUN cargo chef prepare --recipe-path recipe.json
+
+# 2-2. 依存クレートだけを先にビルド（レシピが同じならこのレイヤーはキャッシュされる）
+FROM chef AS rust-builder
+COPY --from=planner /build/recipe.json recipe.json
+RUN cargo chef cook --release -p aegis-server --recipe-path recipe.json
+
+# 2-3. ソースコードをコピーして本番用最適化リリースビルド（ワークスペースのクレートのみ再コンパイル）
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 COPY schemas/ ./schemas/
 COPY plugins/ ./plugins/
-
-# 本番用最適化リリースビルド
 RUN cargo build --release -p aegis-server
 
 # ==========================================
