@@ -182,7 +182,7 @@ export const Preview: React.FC<PreviewProps> = ({
               <iframe
                 className={cx(styles.pageFrame, isRendering && styles.stale)}
                 title="Themed page preview"
-                sandbox=""
+                sandbox="allow-scripts allow-same-origin"
                 srcDoc={withBase(result.pageHtml)}
               />
             ) : (

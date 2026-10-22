@@ -58,6 +58,7 @@
     - KVS / コンテキストによるカスタム CSS 注入対応 (`code_theme_css`)。
   - **コードブロック機能拡張**: ワンクリックコピーボタン、ハイライトスタイルシート適用。
   - **Taskfile / Workspace 連携**: Cargo ワークスペースへの登録、`task plugin:build:code-enhancer` タスク、テスト自動化。
+  - **実機検証 & プレビュー連携**: `config/default.toml` の `[plugins].enabled = ["official-code-enhancer"]` 有効化、Admin Studio プレビュー iframe の `sandbox="allow-scripts allow-same-origin"` 改善、公開記事（`/articles/mermaid-inline-code-live-demo`）および管理画面 Themed Page プレビューでの Mermaid SVG レンダリング & Dracula インラインコード装飾のリアルタイム動作実証完了。
 
 
 #### コンテンツ向けマルチテーマ & マーケットプレイス設計 (Completed)

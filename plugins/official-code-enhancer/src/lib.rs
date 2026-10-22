@@ -66,143 +66,149 @@ impl CodeEnhancerPlugin {
             r#"<!-- AegisCMS Code & Diagram Enhancer Client Bundle -->
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
-<script type="module">
-  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-
-  mermaid.initialize({{
-    startOnLoad: false,
-    theme: '{mermaid_theme}',
-    securityLevel: 'loose'
-  }});
-
-  window.AegisCodeEnhancer = {{
-    theme: '{mermaid_theme}',
-    // Allows external scripts or admin previews to switch stylesheet dynamically
-    setThemeUrl(url) {{
-      let link = document.getElementById('aegis-external-code-theme');
-      if (!link) {{
-        link = document.createElement('link');
-        link.id = 'aegis-external-code-theme';
-        link.rel = 'stylesheet';
-        document.head.appendChild(link);
-      }}
-      link.href = url;
-    }},
-    renderAll() {{
-      formatInlineCode();
-      setupCodeCopyButtons();
-      renderMermaidDiagrams();
-      if (window.Prism) {{
-        window.Prism.highlightAll();
-      }}
-    }}
-  }};
-
-  // 1. Safe inline code formatting from `inline code` in paragraphs and lists
-  function formatInlineCode() {{
-    const containers = document.querySelectorAll('.prose p, .prose li, .prose blockquote');
-    containers.forEach(container => {{
-      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
-      const textNodes = [];
-      let node;
-      while ((node = walker.nextNode())) {{
-        if (node.parentElement && !['CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(node.parentElement.tagName)) {{
-          if (node.nodeValue && node.nodeValue.includes('`')) {{
-            textNodes.push(node);
-          }}
-        }}
-      }}
-      textNodes.forEach(tNode => {{
-        const text = tNode.nodeValue;
-        const regex = /`([^`\n]+)`/g;
-        if (!regex.test(text)) return;
-        const frag = document.createDocumentFragment();
-        let lastIdx = 0;
-        let match;
-        regex.lastIndex = 0;
-        while ((match = regex.exec(text)) !== null) {{
-          if (match.index > lastIdx) {{
-            frag.appendChild(document.createTextNode(text.substring(lastIdx, match.index)));
-          }}
-          const codeEl = document.createElement('code');
-          codeEl.className = 'inline-code-enhanced';
-          codeEl.textContent = match[1];
-          frag.appendChild(codeEl);
-          lastIdx = match.index + match[0].length;
-        }}
-        if (lastIdx < text.length) {{
-          frag.appendChild(document.createTextNode(text.substring(lastIdx)));
-        }}
-        tNode.replaceWith(frag);
-      }});
-    }});
-  }}
-
-  // 2. Add copy button to code blocks
-  function setupCodeCopyButtons() {{
-    const preBlocks = document.querySelectorAll('.prose pre');
-    preBlocks.forEach((pre) => {{
-      const code = pre.querySelector('code');
-      // Skip mermaid diagrams from code copy
-      if (code && code.classList.contains('language-mermaid')) return;
-      if (pre.parentElement && pre.parentElement.classList.contains('code-block-wrapper')) return;
-
-      const wrapper = document.createElement('div');
-      wrapper.className = 'code-block-wrapper';
-      pre.parentNode.insertBefore(wrapper, pre);
-      wrapper.appendChild(pre);
-
-      const copyBtn = document.createElement('button');
-      copyBtn.className = 'code-copy-btn';
-      copyBtn.setAttribute('type', 'button');
-      copyBtn.setAttribute('aria-label', 'Copy code to clipboard');
-      copyBtn.textContent = 'Copy';
-
-      copyBtn.addEventListener('click', async () => {{
-        const textToCopy = (code || pre).textContent || '';
-        try {{
-          await navigator.clipboard.writeText(textToCopy);
-          copyBtn.textContent = 'Copied!';
-          copyBtn.classList.add('copied');
-          setTimeout(() => {{
-            copyBtn.textContent = 'Copy';
-            copyBtn.classList.remove('copied');
-          }}, 2000);
-        }} catch (err) {{
-          console.error('Failed to copy code: ', err);
-        }}
-      }});
-
-      wrapper.appendChild(copyBtn);
-    }});
-  }}
-
-  // 3. Render Mermaid diagrams
-  async function renderMermaidDiagrams() {{
-    const mermaidCodes = document.querySelectorAll('pre code.language-mermaid, pre.mermaid, div.mermaid');
-    for (let i = 0; i < mermaidCodes.length; i++) {{
-      const el = mermaidCodes[i];
-      const container = el.closest('pre') || el;
-      const graphDef = (el.textContent || '').trim();
-      if (!graphDef) continue;
-      const diagramId = 'mermaid-diag-' + i + '-' + Math.floor(Math.random() * 10000);
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  (function() {{
+    if (window.mermaid) {{
       try {{
-        const {{ svg }} = await mermaid.render(diagramId, graphDef);
-        const card = document.createElement('div');
-        card.className = 'mermaid-diagram-container';
-        card.innerHTML = svg;
-        container.replaceWith(card);
-      }} catch (err) {{
-        console.warn('Mermaid rendering failed for block:', err);
+        window.mermaid.initialize({{
+          startOnLoad: false,
+          theme: '{mermaid_theme}',
+          securityLevel: 'loose'
+        }});
+      }} catch (e) {{
+        console.warn('Mermaid init error:', e);
       }}
     }}
-  }}
 
-  if (document.readyState === 'loading') {{
-    document.addEventListener('DOMContentLoaded', () => window.AegisCodeEnhancer.renderAll());
-  }} else {{
-    window.AegisCodeEnhancer.renderAll();
-  }}
+    window.AegisCodeEnhancer = {{
+      theme: '{mermaid_theme}',
+      setThemeUrl: function(url) {{
+        var link = document.getElementById('aegis-external-code-theme');
+        if (!link) {{
+          link = document.createElement('link');
+          link.id = 'aegis-external-code-theme';
+          link.rel = 'stylesheet';
+          document.head.appendChild(link);
+        }}
+        link.href = url;
+      }},
+      renderAll: function() {{
+        formatInlineCode();
+        setupCodeCopyButtons();
+        renderMermaidDiagrams();
+        if (window.Prism) {{
+          window.Prism.highlightAll();
+        }}
+      }}
+    }};
+
+    // 1. Safe inline code formatting from `inline code` in paragraphs and lists
+    function formatInlineCode() {{
+      var containers = document.querySelectorAll('.prose p, .prose li, .prose blockquote');
+      containers.forEach(function(container) {{
+        var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+        var textNodes = [];
+        var node;
+        while ((node = walker.nextNode())) {{
+          if (node.parentElement && !['CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(node.parentElement.tagName)) {{
+            if (node.nodeValue && node.nodeValue.indexOf('`') !== -1) {{
+              textNodes.push(node);
+            }}
+          }}
+        }}
+        textNodes.forEach(function(tNode) {{
+          var text = tNode.nodeValue;
+          var regex = /`([^`\n]+)`/g;
+          if (!regex.test(text)) return;
+          var frag = document.createDocumentFragment();
+          var lastIdx = 0;
+          var match;
+          regex.lastIndex = 0;
+          while ((match = regex.exec(text)) !== null) {{
+            if (match.index > lastIdx) {{
+              frag.appendChild(document.createTextNode(text.substring(lastIdx, match.index)));
+            }}
+            var codeEl = document.createElement('code');
+            codeEl.className = 'inline-code-enhanced';
+            codeEl.textContent = match[1];
+            frag.appendChild(codeEl);
+            lastIdx = match.index + match[0].length;
+          }}
+          if (lastIdx < text.length) {{
+            frag.appendChild(document.createTextNode(text.substring(lastIdx)));
+          }}
+          tNode.replaceWith(frag);
+        }});
+      }});
+    }}
+
+    // 2. Add copy button to code blocks
+    function setupCodeCopyButtons() {{
+      var preBlocks = document.querySelectorAll('.prose pre');
+      preBlocks.forEach(function(pre) {{
+        var code = pre.querySelector('code');
+        if (code && code.classList.contains('language-mermaid')) return;
+        if (pre.parentElement && pre.parentElement.classList.contains('code-block-wrapper')) return;
+
+        var wrapper = document.createElement('div');
+        wrapper.className = 'code-block-wrapper';
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.appendChild(pre);
+
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'code-copy-btn';
+        copyBtn.setAttribute('type', 'button');
+        copyBtn.setAttribute('aria-label', 'Copy code to clipboard');
+        copyBtn.textContent = 'Copy';
+
+        copyBtn.addEventListener('click', async function() {{
+          var textToCopy = (code || pre).textContent || '';
+          try {{
+            await navigator.clipboard.writeText(textToCopy);
+            copyBtn.textContent = 'Copied!';
+            copyBtn.classList.add('copied');
+            setTimeout(function() {{
+              copyBtn.textContent = 'Copy';
+              copyBtn.classList.remove('copied');
+            }}, 2000);
+          }} catch (err) {{
+            console.error('Failed to copy code: ', err);
+          }}
+        }});
+
+        wrapper.appendChild(copyBtn);
+      }});
+    }}
+
+    // 3. Render Mermaid diagrams
+    async function renderMermaidDiagrams() {{
+      if (!window.mermaid) return;
+      var mermaidCodes = document.querySelectorAll('pre code.language-mermaid, pre.mermaid, div.mermaid');
+      for (var i = 0; i < mermaidCodes.length; i++) {{
+        var el = mermaidCodes[i];
+        var container = el.closest('pre') || el;
+        var graphDef = (el.textContent || '').trim();
+        if (!graphDef) continue;
+        var diagramId = 'mermaid-diag-' + i + '-' + Math.floor(Math.random() * 10000);
+        try {{
+          var res = await window.mermaid.render(diagramId, graphDef);
+          var card = document.createElement('div');
+          card.className = 'mermaid-diagram-container';
+          card.innerHTML = res.svg;
+          container.replaceWith(card);
+        }} catch (err) {{
+          console.warn('Mermaid rendering failed for block:', err);
+        }}
+      }}
+    }}
+
+    if (document.readyState === 'loading') {{
+      document.addEventListener('DOMContentLoaded', function() {{ window.AegisCodeEnhancer.renderAll(); }});
+    }} else {{
+      window.AegisCodeEnhancer.renderAll();
+    }}
+  }})();
 </script>
 "#
         )
