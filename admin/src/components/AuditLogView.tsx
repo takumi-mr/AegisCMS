@@ -9,7 +9,7 @@ import {
   Search,
 } from 'lucide-react';
 import { aegisApi, ApiError } from '../api/client';
-import type { AuditEvent, AuditLogPage, AuditLogQuery } from '../types';
+import type { AuditAction, AuditEvent, AuditLogPage, AuditLogQuery } from '../types';
 import { cx } from '../utils/cx';
 import { Button } from './ui/Button';
 import { Field } from './ui/Field';
@@ -23,13 +23,14 @@ const OUTCOME_BADGE: Record<string, string | undefined> = {
   denied: styles.denied,
 };
 
-const ACTIONS = [
+const ACTIONS: AuditAction[] = [
   'content.create',
   'session.create',
   'session.delete',
   'storage.upload',
   'plugin.error',
   'audit.purge',
+  'access.denied',
 ];
 const OUTCOMES = ['success', 'failure', 'denied'];
 

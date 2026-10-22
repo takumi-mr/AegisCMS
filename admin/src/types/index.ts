@@ -44,7 +44,8 @@ export type AuditAction =
   | 'session.delete'
   | 'storage.upload'
   | 'plugin.error'
-  | 'audit.purge';
+  | 'audit.purge'
+  | 'access.denied';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 
