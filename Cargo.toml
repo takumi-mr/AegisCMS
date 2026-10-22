@@ -10,6 +10,7 @@ members = [
     "crates/aegis-plugin-sdk",
     "crates/aegis-theme",
     "plugins/template-rust",
+    "plugins/official-code-enhancer",
 ]
 
 [workspace.package]

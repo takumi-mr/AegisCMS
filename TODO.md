@@ -9,9 +9,16 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: 公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
-  - `task check` による全自動検証（Rust テスト 90 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
+  - `task check` による全自動検証（Rust テスト 93 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
+  - 公式 Wasm プラグイン `official-code-enhancer` (`plugins/official-code-enhancer/`):
+    - `task plugin:build:code-enhancer` による `plugin.wasm` (253 KiB) 生成と Wasm サンドボックス動作。
+    - Mermaid 自動検出（`transform-content-ast`）、Mermaid.js CDN 注入・SVG 自動描画（`on-render-page`）。
+    - XSS 安全なインラインコードスマート整形（TextNode 分割）、ワンクリックコードコピーボタン。
+    - 6 つのビルトインプリセット（`dracula`, `github-dark`, `one-dark`, `nord`, `github-light`, `monokai`）。
+    - 外部 CSS URL（CDN Prism/Highlight.js テーマ: `code_theme_url`）およびカスタム CSS 注入（`code_theme_css`）サポート。
+    - 動的テーマ切り替え API (`window.AegisCodeEnhancer.setThemeUrl`)。
   - テーマシステム & マーケットプレイス準備 (`crates/aegis-theme`, `crates/aegis-server`, `themes/`, `admin/`):
     - 独立テーマパッケージ仕様: `theme.json`（ID、バージョン、作者、タグ、ライセンス、最小バージョン等）、`preview.svg`、`templates/`、`assets/style.css`。将来のマーケットからの ZIP 導入を見据えた `validate_theme_package` 機構。
     - 4つの公式テーマ:
@@ -24,6 +31,7 @@
     - Admin Studio テーマ管理画面 (`ThemeManager.tsx`): インストール済みテーマのカード表示、美麗なプレビュー画像、ワンクリック適用、ライブサイト確認、将来のテーママーケットプレイス（Marketplace v1 Preview & ZIP インポート案内）画面。
   - Wasm プラグインエコシステム:
     - 言語非依存の共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)。
+    - 公式 Code & Diagram Enhancer プラグイン (`plugins/official-code-enhancer/`)。
     - AssemblyScript / TinyGo 公式テンプレート (`plugins/template-assemblyscript/`, `plugins/template-tinygo/`)。
   - 認証・認可・セキュリティ:
     - ローカル認証 (`LocalAuthProvider`: Argon2id)、セッション管理、RBAC 認可 (`RequireRole`)、レート制限、監査ログ。
@@ -39,6 +47,18 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### 公式 Wasm プラグイン: Mermaid & コードテーマエンハンサー (`official-code-enhancer`) (Completed)
+- [x] **公式 Code & Diagram Enhancer Wasm プラグインの実装 (`plugins/official-code-enhancer/`)**
+  - **Mermaid 自動レンダリング**: `language: "mermaid"` コードブロックの検出と Mermaid.js (SVG) クライアント自動レンダリング連携。
+  - **インラインコードのスマート整形**: 本文内の `` `inline code` `` を XSS 安全に `<code>` 要素へ自動整形。
+  - **外部読み込み対応マルチテーマシステム**:
+    - 6 つのビルトインプリセット（Dracula, GitHub Dark, One Dark, Nord, GitHub Light, Monokai）。
+    - 外部 CSS URL / CDN スタイルシート読み込み対応（Prism.js / Highlight.js テーマ対応: `code_theme_url`）。
+    - KVS / コンテキストによるカスタム CSS 注入対応 (`code_theme_css`)。
+  - **コードブロック機能拡張**: ワンクリックコピーボタン、ハイライトスタイルシート適用。
+  - **Taskfile / Workspace 連携**: Cargo ワークスペースへの登録、`task plugin:build:code-enhancer` タスク、テスト自動化。
+
 
 #### コンテンツ向けマルチテーマ & マーケットプレイス設計 (Completed)
 - [x] **将来のMarket連携を見据えたテーマパッケージ仕様 (`theme.json`)**
@@ -83,6 +103,21 @@
 ---
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
+
+- **公式 Code & Diagram Enhancer Wasm プラグイン (`plugins/official-code-enhancer/`)**:
+  - **Mermaid 自動レンダリング**:
+    - `transform-content-ast` で `core/code` のうち `attributes.language == "mermaid"` のブロックを検出し、`data-diagram-type: "mermaid"` 属性を付与。
+    - `on-render-page` で Mermaid.js (ESM 版) を注入し、クライアントサイドで `<pre><code class="language-mermaid">` をインタラクティブな SVG ダイアグラムへ自動置換レンダリング。選択されているテーマと Mermaid テーマ（`dark` / `default`）が自動連動。
+  - **インラインコードのスマート整形（XSS 安全）**:
+    - 本文（`.prose p`, `.prose li`, `.prose blockquote`）内の `` `inline code` `` を、DOM の `TreeWalker` と `document.createTextNode` / `code.textContent` を用いて分割置換。サーバー側の HTML エスケープやセキュリティリライターを破壊せず、かつ XSS リスク皆無でインラインコードタグ `<code>` へ自動整形。
+  - **外部読み込み対応マルチテーマシステム**:
+    - 6 種のビルトインプリセット（`dracula`, `github-dark`, `one-dark`, `nord`, `github-light`, `monokai`）。
+    - 記事カスタムフィールドまたはテーマ変数から `code_theme` を解決。
+    - **外部 CSS URL 読み込み (`code_theme_url`)**: Prism.js などの外部 CDN スタイルシート URL を指定すると、`<link rel="stylesheet">` を動的挿入。
+    - **カスタム CSS 注入 (`code_theme_css`)**: 任意の CSS 文字列を直接追加・上書き可能。
+    - **動的テーマ切り替え API**: `window.AegisCodeEnhancer.setThemeUrl(url)` により、ブラウザ上や Admin Studio プレビューから動的にスタイルシートを適用可能。
+  - **ワンクリックコードコピー**:
+    - `<pre>` ブロックの右上にホバー時に浮かび上がる「Copy」ボタンを動的付与。クリック時に `navigator.clipboard.writeText` でクリップボードへ保存し、`Copied!` 表示に遷移。
 
 - **Markdown 編集モード & スマート貼り付けアーキテクチャ (`admin/src/utils/markdown.ts`, `MarkdownEditor.tsx`, `PasteMarkdownModal.tsx`)**:
   - **双方向変換と完全同期**:

@@ -131,6 +131,15 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_template.wasm plugins/template-rust/plugin.wasm
         platforms: [linux, darwin]
 
+  plugin:build:code-enhancer:
+    desc: 公式 Code Enhancer プラグインを Wasm にビルドし plugins/official-code-enhancer/plugin.wasm を生成
+    cmds:
+      - cargo build -p aegis-plugin-code-enhancer --target wasm32-unknown-unknown --release
+      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_code_enhancer.wasm plugins\\official-code-enhancer\\plugin.wasm"
+        platforms: [windows]
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_code_enhancer.wasm plugins/official-code-enhancer/plugin.wasm
+        platforms: [linux, darwin]
+
   plugin:build:as:
     desc: AssemblyScript プラグインテンプレートを Wasm にビルドし plugins/template-assemblyscript/plugin.wasm を生成
     cmds:

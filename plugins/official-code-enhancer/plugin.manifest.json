@@ -1,0 +1,27 @@
+{
+  "name": "aegis-code-enhancer",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "description": "Official code syntax highlighter, external theme loader, and Mermaid diagram renderer",
+  "capabilities": {
+    "network": {
+      "allowed_domains": [
+        "cdn.jsdelivr.net",
+        "cdnjs.cloudflare.com",
+        "unpkg.com"
+      ]
+    },
+    "storage": {
+      "kv_namespace": "aegis_code_enhancer"
+    },
+    "hooks": [
+      "transform-content-ast",
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 100000000,
+    "execution_timeout_ms": 250
+  }
+}
