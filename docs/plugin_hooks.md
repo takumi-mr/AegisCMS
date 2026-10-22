@@ -167,17 +167,20 @@ SDK ヘルパー:
 | `capabilities.network.allowed_domains` | string[] | | `net::is_allowed` で許可するドメイン。完全一致またはサブドメイン一致 |
 | `capabilities.storage.kv_namespace` | string | | KVS のネームスペース。未宣言の場合 `kv::set` は権限エラー |
 | `capabilities.hooks` | string[] | | 有効にするフック名（[1. フック一覧](#1-フック一覧)） |
-| `resource_limits` | object | | 省略時は下記の既定値（指定する場合は 3 項目すべて必須） |
+| `resource_limits` | object | | 省略した項目（または全体）はサーバー設定 `[runtime].default_*` で補われる（下記） |
 
 マニフェストのパースに失敗した場合や `entrypoint` のファイルが無い場合、そのプラグインは読み込まれずスキップされます（`debug` レベルでログ出力）。
 
 ## 4. リソース制限 (`resource_limits`)
 
-| キー | 既定値 | 適用状況 | 説明 |
-| --- | --- | --- | --- |
-| `max_fuel_units` | `100000000` | ✅ 適用 | フック 1 回あたりの Wasm 命令実行量の上限。超過するとトラップ |
-| `execution_timeout_ms` | `250` | ✅ 適用 | フック 1 回あたりの実行時間の上限（最小 50ms に切り上げ） |
-| `max_memory_mb` | `16` | ⚠️ 未適用 | メモリ上限（予約。現時点ではランタイムで強制されていません） |
+| キー | 省略時の値 | 説明 |
+| --- | --- | --- |
+| `max_fuel_units` | `[runtime].default_max_fuel_units`（既定 `100000000`） | フック 1 回あたりの Wasm 命令実行量の上限。超過するとトラップ |
+| `execution_timeout_ms` | `[runtime].default_timeout_ms`（既定 `250`） | フック 1 回あたりの実行時間の上限（最小 50ms に切り上げ） |
+| `max_memory_mb` | `[runtime].default_max_memory_mb`（既定 `16`） | 線形メモリの上限（MiB、最小 1）。`memory.grow` で超えようとするとトラップし、初期メモリが上限を超えるモジュールはインスタンス化に失敗する。Rust の `wasm32-unknown-unknown` ビルドは初期メモリだけで約 1.1 MiB を使うため、2 以上を指定する |
+
+- 項目ごとに補われるため、`{"max_memory_mb": 8}` のように一部だけ指定できます。
+- 上限超過（トラップ）はプラグインのエラーとして扱われます（各フックのエラー時の挙動に従い、`plugin.error` を監査ログに記録）。
 
 > [!NOTE]
 > フックは呼び出しごとに新しい Wasm インスタンスで実行されます。プラグイン構造体も毎回 `Default::default()` で生成されるため、**フック呼び出し間でメモリ上の状態は保持されません**。

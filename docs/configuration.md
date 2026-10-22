@@ -130,7 +130,7 @@ public_url_prefix = "https://cdn.example.com"
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `url` | string | `"redis://127.0.0.1:6379"` | Redis 接続 URL |
-| `timeout_ms` | integer (u64) | `2000` | （予約）接続タイムアウト（ミリ秒）。現時点では未使用 |
+| `timeout_ms` | integer (u64) | `2000` | Redis への接続 1 回あたりのタイムアウト、および各コマンドの応答タイムアウト（ミリ秒）。接続に失敗した場合は最大 2 回まで再試行し（待機は最大 1 秒）、それでも失敗すれば起動エラー・コマンドエラーになる |
 
 ### 2.5 `[paths]` — ディレクトリ
 
@@ -145,12 +145,12 @@ public_url_prefix = "https://cdn.example.com"
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `enable_wasm_plugins` | bool | `true` | `false` でプラグインの読み込みを無効化 |
-| `default_max_memory_mb` | integer (u32) | `16` | （予約）プラグインのメモリ上限の既定値 |
-| `default_max_fuel_units` | integer (u64) | `100000000` | （予約）プラグインの Fuel 上限の既定値 |
-| `default_timeout_ms` | integer (u64) | `250` | （予約）プラグインのタイムアウトの既定値 |
+| `default_max_memory_mb` | integer (u32) | `16` | マニフェストが `max_memory_mb` を省略したプラグインのメモリ上限（MiB） |
+| `default_max_fuel_units` | integer (u64) | `100000000` | マニフェストが `max_fuel_units` を省略したプラグインの Fuel 上限 |
+| `default_timeout_ms` | integer (u64) | `250` | マニフェストが `execution_timeout_ms` を省略したプラグインのタイムアウト（ミリ秒） |
 
 > [!NOTE]
-> `default_*` の 3 項目は現時点ではランタイムから参照されていません。実際のリソース制限は各プラグインの `plugin.manifest.json` の `resource_limits` で決まります（[プラグインフックリファレンス](./plugin_hooks.md#4-リソース制限-resource_limits) を参照）。
+> `default_*` は既定値であり上限ではありません。プラグインの `plugin.manifest.json` の `resource_limits` に値があればそちらが優先され、省略した項目（または `resource_limits` 全体）だけがこの設定で補われます（[プラグインフックリファレンス](./plugin_hooks.md#4-リソース制限-resource_limits) を参照）。読み込んだプラグインごとの実際の値は起動時の `INFO` ログに出力されます。
 
 ### 2.7 `[security]` — HTML 出力のセキュリティ / 最適化
 
