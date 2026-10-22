@@ -4,6 +4,7 @@ import type {
   ContentItem,
   CreateCategoryPayload,
   CreateContentPayload,
+  ObjectReference,
   PreviewRequest,
   PreviewResult,
   SchemaDefinition,
@@ -164,6 +165,31 @@ export const aegisApi = {
       },
       'Failed to render the preview'
     );
+  },
+
+  /**
+   * Deletes a stored file. When saved contents still use it and `force` is false, nothing is
+   * deleted and the result lists them (`deleted: false`)
+   */
+  async deleteStorageObject(
+    key: string,
+    force = false
+  ): Promise<{ deleted: boolean; references: ObjectReference[] }> {
+    const path = key.split('/').map(encodeURIComponent).join('/');
+    const token = getSessionToken();
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/storage/objects/${path}${force ? '?force=true' : ''}`, {
+      method: 'DELETE',
+      headers,
+    });
+    if (res.ok) return { deleted: true, references: [] };
+    const err = await res.json().catch(() => ({ error: 'Failed to delete the file' }));
+    if (res.status === 409 && Array.isArray(err.references)) {
+      return { deleted: false, references: err.references };
+    }
+    if (res.status === 401 && token) unauthorizedHandler?.();
+    throw new ApiError(res.status, err.error || 'Failed to delete the file');
   },
 
   async uploadFile(file: File): Promise<StorageMeta> {

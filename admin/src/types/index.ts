@@ -43,6 +43,7 @@ export type AuditAction =
   | 'session.create'
   | 'session.delete'
   | 'storage.upload'
+  | 'storage.delete'
   | 'plugin.error'
   | 'audit.purge'
   | 'access.denied';
@@ -116,6 +117,14 @@ export interface StorageObjectPage {
   offset: number;
   /** True when the storage holds more files than the server scans for one listing */
   truncated: boolean;
+}
+
+/** A saved content item that refers to a stored file (`409` of `DELETE /api/v1/storage/objects/{key}`) */
+export interface ObjectReference {
+  content_type: string;
+  id: string;
+  slug: string;
+  title: string;
 }
 
 export type UserRole = 'admin' | 'editor' | 'viewer';

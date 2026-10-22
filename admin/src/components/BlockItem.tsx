@@ -175,6 +175,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           </Button>
           {isLibraryOpen && (
             <MediaLibrary
+              canDelete={canUpload}
               onClose={() => setIsLibraryOpen(false)}
               onSelect={(object) => {
                 setIsLibraryOpen(false);

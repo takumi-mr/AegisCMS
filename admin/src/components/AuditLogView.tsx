@@ -28,6 +28,7 @@ const ACTIONS: AuditAction[] = [
   'session.create',
   'session.delete',
   'storage.upload',
+  'storage.delete',
   'plugin.error',
   'audit.purge',
   'access.denied',
