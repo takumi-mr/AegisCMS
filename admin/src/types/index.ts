@@ -87,3 +87,31 @@ export interface StorageMeta {
   size: number;
   content_type: string;
 }
+
+/** Uploaded file listed by `GET /api/v1/storage/objects` */
+export interface StorageObject extends StorageMeta {
+  /** RFC 3339 timestamp, or null when the storage backend does not report one */
+  last_modified: string | null;
+}
+
+export interface StorageObjectQuery {
+  /** Key prefix, e.g. `2026/10/` */
+  prefix?: string;
+  /** Mime type prefix, e.g. `image/` */
+  content_type?: string;
+  /** Case-insensitive substring of the key */
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface StorageObjectPage {
+  /** Newest first */
+  objects: StorageObject[];
+  /** Number of matching objects across all pages */
+  total: number;
+  limit: number;
+  offset: number;
+  /** True when the storage holds more files than the server scans for one listing */
+  truncated: boolean;
+}

@@ -1,4 +1,7 @@
-use aegis_core::{AegisError, Result, S3StorageConfig, StorageBackend, StorageMeta};
+use aegis_core::{
+    guess_content_type, AegisError, Result, S3StorageConfig, StorageBackend, StorageMeta,
+    StorageObject,
+};
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -6,6 +9,96 @@ use sha2::{Digest, Sha256};
 use std::str::FromStr;
 
 type HmacSha256 = Hmac<Sha256>;
+
+/// ListObjectsV2 が 1 リクエストで返す最大件数
+const LIST_PAGE_SIZE: usize = 1000;
+
+/// SigV4 の URI エンコード（RFC 3986 の非予約文字以外をすべて `%XX` にする）
+fn aws_uri_encode(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            encoded.push(byte as char);
+        } else {
+            encoded.push_str(&format!("%{:02X}", byte));
+        }
+    }
+    encoded
+}
+
+/// 署名用の正規化クエリ文字列（キー順にソートし、キー・値ともエンコード）
+fn canonical_query_string(params: &[(&str, String)]) -> String {
+    let mut pairs: Vec<(String, String)> = params
+        .iter()
+        .map(|(k, v)| (aws_uri_encode(k), aws_uri_encode(v)))
+        .collect();
+    pairs.sort();
+    pairs
+        .into_iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+fn xml_unescape(value: &str) -> String {
+    value
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
+}
+
+/// `<tag>...</tag>` の中身を返す（最初の 1 件）
+fn xml_tag<'a>(xml: &'a str, tag: &str) -> Option<&'a str> {
+    let open = format!("<{}>", tag);
+    let close = format!("</{}>", tag);
+    let start = xml.find(&open)? + open.len();
+    let end = xml[start..].find(&close)? + start;
+    Some(&xml[start..end])
+}
+
+/// ListObjectsV2 の 1 ページ分の結果
+#[derive(Debug, Default, PartialEq)]
+struct ListObjectsPage {
+    /// (key, size, last_modified)
+    objects: Vec<(String, u64, Option<String>)>,
+    next_continuation_token: Option<String>,
+}
+
+fn parse_list_objects_response(xml: &str) -> Result<ListObjectsPage> {
+    let mut page = ListObjectsPage::default();
+    let mut rest = xml;
+    while let Some(start) = rest.find("<Contents>") {
+        let body_start = start + "<Contents>".len();
+        let end = rest[body_start..].find("</Contents>").ok_or_else(|| {
+            AegisError::Database("Malformed S3 ListObjectsV2 response".to_string())
+        })? + body_start;
+        let entry = &rest[body_start..end];
+        rest = &rest[end + "</Contents>".len()..];
+
+        let Some(key) = xml_tag(entry, "Key").map(xml_unescape) else {
+            continue;
+        };
+        let size = xml_tag(entry, "Size")
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0);
+        let last_modified = xml_tag(entry, "LastModified").map(|s| {
+            chrono::DateTime::parse_from_rfc3339(s.trim())
+                .map(|t| {
+                    t.with_timezone(&chrono::Utc)
+                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+                })
+                .unwrap_or_else(|_| s.trim().to_string())
+        });
+        page.objects.push((key, size, last_modified));
+    }
+
+    if xml_tag(xml, "IsTruncated").map(str::trim) == Some("true") {
+        page.next_continuation_token = xml_tag(xml, "NextContinuationToken").map(xml_unescape);
+    }
+    Ok(page)
+}
 
 #[derive(Debug, Clone)]
 pub struct S3StorageBackend {
@@ -65,6 +158,7 @@ impl S3StorageBackend {
         &self,
         method: &str,
         path: &str,
+        canonical_query: &str,
         host: &str,
         payload_hash: &str,
         content_type: Option<&str>,
@@ -111,8 +205,8 @@ impl S3StorageBackend {
         };
 
         let canonical_request = format!(
-            "{}\n{}\n\n{}\n{}\n{}",
-            method, canonical_uri, canonical_headers, signed_headers, payload_hash
+            "{}\n{}\n{}\n{}\n{}\n{}",
+            method, canonical_uri, canonical_query, canonical_headers, signed_headers, payload_hash
         );
 
         let canonical_request_hash = hex::encode(Sha256::digest(canonical_request.as_bytes()));
@@ -170,7 +264,7 @@ impl StorageBackend for S3StorageBackend {
             .map_err(|e| AegisError::Database(format!("Invalid S3 URL: {}", e)))?;
         let path = parsed_url.path();
 
-        let headers = self.sign_request("PUT", path, &host, &payload_hash, Some(content_type));
+        let headers = self.sign_request("PUT", path, "", &host, &payload_hash, Some(content_type));
 
         let res = self
             .client
@@ -207,7 +301,7 @@ impl StorageBackend for S3StorageBackend {
             .map_err(|e| AegisError::Database(format!("Invalid S3 URL: {}", e)))?;
         let path = parsed_url.path();
 
-        let headers = self.sign_request("GET", path, &host, &empty_hash, None);
+        let headers = self.sign_request("GET", path, "", &host, &empty_hash, None);
 
         let res = self
             .client
@@ -241,7 +335,7 @@ impl StorageBackend for S3StorageBackend {
             .map_err(|e| AegisError::Database(format!("Invalid S3 URL: {}", e)))?;
         let path = parsed_url.path();
 
-        let headers = self.sign_request("DELETE", path, &host, &empty_hash, None);
+        let headers = self.sign_request("DELETE", path, "", &host, &empty_hash, None);
 
         let res = self
             .client
@@ -261,6 +355,76 @@ impl StorageBackend for S3StorageBackend {
         }
 
         Ok(())
+    }
+
+    async fn list(&self, prefix: &str, max_objects: usize) -> Result<Vec<StorageObject>> {
+        let (bucket_url, host) = self.build_endpoint_url("");
+        let parsed_url = reqwest::Url::parse(&bucket_url)
+            .map_err(|e| AegisError::Database(format!("Invalid S3 URL: {}", e)))?;
+        let path = parsed_url.path().to_string();
+        let empty_hash = hex::encode(Sha256::digest(b""));
+
+        let mut objects = Vec::new();
+        let mut continuation_token: Option<String> = None;
+        while objects.len() < max_objects {
+            let page_size = (max_objects - objects.len()).min(LIST_PAGE_SIZE);
+            let mut params = vec![
+                ("list-type", "2".to_string()),
+                ("max-keys", page_size.to_string()),
+            ];
+            if !prefix.is_empty() {
+                params.push(("prefix", prefix.to_string()));
+            }
+            if let Some(token) = &continuation_token {
+                params.push(("continuation-token", token.clone()));
+            }
+            let query = canonical_query_string(&params);
+            let headers = self.sign_request("GET", &path, &query, &host, &empty_hash, None);
+
+            let mut url = parsed_url.clone();
+            url.set_query(Some(&query));
+            let res = self
+                .client
+                .get(url)
+                .headers(headers)
+                .send()
+                .await
+                .map_err(|e| AegisError::Database(format!("S3 LIST failed: {}", e)))?;
+
+            if !res.status().is_success() {
+                let status = res.status();
+                let err_text = res.text().await.unwrap_or_default();
+                return Err(AegisError::Database(format!(
+                    "S3 LIST returned status {}: {}",
+                    status, err_text
+                )));
+            }
+
+            let body = res.text().await.map_err(|e| {
+                AegisError::Database(format!("Failed to read S3 LIST response: {}", e))
+            })?;
+            let page = parse_list_objects_response(&body)?;
+            for (key, size, last_modified) in page.objects {
+                // "フォルダ" を表す 0 バイトのオブジェクトは除外
+                if key.ends_with('/') {
+                    continue;
+                }
+                objects.push(StorageObject {
+                    url: self.public_url(&key),
+                    size,
+                    content_type: guess_content_type(&key).to_string(),
+                    last_modified,
+                    key,
+                });
+            }
+
+            match page.next_continuation_token {
+                Some(token) => continuation_token = Some(token),
+                None => break,
+            }
+        }
+        objects.truncate(max_objects);
+        Ok(objects)
     }
 
     fn public_url(&self, key: &str) -> String {
@@ -332,6 +496,7 @@ mod tests {
         let headers = backend.sign_request(
             "PUT",
             "/test.txt",
+            "",
             "test-bucket.s3.us-east-1.amazonaws.com",
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             Some("text/plain"),
@@ -342,5 +507,56 @@ mod tests {
         assert!(headers.contains_key("x-amz-content-sha256"));
         let auth = headers.get("authorization").unwrap().to_str().unwrap();
         assert!(auth.starts_with("AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/"));
+    }
+
+    #[test]
+    fn test_canonical_query_string() {
+        let query = canonical_query_string(&[
+            ("prefix", "2026/10 photos".to_string()),
+            ("list-type", "2".to_string()),
+            ("continuation-token", "1ueG+z/a=".to_string()),
+        ]);
+        assert_eq!(
+            query,
+            "continuation-token=1ueG%2Bz%2Fa%3D&list-type=2&prefix=2026%2F10%20photos"
+        );
+    }
+
+    #[test]
+    fn test_parse_list_objects_response() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Name>cms-media</Name>
+  <Prefix></Prefix>
+  <KeyCount>3</KeyCount>
+  <MaxKeys>1000</MaxKeys>
+  <IsTruncated>true</IsTruncated>
+  <NextContinuationToken>token&amp;next</NextContinuationToken>
+  <Contents>
+    <Key>2026/10/abcd1234-cat &amp; dog.png</Key>
+    <LastModified>2026-10-01T12:34:56.000Z</LastModified>
+    <ETag>&quot;abc&quot;</ETag>
+    <Size>2048</Size>
+    <StorageClass>STANDARD</StorageClass>
+  </Contents>
+  <Contents>
+    <Key>docs/report.pdf</Key>
+    <LastModified>2026-09-01T00:00:00.000Z</LastModified>
+    <Size>10</Size>
+  </Contents>
+</ListBucketResult>"#;
+        let page = parse_list_objects_response(xml).unwrap();
+        assert_eq!(page.objects.len(), 2);
+        assert_eq!(page.objects[0].0, "2026/10/abcd1234-cat & dog.png");
+        assert_eq!(page.objects[0].1, 2048);
+        assert_eq!(page.objects[0].2.as_deref(), Some("2026-10-01T12:34:56Z"));
+        assert_eq!(page.next_continuation_token.as_deref(), Some("token&next"));
+
+        let last = parse_list_objects_response(
+            "<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>",
+        )
+        .unwrap();
+        assert!(last.objects.is_empty());
+        assert_eq!(last.next_continuation_token, None);
     }
 }

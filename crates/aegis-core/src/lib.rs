@@ -25,4 +25,6 @@ pub use error::{AegisError, Result};
 pub use manifest::{
     NetworkCapability, PluginCapabilities, PluginManifest, PluginResourceLimits, StorageCapability,
 };
-pub use storage::{StorageBackend, StorageBackendKind, StorageMeta};
+pub use storage::{
+    guess_content_type, StorageBackend, StorageBackendKind, StorageMeta, StorageObject,
+};

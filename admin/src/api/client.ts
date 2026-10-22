@@ -6,6 +6,8 @@ import type {
   CreateContentPayload,
   SchemaDefinition,
   StorageMeta,
+  StorageObjectPage,
+  StorageObjectQuery,
 } from '../types';
 
 const API_BASE = 'http://127.0.0.1:8080/api/v1';
@@ -76,6 +78,19 @@ export const aegisApi = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Unknown server error' }));
       throw new ApiError(res.status, err.error || 'Failed to fetch audit logs');
+    }
+    return res.json();
+  },
+
+  async listStorageObjects(query: StorageObjectQuery): Promise<StorageObjectPage> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    }
+    const res = await fetch(`${API_BASE}/storage/objects?${params.toString()}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Unknown server error' }));
+      throw new ApiError(res.status, err.error || 'Failed to fetch media');
     }
     return res.json();
   },
