@@ -39,6 +39,23 @@ pub struct ContentRecord {
     pub custom_fields: HashMap<String, serde_json::Value>,
 }
 
+/// コンテンツ一覧の条件（`list_contents_page`）
+#[derive(Debug, Clone, Default)]
+pub struct ContentListQuery {
+    /// 指定した公開状態（`published` など）のみ
+    pub status: Option<String>,
+    /// 取得する最大件数。`None` なら全件（`offset` は無視）
+    pub limit: Option<u64>,
+    pub offset: u64,
+}
+
+/// `list_contents_page` の結果: 条件に一致する行（作成日の新しい順）と、ページングしない場合の総件数
+#[derive(Debug, Clone)]
+pub struct ContentPage {
+    pub records: Vec<ContentRecord>,
+    pub total: u64,
+}
+
 #[async_trait]
 pub trait DatabaseAdapter: Send + Sync {
     /// Initialize the database, checking connectivity and setting up migration history tables
@@ -58,16 +75,29 @@ pub trait DatabaseAdapter: Send + Sync {
         slug_or_id: &str,
     ) -> Result<Option<ContentRecord>>;
 
-    /// List content records ordered by creation date
-    async fn list_contents(&self, schema: &SchemaDefinition) -> Result<Vec<ContentRecord>>;
+    /// List all content records ordered by creation date (newest first)
+    async fn list_contents(&self, schema: &SchemaDefinition) -> Result<Vec<ContentRecord>> {
+        Ok(self
+            .list_contents_page(schema, &ContentListQuery::default())
+            .await?
+            .records)
+    }
 
-    /// Resolve a relation item from a foreign schema table
-    async fn resolve_relation(
+    /// List content records matching `query` (newest first) with the total number of matches
+    async fn list_contents_page(
+        &self,
+        schema: &SchemaDefinition,
+        query: &ContentListQuery,
+    ) -> Result<ContentPage>;
+
+    /// Resolve many relation items with one query, keyed by their `target_field` value
+    /// (values with no matching row are left out)
+    async fn resolve_relations(
         &self,
         target_schema: &SchemaDefinition,
         target_field: &str,
-        ref_id: &str,
-    ) -> Result<Option<ResolvedRelation>>;
+        ref_ids: &[String],
+    ) -> Result<HashMap<String, ResolvedRelation>>;
 
     /// Persist an audit event into the audit log table
     async fn insert_audit_event(&self, event: &AuditEvent) -> Result<()>;
@@ -407,6 +437,104 @@ pub fn build_audit_delete_before(placeholder: &str) -> String {
     )
 }
 
+/// リレーション列の値（参照先のキー）。空文字・文字列以外は参照なしとして扱う
+pub fn relation_ref(value: &serde_json::Value) -> Option<&str> {
+    value.as_str().map(str::trim).filter(|s| !s.is_empty())
+}
+
+/// 複数レコードのリレーションを、リレーション列ごとに 1 回の問い合わせでまとめて解決する。
+/// 戻り値は `records` と同じ順序の「フィールド名 → 参照先」。問い合わせの失敗は警告ログを出して未解決とする
+pub async fn resolve_relations_for_records(
+    db: &dyn DatabaseAdapter,
+    schemas: &HashMap<String, SchemaDefinition>,
+    schema: &SchemaDefinition,
+    records: &[&HashMap<String, serde_json::Value>],
+) -> Vec<HashMap<String, ResolvedRelation>> {
+    let mut resolved = vec![HashMap::new(); records.len()];
+    for (field_def, target) in schema.relation_fields() {
+        let Some(target_schema) = schemas.get(&target.content_type) else {
+            continue;
+        };
+        let refs: Vec<Option<&str>> = records
+            .iter()
+            .map(|fields| fields.get(&field_def.name).and_then(relation_ref))
+            .collect();
+        let mut ids: Vec<String> = refs.iter().flatten().map(|id| id.to_string()).collect();
+        ids.sort();
+        ids.dedup();
+        if ids.is_empty() {
+            continue;
+        }
+        let found = match db
+            .resolve_relations(target_schema, &target.field, &ids)
+            .await
+        {
+            Ok(found) => found,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to resolve relation '{}' to {}: {}",
+                    field_def.name,
+                    target.content_type,
+                    e
+                );
+                continue;
+            }
+        };
+        for (relations, id) in resolved.iter_mut().zip(&refs) {
+            if let Some(relation) = id.and_then(|id| found.get(id)) {
+                relations.insert(field_def.name.clone(), relation.clone());
+            }
+        }
+    }
+    resolved
+}
+
+/// コンテンツ一覧の SELECT 文・件数の SELECT 文と、両方に共通のバインド値を組み立てる。
+/// 値はすべてバインドし、LIMIT / OFFSET のみ数値を埋め込む
+pub fn build_content_list(
+    table: &str,
+    query: &ContentListQuery,
+    placeholder: impl Fn(usize) -> String,
+) -> (String, String, Vec<String>) {
+    let mut binds = Vec::new();
+    let where_clause = match &query.status {
+        Some(status) => {
+            binds.push(status.clone());
+            format!(" WHERE status = {}", placeholder(1))
+        }
+        None => String::new(),
+    };
+    let paging = match query.limit {
+        Some(limit) => format!(" LIMIT {} OFFSET {}", limit, query.offset),
+        None => String::new(),
+    };
+    (
+        format!(
+            "SELECT * FROM {}{} ORDER BY created_at DESC, id DESC{};",
+            table, where_clause, paging
+        ),
+        format!("SELECT COUNT(*) FROM {}{};", table, where_clause),
+        binds,
+    )
+}
+
+/// `resolve_relations` の SELECT 文（`ref_key` 列に `target_field` の値）。`count` 個の値を IN でバインドする
+pub fn build_relation_lookup(
+    table: &str,
+    target_field: &str,
+    count: usize,
+    placeholder: impl Fn(usize) -> String,
+) -> String {
+    let placeholders: Vec<String> = (1..=count).map(placeholder).collect();
+    format!(
+        "SELECT id, content_type, title, slug, {} AS ref_key FROM {} WHERE {} IN ({});",
+        target_field,
+        table,
+        target_field,
+        placeholders.join(", ")
+    )
+}
+
 /// 検索条件から SELECT 文とバインド値を組み立てる。値はすべてバインドし、LIMIT / OFFSET のみ数値を埋め込む
 pub fn build_audit_select(
     query: &AuditQuery,
@@ -538,6 +666,42 @@ mod tests {
             "type": serde_json::to_value(&field_type).unwrap(),
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn test_content_list_and_relation_sql() {
+        let query = ContentListQuery {
+            status: Some("published".to_string()),
+            limit: Some(10),
+            offset: 20,
+        };
+        let (select, count, binds) =
+            build_content_list("content_article", &query, |i| format!("${}", i));
+        assert_eq!(
+            select,
+            "SELECT * FROM content_article WHERE status = $1 ORDER BY created_at DESC, id DESC LIMIT 10 OFFSET 20;"
+        );
+        assert_eq!(
+            count,
+            "SELECT COUNT(*) FROM content_article WHERE status = $1;"
+        );
+        assert_eq!(binds, vec!["published"]);
+
+        let (select, count, binds) =
+            build_content_list("content_article", &ContentListQuery::default(), |_| {
+                "?".into()
+            });
+        assert_eq!(
+            select,
+            "SELECT * FROM content_article ORDER BY created_at DESC, id DESC;"
+        );
+        assert_eq!(count, "SELECT COUNT(*) FROM content_article;");
+        assert!(binds.is_empty());
+
+        assert_eq!(
+            build_relation_lookup("content_category", "id", 3, |_| "?".into()),
+            "SELECT id, content_type, title, slug, id AS ref_key FROM content_category WHERE id IN (?, ?, ?);"
+        );
     }
 
     #[test]

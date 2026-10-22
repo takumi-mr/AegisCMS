@@ -4,16 +4,63 @@ use std::str::FromStr;
 use aegis_core::{AegisError, AuditEvent, AuditQuery, Result};
 use aegis_schema::{FieldType, SchemaDefinition, SchemaMigration, SqlDialect};
 use async_trait::async_trait;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteRow};
 use sqlx::{Pool, Row, Sqlite};
 
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
-    build_audit_select, build_identity_insert, build_identity_select, build_identity_table,
-    build_user_insert, build_user_select, build_user_update, is_standard_column,
-    user_row_from_sqlx, ContentRecord, DatabaseAdapter, ResolvedRelation, UserRecord,
-    AUDIT_INDEXES, AUDIT_TABLE, USER_TABLE,
+    build_audit_select, build_content_list, build_identity_insert, build_identity_select,
+    build_identity_table, build_relation_lookup, build_user_insert, build_user_select,
+    build_user_update, is_standard_column, user_row_from_sqlx, ContentListQuery, ContentPage,
+    ContentRecord, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE,
+    USER_TABLE,
 };
+
+/// SQLite はカスタムフィールドを文字列で保存するため、JSON として読めればその値、読めなければ文字列にする。
+/// NULL の列は含めない（`try_get::<String>` は NULL を空文字として返すため、`Option` で読む）
+fn custom_fields_from_row(
+    schema: &SchemaDefinition,
+    row: &SqliteRow,
+) -> HashMap<String, serde_json::Value> {
+    let mut custom_fields = HashMap::new();
+    for field in &schema.fields {
+        if is_standard_column(&field.name) {
+            continue;
+        }
+        let name = field.name.as_str();
+        let value = match row.try_get::<Option<String>, _>(name) {
+            Ok(text) => {
+                text.map(|s| serde_json::from_str(&s).unwrap_or(serde_json::Value::String(s)))
+            }
+            // INTEGER の列に数値として保存された値
+            Err(_) => row
+                .try_get::<Option<i64>, _>(name)
+                .ok()
+                .flatten()
+                .map(serde_json::Value::from),
+        };
+        if let Some(value) = value {
+            custom_fields.insert(field.name.clone(), value);
+        }
+    }
+    custom_fields
+}
+
+fn record_from_row(schema: &SchemaDefinition, r: &SqliteRow) -> ContentRecord {
+    ContentRecord {
+        id: r.get("id"),
+        content_type: r.get("content_type"),
+        title: r.get("title"),
+        slug: r.get("slug"),
+        status: r.get("status"),
+        blocks_json: r.get("blocks_json"),
+        author_id: r.get("author_id"),
+        published_at: r.get("published_at"),
+        created_at: r.get("created_at"),
+        updated_at: r.get("updated_at"),
+        custom_fields: custom_fields_from_row(schema, r),
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SqliteAdapter {
@@ -303,111 +350,76 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
 
-        match row {
-            Some(r) => {
-                let mut custom_fields = HashMap::new();
-                for field in &schema.fields {
-                    if is_standard_column(&field.name) {
-                        continue;
-                    }
-                    if let Ok(val) = r.try_get::<String, _>(field.name.as_str()) {
-                        let parsed: serde_json::Value =
-                            serde_json::from_str(&val).unwrap_or(serde_json::Value::String(val));
-                        custom_fields.insert(field.name.clone(), parsed);
-                    } else if let Ok(val) = r.try_get::<i64, _>(field.name.as_str()) {
-                        custom_fields
-                            .insert(field.name.clone(), serde_json::Value::Number(val.into()));
-                    }
-                }
-
-                Ok(Some(ContentRecord {
-                    id: r.get("id"),
-                    content_type: r.get("content_type"),
-                    title: r.get("title"),
-                    slug: r.get("slug"),
-                    status: r.get("status"),
-                    blocks_json: r.get("blocks_json"),
-                    author_id: r.get("author_id"),
-                    published_at: r.get("published_at"),
-                    created_at: r.get("created_at"),
-                    updated_at: r.get("updated_at"),
-                    custom_fields,
-                }))
-            }
-            None => Ok(None),
-        }
+        Ok(row.map(|r| record_from_row(schema, &r)))
     }
 
-    async fn list_contents(&self, schema: &SchemaDefinition) -> Result<Vec<ContentRecord>> {
-        let table = schema.table_name();
-        let query = format!("SELECT * FROM {} ORDER BY created_at DESC;", table);
+    async fn list_contents_page(
+        &self,
+        schema: &SchemaDefinition,
+        query: &ContentListQuery,
+    ) -> Result<ContentPage> {
+        let (select, count, binds) =
+            build_content_list(&schema.table_name(), query, |i| format!("?{}", i));
 
-        let rows = sqlx::query(&query)
+        let mut rows_query = sqlx::query(&select);
+        let mut count_query = sqlx::query_scalar::<_, i64>(&count);
+        for value in &binds {
+            rows_query = rows_query.bind(value);
+            count_query = count_query.bind(value);
+        }
+        let rows = rows_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        let total = count_query
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        Ok(ContentPage {
+            records: rows.iter().map(|r| record_from_row(schema, r)).collect(),
+            total: total.max(0) as u64,
+        })
+    }
+
+    async fn resolve_relations(
+        &self,
+        target_schema: &SchemaDefinition,
+        target_field: &str,
+        ref_ids: &[String],
+    ) -> Result<HashMap<String, ResolvedRelation>> {
+        if ref_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let query = build_relation_lookup(
+            &target_schema.table_name(),
+            target_field,
+            ref_ids.len(),
+            |i| format!("?{}", i),
+        );
+        let mut lookup = sqlx::query(&query);
+        for id in ref_ids {
+            lookup = lookup.bind(id);
+        }
+        let rows = lookup
             .fetch_all(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
 
-        let mut results = Vec::new();
-        for r in rows {
-            let mut custom_fields = HashMap::new();
-            for field in &schema.fields {
-                if is_standard_column(&field.name) {
-                    continue;
-                }
-                if let Ok(val) = r.try_get::<String, _>(field.name.as_str()) {
-                    let parsed: serde_json::Value =
-                        serde_json::from_str(&val).unwrap_or(serde_json::Value::String(val));
-                    custom_fields.insert(field.name.clone(), parsed);
-                } else if let Ok(val) = r.try_get::<i64, _>(field.name.as_str()) {
-                    custom_fields.insert(field.name.clone(), serde_json::Value::Number(val.into()));
-                }
-            }
-
-            results.push(ContentRecord {
-                id: r.get("id"),
-                content_type: r.get("content_type"),
-                title: r.get("title"),
-                slug: r.get("slug"),
-                status: r.get("status"),
-                blocks_json: r.get("blocks_json"),
-                author_id: r.get("author_id"),
-                published_at: r.get("published_at"),
-                created_at: r.get("created_at"),
-                updated_at: r.get("updated_at"),
-                custom_fields,
-            });
-        }
-
-        Ok(results)
-    }
-
-    async fn resolve_relation(
-        &self,
-        target_schema: &SchemaDefinition,
-        target_field: &str,
-        ref_id: &str,
-    ) -> Result<Option<ResolvedRelation>> {
-        let target_table = target_schema.table_name();
-        let query = format!(
-            "SELECT id, content_type, title, slug FROM {} WHERE {} = ?1 LIMIT 1;",
-            target_table, target_field
-        );
-
-        let row = sqlx::query(&query)
-            .bind(ref_id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        match row {
-            Some(r) => Ok(Some(ResolvedRelation {
-                id: r.get("id"),
-                content_type: r.get("content_type"),
-                title: r.get("title"),
-                slug: r.get("slug"),
-            })),
-            None => Ok(None),
-        }
+        Ok(rows
+            .iter()
+            .map(|r| {
+                (
+                    r.get("ref_key"),
+                    ResolvedRelation {
+                        id: r.get("id"),
+                        content_type: r.get("content_type"),
+                        title: r.get("title"),
+                        slug: r.get("slug"),
+                    },
+                )
+            })
+            .collect())
     }
 
     async fn insert_audit_event(&self, event: &AuditEvent) -> Result<()> {
@@ -546,6 +558,187 @@ mod tests {
         let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
         adapter.init().await.unwrap();
         adapter
+    }
+
+    fn schemas() -> HashMap<String, SchemaDefinition> {
+        let article: SchemaDefinition = serde_json::from_value(serde_json::json!({
+            "content_type": "article",
+            "label": "Articles",
+            "fields": [
+                { "name": "title", "type": "string", "required": true },
+                { "name": "category_id", "type": "relation", "target": "category.id" },
+                { "name": "custom_meta", "type": "jsonb" },
+                { "name": "priority", "type": "integer" }
+            ]
+        }))
+        .unwrap();
+        let category: SchemaDefinition = serde_json::from_value(serde_json::json!({
+            "content_type": "category",
+            "label": "Categories",
+            "fields": [{ "name": "title", "type": "string", "required": true }]
+        }))
+        .unwrap();
+        HashMap::from([
+            ("article".to_string(), article),
+            ("category".to_string(), category),
+        ])
+    }
+
+    fn record(
+        content_type: &str,
+        n: usize,
+        status: &str,
+        custom_fields: serde_json::Value,
+    ) -> ContentRecord {
+        ContentRecord {
+            id: format!("{}-{}", content_type, n),
+            content_type: content_type.to_string(),
+            title: format!("Title {}", n),
+            slug: format!("{}-slug-{}", content_type, n),
+            status: status.to_string(),
+            blocks_json: "[]".to_string(),
+            author_id: None,
+            published_at: None,
+            created_at: format!("2026-10-22T00:00:{:02}Z", n),
+            updated_at: format!("2026-10-22T00:00:{:02}Z", n),
+            custom_fields: serde_json::from_value(custom_fields).unwrap(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_null_custom_fields_are_left_out() {
+        let adapter = memory_adapter().await;
+        let schemas = schemas();
+        adapter.run_migrations(&schemas).await.unwrap();
+        let article = &schemas["article"];
+        adapter
+            .insert_content(
+                article,
+                &record("article", 1, "published", serde_json::json!({})),
+            )
+            .await
+            .unwrap();
+        adapter
+            .insert_content(
+                article,
+                &record(
+                    "article",
+                    2,
+                    "published",
+                    serde_json::json!({ "category_id": "category-1", "custom_meta": { "seo": true } }),
+                ),
+            )
+            .await
+            .unwrap();
+
+        // 以前は NULL の列が "" として返り、空文字でリレーションを問い合わせていた
+        let empty = adapter
+            .get_content(article, "article-1")
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(empty.custom_fields.is_empty(), "{:?}", empty.custom_fields);
+        let filled = adapter
+            .get_content(article, "article-2")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(filled.custom_fields["category_id"], "category-1");
+        assert_eq!(
+            filled.custom_fields["custom_meta"],
+            serde_json::json!({ "seo": true })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_contents_page_filters_and_pages() {
+        let adapter = memory_adapter().await;
+        let schemas = schemas();
+        adapter.run_migrations(&schemas).await.unwrap();
+        let article = &schemas["article"];
+        for n in 1..=5 {
+            let status = if n == 3 { "draft" } else { "published" };
+            adapter
+                .insert_content(
+                    article,
+                    &record("article", n, status, serde_json::json!({})),
+                )
+                .await
+                .unwrap();
+        }
+
+        let all = adapter.list_contents(article).await.unwrap();
+        assert_eq!(all.len(), 5);
+        assert_eq!(all[0].id, "article-5", "newest first");
+
+        let page = adapter
+            .list_contents_page(
+                article,
+                &ContentListQuery {
+                    status: Some("published".to_string()),
+                    limit: Some(2),
+                    offset: 2,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.total, 4);
+        let ids: Vec<&str> = page.records.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(ids, vec!["article-2", "article-1"]);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_relations_in_one_query() {
+        let adapter = memory_adapter().await;
+        let schemas = schemas();
+        adapter.run_migrations(&schemas).await.unwrap();
+        for n in 1..=2 {
+            adapter
+                .insert_content(
+                    &schemas["category"],
+                    &record("category", n, "published", serde_json::json!({})),
+                )
+                .await
+                .unwrap();
+        }
+
+        let ids = vec![
+            "category-1".to_string(),
+            "category-2".to_string(),
+            "missing".to_string(),
+        ];
+        let found = adapter
+            .resolve_relations(&schemas["category"], "id", &ids)
+            .await
+            .unwrap();
+        assert_eq!(found.len(), 2);
+        assert_eq!(found["category-2"].slug, "category-slug-2");
+        assert!(adapter
+            .resolve_relations(&schemas["category"], "id", &[])
+            .await
+            .unwrap()
+            .is_empty());
+
+        // 記事ごとの解決（同じ参照先はまとめて 1 回の問い合わせ）
+        let records: Vec<HashMap<String, serde_json::Value>> = vec![
+            serde_json::from_value(serde_json::json!({ "category_id": "category-1" })).unwrap(),
+            HashMap::new(),
+            serde_json::from_value(serde_json::json!({ "category_id": "  " })).unwrap(),
+            serde_json::from_value(serde_json::json!({ "category_id": "category-1" })).unwrap(),
+        ];
+        let refs: Vec<_> = records.iter().collect();
+        let resolved = super::super::resolve_relations_for_records(
+            &adapter,
+            &schemas,
+            &schemas["article"],
+            &refs,
+        )
+        .await;
+        let titles: Vec<Option<&str>> = resolved
+            .iter()
+            .map(|r| r.get("category_id").map(|rel| rel.title.as_str()))
+            .collect();
+        assert_eq!(titles, vec![Some("Title 1"), None, None, Some("Title 1")]);
     }
 
     fn event_at(

@@ -1,15 +1,16 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
-use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::db::{resolve_relations_for_records, ContentListQuery};
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::BlockNode;
-use aegis_core::{ContentSummary, PageRenderContext};
+use aegis_core::{ContentSummary, PageRenderContext, Pagination};
+use serde::Deserialize;
 
 /// ブロックノードから先頭段落を抽出して抜粋を生成
 fn extract_excerpt(blocks: &[BlockNode], max_chars: usize) -> String {
@@ -56,67 +57,92 @@ pub async fn render_not_found(state: &AppState, message: &str) -> Response {
     (StatusCode::NOT_FOUND, Html(rendered)).into_response()
 }
 
-/// トップページ（最新の公開記事一覧）
-pub async fn render_index(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+#[derive(Debug, Default, Deserialize)]
+pub struct IndexParams {
+    /// 1 始まりのページ番号（`[theme].posts_per_page` 件ずつ）
+    pub page: Option<u64>,
+}
+
+/// トップページ（最新の公開記事一覧、`?page=N` でページ送り）
+pub async fn render_index(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<IndexParams>,
+) -> Response {
+    let per_page = state.config.theme.posts_per_page.max(1);
+    let page = params.page.unwrap_or(1).max(1);
+    let mut items = Vec::new();
+    let mut total_items = 0;
+
     let article_schema = {
         let schemas = state.schemas.read().await;
         schemas.get("article").cloned()
     };
-
-    let mut items = Vec::new();
-
     if let Some(schema) = article_schema {
-        if let Ok(records) = state.db.list_contents(&schema).await {
-            let schemas_guard = state.schemas.read().await;
-
-            for r in records {
-                if r.status != "published" {
-                    continue;
+        let query = ContentListQuery {
+            status: Some("published".to_string()),
+            limit: Some(per_page),
+            offset: (page - 1).saturating_mul(per_page),
+        };
+        match state.db.list_contents_page(&schema, &query).await {
+            Ok(content_page) => {
+                total_items = content_page.total;
+                let relations = {
+                    let schemas = state.schemas.read().await;
+                    let fields: Vec<_> = content_page
+                        .records
+                        .iter()
+                        .map(|r| &r.custom_fields)
+                        .collect();
+                    resolve_relations_for_records(&*state.db, &schemas, &schema, &fields).await
+                };
+                for (r, relations) in content_page.records.into_iter().zip(relations) {
+                    let blocks: Vec<BlockNode> =
+                        serde_json::from_str(&r.blocks_json).unwrap_or_default();
+                    items.push(ContentSummary {
+                        id: r.id,
+                        content_type: r.content_type,
+                        title: r.title,
+                        slug: r.slug,
+                        excerpt: extract_excerpt(&blocks, 140),
+                        author_id: r.author_id,
+                        published_at: r.published_at,
+                        created_at: r.created_at,
+                        fields: r.custom_fields,
+                        relations: relations
+                            .iter()
+                            .map(|(name, rel)| (name.clone(), render::relation_summary(rel)))
+                            .collect(),
+                    });
                 }
-
-                let blocks: Vec<BlockNode> =
-                    serde_json::from_str(&r.blocks_json).unwrap_or_default();
-                let excerpt = extract_excerpt(&blocks, 140);
-
-                let mut rel_values = HashMap::new();
-                for (field_def, target) in schema.relation_fields() {
-                    if let Some(val_json) = r.custom_fields.get(&field_def.name) {
-                        if let Some(ref_id) = val_json.as_str() {
-                            if let Some(target_schema) = schemas_guard.get(&target.content_type) {
-                                if let Ok(Some(rel)) = state
-                                    .db
-                                    .resolve_relation(target_schema, &target.field, ref_id)
-                                    .await
-                                {
-                                    rel_values.insert(
-                                        field_def.name.clone(),
-                                        serde_json::json!({
-                                            "id": rel.id,
-                                            "title": rel.title,
-                                            "slug": rel.slug,
-                                        }),
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-
-                items.push(ContentSummary {
-                    id: r.id,
-                    content_type: r.content_type,
-                    title: r.title,
-                    slug: r.slug,
-                    excerpt,
-                    author_id: r.author_id,
-                    published_at: r.published_at,
-                    created_at: r.created_at,
-                    fields: r.custom_fields,
-                    relations: rel_values,
-                });
             }
+            Err(e) => tracing::error!("Failed to list articles for the index page: {}", e),
         }
     }
+
+    let total_pages = total_items.div_ceil(per_page).max(1);
+    if page > total_pages {
+        return render_not_found(&state, "This page does not exist.").await;
+    }
+    let base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+    let page_url = |n: u64| {
+        if n <= 1 {
+            format!("{}/", base_path)
+        } else {
+            format!("{}/?page={}", base_path, n)
+        }
+    };
+    let pagination = Pagination {
+        page,
+        per_page,
+        total_items,
+        total_pages,
+        prev_url: (page > 1).then(|| page_url(page - 1)),
+        next_url: (page < total_pages).then(|| page_url(page + 1)),
+    };
 
     let mut ctx = PageRenderContext {
         site_title: state.config.theme.site_title.clone(),
@@ -125,6 +151,7 @@ pub async fn render_index(State(state): State<Arc<AppState>>) -> impl IntoRespon
         content_type: "index".to_string(),
         title: "Latest Stories".to_string(),
         items,
+        pagination: Some(pagination),
         extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
         ..Default::default()
     };
@@ -284,6 +311,7 @@ mod tests {
     use crate::cache::MemoryCacheBackend;
     use crate::db::{ContentRecord, DatabaseAdapter, SqliteAdapter};
     use crate::storage::LocalStorageBackend;
+    use std::collections::HashMap;
 
     use aegis_core::{
         AegisConfig, PluginCapabilities, PluginManifest, PluginResourceLimits,
@@ -388,11 +416,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_render_index_paginates_published_posts() {
+        let mut config = AegisConfig::default();
+        config.theme.posts_per_page = 2;
+        config.server.base_path = "/cms".to_string();
+        let state =
+            crate::test_support::test_state_with_config(config, PluginSupervisor::new()).await;
+        let schema = state.schemas.read().await["article"].clone();
+        for n in 1..=4 {
+            let status = if n == 2 { "draft" } else { "published" };
+            state
+                .db
+                .insert_content(
+                    &schema,
+                    &ContentRecord {
+                        id: format!("id-{}", n),
+                        content_type: "article".to_string(),
+                        title: format!("Post {}", n),
+                        slug: format!("post-{}", n),
+                        status: status.to_string(),
+                        blocks_json: "[]".to_string(),
+                        author_id: None,
+                        published_at: None,
+                        created_at: format!("2026-10-22T00:00:0{}Z", n),
+                        updated_at: format!("2026-10-22T00:00:0{}Z", n),
+                        custom_fields: HashMap::new(),
+                    },
+                )
+                .await
+                .unwrap();
+        }
+        let page = |n: Option<u64>| {
+            let state = state.clone();
+            async move {
+                let resp = render_index(State(state), Query(IndexParams { page: n })).await;
+                let status = resp.status();
+                let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+                    .await
+                    .unwrap();
+                // テンプレートは URL の `/` を `&#x2f;` にエスケープする（ブラウザでは同じ URL）
+                let html = String::from_utf8(body.to_vec())
+                    .unwrap()
+                    .replace("&#x2f;", "/");
+                (status, html)
+            }
+        };
+
+        // 公開済み 3 件（post-4, post-3, post-1）を 2 件ずつ。下書きは含めない
+        let (status, first) = page(None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(first.contains("/cms/articles/post-4") && first.contains("/cms/articles/post-3"));
+        assert!(!first.contains("post-1") && !first.contains("post-2"));
+        assert!(
+            first.contains(r#"href="/cms/?page=2" rel="next""#),
+            "{}",
+            first
+        );
+        assert!(!first.contains(r#"rel="prev""#));
+        assert!(first.contains("3 posts"));
+
+        let (_, second) = page(Some(2)).await;
+        assert!(second.contains("/cms/articles/post-1") && !second.contains("post-4"));
+        assert!(second.contains(r#"href="/cms/" rel="prev""#));
+        assert!(!second.contains(r#"rel="next""#));
+
+        let (status, _) = page(Some(3)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
     async fn test_render_index_empty_and_with_published_post() {
         let state = create_test_state(PluginSupervisor::new()).await;
 
         // 1. 記事がない状態のトップページ
-        let resp = render_index(State(state.clone())).await.into_response();
+        let resp = render_index(State(state.clone()), Query(IndexParams::default()))
+            .await
+            .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let body_bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -446,7 +545,9 @@ mod tests {
             .unwrap();
 
         // 3. 再度トップページを取得
-        let resp = render_index(State(state.clone())).await.into_response();
+        let resp = render_index(State(state.clone()), Query(IndexParams::default()))
+            .await
+            .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let body_bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -585,7 +686,9 @@ mod tests {
         state.db.insert_content(&schema, &record).await.unwrap();
 
         // 1. トップページでプラグインの on-render-page によるタイトル書き換えとCSS注入を検証
-        let resp = render_index(State(state.clone())).await.into_response();
+        let resp = render_index(State(state.clone()), Query(IndexParams::default()))
+            .await
+            .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await

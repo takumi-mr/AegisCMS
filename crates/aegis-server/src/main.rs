@@ -387,7 +387,8 @@ async fn main() -> anyhow::Result<()> {
             // 5.5 テーマエンジンの初期化 & プラグイン登録テンプレートの同期
             let theme_engine = Arc::new(
                 aegis_theme::ThemeEngine::new(&config.paths.themes_dir, &config.theme.active)
-                    .with_base_path(&base_path),
+                    .with_base_path(&base_path)
+                    .with_template_reload(config.theme.reload_templates),
             );
             let plugin_templates = supervisor.collect_plugin_templates();
             for (name, content) in plugin_templates {

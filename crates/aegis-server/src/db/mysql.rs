@@ -8,10 +8,11 @@ use sqlx::{MySql, Pool, Row};
 
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
-    build_audit_select, build_identity_insert, build_identity_select, build_identity_table,
-    build_user_insert, build_user_select, build_user_update, is_standard_column,
-    user_row_from_sqlx, ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation,
-    UserRecord, AUDIT_TABLE, USER_TABLE,
+    build_audit_select, build_content_list, build_identity_insert, build_identity_select,
+    build_identity_table, build_relation_lookup, build_user_insert, build_user_select,
+    build_user_update, is_standard_column, user_row_from_sqlx, ContentListQuery, ContentPage,
+    ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_TABLE,
+    USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -81,6 +82,22 @@ fn custom_fields_from_row(
         }
     }
     custom_fields
+}
+
+fn record_from_row(schema: &SchemaDefinition, r: &MySqlRow) -> ContentRecord {
+    ContentRecord {
+        id: r.get("id"),
+        content_type: r.get("content_type"),
+        title: r.get("title"),
+        slug: r.get("slug"),
+        status: r.get("status"),
+        blocks_json: r.get("blocks_json"),
+        author_id: r.get("author_id"),
+        published_at: r.get("published_at"),
+        created_at: r.get("created_at"),
+        updated_at: r.get("updated_at"),
+        custom_fields: custom_fields_from_row(schema, r),
+    }
 }
 
 #[async_trait]
@@ -332,86 +349,76 @@ impl DatabaseAdapter for MySqlAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
 
-        match row {
-            Some(r) => {
-                let custom_fields = custom_fields_from_row(schema, &r);
-
-                Ok(Some(ContentRecord {
-                    id: r.get("id"),
-                    content_type: r.get("content_type"),
-                    title: r.get("title"),
-                    slug: r.get("slug"),
-                    status: r.get("status"),
-                    blocks_json: r.get("blocks_json"),
-                    author_id: r.get("author_id"),
-                    published_at: r.get("published_at"),
-                    created_at: r.get("created_at"),
-                    updated_at: r.get("updated_at"),
-                    custom_fields,
-                }))
-            }
-            None => Ok(None),
-        }
+        Ok(row.map(|r| record_from_row(schema, &r)))
     }
 
-    async fn list_contents(&self, schema: &SchemaDefinition) -> Result<Vec<ContentRecord>> {
-        let table = schema.table_name();
-        let query = format!("SELECT * FROM {} ORDER BY created_at DESC;", table);
+    async fn list_contents_page(
+        &self,
+        schema: &SchemaDefinition,
+        query: &ContentListQuery,
+    ) -> Result<ContentPage> {
+        let (select, count, binds) =
+            build_content_list(&schema.table_name(), query, |_| "?".to_string());
 
-        let rows = sqlx::query(&query)
+        let mut rows_query = sqlx::query(&select);
+        let mut count_query = sqlx::query_scalar::<_, i64>(&count);
+        for value in &binds {
+            rows_query = rows_query.bind(value);
+            count_query = count_query.bind(value);
+        }
+        let rows = rows_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        let total = count_query
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        Ok(ContentPage {
+            records: rows.iter().map(|r| record_from_row(schema, r)).collect(),
+            total: total.max(0) as u64,
+        })
+    }
+
+    async fn resolve_relations(
+        &self,
+        target_schema: &SchemaDefinition,
+        target_field: &str,
+        ref_ids: &[String],
+    ) -> Result<HashMap<String, ResolvedRelation>> {
+        if ref_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let query = build_relation_lookup(
+            &target_schema.table_name(),
+            target_field,
+            ref_ids.len(),
+            |_| "?".to_string(),
+        );
+        let mut lookup = sqlx::query(&query);
+        for id in ref_ids {
+            lookup = lookup.bind(id);
+        }
+        let rows = lookup
             .fetch_all(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
 
-        let mut results = Vec::new();
-        for r in rows {
-            let custom_fields = custom_fields_from_row(schema, &r);
-
-            results.push(ContentRecord {
-                id: r.get("id"),
-                content_type: r.get("content_type"),
-                title: r.get("title"),
-                slug: r.get("slug"),
-                status: r.get("status"),
-                blocks_json: r.get("blocks_json"),
-                author_id: r.get("author_id"),
-                published_at: r.get("published_at"),
-                created_at: r.get("created_at"),
-                updated_at: r.get("updated_at"),
-                custom_fields,
-            });
-        }
-
-        Ok(results)
-    }
-
-    async fn resolve_relation(
-        &self,
-        target_schema: &SchemaDefinition,
-        target_field: &str,
-        ref_id: &str,
-    ) -> Result<Option<ResolvedRelation>> {
-        let target_table = target_schema.table_name();
-        let query = format!(
-            "SELECT id, content_type, title, slug FROM {} WHERE {} = ? LIMIT 1;",
-            target_table, target_field
-        );
-
-        let row = sqlx::query(&query)
-            .bind(ref_id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        match row {
-            Some(r) => Ok(Some(ResolvedRelation {
-                id: r.get("id"),
-                content_type: r.get("content_type"),
-                title: r.get("title"),
-                slug: r.get("slug"),
-            })),
-            None => Ok(None),
-        }
+        Ok(rows
+            .iter()
+            .map(|r| {
+                (
+                    r.get("ref_key"),
+                    ResolvedRelation {
+                        id: r.get("id"),
+                        content_type: r.get("content_type"),
+                        title: r.get("title"),
+                        slug: r.get("slug"),
+                    },
+                )
+            })
+            .collect())
     }
 
     async fn insert_audit_event(&self, event: &AuditEvent) -> Result<()> {

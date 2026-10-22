@@ -80,6 +80,15 @@
   - 将来のマーケットプレイスを見据えた「Theme Marketplace」タブ（コミュニティテーマ探索、カテゴリフィルター、ZIP インポート案内）。
   - 画面全体の縦スクロール対応（親の `height: 100vh; overflow: hidden;` に対し、`flex: 1; overflow-y: auto;` な `<main>` ラッパーを配置し、画面外の全テーマへのアクセス・操作性を確保）。
 
+#### 一覧系の性能改善（簡易ベンチマークの結果から）
+- [x] **SQLite の NULL の読み出し**: カスタムフィールドの NULL が `""` として返り、API の `fields` が `""` になる・空文字でリレーションを問い合わせていた。`Option` で読み、NULL は含めない（PostgreSQL / MySQL と同じ）。
+- [x] **リレーションの一括解決**: 記事ごとの問い合わせ（N+1）をやめ、リレーション列ごとに `IN (...)` の 1 回にまとめる（`db::resolve_relations_for_records`）。
+- [x] **ページング**: トップページは `[theme].posts_per_page`（既定 10）件ずつ `?page=N`（テンプレートに `pagination`）。一覧 API は `?limit=`（既定 50・最大 500）`&offset=&status=`、`total` は条件に一致する総件数。Admin Studio の `getContents` は 500 件ずつ全件を取得する。
+- [x] **一覧のインデックス**: `(created_at, id)` / `(status, created_at, id)`。並べ替えを避け、記事数に関係なく一定の速さにする。
+- [x] **テンプレートのキャッシュ**: コンパイル済みの MiniJinja 環境を再利用（テーマ切り替え・テンプレート登録で破棄。`[theme].reload_templates = true` で毎回読み直す）。
+- [x] #39 のテーマ（cyber-neon / emerald-luxury / minimal-editorial）のリンクに `{{ base_path }}` を付けた（サブパス配下でリンク切れになっていた）。
+- [ ] **プラグインのインスタンスの再利用（プール化）**: フック 1 回あたり約 1ms（呼び出しごとのインスタンス化）。呼び出しごとの完全な分離という設計方針との兼ね合いで保留。
+
 #### プラグインのインストール・有効化の分離（ストア対応の土台）
 - [x] **SDK テンプレートを `plugins/` から `sdk/` へ移動**: テンプレート（`sdk/templates/{rust,assemblyscript,tinygo}`）とサンプル（`sdk/examples/slack-notifier`）が既定の構成・Docker イメージで有効になり、全記事を書き換えていた／AssemblyScript 版が `env.abort` のインポートで全保存を失敗させていた問題を解消。
 - [x] **`[plugins].enabled` による有効化**: `plugins/<name>/`（`name` はマニフェストの `name`）にインストールし、設定に書いたものだけを書いた順（= フックの実行順）に読み込む。有効にしたプラグインが未インストール・読み込めない場合は起動を中止。`aegis plugin list`、`GET /api/v1/plugins`（admin）。
@@ -129,6 +138,11 @@
     - **動的テーマ切り替え API**: `window.AegisCodeEnhancer.setThemeUrl(url)` により、ブラウザ上や Admin Studio プレビューから動的にスタイルシートを適用可能。
   - **ワンクリックコードコピー**:
     - `<pre>` ブロックの右上にホバー時に浮かび上がる「Copy」ボタンを動的付与。クリック時に `navigator.clipboard.writeText` でクリップボードへ保存し、`Copied!` 表示に遷移。
+- **一覧の取得とベンチマーク**:
+  - 一覧は `DatabaseAdapter::list_contents_page`（`ContentListQuery`: status / limit / offset、`ORDER BY created_at DESC, id DESC`）で取得し、総件数は同じ条件の `COUNT(*)`。全件が必要な処理（メディアの使用中チェック）だけ `list_contents` を使う。
+  - リレーションは `resolve_relations_for_records` でまとめて解決する（単一レコードもこれを使う）。参照の値は `db::relation_ref`（空文字・文字列以外は参照なし）。
+  - 一覧 API はページごとに本文 HTML を描画する（`[security]` の変更を保存済みのコンテンツにも反映するため、描画済み HTML は保存しない方針のまま）。
+  - 簡易ベンチマーク（4 vCPU・同一マシンから oha・同時 50・記事 50 件）: トップページ 470 → 5,100 req/s（記事 200 件では 118 → 5,500）、記事ページ 8,900 → 16,000、プレビュー 4,700 → 7,300、一覧 API 1,100 → 1,200（50 件/ページ）。プラグイン 3 つ（描画フックあり）を有効にすると記事ページは約 1,500 req/s（フック 1 回約 1ms）。
 
 - **プラグインのインストールと有効化 (`aegis_runtime::WasmPluginLoader`)**:
   - インストール = `plugins_dir/<name>/plugin.manifest.json`（ディレクトリ名とマニフェストの `name` は一致必須、`aegis_core::is_valid_plugin_name`）。有効化 = `[plugins].enabled`（順序 = フックの実行順）。テーマの `themes/<id>/` + `[theme].active` と同じ考え方で、ストアからのインストールもこの形に展開する前提。
