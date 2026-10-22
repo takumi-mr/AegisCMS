@@ -29,13 +29,11 @@
     - `ThemeEngine::register_template`: プラグインからのテンプレート動的完全オーバーライド。
 
 ### 🚀 次に作業を再開するときの着手項目
-**フェーズ 2 拡張: Admin Studio リレーション連携 & メディア管理 UI**
-1. **Admin Studio でのカテゴリ・リレーション選択 UI 統合**:
-   - 記事エディタに `category_id` を選択可能なカテゴリドロップダウン / セレクトボックスを追加。
-   - `schemas/categories.yaml` に基づくカテゴリ一覧・作成モーダル/画面の提供。
-2. **Admin Studio メディアアップローダー UI**:
+**フェーズ 2 拡張: Admin Studio メディア管理 UI & 一覧のリレーション表示**
+1. **Admin Studio メディアアップローダー UI**:
    - 画像ブロックやメディア挿入時に `/api/v1/storage/upload` へドラッグ＆ドロップで画像をアップロードし、URL をブロックへ自動反映する UI。
-
+2. **コンテンツ一覧のフィルタリングとリレーション表示**:
+   - 記事一覧（サイドバー）にカテゴリバッジを表示し、カテゴリ別に絞り込めるようにする（カテゴリの取得・色は `CategoryManager` 導入時に実装済み）。
 
 ---
 
@@ -156,9 +154,9 @@
 ### ⏳ 次に取り組むタスク (Next Up)
 
 #### フェーズ 2 拡張: Admin Studio 連携 & メディア管理
-- [ ] **Admin Studio: カテゴリ選択 & リレーション編集 UI**
-  - [ ] 記事作成・編集フォームへのカテゴリ選択ドロップダウンの追加
-  - [ ] カテゴリ一覧・新規登録 UI の追加
+- [x] **Admin Studio: カテゴリ選択 & リレーション編集 UI**
+  - [x] 記事作成・編集フォームへのカテゴリ選択ドロップダウンの追加（既存記事を開くと `fields.category_id` から選択を復元、未選択時は `category_id` を送信しない）
+  - [x] カテゴリ一覧・新規登録 UI の追加（`CategoryManager` モーダル: 色・説明つき一覧、slug 自動生成、重複 slug の事前チェック、作成したカテゴリを自動選択）
 - [ ] **Admin Studio: メディアアップローダー UI**
   - [ ] 画像ブロックからのファイルアップロード (`/api/v1/storage/upload`) 連携
   - [ ] アップロード画像のプレビューおよびメディア一覧表示
@@ -199,6 +197,8 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **Admin Studio のコンテンツ型と API レスポンスの差異**:
+  - 自動生成の `admin/src/types/schemas.ts`（`ArticleContent` など）はカスタムフィールドをトップレベルに持ちますが、実際のコンテンツ API はカスタムフィールドを `fields`、解決済みリレーションを `relations` に入れて返します。Admin Studio では `types/index.ts` の `ContentItem`（`BaseContentItem` + `fields` / `relations`）を使ってください。作成時のペイロードはトップレベル（`CreateArticlePayload` など）で正しいです。
 - **監査ログの保持期間**:
   - `AuditService::spawn_retention_task` が起動直後と `purge_interval_secs` ごとに `purge_expired` を実行し、`DatabaseAdapter::delete_audit_events_before` で `occurred_at < 基準時刻` のレコードを削除します。削除が 1 件以上あれば `audit.purge` を記録します。
   - 既定値は `retention_days = 0`（無期限）です。既存環境でアップデート後に監査ログが意図せず消えないよう、明示的に設定した場合のみ削除します。
