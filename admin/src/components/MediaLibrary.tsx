@@ -1,8 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Images, Loader2, RefreshCw, Search, X } from 'lucide-react';
+import { Images, Loader2, RefreshCw, Search } from 'lucide-react';
 import { aegisApi } from '../api/client';
 import type { StorageObject } from '../types';
 import { fileNameFromKey, formatSize } from '../utils/media';
+import { Button } from './ui/Button';
+import { Field } from './ui/Field';
+import { Modal } from './ui/Modal';
+import styles from './MediaLibrary.module.css';
 
 const PAGE_SIZE = 24;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -32,18 +36,8 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ onSelect, onClose })
   } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
   useEffect(() => {
     searchRef.current?.focus();
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   useEffect(() => {
@@ -96,98 +90,83 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ onSelect, onClose })
   };
 
   return (
-    <div className="modal-overlay" onMouseDown={onClose}>
-      <div
-        className="modal media-library"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="media-library-title"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="modal-header">
-          <div className="modal-title">
-            <Images size={18} />
-            <h2 id="media-library-title">Media Library</h2>
-          </div>
-          <div className="media-library-actions">
-            <button
-              className="icon-btn"
-              onClick={reload}
-              disabled={isLoading}
-              aria-label="Reload"
-              title="Reload"
-            >
-              <RefreshCw size={16} />
-            </button>
-            <button className="icon-btn" onClick={onClose} aria-label="Close">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="media-library-toolbar">
-          <div className="input-field">
-            <Search size={14} />
-            <input
-              ref={searchRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by file name..."
-              aria-label="Search media"
-            />
-          </div>
-          <span className="media-library-count">
-            {objects.length}/{total} images
-          </span>
-        </div>
-
-        <div className="media-library-body">
-          {error && <div className="category-error">{error}</div>}
-          {!error && !isLoading && objects.length === 0 && (
-            <div className="category-empty">
-              {query ? `No images match "${query}".` : 'No images uploaded yet.'}
-            </div>
-          )}
-          <div className="media-grid">
-            {objects.map((object) => (
-              <button
-                key={object.key}
-                type="button"
-                className="media-item"
-                onClick={() => onSelect(object)}
-                title={object.key}
-              >
-                <img src={object.url} alt="" loading="lazy" decoding="async" />
-                <span className="media-item-name">{fileNameFromKey(object.key)}</span>
-                <span className="media-item-meta">
-                  {formatSize(object.size)}
-                  {object.last_modified &&
-                    ` · ${new Date(object.last_modified).toLocaleDateString()}`}
-                </span>
-              </button>
-            ))}
-          </div>
-          {isLoading && (
-            <div className="media-library-loading">
-              <Loader2 size={18} className="animate-spin" />
-              <span>Loading...</span>
-            </div>
-          )}
-          {!isLoading && objects.length < total && (
-            <div className="media-library-more">
-              <button className="btn btn-secondary" onClick={() => setOffset(objects.length)}>
-                Load more
-              </button>
-            </div>
-          )}
-          {result?.truncated && (
-            <div className="media-library-note">
-              The storage holds more files than the server scans for one listing (10,000), so some
-              images are not shown.
-            </div>
-          )}
-        </div>
+    <Modal
+      title="Media Library"
+      icon={<Images size={18} />}
+      onClose={onClose}
+      wide
+      actions={
+        <Button
+          variant="icon"
+          onClick={reload}
+          disabled={isLoading}
+          aria-label="Reload"
+          title="Reload"
+        >
+          <RefreshCw size={16} />
+        </Button>
+      }
+    >
+      <div className={styles.toolbar}>
+        <Field className={styles.searchField}>
+          <Search size={14} />
+          <input
+            ref={searchRef}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by file name..."
+            aria-label="Search media"
+          />
+        </Field>
+        <span className={styles.count}>
+          {objects.length}/{total} images
+        </span>
       </div>
-    </div>
+
+      <div className={styles.body}>
+        {error && <div className={styles.error}>{error}</div>}
+        {!error && !isLoading && objects.length === 0 && (
+          <div className={styles.empty}>
+            {query ? `No images match "${query}".` : 'No images uploaded yet.'}
+          </div>
+        )}
+        <div className={styles.grid}>
+          {objects.map((object) => (
+            <button
+              key={object.key}
+              type="button"
+              className={styles.item}
+              onClick={() => onSelect(object)}
+              title={object.key}
+            >
+              <img src={object.url} alt="" loading="lazy" decoding="async" />
+              <span className={styles.itemName}>{fileNameFromKey(object.key)}</span>
+              <span className={styles.itemMeta}>
+                {formatSize(object.size)}
+                {object.last_modified &&
+                  ` · ${new Date(object.last_modified).toLocaleDateString()}`}
+              </span>
+            </button>
+          ))}
+        </div>
+        {isLoading && (
+          <div className={styles.loading}>
+            <Loader2 size={18} className="animate-spin" />
+            <span>Loading...</span>
+          </div>
+        )}
+        {!isLoading && objects.length < total && (
+          <div className={styles.more}>
+            <Button onClick={() => setOffset(objects.length)}>Load more</Button>
+          </div>
+        )}
+        {result?.truncated && (
+          <div className={styles.note}>
+            The storage holds more files than the server scans for one listing (10,000), so some
+            images are not shown.
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 };

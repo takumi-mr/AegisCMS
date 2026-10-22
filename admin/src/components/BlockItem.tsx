@@ -10,9 +10,12 @@ import {
   Images,
 } from 'lucide-react';
 import type { BlockNode } from '../types';
+import { cx } from '../utils/cx';
+import { altFromKey } from '../utils/media';
 import { ImageUploader } from './ImageUploader';
 import { MediaLibrary } from './MediaLibrary';
-import { altFromKey } from '../utils/media';
+import { Button } from './ui/Button';
+import styles from './BlockItem.module.css';
 
 interface BlockItemProps {
   block: BlockNode;
@@ -52,36 +55,37 @@ export const BlockItem: React.FC<BlockItemProps> = ({
   };
 
   return (
-    <div className="block-card">
-      <div className="block-header">
-        <div className="block-badge">
+    <div className={styles.card}>
+      <div className={styles.header}>
+        <div className={styles.badge}>
           {getIcon()}
           <span>{block.name}</span>
         </div>
 
-        <div className="block-controls">
-          <button className="icon-btn" onClick={onMoveUp} disabled={index === 0} title="Move Up">
+        <div className={styles.controls}>
+          <Button variant="icon" onClick={onMoveUp} disabled={index === 0} title="Move Up">
             <ArrowUp size={14} />
-          </button>
-          <button
-            className="icon-btn"
+          </Button>
+          <Button
+            variant="icon"
             onClick={onMoveDown}
             disabled={index === total - 1}
             title="Move Down"
           >
             <ArrowDown size={14} />
-          </button>
-          <button className="icon-btn danger" onClick={onDelete} title="Delete Block">
+          </Button>
+          <Button variant="icon" danger onClick={onDelete} title="Delete Block">
             <Trash2 size={14} />
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Block Content Editor */}
       {block.name === 'core/heading' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className={styles.stack}>
+          <div className={styles.inline}>
             <select
+              className={styles.levelSelect}
               value={block.attributes?.level || 2}
               onChange={(e) =>
                 onChange({
@@ -89,15 +93,6 @@ export const BlockItem: React.FC<BlockItemProps> = ({
                   attributes: { ...block.attributes, level: Number(e.target.value) },
                 })
               }
-              style={{
-                background: 'var(--bg-base)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '4px 8px',
-                fontSize: '0.85rem',
-                outline: 'none',
-              }}
             >
               {[1, 2, 3, 4, 5, 6].map((l) => (
                 <option key={l} value={l}>
@@ -107,18 +102,10 @@ export const BlockItem: React.FC<BlockItemProps> = ({
             </select>
             <input
               type="text"
+              className={styles.headingInput}
               placeholder="Heading text..."
               value={block.text || ''}
               onChange={(e) => onChange({ ...block, text: e.target.value })}
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                color: '#fff',
-                fontSize: '1.25rem',
-                fontWeight: 600,
-                outline: 'none',
-              }}
             />
           </div>
         </div>
@@ -126,7 +113,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
 
       {block.name === 'core/paragraph' && (
         <textarea
-          className="block-textarea"
+          className={styles.textarea}
           placeholder="Start typing your paragraph content..."
           value={block.text || ''}
           onChange={(e) => onChange({ ...block, text: e.target.value })}
@@ -134,10 +121,11 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       )}
 
       {block.name === 'core/code' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Language:</span>
+        <div className={styles.stack}>
+          <div className={styles.inline}>
+            <span className={styles.languageLabel}>Language:</span>
             <select
+              className={styles.languageSelect}
               value={block.attributes?.language || 'rust'}
               onChange={(e) =>
                 onChange({
@@ -145,16 +133,6 @@ export const BlockItem: React.FC<BlockItemProps> = ({
                   attributes: { ...block.attributes, language: e.target.value },
                 })
               }
-              style={{
-                background: 'var(--bg-base)',
-                color: 'var(--accent-cyan)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '3px 8px',
-                fontSize: '0.8rem',
-                fontFamily: 'var(--font-mono)',
-                outline: 'none',
-              }}
             >
               <option value="rust">Rust</option>
               <option value="typescript">TypeScript</option>
@@ -166,7 +144,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
             </select>
           </div>
           <textarea
-            className="block-textarea code"
+            className={cx(styles.textarea, styles.code)}
             placeholder="// Enter source code here..."
             value={block.text || ''}
             onChange={(e) => onChange({ ...block, text: e.target.value })}
@@ -175,7 +153,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       )}
 
       {block.name === 'core/image' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className={styles.stack}>
           {canUpload && (
             <ImageUploader
               onUploaded={(meta, file) =>
@@ -191,14 +169,10 @@ export const BlockItem: React.FC<BlockItemProps> = ({
               }
             />
           )}
-          <button
-            type="button"
-            className="btn btn-secondary media-library-open"
-            onClick={() => setIsLibraryOpen(true)}
-          >
+          <Button className={styles.libraryButton} onClick={() => setIsLibraryOpen(true)}>
             <Images size={14} />
             <span>Choose from media library</span>
-          </button>
+          </Button>
           {isLibraryOpen && (
             <MediaLibrary
               onClose={() => setIsLibraryOpen(false)}
@@ -217,6 +191,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           )}
           <input
             type="text"
+            className={styles.urlInput}
             placeholder="Image URL (e.g. https://images.unsplash.com/...)"
             value={block.attributes?.src || ''}
             onChange={(e) =>
@@ -225,18 +200,10 @@ export const BlockItem: React.FC<BlockItemProps> = ({
                 attributes: { ...block.attributes, src: e.target.value },
               })
             }
-            style={{
-              background: 'var(--bg-base)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '6px 10px',
-              color: 'var(--text-primary)',
-              fontSize: '0.85rem',
-              outline: 'none',
-            }}
           />
           <input
             type="text"
+            className={styles.altInput}
             placeholder="Alt description text..."
             value={block.attributes?.alt || ''}
             onChange={(e) =>
@@ -245,15 +212,6 @@ export const BlockItem: React.FC<BlockItemProps> = ({
                 attributes: { ...block.attributes, alt: e.target.value },
               })
             }
-            style={{
-              background: 'transparent',
-              border: 'none',
-              borderBottom: '1px solid var(--border-subtle)',
-              padding: '4px 8px',
-              color: 'var(--text-secondary)',
-              fontSize: '0.85rem',
-              outline: 'none',
-            }}
           />
           {block.attributes?.src && (
             <img
@@ -261,12 +219,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
               key={block.attributes.src}
               src={block.attributes.src}
               alt={block.attributes.alt || 'Preview'}
-              style={{
-                maxHeight: '140px',
-                objectFit: 'cover',
-                borderRadius: 'var(--radius-sm)',
-                marginTop: '4px',
-              }}
+              className={styles.imagePreview}
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';
               }}

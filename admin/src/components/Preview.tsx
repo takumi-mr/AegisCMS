@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Eye, Code, ShieldAlert } from 'lucide-react';
 import type { BlockNode } from '../types';
+import { cx } from '../utils/cx';
+import styles from './Preview.module.css';
 
 interface PreviewProps {
   title: string;
@@ -53,65 +55,43 @@ export const Preview: React.FC<PreviewProps> = ({ title, blocks, serverHtml }) =
   const renderedHtml = serverHtml || renderAstToHtml(blocks);
 
   return (
-    <aside className="preview-column">
-      <div className="preview-tabs">
+    <aside className={styles.column}>
+      <div className={styles.tabs}>
         <div
-          className={`preview-tab ${tab === 'html' ? 'active' : ''}`}
+          className={cx(styles.tab, tab === 'html' && styles.active)}
           onClick={() => setTab('html')}
         >
-          <Eye size={14} style={{ display: 'inline', marginRight: '6px' }} />
+          <Eye size={14} className={styles.tabIcon} />
           Live HTML Output
         </div>
         <div
-          className={`preview-tab ${tab === 'ast' ? 'active' : ''}`}
+          className={cx(styles.tab, tab === 'ast' && styles.active)}
           onClick={() => setTab('ast')}
         >
-          <Code size={14} style={{ display: 'inline', marginRight: '6px' }} />
+          <Code size={14} className={styles.tabIcon} />
           Block AST (JSON)
         </div>
       </div>
 
-      <div className="preview-content">
+      <div className={styles.content}>
         {tab === 'html' ? (
           <div>
-            <div
-              style={{
-                marginBottom: '16px',
-                borderBottom: '1px solid var(--border-subtle)',
-                paddingBottom: '12px',
-              }}
-            >
-              <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.6rem', color: '#fff' }}>
-                {title || 'Untitled Article'}
-              </h1>
-              <div style={{ fontSize: '0.75rem', color: 'var(--accent-teal)', marginTop: '4px' }}>
-                ✓ Deterministic HTML Stream Sanitized
-              </div>
+            <div className={styles.titleBlock}>
+              <h1 className={styles.title}>{title || 'Untitled Article'}</h1>
+              <div className={styles.sanitized}>✓ Deterministic HTML Stream Sanitized</div>
             </div>
 
-            <div className="html-output" dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+            <div className={styles.htmlOutput} dangerouslySetInnerHTML={{ __html: renderedHtml }} />
 
             {blocks.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
-                <ShieldAlert size={36} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
-                <p style={{ fontSize: '0.85rem' }}>
-                  Add blocks from the toolbar to see live deterministic output.
-                </p>
+              <div className={styles.empty}>
+                <ShieldAlert size={36} className={styles.emptyIcon} />
+                <p>Add blocks from the toolbar to see live deterministic output.</p>
               </div>
             )}
           </div>
         ) : (
-          <pre
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.82rem',
-              color: 'var(--accent-cyan)',
-              lineHeight: 1.5,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {JSON.stringify(blocks, null, 2)}
-          </pre>
+          <pre className={styles.ast}>{JSON.stringify(blocks, null, 2)}</pre>
         )}
       </div>
     </aside>

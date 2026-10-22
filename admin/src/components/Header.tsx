@@ -1,15 +1,16 @@
 import React from 'react';
-import {
-  ShieldCheck,
-  Activity,
-  Send,
-  PenSquare,
-  ScrollText,
-  LogOut,
-  UserRound,
-} from 'lucide-react';
+import { Activity, Send, PenSquare, ScrollText, LogOut, UserRound } from 'lucide-react';
 import type { SessionInfo } from '../types';
+import { cx } from '../utils/cx';
 import { displayNameOf } from '../utils/roles';
+import { BrandMark } from './ui/BrandMark';
+import { Button } from './ui/Button';
+import styles from './Header.module.css';
+
+const ROLE_BADGE: Record<string, string | undefined> = {
+  admin: styles.roleAdmin,
+  editor: styles.roleEditor,
+};
 
 export type AppView = 'editor' | 'audit';
 
@@ -39,18 +40,16 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
 }) => {
   return (
-    <header className="app-header">
-      <div className="header-left">
-        <div className="brand-logo">
-          <div className="brand-icon">
-            <ShieldCheck size={20} color="#fff" />
-          </div>
+    <header className={styles.header}>
+      <div className={styles.left}>
+        <div className={styles.logo}>
+          <BrandMark />
           <span>AegisCMS</span>
         </div>
-        <span className="brand-badge">Zero-Trust Sandbox</span>
-        <nav className="view-tabs" aria-label="Views">
+        <span className={styles.badge}>Zero-Trust Sandbox</span>
+        <nav className={styles.tabs} aria-label="Views">
           <button
-            className={`view-tab ${view === 'editor' ? 'active' : ''}`}
+            className={cx(styles.tab, view === 'editor' && styles.active)}
             onClick={() => onViewChange('editor')}
           >
             <PenSquare size={14} />
@@ -58,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           {canViewAudit && (
             <button
-              className={`view-tab ${view === 'audit' ? 'active' : ''}`}
+              className={cx(styles.tab, view === 'audit' && styles.active)}
               onClick={() => onViewChange('audit')}
             >
               <ScrollText size={14} />
@@ -68,15 +67,15 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
       </div>
 
-      <div className="header-right">
-        <div className="health-status">
-          <span className={`status-dot ${isOnline ? 'online' : ''}`} />
+      <div className={styles.right}>
+        <div className={styles.health}>
+          <span className={cx(styles.statusDot, isOnline && styles.online)} />
           <span>Core Gateway: {isOnline ? 'Connected' : 'Offline'}</span>
         </div>
 
         {view === 'editor' && (
-          <button
-            className="btn btn-primary"
+          <Button
+            variant="primary"
             onClick={onSave}
             disabled={isSaving || !canSave}
             title={
@@ -87,16 +86,16 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {isSaving ? <Activity className="animate-spin" size={16} /> : <Send size={16} />}
             <span>{isSaving ? 'Executing Hooks...' : 'Save & Run Hooks'}</span>
-          </button>
+          </Button>
         )}
 
-        <div className="user-menu" title={session.metadata?.email || session.user_id}>
+        <div className={styles.userMenu} title={session.metadata?.email || session.user_id}>
           <UserRound size={14} />
-          <span className="user-name">{displayNameOf(session)}</span>
-          <span className={`role-badge role-${session.role}`}>{session.role}</span>
-          <button className="icon-btn" onClick={onLogout} aria-label="Sign out" title="Sign out">
+          <span className={styles.userName}>{displayNameOf(session)}</span>
+          <span className={cx(styles.roleBadge, ROLE_BADGE[session.role])}>{session.role}</span>
+          <Button variant="icon" onClick={onLogout} aria-label="Sign out" title="Sign out">
             <LogOut size={14} />
-          </button>
+          </Button>
         </div>
       </div>
     </header>

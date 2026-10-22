@@ -1,8 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Tags, X } from 'lucide-react';
+import { Plus, Tags } from 'lucide-react';
 import { aegisApi } from '../api/client';
 import type { ContentItem } from '../types';
 import { categoryColor } from '../utils/category';
+import { Button } from './ui/Button';
+import { Field, FieldRow } from './ui/Field';
+import { Modal } from './ui/Modal';
+import styles from './CategoryManager.module.css';
 
 const DEFAULT_COLOR = '#6366f1';
 
@@ -33,19 +37,9 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
   // Focus once on open; the parent re-renders (health checks, toasts) must not steal focus
   useEffect(() => {
     titleRef.current?.focus();
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -84,103 +78,80 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
   };
 
   return (
-    <div className="modal-overlay" onMouseDown={onClose}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="category-manager-title"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="modal-header">
-          <div className="modal-title">
-            <Tags size={18} />
-            <h2 id="category-manager-title">Categories</h2>
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="category-list">
-          {categories.map((category) => (
-            <div key={category.id} className="category-row">
-              <span
-                className="category-swatch"
-                style={{ background: categoryColor(category) ?? 'var(--border-medium)' }}
-              />
-              <div className="category-row-main">
-                <div className="category-row-title">{category.title}</div>
-                {typeof category.fields?.description === 'string' &&
-                  category.fields.description && (
-                    <div className="category-row-description">{category.fields.description}</div>
-                  )}
-              </div>
-              <span className="category-row-slug">/{category.slug}</span>
-            </div>
-          ))}
-          {categories.length === 0 && (
-            <div className="category-empty">No categories yet. Create the first one below.</div>
-          )}
-        </div>
-
-        <form className="category-form" onSubmit={handleSubmit}>
-          <div className="category-form-title">New category</div>
-          <div className="meta-row">
-            <div className="input-field">
-              <span className="input-prefix">title:</span>
-              <input
-                ref={titleRef}
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  if (!slugEdited) setSlug(toSlug(e.target.value));
-                }}
-                placeholder="News"
-                maxLength={100}
-                aria-label="Category title"
-              />
-            </div>
-            <div className="input-field">
-              <span className="input-prefix">slug:</span>
-              <input
-                value={slug}
-                onChange={(e) => {
-                  setSlug(e.target.value);
-                  setSlugEdited(true);
-                }}
-                placeholder="news"
-                aria-label="Category slug"
-              />
-            </div>
-            <label className="input-field category-color-field">
-              <span className="input-prefix">color:</span>
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                aria-label="Category color"
-              />
-            </label>
-          </div>
-          <div className="input-field">
-            <span className="input-prefix">description:</span>
-            <input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional"
-              aria-label="Category description"
+    <Modal title="Categories" icon={<Tags size={18} />} onClose={onClose}>
+      <div className={styles.list}>
+        {categories.map((category) => (
+          <div key={category.id} className={styles.row}>
+            <span
+              className={styles.swatch}
+              style={{ background: categoryColor(category) ?? 'var(--border-medium)' }}
             />
+            <div className={styles.rowMain}>
+              <div className={styles.rowTitle}>{category.title}</div>
+              {typeof category.fields?.description === 'string' && category.fields.description && (
+                <div className={styles.rowDescription}>{category.fields.description}</div>
+              )}
+            </div>
+            <span className={styles.rowSlug}>/{category.slug}</span>
           </div>
-          {error && <div className="category-error">{error}</div>}
-          <div className="category-form-actions">
-            <button type="submit" className="btn btn-primary" disabled={isSaving}>
-              <Plus size={16} />
-              <span>{isSaving ? 'Creating...' : 'Create category'}</span>
-            </button>
-          </div>
-        </form>
+        ))}
+        {categories.length === 0 && (
+          <div className={styles.empty}>No categories yet. Create the first one below.</div>
+        )}
       </div>
-    </div>
+
+      <form className={styles.form} onSubmit={handleSubmit}>
+        <div className={styles.formTitle}>New category</div>
+        <FieldRow>
+          <Field label="title:">
+            <input
+              ref={titleRef}
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (!slugEdited) setSlug(toSlug(e.target.value));
+              }}
+              placeholder="News"
+              maxLength={100}
+              aria-label="Category title"
+            />
+          </Field>
+          <Field label="slug:">
+            <input
+              value={slug}
+              onChange={(e) => {
+                setSlug(e.target.value);
+                setSlugEdited(true);
+              }}
+              placeholder="news"
+              aria-label="Category slug"
+            />
+          </Field>
+          <Field as="label" label="color:" className={styles.colorField}>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              aria-label="Category color"
+            />
+          </Field>
+        </FieldRow>
+        <Field label="description:">
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional"
+            aria-label="Category description"
+          />
+        </Field>
+        {error && <div className={styles.error}>{error}</div>}
+        <div className={styles.formActions}>
+          <Button type="submit" variant="primary" disabled={isSaving}>
+            <Plus size={16} />
+            <span>{isSaving ? 'Creating...' : 'Create category'}</span>
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };
