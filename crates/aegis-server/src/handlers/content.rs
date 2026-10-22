@@ -14,11 +14,9 @@ use crate::audit::AuditContext;
 use crate::auth::authorize::{role_level, RequireRole, ADMIN};
 use crate::auth::{EditorSession, ViewerSession};
 use crate::db::{is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation};
+use crate::render;
 use crate::state::AppState;
-use aegis_ast::{
-    AstPipeline, BlockNode, HeadingIdTransformer, HtmlRenderer, HtmlRewriterConfig,
-    StreamingHtmlRewriter,
-};
+use aegis_ast::BlockNode;
 use aegis_core::{AegisError, AuditAction, AuditOutcome, PostContext};
 use aegis_schema::SchemaDefinition;
 
@@ -124,38 +122,30 @@ pub async fn create_content(
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    // 1. AST変換パイプラインの適用
-    let pipeline = AstPipeline::new().add(HeadingIdTransformer);
-    let mut transformed_blocks = pipeline.execute(payload.blocks);
+    // 1. AST 変換（組み込みパイプライン + プラグインの transform-content-ast フック）
+    let transformed = render::transform_blocks(&state, payload.blocks).await;
+    if let Some(e) = &transformed.plugin_error {
+        // AST 変換フックの失敗は保存を妨げない（組み込みパイプラインの結果で続行）
+        tracing::warn!("Plugin hook 'transform-content-ast' failed: {}", e);
+        state
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::PluginError, AuditOutcome::Failure)
+                    .with_resource("content", Some(id.clone()))
+                    .with_details(json!({
+                        "hook": "transform-content-ast",
+                        "content_type": content_type,
+                        "error": e,
+                    })),
+            )
+            .await;
+    }
+    let transformed_blocks = transformed.blocks;
 
-    // 2. プラグインスーパーバイザーによるAST変換フックの適用
+    // 2. on-before-save フック
     {
         let supervisor = state.supervisor.read().await;
-        match supervisor
-            .apply_ast_transforms(transformed_blocks.clone())
-            .await
-        {
-            Ok(ast_result) => transformed_blocks = ast_result,
-            Err(e) => {
-                // AST 変換フックの失敗は保存を妨げない（組み込みパイプラインの結果で続行）
-                tracing::warn!("Plugin hook 'transform-content-ast' failed: {}", e);
-                state
-                    .audit
-                    .record(
-                        audit
-                            .event(AuditAction::PluginError, AuditOutcome::Failure)
-                            .with_resource("content", Some(id.clone()))
-                            .with_details(json!({
-                                "hook": "transform-content-ast",
-                                "content_type": content_type,
-                                "error": e.to_string(),
-                            })),
-                    )
-                    .await;
-            }
-        }
-
-        // on-before-save フック実行
         let post_ctx = PostContext {
             id: id.clone(),
             title: payload.title.clone(),
@@ -200,10 +190,7 @@ pub async fn create_content(
 
     let blocks_json =
         serde_json::to_string(&transformed_blocks).unwrap_or_else(|_| "[]".to_string());
-    let raw_html = HtmlRenderer::render_nodes(&transformed_blocks);
-    let rewriter_config = HtmlRewriterConfig::from(state.config.security.clone());
-    let rendered_html =
-        StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html);
+    let rendered_html = render::render_blocks_html(&state.config.security, &transformed_blocks);
 
     let published_at = if payload.status == "published" {
         Some(now.clone())
@@ -332,7 +319,7 @@ pub async fn list_content(
 
     for r in records {
         let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
-        let rendered_html = HtmlRenderer::render_nodes(&blocks);
+        let rendered_html = render::render_blocks_html(&state.config.security, &blocks);
         let relations =
             resolve_relations_for_item(&*state.db, &schemas_guard, &schema_clone, &r.custom_fields)
                 .await;
@@ -390,7 +377,7 @@ pub async fn get_content(
     match maybe_record {
         Some(r) => {
             let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
-            let rendered_html = HtmlRenderer::render_nodes(&blocks);
+            let rendered_html = render::render_blocks_html(&state.config.security, &blocks);
             let relations = {
                 let schemas = state.schemas.read().await;
                 resolve_relations_for_item(&*state.db, &schemas, &schema_clone, &r.custom_fields)

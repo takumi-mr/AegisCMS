@@ -6,8 +6,9 @@ use axum::{
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::render;
 use crate::state::AppState;
-use aegis_ast::{BlockNode, HtmlRenderer, HtmlRewriterConfig, StreamingHtmlRewriter};
+use aegis_ast::BlockNode;
 use aegis_core::{ContentSummary, PageRenderContext};
 
 /// ブロックノードから先頭段落を抽出して抜粋を生成
@@ -179,10 +180,7 @@ pub async fn render_article(
 
     // AST から HTML 変換 & ストリーミングリライター適用
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
-    let raw_html = HtmlRenderer::render_nodes(&blocks);
-    let rewriter_config = HtmlRewriterConfig::from(state.config.security.clone());
-    let content_html =
-        StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html);
+    let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
     // リレーション解決
     let mut relations = HashMap::new();
@@ -266,10 +264,7 @@ pub async fn render_page_or_slug(
             if record.status == "published" {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
-                let raw_html = HtmlRenderer::render_nodes(&blocks);
-                let rewriter_config = HtmlRewriterConfig::from(state.config.security.clone());
-                let content_html =
-                    StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html);
+                let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
                 let mut ctx = PageRenderContext {
                     site_title: state.config.theme.site_title.clone(),
@@ -315,10 +310,7 @@ pub async fn render_page_or_slug(
             if record.status == "published" {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
-                let raw_html = HtmlRenderer::render_nodes(&blocks);
-                let rewriter_config = HtmlRewriterConfig::from(state.config.security.clone());
-                let content_html =
-                    StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html);
+                let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
                 let mut ctx = PageRenderContext {
                     site_title: state.config.theme.site_title.clone(),
