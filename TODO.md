@@ -59,6 +59,7 @@
 #### 認証・認可基盤の完成
 - [x] **Wasm 認証後フック (`on-user-authenticated`)**: 資格情報の確認後・セッション発行前に `UserAuthContext`（provider / user_id / email / display_name / role / metadata）をプラグインに渡し、ロール・表示名・metadata の変更をセッションに反映。`Err` でログイン拒否（403、`session.create` denied）、失敗時もログイン失敗（500、`plugin.error`）。ロール変更は `details.role_mapped` に記録。外部 IdP 対応時もこのフックを通す（`auth::hook::run_auth_hook`）。
 - [x] **OpenID Connect によるシングルサインオン** (`[auth.oidc]`、Cargo feature `oidc`、既定で有効): 認可コードフロー + PKCE、ID トークン検証（JWKS 署名・iss・aud・exp・nonce・azp、非対称アルゴリズムのみ）。IdP アカウント（Issuer + sub）と `_aegis_users` を `_aegis_user_identities` で紐付け、初回ログイン時に自動作成（同名ユーザーがいれば `username_taken` で拒否）。`role_claim` + `role_mapping` でロールを同期、`on-user-authenticated` フックも適用。`aegis user link-oidc` で既存ユーザーを紐付け。Admin Studio のログイン画面に SSO ボタン、`#session=` / `#login_error=` の受け取り。[docs/authentication.md](docs/authentication.md#5-シングルサインオン-openid-connect)
+- [x] **リバースプロキシ配下・サブドメイン / サブパスでの運用**: Admin Studio の API 接続先を配信元のサーバーに（`VITE_AEGIS_SERVER_URL` で別の場所も指定可、Docker は `--build-arg`）。`[server].base_path`（例: `/cms`）でサブパス公開に対応（ルーティング・テーマのリンク・アップロード URL・`/admin` リダイレクト・SSO の戻り先）。プロキシ配下の設定と nginx の例を [docs/configuration.md](docs/configuration.md#4-リバースプロキシ配下での運用) に追記。
 - [ ] **SAML 2.0 認証プロバイダ**（SP-initiated、POST バインディング）。XML 署名検証（xmlsec 等）の依存とセキュリティ（XML Signature Wrapping 対策）を検討してから着手。
 
 ---
@@ -133,7 +134,13 @@
   - `AuditService::spawn_retention_task` が起動直後と `purge_interval_secs` ごとに `purge_expired` を実行し、`DatabaseAdapter::delete_audit_events_before` で `occurred_at < 基準時刻` のレコードを削除します。削除が 1 件以上あれば `audit.purge` を記録します。
   - 既定値は `retention_days = 0`（無期限）です。既存環境でアップデート後に監査ログが意図せず消えないよう、明示的に設定した場合のみ削除します。
 - **Admin Studio の配信パスと API 接続先**:
-  - Admin Studio は `/admin` で配信されます（`/` はテーマエンジンの公開サイト）。API の接続先は `admin/src/api/client.ts` の `API_BASE`（`http://127.0.0.1:8080/api/v1`）に固定されているため、別ホスト・別ポートで動かす場合は変更が必要です。
+  - Admin Studio は `/admin/` で配信されます（`/` はテーマエンジンの公開サイト。`/admin` はスラッシュ付きへ 307）。Vite の `base: './'` でアセットを相対参照し、`/admin/assets/*` から配信します（以前の `/assets` の配信は廃止）。
+  - API の接続先は `admin/src/api/client.ts` の `SERVER_URL`（オリジン + ベースパス）で、ビルド時の `VITE_AEGIS_SERVER_URL` → 開発サーバーなら `http://127.0.0.1:8080` → 本番ビルドはバンドルの URL（`{サーバー}/admin/assets/*.js` の `../../`）の順に決まります。ドメイン・ベースパスごとの再ビルドは不要です（以前は `127.0.0.1:8080` 固定で、プロキシ越しにはブラウザから API に届かなかった）。
+- **サブパス公開 (`[server].base_path`)**:
+  - ルーターはすべて `/` 起点のまま、`app::with_base_path` が外側でベースパスを取り除いてから渡します（ベースパスの無いリクエストもそのまま受け付ける。ヘルスチェックやパスを取り除くプロキシのため）。新しいルートを追加するときにベースパスを意識する必要はありません。
+  - 逆にサーバーが**出力する** URL にはベースパスが必要です。ルート起点のパスには `app::under_base_path` を使い、テンプレートではグローバル変数 `{{ base_path }}` を付けます（`ThemeEngine::with_base_path`）。現在の対象: テーマのリンク、ローカルストレージの公開 URL、`/admin` のリダイレクト、OIDC の `post_login_redirect`。
+  - アップロード URL はベースパス込みで本文（`blocks_json`）に保存されるため、運用中に `base_path` を変えると既存の画像が切れます。本文中の手書きのルート起点リンクも書き換えません。必要になったら保存時は相対・描画時に付与する方式を検討してください。
+  - 値は `ServerConfig::normalized_base_path` で正規化・検証（URL で安全な文字のみ）するので、テンプレートでは自動エスケープしない（`Value::from_safe_string`）。
 - **カスタムフィールドの型付きバインド (PostgreSQL / MySQL)**:
   - `db::CustomFieldValue::from_json` がスキーマのフィールド型に合わせて値を変換し（jsonb → JSON、integer → i64、boolean → bool、その他は文字列）、変換できない値は `AegisError::Validation`（API は 400）を返します。SQLite は従来どおり文字列で保存します。
   - 読み出しも各アダプターの `custom_fields_from_row` でフィールド型ごとにデコードします。新しいフィールド型を追加する際は、`SchemaMigration` の型対応・`CustomFieldValue`・各アダプターのデコードを揃えて更新してください。

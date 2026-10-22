@@ -10,6 +10,10 @@ RUN npm ci
 
 # フロントエンドソースコードをコピーしてビルド
 COPY admin/ ./
+# Admin Studio を別の場所で配信する場合のみ AegisCMS サーバーの URL（例: https://example.com/cms）を指定する
+# （未指定なら配信元のサーバーに接続。docs/configuration.md の「リバースプロキシ配下での運用」）
+ARG VITE_AEGIS_SERVER_URL=""
+ENV VITE_AEGIS_SERVER_URL=${VITE_AEGIS_SERVER_URL}
 RUN npm run build
 
 # ==========================================

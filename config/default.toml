@@ -1,6 +1,9 @@
 [server]
 host = "127.0.0.1"
 port = 8080
+# Path to serve under behind a reverse proxy, e.g. "/cms" for https://example.com/cms/ (empty: the root).
+# See docs/configuration.md "リバースプロキシ配下での運用"
+base_path = ""
 
 [database]
 # Backend: "sqlite" | "postgres" | "mysql" (auto-inferred from url if omitted)
