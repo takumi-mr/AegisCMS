@@ -60,12 +60,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         </div>
 
         <div className="block-controls">
-          <button
-            className="icon-btn"
-            onClick={onMoveUp}
-            disabled={index === 0}
-            title="Move Up"
-          >
+          <button className="icon-btn" onClick={onMoveUp} disabled={index === 0} title="Move Up">
             <ArrowUp size={14} />
           </button>
           <button
@@ -76,11 +71,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           >
             <ArrowDown size={14} />
           </button>
-          <button
-            className="icon-btn danger"
-            onClick={onDelete}
-            title="Delete Block"
-          >
+          <button className="icon-btn danger" onClick={onDelete} title="Delete Block">
             <Trash2 size={14} />
           </button>
         </div>
@@ -186,19 +177,19 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       {block.name === 'core/image' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {canUpload && (
-          <ImageUploader
-            onUploaded={(meta, file) =>
-              onChange({
-                ...block,
-                attributes: {
-                  ...block.attributes,
-                  src: meta.url,
-                  // Keep an existing alt text; otherwise derive one from the file name
-                  alt: block.attributes?.alt || file.name.replace(/\.[^.]+$/, ''),
-                },
-              })
-            }
-          />
+            <ImageUploader
+              onUploaded={(meta, file) =>
+                onChange({
+                  ...block,
+                  attributes: {
+                    ...block.attributes,
+                    src: meta.url,
+                    // Keep an existing alt text; otherwise derive one from the file name
+                    alt: block.attributes?.alt || file.name.replace(/\.[^.]+$/, ''),
+                  },
+                })
+              }
+            />
           )}
           <button
             type="button"

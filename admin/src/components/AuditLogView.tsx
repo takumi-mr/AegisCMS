@@ -126,9 +126,9 @@ export const AuditLogView: React.FC = () => {
     setOffset(0);
   };
 
-  const updateDraft = (key: keyof Filters) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => setDraft({ ...draft, [key]: e.target.value });
+  const updateDraft =
+    (key: keyof Filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setDraft({ ...draft, [key]: e.target.value });
 
   const items: AuditEvent[] = page?.items ?? [];
   const hasNext = items.length === PAGE_SIZE;
@@ -143,8 +143,7 @@ export const AuditLogView: React.FC = () => {
           </div>
           {page && (
             <span className="audit-retention">
-              Retention:{' '}
-              {page.retention_days ? `${page.retention_days} days` : 'unlimited'}
+              Retention: {page.retention_days ? `${page.retention_days} days` : 'unlimited'}
             </span>
           )}
         </div>
@@ -174,7 +173,11 @@ export const AuditLogView: React.FC = () => {
           </div>
           <div className="input-field">
             <span className="input-prefix">actor:</span>
-            <input value={draft.actor_id} onChange={updateDraft('actor_id')} placeholder="user id" />
+            <input
+              value={draft.actor_id}
+              onChange={updateDraft('actor_id')}
+              placeholder="user id"
+            />
           </div>
           <div className="input-field">
             <span className="input-prefix">resource:</span>

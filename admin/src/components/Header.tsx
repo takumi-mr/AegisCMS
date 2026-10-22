@@ -1,5 +1,13 @@
 import React from 'react';
-import { ShieldCheck, Activity, Send, PenSquare, ScrollText, LogOut, UserRound } from 'lucide-react';
+import {
+  ShieldCheck,
+  Activity,
+  Send,
+  PenSquare,
+  ScrollText,
+  LogOut,
+  UserRound,
+} from 'lucide-react';
 import type { SessionInfo } from '../types';
 import { displayNameOf } from '../utils/roles';
 
@@ -77,11 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'Saving requires the editor role'
             }
           >
-            {isSaving ? (
-              <Activity className="animate-spin" size={16} />
-            ) : (
-              <Send size={16} />
-            )}
+            {isSaving ? <Activity className="animate-spin" size={16} /> : <Send size={16} />}
             <span>{isSaving ? 'Executing Hooks...' : 'Save & Run Hooks'}</span>
           </button>
         )}
