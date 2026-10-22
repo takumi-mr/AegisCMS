@@ -62,7 +62,7 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     Ok(p) => p,
                     Err(e) => {
                         ::aegis_plugin_sdk::log_error!("Failed to deserialize PostContext: {}", e);
-                        return ::aegis_plugin_sdk::abi::pack_ptr_len(ptr, len);
+                        return ::aegis_plugin_sdk::abi::write_error_to_host(&::std::format!("Invalid PostContext: {}", e));
                     }
                 };
 
@@ -72,12 +72,12 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         Ok(out_bytes) => ::aegis_plugin_sdk::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             ::aegis_plugin_sdk::log_error!("Failed to serialize updated PostContext: {}", e);
-                            ::aegis_plugin_sdk::abi::pack_ptr_len(ptr, len)
+                            ::aegis_plugin_sdk::abi::write_error_to_host(&::std::format!("Failed to serialize PostContext: {}", e))
                         }
                     },
                     Err(e) => {
-                        ::aegis_plugin_sdk::log_error!("Plugin on_before_save error: {}", e);
-                        ::aegis_plugin_sdk::abi::pack_ptr_len(ptr, len)
+                        // ホストは保存を中止する
+                        ::aegis_plugin_sdk::abi::write_error_to_host(&e.to_string())
                     }
                 }
             }

@@ -46,12 +46,25 @@ impl PostContext {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BlockNode {
     pub name: String,
-    #[serde(default)]
+    /// ホストは属性の無いブロックを `"attributes": null` で渡すことがあるため、null は空として読む
+    #[serde(default, deserialize_with = "null_as_empty_map")]
     pub attributes: HashMap<String, serde_json::Value>,
     #[serde(default)]
     pub text: Option<String>,
     #[serde(default)]
     pub children: Vec<BlockNode>,
+}
+
+fn null_as_empty_map<'de, D>(
+    deserializer: D,
+) -> std::result::Result<HashMap<String, serde_json::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(
+        Option::<HashMap<String, serde_json::Value>>::deserialize(deserializer)?
+            .unwrap_or_default(),
+    )
 }
 
 impl BlockNode {
@@ -107,6 +120,8 @@ impl BlockNode {
 /// プラグイン処理中のエラー型
 #[derive(Debug, Clone, PartialEq)]
 pub enum PluginError {
+    /// 入力を受け付けない（`on_before_save` で保存を拒否する）。メッセージはそのまま API の応答に出る
+    Rejected(String),
     Execution(String),
     Serialization(String),
     Host(String),
@@ -115,6 +130,7 @@ pub enum PluginError {
 impl fmt::Display for PluginError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rejected(msg) => write!(f, "{}", msg),
             Self::Execution(msg) => write!(f, "Execution error: {}", msg),
             Self::Serialization(msg) => write!(f, "Serialization error: {}", msg),
             Self::Host(msg) => write!(f, "Host API error: {}", msg),

@@ -140,6 +140,14 @@ pub fn write_bytes_to_host(bytes: Vec<u8>) -> i64 {
     pack_ptr_len(dest_id, len as i32)
 }
 
+/// フックの失敗をホストへ返す。`{"error": "<message>"}` を書き込み、packed i64 を返す
+///
+/// `on_before_save` でこれを返すと、ホストはコンテンツの保存を中止します。
+pub fn write_error_to_host(message: &str) -> i64 {
+    let body = serde_json::json!({ "error": message });
+    write_bytes_to_host(serde_json::to_vec(&body).unwrap_or_default())
+}
+
 /// ポインタ (上位32bit) と長さ (下位32bit) を 64bit 整数にパック
 #[inline]
 pub fn pack_ptr_len(ptr: i32, len: i32) -> i64 {
