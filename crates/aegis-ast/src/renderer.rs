@@ -67,6 +67,10 @@ impl HtmlRenderer {
                     .get("src")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
+                // 画像未選択のブロックは出力しない（`<img src="">` は壊れた画像表示と現在ページへの再リクエストになる）
+                if src.trim().is_empty() {
+                    return String::new();
+                }
                 let alt = node
                     .attributes
                     .get("alt")
@@ -107,5 +111,30 @@ impl HtmlRenderer {
                 format!("<{tag}>{text}{children_html}</{tag}>\n")
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn image(src: &str) -> BlockNode {
+        let mut node = BlockNode::new("core/image");
+        node.attributes = serde_json::json!({ "src": src, "alt": "A \"quoted\" alt" });
+        node
+    }
+
+    #[test]
+    fn test_image_block_renders_a_figure() {
+        assert_eq!(
+            HtmlRenderer::render_nodes(&[image("/uploads/a.png")]),
+            "<figure><img src=\"/uploads/a.png\" alt=\"A &quot;quoted&quot; alt\" loading=\"lazy\" /></figure>\n"
+        );
+    }
+
+    #[test]
+    fn test_image_block_without_src_renders_nothing() {
+        assert_eq!(HtmlRenderer::render_nodes(&[image("")]), "");
+        assert_eq!(HtmlRenderer::render_nodes(&[image("  ")]), "");
     }
 }
