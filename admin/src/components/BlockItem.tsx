@@ -8,6 +8,7 @@ import {
   Code2,
   Image as ImageIcon,
   Images,
+  List,
 } from 'lucide-react';
 import type { BlockNode } from '../types';
 import { cx } from '../utils/cx';
@@ -49,6 +50,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         return <Code2 size={14} />;
       case 'core/image':
         return <ImageIcon size={14} />;
+      case 'core/list':
+        return <List size={14} />;
       default:
         return <AlignLeft size={14} />;
     }
@@ -226,6 +229,43 @@ export const BlockItem: React.FC<BlockItemProps> = ({
               }}
             />
           )}
+        </div>
+      )}
+
+      {block.name === 'core/list' && (
+        <div className={styles.stack}>
+          <div className={styles.inline}>
+            <span className={styles.languageLabel}>Type:</span>
+            <select
+              className={styles.levelSelect}
+              value={block.attributes?.ordered ? 'ordered' : 'unordered'}
+              onChange={(e) =>
+                onChange({
+                  ...block,
+                  attributes: { ...block.attributes, ordered: e.target.value === 'ordered' },
+                })
+              }
+            >
+              <option value="unordered">Bullet List (-)</option>
+              <option value="ordered">Numbered List (1.)</option>
+            </select>
+          </div>
+          <textarea
+            className={styles.textarea}
+            placeholder="Item 1&#10;Item 2&#10;Item 3 (one item per line)"
+            value={(block.children || []).map((c) => c.text || '').join('\n')}
+            onChange={(e) => {
+              const lines = e.target.value.split('\n');
+              onChange({
+                ...block,
+                children: lines.map((line) => ({
+                  name: 'core/list-item',
+                  attributes: {},
+                  text: line,
+                })),
+              });
+            }}
+          />
         </div>
       )}
     </div>

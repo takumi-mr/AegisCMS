@@ -1,0 +1,110 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.intro {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.clipboardAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pasteButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 240px;
+  padding: 14px 16px;
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  background: var(--bg-surface-elevated, #1a1e2b);
+  color: var(--text-primary, #e2e8f0);
+  border: 1px solid var(--border-medium, #334155);
+  border-radius: var(--radius-md, 8px);
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--transition-fast, 150ms ease);
+  box-sizing: border-box;
+}
+
+.textarea:focus {
+  border-color: var(--accent-indigo, #6366f1);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.textarea::placeholder {
+  color: var(--text-muted, #64748b);
+}
+
+.summaryBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.85rem;
+}
+
+.summaryContent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--accent-indigo, #6366f1);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.optionsRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.radioLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.radioLabel input[type='radio'] {
+  cursor: pointer;
+  accent-color: var(--accent-indigo, #6366f1);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle, #1e293b);
+}
