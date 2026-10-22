@@ -169,6 +169,11 @@
 
 #### 開発環境・フロントエンド整備
 - [x] **Prettier 導入 & VS Code 保存時自動整形**: `admin/` に Prettier（バージョン固定）、`.prettierrc.json` / `.prettierignore`、`npm run format` / `format:check`、`task fmt:admin` / `fmt:admin:check`（`task check` と CI に組み込み）。oxlint も `--deny-warnings`（ゼロ警告）で CI・`task check`（`task lint:admin`）に追加。`.vscode/settings.json` で TS / TSX / JS / CSS / HTML / JSON の保存時整形、`.vscode/extensions.json` で拡張機能を推奨。`.editorconfig` の CSS / HTML のインデントを実態どおり 2 スペースに修正
+- [x] **フロントエンドの整理（見た目は変更なし）**: Vite テンプレートの残骸（未使用の `App.css`・`src/assets/`・`public/`）を削除。1,389 行のグローバル `index.css` をコンポーネントごとの CSS Modules に分割し、`index.css` はトークン・リセット・基本要素のみに。静的なインライン `style` を廃止。共通部品 `components/ui/`（`Button` / `Field` / `FieldRow` / `Modal` / `BrandMark`）を追加し、モーダルの Escape・外側クリック・フォーカストラップ・閉じた後のフォーカス復帰を `Modal` に集約（従来はフォーカストラップなし）
+- [ ] **UI の小さな不具合・アクセシビリティ**（上記の整理では見た目を変えないため見送り）:
+  - エディタの「ADD BLOCK」ツールバーが幅不足で「ADD BLOCK」「Code Block」が 2 行に折り返す
+  - 記事一覧のカード・プレビューのタブがクリック可能な `div` でキーボード操作できない（`button` 化）
+  - 新規ブロックの画像の既定 alt（「Abstract gradient art」）が残り、メディア選択・アップロードで alt が補完されない
 
 ---
 
@@ -209,13 +214,15 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **フロントエンドのスタイル (CSS Modules)**:
+  - 書き方は `admin/README.md` の「スタイルの書き方」を参照。共通部品の見た目を親から変えるときは子孫セレクタ（`.toolbar .searchField`）で指定し、CSS の出力順に依存しないようにしています。
+  - 見た目を変えないリファクタリングの検証には、Playwright で全画面の `getComputedStyle`（約 90 プロパティ × 全要素）を取得して前後比較しました（13 画面で差分はキーフレーム名のハッシュ化のみ）。
 - **ログイン試行のレート制限 (`auth::rate_limit::LoginRateLimiter`)**:
   - 失敗回数は `CacheBackend::increment`（存在しないキーは 0 から数え、TTL は作成時のみ設定する固定ウィンドウ）で数えます。Redis では `INCR` と初回のみの `EXPIRE` を Lua スクリプトで原子的に実行します。上限到達で `login:lock:{scope}:{id}` に解除時刻（UNIX 秒）を TTL 付きで書き、計数キーは削除します。ユーザー名のキーは小文字化した名前の SHA-256 です。
   - クライアント IP は `audit::ClientIp` extractor（`AuditContext` と同じ判定。`[audit].trust_forwarded_for` で `X-Forwarded-For` を優先）で取得します。監査ログが無効でも IP は取得されます。
   - チェック時のキャッシュエラーは安全側に倒して 500 を返し、失敗・成功の記録時のエラーは警告ログのみにしています。サーバー側エラー（DB 障害など）は失敗回数に数えません。
   - `MemoryCacheBackend` は読まれないまま期限切れになったキー（ランダムなユーザー名での試行など）が溜まらないよう、書き込み時にエントリ数が閾値（掃除後の 2 倍、最小 1024）を超えたら期限切れを一括削除します。
   - `cargo clippy --workspace --all-targets` は `plugins/template-rust` のテストで `default_constructed_unit_structs` が出ます（main でも同じ。CI / `task check` は `--all-targets` なしなので未対応）。
-
 - **Prettier / VS Code**:
   - Prettier は `.editorconfig` のインデント設定を読みます。`[*]` の 4 スペースが CSS / HTML に効いていたため、`[*.{ts,tsx,js,jsx,css,html}]` に CSS / HTML を追加しました。
   - VS Code の Prettier 拡張は既定でワークスペース直下の `.prettierignore` を探すため、`.vscode/settings.json` で `prettier.ignorePath` を `admin/.prettierignore` に向けています。`prettier.requireConfig` により設定ファイルの無い `admin/` 外の JSON 等は整形しません。

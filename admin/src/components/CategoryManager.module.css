@@ -1,0 +1,91 @@
+.list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+  min-height: 80px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.rowDescription {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.rowSlug {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+}
+
+.formTitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* Descendant selectors outrank the Field's own single-class rules regardless of CSS order */
+.form .colorField {
+  flex: 0 0 auto;
+}
+
+.form .colorField input[type='color'] {
+  width: 36px;
+  height: 22px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.error {
+  font-size: 0.82rem;
+  color: #fda4af;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+}

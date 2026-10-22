@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, LogIn, ShieldCheck } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
 import { aegisApi, ApiError } from '../api/client';
 import type { SessionInfo } from '../types';
+import { BrandMark } from './ui/BrandMark';
+import { Button } from './ui/Button';
+import styles from './LoginView.module.css';
 
 interface LoginViewProps {
   onLoggedIn: (session: SessionInfo) => void;
@@ -53,26 +56,24 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn, notice }) => {
   };
 
   return (
-    <div className="login-screen">
-      <form className="login-card" onSubmit={handleSubmit}>
-        <div className="login-brand">
-          <div className="brand-icon">
-            <ShieldCheck size={20} color="#fff" />
-          </div>
+    <div className={styles.screen}>
+      <form className={styles.card} onSubmit={handleSubmit}>
+        <div className={styles.brand}>
+          <BrandMark />
           <div>
             <h1>AegisCMS</h1>
             <p>Sign in to Admin Studio</p>
           </div>
         </div>
 
-        {notice && !error && <div className="login-notice">{notice}</div>}
+        {notice && !error && <div className={styles.notice}>{notice}</div>}
         {error && (
-          <div className="login-error" role="alert">
+          <div className={styles.error} role="alert">
             {error}
           </div>
         )}
 
-        <label className="login-field">
+        <label className={styles.field}>
           <span>Username</span>
           <input
             ref={usernameRef}
@@ -82,7 +83,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn, notice }) => {
             name="username"
           />
         </label>
-        <label className="login-field">
+        <label className={styles.field}>
           <span>Password</span>
           <input
             type="password"
@@ -93,12 +94,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn, notice }) => {
           />
         </label>
 
-        <button type="submit" className="btn btn-primary login-submit" disabled={isSubmitting}>
+        <Button type="submit" variant="primary" className={styles.submit} disabled={isSubmitting}>
           {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
           <span>{isSubmitting ? 'Signing in...' : 'Sign in'}</span>
-        </button>
+        </Button>
 
-        <p className="login-hint">
+        <p className={styles.hint}>
           No account yet? Create one on the server with{' '}
           <code>aegis-server user add &lt;username&gt; --role admin</code>.
         </p>
@@ -106,3 +107,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn, notice }) => {
     </div>
   );
 };
+
+/** Placeholder shown while the stored session token is being checked */
+export const SessionCheckingScreen: React.FC = () => (
+  <div className={styles.screen}>
+    <span className={styles.checking}>Checking session...</span>
+  </div>
+);

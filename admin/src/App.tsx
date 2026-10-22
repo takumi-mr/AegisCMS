@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Header, type AppView } from './components/Header';
 import { AuditLogView } from './components/AuditLogView';
-import { LoginView } from './components/LoginView';
+import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { CategoryManager } from './components/CategoryManager';
 import { ContentList } from './components/ContentList';
 import { BlockItem } from './components/BlockItem';
@@ -21,6 +21,10 @@ import { setSessionToken } from './api/session';
 import type { BlockNode, ContentItem, SessionInfo } from './types';
 import { categoryIdOf } from './utils/category';
 import { canEdit, isAdmin } from './utils/roles';
+import { cx } from './utils/cx';
+import { Button } from './components/ui/Button';
+import { Field, FieldRow } from './components/ui/Field';
+import styles from './App.module.css';
 
 export const App: React.FC = () => {
   // undefined = still checking the stored token, null = logged out
@@ -233,11 +237,7 @@ export const App: React.FC = () => {
   };
 
   if (session === undefined) {
-    return (
-      <div className="login-screen">
-        <span className="login-checking">Checking session...</span>
-      </div>
-    );
+    return <SessionCheckingScreen />;
   }
   if (session === null) {
     return <LoginView onLoggedIn={handleLoggedIn} notice={loginNotice} />;
@@ -246,7 +246,7 @@ export const App: React.FC = () => {
   const editable = canEdit(session);
 
   return (
-    <div className="app-container">
+    <div className={styles.app}>
       <Header
         view={view}
         onViewChange={setView}
@@ -262,7 +262,7 @@ export const App: React.FC = () => {
       {view === 'audit' && isAdmin(session) ? (
         <AuditLogView />
       ) : (
-        <div className="workspace-body">
+        <div className={styles.workspace}>
           {/* Sidebar */}
           <ContentList
             contents={contents}
@@ -274,13 +274,13 @@ export const App: React.FC = () => {
           />
 
           {/* Main Editor Center Column */}
-          <main className="editor-main">
-            <div className="editor-column">
+          <main className={styles.editorMain}>
+            <div className={styles.editorColumn}>
               {/* Meta Section */}
-              <div className="meta-section">
+              <div className={styles.metaSection}>
                 <input
                   type="text"
-                  className="title-input"
+                  className={styles.titleInput}
                   placeholder="Enter post title..."
                   value={title}
                   onChange={(e) => {
@@ -296,29 +296,26 @@ export const App: React.FC = () => {
                   }}
                 />
 
-                <div className="meta-row">
-                  <div className="input-field">
-                    <span className="input-prefix">slug:</span>
+                <FieldRow>
+                  <Field label="slug:">
                     <input
                       type="text"
                       value={slug}
                       onChange={(e) => setSlug(e.target.value)}
                       placeholder="post-slug"
                     />
-                  </div>
+                  </Field>
 
-                  <div className="input-field" style={{ maxWidth: '180px' }}>
-                    <span className="input-prefix">status:</span>
+                  <Field label="status:" className={styles.statusField}>
                     <select value={status} onChange={(e) => setStatus(e.target.value as any)}>
                       <option value="draft">Draft</option>
                       <option value="published">Published</option>
                     </select>
-                  </div>
-                </div>
+                  </Field>
+                </FieldRow>
 
-                <div className="meta-row">
-                  <div className="input-field">
-                    <span className="input-prefix">category:</span>
+                <FieldRow>
+                  <Field label="category:">
                     <select
                       value={categoryId}
                       onChange={(e) => setCategoryId(e.target.value)}
@@ -336,42 +333,42 @@ export const App: React.FC = () => {
                         </option>
                       )}
                     </select>
-                  </div>
-                  <button
-                    className="tool-btn"
+                  </Field>
+                  <Button
+                    variant="tool"
                     onClick={() => setIsCategoryManagerOpen(true)}
                     disabled={!editable}
                     title={editable ? 'List and create categories' : 'Requires the editor role'}
                   >
                     <Tags size={14} />
                     <span>Manage</span>
-                  </button>
-                </div>
+                  </Button>
+                </FieldRow>
               </div>
 
               {/* Block Insertion Toolbar */}
-              <div className="block-toolbar">
-                <span className="toolbar-label">Add Block</span>
-                <button
-                  className="tool-btn"
+              <div className={styles.blockToolbar}>
+                <span className={styles.toolbarLabel}>Add Block</span>
+                <Button
+                  variant="tool"
                   onClick={() => addBlock('core/heading', 'Section Title', { level: 2 })}
                 >
                   <Hash size={14} />
                   <span>Heading</span>
-                </button>
-                <button className="tool-btn" onClick={() => addBlock('core/paragraph', '')}>
+                </Button>
+                <Button variant="tool" onClick={() => addBlock('core/paragraph', '')}>
                   <AlignLeft size={14} />
                   <span>Paragraph</span>
-                </button>
-                <button
-                  className="tool-btn"
+                </Button>
+                <Button
+                  variant="tool"
                   onClick={() => addBlock('core/code', '', { language: 'rust' })}
                 >
                   <Code2 size={14} />
                   <span>Code Block</span>
-                </button>
-                <button
-                  className="tool-btn"
+                </Button>
+                <Button
+                  variant="tool"
                   onClick={() =>
                     addBlock('core/image', '', {
                       src: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
@@ -381,11 +378,11 @@ export const App: React.FC = () => {
                 >
                   <ImageIcon size={14} />
                   <span>Image</span>
-                </button>
+                </Button>
               </div>
 
               {/* Block Canvas */}
-              <div className="blocks-list">
+              <div className={styles.blocksList}>
                 {blocks.map((block, idx) => (
                   <BlockItem
                     key={idx}
@@ -401,15 +398,11 @@ export const App: React.FC = () => {
                 ))}
 
                 {blocks.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                  <div className={styles.emptyBlocks}>
                     <p>This post has no content blocks.</p>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ marginTop: '12px' }}
-                      onClick={() => addBlock('core/paragraph')}
-                    >
+                    <Button className={styles.addFirst} onClick={() => addBlock('core/paragraph')}>
                       <Plus size={16} /> Add First Paragraph
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -431,8 +424,8 @@ export const App: React.FC = () => {
 
       {/* Toast Feedback */}
       {toast && (
-        <div className="toast-container">
-          <div className={`toast ${toast.type}`}>
+        <div className={styles.toastContainer}>
+          <div className={cx(styles.toast, styles[toast.type])}>
             {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
             <span>{toast.message}</span>
           </div>

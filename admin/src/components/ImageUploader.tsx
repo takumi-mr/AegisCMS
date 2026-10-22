@@ -2,7 +2,9 @@ import React, { useRef, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
 import { aegisApi } from '../api/client';
 import type { StorageMeta } from '../types';
+import { cx } from '../utils/cx';
 import { formatSize } from '../utils/media';
+import styles from './ImageUploader.module.css';
 
 interface ImageUploaderProps {
   /** Called with the stored asset and the original file once the upload succeeds */
@@ -39,7 +41,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onUploaded }) => {
   return (
     <div>
       <div
-        className={`image-dropzone ${isDragging ? 'dragging' : ''} ${uploading ? 'uploading' : ''}`}
+        className={cx(
+          styles.dropzone,
+          isDragging && styles.dragging,
+          uploading && styles.uploading
+        )}
         role="button"
         tabIndex={0}
         aria-label="Upload image"
@@ -87,7 +93,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onUploaded }) => {
           e.target.value = '';
         }}
       />
-      {error && <div className="image-upload-error">{error}</div>}
+      {error && <div className={styles.error}>{error}</div>}
     </div>
   );
 };

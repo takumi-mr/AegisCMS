@@ -10,8 +10,18 @@ import {
 } from 'lucide-react';
 import { aegisApi, ApiError } from '../api/client';
 import type { AuditEvent, AuditLogPage, AuditLogQuery } from '../types';
+import { cx } from '../utils/cx';
+import { Button } from './ui/Button';
+import { Field } from './ui/Field';
+import styles from './AuditLogView.module.css';
 
 const PAGE_SIZE = 50;
+
+const OUTCOME_BADGE: Record<string, string | undefined> = {
+  success: styles.success,
+  failure: styles.failure,
+  denied: styles.denied,
+};
 
 const ACTIONS = [
   'content.create',
@@ -134,23 +144,22 @@ export const AuditLogView: React.FC = () => {
   const hasNext = items.length === PAGE_SIZE;
 
   return (
-    <main className="audit-main">
-      <div className="audit-column">
-        <div className="audit-heading">
-          <div className="audit-title">
+    <main className={styles.main}>
+      <div className={styles.column}>
+        <div className={styles.heading}>
+          <div className={styles.title}>
             <ScrollText size={20} />
             <h1>Audit Logs</h1>
           </div>
           {page && (
-            <span className="audit-retention">
+            <span className={styles.retention}>
               Retention: {page.retention_days ? `${page.retention_days} days` : 'unlimited'}
             </span>
           )}
         </div>
 
-        <form className="audit-filters" onSubmit={handleSearch}>
-          <div className="input-field">
-            <span className="input-prefix">action:</span>
+        <form className={styles.filters} onSubmit={handleSearch}>
+          <Field label="action:">
             <select value={draft.action} onChange={updateDraft('action')}>
               <option value="">all</option>
               {ACTIONS.map((a) => (
@@ -159,9 +168,8 @@ export const AuditLogView: React.FC = () => {
                 </option>
               ))}
             </select>
-          </div>
-          <div className="input-field">
-            <span className="input-prefix">outcome:</span>
+          </Field>
+          <Field label="outcome:">
             <select value={draft.outcome} onChange={updateDraft('outcome')}>
               <option value="">all</option>
               {OUTCOMES.map((o) => (
@@ -170,17 +178,15 @@ export const AuditLogView: React.FC = () => {
                 </option>
               ))}
             </select>
-          </div>
-          <div className="input-field">
-            <span className="input-prefix">actor:</span>
+          </Field>
+          <Field label="actor:">
             <input
               value={draft.actor_id}
               onChange={updateDraft('actor_id')}
               placeholder="user id"
             />
-          </div>
-          <div className="input-field">
-            <span className="input-prefix">resource:</span>
+          </Field>
+          <Field label="resource:">
             <input
               value={draft.resource_type}
               onChange={updateDraft('resource_type')}
@@ -191,41 +197,31 @@ export const AuditLogView: React.FC = () => {
               onChange={updateDraft('resource_id')}
               placeholder="id"
             />
-          </div>
-          <div className="input-field">
-            <span className="input-prefix">since:</span>
+          </Field>
+          <Field label="since:">
             <input type="datetime-local" value={draft.since} onChange={updateDraft('since')} />
-          </div>
-          <div className="input-field">
-            <span className="input-prefix">until:</span>
+          </Field>
+          <Field label="until:">
             <input type="datetime-local" value={draft.until} onChange={updateDraft('until')} />
-          </div>
-          <div className="audit-filter-actions">
-            <button type="submit" className="btn btn-primary">
+          </Field>
+          <div className={styles.filterActions}>
+            <Button type="submit" variant="primary">
               <Search size={16} />
               <span>Search</span>
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={handleReset}>
-              Reset
-            </button>
-            <button
-              type="button"
-              className="tool-btn"
-              onClick={reload}
-              disabled={isLoading}
-              title="Reload"
-            >
+            </Button>
+            <Button onClick={handleReset}>Reset</Button>
+            <Button variant="tool" onClick={reload} disabled={isLoading} title="Reload">
               <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
               <span>Refresh</span>
-            </button>
+            </Button>
           </div>
         </form>
 
-        {error && <div className="audit-notice error">{error}</div>}
+        {error && <div className={cx(styles.notice, styles.error)}>{error}</div>}
 
         {!error && (
-          <div className="audit-table-wrap">
-            <table className="audit-table">
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
               <thead>
                 <tr>
                   <th>Time</th>
@@ -243,45 +239,47 @@ export const AuditLogView: React.FC = () => {
                   return (
                     <React.Fragment key={event.id}>
                       <tr
-                        className={`audit-row ${expanded ? 'expanded' : ''}`}
+                        className={cx(styles.row, expanded && styles.expanded)}
                         onClick={() => setExpandedId(expanded ? null : event.id)}
                       >
-                        <td className="mono" title={event.occurred_at}>
+                        <td className={styles.mono} title={event.occurred_at}>
                           {formatTimestamp(event.occurred_at)}
                         </td>
-                        <td className="mono">{event.action}</td>
+                        <td className={styles.mono}>{event.action}</td>
                         <td>
-                          <span className={`badge-outcome ${event.outcome}`}>{event.outcome}</span>
+                          <span className={cx(styles.outcome, OUTCOME_BADGE[event.outcome])}>
+                            {event.outcome}
+                          </span>
                         </td>
                         <td>
                           {event.actor ? (
                             <>
                               {event.actor.user_id}
-                              <span className="audit-muted"> ({event.actor.role})</span>
+                              <span className={styles.muted}> ({event.actor.role})</span>
                             </>
                           ) : (
-                            <span className="audit-muted">—</span>
+                            <span className={styles.muted}>—</span>
                           )}
                         </td>
-                        <td className="mono audit-resource">
+                        <td className={cx(styles.mono, styles.resource)}>
                           {event.resource_type ?? '—'}
                           {event.resource_id && (
-                            <span className="audit-muted"> / {event.resource_id}</span>
+                            <span className={styles.muted}> / {event.resource_id}</span>
                           )}
                         </td>
-                        <td className="mono">{event.ip ?? '—'}</td>
+                        <td className={styles.mono}>{event.ip ?? '—'}</td>
                         <td>{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
                       </tr>
                       {expanded && (
-                        <tr className="audit-detail-row">
+                        <tr className={styles.detailRow}>
                           <td colSpan={7}>
-                            <dl className="audit-detail-meta">
+                            <dl className={styles.detailMeta}>
                               <dt>ID</dt>
-                              <dd className="mono">{event.id}</dd>
+                              <dd className={styles.mono}>{event.id}</dd>
                               <dt>User agent</dt>
                               <dd>{event.user_agent ?? '—'}</dd>
                             </dl>
-                            <pre className="audit-details">
+                            <pre className={styles.details}>
                               {JSON.stringify(event.details, null, 2)}
                             </pre>
                           </td>
@@ -294,29 +292,29 @@ export const AuditLogView: React.FC = () => {
             </table>
 
             {page && items.length === 0 && (
-              <div className="audit-empty">No audit events match these filters.</div>
+              <div className={styles.empty}>No audit events match these filters.</div>
             )}
 
-            <div className="audit-pagination">
-              <button
-                className="tool-btn"
+            <div className={styles.pagination}>
+              <Button
+                variant="tool"
                 onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
                 disabled={offset === 0 || isLoading}
               >
                 <ChevronLeft size={14} />
                 <span>Newer</span>
-              </button>
-              <span className="audit-muted">
+              </Button>
+              <span className={styles.muted}>
                 {items.length > 0 ? `${offset + 1}–${offset + items.length}` : '0 events'}
               </span>
-              <button
-                className="tool-btn"
+              <Button
+                variant="tool"
                 onClick={() => setOffset(offset + PAGE_SIZE)}
                 disabled={!hasNext || isLoading}
               >
                 <span>Older</span>
                 <ChevronRight size={14} />
-              </button>
+              </Button>
             </div>
           </div>
         )}
