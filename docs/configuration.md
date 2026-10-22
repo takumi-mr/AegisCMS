@@ -149,9 +149,15 @@ public_url_prefix = "https://cdn.example.com"
 | `default_max_memory_mb` | integer (u32) | `16` | マニフェストが `max_memory_mb` を省略したプラグインのメモリ上限（MiB） |
 | `default_max_fuel_units` | integer (u64) | `100000000` | マニフェストが `max_fuel_units` を省略したプラグインの Fuel 上限 |
 | `default_timeout_ms` | integer (u64) | `250` | マニフェストが `execution_timeout_ms` を省略したプラグインのタイムアウト（ミリ秒） |
+| `instance_pool_size` | integer (u32) | `64` | Wasm インスタンスのプール（Wasmtime のプーリングアロケータ）の枠数 = 同時に実行できるフック呼び出しの数。超えた呼び出しは空きを待つ。`0` で無効（呼び出しごとにメモリを確保・解放する） |
+| `pool_max_memory_mb` | integer (u32) | `64` | プール 1 枠あたりの線形メモリの上限（MiB）。マニフェストの `max_memory_mb` がこれを超えるプラグインは読み込めない（起動しない） |
 
 > [!NOTE]
 > `default_*` は既定値であり上限ではありません。プラグインの `plugin.manifest.json` の `resource_limits` に値があればそちらが優先され、省略した項目（または `resource_limits` 全体）だけがこの設定で補われます（[プラグインフックリファレンス](./plugin_hooks.md#4-リソース制限-resource_limits) を参照）。読み込んだプラグインごとの実際の値は起動時の `INFO` ログに出力されます。
+
+> [!NOTE]
+> **インスタンスのプール**: フックは今までどおり呼び出しごとに新しいインスタンスで実行します（前の呼び出しの状態は残りません。返却された枠は Wasmtime がゼロに戻します）。プールは線形メモリ・テーブル・非同期スタックの確保を起動時に済ませておき、呼び出しごとの `mmap` / `munmap` を無くすためのものです。同時実行時のカーネル内の競合が無くなり、`official-code-enhancer` を有効にした記事ページは約 1.7 倍速くなりました。
+> 枠ごとに約 6 GiB の**仮想**アドレス空間を予約します（64 枠で約 390 GiB。境界チェックを省いた高速なコードにするため。実メモリは使った分だけ）。`ulimit -v` などで仮想メモリを制限している環境では予約に失敗し、警告を出して従来の方式で動きます。枠数を減らすか `0` にしてください。
 
 #### `[plugins]` — プラグインの有効化
 
@@ -277,6 +283,8 @@ enable_wasm_plugins = true
 default_max_memory_mb = 16
 default_max_fuel_units = 100000000
 default_timeout_ms = 250
+instance_pool_size = 64
+pool_max_memory_mb = 64
 
 [plugins]
 enabled = []

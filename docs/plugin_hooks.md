@@ -231,7 +231,7 @@ SDK ヘルパー:
 | --- | --- | --- |
 | `max_fuel_units` | `[runtime].default_max_fuel_units`（既定 `100000000`） | フック 1 回あたりの Wasm 命令実行量の上限。超過するとトラップ |
 | `execution_timeout_ms` | `[runtime].default_timeout_ms`（既定 `250`） | フック 1 回あたりの実行時間の上限（最小 50ms に切り上げ） |
-| `max_memory_mb` | `[runtime].default_max_memory_mb`（既定 `16`） | 線形メモリの上限（MiB、最小 1）。`memory.grow` で超えようとするとトラップし、初期メモリが上限を超えるモジュールはインスタンス化に失敗する。Rust の `wasm32-unknown-unknown` ビルドは初期メモリだけで約 1.1 MiB を使うため、2 以上を指定する |
+| `max_memory_mb` | `[runtime].default_max_memory_mb`（既定 `16`） | 線形メモリの上限（MiB、最小 1）。`memory.grow` で超えようとするとトラップし、初期メモリが上限を超えるモジュールはインスタンス化に失敗する。Rust の `wasm32-unknown-unknown` ビルドは初期メモリだけで約 1.1 MiB を使うため、2 以上を指定する。インスタンスのプールを使う場合（既定）は `[runtime].pool_max_memory_mb`（既定 `64`）以下にする（超えると読み込み時にエラー） |
 
 - 項目ごとに補われるため、`{"max_memory_mb": 8}` のように一部だけ指定できます。
 - 上限超過（トラップ）はプラグインのエラーとして扱われます（各フックのエラー時の挙動に従い、`plugin.error` を監査ログに記録）。

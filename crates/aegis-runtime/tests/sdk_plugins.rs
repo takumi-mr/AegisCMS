@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use aegis_ast::BlockNode;
 use aegis_core::{PageRenderContext, PluginManifest, PluginResourceLimits, PostContext};
-use aegis_runtime::{AegisPlugin, WasmEngine, WasmPluginInstance};
+use aegis_runtime::{AegisPlugin, InstancePoolConfig, WasmEngine, WasmPluginInstance};
 
 fn sdk_plugin_dirs() -> Vec<PathBuf> {
     let sdk = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../sdk");
@@ -25,7 +25,7 @@ fn sdk_plugin_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-fn load(dir: &Path) -> WasmPluginInstance {
+fn load(engine: &WasmEngine, dir: &Path) -> WasmPluginInstance {
     let manifest = PluginManifest::from_json_with_defaults(
         &std::fs::read_to_string(dir.join("plugin.manifest.json")).unwrap(),
         &PluginResourceLimits::default(),
@@ -34,7 +34,7 @@ fn load(dir: &Path) -> WasmPluginInstance {
     let wasm = std::fs::read(dir.join(&manifest.entrypoint))
         .unwrap_or_else(|e| panic!("{}: plugin.wasm is not built: {}", dir.display(), e));
     WasmPluginInstance::from_bytes(
-        WasmEngine::new().unwrap(),
+        engine.clone(),
         manifest,
         &wasm,
         Arc::new(Mutex::new(HashMap::new())),
@@ -44,11 +44,26 @@ fn load(dir: &Path) -> WasmPluginInstance {
 
 #[tokio::test]
 async fn test_sdk_plugins_load_and_run_their_hooks() {
+    run_sdk_plugins(&WasmEngine::new().unwrap()).await;
+}
+
+/// サーバーと同じプーリングアロケータでも同じように動くこと
+#[tokio::test]
+async fn test_sdk_plugins_run_on_the_pooling_allocator() {
+    let engine = WasmEngine::with_instance_pool(InstancePoolConfig {
+        size: 4,
+        max_memory_mb: 64,
+    })
+    .unwrap();
+    run_sdk_plugins(&engine).await;
+}
+
+async fn run_sdk_plugins(engine: &WasmEngine) {
     let dirs = sdk_plugin_dirs();
     assert!(dirs.len() >= 4, "expected the SDK templates and examples");
 
     for dir in dirs {
-        let plugin = load(&dir);
+        let plugin = load(engine, &dir);
         let name = dir.display().to_string();
         let hooks = plugin.manifest().capabilities.hooks.clone();
         let blocks = vec![
