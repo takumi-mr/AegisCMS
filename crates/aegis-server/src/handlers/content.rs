@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -13,7 +13,10 @@ use uuid::Uuid;
 use crate::audit::AuditContext;
 use crate::auth::authorize::{role_level, RequireRole, ADMIN};
 use crate::auth::{EditorSession, ViewerSession};
-use crate::db::{is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation};
+use crate::db::{
+    is_standard_column, resolve_relations_for_records, ContentListQuery, ContentRecord,
+    DatabaseAdapter, ResolvedRelation,
+};
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::BlockNode;
@@ -63,30 +66,24 @@ async fn resolve_relations_for_item(
     schema: &SchemaDefinition,
     fields: &HashMap<String, serde_json::Value>,
 ) -> HashMap<String, ResolvedRelation> {
-    let mut relations = HashMap::new();
+    resolve_relations_for_records(db, schemas, schema, &[fields])
+        .await
+        .pop()
+        .unwrap_or_default()
+}
 
-    for (field_def, target) in schema.relation_fields() {
-        if let Some(val_json) = fields.get(&field_def.name) {
-            let ref_id = match val_json {
-                serde_json::Value::String(s) => s.trim().to_string(),
-                _ => continue,
-            };
-            if ref_id.is_empty() {
-                continue;
-            }
+/// `GET /api/v1/contents/{content_type}` のページング（`limit` の既定値と上限）
+const DEFAULT_LIST_LIMIT: u64 = 50;
+const MAX_LIST_LIMIT: u64 = 500;
 
-            if let Some(target_schema) = schemas.get(&target.content_type) {
-                if let Ok(Some(rel)) = db
-                    .resolve_relation(target_schema, &target.field, &ref_id)
-                    .await
-                {
-                    relations.insert(field_def.name.clone(), rel);
-                }
-            }
-        }
-    }
-
-    relations
+#[derive(Debug, Default, Deserialize)]
+pub struct ListContentParams {
+    /// 1 ページの件数（既定 50、最大 500）
+    pub limit: Option<u64>,
+    #[serde(default)]
+    pub offset: u64,
+    /// `published` / `draft` など。省略時はすべて
+    pub status: Option<String>,
 }
 
 /// The parts of a post `on-before-save` may change
@@ -364,6 +361,7 @@ pub async fn list_content(
     State(state): State<Arc<AppState>>,
     _session: ViewerSession,
     Path(content_type): Path<String>,
+    Query(params): Query<ListContentParams>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let schema_clone = {
         let schemas = state.schemas.read().await;
@@ -376,43 +374,62 @@ pub async fn list_content(
         schema.clone()
     };
 
-    let records = state.db.list_contents(&schema_clone).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("Database error: {}", e) })),
-        )
-    })?;
+    let limit = params
+        .limit
+        .unwrap_or(DEFAULT_LIST_LIMIT)
+        .clamp(1, MAX_LIST_LIMIT);
+    let query = ContentListQuery {
+        status: params.status.filter(|s| !s.is_empty()),
+        limit: Some(limit),
+        offset: params.offset,
+    };
+    let page = state
+        .db
+        .list_contents_page(&schema_clone, &query)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("Database error: {}", e) })),
+            )
+        })?;
 
-    let schemas_guard = state.schemas.read().await;
-    let mut list = Vec::new();
+    let relations = {
+        let schemas = state.schemas.read().await;
+        let fields: Vec<_> = page.records.iter().map(|r| &r.custom_fields).collect();
+        resolve_relations_for_records(&*state.db, &schemas, &schema_clone, &fields).await
+    };
 
-    for r in records {
-        let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
-        let rendered_html = render::render_blocks_html(&state.config.security, &blocks);
-        let relations =
-            resolve_relations_for_item(&*state.db, &schemas_guard, &schema_clone, &r.custom_fields)
-                .await;
-
-        list.push(ContentResponse {
-            id: r.id,
-            content_type: r.content_type,
-            title: r.title,
-            slug: r.slug,
-            status: r.status,
-            blocks,
-            rendered_html,
-            author_id: r.author_id,
-            published_at: r.published_at,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-            fields: r.custom_fields,
-            relations,
-        });
-    }
+    let list: Vec<ContentResponse> = page
+        .records
+        .into_iter()
+        .zip(relations)
+        .map(|(r, relations)| {
+            let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
+            let rendered_html = render::render_blocks_html(&state.config.security, &blocks);
+            ContentResponse {
+                id: r.id,
+                content_type: r.content_type,
+                title: r.title,
+                slug: r.slug,
+                status: r.status,
+                blocks,
+                rendered_html,
+                author_id: r.author_id,
+                published_at: r.published_at,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+                fields: r.custom_fields,
+                relations,
+            }
+        })
+        .collect();
 
     Ok(Json(json!({
         "contents": list,
-        "total": list.len(),
+        "total": page.total,
+        "limit": limit,
+        "offset": params.offset,
     })))
 }
 
@@ -673,6 +690,97 @@ mod tests {
             mode,
         }));
         crate::test_support::test_state(supervisor).await
+    }
+
+    #[tokio::test]
+    async fn test_list_content_pages_and_filters() {
+        let state = crate::test_support::test_state(aegis_runtime::PluginSupervisor::new()).await;
+        let schema = state.schemas.read().await["article"].clone();
+        for n in 1..=5 {
+            let status = if n == 5 { "draft" } else { "published" };
+            state
+                .db
+                .insert_content(
+                    &schema,
+                    &ContentRecord {
+                        id: format!("id-{}", n),
+                        content_type: "article".to_string(),
+                        title: format!("Post {}", n),
+                        slug: format!("post-{}", n),
+                        status: status.to_string(),
+                        blocks_json: r#"[{"name":"core/paragraph","text":"Body"}]"#.to_string(),
+                        author_id: None,
+                        published_at: None,
+                        created_at: format!("2026-10-22T00:00:0{}Z", n),
+                        updated_at: format!("2026-10-22T00:00:0{}Z", n),
+                        custom_fields: HashMap::new(),
+                    },
+                )
+                .await
+                .unwrap();
+        }
+        let viewer = || {
+            RequireRole(crate::auth::SessionData {
+                id: "ses_viewer".to_string(),
+                user_id: "viewer1".to_string(),
+                role: "viewer".to_string(),
+                created_at: String::new(),
+                expires_at: String::new(),
+                metadata: Default::default(),
+            })
+        };
+        let list = |params: ListContentParams| {
+            let state = state.clone();
+            async move {
+                let response = list_content(
+                    State(state),
+                    viewer(),
+                    Path("article".to_string()),
+                    Query(params),
+                )
+                .await
+                .map_err(|(status, _)| status)
+                .unwrap()
+                .into_response();
+                let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                    .await
+                    .unwrap();
+                serde_json::from_slice::<serde_json::Value>(&body).unwrap()
+            }
+        };
+        let slugs = |body: &serde_json::Value| -> Vec<String> {
+            body["contents"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["slug"].as_str().unwrap().to_string())
+                .collect()
+        };
+
+        let all = list(ListContentParams::default()).await;
+        assert_eq!(all["total"], 5);
+        assert_eq!(all["limit"], DEFAULT_LIST_LIMIT);
+        assert_eq!(slugs(&all).len(), 5);
+        assert!(all["contents"][0]["rendered_html"]
+            .as_str()
+            .unwrap()
+            .contains("Body"));
+
+        let page = list(ListContentParams {
+            limit: Some(2),
+            offset: 1,
+            status: Some("published".to_string()),
+        })
+        .await;
+        assert_eq!(page["total"], 4);
+        assert_eq!(slugs(&page), vec!["post-3", "post-2"]);
+
+        let capped = list(ListContentParams {
+            limit: Some(100_000),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(capped["limit"], MAX_LIST_LIMIT);
     }
 
     async fn create(

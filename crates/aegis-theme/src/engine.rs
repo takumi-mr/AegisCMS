@@ -12,6 +12,10 @@ struct ThemeEngineInner {
     theme_templates_dir: Option<PathBuf>,
     dynamic_templates: HashMap<String, String>,
     base_path: String,
+    /// テンプレートをリクエストごとに読み直す（`[theme].reload_templates`、テーマ開発用）
+    reload_templates: bool,
+    /// コンパイル済みテンプレートを保持する環境。テーマ・テンプレート・ベースパスの変更で破棄する
+    environment: Option<Arc<Environment<'static>>>,
 }
 
 #[derive(Clone)]
@@ -37,6 +41,8 @@ impl ThemeEngine {
                 theme_templates_dir,
                 dynamic_templates: HashMap::new(),
                 base_path: String::new(),
+                reload_templates: false,
+                environment: None,
             })),
         }
     }
@@ -44,7 +50,22 @@ impl ThemeEngine {
     /// サイトを公開するパス（`[server].base_path` の正規化済みの値、例: `/cms`）。
     /// テンプレートからはグローバル変数 `base_path` として `{{ base_path }}/articles/...` のように使う
     pub fn with_base_path(self, base_path: &str) -> Self {
-        self.inner.write().unwrap().base_path = base_path.to_string();
+        {
+            let mut inner = self.inner.write().unwrap();
+            inner.base_path = base_path.to_string();
+            inner.environment = None;
+        }
+        self
+    }
+
+    /// `true` でテンプレートを描画のたびに読み直す（`[theme].reload_templates`）。
+    /// 既定ではコンパイル済みのテンプレートを再利用し、テーマの切り替えやテンプレートの登録時だけ読み直す
+    pub fn with_template_reload(self, reload: bool) -> Self {
+        {
+            let mut inner = self.inner.write().unwrap();
+            inner.reload_templates = reload;
+            inner.environment = None;
+        }
         self
     }
 
@@ -80,6 +101,7 @@ impl ThemeEngine {
         let mut inner = self.inner.write().unwrap();
         inner.active_theme = target_id.to_string();
         inner.theme_templates_dir = theme_templates_dir;
+        inner.environment = None;
 
         tracing::info!("AegisCMS active theme switched to '{}'", target_id);
         Ok(())
@@ -273,25 +295,62 @@ impl ThemeEngine {
         inner
             .dynamic_templates
             .insert(name.to_string(), content.to_string());
+        inner.environment = None;
     }
 
     /// 登録済みの動的テンプレートを削除する
     pub fn unregister_template(&self, name: &str) {
         let mut inner = self.inner.write().unwrap();
         inner.dynamic_templates.remove(name);
+        inner.environment = None;
     }
 
     /// テンプレートと PageRenderContext から HTML を描画する
     pub fn render(&self, template_name: &str, ctx: &PageRenderContext) -> Result<String> {
-        let (dynamic_templates, fs_dir, base_path) = {
-            let inner = self.inner.read().unwrap();
-            (
-                inner.dynamic_templates.clone(),
-                inner.theme_templates_dir.clone(),
-                inner.base_path.clone(),
-            )
-        };
+        let env = self.environment();
 
+        let template = env.get_template(template_name).map_err(|e| {
+            AegisError::Theme(format!("Template error for '{}': {}", template_name, e))
+        })?;
+
+        let value = minijinja::Value::from_serialize(ctx);
+        let rendered = template.render(value).map_err(|e| {
+            AegisError::Theme(format!(
+                "Failed to render template '{}': {}",
+                template_name, e
+            ))
+        })?;
+
+        Ok(rendered)
+    }
+
+    /// 描画に使う環境（キャッシュがあれば再利用し、無ければ作ってキャッシュする）
+    fn environment(&self) -> Arc<Environment<'static>> {
+        if let Some(env) = &self.inner.read().unwrap().environment {
+            return env.clone();
+        }
+        let mut inner = self.inner.write().unwrap();
+        if let Some(env) = &inner.environment {
+            return env.clone();
+        }
+        let env = Arc::new(Self::build_environment(
+            inner.dynamic_templates.clone(),
+            inner.theme_templates_dir.clone(),
+            inner.base_path.clone(),
+        ));
+        if !inner.reload_templates {
+            inner.environment = Some(env.clone());
+        }
+        env
+    }
+
+    /// フィルター・グローバル変数・テンプレートの探索順（動的登録 → テーマ → 組み込み）を設定した環境。
+    /// 読み込んだテンプレートは環境の中でコンパイル済みのままキャッシュされる
+    fn build_environment(
+        dynamic_templates: HashMap<String, String>,
+        fs_dir: Option<PathBuf>,
+        base_path: String,
+    ) -> Environment<'static> {
         let mut env = Environment::new();
 
         env.add_filter("date_short", |val: minijinja::Value| -> String {
@@ -365,19 +424,7 @@ impl ThemeEngine {
             },
         );
 
-        let template = env.get_template(template_name).map_err(|e| {
-            AegisError::Theme(format!("Template error for '{}': {}", template_name, e))
-        })?;
-
-        let value = minijinja::Value::from_serialize(ctx);
-        let rendered = template.render(value).map_err(|e| {
-            AegisError::Theme(format!(
-                "Failed to render template '{}': {}",
-                template_name, e
-            ))
-        })?;
-
-        Ok(rendered)
+        env
     }
 }
 
@@ -419,6 +466,7 @@ mod tests {
             extra_css: "".to_string(),
             extra_head: "".to_string(),
             theme_vars: HashMap::new(),
+            pagination: None,
         };
 
         let html = engine.render("index.html", &ctx).expect("Render failed");
@@ -470,6 +518,7 @@ mod tests {
             extra_css: "".to_string(),
             extra_head: "".to_string(),
             theme_vars: HashMap::new(),
+            pagination: None,
         };
 
         let html = engine
@@ -543,6 +592,7 @@ mod tests {
             extra_css: "".to_string(),
             extra_head: "".to_string(),
             theme_vars: HashMap::new(),
+            pagination: None,
         };
 
         let html = engine.render("index.html", &ctx).unwrap();

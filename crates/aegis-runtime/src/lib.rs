@@ -364,6 +364,7 @@ mod tests {
             extra_css: "".to_string(),
             extra_head: "".to_string(),
             theme_vars: HashMap::new(),
+            pagination: None,
         };
 
         let result = instance.on_render_page(ctx).await;

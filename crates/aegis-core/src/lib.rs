@@ -19,7 +19,9 @@ pub use config::{
     PluginsConfig, RedisCacheConfig, S3StorageConfig, SecurityConfig, StorageConfig, ThemeConfig,
 };
 
-pub use entity::{ContentSummary, PageRenderContext, Post, PostContext, PostId, PostStatus};
+pub use entity::{
+    ContentSummary, PageRenderContext, Pagination, Post, PostContext, PostId, PostStatus,
+};
 
 pub use error::{AegisError, Result};
 pub use manifest::{

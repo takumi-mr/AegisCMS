@@ -42,6 +42,7 @@ pub async fn test_state_with_config(
         cache.clone(),
         config.auth.login_rate_limit.clone(),
     ));
+    let base_path = config.server.normalized_base_path().unwrap();
     Arc::new(AppState::new(
         config,
         db.clone(),
@@ -53,9 +54,9 @@ pub async fn test_state_with_config(
         schemas,
         supervisor,
         audit,
-        Arc::new(aegis_theme::ThemeEngine::new(
-            std::path::Path::new("themes"),
-            "default",
-        )),
+        Arc::new(
+            aegis_theme::ThemeEngine::new(std::path::Path::new("themes"), "default")
+                .with_base_path(&base_path),
+        ),
     ))
 }

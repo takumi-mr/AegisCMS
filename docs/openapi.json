@@ -326,11 +326,14 @@
             }
           },
           {
+            "description": "Page size (at most 500)",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
               "type": "integer"
             }
           },
@@ -357,14 +360,34 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/BaseContentItem"
+                  "properties": {
+                    "contents": {
+                      "items": {
+                        "$ref": "#/components/schemas/BaseContentItem"
+                      },
+                      "type": "array"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
                   },
-                  "type": "array"
+                  "required": [
+                    "contents",
+                    "total",
+                    "limit",
+                    "offset"
+                  ],
+                  "type": "object"
                 }
               }
             },
-            "description": "List of content records"
+            "description": "One page of content records (newest first) and the number of matching records"
           }
         },
         "summary": "List contents by content type",

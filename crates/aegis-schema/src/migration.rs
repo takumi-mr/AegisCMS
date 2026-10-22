@@ -56,22 +56,27 @@ impl SchemaMigration {
             ],
         };
 
-        let mut indices = match dialect {
-            SqlDialect::Sqlite | SqlDialect::Postgres => vec![
-                format!(
-                    "CREATE INDEX IF NOT EXISTS idx_{}_slug ON {} (slug);",
-                    table, table
+        // 一覧（作成日の新しい順、公開状態での絞り込み）のページングで並べ替えを避けるため、
+        // `ORDER BY created_at DESC, id DESC` と同じ並びのインデックスを作る
+        let standard_indices = [
+            ("slug", "slug"),
+            ("status", "status"),
+            ("created", "created_at, id"),
+            ("status_created", "status, created_at, id"),
+        ];
+        let mut indices: Vec<String> = standard_indices
+            .iter()
+            .map(|(name, columns)| match dialect {
+                SqlDialect::Sqlite | SqlDialect::Postgres => format!(
+                    "CREATE INDEX IF NOT EXISTS idx_{}_{} ON {} ({});",
+                    table, name, table, columns
                 ),
-                format!(
-                    "CREATE INDEX IF NOT EXISTS idx_{}_status ON {} (status);",
-                    table, table
+                SqlDialect::MySql => format!(
+                    "CREATE INDEX idx_{}_{} ON {} ({});",
+                    table, name, table, columns
                 ),
-            ],
-            SqlDialect::MySql => vec![
-                format!("CREATE INDEX idx_{}_slug ON {} (slug);", table, table),
-                format!("CREATE INDEX idx_{}_status ON {} (status);", table, table),
-            ],
-        };
+            })
+            .collect();
 
         for field in &schema.fields {
             // 予約語やデフォルトカラムと被らない場合のみ追加

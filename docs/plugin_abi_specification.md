@@ -250,7 +250,11 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
   "items": [],
   "extra_css": "body { background: #fafafa; }",
   "extra_head": "<meta name=\"author\" content=\"AegisCMS\">",
-  "theme_vars": { "accent": "#10b981" }
+  "theme_vars": { "accent": "#10b981" },
+  "pagination": {
+    "page": 1, "per_page": 10, "total_items": 42, "total_pages": 5,
+    "prev_url": null, "next_url": "/?page=2"
+  }
 }
 ```
 

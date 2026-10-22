@@ -19,10 +19,10 @@
       {% endif %}
     </div>
     <h2 class="cyber-card-title">
-      <a href="/articles/{{ item.slug }}">{{ item.title }}</a>
+      <a href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a>
     </h2>
     <p class="cyber-card-excerpt">{{ item.excerpt | truncate(140) }}</p>
-    <a href="/articles/{{ item.slug }}" class="cyber-card-link">
+    <a href="{{ base_path }}/articles/{{ item.slug }}" class="cyber-card-link">
       <span>[ ACCESS NODE ]</span>
       <span>&rarr;</span>
     </a>
@@ -33,4 +33,11 @@
   </div>
   {% endfor %}
 </section>
+{% if pagination and pagination.total_pages > 1 %}
+<nav class="pagination" aria-label="Pagination" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem;">
+  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="cyber-card-link"><span>[ &larr; NEWER ]</span></a>{% else %}<span></span>{% endif %}
+  <span>Page {{ pagination.page }} / {{ pagination.total_pages }}</span>
+  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="cyber-card-link"><span>[ OLDER &rarr; ]</span></a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
 {% endblock %}

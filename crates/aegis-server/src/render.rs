@@ -72,27 +72,19 @@ async fn resolve_page_relations(
     schema: &SchemaDefinition,
     fields: &HashMap<String, serde_json::Value>,
 ) -> HashMap<String, serde_json::Value> {
-    let mut relations = HashMap::new();
     let schemas = state.schemas.read().await;
-    for (field_def, target) in schema.relation_fields() {
-        let Some(ref_id) = fields.get(&field_def.name).and_then(|v| v.as_str()) else {
-            continue;
-        };
-        let Some(target_schema) = schemas.get(&target.content_type) else {
-            continue;
-        };
-        if let Ok(Some(rel)) = state
-            .db
-            .resolve_relation(target_schema, &target.field, ref_id)
-            .await
-        {
-            relations.insert(
-                field_def.name.clone(),
-                serde_json::json!({ "id": rel.id, "title": rel.title, "slug": rel.slug }),
-            );
-        }
-    }
-    relations
+    crate::db::resolve_relations_for_records(&*state.db, &schemas, schema, &[fields])
+        .await
+        .pop()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, rel)| (name, relation_summary(&rel)))
+        .collect()
+}
+
+/// The `{ id, title, slug }` object a template sees for a resolved relation
+pub fn relation_summary(rel: &crate::db::ResolvedRelation) -> serde_json::Value {
+    serde_json::json!({ "id": rel.id, "title": rel.title, "slug": rel.slug })
 }
 
 /// Renders a full themed page: resolves relations, applies the plugins' `on-render-page`

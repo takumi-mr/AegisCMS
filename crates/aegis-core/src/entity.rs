@@ -97,4 +97,20 @@ pub struct PageRenderContext {
     pub extra_head: String,
     #[serde(default)]
     pub theme_vars: std::collections::HashMap<String, String>,
+    /// 一覧ページ（`index.html`）のページ送り。それ以外のページでは `None`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pagination: Option<Pagination>,
+}
+
+/// 一覧ページのページ送り情報（テンプレートの `pagination`）
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Pagination {
+    /// 現在のページ（1 始まり）
+    pub page: u64,
+    pub per_page: u64,
+    pub total_items: u64,
+    pub total_pages: u64,
+    /// 前・次のページの URL（`[server].base_path` 込み）。無ければ `None`
+    pub prev_url: Option<String>,
+    pub next_url: Option<String>,
 }

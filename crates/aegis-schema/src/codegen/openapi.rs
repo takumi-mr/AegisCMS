@@ -113,7 +113,8 @@ impl OpenApiGenerator {
                             "name": "limit",
                             "in": "query",
                             "required": false,
-                            "schema": { "type": "integer", "default": 20 }
+                            "description": "Page size (at most 500)",
+                            "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 500 }
                         },
                         {
                             "name": "offset",
@@ -130,12 +131,21 @@ impl OpenApiGenerator {
                     ],
                     "responses": {
                         "200": {
-                            "description": "List of content records",
+                            "description": "One page of content records (newest first) and the number of matching records",
                             "content": {
                                 "application/json": {
                                     "schema": {
-                                        "type": "array",
-                                        "items": { "$ref": "#/components/schemas/BaseContentItem" }
+                                        "type": "object",
+                                        "required": ["contents", "total", "limit", "offset"],
+                                        "properties": {
+                                            "contents": {
+                                                "type": "array",
+                                                "items": { "$ref": "#/components/schemas/BaseContentItem" }
+                                            },
+                                            "total": { "type": "integer" },
+                                            "limit": { "type": "integer" },
+                                            "offset": { "type": "integer" }
+                                        }
                                     }
                                 }
                             }
