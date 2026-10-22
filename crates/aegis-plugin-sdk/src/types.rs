@@ -148,6 +148,24 @@ impl From<serde_json::Error> for PluginError {
 
 pub type Result<T> = std::result::Result<T, PluginError>;
 
+/// 認証後フック (`on-user-authenticated`) に渡されるログインユーザーの情報
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct UserAuthContext {
+    /// 認証したプロバイダ (例: "local", "oidc")。変更してもホストは無視する
+    pub provider: String,
+    /// セッションの `user_id`。変更してもホストは無視する
+    pub user_id: String,
+    #[serde(default)]
+    pub email: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    /// `admin` / `editor` / `viewer` のいずれか（それ以外を返すとログインは失敗する）
+    pub role: String,
+    /// プロバイダ固有の属性（IdP のクレーム・グループなど）。返した値はセッションの `metadata` に入る
+    #[serde(default)]
+    pub metadata: HashMap<String, serde_json::Value>,
+}
+
 /// ページレンダリング時にプラグインへ渡されるコンテキスト
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ContentSummary {
@@ -209,6 +227,13 @@ pub trait Plugin: Default {
     /// ページ描画前フック (`on-render-page`)
     /// テーマの動的切り替え、カスタムCSS/メタタグのインジェクション、テーマ変数の書き換えなどを実行可能
     fn on_render_page(&mut self, ctx: PageRenderContext) -> Result<PageRenderContext> {
+        Ok(ctx)
+    }
+
+    /// 認証後フック (`on-user-authenticated`)
+    /// ログイン成功後・セッション発行前に呼ばれる。IdP のグループからのロールマッピング、
+    /// 表示名や属性の補完、ログイン通知などを実行可能。`Err` を返すとログインを拒否する
+    fn on_user_authenticated(&mut self, ctx: UserAuthContext) -> Result<UserAuthContext> {
         Ok(ctx)
     }
 }
