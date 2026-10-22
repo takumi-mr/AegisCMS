@@ -9,11 +9,9 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: 公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
-  - Rust ワークスペース全体 (`cargo test`) 成功、全 68 件のテストパス。
-  - コードフォーマット (`cargo fmt --check`) および Clippy ゼロ警告 (`cargo clippy --workspace -- -D warnings`) 達成。
-  - フロントエンド本番ビルド (`npm --prefix admin run build`)、oxlint ゼロ警告、Prettier 整形パス。
+  - `task check` による全自動検証（Rust テスト 90 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
   - テーマシステム & マーケットプレイス準備 (`crates/aegis-theme`, `crates/aegis-server`, `themes/`, `admin/`):
     - 独立テーマパッケージ仕様: `theme.json`（ID、バージョン、作者、タグ、ライセンス、最小バージョン等）、`preview.svg`、`templates/`、`assets/style.css`。将来のマーケットからの ZIP 導入を見据えた `validate_theme_package` 機構。
     - 4つの公式テーマ:
@@ -75,6 +73,12 @@
 - [x] **Wasm 認証後フック (`on-user-authenticated`)**: 資格情報の確認後・セッション発行前に `UserAuthContext`（provider / user_id / email / display_name / role / metadata）をプラグインに渡し、ロール・表示名・metadata の変更をセッションに反映。`Err` でログイン拒否（403、`session.create` denied）、失敗時もログイン失敗（500、`plugin.error`）。ロール変更は `details.role_mapped` に記録。外部 IdP 対応時もこのフックを通す（`auth::hook::run_auth_hook`）。
 - [x] **OpenID Connect によるシングルサインオン** (`[auth.oidc]`、Cargo feature `oidc`、既定で有効): 認可コードフロー + PKCE、ID トークン検証（JWKS 署名・iss・aud・exp・nonce・azp、非対称アルゴリズムのみ）。IdP アカウント（Issuer + sub）と `_aegis_users` を `_aegis_user_identities` で紐付け、初回ログイン時に自動作成（同名ユーザーがいれば `username_taken` で拒否）。`role_claim` + `role_mapping` でロールを同期、`on-user-authenticated` フックも適用。`aegis user link-oidc` で既存ユーザーを紐付け。Admin Studio のログイン画面に SSO ボタン、`#session=` / `#login_error=` の受け取り。[docs/authentication.md](docs/authentication.md#5-シングルサインオン-openid-connect)
 - [x] **リバースプロキシ配下・サブドメイン / サブパスでの運用**: Admin Studio の API 接続先を配信元のサーバーに（`VITE_AEGIS_SERVER_URL` で別の場所も指定可、Docker は `--build-arg`）。`[server].base_path`（例: `/cms`）でサブパス公開に対応（ルーティング・テーマのリンク・アップロード URL・`/admin` リダイレクト・SSO の戻り先）。プロキシ配下の設定と nginx の例を [docs/configuration.md](docs/configuration.md#4-リバースプロキシ配下での運用) に追記。
+- [x] **Markdown 編集モード & スマート貼り付けサポート (`admin/src/components/MarkdownEditor.tsx`, `PasteMarkdownModal.tsx`, `admin/src/utils/markdown.ts`)**:
+  - **Blocks ⇄ Markdown 双方向切り替え**: エディタ上部に `[ 🧱 Blocks ]` `[ 📝 Markdown ]` セグメント切り替えタブを追加。ブロックと Markdown を完全にロスなく相互変換し、どちらのモードで編集してもリアルタイムにプレビュー（Live HTML / Themed Page / Block AST）と連動・保存。
+  - **専用 Markdown エディタ**: 等幅フォント、行数・文字数・検出 AST ブロック数カウンター、Tab インデント挿入、Ctrl+S 保存、クイック書式挿入ツールバー（見出し、太字、斜体、コードブロック、リスト、画像、リンク、クリップボード貼り付け）。
+  - **スマート貼り付け（Paste Everywhere）**: ブロックエディタのキャンバス上で Markdown を貼り付けた際に、自動で AST ブロック群（見出し、段落、コード、画像、リスト等）にパースして追加。
+  - **貼り付けモーダル (`PasteMarkdownModal`)**: ツールバーの `[ 📋 Paste Markdown ]` から、クリップボード読み込み・ブロック変換サマリー確認・末尾追加または全置換を選択して安全にインポート可能。
+  - **リストブロック対応**: `core/list`（順序付き/箇条書き）の `BlockItem` 編集 UI を追加し、ツールバーからもワンクリックでリスト作成可能に拡張。
 - [ ] **SAML 2.0 認証プロバイダ**（SP-initiated、POST バインディング）。XML 署名検証（xmlsec 等）の依存とセキュリティ（XML Signature Wrapping 対策）を検討してから着手。
 
 ---
@@ -96,6 +100,17 @@
   - `WasmPluginInstance::from_bytes` で `Linker::instantiate_pre` してインポートを検査する（以前は呼び出しのたびのインスタンス化で初めて失敗し、起動ログは「Successfully loaded」のままだった）。`_initialize` があればインスタンス化直後に呼ぶ（TinyGo `wasm-unknown`）。
   - オブジェクトを返すフック（`on_before_save` / `on_render_page` / `on_user_authenticated`）の返り値はトップレベルのキー単位で入力に上書きする（`parse_object_output`）。軽量 JSON しか持たない言語の SDK が一部のフィールドだけを返しても、記事一覧などが消えない。
   - テンプレートのビルド済み `plugin.wasm` はコミットしており、`crates/aegis-runtime/tests/sdk_plugins.rs` が実ホストで全フックを実行する。テンプレートを変えたら `task plugin:build*` で再ビルドしてコミットすること（AssemblyScript は npm、TinyGo は 0.30+ が必要）。
+
+- **Markdown 編集モード & スマート貼り付けアーキテクチャ (`admin/src/utils/markdown.ts`, `MarkdownEditor.tsx`, `PasteMarkdownModal.tsx`)**:
+  - **双方向変換と完全同期**:
+    - `blocksToMarkdown(blocks)`: `core/heading` (#), `core/paragraph`, `core/code` (```lang), `core/image` (![]()), `core/list` (- / 1.) を標準 Markdown テキストへ直列化。
+    - `markdownToBlocks(markdown)`: コードブロック、見出し (H1〜H6)、画像、リスト（順序付き/箇条書きの自動グループ化）、空行区切り段落を堅牢に走査し AST `BlockNode` 配列へ変換。
+    - Markdown エディタで文字入力を行うたび即座に AST ブロックへ変換・同期されるため、右側の `<Preview>`（Live HTML / Themed Page / Block AST）がリアルタイムに更新され、そのまま保存 (`handleSave`) してもバックエンドの Wasm フックや DB 保存パイプラインを一切壊さず動作します。
+  - **スマート貼り付け（Paste Everywhere & モーダル）**:
+    - ブロックキャンバス上の `onPaste` イベントをインターセプトし、クリップボードの内容が Markdown（見出し、コードブロック、リスト、画像、複数段落など）である場合に自動で AST ブロック群にパースして追加。
+    - ツールバーの `[Paste Markdown]` ボタンから開くモーダルでは、ワンクリッククリップボード読み込み（`navigator.clipboard.readText`）、解析されたブロック内訳プレビュー（例: `5 blocks: 1 H2, 3 Paragraphs, 1 Code`）、および「既存ブロックの末尾に追加」または「全置換」を安全に選択してインポート可能。
+  - **リストブロックの編集対応**:
+    - `BlockItem` に `core/list` のサポートを追加し、箇条書き（`- `）と番号付き（`1. `）の切り替え、1行1項目の直感的なリスト編集に対応。
 
 - **OpenID Connect (`auth::oidc::OidcAuthProvider`)**:
   - `AuthProvider` の `initiate_login`（state / nonce / PKCE をキャッシュに 10 分保存して認可 URL を返す）と `authenticate`（`kind = "oidc_callback"`、`parameters` にコールバックのクエリ）で実装。ハンドラー（`handlers/oidc.rs`）は feature に依存せず `AppState::oidc: Option<OidcLogin>` を見る。

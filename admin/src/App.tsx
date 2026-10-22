@@ -8,6 +8,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Tags,
+  LayoutGrid,
+  FileText,
+  Clipboard,
+  List,
 } from 'lucide-react';
 import { Header, type AppView } from './components/Header';
 import { AuditLogView } from './components/AuditLogView';
@@ -17,6 +21,8 @@ import { CategoryManager } from './components/CategoryManager';
 import { ContentList } from './components/ContentList';
 import { BlockItem } from './components/BlockItem';
 import { Preview } from './components/Preview';
+import { MarkdownEditor } from './components/MarkdownEditor';
+import { PasteMarkdownModal } from './components/PasteMarkdownModal';
 import { aegisApi, setUnauthorizedHandler } from './api/client';
 import { setSessionToken } from './api/session';
 import { takeLoginRedirect } from './utils/loginRedirect';
@@ -24,6 +30,7 @@ import type { BlockNode, ContentItem, SessionInfo } from './types';
 import { categoryIdOf } from './utils/category';
 import { canEdit, isAdmin } from './utils/roles';
 import { cx } from './utils/cx';
+import { blocksToMarkdown, markdownToBlocks, isMarkdownLike } from './utils/markdown';
 import { Button } from './components/ui/Button';
 import { Field, FieldRow } from './components/ui/Field';
 import styles from './App.module.css';
@@ -64,6 +71,29 @@ export const App: React.FC = () => {
       text: '// Zero-Trust capability validation in Rust\nfn verify_domain(allowed: &[String], url: &str) -> bool {\n    allowed.iter().any(|d| url.contains(d))\n}',
     },
   ]);
+
+  // Markdown & Paste Support State
+  const [editorMode, setEditorMode] = useState<'blocks' | 'markdown'>('blocks');
+  const [markdownText, setMarkdownText] = useState<string>(() =>
+    blocksToMarkdown([
+      {
+        name: 'core/heading',
+        attributes: { level: 2 },
+        text: 'Deterministic Content Architecture',
+      },
+      {
+        name: 'core/paragraph',
+        attributes: {},
+        text: 'AegisCMS replaces monolithic PHP plugin runtimes with memory-safe WebAssembly sandboxes governed by strict capability-based manifests.',
+      },
+      {
+        name: 'core/code',
+        attributes: { language: 'rust' },
+        text: '// Zero-Trust capability validation in Rust\nfn verify_domain(allowed: &[String], url: &str) -> bool {\n    allowed.iter().any(|d| url.contains(d))\n}',
+      },
+    ])
+  );
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState<boolean>(false);
 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -167,7 +197,9 @@ export const App: React.FC = () => {
     setTitle(item.title);
     setSlug(item.slug);
     setStatus(item.status === 'published' ? 'published' : 'draft');
-    setBlocks(item.blocks || []);
+    const itemBlocks = item.blocks || [];
+    setBlocks(itemBlocks);
+    setMarkdownText(blocksToMarkdown(itemBlocks));
     setCategoryId(categoryIdOf(item) ?? '');
   };
 
@@ -177,21 +209,26 @@ export const App: React.FC = () => {
     setSlug(`untitled-${Date.now().toString(36)}`);
     setStatus('draft');
     setCategoryId('');
-    setBlocks([
+    const newBlocks: BlockNode[] = [
       { name: 'core/heading', attributes: { level: 2 }, text: 'New Heading' },
       { name: 'core/paragraph', attributes: {}, text: '' },
-    ]);
+    ];
+    setBlocks(newBlocks);
+    setMarkdownText(blocksToMarkdown(newBlocks));
   };
 
   // Block Manipulation
   const addBlock = (name: string, defaultText = '', defaultAttrs: Record<string, any> = {}) => {
-    setBlocks([...blocks, { name, text: defaultText, attributes: defaultAttrs }]);
+    const next = [...blocks, { name, text: defaultText, attributes: defaultAttrs }];
+    setBlocks(next);
+    setMarkdownText(blocksToMarkdown(next));
   };
 
   const updateBlock = (index: number, updated: BlockNode) => {
     const next = [...blocks];
     next[index] = updated;
     setBlocks(next);
+    setMarkdownText(blocksToMarkdown(next));
   };
 
   const moveBlock = (index: number, direction: 'up' | 'down') => {
@@ -201,10 +238,63 @@ export const App: React.FC = () => {
     const [removed] = next.splice(index, 1);
     next.splice(target, 0, removed);
     setBlocks(next);
+    setMarkdownText(blocksToMarkdown(next));
   };
 
   const deleteBlock = (index: number) => {
-    setBlocks(blocks.filter((_, i) => i !== index));
+    const next = blocks.filter((_, i) => i !== index);
+    setBlocks(next);
+    setMarkdownText(blocksToMarkdown(next));
+  };
+
+  // Markdown Mode Switching & Editing
+  const handleSwitchMode = (newMode: 'blocks' | 'markdown') => {
+    if (newMode === editorMode) return;
+    if (newMode === 'markdown') {
+      setMarkdownText(blocksToMarkdown(blocks));
+      setEditorMode('markdown');
+    } else {
+      const parsed = markdownToBlocks(markdownText);
+      setBlocks(parsed);
+      setEditorMode('blocks');
+    }
+  };
+
+  const handleMarkdownChange = (newText: string) => {
+    setMarkdownText(newText);
+    const parsed = markdownToBlocks(newText);
+    setBlocks(parsed);
+  };
+
+  // Paste Handling for Block Canvas
+  const handleCanvasPaste = (e: React.ClipboardEvent) => {
+    const target = e.target as HTMLElement;
+    const isInsideInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+
+    const text = e.clipboardData.getData('text');
+    if (!text || !text.trim()) return;
+
+    if (isInsideInput && !isMarkdownLike(text)) {
+      return;
+    }
+
+    if (isMarkdownLike(text) || !isInsideInput) {
+      e.preventDefault();
+      const parsed = markdownToBlocks(text);
+      if (parsed.length > 0) {
+        const nextBlocks = [...blocks, ...parsed];
+        setBlocks(nextBlocks);
+        setMarkdownText(blocksToMarkdown(nextBlocks));
+        showToast(`📋 Pasted and converted ${parsed.length} blocks from Markdown`);
+      }
+    }
+  };
+
+  const handlePasteInsert = (insertedBlocks: BlockNode[], mode: 'append' | 'replace') => {
+    const nextBlocks = mode === 'replace' ? insertedBlocks : [...blocks, ...insertedBlocks];
+    setBlocks(nextBlocks);
+    setMarkdownText(blocksToMarkdown(nextBlocks));
+    showToast(`Added ${insertedBlocks.length} blocks from Markdown`);
   };
 
   // Save via API Gateway & Wasm Hooks
@@ -353,64 +443,122 @@ export const App: React.FC = () => {
                 </FieldRow>
               </div>
 
-              {/* Block Insertion Toolbar */}
-              <div className={styles.blockToolbar}>
-                <span className={styles.toolbarLabel}>Add Block</span>
-                <Button
-                  variant="tool"
-                  onClick={() => addBlock('core/heading', 'Section Title', { level: 2 })}
-                >
-                  <Hash size={14} />
-                  <span>Heading</span>
-                </Button>
-                <Button variant="tool" onClick={() => addBlock('core/paragraph', '')}>
-                  <AlignLeft size={14} />
-                  <span>Paragraph</span>
-                </Button>
-                <Button
-                  variant="tool"
-                  onClick={() => addBlock('core/code', '', { language: 'rust' })}
-                >
-                  <Code2 size={14} />
-                  <span>Code Block</span>
-                </Button>
-                <Button
-                  variant="tool"
-                  onClick={() =>
-                    // Starts empty: the image and its alt text come from an upload or the media library
-                    addBlock('core/image', '', { src: '', alt: '' })
-                  }
-                >
-                  <ImageIcon size={14} />
-                  <span>Image</span>
-                </Button>
+              {/* Editor Mode Selector & Paste Actions */}
+              <div className={styles.editorModeBar}>
+                <div className={styles.modeTabs} role="tablist" aria-label="Editor Mode">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={editorMode === 'blocks'}
+                    className={cx(styles.modeTab, editorMode === 'blocks' && styles.activeMode)}
+                    onClick={() => handleSwitchMode('blocks')}
+                  >
+                    <LayoutGrid size={14} />
+                    <span>Blocks</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={editorMode === 'markdown'}
+                    className={cx(styles.modeTab, editorMode === 'markdown' && styles.activeMode)}
+                    onClick={() => handleSwitchMode('markdown')}
+                  >
+                    <FileText size={14} />
+                    <span>Markdown</span>
+                  </button>
+                </div>
+
+                <div className={styles.modeActions}>
+                  <Button
+                    variant="tool"
+                    onClick={() => setIsPasteModalOpen(true)}
+                    title="Paste Markdown from clipboard to convert into blocks"
+                  >
+                    <Clipboard size={14} />
+                    <span>Paste Markdown</span>
+                  </Button>
+                </div>
               </div>
 
-              {/* Block Canvas */}
-              <div className={styles.blocksList}>
-                {blocks.map((block, idx) => (
-                  <BlockItem
-                    key={idx}
-                    block={block}
-                    index={idx}
-                    total={blocks.length}
-                    onChange={(updated) => updateBlock(idx, updated)}
-                    onMoveUp={() => moveBlock(idx, 'up')}
-                    onMoveDown={() => moveBlock(idx, 'down')}
-                    onDelete={() => deleteBlock(idx)}
-                    canUpload={editable}
-                  />
-                ))}
-
-                {blocks.length === 0 && (
-                  <div className={styles.emptyBlocks}>
-                    <p>This post has no content blocks.</p>
-                    <Button className={styles.addFirst} onClick={() => addBlock('core/paragraph')}>
-                      <Plus size={16} /> Add First Paragraph
+              {editorMode === 'markdown' ? (
+                <MarkdownEditor
+                  value={markdownText}
+                  onChange={handleMarkdownChange}
+                  blocks={blocks}
+                  onSave={handleSave}
+                />
+              ) : (
+                <>
+                  {/* Block Insertion Toolbar */}
+                  <div className={styles.blockToolbar}>
+                    <span className={styles.toolbarLabel}>Add Block</span>
+                    <Button
+                      variant="tool"
+                      onClick={() => addBlock('core/heading', 'Section Title', { level: 2 })}
+                    >
+                      <Hash size={14} />
+                      <span>Heading</span>
+                    </Button>
+                    <Button variant="tool" onClick={() => addBlock('core/paragraph', '')}>
+                      <AlignLeft size={14} />
+                      <span>Paragraph</span>
+                    </Button>
+                    <Button
+                      variant="tool"
+                      onClick={() => addBlock('core/code', '', { language: 'rust' })}
+                    >
+                      <Code2 size={14} />
+                      <span>Code Block</span>
+                    </Button>
+                    <Button
+                      variant="tool"
+                      onClick={() => addBlock('core/list', '', { ordered: false })}
+                    >
+                      <List size={14} />
+                      <span>List</span>
+                    </Button>
+                    <Button
+                      variant="tool"
+                      onClick={() =>
+                        // Starts empty: the image and its alt text come from an upload or the media library
+                        addBlock('core/image', '', { src: '', alt: '' })
+                      }
+                    >
+                      <ImageIcon size={14} />
+                      <span>Image</span>
                     </Button>
                   </div>
-                )}
-              </div>
+
+                  {/* Block Canvas */}
+                  <div className={styles.blocksList} onPaste={handleCanvasPaste}>
+                    {blocks.map((block, idx) => (
+                      <BlockItem
+                        key={idx}
+                        block={block}
+                        index={idx}
+                        total={blocks.length}
+                        onChange={(updated) => updateBlock(idx, updated)}
+                        onMoveUp={() => moveBlock(idx, 'up')}
+                        onMoveDown={() => moveBlock(idx, 'down')}
+                        onDelete={() => deleteBlock(idx)}
+                        canUpload={editable}
+                      />
+                    ))}
+
+                    {blocks.length === 0 && (
+                      <div className={styles.emptyBlocks}>
+                        <p>This post has no content blocks.</p>
+                        <Button
+                          className={styles.addFirst}
+                          onClick={() => addBlock('core/paragraph')}
+                        >
+                          <Plus size={16} /> Add First Paragraph
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Right Live Preview Column */}
@@ -430,6 +578,13 @@ export const App: React.FC = () => {
           categories={categories}
           onCreated={handleCategoryCreated}
           onClose={() => setIsCategoryManagerOpen(false)}
+        />
+      )}
+
+      {isPasteModalOpen && (
+        <PasteMarkdownModal
+          onInsert={handlePasteInsert}
+          onClose={() => setIsPasteModalOpen(false)}
         />
       )}
 
