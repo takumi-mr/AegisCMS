@@ -37,6 +37,7 @@ FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 COPY sdk/ ./sdk/
+COPY plugins/ ./plugins/
 RUN cargo chef prepare --recipe-path recipe.json
 
 # 2-2. 依存クレートだけを先にビルド（レシピが同じならこのレイヤーはキャッシュされる）
@@ -49,6 +50,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 COPY schemas/ ./schemas/
 COPY sdk/ ./sdk/
+COPY plugins/ ./plugins/
 RUN cargo build --release -p aegis-server
 
 # ==========================================
@@ -68,7 +70,7 @@ RUN groupadd -g 10001 aegis && \
     useradd -u 10001 -g aegis -s /bin/false -M aegis
 
 # 必要なディレクトリ群の作成
-RUN mkdir -p /app/data /app/config /app/schemas /app/plugins /app/admin/dist
+RUN mkdir -p /app/data /app/config /app/schemas /app/plugins /app/themes /app/admin/dist
 
 # ビルド成果物の配置
 COPY --from=rust-builder /build/target/release/aegis-server /usr/local/bin/aegis-server
@@ -77,6 +79,7 @@ COPY config/docker.toml /app/config/docker.toml
 COPY config/default.toml /app/config/default.toml
 COPY schemas/ /app/schemas/
 COPY plugins/ /app/plugins/
+COPY themes/ /app/themes/
 
 # ファイル権限の設定
 RUN chown -R aegis:aegis /app
