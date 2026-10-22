@@ -8,7 +8,7 @@ use aegis_runtime::PluginSupervisor;
 use aegis_schema::SchemaDefinition;
 
 use crate::audit::AuditService;
-use crate::auth::{LocalAuthProvider, SessionService};
+use crate::auth::{LocalAuthProvider, LoginRateLimiter, SessionService};
 use crate::cache::MemoryCacheBackend;
 use crate::db::{DatabaseAdapter, SqliteAdapter};
 use crate::state::AppState;
@@ -17,7 +17,14 @@ use crate::storage::LocalStorageBackend;
 /// App state backed by an in-memory SQLite database and a memory cache, with a minimal
 /// `article` schema (title only) migrated
 pub async fn test_state(supervisor: PluginSupervisor) -> Arc<AppState> {
-    let config = AegisConfig::default();
+    test_state_with_config(AegisConfig::default(), supervisor).await
+}
+
+/// `test_state` with a custom configuration (e.g. `[auth.login_rate_limit]`)
+pub async fn test_state_with_config(
+    config: AegisConfig,
+    supervisor: PluginSupervisor,
+) -> Arc<AppState> {
     let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
     adapter.init().await.unwrap();
     let db: Arc<dyn DatabaseAdapter> = Arc::new(adapter);
@@ -31,6 +38,10 @@ pub async fn test_state(supervisor: PluginSupervisor) -> Arc<AppState> {
     db.run_migrations(&schemas).await.unwrap();
     let cache = Arc::new(MemoryCacheBackend::new());
     let audit = Arc::new(AuditService::from_config(&config.audit, db.clone()));
+    let login_limiter = Arc::new(LoginRateLimiter::new(
+        cache.clone(),
+        config.auth.login_rate_limit.clone(),
+    ));
     Arc::new(AppState::new(
         config,
         db.clone(),
@@ -38,6 +49,7 @@ pub async fn test_state(supervisor: PluginSupervisor) -> Arc<AppState> {
         cache.clone(),
         Arc::new(SessionService::new(cache, 3600)),
         Arc::new(LocalAuthProvider::new(db)),
+        login_limiter,
         schemas,
         supervisor,
         audit,

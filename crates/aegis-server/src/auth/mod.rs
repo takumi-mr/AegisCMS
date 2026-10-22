@@ -1,6 +1,7 @@
 pub mod authorize;
 pub mod local;
 pub mod password;
+pub mod rate_limit;
 pub mod session;
 pub mod users;
 
@@ -12,6 +13,7 @@ pub use session::{SessionData, SessionService};
 
 pub use authorize::{AdminSession, EditorSession, ViewerSession};
 pub use local::LocalAuthProvider;
+pub use rate_limit::LoginRateLimiter;
 
 /// システムロール（権限の強い順）
 pub const ROLES: [&str; 3] = ["admin", "editor", "viewer"];

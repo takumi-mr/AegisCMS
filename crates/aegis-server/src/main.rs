@@ -283,6 +283,10 @@ async fn main() -> anyhow::Result<()> {
                 cache.clone(),
                 config.cache.default_ttl_secs,
             ));
+            let login_limiter = Arc::new(auth::LoginRateLimiter::new(
+                cache.clone(),
+                config.auth.login_rate_limit.clone(),
+            ));
 
             // 5. Wasm プラグインスーパーバイザー初期化
             let mut supervisor = PluginSupervisor::new();
@@ -333,6 +337,7 @@ async fn main() -> anyhow::Result<()> {
                 cache,
                 sessions,
                 auth_provider,
+                login_limiter,
                 schemas,
                 supervisor,
                 audit,

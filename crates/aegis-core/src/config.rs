@@ -23,6 +23,8 @@ pub struct AegisConfig {
     #[serde(default)]
     pub audit: AuditConfig,
     #[serde(default)]
+    pub auth: AuthConfig,
+    #[serde(default)]
     pub theme: ThemeConfig,
 }
 
@@ -346,7 +348,8 @@ pub enum AuditSinkKind {
 pub struct AuditConfig {
     pub enabled: bool,
     pub sinks: Vec<AuditSinkKind>,
-    /// `X-Forwarded-For` の先頭アドレスをクライアント IP として記録する（信頼できるリバースプロキシ配下でのみ有効化）
+    /// `X-Forwarded-For` の先頭アドレスをクライアント IP として扱う（監査ログとログインのレート制限に使用。
+    /// 信頼できるリバースプロキシ配下でのみ有効化）
     pub trust_forwarded_for: bool,
     /// `database` 出力先に保存した監査ログの保持日数。これより古いログは定期的に削除する（0 で無期限）
     pub retention_days: u32,
@@ -362,6 +365,40 @@ impl Default for AuditConfig {
             trust_forwarded_for: false,
             retention_days: 0,
             purge_interval_secs: 3600,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AuthConfig {
+    pub login_rate_limit: LoginRateLimitConfig,
+}
+
+/// `POST /api/v1/auth/session` のログイン失敗回数の制限。
+/// 失敗回数はキャッシュバックエンド（`[cache]`）で数えるため、`redis` なら全サーバーで共有される
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LoginRateLimitConfig {
+    pub enabled: bool,
+    /// 同じユーザー名で `window_secs` 内にこの回数失敗するとロックする（0 で無制限）
+    pub max_failures_per_user: u64,
+    /// 同じクライアント IP から `window_secs` 内にこの回数失敗するとロックする（0 で無制限）
+    pub max_failures_per_ip: u64,
+    /// 失敗回数を数える期間（秒）。最初の失敗から数え、過ぎるとリセットされる
+    pub window_secs: u64,
+    /// ロックの継続時間（秒）。ロック中は正しいパスワードでもログインできない
+    pub lockout_secs: u64,
+}
+
+impl Default for LoginRateLimitConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_failures_per_user: 5,
+            max_failures_per_ip: 20,
+            window_secs: 900,
+            lockout_secs: 900,
         }
     }
 }
@@ -439,6 +476,18 @@ mod tests {
         let invalid: std::result::Result<AegisConfig, _> =
             toml::from_str("[audit]\nsinks = [\"cloudwatch\"]\n");
         assert!(invalid.is_err());
+    }
+
+    #[test]
+    fn test_login_rate_limit_config_parsing() {
+        let default = AegisConfig::default();
+        assert!(default.auth.login_rate_limit.enabled);
+        assert_eq!(default.auth.login_rate_limit.max_failures_per_user, 5);
+
+        let config: AegisConfig =
+            toml::from_str("[auth.login_rate_limit]\nmax_failures_per_ip = 0\n").unwrap();
+        assert_eq!(config.auth.login_rate_limit.max_failures_per_ip, 0);
+        assert_eq!(config.auth.login_rate_limit.window_secs, 900);
     }
 
     #[test]

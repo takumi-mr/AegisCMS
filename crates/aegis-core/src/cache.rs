@@ -35,4 +35,9 @@ pub trait CacheBackend: Send + Sync {
 
     /// Check if key exists
     async fn exists(&self, key: &str) -> Result<bool>;
+
+    /// Atomically increment an integer counter and return the new value.
+    /// A missing (or expired) key starts from 0; `ttl_secs` is applied only when the key is
+    /// created, so the counter expires a fixed time after the first increment
+    async fn increment(&self, key: &str, ttl_secs: Option<u64>) -> Result<u64>;
 }

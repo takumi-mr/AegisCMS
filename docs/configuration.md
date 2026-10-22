@@ -173,9 +173,21 @@ public_url_prefix = "https://cdn.example.com"
 | --- | --- | --- | --- |
 | `enabled` | bool | `true` | `false` で監査ログの記録を無効化 |
 | `sinks` | (`"database"` \| `"log"` \| `"prometheus"`)[] | `["database"]` | 出力先（複数指定可）。`database`: DB テーブル + 参照 API / `log`: 構造化ログ / `prometheus`: `/metrics` のカウンタ |
-| `trust_forwarded_for` | bool | `false` | `true` で `X-Forwarded-For` の先頭アドレスをクライアント IP として記録。信頼できるリバースプロキシ配下でのみ有効化 |
+| `trust_forwarded_for` | bool | `false` | `true` で `X-Forwarded-For` の先頭アドレスをクライアント IP として扱う（監査ログの記録と、`[auth.login_rate_limit]` の IP 単位の制限に使用）。信頼できるリバースプロキシ配下でのみ有効化 |
 | `retention_days` | integer (u32) | `0` | `database` 出力先の監査ログを保持する日数。これより古いログを定期的に削除（`0` で無期限） |
 | `purge_interval_secs` | integer (u64) | `3600` | 保持期間切れのログを削除する間隔（秒、最小 60）。起動直後にも 1 回実行 |
+
+### 2.9 `[auth.login_rate_limit]` — ログイン試行のレート制限
+
+`POST /api/v1/auth/session` の認証失敗をユーザー名・クライアント IP 単位で数え、上限に達すると一定時間 `429 Too Many Requests` で拒否します（詳細は [認証ドキュメント](./authentication.md#4-セキュリティ上の挙動)）。失敗回数は `[cache]` のバックエンドに保存するため、複数インスタンスで制限を共有するには `backend = "redis"` にしてください。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `true` | `false` でレート制限を無効化 |
+| `max_failures_per_user` | integer (u64) | `5` | 同じユーザー名（大文字・小文字を区別しない）で `window_secs` 内に失敗できる回数。到達でそのユーザー名をロック（`0` で無制限） |
+| `max_failures_per_ip` | integer (u64) | `20` | 同じクライアント IP から `window_secs` 内に失敗できる回数。到達でその IP をロック（`0` で無制限） |
+| `window_secs` | integer (u64) | `900` | 失敗回数を数える期間（秒）。最初の失敗から数え、過ぎると 0 に戻る |
+| `lockout_secs` | integer (u64) | `900` | ロックの継続時間（秒）。ロック中は正しいパスワードでもログインできない |
 
 ---
 
@@ -242,4 +254,11 @@ sinks = ["database"]
 trust_forwarded_for = false
 retention_days = 0
 purge_interval_secs = 3600
+
+[auth.login_rate_limit]
+enabled = true
+max_failures_per_user = 5
+max_failures_per_ip = 20
+window_secs = 900
+lockout_secs = 900
 ```

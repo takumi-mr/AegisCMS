@@ -1,5 +1,5 @@
 use crate::audit::AuditService;
-use crate::auth::SessionService;
+use crate::auth::{LoginRateLimiter, SessionService};
 use crate::db::DatabaseAdapter;
 use aegis_core::{AegisConfig, AuthProvider, CacheBackend, StorageBackend};
 use aegis_runtime::PluginSupervisor;
@@ -19,6 +19,8 @@ pub struct AppState {
     pub sessions: Arc<SessionService>,
     /// ログイン（`POST /api/v1/auth/session`）で資格情報を検証するプロバイダ
     pub auth_provider: Arc<dyn AuthProvider>,
+    /// ログイン失敗回数の制限（`[auth.login_rate_limit]`）
+    pub login_limiter: Arc<LoginRateLimiter>,
     pub schemas: Arc<RwLock<HashMap<String, SchemaDefinition>>>,
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
     pub audit: Arc<AuditService>,
@@ -34,6 +36,7 @@ impl AppState {
         cache: Arc<dyn CacheBackend>,
         sessions: Arc<SessionService>,
         auth_provider: Arc<dyn AuthProvider>,
+        login_limiter: Arc<LoginRateLimiter>,
         schemas: HashMap<String, SchemaDefinition>,
         supervisor: PluginSupervisor,
         audit: Arc<AuditService>,
@@ -46,6 +49,7 @@ impl AppState {
             cache,
             sessions,
             auth_provider,
+            login_limiter,
             schemas: Arc::new(RwLock::new(schemas)),
             supervisor: Arc::new(RwLock::new(supervisor)),
             audit,

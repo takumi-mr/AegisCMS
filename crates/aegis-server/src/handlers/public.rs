@@ -367,6 +367,10 @@ mod tests {
         let theme_engine = Arc::new(ThemeEngine::new(&PathBuf::from("themes"), "default"));
 
         let auth_provider = Arc::new(crate::auth::LocalAuthProvider::new(db.clone()));
+        let login_limiter = Arc::new(crate::auth::LoginRateLimiter::new(
+            cache.clone(),
+            config.auth.login_rate_limit.clone(),
+        ));
 
         Arc::new(AppState::new(
             config,
@@ -375,6 +379,7 @@ mod tests {
             cache,
             sessions,
             auth_provider,
+            login_limiter,
             schemas,
             supervisor,
             audit,

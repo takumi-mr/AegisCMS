@@ -15,6 +15,10 @@ interface LoginViewProps {
 const describeError = (err: unknown): string => {
   if (err instanceof ApiError) {
     if (err.status === 401) return 'Invalid username or password.';
+    if (err.status === 429) {
+      const minutes = Math.max(1, Math.ceil((err.retryAfterSecs ?? 60) / 60));
+      return `Too many failed login attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+    }
     return err.message;
   }
   // fetch rejects with a TypeError when the server cannot be reached

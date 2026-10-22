@@ -71,6 +71,25 @@ impl CacheBackend for RedisCacheBackend {
             .map_err(|e| AegisError::Database(format!("Redis EXISTS error: {}", e)))?;
         Ok(count > 0)
     }
+
+    async fn increment(&self, key: &str, ttl_secs: Option<u64>) -> Result<u64> {
+        // INCR と初回のみの EXPIRE を 1 つのスクリプトで実行し、TTL の付け忘れ（永続カウンタ化）を防ぐ
+        let script = redis::Script::new(
+            r"local count = redis.call('INCR', KEYS[1])
+if count == 1 and tonumber(ARGV[1]) > 0 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count",
+        );
+        let mut conn = self.manager.clone();
+        let count: u64 = script
+            .key(key)
+            .arg(ttl_secs.unwrap_or(0))
+            .invoke_async(&mut conn)
+            .await
+            .map_err(|e| AegisError::Database(format!("Redis INCR error: {}", e)))?;
+        Ok(count)
+    }
 }
 
 #[cfg(test)]
