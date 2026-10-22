@@ -9,9 +9,10 @@ use sqlx::{Pool, Row, Sqlite};
 
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
-    build_audit_select, build_user_insert, build_user_select, build_user_update,
-    is_standard_column, user_row_from_sqlx, ContentRecord, DatabaseAdapter, ResolvedRelation,
-    UserRecord, AUDIT_INDEXES, AUDIT_TABLE, USER_TABLE,
+    build_audit_select, build_identity_insert, build_identity_select, build_identity_table,
+    build_user_insert, build_user_select, build_user_update, is_standard_column,
+    user_row_from_sqlx, ContentRecord, DatabaseAdapter, ResolvedRelation, UserRecord,
+    AUDIT_INDEXES, AUDIT_TABLE, USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -109,6 +110,12 @@ impl DatabaseAdapter for SqliteAdapter {
             USER_TABLE
         );
         sqlx::query(&user_table_sql)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // 外部 IdP のアイデンティティとユーザーの対応表
+        sqlx::query(&build_identity_table("TEXT"))
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -470,6 +477,35 @@ impl DatabaseAdapter for SqliteAdapter {
             Some(row) => Ok(Some(user_row_from_sqlx!(&row))),
             None => Ok(None),
         }
+    }
+
+    async fn get_identity_link(&self, provider: &str, subject: &str) -> Result<Option<String>> {
+        let row = sqlx::query(&build_identity_select(|i| format!("?{}", i)))
+            .bind(provider)
+            .bind(subject)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        row.map(|row| row.try_get::<String, _>("username"))
+            .transpose()
+            .map_err(|e| AegisError::Database(e.to_string()))
+    }
+
+    async fn insert_identity_link(
+        &self,
+        provider: &str,
+        subject: &str,
+        username: &str,
+    ) -> Result<()> {
+        sqlx::query(&build_identity_insert(|i| format!("?{}", i)))
+            .bind(provider)
+            .bind(subject)
+            .bind(username)
+            .bind(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(())
     }
 
     async fn update_user(&self, user: &UserRecord) -> Result<()> {

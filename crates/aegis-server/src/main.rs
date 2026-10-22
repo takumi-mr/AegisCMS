@@ -101,6 +101,12 @@ enum UserCommand {
     Enable { username: String },
     /// List users
     List,
+    /// Link an existing user to an OpenID Connect account ([auth.oidc].issuer_url + the IdP's `sub`)
+    LinkOidc {
+        username: String,
+        /// The `sub` claim of the user at the IdP
+        sub: String,
+    },
 }
 
 /// 新しいパスワードを読み込む: 環境変数 `AEGIS_USER_PASSWORD` → 端末なら非表示入力（確認つき）→ 標準入力の 1 行
@@ -161,6 +167,15 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
         UserCommand::Enable { username } => {
             auth::users::set_disabled(db, &username, false).await?;
             println!("Enabled '{}'", username);
+        }
+        UserCommand::LinkOidc { username, sub } => {
+            anyhow::ensure!(
+                !config.auth.oidc.issuer_url.trim().is_empty(),
+                "[auth.oidc].issuer_url is not set"
+            );
+            let subject = auth::oidc_subject(&config.auth.oidc.issuer_url, &sub);
+            auth::users::link_identity(db, &username, auth::OIDC_PROVIDER, &subject).await?;
+            println!("Linked '{}' to OIDC subject {}", username, subject);
         }
         UserCommand::List => {
             let users = db.list_users().await?;
@@ -331,7 +346,18 @@ async fn main() -> anyhow::Result<()> {
             ));
             audit.spawn_retention_task();
 
-            let app_state = Arc::new(AppState::new(
+            // 6.5 外部 IdP ログイン（[auth.oidc]）
+            let oidc = if config.auth.oidc.enabled {
+                Some(build_oidc_login(
+                    &config.auth.oidc,
+                    cache.clone(),
+                    db_adapter.clone(),
+                )?)
+            } else {
+                None
+            };
+
+            let app_state = AppState::new(
                 config.clone(),
                 db_adapter,
                 storage,
@@ -343,7 +369,11 @@ async fn main() -> anyhow::Result<()> {
                 supervisor,
                 audit,
                 theme_engine,
-            ));
+            );
+            let app_state = Arc::new(match oidc {
+                Some(oidc) => app_state.with_oidc(oidc),
+                None => app_state,
+            });
 
             // 7. CORS & Router 設定
             let cors = CorsLayer::new()
@@ -382,6 +412,9 @@ async fn main() -> anyhow::Result<()> {
                         .get(handlers::get_current_session)
                         .delete(handlers::delete_session),
                 )
+                .route("/api/v1/auth/providers", get(handlers::list_auth_providers))
+                .route("/api/v1/auth/oidc/login", get(handlers::oidc_login))
+                .route("/api/v1/auth/oidc/callback", get(handlers::oidc_callback))
                 .route("/api/v1/audit-logs", get(handlers::list_audit_logs))
                 .route("/metrics", get(handlers::get_metrics))
                 // --- 公開フロントエンド（テンプレートレンダリング） ---
@@ -438,4 +471,33 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// `[auth.oidc]` を検証し、OpenID Connect ログインを組み立てる（IdP への接続は初回ログイン時）
+#[cfg(feature = "oidc")]
+fn build_oidc_login(
+    config: &aegis_core::OidcConfig,
+    cache: Arc<dyn aegis_core::CacheBackend>,
+    db: Arc<dyn db::DatabaseAdapter>,
+) -> anyhow::Result<state::OidcLogin> {
+    let provider = auth::oidc::OidcAuthProvider::new(config.clone(), cache, db)?;
+    tracing::info!(
+        "OIDC login enabled (issuer: {}, client_id: {})",
+        config.issuer_url,
+        config.client_id
+    );
+    Ok(state::OidcLogin {
+        provider: Arc::new(provider),
+        display_name: config.display_name.clone(),
+        post_login_redirect: config.post_login_redirect.clone(),
+    })
+}
+
+#[cfg(not(feature = "oidc"))]
+fn build_oidc_login(
+    _config: &aegis_core::OidcConfig,
+    _cache: Arc<dyn aegis_core::CacheBackend>,
+    _db: Arc<dyn db::DatabaseAdapter>,
+) -> anyhow::Result<state::OidcLogin> {
+    anyhow::bail!("[auth.oidc] is enabled, but this build of aegis-server has no 'oidc' feature")
 }

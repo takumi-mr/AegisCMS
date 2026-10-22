@@ -35,9 +35,8 @@
     - Admin Studio メディアライブラリでの削除確認・使用中参照表示ダイアログ。
 
 ### 🚀 次に作業を再開するときの着手項目
-**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除、プラグイン SDK、Wasm 認証後フック（on-user-authenticated）は完了）**
-1. **外部 IdP 認証プロバイダ (OIDC / SAML)**:
-   - 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信を Rust Crate（Cargo Features / 静的コンパイル）で安全に分離実装。
+**認証・認可の仕上げ（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML。①〜④、ログイン試行のレート制限、権限拒否（401 / 403）の監査ログ記録、メディア削除、プラグイン SDK、Wasm 認証後フック（on-user-authenticated）、OIDC シングルサインオンは完了）**
+1. **SAML 2.0 認証プロバイダ**（SAML は XML 署名検証のネイティブ依存が重いため後回しで合意）。
 
 ---
 
@@ -59,9 +58,8 @@
 
 #### 認証・認可基盤の完成
 - [x] **Wasm 認証後フック (`on-user-authenticated`)**: 資格情報の確認後・セッション発行前に `UserAuthContext`（provider / user_id / email / display_name / role / metadata）をプラグインに渡し、ロール・表示名・metadata の変更をセッションに反映。`Err` でログイン拒否（403、`session.create` denied）、失敗時もログイン失敗（500、`plugin.error`）。ロール変更は `details.role_mapped` に記録。外部 IdP 対応時もこのフックを通す（`auth::hook::run_auth_hook`）。
-- [ ] **外部 IdP（OIDC / SAML）認証プロバイダ**
-  - 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信を Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装。
-  - リダイレクトフローおよびコールバックハンドラーの実装。
+- [x] **OpenID Connect によるシングルサインオン** (`[auth.oidc]`、Cargo feature `oidc`、既定で有効): 認可コードフロー + PKCE、ID トークン検証（JWKS 署名・iss・aud・exp・nonce・azp、非対称アルゴリズムのみ）。IdP アカウント（Issuer + sub）と `_aegis_users` を `_aegis_user_identities` で紐付け、初回ログイン時に自動作成（同名ユーザーがいれば `username_taken` で拒否）。`role_claim` + `role_mapping` でロールを同期、`on-user-authenticated` フックも適用。`aegis user link-oidc` で既存ユーザーを紐付け。Admin Studio のログイン画面に SSO ボタン、`#session=` / `#login_error=` の受け取り。[docs/authentication.md](docs/authentication.md#5-シングルサインオン-openid-connect)
+- [ ] **SAML 2.0 認証プロバイダ**（SP-initiated、POST バインディング）。XML 署名検証（xmlsec 等）の依存とセキュリティ（XML Signature Wrapping 対策）を検討してから着手。
 
 ---
 
@@ -76,6 +74,12 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **OpenID Connect (`auth::oidc::OidcAuthProvider`)**:
+  - `AuthProvider` の `initiate_login`（state / nonce / PKCE をキャッシュに 10 分保存して認可 URL を返す）と `authenticate`（`kind = "oidc_callback"`、`parameters` にコールバックのクエリ）で実装。ハンドラー（`handlers/oidc.rs`）は feature に依存せず `AppState::oidc: Option<OidcLogin>` を見る。
+  - パスワードログインと SSO はセッション発行・監査・フックを `handlers::auth::complete_login` で共有する。
+  - ID 連携テーブルの subject は `oidc_subject(issuer, sub)`（`{issuer}#{sub}`、末尾 `/` を除去）。Issuer を変えると既存の紐付けは使えなくなる。
+  - トークンエンドポイントの認証は `client_secret_basic`（IdP が `token_endpoint_auth_methods_supported` で basic を挙げない場合のみ `client_secret_post`）。
+  - テストは `auth::oidc_mock::MockIdp`（テスト内で起動する axum の IdP。鍵は起動ごとに P-256 を生成し、秘密鍵はリポジトリに置かない）。E2E は Python の簡易 IdP（対話フォーム付き）で確認した。
 - **マルチ言語 Wasm プラグイン SDK 設計 (`docs/plugin_abi_specification.md`)**:
   - ホストとゲスト間は 32bit リニアメモリおよび `(ptr << 32) | len` の 64bit パック整数で疎結合に連携します。
   - **AssemblyScript テンプレート (`plugins/template-assemblyscript/`)**:

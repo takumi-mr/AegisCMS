@@ -1,6 +1,10 @@
 pub mod authorize;
 pub mod hook;
 pub mod local;
+#[cfg(feature = "oidc")]
+pub mod oidc;
+#[cfg(all(test, feature = "oidc"))]
+pub mod oidc_mock;
 pub mod password;
 pub mod rate_limit;
 pub mod session;
@@ -15,6 +19,16 @@ pub use session::{SessionData, SessionService};
 pub use authorize::{AdminSession, EditorSession, ViewerSession};
 pub use local::LocalAuthProvider;
 pub use rate_limit::LoginRateLimiter;
+
+/// OpenID Connect の `AuthProvider::provider_id`（ID 連携テーブルのプロバイダ名にも使う）
+pub const OIDC_PROVIDER: &str = "oidc";
+/// IdP からのコールバック（`AuthCredentials::parameters` にクエリ文字列）を表す `AuthCredentials::kind`
+pub const OIDC_CALLBACK_CREDENTIALS: &str = "oidc_callback";
+
+/// ID 連携テーブルの subject。IdP の `sub` は Issuer ごとにしか一意でないため Issuer と組み合わせる
+pub fn oidc_subject(issuer: &str, sub: &str) -> String {
+    format!("{}#{}", issuer.trim_end_matches('/'), sub)
+}
 
 /// システムロール（権限の強い順）
 pub const ROLES: [&str; 3] = ["admin", "editor", "viewer"];
