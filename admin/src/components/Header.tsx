@@ -1,8 +1,9 @@
 import React from 'react';
-import { Activity, Send, PenSquare, ScrollText, LogOut, UserRound, Palette } from 'lucide-react';
-import type { SessionInfo } from '../types';
+import { Activity, Send, PenSquare, ScrollText, LogOut, Palette, Users } from 'lucide-react';
+import type { SessionInfo, UserAccount } from '../types';
 import { cx } from '../utils/cx';
 import { displayNameOf } from '../utils/roles';
+import { Avatar } from './ui/Avatar';
 import { BrandMark } from './ui/BrandMark';
 import { Button } from './ui/Button';
 import styles from './Header.module.css';
@@ -12,7 +13,7 @@ const ROLE_BADGE: Record<string, string | undefined> = {
   editor: styles.roleEditor,
 };
 
-export type AppView = 'editor' | 'audit' | 'themes';
+export type AppView = 'editor' | 'audit' | 'themes' | 'users';
 
 interface HeaderProps {
   view: AppView;
@@ -25,6 +26,11 @@ interface HeaderProps {
   canSave: boolean;
   /** Audit logs need the admin role */
   canViewAudit: boolean;
+  /** User management needs the admin role */
+  canManageUsers: boolean;
+  /** The signed-in user's account (avatar, current display name), once loaded */
+  profile: UserAccount | null;
+  onOpenProfile: () => void;
   onLogout: () => void;
 }
 
@@ -37,8 +43,13 @@ export const Header: React.FC<HeaderProps> = ({
   session,
   canSave,
   canViewAudit,
+  canManageUsers,
+  profile,
+  onOpenProfile,
   onLogout,
 }) => {
+  // The account reflects profile edits right away; the session keeps the name from sign-in
+  const name = profile?.display_name || displayNameOf(session);
   return (
     <header className={styles.header}>
       <div className={styles.left}>
@@ -62,6 +73,15 @@ export const Header: React.FC<HeaderProps> = ({
             <Palette size={14} />
             <span>Themes</span>
           </button>
+          {canManageUsers && (
+            <button
+              className={cx(styles.tab, view === 'users' && styles.active)}
+              onClick={() => onViewChange('users')}
+            >
+              <Users size={14} />
+              <span>Users</span>
+            </button>
+          )}
           {canViewAudit && (
             <button
               className={cx(styles.tab, view === 'audit' && styles.active)}
@@ -96,9 +116,16 @@ export const Header: React.FC<HeaderProps> = ({
           </Button>
         )}
 
-        <div className={styles.userMenu} title={session.metadata?.email || session.user_id}>
-          <UserRound size={14} />
-          <span className={styles.userName}>{displayNameOf(session)}</span>
+        <div className={styles.userMenu}>
+          <button
+            type="button"
+            className={styles.profileButton}
+            onClick={onOpenProfile}
+            title={`${profile?.email || session.metadata?.email || session.user_id} — My profile`}
+          >
+            <Avatar url={profile?.avatar_url} name={name} size={26} />
+            <span className={styles.userName}>{name}</span>
+          </button>
           <span className={cx(styles.roleBadge, ROLE_BADGE[session.role])}>{session.role}</span>
           <Button variant="icon" onClick={onLogout} aria-label="Sign out" title="Sign out">
             <LogOut size={14} />

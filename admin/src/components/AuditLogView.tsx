@@ -32,6 +32,10 @@ const ACTIONS: AuditAction[] = [
   'plugin.error',
   'audit.purge',
   'access.denied',
+  'theme.switch',
+  'user.create',
+  'user.update',
+  'user.delete',
 ];
 const OUTCOMES = ['success', 'failure', 'denied'];
 

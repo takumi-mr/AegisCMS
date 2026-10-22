@@ -108,11 +108,28 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 4px 4px 12px;
+  padding: 3px 4px 3px 3px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
   color: var(--text-secondary);
   font-size: 0.8rem;
+}
+
+.profileButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.profileButton:hover .userName {
+  color: var(--accent-indigo-light);
 }
 
 .userName {

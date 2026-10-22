@@ -26,6 +26,8 @@
 }
 
 .label {
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: 0.8rem;
   color: var(--text-muted);
   user-select: none;

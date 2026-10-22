@@ -10,10 +10,10 @@ use sqlx::{Pool, Row, Sqlite};
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
     build_audit_select, build_content_list, build_identity_insert, build_identity_select,
-    build_identity_table, build_relation_lookup, build_user_insert, build_user_select,
-    build_user_update, is_standard_column, user_row_from_sqlx, ContentListQuery, ContentPage,
-    ContentRecord, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE,
-    USER_TABLE,
+    build_identity_table, build_relation_lookup, build_user_delete, build_user_insert,
+    build_user_select, build_user_update, is_standard_column, user_row_from_sqlx, ContentListQuery,
+    ContentPage, ContentRecord, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES,
+    AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
 };
 
 /// SQLite はカスタムフィールドを文字列で保存するため、JSON として読めればその値、読めなければ文字列にする。
@@ -151,7 +151,8 @@ impl DatabaseAdapter for SqliteAdapter {
                 password_hash TEXT NOT NULL,
                 disabled INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                avatar_key TEXT
             );
             "#,
             USER_TABLE
@@ -160,6 +161,25 @@ impl DatabaseAdapter for SqliteAdapter {
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // 以前のバージョンで作成したテーブルに後から追加したカラムを足す
+        let user_columns: HashSet<String> =
+            sqlx::query(&format!("PRAGMA table_info({});", USER_TABLE))
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?
+                .into_iter()
+                .map(|r| r.get::<String, _>("name"))
+                .collect();
+        if !user_columns.contains(USER_AVATAR_COLUMN) {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN {} TEXT;",
+                USER_TABLE, USER_AVATAR_COLUMN
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
 
         // 外部 IdP のアイデンティティとユーザーの対応表
         sqlx::query(&build_identity_table("TEXT"))
@@ -473,6 +493,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .bind(i64::from(user.disabled))
             .bind(&user.created_at)
             .bind(&user.updated_at)
+            .bind(&user.avatar_key)
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -527,6 +548,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .bind(&user.role)
             .bind(&user.password_hash)
             .bind(i64::from(user.disabled))
+            .bind(&user.avatar_key)
             .bind(&user.updated_at)
             .bind(&user.id)
             .execute(&self.pool)
@@ -546,6 +568,28 @@ impl DatabaseAdapter for SqliteAdapter {
         }
         Ok(users)
     }
+
+    async fn delete_user(&self, user: &UserRecord) -> Result<()> {
+        let (delete_user, delete_links) = build_user_delete(|i| format!("?{}", i));
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        sqlx::query(&delete_links)
+            .bind(&user.username)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        sqlx::query(&delete_user)
+            .bind(&user.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -558,6 +602,33 @@ mod tests {
         let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
         adapter.init().await.unwrap();
         adapter
+    }
+
+    #[tokio::test]
+    async fn test_init_adds_the_avatar_column_to_an_existing_user_table() {
+        let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
+        // ユーザーテーブルに avatar_key が無かったバージョンの DB
+        sqlx::query(
+            "CREATE TABLE _aegis_users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, \
+             email TEXT, display_name TEXT, role TEXT NOT NULL, password_hash TEXT NOT NULL, \
+             disabled INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, \
+             updated_at TEXT NOT NULL);",
+        )
+        .execute(&adapter.pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO _aegis_users VALUES ('u1', 'old', NULL, NULL, 'admin', 'x', 0, 't', 't');",
+        )
+        .execute(&adapter.pool)
+        .await
+        .unwrap();
+
+        adapter.init().await.unwrap();
+        // 2 回目の起動でも失敗しない
+        adapter.init().await.unwrap();
+        let user = adapter.get_user_by_username("old").await.unwrap().unwrap();
+        assert_eq!(user.avatar_key, None);
     }
 
     fn schemas() -> HashMap<String, SchemaDefinition> {

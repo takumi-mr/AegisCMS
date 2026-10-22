@@ -102,6 +102,7 @@ mod tests {
                 role: "admin".to_string(),
                 password_hash: hash_password("s3cret-pass").unwrap(),
                 disabled,
+                avatar_key: None,
                 created_at: "2026-10-22T00:00:00Z".to_string(),
                 updated_at: "2026-10-22T00:00:00Z".to_string(),
             })

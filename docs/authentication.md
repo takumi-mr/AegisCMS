@@ -2,7 +2,7 @@
 
 AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider` が検証したときだけセッション（Bearer トークン）を発行します。ロールはリクエストではなく、サーバーに登録されたユーザーアカウントで決まります。
 
-プロバイダはローカル認証（`LocalAuthProvider`、`_aegis_users` テーブル）と、外部 IdP の OpenID Connect（[5. シングルサインオン](#5-シングルサインオン-openid-connect)、`[auth.oidc]`）です。SAML は未対応です。
+プロバイダはローカル認証（`LocalAuthProvider`、`_aegis_users` テーブル）と、外部 IdP の OpenID Connect（[6. シングルサインオン](#6-シングルサインオン-openid-connect)、`[auth.oidc]`）です。SAML は未対応です。
 
 ---
 
@@ -18,6 +18,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `role` | `admin` / `editor` / `viewer` |
 | `password_hash` | Argon2id（既定パラメータ）の PHC 文字列。平文は保存しない |
 | `disabled` | `1` ならログイン不可 |
+| `avatar_key` | アバター画像のストレージキー（`avatars/...`）。未設定なら NULL。既存の DB には起動時に列を追加 |
 | `created_at` / `updated_at` | RFC 3339 (UTC) |
 
 ### ロールと API の権限
@@ -29,13 +30,15 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `GET /api/v1/health`, `GET /api/v1/openapi.json`, `/metrics` | 不要（公開） |
 | 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
 | `POST /api/v1/auth/session`（ログイン）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッションで判定） |
-| `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#5-シングルサインオン-openid-connect)） | 不要 |
+| `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#6-シングルサインオン-openid-connect)） | 不要 |
 | `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}` | `viewer` |
 | `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
 | `GET /api/v1/storage/objects` | `viewer` |
 | `POST /api/v1/preview`（エディタのプレビュー。保存しない） | `viewer` |
 | `POST /api/v1/contents/{type}` | `editor` |
 | `POST /api/v1/storage/upload`, `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md)） | `editor` |
+| `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`（[ユーザー管理 API](#3-ユーザー管理-api)） | 本人（`viewer` 以上）か `admin` |
+| `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}` | `admin` |
 | `GET /api/v1/audit-logs` | `admin` |
 
 - セッションが無い・無効・期限切れなら `401`、ロールが足りなければ `403` を返し、監査ログに `access.denied`（理由・必要なロール・エンドポイント）を記録します（[監査ログ](audit.md#2-記録されるイベント)）。
@@ -75,7 +78,54 @@ aegis-server user link-oidc alice 248289761001   # 既存ユーザーを IdP の
 
 ---
 
-## 3. セッション API
+## 3. ユーザー管理 API
+
+Admin Studio の「Users」画面（`admin`）と、ヘッダーのアバターから開く「My profile」（全ロール）はこの API を使います。応答のユーザーは次の形で、パスワードハッシュは返しません。
+
+```json
+{
+  "id": "8a9e4ef1-4039-4b0f-b1fb-ea684ae66697",
+  "username": "carol",
+  "email": "carol@example.com",
+  "display_name": "Carol Writer",
+  "role": "editor",
+  "disabled": false,
+  "avatar_url": "/uploads/avatars/8a9e4ef1-4039-4b0f-b1fb-ea684ae66697-6665ae18.png",
+  "created_at": "2026-10-22T23:23:26Z",
+  "updated_at": "2026-10-22T23:23:30Z"
+}
+```
+
+| API | 内容 |
+| --- | --- |
+| `GET /api/v1/users` | 全ユーザー（`{"users": [...]}`、username 順） |
+| `POST /api/v1/users` | 作成。本文は `username` / `password` / `role`（必須）、`email` / `display_name`（任意）。`201` |
+| `GET /api/v1/users/{username}` | 1 人分（本人か `admin`） |
+| `PATCH /api/v1/users/{username}` | 変更。省略した項目はそのまま、`email` / `display_name` は空文字で削除 |
+| `DELETE /api/v1/users/{username}` | 削除（ID 連携・アバター画像も削除。コンテンツの `author_id` は残る）。`204` |
+| `PUT /api/v1/users/{username}/avatar` | アバター画像を設定（multipart の `file`） |
+| `DELETE /api/v1/users/{username}/avatar` | アバター画像を外す |
+
+`PATCH` の項目と権限:
+
+| 項目 | 本人 | `admin`（他のユーザー） |
+| --- | --- | --- |
+| `email`, `display_name` | ✓ | ✓ |
+| `password` | ✓（`current_password` が必要。違えば `403`） | ✓（現在のパスワード不要＝リセット） |
+| `role`, `disabled` | ✗（`admin` でも自分自身は `400`、それ以外は `403`） | ✓ |
+
+- 本人以外のユーザーへの `viewer` / `editor` のアクセスは `403` で拒否し、`access.denied`（`reason: not_own_account`、`resource_type: user`）を記録します。
+- 最後の有効な `admin` は降格・無効化・削除できません（`400`。全員が締め出されるのを防ぐ）。自分自身も削除できません。CLI（`aegis user role` など）は復旧用のため確かめません。
+- **アバター画像**: PNG / JPEG / GIF / WebP、2 MB まで。形式はファイルの先頭バイトで判定し（クライアントの Content-Type は使わない）、スクリプトを含められる SVG は受け付けません（`415`）。2 MB を超えると `413`。`[storage]` のバックエンドに `avatars/{ユーザー ID}-{ランダム 8 桁}.{拡張子}` として保存し、差し替えるたびにキーを変えて（キャッシュ対策）以前の画像を削除します。
+- 作成・変更・削除は監査ログの `user.create` / `user.update` / `user.delete` に記録します（[監査ログ](audit.md#2-記録されるイベント)）。パスワードは記録しません。
+- シングルサインオンで作成したユーザーはパスワードを知らないため、Admin Studio の「My profile」ではパスワード変更を表示しません。
+
+> [!NOTE]
+> ロール変更・無効化・削除は CLI と同じく発行済みのセッションには反映されません（[2. CLI](#2-cli-でのユーザー管理-aegis-user) の注記）。
+
+---
+
+## 4. セッション API
 
 ### `POST /api/v1/auth/session` — ログイン
 
@@ -122,7 +172,7 @@ Admin Studio（`/admin`）はログイン画面からこの API でログイン�
 
 ---
 
-## 4. セキュリティ上の挙動
+## 5. セキュリティ上の挙動
 
 - **ユーザー名の推測対策**: 存在しないユーザーでもダミーハッシュで同じ Argon2 検証を行い、応答時間と応答内容を揃えます。アカウントが無効かどうかは、正しいパスワードを送った場合にしか判定しません。
 - **監査ログ**: ログインの成否を `session.create` として記録します。失敗時は `details` に `username`・`provider`・`error`（`unknown_user` / `invalid_password` / `account_disabled` / `unsupported_credentials`）を残します。パスワードは記録しません。
@@ -137,11 +187,11 @@ Admin Studio（`/admin`）はログイン画面からこの API でログイン�
 
 ---
 
-## 5. シングルサインオン (OpenID Connect)
+## 6. シングルサインオン (OpenID Connect)
 
 `[auth.oidc]`（[設定リファレンス](configuration.md#210-authoidc--シングルサインオン-openid-connect)）を有効にすると、Admin Studio のログイン画面に **Sign in with {display_name}** ボタンが表示され、外部 IdP（Microsoft Entra ID、Google、Okta、Keycloak など OpenID Connect 対応のもの）でログインできます。パスワードによるローカルログインもそのまま使えます。
 
-### 5.1 IdP 側の設定
+### 6.1 IdP 側の設定
 
 1. IdP に「Web アプリケーション」（コンフィデンシャルクライアント）を登録し、クライアント ID とシークレットを発行します。
 2. リダイレクト URI に `https://<AegisCMS のホスト>/api/v1/auth/oidc/callback` を登録し、同じ値を `redirect_url` に設定します。
@@ -163,7 +213,7 @@ cms-admins = "admin"
 cms-editors = "editor"
 ```
 
-### 5.2 ログインの流れ
+### 6.2 ログインの流れ
 
 1. ボタン（`GET /api/v1/auth/oidc/login`）が IdP の認可エンドポイントへリダイレクトします。`state`・`nonce`・PKCE（`S256`）の検証値は 10 分間キャッシュ（`[cache]`）に保存します。
 2. IdP でのログイン後、`GET /api/v1/auth/oidc/callback` が認可コードをトークンに交換し、ID トークンを検証します（JWKS による署名、`iss`、`aud`、`exp`、`nonce`、`azp`。署名アルゴリズムは RS / PS / ES 系のみ）。`state` は 1 回限りです。
@@ -172,7 +222,7 @@ cms-editors = "editor"
 
 フラグメント（`#` 以降）はサーバーのログや `Referer` に残らないため、トークンの受け渡しに使っています。
 
-### 5.3 ユーザーとロール
+### 6.3 ユーザーとロール
 
 - IdP のアカウント（Issuer + `sub`）と AegisCMS のユーザーの対応は `_aegis_user_identities` テーブルに保存します。
 - **初回ログイン**: `auto_create_users = true`（既定）なら、`username_claim`（既定 `preferred_username`、無ければ `email`）をユーザー名にしてユーザーを作成し、紐付けます。パスワードは誰も知らないランダム値なので、そのユーザーはパスワードではログインできません。
@@ -183,7 +233,7 @@ cms-editors = "editor"
 - 無効化したユーザー（`aegis user disable`）は SSO でもログインできません（`account_disabled`）。
 - セッションの `metadata` には `provider: "oidc"`、`issuer`、`sub`、`claims`（ID トークンのクレーム）が入ります。
 
-### 5.4 失敗時の理由（`login_error`・監査ログ `session.create` の `error`）
+### 6.4 失敗時の理由（`login_error`・監査ログ `session.create` の `error`）
 
 | 理由 | 内容 |
 | --- | --- |

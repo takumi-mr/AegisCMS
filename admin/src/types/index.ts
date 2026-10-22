@@ -47,7 +47,10 @@ export type AuditAction =
   | 'plugin.error'
   | 'audit.purge'
   | 'access.denied'
-  | 'theme.switch';
+  | 'theme.switch'
+  | 'user.create'
+  | 'user.update'
+  | 'user.delete';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 
@@ -129,6 +132,44 @@ export interface ObjectReference {
 }
 
 export type UserRole = 'admin' | 'editor' | 'viewer';
+
+/** User account returned by the user management API (`/api/v1/users`) */
+export interface UserAccount {
+  id: string;
+  /** Login name (unique, cannot be changed); the session's `user_id` */
+  username: string;
+  email: string | null;
+  display_name: string | null;
+  role: UserRole | string;
+  disabled: boolean;
+  /** Public URL of the avatar image, or null when none is set */
+  avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Body of `POST /api/v1/users` */
+export interface CreateUserPayload {
+  username: string;
+  password: string;
+  role: UserRole;
+  email?: string;
+  display_name?: string;
+}
+
+/**
+ * Body of `PATCH /api/v1/users/{username}`; omitted fields stay as they are and an empty
+ * `email` / `display_name` clears it. `role` / `disabled` are for admins editing someone else,
+ * and changing one's own password needs `current_password`.
+ */
+export interface UpdateUserPayload {
+  email?: string;
+  display_name?: string;
+  role?: UserRole;
+  disabled?: boolean;
+  password?: string;
+  current_password?: string;
+}
 
 /** Sign-in methods offered by the server (`GET /api/v1/auth/providers`) */
 export interface AuthProviders {

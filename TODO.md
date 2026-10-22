@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: 公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
   - `task check` による全自動検証（Rust テスト 93 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
   - 公式 Wasm プラグイン `official-code-enhancer` (`plugins/official-code-enhancer/`):
@@ -47,6 +47,15 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### Admin Studio: ユーザー管理 & アバター画像 (Completed)
+- [x] **ユーザー管理 API (`crates/aegis-server/src/handlers/users.rs`)**: `GET` / `POST /api/v1/users`（admin）、`GET` / `PATCH` / `DELETE /api/v1/users/{username}`、`PUT` / `DELETE /api/v1/users/{username}/avatar`。参照・変更・アバターは本人か admin。本人のパスワード変更は `current_password` 必須、admin は他人のパスワードをリセット可。ロール・無効化は admin が他のユーザーに対してのみ。最後の有効な admin の降格・無効化・削除、自分自身の削除は `400`。[docs/authentication.md](docs/authentication.md#3-ユーザー管理-api)
+- [x] **アバター画像**: PNG / JPEG / GIF / WebP（先頭バイトで判定、SVG 不可）、2 MB まで。ストレージの `avatars/{ユーザー ID}-{ランダム}.{拡張子}` に保存し、差し替え・削除・ユーザー削除で以前の画像を削除。
+- [x] **DB**: `_aegis_users.avatar_key` 列（既存 DB には起動時に追加: SQLite は `PRAGMA table_info`、PostgreSQL は `ADD COLUMN IF NOT EXISTS`、MySQL は `information_schema`）、`DatabaseAdapter::delete_user`（ID 連携も同じトランザクションで削除）。
+- [x] **監査ログ**: `user.create` / `user.update`（`changed` は実際に変わった項目のみ。パスワードの値は残さない）/ `user.delete`、他人のプロフィールへのアクセスは `access.denied`（`not_own_account`）。
+- [x] **Admin Studio**: 「Users」タブ（admin、`UserManager.tsx`）、ヘッダーのアバター + 表示名から開く「My profile」（`ProfileModal.tsx`、SSO ユーザーはパスワード変更を表示しない）、共通の `ui/Avatar`（画像が無い・読めないときはイニシャル）・`AvatarPicker`。監査ログ画面のアクション絞り込みに `theme.switch` / `user.*` を追加。
+- [ ] **ロール変更・無効化・削除を発行済みのセッションに反映**（現状は有効期限まで有効。ユーザー → セッション ID の索引をキャッシュに持つか、`RequireRole` で DB のユーザー状態を確かめる必要がある）。
+- [ ] **メディアライブラリでのアバターの扱い**: `avatars/` もメディア一覧に表示され、そこから削除するとアバターが外れる（Admin Studio はイニシャル表示に戻る）。一覧から除外するか、使用中チェックにユーザーを含める。
 
 #### 公式 Wasm プラグイン: Mermaid & コードテーマエンハンサー (`official-code-enhancer`) (Completed)
 - [x] **公式 Code & Diagram Enhancer Wasm プラグインの実装 (`plugins/official-code-enhancer/`)**
@@ -104,7 +113,7 @@
 
 #### 認証・認可基盤の完成
 - [x] **Wasm 認証後フック (`on-user-authenticated`)**: 資格情報の確認後・セッション発行前に `UserAuthContext`（provider / user_id / email / display_name / role / metadata）をプラグインに渡し、ロール・表示名・metadata の変更をセッションに反映。`Err` でログイン拒否（403、`session.create` denied）、失敗時もログイン失敗（500、`plugin.error`）。ロール変更は `details.role_mapped` に記録。外部 IdP 対応時もこのフックを通す（`auth::hook::run_auth_hook`）。
-- [x] **OpenID Connect によるシングルサインオン** (`[auth.oidc]`、Cargo feature `oidc`、既定で有効): 認可コードフロー + PKCE、ID トークン検証（JWKS 署名・iss・aud・exp・nonce・azp、非対称アルゴリズムのみ）。IdP アカウント（Issuer + sub）と `_aegis_users` を `_aegis_user_identities` で紐付け、初回ログイン時に自動作成（同名ユーザーがいれば `username_taken` で拒否）。`role_claim` + `role_mapping` でロールを同期、`on-user-authenticated` フックも適用。`aegis user link-oidc` で既存ユーザーを紐付け。Admin Studio のログイン画面に SSO ボタン、`#session=` / `#login_error=` の受け取り。[docs/authentication.md](docs/authentication.md#5-シングルサインオン-openid-connect)
+- [x] **OpenID Connect によるシングルサインオン** (`[auth.oidc]`、Cargo feature `oidc`、既定で有効): 認可コードフロー + PKCE、ID トークン検証（JWKS 署名・iss・aud・exp・nonce・azp、非対称アルゴリズムのみ）。IdP アカウント（Issuer + sub）と `_aegis_users` を `_aegis_user_identities` で紐付け、初回ログイン時に自動作成（同名ユーザーがいれば `username_taken` で拒否）。`role_claim` + `role_mapping` でロールを同期、`on-user-authenticated` フックも適用。`aegis user link-oidc` で既存ユーザーを紐付け。Admin Studio のログイン画面に SSO ボタン、`#session=` / `#login_error=` の受け取り。[docs/authentication.md](docs/authentication.md#6-シングルサインオン-openid-connect)
 - [x] **リバースプロキシ配下・サブドメイン / サブパスでの運用**: Admin Studio の API 接続先を配信元のサーバーに（`VITE_AEGIS_SERVER_URL` で別の場所も指定可、Docker は `--build-arg`）。`[server].base_path`（例: `/cms`）でサブパス公開に対応（ルーティング・テーマのリンク・アップロード URL・`/admin` リダイレクト・SSO の戻り先）。プロキシ配下の設定と nginx の例を [docs/configuration.md](docs/configuration.md#4-リバースプロキシ配下での運用) に追記。
 - [x] **Markdown 編集モード & スマート貼り付けサポート (`admin/src/components/MarkdownEditor.tsx`, `PasteMarkdownModal.tsx`, `admin/src/utils/markdown.ts`)**:
   - **Blocks ⇄ Markdown 双方向切り替え**: エディタ上部に `[ 🧱 Blocks ]` `[ 📝 Markdown ]` セグメント切り替えタブを追加。ブロックと Markdown を完全にロスなく相互変換し、どちらのモードで編集してもリアルタイムにプレビュー（Live HTML / Themed Page / Block AST）と連動・保存。
@@ -126,6 +135,11 @@
 ---
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
+
+- **ユーザー管理 API とアバター (`handlers/users.rs`, `auth/users.rs`)**:
+  - ユーザーは `avatar_key`（ストレージキー）だけを保存し、応答の `avatar_url` は `StorageBackend::public_url` で毎回求める（`[server].base_path` や S3 の公開 URL の変更に追従）。Admin Studio は `serverAssetUrl` で配信元のオリジンを付けて表示する。
+  - 「最後の有効な admin を残す」確認は API（`auth::users::update_user` / `delete_user`）だけで行い、CLI（`aegis user role` / `disable`）は締め出された場合の復旧手段として確かめない。
+  - アバターのルートは `DefaultBodyLimit` を 2 MB + 64 KB（multipart のヘッダー分）にし、画像自体の 2 MB はハンドラーで確かめる。
 
 - **公式 Code & Diagram Enhancer Wasm プラグイン (`plugins/official-code-enhancer/`)**:
   - **Mermaid 自動レンダリング**:
