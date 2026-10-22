@@ -240,7 +240,9 @@
   - スキーマ `content_type: article` の場合、テーブル名は `content_article` となります。
   - ASTブロック配列は `blocks_json TEXT NOT NULL DEFAULT '[]'` カラムに格納されます。
 - **Docker コンテナ運用と再現性**:
-  - 本番イメージは `Dockerfile` によるマルチステージビルド（`node:22-alpine` -> `rust:latest` -> `debian:bookworm-slim`）で構築され、イメージサイズは約 163MB です。
+  - 本番イメージは `Dockerfile` によるマルチステージビルド（`node:22.22-alpine` -> `rust:1.99.1-slim-bookworm` -> `debian:bookworm-slim`）で構築され、イメージサイズは約 163MB です。
+  - ベースイメージはバージョンを固定しています（`latest` は Rust のリリースごとに変わってレイヤーキャッシュが無効になり、実行環境の bookworm と OS もずれるため）。Rust を更新する際は `Dockerfile` のタグを上げてください。
+  - Rust のビルドは cargo-chef で「依存クレートのビルド（`cargo chef cook`）」と「ワークスペースのビルド」を分けており、`Cargo.toml` / `Cargo.lock` が変わらない限り依存のレイヤー（約 1.7GB）は CI の GitHub Actions キャッシュ（`type=gha`）から再利用されます。残りの所要時間の大半は release プロファイルの `lto = true` / `codegen-units = 1` によるリンク時最適化（約 3 分）です。
   - セキュリティのため、UID 10001 の非rootユーザー `aegis` でプロセスを実行します。データ永続化には `/app/data` をボリュームマウント（例: `-v aegis-data:/app/data`）してください。
   - コンテナ内でのリッスン設定は `config/docker.toml`（`host = "0.0.0.0"`, `port = 8080`）で定義され、環境変数 `AEGIS_CONFIG`、`HOST`、`PORT` でも動的に上書き可能です。
 - **ストリーミング HTML セキュリティ & 最適化リライター (`lol-html`)**:
