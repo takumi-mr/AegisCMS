@@ -9,8 +9,9 @@ use sqlx::{Pool, Row, Sqlite};
 
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
-    build_audit_select, is_standard_column, ContentRecord, DatabaseAdapter, ResolvedRelation,
-    AUDIT_INDEXES, AUDIT_TABLE,
+    build_audit_select, build_user_insert, build_user_select, build_user_update,
+    is_standard_column, user_row_from_sqlx, ContentRecord, DatabaseAdapter, ResolvedRelation,
+    UserRecord, AUDIT_INDEXES, AUDIT_TABLE, USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -89,6 +90,28 @@ impl DatabaseAdapter for SqliteAdapter {
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;
         }
+
+        // ローカル認証のユーザーテーブル
+        let user_table_sql = format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS {} (
+                id TEXT PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE,
+                email TEXT,
+                display_name TEXT,
+                role TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                disabled INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            "#,
+            USER_TABLE
+        );
+        sqlx::query(&user_table_sql)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
 
         Ok(())
     }
@@ -418,6 +441,62 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         Ok(result.rows_affected())
+    }
+
+    async fn insert_user(&self, user: &UserRecord) -> Result<()> {
+        sqlx::query(&build_user_insert(|i| format!("?{}", i)))
+            .bind(&user.id)
+            .bind(&user.username)
+            .bind(&user.email)
+            .bind(&user.display_name)
+            .bind(&user.role)
+            .bind(&user.password_hash)
+            .bind(i64::from(user.disabled))
+            .bind(&user.created_at)
+            .bind(&user.updated_at)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn get_user_by_username(&self, username: &str) -> Result<Option<UserRecord>> {
+        let row = sqlx::query(&build_user_select(Some("username = ?1")))
+            .bind(username)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        match row {
+            Some(row) => Ok(Some(user_row_from_sqlx!(&row))),
+            None => Ok(None),
+        }
+    }
+
+    async fn update_user(&self, user: &UserRecord) -> Result<()> {
+        sqlx::query(&build_user_update(|i| format!("?{}", i)))
+            .bind(&user.email)
+            .bind(&user.display_name)
+            .bind(&user.role)
+            .bind(&user.password_hash)
+            .bind(i64::from(user.disabled))
+            .bind(&user.updated_at)
+            .bind(&user.id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn list_users(&self) -> Result<Vec<UserRecord>> {
+        let rows = sqlx::query(&build_user_select(None))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        let mut users = Vec::with_capacity(rows.len());
+        for row in &rows {
+            users.push(user_row_from_sqlx!(row));
+        }
+        Ok(users)
     }
 }
 

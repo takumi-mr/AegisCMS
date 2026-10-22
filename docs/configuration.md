@@ -121,7 +121,7 @@ public_url_prefix = "https://cdn.example.com"
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `backend` | `"memory"` \| `"redis"` | `"memory"` | `memory`: プロセス内 TTL キャッシュ / `redis`: 複数インスタンスでセッション共有 |
-| `default_ttl_secs` | integer (u64) | `3600` | キャッシュ・セッションの既定 TTL（秒） |
+| `default_ttl_secs` | integer (u64) | `3600` | キャッシュ・セッションの既定 TTL（秒）。ログイン時に指定する `ttl_secs` の上限も兼ねる |
 
 #### `[cache.redis]`
 

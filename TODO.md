@@ -29,9 +29,11 @@
     - `ThemeEngine::register_template`: プラグインからのテンプレート動的完全オーバーライド。
 
 ### 🚀 次に作業を再開するときの着手項目
-**フェーズ 2 拡張はメディア一覧まで完了。次は「不具合・ドキュメント整備時に判明した課題」の未着手項目**
-1. **`on-before-save` フックの戻り値の扱い**: 戻り値 (`PostContext`) を保存データに反映するか、検証専用フックとして仕様を明確化する（SDK で `Err` を返しても保存が拒否されない問題とあわせて ABI を設計する）。
-2. （候補）メディアの削除 API / UI、ストレージ API の認証必須化（現状アップロード・一覧ともに認証不要）。
+**認証・認可の整備（合意済みの順番: ①ローカル認証 → ②認証済みセッション発行 → ③API の認可 → ④ログイン画面 → ⑤フック・OIDC/SAML）。①②は完了**
+1. **③ API の認可**: 書き込み系 API（`POST /api/v1/contents/*`、`POST /api/v1/storage/upload`）と管理系 API にセッション・ロールの検証を入れる（axum の extractor `RequireRole` などで共通化）。どのロールに何を許すか（例: `viewer` は読み取りのみ、`editor` は作成・アップロード、`admin` は全て）を決める。
+2. **④ Admin Studio のログイン画面**: ユーザー名 / パスワードでログインし、トークンを保持して API に付与。監査ログ画面の手動トークン入力を置き換える。
+3. ⑤ `on_user_authenticated` フック、OIDC / SAML プロバイダ。
+4. その他の未着手: `on-before-save` フックの戻り値の扱い、メディアの削除 API / UI、ログイン試行のレート制限。
 
 ---
 
@@ -181,7 +183,13 @@
 ### 🔮 将来のロードマップ (Future)
 - [ ] **認証プロバイダ抽象化 & Wasm 認証後フック (`on_user_authenticated`)**
   - [x] `aegis-core`: `AuthProvider` トレイト（Local, SAML, OIDC などの抽象化）、`AuthIdentity`, `AuthCredentials`, `AuthRedirect` 定義と単体テスト完了
-  - [ ] 認証判定・暗号署名検証・通信は Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装
+  - [x] ローカル認証プロバイダ `LocalAuthProvider`（`_aegis_users` テーブル: SQLite / PostgreSQL / MySQL、Argon2id パスワードハッシュ、存在しないユーザーへのダミー検証でタイミング差を抑制、無効化アカウント）
+  - [x] `POST /api/v1/auth/session` を認証必須に変更（ユーザー名 / パスワード。ロールはアカウントから決定し、リクエストで指定不可。`ttl_secs` は `[cache].default_ttl_secs` が上限。失敗理由は応答では区別せず監査ログにのみ記録）
+  - [x] CLI `aegis user add|passwd|role|disable|enable|list`（パスワードは `AEGIS_USER_PASSWORD` / 非表示プロンプト / 標準入力）、`docs/authentication.md`
+  - [ ] API の認可（書き込み系・管理系 API でセッションとロールを検証）
+  - [ ] Admin Studio のログイン画面
+  - [ ] ログイン試行のレート制限・アカウントロック
+  - [ ] 外部 IdP（OIDC / SAML）の認証判定・暗号署名検証・通信は Rust Crate（静的コンパイル / Cargo Features）で安全に分離実装
   - [ ] `aegis-runtime` & `aegis-plugin-sdk`: 認証成功後のユーザー属性同期・ロールマッピング・監査通知用 Wasm プラグインフック `on_user_authenticated` の追加
 - [x] **テーマエンジン & 静的アセット配信システム**
   - [x] ページ全体のテンプレート描画エンジンの導入（MiniJinja によるレイアウト・スケルトンの定義）
@@ -196,6 +204,10 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **ローカル認証 (`docs/authentication.md`)**:
+  - セッションの `user_id` はユーザー名（変更不可）で、監査ログの actor もユーザー名になります。ユーザーの改名機能を作る場合はこの前提を見直してください。
+  - ロール変更・無効化・パスワード変更は発行済みセッションに反映されません（セッションはキャッシュにのみ保存され、ユーザーとの紐付け索引が無いため）。即時失効が必要になったら、ユーザー単位のセッション索引か、リクエストごとのユーザー状態確認を追加します。
+  - 以前の `POST /api/v1/auth/session`（`{"user_id", "role"}` で誰でも任意ロールのセッションを発行できた）は廃止。この形式は 422 になります。
 - **メディア一覧 API (`GET /api/v1/storage/objects`)**:
   - ストレージ側に並び順・絞り込みの機能が無いため、サーバーは最大 10,000 件（`MAX_LIST_SCAN`）を走査してからメモリ上で絞り込み・新しい順の並び替え・ページングを行います。超過時はレスポンスの `truncated: true` で通知します（`q` / `content_type` は走査後の絞り込みなので、超過分を探すには `prefix` を使う）。
   - バックエンドはアップロード時の mime type を保持していないため、一覧の `content_type` は拡張子から推定します（`aegis_core::guess_content_type`）。ローカルでは隠しファイル・シンボリックリンクを除外、S3 では末尾 `/` の「フォルダ」オブジェクトを除外します。

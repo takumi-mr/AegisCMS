@@ -68,6 +68,114 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+    /// Manage local user accounts (login with `POST /api/v1/auth/session`)
+    User {
+        #[command(subcommand)]
+        action: UserCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum UserCommand {
+    /// Create a user. The password is read from AEGIS_USER_PASSWORD, a terminal prompt or stdin
+    Add {
+        username: String,
+        /// admin, editor or viewer
+        #[arg(short, long, default_value = "editor")]
+        role: String,
+        #[arg(long)]
+        email: Option<String>,
+        #[arg(long)]
+        display_name: Option<String>,
+    },
+    /// Change a user's password (read like `user add`)
+    Passwd { username: String },
+    /// Change a user's role (applies from the next login)
+    Role { username: String, role: String },
+    /// Disable a user so it can no longer log in (existing sessions stay valid until they expire)
+    Disable { username: String },
+    /// Re-enable a disabled user
+    Enable { username: String },
+    /// List users
+    List,
+}
+
+/// 新しいパスワードを読み込む: 環境変数 `AEGIS_USER_PASSWORD` → 端末なら非表示入力（確認つき）→ 標準入力の 1 行
+fn read_new_password() -> anyhow::Result<String> {
+    use std::io::IsTerminal;
+
+    if let Ok(password) = std::env::var("AEGIS_USER_PASSWORD") {
+        return Ok(password);
+    }
+    if std::io::stdin().is_terminal() {
+        let password = rpassword::prompt_password("Password: ")?;
+        let confirm = rpassword::prompt_password("Confirm password: ")?;
+        anyhow::ensure!(password == confirm, "Passwords do not match");
+        return Ok(password);
+    }
+    let mut line = String::new();
+    std::io::stdin().read_line(&mut line)?;
+    Ok(line.trim_end_matches(['\r', '\n']).to_string())
+}
+
+async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::Result<()> {
+    let db = db::create_database_adapter(&config.database).await?;
+    let db = db.as_ref();
+    match action {
+        UserCommand::Add {
+            username,
+            role,
+            email,
+            display_name,
+        } => {
+            let password = read_new_password()?;
+            let user = auth::users::create_user(
+                db,
+                auth::users::NewUser {
+                    username,
+                    password,
+                    role,
+                    email,
+                    display_name,
+                },
+            )
+            .await?;
+            println!("Created user '{}' (role: {})", user.username, user.role);
+        }
+        UserCommand::Passwd { username } => {
+            let password = read_new_password()?;
+            auth::users::set_password(db, &username, &password).await?;
+            println!("Updated the password of '{}'", username);
+        }
+        UserCommand::Role { username, role } => {
+            auth::users::set_role(db, &username, &role).await?;
+            println!("Changed the role of '{}' to {}", username, role);
+        }
+        UserCommand::Disable { username } => {
+            auth::users::set_disabled(db, &username, true).await?;
+            println!("Disabled '{}'", username);
+        }
+        UserCommand::Enable { username } => {
+            auth::users::set_disabled(db, &username, false).await?;
+            println!("Enabled '{}'", username);
+        }
+        UserCommand::List => {
+            let users = db.list_users().await?;
+            if users.is_empty() {
+                println!("No users. Create one with: aegis user add <username> --role admin");
+            }
+            for user in users {
+                println!(
+                    "{:<24} {:<8} {:<9} {}",
+                    user.username,
+                    user.role,
+                    if user.disabled { "disabled" } else { "active" },
+                    user.email.unwrap_or_default()
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 #[tokio::main]
@@ -123,6 +231,7 @@ async fn main() -> anyhow::Result<()> {
                 print!("{}", content);
             }
         }
+        Commands::User { action } => run_user_command(&config, action).await?,
         Commands::Run { port, host } => {
             if let Some(p) = port {
                 config.server.port = p;
@@ -155,6 +264,12 @@ async fn main() -> anyhow::Result<()> {
             // 2. DB初期化とマイグレーション
             let db_adapter = db::create_database_adapter(&config.database).await?;
             db_adapter.run_migrations(&schemas).await?;
+            if db_adapter.list_users().await?.is_empty() {
+                tracing::warn!(
+                    "No user accounts exist, so nobody can log in. Create one with: aegis user add <username> --role admin"
+                );
+            }
+            let auth_provider = Arc::new(auth::LocalAuthProvider::new(db_adapter.clone()));
 
             // 3. ストレージバックエンド初期化
             let storage = storage::create_storage_backend(&config.storage)?;
@@ -214,6 +329,7 @@ async fn main() -> anyhow::Result<()> {
                 storage,
                 cache,
                 sessions,
+                auth_provider,
                 schemas,
                 supervisor,
                 audit,

@@ -445,12 +445,15 @@ mod tests {
         ));
         let theme_engine = Arc::new(ThemeEngine::new(&PathBuf::from("themes"), "default"));
 
+        let auth_provider = Arc::new(crate::auth::LocalAuthProvider::new(db.clone()));
+
         Arc::new(AppState::new(
             config,
             db,
             storage,
             cache,
             sessions,
+            auth_provider,
             schemas,
             supervisor,
             audit,

@@ -77,7 +77,113 @@ pub trait DatabaseAdapter: Send + Sync {
 
     /// Delete audit events that occurred before `cutoff` (normalized timestamp) and return the count
     async fn delete_audit_events_before(&self, cutoff: &str) -> Result<u64>;
+
+    /// Insert a local user account (fails if the username is already taken)
+    async fn insert_user(&self, user: &UserRecord) -> Result<()>;
+
+    /// Fetch a local user account by username
+    async fn get_user_by_username(&self, username: &str) -> Result<Option<UserRecord>>;
+
+    /// Overwrite a local user account's mutable columns (matched by `id`)
+    async fn update_user(&self, user: &UserRecord) -> Result<()>;
+
+    /// List local user accounts ordered by username
+    async fn list_users(&self) -> Result<Vec<UserRecord>>;
 }
+
+/// ローカル認証のユーザーアカウント（`_aegis_users` テーブルの 1 行）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserRecord {
+    pub id: String,
+    /// ログイン名（一意・変更不可）。セッションの `user_id` や監査ログの actor に使う
+    pub username: String,
+    pub email: Option<String>,
+    pub display_name: Option<String>,
+    pub role: String,
+    /// Argon2id の PHC 文字列
+    pub password_hash: String,
+    pub disabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// ユーザーテーブル名（コンテンツテーブル `content_*` と衝突しないシステムテーブル）
+pub const USER_TABLE: &str = "_aegis_users";
+
+/// INSERT / SELECT で使うユーザーテーブルのカラム（順序固定）
+pub const USER_COLUMNS: [&str; 9] = [
+    "id",
+    "username",
+    "email",
+    "display_name",
+    "role",
+    "password_hash",
+    "disabled",
+    "created_at",
+    "updated_at",
+];
+
+/// プレースホルダ生成関数（1 始まりの番号を受け取る）を使ってユーザーの INSERT 文を組み立てる。
+/// バインド順は `USER_COLUMNS` の順
+pub fn build_user_insert(placeholder: impl Fn(usize) -> String) -> String {
+    let placeholders: Vec<String> = (1..=USER_COLUMNS.len()).map(placeholder).collect();
+    format!(
+        "INSERT INTO {} ({}) VALUES ({});",
+        USER_TABLE,
+        USER_COLUMNS.join(", "),
+        placeholders.join(", ")
+    )
+}
+
+/// ユーザーの UPDATE 文。バインド順は email, display_name, role, password_hash, disabled,
+/// updated_at, id
+pub fn build_user_update(placeholder: impl Fn(usize) -> String) -> String {
+    format!(
+        "UPDATE {} SET email = {}, display_name = {}, role = {}, password_hash = {}, \
+         disabled = {}, updated_at = {} WHERE id = {};",
+        USER_TABLE,
+        placeholder(1),
+        placeholder(2),
+        placeholder(3),
+        placeholder(4),
+        placeholder(5),
+        placeholder(6),
+        placeholder(7)
+    )
+}
+
+/// ユーザーの SELECT 文（`where_clause` を省略すると全件、username 順）
+pub fn build_user_select(where_clause: Option<&str>) -> String {
+    format!(
+        "SELECT {} FROM {}{} ORDER BY username;",
+        USER_COLUMNS.join(", "),
+        USER_TABLE,
+        where_clause
+            .map(|w| format!(" WHERE {}", w))
+            .unwrap_or_default()
+    )
+}
+
+/// sqlx の行 (`SqliteRow` / `PgRow` / `MySqlRow`) を `UserRecord` に変換する。
+/// `disabled` は全ダイアレクトで 64bit 整数 (0 / 1) として保存する
+macro_rules! user_row_from_sqlx {
+    ($row:expr) => {{
+        let row = $row;
+        let get = |e: sqlx::Error| aegis_core::AegisError::Database(e.to_string());
+        $crate::db::UserRecord {
+            id: row.try_get("id").map_err(get)?,
+            username: row.try_get("username").map_err(get)?,
+            email: row.try_get("email").map_err(get)?,
+            display_name: row.try_get("display_name").map_err(get)?,
+            role: row.try_get("role").map_err(get)?,
+            password_hash: row.try_get("password_hash").map_err(get)?,
+            disabled: row.try_get::<i64, _>("disabled").map_err(get)? != 0,
+            created_at: row.try_get("created_at").map_err(get)?,
+            updated_at: row.try_get("updated_at").map_err(get)?,
+        }
+    }};
+}
+pub(crate) use user_row_from_sqlx;
 
 pub async fn create_database_adapter(config: &DatabaseConfig) -> Result<Arc<dyn DatabaseAdapter>> {
     let backend = config.resolved_backend();
