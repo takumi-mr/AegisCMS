@@ -56,6 +56,9 @@ AegisCMS では、プラグインが Web ページのテーマやコンテキス
 
 ページ描画直前にプラグインの `on_render_page` フックが呼び出され、`PageRenderContext` を受け取って変更できます。
 
+- 公開ページの表示に加え、Admin Studio のプレビュー（`POST /api/v1/preview` の `page_html`、「Themed Page」タブ）でも、編集のたび（入力が 300ms 止まるごと）に呼ばれます。プレビューでは `published_at` / `updated_at` が `null`、`author` がログインユーザーになります。**副作用（KVS への書き込み、外部通知など）を持たせないでください。**
+- プレビューのページは Admin Studio 内の `sandbox` 付き `iframe`（スクリプト無効）に表示します。`extra_head` などで注入したスクリプトはプレビューでは動きません（公開ページでは動きます）。
+
 #### `PageRenderContext` の主要プロパティ
 ```rust
 pub struct PageRenderContext {
