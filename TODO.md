@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: Admin Studio のログイン画面からのアカウント登録（メールアドレスの確認・admin の承認、`[auth.registration]`）を追加。Admin Studio のテーマ・カテゴリ・ユーザー・監査ログを設定画面（Settings）にまとめ、ヘッダーのタブをエディタ / 商品 / 注文 / 設定に。Admin Studio を英語 / 日本語の 2 言語に（i18next）。通知機能（`aegis-notify`: 外部 SMTP サーバーへのメール・ログ、テンプレート en / ja、再試行・監査ログ）を追加し、EC の注文の受付・入金確認・発送・取り消しをメールで送るように。サンプルショップ「朝凪珈琲」（`examples/coffee-shop`）を追加。`aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: コンテンツの予約公開（`status: "scheduled"` + `published_at`、サーバーの定期タスクが公開、監査ログ `content.publish`、Admin Studio のエディタ・商品フォームで日時指定）を追加。Admin Studio のログイン画面からのアカウント登録（メールアドレスの確認・admin の承認、`[auth.registration]`）を追加。Admin Studio のテーマ・カテゴリ・ユーザー・監査ログを設定画面（Settings）にまとめ、ヘッダーのタブをエディタ / 商品 / 注文 / 設定に。Admin Studio を英語 / 日本語の 2 言語に（i18next）。通知機能（`aegis-notify`: 外部 SMTP サーバーへのメール・ログ、テンプレート en / ja、再試行・監査ログ）を追加し、EC の注文の受付・入金確認・発送・取り消しをメールで送るように。サンプルショップ「朝凪珈琲」（`examples/coffee-shop`）を追加。`aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
   - `task check` による全自動検証（Rust テスト 93 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
   - 公式 Wasm プラグイン `official-code-enhancer` (`plugins/official-code-enhancer/`):
@@ -47,6 +47,12 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### 予約公開 (Completed) — [docs/theme_and_publishing_guide.md](docs/theme_and_publishing_guide.md#予約公開スケジュール公開)
+- [x] **予約公開**: `status: "scheduled"` と `published_at`（RFC 3339）で保存すると、`crates/aegis-server/src/scheduler.rs` が 30 秒ごとに予約日時を過ぎたものを `published` にする（全スキーマ対象、`DatabaseAdapter::publish_scheduled_content`）。監査ログ `content.publish`（操作者なし）。過ぎた日時はその場で公開、`published_at` が無い・読めないと 400。Admin Studio のエディタ・商品フォームに「予約公開」と公開日時（`datetime-local`）、一覧に予約バッジ（ツールチップに日時）。コード生成の `ContentStatus` に `scheduled` を追加。
+- [ ] **公開予定の一覧・カレンダー**: Admin Studio で予約中のコンテンツを日時順に見る画面（今は一覧のバッジとツールチップのみ）。
+- [ ] **予約での公開終了（非公開化）**: `unpublish_at` で期間限定の公開（キャンペーンページなど）。
+- [ ] **公開時のフック・通知**: 予約公開した時点でプラグインフック（例: `on-content-published`）や通知（`[[notifications.audit.rules]]` の `content.publish` はすでに使える）を送る。
 
 #### アカウント登録 (Completed) — [docs/authentication.md](docs/authentication.md#7-アカウント登録)
 - [x] **Admin Studio からのアカウント登録**: `[auth.registration]`（`admin_url` / `default_role`（`editor` / `viewer`）/ `require_approval`（既定 `true`）/ `allowed_email_domains` / `token_ttl_secs` / `max_per_ip_per_hour`）。`POST /api/v1/auth/registration`（申し込み。キャッシュに置いて確認メール `account.verify` を送る）・`POST /api/v1/auth/registration/verify`（確認リンクのトークンでユーザーを作る。運営者に `account.registered`）、`GET /api/v1/auth/providers` の `registration`。監査ログ `user.register`（`stage: requested` / `confirmed`）。Admin Studio のログイン画面の「アカウントを作成」（`RegisterForm.tsx`）と確認リンク（`#verify-email=`）の処理、en / ja。通知が無効・確認リンクの開き先が決まらない設定では起動しない。
@@ -176,6 +182,13 @@
 ---
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
+
+- **予約公開 (`crates/aegis-server/src/scheduler.rs`, `handlers/content.rs` の `resolve_publication`)**:
+  - 予約日時は既存の `published_at` 列に UTC（`...Z`、秒精度）で保存する。スキーマ・マイグレーションの変更は無し。公開後もその日時が公開日になる。
+  - 公開側（`/`, `/articles/{slug}`, `/{slug}`, `/products`、カート）は従来どおり `status == "published"` だけを見るので、`scheduled` は何もしなくても隠れる。
+  - 公開の UPDATE は `WHERE id = ? AND status = 'scheduled' AND published_at = ?`。一覧の取得後に編集者が日時変更・下書き化した場合や、複数台のサーバーが同時に動いた場合でも、古い予約で公開したり二重に監査ログを残したりしない。
+  - `published` の `published_at` は「今の状態が `published` のときだけ」引き継ぐ（以前は `scheduled` の未来日時を引き継いでしまう形だったため、条件を変更）。
+  - 確認間隔は定数（30 秒）。設定にしたい場合は `[server]` などに足す。
 
 - **アカウント登録 (`crates/aegis-auth/src/registration.rs`, `crates/aegis-server/src/handlers/registration.rs`)**:
   - 申し込みはユーザーテーブルに入れず、キャッシュ（キー `registration:<トークンの SHA-256>`、TTL は `token_ttl_secs`）に置く。DB のスキーマ変更が要らず、確認されない申し込みでユーザー名がふさがらない。`memory` キャッシュでは再起動で申し込みが消える（もう一度申し込めばよい）。

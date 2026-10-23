@@ -22,8 +22,23 @@ AegisCMS は Headless API Gateway、管理画面 Admin Studio、および高速�
 | `GET /uploads/*` | ローカルストレージアセット | アップロード画像・メディア配信 |
 
 ### ゼロ・トラストな公開制御
-- 下書き状態（`status: "draft"`）やアーカイブ状態（`status: "archived"`）のコンテンツは、一般公開エンドポイント（`/`, `/articles/{slug}`, `/{slug}`）では一切表示されず、安全に `404 Not Found` テンプレートが描画されます。
+- 下書き状態（`status: "draft"`）・予約公開の待ち（`status: "scheduled"`）・アーカイブ状態（`status: "archived"`）のコンテンツは、一般公開エンドポイント（`/`, `/articles/{slug}`, `/{slug}`, `/products`）では一切表示されず、安全に `404 Not Found` テンプレートが描画されます。
 - 記事本文は `HtmlRenderer` による決定論的 HTML 生成の後、Cloudflare 製 `lol-html` ストリーミングリライター（`StreamingHtmlRewriter`）を透過的に通過し、外部リンクの `rel="noopener noreferrer"` 自動付与や画像の `loading="lazy"` / `decoding="async"` 強制適用が担保されます。
+
+### 予約公開（スケジュール公開）
+- `status: "scheduled"` と公開日時 `published_at`（RFC 3339、タイムゾーン付き）を指定して保存すると、その日時にサーバーが自動で `published` にします。Admin Studio ではエディタ・商品フォームの状態で「予約公開」を選び、公開日時を入力します。
+
+  ```bash
+  curl -X POST http://localhost:8080/api/v1/contents/article \
+    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+    -d '{"title": "新製品のお知らせ", "slug": "new-product", "status": "scheduled",
+         "published_at": "2026-11-01T09:00:00+09:00", "blocks": []}'
+  ```
+- 公開日時は UTC に揃えて保存され（例: `2026-11-01T00:00:00Z`）、公開後もそのまま記事の `published_at`（公開日）になります。
+- サーバーは 30 秒ごとに予約日時を確認するため、公開は指定した日時から最大 30 秒ほど遅れます。サーバーが止まっていた間に日時を迎えたコンテンツは、起動後の最初の確認で公開されます。
+- `published_at` が無い・読めない場合は `400 Bad Request`。過ぎた日時を指定するとその場で公開（`published`、公開日時は保存した時刻）します。`scheduled` 以外の状態では `published_at` は無視されます。
+- 公開前に日時を変えたり下書きに戻したりすると、その内容が優先されます（公開処理は「まだ同じ日時で予約されている」ときだけ行われるため、複数台のサーバーで動かしても二重には公開されません）。
+- 予約による公開は監査ログ `content.publish`（操作者なし）に記録されます（[監査ログ](audit.md)）。
 
 ---
 
