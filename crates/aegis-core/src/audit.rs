@@ -26,6 +26,9 @@ pub enum AuditAction {
     StorageDelete,
     #[serde(rename = "plugin.error")]
     PluginError,
+    /// Plugin settings updated via admin/API
+    #[serde(rename = "plugin.settings_update")]
+    PluginSettingsUpdate,
     #[serde(rename = "audit.purge")]
     AuditPurge,
     /// API request rejected for a missing / invalid session (401) or an insufficient role (403)
@@ -59,7 +62,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 19] = [
+    pub const ALL: [AuditAction; 20] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -69,6 +72,7 @@ impl AuditAction {
         Self::StorageUpload,
         Self::StorageDelete,
         Self::PluginError,
+        Self::PluginSettingsUpdate,
         Self::AuditPurge,
         Self::AccessDenied,
         Self::ThemeSwitch,
@@ -92,6 +96,7 @@ impl AuditAction {
             Self::StorageUpload => "storage.upload",
             Self::StorageDelete => "storage.delete",
             Self::PluginError => "plugin.error",
+            Self::PluginSettingsUpdate => "plugin.settings_update",
             Self::AuditPurge => "audit.purge",
             Self::AccessDenied => "access.denied",
             Self::ThemeSwitch => "theme.switch",

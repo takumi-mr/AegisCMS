@@ -214,6 +214,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 ### 10.3 ホスト API (`HostServices`)
 
 - ランタイムは I/O を持たず、サーバーが `HostServices`（KV・HTTP・設定値。`aegis-server/src/plugin_host.rs`）を実装して渡す。KV は `[cache]` に保存する。
+- **動的プラグイン設定**: プラグインごとの設定値（`config_get`）は、静的設定（`aegis.toml` の `[plugins.settings.<plugin>]`）に加え、Admin API（`PUT /api/v1/plugins/{name}/settings`）からの動的設定に対応している。動的設定はメモリ内の `RwLock<HashMap>` とキャッシュ（`plugin_settings:{name}`）に即座に反映され、静的設定を上書きする。サーバー起動時にもキャッシュから自動復元されるため、再起動後も設定値が保持される。
 - 結果を返すホスト関数（`kv_get` / `http_fetch` / `config_get`）は `func_wrap_async` で、ゲストの `allocate` を呼んで書き込み `ptr << 32 | len` を返す。
 - `http_fetch` は `allowed_domains` だけ・リダイレクトを追わない・1 MiB・1 呼び出し 8 回まで。ドメインの判定は URL パーサーで行う（文字列の後方一致だと `https://evil.com#.allowed.com` を許してしまう）。
 

@@ -1,16 +1,17 @@
 import React from 'react';
-import { Palette, Tags, Users, ScrollText } from 'lucide-react';
+import { Palette, Blocks, Tags, Users, ScrollText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount } from '../types';
 import { canEdit, isAdmin } from '../utils/roles';
 import { cx } from '../utils/cx';
 import { AuditLogView } from './AuditLogView';
 import { CategoryManager } from './CategoryManager';
+import { PluginManager } from './PluginManager';
 import { ThemeManager } from './ThemeManager';
 import { UserManager } from './UserManager';
 import styles from './SettingsView.module.css';
 
-export type SettingsSection = 'themes' | 'categories' | 'users' | 'audit';
+export type SettingsSection = 'themes' | 'plugins' | 'categories' | 'users' | 'audit';
 
 const SECTIONS: Array<{
   id: SettingsSection;
@@ -19,6 +20,7 @@ const SECTIONS: Array<{
   visible?: (session: SessionInfo) => boolean;
 }> = [
   { id: 'themes', icon: <Palette size={16} /> },
+  { id: 'plugins', icon: <Blocks size={16} /> },
   { id: 'categories', icon: <Tags size={16} /> },
   { id: 'users', icon: <Users size={16} />, visible: isAdmin },
   { id: 'audit', icon: <ScrollText size={16} />, visible: isAdmin },
@@ -69,6 +71,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       <div className={styles.content}>
         {current === 'themes' && <ThemeManager session={session} onShowToast={onShowToast} />}
+        {current === 'plugins' && <PluginManager session={session} onShowToast={onShowToast} />}
         {current === 'categories' && (
           <CategoryManager
             categories={categories}

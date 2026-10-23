@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: SAML 2.0 認証プロバイダ（SP-initiated、`[auth.saml]`。使い方は [authentication.md 8](docs/authentication.md#8-シングルサインオン-saml-20)、設計・依存の判断・XML Signature Wrapping 対策は [architecture.md 6.5a](docs/architecture.md#65a-saml-20-aegis_authsaml)）。その前はロール変更・無効化・削除・パスワード変更を発行済みのセッションに即時反映（キャッシュ上の失効マーカーによるブラックリスト判定。[authentication.md 2, 3](docs/authentication.md#2-cli-でのユーザー管理-aegis-user)、設計は [architecture.md 6.2](docs/architecture.md#62-ローカル認証とロール)）。
+- **直近の完了**: プラグイン一覧画面の実装と動的設定機能（Admin Studio での閲覧・検索・権限表示・設定モーダル、API `GET/PUT /api/v1/plugins/{name}/settings`、キャッシュ永続化とホストサービス連携、設計は [architecture.md 10.3](docs/architecture.md#103-ホスト-api-hostservices)）。その前はロール変更・無効化・削除・パスワード変更の発行済みセッションへの即時反映。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -42,7 +42,6 @@
 ### Admin Studio
 
 - [ ] **モバイル対応**: エディタは一覧 300px・プレビュー 480px 固定の 3 列で、スマホでは本文がほぼ見えない。ヘッダーは `nowrap` / `flex-shrink: 0` ではみ出し、`.app` が `height: 100vh; overflow: hidden` のため切れる。狭い画面では一覧・プレビューをドロワーやタブに、ヘッダーをメニューにまとめる。
-- [ ] **プラグイン管理画面**: `GET /api/v1/plugins` の一覧表示（テーマ管理画面と同じ構成）。
 - [ ] **メディアライブラリでのアバターの扱い**: `avatars/` もメディア一覧に出て、そこから削除するとアバターが外れる。一覧から除外するか、使用中チェックにユーザーを含める。
 - [ ] **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする。アカウント登録が先行例）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
 

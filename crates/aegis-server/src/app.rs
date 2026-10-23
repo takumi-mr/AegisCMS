@@ -104,6 +104,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             post(handlers::update_order_status),
         )
         .route("/api/v1/plugins", get(handlers::list_plugins))
+        .route(
+            "/api/v1/plugins/{name}/settings",
+            get(handlers::get_plugin_settings).put(handlers::update_plugin_settings),
+        )
         .route("/api/v1/themes", get(handlers::list_themes))
         .route(
             "/api/v1/themes/active",

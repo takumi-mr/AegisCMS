@@ -30,6 +30,11 @@ pub struct ServerHostServices {
     cache: Arc<dyn CacheBackend>,
     plugins: PluginsConfig,
     client: reqwest::Client,
+    dynamic_settings: Arc<
+        std::sync::RwLock<
+            std::collections::HashMap<String, std::collections::HashMap<String, String>>,
+        >,
+    >,
 }
 
 impl ServerHostServices {
@@ -45,7 +50,20 @@ impl ServerHostServices {
             cache,
             plugins,
             client,
+            dynamic_settings: Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
         })
+    }
+
+    pub fn with_dynamic_settings(
+        mut self,
+        dynamic_settings: Arc<
+            std::sync::RwLock<
+                std::collections::HashMap<String, std::collections::HashMap<String, String>>,
+            >,
+        >,
+    ) -> Self {
+        self.dynamic_settings = dynamic_settings;
+        self
     }
 }
 
@@ -128,6 +146,13 @@ impl HostServices for ServerHostServices {
     }
 
     fn plugin_setting(&self, plugin: &str, key: &str) -> Option<String> {
+        if let Ok(guard) = self.dynamic_settings.read() {
+            if let Some(map) = guard.get(plugin) {
+                if let Some(val) = map.get(key) {
+                    return Some(val.clone());
+                }
+            }
+        }
         self.plugins.setting(plugin, key)
     }
 }

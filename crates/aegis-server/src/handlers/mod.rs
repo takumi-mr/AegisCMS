@@ -23,7 +23,7 @@ pub use content::{create_content, delete_content, get_content, list_content, upd
 pub use health::health_check;
 pub use oidc::{oidc_callback, oidc_login};
 pub use openapi::get_openapi_spec;
-pub use plugin::list_plugins;
+pub use plugin::{get_plugin_settings, list_plugins, update_plugin_settings};
 pub use preview::preview_content;
 pub use public::{render_article, render_index, render_page_or_slug};
 pub use registration::{register, verify_registration};

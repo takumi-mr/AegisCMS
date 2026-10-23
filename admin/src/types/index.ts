@@ -57,7 +57,8 @@ export type AuditAction =
   | 'user.register'
   | 'order.create'
   | 'order.update'
-  | 'notification.send';
+  | 'notification.send'
+  | 'plugin.settings_update';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 
@@ -358,4 +359,32 @@ export interface ShopConfig {
   product_type: string;
   /** `manual` / `stripe`, or null when the shop is disabled */
   provider: string | null;
+}
+
+export interface PluginCapabilities {
+  allowed_domains: string[];
+  kv_storage: boolean;
+  max_memory_mb?: number;
+  execution_timeout_ms?: number;
+}
+
+export interface PluginManifest {
+  name: string;
+  version: string;
+  display_name?: string;
+  description?: string;
+  author?: string;
+  license?: string;
+  homepage?: string;
+  hooks: string[];
+  capabilities: PluginCapabilities;
+}
+
+export interface PluginInfo {
+  name: string;
+  manifest: PluginManifest;
+  is_enabled: boolean;
+  is_installed: boolean;
+  error?: string | null;
+  settings: Record<string, string>;
 }
