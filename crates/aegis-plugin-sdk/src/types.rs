@@ -140,6 +140,14 @@ impl fmt::Display for PluginError {
 
 impl std::error::Error for PluginError {}
 
+impl PluginError {
+    /// 再試行しても同じ結果になる失敗か（`send-notification` でホストが再試行するかを決める）。
+    /// `Rejected`（送らないと決めた）と `Serialization`（入力が読めない）は再試行しない
+    pub fn is_permanent(&self) -> bool {
+        matches!(self, Self::Rejected(_) | Self::Serialization(_))
+    }
+}
+
 impl From<serde_json::Error> for PluginError {
     fn from(err: serde_json::Error) -> Self {
         Self::Serialization(err.to_string())
@@ -321,6 +329,42 @@ pub struct OrderStatusChange {
     pub occurred_at: String,
 }
 
+/// 通知の宛先（`send-notification`）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Recipient {
+    /// 特定の人（注文した顧客など）
+    Person {
+        email: String,
+        #[serde(default)]
+        name: Option<String>,
+    },
+    /// サイトの運営者（宛先はプラグインの設定で決める。Slack のチャンネルなど）
+    Staff,
+}
+
+/// テンプレートから作った、1 つの宛先への通知（`send-notification`）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NotificationMessage {
+    /// 通知の種類（`order.placed` / `order.shipped` / `audit.session.create` など）
+    pub kind: String,
+    pub recipient: Recipient,
+    pub subject: String,
+    /// 本文（プレーンテキスト）
+    pub body: String,
+    /// テンプレートに渡した値（`order` / `audit` / `site_name` など）
+    #[serde(default)]
+    pub data: serde_json::Value,
+}
+
+/// 通知の配信結果（`send-notification`）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Delivery {
+    Sent,
+    /// 扱わない通知（種類・宛先）。失敗ではなく、ホストは監査ログにも残さない
+    Skipped,
+}
+
 /// AegisCMS プラグインが実装するコアトレイト
 pub trait Plugin: Default {
     /// 記事保存前フック (`on-before-save`)
@@ -362,5 +406,15 @@ pub trait Plugin: Default {
     fn on_order_status_changed(&mut self, change: OrderStatusChange) -> Result<()> {
         let _ = change;
         Ok(())
+    }
+
+    /// 通知の配信フック (`send-notification`)
+    /// サーバーの `[notifications].channels` に `"plugin:<プラグイン名>"` と書くと、通知（注文・監査イベント）の
+    /// たびに呼ばれる。件名・本文はホストがテンプレートから作ってある。`http::fetch` で Slack・SMS などへ送る。
+    /// 扱わない通知は `Ok(Delivery::Skipped)`。`Err` はホストが間隔を空けて再試行する
+    /// （`PluginError::Rejected` / `Serialization` は再試行しない）
+    fn send_notification(&mut self, message: NotificationMessage) -> Result<Delivery> {
+        let _ = message;
+        Ok(Delivery::Skipped)
     }
 }

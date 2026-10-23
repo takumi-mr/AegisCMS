@@ -280,7 +280,7 @@ coupons = "WELCOME10:10%"
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `enabled` | bool | `false` | `true` で通知を送る |
-| `channels` | string[] | `["email"]` | 配信チャネル。`email`（SMTP）/ `log`（サーバーのログ。動作確認用） |
+| `channels` | string[] | `["email"]` | 配信チャネル。`email`（SMTP）/ `log`（サーバーのログ。動作確認用）/ `plugin:<名前>`（`send-notification` フックを持つ Wasm プラグイン。`[plugins].enabled` にあること） |
 | `locale` | string | `"en"` | 組み込みテンプレートの言語（`en` / `ja`） |
 | `templates_dir` | string | なし | テンプレートの置き場所（`<種類>.subject` / `<種類>.txt`）。無いファイルは組み込みを使う |
 | `disabled_events` | string[] | `[]` | 送らない通知の種類（`order.shipped` など） |

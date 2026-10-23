@@ -56,3 +56,59 @@ impl NotificationEvent {
 pub trait Notifier: Send + Sync {
     fn notify(&self, event: NotificationEvent);
 }
+
+/// テンプレートから作った、1 つの宛先への通知。配信チャネル（メール・プラグインなど）に渡す
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NotificationMessage {
+    /// 通知の種類（`order.placed` / `audit.session.create` など）
+    pub kind: String,
+    pub recipient: Recipient,
+    pub subject: String,
+    /// 本文（プレーンテキスト）
+    pub body: String,
+    /// テンプレートに渡した値（注文・監査イベントの内容、`site_name` など）
+    #[serde(default)]
+    pub data: serde_json::Value,
+}
+
+/// 配信の結果
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Delivered {
+    Sent,
+    /// チャネルが送らなかった（扱わない種類・宛先）。失敗ではなく、監査ログにも残さない
+    Skipped,
+}
+
+/// 配信の失敗
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SendError {
+    pub message: String,
+    /// 繰り返しても成功しない失敗（宛先の不備・認証の拒否など）。再試行しない
+    #[serde(default)]
+    pub permanent: bool,
+}
+
+impl SendError {
+    pub fn temporary(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            permanent: false,
+        }
+    }
+
+    pub fn permanent(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            permanent: true,
+        }
+    }
+}
+
+impl std::fmt::Display for SendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for SendError {}

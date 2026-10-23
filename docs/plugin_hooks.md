@@ -25,6 +25,7 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 | `on-user-authenticated` | `on_user_authenticated` | `Plugin::on_user_authenticated` | `UserAuthContext` | `UserAuthContext` | ✅ 実装済み（ロールマッピング、属性の補完、ログインの拒否） |
 | `calculate-order` | `calculate_order` | `Plugin::calculate_order` | `OrderContext` | `OrderContext` | ✅ 実装済み（送料・税・割引の追加、注文の拒否。[EC](commerce.md)） |
 | `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange` | なし | ✅ 実装済み（注文の作成・状態の変化の通知） |
+| `send-notification` | `send_notification` | `Plugin::send_notification` | `NotificationMessage` | `Delivery` | ✅ 実装済み（通知の配信チャネル。Slack・SMS など。[通知](notifications.md#5-配信方法を加える)） |
 
 - フックを有効にするには、**マニフェストの `capabilities.hooks` にフック名（ケバブケース）を列挙**する必要があります。列挙されていないフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
 - 逆に、マニフェストに列挙されていても該当の関数がエクスポートされていない場合は、入力がそのまま次へ渡されます（エラーにはなりません）。
@@ -147,6 +148,43 @@ fn on_order_status_changed(&mut self, change: OrderStatusChange) -> Result<()>;
 - 状態の変更を保存した**後**に、応答を待たずに（別タスクで）呼ばれます。結果は注文に影響しません。
 - `Err` を返す・失敗した場合は警告ログと監査ログ `plugin.error`（`resource_type: order`）に残ります。ほかのプラグインの呼び出しは続きます。
 
+### 1.7 `send-notification`
+
+プラグインを通知の配信チャネルにします（[通知](notifications.md)）。サーバーの設定で `[notifications].channels` に `"plugin:<プラグイン名>"` と書くと、通知（注文の受付・発送、管理者のログイン・ログインのロックなどの監査イベント）のたびに呼ばれます。件名・本文はホストがテンプレートから作ってあり、プラグインは `http::fetch` で Slack・Teams・Discord・SMS 業者の API などへ送るだけです。
+
+```rust
+fn send_notification(&mut self, message: NotificationMessage) -> Result<Delivery>;
+
+impl Plugin for SlackPlugin {
+    fn send_notification(&mut self, message: NotificationMessage) -> Result<Delivery> {
+        // 運営者向けの通知だけを扱う（顧客向けはメールに任せる）
+        if message.recipient != Recipient::Staff {
+            return Ok(Delivery::Skipped);
+        }
+        let url = config::get("webhook_url")
+            .ok_or_else(|| PluginError::Rejected("webhook_url is not configured".into()))?;
+        let text = format!("*{}*\n{}", message.subject, message.body);
+        let response = http::fetch(&http::Request::post_json(url, &serde_json::json!({ "text": text }))?)?;
+        if !response.is_success() {
+            return Err(PluginError::Execution(format!("Slack answered {}", response.status)));
+        }
+        Ok(Delivery::Sent)
+    }
+}
+```
+
+| 返り値 | ホストの扱い |
+| --- | --- |
+| `Ok(Delivery::Sent)` | 送信済み。監査ログ `notification.send`（`success`、`channel: plugin:<名前>`） |
+| `Ok(Delivery::Skipped)` | このプラグインが扱わない通知（種類・宛先）。失敗ではなく、監査ログにも残さない |
+| `Err(PluginError::Execution / Host)` | 一時的な失敗。`[notifications].max_attempts` まで間隔を空けて再試行する（タイムアウト・トラップも同じ） |
+| `Err(PluginError::Rejected / Serialization)` | 再試行しても変わらない失敗（設定の不備、相手が 4xx で断ったなど）。再試行しない |
+
+- マニフェストの `capabilities.hooks` に `send-notification` が無い・`[plugins].enabled` に無いプラグインを `channels` に書くと、サーバーは起動しません。
+- 再試行・送信数の上限（監査イベントの `max_per_hour`）・監査ログ・テンプレートはホストが行います。宛先の選び分け（運営者向けだけ、`audit.` だけなど）はプラグインが `Skipped` で行います。
+- 送り先のドメインはマニフェストの `capabilities.network.allowed_domains` に含めてください。フックの `execution_timeout_ms` に通信の時間も含まれます。
+- `aegis-server notify test --staff` で、運営者向けのテスト通知をプラグインに送れます。
+
 ---
 
 ## 2. フックに渡されるデータ型
@@ -236,6 +274,18 @@ SDK ヘルパー:
 ```
 
 `OrderStatusChange` は `{ "order": OrderContext, "from_status": "pending_payment" | null, "to_status": "paid", "occurred_at": "RFC 3339" }` です。状態は `pending_payment` / `paid` / `shipped` / `completed` / `cancelled`。
+
+### 2.6 `NotificationMessage` / `Recipient` / `Delivery`（`send-notification`）
+
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `kind` | string | 通知の種類（`order.placed` / `order.paid` / `order.shipped` / `order.cancelled` / `audit.<操作>` / `test`） |
+| `recipient` | object | `{"type": "staff"}`（運営者）または `{"type": "person", "email": "...", "name": "..."}` |
+| `subject` | string | 件名（テンプレートから作ったもの） |
+| `body` | string | 本文（プレーンテキスト） |
+| `data` | object | テンプレートに渡した値（`order` / `audit` / `site_name` / `site_url` / `admin_url` / `kind` など。[通知 3](notifications.md#3-テンプレート)） |
+
+`Delivery` は `Sent`（送った）/ `Skipped`（扱わない）。
 
 ### 2.4 `PluginError`（SDK）
 

@@ -3,7 +3,7 @@
 use aegis_core::Recipient;
 use async_trait::async_trait;
 
-use crate::channel::{NotificationChannel, NotificationMessage, SendError};
+use crate::channel::{Delivered, NotificationChannel, NotificationMessage, SendError};
 
 pub struct LogChannel;
 
@@ -17,7 +17,7 @@ impl NotificationChannel for LogChannel {
         true
     }
 
-    async fn send(&self, message: &NotificationMessage) -> Result<(), SendError> {
+    async fn send(&self, message: &NotificationMessage) -> Result<Delivered, SendError> {
         let to = match &message.recipient {
             Recipient::Person { email, .. } => email.as_str(),
             Recipient::Staff => "staff",
@@ -30,6 +30,6 @@ impl NotificationChannel for LogChannel {
             message.subject,
             message.body
         );
-        Ok(())
+        Ok(Delivered::Sent)
     }
 }
