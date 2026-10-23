@@ -57,6 +57,8 @@ export const App: React.FC = () => {
   const [ssoError] = useState<string | null>(takeLoginRedirect);
   const [verifyToken] = useState<string | null>(takeVerifyToken);
   const [view, setView] = useState<AppView>('editor');
+  // Hidden until the server says the shop is on ([commerce].enabled)
+  const [shopEnabled, setShopEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType] = useState<string>('article');
   const [contents, setContents] = useState<ContentItem[]>([]);
@@ -184,6 +186,20 @@ export const App: React.FC = () => {
     loadContents();
     loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    aegisApi
+      .getShopConfig()
+      .then((config) => {
+        if (!cancelled) setShopEnabled(config.enabled);
+      })
+      .catch((err) => console.warn('Could not load the shop settings:', err));
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -403,6 +419,7 @@ export const App: React.FC = () => {
   }
 
   const editable = canEdit(session);
+  const showShop = editable && shopEnabled;
 
   return (
     <div className={styles.app}>
@@ -414,6 +431,7 @@ export const App: React.FC = () => {
         isSaving={isSaving}
         session={session}
         canSave={editable}
+        showShop={showShop}
         profile={profile}
         onOpenProfile={() =>
           profile
@@ -423,9 +441,9 @@ export const App: React.FC = () => {
         onLogout={handleLogout}
       />
 
-      {view === 'products' && editable ? (
+      {view === 'products' && showShop ? (
         <ProductManager categories={categories} onShowToast={showToast} />
-      ) : view === 'orders' && editable ? (
+      ) : view === 'orders' && showShop ? (
         <OrderManager onShowToast={showToast} />
       ) : view === 'settings' ? (
         <SettingsView
