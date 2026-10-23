@@ -1,5 +1,5 @@
-//! ログイン・ユーザー・セッション（`[auth]`）: パスワード（Argon2id）、ローカル / OpenID Connect の
-//! 認証プロバイダ、ユーザー管理、アカウント登録、セッション、ログイン試行の制限、ロール
+//! ログイン・ユーザー・セッション（`[auth]`）: パスワード（Argon2id）、ローカル / OpenID Connect /
+//! SAML 2.0 の認証プロバイダ、ユーザー管理、アカウント登録、セッション、ログイン試行の制限、ロール
 
 pub mod config;
 pub mod local;
@@ -11,12 +11,15 @@ pub mod oidc_mock;
 pub mod password;
 pub mod rate_limit;
 pub mod registration;
+#[cfg(feature = "saml")]
+pub mod saml;
 pub mod session;
+pub mod sso;
 pub mod users;
 
 use sha2::{Digest, Sha256};
 
-pub use config::{AuthConfig, LoginRateLimitConfig, OidcConfig, RegistrationConfig};
+pub use config::{AuthConfig, LoginRateLimitConfig, OidcConfig, RegistrationConfig, SamlConfig};
 pub use local::LocalAuthProvider;
 pub use rate_limit::LoginRateLimiter;
 pub use session::{SessionData, SessionService};
@@ -29,6 +32,16 @@ pub const OIDC_CALLBACK_CREDENTIALS: &str = "oidc_callback";
 /// ID 連携テーブルの subject。IdP の `sub` は Issuer ごとにしか一意でないため Issuer と組み合わせる
 pub fn oidc_subject(issuer: &str, sub: &str) -> String {
     format!("{}#{}", issuer.trim_end_matches('/'), sub)
+}
+
+/// SAML の `AuthProvider::provider_id`（ID 連携テーブルのプロバイダ名にも使う）
+pub const SAML_PROVIDER: &str = "saml";
+/// ACS への POST（`AuthCredentials::parameters` にフォームの `SAMLResponse`）を表す `AuthCredentials::kind`
+pub const SAML_RESPONSE_CREDENTIALS: &str = "saml_response";
+
+/// SAML の ID 連携テーブルの subject。NameID は IdP ごとにしか一意でないため IdP の Entity ID と組み合わせる
+pub fn saml_subject(idp_entity_id: &str, name_id: &str) -> String {
+    format!("{}#{}", idp_entity_id.trim(), name_id)
 }
 
 /// システムロール（権限の強い順）

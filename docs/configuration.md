@@ -330,6 +330,31 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 
 ---
 
+### 2.14 `[auth.saml]` — シングルサインオン (SAML 2.0)
+
+SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Redirect、応答は HTTP-POST）。使い方は [認証ドキュメント](./authentication.md#8-シングルサインオン-saml-20) を参照してください。`enabled = true` で必須項目が欠けている、証明書を読めない、またはロール名が不正な場合はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で SAML ログインを有効化 |
+| `display_name` | string | `"SSO"` | ログイン画面のボタン名（`Sign in with ...`） |
+| `entity_id` | string | `""` | AegisCMS（SP）の Entity ID（必須）。AuthnRequest の Issuer、アサーションの Audience。慣例でメタデータの URL（`https://<ホスト>/api/v1/auth/saml/metadata`） |
+| `acs_url` | string | `""` | Assertion Consumer Service の URL（必須）。`https://<ホスト>/api/v1/auth/saml/acs` |
+| `idp_entity_id` | string | `""` | IdP の Entity ID（必須）。応答・アサーションの Issuer と一致しなければ拒否 |
+| `idp_sso_url` | string | `""` | IdP の Single Sign-On サービスの URL（必須。HTTP-Redirect バインディング） |
+| `idp_certificates` | array of string | `[]` | IdP の署名用証明書（必須）。PEM（`-----BEGIN CERTIFICATE-----`）、PEM の公開鍵、または IdP のメタデータの `<X509Certificate>` の Base64。鍵の切り替え中は新旧を並べる。RSA 2048 ビット以上 |
+| `name_id_format` | string | `""` | AuthnRequest で求める NameID の形式（例: `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`）。空なら IdP に任せる。`transient` は使えない |
+| `username_attribute` | string | `""` | 新規ユーザーのユーザー名にする属性。空なら NameID |
+| `email_attribute` | string | `"email"` | メールアドレスの属性（無ければ、NameID の形式が `emailAddress` のとき NameID） |
+| `display_name_attribute` | string | `"displayName"` | 表示名の属性 |
+| `auto_create_users` | bool | `true` | 未登録のユーザーを初回ログイン時に作成する。`false` なら `aegis user link-saml` で紐付けたユーザーのみ |
+| `default_role` | string | `"viewer"` | 新規ユーザーのロール。`role_attribute` 使用時はどの値にも一致しない場合のロール |
+| `role_attribute` | string | `""` | ロールを決める属性（例: `groups`）。空ならロールは AegisCMS のユーザーアカウントで決まる |
+| `role_mapping` | table | `{}` | `role_attribute` の値 → ロール（`admin` / `editor` / `viewer`）。複数一致した場合は最も強いロール |
+| `post_login_redirect` | string | `"/admin/"` | ログイン後に戻る Admin Studio の URL（`[auth.oidc]` と同じ） |
+
+属性は `Name` で探し、一致するものが無ければ `FriendlyName` で探します（Entra ID の `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` のような URI 形式の名前もそのまま書けます）。
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
@@ -422,6 +447,25 @@ role_claim = ""
 post_login_redirect = "/admin/"
 
 [auth.oidc.role_mapping]
+
+[auth.saml]
+enabled = false
+display_name = "SSO"
+entity_id = ""
+acs_url = ""
+idp_entity_id = ""
+idp_sso_url = ""
+idp_certificates = []
+name_id_format = ""
+username_attribute = ""
+email_attribute = "email"
+display_name_attribute = "displayName"
+auto_create_users = true
+default_role = "viewer"
+role_attribute = ""
+post_login_redirect = "/admin/"
+
+[auth.saml.role_mapping]
 
 [auth.registration]
 enabled = false
@@ -519,7 +563,8 @@ Admin Studio だけを別の場所で配信する場合（例: `admin.example.co
 | --- | --- |
 | `[audit].trust_forwarded_for = true` | 監査ログ・ログインのレート制限のクライアント IP を `X-Forwarded-For` から取る。無効のままだと全員がプロキシの IP として数えられ、IP 単位のロックが全ユーザーに効く |
 | `[auth.oidc].redirect_url` | 公開 URL（`https://cms.example.com/api/v1/auth/oidc/callback`、サブパスなら `https://example.com/cms/api/v1/auth/oidc/callback`）にする。既定の `127.0.0.1` のままでは IdP から戻れない |
-| `[auth.oidc].post_login_redirect` | `/` で始まる値（既定の `/admin/`）にはベースパスが自動で付く。Admin Studio を別の場所に置く場合は絶対 URL（`https://admin.example.com/admin/`） |
+| `[auth.saml].entity_id` / `acs_url` | 公開 URL にする（`https://cms.example.com/api/v1/auth/saml/acs`、サブパスなら `https://example.com/cms/api/v1/auth/saml/acs`）。応答の `Destination`・`Recipient` と一致しないと拒否される |
+| `[auth.oidc].post_login_redirect` / `[auth.saml].post_login_redirect` | `/` で始まる値（既定の `/admin/`）にはベースパスが自動で付く。Admin Studio を別の場所に置く場合は絶対 URL（`https://admin.example.com/admin/`） |
 | `[security].internal_domains` | 本文中の自サイトへの絶対 URL を外部リンク扱い（`rel="noopener ..."` 付与）にしないよう、`["example.com"]` のように指定（サブドメインも含めて内部扱い） |
 | `[storage].max_upload_mb` | プロキシ側の上限（nginx の `client_max_body_size` など）も同じ値以上にする |
 

@@ -234,6 +234,7 @@ cms-editors = "editor"
 - メールアドレス・表示名（`email` / `name` クレーム）はログインのたびにユーザーアカウントへ反映します。
 - 無効化したユーザー（`aegis user disable`）は SSO でもログインできません（`account_disabled`）。
 - セッションの `metadata` には `provider: "oidc"`、`issuer`、`sub`、`claims`（ID トークンのクレーム）が入ります。
+- ユーザーの決め方は SAML（8.3）と共通です。
 
 ### 6.4 失敗時の理由（`login_error`・監査ログ `session.create` の `error`）
 
@@ -315,3 +316,86 @@ channels = ["email"]   # 開発中は ["log"] でサーバーのログに出せ�
 - **パスワード**: 申し込みの時点で Argon2id でハッシュし、平文は保存しません。8 文字以上が必要です。
 - **監査ログ**: 申し込み（`stage: requested`）と確認（`stage: confirmed`）を `user.register` に記録します。メールアドレスとトークンは記録しません（[監査ログ](audit.md)）。
 - **ログチャネル**: `channels = ["log"]` では確認メールの本文（確認リンクを含む）がサーバーのログに出ます。本番ではメールを使ってください。プラグインの通知チャネル（`plugin:<名前>`）にも確認メールが渡るので、Slack などに送るプラグインでは `account.verify` を送らないよう設定してください（`official-order-notifier` なら `channel_kinds`）。
+
+---
+
+## 8. シングルサインオン (SAML 2.0)
+
+`[auth.saml]`（[設定リファレンス](configuration.md#214-authsaml--シングルサインオン-saml-20)）を有効にすると、ログイン画面に **Sign in with {display_name}** ボタンが表示され、SAML 2.0 の IdP（Microsoft Entra ID、Okta、AD FS、Keycloak、Google Workspace など）でログインできます。OpenID Connect（6）・パスワードと併用できます。
+
+対応するのは **SP-initiated の Web Browser SSO** です（AegisCMS のボタンから始めるログイン）。AuthnRequest は HTTP-Redirect バインディングで送り、応答は HTTP-POST バインディングで受け取ります。IdP のポータルから始めるログイン（IdP-initiated）、暗号化したアサーション（`EncryptedAssertion`）、シングルログアウトには対応していません。
+
+### 8.1 IdP 側の設定
+
+1. AegisCMS の SP メタデータ `https://<ホスト>/api/v1/auth/saml/metadata`（`enabled = true` で起動した後に取得できます）を IdP に読み込ませるか、次の値を手で登録します。
+   - **Entity ID（識別子）**: `entity_id` と同じ値
+   - **ACS（応答 URL / Reply URL）**: `https://<ホスト>/api/v1/auth/saml/acs`（`acs_url` と同じ値）。バインディングは HTTP-POST
+2. **署名**: アサーション（推奨）または応答全体に署名するよう設定します（どちらか一方で十分です）。署名方式は RSA-SHA256 以上です（SHA-1 は拒否します）。
+3. **NameID**: `persistent`（変わらない ID）か `emailAddress` を使います。ログインのたびに変わる `transient` はユーザーを識別できないため拒否します。
+4. メールアドレス・表示名・グループを属性として送るよう設定し、その属性名を `email_attribute` などに書きます。
+5. IdP のメタデータから **Entity ID**、**SSO の URL**（HTTP-Redirect）、**署名用証明書** を取り出して設定します。
+
+```toml
+[auth.saml]
+enabled = true
+display_name = "Company SSO"
+entity_id = "https://cms.example.com/api/v1/auth/saml/metadata"
+acs_url = "https://cms.example.com/api/v1/auth/saml/acs"
+idp_entity_id = "https://sts.windows.net/<テナント ID>/"
+idp_sso_url = "https://login.microsoftonline.com/<テナント ID>/saml2"
+idp_certificates = ["""
+-----BEGIN CERTIFICATE-----
+MIIC8DCCAdigAwIBAgIQ...
+-----END CERTIFICATE-----
+"""]
+email_attribute = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+display_name_attribute = "http://schemas.microsoft.com/identity/claims/displayname"
+role_attribute = "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+post_login_redirect = "https://cms.example.com/admin/"
+
+[auth.saml.role_mapping]
+"<管理者グループの ID>" = "admin"
+"<編集者グループの ID>" = "editor"
+```
+
+IdP の署名鍵を切り替えるときは、新旧の証明書を `idp_certificates` に並べてから IdP 側を切り替え、終わったら古いほうを消します。
+
+### 8.2 ログインの流れ
+
+1. ボタン（`GET /api/v1/auth/saml/login`）が AuthnRequest を付けて IdP の SSO の URL へリダイレクトします。AuthnRequest の `ID` は 10 分間キャッシュ（`[cache]`）に保存します。
+2. IdP でのログイン後、ブラウザが `SAMLResponse` を `POST /api/v1/auth/saml/acs` に送ります。AegisCMS は署名と内容（8.4）を検証します。応答が答えている AuthnRequest の `ID` は 1 回限りで、同じ応答をもう一度送っても使えません。
+3. ユーザーを決め（8.3）、`on-user-authenticated` フック（[プラグインフック](plugin_hooks.md#14-on-user-authenticated)）を通してセッションを発行します。
+4. OpenID Connect と同じく、`post_login_redirect` に `#session=<トークン>`（失敗時は `#login_error=<理由>`）を付けて Admin Studio に戻ります。
+
+### 8.3 ユーザーとロール
+
+OpenID Connect（6.3）と同じ規則です。
+
+- IdP のアカウント（IdP の Entity ID + NameID）と AegisCMS のユーザーの対応は `_aegis_user_identities` テーブルに保存します（プロバイダ名 `saml`）。
+- **初回ログイン**: `auto_create_users = true`（既定）なら、`username_attribute`（空なら NameID）をユーザー名にしてユーザーを作成し、紐付けます。2 回目以降は NameID で同じユーザーを見つけるので、ユーザー名の属性が変わってもアカウントは変わりません。
+- **同名のユーザーが既にいる場合は紐付けません**（`username_taken`）。既存のアカウントで SAML を使うには、管理者が `aegis-server user link-saml <username> <NameID>` で紐付けます。
+- `auto_create_users = false` なら、紐付け済みのユーザーだけがログインできます（`not_provisioned`）。
+- **ロール**: `role_attribute` を設定すると、ログインのたびにその属性の値を `role_mapping` で変換し（複数一致なら最も強いロール、一致しなければ `default_role`）、ユーザーアカウントのロールも更新します。空なら、ロールはユーザーアカウントのものです。
+- メールアドレス・表示名はログインのたびにユーザーアカウントへ反映します。無効化したユーザーはログインできません（`account_disabled`）。
+- セッションの `metadata` には `provider: "saml"`、`issuer`（IdP の Entity ID）、`name_id`、`name_id_format`、`session_index`、`attributes`（属性名 → 値の配列）が入ります。
+
+### 8.4 検証の内容
+
+| 対象 | 検証 |
+| --- | --- |
+| XML | DTD・処理命令・未宣言の名前空間接頭辞・重複した属性を含む文書と、256 KiB を超える応答は拒否 |
+| 署名 | 応答全体かアサーションの少なくとも一方に、`idp_certificates` の鍵による署名が必要。応答の `KeyInfo` の証明書は使わない。Exclusive C14N・enveloped-signature のみ、RSA-SHA256 / 384 / 512。署名が参照する `ID` は文書内で一意 |
+| 応答 | `StatusCode` が `Success`（それ以外は `idp_error`）、`Destination` が `acs_url`、`Issuer` が `idp_entity_id`、アサーションがちょうど 1 つ |
+| アサーション | `Issuer` が `idp_entity_id`、`Conditions` の有効期間内、`AudienceRestriction` に `entity_id`、`AuthnStatement` がある |
+| Subject | NameID がある（`transient` 以外）。bearer の `SubjectConfirmationData` の `Recipient` が `acs_url`、`NotOnOrAfter` が未来、`InResponseTo` が発行済みで未使用の AuthnRequest の `ID` |
+
+時刻の検証には 60 秒の誤差を認めます。
+
+**XML Signature Wrapping への対策**: 署名を検証した後は、受け取った文書からは何も読みません。署名の対象（応答またはアサーション）を、ダイジェストを計算したバイト列そのもの（正規化した XML）から改めて解析し、ユーザー名・属性・条件はすべてそこから読みます。署名済みのアサーションを別の場所に隠して偽のアサーションを置く、同じ `ID` の要素を足す、といった改変は、署名の検証に失敗するか、読む対象に入りません。NameID の途中にコメントを挟まれても、値は署名されたとおりの全体として読みます。
+
+### 8.5 失敗時の理由
+
+OpenID Connect（6.4）と同じ理由コードを使います。`invalid_token` は応答の検証に失敗した場合（署名・条件・形式。詳細はサーバーの警告ログ）、`invalid_state` は応答が答えている AuthnRequest が無い・期限切れ・使用済みの場合、`idp_error` は IdP が失敗の `StatusCode` を返した場合です。
+
+> [!NOTE]
+> SAML のログインも `[auth.login_rate_limit]` の対象外です。AuthnRequest には署名しません（メタデータは `AuthnRequestsSigned="false"`）。IdP 側で署名付きの AuthnRequest を必須にしている場合は外してください。

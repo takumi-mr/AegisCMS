@@ -116,6 +116,34 @@ post_login_redirect = "/admin/"
 # cms-admins = "admin"
 # cms-editors = "editor"
 
+[auth.saml]
+# Single sign-on with a SAML 2.0 IdP (Entra ID, Okta, AD FS, Keycloak, Google Workspace, ...).
+# Register the SP metadata at https://<host>/api/v1/auth/saml/metadata. See docs/authentication.md
+enabled = false
+display_name = "SSO"
+entity_id = "http://127.0.0.1:8080/api/v1/auth/saml/metadata"
+acs_url = "http://127.0.0.1:8080/api/v1/auth/saml/acs"
+idp_entity_id = ""
+idp_sso_url = ""
+# The IdP's signing certificates (PEM, or the base64 of <X509Certificate> in the IdP's metadata)
+idp_certificates = []
+# NameID format to ask for (empty: the IdP decides). transient cannot be used
+name_id_format = ""
+# Attribute used as the user name of new accounts (empty: the NameID)
+username_attribute = ""
+email_attribute = "email"
+display_name_attribute = "displayName"
+# Create unknown users on their first login (false: only users linked with `aegis user link-saml`)
+auto_create_users = true
+default_role = "viewer"
+# Attribute that decides the role on every login, e.g. "groups" (empty: the account's role applies)
+role_attribute = ""
+post_login_redirect = "/admin/"
+
+[auth.saml.role_mapping]
+# cms-admins = "admin"
+# cms-editors = "editor"
+
 [theme]
 active = "default"
 site_title = "AegisCMS Official Site"

@@ -67,6 +67,9 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         )
         .route("/api/v1/auth/oidc/login", get(handlers::oidc_login))
         .route("/api/v1/auth/oidc/callback", get(handlers::oidc_callback))
+        .route("/api/v1/auth/saml/login", get(handlers::saml_login))
+        .route("/api/v1/auth/saml/acs", post(handlers::saml_acs))
+        .route("/api/v1/auth/saml/metadata", get(handlers::saml_metadata))
         .route("/api/v1/audit-logs", get(handlers::list_audit_logs))
         .route(
             "/api/v1/users",

@@ -3,7 +3,7 @@ import { KeyRound, Loader2, LogIn, UserPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { aegisApi, ApiError, SERVER_URL } from '../api/client';
-import type { AuthProviders, SessionInfo } from '../types';
+import type { AuthProviders, SessionInfo, SsoProvider } from '../types';
 import { BrandMark } from './ui/BrandMark';
 import { Button } from './ui/Button';
 import { LanguageSelect } from './ui/LanguageSelect';
@@ -57,6 +57,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [verifyNotice, setVerifyNotice] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState<boolean>(Boolean(verifyToken));
   const usernameRef = useRef<HTMLInputElement>(null);
+  const ssoProviders = [providers?.oidc, providers?.saml].filter((sso): sso is SsoProvider =>
+    Boolean(sso)
+  );
 
   useEffect(() => {
     usernameRef.current?.focus();
@@ -181,15 +184,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
           <span>{isSubmitting ? t('login.submitting') : t('login.submit')}</span>
         </Button>
 
-        {providers?.oidc && (
+        {ssoProviders.length > 0 && (
           <>
             <div className={styles.divider}>
               <span>{t('login.or')}</span>
             </div>
-            <a className={styles.sso} href={`${SERVER_URL}${providers.oidc.login_url}`}>
-              <KeyRound size={16} />
-              <span>{t('login.sso', { provider: providers.oidc.display_name })}</span>
-            </a>
+            {ssoProviders.map((sso) => (
+              <a key={sso.login_url} className={styles.sso} href={`${SERVER_URL}${sso.login_url}`}>
+                <KeyRound size={16} />
+                <span>{t('login.sso', { provider: sso.display_name })}</span>
+              </a>
+            ))}
           </>
         )}
 
