@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Images, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
+import i18n from '../i18n';
 import type { ObjectReference, StorageObject } from '../types';
+import { formatDate } from '../utils/format';
 import { fileNameFromKey, formatSize } from '../utils/media';
 import { Button } from './ui/Button';
 import { Field } from './ui/Field';
@@ -38,6 +41,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
   onClose,
   canDelete = false,
 }) => {
+  const { t } = useTranslation();
   const [search, setSearch] = useState<string>('');
   const [query, setQuery] = useState<string>('');
   // Offset of the latest requested page; 0 starts a fresh listing, more appends
@@ -94,7 +98,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
           objects: offset === 0 ? [] : (prev?.objects ?? []),
           total: prev?.total ?? 0,
           truncated: prev?.truncated ?? false,
-          error: err instanceof Error ? err.message : 'Failed to fetch media',
+          error: err instanceof Error ? err.message : i18n.t('api.mediaFailed'),
         }));
       });
     return () => {
@@ -133,20 +137,20 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
           : prev
       );
       setPendingDelete(null);
-      setNotice(`Deleted ${fileNameFromKey(object.key)}`);
+      setNotice(t('media.deleted', { name: fileNameFromKey(object.key) }));
     } catch (err: unknown) {
       setPendingDelete({
         object,
         references,
         busy: false,
-        error: err instanceof Error ? err.message : 'Failed to delete the file',
+        error: err instanceof Error ? err.message : t('api.deleteFileFailed'),
       });
     }
   };
 
   return (
     <Modal
-      title="Media Library"
+      title={t('media.title')}
       icon={<Images size={18} />}
       onClose={onClose}
       wide
@@ -155,8 +159,8 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
           variant="icon"
           onClick={reload}
           disabled={isLoading}
-          aria-label="Reload"
-          title="Reload"
+          aria-label={t('common.reload')}
+          title={t('common.reload')}
         >
           <RefreshCw size={16} />
         </Button>
@@ -169,27 +173,27 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
             ref={searchRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by file name..."
-            aria-label="Search media"
+            placeholder={t('media.searchPlaceholder')}
+            aria-label={t('media.searchAria')}
           />
         </Field>
-        <span className={styles.count}>
-          {objects.length}/{total} images
-        </span>
+        <span className={styles.count}>{t('media.count', { shown: objects.length, total })}</span>
       </div>
 
       <div className={styles.body}>
         {pendingDelete && (
-          <div className={styles.confirm} role="alertdialog" aria-label="Delete file">
+          <div className={styles.confirm} role="alertdialog" aria-label={t('media.deleteAria')}>
             <p>
-              Delete <strong>{fileNameFromKey(pendingDelete.object.key)}</strong>? This cannot be
-              undone.
+              <Trans
+                i18nKey="media.confirm"
+                values={{ name: fileNameFromKey(pendingDelete.object.key) }}
+                components={{ strong: <strong /> }}
+              />
             </p>
             {pendingDelete.references && (
               <>
                 <p className={styles.warning}>
-                  It is used by {pendingDelete.references.length} saved content item(s). Their
-                  images will break if you delete it:
+                  {t('media.inUse', { count: pendingDelete.references.length })}
                 </p>
                 <ul className={styles.references}>
                   {pendingDelete.references.map((ref) => (
@@ -206,7 +210,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
             {pendingDelete.error && <div className={styles.error}>{pendingDelete.error}</div>}
             <div className={styles.confirmActions}>
               <Button onClick={() => setPendingDelete(null)} disabled={pendingDelete.busy}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 variant="primary"
@@ -215,7 +219,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
                 disabled={pendingDelete.busy}
               >
                 {pendingDelete.busy && <Loader2 size={14} className="animate-spin" />}
-                {pendingDelete.references ? 'Delete anyway' : 'Delete'}
+                {pendingDelete.references ? t('media.deleteAnyway') : t('common.delete')}
               </Button>
             </div>
           </div>
@@ -228,7 +232,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
         {error && <div className={styles.error}>{error}</div>}
         {!error && !isLoading && objects.length === 0 && (
           <div className={styles.empty}>
-            {query ? `No images match "${query}".` : 'No images uploaded yet.'}
+            {query ? t('media.noMatch', { query }) : t('media.empty')}
           </div>
         )}
         <div className={styles.grid}>
@@ -244,8 +248,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
                 <span className={styles.itemName}>{fileNameFromKey(object.key)}</span>
                 <span className={styles.itemMeta}>
                   {formatSize(object.size)}
-                  {object.last_modified &&
-                    ` · ${new Date(object.last_modified).toLocaleDateString()}`}
+                  {object.last_modified && ` · ${formatDate(object.last_modified)}`}
                 </span>
               </button>
               {canDelete && (
@@ -255,8 +258,8 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
                   className={styles.itemDelete}
                   onClick={() => askDelete(object)}
                   disabled={pendingDelete?.busy}
-                  aria-label={`Delete ${fileNameFromKey(object.key)}`}
-                  title="Delete"
+                  aria-label={t('media.deleteFile', { name: fileNameFromKey(object.key) })}
+                  title={t('common.delete')}
                 >
                   <Trash2 size={14} />
                 </Button>
@@ -267,20 +270,15 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
         {isLoading && (
           <div className={styles.loading}>
             <Loader2 size={18} className="animate-spin" />
-            <span>Loading...</span>
+            <span>{t('common.loading')}</span>
           </div>
         )}
         {!isLoading && objects.length < total && (
           <div className={styles.more}>
-            <Button onClick={() => setOffset(objects.length)}>Load more</Button>
+            <Button onClick={() => setOffset(objects.length)}>{t('media.loadMore')}</Button>
           </div>
         )}
-        {result?.truncated && (
-          <div className={styles.note}>
-            The storage holds more files than the server scans for one listing (10,000), so some
-            images are not shown.
-          </div>
-        )}
+        {result?.truncated && <div className={styles.note}>{t('media.truncated')}</div>}
       </div>
     </Modal>
   );

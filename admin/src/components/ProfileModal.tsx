@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { KeyRound, Save, UserRound } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
+import { useRoleName } from '../i18n/roles';
 import { aegisApi } from '../api/client';
 import type { UserAccount } from '../types';
 import { AvatarPicker } from './AvatarPicker';
@@ -29,6 +31,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onShowToast,
   onClose,
 }) => {
+  const { t } = useTranslation();
+  const roleName = useRoleName();
   const [displayName, setDisplayName] = useState<string>(user.display_name ?? '');
   const [email, setEmail] = useState<string>(user.email ?? '');
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -58,9 +62,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         email: email.trim(),
       });
       onUpdated(updated);
-      onShowToast('Profile updated');
+      onShowToast(t('profile.updated'));
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : 'Failed to update the profile');
+      setProfileError(err instanceof Error ? err.message : t('profile.updateFailed'));
     } finally {
       setIsSaving(false);
     }
@@ -69,11 +73,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      setPasswordError(`The new password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      setPasswordError(t('profile.tooShort', { count: MIN_PASSWORD_LENGTH }));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError('The new passwords do not match.');
+      setPasswordError(t('profile.mismatch'));
       return;
     }
     setIsChangingPassword(true);
@@ -86,93 +90,93 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      onShowToast('Password changed');
+      onShowToast(t('profile.changed'));
     } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : 'Failed to change the password');
+      setPasswordError(err instanceof Error ? err.message : t('profile.changeFailed'));
     } finally {
       setIsChangingPassword(false);
     }
   };
 
   return (
-    <Modal title="My profile" icon={<UserRound size={18} />} onClose={onClose}>
+    <Modal title={t('profile.title')} icon={<UserRound size={18} />} onClose={onClose}>
       <div className={styles.body}>
         <div className={styles.section}>
           <div className={styles.identity}>
-            Signed in as <code>{user.username}</code> ({user.role})
+            <Trans
+              i18nKey="profile.signedInAs"
+              values={{ username: user.username, role: roleName(user.role) }}
+              components={{ code: <code /> }}
+            />
           </div>
           <AvatarPicker user={user} onChanged={onUpdated} />
         </div>
 
         <form className={styles.section} onSubmit={handleSaveProfile}>
-          <div className={styles.sectionTitle}>Profile</div>
-          <Field label="display name:">
+          <div className={styles.sectionTitle}>{t('profile.section')}</div>
+          <Field label={t('profile.displayName')}>
             <input
               ref={nameRef}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder={user.username}
               maxLength={100}
-              aria-label="Display name"
+              aria-label={t('profile.displayNameAria')}
             />
           </Field>
-          <Field label="email:">
+          <Field label={t('profile.email')}>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Optional"
-              aria-label="Email"
+              placeholder={t('profile.optional')}
+              aria-label={t('profile.emailAria')}
             />
           </Field>
-          <span className={styles.hint}>
-            The header shows the new name right away; other sessions pick it up at the next sign-in.
-          </span>
+          <span className={styles.hint}>{t('profile.nameHint')}</span>
           {profileError && <span className={styles.error}>{profileError}</span>}
           <div className={styles.actions}>
             <Button type="submit" variant="primary" disabled={isSaving || !profileChanged}>
               <Save size={16} />
-              <span>{isSaving ? 'Saving...' : 'Save profile'}</span>
+              <span>{isSaving ? t('profile.saving') : t('profile.save')}</span>
             </Button>
           </div>
         </form>
 
         {!canChangePassword ? (
           <div className={styles.section}>
-            <div className={styles.sectionTitle}>Password</div>
-            <span className={styles.hint}>
-              You signed in with single sign-on. Change your password with your identity provider.
-            </span>
+            <div className={styles.sectionTitle}>{t('profile.password')}</div>
+            <span className={styles.hint}>{t('profile.ssoHint')}</span>
           </div>
         ) : (
           <form className={styles.section} onSubmit={handleChangePassword}>
-            <div className={styles.sectionTitle}>Change password</div>
-            <Field label="current:">
+            <div className={styles.sectionTitle}>{t('profile.changePassword')}</div>
+            <Field label={t('profile.current')}>
               <input
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 autoComplete="current-password"
-                aria-label="Current password"
+                aria-label={t('profile.currentAria')}
               />
             </Field>
-            <Field label="new:">
+            <Field label={t('profile.new')}>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 autoComplete="new-password"
-                placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
-                aria-label="New password"
+                placeholder={t('profile.newPlaceholder', { count: MIN_PASSWORD_LENGTH })}
+                aria-label={t('profile.newAria')}
               />
             </Field>
-            <Field label="confirm:">
+            <Field label={t('profile.confirm')}>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
-                aria-label="Confirm new password"
+                aria-label={t('profile.confirmAria')}
               />
             </Field>
             {passwordError && <span className={styles.error}>{passwordError}</span>}
@@ -183,7 +187,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 disabled={isChangingPassword || !currentPassword || !newPassword}
               >
                 <KeyRound size={16} />
-                <span>{isChangingPassword ? 'Changing...' : 'Change password'}</span>
+                <span>
+                  {isChangingPassword ? t('profile.changing') : t('profile.changePassword')}
+                </span>
               </Button>
             </div>
           </form>

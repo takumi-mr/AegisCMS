@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cx } from '../../utils/cx';
 import { Button } from './Button';
 import styles from './Modal.module.css';
@@ -24,6 +25,7 @@ interface ModalProps {
  * first field on mount.
  */
 export const Modal: React.FC<ModalProps> = ({ title, icon, onClose, actions, wide, children }) => {
+  const { t } = useTranslation();
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   // Captured during the first render, before children move focus into the dialog
@@ -61,7 +63,7 @@ export const Modal: React.FC<ModalProps> = ({ title, icon, onClose, actions, wid
   };
 
   const closeButton = (
-    <Button variant="icon" onClick={onClose} aria-label="Close">
+    <Button variant="icon" onClick={onClose} aria-label={t('common.close')}>
       <X size={16} />
     </Button>
   );

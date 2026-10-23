@@ -8,11 +8,16 @@ import {
   ScrollText,
   Search,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { aegisApi, ApiError } from '../api/client';
+import i18n from '../i18n';
 import type { AuditAction, AuditEvent, AuditLogPage, AuditLogQuery } from '../types';
 import { cx } from '../utils/cx';
+import { formatDateTime } from '../utils/format';
 import { Button } from './ui/Button';
 import { Field } from './ui/Field';
+import { RoleLabel } from './ui/RoleLabel';
 import styles from './AuditLogView.module.css';
 
 const PAGE_SIZE = 50;
@@ -42,7 +47,10 @@ const ACTIONS: AuditAction[] = [
   'order.update',
   'notification.send',
 ];
-const OUTCOMES = ['success', 'failure', 'denied'];
+const OUTCOMES = ['success', 'failure', 'denied'] as const;
+
+const isOutcome = (value: string): value is (typeof OUTCOMES)[number] =>
+  (OUTCOMES as readonly string[]).includes(value);
 
 interface Filters {
   action: string;
@@ -68,26 +76,24 @@ const EMPTY_FILTERS: Filters = {
 const toRfc3339 = (localValue: string): string | undefined =>
   localValue ? new Date(localValue).toISOString() : undefined;
 
-const formatTimestamp = (iso: string): string => {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
-};
-
-const describeError = (err: unknown): string => {
+const describeError = (err: unknown, t: TFunction): string => {
   if (err instanceof ApiError) {
     switch (err.status) {
       case 403:
-        return 'This session does not have the "admin" role required to read audit logs.';
+        return t('audit.forbidden');
       case 404:
-        return 'Audit log query is unavailable: enable the "database" audit sink on the server.';
+        return t('audit.unavailable');
       default:
         return err.message;
     }
   }
-  return err instanceof Error ? err.message : 'Failed to load audit logs';
+  return err instanceof Error ? err.message : t('audit.loadFailed');
 };
 
 export const AuditLogView: React.FC = () => {
+  const { t } = useTranslation();
+  const outcomeLabel = (outcome: string): string =>
+    isOutcome(outcome) ? t(`audit.outcomes.${outcome}`) : outcome;
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [offset, setOffset] = useState<number>(0);
@@ -124,7 +130,7 @@ export const AuditLogView: React.FC = () => {
     aegisApi
       .getAuditLogs(query)
       .then((loaded) => ({ page: loaded, error: null }))
-      .catch((err: unknown) => ({ page: null, error: describeError(err) }))
+      .catch((err: unknown) => ({ page: null, error: describeError(err, i18n.t) }))
       .then((outcome) => {
         if (!cancelled) setResult({ key: requestKey, ...outcome });
       });
@@ -160,19 +166,23 @@ export const AuditLogView: React.FC = () => {
         <div className={styles.heading}>
           <div className={styles.title}>
             <ScrollText size={20} />
-            <h1>Audit Logs</h1>
+            <h1>{t('audit.title')}</h1>
           </div>
           {page && (
             <span className={styles.retention}>
-              Retention: {page.retention_days ? `${page.retention_days} days` : 'unlimited'}
+              {t('audit.retention', {
+                value: page.retention_days
+                  ? t('audit.retentionDays', { count: page.retention_days })
+                  : t('audit.unlimited'),
+              })}
             </span>
           )}
         </div>
 
         <form className={styles.filters} onSubmit={handleSearch}>
-          <Field label="action:">
+          <Field label={t('audit.fields.action')}>
             <select value={draft.action} onChange={updateDraft('action')}>
-              <option value="">all</option>
+              <option value="">{t('audit.all')}</option>
               {ACTIONS.map((a) => (
                 <option key={a} value={a}>
                   {a}
@@ -180,50 +190,50 @@ export const AuditLogView: React.FC = () => {
               ))}
             </select>
           </Field>
-          <Field label="outcome:">
+          <Field label={t('audit.fields.outcome')}>
             <select value={draft.outcome} onChange={updateDraft('outcome')}>
-              <option value="">all</option>
+              <option value="">{t('audit.all')}</option>
               {OUTCOMES.map((o) => (
                 <option key={o} value={o}>
-                  {o}
+                  {t(`audit.outcomes.${o}`)}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="actor:">
+          <Field label={t('audit.fields.actor')}>
             <input
               value={draft.actor_id}
               onChange={updateDraft('actor_id')}
-              placeholder="user id"
+              placeholder={t('audit.placeholders.actor')}
             />
           </Field>
-          <Field label="resource:">
+          <Field label={t('audit.fields.resource')}>
             <input
               value={draft.resource_type}
               onChange={updateDraft('resource_type')}
-              placeholder="type"
+              placeholder={t('audit.placeholders.resourceType')}
             />
             <input
               value={draft.resource_id}
               onChange={updateDraft('resource_id')}
-              placeholder="id"
+              placeholder={t('audit.placeholders.resourceId')}
             />
           </Field>
-          <Field label="since:">
+          <Field label={t('audit.fields.since')}>
             <input type="datetime-local" value={draft.since} onChange={updateDraft('since')} />
           </Field>
-          <Field label="until:">
+          <Field label={t('audit.fields.until')}>
             <input type="datetime-local" value={draft.until} onChange={updateDraft('until')} />
           </Field>
           <div className={styles.filterActions}>
             <Button type="submit" variant="primary">
               <Search size={16} />
-              <span>Search</span>
+              <span>{t('audit.search')}</span>
             </Button>
-            <Button onClick={handleReset}>Reset</Button>
-            <Button variant="tool" onClick={reload} disabled={isLoading} title="Reload">
+            <Button onClick={handleReset}>{t('audit.reset')}</Button>
+            <Button variant="tool" onClick={reload} disabled={isLoading} title={t('common.reload')}>
               <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-              <span>Refresh</span>
+              <span>{t('audit.refresh')}</span>
             </Button>
           </div>
         </form>
@@ -235,13 +245,13 @@ export const AuditLogView: React.FC = () => {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>Action</th>
-                  <th>Outcome</th>
-                  <th>Actor</th>
-                  <th>Resource</th>
-                  <th>IP</th>
-                  <th aria-label="Details" />
+                  <th>{t('audit.columns.time')}</th>
+                  <th>{t('audit.columns.action')}</th>
+                  <th>{t('audit.columns.outcome')}</th>
+                  <th>{t('audit.columns.actor')}</th>
+                  <th>{t('audit.columns.resource')}</th>
+                  <th>{t('audit.columns.ip')}</th>
+                  <th aria-label={t('audit.columns.details')} />
                 </tr>
               </thead>
               <tbody>
@@ -254,19 +264,22 @@ export const AuditLogView: React.FC = () => {
                         onClick={() => setExpandedId(expanded ? null : event.id)}
                       >
                         <td className={styles.mono} title={event.occurred_at}>
-                          {formatTimestamp(event.occurred_at)}
+                          {formatDateTime(event.occurred_at)}
                         </td>
                         <td className={styles.mono}>{event.action}</td>
                         <td>
                           <span className={cx(styles.outcome, OUTCOME_BADGE[event.outcome])}>
-                            {event.outcome}
+                            {outcomeLabel(event.outcome)}
                           </span>
                         </td>
                         <td>
                           {event.actor ? (
                             <>
                               {event.actor.user_id}
-                              <span className={styles.muted}> ({event.actor.role})</span>
+                              <span className={styles.muted}>
+                                {' '}
+                                (<RoleLabel role={event.actor.role} />)
+                              </span>
                             </>
                           ) : (
                             <span className={styles.muted}>—</span>
@@ -285,9 +298,9 @@ export const AuditLogView: React.FC = () => {
                         <tr className={styles.detailRow}>
                           <td colSpan={7}>
                             <dl className={styles.detailMeta}>
-                              <dt>ID</dt>
+                              <dt>{t('audit.id')}</dt>
                               <dd className={styles.mono}>{event.id}</dd>
-                              <dt>User agent</dt>
+                              <dt>{t('audit.userAgent')}</dt>
                               <dd>{event.user_agent ?? '—'}</dd>
                             </dl>
                             <pre className={styles.details}>
@@ -302,9 +315,7 @@ export const AuditLogView: React.FC = () => {
               </tbody>
             </table>
 
-            {page && items.length === 0 && (
-              <div className={styles.empty}>No audit events match these filters.</div>
-            )}
+            {page && items.length === 0 && <div className={styles.empty}>{t('audit.empty')}</div>}
 
             <div className={styles.pagination}>
               <Button
@@ -313,17 +324,17 @@ export const AuditLogView: React.FC = () => {
                 disabled={offset === 0 || isLoading}
               >
                 <ChevronLeft size={14} />
-                <span>Newer</span>
+                <span>{t('audit.newer')}</span>
               </Button>
               <span className={styles.muted}>
-                {items.length > 0 ? `${offset + 1}–${offset + items.length}` : '0 events'}
+                {items.length > 0 ? `${offset + 1}–${offset + items.length}` : t('audit.noEvents')}
               </span>
               <Button
                 variant="tool"
                 onClick={() => setOffset(offset + PAGE_SIZE)}
                 disabled={!hasNext || isLoading}
               >
-                <span>Older</span>
+                <span>{t('audit.older')}</span>
                 <ChevronRight size={14} />
               </Button>
             </div>

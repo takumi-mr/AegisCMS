@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
 import type { UserAccount } from '../types';
 import { Avatar } from './ui/Avatar';
@@ -18,6 +19,7 @@ interface AvatarPickerProps {
 
 /** Large avatar with buttons to upload a new image or remove the current one */
 export const AvatarPicker: React.FC<AvatarPickerProps> = ({ user, onChanged }) => {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isBusy, setIsBusy] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({ user, onChanged }) =
     try {
       onChanged(await action());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update the avatar');
+      setError(err instanceof Error ? err.message : t('avatar.failed'));
     } finally {
       setIsBusy(false);
     }
@@ -40,11 +42,11 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({ user, onChanged }) =
     e.target.value = '';
     if (!file) return;
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      setError('Choose a PNG, JPEG, GIF or WebP image.');
+      setError(t('avatar.wrongType'));
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      setError('The image must be 2 MB or smaller.');
+      setError(t('avatar.tooLarge'));
       return;
     }
     run(() => aegisApi.uploadAvatar(user.username, file));
@@ -58,7 +60,11 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({ user, onChanged }) =
           <Button variant="tool" onClick={() => inputRef.current?.click()} disabled={isBusy}>
             <ImagePlus size={14} />
             <span>
-              {isBusy ? 'Uploading...' : user.avatar_url ? 'Change image' : 'Upload image'}
+              {isBusy
+                ? t('avatar.uploading')
+                : user.avatar_url
+                  ? t('avatar.change')
+                  : t('avatar.upload')}
             </span>
           </Button>
           {user.avatar_url && (
@@ -68,11 +74,11 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({ user, onChanged }) =
               disabled={isBusy}
             >
               <Trash2 size={14} />
-              <span>Remove</span>
+              <span>{t('avatar.remove')}</span>
             </Button>
           )}
         </div>
-        <span className={styles.hint}>PNG, JPEG, GIF or WebP, up to 2 MB.</span>
+        <span className={styles.hint}>{t('avatar.hint')}</span>
         {error && <span className={styles.error}>{error}</span>}
       </div>
       <input
@@ -81,7 +87,7 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({ user, onChanged }) =
         accept={ACCEPTED_TYPES.join(',')}
         onChange={handleFile}
         hidden
-        aria-label="Avatar image"
+        aria-label={t('avatar.aria')}
       />
     </div>
   );

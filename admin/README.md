@@ -36,6 +36,9 @@
   - 起動時にログイン画面を表示し、ユーザー名 / パスワードで `POST /api/v1/auth/session` にログイン。発行されたトークンはタブを閉じるまで `sessionStorage` に保持し、すべての API 呼び出しに `Authorization: Bearer` として付与する（再読み込みしてもログイン状態を維持）。
   - ヘッダーに表示名とロールを表示し、ログアウトボタンでセッションを破棄。API が 401（期限切れ・失効）を返したらログイン画面に戻る。
   - ロールに応じて操作を制限: `viewer` は Save・画像アップロード・カテゴリ作成が無効、Audit Logs タブは `admin` のみ表示（サーバー側でも同じ権限を検証。[認証 & ユーザー管理](../docs/authentication.md)）。
+- **多言語対応（英語 / 日本語）**:
+  - ヘッダーとログイン画面の言語メニューで切り替え。選んだ言語はブラウザに保存し、初回はブラウザの言語（日本語なら日本語、それ以外は英語）で表示。日付・金額の書式も言語に合わせる。
+  - 文言は [i18next](https://www.i18next.com/) の JSON（`src/locales/<言語>/translation.json`）で、翻訳サービスにそのまま渡せる（[多言語対応](#-多言語対応-i18n)）。
 - **Core Engine との透過的連携**:
   - スキーマ一覧（`/api/v1/schemas`）および記事一覧・詳細・作成（`/api/v1/contents/{content_type}`）とのリアルタイム同期。
   - バックエンドサーバーのヘルスチェック（`/api/v1/health`）による接続ステータス表示。
@@ -51,6 +54,7 @@
 | **ビルドツール** | Vite 6 | 高速な HMR（Hot Module Replacement）と最小限のバンドルサイズ |
 | **スタイリング** | Vanilla CSS (CSS Variables) | 高いデザイン柔軟性、フレームワーク非依存、ゼロランタイム |
 | **アイコン** | Lucide React | 軽量で一貫性のあるモダンアイコンセット |
+| **多言語対応** | i18next + react-i18next | 翻訳サービス（Crowdin・Lokalise など）が扱える JSON 形式、複数形・差し込み |
 
 ---
 
@@ -67,6 +71,8 @@ admin/
 │   │   │   ├── Button.tsx  # ボタン（primary / secondary / tool / icon）
 │   │   │   ├── Field.tsx   # ラベル付き入力欄 Field と横並びの FieldRow
 │   │   │   ├── Modal.tsx   # モーダル（Escape・外側クリックで閉じる、フォーカストラップ）
+│   │   │   ├── LanguageSelect.tsx # 言語の切り替え
+│   │   │   ├── RoleLabel.tsx # ロールの表示名
 │   │   │   └── BrandMark.tsx # ロゴマーク
 │   │   ├── Header.tsx      # ヘッダー・画面切り替え・サーバー状態・ログインユーザー
 │   │   ├── LoginView.tsx   # ログイン画面
@@ -77,7 +83,9 @@ admin/
 │   │   ├── ContentList.tsx # 記事・コンテンツ一覧サイドバー
 │   │   ├── BlockItem.tsx   # 各種 AST ブロックエディタ
 │   │   └── Preview.tsx     # リアルタイム HTML / ソースコードプレビュー
-│   ├── utils/              # カテゴリ・メディア・ロール判定、クラス名結合 cx などのヘルパー
+│   ├── i18n/               # i18next の初期化・言語の検出と保存（index.ts）、キーの型（i18next.d.ts）
+│   ├── locales/            # 翻訳: en/translation.json（原文）、ja/translation.json
+│   ├── utils/              # カテゴリ・メディア・ロール判定、日付の書式（format.ts）、cx などのヘルパー
 │   ├── types/
 │   │   ├── index.ts        # AST ノード・スキーマ・コンテンツ型定義
 │   │   └── schemas.ts      # スキーマから自動生成された型（task codegen:ts）
@@ -85,6 +93,7 @@ admin/
 │   ├── App.module.css
 │   ├── index.css           # グローバル: デザイントークン（CSS 変数）・リセット・基本要素のみ
 │   └── main.tsx            # エントリーポイント
+├── scripts/check-locales.mjs # 全言語のキーが英語と同じか検証（npm run lint で実行）
 ├── index.html              # HTML テンプレート
 ├── package.json
 └── vite.config.ts
@@ -96,6 +105,47 @@ admin/
 - 色・余白・角丸・フォントなどは `index.css` の CSS 変数（`var(--bg-surface)` など）を使います。`style={{...}}` のインライン指定は、カテゴリ色のように実行時に決まる値だけにします。
 - ボタン・入力欄・モーダルは `components/ui/` の共通部品を使います。親から共通部品の見た目を調整するときは、`className` を渡し、親のモジュールで `.parent .child` のように子孫セレクタで指定します（CSS の読み込み順に依存せず上書きできるため）。
 - 複数のクラスの結合には `utils/cx.ts` の `cx(styles.a, active && styles.b)` を使います。
+
+---
+
+## 🌐 多言語対応 (i18n)
+
+画面の文言はコードに直接書かず、`src/locales/<言語>/translation.json` のキーで参照します。英語（`en`）が原文で、ほかの言語はそれを翻訳したものです。
+
+```tsx
+import { useTranslation } from 'react-i18next';
+
+const { t } = useTranslation();
+<span>{t('orders.markPaid')}</span>                        // 支払い済みにする
+t('orders.updated', { number: order.number, status })     // 差し込み: "注文 {{number}}: {{status}}"
+t('media.inUse', { count: 3 })                             // 複数形: media.inUse_one / media.inUse_other
+<Trans i18nKey="profile.signedInAs" values={{ username }} components={{ code: <code /> }} />
+```
+
+- **キーは型で検査されます**（`src/i18n/i18next.d.ts`）。英語の JSON に無いキーを `t()` に渡すと `npm run build`（`tsc`）が失敗します。
+- **訳し漏れは lint で検出します**。`npm run lint` の最後に `scripts/check-locales.mjs` が、各言語のキーが英語と同じか（無いキー・余分なキー・空の値）を確かめます。複数形は言語ごとに形が違うため（英語は `_one` / `_other`、日本語は `_other` だけ）、まとめて 1 つのキーとして比べます。
+- コンポーネントの外（API クライアントのエラーメッセージなど）では `import i18n from '../i18n'` の `i18n.t()` を使います。`useEffect` の中のエラーメッセージも `i18n.t()` にします（`t` を依存配列に入れると、言語を切り替えたときに読み込み直してしまうため）。
+- 日付は `utils/format.ts` の `formatDate` / `formatDateTime`、金額は `utils/money.ts` の `formatMoney` を使うと、表示中の言語の書式になります。
+- サーバーが返すエラーメッセージ（API の `error`）は英語のまま表示します。画面側で言い換えているのは、ログインの失敗・権限不足など一部だけです。
+
+### 言語を追加する
+
+1. `src/locales/<言語コード>/translation.json` を英語のファイルから作って翻訳する
+2. `src/i18n/index.ts` の `LANGUAGES` と `resources` に加える
+3. `npm run lint` でキーがそろっているか確かめる
+
+### 翻訳サービスと連携する
+
+ファイルは i18next の JSON（v4、ネストしたキー）なので、Crowdin・Lokalise・Weblate などの「i18next JSON」形式でそのまま読み書きできます。例えば Crowdin なら:
+
+```yaml
+# crowdin.yml（リポジトリのルート）
+files:
+  - source: /admin/src/locales/en/translation.json
+    translation: /admin/src/locales/%two_letters_code%/translation.json
+```
+
+翻訳サービスから戻ってきたファイルは、`npm run format` で整形してから `npm run lint` / `npm run build` を通してください。
 
 ---
 

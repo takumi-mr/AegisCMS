@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, ShoppingBag } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { aegisApi, ApiError } from '../api/client';
+import i18n from '../i18n';
 import type { Order, OrderPage, OrderStatus } from '../types';
 import { cx } from '../utils/cx';
+import { formatDateTime } from '../utils/format';
 import { formatMoney } from '../utils/money';
 import { Button } from './ui/Button';
 import { Field } from './ui/Field';
@@ -10,14 +13,6 @@ import { Modal } from './ui/Modal';
 import styles from './Shop.module.css';
 
 const PAGE_SIZE = 25;
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  pending_payment: 'Awaiting payment',
-  paid: 'Paid',
-  shipped: 'Shipped',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-};
 
 const STATUS_BADGE: Record<OrderStatus, string | undefined> = {
   pending_payment: styles.warn,
@@ -36,11 +31,7 @@ const FILTERS: (OrderStatus | '')[] = [
   'cancelled',
 ];
 
-const formatDate = (iso: string | null): string => {
-  if (!iso) return '—';
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
-};
+const formatDate = (iso: string | null): string => (iso ? formatDateTime(iso) : '—');
 
 const messageOf = (err: unknown, fallback: string): string =>
   err instanceof Error ? err.message : fallback;
@@ -51,6 +42,7 @@ interface OrderManagerProps {
 
 /** Shop orders for editors: filter by status, open an order and move it along */
 export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<OrderStatus | ''>('');
   const [offset, setOffset] = useState<number>(0);
   const [reloadCount, setReloadCount] = useState<number>(0);
@@ -71,8 +63,8 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
         if (cancelled) return;
         setError(
           err instanceof ApiError && err.status === 404
-            ? 'The shop is not enabled. Set [commerce].enabled = true in the server configuration.'
-            : messageOf(err, 'Failed to load orders')
+            ? i18n.t('orders.shopDisabled')
+            : messageOf(err, i18n.t('orders.loadFailed'))
         );
       });
     return () => {
@@ -85,7 +77,12 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
     setPage((prev) =>
       prev ? { ...prev, orders: prev.orders.map((o) => (o.id === updated.id ? updated : o)) } : prev
     );
-    onShowToast(`Order ${updated.number}: ${STATUS_LABELS[updated.status]}`);
+    onShowToast(
+      t('orders.updated', {
+        number: updated.number,
+        status: t(`orders.status.${updated.status}`),
+      })
+    );
   };
 
   return (
@@ -94,18 +91,18 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
         <div className={styles.heading}>
           <div className={styles.title}>
             <ShoppingBag size={22} />
-            <h1>Orders</h1>
+            <h1>{t('orders.title')}</h1>
             {page && <span className={styles.count}>{page.total}</span>}
           </div>
           <div className={styles.headingActions}>
             <Button variant="tool" onClick={() => setReloadCount((n) => n + 1)}>
               <RefreshCw size={14} />
-              <span>Reload</span>
+              <span>{t('common.reload')}</span>
             </Button>
           </div>
         </div>
 
-        <div className={styles.filters} role="tablist" aria-label="Order status">
+        <div className={styles.filters} role="tablist" aria-label={t('orders.statusFilter')}>
           {FILTERS.map((value) => (
             <button
               key={value || 'all'}
@@ -118,7 +115,7 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
                 setOffset(0);
               }}
             >
-              {value ? STATUS_LABELS[value] : 'All'}
+              {value ? t(`orders.status.${value}`) : t('orders.all')}
             </button>
           ))}
         </div>
@@ -130,12 +127,12 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Order</th>
-                  <th>Placed</th>
-                  <th>Customer</th>
-                  <th>Items</th>
-                  <th className={styles.numeric}>Total</th>
-                  <th>Status</th>
+                  <th>{t('orders.columns.order')}</th>
+                  <th>{t('orders.columns.placed')}</th>
+                  <th>{t('orders.columns.customer')}</th>
+                  <th>{t('orders.columns.items')}</th>
+                  <th className={styles.numeric}>{t('orders.columns.total')}</th>
+                  <th>{t('orders.columns.status')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,7 +156,7 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
                     <td className={styles.numeric}>{formatMoney(order.total, order.currency)}</td>
                     <td>
                       <span className={cx(styles.badge, STATUS_BADGE[order.status])}>
-                        {STATUS_LABELS[order.status]}
+                        {t(`orders.status.${order.status}`)}
                       </span>
                     </td>
                   </tr>
@@ -167,7 +164,9 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
                 {page.orders.length === 0 && (
                   <tr>
                     <td colSpan={6} className={styles.empty}>
-                      No orders{status ? ` with status "${STATUS_LABELS[status]}"` : ' yet'}.
+                      {status
+                        ? t('orders.emptyStatus', { status: t(`orders.status.${status}`) })
+                        : t('orders.empty')}
                     </td>
                   </tr>
                 )}
@@ -184,17 +183,21 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
             >
               <ChevronLeft size={14} />
-              <span>Newer</span>
+              <span>{t('orders.newer')}</span>
             </Button>
             <span>
-              {offset + 1}–{Math.min(offset + PAGE_SIZE, page.total)} of {page.total}
+              {t('orders.range', {
+                from: offset + 1,
+                to: Math.min(offset + PAGE_SIZE, page.total),
+                total: page.total,
+              })}
             </span>
             <Button
               variant="tool"
               disabled={offset + PAGE_SIZE >= page.total}
               onClick={() => setOffset(offset + PAGE_SIZE)}
             >
-              <span>Older</span>
+              <span>{t('orders.older')}</span>
               <ChevronRight size={14} />
             </Button>
           </div>
@@ -221,23 +224,21 @@ interface OrderDetailProps {
 }
 
 const OrderDetail: React.FC<OrderDetailProps> = ({ order, onUpdated, onError, onClose }) => {
+  const { t } = useTranslation();
   const [note, setNote] = useState<string>('');
   const [busy, setBusy] = useState<boolean>(false);
 
   const move = async (status: OrderStatus) => {
     if (status === 'cancelled') {
-      const refund =
-        order.status === 'paid'
-          ? ' The payment is not refunded automatically: refund it from your payment dashboard.'
-          : '';
-      if (!window.confirm(`Cancel order ${order.number}? Its stock is returned.${refund}`)) return;
+      const refund = order.status === 'paid' ? t('orders.noRefund') : '';
+      if (!window.confirm(t('orders.confirmCancel', { number: order.number, refund }))) return;
     }
     setBusy(true);
     try {
       onUpdated(await aegisApi.updateOrderStatus(order.id, status, note.trim() || undefined));
       setNote('');
     } catch (err) {
-      onError(messageOf(err, 'Failed to update the order'));
+      onError(messageOf(err, t('api.updateOrderFailed')));
     } finally {
       setBusy(false);
     }
@@ -258,36 +259,47 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ order, onUpdated, onError, on
     : '';
 
   return (
-    <Modal title={`Order ${order.number}`} icon={<ShoppingBag size={18} />} onClose={onClose} wide>
+    <Modal
+      title={t('orders.detailTitle', { number: order.number })}
+      icon={<ShoppingBag size={18} />}
+      onClose={onClose}
+      wide
+    >
       <div className={styles.detail}>
         <div className={styles.actionsBar}>
           <span className={cx(styles.badge, STATUS_BADGE[order.status])}>
-            {STATUS_LABELS[order.status]}
+            {t(`orders.status.${order.status}`)}
           </span>
-          <span className={styles.muted}>Placed {formatDate(order.created_at)}</span>
+          <span className={styles.muted}>
+            {t('orders.placedAt', { date: formatDate(order.created_at) })}
+          </span>
           {order.paid_at && (
-            <span className={styles.muted}>· Paid {formatDate(order.paid_at)}</span>
+            <span className={styles.muted}>
+              {t('orders.paidAt', { date: formatDate(order.paid_at) })}
+            </span>
           )}
           {order.status === 'pending_payment' && order.expires_at && (
-            <span className={styles.muted}>· Stock held until {formatDate(order.expires_at)}</span>
+            <span className={styles.muted}>
+              {t('orders.heldUntil', { date: formatDate(order.expires_at) })}
+            </span>
           )}
         </div>
 
         <div className={styles.detailGrid}>
           <div className={styles.box}>
-            <div className={styles.boxTitle}>Customer</div>
+            <div className={styles.boxTitle}>{t('orders.customer')}</div>
             {order.customer_name || '—'}
             {'\n'}
             <a href={`mailto:${order.customer_email}`}>{order.customer_email}</a>
           </div>
           <div className={styles.box}>
-            <div className={styles.boxTitle}>Ship to</div>
-            {addressText || <span className={styles.muted}>No address</span>}
+            <div className={styles.boxTitle}>{t('orders.shipTo')}</div>
+            {addressText || <span className={styles.muted}>{t('orders.noAddress')}</span>}
           </div>
         </div>
 
         <div className={styles.box} style={{ whiteSpace: 'normal' }}>
-          <div className={styles.boxTitle}>Items</div>
+          <div className={styles.boxTitle}>{t('orders.items')}</div>
           {order.lines.map((line) => (
             <div key={line.product_id} className={styles.sumRow}>
               <span>
@@ -307,14 +319,14 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ order, onUpdated, onError, on
             </div>
           ))}
           <div className={cx(styles.sumRow, styles.sumTotal)}>
-            <span>Total</span>
+            <span>{t('orders.total')}</span>
             <span>{formatMoney(order.total, order.currency)}</span>
           </div>
         </div>
 
         <div className={styles.detailGrid}>
           <div className={styles.box}>
-            <div className={styles.boxTitle}>Payment</div>
+            <div className={styles.boxTitle}>{t('orders.payment')}</div>
             {order.payment_provider}
             {order.payment_ref && (
               <>
@@ -322,48 +334,46 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ order, onUpdated, onError, on
                 <span className={styles.mono}>{order.payment_ref}</span>
               </>
             )}
-            {order.coupon_code && `\nCoupon: ${order.coupon_code}`}
+            {order.coupon_code && `\n${t('orders.coupon', { code: order.coupon_code })}`}
           </div>
           <div className={styles.box}>
-            <div className={styles.boxTitle}>Note</div>
+            <div className={styles.boxTitle}>{t('orders.note')}</div>
             {order.note || <span className={styles.muted}>—</span>}
           </div>
         </div>
 
         {order.status !== 'completed' && order.status !== 'cancelled' && (
           <>
-            <Field label="note:">
+            <Field label={t('orders.noteField')}>
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Optional, e.g. a tracking number"
-                aria-label="Note"
+                placeholder={t('orders.notePlaceholder')}
+                aria-label={t('orders.noteAria')}
               />
             </Field>
             <div className={styles.actionsBar}>
               {order.status === 'pending_payment' && order.can_mark_paid && (
                 <Button variant="primary" disabled={busy} onClick={() => move('paid')}>
-                  Mark as paid
+                  {t('orders.markPaid')}
                 </Button>
               )}
               {order.status === 'pending_payment' && !order.can_mark_paid && (
-                <span className={styles.muted}>
-                  Waiting for the payment provider to confirm the payment.
-                </span>
+                <span className={styles.muted}>{t('orders.waitingProvider')}</span>
               )}
               {order.status === 'paid' && (
                 <Button variant="primary" disabled={busy} onClick={() => move('shipped')}>
-                  Mark as shipped
+                  {t('orders.markShipped')}
                 </Button>
               )}
               {order.status === 'shipped' && (
                 <Button variant="primary" disabled={busy} onClick={() => move('completed')}>
-                  Mark as completed
+                  {t('orders.markCompleted')}
                 </Button>
               )}
               {(order.status === 'pending_payment' || order.status === 'paid') && (
                 <Button danger disabled={busy} onClick={() => move('cancelled')}>
-                  Cancel order
+                  {t('orders.cancel')}
                 </Button>
               )}
             </div>

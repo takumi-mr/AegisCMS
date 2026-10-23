@@ -11,7 +11,9 @@ import {
   ShieldCheck,
   RefreshCw,
 } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi, SERVER_URL } from '../api/client';
+import i18n from '../i18n';
 import type { SessionInfo, ThemeInfo } from '../types';
 import { isAdmin } from '../utils/roles';
 import { cx } from '../utils/cx';
@@ -22,14 +24,25 @@ interface ThemeManagerProps {
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
+const MARKET_CATEGORIES = [
+  'all',
+  'cyberpunk',
+  'editorial',
+  'darkMode',
+  'luxury',
+  'portfolio',
+] as const;
+
 export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'installed' | 'market'>('installed');
   const [themes, setThemes] = useState<ThemeInfo[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [reloadTrigger, setReloadTrigger] = useState<number>(0);
   const [switchingThemeId, setSwitchingThemeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedCategory, setSelectedCategory] =
+    useState<(typeof MARKET_CATEGORIES)[number]>('all');
 
   const canSwitchTheme = isAdmin(session);
 
@@ -46,7 +59,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
       .catch((err: unknown) => {
         console.error('Failed to load themes:', err);
         if (!cancelled) {
-          onShowToast('Failed to load installed themes', 'error');
+          onShowToast(i18n.t('themes.loadFailed'), 'error');
           setIsLoading(false);
         }
       });
@@ -63,17 +76,17 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
 
   const handleSwitchTheme = async (themeId: string) => {
     if (!canSwitchTheme) {
-      onShowToast('Admin role is required to switch the active theme', 'error');
+      onShowToast(t('themes.adminRequired'), 'error');
       return;
     }
 
     setSwitchingThemeId(themeId);
     try {
       const updated = await aegisApi.switchActiveTheme(themeId);
-      onShowToast(`Activated "${updated.name}" successfully!`, 'success');
+      onShowToast(t('themes.activated', { name: updated.name }), 'success');
       reloadThemes();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to switch theme';
+      const msg = err instanceof Error ? err.message : t('themes.switchFailed');
       onShowToast(msg, 'error');
     } finally {
       setSwitchingThemeId(null);
@@ -82,7 +95,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
 
   const authorName = (author: ThemeInfo['author']): string => {
     if (typeof author === 'string') return author;
-    return author?.name || 'Aegis Community';
+    return author?.name || t('themes.defaultAuthor');
   };
 
   const authorUrl = (author: ThemeInfo['author']): string | undefined => {
@@ -90,12 +103,12 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
     return undefined;
   };
 
-  const filteredThemes = themes.filter((t) => {
+  const filteredThemes = themes.filter((theme) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
-      t.name.toLowerCase().includes(q) ||
-      t.description.toLowerCase().includes(q) ||
-      t.tags.some((tag) => tag.toLowerCase().includes(q));
+      theme.name.toLowerCase().includes(q) ||
+      theme.description.toLowerCase().includes(q) ||
+      theme.tags.some((tag) => tag.toLowerCase().includes(q));
     return matchesSearch;
   });
 
@@ -106,7 +119,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
           <div className={styles.titleRow}>
             <h1 className={styles.title}>
               <Palette className={styles.titleIcon} size={28} />
-              <span>Theme Management</span>
+              <span>{t('themes.title')}</span>
             </h1>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -115,27 +128,24 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.previewBtn}
-                title="Open public website in a new tab"
+                title={t('themes.viewSiteTitle')}
               >
-                <span>View Public Site</span>
+                <span>{t('themes.viewSite')}</span>
                 <ExternalLink size={14} />
               </a>
               <button
                 onClick={reloadThemes}
                 disabled={isLoading}
                 className={styles.previewBtn}
-                title="Refresh theme list"
+                title={t('themes.refreshTitle')}
               >
                 <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                <span>Refresh</span>
+                <span>{t('themes.refresh')}</span>
               </button>
             </div>
           </div>
 
-          <p className={styles.description}>
-            Customize the visual presentation and streaming layouts of your public site. Themes are
-            sandboxed packages that compile with MiniJinja with zero performance penalty.
-          </p>
+          <p className={styles.description}>{t('themes.description')}</p>
 
           <div className={styles.tabs}>
             <button
@@ -143,7 +153,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
               onClick={() => setActiveTab('installed')}
             >
               <Sparkles size={16} />
-              <span>Installed Themes</span>
+              <span>{t('themes.installed')}</span>
               <span className={styles.tabBadge}>{themes.length}</span>
             </button>
             <button
@@ -151,8 +161,8 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
               onClick={() => setActiveTab('market')}
             >
               <ShoppingBag size={16} />
-              <span>Theme Marketplace</span>
-              <span className={styles.tabBadge}>Ecosystem</span>
+              <span>{t('themes.marketplace')}</span>
+              <span className={styles.tabBadge}>{t('themes.ecosystem')}</span>
             </button>
           </div>
         </div>
@@ -181,7 +191,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                       {isCurrent && (
                         <div className={styles.activeBadge}>
                           <CheckCircle size={14} />
-                          <span>Active Theme</span>
+                          <span>{t('themes.activeBadge')}</span>
                         </div>
                       )}
                     </div>
@@ -229,7 +239,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                         {isCurrent ? (
                           <button className={cx(styles.activateBtn, styles.activeBtn)} disabled>
                             <CheckCircle size={16} />
-                            <span>Currently Active</span>
+                            <span>{t('themes.currentlyActive')}</span>
                           </button>
                         ) : (
                           <button
@@ -238,19 +248,19 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                             disabled={isSwitching || !canSwitchTheme}
                             title={
                               canSwitchTheme
-                                ? 'Activate this theme for the public site'
-                                : 'Admin role is required to switch theme'
+                                ? t('themes.activateTitle')
+                                : t('themes.activateNeedsAdmin')
                             }
                           >
                             {isSwitching ? (
                               <>
                                 <RefreshCw size={16} className="animate-spin" />
-                                <span>Activating...</span>
+                                <span>{t('themes.activating')}</span>
                               </>
                             ) : (
                               <>
                                 <Palette size={16} />
-                                <span>Activate Theme</span>
+                                <span>{t('themes.activate')}</span>
                               </>
                             )}
                           </button>
@@ -261,7 +271,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                           target="_blank"
                           rel="noopener noreferrer"
                           className={styles.previewBtn}
-                          title="Preview site layout"
+                          title={t('themes.previewTitle')}
                         >
                           <ExternalLink size={16} />
                         </a>
@@ -279,15 +289,14 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
             <div className={styles.marketHero}>
               <div className={styles.marketHeroHeader}>
                 <div>
-                  <h2 className={styles.marketTitle}>Aegis Theme Marketplace</h2>
+                  <h2 className={styles.marketTitle}>{t('themes.marketTitle')}</h2>
                   <p
                     style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '0.4rem' }}
                   >
-                    Discover, install, and preview community-verified themes directly from the
-                    decentralized Aegis registry.
+                    {t('themes.marketDescription')}
                   </p>
                 </div>
-                <span className={styles.marketBadge}>Marketplace v1 Preview</span>
+                <span className={styles.marketBadge}>{t('themes.marketBadge')}</span>
               </div>
 
               <div className={styles.marketFilters}>
@@ -304,7 +313,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                   />
                   <input
                     type="text"
-                    placeholder="Search community themes by keyword or author..."
+                    placeholder={t('themes.searchPlaceholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className={styles.searchBox}
@@ -313,20 +322,18 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                 </div>
 
                 <div className={styles.categoryFilter}>
-                  {['All', 'Cyberpunk', 'Editorial', 'Dark Mode', 'Luxury', 'Portfolio'].map(
-                    (cat) => (
-                      <button
-                        key={cat}
-                        className={cx(
-                          styles.categoryPill,
-                          selectedCategory === cat && styles.categoryPillActive
-                        )}
-                        onClick={() => setSelectedCategory(cat)}
-                      >
-                        {cat}
-                      </button>
-                    )
-                  )}
+                  {MARKET_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat}
+                      className={cx(
+                        styles.categoryPill,
+                        selectedCategory === cat && styles.categoryPillActive
+                      )}
+                      onClick={() => setSelectedCategory(cat)}
+                    >
+                      {t(`themes.categories.${cat}`)}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -334,25 +341,17 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
             {/* Direct Package Import Box */}
             <div className={styles.importBox}>
               <UploadCloud size={44} className={styles.importIcon} />
-              <div className={styles.importTitle}>Install Theme from Package or Registry</div>
+              <div className={styles.importTitle}>{t('themes.importTitle')}</div>
               <p className={styles.importDesc}>
-                AegisCMS themes are fully isolated directory packages containing a{' '}
-                <code>theme.json</code> manifest and <code>templates/</code>. Simply drop or unpack
-                any compatible theme into your server's <code>themes/</code> directory to make it
-                available immediately.
+                <Trans i18nKey="themes.importDescription" components={{ code: <code /> }} />
               </p>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
                 <button
                   className={styles.activateBtn}
-                  onClick={() =>
-                    onShowToast(
-                      'Direct ZIP upload installer will be available in Marketplace v2! For now, extract ZIP packages to themes/ directory.',
-                      'success'
-                    )
-                  }
+                  onClick={() => onShowToast(t('themes.zipNotice'), 'success')}
                 >
                   <UploadCloud size={16} />
-                  <span>Import Theme (.zip)</span>
+                  <span>{t('themes.importZip')}</span>
                 </button>
                 <a
                   href="https://github.com/takumi-mr/AegisCMS/tree/main/themes"
@@ -360,7 +359,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                   rel="noopener noreferrer"
                   className={styles.previewBtn}
                 >
-                  <span>Browse Theme Templates</span>
+                  <span>{t('themes.browse')}</span>
                   <ExternalLink size={14} />
                 </a>
               </div>

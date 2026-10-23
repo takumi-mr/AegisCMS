@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Clipboard, FileCode, Check, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { markdownToBlocks, summarizeBlocks } from '../utils/markdown';
@@ -12,6 +13,7 @@ interface PasteMarkdownModalProps {
 }
 
 export const PasteMarkdownModal: React.FC<PasteMarkdownModalProps> = ({ onInsert, onClose }) => {
+  const { t } = useTranslation();
   const [markdown, setMarkdown] = useState<string>('');
   const [mode, setMode] = useState<'append' | 'replace'>('append');
   const [copiedState, setCopiedState] = useState<boolean>(false);
@@ -23,12 +25,12 @@ export const PasteMarkdownModal: React.FC<PasteMarkdownModalProps> = ({ onInsert
   const handleReadClipboard = async () => {
     try {
       if (!navigator.clipboard?.readText) {
-        setErrorNotice('Clipboard access is not permitted in this browser.');
+        setErrorNotice(t('paste.noAccess'));
         return;
       }
       const text = await navigator.clipboard.readText();
       if (!text.trim()) {
-        setErrorNotice('Clipboard is empty.');
+        setErrorNotice(t('paste.empty'));
         return;
       }
       setMarkdown(text);
@@ -37,9 +39,7 @@ export const PasteMarkdownModal: React.FC<PasteMarkdownModalProps> = ({ onInsert
       setTimeout(() => setCopiedState(false), 2000);
     } catch (err: unknown) {
       console.warn('Could not read clipboard:', err);
-      setErrorNotice(
-        'Clipboard read failed. Please paste directly using Ctrl+V / Cmd+V into the text area.'
-      );
+      setErrorNotice(t('paste.readFailed'));
     }
   };
 
@@ -51,22 +51,19 @@ export const PasteMarkdownModal: React.FC<PasteMarkdownModalProps> = ({ onInsert
 
   return (
     <Modal
-      title="Paste & Import Markdown"
+      title={t('paste.title')}
       icon={<Clipboard size={18} />}
       onClose={onClose}
       wide
       actions={
         <Button variant="tool" onClick={handleReadClipboard} className={styles.pasteButton}>
           {copiedState ? <Check size={14} /> : <Clipboard size={14} />}
-          <span>{copiedState ? 'Pasted!' : 'Paste from Clipboard'}</span>
+          <span>{copiedState ? t('paste.pasted') : t('paste.fromClipboard')}</span>
         </Button>
       }
     >
       <div className={styles.container}>
-        <p className={styles.intro}>
-          Paste Markdown from your clipboard to automatically parse headings, code blocks, lists,
-          images, and paragraphs into AegisCMS AST blocks.
-        </p>
+        <p className={styles.intro}>{t('paste.intro')}</p>
 
         {errorNotice && (
           <div className={styles.summaryBar} style={{ borderColor: 'rgba(244, 63, 94, 0.4)' }}>
@@ -79,7 +76,7 @@ export const PasteMarkdownModal: React.FC<PasteMarkdownModalProps> = ({ onInsert
 
         <textarea
           className={styles.textarea}
-          placeholder="Paste or type your Markdown here...&#10;&#10;# Example Heading&#10;Paragraph text with some details...&#10;&#10;```rust&#10;fn main() {}&#10;```"
+          placeholder={t('paste.placeholder')}
           value={markdown}
           onChange={(e) => setMarkdown(e.target.value)}
           autoFocus
@@ -88,14 +85,14 @@ export const PasteMarkdownModal: React.FC<PasteMarkdownModalProps> = ({ onInsert
         <div className={styles.summaryBar}>
           <div className={styles.summaryContent}>
             <FileCode size={16} />
-            <span>Parsed Blocks:</span>
+            <span>{t('paste.parsed')}</span>
             <span className={styles.badge}>{parsedBlocks.length}</span>
             <span>({summary})</span>
           </div>
         </div>
 
         <div className={styles.optionsRow}>
-          <span>Insert Mode:</span>
+          <span>{t('paste.mode')}</span>
           <label className={styles.radioLabel}>
             <input
               type="radio"
@@ -104,7 +101,7 @@ export const PasteMarkdownModal: React.FC<PasteMarkdownModalProps> = ({ onInsert
               checked={mode === 'append'}
               onChange={() => setMode('append')}
             />
-            Append to existing blocks
+            {t('paste.append')}
           </label>
           <label className={styles.radioLabel}>
             <input
@@ -114,21 +111,23 @@ export const PasteMarkdownModal: React.FC<PasteMarkdownModalProps> = ({ onInsert
               checked={mode === 'replace'}
               onChange={() => setMode('replace')}
             />
-            Replace all blocks
+            {t('paste.replace')}
           </label>
         </div>
 
         <div className={styles.footer}>
           <Button variant="tool" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="primary"
             onClick={handleApply}
             disabled={parsedBlocks.length === 0}
-            title={parsedBlocks.length === 0 ? 'Enter markdown to convert' : 'Insert parsed blocks'}
+            title={parsedBlocks.length === 0 ? t('paste.enterMarkdown') : t('paste.insertTitle')}
           >
-            Insert {parsedBlocks.length > 0 ? `${parsedBlocks.length} Blocks` : 'Blocks'}
+            {parsedBlocks.length > 0
+              ? t('paste.insert', { count: parsedBlocks.length })
+              : t('paste.insertNone')}
           </Button>
         </div>
       </div>

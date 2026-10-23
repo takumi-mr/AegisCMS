@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: 通知機能（`aegis-notify`: 外部 SMTP サーバーへのメール・ログ、テンプレート en / ja、再試行・監査ログ）を追加し、EC の注文の受付・入金確認・発送・取り消しをメールで送るように。サンプルショップ「朝凪珈琲」（`examples/coffee-shop`）を追加。`aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: Admin Studio を英語 / 日本語の 2 言語に（i18next）。通知機能（`aegis-notify`: 外部 SMTP サーバーへのメール・ログ、テンプレート en / ja、再試行・監査ログ）を追加し、EC の注文の受付・入金確認・発送・取り消しをメールで送るように。サンプルショップ「朝凪珈琲」（`examples/coffee-shop`）を追加。`aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
   - `task check` による全自動検証（Rust テスト 93 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
   - 公式 Wasm プラグイン `official-code-enhancer` (`plugins/official-code-enhancer/`):
@@ -47,6 +47,10 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### Admin Studio の多言語対応 (Completed) — [admin/README.md](admin/README.md#-多言語対応-i18n)
+- [x] **英語 / 日本語**: i18next + react-i18next。文言は `admin/src/locales/<言語>/translation.json`（翻訳サービスの i18next JSON 形式）、キーは型で検査、訳し漏れは `npm run lint`（`scripts/check-locales.mjs`）で検出。ヘッダー・ログイン画面の言語メニュー（ブラウザに保存、初回はブラウザの言語）、日付・金額の書式も言語に合わせる。全画面（エディタ・商品・注文・テーマ・ユーザー・監査ログ・メディア・プロフィールなど）を翻訳。
+- [ ] **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
 
 #### 通知機能 (Completed) — [docs/notifications.md](docs/notifications.md)
 - [x] **メール通知と通知の基盤**: 新クレート `aegis-notify`（`NotificationService`・配信チャネル `NotificationChannel`・テンプレート）、`aegis_core::Notifier` / `NotificationEvent` / `Recipient`。チャネルは `email`（外部の SMTP サーバー。STARTTLS / TLS / 平文、認証、`AEGIS_SMTP_PASSWORD`）と `log`。組み込みテンプレート（en / ja）と `templates_dir` での上書き、一時的な失敗の再試行、監査ログ `notification.send`、`aegis-server notify test --to`。EC の注文の受付・入金確認・発送・取り消しを顧客と運営者（`staff_recipients`）に送る。
@@ -159,6 +163,12 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **Admin Studio の多言語対応 (`admin/src/i18n/`, `admin/src/locales/`)**:
+  - 言語は `localStorage` の `aegis.admin.language`、無ければ `navigator.languages`（`ja` 以外は `en`）。`<html lang>` も切り替える。
+  - ログイン画面のお知らせ（期限切れ・ログアウト）と SSO のエラーは、文字列ではなく理由のコードで持ち、表示時に訳す（言語を切り替えても追従する）。
+  - `useEffect` 内のフォールバックのエラーメッセージは `i18n.t()`（`t` を依存配列に入れると言語の切り替えで再取得し、メディアライブラリでは追加読み込みが重複するため）。
+  - 日本語はラベルが長く、ヘッダーが折り返していたため、ヘッダーの要素は `nowrap`。幅 1680px 未満でバッジ、1480px 未満でゲートウェイの文言を隠す（状態の点とツールチップは残す）。1280〜1920px の両言語で、はみ出し・折り返しが無いことを確認済み。
+  - 監査ログの action 名・テーマの説明（`theme.json`）・プラグインが付ける明細名（`Coupon WELCOME10` など）はデータなので訳さない。
 - **通知 (`crates/aegis-notify/`, `aegis_core::notify`)**:
   - 通知を出す側（`aegis-commerce`）は `aegis_core::Notifier` に `NotificationEvent { kind, recipients, data }` を渡すだけで、`aegis-notify` に依存しない（`CommerceDeps.notifier`）。宛先は `Recipient::Person`（アドレス）と `Recipient::Staff`（チャネルごとの設定で解決。メールは `staff_recipients`）。
   - テンプレートは `<kind>.subject` / `<kind>.txt`（運営者向けは `<kind>.staff.*` を先に探す）。テンプレートの無い種類は送らない。MiniJinja の `trim_blocks` は行末の `{% endif %}` の後の改行も消すため、行の途中の条件は `{{ "..." if cond else "" }}` で書く。

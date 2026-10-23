@@ -133,3 +133,7 @@
   font-family: var(--font-mono);
   font-size: 0.72rem;
 }
+
+.language {
+  align-self: center;
+}
