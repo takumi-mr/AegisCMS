@@ -70,3 +70,7 @@ clone_on_copy = "warn"
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# RSA の鍵生成（SAML のモック IdP）が最適化なしでは非常に遅いため、テストでも最適化する
+[profile.dev.package.num-bigint-dig]
+opt-level = 3

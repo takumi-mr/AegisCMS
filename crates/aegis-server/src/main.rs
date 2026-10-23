@@ -130,6 +130,12 @@ enum UserCommand {
         /// The `sub` claim of the user at the IdP
         sub: String,
     },
+    /// Link an existing user to a SAML account ([auth.saml].idp_entity_id + the IdP's NameID)
+    LinkSaml {
+        username: String,
+        /// The NameID of the user at the IdP
+        name_id: String,
+    },
 }
 
 /// アカウント登録の確認メールを送る通知。通知が無効・確認メールを止めている設定では起動しない
@@ -380,6 +386,16 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
                 .await?;
             println!("Linked '{}' to OIDC subject {}", username, subject);
         }
+        UserCommand::LinkSaml { username, name_id } => {
+            anyhow::ensure!(
+                !config.auth.saml.idp_entity_id.trim().is_empty(),
+                "[auth.saml].idp_entity_id is not set"
+            );
+            let subject = aegis_auth::saml_subject(&config.auth.saml.idp_entity_id, &name_id);
+            aegis_auth::users::link_identity(db, &username, aegis_auth::SAML_PROVIDER, &subject)
+                .await?;
+            println!("Linked '{}' to SAML subject {}", username, subject);
+        }
         UserCommand::List => {
             let users = db.list_users().await?;
             if users.is_empty() {
@@ -556,10 +572,20 @@ async fn main() -> anyhow::Result<()> {
             let audit = Arc::new(audit);
             audit.spawn_retention_task();
 
-            // 6.5 外部 IdP ログイン（[auth.oidc]）
+            // 6.5 外部 IdP ログイン（[auth.oidc] / [auth.saml]）
             let oidc = if config.auth.oidc.enabled {
                 Some(build_oidc_login(
                     &config.auth.oidc,
+                    &base_path,
+                    cache.clone(),
+                    db_adapter.clone(),
+                )?)
+            } else {
+                None
+            };
+            let saml = if config.auth.saml.enabled {
+                Some(build_saml_login(
+                    &config.auth.saml,
                     &base_path,
                     cache.clone(),
                     db_adapter.clone(),
@@ -583,6 +609,10 @@ async fn main() -> anyhow::Result<()> {
             );
             let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),
+                None => app_state,
+            };
+            let app_state = match saml {
+                Some(saml) => app_state.with_saml(saml),
                 None => app_state,
             };
 
@@ -761,14 +791,14 @@ fn build_oidc_login(
     base_path: &str,
     cache: Arc<dyn aegis_core::CacheBackend>,
     db: Arc<dyn aegis_db::DatabaseAdapter>,
-) -> anyhow::Result<state::OidcLogin> {
+) -> anyhow::Result<state::SsoLogin> {
     let provider = aegis_auth::oidc::OidcAuthProvider::new(config.clone(), cache, db)?;
     tracing::info!(
         "OIDC login enabled (issuer: {}, client_id: {})",
         config.issuer_url,
         config.client_id
     );
-    Ok(state::OidcLogin {
+    Ok(state::SsoLogin {
         provider: Arc::new(provider),
         display_name: config.display_name.clone(),
         post_login_redirect: app::under_base_path(base_path, &config.post_login_redirect),
@@ -781,8 +811,42 @@ fn build_oidc_login(
     _base_path: &str,
     _cache: Arc<dyn aegis_core::CacheBackend>,
     _db: Arc<dyn aegis_db::DatabaseAdapter>,
-) -> anyhow::Result<state::OidcLogin> {
+) -> anyhow::Result<state::SsoLogin> {
     anyhow::bail!("[auth.oidc] is enabled, but this build of aegis-server has no 'oidc' feature")
+}
+
+/// `[auth.saml]` を検証し（IdP の証明書を含む）、SAML ログインを組み立てる
+#[cfg(feature = "saml")]
+fn build_saml_login(
+    config: &aegis_auth::SamlConfig,
+    base_path: &str,
+    cache: Arc<dyn aegis_core::CacheBackend>,
+    db: Arc<dyn aegis_db::DatabaseAdapter>,
+) -> anyhow::Result<state::SamlLogin> {
+    let provider = aegis_auth::saml::SamlAuthProvider::new(config.clone(), cache, db)?;
+    tracing::info!(
+        "SAML login enabled (IdP: {}, SP entity ID: {})",
+        config.idp_entity_id,
+        config.entity_id
+    );
+    Ok(state::SamlLogin {
+        metadata: provider.sp_metadata(),
+        sso: state::SsoLogin {
+            provider: Arc::new(provider),
+            display_name: config.display_name.clone(),
+            post_login_redirect: app::under_base_path(base_path, &config.post_login_redirect),
+        },
+    })
+}
+
+#[cfg(not(feature = "saml"))]
+fn build_saml_login(
+    _config: &aegis_auth::SamlConfig,
+    _base_path: &str,
+    _cache: Arc<dyn aegis_core::CacheBackend>,
+    _db: Arc<dyn aegis_db::DatabaseAdapter>,
+) -> anyhow::Result<state::SamlLogin> {
+    anyhow::bail!("[auth.saml] is enabled, but this build of aegis-server has no 'saml' feature")
 }
 
 #[cfg(test)]

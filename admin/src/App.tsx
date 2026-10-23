@@ -27,7 +27,7 @@ import { MarkdownEditor } from './components/MarkdownEditor';
 import { PasteMarkdownModal } from './components/PasteMarkdownModal';
 import { aegisApi, setUnauthorizedHandler } from './api/client';
 import { setSessionToken } from './api/session';
-import { takeLoginRedirect } from './utils/loginRedirect';
+import { isSsoSession, takeLoginRedirect } from './utils/loginRedirect';
 import { takeVerifyToken } from './utils/verifyEmail';
 import type { BlockNode, ContentItem, SessionInfo, UserAccount } from './types';
 import { categoryIdOf } from './utils/category';
@@ -674,7 +674,7 @@ export const App: React.FC = () => {
       {isProfileOpen && profile && (
         <ProfileModal
           user={profile}
-          canChangePassword={session.metadata?.provider !== 'oidc'}
+          canChangePassword={!isSsoSession(session)}
           onUpdated={setProfile}
           onShowToast={showToast}
           onClose={() => setIsProfileOpen(false)}

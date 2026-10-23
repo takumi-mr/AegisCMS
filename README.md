@@ -100,7 +100,7 @@ crates/
 ├── aegis-storage    # StorageBackend 実装（ローカル / S3 互換）
 ├── aegis-cache      # CacheBackend 実装（メモリ / Redis）
 ├── aegis-audit      # 監査ログの配送（AuditService）と出力先（log / database）、メトリクス
-├── aegis-auth       # ユーザー・パスワード・セッション・ログイン制限・OIDC
+├── aegis-auth       # ユーザー・パスワード・セッション・ログイン制限・OIDC・SAML
 ├── aegis-notify     # 通知: テンプレート（en / ja）と配信チャネル（メール = SMTP / ログ）
 ├── aegis-commerce   # EC: 見積もり・注文・在庫・決済（手動 / Stripe）
 └── aegis-server     # Axum HTTP 層（ルーティング・ハンドラ・認可）、CLI、Admin SPA 配信
@@ -119,7 +119,7 @@ crates/
 | [aegis-storage](crates/aegis-storage)                         | メディアストレージ                                       | `LocalStorageBackend`, `S3StorageBackend` (SigV4), `create_storage_backend`, `config` (`StorageConfig`)                                                                 |
 | [aegis-cache](crates/aegis-cache)                             | キャッシュ                                               | `MemoryCacheBackend`, `RedisCacheBackend`, `config` (`CacheConfig`)                                                                                                    |
 | [aegis-audit](crates/aegis-audit)                             | 監査ログ                                                 | `AuditService`, `AuditOrigin`, `log` / `database` 出力先, `metrics`, `config` (`AuditConfig`)                                                                           |
-| [aegis-auth](crates/aegis-auth)                               | 認証                                                     | `users` (`UserService`), `password` (Argon2id), `session` (`SessionService`), `rate_limit`, `oidc` (feature `oidc`), `config` (`AuthConfig`)                            |
+| [aegis-auth](crates/aegis-auth)                               | 認証                                                     | `users` (`UserService`), `password` (Argon2id), `session` (`SessionService`), `rate_limit`, `oidc` (feature `oidc`), `saml` (feature `saml`), `sso`, `config` (`AuthConfig`)                            |
 | [aegis-notify](crates/aegis-notify)                           | 通知                                                     | `NotificationService`（`aegis_core::Notifier` の実装）, `channel` (`NotificationChannel`), `email` (SMTP), `log`, `templates`, `config` (`NotificationsConfig`) |
 | [aegis-commerce](crates/aegis-commerce)                       | EC                                                       | `CommerceService` (見積もり・注文・状態遷移), `payment` (`PaymentProvider`), `stripe`, `config` (`CommerceConfig`)                                                       |
 | [aegis-server](crates/aegis-server)                           | HTTP 層・CLI・SPA配信                                    | `handlers` (REST API・公開ページ), `auth` (認可・フック), `audit` (`AuditContext` 抽出), `state` (`AppState`), `config` (`AegisConfig`), `main` (CLI)                     |
@@ -174,7 +174,7 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-storage`**: `StorageBackend` トレイトに基づくマルチストレージ具象実装。ローカルディスク・ブロックストレージ対応の `LocalStorageBackend` と、AWS S3 / Cloudflare R2 / MinIO 対応の `S3StorageBackend`（ネイティブ AWS SigV4 認証署名エンジン内蔵）。
 - **`aegis-cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
 - **`aegis-audit`**: 監査イベントを設定された出力先へ配送する `AuditService`、操作元（IP・User-Agent）を表す `AuditOrigin`、メトリクス（[docs/audit.md](docs/audit.md)）。
-- **`aegis-auth`**: ユーザー管理 `UserService`、Argon2id パスワード、`CacheBackend` をバックストアとするセッション管理 `SessionService`、ログイン試行制限、OpenID Connect（feature `oidc`。[docs/authentication.md](docs/authentication.md)）。
+- **`aegis-auth`**: ユーザー管理 `UserService`、Argon2id パスワード、`CacheBackend` をバックストアとするセッション管理 `SessionService`、ログイン試行制限、OpenID Connect（feature `oidc`）・SAML 2.0（feature `saml`。XML 署名の検証は純 Rust）（[docs/authentication.md](docs/authentication.md)）。
 - **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文を作り、配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。条件に合う監査イベント（管理者のログイン・ログインのロックなど）の通知（`AuditNotificationSink`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.md](docs/notifications.md)）。
 - **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査・通知は `CommerceDeps` で受け取ります。
 
@@ -182,12 +182,12 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 
 Axum を基盤とした REST API Gateway サーバーです。ドメインクレートを組み立て、HTTP の入出力と認可だけを担当します。
 
-- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`・削除 `DELETE /api/v1/storage/objects/{key}`（[docs/media.md](docs/media.md)）、エディタのプレビュー `POST /api/v1/preview`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン）・OpenID Connect によるシングルサインオン `GET /api/v1/auth/oidc/login`（[docs/authentication.md](docs/authentication.md)）、ショップ API・公開ページ、ヘルスチェック）。
+- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`・削除 `DELETE /api/v1/storage/objects/{key}`（[docs/media.md](docs/media.md)）、エディタのプレビュー `POST /api/v1/preview`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン）・OpenID Connect によるシングルサインオン `GET /api/v1/auth/oidc/login`・SAML 2.0 によるシングルサインオン `GET /api/v1/auth/saml/login` / `POST /api/v1/auth/saml/acs` / `GET /api/v1/auth/saml/metadata`（[docs/authentication.md](docs/authentication.md)）、ショップ API・公開ページ、ヘルスチェック）。
 - **`auth`**: リクエストからのセッション抽出、ロールに基づく認可、プラグインの認証フック。
 - **`audit`**: リクエストから操作者と操作元を取り出す `AuditContext` エクストラクタ。
 - **`state`**: `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、`CommerceService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
 - **`config`**: 各クレートの設定セクションを束ねる `AegisConfig`（`config/*.toml` からの読み込みおよび環境変数オーバーライド。[docs/configuration.md](docs/configuration.md)）。
-- **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、ユーザー管理 `user add|passwd|role|disable|enable|list|link-oidc`、プラグインの状態 `plugin list`、通知のテスト `notify test`）および Admin Studio SPA の配信（`/admin/`）。
+- **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、ユーザー管理 `user add|passwd|role|disable|enable|list|link-oidc|link-saml`、プラグインの状態 `plugin list`、通知のテスト `notify test`）および Admin Studio SPA の配信（`/admin/`）。
 
 #### 7. `crates/aegis-plugin-sdk` & `crates/aegis-plugin-macros` (公式 Wasm プラグイン SDK)
 
@@ -428,7 +428,7 @@ fields:
 
 - **フェーズ 2 (スキーマエンジンとエディタ統合)** — ✅ 完了
     - YAMLスキーマからのDB自動マイグレーション（SQLite / PostgreSQL / MySQL）、ブロックエディタ（Admin Studio）とREST API。
-    - 認証（ローカル・OIDC）・RBAC・監査ログ・メディア・テーマエンジン・EC・通知。
+    - 認証（ローカル・OIDC・SAML）・RBAC・監査ログ・メディア・テーマエンジン・EC・通知。
 
 - **フェーズ 3 (SDK整備とエコシステム公開)** — 進行中
     - ✅ 言語非依存 共通 ABI 仕様書および Rust / AssemblyScript / TinyGo 向け公式プラグイン SDK & テンプレートの提供。
