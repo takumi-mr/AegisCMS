@@ -51,7 +51,7 @@ node examples/coffee-shop/seed.mjs      # 別のターミナルで
 | 注文の管理 | 管理画面の **Orders** で支払い済み → 発送 → 完了と進める。顧客の注文確認ページの状態も変わる |
 | 通知（[docs/notifications.md](../../docs/notifications.md)） | 注文・入金確認・発送・取り消しのメールを、サンプルではサーバーのログに出す（`aegis::notify`）。発送にするときのメモ（追跡番号など）は発送のメールに入る。管理者のログインと、パスワードを 5 回間違えたときのログインのロックも知らせる。SMTP サーバーがあれば `channels = ["email"]` で実際に送れる |
 | 商品の管理 | 管理画面の **Products** で価格・在庫・画像を編集 |
-| 監査ログ | 管理画面の **Audit Logs** に注文（`order.create` / `order.update`）や商品の変更が残る |
+| 監査ログ | 管理画面の **Settings › Audit Logs** に注文（`order.create` / `order.update`）や商品の変更が残る |
 
 ## カード決済（Stripe）にする
 

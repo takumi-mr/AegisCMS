@@ -106,7 +106,7 @@
   },
   "categories": {
     "title": "カテゴリ",
-    "empty": "まだカテゴリがありません。下のフォームで作成してください。",
+    "empty": "まだカテゴリがありません。",
     "new": "新しいカテゴリ",
     "fieldTitle": "名前:",
     "fieldSlug": "スラッグ:",
@@ -123,7 +123,9 @@
     "duplicate": "スラッグ「{{slug}}」のカテゴリはすでにあります。",
     "failed": "カテゴリを作成できませんでした",
     "creating": "作成中...",
-    "create": "カテゴリを作成"
+    "create": "カテゴリを作成",
+    "description": "カテゴリで記事や商品を分類します。記事のカテゴリはエディタで選びます。",
+    "readOnly": "カテゴリの作成には editor 以上のロールが必要です。"
   },
   "common": {
     "close": "閉じる",
@@ -176,7 +178,7 @@
     "noCategory": "カテゴリなし",
     "unknownCategory": "不明なカテゴリ（{{id}}）",
     "manageCategories": "管理",
-    "manageCategoriesTitle": "カテゴリの一覧と作成",
+    "manageCategoriesTitle": "設定のカテゴリを開く",
     "mode": "編集モード",
     "blocks": "ブロック",
     "markdown": "Markdown",
@@ -213,9 +215,7 @@
       "editor": "エディタ",
       "products": "商品",
       "orders": "注文",
-      "themes": "テーマ",
-      "users": "ユーザー",
-      "audit": "監査ログ"
+      "settings": "設定"
     },
     "gateway": "コアゲートウェイ: {{state}}",
     "connected": "接続中",
@@ -618,5 +618,15 @@
     "keepPassword": "空欄なら今のパスワードのまま",
     "saving": "保存中...",
     "save": "変更を保存"
+  },
+  "settings": {
+    "title": "設定",
+    "sectionsAria": "設定の項目",
+    "sections": {
+      "themes": "テーマ",
+      "categories": "カテゴリ",
+      "users": "ユーザー",
+      "audit": "監査ログ"
+    }
   }
 }

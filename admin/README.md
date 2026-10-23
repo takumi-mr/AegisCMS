@@ -27,15 +27,18 @@
   - 画像を選ぶと URL をブロックに反映（alt が空ならファイル名から補完）。同じ画像を再アップロードせずに再利用できる。
 - **カテゴリ選択 & 管理**:
   - 記事エディタでカテゴリ（`category_id` リレーション）をドロップダウンから選択。既存記事を開くと選択状態を復元。
-  - **Manage** ボタンのモーダルでカテゴリの一覧表示（色・説明つき）と新規作成（slug 自動生成、色指定）。作成したカテゴリはそのまま選択される。
+  - カテゴリの一覧表示（色・説明つき）と新規作成（slug 自動生成、色指定）は **Settings › Categories**。エディタの **Manage** ボタンからも開ける。
   - サイドバーの記事一覧にカテゴリバッジを表示し、カテゴリ（All / Uncategorized / 各カテゴリ）で絞り込み。
-- **監査ログ閲覧画面 (Audit Logs)**:
-  - ヘッダーの切り替えで、監査ログ（`GET /api/v1/audit-logs`）を一覧表示。action / outcome / actor / resource / 期間での絞り込み、ページ送り、イベント詳細（JSON）の展開に対応。
+- **設定画面 (Settings)**:
+  - サイト全体の管理（テーマ・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Settings。
+  - ロールに応じて項目を出し分け: Themes と Categories は全員（カテゴリの作成は `editor` 以上）、Users と Audit Logs は `admin` のみ。
+- **監査ログ閲覧画面 (Settings › Audit Logs)**:
+  - 監査ログ（`GET /api/v1/audit-logs`）を一覧表示。action / outcome / actor / resource / 期間での絞り込み、ページ送り、イベント詳細（JSON）の展開に対応。
   - `admin` ロールでログインした場合のみ表示（詳細は [監査ログリファレンス](../docs/audit.md#6-admin-studio-の閲覧画面)）。
 - **ログイン & ロール**:
   - 起動時にログイン画面を表示し、ユーザー名 / パスワードで `POST /api/v1/auth/session` にログイン。発行されたトークンはタブを閉じるまで `sessionStorage` に保持し、すべての API 呼び出しに `Authorization: Bearer` として付与する（再読み込みしてもログイン状態を維持）。
   - ヘッダーに表示名とロールを表示し、ログアウトボタンでセッションを破棄。API が 401（期限切れ・失効）を返したらログイン画面に戻る。
-  - ロールに応じて操作を制限: `viewer` は Save・画像アップロード・カテゴリ作成が無効、Audit Logs タブは `admin` のみ表示（サーバー側でも同じ権限を検証。[認証 & ユーザー管理](../docs/authentication.md)）。
+  - ロールに応じて操作を制限: `viewer` は Save・画像アップロード・カテゴリ作成が無効、設定画面の Users / Audit Logs は `admin` のみ表示（サーバー側でも同じ権限を検証。[認証 & ユーザー管理](../docs/authentication.md)）。
 - **多言語対応（英語 / 日本語）**:
   - ヘッダーとログイン画面の言語メニューで切り替え。選んだ言語はブラウザに保存し、初回はブラウザの言語（日本語なら日本語、それ以外は英語）で表示。日付・金額の書式も言語に合わせる。
   - 文言は [i18next](https://www.i18next.com/) の JSON（`src/locales/<言語>/translation.json`）で、翻訳サービスにそのまま渡せる（[多言語対応](#-多言語対応-i18n)）。

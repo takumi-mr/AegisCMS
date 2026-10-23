@@ -107,7 +107,7 @@
   },
   "categories": {
     "title": "Categories",
-    "empty": "No categories yet. Create the first one below.",
+    "empty": "No categories yet.",
     "new": "New category",
     "fieldTitle": "title:",
     "fieldSlug": "slug:",
@@ -124,7 +124,9 @@
     "duplicate": "A category with the slug \"{{slug}}\" already exists.",
     "failed": "Failed to create category",
     "creating": "Creating...",
-    "create": "Create category"
+    "create": "Create category",
+    "description": "Categories group articles and products. Choose an article's category in the editor.",
+    "readOnly": "Creating categories requires the editor role."
   },
   "common": {
     "close": "Close",
@@ -177,7 +179,7 @@
     "noCategory": "No category",
     "unknownCategory": "Unknown category ({{id}})",
     "manageCategories": "Manage",
-    "manageCategoriesTitle": "List and create categories",
+    "manageCategoriesTitle": "Open category settings",
     "mode": "Editor Mode",
     "blocks": "Blocks",
     "markdown": "Markdown",
@@ -216,9 +218,7 @@
       "editor": "Editor",
       "products": "Products",
       "orders": "Orders",
-      "themes": "Themes",
-      "users": "Users",
-      "audit": "Audit Logs"
+      "settings": "Settings"
     },
     "gateway": "Core Gateway: {{state}}",
     "connected": "Connected",
@@ -628,5 +628,15 @@
     "keepPassword": "Leave empty to keep the current password",
     "saving": "Saving...",
     "save": "Save changes"
+  },
+  "settings": {
+    "title": "Settings",
+    "sectionsAria": "Settings sections",
+    "sections": {
+      "themes": "Themes",
+      "categories": "Categories",
+      "users": "Users",
+      "audit": "Audit Logs"
+    }
   }
 }

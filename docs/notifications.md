@@ -178,7 +178,7 @@ notifications/
 
 - 通知は注文の処理を待たせないよう、バックグラウンドで送ります。SMTP サーバーが落ちていても注文は成功します。
 - 一時的な失敗（接続できない、`4xx` の応答）は `max_attempts` 回まで、2 秒・8 秒・32 秒…と間隔を空けて再試行します。宛先の不備や認証の拒否（`5xx`）は再試行しません。
-- 結果はチャネルごとに監査ログ `notification.send` に残します（`success` / `failure`、試行回数、エラー）。宛先のアドレスは残しません（顧客か運営者か）。Admin Studio の **Audit Logs** で `notification.send` に絞り込めます。
+- 結果はチャネルごとに監査ログ `notification.send` に残します（`success` / `failure`、試行回数、エラー）。宛先のアドレスは残しません（顧客か運営者か）。Admin Studio の **Settings › Audit Logs** で `notification.send` に絞り込めます。
 - 送信待ちの通知はメモリ上にあるため、配信中にサーバーを再起動すると送られずに失われます。確実に届ける必要がある場合は、SMTP サーバー（リレー）側のキューを使ってください。
 
 ---

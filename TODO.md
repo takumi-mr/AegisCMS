@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: Admin Studio を英語 / 日本語の 2 言語に（i18next）。通知機能（`aegis-notify`: 外部 SMTP サーバーへのメール・ログ、テンプレート en / ja、再試行・監査ログ）を追加し、EC の注文の受付・入金確認・発送・取り消しをメールで送るように。サンプルショップ「朝凪珈琲」（`examples/coffee-shop`）を追加。`aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: Admin Studio のテーマ・カテゴリ・ユーザー・監査ログを設定画面（Settings）にまとめ、ヘッダーのタブをエディタ / 商品 / 注文 / 設定に。Admin Studio を英語 / 日本語の 2 言語に（i18next）。通知機能（`aegis-notify`: 外部 SMTP サーバーへのメール・ログ、テンプレート en / ja、再試行・監査ログ）を追加し、EC の注文の受付・入金確認・発送・取り消しをメールで送るように。サンプルショップ「朝凪珈琲」（`examples/coffee-shop`）を追加。`aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
   - `task check` による全自動検証（Rust テスト 93 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
   - 公式 Wasm プラグイン `official-code-enhancer` (`plugins/official-code-enhancer/`):
@@ -47,6 +47,9 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### Admin Studio の設定画面 (Completed) — [admin/README.md](admin/README.md)
+- [x] **設定画面の分離**: ヘッダーのタブにあったテーマ・ユーザー・監査ログと、エディタのモーダルだったカテゴリ管理を **Settings**（`SettingsView.tsx`、左メニューで切り替え）にまとめた。ヘッダーのタブはエディタ / 商品 / 注文 / 設定。項目はロールで出し分け（Users・Audit Logs は admin、カテゴリの作成は editor 以上）。エディタの「管理」ボタンは設定のカテゴリを開く。
 
 #### Admin Studio の多言語対応 (Completed) — [admin/README.md](admin/README.md#-多言語対応-i18n)
 - [x] **英語 / 日本語**: i18next + react-i18next。文言は `admin/src/locales/<言語>/translation.json`（翻訳サービスの i18next JSON 形式）、キーは型で検査、訳し漏れは `npm run lint`（`scripts/check-locales.mjs`）で検出。ヘッダー・ログイン画面の言語メニュー（ブラウザに保存、初回はブラウザの言語）、日付・金額の書式も言語に合わせる。全画面（エディタ・商品・注文・テーマ・ユーザー・監査ログ・メディア・プロフィールなど）を翻訳。
@@ -163,6 +166,10 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **Admin Studio の設定画面 (`admin/src/components/SettingsView.tsx`)**:
+  - 各項目は既存の画面コンポーネント（`ThemeManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` に追加し、`settings.sections.<id>` の訳を足す。
+  - 選んでいる項目は `App` が持つ（エディタの「管理」ボタンから `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。
+  - エディタの状態も `App` にあるので、設定画面へ移って戻っても編集中の内容は消えない。
 - **Admin Studio の多言語対応 (`admin/src/i18n/`, `admin/src/locales/`)**:
   - 言語は `localStorage` の `aegis.admin.language`、無ければ `navigator.languages`（`ja` 以外は `en`）。`<html lang>` も切り替える。
   - ログイン画面のお知らせ（期限切れ・ログアウト）と SSO のエラーは、文字列ではなく理由のコードで持ち、表示時に訳す（言語を切り替えても追従する）。

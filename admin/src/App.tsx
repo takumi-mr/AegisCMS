@@ -15,14 +15,11 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Header, type AppView } from './components/Header';
-import { AuditLogView } from './components/AuditLogView';
-import { ThemeManager } from './components/ThemeManager';
-import { UserManager } from './components/UserManager';
 import { ProductManager } from './components/ProductManager';
 import { OrderManager } from './components/OrderManager';
 import { ProfileModal } from './components/ProfileModal';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
-import { CategoryManager } from './components/CategoryManager';
+import { SettingsView, type SettingsSection } from './components/SettingsView';
 import { ContentList } from './components/ContentList';
 import { BlockItem } from './components/BlockItem';
 import { Preview } from './components/Preview';
@@ -33,7 +30,7 @@ import { setSessionToken } from './api/session';
 import { takeLoginRedirect } from './utils/loginRedirect';
 import type { BlockNode, ContentItem, SessionInfo, UserAccount } from './types';
 import { categoryIdOf } from './utils/category';
-import { canEdit, isAdmin } from './utils/roles';
+import { canEdit } from './utils/roles';
 import { cx } from './utils/cx';
 import { blocksToMarkdown, markdownToBlocks, isMarkdownLike } from './utils/markdown';
 import { Button } from './components/ui/Button';
@@ -60,7 +57,7 @@ export const App: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [categories, setCategories] = useState<ContentItem[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
-  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState<boolean>(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('themes');
 
   // Editor Form State
   const [title, setTitle] = useState<string>('Next-Gen WebAssembly CMS with Aegis');
@@ -220,7 +217,6 @@ export const App: React.FC = () => {
 
   const handleCategoryCreated = (category: ContentItem) => {
     setCategories((prev) => [category, ...prev.filter((c) => c.id !== category.id)]);
-    setCategoryId(category.id);
     showToast(t('editor.toasts.categoryCreated', { title: category.title }));
   };
 
@@ -398,8 +394,6 @@ export const App: React.FC = () => {
         isSaving={isSaving}
         session={session}
         canSave={editable}
-        canViewAudit={isAdmin(session)}
-        canManageUsers={isAdmin(session)}
         profile={profile}
         onOpenProfile={() =>
           profile
@@ -409,16 +403,20 @@ export const App: React.FC = () => {
         onLogout={handleLogout}
       />
 
-      {view === 'audit' && isAdmin(session) ? (
-        <AuditLogView />
-      ) : view === 'products' && editable ? (
+      {view === 'products' && editable ? (
         <ProductManager categories={categories} onShowToast={showToast} />
       ) : view === 'orders' && editable ? (
         <OrderManager onShowToast={showToast} />
-      ) : view === 'users' && isAdmin(session) ? (
-        <UserManager session={session} onSelfUpdated={setProfile} onShowToast={showToast} />
-      ) : view === 'themes' ? (
-        <ThemeManager session={session} onShowToast={showToast} />
+      ) : view === 'settings' ? (
+        <SettingsView
+          session={session}
+          section={settingsSection}
+          onSectionChange={setSettingsSection}
+          categories={categories}
+          onCategoryCreated={handleCategoryCreated}
+          onSelfUpdated={setProfile}
+          onShowToast={showToast}
+        />
       ) : (
         <div className={styles.workspace}>
           {/* Sidebar */}
@@ -494,11 +492,11 @@ export const App: React.FC = () => {
                   </Field>
                   <Button
                     variant="tool"
-                    onClick={() => setIsCategoryManagerOpen(true)}
-                    disabled={!editable}
-                    title={
-                      editable ? t('editor.manageCategoriesTitle') : t('common.requiresEditor')
-                    }
+                    onClick={() => {
+                      setSettingsSection('categories');
+                      setView('settings');
+                    }}
+                    title={t('editor.manageCategoriesTitle')}
                   >
                     <Tags size={14} />
                     <span>{t('editor.manageCategories')}</span>
@@ -636,14 +634,6 @@ export const App: React.FC = () => {
             />
           </main>
         </div>
-      )}
-
-      {isCategoryManagerOpen && (
-        <CategoryManager
-          categories={categories}
-          onCreated={handleCategoryCreated}
-          onClose={() => setIsCategoryManagerOpen(false)}
-        />
       )}
 
       {isProfileOpen && profile && (

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Plus, Tags } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
@@ -6,16 +6,16 @@ import type { ContentItem } from '../types';
 import { categoryColor } from '../utils/category';
 import { Button } from './ui/Button';
 import { Field, FieldRow } from './ui/Field';
-import { Modal } from './ui/Modal';
 import styles from './CategoryManager.module.css';
 
 const DEFAULT_COLOR = '#6366f1';
 
 interface CategoryManagerProps {
   categories: ContentItem[];
-  /** Called after a category is created so the parent can reload and select it */
+  /** False for viewers: creating categories needs the editor role */
+  canCreate: boolean;
+  /** Called after a category is created so the parent can add it to its list */
   onCreated: (category: ContentItem) => void;
-  onClose: () => void;
 }
 
 const toSlug = (value: string): string =>
@@ -26,8 +26,8 @@ const toSlug = (value: string): string =>
 
 export const CategoryManager: React.FC<CategoryManagerProps> = ({
   categories,
+  canCreate,
   onCreated,
-  onClose,
 }) => {
   const { t } = useTranslation();
   const [title, setTitle] = useState<string>('');
@@ -38,11 +38,6 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
-
-  // Focus once on open; the parent re-renders (health checks, toasts) must not steal focus
-  useEffect(() => {
-    titleRef.current?.focus();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,78 +75,92 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
   };
 
   return (
-    <Modal title={t('categories.title')} icon={<Tags size={18} />} onClose={onClose}>
-      <div className={styles.list}>
-        {categories.map((category) => (
-          <div key={category.id} className={styles.row}>
-            <span
-              className={styles.swatch}
-              style={{ background: categoryColor(category) ?? 'var(--border-medium)' }}
-            />
-            <div className={styles.rowMain}>
-              <div className={styles.rowTitle}>{category.title}</div>
-              {typeof category.fields?.description === 'string' && category.fields.description && (
-                <div className={styles.rowDescription}>{category.fields.description}</div>
-              )}
-            </div>
-            <span className={styles.rowSlug}>/{category.slug}</span>
-          </div>
-        ))}
-        {categories.length === 0 && <div className={styles.empty}>{t('categories.empty')}</div>}
-      </div>
-
-      <form className={styles.form} onSubmit={handleSubmit}>
-        <div className={styles.formTitle}>{t('categories.new')}</div>
-        <FieldRow>
-          <Field label={t('categories.fieldTitle')}>
-            <input
-              ref={titleRef}
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                if (!slugEdited) setSlug(toSlug(e.target.value));
-              }}
-              placeholder={t('categories.titlePlaceholder')}
-              maxLength={100}
-              aria-label={t('categories.titleAria')}
-            />
-          </Field>
-          <Field label={t('categories.fieldSlug')}>
-            <input
-              value={slug}
-              onChange={(e) => {
-                setSlug(e.target.value);
-                setSlugEdited(true);
-              }}
-              placeholder={t('categories.slugPlaceholder')}
-              aria-label={t('categories.slugAria')}
-            />
-          </Field>
-          <Field as="label" label={t('categories.fieldColor')} className={styles.colorField}>
-            <input
-              type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              aria-label={t('categories.colorAria')}
-            />
-          </Field>
-        </FieldRow>
-        <Field label={t('categories.fieldDescription')}>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={t('categories.optional')}
-            aria-label={t('categories.descriptionAria')}
-          />
-        </Field>
-        {error && <div className={styles.error}>{error}</div>}
-        <div className={styles.formActions}>
-          <Button type="submit" variant="primary" disabled={isSaving}>
-            <Plus size={16} />
-            <span>{isSaving ? t('categories.creating') : t('categories.create')}</span>
-          </Button>
+    <main className={styles.main}>
+      <div className={styles.column}>
+        <div className={styles.title}>
+          <Tags size={22} />
+          <h1>{t('categories.title')}</h1>
+          <span className={styles.count}>{categories.length}</span>
         </div>
-      </form>
-    </Modal>
+        <p className={styles.description}>{t('categories.description')}</p>
+
+        <div className={styles.list}>
+          {categories.map((category) => (
+            <div key={category.id} className={styles.row}>
+              <span
+                className={styles.swatch}
+                style={{ background: categoryColor(category) ?? 'var(--border-medium)' }}
+              />
+              <div className={styles.rowMain}>
+                <div className={styles.rowTitle}>{category.title}</div>
+                {typeof category.fields?.description === 'string' &&
+                  category.fields.description && (
+                    <div className={styles.rowDescription}>{category.fields.description}</div>
+                  )}
+              </div>
+              <span className={styles.rowSlug}>/{category.slug}</span>
+            </div>
+          ))}
+          {categories.length === 0 && <div className={styles.empty}>{t('categories.empty')}</div>}
+        </div>
+
+        {canCreate ? (
+          <form className={styles.form} onSubmit={handleSubmit}>
+            <div className={styles.formTitle}>{t('categories.new')}</div>
+            <FieldRow>
+              <Field label={t('categories.fieldTitle')}>
+                <input
+                  ref={titleRef}
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    if (!slugEdited) setSlug(toSlug(e.target.value));
+                  }}
+                  placeholder={t('categories.titlePlaceholder')}
+                  maxLength={100}
+                  aria-label={t('categories.titleAria')}
+                />
+              </Field>
+              <Field label={t('categories.fieldSlug')}>
+                <input
+                  value={slug}
+                  onChange={(e) => {
+                    setSlug(e.target.value);
+                    setSlugEdited(true);
+                  }}
+                  placeholder={t('categories.slugPlaceholder')}
+                  aria-label={t('categories.slugAria')}
+                />
+              </Field>
+              <Field as="label" label={t('categories.fieldColor')} className={styles.colorField}>
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  aria-label={t('categories.colorAria')}
+                />
+              </Field>
+            </FieldRow>
+            <Field label={t('categories.fieldDescription')}>
+              <input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t('categories.optional')}
+                aria-label={t('categories.descriptionAria')}
+              />
+            </Field>
+            {error && <div className={styles.error}>{error}</div>}
+            <div className={styles.formActions}>
+              <Button type="submit" variant="primary" disabled={isSaving}>
+                <Plus size={16} />
+                <span>{isSaving ? t('categories.creating') : t('categories.create')}</span>
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className={styles.notice}>{t('categories.readOnly')}</div>
+        )}
+      </div>
+    </main>
   );
 };
