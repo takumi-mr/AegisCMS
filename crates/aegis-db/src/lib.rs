@@ -83,6 +83,18 @@ pub trait DatabaseAdapter: OrderStorage + Send + Sync {
         record: &ContentRecord,
     ) -> Result<bool>;
 
+    /// Publish a scheduled record (`status = 'scheduled'` → `'published'`, setting `updated_at`).
+    /// Only matches while the record is still scheduled for `published_at`, so a record the
+    /// editor rescheduled or unscheduled in the meantime is left alone. Returns false when nothing
+    /// matched
+    async fn publish_scheduled_content(
+        &self,
+        schema: &SchemaDefinition,
+        id: &str,
+        published_at: &str,
+        updated_at: &str,
+    ) -> Result<bool>;
+
     /// Delete a content record by id. Returns false when no record has that id
     async fn delete_content(&self, schema: &SchemaDefinition, id: &str) -> Result<bool>;
 
@@ -373,6 +385,18 @@ pub fn build_content_update(
         table,
         assignments.join(", "),
         placeholder(assignments.len() + 1)
+    )
+}
+
+/// 予約公開の UPDATE 文（`publish_scheduled_content`）。バインド順は updated_at → id → published_at
+pub fn build_scheduled_publish(table: &str, placeholder: impl Fn(usize) -> String) -> String {
+    format!(
+        "UPDATE {} SET status = 'published', updated_at = {} \
+         WHERE id = {} AND status = 'scheduled' AND published_at = {};",
+        table,
+        placeholder(1),
+        placeholder(2),
+        placeholder(3)
     )
 }
 
@@ -763,6 +787,15 @@ mod tests {
             "UPDATE content_product SET title = $1, slug = $2, status = $3, blocks_json = $4, \
              author_id = $5, published_at = $6, updated_at = $7, price = $8, stock = $9 \
              WHERE id = $10;"
+        );
+    }
+
+    #[test]
+    fn test_scheduled_publish_sql() {
+        assert_eq!(
+            build_scheduled_publish("content_article", |i| format!("${}", i)),
+            "UPDATE content_article SET status = 'published', updated_at = $1 \
+             WHERE id = $2 AND status = 'scheduled' AND published_at = $3;"
         );
     }
 

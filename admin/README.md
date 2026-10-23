@@ -15,6 +15,7 @@
   - 編集中のブロックをサーバーのプレビュー API（`POST /api/v1/preview`）でレンダリングし、保存して公開ページで表示した場合と同じ HTML（見出しの id、プラグインの AST 変換、リンク・画像の書き換えを含む）を表示。入力が 300ms 止まるごとに更新し、更新待ちの間は前回の結果を薄く表示。
   - **Themed Page** タブでは、テーマのテンプレートと `on-render-page` フックを適用したページ全体を `iframe`（`srcdoc`、`sandbox="allow-scripts allow-same-origin"`。プラグインの Mermaid 描画などのスクリプトを動かすため）で表示（タイトル・slug・カテゴリの変更も反映）。
   - レンダリング結果をタブでプレビューと HTML ソースコード表示に切り替え可能。
+- **予約公開**: エディタ・商品フォームの状態で「予約公開」を選び、公開日時（`datetime-local`）を入れて保存すると、その日時にサーバーが公開する。一覧には予約バッジ（ツールチップに日時）を表示（[予約公開](../docs/theme_and_publishing_guide.md#予約公開スケジュール公開)）。
 - **Markdown 編集 & 貼り付け**:
   - エディタ上部の **Blocks / Markdown** で編集方法を切り替える。ブロックと Markdown は相互に変換され（`utils/markdown.ts` の `blocksToMarkdown` / `markdownToBlocks`。見出し・段落・コード・画像・リスト）、どちらで編集してもプレビューと保存は同じブロックから行う。
   - Markdown エディタ（`MarkdownEditor.tsx`）: 書式の挿入ツールバー、Tab でのインデント、Ctrl+S で保存、行数・文字数・ブロック数の表示。

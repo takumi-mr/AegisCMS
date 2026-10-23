@@ -3,13 +3,16 @@ import { Plus, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem } from '../types';
 import { categoryColor, categoryIdOf } from '../utils/category';
+import { isLabeledStatus } from '../utils/contentStatus';
 import { cx } from '../utils/cx';
+import { formatDateTime } from '../utils/format';
 import { Button } from './ui/Button';
 import { Field } from './ui/Field';
 import styles from './ContentList.module.css';
 
 const STATUS_BADGE: Record<string, string | undefined> = {
   published: styles.published,
+  scheduled: styles.scheduled,
   draft: styles.draft,
 };
 
@@ -113,10 +116,15 @@ export const ContentList: React.FC<ContentListProps> = ({
               )}
               <span className={styles.cardMeta}>
                 <span>/{item.slug}</span>
-                <span className={cx(styles.status, STATUS_BADGE[item.status])}>
-                  {item.status === 'published' || item.status === 'draft'
-                    ? t(`common.status.${item.status}`)
-                    : item.status}
+                <span
+                  className={cx(styles.status, STATUS_BADGE[item.status])}
+                  title={
+                    item.status === 'scheduled' && item.published_at
+                      ? t('contentList.scheduledFor', { date: formatDateTime(item.published_at) })
+                      : undefined
+                  }
+                >
+                  {isLabeledStatus(item.status) ? t(`common.status.${item.status}`) : item.status}
                 </span>
               </span>
             </button>

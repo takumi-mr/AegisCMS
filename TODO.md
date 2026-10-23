@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: Admin Studio からのアカウント登録（メールアドレスの確認・admin の承認、`[auth.registration]`。[authentication.md 7](docs/authentication.md#7-アカウント登録)）。
+- **直近の完了**: コンテンツの予約公開（`status: "scheduled"` + `published_at`。[theme_and_publishing_guide.md](docs/theme_and_publishing_guide.md#予約公開スケジュール公開)、設計は [architecture.md 3.4](docs/architecture.md#34-予約公開-aegis-serversrcschedulerrs-handlerscontentrs-の-resolve_publication)）。その前はアカウント登録（[authentication.md 7](docs/authentication.md#7-アカウント登録)）。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -34,6 +34,12 @@
 - [ ] **招待リンク**: admin がメールアドレスとロールを指定して招待し、本人がパスワードを決める（`require_approval` の代わりに使える）。
 - [ ] **ロール変更・無効化・削除を発行済みのセッションに反映**: 今は有効期限まで有効。ユーザー → セッション ID の索引をキャッシュに持つか、`RequireRole` で DB のユーザー状態を確かめる。
 - [ ] **SAML 2.0 認証プロバイダ**（SP-initiated、POST バインディング）: XML 署名検証（xmlsec など）の依存と XML Signature Wrapping 対策を検討してから着手。`run_auth_hook` / `complete_login` を通す（[architecture.md 6.4](docs/architecture.md#64-ログインの完了と認証後フック)）。
+
+### コンテンツ・公開
+
+- [ ] **公開予定の一覧・カレンダー**: Admin Studio で予約中のコンテンツを日時順に見る画面（今は一覧のバッジとツールチップのみ）。
+- [ ] **予約での公開終了（非公開化）**: `unpublish_at` で期間限定の公開（キャンペーンページなど）。
+- [ ] **公開時のフック・通知**: 予約公開した時点でプラグインフック（例: `on-content-published`）を呼ぶ。通知は `[[notifications.audit.rules]]` の `content.publish` ですでに送れる。
 
 ### Admin Studio
 

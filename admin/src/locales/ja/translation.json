@@ -151,6 +151,7 @@
     },
     "status": {
       "draft": "下書き",
+      "scheduled": "予約公開",
       "published": "公開"
     },
     "unreachable": "AegisCMS サーバーに接続できません。サーバーが起動しているか確認してください。"
@@ -169,12 +170,15 @@
     "empty": "まだ記事がありません。",
     "emptyHint": "「+ 新規」で作成できます。",
     "noMatch": "このカテゴリの記事はありません。",
-    "articles": "記事"
+    "articles": "記事",
+    "scheduledFor": "{{date}} に公開予定"
   },
   "editor": {
     "titlePlaceholder": "タイトルを入力...",
     "slug": "スラッグ:",
     "status": "状態:",
+    "publishAt": "公開日時:",
+    "publishAtAria": "公開する日時",
     "category": "カテゴリ:",
     "categoryAria": "カテゴリ",
     "noCategory": "カテゴリなし",
@@ -207,7 +211,8 @@
       "slugRequired": "スラッグを入力してください",
       "saved": "保存しました。Wasm プラグインのフックを実行しました（ID: {{id}}）",
       "saveFailed": "保存できませんでした",
-      "profileUnavailable": "プロフィールを読み込めませんでした"
+      "profileUnavailable": "プロフィールを読み込めませんでした",
+      "publishAtRequired": "予約公開する日時を指定してください"
     }
   },
   "header": {
@@ -457,6 +462,7 @@
       "required": "商品名とスラッグを入力してください。",
       "price": "価格は通貨の最小単位の整数で入力してください。",
       "numbers": "通常価格と在庫は整数で入力してください（空欄も可）。",
+      "publishAt": "予約公開する日時を指定してください。",
       "stockFailed": "現在の在庫を読み込めませんでした",
       "saveFailed": "商品を保存できませんでした"
     },
@@ -465,6 +471,7 @@
       "title": "商品名:",
       "slug": "スラッグ:",
       "status": "状態:",
+      "publishAt": "公開日時:",
       "price": "価格:",
       "compareAt": "通常価格:",
       "stock": "在庫:",
@@ -477,6 +484,7 @@
       "title": "商品名",
       "slug": "スラッグ",
       "status": "状態",
+      "publishAt": "公開する日時",
       "price": "価格",
       "compareAt": "通常価格（値引き前）",
       "stock": "在庫",

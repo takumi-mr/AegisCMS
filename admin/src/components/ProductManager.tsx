@@ -4,7 +4,9 @@ import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi, SERVER_URL, serverAssetUrl } from '../api/client';
 import i18n from '../i18n';
 import type { ContentItem, ShopConfig, StorageMeta } from '../types';
+import { isLabeledStatus } from '../utils/contentStatus';
 import { cx } from '../utils/cx';
+import { toDateTimeLocal } from '../utils/format';
 import { blocksToMarkdown, markdownToBlocks } from '../utils/markdown';
 import { formatMoney } from '../utils/money';
 import { ImageUploader } from './ImageUploader';
@@ -203,7 +205,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
                             product.status === 'published' && styles.good
                           )}
                         >
-                          {product.status === 'published' || product.status === 'draft'
+                          {isLabeledStatus(product.status)
                             ? t(`common.status.${product.status}`)
                             : product.status}
                         </span>
@@ -298,6 +300,11 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
   const [slug, setSlug] = useState<string>(product?.slug ?? '');
   const [slugEdited, setSlugEdited] = useState<boolean>(Boolean(product));
   const [status, setStatus] = useState<string>(product?.status ?? 'draft');
+  const [publishAt, setPublishAt] = useState<string>(
+    product?.status === 'scheduled' && product.published_at
+      ? toDateTimeLocal(product.published_at)
+      : ''
+  );
   const [price, setPrice] = useState<string>(initialNumber('price'));
   const [compareAt, setCompareAt] = useState<string>(initialNumber('compare_at_price'));
   const [stock, setStock] = useState<string>(initialNumber('stock'));
@@ -343,6 +350,11 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
       setError(t('products.errors.numbers'));
       return;
     }
+    const scheduledAt = status === 'scheduled' ? new Date(publishAt) : null;
+    if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+      setError(t('products.errors.publishAt'));
+      return;
+    }
     // Orders change the stock while the form is open: unless it was edited here, save the
     // current stock instead of the value shown when the form opened (PUT replaces every field)
     let savedStock = stockValue;
@@ -359,6 +371,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
       title: title.trim(),
       slug: slug.trim(),
       status,
+      ...(scheduledAt ? { published_at: scheduledAt.toISOString() } : {}),
       blocks: markdownToBlocks(description),
       price: priceValue,
       compare_at_price: compareValue,
@@ -425,9 +438,20 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
                 aria-label={t('products.aria.status')}
               >
                 <option value="draft">{t('common.status.draft')}</option>
+                <option value="scheduled">{t('common.status.scheduled')}</option>
                 <option value="published">{t('common.status.published')}</option>
               </select>
             </Field>
+            {status === 'scheduled' && (
+              <Field label={t('products.fields.publishAt')}>
+                <input
+                  type="datetime-local"
+                  value={publishAt}
+                  onChange={(e) => setPublishAt(e.target.value)}
+                  aria-label={t('products.aria.publishAt')}
+                />
+              </Field>
+            )}
           </FieldRow>
 
           <div className={styles.formSection}>
