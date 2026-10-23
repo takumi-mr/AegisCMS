@@ -37,7 +37,9 @@ interface PreviewResult {
 }
 
 /**
- * The themed page is shown in a sandboxed iframe (no scripts, no access to the admin origin).
+ * The themed page is shown in an iframe sandboxed to scripts only: theme and plugin scripts
+ * (Mermaid, Prism) run, but without `allow-same-origin` the document gets an opaque origin and
+ * cannot read the admin's storage (the session token) or call the API as the signed-in user.
  * `<base>` makes root-relative theme assets and uploads load from the AegisCMS server.
  */
 const withBase = (pageHtml: string): string => {
@@ -181,7 +183,7 @@ export const Preview: React.FC<PreviewProps> = ({
               <iframe
                 className={cx(styles.pageFrame, isRendering && styles.stale)}
                 title={t('preview.pageFrame')}
-                sandbox="allow-scripts allow-same-origin"
+                sandbox="allow-scripts"
                 srcDoc={withBase(result.pageHtml)}
               />
             ) : (

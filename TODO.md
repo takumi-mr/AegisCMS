@@ -9,22 +9,17 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: HTTP サーバー包括的パフォーマンスベンチマークスクリプトの追加（`scripts/benchmark.mjs`、`Taskfile.yml` の `bench:http` / `bench:all`、主要エンドポイント計測とレポート出力、[development.md 6](docs/development.md#6-パフォーマンスベンチマーク)）。その前は SAML 2.0 認証プロバイダ（SP-initiated、`[auth.saml]`。使い方は [authentication.md 8](docs/authentication.md#8-シングルサインオン-saml-20)、設計・依存の判断・XML Signature Wrapping 対策は [architecture.md 6.5a](docs/architecture.md#65a-saml-20-aegis_authsaml)）。その前はロール変更・無効化・削除・パスワード変更を発行済みのセッションに即時反映（キャッシュ上の失効マーカーによるブラックリスト判定。[authentication.md 2, 3](docs/authentication.md#2-cli-でのユーザー管理-aegis-user)、設計は [architecture.md 6.2](docs/architecture.md#62-ローカル認証とロール)）。
+- **直近の完了**: Themed Page プレビューの `iframe` から `allow-same-origin` を外し、テーマやプラグインのスクリプトがセッショントークンを読めないようにした（理由と制約は [admin/README.md の設計メモ](admin/README.md#-設計メモ)）。その前は HTTP サーバー包括的パフォーマンスベンチマークスクリプトの追加（`scripts/benchmark.mjs`、`Taskfile.yml` の `bench:http` / `bench:all`、主要エンドポイント計測とレポート出力、[development.md 6](docs/development.md#6-パフォーマンスベンチマーク)）。その前は SAML 2.0 認証プロバイダ（SP-initiated、`[auth.saml]`。使い方は [authentication.md 8](docs/authentication.md#8-シングルサインオン-saml-20)、設計・依存の判断・XML Signature Wrapping 対策は [architecture.md 6.5a](docs/architecture.md#65a-saml-20-aegis_authsaml)）。その前はロール変更・無効化・削除・パスワード変更を発行済みのセッションに即時反映（キャッシュ上の失効マーカーによるブラックリスト判定。[authentication.md 2, 3](docs/authentication.md#2-cli-でのユーザー管理-aegis-user)、設計は [architecture.md 6.2](docs/architecture.md#62-ローカル認証とロール)）。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
 ### 🚀 次に着手する項目
 
-1. **Themed Page プレビューの iframe の権限を見直す**（下記「セキュリティ」。小さく、影響が大きい）。
-2. **パスワードの再設定（メール）**: アカウント登録と同じ仕組みで作れる。
+1. **パスワードの再設定（メール）**: アカウント登録と同じ仕組みで作れる。
 
 ---
 
 ## 2. 未着手タスク
-
-### セキュリティ
-
-- [ ] **Themed Page プレビューの `sandbox`**: `Preview.tsx` の `iframe` は `srcdoc` に `sandbox="allow-scripts allow-same-origin"` を付けている（`official-code-enhancer` の Mermaid 描画のために緩めた）。`srcdoc` の文書は Admin Studio と同じオリジンになるため、テーマやプラグインが出力したスクリプトから `sessionStorage` のセッショントークンを読める。`allow-same-origin` を外す（スクリプトだけ許す）か、プレビューを別オリジンで配信する。コード内のコメント（"no scripts"）も合わせて直す。
 
 ### 認証・アカウント
 
