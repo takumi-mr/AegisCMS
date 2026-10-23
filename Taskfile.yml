@@ -154,10 +154,37 @@ tasks:
     cmds:
       - npm --prefix sdk/templates/assemblyscript run build
 
+  bench:
+    desc: AegisCMS サーバーの主要エンドポイント HTTP パフォーマンスベンチマークを実行 (bench:http のエイリアス)
+    cmds:
+      - task: bench:http
+        vars: { CLI_ARGS: '{{.CLI_ARGS}}' }
+
+  bench:http:
+    desc: HTTP ベンチマークを実行 (トップページ、記事、API、プレビュー、見積もり等。要サーバー起動または --auto-server)
+    cmds:
+      - node scripts/benchmark.mjs {{.CLI_ARGS}}
+
+  bench:http:quick:
+    desc: HTTP ベンチマークを短時間 (並行 20、各 2 秒) でクイック実行
+    cmds:
+      - node scripts/benchmark.mjs -c 20 -d 2 {{.CLI_ARGS}}
+
+  bench:http:stress:
+    desc: HTTP ベンチマークを高負荷 (並行 100、各 10 秒) でストレステスト実行
+    cmds:
+      - node scripts/benchmark.mjs -c 100 -d 10 {{.CLI_ARGS}}
+
   bench:plugins:
     desc: Wasm プラグインのフック 1 回あたりの所要時間（段階別）と同時実行時のスループットを計測 (sdk/ と plugins/ のプラグイン)
     cmds:
       - cargo run --release -p aegis-runtime --example plugin_profile
+
+  bench:all:
+    desc: プラグイン性能計測 (bench:plugins) と HTTP ベンチマーク (bench:http) を一括実行
+    cmds:
+      - task: bench:plugins
+      - task: bench:http
 
   plugin:build:tinygo:
     desc: TinyGo プラグインテンプレートを Wasm にビルドし sdk/templates/tinygo/plugin.wasm を生成 (要 TinyGo 0.31+)

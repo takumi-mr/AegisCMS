@@ -17,6 +17,8 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | `task build` / `build:server` / `build:admin` | 本番ビルド |
 | `task plugin:build*` | プラグインの Wasm ビルド（[4](#4-プラグインのビルド)） |
 | `task bench:plugins` | プラグインのフック 1 回あたりの所要時間と同時実行時のスループット（`crates/aegis-runtime/examples/plugin_profile.rs`） |
+| `task bench:http`（`bench`） | サーバーの HTTP パフォーマンスベンチマーク（トップページ、記事、API、プレビュー、見積もり。`scripts/benchmark.mjs`） |
+| `task bench:all` | プラグイン性能計測と HTTP ベンチマークを一括実行 |
 | `task demo:shop` / `demo:shop:seed` | サンプルショップの起動 / データ投入（[examples/coffee-shop](../examples/coffee-shop)） |
 | `task docker:build` / `docker:run` / `docker:stop` / `docker:logs` | Docker イメージ（[5](#5-docker-イメージ)） |
 
@@ -73,3 +75,42 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 - ワークスペースのメンバー（`crates/`・`sdk/`・`plugins/`）は `cargo chef prepare` と `cargo build` の時点でコンテキストに必要（`COPY plugins/ ./plugins/` など）。実行環境には `themes/` も置く。
 - UID 10001 の非 root ユーザー `aegis` で実行し、HEALTHCHECK を持つ。データは `/app/data` をボリュームにする（例: `-v aegis-data:/app/data`）。
 - 設定は `config/docker.toml`（`host = "0.0.0.0"`, `port = 8080`）。`AEGIS_CONFIG`・`HOST`・`PORT` で上書きできる。Admin Studio の API 接続先を別にする場合は `--build-arg VITE_AEGIS_SERVER_URL=...`（[configuration.md 4.3](configuration.md#43-admin-studio-の接続先)）。
+
+---
+
+## 6. パフォーマンスベンチマーク
+
+AegisCMS では、HTTP サーバー全体の負荷耐性と Wasm プラグイン単体のオーバーヘッドの双方を検証するベンチマーク環境を提供しています。
+
+### 6.1 HTTP エンドポイントのベンチマーク (`scripts/benchmark.mjs`)
+
+Node.js 18+ の標準機能（外部依存なし）で動作し、トップページ、記事詳細、コンテンツ一覧 API、プレビュー、EC 見積もりなどの主要エンドポイントのスループット（req/s）およびレイテンシ（p50, p90, p99, max）を計測します。
+
+```bash
+# 1. サーバーを起動（別ターミナル）
+task dev
+# または最適化されたリリースバイナリで起動
+cargo run --release -p aegis-server -- run
+
+# 2. ベンチマークを実行（既定: 並行 50、各エンドポイント 5 秒）
+task bench:http
+
+# 3. オプション指定（クイック実行・高負荷・ターゲット指定など）
+task bench:http:quick                    # 並行 20、各 2 秒
+task bench:http:stress                   # 並行 100、各 10 秒
+node scripts/benchmark.mjs -t index      # トップページのみ
+node scripts/benchmark.mjs -t api        # 一覧 API のみ
+node scripts/benchmark.mjs --auto-server # サーバーを自動起動して計測後終了
+node scripts/benchmark.mjs --json        # 結果を JSON 形式で出力
+```
+
+### 6.2 Wasm プラグインのプロファイリング (`task bench:plugins`)
+
+Wasm プラグイン（`sdk/` および `plugins/` 内のモジュール）を対象に、フック 1 回あたりの段階別所要時間（Store 作成、インスタンス化、入力書き込み、呼び出し、出力読み出し）と同時実行時のスループットを計測します（[architecture.md 12](architecture.md#12-性能の記録)）。
+
+```bash
+task bench:plugins
+```
+
+両方を一括実行する場合は `task bench:all` を使用します。
+
