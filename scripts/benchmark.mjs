@@ -259,7 +259,7 @@ function percentile(sorted, p) {
 
 async function checkServerHealth(baseUrl) {
   return new Promise((resolve) => {
-    const url = new URL(`${baseUrl}/health`);
+    const url = new URL(`${baseUrl}/api/v1/health`);
     const isHttps = url.protocol === 'https:';
     const httpModule = isHttps ? https : http;
 
@@ -330,7 +330,7 @@ function getScenarios(baseUrl, articleSlug) {
       id: 'health',
       name: 'Health Check (Routing Baseline)',
       description: 'ルーティングとフレームワークの最小オーバーヘッド',
-      url: `${baseUrl}/health`,
+      url: `${baseUrl}/api/v1/health`,
       method: 'GET',
     },
     {

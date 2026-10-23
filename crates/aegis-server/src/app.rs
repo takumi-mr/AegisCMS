@@ -27,6 +27,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .allow_headers(Any);
 
     let mut app = Router::new()
+        .route("/health", get(handlers::health_check))
         .route("/api/v1/health", get(handlers::health_check))
         .route("/api/v1/openapi.json", get(handlers::get_openapi_spec))
         .route("/api/v1/schemas", get(handlers::list_schemas))
