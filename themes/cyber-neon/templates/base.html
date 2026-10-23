@@ -7,7 +7,7 @@
   <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Tokyo Cyber Neon Theme{% endif %}">
   <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
   {% if extra_css %}
-  <style>{{ extra_css }}</style>
+  <style>{{ extra_css | safe }}</style>
   {% endif %}
   {{ extra_head | safe }}
 </head>
