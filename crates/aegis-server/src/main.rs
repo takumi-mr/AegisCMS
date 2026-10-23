@@ -11,6 +11,7 @@ mod audit;
 mod auth;
 mod config;
 mod handlers;
+mod notify_plugins;
 mod plugin_host;
 mod render;
 mod state;
@@ -85,8 +86,11 @@ enum NotifyCommand {
     /// Send a test notification through every configured channel and wait for the result
     Test {
         /// Email address to send it to
+        #[arg(long, required_unless_present = "staff")]
+        to: Option<String>,
+        /// Also send it to the staff (staff_recipients, and plugin channels that notify staff)
         #[arg(long)]
-        to: String,
+        staff: bool,
     },
 }
 
@@ -148,18 +152,36 @@ fn notification_site(config: &AegisConfig) -> aegis_notify::SiteInfo {
 
 async fn run_notify_command(config: &AegisConfig, action: NotifyCommand) -> anyhow::Result<()> {
     match action {
-        NotifyCommand::Test { to } => {
+        NotifyCommand::Test { to, staff } => {
             if !config.notifications.enabled {
                 anyhow::bail!("Notifications are disabled: set [notifications].enabled = true");
             }
-            let service = aegis_notify::NotificationService::from_config(
+            // プラグインのチャネル（plugin:<名前>）も試せるようにプラグインを読み込む
+            let uses_plugins = config
+                .notifications
+                .channels
+                .iter()
+                .any(|c| matches!(c, aegis_notify::ChannelKind::Plugin(_)));
+            let supervisor = if uses_plugins {
+                let cache = aegis_cache::create_cache_backend(&config.cache).await?;
+                load_plugins(config, cache)?
+            } else {
+                PluginSupervisor::new()
+            };
+            let supervisor = Arc::new(tokio::sync::RwLock::new(supervisor));
+            notify_plugins::validate_plugin_channels(&config.notifications, &supervisor).await?;
+            let service = aegis_notify::NotificationService::from_config_with_plugins(
                 &config.notifications,
                 notification_site(config),
                 None,
+                notify_plugins::plugin_channel_factory(supervisor),
             )?;
             let event = aegis_core::NotificationEvent::new(
                 "test",
-                vec![aegis_core::Recipient::person(to, "")],
+                to.into_iter()
+                    .map(|to| aegis_core::Recipient::person(to, ""))
+                    .chain(staff.then_some(aegis_core::Recipient::Staff))
+                    .collect(),
                 serde_json::json!({}),
             );
             let deliveries = service.deliver(&event).await;
@@ -450,34 +472,7 @@ async fn main() -> anyhow::Result<()> {
             ));
 
             // 5. Wasm プラグインスーパーバイザー初期化（[plugins].enabled のプラグインをその順に読み込む）
-            let mut supervisor = PluginSupervisor::new();
-            if !config.runtime.enable_wasm_plugins {
-                if !config.plugins.enabled.is_empty() {
-                    tracing::warn!(
-                        "[runtime].enable_wasm_plugins = false: plugins in [plugins].enabled are not loaded"
-                    );
-                }
-            } else {
-                tracing::info!("Initializing Wasmtime runtime engine...");
-                let engine = create_wasm_engine(&config.runtime)?;
-                // KV は [cache] のバックエンド、HTTP は allowed_domains の確認済みのリクエストのみ
-                let host_services: Arc<dyn aegis_runtime::HostServices> = Arc::new(
-                    plugin_host::ServerHostServices::new(cache.clone(), config.plugins.clone())?,
-                );
-                let loaded = aegis_runtime::WasmPluginLoader::load_enabled(
-                    &config.paths.plugins_dir,
-                    &config.plugins.enabled,
-                    engine,
-                    &mut supervisor,
-                    host_services.into(),
-                    &config.runtime.default_resource_limits(),
-                )?;
-                tracing::info!(
-                    "Loaded {} Wasm plugins from {:?}",
-                    loaded,
-                    config.paths.plugins_dir
-                );
-            }
+            let supervisor = load_plugins(&config, cache.clone())?;
 
             // 5.5 テーマエンジンの初期化 & プラグイン登録テンプレートの同期
             let theme_engine = Arc::new(
@@ -538,10 +533,16 @@ async fn main() -> anyhow::Result<()> {
 
             // 6.6 通知（[notifications]）。EC が注文の通知に使うので先に設定する
             let app_state = if config.notifications.enabled {
-                let notifier = aegis_notify::NotificationService::from_config(
+                notify_plugins::validate_plugin_channels(
+                    &config.notifications,
+                    &app_state.supervisor,
+                )
+                .await?;
+                let notifier = aegis_notify::NotificationService::from_config_with_plugins(
                     &config.notifications,
                     notification_site(&config),
                     Some(app_state.audit.clone()),
+                    notify_plugins::plugin_channel_factory(app_state.supervisor.clone()),
                 )?;
                 tracing::info!(
                     "Notifications enabled (channels: {:?})",
@@ -602,6 +603,42 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// `[plugins].enabled` のプラグインをその順に読み込む（`[runtime].enable_wasm_plugins = false` なら読み込まない）
+fn load_plugins(
+    config: &AegisConfig,
+    cache: Arc<dyn aegis_core::CacheBackend>,
+) -> anyhow::Result<PluginSupervisor> {
+    let mut supervisor = PluginSupervisor::new();
+    if !config.runtime.enable_wasm_plugins {
+        if !config.plugins.enabled.is_empty() {
+            tracing::warn!(
+                "[runtime].enable_wasm_plugins = false: plugins in [plugins].enabled are not loaded"
+            );
+        }
+        return Ok(supervisor);
+    }
+    tracing::info!("Initializing Wasmtime runtime engine...");
+    let engine = create_wasm_engine(&config.runtime)?;
+    // KV は [cache] のバックエンド、HTTP は allowed_domains の確認済みのリクエストのみ
+    let host_services: Arc<dyn aegis_runtime::HostServices> = Arc::new(
+        plugin_host::ServerHostServices::new(cache, config.plugins.clone())?,
+    );
+    let loaded = aegis_runtime::WasmPluginLoader::load_enabled(
+        &config.paths.plugins_dir,
+        &config.plugins.enabled,
+        engine,
+        &mut supervisor,
+        host_services.into(),
+        &config.runtime.default_resource_limits(),
+    )?;
+    tracing::info!(
+        "Loaded {} Wasm plugins from {:?}",
+        loaded,
+        config.paths.plugins_dir
+    );
+    Ok(supervisor)
 }
 
 /// `[runtime].instance_pool_size` が 1 以上ならプーリングアロケータを使うエンジンを作る。

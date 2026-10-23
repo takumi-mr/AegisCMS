@@ -1,7 +1,8 @@
 use crate::guard::CapabilityGuard;
 use aegis_ast::BlockNode;
 use aegis_core::{
-    OrderContext, OrderStatusChange, PluginManifest, PostContext, Result, UserAuthContext,
+    Delivered, NotificationMessage, OrderContext, OrderStatusChange, PluginManifest, PostContext,
+    Result, SendError, UserAuthContext,
 };
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -54,6 +55,21 @@ pub trait AegisPlugin: Send + Sync {
         Ok(())
     }
 
+    /// 通知の配信フック（`send-notification`）。`[notifications].channels` に `plugin:<名前>` で
+    /// 加えたプラグインが、テンプレートから作った通知を Slack・SMS などへ送る。
+    /// 扱わない通知は `Ok(Delivered::Skipped)`、`SendError::permanent` は再試行しない失敗
+    async fn send_notification(
+        &self,
+        message: NotificationMessage,
+    ) -> std::result::Result<Delivered, SendError> {
+        let guard = CapabilityGuard::new(self.manifest());
+        guard
+            .check_hook("send-notification")
+            .map_err(|e| SendError::permanent(e.to_string()))?;
+        let _ = message;
+        Ok(Delivered::Skipped)
+    }
+
     fn provide_templates(&self) -> HashMap<String, String> {
         HashMap::new()
     }
@@ -93,6 +109,17 @@ impl PluginSupervisor {
     /// 登録済みのプラグイン（フックの実行順）
     pub fn plugins(&self) -> &[Arc<dyn AegisPlugin>] {
         &self.plugins
+    }
+
+    /// 名前でプラグインを探す
+    pub fn plugin(&self, name: &str) -> Option<&Arc<dyn AegisPlugin>> {
+        self.plugins.iter().find(|p| p.manifest().name == name)
+    }
+
+    /// プラグインが `hook` を宣言しているか（登録されていなければ `false`）
+    pub fn plugin_declares_hook(&self, name: &str, hook: &str) -> bool {
+        self.plugin(name)
+            .is_some_and(|plugin| declares_hook(plugin.as_ref(), hook))
     }
 
     pub async fn apply_before_save(&self, mut post: PostContext) -> Result<PostContext> {

@@ -46,7 +46,10 @@ impl NotificationChannel for RecordingChannel {
         self.staff || matches!(recipient, Recipient::Person { .. })
     }
 
-    async fn send(&self, message: &NotificationMessage) -> std::result::Result<(), SendError> {
+    async fn send(
+        &self,
+        message: &NotificationMessage,
+    ) -> std::result::Result<Delivered, SendError> {
         *self.calls.lock().unwrap() += 1;
         let mut failures = self.failures.lock().unwrap();
         if *failures > 0 {
@@ -58,7 +61,35 @@ impl NotificationChannel for RecordingChannel {
             });
         }
         self.sent.lock().unwrap().push(message.clone());
-        Ok(())
+        Ok(Delivered::Sent)
+    }
+}
+
+/// 運営者向けの通知だけを送り、ほかは `Skipped` を返すチャネル（プラグインのチャネルと同じ振る舞い）
+#[derive(Default)]
+struct StaffOnlyChannel {
+    sent: Mutex<Vec<NotificationMessage>>,
+}
+
+#[async_trait]
+impl NotificationChannel for StaffOnlyChannel {
+    fn name(&self) -> &str {
+        "staff-only"
+    }
+
+    fn accepts(&self, _recipient: &Recipient) -> bool {
+        true
+    }
+
+    async fn send(
+        &self,
+        message: &NotificationMessage,
+    ) -> std::result::Result<Delivered, SendError> {
+        if message.recipient != Recipient::Staff {
+            return Ok(Delivered::Skipped);
+        }
+        self.sent.lock().unwrap().push(message.clone());
+        Ok(Delivered::Sent)
     }
 }
 
@@ -205,6 +236,61 @@ async fn retries_temporary_failures_but_not_permanent_ones() {
 }
 
 #[tokio::test]
+async fn skipped_messages_are_neither_delivered_nor_audited() {
+    let channel = Arc::new(StaffOnlyChannel::default());
+    let audit_sink = Arc::new(MemoryAuditSink::default());
+    let audit = Arc::new(AuditService::with_sinks(vec![audit_sink.clone()]));
+    let service =
+        NotificationService::with_channels(&config(), site(), Some(audit), vec![channel.clone()]);
+    let deliveries = service.deliver(&placed_event()).await;
+    assert_eq!(deliveries.len(), 1);
+    assert_eq!(deliveries[0].recipient, Recipient::Staff);
+    assert_eq!(audit_sink.events.lock().unwrap().len(), 1);
+    // チャネルにはテンプレートに渡した値も届く
+    let sent = channel.sent.lock().unwrap();
+    assert_eq!(sent[0].data["order"]["number"], "261023-ABC234");
+    assert_eq!(sent[0].data["site_name"], "Aegis Coffee");
+    assert_eq!(sent[0].data["kind"], "order.placed");
+}
+
+#[test]
+fn parses_channel_names() {
+    let config: NotificationsConfig = serde_json::from_value(json!({
+        "channels": ["email", "log", "plugin:official-order-notifier"]
+    }))
+    .unwrap();
+    assert_eq!(
+        config.channels,
+        vec![
+            ChannelKind::Email,
+            ChannelKind::Log,
+            ChannelKind::Plugin("official-order-notifier".to_string()),
+        ]
+    );
+    assert_eq!(config.channels[2].name(), "plugin:official-order-notifier");
+    for bad in ["sms", "plugin:", "plugin:../evil"] {
+        let error = serde_json::from_value::<NotificationsConfig>(json!({ "channels": [bad] }))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("unknown notification channel"), "{}", error);
+    }
+
+    // プラグインのチャネルは作り方を渡したときだけ使える
+    let config = NotificationsConfig {
+        enabled: true,
+        channels: vec![ChannelKind::Plugin("slack".to_string())],
+        ..Default::default()
+    };
+    assert!(NotificationService::from_config(&config, site(), None).is_err());
+    let service = NotificationService::from_config_with_plugins(&config, site(), None, |name| {
+        assert_eq!(name, "slack");
+        Ok(Arc::new(StaffOnlyChannel::default()) as Arc<dyn NotificationChannel>)
+    })
+    .unwrap();
+    assert_eq!(service.channel_names(), vec!["staff-only"]);
+}
+
+#[tokio::test]
 async fn notify_delivers_in_the_background() {
     let channel = RecordingChannel::new(true);
     let service =
@@ -326,6 +412,7 @@ async fn email_channel_sends_through_smtp() {
             recipient: Recipient::person("hanako@example.com", "Hanako"),
             subject: "Test notification".to_string(),
             body: "Hello from AegisCMS".to_string(),
+            data: json!({}),
         })
         .await
         .unwrap();
@@ -362,6 +449,7 @@ async fn email_channel_reports_rejected_recipients_as_permanent() {
             recipient: Recipient::Staff,
             subject: "Test".to_string(),
             body: "Hello".to_string(),
+            data: json!({}),
         })
         .await
         .unwrap_err();
@@ -374,6 +462,7 @@ async fn email_channel_reports_rejected_recipients_as_permanent() {
             recipient: Recipient::person("not an address", ""),
             subject: "Test".to_string(),
             body: "Hello".to_string(),
+            data: json!({}),
         })
         .await
         .unwrap_err();

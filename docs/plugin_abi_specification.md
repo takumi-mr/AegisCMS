@@ -195,6 +195,9 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 | `transform-content-ast` | `transform_content_ast` | `(ptr: i32, len: i32)` | `i64` | ブロック AST 配列の変換・装飾 |
 | `on-render-page` | `on_render_page` | `(ptr: i32, len: i32)` | `i64` | 公開ページ描画コンテキストの動的変更 |
 | `on-user-authenticated` | `on_user_authenticated` | `(ptr: i32, len: i32)` | `i64` | ログイン成功後のロールマッピング・属性の補完・ログイン拒否 |
+| `calculate-order` | `calculate_order` | `(ptr: i32, len: i32)` | `i64` | 送料・税・割引の追加、注文の拒否 |
+| `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64` | 注文の作成・状態の変化の通知 |
+| `send-notification` | `send_notification` | `(ptr: i32, len: i32)` | `i64` | 通知の配信チャネル（Slack・SMS など） |
 
 ### 4.1 `on_before_save`
 
@@ -250,6 +253,33 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 
 - **入力**: `OrderStatusChange` の JSON
 - **戻り値**: `0`（成功）、または `{"error": "..."}`（ログと監査ログに残るだけで、注文には影響しない）
+
+### 4.7 `send_notification`
+
+`[notifications].channels` に `"plugin:<名前>"` と書いたプラグインが、通知のたびに呼び出されます（[プラグインフック 1.7](plugin_hooks.md#17-send-notification)）。
+
+- **入力**: `NotificationMessage` の JSON
+
+```json
+{
+  "kind": "audit.session.create",
+  "recipient": { "type": "staff" },
+  "subject": "【Shop】ログインをロックしました（root）",
+  "body": "ログインをロックしました（root）\n\n日時: ...",
+  "data": { "audit": { "action": "session.create", "outcome": "failure", "details": { "locked": "username" } }, "site_name": "Shop" }
+}
+```
+
+`recipient` は `{"type": "staff"}` か `{"type": "person", "email": "hanako@example.com", "name": "Hanako"}`。
+
+- **戻り値**:
+
+| 戻り値 | 意味 |
+| --- | --- |
+| `0` | 送った |
+| `{"skipped": true}` | 扱わない通知（失敗ではない。監査ログにも残らない） |
+| `{"error": "...", "permanent": false}` | 一時的な失敗。ホストが間隔を空けて再試行する（`permanent` を省略した場合も同じ） |
+| `{"error": "...", "permanent": true}` | 再試行しても変わらない失敗（設定の不備・相手の 4xx など） |
 
 ---
 

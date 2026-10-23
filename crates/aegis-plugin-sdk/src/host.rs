@@ -181,7 +181,8 @@ pub mod kv {
 
 pub mod config {
     /// プラグインの設定値（サーバーの `[plugins.settings.<プラグイン名>]`）。未設定なら `None`。
-    /// 文字列以外の値（数値・配列など）は JSON で返る
+    /// 文字列以外の値（数値・配列など）は JSON で返る。空文字列も `None`（ABI では長さ 0 が「値なし」のため）。
+    /// 「何もしない」を設定で表すなら `none` などの値を決めておく
     pub fn get(key: &str) -> Option<String> {
         #[cfg(target_arch = "wasm32")]
         {

@@ -20,7 +20,7 @@ use aegis_core::{AuditAction, AuditOutcome, NotificationEvent, Notifier, Recipie
 use serde_json::json;
 
 pub use audit::AuditNotificationSink;
-pub use channel::{NotificationChannel, NotificationMessage, SendError};
+pub use channel::{Delivered, NotificationChannel, NotificationMessage, SendError};
 pub use config::{
     AuditNotificationsConfig, AuditRule, ChannelKind, EmailConfig, NotificationsConfig, SmtpTls,
 };
@@ -64,11 +64,27 @@ struct Inner {
 }
 
 impl NotificationService {
-    /// 設定（`channels`）のチャネルを作る。設定の検証も行う
+    /// 設定（`channels`）のチャネルを作る。設定の検証も行う。プラグインのチャネル
+    /// （`plugin:<名前>`）は使えない（`from_config_with_plugins` を使う）
     pub fn from_config(
         config: &NotificationsConfig,
         site: SiteInfo,
         audit: Option<Arc<AuditService>>,
+    ) -> Result<Self> {
+        Self::from_config_with_plugins(config, site, audit, |name| {
+            Err(aegis_core::AegisError::Config(format!(
+                "[notifications].channels: plugin channel \"plugin:{}\" is not available here",
+                name
+            )))
+        })
+    }
+
+    /// `from_config` と同じで、プラグインのチャネル（`plugin:<名前>`）を `plugin_channel` で作る
+    pub fn from_config_with_plugins(
+        config: &NotificationsConfig,
+        site: SiteInfo,
+        audit: Option<Arc<AuditService>>,
+        plugin_channel: impl Fn(&str) -> Result<Arc<dyn NotificationChannel>>,
     ) -> Result<Self> {
         config.validate()?;
         let mut channels: Vec<Arc<dyn NotificationChannel>> = Vec::new();
@@ -76,6 +92,7 @@ impl NotificationService {
             match kind {
                 ChannelKind::Email => channels.push(Arc::new(EmailChannel::new(&config.email)?)),
                 ChannelKind::Log => channels.push(Arc::new(LogChannel)),
+                ChannelKind::Plugin(name) => channels.push(plugin_channel(name)?),
             }
         }
         Ok(Self::with_channels(config, site, audit, channels))
@@ -155,11 +172,14 @@ impl NotificationService {
                 recipient: recipient.clone(),
                 subject: rendered.subject,
                 body: rendered.body,
+                data: context.clone(),
             };
             for channel in channels {
-                let delivery = self.send_with_retry(channel.as_ref(), &message).await;
-                self.record(event, &delivery).await;
-                deliveries.push(delivery);
+                // チャネルが扱わない通知（`Skipped`）は結果に含めず、監査ログにも残さない
+                if let Some(delivery) = self.send_with_retry(channel.as_ref(), &message).await {
+                    self.record(event, &delivery).await;
+                    deliveries.push(delivery);
+                }
             }
         }
         deliveries
@@ -169,13 +189,14 @@ impl NotificationService {
         &self,
         channel: &dyn NotificationChannel,
         message: &NotificationMessage,
-    ) -> Delivery {
+    ) -> Option<Delivery> {
         let max_attempts = self.inner.config.max_attempts.max(1);
         let mut attempts = 0;
         let result = loop {
             attempts += 1;
             match channel.send(message).await {
-                Ok(()) => break Ok(()),
+                Ok(Delivered::Sent) => break Ok(()),
+                Ok(Delivered::Skipped) => return None,
                 Err(e) if e.permanent || attempts >= max_attempts => break Err(e),
                 Err(e) => {
                     let delay = self.inner.retry_delay * 4u32.pow(attempts - 1);
@@ -200,13 +221,13 @@ impl NotificationService {
                 e
             );
         }
-        Delivery {
+        Some(Delivery {
             channel: channel.name().to_string(),
             recipient: message.recipient.clone(),
             subject: message.subject.clone(),
             attempts,
             result,
-        }
+        })
     }
 
     /// テンプレートに渡す値（イベントの値 + サイトの情報）

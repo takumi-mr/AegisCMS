@@ -214,3 +214,34 @@ where
         Err(e) => write_error_to_host(&e.to_string()),
     }
 }
+
+/// 通知の配信フック（`send-notification`）の共通処理。送ったら 0、扱わない通知は
+/// `{"skipped": true}`、失敗は `{"error": ..., "permanent": ...}`
+///
+/// # Safety
+/// `ptr` / `len` はホストが `allocate` で確保して書き込んだ領域であること
+pub unsafe fn run_delivery_hook(
+    ptr: i32,
+    len: i32,
+    f: impl FnOnce(crate::types::NotificationMessage) -> crate::types::Result<crate::types::Delivery>,
+) -> i64 {
+    let in_bytes = read_bytes_from_host(ptr, len);
+    let message = match serde_json::from_slice(&in_bytes) {
+        Ok(message) => message,
+        Err(e) => {
+            let body = serde_json::json!({
+                "error": format!("Invalid NotificationMessage: {}", e),
+                "permanent": true,
+            });
+            return write_bytes_to_host(serde_json::to_vec(&body).unwrap_or_default());
+        }
+    };
+    match f(message) {
+        Ok(crate::types::Delivery::Sent) => 0,
+        Ok(crate::types::Delivery::Skipped) => write_bytes_to_host(br#"{"skipped":true}"#.to_vec()),
+        Err(e) => {
+            let body = serde_json::json!({ "error": e.to_string(), "permanent": e.is_permanent() });
+            write_bytes_to_host(serde_json::to_vec(&body).unwrap_or_default())
+        }
+    }
+}

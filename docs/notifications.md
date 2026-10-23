@@ -2,7 +2,7 @@
 
 注文の受付・入金確認・発送・取り消しを顧客と運営者に、管理者のログインやログインのロックなどの監査イベントを運営者に、メールで知らせます（`[notifications]`）。メールは外部の SMTP サーバー（自社のメールサーバー、Amazon SES、SendGrid、Google Workspace など）から送ります。
 
-配信方法は「チャネル」として差し替えられる作りで、今はメール（`email`）とサーバーのログ（`log`）があります。Slack や SMS などはチャネルを足すだけで加えられます（[5. 配信方法を加える](#5-配信方法を加える)）。
+配信方法は「チャネル」として差し替えられる作りで、メール（`email`）とサーバーのログ（`log`）が組み込みです。Slack や SMS などは、Wasm プラグインをチャネルとして加えられます（`plugin:<名前>`。[5. 配信方法を加える](#5-配信方法を加える)）。
 
 ```text
  EC（注文の作成・状態の変化）          監査ログ（ルールに合うイベント。2.1）
@@ -11,7 +11,8 @@
  NotificationService（aegis-notify）
         │  宛先ごとにテンプレートから件名・本文を作る（<種類>.subject / <種類>.txt）
         ├──▶ email チャネル ── SMTP サーバー ──▶ 顧客 / staff_recipients
-        └──▶ log チャネル   ── サーバーのログ（aegis::notify）
+        ├──▶ log チャネル   ── サーバーのログ（aegis::notify）
+        └──▶ plugin:<名前>  ── Wasm プラグインの send-notification フック ──▶ Slack / SMS など
         │
         └── 結果を監査ログに記録（notification.send）。一時的な失敗は再試行
 ```
@@ -184,56 +185,71 @@ notifications/
 
 ## 5. 配信方法を加える
 
-配信チャネルは `aegis_notify::NotificationChannel` トレイトを実装します。
+### 5.1 Wasm プラグインで加える
+
+`send-notification` フックを持つプラグインは、そのまま通知のチャネルになります。Rust の本体を変えずに、Slack・Teams・Discord・LINE・SMS 業者の API などへの配信を加えられます。
+
+```toml
+[notifications]
+enabled = true
+channels = ["email", "plugin:official-order-notifier"]
+
+[plugins]
+enabled = ["official-order-notifier"]
+
+[plugins.settings.official-order-notifier]
+webhook_url = "env:SLACK_WEBHOOK_URL"
+notify_on = "none"                # 注文の旧来の通知（on-order-status-changed）は止め、二重に届かないように
+channel_recipients = "staff"      # 運営者向けの通知だけ（all で顧客向けも）
+channel_kinds = "audit.,order.placed,order.cancelled"   # 種類の前方一致（空ならすべて）
+```
+
+- ホストはテンプレートから件名・本文を作って `send-notification` に渡します。テンプレート・再試行（`max_attempts`）・監査ログ `notification.send`（`channel: plugin:<名前>`）・監査イベントの上限（`max_per_hour`）はメールと同じです。
+- プラグインは扱わない通知（宛先・種類）に `Skipped` を返します。`Skipped` は失敗ではなく、監査ログにも残りません。
+- `channels` に書いたプラグインが `[plugins].enabled` に無い、またはマニフェストで `send-notification` を宣言していない場合、サーバーは起動しません。
+- 動作確認は `aegis-server notify test --staff`（運営者向け。`--to` で顧客向けも）。
+- プラグインの作り方は [プラグインフック 1.7](plugin_hooks.md#17-send-notification)、ABI は [ABI 仕様 4.7](plugin_abi_specification.md#47-send_notification) を参照してください。
+
+### 5.2 Rust で加える
+
+本体に組み込む場合は `aegis_notify::NotificationChannel` トレイトを実装します。
 
 ```rust
-use aegis_core::Recipient;
-use aegis_notify::{NotificationChannel, NotificationMessage, SendError};
+use aegis_notify::{Delivered, NotificationChannel, NotificationMessage, Recipient, SendError};
 use async_trait::async_trait;
 
-pub struct SlackChannel {
-    webhook_url: String,
-    client: reqwest::Client,
-}
+pub struct SmsChannel { /* API クライアントなど */ }
 
 #[async_trait]
-impl NotificationChannel for SlackChannel {
+impl NotificationChannel for SmsChannel {
     fn name(&self) -> &str {
-        "slack"
+        "sms"
     }
 
-    /// 運営者向けの通知だけを Slack に送る
+    /// 送れる宛先か（送れないものは呼ばれない）
     fn accepts(&self, recipient: &Recipient) -> bool {
         matches!(recipient, Recipient::Staff)
     }
 
-    async fn send(&self, message: &NotificationMessage) -> Result<(), SendError> {
-        let text = format!("*{}*\n{}", message.subject, message.body);
-        let response = self
-            .client
-            .post(&self.webhook_url)
-            .json(&serde_json::json!({ "text": text }))
-            .send()
-            .await
-            .map_err(|e| SendError::temporary(e.to_string()))?;
-        if response.status().is_client_error() {
-            return Err(SendError::permanent(format!("Slack: {}", response.status())));
-        }
-        response
-            .error_for_status()
-            .map_err(|e| SendError::temporary(e.to_string()))?;
-        Ok(())
+    async fn send(&self, message: &NotificationMessage) -> Result<Delivered, SendError> {
+        // message.subject / message.body / message.data を使って送る
+        // 一時的な失敗は SendError::temporary、再試行しない失敗は SendError::permanent
+        Ok(Delivered::Sent)
     }
 }
 ```
 
-- 設定から選べるようにするには、`aegis_notify::ChannelKind` に種類を、`NotificationService::from_config` に作り方を加えます（設定項目は `NotificationsConfig` に）。
+- 設定から選べるようにするには、`aegis_notify::ChannelKind` に種類を、`NotificationService::from_config_with_plugins` に作り方を加えます（設定項目は `NotificationsConfig` に）。
 - コードからは `NotificationService::with_channels` にチャネルを渡しても使えます。
 - テンプレート・再試行・監査ログはチャネルに関係なく `NotificationService` が行います。チャネルは届けることだけを担当します。
-- `SendError::permanent` は再試行しない失敗、`SendError::temporary` は再試行する失敗です。
 
 通知を出す側を増やす（会員登録の確認など）ときは、`aegis_core::Notifier` に `NotificationEvent`（種類・宛先・テンプレートに渡す値）を渡し、組み込みテンプレート（`crates/aegis-notify/src/templates/`）を加えます。テンプレートの無い種類は送りません。
 
 ### Wasm プラグインとの関係
 
-公式プラグイン [`official-order-notifier`](commerce.md#official-order-notifierslack--webhook-通知) は `on-order-status-changed` フックで Slack / Webhook に知らせます。運営者向けのチャット通知はプラグイン、顧客へのメールはこの通知機能、と併用できます。
+公式プラグイン [`official-order-notifier`](commerce.md#official-order-notifierslack--webhook-通知) は 2 つの使い方ができます。
+
+- `on-order-status-changed`: 注文の状態の変化を、ホストのテンプレートを通さずに Slack / Webhook に送る（従来の使い方）
+- `send-notification`: 通知のチャネル（5.1）。監査イベントも含むすべての通知を、ホストのテンプレートの件名・本文で送る
+
+チャネルとして使う場合は、注文が二重に届かないよう `notify_on = "none"` にしてください。

@@ -2,18 +2,26 @@
   "name": "official-order-notifier",
   "version": "0.1.0",
   "entrypoint": "plugin.wasm",
-  "display_name": "Order Notifier (Slack / Webhook)",
-  "description": "Posts new orders and status changes to a Slack incoming webhook or any JSON webhook. Set webhook_url in [plugins.settings.official-order-notifier] and list the webhook's domain in allowed_domains.",
+  "display_name": "Order & Notification Notifier (Slack / Webhook)",
+  "description": "Posts new orders and status changes, and (as a notification channel: channels = [\"plugin:official-order-notifier\"]) any notification such as admin logins and lockouts, to a Slack incoming webhook or any JSON webhook. Set webhook_url in [plugins.settings.official-order-notifier] and list the webhook's domain in allowed_domains.",
   "author": "AegisCMS Core Team",
   "license": "MIT OR Apache-2.0",
-  "tags": ["commerce", "notification", "slack", "webhook"],
+  "tags": [
+    "commerce",
+    "notification",
+    "slack",
+    "webhook"
+  ],
   "min_aegis_version": "0.1.0",
   "capabilities": {
     "network": {
-      "allowed_domains": ["hooks.slack.com"]
+      "allowed_domains": [
+        "hooks.slack.com"
+      ]
     },
     "hooks": [
-      "on-order-status-changed"
+      "on-order-status-changed",
+      "send-notification"
     ]
   },
   "resource_limits": {

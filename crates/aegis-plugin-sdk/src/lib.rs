@@ -6,8 +6,9 @@ pub mod types;
 pub use aegis_plugin_macros::aegis_plugin;
 pub use host::{config, http, kv, log, net};
 pub use types::{
-    BlockNode, OrderAdjustment, OrderContext, OrderLine, OrderStatusChange, Plugin, PluginError,
-    PostContext, Result, ShippingAddress, UserAuthContext,
+    BlockNode, Delivery, NotificationMessage, OrderAdjustment, OrderContext, OrderLine,
+    OrderStatusChange, Plugin, PluginError, PostContext, Recipient, Result, ShippingAddress,
+    UserAuthContext,
 };
 
 /// 宣言的マクロによる Wasm プラグイン登録
@@ -157,6 +158,23 @@ macro_rules! register_plugin {
                         <$plugin_type as $crate::types::Plugin>::on_order_status_changed(
                             &mut plugin,
                             change,
+                        )
+                    },
+                )
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn send_notification(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                $crate::abi::run_delivery_hook(
+                    ptr,
+                    len,
+                    |message: $crate::types::NotificationMessage| {
+                        let mut plugin = <$plugin_type as ::std::default::Default>::default();
+                        <$plugin_type as $crate::types::Plugin>::send_notification(
+                            &mut plugin,
+                            message,
                         )
                     },
                 )

@@ -9,7 +9,7 @@ use lettre::message::Mailbox;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 
-use crate::channel::{NotificationChannel, NotificationMessage, SendError};
+use crate::channel::{Delivered, NotificationChannel, NotificationMessage, SendError};
 use crate::config::{EmailConfig, SmtpTls};
 
 pub struct EmailChannel {
@@ -85,7 +85,7 @@ impl NotificationChannel for EmailChannel {
         }
     }
 
-    async fn send(&self, message: &NotificationMessage) -> Result<(), SendError> {
+    async fn send(&self, message: &NotificationMessage) -> Result<Delivered, SendError> {
         let mut builder = Message::builder()
             .from(self.from.clone())
             .subject(message.subject.clone())
@@ -107,6 +107,6 @@ impl NotificationChannel for EmailChannel {
                 SendError::temporary(text)
             }
         })?;
-        Ok(())
+        Ok(Delivered::Sent)
     }
 }

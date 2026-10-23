@@ -274,6 +274,8 @@ format = "slack"                               # "json" なら OrderStatusChange
 
 送信先は `plugins/official-order-notifier/plugin.manifest.json` の `allowed_domains`（既定は `hooks.slack.com`）に含まれている必要があります。他のサービスに送る場合はそのドメインを追加してください（マニフェストの変更は信頼できる管理者が行うこと）。
 
+このプラグインは通知のチャネル（`[notifications].channels = ["plugin:official-order-notifier"]`）にもなり、管理者のログイン・ログインのロックなどの監査イベントも含めて、ホストのテンプレートで作った件名・本文を Slack に送れます（`channel_recipients` / `channel_kinds` で絞り込み。[通知 5.1](notifications.md#51-wasm-プラグインで加える)）。チャネルとして使う場合は `notify_on = "none"` にして、注文が二重に届かないようにしてください。
+
 ---
 
 ## 8. セキュリティと制限事項

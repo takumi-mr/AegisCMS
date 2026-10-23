@@ -26,5 +26,7 @@ pub use manifest::{
     is_valid_plugin_name, NetworkCapability, PackageAuthor, PluginCapabilities, PluginManifest,
     PluginResourceLimits, StorageCapability,
 };
-pub use notify::{NotificationEvent, Notifier, Recipient};
+pub use notify::{
+    Delivered, NotificationEvent, NotificationMessage, Notifier, Recipient, SendError,
+};
 pub use storage::{guess_content_type, StorageBackend, StorageMeta, StorageObject};

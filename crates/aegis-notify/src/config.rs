@@ -6,22 +6,53 @@ use std::path::PathBuf;
 use aegis_core::{AegisError, AuditAction, AuditOutcome, Result};
 use serde::{Deserialize, Serialize};
 
-/// 配信チャネルの種類（`[notifications].channels`）
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// 配信チャネルの種類（`[notifications].channels`）。設定では `"email"` / `"log"` /
+/// `"plugin:<プラグイン名>"`（`send-notification` フックを持つ Wasm プラグイン）と書く
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
 pub enum ChannelKind {
     /// SMTP サーバー経由のメール（`[notifications.email]`）
     Email,
     /// サーバーのログに出す（`aegis::notify` ターゲット。開発・動作確認用）
     Log,
+    /// Wasm プラグイン（`[plugins].enabled` にあり、`send-notification` フックを宣言していること）
+    Plugin(String),
 }
 
 impl ChannelKind {
-    pub fn as_str(&self) -> &'static str {
+    /// 設定での書き方（`email` / `log` / `plugin:<名前>`）
+    pub fn name(&self) -> String {
         match self {
-            Self::Email => "email",
-            Self::Log => "log",
+            Self::Email => "email".to_string(),
+            Self::Log => "log".to_string(),
+            Self::Plugin(name) => format!("plugin:{}", name),
         }
+    }
+}
+
+impl TryFrom<String> for ChannelKind {
+    type Error = String;
+
+    fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
+        match value.trim() {
+            "email" => Ok(Self::Email),
+            "log" => Ok(Self::Log),
+            other => match other.strip_prefix("plugin:") {
+                Some(name) if aegis_core::is_valid_plugin_name(name.trim()) => {
+                    Ok(Self::Plugin(name.trim().to_string()))
+                }
+                _ => Err(format!(
+                    "unknown notification channel {:?}: use \"email\", \"log\" or \"plugin:<plugin name>\"",
+                    value
+                )),
+            },
+        }
+    }
+}
+
+impl From<ChannelKind> for String {
+    fn from(kind: ChannelKind) -> Self {
+        kind.name()
     }
 }
 

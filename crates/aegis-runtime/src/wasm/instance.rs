@@ -3,8 +3,8 @@ use wasmtime::{Instance, InstancePre, Module, Store, TypedFunc};
 
 use aegis_ast::BlockNode;
 use aegis_core::{
-    AegisError, OrderContext, OrderStatusChange, PageRenderContext, PluginManifest, PostContext,
-    Result, UserAuthContext,
+    AegisError, Delivered, NotificationMessage, OrderContext, OrderStatusChange, PageRenderContext,
+    PluginManifest, PostContext, Result, SendError, UserAuthContext,
 };
 
 use super::engine::WasmEngine;
@@ -300,6 +300,23 @@ impl AegisPlugin for WasmPluginInstance {
         Ok(())
     }
 
+    async fn send_notification(
+        &self,
+        message: NotificationMessage,
+    ) -> std::result::Result<Delivered, SendError> {
+        let input = to_json(&message).map_err(|e| SendError::permanent(e.to_string()))?;
+        let out = self
+            .call_hook("send-notification", "send_notification", &input)
+            .await
+            .map_err(|e| match e {
+                // フックを宣言していない: 何度呼んでも同じ
+                AegisError::PermissionDenied(_) => SendError::permanent(e.to_string()),
+                // タイムアウト・トラップなど: 送り先の一時的な不調かもしれないので再試行する
+                other => SendError::temporary(other.to_string()),
+            })?;
+        parse_delivery_output(&self.manifest.name, out.as_deref())
+    }
+
     async fn on_user_authenticated(&self, ctx: UserAuthContext) -> Result<UserAuthContext> {
         match self
             .call_hook(
@@ -314,5 +331,60 @@ impl AegisPlugin for WasmPluginInstance {
             }
             None => Ok(ctx),
         }
+    }
+}
+
+/// `send_notification` の返り値: 何も無い（0）なら送信済み、`{"skipped": true}` なら扱わない通知、
+/// `{"error": "...", "permanent": true|false}` なら失敗
+fn parse_delivery_output(
+    plugin: &str,
+    out: Option<&[u8]>,
+) -> std::result::Result<Delivered, SendError> {
+    let Some(out) = out else {
+        return Ok(Delivered::Sent);
+    };
+    let Ok(serde_json::Value::Object(body)) = serde_json::from_slice(out) else {
+        return Ok(Delivered::Sent);
+    };
+    if let Some(error) = body.get("error") {
+        let message = format!(
+            "{}: {}",
+            plugin,
+            error
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| error.to_string())
+        );
+        let permanent = body
+            .get("permanent")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        return Err(SendError { message, permanent });
+    }
+    if body.get("skipped").and_then(|v| v.as_bool()) == Some(true) {
+        return Ok(Delivered::Skipped);
+    }
+    Ok(Delivered::Sent)
+}
+
+#[cfg(test)]
+mod delivery_output_tests {
+    use super::*;
+
+    #[test]
+    fn parses_the_send_notification_result() {
+        assert_eq!(parse_delivery_output("p", None), Ok(Delivered::Sent));
+        assert_eq!(
+            parse_delivery_output("p", Some(br#"{"skipped":true}"#)),
+            Ok(Delivered::Skipped)
+        );
+        assert_eq!(
+            parse_delivery_output("p", Some(br#"{"error":"429 slow down"}"#)),
+            Err(SendError::temporary("p: 429 slow down"))
+        );
+        assert_eq!(
+            parse_delivery_output("p", Some(br#"{"error":"bad token","permanent":true}"#)),
+            Err(SendError::permanent("p: bad token"))
+        );
     }
 }
