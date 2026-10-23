@@ -1,0 +1,24 @@
+{
+  "name": "official-order-notifier",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Order Notifier (Slack / Webhook)",
+  "description": "Posts new orders and status changes to a Slack incoming webhook or any JSON webhook. Set webhook_url in [plugins.settings.official-order-notifier] and list the webhook's domain in allowed_domains.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": ["commerce", "notification", "slack", "webhook"],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "network": {
+      "allowed_domains": ["hooks.slack.com"]
+    },
+    "hooks": [
+      "on-order-status-changed"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 50000000,
+    "execution_timeout_ms": 10000
+  }
+}

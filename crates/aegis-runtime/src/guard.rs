@@ -18,21 +18,27 @@ impl<'a> CapabilityGuard<'a> {
             ))
         })?;
 
-        // 簡易URLパースでホスト名を抽出
-        let host = if let Some(stripped) = url_str.strip_prefix("https://") {
-            stripped.split(['/', ':', '?']).next().unwrap_or("")
-        } else if let Some(stripped) = url_str.strip_prefix("http://") {
-            stripped.split(['/', ':', '?']).next().unwrap_or("")
-        } else {
-            return Err(AegisError::PermissionDenied(format!(
-                "Invalid URL format: {}",
-                url_str
-            )));
-        };
+        // ホスト名は HTTP クライアントと同じ URL パーサーで取り出す（`https://evil.com#.allowed.com`
+        // のような URL で判定をすり抜けさせない）。ユーザー情報を含む URL は拒否する
+        let deny = |reason: &str| AegisError::PermissionDenied(format!("{}: {}", reason, url_str));
+        let url = url::Url::parse(url_str).map_err(|_| deny("Invalid URL format"))?;
+        if !matches!(url.scheme(), "http" | "https") {
+            return Err(deny("Only http and https URLs are allowed"));
+        }
+        if !url.username().is_empty() || url.password().is_some() {
+            return Err(deny("URLs with user information are not allowed"));
+        }
+        let host = url
+            .host_str()
+            .ok_or_else(|| deny("The URL has no host"))?
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        let host = host.as_str();
 
         let is_allowed = net_cap
             .allowed_domains
             .iter()
+            .map(|domain| domain.trim().trim_end_matches('.').to_ascii_lowercase())
             .any(|domain| host == domain || host.ends_with(&format!(".{}", domain)));
 
         if is_allowed {

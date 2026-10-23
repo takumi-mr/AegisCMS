@@ -14,3 +14,13 @@ plugins/
 ```
 
 プラグインの作り方は [docs/plugin_sdk_guide.md](../docs/plugin_sdk_guide.md)、テンプレートとサンプルは [`sdk/`](../sdk) にあります。
+
+## 公式プラグイン
+
+| プラグイン | フック | 内容 |
+| --- | --- | --- |
+| [`official-code-enhancer`](official-code-enhancer/) | `transform-content-ast`, `on-render-page` | コードのシンタックスハイライト・Mermaid 図・コピー ボタン |
+| [`official-shop-rules`](official-shop-rules/) | `calculate-order`, `on-order-status-changed` | EC の送料（送料無料の条件）・クーポン（利用回数の上限）・税（[EC](../docs/commerce.md#71-公式プラグイン)） |
+| [`official-order-notifier`](official-order-notifier/) | `on-order-status-changed` | 注文の作成・状態の変化を Slack / Webhook に通知（`http::fetch`） |
+
+`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop` で作り直してください。

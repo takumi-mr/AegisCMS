@@ -56,10 +56,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-order-notifier"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "aegis-plugin-sdk"
 version = "0.1.0"
 dependencies = [
  "aegis-plugin-macros",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "aegis-plugin-shop-rules"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
  "serde",
  "serde_json",
 ]
@@ -85,6 +103,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "url",
  "wasmtime",
  "wat",
 ]
@@ -130,7 +149,9 @@ dependencies = [
  "serde_json",
  "sha2",
  "sqlx",
+ "thiserror 2.0.21",
  "tokio",
+ "toml",
  "tower",
  "tower-http",
  "tracing",

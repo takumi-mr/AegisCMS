@@ -125,3 +125,30 @@ posts_per_page = 10
 # Re-read theme templates on every render (for theme development; keep false in production)
 reload_templates = false
 
+
+# Shop: cart, orders, stock and payments (docs/commerce.md). Products are `product` contents
+# (schemas/products.yaml); the product pages work even when this is disabled.
+[commerce]
+enabled = false
+currency = "jpy"
+# "manual" (bank transfer / cash on delivery, confirmed by staff) or "stripe" (Stripe Checkout)
+provider = "manual"
+# Public site URL for payment return links (empty: built from the request's Host)
+public_url = ""
+# How long an unpaid Stripe checkout holds its stock (30-1440 minutes)
+reservation_minutes = 60
+
+[commerce.manual]
+instructions = "ご注文ありがとうございます。お支払い方法はメールでご案内します。"
+payment_due_hours = 72
+
+[commerce.stripe]
+# Prefer the environment variables AEGIS_STRIPE_SECRET_KEY / AEGIS_STRIPE_WEBHOOK_SECRET
+secret_key = ""
+webhook_secret = ""
+
+# Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
+# [plugins.settings.official-shop-rules]
+# shipping_fee = 600
+# free_shipping_over = 10000
+# coupons = "WELCOME10:10%"

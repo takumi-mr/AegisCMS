@@ -25,6 +25,16 @@ pub async fn test_state_with_config(
     config: AegisConfig,
     supervisor: PluginSupervisor,
 ) -> Arc<AppState> {
+    Arc::new(test_app_state(config, supervisor, Vec::new()).await)
+}
+
+/// The `test_state_with_config` state before it is shared, with `extra_schemas` migrated too
+/// (e.g. to enable `[commerce]` with `AppState::with_commerce`)
+pub async fn test_app_state(
+    config: AegisConfig,
+    supervisor: PluginSupervisor,
+    extra_schemas: Vec<SchemaDefinition>,
+) -> AppState {
     let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
     adapter.init().await.unwrap();
     let db: Arc<dyn DatabaseAdapter> = Arc::new(adapter);
@@ -34,7 +44,10 @@ pub async fn test_state_with_config(
         "fields": [{ "name": "title", "type": "string", "required": true }]
     }))
     .unwrap();
-    let schemas = HashMap::from([("article".to_string(), article)]);
+    let mut schemas = HashMap::from([("article".to_string(), article)]);
+    for schema in extra_schemas {
+        schemas.insert(schema.content_type.clone(), schema);
+    }
     db.run_migrations(&schemas).await.unwrap();
     let cache = Arc::new(MemoryCacheBackend::new());
     let audit = Arc::new(AuditService::from_config(&config.audit, db.clone()));
@@ -43,7 +56,7 @@ pub async fn test_state_with_config(
         config.auth.login_rate_limit.clone(),
     ));
     let base_path = config.server.normalized_base_path().unwrap();
-    Arc::new(AppState::new(
+    AppState::new(
         config,
         db.clone(),
         Arc::new(LocalStorageBackend::new("target/test_uploads", "/uploads")),
@@ -58,5 +71,5 @@ pub async fn test_state_with_config(
             aegis_theme::ThemeEngine::new(std::path::Path::new("themes"), "default")
                 .with_base_path(&base_path),
         ),
-    ))
+    )
 }

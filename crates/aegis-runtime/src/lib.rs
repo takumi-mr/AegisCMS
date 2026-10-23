@@ -1,9 +1,11 @@
 pub mod guard;
 pub mod plugin;
+pub mod services;
 pub mod wasm;
 
 pub use guard::CapabilityGuard;
 pub use plugin::{AegisPlugin, PluginSupervisor};
+pub use services::{HostServices, HttpRequest, HttpResponse, LocalHostServices, PluginServices};
 pub use wasm::{
     InstalledPlugin, InstancePoolConfig, PluginHostState, PluginInfo, WasmEngine,
     WasmPluginInstance, WasmPluginLoader,
@@ -49,6 +51,18 @@ mod tests {
             .check_network_access("https://hooks.slack.com/services/xxx")
             .is_ok());
         assert!(guard.check_network_access("https://evil.com/leak").is_err());
+        assert!(guard
+            .check_network_access("https://evil.com#.hooks.slack.com")
+            .is_err());
+        assert!(guard
+            .check_network_access("https://hooks.slack.com@evil.com/")
+            .is_err());
+        assert!(guard
+            .check_network_access("https://evil.com\\.hooks.slack.com")
+            .is_err());
+        assert!(guard
+            .check_network_access("https://hooks.slack.com:443/x")
+            .is_ok());
     }
 
     #[test]
@@ -521,5 +535,166 @@ mod tests {
             WasmPluginInstance::from_bytes(WasmEngine::new().unwrap(), manifest, &large, kv)
                 .is_ok()
         );
+    }
+
+    /// Records HTTP requests and answers them; KV in memory; one setting
+    struct FakeServices {
+        kv: Mutex<HashMap<String, String>>,
+        requests: Mutex<Vec<HttpRequest>>,
+    }
+
+    #[async_trait::async_trait]
+    impl HostServices for FakeServices {
+        async fn kv_get(&self, key: &str) -> aegis_core::Result<Option<String>> {
+            Ok(self.kv.lock().unwrap().get(key).cloned())
+        }
+        async fn kv_set(&self, key: &str, value: &str) -> aegis_core::Result<()> {
+            self.kv
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), value.to_string());
+            Ok(())
+        }
+        async fn http_fetch(
+            &self,
+            plugin: &str,
+            request: HttpRequest,
+        ) -> aegis_core::Result<HttpResponse> {
+            assert_eq!(plugin, "test-plugin");
+            self.requests.lock().unwrap().push(request);
+            Ok(HttpResponse {
+                status: 201,
+                headers: Default::default(),
+                body: r#"{"error":"fetched"}"#.to_string(),
+            })
+        }
+        fn plugin_setting(&self, plugin: &str, key: &str) -> Option<String> {
+            (plugin == "test-plugin" && key == "greeting")
+                .then(|| r#"{"error":"configured"}"#.to_string())
+        }
+    }
+
+    /// A module whose `on_order_status_changed` runs `body` (WAT instructions leaving a packed
+    /// i64 result) with `data` at offset 256, and a bump allocator from offset 4096
+    fn host_api_module(data: &str, body: &str) -> Vec<u8> {
+        wat::parse_str(format!(
+            r#"
+            (module
+                (import "host" "http_fetch" (func $http_fetch (param i32 i32) (result i64)))
+                (import "host" "kv_set" (func $kv_set (param i32 i32 i32 i32) (result i32)))
+                (import "host" "kv_get" (func $kv_get (param i32 i32) (result i64)))
+                (import "host" "config_get" (func $config_get (param i32 i32) (result i64)))
+                (memory (export "memory") 1)
+                (global $next (mut i32) (i32.const 4096))
+                (data (i32.const 256) "{data}")
+                (func (export "allocate") (param $len i32) (result i32)
+                    (local $ptr i32)
+                    (local.set $ptr (global.get $next))
+                    (global.set $next (i32.add (global.get $next) (local.get $len)))
+                    (local.get $ptr))
+                (func (export "on_order_status_changed") (param $ptr i32) (param $len i32) (result i64)
+                    {body}))
+            "#,
+            data = data.replace('"', "\\22"),
+            body = body
+        ))
+        .unwrap()
+    }
+
+    fn host_api_plugin(
+        services: Arc<FakeServices>,
+        wasm: &[u8],
+        allowed: &str,
+        kv_namespace: Option<&str>,
+    ) -> WasmPluginInstance {
+        let mut manifest = make_sample_manifest(vec!["on-order-status-changed".to_string()]);
+        manifest.capabilities.network = Some(NetworkCapability {
+            allowed_domains: vec![allowed.to_string()],
+        });
+        manifest.capabilities.storage = kv_namespace.map(|ns| aegis_core::StorageCapability {
+            kv_namespace: ns.to_string(),
+        });
+        let services: Arc<dyn HostServices> = services;
+        WasmPluginInstance::from_bytes(WasmEngine::new().unwrap(), manifest, wasm, services)
+            .unwrap()
+    }
+
+    fn fake_services() -> Arc<FakeServices> {
+        Arc::new(FakeServices {
+            kv: Mutex::new(HashMap::new()),
+            requests: Mutex::new(Vec::new()),
+        })
+    }
+
+    async fn run_order_hook(plugin: &WasmPluginInstance) -> aegis_core::Result<()> {
+        plugin
+            .on_order_status_changed(aegis_core::OrderStatusChange::default())
+            .await
+    }
+
+    #[tokio::test]
+    async fn test_http_fetch_checks_the_allowed_domains() {
+        let request = r#"{"method":"POST","url":"https://hooks.example.com/notify","body":"hi"}"#;
+        let wasm = host_api_module(
+            request,
+            &format!(
+                "(call $http_fetch (i32.const 256) (i32.const {}))",
+                request.len()
+            ),
+        );
+
+        // Allowed: the host answers and the plugin returns the response body's JSON
+        let services = fake_services();
+        let plugin = host_api_plugin(services.clone(), &wasm, "example.com", None);
+        let result = run_order_hook(&plugin).await;
+        // The response object has no "error" key at the top level, so the hook succeeds
+        assert!(result.is_ok(), "{:?}", result);
+        let requests = services.requests.lock().unwrap().clone();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, "POST");
+        assert_eq!(requests[0].body.as_deref(), Some("hi"));
+
+        // Not in allowed_domains: the host refuses without calling the service
+        let services = fake_services();
+        let plugin = host_api_plugin(services.clone(), &wasm, "other.org", None);
+        let error = run_order_hook(&plugin).await.unwrap_err().to_string();
+        assert!(error.contains("not permitted"), "{}", error);
+        assert!(services.requests.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_kv_round_trip_and_settings() {
+        // kv_set("k", "{\"error\":\"stored\"}") then return kv_get("k")
+        let value = r#"{"error":"stored"}"#;
+        let data = format!("k{}", value);
+        let wasm = host_api_module(
+            &data,
+            &format!(
+                "(drop (call $kv_set (i32.const 256) (i32.const 1) (i32.const 257) (i32.const {})))
+                 (call $kv_get (i32.const 256) (i32.const 1))",
+                value.len()
+            ),
+        );
+        let services = fake_services();
+        let plugin = host_api_plugin(services.clone(), &wasm, "example.com", Some("ns"));
+        let error = run_order_hook(&plugin).await.unwrap_err().to_string();
+        assert!(error.ends_with("stored"), "{}", error);
+        assert_eq!(
+            services.kv.lock().unwrap().get("ns:k").map(String::as_str),
+            Some(value),
+            "keys are namespaced by the host"
+        );
+
+        // Without capabilities.storage, kv_get returns -1 (denied): the output is "unchanged"
+        let plugin = host_api_plugin(fake_services(), &wasm, "example.com", None);
+        assert!(run_order_hook(&plugin).await.is_ok());
+
+        let wasm = host_api_module(
+            "greeting",
+            "(call $config_get (i32.const 256) (i32.const 8))",
+        );
+        let plugin = host_api_plugin(fake_services(), &wasm, "example.com", None);
+        let error = run_order_hook(&plugin).await.unwrap_err().to_string();
+        assert!(error.ends_with("configured"), "{}", error);
     }
 }

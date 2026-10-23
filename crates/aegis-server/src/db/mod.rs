@@ -1,4 +1,5 @@
 pub mod mysql;
+pub mod orders;
 pub mod postgres;
 pub mod sqlite;
 
@@ -13,6 +14,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub use mysql::MySqlAdapter;
+pub use orders::{
+    OrderListQuery, OrderPage, OrderRecord, OrderStorage, OrderTransition, OutOfStock,
+    StockReservation,
+};
 pub use postgres::PostgresAdapter;
 pub use sqlite::SqliteAdapter;
 
@@ -57,7 +62,7 @@ pub struct ContentPage {
 }
 
 #[async_trait]
-pub trait DatabaseAdapter: Send + Sync {
+pub trait DatabaseAdapter: OrderStorage + Send + Sync {
     /// Initialize the database, checking connectivity and setting up migration history tables
     async fn init(&self) -> Result<()>;
 
@@ -67,6 +72,17 @@ pub trait DatabaseAdapter: Send + Sync {
     /// Insert a content record
     async fn insert_content(&self, schema: &SchemaDefinition, record: &ContentRecord)
         -> Result<()>;
+
+    /// Overwrite a content record's mutable columns (matched by `id`; `content_type` and
+    /// `created_at` stay). Returns false when no record has that id
+    async fn update_content(
+        &self,
+        schema: &SchemaDefinition,
+        record: &ContentRecord,
+    ) -> Result<bool>;
+
+    /// Delete a content record by id. Returns false when no record has that id
+    async fn delete_content(&self, schema: &SchemaDefinition, id: &str) -> Result<bool>;
 
     /// Fetch a single content record by slug or ID
     async fn get_content(
@@ -324,6 +340,48 @@ pub async fn create_database_adapter(config: &DatabaseConfig) -> Result<Arc<dyn 
             Ok(Arc::new(adapter))
         }
     }
+}
+
+/// `update_content` で上書きする標準カラム（バインド順）。この後にカスタム列、最後に `id`
+pub const CONTENT_UPDATE_COLUMNS: [&str; 7] = [
+    "title",
+    "slug",
+    "status",
+    "blocks_json",
+    "author_id",
+    "published_at",
+    "updated_at",
+];
+
+/// コンテンツの UPDATE 文。バインド順は `CONTENT_UPDATE_COLUMNS` → `custom_columns` → id
+pub fn build_content_update(
+    table: &str,
+    custom_columns: &[String],
+    placeholder: impl Fn(usize) -> String,
+) -> String {
+    let assignments: Vec<String> = CONTENT_UPDATE_COLUMNS
+        .iter()
+        .map(|c| c.to_string())
+        .chain(custom_columns.iter().cloned())
+        .enumerate()
+        .map(|(i, column)| format!("{} = {}", column, placeholder(i + 1)))
+        .collect();
+    format!(
+        "UPDATE {} SET {} WHERE id = {};",
+        table,
+        assignments.join(", "),
+        placeholder(assignments.len() + 1)
+    )
+}
+
+/// スキーマのカスタム列（標準カラム以外のフィールド）の名前
+pub fn custom_columns(schema: &SchemaDefinition) -> Vec<String> {
+    schema
+        .fields
+        .iter()
+        .filter(|f| !is_standard_column(&f.name))
+        .map(|f| f.name.clone())
+        .collect()
 }
 
 pub fn is_standard_column(name: &str) -> bool {
@@ -689,6 +747,21 @@ mod tests {
             "type": serde_json::to_value(&field_type).unwrap(),
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn test_content_update_sql() {
+        let sql = build_content_update(
+            "content_product",
+            &["price".to_string(), "stock".to_string()],
+            |i| format!("${}", i),
+        );
+        assert_eq!(
+            sql,
+            "UPDATE content_product SET title = $1, slug = $2, status = $3, blocks_json = $4, \
+             author_id = $5, published_at = $6, updated_at = $7, price = $8, stock = $9 \
+             WHERE id = $10;"
+        );
     }
 
     #[test]

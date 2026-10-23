@@ -134,41 +134,52 @@ fn accept_before_save(
     })
 }
 
-pub async fn create_content(
-    State(state): State<Arc<AppState>>,
-    RequireRole(session): EditorSession,
-    Path(content_type): Path<String>,
-    audit: AuditContext,
-    Json(mut payload): Json<CreateContentRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    // 著者は既定でログインユーザー。他人を著者にできるのは admin のみ
-    match &payload.author_id {
-        None => payload.author_id = Some(session.user_id.clone()),
-        Some(author) if author != &session.user_id && role_level(&session.role) < ADMIN => {
-            return Err((
-                StatusCode::FORBIDDEN,
-                Json(json!({ "error": "Only admins can set another user as the author" })),
-            ));
-        }
-        Some(_) => {}
-    }
+type ApiError = (StatusCode, Json<serde_json::Value>);
 
-    let schema_clone = {
-        let schemas = state.schemas.read().await;
-        let schema = schemas.get(&content_type).ok_or_else(|| {
-            (
+fn api_error(status: StatusCode, message: impl Into<String>) -> ApiError {
+    (status, Json(json!({ "error": message.into() })))
+}
+
+async fn find_schema(state: &AppState, content_type: &str) -> Result<SchemaDefinition, ApiError> {
+    state
+        .schemas
+        .read()
+        .await
+        .get(content_type)
+        .cloned()
+        .ok_or_else(|| {
+            api_error(
                 StatusCode::NOT_FOUND,
-                Json(json!({ "error": format!("Schema '{}' not found", content_type) })),
+                format!("Schema '{}' not found", content_type),
             )
-        })?;
-        schema.clone()
-    };
+        })
+}
 
-    let id = Uuid::new_v4().to_string();
-    let now = chrono::Utc::now().to_rfc3339();
+/// What the save pipeline produced for a create or update request
+struct SavedContent {
+    title: String,
+    slug: String,
+    blocks: Vec<BlockNode>,
+    rendered_html: String,
+    custom_fields: HashMap<String, serde_json::Value>,
+}
+
+/// The save pipeline shared by create and update: AST transforms (built-in + plugins'
+/// `transform-content-ast`), `on-before-save`, rendering and custom field extraction. Plugin
+/// failures and refusals are audited (`plugin.error`, and `action` as `denied`)
+async fn run_save_pipeline(
+    state: &AppState,
+    audit: &AuditContext,
+    action: AuditAction,
+    schema: &SchemaDefinition,
+    id: &str,
+    author_id: &str,
+    payload: CreateContentRequest,
+) -> Result<SavedContent, ApiError> {
+    let content_type = &schema.content_type;
 
     // 1. AST 変換（組み込みパイプライン + プラグインの transform-content-ast フック）
-    let transformed = render::transform_blocks(&state, payload.blocks).await;
+    let transformed = render::transform_blocks(state, payload.blocks).await;
     if let Some(e) = &transformed.plugin_error {
         // AST 変換フックの失敗は保存を妨げない（組み込みパイプラインの結果で続行）
         tracing::warn!("Plugin hook 'transform-content-ast' failed: {}", e);
@@ -177,7 +188,7 @@ pub async fn create_content(
             .record(
                 audit
                     .event(AuditAction::PluginError, AuditOutcome::Failure)
-                    .with_resource("content", Some(id.clone()))
+                    .with_resource("content", Some(id.to_string()))
                     .with_details(json!({
                         "hook": "transform-content-ast",
                         "content_type": content_type,
@@ -190,10 +201,10 @@ pub async fn create_content(
 
     // 2. on-before-save フック（プラグインが返した title / slug / blocks を保存する）
     let post_ctx = PostContext {
-        id: id.clone(),
+        id: id.to_string(),
         title: payload.title.clone(),
         slug: payload.slug.clone(),
-        author_id: payload.author_id.clone().unwrap_or_default(),
+        author_id: author_id.to_string(),
         blocks_json: serde_json::to_string(&transformed_blocks).unwrap_or_default(),
     };
     let hook_result = {
@@ -213,7 +224,7 @@ pub async fn create_content(
                     .record(
                         audit
                             .event(AuditAction::PluginError, AuditOutcome::Failure)
-                            .with_resource("content", Some(id.clone()))
+                            .with_resource("content", Some(id.to_string()))
                             .with_details(json!({
                                 "hook": "on-before-save",
                                 "content_type": content_type,
@@ -226,8 +237,8 @@ pub async fn create_content(
                 .audit
                 .record(
                     audit
-                        .event(AuditAction::ContentCreate, AuditOutcome::Denied)
-                        .with_resource("content", Some(id.clone()))
+                        .event(action, AuditOutcome::Denied)
+                        .with_resource("content", Some(id.to_string()))
                         .with_details(json!({
                             "content_type": content_type,
                             "slug": payload.slug,
@@ -237,124 +248,310 @@ pub async fn create_content(
                 )
                 .await;
             return Err(if rejected {
-                (
-                    StatusCode::UNPROCESSABLE_ENTITY,
-                    Json(json!({ "error": e.to_string() })),
-                )
+                api_error(StatusCode::UNPROCESSABLE_ENTITY, e.to_string())
             } else {
                 // プラグインの不具合（トラップ・タイムアウト・不正な出力）はサーバー側のエラー
-                (
+                api_error(
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "error": format!("Plugin hook failed: {}", e) })),
+                    format!("Plugin hook failed: {}", e),
                 )
             });
         }
     };
-    payload.title = saved.title;
-    payload.slug = saved.slug;
-    let transformed_blocks = saved.blocks;
 
-    let blocks_json =
-        serde_json::to_string(&transformed_blocks).unwrap_or_else(|_| "[]".to_string());
-    let rendered_html = render::render_blocks_html(&state.config.security, &transformed_blocks);
-
-    let published_at = if payload.status == "published" {
-        Some(now.clone())
-    } else {
-        None
-    };
+    let rendered_html = render::render_blocks_html(&state.config.security, &saved.blocks);
 
     // 3. カスタムフィールドの抽出
-    let mut custom_fields_saved = HashMap::new();
-    for field in &schema_clone.fields {
-        if is_standard_column(&field.name) {
-            continue;
+    let custom_fields = schema
+        .fields
+        .iter()
+        .filter(|field| !is_standard_column(&field.name))
+        .filter_map(|field| {
+            payload
+                .fields
+                .get(&field.name)
+                .map(|val| (field.name.clone(), val.clone()))
+        })
+        .collect();
+
+    Ok(SavedContent {
+        title: saved.title,
+        slug: saved.slug,
+        blocks: saved.blocks,
+        rendered_html,
+        custom_fields,
+    })
+}
+
+/// Records the outcome of storing a content record (`content.create` / `content.update`) and
+/// maps a database error to the response
+async fn record_store_result(
+    state: &AppState,
+    audit: &AuditContext,
+    action: AuditAction,
+    record: &ContentRecord,
+    result: aegis_core::Result<()>,
+) -> Result<(), ApiError> {
+    let mut details = json!({
+        "content_type": record.content_type,
+        "slug": record.slug,
+        "title": record.title,
+        "status": record.status,
+    });
+    let outcome = match &result {
+        Ok(()) => AuditOutcome::Success,
+        Err(e) => {
+            details["error"] = json!(e.to_string());
+            AuditOutcome::Failure
         }
-        if let Some(val) = payload.fields.get(&field.name) {
-            custom_fields_saved.insert(field.name.clone(), val.clone());
-        }
+    };
+    state
+        .audit
+        .record(
+            audit
+                .event(action, outcome)
+                .with_resource("content", Some(record.id.clone()))
+                .with_details(details),
+        )
+        .await;
+    result.map_err(|e| match e {
+        // カスタムフィールドの値が列型に変換できない場合はクライアントの入力エラー
+        AegisError::Validation(_) => api_error(StatusCode::BAD_REQUEST, e.to_string()),
+        other => api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Database error: {}", other),
+        ),
+    })
+}
+
+async fn content_response(
+    state: &AppState,
+    schema: &SchemaDefinition,
+    record: ContentRecord,
+    blocks: Vec<BlockNode>,
+    rendered_html: String,
+) -> ContentResponse {
+    let relations = {
+        let schemas = state.schemas.read().await;
+        resolve_relations_for_item(&*state.db, &schemas, schema, &record.custom_fields).await
+    };
+    ContentResponse {
+        id: record.id,
+        content_type: record.content_type,
+        title: record.title,
+        slug: record.slug,
+        status: record.status,
+        blocks,
+        rendered_html,
+        author_id: record.author_id,
+        published_at: record.published_at,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        fields: record.custom_fields,
+        relations,
     }
+}
+
+pub async fn create_content(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): EditorSession,
+    Path(content_type): Path<String>,
+    audit: AuditContext,
+    Json(mut payload): Json<CreateContentRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    // 著者は既定でログインユーザー。他人を著者にできるのは admin のみ
+    match &payload.author_id {
+        None => payload.author_id = Some(session.user_id.clone()),
+        Some(author) if author != &session.user_id && role_level(&session.role) < ADMIN => {
+            return Err(api_error(
+                StatusCode::FORBIDDEN,
+                "Only admins can set another user as the author",
+            ));
+        }
+        Some(_) => {}
+    }
+
+    let schema = find_schema(&state, &content_type).await?;
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    let author_id = payload.author_id.clone();
+    let status = payload.status.clone();
+
+    let saved = run_save_pipeline(
+        &state,
+        &audit,
+        AuditAction::ContentCreate,
+        &schema,
+        &id,
+        author_id.as_deref().unwrap_or_default(),
+        payload,
+    )
+    .await?;
 
     // 4. ContentRecord 作成および DatabaseAdapter による永続化
     let record = ContentRecord {
-        id: id.clone(),
-        content_type: content_type.clone(),
-        title: payload.title.clone(),
-        slug: payload.slug.clone(),
-        status: payload.status.clone(),
-        blocks_json,
-        author_id: payload.author_id.clone(),
-        published_at: published_at.clone(),
+        id,
+        content_type,
+        title: saved.title,
+        slug: saved.slug,
+        published_at: (status == "published").then(|| now.clone()),
+        status,
+        blocks_json: serde_json::to_string(&saved.blocks).unwrap_or_else(|_| "[]".to_string()),
+        author_id,
         created_at: now.clone(),
-        updated_at: now.clone(),
-        custom_fields: custom_fields_saved.clone(),
+        updated_at: now,
+        custom_fields: saved.custom_fields,
     };
-
-    let content_event = |outcome: AuditOutcome, extra: serde_json::Value| {
-        let mut details = json!({
-            "content_type": content_type,
-            "slug": record.slug,
-            "title": record.title,
-            "status": record.status,
-        });
-        if let (Some(map), serde_json::Value::Object(extra)) = (details.as_object_mut(), extra) {
-            map.extend(extra);
-        }
-        audit
-            .event(AuditAction::ContentCreate, outcome)
-            .with_resource("content", Some(record.id.clone()))
-            .with_details(details)
-    };
-
-    if let Err(e) = state.db.insert_content(&schema_clone, &record).await {
-        state
-            .audit
-            .record(content_event(
-                AuditOutcome::Failure,
-                json!({ "error": e.to_string() }),
-            ))
-            .await;
-        // カスタムフィールドの値が列型に変換できない場合はクライアントの入力エラー
-        if let AegisError::Validation(_) = e {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "error": e.to_string() })),
-            ));
-        }
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("Database error: {}", e) })),
-        ));
-    }
-    state
-        .audit
-        .record(content_event(AuditOutcome::Success, json!({})))
-        .await;
-
-    // 5. リレーション解決
-    let relations = {
-        let schemas = state.schemas.read().await;
-        resolve_relations_for_item(&*state.db, &schemas, &schema_clone, &custom_fields_saved).await
-    };
+    let result = state.db.insert_content(&schema, &record).await;
+    record_store_result(&state, &audit, AuditAction::ContentCreate, &record, result).await?;
 
     Ok((
         StatusCode::CREATED,
-        Json(ContentResponse {
-            id,
-            content_type,
-            title: payload.title,
-            slug: payload.slug,
-            status: payload.status,
-            blocks: transformed_blocks,
-            rendered_html,
-            author_id: payload.author_id,
-            published_at,
-            created_at: now.clone(),
-            updated_at: now,
-            fields: custom_fields_saved,
-            relations,
-        }),
+        Json(content_response(&state, &schema, record, saved.blocks, saved.rendered_html).await),
     ))
+}
+
+/// `PUT /api/v1/contents/{content_type}/{slug_or_id}` — 保存済みのコンテンツを上書きする（`editor`）。
+/// 本文は作成と同じで、保存と同じパイプライン（AST 変換・`on-before-save`）を通る。
+/// `author_id` を省略すると今の著者のまま。初めて `published` になったときに `published_at` を付ける
+pub async fn update_content(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): EditorSession,
+    Path((content_type, slug_or_id)): Path<(String, String)>,
+    audit: AuditContext,
+    Json(payload): Json<CreateContentRequest>,
+) -> Result<Json<ContentResponse>, ApiError> {
+    let schema = find_schema(&state, &content_type).await?;
+    let current = state
+        .db
+        .get_content(&schema, &slug_or_id)
+        .await
+        .map_err(|e| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Database error: {}", e),
+            )
+        })?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                format!("Content '{}' not found", slug_or_id),
+            )
+        })?;
+
+    let author_id = match &payload.author_id {
+        None => current.author_id.clone(),
+        Some(author)
+            if Some(author) != current.author_id.as_ref()
+                && author != &session.user_id
+                && role_level(&session.role) < ADMIN =>
+        {
+            return Err(api_error(
+                StatusCode::FORBIDDEN,
+                "Only admins can set another user as the author",
+            ));
+        }
+        Some(author) => Some(author.clone()),
+    };
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let status = payload.status.clone();
+    let saved = run_save_pipeline(
+        &state,
+        &audit,
+        AuditAction::ContentUpdate,
+        &schema,
+        &current.id,
+        author_id.as_deref().unwrap_or_default(),
+        payload,
+    )
+    .await?;
+
+    let published_at = match (status == "published", current.published_at) {
+        (true, Some(first)) => Some(first),
+        (true, None) => Some(now.clone()),
+        (false, _) => None,
+    };
+    let record = ContentRecord {
+        id: current.id,
+        content_type,
+        title: saved.title,
+        slug: saved.slug,
+        status,
+        blocks_json: serde_json::to_string(&saved.blocks).unwrap_or_else(|_| "[]".to_string()),
+        author_id,
+        published_at,
+        created_at: current.created_at,
+        updated_at: now,
+        custom_fields: saved.custom_fields,
+    };
+    let result = match state.db.update_content(&schema, &record).await {
+        Ok(true) => Ok(()),
+        // 取得と更新の間に削除された
+        Ok(false) => {
+            return Err(api_error(
+                StatusCode::NOT_FOUND,
+                format!("Content '{}' not found", slug_or_id),
+            ))
+        }
+        Err(e) => Err(e),
+    };
+    record_store_result(&state, &audit, AuditAction::ContentUpdate, &record, result).await?;
+
+    Ok(Json(
+        content_response(&state, &schema, record, saved.blocks, saved.rendered_html).await,
+    ))
+}
+
+/// `DELETE /api/v1/contents/{content_type}/{slug_or_id}` — コンテンツを削除する（`editor`）
+pub async fn delete_content(
+    State(state): State<Arc<AppState>>,
+    _session: EditorSession,
+    Path((content_type, slug_or_id)): Path<(String, String)>,
+    audit: AuditContext,
+) -> Result<StatusCode, ApiError> {
+    let schema = find_schema(&state, &content_type).await?;
+    let db_error = |e: AegisError| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Database error: {}", e),
+        )
+    };
+    let current = state
+        .db
+        .get_content(&schema, &slug_or_id)
+        .await
+        .map_err(db_error)?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                format!("Content '{}' not found", slug_or_id),
+            )
+        })?;
+    let result = state.db.delete_content(&schema, &current.id).await;
+    let mut details = json!({
+        "content_type": content_type,
+        "slug": current.slug,
+        "title": current.title,
+    });
+    let outcome = match &result {
+        Ok(_) => AuditOutcome::Success,
+        Err(e) => {
+            details["error"] = json!(e.to_string());
+            AuditOutcome::Failure
+        }
+    };
+    state
+        .audit
+        .record(
+            audit
+                .event(AuditAction::ContentDelete, outcome)
+                .with_resource("content", Some(current.id.clone()))
+                .with_details(details),
+        )
+        .await;
+    result.map_err(db_error)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn list_content(
@@ -827,6 +1024,123 @@ mod tests {
             .unwrap();
         events.reverse();
         events.into_iter().map(|e| (e.action, e.outcome)).collect()
+    }
+
+    fn session(user_id: &str, role: &str) -> EditorSession {
+        RequireRole(crate::auth::SessionData {
+            id: format!("ses_{}", user_id),
+            user_id: user_id.to_string(),
+            role: role.to_string(),
+            created_at: String::new(),
+            expires_at: String::new(),
+            metadata: Default::default(),
+        })
+    }
+
+    async fn update(
+        state: &Arc<AppState>,
+        actor: EditorSession,
+        slug_or_id: &str,
+        payload: serde_json::Value,
+    ) -> Result<ContentResponse, StatusCode> {
+        update_content(
+            State(state.clone()),
+            actor,
+            Path(("article".to_string(), slug_or_id.to_string())),
+            AuditContext::default(),
+            Json(serde_json::from_value(payload).unwrap()),
+        )
+        .await
+        .map(|Json(body)| body)
+        .map_err(|(status, _)| status)
+    }
+
+    #[tokio::test]
+    async fn test_update_and_delete_content() {
+        let state = state_with(BeforeSave::Edit).await;
+        let created = create(&state).await.unwrap();
+        assert_eq!(created.published_at, None);
+
+        // Publishing sets published_at once; hooks run again on update
+        let published = update(
+            &state,
+            session("editor2", "editor"),
+            &created.id,
+            json!({ "title": "Second", "slug": "second", "status": "published",
+                    "blocks": [{ "name": "core/paragraph", "text": "New body" }] }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(published.id, created.id);
+        assert_eq!(published.title, "Second (edited)");
+        assert_eq!(published.created_at, created.created_at);
+        // The author stays when author_id is omitted
+        assert_eq!(published.author_id.as_deref(), Some("editor1"));
+        let first_published = published.published_at.clone().expect("published");
+
+        let again = update(
+            &state,
+            session("editor2", "editor"),
+            "second",
+            json!({ "title": "Third", "slug": "second", "status": "published" }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            again.published_at.as_deref(),
+            Some(first_published.as_str())
+        );
+
+        // Only admins may hand the content to someone else
+        assert_eq!(
+            update(
+                &state,
+                session("editor2", "editor"),
+                "second",
+                json!({ "title": "x", "slug": "second", "author_id": "mallory" }),
+            )
+            .await
+            .unwrap_err(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            update(
+                &state,
+                session("editor2", "editor"),
+                "missing",
+                json!({ "title": "x", "slug": "x" })
+            )
+            .await
+            .unwrap_err(),
+            StatusCode::NOT_FOUND
+        );
+
+        let delete = |slug: &'static str| {
+            let state = state.clone();
+            async move {
+                delete_content(
+                    State(state),
+                    session("editor2", "editor"),
+                    Path(("article".to_string(), slug.to_string())),
+                    AuditContext::default(),
+                )
+                .await
+                .map_err(|(status, _)| status)
+            }
+        };
+        assert_eq!(delete("second").await, Ok(StatusCode::NO_CONTENT));
+        assert_eq!(delete("second").await, Err(StatusCode::NOT_FOUND));
+
+        let actions = audit_actions(&state).await;
+        assert_eq!(
+            actions,
+            vec![
+                (AuditAction::ContentCreate, AuditOutcome::Success),
+                (AuditAction::ContentUpdate, AuditOutcome::Success),
+                (AuditAction::ContentUpdate, AuditOutcome::Success),
+                (AuditAction::ContentDelete, AuditOutcome::Success),
+            ]
+        );
     }
 
     #[tokio::test]

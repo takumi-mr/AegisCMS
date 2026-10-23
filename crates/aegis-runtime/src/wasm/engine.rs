@@ -15,6 +15,91 @@ pub struct InstancePoolConfig {
     pub max_memory_mb: u32,
 }
 
+/// ゲストから読み込む文字列（キー・値・HTTP リクエスト）の上限
+const MAX_GUEST_INPUT: usize = 4 << 20;
+
+/// ゲストのメモリから UTF-8 文字列を読む（範囲外・大きすぎる・UTF-8 でなければ `None`）
+fn read_guest_string(
+    caller: &mut Caller<'_, PluginHostState>,
+    ptr: i32,
+    len: i32,
+) -> Option<String> {
+    if ptr < 0 || len < 0 || len as usize > MAX_GUEST_INPUT {
+        return None;
+    }
+    let memory = caller.get_export("memory").and_then(|m| m.into_memory())?;
+    let mut buffer = vec![0u8; len as usize];
+    memory.read(&*caller, ptr as usize, &mut buffer).ok()?;
+    String::from_utf8(buffer).ok()
+}
+
+/// ゲストの `allocate` で確保した領域に `data` を書き込み、`ptr << 32 | len` を返す（失敗・空なら 0）
+async fn write_guest(caller: &mut Caller<'_, PluginHostState>, data: &[u8]) -> i64 {
+    if data.is_empty() || data.len() > i32::MAX as usize {
+        return 0;
+    }
+    let Some(allocate) = caller
+        .get_export("allocate")
+        .and_then(|e| e.into_func())
+        .and_then(|f| f.typed::<i32, i32>(&*caller).ok())
+    else {
+        return 0;
+    };
+    let Ok(ptr) = allocate.call_async(&mut *caller, data.len() as i32).await else {
+        return 0;
+    };
+    let Some(memory) = caller.get_export("memory").and_then(|m| m.into_memory()) else {
+        return 0;
+    };
+    if ptr <= 0 || memory.write(&mut *caller, ptr as usize, data).is_err() {
+        return 0;
+    }
+    ((ptr as i64) << 32) | data.len() as i64
+}
+
+/// KV のキーにプラグインのネームスペースを付ける（`capabilities.storage` が無ければ `None`）
+fn namespaced_key(caller: &Caller<'_, PluginHostState>, key: &str) -> Option<String> {
+    let state = caller.data();
+    let namespace = state
+        .manifest
+        .capabilities
+        .storage
+        .as_ref()?
+        .kv_namespace
+        .clone();
+    state.guard().check_storage_access(&namespace).ok()?;
+    Some(format!("{}:{}", namespace, key))
+}
+
+/// `host.http_fetch` の本体。失敗はプラグインに返すメッセージ
+async fn http_fetch(
+    caller: &mut Caller<'_, PluginHostState>,
+    ptr: i32,
+    len: i32,
+) -> std::result::Result<crate::services::HttpResponse, String> {
+    let raw = read_guest_string(caller, ptr, len).ok_or("Invalid request")?;
+    let request: crate::services::HttpRequest =
+        serde_json::from_str(&raw).map_err(|e| format!("Invalid request: {}", e))?;
+    let state = caller.data_mut();
+    state
+        .guard()
+        .check_network_access(&request.url)
+        .map_err(|e| e.to_string())?;
+    if state.fetch_count >= super::host_state::MAX_FETCHES_PER_CALL {
+        return Err(format!(
+            "At most {} HTTP requests per hook call",
+            super::host_state::MAX_FETCHES_PER_CALL
+        ));
+    }
+    state.fetch_count += 1;
+    let plugin = state.manifest.name.clone();
+    let services = state.services.0.clone();
+    services
+        .http_fetch(&plugin, request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// プール 1 枠あたりのテーブル要素数の上限（Rust / TinyGo / AssemblyScript の関数テーブルに十分な大きさ）
 const POOL_TABLE_ELEMENTS: usize = 20_000;
 
@@ -128,51 +213,112 @@ impl WasmEngine {
 
         // 3. host::kv_set(key_ptr, key_len, val_ptr, val_len) -> i32 (0: ok, 1: denied, 2: err)
         linker
-            .func_wrap(
+            .func_wrap_async(
                 "host",
                 "kv_set",
                 |mut caller: Caller<'_, PluginHostState>,
-                 k_ptr: i32,
-                 k_len: i32,
-                 v_ptr: i32,
-                 v_len: i32|
-                 -> i32 {
-                    let memory = match caller.get_export("memory").and_then(|m| m.into_memory()) {
-                        Some(m) => m,
-                        None => return 2,
-                    };
+                 (k_ptr, k_len, v_ptr, v_len): (i32, i32, i32, i32)| {
+                    Box::new(async move {
+                        let (Some(key), Some(value)) = (
+                            read_guest_string(&mut caller, k_ptr, k_len),
+                            read_guest_string(&mut caller, v_ptr, v_len),
+                        ) else {
+                            return 2;
+                        };
+                        let Some(full_key) = namespaced_key(&caller, &key) else {
+                            return 1;
+                        };
+                        let services = caller.data().services.0.clone();
+                        match services.kv_set(&full_key, &value).await {
+                            Ok(()) => 0,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "[Wasm:{}] kv_set failed: {}",
+                                    caller.data().manifest.name,
+                                    e
+                                );
+                                2
+                            }
+                        }
+                    })
+                },
+            )
+            .map_err(|e| AegisError::PluginRuntime(e.to_string()))?;
 
-                    let mut k_buf = vec![0u8; k_len as usize];
-                    let mut v_buf = vec![0u8; v_len as usize];
-                    if memory.read(&caller, k_ptr as usize, &mut k_buf).is_err()
-                        || memory.read(&caller, v_ptr as usize, &mut v_buf).is_err()
-                    {
-                        return 2;
-                    }
+        // 4. host::kv_get(key_ptr, key_len) -> i64
+        //    (ptr << 32 | len: 値、0: 未設定、-1: 権限なし、-2: エラー)
+        linker
+            .func_wrap_async(
+                "host",
+                "kv_get",
+                |mut caller: Caller<'_, PluginHostState>, (k_ptr, k_len): (i32, i32)| {
+                    Box::new(async move {
+                        let Some(key) = read_guest_string(&mut caller, k_ptr, k_len) else {
+                            return -2i64;
+                        };
+                        let Some(full_key) = namespaced_key(&caller, &key) else {
+                            return -1;
+                        };
+                        let services = caller.data().services.0.clone();
+                        match services.kv_get(&full_key).await {
+                            Ok(Some(value)) => write_guest(&mut caller, value.as_bytes()).await,
+                            Ok(None) => 0,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "[Wasm:{}] kv_get failed: {}",
+                                    caller.data().manifest.name,
+                                    e
+                                );
+                                -2
+                            }
+                        }
+                    })
+                },
+            )
+            .map_err(|e| AegisError::PluginRuntime(e.to_string()))?;
 
-                    let key = String::from_utf8_lossy(&k_buf).to_string();
-                    let val = String::from_utf8_lossy(&v_buf).to_string();
-
-                    let ns = caller
-                        .data()
-                        .manifest
-                        .capabilities
-                        .storage
-                        .as_ref()
-                        .map(|s| s.kv_namespace.clone())
+        // 5. host::http_fetch(req_ptr, req_len) -> i64
+        //    リクエスト `HttpRequest` の JSON を受け取り、応答 `HttpResponse` か `{"error": "..."}` の
+        //    JSON を ptr << 32 | len で返す（書き込めなければ 0）
+        linker
+            .func_wrap_async(
+                "host",
+                "http_fetch",
+                |mut caller: Caller<'_, PluginHostState>, (ptr, len): (i32, i32)| {
+                    Box::new(async move {
+                        let body = match http_fetch(&mut caller, ptr, len).await {
+                            Ok(response) => serde_json::to_vec(&response),
+                            Err(message) => {
+                                serde_json::to_vec(&serde_json::json!({ "error": message }))
+                            }
+                        }
                         .unwrap_or_default();
+                        write_guest(&mut caller, &body).await
+                    })
+                },
+            )
+            .map_err(|e| AegisError::PluginRuntime(e.to_string()))?;
 
-                    if caller.data().guard().check_storage_access(&ns).is_err() {
-                        return 1;
-                    }
-
-                    let full_key = format!("{}:{}", ns, key);
-                    if let Ok(mut storage) = caller.data().kv_storage.lock() {
-                        storage.insert(full_key, val);
-                        0
-                    } else {
-                        2
-                    }
+        // 6. host::config_get(key_ptr, key_len) -> i64 (ptr << 32 | len、未設定なら 0)
+        //    `[plugins.settings.<プラグイン名>]` の値
+        linker
+            .func_wrap_async(
+                "host",
+                "config_get",
+                |mut caller: Caller<'_, PluginHostState>, (k_ptr, k_len): (i32, i32)| {
+                    Box::new(async move {
+                        let Some(key) = read_guest_string(&mut caller, k_ptr, k_len) else {
+                            return 0i64;
+                        };
+                        let value = {
+                            let state = caller.data();
+                            state.services.0.plugin_setting(&state.manifest.name, &key)
+                        };
+                        match value {
+                            Some(value) => write_guest(&mut caller, value.as_bytes()).await,
+                            None => 0,
+                        }
+                    })
                 },
             )
             .map_err(|e| AegisError::PluginRuntime(e.to_string()))?;

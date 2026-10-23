@@ -210,6 +210,117 @@ pub struct PageRenderContext {
     pub theme_vars: HashMap<String, String>,
 }
 
+/// 注文の 1 行（商品 × 数量）。価格はホストが商品から決める（プラグインが変えても無視される）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct OrderLine {
+    pub product_id: String,
+    pub slug: String,
+    pub title: String,
+    #[serde(default)]
+    pub sku: Option<String>,
+    /// 単価（通貨の最小単位の整数。JPY なら円）
+    pub unit_price: i64,
+    pub quantity: u32,
+    pub line_total: i64,
+}
+
+/// 送料・税・割引などの加算・減算（割引は負の金額）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct OrderAdjustment {
+    /// `shipping` / `tax` / `discount` / `fee` など
+    pub kind: String,
+    /// 表示名（カート・注文確認ページ・決済ページに出る）
+    pub label: String,
+    pub amount: i64,
+    #[serde(default)]
+    pub code: Option<String>,
+    /// 追加したプラグイン（ホストが設定する）
+    #[serde(default)]
+    pub source: String,
+}
+
+impl OrderAdjustment {
+    pub fn new(kind: impl Into<String>, label: impl Into<String>, amount: i64) -> Self {
+        Self {
+            kind: kind.into(),
+            label: label.into(),
+            amount,
+            ..Default::default()
+        }
+    }
+}
+
+/// 配送先
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct ShippingAddress {
+    pub name: String,
+    pub postal_code: String,
+    pub region: String,
+    pub city: String,
+    pub line1: String,
+    pub line2: String,
+    pub phone: String,
+    pub country: String,
+}
+
+/// 見積もり・注文（`calculate-order` / `on-order-status-changed`）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct OrderContext {
+    #[serde(default)]
+    pub order_id: Option<String>,
+    #[serde(default)]
+    pub order_number: Option<String>,
+    /// ISO 4217 の通貨コード（小文字）
+    pub currency: String,
+    pub lines: Vec<OrderLine>,
+    #[serde(default)]
+    pub adjustments: Vec<OrderAdjustment>,
+    /// 商品の合計
+    pub subtotal: i64,
+    /// 支払う金額（ホストが `subtotal` + `adjustments` で計算し直す）
+    pub total: i64,
+    #[serde(default)]
+    pub customer_email: String,
+    #[serde(default)]
+    pub customer_name: String,
+    #[serde(default)]
+    pub shipping_address: Option<ShippingAddress>,
+    #[serde(default)]
+    pub coupon_code: Option<String>,
+    /// `pending_payment` / `paid` / `shipped` / `completed` / `cancelled`（見積もり中は `None`）
+    #[serde(default)]
+    pub status: Option<String>,
+    /// プラグインが付ける任意の値（注文に保存される）
+    #[serde(default)]
+    pub metadata: HashMap<String, serde_json::Value>,
+}
+
+impl OrderContext {
+    /// 送料・税などを除いた、割引を含む商品の金額（`subtotal` + 割引）
+    pub fn discounted_subtotal(&self) -> i64 {
+        self.subtotal
+            + self
+                .adjustments
+                .iter()
+                .filter(|a| a.amount < 0)
+                .map(|a| a.amount)
+                .sum::<i64>()
+    }
+}
+
+/// 注文の作成・状態の変化（`on-order-status-changed`）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct OrderStatusChange {
+    pub order: OrderContext,
+    /// 変化前の状態（注文の作成時は `None`）
+    #[serde(default)]
+    pub from_status: Option<String>,
+    #[serde(default)]
+    pub to_status: Option<String>,
+    pub occurred_at: String,
+}
+
 /// AegisCMS プラグインが実装するコアトレイト
 pub trait Plugin: Default {
     /// 記事保存前フック (`on-before-save`)
@@ -235,5 +346,21 @@ pub trait Plugin: Default {
     /// 表示名や属性の補完、ログイン通知などを実行可能。`Err` を返すとログインを拒否する
     fn on_user_authenticated(&mut self, ctx: UserAuthContext) -> Result<UserAuthContext> {
         Ok(ctx)
+    }
+
+    /// 注文の計算フック (`calculate-order`)
+    /// カートの見積もり・注文の確定時に呼ばれる。送料・税・割引を `adjustments` に追加する。
+    /// 変えられるのは `adjustments` と `metadata` だけで、`Err`（`PluginError::Rejected`）を返すと
+    /// 注文を断る（無効なクーポン、配送できない地域など。メッセージは顧客に表示される）
+    fn calculate_order(&mut self, ctx: OrderContext) -> Result<OrderContext> {
+        Ok(ctx)
+    }
+
+    /// 注文の通知フック (`on-order-status-changed`)
+    /// 注文の作成（`from_status` が `None`）と状態の変化のたびに呼ばれる。通知・外部サービスへの連携用で、
+    /// 結果は注文に影響しない（`Err` はログと監査ログに残る）
+    fn on_order_status_changed(&mut self, change: OrderStatusChange) -> Result<()> {
+        let _ = change;
+        Ok(())
     }
 }

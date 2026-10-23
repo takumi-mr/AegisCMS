@@ -40,6 +40,8 @@ export type CreateContentPayload = import('./schemas').CreateArticlePayload;
 
 export type AuditAction =
   | 'content.create'
+  | 'content.update'
+  | 'content.delete'
   | 'session.create'
   | 'session.delete'
   | 'storage.upload'
@@ -50,7 +52,9 @@ export type AuditAction =
   | 'theme.switch'
   | 'user.create'
   | 'user.update'
-  | 'user.delete';
+  | 'user.delete'
+  | 'order.create'
+  | 'order.update';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 
@@ -245,4 +249,85 @@ export interface ThemeInfo extends ThemeManifest {
   has_templates: boolean;
   has_assets: boolean;
   preview_url?: string;
+}
+
+export type OrderStatus = 'pending_payment' | 'paid' | 'shipped' | 'completed' | 'cancelled';
+
+/** One order line (product × quantity); prices come from the product, in the currency's minor unit */
+export interface OrderLine {
+  product_id: string;
+  slug: string;
+  title: string;
+  sku: string | null;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
+}
+
+/** Shipping, tax or discount (negative) added by `calculate-order` plugins */
+export interface OrderAdjustment {
+  kind: string;
+  label: string;
+  amount: number;
+  code: string | null;
+  /** Plugin that added it */
+  source: string;
+}
+
+export interface ShippingAddress {
+  name: string;
+  postal_code: string;
+  region: string;
+  city: string;
+  line1: string;
+  line2: string;
+  phone: string;
+  country: string;
+}
+
+/** Order as staff see it (`GET /api/v1/orders`) */
+export interface Order {
+  id: string;
+  /** Number shown to the customer */
+  number: string;
+  status: OrderStatus;
+  currency: string;
+  lines: OrderLine[];
+  adjustments: OrderAdjustment[];
+  subtotal: number;
+  total: number;
+  customer_name: string;
+  customer_email: string;
+  shipping_address: ShippingAddress | null;
+  coupon_code: string | null;
+  payment_provider: string;
+  payment_ref: string | null;
+  payment_instructions: string | null;
+  /** Deadline of an unpaid order's stock reservation */
+  expires_at: string | null;
+  metadata: Record<string, unknown>;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  paid_at: string | null;
+  /** Whether staff may confirm the payment by hand (payments confirmed by webhook may not) */
+  can_mark_paid: boolean;
+}
+
+export interface OrderPage {
+  orders: Order[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** Public shop settings (`GET /api/v1/shop/config`) */
+export interface ShopConfig {
+  enabled: boolean;
+  /** ISO 4217 code in lower case; amounts are in its minor unit */
+  currency: string;
+  /** Content type of products (`product`) */
+  product_type: string;
+  /** `manual` / `stripe`, or null when the shop is disabled */
+  provider: string | null;
 }

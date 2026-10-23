@@ -1,16 +1,16 @@
 use async_trait::async_trait;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use wasmtime::{Instance, InstancePre, Module, Store, TypedFunc};
 
 use aegis_ast::BlockNode;
 use aegis_core::{
-    AegisError, PageRenderContext, PluginManifest, PostContext, Result, UserAuthContext,
+    AegisError, OrderContext, OrderStatusChange, PageRenderContext, PluginManifest, PostContext,
+    Result, UserAuthContext,
 };
 
 use super::engine::WasmEngine;
 use super::host_state::PluginHostState;
 use crate::plugin::AegisPlugin;
+use crate::services::PluginServices;
 
 pub struct WasmPluginInstance {
     pub manifest: PluginManifest,
@@ -18,7 +18,7 @@ pub struct WasmPluginInstance {
     pub module: Module,
     /// インポートをホスト API に解決済みのモジュール（呼び出しごとのインスタンス化に使う）
     instance_pre: InstancePre<PluginHostState>,
-    pub kv_storage: Arc<Mutex<HashMap<String, String>>>,
+    services: PluginServices,
 }
 
 impl WasmPluginInstance {
@@ -26,7 +26,7 @@ impl WasmPluginInstance {
         engine: WasmEngine,
         manifest: PluginManifest,
         wasm_bytes: &[u8],
-        kv_storage: Arc<Mutex<HashMap<String, String>>>,
+        services: impl Into<PluginServices>,
     ) -> Result<Self> {
         let module = Module::new(engine.engine(), wasm_bytes).map_err(|e| {
             AegisError::PluginRuntime(format!("Failed to compile Wasm module: {}", e))
@@ -47,13 +47,13 @@ impl WasmPluginInstance {
             engine,
             module,
             instance_pre,
-            kv_storage,
+            services: services.into(),
         })
     }
 
     /// 各フック呼び出しごとに独立した Store / Instance を初期化（Zero-Trust & 完全分離）
     async fn instantiate(&self) -> Result<(Store<PluginHostState>, Instance)> {
-        let host_state = PluginHostState::new(self.manifest.clone(), self.kv_storage.clone());
+        let host_state = PluginHostState::new(self.manifest.clone(), self.services.clone());
         let mut store = Store::new(self.engine.engine(), host_state);
         // メモリ上限（max_memory_mb）。初期メモリが上限を超えるモジュールはインスタンス化で失敗する
         store.limiter(|state| &mut state.limits);
@@ -149,7 +149,7 @@ impl WasmPluginInstance {
     /// Returns the JSON the guest wrote back, or `None` when the module does not export the
     /// function or returned nothing (length 0), meaning "unchanged".
     async fn call_hook(&self, hook: &str, export: &str, input: &[u8]) -> Result<Option<Vec<u8>>> {
-        let host_state = PluginHostState::new(self.manifest.clone(), self.kv_storage.clone());
+        let host_state = PluginHostState::new(self.manifest.clone(), self.services.clone());
         host_state.guard().check_hook(hook)?;
 
         // プールの枠（プーリングアロケータ使用時）。Store を捨てて枠が返るまで保持するため、
@@ -262,6 +262,42 @@ impl AegisPlugin for WasmPluginInstance {
             }
             None => Ok(ctx),
         }
+    }
+
+    async fn calculate_order(&self, ctx: OrderContext) -> Result<OrderContext> {
+        match self
+            .call_hook("calculate-order", "calculate_order", &to_json(&ctx)?)
+            .await?
+        {
+            Some(out) => parse_object_output(&self.manifest.name, "OrderContext", &ctx, &out, true),
+            None => Ok(ctx),
+        }
+    }
+
+    async fn on_order_status_changed(&self, change: OrderStatusChange) -> Result<()> {
+        let out = self
+            .call_hook(
+                "on-order-status-changed",
+                "on_order_status_changed",
+                &to_json(&change)?,
+            )
+            .await?;
+        // 通知の結果は使わない。`{"error": ...}` だけを失敗として扱う
+        if let Some(out) = out {
+            if let Ok(serde_json::Value::Object(body)) = serde_json::from_slice(&out) {
+                if let Some(error) = body.get("error") {
+                    return Err(AegisError::PluginRuntime(format!(
+                        "{}: {}",
+                        self.manifest.name,
+                        error
+                            .as_str()
+                            .map(str::to_string)
+                            .unwrap_or_else(|| error.to_string())
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn on_user_authenticated(&self, ctx: UserAuthContext) -> Result<UserAuthContext> {

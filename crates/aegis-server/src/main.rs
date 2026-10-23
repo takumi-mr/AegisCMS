@@ -10,8 +10,10 @@ mod app;
 mod audit;
 mod auth;
 mod cache;
+mod commerce;
 mod db;
 mod handlers;
+mod plugin_host;
 mod render;
 mod state;
 mod storage;
@@ -311,6 +313,7 @@ async fn main() -> anyhow::Result<()> {
 
             let base_path = config.server.normalized_base_path()?;
             config.plugins.validate()?;
+            config.commerce.validate()?;
 
             tracing::info!("Starting AegisCMS core engine...");
             tracing::info!(
@@ -368,13 +371,16 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 tracing::info!("Initializing Wasmtime runtime engine...");
                 let engine = create_wasm_engine(&config.runtime)?;
-                let kv_storage = Arc::new(std::sync::Mutex::new(HashMap::new()));
+                // KV は [cache] のバックエンド、HTTP は allowed_domains の確認済みのリクエストのみ
+                let host_services: Arc<dyn aegis_runtime::HostServices> = Arc::new(
+                    plugin_host::ServerHostServices::new(cache.clone(), config.plugins.clone())?,
+                );
                 let loaded = aegis_runtime::WasmPluginLoader::load_enabled(
                     &config.paths.plugins_dir,
                     &config.plugins.enabled,
                     engine,
                     &mut supervisor,
-                    kv_storage,
+                    host_services.into(),
                     &config.runtime.default_resource_limits(),
                 )?;
                 tracing::info!(
@@ -427,10 +433,29 @@ async fn main() -> anyhow::Result<()> {
                 audit,
                 theme_engine,
             );
-            let app_state = Arc::new(match oidc {
+            let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),
                 None => app_state,
-            });
+            };
+
+            // 6.6 EC（[commerce]）
+            let app_state = if config.commerce.enabled {
+                let commerce = commerce::CommerceService::new(config.commerce.clone())?;
+                commerce.check_product_schema(&*app_state.schemas.read().await)?;
+                tracing::info!(
+                    "Shop enabled (products: '{}', currency: {}, payment: {:?})",
+                    config.commerce.product_type,
+                    config.commerce.currency,
+                    config.commerce.provider
+                );
+                app_state.with_commerce(commerce)
+            } else {
+                app_state
+            };
+            let app_state = Arc::new(app_state);
+            if app_state.commerce.is_some() {
+                commerce::CommerceService::spawn_expiry_task(app_state.clone());
+            }
 
             // 7. Router 設定（[server].base_path 配下で公開）
             let app = app::with_base_path(app::router(&config, app_state), &base_path);

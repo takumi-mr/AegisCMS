@@ -489,3 +489,164 @@ pub const NOT_FOUND_TEMPLATE: &str = r#"{% extends "base.html" %}
 </div>
 {% endblock %}
 "#;
+
+/// ショップのページ共通のスタイル・ナビゲーション・カートのスクリプト（各ショップテンプレートに含める）。
+/// どのテーマの `base.html` の中でも読めるよう、色はテーマの文字色を基準にした半透明で指定する
+pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
+  .aegis-shop { max-width: 1100px; margin: 0 auto; }
+  .aegis-shop a { color: inherit; }
+  .aegis-shop-nav { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 2rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(127,127,127,0.25); font-size: 0.9rem; }
+  .aegis-shop-nav a { text-decoration: none; opacity: 0.85; }
+  .aegis-shop-nav a:hover { opacity: 1; }
+  .aegis-cart-link { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+  .aegis-badge { min-width: 1.4rem; padding: 0 0.4rem; border-radius: 999px; background: var(--accent, #6366f1); color: #fff; font-size: 0.75rem; text-align: center; }
+  .aegis-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.5rem; }
+  .aegis-card { display: flex; flex-direction: column; border: 1px solid rgba(127,127,127,0.25); border-radius: 14px; overflow: hidden; background: rgba(127,127,127,0.06); text-decoration: none; }
+  .aegis-card img, .aegis-card .aegis-noimg { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: rgba(127,127,127,0.12); }
+  .aegis-card-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
+  .aegis-card-title { font-weight: 700; font-size: 1.05rem; }
+  .aegis-price { font-weight: 700; font-size: 1.05rem; }
+  .aegis-compare { text-decoration: line-through; opacity: 0.55; font-size: 0.85rem; margin-left: 0.4rem; }
+  .aegis-muted { opacity: 0.65; font-size: 0.85rem; }
+  .aegis-soldout { color: #f43f5e; font-weight: 600; font-size: 0.85rem; }
+  .aegis-product { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2.5rem; align-items: start; }
+  @media (max-width: 760px) { .aegis-product { grid-template-columns: 1fr; } }
+  .aegis-product-image { width: 100%; border-radius: 16px; border: 1px solid rgba(127,127,127,0.25); }
+  .aegis-product h1 { font-size: 2.1rem; line-height: 1.25; margin-bottom: 0.75rem; }
+  .aegis-buy { display: flex; gap: 0.75rem; align-items: center; margin: 1.5rem 0; flex-wrap: wrap; }
+  .aegis-qty { width: 4.5rem; padding: 0.55rem 0.6rem; border-radius: 10px; border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit; font: inherit; }
+  .aegis-button { display: inline-block; padding: 0.65rem 1.4rem; border-radius: 10px; border: none; background: var(--accent, #6366f1); color: #fff !important; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .aegis-button[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .aegis-button.aegis-secondary { background: transparent; color: inherit !important; border: 1px solid rgba(127,127,127,0.4); }
+  .aegis-link { background: none; border: none; color: inherit; opacity: 0.7; cursor: pointer; text-decoration: underline; font: inherit; font-size: 0.85rem; }
+  .aegis-cart-lines { display: flex; flex-direction: column; border: 1px solid rgba(127,127,127,0.25); border-radius: 14px; }
+  .aegis-cart-line { display: grid; grid-template-columns: 1fr auto auto 7rem auto; gap: 1rem; align-items: center; padding: 0.9rem 1rem; border-bottom: 1px solid rgba(127,127,127,0.18); }
+  .aegis-cart-line:last-child { border-bottom: none; }
+  .aegis-cart-line strong { text-align: right; }
+  .aegis-line-title { font-weight: 600; text-decoration: none; }
+  .aegis-coupon { display: flex; gap: 0.5rem; margin: 1.25rem 0; max-width: 420px; }
+  .aegis-coupon input, .aegis-field input { flex: 1; padding: 0.6rem 0.75rem; border-radius: 10px; border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit; font: inherit; }
+  .aegis-summary { margin: 1rem 0 1.5rem; padding: 1rem 1.25rem; border-radius: 14px; background: rgba(127,127,127,0.07); display: flex; flex-direction: column; gap: 0.4rem; }
+  .aegis-sum-row { display: flex; justify-content: space-between; gap: 1rem; }
+  .aegis-discount { color: #10b981; }
+  .aegis-total { margin-top: 0.4rem; padding-top: 0.6rem; border-top: 1px solid rgba(127,127,127,0.25); font-size: 1.15rem; }
+  .aegis-checkout { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem 1rem; max-width: 720px; }
+  .aegis-checkout h2, .aegis-checkout button { grid-column: 1 / -1; }
+  .aegis-checkout button { justify-self: start; }
+  @media (max-width: 640px) { .aegis-checkout { grid-template-columns: 1fr; } .aegis-cart-line { grid-template-columns: 1fr auto; } }
+  .aegis-field { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; }
+  .aegis-field span { opacity: 0.75; }
+  .aegis-error { color: #f43f5e; margin: 0.75rem 0; }
+  .aegis-empty { text-align: center; padding: 3rem 1rem; border: 1px dashed rgba(127,127,127,0.35); border-radius: 16px; }
+  .aegis-empty p { margin-bottom: 1rem; }
+  .aegis-order-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+  .aegis-status { padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600; background: rgba(127,127,127,0.15); }
+  .aegis-status-paid, .aegis-status-shipped, .aegis-status-completed { background: rgba(16,185,129,0.15); color: #10b981; }
+  .aegis-status-pending_payment { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .aegis-status-cancelled { background: rgba(244,63,94,0.15); color: #f43f5e; }
+  .aegis-instructions, .aegis-address { margin: 1rem 0; padding: 1rem 1.25rem; border-radius: 14px; border: 1px solid rgba(127,127,127,0.25); }
+  .aegis-instructions p, .aegis-address p { white-space: pre-line; margin-top: 0.4rem; }
+</style>
+<nav class="aegis-shop-nav" aria-label="Shop">
+  <a href="{{ theme_vars.products_url }}">All products</a>
+  <a href="{{ theme_vars.cart_url }}" class="aegis-cart-link">Cart <span class="aegis-badge" data-aegis-cart-count hidden>0</span></a>
+</nav>
+<script src="{{ theme_vars.cart_script }}" data-api="{{ theme_vars.shop_api }}" data-currency="{{ theme_vars.currency }}" data-cart-url="{{ theme_vars.cart_url }}" data-products-url="{{ theme_vars.products_url }}" data-shop-enabled="{{ theme_vars.shop_enabled }}" defer></script>"#;
+
+pub const PRODUCTS_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-shop">
+  {% include "shop_common.html" %}
+  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ title }}</h1>
+  {% if items and items | length > 0 %}
+  <div class="aegis-grid">
+    {% for item in items %}
+    <a class="aegis-card" href="{{ theme_vars.products_url }}/{{ item.slug }}">
+      {% if item.fields.image_url %}<img src="{{ item.fields.image_url }}" alt="" loading="lazy">{% else %}<div class="aegis-noimg"></div>{% endif %}
+      <div class="aegis-card-body">
+        <span class="aegis-card-title">{{ item.title }}</span>
+        {% if item.fields.excerpt %}<span class="aegis-muted">{{ item.fields.excerpt | truncate(80) }}</span>{% elif item.excerpt %}<span class="aegis-muted">{{ item.excerpt | truncate(80) }}</span>{% endif %}
+        <span style="margin-top: auto;">
+          <span class="aegis-price">{{ item.fields.price | money(theme_vars.currency) }}</span>
+          {% if item.fields.compare_at_price %}<span class="aegis-compare">{{ item.fields.compare_at_price | money(theme_vars.currency) }}</span>{% endif %}
+        </span>
+        {% if item.fields.stock is defined and item.fields.stock is not none and item.fields.stock | int <= 0 %}<span class="aegis-soldout">Sold out</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="aegis-empty"><p>No products yet.</p></div>
+  {% endif %}
+  {% if pagination and pagination.total_pages > 1 %}
+  <nav aria-label="Pagination" style="display: flex; justify-content: space-between; margin-top: 2rem;">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" class="aegis-button aegis-secondary">&larr; Previous</a>{% else %}<span></span>{% endif %}
+    <span class="aegis-muted">Page {{ pagination.page }} / {{ pagination.total_pages }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" class="aegis-button aegis-secondary">Next &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}
+"#;
+
+pub const PRODUCT_TEMPLATE: &str = r##"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-shop">
+  {% include "shop_common.html" %}
+  <article class="aegis-product">
+    <div>
+      {% if fields.image_url %}<img class="aegis-product-image" src="{{ fields.image_url }}" alt="{{ title }}">{% endif %}
+    </div>
+    <div>
+      {% if relations.category_id %}<div class="aegis-muted">{{ relations.category_id.title }}</div>{% endif %}
+      <h1>{{ title }}</h1>
+      <div>
+        <span class="aegis-price" style="font-size: 1.5rem;">{{ fields.price | money(theme_vars.currency) }}</span>
+        {% if fields.compare_at_price %}<span class="aegis-compare">{{ fields.compare_at_price | money(theme_vars.currency) }}</span>{% endif %}
+      </div>
+      {% if fields.sku %}<div class="aegis-muted">SKU: {{ fields.sku }}</div>{% endif %}
+      {% set sold_out = fields.stock is defined and fields.stock is not none and fields.stock | int <= 0 %}
+      <div class="aegis-buy">
+        {% if sold_out %}
+        <span class="aegis-soldout">Sold out</span>
+        {% elif theme_vars.shop_enabled == "true" %}
+        <input id="aegis-qty" class="aegis-qty" type="number" min="1" value="1" aria-label="Quantity">
+        <button type="button" class="aegis-button" data-aegis-add-to-cart data-quantity-input="#aegis-qty"
+          data-product-id="{{ fields.id }}" data-product-slug="{{ slug }}" data-product-title="{{ title }}" data-product-price="{{ fields.price }}">Add to cart</button>
+        {% elif fields.buy_url %}
+        <a class="aegis-button" href="{{ fields.buy_url }}" rel="noopener">Buy now</a>
+        {% endif %}
+        {% if not sold_out and fields.stock is defined and fields.stock is not none and fields.stock | int <= 5 %}<span class="aegis-muted">Only {{ fields.stock }} left</span>{% endif %}
+      </div>
+      {% if fields.excerpt %}<p style="margin-bottom: 1rem;">{{ fields.excerpt }}</p>{% endif %}
+      <div class="prose">{{ content_html | safe }}</div>
+    </div>
+  </article>
+</section>
+{% endblock %}
+"##;
+
+pub const CART_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-shop">
+  {% include "shop_common.html" %}
+  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ title }}</h1>
+  <div id="aegis-cart"><p class="aegis-muted">Loading your cart…</p></div>
+  <noscript><p class="aegis-error">The cart needs JavaScript.</p></noscript>
+</section>
+{% endblock %}
+"#;
+
+pub const ORDER_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-shop" style="max-width: 720px;">
+  {% include "shop_common.html" %}
+  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">Thank you for your order</h1>
+  <div id="aegis-order" data-order-id="{{ slug }}"><p class="aegis-muted">Loading your order…</p></div>
+</section>
+{% endblock %}
+"#;

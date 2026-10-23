@@ -142,6 +142,26 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #[no_mangle]
+        pub extern "C" fn calculate_order(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                ::aegis_plugin_sdk::abi::run_object_hook(ptr, len, "OrderContext", |ctx: ::aegis_plugin_sdk::types::OrderContext| {
+                    let mut plugin = <#ident_type as ::std::default::Default>::default();
+                    <#ident_type as ::aegis_plugin_sdk::types::Plugin>::calculate_order(&mut plugin, ctx)
+                })
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn on_order_status_changed(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                ::aegis_plugin_sdk::abi::run_notification_hook(ptr, len, "OrderStatusChange", |change: ::aegis_plugin_sdk::types::OrderStatusChange| {
+                    let mut plugin = <#ident_type as ::std::default::Default>::default();
+                    <#ident_type as ::aegis_plugin_sdk::types::Plugin>::on_order_status_changed(&mut plugin, change)
+                })
+            }
+        }
+
+        #[no_mangle]
         pub extern "C" fn on_render_page(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = ::aegis_plugin_sdk::abi::read_bytes_from_host(ptr, len);

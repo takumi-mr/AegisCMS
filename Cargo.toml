@@ -11,6 +11,8 @@ members = [
     "crates/aegis-theme",
     "sdk/templates/rust",
     "plugins/official-code-enhancer",
+    "plugins/official-shop-rules",
+    "plugins/official-order-notifier",
 ]
 
 [workspace.package]

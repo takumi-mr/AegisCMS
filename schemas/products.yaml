@@ -1,0 +1,45 @@
+content_type: product
+label: "商品"
+description: "EC の商品カタログ。価格・在庫は [commerce] の注文処理で使う（docs/commerce.md）"
+fields:
+  - name: title
+    type: string
+    required: true
+    max_length: 255
+    index: true
+  - name: slug
+    type: string
+    required: true
+    unique: true
+  # 税込みの販売価格（通貨の最小単位の整数。JPY なら円）
+  - name: price
+    type: integer
+    required: true
+  # 値引き前の価格（表示用。任意）
+  - name: compare_at_price
+    type: integer
+    nullable: true
+  # 在庫数。空なら在庫を数えない（無制限）
+  - name: stock
+    type: integer
+    nullable: true
+  - name: sku
+    type: string
+    nullable: true
+    index: true
+  - name: image_url
+    type: string
+    nullable: true
+  - name: excerpt
+    type: string
+    nullable: true
+    max_length: 500
+  # 外部の決済リンク（Stripe Payment Links など）。[commerce] を使わずに販売する場合
+  - name: buy_url
+    type: string
+    nullable: true
+  - name: category_id
+    type: relation
+    target: category.id
+    nullable: true
+    index: true

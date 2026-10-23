@@ -1,11 +1,11 @@
 use crate::plugin::PluginSupervisor;
+use crate::services::PluginServices;
 use crate::wasm::engine::WasmEngine;
 use crate::wasm::instance::WasmPluginInstance;
 use aegis_core::{is_valid_plugin_name, AegisError, PluginManifest, PluginResourceLimits, Result};
 use serde::Serialize;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 const MANIFEST_FILE: &str = "plugin.manifest.json";
 
@@ -119,7 +119,7 @@ impl WasmPluginLoader {
     pub fn load_plugin<P: AsRef<Path>>(
         plugin_dir: P,
         engine: WasmEngine,
-        kv_storage: Arc<Mutex<HashMap<String, String>>>,
+        services: PluginServices,
         default_limits: &PluginResourceLimits,
     ) -> Result<Arc<WasmPluginInstance>> {
         let dir = plugin_dir.as_ref();
@@ -129,7 +129,7 @@ impl WasmPluginLoader {
 
         let wasm_path = dir.join(&manifest.entrypoint);
         let wasm_bytes = std::fs::read(&wasm_path).map_err(AegisError::Io)?;
-        let instance = WasmPluginInstance::from_bytes(engine, manifest, &wasm_bytes, kv_storage)?;
+        let instance = WasmPluginInstance::from_bytes(engine, manifest, &wasm_bytes, services)?;
         Ok(Arc::new(instance))
     }
 
@@ -141,7 +141,7 @@ impl WasmPluginLoader {
         enabled: &[String],
         engine: WasmEngine,
         supervisor: &mut PluginSupervisor,
-        kv_storage: Arc<Mutex<HashMap<String, String>>>,
+        services: PluginServices,
         default_limits: &PluginResourceLimits,
     ) -> Result<usize> {
         let dir = plugins_dir.as_ref();
@@ -157,7 +157,7 @@ impl WasmPluginLoader {
             let instance = Self::load_plugin(
                 &plugin_dir,
                 engine.clone(),
-                kv_storage.clone(),
+                services.clone(),
                 default_limits,
             )
             .map_err(|e| AegisError::Config(format!("Failed to load plugin '{}': {}", name, e)))?;
@@ -265,7 +265,7 @@ mod tests {
             &enabled,
             WasmEngine::new().unwrap(),
             &mut supervisor,
-            Arc::new(Mutex::new(HashMap::new())),
+            std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())).into(),
             &PluginResourceLimits::default(),
         )?;
         Ok(supervisor

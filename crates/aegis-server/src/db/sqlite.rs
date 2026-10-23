@@ -9,11 +9,11 @@ use sqlx::{Pool, Row, Sqlite};
 
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
-    build_audit_select, build_content_list, build_identity_insert, build_identity_select,
-    build_identity_table, build_relation_lookup, build_user_delete, build_user_insert,
-    build_user_select, build_user_update, is_standard_column, user_row_from_sqlx, ContentListQuery,
-    ContentPage, ContentRecord, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES,
-    AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
+    build_audit_select, build_content_list, build_content_update, build_identity_insert,
+    build_identity_select, build_identity_table, build_relation_lookup, build_user_delete,
+    build_user_insert, build_user_select, build_user_update, custom_columns, is_standard_column,
+    user_row_from_sqlx, ContentListQuery, ContentPage, ContentRecord, DatabaseAdapter,
+    ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
 };
 
 /// SQLite はカスタムフィールドを文字列で保存するため、JSON として読めればその値、読めなければ文字列にする。
@@ -44,6 +44,31 @@ fn custom_fields_from_row(
         }
     }
     custom_fields
+}
+
+/// カスタム列に保存する値（スキーマのカスタムフィールドの順）。SQLite は文字列で保存する（真偽値は
+/// 1 / 0、値の無いフィールドは NULL）。null は数値・真偽値の列では NULL、それ以外は空文字
+/// （数値の列に空文字を入れると、`stock - 1` のような計算で 0 として扱われてしまう）
+fn custom_values(schema: &SchemaDefinition, record: &ContentRecord) -> Vec<Option<String>> {
+    schema
+        .fields
+        .iter()
+        .filter(|field| !is_standard_column(&field.name))
+        .map(|field| {
+            let numeric = matches!(field.field_type, FieldType::Integer | FieldType::Boolean);
+            match record.custom_fields.get(&field.name) {
+                None => None,
+                Some(serde_json::Value::Null) if numeric => None,
+                Some(val) => Some(match val {
+                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::Number(n) => n.to_string(),
+                    serde_json::Value::Bool(b) => if *b { "1" } else { "0" }.to_string(),
+                    serde_json::Value::Null => String::new(),
+                    other => other.to_string(),
+                }),
+            }
+        })
+        .collect()
 }
 
 fn record_from_row(schema: &SchemaDefinition, r: &SqliteRow) -> ContentRecord {
@@ -87,6 +112,8 @@ impl SqliteAdapter {
         Self { pool }
     }
 }
+
+super::orders::impl_order_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 
 #[async_trait]
 impl DatabaseAdapter for SqliteAdapter {
@@ -186,6 +213,20 @@ impl DatabaseAdapter for SqliteAdapter {
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // EC の注文
+        let (order_table, order_indexes) =
+            super::orders::build_order_table("TEXT", "TEXT", "INTEGER", false);
+        sqlx::query(&order_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in order_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
 
         Ok(())
     }
@@ -294,32 +335,8 @@ impl DatabaseAdapter for SqliteAdapter {
             "created_at".to_string(),
             "updated_at".to_string(),
         ];
-        let mut custom_values: Vec<Option<String>> = Vec::new();
-
-        for field in &schema.fields {
-            if is_standard_column(&field.name) {
-                continue;
-            }
-            columns.push(field.name.clone());
-            if let Some(val) = record.custom_fields.get(&field.name) {
-                let s = match val {
-                    serde_json::Value::String(s) => s.clone(),
-                    serde_json::Value::Number(n) => n.to_string(),
-                    serde_json::Value::Bool(b) => {
-                        if *b {
-                            "1".to_string()
-                        } else {
-                            "0".to_string()
-                        }
-                    }
-                    serde_json::Value::Null => String::new(),
-                    other => other.to_string(),
-                };
-                custom_values.push(Some(s));
-            } else {
-                custom_values.push(None);
-            }
-        }
+        columns.extend(custom_columns(schema));
+        let custom_values = custom_values(schema, record);
 
         let placeholders: Vec<String> = (1..=columns.len()).map(|i| format!("?{}", i)).collect();
         let query_str = format!(
@@ -351,6 +368,45 @@ impl DatabaseAdapter for SqliteAdapter {
             .map_err(|e| AegisError::Database(format!("SQLite INSERT failed: {}", e)))?;
 
         Ok(())
+    }
+
+    async fn update_content(
+        &self,
+        schema: &SchemaDefinition,
+        record: &ContentRecord,
+    ) -> Result<bool> {
+        let sql = build_content_update(&schema.table_name(), &custom_columns(schema), |i| {
+            format!("?{}", i)
+        });
+        let mut query = sqlx::query(&sql)
+            .bind(&record.title)
+            .bind(&record.slug)
+            .bind(&record.status)
+            .bind(&record.blocks_json)
+            .bind(&record.author_id)
+            .bind(&record.published_at)
+            .bind(&record.updated_at);
+        for val in custom_values(schema, record) {
+            query = query.bind(val);
+        }
+        let result = query
+            .bind(&record.id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(format!("SQLite UPDATE failed: {}", e)))?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn delete_content(&self, schema: &SchemaDefinition, id: &str) -> Result<bool> {
+        let result = sqlx::query(&format!(
+            "DELETE FROM {} WHERE id = ?1;",
+            schema.table_name()
+        ))
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(result.rows_affected() > 0)
     }
 
     async fn get_content(

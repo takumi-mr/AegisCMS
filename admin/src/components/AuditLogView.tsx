@@ -25,6 +25,8 @@ const OUTCOME_BADGE: Record<string, string | undefined> = {
 
 const ACTIONS: AuditAction[] = [
   'content.create',
+  'content.update',
+  'content.delete',
   'session.create',
   'session.delete',
   'storage.upload',
@@ -36,6 +38,8 @@ const ACTIONS: AuditAction[] = [
   'user.create',
   'user.update',
   'user.delete',
+  'order.create',
+  'order.update',
 ];
 const OUTCOMES = ['success', 'failure', 'denied'];
 

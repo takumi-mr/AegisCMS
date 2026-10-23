@@ -17,6 +17,8 @@ import { Header, type AppView } from './components/Header';
 import { AuditLogView } from './components/AuditLogView';
 import { ThemeManager } from './components/ThemeManager';
 import { UserManager } from './components/UserManager';
+import { ProductManager } from './components/ProductManager';
+import { OrderManager } from './components/OrderManager';
 import { ProfileModal } from './components/ProfileModal';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { CategoryManager } from './components/CategoryManager';
@@ -335,15 +337,19 @@ export const App: React.FC = () => {
 
     setIsSaving(true);
     try {
-      const saved = await aegisApi.createContent(contentType, {
+      const payload = {
         title,
         slug,
         status,
         blocks,
-        // author_id is omitted so the server records the logged-in user
+        // author_id is omitted: new content records the logged-in user, updates keep the author
         // Omit the relation entirely when no category is selected
         ...(categoryId ? { category_id: categoryId } : {}),
-      });
+      };
+      // Content opened from the list is updated in place; otherwise a new item is created
+      const saved = selectedId
+        ? await aegisApi.updateContent(contentType, selectedId, payload)
+        : await aegisApi.createContent(contentType, payload);
 
       showToast(`Saved! Wasm plugin hooks executed successfully (ID: ${saved.id.slice(0, 8)})`);
       loadContents();
@@ -386,6 +392,10 @@ export const App: React.FC = () => {
 
       {view === 'audit' && isAdmin(session) ? (
         <AuditLogView />
+      ) : view === 'products' && editable ? (
+        <ProductManager categories={categories} onShowToast={showToast} />
+      ) : view === 'orders' && editable ? (
+        <OrderManager onShowToast={showToast} />
       ) : view === 'users' && isAdmin(session) ? (
         <UserManager session={session} onSelfUpdated={setProfile} onShowToast={showToast} />
       ) : view === 'themes' ? (

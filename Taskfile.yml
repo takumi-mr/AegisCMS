@@ -140,6 +140,15 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_code_enhancer.wasm plugins/official-code-enhancer/plugin.wasm
         platforms: [linux, darwin]
 
+  plugin:build:shop:
+    desc: 公式 EC プラグイン (official-shop-rules / official-order-notifier) を Wasm にビルドし plugins/*/plugin.wasm を更新
+    cmds:
+      - cargo build -p aegis-plugin-shop-rules -p aegis-plugin-order-notifier --target wasm32-unknown-unknown --release
+      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_shop_rules.wasm plugins\\official-shop-rules\\plugin.wasm && copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_order_notifier.wasm plugins\\official-order-notifier\\plugin.wasm"
+        platforms: [windows]
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_shop_rules.wasm plugins/official-shop-rules/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_order_notifier.wasm plugins/official-order-notifier/plugin.wasm
+        platforms: [linux, darwin]
+
   plugin:build:as:
     desc: AssemblyScript プラグインテンプレートを Wasm にビルドし sdk/templates/assemblyscript/plugin.wasm を生成
     cmds:

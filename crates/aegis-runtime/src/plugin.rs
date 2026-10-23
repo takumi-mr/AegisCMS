@@ -1,6 +1,8 @@
 use crate::guard::CapabilityGuard;
 use aegis_ast::BlockNode;
-use aegis_core::{PluginManifest, PostContext, Result, UserAuthContext};
+use aegis_core::{
+    OrderContext, OrderStatusChange, PluginManifest, PostContext, Result, UserAuthContext,
+};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -37,9 +39,33 @@ pub trait AegisPlugin: Send + Sync {
         Ok(ctx)
     }
 
+    /// 見積もり・注文の確定時に送料・税・割引（`adjustments`）を加える。`Err` で注文を断る
+    async fn calculate_order(&self, ctx: OrderContext) -> Result<OrderContext> {
+        let guard = CapabilityGuard::new(self.manifest());
+        guard.check_hook("calculate-order")?;
+        Ok(ctx)
+    }
+
+    /// 注文の作成・状態の変化の通知（結果は注文に影響しない）
+    async fn on_order_status_changed(&self, change: OrderStatusChange) -> Result<()> {
+        let guard = CapabilityGuard::new(self.manifest());
+        guard.check_hook("on-order-status-changed")?;
+        let _ = change;
+        Ok(())
+    }
+
     fn provide_templates(&self) -> HashMap<String, String> {
         HashMap::new()
     }
+}
+
+fn declares_hook(plugin: &dyn AegisPlugin, hook: &str) -> bool {
+    plugin
+        .manifest()
+        .capabilities
+        .hooks
+        .iter()
+        .any(|h| h == hook)
 }
 
 pub struct PluginSupervisor {
@@ -135,6 +161,57 @@ impl PluginSupervisor {
             }
         }
         Ok(ctx)
+    }
+
+    /// Runs every `calculate-order` plugin in turn. Plugins may only change `adjustments` and
+    /// `metadata`: the lines, prices, customer and coupon stay as the host built them, and the
+    /// totals are recomputed after each plugin. Adjustments a plugin adds are tagged with its
+    /// name (`source`). An error (a refusal or a failure) stops the chain
+    pub async fn apply_calculate_order(&self, mut ctx: OrderContext) -> Result<OrderContext> {
+        ctx.recompute_totals();
+        for plugin in &self.plugins {
+            if !declares_hook(plugin.as_ref(), "calculate-order") {
+                continue;
+            }
+            let before = ctx.clone();
+            let returned = plugin.calculate_order(ctx).await?;
+            let name = &plugin.manifest().name;
+            let adjustments = returned
+                .adjustments
+                .into_iter()
+                .map(|mut adjustment| {
+                    if !before.adjustments.contains(&adjustment) {
+                        adjustment.source = name.clone();
+                    }
+                    adjustment
+                })
+                .collect();
+            ctx = OrderContext {
+                adjustments,
+                metadata: returned.metadata,
+                ..before
+            };
+            ctx.recompute_totals();
+        }
+        Ok(ctx)
+    }
+
+    /// Notifies every `on-order-status-changed` plugin. A failing plugin does not stop the
+    /// others; the failures are returned (plugin name, error) for logging and auditing
+    pub async fn notify_order_status_changed(
+        &self,
+        change: &OrderStatusChange,
+    ) -> Vec<(String, aegis_core::AegisError)> {
+        let mut failures = Vec::new();
+        for plugin in &self.plugins {
+            if !declares_hook(plugin.as_ref(), "on-order-status-changed") {
+                continue;
+            }
+            if let Err(e) = plugin.on_order_status_changed(change.clone()).await {
+                failures.push((plugin.manifest().name.clone(), e));
+            }
+        }
+        failures
     }
 
     pub fn collect_plugin_templates(&self) -> HashMap<String, String> {
