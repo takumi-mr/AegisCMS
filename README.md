@@ -175,7 +175,7 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
 - **`aegis-audit`**: 監査イベントを設定された出力先へ配送する `AuditService`、操作元（IP・User-Agent）を表す `AuditOrigin`、メトリクス（[docs/audit.md](docs/audit.md)）。
 - **`aegis-auth`**: ユーザー管理 `UserService`、Argon2id パスワード、`CacheBackend` をバックストアとするセッション管理 `SessionService`、ログイン試行制限、OpenID Connect（feature `oidc`。[docs/authentication.md](docs/authentication.md)）。
-- **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文を作り、配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.md](docs/notifications.md)）。
+- **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文を作り、配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。条件に合う監査イベント（管理者のログイン・ログインのロックなど）の通知（`AuditNotificationSink`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.md](docs/notifications.md)）。
 - **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査・通知は `CommerceDeps` で受け取ります。
 
 #### 6. `crates/aegis-server` (HTTP Gateway & Admin SPA 配信)

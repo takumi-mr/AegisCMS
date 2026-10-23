@@ -391,6 +391,14 @@ async fn main() -> anyhow::Result<()> {
             config.plugins.validate()?;
             config.commerce.validate()?;
             config.notifications.validate()?;
+            if config.notifications.enabled
+                && !config.notifications.audit.rules.is_empty()
+                && !config.audit.enabled
+            {
+                anyhow::bail!(
+                    "[[notifications.audit.rules]] notify audit events: set [audit].enabled = true"
+                );
+            }
 
             tracing::info!("Starting AegisCMS core engine...");
             tracing::info!(
@@ -483,10 +491,19 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // 6. 監査ログサービス初期化
-            let audit = Arc::new(aegis_audit::AuditService::from_config(
-                &config.audit,
-                db_adapter.clone(),
-            ));
+            let mut audit =
+                aegis_audit::AuditService::from_config(&config.audit, db_adapter.clone());
+            // 監査イベントの通知（[[notifications.audit.rules]]）。通知の送り先は 6.6 で渡す
+            let audit_notifications = (config.notifications.enabled
+                && !config.notifications.audit.rules.is_empty())
+            .then(|| {
+                let sink = Arc::new(aegis_notify::AuditNotificationSink::new(
+                    config.notifications.audit.rules.clone(),
+                ));
+                audit.add_sink(sink.clone());
+                sink
+            });
+            let audit = Arc::new(audit);
             audit.spawn_retention_task();
 
             // 6.5 外部 IdP ログイン（[auth.oidc]）
@@ -530,6 +547,13 @@ async fn main() -> anyhow::Result<()> {
                     "Notifications enabled (channels: {:?})",
                     notifier.channel_names()
                 );
+                if let Some(sink) = &audit_notifications {
+                    sink.attach(Arc::new(notifier.clone()));
+                    tracing::info!(
+                        "Audit notifications enabled ({} rule(s))",
+                        config.notifications.audit.rules.len()
+                    );
+                }
                 app_state.with_notifier(notifier)
             } else {
                 app_state

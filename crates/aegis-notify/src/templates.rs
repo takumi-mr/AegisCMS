@@ -2,6 +2,7 @@
 //!
 //! 通知の種類ごとに `<種類>.subject`（件名）と `<種類>.txt`（本文）を使う。運営者向け
 //! （`Recipient::Staff`）は `<種類>.staff.subject` / `<種類>.staff.txt` を先に探す。
+//! 無ければ種類の最後の `.` 以降を外した名前を順に探す（`audit.session.create` → `audit.session` → `audit`）。
 //! `[notifications].templates_dir` にあるファイルを優先し、無ければ組み込み（`locale` の言語）を使う
 
 use std::path::{Path, PathBuf};
@@ -43,6 +44,9 @@ builtin_templates!(
     "order.cancelled.staff.txt",
     "test.subject",
     "test.txt",
+    "_audit_title.txt",
+    "audit.subject",
+    "audit.txt",
 );
 
 /// テンプレート名として安全か（ディレクトリの外を読ませない）
@@ -119,10 +123,15 @@ impl Templates {
                 kind
             )));
         }
-        let candidates: Vec<String> = match recipient {
-            Recipient::Staff => vec![format!("{}.staff", kind), kind.to_string()],
-            Recipient::Person { .. } => vec![kind.to_string()],
-        };
+        let mut candidates = Vec::new();
+        let mut base = Some(kind);
+        while let Some(name) = base {
+            if matches!(recipient, Recipient::Staff) {
+                candidates.push(format!("{}.staff", name));
+            }
+            candidates.push(name.to_string());
+            base = name.rsplit_once('.').map(|(parent, _)| parent);
+        }
         let ctx = Value::from_serialize(context);
         for base in candidates {
             let subject = match self.env.get_template(&format!("{}.subject", base)) {
@@ -297,5 +306,94 @@ mod tests {
         assert!(rendered
             .body
             .starts_with("On its way!\nOrder number: 261023-ABC234"));
+    }
+
+    fn audit_event(
+        outcome: &str,
+        actor: serde_json::Value,
+        details: serde_json::Value,
+    ) -> serde_json::Value {
+        json!({
+            "site_name": "Aegis Coffee",
+            "admin_url": "https://shop.example.com/admin/",
+            "title": "",
+            "audit": {
+                "action": "session.create",
+                "outcome": outcome,
+                "occurred_at": "2026-10-23T05:00:00.000000Z",
+                "actor": actor,
+                "resource_type": "session",
+                "resource_id": null,
+                "ip": "203.0.113.7",
+                "user_agent": "Mozilla/5.0",
+                "details": details,
+            }
+        })
+    }
+
+    #[test]
+    fn audit_events_use_the_generic_audit_template() {
+        let ja = Templates::new("ja", None);
+        let login = ja
+            .render(
+                "audit.session.create",
+                &Recipient::Staff,
+                &audit_event(
+                    "success",
+                    json!({ "user_id": "root", "role": "admin" }),
+                    json!({ "provider": "local" }),
+                ),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(login.subject, "【Aegis Coffee】ログイン（成功）：root");
+        assert!(
+            login.body.contains("ユーザー: root（admin）"),
+            "{}",
+            login.body
+        );
+        assert!(login.body.contains("IP アドレス: 203.0.113.7"));
+        assert!(login.body.contains("  provider: local"));
+        assert!(login
+            .body
+            .contains("監査ログ: https://shop.example.com/admin/"));
+
+        let locked = ja
+            .render(
+                "audit.session.create",
+                &Recipient::Staff,
+                &audit_event(
+                    "failure",
+                    serde_json::Value::Null,
+                    json!({ "username": "root", "error": "Invalid password", "locked": "user" }),
+                ),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            locked.subject,
+            "【Aegis Coffee】ログインをロックしました（root）"
+        );
+        assert!(locked.body.contains("ユーザー名: root"), "{}", locked.body);
+        assert!(locked.body.contains("  locked: user"));
+
+        // ルールの見出し（title）が優先
+        let mut titled = audit_event(
+            "success",
+            json!({ "user_id": "root", "role": "admin" }),
+            json!({}),
+        );
+        titled["title"] = json!("管理者がログインしました");
+        let en = Templates::new("en", None)
+            .render("audit.session.create", &Recipient::Staff, &titled)
+            .unwrap()
+            .unwrap();
+        assert_eq!(en.subject, "[Aegis Coffee] 管理者がログインしました");
+        assert!(
+            en.body
+                .starts_with("管理者がログインしました\n\nTime: 2026-10-23T05:00:00.000000Z (UTC)"),
+            "{}",
+            en.body
+        );
     }
 }

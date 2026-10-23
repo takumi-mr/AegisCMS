@@ -1,0 +1,27 @@
+{% set labels = {
+  "session.create": "Login",
+  "session.delete": "Logout",
+  "access.denied": "Access denied",
+  "user.create": "User created",
+  "user.update": "User changed",
+  "user.delete": "User deleted",
+  "theme.switch": "Theme switched",
+  "plugin.error": "Plugin error",
+  "content.create": "Content created",
+  "content.update": "Content updated",
+  "content.delete": "Content deleted",
+  "storage.upload": "File uploaded",
+  "storage.delete": "File deleted",
+  "audit.purge": "Audit log purged",
+  "order.create": "Order",
+  "order.update": "Order updated",
+} %}
+{% if title %}
+{{ title }}
+{% elif audit.action == "session.create" and audit.details.locked %}
+Logins locked ({{ audit.details.username or "" }})
+{% elif audit.action == "session.create" and audit.details.error == "rate_limited" %}
+Login attempt while locked ({{ audit.details.username or "" }})
+{% else %}
+{{ labels[audit.action] or audit.action }} ({{ audit.outcome }}){{ (": " ~ audit.actor.user_id) if audit.actor else "" }}
+{% endif %}

@@ -63,3 +63,14 @@ username = ""
 # パスワードは環境変数 AEGIS_SMTP_PASSWORD で渡す
 from = "朝凪珈琲 <shop@example.com>"
 staff_recipients = ["owner@example.com"]
+
+# 監査イベントの通知: 管理者のログインと、パスワードの誤りが続いたログインのロック
+[[notifications.audit.rules]]
+title = "管理者がログインしました"
+action = "session.create"
+outcomes = ["success"]
+roles = ["admin"]
+
+[[notifications.audit.rules]]
+action = "session.create"
+details = { locked = "*" }

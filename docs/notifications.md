@@ -1,12 +1,12 @@
 # 通知（メール）
 
-注文の受付・入金確認・発送・取り消しを、顧客と運営者にメールで知らせます（`[notifications]`）。メールは外部の SMTP サーバー（自社のメールサーバー、Amazon SES、SendGrid、Google Workspace など）から送ります。
+注文の受付・入金確認・発送・取り消しを顧客と運営者に、管理者のログインやログインのロックなどの監査イベントを運営者に、メールで知らせます（`[notifications]`）。メールは外部の SMTP サーバー（自社のメールサーバー、Amazon SES、SendGrid、Google Workspace など）から送ります。
 
 配信方法は「チャネル」として差し替えられる作りで、今はメール（`email`）とサーバーのログ（`log`）があります。Slack や SMS などはチャネルを足すだけで加えられます（[5. 配信方法を加える](#5-配信方法を加える)）。
 
 ```text
- EC（注文の作成・状態の変化）
-        │  NotificationEvent { 種類: "order.placed", 宛先: [顧客, 運営者], 値: 注文の内容 }
+ EC（注文の作成・状態の変化）          監査ログ（ルールに合うイベント。2.1）
+        │  NotificationEvent { 種類: "order.placed" / "audit.session.create", 宛先, 値 }
         ▼
  NotificationService（aegis-notify）
         │  宛先ごとにテンプレートから件名・本文を作る（<種類>.subject / <種類>.txt）
@@ -62,11 +62,63 @@ aegis-server -c config/production.toml notify test --to you@example.com
 | `order.shipped` | 発送した | 顧客 | 発送の知らせ。状態を変えるときのメモ（配送業者・追跡番号など）を本文に入れる |
 | `order.cancelled` | 取り消した（管理者の操作・支払い期限切れ） | 顧客・運営者 | 取り消しの理由（`reason`）、支払い済みなら返金の案内 |
 | `test` | `aegis-server notify test` | 指定したアドレス | テスト |
+| `audit.<操作>` | 監査ログのイベントが `[[notifications.audit.rules]]` に合った（[2.1](#21-監査イベントの通知)） | 運営者（またはルールの `recipients`） | 操作・結果・ユーザー・IP アドレス・ブラウザ・詳細 |
 
 - `stripe` で決済ページに進んだまま支払われなかった注文（期限切れ・失敗で取り消し）は、受付を知らせていないので取り消しも知らせません。
 - `completed`（完了）は知らせません。
 - `[notifications].disabled_events = ["order.shipped"]` のように、種類ごとに止められます。
 - 注文確認ページのトークンはサーバーに保存していない（ハッシュのみ）ため、URL を本文に入れられるのは注文したときの `order.placed` だけです。
+
+### 2.1 監査イベントの通知
+
+監査ログ（[docs/audit.md](audit.md)）に記録されるイベントのうち、`[[notifications.audit.rules]]` のどれかに合うものを運営者に知らせます。ルールは上から順に見て、最初に合ったもので送ります。`[audit].enabled = true` が必要です（出力先 `sinks` の設定は問いません）。
+
+```toml
+# 管理者のログイン
+[[notifications.audit.rules]]
+title = "管理者がログインしました"   # 件名・本文の見出し（省略すると操作と結果から作る）
+action = "session.create"
+outcomes = ["success"]
+roles = ["admin"]
+
+# ログインのロック（失敗が [auth.login_rate_limit] の上限に達した）
+[[notifications.audit.rules]]
+action = "session.create"
+details = { locked = "*" }
+
+# 権限の無い操作。宛先を変え、1 時間に 5 通まで
+[[notifications.audit.rules]]
+action = "access.denied"
+recipients = ["security@example.com"]
+max_per_hour = 5
+```
+
+| キー | 説明 |
+| --- | --- |
+| `action` | 監査ログの操作（`session.create`、`access.denied`、`user.update`、`theme.switch` など。必須） |
+| `outcomes` | 結果（`success` / `failure` / `denied`）。省略するとすべて |
+| `roles` | 操作者のロール（`admin` など）。操作者の分からないイベント（失敗したログインなど）は、指定すると合わない |
+| `details` | 監査ログの `details` の値。`"*"` はキーがあれば何でもよい |
+| `title` | 件名・本文の見出し |
+| `recipients` | 宛先のメールアドレス。省略すると `[notifications.email].staff_recipients` |
+| `max_per_hour` | 1 時間あたりの上限（既定 20、0 で無制限）。総当たり攻撃などで通知が殺到しないように、超えた分は送らずログに警告を出す |
+
+よく使う条件:
+
+| 知りたいこと | 条件 |
+| --- | --- |
+| 管理者のログイン | `action = "session.create"`, `outcomes = ["success"]`, `roles = ["admin"]` |
+| ログインのロック（ロックがかかった時点の 1 回） | `action = "session.create"`, `details = { locked = "*" }` |
+| ロック中のログイン試行（試行のたび） | `action = "session.create"`, `outcomes = ["denied"]`, `details = { error = "rate_limited" }` |
+| パスワードの誤り | `action = "session.create"`, `outcomes = ["failure"]`, `details = { error = "invalid_password" }` |
+| 権限の無い操作（401 / 403） | `action = "access.denied"` |
+| ユーザーの作成・変更・削除 | `action = "user.create"` / `"user.update"` / `"user.delete"` |
+| 公開サイトのテーマの切り替え | `action = "theme.switch"` |
+| プラグインのエラー | `action = "plugin.error"` |
+
+- 通知の種類は `audit.<操作>`（`audit.session.create` など）です。`disabled_events` で止められ、テンプレートは `audit.session.create.subject` → `audit.session.subject` → `audit.subject` の順に探します（組み込みは `audit` のみ）。テンプレートには監査イベント（`audit.action` / `audit.outcome` / `audit.actor` / `audit.ip` / `audit.user_agent` / `audit.details` など）と `title` を渡します。
+- 通知の配信結果（`notification.send`）は通知しません（配信の失敗が通知を呼び続けないように）。
+- 上限の数はサーバーのメモリ上で数えます（再起動でリセット、サーバーごと）。
 
 ---
 
@@ -115,6 +167,7 @@ notifications/
 | `reason` / `was_paid` | 取り消しのきっかけ（`admin` / `expired` など）と、支払い済みだったか（`order.cancelled`） |
 | `{{ amount \| money(order.currency) }}` | 金額の表示（`¥1,200`、`$12.50`） |
 
+- テンプレートが無ければ種類の最後の `.` 以降を外した名前を順に探します（`audit.session.create` → `audit.session` → `audit`）。
 - 本文はエスケープしません（プレーンテキスト）。
 - `{% if %}` などのタグだけの行は出力に空行を残しません（`trim_blocks`）。3 行以上続く空行は 1 行にまとめます。
 

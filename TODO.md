@@ -50,6 +50,7 @@
 
 #### 通知機能 (Completed) — [docs/notifications.md](docs/notifications.md)
 - [x] **メール通知と通知の基盤**: 新クレート `aegis-notify`（`NotificationService`・配信チャネル `NotificationChannel`・テンプレート）、`aegis_core::Notifier` / `NotificationEvent` / `Recipient`。チャネルは `email`（外部の SMTP サーバー。STARTTLS / TLS / 平文、認証、`AEGIS_SMTP_PASSWORD`）と `log`。組み込みテンプレート（en / ja）と `templates_dir` での上書き、一時的な失敗の再試行、監査ログ `notification.send`、`aegis-server notify test --to`。EC の注文の受付・入金確認・発送・取り消しを顧客と運営者（`staff_recipients`）に送る。
+- [x] **監査イベントの通知**: `[[notifications.audit.rules]]`（`action` / `outcomes` / `roles` / `details`（`"*"` で存在のみ）/ `title` / `recipients` / `max_per_hour`）に合う監査イベントを運営者に通知（管理者のログイン、ログインのロック、権限の無い操作など）。`AuditNotificationSink`（監査ログの出力先として登録）、組み込みテンプレート `audit`（en / ja）、テンプレート名の親へのフォールバック。
 - [ ] **通知の追加チャネル**（Slack / Webhook / SMS。`NotificationChannel` を実装して `ChannelKind` に加える）、HTML メール、送信待ちの永続化（再起動で失われないキュー）、Admin Studio からのテスト送信・テンプレート編集。
 - [ ] **EC 以外の通知**（パスワードの再設定、コメント、公開予約の完了など）。
 
@@ -163,6 +164,8 @@
   - Stripe の注文は支払い済みになった時点（Webhook）で `order.placed` を送る（決済ページで離脱した注文に受付メールを送らない）。注文確認ページのトークンは平文を保存しないので、URL は注文時の `order.placed` にしか入らない。
   - 配信は `tokio::spawn` で非同期・メモリ上（再起動で失われる）。`SendError::permanent`（SMTP の 5xx・宛先不正）は再試行しない。監査ログに宛先のアドレスは残さない。
   - `AuditService::with_sinks` は `#[cfg(test)]` を外して公開（独自の出力先・他クレートのテストで使う）。
+  - 監査イベントの通知は `AuditNotificationSink`（`AuditSink`）を `AuditService::add_sink` で加える。`NotificationService` は監査ログ（`notification.send` の記録）を使うため後から作り、`attach` で渡す（`OnceLock`）。`notification.send` は通知しない（配信の失敗が通知を呼び続けるため）。`max_per_hour` はルールごとにメモリ上で数える。
+  - テンプレートは種類の最後の `.` 以降を外した名前へフォールバックする（`audit.session.create` → `audit`）。ログインのロックは `session.create` の `failure` で `details.locked` があるもの（ロックがかかった試行の 1 回）、ロック中の試行は `denied` + `details.error = "rate_limited"`。
 - **サンプルショップ (`examples/coffee-shop/`, `themes/roastery/`)**:
   - パスはリポジトリのルートからの相対パス（ルートで起動する）。SQLite はファイルのあるディレクトリを作らない（ルートの `.gitignore` が `data/` を無視するため空のディレクトリも置けない）ので、DB は `examples/coffee-shop/shop.db` に直接置き、`examples/coffee-shop/.gitignore` で除外している。
   - `seed.mjs` は依存なし（Node.js 18+ の `fetch` / `FormData`）。本文は簡単な Markdown（見出し・箇条書き・段落）をブロックに変換して送る。画像は `key` を指定してアップロードし（`sample-shop/<slug>.png`）、作成済みの slug は飛ばす。一覧は新しい順なので、先頭に出したい商品を最後に作る。

@@ -5,6 +5,7 @@
 //! 配信はバックグラウンドで行い、一時的な失敗は間隔を空けて再試行する。結果は監査ログ
 //! （`notification.send`）に残す。配信待ちはメモリ上にあるため、再起動すると送られずに失われる
 
+pub mod audit;
 pub mod channel;
 pub mod config;
 pub mod email;
@@ -18,8 +19,11 @@ use aegis_audit::{AuditOrigin, AuditService};
 use aegis_core::{AuditAction, AuditOutcome, NotificationEvent, Notifier, Recipient, Result};
 use serde_json::json;
 
+pub use audit::AuditNotificationSink;
 pub use channel::{NotificationChannel, NotificationMessage, SendError};
-pub use config::{ChannelKind, EmailConfig, NotificationsConfig, SmtpTls};
+pub use config::{
+    AuditNotificationsConfig, AuditRule, ChannelKind, EmailConfig, NotificationsConfig, SmtpTls,
+};
 pub use email::EmailChannel;
 pub use log::LogChannel;
 pub use templates::{Rendered, Templates};

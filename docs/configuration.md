@@ -300,6 +300,20 @@ coupons = "WELCOME10:10%"
 | `staff_recipients` | string[] | `[]` | 運営者向けの通知（新しい注文・取り消し）の宛先。空なら運営者には送らない |
 | `timeout_secs` | integer | `15` | 接続・送信のタイムアウト（秒） |
 
+#### `[[notifications.audit.rules]]`
+
+監査イベント（管理者のログイン・ログインのロックなど）を通知する条件（[通知ドキュメント 2.1](./notifications.md#21-監査イベントの通知)）。`[audit].enabled = false` のままルールを書くとサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `action` | string | （必須） | 監査ログの操作（`session.create` など。`notification.send` は不可） |
+| `outcomes` | string[] | `[]` | `success` / `failure` / `denied`（空ならすべて） |
+| `roles` | string[] | `[]` | 操作者のロール（空ならすべて） |
+| `details` | table | `{}` | `details` の値（`"*"` はキーがあれば何でも） |
+| `title` | string | `""` | 件名・本文の見出し |
+| `recipients` | string[] | `[]` | 宛先（空なら `staff_recipients`） |
+| `max_per_hour` | integer | `20` | 1 時間あたりの上限（0 で無制限） |
+
 ---
 
 ## 3. 完全な設定例
@@ -434,6 +448,11 @@ from = ""
 reply_to = ""
 staff_recipients = []
 timeout_secs = 15
+
+# [[notifications.audit.rules]]
+# action = "session.create"
+# outcomes = ["success"]
+# roles = ["admin"]
 ```
 
 ---

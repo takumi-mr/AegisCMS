@@ -171,6 +171,16 @@ from = "Shop <shop@example.com>"
 # Staff notified of new and cancelled orders
 staff_recipients = []
 
+# Audit events to notify staff about (docs/notifications.md "2.1"), e.g. admin logins and lockouts
+# [[notifications.audit.rules]]
+# action = "session.create"
+# outcomes = ["success"]
+# roles = ["admin"]
+#
+# [[notifications.audit.rules]]
+# action = "session.create"
+# details = { locked = "*" }
+
 # Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
 # [plugins.settings.official-shop-rules]
 # shipping_fee = 600

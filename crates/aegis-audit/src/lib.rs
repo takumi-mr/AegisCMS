@@ -93,6 +93,13 @@ impl AuditService {
         }
     }
 
+    /// 出力先を加える（監査ログが有効なときのみ。`[notifications.audit]` の通知など）
+    pub fn add_sink(&mut self, sink: Arc<dyn AuditSink>) {
+        if self.enabled {
+            self.sinks.push(sink);
+        }
+    }
+
     fn has_sink(&self, kind: AuditSinkKind) -> bool {
         match kind {
             AuditSinkKind::Database => self.reader.is_some(),

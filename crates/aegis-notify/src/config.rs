@@ -1,8 +1,9 @@
 //! `[notifications]` の設定
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
-use aegis_core::{AegisError, Result};
+use aegis_core::{AegisError, AuditAction, AuditOutcome, Result};
 use serde::{Deserialize, Serialize};
 
 /// 配信チャネルの種類（`[notifications].channels`）
@@ -40,6 +41,8 @@ pub struct NotificationsConfig {
     /// 配信に失敗したときの試行回数（初回を含む、1〜10）
     pub max_attempts: u32,
     pub email: EmailConfig,
+    /// 監査イベント（管理者のログイン・ログインのロックなど）の通知
+    pub audit: AuditNotificationsConfig,
 }
 
 impl Default for NotificationsConfig {
@@ -52,6 +55,7 @@ impl Default for NotificationsConfig {
             disabled_events: Vec::new(),
             max_attempts: 3,
             email: EmailConfig::default(),
+            audit: AuditNotificationsConfig::default(),
         }
     }
 }
@@ -82,6 +86,7 @@ impl NotificationsConfig {
         if self.channels.contains(&ChannelKind::Email) {
             self.email.validate()?;
         }
+        self.audit.validate()?;
         Ok(())
     }
 
@@ -194,4 +199,66 @@ impl EmailConfig {
         }
         Ok(())
     }
+}
+
+/// 監査イベントの通知（`[[notifications.audit.rules]]`）。監査ログに記録されたイベントのうち、
+/// どれかのルールに合うものを通知する（`[audit].enabled = true` が必要）
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AuditNotificationsConfig {
+    pub rules: Vec<AuditRule>,
+}
+
+impl AuditNotificationsConfig {
+    fn validate(&self) -> Result<()> {
+        for (i, rule) in self.rules.iter().enumerate() {
+            if rule.action == AuditAction::NotificationSend {
+                return Err(AegisError::Config(format!(
+                    "[[notifications.audit.rules]] #{}: \"notification.send\" cannot be notified (it would notify about its own notifications)",
+                    i + 1
+                )));
+            }
+            for address in &rule.recipients {
+                address.parse::<lettre::Address>().map_err(|e| {
+                    AegisError::Config(format!(
+                        "[[notifications.audit.rules]] #{}: recipient {:?} is not a valid address: {}",
+                        i + 1,
+                        address,
+                        e
+                    ))
+                })?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// 通知する監査イベントの条件。指定した条件をすべて満たすイベントを通知する
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AuditRule {
+    /// 件名・本文に出す見出し（空なら操作と結果から作る）
+    #[serde(default)]
+    pub title: String,
+    /// 操作（`session.create` など。監査ログの `action`）
+    pub action: AuditAction,
+    /// 結果（`success` / `failure` / `denied`）。空ならすべて
+    #[serde(default)]
+    pub outcomes: Vec<AuditOutcome>,
+    /// 操作者のロール（`admin` など）。空ならすべて。操作者が分からないイベント
+    /// （失敗したログインなど）は、指定すると合わない
+    #[serde(default)]
+    pub roles: Vec<String>,
+    /// 詳細（`details`）の値。`"*"` はキーがあれば何でもよい（例: `{ locked = "*" }`）
+    #[serde(default)]
+    pub details: HashMap<String, serde_json::Value>,
+    /// 宛先のメールアドレス。空なら運営者（`[notifications.email].staff_recipients`）
+    #[serde(default)]
+    pub recipients: Vec<String>,
+    /// 1 時間あたりの通知の上限（0 で無制限）。総当たり攻撃などで通知が殺到しないように
+    #[serde(default = "default_max_per_hour")]
+    pub max_per_hour: u32,
+}
+
+fn default_max_per_hour() -> u32 {
+    20
 }
