@@ -13,8 +13,18 @@
   - AST 構造（`BlockNode`）を直接編集し、生の不正スクリプト注入を構造的に防止。
 - **リアルタイム HTML プレビュー**:
   - 編集中のブロックをサーバーのプレビュー API（`POST /api/v1/preview`）でレンダリングし、保存して公開ページで表示した場合と同じ HTML（見出しの id、プラグインの AST 変換、リンク・画像の書き換えを含む）を表示。入力が 300ms 止まるごとに更新し、更新待ちの間は前回の結果を薄く表示。
-  - **Themed Page** タブでは、テーマのテンプレートと `on-render-page` フックを適用したページ全体を、スクリプトを無効にした `sandbox` 付き `iframe` で表示（タイトル・slug・カテゴリの変更も反映）。
+  - **Themed Page** タブでは、テーマのテンプレートと `on-render-page` フックを適用したページ全体を `iframe`（`srcdoc`、`sandbox="allow-scripts allow-same-origin"`。プラグインの Mermaid 描画などのスクリプトを動かすため）で表示（タイトル・slug・カテゴリの変更も反映）。
   - レンダリング結果をタブでプレビューと HTML ソースコード表示に切り替え可能。
+- **予約公開**: エディタ・商品フォームの状態で「予約公開」を選び、公開日時（`datetime-local`）を入れて保存すると、その日時にサーバーが公開する。一覧には予約バッジ（ツールチップに日時）を表示（[予約公開](../docs/theme_and_publishing_guide.md#予約公開スケジュール公開)）。
+- **Markdown 編集 & 貼り付け**:
+  - エディタ上部の **Blocks / Markdown** で編集方法を切り替える。ブロックと Markdown は相互に変換され（`utils/markdown.ts` の `blocksToMarkdown` / `markdownToBlocks`。見出し・段落・コード・画像・リスト）、どちらで編集してもプレビューと保存は同じブロックから行う。
+  - Markdown エディタ（`MarkdownEditor.tsx`）: 書式の挿入ツールバー、Tab でのインデント、Ctrl+S で保存、行数・文字数・ブロック数の表示。
+  - ブロックエディタに Markdown を貼り付けるとブロックに変換して追加する。**Paste Markdown**（`PasteMarkdownModal.tsx`）ではクリップボードを読み込み、変換結果の内訳を確かめてから末尾に追加か全置換を選ぶ。
+- **商品・注文 (Products / Orders)**: 商品の作成・編集（価格・在庫・SKU・画像）と、注文の一覧・詳細・状態の変更（入金確認・発送・取り消し）。EC が有効なときに使う（[EC](../docs/commerce.md#33-admin-studio)）。
+- **テーマ (Settings › Themes)**: インストール済みテーマのカード（プレビュー画像・タグ・作者）、ワンクリックでの切り替え（`PUT /api/v1/themes/active`、`admin`）、公開サイトの確認。マーケットプレイスのタブは将来の機能の予告（ZIP の導入は未実装）。
+- **ユーザー管理 (Settings › Users) & プロフィール**:
+  - `admin` はユーザーの一覧・作成・編集・ロール変更・無効化・パスワードのリセット・削除（`UserManager.tsx`、[認証 3](../docs/authentication.md#3-ユーザー管理-api)）。
+  - ヘッダーのアバター + 表示名から **My profile**（`ProfileModal.tsx`）: アバター画像・表示名・メールアドレス・パスワードの変更（SSO のユーザーにはパスワード欄を出さない）。アバターが無い・読めないときはイニシャルを表示（`ui/Avatar.tsx`）。
 - **プレミアム・グラスモフィズム UI**:
   - TailwindCSS 等のフレームワークに依存せず、ゼロランタイムの CSS Modules と CSS 変数（デザインシステムトークン）で構築。
   - 目に優しく視認性の高いダークテーマ、美しいすりガラス効果（Glassmorphism）、洗練されたマイクロインタラクション。
@@ -77,16 +87,25 @@ admin/
 │   │   │   ├── Modal.tsx   # モーダル（Escape・外側クリックで閉じる、フォーカストラップ）
 │   │   │   ├── LanguageSelect.tsx # 言語の切り替え
 │   │   │   ├── RoleLabel.tsx # ロールの表示名
+│   │   │   ├── Avatar.tsx  # アバター（画像が無ければイニシャル）
 │   │   │   └── BrandMark.tsx # ロゴマーク
 │   │   ├── Header.tsx      # ヘッダー・画面切り替え・サーバー状態・ログインユーザー
 │   │   ├── LoginView.tsx   # ログイン画面
 │   │   ├── RegisterForm.tsx # アカウント登録（ログイン画面から）
+│   │   ├── SettingsView.tsx # 設定画面（左メニューで下の各画面を切り替え）
+│   │   ├── ThemeManager.tsx # テーマ一覧・切り替え
+│   │   ├── UserManager.tsx # ユーザー管理
+│   │   ├── ProfileModal.tsx # 自分のプロフィール（AvatarPicker.tsx でアバターを選ぶ）
+│   │   ├── ProductManager.tsx # 商品
+│   │   ├── OrderManager.tsx # 注文
 │   │   ├── AuditLogView.tsx # 監査ログ閲覧画面
-│   │   ├── CategoryManager.tsx # カテゴリ一覧・作成モーダル
+│   │   ├── CategoryManager.tsx # カテゴリ一覧・作成
 │   │   ├── MediaLibrary.tsx # アップロード済み画像の選択モーダル
 │   │   ├── ImageUploader.tsx # 画像ブロックのアップロード欄（ドラッグ＆ドロップ）
 │   │   ├── ContentList.tsx # 記事・コンテンツ一覧サイドバー
 │   │   ├── BlockItem.tsx   # 各種 AST ブロックエディタ
+│   │   ├── MarkdownEditor.tsx # Markdown 編集モード
+│   │   ├── PasteMarkdownModal.tsx # Markdown の貼り付け
 │   │   └── Preview.tsx     # リアルタイム HTML / ソースコードプレビュー
 │   ├── i18n/               # i18next の初期化・言語の検出と保存（index.ts）、キーの型（i18next.d.ts）
 │   ├── locales/            # 翻訳: en/translation.json（原文）、ja/translation.json
@@ -151,6 +170,25 @@ files:
 ```
 
 翻訳サービスから戻ってきたファイルは、`npm run format` で整形してから `npm run lint` / `npm run build` を通してください。
+
+### i18n の細かな決まり
+
+- 言語は `localStorage` の `aegis.admin.language`、無ければ `navigator.languages`（`ja` 以外は `en`）。`<html lang>` も切り替える。
+- ログイン画面のお知らせ（期限切れ・ログアウト）と SSO のエラーは、文字列ではなく理由のコードで持ち、表示するときに訳す（言語を切り替えても追従する）。
+- 監査ログの action 名・テーマの説明（`theme.json`）・プラグインが付ける明細名（`Coupon WELCOME10` など）はデータなので訳さない。
+- 日本語はラベルが長いため、ヘッダーの要素は `nowrap` にし、幅 1680px 未満でバッジ、1480px 未満でゲートウェイの文言を隠す（状態の点とツールチップは残す）。
+
+---
+
+## 🧩 設計メモ
+
+- **API の接続先**: `src/api/client.ts` の `SERVER_URL`（オリジン + `[server].base_path`）は、ビルド時の `VITE_AEGIS_SERVER_URL` → 開発サーバーなら `http://127.0.0.1:8080` → 本番ビルドはバンドルの URL（`{サーバー}/admin/assets/*.js` から `../../`）の順に決まる。ドメインやベースパスごとに再ビルドする必要はない。サーバーが返すルート起点の URL（アバターなど）は `serverAssetUrl` でオリジンを付けて表示する。
+- **コンテンツの型**: 自動生成の `types/schemas.ts`（`ArticleContent` など）はカスタムフィールドをトップレベルに持つが、コンテンツ API の応答はカスタムフィールドを `fields`、解決済みリレーションを `relations` に入れて返す。画面では `types/index.ts` の `ContentItem` を使う。作成時のペイロード（`CreateArticlePayload` など）はトップレベルで正しい。一覧は `getContents` が 500 件ずつ全件を取得する。
+- **保存**: 開いている記事は `PUT`（更新）、新規は `POST`。
+- **Themed Page プレビュー**: サーバーの `page_html` に `<base href="{SERVER_URL}/">` を差し込んで `srcdoc` に入れる（テーマのアセットやアップロード画像をサーバーから読むため）。
+- **画面の高さとスクロール**: ルートの `.app` は `height: 100vh; overflow: hidden`。全幅の画面（監査ログ・テーマなど）は直下に `flex: 1; overflow-y: auto` のラッパーを置き、下に余白を取ってスクロールさせる。
+- **設定画面 (`SettingsView.tsx`)**: 各項目は既存の画面コンポーネント（`ThemeManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` と `settings.sections.<id>` の訳を足す。選んでいる項目は `App` が持つ（エディタの **Manage** から `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。エディタの状態も `App` にあるので、設定画面へ移って戻っても編集中の内容は消えない。
+- **モバイル**: 現状は PC 前提（エディタは一覧 300px・プレビュー 480px 固定の 3 列）。
 
 ---
 
