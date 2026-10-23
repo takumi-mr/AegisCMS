@@ -411,6 +411,8 @@ if !response.is_success() { /* response.status, response.body */ }
 
 サーバーの設定ファイルの `[plugins.settings.<プラグイン名>]` の値を読みます（他のプラグインの設定は読めません）。文字列はそのまま、数値・真偽値・配列は JSON の文字列で返ります。
 
+また、Admin Studio のプラグイン管理画面（`PUT /api/v1/plugins/{name}/settings`）から設定された動的設定値も即座に反映され、設定ファイルの記述を上書きします（キャッシュに永続化され、再起動後も保持されます）。
+
 ```toml
 [plugins.settings.official-order-notifier]
 webhook_url = "env:SLACK_WEBHOOK_URL"   # env: で始まる値は環境変数から（API キーを設定ファイルに書かない）

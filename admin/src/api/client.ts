@@ -11,6 +11,7 @@ import type {
   Order,
   OrderPage,
   OrderStatus,
+  PluginInfo,
   PreviewRequest,
   PreviewResult,
   RegistrationPayload,
@@ -426,6 +427,33 @@ export const aegisApi = {
         body: JSON.stringify({ theme_id: themeId }),
       },
       i18n.t('api.switchThemeFailed')
+    );
+  },
+
+  async listPlugins(): Promise<PluginInfo[]> {
+    return request('/plugins', {}, i18n.t('api.pluginsFailed'));
+  },
+
+  async getPluginSettings(name: string): Promise<Record<string, string>> {
+    return request(
+      `/plugins/${encodeURIComponent(name)}/settings`,
+      {},
+      i18n.t('api.getPluginSettingsFailed')
+    );
+  },
+
+  async updatePluginSettings(
+    name: string,
+    settings: Record<string, string>
+  ): Promise<Record<string, string>> {
+    return request(
+      `/plugins/${encodeURIComponent(name)}/settings`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      },
+      i18n.t('api.updatePluginSettingsFailed')
     );
   },
 };
