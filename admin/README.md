@@ -13,7 +13,7 @@
   - AST 構造（`BlockNode`）を直接編集し、生の不正スクリプト注入を構造的に防止。
 - **リアルタイム HTML プレビュー**:
   - 編集中のブロックをサーバーのプレビュー API（`POST /api/v1/preview`）でレンダリングし、保存して公開ページで表示した場合と同じ HTML（見出しの id、プラグインの AST 変換、リンク・画像の書き換えを含む）を表示。入力が 300ms 止まるごとに更新し、更新待ちの間は前回の結果を薄く表示。
-  - **Themed Page** タブでは、テーマのテンプレートと `on-render-page` フックを適用したページ全体を `iframe`（`srcdoc`、`sandbox="allow-scripts allow-same-origin"`。プラグインの Mermaid 描画などのスクリプトを動かすため）で表示（タイトル・slug・カテゴリの変更も反映）。
+  - **Themed Page** タブでは、テーマのテンプレートと `on-render-page` フックを適用したページ全体を `iframe`（`srcdoc`、`sandbox="allow-scripts"`。プラグインの Mermaid 描画などのスクリプトは動くが、Admin Studio のオリジンには入れない）で表示（タイトル・slug・カテゴリの変更も反映）。
   - レンダリング結果をタブでプレビューと HTML ソースコード表示に切り替え可能。
 - **予約公開**: エディタ・商品フォームの状態で「予約公開」を選び、公開日時（`datetime-local`）を入れて保存すると、その日時にサーバーが公開する。一覧には予約バッジ（ツールチップに日時）を表示（[予約公開](../docs/theme_and_publishing_guide.md#予約公開スケジュール公開)）。
 - **Markdown 編集 & 貼り付け**:
@@ -185,7 +185,7 @@ files:
 - **API の接続先**: `src/api/client.ts` の `SERVER_URL`（オリジン + `[server].base_path`）は、ビルド時の `VITE_AEGIS_SERVER_URL` → 開発サーバーなら `http://127.0.0.1:8080` → 本番ビルドはバンドルの URL（`{サーバー}/admin/assets/*.js` から `../../`）の順に決まる。ドメインやベースパスごとに再ビルドする必要はない。サーバーが返すルート起点の URL（アバターなど）は `serverAssetUrl` でオリジンを付けて表示する。
 - **コンテンツの型**: 自動生成の `types/schemas.ts`（`ArticleContent` など）はカスタムフィールドをトップレベルに持つが、コンテンツ API の応答はカスタムフィールドを `fields`、解決済みリレーションを `relations` に入れて返す。画面では `types/index.ts` の `ContentItem` を使う。作成時のペイロード（`CreateArticlePayload` など）はトップレベルで正しい。一覧は `getContents` が 500 件ずつ全件を取得する。
 - **保存**: 開いている記事は `PUT`（更新）、新規は `POST`。
-- **Themed Page プレビュー**: サーバーの `page_html` に `<base href="{SERVER_URL}/">` を差し込んで `srcdoc` に入れる（テーマのアセットやアップロード画像をサーバーから読むため）。
+- **Themed Page プレビュー**: サーバーの `page_html` に `<base href="{SERVER_URL}/">` を差し込んで `srcdoc` に入れる（テーマのアセットやアップロード画像をサーバーから読むため）。`sandbox` に `allow-same-origin` を付けてはいけない。`srcdoc` の文書は親と同じオリジンになるため、テーマやプラグインが出力したスクリプトから `sessionStorage` のセッショントークンを読めてしまう。付けないと文書のオリジンは不透明（`null`）になり、`localStorage` などのストレージに触れると例外になる（`cart.js` は try/catch で受けてメモリ上に持つ）。CDN の通常の `<script>` は読み込めるが、`type="module"` や CORS が要る読み込み（`crossorigin` 付きのフォントなど）はサーバー側で `Access-Control-Allow-Origin` が要る。
 - **画面の高さとスクロール**: ルートの `.app` は `height: 100vh; overflow: hidden`。全幅の画面（監査ログ・テーマなど）は直下に `flex: 1; overflow-y: auto` のラッパーを置き、下に余白を取ってスクロールさせる。
 - **設定画面 (`SettingsView.tsx`)**: 各項目は既存の画面コンポーネント（`ThemeManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` と `settings.sections.<id>` の訳を足す。選んでいる項目は `App` が持つ（エディタの **Manage** から `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。エディタの状態も `App` にあるので、設定画面へ移って戻っても編集中の内容は消えない。
 - **モバイル**: 現状は PC 前提（エディタは一覧 300px・プレビュー 480px 固定の 3 列）。
