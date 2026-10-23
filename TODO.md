@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: コンテンツの予約公開（`status: "scheduled"` + `published_at`。[theme_and_publishing_guide.md](docs/theme_and_publishing_guide.md#予約公開スケジュール公開)、設計は [architecture.md 3.4](docs/architecture.md#34-予約公開-aegis-serversrcschedulerrs-handlerscontentrs-の-resolve_publication)）。その前はアカウント登録（[authentication.md 7](docs/authentication.md#7-アカウント登録)）。
+- **直近の完了**: ロール変更・無効化・削除・パスワード変更を発行済みのセッションに即時反映（キャッシュ上の失効マーカーによるブラックリスト判定。[authentication.md 2, 3](docs/authentication.md#2-cli-でのユーザー管理-aegis-user)、設計は [architecture.md 6.2](docs/architecture.md#62-ローカル認証とロール)）。その前はコンテンツの予約公開（`status: "scheduled"` + `published_at`）。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -32,7 +32,6 @@
 - [ ] **パスワードの再設定（メール）**: アカウント登録と同じ仕組み（キャッシュ + ハッシュしたトークン + フラグメントのリンク）。ログイン画面の「パスワードを忘れた」。
 - [ ] **承認の知らせ**: admin がアカウントを有効にしたときに本人へメールする。今は無効化の解除と承認を区別していないので、承認待ちを表すカラムが要る。
 - [ ] **招待リンク**: admin がメールアドレスとロールを指定して招待し、本人がパスワードを決める（`require_approval` の代わりに使える）。
-- [ ] **ロール変更・無効化・削除を発行済みのセッションに反映**: 今は有効期限まで有効。ユーザー → セッション ID の索引をキャッシュに持つか、`RequireRole` で DB のユーザー状態を確かめる。
 - [ ] **SAML 2.0 認証プロバイダ**（SP-initiated、POST バインディング）: XML 署名検証（xmlsec など）の依存と XML Signature Wrapping 対策を検討してから着手。`run_auth_hook` / `complete_login` を通す（[architecture.md 6.4](docs/architecture.md#64-ログインの完了と認証後フック)）。
 
 ### コンテンツ・公開

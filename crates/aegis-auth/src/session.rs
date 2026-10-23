@@ -63,10 +63,45 @@ impl SessionService {
         Ok(session)
     }
 
+    fn revocation_key(user_id: &str) -> String {
+        format!("auth:revoked_user:{}", user_id)
+    }
+
+    /// Mark all existing sessions for this user as revoked (blacklisted until they expire).
+    /// New sessions created after this timestamp will remain valid.
+    pub async fn revoke_user_sessions(&self, user_id: &str) -> Result<()> {
+        let key = Self::revocation_key(user_id);
+        let now = Utc::now().to_rfc3339();
+        self.cache
+            .set(&key, &now, Some(self.default_ttl_secs))
+            .await?;
+        Ok(())
+    }
+
+    /// Check if a session has been revoked by a user-level revocation marker.
+    pub async fn is_session_revoked(&self, session: &SessionData) -> Result<bool> {
+        let key = Self::revocation_key(&session.user_id);
+        if let Some(revoked_at_str) = self.cache.get(&key).await? {
+            match (
+                chrono::DateTime::parse_from_rfc3339(&revoked_at_str),
+                chrono::DateTime::parse_from_rfc3339(&session.created_at),
+            ) {
+                (Ok(revoked_at), Ok(created_at)) => Ok(created_at <= revoked_at),
+                _ => Ok(true),
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
     pub async fn get_session(&self, session_id: &str) -> Result<Option<SessionData>> {
         let key = Self::session_key(session_id);
         if let Some(json_str) = self.cache.get(&key).await? {
             let session: SessionData = serde_json::from_str(&json_str)?;
+            if self.is_session_revoked(&session).await? {
+                let _ = self.cache.delete(&key).await;
+                return Ok(None);
+            }
             Ok(Some(session))
         } else {
             Ok(None)
@@ -120,5 +155,52 @@ mod tests {
             .await
             .expect("get_session should succeed");
         assert_eq!(after_destroy, None);
+    }
+
+    #[tokio::test]
+    async fn test_session_revocation_blacklist() {
+        let cache = Arc::new(MemoryCacheBackend::new());
+        let service = SessionService::new(cache, 3600);
+
+        // 1. Create two sessions for user-a and one for user-b
+        let s1 = service
+            .create_session("user-a", "editor", HashMap::new(), None)
+            .await
+            .unwrap();
+        let s2 = service
+            .create_session("user-a", "editor", HashMap::new(), None)
+            .await
+            .unwrap();
+        let s_other = service
+            .create_session("user-b", "viewer", HashMap::new(), None)
+            .await
+            .unwrap();
+
+        assert!(service.get_session(&s1.id).await.unwrap().is_some());
+        assert!(service.get_session(&s2.id).await.unwrap().is_some());
+        assert!(service.get_session(&s_other.id).await.unwrap().is_some());
+
+        // Ensure clock advances slightly before revocation
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        // 2. Revoke user-a sessions (e.g. role change, disable, delete)
+        service.revoke_user_sessions("user-a").await.unwrap();
+
+        // user-a's existing sessions must now be rejected (None)
+        assert_eq!(service.get_session(&s1.id).await.unwrap(), None);
+        assert_eq!(service.get_session(&s2.id).await.unwrap(), None);
+
+        // user-b's session is unaffected
+        assert!(service.get_session(&s_other.id).await.unwrap().is_some());
+
+        // Ensure clock advances before re-login
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        // 3. A new session created after revocation should be valid
+        let s_new = service
+            .create_session("user-a", "admin", HashMap::new(), None)
+            .await
+            .unwrap();
+        assert!(service.get_session(&s_new.id).await.unwrap().is_some());
     }
 }
