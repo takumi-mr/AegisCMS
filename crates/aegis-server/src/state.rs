@@ -27,6 +27,8 @@ pub struct AppState {
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
     pub audit: Arc<AuditService>,
     pub theme: Arc<ThemeEngine>,
+    /// 動的プラグイン設定（管理画面から変更された設定値のキャッシュ）
+    pub plugin_settings: Arc<std::sync::RwLock<HashMap<String, HashMap<String, String>>>>,
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
     pub oidc: Option<SsoLogin>,
     /// 外部 IdP ログイン（`[auth.saml]`）。無効なら `None`
@@ -94,6 +96,7 @@ impl AppState {
             supervisor: Arc::new(RwLock::new(supervisor)),
             audit,
             theme,
+            plugin_settings: Arc::new(std::sync::RwLock::new(HashMap::new())),
             oidc: None,
             saml: None,
             commerce: None,

@@ -205,7 +205,10 @@ async fn run_notify_command(config: &AegisConfig, action: NotifyCommand) -> anyh
                 .any(|c| matches!(c, aegis_notify::ChannelKind::Plugin(_)));
             let supervisor = if uses_plugins {
                 let cache = aegis_cache::create_cache_backend(&config.cache).await?;
-                load_plugins(config, cache)?
+                let plugin_settings =
+                    Arc::new(std::sync::RwLock::new(std::collections::HashMap::new()));
+                load_cached_plugin_settings(config, &cache, &plugin_settings).await;
+                load_plugins(config, cache, plugin_settings)?
             } else {
                 PluginSupervisor::new()
             };
@@ -543,7 +546,10 @@ async fn main() -> anyhow::Result<()> {
             ));
 
             // 5. Wasm プラグインスーパーバイザー初期化（[plugins].enabled のプラグインをその順に読み込む）
-            let supervisor = load_plugins(&config, cache.clone())?;
+            let plugin_settings =
+                Arc::new(std::sync::RwLock::new(std::collections::HashMap::new()));
+            load_cached_plugin_settings(&config, &cache, &plugin_settings).await;
+            let supervisor = load_plugins(&config, cache.clone(), plugin_settings.clone())?;
 
             // 5.5 テーマエンジンの初期化 & プラグイン登録テンプレートの同期
             let theme_engine = Arc::new(
@@ -594,7 +600,7 @@ async fn main() -> anyhow::Result<()> {
                 None
             };
 
-            let app_state = AppState::new(
+            let mut app_state = AppState::new(
                 config.clone(),
                 db_adapter,
                 storage,
@@ -607,6 +613,7 @@ async fn main() -> anyhow::Result<()> {
                 audit,
                 theme_engine,
             );
+            app_state.plugin_settings = plugin_settings;
             let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),
                 None => app_state,
@@ -716,10 +723,38 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+async fn load_cached_plugin_settings(
+    config: &AegisConfig,
+    cache: &Arc<dyn aegis_core::CacheBackend>,
+    plugin_settings: &Arc<
+        std::sync::RwLock<
+            std::collections::HashMap<String, std::collections::HashMap<String, String>>,
+        >,
+    >,
+) {
+    for name in &config.plugins.enabled {
+        let key = format!("plugin_settings:{}", name);
+        if let Ok(Some(json_str)) = cache.get(&key).await {
+            if let Ok(settings) =
+                serde_json::from_str::<std::collections::HashMap<String, String>>(&json_str)
+            {
+                if let Ok(mut guard) = plugin_settings.write() {
+                    guard.insert(name.clone(), settings);
+                }
+            }
+        }
+    }
+}
+
 /// `[plugins].enabled` のプラグインをその順に読み込む（`[runtime].enable_wasm_plugins = false` なら読み込まない）
 fn load_plugins(
     config: &AegisConfig,
     cache: Arc<dyn aegis_core::CacheBackend>,
+    plugin_settings: Arc<
+        std::sync::RwLock<
+            std::collections::HashMap<String, std::collections::HashMap<String, String>>,
+        >,
+    >,
 ) -> anyhow::Result<PluginSupervisor> {
     let mut supervisor = PluginSupervisor::new();
     if !config.runtime.enable_wasm_plugins {
@@ -734,7 +769,8 @@ fn load_plugins(
     let engine = create_wasm_engine(&config.runtime)?;
     // KV は [cache] のバックエンド、HTTP は allowed_domains の確認済みのリクエストのみ
     let host_services: Arc<dyn aegis_runtime::HostServices> = Arc::new(
-        plugin_host::ServerHostServices::new(cache, config.plugins.clone())?,
+        plugin_host::ServerHostServices::new(cache, config.plugins.clone())?
+            .with_dynamic_settings(plugin_settings),
     );
     let loaded = aegis_runtime::WasmPluginLoader::load_enabled(
         &config.paths.plugins_dir,

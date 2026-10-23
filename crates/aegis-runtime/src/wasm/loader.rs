@@ -36,6 +36,9 @@ pub struct PluginInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub problem: Option<String>,
     pub manifest: Option<PluginManifest>,
+    /// プラグインの設定値
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub settings: std::collections::HashMap<String, String>,
 }
 
 pub struct WasmPluginLoader;
@@ -96,6 +99,7 @@ impl WasmPluginLoader {
                     is_installed: false,
                     problem: Some("Not installed".to_string()),
                     manifest: None,
+                    settings: Default::default(),
                 },
             });
         }
@@ -110,6 +114,7 @@ impl WasmPluginLoader {
             is_installed: true,
             problem: installed.problem,
             manifest: installed.manifest,
+            settings: Default::default(),
         }
     }
 
