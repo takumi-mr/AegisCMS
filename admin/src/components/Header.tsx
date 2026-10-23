@@ -27,6 +27,8 @@ interface HeaderProps {
   session: SessionInfo;
   /** False for viewers: saving needs the editor role */
   canSave: boolean;
+  /** Products / Orders tabs: the shop is enabled (`[commerce].enabled`) and the user can edit */
+  showShop: boolean;
   /** The signed-in user's account (avatar, current display name), once loaded */
   profile: UserAccount | null;
   onOpenProfile: () => void;
@@ -41,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
   isSaving,
   session,
   canSave,
+  showShop,
   profile,
   onOpenProfile,
   onLogout,
@@ -64,7 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
             <PenSquare size={14} />
             <span>{t('header.tabs.editor')}</span>
           </button>
-          {canSave && (
+          {showShop && (
             <>
               <button
                 className={cx(styles.tab, view === 'products' && styles.active)}
