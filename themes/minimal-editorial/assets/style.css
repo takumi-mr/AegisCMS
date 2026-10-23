@@ -46,9 +46,12 @@ header.ed-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
 }
 
 .ed-brand {
+  white-space: nowrap;
   text-decoration: none;
   color: var(--ed-text);
   font-family: var(--font-serif);
@@ -61,6 +64,7 @@ header.ed-header {
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .ed-nav-link {
@@ -141,7 +145,7 @@ main.ed-main {
 /* Articles List */
 .ed-articles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: 3rem 2.5rem;
 }
 
@@ -235,6 +239,12 @@ main.ed-main {
   margin-bottom: 1.8rem;
 }
 
+.ed-article-body ul,
+.ed-article-body ol {
+  padding-left: 1.4rem;
+  margin-bottom: 1.8rem;
+}
+
 .ed-article-body h2 {
   font-family: var(--font-serif);
   font-size: 1.85rem;
@@ -263,4 +273,16 @@ footer.ed-footer {
   text-align: center;
   font-size: 0.85rem;
   color: var(--ed-dim);
+}
+
+/* Phones: tighter header so the brand and nav fit on one or two rows */
+@media (max-width: 600px) {
+  .ed-header-inner {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .ed-nav {
+    gap: 0.5rem 1rem;
+  }
 }

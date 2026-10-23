@@ -63,9 +63,12 @@ header.cyber-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
 }
 
 .cyber-brand {
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 0.8rem;
@@ -90,6 +93,7 @@ header.cyber-header {
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .cyber-nav-link {
@@ -162,7 +166,7 @@ main.cyber-main {
 /* Grid of Articles */
 .cyber-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 2rem;
 }
 
@@ -271,6 +275,12 @@ main.cyber-main {
   margin-bottom: 1.5rem;
 }
 
+.cyber-article-body ul,
+.cyber-article-body ol {
+  padding-left: 1.4rem;
+  margin-bottom: 1.5rem;
+}
+
 .cyber-article-body h2 {
   color: #ffffff;
   border-left: 3px solid var(--cyber-magenta);
@@ -299,4 +309,16 @@ footer.cyber-footer {
   font-family: var(--font-cyber);
   font-size: 0.85rem;
   color: var(--cyber-muted);
+}
+
+/* Phones: tighter header so the brand and nav fit on one or two rows */
+@media (max-width: 600px) {
+  .header-container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .cyber-nav-links {
+    gap: 0.5rem 1rem;
+  }
 }
