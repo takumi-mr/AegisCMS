@@ -1,15 +1,5 @@
 import React from 'react';
-import {
-  Activity,
-  Send,
-  PenSquare,
-  ScrollText,
-  LogOut,
-  Palette,
-  Users,
-  Package,
-  ShoppingBag,
-} from 'lucide-react';
+import { Activity, Send, PenSquare, LogOut, Settings, Package, ShoppingBag } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SessionInfo, UserAccount } from '../types';
 import { cx } from '../utils/cx';
@@ -26,7 +16,7 @@ const ROLE_BADGE: Record<string, string | undefined> = {
   editor: styles.roleEditor,
 };
 
-export type AppView = 'editor' | 'audit' | 'themes' | 'users' | 'products' | 'orders';
+export type AppView = 'editor' | 'products' | 'orders' | 'settings';
 
 interface HeaderProps {
   view: AppView;
@@ -37,10 +27,6 @@ interface HeaderProps {
   session: SessionInfo;
   /** False for viewers: saving needs the editor role */
   canSave: boolean;
-  /** Audit logs need the admin role */
-  canViewAudit: boolean;
-  /** User management needs the admin role */
-  canManageUsers: boolean;
   /** The signed-in user's account (avatar, current display name), once loaded */
   profile: UserAccount | null;
   onOpenProfile: () => void;
@@ -55,8 +41,6 @@ export const Header: React.FC<HeaderProps> = ({
   isSaving,
   session,
   canSave,
-  canViewAudit,
-  canManageUsers,
   profile,
   onOpenProfile,
   onLogout,
@@ -99,30 +83,12 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           )}
           <button
-            className={cx(styles.tab, view === 'themes' && styles.active)}
-            onClick={() => onViewChange('themes')}
+            className={cx(styles.tab, view === 'settings' && styles.active)}
+            onClick={() => onViewChange('settings')}
           >
-            <Palette size={14} />
-            <span>{t('header.tabs.themes')}</span>
+            <Settings size={14} />
+            <span>{t('header.tabs.settings')}</span>
           </button>
-          {canManageUsers && (
-            <button
-              className={cx(styles.tab, view === 'users' && styles.active)}
-              onClick={() => onViewChange('users')}
-            >
-              <Users size={14} />
-              <span>{t('header.tabs.users')}</span>
-            </button>
-          )}
-          {canViewAudit && (
-            <button
-              className={cx(styles.tab, view === 'audit' && styles.active)}
-              onClick={() => onViewChange('audit')}
-            >
-              <ScrollText size={14} />
-              <span>{t('header.tabs.audit')}</span>
-            </button>
-          )}
         </nav>
       </div>
 
