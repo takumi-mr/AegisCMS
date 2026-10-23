@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use super::to_pascal_case;
 use crate::definition::{FieldDefinition, FieldType, SchemaDefinition};
 
@@ -76,30 +74,20 @@ impl TypeScriptGenerator {
             out.push_str(&format!("export interface {}Content {{\n", pascal));
             out.push_str("  id: string;\n");
             out.push_str(&format!("  content_type: '{}';\n", schema.content_type));
+            out.push_str("  title: string;\n");
+            out.push_str("  slug: string;\n");
             out.push_str("  status: ContentStatus;\n");
             out.push_str("  blocks: BlockNode[];\n");
             out.push_str("  rendered_html: string;\n");
             out.push_str("  author_id?: string | null;\n");
+            out.push_str("  published_at?: string | null;\n");
+            out.push_str("  unpublish_at?: string | null;\n");
             out.push_str("  created_at: string;\n");
             out.push_str("  updated_at: string;\n");
 
-            // Standard fields handled above to avoid duplicate property declarations
-            let standard_fields: HashSet<&str> = [
-                "id",
-                "content_type",
-                "status",
-                "blocks",
-                "rendered_html",
-                "author_id",
-                "created_at",
-                "updated_at",
-            ]
-            .into_iter()
-            .collect();
-
-            // Emit schema fields
+            // Emit schema-specific fields (skip system standard fields)
             for field in &schema.fields {
-                if standard_fields.contains(field.name.as_str()) {
+                if crate::definition::is_standard_column(&field.name) {
                     continue;
                 }
                 out.push_str(&Self::format_ts_property(field, false));
@@ -113,14 +101,11 @@ impl TypeScriptGenerator {
             out.push_str("  status?: ContentStatus;\n");
             out.push_str("  blocks?: BlockNode[];\n");
             out.push_str("  author_id?: string | null;\n");
-
-            let create_standard_fields: HashSet<&str> =
-                ["title", "slug", "status", "blocks", "author_id"]
-                    .into_iter()
-                    .collect();
+            out.push_str("  published_at?: string | null;\n");
+            out.push_str("  unpublish_at?: string | null;\n");
 
             for field in &schema.fields {
-                if create_standard_fields.contains(field.name.as_str()) {
+                if crate::definition::is_standard_column(&field.name) {
                     continue;
                 }
                 out.push_str(&Self::format_ts_property(field, true));
@@ -134,9 +119,11 @@ impl TypeScriptGenerator {
             out.push_str("  status?: ContentStatus;\n");
             out.push_str("  blocks?: BlockNode[];\n");
             out.push_str("  author_id?: string | null;\n");
+            out.push_str("  published_at?: string | null;\n");
+            out.push_str("  unpublish_at?: string | null;\n");
 
             for field in &schema.fields {
-                if create_standard_fields.contains(field.name.as_str()) {
+                if crate::definition::is_standard_column(&field.name) {
                     continue;
                 }
                 out.push_str(&Self::format_ts_optional_property(field));
@@ -278,6 +265,9 @@ mod tests {
 
         let ts = TypeScriptGenerator::generate(&[schema]);
         assert!(ts.contains("export interface ArticleContent {"));
+        assert!(ts.contains("  title: string;\n"));
+        assert!(ts.contains("  published_at?: string | null;\n"));
+        assert!(ts.contains("  unpublish_at?: string | null;\n"));
         assert!(ts.contains("export interface CreateArticlePayload {"));
         assert!(ts.contains("export type ContentType = 'article';"));
         assert!(ts.contains("excerpt?: string | null;"));

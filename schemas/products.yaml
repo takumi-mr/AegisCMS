@@ -2,15 +2,6 @@ content_type: product
 label: "商品"
 description: "EC の商品カタログ。価格・在庫は [commerce] の注文処理で使う（docs/commerce.md）"
 fields:
-  - name: title
-    type: string
-    required: true
-    max_length: 255
-    index: true
-  - name: slug
-    type: string
-    required: true
-    unique: true
   # 税込みの販売価格（通貨の最小単位の整数。JPY なら円）
   - name: price
     type: integer
