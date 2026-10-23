@@ -109,6 +109,8 @@ pending_payment ──▶ paid ──▶ shipped ──▶ completed
 
 **Orders** タブ（`editor` 以上）で、状態での絞り込み・注文の詳細（明細・送料などの内訳とそれを加えたプラグイン・配送先・連絡先・決済 ID）・状態の変更ができます。注文には顧客の個人情報が含まれるため、`viewer` には表示しません。
 
+**Products** / **Orders** タブは `[commerce].enabled = true` のときだけ表示します（ログイン時に `GET /api/v1/shop/config` の `enabled` を読む）。設定を変えたらサーバーを再起動し、Admin Studio を再読み込みしてください。
+
 ### 3.4 メール通知
 
 `[notifications]` を有効にすると、注文の受付（支払い方法の案内つき）・入金確認・発送・取り消しを顧客に、新しい注文と取り消しを運営者（`staff_recipients`）にメールで知らせます。発送にしたときのメモ（配送業者・追跡番号など）は発送のメールに入ります。設定・テンプレートの変更は [通知ドキュメント](notifications.md) を参照してください。
