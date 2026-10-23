@@ -200,7 +200,7 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 - **公式テンプレート**: 即座に開発を開始できる [`sdk/templates/rust`](sdk/templates/rust)（AssemblyScript / TinyGo 版も `sdk/templates/` に）を同梱（詳細は [Wasm プラグイン開発ガイド](file:///d:/projects/cms/docs/plugin_sdk_guide.md) を参照）。
 
 > [!TIP]
-> 関連リファレンス: [設定リファレンス (`docs/configuration.md`)](docs/configuration.md) / [プラグインフック & ホスト API リファレンス (`docs/plugin_hooks.md`)](docs/plugin_hooks.md) / [監査ログリファレンス (`docs/audit.md`)](docs/audit.md)
+> 関連リファレンス: [設定リファレンス (`docs/configuration.md`)](docs/configuration.md) / [プラグインフック & ホスト API リファレンス (`docs/plugin_hooks.md`)](docs/plugin_hooks.md) / [監査ログリファレンス (`docs/audit.md`)](docs/audit.md) / [テーマ作成ガイド (`docs/theme_authoring_guide.md`)](docs/theme_authoring_guide.md)
 
 ---
 

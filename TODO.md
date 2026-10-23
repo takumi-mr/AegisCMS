@@ -50,6 +50,7 @@
 
 #### モバイル（レスポンシブ）対応
 - [x] **公開サイトの確認と修正**: サンプルショップに全 5 テーマを切り替え、幅 320 / 360 / 390px の Playwright で、トップ・記事一覧・記事・固定ページ・商品一覧・商品・カート（空 / 商品あり）・404 を確認（横スクロールの有無とスクリーンショット）。`cyber-neon` / `emerald-luxury` / `minimal-editorial` でヘッダーにサイト名が 1 文字ずつ縦に潰れる（日本語は文字ごとに折り返すため）・`cyber-neon` が 360px で横にはみ出すのを、ヘッダーの折り返しとサイト名の `nowrap` で修正。同 3 テーマの本文のリストの字下げ（`* { padding: 0 }` で消えていた）、商品ページ本文の余白・字下げ（`SHOP_COMMON_TEMPLATE`、`:where` で詳細度 0）、カートのクーポン欄の「Apply」がはみ出すのを修正。記事カードのグリッドを `minmax(min(320px, 100%), 1fr)` にして 320px 幅でもはみ出さないように。`default` / `roastery` は修正不要。
+- [x] **テーマ作成ガイド**（[docs/theme_authoring_guide.md](docs/theme_authoring_guide.md)）: ディレクトリ構成、`theme.json`、URL ごとのテンプレートと変数、フィルター、`base.html` に必須の要素、CSS（`--accent`、リセット後の本文、スマートフォンで崩さない書き方）、ショップのページ、開発・確認の流れ。あわせて公式 4 テーマの `base.html` が `extra_css` をエスケープしていた（`[theme].custom_css` の `"` や `>` が壊れる）のを `| safe` に修正。
 - [ ] **Admin Studio のモバイル対応**: 現状は PC 前提。エディタは一覧 300px・プレビュー 480px 固定の 3 列で、スマホでは本文がほぼ見えない。ヘッダーは `nowrap` / `flex-shrink: 0` ではみ出し、`.app` が `height: 100vh; overflow: hidden` のため切れる。狭い画面では一覧・プレビューをドロワーやタブに、ヘッダーをメニューにまとめる。
 
 #### Admin Studio の設定画面 (Completed) — [admin/README.md](admin/README.md)
