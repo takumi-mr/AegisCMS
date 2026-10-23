@@ -116,9 +116,9 @@ enum UserCommand {
     },
     /// Change a user's password (read like `user add`)
     Passwd { username: String },
-    /// Change a user's role (applies from the next login)
+    /// Change a user's role (existing sessions are revoked immediately)
     Role { username: String, role: String },
-    /// Disable a user so it can no longer log in (existing sessions stay valid until they expire)
+    /// Disable a user so it can no longer log in (existing sessions are revoked immediately)
     Disable { username: String },
     /// Re-enable a disabled user
     Enable { username: String },
@@ -319,6 +319,16 @@ fn read_new_password() -> anyhow::Result<String> {
 async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::Result<()> {
     let db = aegis_db::create_database_adapter(&config.database).await?;
     let db = db.as_ref();
+    let sessions = match aegis_cache::create_cache_backend(&config.cache).await {
+        Ok(cache) => Some(aegis_auth::SessionService::new(
+            cache,
+            config.cache.default_ttl_secs,
+        )),
+        Err(e) => {
+            tracing::debug!("Cache backend not available for CLI sessions: {}", e);
+            None
+        }
+    };
     match action {
         UserCommand::Add {
             username,
@@ -343,14 +353,23 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
         UserCommand::Passwd { username } => {
             let password = read_new_password()?;
             aegis_auth::users::set_password(db, &username, &password).await?;
+            if let Some(sessions) = &sessions {
+                let _ = sessions.revoke_user_sessions(&username).await;
+            }
             println!("Updated the password of '{}'", username);
         }
         UserCommand::Role { username, role } => {
             aegis_auth::users::set_role(db, &username, &role).await?;
+            if let Some(sessions) = &sessions {
+                let _ = sessions.revoke_user_sessions(&username).await;
+            }
             println!("Changed the role of '{}' to {}", username, role);
         }
         UserCommand::Disable { username } => {
             aegis_auth::users::set_disabled(db, &username, true).await?;
+            if let Some(sessions) = &sessions {
+                let _ = sessions.revoke_user_sessions(&username).await;
+            }
             println!("Disabled '{}'", username);
         }
         UserCommand::Enable { username } => {
@@ -868,5 +887,56 @@ mod tests {
         assert!(registration_notifier(&config, Some(notifier.clone())).is_ok());
         config.notifications.disabled_events = vec!["account.verify".to_string()];
         assert!(registration_notifier(&config, Some(notifier)).is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cli_user_role_and_disable() {
+        let mut config = AegisConfig::default();
+        let temp_db =
+            std::env::temp_dir().join(format!("test_cli_{}.db", uuid::Uuid::new_v4().simple()));
+        config.database.url = format!("sqlite://{}?mode=rwc", temp_db.display());
+
+        let db = aegis_db::create_database_adapter(&config.database)
+            .await
+            .unwrap();
+        aegis_auth::users::create_user(
+            db.as_ref(),
+            aegis_auth::users::NewUser {
+                username: "dave".to_string(),
+                password: "password123".to_string(),
+                role: "editor".to_string(),
+                email: None,
+                display_name: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        run_user_command(
+            &config,
+            UserCommand::Role {
+                username: "dave".to_string(),
+                role: "admin".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let user = db.get_user_by_username("dave").await.unwrap().unwrap();
+        assert_eq!(user.role, "admin");
+
+        run_user_command(
+            &config,
+            UserCommand::Disable {
+                username: "dave".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let user = db.get_user_by_username("dave").await.unwrap().unwrap();
+        assert!(user.disabled);
+
+        let _ = std::fs::remove_file(&temp_db);
     }
 }

@@ -354,6 +354,16 @@ pub async fn update_user(
     if let Err(AegisError::Validation(m)) = result {
         return Err(api_error(StatusCode::BAD_REQUEST, m));
     }
+    if let Ok(updated) = &result {
+        if current.role != updated.role
+            || current.disabled != updated.disabled
+            || current.password_hash != updated.password_hash
+        {
+            if let Err(e) = state.sessions.revoke_user_sessions(&username).await {
+                tracing::warn!("Failed to revoke sessions for '{}': {}", username, e);
+            }
+        }
+    }
     let details = match &result {
         Ok(updated) => changes_between(&current, updated),
         Err(_) => json!({ "changed": requested }),
@@ -404,6 +414,13 @@ pub async fn delete_user(
             return Err(from_aegis(e));
         }
     };
+    if let Err(e) = state.sessions.revoke_user_sessions(&username).await {
+        tracing::warn!(
+            "Failed to revoke sessions for deleted user '{}': {}",
+            username,
+            e
+        );
+    }
     if let Some(key) = &user.avatar_key {
         remove_avatar_object(&state, key).await;
     }
@@ -951,5 +968,107 @@ mod tests {
             .delete(stored.avatar_key.as_deref().unwrap())
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_session_revocation_on_role_change_and_disable_and_delete() {
+        let state = state_with_users().await;
+        let admin_actor = session("root", "admin");
+
+        // 1. alice (editor) logs in and gets a session
+        let alice_sess = state
+            .sessions
+            .create_session("alice", "editor", Default::default(), None)
+            .await
+            .unwrap();
+        assert!(state
+            .sessions
+            .get_session(&alice_sess.id)
+            .await
+            .unwrap()
+            .is_some());
+
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        // 2. Admin changes alice's role to viewer
+        patch(
+            &state,
+            admin_actor.clone(),
+            "alice",
+            json!({ "role": "viewer" }),
+        )
+        .await
+        .unwrap();
+
+        // 3. alice's old session is now revoked (get_session returns None)
+        assert_eq!(
+            state.sessions.get_session(&alice_sess.id).await.unwrap(),
+            None
+        );
+
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        // 4. alice logs in again with the new role
+        let alice_sess2 = state
+            .sessions
+            .create_session("alice", "viewer", Default::default(), None)
+            .await
+            .unwrap();
+        assert!(state
+            .sessions
+            .get_session(&alice_sess2.id)
+            .await
+            .unwrap()
+            .is_some());
+
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        // 5. Admin disables alice
+        patch(
+            &state,
+            admin_actor.clone(),
+            "alice",
+            json!({ "disabled": true }),
+        )
+        .await
+        .unwrap();
+
+        // alice's session is revoked again
+        assert_eq!(
+            state.sessions.get_session(&alice_sess2.id).await.unwrap(),
+            None
+        );
+
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        // 6. bob creates a session, then admin deletes bob
+        let bob_sess = state
+            .sessions
+            .create_session("bob", "viewer", Default::default(), None)
+            .await
+            .unwrap();
+        assert!(state
+            .sessions
+            .get_session(&bob_sess.id)
+            .await
+            .unwrap()
+            .is_some());
+
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        delete_user(
+            State(state.clone()),
+            RequireRole(admin_actor),
+            AuditContext::default(),
+            Path("bob".to_string()),
+        )
+        .await
+        .unwrap();
+
+        // bob's session is now revoked
+        assert_eq!(
+            state.sessions.get_session(&bob_sess.id).await.unwrap(),
+            None
+        );
     }
 }
