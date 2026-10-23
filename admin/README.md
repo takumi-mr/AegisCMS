@@ -21,6 +21,7 @@
   - Markdown エディタ（`MarkdownEditor.tsx`）: 書式の挿入ツールバー、Tab でのインデント、Ctrl+S で保存、行数・文字数・ブロック数の表示。
   - ブロックエディタに Markdown を貼り付けるとブロックに変換して追加する。**Paste Markdown**（`PasteMarkdownModal.tsx`）ではクリップボードを読み込み、変換結果の内訳を確かめてから末尾に追加か全置換を選ぶ。
 - **商品・注文 (Products / Orders)**: 商品の作成・編集（価格・在庫・SKU・画像）と、注文の一覧・詳細・状態の変更（入金確認・発送・取り消し）。EC が有効なときに使う（[EC](../docs/commerce.md#33-admin-studio)）。
+- **サイト (Settings › Site)**: 公開サイトの名前と favicon の変更（`GET` / `PUT /api/v1/site`、`admin` のみ。`SiteManager.tsx`）。favicon はメディアライブラリから選ぶ・アップロードする・URL を入力する。空にして保存すると設定ファイル（`[theme]`）の値に戻る（[テーマと公開](../docs/theme_and_publishing_guide.md#サイト名と-faviconadmin-studio)）。
 - **テーマ (Settings › Themes)**: インストール済みテーマのカード（プレビュー画像・タグ・作者）、ワンクリックでの切り替え（`PUT /api/v1/themes/active`、`admin`）、公開サイトの確認。マーケットプレイスのタブは将来の機能の予告（ZIP の導入は未実装）。
 - **ユーザー管理 (Settings › Users) & プロフィール**:
   - `admin` はユーザーの一覧・作成・編集・ロール変更・無効化・パスワードのリセット・削除（`UserManager.tsx`、[認証 3](../docs/authentication.md#3-ユーザー管理-api)）。
@@ -40,7 +41,7 @@
   - カテゴリの一覧表示（色・説明つき）と新規作成（slug 自動生成、色指定）は **Settings › Categories**。エディタの **Manage** ボタンからも開ける。
   - サイドバーの記事一覧にカテゴリバッジを表示し、カテゴリ（All / Uncategorized / 各カテゴリ）で絞り込み。
 - **設定画面 (Settings)**:
-  - サイト全体の管理（テーマ・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Settings。
+  - サイト全体の管理（サイト名と favicon・テーマ・プラグイン・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Settings。
   - ロールに応じて項目を出し分け: Themes と Categories は全員（カテゴリの作成は `editor` 以上）、Users と Audit Logs は `admin` のみ。
 - **監査ログ閲覧画面 (Settings › Audit Logs)**:
   - 監査ログ（`GET /api/v1/audit-logs`）を一覧表示。action / outcome / actor / resource / 期間での絞り込み、ページ送り、イベント詳細（JSON）の展開に対応。
@@ -93,6 +94,7 @@ admin/
 │   │   ├── LoginView.tsx   # ログイン画面
 │   │   ├── RegisterForm.tsx # アカウント登録（ログイン画面から）
 │   │   ├── SettingsView.tsx # 設定画面（左メニューで下の各画面を切り替え）
+│   │   ├── SiteManager.tsx # 公開サイトの名前と favicon
 │   │   ├── ThemeManager.tsx # テーマ一覧・切り替え
 │   │   ├── UserManager.tsx # ユーザー管理
 │   │   ├── ProfileModal.tsx # 自分のプロフィール（AvatarPicker.tsx でアバターを選ぶ）
@@ -187,7 +189,7 @@ files:
 - **保存**: 開いている記事は `PUT`（更新）、新規は `POST`。
 - **Themed Page プレビュー**: サーバーの `page_html` に `<base href="{SERVER_URL}/">` を差し込んで `srcdoc` に入れる（テーマのアセットやアップロード画像をサーバーから読むため）。`sandbox` に `allow-same-origin` を付けてはいけない。`srcdoc` の文書は親と同じオリジンになるため、テーマやプラグインが出力したスクリプトから `sessionStorage` のセッショントークンを読めてしまう。付けないと文書のオリジンは不透明（`null`）になり、`localStorage` などのストレージに触れると例外になる（`cart.js` は try/catch で受けてメモリ上に持つ）。CDN の通常の `<script>` は読み込めるが、`type="module"` や CORS が要る読み込み（`crossorigin` 付きのフォントなど）はサーバー側で `Access-Control-Allow-Origin` が要る。
 - **画面の高さとスクロール**: ルートの `.app` は `height: 100vh; overflow: hidden`。全幅の画面（監査ログ・テーマなど）は直下に `flex: 1; overflow-y: auto` のラッパーを置き、下に余白を取ってスクロールさせる。
-- **設定画面 (`SettingsView.tsx`)**: 各項目は既存の画面コンポーネント（`ThemeManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` と `settings.sections.<id>` の訳を足す。選んでいる項目は `App` が持つ（エディタの **Manage** から `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。エディタの状態も `App` にあるので、設定画面へ移って戻っても編集中の内容は消えない。
+- **設定画面 (`SettingsView.tsx`)**: 各項目は既存の画面コンポーネント（`SiteManager` / `ThemeManager` / `PluginManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` と `settings.sections.<id>` の訳を足す。選んでいる項目は `App` が持つ（エディタの **Manage** から `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。エディタの状態も `App` にあるので、設定画面へ移って戻っても編集中の内容は消えない。
 - **モバイル**: 現状は PC 前提（エディタは一覧 300px・プレビュー 480px 固定の 3 列）。
 
 ---

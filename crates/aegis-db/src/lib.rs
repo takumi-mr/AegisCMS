@@ -163,6 +163,15 @@ pub trait DatabaseAdapter: OrderStorage + Send + Sync {
         subject: &str,
         username: &str,
     ) -> Result<()>;
+
+    /// All site-wide settings saved from Admin Studio (`name` → `value`)
+    async fn list_settings(&self) -> Result<HashMap<String, String>>;
+
+    /// Save a setting (insert or overwrite)
+    async fn set_setting(&self, name: &str, value: &str) -> Result<()>;
+
+    /// Remove a setting (the configuration file's value applies again)
+    async fn delete_setting(&self, name: &str) -> Result<()>;
 }
 
 /// ローカル認証のユーザーアカウント（`_aegis_users` テーブルの 1 行）
@@ -296,6 +305,56 @@ pub fn build_identity_select(placeholder: impl Fn(usize) -> String) -> String {
         placeholder(1),
         placeholder(2)
     )
+}
+
+/// Admin Studio から変更したサイト全体の設定（`name` → `value`）。設定ファイルの値より優先する。
+/// MySQL の予約語 `key` を避けて `name` / `value` にする
+pub const SETTINGS_TABLE: &str = "_aegis_settings";
+
+/// 設定テーブルの CREATE 文。`key_type` は `name` の型（SQLite は `TEXT`、PostgreSQL / MySQL は
+/// 主キーに使えるよう `VARCHAR(255)`）、`text` は値の型
+pub fn build_settings_table(key_type: &str, text: &str) -> String {
+    format!(
+        "CREATE TABLE IF NOT EXISTS {} (\
+         name {key_type} PRIMARY KEY, \
+         value {text} NOT NULL, \
+         updated_at {key_type} NOT NULL);",
+        SETTINGS_TABLE,
+        key_type = key_type,
+        text = text
+    )
+}
+
+/// 設定の INSERT 文（同じ名前があれば上書き）。バインド順は name, value, updated_at。
+/// `mysql` なら `ON DUPLICATE KEY UPDATE`、それ以外（SQLite / PostgreSQL）は `ON CONFLICT`
+pub fn build_setting_upsert(placeholder: impl Fn(usize) -> String, mysql: bool) -> String {
+    let on_conflict = if mysql {
+        "ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)"
+    } else {
+        "ON CONFLICT (name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
+    };
+    format!(
+        "INSERT INTO {} (name, value, updated_at) VALUES ({}, {}, {}) {};",
+        SETTINGS_TABLE,
+        placeholder(1),
+        placeholder(2),
+        placeholder(3),
+        on_conflict
+    )
+}
+
+/// 設定の DELETE 文。バインドは name
+pub fn build_setting_delete(placeholder: impl Fn(usize) -> String) -> String {
+    format!(
+        "DELETE FROM {} WHERE name = {};",
+        SETTINGS_TABLE,
+        placeholder(1)
+    )
+}
+
+/// 設定の SELECT 文（全件）
+pub fn build_settings_select() -> String {
+    format!("SELECT name, value FROM {};", SETTINGS_TABLE)
 }
 
 /// sqlx の行 (`SqliteRow` / `PgRow` / `MySqlRow`) を `UserRecord` に変換する。

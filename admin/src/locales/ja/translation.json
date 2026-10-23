@@ -33,7 +33,9 @@
     "verifyFailed": "メールアドレスを確認できませんでした",
     "pluginsFailed": "プラグイン一覧を取得できませんでした",
     "getPluginSettingsFailed": "プラグインの設定を取得できませんでした",
-    "updatePluginSettingsFailed": "プラグインの設定を更新できませんでした"
+    "updatePluginSettingsFailed": "プラグインの設定を更新できませんでした",
+    "siteSettingsFailed": "サイトの設定の取得に失敗しました",
+    "updateSiteSettingsFailed": "サイトの設定の保存に失敗しました"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -669,6 +671,7 @@
     "title": "設定",
     "sectionsAria": "設定の項目",
     "sections": {
+      "site": "サイト",
       "themes": "テーマ",
       "plugins": "プラグイン",
       "categories": "カテゴリ",
@@ -733,5 +736,23 @@
     "addSetting": "追加",
     "saving": "保存中...",
     "saveSettings": "設定を保存"
+  },
+  "site": {
+    "title": "サイト",
+    "description": "公開サイトの名前と favicon。サーバーを再起動せずにすぐ反映されます。空にすると設定ファイル（[theme]）の値を使います。",
+    "nameHeading": "サイト名",
+    "nameAria": "サイト名",
+    "defaultHint": "設定ファイルの値: {{value}}",
+    "faviconHeading": "favicon",
+    "faviconAria": "favicon の URL",
+    "faviconHint": "/ から始まるパス（アップロードした画像など）か http(s) の URL。PNG・SVG・ICO。",
+    "clearFavicon": "favicon を外す",
+    "chooseFromLibrary": "メディアライブラリ",
+    "upload": "アップロード",
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "サイトの設定を保存しました",
+    "loadFailed": "サイトの設定を読み込めませんでした",
+    "saveFailed": "サイトの設定を保存できませんでした"
   }
 }

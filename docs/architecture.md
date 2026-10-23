@@ -36,7 +36,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 ### 2.1 テーブルとデータ
 
 - スキーマ `content_type: article` のテーブルは `content_article`。本文は Block AST の JSON を `blocks_json TEXT NOT NULL DEFAULT '[]'` に保存する。描画済み HTML は保存しない（`[security]` の変更を保存済みのコンテンツにも反映するため）。
-- システムテーブルは `_aegis_` 接頭辞（`_aegis_users`、`_aegis_user_identities`、`_aegis_audit_logs`、`_aegis_orders` など）。
+- システムテーブルは `_aegis_` 接頭辞（`_aegis_users`、`_aegis_user_identities`、`_aegis_audit_logs`、`_aegis_orders`、`_aegis_settings` など）。
+- `_aegis_settings` は Admin Studio から変更するサイト全体の設定（`name` → `value`。今はサイト名 `site.title` と favicon `site.favicon`）。カラム名は MySQL の予約語 `key` を避けて `name` にした。上書きは SQLite / PostgreSQL が `ON CONFLICT`、MySQL が `ON DUPLICATE KEY UPDATE`。設定ファイルの値は既定値として残し、行を消すと設定ファイルの値に戻る（プラグイン設定のようにキャッシュへ置くと、メモリのキャッシュでは再起動と TTL で消えるため DB にした）。
 - コンテンツ作成 API（`POST /api/v1/contents/{type}`）のペイロードはトップレベルに `title` / `slug` / `status` / `blocks` / `author_id` とカスタムフィールドを持つ。応答ではカスタムフィールドは `fields`、解決済みリレーションは `relations` に入る（[Admin Studio の型](../admin/README.md#-設計メモ)に注意）。
 
 ### 2.2 `DatabaseAdapter`
@@ -70,6 +71,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - フィルター（`date_short`、`truncate` など）は引数を `&str` ではなく `minijinja::Value` で受ける。`&str` だと `None` や未定義の値で `value is not a string` の実行時エラー（500）になる。
 - テーマパッケージ（`theme.json`・`preview.*`・`templates/`・`assets/`）の検証は `ThemeEngine::validate_theme_package`。ストアからの ZIP 導入はこれで検証してから `themes/<id>/` に展開する前提。
 - アセット（`GET /theme/assets/{*path}`）はアクティブテーマの `assets/` からリクエスト時に解決し、`..` や絶対パスを拒否する。MIME は `aegis_core::guess_content_type`（拡張子から。`text/css` でないと CSS がブラウザに拒否される）。
+- サイト全体の値（サイト名・説明・favicon・`custom_css`）は `render::site_page_context` でまとめて作り、公開ページ・一覧・404・ショップの各ページはそこから組み立てる。サイト名と favicon は `AppState::site()`（Admin Studio の値 → `[theme]`）で、起動時に `_aegis_settings` から読み、`PUT /api/v1/site` で書き換える（再起動不要）。favicon は新しいテンプレート変数ではなく `extra_head` に `<link rel="icon">` として入れる（既存のテーマがすべて出力しているため、テーマの改修が要らない。プラグインの ABI の `PageRenderContext` も変えずに済む）。
 
 ### 3.3 サブパス公開 (`[server].base_path`)
 

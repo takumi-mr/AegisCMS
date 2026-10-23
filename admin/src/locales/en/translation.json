@@ -33,7 +33,9 @@
     "verifyFailed": "Failed to confirm the email address",
     "pluginsFailed": "Failed to fetch plugins",
     "getPluginSettingsFailed": "Failed to fetch plugin settings",
-    "updatePluginSettingsFailed": "Failed to update plugin settings"
+    "updatePluginSettingsFailed": "Failed to update plugin settings",
+    "siteSettingsFailed": "Failed to load the site settings",
+    "updateSiteSettingsFailed": "Failed to save the site settings"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -680,6 +682,7 @@
     "title": "Settings",
     "sectionsAria": "Settings sections",
     "sections": {
+      "site": "Site",
       "themes": "Themes",
       "plugins": "Plugins",
       "categories": "Categories",
@@ -744,5 +747,23 @@
     "addSetting": "Add",
     "saving": "Saving...",
     "saveSettings": "Save Settings"
+  },
+  "site": {
+    "title": "Site",
+    "description": "Name and favicon of the public site. Changes apply right away without restarting the server; leave a field empty to use the value of the configuration file ([theme]).",
+    "nameHeading": "Site name",
+    "nameAria": "Site name",
+    "defaultHint": "Configuration file: {{value}}",
+    "faviconHeading": "Favicon",
+    "faviconAria": "Favicon URL",
+    "faviconHint": "A path starting with / (such as an uploaded image) or an http(s) URL. PNG, SVG or ICO.",
+    "clearFavicon": "Clear the favicon",
+    "chooseFromLibrary": "Media library",
+    "upload": "Upload",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Site settings saved",
+    "loadFailed": "Could not load the site settings",
+    "saveFailed": "Could not save the site settings"
   }
 }

@@ -10,6 +10,7 @@ use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
     build_audit_select, build_content_list, build_content_update, build_identity_insert,
     build_identity_select, build_identity_table, build_relation_lookup, build_scheduled_publish,
+    build_setting_delete, build_setting_upsert, build_settings_select, build_settings_table,
     build_user_delete, build_user_insert, build_user_select, build_user_update, custom_columns,
     is_standard_column, user_row_from_sqlx, ContentListQuery, ContentPage, ContentRecord,
     CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_TABLE,
@@ -193,6 +194,12 @@ impl DatabaseAdapter for MySqlAdapter {
 
         // 外部 IdP のアイデンティティとユーザーの対応表
         sqlx::query(&build_identity_table("VARCHAR(255)"))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // Admin Studio から変更したサイト全体の設定
+        sqlx::query(&build_settings_table("VARCHAR(255)", "TEXT"))
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -620,6 +627,37 @@ impl DatabaseAdapter for MySqlAdapter {
             .bind(subject)
             .bind(username)
             .bind(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn list_settings(&self) -> Result<HashMap<String, String>> {
+        let rows = sqlx::query(&build_settings_select())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        rows.into_iter()
+            .map(|row| Ok((row.try_get("name")?, row.try_get("value")?)))
+            .collect::<std::result::Result<_, sqlx::Error>>()
+            .map_err(|e| AegisError::Database(e.to_string()))
+    }
+
+    async fn set_setting(&self, name: &str, value: &str) -> Result<()> {
+        sqlx::query(&build_setting_upsert(|_| "?".to_string(), true))
+            .bind(name)
+            .bind(value)
+            .bind(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn delete_setting(&self, name: &str) -> Result<()> {
+        sqlx::query(&build_setting_delete(|_| "?".to_string()))
+            .bind(name)
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;

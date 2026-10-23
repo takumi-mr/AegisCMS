@@ -41,6 +41,7 @@ const ACTIONS: AuditAction[] = [
   'audit.purge',
   'access.denied',
   'theme.switch',
+  'site.update',
   'user.create',
   'user.update',
   'user.delete',

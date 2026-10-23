@@ -52,6 +52,7 @@ purge_interval_secs = 3600
 | `audit.purge` | 保持期間切れの監査ログを 1 件以上削除したとき（[5. 保持期間](#5-保持期間と自動削除)） | `success` | `audit_log` / なし | `deleted`, `cutoff`, `retention_days` |
 | `access.denied` | セッションとロールが必要な API（[必要なロール](authentication.md#ロールと-api-の権限)）を、セッション無し・無効（401）またはロール不足（403）で拒否したとき | `denied` | `endpoint` / `メソッド パス`（例: `POST /api/v1/contents/article`。クエリ文字列は含めない） | `reason`（`missing_session` / `invalid_session` / `insufficient_role` / `not_own_account`（他のユーザーのプロフィール・アバターへのアクセス。`resource_type` は `user`）/ `invalid_webhook_signature`（決済の Webhook の署名が不正））, `required_role`, `session`（無効なトークンの指紋。`invalid_session` のみ） |
 | `theme.switch` | `PUT /api/v1/themes/active` | `success` | なし | `from_theme`, `to_theme` |
+| `site.update` | `PUT /api/v1/site`（公開サイトの名前と favicon。[テーマと公開](theme_and_publishing_guide.md#サイト名と-faviconadmin-studio)） | `success` / `failure`（DB エラー） | なし | `title` / `favicon`（それぞれ `from` / `to`。`null` は設定ファイルの値）, `error` |
 | `user.create` | `POST /api/v1/users`（[ユーザー管理 API](authentication.md#3-ユーザー管理-api)） | `success` / `failure`（DB エラー） | `user` / ユーザー名 | `role`, `error` |
 | `user.update` | `PATCH /api/v1/users/{username}`、`PUT` / `DELETE /api/v1/users/{username}/avatar` | `success` / `failure` | `user` / ユーザー名 | `changed`（実際に変わった項目: `email` / `display_name` / `role` / `disabled` / `password` / `avatar`。パスワードの値は残さない）, `role`（`from` / `to`）, `disabled`, `avatar_key`, `size`, `error` |
 | `user.delete` | `DELETE /api/v1/users/{username}` | `success` / `failure` | `user` / ユーザー名 | `role`, `error` |

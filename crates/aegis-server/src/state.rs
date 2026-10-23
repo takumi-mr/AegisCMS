@@ -1,4 +1,5 @@
 use crate::config::AegisConfig;
+use crate::site::{SiteInfo, SiteOverrides};
 use aegis_audit::AuditService;
 use aegis_auth::registration::RegistrationService;
 use aegis_auth::{LoginRateLimiter, SessionService};
@@ -29,6 +30,8 @@ pub struct AppState {
     pub theme: Arc<ThemeEngine>,
     /// 動的プラグイン設定（管理画面から変更された設定値のキャッシュ）
     pub plugin_settings: Arc<std::sync::RwLock<HashMap<String, HashMap<String, String>>>>,
+    /// Admin Studio から変更したサイト名・favicon（`[theme]` より優先。DB の `_aegis_settings`）
+    pub site: Arc<std::sync::RwLock<SiteOverrides>>,
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
     pub oidc: Option<SsoLogin>,
     /// 外部 IdP ログイン（`[auth.saml]`）。無効なら `None`
@@ -97,12 +100,22 @@ impl AppState {
             audit,
             theme,
             plugin_settings: Arc::new(std::sync::RwLock::new(HashMap::new())),
+            site: Arc::new(std::sync::RwLock::new(SiteOverrides::default())),
             oidc: None,
             saml: None,
             commerce: None,
             notifier: None,
             registration: None,
         }
+    }
+
+    /// 公開サイトの名前と favicon（Admin Studio で変更した値 → `[theme]` の順）
+    pub fn site(&self) -> SiteInfo {
+        let overrides = self
+            .site
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        SiteInfo::resolve(&self.config.theme, &overrides)
     }
 
     /// EC（`[commerce]`）を有効にする

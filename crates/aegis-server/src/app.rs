@@ -109,6 +109,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/plugins/{name}/settings",
             get(handlers::get_plugin_settings).put(handlers::update_plugin_settings),
         )
+        .route(
+            "/api/v1/site",
+            get(handlers::get_site_settings).put(handlers::update_site_settings),
+        )
         .route("/api/v1/themes", get(handlers::list_themes))
         .route(
             "/api/v1/themes/active",

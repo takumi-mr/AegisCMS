@@ -15,6 +15,7 @@ mod notify_plugins;
 mod plugin_host;
 mod render;
 mod scheduler;
+mod site;
 mod state;
 #[cfg(test)]
 mod test_support;
@@ -172,8 +173,9 @@ fn registration_admin_url(config: &AegisConfig) -> anyhow::Result<String> {
     )
 }
 
-/// 通知のテンプレートに渡すサイトの情報（`[theme].site_title` と `[commerce].public_url`）
-fn notification_site(config: &AegisConfig) -> aegis_notify::SiteInfo {
+/// 通知のテンプレートに渡すサイトの情報（サイト名と `[commerce].public_url`）。サイト名は起動時の値
+/// （Admin Studio で変えた名前は再起動後に反映される）
+fn notification_site(config: &AegisConfig, site_name: &str) -> aegis_notify::SiteInfo {
     let url = config
         .commerce
         .public_url
@@ -181,7 +183,7 @@ fn notification_site(config: &AegisConfig) -> aegis_notify::SiteInfo {
         .trim_end_matches('/')
         .to_string();
     aegis_notify::SiteInfo {
-        name: config.theme.site_title.clone(),
+        name: site_name.to_string(),
         admin_url: if url.is_empty() {
             String::new()
         } else {
@@ -216,7 +218,7 @@ async fn run_notify_command(config: &AegisConfig, action: NotifyCommand) -> anyh
             notify_plugins::validate_plugin_channels(&config.notifications, &supervisor).await?;
             let service = aegis_notify::NotificationService::from_config_with_plugins(
                 &config.notifications,
-                notification_site(config),
+                notification_site(config, &config.theme.site_title),
                 None,
                 notify_plugins::plugin_channel_factory(supervisor),
             )?;
@@ -614,6 +616,11 @@ async fn main() -> anyhow::Result<()> {
                 theme_engine,
             );
             app_state.plugin_settings = plugin_settings;
+            *app_state
+                .site
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                site::SiteOverrides::load(app_state.db.as_ref()).await;
             let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),
                 None => app_state,
@@ -632,7 +639,7 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
                 let notifier = aegis_notify::NotificationService::from_config_with_plugins(
                     &config.notifications,
-                    notification_site(&config),
+                    notification_site(&config, &app_state.site().title),
                     Some(app_state.audit.clone()),
                     notify_plugins::plugin_channel_factory(app_state.supervisor.clone()),
                 )?;

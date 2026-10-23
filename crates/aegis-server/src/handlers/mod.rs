@@ -11,6 +11,7 @@ pub mod registration;
 pub mod saml;
 pub mod schemas;
 pub mod shop;
+pub mod site;
 pub mod sso;
 pub mod storage;
 pub mod storefront;
@@ -33,6 +34,7 @@ pub use shop::{
     checkout, get_order, get_public_order, list_orders, payment_webhook, quote, shop_config,
     update_order_status,
 };
+pub use site::{get_site_settings, update_site_settings};
 pub use sso::list_auth_providers;
 pub use storage::{delete_object, list_objects, upload_file};
 pub use storefront::{cart_script, render_cart, render_order, render_product, render_products};

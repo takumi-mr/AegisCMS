@@ -51,6 +51,7 @@ export type AuditAction =
   | 'audit.purge'
   | 'access.denied'
   | 'theme.switch'
+  | 'site.update'
   | 'user.create'
   | 'user.update'
   | 'user.delete'
@@ -348,6 +349,18 @@ export interface OrderPage {
   total: number;
   limit: number;
   offset: number;
+}
+
+/** Name and favicon of the public site (`GET` / `PUT /api/v1/site`) */
+export interface SiteSettings {
+  /** Set in Admin Studio, or null to use the configuration file's value */
+  title: string | null;
+  favicon: string | null;
+  /** Values of the configuration file (`[theme].site_title` / `favicon`) */
+  defaults: {
+    title: string;
+    favicon: string | null;
+  };
 }
 
 /** Public shop settings (`GET /api/v1/shop/config`) */

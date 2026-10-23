@@ -88,6 +88,20 @@ pub fn relation_summary(rel: &aegis_db::ResolvedRelation) -> serde_json::Value {
     serde_json::json!({ "id": rel.id, "title": rel.title, "slug": rel.slug })
 }
 
+/// A page context holding only the site-wide values: the site title and favicon (Admin Studio's
+/// settings over `[theme]`), the description and the custom CSS. The favicon `<link>` goes into
+/// `extra_head`, which every theme outputs, so `on-render-page` plugins can still change it
+pub fn site_page_context(state: &AppState) -> PageRenderContext {
+    let site = state.site();
+    PageRenderContext {
+        extra_head: site.head_html(),
+        site_title: site.title,
+        site_description: state.config.theme.site_description.clone(),
+        extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
+        ..Default::default()
+    }
+}
+
 /// Renders a full themed page: resolves relations, applies the plugins' `on-render-page`
 /// hook (a failing hook keeps the original context) and renders the theme template
 pub async fn render_page(
@@ -97,8 +111,6 @@ pub async fn render_page(
 ) -> Result<String, String> {
     let relations = resolve_page_relations(state, schema, &page.fields).await;
     let mut ctx = PageRenderContext {
-        site_title: state.config.theme.site_title.clone(),
-        site_description: state.config.theme.site_description.clone(),
         template: page.template,
         content_type: page.content_type,
         title: page.title,
@@ -109,8 +121,7 @@ pub async fn render_page(
         updated_at: page.updated_at,
         fields: page.fields,
         relations,
-        extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
-        ..Default::default()
+        ..site_page_context(state)
     };
 
     {

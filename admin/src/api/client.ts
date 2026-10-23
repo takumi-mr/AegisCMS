@@ -19,6 +19,7 @@ import type {
   SchemaDefinition,
   SessionInfo,
   ShopConfig,
+  SiteSettings,
   StorageMeta,
   StorageObjectPage,
   StorageObjectQuery,
@@ -454,6 +455,26 @@ export const aegisApi = {
         body: JSON.stringify(settings),
       },
       i18n.t('api.updatePluginSettingsFailed')
+    );
+  },
+
+  async getSiteSettings(): Promise<SiteSettings> {
+    return request('/site', {}, i18n.t('api.siteSettingsFailed'));
+  },
+
+  /** null (or an empty string) goes back to the configuration file's value */
+  async updateSiteSettings(settings: {
+    title: string | null;
+    favicon: string | null;
+  }): Promise<SiteSettings> {
+    return request(
+      '/site',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      },
+      i18n.t('api.updateSiteSettingsFailed')
     );
   },
 };
