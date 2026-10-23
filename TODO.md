@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: Admin Studio のテーマ・カテゴリ・ユーザー・監査ログを設定画面（Settings）にまとめ、ヘッダーのタブをエディタ / 商品 / 注文 / 設定に。Admin Studio を英語 / 日本語の 2 言語に（i18next）。通知機能（`aegis-notify`: 外部 SMTP サーバーへのメール・ログ、テンプレート en / ja、再試行・監査ログ）を追加し、EC の注文の受付・入金確認・発送・取り消しをメールで送るように。サンプルショップ「朝凪珈琲」（`examples/coffee-shop`）を追加。`aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: Admin Studio のログイン画面からのアカウント登録（メールアドレスの確認・admin の承認、`[auth.registration]`）を追加。Admin Studio のテーマ・カテゴリ・ユーザー・監査ログを設定画面（Settings）にまとめ、ヘッダーのタブをエディタ / 商品 / 注文 / 設定に。Admin Studio を英語 / 日本語の 2 言語に（i18next）。通知機能（`aegis-notify`: 外部 SMTP サーバーへのメール・ログ、テンプレート en / ja、再試行・監査ログ）を追加し、EC の注文の受付・入金確認・発送・取り消しをメールで送るように。サンプルショップ「朝凪珈琲」（`examples/coffee-shop`）を追加。`aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
   - `task check` による全自動検証（Rust テスト 93 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
   - 公式 Wasm プラグイン `official-code-enhancer` (`plugins/official-code-enhancer/`):
@@ -47,6 +47,12 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### アカウント登録 (Completed) — [docs/authentication.md](docs/authentication.md#7-アカウント登録)
+- [x] **Admin Studio からのアカウント登録**: `[auth.registration]`（`admin_url` / `default_role`（`editor` / `viewer`）/ `require_approval`（既定 `true`）/ `allowed_email_domains` / `token_ttl_secs` / `max_per_ip_per_hour`）。`POST /api/v1/auth/registration`（申し込み。キャッシュに置いて確認メール `account.verify` を送る）・`POST /api/v1/auth/registration/verify`（確認リンクのトークンでユーザーを作る。運営者に `account.registered`）、`GET /api/v1/auth/providers` の `registration`。監査ログ `user.register`（`stage: requested` / `confirmed`）。Admin Studio のログイン画面の「アカウントを作成」（`RegisterForm.tsx`）と確認リンク（`#verify-email=`）の処理、en / ja。通知が無効・確認リンクの開き先が決まらない設定では起動しない。
+- [ ] **パスワードの再設定（メール）**: 同じ仕組み（キャッシュ + ハッシュしたトークン + フラグメントのリンク）で作れる。ログイン画面の「パスワードを忘れた」。
+- [ ] **承認の知らせ**: admin がアカウントを有効にしたときに本人へメールする（今は無効化の解除と承認を区別していない。承認待ちを表すカラムが要る）。
+- [ ] **招待リンク**: admin がメールアドレスとロールを指定して招待し、本人がパスワードを決める（`require_approval` の代わりに使える）。
 
 #### モバイル（レスポンシブ）対応
 - [x] **公開サイトの確認と修正**: サンプルショップに全 5 テーマを切り替え、幅 320 / 360 / 390px の Playwright で、トップ・記事一覧・記事・固定ページ・商品一覧・商品・カート（空 / 商品あり）・404 を確認（横スクロールの有無とスクリーンショット）。`cyber-neon` / `emerald-luxury` / `minimal-editorial` でヘッダーにサイト名が 1 文字ずつ縦に潰れる（日本語は文字ごとに折り返すため）・`cyber-neon` が 360px で横にはみ出すのを、ヘッダーの折り返しとサイト名の `nowrap` で修正。同 3 テーマの本文のリストの字下げ（`* { padding: 0 }` で消えていた）、商品ページ本文の余白・字下げ（`SHOP_COMMON_TEMPLATE`、`:where` で詳細度 0）、カートのクーポン欄の「Apply」がはみ出すのを修正。記事カードのグリッドを `minmax(min(320px, 100%), 1fr)` にして 320px 幅でもはみ出さないように。`default` / `roastery` は修正不要。
@@ -171,6 +177,12 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **アカウント登録 (`crates/aegis-auth/src/registration.rs`, `crates/aegis-server/src/handlers/registration.rs`)**:
+  - 申し込みはユーザーテーブルに入れず、キャッシュ（キー `registration:<トークンの SHA-256>`、TTL は `token_ttl_secs`）に置く。DB のスキーマ変更が要らず、確認されない申し込みでユーザー名がふさがらない。`memory` キャッシュでは再起動で申し込みが消える（もう一度申し込めばよい）。
+  - 承認待ちは「無効（`disabled = true`）のユーザー」として作る。承認は Users 画面で有効にするだけ。承認待ちと無効化を区別するカラムは無い。
+  - 確認リンクの URL は設定（`admin_url` / `[commerce].public_url`）だけから作る。ショップの `site_url` のようにリクエストの Host から作ると、Host を偽装した申し込みで本人に攻撃者のサイトへのリンクを送れてしまい、メールアドレスの確認の意味がなくなる。
+  - 既存のユーザーのメールアドレスでの申し込みは、応答を変えずにメールを送らない（登録済みかを伏せる）。ユーザー名の重複は伏せない（申し込み画面で知らせる必要がある）。
+  - エラーは `code`（`invalid_username` など）付きで返し、Admin Studio は `login.register.errors.<code>` で訳す。サーバーのエラーメッセージを訳す仕組み（「翻訳の続き」）の先行例。
 - **Admin Studio の設定画面 (`admin/src/components/SettingsView.tsx`)**:
   - 各項目は既存の画面コンポーネント（`ThemeManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` に追加し、`settings.sections.<id>` の訳を足す。
   - 選んでいる項目は `App` が持つ（エディタの「管理」ボタンから `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。

@@ -43,7 +43,7 @@ payment_due_hours = 72      # 未払いの注文を取り消して在庫を戻�
 - 商品のスキーマ（既定 `product`、`[commerce].product_type`）には `price`（integer、必須）が必要です。`stock`（integer）があれば在庫を数えます。同梱の [`schemas/products.yaml`](../schemas/products.yaml) をそのまま使えます。起動時に確かめ、足りなければ起動しません。
 - `[commerce].enabled = false` でも商品一覧・商品ページは表示されます（カートは無効）。商品の `buy_url` に外部の決済リンク（Stripe Payment Links など）を入れると「Buy now」ボタンになります。
 
-設定項目の一覧は [設定リファレンス](configuration.md#211-commerce--ec) を参照してください。
+設定項目の一覧は [設定リファレンス](configuration.md#212-commerce--ec) を参照してください。
 
 ---
 

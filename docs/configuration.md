@@ -241,7 +241,21 @@ coupons = "WELCOME10:10%"
 > [!NOTE]
 > `client_secret` は設定ファイルに平文で書くため、ファイルの権限を制限してください。
 
-### 2.11 `[commerce]` — EC
+### 2.11 `[auth.registration]` — アカウント登録
+
+Admin Studio のログイン画面からのアカウント登録（メールアドレスの確認つき）。使い方は [認証ドキュメント](./authentication.md#7-アカウント登録) を参照してください。`enabled = true` のとき、通知（`[notifications]`）が無効、確認リンクの開き先が決まらない、`default_role` が `admin` または不明なロールの場合はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` でアカウント登録を有効化 |
+| `admin_url` | string | `""` | 確認リンクの開き先の Admin Studio の URL（例: `"https://cms.example.com/admin/"`。`#verify-email=<トークン>` を付ける）。空なら `[commerce].public_url` + `/admin/`。リクエストの Host からは作らない |
+| `default_role` | string | `"viewer"` | 登録したユーザーのロール（`editor` / `viewer`） |
+| `require_approval` | bool | `true` | `true` なら確認後のアカウントを無効の状態で作り、admin が有効にするまでログインできない |
+| `allowed_email_domains` | array of string | `[]` | 登録できるメールアドレスのドメイン（`"example.com"` ならサブドメインも可）。空ならどのドメインでも登録できる |
+| `token_ttl_secs` | integer (u64) | `86400` | 確認リンクの有効期間（秒） |
+| `max_per_ip_per_hour` | integer (u64) | `5` | 同じクライアント IP から 1 時間に受け付ける申し込みの数（`0` で無制限） |
+
+### 2.12 `[commerce]` — EC
 
 カート・注文・在庫・決済（[EC ドキュメント](./commerce.md)）。`enabled = true` で設定が不正な場合（通貨コードの形式、Stripe のキーが無いなど）や商品スキーマに `price`（integer）が無い場合はサーバーが起動しません。
 
@@ -273,7 +287,7 @@ coupons = "WELCOME10:10%"
 | `api_base` | string | `"https://api.stripe.com"` | API の URL（テスト用） |
 | `async_payment_due_hours` | integer | `72` | コンビニ払いなど後払いの支払い期限（その間は在庫を確保したまま） |
 
-### 2.12 `[notifications]` — 通知（メール）
+### 2.13 `[notifications]` — 通知（メール）
 
 注文の受付・入金確認・発送・取り消しを顧客と運営者に知らせます（[通知ドキュメント](./notifications.md)）。`enabled = true` で設定が不正な場合（`email` チャネルで `smtp_host` / `from` が無い、アドレスの形式が不正など）はサーバーが起動しません。
 
@@ -408,6 +422,15 @@ role_claim = ""
 post_login_redirect = "/admin/"
 
 [auth.oidc.role_mapping]
+
+[auth.registration]
+enabled = false
+admin_url = ""
+default_role = "viewer"
+require_approval = true
+allowed_email_domains = []
+token_ttl_secs = 86400
+max_per_ip_per_hour = 5
 
 [commerce]
 enabled = false

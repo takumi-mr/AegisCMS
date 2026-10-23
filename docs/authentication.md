@@ -253,3 +253,65 @@ cms-editors = "editor"
 > [!NOTE]
 > SSO のログインは IdP 側で保護されるため、`[auth.login_rate_limit]` の対象外です。ディスカバリー文書（`/.well-known/openid-configuration`）は初回ログイン時に取得してプロセス内にキャッシュし、JWKS は未知の `kid` が来たとき（最短 60 秒間隔）に再取得します。IdP の Issuer を変更した場合はサーバーを再起動してください。
 
+
+## 7. アカウント登録
+
+`[auth.registration]`（[設定リファレンス](configuration.md#211-authregistration--アカウント登録)）を有効にすると、Admin Studio のログイン画面に **アカウントを作成** が表示され、管理者がユーザーを作らなくても自分でアカウントを申し込めます。メールアドレスの確認が必須で、確認メールは [通知](notifications.md) で送ります。
+
+```toml
+[auth.registration]
+enabled = true
+admin_url = "https://cms.example.com/admin/"   # 確認リンクの開き先
+default_role = "viewer"
+require_approval = true                         # 確認後も admin が有効にするまでログインできない
+# allowed_email_domains = ["example.com"]       # 社内のアドレスだけに限る
+
+[notifications]
+enabled = true
+channels = ["email"]   # 開発中は ["log"] でサーバーのログに出せる
+```
+
+通知（`[notifications].enabled`）が無効、`disabled_events` に `account.verify` がある、確認リンクの開き先（`admin_url`、無ければ `[commerce].public_url` + `/admin/`）が決まらない、`default_role` が `admin` または不明なロール、のいずれかの場合はサーバーが起動しません。
+
+### 7.1 登録の流れ
+
+1. ログイン画面の **アカウントを作成** から、ユーザー名・メールアドレス・表示名（任意）・パスワードを送ります（`POST /api/v1/auth/registration`）。
+2. サーバーは入力を検証し、申し込みを確認リンクの有効期間（`token_ttl_secs`、既定 24 時間）だけキャッシュ（`[cache]`）に置いて、メールアドレスに確認リンク（`{admin_url}#verify-email=<トークン>`）を送ります（通知 `account.verify`）。**この時点ではユーザーは作られません。**
+3. リンクを開くと Admin Studio が `POST /api/v1/auth/registration/verify` を呼び、ユーザーを作ります。運営者（`staff_recipients`）には `account.registered` を送ります。
+4. `require_approval = true`（既定）なら、アカウントは **無効** の状態で作られます。admin が **設定 → ユーザー** で有効にすると、ログインできるようになります。`false` なら確認した時点でログインできます。
+
+確認されない申し込みでユーザー名がふさがることはありません。同じユーザー名の申し込みが複数あれば、先に確認したほうが作られます。
+
+### 7.2 API
+
+#### `POST /api/v1/auth/registration` — 申し込み
+
+```json
+{ "username": "hanako", "email": "hanako@example.com", "password": "...", "display_name": "花子" }
+```
+
+- `202 Accepted`: `{ "status": "pending_verification", "expires_in_secs": 86400 }`
+- 失敗時は `{ "error": "<文言>", "code": "<理由>" }` を返します。`code` は `invalid_username` / `invalid_email` / `password_too_short`（`400`）、`username_taken`（`409`）、`email_domain_not_allowed`（`403`）、`rate_limited`（`429`。`Retry-After` 付き）です。
+- 登録が無効なら `404` を返します。
+
+#### `POST /api/v1/auth/registration/verify` — 確認
+
+```json
+{ "token": "<確認リンクのトークン>" }
+```
+
+- `201 Created`: `{ "status": "active" | "pending_approval", "username": "hanako" }`
+- 失敗時: `invalid_token`（`400`。無効・期限切れ・使用済み）、`username_taken` / `email_taken`（`409`。申し込みの後に同じユーザー名・メールアドレスのユーザーができていた）。
+
+`GET /api/v1/auth/providers` の `registration`（`true` / `false`）で、ログイン画面に **アカウントを作成** を出すかを決めます。
+
+### 7.3 セキュリティ上の挙動
+
+- **メールアドレスの確認**: アカウントは確認リンクを開いたときに初めて作られるので、他人のメールアドレスでは作れません。
+- **登録済みのメールアドレスを伏せる**: 既存のユーザーのメールアドレスで申し込まれても、応答は通常と同じ `202` にし、メールは送りません（監査ログには `email_in_use` として残ります）。パスワードのハッシュ計算も通常と同じように行うので、応答時間でも区別できません。ユーザー名は申し込み画面で重複を知らせる必要があるため、`username_taken` を返します。
+- **確認リンク**: トークンは 256 ビットの乱数で、1 回しか使えません。キャッシュにはトークンの SHA-256 をキーにして保存し、トークン自体は残しません。URL のフラグメント（`#`）で渡すので、サーバーのログや `Referer` に残りません。Admin Studio は読み取った後にアドレスバーから消します。
+- **リンクの URL はリクエストから作らない**: 確認リンクの開き先は設定（`admin_url`）だけから作ります。`Host` ヘッダーを偽装して、攻撃者のサイトへのリンクを本人に送らせることはできません。
+- **申し込みの数の制限**: 同じクライアント IP からの申し込みは 1 時間に `max_per_ip_per_hour` 件（既定 5）までです。超えると `429` を返します。クライアント IP の扱いは `[audit].trust_forwarded_for` に従います。
+- **パスワード**: 申し込みの時点で Argon2id でハッシュし、平文は保存しません。8 文字以上が必要です。
+- **監査ログ**: 申し込み（`stage: requested`）と確認（`stage: confirmed`）を `user.register` に記録します。メールアドレスとトークンは記録しません（[監査ログ](audit.md)）。
+- **ログチャネル**: `channels = ["log"]` では確認メールの本文（確認リンクを含む）がサーバーのログに出ます。本番ではメールを使ってください。プラグインの通知チャネル（`plugin:<名前>`）にも確認メールが渡るので、Slack などに送るプラグインでは `account.verify` を送らないよう設定してください（`official-order-notifier` なら `channel_kinds`）。
