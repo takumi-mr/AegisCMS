@@ -9,6 +9,10 @@ use uuid::Uuid;
 pub enum AuditAction {
     #[serde(rename = "content.create")]
     ContentCreate,
+    #[serde(rename = "content.update")]
+    ContentUpdate,
+    #[serde(rename = "content.delete")]
+    ContentDelete,
     #[serde(rename = "session.create")]
     SessionCreate,
     #[serde(rename = "session.delete")]
@@ -36,11 +40,19 @@ pub enum AuditAction {
     /// User account deleted via the user management API
     #[serde(rename = "user.delete")]
     UserDelete,
+    /// EC order placed (checkout)
+    #[serde(rename = "order.create")]
+    OrderCreate,
+    /// EC order status changed (payment, shipping, cancellation, expiry) or a payment problem
+    #[serde(rename = "order.update")]
+    OrderUpdate,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 12] = [
+    pub const ALL: [AuditAction; 16] = [
         Self::ContentCreate,
+        Self::ContentUpdate,
+        Self::ContentDelete,
         Self::SessionCreate,
         Self::SessionDelete,
         Self::StorageUpload,
@@ -52,11 +64,15 @@ impl AuditAction {
         Self::UserCreate,
         Self::UserUpdate,
         Self::UserDelete,
+        Self::OrderCreate,
+        Self::OrderUpdate,
     ];
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::ContentCreate => "content.create",
+            Self::ContentUpdate => "content.update",
+            Self::ContentDelete => "content.delete",
             Self::SessionCreate => "session.create",
             Self::SessionDelete => "session.delete",
             Self::StorageUpload => "storage.upload",
@@ -68,6 +84,8 @@ impl AuditAction {
             Self::UserCreate => "user.create",
             Self::UserUpdate => "user.update",
             Self::UserDelete => "user.delete",
+            Self::OrderCreate => "order.create",
+            Self::OrderUpdate => "order.update",
         }
     }
 }
@@ -247,7 +265,7 @@ mod tests {
                 serde_json::json!(action.as_str())
             );
         }
-        assert!("content.delete".parse::<AuditAction>().is_err());
+        assert!("content.archive".parse::<AuditAction>().is_err());
     }
 
     #[test]

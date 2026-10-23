@@ -385,6 +385,22 @@ impl ThemeEngine {
             },
         );
 
+        // 最小単位の整数の金額を通貨の表記にする（`{{ fields.price | money("jpy") }}` → `¥1,200`）
+        env.add_filter(
+            "money",
+            |val: minijinja::Value, currency: Option<&str>| -> String {
+                let currency = currency.unwrap_or("jpy");
+                match i64::try_from(val.clone()) {
+                    Ok(amount) => aegis_core::format_money(amount, currency),
+                    // カスタムフィールドは文字列で返ることもある
+                    Err(_) => match val.as_str().and_then(|s| s.trim().parse::<i64>().ok()) {
+                        Some(amount) => aegis_core::format_money(amount, currency),
+                        None => String::new(),
+                    },
+                }
+            },
+        );
+
         // `[server].base_path` の正規化済みの値（URL で安全な文字のみ）なので自動エスケープ（`/` → `&#x2f;`）しない
         env.add_global("base_path", minijinja::Value::from_safe_string(base_path));
 
@@ -419,6 +435,11 @@ impl ThemeEngine {
                     "article.html" => Ok(Some(ARTICLE_TEMPLATE.to_string())),
                     "page.html" => Ok(Some(PAGE_TEMPLATE.to_string())),
                     "404.html" => Ok(Some(NOT_FOUND_TEMPLATE.to_string())),
+                    "shop_common.html" => Ok(Some(SHOP_COMMON_TEMPLATE.to_string())),
+                    "products.html" => Ok(Some(PRODUCTS_TEMPLATE.to_string())),
+                    "product.html" => Ok(Some(PRODUCT_TEMPLATE.to_string())),
+                    "cart.html" => Ok(Some(CART_TEMPLATE.to_string())),
+                    "order.html" => Ok(Some(ORDER_TEMPLATE.to_string())),
                     _ => Ok(None),
                 }
             },

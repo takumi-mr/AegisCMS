@@ -141,6 +141,47 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
   - `0`: 成功 (Ok)
   - `1`: 権限不足 (Denied: マニフェストに storage 権限が未宣言)
   - `2`: エラー (Internal Error: メモリアクセス失敗やロック競合)
+- 値はサーバーの `[cache]` バックエンドに保存されます（`redis` なら再起動後も残る）。
+
+### 3.4 ゲストメモリへ結果を返すインポートの共通規約
+
+`kv_get` / `http_fetch` / `config_get` は結果の長さが事前に分からないため、ホストがゲストの `allocate` エクスポートを呼んで領域を確保し、そこへ UTF-8 の結果を書き込んで `(ptr << 32) | len` の `i64` を返します。ゲストは読み終えたら領域を解放します（Rust SDK の `abi::read_bytes_from_host`）。`0` は「値なし」、負の値はエラーです。
+
+### 3.5 `host.kv_get`
+
+```text
+(import "host" "kv_get" (func (param i32 i32) (result i64)))
+```
+
+- **引数**: キー文字列 (UTF-8) の `ptr`, `len`（ネームスペースはホストが付ける）
+- **戻り値** (i64): 値の `(ptr << 32) | len`、未設定なら `0`、権限不足（storage 未宣言）は `-1`、エラーは `-2`
+
+### 3.6 `host.http_fetch`
+
+`allowed_domains` で許可された宛先へ HTTP リクエストを送ります。
+
+```text
+(import "host" "http_fetch" (func (param i32 i32) (result i64)))
+```
+
+- **引数**: リクエスト JSON の `ptr`, `len`
+  ```json
+  { "method": "POST", "url": "https://hooks.slack.com/services/…",
+    "headers": { "Content-Type": "application/json" }, "body": "{\"text\":\"hi\"}" }
+  ```
+- **戻り値** (i64): 応答 JSON `{"status": 200, "headers": {"content-type": "…"}, "body": "…"}`、または失敗時 `{"error": "<理由>"}` の `(ptr << 32) | len`（書き込めなければ `0`）
+- **制限**: メソッドは GET / POST / PUT / PATCH / DELETE、リダイレクトは追わない、本文は送受信とも 1 MiB、1 回 10 秒、1 回のフック呼び出しで 8 回まで。待ち時間はフックの `execution_timeout_ms` に含まれる
+
+### 3.7 `host.config_get`
+
+サーバーの `[plugins.settings.<プラグイン名>]` の値を読みます。
+
+```text
+(import "host" "config_get" (func (param i32 i32) (result i64)))
+```
+
+- **引数**: キー文字列の `ptr`, `len`
+- **戻り値** (i64): 値（文字列はそのまま、それ以外は JSON）の `(ptr << 32) | len`、未設定なら `0`
 
 ---
 
@@ -195,6 +236,20 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
   - ログイン拒否時: エラーエンベロープ `{"error": "<拒否理由メッセージ>"}`。API は `403 Forbidden` を返します
 - **注意事項**:
   - `role` は `admin` / `editor` / `viewer` のいずれか。それ以外やトラップ・タイムアウトもログイン失敗になります（安全側に倒す）。
+
+### 4.5 `calculate_order`
+
+EC のカートの見積もり・注文の確定時に呼び出されます（[プラグインフック 1.5](plugin_hooks.md#15-calculate-order)）。
+
+- **入力**: `OrderContext` の JSON（[プラグインフック 2.5](plugin_hooks.md#25-ordercontext--orderstatuschange)）
+- **戻り値**: 変更後の `OrderContext`（反映されるのは `adjustments` と `metadata` のみ。`{"adjustments": [...]}` だけを返してもよい）、または注文を断るエラーエンベロープ `{"error": "<顧客に見せる理由>"}`
+
+### 4.6 `on_order_status_changed`
+
+注文の作成・状態の変化の後に呼び出されます。
+
+- **入力**: `OrderStatusChange` の JSON
+- **戻り値**: `0`（成功）、または `{"error": "..."}`（ログと監査ログに残るだけで、注文には影響しない）
 
 ---
 

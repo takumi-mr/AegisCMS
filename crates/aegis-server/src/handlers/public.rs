@@ -13,7 +13,7 @@ use aegis_core::{ContentSummary, PageRenderContext, Pagination};
 use serde::Deserialize;
 
 /// ブロックノードから先頭段落を抽出して抜粋を生成
-fn extract_excerpt(blocks: &[BlockNode], max_chars: usize) -> String {
+pub(crate) fn extract_excerpt(blocks: &[BlockNode], max_chars: usize) -> String {
     for block in blocks {
         if block.name == "core/paragraph" {
             if let Some(ref text) = block.text {
@@ -224,7 +224,7 @@ pub async fn render_article(
 }
 
 /// Turns a rendered page (or a template error) into the HTTP response
-fn themed_response(result: Result<String, String>) -> Response {
+pub(crate) fn themed_response(result: Result<String, String>) -> Response {
     match result {
         Ok(html) => (StatusCode::OK, Html(html)).into_response(),
         Err(e) => {

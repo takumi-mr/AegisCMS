@@ -161,3 +161,56 @@ pub fn unpack_ptr_len(packed: i64) -> (i32, i32) {
     let len = (packed & 0xFFFF_FFFF) as i32;
     (ptr, len)
 }
+
+/// オブジェクトを受け取って返すフックの共通処理: 入力を読み、`f` の結果を書き戻す。
+/// `Err` は `{"error": ...}`（ホストは処理を断る）
+///
+/// # Safety
+/// `ptr` / `len` はホストが `allocate` で確保して書き込んだ領域であること
+pub unsafe fn run_object_hook<I, O>(
+    ptr: i32,
+    len: i32,
+    type_name: &str,
+    f: impl FnOnce(I) -> crate::types::Result<O>,
+) -> i64
+where
+    I: serde::de::DeserializeOwned,
+    O: serde::Serialize,
+{
+    let in_bytes = read_bytes_from_host(ptr, len);
+    let input: I = match serde_json::from_slice(&in_bytes) {
+        Ok(input) => input,
+        Err(e) => return write_error_to_host(&format!("Invalid {}: {}", type_name, e)),
+    };
+    match f(input) {
+        Ok(output) => match serde_json::to_vec(&output) {
+            Ok(bytes) => write_bytes_to_host(bytes),
+            Err(e) => write_error_to_host(&format!("Failed to serialize {}: {}", type_name, e)),
+        },
+        Err(e) => write_error_to_host(&e.to_string()),
+    }
+}
+
+/// 結果を返さない通知フックの共通処理（成功なら 0、`Err` なら `{"error": ...}`）
+///
+/// # Safety
+/// `ptr` / `len` はホストが `allocate` で確保して書き込んだ領域であること
+pub unsafe fn run_notification_hook<I>(
+    ptr: i32,
+    len: i32,
+    type_name: &str,
+    f: impl FnOnce(I) -> crate::types::Result<()>,
+) -> i64
+where
+    I: serde::de::DeserializeOwned,
+{
+    let in_bytes = read_bytes_from_host(ptr, len);
+    let input: I = match serde_json::from_slice(&in_bytes) {
+        Ok(input) => input,
+        Err(e) => return write_error_to_host(&format!("Invalid {}: {}", type_name, e)),
+    };
+    match f(input) {
+        Ok(()) => 0,
+        Err(e) => write_error_to_host(&e.to_string()),
+    }
+}

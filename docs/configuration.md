@@ -166,6 +166,16 @@ public_url_prefix = "https://cdn.example.com"
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `enabled` | array of string | `[]` | 有効にするプラグイン名（マニフェストの `name` = `plugins_dir` 直下のディレクトリ名）。フックはこの順に実行される |
+| `settings.<name>` | table | なし | プラグインごとの設定値。プラグインは `host.config_get`（SDK の `config::get`）で読む。文字列の値 `env:NAME` は環境変数 `NAME` の値になる（API キーなどを設定ファイルに書かないため） |
+
+```toml
+[plugins]
+enabled = ["official-shop-rules"]
+
+[plugins.settings.official-shop-rules]
+shipping_fee = 600
+coupons = "WELCOME10:10%"
+```
 
 - 列挙したプラグインが未インストール・読み込めない（マニフェストの不備、ホストに無い関数のインポートなど）場合、名前の形式が不正・重複している場合は**サーバーが起動しません**。
 - `[runtime].enable_wasm_plugins = false` の場合は読み込みません。
@@ -230,6 +240,38 @@ public_url_prefix = "https://cdn.example.com"
 
 > [!NOTE]
 > `client_secret` は設定ファイルに平文で書くため、ファイルの権限を制限してください。
+
+### 2.11 `[commerce]` — EC
+
+カート・注文・在庫・決済（[EC ドキュメント](./commerce.md)）。`enabled = true` で設定が不正な場合（通貨コードの形式、Stripe のキーが無いなど）や商品スキーマに `price`（integer）が無い場合はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` でカート・注文を有効化（無効でも商品一覧・商品ページは表示される） |
+| `product_type` | string | `"product"` | 商品のコンテンツタイプ |
+| `currency` | string | `"jpy"` | ISO 4217 の通貨コード（小文字）。金額はすべてこの通貨の最小単位の整数 |
+| `public_url` | string | `""` | 公開サイトの URL（決済後の戻り先。サブパス運用なら `base_path` 込み）。空ならリクエストの Host（`trust_forwarded_for` なら `X-Forwarded-Host` / `-Proto`）から |
+| `provider` | string | `"manual"` | `manual`（銀行振込・代引きなど。管理者が入金を確認）または `stripe` |
+| `reservation_minutes` | integer | `60` | Stripe の決済ページの有効期限 = 在庫を確保しておく時間（Stripe では 30〜1440） |
+| `max_quantity_per_item` | integer | `99` | 1 商品あたりの最大数量 |
+| `max_items` | integer | `50` | 1 注文の最大商品数 |
+| `max_orders_per_ip_per_hour` | integer | `20` | 同じ IP からの 1 時間あたりの注文数（0 で無制限。`[cache]` で数える） |
+
+#### `[commerce.manual]`
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `instructions` | string | 案内文 | 注文確認ページに表示する支払い方法の案内（振込先など） |
+| `payment_due_hours` | integer | `72` | 未払いの注文を取り消して在庫を戻すまでの時間 |
+
+#### `[commerce.stripe]`
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `secret_key` | string | `""` | シークレットキー。空なら環境変数 `AEGIS_STRIPE_SECRET_KEY` |
+| `webhook_secret` | string | `""` | Webhook の署名シークレット（`whsec_...`）。空なら環境変数 `AEGIS_STRIPE_WEBHOOK_SECRET` |
+| `api_base` | string | `"https://api.stripe.com"` | API の URL（テスト用） |
+| `async_payment_due_hours` | integer | `72` | コンビニ払いなど後払いの支払い期限（その間は在庫を確保したまま） |
 
 ---
 
@@ -325,6 +367,27 @@ role_claim = ""
 post_login_redirect = "/admin/"
 
 [auth.oidc.role_mapping]
+
+[commerce]
+enabled = false
+product_type = "product"
+currency = "jpy"
+public_url = ""
+provider = "manual"
+reservation_minutes = 60
+max_quantity_per_item = 99
+max_items = 50
+max_orders_per_ip_per_hour = 20
+
+[commerce.manual]
+instructions = "ご注文ありがとうございます。お支払い方法はメールでご案内します。"
+payment_due_hours = 72
+
+[commerce.stripe]
+secret_key = ""
+webhook_secret = ""
+api_base = "https://api.stripe.com"
+async_payment_due_hours = 72
 ```
 
 ---

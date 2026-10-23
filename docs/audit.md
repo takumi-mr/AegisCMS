@@ -40,17 +40,21 @@ purge_interval_secs = 3600
 | `action` | 記録タイミング | `outcome` | `resource_type` / `resource_id` | 主な `details` |
 | --- | --- | --- | --- | --- |
 | `content.create` | `POST /api/v1/contents/{content_type}` | `success` / `denied`（`on-before-save` フックが拒否・失敗）/ `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `status`, `reason` / `error` |
+| `content.update` | `PUT /api/v1/contents/{content_type}/{slug}` | `content.create` と同じ | `content` / コンテンツ ID | `content.create` と同じ |
+| `content.delete` | `DELETE /api/v1/contents/{content_type}/{slug}` | `success` / `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `error` |
 | `session.create` | `POST /api/v1/auth/session`（ログイン） | `success` / `failure`（認証失敗を含む）/ `denied`（ログイン試行のレート制限でロック中、`on-user-authenticated` プラグインが拒否） | `session` / セッション指紋 | `expires_at`, `provider`, `username`（失敗・拒否時）, `error`（失敗理由: `unknown_user` / `invalid_password` / `account_disabled` / `rate_limited` / `plugin_rejected` / `plugin_failed`、SSO の理由（[認証 6.4](authentication.md#64-失敗時の理由login_error監査ログ-sessioncreate-の-error)）など）, `reason`（プラグインの拒否・失敗の内容）, `role_mapped`（プラグインがロールを変えた場合の `from` / `to`）, `locked`（その失敗でロックがかかった単位: `username` / `ip`）, `lock_scope` / `retry_after_secs`（`denied` 時） |
 | `session.delete` | `DELETE /api/v1/auth/session` | `success` / `failure` | `session` / セッション指紋 | `error` |
 | `storage.upload` | `POST /api/v1/storage/upload` | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `original_name`, `content_type`, `size`, `url`, `error` |
 | `storage.delete` | `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md#ファイルの削除--delete-apiv1storageobjectskey)） | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `url`, `force`, `references`（参照元の件数）, `error` |
-| `plugin.error` | Wasm プラグインフックの実行失敗（トラップ、タイムアウト、Fuel 枯渇など） | `failure` | `content` / コンテンツ ID（`on-user-authenticated` では `session` / なし） | `hook`, `content_type` / `username`, `error` |
+| `plugin.error` | Wasm プラグインフックの実行失敗（トラップ、タイムアウト、Fuel 枯渇など） | `failure` | `content` / コンテンツ ID（`on-user-authenticated` では `session` / なし、`on-order-status-changed` では `order` / 注文 ID） | `hook`, `content_type` / `username` / `plugin`, `error` |
 | `audit.purge` | 保持期間切れの監査ログを 1 件以上削除したとき（[5. 保持期間](#5-保持期間と自動削除)） | `success` | `audit_log` / なし | `deleted`, `cutoff`, `retention_days` |
-| `access.denied` | セッションとロールが必要な API（[必要なロール](authentication.md#ロールと-api-の権限)）を、セッション無し・無効（401）またはロール不足（403）で拒否したとき | `denied` | `endpoint` / `メソッド パス`（例: `POST /api/v1/contents/article`。クエリ文字列は含めない） | `reason`（`missing_session` / `invalid_session` / `insufficient_role` / `not_own_account`（他のユーザーのプロフィール・アバターへのアクセス。`resource_type` は `user`））, `required_role`, `session`（無効なトークンの指紋。`invalid_session` のみ） |
+| `access.denied` | セッションとロールが必要な API（[必要なロール](authentication.md#ロールと-api-の権限)）を、セッション無し・無効（401）またはロール不足（403）で拒否したとき | `denied` | `endpoint` / `メソッド パス`（例: `POST /api/v1/contents/article`。クエリ文字列は含めない） | `reason`（`missing_session` / `invalid_session` / `insufficient_role` / `not_own_account`（他のユーザーのプロフィール・アバターへのアクセス。`resource_type` は `user`）/ `invalid_webhook_signature`（決済の Webhook の署名が不正））, `required_role`, `session`（無効なトークンの指紋。`invalid_session` のみ） |
 | `theme.switch` | `PUT /api/v1/themes/active` | `success` | なし | `from_theme`, `to_theme` |
 | `user.create` | `POST /api/v1/users`（[ユーザー管理 API](authentication.md#3-ユーザー管理-api)） | `success` / `failure`（DB エラー） | `user` / ユーザー名 | `role`, `error` |
 | `user.update` | `PATCH /api/v1/users/{username}`、`PUT` / `DELETE /api/v1/users/{username}/avatar` | `success` / `failure` | `user` / ユーザー名 | `changed`（実際に変わった項目: `email` / `display_name` / `role` / `disabled` / `password` / `avatar`。パスワードの値は残さない）, `role`（`from` / `to`）, `disabled`, `avatar_key`, `size`, `error` |
 | `user.delete` | `DELETE /api/v1/users/{username}` | `success` / `failure` | `user` / ユーザー名 | `role`, `error` |
+| `order.create` | `POST /api/v1/shop/checkout`（[EC](commerce.md)） | `success` | `order` / 注文 ID | `number`, `total`, `currency`, `items`, `provider` |
+| `order.update` | 注文の状態の変化（管理者の操作、決済の Webhook、期限切れ）、決済の問題 | `success` / `failure`（金額の不一致 `amount_mismatch`、取り消し後の入金 `paid_after_cancel`） | `order` / 注文 ID | `number`, `from`, `to`, `source`（`admin` / `payment_webhook` / `payment_expired` / `payment_failed` / `expired` / `payment_start_failed`）, `restocked`, `note`, `problem`, `event_id` |
 
 - 入力不備（必須フィールド欠落、存在しないスキーマなど）で処理に入る前に弾かれたリクエストは記録しません。
 - `on-before-save` フックが失敗した場合（トラップ、タイムアウトなど）は、`plugin.error` と `content.create`（`denied`）の 2 件が記録されます。プラグインが `Err` を返して保存を拒否した場合はプラグインの失敗ではないため、`content.create`（`denied`。`reason` に拒否理由）の 1 件だけです。

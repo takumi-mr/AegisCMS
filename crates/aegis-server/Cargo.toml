@@ -29,6 +29,7 @@ clap.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 anyhow.workspace = true
+thiserror.workspace = true
 async-trait.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
 sha2 = "0.10"
@@ -41,6 +42,7 @@ jsonwebtoken = { version = "9.3", optional = true }
 base64 = { version = "0.22", optional = true }
 
 [dev-dependencies]
+toml = "0.8"
 # Test-only signing keys for the mock OIDC provider
 p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem", "jwk"] }
 rand_core = { version = "0.6", features = ["getrandom"] }

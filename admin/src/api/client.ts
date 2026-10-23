@@ -7,10 +7,14 @@ import type {
   CreateContentPayload,
   CreateUserPayload,
   ObjectReference,
+  Order,
+  OrderPage,
+  OrderStatus,
   PreviewRequest,
   PreviewResult,
   SchemaDefinition,
   SessionInfo,
+  ShopConfig,
   StorageMeta,
   StorageObjectPage,
   StorageObjectQuery,
@@ -186,6 +190,67 @@ export const aegisApi = {
         body: JSON.stringify(payload),
       },
       'Failed to save content'
+    );
+  },
+
+  /** Overwrites a saved content item (same body as create; plugins run again) */
+  async updateContent(
+    contentType: string,
+    idOrSlug: string,
+    payload: CreateContentPayload | CreateCategoryPayload | Record<string, unknown>
+  ): Promise<ContentItem> {
+    return request(
+      `/contents/${contentType}/${encodeURIComponent(idOrSlug)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      'Failed to save content'
+    );
+  },
+
+  async deleteContent(contentType: string, idOrSlug: string): Promise<void> {
+    const token = getSessionToken();
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/contents/${contentType}/${encodeURIComponent(idOrSlug)}`, {
+      method: 'DELETE',
+      headers,
+    });
+    if (res.ok) return;
+    if (res.status === 401 && token) unauthorizedHandler?.();
+    const err = await res.json().catch(() => ({ error: 'Failed to delete content' }));
+    throw new ApiError(res.status, err.error || 'Failed to delete content');
+  },
+
+  async getShopConfig(): Promise<ShopConfig> {
+    return request('/shop/config', {}, 'Failed to fetch the shop settings');
+  },
+
+  /** Shop orders, newest first (404 when [commerce] is disabled) */
+  async listOrders(query: {
+    status?: OrderStatus | '';
+    limit?: number;
+    offset?: number;
+  }): Promise<OrderPage> {
+    return request(`/orders?${toQuery(query)}`, {}, 'Failed to fetch orders');
+  },
+
+  async getOrder(id: string): Promise<Order> {
+    return request(`/orders/${encodeURIComponent(id)}`, {}, 'Failed to fetch the order');
+  },
+
+  /** Marks an order paid / shipped / completed / cancelled (cancelling before shipping returns stock) */
+  async updateOrderStatus(id: string, status: OrderStatus, note?: string): Promise<Order> {
+    return request(
+      `/orders/${encodeURIComponent(id)}/status`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, note }),
+      },
+      'Failed to update the order'
     );
   },
 

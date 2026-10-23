@@ -1,5 +1,15 @@
 import React from 'react';
-import { Activity, Send, PenSquare, ScrollText, LogOut, Palette, Users } from 'lucide-react';
+import {
+  Activity,
+  Send,
+  PenSquare,
+  ScrollText,
+  LogOut,
+  Palette,
+  Users,
+  Package,
+  ShoppingBag,
+} from 'lucide-react';
 import type { SessionInfo, UserAccount } from '../types';
 import { cx } from '../utils/cx';
 import { displayNameOf } from '../utils/roles';
@@ -13,7 +23,7 @@ const ROLE_BADGE: Record<string, string | undefined> = {
   editor: styles.roleEditor,
 };
 
-export type AppView = 'editor' | 'audit' | 'themes' | 'users';
+export type AppView = 'editor' | 'audit' | 'themes' | 'users' | 'products' | 'orders';
 
 interface HeaderProps {
   view: AppView;
@@ -66,6 +76,24 @@ export const Header: React.FC<HeaderProps> = ({
             <PenSquare size={14} />
             <span>Editor</span>
           </button>
+          {canSave && (
+            <>
+              <button
+                className={cx(styles.tab, view === 'products' && styles.active)}
+                onClick={() => onViewChange('products')}
+              >
+                <Package size={14} />
+                <span>Products</span>
+              </button>
+              <button
+                className={cx(styles.tab, view === 'orders' && styles.active)}
+                onClick={() => onViewChange('orders')}
+              >
+                <ShoppingBag size={14} />
+                <span>Orders</span>
+              </button>
+            </>
+          )}
           <button
             className={cx(styles.tab, view === 'themes' && styles.active)}
             onClick={() => onViewChange('themes')}

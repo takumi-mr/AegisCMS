@@ -4,8 +4,11 @@ pub mod prelude;
 pub mod types;
 
 pub use aegis_plugin_macros::aegis_plugin;
-pub use host::{kv, log, net};
-pub use types::{BlockNode, Plugin, PluginError, PostContext, Result, UserAuthContext};
+pub use host::{config, http, kv, log, net};
+pub use types::{
+    BlockNode, OrderAdjustment, OrderContext, OrderLine, OrderStatusChange, Plugin, PluginError,
+    PostContext, Result, ShippingAddress, UserAuthContext,
+};
 
 /// 宣言的マクロによる Wasm プラグイン登録
 /// `#[aegis_plugin]` 属性マクロと同等の ABI エクスポートを生成します。
@@ -124,6 +127,39 @@ macro_rules! register_plugin {
                         $crate::abi::pack_ptr_len(ptr, len)
                     }
                 }
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn calculate_order(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                $crate::abi::run_object_hook(
+                    ptr,
+                    len,
+                    "OrderContext",
+                    |ctx: $crate::types::OrderContext| {
+                        let mut plugin = <$plugin_type as ::std::default::Default>::default();
+                        <$plugin_type as $crate::types::Plugin>::calculate_order(&mut plugin, ctx)
+                    },
+                )
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn on_order_status_changed(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                $crate::abi::run_notification_hook(
+                    ptr,
+                    len,
+                    "OrderStatusChange",
+                    |change: $crate::types::OrderStatusChange| {
+                        let mut plugin = <$plugin_type as ::std::default::Default>::default();
+                        <$plugin_type as $crate::types::Plugin>::on_order_status_changed(
+                            &mut plugin,
+                            change,
+                        )
+                    },
+                )
             }
         }
 

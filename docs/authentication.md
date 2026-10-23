@@ -31,11 +31,13 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
 | `POST /api/v1/auth/session`（ログイン）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッションで判定） |
 | `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#6-シングルサインオン-openid-connect)） | 不要 |
+| ショップ（`/products`, `/cart`, `/orders/{id}`, `/shop/cart.js`, `/api/v1/shop/*`。[EC](commerce.md#61-公開ログイン不要)） | 不要（注文確認はトークン、Webhook は署名で確認） |
 | `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}` | `viewer` |
 | `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
 | `GET /api/v1/storage/objects` | `viewer` |
 | `POST /api/v1/preview`（エディタのプレビュー。保存しない） | `viewer` |
-| `POST /api/v1/contents/{type}` | `editor` |
+| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug または id}` | `editor` |
+| `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `POST /api/v1/orders/{id}/status`（[EC](commerce.md#62-管理editor-以上)） | `editor` |
 | `POST /api/v1/storage/upload`, `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md)） | `editor` |
 | `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`（[ユーザー管理 API](#3-ユーザー管理-api)） | 本人（`viewer` 以上）か `admin` |
 | `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}` | `admin` |

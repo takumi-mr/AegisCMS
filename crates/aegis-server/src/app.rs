@@ -36,7 +36,9 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         )
         .route(
             "/api/v1/contents/{content_type}/{slug}",
-            get(handlers::get_content),
+            get(handlers::get_content)
+                .put(handlers::update_content)
+                .delete(handlers::delete_content),
         )
         .route(
             "/api/v1/storage/upload",
@@ -77,6 +79,21 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 .delete(handlers::delete_avatar)
                 .layer(DefaultBodyLimit::max(handlers::users::MAX_AVATAR_BYTES + 64 * 1024)),
         )
+        // --- EC（[commerce]） ---
+        .route("/api/v1/shop/config", get(handlers::shop_config))
+        .route("/api/v1/shop/quote", post(handlers::quote))
+        .route("/api/v1/shop/checkout", post(handlers::checkout))
+        .route("/api/v1/shop/orders/{id}", get(handlers::get_public_order))
+        .route(
+            "/api/v1/shop/webhooks/{provider}",
+            post(handlers::payment_webhook),
+        )
+        .route("/api/v1/orders", get(handlers::list_orders))
+        .route("/api/v1/orders/{id}", get(handlers::get_order))
+        .route(
+            "/api/v1/orders/{id}/status",
+            post(handlers::update_order_status),
+        )
         .route("/api/v1/plugins", get(handlers::list_plugins))
         .route("/api/v1/themes", get(handlers::list_themes))
         .route(
@@ -100,6 +117,11 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/", get(handlers::render_index))
         .route("/articles", get(handlers::render_index))
         .route("/articles/{slug}", get(handlers::render_article))
+        .route("/products", get(handlers::render_products))
+        .route("/products/{slug}", get(handlers::render_product))
+        .route("/cart", get(handlers::render_cart))
+        .route("/orders/{id}", get(handlers::render_order))
+        .route("/shop/cart.js", get(handlers::cart_script))
         .route("/{slug}", get(handlers::render_page_or_slug));
 
     // ローカルストレージの場合、/uploads で静的ファイル配信

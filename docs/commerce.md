@@ -1,0 +1,285 @@
+# EC（ショップ機能）
+
+AegisCMS にはカート・注文・在庫・決済の機能があります（`[commerce]`）。商品は普通のコンテンツ（`product` スキーマ）として Admin Studio で管理し、公開サイトに商品一覧・商品ページ・カート・注文確認ページが加わります。送料・税・クーポンや注文の通知は Wasm プラグインで差し替えられます。
+
+```text
+ 商品（product コンテンツ）──▶ /products, /products/{slug}
+        │                          │ カートに追加（ブラウザの localStorage）
+        │                          ▼
+        │                 /cart ── POST /api/v1/shop/quote ── calculate-order プラグイン（送料・税・割引）
+        │                          │
+        │                          ▼ POST /api/v1/shop/checkout
+        │                 価格をサーバーで計算 → 在庫を確保して注文を作成（1 トランザクション）
+        │                          │
+        │          ┌───────────────┴───────────────┐
+        │     manual（振込・代引き）            stripe（Stripe Checkout）
+        │     注文確認ページに支払い案内        決済ページへ → Webhook で入金を確認
+        │          └───────────────┬───────────────┘
+        ▼                          ▼
+  Admin Studio「Orders」: 支払い済み → 発送 → 完了 / 取り消し（在庫を戻す）
+                                   │
+                         on-order-status-changed プラグイン（Slack 通知など）
+```
+
+---
+
+## 1. 有効にする
+
+```toml
+[commerce]
+enabled = true
+currency = "jpy"            # ISO 4217（小文字）。金額はすべてこの通貨の最小単位の整数（JPY なら円）
+provider = "manual"         # "manual"（銀行振込・代引き）または "stripe"
+# public_url = "https://shop.example.com"   # 決済後の戻り先。空ならリクエストの Host から
+
+[commerce.manual]
+instructions = "下記口座にお振り込みください: ○○銀行 ○○支店 普通 1234567"
+payment_due_hours = 72      # 未払いの注文を取り消して在庫を戻すまでの時間
+```
+
+- 商品のスキーマ（既定 `product`、`[commerce].product_type`）には `price`（integer、必須）が必要です。`stock`（integer）があれば在庫を数えます。同梱の [`schemas/products.yaml`](../schemas/products.yaml) をそのまま使えます。起動時に確かめ、足りなければ起動しません。
+- `[commerce].enabled = false` でも商品一覧・商品ページは表示されます（カートは無効）。商品の `buy_url` に外部の決済リンク（Stripe Payment Links など）を入れると「Buy now」ボタンになります。
+
+設定項目の一覧は [設定リファレンス](configuration.md#211-commerce--ec) を参照してください。
+
+---
+
+## 2. 商品
+
+Admin Studio の **Products** タブ（`editor` 以上）で作成・編集・削除します。
+
+| フィールド | 内容 |
+| --- | --- |
+| `price` | 販売価格（通貨の最小単位の整数。JPY なら円）。税込みで運用する場合は税込み価格 |
+| `compare_at_price` | 値引き前の価格（表示のみ。打ち消し線） |
+| `stock` | 在庫数。空なら在庫を数えない（無制限） |
+| `sku` / `image_url` / `excerpt` / `category_id` | 品番・画像（メディアライブラリから選択）・一覧用の要約・カテゴリ |
+| `buy_url` | `[commerce]` を使わずに外部で販売する場合のリンク |
+| 本文（ブロック） | 商品ページの説明。Admin Studio では Markdown で入力 |
+
+- 注文できるのは `published` の商品だけです。
+- 商品を削除しても、過去の注文には注文時の商品名・単価が残ります。
+- API では `POST /api/v1/contents/product`（作成）、`PUT` / `DELETE /api/v1/contents/product/{id または slug}`（更新・削除）です（[コンテンツ API](authentication.md#ロールと-api-の権限)）。`PUT` は全体の置き換えで、省略したフィールドは空になります（`stock` を省略すると在庫を数えない商品になる）。
+- 注文で在庫は随時減るため、在庫を変えずに商品を保存するときは最新の `stock` を送ってください。Admin Studio は在庫の欄を編集していなければ、保存の直前に最新の在庫を読み直して送ります。
+
+### 公開サイトのページ
+
+| URL | テンプレート | 内容 |
+| --- | --- | --- |
+| `/products`（`?page=N`） | `products.html` | 公開中の商品一覧（`[theme].posts_per_page` 件ずつ） |
+| `/products/{slug}` | `product.html` | 商品ページ（数量・カートに追加） |
+| `/cart` | `cart.html` | カート・クーポン・購入手続き |
+| `/orders/{id}?token=...` | `order.html` | 注文確認（顧客用。URL のトークンが必要） |
+
+テーマにこれらのテンプレートが無ければ組み込みのテンプレートを使います（テーマの `base.html` の中に表示されます）。独自に作る場合は [5. テーマのカスタマイズ](#5-テーマのカスタマイズ) を参照してください。`/products`・`/cart`・`/orders` は同名の固定ページより優先されます。
+
+---
+
+## 3. 注文と在庫
+
+### 3.1 注文の状態
+
+```text
+pending_payment ──▶ paid ──▶ shipped ──▶ completed
+      │               │
+      └──▶ cancelled ◀┘   （発送前の取り消しは在庫を戻す）
+```
+
+| 状態 | 意味 | 変わるきっかけ |
+| --- | --- | --- |
+| `pending_payment` | 在庫を確保して支払いを待っている | 注文の作成（合計 0 円なら最初から `paid`） |
+| `paid` | 支払い済み | `manual`: Admin Studio の「Mark as paid」/ `stripe`: Webhook のみ |
+| `shipped` | 発送済み | Admin Studio の「Mark as shipped」（メモに追跡番号などを残せる） |
+| `completed` | 完了 | Admin Studio の「Mark as completed」 |
+| `cancelled` | 取り消し | Admin Studio の「Cancel order」、支払い期限切れ、Stripe の期限切れ・失敗 |
+
+- 状態の変更は「今の状態が X のときだけ Y にする」という条件付きの更新です。Webhook の重複・同時の操作で二重に処理されません。
+- `paid` の注文を取り消しても**返金はされません**。決済サービスの管理画面で返金してください。
+
+### 3.2 在庫
+
+- 注文の作成時に、注文の保存と**同じトランザクション**で `stock = stock - 数量`（`stock >= 数量` のときだけ）を実行します。1 つでも足りなければ何も保存せず `409` を返すため、同時に注文されても売り越しません。
+- 発送前（`pending_payment` / `paid`）の取り消しで在庫を戻します。発送後は戻しません。
+- 未払いの注文は期限（`manual`: `payment_due_hours`、`stripe`: `reservation_minutes`）を過ぎると、1 分ごとの処理で取り消して在庫を戻します（決済サービスの通知を待つため 5 分の猶予があります）。複数のサーバーで動かしても、条件付きの更新なので二重に戻りません。
+
+### 3.3 Admin Studio
+
+**Orders** タブ（`editor` 以上）で、状態での絞り込み・注文の詳細（明細・送料などの内訳とそれを加えたプラグイン・配送先・連絡先・決済 ID）・状態の変更ができます。注文には顧客の個人情報が含まれるため、`viewer` には表示しません。
+
+---
+
+## 4. 決済
+
+### 4.1 `manual`（銀行振込・代引きなど）
+
+注文確認ページに `[commerce.manual].instructions` を表示します。入金を確認したら Admin Studio で「Mark as paid」にします。
+
+### 4.2 `stripe`（Stripe Checkout）
+
+カード番号などは Stripe の決済ページで入力され、AegisCMS を通りません。
+
+```toml
+[commerce]
+enabled = true
+provider = "stripe"
+public_url = "https://shop.example.com"
+reservation_minutes = 60     # 決済ページの有効期限（30〜1440 分）
+
+[commerce.stripe]
+# 設定ファイルに書かず、環境変数 AEGIS_STRIPE_SECRET_KEY / AEGIS_STRIPE_WEBHOOK_SECRET でも渡せる
+secret_key = ""
+webhook_secret = ""
+async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期限
+```
+
+1. Stripe ダッシュボードで Webhook エンドポイント `https://shop.example.com/api/v1/shop/webhooks/stripe` を作り、次のイベントを選びます: `checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、`checkout.session.expired`。
+2. 表示された署名シークレット（`whsec_...`）を `webhook_secret` に設定します。
+3. 注文の作成時に Checkout Session を作り、顧客を決済ページへ移動します。支払い後は注文確認ページに戻り、Webhook で `paid` になるとページが自動で更新されます。
+
+- Webhook は署名（`Stripe-Signature`、HMAC-SHA256、時刻の許容差 5 分）を確かめ、注文 ID・Checkout Session ID・**金額と通貨が注文と一致する**ときだけ `paid` にします。不一致は監査ログ `order.update`（`failure`、`problem: amount_mismatch`）に残ります。
+- 期限切れで取り消した後に支払われた場合は `paid_after_cancel` として監査ログとエラーログに残します（返金してください）。
+- 商品と送料などの加算は Stripe の明細に表示します。割引（負の金額）がある場合は、注文全体を 1 行（`Order {番号}`）にまとめます（金額は同じ）。
+- 同じ注文で Checkout Session を二重に作らないよう、`Idempotency-Key` を付けます。Session を作れなかった注文は取り消して在庫を戻し、`502` を返します。
+
+---
+
+## 5. テーマのカスタマイズ
+
+テーマの `templates/` に `products.html` / `product.html` / `cart.html` / `order.html` を置くと、組み込みのものの代わりに使います。組み込みのテンプレートは共通部分を `shop_common.html`（スタイル・ショップのナビゲーション・カートのスクリプト）にまとめています。
+
+テンプレートで使える値:
+
+| 値 | 内容 |
+| --- | --- |
+| `items`（一覧）/ `fields`（商品ページ） | 商品のフィールド（`fields.price` など）。商品ページの `fields.id` は商品 ID |
+| `theme_vars.shop_enabled` | `"true"` / `"false"`（`[commerce].enabled`） |
+| `theme_vars.currency` | 通貨コード |
+| `theme_vars.products_url` / `cart_url` / `shop_api` / `cart_script` | ベースパス込みの URL |
+| `{{ fields.price \| money(theme_vars.currency) }}` | 金額の表示（`¥1,200`、`$12.50`） |
+
+カートのスクリプト（`/shop/cart.js`）は、次の要素を見つけて動きます。
+
+```html
+<script src="{{ theme_vars.cart_script }}" data-api="{{ theme_vars.shop_api }}"
+        data-currency="{{ theme_vars.currency }}" data-cart-url="{{ theme_vars.cart_url }}"
+        data-products-url="{{ theme_vars.products_url }}" data-shop-enabled="{{ theme_vars.shop_enabled }}" defer></script>
+
+<!-- カートに追加するボタン（data-quantity-input は数量の input のセレクタ。省略すると 1） -->
+<button data-aegis-add-to-cart data-product-id="{{ fields.id }}" data-product-slug="{{ slug }}"
+        data-product-title="{{ title }}" data-product-price="{{ fields.price }}">Add to cart</button>
+
+<span data-aegis-cart-count></span>   <!-- カートの数量 -->
+<div id="aegis-cart"></div>            <!-- カートと購入手続き（cart.html） -->
+<div id="aegis-order" data-order-id="{{ slug }}"></div>   <!-- 注文確認（order.html） -->
+```
+
+カートの内容はブラウザの `localStorage`（`aegis.cart.v1`）にあり、表示する価格・合計は必ずサーバーの見積もり（`POST /api/v1/shop/quote`）から取ります。
+
+---
+
+## 6. API
+
+### 6.1 公開（ログイン不要）
+
+| API | 内容 |
+| --- | --- |
+| `GET /api/v1/shop/config` | `{ "enabled", "currency", "product_type", "provider" }` |
+| `POST /api/v1/shop/quote` | 見積もり（何も保存しない） |
+| `POST /api/v1/shop/checkout` | 注文の作成（`201`） |
+| `GET /api/v1/shop/orders/{id}?token=...` | 顧客の注文確認 |
+| `POST /api/v1/shop/webhooks/{provider}` | 決済サービスからの通知（`stripe`） |
+
+見積もり・注文の本文:
+
+```json
+{
+  "items": [{ "product": "ceramic-mug", "quantity": 2 }, { "product": "8f0c…", "quantity": 1 }],
+  "email": "hanako@example.com",
+  "name": "Hanako Yamada",
+  "shipping_address": { "postal_code": "100-0001", "region": "Tokyo", "city": "Chiyoda", "line1": "1-1 Marunouchi" },
+  "coupon_code": "WELCOME10"
+}
+```
+
+- `product` は商品の ID か slug。同じ商品の行はまとめます。`email` / `name` は注文時のみ必須。
+- 注文の応答は `{ "order": {...}, "token": "...", "order_url": "/orders/{id}?token=...", "redirect_url": "https://checkout.stripe.com/..." | null }`。`redirect_url` があればそこへ、無ければ `order_url` へ移動します。`token` は注文確認に必要で、サーバーには SHA-256 だけを保存します（再発行はできません）。
+
+| ステータス | 条件 |
+| --- | --- |
+| `400` | カートが空・数量が 0 や上限（`max_quantity_per_item`）超え・商品数が `max_items` 超え・メールアドレス不正 |
+| `404` | 商品が無い・公開されていない・価格が無い、ショップが無効 |
+| `409` | 在庫不足（`product_id` を含む） |
+| `422` | `calculate-order` プラグインが断った（無効なクーポンなど。`error` は顧客に見せるメッセージ） |
+| `429` | 同じ IP からの注文が `max_orders_per_ip_per_hour` を超えた（在庫の買い占め対策） |
+| `502` | 決済サービスで決済を始められなかった（注文は取り消し、在庫は戻る） |
+
+### 6.2 管理（`editor` 以上）
+
+| API | 内容 |
+| --- | --- |
+| `GET /api/v1/orders?status=&limit=&offset=` | 注文の一覧（新しい順、`limit` 既定 50・最大 200）。`{ "orders", "total", "limit", "offset" }` |
+| `GET /api/v1/orders/{id}` | 注文の詳細（顧客のメールアドレス・決済 ID・メモ・`can_mark_paid` を含む） |
+| `POST /api/v1/orders/{id}/status` | `{ "status": "paid" \| "shipped" \| "completed" \| "cancelled", "note": "任意" }`。遷移できなければ `409` |
+
+監査ログには `order.create`（注文）と `order.update`（状態の変化。`from` / `to` / `source`（`admin` / `payment_webhook` / `payment_expired` / `expired` など）/ `restocked`）を記録します。
+
+---
+
+## 7. プラグインで拡張する
+
+| フック | 使いどころ |
+| --- | --- |
+| [`calculate-order`](plugin_hooks.md#15-calculate-order) | 送料・税・クーポン・まとめ買い割引、配送できない地域の拒否、外部の送料 API の呼び出し |
+| [`on-order-status-changed`](plugin_hooks.md#16-on-order-status-changed) | Slack・メール配信サービス・会計ソフト・在庫管理システムへの連携 |
+
+プラグインは価格・明細を変えられず（`adjustments` と `metadata` だけ）、合計はホストが計算し直します。外部サービスとの通信には `http::fetch`（`allowed_domains` の宛先のみ）、API キーには `[plugins.settings.<name>]` と `env:` を使います（[ホスト API](plugin_hooks.md#5-ホスト-api)）。
+
+### 7.1 公式プラグイン
+
+#### `official-shop-rules`（送料・クーポン・税）
+
+```toml
+[plugins]
+enabled = ["official-shop-rules"]
+
+[plugins.settings.official-shop-rules]
+shipping_fee = 600              # 送料（未設定なら送料の行を付けない）
+free_shipping_over = 10000      # 割引後の商品合計がこれ以上なら送料無料
+shipping_label = "送料"
+coupons = "WELCOME10:10%:100,SAVE500:500"   # コード:割引（% または金額）:利用回数の上限（任意）
+tax_rate_percent = 0            # 価格が税抜きの場合の税率（0 なら税の行を付けない）
+tax_label = "消費税"
+```
+
+利用回数の上限があるクーポンは、支払い済みになった注文の数を KV ストア（`[cache]`）に数えます。`[cache].backend = "memory"` では再起動でリセットされるため、上限を使う場合は `redis` にしてください。
+
+#### `official-order-notifier`（Slack / Webhook 通知）
+
+```toml
+[plugins]
+enabled = ["official-order-notifier"]
+
+[plugins.settings.official-order-notifier]
+webhook_url = "env:SLACK_WEBHOOK_URL"          # Slack の Incoming Webhook
+notify_on = "pending_payment,paid,cancelled"   # 通知する状態
+format = "slack"                               # "json" なら OrderStatusChange をそのまま POST
+```
+
+送信先は `plugins/official-order-notifier/plugin.manifest.json` の `allowed_domains`（既定は `hooks.slack.com`）に含まれている必要があります。他のサービスに送る場合はそのドメインを追加してください（マニフェストの変更は信頼できる管理者が行うこと）。
+
+---
+
+## 8. セキュリティと制限事項
+
+- **価格はサーバーが決める**: 単価は注文時に DB の商品から読み、カート（ブラウザ）の値は使いません。プラグインも価格を変えられません。
+- **カード情報を扱わない**: Stripe の決済ページを使い、Webhook は署名と金額を確かめます。
+- **注文確認のトークン**: 注文 ID とトークンの両方が必要で、トークンは推測できない乱数（保存はハッシュのみ）。注文確認ページは `Referrer-Policy: no-referrer` で、トークンを外部に送りません。
+- **在庫の買い占め対策**: 1 商品あたりの数量・商品数・IP ごとの注文数に上限があり、未払いの注文は期限で取り消します。リバースプロキシ配下では `[audit].trust_forwarded_for = true` にしないと全員が同じ IP として数えられます。
+- **個人情報**: 注文の一覧・詳細は `editor` 以上のみ。
+
+現時点の制限:
+
+- 商品のバリエーション（サイズ・色ごとの在庫）、複数通貨、税率の自動判定はありません（バリエーションは別の商品として登録してください）。
+- 顧客アカウント（会員登録・注文履歴）はありません。注文はゲスト購入で、注文確認は URL のトークンで行います。
+- 返金は決済サービスの管理画面で行います（API からの返金はありません）。
+- 注文確認メールは送りません。`official-order-notifier` の `json` 形式や独自プラグインでメール配信サービスに連携してください。

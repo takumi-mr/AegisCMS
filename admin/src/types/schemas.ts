@@ -36,6 +36,46 @@ export interface BaseContentItem {
 // ============================================================================
 
 /**
+ * 固定ページ
+ * 会社概要、利用規約、プライバシーポリシー等の静的・固定ページ
+ * Schema: `page`
+ */
+export interface PageContent {
+  id: string;
+  content_type: 'page';
+  status: ContentStatus;
+  blocks: BlockNode[];
+  rendered_html: string;
+  author_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  title: string;
+  slug: string;
+  layout?: string | null;
+  custom_meta?: Record<string, any>;
+}
+
+export interface CreatePagePayload {
+  title: string;
+  slug: string;
+  status?: ContentStatus;
+  blocks?: BlockNode[];
+  author_id?: string | null;
+  layout?: string | null;
+  custom_meta?: Record<string, any>;
+}
+
+export interface UpdatePagePayload {
+  title?: string;
+  slug?: string;
+  status?: ContentStatus;
+  blocks?: BlockNode[];
+  author_id?: string | null;
+  layout?: string | null;
+  custom_meta?: Record<string, any>;
+}
+
+/**
  * 技術記事
  * 技術ブログ記事やドキュメント向けのスキーマ
  * Schema: `article`
@@ -82,6 +122,64 @@ export interface UpdateArticlePayload {
 }
 
 /**
+ * 商品
+ * EC の商品カタログ。価格・在庫は [commerce] の注文処理で使う（docs/commerce.md）
+ * Schema: `product`
+ */
+export interface ProductContent {
+  id: string;
+  content_type: 'product';
+  status: ContentStatus;
+  blocks: BlockNode[];
+  rendered_html: string;
+  author_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  title: string;
+  slug: string;
+  price: number;
+  compare_at_price?: number | null;
+  stock?: number | null;
+  sku?: string | null;
+  image_url?: string | null;
+  excerpt?: string | null;
+  buy_url?: string | null;
+  category_id?: string | null;
+}
+
+export interface CreateProductPayload {
+  title: string;
+  slug: string;
+  status?: ContentStatus;
+  blocks?: BlockNode[];
+  author_id?: string | null;
+  price?: number;
+  compare_at_price?: number | null;
+  stock?: number | null;
+  sku?: string | null;
+  image_url?: string | null;
+  excerpt?: string | null;
+  buy_url?: string | null;
+  category_id?: string | null;
+}
+
+export interface UpdateProductPayload {
+  title?: string;
+  slug?: string;
+  status?: ContentStatus;
+  blocks?: BlockNode[];
+  author_id?: string | null;
+  price?: number;
+  compare_at_price?: number | null;
+  stock?: number | null;
+  sku?: string | null;
+  image_url?: string | null;
+  excerpt?: string | null;
+  buy_url?: string | null;
+  category_id?: string | null;
+}
+
+/**
  * カテゴリ
  * 記事やコンテンツを分類するためのカテゴリ定義
  * Schema: `category`
@@ -121,62 +219,24 @@ export interface UpdateCategoryPayload {
   color?: string | null;
 }
 
-/**
- * 固定ページ
- * 会社概要、利用規約、プライバシーポリシー等の静的・固定ページ
- * Schema: `page`
- */
-export interface PageContent {
-  id: string;
-  content_type: 'page';
-  status: ContentStatus;
-  blocks: BlockNode[];
-  rendered_html: string;
-  author_id?: string | null;
-  created_at: string;
-  updated_at: string;
-  title: string;
-  slug: string;
-  layout?: string | null;
-  custom_meta?: Record<string, any>;
-}
-
-export interface CreatePagePayload {
-  title: string;
-  slug: string;
-  status?: ContentStatus;
-  blocks?: BlockNode[];
-  author_id?: string | null;
-  layout?: string | null;
-  custom_meta?: Record<string, any>;
-}
-
-export interface UpdatePagePayload {
-  title?: string;
-  slug?: string;
-  status?: ContentStatus;
-  blocks?: BlockNode[];
-  author_id?: string | null;
-  layout?: string | null;
-  custom_meta?: Record<string, any>;
-}
-
 // ============================================================================
 // Union & Type Registry Mappings
 // ============================================================================
 
-export type ContentType = 'article' | 'category' | 'page';
+export type ContentType = 'page' | 'article' | 'product' | 'category';
 
-export type AnyContent = ArticleContent | CategoryContent | PageContent;
+export type AnyContent = PageContent | ArticleContent | ProductContent | CategoryContent;
 
 export interface ContentTypeMap {
-  'article': ArticleContent;
-  'category': CategoryContent;
   'page': PageContent;
+  'article': ArticleContent;
+  'product': ProductContent;
+  'category': CategoryContent;
 }
 
 export interface CreatePayloadMap {
-  'article': CreateArticlePayload;
-  'category': CreateCategoryPayload;
   'page': CreatePagePayload;
+  'article': CreateArticlePayload;
+  'product': CreateProductPayload;
+  'category': CreateCategoryPayload;
 }

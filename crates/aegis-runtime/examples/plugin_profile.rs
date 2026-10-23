@@ -117,7 +117,10 @@ async fn profile_once(
     let kv = Arc::new(Mutex::new(HashMap::new()));
 
     let start = Instant::now();
-    let mut store = Store::new(engine.engine(), PluginHostState::new(manifest.clone(), kv));
+    let mut store = Store::new(
+        engine.engine(),
+        PluginHostState::new(manifest.clone(), kv.into()),
+    );
     store.limiter(|state| &mut state.limits);
     store.set_fuel(manifest.resource_limits.max_fuel_units)?;
     t[0] = start.elapsed();

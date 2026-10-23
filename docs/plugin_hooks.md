@@ -23,6 +23,8 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 | `transform-content-ast` | `transform_content_ast` | `Plugin::transform_content_ast` | `BlockNode[]` | `BlockNode[]` | ✅ 実装済み |
 | `on-before-save` | `on_before_save` | `Plugin::on_before_save` | `PostContext` | `PostContext` | ✅ 実装済み（`title` / `slug` / 本文の変更、保存の拒否） |
 | `on-user-authenticated` | `on_user_authenticated` | `Plugin::on_user_authenticated` | `UserAuthContext` | `UserAuthContext` | ✅ 実装済み（ロールマッピング、属性の補完、ログインの拒否） |
+| `calculate-order` | `calculate_order` | `Plugin::calculate_order` | `OrderContext` | `OrderContext` | ✅ 実装済み（送料・税・割引の追加、注文の拒否。[EC](commerce.md)） |
+| `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange` | なし | ✅ 実装済み（注文の作成・状態の変化の通知） |
 
 - フックを有効にするには、**マニフェストの `capabilities.hooks` にフック名（ケバブケース）を列挙**する必要があります。列挙されていないフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
 - 逆に、マニフェストに列挙されていても該当の関数がエクスポートされていない場合は、入力がそのまま次へ渡されます（エラーにはなりません）。
@@ -120,6 +122,31 @@ fn on_user_authenticated(&mut self, mut ctx: UserAuthContext) -> Result<UserAuth
 }
 ```
 
+### 1.5 `calculate-order`
+
+EC（`[commerce]`、[EC ドキュメント](commerce.md)）のカートの見積もり（`POST /api/v1/shop/quote`）と注文の確定（`POST /api/v1/shop/checkout`）のたびに呼ばれます。送料・税・割引を `adjustments` に加えます。
+
+```rust
+fn calculate_order(&mut self, ctx: OrderContext) -> Result<OrderContext>;
+```
+
+- 入力: `OrderContext`（[2.5](#25-ordercontext--orderstatuschange)）。`lines` の単価・小計はサーバーが商品から決めた値で、`adjustments` には前のプラグインが加えたものが入っています。
+- 出力: `OrderContext`。**変更が反映されるのは `adjustments` と `metadata` だけ**です。`lines`・`subtotal`・`currency`・顧客・クーポンコードを変えても無視され、`total` はホストが `subtotal + adjustments の合計` で計算し直します（プラグインが価格を書き換えることはできません）。
+- プラグインが新しく加えた `adjustments` の `source` にはホストがプラグイン名を入れます。割引は負の金額です。合計が負になる注文は拒否します。
+- **注文の拒否**: `Err(PluginError::Rejected("..."))` を返すと見積もり・注文は `422` になり、メッセージ（プラグイン名は除く）を顧客に表示します。無効なクーポン、配送できない地域などに使います。失敗（トラップ・タイムアウト）は `500` です。
+- 見積もりのたびに呼ばれるため、`http::fetch` で外部の送料 API などを呼ぶ場合は `execution_timeout_ms` を大きくしてください。
+
+### 1.6 `on-order-status-changed`
+
+注文の作成（`from_status` が `None`）と、状態の変化（支払い済み・発送・完了・取り消し・期限切れ）のたびに呼ばれます。Slack・メール配信サービス・会計ソフトなどへの連携に使います。
+
+```rust
+fn on_order_status_changed(&mut self, change: OrderStatusChange) -> Result<()>;
+```
+
+- 状態の変更を保存した**後**に、応答を待たずに（別タスクで）呼ばれます。結果は注文に影響しません。
+- `Err` を返す・失敗した場合は警告ログと監査ログ `plugin.error`（`resource_type: order`）に残ります。ほかのプラグインの呼び出しは続きます。
+
 ---
 
 ## 2. フックに渡されるデータ型
@@ -178,6 +205,37 @@ SDK ヘルパー:
 | `display_name` | string \| null | 表示名 |
 | `role` | string | `admin` / `editor` / `viewer` |
 | `metadata` | object | プロバイダ固有の属性。OIDC では `issuer`、`sub`、`claims`（ID トークンのクレーム。`groups` などのマッピングに使える）、ローカル認証では空 |
+
+### 2.5 `OrderContext` / `OrderStatusChange`
+
+金額はすべて通貨の最小単位の整数です（JPY なら円、USD ならセント）。
+
+```json
+{
+  "order_id": "8f0c…（見積もり中は null）",
+  "order_number": "261023-U6D3F6",
+  "currency": "jpy",
+  "lines": [
+    { "product_id": "…", "slug": "ceramic-mug", "title": "Ceramic Mug", "sku": null,
+      "unit_price": 1200, "quantity": 2, "line_total": 2400 }
+  ],
+  "adjustments": [
+    { "kind": "discount", "label": "Coupon WELCOME10", "amount": -540, "code": "WELCOME10", "source": "official-shop-rules" },
+    { "kind": "shipping", "label": "Shipping", "amount": 600, "code": null, "source": "official-shop-rules" }
+  ],
+  "subtotal": 5400,
+  "total": 5460,
+  "customer_email": "hanako@example.com",
+  "customer_name": "Hanako Yamada",
+  "shipping_address": { "name": "…", "postal_code": "100-0001", "region": "Tokyo", "city": "Chiyoda",
+                        "line1": "1-1 Marunouchi", "line2": "", "phone": "", "country": "JP" },
+  "coupon_code": "WELCOME10",
+  "status": "pending_payment",
+  "metadata": {}
+}
+```
+
+`OrderStatusChange` は `{ "order": OrderContext, "from_status": "pending_payment" | null, "to_status": "paid", "occurred_at": "RFC 3339" }` です。状態は `pending_payment` / `paid` / `shipped` / `completed` / `cancelled`。
 
 ### 2.4 `PluginError`（SDK）
 
@@ -251,6 +309,11 @@ SDK ヘルパー:
 | `net::is_allowed(url) -> bool` | `host.http_check_allowed` | `(ptr: i32, len: i32) -> i32` | `capabilities.network` |
 | `kv::set(key, value) -> Result<()>` | `host.kv_set` | `(k_ptr, k_len, v_ptr, v_len) -> i32` | `capabilities.storage` |
 | `kv::set_json(key, &value) -> Result<()>` | `host.kv_set` | 同上（値を JSON 文字列化） | `capabilities.storage` |
+| `kv::get(key) -> Result<Option<String>>` / `kv::get_json` | `host.kv_get` | `(k_ptr, k_len) -> i64` | `capabilities.storage` |
+| `http::fetch(&Request) -> Result<Response>` | `host.http_fetch` | `(req_ptr, req_len) -> i64` | `capabilities.network` |
+| `config::get(key) -> Option<String>` / `config::get_or(key, default)` | `host.config_get` | `(k_ptr, k_len) -> i64` | なし |
+
+`i64` を返す関数は、ホストがゲストの `allocate` で確保した領域に結果を書き込み、`(ptr << 32) | len` を返します（SDK が読み取って解放します）。
 
 ### 5.1 ログ (`host.log`)
 
@@ -263,9 +326,9 @@ SDK ヘルパー:
 
 ### 5.2 ネットワーク許可チェック (`host.http_check_allowed`)
 
-- `http://` または `https://` で始まる URL のホスト名が `allowed_domains` と完全一致、またはそのサブドメインであれば `1`、それ以外は `0` を返します（比較は大文字・小文字を区別）。
+- `http://` または `https://` の URL のホスト名が `allowed_domains` と完全一致、またはそのサブドメインであれば `1`、それ以外は `0` を返します。ホスト名は HTTP クライアントと同じ URL パーサーで取り出し（大文字・小文字は区別しない）、ユーザー情報（`user@host`）を含む URL は拒否します。
 - `capabilities.network` が未宣言の場合は常に `0` です。
-- **このAPIは許可判定のみを行います。** 現時点ではプラグインから実際に HTTP リクエストを送信するホスト API は提供されていません。
+- 実際に通信するには `host.http_fetch`（[5.5](#55-http-リクエスト-hosthttp_fetch)）を使います。
 
 ### 5.3 KVS 書き込み (`host.kv_set`)
 
@@ -276,7 +339,38 @@ SDK ヘルパー:
 | `2` | メモリ読み取り失敗などのエラー | `Err(PluginError::Host(...))` |
 
 - キーは `{kv_namespace}:{key}` の形でホスト側に保存され、他プラグインのネームスペースとは分離されます。
-- 現状のストアは**サーバープロセス内のメモリ**であり、再起動すると消えます。また**読み取り API (`kv_get`) は未提供**です。
+- 値はサーバーの `[cache]` のバックエンドにキー `plugin-kv:{kv_namespace}:{key}` で保存します（有効期限なし）。`redis` なら再起動後も残り、全サーバーで共有されます。`memory` ではプロセス内にだけあり、再起動で消えます。
+- 読み取りは `host.kv_get`（SDK の `kv::get` / `kv::get_json`）。戻り値は値の `(ptr << 32) | len`、未設定なら `0`、権限なしは `-1`、エラーは `-2` です。
+- 1 回の読み書きは独立しています（読んで +1 して書くような更新は同時実行で数え漏れることがあります）。
+
+### 5.5 HTTP リクエスト (`host.http_fetch`)
+
+```rust
+let request = http::Request::post_json("https://hooks.slack.com/services/…", &json!({ "text": "New order" }))?;
+let response = http::fetch(&request)?;
+if !response.is_success() { /* response.status, response.body */ }
+```
+
+- 宛先はマニフェストの `capabilities.network.allowed_domains`（とそのサブドメイン）だけです。許可されていない URL は送らずにエラーになります。
+- メソッドは `GET` / `POST` / `PUT` / `PATCH` / `DELETE`。`Host` / `Content-Length` などのヘッダーは指定できません。
+- **リダイレクトは追いません**（3xx をそのまま返します。リダイレクト先は許可の確認を受けていないため）。
+- 本文は送信・受信とも 1 MiB まで。1 回の通信は最大 10 秒、1 回のフック呼び出しで 8 回まで。フックの `execution_timeout_ms` には通信の待ち時間も含まれるので、通信するプラグインは大きめ（例: 5000〜10000）にしてください。
+- 失敗（許可されていない宛先・接続できない・上限超過）は `Err(PluginError::Host(...))` です。ホストは `{"error": "..."}` の JSON を返します。
+
+### 5.6 設定値 (`host.config_get`)
+
+サーバーの設定ファイルの `[plugins.settings.<プラグイン名>]` の値を読みます（他のプラグインの設定は読めません）。文字列はそのまま、数値・真偽値・配列は JSON の文字列で返ります。
+
+```toml
+[plugins.settings.official-order-notifier]
+webhook_url = "env:SLACK_WEBHOOK_URL"   # env: で始まる値は環境変数から（API キーを設定ファイルに書かない）
+notify_on = "pending_payment,paid,cancelled"
+```
+
+```rust
+let url = config::get("webhook_url");             // Option<String>
+let fee: i64 = config::get_or("shipping_fee", 0); // 読めなければ既定値
+```
 
 ### 5.4 ネイティブテスト時のモック
 
@@ -286,7 +380,11 @@ SDK ヘルパー:
 | --- | --- |
 | ログ | 標準出力に `[WasmMock:LEVEL] message` を出力 |
 | `net::is_allowed` | 常に `true`（マニフェストは参照しない） |
-| `kv::set` / `kv::set_json` | 何も保存せず常に `Ok(())` |
+| `kv::set` / `kv::get` | スレッドローカルのメモリに保存・読み出し |
+| `config::get` | `host::mock::set_config(key, value)` で設定した値 |
+| `http::fetch` | 送らずに記録して `200` を返す（`host::mock::take_http_requests()` で取り出す） |
+
+`host::mock::reset()` でモックを空にできます。
 
 権限まわりの挙動は、Wasm にビルドしてランタイム上で確認してください。
 
@@ -301,6 +399,8 @@ SDK ヘルパー:
 | `transform_content_ast` | `(ptr: i32, len: i32) -> i64` | | 入力 `BlockNode[]` JSON、戻り値 `(ptr << 32) \| len` |
 | `on_before_save` | `(ptr: i32, len: i32) -> i64` | | 入力 `PostContext` JSON、戻り値 `(ptr << 32) \| len` |
 | `on_user_authenticated` | `(ptr: i32, len: i32) -> i64` | | 入力 `UserAuthContext` JSON、戻り値 `(ptr << 32) \| len` |
+| `calculate_order` | `(ptr: i32, len: i32) -> i64` | | 入力 `OrderContext` JSON、戻り値 `(ptr << 32) \| len`（`{"error"}` で拒否） |
+| `on_order_status_changed` | `(ptr: i32, len: i32) -> i64` | | 入力 `OrderStatusChange` JSON。戻り値は `0`（成功）か `{"error"}` |
 
 - 戻り値の `len` が `0` の場合、ホストは入力をそのまま採用します。
 - `on_before_save` で保存を、`on_user_authenticated` でログインを拒否するには、入力の型の代わりに `{"error": "<メッセージ>"}` を返します（SDK の `abi::write_error_to_host`）。`error` キーを持つオブジェクトはすべて拒否として扱います。

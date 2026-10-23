@@ -280,6 +280,66 @@
         "description": "Content model for 固定ページ",
         "type": "object"
       },
+      "ProductContent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BaseContentItem"
+          },
+          {
+            "properties": {
+              "buy_url": {
+                "nullable": true,
+                "type": "string"
+              },
+              "category_id": {
+                "description": "Foreign key relation to category.id",
+                "nullable": true,
+                "type": "string"
+              },
+              "compare_at_price": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "excerpt": {
+                "maxLength": 500,
+                "nullable": true,
+                "type": "string"
+              },
+              "image_url": {
+                "nullable": true,
+                "type": "string"
+              },
+              "price": {
+                "type": "integer"
+              },
+              "sku": {
+                "nullable": true,
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "stock": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "title": {
+                "description": "EC の商品カタログ。価格・在庫は [commerce] の注文処理で使う（docs/commerce.md）",
+                "maxLength": 255,
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "slug",
+              "price"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "Content model for 商品",
+        "type": "object"
+      },
       "SchemaDefinition": {
         "properties": {
           "content_type": {

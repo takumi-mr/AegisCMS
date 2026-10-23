@@ -8,11 +8,11 @@ use sqlx::{MySql, Pool, Row};
 
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
-    build_audit_select, build_content_list, build_identity_insert, build_identity_select,
-    build_identity_table, build_relation_lookup, build_user_delete, build_user_insert,
-    build_user_select, build_user_update, is_standard_column, user_row_from_sqlx, ContentListQuery,
-    ContentPage, ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord,
-    AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
+    build_audit_select, build_content_list, build_content_update, build_identity_insert,
+    build_identity_select, build_identity_table, build_relation_lookup, build_user_delete,
+    build_user_insert, build_user_select, build_user_update, custom_columns, is_standard_column,
+    user_row_from_sqlx, ContentListQuery, ContentPage, ContentRecord, CustomFieldValue,
+    DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -99,6 +99,8 @@ fn record_from_row(schema: &SchemaDefinition, r: &MySqlRow) -> ContentRecord {
         custom_fields: custom_fields_from_row(schema, r),
     }
 }
+
+super::orders::impl_order_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 
 #[async_trait]
 impl DatabaseAdapter for MySqlAdapter {
@@ -193,6 +195,20 @@ impl DatabaseAdapter for MySqlAdapter {
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // EC の注文
+        let (order_table, order_indexes) =
+            super::orders::build_order_table("TEXT", "VARCHAR(255)", "BIGINT", true);
+        sqlx::query(&order_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in order_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
 
         Ok(())
     }
@@ -354,6 +370,55 @@ impl DatabaseAdapter for MySqlAdapter {
             .map_err(|e| AegisError::Database(format!("MySQL INSERT failed: {}", e)))?;
 
         Ok(())
+    }
+
+    async fn update_content(
+        &self,
+        schema: &SchemaDefinition,
+        record: &ContentRecord,
+    ) -> Result<bool> {
+        let sql = build_content_update(&schema.table_name(), &custom_columns(schema), |_| {
+            "?".to_string()
+        });
+        let mut query = sqlx::query(&sql)
+            .bind(&record.title)
+            .bind(&record.slug)
+            .bind(&record.status)
+            .bind(&record.blocks_json)
+            .bind(&record.author_id)
+            .bind(&record.published_at)
+            .bind(&record.updated_at);
+        for field in schema
+            .fields
+            .iter()
+            .filter(|f| !is_standard_column(&f.name))
+        {
+            query = match CustomFieldValue::from_json(field, record.custom_fields.get(&field.name))?
+            {
+                CustomFieldValue::Text(v) => query.bind(v),
+                CustomFieldValue::BigInt(v) => query.bind(v),
+                CustomFieldValue::Bool(v) => query.bind(v),
+                CustomFieldValue::Json(v) => query.bind(v.map(sqlx::types::Json)),
+            };
+        }
+        let result = query
+            .bind(&record.id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(format!("MySQL UPDATE failed: {}", e)))?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn delete_content(&self, schema: &SchemaDefinition, id: &str) -> Result<bool> {
+        let result = sqlx::query(&format!(
+            "DELETE FROM {} WHERE id = ?;",
+            schema.table_name()
+        ))
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(result.rows_affected() > 0)
     }
 
     async fn get_content(

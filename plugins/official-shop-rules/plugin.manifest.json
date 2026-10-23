@@ -1,0 +1,25 @@
+{
+  "name": "official-shop-rules",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Shop Rules (Shipping, Coupons & Tax)",
+  "description": "Adds shipping fees (with a free-shipping threshold), coupon codes with optional usage limits and an optional tax line to shop orders. Configure it in [plugins.settings.official-shop-rules].",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": ["commerce", "shipping", "coupon", "tax"],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "storage": {
+      "kv_namespace": "official_shop_rules"
+    },
+    "hooks": [
+      "calculate-order",
+      "on-order-status-changed"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 50000000,
+    "execution_timeout_ms": 250
+  }
+}

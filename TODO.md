@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
   - `task check` による全自動検証（Rust テスト 93 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
   - 公式 Wasm プラグイン `official-code-enhancer` (`plugins/official-code-enhancer/`):
@@ -47,6 +47,16 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### EC 機能（フェーズ 1〜3） (Completed) — [docs/commerce.md](docs/commerce.md)
+- [x] **フェーズ 1: 商品カタログ**: `schemas/products.yaml`（`price` / `compare_at_price` / `stock` / `sku` / `image_url` / `excerpt` / `buy_url` / `category_id`）、`PUT` / `DELETE /api/v1/contents/{type}/{slug}`（作成と同じパイプライン・フック、監査ログ `content.update` / `content.delete`）、公開ページ `/products`・`/products/{slug}`（組み込みテンプレート、`money` フィルター）、`buy_url` による外部決済リンク。Admin Studio のエディタの保存を「開いている記事は更新」に変更。
+- [x] **フェーズ 2: 注文・在庫・決済**: `[commerce]`、注文テーブル `_aegis_orders`（3 ダイアレクト）、在庫の確保を注文の作成と同じトランザクションの条件付き UPDATE で（売り越し防止）、状態遷移（条件付き更新で冪等）、取り消し・期限切れで在庫を戻す（1 分ごと）、`manual` / `stripe`（Checkout Session・署名と金額を確かめる Webhook・後払い対応）、IP ごとの注文数の上限、カート（`/shop/cart.js`、`localStorage`）・`/cart`・注文確認 `/orders/{id}?token=`、Admin Studio の Products / Orders 画面、監査ログ `order.create` / `order.update`。
+- [x] **フェーズ 3: プラグインでの拡張**: フック `calculate-order`（`adjustments` / `metadata` のみ反映、合計はホストが再計算、`Rejected` で 422）・`on-order-status-changed`（非同期の通知）。ホスト API `http_fetch`（`allowed_domains` のみ・リダイレクトを追わない・1 MiB・8 回）/ `kv_get` / `config_get`、KV を `[cache]` に保存、`[plugins.settings.<name>]`（`env:` で環境変数）。Rust SDK（型・フック・`http` / `kv::get` / `config` とネイティブのモック）。公式プラグイン `official-shop-rules` / `official-order-notifier`（ビルド済み Wasm を同梱、`task plugin:build:shop`）。
+- [x] **セキュリティ修正**: プラグインの `allowed_domains` 判定が `https://evil.com#.allowed.com` を許可していた（URL パーサーで判定するよう修正）。SQLite で数値のカスタムフィールドの `null` が空文字で保存され、計算で 0 扱いになっていた（NULL で保存）。
+- [ ] **フェーズ 4（未着手）**: 顧客アカウント（会員登録・注文履歴）、注文確認メール、売上レポート、在庫切れの通知、On-demand ISR との連動。
+- [ ] **商品のバリエーション**（サイズ・色ごとの在庫・価格）、返金 API（Stripe Refund）、複数通貨。
+- [ ] **AssemblyScript / TinyGo SDK の EC 対応**（新しいフック・ホスト API のラッパー。ABI は docs/plugin_abi_specification.md に記載済み）。
+- [ ] **PostgreSQL / MySQL での注文・在庫の実機検証**（SQL はダイアレクト共通の組み立てで、テストは SQLite のみ）。
 
 #### Admin Studio: ユーザー管理 & アバター画像 (Completed)
 - [x] **ユーザー管理 API (`crates/aegis-server/src/handlers/users.rs`)**: `GET` / `POST /api/v1/users`（admin）、`GET` / `PATCH` / `DELETE /api/v1/users/{username}`、`PUT` / `DELETE /api/v1/users/{username}/avatar`。参照・変更・アバターは本人か admin。本人のパスワード変更は `current_password` 必須、admin は他人のパスワードをリセット可。ロール・無効化は admin が他のユーザーに対してのみ。最後の有効な admin の降格・無効化・削除、自分自身の削除は `400`。[docs/authentication.md](docs/authentication.md#3-ユーザー管理-api)
@@ -135,6 +145,16 @@
 ---
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
+
+- **EC (`crates/aegis-server/src/commerce/`, `handlers/shop.rs`, `handlers/storefront.rs`, `db/orders.rs`)**:
+  - 金額はすべて通貨の最小単位の `i64`（Stripe の `unit_amount` と同じ）。表示は `aegis_core::format_money` / テンプレートの `money` フィルター / Admin Studio の `formatMoney`。
+  - 在庫の確保は `UPDATE ... SET stock = stock - ? WHERE id = ? AND (stock IS NULL OR stock >= ?)` を注文の INSERT と同じトランザクションで。`stock` が NULL の商品は無制限。
+  - 注文の DB 操作は `OrderStorage` トレイト（`DatabaseAdapter` のスーパートレイト）。`#[async_trait]` はマクロが impl ブロックの中に生成したメソッドを変換しないため、`impl_order_storage!` が `#[async_trait] impl OrderStorage for ...` ごと生成する。
+  - 状態の変更は `transition_order`（`WHERE status = 前の状態`）で、Webhook の重複・期限切れ処理との競合を防ぐ。プラグインへの通知は `tokio::spawn`（応答を待たない）。
+  - プラグインの `calculate-order` の拒否メッセージは顧客に見せるため、Wasm ホストが付けるプラグイン名の接頭辞を外す（ログには残す）。
+- **プラグインのホスト API (`aegis_runtime::HostServices`, `crates/aegis-server/src/plugin_host.rs`)**:
+  - ランタイムは I/O を持たず、サーバーが `HostServices`（KV・HTTP・設定値）を実装して渡す。`WasmPluginInstance::from_bytes` は従来どおり `Arc<Mutex<HashMap>>` も受け付ける（`PluginServices` への `From`）。
+  - 結果を返すホスト関数（`kv_get` / `http_fetch` / `config_get`）は `func_wrap_async` で、ゲストの `allocate` を呼んで書き込み `ptr << 32 | len` を返す。
 
 - **ユーザー管理 API とアバター (`handlers/users.rs`, `auth/users.rs`)**:
   - ユーザーは `avatar_key`（ストレージキー）だけを保存し、応答の `avatar_url` は `StorageBackend::public_url` で毎回求める（`[server].base_path` や S3 の公開 URL の変更に追従）。Admin Studio は `serverAssetUrl` で配信元のオリジンを付けて表示する。

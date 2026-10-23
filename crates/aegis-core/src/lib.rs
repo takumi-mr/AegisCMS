@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod auth;
 pub mod cache;
+pub mod commerce;
 pub mod config;
 pub mod entity;
 pub mod error;
@@ -13,10 +14,15 @@ pub use audit::{
 };
 pub use auth::{AuthCredentials, AuthIdentity, AuthProvider, AuthRedirect, UserAuthContext};
 pub use cache::{CacheBackend, CacheBackendKind};
+pub use commerce::{
+    format_money, is_zero_decimal_currency, OrderAdjustment, OrderContext, OrderLine, OrderStatus,
+    OrderStatusChange, ShippingAddress,
+};
 pub use config::{
-    AegisConfig, AuditConfig, AuditSinkKind, AuthConfig, CacheConfig, DatabaseBackendKind,
-    DatabaseConfig, LocalStorageConfig, LoginRateLimitConfig, OidcConfig, PathsConfig,
-    PluginsConfig, RedisCacheConfig, S3StorageConfig, SecurityConfig, StorageConfig, ThemeConfig,
+    AegisConfig, AuditConfig, AuditSinkKind, AuthConfig, CacheConfig, CommerceConfig,
+    DatabaseBackendKind, DatabaseConfig, LocalStorageConfig, LoginRateLimitConfig, OidcConfig,
+    PathsConfig, PaymentProviderKind, PluginsConfig, RedisCacheConfig, S3StorageConfig,
+    SecurityConfig, StorageConfig, StripeConfig, ThemeConfig,
 };
 
 pub use entity::{

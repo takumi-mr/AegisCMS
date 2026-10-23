@@ -27,6 +27,8 @@ pub struct AppState {
     pub theme: Arc<ThemeEngine>,
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
     pub oidc: Option<OidcLogin>,
+    /// EC（`[commerce]`）。無効なら `None`
+    pub commerce: Option<Arc<crate::commerce::CommerceService>>,
 }
 
 /// OpenID Connect ログインの設定済みプロバイダと、ログイン画面・リダイレクトに使う値
@@ -68,7 +70,14 @@ impl AppState {
             audit,
             theme,
             oidc: None,
+            commerce: None,
         }
+    }
+
+    /// EC（`[commerce]`）を有効にする
+    pub fn with_commerce(mut self, commerce: crate::commerce::CommerceService) -> Self {
+        self.commerce = Some(Arc::new(commerce));
+        self
     }
 
     /// OpenID Connect ログインを有効にする
