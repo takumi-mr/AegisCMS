@@ -40,6 +40,10 @@ pub enum AuditAction {
     /// User account deleted via the user management API
     #[serde(rename = "user.delete")]
     UserDelete,
+    /// Self-registration from Admin Studio: an application (`stage: requested`) or its email
+    /// confirmation that creates the account (`stage: confirmed`)
+    #[serde(rename = "user.register")]
+    UserRegister,
     /// EC order placed (checkout)
     #[serde(rename = "order.create")]
     OrderCreate,
@@ -52,7 +56,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 17] = [
+    pub const ALL: [AuditAction; 18] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -67,6 +71,7 @@ impl AuditAction {
         Self::UserCreate,
         Self::UserUpdate,
         Self::UserDelete,
+        Self::UserRegister,
         Self::OrderCreate,
         Self::OrderUpdate,
         Self::NotificationSend,
@@ -88,6 +93,7 @@ impl AuditAction {
             Self::UserCreate => "user.create",
             Self::UserUpdate => "user.update",
             Self::UserDelete => "user.delete",
+            Self::UserRegister => "user.register",
             Self::OrderCreate => "order.create",
             Self::OrderUpdate => "order.update",
             Self::NotificationSend => "notification.send",

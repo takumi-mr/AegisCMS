@@ -20,7 +20,7 @@ fn now() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
-fn validate_role(role: &str) -> Result<()> {
+pub(crate) fn validate_role(role: &str) -> Result<()> {
     if ROLES.contains(&role) {
         Ok(())
     } else {
@@ -32,7 +32,7 @@ fn validate_role(role: &str) -> Result<()> {
     }
 }
 
-fn validate_username(username: &str) -> Result<()> {
+pub(crate) fn validate_username(username: &str) -> Result<()> {
     let valid = !username.is_empty()
         && username.len() <= 64
         && username
@@ -58,22 +58,47 @@ pub async fn create_user(db: &dyn DatabaseAdapter, new_user: NewUser) -> Result<
     let username = new_user.username.trim().to_string();
     validate_username(&username)?;
     validate_role(&new_user.role)?;
-    if db.get_user_by_username(&username).await?.is_some() {
+    ensure_username_free(db, &username).await?;
+    let password_hash = hash_password(&new_user.password)?;
+    insert_new_user(
+        db,
+        NewUser {
+            username,
+            ..new_user
+        },
+        password_hash,
+        false,
+    )
+    .await
+}
+
+/// ユーザー名がまだ使われていないことを確かめる
+pub(crate) async fn ensure_username_free(db: &dyn DatabaseAdapter, username: &str) -> Result<()> {
+    if db.get_user_by_username(username).await?.is_some() {
         return Err(AegisError::Validation(format!(
             "User '{}' already exists",
             username
         )));
     }
+    Ok(())
+}
 
+/// 検証済みの入力（`new_user.password` は使わず、ハッシュ済みの `password_hash`）でユーザーを保存する
+pub(crate) async fn insert_new_user(
+    db: &dyn DatabaseAdapter,
+    new_user: NewUser,
+    password_hash: String,
+    disabled: bool,
+) -> Result<UserRecord> {
     let now = now();
     let user = UserRecord {
         id: Uuid::new_v4().to_string(),
-        username,
+        username: new_user.username,
         email: new_user.email.filter(|s| !s.trim().is_empty()),
         display_name: new_user.display_name.filter(|s| !s.trim().is_empty()),
         role: new_user.role,
-        password_hash: hash_password(&new_user.password)?,
-        disabled: false,
+        password_hash,
+        disabled,
         avatar_key: None,
         created_at: now.clone(),
         updated_at: now,

@@ -60,6 +60,11 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 .delete(handlers::delete_session),
         )
         .route("/api/v1/auth/providers", get(handlers::list_auth_providers))
+        .route("/api/v1/auth/registration", post(handlers::register))
+        .route(
+            "/api/v1/auth/registration/verify",
+            post(handlers::verify_registration),
+        )
         .route("/api/v1/auth/oidc/login", get(handlers::oidc_login))
         .route("/api/v1/auth/oidc/callback", get(handlers::oidc_callback))
         .route("/api/v1/audit-logs", get(handlers::list_audit_logs))

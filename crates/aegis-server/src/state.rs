@@ -1,7 +1,8 @@
 use crate::config::AegisConfig;
 use aegis_audit::AuditService;
+use aegis_auth::registration::RegistrationService;
 use aegis_auth::{LoginRateLimiter, SessionService};
-use aegis_core::{AuthProvider, CacheBackend, StorageBackend};
+use aegis_core::{AuthProvider, CacheBackend, Notifier, StorageBackend};
 use aegis_db::DatabaseAdapter;
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::SchemaDefinition;
@@ -32,6 +33,8 @@ pub struct AppState {
     pub commerce: Option<Arc<aegis_commerce::CommerceService>>,
     /// 通知（`[notifications]`）。無効なら `None`
     pub notifier: Option<Arc<aegis_notify::NotificationService>>,
+    /// Admin Studio からのアカウント登録（`[auth.registration]`）。無効なら `None`
+    pub registration: Option<Arc<Registration>>,
 }
 
 /// OpenID Connect ログインの設定済みプロバイダと、ログイン画面・リダイレクトに使う値
@@ -43,6 +46,15 @@ pub struct OidcLogin {
     pub display_name: String,
     /// ログイン後（成功・失敗とも）に戻る Admin Studio の URL
     pub post_login_redirect: String,
+}
+
+/// アカウント登録に使う部品
+pub struct Registration {
+    pub service: RegistrationService,
+    /// 確認メールを送る通知
+    pub notifier: Arc<dyn Notifier>,
+    /// 確認リンクの開き先の Admin Studio の URL（`#verify-email=<トークン>` を付ける）
+    pub admin_url: String,
 }
 
 impl AppState {
@@ -75,6 +87,7 @@ impl AppState {
             oidc: None,
             commerce: None,
             notifier: None,
+            registration: None,
         }
     }
 
@@ -102,6 +115,12 @@ impl AppState {
     /// 通知（`[notifications]`）を有効にする。EC より先に設定する（`commerce_deps` が使う）
     pub fn with_notifier(mut self, notifier: aegis_notify::NotificationService) -> Self {
         self.notifier = Some(Arc::new(notifier));
+        self
+    }
+
+    /// アカウント登録（`[auth.registration]`）を有効にする
+    pub fn with_registration(mut self, registration: Registration) -> Self {
+        self.registration = Some(Arc::new(registration));
         self
     }
 

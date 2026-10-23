@@ -53,6 +53,7 @@ export type AuditAction =
   | 'user.create'
   | 'user.update'
   | 'user.delete'
+  | 'user.register'
   | 'order.create'
   | 'order.update'
   | 'notification.send';
@@ -181,6 +182,23 @@ export interface AuthProviders {
   local: boolean;
   /** Single sign-on with OpenID Connect, or null when it is not enabled */
   oidc: { display_name: string; login_url: string } | null;
+  /** Self-registration (`[auth.registration]`); missing on older servers */
+  registration?: boolean;
+}
+
+/** Body of `POST /api/v1/auth/registration` */
+export interface RegistrationPayload {
+  username: string;
+  email: string;
+  password: string;
+  display_name?: string;
+}
+
+/** Response of `POST /api/v1/auth/registration/verify` */
+export interface RegistrationResult {
+  /** `active`: can sign in now; `pending_approval`: disabled until an admin enables it */
+  status: 'active' | 'pending_approval';
+  username: string;
 }
 
 /** Session returned by `POST /api/v1/auth/session` (login) and `GET /api/v1/auth/session` */

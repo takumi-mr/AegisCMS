@@ -21,6 +21,8 @@ const SERVER_ERROR: &str = "server_error";
 pub async fn list_auth_providers(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     Json(json!({
         "local": true,
+        // Admin Studio のログイン画面に「アカウントを作成」を出す（`[auth.registration]`）
+        "registration": state.registration.is_some(),
         "oidc": state.oidc.as_ref().map(|oidc| json!({
             "display_name": oidc.display_name,
             "login_url": "/api/v1/auth/oidc/login",
@@ -186,7 +188,10 @@ mod tests {
     async fn test_providers_and_disabled_endpoints() {
         let state = crate::test_support::test_state(PluginSupervisor::new()).await;
         let Json(providers) = list_auth_providers(State(state.clone())).await;
-        assert_eq!(providers, json!({ "local": true, "oidc": null }));
+        assert_eq!(
+            providers,
+            json!({ "local": true, "oidc": null, "registration": false })
+        );
         assert_eq!(
             oidc_login(State(state)).await.status(),
             StatusCode::NOT_FOUND

@@ -7,6 +7,7 @@ pub mod openapi;
 pub mod plugin;
 pub mod preview;
 pub mod public;
+pub mod registration;
 pub mod schemas;
 pub mod shop;
 pub mod storage;
@@ -23,6 +24,7 @@ pub use openapi::get_openapi_spec;
 pub use plugin::list_plugins;
 pub use preview::preview_content;
 pub use public::{render_article, render_index, render_page_or_slug};
+pub use registration::{register, verify_registration};
 pub use schemas::{get_schema, list_schemas};
 pub use shop::{
     checkout, get_order, get_public_order, list_orders, payment_webhook, quote, shop_config,

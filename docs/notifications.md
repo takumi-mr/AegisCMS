@@ -47,7 +47,7 @@ aegis-server -c config/production.toml notify test --to you@example.com
 
 失敗した場合は SMTP サーバーの応答（`535 Authentication failed` など）が表示されます。
 
-- 設定項目の一覧は [設定リファレンス](configuration.md#212-notifications--通知メール) を参照してください。
+- 設定項目の一覧は [設定リファレンス](configuration.md#213-notifications--通知メール) を参照してください。
 - SMTP サーバーの無い開発環境では `channels = ["log"]` にすると、通知の件名と本文をサーバーのログに出します。
 - 本文中の URL（`site_url` / 運営者向けの管理画面の URL）は `[commerce].public_url` から作ります。注文確認ページの URL は注文したときのリクエストのホストから作ります。
 - 差出人のドメインの SPF / DKIM / DMARC は SMTP サーバー側で設定してください（設定が無いと迷惑メールに分類されやすくなります）。
@@ -62,6 +62,8 @@ aegis-server -c config/production.toml notify test --to you@example.com
 | `order.paid` | 管理者が入金を確認した（`manual`） | 顧客 | 入金の確認 |
 | `order.shipped` | 発送した | 顧客 | 発送の知らせ。状態を変えるときのメモ（配送業者・追跡番号など）を本文に入れる |
 | `order.cancelled` | 取り消した（管理者の操作・支払い期限切れ） | 顧客・運営者 | 取り消しの理由（`reason`）、支払い済みなら返金の案内 |
+| `account.verify` | Admin Studio からアカウント登録を申し込んだ（[認証 7](authentication.md#7-アカウント登録)） | 申し込んだメールアドレス | 確認リンク（`verify_url`）、有効期限、ユーザー名 |
+| `account.registered` | 確認リンクが開かれ、アカウントができた | 運営者 | ユーザー名・表示名・メールアドレス・ロール、承認が必要か（`pending_approval`） |
 | `test` | `aegis-server notify test` | 指定したアドレス | テスト |
 | `audit.<操作>` | 監査ログのイベントが `[[notifications.audit.rules]]` に合った（[2.1](#21-監査イベントの通知)） | 運営者（またはルールの `recipients`） | 操作・結果・ユーザー・IP アドレス・ブラウザ・詳細 |
 
@@ -166,6 +168,8 @@ notifications/
 | `order_url` | 注文確認ページ（`order.placed` を注文したときに送る場合のみ） |
 | `payment_instructions` / `payment_due` | 支払い方法の案内（`[commerce.manual].instructions`）と期限（支払い待ちのとき） |
 | `reason` / `was_paid` | 取り消しのきっかけ（`admin` / `expired` など）と、支払い済みだったか（`order.cancelled`） |
+| `username` / `display_name` / `verify_url` / `expires_hours` | アカウント登録の確認メール（`account.verify`）: ユーザー名・表示名（無ければ空）・確認リンク・有効期限（時間） |
+| `username` / `display_name` / `email` / `role` / `pending_approval` | 新しいアカウントの知らせ（`account.registered`） |
 | `{{ amount \| money(order.currency) }}` | 金額の表示（`¥1,200`、`$12.50`） |
 
 - テンプレートが無ければ種類の最後の `.` 以降を外した名前を順に探します（`audit.session.create` → `audit.session` → `audit`）。

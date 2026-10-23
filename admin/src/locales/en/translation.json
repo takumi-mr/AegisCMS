@@ -28,7 +28,9 @@
     "switchThemeFailed": "Failed to switch active theme",
     "contentsFailed": "Failed to fetch contents",
     "uploadFailed": "Failed to upload the file",
-    "logoutFailed": "Failed to log out"
+    "logoutFailed": "Failed to log out",
+    "registerFailed": "Failed to create the account",
+    "verifyFailed": "Failed to confirm the email address"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -259,6 +261,40 @@
       "not_provisioned": "Your account has no access to AegisCMS. Ask an administrator to add you.",
       "account_disabled": "Your AegisCMS account is disabled.",
       "server_error": "Sign-in failed on the server. Check the server log."
+    },
+    "register": {
+      "link": "Create an account",
+      "subtitle": "Create an Admin Studio account",
+      "title": "Create an account",
+      "email": "Email",
+      "displayName": "Display name",
+      "optional": "(optional)",
+      "confirmPassword": "Confirm password",
+      "submit": "Create account",
+      "submitting": "Sending...",
+      "haveAccount": "Already have an account? Sign in",
+      "back": "Back to sign in",
+      "sentTitle": "Check your email",
+      "sent_one": "We sent a confirmation link to {{email}}. Open it within {{count}} hour to finish creating your account.",
+      "sent_other": "We sent a confirmation link to {{email}}. Open it within {{count}} hours to finish creating your account.",
+      "verifying": "Confirming your email address...",
+      "verified": {
+        "active": "Your email address is confirmed. Sign in as {{username}}.",
+        "pending_approval": "Your email address is confirmed. An administrator needs to approve your account ({{username}}) before you can sign in."
+      },
+      "errors": {
+        "missing": "Enter a username, an email address and a password.",
+        "mismatch": "The passwords do not match.",
+        "invalid_username": "Use 1-64 letters, digits, '.', '_', '-' or '@' for the username.",
+        "username_taken": "This username is already taken.",
+        "invalid_email": "Enter a valid email address.",
+        "email_domain_not_allowed": "Accounts cannot be created with this email domain.",
+        "password_too_short": "Use at least {{count}} characters for the password.",
+        "email_taken": "This email address is already used by another account.",
+        "invalid_token": "This confirmation link is invalid or has expired. Create the account again.",
+        "rate_limited": "Too many accounts were requested from this network. Try again later.",
+        "server_error": "The account could not be created because of a server error. Try again later."
+      }
     }
   },
   "markdown": {

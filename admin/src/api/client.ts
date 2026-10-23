@@ -13,6 +13,8 @@ import type {
   OrderStatus,
   PreviewRequest,
   PreviewResult,
+  RegistrationPayload,
+  RegistrationResult,
   SchemaDefinition,
   SessionInfo,
   ShopConfig,
@@ -58,12 +60,22 @@ export class ApiError extends Error {
   status: number;
   /** Seconds until the request may be retried (`retry_after_secs` of a 429 response) */
   retryAfterSecs?: number;
-  constructor(status: number, message: string, retryAfterSecs?: number) {
+  /** Machine-readable reason (`code`), sent by some endpoints such as registration */
+  code?: string;
+  constructor(status: number, message: string, retryAfterSecs?: number, code?: string) {
     super(message);
     this.status = status;
     this.retryAfterSecs = retryAfterSecs;
+    this.code = code;
   }
 }
+
+/** Turns a failed unauthenticated JSON request into an `ApiError` with the server's `code` */
+const unauthenticatedError = async (res: Response, fallback: string): Promise<ApiError> => {
+  const err = await res.json().catch(() => ({}));
+  const retryAfter = typeof err.retry_after_secs === 'number' ? err.retry_after_secs : undefined;
+  return new ApiError(res.status, err.error || fallback, retryAfter, err.code);
+};
 
 // Called when an authenticated request comes back 401 (expired or revoked session)
 let unauthorizedHandler: (() => void) | null = null;
@@ -124,6 +136,28 @@ export const aegisApi = {
   },
 
   /** Sign-in methods for the login screen */
+  /** Applies for an account; the server emails a confirmation link (202) */
+  async register(payload: RegistrationPayload): Promise<{ expires_in_secs: number }> {
+    const res = await fetch(`${API_BASE}/auth/registration`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await unauthenticatedError(res, i18n.t('api.registerFailed'));
+    return res.json();
+  },
+
+  /** Creates the account from the token of the confirmation link */
+  async verifyRegistration(token: string): Promise<RegistrationResult> {
+    const res = await fetch(`${API_BASE}/auth/registration/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) throw await unauthenticatedError(res, i18n.t('api.verifyFailed'));
+    return res.json();
+  },
+
   async getAuthProviders(): Promise<AuthProviders> {
     const res = await fetch(`${API_BASE}/auth/providers`);
     if (!res.ok) throw new ApiError(res.status, i18n.t('api.providersFailed'));

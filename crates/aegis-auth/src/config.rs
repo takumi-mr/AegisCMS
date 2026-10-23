@@ -1,4 +1,4 @@
-//! `[auth]` の設定（ログイン試行の制限・OpenID Connect）
+//! `[auth]` の設定（ログイン試行の制限・OpenID Connect・アカウント登録）
 
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct AuthConfig {
     pub login_rate_limit: LoginRateLimitConfig,
     pub oidc: OidcConfig,
+    pub registration: RegistrationConfig,
 }
 
 /// OpenID Connect（認可コードフロー + PKCE）による外部 IdP ログイン
@@ -86,5 +87,77 @@ impl Default for LoginRateLimitConfig {
             window_secs: 900,
             lockout_secs: 900,
         }
+    }
+}
+
+/// Admin Studio のログイン画面からのアカウント登録（`POST /api/v1/auth/registration`）。
+/// メールアドレスに届く確認リンクを開くとアカウントができる。確認メールは通知（`[notifications]`）で送る
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RegistrationConfig {
+    pub enabled: bool,
+    /// 登録したユーザーのロール（`admin` は指定できない）
+    pub default_role: String,
+    /// `true` なら確認後のアカウントを無効の状態で作り、admin が有効にするまでログインできない
+    pub require_approval: bool,
+    /// 登録できるメールアドレスのドメイン（`example.com` ならサブドメインも可）。空ならどのドメインでも登録できる
+    pub allowed_email_domains: Vec<String>,
+    /// 確認リンクの有効期間（秒）
+    pub token_ttl_secs: u64,
+    /// 同じクライアント IP から 1 時間に受け付ける登録の数（0 で無制限）
+    pub max_per_ip_per_hour: u64,
+    /// 確認リンクの開き先の Admin Studio の URL（例: `https://cms.example.com/admin/`）。
+    /// 空なら `[commerce].public_url` + `/admin/`。リクエストの Host からは作らない（確認メールのリンクを偽装させない）
+    pub admin_url: String,
+}
+
+impl Default for RegistrationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            default_role: "viewer".to_string(),
+            require_approval: true,
+            allowed_email_domains: Vec::new(),
+            token_ttl_secs: 86_400,
+            max_per_ip_per_hour: 5,
+            admin_url: String::new(),
+        }
+    }
+}
+
+impl RegistrationConfig {
+    /// 設定値の検証（`enabled` のときのみ）
+    pub fn validate(&self) -> aegis_core::Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        let role = self.default_role.as_str();
+        if !crate::ROLES.contains(&role) || role == "admin" {
+            return Err(aegis_core::AegisError::Config(format!(
+                "[auth.registration].default_role = {:?}: use \"editor\" or \"viewer\"",
+                role
+            )));
+        }
+        if self.token_ttl_secs == 0 {
+            return Err(aegis_core::AegisError::Config(
+                "[auth.registration].token_ttl_secs must be greater than 0".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// メールアドレスのドメインが `allowed_email_domains` に合うか
+    pub fn allows_email(&self, email: &str) -> bool {
+        if self.allowed_email_domains.is_empty() {
+            return true;
+        }
+        let Some((_, domain)) = email.rsplit_once('@') else {
+            return false;
+        };
+        let domain = domain.to_ascii_lowercase();
+        self.allowed_email_domains.iter().any(|allowed| {
+            let allowed = allowed.trim().trim_start_matches('@').to_ascii_lowercase();
+            !allowed.is_empty() && (domain == allowed || domain.ends_with(&format!(".{}", allowed)))
+        })
     }
 }

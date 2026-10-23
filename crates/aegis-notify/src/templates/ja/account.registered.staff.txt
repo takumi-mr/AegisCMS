@@ -1,0 +1,16 @@
+Admin Studio に新しいアカウントが登録されました（メールアドレスは確認済み）。
+
+ユーザー名: {{ username }}
+{% if display_name %}
+表示名: {{ display_name }}
+{% endif %}
+メールアドレス: {{ email }}
+ロール: {{ role }}
+{% if pending_approval %}
+
+このアカウントは無効の状態です。承認する場合は、管理画面の「設定 → ユーザー」で有効にしてください。
+{% endif %}
+{% if admin_url %}
+
+管理画面: {{ admin_url }}
+{% endif %}
