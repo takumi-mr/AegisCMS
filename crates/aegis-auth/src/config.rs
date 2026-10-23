@@ -1,4 +1,4 @@
-//! `[auth]` の設定（ログイン試行の制限・OpenID Connect・アカウント登録）
+//! `[auth]` の設定（ログイン試行の制限・OpenID Connect・SAML 2.0・アカウント登録）
 
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct AuthConfig {
     pub login_rate_limit: LoginRateLimitConfig,
     pub oidc: OidcConfig,
+    pub saml: SamlConfig,
     pub registration: RegistrationConfig,
 }
 
@@ -56,6 +57,68 @@ impl Default for OidcConfig {
             auto_create_users: true,
             default_role: "viewer".to_string(),
             role_claim: String::new(),
+            role_mapping: std::collections::HashMap::new(),
+            post_login_redirect: "/admin/".to_string(),
+        }
+    }
+}
+
+/// SAML 2.0（SP-initiated、AuthnRequest は HTTP-Redirect、応答は HTTP-POST）による外部 IdP ログイン
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SamlConfig {
+    pub enabled: bool,
+    /// ログイン画面のボタンに表示する名前
+    pub display_name: String,
+    /// AegisCMS（SP）の Entity ID。AuthnRequest の Issuer と、アサーションの Audience に使う
+    pub entity_id: String,
+    /// IdP に登録する Assertion Consumer Service の URL（`https://cms.example.com/api/v1/auth/saml/acs`）
+    pub acs_url: String,
+    /// IdP の Entity ID（応答・アサーションの Issuer）
+    pub idp_entity_id: String,
+    /// IdP の Single Sign-On サービスの URL（HTTP-Redirect バインディング）
+    pub idp_sso_url: String,
+    /// IdP の署名用証明書（PEM、または IdP のメタデータの `X509Certificate` の Base64）。
+    /// 鍵の切り替え中は新旧の両方を並べる。応答に含まれる証明書（`KeyInfo`）は使わない
+    pub idp_certificates: Vec<String>,
+    /// AuthnRequest の `NameIDPolicy` で求める NameID の形式。空なら IdP に任せる。
+    /// `transient`（ログインごとに変わる）は使えない
+    pub name_id_format: String,
+    /// AegisCMS のユーザー名にする属性。空なら NameID
+    pub username_attribute: String,
+    /// メールアドレスの属性（無ければ、NameID の形式が `emailAddress` のとき NameID）
+    pub email_attribute: String,
+    /// 表示名の属性
+    pub display_name_attribute: String,
+    /// 未登録のユーザーを初回ログイン時に作成する（`false` なら IdP と紐付け済みのユーザーのみ）
+    pub auto_create_users: bool,
+    /// 属性からロールが決まらない場合のロール（新規ユーザーの初期ロール）
+    pub default_role: String,
+    /// ロールの決定に使う属性（例: `groups`）。空ならロールは AegisCMS のユーザーアカウントで決まる
+    pub role_attribute: String,
+    /// `role_attribute` の値 → ロール。複数一致した場合は最も強いロール
+    pub role_mapping: std::collections::HashMap<String, String>,
+    /// ログイン後に戻る Admin Studio の URL（セッショントークンを `#session=` で渡す）
+    pub post_login_redirect: String,
+}
+
+impl Default for SamlConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            display_name: "SSO".to_string(),
+            entity_id: String::new(),
+            acs_url: String::new(),
+            idp_entity_id: String::new(),
+            idp_sso_url: String::new(),
+            idp_certificates: Vec::new(),
+            name_id_format: String::new(),
+            username_attribute: String::new(),
+            email_attribute: "email".to_string(),
+            display_name_attribute: "displayName".to_string(),
+            auto_create_users: true,
+            default_role: "viewer".to_string(),
+            role_attribute: String::new(),
             role_mapping: std::collections::HashMap::new(),
             post_login_redirect: "/admin/".to_string(),
         }

@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Authentication for AegisCMS: users, passwords, sessions, login rate limiting, local and OpenID Connect providers"
+description = "Authentication for AegisCMS: users, passwords, sessions, login rate limiting, local, OpenID Connect and SAML 2.0 providers"
 
 [lints]
 workspace = true
@@ -29,17 +29,26 @@ base64 = { version = "0.22", optional = true }
 axum = { workspace = true, optional = true }
 p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem", "jwk"], optional = true }
 rand_core = { version = "0.6", features = ["getrandom"], optional = true }
+# saml
+quick-xml = { version = "0.42", optional = true }
+rsa = { version = "0.9", default-features = false, features = ["std", "pem", "sha2"], optional = true }
+x509-cert = { version = "0.2", default-features = false, features = ["pem"], optional = true }
+flate2 = { version = "1.1", optional = true }
 
 [dev-dependencies]
 aegis-cache = { path = "../aegis-cache" }
 axum.workspace = true
 p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem", "jwk"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
+rsa = { version = "0.9", features = ["sha2"] }
 tokio.workspace = true
+x509-cert = { version = "0.2", features = ["builder", "pem"] }
 
 [features]
-default = ["oidc"]
+default = ["oidc", "saml"]
 # OpenID Connect login ([auth.oidc]): ID token signature verification via JWKS
 oidc = ["dep:jsonwebtoken", "dep:base64"]
-# A mock OpenID Connect IdP for tests of crates that use aegis-auth
-mock-idp = ["oidc", "dep:axum", "dep:p256", "dep:rand_core"]
+# Mock OpenID Connect / SAML IdPs for tests of crates that use aegis-auth
+mock-idp = ["oidc", "saml", "dep:axum", "dep:p256", "dep:rand_core"]
+# SAML 2.0 login ([auth.saml]): XML signature verification (exclusive C14N, RSA) in pure Rust
+saml = ["dep:quick-xml", "dep:rsa", "dep:x509-cert", "dep:flate2", "dep:base64"]

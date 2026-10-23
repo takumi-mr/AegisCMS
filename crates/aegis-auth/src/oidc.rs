@@ -24,21 +24,15 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use super::users::{create_user, NewUser};
-use super::ROLES;
-use crate::role_level;
+use super::sso::{auth_error, validate_roles, AccountPolicy, IdpProfile};
 use aegis_db::DatabaseAdapter;
 
 use super::{oidc_subject, OIDC_CALLBACK_CREDENTIALS, OIDC_PROVIDER};
 
-/// `AegisError::Authentication` reasons (audited, and shown on the login screen)
-pub const REASON_IDP_ERROR: &str = "idp_error";
-pub const REASON_INVALID_STATE: &str = "invalid_state";
-pub const REASON_INVALID_TOKEN: &str = "invalid_token";
-pub const REASON_MISSING_USERNAME: &str = "missing_username";
-pub const REASON_USERNAME_TAKEN: &str = "username_taken";
-pub const REASON_NOT_PROVISIONED: &str = "not_provisioned";
-pub const REASON_ACCOUNT_DISABLED: &str = super::local::REASON_ACCOUNT_DISABLED;
+pub use super::sso::{
+    REASON_ACCOUNT_DISABLED, REASON_IDP_ERROR, REASON_INVALID_STATE, REASON_INVALID_TOKEN,
+    REASON_MISSING_USERNAME, REASON_NOT_PROVISIONED, REASON_USERNAME_TAKEN,
+};
 
 const STATE_KEY_PREFIX: &str = "oidc:state:";
 /// How long the user has to finish signing in at the IdP
@@ -89,10 +83,6 @@ pub struct OidcAuthProvider {
     db: Arc<dyn DatabaseAdapter>,
     metadata: RwLock<Option<ProviderMetadata>>,
     jwks: RwLock<Option<(JwkSet, Instant)>>,
-}
-
-fn auth_error(reason: &str) -> AegisError {
-    AegisError::Authentication(reason.to_string())
 }
 
 fn invalid_token(detail: impl std::fmt::Display) -> AegisError {
@@ -151,16 +141,7 @@ impl OidcAuthProvider {
                 )));
             }
         }
-        let roles = std::iter::once(&config.default_role).chain(config.role_mapping.values());
-        for role in roles {
-            if !ROLES.contains(&role.as_str()) {
-                return Err(AegisError::Config(format!(
-                    "[auth.oidc] has an unknown role '{}' (expected one of: {})",
-                    role,
-                    ROLES.join(", ")
-                )));
-            }
-        }
+        validate_roles("auth.oidc", &config.default_role, &config.role_mapping)?;
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .build()
@@ -338,68 +319,13 @@ impl OidcAuthProvider {
             .ok_or_else(|| invalid_token("token response has no id_token"))
     }
 
-    /// The strongest role mapped from `role_claim`, or `None` when nothing matches
-    fn mapped_role(&self, claims: &Map<String, Value>) -> Option<String> {
-        claim_values(claims, &self.config.role_claim)
-            .iter()
-            .filter_map(|value| self.config.role_mapping.get(value))
-            .max_by_key(|role| role_level(role))
-            .cloned()
-    }
-
-    /// Finds the account linked to this IdP user, or creates and links one
-    async fn resolve_user(
-        &self,
-        subject: &str,
-        claims: &Map<String, Value>,
-        claimed_role: Option<&str>,
-    ) -> Result<aegis_db::UserRecord> {
-        if let Some(username) = self.db.get_identity_link(OIDC_PROVIDER, subject).await? {
-            return self
-                .db
-                .get_user_by_username(&username)
-                .await?
-                .ok_or_else(|| {
-                    AegisError::Internal(format!(
-                        "OIDC identity is linked to user '{}', which no longer exists",
-                        username
-                    ))
-                });
+    fn account_policy(&self) -> AccountPolicy<'_> {
+        AccountPolicy {
+            provider: OIDC_PROVIDER,
+            auto_create_users: self.config.auto_create_users,
+            default_role: &self.config.default_role,
+            role_mapping: (!self.config.role_claim.is_empty()).then_some(&self.config.role_mapping),
         }
-        if !self.config.auto_create_users {
-            return Err(auth_error(REASON_NOT_PROVISIONED));
-        }
-        let username = claim_str(claims, &self.config.username_claim)
-            .or_else(|| claim_str(claims, "email"))
-            .ok_or_else(|| auth_error(REASON_MISSING_USERNAME))?
-            .to_string();
-        // Never sign an IdP user into an existing (e.g. local) account that merely shares the name
-        if self.db.get_user_by_username(&username).await?.is_some() {
-            return Err(auth_error(REASON_USERNAME_TAKEN));
-        }
-        let user = create_user(
-            self.db.as_ref(),
-            NewUser {
-                username: username.clone(),
-                // Unusable for password login: nobody knows it
-                password: format!("{}{}", random_token(), random_token()),
-                role: claimed_role
-                    .unwrap_or(&self.config.default_role)
-                    .to_string(),
-                email: claim_str(claims, "email").map(str::to_string),
-                display_name: claim_str(claims, "name").map(str::to_string),
-            },
-        )
-        .await
-        .map_err(|e| match e {
-            AegisError::Validation(_) => auth_error(REASON_MISSING_USERNAME),
-            other => other,
-        })?;
-        self.db
-            .insert_identity_link(OIDC_PROVIDER, subject, &user.username)
-            .await?;
-        tracing::info!("Created user '{}' from an OIDC login", user.username);
-        Ok(user)
     }
 
     async fn complete_callback(
@@ -446,35 +372,19 @@ impl OidcAuthProvider {
         let sub = claim_str(&claims, "sub").ok_or_else(|| invalid_token("no sub"))?;
         let subject = oidc_subject(&metadata.issuer, sub);
 
-        let claimed_role = if self.config.role_claim.is_empty() {
-            None
-        } else {
-            Some(
-                self.mapped_role(&claims)
-                    .unwrap_or_else(|| self.config.default_role.clone()),
-            )
+        let profile = IdpProfile {
+            subject,
+            username: claim_str(&claims, &self.config.username_claim)
+                .or_else(|| claim_str(&claims, "email"))
+                .map(str::to_string),
+            email: claim_str(&claims, "email").map(str::to_string),
+            display_name: claim_str(&claims, "name").map(str::to_string),
+            role_values: claim_values(&claims, &self.config.role_claim),
         };
-        let mut user = self
-            .resolve_user(&subject, &claims, claimed_role.as_deref())
+        let user = self
+            .account_policy()
+            .sign_in(self.db.as_ref(), profile)
             .await?;
-        if user.disabled {
-            return Err(auth_error(REASON_ACCOUNT_DISABLED));
-        }
-
-        // With role_claim the IdP decides the role; keep the account (and the user list) in sync
-        let email = claim_str(&claims, "email").map(str::to_string);
-        let display_name = claim_str(&claims, "name").map(str::to_string);
-        let role = claimed_role.unwrap_or_else(|| user.role.clone());
-        let changed = user.role != role
-            || (email.is_some() && user.email != email)
-            || (display_name.is_some() && user.display_name != display_name);
-        if changed {
-            user.role = role;
-            user.email = email.or(user.email);
-            user.display_name = display_name.or(user.display_name);
-            user.updated_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-            self.db.update_user(&user).await?;
-        }
 
         let mut identity = AuthIdentity::new(user.username, user.email.unwrap_or_default());
         identity.display_name = user.display_name;
@@ -555,6 +465,7 @@ impl AuthProvider for OidcAuthProvider {
 mod tests {
     use super::*;
     use crate::oidc_mock::{MockIdp, CLIENT_ID};
+    use crate::users::{create_user, NewUser};
     use aegis_cache::MemoryCacheBackend;
     use aegis_db::SqliteAdapter;
 

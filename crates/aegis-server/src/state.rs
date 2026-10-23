@@ -28,7 +28,9 @@ pub struct AppState {
     pub audit: Arc<AuditService>,
     pub theme: Arc<ThemeEngine>,
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
-    pub oidc: Option<OidcLogin>,
+    pub oidc: Option<SsoLogin>,
+    /// 外部 IdP ログイン（`[auth.saml]`）。無効なら `None`
+    pub saml: Option<SamlLogin>,
     /// EC（`[commerce]`）。無効なら `None`
     pub commerce: Option<Arc<aegis_commerce::CommerceService>>,
     /// 通知（`[notifications]`）。無効なら `None`
@@ -37,15 +39,23 @@ pub struct AppState {
     pub registration: Option<Arc<Registration>>,
 }
 
-/// OpenID Connect ログインの設定済みプロバイダと、ログイン画面・リダイレクトに使う値
+/// シングルサインオン（OpenID Connect / SAML）の設定済みプロバイダと、ログイン画面・リダイレクトに使う値
 #[derive(Clone)]
-pub struct OidcLogin {
-    /// `initiate_login` で IdP への URL を作り、`authenticate` でコールバックを検証する
+pub struct SsoLogin {
+    /// `initiate_login` で IdP への URL を作り、`authenticate` で IdP からの戻りを検証する
     pub provider: Arc<dyn AuthProvider>,
     /// ログイン画面のボタンに表示する名前
     pub display_name: String,
     /// ログイン後（成功・失敗とも）に戻る Admin Studio の URL
     pub post_login_redirect: String,
+}
+
+/// SAML ログイン
+#[derive(Clone)]
+pub struct SamlLogin {
+    pub sso: SsoLogin,
+    /// IdP に登録する SP メタデータ（`GET /api/v1/auth/saml/metadata`）
+    pub metadata: String,
 }
 
 /// アカウント登録に使う部品
@@ -85,6 +95,7 @@ impl AppState {
             audit,
             theme,
             oidc: None,
+            saml: None,
             commerce: None,
             notifier: None,
             registration: None,
@@ -125,8 +136,14 @@ impl AppState {
     }
 
     /// OpenID Connect ログインを有効にする
-    pub fn with_oidc(mut self, oidc: OidcLogin) -> Self {
+    pub fn with_oidc(mut self, oidc: SsoLogin) -> Self {
         self.oidc = Some(oidc);
+        self
+    }
+
+    /// SAML ログインを有効にする
+    pub fn with_saml(mut self, saml: SamlLogin) -> Self {
+        self.saml = Some(saml);
         self
     }
 }

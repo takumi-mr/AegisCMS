@@ -51,8 +51,10 @@ redis.workspace = true
 aegis-auth = { path = "../aegis-auth", features = ["mock-idp"] }
 
 [features]
-default = ["oidc"]
+default = ["oidc", "saml"]
 # OpenID Connect login ([auth.oidc]): ID token signature verification via JWKS
 oidc = ["aegis-auth/oidc"]
+# SAML 2.0 login ([auth.saml]): XML signature verification in pure Rust
+saml = ["aegis-auth/saml"]
 
 
