@@ -152,6 +152,7 @@
     },
     "status": {
       "draft": "Draft",
+      "scheduled": "Scheduled",
       "published": "Published"
     },
     "unreachable": "Cannot reach the AegisCMS server. Check that it is running."
@@ -170,12 +171,15 @@
     "empty": "No articles yet.",
     "emptyHint": "Click \"+ New\" to create one.",
     "noMatch": "No articles match this category.",
-    "articles": "Articles"
+    "articles": "Articles",
+    "scheduledFor": "Scheduled for {{date}}"
   },
   "editor": {
     "titlePlaceholder": "Enter post title...",
     "slug": "slug:",
     "status": "status:",
+    "publishAt": "publish at:",
+    "publishAtAria": "Publish date and time",
     "category": "category:",
     "categoryAria": "Category",
     "noCategory": "No category",
@@ -210,7 +214,8 @@
       "slugRequired": "Slug is required",
       "saved": "Saved! Wasm plugin hooks executed successfully (ID: {{id}})",
       "saveFailed": "Failed to save",
-      "profileUnavailable": "Your profile could not be loaded"
+      "profileUnavailable": "Your profile could not be loaded",
+      "publishAtRequired": "Choose when to publish the scheduled content"
     }
   },
   "header": {
@@ -468,6 +473,7 @@
       "required": "Title and slug are required.",
       "price": "Enter the price as a whole number of the smallest currency unit.",
       "numbers": "Compare-at price and stock must be whole numbers (or empty).",
+      "publishAt": "Choose when to publish the scheduled product.",
       "stockFailed": "Failed to read the current stock",
       "saveFailed": "Failed to save the product"
     },
@@ -476,6 +482,7 @@
       "title": "title:",
       "slug": "slug:",
       "status": "status:",
+      "publishAt": "publish at:",
       "price": "price:",
       "compareAt": "compare at:",
       "stock": "stock:",
@@ -488,6 +495,7 @@
       "title": "Title",
       "slug": "Slug",
       "status": "Status",
+      "publishAt": "Publish date and time",
       "price": "Price",
       "compareAt": "Compare-at price",
       "stock": "Stock",

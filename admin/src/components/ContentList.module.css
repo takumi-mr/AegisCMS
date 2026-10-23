@@ -135,6 +135,12 @@
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
+.status.scheduled {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent-indigo);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
 .status.draft {
   background: rgba(245, 158, 11, 0.15);
   color: var(--accent-amber);

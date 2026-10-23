@@ -230,7 +230,7 @@ impl OpenApiGenerator {
             "ContentStatus".to_string(),
             json!({
                 "type": "string",
-                "enum": ["draft", "published", "archived"]
+                "enum": ["draft", "scheduled", "published", "archived"]
             }),
         );
 

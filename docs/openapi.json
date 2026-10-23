@@ -165,6 +165,7 @@
       "ContentStatus": {
         "enum": [
           "draft",
+          "scheduled",
           "published",
           "archived"
         ],

@@ -9,11 +9,11 @@ use sqlx::{Pool, Postgres, Row};
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
     build_audit_select, build_content_list, build_content_update, build_identity_insert,
-    build_identity_select, build_identity_table, build_relation_lookup, build_user_delete,
-    build_user_insert, build_user_select, build_user_update, custom_columns, is_standard_column,
-    user_row_from_sqlx, ContentListQuery, ContentPage, ContentRecord, CustomFieldValue,
-    DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN,
-    USER_TABLE,
+    build_identity_select, build_identity_table, build_relation_lookup, build_scheduled_publish,
+    build_user_delete, build_user_insert, build_user_select, build_user_update, custom_columns,
+    is_standard_column, user_row_from_sqlx, ContentListQuery, ContentPage, ContentRecord,
+    CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE,
+    USER_AVATAR_COLUMN, USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -391,6 +391,24 @@ impl DatabaseAdapter for PostgresAdapter {
         }
         let result = query
             .bind(&record.id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(format!("Postgres UPDATE failed: {}", e)))?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn publish_scheduled_content(
+        &self,
+        schema: &SchemaDefinition,
+        id: &str,
+        published_at: &str,
+        updated_at: &str,
+    ) -> Result<bool> {
+        let sql = build_scheduled_publish(&schema.table_name(), |i| format!("${}", i));
+        let result = sqlx::query(&sql)
+            .bind(updated_at)
+            .bind(id)
+            .bind(published_at)
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(format!("Postgres UPDATE failed: {}", e)))?;
