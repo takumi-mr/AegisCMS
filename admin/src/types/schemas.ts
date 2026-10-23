@@ -15,7 +15,7 @@ export interface BlockNode {
   text?: string;
 }
 
-export type ContentStatus = 'draft' | 'published' | 'archived';
+export type ContentStatus = 'draft' | 'scheduled' | 'published' | 'archived';
 
 export interface BaseContentItem {
   id: string;

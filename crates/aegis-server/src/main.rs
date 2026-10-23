@@ -14,6 +14,7 @@ mod handlers;
 mod notify_plugins;
 mod plugin_host;
 mod render;
+mod scheduler;
 mod state;
 #[cfg(test)]
 mod test_support;
@@ -640,6 +641,8 @@ async fn main() -> anyhow::Result<()> {
             if let Some(commerce) = &app_state.commerce {
                 commerce.spawn_expiry_task();
             }
+            // 予約公開（status: "scheduled"）
+            scheduler::spawn_publish_task(app_state.clone());
 
             // 7. Router 設定（[server].base_path 配下で公開）
             let app = app::with_base_path(app::router(&config, app_state), &base_path);

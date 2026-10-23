@@ -33,12 +33,69 @@ pub struct CreateContentRequest {
     pub blocks: Vec<BlockNode>,
     #[serde(default)]
     pub author_id: Option<String>,
+    /// 予約公開（`status: "scheduled"`）の公開日時（RFC 3339）。他の状態では無視する
+    #[serde(default)]
+    pub published_at: Option<String>,
     #[serde(flatten)]
     pub fields: HashMap<String, serde_json::Value>,
 }
 
 fn default_status() -> String {
     "draft".to_string()
+}
+
+/// 予約公開の状態。`published_at` の日時になると `scheduler` が `published` にする
+pub const STATUS_SCHEDULED: &str = "scheduled";
+const STATUS_PUBLISHED: &str = "published";
+
+/// 保存する公開状態と `published_at` を決める。
+/// - `published`: 最初に公開した日時を保つ（今まで公開されていなければ `now`）
+/// - `scheduled`: `requested_at` が必須。過ぎた日時ならその場で `published` にする
+/// - それ以外: `published_at` なし
+fn resolve_publication(
+    status: String,
+    requested_at: Option<&str>,
+    current: Option<&ContentRecord>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<(String, Option<String>), ApiError> {
+    let published = || {
+        let first = current
+            .filter(|c| c.status == STATUS_PUBLISHED)
+            .and_then(|c| c.published_at.clone());
+        Ok((
+            STATUS_PUBLISHED.to_string(),
+            Some(first.unwrap_or_else(|| now.to_rfc3339())),
+        ))
+    };
+    match status.as_str() {
+        STATUS_PUBLISHED => published(),
+        STATUS_SCHEDULED => {
+            let requested = requested_at.map(str::trim).filter(|s| !s.is_empty());
+            let Some(requested) = requested else {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "Scheduled content needs 'published_at' (when to publish it)",
+                ));
+            };
+            let at = chrono::DateTime::parse_from_rfc3339(requested)
+                .map_err(|e| {
+                    api_error(
+                        StatusCode::BAD_REQUEST,
+                        format!("Invalid 'published_at' '{}': {}", requested, e),
+                    )
+                })?
+                .with_timezone(&chrono::Utc);
+            if at <= now {
+                published()
+            } else {
+                Ok((
+                    status,
+                    Some(at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
+                ))
+            }
+        }
+        _ => Ok((status, None)),
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -373,9 +430,15 @@ pub async fn create_content(
 
     let schema = find_schema(&state, &content_type).await?;
     let id = Uuid::new_v4().to_string();
-    let now = chrono::Utc::now().to_rfc3339();
+    let now_at = chrono::Utc::now();
+    let now = now_at.to_rfc3339();
     let author_id = payload.author_id.clone();
-    let status = payload.status.clone();
+    let (status, published_at) = resolve_publication(
+        payload.status.clone(),
+        payload.published_at.as_deref(),
+        None,
+        now_at,
+    )?;
 
     let saved = run_save_pipeline(
         &state,
@@ -394,7 +457,7 @@ pub async fn create_content(
         content_type,
         title: saved.title,
         slug: saved.slug,
-        published_at: (status == "published").then(|| now.clone()),
+        published_at,
         status,
         blocks_json: serde_json::to_string(&saved.blocks).unwrap_or_else(|_| "[]".to_string()),
         author_id,
@@ -414,6 +477,7 @@ pub async fn create_content(
 /// `PUT /api/v1/contents/{content_type}/{slug_or_id}` — 保存済みのコンテンツを上書きする（`editor`）。
 /// 本文は作成と同じで、保存と同じパイプライン（AST 変換・`on-before-save`）を通る。
 /// `author_id` を省略すると今の著者のまま。初めて `published` になったときに `published_at` を付ける
+/// （`scheduled` は `published_at` に予約した日時）
 pub async fn update_content(
     State(state): State<Arc<AppState>>,
     RequireRole(session): EditorSession,
@@ -454,8 +518,14 @@ pub async fn update_content(
         Some(author) => Some(author.clone()),
     };
 
-    let now = chrono::Utc::now().to_rfc3339();
-    let status = payload.status.clone();
+    let now_at = chrono::Utc::now();
+    let now = now_at.to_rfc3339();
+    let (status, published_at) = resolve_publication(
+        payload.status.clone(),
+        payload.published_at.as_deref(),
+        Some(&current),
+        now_at,
+    )?;
     let saved = run_save_pipeline(
         &state,
         &audit,
@@ -467,11 +537,6 @@ pub async fn update_content(
     )
     .await?;
 
-    let published_at = match (status == "published", current.published_at) {
-        (true, Some(first)) => Some(first),
-        (true, None) => Some(now.clone()),
-        (false, _) => None,
-    };
     let record = ContentRecord {
         id: current.id,
         content_type,

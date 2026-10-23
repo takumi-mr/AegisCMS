@@ -13,6 +13,9 @@ pub enum AuditAction {
     ContentUpdate,
     #[serde(rename = "content.delete")]
     ContentDelete,
+    /// Scheduled content published by the server when its `published_at` arrived
+    #[serde(rename = "content.publish")]
+    ContentPublish,
     #[serde(rename = "session.create")]
     SessionCreate,
     #[serde(rename = "session.delete")]
@@ -56,10 +59,11 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 18] = [
+    pub const ALL: [AuditAction; 19] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
+        Self::ContentPublish,
         Self::SessionCreate,
         Self::SessionDelete,
         Self::StorageUpload,
@@ -82,6 +86,7 @@ impl AuditAction {
             Self::ContentCreate => "content.create",
             Self::ContentUpdate => "content.update",
             Self::ContentDelete => "content.delete",
+            Self::ContentPublish => "content.publish",
             Self::SessionCreate => "session.create",
             Self::SessionDelete => "session.delete",
             Self::StorageUpload => "storage.upload",
