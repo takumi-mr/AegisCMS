@@ -54,7 +54,8 @@ export type AuditAction =
   | 'user.update'
   | 'user.delete'
   | 'order.create'
-  | 'order.update';
+  | 'order.update'
+  | 'notification.send';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 

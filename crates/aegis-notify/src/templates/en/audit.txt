@@ -1,0 +1,33 @@
+{% include "_audit_title.txt" %}
+
+Time: {{ audit.occurred_at }} (UTC)
+Action: {{ audit.action }} ({{ audit.outcome }})
+{% if audit.actor %}
+User: {{ audit.actor.user_id }} ({{ audit.actor.role }})
+{% elif audit.details.username %}
+Username: {{ audit.details.username }}
+{% endif %}
+{% if audit.ip %}
+IP address: {{ audit.ip }}
+{% endif %}
+{% if audit.user_agent %}
+Browser: {{ audit.user_agent }}
+{% endif %}
+{% if audit.resource_type %}
+Resource: {{ audit.resource_type }}{{ (" " ~ audit.resource_id) if audit.resource_id else "" }}
+{% endif %}
+{% if audit.details %}
+
+Details:
+{% for key, value in audit.details | items %}
+{% if value is not none and key != "username" %}
+  {{ key }}: {{ value }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if admin_url %}
+
+Audit log: {{ admin_url }}
+{% endif %}
+
+If you do not recognize this activity, consider changing the password or disabling the user.

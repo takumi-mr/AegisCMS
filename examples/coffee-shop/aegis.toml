@@ -47,3 +47,30 @@ provider = "manual"
 [commerce.manual]
 instructions = "下記口座へ 3 日以内にお振り込みください。ご入金を確認してから焙煎・発送します。\n朝凪銀行 本店営業部 普通 1234567 アサナギコーヒー\n（振込名義の前に注文番号をご入力ください）"
 payment_due_hours = 72
+
+# 通知（docs/notifications.md）。サンプルではメールを送らず、件名と本文をサーバーのログに出す。
+# メールで送るには channels = ["email"] にして [notifications.email] に SMTP サーバーを設定し、
+# aegis-server -c examples/coffee-shop/aegis.toml notify test --to you@example.com で確かめる
+[notifications]
+enabled = true
+channels = ["log"]
+locale = "ja"
+
+[notifications.email]
+smtp_host = "smtp.example.com"
+tls = "starttls"
+username = ""
+# パスワードは環境変数 AEGIS_SMTP_PASSWORD で渡す
+from = "朝凪珈琲 <shop@example.com>"
+staff_recipients = ["owner@example.com"]
+
+# 監査イベントの通知: 管理者のログインと、パスワードの誤りが続いたログインのロック
+[[notifications.audit.rules]]
+title = "管理者がログインしました"
+action = "session.create"
+outcomes = ["success"]
+roles = ["admin"]
+
+[[notifications.audit.rules]]
+action = "session.create"
+details = { locked = "*" }

@@ -1,0 +1,14 @@
+注文番号: {{ order.number }}
+{% for line in order.lines %}
+・{{ line.title }} × {{ line.quantity }}　{{ line.line_total | money(order.currency) }}
+{% endfor %}
+{% for adjustment in order.adjustments %}
+・{{ adjustment.label }}　{{ adjustment.amount | money(order.currency) }}
+{% endfor %}
+合計: {{ order.total | money(order.currency) }}
+{% if order.shipping_address %}
+
+お届け先:
+〒{{ order.shipping_address.postal_code }} {{ order.shipping_address.region }}{{ order.shipping_address.city }}{{ order.shipping_address.line1 }}{{ (" " ~ order.shipping_address.line2) if order.shipping_address.line2 else "" }}
+{{ order.shipping_address.name or order.customer_name }} 様
+{% endif %}

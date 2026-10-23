@@ -73,6 +73,21 @@ enum Commands {
         #[command(subcommand)]
         action: PluginCommand,
     },
+    /// Check the notification settings ([notifications])
+    Notify {
+        #[command(subcommand)]
+        action: NotifyCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum NotifyCommand {
+    /// Send a test notification through every configured channel and wait for the result
+    Test {
+        /// Email address to send it to
+        #[arg(long)]
+        to: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -110,6 +125,68 @@ enum UserCommand {
         /// The `sub` claim of the user at the IdP
         sub: String,
     },
+}
+
+/// 通知のテンプレートに渡すサイトの情報（`[theme].site_title` と `[commerce].public_url`）
+fn notification_site(config: &AegisConfig) -> aegis_notify::SiteInfo {
+    let url = config
+        .commerce
+        .public_url
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
+    aegis_notify::SiteInfo {
+        name: config.theme.site_title.clone(),
+        admin_url: if url.is_empty() {
+            String::new()
+        } else {
+            format!("{}/admin/", url)
+        },
+        url,
+    }
+}
+
+async fn run_notify_command(config: &AegisConfig, action: NotifyCommand) -> anyhow::Result<()> {
+    match action {
+        NotifyCommand::Test { to } => {
+            if !config.notifications.enabled {
+                anyhow::bail!("Notifications are disabled: set [notifications].enabled = true");
+            }
+            let service = aegis_notify::NotificationService::from_config(
+                &config.notifications,
+                notification_site(config),
+                None,
+            )?;
+            let event = aegis_core::NotificationEvent::new(
+                "test",
+                vec![aegis_core::Recipient::person(to, "")],
+                serde_json::json!({}),
+            );
+            let deliveries = service.deliver(&event).await;
+            if deliveries.is_empty() {
+                anyhow::bail!(
+                    "Nothing was sent: no channel accepts the recipient, or \"test\" is in [notifications].disabled_events"
+                );
+            }
+            let mut failed = false;
+            for delivery in deliveries {
+                match delivery.result {
+                    Ok(()) => println!("{}: sent \"{}\"", delivery.channel, delivery.subject),
+                    Err(e) => {
+                        failed = true;
+                        println!(
+                            "{}: failed after {} attempt(s): {}",
+                            delivery.channel, delivery.attempts, e
+                        );
+                    }
+                }
+            }
+            if failed {
+                anyhow::bail!("Some notifications were not delivered");
+            }
+        }
+    }
+    Ok(())
 }
 
 fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyhow::Result<()> {
@@ -301,6 +378,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::User { action } => run_user_command(&config, action).await?,
         Commands::Plugin { action } => run_plugin_command(&config, action)?,
+        Commands::Notify { action } => run_notify_command(&config, action).await?,
         Commands::Run { port, host } => {
             if let Some(p) = port {
                 config.server.port = p;
@@ -312,6 +390,15 @@ async fn main() -> anyhow::Result<()> {
             let base_path = config.server.normalized_base_path()?;
             config.plugins.validate()?;
             config.commerce.validate()?;
+            config.notifications.validate()?;
+            if config.notifications.enabled
+                && !config.notifications.audit.rules.is_empty()
+                && !config.audit.enabled
+            {
+                anyhow::bail!(
+                    "[[notifications.audit.rules]] notify audit events: set [audit].enabled = true"
+                );
+            }
 
             tracing::info!("Starting AegisCMS core engine...");
             tracing::info!(
@@ -404,10 +491,19 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // 6. 監査ログサービス初期化
-            let audit = Arc::new(aegis_audit::AuditService::from_config(
-                &config.audit,
-                db_adapter.clone(),
-            ));
+            let mut audit =
+                aegis_audit::AuditService::from_config(&config.audit, db_adapter.clone());
+            // 監査イベントの通知（[[notifications.audit.rules]]）。通知の送り先は 6.6 で渡す
+            let audit_notifications = (config.notifications.enabled
+                && !config.notifications.audit.rules.is_empty())
+            .then(|| {
+                let sink = Arc::new(aegis_notify::AuditNotificationSink::new(
+                    config.notifications.audit.rules.clone(),
+                ));
+                audit.add_sink(sink.clone());
+                sink
+            });
+            let audit = Arc::new(audit);
             audit.spawn_retention_task();
 
             // 6.5 外部 IdP ログイン（[auth.oidc]）
@@ -440,7 +536,30 @@ async fn main() -> anyhow::Result<()> {
                 None => app_state,
             };
 
-            // 6.6 EC（[commerce]）
+            // 6.6 通知（[notifications]）。EC が注文の通知に使うので先に設定する
+            let app_state = if config.notifications.enabled {
+                let notifier = aegis_notify::NotificationService::from_config(
+                    &config.notifications,
+                    notification_site(&config),
+                    Some(app_state.audit.clone()),
+                )?;
+                tracing::info!(
+                    "Notifications enabled (channels: {:?})",
+                    notifier.channel_names()
+                );
+                if let Some(sink) = &audit_notifications {
+                    sink.attach(Arc::new(notifier.clone()));
+                    tracing::info!(
+                        "Audit notifications enabled ({} rule(s))",
+                        config.notifications.audit.rules.len()
+                    );
+                }
+                app_state.with_notifier(notifier)
+            } else {
+                app_state
+            };
+
+            // 6.7 EC（[commerce]）
             let app_state = if config.commerce.enabled {
                 let commerce = aegis_commerce::CommerceService::new(
                     config.commerce.clone(),

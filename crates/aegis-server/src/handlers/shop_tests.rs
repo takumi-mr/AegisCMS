@@ -3,8 +3,8 @@
 use std::sync::{Arc, Mutex};
 
 use aegis_core::{
-    AuditAction, AuditOutcome, OrderAdjustment, OrderContext, OrderStatusChange,
-    PluginCapabilities, PluginManifest,
+    AuditAction, AuditOutcome, NotificationEvent, Notifier, OrderAdjustment, OrderContext,
+    OrderStatusChange, PluginCapabilities, PluginManifest, Recipient,
 };
 use aegis_runtime::{AegisPlugin, PluginSupervisor};
 use aegis_schema::SchemaDefinition;
@@ -80,9 +80,22 @@ impl AegisPlugin for ShopRulesPlugin {
     }
 }
 
+/// Records the notifications (emails) the shop asks for
+#[derive(Default)]
+struct RecordingNotifier {
+    events: Mutex<Vec<NotificationEvent>>,
+}
+
+impl Notifier for RecordingNotifier {
+    fn notify(&self, event: NotificationEvent) {
+        self.events.lock().unwrap().push(event);
+    }
+}
+
 struct Shop {
     state: Arc<AppState>,
     notifications: Arc<Mutex<Vec<OrderStatusChange>>>,
+    mails: Arc<RecordingNotifier>,
     staff_token: String,
 }
 
@@ -112,8 +125,10 @@ async fn shop(configure: impl FnOnce(&mut AegisConfig)) -> Shop {
     }));
     let state =
         crate::test_support::test_app_state(config, supervisor, vec![product_schema()]).await;
-    let commerce =
-        CommerceService::new(state.config.commerce.clone(), state.commerce_deps()).unwrap();
+    let mails = Arc::new(RecordingNotifier::default());
+    let mut deps = state.commerce_deps();
+    deps.notifier = Some(mails.clone());
+    let commerce = CommerceService::new(state.config.commerce.clone(), deps).unwrap();
     let state = state.with_commerce(commerce);
     let state = Arc::new(state);
     let schemas = state.schemas.read().await.clone();
@@ -163,6 +178,7 @@ async fn shop(configure: impl FnOnce(&mut AegisConfig)) -> Shop {
     Shop {
         state,
         notifications,
+        mails,
         staff_token: staff.id,
     }
 }
@@ -261,6 +277,30 @@ impl Shop {
                 )
             })
             .map(|e| (e.action, e.outcome))
+            .collect()
+    }
+
+    /// The notifications sent so far: (kind, recipients, data)
+    fn mails(&self) -> Vec<(String, Vec<&'static str>, Value)> {
+        self.mails
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|e| {
+                let recipients = e
+                    .recipients
+                    .iter()
+                    .map(|r| match r {
+                        Recipient::Person { email, .. } => {
+                            assert_eq!(email, "buyer@example.com");
+                            "customer"
+                        }
+                        Recipient::Staff => "staff",
+                    })
+                    .collect();
+                (e.kind.clone(), recipients, e.data.clone())
+            })
             .collect()
     }
 
@@ -453,6 +493,32 @@ async fn test_manual_checkout_reserves_stock_and_follows_the_status_flow() {
             (Some("shipped"), "completed"),
         ]
     );
+
+    // Emails: the order with how to pay (customer and staff), then payment and shipping
+    let mails = shop.mails();
+    let kinds: Vec<_> = mails
+        .iter()
+        .map(|(k, r, _)| (k.as_str(), r.clone()))
+        .collect();
+    assert_eq!(
+        kinds,
+        vec![
+            ("order.placed", vec!["customer", "staff"]),
+            ("order.paid", vec!["customer"]),
+            ("order.shipped", vec!["customer"]),
+        ]
+    );
+    let placed = &mails[0].2;
+    assert_eq!(placed["order"]["number"], created["order"]["number"]);
+    assert_eq!(placed["order"]["status"], "pending_payment");
+    assert_eq!(placed["order"]["total"], 5400);
+    assert_eq!(placed["order"]["lines"].as_array().unwrap().len(), 2);
+    assert!(placed["order_url"]
+        .as_str()
+        .unwrap()
+        .ends_with(&format!("/orders/{}?token={}", id, token)));
+    assert!(placed["payment_instructions"].is_string());
+    assert_eq!(mails[2].2["order"]["note"], "by test");
     assert_eq!(
         shop.audit_actions().await,
         vec![
@@ -501,6 +567,17 @@ async fn test_cancel_and_expiry_return_stock() {
     assert_eq!(shop.stock("mug").await, Some(3));
     let order = shop.state.db.get_order(second_id).await.unwrap().unwrap();
     assert_eq!(order.status, "cancelled");
+
+    let cancelled: Vec<_> = shop
+        .mails()
+        .into_iter()
+        .filter(|(kind, _, _)| kind == "order.cancelled")
+        .collect();
+    assert_eq!(cancelled.len(), 2);
+    assert_eq!(cancelled[0].1, vec!["customer", "staff"]);
+    assert_eq!(cancelled[0].2["reason"], "admin");
+    assert_eq!(cancelled[0].2["was_paid"], false);
+    assert_eq!(cancelled[1].2["reason"], "expired");
 }
 
 #[tokio::test]
@@ -694,6 +771,14 @@ async fn test_stripe_checkout_and_webhooks() {
     });
     assert_eq!(webhook(expired, "whsec_mock").await.0, StatusCode::OK);
     assert_eq!(shop.stock("mug").await, Some(1));
+
+    // Card payments: the order is announced once it is paid, and an abandoned checkout is not
+    let mails = shop.mails();
+    assert_eq!(mails.len(), 1, "{:?}", mails);
+    assert_eq!(mails[0].0, "order.placed");
+    assert_eq!(mails[0].1, vec!["customer", "staff"]);
+    assert_eq!(mails[0].2["order"]["status"], "paid");
+    assert!(mails[0].2.get("order_url").is_none());
 
     assert_eq!(
         shop.audit_actions().await,

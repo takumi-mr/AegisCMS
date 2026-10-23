@@ -1,0 +1,28 @@
+{% set labels = {
+  "session.create": "ログイン",
+  "session.delete": "ログアウト",
+  "access.denied": "権限のない操作",
+  "user.create": "ユーザーの作成",
+  "user.update": "ユーザーの変更",
+  "user.delete": "ユーザーの削除",
+  "theme.switch": "テーマの切り替え",
+  "plugin.error": "プラグインのエラー",
+  "content.create": "コンテンツの作成",
+  "content.update": "コンテンツの更新",
+  "content.delete": "コンテンツの削除",
+  "storage.upload": "ファイルのアップロード",
+  "storage.delete": "ファイルの削除",
+  "audit.purge": "監査ログの削除",
+  "order.create": "注文",
+  "order.update": "注文の更新",
+} %}
+{% set outcomes = { "success": "成功", "failure": "失敗", "denied": "拒否" } %}
+{% if title %}
+{{ title }}
+{% elif audit.action == "session.create" and audit.details.locked %}
+ログインをロックしました（{{ audit.details.username or "" }}）
+{% elif audit.action == "session.create" and audit.details.error == "rate_limited" %}
+ロック中のログイン試行（{{ audit.details.username or "" }}）
+{% else %}
+{{ labels[audit.action] or audit.action }}（{{ outcomes[audit.outcome] or audit.outcome }}）{{ ("：" ~ audit.actor.user_id) if audit.actor else "" }}
+{% endif %}

@@ -1,0 +1,10 @@
+Dear {{ order.customer_name }},
+
+Your order {{ order.number }} is on its way.
+{% if order.note %}
+
+{{ order.note }}
+{% endif %}
+
+{% include "_summary.txt" %}
+{% include "_footer.txt" %}

@@ -30,6 +30,8 @@ pub struct AppState {
     pub oidc: Option<OidcLogin>,
     /// EC（`[commerce]`）。無効なら `None`
     pub commerce: Option<Arc<aegis_commerce::CommerceService>>,
+    /// 通知（`[notifications]`）。無効なら `None`
+    pub notifier: Option<Arc<aegis_notify::NotificationService>>,
 }
 
 /// OpenID Connect ログインの設定済みプロバイダと、ログイン画面・リダイレクトに使う値
@@ -72,6 +74,7 @@ impl AppState {
             theme,
             oidc: None,
             commerce: None,
+            notifier: None,
         }
     }
 
@@ -89,7 +92,17 @@ impl AppState {
             schemas: self.schemas.clone(),
             supervisor: self.supervisor.clone(),
             audit: self.audit.clone(),
+            notifier: self
+                .notifier
+                .clone()
+                .map(|n| n as Arc<dyn aegis_core::Notifier>),
         }
+    }
+
+    /// 通知（`[notifications]`）を有効にする。EC より先に設定する（`commerce_deps` が使う）
+    pub fn with_notifier(mut self, notifier: aegis_notify::NotificationService) -> Self {
+        self.notifier = Some(Arc::new(notifier));
+        self
     }
 
     /// OpenID Connect ログインを有効にする

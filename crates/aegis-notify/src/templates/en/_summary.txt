@@ -1,0 +1,15 @@
+Order number: {{ order.number }}
+{% for line in order.lines %}
+- {{ line.title }} x {{ line.quantity }}: {{ line.line_total | money(order.currency) }}
+{% endfor %}
+{% for adjustment in order.adjustments %}
+- {{ adjustment.label }}: {{ adjustment.amount | money(order.currency) }}
+{% endfor %}
+Total: {{ order.total | money(order.currency) }}
+{% if order.shipping_address %}
+
+Ship to:
+{{ order.shipping_address.name or order.customer_name }}
+{{ order.shipping_address.postal_code }} {{ order.shipping_address.region }} {{ order.shipping_address.city }}
+{{ order.shipping_address.line1 }}{{ (" " ~ order.shipping_address.line2) if order.shipping_address.line2 else "" }}
+{% endif %}

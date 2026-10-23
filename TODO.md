@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: `aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: 通知機能（`aegis-notify`: 外部 SMTP サーバーへのメール・ログ、テンプレート en / ja、再試行・監査ログ）を追加し、EC の注文の受付・入金確認・発送・取り消しをメールで送るように。サンプルショップ「朝凪珈琲」（`examples/coffee-shop`）を追加。`aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
   - `task check` による全自動検証（Rust テスト 93 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
   - 公式 Wasm プラグイン `official-code-enhancer` (`plugins/official-code-enhancer/`):
@@ -47,6 +47,12 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### 通知機能 (Completed) — [docs/notifications.md](docs/notifications.md)
+- [x] **メール通知と通知の基盤**: 新クレート `aegis-notify`（`NotificationService`・配信チャネル `NotificationChannel`・テンプレート）、`aegis_core::Notifier` / `NotificationEvent` / `Recipient`。チャネルは `email`（外部の SMTP サーバー。STARTTLS / TLS / 平文、認証、`AEGIS_SMTP_PASSWORD`）と `log`。組み込みテンプレート（en / ja）と `templates_dir` での上書き、一時的な失敗の再試行、監査ログ `notification.send`、`aegis-server notify test --to`。EC の注文の受付・入金確認・発送・取り消しを顧客と運営者（`staff_recipients`）に送る。
+- [x] **監査イベントの通知**: `[[notifications.audit.rules]]`（`action` / `outcomes` / `roles` / `details`（`"*"` で存在のみ）/ `title` / `recipients` / `max_per_hour`）に合う監査イベントを運営者に通知（管理者のログイン、ログインのロック、権限の無い操作など）。`AuditNotificationSink`（監査ログの出力先として登録）、組み込みテンプレート `audit`（en / ja）、テンプレート名の親へのフォールバック。
+- [ ] **通知の追加チャネル**（Slack / Webhook / SMS。`NotificationChannel` を実装して `ChannelKind` に加える）、HTML メール、送信待ちの永続化（再起動で失われないキュー）、Admin Studio からのテスト送信・テンプレート編集。
+- [ ] **EC 以外の通知**（パスワードの再設定、コメント、公開予約の完了など）。
 
 #### サンプルショップ (Completed) — [examples/coffee-shop](examples/coffee-shop)
 - [x] **サンプルの EC サイト「朝凪珈琲」**: 設定（`examples/coffee-shop/aegis.toml`: 銀行振込・送料 650円 / 5,000円以上無料・クーポン `WELCOME10` / `COFFEE300`）、投入スクリプト `seed.mjs`（API でカテゴリ 4・商品 9・記事 3・固定ページ 2 と商品画像を投入。冪等）、ショップ向けテーマ `themes/roastery`、`task demo:shop` / `demo:shop:seed`。
@@ -152,6 +158,14 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **通知 (`crates/aegis-notify/`, `aegis_core::notify`)**:
+  - 通知を出す側（`aegis-commerce`）は `aegis_core::Notifier` に `NotificationEvent { kind, recipients, data }` を渡すだけで、`aegis-notify` に依存しない（`CommerceDeps.notifier`）。宛先は `Recipient::Person`（アドレス）と `Recipient::Staff`（チャネルごとの設定で解決。メールは `staff_recipients`）。
+  - テンプレートは `<kind>.subject` / `<kind>.txt`（運営者向けは `<kind>.staff.*` を先に探す）。テンプレートの無い種類は送らない。MiniJinja の `trim_blocks` は行末の `{% endif %}` の後の改行も消すため、行の途中の条件は `{{ "..." if cond else "" }}` で書く。
+  - Stripe の注文は支払い済みになった時点（Webhook）で `order.placed` を送る（決済ページで離脱した注文に受付メールを送らない）。注文確認ページのトークンは平文を保存しないので、URL は注文時の `order.placed` にしか入らない。
+  - 配信は `tokio::spawn` で非同期・メモリ上（再起動で失われる）。`SendError::permanent`（SMTP の 5xx・宛先不正）は再試行しない。監査ログに宛先のアドレスは残さない。
+  - `AuditService::with_sinks` は `#[cfg(test)]` を外して公開（独自の出力先・他クレートのテストで使う）。
+  - 監査イベントの通知は `AuditNotificationSink`（`AuditSink`）を `AuditService::add_sink` で加える。`NotificationService` は監査ログ（`notification.send` の記録）を使うため後から作り、`attach` で渡す（`OnceLock`）。`notification.send` は通知しない（配信の失敗が通知を呼び続けるため）。`max_per_hour` はルールごとにメモリ上で数える。
+  - テンプレートは種類の最後の `.` 以降を外した名前へフォールバックする（`audit.session.create` → `audit`）。ログインのロックは `session.create` の `failure` で `details.locked` があるもの（ロックがかかった試行の 1 回）、ロック中の試行は `denied` + `details.error = "rate_limited"`。
 - **サンプルショップ (`examples/coffee-shop/`, `themes/roastery/`)**:
   - パスはリポジトリのルートからの相対パス（ルートで起動する）。SQLite はファイルのあるディレクトリを作らない（ルートの `.gitignore` が `data/` を無視するため空のディレクトリも置けない）ので、DB は `examples/coffee-shop/shop.db` に直接置き、`examples/coffee-shop/.gitignore` で除外している。
   - `seed.mjs` は依存なし（Node.js 18+ の `fetch` / `FormData`）。本文は簡単な Markdown（見出し・箇条書き・段落）をブロックに変換して送る。画像は `key` を指定してアップロードし（`sample-shop/<slug>.png`）、作成済みの slug は飛ばす。一覧は新しい順なので、先頭に出したい商品を最後に作る。

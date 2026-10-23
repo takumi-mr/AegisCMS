@@ -1,0 +1,7 @@
+{{ order.customer_name }} 様
+
+ご注文 {{ order.number }} のご入金を確認しました。
+発送しましたら改めてお知らせします。
+
+{% include "_summary.txt" %}
+{% include "_footer.txt" %}

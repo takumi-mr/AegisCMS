@@ -1,0 +1,1 @@
+【{{ site_name }}】ご入金を確認しました（注文番号 {{ order.number }}）

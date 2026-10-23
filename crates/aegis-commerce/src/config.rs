@@ -14,6 +14,16 @@ pub enum PaymentProviderKind {
     Stripe,
 }
 
+impl PaymentProviderKind {
+    /// 注文の `payment_provider` に保存する名前
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Stripe => "stripe",
+        }
+    }
+}
+
 /// EC（カート・注文・在庫・決済）。商品は `product_type` のスキーマのコンテンツ
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]

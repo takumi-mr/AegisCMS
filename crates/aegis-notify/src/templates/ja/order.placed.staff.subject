@@ -1,0 +1,1 @@
+【{{ site_name }}】新しい注文 {{ order.number }}（{{ order.total | money(order.currency) }}）

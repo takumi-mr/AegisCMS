@@ -147,6 +147,40 @@ payment_due_hours = 72
 secret_key = ""
 webhook_secret = ""
 
+# Notifications (docs/notifications.md): order emails to customers and staff, sent through an
+# external SMTP server. channels = ["log"] prints them to the server log instead (no SMTP needed).
+# Check the settings with: aegis-server notify test --to you@example.com
+[notifications]
+enabled = false
+channels = ["email"]
+# Language of the built-in templates: "en" or "ja"
+locale = "en"
+# Directory with templates that replace the built-in ones (<kind>.subject / <kind>.txt)
+# templates_dir = "notifications"
+
+[notifications.email]
+smtp_host = ""
+# 0: 587 for starttls, 465 for tls, 25 for none
+smtp_port = 0
+# "starttls" (required STARTTLS), "tls" (implicit TLS) or "none" (local relay only)
+tls = "starttls"
+username = ""
+# Prefer the environment variable AEGIS_SMTP_PASSWORD
+password = ""
+from = "Shop <shop@example.com>"
+# Staff notified of new and cancelled orders
+staff_recipients = []
+
+# Audit events to notify staff about (docs/notifications.md "2.1"), e.g. admin logins and lockouts
+# [[notifications.audit.rules]]
+# action = "session.create"
+# outcomes = ["success"]
+# roles = ["admin"]
+#
+# [[notifications.audit.rules]]
+# action = "session.create"
+# details = { locked = "*" }
+
 # Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
 # [plugins.settings.official-shop-rules]
 # shipping_fee = 600

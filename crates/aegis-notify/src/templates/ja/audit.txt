@@ -1,0 +1,33 @@
+{% include "_audit_title.txt" %}
+
+日時: {{ audit.occurred_at }}（UTC）
+操作: {{ audit.action }}（{{ audit.outcome }}）
+{% if audit.actor %}
+ユーザー: {{ audit.actor.user_id }}（{{ audit.actor.role }}）
+{% elif audit.details.username %}
+ユーザー名: {{ audit.details.username }}
+{% endif %}
+{% if audit.ip %}
+IP アドレス: {{ audit.ip }}
+{% endif %}
+{% if audit.user_agent %}
+ブラウザ: {{ audit.user_agent }}
+{% endif %}
+{% if audit.resource_type %}
+対象: {{ audit.resource_type }}{{ (" " ~ audit.resource_id) if audit.resource_id else "" }}
+{% endif %}
+{% if audit.details %}
+
+詳細:
+{% for key, value in audit.details | items %}
+{% if value is not none and key != "username" %}
+  {{ key }}: {{ value }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if admin_url %}
+
+監査ログ: {{ admin_url }}
+{% endif %}
+
+心当たりのない操作の場合は、パスワードの変更やユーザーの無効化を検討してください。

@@ -80,7 +80,7 @@ impl AuditService {
         service
     }
 
-    #[cfg(test)]
+    /// 出力先を直接渡して作る（独自の出力先・テスト用）
     pub fn with_sinks(sinks: Vec<Arc<dyn AuditSink>>) -> Self {
         Self {
             enabled: true,
@@ -90,6 +90,13 @@ impl AuditService {
             metrics: None,
             retention_days: 0,
             purge_interval: Duration::from_secs(3600),
+        }
+    }
+
+    /// 出力先を加える（監査ログが有効なときのみ。`[notifications.audit]` の通知など）
+    pub fn add_sink(&mut self, sink: Arc<dyn AuditSink>) {
+        if self.enabled {
+            self.sinks.push(sink);
         }
     }
 

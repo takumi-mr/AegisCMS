@@ -1,0 +1,4 @@
+注文 {{ order.number }} が取り消されました（{{ reason }}）。{{ "支払い済みの注文です。返金してください。" if was_paid else "" }}
+
+お客様: {{ order.customer_name }} <{{ order.customer_email }}>
+{% include "_summary.txt" %}
