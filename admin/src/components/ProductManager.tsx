@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Images, Package, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi, SERVER_URL, serverAssetUrl } from '../api/client';
+import i18n from '../i18n';
 import type { ContentItem, ShopConfig, StorageMeta } from '../types';
 import { cx } from '../utils/cx';
 import { blocksToMarkdown, markdownToBlocks } from '../utils/markdown';
@@ -42,6 +44,7 @@ interface ProductManagerProps {
 
 /** Product catalog for editors: list, create, edit and delete products (`product` contents) */
 export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onShowToast }) => {
+  const { t } = useTranslation();
   const [config, setConfig] = useState<ShopConfig | null>(null);
   const [products, setProducts] = useState<ContentItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +67,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
         setError(null);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(messageOf(err, 'Failed to load products'));
+        if (!cancelled) setError(messageOf(err, i18n.t('products.loadFailed')));
       });
     return () => {
       cancelled = true;
@@ -80,18 +83,22 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
       return created ? [saved, ...rest] : (prev ?? []).map((p) => (p.id === saved.id ? saved : p));
     });
     setEditing(undefined);
-    onShowToast(`${created ? 'Created' : 'Saved'} "${saved.title}"`);
+    onShowToast(
+      created
+        ? t('products.created', { title: saved.title })
+        : t('products.saved', { title: saved.title })
+    );
   };
 
   const handleDelete = async (product: ContentItem) => {
-    if (!window.confirm(`Delete "${product.title}"? Past orders keep their copy of it.`)) return;
+    if (!window.confirm(t('products.confirmDelete', { title: product.title }))) return;
     try {
       await aegisApi.deleteContent(productType, product.id);
       setProducts((prev) => prev?.filter((p) => p.id !== product.id) ?? null);
       setEditing(undefined);
-      onShowToast(`Deleted "${product.title}"`);
+      onShowToast(t('products.deleted', { title: product.title }));
     } catch (err) {
-      onShowToast(messageOf(err, 'Failed to delete the product'), 'error');
+      onShowToast(messageOf(err, t('products.deleteFailed')), 'error');
     }
   };
 
@@ -101,7 +108,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
         <div className={styles.heading}>
           <div className={styles.title}>
             <Package size={22} />
-            <h1>Products</h1>
+            <h1>{t('products.title')}</h1>
             {products && <span className={styles.count}>{products.length}</span>}
           </div>
           <div className={styles.headingActions}>
@@ -110,26 +117,24 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
               href={`${SERVER_URL}/products`}
               target="_blank"
               rel="noreferrer"
-              title="Open the storefront"
+              title={t('products.storefrontTitle')}
             >
-              <ExternalLink size={12} /> Storefront
+              <ExternalLink size={12} /> {t('products.storefront')}
             </a>
             <Button variant="tool" onClick={() => setReloadCount((n) => n + 1)}>
               <RefreshCw size={14} />
-              <span>Reload</span>
+              <span>{t('common.reload')}</span>
             </Button>
             <Button variant="primary" onClick={() => setEditing(null)} disabled={!config}>
               <Plus size={16} />
-              <span>New product</span>
+              <span>{t('products.newProduct')}</span>
             </Button>
           </div>
         </div>
 
         {config && !config.enabled && (
           <div className={styles.notice}>
-            The shop is not enabled, so products are listed on the site but cannot be ordered. Set{' '}
-            <code>[commerce].enabled = true</code> to take orders (products with a buy URL link to
-            it instead).
+            <Trans i18nKey="products.shopDisabled" components={{ code: <code /> }} />
           </div>
         )}
         {error && <div className={cx(styles.notice, styles.error)}>{error}</div>}
@@ -139,12 +144,12 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Product</th>
-                  <th>SKU</th>
-                  <th className={styles.numeric}>Price</th>
-                  <th className={styles.numeric}>Stock</th>
-                  <th>Status</th>
-                  <th aria-label="Actions" />
+                  <th>{t('products.columns.product')}</th>
+                  <th>{t('products.columns.sku')}</th>
+                  <th className={styles.numeric}>{t('products.columns.price')}</th>
+                  <th className={styles.numeric}>{t('products.columns.stock')}</th>
+                  <th>{t('products.columns.status')}</th>
+                  <th aria-label={t('products.columns.actions')} />
                 </tr>
               </thead>
               <tbody>
@@ -179,7 +184,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
                       </td>
                       <td className={styles.numeric}>
                         {stock === null ? (
-                          <span className={styles.muted}>Unlimited</span>
+                          <span className={styles.muted}>{t('products.unlimited')}</span>
                         ) : (
                           <span
                             className={cx(
@@ -187,7 +192,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
                               stock <= 0 ? styles.bad : stock <= 5 ? styles.warn : styles.good
                             )}
                           >
-                            {stock <= 0 ? 'Sold out' : stock}
+                            {stock <= 0 ? t('products.soldOut') : stock}
                           </span>
                         )}
                       </td>
@@ -198,15 +203,17 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
                             product.status === 'published' && styles.good
                           )}
                         >
-                          {product.status}
+                          {product.status === 'published' || product.status === 'draft'
+                            ? t(`common.status.${product.status}`)
+                            : product.status}
                         </span>
                       </td>
                       <td>
                         <div className={styles.rowActions}>
                           <Button
                             variant="icon"
-                            aria-label={`Edit ${product.title}`}
-                            title="Edit"
+                            aria-label={t('products.editAria', { title: product.title })}
+                            title={t('common.edit')}
                             onClick={(e) => {
                               e.stopPropagation();
                               setEditing(product);
@@ -217,8 +224,8 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
                           <Button
                             variant="icon"
                             danger
-                            aria-label={`Delete ${product.title}`}
-                            title="Delete"
+                            aria-label={t('products.deleteAria', { title: product.title })}
+                            title={t('common.delete')}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDelete(product);
@@ -234,7 +241,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
                 {products.length === 0 && (
                   <tr>
                     <td colSpan={6} className={styles.empty}>
-                      No products yet. Create the first one.
+                      {t('products.empty')}
                     </td>
                   </tr>
                 )}
@@ -243,9 +250,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
           </div>
         )}
         <p className={styles.hint}>
-          Prices are in the smallest unit of {currency.toUpperCase()} (yen for JPY, cents for USD).
-          Stock goes down when an order is placed and comes back when an unpaid order is cancelled
-          or expires.
+          {t('products.priceHint', { currency: currency.toUpperCase() })}
         </p>
       </div>
 
@@ -284,6 +289,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
   onDelete,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const initialNumber = (name: string) => {
     const value = product ? numberField(product, name) : null;
     return value === null ? '' : String(value);
@@ -326,15 +332,15 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
     const compareValue = wholeNumber(compareAt);
     const stockValue = wholeNumber(stock);
     if (!title.trim() || !slug.trim()) {
-      setError('Title and slug are required.');
+      setError(t('products.errors.required'));
       return;
     }
     if (priceValue === null || priceValue === undefined) {
-      setError('Enter the price as a whole number of the smallest currency unit.');
+      setError(t('products.errors.price'));
       return;
     }
     if (compareValue === undefined || stockValue === undefined) {
-      setError('Compare-at price and stock must be whole numbers (or empty).');
+      setError(t('products.errors.numbers'));
       return;
     }
     // Orders change the stock while the form is open: unless it was edited here, save the
@@ -345,7 +351,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
         const latest = await aegisApi.getContent(productType, product.id);
         savedStock = numberField(latest, 'stock');
       } catch (err) {
-        setError(messageOf(err, 'Failed to read the current stock'));
+        setError(messageOf(err, t('products.errors.stockFailed')));
         return;
       }
     }
@@ -372,7 +378,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
         : await aegisApi.createContent(productType, payload as never);
       onSaved(saved, !product);
     } catch (err) {
-      setError(messageOf(err, 'Failed to save the product'));
+      setError(messageOf(err, t('products.errors.saveFailed')));
       setIsSaving(false);
     }
   };
@@ -380,14 +386,16 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
   return (
     <>
       <Modal
-        title={product ? `Edit ${product.title}` : 'New product'}
+        title={
+          product ? t('products.editTitle', { title: product.title }) : t('products.newProduct')
+        }
         icon={<Package size={18} />}
         onClose={onClose}
         wide
       >
         <form className={styles.form} onSubmit={handleSubmit}>
           <FieldRow>
-            <Field label="title:">
+            <Field label={t('products.fields.title')}>
               <input
                 ref={titleRef}
                 value={title}
@@ -395,79 +403,81 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
                   setTitle(e.target.value);
                   if (!slugEdited) setSlug(toSlug(e.target.value));
                 }}
-                placeholder="Ceramic mug"
-                aria-label="Title"
+                placeholder={t('products.placeholders.title')}
+                aria-label={t('products.aria.title')}
               />
             </Field>
-            <Field label="slug:">
+            <Field label={t('products.fields.slug')}>
               <input
                 value={slug}
                 onChange={(e) => {
                   setSlug(e.target.value);
                   setSlugEdited(true);
                 }}
-                placeholder="ceramic-mug"
-                aria-label="Slug"
+                placeholder={t('products.placeholders.slug')}
+                aria-label={t('products.aria.slug')}
               />
             </Field>
-            <Field label="status:">
+            <Field label={t('products.fields.status')}>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                aria-label="Status"
+                aria-label={t('products.aria.status')}
               >
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
+                <option value="draft">{t('common.status.draft')}</option>
+                <option value="published">{t('common.status.published')}</option>
               </select>
             </Field>
           </FieldRow>
 
-          <div className={styles.formSection}>Price & stock ({currency.toUpperCase()})</div>
+          <div className={styles.formSection}>
+            {t('products.priceAndStock', { currency: currency.toUpperCase() })}
+          </div>
           <FieldRow>
-            <Field label="price:">
+            <Field label={t('products.fields.price')}>
               <input
                 inputMode="numeric"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="1200"
-                aria-label="Price"
+                placeholder={t('products.placeholders.price')}
+                aria-label={t('products.aria.price')}
               />
             </Field>
-            <Field label="compare at:">
+            <Field label={t('products.fields.compareAt')}>
               <input
                 inputMode="numeric"
                 value={compareAt}
                 onChange={(e) => setCompareAt(e.target.value)}
-                placeholder="Optional"
-                aria-label="Compare-at price"
+                placeholder={t('products.placeholders.optional')}
+                aria-label={t('products.aria.compareAt')}
               />
             </Field>
-            <Field label="stock:">
+            <Field label={t('products.fields.stock')}>
               <input
                 inputMode="numeric"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
-                placeholder="Unlimited"
-                aria-label="Stock"
+                placeholder={t('products.placeholders.unlimited')}
+                aria-label={t('products.aria.stock')}
               />
             </Field>
-            <Field label="SKU:">
+            <Field label={t('products.fields.sku')}>
               <input
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
-                placeholder="Optional"
-                aria-label="SKU"
+                placeholder={t('products.placeholders.optional')}
+                aria-label={t('products.aria.sku')}
               />
             </Field>
           </FieldRow>
           <span className={styles.hint}>
             {price && !Number.isNaN(Number(price))
-              ? `Shown as ${formatMoney(Number(price), currency)}. `
+              ? t('products.shownAs', { price: formatMoney(Number(price), currency) })
               : ''}
-            Leave stock empty to sell without counting stock.
+            {t('products.stockHint')}
           </span>
 
-          <div className={styles.formSection}>Image</div>
+          <div className={styles.formSection}>{t('products.image')}</div>
           <div className={styles.imageRow}>
             {imageUrl ? (
               <img className={styles.preview} src={serverAssetUrl(imageUrl)} alt="" />
@@ -479,42 +489,42 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
               <div style={{ display: 'flex', gap: 8 }}>
                 <Button variant="tool" onClick={() => setIsLibraryOpen(true)}>
                   <Images size={14} />
-                  <span>Choose from library</span>
+                  <span>{t('products.chooseFromLibrary')}</span>
                 </Button>
                 {imageUrl && (
                   <Button variant="tool" onClick={() => setImageUrl('')}>
-                    <span>Remove image</span>
+                    <span>{t('products.removeImage')}</span>
                   </Button>
                 )}
               </div>
             </div>
           </div>
 
-          <div className={styles.formSection}>Description</div>
-          <Field label="summary:">
+          <div className={styles.formSection}>{t('products.description')}</div>
+          <Field label={t('products.fields.summary')}>
             <input
               value={excerpt}
               onChange={(e) => setExcerpt(e.target.value)}
-              placeholder="One line shown in product lists"
+              placeholder={t('products.placeholders.summary')}
               maxLength={500}
-              aria-label="Summary"
+              aria-label={t('products.aria.summary')}
             />
           </Field>
           <textarea
             className={styles.textarea}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder={'Markdown: ## Details, - bullet points, **bold**…'}
-            aria-label="Description (Markdown)"
+            placeholder={t('products.placeholders.description')}
+            aria-label={t('products.aria.description')}
           />
           <FieldRow>
-            <Field label="category:">
+            <Field label={t('products.fields.category')}>
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                aria-label="Category"
+                aria-label={t('products.aria.category')}
               >
-                <option value="">No category</option>
+                <option value="">{t('products.noCategory')}</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.title}
@@ -522,12 +532,12 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
                 ))}
               </select>
             </Field>
-            <Field label="buy URL:">
+            <Field label={t('products.fields.buyUrl')}>
               <input
                 value={buyUrl}
                 onChange={(e) => setBuyUrl(e.target.value)}
-                placeholder="External checkout link (only when the shop is disabled)"
-                aria-label="Buy URL"
+                placeholder={t('products.placeholders.buyUrl')}
+                aria-label={t('products.aria.buyUrl')}
               />
             </Field>
           </FieldRow>
@@ -538,14 +548,20 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
               {product && (
                 <Button danger onClick={() => onDelete(product)}>
                   <Trash2 size={14} />
-                  <span>Delete</span>
+                  <span>{t('common.delete')}</span>
                 </Button>
               )}
             </div>
             <div>
-              <Button onClick={onClose}>Cancel</Button>
+              <Button onClick={onClose}>{t('common.cancel')}</Button>
               <Button type="submit" variant="primary" disabled={isSaving}>
-                <span>{isSaving ? 'Saving...' : product ? 'Save product' : 'Create product'}</span>
+                <span>
+                  {isSaving
+                    ? t('common.saving')
+                    : product
+                      ? t('products.save')
+                      : t('products.create')}
+                </span>
               </Button>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 import type { BlockNode } from '../types';
 
 /**
@@ -214,27 +215,28 @@ export function isMarkdownLike(text: string): boolean {
 }
 
 /**
- * Returns a human-friendly summary of the parsed blocks (e.g. "1 H2, 3 Paragraphs, 1 Code").
+ * Returns a human-friendly summary of the parsed blocks (e.g. "1 H2, 3 Paragraph, 1 Code"),
+ * in the Admin Studio language.
  */
 export function summarizeBlocks(blocks: BlockNode[]): string {
-  if (blocks.length === 0) return '0 blocks';
+  if (blocks.length === 0) return i18n.t('markdown.summary.empty');
   const counts: Record<string, number> = {};
   for (const b of blocks) {
     const label =
       b.name === 'core/heading'
         ? `H${b.attributes?.level ?? 2}`
         : b.name === 'core/paragraph'
-          ? 'Paragraph'
+          ? i18n.t('markdown.summary.paragraph')
           : b.name === 'core/code'
-            ? 'Code'
+            ? i18n.t('markdown.summary.code')
             : b.name === 'core/image'
-              ? 'Image'
+              ? i18n.t('markdown.summary.image')
               : b.name === 'core/list'
-                ? 'List'
+                ? i18n.t('markdown.summary.list')
                 : b.name.replace('core/', '');
     counts[label] = (counts[label] ?? 0) + 1;
   }
   return Object.entries(counts)
-    .map(([name, count]) => `${count} ${name}`)
-    .join(', ');
+    .map(([name, count]) => i18n.t('markdown.summary.item', { name, count }))
+    .join(i18n.t('markdown.summary.separator'));
 }

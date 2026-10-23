@@ -11,6 +11,7 @@ import {
   Clipboard,
   CheckCircle2,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from './ui/Button';
 import type { BlockNode } from '../types';
 import { summarizeBlocks } from '../utils/markdown';
@@ -29,6 +30,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   blocks,
   onSave,
 }) => {
+  const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const insertText = (before: string, after: string = '', defaultText: string = '') => {
@@ -92,26 +94,26 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   return (
     <div className={styles.editorContainer}>
       {/* Quick Markdown Formatting Toolbar */}
-      <div className={styles.toolbar} role="toolbar" aria-label="Markdown formatting">
+      <div className={styles.toolbar} role="toolbar" aria-label={t('markdown.toolbar')}>
         <div className={styles.toolbarGroup}>
           <Button
             variant="icon"
-            onClick={() => insertText('## ', '', 'Section Title')}
-            title="Heading 2 (##)"
+            onClick={() => insertText('## ', '', t('markdown.samples.heading'))}
+            title={t('markdown.heading')}
           >
             <Heading size={14} />
           </Button>
           <Button
             variant="icon"
-            onClick={() => insertText('**', '**', 'bold text')}
-            title="Bold (**text**)"
+            onClick={() => insertText('**', '**', t('markdown.samples.bold'))}
+            title={t('markdown.bold')}
           >
             <Bold size={14} />
           </Button>
           <Button
             variant="icon"
-            onClick={() => insertText('*', '*', 'italic text')}
-            title="Italic (*text*)"
+            onClick={() => insertText('*', '*', t('markdown.samples.italic'))}
+            title={t('markdown.italic')}
           >
             <Italic size={14} />
           </Button>
@@ -122,22 +124,22 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         <div className={styles.toolbarGroup}>
           <Button
             variant="icon"
-            onClick={() => insertText('```rust\n', '\n```', '// Code here')}
-            title="Code Block (```)"
+            onClick={() => insertText('```rust\n', '\n```', t('markdown.samples.code'))}
+            title={t('markdown.code')}
           >
             <Code2 size={14} />
           </Button>
           <Button
             variant="icon"
-            onClick={() => insertText('- ', '', 'List item')}
-            title="Unordered List (-)"
+            onClick={() => insertText('- ', '', t('markdown.samples.listItem'))}
+            title={t('markdown.bullet')}
           >
             <List size={14} />
           </Button>
           <Button
             variant="icon"
-            onClick={() => insertText('1. ', '', 'Numbered item')}
-            title="Ordered List (1.)"
+            onClick={() => insertText('1. ', '', t('markdown.samples.numberedItem'))}
+            title={t('markdown.numbered')}
           >
             <ListOrdered size={14} />
           </Button>
@@ -148,19 +150,19 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         <div className={styles.toolbarGroup}>
           <Button
             variant="icon"
-            onClick={() => insertText('![', '](https://)', 'Alt description')}
-            title="Image (![alt](url))"
+            onClick={() => insertText('![', '](https://)', t('markdown.samples.alt'))}
+            title={t('markdown.image')}
           >
             <ImageIcon size={14} />
           </Button>
           <Button
             variant="icon"
-            onClick={() => insertText('[', '](https://)', 'Link text')}
-            title="Link ([text](url))"
+            onClick={() => insertText('[', '](https://)', t('markdown.samples.link'))}
+            title={t('markdown.link')}
           >
             <Link size={14} />
           </Button>
-          <Button variant="icon" onClick={handlePasteClipboard} title="Paste text from clipboard">
+          <Button variant="icon" onClick={handlePasteClipboard} title={t('markdown.paste')}>
             <Clipboard size={14} />
           </Button>
         </div>
@@ -174,7 +176,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder='Write your content in Markdown here...&#10;&#10;## Subheading&#10;Paragraph content with **bold**, *italics*, and links.&#10;&#10;```rust&#10;fn main() {&#10;    println!("Hello AegisCMS");&#10;}&#10;```'
+          placeholder={t('markdown.placeholder')}
           spellCheck={false}
         />
       </div>
@@ -182,16 +184,16 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       {/* Status Bar */}
       <div className={styles.statusBar}>
         <div className={styles.statusLeft}>
-          <span>{lineCount} lines</span>
-          <span>{wordCount} words</span>
-          <span>{charCount} characters</span>
+          <span>{t('markdown.lines', { count: lineCount })}</span>
+          <span>{t('markdown.words', { count: wordCount })}</span>
+          <span>{t('markdown.chars', { count: charCount })}</span>
           <span className={styles.tag}>
-            {blocks.length} AST blocks ({blocksSummary})
+            {t('markdown.astBlocks', { count: blocks.length, summary: blocksSummary })}
           </span>
         </div>
         <div className={styles.statusRight}>
           <CheckCircle2 size={13} />
-          <span>Live AST & Preview Synchronized</span>
+          <span>{t('markdown.synced')}</span>
         </div>
       </div>
     </div>

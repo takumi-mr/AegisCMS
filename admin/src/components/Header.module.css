@@ -157,3 +157,26 @@
   background: rgba(99, 102, 241, 0.15);
   color: var(--accent-indigo-light);
 }
+
+/* Translated labels can be longer than the English ones: keep each item on one line */
+.badge,
+.tab,
+.health,
+.roleBadge,
+.right > * {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Narrower screens: drop the decorative badge, then shorten the gateway status to its dot */
+@media (max-width: 1680px) {
+  .badge {
+    display: none;
+  }
+}
+
+@media (max-width: 1480px) {
+  .healthLabel {
+    display: none;
+  }
+}

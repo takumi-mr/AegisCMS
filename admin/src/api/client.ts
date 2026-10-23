@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 import type {
   AuditLogPage,
   AuthProviders,
@@ -99,7 +100,7 @@ const request = async <T>(path: string, init: RequestInit, fallbackError: string
 export const aegisApi = {
   async checkHealth(): Promise<{ status: string; system: string; version: string }> {
     const res = await fetch(`${API_BASE}/health`);
-    if (!res.ok) throw new ApiError(res.status, 'Health check failed');
+    if (!res.ok) throw new ApiError(res.status, i18n.t('api.healthFailed'));
     return res.json();
   },
 
@@ -114,10 +115,10 @@ export const aegisApi = {
       body: JSON.stringify({ username, password }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Failed to log in' }));
+      const err = await res.json().catch(() => ({ error: i18n.t('api.loginFailed') }));
       const retryAfter =
         typeof err.retry_after_secs === 'number' ? err.retry_after_secs : undefined;
-      throw new ApiError(res.status, err.error || 'Failed to log in', retryAfter);
+      throw new ApiError(res.status, err.error || i18n.t('api.loginFailed'), retryAfter);
     }
     return res.json();
   },
@@ -125,7 +126,7 @@ export const aegisApi = {
   /** Sign-in methods for the login screen */
   async getAuthProviders(): Promise<AuthProviders> {
     const res = await fetch(`${API_BASE}/auth/providers`);
-    if (!res.ok) throw new ApiError(res.status, 'Failed to fetch sign-in methods');
+    if (!res.ok) throw new ApiError(res.status, i18n.t('api.providersFailed'));
     return res.json();
   },
 
@@ -137,19 +138,19 @@ export const aegisApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.status === 401) return null;
-    if (!res.ok) throw new ApiError(res.status, 'Failed to check the session');
+    if (!res.ok) throw new ApiError(res.status, i18n.t('api.sessionFailed'));
     return res.json();
   },
 
   async logout(): Promise<void> {
-    await request('/auth/session', { method: 'DELETE' }, 'Failed to log out');
+    await request('/auth/session', { method: 'DELETE' }, i18n.t('api.logoutFailed'));
   },
 
   async getSchemas(): Promise<SchemaDefinition[]> {
     const data = await request<{ schemas?: SchemaDefinition[] }>(
       '/schemas',
       {},
-      'Failed to fetch schemas'
+      i18n.t('api.schemasFailed')
     );
     return data.schemas || [];
   },
@@ -162,7 +163,7 @@ export const aegisApi = {
       const data = await request<{ contents?: ContentItem[]; total?: number }>(
         `/contents/${contentType}?${toQuery({ limit: pageSize, offset: items.length })}`,
         {},
-        `Failed to fetch contents for ${contentType}`
+        i18n.t('api.contentsFailed')
       );
       const page = data.contents || [];
       items.push(...page);
@@ -171,7 +172,7 @@ export const aegisApi = {
   },
 
   async getContent(contentType: string, slugOrId: string): Promise<ContentItem> {
-    return request(`/contents/${contentType}/${slugOrId}`, {}, 'Content not found');
+    return request(`/contents/${contentType}/${slugOrId}`, {}, i18n.t('api.contentNotFound'));
   },
 
   async createCategory(payload: CreateCategoryPayload): Promise<ContentItem> {
@@ -189,7 +190,7 @@ export const aegisApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       },
-      'Failed to save content'
+      i18n.t('api.saveContentFailed')
     );
   },
 
@@ -206,7 +207,7 @@ export const aegisApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       },
-      'Failed to save content'
+      i18n.t('api.saveContentFailed')
     );
   },
 
@@ -220,12 +221,12 @@ export const aegisApi = {
     });
     if (res.ok) return;
     if (res.status === 401 && token) unauthorizedHandler?.();
-    const err = await res.json().catch(() => ({ error: 'Failed to delete content' }));
-    throw new ApiError(res.status, err.error || 'Failed to delete content');
+    const err = await res.json().catch(() => ({ error: i18n.t('api.deleteContentFailed') }));
+    throw new ApiError(res.status, err.error || i18n.t('api.deleteContentFailed'));
   },
 
   async getShopConfig(): Promise<ShopConfig> {
-    return request('/shop/config', {}, 'Failed to fetch the shop settings');
+    return request('/shop/config', {}, i18n.t('api.shopConfigFailed'));
   },
 
   /** Shop orders, newest first (404 when [commerce] is disabled) */
@@ -234,11 +235,11 @@ export const aegisApi = {
     limit?: number;
     offset?: number;
   }): Promise<OrderPage> {
-    return request(`/orders?${toQuery(query)}`, {}, 'Failed to fetch orders');
+    return request(`/orders?${toQuery(query)}`, {}, i18n.t('api.ordersFailed'));
   },
 
   async getOrder(id: string): Promise<Order> {
-    return request(`/orders/${encodeURIComponent(id)}`, {}, 'Failed to fetch the order');
+    return request(`/orders/${encodeURIComponent(id)}`, {}, i18n.t('api.orderFailed'));
   },
 
   /** Marks an order paid / shipped / completed / cancelled (cancelling before shipping returns stock) */
@@ -250,16 +251,16 @@ export const aegisApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, note }),
       },
-      'Failed to update the order'
+      i18n.t('api.updateOrderFailed')
     );
   },
 
   async getAuditLogs(query: AuditLogQuery): Promise<AuditLogPage> {
-    return request(`/audit-logs?${toQuery(query)}`, {}, 'Failed to fetch audit logs');
+    return request(`/audit-logs?${toQuery(query)}`, {}, i18n.t('api.auditFailed'));
   },
 
   async listStorageObjects(query: StorageObjectQuery): Promise<StorageObjectPage> {
-    return request(`/storage/objects?${toQuery(query)}`, {}, 'Failed to fetch media');
+    return request(`/storage/objects?${toQuery(query)}`, {}, i18n.t('api.mediaFailed'));
   },
 
   /** Renders unsaved content with the server's save + publish pipeline (nothing is stored) */
@@ -271,7 +272,7 @@ export const aegisApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(preview),
       },
-      'Failed to render the preview'
+      i18n.t('api.previewFailed')
     );
   },
 
@@ -292,29 +293,29 @@ export const aegisApi = {
       headers,
     });
     if (res.ok) return { deleted: true, references: [] };
-    const err = await res.json().catch(() => ({ error: 'Failed to delete the file' }));
+    const err = await res.json().catch(() => ({ error: i18n.t('api.deleteFileFailed') }));
     if (res.status === 409 && Array.isArray(err.references)) {
       return { deleted: false, references: err.references };
     }
     if (res.status === 401 && token) unauthorizedHandler?.();
-    throw new ApiError(res.status, err.error || 'Failed to delete the file');
+    throw new ApiError(res.status, err.error || i18n.t('api.deleteFileFailed'));
   },
 
   async uploadFile(file: File): Promise<StorageMeta> {
     const form = new FormData();
     form.append('file', file);
-    return request('/storage/upload', { method: 'POST', body: form }, 'Failed to upload file');
+    return request('/storage/upload', { method: 'POST', body: form }, i18n.t('api.uploadFailed'));
   },
 
   /** Every user account (admin only) */
   async listUsers(): Promise<UserAccount[]> {
-    const data = await request<{ users?: UserAccount[] }>('/users', {}, 'Failed to fetch users');
+    const data = await request<{ users?: UserAccount[] }>('/users', {}, i18n.t('api.usersFailed'));
     return data.users || [];
   },
 
   /** The logged-in user's own account, or any account for admins */
   async getUser(username: string): Promise<UserAccount> {
-    return request(`/users/${encodeURIComponent(username)}`, {}, 'Failed to fetch the user');
+    return request(`/users/${encodeURIComponent(username)}`, {}, i18n.t('api.userFailed'));
   },
 
   async createUser(payload: CreateUserPayload): Promise<UserAccount> {
@@ -325,7 +326,7 @@ export const aegisApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       },
-      'Failed to create the user'
+      i18n.t('api.createUserFailed')
     );
   },
 
@@ -337,7 +338,7 @@ export const aegisApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       },
-      'Failed to update the user'
+      i18n.t('api.updateUserFailed')
     );
   },
 
@@ -351,8 +352,8 @@ export const aegisApi = {
     });
     if (res.ok) return;
     if (res.status === 401 && token) unauthorizedHandler?.();
-    const err = await res.json().catch(() => ({ error: 'Failed to delete the user' }));
-    throw new ApiError(res.status, err.error || 'Failed to delete the user');
+    const err = await res.json().catch(() => ({ error: i18n.t('api.deleteUserFailed') }));
+    throw new ApiError(res.status, err.error || i18n.t('api.deleteUserFailed'));
   },
 
   /** Sets the avatar (PNG, JPEG, GIF or WebP up to 2 MB) of the user */
@@ -362,7 +363,7 @@ export const aegisApi = {
     return request(
       `/users/${encodeURIComponent(username)}/avatar`,
       { method: 'PUT', body: form },
-      'Failed to upload the avatar'
+      i18n.t('api.uploadAvatarFailed')
     );
   },
 
@@ -370,16 +371,16 @@ export const aegisApi = {
     return request(
       `/users/${encodeURIComponent(username)}/avatar`,
       { method: 'DELETE' },
-      'Failed to remove the avatar'
+      i18n.t('api.removeAvatarFailed')
     );
   },
 
   async listThemes(): Promise<ThemeInfo[]> {
-    return request('/themes', {}, 'Failed to fetch themes');
+    return request('/themes', {}, i18n.t('api.themesFailed'));
   },
 
   async getActiveTheme(): Promise<ThemeInfo> {
-    return request('/themes/active', {}, 'Failed to fetch active theme');
+    return request('/themes/active', {}, i18n.t('api.activeThemeFailed'));
   },
 
   async switchActiveTheme(themeId: string): Promise<ThemeInfo> {
@@ -390,7 +391,7 @@ export const aegisApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ theme_id: themeId }),
       },
-      'Failed to switch active theme'
+      i18n.t('api.switchThemeFailed')
     );
   },
 };

@@ -13,6 +13,7 @@ import {
   Clipboard,
   List,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Header, type AppView } from './components/Header';
 import { AuditLogView } from './components/AuditLogView';
 import { ThemeManager } from './components/ThemeManager';
@@ -39,10 +40,14 @@ import { Button } from './components/ui/Button';
 import { Field, FieldRow } from './components/ui/Field';
 import styles from './App.module.css';
 
+/** Messages shown above the login form */
+type LoginNotice = 'unreachable' | 'expired' | 'signedOut';
+
 export const App: React.FC = () => {
+  const { t } = useTranslation();
   // undefined = still checking the stored token, null = logged out
   const [session, setSession] = useState<SessionInfo | null | undefined>(undefined);
-  const [loginNotice, setLoginNotice] = useState<string | null>(null);
+  const [loginNotice, setLoginNotice] = useState<LoginNotice | null>(null);
   // The signed-in user's account (avatar, profile); null until loaded or for unknown accounts
   const [profile, setProfile] = useState<UserAccount | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
@@ -137,7 +142,7 @@ export const App: React.FC = () => {
       })
       .catch(() => {
         // Server unreachable: keep the token and ask to sign in once it is back
-        setLoginNotice('Cannot reach the AegisCMS server. Check that it is running.');
+        setLoginNotice('unreachable');
         setSession(null);
       });
 
@@ -146,7 +151,7 @@ export const App: React.FC = () => {
       setSession(null);
       setProfile(null);
       setIsProfileOpen(false);
-      setLoginNotice('Your session has expired. Sign in again.');
+      setLoginNotice('expired');
     });
     return () => setUnauthorizedHandler(null);
   }, []);
@@ -207,7 +212,7 @@ export const App: React.FC = () => {
     setSession(null);
     setProfile(null);
     setIsProfileOpen(false);
-    setLoginNotice('You have signed out.');
+    setLoginNotice('signedOut');
     setView('editor');
     setContents([]);
     setCategories([]);
@@ -216,7 +221,7 @@ export const App: React.FC = () => {
   const handleCategoryCreated = (category: ContentItem) => {
     setCategories((prev) => [category, ...prev.filter((c) => c.id !== category.id)]);
     setCategoryId(category.id);
-    showToast(`Category "${category.title}" created`);
+    showToast(t('editor.toasts.categoryCreated', { title: category.title }));
   };
 
   const handleSelectContent = (item: ContentItem) => {
@@ -232,12 +237,12 @@ export const App: React.FC = () => {
 
   const handleNew = () => {
     setSelectedId(null);
-    setTitle('Untitled Document');
+    setTitle(t('editor.defaults.untitled'));
     setSlug(`untitled-${Date.now().toString(36)}`);
     setStatus('draft');
     setCategoryId('');
     const newBlocks: BlockNode[] = [
-      { name: 'core/heading', attributes: { level: 2 }, text: 'New Heading' },
+      { name: 'core/heading', attributes: { level: 2 }, text: t('editor.defaults.newHeading') },
       { name: 'core/paragraph', attributes: {}, text: '' },
     ];
     setBlocks(newBlocks);
@@ -312,7 +317,7 @@ export const App: React.FC = () => {
         const nextBlocks = [...blocks, ...parsed];
         setBlocks(nextBlocks);
         setMarkdownText(blocksToMarkdown(nextBlocks));
-        showToast(`📋 Pasted and converted ${parsed.length} blocks from Markdown`);
+        showToast(t('editor.toasts.pasted', { count: parsed.length }));
       }
     }
   };
@@ -321,17 +326,17 @@ export const App: React.FC = () => {
     const nextBlocks = mode === 'replace' ? insertedBlocks : [...blocks, ...insertedBlocks];
     setBlocks(nextBlocks);
     setMarkdownText(blocksToMarkdown(nextBlocks));
-    showToast(`Added ${insertedBlocks.length} blocks from Markdown`);
+    showToast(t('editor.toasts.added', { count: insertedBlocks.length }));
   };
 
   // Save via API Gateway & Wasm Hooks
   const handleSave = async () => {
     if (!title.trim()) {
-      showToast('Title is required', 'error');
+      showToast(t('editor.toasts.titleRequired'), 'error');
       return;
     }
     if (!slug.trim()) {
-      showToast('Slug is required', 'error');
+      showToast(t('editor.toasts.slugRequired'), 'error');
       return;
     }
 
@@ -351,12 +356,12 @@ export const App: React.FC = () => {
         ? await aegisApi.updateContent(contentType, selectedId, payload)
         : await aegisApi.createContent(contentType, payload);
 
-      showToast(`Saved! Wasm plugin hooks executed successfully (ID: ${saved.id.slice(0, 8)})`);
+      showToast(t('editor.toasts.saved', { id: saved.id.slice(0, 8) }));
       loadContents();
       // Show what was stored: plugins may change the title, slug and blocks on save
       handleSelectContent(saved);
     } catch (err: any) {
-      showToast(err.message || 'Failed to save', 'error');
+      showToast(err.message || t('editor.toasts.saveFailed'), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -366,7 +371,19 @@ export const App: React.FC = () => {
     return <SessionCheckingScreen />;
   }
   if (session === null) {
-    return <LoginView onLoggedIn={handleLoggedIn} notice={loginNotice} initialError={ssoError} />;
+    return (
+      <LoginView
+        onLoggedIn={handleLoggedIn}
+        notice={
+          loginNotice === 'unreachable'
+            ? t('common.unreachable')
+            : loginNotice
+              ? t(`login.notices.${loginNotice}`)
+              : null
+        }
+        initialError={ssoError}
+      />
+    );
   }
 
   const editable = canEdit(session);
@@ -385,7 +402,9 @@ export const App: React.FC = () => {
         canManageUsers={isAdmin(session)}
         profile={profile}
         onOpenProfile={() =>
-          profile ? setIsProfileOpen(true) : showToast('Your profile could not be loaded', 'error')
+          profile
+            ? setIsProfileOpen(true)
+            : showToast(t('editor.toasts.profileUnavailable'), 'error')
         }
         onLogout={handleLogout}
       />
@@ -420,7 +439,7 @@ export const App: React.FC = () => {
                 <input
                   type="text"
                   className={styles.titleInput}
-                  placeholder="Enter post title..."
+                  placeholder={t('editor.titlePlaceholder')}
                   value={title}
                   onChange={(e) => {
                     setTitle(e.target.value);
@@ -436,7 +455,7 @@ export const App: React.FC = () => {
                 />
 
                 <FieldRow>
-                  <Field label="slug:">
+                  <Field label={t('editor.slug')}>
                     <input
                       type="text"
                       value={slug}
@@ -445,22 +464,22 @@ export const App: React.FC = () => {
                     />
                   </Field>
 
-                  <Field label="status:" className={styles.statusField}>
+                  <Field label={t('editor.status')} className={styles.statusField}>
                     <select value={status} onChange={(e) => setStatus(e.target.value as any)}>
-                      <option value="draft">Draft</option>
-                      <option value="published">Published</option>
+                      <option value="draft">{t('common.status.draft')}</option>
+                      <option value="published">{t('common.status.published')}</option>
                     </select>
                   </Field>
                 </FieldRow>
 
                 <FieldRow>
-                  <Field label="category:">
+                  <Field label={t('editor.category')}>
                     <select
                       value={categoryId}
                       onChange={(e) => setCategoryId(e.target.value)}
-                      aria-label="Category"
+                      aria-label={t('editor.categoryAria')}
                     >
-                      <option value="">No category</option>
+                      <option value="">{t('editor.noCategory')}</option>
                       {categories.map((category) => (
                         <option key={category.id} value={category.id}>
                           {category.title}
@@ -468,7 +487,7 @@ export const App: React.FC = () => {
                       ))}
                       {categoryId && !categories.some((c) => c.id === categoryId) && (
                         <option value={categoryId}>
-                          Unknown category ({categoryId.slice(0, 8)})
+                          {t('editor.unknownCategory', { id: categoryId.slice(0, 8) })}
                         </option>
                       )}
                     </select>
@@ -477,17 +496,19 @@ export const App: React.FC = () => {
                     variant="tool"
                     onClick={() => setIsCategoryManagerOpen(true)}
                     disabled={!editable}
-                    title={editable ? 'List and create categories' : 'Requires the editor role'}
+                    title={
+                      editable ? t('editor.manageCategoriesTitle') : t('common.requiresEditor')
+                    }
                   >
                     <Tags size={14} />
-                    <span>Manage</span>
+                    <span>{t('editor.manageCategories')}</span>
                   </Button>
                 </FieldRow>
               </div>
 
               {/* Editor Mode Selector & Paste Actions */}
               <div className={styles.editorModeBar}>
-                <div className={styles.modeTabs} role="tablist" aria-label="Editor Mode">
+                <div className={styles.modeTabs} role="tablist" aria-label={t('editor.mode')}>
                   <button
                     type="button"
                     role="tab"
@@ -496,7 +517,7 @@ export const App: React.FC = () => {
                     onClick={() => handleSwitchMode('blocks')}
                   >
                     <LayoutGrid size={14} />
-                    <span>Blocks</span>
+                    <span>{t('editor.blocks')}</span>
                   </button>
                   <button
                     type="button"
@@ -506,7 +527,7 @@ export const App: React.FC = () => {
                     onClick={() => handleSwitchMode('markdown')}
                   >
                     <FileText size={14} />
-                    <span>Markdown</span>
+                    <span>{t('editor.markdown')}</span>
                   </button>
                 </div>
 
@@ -514,10 +535,10 @@ export const App: React.FC = () => {
                   <Button
                     variant="tool"
                     onClick={() => setIsPasteModalOpen(true)}
-                    title="Paste Markdown from clipboard to convert into blocks"
+                    title={t('editor.pasteMarkdownTitle')}
                   >
                     <Clipboard size={14} />
-                    <span>Paste Markdown</span>
+                    <span>{t('editor.pasteMarkdown')}</span>
                   </Button>
                 </div>
               </div>
@@ -533,31 +554,33 @@ export const App: React.FC = () => {
                 <>
                   {/* Block Insertion Toolbar */}
                   <div className={styles.blockToolbar}>
-                    <span className={styles.toolbarLabel}>Add Block</span>
+                    <span className={styles.toolbarLabel}>{t('editor.addBlock')}</span>
                     <Button
                       variant="tool"
-                      onClick={() => addBlock('core/heading', 'Section Title', { level: 2 })}
+                      onClick={() =>
+                        addBlock('core/heading', t('editor.defaults.sectionTitle'), { level: 2 })
+                      }
                     >
                       <Hash size={14} />
-                      <span>Heading</span>
+                      <span>{t('editor.heading')}</span>
                     </Button>
                     <Button variant="tool" onClick={() => addBlock('core/paragraph', '')}>
                       <AlignLeft size={14} />
-                      <span>Paragraph</span>
+                      <span>{t('editor.paragraph')}</span>
                     </Button>
                     <Button
                       variant="tool"
                       onClick={() => addBlock('core/code', '', { language: 'rust' })}
                     >
                       <Code2 size={14} />
-                      <span>Code Block</span>
+                      <span>{t('editor.code')}</span>
                     </Button>
                     <Button
                       variant="tool"
                       onClick={() => addBlock('core/list', '', { ordered: false })}
                     >
                       <List size={14} />
-                      <span>List</span>
+                      <span>{t('editor.list')}</span>
                     </Button>
                     <Button
                       variant="tool"
@@ -567,7 +590,7 @@ export const App: React.FC = () => {
                       }
                     >
                       <ImageIcon size={14} />
-                      <span>Image</span>
+                      <span>{t('editor.image')}</span>
                     </Button>
                   </div>
 
@@ -589,12 +612,12 @@ export const App: React.FC = () => {
 
                     {blocks.length === 0 && (
                       <div className={styles.emptyBlocks}>
-                        <p>This post has no content blocks.</p>
+                        <p>{t('editor.noBlocks')}</p>
                         <Button
                           className={styles.addFirst}
                           onClick={() => addBlock('core/paragraph')}
                         >
-                          <Plus size={16} /> Add First Paragraph
+                          <Plus size={16} /> {t('editor.addFirst')}
                         </Button>
                       </div>
                     )}

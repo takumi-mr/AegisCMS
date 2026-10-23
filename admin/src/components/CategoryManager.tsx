@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Plus, Tags } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
 import type { ContentItem } from '../types';
 import { categoryColor } from '../utils/category';
@@ -28,6 +29,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
   onCreated,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [title, setTitle] = useState<string>('');
   const [slug, setSlug] = useState<string>('');
   const [slugEdited, setSlugEdited] = useState<boolean>(false);
@@ -45,11 +47,11 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !slug.trim()) {
-      setError('Title and slug are required.');
+      setError(t('categories.required'));
       return;
     }
     if (categories.some((c) => c.slug === slug.trim())) {
-      setError(`A category with the slug "${slug.trim()}" already exists.`);
+      setError(t('categories.duplicate', { slug: slug.trim() }));
       return;
     }
 
@@ -71,14 +73,14 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
       onCreated(created);
       titleRef.current?.focus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create category');
+      setError(err instanceof Error ? err.message : t('categories.failed'));
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <Modal title="Categories" icon={<Tags size={18} />} onClose={onClose}>
+    <Modal title={t('categories.title')} icon={<Tags size={18} />} onClose={onClose}>
       <div className={styles.list}>
         {categories.map((category) => (
           <div key={category.id} className={styles.row}>
@@ -95,15 +97,13 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
             <span className={styles.rowSlug}>/{category.slug}</span>
           </div>
         ))}
-        {categories.length === 0 && (
-          <div className={styles.empty}>No categories yet. Create the first one below.</div>
-        )}
+        {categories.length === 0 && <div className={styles.empty}>{t('categories.empty')}</div>}
       </div>
 
       <form className={styles.form} onSubmit={handleSubmit}>
-        <div className={styles.formTitle}>New category</div>
+        <div className={styles.formTitle}>{t('categories.new')}</div>
         <FieldRow>
-          <Field label="title:">
+          <Field label={t('categories.fieldTitle')}>
             <input
               ref={titleRef}
               value={title}
@@ -111,44 +111,44 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                 setTitle(e.target.value);
                 if (!slugEdited) setSlug(toSlug(e.target.value));
               }}
-              placeholder="News"
+              placeholder={t('categories.titlePlaceholder')}
               maxLength={100}
-              aria-label="Category title"
+              aria-label={t('categories.titleAria')}
             />
           </Field>
-          <Field label="slug:">
+          <Field label={t('categories.fieldSlug')}>
             <input
               value={slug}
               onChange={(e) => {
                 setSlug(e.target.value);
                 setSlugEdited(true);
               }}
-              placeholder="news"
-              aria-label="Category slug"
+              placeholder={t('categories.slugPlaceholder')}
+              aria-label={t('categories.slugAria')}
             />
           </Field>
-          <Field as="label" label="color:" className={styles.colorField}>
+          <Field as="label" label={t('categories.fieldColor')} className={styles.colorField}>
             <input
               type="color"
               value={color}
               onChange={(e) => setColor(e.target.value)}
-              aria-label="Category color"
+              aria-label={t('categories.colorAria')}
             />
           </Field>
         </FieldRow>
-        <Field label="description:">
+        <Field label={t('categories.fieldDescription')}>
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional"
-            aria-label="Category description"
+            placeholder={t('categories.optional')}
+            aria-label={t('categories.descriptionAria')}
           />
         </Field>
         {error && <div className={styles.error}>{error}</div>}
         <div className={styles.formActions}>
           <Button type="submit" variant="primary" disabled={isSaving}>
             <Plus size={16} />
-            <span>{isSaving ? 'Creating...' : 'Create category'}</span>
+            <span>{isSaving ? t('categories.creating') : t('categories.create')}</span>
           </Button>
         </div>
       </form>

@@ -10,6 +10,7 @@ import {
   Images,
   List,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { BlockNode } from '../types';
 import { cx } from '../utils/cx';
 import { altFromKey } from '../utils/media';
@@ -40,6 +41,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
   onDelete,
   canUpload,
 }) => {
+  const { t } = useTranslation();
   const [isLibraryOpen, setIsLibraryOpen] = useState<boolean>(false);
 
   const getIcon = () => {
@@ -66,18 +68,23 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         </div>
 
         <div className={styles.controls}>
-          <Button variant="icon" onClick={onMoveUp} disabled={index === 0} title="Move Up">
+          <Button
+            variant="icon"
+            onClick={onMoveUp}
+            disabled={index === 0}
+            title={t('blocks.moveUp')}
+          >
             <ArrowUp size={14} />
           </Button>
           <Button
             variant="icon"
             onClick={onMoveDown}
             disabled={index === total - 1}
-            title="Move Down"
+            title={t('blocks.moveDown')}
           >
             <ArrowDown size={14} />
           </Button>
-          <Button variant="icon" danger onClick={onDelete} title="Delete Block">
+          <Button variant="icon" danger onClick={onDelete} title={t('blocks.delete')}>
             <Trash2 size={14} />
           </Button>
         </div>
@@ -106,7 +113,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
             <input
               type="text"
               className={styles.headingInput}
-              placeholder="Heading text..."
+              placeholder={t('blocks.headingPlaceholder')}
               value={block.text || ''}
               onChange={(e) => onChange({ ...block, text: e.target.value })}
             />
@@ -117,7 +124,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       {block.name === 'core/paragraph' && (
         <textarea
           className={styles.textarea}
-          placeholder="Start typing your paragraph content..."
+          placeholder={t('blocks.paragraphPlaceholder')}
           value={block.text || ''}
           onChange={(e) => onChange({ ...block, text: e.target.value })}
         />
@@ -126,7 +133,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       {block.name === 'core/code' && (
         <div className={styles.stack}>
           <div className={styles.inline}>
-            <span className={styles.languageLabel}>Language:</span>
+            <span className={styles.languageLabel}>{t('blocks.language')}</span>
             <select
               className={styles.languageSelect}
               value={block.attributes?.language || 'rust'}
@@ -148,7 +155,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           </div>
           <textarea
             className={cx(styles.textarea, styles.code)}
-            placeholder="// Enter source code here..."
+            placeholder={t('blocks.codePlaceholder')}
             value={block.text || ''}
             onChange={(e) => onChange({ ...block, text: e.target.value })}
           />
@@ -174,7 +181,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           )}
           <Button className={styles.libraryButton} onClick={() => setIsLibraryOpen(true)}>
             <Images size={14} />
-            <span>Choose from media library</span>
+            <span>{t('blocks.library')}</span>
           </Button>
           {isLibraryOpen && (
             <MediaLibrary
@@ -196,7 +203,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           <input
             type="text"
             className={styles.urlInput}
-            placeholder="Image URL (e.g. https://images.unsplash.com/...)"
+            placeholder={t('blocks.urlPlaceholder')}
             value={block.attributes?.src || ''}
             onChange={(e) =>
               onChange({
@@ -208,7 +215,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           <input
             type="text"
             className={styles.altInput}
-            placeholder="Alt description text..."
+            placeholder={t('blocks.altPlaceholder')}
             value={block.attributes?.alt || ''}
             onChange={(e) =>
               onChange({
@@ -222,7 +229,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
               // Re-mount when the URL changes so an earlier load error does not keep it hidden
               key={block.attributes.src}
               src={block.attributes.src}
-              alt={block.attributes.alt || 'Preview'}
+              alt={block.attributes.alt || t('blocks.previewAlt')}
               className={styles.imagePreview}
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';
@@ -235,7 +242,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       {block.name === 'core/list' && (
         <div className={styles.stack}>
           <div className={styles.inline}>
-            <span className={styles.languageLabel}>Type:</span>
+            <span className={styles.languageLabel}>{t('blocks.listType')}</span>
             <select
               className={styles.levelSelect}
               value={block.attributes?.ordered ? 'ordered' : 'unordered'}
@@ -246,13 +253,13 @@ export const BlockItem: React.FC<BlockItemProps> = ({
                 })
               }
             >
-              <option value="unordered">Bullet List (-)</option>
-              <option value="ordered">Numbered List (1.)</option>
+              <option value="unordered">{t('blocks.bullet')}</option>
+              <option value="ordered">{t('blocks.numbered')}</option>
             </select>
           </div>
           <textarea
             className={styles.textarea}
-            placeholder="Item 1&#10;Item 2&#10;Item 3 (one item per line)"
+            placeholder={t('blocks.listPlaceholder')}
             value={(block.children || []).map((c) => c.text || '').join('\n')}
             onChange={(e) => {
               const lines = e.target.value.split('\n');

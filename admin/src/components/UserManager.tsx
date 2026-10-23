@@ -1,14 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pencil, Plus, RefreshCw, Trash2, UserPlus, Users } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { aegisApi, ApiError } from '../api/client';
+import i18n from '../i18n';
 import type { SessionInfo, UserAccount, UserRole } from '../types';
 import { cx } from '../utils/cx';
+import { formatDate } from '../utils/format';
 import { AvatarPicker } from './AvatarPicker';
 import { MIN_PASSWORD_LENGTH } from './ProfileModal';
 import { Avatar } from './ui/Avatar';
 import { Button } from './ui/Button';
 import { Field, FieldRow } from './ui/Field';
 import { Modal } from './ui/Modal';
+import { RoleLabel } from './ui/RoleLabel';
 import styles from './UserManager.module.css';
 import formStyles from './UserForms.module.css';
 
@@ -17,17 +21,6 @@ const ROLES: UserRole[] = ['admin', 'editor', 'viewer'];
 const ROLE_BADGE: Record<string, string | undefined> = {
   admin: styles.roleAdmin,
   editor: styles.roleEditor,
-};
-
-const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
-  admin: 'Everything, including users, themes and audit logs',
-  editor: 'Create content and categories, upload media',
-  viewer: 'Read content and media',
-};
-
-const formatDate = (iso: string): string => {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
 };
 
 const messageOf = (err: unknown, fallback: string): string =>
@@ -46,6 +39,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
   onSelfUpdated,
   onShowToast,
 }) => {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<UserAccount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Loading = the last finished request is older than the latest reload
@@ -68,8 +62,8 @@ export const UserManager: React.FC<UserManagerProps> = ({
         if (cancelled) return;
         setError(
           err instanceof ApiError && err.status === 403
-            ? 'Managing users requires the "admin" role.'
-            : messageOf(err, 'Failed to load users')
+            ? i18n.t('users.forbidden')
+            : messageOf(err, i18n.t('users.loadFailed'))
         );
       })
       .finally(() => {
@@ -88,13 +82,13 @@ export const UserManager: React.FC<UserManagerProps> = ({
 
   const handleDelete = async (user: UserAccount) => {
     const label = user.display_name ? `${user.display_name} (${user.username})` : user.username;
-    if (!window.confirm(`Delete the user ${label}? This cannot be undone.`)) return;
+    if (!window.confirm(t('users.confirmDelete', { label }))) return;
     try {
       await aegisApi.deleteUser(user.username);
       setUsers((prev) => prev?.filter((u) => u.id !== user.id) ?? null);
-      onShowToast(`Deleted user "${user.username}"`);
+      onShowToast(t('users.deleted', { username: user.username }));
     } catch (err) {
-      onShowToast(messageOf(err, 'Failed to delete the user'), 'error');
+      onShowToast(messageOf(err, t('api.deleteUserFailed')), 'error');
     }
   };
 
@@ -106,7 +100,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
         <div className={styles.heading}>
           <div className={styles.title}>
             <Users size={22} />
-            <h1>Users</h1>
+            <h1>{t('users.title')}</h1>
             {users && <span className={styles.count}>{users.length}</span>}
           </div>
           <div className={styles.headingActions}>
@@ -114,14 +108,14 @@ export const UserManager: React.FC<UserManagerProps> = ({
               variant="tool"
               onClick={() => setReloadCount((n) => n + 1)}
               disabled={isLoading}
-              title="Reload"
+              title={t('common.reload')}
             >
               <RefreshCw size={14} />
-              <span>Reload</span>
+              <span>{t('common.reload')}</span>
             </Button>
             <Button variant="primary" onClick={() => setIsCreating(true)}>
               <UserPlus size={16} />
-              <span>New user</span>
+              <span>{t('users.newUser')}</span>
             </Button>
           </div>
         </div>
@@ -133,12 +127,12 @@ export const UserManager: React.FC<UserManagerProps> = ({
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>User</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th aria-label="Actions" />
+                  <th>{t('users.columns.user')}</th>
+                  <th>{t('users.columns.email')}</th>
+                  <th>{t('users.columns.role')}</th>
+                  <th>{t('users.columns.status')}</th>
+                  <th>{t('users.columns.created')}</th>
+                  <th aria-label={t('users.columns.actions')} />
                 </tr>
               </thead>
               <tbody>
@@ -156,7 +150,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
                           <div className={styles.userNames}>
                             <span className={styles.displayName}>
                               {user.display_name || user.username}
-                              {isSelf && <span className={styles.you}>you</span>}
+                              {isSelf && <span className={styles.you}>{t('users.you')}</span>}
                             </span>
                             <span className={styles.username}>@{user.username}</span>
                           </div>
@@ -165,12 +159,12 @@ export const UserManager: React.FC<UserManagerProps> = ({
                       <td className={cx(!user.email && styles.muted)}>{user.email || '—'}</td>
                       <td>
                         <span className={cx(styles.roleBadge, ROLE_BADGE[user.role])}>
-                          {user.role}
+                          <RoleLabel role={user.role} />
                         </span>
                       </td>
                       <td>
                         <span className={cx(styles.status, user.disabled ? styles.off : styles.on)}>
-                          {user.disabled ? 'Disabled' : 'Active'}
+                          {user.disabled ? t('users.disabled') : t('users.active')}
                         </span>
                       </td>
                       <td className={styles.muted}>{formatDate(user.created_at)}</td>
@@ -179,8 +173,8 @@ export const UserManager: React.FC<UserManagerProps> = ({
                           <Button
                             variant="icon"
                             onClick={() => setEditing(user)}
-                            aria-label={`Edit ${user.username}`}
-                            title="Edit"
+                            aria-label={t('users.editAria', { username: user.username })}
+                            title={t('common.edit')}
                           >
                             <Pencil size={14} />
                           </Button>
@@ -189,8 +183,8 @@ export const UserManager: React.FC<UserManagerProps> = ({
                             danger
                             onClick={() => handleDelete(user)}
                             disabled={isSelf}
-                            aria-label={`Delete ${user.username}`}
-                            title={isSelf ? 'You cannot delete your own account' : 'Delete'}
+                            aria-label={t('users.deleteAria', { username: user.username })}
+                            title={isSelf ? t('users.cannotDeleteSelf') : t('common.delete')}
                           >
                             <Trash2 size={14} />
                           </Button>
@@ -202,7 +196,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
                 {users.length === 0 && (
                   <tr>
                     <td colSpan={6} className={styles.empty}>
-                      No users yet.
+                      {t('users.empty')}
                     </td>
                   </tr>
                 )}
@@ -211,10 +205,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
           </div>
         )}
 
-        <p className={styles.footnote}>
-          Role changes and disabling apply from the user's next sign-in; sessions that are already
-          open stay valid until they expire.
-        </p>
+        <p className={styles.footnote}>{t('users.footnote')}</p>
       </div>
 
       {isCreating && (
@@ -224,7 +215,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
               [...(prev ?? []), created].sort((a, b) => a.username.localeCompare(b.username))
             );
             setIsCreating(false);
-            onShowToast(`Created user "${created.username}"`);
+            onShowToast(t('users.created', { username: created.username }));
           }}
           onClose={() => setIsCreating(false)}
         />
@@ -250,6 +241,7 @@ interface CreateUserModalProps {
 }
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ onCreated, onClose }) => {
+  const { t } = useTranslation();
   const [username, setUsername] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
@@ -266,11 +258,11 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onCreated, onClose })
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^[A-Za-z0-9._@-]{1,64}$/.test(username.trim())) {
-      setError("Username must be 1-64 characters of letters, digits, '.', '_', '-' or '@'.");
+      setError(t('users.invalidUsername'));
       return;
     }
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      setError(t('users.passwordTooShort', { count: MIN_PASSWORD_LENGTH }));
       return;
     }
     setIsSaving(true);
@@ -286,79 +278,79 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onCreated, onClose })
         })
       );
     } catch (err) {
-      setError(messageOf(err, 'Failed to create the user'));
+      setError(messageOf(err, t('users.createFailed')));
       setIsSaving(false);
     }
   };
 
   return (
-    <Modal title="New user" icon={<UserPlus size={18} />} onClose={onClose}>
+    <Modal title={t('users.newUser')} icon={<UserPlus size={18} />} onClose={onClose}>
       <form className={formStyles.body} onSubmit={handleSubmit}>
         <div className={formStyles.section}>
           <FieldRow>
-            <Field label="username:">
+            <Field label={t('users.fields.username')}>
               <input
                 ref={usernameRef}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="editor1"
+                placeholder={t('users.usernamePlaceholder')}
                 autoComplete="off"
                 maxLength={64}
-                aria-label="Username"
+                aria-label={t('users.aria.username')}
               />
             </Field>
-            <Field label="role:">
+            <Field label={t('users.fields.role')}>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as UserRole)}
-                aria-label="Role"
+                aria-label={t('users.aria.role')}
               >
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
-                    {r}
+                    {t(`common.roles.${r}`)}
                   </option>
                 ))}
               </select>
             </Field>
           </FieldRow>
           <span className={formStyles.hint}>
-            {ROLE_DESCRIPTIONS[role]}. The username cannot be changed later.
+            {t('users.usernameFixed', { description: t(`users.roleDescriptions.${role}`) })}
           </span>
-          <Field label="display name:">
+          <Field label={t('users.fields.displayName')}>
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Optional"
+              placeholder={t('users.optional')}
               maxLength={100}
-              aria-label="Display name"
+              aria-label={t('users.aria.displayName')}
             />
           </Field>
-          <Field label="email:">
+          <Field label={t('users.fields.email')}>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Optional"
-              aria-label="Email"
+              placeholder={t('users.optional')}
+              aria-label={t('users.aria.email')}
             />
           </Field>
-          <Field label="password:">
+          <Field label={t('users.fields.password')}>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
-              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
-              aria-label="Initial password"
+              placeholder={t('users.passwordPlaceholder', { count: MIN_PASSWORD_LENGTH })}
+              aria-label={t('users.aria.initialPassword')}
             />
           </Field>
           {error && <span className={formStyles.error}>{error}</span>}
         </div>
         <div className={formStyles.actions}>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
           <Button type="submit" variant="primary" disabled={isSaving}>
             <Plus size={16} />
-            <span>{isSaving ? 'Creating...' : 'Create user'}</span>
+            <span>{isSaving ? t('users.creating') : t('users.create')}</span>
           </Button>
         </div>
       </form>
@@ -385,6 +377,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   onShowToast,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [displayName, setDisplayName] = useState<string>(user.display_name ?? '');
   const [email, setEmail] = useState<string>(user.email ?? '');
   const [role, setRole] = useState<UserRole>((user.role as UserRole) ?? 'viewer');
@@ -403,11 +396,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password && password.length < MIN_PASSWORD_LENGTH) {
-      setError(`The new password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      setError(t('users.newPasswordTooShort', { count: MIN_PASSWORD_LENGTH }));
       return;
     }
     if (password && isSelf) {
-      setError('Change your own password from "My profile" (it asks for the current one).');
+      setError(t('users.ownPassword'));
       return;
     }
     setIsSaving(true);
@@ -420,61 +413,65 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         ...(password ? { password } : {}),
       });
       onUpdated(updated);
-      onShowToast(`Saved user "${user.username}"`);
+      onShowToast(t('users.saved', { username: user.username }));
       onClose();
     } catch (err) {
-      setError(messageOf(err, 'Failed to save the user'));
+      setError(messageOf(err, t('users.saveFailed')));
       setIsSaving(false);
     }
   };
 
   return (
-    <Modal title={`Edit ${user.username}`} icon={<Pencil size={18} />} onClose={onClose}>
+    <Modal
+      title={t('users.editTitle', { username: user.username })}
+      icon={<Pencil size={18} />}
+      onClose={onClose}
+    >
       <form className={formStyles.body} onSubmit={handleSubmit}>
         <div className={formStyles.section}>
           <AvatarPicker user={user} onChanged={onUpdated} />
         </div>
 
         <div className={formStyles.section}>
-          <div className={formStyles.sectionTitle}>Profile</div>
-          <Field label="display name:">
+          <div className={formStyles.sectionTitle}>{t('users.profile')}</div>
+          <Field label={t('users.fields.displayName')}>
             <input
               ref={nameRef}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder={user.username}
               maxLength={100}
-              aria-label="Display name"
+              aria-label={t('users.aria.displayName')}
             />
           </Field>
-          <Field label="email:">
+          <Field label={t('users.fields.email')}>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Optional"
-              aria-label="Email"
+              placeholder={t('users.optional')}
+              aria-label={t('users.aria.email')}
             />
           </Field>
         </div>
 
         <div className={formStyles.section}>
-          <div className={formStyles.sectionTitle}>Access</div>
-          <Field label="role:">
+          <div className={formStyles.sectionTitle}>{t('users.access')}</div>
+          <Field label={t('users.fields.role')}>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as UserRole)}
               disabled={lockAccess}
-              aria-label="Role"
+              aria-label={t('users.aria.role')}
             >
               {ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {t(`common.roles.${r}`)}
                 </option>
               ))}
             </select>
           </Field>
-          <span className={formStyles.hint}>{ROLE_DESCRIPTIONS[role] ?? ''}</span>
+          <span className={formStyles.hint}>{t(`users.roleDescriptions.${role}`)}</span>
           <label className={formStyles.checkbox}>
             <input
               type="checkbox"
@@ -482,28 +479,26 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               onChange={(e) => setDisabled(e.target.checked)}
               disabled={lockAccess}
             />
-            Disable this account (it can no longer sign in)
+            {t('users.disableAccount')}
           </label>
           {lockAccess && (
             <span className={formStyles.hint}>
-              {isSelf
-                ? 'You cannot change your own role or disable your own account.'
-                : 'This is the only active admin: promote another user first.'}
+              {isSelf ? t('users.lockedSelf') : t('users.lockedLastAdmin')}
             </span>
           )}
         </div>
 
         {!isSelf && (
           <div className={formStyles.section}>
-            <div className={formStyles.sectionTitle}>Reset password</div>
-            <Field label="new password:">
+            <div className={formStyles.sectionTitle}>{t('users.resetPassword')}</div>
+            <Field label={t('users.fields.newPassword')}>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
-                placeholder="Leave empty to keep the current password"
-                aria-label="New password"
+                placeholder={t('users.keepPassword')}
+                aria-label={t('users.aria.newPassword')}
               />
             </Field>
           </div>
@@ -511,9 +506,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
         {error && <span className={formStyles.error}>{error}</span>}
         <div className={formStyles.actions}>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
           <Button type="submit" variant="primary" disabled={isSaving}>
-            <span>{isSaving ? 'Saving...' : 'Save changes'}</span>
+            <span>{isSaving ? t('users.saving') : t('users.save')}</span>
           </Button>
         </div>
       </form>

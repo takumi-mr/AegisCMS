@@ -1,6 +1,8 @@
 import React, { useEffect, useId, useState } from 'react';
 import { Eye, Code, LayoutTemplate, ShieldAlert } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { aegisApi, SERVER_URL } from '../api/client';
+import i18n from '../i18n';
 import type { BlockNode, PreviewRequest } from '../types';
 import { cx } from '../utils/cx';
 import styles from './Preview.module.css';
@@ -10,14 +12,10 @@ const PREVIEW_DEBOUNCE_MS = 300;
 
 type PreviewTab = 'html' | 'page' | 'ast';
 
-const TABS: Array<{ id: PreviewTab; label: string; icon: React.ReactNode }> = [
-  { id: 'html', label: 'Live HTML Output', icon: <Eye size={14} className={styles.tabIcon} /> },
-  {
-    id: 'page',
-    label: 'Themed Page',
-    icon: <LayoutTemplate size={14} className={styles.tabIcon} />,
-  },
-  { id: 'ast', label: 'Block AST (JSON)', icon: <Code size={14} className={styles.tabIcon} /> },
+const TABS: Array<{ id: PreviewTab; icon: React.ReactNode }> = [
+  { id: 'html', icon: <Eye size={14} className={styles.tabIcon} /> },
+  { id: 'page', icon: <LayoutTemplate size={14} className={styles.tabIcon} /> },
+  { id: 'ast', icon: <Code size={14} className={styles.tabIcon} /> },
 ];
 
 interface PreviewProps {
@@ -61,6 +59,7 @@ export const Preview: React.FC<PreviewProps> = ({
   categoryId,
   blocks,
 }) => {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<PreviewTab>('html');
   const [result, setResult] = useState<PreviewResult | null>(null);
   const idPrefix = useId();
@@ -91,7 +90,7 @@ export const Preview: React.FC<PreviewProps> = ({
           html: null,
           pageHtml: null,
           warnings: [],
-          error: err instanceof Error ? err.message : 'Failed to render the preview',
+          error: err instanceof Error ? err.message : i18n.t('api.previewFailed'),
         }))
         .then((outcome) => {
           if (cancelled) return;
@@ -112,10 +111,10 @@ export const Preview: React.FC<PreviewProps> = ({
   }, [requestKey]);
 
   const status = result?.error
-    ? `⚠ Preview failed: ${result.error}`
+    ? t('preview.failed', { error: result.error })
     : isRendering
-      ? 'Rendering on the server...'
-      : '✓ Rendered by the server (same HTML as the published page)';
+      ? t('preview.rendering')
+      : t('preview.rendered');
 
   const statusLines = (
     <>
@@ -130,8 +129,8 @@ export const Preview: React.FC<PreviewProps> = ({
 
   return (
     <aside className={styles.column}>
-      <div className={styles.tabs} role="tablist" aria-label="Preview">
-        {TABS.map(({ id, label, icon }) => (
+      <div className={styles.tabs} role="tablist" aria-label={t('preview.aria')}>
+        {TABS.map(({ id, icon }) => (
           <button
             key={id}
             type="button"
@@ -143,7 +142,7 @@ export const Preview: React.FC<PreviewProps> = ({
             onClick={() => setTab(id)}
           >
             {icon}
-            {label}
+            {t(`preview.tabs.${id}`)}
           </button>
         ))}
       </div>
@@ -157,7 +156,7 @@ export const Preview: React.FC<PreviewProps> = ({
         {tab === 'html' && (
           <div>
             <div className={styles.titleBlock}>
-              <h1 className={styles.title}>{title || 'Untitled Article'}</h1>
+              <h1 className={styles.title}>{title || t('preview.untitled')}</h1>
               {statusLines}
             </div>
 
@@ -169,7 +168,7 @@ export const Preview: React.FC<PreviewProps> = ({
             {blocks.length === 0 && (
               <div className={styles.empty}>
                 <ShieldAlert size={36} className={styles.emptyIcon} />
-                <p>Add blocks from the toolbar to see live deterministic output.</p>
+                <p>{t('preview.empty')}</p>
               </div>
             )}
           </div>
@@ -181,13 +180,13 @@ export const Preview: React.FC<PreviewProps> = ({
             {result?.pageHtml ? (
               <iframe
                 className={cx(styles.pageFrame, isRendering && styles.stale)}
-                title="Themed page preview"
+                title={t('preview.pageFrame')}
                 sandbox="allow-scripts allow-same-origin"
                 srcDoc={withBase(result.pageHtml)}
               />
             ) : (
               <div className={styles.empty}>
-                <p>The themed page appears here once the server has rendered it.</p>
+                <p>{t('preview.pageEmpty')}</p>
               </div>
             )}
           </>

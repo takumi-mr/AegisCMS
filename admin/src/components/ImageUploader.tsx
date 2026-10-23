@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
 import type { StorageMeta } from '../types';
 import { cx } from '../utils/cx';
@@ -16,6 +17,7 @@ interface ImageUploaderProps {
  * to `/api/v1/storage/upload`. The server enforces the size limit (`storage.max_upload_mb`).
  */
 export const ImageUploader: React.FC<ImageUploaderProps> = ({ onUploaded }) => {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [uploading, setUploading] = useState<File | null>(null);
@@ -24,7 +26,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onUploaded }) => {
   const upload = async (file: File | undefined) => {
     if (!file || uploading) return;
     if (!file.type.startsWith('image/')) {
-      setError(`"${file.name}" is not an image file.`);
+      setError(t('upload.notImage', { name: file.name }));
       return;
     }
     setError(null);
@@ -32,7 +34,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onUploaded }) => {
     try {
       onUploaded(await aegisApi.uploadFile(file), file);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload image');
+      setError(err instanceof Error ? err.message : t('upload.failed'));
     } finally {
       setUploading(null);
     }
@@ -48,7 +50,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onUploaded }) => {
         )}
         role="button"
         tabIndex={0}
-        aria-label="Upload image"
+        aria-label={t('upload.aria')}
         onClick={() => inputRef.current?.click()}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -71,13 +73,13 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onUploaded }) => {
           <>
             <Loader2 size={18} className="animate-spin" />
             <span>
-              Uploading {uploading.name} ({formatSize(uploading.size)})...
+              {t('upload.uploading', { name: uploading.name, size: formatSize(uploading.size) })}
             </span>
           </>
         ) : (
           <>
             <UploadCloud size={18} />
-            <span>Drop an image here or click to choose a file</span>
+            <span>{t('upload.drop')}</span>
           </>
         )}
       </div>

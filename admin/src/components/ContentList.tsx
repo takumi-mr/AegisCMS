@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, FileText } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ContentItem } from '../types';
 import { categoryColor, categoryIdOf } from '../utils/category';
 import { cx } from '../utils/cx';
@@ -33,6 +34,7 @@ export const ContentList: React.FC<ContentListProps> = ({
   onNew,
   contentType,
 }) => {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<string>(ALL);
 
   const categoriesById = new Map(categories.map((c) => [c.id, c]));
@@ -49,31 +51,33 @@ export const ContentList: React.FC<ContentListProps> = ({
     const category = categoriesById.get(id);
     if (category) return { title: category.title, color: categoryColor(category) };
     const resolved = item.relations?.category_id;
-    return { title: resolved?.title ?? 'Unknown category' };
+    return { title: resolved?.title ?? t('contentList.unknownCategory') };
   };
 
   return (
     <aside className={styles.sidebar}>
       <div className={styles.header}>
         <span className={styles.title}>
-          {contentType}s (
-          {filter === ALL ? contents.length : `${visible.length}/${contents.length}`})
+          {t('contentList.title', {
+            type: contentType === 'article' ? t('contentList.articles') : contentType,
+            count: filter === ALL ? contents.length : `${visible.length}/${contents.length}`,
+          })}
         </span>
-        <Button variant="tool" onClick={onNew} title="Create new content">
+        <Button variant="tool" onClick={onNew} title={t('contentList.newTitle')}>
           <Plus size={14} />
-          <span>New</span>
+          <span>{t('contentList.new')}</span>
         </Button>
       </div>
 
       <div className={styles.filter}>
-        <Field label="category:" className={styles.filterField}>
+        <Field label={t('contentList.category')} className={styles.filterField}>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            aria-label="Filter by category"
+            aria-label={t('contentList.filterAria')}
           >
-            <option value={ALL}>All</option>
-            <option value={UNCATEGORIZED}>Uncategorized</option>
+            <option value={ALL}>{t('contentList.all')}</option>
+            <option value={UNCATEGORIZED}>{t('contentList.uncategorized')}</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.title}
@@ -94,9 +98,12 @@ export const ContentList: React.FC<ContentListProps> = ({
               aria-current={selectedId === item.id ? 'true' : undefined}
               onClick={() => onSelect(item)}
             >
-              <span className={styles.cardTitle}>{item.title || 'Untitled'}</span>
+              <span className={styles.cardTitle}>{item.title || t('contentList.untitled')}</span>
               {category && (
-                <span className={styles.categoryBadge} title={`Category: ${category.title}`}>
+                <span
+                  className={styles.categoryBadge}
+                  title={t('contentList.categoryTitle', { title: category.title })}
+                >
                   <span
                     className={styles.swatch}
                     style={{ background: category.color ?? 'var(--border-medium)' }}
@@ -106,7 +113,11 @@ export const ContentList: React.FC<ContentListProps> = ({
               )}
               <span className={styles.cardMeta}>
                 <span>/{item.slug}</span>
-                <span className={cx(styles.status, STATUS_BADGE[item.status])}>{item.status}</span>
+                <span className={cx(styles.status, STATUS_BADGE[item.status])}>
+                  {item.status === 'published' || item.status === 'draft'
+                    ? t(`common.status.${item.status}`)
+                    : item.status}
+                </span>
               </span>
             </button>
           );
@@ -117,12 +128,12 @@ export const ContentList: React.FC<ContentListProps> = ({
             <FileText size={32} className={styles.emptyIcon} />
             {contents.length === 0 ? (
               <p>
-                No articles yet.
+                {t('contentList.empty')}
                 <br />
-                Click "+ New" to create one.
+                {t('contentList.emptyHint')}
               </p>
             ) : (
-              <p>No articles match this category.</p>
+              <p>{t('contentList.noMatch')}</p>
             )}
           </div>
         )}
