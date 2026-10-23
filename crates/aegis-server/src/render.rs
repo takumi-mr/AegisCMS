@@ -1,11 +1,12 @@
 //! Content rendering shared by saving, the public site, the content API and the editor preview,
 //! so every place produces the same HTML for the same blocks.
 
+use aegis_ast::SecurityConfig;
 use aegis_ast::{
     AstPipeline, BlockNode, HeadingIdTransformer, HtmlRenderer, HtmlRewriterConfig,
     StreamingHtmlRewriter,
 };
-use aegis_core::{PageRenderContext, SecurityConfig};
+use aegis_core::PageRenderContext;
 use aegis_schema::SchemaDefinition;
 use std::collections::HashMap;
 
@@ -73,7 +74,7 @@ async fn resolve_page_relations(
     fields: &HashMap<String, serde_json::Value>,
 ) -> HashMap<String, serde_json::Value> {
     let schemas = state.schemas.read().await;
-    crate::db::resolve_relations_for_records(&*state.db, &schemas, schema, &[fields])
+    aegis_db::resolve_relations_for_records(&*state.db, &schemas, schema, &[fields])
         .await
         .pop()
         .unwrap_or_default()
@@ -83,7 +84,7 @@ async fn resolve_page_relations(
 }
 
 /// The `{ id, title, slug }` object a template sees for a resolved relation
-pub fn relation_summary(rel: &crate::db::ResolvedRelation) -> serde_json::Value {
+pub fn relation_summary(rel: &aegis_db::ResolvedRelation) -> serde_json::Value {
     serde_json::json!({ "id": rel.id, "title": rel.title, "slug": rel.slug })
 }
 

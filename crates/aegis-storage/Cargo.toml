@@ -1,0 +1,26 @@
+[package]
+name = "aegis-storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Upload storage backends for AegisCMS (local disk, S3 compatible)"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+async-trait.workspace = true
+chrono.workspace = true
+hex = "0.4"
+hmac = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+serde.workspace = true
+sha2 = "0.10"
+tokio = { workspace = true, features = ["fs", "io-util"] }
+tracing.workspace = true
+
+[dev-dependencies]
+uuid.workspace = true
+tokio.workspace = true

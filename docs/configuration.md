@@ -1,7 +1,7 @@
 # AegisCMS 設定リファレンス (Configuration Reference)
 
 AegisCMS コアサーバー (`aegis-server`) の設定ファイル (`config/*.toml`) で指定できる項目の一覧です。
-設定値の定義元は [`crates/aegis-core/src/config.rs`](../crates/aegis-core/src/config.rs) の `AegisConfig` です。
+設定値の定義元は [`crates/aegis-server/src/config.rs`](../crates/aegis-server/src/config.rs) の `AegisConfig` です。各セクションの型はそれを使うクレートの `config` モジュールにあります（例: `[database]` は `aegis-db`、`[storage]` は `aegis-storage`、`[commerce]` は `aegis-commerce`）。
 
 ---
 

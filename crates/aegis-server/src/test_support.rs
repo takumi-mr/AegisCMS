@@ -3,16 +3,16 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use aegis_core::AegisConfig;
+use crate::config::AegisConfig;
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::SchemaDefinition;
 
-use crate::audit::AuditService;
-use crate::auth::{LocalAuthProvider, LoginRateLimiter, SessionService};
-use crate::cache::MemoryCacheBackend;
-use crate::db::{DatabaseAdapter, SqliteAdapter};
 use crate::state::AppState;
-use crate::storage::LocalStorageBackend;
+use aegis_audit::AuditService;
+use aegis_auth::{LocalAuthProvider, LoginRateLimiter, SessionService};
+use aegis_cache::MemoryCacheBackend;
+use aegis_db::{DatabaseAdapter, SqliteAdapter};
+use aegis_storage::LocalStorageBackend;
 
 /// App state backed by an in-memory SQLite database and a memory cache, with a minimal
 /// `article` schema (title only) migrated

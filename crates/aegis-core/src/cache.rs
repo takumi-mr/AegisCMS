@@ -1,26 +1,5 @@
 use crate::error::Result;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum CacheBackendKind {
-    #[default]
-    Memory,
-    Redis,
-}
-
-impl std::str::FromStr for CacheBackendKind {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "memory" | "inmemory" | "local" => Ok(Self::Memory),
-            "redis" => Ok(Self::Redis),
-            other => Err(format!("Unknown cache backend kind: {}", other)),
-        }
-    }
-}
 
 #[async_trait]
 pub trait CacheBackend: Send + Sync {

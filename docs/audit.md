@@ -6,7 +6,7 @@ AegisCMS は、コンテンツ作成・セッション操作・ファイルア�
 関連ソース:
 
 - イベント型 / `AuditSink` トレイト: [`crates/aegis-core/src/audit.rs`](../crates/aegis-core/src/audit.rs)
-- 出力先の実装と配送: [`crates/aegis-server/src/audit/`](../crates/aegis-server/src/audit)
+- 出力先の実装と配送: [`crates/aegis-audit/`](../crates/aegis-audit)
 - 参照 API / メトリクス: [`crates/aegis-server/src/handlers/audit.rs`](../crates/aegis-server/src/handlers/audit.rs)
 
 ---
@@ -211,7 +211,7 @@ aegis_audit_events_total{action="plugin.error",outcome="failure"} 0
 
 ## 9. 出力先の追加
 
-`aegis_core::AuditSink` を実装し、`AuditService::from_config`（`crates/aegis-server/src/audit/mod.rs`）に登録します。
+`aegis_core::AuditSink` を実装し、`AuditService::from_config`（`crates/aegis-audit/src/lib.rs`）に登録します。
 
 ```rust
 #[async_trait]

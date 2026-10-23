@@ -1,0 +1,21 @@
+[package]
+name = "aegis-cache"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Cache and session store backends for AegisCMS (in-memory, Redis)"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+async-trait.workspace = true
+redis.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

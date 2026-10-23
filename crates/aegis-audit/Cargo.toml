@@ -1,0 +1,23 @@
+[package]
+name = "aegis-audit"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Audit log service for AegisCMS (database, log and Prometheus sinks, retention)"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-db = { path = "../aegis-db" }
+async-trait.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["time", "rt"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

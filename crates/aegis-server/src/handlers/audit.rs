@@ -8,9 +8,9 @@ use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 
-use crate::audit::metrics::PROMETHEUS_CONTENT_TYPE;
 use crate::auth::AdminSession;
 use crate::state::AppState;
+use aegis_audit::metrics::PROMETHEUS_CONTENT_TYPE;
 use aegis_core::{normalize_audit_timestamp, AuditQuery};
 
 const DEFAULT_LIMIT: u32 = 50;

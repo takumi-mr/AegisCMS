@@ -1,0 +1,121 @@
+//! リクエストから監査ログの操作主体・クライアント情報を取り出す extractor
+
+use aegis_audit::AuditOrigin;
+use aegis_core::AuditActor;
+use axum::extract::{ConnectInfo, FromRequestParts};
+use axum::http::request::Parts;
+use axum::http::HeaderMap;
+use std::convert::Infallible;
+use std::net::SocketAddr;
+use std::sync::Arc;
+
+use crate::auth::extract_session_id;
+use crate::state::AppState;
+
+/// リクエストから解決した監査用のコンテキスト（`AuditOrigin`: 操作主体・クライアント情報）。
+/// 抽出は失敗しない。セッションが無い・無効な場合は `actor` が `None` になる。
+/// `Deref` で `AuditOrigin` として使える（`audit.event(...)`、`&AuditOrigin` を受け取る関数）
+#[derive(Debug, Clone, Default)]
+pub struct AuditContext(pub AuditOrigin);
+
+impl std::ops::Deref for AuditContext {
+    type Target = AuditOrigin;
+
+    fn deref(&self) -> &AuditOrigin {
+        &self.0
+    }
+}
+
+impl FromRequestParts<Arc<AppState>> for AuditContext {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Arc<AppState>,
+    ) -> Result<Self, Self::Rejection> {
+        if !state.audit.is_enabled() {
+            return Ok(Self::default());
+        }
+
+        let actor = match extract_session_id(&parts.headers) {
+            Some(id) => match state.sessions.get_session(&id).await {
+                Ok(Some(session)) => Some(AuditActor {
+                    user_id: session.user_id,
+                    role: session.role,
+                }),
+                Ok(None) => None,
+                Err(e) => {
+                    tracing::warn!("Audit: failed to resolve session: {}", e);
+                    None
+                }
+            },
+            None => None,
+        };
+
+        let ip = client_ip(parts, state.audit.trust_forwarded_for());
+
+        let user_agent = parts
+            .headers
+            .get(axum::http::header::USER_AGENT)
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.chars().take(512).collect());
+
+        Ok(Self(AuditOrigin {
+            actor,
+            ip,
+            user_agent,
+        }))
+    }
+}
+
+/// リクエストのクライアント IP（`[audit].trust_forwarded_for` が有効なら `X-Forwarded-For` の先頭を優先）
+/// 抽出は失敗しない。接続情報が無い場合は `None` になる
+#[derive(Debug, Clone, Default)]
+pub struct ClientIp(pub Option<String>);
+
+impl FromRequestParts<Arc<AppState>> for ClientIp {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Arc<AppState>,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(client_ip(parts, state.audit.trust_forwarded_for())))
+    }
+}
+
+fn client_ip(parts: &Parts, trust_forwarded_for: bool) -> Option<String> {
+    let peer = parts
+        .extensions
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| addr.ip().to_string());
+    if trust_forwarded_for {
+        forwarded_for(&parts.headers).or(peer)
+    } else {
+        peer
+    }
+}
+
+/// `X-Forwarded-For` の先頭（最初のクライアント）アドレスを取り出す
+fn forwarded_for(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_forwarded_for_takes_first_address() {
+        let mut headers = HeaderMap::new();
+        assert_eq!(forwarded_for(&headers), None);
+
+        headers.insert("x-forwarded-for", "203.0.113.7, 10.0.0.2".parse().unwrap());
+        assert_eq!(forwarded_for(&headers), Some("203.0.113.7".to_string()));
+    }
+}

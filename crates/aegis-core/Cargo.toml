@@ -14,8 +14,6 @@ serde_json.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
 uuid.workspace = true
-tracing.workspace = true
-toml = "0.8"
 async-trait.workspace = true
 
 [dev-dependencies]

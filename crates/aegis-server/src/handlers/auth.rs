@@ -10,10 +10,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::audit::{AuditContext, ClientIp};
+use crate::auth::extract_session_id;
 use crate::auth::hook::{run_auth_hook, RESERVED_METADATA_KEYS};
-use crate::auth::local::PASSWORD_CREDENTIALS;
-use crate::auth::{extract_session_id, session_fingerprint, SessionData};
 use crate::state::AppState;
+use aegis_auth::local::PASSWORD_CREDENTIALS;
+use aegis_auth::{session_fingerprint, SessionData};
 use aegis_core::{
     AegisError, AuditAction, AuditActor, AuditOutcome, AuthCredentials, AuthIdentity,
 };
@@ -382,8 +383,9 @@ pub async fn delete_session(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::users::{create_user, NewUser};
-    use aegis_core::{AegisConfig, LoginRateLimitConfig};
+    use crate::config::AegisConfig;
+    use aegis_auth::users::{create_user, NewUser};
+    use aegis_auth::LoginRateLimitConfig;
 
     async fn login(state: &Arc<AppState>, username: &str, password: &str, ip: &str) -> Response {
         let payload = CreateSessionRequest {

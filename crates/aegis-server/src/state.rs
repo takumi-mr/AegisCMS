@@ -1,7 +1,8 @@
-use crate::audit::AuditService;
-use crate::auth::{LoginRateLimiter, SessionService};
-use crate::db::DatabaseAdapter;
-use aegis_core::{AegisConfig, AuthProvider, CacheBackend, StorageBackend};
+use crate::config::AegisConfig;
+use aegis_audit::AuditService;
+use aegis_auth::{LoginRateLimiter, SessionService};
+use aegis_core::{AuthProvider, CacheBackend, StorageBackend};
+use aegis_db::DatabaseAdapter;
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::SchemaDefinition;
 use aegis_theme::ThemeEngine;
@@ -28,7 +29,7 @@ pub struct AppState {
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
     pub oidc: Option<OidcLogin>,
     /// EC（`[commerce]`）。無効なら `None`
-    pub commerce: Option<Arc<crate::commerce::CommerceService>>,
+    pub commerce: Option<Arc<aegis_commerce::CommerceService>>,
 }
 
 /// OpenID Connect ログインの設定済みプロバイダと、ログイン画面・リダイレクトに使う値
@@ -75,9 +76,20 @@ impl AppState {
     }
 
     /// EC（`[commerce]`）を有効にする
-    pub fn with_commerce(mut self, commerce: crate::commerce::CommerceService) -> Self {
+    pub fn with_commerce(mut self, commerce: aegis_commerce::CommerceService) -> Self {
         self.commerce = Some(Arc::new(commerce));
         self
+    }
+
+    /// EC が使うサーバーの部品（`CommerceService::new` に渡す）
+    pub fn commerce_deps(&self) -> aegis_commerce::CommerceDeps {
+        aegis_commerce::CommerceDeps {
+            db: self.db.clone(),
+            cache: self.cache.clone(),
+            schemas: self.schemas.clone(),
+            supervisor: self.supervisor.clone(),
+            audit: self.audit.clone(),
+        }
     }
 
     /// OpenID Connect ログインを有効にする

@@ -6,7 +6,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use aegis_core::{AegisError, CacheBackend, PluginsConfig, Result};
+use aegis_core::{AegisError, CacheBackend, Result};
+use aegis_runtime::PluginsConfig;
 use aegis_runtime::{HostServices, HttpRequest, HttpResponse};
 use async_trait::async_trait;
 
@@ -134,7 +135,7 @@ impl HostServices for ServerHostServices {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::MemoryCacheBackend;
+    use aegis_cache::MemoryCacheBackend;
 
     #[tokio::test]
     async fn test_http_fetch_and_kv() {

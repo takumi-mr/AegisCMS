@@ -14,14 +14,14 @@ use std::sync::Arc;
 use crate::audit::{AuditContext, ClientIp};
 use crate::auth::authorize::RequireRole;
 use crate::auth::EditorSession;
-use crate::commerce::payment::ReturnUrls;
-use crate::commerce::{hash_token, order_context, CartRequest, CommerceError, CommerceService};
-use crate::db::{OrderListQuery, OrderRecord};
 use crate::state::AppState;
+use aegis_commerce::payment::ReturnUrls;
+use aegis_commerce::PaymentProviderKind;
+use aegis_commerce::{hash_token, order_context, CartRequest, CommerceError, CommerceService};
 use aegis_core::{
-    AuditAction, AuditOutcome, OrderAdjustment, OrderLine, OrderStatus, PaymentProviderKind,
-    ShippingAddress,
+    AuditAction, AuditOutcome, OrderAdjustment, OrderLine, OrderStatus, ShippingAddress,
 };
+use aegis_db::{OrderListQuery, OrderRecord};
 
 type ApiError = (StatusCode, Json<serde_json::Value>);
 
@@ -182,10 +182,7 @@ pub async fn quote(
     Json(request): Json<CartRequest>,
 ) -> Result<Json<QuoteView>, ApiError> {
     let commerce = commerce(&state)?;
-    let ctx = commerce
-        .quote(&state, &request)
-        .await
-        .map_err(commerce_error)?;
+    let ctx = commerce.quote(&request).await.map_err(commerce_error)?;
     Ok(Json(QuoteView {
         currency: ctx.currency,
         lines: ctx.lines,
@@ -207,16 +204,12 @@ pub async fn checkout(
     let commerce = commerce(&state)?;
     let site = site_url(&state, &headers);
     let result = commerce
-        .checkout(
-            &state,
-            &audit,
-            &request,
-            client_ip.as_deref(),
-            |order, token| ReturnUrls {
+        .checkout(&audit, &request, client_ip.as_deref(), |order, token| {
+            ReturnUrls {
                 success_url: format!("{}/orders/{}?token={}", site, order.id, token),
                 cancel_url: format!("{}/cart", site),
-            },
-        )
+            }
+        })
         .await
         .map_err(commerce_error)?;
     let order_url = order_page_path(&state, &result.order.id, &result.access_token);
@@ -314,7 +307,7 @@ pub async fn payment_webhook(
             return Err(api_error(StatusCode::BAD_REQUEST, e.to_string()));
         }
     };
-    match commerce.apply_payment_event(&state, &audit, &event).await {
+    match commerce.apply_payment_event(&audit, &event).await {
         Ok(()) => Ok(Json(json!({ "received": true }))),
         // 他の環境の注文など。再送されても結果は同じなので 200 で受け取る
         Err(CommerceError::NotFound(message)) => {
@@ -449,8 +442,12 @@ pub async fn update_order_status(
         .map(|n| n.trim().to_string())
         .filter(|n| !n.is_empty());
     let updated = commerce
-        .transition(&state, &audit, &order, request.status, note, "admin")
+        .transition(&audit, &order, request.status, note, "admin")
         .await
         .map_err(commerce_error)?;
     Ok(Json(admin_view(&state, &commerce, &updated)))
 }
+
+#[cfg(test)]
+#[path = "shop_tests.rs"]
+mod tests;

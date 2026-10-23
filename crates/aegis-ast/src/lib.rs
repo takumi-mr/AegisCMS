@@ -1,8 +1,10 @@
+pub mod config;
 pub mod node;
 pub mod renderer;
 pub mod rewriter;
 pub mod transform;
 
+pub use config::SecurityConfig;
 pub use node::BlockNode;
 pub use renderer::HtmlRenderer;
 pub use rewriter::{HtmlRewriterConfig, RewriterError, StreamingHtmlRewriter};

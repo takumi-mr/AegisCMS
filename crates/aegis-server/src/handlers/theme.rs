@@ -175,8 +175,8 @@ fn serve_file_safely(base_dir: &FilePath, rel_path: &str) -> axum::response::Res
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::SessionData;
     use crate::test_support::test_state;
+    use aegis_auth::SessionData;
     use aegis_runtime::PluginSupervisor;
 
     fn viewer() -> ViewerSession {

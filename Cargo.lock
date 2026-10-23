@@ -23,6 +23,81 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-audit"
+version = "0.1.0"
+dependencies = [
+ "aegis-core",
+ "aegis-db",
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "aegis-auth"
+version = "0.1.0"
+dependencies = [
+ "aegis-cache",
+ "aegis-core",
+ "aegis-db",
+ "argon2",
+ "async-trait",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "hex",
+ "jsonwebtoken",
+ "p256",
+ "rand_core 0.6.4",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "aegis-cache"
+version = "0.1.0"
+dependencies = [
+ "aegis-core",
+ "async-trait",
+ "redis",
+ "serde",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "aegis-commerce"
+version = "0.1.0"
+dependencies = [
+ "aegis-audit",
+ "aegis-core",
+ "aegis-db",
+ "aegis-runtime",
+ "aegis-schema",
+ "async-trait",
+ "chrono",
+ "hex",
+ "hmac",
+ "http",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "aegis-core"
 version = "0.1.0"
 dependencies = [
@@ -32,7 +107,21 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
- "toml",
+ "uuid",
+]
+
+[[package]]
+name = "aegis-db"
+version = "0.1.0"
+dependencies = [
+ "aegis-core",
+ "aegis-schema",
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -102,6 +191,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
+ "toml",
  "tracing",
  "url",
  "wasmtime",
@@ -126,22 +216,23 @@ name = "aegis-server"
 version = "0.1.0"
 dependencies = [
  "aegis-ast",
+ "aegis-audit",
+ "aegis-auth",
+ "aegis-cache",
+ "aegis-commerce",
  "aegis-core",
+ "aegis-db",
  "aegis-runtime",
  "aegis-schema",
+ "aegis-storage",
  "aegis-theme",
  "anyhow",
- "argon2",
  "async-trait",
  "axum",
- "base64 0.22.1",
  "chrono",
  "clap",
  "hex",
  "hmac",
- "jsonwebtoken",
- "p256",
- "rand_core 0.6.4",
  "redis",
  "reqwest",
  "rpassword",
@@ -156,6 +247,23 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "aegis-storage"
+version = "0.1.0"
+dependencies = [
+ "aegis-core",
+ "async-trait",
+ "chrono",
+ "hex",
+ "hmac",
+ "reqwest",
+ "serde",
+ "sha2",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 
