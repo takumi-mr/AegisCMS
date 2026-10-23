@@ -37,6 +37,9 @@ pub enum AuditAction {
     /// Active theme switched via admin/API
     #[serde(rename = "theme.switch")]
     ThemeSwitch,
+    /// Site-wide settings (site title, favicon) changed via admin/API
+    #[serde(rename = "site.update")]
+    SiteUpdate,
     /// User account created via the user management API
     #[serde(rename = "user.create")]
     UserCreate,
@@ -62,7 +65,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 20] = [
+    pub const ALL: [AuditAction; 21] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -76,6 +79,7 @@ impl AuditAction {
         Self::AuditPurge,
         Self::AccessDenied,
         Self::ThemeSwitch,
+        Self::SiteUpdate,
         Self::UserCreate,
         Self::UserUpdate,
         Self::UserDelete,
@@ -100,6 +104,7 @@ impl AuditAction {
             Self::AuditPurge => "audit.purge",
             Self::AccessDenied => "access.denied",
             Self::ThemeSwitch => "theme.switch",
+            Self::SiteUpdate => "site.update",
             Self::UserCreate => "user.create",
             Self::UserUpdate => "user.update",
             Self::UserDelete => "user.delete",

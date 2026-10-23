@@ -157,7 +157,7 @@ notifications/
 
 | 値 | 内容 |
 | --- | --- |
-| `site_name` | `[theme].site_title` |
+| `site_name` | サイト名（起動時の値。Admin Studio の **Settings › Site** で変えた名前があればそれ、無ければ `[theme].site_title`） |
 | `site_url` / `admin_url` | `[commerce].public_url` と、その `/admin/`（未設定なら空） |
 | `kind` | 通知の種類 |
 | `order.number` / `order.status` / `order.created_at` / `order.paid_at` / `order.note` | 注文番号・状態・日時・管理者のメモ |

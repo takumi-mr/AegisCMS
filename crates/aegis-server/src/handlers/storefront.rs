@@ -48,9 +48,11 @@ fn shop_vars(state: &AppState) -> HashMap<String, String> {
 
 /// ショップのページを描画する（`on-render-page` フックを適用）
 async fn render_shop_page(state: &AppState, mut ctx: PageRenderContext) -> Response {
-    ctx.site_title = state.config.theme.site_title.clone();
-    ctx.site_description = state.config.theme.site_description.clone();
-    ctx.extra_css = state.config.theme.custom_css.clone().unwrap_or_default();
+    let site = render::site_page_context(state);
+    ctx.site_title = site.site_title;
+    ctx.site_description = site.site_description;
+    ctx.extra_css = site.extra_css;
+    ctx.extra_head = site.extra_head;
     ctx.theme_vars.extend(shop_vars(state));
     {
         let supervisor = state.supervisor.read().await;

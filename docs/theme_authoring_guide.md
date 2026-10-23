@@ -86,11 +86,11 @@ themes/my-theme/
 | 変数 | 内容 |
 |---|---|
 | `base_path` | サイトを公開しているパス（例: `/cms`。ルートで公開しているときは空文字）。**サイト内のリンクとアセットには必ず先頭に付ける** |
-| `site_title` / `site_description` | `[theme].site_title` / `site_description` |
+| `site_title` / `site_description` | サイト名（Admin Studio の **Settings › Site** で変更した値、無ければ `[theme].site_title`）/ `[theme].site_description` |
 | `title` / `slug` | ページのタイトル・スラッグ |
 | `content_type` | `index` / `article` / `page` / `error` など |
 | `extra_css` | `[theme].custom_css` とプラグインが足した CSS |
-| `extra_head` | プラグインが `<head>` に足す HTML |
+| `extra_head` | `<head>` に足す HTML（サイトの favicon の `<link rel="icon">` と、プラグインが足したもの）。**`<head>` の中で必ず `{{ extra_head \| safe }}` を出力する** |
 | `theme_vars` | プラグインやショップが渡す文字列の辞書 |
 
 一覧（`items` の各要素）: `title`、`slug`、`excerpt`（本文の先頭 140 文字）、`published_at`、`created_at`、`content_type`、`fields`（カスタムフィールド）、`relations`（解決済みのリレーション。例: `item.relations.category_id.title`）。

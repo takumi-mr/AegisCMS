@@ -165,6 +165,7 @@ MiniJinja の動的ローダーがこれを最優先で認識するため、サ�
 active = "default"
 site_title = "AegisCMS Official Site"
 site_description = "Next-Generation High-Performance Secure CMS with Sandboxed WebAssembly Extensibility"
+# favicon = "/uploads/favicon.png"  # オプション: favicon（/ から始まるパスか http(s) の URL）
 # custom_css = ":root { --accent: #10b981; }" # オプション: グローバルカスタム CSS
 posts_per_page = 10        # トップページの 1 ページあたりの記事数（?page=N でページ送り）
 reload_templates = false   # true でテンプレートを描画のたびに読み直す（テーマ開発用）
@@ -172,3 +173,12 @@ reload_templates = false   # true でテンプレートを描画のたびに読�
 [paths]
 themes_dir = "themes"
 ```
+
+### サイト名と favicon（Admin Studio）
+
+`site_title` と `favicon` は Admin Studio の **Settings › Site**（`admin` のみ）からも変更できます。保存した値は DB（`_aegis_settings`）に入り、設定ファイルの値より優先されます。サーバーの再起動なしで公開サイトに反映され、欄を空にして保存すると設定ファイルの値に戻ります。
+
+- favicon は `<link rel="icon" href="...">` としてテンプレートの `extra_head` に入ります（すべてのテーマが出力する変数のため、テーマ側の対応は不要です）。`on-render-page` プラグインからも見え、書き換えられます。
+- favicon に使えるのは `/` から始まるパス（アップロードした画像の URL など）と http(s) の URL です。`javascript:` / `data:` / `//host` は受け付けません。
+- API: `GET /api/v1/site` は `{"title", "favicon", "defaults": {"title", "favicon"}}`（`title` / `favicon` は Admin Studio で設定した値、未設定なら `null`）を返します。`PUT /api/v1/site` に `{"title": "...", "favicon": "..."}` を送ると変更し、`null` か空文字の項目は設定ファイルの値に戻します（どちらも `admin` のみ。監査ログ `site.update`）。
+- 通知のテンプレートの `site_name` には起動時のサイト名を使います。Admin Studio で変えた名前は、サーバーの再起動後に通知へ反映されます。

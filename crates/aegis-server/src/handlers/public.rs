@@ -35,15 +35,12 @@ pub(crate) fn extract_excerpt(blocks: &[BlockNode], max_chars: usize) -> String 
 /// 404 Not Found ページをテーマテンプレートでレンダリング
 pub async fn render_not_found(state: &AppState, message: &str) -> Response {
     let ctx = PageRenderContext {
-        site_title: state.config.theme.site_title.clone(),
-        site_description: state.config.theme.site_description.clone(),
         template: "404.html".to_string(),
         content_type: "error".to_string(),
         title: "Page Not Found".to_string(),
         slug: "404".to_string(),
         content_html: format!("<p>{}</p>", message),
-        extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
-        ..Default::default()
+        ..render::site_page_context(state)
     };
 
     let supervisor = state.supervisor.read().await;
@@ -145,15 +142,12 @@ pub async fn render_index(
     };
 
     let mut ctx = PageRenderContext {
-        site_title: state.config.theme.site_title.clone(),
-        site_description: state.config.theme.site_description.clone(),
         template: "index.html".to_string(),
         content_type: "index".to_string(),
         title: "Latest Stories".to_string(),
         items,
         pagination: Some(pagination),
-        extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
-        ..Default::default()
+        ..render::site_page_context(&state)
     };
 
     // プラグインによるテーマ・コンテキスト書き換えフックの適用

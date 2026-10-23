@@ -1,5 +1,5 @@
 import React from 'react';
-import { Palette, Blocks, Tags, Users, ScrollText } from 'lucide-react';
+import { Globe, Palette, Blocks, Tags, Users, ScrollText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount } from '../types';
 import { canEdit, isAdmin } from '../utils/roles';
@@ -7,11 +7,12 @@ import { cx } from '../utils/cx';
 import { AuditLogView } from './AuditLogView';
 import { CategoryManager } from './CategoryManager';
 import { PluginManager } from './PluginManager';
+import { SiteManager } from './SiteManager';
 import { ThemeManager } from './ThemeManager';
 import { UserManager } from './UserManager';
 import styles from './SettingsView.module.css';
 
-export type SettingsSection = 'themes' | 'plugins' | 'categories' | 'users' | 'audit';
+export type SettingsSection = 'site' | 'themes' | 'plugins' | 'categories' | 'users' | 'audit';
 
 const SECTIONS: Array<{
   id: SettingsSection;
@@ -19,6 +20,7 @@ const SECTIONS: Array<{
   /** Who sees the section (everyone when omitted) */
   visible?: (session: SessionInfo) => boolean;
 }> = [
+  { id: 'site', icon: <Globe size={16} />, visible: isAdmin },
   { id: 'themes', icon: <Palette size={16} /> },
   { id: 'plugins', icon: <Blocks size={16} /> },
   { id: 'categories', icon: <Tags size={16} /> },
@@ -36,7 +38,7 @@ interface SettingsViewProps {
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
-/** Site-wide settings (themes, categories, users, audit logs), kept apart from the editor */
+/** Site-wide settings (site name and favicon, themes, plugins, categories, users, audit logs), kept apart from the editor */
 export const SettingsView: React.FC<SettingsViewProps> = ({
   session,
   section,
@@ -70,6 +72,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </nav>
 
       <div className={styles.content}>
+        {current === 'site' && <SiteManager onShowToast={onShowToast} />}
         {current === 'themes' && <ThemeManager session={session} onShowToast={onShowToast} />}
         {current === 'plugins' && <PluginManager session={session} onShowToast={onShowToast} />}
         {current === 'categories' && (
