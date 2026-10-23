@@ -1,6 +1,9 @@
 import { setSessionToken } from '../api/session';
 
-/** The `login_error` reasons of `GET /api/v1/auth/oidc/callback` (messages in `login.sso_errors`) */
+/**
+ * The `login_error` reasons of the single sign-on returns (`GET /api/v1/auth/oidc/callback`,
+ * `POST /api/v1/auth/saml/acs`; messages in `login.sso_errors`)
+ */
 export const SSO_ERROR_CODES = [
   'idp_error',
   'invalid_state',
@@ -33,3 +36,7 @@ export const takeLoginRedirect = (): string | null => {
   if (session) setSessionToken(session);
   return error;
 };
+
+/** Whether the session was issued by single sign-on (its password is managed by the IdP) */
+export const isSsoSession = (session: { metadata?: Record<string, unknown> }): boolean =>
+  session.metadata?.provider === 'oidc' || session.metadata?.provider === 'saml';

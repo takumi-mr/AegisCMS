@@ -178,11 +178,19 @@ export interface UpdateUserPayload {
   current_password?: string;
 }
 
+/** A single sign-on button: its label and the server URL that starts the sign-in */
+export interface SsoProvider {
+  display_name: string;
+  login_url: string;
+}
+
 /** Sign-in methods offered by the server (`GET /api/v1/auth/providers`) */
 export interface AuthProviders {
   local: boolean;
   /** Single sign-on with OpenID Connect, or null when it is not enabled */
-  oidc: { display_name: string; login_url: string } | null;
+  oidc: SsoProvider | null;
+  /** Single sign-on with SAML 2.0, or null when it is not enabled; missing on older servers */
+  saml?: SsoProvider | null;
   /** Self-registration (`[auth.registration]`); missing on older servers */
   registration?: boolean;
 }
