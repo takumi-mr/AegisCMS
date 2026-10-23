@@ -113,7 +113,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 ### 6.1 拡張の方針
 
-認証判定と暗号処理（パスワード、OIDC の JWT / JWKS 検証、将来の SAML の XML 署名）は Wasm プラグインに開放せず、`AuthProvider` を実装した Rust のコード（Cargo feature）として持つ。プラグインに委ねるのは認証が済んだ後の安全な拡張（ロールのマッピング、メタデータの付加、ログイン通知など）だけで、`on-user-authenticated` フックで行う。
+認証判定と暗号処理（パスワード、OIDC の JWT / JWKS 検証、SAML の XML 署名）は Wasm プラグインに開放せず、`AuthProvider` を実装した Rust のコード（Cargo feature）として持つ。プラグインに委ねるのは認証が済んだ後の安全な拡張（ロールのマッピング、メタデータの付加、ログイン通知など）だけで、`on-user-authenticated` フックで行う。
 
 ### 6.2 ローカル認証とロール
 
@@ -142,6 +142,17 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - ID 連携の subject は `oidc_subject(issuer, sub)`（`{issuer}#{sub}`、末尾 `/` を除去）。Issuer を変えると既存の紐付けは使えなくなる。
 - トークンエンドポイントの認証は `client_secret_basic`（IdP が basic を挙げない場合のみ `client_secret_post`）。
 - テストは `oidc_mock::MockIdp`（テスト内で起動する axum の IdP。鍵は起動ごとに生成し、秘密鍵をリポジトリに置かない）。
+- IdP のユーザーをアカウントに対応付ける処理（ID 連携の検索・自動作成・同名ユーザーの拒否・ロールとプロフィールの同期）は `aegis_auth::sso::AccountPolicy` で SAML と共有する。ハンドラーの共通部分（IdP へのリダイレクト、検証後のセッション発行と `#session=` での戻り）は `handlers/sso.rs`。
+
+### 6.5a SAML 2.0 (`aegis_auth::saml`)
+
+- **依存の判断**: XML 署名の検証に xmlsec（libxmlsec1 / libxml2 の C ライブラリ）や `samael` は使わず、純 Rust で実装した。Windows・Docker のビルドに C ライブラリが要らず、検証する範囲を SAML に必要な最小限（Exclusive C14N、enveloped-signature、RSA-SHA256/384/512）に絞れるため。部品は `quick-xml`（字句解析）、`rsa`（PKCS#1 v1.5 の検証のみ。RUSTSEC-2023-0071 は秘密鍵の操作の問題で検証には影響しない）、`x509-cert`（証明書から公開鍵を取り出すだけ。有効期限や発行者は見ず、信頼は設定した証明書そのものに置く）、`flate2`（HTTP-Redirect の DEFLATE）。
+- `saml::xml` は接頭辞を保つ最小限の木（C14N の出力に接頭辞が要る）。DTD・処理命令・未宣言の接頭辞・重複属性・深い入れ子を拒否し、コメントは捨てる（コメントなしの C14N と同じ）。属性値と改行の正規化は XML 1.0 どおり。
+- `saml::c14n` は Exclusive XML Canonicalization（コメントなし、`InclusiveNamespaces` の `PrefixList` 対応）。名前空間宣言は「その要素か属性が使っていて、出力済みの祖先が同じ値で宣言していない」場合だけ出す。
+- **XML Signature Wrapping**: `dsig::verify_enveloped` は、署名の親要素の `ID` と参照が一致すること・その `ID` が文書内で一意なことを確かめた上で、ダイジェストを計算した正規形をもう一度解析した木を返す。呼び出し側は検証後に受け取った文書を読まない（読むのは署名されたバイト列だけ）。署名を探すのは応答の直下とアサーションの直下だけで、アサーションが応答の直下にちょうど 1 つでなければ拒否する。
+- 失敗の `StatusCode` だけは検証前の文書から読む（エラーの応答は署名されないことが多く、ログインを失敗させる方向にしか働かない）。
+- リプレイ対策は AuthnRequest の `ID` の 1 回限りの消費（`saml:request:<ID>`、10 分）。bearer の `InResponseTo` を必須にしているので IdP-initiated は受け付けない。AuthnRequest は署名しない（SP の秘密鍵を持たない）。
+- テストは `saml::mock::MockSamlIdp`（文字列に署名を差し込む。鍵はプロセスごとに生成）と、別の実装（libxml2 の C14N）で署名したフィクスチャ `crates/aegis-auth/tests/fixtures/saml/`。自前の署名と検証だけでは正規化の誤りが打ち消し合って見つからないため。signxml は `PrefixList` を参照の変換に置かない（自身でも検証できない）ため、アサーション側は lxml で組み立てている。RSA の鍵生成が遅いので `num-bigint-dig` は dev プロファイルでも最適化する（ルートの `Cargo.toml`）。
 
 ### 6.6 アカウント登録 (`aegis_auth::registration`, `handlers/registration.rs`)
 
