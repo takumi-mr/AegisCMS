@@ -42,6 +42,7 @@ export type AuditAction =
   | 'content.create'
   | 'content.update'
   | 'content.delete'
+  | 'content.publish'
   | 'session.create'
   | 'session.delete'
   | 'storage.upload'

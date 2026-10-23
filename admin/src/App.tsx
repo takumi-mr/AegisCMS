@@ -33,10 +33,14 @@ import type { BlockNode, ContentItem, SessionInfo, UserAccount } from './types';
 import { categoryIdOf } from './utils/category';
 import { canEdit } from './utils/roles';
 import { cx } from './utils/cx';
+import { toDateTimeLocal } from './utils/format';
 import { blocksToMarkdown, markdownToBlocks, isMarkdownLike } from './utils/markdown';
 import { Button } from './components/ui/Button';
 import { Field, FieldRow } from './components/ui/Field';
 import styles from './App.module.css';
+
+/** Content states the editor offers (`archived` and others open as a draft) */
+type EditorStatus = 'draft' | 'scheduled' | 'published';
 
 /** Messages shown above the login form */
 type LoginNotice = 'unreachable' | 'expired' | 'signedOut';
@@ -64,7 +68,9 @@ export const App: React.FC = () => {
   // Editor Form State
   const [title, setTitle] = useState<string>('Next-Gen WebAssembly CMS with Aegis');
   const [slug, setSlug] = useState<string>('next-gen-wasm-cms');
-  const [status, setStatus] = useState<'draft' | 'published'>('published');
+  const [status, setStatus] = useState<EditorStatus>('published');
+  // Scheduled publishing time (`datetime-local` value, local time)
+  const [publishAt, setPublishAt] = useState<string>('');
   const [blocks, setBlocks] = useState<BlockNode[]>([
     {
       name: 'core/heading',
@@ -226,7 +232,10 @@ export const App: React.FC = () => {
     setSelectedId(item.id);
     setTitle(item.title);
     setSlug(item.slug);
-    setStatus(item.status === 'published' ? 'published' : 'draft');
+    setStatus(item.status === 'published' || item.status === 'scheduled' ? item.status : 'draft');
+    setPublishAt(
+      item.status === 'scheduled' && item.published_at ? toDateTimeLocal(item.published_at) : ''
+    );
     const itemBlocks = item.blocks || [];
     setBlocks(itemBlocks);
     setMarkdownText(blocksToMarkdown(itemBlocks));
@@ -238,6 +247,7 @@ export const App: React.FC = () => {
     setTitle(t('editor.defaults.untitled'));
     setSlug(`untitled-${Date.now().toString(36)}`);
     setStatus('draft');
+    setPublishAt('');
     setCategoryId('');
     const newBlocks: BlockNode[] = [
       { name: 'core/heading', attributes: { level: 2 }, text: t('editor.defaults.newHeading') },
@@ -337,6 +347,11 @@ export const App: React.FC = () => {
       showToast(t('editor.toasts.slugRequired'), 'error');
       return;
     }
+    const scheduledAt = status === 'scheduled' ? new Date(publishAt) : null;
+    if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+      showToast(t('editor.toasts.publishAtRequired'), 'error');
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -344,6 +359,8 @@ export const App: React.FC = () => {
         title,
         slug,
         status,
+        // The server publishes scheduled content at this time (a past time publishes it now)
+        ...(scheduledAt ? { published_at: scheduledAt.toISOString() } : {}),
         blocks,
         // author_id is omitted: new content records the logged-in user, updates keep the author
         // Omit the relation entirely when no category is selected
@@ -466,11 +483,26 @@ export const App: React.FC = () => {
                   </Field>
 
                   <Field label={t('editor.status')} className={styles.statusField}>
-                    <select value={status} onChange={(e) => setStatus(e.target.value as any)}>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as EditorStatus)}
+                    >
                       <option value="draft">{t('common.status.draft')}</option>
+                      <option value="scheduled">{t('common.status.scheduled')}</option>
                       <option value="published">{t('common.status.published')}</option>
                     </select>
                   </Field>
+
+                  {status === 'scheduled' && (
+                    <Field label={t('editor.publishAt')}>
+                      <input
+                        type="datetime-local"
+                        value={publishAt}
+                        onChange={(e) => setPublishAt(e.target.value)}
+                        aria-label={t('editor.publishAtAria')}
+                      />
+                    </Field>
+                  )}
                 </FieldRow>
 
                 <FieldRow>
