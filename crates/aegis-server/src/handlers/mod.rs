@@ -20,7 +20,9 @@ pub mod users;
 
 pub use audit::{get_metrics, list_audit_logs};
 pub use auth::{create_session, delete_session, get_current_session};
-pub use content::{create_content, delete_content, get_content, list_content, update_content};
+pub use content::{
+    create_content, delete_content, get_content, list_content, list_schedule, update_content,
+};
 pub use health::health_check;
 pub use oidc::{oidc_callback, oidc_login};
 pub use openapi::get_openapi_spec;

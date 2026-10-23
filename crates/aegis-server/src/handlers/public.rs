@@ -12,6 +12,8 @@ use aegis_core::{ContentSummary, PageRenderContext, Pagination};
 use aegis_db::{resolve_relations_for_records, ContentListQuery};
 use serde::Deserialize;
 
+use crate::handlers::content::is_currently_published;
+
 /// ブロックノードから先頭段落を抽出して抜粋を生成
 pub(crate) fn extract_excerpt(blocks: &[BlockNode], max_chars: usize) -> String {
     for block in blocks {
@@ -194,8 +196,9 @@ pub async fn render_article(
         }
     };
 
+    let now = chrono::Utc::now();
     let record = match maybe_record {
-        Some(r) if r.status == "published" => r,
+        Some(r) if is_currently_published(&r.status, r.unpublish_at.as_deref(), now) => r,
         _ => return render_not_found(&state, "The requested article is not published.").await,
     };
 
@@ -243,9 +246,10 @@ pub async fn render_page_or_slug(
         schemas.get("page").cloned()
     };
 
+    let now = chrono::Utc::now();
     if let Some(schema) = page_schema {
         if let Ok(Some(record)) = state.db.get_content(&schema, &slug).await {
-            if record.status == "published" {
+            if is_currently_published(&record.status, record.unpublish_at.as_deref(), now) {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
                 let content_html = render::render_blocks_html(&state.config.security, &blocks);
@@ -274,7 +278,7 @@ pub async fn render_page_or_slug(
 
     if let Some(schema) = article_schema {
         if let Ok(Some(record)) = state.db.get_content(&schema, &slug).await {
-            if record.status == "published" {
+            if is_currently_published(&record.status, record.unpublish_at.as_deref(), now) {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
                 let content_html = render::render_blocks_html(&state.config.security, &blocks);
@@ -432,6 +436,7 @@ mod tests {
                         blocks_json: "[]".to_string(),
                         author_id: None,
                         published_at: None,
+                        unpublish_at: None,
                         created_at: format!("2026-10-22T00:00:0{}Z", n),
                         updated_at: format!("2026-10-22T00:00:0{}Z", n),
                         custom_fields: HashMap::new(),
@@ -513,6 +518,7 @@ mod tests {
             blocks_json: serde_json::to_string(&pub_blocks).unwrap(),
             author_id: Some("takumi".to_string()),
             published_at: Some("2026-10-22T00:00:00Z".to_string()),
+            unpublish_at: None,
             created_at: "2026-10-22T00:00:00Z".to_string(),
             updated_at: "2026-10-22T00:00:00Z".to_string(),
             custom_fields: HashMap::new(),
@@ -528,6 +534,7 @@ mod tests {
             blocks_json: "[]".to_string(),
             author_id: None,
             published_at: None,
+            unpublish_at: None,
             created_at: "2026-10-22T00:00:00Z".to_string(),
             updated_at: "2026-10-22T00:00:00Z".to_string(),
             custom_fields: HashMap::new(),
@@ -576,6 +583,7 @@ mod tests {
             blocks_json: serde_json::to_string(&blocks).unwrap(),
             author_id: Some("takumi".to_string()),
             published_at: Some("2026-10-22T00:00:00Z".to_string()),
+            unpublish_at: None,
             created_at: "2026-10-22T00:00:00Z".to_string(),
             updated_at: "2026-10-22T00:00:00Z".to_string(),
             custom_fields: HashMap::new(),
@@ -591,6 +599,7 @@ mod tests {
             blocks_json: "[]".to_string(),
             author_id: None,
             published_at: None,
+            unpublish_at: None,
             created_at: "2026-10-22T00:00:00Z".to_string(),
             updated_at: "2026-10-22T00:00:00Z".to_string(),
             custom_fields: HashMap::new(),
@@ -673,6 +682,7 @@ mod tests {
             blocks_json: serde_json::to_string(&blocks).unwrap(),
             author_id: Some("cyber-author".to_string()),
             published_at: Some("2026-10-22T00:00:00Z".to_string()),
+            unpublish_at: None,
             created_at: "2026-10-22T00:00:00Z".to_string(),
             updated_at: "2026-10-22T00:00:00Z".to_string(),
             custom_fields: HashMap::new(),

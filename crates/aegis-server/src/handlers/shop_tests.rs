@@ -162,6 +162,7 @@ async fn shop(configure: impl FnOnce(&mut AegisConfig)) -> Shop {
                     blocks_json: "[]".to_string(),
                     author_id: None,
                     published_at: None,
+                    unpublish_at: None,
                     created_at: "2026-10-22T00:00:00Z".to_string(),
                     updated_at: "2026-10-22T00:00:00Z".to_string(),
                     custom_fields: fields,
@@ -931,6 +932,7 @@ async fn test_official_wasm_plugins_in_checkout() {
                 blocks_json: "[]".to_string(),
                 author_id: None,
                 published_at: None,
+                unpublish_at: None,
                 created_at: "2026-10-22T00:00:00Z".to_string(),
                 updated_at: "2026-10-22T00:00:00Z".to_string(),
                 custom_fields: std::collections::HashMap::from([

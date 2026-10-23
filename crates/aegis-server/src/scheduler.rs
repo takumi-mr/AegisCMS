@@ -90,15 +90,94 @@ pub async fn publish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize
     published
 }
 
-/// 予約公開を定期的に行うタスクを起動する
+/// `now` までに非公開日時（`unpublish_at`）を迎えた公開中コンテンツをすべてのスキーマでアーカイブ化し、非公開化した件数を返す
+pub async fn unpublish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize {
+    let schemas: Vec<SchemaDefinition> = state.schemas.read().await.values().cloned().collect();
+    let query = ContentListQuery {
+        status: Some("published".to_string()),
+        ..Default::default()
+    };
+    let mut unpublished = 0;
+    for schema in schemas {
+        let records = match state.db.list_contents_page(&schema, &query).await {
+            Ok(page) => page.records,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to list published {} contents for unpublishing: {}",
+                    schema.content_type,
+                    e
+                );
+                continue;
+            }
+        };
+        for record in records {
+            let Some(at) = record.unpublish_at.as_deref() else {
+                continue;
+            };
+            match DateTime::parse_from_rfc3339(at) {
+                Ok(due) if due <= now => {}
+                Ok(_) => continue,
+                Err(e) => {
+                    tracing::warn!(
+                        "Published content {} has an invalid unpublish_at '{}': {}",
+                        record.id,
+                        at,
+                        e
+                    );
+                    continue;
+                }
+            }
+
+            let result = state
+                .db
+                .unpublish_scheduled_content(&schema, &record.id, at, &now.to_rfc3339())
+                .await;
+            let mut details = json!({
+                "content_type": record.content_type,
+                "slug": record.slug,
+                "title": record.title,
+                "unpublish_at": at,
+            });
+            let outcome = match &result {
+                Ok(true) => {
+                    unpublished += 1;
+                    AuditOutcome::Success
+                }
+                // 一覧の取得後に非公開日時の変更・取り消し・ステータス変更があった
+                Ok(false) => continue,
+                Err(e) => {
+                    tracing::warn!("Failed to unpublish scheduled content {}: {}", record.id, e);
+                    details["error"] = json!(e.to_string());
+                    AuditOutcome::Failure
+                }
+            };
+            state
+                .audit
+                .record(
+                    AuditEvent::new(AuditAction::ContentUnpublish, outcome)
+                        .with_resource("content", Some(record.id.clone()))
+                        .with_details(details),
+                )
+                .await;
+        }
+    }
+    unpublished
+}
+
+/// 予約公開および予約非公開を定期的に行うタスクを起動する
 pub fn spawn_publish_task(state: Arc<AppState>) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(PUBLISH_INTERVAL);
         loop {
             interval.tick().await;
-            match publish_due_contents(&state, Utc::now()).await {
+            let now = Utc::now();
+            match publish_due_contents(&state, now).await {
                 0 => {}
                 n => tracing::info!("Published {} scheduled content(s)", n),
+            }
+            match unpublish_due_contents(&state, now).await {
+                0 => {}
+                n => tracing::info!("Unpublished {} scheduled content(s)", n),
             }
         }
     });
@@ -315,5 +394,91 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(draft.published_at, None);
+    }
+
+    #[tokio::test]
+    async fn test_scheduled_content_is_unpublished_when_due() {
+        let state = test_state(PluginSupervisor::new()).await;
+        let created = create(
+            &state,
+            serde_json::json!({
+                "title": "Campaign",
+                "slug": "campaign",
+                "status": "published",
+                "published_at": "2099-01-01T00:00:00Z",
+                "unpublish_at": "2099-01-10T00:00:00Z"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(created.status, "published");
+        assert_eq!(
+            created.unpublish_at.as_deref(),
+            Some("2099-01-10T00:00:00Z")
+        );
+
+        // 期日前は非公開化されない
+        let before: DateTime<Utc> = "2099-01-09T23:59:59Z".parse().unwrap();
+        assert_eq!(unpublish_due_contents(&state, before).await, 0);
+        let schema = state.schemas.read().await["article"].clone();
+        let record = state
+            .db
+            .get_content(&schema, "campaign")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(record.status, "published");
+
+        // 期日到来でアーカイブ化される
+        let due: DateTime<Utc> = "2099-01-10T00:00:00Z".parse().unwrap();
+        assert_eq!(unpublish_due_contents(&state, due).await, 1);
+        let record = state
+            .db
+            .get_content(&schema, "campaign")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(record.status, "archived");
+
+        // 監査ログが記録されていることを確認
+        let events = state
+            .db
+            .query_audit_events(&aegis_core::AuditQuery {
+                action: Some(AuditAction::ContentUnpublish),
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].outcome, AuditOutcome::Success);
+        assert_eq!(events[0].resource_id.as_deref(), Some(created.id.as_str()));
+
+        // 予約公開（status: "scheduled"）で unpublish_at <= published_at は 400 Bad Request
+        let bad_scheduled = create(
+            &state,
+            serde_json::json!({
+                "title": "Bad Scheduled",
+                "slug": "bad-scheduled",
+                "status": "scheduled",
+                "published_at": "2099-01-10T00:00:00Z",
+                "unpublish_at": "2099-01-05T00:00:00Z"
+            }),
+        )
+        .await;
+        assert_eq!(bad_scheduled.unwrap_err(), StatusCode::BAD_REQUEST);
+
+        // 公開中（status: "published"）で過去の日時（unpublish_at <= published_at/now）は 400 Bad Request
+        let bad_published = create(
+            &state,
+            serde_json::json!({
+                "title": "Bad Published",
+                "slug": "bad-published",
+                "status": "published",
+                "unpublish_at": "2000-01-01T00:00:00Z"
+            }),
+        )
+        .await;
+        assert_eq!(bad_published.unwrap_err(), StatusCode::BAD_REQUEST);
     }
 }

@@ -422,6 +422,7 @@ mod tests {
             blocks_json,
             author_id: Some("editor1".to_string()),
             published_at: Some(now.clone()),
+            unpublish_at: None,
             created_at: now.clone(),
             updated_at: now,
             custom_fields: Default::default(),

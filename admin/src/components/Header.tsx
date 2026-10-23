@@ -1,5 +1,14 @@
 import React from 'react';
-import { Activity, Send, PenSquare, LogOut, Settings, Package, ShoppingBag } from 'lucide-react';
+import {
+  Activity,
+  Send,
+  PenSquare,
+  LogOut,
+  Settings,
+  Package,
+  ShoppingBag,
+  Calendar,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SessionInfo, UserAccount } from '../types';
 import { cx } from '../utils/cx';
@@ -16,7 +25,7 @@ const ROLE_BADGE: Record<string, string | undefined> = {
   editor: styles.roleEditor,
 };
 
-export type AppView = 'editor' | 'products' | 'orders' | 'settings';
+export type AppView = 'editor' | 'schedule' | 'products' | 'orders' | 'settings';
 
 interface HeaderProps {
   view: AppView;
@@ -66,6 +75,13 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <PenSquare size={14} />
             <span>{t('header.tabs.editor')}</span>
+          </button>
+          <button
+            className={cx(styles.tab, view === 'schedule' && styles.active)}
+            onClick={() => onViewChange('schedule')}
+          >
+            <Calendar size={14} />
+            <span>{t('header.tabs.schedule')}</span>
           </button>
           {showShop && (
             <>

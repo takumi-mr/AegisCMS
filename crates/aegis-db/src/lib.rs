@@ -41,6 +41,7 @@ pub struct ContentRecord {
     pub blocks_json: String,
     pub author_id: Option<String>,
     pub published_at: Option<String>,
+    pub unpublish_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub custom_fields: HashMap<String, serde_json::Value>,
@@ -92,6 +93,17 @@ pub trait DatabaseAdapter: OrderStorage + Send + Sync {
         schema: &SchemaDefinition,
         id: &str,
         published_at: &str,
+        updated_at: &str,
+    ) -> Result<bool>;
+
+    /// Unpublish (archive) a content record whose `unpublish_at` has arrived
+    /// (`status = 'published'` → `'archived'`, setting `updated_at`).
+    /// Matches while status is still 'published' and unpublish_at equals the expected timestamp.
+    async fn unpublish_scheduled_content(
+        &self,
+        schema: &SchemaDefinition,
+        id: &str,
+        unpublish_at: &str,
         updated_at: &str,
     ) -> Result<bool>;
 
@@ -416,13 +428,14 @@ pub async fn create_database_adapter(config: &DatabaseConfig) -> Result<Arc<dyn 
 }
 
 /// `update_content` で上書きする標準カラム（バインド順）。この後にカスタム列、最後に `id`
-pub const CONTENT_UPDATE_COLUMNS: [&str; 7] = [
+pub const CONTENT_UPDATE_COLUMNS: [&str; 8] = [
     "title",
     "slug",
     "status",
     "blocks_json",
     "author_id",
     "published_at",
+    "unpublish_at",
     "updated_at",
 ];
 
@@ -459,6 +472,18 @@ pub fn build_scheduled_publish(table: &str, placeholder: impl Fn(usize) -> Strin
     )
 }
 
+/// 予約非公開の UPDATE 文（`unpublish_scheduled_content`）。バインド順は updated_at → id → unpublish_at
+pub fn build_scheduled_unpublish(table: &str, placeholder: impl Fn(usize) -> String) -> String {
+    format!(
+        "UPDATE {} SET status = 'archived', updated_at = {} \
+         WHERE id = {} AND status = 'published' AND unpublish_at = {};",
+        table,
+        placeholder(1),
+        placeholder(2),
+        placeholder(3)
+    )
+}
+
 /// スキーマのカスタム列（標準カラム以外のフィールド）の名前
 pub fn custom_columns(schema: &SchemaDefinition) -> Vec<String> {
     schema
@@ -479,6 +504,7 @@ pub fn is_standard_column(name: &str) -> bool {
             | "blocks_json"
             | "author_id"
             | "published_at"
+            | "unpublish_at"
             | "created_at"
             | "updated_at"
     )
@@ -844,8 +870,8 @@ mod tests {
         assert_eq!(
             sql,
             "UPDATE content_product SET title = $1, slug = $2, status = $3, blocks_json = $4, \
-             author_id = $5, published_at = $6, updated_at = $7, price = $8, stock = $9 \
-             WHERE id = $10;"
+             author_id = $5, published_at = $6, unpublish_at = $7, updated_at = $8, price = $9, stock = $10 \
+             WHERE id = $11;"
         );
     }
 
@@ -855,6 +881,11 @@ mod tests {
             build_scheduled_publish("content_article", |i| format!("${}", i)),
             "UPDATE content_article SET status = 'published', updated_at = $1 \
              WHERE id = $2 AND status = 'scheduled' AND published_at = $3;"
+        );
+        assert_eq!(
+            build_scheduled_unpublish("content_article", |i| format!("${}", i)),
+            "UPDATE content_article SET status = 'archived', updated_at = $1 \
+             WHERE id = $2 AND status = 'published' AND unpublish_at = $3;"
         );
     }
 

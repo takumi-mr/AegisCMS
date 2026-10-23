@@ -36,6 +36,9 @@ pub struct CreateContentRequest {
     /// 予約公開（`status: "scheduled"`）の公開日時（RFC 3339）。他の状態では無視する
     #[serde(default)]
     pub published_at: Option<String>,
+    /// 予約非公開（アーカイブ化）の日時（RFC 3339）。`published` または `scheduled` のみ有効
+    #[serde(default)]
+    pub unpublish_at: Option<String>,
     #[serde(flatten)]
     pub fields: HashMap<String, serde_json::Value>,
 }
@@ -48,27 +51,64 @@ fn default_status() -> String {
 pub const STATUS_SCHEDULED: &str = "scheduled";
 const STATUS_PUBLISHED: &str = "published";
 
-/// 保存する公開状態と `published_at` を決める。
+/// 保存する公開状態と `published_at`, `unpublish_at` を決める。
 /// - `published`: 最初に公開した日時を保つ（今まで公開されていなければ `now`）
 /// - `scheduled`: `requested_at` が必須。過ぎた日時ならその場で `published` にする
-/// - それ以外: `published_at` なし
+/// - `unpublish_at`: `published` または `scheduled` でのみ有効。指定があれば有効なRFC 3339で、公開日時より後であること。
+/// - それ以外 (`draft`, `archived`): `published_at` / `unpublish_at` はなし (`None`)
 fn resolve_publication(
     status: String,
     requested_at: Option<&str>,
+    requested_unpublish_at: Option<&str>,
     current: Option<&ContentRecord>,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(String, Option<String>), ApiError> {
-    let published = || {
+) -> Result<(String, Option<String>, Option<String>), ApiError> {
+    let validate_unpublish = |unpub_str: Option<&str>,
+                              pub_dt: Option<chrono::DateTime<chrono::Utc>>|
+     -> Result<Option<String>, ApiError> {
+        let Some(raw) = unpub_str.map(str::trim).filter(|s| !s.is_empty()) else {
+            return Ok(None);
+        };
+        let unpub = chrono::DateTime::parse_from_rfc3339(raw)
+            .map_err(|e| {
+                api_error(
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid 'unpublish_at' '{}': {}", raw, e),
+                )
+            })?
+            .with_timezone(&chrono::Utc);
+
+        if let Some(pub_time) = pub_dt {
+            if unpub <= pub_time {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "Unpublish date ('unpublish_at') must be after publication date",
+                ));
+            }
+        }
+        Ok(Some(
+            unpub.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        ))
+    };
+
+    let published = |requested_unpub: Option<&str>| -> Result<(String, Option<String>, Option<String>), ApiError> {
         let first = current
             .filter(|c| c.status == STATUS_PUBLISHED)
             .and_then(|c| c.published_at.clone());
+        let pub_str = first.unwrap_or_else(|| now.to_rfc3339());
+        let pub_dt = chrono::DateTime::parse_from_rfc3339(&pub_str)
+            .ok()
+            .map(|dt| dt.with_timezone(&chrono::Utc));
+        let unpub = validate_unpublish(requested_unpub, pub_dt)?;
         Ok((
             STATUS_PUBLISHED.to_string(),
-            Some(first.unwrap_or_else(|| now.to_rfc3339())),
+            Some(pub_str),
+            unpub,
         ))
     };
+
     match status.as_str() {
-        STATUS_PUBLISHED => published(),
+        STATUS_PUBLISHED => published(requested_unpublish_at),
         STATUS_SCHEDULED => {
             let requested = requested_at.map(str::trim).filter(|s| !s.is_empty());
             let Some(requested) = requested else {
@@ -86,15 +126,17 @@ fn resolve_publication(
                 })?
                 .with_timezone(&chrono::Utc);
             if at <= now {
-                published()
+                published(requested_unpublish_at)
             } else {
+                let unpub = validate_unpublish(requested_unpublish_at, Some(at))?;
                 Ok((
                     status,
                     Some(at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
+                    unpub,
                 ))
             }
         }
-        _ => Ok((status, None)),
+        _ => Ok((status, None, None)),
     }
 }
 
@@ -109,6 +151,7 @@ pub struct ContentResponse {
     pub rendered_html: String,
     pub author_id: Option<String>,
     pub published_at: Option<String>,
+    pub unpublish_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -402,6 +445,7 @@ async fn content_response(
         rendered_html,
         author_id: record.author_id,
         published_at: record.published_at,
+        unpublish_at: record.unpublish_at,
         created_at: record.created_at,
         updated_at: record.updated_at,
         fields: record.custom_fields,
@@ -433,9 +477,10 @@ pub async fn create_content(
     let now_at = chrono::Utc::now();
     let now = now_at.to_rfc3339();
     let author_id = payload.author_id.clone();
-    let (status, published_at) = resolve_publication(
+    let (status, published_at, unpublish_at) = resolve_publication(
         payload.status.clone(),
         payload.published_at.as_deref(),
+        payload.unpublish_at.as_deref(),
         None,
         now_at,
     )?;
@@ -457,10 +502,11 @@ pub async fn create_content(
         content_type,
         title: saved.title,
         slug: saved.slug,
-        published_at,
         status,
         blocks_json: serde_json::to_string(&saved.blocks).unwrap_or_else(|_| "[]".to_string()),
         author_id,
+        published_at,
+        unpublish_at,
         created_at: now.clone(),
         updated_at: now,
         custom_fields: saved.custom_fields,
@@ -520,9 +566,10 @@ pub async fn update_content(
 
     let now_at = chrono::Utc::now();
     let now = now_at.to_rfc3339();
-    let (status, published_at) = resolve_publication(
+    let (status, published_at, unpublish_at) = resolve_publication(
         payload.status.clone(),
         payload.published_at.as_deref(),
+        payload.unpublish_at.as_deref(),
         Some(&current),
         now_at,
     )?;
@@ -546,6 +593,7 @@ pub async fn update_content(
         blocks_json: serde_json::to_string(&saved.blocks).unwrap_or_else(|_| "[]".to_string()),
         author_id,
         published_at,
+        unpublish_at,
         created_at: current.created_at,
         updated_at: now,
         custom_fields: saved.custom_fields,
@@ -679,6 +727,7 @@ pub async fn list_content(
                 rendered_html,
                 author_id: r.author_id,
                 published_at: r.published_at,
+                unpublish_at: r.unpublish_at,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
                 fields: r.custom_fields,
@@ -742,6 +791,7 @@ pub async fn get_content(
                 rendered_html,
                 author_id: r.author_id,
                 published_at: r.published_at,
+                unpublish_at: r.unpublish_at,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
                 fields: r.custom_fields,
@@ -753,6 +803,116 @@ pub async fn get_content(
             Json(json!({ "error": format!("Content '{}' not found", slug_or_id) })),
         )),
     }
+}
+
+/// コンテンツが現在公開中であるか（status == "published" かつ unpublish_at を迎えていない）を判定する
+pub fn is_currently_published(
+    status: &str,
+    unpublish_at: Option<&str>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    if status != STATUS_PUBLISHED {
+        return false;
+    }
+    if let Some(unpub) = unpublish_at {
+        if let Ok(due) = chrono::DateTime::parse_from_rfc3339(unpub) {
+            if due <= now {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct ScheduleParams {
+    /// 絞り込むコンテンツタイプ（省略時は全スキーマ）
+    pub content_type: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ScheduleItem {
+    pub id: String,
+    pub content_type: String,
+    pub title: String,
+    pub slug: String,
+    pub status: String,
+    pub published_at: Option<String>,
+    pub unpublish_at: Option<String>,
+    pub author_id: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ScheduleResponse {
+    pub items: Vec<ScheduleItem>,
+    pub total: usize,
+}
+
+/// `GET /api/v1/schedule` — 公開予定（status: "scheduled"）または非公開予定（unpublish_at あり）または公開中コンテンツの一覧
+pub async fn list_schedule(
+    State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
+    Query(params): Query<ScheduleParams>,
+) -> Result<Json<ScheduleResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let schemas: Vec<SchemaDefinition> = {
+        let read = state.schemas.read().await;
+        if let Some(ct) = &params.content_type {
+            match read.get(ct) {
+                Some(s) => vec![s.clone()],
+                None => {
+                    return Err((
+                        StatusCode::NOT_FOUND,
+                        Json(json!({ "error": format!("Schema '{}' not found", ct) })),
+                    ));
+                }
+            }
+        } else {
+            read.values().cloned().collect()
+        }
+    };
+
+    let mut items = Vec::new();
+    for schema in schemas {
+        let query = ContentListQuery::default();
+        if let Ok(page) = state.db.list_contents_page(&schema, &query).await {
+            for record in page.records {
+                if record.status == STATUS_SCHEDULED
+                    || record.unpublish_at.is_some()
+                    || (record.status == STATUS_PUBLISHED && record.published_at.is_some())
+                {
+                    items.push(ScheduleItem {
+                        id: record.id,
+                        content_type: record.content_type,
+                        title: record.title,
+                        slug: record.slug,
+                        status: record.status,
+                        published_at: record.published_at,
+                        unpublish_at: record.unpublish_at,
+                        author_id: record.author_id,
+                        updated_at: record.updated_at,
+                    });
+                }
+            }
+        }
+    }
+
+    items.sort_by(|a, b| {
+        let time_a = a
+            .published_at
+            .as_deref()
+            .or(a.unpublish_at.as_deref())
+            .unwrap_or(&a.updated_at);
+        let time_b = b
+            .published_at
+            .as_deref()
+            .or(b.unpublish_at.as_deref())
+            .unwrap_or(&b.updated_at);
+        time_a.cmp(time_b)
+    });
+
+    let total = items.len();
+    Ok(Json(ScheduleResponse { items, total }))
 }
 
 #[cfg(test)]
@@ -853,6 +1013,7 @@ mod tests {
             blocks_json: "[]".to_string(),
             author_id: None,
             published_at: Some("2026-10-22T00:00:00Z".to_string()),
+            unpublish_at: None,
             created_at: "2026-10-22T00:00:00Z".to_string(),
             updated_at: "2026-10-22T00:00:00Z".to_string(),
             custom_fields: HashMap::new(),
@@ -973,6 +1134,7 @@ mod tests {
                         blocks_json: r#"[{"name":"core/paragraph","text":"Body"}]"#.to_string(),
                         author_id: None,
                         published_at: None,
+                        unpublish_at: None,
                         created_at: format!("2026-10-22T00:00:0{}Z", n),
                         updated_at: format!("2026-10-22T00:00:0{}Z", n),
                         custom_fields: HashMap::new(),

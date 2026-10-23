@@ -43,6 +43,7 @@ export type AuditAction =
   | 'content.update'
   | 'content.delete'
   | 'content.publish'
+  | 'content.unpublish'
   | 'session.create'
   | 'session.delete'
   | 'storage.upload'
@@ -400,4 +401,21 @@ export interface PluginInfo {
   is_installed: boolean;
   error?: string | null;
   settings: Record<string, string>;
+}
+
+export interface ScheduleItem {
+  id: string;
+  content_type: string;
+  title: string;
+  slug: string;
+  status: import('./schemas').ContentStatus;
+  published_at?: string | null;
+  unpublish_at?: string | null;
+  author_id?: string | null;
+  updated_at: string;
+}
+
+export interface ScheduleResponse {
+  items: ScheduleItem[];
+  total: number;
 }

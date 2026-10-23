@@ -305,6 +305,9 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
       ? toDateTimeLocal(product.published_at)
       : ''
   );
+  const [unpublishAt, setUnpublishAt] = useState<string>(
+    product?.unpublish_at ? toDateTimeLocal(product.unpublish_at) : ''
+  );
   const [price, setPrice] = useState<string>(initialNumber('price'));
   const [compareAt, setCompareAt] = useState<string>(initialNumber('compare_at_price'));
   const [stock, setStock] = useState<string>(initialNumber('stock'));
@@ -355,6 +358,21 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
       setError(t('products.errors.publishAt'));
       return;
     }
+    const unpublishDate =
+      (status === 'published' || status === 'scheduled') && unpublishAt
+        ? new Date(unpublishAt)
+        : null;
+    if (unpublishDate && Number.isNaN(unpublishDate.getTime())) {
+      setError(t('products.errors.unpublishAt'));
+      return;
+    }
+    if (unpublishDate) {
+      const compareDate = scheduledAt || new Date();
+      if (unpublishDate.getTime() <= compareDate.getTime()) {
+        setError(t('products.errors.unpublishBeforePublish'));
+        return;
+      }
+    }
     // Orders change the stock while the form is open: unless it was edited here, save the
     // current stock instead of the value shown when the form opened (PUT replaces every field)
     let savedStock = stockValue;
@@ -372,6 +390,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
       slug: slug.trim(),
       status,
       ...(scheduledAt ? { published_at: scheduledAt.toISOString() } : {}),
+      ...(unpublishDate ? { unpublish_at: unpublishDate.toISOString() } : { unpublish_at: null }),
       blocks: markdownToBlocks(description),
       price: priceValue,
       compare_at_price: compareValue,
@@ -449,6 +468,16 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
                   value={publishAt}
                   onChange={(e) => setPublishAt(e.target.value)}
                   aria-label={t('products.aria.publishAt')}
+                />
+              </Field>
+            )}
+            {(status === 'published' || status === 'scheduled') && (
+              <Field label={t('products.fields.unpublishAt')}>
+                <input
+                  type="datetime-local"
+                  value={unpublishAt}
+                  onChange={(e) => setUnpublishAt(e.target.value)}
+                  aria-label={t('products.aria.unpublishAt')}
                 />
               </Field>
             )}

@@ -177,7 +177,8 @@
     "emptyHint": "Click \"+ New\" to create one.",
     "noMatch": "No articles match this category.",
     "articles": "Articles",
-    "scheduledFor": "Scheduled for {{date}}"
+    "scheduledFor": "Scheduled for {{date}}",
+    "unpublishFor": "Unpublish at {{date}}"
   },
   "editor": {
     "titlePlaceholder": "Enter post title...",
@@ -185,6 +186,8 @@
     "status": "status:",
     "publishAt": "publish at:",
     "publishAtAria": "Publish date and time",
+    "unpublishAt": "unpublish at:",
+    "unpublishAtAria": "Unpublish date and time",
     "category": "category:",
     "categoryAria": "Category",
     "noCategory": "No category",
@@ -220,7 +223,9 @@
       "saved": "Saved! Wasm plugin hooks executed successfully (ID: {{id}})",
       "saveFailed": "Failed to save",
       "profileUnavailable": "Your profile could not be loaded",
-      "publishAtRequired": "Choose when to publish the scheduled content"
+      "publishAtRequired": "Choose when to publish the scheduled content",
+      "unpublishAtInvalid": "Invalid unpublish date",
+      "unpublishBeforePublish": "Unpublish date must be after publication date"
     }
   },
   "header": {
@@ -228,6 +233,7 @@
     "views": "Views",
     "tabs": {
       "editor": "Editor",
+      "schedule": "Calendar",
       "products": "Products",
       "orders": "Orders",
       "settings": "Settings"
@@ -479,6 +485,8 @@
       "price": "Enter the price as a whole number of the smallest currency unit.",
       "numbers": "Compare-at price and stock must be whole numbers (or empty).",
       "publishAt": "Choose when to publish the scheduled product.",
+      "unpublishAt": "Invalid unpublish date.",
+      "unpublishBeforePublish": "Unpublish date must be after publication date.",
       "stockFailed": "Failed to read the current stock",
       "saveFailed": "Failed to save the product"
     },
@@ -488,6 +496,7 @@
       "slug": "slug:",
       "status": "status:",
       "publishAt": "publish at:",
+      "unpublishAt": "unpublish at:",
       "price": "price:",
       "compareAt": "compare at:",
       "stock": "stock:",
@@ -501,6 +510,7 @@
       "slug": "Slug",
       "status": "Status",
       "publishAt": "Publish date and time",
+      "unpublishAt": "Unpublish date and time",
       "price": "Price",
       "compareAt": "Compare-at price",
       "stock": "Stock",
@@ -765,5 +775,51 @@
     "saved": "Site settings saved",
     "loadFailed": "Could not load the site settings",
     "saveFailed": "Could not save the site settings"
+  },
+  "schedule": {
+    "title": "Publishing Schedule",
+    "itemCount": "{{count}} items",
+    "loadFailed": "Failed to load schedule",
+    "views": {
+      "calendar": "Calendar",
+      "agenda": "Agenda"
+    },
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today",
+    "agendaTitle": "Publish & Unpublish Timeline",
+    "filters": {
+      "contentType": "Content Type",
+      "allTypes": "All Types",
+      "eventType": "Event Type",
+      "allEvents": "All Events",
+      "scheduledPublish": "Scheduled Publish Only",
+      "scheduledUnpublish": "Has Unpublish Date",
+      "published": "Published"
+    },
+    "publishAt": "Publish",
+    "unpublishAt": "Unpublish",
+    "more": "more",
+    "noItems": "No scheduled items found",
+    "scheduledFor": "Scheduled for {{date}}",
+    "publishedAt": "Published at {{date}}",
+    "unpublishFor": "Unpublish at {{date}}",
+    "openInEditor": "Open in Editor",
+    "edit": "Edit",
+    "details": {
+      "contentType": "Content Type",
+      "slug": "Slug",
+      "status": "Current Status",
+      "publishDate": "Publish Date",
+      "unpublishDate": "Unpublish Date",
+      "notSet": "Not set",
+      "clearUnpublish": "Clear unpublish schedule"
+    },
+    "unpublishUpdated": "Unpublish schedule updated",
+    "unpublishCleared": "Unpublish schedule cleared",
+    "unpublishUpdateFailed": "Failed to update unpublish schedule",
+    "errors": {
+      "unpublishBeforePublish": "Unpublish date must be after publication date"
+    }
   }
 }
