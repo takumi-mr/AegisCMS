@@ -1,0 +1,17 @@
+{{ order.customer_name }} 様
+
+{% if reason == "expired" %}お支払い期限までにご入金を確認できなかったため、{% endif %}ご注文 {{ order.number }} を取り消しました。
+{% if order.note %}
+
+{{ order.note }}
+{% endif %}
+{% if was_paid %}
+
+お支払いいただいた代金は返金いたします。ご不明な点はお問い合わせください。
+{% else %}
+
+引き続きご希望の場合は、お手数ですが改めてご注文ください。
+{% endif %}
+
+{% include "_summary.txt" %}
+{% include "_footer.txt" %}

@@ -40,6 +40,7 @@ const ACTIONS: AuditAction[] = [
   'user.delete',
   'order.create',
   'order.update',
+  'notification.send',
 ];
 const OUTCOMES = ['success', 'failure', 'denied'];
 

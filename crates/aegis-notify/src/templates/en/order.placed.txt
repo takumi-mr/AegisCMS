@@ -1,0 +1,21 @@
+Dear {{ order.customer_name }},
+
+Thank you for your order at {{ site_name }}.
+{% if order.status == "pending_payment" %}
+We will prepare your order once we have received your payment.
+{% if payment_instructions %}
+
+How to pay
+{{ payment_instructions }}
+{% endif %}
+{% else %}
+Your payment has been confirmed. We will let you know when your order ships.
+{% endif %}
+
+{% include "_summary.txt" %}
+{% if order_url %}
+
+You can check your order at any time:
+{{ order_url }}
+{% endif %}
+{% include "_footer.txt" %}

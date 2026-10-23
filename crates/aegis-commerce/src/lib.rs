@@ -13,8 +13,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use aegis_core::{
-    AegisError, AuditAction, AuditOutcome, OrderAdjustment, OrderContext, OrderLine, OrderStatus,
-    OrderStatusChange, ShippingAddress,
+    AegisError, AuditAction, AuditOutcome, NotificationEvent, Notifier, OrderAdjustment,
+    OrderContext, OrderLine, OrderStatus, OrderStatusChange, Recipient, ShippingAddress,
 };
 use aegis_schema::{FieldType, SchemaDefinition};
 use chrono::{SecondsFormat, Utc};
@@ -106,7 +106,7 @@ pub struct CheckoutResult {
 }
 
 /// 注文の処理が使うサーバーの部品（商品・注文の DB、IP ごとの注文数を数えるキャッシュ、スキーマ、
-/// プラグイン、監査ログ）
+/// プラグイン、監査ログ、顧客・運営者への通知）
 #[derive(Clone)]
 pub struct CommerceDeps {
     pub db: Arc<dyn DatabaseAdapter>,
@@ -114,6 +114,8 @@ pub struct CommerceDeps {
     pub schemas: Arc<RwLock<HashMap<String, SchemaDefinition>>>,
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
     pub audit: Arc<AuditService>,
+    /// 注文の受付・入金確認・発送・取り消しの通知（`[notifications]`）。無効なら `None`
+    pub notifier: Option<Arc<dyn Notifier>>,
 }
 
 pub struct CommerceService {
@@ -490,8 +492,8 @@ impl CommerceService {
 
         let mut order = order;
         let mut redirect_url = None;
+        let return_urls = urls(&order, &access_token);
         if !free {
-            let return_urls = urls(&order, &access_token);
             match self
                 .provider
                 .start_payment(&order, &ctx, &return_urls)
@@ -530,6 +532,15 @@ impl CommerceService {
         }
 
         self.notify(&order, None, status);
+        // Stripe などの決済ページで支払う注文は、支払いが済んでから（Webhook で）受付を知らせる
+        if free || self.config.provider == PaymentProviderKind::Manual {
+            let mut extra = json!({ "order_url": return_urls.success_url });
+            if status == OrderStatus::PendingPayment {
+                extra["payment_instructions"] = json!(self.config.manual.instructions);
+                extra["payment_due"] = json!(order.expires_at);
+            }
+            self.send_notification("order.placed", &order, true, extra);
+        }
         Ok(CheckoutResult {
             order,
             access_token,
@@ -615,6 +626,7 @@ impl CommerceService {
             updated.note = note;
         }
         self.notify(&updated, Some(from), to);
+        self.notify_status_change(&updated, from, to, source);
         Ok(updated)
     }
 
@@ -771,6 +783,63 @@ impl CommerceService {
         });
     }
 
+    /// 状態の変化を顧客（と運営者）に知らせる。
+    /// 決済ページで支払う注文は支払いが済んだ時点を「受付」とし、支払われずに期限切れ・失敗で
+    /// 取り消された注文（受付を知らせていない）は知らせない
+    fn notify_status_change(
+        &self,
+        order: &OrderRecord,
+        from: OrderStatus,
+        to: OrderStatus,
+        source: &str,
+    ) {
+        let manual = order.payment_provider == PaymentProviderKind::Manual.as_str();
+        match to {
+            OrderStatus::Paid if !manual && from == OrderStatus::PendingPayment => {
+                self.send_notification("order.placed", order, true, json!({}));
+            }
+            OrderStatus::Paid => self.send_notification("order.paid", order, false, json!({})),
+            OrderStatus::Shipped => {
+                self.send_notification("order.shipped", order, false, json!({}))
+            }
+            OrderStatus::Cancelled if manual || from != OrderStatus::PendingPayment => {
+                let was_paid = from != OrderStatus::PendingPayment;
+                self.send_notification(
+                    "order.cancelled",
+                    order,
+                    true,
+                    json!({ "reason": source, "was_paid": was_paid }),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    /// 注文の通知を送る（`[notifications]` が無効なら何もしない）。`extra` はテンプレートに渡す値
+    fn send_notification(
+        &self,
+        kind: &str,
+        order: &OrderRecord,
+        to_staff: bool,
+        extra: serde_json::Value,
+    ) {
+        let Some(notifier) = &self.deps.notifier else {
+            return;
+        };
+        let mut recipients = vec![Recipient::person(
+            order.customer_email.clone(),
+            order.customer_name.clone(),
+        )];
+        if to_staff {
+            recipients.push(Recipient::Staff);
+        }
+        let mut data = json!({ "order": order_notification_data(order) });
+        if let (Some(map), serde_json::Value::Object(extra)) = (data.as_object_mut(), extra) {
+            map.extend(extra);
+        }
+        notifier.notify(NotificationEvent::new(kind, recipients, data));
+    }
+
     /// `on-order-status-changed` プラグインへの通知（応答を待たない）
     fn notify(&self, order: &OrderRecord, from: Option<OrderStatus>, to: OrderStatus) {
         let change = OrderStatusChange {
@@ -808,6 +877,17 @@ impl CommerceService {
             }
         });
     }
+}
+
+/// 通知のテンプレートに渡す注文（`order_context` + 注文番号・状態・日時・メモ）
+fn order_notification_data(order: &OrderRecord) -> serde_json::Value {
+    let mut data = serde_json::to_value(order_context(order)).unwrap_or_else(|_| json!({}));
+    data["number"] = json!(order.number);
+    data["status"] = json!(order.status);
+    data["created_at"] = json!(order.created_at);
+    data["paid_at"] = json!(order.paid_at);
+    data["note"] = json!(order.note);
+    data
 }
 
 /// 保存済みの注文をプラグイン・API に渡す形にする

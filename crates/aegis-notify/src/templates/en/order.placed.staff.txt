@@ -1,0 +1,8 @@
+A new order was placed{% if order.status == "pending_payment" %} and is awaiting payment{% else %} and paid{% endif %}.
+
+Customer: {{ order.customer_name }} <{{ order.customer_email }}>
+{% include "_summary.txt" %}
+{% if admin_url %}
+
+Open Admin Studio: {{ admin_url }}
+{% endif %}

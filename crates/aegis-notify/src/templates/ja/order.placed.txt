@@ -1,0 +1,22 @@
+{{ order.customer_name }} 様
+
+{{ site_name }}をご利用いただき、ありがとうございます。
+以下の内容でご注文を承りました。
+{% if order.status == "pending_payment" %}
+ご入金を確認してから、商品の準備を始めます。
+{% if payment_instructions %}
+
+■ お支払い方法
+{{ payment_instructions }}
+{% endif %}
+{% else %}
+お支払いを確認しました。発送しましたら改めてお知らせします。
+{% endif %}
+
+{% include "_summary.txt" %}
+{% if order_url %}
+
+ご注文の状況は次のページでご確認いただけます。
+{{ order_url }}
+{% endif %}
+{% include "_footer.txt" %}

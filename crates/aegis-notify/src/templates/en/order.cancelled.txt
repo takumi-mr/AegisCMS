@@ -1,0 +1,17 @@
+Dear {{ order.customer_name }},
+
+Your order {{ order.number }} has been cancelled{% if reason == "expired" %} because we did not receive the payment by the due date{% endif %}.
+{% if order.note %}
+
+{{ order.note }}
+{% endif %}
+{% if was_paid %}
+
+We will refund your payment. Please contact us if you have any questions.
+{% else %}
+
+If you still want the items, please place a new order.
+{% endif %}
+
+{% include "_summary.txt" %}
+{% include "_footer.txt" %}

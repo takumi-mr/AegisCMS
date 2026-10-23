@@ -55,6 +55,7 @@ purge_interval_secs = 3600
 | `user.delete` | `DELETE /api/v1/users/{username}` | `success` / `failure` | `user` / ユーザー名 | `role`, `error` |
 | `order.create` | `POST /api/v1/shop/checkout`（[EC](commerce.md)） | `success` | `order` / 注文 ID | `number`, `total`, `currency`, `items`, `provider` |
 | `order.update` | 注文の状態の変化（管理者の操作、決済の Webhook、期限切れ）、決済の問題 | `success` / `failure`（金額の不一致 `amount_mismatch`、取り消し後の入金 `paid_after_cancel`） | `order` / 注文 ID | `number`, `from`, `to`, `source`（`admin` / `payment_webhook` / `payment_expired` / `payment_failed` / `expired` / `payment_start_failed`）, `restocked`, `note`, `problem`, `event_id` |
+| `notification.send` | 通知の配信（チャネルごと。一時的な失敗は再試行した後の結果） | `success` / `failure` | `notification` / 通知の種類（`order.placed` など） | `channel`, `recipient`（`person` / `staff`。アドレスは残さない）, `subject`, `attempts`, `error`, `order_number` |
 
 - 入力不備（必須フィールド欠落、存在しないスキーマなど）で処理に入る前に弾かれたリクエストは記録しません。
 - `on-before-save` フックが失敗した場合（トラップ、タイムアウトなど）は、`plugin.error` と `content.create`（`denied`）の 2 件が記録されます。プラグインが `Err` を返して保存を拒否した場合はプラグインの失敗ではないため、`content.create`（`denied`。`reason` に拒否理由）の 1 件だけです。

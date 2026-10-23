@@ -80,7 +80,7 @@ impl AuditService {
         service
     }
 
-    #[cfg(test)]
+    /// 出力先を直接渡して作る（独自の出力先・テスト用）
     pub fn with_sinks(sinks: Vec<Arc<dyn AuditSink>>) -> Self {
         Self {
             enabled: true,

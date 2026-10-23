@@ -1,0 +1,1 @@
+【{{ site_name }}】商品を発送しました（注文番号 {{ order.number }}）

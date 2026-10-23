@@ -1,0 +1,8 @@
+新しい注文がありました{% if order.status == "pending_payment" %}（入金待ち）{% else %}（支払い済み）{% endif %}。
+
+お客様: {{ order.customer_name }} <{{ order.customer_email }}>
+{% include "_summary.txt" %}
+{% if admin_url %}
+
+管理画面: {{ admin_url }}
+{% endif %}

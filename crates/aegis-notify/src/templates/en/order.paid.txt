@@ -1,0 +1,6 @@
+Dear {{ order.customer_name }},
+
+We have received your payment for order {{ order.number }}. We will let you know when your order ships.
+
+{% include "_summary.txt" %}
+{% include "_footer.txt" %}

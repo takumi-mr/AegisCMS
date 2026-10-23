@@ -1,0 +1,1 @@
+【{{ site_name }}】注文 {{ order.number }} が取り消されました{% if reason == "expired" %}（支払い期限切れ）{% endif %}

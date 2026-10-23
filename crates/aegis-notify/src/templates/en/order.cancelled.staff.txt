@@ -1,0 +1,4 @@
+Order {{ order.number }} was cancelled ({{ reason }}).{{ " It had been paid: refund the customer." if was_paid else "" }}
+
+Customer: {{ order.customer_name }} <{{ order.customer_email }}>
+{% include "_summary.txt" %}

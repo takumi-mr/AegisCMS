@@ -10,6 +10,7 @@ members = [
     "crates/aegis-db",
     "crates/aegis-audit",
     "crates/aegis-auth",
+    "crates/aegis-notify",
     "crates/aegis-commerce",
     "crates/aegis-server",
     "crates/aegis-plugin-macros",

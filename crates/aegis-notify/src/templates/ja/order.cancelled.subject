@@ -1,0 +1,1 @@
+【{{ site_name }}】ご注文を取り消しました（注文番号 {{ order.number }}）

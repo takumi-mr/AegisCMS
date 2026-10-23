@@ -5,6 +5,7 @@ pub mod commerce;
 pub mod entity;
 pub mod error;
 pub mod manifest;
+pub mod notify;
 pub mod storage;
 
 pub use audit::{
@@ -25,4 +26,5 @@ pub use manifest::{
     is_valid_plugin_name, NetworkCapability, PackageAuthor, PluginCapabilities, PluginManifest,
     PluginResourceLimits, StorageCapability,
 };
+pub use notify::{NotificationEvent, Notifier, Recipient};
 pub use storage::{guess_content_type, StorageBackend, StorageMeta, StorageObject};

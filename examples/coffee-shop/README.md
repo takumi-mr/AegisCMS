@@ -4,7 +4,7 @@ AegisCMS の EC 機能（[docs/commerce.md](../../docs/commerce.md)）で作っ�
 
 | 内容 | 場所 |
 | --- | --- |
-| 設定（ショップ・送料とクーポン・テーマ・銀行振込の案内） | [`aegis.toml`](aegis.toml) |
+| 設定（ショップ・送料とクーポン・テーマ・銀行振込の案内・通知） | [`aegis.toml`](aegis.toml) |
 | テーマ「Roastery」（トップページ・記事・固定ページ。ショップのページは組み込みのテンプレートにテーマの色を合わせる） | [`themes/roastery/`](../../themes/roastery) |
 | 投入するデータ（カテゴリ 4・商品 9・記事 3・固定ページ 2）と投入スクリプト | [`seed.mjs`](seed.mjs) |
 | 商品画像 | [`images/`](images) |
@@ -49,6 +49,7 @@ node examples/coffee-shop/seed.mjs      # 別のターミナルで
 | クーポン（同上） | `WELCOME10`（10% オフ）、`COFFEE300`（300円引き）。それ以外は 422 で「無効なクーポン」 |
 | 注文と在庫 | 注文すると在庫が減り、注文確認ページに振込先が出る。72 時間支払いがなければ自動で取り消して在庫を戻す |
 | 注文の管理 | 管理画面の **Orders** で支払い済み → 発送 → 完了と進める。顧客の注文確認ページの状態も変わる |
+| 通知（[docs/notifications.md](../../docs/notifications.md)） | 注文・入金確認・発送・取り消しのメールを、サンプルではサーバーのログに出す（`aegis::notify`）。発送にするときのメモ（追跡番号など）は発送のメールに入る。SMTP サーバーがあれば `channels = ["email"]` で実際に送れる |
 | 商品の管理 | 管理画面の **Products** で価格・在庫・画像を編集 |
 | 監査ログ | 管理画面の **Audit Logs** に注文（`order.create` / `order.update`）や商品の変更が残る |
 

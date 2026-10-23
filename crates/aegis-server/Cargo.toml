@@ -20,6 +20,7 @@ aegis-db = { path = "../aegis-db" }
 aegis-audit = { path = "../aegis-audit" }
 aegis-auth = { path = "../aegis-auth", default-features = false }
 aegis-commerce = { path = "../aegis-commerce" }
+aegis-notify = { path = "../aegis-notify" }
 
 
 tokio.workspace = true

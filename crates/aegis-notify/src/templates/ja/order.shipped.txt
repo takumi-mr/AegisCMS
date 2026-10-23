@@ -1,0 +1,10 @@
+{{ order.customer_name }} 様
+
+ご注文 {{ order.number }} の商品を発送しました。到着まで今しばらくお待ちください。
+{% if order.note %}
+
+{{ order.note }}
+{% endif %}
+
+{% include "_summary.txt" %}
+{% include "_footer.txt" %}

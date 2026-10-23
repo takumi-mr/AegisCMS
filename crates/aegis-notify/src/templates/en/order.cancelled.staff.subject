@@ -1,0 +1,1 @@
+Order {{ order.number }} was cancelled{% if reason == "expired" %} (payment overdue){% endif %}

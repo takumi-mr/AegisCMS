@@ -1,0 +1,25 @@
+[package]
+name = "aegis-notify"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Notifications for AegisCMS: templated messages delivered through channels (email over SMTP, log)"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-audit = { path = "../aegis-audit" }
+async-trait.workspace = true
+lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "smtp-transport", "pool", "tokio1", "tokio1-rustls-tls"] }
+minijinja.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt", "time", "sync"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+aegis-db = { path = "../aegis-db" }

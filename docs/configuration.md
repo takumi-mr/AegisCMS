@@ -273,6 +273,33 @@ coupons = "WELCOME10:10%"
 | `api_base` | string | `"https://api.stripe.com"` | API の URL（テスト用） |
 | `async_payment_due_hours` | integer | `72` | コンビニ払いなど後払いの支払い期限（その間は在庫を確保したまま） |
 
+### 2.12 `[notifications]` — 通知（メール）
+
+注文の受付・入金確認・発送・取り消しを顧客と運営者に知らせます（[通知ドキュメント](./notifications.md)）。`enabled = true` で設定が不正な場合（`email` チャネルで `smtp_host` / `from` が無い、アドレスの形式が不正など）はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で通知を送る |
+| `channels` | string[] | `["email"]` | 配信チャネル。`email`（SMTP）/ `log`（サーバーのログ。動作確認用） |
+| `locale` | string | `"en"` | 組み込みテンプレートの言語（`en` / `ja`） |
+| `templates_dir` | string | なし | テンプレートの置き場所（`<種類>.subject` / `<種類>.txt`）。無いファイルは組み込みを使う |
+| `disabled_events` | string[] | `[]` | 送らない通知の種類（`order.shipped` など） |
+| `max_attempts` | integer | `3` | 一時的な失敗（SMTP の 4xx・接続失敗）の試行回数（1〜10。間隔は 2 秒・8 秒・32 秒…） |
+
+#### `[notifications.email]`
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `smtp_host` | string | `""` | SMTP サーバー（必須） |
+| `smtp_port` | integer | `0` | ポート。0 なら `tls` に応じて 587 / 465 / 25 |
+| `tls` | string | `"starttls"` | `starttls`（STARTTLS 必須）/ `tls`（最初から TLS）/ `none`（暗号化しない。ローカルのリレー用） |
+| `username` | string | `""` | SMTP 認証のユーザー名（空なら認証しない） |
+| `password` | string | `""` | SMTP 認証のパスワード。空なら環境変数 `AEGIS_SMTP_PASSWORD` |
+| `from` | string | `""` | 差出人（`"Shop <shop@example.com>"`。必須） |
+| `reply_to` | string | `""` | 返信先（空なら差出人） |
+| `staff_recipients` | string[] | `[]` | 運営者向けの通知（新しい注文・取り消し）の宛先。空なら運営者には送らない |
+| `timeout_secs` | integer | `15` | 接続・送信のタイムアウト（秒） |
+
 ---
 
 ## 3. 完全な設定例
@@ -388,6 +415,25 @@ secret_key = ""
 webhook_secret = ""
 api_base = "https://api.stripe.com"
 async_payment_due_hours = 72
+
+[notifications]
+enabled = false
+channels = ["email"]
+locale = "en"
+# templates_dir = "notifications"
+disabled_events = []
+max_attempts = 3
+
+[notifications.email]
+smtp_host = ""
+smtp_port = 0
+tls = "starttls"
+username = ""
+password = ""
+from = ""
+reply_to = ""
+staff_recipients = []
+timeout_secs = 15
 ```
 
 ---

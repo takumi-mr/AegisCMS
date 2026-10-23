@@ -8,6 +8,7 @@ use aegis_cache::CacheConfig;
 use aegis_commerce::CommerceConfig;
 use aegis_core::{AegisError, Result};
 use aegis_db::DatabaseConfig;
+use aegis_notify::NotificationsConfig;
 use aegis_runtime::{PluginsConfig, RuntimeConfig};
 use aegis_storage::StorageConfig;
 use aegis_theme::ThemeConfig;
@@ -40,6 +41,8 @@ pub struct AegisConfig {
     pub theme: ThemeConfig,
     #[serde(default)]
     pub commerce: CommerceConfig,
+    #[serde(default)]
+    pub notifications: NotificationsConfig,
 }
 
 impl AegisConfig {

@@ -101,11 +101,12 @@ crates/
 ├── aegis-cache      # CacheBackend 実装（メモリ / Redis）
 ├── aegis-audit      # 監査ログの配送（AuditService）と出力先（log / database）、メトリクス
 ├── aegis-auth       # ユーザー・パスワード・セッション・ログイン制限・OIDC
+├── aegis-notify     # 通知: テンプレート（en / ja）と配信チャネル（メール = SMTP / ログ）
 ├── aegis-commerce   # EC: 見積もり・注文・在庫・決済（手動 / Stripe）
 └── aegis-server     # Axum HTTP 層（ルーティング・ハンドラ・認可）、CLI、Admin SPA 配信
 ```
 
-依存の向きは `aegis-core` ← ドメインクレート（`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-commerce` など）← `aegis-server` の一方向です。各クレートは自分の設定セクション（`DatabaseConfig`、`StorageConfig`、`CommerceConfig` …）を持ち、それらを束ねる `AegisConfig`（`aegis.toml` 全体）は `aegis-server` が定義します。
+依存の向きは `aegis-core` ← ドメインクレート（`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-notify` / `aegis-commerce` など）← `aegis-server` の一方向です。各クレートは自分の設定セクション（`DatabaseConfig`、`StorageConfig`、`CommerceConfig` …）を持ち、それらを束ねる `AegisConfig`（`aegis.toml` 全体）は `aegis-server` が定義します。
 
 | クレート名                                                    | 役割・責務                                               | 主な構成モジュール・対応技術                                                                                                                                           |
 | :------------------------------------------------------------ | :------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -119,6 +120,7 @@ crates/
 | [aegis-cache](crates/aegis-cache)                             | キャッシュ                                               | `MemoryCacheBackend`, `RedisCacheBackend`, `config` (`CacheConfig`)                                                                                                    |
 | [aegis-audit](crates/aegis-audit)                             | 監査ログ                                                 | `AuditService`, `AuditOrigin`, `log` / `database` 出力先, `metrics`, `config` (`AuditConfig`)                                                                           |
 | [aegis-auth](crates/aegis-auth)                               | 認証                                                     | `users` (`UserService`), `password` (Argon2id), `session` (`SessionService`), `rate_limit`, `oidc` (feature `oidc`), `config` (`AuthConfig`)                            |
+| [aegis-notify](crates/aegis-notify)                           | 通知                                                     | `NotificationService`（`aegis_core::Notifier` の実装）, `channel` (`NotificationChannel`), `email` (SMTP), `log`, `templates`, `config` (`NotificationsConfig`) |
 | [aegis-commerce](crates/aegis-commerce)                       | EC                                                       | `CommerceService` (見積もり・注文・状態遷移), `payment` (`PaymentProvider`), `stripe`, `config` (`CommerceConfig`)                                                       |
 | [aegis-server](crates/aegis-server)                           | HTTP 層・CLI・SPA配信                                    | `handlers` (REST API・公開ページ), `auth` (認可・フック), `audit` (`AuditContext` 抽出), `state` (`AppState`), `config` (`AegisConfig`), `main` (CLI)                     |
 
@@ -164,7 +166,7 @@ WebAssembly（Wasm）サンドボックスによるサードパーティ拡張�
 - **`instance`**: ゲスト Wasm バイナリの実行インスタンス `WasmPluginInstance`。Fat Pointer 形式（`ptr:i32, len:i32`）およびゲスト側アロケータ（`allocate`）を用いた安全なリニアメモリデータ受け渡し。
 - **`supervisor` / `loader`**: ディレクトリ内の全プラグインを自動発見・初期化し、ライフサイクルフック（`on-before-save`, `transform-content-ast`）を実行する `PluginSupervisor`。
 
-#### 5. ドメインクレート (`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-commerce`)
+#### 5. ドメインクレート (`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-notify` / `aegis-commerce`)
 
 HTTP に依存しない機能ごとの実装です。各クレートは自分の設定セクションの型を持ち、`aegis-server` から組み立てて使います。
 
@@ -173,7 +175,8 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
 - **`aegis-audit`**: 監査イベントを設定された出力先へ配送する `AuditService`、操作元（IP・User-Agent）を表す `AuditOrigin`、メトリクス（[docs/audit.md](docs/audit.md)）。
 - **`aegis-auth`**: ユーザー管理 `UserService`、Argon2id パスワード、`CacheBackend` をバックストアとするセッション管理 `SessionService`、ログイン試行制限、OpenID Connect（feature `oidc`。[docs/authentication.md](docs/authentication.md)）。
-- **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査は `CommerceDeps` で受け取ります。
+- **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文を作り、配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.md](docs/notifications.md)）。
+- **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査・通知は `CommerceDeps` で受け取ります。
 
 #### 6. `crates/aegis-server` (HTTP Gateway & Admin SPA 配信)
 

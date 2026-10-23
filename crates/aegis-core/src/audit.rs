@@ -46,10 +46,13 @@ pub enum AuditAction {
     /// EC order status changed (payment, shipping, cancellation, expiry) or a payment problem
     #[serde(rename = "order.update")]
     OrderUpdate,
+    /// Notification delivered (or given up after retries) through a channel such as email
+    #[serde(rename = "notification.send")]
+    NotificationSend,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 16] = [
+    pub const ALL: [AuditAction; 17] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -66,6 +69,7 @@ impl AuditAction {
         Self::UserDelete,
         Self::OrderCreate,
         Self::OrderUpdate,
+        Self::NotificationSend,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -86,6 +90,7 @@ impl AuditAction {
             Self::UserDelete => "user.delete",
             Self::OrderCreate => "order.create",
             Self::OrderUpdate => "order.update",
+            Self::NotificationSend => "notification.send",
         }
     }
 }
