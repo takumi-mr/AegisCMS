@@ -63,9 +63,9 @@ aegis-server user add admin --role admin --email admin@example.com --display-nam
 AEGIS_USER_PASSWORD='change-me-please' aegis-server user add editor1 --role editor
 echo 'change-me-please' | aegis-server user add viewer1 --role viewer
 
-aegis-server user passwd editor1        # パスワード変更
-aegis-server user role editor1 admin    # ロール変更（次回ログインから有効）
-aegis-server user disable editor1       # ログイン不可にする
+aegis-server user passwd editor1        # パスワード変更（既存セッションは即時失効）
+aegis-server user role editor1 admin    # ロール変更（既存セッションは即時失効）
+aegis-server user disable editor1       # ログイン不可にする（既存セッションは即時失効）
 aegis-server user enable editor1
 aegis-server user list
 aegis-server user link-oidc alice 248289761001   # 既存ユーザーを IdP のアカウント（sub）に紐付ける
@@ -76,7 +76,7 @@ aegis-server user link-oidc alice 248289761001   # 既存ユーザーを IdP の
 - ユーザーが 1 人もいない状態でサーバーを起動すると、作成方法を示す警告ログを出します。
 
 > [!NOTE]
-> ロール変更・無効化・パスワード変更は、発行済みのセッションには反映されません（セッションは有効期限まで有効）。すぐに締め出す必要がある場合は、キャッシュ（Redis など）から該当セッションを削除してください。
+> ロール変更・無効化・パスワード変更は、発行済みのセッションを即座に失効（キャッシュ上の失効マーカーによるブラックリスト判定）させます。対象ユーザーの既存セッションは次回アクセス時に `401 Unauthorized` となり、再ログインが必要になります（無効化されたユーザーは再ログインも不可）。キャッシュ（Redis）利用時は CLI からの変更も即座に共有されます。
 
 ---
 
@@ -123,7 +123,7 @@ Admin Studio の「Users」画面（`admin`）と、ヘッダーのアバター�
 - シングルサインオンで作成したユーザーはパスワードを知らないため、Admin Studio の「My profile」ではパスワード変更を表示しません。
 
 > [!NOTE]
-> ロール変更・無効化・削除は CLI と同じく発行済みのセッションには反映されません（[2. CLI](#2-cli-でのユーザー管理-aegis-user) の注記）。
+> ロール変更・無効化・削除・パスワード変更は、発行済みのセッションに即時反映されます（キャッシュ上のユーザー単位の失効マーカーにより既存セッションは即座に無効化され `401` となります）。降格や無効化されたユーザーが直前のセッションで不正に操作を継続することはできません。
 
 ---
 
