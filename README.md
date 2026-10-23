@@ -1,5 +1,8 @@
 # 次世代セキュアCMS「AegisCMS」
 
+> [!TIP]
+> すぐに動かして試すなら、EC のサンプルサイト [`examples/coffee-shop/`](examples/coffee-shop)（`task demo:shop`）をどうぞ。
+
 ---
 
 ## 1. システム概要と設計思想

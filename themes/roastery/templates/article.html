@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="rs-article">
+  <header>
+    {% if published_at %}<span class="rs-date">{{ published_at | date_short }}</span>{% endif %}
+    <h1>{{ title }}</h1>
+  </header>
+  <div class="rs-prose">
+    {{ content_html | safe }}
+  </div>
+  <footer class="rs-article-footer">
+    <a href="{{ base_path }}/articles">&larr; Journal に戻る</a>
+    <a href="{{ base_path }}/products" class="rs-button">商品を見る</a>
+  </footer>
+</article>
+{% endblock %}

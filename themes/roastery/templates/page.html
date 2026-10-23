@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="rs-article">
+  <header>
+    <h1>{{ title }}</h1>
+  </header>
+  <div class="rs-prose">
+    {{ content_html | safe }}
+  </div>
+</article>
+{% endblock %}

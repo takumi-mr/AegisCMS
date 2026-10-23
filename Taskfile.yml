@@ -169,6 +169,28 @@ tasks:
 
 
   # ============================================================================
+  # ☕ サンプルショップ（examples/coffee-shop）
+  # ============================================================================
+  demo:shop:user:
+    desc: サンプルショップの管理者 owner を作成 (パスワード sample-password。作成済みなら何もしない)
+    env:
+      AEGIS_USER_PASSWORD: sample-password
+    cmds:
+      - cmd: cargo run -p aegis-server -- -c examples/coffee-shop/aegis.toml user add owner --role admin --display-name 店主
+        ignore_error: true
+
+  demo:shop:
+    desc: サンプルショップ「朝凪珈琲」を起動 (http://127.0.0.1:8080。初回は別のターミナルで task demo:shop:seed)
+    deps: [demo:shop:user]
+    cmds:
+      - cargo run -p aegis-server -- -c examples/coffee-shop/aegis.toml run
+
+  demo:shop:seed:
+    desc: 起動中のサンプルショップに商品・記事・ページを投入 (要 Node.js 18+。何度実行してもよい)
+    cmds:
+      - node examples/coffee-shop/seed.mjs {{.CLI_ARGS}}
+
+  # ============================================================================
   # 🐳 Docker タスク
   # ============================================================================
   docker:build:

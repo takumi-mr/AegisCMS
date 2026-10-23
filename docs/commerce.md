@@ -2,6 +2,9 @@
 
 AegisCMS にはカート・注文・在庫・決済の機能があります（`[commerce]`）。商品は普通のコンテンツ（`product` スキーマ）として Admin Studio で管理し、公開サイトに商品一覧・商品ページ・カート・注文確認ページが加わります。送料・税・クーポンや注文の通知は Wasm プラグインで差し替えられます。
 
+> [!TIP]
+> 動くサンプルとして、コーヒー豆のショップ [`examples/coffee-shop/`](../examples/coffee-shop)（`task demo:shop` で起動）があります。
+
 ```text
  商品（product コンテンツ）──▶ /products, /products/{slug}
         │                          │ カートに追加（ブラウザの localStorage）

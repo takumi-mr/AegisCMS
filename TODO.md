@@ -48,6 +48,9 @@
 
 ### ⏳ 直近のタスク (Next Up)
 
+#### サンプルショップ (Completed) — [examples/coffee-shop](examples/coffee-shop)
+- [x] **サンプルの EC サイト「朝凪珈琲」**: 設定（`examples/coffee-shop/aegis.toml`: 銀行振込・送料 650円 / 5,000円以上無料・クーポン `WELCOME10` / `COFFEE300`）、投入スクリプト `seed.mjs`（API でカテゴリ 4・商品 9・記事 3・固定ページ 2 と商品画像を投入。冪等）、ショップ向けテーマ `themes/roastery`、`task demo:shop` / `demo:shop:seed`。
+
 #### クレート分割のリファクタリング (Completed)
 - [x] **`aegis-core` のスリム化とドメインクレートの分離**: `aegis-core` から設定・実装を外し、`aegis-server` の `db` / `storage` / `cache` / `audit` / `auth` / `commerce` をそれぞれ `aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-commerce` クレートへ。設定ファイル・API・DB スキーマ・動作は変更なし（詳細は「技術メモ」）。
 
@@ -149,6 +152,10 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
+- **サンプルショップ (`examples/coffee-shop/`, `themes/roastery/`)**:
+  - パスはリポジトリのルートからの相対パス（ルートで起動する）。SQLite はファイルのあるディレクトリを作らない（ルートの `.gitignore` が `data/` を無視するため空のディレクトリも置けない）ので、DB は `examples/coffee-shop/shop.db` に直接置き、`examples/coffee-shop/.gitignore` で除外している。
+  - `seed.mjs` は依存なし（Node.js 18+ の `fetch` / `FormData`）。本文は簡単な Markdown（見出し・箇条書き・段落）をブロックに変換して送る。画像は `key` を指定してアップロードし（`sample-shop/<slug>.png`）、作成済みの slug は飛ばす。一覧は新しい順なので、先頭に出したい商品を最後に作る。
+  - `roastery` テーマはショップのページ（`products.html` など）を持たず、組み込みのテンプレートを `--accent` とテーマの CSS で合わせている。トップページの `items` は記事なので、商品はヒーローのリンクから。
 - **クレートの分割（`aegis-core` のスリム化）**:
   - `aegis-core` は共有契約だけ（抽象トレイト `StorageBackend` / `CacheBackend` / `AuthProvider` / `AuditSink`、監査イベントのモデル、プラグインに渡すコンテキスト型、`PluginManifest`、`AegisError`）。Wasm プラグイン SDK も依存するため、実装や重い依存を足さない。
   - 実装はドメインクレートへ: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC。feature `oidc` / `mock-idp`）、`aegis-commerce`（`CommerceService`）。`aegis-server` は HTTP 層（ハンドラ・認可・エクストラクタ・CLI）。
