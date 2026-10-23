@@ -28,7 +28,9 @@
     "switchThemeFailed": "テーマを切り替えられませんでした",
     "contentsFailed": "コンテンツを取得できませんでした",
     "uploadFailed": "ファイルをアップロードできませんでした",
-    "logoutFailed": "ログアウトできませんでした"
+    "logoutFailed": "ログアウトできませんでした",
+    "registerFailed": "アカウントを作成できませんでした",
+    "verifyFailed": "メールアドレスを確認できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -255,6 +257,39 @@
       "not_provisioned": "このアカウントには AegisCMS へのアクセス権がありません。管理者に追加を依頼してください。",
       "account_disabled": "この AegisCMS アカウントは無効になっています。",
       "server_error": "サーバーでログインに失敗しました。サーバーのログを確認してください。"
+    },
+    "register": {
+      "link": "アカウントを作成",
+      "subtitle": "Admin Studio のアカウントを作成",
+      "title": "アカウントを作成",
+      "email": "メールアドレス",
+      "displayName": "表示名",
+      "optional": "（任意）",
+      "confirmPassword": "パスワード（確認）",
+      "submit": "アカウントを作成",
+      "submitting": "送信中...",
+      "haveAccount": "アカウントをお持ちの方はログイン",
+      "back": "ログインに戻る",
+      "sentTitle": "メールを確認してください",
+      "sent_other": "{{email}} に確認用のリンクを送りました。{{count}} 時間以内にリンクを開くと、アカウントの作成が完了します。",
+      "verifying": "メールアドレスを確認中...",
+      "verified": {
+        "active": "メールアドレスを確認しました。{{username}} でログインしてください。",
+        "pending_approval": "メールアドレスを確認しました。管理者がアカウント（{{username}}）を承認すると、ログインできるようになります。"
+      },
+      "errors": {
+        "missing": "ユーザー名・メールアドレス・パスワードを入力してください。",
+        "mismatch": "パスワードが一致しません。",
+        "invalid_username": "ユーザー名は 1〜64 文字の英数字と「. _ - @」で入力してください。",
+        "username_taken": "このユーザー名はすでに使われています。",
+        "invalid_email": "正しいメールアドレスを入力してください。",
+        "email_domain_not_allowed": "このメールアドレスのドメインではアカウントを作成できません。",
+        "password_too_short": "パスワードは {{count}} 文字以上にしてください。",
+        "email_taken": "このメールアドレスはほかのアカウントで使われています。",
+        "invalid_token": "確認用のリンクが無効か、有効期限が切れています。もう一度アカウントを作成してください。",
+        "rate_limited": "このネットワークからのアカウント作成が多すぎます。しばらくしてからお試しください。",
+        "server_error": "サーバーのエラーでアカウントを作成できませんでした。しばらくしてからお試しください。"
+      }
     }
   },
   "markdown": {

@@ -28,6 +28,7 @@ import { PasteMarkdownModal } from './components/PasteMarkdownModal';
 import { aegisApi, setUnauthorizedHandler } from './api/client';
 import { setSessionToken } from './api/session';
 import { takeLoginRedirect } from './utils/loginRedirect';
+import { takeVerifyToken } from './utils/verifyEmail';
 import type { BlockNode, ContentItem, SessionInfo, UserAccount } from './types';
 import { categoryIdOf } from './utils/category';
 import { canEdit } from './utils/roles';
@@ -50,6 +51,7 @@ export const App: React.FC = () => {
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   // Single sign-on returns here with the session token (stored before the session check) or an error
   const [ssoError] = useState<string | null>(takeLoginRedirect);
+  const [verifyToken] = useState<string | null>(takeVerifyToken);
   const [view, setView] = useState<AppView>('editor');
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType] = useState<string>('article');
@@ -378,6 +380,7 @@ export const App: React.FC = () => {
               : null
         }
         initialError={ssoError}
+        verifyToken={verifyToken}
       />
     );
   }

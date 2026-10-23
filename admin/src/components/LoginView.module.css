@@ -137,3 +137,69 @@
 .language {
   align-self: center;
 }
+
+/* Sign-up form (RegisterForm) inside the card */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formTitle {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+}
+
+.optional {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.registerLink,
+.linkButton {
+  align-self: center;
+  border: none;
+  background: transparent;
+  color: var(--accent-indigo-light);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.registerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.registerLink:hover,
+.linkButton:hover,
+.registerLink:focus-visible,
+.linkButton:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+
+.sent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.sent h2 {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+}
+
+.sent p {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.sentIcon {
+  color: var(--accent-indigo-light);
+}
