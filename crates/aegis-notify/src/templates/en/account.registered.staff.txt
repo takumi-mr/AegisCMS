@@ -1,0 +1,16 @@
+A new Admin Studio account was registered (the email address is confirmed).
+
+Username: {{ username }}
+{% if display_name %}
+Display name: {{ display_name }}
+{% endif %}
+Email: {{ email }}
+Role: {{ role }}
+{% if pending_approval %}
+
+The account is disabled. To approve it, enable it under Settings > Users in Admin Studio.
+{% endif %}
+{% if admin_url %}
+
+Open Admin Studio: {{ admin_url }}
+{% endif %}

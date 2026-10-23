@@ -1,0 +1,1 @@
+【{{ site_name }}】新しいアカウント {{ username }}{% if pending_approval %}（承認待ち）{% endif %}

@@ -1,0 +1,1 @@
+New account {{ username }}{% if pending_approval %} awaiting approval{% endif %} - {{ site_name }}

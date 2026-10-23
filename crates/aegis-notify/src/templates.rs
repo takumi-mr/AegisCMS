@@ -44,6 +44,10 @@ builtin_templates!(
     "order.cancelled.staff.txt",
     "test.subject",
     "test.txt",
+    "account.verify.subject",
+    "account.verify.txt",
+    "account.registered.staff.subject",
+    "account.registered.staff.txt",
     "_audit_title.txt",
     "audit.subject",
     "audit.txt",
@@ -395,5 +399,72 @@ mod tests {
             "{}",
             en.body
         );
+    }
+
+    #[test]
+    fn renders_the_account_templates_in_each_locale() {
+        let person = Recipient::person("hanako@example.com", "Hanako");
+        let verify = json!({
+            "site_name": "Aegis Coffee",
+            "site_url": "https://shop.example.com",
+            "username": "hanako",
+            "display_name": null,
+            "verify_url": "https://cms.example.com/admin/#verify-email=abc123",
+            "expires_hours": 24,
+        });
+        for locale in LOCALES {
+            let rendered = Templates::new(locale, None)
+                .render("account.verify", &person, &verify)
+                .unwrap()
+                .unwrap();
+            assert!(
+                rendered.subject.contains("Aegis Coffee"),
+                "{}",
+                rendered.subject
+            );
+            assert!(
+                rendered.body.starts_with("hanako") || rendered.body.starts_with("Hello hanako")
+            );
+            assert!(rendered
+                .body
+                .contains("\nhttps://cms.example.com/admin/#verify-email=abc123\n"));
+            assert!(rendered.body.contains("24"));
+            assert!(!rendered.body.contains("\n\n\n"), "{}", rendered.body);
+        }
+
+        let mut registered = json!({
+            "site_name": "Aegis Coffee",
+            "admin_url": "https://cms.example.com/admin/",
+            "username": "hanako",
+            "display_name": "Hanako",
+            "email": "hanako@example.com",
+            "role": "viewer",
+            "pending_approval": true,
+        });
+        let en = Templates::new("en", None)
+            .render("account.registered", &Recipient::Staff, &registered)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            en.subject,
+            "New account hanako awaiting approval - Aegis Coffee"
+        );
+        assert!(en
+            .body
+            .contains("Display name: Hanako\nEmail: hanako@example.com\n"));
+        assert!(en.body.contains("enable it under Settings > Users"));
+        assert!(en.body.contains("https://cms.example.com/admin/"));
+        registered["pending_approval"] = json!(false);
+        let ja = Templates::new("ja", None)
+            .render("account.registered", &Recipient::Staff, &registered)
+            .unwrap()
+            .unwrap();
+        assert_eq!(ja.subject, "【Aegis Coffee】新しいアカウント hanako");
+        assert!(!ja.body.contains("無効の状態"));
+        // Only staff get the "registered" notice
+        assert!(Templates::new("en", None)
+            .render("account.registered", &person, &registered)
+            .unwrap()
+            .is_none());
     }
 }

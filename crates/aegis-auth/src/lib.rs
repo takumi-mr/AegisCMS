@@ -1,5 +1,5 @@
 //! ログイン・ユーザー・セッション（`[auth]`）: パスワード（Argon2id）、ローカル / OpenID Connect の
-//! 認証プロバイダ、ユーザー管理、セッション、ログイン試行の制限、ロール
+//! 認証プロバイダ、ユーザー管理、アカウント登録、セッション、ログイン試行の制限、ロール
 
 pub mod config;
 pub mod local;
@@ -10,12 +10,13 @@ pub mod oidc;
 pub mod oidc_mock;
 pub mod password;
 pub mod rate_limit;
+pub mod registration;
 pub mod session;
 pub mod users;
 
 use sha2::{Digest, Sha256};
 
-pub use config::{AuthConfig, LoginRateLimitConfig, OidcConfig};
+pub use config::{AuthConfig, LoginRateLimitConfig, OidcConfig, RegistrationConfig};
 pub use local::LocalAuthProvider;
 pub use rate_limit::LoginRateLimiter;
 pub use session::{SessionData, SessionService};

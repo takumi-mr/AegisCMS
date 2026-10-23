@@ -1,0 +1,12 @@
+Hello {{ display_name or username }},
+
+We received a request to create an Admin Studio account on {{ site_name }}.
+Open the link below to confirm your email address:
+
+{{ verify_url }}
+
+The link expires in {{ expires_hours }} hours. After that, please register again.
+Username: {{ username }}
+
+If you did not request this, you can ignore this email. No account is created unless the link is opened.
+{% include "_footer.txt" %}

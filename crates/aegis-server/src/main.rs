@@ -131,6 +131,40 @@ enum UserCommand {
     },
 }
 
+/// アカウント登録の確認メールを送る通知。通知が無効・確認メールを止めている設定では起動しない
+fn registration_notifier(
+    config: &AegisConfig,
+    notifier: Option<Arc<aegis_notify::NotificationService>>,
+) -> anyhow::Result<Arc<dyn aegis_core::Notifier>> {
+    let Some(notifier) = notifier else {
+        anyhow::bail!(
+            "[auth.registration] sends confirmation emails: set [notifications].enabled = true"
+        );
+    };
+    if !config.notifications.is_event_enabled("account.verify") {
+        anyhow::bail!(
+            "[auth.registration] needs the \"account.verify\" notification: remove it from [notifications].disabled_events"
+        );
+    }
+    Ok(notifier)
+}
+
+/// 確認リンクの開き先（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `/admin/`）。
+/// リンクを偽装させないよう、リクエストの Host からは作らない
+fn registration_admin_url(config: &AegisConfig) -> anyhow::Result<String> {
+    let configured = config.auth.registration.admin_url.trim();
+    if !configured.is_empty() {
+        return Ok(configured.to_string());
+    }
+    let public_url = config.commerce.public_url.trim().trim_end_matches('/');
+    if !public_url.is_empty() {
+        return Ok(format!("{}/admin/", public_url));
+    }
+    anyhow::bail!(
+        "[auth.registration] needs the Admin Studio URL for the confirmation link: set [auth.registration].admin_url (e.g. \"https://cms.example.com/admin/\")"
+    )
+}
+
 /// 通知のテンプレートに渡すサイトの情報（`[theme].site_title` と `[commerce].public_url`）
 fn notification_site(config: &AegisConfig) -> aegis_notify::SiteInfo {
     let url = config
@@ -413,6 +447,7 @@ async fn main() -> anyhow::Result<()> {
             config.plugins.validate()?;
             config.commerce.validate()?;
             config.notifications.validate()?;
+            config.auth.registration.validate()?;
             if config.notifications.enabled
                 && !config.notifications.audit.rules.is_empty()
                 && !config.audit.enabled
@@ -560,6 +595,30 @@ async fn main() -> anyhow::Result<()> {
                 app_state
             };
 
+            // 6.6.1 アカウント登録（[auth.registration]）。確認メールを通知で送る
+            let app_state = if config.auth.registration.enabled {
+                let notifier = registration_notifier(&config, app_state.notifier.clone())?;
+                let admin_url = registration_admin_url(&config)?;
+                tracing::info!(
+                    "Account registration enabled (role: {}, approval: {}, links open {})",
+                    config.auth.registration.default_role,
+                    config.auth.registration.require_approval,
+                    admin_url
+                );
+                let service = aegis_auth::registration::RegistrationService::new(
+                    app_state.db.clone(),
+                    app_state.cache.clone(),
+                    config.auth.registration.clone(),
+                );
+                app_state.with_registration(state::Registration {
+                    service,
+                    notifier,
+                    admin_url,
+                })
+            } else {
+                app_state
+            };
+
             // 6.7 EC（[commerce]）
             let app_state = if config.commerce.enabled {
                 let commerce = aegis_commerce::CommerceService::new(
@@ -702,4 +761,45 @@ fn build_oidc_login(
     _db: Arc<dyn aegis_db::DatabaseAdapter>,
 ) -> anyhow::Result<state::OidcLogin> {
     anyhow::bail!("[auth.oidc] is enabled, but this build of aegis-server has no 'oidc' feature")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_registration_admin_url_never_comes_from_the_request() {
+        let mut config = AegisConfig::default();
+        assert!(registration_admin_url(&config).is_err());
+        config.commerce.public_url = "https://shop.example.com/".to_string();
+        assert_eq!(
+            registration_admin_url(&config).unwrap(),
+            "https://shop.example.com/admin/"
+        );
+        config.auth.registration.admin_url = " https://cms.example.com/studio/ ".to_string();
+        assert_eq!(
+            registration_admin_url(&config).unwrap(),
+            "https://cms.example.com/studio/"
+        );
+    }
+
+    #[test]
+    fn test_registration_needs_the_confirmation_email() {
+        let mut config = AegisConfig::default();
+        assert!(registration_notifier(&config, None).is_err());
+
+        config.notifications.enabled = true;
+        config.notifications.channels = vec![aegis_notify::ChannelKind::Log];
+        let notifier = Arc::new(
+            aegis_notify::NotificationService::from_config(
+                &config.notifications,
+                aegis_notify::SiteInfo::default(),
+                None,
+            )
+            .unwrap(),
+        );
+        assert!(registration_notifier(&config, Some(notifier.clone())).is_ok());
+        config.notifications.disabled_events = vec!["account.verify".to_string()];
+        assert!(registration_notifier(&config, Some(notifier)).is_err());
+    }
 }
