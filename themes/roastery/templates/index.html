@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="rs-hero">
+  <div class="rs-hero-text">
+    <p class="rs-eyebrow">Small batch coffee roasters</p>
+    <h1>毎朝の一杯を、<br>焙煎したての豆で。</h1>
+    <p class="rs-hero-desc">{{ site_description }}</p>
+    <div class="rs-hero-actions">
+      <a href="{{ base_path }}/products" class="rs-button">商品を見る</a>
+      <a href="{{ base_path }}/about" class="rs-button rs-button-ghost">私たちについて</a>
+    </div>
+  </div>
+  <div class="rs-hero-art" aria-hidden="true">
+    <svg viewBox="0 0 400 320">
+      <circle cx="210" cy="160" r="140" fill="var(--rs-surface-strong)"/>
+      <path d="M120 120 L300 120 L288 270 Q210 292 132 270 Z" fill="var(--rs-accent)"/>
+      <path d="M300 160 C352 160 352 236 292 240" stroke="var(--rs-accent)" stroke-width="18" fill="none" stroke-linecap="round"/>
+      <ellipse cx="210" cy="120" rx="90" ry="16" fill="var(--rs-text)"/>
+      <path d="M180 92 C166 74 194 58 180 36" stroke="var(--rs-muted)" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.5"/>
+      <path d="M232 96 C218 78 246 62 232 40" stroke="var(--rs-muted)" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.5"/>
+    </svg>
+  </div>
+</section>
+
+<section class="rs-features">
+  <div><strong>焙煎から3日以内に発送</strong><span>ご注文を受けてから小さな釜で焙煎します。</span></div>
+  <div><strong>5,000円以上で送料無料</strong><span>それ以外は全国一律 650円です。</span></div>
+  <div><strong>はじめての方は10%オフ</strong><span>カートでクーポン <code>WELCOME10</code> を入力してください。</span></div>
+</section>
+
+<section>
+  <div class="rs-section-head">
+    <h2>Journal</h2>
+    <a href="{{ base_path }}/articles">すべての記事 &rarr;</a>
+  </div>
+  <div class="rs-journal">
+    {% for item in items %}
+    <article class="rs-journal-card">
+      <span class="rs-date">{{ item.published_at | date_short }}</span>
+      <h3><a href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a></h3>
+      <p>{{ item.excerpt | truncate(90) }}</p>
+    </article>
+    {% else %}
+    <p class="rs-muted">まだ記事がありません。</p>
+    {% endfor %}
+  </div>
+  {% if pagination and pagination.total_pages > 1 %}
+  <nav class="rs-pagination" aria-label="Pagination">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; 新しい記事</a>{% else %}<span></span>{% endif %}
+    <span>{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">古い記事 &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

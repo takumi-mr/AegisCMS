@@ -1,0 +1,463 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Shippori+Mincho:wght@600;700&display=swap');
+
+:root {
+  --rs-bg: #fbf7f1;
+  --rs-surface: #ffffff;
+  --rs-surface-strong: #f1e6d8;
+  --rs-text: #2b211b;
+  --rs-muted: #75655a;
+  --rs-border: #e8ddd0;
+  --rs-accent: #a4552c;
+  --rs-accent-strong: #84421f;
+  --rs-dark: #2f2721;
+  --font-sans: 'Noto Sans JP', system-ui, -apple-system, 'Hiragino Sans', sans-serif;
+  --font-serif: 'Shippori Mincho', 'Hiragino Mincho ProN', Georgia, serif;
+  /* 組み込みのショップのテンプレートが使う色 */
+  --accent: var(--rs-accent);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--rs-bg);
+  color: var(--rs-text);
+  font-family: var(--font-sans);
+  line-height: 1.8;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--rs-accent);
+}
+
+code {
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: var(--rs-surface-strong);
+  font-size: 0.9em;
+}
+
+.rs-container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+.rs-muted {
+  color: var(--rs-muted);
+}
+
+/* ---------- Header ---------- */
+.rs-notice {
+  background: var(--rs-dark);
+  color: #f5ede3;
+  text-align: center;
+  font-size: 0.8rem;
+  padding: 0.45rem 1rem;
+  letter-spacing: 0.04em;
+}
+
+.rs-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(251, 247, 241, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rs-border);
+}
+
+.rs-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 4.25rem;
+}
+
+.rs-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--rs-text);
+  text-decoration: none;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.rs-logo {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--rs-accent);
+}
+
+.rs-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-size: 0.92rem;
+}
+
+.rs-nav a {
+  color: var(--rs-text);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.rs-nav a:hover {
+  color: var(--rs-accent);
+}
+
+.rs-nav .rs-nav-cart {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--rs-text);
+  border-radius: 999px;
+}
+
+/* ---------- Layout ---------- */
+.rs-main {
+  flex: 1;
+  padding: 3rem 0 5rem;
+}
+
+.rs-button {
+  display: inline-block;
+  padding: 0.75rem 1.6rem;
+  border-radius: 999px;
+  background: var(--rs-accent);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.rs-button:hover {
+  background: var(--rs-accent-strong);
+}
+
+.rs-button-ghost {
+  background: transparent;
+  color: var(--rs-text);
+  border: 1px solid var(--rs-border);
+}
+
+.rs-button-ghost:hover {
+  background: var(--rs-surface-strong);
+}
+
+.rs-eyebrow {
+  color: var(--rs-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.rs-date {
+  color: var(--rs-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+/* ---------- Home ---------- */
+.rs-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  align-items: center;
+  gap: 2rem;
+  padding: 1rem 0 3rem;
+}
+
+.rs-hero h1 {
+  font-family: var(--font-serif);
+  font-size: clamp(2.1rem, 4.5vw, 3.4rem);
+  line-height: 1.35;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.rs-hero-desc {
+  color: var(--rs-muted);
+  max-width: 34rem;
+}
+
+.rs-hero-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+.rs-hero-art svg {
+  width: 100%;
+  max-width: 420px;
+  display: block;
+  margin: 0 auto;
+}
+
+.rs-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 4rem;
+}
+
+.rs-features div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.25rem 1.4rem;
+  background: var(--rs-surface);
+  border: 1px solid var(--rs-border);
+  border-radius: 16px;
+}
+
+.rs-features span {
+  color: var(--rs-muted);
+  font-size: 0.88rem;
+}
+
+.rs-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1.25rem;
+}
+
+.rs-section-head h2 {
+  font-family: var(--font-serif);
+  font-size: 1.8rem;
+}
+
+.rs-section-head a {
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.rs-journal {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.rs-journal-card {
+  padding: 1.5rem;
+  background: var(--rs-surface);
+  border: 1px solid var(--rs-border);
+  border-radius: 16px;
+}
+
+.rs-journal-card h3 {
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  line-height: 1.5;
+  margin: 0.35rem 0 0.6rem;
+}
+
+.rs-journal-card h3 a {
+  color: var(--rs-text);
+  text-decoration: none;
+}
+
+.rs-journal-card h3 a:hover {
+  color: var(--rs-accent);
+}
+
+.rs-journal-card p {
+  color: var(--rs-muted);
+  font-size: 0.9rem;
+}
+
+.rs-pagination {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+  color: var(--rs-muted);
+}
+
+/* ---------- Article / Page ---------- */
+.rs-article {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.rs-article header {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--rs-border);
+}
+
+.rs-article h1 {
+  font-family: var(--font-serif);
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  line-height: 1.4;
+  margin-top: 0.35rem;
+}
+
+.rs-article-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rs-border);
+}
+
+.rs-prose > * + *,
+.prose > * + * {
+  margin-top: 1.1rem;
+}
+
+.rs-prose h2,
+.prose h2 {
+  font-family: var(--font-serif);
+  font-size: 1.45rem;
+  margin-top: 2.2rem;
+}
+
+.rs-prose h3,
+.prose h3 {
+  font-size: 1.15rem;
+  margin-top: 1.8rem;
+}
+
+.rs-prose ul,
+.rs-prose ol,
+.prose ul,
+.prose ol {
+  padding-left: 1.4rem;
+}
+
+.rs-prose img {
+  max-width: 100%;
+  border-radius: 14px;
+}
+
+.rs-prose pre {
+  padding: 1rem;
+  border-radius: 10px;
+  background: var(--rs-dark);
+  color: #f5ede3;
+  overflow-x: auto;
+}
+
+.rs-empty {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.rs-empty h1 {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.rs-empty .rs-button {
+  margin-top: 2rem;
+}
+
+/* ---------- Shop (組み込みテンプレートの調整) ---------- */
+@media (min-width: 900px) {
+  .aegis-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+.aegis-shop h1,
+.aegis-shop h2 {
+  font-family: var(--font-serif);
+}
+
+.aegis-card {
+  background: var(--rs-surface) !important;
+  border-color: var(--rs-border) !important;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.aegis-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(60, 40, 20, 0.08);
+}
+
+.aegis-compare {
+  color: var(--rs-muted);
+}
+
+.aegis-button {
+  border-radius: 999px !important;
+}
+
+/* ---------- Footer ---------- */
+.rs-footer {
+  background: var(--rs-dark);
+  color: #d9cbbb;
+  padding: 3rem 0 1.5rem;
+  font-size: 0.88rem;
+}
+
+.rs-footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.rs-footer-brand {
+  color: #fff;
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  margin-bottom: 0.4rem;
+}
+
+.rs-footer p {
+  max-width: 28rem;
+}
+
+.rs-footer-links {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 0.4rem 2rem;
+}
+
+.rs-footer-links a {
+  color: #d9cbbb;
+  text-decoration: none;
+}
+
+.rs-footer-links a:hover {
+  color: #fff;
+}
+
+.rs-copy {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.78rem;
+  color: #a8978a;
+}
+
+@media (max-width: 760px) {
+  .rs-hero,
+  .rs-features {
+    grid-template-columns: 1fr;
+  }
+
+  .rs-hero-art {
+    display: none;
+  }
+
+  .rs-nav {
+    gap: 0.9rem;
+  }
+
+  .rs-nav a:not(.rs-nav-cart):nth-child(3) {
+    display: none;
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "roastery",
+  "name": "Roastery",
+  "version": "1.0.0",
+  "description": "A warm, light shop theme for small coffee roasters and makers: a storefront hero, a journal and shop pages that pick up the theme's colors.",
+  "author": {
+    "name": "AegisCMS Core Team",
+    "url": "https://aegiscms.dev"
+  },
+  "license": "MIT",
+  "preview_image": "preview.svg",
+  "tags": ["light", "shop", "commerce", "warm", "japanese"],
+  "homepage": "https://aegiscms.dev/themes/roastery",
+  "min_aegis_version": "0.1.0"
+}

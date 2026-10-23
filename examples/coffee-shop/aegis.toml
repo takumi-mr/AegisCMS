@@ -1,0 +1,49 @@
+# サンプルのコーヒー豆のオンラインショップ「朝凪珈琲」の設定。
+# リポジトリのルートで起動する（パスはルートからの相対パス）。手順は examples/coffee-shop/README.md
+
+[server]
+host = "127.0.0.1"
+port = 8080
+
+[database]
+backend = "sqlite"
+url = "sqlite://examples/coffee-shop/shop.db?mode=rwc"
+
+[storage]
+backend = "local"
+
+[storage.local]
+upload_dir = "examples/coffee-shop/uploads"
+public_url_prefix = "/uploads"
+
+[paths]
+schemas_dir = "schemas"
+plugins_dir = "plugins"
+admin_dist_dir = "admin/dist"
+themes_dir = "themes"
+
+[theme]
+active = "roastery"
+site_title = "朝凪珈琲"
+site_description = "小さな焙煎所から、季節のシングルオリジンとブレンドをお届けします。ご注文をいただいてから焙煎し、3日以内に発送します。"
+posts_per_page = 12
+
+# 送料・クーポン（公式プラグイン。docs/commerce.md「official-shop-rules」）
+[plugins]
+enabled = ["official-shop-rules"]
+
+[plugins.settings.official-shop-rules]
+shipping_fee = 650
+free_shipping_over = 5000
+shipping_label = "送料"
+coupons = "WELCOME10:10%,COFFEE300:300"
+
+# ショップ（docs/commerce.md）。決済は銀行振込（manual）
+[commerce]
+enabled = true
+currency = "jpy"
+provider = "manual"
+
+[commerce.manual]
+instructions = "下記口座へ 3 日以内にお振り込みください。ご入金を確認してから焙煎・発送します。\n朝凪銀行 本店営業部 普通 1234567 アサナギコーヒー\n（振込名義の前に注文番号をご入力ください）"
+payment_due_hours = 72

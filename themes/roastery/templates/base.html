@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
+  <meta name="description" content="{{ site_description }}">
+  <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
+  {% if extra_css %}
+  <style>{{ extra_css }}</style>
+  {% endif %}
+  {{ extra_head | safe }}
+</head>
+<body>
+  <div class="rs-notice">5,000円以上のご注文で送料無料 ・ 焙煎から3日以内に発送します</div>
+  <header class="rs-header">
+    <div class="rs-container rs-header-inner">
+      <a href="{{ base_path }}/" class="rs-brand">
+        <svg class="rs-logo" viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="16" rx="11" ry="14" transform="rotate(-25 16 16)" fill="currentColor"/><path d="M10 26 C16 18 16 14 22 6" stroke="var(--rs-bg)" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+        <span>{{ site_title }}</span>
+      </a>
+      <nav class="rs-nav" aria-label="Main">
+        <a href="{{ base_path }}/products">Shop</a>
+        <a href="{{ base_path }}/articles">Journal</a>
+        <a href="{{ base_path }}/about">About</a>
+        <a href="{{ base_path }}/cart" class="rs-nav-cart">Cart</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="rs-main">
+    <div class="rs-container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="rs-footer">
+    <div class="rs-container rs-footer-inner">
+      <div>
+        <div class="rs-footer-brand">{{ site_title }}</div>
+        <p>{{ site_description }}</p>
+      </div>
+      <nav class="rs-footer-links" aria-label="Footer">
+        <a href="{{ base_path }}/products">オンラインショップ</a>
+        <a href="{{ base_path }}/articles">ジャーナル</a>
+        <a href="{{ base_path }}/about">私たちについて</a>
+        <a href="{{ base_path }}/shipping">配送・お支払い</a>
+        <a href="{{ base_path }}/admin/">管理画面</a>
+      </nav>
+    </div>
+    <div class="rs-container rs-copy">Powered by AegisCMS</div>
+  </footer>
+</body>
+</html>

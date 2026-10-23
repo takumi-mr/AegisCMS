@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="100%" height="100%">
+  <rect width="800" height="500" fill="#fbf7f1"/>
+  <rect width="800" height="26" fill="#2f2721"/>
+  <rect x="300" y="10" width="200" height="6" rx="3" fill="#d9cbbb"/>
+  <line x1="0" y1="80" x2="800" y2="80" stroke="#e8ddd0"/>
+  <ellipse cx="68" cy="53" rx="9" ry="12" transform="rotate(-25 68 53)" fill="#a4552c"/>
+  <text x="86" y="60" font-family="Georgia, serif" font-weight="700" font-size="18" fill="#2b211b">Roastery</text>
+  <rect x="520" y="48" width="44" height="8" rx="4" fill="#2b211b" opacity="0.7"/>
+  <rect x="584" y="48" width="56" height="8" rx="4" fill="#2b211b" opacity="0.7"/>
+  <rect x="660" y="40" width="80" height="24" rx="12" fill="none" stroke="#2b211b"/>
+  <rect x="60" y="130" width="120" height="8" rx="4" fill="#a4552c"/>
+  <rect x="60" y="156" width="330" height="26" rx="6" fill="#2b211b"/>
+  <rect x="60" y="194" width="270" height="26" rx="6" fill="#2b211b"/>
+  <rect x="60" y="240" width="300" height="8" rx="4" fill="#75655a" opacity="0.6"/>
+  <rect x="60" y="256" width="250" height="8" rx="4" fill="#75655a" opacity="0.6"/>
+  <rect x="60" y="290" width="120" height="36" rx="18" fill="#a4552c"/>
+  <rect x="192" y="290" width="130" height="36" rx="18" fill="none" stroke="#e8ddd0"/>
+  <circle cx="580" cy="230" r="120" fill="#f1e6d8"/>
+  <path d="M505 195 L655 195 L645 320 Q580 338 515 320 Z" fill="#a4552c"/>
+  <path d="M655 228 C698 228 698 292 648 295" stroke="#a4552c" stroke-width="15" fill="none" stroke-linecap="round"/>
+  <ellipse cx="580" cy="195" rx="75" ry="13" fill="#2b211b"/>
+  <g fill="#ffffff" stroke="#e8ddd0">
+    <rect x="60" y="375" width="215" height="90" rx="12"/>
+    <rect x="292" y="375" width="215" height="90" rx="12"/>
+    <rect x="524" y="375" width="215" height="90" rx="12"/>
+  </g>
+  <g fill="#2b211b" opacity="0.75">
+    <rect x="80" y="398" width="130" height="9" rx="4"/>
+    <rect x="312" y="398" width="130" height="9" rx="4"/>
+    <rect x="544" y="398" width="130" height="9" rx="4"/>
+  </g>
+  <g fill="#75655a" opacity="0.45">
+    <rect x="80" y="422" width="170" height="7" rx="3"/>
+    <rect x="312" y="422" width="170" height="7" rx="3"/>
+    <rect x="544" y="422" width="170" height="7" rx="3"/>
+  </g>
+</svg>
