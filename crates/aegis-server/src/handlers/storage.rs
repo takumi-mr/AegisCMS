@@ -381,10 +381,10 @@ mod tests {
     }
 
     use crate::auth::authorize::RequireRole;
-    use crate::db::ContentRecord;
+    use aegis_db::ContentRecord;
 
     fn editor() -> EditorSession {
-        RequireRole(crate::auth::SessionData {
+        RequireRole(aegis_auth::SessionData {
             id: "ses_test".to_string(),
             user_id: "editor1".to_string(),
             role: "editor".to_string(),

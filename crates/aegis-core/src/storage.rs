@@ -2,26 +2,6 @@ use crate::error::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum StorageBackendKind {
-    #[default]
-    Local,
-    S3,
-}
-
-impl std::str::FromStr for StorageBackendKind {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "local" | "disk" | "fs" => Ok(Self::Local),
-            "s3" | "r2" | "minio" => Ok(Self::S3),
-            other => Err(format!("Unknown storage backend kind: {}", other)),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageMeta {
     pub key: String,

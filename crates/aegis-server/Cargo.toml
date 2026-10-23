@@ -14,6 +14,12 @@ aegis-ast = { path = "../aegis-ast" }
 aegis-schema = { path = "../aegis-schema" }
 aegis-runtime = { path = "../aegis-runtime" }
 aegis-theme = { path = "../aegis-theme" }
+aegis-cache = { path = "../aegis-cache" }
+aegis-storage = { path = "../aegis-storage" }
+aegis-db = { path = "../aegis-db" }
+aegis-audit = { path = "../aegis-audit" }
+aegis-auth = { path = "../aegis-auth", default-features = false }
+aegis-commerce = { path = "../aegis-commerce" }
 
 
 tokio.workspace = true
@@ -29,27 +35,23 @@ clap.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 anyhow.workspace = true
+toml = "0.8"
 thiserror.workspace = true
 async-trait.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
 sha2 = "0.10"
 hmac = "0.12"
 hex = "0.4"
-argon2 = "0.5"
 rpassword = "7"
 redis.workspace = true
-jsonwebtoken = { version = "9.3", optional = true }
-base64 = { version = "0.22", optional = true }
 
 [dev-dependencies]
-toml = "0.8"
-# Test-only signing keys for the mock OIDC provider
-p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem", "jwk"] }
-rand_core = { version = "0.6", features = ["getrandom"] }
+# A mock OpenID Connect IdP for the SSO handler tests
+aegis-auth = { path = "../aegis-auth", features = ["mock-idp"] }
 
 [features]
 default = ["oidc"]
 # OpenID Connect login ([auth.oidc]): ID token signature verification via JWKS
-oidc = ["dep:jsonwebtoken", "dep:base64"]
+oidc = ["aegis-auth/oidc"]
 
 

@@ -13,12 +13,13 @@ use uuid::Uuid;
 
 use crate::audit::AuditContext;
 use crate::auth::authorize::RequireRole;
-use crate::auth::password::verify_password;
-use crate::auth::users::{self, NewUser, UserChanges};
-use crate::auth::{AdminSession, SessionData, ViewerSession};
-use crate::db::UserRecord;
+use crate::auth::{AdminSession, ViewerSession};
 use crate::state::AppState;
+use aegis_auth::password::verify_password;
+use aegis_auth::users::{self, NewUser, UserChanges};
+use aegis_auth::SessionData;
 use aegis_core::{AegisError, AuditAction, AuditOutcome};
+use aegis_db::UserRecord;
 
 /// アバター画像の最大サイズ
 pub const MAX_AVATAR_BYTES: usize = 2 * 1024 * 1024;
@@ -571,7 +572,7 @@ pub async fn delete_avatar(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::users::create_user as create_account;
+    use aegis_auth::users::create_user as create_account;
 
     fn session(user_id: &str, role: &str) -> SessionData {
         SessionData {

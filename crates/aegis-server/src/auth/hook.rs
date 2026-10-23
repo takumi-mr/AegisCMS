@@ -3,8 +3,8 @@
 
 use aegis_core::{AegisError, AuthIdentity, Result, UserAuthContext};
 
-use super::ROLES;
 use crate::state::AppState;
+use aegis_auth::ROLES;
 
 /// Session metadata keys the server sets itself; plugin metadata cannot override them
 pub const RESERVED_METADATA_KEYS: [&str; 3] = ["provider", "display_name", "email"];

@@ -37,8 +37,8 @@ impl Default for HtmlRewriterConfig {
     }
 }
 
-impl From<aegis_core::SecurityConfig> for HtmlRewriterConfig {
-    fn from(cfg: aegis_core::SecurityConfig) -> Self {
+impl From<crate::config::SecurityConfig> for HtmlRewriterConfig {
+    fn from(cfg: crate::config::SecurityConfig) -> Self {
         Self {
             enforce_external_link_rel: cfg.enforce_external_link_rel,
             open_external_links_in_new_tab: cfg.open_external_links_in_new_tab,

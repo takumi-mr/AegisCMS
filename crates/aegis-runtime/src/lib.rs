@@ -1,8 +1,10 @@
+pub mod config;
 pub mod guard;
 pub mod plugin;
 pub mod services;
 pub mod wasm;
 
+pub use config::{PluginsConfig, RuntimeConfig};
 pub use guard::CapabilityGuard;
 pub use plugin::{AegisPlugin, PluginSupervisor};
 pub use services::{HostServices, HttpRequest, HttpResponse, LocalHostServices, PluginServices};

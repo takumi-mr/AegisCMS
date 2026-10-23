@@ -20,3 +20,4 @@ tokio = { workspace = true, features = ["time", "sync"] }
 wasmtime = "26.0"
 wat = "1.220"
 url = "2"
+toml = "0.8"

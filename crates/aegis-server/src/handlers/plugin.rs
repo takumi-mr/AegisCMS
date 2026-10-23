@@ -31,9 +31,9 @@ pub async fn list_plugins(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::SessionData;
+    use crate::config::AegisConfig;
     use crate::test_support::test_state_with_config;
-    use aegis_core::AegisConfig;
+    use aegis_auth::SessionData;
     use aegis_runtime::PluginSupervisor;
 
     fn admin() -> AdminSession {

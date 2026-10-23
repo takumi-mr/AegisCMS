@@ -88,31 +88,48 @@ AegisCMS は Cargo ワークスペースによるモノレポ構成を採用し�
 
 ```
 crates/
-├── aegis-core       # ドメインモデル、システム設定、ストレージ抽象、統一エラー
+├── aegis-core       # 共有契約: 抽象トレイト（Storage/Cache/Auth/AuditSink）、プラグインに渡す型、統一エラー
 ├── aegis-ast        # Block AST データ構造、HTML決定論的レンダラー、ストリーミングリライター
 ├── aegis-schema     # 宣言的YAMLスキーマ、マルチダイアレクトDDL生成、TS/OpenAPIコード生成
 ├── aegis-runtime    # Wasmtimeサンドボックス、ケイパビリティ検証ガード、ホストAPIリンカー
-└── aegis-server     # Axum API Gateway、RDB/ストレージアダプタ、CLI、Admin SPA配信
+├── aegis-theme      # テーマ（Tera テンプレート）の読み込みと描画
+├── aegis-db         # DatabaseAdapter と SQLite/PostgreSQL/MySQL 実装、注文の永続化
+├── aegis-storage    # StorageBackend 実装（ローカル / S3 互換）
+├── aegis-cache      # CacheBackend 実装（メモリ / Redis）
+├── aegis-audit      # 監査ログの配送（AuditService）と出力先（log / database）、メトリクス
+├── aegis-auth       # ユーザー・パスワード・セッション・ログイン制限・OIDC
+├── aegis-commerce   # EC: 見積もり・注文・在庫・決済（手動 / Stripe）
+└── aegis-server     # Axum HTTP 層（ルーティング・ハンドラ・認可）、CLI、Admin SPA 配信
 ```
+
+依存の向きは `aegis-core` ← ドメインクレート（`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-commerce` など）← `aegis-server` の一方向です。各クレートは自分の設定セクション（`DatabaseConfig`、`StorageConfig`、`CommerceConfig` …）を持ち、それらを束ねる `AegisConfig`（`aegis.toml` 全体）は `aegis-server` が定義します。
 
 | クレート名                                                    | 役割・責務                                               | 主な構成モジュール・対応技術                                                                                                                                           |
 | :------------------------------------------------------------ | :------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [aegis-core](file:///d:/projects/cms/crates/aegis-core)       | システム共通ドメイン基盤・設定・抽象トレイト             | `config` (TOML設定ローダー), `storage` (`StorageBackend` トレイト), `entity` (`Post`, `PostContext`), `manifest` (`PluginManifest`), `error` (`AegisError`)            |
-| [aegis-ast](file:///d:/projects/cms/crates/aegis-ast)         | コンテンツ構造化表現・レンダリング・セキュリティ属性付与 | `ast` (`BlockNode`), `pipeline` (`AstPipeline`), `renderer` (`HtmlRenderer`), `rewriter` (`StreamingHtmlRewriter`, Cloudflare `lol-html`)                              |
-| [aegis-schema](file:///d:/projects/cms/crates/aegis-schema)   | 宣言的スキーマ定義・マルチDB DDL生成・型定義生成         | `definition` (`SchemaDefinition`, `RelationTarget`), `loader` (`SchemaLoader`), `migration` (`SchemaMigration`, `SqlDialect`), `codegen` (TypeScript, OpenAPI 3.1)     |
-| [aegis-runtime](file:///d:/projects/cms/crates/aegis-runtime) | WebAssembly サンドボックス隔離実行・権限制御             | `engine` (Wasmtime, Fuel制限, タイムアウト), `guard` (`CapabilityGuard`), `host_api` (ホストAPI), `instance` (`WasmPluginInstance`), `supervisor` (`PluginSupervisor`) |
-| [aegis-server](file:///d:/projects/cms/crates/aegis-server)   | コア HTTP サーバー・インフラアダプタ・SPA配信            | `db` (`DatabaseAdapter`, SQLite/Postgres/MySQL), `storage` (`LocalStorageBackend`, S3 SigV4 `S3StorageBackend`), `handlers` (CRUD, アップロード), `main` (CLI)         |
+| [aegis-core](crates/aegis-core)                               | 全クレート・プラグインで共有する契約                     | `storage` / `cache` / `auth` / `audit` (抽象トレイトと共有型), `entity` / `commerce` (プラグインに渡すコンテキスト), `manifest` (`PluginManifest`), `error` (`AegisError`) |
+| [aegis-ast](crates/aegis-ast)                                 | コンテンツ構造化表現・レンダリング・セキュリティ属性付与 | `ast` (`BlockNode`), `pipeline` (`AstPipeline`), `renderer` (`HtmlRenderer`), `rewriter` (`StreamingHtmlRewriter`, Cloudflare `lol-html`), `config` (`SecurityConfig`) |
+| [aegis-schema](crates/aegis-schema)                           | 宣言的スキーマ定義・マルチDB DDL生成・型定義生成         | `definition` (`SchemaDefinition`, `RelationTarget`), `loader` (`SchemaLoader`), `migration` (`SchemaMigration`, `SqlDialect`), `codegen` (TypeScript, OpenAPI 3.1)     |
+| [aegis-runtime](crates/aegis-runtime)                         | WebAssembly サンドボックス隔離実行・権限制御             | `engine` (Wasmtime, Fuel制限, タイムアウト), `guard` (`CapabilityGuard`), `host_api` (ホストAPI), `supervisor` (`PluginSupervisor`), `config` (`PluginsConfig`)         |
+| [aegis-theme](crates/aegis-theme)                             | テーマの読み込み・描画                                   | `ThemeEngine`, `config` (`ThemeConfig`)                                                                                                                                |
+| [aegis-db](crates/aegis-db)                                   | データベースアダプタ                                     | `DatabaseAdapter`, `SqliteAdapter` / `PostgresAdapter` / `MySqlAdapter`, `orders` (注文・在庫), `config` (`DatabaseConfig`)                                             |
+| [aegis-storage](crates/aegis-storage)                         | メディアストレージ                                       | `LocalStorageBackend`, `S3StorageBackend` (SigV4), `create_storage_backend`, `config` (`StorageConfig`)                                                                 |
+| [aegis-cache](crates/aegis-cache)                             | キャッシュ                                               | `MemoryCacheBackend`, `RedisCacheBackend`, `config` (`CacheConfig`)                                                                                                    |
+| [aegis-audit](crates/aegis-audit)                             | 監査ログ                                                 | `AuditService`, `AuditOrigin`, `log` / `database` 出力先, `metrics`, `config` (`AuditConfig`)                                                                           |
+| [aegis-auth](crates/aegis-auth)                               | 認証                                                     | `users` (`UserService`), `password` (Argon2id), `session` (`SessionService`), `rate_limit`, `oidc` (feature `oidc`), `config` (`AuthConfig`)                            |
+| [aegis-commerce](crates/aegis-commerce)                       | EC                                                       | `CommerceService` (見積もり・注文・状態遷移), `payment` (`PaymentProvider`), `stripe`, `config` (`CommerceConfig`)                                                       |
+| [aegis-server](crates/aegis-server)                           | HTTP 層・CLI・SPA配信                                    | `handlers` (REST API・公開ページ), `auth` (認可・フック), `audit` (`AuditContext` 抽出), `state` (`AppState`), `config` (`AegisConfig`), `main` (CLI)                     |
 
 ---
 
-#### 1. `crates/aegis-core` (ドメインモデル & 共通基盤)
+#### 1. `crates/aegis-core` (共有契約)
 
-システム全体で共有されるデータモデル、エラー型、設定構造体、抽象インターフェースを集中管理する最下層クレートです。
+ドメインクレートと Wasm プラグインが共有する最下層クレートです。実装や設定は持たず、抽象インターフェースと共有データ型だけを定義します。
 
-- **`config`**: `AegisConfig`（サーバー、データベース、ストレージ、キャッシュ、パス、ランタイム、セキュリティ設定）。`config/*.toml` からの読み込みおよび環境変数オーバーライドに対応。
 - **`storage`**: ストレージ抽象化トレイト `StorageBackend`（`put`, `get`, `delete`, `public_url`）およびメタデータ `StorageMeta` の定義。
-- **`cache`**: キャッシュ抽象化トレイト `CacheBackend`（`get`, `set`, `delete`, `exists`）およびバックエンド種別 `CacheBackendKind`（`Memory`, `Redis`）の定義。
-- **`entity`**: 記事・コンテンツエンティティの共通構造（`Post`, `PostContext`, `PostStatus`, `PostId`）。
+- **`cache`**: キャッシュ抽象化トレイト `CacheBackend`（`get`, `set`, `delete`, `exists`）の定義。
+- **`auth`**: 外部認証プロバイダの抽象 `AuthProvider` と、プラグインに渡す `UserAuthContext`。
+- **`audit`**: 監査イベントのモデル（`AuditEvent`, `AuditAction` …）と出力先の抽象 `AuditSink`。
+- **`entity` / `commerce`**: プラグインフックに渡すコンテキスト（`PostContext`, `PageRenderContext`, `OrderContext` …）。
 - **`manifest`**: プラグインが要求する権限（ネットワークドメイン、KVSネームスペース、利用フック、メモリ/Fuel制限）を定義する `PluginManifest`。
 - **`error`**: システム統一エラー列挙体 `AegisError` および `Result` 型エイリアス。
 
@@ -144,19 +161,29 @@ WebAssembly（Wasm）サンドボックスによるサードパーティ拡張�
 - **`instance`**: ゲスト Wasm バイナリの実行インスタンス `WasmPluginInstance`。Fat Pointer 形式（`ptr:i32, len:i32`）およびゲスト側アロケータ（`allocate`）を用いた安全なリニアメモリデータ受け渡し。
 - **`supervisor` / `loader`**: ディレクトリ内の全プラグインを自動発見・初期化し、ライフサイクルフック（`on-before-save`, `transform-content-ast`）を実行する `PluginSupervisor`。
 
-#### 5. `crates/aegis-server` (HTTP Gateway, インフラアダプタ & Admin SPA 配信)
+#### 5. ドメインクレート (`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-commerce`)
 
-Axum を基盤とした REST API Gateway サーバーであり、すべてのインフラ接続と HTTP ハンドラーを統合します。
+HTTP に依存しない機能ごとの実装です。各クレートは自分の設定セクションの型を持ち、`aegis-server` から組み立てて使います。
 
-- **`db`**: `DatabaseAdapter` トレイトに基づくマルチ RDBMS 具象実装（`SqliteAdapter`, `PostgresAdapter`, `MySqlAdapter`）。`PRAGMA table_info` や `information_schema.columns` を走査し、既存テーブルへの未反映カラムを自動追加するスキーマ進化マイグレーション（`ALTER TABLE ... ADD COLUMN`）を内蔵。
-- **`storage`**: `StorageBackend` トレイトに基づくマルチストレージ具象実装。ローカルディスク・ブロックストレージ対応の `LocalStorageBackend` と、AWS S3 / Cloudflare R2 / MinIO 対応の `S3StorageBackend`（ネイティブ AWS SigV4 認証署名エンジン内蔵）。
-- **`cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
-- **`auth`**: `CacheBackend` をバックストアとして活用したステートレスセッション管理 `SessionService`。Bearer トークン / `X-Session-Id` による認証状態の永続化と検証。
-- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`・削除 `DELETE /api/v1/storage/objects/{key}`（[docs/media.md](docs/media.md)）、エディタのプレビュー `POST /api/v1/preview`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン）・OpenID Connect によるシングルサインオン `GET /api/v1/auth/oidc/login`（[docs/authentication.md](docs/authentication.md)）、ヘルスチェック）。
-- **`state`**: 抽象化された `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
+- **`aegis-db`**: `DatabaseAdapter` トレイトに基づくマルチ RDBMS 具象実装（`SqliteAdapter`, `PostgresAdapter`, `MySqlAdapter`）。`PRAGMA table_info` や `information_schema.columns` を走査し、既存テーブルへの未反映カラムを自動追加するスキーマ進化マイグレーション（`ALTER TABLE ... ADD COLUMN`）を内蔵。注文・在庫の永続化（`orders`）もここに置きます。
+- **`aegis-storage`**: `StorageBackend` トレイトに基づくマルチストレージ具象実装。ローカルディスク・ブロックストレージ対応の `LocalStorageBackend` と、AWS S3 / Cloudflare R2 / MinIO 対応の `S3StorageBackend`（ネイティブ AWS SigV4 認証署名エンジン内蔵）。
+- **`aegis-cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
+- **`aegis-audit`**: 監査イベントを設定された出力先へ配送する `AuditService`、操作元（IP・User-Agent）を表す `AuditOrigin`、メトリクス（[docs/audit.md](docs/audit.md)）。
+- **`aegis-auth`**: ユーザー管理 `UserService`、Argon2id パスワード、`CacheBackend` をバックストアとするセッション管理 `SessionService`、ログイン試行制限、OpenID Connect（feature `oidc`。[docs/authentication.md](docs/authentication.md)）。
+- **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査は `CommerceDeps` で受け取ります。
+
+#### 6. `crates/aegis-server` (HTTP Gateway & Admin SPA 配信)
+
+Axum を基盤とした REST API Gateway サーバーです。ドメインクレートを組み立て、HTTP の入出力と認可だけを担当します。
+
+- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`・削除 `DELETE /api/v1/storage/objects/{key}`（[docs/media.md](docs/media.md)）、エディタのプレビュー `POST /api/v1/preview`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン）・OpenID Connect によるシングルサインオン `GET /api/v1/auth/oidc/login`（[docs/authentication.md](docs/authentication.md)）、ショップ API・公開ページ、ヘルスチェック）。
+- **`auth`**: リクエストからのセッション抽出、ロールに基づく認可、プラグインの認証フック。
+- **`audit`**: リクエストから操作者と操作元を取り出す `AuditContext` エクストラクタ。
+- **`state`**: `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、`CommerceService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
+- **`config`**: 各クレートの設定セクションを束ねる `AegisConfig`（`config/*.toml` からの読み込みおよび環境変数オーバーライド。[docs/configuration.md](docs/configuration.md)）。
 - **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、ユーザー管理 `user add|passwd|role|disable|enable|list`）および Admin Studio SPA の静的アセット配信（`fallback_service`）。
 
-#### 6. `crates/aegis-plugin-sdk` & `crates/aegis-plugin-macros` (公式 Wasm プラグイン SDK)
+#### 7. `crates/aegis-plugin-sdk` & `crates/aegis-plugin-macros` (公式 Wasm プラグイン SDK)
 
 サードパーティ開発者が安全・高速に WebAssembly プラグインを開発するための公式 SDK です。
 

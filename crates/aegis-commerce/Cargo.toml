@@ -1,0 +1,30 @@
+[package]
+name = "aegis-commerce"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Shop for AegisCMS: quotes, orders, stock reservation and payments (manual, Stripe Checkout)"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-db = { path = "../aegis-db" }
+aegis-schema = { path = "../aegis-schema" }
+aegis-runtime = { path = "../aegis-runtime" }
+aegis-audit = { path = "../aegis-audit" }
+async-trait.workspace = true
+chrono.workspace = true
+hex = "0.4"
+hmac = "0.12"
+http = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "rt", "time"] }
+tracing.workspace = true
+uuid.workspace = true

@@ -9,20 +9,17 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod app;
 mod audit;
 mod auth;
-mod cache;
-mod commerce;
-mod db;
+mod config;
 mod handlers;
 mod plugin_host;
 mod render;
 mod state;
-mod storage;
 #[cfg(test)]
 mod test_support;
 
-use aegis_core::AegisConfig;
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::{OpenApiGenerator, SchemaLoader, TypeScriptGenerator};
+use config::AegisConfig;
 use state::AppState;
 
 #[derive(Parser, Debug)]
@@ -180,7 +177,7 @@ fn read_new_password() -> anyhow::Result<String> {
 }
 
 async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::Result<()> {
-    let db = db::create_database_adapter(&config.database).await?;
+    let db = aegis_db::create_database_adapter(&config.database).await?;
     let db = db.as_ref();
     match action {
         UserCommand::Add {
@@ -190,9 +187,9 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
             display_name,
         } => {
             let password = read_new_password()?;
-            let user = auth::users::create_user(
+            let user = aegis_auth::users::create_user(
                 db,
-                auth::users::NewUser {
+                aegis_auth::users::NewUser {
                     username,
                     password,
                     role,
@@ -205,19 +202,19 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
         }
         UserCommand::Passwd { username } => {
             let password = read_new_password()?;
-            auth::users::set_password(db, &username, &password).await?;
+            aegis_auth::users::set_password(db, &username, &password).await?;
             println!("Updated the password of '{}'", username);
         }
         UserCommand::Role { username, role } => {
-            auth::users::set_role(db, &username, &role).await?;
+            aegis_auth::users::set_role(db, &username, &role).await?;
             println!("Changed the role of '{}' to {}", username, role);
         }
         UserCommand::Disable { username } => {
-            auth::users::set_disabled(db, &username, true).await?;
+            aegis_auth::users::set_disabled(db, &username, true).await?;
             println!("Disabled '{}'", username);
         }
         UserCommand::Enable { username } => {
-            auth::users::set_disabled(db, &username, false).await?;
+            aegis_auth::users::set_disabled(db, &username, false).await?;
             println!("Enabled '{}'", username);
         }
         UserCommand::LinkOidc { username, sub } => {
@@ -225,8 +222,9 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
                 !config.auth.oidc.issuer_url.trim().is_empty(),
                 "[auth.oidc].issuer_url is not set"
             );
-            let subject = auth::oidc_subject(&config.auth.oidc.issuer_url, &sub);
-            auth::users::link_identity(db, &username, auth::OIDC_PROVIDER, &subject).await?;
+            let subject = aegis_auth::oidc_subject(&config.auth.oidc.issuer_url, &sub);
+            aegis_auth::users::link_identity(db, &username, aegis_auth::OIDC_PROVIDER, &subject)
+                .await?;
             println!("Linked '{}' to OIDC subject {}", username, subject);
         }
         UserCommand::List => {
@@ -273,7 +271,7 @@ async fn main() -> anyhow::Result<()> {
                 .map(|s| (s.content_type.clone(), s))
                 .collect();
 
-            let db_adapter = db::create_database_adapter(&config.database).await?;
+            let db_adapter = aegis_db::create_database_adapter(&config.database).await?;
             db_adapter.run_migrations(&schemas).await?;
             tracing::info!("Schema migrations completed successfully.");
         }
@@ -337,25 +335,29 @@ async fn main() -> anyhow::Result<()> {
             );
 
             // 2. DB初期化とマイグレーション
-            let db_adapter = db::create_database_adapter(&config.database).await?;
+            let db_adapter = aegis_db::create_database_adapter(&config.database).await?;
             db_adapter.run_migrations(&schemas).await?;
             if db_adapter.list_users().await?.is_empty() {
                 tracing::warn!(
                     "No user accounts exist, so nobody can log in. Create one with: aegis user add <username> --role admin"
                 );
             }
-            let auth_provider = Arc::new(auth::LocalAuthProvider::new(db_adapter.clone()));
+            let auth_provider = Arc::new(aegis_auth::LocalAuthProvider::new(db_adapter.clone()));
 
             // 3. ストレージバックエンド初期化
-            let storage = storage::create_storage_backend(&config.storage, &base_path)?;
+            let storage = aegis_storage::create_storage_backend(
+                &config.storage,
+                // 配信のルートは public_url_prefix のまま（app::with_base_path がベースパスを取り除く）
+                &app::under_base_path(&base_path, &config.storage.local.public_url_prefix),
+            )?;
 
             // 4. キャッシュ & セッションサービス初期化 (ステートレス対応)
-            let cache = cache::create_cache_backend(&config.cache).await?;
-            let sessions = Arc::new(auth::SessionService::new(
+            let cache = aegis_cache::create_cache_backend(&config.cache).await?;
+            let sessions = Arc::new(aegis_auth::SessionService::new(
                 cache.clone(),
                 config.cache.default_ttl_secs,
             ));
-            let login_limiter = Arc::new(auth::LoginRateLimiter::new(
+            let login_limiter = Arc::new(aegis_auth::LoginRateLimiter::new(
                 cache.clone(),
                 config.auth.login_rate_limit.clone(),
             ));
@@ -402,7 +404,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // 6. 監査ログサービス初期化
-            let audit = Arc::new(audit::AuditService::from_config(
+            let audit = Arc::new(aegis_audit::AuditService::from_config(
                 &config.audit,
                 db_adapter.clone(),
             ));
@@ -440,7 +442,10 @@ async fn main() -> anyhow::Result<()> {
 
             // 6.6 EC（[commerce]）
             let app_state = if config.commerce.enabled {
-                let commerce = commerce::CommerceService::new(config.commerce.clone())?;
+                let commerce = aegis_commerce::CommerceService::new(
+                    config.commerce.clone(),
+                    app_state.commerce_deps(),
+                )?;
                 commerce.check_product_schema(&*app_state.schemas.read().await)?;
                 tracing::info!(
                     "Shop enabled (products: '{}', currency: {}, payment: {:?})",
@@ -453,8 +458,8 @@ async fn main() -> anyhow::Result<()> {
                 app_state
             };
             let app_state = Arc::new(app_state);
-            if app_state.commerce.is_some() {
-                commerce::CommerceService::spawn_expiry_task(app_state.clone());
+            if let Some(commerce) = &app_state.commerce {
+                commerce.spawn_expiry_task();
             }
 
             // 7. Router 設定（[server].base_path 配下で公開）
@@ -483,7 +488,7 @@ async fn main() -> anyhow::Result<()> {
 /// `[runtime].instance_pool_size` が 1 以上ならプーリングアロケータを使うエンジンを作る。
 /// プールのアドレス空間を確保できない環境（仮想メモリの上限など）では、警告を出して通常のエンジンにする
 fn create_wasm_engine(
-    runtime: &aegis_core::config::RuntimeConfig,
+    runtime: &aegis_runtime::RuntimeConfig,
 ) -> anyhow::Result<aegis_runtime::WasmEngine> {
     if runtime.instance_pool_size == 0 {
         return Ok(aegis_runtime::WasmEngine::new()?);
@@ -515,12 +520,12 @@ fn create_wasm_engine(
 /// `[auth.oidc]` を検証し、OpenID Connect ログインを組み立てる（IdP への接続は初回ログイン時）
 #[cfg(feature = "oidc")]
 fn build_oidc_login(
-    config: &aegis_core::OidcConfig,
+    config: &aegis_auth::OidcConfig,
     base_path: &str,
     cache: Arc<dyn aegis_core::CacheBackend>,
-    db: Arc<dyn db::DatabaseAdapter>,
+    db: Arc<dyn aegis_db::DatabaseAdapter>,
 ) -> anyhow::Result<state::OidcLogin> {
-    let provider = auth::oidc::OidcAuthProvider::new(config.clone(), cache, db)?;
+    let provider = aegis_auth::oidc::OidcAuthProvider::new(config.clone(), cache, db)?;
     tracing::info!(
         "OIDC login enabled (issuer: {}, client_id: {})",
         config.issuer_url,
@@ -535,10 +540,10 @@ fn build_oidc_login(
 
 #[cfg(not(feature = "oidc"))]
 fn build_oidc_login(
-    _config: &aegis_core::OidcConfig,
+    _config: &aegis_auth::OidcConfig,
     _base_path: &str,
     _cache: Arc<dyn aegis_core::CacheBackend>,
-    _db: Arc<dyn db::DatabaseAdapter>,
+    _db: Arc<dyn aegis_db::DatabaseAdapter>,
 ) -> anyhow::Result<state::OidcLogin> {
     anyhow::bail!("[auth.oidc] is enabled, but this build of aegis-server has no 'oidc' feature")
 }

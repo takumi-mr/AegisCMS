@@ -5,32 +5,12 @@ use axum::Json;
 use serde_json::json;
 use std::sync::Arc;
 
-use super::{extract_session_id, session_fingerprint, SessionData};
+use super::extract_session_id;
 use crate::audit::AuditContext;
 use crate::state::AppState;
+pub use aegis_auth::{role_level, ADMIN, EDITOR, VIEWER};
+use aegis_auth::{role_name, session_fingerprint, SessionData};
 use aegis_core::{AuditAction, AuditOutcome};
-
-/// ロールの強さ（`admin` ⊃ `editor` ⊃ `viewer`）。`auth::ROLES` 以外のロールは権限なし
-pub fn role_level(role: &str) -> u8 {
-    match role {
-        "admin" => ADMIN,
-        "editor" => EDITOR,
-        "viewer" => VIEWER,
-        _ => 0,
-    }
-}
-
-pub const VIEWER: u8 = 1;
-pub const EDITOR: u8 = 2;
-pub const ADMIN: u8 = 3;
-
-fn role_name(level: u8) -> &'static str {
-    match level {
-        ADMIN => "admin",
-        EDITOR => "editor",
-        _ => "viewer",
-    }
-}
 
 /// 有効なセッションと、`MIN_LEVEL` 以上のロールを要求する extractor。
 /// セッションが無い・無効なら 401、ロールが足りなければ 403 で拒否し、拒否を監査ログ
@@ -176,7 +156,7 @@ mod tests {
         assert_eq!(role_level("viewer"), VIEWER);
         assert_eq!(role_level("superuser"), 0);
         assert_eq!(role_level("Admin"), 0);
-        for role in super::super::ROLES {
+        for role in aegis_auth::ROLES {
             assert!(role_level(role) >= VIEWER);
         }
     }

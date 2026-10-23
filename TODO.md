@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況と直近の再開手順
 
-- **現在のステータス**: EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
+- **現在のステータス**: `aegis-core` を共有契約だけに絞り、DB・ストレージ・キャッシュ・監査・認証・EC を独立したクレートに分割（`aegis-server` は HTTP 層のみ）。EC 機能（フェーズ 1〜3）を追加: 商品カタログ（`product` スキーマ・`/products`）とコンテンツの更新・削除 API、カート・注文・在庫の確保・決済（手動 / Stripe Checkout）・期限切れの自動取り消し（`[commerce]`）、Admin Studio の Products / Orders 画面、プラグインの EC フック（`calculate-order` / `on-order-status-changed`）とホスト API（`http_fetch` / `kv_get` / `config_get`、KV の `[cache]` 保存、`[plugins.settings]`）、公式プラグイン `official-shop-rules`（送料・クーポン・税）/ `official-order-notifier`（Slack 通知）。Admin Studio のユーザー管理画面（Users: 一覧・作成・編集・ロール変更・無効化・パスワードリセット・削除）とプロフィール画面（My profile: アバター画像・表示名・メール・パスワード変更）、ユーザー管理 API（`/api/v1/users`）、アバター画像（`_aegis_users.avatar_key`）を追加。公式 Code & Diagram Enhancer Wasm プラグイン（`plugins/official-code-enhancer/`: Mermaid 自動レンダリング、インラインコード整形、外部読み込み対応 6 種マルチコードテーマ、ワンクリックコピー）、コンテンツエディタの Markdown 編集モード & スマート貼り付けサポート（Blocks ⇄ Markdown 双方向切り替え、リアルタイムプレビュー同期、クリップボードからのスマートペースト＆インポートモーダル、リストブロック対応）、公開コンテンツ向けマルチテーマシステム（4種類のテーマ: `default`, `cyber-neon`, `minimal-editorial`, `emerald-luxury`）、将来のテーママーケットプレイスを見据えた独立テーマパッケージ仕様 (`theme.json` マニフェスト、プレビュー画像、`templates/`、`assets/style.css`)、スレッドセーフな動的テーマ切り替え API (`GET /api/v1/themes`, `PUT /api/v1/themes/active`)、Admin Studio のテーマ管理画面 (Themes & Marketplace Preview)、動的アセット配信ハンドラー、Wasm プラグイン共通 ABI 仕様書 & 公式 SDK、MiniJinja テンプレートエンジン、ローカル認証・認可 (RBAC)、ログインレート制限、監査ログ記録、メディアライブラリ UI の実装が完了。
 - **動作確認済み**:
   - `task check` による全自動検証（Rust テスト 93 件パス、rustfmt、Clippy ゼロ警告、Admin Studio 本番ビルド、Prettier、oxlint ゼロ警告）すべてパス。
   - 公式 Wasm プラグイン `official-code-enhancer` (`plugins/official-code-enhancer/`):
@@ -47,6 +47,9 @@
 > 過去の完了済みタスク（コア基盤、スキーマ、Wasm SDK、テーマエンジン、ローカル認証、メディア削除、不具合修正など）は [docs/completed_tasks.md](file:///d:/projects/cms/docs/completed_tasks.md) に移動・集約しました。
 
 ### ⏳ 直近のタスク (Next Up)
+
+#### クレート分割のリファクタリング (Completed)
+- [x] **`aegis-core` のスリム化とドメインクレートの分離**: `aegis-core` から設定・実装を外し、`aegis-server` の `db` / `storage` / `cache` / `audit` / `auth` / `commerce` をそれぞれ `aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-commerce` クレートへ。設定ファイル・API・DB スキーマ・動作は変更なし（詳細は「技術メモ」）。
 
 #### EC 機能（フェーズ 1〜3） (Completed) — [docs/commerce.md](docs/commerce.md)
 - [x] **フェーズ 1: 商品カタログ**: `schemas/products.yaml`（`price` / `compare_at_price` / `stock` / `sku` / `image_url` / `excerpt` / `buy_url` / `category_id`）、`PUT` / `DELETE /api/v1/contents/{type}/{slug}`（作成と同じパイプライン・フック、監査ログ `content.update` / `content.delete`）、公開ページ `/products`・`/products/{slug}`（組み込みテンプレート、`money` フィルター）、`buy_url` による外部決済リンク。Admin Studio のエディタの保存を「開いている記事は更新」に変更。
@@ -146,7 +149,13 @@
 
 ## 3. 技術メモ・申し送り事項 (Memo & Notes)
 
-- **EC (`crates/aegis-server/src/commerce/`, `handlers/shop.rs`, `handlers/storefront.rs`, `db/orders.rs`)**:
+- **クレートの分割（`aegis-core` のスリム化）**:
+  - `aegis-core` は共有契約だけ（抽象トレイト `StorageBackend` / `CacheBackend` / `AuthProvider` / `AuditSink`、監査イベントのモデル、プラグインに渡すコンテキスト型、`PluginManifest`、`AegisError`）。Wasm プラグイン SDK も依存するため、実装や重い依存を足さない。
+  - 実装はドメインクレートへ: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC。feature `oidc` / `mock-idp`）、`aegis-commerce`（`CommerceService`）。`aegis-server` は HTTP 層（ハンドラ・認可・エクストラクタ・CLI）。
+  - 設定は各クレートが自分のセクションの型を持ち（`aegis_db::DatabaseConfig` など、`SecurityConfig` は `aegis-ast`、`ThemeConfig` は `aegis-theme`、`PluginsConfig` / `RuntimeConfig` は `aegis-runtime`）、`aegis.toml` 全体の `AegisConfig` は `aegis-server/src/config.rs`。TOML の形式は変更なし。
+  - axum のエクストラクタはサーバー側に置く: 監査の `AuditContext` は `aegis_audit::AuditOrigin` の newtype（孤児ルールのため）で `Deref` する。`CommerceService` は DB・プラグイン・監査を `CommerceDeps` で受け取る（`AppState::commerce_deps()`）。EC の結合テストは `handlers/shop_tests.rs`。
+
+- **EC (`crates/aegis-commerce/`, `aegis-server` の `handlers/shop.rs` / `handlers/storefront.rs`, `crates/aegis-db/src/orders.rs`)**:
   - 金額はすべて通貨の最小単位の `i64`（Stripe の `unit_amount` と同じ）。表示は `aegis_core::format_money` / テンプレートの `money` フィルター / Admin Studio の `formatMoney`。
   - 在庫の確保は `UPDATE ... SET stock = stock - ? WHERE id = ? AND (stock IS NULL OR stock >= ?)` を注文の INSERT と同じトランザクションで。`stock` が NULL の商品は無制限。
   - 注文の DB 操作は `OrderStorage` トレイト（`DatabaseAdapter` のスーパートレイト）。`#[async_trait]` はマクロが impl ブロックの中に生成したメソッドを変換しないため、`impl_order_storage!` が `#[async_trait] impl OrderStorage for ...` ごと生成する。
@@ -156,7 +165,7 @@
   - ランタイムは I/O を持たず、サーバーが `HostServices`（KV・HTTP・設定値）を実装して渡す。`WasmPluginInstance::from_bytes` は従来どおり `Arc<Mutex<HashMap>>` も受け付ける（`PluginServices` への `From`）。
   - 結果を返すホスト関数（`kv_get` / `http_fetch` / `config_get`）は `func_wrap_async` で、ゲストの `allocate` を呼んで書き込み `ptr << 32 | len` を返す。
 
-- **ユーザー管理 API とアバター (`handlers/users.rs`, `auth/users.rs`)**:
+- **ユーザー管理 API とアバター (`handlers/users.rs`, `crates/aegis-auth/src/users.rs`)**:
   - ユーザーは `avatar_key`（ストレージキー）だけを保存し、応答の `avatar_url` は `StorageBackend::public_url` で毎回求める（`[server].base_path` や S3 の公開 URL の変更に追従）。Admin Studio は `serverAssetUrl` で配信元のオリジンを付けて表示する。
   - 「最後の有効な admin を残す」確認は API（`auth::users::update_user` / `delete_user`）だけで行い、CLI（`aegis user role` / `disable`）は締め出された場合の復旧手段として確かめない。
   - アバターのルートは `DefaultBodyLimit` を 2 MB + 64 KB（multipart のヘッダー分）にし、画像自体の 2 MB はハンドラーで確かめる。

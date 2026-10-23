@@ -99,8 +99,8 @@ pub async fn preview_content(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::SessionData;
     use crate::test_support::test_state;
+    use aegis_auth::SessionData;
     use aegis_core::{AegisError, PluginCapabilities, PluginManifest, PluginResourceLimits};
     use aegis_runtime::{AegisPlugin, PluginSupervisor};
 

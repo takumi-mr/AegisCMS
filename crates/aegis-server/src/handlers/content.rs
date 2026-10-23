@@ -13,14 +13,14 @@ use uuid::Uuid;
 use crate::audit::AuditContext;
 use crate::auth::authorize::{role_level, RequireRole, ADMIN};
 use crate::auth::{EditorSession, ViewerSession};
-use crate::db::{
-    is_standard_column, resolve_relations_for_records, ContentListQuery, ContentRecord,
-    DatabaseAdapter, ResolvedRelation,
-};
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::BlockNode;
 use aegis_core::{AegisError, AuditAction, AuditOutcome, PostContext};
+use aegis_db::{
+    is_standard_column, resolve_relations_for_records, ContentListQuery, ContentRecord,
+    DatabaseAdapter, ResolvedRelation,
+};
 use aegis_schema::SchemaDefinition;
 
 #[derive(Debug, Deserialize)]
@@ -693,7 +693,7 @@ pub async fn get_content(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::SqliteAdapter;
+    use aegis_db::SqliteAdapter;
     use aegis_schema::{FieldDefinition, FieldType};
     use sqlx::sqlite::SqlitePoolOptions;
 
@@ -917,7 +917,7 @@ mod tests {
                 .unwrap();
         }
         let viewer = || {
-            RequireRole(crate::auth::SessionData {
+            RequireRole(aegis_auth::SessionData {
                 id: "ses_viewer".to_string(),
                 user_id: "viewer1".to_string(),
                 role: "viewer".to_string(),
@@ -983,7 +983,7 @@ mod tests {
     async fn create(
         state: &Arc<AppState>,
     ) -> Result<ContentResponse, (StatusCode, serde_json::Value)> {
-        let editor = RequireRole(crate::auth::SessionData {
+        let editor = RequireRole(aegis_auth::SessionData {
             id: "ses_test".to_string(),
             user_id: "editor1".to_string(),
             role: "editor".to_string(),
@@ -1027,7 +1027,7 @@ mod tests {
     }
 
     fn session(user_id: &str, role: &str) -> EditorSession {
-        RequireRole(crate::auth::SessionData {
+        RequireRole(aegis_auth::SessionData {
             id: format!("ses_{}", user_id),
             user_id: user_id.to_string(),
             role: role.to_string(),

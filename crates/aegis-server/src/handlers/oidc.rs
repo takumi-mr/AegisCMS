@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use super::auth::{complete_login, LoginRefusal};
 use crate::audit::AuditContext;
-use crate::auth::{OIDC_CALLBACK_CREDENTIALS, OIDC_PROVIDER};
 use crate::state::{AppState, OidcLogin};
+use aegis_auth::{OIDC_CALLBACK_CREDENTIALS, OIDC_PROVIDER};
 use aegis_core::{AegisError, AuditAction, AuditOutcome, AuthCredentials};
 
 /// `login_error` for failures on the server side (details go to the log and the audit log)
@@ -142,8 +142,8 @@ pub async fn oidc_callback(
 #[cfg(all(test, feature = "oidc"))]
 mod tests {
     use super::*;
-    use crate::auth::oidc::OidcAuthProvider;
-    use crate::auth::oidc_mock::MockIdp;
+    use aegis_auth::oidc::OidcAuthProvider;
+    use aegis_auth::oidc_mock::MockIdp;
     use aegis_runtime::PluginSupervisor;
 
     async fn state_with_oidc(idp: &MockIdp, supervisor: PluginSupervisor) -> Arc<AppState> {

@@ -1,37 +1,12 @@
+//! 認証の HTTP 層: セッション ID の取り出し、ロールを要求する extractor、`on-user-authenticated`
+//! フックの適用。ユーザー・セッション・プロバイダ本体は `aegis_auth`
+
 pub mod authorize;
 pub mod hook;
-pub mod local;
-#[cfg(feature = "oidc")]
-pub mod oidc;
-#[cfg(all(test, feature = "oidc"))]
-pub mod oidc_mock;
-pub mod password;
-pub mod rate_limit;
-pub mod session;
-pub mod users;
 
 use axum::http::HeaderMap;
-use sha2::{Digest, Sha256};
-
-#[allow(unused_imports)]
-pub use session::{SessionData, SessionService};
 
 pub use authorize::{AdminSession, EditorSession, ViewerSession};
-pub use local::LocalAuthProvider;
-pub use rate_limit::LoginRateLimiter;
-
-/// OpenID Connect の `AuthProvider::provider_id`（ID 連携テーブルのプロバイダ名にも使う）
-pub const OIDC_PROVIDER: &str = "oidc";
-/// IdP からのコールバック（`AuthCredentials::parameters` にクエリ文字列）を表す `AuthCredentials::kind`
-pub const OIDC_CALLBACK_CREDENTIALS: &str = "oidc_callback";
-
-/// ID 連携テーブルの subject。IdP の `sub` は Issuer ごとにしか一意でないため Issuer と組み合わせる
-pub fn oidc_subject(issuer: &str, sub: &str) -> String {
-    format!("{}#{}", issuer.trim_end_matches('/'), sub)
-}
-
-/// システムロール（権限の強い順）
-pub const ROLES: [&str; 3] = ["admin", "editor", "viewer"];
 
 /// `Authorization: Bearer <token>` または `X-Session-Id` ヘッダーからセッション ID を取り出す
 pub fn extract_session_id(headers: &HeaderMap) -> Option<String> {
@@ -56,11 +31,4 @@ pub fn extract_session_id(headers: &HeaderMap) -> Option<String> {
     }
 
     None
-}
-
-/// セッション ID（Bearer トークン）を監査ログに残すための指紋。
-/// トークン自体は認証情報なので記録せず、SHA-256 の先頭 16 桁のみを使って同一セッションを突き合わせる
-pub fn session_fingerprint(session_id: &str) -> String {
-    let digest = Sha256::digest(session_id.as_bytes());
-    hex::encode(digest)[..16].to_string()
 }

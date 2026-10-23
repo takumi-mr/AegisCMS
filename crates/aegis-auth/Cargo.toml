@@ -1,0 +1,45 @@
+[package]
+name = "aegis-auth"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Authentication for AegisCMS: users, passwords, sessions, login rate limiting, local and OpenID Connect providers"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-db = { path = "../aegis-db" }
+argon2 = "0.5"
+async-trait.workspace = true
+chrono.workspace = true
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+tokio = { workspace = true, features = ["sync", "rt"] }
+tracing.workspace = true
+uuid.workspace = true
+jsonwebtoken = { version = "9.3", optional = true }
+base64 = { version = "0.22", optional = true }
+# mock-idp
+axum = { workspace = true, optional = true }
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem", "jwk"], optional = true }
+rand_core = { version = "0.6", features = ["getrandom"], optional = true }
+
+[dev-dependencies]
+aegis-cache = { path = "../aegis-cache" }
+axum.workspace = true
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem", "jwk"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+tokio.workspace = true
+
+[features]
+default = ["oidc"]
+# OpenID Connect login ([auth.oidc]): ID token signature verification via JWKS
+oidc = ["dep:jsonwebtoken", "dep:base64"]
+# A mock OpenID Connect IdP for tests of crates that use aegis-auth
+mock-idp = ["oidc", "dep:axum", "dep:p256", "dep:rand_core"]

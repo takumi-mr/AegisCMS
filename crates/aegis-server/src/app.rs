@@ -14,9 +14,10 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
+use crate::config::AegisConfig;
 use crate::handlers;
 use crate::state::AppState;
-use aegis_core::{AegisConfig, StorageBackendKind};
+use aegis_storage::StorageBackendKind;
 
 /// API・公開サイト・静的ファイルのルーター（パスはすべてルート `/` 起点）
 pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {

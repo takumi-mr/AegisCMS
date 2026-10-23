@@ -5,11 +5,11 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::db::{resolve_relations_for_records, ContentListQuery};
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::BlockNode;
 use aegis_core::{ContentSummary, PageRenderContext, Pagination};
+use aegis_db::{resolve_relations_for_records, ContentListQuery};
 use serde::Deserialize;
 
 /// ブロックノードから先頭段落を抽出して抜粋を生成
@@ -307,15 +307,15 @@ pub async fn render_page_or_slug(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::SessionService;
-    use crate::cache::MemoryCacheBackend;
-    use crate::db::{ContentRecord, DatabaseAdapter, SqliteAdapter};
-    use crate::storage::LocalStorageBackend;
+    use aegis_auth::SessionService;
+    use aegis_cache::MemoryCacheBackend;
+    use aegis_db::{ContentRecord, DatabaseAdapter, SqliteAdapter};
+    use aegis_storage::LocalStorageBackend;
     use std::collections::HashMap;
 
+    use crate::config::AegisConfig;
     use aegis_core::{
-        AegisConfig, PluginCapabilities, PluginManifest, PluginResourceLimits,
-        Result as AegisResult,
+        PluginCapabilities, PluginManifest, PluginResourceLimits, Result as AegisResult,
     };
     use aegis_runtime::{AegisPlugin, PluginSupervisor};
     use aegis_schema::{FieldDefinition, FieldType, SchemaDefinition};
@@ -388,14 +388,14 @@ mod tests {
         ));
         let cache = Arc::new(MemoryCacheBackend::new());
         let sessions = Arc::new(SessionService::new(cache.clone(), 3600));
-        let audit = Arc::new(crate::audit::AuditService::from_config(
+        let audit = Arc::new(aegis_audit::AuditService::from_config(
             &config.audit,
             db.clone(),
         ));
         let theme_engine = Arc::new(ThemeEngine::new(&PathBuf::from("themes"), "default"));
 
-        let auth_provider = Arc::new(crate::auth::LocalAuthProvider::new(db.clone()));
-        let login_limiter = Arc::new(crate::auth::LoginRateLimiter::new(
+        let auth_provider = Arc::new(aegis_auth::LocalAuthProvider::new(db.clone()));
+        let login_limiter = Arc::new(aegis_auth::LoginRateLimiter::new(
             cache.clone(),
             config.auth.login_rate_limit.clone(),
         ));

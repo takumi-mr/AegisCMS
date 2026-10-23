@@ -10,11 +10,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::public::{extract_excerpt, render_not_found, themed_response, IndexParams};
-use crate::db::{resolve_relations_for_records, ContentListQuery};
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::BlockNode;
 use aegis_core::{ContentSummary, PageRenderContext, Pagination};
+use aegis_db::{resolve_relations_for_records, ContentListQuery};
 
 /// カート・注文確認ページのスクリプト（`/shop/cart.js`）
 const CART_SCRIPT: &str = include_str!("../../assets/cart.js");
