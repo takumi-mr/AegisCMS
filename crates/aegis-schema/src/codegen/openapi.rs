@@ -313,6 +313,7 @@ impl OpenApiGenerator {
                     "rendered_html": { "type": "string" },
                     "author_id": { "type": "string", "nullable": true },
                     "published_at": { "type": "string", "format": "date-time", "nullable": true },
+                    "unpublish_at": { "type": "string", "format": "date-time", "nullable": true },
                     "created_at": { "type": "string", "format": "date-time" },
                     "updated_at": { "type": "string", "format": "date-time" }
                 },
@@ -332,7 +333,9 @@ impl OpenApiGenerator {
                         "type": "array",
                         "items": { "$ref": "#/components/schemas/BlockNode" }
                     },
-                    "author_id": { "type": "string", "nullable": true }
+                    "author_id": { "type": "string", "nullable": true },
+                    "published_at": { "type": "string", "format": "date-time", "nullable": true },
+                    "unpublish_at": { "type": "string", "format": "date-time", "nullable": true }
                 },
                 "required": ["title", "slug"]
             }),
@@ -345,12 +348,10 @@ impl OpenApiGenerator {
             let mut required_fields = Vec::new();
 
             for field in &schema.fields {
-                let mut prop_schema = Self::field_to_openapi_property(field);
-                if let Some(desc) = &schema.description {
-                    if field.name == "title" {
-                        prop_schema["description"] = json!(desc);
-                    }
+                if crate::definition::is_standard_column(&field.name) {
+                    continue;
                 }
+                let prop_schema = Self::field_to_openapi_property(field);
                 props.insert(field.name.clone(), prop_schema);
 
                 if field.required && !field.nullable {

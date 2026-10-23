@@ -85,3 +85,25 @@ impl SchemaDefinition {
             .collect()
     }
 }
+
+/// 全コンテンツ共通のシステム標準カラム・プロパティ名
+pub const STANDARD_COLUMNS: &[&str] = &[
+    "id",
+    "content_type",
+    "title",
+    "slug",
+    "status",
+    "blocks",
+    "blocks_json",
+    "rendered_html",
+    "author_id",
+    "published_at",
+    "unpublish_at",
+    "created_at",
+    "updated_at",
+];
+
+/// 指定されたフィールド名がシステム標準カラム・プロパティであるかを判定する
+pub fn is_standard_column(name: &str) -> bool {
+    STANDARD_COLUMNS.contains(&name)
+}

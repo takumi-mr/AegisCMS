@@ -37,46 +37,6 @@ export interface BaseContentItem {
 // ============================================================================
 
 /**
- * 固定ページ
- * 会社概要、利用規約、プライバシーポリシー等の静的・固定ページ
- * Schema: `page`
- */
-export interface PageContent {
-  id: string;
-  content_type: 'page';
-  status: ContentStatus;
-  blocks: BlockNode[];
-  rendered_html: string;
-  author_id?: string | null;
-  created_at: string;
-  updated_at: string;
-  title: string;
-  slug: string;
-  layout?: string | null;
-  custom_meta?: Record<string, any>;
-}
-
-export interface CreatePagePayload {
-  title: string;
-  slug: string;
-  status?: ContentStatus;
-  blocks?: BlockNode[];
-  author_id?: string | null;
-  layout?: string | null;
-  custom_meta?: Record<string, any>;
-}
-
-export interface UpdatePagePayload {
-  title?: string;
-  slug?: string;
-  status?: ContentStatus;
-  blocks?: BlockNode[];
-  author_id?: string | null;
-  layout?: string | null;
-  custom_meta?: Record<string, any>;
-}
-
-/**
  * 技術記事
  * 技術ブログ記事やドキュメント向けのスキーマ
  * Schema: `article`
@@ -84,17 +44,17 @@ export interface UpdatePagePayload {
 export interface ArticleContent {
   id: string;
   content_type: 'article';
+  title: string;
+  slug: string;
   status: ContentStatus;
   blocks: BlockNode[];
   rendered_html: string;
   author_id?: string | null;
-  created_at: string;
-  updated_at: string;
-  title: string;
-  slug: string;
-  excerpt?: string;
   published_at?: string | null;
   unpublish_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  excerpt?: string;
   category_id?: string | null;
   custom_meta?: Record<string, any>;
 }
@@ -105,9 +65,9 @@ export interface CreateArticlePayload {
   status?: ContentStatus;
   blocks?: BlockNode[];
   author_id?: string | null;
-  excerpt?: string;
   published_at?: string | null;
   unpublish_at?: string | null;
+  excerpt?: string;
   category_id?: string | null;
   custom_meta?: Record<string, any>;
 }
@@ -118,10 +78,102 @@ export interface UpdateArticlePayload {
   status?: ContentStatus;
   blocks?: BlockNode[];
   author_id?: string | null;
-  excerpt?: string;
   published_at?: string | null;
   unpublish_at?: string | null;
+  excerpt?: string;
   category_id?: string | null;
+  custom_meta?: Record<string, any>;
+}
+
+/**
+ * カテゴリ
+ * 記事やコンテンツを分類するためのカテゴリ定義
+ * Schema: `category`
+ */
+export interface CategoryContent {
+  id: string;
+  content_type: 'category';
+  title: string;
+  slug: string;
+  status: ContentStatus;
+  blocks: BlockNode[];
+  rendered_html: string;
+  author_id?: string | null;
+  published_at?: string | null;
+  unpublish_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  description?: string | null;
+  color?: string | null;
+}
+
+export interface CreateCategoryPayload {
+  title: string;
+  slug: string;
+  status?: ContentStatus;
+  blocks?: BlockNode[];
+  author_id?: string | null;
+  published_at?: string | null;
+  unpublish_at?: string | null;
+  description?: string | null;
+  color?: string | null;
+}
+
+export interface UpdateCategoryPayload {
+  title?: string;
+  slug?: string;
+  status?: ContentStatus;
+  blocks?: BlockNode[];
+  author_id?: string | null;
+  published_at?: string | null;
+  unpublish_at?: string | null;
+  description?: string | null;
+  color?: string | null;
+}
+
+/**
+ * 固定ページ
+ * 会社概要、利用規約、プライバシーポリシー等の静的・固定ページ
+ * Schema: `page`
+ */
+export interface PageContent {
+  id: string;
+  content_type: 'page';
+  title: string;
+  slug: string;
+  status: ContentStatus;
+  blocks: BlockNode[];
+  rendered_html: string;
+  author_id?: string | null;
+  published_at?: string | null;
+  unpublish_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  layout?: string | null;
+  custom_meta?: Record<string, any>;
+}
+
+export interface CreatePagePayload {
+  title: string;
+  slug: string;
+  status?: ContentStatus;
+  blocks?: BlockNode[];
+  author_id?: string | null;
+  published_at?: string | null;
+  unpublish_at?: string | null;
+  layout?: string | null;
+  custom_meta?: Record<string, any>;
+}
+
+export interface UpdatePagePayload {
+  title?: string;
+  slug?: string;
+  status?: ContentStatus;
+  blocks?: BlockNode[];
+  author_id?: string | null;
+  published_at?: string | null;
+  unpublish_at?: string | null;
+  layout?: string | null;
   custom_meta?: Record<string, any>;
 }
 
@@ -133,14 +185,16 @@ export interface UpdateArticlePayload {
 export interface ProductContent {
   id: string;
   content_type: 'product';
+  title: string;
+  slug: string;
   status: ContentStatus;
   blocks: BlockNode[];
   rendered_html: string;
   author_id?: string | null;
+  published_at?: string | null;
+  unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
-  title: string;
-  slug: string;
   price: number;
   compare_at_price?: number | null;
   stock?: number | null;
@@ -157,6 +211,8 @@ export interface CreateProductPayload {
   status?: ContentStatus;
   blocks?: BlockNode[];
   author_id?: string | null;
+  published_at?: string | null;
+  unpublish_at?: string | null;
   price?: number;
   compare_at_price?: number | null;
   stock?: number | null;
@@ -173,6 +229,8 @@ export interface UpdateProductPayload {
   status?: ContentStatus;
   blocks?: BlockNode[];
   author_id?: string | null;
+  published_at?: string | null;
+  unpublish_at?: string | null;
   price?: number;
   compare_at_price?: number | null;
   stock?: number | null;
@@ -183,64 +241,24 @@ export interface UpdateProductPayload {
   category_id?: string | null;
 }
 
-/**
- * カテゴリ
- * 記事やコンテンツを分類するためのカテゴリ定義
- * Schema: `category`
- */
-export interface CategoryContent {
-  id: string;
-  content_type: 'category';
-  status: ContentStatus;
-  blocks: BlockNode[];
-  rendered_html: string;
-  author_id?: string | null;
-  created_at: string;
-  updated_at: string;
-  title: string;
-  slug: string;
-  description?: string | null;
-  color?: string | null;
-}
-
-export interface CreateCategoryPayload {
-  title: string;
-  slug: string;
-  status?: ContentStatus;
-  blocks?: BlockNode[];
-  author_id?: string | null;
-  description?: string | null;
-  color?: string | null;
-}
-
-export interface UpdateCategoryPayload {
-  title?: string;
-  slug?: string;
-  status?: ContentStatus;
-  blocks?: BlockNode[];
-  author_id?: string | null;
-  description?: string | null;
-  color?: string | null;
-}
-
 // ============================================================================
 // Union & Type Registry Mappings
 // ============================================================================
 
-export type ContentType = 'page' | 'article' | 'product' | 'category';
+export type ContentType = 'article' | 'category' | 'page' | 'product';
 
-export type AnyContent = PageContent | ArticleContent | ProductContent | CategoryContent;
+export type AnyContent = ArticleContent | CategoryContent | PageContent | ProductContent;
 
 export interface ContentTypeMap {
-  'page': PageContent;
   'article': ArticleContent;
-  'product': ProductContent;
   'category': CategoryContent;
+  'page': PageContent;
+  'product': ProductContent;
 }
 
 export interface CreatePayloadMap {
-  'page': CreatePagePayload;
   'article': CreateArticlePayload;
-  'product': CreateProductPayload;
   'category': CreateCategoryPayload;
+  'page': CreatePagePayload;
+  'product': CreateProductPayload;
 }

@@ -83,21 +83,7 @@ impl SchemaMigration {
 
         for field in &schema.fields {
             // 予約語やデフォルトカラムと被らない場合のみ追加
-            if [
-                "id",
-                "content_type",
-                "title",
-                "slug",
-                "status",
-                "blocks_json",
-                "author_id",
-                "published_at",
-                "unpublish_at",
-                "created_at",
-                "updated_at",
-            ]
-            .contains(&field.name.as_str())
-            {
+            if crate::definition::is_standard_column(&field.name) {
                 continue;
             }
 

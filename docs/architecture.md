@@ -49,11 +49,13 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **一覧**: `list_contents_page`（`ContentListQuery`: status / limit / offset、`ORDER BY created_at DESC, id DESC`）で取得し、総件数は同じ条件の `COUNT(*)`。インデックス `(created_at, id)` / `(status, created_at, id)` で並べ替えを避ける。全件が要る処理（メディアの使用中チェック）だけ `list_contents` を使う。
 - **注文**: 注文の DB 操作は `OrderStorage` トレイト（`DatabaseAdapter` のスーパートレイト）。`#[async_trait]` はマクロが impl ブロック内に生成したメソッドを変換しないため、`impl_order_storage!` が `#[async_trait] impl OrderStorage for ...` ごと生成する。SQL はダイアレクト共通の組み立てで、テストは SQLite のみ。
 
-### 2.3 スキーマからのコード生成
+### 2.3 スキーマからのコード生成とシステム標準カラム
 
-`task codegen` で `schemas/*.yaml` から TypeScript の型（`admin/src/types/schemas.ts`）と OpenAPI 3.1（`docs/openapi.json`）を生成する。稼働中は `GET /api/v1/openapi.json` でも配信する。
+- **システム標準カラムの分離**: `id`, `content_type`, `title`, `slug`, `status`, `blocks`, `blocks_json`, `author_id`, `published_at`, `unpublish_at`, `created_at`, `updated_at` は全コンテンツ共通の基本属性であり、DB テーブル作成時および各種ハンドラで最初から提供される。そのため `schemas/*.yaml` にこれらを記述する必要はなく、カスタムフィールド（`excerpt`, `price`, `layout` 等）のみを記述する。
+- **コード生成 (`task codegen`)**: `schemas/*.yaml` から TypeScript 型（`admin/src/types/schemas.ts`）と OpenAPI 3.1（`docs/openapi.json`）を生成する。生成器はシステム標準カラムを自動的に付与し、YAML 側の `fields` に重複定義があっても自動でスキップする。稼働中は `GET /api/v1/openapi.json` でも最新仕様を配信する。
 
 ---
+
 
 ## 3. レンダリングと公開
 

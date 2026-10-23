@@ -4,7 +4,10 @@ pub mod loader;
 pub mod migration;
 
 pub use codegen::{OpenApiGenerator, TypeScriptGenerator};
-pub use definition::{FieldDefinition, FieldType, RelationTarget, SchemaDefinition};
+pub use definition::{
+    is_standard_column, FieldDefinition, FieldType, RelationTarget, SchemaDefinition,
+    STANDARD_COLUMNS,
+};
 pub use loader::SchemaLoader;
 pub use migration::{SchemaMigration, SqlDialect, SqliteMigration};
 

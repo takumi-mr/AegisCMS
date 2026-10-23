@@ -20,25 +20,9 @@
               "excerpt": {
                 "maxLength": 500,
                 "type": "string"
-              },
-              "published_at": {
-                "format": "date-time",
-                "nullable": true,
-                "type": "string"
-              },
-              "slug": {
-                "type": "string"
-              },
-              "title": {
-                "description": "技術ブログ記事やドキュメント向けのスキーマ",
-                "maxLength": 255,
-                "type": "string"
               }
             },
-            "required": [
-              "title",
-              "slug"
-            ],
+            "required": [],
             "type": "object"
           }
         ],
@@ -83,6 +67,11 @@
             "$ref": "#/components/schemas/ContentStatus"
           },
           "title": {
+            "type": "string"
+          },
+          "unpublish_at": {
+            "format": "date-time",
+            "nullable": true,
             "type": "string"
           },
           "updated_at": {
@@ -142,20 +131,9 @@
               "description": {
                 "nullable": true,
                 "type": "string"
-              },
-              "slug": {
-                "type": "string"
-              },
-              "title": {
-                "description": "記事やコンテンツを分類するためのカテゴリ定義",
-                "maxLength": 100,
-                "type": "string"
               }
             },
-            "required": [
-              "title",
-              "slug"
-            ],
+            "required": [],
             "type": "object"
           }
         ],
@@ -183,6 +161,11 @@
             },
             "type": "array"
           },
+          "published_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "slug": {
             "type": "string"
           },
@@ -190,6 +173,11 @@
             "$ref": "#/components/schemas/ContentStatus"
           },
           "title": {
+            "type": "string"
+          },
+          "unpublish_at": {
+            "format": "date-time",
+            "nullable": true,
             "type": "string"
           }
         },
@@ -261,20 +249,9 @@
               "layout": {
                 "nullable": true,
                 "type": "string"
-              },
-              "slug": {
-                "type": "string"
-              },
-              "title": {
-                "description": "会社概要、利用規約、プライバシーポリシー等の静的・固定ページ",
-                "maxLength": 255,
-                "type": "string"
               }
             },
-            "required": [
-              "title",
-              "slug"
-            ],
+            "required": [],
             "type": "object"
           }
         ],
@@ -317,22 +294,12 @@
                 "nullable": true,
                 "type": "string"
               },
-              "slug": {
-                "type": "string"
-              },
               "stock": {
                 "nullable": true,
                 "type": "integer"
-              },
-              "title": {
-                "description": "EC の商品カタログ。価格・在庫は [commerce] の注文処理で使う（docs/commerce.md）",
-                "maxLength": 255,
-                "type": "string"
               }
             },
             "required": [
-              "title",
-              "slug",
               "price"
             ],
             "type": "object"
