@@ -341,7 +341,7 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
   </div>
 
   {% if items and items | length > 0 %}
-  <div class="cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.75rem;">
+  <div class="cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 1.75rem;">
     {% for item in items %}
     <article class="article-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.25s ease; position: relative; overflow: hidden; backdrop-filter: blur(8px);">
       <div>
@@ -500,7 +500,7 @@ pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
   .aegis-shop-nav a:hover { opacity: 1; }
   .aegis-cart-link { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; }
   .aegis-badge { min-width: 1.4rem; padding: 0 0.4rem; border-radius: 999px; background: var(--accent, #6366f1); color: #fff; font-size: 0.75rem; text-align: center; }
-  .aegis-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.5rem; }
+  .aegis-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 1.5rem; }
   .aegis-card { display: flex; flex-direction: column; border: 1px solid rgba(127,127,127,0.25); border-radius: 14px; overflow: hidden; background: rgba(127,127,127,0.06); text-decoration: none; }
   .aegis-card img, .aegis-card .aegis-noimg { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: rgba(127,127,127,0.12); }
   .aegis-card-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
@@ -513,6 +513,10 @@ pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
   @media (max-width: 760px) { .aegis-product { grid-template-columns: 1fr; } }
   .aegis-product-image { width: 100%; border-radius: 16px; border: 1px solid rgba(127,127,127,0.25); }
   .aegis-product h1 { font-size: 2.1rem; line-height: 1.25; margin-bottom: 0.75rem; }
+  /* テーマが * { margin: 0; padding: 0 } で消した本文の余白・リストの字下げを戻す（:where で詳細度 0 にし、テーマ側の指定を優先） */
+  :where(.aegis-product .prose) > * + * { margin-top: 1rem; }
+  :where(.aegis-product .prose) :is(h2, h3) { margin-top: 1.75rem; }
+  :where(.aegis-product .prose) :is(ul, ol) { padding-left: 1.4rem; }
   .aegis-buy { display: flex; gap: 0.75rem; align-items: center; margin: 1.5rem 0; flex-wrap: wrap; }
   .aegis-qty { width: 4.5rem; padding: 0.55rem 0.6rem; border-radius: 10px; border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit; font: inherit; }
   .aegis-button { display: inline-block; padding: 0.65rem 1.4rem; border-radius: 10px; border: none; background: var(--accent, #6366f1); color: #fff !important; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
@@ -525,7 +529,7 @@ pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
   .aegis-cart-line strong { text-align: right; }
   .aegis-line-title { font-weight: 600; text-decoration: none; }
   .aegis-coupon { display: flex; gap: 0.5rem; margin: 1.25rem 0; max-width: 420px; }
-  .aegis-coupon input, .aegis-field input { flex: 1; padding: 0.6rem 0.75rem; border-radius: 10px; border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit; font: inherit; }
+  .aegis-coupon input, .aegis-field input { flex: 1; min-width: 0; padding: 0.6rem 0.75rem; border-radius: 10px; border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit; font: inherit; }
   .aegis-summary { margin: 1rem 0 1.5rem; padding: 1rem 1.25rem; border-radius: 14px; background: rgba(127,127,127,0.07); display: flex; flex-direction: column; gap: 0.4rem; }
   .aegis-sum-row { display: flex; justify-content: space-between; gap: 1rem; }
   .aegis-discount { color: #10b981; }
