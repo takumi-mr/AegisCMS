@@ -27,6 +27,7 @@ export interface BaseContentItem {
   rendered_html: string;
   author_id?: string | null;
   published_at?: string | null;
+  unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +94,7 @@ export interface ArticleContent {
   slug: string;
   excerpt?: string;
   published_at?: string | null;
+  unpublish_at?: string | null;
   category_id?: string | null;
   custom_meta?: Record<string, any>;
 }
@@ -105,6 +107,7 @@ export interface CreateArticlePayload {
   author_id?: string | null;
   excerpt?: string;
   published_at?: string | null;
+  unpublish_at?: string | null;
   category_id?: string | null;
   custom_meta?: Record<string, any>;
 }
@@ -117,6 +120,7 @@ export interface UpdateArticlePayload {
   author_id?: string | null;
   excerpt?: string;
   published_at?: string | null;
+  unpublish_at?: string | null;
   category_id?: string | null;
   custom_meta?: Record<string, any>;
 }

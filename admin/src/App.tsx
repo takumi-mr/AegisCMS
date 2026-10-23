@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { Header, type AppView } from './components/Header';
 import { ProductManager } from './components/ProductManager';
 import { OrderManager } from './components/OrderManager';
+import { ScheduleCalendar } from './components/ScheduleCalendar';
 import { ProfileModal } from './components/ProfileModal';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { SettingsView, type SettingsSection } from './components/SettingsView';
@@ -73,6 +74,8 @@ export const App: React.FC = () => {
   const [status, setStatus] = useState<EditorStatus>('published');
   // Scheduled publishing time (`datetime-local` value, local time)
   const [publishAt, setPublishAt] = useState<string>('');
+  // Scheduled unpublishing time (`datetime-local` value, local time)
+  const [unpublishAt, setUnpublishAt] = useState<string>('');
   const [blocks, setBlocks] = useState<BlockNode[]>([
     {
       name: 'core/heading',
@@ -252,6 +255,7 @@ export const App: React.FC = () => {
     setPublishAt(
       item.status === 'scheduled' && item.published_at ? toDateTimeLocal(item.published_at) : ''
     );
+    setUnpublishAt(item.unpublish_at ? toDateTimeLocal(item.unpublish_at) : '');
     const itemBlocks = item.blocks || [];
     setBlocks(itemBlocks);
     setMarkdownText(blocksToMarkdown(itemBlocks));
@@ -264,6 +268,7 @@ export const App: React.FC = () => {
     setSlug(`untitled-${Date.now().toString(36)}`);
     setStatus('draft');
     setPublishAt('');
+    setUnpublishAt('');
     setCategoryId('');
     const newBlocks: BlockNode[] = [
       { name: 'core/heading', attributes: { level: 2 }, text: t('editor.defaults.newHeading') },
@@ -368,6 +373,21 @@ export const App: React.FC = () => {
       showToast(t('editor.toasts.publishAtRequired'), 'error');
       return;
     }
+    const unpublishDate =
+      (status === 'published' || status === 'scheduled') && unpublishAt
+        ? new Date(unpublishAt)
+        : null;
+    if (unpublishDate && Number.isNaN(unpublishDate.getTime())) {
+      showToast(t('editor.toasts.unpublishAtInvalid'), 'error');
+      return;
+    }
+    if (unpublishDate) {
+      const compareDate = scheduledAt || new Date();
+      if (unpublishDate.getTime() <= compareDate.getTime()) {
+        showToast(t('editor.toasts.unpublishBeforePublish'), 'error');
+        return;
+      }
+    }
 
     setIsSaving(true);
     try {
@@ -377,6 +397,7 @@ export const App: React.FC = () => {
         status,
         // The server publishes scheduled content at this time (a past time publishes it now)
         ...(scheduledAt ? { published_at: scheduledAt.toISOString() } : {}),
+        ...(unpublishDate ? { unpublish_at: unpublishDate.toISOString() } : { unpublish_at: null }),
         blocks,
         // author_id is omitted: new content records the logged-in user, updates keep the author
         // Omit the relation entirely when no category is selected
@@ -395,6 +416,16 @@ export const App: React.FC = () => {
       showToast(err.message || t('editor.toasts.saveFailed'), 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleOpenContentFromSchedule = async (type: string, id: string) => {
+    try {
+      const item = await aegisApi.getContent(type, id);
+      handleSelectContent(item);
+      setView('editor');
+    } catch (err: any) {
+      showToast(err.message || t('schedule.loadFailed'), 'error');
     }
   };
 
@@ -441,7 +472,9 @@ export const App: React.FC = () => {
         onLogout={handleLogout}
       />
 
-      {view === 'products' && showShop ? (
+      {view === 'schedule' ? (
+        <ScheduleCalendar onOpenContent={handleOpenContentFromSchedule} onShowToast={showToast} />
+      ) : view === 'products' && showShop ? (
         <ProductManager categories={categories} onShowToast={showToast} />
       ) : view === 'orders' && showShop ? (
         <OrderManager onShowToast={showToast} />
@@ -518,6 +551,17 @@ export const App: React.FC = () => {
                         value={publishAt}
                         onChange={(e) => setPublishAt(e.target.value)}
                         aria-label={t('editor.publishAtAria')}
+                      />
+                    </Field>
+                  )}
+
+                  {(status === 'published' || status === 'scheduled') && (
+                    <Field label={t('editor.unpublishAt')}>
+                      <input
+                        type="datetime-local"
+                        value={unpublishAt}
+                        onChange={(e) => setUnpublishAt(e.target.value)}
+                        aria-label={t('editor.unpublishAtAria')}
                       />
                     </Field>
                   )}

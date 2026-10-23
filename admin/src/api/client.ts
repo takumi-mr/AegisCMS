@@ -16,6 +16,8 @@ import type {
   PreviewResult,
   RegistrationPayload,
   RegistrationResult,
+  ScheduleItem,
+  ScheduleResponse,
   SchemaDefinition,
   SessionInfo,
   ShopConfig,
@@ -205,6 +207,17 @@ export const aegisApi = {
       items.push(...page);
       if (page.length < pageSize || items.length >= (data.total ?? 0)) return items;
     }
+  },
+
+  /** Scheduled and published content across schemas for the calendar view */
+  async getSchedule(contentType?: string): Promise<ScheduleItem[]> {
+    const query = contentType ? `?content_type=${encodeURIComponent(contentType)}` : '';
+    const res = await request<ScheduleResponse>(
+      `/schedule${query}`,
+      {},
+      i18n.t('api.contentsFailed')
+    );
+    return res.items || [];
   },
 
   async getContent(contentType: string, slugOrId: string): Promise<ContentItem> {

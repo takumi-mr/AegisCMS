@@ -147,6 +147,19 @@
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
+.unpublishBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm);
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
 .empty {
   text-align: center;
   padding: 32px 16px;

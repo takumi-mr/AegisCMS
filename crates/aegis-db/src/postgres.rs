@@ -10,11 +10,11 @@ use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
     build_audit_select, build_content_list, build_content_update, build_identity_insert,
     build_identity_select, build_identity_table, build_relation_lookup, build_scheduled_publish,
-    build_setting_delete, build_setting_upsert, build_settings_select, build_settings_table,
-    build_user_delete, build_user_insert, build_user_select, build_user_update, custom_columns,
-    is_standard_column, user_row_from_sqlx, ContentListQuery, ContentPage, ContentRecord,
-    CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE,
-    USER_AVATAR_COLUMN, USER_TABLE,
+    build_scheduled_unpublish, build_setting_delete, build_setting_upsert, build_settings_select,
+    build_settings_table, build_user_delete, build_user_insert, build_user_select,
+    build_user_update, custom_columns, is_standard_column, user_row_from_sqlx, ContentListQuery,
+    ContentPage, ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord,
+    AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -88,6 +88,7 @@ fn record_from_row(schema: &SchemaDefinition, r: &PgRow) -> ContentRecord {
         blocks_json: r.get("blocks_json"),
         author_id: r.get("author_id"),
         published_at: r.get("published_at"),
+        unpublish_at: r.get("unpublish_at"),
         created_at: r.get("created_at"),
         updated_at: r.get("updated_at"),
         custom_fields: custom_fields_from_row(schema, r),
@@ -243,6 +244,26 @@ impl DatabaseAdapter for PostgresAdapter {
                 .map(|r| r.get::<String, _>("column_name"))
                 .collect();
 
+            if !existing_columns.contains("unpublish_at") {
+                let alter_sql = format!(
+                    "ALTER TABLE {} ADD COLUMN IF NOT EXISTS unpublish_at VARCHAR(64);",
+                    table
+                );
+                tracing::info!(
+                    "Adding missing unpublish_at column (Postgres): {}",
+                    alter_sql
+                );
+                sqlx::query(&alter_sql)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(|e| {
+                        AegisError::Database(format!(
+                            "Alter table failed: {} - SQL: {}",
+                            e, alter_sql
+                        ))
+                    })?;
+            }
+
             for field in &schema.fields {
                 if !existing_columns.contains(&field.name) {
                     let sql_type = match field.field_type {
@@ -314,6 +335,7 @@ impl DatabaseAdapter for PostgresAdapter {
             "blocks_json".to_string(),
             "author_id".to_string(),
             "published_at".to_string(),
+            "unpublish_at".to_string(),
             "created_at".to_string(),
             "updated_at".to_string(),
         ];
@@ -347,6 +369,7 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(&record.blocks_json)
             .bind(&record.author_id)
             .bind(&record.published_at)
+            .bind(&record.unpublish_at)
             .bind(&record.created_at)
             .bind(&record.updated_at);
 
@@ -382,6 +405,7 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(&record.blocks_json)
             .bind(&record.author_id)
             .bind(&record.published_at)
+            .bind(&record.unpublish_at)
             .bind(&record.updated_at);
         for field in schema
             .fields
@@ -416,6 +440,24 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(updated_at)
             .bind(id)
             .bind(published_at)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(format!("Postgres UPDATE failed: {}", e)))?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn unpublish_scheduled_content(
+        &self,
+        schema: &SchemaDefinition,
+        id: &str,
+        unpublish_at: &str,
+        updated_at: &str,
+    ) -> Result<bool> {
+        let sql = build_scheduled_unpublish(&schema.table_name(), |i| format!("${}", i));
+        let result = sqlx::query(&sql)
+            .bind(updated_at)
+            .bind(id)
+            .bind(unpublish_at)
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(format!("Postgres UPDATE failed: {}", e)))?;

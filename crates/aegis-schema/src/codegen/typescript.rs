@@ -46,6 +46,7 @@ impl TypeScriptGenerator {
         out.push_str("  rendered_html: string;\n");
         out.push_str("  author_id?: string | null;\n");
         out.push_str("  published_at?: string | null;\n");
+        out.push_str("  unpublish_at?: string | null;\n");
         out.push_str("  created_at: string;\n");
         out.push_str("  updated_at: string;\n");
         out.push_str("}\n\n");

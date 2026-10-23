@@ -42,6 +42,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 .put(handlers::update_content)
                 .delete(handlers::delete_content),
         )
+        .route("/api/v1/schedule", get(handlers::list_schedule))
         .route(
             "/api/v1/storage/upload",
             // axum の既定 (2MB) ではなく設定値をアップロードの上限にする

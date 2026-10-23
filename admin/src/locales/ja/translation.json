@@ -176,7 +176,8 @@
     "emptyHint": "「+ 新規」で作成できます。",
     "noMatch": "このカテゴリの記事はありません。",
     "articles": "記事",
-    "scheduledFor": "{{date}} に公開予定"
+    "scheduledFor": "{{date}} に公開予定",
+    "unpublishFor": "{{date}} に非公開予定"
   },
   "editor": {
     "titlePlaceholder": "タイトルを入力...",
@@ -184,6 +185,8 @@
     "status": "状態:",
     "publishAt": "公開日時:",
     "publishAtAria": "公開する日時",
+    "unpublishAt": "非公開日時:",
+    "unpublishAtAria": "非公開にする日時",
     "category": "カテゴリ:",
     "categoryAria": "カテゴリ",
     "noCategory": "カテゴリなし",
@@ -217,7 +220,9 @@
       "saved": "保存しました。Wasm プラグインのフックを実行しました（ID: {{id}}）",
       "saveFailed": "保存できませんでした",
       "profileUnavailable": "プロフィールを読み込めませんでした",
-      "publishAtRequired": "予約公開する日時を指定してください"
+      "publishAtRequired": "予約公開する日時を指定してください",
+      "unpublishAtInvalid": "非公開予定日時の形式が正しくありません",
+      "unpublishBeforePublish": "非公開予定日時は公開日時より後に設定してください"
     }
   },
   "header": {
@@ -225,6 +230,7 @@
     "views": "画面",
     "tabs": {
       "editor": "エディタ",
+      "schedule": "カレンダー",
       "products": "商品",
       "orders": "注文",
       "settings": "設定"
@@ -468,6 +474,8 @@
       "price": "価格は通貨の最小単位の整数で入力してください。",
       "numbers": "通常価格と在庫は整数で入力してください（空欄も可）。",
       "publishAt": "予約公開する日時を指定してください。",
+      "unpublishAt": "非公開予定日時の形式が正しくありません。",
+      "unpublishBeforePublish": "非公開予定日時は公開日時より後に設定してください。",
       "stockFailed": "現在の在庫を読み込めませんでした",
       "saveFailed": "商品を保存できませんでした"
     },
@@ -477,6 +485,7 @@
       "slug": "スラッグ:",
       "status": "状態:",
       "publishAt": "公開日時:",
+      "unpublishAt": "非公開日時:",
       "price": "価格:",
       "compareAt": "通常価格:",
       "stock": "在庫:",
@@ -490,6 +499,7 @@
       "slug": "スラッグ",
       "status": "状態",
       "publishAt": "公開する日時",
+      "unpublishAt": "非公開にする日時",
       "price": "価格",
       "compareAt": "通常価格（値引き前）",
       "stock": "在庫",
@@ -754,5 +764,51 @@
     "saved": "サイトの設定を保存しました",
     "loadFailed": "サイトの設定を読み込めませんでした",
     "saveFailed": "サイトの設定を保存できませんでした"
+  },
+  "schedule": {
+    "title": "公開スケジュール",
+    "itemCount": "{{count}} 件の予定",
+    "loadFailed": "スケジュールの読み込みに失敗しました",
+    "views": {
+      "calendar": "カレンダー",
+      "agenda": "アジェンダ"
+    },
+    "prevMonth": "前月",
+    "nextMonth": "翌月",
+    "today": "今日",
+    "agendaTitle": "公開・非公開タイムライン",
+    "filters": {
+      "contentType": "コンテンツタイプ",
+      "allTypes": "すべてのタイプ",
+      "eventType": "イベント種別",
+      "allEvents": "すべての予定",
+      "scheduledPublish": "予約公開のみ",
+      "scheduledUnpublish": "非公開予約あり",
+      "published": "公開中"
+    },
+    "publishAt": "公開",
+    "unpublishAt": "非公開",
+    "more": "件",
+    "noItems": "該当するスケジュールはありません",
+    "scheduledFor": "{{date}} に公開予定",
+    "publishedAt": "{{date}} に公開",
+    "unpublishFor": "{{date}} に非公開予定",
+    "openInEditor": "エディタで開く",
+    "edit": "編集",
+    "details": {
+      "contentType": "コンテンツタイプ",
+      "slug": "スラッグ",
+      "status": "現在のステータス",
+      "publishDate": "公開（予定）日時",
+      "unpublishDate": "非公開予定日時",
+      "notSet": "未設定",
+      "clearUnpublish": "非公開予約を解除"
+    },
+    "unpublishUpdated": "非公開予定を更新しました",
+    "unpublishCleared": "非公開予定を解除しました",
+    "unpublishUpdateFailed": "非公開予定の更新に失敗しました",
+    "errors": {
+      "unpublishBeforePublish": "非公開予定日時は公開日時より後に設定してください"
+    }
   }
 }

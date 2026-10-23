@@ -173,8 +173,17 @@ pub async fn render_product(
     let Some(schema) = product_schema(&state).await else {
         return render_not_found(&state, "This site has no products.").await;
     };
+    let now = chrono::Utc::now();
     let record = match state.db.get_content(&schema, &slug).await {
-        Ok(Some(record)) if record.status == "published" => record,
+        Ok(Some(record))
+            if crate::handlers::content::is_currently_published(
+                &record.status,
+                record.unpublish_at.as_deref(),
+                now,
+            ) =>
+        {
+            record
+        }
         Ok(_) => return render_not_found(&state, "The requested product is not available.").await,
         Err(e) => {
             tracing::error!("Database error fetching product '{}': {}", slug, e);

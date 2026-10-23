@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, FileText } from 'lucide-react';
+import { Plus, FileText, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem } from '../types';
 import { categoryColor, categoryIdOf } from '../utils/category';
@@ -116,15 +116,27 @@ export const ContentList: React.FC<ContentListProps> = ({
               )}
               <span className={styles.cardMeta}>
                 <span>/{item.slug}</span>
-                <span
-                  className={cx(styles.status, STATUS_BADGE[item.status])}
-                  title={
-                    item.status === 'scheduled' && item.published_at
-                      ? t('contentList.scheduledFor', { date: formatDateTime(item.published_at) })
-                      : undefined
-                  }
-                >
-                  {isLabeledStatus(item.status) ? t(`common.status.${item.status}`) : item.status}
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {item.unpublish_at && (
+                    <span
+                      className={styles.unpublishBadge}
+                      title={t('contentList.unpublishFor', {
+                        date: formatDateTime(item.unpublish_at),
+                      })}
+                    >
+                      <Clock size={10} />
+                    </span>
+                  )}
+                  <span
+                    className={cx(styles.status, STATUS_BADGE[item.status])}
+                    title={
+                      item.status === 'scheduled' && item.published_at
+                        ? t('contentList.scheduledFor', { date: formatDateTime(item.published_at) })
+                        : undefined
+                    }
+                  >
+                    {isLabeledStatus(item.status) ? t(`common.status.${item.status}`) : item.status}
+                  </span>
                 </span>
               </span>
             </button>

@@ -80,14 +80,23 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - 値は `ServerConfig::normalized_base_path` で正規化・検証（URL で安全な文字のみ）するので、テンプレートでは自動エスケープしない（`Value::from_safe_string`）。
 - アップロード URL はベースパス込みで本文に保存されるため、運用中に `base_path` を変えると既存の画像が切れる。必要になったら「保存は相対・描画時に付与」へ変える。
 
-### 3.4 予約公開 (`aegis-server/src/scheduler.rs`, `handlers/content.rs` の `resolve_publication`)
+### 3.4 予約公開・予約非公開化・スケジュール管理 (`aegis-server/src/scheduler.rs`, `handlers/content.rs`)
 
 使い方は [theme_and_publishing_guide.md](theme_and_publishing_guide.md#予約公開スケジュール公開)。
 
-- 予約日時は既存の `published_at` 列に UTC（`...Z`、秒精度）で保存する。スキーマ・マイグレーションの変更は無く、公開後もその日時が公開日になる。
-- 公開側（`/`、`/articles/{slug}`、`/{slug}`、`/products`、カート）は `status == "published"` だけを見るので、`scheduled` は何もしなくても隠れる。
-- 公開は `DatabaseAdapter::publish_scheduled_content` の `UPDATE ... WHERE id = ? AND status = 'scheduled' AND published_at = ?`。一覧を取った後に編集者が日時を変えた・下書きに戻した場合や、複数台のサーバーが同時に動いた場合でも、古い予約で公開したり監査ログ `content.publish` を二重に残したりしない。
-- 保存時、`published` の `published_at` は「今の状態が `published` のときだけ」引き継ぐ（`scheduled` の未来の日時を引き継がないため）。
+- **予約公開（`published_at`）**:
+  - 予約日時は既存の `published_at` 列に UTC（`...Z`、秒精度）で保存する。スキーマ・マイグレーションの変更は無く、公開後もその日時が公開日になる。
+  - 公開側（`/`、`/articles/{slug}`、`/{slug}`、`/products`、カート）は `status == "published"` だけを見るので、`scheduled` は何もしなくても隠れる。
+  - 公開は `DatabaseAdapter::publish_scheduled_content` の `UPDATE ... WHERE id = ? AND status = 'scheduled' AND published_at = ?`。一覧を取った後に編集者が日時を変えた・下書きに戻した場合や、複数台のサーバーが同時に動いた場合でも、古い予約で公開したり監査ログ `content.publish` を二重に残したりしない。
+  - 保存時、`published` の `published_at` は「今の状態が `published` のときだけ」引き継ぐ（`scheduled` の未来の日時を引き継がないため）。
+- **予約非公開化（`unpublish_at`）**:
+  - `ContentRecord` および各スキーマテーブルに `unpublish_at` 列（UTC RFC 3339 文字列）を追加（既存テーブルは起動時マイグレーションで自動追加）。
+  - バリデーション: `unpublish_at` は公開日時（予約公開の `published_at` または現在時刻）より未来である必要がある（`unpublish_at <= published_at` は 400 Bad Request）。下書き（`draft`）やアーカイブ（`archived`）へ変更された場合は自動でクリアされる。
+  - リクエスト時防御: 公開側（`public.rs`, `storefront.rs`）では、DB上のスケジューラ実行を待たずに `unpublish_at <= now` のコンテンツを即座に 404 と判定する。
+  - スケジューラ処理: 30 秒ごとに `DatabaseAdapter::unpublish_scheduled_content` で期限を迎えたコンテンツをアトミックに `status = 'archived'` へ更新し、監査ログ `content.unpublish` を記録する。
+- **公開スケジュール一覧 API (`GET /api/v1/schedule`)**:
+  - 全コンテンツタイプ（記事・商品等）を横断し、予約公開中（`scheduled`）、非公開予約あり、または公開中のコンテンツを日時順（`published_at` / `unpublish_at`）で集約して返す。
+  - Admin Studio のカレンダービュー・アジェンダビューのデータソースとなる。
 - 確認間隔は定数 `PUBLISH_INTERVAL`（30 秒）。設定にしたくなったら `[server]` などに足す。
 
 ---
