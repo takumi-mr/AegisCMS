@@ -95,7 +95,7 @@ crates/
 ├── aegis-ast        # Block AST データ構造、HTML決定論的レンダラー、ストリーミングリライター
 ├── aegis-schema     # 宣言的YAMLスキーマ、マルチダイアレクトDDL生成、TS/OpenAPIコード生成
 ├── aegis-runtime    # Wasmtimeサンドボックス、ケイパビリティ検証ガード、ホストAPIリンカー
-├── aegis-theme      # テーマ（Tera テンプレート）の読み込みと描画
+├── aegis-theme      # テーマ（MiniJinja テンプレート）の読み込みと描画
 ├── aegis-db         # DatabaseAdapter と SQLite/PostgreSQL/MySQL 実装、注文の永続化
 ├── aegis-storage    # StorageBackend 実装（ローカル / S3 互換）
 ├── aegis-cache      # CacheBackend 実装（メモリ / Redis）
@@ -164,7 +164,7 @@ WebAssembly（Wasm）サンドボックスによるサードパーティ拡張�
 - **`guard`**: プラグインの `plugin.manifest.json` に基づき、未許可のネットワーク通信・KVSアクセス・未登録フック実行を遮断する `CapabilityGuard`。
 - **`host_api`**: サンドボックス内からホスト側の機能（ロギング `host:log`、HTTP通信 `host:http_fetch`、Key-Value操作 `host:kv_get`/`host:kv_set`）を安全に呼び出すリンカー。
 - **`instance`**: ゲスト Wasm バイナリの実行インスタンス `WasmPluginInstance`。Fat Pointer 形式（`ptr:i32, len:i32`）およびゲスト側アロケータ（`allocate`）を用いた安全なリニアメモリデータ受け渡し。
-- **`supervisor` / `loader`**: ディレクトリ内の全プラグインを自動発見・初期化し、ライフサイクルフック（`on-before-save`, `transform-content-ast`）を実行する `PluginSupervisor`。
+- **`supervisor` / `loader`**: `[plugins].enabled` に書いたプラグインを `plugins/<name>/` から読み込み（未インストール・不備があれば起動を中止）、書いた順にフックを実行する `PluginSupervisor`。
 
 #### 5. ドメインクレート (`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-notify` / `aegis-commerce`)
 
@@ -187,7 +187,7 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 - **`audit`**: リクエストから操作者と操作元を取り出す `AuditContext` エクストラクタ。
 - **`state`**: `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、`CommerceService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
 - **`config`**: 各クレートの設定セクションを束ねる `AegisConfig`（`config/*.toml` からの読み込みおよび環境変数オーバーライド。[docs/configuration.md](docs/configuration.md)）。
-- **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、ユーザー管理 `user add|passwd|role|disable|enable|list`）および Admin Studio SPA の静的アセット配信（`fallback_service`）。
+- **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、ユーザー管理 `user add|passwd|role|disable|enable|list|link-oidc`、プラグインの状態 `plugin list`、通知のテスト `notify test`）および Admin Studio SPA の配信（`/admin/`）。
 
 #### 7. `crates/aegis-plugin-sdk` & `crates/aegis-plugin-macros` (公式 Wasm プラグイン SDK)
 
@@ -200,7 +200,13 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 - **公式テンプレート**: 即座に開発を開始できる [`sdk/templates/rust`](sdk/templates/rust)（AssemblyScript / TinyGo 版も `sdk/templates/` に）を同梱（詳細は [Wasm プラグイン開発ガイド](file:///d:/projects/cms/docs/plugin_sdk_guide.md) を参照）。
 
 > [!TIP]
-> 関連リファレンス: [設定リファレンス (`docs/configuration.md`)](docs/configuration.md) / [プラグインフック & ホスト API リファレンス (`docs/plugin_hooks.md`)](docs/plugin_hooks.md) / [監査ログリファレンス (`docs/audit.md`)](docs/audit.md) / [テーマ作成ガイド (`docs/theme_authoring_guide.md`)](docs/theme_authoring_guide.md)
+> ドキュメント一覧:
+>
+> - 設計・開発: [内部設計 (`docs/architecture.md`)](docs/architecture.md) / [開発ガイド (`docs/development.md`)](docs/development.md) / [Admin Studio (`admin/README.md`)](admin/README.md)
+> - 運用・機能: [設定リファレンス](docs/configuration.md) / [認証 & ユーザー管理](docs/authentication.md) / [監査ログ](docs/audit.md) / [メディア](docs/media.md) / [EC](docs/commerce.md) / [通知](docs/notifications.md)
+> - テーマ: [公開 & テーマエンジン](docs/theme_and_publishing_guide.md) / [テーマ作成ガイド](docs/theme_authoring_guide.md)
+> - プラグイン: [開発ガイド](docs/plugin_sdk_guide.md) / [フック & ホスト API](docs/plugin_hooks.md) / [ABI 仕様](docs/plugin_abi_specification.md) / [公式プラグイン](plugins/README.md)
+> - 未着手のタスク: [TODO.md](TODO.md)
 
 ---
 
@@ -417,14 +423,16 @@ fields:
 
 ## 7. 開発・運用ロードマップ
 
-- **フェーズ 1 (PoC・コア基盤確立)**
-    - Rust製コアエンジンとWasmtime組み込みのプロトタイプ実装。
-    - AST変換フックおよびメモリ受け渡し（Fat Pointer方式）のベンチマーク検証。
+- **フェーズ 1 (PoC・コア基盤確立)** — ✅ 完了
+    - Rust製コアエンジンとWasmtime組み込み、AST変換フックとメモリ受け渡し（Fat Pointer方式）。
 
-- **フェーズ 2 (スキーマエンジンとエディタ統合)**
-    - YAMLスキーマからのDB自動マイグレーションエンジン実装。
-    - 基本ブロックエディタUIとREST/GraphQL APIの疎結合結合。
+- **フェーズ 2 (スキーマエンジンとエディタ統合)** — ✅ 完了
+    - YAMLスキーマからのDB自動マイグレーション（SQLite / PostgreSQL / MySQL）、ブロックエディタ（Admin Studio）とREST API。
+    - 認証（ローカル・OIDC）・RBAC・監査ログ・メディア・テーマエンジン・EC・通知。
 
-- **フェーズ 3 (SDK整備とエコシステム公開)**
+- **フェーズ 3 (SDK整備とエコシステム公開)** — 進行中
     - ✅ 言語非依存 共通 ABI 仕様書および Rust / AssemblyScript / TinyGo 向け公式プラグイン SDK & テンプレートの提供。
-    - ケイパビリティ検証ガードおよびマニフェストパーサーのセキュリティ監査。
+    - ✅ プラグイン・テーマのインストールと有効化の分離、ストア用メタデータ。
+    - プラグイン・テーマのストア（パッケージの検証・署名・導入）、ケイパビリティ検証ガードおよびマニフェストパーサーのセキュリティ監査。
+
+現在の未着手タスクは [TODO.md](TODO.md) を参照してください。
