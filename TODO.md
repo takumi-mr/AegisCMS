@@ -9,8 +9,8 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: Admin Studio に Playwright の E2E テスト（実サーバーに対して実行。`task test:e2e`、CI の `admin-e2e`）と Storybook（`task storybook`、API は `fetch` のモック）を導入。最初の対象はプラグイン画面（一覧・有効化・無効化・設定の保存）。手順は [development.md 8](docs/development.md#8-admin-studio-の-e2e-テストと-storybook)。
-- **その前**: Admin Studio のモバイル・レスポンシブ対応（ハンバーガーメニュー、エディタのペイン切り替え、`100dvh`。[admin/README.md](admin/README.md#-設計メモ)、[architecture.md 11](docs/architecture.md#11-admin-studio-の配信)）。その前はプラグインの有効・無効の実行時切り替え（[plugin_hooks.md 5.1](docs/plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)）。
+- **直近の完了**: 予約公開・予約非公開の完了を著者にメールで通知（`content.published` / `content.unpublished`、組み込みテンプレート en / ja、公開ページの URL `content_url`）。仕様は [notifications.md 2](docs/notifications.md#2-送る通知)。あわせて Windows で依存を足したときのロックファイルの注意（CI の npm 10 で `npm ci` を確かめる）を [development.md 8.3](docs/development.md#83-依存パッケージを追加したときpackage-lockjson) に記載。
+- **その前**: Admin Studio に Playwright の E2E テストと Storybook を導入（[development.md 8](docs/development.md#8-admin-studio-の-e2e-テストと-storybook)）。その前は Admin Studio のモバイル対応。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -42,7 +42,7 @@
 ### 通知
 
 - [ ] **通知の追加**: HTML メール、送信待ちの永続化（再起動で失われないキュー）、Admin Studio からのテスト送信・テンプレート編集。
-- [ ] **EC 以外の通知**: コメント、公開予約の完了など。
+- [ ] **コメントの通知**: コメント機能そのものがまだ無い（コメントの投稿・承認・スパム対策を作るときに、著者・運営者への通知 `comment.*` も一緒に）。
 
 ### EC
 

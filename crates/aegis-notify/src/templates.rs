@@ -54,6 +54,10 @@ builtin_templates!(
     "account.approved.txt",
     "account.invite.subject",
     "account.invite.txt",
+    "content.published.subject",
+    "content.published.txt",
+    "content.unpublished.subject",
+    "content.unpublished.txt",
     "_audit_title.txt",
     "audit.subject",
     "audit.txt",
@@ -472,5 +476,73 @@ mod tests {
             .render("account.registered", &person, &registered)
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn renders_the_content_templates_in_each_locale() {
+        let author = Recipient::person("hanako@example.com", "Hanako");
+        let mut data = json!({
+            "site_name": "Aegis Coffee",
+            "site_url": "https://shop.example.com",
+            "username": "hanako",
+            "display_name": "Hanako",
+            "at": "2099-03-01T00:00:00Z",
+            "content": { "label": "Articles", "title": "Spring Sale", "slug": "spring-sale" },
+            "content_url": "https://shop.example.com/spring-sale",
+        });
+        for locale in LOCALES {
+            for kind in ["content.published", "content.unpublished"] {
+                let rendered = Templates::new(locale, None)
+                    .render(kind, &author, &data)
+                    .unwrap()
+                    .unwrap();
+                assert!(
+                    rendered.subject.contains("Spring Sale"),
+                    "{}",
+                    rendered.subject
+                );
+                assert!(rendered.body.contains("Hanako"), "{}", rendered.body);
+                assert!(rendered.body.contains("2099-03-01T00:00:00Z"));
+                assert!(
+                    !rendered.body.contains(
+                        "
+
+
+"
+                    ),
+                    "{}",
+                    rendered.body
+                );
+            }
+        }
+        let en = Templates::new("en", None)
+            .render("content.published", &author, &data)
+            .unwrap()
+            .unwrap();
+        assert_eq!(en.subject, "Published: Spring Sale - Aegis Coffee");
+        assert!(en.body.contains(
+            "
+https://shop.example.com/spring-sale
+"
+        ));
+
+        // Without a public URL the link line is left out
+        data["content_url"] = json!("");
+        let ja = Templates::new("ja", None)
+            .render("content.published", &author, &data)
+            .unwrap()
+            .unwrap();
+        assert_eq!(ja.subject, "【Aegis Coffee】「Spring Sale」を公開しました");
+        assert!(!ja.body.contains("spring-sale"), "{}", ja.body);
+        assert!(
+            !ja.body.contains(
+                "
+
+
+"
+            ),
+            "{}",
+            ja.body
+        );
     }
 }

@@ -64,11 +64,15 @@ aegis-server -c config/production.toml notify test --to you@example.com
 | `order.cancelled` | 取り消した（管理者の操作・支払い期限切れ） | 顧客・運営者 | 取り消しの理由（`reason`）、支払い済みなら返金の案内 |
 | `account.verify` | Admin Studio からアカウント登録を申し込んだ（[認証 7](authentication.md#7-アカウント登録)） | 申し込んだメールアドレス | 確認リンク（`verify_url`）、有効期限、ユーザー名 |
 | `account.registered` | 確認リンクが開かれ、アカウントができた | 運営者 | ユーザー名・表示名・メールアドレス・ロール、承認が必要か（`pending_approval`） |
+| `content.published` | 予約公開（`status: "scheduled"`）のコンテンツを、公開日時になってサーバーが公開した（[予約公開](theme_and_publishing_guide.md#予約公開スケジュール公開)） | 著者 | タイトル・種類、公開ページの URL（`content_url`）、公開予定日時 |
+| `content.unpublished` | 公開中のコンテンツを、非公開日時（`unpublish_at`）になってサーバーが非公開にした（アーカイブ） | 著者 | タイトル・種類、非公開日時 |
 | `test` | `aegis-server notify test` | 指定したアドレス | テスト |
 | `audit.<操作>` | 監査ログのイベントが `[[notifications.audit.rules]]` に合った（[2.1](#21-監査イベントの通知)） | 運営者（またはルールの `recipients`） | 操作・結果・ユーザー・IP アドレス・ブラウザ・詳細 |
 
 - `stripe` で決済ページに進んだまま支払われなかった注文（期限切れ・失敗で取り消し）は、受付を知らせていないので取り消しも知らせません。
 - `completed`（完了）は知らせません。
+- `content.published` / `content.unpublished` の宛先は著者（コンテンツの `author_id` のユーザー）のメールアドレスです。著者がいない・メールアドレスが無い・無効なアカウントなら送りません。Admin Studio から手で公開した場合は送りません（公開した本人が知っているため）。
+- 運営者にもすべての予約公開を知らせたい場合や、公開の失敗を知りたい場合は、監査イベントの通知（[2.1](#21-監査イベントの通知)）で `action = "content.publish"`（`outcomes = ["failure"]` で失敗だけ）を使います。
 - `[notifications].disabled_events = ["order.shipped"]` のように、種類ごとに止められます。
 - 注文確認ページのトークンはサーバーに保存していない（ハッシュのみ）ため、URL を本文に入れられるのは注文したときの `order.placed` だけです。
 
@@ -116,6 +120,8 @@ max_per_hour = 5
 | パスワードの誤り | `action = "session.create"`, `outcomes = ["failure"]`, `details = { error = "invalid_password" }` |
 | 権限の無い操作（401 / 403） | `action = "access.denied"` |
 | ユーザーの作成・変更・削除 | `action = "user.create"` / `"user.update"` / `"user.delete"` |
+| 予約公開・予約非公開（すべて） | `action = "content.publish"` / `"content.unpublish"` |
+| 予約公開の失敗 | `action = "content.publish"`, `outcomes = ["failure"]` |
 | 公開サイトのテーマの切り替え | `action = "theme.switch"` |
 | プラグインのエラー | `action = "plugin.error"` |
 
@@ -170,6 +176,8 @@ notifications/
 | `reason` / `was_paid` | 取り消しのきっかけ（`admin` / `expired` など）と、支払い済みだったか（`order.cancelled`） |
 | `username` / `display_name` / `verify_url` / `expires_hours` | アカウント登録の確認メール（`account.verify`）: ユーザー名・表示名（無ければ空）・確認リンク・有効期限（時間） |
 | `username` / `display_name` / `email` / `role` / `pending_approval` | 新しいアカウントの知らせ（`account.registered`） |
+| `content.title` / `content.label` / `content.content_type` / `content.slug` / `content.id` | 予約公開・非公開の知らせ（`content.published` / `content.unpublished`）: コンテンツとその種類の表示名（スキーマの `label`） |
+| `at` / `content_url` / `username` / `display_name` | 同上: 公開予定日時・非公開日時（RFC 3339、UTC）、公開ページの URL（`page` / `article` は `/{slug}`、商品は `/products/{slug}`。`[commerce].public_url` が無ければ空）、著者 |
 | `{{ amount \| money(order.currency) }}` | 金額の表示（`¥1,200`、`$12.50`） |
 
 - テンプレートが無ければ種類の最後の `.` 以降を外した名前を順に探します（`audit.session.create` → `audit.session` → `audit`）。
