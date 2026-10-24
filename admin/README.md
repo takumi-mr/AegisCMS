@@ -197,7 +197,7 @@ files:
 - **Themed Page プレビュー**: サーバーの `page_html` に `<base href="{SERVER_URL}/">` を差し込んで `srcdoc` に入れる（テーマのアセットやアップロード画像をサーバーから読むため）。`sandbox` に `allow-same-origin` を付けてはいけない。`srcdoc` の文書は親と同じオリジンになるため、テーマやプラグインが出力したスクリプトから `sessionStorage` のセッショントークンを読めてしまう。付けないと文書のオリジンは不透明（`null`）になり、`localStorage` などのストレージに触れると例外になる（`cart.js` は try/catch で受けてメモリ上に持つ）。CDN の通常の `<script>` は読み込めるが、`type="module"` や CORS が要る読み込み（`crossorigin` 付きのフォントなど）はサーバー側で `Access-Control-Allow-Origin` が要る。
 - **画面の高さとスクロール**: ルートの `.app` は `height: 100vh; overflow: hidden`。全幅の画面（監査ログ・テーマなど）は直下に `flex: 1; overflow-y: auto` のラッパーを置き、下に余白を取ってスクロールさせる。
 - **設定画面 (`SettingsView.tsx`)**: 各項目は既存の画面コンポーネント（`SiteManager` / `ThemeManager` / `PluginManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` と `settings.sections.<id>` の訳を足す。選んでいる項目は `App` が持つ（エディタの **Manage** から `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。エディタの状態も `App` にあるので、設定画面へ移って戻っても編集中の内容は消えない。
-- **モバイル**: 現状は PC 前提（エディタは一覧 300px・プレビュー 480px 固定の 3 列）。
+- **モバイル・レスポンシブ対応**: 画面幅 900px 以下の狭小端末では、ヘッダーをコンパクト化しハンバーガーメニュー内にタブ・接続状態・言語切替・アカウント操作を統合。エディタ画面は 3 列固定（300px/可変/480px）からペイン切り替えタブ（記事一覧 / 編集 / プレビュー）へと切り替わり、一覧から記事を選択すると自動的に編集ペインへ遷移。フィールド行の折り返し、カレンダーやテーブルの横スクロール、各種管理画面の単一カラム化により、スマートフォン・タブレットでも UI が崩れず直感的に操作できます。
 
 ---
 

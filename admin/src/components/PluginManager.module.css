@@ -919,3 +919,24 @@
   font-size: 0.85rem;
   color: var(--text-muted, #9ca3af);
 }
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem 1rem 3rem 1rem;
+    gap: 1.25rem;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab {
+    white-space: nowrap;
+  }
+
+  .ecoOfficialItem {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

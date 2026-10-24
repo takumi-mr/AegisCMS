@@ -356,3 +356,24 @@
 .box a {
   color: var(--accent-indigo-light);
 }
+
+@media (max-width: 768px) {
+  .column {
+    padding: 16px 12px;
+  }
+
+  .heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .headingActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+}

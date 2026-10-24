@@ -52,3 +52,18 @@
   display: flex;
   gap: 6px;
 }
+
+@media (max-width: 600px) {
+  .overlay {
+    padding: 8px;
+  }
+
+  .modal {
+    max-height: calc(100dvh - 16px);
+    border-radius: var(--radius-md);
+  }
+
+  .header {
+    padding: 12px 14px;
+  }
+}

@@ -541,3 +541,57 @@
   border-top: 1px solid var(--border-subtle);
   background: rgba(0, 0, 0, 0.15);
 }
+
+@media (max-width: 768px) {
+  .column {
+    padding: 16px 12px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .monthNav {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .controlsGroup {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .viewTabs {
+    width: 100%;
+  }
+
+  .viewTab {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .calendarWrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .weekHeaderRow,
+  .monthGrid {
+    min-width: 640px;
+  }
+
+  .modalFooter {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+}

@@ -174,3 +174,11 @@
   line-height: 1.5;
   white-space: pre-wrap;
 }
+
+@media (max-width: 900px) {
+  .column {
+    width: 100%;
+    border-left: none;
+    flex: 1;
+  }
+}

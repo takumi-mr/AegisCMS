@@ -1,10 +1,21 @@
 .screen {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
   background: var(--bg-base);
+}
+
+@media (max-width: 480px) {
+  .screen {
+    padding: 16px;
+  }
+
+  .card {
+    padding: 20px 16px;
+  }
 }
 
 .checking {

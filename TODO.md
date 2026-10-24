@@ -9,14 +9,19 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: プラグインの有効・無効を Admin Studio から再起動なしで切り替え（`PUT /api/v1/plugins/{name}/enabled`、一覧は DB の `_aegis_settings` に保存して `[plugins].enabled` より優先、監査ログ `plugin.enable` / `plugin.disable`）。あわせて Admin Studio のプラグイン画面の型を API に合わせて修正（`manifest` が `null` の未インストールのプラグイン、`capabilities.hooks`、`problem`、設定保存の送信形式 `{ settings }`）。仕様は [plugin_hooks.md 5.1](docs/plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)、設計は [architecture.md 10.2](docs/architecture.md#102-インストールと有効化-wasmpluginloader)。
-- **その前**: PostgreSQL / MySQL での注文・在庫の実機検証（`task test:dbs`。[commerce.md 3.2](docs/commerce.md#32-在庫)、[development.md 7](docs/development.md#7-データベース実機検証-postgresql--mysql)）。
+- **直近の完了**: Admin Studio のモバイル・レスポンシブ対応（狭小端末での UI 崩れ解消・ペイン切り替え化）。
+  - **ヘッダー**: 画面幅 900px 以下でコンパクト化。右上のハンバーガーメニューに各画面タブ、接続状態、言語切替、アカウント情報・プロフィール・ログアウトを統合。エディタ時の保存ボタンはヘッダー右側に維持しつつラベルを短縮。
+  - **エディタ**: デスクトップの 3 列固定から、モバイルではサブタブによるペイン切り替え（記事一覧 / 編集 / プレビュー）に動的変更。一覧から記事を選択（または新規作成）した際は自動的に編集ペインへ遷移する直感的な導線を実装。
+  - **各画面・コンポーネント**: ビューポート高さを動的アドレスバーに対応する `height: 100dvh` に改善。入力行（`FieldRow`）の折り返し、カレンダー（`ScheduleCalendar`）やテーブルの横スクロール保護、設定・商品・ユーザー・監査ログ・モーダル・ログイン画面の狭小画面向けレスポンシブ調整を実施。
+  - **多言語 & 品質検証**: 日英ロケールキー追加、`task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio ビルド）パス。
+  - **ドキュメント反映**: 仕様・設計は [admin/README.md](../admin/README.md#-設計メモ) および [architecture.md 11](docs/architecture.md#11-admin-studio-の配信)。
+- **その前**: プラグインの有効・無効を Admin Studio から再起動なしで切り替え（`PUT /api/v1/plugins/{name}/enabled`、一覧は DB の `_aegis_settings` に保存して `[plugins].enabled` より優先、監査ログ `plugin.enable` / `plugin.disable`。[plugin_hooks.md 5.1](docs/plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)、[architecture.md 10.2](docs/architecture.md#102-インストールと有効化-wasmpluginloader)）。その前は PostgreSQL / MySQL での注文・在庫の実機検証。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
 ### 🚀 次に着手する項目
 
-1. **Admin Studio のモバイル対応**: 狭い画面での一覧・プレビュー・ヘッダーのレスポンシブ化。
+1. **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする。アカウント登録が先行例）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
 
 ---
 
@@ -28,7 +33,6 @@
 
 ### Admin Studio
 
-- [ ] **モバイル対応**: エディタは一覧 300px・プレビュー 480px 固定の 3 列で、スマホでは本文がほぼ見えない。ヘッダーは `nowrap` / `flex-shrink: 0` ではみ出し、`.app` が `height: 100vh; overflow: hidden` のため切れる。狭い画面では一覧・プレビューをドロワーやタブに、ヘッダーをメニューにまとめる。
 - [ ] **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする。アカウント登録が先行例）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
 
 ### プラグイン

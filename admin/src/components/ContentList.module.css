@@ -174,3 +174,11 @@
 .empty p {
   font-size: 0.85rem;
 }
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    flex: 1;
+  }
+}
