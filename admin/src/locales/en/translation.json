@@ -39,6 +39,7 @@
     "pluginsFailed": "Failed to fetch plugins",
     "getPluginSettingsFailed": "Failed to fetch plugin settings",
     "updatePluginSettingsFailed": "Failed to update plugin settings",
+    "setPluginEnabledFailed": "Failed to enable or disable the plugin",
     "siteSettingsFailed": "Failed to load the site settings",
     "updateSiteSettingsFailed": "Failed to save the site settings"
   },
@@ -804,7 +805,16 @@
     "newValuePlaceholder": "Value (string)",
     "addSetting": "Add",
     "saving": "Saving...",
-    "saveSettings": "Save Settings"
+    "saveSettings": "Save Settings",
+    "enable": "Enable",
+    "disable": "Disable",
+    "enableTitle": "Enable this plugin (no restart; its hooks run after the other enabled plugins)",
+    "disableTitle": "Disable this plugin (no restart)",
+    "enabled": "Enabled plugin \"{{name}}\"",
+    "disabled": "Disabled plugin \"{{name}}\"",
+    "confirmDisable": "Disable plugin \"{{name}}\"? Its hooks stop running immediately.",
+    "toggleAdminRequired": "Enabling or disabling plugins requires the admin role",
+    "notInstalled": "Not installed"
   },
   "site": {
     "title": "Site",

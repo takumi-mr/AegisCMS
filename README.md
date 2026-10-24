@@ -398,7 +398,7 @@ fields:
 - **リポジトリ管理対象（Code-as-Configuration）**:
     - スキーマ定義ファイル (`/schemas/*.yaml`)
     - サイト設定・権限ロール設定 (`/config/*.json`)
-    - インストール済みプラグイン (`/plugins/<name>/`) と有効化リスト（設定ファイルの `[plugins].enabled`）
+    - インストール済みプラグイン (`/plugins/<name>/`) と有効化リスト（設定ファイルの `[plugins].enabled`。Admin Studio で切り替えると DB の一覧が優先される）
     - テーマ・UIテンプレート (`/themes/*`)
 
 - **データベース管理対象**:

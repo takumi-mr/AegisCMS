@@ -13,6 +13,7 @@ mod config;
 mod handlers;
 mod notify_plugins;
 mod plugin_host;
+mod plugin_registry;
 mod render;
 mod scheduler;
 mod site;
@@ -214,10 +215,11 @@ async fn run_notify_command(config: &AegisConfig, action: NotifyCommand) -> anyh
                 .any(|c| matches!(c, aegis_notify::ChannelKind::Plugin(_)));
             let supervisor = if uses_plugins {
                 let cache = aegis_cache::create_cache_backend(&config.cache).await?;
+                let enabled = cli_enabled_plugins(config).await;
                 let plugin_settings =
                     Arc::new(std::sync::RwLock::new(std::collections::HashMap::new()));
-                load_cached_plugin_settings(config, &cache, &plugin_settings).await;
-                load_plugins(config, cache, plugin_settings)?
+                load_cached_plugin_settings(&enabled, &cache, &plugin_settings).await;
+                load_plugins(config, &enabled, cache, plugin_settings)?.0
             } else {
                 PluginSupervisor::new()
             };
@@ -264,13 +266,14 @@ async fn run_notify_command(config: &AegisConfig, action: NotifyCommand) -> anyh
     Ok(())
 }
 
-fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyhow::Result<()> {
+async fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyhow::Result<()> {
     match action {
         PluginCommand::List => {
             config.plugins.validate()?;
+            let enabled = cli_enabled_plugins(config).await;
             let plugins = aegis_runtime::WasmPluginLoader::list(
                 &config.paths.plugins_dir,
-                &config.plugins.enabled,
+                &enabled,
                 &config.runtime.default_resource_limits(),
             )?;
             if plugins.is_empty() {
@@ -481,7 +484,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Commands::User { action } => run_user_command(&config, action).await?,
-        Commands::Plugin { action } => run_plugin_command(&config, action)?,
+        Commands::Plugin { action } => run_plugin_command(&config, action).await?,
         Commands::Notify { action } => run_notify_command(&config, action).await?,
         Commands::Run { port, host } => {
             if let Some(p) = port {
@@ -555,10 +558,18 @@ async fn main() -> anyhow::Result<()> {
             ));
 
             // 5. Wasm プラグインスーパーバイザー初期化（[plugins].enabled のプラグインをその順に読み込む）
+            let enabled_plugins =
+                plugin_registry::resolve_enabled(db_adapter.as_ref(), &config.plugins.enabled)
+                    .await?;
             let plugin_settings =
                 Arc::new(std::sync::RwLock::new(std::collections::HashMap::new()));
-            load_cached_plugin_settings(&config, &cache, &plugin_settings).await;
-            let supervisor = load_plugins(&config, cache.clone(), plugin_settings.clone())?;
+            load_cached_plugin_settings(&enabled_plugins, &cache, &plugin_settings).await;
+            let (supervisor, plugin_loader) = load_plugins(
+                &config,
+                &enabled_plugins,
+                cache.clone(),
+                plugin_settings.clone(),
+            )?;
 
             // 5.5 テーマエンジンの初期化 & プラグイン登録テンプレートの同期
             let theme_engine = Arc::new(
@@ -623,6 +634,10 @@ async fn main() -> anyhow::Result<()> {
                 theme_engine,
             );
             app_state.plugin_settings = plugin_settings;
+            app_state.plugin_registry = Arc::new(plugin_registry::PluginRegistry::new(
+                plugin_loader,
+                enabled_plugins,
+            ));
             *app_state
                 .site
                 .write()
@@ -791,7 +806,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn load_cached_plugin_settings(
-    config: &AegisConfig,
+    enabled: &[String],
     cache: &Arc<dyn aegis_core::CacheBackend>,
     plugin_settings: &Arc<
         std::sync::RwLock<
@@ -799,7 +814,7 @@ async fn load_cached_plugin_settings(
         >,
     >,
 ) {
-    for name in &config.plugins.enabled {
+    for name in enabled {
         let key = format!("plugin_settings:{}", name);
         if let Ok(Some(json_str)) = cache.get(&key).await {
             if let Ok(settings) =
@@ -813,24 +828,40 @@ async fn load_cached_plugin_settings(
     }
 }
 
-/// `[plugins].enabled` のプラグインをその順に読み込む（`[runtime].enable_wasm_plugins = false` なら読み込まない）
+/// CLI で使う有効なプラグインの一覧（Admin Studio で保存した値 → `[plugins].enabled`）。
+/// DB を読めなければ `[plugins].enabled` を使う
+async fn cli_enabled_plugins(config: &AegisConfig) -> Vec<String> {
+    let resolved = async {
+        let db = aegis_db::create_database_adapter(&config.database).await?;
+        plugin_registry::resolve_enabled(db.as_ref(), &config.plugins.enabled).await
+    }
+    .await;
+    resolved.unwrap_or_else(|e| {
+        tracing::warn!(
+            "Could not read the plugin list saved from Admin Studio, using [plugins].enabled: {}",
+            e
+        );
+        config.plugins.enabled.clone()
+    })
+}
+
+/// `enabled`（有効なプラグインの一覧）をその順に読み込む（`[runtime].enable_wasm_plugins = false` なら読み込まない）。
+/// あとで Admin Studio から切り替えられるように、読み込みに使ったローダーも返す
 fn load_plugins(
     config: &AegisConfig,
+    enabled: &[String],
     cache: Arc<dyn aegis_core::CacheBackend>,
     plugin_settings: Arc<
         std::sync::RwLock<
             std::collections::HashMap<String, std::collections::HashMap<String, String>>,
         >,
     >,
-) -> anyhow::Result<PluginSupervisor> {
-    let mut supervisor = PluginSupervisor::new();
+) -> anyhow::Result<(PluginSupervisor, Option<plugin_registry::PluginLoader>)> {
     if !config.runtime.enable_wasm_plugins {
-        if !config.plugins.enabled.is_empty() {
-            tracing::warn!(
-                "[runtime].enable_wasm_plugins = false: plugins in [plugins].enabled are not loaded"
-            );
+        if !enabled.is_empty() {
+            tracing::warn!("[runtime].enable_wasm_plugins = false: enabled plugins are not loaded");
         }
-        return Ok(supervisor);
+        return Ok((PluginSupervisor::new(), None));
     }
     tracing::info!("Initializing Wasmtime runtime engine...");
     let engine = create_wasm_engine(&config.runtime)?;
@@ -839,20 +870,19 @@ fn load_plugins(
         plugin_host::ServerHostServices::new(cache, config.plugins.clone())?
             .with_dynamic_settings(plugin_settings),
     );
-    let loaded = aegis_runtime::WasmPluginLoader::load_enabled(
-        &config.paths.plugins_dir,
-        &config.plugins.enabled,
+    let loader = plugin_registry::PluginLoader::new(
         engine,
-        &mut supervisor,
         host_services.into(),
-        &config.runtime.default_resource_limits(),
-    )?;
+        config.paths.plugins_dir.clone(),
+        config.runtime.default_resource_limits(),
+    );
+    let supervisor = loader.load(enabled)?;
     tracing::info!(
         "Loaded {} Wasm plugins from {:?}",
-        loaded,
+        supervisor.plugins().len(),
         config.paths.plugins_dir
     );
-    Ok(supervisor)
+    Ok((supervisor, Some(loader)))
 }
 
 /// `[runtime].instance_pool_size` が 1 以上ならプーリングアロケータを使うエンジンを作る。

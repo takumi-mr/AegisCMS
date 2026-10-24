@@ -21,11 +21,12 @@ import {
   Plus,
   X,
   Lock,
+  Power,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
 import i18n from '../i18n';
-import type { PluginInfo, SessionInfo } from '../types';
+import type { PackageAuthor, PluginInfo, SessionInfo } from '../types';
 import { isAdmin } from '../utils/roles';
 import { cx } from '../utils/cx';
 import styles from './PluginManager.module.css';
@@ -44,6 +45,8 @@ const KNOWN_PLUGIN_PRESETS: Record<string, string[]> = {
   'official-calc': ['tax_rate', 'free_shipping_threshold'],
 };
 
+const authorName = (author: PackageAuthor) => (typeof author === 'string' ? author : author.name);
+
 export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToast }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'installed' | 'market'>('installed');
@@ -60,6 +63,8 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
   const [newValue, setNewValue] = useState<string>('');
   const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+  // Plugin whose enable / disable request is in flight
+  const [togglingName, setTogglingName] = useState<string | null>(null);
 
   const canConfigure = isAdmin(session);
 
@@ -93,7 +98,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
 
   const handleOpenSettings = (plugin: PluginInfo) => {
     setEditingPlugin(plugin);
-    setCurrentSettings({ ...plugin.settings });
+    setCurrentSettings({ ...(plugin.settings ?? {}) });
     setNewKey('');
     setNewValue('');
     setRevealedKeys(new Set());
@@ -168,6 +173,31 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
     }
   };
 
+  const handleToggleEnabled = async (plugin: PluginInfo) => {
+    if (!canConfigure) {
+      onShowToast(t('plugins.toggleAdminRequired'), 'error');
+      return;
+    }
+    const enable = !plugin.is_enabled;
+    if (!enable && !window.confirm(t('plugins.confirmDisable', { name: plugin.name }))) {
+      return;
+    }
+
+    setTogglingName(plugin.name);
+    try {
+      setPlugins(await aegisApi.setPluginEnabled(plugin.name, enable));
+      onShowToast(
+        t(enable ? 'plugins.enabled' : 'plugins.disabled', { name: plugin.name }),
+        'success'
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t('api.setPluginEnabledFailed');
+      onShowToast(msg, 'error');
+    } finally {
+      setTogglingName(null);
+    }
+  };
+
   const isSensitiveKey = (key: string) => {
     const lower = key.toLowerCase();
     return (
@@ -186,10 +216,12 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
       if (!q) return true;
 
       const manifest = plugin.manifest;
-      const displayName = manifest.display_name?.toLowerCase() || '';
+      const displayName = manifest?.display_name?.toLowerCase() || '';
       const name = plugin.name.toLowerCase();
-      const desc = manifest.description?.toLowerCase() || '';
-      const hooksMatch = manifest.hooks.some((h) => h.toLowerCase().includes(q));
+      const desc = manifest?.description?.toLowerCase() || '';
+      const hooksMatch = (manifest?.capabilities.hooks ?? []).some((h) =>
+        h.toLowerCase().includes(q)
+      );
 
       return name.includes(q) || displayName.includes(q) || desc.includes(q) || hooksMatch;
     });
@@ -296,8 +328,15 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
               <div className={styles.grid}>
                 {filteredPlugins.map((plugin) => {
                   const m = plugin.manifest;
-                  const displayName = m.display_name || m.name;
+                  const displayName = m?.display_name || plugin.name;
                   const settingsCount = Object.keys(plugin.settings || {}).length;
+                  const hooks = m?.capabilities.hooks ?? [];
+                  const allowedDomains = m?.capabilities.network?.allowed_domains ?? [];
+                  const limits = m?.resource_limits;
+                  const isToggling = togglingName === plugin.name;
+                  // A broken plugin can still be disabled, but not enabled
+                  const canToggle =
+                    canConfigure && togglingName === null && (plugin.is_enabled || !plugin.problem);
 
                   return (
                     <div
@@ -314,11 +353,11 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                               <h2 className={styles.pluginName} title={displayName}>
                                 {displayName}
                               </h2>
-                              <span className={styles.version}>v{m.version}</span>
+                              {m && <span className={styles.version}>v{m.version}</span>}
                             </div>
                             <div className={styles.idRow}>
                               <span className={styles.pluginId}>{plugin.name}</span>
-                              {plugin.error ? (
+                              {plugin.problem ? (
                                 <span className={cx(styles.statusBadge, styles.badgeError)}>
                                   <AlertCircle size={12} />
                                   <span>{t('plugins.statusError')}</span>
@@ -338,21 +377,24 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                         </div>
 
                         <p className={styles.pluginDesc}>
-                          {m.description || t('plugins.noDescription')}
+                          {m?.description ||
+                            (plugin.is_installed
+                              ? t('plugins.noDescription')
+                              : t('plugins.notInstalled'))}
                         </p>
 
-                        {plugin.error && (
+                        {plugin.problem && (
                           <div className={styles.errorBox}>
                             <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                            <span>{plugin.error}</span>
+                            <span>{plugin.problem}</span>
                           </div>
                         )}
 
-                        {m.hooks && m.hooks.length > 0 && (
+                        {hooks.length > 0 && (
                           <div className={styles.hooksSection}>
                             <span className={styles.sectionLabel}>{t('plugins.hooksLabel')}</span>
                             <div className={styles.hooksList}>
-                              {m.hooks.map((hook) => (
+                              {hooks.map((hook) => (
                                 <span key={hook} className={styles.hookTag}>
                                   {hook}
                                 </span>
@@ -361,63 +403,57 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                           </div>
                         )}
 
-                        <div className={styles.capabilitiesSection}>
-                          <span className={styles.sectionLabel}>
-                            {t('plugins.capabilitiesLabel')}
-                          </span>
-                          <div className={styles.capItem}>
-                            <Database size={13} className={styles.capItemIcon} />
-                            <span className={styles.capText}>
-                              {m.capabilities.kv_storage
-                                ? t('plugins.kvStorageEnabled')
-                                : t('plugins.kvStorageDisabled')}
+                        {m && (
+                          <div className={styles.capabilitiesSection}>
+                            <span className={styles.sectionLabel}>
+                              {t('plugins.capabilitiesLabel')}
                             </span>
-                          </div>
-                          {m.capabilities.allowed_domains &&
-                            m.capabilities.allowed_domains.length > 0 && (
+                            <div className={styles.capItem}>
+                              <Database size={13} className={styles.capItemIcon} />
+                              <span className={styles.capText}>
+                                {m.capabilities.storage
+                                  ? t('plugins.kvStorageEnabled')
+                                  : t('plugins.kvStorageDisabled')}
+                              </span>
+                            </div>
+                            {allowedDomains.length > 0 && (
                               <div className={styles.capItem}>
                                 <Globe size={13} className={styles.capItemIcon} />
-                                <span
-                                  className={styles.capText}
-                                  title={m.capabilities.allowed_domains.join(', ')}
-                                >
+                                <span className={styles.capText} title={allowedDomains.join(', ')}>
                                   {t('plugins.allowedDomains', {
-                                    domains: m.capabilities.allowed_domains.join(', '),
+                                    domains: allowedDomains.join(', '),
                                   })}
                                 </span>
                               </div>
                             )}
-                          {(m.capabilities.max_memory_mb ||
-                            m.capabilities.execution_timeout_ms) && (
-                            <div className={styles.capItem}>
-                              <Cpu size={13} className={styles.capItemIcon} />
-                              <span className={styles.capText}>
-                                {m.capabilities.max_memory_mb
-                                  ? `${m.capabilities.max_memory_mb}MB `
-                                  : ''}
-                                {m.capabilities.execution_timeout_ms
-                                  ? `(${m.capabilities.execution_timeout_ms}ms)`
-                                  : ''}
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                            {limits && (
+                              <div className={styles.capItem}>
+                                <Cpu size={13} className={styles.capItemIcon} />
+                                <span className={styles.capText}>
+                                  {`${limits.max_memory_mb}MB (${limits.execution_timeout_ms}ms)`}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         <div className={styles.metaRow}>
                           <div className={styles.metaLeft}>
-                            {m.author && (
+                            {m?.author && (
                               <div className={styles.metaItem}>
                                 <User size={13} />
-                                <span>{m.author}</span>
+                                <span>{authorName(m.author)}</span>
                               </div>
                             )}
-                            <div className={styles.metaItem}>
-                              <ShieldCheck size={13} />
-                              <span>{m.license || 'MIT'}</span>
-                            </div>
+                            {m?.license && (
+                              <div className={styles.metaItem}>
+                                <ShieldCheck size={13} />
+                                <span>{m.license}</span>
+                              </div>
+                            )}
                           </div>
 
-                          {m.homepage && (
+                          {m?.homepage && (
                             <div className={styles.metaItem}>
                               <a
                                 href={m.homepage}
@@ -432,6 +468,29 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                         </div>
 
                         <div className={styles.cardActions}>
+                          <button
+                            type="button"
+                            className={cx(
+                              styles.toggleBtn,
+                              plugin.is_enabled ? styles.toggleBtnDisable : styles.toggleBtnEnable
+                            )}
+                            onClick={() => handleToggleEnabled(plugin)}
+                            disabled={!canToggle}
+                            title={
+                              plugin.is_enabled
+                                ? t('plugins.disableTitle')
+                                : plugin.problem || t('plugins.enableTitle')
+                            }
+                          >
+                            {isToggling ? (
+                              <RefreshCw size={15} className="animate-spin" />
+                            ) : (
+                              <Power size={15} />
+                            )}
+                            <span>
+                              {plugin.is_enabled ? t('plugins.disable') : t('plugins.enable')}
+                            </span>
+                          </button>
                           <button
                             className={styles.settingsBtn}
                             onClick={() => handleOpenSettings(plugin)}
@@ -531,7 +590,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                 <Settings size={20} className={styles.titleIcon} />
                 <h2 className={styles.modalTitle}>
                   {t('plugins.settingsModalTitle', {
-                    name: editingPlugin.manifest.display_name || editingPlugin.name,
+                    name: editingPlugin.manifest?.display_name || editingPlugin.name,
                   })}
                 </h2>
               </div>

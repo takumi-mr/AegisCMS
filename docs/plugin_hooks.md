@@ -50,7 +50,7 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 - プレビュー API は手順 1・2・4・5 を実行し（保存・`on-before-save` はなし）、保存して公開ページで表示した場合と同じ HTML を返します。テーマを適用したページ全体（`page_html`）のため、`on-render-page` フック（[テーマガイド](theme_and_publishing_guide.md)）もプレビューのたびに呼ばれます。
 - 保存済みの記事を開いて再保存・プレビューすると、`transform-content-ast` は保存済み（変換済み）のブロックに再度適用されます。ブロックを追加するプラグインは、すでに追加済みなら追加しない（冪等な）実装にしてください。
 - 複数プラグインがある場合、前のプラグインの出力が次のプラグインの入力になります。
-- プラグインの実行順は設定ファイルの `[plugins].enabled` に書いた順です（[設定リファレンス](configuration.md#plugins--プラグインの有効化)）。
+- プラグインの実行順は有効化リストの順（設定ファイルの `[plugins].enabled` に書いた順。Admin Studio で有効にしたものは最後）です（[設定リファレンス](configuration.md#plugins--プラグインの有効化)、[5.1](#51-admin-studio-からの有効無効の切り替え)）。
 
 ### 1.2 `transform-content-ast`
 
@@ -489,7 +489,7 @@ let fee: i64 = config::get_or("shipping_fee", 0); // 読めなければ既定値
 テーマ（`themes/<id>/` + `[theme].active`）と同じく、プラグインも「インストール」と「有効化」を分けて管理します。将来のストアからのインストールもこの形（`plugins/<name>/` への展開）を前提にしています。
 
 1. **インストール**: `plugin.manifest.json` と `plugin.wasm` を `plugins/<name>/` に置く（`<name>` はマニフェストの `name`）。
-2. **有効化**: 設定ファイルの `[plugins].enabled` に `<name>` を追加してサーバーを再起動する。フックは `enabled` に書いた順に実行されます。
+2. **有効化**: Admin Studio のプラグイン画面で「有効にする」を押す（再起動不要）か、設定ファイルの `[plugins].enabled` に `<name>` を追加してサーバーを再起動する。フックは有効化リストの順に実行されます。
 
 ```toml
 [plugins]
@@ -497,5 +497,18 @@ enabled = ["seo-tools", "slack-notifier"]
 ```
 
 - インストール済みのプラグインと状態は `aegis plugin list`（CLI）または `GET /api/v1/plugins`（admin 権限）で確認できます。
+
+### 5.1 Admin Studio からの有効・無効の切り替え
+
+Admin Studio のプラグイン画面（`admin` ロールのみ）の「有効にする」「無効にする」で、サーバーを再起動せずに切り替えられます。
+
+- API: `PUT /api/v1/plugins/{name}/enabled` に `{"enabled": true}` / `{"enabled": false}` を送ります。応答は `GET /api/v1/plugins` と同じ一覧です。監査ログは `plugin.enable` / `plugin.disable`。
+- 有効にしたプラグインは、フックの実行順の**最後**に加わります。
+- 切り替えた一覧は DB（`_aegis_settings` の `plugins.enabled`）に保存され、**以後は設定ファイルの `[plugins].enabled` より優先されます**（起動時のログに `Using the plugin list saved from Admin Studio` と出ます）。設定ファイルの値に戻すには、その行を DB から削除して再起動します。
+- 読み込めないプラグイン（未インストール、マニフェストの不備、ホストに無い関数のインポートなど）は有効にできず `400` を返します。そのときは何も変わりません。
+- `[notifications].channels` に `plugin:<名前>` で使っているプラグインは無効にできません（`409`。先に `channels` から外してください）。
+- `[runtime].enable_wasm_plugins = false` のサーバーでは切り替えられません（`409`）。
+- 複数台で動かしている場合、切り替えが反映されるのは操作を受けたサーバーだけです。ほかのサーバーは再起動すると DB の一覧で読み込みます。
+- プラグインの設定値（`PUT /api/v1/plugins/{name}/settings`）は有効・無効にかかわらず保持され、有効にした時点から読まれます。
 - `[runtime].enable_wasm_plugins = false` にすると、`enabled` に関係なくすべてのプラグインを読み込みません。
 - テンプレートとサンプルは `sdk/templates/*`・`sdk/examples/*` にあり、`plugins/` には含まれません（既定ではプラグインは 1 つも有効になっていません）。

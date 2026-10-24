@@ -505,25 +505,40 @@ export const aegisApi = {
   },
 
   async getPluginSettings(name: string): Promise<Record<string, string>> {
-    return request(
+    const res = await request<{ settings: Record<string, string> }>(
       `/plugins/${encodeURIComponent(name)}/settings`,
       {},
       i18n.t('api.getPluginSettingsFailed')
     );
+    return res.settings;
   },
 
   async updatePluginSettings(
     name: string,
     settings: Record<string, string>
   ): Promise<Record<string, string>> {
-    return request(
+    const res = await request<{ settings: Record<string, string> }>(
       `/plugins/${encodeURIComponent(name)}/settings`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({ settings }),
       },
       i18n.t('api.updatePluginSettingsFailed')
+    );
+    return res.settings;
+  },
+
+  /** Enables or disables a plugin without a restart; returns the updated plugin list */
+  async setPluginEnabled(name: string, enabled: boolean): Promise<PluginInfo[]> {
+    return request(
+      `/plugins/${encodeURIComponent(name)}/enabled`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      },
+      i18n.t('api.setPluginEnabledFailed')
     );
   },
 
