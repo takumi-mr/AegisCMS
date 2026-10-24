@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: 予約公開時のプラグインフック呼び出し（`on-content-published` フック、`PublishedContent` 構造体、スケジューラでのステータス更新成功時に通知実行、プラグインの失敗は監査ログ `plugin.error` に記録して公開自体はロールバックしない。通知は既存の `[[notifications.audit.rules]]` の `content.publish` と連携）。仕様は [plugin_hooks.md 1.8](docs/plugin_hooks.md#18-on-content-published)・[plugin_abi_specification.md 4.8](docs/plugin_abi_specification.md#48-on_content_published)、設計は [architecture.md 3.4](docs/architecture.md#34-予約公開予約非公開化スケジュール管理-aegis-serversrcschedulerrs-handlerscontentrs)。その前はスキーマ定義（`schemas/*.yaml`）におけるシステム標準カラム（`title`, `slug`, `published_at` 等）の重複定義解消とコード生成器（TypeScript / OpenAPI）の共通標準カラム自動付加・スキップ統一。設計・仕様は [architecture.md 2.3](docs/architecture.md#23-スキーマからのコード生成とシステム標準カラム)。その前は公開予定の一覧・カレンダー画面（`GET /api/v1/schedule`、Admin Studio カレンダービュー・アジェンダビュー）および予約での非公開化（`unpublish_at`、リクエスト時即時判定、定期スケジューラでの自動アーカイブ化と監査ログ `content.unpublish`、エディタ・商品フォームでの設定・クイック解除）。設計・仕様は [architecture.md 3.4](docs/architecture.md#34-予約公開予約非公開化スケジュール管理-aegis-serversrcschedulerrs-handlerscontentrs)、[theme_and_publishing_guide.md](docs/theme_and_publishing_guide.md#予約での非公開化期間限定公開)、[admin/README.md](admin/README.md)。
+- **直近の完了**: メディアライブラリでのアバター画像の除外および削除時参照整合性チェック（`GET /api/v1/storage/objects` で `avatars/` を除外する `include_avatars` パラメータ、`DELETE /api/v1/storage/objects/{key}` の使用中チェックにユーザーのアバター `avatar_key` を含めて `409 Conflict` を返し、`force=true` 強制削除時はユーザーの `avatar_key` を自動クリア）。仕様は [media.md](docs/media.md)、設計は [architecture.md 4](docs/architecture.md#4-メディアストレージ)。その前は予約公開時のプラグインフック呼び出し（`on-content-published` フック、`PublishedContent` 構造体、スケジューラでのステータス更新成功時に通知実行、プラグインの失敗は監査ログ `plugin.error` に記録して公開自体はロールバックしない。通知は既存の `[[notifications.audit.rules]]` の `content.publish` と連携）。仕様は [plugin_hooks.md 1.8](docs/plugin_hooks.md#18-on-content-published)・[plugin_abi_specification.md 4.8](docs/plugin_abi_specification.md#48-on_content_published)、設計は [architecture.md 3.4](docs/architecture.md#34-予約公開予約非公開化スケジュール管理-aegis-serversrcschedulerrs-handlerscontentrs)。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -31,7 +31,6 @@
 ### Admin Studio
 
 - [ ] **モバイル対応**: エディタは一覧 300px・プレビュー 480px 固定の 3 列で、スマホでは本文がほぼ見えない。ヘッダーは `nowrap` / `flex-shrink: 0` ではみ出し、`.app` が `height: 100vh; overflow: hidden` のため切れる。狭い画面では一覧・プレビューをドロワーやタブに、ヘッダーをメニューにまとめる。
-- [ ] **メディアライブラリでのアバターの扱い**: `avatars/` もメディア一覧に出て、そこから削除するとアバターが外れる。一覧から除外するか、使用中チェックにユーザーを含める。
 - [ ] **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする。アカウント登録が先行例）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
 
 ### プラグイン
