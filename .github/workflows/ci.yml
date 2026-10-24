@@ -64,7 +64,7 @@ jobs:
 
   docker-ci:
     name: Docker Image Build Validation
-    needs: [rust-ci, frontend-ci]
+    # Rust / フロントエンドのジョブを待たずに並列で走らせる（直列だと CI 全体の時間が足し算になる）
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -80,5 +80,8 @@ jobs:
           file: ./Dockerfile
           push: false
           tags: aegiscms:latest
+          # ビルド検証のみなので LTO を省いたプロファイルでビルドする（本番イメージは release）
+          build-args: |
+            CARGO_PROFILE=ci-release
           cache-from: type=gha
           cache-to: type=gha,mode=max

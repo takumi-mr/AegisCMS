@@ -110,8 +110,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 - `StorageBackend`（`put` / `get` / `delete` / `exists` / `list` / `public_url`）で、ローカル（`LocalStorageBackend`。パストラバーサル防止）と S3 互換（`S3StorageBackend`。AWS SDK を使わず SigV4 を自前実装）を切り替える。
 - `exists` の既定実装はキーを prefix にした `list` の完全一致（ローカルは `metadata` で上書き）。S3 の DELETE は存在しないキーでも成功するため、404 を返すには事前の確認が要る。
-- 一覧（`GET /api/v1/storage/objects`）: ストレージに並び替え・絞り込みが無いため、最大 10,000 件（`MAX_LIST_SCAN`）を走査してからメモリ上で絞り込み・新しい順・ページングを行い、超過は `truncated: true`。mime type は保存していないので拡張子から推定。ローカルは隠しファイル・シンボリックリンク、S3 は末尾 `/` のオブジェクトを除外。
-- 使用中の判定（削除時）: 全スキーマの `list_contents` を読み、`blocks_json` とカスタムフィールドの JSON に公開 URL が含まれるかの文字列一致。遅くなったら保存時に参照 URL を別テーブルに記録する方式にする。使用中で拒否した 409 は監査に記録しない。
+- 一覧（`GET /api/v1/storage/objects`）: ストレージに並び替え・絞り込みが無いため、最大 10,000 件（`MAX_LIST_SCAN`）を走査してからメモリ上で絞り込み・新しい順・ページングを行い、超過は `truncated: true`。mime type は保存していないので拡張子から推定。ローカルは隠しファイル・シンボリックリンク、S3 は末尾 `/` のオブジェクトを除外。アバター画像（`avatars/`）はメディアライブラリの目的外かつプライバシー保護のため、`prefix` で明示的に `avatars` を指定するか `include_avatars = true` を指定しない限り除外される。
+- 使用中の判定（削除時）: 全スキーマの `list_contents` を読み、`blocks_json` とカスタムフィールドの JSON に公開 URL が含まれるかの文字列一致、および全ユーザーの `avatar_key` の完全一致を検査する。コンテンツまたはユーザーのアバターとして使用中の場合は参照元（コンテンツまたは `content_type: "user"`）を返して 409 Conflict で拒否する（使用中で拒否した 409 は監査に記録しない）。`force=true` で強制削除された場合は、参照していたユーザーの `avatar_key` を自動的にクリア（`None`）して孤立参照やリンク切れを防ぐ。遅くなったら保存時に参照 URL を別テーブルに記録する方式にする。
 - サイズ上限: axum の `Multipart` は既定で 2 MB。`/api/v1/storage/upload` には `DefaultBodyLimit::max([storage].max_upload_mb)` を個別に設定している（プロキシ側の上限も合わせる）。アバターは `DefaultBodyLimit` を 2 MB + 64 KB（multipart のヘッダー分）にし、画像自体の 2 MB はハンドラで確かめる。
 
 ---
