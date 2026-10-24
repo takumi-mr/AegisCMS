@@ -1,5 +1,7 @@
 //! `[commerce]` の設定
 
+use std::collections::HashMap;
+
 use aegis_core::{AegisError, Result};
 use serde::{Deserialize, Serialize};
 
@@ -33,6 +35,13 @@ pub struct CommerceConfig {
     pub product_type: String,
     /// ISO 4217 の通貨コード（小文字）。金額はすべてこの通貨の最小単位の整数
     pub currency: String,
+    /// サポートする通貨コード一覧（小文字）。空の場合は `[currency]` のみ
+    #[serde(default)]
+    pub supported_currencies: Vec<String>,
+    /// 基軸通貨（`currency`）1 単位に対する各通貨の換算レート（例: JPY基軸なら `{"usd": 0.0067}`）。
+    /// 基軸通貨自身のレートは自動で 1.0 として扱われる
+    #[serde(default)]
+    pub currency_rates: HashMap<String, f64>,
     /// 公開サイトの URL（`https://shop.example.com`、サブパス運用なら `[server].base_path` 込み）。
     /// 決済後の戻り先に使う。空ならリクエストの Host / X-Forwarded-Proto から組み立てる
     pub public_url: String,
@@ -55,6 +64,8 @@ impl Default for CommerceConfig {
             enabled: false,
             product_type: "product".to_string(),
             currency: "jpy".to_string(),
+            supported_currencies: Vec::new(),
+            currency_rates: HashMap::new(),
             public_url: String::new(),
             provider: PaymentProviderKind::Manual,
             reservation_minutes: 60,
@@ -68,6 +79,41 @@ impl Default for CommerceConfig {
 }
 
 impl CommerceConfig {
+    /// 利用可能な通貨一覧（`currency` を必ず含む、小文字）
+    pub fn effective_supported_currencies(&self) -> Vec<String> {
+        let base = self.currency.to_ascii_lowercase();
+        if self.supported_currencies.is_empty() {
+            vec![base]
+        } else {
+            let mut list = Vec::with_capacity(self.supported_currencies.len() + 1);
+            if !self
+                .supported_currencies
+                .iter()
+                .any(|c| c.eq_ignore_ascii_case(&base))
+            {
+                list.push(base);
+            }
+            for c in &self.supported_currencies {
+                let code = c.to_ascii_lowercase();
+                if !list.contains(&code) {
+                    list.push(code);
+                }
+            }
+            list
+        }
+    }
+
+    /// 基軸通貨に対する換算レートを取得する。基軸通貨自身なら 1.0
+    pub fn get_currency_rate(&self, target_currency: &str) -> Option<f64> {
+        if target_currency.eq_ignore_ascii_case(&self.currency) {
+            return Some(1.0);
+        }
+        self.currency_rates
+            .get(&target_currency.to_ascii_lowercase())
+            .copied()
+            .filter(|rate| *rate > 0.0 && rate.is_finite())
+    }
+
     /// 設定値の検証（`enabled` のときのみ）
     pub fn validate(&self) -> Result<()> {
         if !self.enabled {
@@ -80,6 +126,23 @@ impl CommerceConfig {
                 "[commerce].currency must be a lowercase ISO 4217 code such as \"jpy\" (got {:?})",
                 self.currency
             )));
+        }
+        for cur in &self.supported_currencies {
+            let valid = cur.len() == 3 && cur.chars().all(|c| c.is_ascii_lowercase());
+            if !valid {
+                return Err(AegisError::Config(format!(
+                    "[commerce].supported_currencies contains invalid currency code {:?} (expected 3 lowercase letters)",
+                    cur
+                )));
+            }
+        }
+        for (cur, rate) in &self.currency_rates {
+            if *rate <= 0.0 || !rate.is_finite() {
+                return Err(AegisError::Config(format!(
+                    "[commerce].currency_rates[{:?}] must be a positive finite number (got {})",
+                    cur, rate
+                )));
+            }
         }
         if self.reservation_minutes == 0 || self.max_quantity_per_item == 0 || self.max_items == 0 {
             return Err(AegisError::Config(
@@ -190,5 +253,23 @@ mod tests {
         assert!(commerce.validate().is_ok());
         commerce.reservation_minutes = 10;
         assert!(commerce.validate().is_err());
+        commerce.reservation_minutes = 60;
+        commerce.supported_currencies = vec!["eur".to_string(), "INVALID".to_string()];
+        assert!(commerce.validate().is_err());
+        commerce.supported_currencies = vec!["eur".to_string(), "jpy".to_string()];
+        commerce.currency_rates.insert("eur".to_string(), 0.92);
+        commerce.currency_rates.insert("jpy".to_string(), -1.0);
+        assert!(commerce.validate().is_err());
+        commerce.currency_rates.insert("jpy".to_string(), 150.0);
+        assert!(commerce.validate().is_ok());
+
+        assert_eq!(
+            commerce.effective_supported_currencies(),
+            vec!["usd".to_string(), "eur".to_string(), "jpy".to_string()]
+        );
+        assert_eq!(commerce.get_currency_rate("usd"), Some(1.0));
+        assert_eq!(commerce.get_currency_rate("eur"), Some(0.92));
+        assert_eq!(commerce.get_currency_rate("jpy"), Some(150.0));
+        assert_eq!(commerce.get_currency_rate("gbp"), None);
     }
 }

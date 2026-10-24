@@ -95,6 +95,8 @@ pub struct CartItem {
 pub struct CartRequest {
     pub items: Vec<CartItem>,
     #[serde(default)]
+    pub currency: Option<String>,
+    #[serde(default)]
     pub email: String,
     #[serde(default)]
     pub name: String,
@@ -241,10 +243,101 @@ impl CommerceService {
             .ok_or_else(|| CommerceError::Internal("Product schema is missing".to_string()))
     }
 
+    /// 通貨の解決（指定があれば検証し小文字で返す、無ければ基軸通貨）
+    pub fn resolve_currency(&self, req_currency: Option<&str>) -> CommerceResult<String> {
+        match req_currency.map(str::trim).filter(|s| !s.is_empty()) {
+            Some(code) => {
+                let code_lower = code.to_ascii_lowercase();
+                let supported = self.config.effective_supported_currencies();
+                if supported.iter().any(|c| c == &code_lower) {
+                    Ok(code_lower)
+                } else {
+                    Err(CommerceError::Invalid(format!(
+                        "Currency '{}' is not supported. Supported currencies: {}",
+                        code,
+                        supported.join(", ")
+                    )))
+                }
+            }
+            None => Ok(self.config.currency.clone()),
+        }
+    }
+
+    /// 商品またはバリエーションの指定通貨における単価を解決する
+    fn resolve_item_price(
+        &self,
+        product: &aegis_db::ContentRecord,
+        variant: Option<&aegis_db::ProductVariantRecord>,
+        target_currency: &str,
+    ) -> CommerceResult<i64> {
+        let is_base = target_currency.eq_ignore_ascii_case(&self.config.currency);
+        let currency_key = format!("price_{}", target_currency.to_ascii_lowercase());
+
+        if let Some(v) = variant {
+            // 1. バリエーションの attributes_json 内に price_{currency} があれば優先
+            let attrs: HashMap<String, String> =
+                serde_json::from_str(&v.attributes_json).unwrap_or_default();
+            if let Some(val_str) = attrs.get(&currency_key) {
+                if let Ok(parsed) = val_str.trim().parse::<i64>() {
+                    if parsed >= 0 {
+                        return Ok(parsed);
+                    }
+                }
+            }
+            // 2. バリエーションの価格上書き
+            if let Some(price_override) = v.price_override.filter(|p| *p >= 0) {
+                if is_base {
+                    return Ok(price_override);
+                } else {
+                    return self.convert_from_base(price_override, target_currency);
+                }
+            }
+        }
+
+        // 3. 親商品の price_{currency} カスタムフィールドがあれば優先
+        if let Some(price) = integer_field(&product.custom_fields, &currency_key) {
+            if price >= 0 {
+                return Ok(price);
+            }
+        }
+
+        // 4. 親商品の基本価格 (price) を取得
+        let base_price = integer_field(&product.custom_fields, "price")
+            .filter(|p| *p >= 0)
+            .ok_or_else(|| {
+                CommerceError::NotFound(format!("Product '{}' has no price", product.slug))
+            })?;
+
+        if is_base {
+            Ok(base_price)
+        } else {
+            self.convert_from_base(base_price, target_currency)
+        }
+    }
+
+    fn convert_from_base(&self, base_price: i64, target_currency: &str) -> CommerceResult<i64> {
+        let rate = self
+            .config
+            .get_currency_rate(target_currency)
+            .ok_or_else(|| {
+                CommerceError::Invalid(format!(
+                    "No exchange rate configured for currency '{}'",
+                    target_currency
+                ))
+            })?;
+        Ok(aegis_core::convert_currency(
+            base_price,
+            &self.config.currency,
+            target_currency,
+            rate,
+        ))
+    }
+
     /// カートの検証と、商品から価格を引いた明細・在庫の確保内容を作る
     async fn build_lines(
         &self,
         items: &[CartItem],
+        target_currency: &str,
     ) -> CommerceResult<(Vec<OrderLine>, Vec<StockReservation>)> {
         if items.is_empty() {
             return Err(CommerceError::Invalid("The cart is empty".to_string()));
@@ -334,17 +427,7 @@ impl CommerceService {
                         v.title
                     )));
                 }
-                let base_price = integer_field(&product.custom_fields, "price");
-                let price = v
-                    .price_override
-                    .or(base_price)
-                    .filter(|price| *price >= 0)
-                    .ok_or_else(|| {
-                        CommerceError::NotFound(format!(
-                            "Product variant '{}' has no price",
-                            v.title
-                        ))
-                    })?;
+                let price = self.resolve_item_price(&product, Some(&v), target_currency)?;
                 if let Some(stock) = v.stock {
                     if stock < i64::from(quantity) {
                         return Err(CommerceError::OutOfStock {
@@ -374,11 +457,7 @@ impl CommerceService {
                         product.slug
                     )));
                 }
-                let unit_price = integer_field(&product.custom_fields, "price")
-                    .filter(|price| *price >= 0)
-                    .ok_or_else(|| {
-                        CommerceError::NotFound(format!("Product '{}' has no price", product.slug))
-                    })?;
+                let unit_price = self.resolve_item_price(&product, None, target_currency)?;
                 // 見積もりの時点でも在庫切れを知らせる（確定は注文作成時の UPDATE で行う）
                 if let Some(stock) = integer_field(&product.custom_fields, "stock") {
                     if stock < i64::from(quantity) {
@@ -430,9 +509,10 @@ impl CommerceService {
         &self,
         request: &CartRequest,
     ) -> CommerceResult<(OrderContext, Vec<StockReservation>)> {
-        let (lines, reservations) = self.build_lines(&request.items).await?;
+        let currency = self.resolve_currency(request.currency.as_deref())?;
+        let (lines, reservations) = self.build_lines(&request.items, &currency).await?;
         let ctx = OrderContext {
-            currency: self.config.currency.clone(),
+            currency,
             lines,
             customer_email: request.email.trim().to_string(),
             customer_name: request.name.trim().to_string(),

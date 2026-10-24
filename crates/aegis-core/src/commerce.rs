@@ -220,9 +220,51 @@ const ZERO_DECIMAL_CURRENCIES: [&str; 16] = [
     "xaf", "xof", "xpf",
 ];
 
+/// 小数部が 3 桁の通貨（BHD, JOD, KWD, OMR, TND）
+const THREE_DECIMAL_CURRENCIES: [&str; 5] = ["bhd", "jod", "kwd", "omr", "tnd"];
+
 /// 小数部を持たない通貨か（`jpy` など。大文字小文字は区別しない）
 pub fn is_zero_decimal_currency(currency: &str) -> bool {
     ZERO_DECIMAL_CURRENCIES.contains(&currency.to_ascii_lowercase().as_str())
+}
+
+/// 通貨の小数桁数を返す（JPY/KRW 等は 0、BHD 等は 3、USD/EUR 等は 2）
+pub fn currency_decimals(currency: &str) -> u32 {
+    let lower = currency.to_ascii_lowercase();
+    if is_zero_decimal_currency(&lower) {
+        0
+    } else if THREE_DECIMAL_CURRENCIES.contains(&lower.as_str()) {
+        3
+    } else {
+        2
+    }
+}
+
+/// 為替レートを適用して金額（最小単位の整数）を通貨間で換算する。
+/// `rate` は「`from_currency` の 1 主要単位に対する `to_currency` の主要単位数」。
+/// 例えば 1 JPY = 0.0067 USD の場合、rate は 0.0067。
+/// 1 USD = 150.0 JPY の場合、rate は 150.0。
+pub fn convert_currency(amount: i64, from_currency: &str, to_currency: &str, rate: f64) -> i64 {
+    if from_currency.eq_ignore_ascii_case(to_currency) {
+        return amount;
+    }
+    if rate <= 0.0 || !rate.is_finite() {
+        return amount;
+    }
+    let from_dec = currency_decimals(from_currency);
+    let to_dec = currency_decimals(to_currency);
+    let from_factor = 10f64.powi(from_dec as i32);
+    let to_factor = 10f64.powi(to_dec as i32);
+    let from_major = amount as f64 / from_factor;
+    let to_major = from_major * rate;
+    let to_minor = (to_major * to_factor).round();
+    if to_minor > i64::MAX as f64 {
+        i64::MAX
+    } else if to_minor < i64::MIN as f64 {
+        i64::MIN
+    } else {
+        to_minor as i64
+    }
 }
 
 fn currency_symbol(currency: &str) -> Option<&'static str> {
@@ -253,8 +295,15 @@ fn group_thousands(digits: &str) -> String {
 pub fn format_money(amount: i64, currency: &str) -> String {
     let sign = if amount < 0 { "-" } else { "" };
     let abs = amount.unsigned_abs();
-    let number = if is_zero_decimal_currency(currency) {
+    let decimals = currency_decimals(currency);
+    let number = if decimals == 0 {
         group_thousands(&abs.to_string())
+    } else if decimals == 3 {
+        format!(
+            "{}.{:03}",
+            group_thousands(&(abs / 1000).to_string()),
+            abs % 1000
+        )
     } else {
         format!(
             "{}.{:02}",
@@ -304,7 +353,33 @@ mod tests {
         assert_eq!(format_money(100_005, "eur"), "€1,000.05");
         assert_eq!(format_money(-500, "jpy"), "-¥500");
         assert_eq!(format_money(990, "chf"), "CHF 9.90");
+        assert_eq!(format_money(1234, "kwd"), "KWD 1.234");
         assert!(is_zero_decimal_currency("KRW"));
         assert!(!is_zero_decimal_currency("usd"));
+    }
+
+    #[test]
+    fn test_currency_decimals_and_conversion() {
+        assert_eq!(currency_decimals("jpy"), 0);
+        assert_eq!(currency_decimals("JPY"), 0);
+        assert_eq!(currency_decimals("krw"), 0);
+        assert_eq!(currency_decimals("usd"), 2);
+        assert_eq!(currency_decimals("EUR"), 2);
+        assert_eq!(currency_decimals("kwd"), 3);
+
+        // 1000 JPY -> USD @ 0.0067 -> $6.70 (670 cents)
+        let usd = convert_currency(1000, "jpy", "usd", 0.0067);
+        assert_eq!(usd, 670);
+
+        // 670 cents ($6.70) -> JPY @ 149.2537 -> 1000 JPY
+        let jpy = convert_currency(670, "usd", "jpy", 149.2537);
+        assert_eq!(jpy, 1000);
+
+        // Same currency -> untouched
+        assert_eq!(convert_currency(1500, "jpy", "jpy", 0.0067), 1500);
+
+        // Invalid rate -> return amount safely
+        assert_eq!(convert_currency(1500, "jpy", "usd", 0.0), 1500);
+        assert_eq!(convert_currency(1500, "jpy", "usd", -1.0), 1500);
     }
 }

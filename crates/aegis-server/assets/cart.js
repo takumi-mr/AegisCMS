@@ -9,9 +9,18 @@
   'use strict';
 
   var script = document.currentScript;
+  var CURRENCY_KEY = 'aegis.currency';
+  var initialCurrency = (function () {
+    try {
+      var saved = localStorage.getItem(CURRENCY_KEY);
+      if (saved && saved.length === 3) return saved.toLowerCase();
+    } catch (e) {}
+    return (script && script.dataset.currency) || 'jpy';
+  })();
+
   var config = {
     api: (script && script.dataset.api) || '/api/v1/shop',
-    currency: (script && script.dataset.currency) || 'jpy',
+    currency: initialCurrency,
     cartUrl: (script && script.dataset.cartUrl) || '/cart',
     productsUrl: (script && script.dataset.productsUrl) || '/products',
     shopEnabled: !script || script.dataset.shopEnabled !== 'false',
@@ -171,7 +180,7 @@
       request('/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: items, coupon_code: state.coupon || null }),
+        body: JSON.stringify({ items: items, currency: config.currency, coupon_code: state.coupon || null }),
       })
         .then(function (quote) {
           state.quote = quote;
@@ -183,6 +192,7 @@
         })
         .then(draw);
     }
+    window.__aegis_requote = requote;
 
     function scheduleRequote() {
       clearTimeout(state.timer);
@@ -211,6 +221,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: cartItems(),
+          currency: config.currency,
           email: value('email'),
           name: value('name'),
           coupon_code: state.coupon || null,
@@ -430,9 +441,35 @@
     load();
   }
 
+  function setCurrency(currency) {
+    if (!currency || currency.length !== 3) return;
+    config.currency = currency.toLowerCase();
+    try {
+      localStorage.setItem(CURRENCY_KEY, config.currency);
+    } catch (e) {}
+    document.querySelectorAll('[data-aegis-currency-selector]').forEach(function (select) {
+      if (select.value.toLowerCase() !== config.currency) {
+        select.value = config.currency;
+      }
+    });
+    if (window.__aegis_requote) {
+      window.__aegis_requote();
+    }
+  }
+
+  function bindCurrencySelectors() {
+    document.querySelectorAll('[data-aegis-currency-selector]').forEach(function (select) {
+      select.value = config.currency;
+      select.addEventListener('change', function (e) {
+        setCurrency(e.target.value);
+      });
+    });
+  }
+
   function init() {
     updateCounts();
     bindAddToCart();
+    bindCurrencySelectors();
     var cart = document.getElementById('aegis-cart');
     if (cart) renderCart(cart);
     var order = document.getElementById('aegis-order');
@@ -442,5 +479,15 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  window.AegisCart = { add: addToCart, items: loadCart, clear: function () { saveCart([]); } };
+  window.AegisCart = {
+    add: addToCart,
+    items: loadCart,
+    clear: function () {
+      saveCart([]);
+    },
+    setCurrency: setCurrency,
+    getCurrency: function () {
+      return config.currency;
+    },
+  };
 })();

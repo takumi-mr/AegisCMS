@@ -26,6 +26,8 @@ fn product_schema() -> SchemaDefinition {
         "fields": [
             { "name": "title", "type": "string", "required": true },
             { "name": "price", "type": "integer", "required": true },
+            { "name": "price_usd", "type": "integer", "nullable": true },
+            { "name": "price_eur", "type": "integer", "nullable": true },
             { "name": "stock", "type": "integer", "nullable": true },
             { "name": "sku", "type": "string", "nullable": true }
         ]
@@ -959,6 +961,7 @@ async fn test_official_wasm_plugins_in_checkout() {
             variant: None,
             quantity: 2,
         }],
+        currency: None,
         email: "buyer@example.com".to_string(),
         name: "Buyer".to_string(),
         shipping_address: None,
@@ -1527,4 +1530,181 @@ async fn test_product_variant_crud_and_checkout_flow() {
         .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(list_deleted.as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn test_multi_currency_quote_and_checkout_flow() {
+    let shop = shop(|config| {
+        config.commerce.supported_currencies =
+            vec!["jpy".to_string(), "usd".to_string(), "eur".to_string()];
+        config
+            .commerce
+            .currency_rates
+            .insert("usd".to_string(), 0.0067); // 1 JPY = 0.0067 USD
+        config
+            .commerce
+            .currency_rates
+            .insert("eur".to_string(), 0.0062); // 1 JPY = 0.0062 EUR
+    })
+    .await;
+
+    // 1. GET /api/v1/shop/config で設定を確認
+    let (status, cfg) = shop.call("GET", "/api/v1/shop/config", None, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cfg["currency"], "jpy");
+    assert_eq!(cfg["supported_currencies"], json!(["jpy", "usd", "eur"]));
+    assert_eq!(cfg["currency_rates"]["usd"], 0.0067);
+
+    // 2. 未対応通貨での見積もりリクエスト -> BAD_REQUEST (400)
+    let (status, err) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "shirt", "quantity": 1 }],
+                "currency": "gbp"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(err["error"]
+        .as_str()
+        .unwrap()
+        .contains("Currency 'gbp' is not supported"));
+
+    // 3. 通貨指定なし（基軸 JPY）での見積もり
+    // shirt: price = 3000 JPY, shipping = 500 JPY -> total = 3500 JPY
+    let (status, quote_jpy) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "shirt", "quantity": 1 }]
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote_jpy["currency"], "jpy");
+    assert_eq!(quote_jpy["lines"][0]["unit_price"], 3000);
+    assert_eq!(quote_jpy["subtotal"], 3000);
+    assert_eq!(quote_jpy["total"], 3500);
+
+    // 4. USD での見積もり (レート換算: 3000 * 0.0067 = 20.10 USD = 2010 cents, shipping = 500 cents -> total = 2510)
+    let (status, quote_usd) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "shirt", "quantity": 1 }],
+                "currency": "usd"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote_usd["currency"], "usd");
+    assert_eq!(quote_usd["lines"][0]["unit_price"], 2010);
+    assert_eq!(quote_usd["subtotal"], 2010);
+    assert_eq!(quote_usd["total"], 2510);
+
+    // 5. 商品に特定通貨の固定価格（price_usd）が設定されている場合
+    // mug (p-mug): price = 1200 JPY に price_usd = 950 (cents = $9.50) をカスタムフィールドに追加
+    let schema = shop
+        .state
+        .schemas
+        .read()
+        .await
+        .get("product")
+        .unwrap()
+        .clone();
+    let mut mug = shop
+        .state
+        .db
+        .get_content(&schema, "mug")
+        .await
+        .unwrap()
+        .unwrap();
+    mug.custom_fields
+        .insert("price_usd".to_string(), json!(950));
+    shop.state.db.update_content(&schema, &mug).await.unwrap();
+
+    let (status, quote_mug_usd) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "mug", "quantity": 2 }],
+                "currency": "usd"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote_mug_usd["currency"], "usd");
+    assert_eq!(quote_mug_usd["lines"][0]["unit_price"], 950);
+    assert_eq!(quote_mug_usd["subtotal"], 1900);
+    assert_eq!(quote_mug_usd["total"], 2400);
+
+    // 6. USD での購入（checkout）
+    let (status, checkout_res) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/checkout",
+            Some(json!({
+                "items": [{ "product": "mug", "quantity": 1 }],
+                "currency": "usd",
+                "email": "customer-usd@example.com",
+                "name": "USD Customer"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(checkout_res["order"]["currency"], "usd");
+    assert_eq!(checkout_res["order"]["subtotal"], 950);
+    assert_eq!(checkout_res["order"]["total"], 1450);
+
+    let order_id = checkout_res["order"]["id"].as_str().unwrap();
+    let order_in_db = shop.state.db.get_order(order_id).await.unwrap().unwrap();
+    assert_eq!(order_in_db.currency, "usd");
+    assert_eq!(order_in_db.subtotal, 950);
+    assert_eq!(order_in_db.total, 1450);
+
+    // 7. バリエーションと多通貨の組み合わせ
+    // shirt にバリエーションを追加: attributes に price_usd = "2200" (cents = $22.00)
+    let (status, var_res) = shop
+        .call(
+            "POST",
+            "/api/v1/contents/product/p-shirt/variants",
+            Some(json!({
+                "title": "Red XL",
+                "sku": "SHIRT-RED-XL",
+                "price_override": 3500,
+                "stock": 10,
+                "attributes": { "price_usd": "2200" }
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let var_id = var_res["id"].as_str().unwrap();
+
+    let (status, quote_var_usd) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "shirt", "variant": var_id, "quantity": 1 }],
+                "currency": "usd"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote_var_usd["currency"], "usd");
+    assert_eq!(quote_var_usd["lines"][0]["unit_price"], 2200);
+    assert_eq!(quote_var_usd["subtotal"], 2200);
+    assert_eq!(quote_var_usd["total"], 2700);
 }

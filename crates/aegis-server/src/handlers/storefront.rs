@@ -27,12 +27,18 @@ fn shop_vars(state: &AppState) -> HashMap<String, String> {
         .normalized_base_path()
         .unwrap_or_default();
     let commerce = &state.config.commerce;
+    let supported = commerce.effective_supported_currencies();
+    let supported_json = serde_json::to_string(&supported).unwrap_or_else(|_| "[]".to_string());
+    let rates_json =
+        serde_json::to_string(&commerce.currency_rates).unwrap_or_else(|_| "{}".to_string());
     HashMap::from([
         (
             "shop_enabled".to_string(),
             state.commerce.is_some().to_string(),
         ),
         ("currency".to_string(), commerce.currency.clone()),
+        ("supported_currencies".to_string(), supported_json),
+        ("currency_rates".to_string(), rates_json),
         (
             "products_url".to_string(),
             format!("{}/products", base_path),

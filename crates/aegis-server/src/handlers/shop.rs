@@ -172,6 +172,8 @@ pub async fn shop_config(State(state): State<Arc<AppState>>) -> Json<serde_json:
     Json(json!({
         "enabled": state.commerce.is_some(),
         "currency": commerce.currency,
+        "supported_currencies": commerce.effective_supported_currencies(),
+        "currency_rates": commerce.currency_rates,
         "product_type": commerce.product_type,
         "provider": state.commerce.as_ref().map(|c| c.provider().id()),
     }))
