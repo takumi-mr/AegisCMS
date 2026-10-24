@@ -18,7 +18,7 @@ use crate::state::AppState;
 use aegis_auth::password::verify_password;
 use aegis_auth::users::{self, NewUser, UserChanges};
 use aegis_auth::SessionData;
-use aegis_core::{AegisError, AuditAction, AuditOutcome};
+use aegis_core::{AegisError, AuditAction, AuditOutcome, NotificationEvent, Recipient};
 use aegis_db::UserRecord;
 
 /// アバター画像の最大サイズ
@@ -58,6 +58,7 @@ pub struct UserView {
     pub avatar_url: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    pub pending_approval: bool,
 }
 
 fn view(state: &AppState, user: UserRecord) -> UserView {
@@ -74,6 +75,7 @@ fn view(state: &AppState, user: UserRecord) -> UserView {
         disabled: user.disabled,
         created_at: user.created_at,
         updated_at: user.updated_at,
+        pending_approval: user.pending_approval,
     }
 }
 
@@ -275,6 +277,10 @@ fn changes_between(before: &UserRecord, after: &UserRecord) -> serde_json::Value
         ("role", before.role != after.role),
         ("disabled", before.disabled != after.disabled),
         ("password", before.password_hash != after.password_hash),
+        (
+            "pending_approval",
+            before.pending_approval != after.pending_approval,
+        ),
     ]
     .into_iter()
     .filter_map(|(name, differs)| differs.then_some(name))
@@ -285,6 +291,9 @@ fn changes_between(before: &UserRecord, after: &UserRecord) -> serde_json::Value
     }
     if before.disabled != after.disabled {
         details["disabled"] = json!(after.disabled);
+    }
+    if before.pending_approval && !after.pending_approval {
+        details["approved"] = json!(true);
     }
     details
 }
@@ -348,6 +357,7 @@ pub async fn update_user(
             role: payload.role,
             disabled: payload.disabled,
             password: payload.password,
+            pending_approval: None,
         },
     )
     .await;
@@ -355,6 +365,27 @@ pub async fn update_user(
         return Err(api_error(StatusCode::BAD_REQUEST, m));
     }
     if let Ok(updated) = &result {
+        // 承認待ちだったアカウントが有効化された場合、本人に承認完了メールを通知する
+        if current.pending_approval && !updated.pending_approval && !updated.disabled {
+            if let (Some(notifier), Some(email)) = (&state.notifier, &updated.email) {
+                let admin_url = state.admin_url.as_deref().unwrap_or("");
+                notifier.notify(NotificationEvent::new(
+                    "account.approved",
+                    vec![Recipient::person(
+                        email,
+                        updated
+                            .display_name
+                            .clone()
+                            .unwrap_or_else(|| updated.username.clone()),
+                    )],
+                    json!({
+                        "username": updated.username,
+                        "display_name": updated.display_name,
+                        "login_url": admin_url,
+                    }),
+                ));
+            }
+        }
         if current.role != updated.role
             || current.disabled != updated.disabled
             || current.password_hash != updated.password_hash
@@ -1069,6 +1100,66 @@ mod tests {
         assert_eq!(
             state.sessions.get_session(&bob_sess.id).await.unwrap(),
             None
+        );
+    }
+
+    #[tokio::test]
+    async fn test_approval_notification_when_admin_enables_user() {
+        use crate::test_support::RecordingNotifier;
+
+        let state = crate::test_support::test_state_with_plugins(
+            aegis_runtime::PluginSupervisor::new(),
+            Vec::new(),
+        )
+        .await;
+        let mails = Arc::new(RecordingNotifier::default());
+        let mut state_builder = (*state).clone();
+        state_builder.notifier = Some(mails.clone());
+        state_builder.admin_url = Some("https://cms.example.com/admin/".to_string());
+        let state = Arc::new(state_builder);
+
+        // 承認待ちユーザーを作成（disabled: true, pending_approval: true）
+        let user = aegis_auth::users::insert_new_user(
+            state.db.as_ref(),
+            NewUser {
+                username: "pending_user".to_string(),
+                password: String::new(),
+                role: "viewer".to_string(),
+                email: Some("pending@example.com".to_string()),
+                display_name: Some("Pending User".to_string()),
+            },
+            "hash".to_string(),
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+        assert!(user.disabled);
+        assert!(user.pending_approval);
+
+        let admin_actor = session("admin", "admin");
+
+        // admin がユーザーを有効化する
+        let resp = patch(
+            &state,
+            admin_actor,
+            "pending_user",
+            json!({ "disabled": false }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(resp.disabled, false);
+        assert_eq!(resp.pending_approval, false);
+
+        // 承認メールが送られたことを確認
+        let events = mails.take();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "account.approved");
+        assert_eq!(events[0].data["username"], "pending_user");
+        assert_eq!(
+            events[0].data["login_url"],
+            "https://cms.example.com/admin/"
         );
     }
 }

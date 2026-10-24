@@ -1,6 +1,8 @@
 use crate::config::AegisConfig;
 use crate::site::{SiteInfo, SiteOverrides};
 use aegis_audit::AuditService;
+use aegis_auth::invitation::InvitationService;
+use aegis_auth::password_reset::PasswordResetService;
 use aegis_auth::registration::RegistrationService;
 use aegis_auth::{LoginRateLimiter, SessionService};
 use aegis_core::{AuthProvider, CacheBackend, Notifier, StorageBackend};
@@ -39,9 +41,15 @@ pub struct AppState {
     /// EC（`[commerce]`）。無効なら `None`
     pub commerce: Option<Arc<aegis_commerce::CommerceService>>,
     /// 通知（`[notifications]`）。無効なら `None`
-    pub notifier: Option<Arc<aegis_notify::NotificationService>>,
+    pub notifier: Option<Arc<dyn Notifier>>,
     /// Admin Studio からのアカウント登録（`[auth.registration]`）。無効なら `None`
     pub registration: Option<Arc<Registration>>,
+    /// パスワード再設定（`[auth.password_reset]`）。無効なら `None`
+    pub password_reset: Option<Arc<PasswordReset>>,
+    /// 招待リンク（`[auth.invitation]`）。無効なら `None`
+    pub invitation: Option<Arc<Invitation>>,
+    /// Admin Studio の URL
+    pub admin_url: Option<String>,
 }
 
 /// シングルサインオン（OpenID Connect / SAML）の設定済みプロバイダと、ログイン画面・リダイレクトに使う値
@@ -69,6 +77,20 @@ pub struct Registration {
     /// 確認メールを送る通知
     pub notifier: Arc<dyn Notifier>,
     /// 確認リンクの開き先の Admin Studio の URL（`#verify-email=<トークン>` を付ける）
+    pub admin_url: String,
+}
+
+/// パスワード再設定に使う部品
+pub struct PasswordReset {
+    pub service: PasswordResetService,
+    pub notifier: Arc<dyn Notifier>,
+    pub admin_url: String,
+}
+
+/// 招待リンクに使う部品
+pub struct Invitation {
+    pub service: InvitationService,
+    pub notifier: Arc<dyn Notifier>,
     pub admin_url: String,
 }
 
@@ -106,6 +128,9 @@ impl AppState {
             commerce: None,
             notifier: None,
             registration: None,
+            password_reset: None,
+            invitation: None,
+            admin_url: None,
         }
     }
 
@@ -132,22 +157,37 @@ impl AppState {
             schemas: self.schemas.clone(),
             supervisor: self.supervisor.clone(),
             audit: self.audit.clone(),
-            notifier: self
-                .notifier
-                .clone()
-                .map(|n| n as Arc<dyn aegis_core::Notifier>),
+            notifier: self.notifier.clone(),
         }
     }
 
     /// 通知（`[notifications]`）を有効にする。EC より先に設定する（`commerce_deps` が使う）
-    pub fn with_notifier(mut self, notifier: aegis_notify::NotificationService) -> Self {
-        self.notifier = Some(Arc::new(notifier));
+    pub fn with_notifier(mut self, notifier: Arc<dyn Notifier>) -> Self {
+        self.notifier = Some(notifier);
         self
     }
 
     /// アカウント登録（`[auth.registration]`）を有効にする
     pub fn with_registration(mut self, registration: Registration) -> Self {
         self.registration = Some(Arc::new(registration));
+        self
+    }
+
+    /// パスワード再設定（`[auth.password_reset]`）を有効にする
+    pub fn with_password_reset(mut self, reset: PasswordReset) -> Self {
+        self.password_reset = Some(Arc::new(reset));
+        self
+    }
+
+    /// 招待リンク（`[auth.invitation]`）を有効にする
+    pub fn with_invitation(mut self, invitation: Invitation) -> Self {
+        self.invitation = Some(Arc::new(invitation));
+        self
+    }
+
+    /// Admin Studio の URL を設定する
+    pub fn with_admin_url(mut self, url: impl Into<String>) -> Self {
+        self.admin_url = Some(url.into());
         self
     }
 

@@ -1,0 +1,9 @@
+Hello {{ display_name or email }},
+
+You have been invited to the Admin Studio on {{ site_name }} (role: {{ role }}).
+Open the link below to choose your username and password:
+
+{{ invite_url }}
+
+The link expires in {{ expires_days }} days.
+{% include "_footer.txt" %}

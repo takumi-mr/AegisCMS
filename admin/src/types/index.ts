@@ -152,6 +152,8 @@ export interface UserAccount {
   display_name: string | null;
   role: UserRole | string;
   disabled: boolean;
+  /** True when self-registered and waiting for admin approval */
+  pending_approval?: boolean;
   /** Public URL of the avatar image, or null when none is set */
   avatar_url: string | null;
   created_at: string;
@@ -196,6 +198,10 @@ export interface AuthProviders {
   saml?: SsoProvider | null;
   /** Self-registration (`[auth.registration]`); missing on older servers */
   registration?: boolean;
+  /** Password reset via email (`[auth.password_reset]`) */
+  password_reset?: boolean;
+  /** Invite links (`[auth.invitation]`) */
+  invitation?: boolean;
 }
 
 /** Body of `POST /api/v1/auth/registration` */
@@ -211,6 +217,29 @@ export interface RegistrationResult {
   /** `active`: can sign in now; `pending_approval`: disabled until an admin enables it */
   status: 'active' | 'pending_approval';
   username: string;
+}
+
+/** Invitation info returned by `GET /api/v1/auth/invitations/info?token=...` */
+export interface InvitationInfo {
+  valid: boolean;
+  email: string;
+  role: string;
+  display_name: string | null;
+}
+
+/** Body of `POST /api/v1/auth/invitations` */
+export interface CreateInvitationPayload {
+  email: string;
+  role: string;
+  display_name?: string;
+}
+
+/** Body of `POST /api/v1/auth/invitations/accept` */
+export interface AcceptInvitePayload {
+  token: string;
+  username: string;
+  password: string;
+  display_name?: string;
 }
 
 /** Session returned by `POST /api/v1/auth/session` (login) and `GET /api/v1/auth/session` */

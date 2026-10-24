@@ -10,6 +10,8 @@ import { LanguageSelect } from './ui/LanguageSelect';
 import { isSsoErrorCode } from '../utils/loginRedirect';
 import { describeRegistrationError } from '../utils/verifyEmail';
 import { RegisterForm } from './RegisterForm';
+import { PasswordResetRequestForm, PasswordResetConfirmForm } from './PasswordResetForms';
+import { AcceptInviteForm } from './AcceptInviteForm';
 import styles from './LoginView.module.css';
 
 interface LoginViewProps {
@@ -20,7 +22,13 @@ interface LoginViewProps {
   initialError?: string | null;
   /** Token of an email confirmation link (`#verify-email=`), confirmed when the screen opens */
   verifyToken?: string | null;
+  /** Token of a password reset link (`#reset-password=`) */
+  resetToken?: string | null;
+  /** Token of an invitation link (`#invite=`) */
+  inviteToken?: string | null;
 }
+
+type ScreenMode = 'login' | 'register' | 'forgot_password' | 'reset_password' | 'accept_invite';
 
 const describeError = (err: unknown, t: TFunction): string => {
   if (err instanceof ApiError) {
@@ -44,6 +52,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
   notice,
   initialError,
   verifyToken,
+  resetToken,
+  inviteToken,
 }) => {
   const { t } = useTranslation();
   const [username, setUsername] = useState<string>('');
@@ -53,8 +63,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
     initialError ? describeSsoError(initialError, t) : null
   );
   const [providers, setProviders] = useState<AuthProviders | null>(null);
-  const [isRegistering, setIsRegistering] = useState<boolean>(false);
+  const [mode, setMode] = useState<ScreenMode>(() => {
+    if (resetToken) return 'reset_password';
+    if (inviteToken) return 'accept_invite';
+    return 'login';
+  });
   const [verifyNotice, setVerifyNotice] = useState<string | null>(null);
+  const [customNotice, setCustomNotice] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState<boolean>(Boolean(verifyToken));
   const usernameRef = useRef<HTMLInputElement>(null);
   const ssoProviders = [providers?.oidc, providers?.saml].filter((sso): sso is SsoProvider =>
@@ -62,13 +77,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
   );
 
   useEffect(() => {
-    usernameRef.current?.focus();
+    if (mode === 'login') {
+      usernameRef.current?.focus();
+    }
     // Without the list (older server, offline) only the password form is shown
     aegisApi
       .getAuthProviders()
       .then(setProviders)
       .catch(() => setProviders(null));
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (!verifyToken) return;
@@ -96,7 +113,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   }, [verifyToken]);
 
   const backToLogin = () => {
-    setIsRegistering(false);
+    setMode('login');
     setError(null);
   };
 
@@ -118,17 +135,26 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }
   };
 
+  const getSubtitle = () => {
+    if (mode === 'register') return t('login.register.subtitle');
+    if (mode === 'forgot_password' || mode === 'reset_password') {
+      return t('login.resetPassword.requestSubtitle');
+    }
+    if (mode === 'accept_invite') return t('login.invitation.subtitle');
+    return t('login.subtitle');
+  };
+
   const brand = (
     <div className={styles.brand}>
       <BrandMark />
       <div>
         <h1>AegisCMS</h1>
-        <p>{isRegistering ? t('login.register.subtitle') : t('login.subtitle')}</p>
+        <p>{getSubtitle()}</p>
       </div>
     </div>
   );
 
-  if (isRegistering) {
+  if (mode === 'register') {
     return (
       <div className={styles.screen}>
         <div className={styles.card}>
@@ -140,7 +166,61 @@ export const LoginView: React.FC<LoginViewProps> = ({
     );
   }
 
-  const shownNotice = isVerifying ? t('login.register.verifying') : (verifyNotice ?? notice);
+  if (mode === 'forgot_password') {
+    return (
+      <div className={styles.screen}>
+        <div className={styles.card}>
+          {brand}
+          <PasswordResetRequestForm onBack={backToLogin} />
+          <LanguageSelect className={styles.language} />
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'reset_password' && resetToken) {
+    return (
+      <div className={styles.screen}>
+        <div className={styles.card}>
+          {brand}
+          <PasswordResetConfirmForm
+            token={resetToken}
+            onSuccess={(msg) => {
+              setCustomNotice(msg);
+              setMode('login');
+            }}
+            onBack={backToLogin}
+          />
+          <LanguageSelect className={styles.language} />
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'accept_invite' && inviteToken) {
+    return (
+      <div className={styles.screen}>
+        <div className={styles.card}>
+          {brand}
+          <AcceptInviteForm
+            token={inviteToken}
+            onSuccess={(msg) => {
+              setCustomNotice(msg);
+              setMode('login');
+            }}
+            onBack={backToLogin}
+          />
+          <LanguageSelect className={styles.language} />
+        </div>
+      </div>
+    );
+  }
+
+  const shownNotice = isVerifying
+    ? t('login.register.verifying')
+    : (customNotice ?? verifyNotice ?? notice);
+
+  const showPasswordReset = providers?.password_reset !== false;
 
   return (
     <div className={styles.screen}>
@@ -179,6 +259,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
           />
         </label>
 
+        {showPasswordReset && (
+          <button
+            type="button"
+            className={styles.forgotButton}
+            onClick={() => {
+              setMode('forgot_password');
+              setError(null);
+            }}
+          >
+            {t('login.forgotPassword')}
+          </button>
+        )}
+
         <Button type="submit" variant="primary" className={styles.submit} disabled={isSubmitting}>
           {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
           <span>{isSubmitting ? t('login.submitting') : t('login.submit')}</span>
@@ -203,7 +296,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
             type="button"
             className={styles.registerLink}
             onClick={() => {
-              setIsRegistering(true);
+              setMode('register');
               setError(null);
             }}
           >

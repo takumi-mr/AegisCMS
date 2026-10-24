@@ -1,12 +1,15 @@
 import i18n from '../i18n';
 import type {
+  AcceptInvitePayload,
   AuditLogPage,
   AuthProviders,
   AuditLogQuery,
   ContentItem,
   CreateCategoryPayload,
   CreateContentPayload,
+  CreateInvitationPayload,
   CreateUserPayload,
+  InvitationInfo,
   ObjectReference,
   Order,
   OrderPage,
@@ -159,6 +162,59 @@ export const aegisApi = {
       body: JSON.stringify({ token }),
     });
     if (!res.ok) throw await unauthenticatedError(res, i18n.t('api.verifyFailed'));
+    return res.json();
+  },
+
+  /** Requests a password reset link by email (202 Accepted) */
+  async requestPasswordReset(email: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/auth/password-reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) throw await unauthenticatedError(res, i18n.t('api.passwordResetFailed'));
+  },
+
+  /** Sets a new password using the reset token */
+  async confirmPasswordReset(token: string, password: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/auth/password-reset/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    });
+    if (!res.ok) throw await unauthenticatedError(res, i18n.t('api.confirmResetFailed'));
+  },
+
+  /** Creates an invitation link and emails it to the recipient (admin only) */
+  async createInvitation(payload: CreateInvitationPayload): Promise<void> {
+    return request(
+      '/auth/invitations',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      i18n.t('api.createInvitationFailed')
+    );
+  },
+
+  /** Gets information about an invitation token for the acceptance screen */
+  async getInvitationInfo(token: string): Promise<InvitationInfo> {
+    const res = await fetch(`${API_BASE}/auth/invitations/info?token=${encodeURIComponent(token)}`);
+    if (!res.ok) throw await unauthenticatedError(res, i18n.t('api.invitationInfoFailed'));
+    return res.json();
+  },
+
+  /** Accepts an invitation, setting the initial username and password */
+  async acceptInvitation(
+    payload: AcceptInvitePayload
+  ): Promise<{ status: string; username: string }> {
+    const res = await fetch(`${API_BASE}/auth/invitations/accept`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await unauthenticatedError(res, i18n.t('api.acceptInvitationFailed'));
     return res.json();
   },
 

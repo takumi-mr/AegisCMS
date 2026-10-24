@@ -9,13 +9,16 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: 予約公開時のプラグインフック呼び出し（`on-content-published` フック、`PublishedContent` 構造体、スケジューラでのステータス更新成功時に通知実行、プラグインの失敗は監査ログ `plugin.error` に記録して公開自体はロールバックしない。通知は既存の `[[notifications.audit.rules]]` の `content.publish` と連携）。仕様は [plugin_hooks.md 1.8](docs/plugin_hooks.md#18-on-content-published)・[plugin_abi_specification.md 4.8](docs/plugin_abi_specification.md#48-on_content_published)、設計は [architecture.md 3.4](docs/architecture.md#34-予約公開予約非公開化スケジュール管理-aegis-serversrcschedulerrs-handlerscontentrs)。その前はスキーマ定義（`schemas/*.yaml`）におけるシステム標準カラム（`title`, `slug`, `published_at` 等）の重複定義解消とコード生成器（TypeScript / OpenAPI）の共通標準カラム自動付加・スキップ統一。設計・仕様は [architecture.md 2.3](docs/architecture.md#23-スキーマからのコード生成とシステム標準カラム)。その前は公開予定の一覧・カレンダー画面（`GET /api/v1/schedule`、Admin Studio カレンダービュー・アジェンダビュー）および予約での非公開化（`unpublish_at`、リクエスト時即時判定、定期スケジューラでの自動アーカイブ化と監査ログ `content.unpublish`、エディタ・商品フォームでの設定・クイック解除）。設計・仕様は [architecture.md 3.4](docs/architecture.md#34-予約公開予約非公開化スケジュール管理-aegis-serversrcschedulerrs-handlerscontentrs)、[theme_and_publishing_guide.md](docs/theme_and_publishing_guide.md#予約での非公開化期間限定公開)、[admin/README.md](admin/README.md)。
+- **直近の完了**: パスワードの再設定・承認の知らせ・ユーザー招待リンク機能の実装。
+  1. **パスワード再設定（メール）**: キャッシュ + SHA-256 ハッシュ + URL フラグメント（`#reset-password=<token>`）。アカウント列挙防止（常に `202 Accepted`、Argon2id 擬似ハッシュ処理）、ログイン画面の「パスワードをお忘れですか？」および再設定フォーム、通知 `account.password_reset`。仕様は [authentication.md 9](docs/authentication.md#9-パスワードの再設定)、設計は [architecture.md 6.7](docs/architecture.md#67-パスワードの再設定-aegis_authpassword_reset-handlerspassword_resetrs)。
+  2. **承認の知らせ**: `_aegis_users` に `pending_approval` カラム追加（SQLite / PostgreSQL / MySQL マイグレーション対応）、自己登録時の承認待ちフラグ設定、admin がユーザーを有効化（`disabled: false`）した際の自動クリアおよび承認通知メール `account.approved` 送信、Admin Studio での「承認待ち」バッジと承認ボタン。仕様は [authentication.md 11](docs/authentication.md#11-承認通知-accountapproved)、設計は [architecture.md 6.6](docs/architecture.md#66-アカウント登録-aegis_authregistration-handlersregistrationrs)。
+  3. **ユーザー招待リンク**: admin によるメールアドレス・ロール指定での招待発行（`POST /api/v1/auth/invitations`）、キャッシュ + SHA-256 + URL フラグメント（`#invite=<token>`）、通知 `account.invite`、招待受諾フォーム（`GET /api/v1/auth/invitations/info`、`POST /api/v1/auth/invitations/accept`）でのユーザー名・パスワード設定、即時有効アカウント開設。仕様は [authentication.md 10](docs/authentication.md#10-ユーザー招待リンク)、設計は [architecture.md 6.8](docs/architecture.md#68-ユーザー招待リンク-aegis_authinvitation-handlersinvitationrs)。その前は予約公開時のプラグインフック呼び出し（`on-content-published` フック）。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
 ### 🚀 次に着手する項目
 
-1. **パスワードの再設定（メール）**: アカウント登録と同じ仕組みで作れる。
+1. **Admin Studio のモバイル対応**: 狭い画面での一覧・プレビュー・ヘッダーのレスポンシブ化。
 
 ---
 
@@ -23,9 +26,6 @@
 
 ### 認証・アカウント
 
-- [ ] **パスワードの再設定（メール）**: アカウント登録と同じ仕組み（キャッシュ + ハッシュしたトークン + フラグメントのリンク）。ログイン画面の「パスワードを忘れた」。
-- [ ] **承認の知らせ**: admin がアカウントを有効にしたときに本人へメールする。今は無効化の解除と承認を区別していないので、承認待ちを表すカラムが要る。
-- [ ] **招待リンク**: admin がメールアドレスとロールを指定して招待し、本人がパスワードを決める（`require_approval` の代わりに使える）。
 - [ ] **SAML の拡張**（要望があれば）: IdP のメタデータ URL からの設定の読み込み（証明書の自動更新）、暗号化したアサーション（SP の秘密鍵が要る）、AuthnRequest の署名、シングルログアウト、ECDSA の署名。今の対応範囲は [authentication.md 8](docs/authentication.md#8-シングルサインオン-saml-20)。
 
 ### Admin Studio
@@ -44,7 +44,7 @@
 ### 通知
 
 - [ ] **通知の追加**: HTML メール、送信待ちの永続化（再起動で失われないキュー）、Admin Studio からのテスト送信・テンプレート編集。
-- [ ] **EC 以外の通知**: パスワードの再設定、コメント、公開予約の完了など。
+- [ ] **EC 以外の通知**: コメント、公開予約の完了など。
 
 ### EC
 

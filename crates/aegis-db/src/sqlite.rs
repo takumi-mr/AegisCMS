@@ -15,7 +15,7 @@ use super::{
     build_settings_table, build_user_delete, build_user_insert, build_user_select,
     build_user_update, custom_columns, is_standard_column, user_row_from_sqlx, ContentListQuery,
     ContentPage, ContentRecord, DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES,
-    AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
+    AUDIT_TABLE, USER_AVATAR_COLUMN, USER_PENDING_APPROVAL_COLUMN, USER_TABLE,
 };
 
 /// SQLite はカスタムフィールドを文字列で保存するため、JSON として読めればその値、読めなければ文字列にする。
@@ -182,7 +182,8 @@ impl DatabaseAdapter for SqliteAdapter {
                 disabled INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                avatar_key TEXT
+                avatar_key TEXT,
+                pending_approval INTEGER NOT NULL DEFAULT 0
             );
             "#,
             USER_TABLE
@@ -205,6 +206,15 @@ impl DatabaseAdapter for SqliteAdapter {
             sqlx::query(&format!(
                 "ALTER TABLE {} ADD COLUMN {} TEXT;",
                 USER_TABLE, USER_AVATAR_COLUMN
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        if !user_columns.contains(USER_PENDING_APPROVAL_COLUMN) {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN {} INTEGER NOT NULL DEFAULT 0;",
+                USER_TABLE, USER_PENDING_APPROVAL_COLUMN
             ))
             .execute(&self.pool)
             .await
@@ -612,6 +622,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .bind(&user.created_at)
             .bind(&user.updated_at)
             .bind(&user.avatar_key)
+            .bind(i64::from(user.pending_approval))
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -698,6 +709,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .bind(&user.password_hash)
             .bind(i64::from(user.disabled))
             .bind(&user.avatar_key)
+            .bind(i64::from(user.pending_approval))
             .bind(&user.updated_at)
             .bind(&user.id)
             .execute(&self.pool)
@@ -801,6 +813,7 @@ mod tests {
         adapter.init().await.unwrap();
         let user = adapter.get_user_by_username("old").await.unwrap().unwrap();
         assert_eq!(user.avatar_key, None);
+        assert_eq!(user.pending_approval, false);
     }
 
     fn schemas() -> HashMap<String, SchemaDefinition> {
