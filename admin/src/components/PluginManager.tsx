@@ -339,9 +339,10 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                     canConfigure && togglingName === null && (plugin.is_enabled || !plugin.problem);
 
                   return (
-                    <div
+                    <article
                       key={plugin.name}
                       className={cx(styles.card, plugin.is_enabled && styles.cardEnabled)}
+                      aria-labelledby={`plugin-${plugin.name}-title`}
                     >
                       <div className={styles.cardBody}>
                         <div className={styles.cardTop}>
@@ -350,7 +351,11 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                           </div>
                           <div className={styles.cardTopInfo}>
                             <div className={styles.nameRow}>
-                              <h2 className={styles.pluginName} title={displayName}>
+                              <h2
+                                id={`plugin-${plugin.name}-title`}
+                                className={styles.pluginName}
+                                title={displayName}
+                              >
                                 {displayName}
                               </h2>
                               {m && <span className={styles.version}>v{m.version}</span>}
@@ -506,7 +511,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>

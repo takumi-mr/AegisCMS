@@ -117,6 +117,21 @@ tasks:
     cmds:
       - npm --prefix admin run build
 
+  test:e2e:
+    desc: Admin Studio の E2E テスト (Playwright。使い捨てのサーバーをポート 18080 で起動)
+    cmds:
+      - npm --prefix admin run test:e2e -- {{.CLI_ARGS}}
+
+  storybook:
+    desc: Admin Studio の Storybook を起動 (ポート 6006)
+    cmds:
+      - npm --prefix admin run storybook
+
+  build:storybook:
+    desc: Admin Studio の Storybook を静的ビルド (admin/storybook-static/)
+    cmds:
+      - npm --prefix admin run build-storybook
+
   build:wasm:
     desc: サンプル Wasm プラグイン (sdk/examples/slack-notifier/plugin.wasm) を生成
     cmds:

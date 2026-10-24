@@ -1,0 +1,31 @@
+# E2E テスト（admin/e2e）用のサーバー設定。e2e/start-server.mjs がリポジトリのルートで起動する
+# （パスはルートからの相対パス）。DB とアップロードは target/e2e/ に作り、起動のたびに消す
+
+[server]
+host = "127.0.0.1"
+port = 18080
+
+[database]
+backend = "sqlite"
+url = "sqlite://target/e2e/aegis.db?mode=rwc"
+
+[storage]
+backend = "local"
+
+[storage.local]
+upload_dir = "target/e2e/uploads"
+public_url_prefix = "/uploads"
+
+[paths]
+schemas_dir = "schemas"
+plugins_dir = "plugins"
+admin_dist_dir = "admin/dist"
+themes_dir = "themes"
+
+# プラグインはテストの中で Admin Studio から有効にする
+[plugins]
+enabled = []
+
+[runtime]
+# テストを並列で動かさないので小さくてよい（プールのアドレス空間を CI で確保しすぎない）
+instance_pool_size = 4
