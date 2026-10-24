@@ -9,6 +9,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod app;
 mod audit;
 mod auth;
+mod cluster;
 mod config;
 mod handlers;
 mod notify_plugins;
@@ -556,6 +557,21 @@ async fn main() -> anyhow::Result<()> {
                 cache.clone(),
                 config.auth.login_rate_limit.clone(),
             ));
+            // 4.1 サーバー間の変更の知らせ（[cache] と同じバックエンド）。プラグインの一覧を読む前に受け取り始める。
+            // メモリ（1 台構成）なら、同じ DB で別のサーバーが動いていないかを確かめる
+            let bus = aegis_cache::create_event_bus(&config.cache).await?;
+            let bus_events = bus.subscribe();
+            let single_server = if bus.reaches_other_servers() {
+                None
+            } else {
+                Some(
+                    cluster::SingleServerGuard::acquire(
+                        db_adapter.clone(),
+                        cluster::HEARTBEAT_INTERVAL,
+                    )
+                    .await?,
+                )
+            };
 
             // 5. Wasm プラグインスーパーバイザー初期化（[plugins].enabled のプラグインをその順に読み込む）
             let enabled_plugins =
@@ -634,6 +650,7 @@ async fn main() -> anyhow::Result<()> {
                 theme_engine,
             );
             app_state.plugin_settings = plugin_settings;
+            app_state.bus = bus;
             app_state.plugin_registry = Arc::new(plugin_registry::PluginRegistry::new(
                 plugin_loader,
                 enabled_plugins,
@@ -781,6 +798,8 @@ async fn main() -> anyhow::Result<()> {
             }
             // 予約公開（status: "scheduled"）
             scheduler::spawn_publish_task(app_state.clone());
+            // ほかのサーバーでの切り替え・設定変更を反映する
+            cluster::spawn_listener(app_state.clone(), bus_events);
 
             // 7. Router 設定（[server].base_path 配下で公開）
             let app = app::with_base_path(app::router(&config, app_state), &base_path);
@@ -798,7 +817,12 @@ async fn main() -> anyhow::Result<()> {
                 listener,
                 app.into_make_service_with_connect_info::<SocketAddr>(),
             )
+            .with_graceful_shutdown(shutdown_signal())
             .await?;
+            if let Some(guard) = single_server {
+                guard.release().await;
+            }
+            tracing::info!("AegisCMS stopped");
         }
     }
 
@@ -843,6 +867,35 @@ async fn cli_enabled_plugins(config: &AegisConfig) -> Vec<String> {
         );
         config.plugins.enabled.clone()
     })
+}
+
+/// Ctrl+C（Unix では SIGTERM も）を待つ
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        if let Err(e) = tokio::signal::ctrl_c().await {
+            tracing::warn!("Could not listen for Ctrl+C: {}", e);
+            std::future::pending::<()>().await;
+        }
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(e) => {
+                tracing::warn!("Could not listen for SIGTERM: {}", e);
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = terminate => {}
+    }
+    tracing::info!("Shutting down");
 }
 
 /// `enabled`（有効なプラグインの一覧）をその順に読み込む（`[runtime].enable_wasm_plugins = false` なら読み込まない）。

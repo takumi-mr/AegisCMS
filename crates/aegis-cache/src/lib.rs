@@ -1,9 +1,12 @@
-//! キャッシュ・セッションストアのバックエンド（`[cache]`: メモリ / Redis）
+//! キャッシュ・セッションストアのバックエンド（`[cache]`: メモリ / Redis）と、同じバックエンドを使う
+//! サーバー間のイベントバス
 
+pub mod bus;
 pub mod config;
 pub mod memory;
 pub mod redis;
 
+pub use bus::{BusMessage, BusSubscription, EventBus, MemoryEventBus, RedisEventBus};
 pub use config::{CacheBackendKind, CacheConfig, RedisCacheConfig};
 pub use memory::MemoryCacheBackend;
 pub use redis::RedisCacheBackend;
@@ -33,6 +36,26 @@ pub async fn create_cache_backend(config: &CacheConfig) -> Result<Arc<dyn CacheB
             )
             .await?;
             Ok(Arc::new(backend))
+        }
+    }
+}
+
+/// `[cache]` と同じバックエンドのイベントバス（メモリ: このプロセスの中だけ、Redis: Pub/Sub で全サーバー）
+pub async fn create_event_bus(config: &CacheConfig) -> Result<Arc<dyn EventBus>> {
+    match config.backend {
+        CacheBackendKind::Memory => Ok(Arc::new(MemoryEventBus::new())),
+        CacheBackendKind::Redis => {
+            let bus = RedisEventBus::connect(
+                &config.redis.url,
+                std::time::Duration::from_millis(config.redis.timeout_ms),
+            )
+            .await?;
+            tracing::info!(
+                "Event bus: Redis Pub/Sub channel '{}' at {}",
+                bus::BUS_CHANNEL,
+                config.redis.url
+            );
+            Ok(Arc::new(bus))
         }
     }
 }

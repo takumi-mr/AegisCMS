@@ -40,6 +40,9 @@
     "getPluginSettingsFailed": "Failed to fetch plugin settings",
     "updatePluginSettingsFailed": "Failed to update plugin settings",
     "setPluginEnabledFailed": "Failed to enable or disable the plugin",
+    "pluginOrderFailed": "Failed to load the plugin order",
+    "setPluginOrderFailed": "Failed to change the plugin order",
+    "resetPluginOrderFailed": "Failed to restore the plugins of the configuration file",
     "siteSettingsFailed": "Failed to load the site settings",
     "updateSiteSettingsFailed": "Failed to save the site settings"
   },
@@ -821,7 +824,19 @@
     "disabled": "Disabled plugin \"{{name}}\"",
     "confirmDisable": "Disable plugin \"{{name}}\"? Its hooks stop running immediately.",
     "toggleAdminRequired": "Enabling or disabling plugins requires the admin role",
-    "notInstalled": "Not installed"
+    "notInstalled": "Not installed",
+    "orderTitle": "Hook order",
+    "orderDescription": "Enabled plugins run their hooks from top to bottom. Changes apply right away on every server.",
+    "orderCustomized": "Changed in Admin Studio (overrides [plugins].enabled of the configuration file)",
+    "orderFromConfig": "Same as [plugins].enabled of the configuration file",
+    "moveUp": "Move \"{{name}}\" up",
+    "moveDown": "Move \"{{name}}\" down",
+    "orderChanged": "Changed the hook order",
+    "resetOrder": "Use the configuration file",
+    "resetOrderTitle": "Discard the changes made in Admin Studio and use [plugins].enabled of the configuration file",
+    "confirmResetOrder": "Use the plugins of the configuration file ({{plugins}}) in that order? Plugins enabled in Admin Studio are disabled.",
+    "configuredNone": "none",
+    "orderReset": "Using the plugins of the configuration file"
   },
   "site": {
     "title": "Site",

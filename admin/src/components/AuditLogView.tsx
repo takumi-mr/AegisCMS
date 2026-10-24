@@ -41,6 +41,8 @@ const ACTIONS: AuditAction[] = [
   'plugin.settings_update',
   'plugin.enable',
   'plugin.disable',
+  'plugin.reorder',
+  'plugin.reset',
   'audit.purge',
   'access.denied',
   'theme.switch',

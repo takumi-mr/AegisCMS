@@ -9,8 +9,8 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: 予約公開・予約非公開の完了を著者にメールで通知（`content.published` / `content.unpublished`、組み込みテンプレート en / ja、公開ページの URL `content_url`）。仕様は [notifications.md 2](docs/notifications.md#2-送る通知)。あわせて Windows で依存を足したときのロックファイルの注意（CI の npm 10 で `npm ci` を確かめる）を [development.md 8.3](docs/development.md#83-依存パッケージを追加したときpackage-lockjson) に記載。
-- **その前**: Admin Studio に Playwright の E2E テストと Storybook を導入（[development.md 8](docs/development.md#8-admin-studio-の-e2e-テストと-storybook)）。その前は Admin Studio のモバイル対応。
+- **直近の完了**: プラグインのフックの実行順の並べ替えと「設定ファイルの値に戻す」（`GET` / `PUT` / `DELETE /api/v1/plugins/order`、監査ログ `plugin.reorder` / `plugin.reset`、Admin Studio の「フックの実行順」）。あわせて、切り替え・並べ替え・設定値の変更をイベントバス（`[cache]` と同じバックエンド。Redis は Pub/Sub）で全サーバーに反映し、`[cache].backend = "memory"` は同じ DB で 2 台目を起動させないようにした。仕様は [plugin_hooks.md 5.2・5.3](docs/plugin_hooks.md#52-フックの実行順の並べ替えと設定ファイルの値に戻す)、設計は [architecture.md 5](docs/architecture.md#5-キャッシュとセッション)。
+- **その前**: 予約公開・予約非公開の完了を著者にメールで通知（[notifications.md 2](docs/notifications.md#2-送る通知)）。その前は Admin Studio の Playwright E2E テストと Storybook。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -33,8 +33,6 @@
 
 ### プラグイン
 
-- [ ] **実行順の並べ替え**: Admin Studio で有効にしたプラグインはフックの実行順の最後に加わるだけ。順序を変えるには設定ファイルを直して DB の `plugins.enabled` を消す必要がある。並べ替え UI と、設定ファイルの値に戻す操作。
-- [ ] **複数台での切り替えの伝播**: 有効・無効の切り替えは操作を受けたサーバーだけに反映される（他は再起動で揃う）。キャッシュ（Redis）の Pub/Sub などで他のサーバーにも差し替えを伝える。
 - [ ] **ストアからのインストール**: パッケージの検証（テーマの `validate_theme_package` に相当）・署名・`min_aegis_version` の確認、展開先は `plugins/<name>/`。テーマの ZIP 導入も同じ仕組みで。
 - [ ] **AssemblyScript / TinyGo SDK の追従**: EC のフック・ホスト API（`calculate-order` / `on-order-status-changed` / `http_fetch` / `kv_get` / `config_get`）と `send-notification`、`on-content-published` のラッパー。ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) に記載済み。
 - [ ] **AssemblyScript SDK の JSON 処理の高速化**: `escapeJson` / `findStringField` が入力の大きさの二乗で遅い（[architecture.md 12](docs/architecture.md#12-性能の記録)）。

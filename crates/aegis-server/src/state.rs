@@ -6,6 +6,7 @@ use aegis_auth::invitation::InvitationService;
 use aegis_auth::password_reset::PasswordResetService;
 use aegis_auth::registration::RegistrationService;
 use aegis_auth::{LoginRateLimiter, SessionService};
+use aegis_cache::{EventBus, MemoryEventBus};
 use aegis_core::{AuthProvider, CacheBackend, Notifier, StorageBackend};
 use aegis_db::DatabaseAdapter;
 use aegis_runtime::PluginSupervisor;
@@ -22,6 +23,8 @@ pub struct AppState {
     pub storage: Arc<dyn StorageBackend>,
     #[allow(dead_code)]
     pub cache: Arc<dyn CacheBackend>,
+    /// サーバー間の変更の知らせ（`[cache]` と同じバックエンド。メモリならこのプロセスの中だけ）
+    pub bus: Arc<dyn EventBus>,
     pub sessions: Arc<SessionService>,
     /// ログイン（`POST /api/v1/auth/session`）で資格情報を検証するプロバイダ
     pub auth_provider: Arc<dyn AuthProvider>,
@@ -118,6 +121,7 @@ impl AppState {
             db,
             storage,
             cache,
+            bus: Arc::new(MemoryEventBus::new()),
             sessions,
             auth_provider,
             login_limiter,

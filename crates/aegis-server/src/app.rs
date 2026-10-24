@@ -127,6 +127,12 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         )
         .route("/api/v1/plugins", get(handlers::list_plugins))
         .route(
+            "/api/v1/plugins/order",
+            get(handlers::get_plugin_order)
+                .put(handlers::set_plugin_order)
+                .delete(handlers::reset_plugin_order),
+        )
+        .route(
             "/api/v1/plugins/{name}/settings",
             get(handlers::get_plugin_settings).put(handlers::update_plugin_settings),
         )
