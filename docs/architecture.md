@@ -217,6 +217,14 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - 金額はすべて通貨の最小単位の `i64`（Stripe の `unit_amount` と同じ）。表示は `aegis_core::format_money` / テンプレートの `money` フィルター / Admin Studio の `formatMoney`。
 - 在庫の確保は `UPDATE ... SET stock = stock - ? WHERE id = ? AND (stock IS NULL OR stock >= ?)` を注文の INSERT と同じトランザクションで行う（売り越し防止）。`stock` が NULL の商品は無制限。
 - 状態の変更は `transition_order`（`WHERE status = 前の状態`）で、Webhook の重複・期限切れ処理との競合を防ぐ。プラグインへの通知（`on-order-status-changed`）は `tokio::spawn` で応答を待たない。
+- **外部連携決済の抽象化層 (`PaymentProvider`)**:
+  - `PaymentProvider` トレイト（`create_checkout_session`, `verify_webhook`, `supports_refund`, `refund`, `allows_manual_confirmation`）によりゲートウェイ固有の通信とロジックを分離。
+  - Stripe 以外の決済サービス（PayPal, Square, 銀行振込代行サービス等）を追加する際も、`CommerceService` コアロジックや DB 層を変更することなくプロバイダ実装を追加するだけで対応可能。
+  - 取引識別子の分離: チェックアウト開始時の識別子（Stripe Checkout Session ID `cs_...`）を `payment_ref`、確定取引 ID（Stripe Payment Intent ID `pi_...`）を `transaction_id` として明確に分離管理し、確実な返金処理を実現。
+- **返金処理と在庫復帰の ACID 保証 (`record_order_refund`)**:
+  - 返金（部分返金・全額返金）の記録、`OrderStatus::Refunded` への自動遷移（累計返金額が合計に達した場合）、およびオプションの在庫復帰（`restock`）を単一の RDBMS トランザクション内で実行。SQLite / PostgreSQL / MySQL のすべてで整合性を検証済み。
+  - `can_refund`（`order.status != PendingPayment && refunded_amount < total`）による二重返金の防止と、Stripe API `Idempotency-Key` による外部呼び出しの安全性を担保。
+  - Webhook の `charge.refunded` イベントによる自動同期。
 - `calculate-order` の結果は `adjustments` / `metadata` だけを反映し、合計はホストが計算し直す。拒否メッセージは顧客に見せるため、ホストが付けるプラグイン名の接頭辞を外す（ログには残す）。
 - Stripe の注文は支払い済みになった時点（Webhook）で `order.placed` を送る（決済ページで離脱した注文に受付メールを送らない）。注文確認ページのトークンは平文を保存しないので、URL は `order.placed` のメールにしか入らない。
 - 結合テストは `aegis-server/src/handlers/shop_tests.rs`。

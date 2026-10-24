@@ -37,8 +37,8 @@ pub use registration::{register, verify_registration};
 pub use saml::{saml_acs, saml_login, saml_metadata};
 pub use schemas::{get_schema, list_schemas};
 pub use shop::{
-    checkout, get_order, get_public_order, list_orders, payment_webhook, quote, shop_config,
-    update_order_status,
+    checkout, get_order, get_public_order, list_orders, payment_webhook, quote, refund_order,
+    shop_config, update_order_status,
 };
 pub use site::{get_site_settings, update_site_settings};
 pub use sso::list_auth_providers;

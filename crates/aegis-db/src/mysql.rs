@@ -243,6 +243,51 @@ impl DatabaseAdapter for MySqlAdapter {
                 .map_err(|e| AegisError::Database(e.to_string()))?;
         }
 
+        // 以前のバージョンで作成した注文テーブルに後から追加したカラムを足す
+        let order_cols: Vec<String> = sqlx::query_scalar(
+            "SELECT column_name FROM information_schema.columns \
+             WHERE table_schema = DATABASE() AND table_name = ?;",
+        )
+        .bind(super::orders::ORDER_TABLE)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        if !order_cols.iter().any(|c| c == "transaction_id") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN transaction_id VARCHAR(255);",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        if !order_cols.iter().any(|c| c == "refunded_amount") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN refunded_amount BIGINT NOT NULL DEFAULT 0;",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        if !order_cols.iter().any(|c| c == "refunds_json") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN refunds_json TEXT;",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+            sqlx::query(&format!(
+                "UPDATE {} SET refunds_json = '[]' WHERE refunds_json IS NULL;",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
         Ok(())
     }
 

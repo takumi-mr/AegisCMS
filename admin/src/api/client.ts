@@ -17,6 +17,7 @@ import type {
   PluginInfo,
   PreviewRequest,
   PreviewResult,
+  RefundOrderPayload,
   RegistrationPayload,
   RegistrationResult,
   ScheduleItem,
@@ -357,6 +358,19 @@ export const aegisApi = {
         body: JSON.stringify({ status, note }),
       },
       i18n.t('api.updateOrderFailed')
+    );
+  },
+
+  /** Refunds an order partially or fully (supports online gateway or manual record, optionally restocks items) */
+  async refundOrder(id: string, payload: RefundOrderPayload): Promise<Order> {
+    return request(
+      `/orders/${encodeURIComponent(id)}/refund`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      i18n.t('api.refundOrderFailed')
     );
   },
 

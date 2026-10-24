@@ -315,7 +315,23 @@ export interface ThemeInfo extends ThemeManifest {
   preview_url?: string;
 }
 
-export type OrderStatus = 'pending_payment' | 'paid' | 'shipped' | 'completed' | 'cancelled';
+export type OrderStatus =
+  'pending_payment' | 'paid' | 'shipped' | 'completed' | 'cancelled' | 'refunded';
+
+export interface OrderRefundRecord {
+  id: string;
+  amount: number;
+  currency: string;
+  refund_ref: string;
+  reason?: string | null;
+  created_at: string;
+}
+
+export interface RefundOrderPayload {
+  amount?: number;
+  reason?: string;
+  restock?: boolean;
+}
 
 /** One order line (product × quantity); prices come from the product, in the currency's minor unit */
 export interface OrderLine {
@@ -366,6 +382,9 @@ export interface Order {
   coupon_code: string | null;
   payment_provider: string;
   payment_ref: string | null;
+  transaction_id: string | null;
+  refunded_amount: number;
+  refunds: OrderRefundRecord[];
   payment_instructions: string | null;
   /** Deadline of an unpaid order's stock reservation */
   expires_at: string | null;
@@ -376,6 +395,8 @@ export interface Order {
   paid_at: string | null;
   /** Whether staff may confirm the payment by hand (payments confirmed by webhook may not) */
   can_mark_paid: boolean;
+  can_refund: boolean;
+  supports_online_refund: boolean;
 }
 
 export interface OrderPage {

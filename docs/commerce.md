@@ -83,9 +83,12 @@ Admin Studio の **Products** タブ（`editor` 以上）で作成・編集・�
 ### 3.1 注文の状態
 
 ```text
-pending_payment ──▶ paid ──▶ shipped ──▶ completed
-      │               │
-      └──▶ cancelled ◀┘   （発送前の取り消しは在庫を戻す）
+pending_payment ──▶ paid ───────▶ shipped ──▶ completed
+      │               │              │            │
+      │               ├─(返金)───────┼─(返金)─────┼─(返金)─┐
+      │               ▼              ▼            ▼        ▼
+      └──▶ cancelled ─┴──────▶ refunded ◀─────────┴────────┘
+           （発送前の取り消し/返金時に在庫を戻すオプションあり）
 ```
 
 | 状態 | 意味 | 変わるきっかけ |
@@ -95,9 +98,10 @@ pending_payment ──▶ paid ──▶ shipped ──▶ completed
 | `shipped` | 発送済み | Admin Studio の「Mark as shipped」（メモに追跡番号などを残せる） |
 | `completed` | 完了 | Admin Studio の「Mark as completed」 |
 | `cancelled` | 取り消し | Admin Studio の「Cancel order」、支払い期限切れ、Stripe の期限切れ・失敗 |
+| `refunded` | 返金済み | Admin Studio の「Refund」（全額返金時）、Stripe の Webhook（`charge.refunded`） |
 
 - 状態の変更は「今の状態が X のときだけ Y にする」という条件付きの更新です。Webhook の重複・同時の操作で二重に処理されません。
-- `paid` の注文を取り消しても**返金はされません**。決済サービスの管理画面で返金してください。
+- `paid` の注文を取り消しても決済サービスの自動返金は行われません。返金を行う場合は Admin Studio の詳細モーダルから「返金」を実行してください（Stripe 決済の場合は Stripe Refund API がオンライン実行され、手動決済の場合は返金履歴が記録されます。全額返金時は自動的に `refunded` 状態へ遷移します）。
 
 ### 3.2 在庫
 
@@ -150,6 +154,16 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 - 期限切れで取り消した後に支払われた場合は `paid_after_cancel` として監査ログとエラーログに残します（返金してください）。
 - 商品と送料などの加算は Stripe の明細に表示します。割引（負の金額）がある場合は、注文全体を 1 行（`Order {番号}`）にまとめます（金額は同じ）。
 - 同じ注文で Checkout Session を二重に作らないよう、`Idempotency-Key` を付けます。Session を作れなかった注文は取り消して在庫を戻し、`502` を返します。
+
+### 4.3 返金（Refund）
+
+外部決済連携は抽象化層（`PaymentProvider` トレイト）を挟んでおり、Stripe だけでなく手動決済や将来の多様な決済プロバイダに対応できる設計となっています。
+
+- **Stripe Refund API 連携**: Stripe 決済の注文（確定取引 ID `transaction_id` = `pi_...`）に対し、Admin Studio または API から返金を行うと Stripe API（`POST /v1/refunds`）がオンライン呼び出しされます。重複実行を避けるため冪等性キー（`Idempotency-Key`）を付与します。
+- **手動決済の返金記録**: 銀行振込・代引きなどの手動決済では、外部通信を行わずに CMS 上に返金履歴・累計返金額を安全に記録します。
+- **ACID 保証と在庫復帰（Restock）**: 返金履歴の追加、累計返金額の加算、ステータス更新、および注文商品の在庫復帰（オプション）は同一のデータベーストランザクション（`record_order_refund`）でアトミックに実行されます。
+- **部分返金・全額返金**: 複数回に分けた部分返金に対応し、累計返金額が注文合計（`total`）に達した時点で自動的にステータスが `refunded` に遷移します。
+- **Webhook による自動同期**: Stripe ダッシュボード側から直接返金された場合も、Webhook イベント `charge.refunded` を受信して CMS 上の注文状態を自動的に `refunded` に更新します。
 
 ---
 
@@ -228,10 +242,11 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 | API | 内容 |
 | --- | --- |
 | `GET /api/v1/orders?status=&limit=&offset=` | 注文の一覧（新しい順、`limit` 既定 50・最大 200）。`{ "orders", "total", "limit", "offset" }` |
-| `GET /api/v1/orders/{id}` | 注文の詳細（顧客のメールアドレス・決済 ID・メモ・`can_mark_paid` を含む） |
+| `GET /api/v1/orders/{id}` | 注文の詳細（顧客のメールアドレス・決済 ID・メモ・`can_mark_paid`・`can_refund`・`supports_online_refund` を含む） |
 | `POST /api/v1/orders/{id}/status` | `{ "status": "paid" \| "shipped" \| "completed" \| "cancelled", "note": "任意" }`。遷移できなければ `409` |
+| `POST /api/v1/orders/{id}/refund` | `{ "amount": 1000（省略時は残額全額）, "reason": "任意", "restock": true }`。返金を記録・実行（`can_refund` でなければ `409`） |
 
-監査ログには `order.create`（注文）と `order.update`（状態の変化。`from` / `to` / `source`（`admin` / `payment_webhook` / `payment_expired` / `expired` など）/ `restocked`）を記録します。
+監査ログには `order.create`（注文）、`order.update`（状態の変化。`from` / `to` / `source`（`admin` / `payment_webhook` / `payment_expired` / `expired` など）/ `restocked`）、および `order.refund`（返金実行。`order_number` / `amount` / `total_refunded` / `refund_ref` / `restocked`）を記録します。
 
 ---
 
@@ -293,4 +308,3 @@ format = "slack"                               # "json" なら OrderStatusChange
 
 - 商品のバリエーション（サイズ・色ごとの在庫）、複数通貨、税率の自動判定はありません（バリエーションは別の商品として登録してください）。
 - 顧客アカウント（会員登録・注文履歴）はありません。注文はゲスト購入で、注文確認は URL のトークンで行います。
-- 返金は決済サービスの管理画面で行います（API からの返金はありません）。

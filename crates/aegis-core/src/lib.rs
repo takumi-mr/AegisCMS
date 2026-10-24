@@ -15,8 +15,8 @@ pub use audit::{
 pub use auth::{AuthCredentials, AuthIdentity, AuthProvider, AuthRedirect, UserAuthContext};
 pub use cache::CacheBackend;
 pub use commerce::{
-    format_money, is_zero_decimal_currency, OrderAdjustment, OrderContext, OrderLine, OrderStatus,
-    OrderStatusChange, ShippingAddress,
+    format_money, is_zero_decimal_currency, OrderAdjustment, OrderContext, OrderLine,
+    OrderRefundRecord, OrderStatus, OrderStatusChange, ShippingAddress,
 };
 
 pub use entity::{ContentSummary, PageRenderContext, Pagination, PostContext, PublishedContent};

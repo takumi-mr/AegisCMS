@@ -121,6 +121,9 @@ where
         created_at: "2026-10-25T00:05:00Z".to_string(),
         updated_at: "2026-10-25T00:05:00Z".to_string(),
         note: None,
+        transaction_id: None,
+        refunded_amount: 0,
+        refunds_json: "[]".to_string(),
     };
     let reservations = vec![
         StockReservation {
@@ -166,6 +169,9 @@ where
         created_at: "2026-10-25T00:06:00Z".to_string(),
         updated_at: "2026-10-25T00:06:00Z".to_string(),
         note: None,
+        transaction_id: None,
+        refunded_amount: 0,
+        refunds_json: "[]".to_string(),
     };
     let res_fail = adapter
         .create_order(
@@ -366,6 +372,9 @@ where
         created_at: "2026-10-24T00:00:00Z".to_string(),
         updated_at: "2026-10-24T00:00:00Z".to_string(),
         note: None,
+        transaction_id: None,
+        refunded_amount: 0,
+        refunds_json: "[]".to_string(),
     };
     adapter.create_order(&expired_order, &[]).await?.unwrap();
 
@@ -374,6 +383,61 @@ where
         .await?;
     assert_eq!(expired_list.len(), 1);
     assert_eq!(expired_list[0].id, "ord-expired");
+
+    // 12. set_order_transaction_id & record_order_refund
+    adapter
+        .set_order_transaction_id("ord-001", "pi_test_12345")
+        .await?;
+    let ord_with_tx = adapter.get_order("ord-001").await?.unwrap();
+    assert_eq!(
+        ord_with_tx.transaction_id,
+        Some("pi_test_12345".to_string())
+    );
+
+    // 返金（2400円のうち1000円部分返金、在庫は戻さない）
+    let refund1 = aegis_db::OrderRefundUpdate {
+        id: "ord-001".to_string(),
+        refunded_amount: 1000,
+        refunds_json: json!([
+            {"id": "ref-1", "amount": 1000, "currency": "jpy", "refund_ref": "re_123", "created_at": "2026-10-25T01:00:00Z"}
+        ]).to_string(),
+        new_status: None, // 部分返金のためステータス維持
+        updated_at: "2026-10-25T01:00:00Z".to_string(),
+        note: Some("Partial refund".to_string()),
+        restock: vec![],
+    };
+    let ok = adapter.record_order_refund(&refund1).await?;
+    assert!(ok);
+    let ord_after_ref1 = adapter.get_order("ord-001").await?.unwrap();
+    assert_eq!(ord_after_ref1.refunded_amount, 1000);
+    assert!(ord_after_ref1.refunds_json.contains("re_123"));
+
+    // 全額返金（残り3400円返金、全額返金ステータスへ、p-coffee の在庫を2個戻す）
+    let refund2 = aegis_db::OrderRefundUpdate {
+        id: "ord-001".to_string(),
+        refunded_amount: 4400,
+        refunds_json: json!([
+            {"id": "ref-1", "amount": 1000, "currency": "jpy", "refund_ref": "re_123", "created_at": "2026-10-25T01:00:00Z"},
+            {"id": "ref-2", "amount": 3400, "currency": "jpy", "refund_ref": "re_456", "created_at": "2026-10-25T01:05:00Z"}
+        ]).to_string(),
+        new_status: Some("refunded".to_string()),
+        updated_at: "2026-10-25T01:05:00Z".to_string(),
+        note: Some("Full refund".to_string()),
+        restock: vec![StockReservation {
+            table: "content_product".to_string(),
+            product_id: "p-coffee".to_string(),
+            quantity: 2,
+        }],
+    };
+    let ok2 = adapter.record_order_refund(&refund2).await?;
+    assert!(ok2);
+    let ord_after_ref2 = adapter.get_order("ord-001").await?.unwrap();
+    assert_eq!(ord_after_ref2.status, "refunded");
+    assert_eq!(ord_after_ref2.refunded_amount, 4400);
+
+    // 在庫が戻ったか確認（キャンセル時に残3だったが、ここで2個戻るので5個に復旧）
+    let coffee_restocked = adapter.get_content(&schema, "p-coffee").await?.unwrap();
+    assert_eq!(coffee_restocked.custom_fields.get("stock"), Some(&json!(5)));
 
     Ok(())
 }

@@ -19,7 +19,8 @@ use aegis_commerce::payment::ReturnUrls;
 use aegis_commerce::PaymentProviderKind;
 use aegis_commerce::{hash_token, order_context, CartRequest, CommerceError, CommerceService};
 use aegis_core::{
-    AuditAction, AuditOutcome, OrderAdjustment, OrderLine, OrderStatus, ShippingAddress,
+    AuditAction, AuditOutcome, OrderAdjustment, OrderLine, OrderRefundRecord, OrderStatus,
+    ShippingAddress,
 };
 use aegis_db::{OrderListQuery, OrderRecord};
 
@@ -328,24 +329,41 @@ pub struct AdminOrderView {
     pub coupon_code: Option<String>,
     pub metadata: serde_json::Value,
     pub payment_ref: Option<String>,
+    pub transaction_id: Option<String>,
+    pub refunded_amount: i64,
+    pub refunds: Vec<OrderRefundRecord>,
     pub note: Option<String>,
     pub updated_at: String,
     /// 支払い待ちの注文を手動で「支払い済み」にできるか（入金を Webhook で確かめる決済では不可）
     pub can_mark_paid: bool,
+    /// 返金可能か（未払い以外かつ、未返金残額がある）
+    pub can_refund: bool,
+    /// 決済プロバイダがオンライン返金をサポートしているか
+    pub supports_online_refund: bool,
 }
 
 fn admin_view(state: &AppState, commerce: &CommerceService, order: &OrderRecord) -> AdminOrderView {
+    let can_mark_paid = order.status == OrderStatus::PendingPayment.as_str()
+        && order.payment_provider == commerce.provider().id()
+        && commerce.provider().allows_manual_confirmation();
+    let can_refund =
+        order.status != OrderStatus::PendingPayment.as_str() && order.refunded_amount < order.total;
+    let refunds: Vec<OrderRefundRecord> =
+        serde_json::from_str(&order.refunds_json).unwrap_or_default();
     AdminOrderView {
         order: public_view(state, order),
         customer_email: order.customer_email.clone(),
         coupon_code: order.coupon_code.clone(),
         metadata: serde_json::from_str(&order.metadata_json).unwrap_or_else(|_| json!({})),
         payment_ref: order.payment_ref.clone(),
+        transaction_id: order.transaction_id.clone(),
+        refunded_amount: order.refunded_amount,
+        refunds,
         note: order.note.clone(),
         updated_at: order.updated_at.clone(),
-        can_mark_paid: order.status == OrderStatus::PendingPayment.as_str()
-            && order.payment_provider == commerce.provider().id()
-            && commerce.provider().allows_manual_confirmation(),
+        can_mark_paid,
+        can_refund,
+        supports_online_refund: commerce.provider().supports_refund(),
     }
 }
 
@@ -443,6 +461,41 @@ pub async fn update_order_status(
         .filter(|n| !n.is_empty());
     let updated = commerce
         .transition(&audit, &order, request.status, note, "admin")
+        .await
+        .map_err(commerce_error)?;
+    Ok(Json(admin_view(&state, &commerce, &updated)))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RefundOrderRequest {
+    /// 返金額（省略時は全額 = order.total - order.refunded_amount）
+    pub amount: Option<i64>,
+    /// 返金理由
+    #[serde(default)]
+    pub reason: Option<String>,
+    /// 在庫を戻すかどうか（デフォルト: false）
+    #[serde(default)]
+    pub restock: bool,
+}
+
+/// `POST /api/v1/orders/{id}/refund` — 注文の返金を行う（`editor` 以上）
+pub async fn refund_order(
+    State(state): State<Arc<AppState>>,
+    RequireRole(_session): EditorSession,
+    audit: AuditContext,
+    Path(id): Path<String>,
+    Json(request): Json<RefundOrderRequest>,
+) -> Result<Json<AdminOrderView>, ApiError> {
+    let commerce = commerce(&state)?;
+    let order = find_order(&state, &id).await?;
+    let updated = commerce
+        .refund_order(
+            &audit,
+            &order,
+            request.amount,
+            request.reason,
+            request.restock,
+        )
         .await
         .map_err(commerce_error)?;
     Ok(Json(admin_view(&state, &commerce, &updated)))

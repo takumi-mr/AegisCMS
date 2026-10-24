@@ -1232,3 +1232,128 @@ async fn test_mysql_order_and_stock_e2e() {
     let shop = shop_with_db(Arc::new(adapter), config).await;
     run_db_order_lifecycle_verification(shop).await;
 }
+
+#[tokio::test]
+async fn test_order_refund_api_e2e() {
+    let shop = shop(|_| {}).await;
+
+    // 1. チェックアウト (p-mug 1200円 x 2 + 送料 500円 = 2900円、在庫 3 -> 1)
+    let (status, body) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/checkout",
+            Some(json!({
+                "items": [{ "product": "mug", "quantity": 2 }],
+                "email": "customer@example.com",
+                "name": "Customer",
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let order_id = body["order"]["id"].as_str().unwrap().to_string();
+
+    // 2. 未払い注文の返金は 409
+    let (status, err) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/refund", order_id),
+            Some(json!({ "amount": 1000 })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(err["error"].as_str().unwrap().contains("unpaid"));
+
+    // 3. スタッフにより支払い済みにマーク
+    let (status, _) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/status", order_id),
+            Some(json!({ "status": "paid" })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // 4. 部分返金 (1000円返金、在庫は戻さない)
+    let (status, res) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/refund", order_id),
+            Some(json!({
+                "amount": 1000,
+                "reason": "Customer changed mind on 1 item",
+                "restock": false,
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(res["status"], "paid");
+    assert_eq!(res["refunded_amount"], 1000);
+    assert_eq!(res["can_refund"], true);
+    let refunds = res["refunds"].as_array().unwrap();
+    assert_eq!(refunds.len(), 1);
+    assert_eq!(refunds[0]["amount"], 1000);
+    assert_eq!(refunds[0]["reason"], "Customer changed mind on 1 item");
+
+    // 在庫は 1 のまま
+    let (status, schema_body) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-mug",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(schema_body["fields"]["stock"], 1);
+
+    // 5. 残り全額返金 (amount 省略で残り 1900 円全額返金、在庫を 2 個戻す)
+    let (status, res2) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/refund", order_id),
+            Some(json!({
+                "reason": "Complete cancellation",
+                "restock": true,
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(res2["status"], "refunded");
+    assert_eq!(res2["refunded_amount"], 2900);
+    assert_eq!(res2["can_refund"], false); // 全額返金されたため返金不可
+    let refunds2 = res2["refunds"].as_array().unwrap();
+    assert_eq!(refunds2.len(), 2);
+    assert_eq!(refunds2[1]["amount"], 1900);
+
+    // 在庫が 1 -> 3 に戻っていることを確認
+    let (status, schema_body2) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-mug",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(schema_body2["fields"]["stock"], 3);
+
+    // 6. 全額返金済みの注文に対する再返金は 409
+    let (status, err2) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/refund", order_id),
+            Some(json!({ "amount": 100 })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(err2["error"]
+        .as_str()
+        .unwrap()
+        .contains("already fully refunded"));
+}

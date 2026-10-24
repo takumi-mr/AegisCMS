@@ -218,6 +218,31 @@ impl DatabaseAdapter for PostgresAdapter {
                 .map_err(|e| AegisError::Database(e.to_string()))?;
         }
 
+        // 以前のバージョンで作成した注文テーブルに後から追加したカラムを足す
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(255);",
+            super::orders::ORDER_TABLE
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS refunded_amount BIGINT NOT NULL DEFAULT 0;",
+            super::orders::ORDER_TABLE
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS refunds_json TEXT NOT NULL DEFAULT '[]';",
+            super::orders::ORDER_TABLE
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+
         Ok(())
     }
 

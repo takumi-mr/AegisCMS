@@ -247,6 +247,45 @@ impl DatabaseAdapter for SqliteAdapter {
                 .map_err(|e| AegisError::Database(e.to_string()))?;
         }
 
+        // 以前のバージョンで作成した注文テーブルに後から追加したカラムを足す
+        let order_columns: HashSet<String> = sqlx::query(&format!(
+            "PRAGMA table_info({});",
+            super::orders::ORDER_TABLE
+        ))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?
+        .into_iter()
+        .map(|r| r.get::<String, _>("name"))
+        .collect();
+        if !order_columns.contains("transaction_id") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN transaction_id TEXT;",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        if !order_columns.contains("refunded_amount") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN refunded_amount INTEGER NOT NULL DEFAULT 0;",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        if !order_columns.contains("refunds_json") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN refunds_json TEXT NOT NULL DEFAULT '[]';",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
         Ok(())
     }
 

@@ -17,8 +17,8 @@ use std::sync::Arc;
 pub use config::{DatabaseBackendKind, DatabaseConfig};
 pub use mysql::MySqlAdapter;
 pub use orders::{
-    OrderListQuery, OrderPage, OrderRecord, OrderStorage, OrderTransition, OutOfStock,
-    StockReservation,
+    OrderListQuery, OrderPage, OrderRecord, OrderRefundUpdate, OrderStorage, OrderTransition,
+    OutOfStock, StockReservation,
 };
 pub use postgres::PostgresAdapter;
 pub use sqlite::SqliteAdapter;

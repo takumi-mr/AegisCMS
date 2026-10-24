@@ -15,15 +15,18 @@ pub enum OrderStatus {
     Completed,
     /// 取り消し（期限切れ・支払いの失敗を含む）。在庫は戻してある
     Cancelled,
+    /// 全額返金済み
+    Refunded,
 }
 
 impl OrderStatus {
-    pub const ALL: [OrderStatus; 5] = [
+    pub const ALL: [OrderStatus; 6] = [
         Self::PendingPayment,
         Self::Paid,
         Self::Shipped,
         Self::Completed,
         Self::Cancelled,
+        Self::Refunded,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -33,10 +36,11 @@ impl OrderStatus {
             Self::Shipped => "shipped",
             Self::Completed => "completed",
             Self::Cancelled => "cancelled",
+            Self::Refunded => "refunded",
         }
     }
 
-    /// `self` から `next` に移れるか。発送後の取り消し・完了後の変更はできない
+    /// `self` から `next` に移れるか。発送後の取り消し・完了後の変更はできない（返金は可能）
     pub fn can_transition_to(&self, next: OrderStatus) -> bool {
         use OrderStatus::*;
         matches!(
@@ -45,7 +49,11 @@ impl OrderStatus {
                 | (PendingPayment, Cancelled)
                 | (Paid, Shipped)
                 | (Paid, Cancelled)
+                | (Paid, Refunded)
                 | (Shipped, Completed)
+                | (Shipped, Refunded)
+                | (Completed, Refunded)
+                | (Cancelled, Refunded)
         )
     }
 
@@ -115,6 +123,18 @@ pub struct ShippingAddress {
     pub phone: String,
     /// ISO 3166-1 alpha-2（例: `JP`）
     pub country: String,
+}
+
+/// 返金の記録（`_aegis_orders.refunds_json` に格納）
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OrderRefundRecord {
+    pub id: String,
+    pub amount: i64,
+    pub currency: String,
+    pub refund_ref: String,
+    #[serde(default)]
+    pub reason: Option<String>,
+    pub created_at: String,
 }
 
 /// 見積もり・注文の内容。`calculate-order` / `on-order-status-changed` フックに渡す
@@ -233,13 +253,22 @@ mod tests {
         use OrderStatus::*;
         assert!(PendingPayment.can_transition_to(Paid));
         assert!(Paid.can_transition_to(Cancelled));
+        assert!(Paid.can_transition_to(Refunded));
+        assert!(Shipped.can_transition_to(Refunded));
+        assert!(Completed.can_transition_to(Refunded));
+        assert!(Cancelled.can_transition_to(Refunded));
         assert!(!Shipped.can_transition_to(Cancelled));
         assert!(!Cancelled.can_transition_to(Paid));
         assert!(!Completed.can_transition_to(Shipped));
         assert_eq!("pending_payment".parse::<OrderStatus>(), Ok(PendingPayment));
+        assert_eq!("refunded".parse::<OrderStatus>(), Ok(Refunded));
         assert_eq!(
             serde_json::to_value(PendingPayment).unwrap(),
             serde_json::json!("pending_payment")
+        );
+        assert_eq!(
+            serde_json::to_value(Refunded).unwrap(),
+            serde_json::json!("refunded")
         );
     }
 

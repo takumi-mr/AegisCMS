@@ -14,7 +14,8 @@ use std::sync::Arc;
 
 use aegis_core::{
     AegisError, AuditAction, AuditOutcome, NotificationEvent, Notifier, OrderAdjustment,
-    OrderContext, OrderLine, OrderStatus, OrderStatusChange, Recipient, ShippingAddress,
+    OrderContext, OrderLine, OrderRefundRecord, OrderStatus, OrderStatusChange, Recipient,
+    ShippingAddress,
 };
 use aegis_schema::{FieldType, SchemaDefinition};
 use chrono::{SecondsFormat, Utc};
@@ -26,9 +27,14 @@ use uuid::Uuid;
 
 use aegis_audit::{AuditOrigin, AuditService};
 use aegis_core::CacheBackend;
-use aegis_db::{DatabaseAdapter, OrderRecord, OrderTransition, StockReservation};
+use aegis_db::{
+    DatabaseAdapter, OrderRecord, OrderRefundUpdate, OrderTransition, StockReservation,
+};
 use aegis_runtime::PluginSupervisor;
-use payment::{ManualPaymentProvider, PaymentEvent, PaymentEventKind, PaymentProvider, ReturnUrls};
+use payment::{
+    ManualPaymentProvider, PaymentEvent, PaymentEventKind, PaymentProvider, RefundRequest,
+    ReturnUrls,
+};
 use tokio::sync::RwLock;
 
 /// 期限切れの判定に足す猶予（秒）。決済サービス側の期限と同時に支払われた通知の到着を待つ
@@ -451,6 +457,9 @@ impl CommerceService {
             created_at: created_at.clone(),
             updated_at: created_at,
             note: None,
+            transaction_id: None,
+            refunded_amount: 0,
+            refunds_json: "[]".to_string(),
         };
 
         let stored = self
@@ -630,7 +639,166 @@ impl CommerceService {
         Ok(updated)
     }
 
-    /// 決済サービスからの通知（入金・期限切れ・失敗）を注文に反映する。重複した通知は何もしない
+    /// 注文の返金を行う（管理者操作）
+    /// プロバイダがオンライン返金をサポートしていればプロバイダの `refund` を呼び出し、
+    /// 結果を注文の返金履歴に記録する。手動決済の場合は手動返金として記録する。
+    pub async fn refund_order(
+        &self,
+        audit: &AuditOrigin,
+        order: &OrderRecord,
+        amount: Option<i64>,
+        reason: Option<String>,
+        restock: bool,
+    ) -> CommerceResult<OrderRecord> {
+        let current_status: OrderStatus = order.status.parse().map_err(CommerceError::Internal)?;
+        if current_status == OrderStatus::PendingPayment {
+            return Err(CommerceError::Conflict(
+                "Cannot refund an unpaid order".to_string(),
+            ));
+        }
+
+        let refundable_balance = order.total.saturating_sub(order.refunded_amount);
+        if refundable_balance <= 0 {
+            return Err(CommerceError::Conflict(
+                "Order is already fully refunded".to_string(),
+            ));
+        }
+
+        let refund_amount = match amount {
+            Some(a) if a <= 0 => {
+                return Err(CommerceError::Invalid(
+                    "Refund amount must be greater than zero".to_string(),
+                ));
+            }
+            Some(a) if a > refundable_balance => {
+                return Err(CommerceError::Invalid(format!(
+                    "Refund amount ({}) exceeds refundable balance ({})",
+                    a, refundable_balance
+                )));
+            }
+            Some(a) => a,
+            None => refundable_balance,
+        };
+
+        // 決済プロバイダでの返金処理（オンライン返金対応プロバイダの場合）
+        let refund_ref = if self.provider.supports_refund() {
+            let req = RefundRequest {
+                order,
+                amount: refund_amount,
+                reason: reason.clone(),
+            };
+            let res = self
+                .provider
+                .refund(req)
+                .await
+                .map_err(|e| CommerceError::Payment(e.to_string()))?;
+            res.refund_ref
+        } else {
+            // 手動決済など
+            format!("manual-{}", Uuid::new_v4().simple())
+        };
+
+        let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+        let mut refunds: Vec<OrderRefundRecord> =
+            serde_json::from_str(&order.refunds_json).unwrap_or_default();
+        let refund_entry_id = format!("ref-{}", Uuid::new_v4().simple());
+        refunds.push(OrderRefundRecord {
+            id: refund_entry_id.clone(),
+            amount: refund_amount,
+            currency: order.currency.clone(),
+            refund_ref: refund_ref.clone(),
+            reason: reason.clone(),
+            created_at: now.clone(),
+        });
+        let refunds_json =
+            serde_json::to_string(&refunds).map_err(|e| CommerceError::Internal(e.to_string()))?;
+
+        let new_refunded_amount = order.refunded_amount + refund_amount;
+        let is_full = new_refunded_amount >= order.total;
+        let new_status = if is_full {
+            Some(OrderStatus::Refunded.as_str().to_string())
+        } else {
+            None
+        };
+
+        let restock_reservations = if restock {
+            let product_table = self.product_schema().await?.table_name();
+            let lines: Vec<OrderLine> = serde_json::from_str(&order.lines_json).unwrap_or_default();
+            lines
+                .into_iter()
+                .map(|l| StockReservation {
+                    table: product_table.clone(),
+                    product_id: l.product_id,
+                    quantity: l.quantity as i64,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let update = OrderRefundUpdate {
+            id: order.id.clone(),
+            refunded_amount: new_refunded_amount,
+            refunds_json: refunds_json.clone(),
+            new_status: new_status.clone(),
+            updated_at: now.clone(),
+            note: reason.clone(),
+            restock: restock_reservations,
+        };
+
+        let ok = self
+            .deps
+            .db
+            .record_order_refund(&update)
+            .await
+            .map_err(|e| CommerceError::Internal(e.to_string()))?;
+
+        if !ok {
+            return Err(CommerceError::Conflict(
+                "Failed to update order for refund. It may have been updated concurrently."
+                    .to_string(),
+            ));
+        }
+
+        self.deps
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::OrderUpdate, AuditOutcome::Success)
+                    .with_resource("order", Some(order.id.clone()))
+                    .with_details(json!({
+                        "number": order.number,
+                        "action": "refund",
+                        "refund_id": refund_entry_id,
+                        "refund_ref": refund_ref,
+                        "amount": refund_amount,
+                        "currency": order.currency,
+                        "total_refunded": new_refunded_amount,
+                        "status": new_status.as_deref().unwrap_or(&order.status),
+                        "restocked": restock,
+                        "reason": reason,
+                    })),
+            )
+            .await;
+
+        let mut updated = order.clone();
+        updated.refunded_amount = new_refunded_amount;
+        updated.refunds_json = refunds_json;
+        if let Some(status) = new_status {
+            let to = OrderStatus::Refunded;
+            updated.status = status;
+            self.notify(&updated, Some(current_status), to);
+            self.notify_status_change(&updated, current_status, to, "admin_refund");
+        }
+        updated.updated_at = now;
+        if reason.is_some() {
+            updated.note = reason;
+        }
+
+        Ok(updated)
+    }
+
+    /// 決済サービスからの通知（入金・期限切れ・失敗・返金）を注文に反映する。重複した通知は何もしない
     pub async fn apply_payment_event(
         &self,
         audit: &AuditOrigin,
@@ -649,6 +817,18 @@ impl CommerceService {
                     event.order_id, event.payment_ref
                 ))
             })?;
+
+        // 決済サービスから確定取引IDが通知された場合は保存
+        if let Some(tx_id) = &event.transaction_id {
+            if order.transaction_id.as_deref() != Some(tx_id) {
+                let _ = self
+                    .deps
+                    .db
+                    .set_order_transaction_id(&order.id, tx_id)
+                    .await;
+            }
+        }
+
         let status: OrderStatus = order.status.parse().map_err(CommerceError::Internal)?;
         let record_problem = |problem: &'static str, extra: serde_json::Value| {
             let mut details = json!({
@@ -677,7 +857,8 @@ impl CommerceService {
                         order.total,
                         order.currency
                     );
-                    self.deps.audit
+                    self.deps
+                        .audit
                         .record(record_problem(
                             "amount_mismatch",
                             json!({ "paid": amount, "paid_currency": currency, "total": order.total }),
@@ -703,6 +884,45 @@ impl CommerceService {
                     }
                     // 重複した通知
                     _ => {}
+                }
+            }
+            PaymentEventKind::Refunded {
+                amount,
+                currency: _,
+                refund_ref,
+            } => {
+                let mut refunds: Vec<OrderRefundRecord> =
+                    serde_json::from_str(&order.refunds_json).unwrap_or_default();
+                if !refunds.iter().any(|r| r.refund_ref == *refund_ref) {
+                    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+                    let refund_entry_id = format!("ref-{}", Uuid::new_v4().simple());
+                    refunds.push(OrderRefundRecord {
+                        id: refund_entry_id,
+                        amount: *amount,
+                        currency: order.currency.clone(),
+                        refund_ref: refund_ref.clone(),
+                        reason: Some("External webhook refund".to_string()),
+                        created_at: now.clone(),
+                    });
+                    let refunds_json =
+                        serde_json::to_string(&refunds).unwrap_or_else(|_| "[]".to_string());
+                    let new_refunded_amount = order.refunded_amount + amount;
+                    let is_full = new_refunded_amount >= order.total;
+                    let new_status = if is_full {
+                        Some(OrderStatus::Refunded.as_str().to_string())
+                    } else {
+                        None
+                    };
+                    let update = OrderRefundUpdate {
+                        id: order.id.clone(),
+                        refunded_amount: new_refunded_amount,
+                        refunds_json,
+                        new_status,
+                        updated_at: now,
+                        note: Some(format!("Refunded via webhook: {}", refund_ref)),
+                        restock: vec![],
+                    };
+                    let _ = self.deps.db.record_order_refund(&update).await;
                 }
             }
             PaymentEventKind::AwaitingPayment => {
