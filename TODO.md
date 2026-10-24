@@ -9,10 +9,8 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: PostgreSQL / MySQL での注文・在庫の実機検証（テスト用コンテナ環境、ストレージ層および E2E テスト、`task test:dbs`）。
-  - **検証内容**: PostgreSQL 16 および MySQL 8.0 の実機コンテナにおいて、スキーママイグレーション（`_aegis_orders`）、アトミックな在庫減算・ロールバック、注文作成・決済・キャンセル（在庫復帰 `restock`）、一覧取得・カウント・期限切れ注文取得、HTTP チェックアウト〜スタッフ注文管理 E2E フローを網羅。
-  - **開発環境対応**: `docker-compose.test-dbs.yml` と Taskfile（`docker:dbs:up`, `docker:dbs:down`, `test:dbs`）を整備。コンテナ非稼働時は 150ms の TCP プローブで安全にテストをスキップし通常の `cargo test` を阻害しない。
-  - **ドキュメント反映**: 仕様・ACID 保証は [commerce.md 3.2](docs/commerce.md#32-在庫)、設計は [architecture.md 2.2](docs/architecture.md#22-databaseadapter)、実行手順は [development.md 7](docs/development.md#7-データベース実機検証-postgresql--mysql)。その前はパスワード再設定・承認通知・招待リンク。
+- **直近の完了**: プラグインの有効・無効を Admin Studio から再起動なしで切り替え（`PUT /api/v1/plugins/{name}/enabled`、一覧は DB の `_aegis_settings` に保存して `[plugins].enabled` より優先、監査ログ `plugin.enable` / `plugin.disable`）。あわせて Admin Studio のプラグイン画面の型を API に合わせて修正（`manifest` が `null` の未インストールのプラグイン、`capabilities.hooks`、`problem`、設定保存の送信形式 `{ settings }`）。仕様は [plugin_hooks.md 5.1](docs/plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)、設計は [architecture.md 10.2](docs/architecture.md#102-インストールと有効化-wasmpluginloader)。
+- **その前**: PostgreSQL / MySQL での注文・在庫の実機検証（`task test:dbs`。[commerce.md 3.2](docs/commerce.md#32-在庫)、[development.md 7](docs/development.md#7-データベース実機検証-postgresql--mysql)）。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -35,7 +33,8 @@
 
 ### プラグイン
 
-- [ ] **実行時の有効・無効の切り替え**: 今は設定ファイル + 再起動。API で切り替えるには、有効化リストの永続化（DB）と `PluginSupervisor` の差し替えが要る。
+- [ ] **実行順の並べ替え**: Admin Studio で有効にしたプラグインはフックの実行順の最後に加わるだけ。順序を変えるには設定ファイルを直して DB の `plugins.enabled` を消す必要がある。並べ替え UI と、設定ファイルの値に戻す操作。
+- [ ] **複数台での切り替えの伝播**: 有効・無効の切り替えは操作を受けたサーバーだけに反映される（他は再起動で揃う）。キャッシュ（Redis）の Pub/Sub などで他のサーバーにも差し替えを伝える。
 - [ ] **ストアからのインストール**: パッケージの検証（テーマの `validate_theme_package` に相当）・署名・`min_aegis_version` の確認、展開先は `plugins/<name>/`。テーマの ZIP 導入も同じ仕組みで。
 - [ ] **AssemblyScript / TinyGo SDK の追従**: EC のフック・ホスト API（`calculate-order` / `on-order-status-changed` / `http_fetch` / `kv_get` / `config_get`）と `send-notification`、`on-content-published` のラッパー。ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) に記載済み。
 - [ ] **AssemblyScript SDK の JSON 処理の高速化**: `escapeJson` / `findStringField` が入力の大きさの二乗で遅い（[architecture.md 12](docs/architecture.md#12-性能の記録)）。

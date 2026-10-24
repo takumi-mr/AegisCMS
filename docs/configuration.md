@@ -138,7 +138,7 @@ public_url_prefix = "https://cdn.example.com"
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `schemas_dir` | path | `"schemas"` | 宣言的スキーマ (`*.yaml`) の読み込み元 |
-| `plugins_dir` | path | `"plugins"` | Wasm プラグインのインストール先（`<plugins_dir>/<name>/` に 1 プラグイン）。読み込むのは `[plugins].enabled` に書いたものだけ |
+| `plugins_dir` | path | `"plugins"` | Wasm プラグインのインストール先（`<plugins_dir>/<name>/` に 1 プラグイン）。読み込むのは有効化リスト（`[plugins].enabled`、または Admin Studio で切り替えた一覧）にあるものだけ |
 | `admin_dist_dir` | path | `"admin/dist"` | Admin Studio ビルド成果物。存在すれば `/` で SPA として配信 |
 
 ### 2.6 `[runtime]` — Wasm プラグインランタイム
@@ -179,6 +179,7 @@ coupons = "WELCOME10:10%"
 
 - 列挙したプラグインが未インストール・読み込めない（マニフェストの不備、ホストに無い関数のインポートなど）場合、名前の形式が不正・重複している場合は**サーバーが起動しません**。
 - `[runtime].enable_wasm_plugins = false` の場合は読み込みません。
+- Admin Studio（`PUT /api/v1/plugins/{name}/enabled`）で有効・無効を切り替えると、その一覧が DB に保存され、以後は `enabled` より優先されます（[プラグインフックリファレンス 5.1](./plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)）。
 - 状態は `aegis plugin list` で確認できます（[プラグインフックリファレンス](./plugin_hooks.md#5-インストールと有効化)）。
 
 ### 2.7 `[security]` — HTML 出力のセキュリティ / 最適化

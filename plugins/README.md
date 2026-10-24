@@ -3,7 +3,7 @@
 AegisCMS にインストールした Wasm プラグインを置くディレクトリです（`[paths].plugins_dir`）。
 
 - 1 プラグイン = 1 ディレクトリ（`plugins/<name>/`）。`<name>` は `plugin.manifest.json` の `name` と同じにします。
-- 置いただけでは読み込まれません。設定ファイルの `[plugins].enabled` に名前を追加すると有効になります。
+- 置いただけでは読み込まれません。Admin Studio のプラグイン画面で有効にする（再起動不要）か、設定ファイルの `[plugins].enabled` に名前を追加すると有効になります。
 - インストール済みのプラグインと有効・無効は `aegis plugin list` で確認できます。
 
 ```text

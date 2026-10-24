@@ -60,7 +60,9 @@ export type AuditAction =
   | 'order.create'
   | 'order.update'
   | 'notification.send'
-  | 'plugin.settings_update';
+  | 'plugin.settings_update'
+  | 'plugin.enable'
+  | 'plugin.disable';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 
@@ -407,31 +409,43 @@ export interface ShopConfig {
 }
 
 export interface PluginCapabilities {
-  allowed_domains: string[];
-  kv_storage: boolean;
-  max_memory_mb?: number;
-  execution_timeout_ms?: number;
+  network?: { allowed_domains: string[] } | null;
+  storage?: { kv_namespace: string } | null;
+  hooks: string[];
 }
+
+export interface PluginResourceLimits {
+  max_memory_mb: number;
+  max_fuel_units: number;
+  execution_timeout_ms: number;
+}
+
+/** A name, or a name with contact details */
+export type PackageAuthor = string | { name: string; email?: string; url?: string };
 
 export interface PluginManifest {
   name: string;
   version: string;
   display_name?: string;
   description?: string;
-  author?: string;
+  author?: PackageAuthor;
   license?: string;
   homepage?: string;
-  hooks: string[];
   capabilities: PluginCapabilities;
+  resource_limits: PluginResourceLimits;
 }
 
 export interface PluginInfo {
+  /** Install directory name (`plugins/<name>/`) */
   name: string;
-  manifest: PluginManifest;
+  /** Null when the plugin is not installed or its manifest cannot be read */
+  manifest: PluginManifest | null;
+  /** In the enabled list (hooks run in that order) */
   is_enabled: boolean;
   is_installed: boolean;
-  error?: string | null;
-  settings: Record<string, string>;
+  /** Why the plugin cannot be enabled (not installed, invalid manifest, ...) */
+  problem?: string;
+  settings?: Record<string, string>;
 }
 
 export interface ScheduleItem {

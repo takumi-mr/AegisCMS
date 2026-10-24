@@ -39,6 +39,7 @@
     "pluginsFailed": "プラグイン一覧を取得できませんでした",
     "getPluginSettingsFailed": "プラグインの設定を取得できませんでした",
     "updatePluginSettingsFailed": "プラグインの設定を更新できませんでした",
+    "setPluginEnabledFailed": "プラグインの有効・無効を切り替えられませんでした",
     "siteSettingsFailed": "サイトの設定の取得に失敗しました",
     "updateSiteSettingsFailed": "サイトの設定の保存に失敗しました"
   },
@@ -793,7 +794,16 @@
     "newValuePlaceholder": "設定値 (文字列)",
     "addSetting": "追加",
     "saving": "保存中...",
-    "saveSettings": "設定を保存"
+    "saveSettings": "設定を保存",
+    "enable": "有効にする",
+    "disable": "無効にする",
+    "enableTitle": "このプラグインを有効にする（再起動不要。フックの実行順の最後に加わります）",
+    "disableTitle": "このプラグインを無効にする（再起動不要）",
+    "enabled": "プラグイン「{{name}}」を有効にしました",
+    "disabled": "プラグイン「{{name}}」を無効にしました",
+    "confirmDisable": "プラグイン「{{name}}」を無効にしますか？このプラグインのフックはすぐに呼ばれなくなります。",
+    "toggleAdminRequired": "プラグインの有効・無効の切り替えには管理者権限が必要です",
+    "notInstalled": "インストールされていません"
   },
   "site": {
     "title": "サイト",

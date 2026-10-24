@@ -1,4 +1,5 @@
 use crate::config::AegisConfig;
+use crate::plugin_registry::PluginRegistry;
 use crate::site::{SiteInfo, SiteOverrides};
 use aegis_audit::AuditService;
 use aegis_auth::invitation::InvitationService;
@@ -28,6 +29,8 @@ pub struct AppState {
     pub login_limiter: Arc<LoginRateLimiter>,
     pub schemas: Arc<RwLock<HashMap<String, SchemaDefinition>>>,
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
+    /// 有効なプラグインの一覧と、Admin Studio からの切り替え（`supervisor` を差し替える）
+    pub plugin_registry: Arc<PluginRegistry>,
     pub audit: Arc<AuditService>,
     pub theme: Arc<ThemeEngine>,
     /// 動的プラグイン設定（管理画面から変更された設定値のキャッシュ）
@@ -109,6 +112,7 @@ impl AppState {
         audit: Arc<AuditService>,
         theme: Arc<ThemeEngine>,
     ) -> Self {
+        let plugin_registry = Arc::new(PluginRegistry::new(None, config.plugins.enabled.clone()));
         Self {
             config,
             db,
@@ -119,6 +123,7 @@ impl AppState {
             login_limiter,
             schemas: Arc::new(RwLock::new(schemas)),
             supervisor: Arc::new(RwLock::new(supervisor)),
+            plugin_registry,
             audit,
             theme,
             plugin_settings: Arc::new(std::sync::RwLock::new(HashMap::new())),
