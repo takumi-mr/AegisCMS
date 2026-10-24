@@ -9,7 +9,8 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: パスワードの再設定・承認の知らせ・ユーザー招待リンク機能の実装。
+- **直近の完了**: CI / ローカルのビルド時間の短縮（Docker 検証を LTO なしの `ci-release` で並列実行、dev のデバッグ情報を `line-tables-only` に）。詳細は [development.md 3](docs/development.md#3-ci-githubworkflowsciyml)。
+- **その前**: パスワードの再設定・承認の知らせ・ユーザー招待リンク機能の実装。
   1. **パスワード再設定（メール）**: キャッシュ + SHA-256 ハッシュ + URL フラグメント（`#reset-password=<token>`）。アカウント列挙防止（常に `202 Accepted`、Argon2id 擬似ハッシュ処理）、ログイン画面の「パスワードをお忘れですか？」および再設定フォーム、通知 `account.password_reset`。仕様は [authentication.md 9](docs/authentication.md#9-パスワードの再設定)、設計は [architecture.md 6.7](docs/architecture.md#67-パスワードの再設定-aegis_authpassword_reset-handlerspassword_resetrs)。
   2. **承認の知らせ**: `_aegis_users` に `pending_approval` カラム追加（SQLite / PostgreSQL / MySQL マイグレーション対応）、自己登録時の承認待ちフラグ設定、admin がユーザーを有効化（`disabled: false`）した際の自動クリアおよび承認通知メール `account.approved` 送信、Admin Studio での「承認待ち」バッジと承認ボタン。仕様は [authentication.md 11](docs/authentication.md#11-承認通知-accountapproved)、設計は [architecture.md 6.6](docs/architecture.md#66-アカウント登録-aegis_authregistration-handlersregistrationrs)。
   3. **ユーザー招待リンク**: admin によるメールアドレス・ロール指定での招待発行（`POST /api/v1/auth/invitations`）、キャッシュ + SHA-256 + URL フラグメント（`#invite=<token>`）、通知 `account.invite`、招待受諾フォーム（`GET /api/v1/auth/invitations/info`、`POST /api/v1/auth/invitations/accept`）でのユーザー名・パスワード設定、即時有効アカウント開設。仕様は [authentication.md 10](docs/authentication.md#10-ユーザー招待リンク)、設計は [architecture.md 6.8](docs/architecture.md#68-ユーザー招待リンク-aegis_authinvitation-handlersinvitationrs)。その前は予約公開時のプラグインフック呼び出し（`on-content-published` フック）。

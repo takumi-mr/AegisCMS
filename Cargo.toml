@@ -71,6 +71,18 @@ opt-level = 3
 lto = true
 codegen-units = 1
 
+# CI の Docker ビルド検証用。最適化レベルは release と同じだが、LTO と codegen-units=1 を外して
+# 最終リンク時の全体最適化（CI で約 3 分）を省く。本番イメージは release のまま
+[profile.ci-release]
+inherits = "release"
+lto = false
+codegen-units = 16
+
+# デバッグ情報を行番号だけにする（バックトレースの行番号は残る）。フルの変数情報は
+# wasmtime などの依存を含めて数百 MB になり、テストバイナリのリンクを遅くするため
+[profile.dev]
+debug = "line-tables-only"
+
 # RSA の鍵生成（SAML のモック IdP）が最適化なしでは非常に遅いため、テストでも最適化する
 [profile.dev.package.num-bigint-dig]
 opt-level = 3
