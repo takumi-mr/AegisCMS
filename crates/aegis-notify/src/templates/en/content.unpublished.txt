@@ -1,0 +1,7 @@
+Hello {{ display_name or username }},
+
+"{{ content.title }}" ({{ content.label }}) on {{ site_name }} reached its unpublish date and is no longer public.
+It was archived and can be edited or published again from Admin Studio.
+
+Unpublish date: {{ at }}
+{% include "_footer.txt" %}

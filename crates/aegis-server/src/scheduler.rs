@@ -1,11 +1,11 @@
 //! コンテンツの予約公開。`status: "scheduled"` のコンテンツを、`published_at` の日時になったら
-//! `published` にする（監査ログ `content.publish`）
+//! `published` にする（監査ログ `content.publish`、著者への通知 `content.published`）
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use aegis_core::{AuditAction, AuditEvent, AuditOutcome};
-use aegis_db::ContentListQuery;
+use aegis_core::{AuditAction, AuditEvent, AuditOutcome, NotificationEvent, Recipient};
+use aegis_db::{ContentListQuery, ContentRecord};
 use aegis_schema::SchemaDefinition;
 use chrono::{DateTime, Utc};
 use serde_json::json;
@@ -89,6 +89,7 @@ pub async fn publish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize
             if outcome != AuditOutcome::Success {
                 continue;
             }
+            notify_author(state, "content.published", &schema, &record, at).await;
 
             let published_content = aegis_core::PublishedContent {
                 id: record.id.clone(),
@@ -195,9 +196,82 @@ pub async fn unpublish_due_contents(state: &AppState, now: DateTime<Utc>) -> usi
                         .with_details(details),
                 )
                 .await;
+            if outcome == AuditOutcome::Success {
+                notify_author(state, "content.unpublished", &schema, &record, at).await;
+            }
         }
     }
     unpublished
+}
+
+/// 予約公開・予約非公開が済んだことを著者に知らせる（`content.published` / `content.unpublished`）。
+/// 通知が無効、著者がいない・メールアドレスが無い・無効なアカウントなら送らない
+async fn notify_author(
+    state: &AppState,
+    kind: &str,
+    schema: &SchemaDefinition,
+    record: &ContentRecord,
+    at: &str,
+) {
+    let Some(notifier) = &state.notifier else {
+        return;
+    };
+    let Some(author_id) = record.author_id.as_deref().filter(|a| !a.is_empty()) else {
+        return;
+    };
+    let author = match state.db.get_user_by_username(author_id).await {
+        Ok(Some(user)) if !user.disabled => user,
+        Ok(_) => return,
+        Err(e) => {
+            tracing::warn!(
+                "Could not look up the author '{}' to notify: {}",
+                author_id,
+                e
+            );
+            return;
+        }
+    };
+    let Some(email) = author.email.as_deref() else {
+        return;
+    };
+    let name = author.display_name.as_deref().unwrap_or(&author.username);
+    notifier.notify(NotificationEvent::new(
+        kind,
+        vec![Recipient::person(email, name)],
+        json!({
+            "username": author.username,
+            "display_name": author.display_name,
+            "at": at,
+            "content": {
+                "id": record.id,
+                "content_type": record.content_type,
+                "label": schema.label,
+                "title": record.title,
+                "slug": record.slug,
+            },
+            "content_url": content_url(state, record),
+        }),
+    ));
+}
+
+/// 公開サイトでのコンテンツの URL（`[commerce].public_url` が無い、公開ページの無い種類なら空）。
+/// `page` / `article` は `/{slug}`、商品（`[commerce].product_type`）は `/products/{slug}`
+fn content_url(state: &AppState, record: &ContentRecord) -> String {
+    let site = state
+        .config
+        .commerce
+        .public_url
+        .trim()
+        .trim_end_matches('/');
+    let path = match record.content_type.as_str() {
+        "page" | "article" => format!("/{}", record.slug),
+        t if t == state.config.commerce.product_type => format!("/products/{}", record.slug),
+        _ => return String::new(),
+    };
+    if site.is_empty() {
+        return String::new();
+    }
+    format!("{}{}", site, path)
 }
 
 /// 予約公開および予約非公開を定期的に行うタスクを起動する
@@ -542,6 +616,92 @@ mod tests {
             self.published.lock().unwrap().push(content);
             Ok(())
         }
+    }
+
+    /// `test_state` with a recording notifier, a public URL and an author `editor1` with `email`
+    async fn state_with_notifier(
+        email: Option<&str>,
+    ) -> (Arc<AppState>, Arc<crate::test_support::RecordingNotifier>) {
+        let state = test_state(PluginSupervisor::new()).await;
+        aegis_auth::users::insert_new_user(
+            state.db.as_ref(),
+            aegis_auth::users::NewUser {
+                username: "editor1".to_string(),
+                password: String::new(),
+                role: "editor".to_string(),
+                email: email.map(str::to_string),
+                display_name: Some("Hanako".to_string()),
+            },
+            "hash".to_string(),
+            false,
+            false,
+        )
+        .await
+        .unwrap();
+        let notifier = Arc::new(crate::test_support::RecordingNotifier::default());
+        let mut state = (*state).clone();
+        state.notifier = Some(notifier.clone());
+        state.config.commerce.public_url = "https://example.com/".to_string();
+        (Arc::new(state), notifier)
+    }
+
+    #[tokio::test]
+    async fn test_author_is_notified_when_scheduled_content_is_published_and_unpublished() {
+        let (state, notifier) = state_with_notifier(Some("hanako@example.com")).await;
+        create(
+            &state,
+            serde_json::json!({ "title": "Spring Sale", "slug": "spring-sale", "status": "scheduled",
+                                "published_at": "2099-03-01T00:00:00Z",
+                                "unpublish_at": "2099-03-31T00:00:00Z" }),
+        )
+        .await
+        .unwrap();
+
+        // Nothing before the date
+        let before: DateTime<Utc> = "2099-02-28T23:59:59Z".parse().unwrap();
+        assert_eq!(publish_due_contents(&state, before).await, 0);
+        assert!(notifier.take().is_empty());
+
+        let due: DateTime<Utc> = "2099-03-01T00:00:00Z".parse().unwrap();
+        assert_eq!(publish_due_contents(&state, due).await, 1);
+        let events = notifier.take();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "content.published");
+        assert_eq!(
+            events[0].recipients,
+            vec![Recipient::person("hanako@example.com", "Hanako")]
+        );
+        let data = &events[0].data;
+        assert_eq!(data["content"]["title"], "Spring Sale");
+        assert_eq!(data["content"]["label"], "Articles");
+        assert_eq!(data["at"], "2099-03-01T00:00:00Z");
+        assert_eq!(data["content_url"], "https://example.com/spring-sale");
+
+        // Publishing again sends nothing (it is no longer scheduled)
+        assert_eq!(publish_due_contents(&state, due).await, 0);
+        assert!(notifier.take().is_empty());
+
+        let end: DateTime<Utc> = "2099-03-31T00:00:00Z".parse().unwrap();
+        assert_eq!(unpublish_due_contents(&state, end).await, 1);
+        let events = notifier.take();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "content.unpublished");
+        assert_eq!(events[0].data["at"], "2099-03-31T00:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn test_no_notification_without_an_author_email() {
+        let (state, notifier) = state_with_notifier(None).await;
+        create(
+            &state,
+            serde_json::json!({ "title": "Quiet", "slug": "quiet", "status": "scheduled",
+                                "published_at": "2099-04-01T00:00:00Z" }),
+        )
+        .await
+        .unwrap();
+        let due: DateTime<Utc> = "2099-04-01T00:00:00Z".parse().unwrap();
+        assert_eq!(publish_due_contents(&state, due).await, 1);
+        assert!(notifier.take().is_empty());
     }
 
     #[tokio::test]

@@ -1,0 +1,10 @@
+Hello {{ display_name or username }},
+
+Your scheduled {{ content.label }} "{{ content.title }}" is now published on {{ site_name }}.
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+
+Scheduled for: {{ at }}
+{% include "_footer.txt" %}

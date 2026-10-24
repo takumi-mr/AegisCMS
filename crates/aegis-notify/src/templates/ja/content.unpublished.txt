@@ -1,0 +1,7 @@
+{{ display_name or username }} 様
+
+{{ site_name }} の{{ content.label }}「{{ content.title }}」は非公開日時になったため、公開を終了しました。
+アーカイブに移しています。Admin Studio から編集・再公開できます。
+
+非公開日時: {{ at }}
+{% include "_footer.txt" %}

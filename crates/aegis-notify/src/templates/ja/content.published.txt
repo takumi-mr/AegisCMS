@@ -1,0 +1,10 @@
+{{ display_name or username }} 様
+
+予約していた{{ content.label }}「{{ content.title }}」を {{ site_name }} で公開しました。
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+
+公開予定日時: {{ at }}
+{% include "_footer.txt" %}
