@@ -21,6 +21,8 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | `task bench:all` | プラグイン性能計測と HTTP ベンチマークを一括実行 |
 | `task demo:shop` / `demo:shop:seed` | サンプルショップの起動 / データ投入（[examples/coffee-shop](../examples/coffee-shop)） |
 | `task docker:build` / `docker:run` / `docker:stop` / `docker:logs` | Docker イメージ（[5](#5-docker-イメージ)） |
+| `task docker:dbs:up` / `docker:dbs:down` | 実機検証用 DB コンテナ（PostgreSQL 16 / MySQL 8.0）の起動 / 停止（[7](#7-データベース実機検証-postgresql--mysql)） |
+| `task test:dbs` | 実機コンテナ環境での注文・在庫の統合テストを一括実行 |
 
 ---
 
@@ -117,4 +119,31 @@ task bench:plugins
 ```
 
 両方を一括実行する場合は `task bench:all` を使用します。
+ 
+---
+
+## 7. データベース実機検証 (PostgreSQL / MySQL)
+
+SQLite（`sqlite::memory:`）以外の実機 RDBMS 環境（PostgreSQL 16 / MySQL 8.0）での注文・在庫トランザクションやスキーママイグレーションの動作確認を行うため、専用の Docker Compose 構成（[`docker-compose.test-dbs.yml`](../docker-compose.test-dbs.yml)）とテストスイートを提供しています。
+
+```bash
+# 1. テスト用 DB コンテナを起動（ヘルスチェック待機付き）
+task docker:dbs:up
+
+# 2. 統合テストを一括実行（aegis-db 単体トランザクション検証 + aegis-server E2E API 検証）
+task test:dbs
+
+# 3. テスト完了後にコンテナとボリュームを破棄
+task docker:dbs:down
+```
+
+- **自動スキップ機能**: コンテナが起動していない通常開発時（`task test` や `task check`）は、TCP ポートプローブ（タイムアウト 150ms）により実機テストが即座にスキップされ、全体のテスト実行速度を損ないません。
+- **検証項目**:
+  - `_aegis_orders` テーブルおよびインデックスの初期化
+  - 注文作成時のアトミックな在庫減算（`stock >= quantity`）
+  - 部分的な在庫不足時のトランザクション自動ロールバック（複数行中 1 行でも不足なら全件破棄）
+  - 無制限在庫（`stock IS NULL`）商品の取り扱い
+  - 注文キャンセル時の在庫返却（`restock`）
+  - 注文確認ページ・スタッフ用注文一覧/詳細 API・状態変更 API の E2E 動作
+
 

@@ -17,7 +17,7 @@ use super::*;
 use crate::audit::AuditContext;
 use crate::config::AegisConfig;
 use aegis_commerce::{stripe, CartItem};
-use aegis_db::ContentRecord;
+use aegis_db::{ContentRecord, DatabaseAdapter};
 
 fn product_schema() -> SchemaDefinition {
     serde_json::from_value(json!({
@@ -104,6 +104,14 @@ async fn shop(configure: impl FnOnce(&mut AegisConfig)) -> Shop {
     config.commerce.enabled = true;
     config.commerce.max_quantity_per_item = 5;
     configure(&mut config);
+    let adapter = aegis_db::SqliteAdapter::connect("sqlite::memory:", 1)
+        .await
+        .unwrap();
+    adapter.init().await.unwrap();
+    shop_with_db(Arc::new(adapter), config).await
+}
+
+async fn shop_with_db(db: Arc<dyn aegis_db::DatabaseAdapter>, config: AegisConfig) -> Shop {
     let notifications = Arc::new(Mutex::new(Vec::new()));
     let mut supervisor = PluginSupervisor::new();
     supervisor.register(Arc::new(ShopRulesPlugin {
@@ -124,7 +132,8 @@ async fn shop(configure: impl FnOnce(&mut AegisConfig)) -> Shop {
         notifications: notifications.clone(),
     }));
     let state =
-        crate::test_support::test_app_state(config, supervisor, vec![product_schema()]).await;
+        crate::test_support::test_app_state_with_db(db, config, supervisor, vec![product_schema()])
+            .await;
     let mails = Arc::new(RecordingNotifier::default());
     let mut deps = state.commerce_deps();
     deps.notifier = Some(mails.clone());
@@ -1022,4 +1031,204 @@ async fn test_official_wasm_plugins_in_checkout() {
     }
     let error = commerce.quote(&request(Some("WELCOME"))).await.unwrap_err();
     assert!(error.to_string().contains("used up"), "{}", error);
+}
+
+async fn run_db_order_lifecycle_verification(shop: Shop) {
+    // 1. 見積もり計算 (POST /api/v1/shop/quote) - mug x 2
+    let (status, quote) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({ "items": [{"product": "mug", "quantity": 2}] })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote["subtotal"], 2400);
+    assert_eq!(quote["total"], 2900); // 2400 + 500 shipping
+
+    // 2. チェックアウト (POST /api/v1/shop/checkout) - mug x 2 (stock 3 -> 1)
+    assert_eq!(shop.stock("mug").await, Some(3));
+    let (status, checkout) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/checkout",
+            Some(json!({
+                "items": [{"product": "mug", "quantity": 2}],
+                "email": "customer@example.com",
+                "name": "Customer",
+                "payment_provider": "manual"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "Checkout response: {:?}",
+        checkout
+    );
+    let order_id = checkout["order"]["id"].as_str().unwrap().to_string();
+    let access_token = checkout["token"].as_str().unwrap().to_string();
+    assert_eq!(shop.stock("mug").await, Some(1));
+
+    // 3. 在庫不足 409 Conflict - 残 1 なのに 2 注文
+    let (status, _fail) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/checkout",
+            Some(json!({
+                "items": [{"product": "mug", "quantity": 2}],
+                "email": "another@example.com",
+                "name": "Another",
+                "payment_provider": "manual"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(shop.stock("mug").await, Some(1));
+
+    // 4. 顧客による注文確認ページ取得
+    let (status, order) = shop
+        .call(
+            "GET",
+            &format!("/api/v1/shop/orders/{}?token={}", order_id, access_token),
+            None,
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(order["id"], order_id);
+    assert_eq!(order["status"], "pending_payment");
+
+    // 5. スタッフによる注文一覧取得 (GET /api/v1/orders)
+    let (status, page) = shop
+        .call("GET", "/api/v1/orders", None, Some(&shop.staff_token))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(page["total"], 1);
+    assert_eq!(page["orders"][0]["id"], order_id);
+
+    // 6. スタッフによる注文詳細取得 (GET /api/v1/orders/{id})
+    let (status, detail) = shop
+        .call(
+            "GET",
+            &format!("/api/v1/orders/{}", order_id),
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["id"], order_id);
+    assert_eq!(detail["status"], "pending_payment");
+
+    // 7. スタッフによるキャンセルと在庫返却 (POST /api/v1/orders/{id}/status, stock 1 -> 3)
+    let (status, cancel) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/status", order_id),
+            Some(json!({
+                "status": "cancelled",
+                "note": "Restocking test"
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "Cancel res: {:?}", cancel);
+    assert_eq!(cancel["status"], "cancelled");
+    assert_eq!(
+        shop.stock("mug").await,
+        Some(3),
+        "Mug stock must be restored to 3 after cancellation"
+    );
+}
+
+fn is_port_reachable(host_port: &str) -> bool {
+    let Ok(addr) = host_port.parse() else {
+        return false;
+    };
+    std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(150)).is_ok()
+}
+
+async fn connect_postgres_with_retry(url: &str) -> Option<aegis_db::PostgresAdapter> {
+    for _ in 0..6 {
+        if let Ok(adapter) = aegis_db::PostgresAdapter::connect(url, 5).await {
+            return Some(adapter);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    None
+}
+
+async fn connect_mysql_with_retry(url: &str) -> Option<aegis_db::MySqlAdapter> {
+    for _ in 0..6 {
+        if let Ok(adapter) = aegis_db::MySqlAdapter::connect(url, 5).await {
+            return Some(adapter);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    None
+}
+
+#[tokio::test]
+async fn test_postgres_order_and_stock_e2e() {
+    let custom_url = std::env::var("POSTGRES_URL").ok();
+    if custom_url.is_none() && !is_port_reachable("127.0.0.1:5432") {
+        eprintln!("Skipping PostgreSQL test: 127.0.0.1:5432 is not reachable (start with task docker:dbs:up)");
+        return;
+    }
+    let url = custom_url
+        .unwrap_or_else(|| "postgres://aegis:password@127.0.0.1:5432/aegis_test".to_string());
+    let adapter = match connect_postgres_with_retry(&url).await {
+        Some(a) => a,
+        None => {
+            eprintln!("Skipping PostgreSQL test: failed to connect after retry");
+            return;
+        }
+    };
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_product, content_article, _aegis_orders, _aegis_migrations, _aegis_users, _aegis_user_links, _aegis_settings, _aegis_audit CASCADE;")
+        .execute(adapter.pool())
+        .await;
+    if let Err(e) = adapter.init().await {
+        eprintln!("Skipping PostgreSQL test: init failed: {}", e);
+        return;
+    }
+    let mut config = AegisConfig::default();
+    config.commerce.enabled = true;
+    config.commerce.max_quantity_per_item = 5;
+    let shop = shop_with_db(Arc::new(adapter), config).await;
+    run_db_order_lifecycle_verification(shop).await;
+}
+
+#[tokio::test]
+async fn test_mysql_order_and_stock_e2e() {
+    let custom_url = std::env::var("MYSQL_URL").ok();
+    if custom_url.is_none() && !is_port_reachable("127.0.0.1:3306") {
+        eprintln!(
+            "Skipping MySQL test: 127.0.0.1:3306 is not reachable (start with task docker:dbs:up)"
+        );
+        return;
+    }
+    let url = custom_url
+        .unwrap_or_else(|| "mysql://aegis:password@127.0.0.1:3306/aegis_test".to_string());
+    let adapter = match connect_mysql_with_retry(&url).await {
+        Some(a) => a,
+        None => {
+            eprintln!("Skipping MySQL test: failed to connect after retry");
+            return;
+        }
+    };
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_product, content_article, _aegis_orders, _aegis_migrations, _aegis_users, _aegis_user_links, _aegis_settings, _aegis_audit;")
+        .execute(adapter.pool())
+        .await;
+    if let Err(e) = adapter.init().await {
+        eprintln!("Skipping MySQL test: init failed: {}", e);
+        return;
+    }
+    let mut config = AegisConfig::default();
+    config.commerce.enabled = true;
+    config.commerce.max_quantity_per_item = 5;
+    let shop = shop_with_db(Arc::new(adapter), config).await;
+    run_db_order_lifecycle_verification(shop).await;
 }

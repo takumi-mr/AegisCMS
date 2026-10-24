@@ -240,6 +240,24 @@ tasks:
     cmds:
       - docker logs -f aegiscms
 
+  docker:dbs:up:
+    desc: 実機検証用 DB コンテナ (PostgreSQL 16 / MySQL 8.0) を起動
+    cmds:
+      - docker compose -f docker-compose.test-dbs.yml up -d --wait
+
+  docker:dbs:down:
+    desc: 実機検証用 DB コンテナ (PostgreSQL 16 / MySQL 8.0) を停止・削除
+    cmds:
+      - docker compose -f docker-compose.test-dbs.yml down -v
+
+  test:dbs:
+    desc: PostgreSQL / MySQL 実機コンテナ環境で注文・在庫の統合テストを一括実行
+    deps: [docker:dbs:up]
+    cmds:
+      - cargo test -p aegis-db --test orders_integration -- --nocapture
+      - cargo test -p aegis-server -- test_postgres_order_and_stock_e2e --nocapture
+      - cargo test -p aegis-server -- test_mysql_order_and_stock_e2e --nocapture
+
   # ============================================================================
   # 🧹 メンテナンス & クリーンアップ
   # ============================================================================
