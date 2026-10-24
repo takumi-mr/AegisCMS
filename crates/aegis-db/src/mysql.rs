@@ -14,7 +14,7 @@ use super::{
     build_settings_table, build_user_delete, build_user_insert, build_user_select,
     build_user_update, custom_columns, is_standard_column, user_row_from_sqlx, ContentListQuery,
     ContentPage, ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord,
-    AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
+    AUDIT_TABLE, USER_AVATAR_COLUMN, USER_PENDING_APPROVAL_COLUMN, USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -162,7 +162,8 @@ impl DatabaseAdapter for MySqlAdapter {
                 disabled BIGINT NOT NULL DEFAULT 0,
                 created_at VARCHAR(64) NOT NULL,
                 updated_at VARCHAR(64) NOT NULL,
-                avatar_key VARCHAR(512)
+                avatar_key VARCHAR(512),
+                pending_approval BIGINT NOT NULL DEFAULT 0
             );
             "#,
             USER_TABLE
@@ -187,6 +188,25 @@ impl DatabaseAdapter for MySqlAdapter {
             sqlx::query(&format!(
                 "ALTER TABLE {} ADD COLUMN {} VARCHAR(512);",
                 USER_TABLE, USER_AVATAR_COLUMN
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        let has_pending_approval_column: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM information_schema.columns \
+             WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?;",
+        )
+        .bind(USER_TABLE)
+        .bind(USER_PENDING_APPROVAL_COLUMN)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+        if has_pending_approval_column == 0 {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN {} BIGINT NOT NULL DEFAULT 0;",
+                USER_TABLE, USER_PENDING_APPROVAL_COLUMN
             ))
             .execute(&self.pool)
             .await
@@ -623,6 +643,7 @@ impl DatabaseAdapter for MySqlAdapter {
             .bind(&user.created_at)
             .bind(&user.updated_at)
             .bind(&user.avatar_key)
+            .bind(i64::from(user.pending_approval))
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -709,6 +730,7 @@ impl DatabaseAdapter for MySqlAdapter {
             .bind(&user.password_hash)
             .bind(i64::from(user.disabled))
             .bind(&user.avatar_key)
+            .bind(i64::from(user.pending_approval))
             .bind(&user.updated_at)
             .bind(&user.id)
             .execute(&self.pool)

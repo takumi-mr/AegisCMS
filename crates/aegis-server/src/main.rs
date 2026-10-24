@@ -142,7 +142,7 @@ enum UserCommand {
 /// アカウント登録の確認メールを送る通知。通知が無効・確認メールを止めている設定では起動しない
 fn registration_notifier(
     config: &AegisConfig,
-    notifier: Option<Arc<aegis_notify::NotificationService>>,
+    notifier: Option<Arc<dyn aegis_core::Notifier>>,
 ) -> anyhow::Result<Arc<dyn aegis_core::Notifier>> {
     let Some(notifier) = notifier else {
         anyhow::bail!(
@@ -157,20 +157,27 @@ fn registration_notifier(
     Ok(notifier)
 }
 
-/// 確認リンクの開き先（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `/admin/`）。
+/// Admin Studio の URL（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `/admin/`）。
 /// リンクを偽装させないよう、リクエストの Host からは作らない
-fn registration_admin_url(config: &AegisConfig) -> anyhow::Result<String> {
+fn resolve_admin_url(config: &AegisConfig) -> Option<String> {
     let configured = config.auth.registration.admin_url.trim();
     if !configured.is_empty() {
-        return Ok(configured.to_string());
+        return Some(configured.to_string());
     }
     let public_url = config.commerce.public_url.trim().trim_end_matches('/');
     if !public_url.is_empty() {
-        return Ok(format!("{}/admin/", public_url));
+        return Some(format!("{}/admin/", public_url));
     }
-    anyhow::bail!(
-        "[auth.registration] needs the Admin Studio URL for the confirmation link: set [auth.registration].admin_url (e.g. \"https://cms.example.com/admin/\")"
-    )
+    None
+}
+
+/// 確認リンクの開き先（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `/admin/`）。
+fn registration_admin_url(config: &AegisConfig) -> anyhow::Result<String> {
+    resolve_admin_url(config).ok_or_else(|| {
+        anyhow::anyhow!(
+            "[auth.registration] needs the Admin Studio URL for the confirmation link: set [auth.registration].admin_url (e.g. \"https://cms.example.com/admin/\")"
+        )
+    })
 }
 
 /// 通知のテンプレートに渡すサイトの情報（サイト名と `[commerce].public_url`）。サイト名は起動時の値
@@ -654,7 +661,14 @@ async fn main() -> anyhow::Result<()> {
                         config.notifications.audit.rules.len()
                     );
                 }
-                app_state.with_notifier(notifier)
+                app_state.with_notifier(Arc::new(notifier))
+            } else {
+                app_state
+            };
+
+            let admin_url_opt = resolve_admin_url(&config);
+            let app_state = if let Some(ref url) = admin_url_opt {
+                app_state.with_admin_url(url.clone())
             } else {
                 app_state
             };
@@ -679,6 +693,52 @@ async fn main() -> anyhow::Result<()> {
                     notifier,
                     admin_url,
                 })
+            } else {
+                app_state
+            };
+
+            // 6.6.2 パスワード再設定（[auth.password_reset]）
+            let app_state = if config.auth.password_reset.enabled {
+                if let (Some(notifier), Some(admin_url)) =
+                    (app_state.notifier.clone(), admin_url_opt.clone())
+                {
+                    tracing::info!("Password reset enabled (links open {})", admin_url);
+                    let service = aegis_auth::password_reset::PasswordResetService::new(
+                        app_state.db.clone(),
+                        app_state.cache.clone(),
+                        config.auth.password_reset.clone(),
+                    );
+                    app_state.with_password_reset(state::PasswordReset {
+                        service,
+                        notifier,
+                        admin_url,
+                    })
+                } else {
+                    app_state
+                }
+            } else {
+                app_state
+            };
+
+            // 6.6.3 ユーザー招待（[auth.invitation]）
+            let app_state = if config.auth.invitation.enabled {
+                if let (Some(notifier), Some(admin_url)) =
+                    (app_state.notifier.clone(), admin_url_opt.clone())
+                {
+                    tracing::info!("User invitation enabled (links open {})", admin_url);
+                    let service = aegis_auth::invitation::InvitationService::new(
+                        app_state.db.clone(),
+                        app_state.cache.clone(),
+                        config.auth.invitation.clone(),
+                    );
+                    app_state.with_invitation(state::Invitation {
+                        service,
+                        notifier,
+                        admin_url,
+                    })
+                } else {
+                    app_state
+                }
             } else {
                 app_state
             };

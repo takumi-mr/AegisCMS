@@ -202,13 +202,15 @@ pub struct UserRecord {
     pub avatar_key: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// 登録後の承認待ち（admin が有効化するまでログインできない）
+    pub pending_approval: bool,
 }
 
 /// ユーザーテーブル名（コンテンツテーブル `content_*` と衝突しないシステムテーブル）
 pub const USER_TABLE: &str = "_aegis_users";
 
 /// INSERT / SELECT で使うユーザーテーブルのカラム（順序固定）
-pub const USER_COLUMNS: [&str; 10] = [
+pub const USER_COLUMNS: [&str; 11] = [
     "id",
     "username",
     "email",
@@ -219,10 +221,12 @@ pub const USER_COLUMNS: [&str; 10] = [
     "created_at",
     "updated_at",
     "avatar_key",
+    "pending_approval",
 ];
 
 /// 後から追加したユーザーテーブルのカラム（既存の DB には起動時に `ALTER TABLE` で追加する）
 pub const USER_AVATAR_COLUMN: &str = "avatar_key";
+pub const USER_PENDING_APPROVAL_COLUMN: &str = "pending_approval";
 
 /// プレースホルダ生成関数（1 始まりの番号を受け取る）を使ってユーザーの INSERT 文を組み立てる。
 /// バインド順は `USER_COLUMNS` の順
@@ -237,11 +241,11 @@ pub fn build_user_insert(placeholder: impl Fn(usize) -> String) -> String {
 }
 
 /// ユーザーの UPDATE 文。バインド順は email, display_name, role, password_hash, disabled,
-/// avatar_key, updated_at, id
+/// avatar_key, pending_approval, updated_at, id
 pub fn build_user_update(placeholder: impl Fn(usize) -> String) -> String {
     format!(
         "UPDATE {} SET email = {}, display_name = {}, role = {}, password_hash = {}, \
-         disabled = {}, avatar_key = {}, updated_at = {} WHERE id = {};",
+         disabled = {}, avatar_key = {}, pending_approval = {}, updated_at = {} WHERE id = {};",
         USER_TABLE,
         placeholder(1),
         placeholder(2),
@@ -250,7 +254,8 @@ pub fn build_user_update(placeholder: impl Fn(usize) -> String) -> String {
         placeholder(5),
         placeholder(6),
         placeholder(7),
-        placeholder(8)
+        placeholder(8),
+        placeholder(9)
     )
 }
 
@@ -386,6 +391,7 @@ macro_rules! user_row_from_sqlx {
             avatar_key: row.try_get("avatar_key").map_err(get)?,
             created_at: row.try_get("created_at").map_err(get)?,
             updated_at: row.try_get("updated_at").map_err(get)?,
+            pending_approval: row.try_get::<i64, _>("pending_approval").unwrap_or(0) != 0,
         }
     }};
 }

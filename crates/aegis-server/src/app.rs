@@ -67,6 +67,26 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/auth/registration/verify",
             post(handlers::verify_registration),
         )
+        .route(
+            "/api/v1/auth/password-reset",
+            post(handlers::request_password_reset),
+        )
+        .route(
+            "/api/v1/auth/password-reset/confirm",
+            post(handlers::confirm_password_reset),
+        )
+        .route(
+            "/api/v1/auth/invitations",
+            post(handlers::create_invitation),
+        )
+        .route(
+            "/api/v1/auth/invitations/info",
+            get(handlers::get_invitation_info),
+        )
+        .route(
+            "/api/v1/auth/invitations/accept",
+            post(handlers::accept_invitation),
+        )
         .route("/api/v1/auth/oidc/login", get(handlers::oidc_login))
         .route("/api/v1/auth/oidc/callback", get(handlers::oidc_callback))
         .route("/api/v1/auth/saml/login", get(handlers::saml_login))

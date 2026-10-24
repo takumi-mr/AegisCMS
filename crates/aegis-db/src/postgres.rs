@@ -14,7 +14,7 @@ use super::{
     build_settings_table, build_user_delete, build_user_insert, build_user_select,
     build_user_update, custom_columns, is_standard_column, user_row_from_sqlx, ContentListQuery,
     ContentPage, ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord,
-    AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN, USER_TABLE,
+    AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN, USER_PENDING_APPROVAL_COLUMN, USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -161,7 +161,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 disabled BIGINT NOT NULL DEFAULT 0,
                 created_at VARCHAR(64) NOT NULL,
                 updated_at VARCHAR(64) NOT NULL,
-                avatar_key TEXT
+                avatar_key TEXT,
+                pending_approval BIGINT NOT NULL DEFAULT 0
             );
             "#,
             USER_TABLE
@@ -175,6 +176,13 @@ impl DatabaseAdapter for PostgresAdapter {
         sqlx::query(&format!(
             "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} TEXT;",
             USER_TABLE, USER_AVATAR_COLUMN
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} BIGINT NOT NULL DEFAULT 0;",
+            USER_TABLE, USER_PENDING_APPROVAL_COLUMN
         ))
         .execute(&self.pool)
         .await
@@ -617,6 +625,7 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(&user.created_at)
             .bind(&user.updated_at)
             .bind(&user.avatar_key)
+            .bind(i64::from(user.pending_approval))
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -703,6 +712,7 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(&user.password_hash)
             .bind(i64::from(user.disabled))
             .bind(&user.avatar_key)
+            .bind(i64::from(user.pending_approval))
             .bind(&user.updated_at)
             .bind(&user.id)
             .execute(&self.pool)

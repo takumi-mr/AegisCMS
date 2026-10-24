@@ -19,6 +19,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `password_hash` | Argon2id（既定パラメータ）の PHC 文字列。平文は保存しない |
 | `disabled` | `1` ならログイン不可 |
 | `avatar_key` | アバター画像のストレージキー（`avatars/...`）。未設定なら NULL。既存の DB には起動時に列を追加 |
+| `pending_approval` | `1` なら自己登録後の管理者承認待ち状態。管理者が有効化すると自動的に `0` に更新される |
 | `created_at` / `updated_at` | RFC 3339 (UTC) |
 
 ### ロールと API の権限
@@ -31,6 +32,8 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
 | `POST /api/v1/auth/session`（ログイン）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッションで判定） |
 | `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#6-シングルサインオン-openid-connect)） | 不要 |
+| `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm`（[パスワード再設定](#9-パスワードの再設定)） | 不要（メール確認・トークン検証） |
+| `GET /api/v1/auth/invitations/info`, `POST /api/v1/auth/invitations/accept`（[招待リンク](#10-ユーザー招待リンク)） | 不要（招待トークン検証） |
 | ショップ（`/products`, `/cart`, `/orders/{id}`, `/shop/cart.js`, `/api/v1/shop/*`。[EC](commerce.md#61-公開ログイン不要)） | 不要（注文確認はトークン、Webhook は署名で確認） |
 | `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}` | `viewer` |
 | `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
@@ -41,6 +44,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `POST /api/v1/storage/upload`, `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md)） | `editor` |
 | `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`（[ユーザー管理 API](#3-ユーザー管理-api)） | 本人（`viewer` 以上）か `admin` |
 | `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}` | `admin` |
+| `POST /api/v1/auth/invitations`（[招待リンク](#10-ユーザー招待リンク)） | `admin` |
 | `GET /api/v1/audit-logs` | `admin` |
 
 - セッションが無い・無効・期限切れなら `401`、ロールが足りなければ `403` を返し、監査ログに `access.denied`（理由・必要なロール・エンドポイント）を記録します（[監査ログ](audit.md#2-記録されるイベント)）。
@@ -399,3 +403,111 @@ OpenID Connect（6.4）と同じ理由コードを使います。`invalid_token`
 
 > [!NOTE]
 > SAML のログインも `[auth.login_rate_limit]` の対象外です。AuthnRequest には署名しません（メタデータは `AuthnRequestsSigned="false"`）。IdP 側で署名付きの AuthnRequest を必須にしている場合は外してください。
+
+---
+
+## 9. パスワードの再設定
+
+`[auth.password_reset]`（[設定リファレンス](configuration.md)）を有効にすると、ログイン画面に **パスワードをお忘れですか？** のリンクが表示され、メールアドレス宛に再設定リンクを送信して安全にパスワードを変更できます。メール送信には [通知](notifications.md)（`[notifications].enabled = true`）が必要です。
+
+```toml
+[auth.password_reset]
+enabled = true
+admin_url = "https://cms.example.com/admin/"   # 再設定リンクの開き先（省略時は [auth.registration].admin_url または [commerce].public_url + /admin/）
+token_ttl_secs = 3600                          # 再設定リンクの有効期限（1時間）
+max_per_ip_per_hour = 5                        # 同一 IP からのリクエスト上限（ブルートフォース防止）
+```
+
+### 9.1 再設定の流れ
+
+1. ログイン画面の **パスワードをお忘れですか？** から、登録済みメールアドレスを入力して送信します（`POST /api/v1/auth/password-reset`）。
+2. メールアドレスが存在し、かつユーザーが有効（`disabled = false`）な場合、暗号論的乱数トークン（256ビット）を発行し、その SHA-256 ハッシュをキーにしてキャッシュ（`password_reset:<hash>`）にユーザー名とともに保存します（有効期間: `token_ttl_secs`）。
+3. ユーザー宛に再設定リンク（`{admin_url}#reset-password=<トークン>`）を含む通知メール（`account.password_reset`）が送信されます。
+4. ユーザーがリンクを開くと、Admin Studio が URL フラグメントからトークンを読み取って直ちにアドレスバーの履歴から除去し、新しいパスワードの入力フォームを表示します。
+5. ユーザーが新しいパスワード（8文字以上）を入力して送信すると（`POST /api/v1/auth/password-reset/confirm`）、サーバーがトークンを検証・消費（単一使用）し、Argon2id でハッシュ化してパスワードを更新します。
+6. パスワード再設定が成功すると、監査ログ `user.password_reset` が記録され、ログイン画面に戻ります。
+
+### 9.2 API
+
+#### `POST /api/v1/auth/password-reset` — 再設定リンクの発行
+
+```json
+{ "email": "user@example.com" }
+```
+
+- `202 Accepted`: `{ "status": "accepted" }`
+- **アカウント列挙対策**: 入力されたメールアドレスがシステムに存在しない場合や無効化されている場合でも、**常に同じ `202 Accepted` を返します**。また、ハッシュ計算ダミー処理を行うため応答時間からのメールアドレス有無の推測も防止します。
+- クライアント IP ごとのレート制限（`max_per_ip_per_hour`）を超えた場合は `429 Too Many Requests` を返します。
+
+#### `POST /api/v1/auth/password-reset/confirm` — 新パスワードの確定
+
+```json
+{ "token": "<トークン>", "new_password": "NewSecurePassword123" }
+```
+
+- `200 OK`: `{ "status": "success", "username": "hanako" }`
+- 失敗時は `400 Bad Request`（`invalid_token`、`password_too_short` など）。トークンは一度利用されるとキャッシュから即時削除されます。
+
+---
+
+## 10. ユーザー招待リンク
+
+`[auth.invitation]`（[設定リファレンス](configuration.md)）を有効にすると、`admin` ロールの管理者がメールアドレスと付与ロールを指定して新規ユーザーをシステムに招待できます。管理者が事前承認した形でアカウントが作成されるため、自己登録（`[auth.registration]`）の管理者承認フロー（`require_approval`）をバイパスして即時有効なアカウントを発行できます。
+
+```toml
+[auth.invitation]
+enabled = true
+admin_url = "https://cms.example.com/admin/"   # 招待リンクの開き先
+token_ttl_secs = 604800                        # 招待リンクの有効期限（7日間）
+```
+
+### 10.1 招待の流れ
+
+1. `admin` ユーザーが Admin Studio の **設定 → ユーザー** の **ユーザーを招待** ボタンから、招待対象のメールアドレスと割り当てロール（`admin` / `editor` / `viewer`）を入力して送信します（`POST /api/v1/auth/invitations`）。
+2. サーバーは 256 ビットの招待トークンを生成し、SHA-256 ハッシュをキーとしてキャッシュ（`invitation:<hash>`）にメールアドレスとロールを保存します。
+3. 招待対象者へ招待リンク（`{admin_url}#invite=<トークン>`）を含む通知メール（`account.invite`）が送信され、監査ログ `user.invite` が記録されます。
+4. 招待されたユーザーがリンクを開くと、Admin Studio がフラグメントからトークンを抽出しアドレスバーから消去した上で、`GET /api/v1/auth/invitations/info?token=<token>` を呼び出して招待されたメールアドレスとロールを確認表示します。
+5. ユーザーが希望するユーザー名・パスワード・表示名（任意）を入力して承諾を送信します（`POST /api/v1/auth/invitations/accept`）。
+6. サーバーはトークンを検証・消費し、即時有効なアカウント（`disabled = false, pending_approval = false`）を作成します。登録完了後はそのままログインして作業を開始できます。
+
+### 10.2 API
+
+#### `POST /api/v1/auth/invitations` — 招待の作成（要 `admin` ロール）
+
+```json
+{ "email": "newcomer@example.com", "role": "editor" }
+```
+
+- `201 Created`: `{ "email": "newcomer@example.com", "role": "editor", "expires_in_secs": 604800 }`
+- すでに同じメールアドレスのアカウントが存在する場合は `409 Conflict`（`email_taken`）を返します。
+
+#### `GET /api/v1/auth/invitations/info?token=<token>` — 招待情報の取得（公開）
+
+- `200 OK`: `{ "email": "newcomer@example.com", "role": "editor" }`
+- トークンが無効または有効期限切れの場合は `400 Bad Request`（`invalid_token`）を返します。
+
+#### `POST /api/v1/auth/invitations/accept` — 招待の承諾とアカウント作成（公開）
+
+```json
+{
+  "token": "<トークン>",
+  "username": "taro",
+  "password": "SecurePassword123",
+  "display_name": "山田太郎"
+}
+```
+
+- `201 Created`: `{ "status": "success", "username": "taro" }`
+- 失敗時は `400 Bad Request`（`invalid_token`、`invalid_username`、`password_too_short`）または `409 Conflict`（`username_taken`、`email_taken`）。
+
+---
+
+## 11. 承認通知 (`account.approved`)
+
+自己登録（`[auth.registration]`）で `require_approval = true`（既定）の場合、メールアドレス確認が完了したユーザーは `disabled = true` かつ `pending_approval = true` の承認待ち状態で作成されます。
+
+1. 管理者が Admin Studio の **設定 → ユーザー**（`UserManager.tsx`）を開くと、承認待ちアカウントには **承認待ち (Pending approval)** バッジが表示されます。
+2. 管理者がユーザーの編集画面を開くと、上部に承認待ちの案内バーが表示され、**承認して有効化** ボタンまたは「アカウントを有効化」の切り替えを行って保存します（`PATCH /api/v1/users/{username}` で `disabled: false`）。
+3. サーバーはユーザーを有効化（`disabled = false`）すると同時に `pending_approval = false` にクリアし、該当ユーザーのメールアドレス宛にアカウント承認通知メール（`account.approved`）を自動送信します。
+4. ユーザーは届いたメールを確認後、直ちにログインできるようになります。単なる無効化アカウントの一時的な解除など `pending_approval` が `false` のユーザーを更新した際にはこの通知は送信されません。
+

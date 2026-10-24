@@ -16,7 +16,7 @@ pub struct NewUser {
     pub display_name: Option<String>,
 }
 
-fn now() -> String {
+pub(crate) fn now() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
@@ -68,6 +68,7 @@ pub async fn create_user(db: &dyn DatabaseAdapter, new_user: NewUser) -> Result<
         },
         password_hash,
         false,
+        false,
     )
     .await
 }
@@ -84,11 +85,12 @@ pub(crate) async fn ensure_username_free(db: &dyn DatabaseAdapter, username: &st
 }
 
 /// 検証済みの入力（`new_user.password` は使わず、ハッシュ済みの `password_hash`）でユーザーを保存する
-pub(crate) async fn insert_new_user(
+pub async fn insert_new_user(
     db: &dyn DatabaseAdapter,
     new_user: NewUser,
     password_hash: String,
     disabled: bool,
+    pending_approval: bool,
 ) -> Result<UserRecord> {
     let now = now();
     let user = UserRecord {
@@ -102,6 +104,7 @@ pub(crate) async fn insert_new_user(
         avatar_key: None,
         created_at: now.clone(),
         updated_at: now,
+        pending_approval,
     };
     db.insert_user(&user).await?;
     Ok(user)
@@ -141,6 +144,7 @@ pub struct UserChanges {
     pub role: Option<String>,
     pub disabled: Option<bool>,
     pub password: Option<String>,
+    pub pending_approval: Option<bool>,
 }
 
 fn optional_text(value: String) -> Option<String> {
@@ -192,6 +196,12 @@ pub async fn update_user(
     }
     if let Some(disabled) = changes.disabled {
         user.disabled = disabled;
+    }
+    if let Some(pending_approval) = changes.pending_approval {
+        user.pending_approval = pending_approval;
+    } else if changes.disabled == Some(false) && current.pending_approval {
+        // 有効化された場合、未承認状態なら自動的に承認済みに遷移
+        user.pending_approval = false;
     }
     if is_active_admin(&current) && !is_active_admin(&user) {
         ensure_other_admin(db, &current).await?;
