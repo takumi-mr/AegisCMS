@@ -120,6 +120,8 @@ export interface StorageObjectQuery {
   q?: string;
   limit?: number;
   offset?: number;
+  /** Include avatar images (`avatars/`); defaults to false unless prefix starts with "avatars" */
+  include_avatars?: boolean;
 }
 
 export interface StorageObjectPage {
