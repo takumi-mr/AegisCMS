@@ -1,0 +1,71 @@
+import { expect, test } from '@playwright/test';
+
+import { openPlugins, pluginCard, signIn } from './helpers';
+
+// The server starts with no plugin enabled ([plugins].enabled = [] in aegis.e2e.toml) and the
+// official plugins of the repository's plugins/ installed. Cards are labelled by display name
+const SHOP_RULES = 'Shop Rules (Shipping, Coupons & Tax)';
+const CODE_ENHANCER = 'official-code-enhancer';
+
+test.beforeEach(async ({ page }) => {
+  await signIn(page);
+  await openPlugins(page);
+});
+
+test('lists the installed plugins with their hooks', async ({ page }) => {
+  const shopRules = pluginCard(page, SHOP_RULES);
+  await expect(shopRules).toBeVisible();
+  await expect(shopRules.getByText('Disabled', { exact: true })).toBeVisible();
+  await expect(shopRules.getByText('calculate-order', { exact: true })).toBeVisible();
+
+  const enhancer = pluginCard(page, CODE_ENHANCER);
+  await expect(enhancer.getByText('transform-content-ast', { exact: true })).toBeVisible();
+  await expect(enhancer.getByText(/cdn\.jsdelivr\.net/)).toBeVisible();
+});
+
+test('enables and disables a plugin without a restart', async ({ page }) => {
+  const card = pluginCard(page, SHOP_RULES);
+
+  await card.getByRole('button', { name: 'Enable' }).click();
+  await expect(page.getByText('Enabled plugin "official-shop-rules"')).toBeVisible();
+  await expect(card.getByText('Enabled', { exact: true })).toBeVisible();
+
+  // Saved on the server: still enabled after reloading Admin Studio
+  await page.reload();
+  await openPlugins(page);
+  await expect(card.getByText('Enabled', { exact: true })).toBeVisible();
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await card.getByRole('button', { name: 'Disable' }).click();
+  await expect(page.getByText('Disabled plugin "official-shop-rules"')).toBeVisible();
+  await expect(card.getByText('Disabled', { exact: true })).toBeVisible();
+});
+
+test('keeps a plugin enabled when the disable confirmation is dismissed', async ({ page }) => {
+  const card = pluginCard(page, CODE_ENHANCER);
+  await card.getByRole('button', { name: 'Enable' }).click();
+  await expect(card.getByText('Enabled', { exact: true })).toBeVisible();
+
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await card.getByRole('button', { name: 'Disable' }).click();
+  await expect(card.getByText('Enabled', { exact: true })).toBeVisible();
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await card.getByRole('button', { name: 'Disable' }).click();
+  await expect(card.getByText('Disabled', { exact: true })).toBeVisible();
+});
+
+test('saves plugin settings', async ({ page }) => {
+  const card = pluginCard(page, SHOP_RULES);
+  await card.getByRole('button', { name: /^Settings/ }).click();
+
+  await page.getByPlaceholder('New key (e.g. api_key)').fill('shipping_fee');
+  await page.getByPlaceholder('Value (string)').fill('700');
+  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('button', { name: 'Save Settings' }).click();
+  await expect(page.getByText("Settings for plugin 'official-shop-rules' saved")).toBeVisible();
+
+  await page.reload();
+  await openPlugins(page);
+  await expect(card.getByText('1 keys')).toBeVisible();
+});

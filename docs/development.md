@@ -15,6 +15,8 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | `task migrate` | スキーマのマイグレーション |
 | `task codegen`（`codegen:ts` / `codegen:openapi`） | `schemas/*.yaml` から `admin/src/types/schemas.ts` と `docs/openapi.json` を生成。スキーマを変えたら実行する |
 | `task build` / `build:server` / `build:admin` | 本番ビルド |
+| `task test:e2e` | Admin Studio の E2E テスト（Playwright。[8](#8-admin-studio-の-e2e-テストと-storybook)） |
+| `task storybook` / `build:storybook` | Admin Studio の Storybook（ポート 6006）/ 静的ビルド |
 | `task plugin:build*` | プラグインの Wasm ビルド（[4](#4-プラグインのビルド)） |
 | `task bench:plugins` | プラグインのフック 1 回あたりの所要時間と同時実行時のスループット（`crates/aegis-runtime/examples/plugin_profile.rs`） |
 | `task bench:http`（`bench`） | サーバーの HTTP パフォーマンスベンチマーク（トップページ、記事、API、プレビュー、見積もり。`scripts/benchmark.mjs`） |
@@ -47,7 +49,8 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | ジョブ | 内容 |
 | --- | --- |
 | `rust-ci` | `cargo fmt --check` → `cargo clippy --workspace -- -D warnings` → `cargo test --workspace` |
-| `frontend-ci` | `npm ci` → Prettier → oxlint → 型検査とビルド |
+| `frontend-ci` | `npm ci` → Prettier → oxlint → 型検査とビルド → Storybook のビルド |
+| `admin-e2e` | サーバーと Admin Studio をビルドして Playwright の E2E テスト（失敗時はレポートを成果物に残す） |
 | `docker-ci` | Docker イメージをビルド（上の 2 つと並列。GitHub Actions キャッシュ `type=gha`、プロファイル `ci-release`） |
 
 - `docker-ci` はビルドできるかの検証なので、LTO を省いた `ci-release` プロファイル（`--build-arg CARGO_PROFILE=ci-release`。最適化レベルは release と同じ）でビルドする。release の `lto = true` / `codegen-units = 1` は依存クレート全体を最終リンクでまとめて最適化し直すため、依存がキャッシュされていても毎回約 3 分かかる。
@@ -146,4 +149,31 @@ task docker:dbs:down
   - 注文キャンセル時の在庫返却（`restock`）
   - 注文確認ページ・スタッフ用注文一覧/詳細 API・状態変更 API の E2E 動作
 
+---
 
+## 8. Admin Studio の E2E テストと Storybook
+
+### 8.1 E2E テスト (Playwright、`admin/e2e/`)
+
+```bash
+task test:e2e                      # = npm --prefix admin run test:e2e
+npm --prefix admin run test:e2e -- --ui   # Playwright の UI モード
+```
+
+- **実サーバーに対して動かす**（API はモックしない）。`playwright.config.ts` の `webServer` が `e2e/start-server.mjs` を起動し、Admin Studio と `aegis-server` をビルドしてから、`target/e2e/` を消し、admin ユーザー（`e2e/credentials.mjs`）を作って、`e2e/aegis.e2e.toml` でポート 18080 に立てる。API の形と画面の型の食い違い（プラグイン画面で実際にあった）はモックでは見つからないため。
+- 初回はサーバーのコンパイルで数分かかる。ビルド済みなら `E2E_SKIP_BUILD=1` で省ける。ローカルでは起動済みのサーバー（18080）を使い回す（`reuseExistingServer`）。サーバーのログは `RUST_LOG=warn`（`RUST_LOG=debug` で全リクエスト）。
+- テストはサーバーの DB を共有するので 1 本ずつ動かす（`workers: 1`）。状態を変えたテストは元に戻すか、他のテストが前提にしない状態にする。
+- プラグインはリポジトリの `plugins/`（公式プラグインのビルド済み Wasm）を使い、どれも無効の状態から始める。
+- 画面の要素は役割と名前（`getByRole`）で探す。英語（`locale: 'en-US'`）で動かす。プラグインのカードは表示名で名前の付いた `article`。
+
+### 8.2 Storybook (`admin/.storybook/`、`src/**/*.stories.tsx`)
+
+```bash
+task storybook          # http://localhost:6006
+task build:storybook    # admin/storybook-static/（CI でもビルド）
+```
+
+- 自分でデータを読み込む画面（`PluginManager` など）は、`.storybook/mockApi.ts` の `mockApi` で `/api/v1/*` への `fetch` を差し替えて表示する（ストーリーの `beforeEach` で呼び、戻り値の関数で元に戻す）。サーバーと同じ応答の形にする。
+- ツールバーの Language で英語・日本語を切り替えられる。
+- `play` 関数は Storybook の Interactions パネルで動く（テストランナーはまだ入れていない）。
+- バージョンは固定（`--save-exact`）。公開から 2 週間以上たったものを選ぶ（脆弱性の修正版は除く。10.6.2 は GHSA-f2ph-cmg5-wxc8 の修正）。

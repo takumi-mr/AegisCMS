@@ -86,7 +86,7 @@ admin/
 │   ├── api/
 │   │   ├── client.ts       # REST API Gateway 連携クライアント（Bearer 付与・401 通知）
 │   │   └── session.ts      # セッショントークンの保持（sessionStorage）
-│   ├── components/         # 画面単位のコンポーネント（各 *.tsx の隣に同名の *.module.css）
+│   ├── components/         # 画面単位のコンポーネント（各 *.tsx の隣に同名の *.module.css、Storybook の *.stories.tsx）
 │   │   ├── ui/             # 共通部品
 │   │   │   ├── Button.tsx  # ボタン（primary / secondary / tool / icon）
 │   │   │   ├── Field.tsx   # ラベル付き入力欄 Field と横並びの FieldRow
@@ -126,9 +126,12 @@ admin/
 │   ├── App.module.css
 │   ├── index.css           # グローバル: デザイントークン（CSS 変数）・リセット・基本要素のみ
 │   └── main.tsx            # エントリーポイント
+├── .storybook/             # Storybook の設定（main.ts・preview.tsx）と API のモック（mockApi.ts）
+├── e2e/                    # Playwright の E2E テスト（*.spec.ts）と使い捨てのサーバーの起動（start-server.mjs）
 ├── scripts/check-locales.mjs # 全言語のキーが英語と同じか検証（npm run lint で実行）
 ├── index.html              # HTML テンプレート
 ├── package.json
+├── playwright.config.ts
 └── vite.config.ts
 ```
 
@@ -241,7 +244,17 @@ npm run lint   # oxlint --deny-warnings（警告 1 件でも失敗。CI でも�
 
 ルールは `.oxlintrc.json`。Rust 側の Clippy（`-D warnings`）と同じくゼロ警告ポリシーです。
 
-### 6. コードフォーマット (Prettier)
+### 6. E2E テスト (Playwright) と Storybook
+
+```bash
+npm run test:e2e         # サーバーと Admin Studio をビルドし、ポート 18080 の使い捨てサーバーでテスト
+npm run storybook        # http://localhost:6006
+npm run build-storybook  # storybook-static/
+```
+
+初回は `npx playwright install chromium` でブラウザを入れてください。詳しくは [開発ガイド 8](../docs/development.md#8-admin-studio-の-e2e-テストと-storybook)。
+
+### 7. コードフォーマット (Prettier)
 
 ```bash
 npm run format        # 整形を適用

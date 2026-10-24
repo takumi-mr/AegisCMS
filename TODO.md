@@ -9,13 +9,8 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: Admin Studio のモバイル・レスポンシブ対応（狭小端末での UI 崩れ解消・ペイン切り替え化）。
-  - **ヘッダー**: 画面幅 900px 以下でコンパクト化。右上のハンバーガーメニューに各画面タブ、接続状態、言語切替、アカウント情報・プロフィール・ログアウトを統合。エディタ時の保存ボタンはヘッダー右側に維持しつつラベルを短縮。
-  - **エディタ**: デスクトップの 3 列固定から、モバイルではサブタブによるペイン切り替え（記事一覧 / 編集 / プレビュー）に動的変更。一覧から記事を選択（または新規作成）した際は自動的に編集ペインへ遷移する直感的な導線を実装。
-  - **各画面・コンポーネント**: ビューポート高さを動的アドレスバーに対応する `height: 100dvh` に改善。入力行（`FieldRow`）の折り返し、カレンダー（`ScheduleCalendar`）やテーブルの横スクロール保護、設定・商品・ユーザー・監査ログ・モーダル・ログイン画面の狭小画面向けレスポンシブ調整を実施。
-  - **多言語 & 品質検証**: 日英ロケールキー追加、`task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio ビルド）パス。
-  - **ドキュメント反映**: 仕様・設計は [admin/README.md](../admin/README.md#-設計メモ) および [architecture.md 11](docs/architecture.md#11-admin-studio-の配信)。
-- **その前**: プラグインの有効・無効を Admin Studio から再起動なしで切り替え（`PUT /api/v1/plugins/{name}/enabled`、一覧は DB の `_aegis_settings` に保存して `[plugins].enabled` より優先、監査ログ `plugin.enable` / `plugin.disable`。[plugin_hooks.md 5.1](docs/plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)、[architecture.md 10.2](docs/architecture.md#102-インストールと有効化-wasmpluginloader)）。その前は PostgreSQL / MySQL での注文・在庫の実機検証。
+- **直近の完了**: Admin Studio に Playwright の E2E テスト（実サーバーに対して実行。`task test:e2e`、CI の `admin-e2e`）と Storybook（`task storybook`、API は `fetch` のモック）を導入。最初の対象はプラグイン画面（一覧・有効化・無効化・設定の保存）。手順は [development.md 8](docs/development.md#8-admin-studio-の-e2e-テストと-storybook)。
+- **その前**: Admin Studio のモバイル・レスポンシブ対応（ハンバーガーメニュー、エディタのペイン切り替え、`100dvh`。[admin/README.md](admin/README.md#-設計メモ)、[architecture.md 11](docs/architecture.md#11-admin-studio-の配信)）。その前はプラグインの有効・無効の実行時切り替え（[plugin_hooks.md 5.1](docs/plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)）。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -33,6 +28,7 @@
 
 ### Admin Studio
 
+- [ ] **E2E テスト・ストーリーの拡充**: 今はプラグイン画面だけ。ログイン（失敗・ロック）、記事の作成・保存・公開、テーマの切り替え、ユーザー管理・招待、EC（商品・注文）、狭い画面（モバイル対応の確認）。Storybook の `play` を CI で動かす（`@storybook/addon-vitest` など）。
 - [ ] **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする。アカウント登録が先行例）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
 
 ### プラグイン
