@@ -29,9 +29,11 @@ pub struct ListObjectsParams {
     pub q: Option<String>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+    /// アバター画像（avatars/）を含めるか（既定: prefix が "avatars" で始まらない限り除外）
+    pub include_avatars: Option<bool>,
 }
 
-/// 絞り込み（mime type の前方一致・キーの部分一致）後、新しい順に並べて 1 ページ分を返す。
+/// 絞り込み（アバター除外・mime type の前方一致・キーの部分一致）後、新しい順に並べて 1 ページ分を返す。
 /// 戻り値は (ページ, 絞り込み後の総件数)。
 fn select_objects(
     mut objects: Vec<StorageObject>,
@@ -39,9 +41,11 @@ fn select_objects(
     query: Option<&str>,
     limit: usize,
     offset: usize,
+    include_avatars: bool,
 ) -> (Vec<StorageObject>, usize) {
     objects.retain(|o| {
-        content_type.is_none_or(|ct| o.content_type.starts_with(ct))
+        (include_avatars || !o.key.starts_with("avatars/"))
+            && content_type.is_none_or(|ct| o.content_type.starts_with(ct))
             && query.is_none_or(|q| o.key.to_lowercase().contains(q))
     });
     // 日時が無いものは後ろ、同時刻はキーの降順
@@ -72,6 +76,9 @@ pub async fn list_objects(
         .unwrap_or(DEFAULT_LIST_LIMIT)
         .clamp(1, MAX_LIST_LIMIT);
     let offset = params.offset.unwrap_or(0);
+    let include_avatars = params
+        .include_avatars
+        .unwrap_or_else(|| prefix.starts_with("avatars/") || prefix == "avatars");
 
     // 上限 + 1 件取得して、走査しきれなかったかを判定する
     let mut objects = state
@@ -93,6 +100,7 @@ pub async fn list_objects(
         query.as_deref(),
         limit,
         offset,
+        include_avatars,
     );
 
     Ok(Json(json!({
@@ -217,7 +225,7 @@ pub struct DeleteObjectParams {
     pub force: bool,
 }
 
-/// A saved content item that refers to a stored file
+/// A saved content item or user profile that refers to a stored file
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ObjectReference {
     pub content_type: String,
@@ -226,9 +234,13 @@ pub struct ObjectReference {
     pub title: String,
 }
 
-/// Saved contents whose blocks or custom fields contain `url` (image blocks store the public
-/// URL as `src`). Scans every content type, so the cost grows with the number of contents.
-async fn find_references(state: &AppState, url: &str) -> aegis_core::Result<Vec<ObjectReference>> {
+/// Saved contents whose blocks or custom fields contain `url`, or users whose `avatar_key`
+/// matches `key`.
+async fn find_references(
+    state: &AppState,
+    key: &str,
+    url: &str,
+) -> aegis_core::Result<Vec<ObjectReference>> {
     let schemas: Vec<_> = state.schemas.read().await.values().cloned().collect();
     let mut references = Vec::new();
     for schema in &schemas {
@@ -247,12 +259,26 @@ async fn find_references(state: &AppState, url: &str) -> aegis_core::Result<Vec<
             }
         }
     }
+
+    // ユーザーのアバターとして使用されているか確認
+    let users = state.db.list_users().await?;
+    for user in users {
+        if user.avatar_key.as_deref() == Some(key) {
+            references.push(ObjectReference {
+                content_type: "user".to_string(),
+                id: user.id,
+                slug: user.username.clone(),
+                title: user.display_name.unwrap_or(user.username),
+            });
+        }
+    }
+
     references.sort_by(|a, b| (&a.content_type, &a.slug).cmp(&(&b.content_type, &b.slug)));
     Ok(references)
 }
 
 /// `DELETE /api/v1/storage/objects/{*key}` — 保存済みファイルを削除する。
-/// コンテンツから参照されている場合は `409` と参照元を返し、`?force=true` のときだけ削除する
+/// コンテンツやユーザーのアバターから参照されている場合は `409` と参照元を返し、`?force=true` のときだけ削除する
 pub async fn delete_object(
     State(state): State<Arc<AppState>>,
     _session: EditorSession,
@@ -282,7 +308,7 @@ pub async fn delete_object(
     }
 
     let url = state.storage.public_url(&key);
-    let references = find_references(&state, &url).await.map_err(|e| {
+    let references = find_references(&state, &key, &url).await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": format!("Database error: {}", e) })),
@@ -293,7 +319,7 @@ pub async fn delete_object(
             StatusCode::CONFLICT,
             Json(json!({
                 "error": format!(
-                    "File is used by {} content item(s); pass force=true to delete it anyway",
+                    "File is used by {} item(s); pass force=true to delete it anyway",
                     references.len()
                 ),
                 "references": references,
@@ -325,6 +351,16 @@ pub async fn delete_object(
             .await;
         return Err(storage_error(e));
     }
+
+    // 強制削除時、アバターとして参照していたユーザーの avatar_key をクリア
+    for r in &references {
+        if r.content_type == "user" {
+            if let Err(e) = aegis_auth::users::set_avatar(state.db.as_ref(), &r.slug, None).await {
+                tracing::warn!("Failed to clear avatar_key for user '{}': {}", r.slug, e);
+            }
+        }
+    }
+
     state
         .audit
         .record(delete_event(AuditOutcome::Success, json!({})))
@@ -359,7 +395,7 @@ mod tests {
             object("2026/10/report.pdf", Some("2026-10-03T00:00:00Z")),
         ];
 
-        let (all, total) = select_objects(objects.clone(), None, None, 50, 0);
+        let (all, total) = select_objects(objects.clone(), None, None, 50, 0, false);
         assert_eq!(total, 4);
         assert_eq!(
             keys(&all),
@@ -371,13 +407,34 @@ mod tests {
             ]
         );
 
-        let (images, total) = select_objects(objects.clone(), Some("image/"), None, 2, 1);
+        let (images, total) = select_objects(objects.clone(), Some("image/"), None, 2, 1, false);
         assert_eq!(total, 3);
         assert_eq!(keys(&images), ["2026/09/old.png", "legacy.gif"]);
 
-        let (found, total) = select_objects(objects, Some("image/"), Some("cat"), 50, 0);
+        let (found, total) = select_objects(objects, Some("image/"), Some("cat"), 50, 0, false);
         assert_eq!(total, 1);
         assert_eq!(keys(&found), ["2026/10/new-Cat.jpg"]);
+    }
+
+    #[test]
+    fn test_select_objects_excludes_avatars_by_default() {
+        let objects = vec![
+            object("avatars/user1-12345678.png", Some("2026-10-25T00:00:00Z")),
+            object("2026/10/photo.jpg", Some("2026-10-24T00:00:00Z")),
+        ];
+
+        // 既定（include_avatars = false）では avatars/ は除外される
+        let (filtered, total) = select_objects(objects.clone(), None, None, 50, 0, false);
+        assert_eq!(total, 1);
+        assert_eq!(keys(&filtered), ["2026/10/photo.jpg"]);
+
+        // include_avatars = true のときは avatars/ も含まれる
+        let (all, total) = select_objects(objects, None, None, 50, 0, true);
+        assert_eq!(total, 2);
+        assert_eq!(
+            keys(&all),
+            ["avatars/user1-12345678.png", "2026/10/photo.jpg"]
+        );
     }
 
     use crate::auth::authorize::RequireRole;
@@ -503,5 +560,47 @@ mod tests {
                 key
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_delete_object_used_as_avatar_needs_force() {
+        let state = crate::test_support::test_state(aegis_runtime::PluginSupervisor::new()).await;
+        let key = format!("avatars/{}-avatar.png", Uuid::new_v4());
+        state.storage.put(&key, b"png", "image/png").await.unwrap();
+
+        aegis_auth::users::create_user(
+            state.db.as_ref(),
+            aegis_auth::users::NewUser {
+                username: "alice".to_string(),
+                password: "password123".to_string(),
+                role: "editor".to_string(),
+                email: Some("alice@example.com".to_string()),
+                display_name: Some("Alice Smith".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+        aegis_auth::users::set_avatar(state.db.as_ref(), "alice", Some(key.clone()))
+            .await
+            .unwrap();
+
+        let (status, body) = delete(&state, &key, false).await.unwrap_err();
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(body["references"].as_array().unwrap().len(), 1);
+        assert_eq!(body["references"][0]["slug"], "alice");
+        assert_eq!(body["references"][0]["title"], "Alice Smith");
+        assert_eq!(body["references"][0]["content_type"], "user");
+        assert!(state.storage.exists(&key).await.unwrap());
+
+        assert_eq!(delete(&state, &key, true).await, Ok(StatusCode::NO_CONTENT));
+        assert!(!state.storage.exists(&key).await.unwrap());
+
+        let user = state
+            .db
+            .get_user_by_username("alice")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(user.avatar_key, None);
     }
 }
