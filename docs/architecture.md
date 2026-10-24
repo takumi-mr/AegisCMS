@@ -170,10 +170,22 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 ### 6.6 アカウント登録 (`aegis_auth::registration`, `handlers/registration.rs`)
 
 - 申し込みはユーザーテーブルに入れず、キャッシュ（`registration:<トークンの SHA-256>`、TTL は `token_ttl_secs`）に置く。DB の変更が要らず、確認されない申し込みでユーザー名がふさがらない。
-- 承認待ちは「無効（`disabled = true`）のユーザー」として作り、承認は Users 画面で有効にするだけ。承認待ちと無効化を区別するカラムは無い。
+- 承認待ちは `disabled = true` かつ `pending_approval = true` のユーザーとして作成する。管理者がユーザー編集で有効化（`disabled = false`）すると、`pending_approval` が自動的に `false` にクリアされ、承認通知メール（`account.approved`）が送信される。単なるアカウント無効化の解除では `pending_approval` が `false` であるため、承認通知メールは送信されない。
 - 確認リンクの URL は設定（`admin_url` / `[commerce].public_url`）だけから作る。リクエストの Host から作ると、Host を偽装した申し込みで本人に攻撃者のサイトへのリンクを送れてしまう。
 - 既存ユーザーのメールアドレスでの申し込みは、応答を変えずにメールを送らない（登録済みかを伏せる）。ユーザー名の重複は伏せない（画面で知らせる必要がある）。
 - エラーは `code`（`invalid_username` など）付きで返し、Admin Studio が `login.register.errors.<code>` で訳す。サーバーのエラーを訳す仕組みの先行例。
+
+### 6.7 パスワードの再設定 (`aegis_auth::password_reset`, `handlers/password_reset.rs`)
+
+- 再設定トークン（256ビット乱数）は、平文を保存せず SHA-256 ハッシュをキーにしてキャッシュ（`password_reset:<hash>`、TTL は `token_ttl_secs`）にユーザー名とともに保存する。
+- **アカウント列挙対策**: 入力されたメールアドレスが存在しない場合や無効化されている場合でも、固定で `202 Accepted` を返すとともに、擬似ハッシュ計算（Argon2id）を実行して応答時間による判定を防止する。
+- トークンは URL のフラグメント（`#reset-password=<token>`）で渡され、Admin Studio で読み取り直後にブラウザ履歴から除去される。新パスワードの確定（`POST /api/v1/auth/password-reset/confirm`）でトークンを消費し、即時キャッシュから削除（単一使用）する。
+
+### 6.8 ユーザー招待リンク (`aegis_auth::invitation`, `handlers/invitation.rs`)
+
+- 管理者がメールアドレスとロールを指定して発行する。トークンの SHA-256 ハッシュをキャッシュ（`invitation:<hash>`、TTL は `token_ttl_secs`）にメールアドレスおよびロールとともに保持する。
+- 招待リンク（`#invite=<token>`）を開いたユーザーは、`GET /api/v1/auth/invitations/info` で招待内容（メールアドレス・ロール）を確認した上で、ユーザー名とパスワードを設定して承諾する（`POST /api/v1/auth/invitations/accept`）。
+- 招待による登録では、アカウントは `disabled = false, pending_approval = false` の即時有効状態で作成され、管理者の事後承認フロー（`require_approval`）をバイパスして即座にログインが可能となる。
 
 ---
 

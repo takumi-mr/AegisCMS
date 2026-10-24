@@ -1,0 +1,9 @@
+{{ display_name or username }} 様
+
+{{ site_name }} の管理画面（Admin Studio）のアカウントが承認されました。
+次のリンクからログインしてください。
+
+{{ login_url }}
+
+ユーザー名: {{ username }}
+{% include "_footer.txt" %}

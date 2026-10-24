@@ -24,6 +24,9 @@ pub async fn list_auth_providers(State(state): State<Arc<AppState>>) -> Json<ser
         "local": true,
         // Admin Studio のログイン画面に「アカウントを作成」を出す（`[auth.registration]`）
         "registration": state.registration.is_some(),
+        // ログイン画面に「パスワードを忘れた」を出す（`[auth.password_reset]`）
+        "password_reset": state.password_reset.is_some(),
+        "invitation": state.invitation.is_some(),
         "oidc": state.oidc.as_ref().map(|oidc| json!({
             "display_name": oidc.display_name,
             "login_url": "/api/v1/auth/oidc/login",

@@ -105,6 +105,7 @@ mod tests {
                 avatar_key: None,
                 created_at: "2026-10-22T00:00:00Z".to_string(),
                 updated_at: "2026-10-22T00:00:00Z".to_string(),
+                pending_approval: false,
             })
             .await
             .unwrap();

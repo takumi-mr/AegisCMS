@@ -65,10 +65,16 @@ pub enum AuditAction {
     /// Notification delivered (or given up after retries) through a channel such as email
     #[serde(rename = "notification.send")]
     NotificationSend,
+    /// Password reset requested or completed
+    #[serde(rename = "user.password_reset")]
+    UserPasswordReset,
+    /// User invitation created or accepted
+    #[serde(rename = "user.invite")]
+    UserInvite,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 22] = [
+    pub const ALL: [AuditAction; 24] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -91,6 +97,8 @@ impl AuditAction {
         Self::OrderCreate,
         Self::OrderUpdate,
         Self::NotificationSend,
+        Self::UserPasswordReset,
+        Self::UserInvite,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -117,6 +125,8 @@ impl AuditAction {
             Self::OrderCreate => "order.create",
             Self::OrderUpdate => "order.update",
             Self::NotificationSend => "notification.send",
+            Self::UserPasswordReset => "user.password_reset",
+            Self::UserInvite => "user.invite",
         }
     }
 }

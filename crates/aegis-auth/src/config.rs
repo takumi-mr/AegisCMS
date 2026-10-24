@@ -9,6 +9,8 @@ pub struct AuthConfig {
     pub oidc: OidcConfig,
     pub saml: SamlConfig,
     pub registration: RegistrationConfig,
+    pub password_reset: PasswordResetConfig,
+    pub invitation: InvitationConfig,
 }
 
 /// OpenID Connect（認可コードフロー + PKCE）による外部 IdP ログイン
@@ -222,5 +224,46 @@ impl RegistrationConfig {
             let allowed = allowed.trim().trim_start_matches('@').to_ascii_lowercase();
             !allowed.is_empty() && (domain == allowed || domain.ends_with(&format!(".{}", allowed)))
         })
+    }
+}
+
+/// パスワード再設定（`[auth.password_reset]`）。
+/// メールアドレスに届く再設定リンクを開いて新しいパスワードを設定する。再設定メールは通知（`[notifications]`）で送る
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PasswordResetConfig {
+    pub enabled: bool,
+    /// 再設定リンクの有効期間（秒、既定 3600 = 1時間）
+    pub token_ttl_secs: u64,
+    /// 同じクライアント IP から 1 時間に受け付ける再設定要求の数（0 で無制限、既定 5）
+    pub max_per_ip_per_hour: u64,
+}
+
+impl Default for PasswordResetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            token_ttl_secs: 3600,
+            max_per_ip_per_hour: 5,
+        }
+    }
+}
+
+/// ユーザー招待（`[auth.invitation]`）。
+/// 管理者がメールアドレスとロールを指定して招待し、本人が招待リンクからパスワードを設定して登録する
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InvitationConfig {
+    pub enabled: bool,
+    /// 招待リンクの有効期間（秒、既定 604800 = 7日）
+    pub token_ttl_secs: u64,
+}
+
+impl Default for InvitationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            token_ttl_secs: 604_800,
+        }
     }
 }

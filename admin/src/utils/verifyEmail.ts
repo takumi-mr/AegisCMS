@@ -34,6 +34,28 @@ export const takeVerifyToken = (): string | null => {
   return token || null;
 };
 
+/**
+ * Takes the token of a password reset link (`#reset-password=<token>`)
+ */
+export const takeResetToken = (): string | null => {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const token = params.get('reset-password');
+  if (token === null) return null;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  return token || null;
+};
+
+/**
+ * Takes the token of an invitation link (`#invite=<token>`)
+ */
+export const takeInviteToken = (): string | null => {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const token = params.get('invite');
+  if (token === null) return null;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  return token || null;
+};
+
 /** Message for a failed registration or confirmation (`login.register.errors.<code>`) */
 export const describeRegistrationError = (err: unknown, t: TFunction): string => {
   if (err instanceof ApiError) {

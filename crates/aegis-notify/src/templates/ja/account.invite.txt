@@ -1,0 +1,9 @@
+{{ display_name or email }} 様
+
+{{ site_name }} の管理画面（Admin Studio）に招待されました（ロール: {{ role }}）。
+次のリンクを開いて、ユーザー名とパスワードを設定してください。
+
+{{ invite_url }}
+
+リンクの有効期限は {{ expires_days }} 日間です。
+{% include "_footer.txt" %}

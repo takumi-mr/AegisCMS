@@ -28,6 +28,37 @@ pub async fn test_state_with_config(
     Arc::new(test_app_state(config, supervisor, Vec::new()).await)
 }
 
+/// App state with supervisor and extra schemas
+pub async fn test_state_with_plugins(
+    supervisor: PluginSupervisor,
+    extra_schemas: Vec<SchemaDefinition>,
+) -> Arc<AppState> {
+    Arc::new(test_app_state(AegisConfig::default(), supervisor, extra_schemas).await)
+}
+
+#[derive(Default)]
+pub struct RecordingNotifier {
+    pub events: std::sync::Mutex<Vec<aegis_core::NotificationEvent>>,
+}
+
+impl aegis_core::Notifier for RecordingNotifier {
+    fn notify(&self, event: aegis_core::NotificationEvent) {
+        self.events.lock().unwrap().push(event);
+    }
+}
+
+impl RecordingNotifier {
+    pub fn take(&self) -> Vec<aegis_core::NotificationEvent> {
+        let mut guard = self.events.lock().unwrap();
+        std::mem::take(&mut *guard)
+    }
+
+    #[allow(dead_code)]
+    pub fn events(&self) -> Vec<aegis_core::NotificationEvent> {
+        self.events.lock().unwrap().clone()
+    }
+}
+
 /// The `test_state_with_config` state before it is shared, with `extra_schemas` migrated too
 /// (e.g. to enable `[commerce]` with `AppState::with_commerce`)
 pub async fn test_app_state(

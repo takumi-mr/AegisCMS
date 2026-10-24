@@ -1,0 +1,9 @@
+Hello {{ display_name or username }},
+
+Your Admin Studio account on {{ site_name }} has been approved.
+You can now log in using the link below:
+
+{{ login_url }}
+
+Username: {{ username }}
+{% include "_footer.txt" %}

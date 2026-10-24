@@ -94,7 +94,14 @@ mod tests {
         let Json(providers) = list_auth_providers(State(state.clone())).await;
         assert_eq!(
             providers,
-            json!({ "local": true, "oidc": null, "saml": null, "registration": false })
+            json!({
+                "local": true,
+                "oidc": null,
+                "saml": null,
+                "registration": false,
+                "password_reset": false,
+                "invitation": false,
+            })
         );
         assert_eq!(
             oidc_login(State(state)).await.status(),

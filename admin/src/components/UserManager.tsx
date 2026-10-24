@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pencil, Plus, RefreshCw, Trash2, UserPlus, Users } from 'lucide-react';
+import { CheckCircle2, Mail, Pencil, Plus, RefreshCw, Trash2, UserPlus, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi, ApiError } from '../api/client';
 import i18n from '../i18n';
@@ -48,6 +48,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
   const isLoading = loadedCount !== reloadCount;
   const [editing, setEditing] = useState<UserAccount | null>(null);
   const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [isInviting, setIsInviting] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +114,10 @@ export const UserManager: React.FC<UserManagerProps> = ({
               <RefreshCw size={14} />
               <span>{t('common.reload')}</span>
             </Button>
+            <Button variant="secondary" onClick={() => setIsInviting(true)}>
+              <Mail size={16} />
+              <span>{t('users.inviteUser')}</span>
+            </Button>
             <Button variant="primary" onClick={() => setIsCreating(true)}>
               <UserPlus size={16} />
               <span>{t('users.newUser')}</span>
@@ -163,8 +168,21 @@ export const UserManager: React.FC<UserManagerProps> = ({
                         </span>
                       </td>
                       <td>
-                        <span className={cx(styles.status, user.disabled ? styles.off : styles.on)}>
-                          {user.disabled ? t('users.disabled') : t('users.active')}
+                        <span
+                          className={cx(
+                            styles.status,
+                            user.disabled
+                              ? user.pending_approval
+                                ? styles.pending
+                                : styles.off
+                              : styles.on
+                          )}
+                        >
+                          {user.disabled
+                            ? user.pending_approval
+                              ? t('users.pendingApproval')
+                              : t('users.disabled')
+                            : t('users.active')}
                         </span>
                       </td>
                       <td className={styles.muted}>{formatDate(user.created_at)}</td>
@@ -218,6 +236,16 @@ export const UserManager: React.FC<UserManagerProps> = ({
             onShowToast(t('users.created', { username: created.username }));
           }}
           onClose={() => setIsCreating(false)}
+        />
+      )}
+
+      {isInviting && (
+        <InviteUserModal
+          onInvited={(email) => {
+            setIsInviting(false);
+            onShowToast(t('users.invited', { email }));
+          }}
+          onClose={() => setIsInviting(false)}
         />
       )}
 
@@ -428,6 +456,16 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       onClose={onClose}
     >
       <form className={formStyles.body} onSubmit={handleSubmit}>
+        {user.pending_approval && disabled && (
+          <div className={styles.pendingNotice}>
+            <span>{t('users.pendingApprovalNotice')}</span>
+            <Button type="button" variant="primary" onClick={() => setDisabled(false)}>
+              <CheckCircle2 size={16} />
+              <span>{t('users.approveAndActivate')}</span>
+            </Button>
+          </div>
+        )}
+
         <div className={formStyles.section}>
           <AvatarPicker user={user} onChanged={onUpdated} />
         </div>
@@ -509,6 +547,96 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           <Button onClick={onClose}>{t('common.cancel')}</Button>
           <Button type="submit" variant="primary" disabled={isSaving}>
             <span>{isSaving ? t('users.saving') : t('users.save')}</span>
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+interface InviteUserModalProps {
+  onInvited: (email: string) => void;
+  onClose: () => void;
+}
+
+const InviteUserModal: React.FC<InviteUserModalProps> = ({ onInvited, onClose }) => {
+  const { t } = useTranslation();
+  const [email, setEmail] = useState<string>('');
+  const [role, setRole] = useState<UserRole>('viewer');
+  const [displayName, setDisplayName] = useState<string>('');
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    emailRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) {
+      setError(t('users.fields.email'));
+      return;
+    }
+    setIsSending(true);
+    setError(null);
+    try {
+      await aegisApi.createInvitation({
+        email: email.trim(),
+        role,
+        ...(displayName.trim() ? { display_name: displayName.trim() } : {}),
+      });
+      onInvited(email.trim());
+    } catch (err) {
+      setError(messageOf(err, t('users.inviteFailed')));
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <Modal title={t('users.inviteTitle')} icon={<Mail size={18} />} onClose={onClose}>
+      <form className={formStyles.body} onSubmit={handleSubmit}>
+        <div className={formStyles.section}>
+          <Field label={t('users.fields.email')}>
+            <input
+              ref={emailRef}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@example.com"
+              required
+              aria-label={t('users.aria.email')}
+            />
+          </Field>
+          <Field label={t('users.fields.role')}>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as UserRole)}
+              aria-label={t('users.aria.role')}
+            >
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {t(`common.roles.${r}`)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t('users.fields.displayName')}>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder={t('users.optional')}
+              maxLength={100}
+              aria-label={t('users.aria.displayName')}
+            />
+          </Field>
+        </div>
+        {error && <span className={formStyles.error}>{error}</span>}
+        <div className={formStyles.actions}>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={isSending}>
+            <Mail size={16} />
+            <span>{isSending ? t('users.inviting') : t('users.invite')}</span>
           </Button>
         </div>
       </form>

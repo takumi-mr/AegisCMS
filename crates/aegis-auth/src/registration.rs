@@ -219,6 +219,7 @@ impl RegistrationService {
             },
             pending.password_hash,
             self.config.require_approval,
+            self.config.require_approval,
         )
         .await?;
         Ok(user)

@@ -166,6 +166,24 @@
   cursor: pointer;
 }
 
+.forgotButton {
+  align-self: flex-end;
+  border: none;
+  background: transparent;
+  color: var(--accent-indigo-light);
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+  margin-top: -6px;
+  margin-bottom: 4px;
+}
+
+.forgotButton:hover,
+.forgotButton:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+
 .registerLink {
   display: inline-flex;
   align-items: center;
