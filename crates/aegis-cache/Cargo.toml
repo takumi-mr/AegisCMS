@@ -12,8 +12,10 @@ workspace = true
 [dependencies]
 aegis-core = { path = "../aegis-core" }
 async-trait.workspace = true
+futures-util = "0.3"
 redis.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["sync", "time"] }
 tracing.workspace = true
 

@@ -15,6 +15,7 @@ import type {
   OrderPage,
   OrderStatus,
   PluginInfo,
+  PluginOrder,
   PreviewRequest,
   PreviewResult,
   RegistrationPayload,
@@ -540,6 +541,28 @@ export const aegisApi = {
       },
       i18n.t('api.setPluginEnabledFailed')
     );
+  },
+
+  async getPluginOrder(): Promise<PluginOrder> {
+    return request('/plugins/order', {}, i18n.t('api.pluginOrderFailed'));
+  },
+
+  /** Reorders the enabled plugins (each exactly once) without a restart */
+  async setPluginOrder(enabled: string[]): Promise<PluginOrder> {
+    return request(
+      '/plugins/order',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      },
+      i18n.t('api.setPluginOrderFailed')
+    );
+  },
+
+  /** Drops the list saved from Admin Studio: `[plugins].enabled` of the configuration file applies */
+  async resetPluginOrder(): Promise<PluginOrder> {
+    return request('/plugins/order', { method: 'DELETE' }, i18n.t('api.resetPluginOrderFailed'));
   },
 
   async getSiteSettings(): Promise<SiteSettings> {

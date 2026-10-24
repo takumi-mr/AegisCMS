@@ -38,6 +38,12 @@ pub enum AuditAction {
     /// Plugin disabled via admin/API (without a restart)
     #[serde(rename = "plugin.disable")]
     PluginDisable,
+    /// Hook order of the enabled plugins changed via admin/API
+    #[serde(rename = "plugin.reorder")]
+    PluginReorder,
+    /// Enabled plugins saved from admin/API discarded in favour of `[plugins].enabled`
+    #[serde(rename = "plugin.reset")]
+    PluginReset,
     #[serde(rename = "audit.purge")]
     AuditPurge,
     /// API request rejected for a missing / invalid session (401) or an insufficient role (403)
@@ -80,7 +86,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 26] = [
+    pub const ALL: [AuditAction; 28] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -94,6 +100,8 @@ impl AuditAction {
         Self::PluginSettingsUpdate,
         Self::PluginEnable,
         Self::PluginDisable,
+        Self::PluginReorder,
+        Self::PluginReset,
         Self::AuditPurge,
         Self::AccessDenied,
         Self::ThemeSwitch,
@@ -124,6 +132,8 @@ impl AuditAction {
             Self::PluginSettingsUpdate => "plugin.settings_update",
             Self::PluginEnable => "plugin.enable",
             Self::PluginDisable => "plugin.disable",
+            Self::PluginReorder => "plugin.reorder",
+            Self::PluginReset => "plugin.reset",
             Self::AuditPurge => "audit.purge",
             Self::AccessDenied => "access.denied",
             Self::ThemeSwitch => "theme.switch",

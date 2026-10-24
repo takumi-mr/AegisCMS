@@ -69,3 +69,37 @@ test('saves plugin settings', async ({ page }) => {
   await openPlugins(page);
   await expect(card.getByText('1 keys')).toBeVisible();
 });
+
+test('reorders the enabled plugins and goes back to the configuration file', async ({ page }) => {
+  for (const name of [SHOP_RULES, CODE_ENHANCER]) {
+    const card = pluginCard(page, name);
+    if (await card.getByRole('button', { name: 'Enable' }).isVisible()) {
+      await card.getByRole('button', { name: 'Enable' }).click();
+      await expect(card.getByText('Enabled', { exact: true })).toBeVisible();
+    }
+  }
+  const panel = page.getByRole('region', { name: 'Hook order' });
+  const items = panel.getByRole('listitem');
+  await expect(items).toHaveCount(2);
+  await expect(items.nth(0)).toContainText('Shop Rules');
+
+  await panel.getByRole('button', { name: 'Move "official-code-enhancer" up' }).click();
+  await expect(page.getByText('Changed the hook order')).toBeVisible();
+  await expect(items.nth(0)).toContainText(CODE_ENHANCER);
+
+  // Saved on the server: the hooks keep running in that order after reloading Admin Studio
+  await page.reload();
+  await openPlugins(page);
+  await expect(items.nth(0)).toContainText(CODE_ENHANCER);
+  await expect(panel.getByText(/Changed in Admin Studio/)).toBeVisible();
+
+  // [plugins].enabled = [] in aegis.e2e.toml: going back disables both
+  page.once('dialog', (dialog) => dialog.accept());
+  await panel.getByRole('button', { name: 'Use the configuration file' }).click();
+  await expect(page.getByText('Using the plugins of the configuration file')).toBeVisible();
+  await expect(panel).toBeHidden();
+  await expect(pluginCard(page, SHOP_RULES).getByText('Disabled', { exact: true })).toBeVisible();
+  await expect(
+    pluginCard(page, CODE_ENHANCER).getByText('Disabled', { exact: true })
+  ).toBeVisible();
+});

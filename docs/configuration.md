@@ -121,8 +121,12 @@ public_url_prefix = "https://cdn.example.com"
 
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
-| `backend` | `"memory"` \| `"redis"` | `"memory"` | `memory`: プロセス内 TTL キャッシュ / `redis`: 複数インスタンスでセッション共有 |
+| `backend` | `"memory"` \| `"redis"` | `"memory"` | `memory`: プロセス内 TTL キャッシュ（1 台構成専用） / `redis`: 複数インスタンスでセッション・変更の知らせを共有 |
 | `default_ttl_secs` | integer (u64) | `3600` | キャッシュ・セッションの既定 TTL（秒）。ログイン時に指定する `ttl_secs` の上限も兼ねる |
+
+- キャッシュと同じバックエンドで、Admin Studio での変更（プラグインの切り替え・並べ替え・設定値）をサーバー間で知らせます（[プラグインフックリファレンス 5.3](./plugin_hooks.md#53-複数台での反映)）。`redis` では Pub/Sub のチャネル `aegis:events` を使います。
+- **`memory` は 1 台構成専用です。** 起動時に DB（`_aegis_settings` の `server.memory_cache_instance`）に印を書き、10 秒ごとに書き直します。同じ DB で `memory` のサーバーがすでに動いていると、2 台目は起動しません（`Another AegisCMS server with [cache].backend = "memory" is running on this database`）。複数台で動かすときは `redis` にしてください。
+  - 普通に止めた（Ctrl+C・SIGTERM）サーバーは印を消すので、すぐに再起動できます。強制終了した直後（30 秒以内）の再起動は、前のサーバーが止まっていることを確かめるため 20 秒ほど待ってから起動します。
 
 #### `[cache.redis]`
 
@@ -179,7 +183,7 @@ coupons = "WELCOME10:10%"
 
 - 列挙したプラグインが未インストール・読み込めない（マニフェストの不備、ホストに無い関数のインポートなど）場合、名前の形式が不正・重複している場合は**サーバーが起動しません**。
 - `[runtime].enable_wasm_plugins = false` の場合は読み込みません。
-- Admin Studio（`PUT /api/v1/plugins/{name}/enabled`）で有効・無効を切り替えると、その一覧が DB に保存され、以後は `enabled` より優先されます（[プラグインフックリファレンス 5.1](./plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)）。
+- Admin Studio（`PUT /api/v1/plugins/{name}/enabled`・`PUT /api/v1/plugins/order`）で有効・無効や順序を変えると、その一覧が DB に保存され、以後は `enabled` より優先されます（[プラグインフックリファレンス 5.1](./plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)）。Admin Studio の「設定ファイルの値に戻す」（`DELETE /api/v1/plugins/order`）で `enabled` に戻ります。
 - 状態は `aegis plugin list` で確認できます（[プラグインフックリファレンス](./plugin_hooks.md#5-インストールと有効化)）。
 
 ### 2.7 `[security]` — HTML 出力のセキュリティ / 最適化

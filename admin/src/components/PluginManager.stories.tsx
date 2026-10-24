@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 
 import { mockApi } from '../../.storybook/mockApi';
-import type { PluginInfo, PluginManifest, SessionInfo } from '../types';
+import type { PluginInfo, PluginManifest, PluginOrder, SessionInfo } from '../types';
 import { PluginManager } from './PluginManager';
 
 const limits = { max_memory_mb: 16, max_fuel_units: 100_000_000, execution_timeout_ms: 250 };
@@ -69,17 +69,46 @@ const session = (role: string): SessionInfo => ({
   metadata: {},
 });
 
+const enabledNames = (plugins: PluginInfo[]) =>
+  plugins.filter((p) => p.is_enabled).map((p) => p.name);
+
+/** Like the server: the enabled plugins in `enabled` order (hook order), then the others */
+const listed = (plugins: PluginInfo[], enabled: string[]) => [
+  ...enabled.flatMap((name) => {
+    const plugin = plugins.find((p) => p.name === name);
+    return plugin ? [{ ...plugin, is_enabled: true }] : [];
+  }),
+  ...plugins.filter((p) => !enabled.includes(p.name)).map((p) => ({ ...p, is_enabled: false })),
+];
+
 /** Serves the plugin endpoints from an in-memory list, like the server does */
 const pluginApi = (initial: PluginInfo[]) => {
   let plugins = structuredClone(initial);
+  // `[plugins].enabled` of the configuration file, and whether Admin Studio changed the list
+  const configured = enabledNames(initial);
+  let customized = false;
+  const order = (): PluginOrder => ({ enabled: enabledNames(plugins), configured, customized });
   return mockApi(({ method, path, body }) => {
     if (method === 'GET' && path === '/plugins') return plugins;
+
+    if (path === '/plugins/order') {
+      if (method === 'PUT') {
+        plugins = listed(plugins, (body as { enabled: string[] }).enabled);
+        customized = true;
+      } else if (method === 'DELETE') {
+        plugins = listed(plugins, configured);
+        customized = false;
+      }
+      return order();
+    }
 
     const enabled = path.match(/^\/plugins\/([^/]+)\/enabled$/);
     if (method === 'PUT' && enabled) {
       const name = decodeURIComponent(enabled[1]);
       const on = (body as { enabled: boolean }).enabled;
-      plugins = plugins.map((p) => (p.name === name ? { ...p, is_enabled: on } : p));
+      const current = enabledNames(plugins).filter((n) => n !== name);
+      plugins = listed(plugins, on ? [...current, name] : current);
+      customized = true;
       return plugins;
     }
 
@@ -121,6 +150,10 @@ export const SwitchRefused: Story = {
   beforeEach: () =>
     mockApi(({ method, path }) => {
       if (method === 'GET' && path === '/plugins') return PLUGINS;
+      if (method === 'GET' && path === '/plugins/order') {
+        const enabled = enabledNames(PLUGINS);
+        return { enabled, configured: enabled, customized: false } satisfies PluginOrder;
+      }
       if (method === 'PUT' && path.endsWith('/enabled')) {
         return {
           status: 409,
@@ -158,5 +191,41 @@ export const EnablePlugin: Story = {
       'Enabled plugin "official-code-enhancer"',
       'success'
     );
+  },
+};
+
+/** Moves a plugin down the hook order, then goes back to the configuration file's list */
+export const Reorder: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const panel = await canvas.findByRole('region', { name: 'Hook order' });
+    await expect(
+      within(panel).getByText('Same as [plugins].enabled of the configuration file')
+    ).toBeVisible();
+
+    await userEvent.click(
+      within(panel).getByRole('button', { name: 'Move "official-shop-rules" down' })
+    );
+    await waitFor(() =>
+      expect(args.onShowToast).toHaveBeenCalledWith('Changed the hook order', 'success')
+    );
+    const items = within(panel).getAllByRole('listitem');
+    await expect(items[0]).toHaveTextContent('removed-plugin');
+    await expect(items[1]).toHaveTextContent('Shop Rules');
+
+    window.confirm = () => true;
+    await userEvent.click(
+      await within(panel).findByRole('button', { name: 'Use the configuration file' })
+    );
+    await waitFor(() =>
+      expect(args.onShowToast).toHaveBeenCalledWith(
+        'Using the plugins of the configuration file',
+        'success'
+      )
+    );
+    await expect(within(panel).getAllByRole('listitem')[0]).toHaveTextContent('Shop Rules');
+    await expect(
+      within(panel).queryByRole('button', { name: 'Use the configuration file' })
+    ).not.toBeInTheDocument();
   },
 };

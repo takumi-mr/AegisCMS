@@ -9,6 +9,31 @@ const CONNECT_RETRIES: usize = 2;
 /// Upper bound of the wait between reconnection attempts
 const MAX_RETRY_DELAY_MS: u64 = 1000;
 
+/// Opens `url` and connects a [`ConnectionManager`] that reconnects by itself (shared with the event bus)
+pub(crate) async fn connect_manager(
+    url: &str,
+    timeout: Duration,
+) -> Result<(redis::Client, ConnectionManager)> {
+    let client = redis::Client::open(url)
+        .map_err(|e| AegisError::Database(format!("Invalid Redis URL '{}': {}", url, e)))?;
+
+    let config = ConnectionManagerConfig::new()
+        .set_connection_timeout(timeout)
+        .set_response_timeout(timeout)
+        // redis 0.27 の既定（factor 100 の指数バックオフ・6 回再試行）では、2 回目以降の待機が
+        // 100 秒単位に伸び、応答しない Redis で起動や再接続が数分止まる。再試行は 2 回、待機は
+        // 最大 1 秒にして、接続できなければすぐにエラーにする
+        .set_number_of_retries(CONNECT_RETRIES)
+        .set_factor(2)
+        .set_max_delay(MAX_RETRY_DELAY_MS);
+    let manager = ConnectionManager::new_with_config(client.clone(), config)
+        .await
+        .map_err(|e| {
+            AegisError::Database(format!("Failed to connect to Redis '{}': {}", url, e))
+        })?;
+    Ok((client, manager))
+}
+
 #[derive(Clone)]
 pub struct RedisCacheBackend {
     manager: ConnectionManager,
@@ -19,24 +44,7 @@ impl RedisCacheBackend {
     /// Connects with `timeout` (`[cache.redis].timeout_ms`) as both the per-attempt connection
     /// timeout and the response timeout of every command
     pub async fn connect(url: &str, timeout: Duration) -> Result<Self> {
-        let client = redis::Client::open(url)
-            .map_err(|e| AegisError::Database(format!("Invalid Redis URL '{}': {}", url, e)))?;
-
-        let config = ConnectionManagerConfig::new()
-            .set_connection_timeout(timeout)
-            .set_response_timeout(timeout)
-            // redis 0.27 の既定（factor 100 の指数バックオフ・6 回再試行）では、2 回目以降の待機が
-            // 100 秒単位に伸び、応答しない Redis で起動や再接続が数分止まる。再試行は 2 回、待機は
-            // 最大 1 秒にして、接続できなければすぐにエラーにする
-            .set_number_of_retries(CONNECT_RETRIES)
-            .set_factor(2)
-            .set_max_delay(MAX_RETRY_DELAY_MS);
-        let manager = ConnectionManager::new_with_config(client, config)
-            .await
-            .map_err(|e| {
-                AegisError::Database(format!("Failed to connect to Redis '{}': {}", url, e))
-            })?;
-
+        let (_, manager) = connect_manager(url, timeout).await?;
         Ok(Self {
             manager,
             url: url.to_string(),
@@ -49,48 +57,64 @@ impl RedisCacheBackend {
     }
 }
 
+/// `ConnectionManager` は接続が切れていると次の 1 回をエラーにしてから繋ぎ直す（Redis の再起動など）。
+/// 何度送っても結果が同じコマンドは、接続のエラーのときだけもう 1 回送る
+pub(crate) async fn retry_on_reconnect<T, F, Fut>(mut command: F) -> redis::RedisResult<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = redis::RedisResult<T>>,
+{
+    match command().await {
+        Err(e) if e.is_connection_dropped() || e.is_io_error() => command().await,
+        result => result,
+    }
+}
+
 #[async_trait]
 impl CacheBackend for RedisCacheBackend {
     async fn get(&self, key: &str) -> Result<Option<String>> {
-        let mut conn = self.manager.clone();
-        let val: Option<String> = conn
-            .get(key)
-            .await
-            .map_err(|e| AegisError::Database(format!("Redis GET error: {}", e)))?;
-        Ok(val)
+        retry_on_reconnect(|| {
+            let mut conn = self.manager.clone();
+            async move { conn.get(key).await }
+        })
+        .await
+        .map_err(|e| AegisError::Database(format!("Redis GET error: {}", e)))
     }
 
     async fn set(&self, key: &str, value: &str, ttl_secs: Option<u64>) -> Result<()> {
-        let mut conn = self.manager.clone();
-        if let Some(ttl) = ttl_secs {
-            conn.set_ex::<_, _, ()>(key, value, ttl)
-                .await
-                .map_err(|e| AegisError::Database(format!("Redis SETEX error: {}", e)))?;
-        } else {
-            conn.set::<_, _, ()>(key, value)
-                .await
-                .map_err(|e| AegisError::Database(format!("Redis SET error: {}", e)))?;
-        }
-        Ok(())
+        retry_on_reconnect(|| {
+            let mut conn = self.manager.clone();
+            async move {
+                match ttl_secs {
+                    Some(ttl) => conn.set_ex::<_, _, ()>(key, value, ttl).await,
+                    None => conn.set::<_, _, ()>(key, value).await,
+                }
+            }
+        })
+        .await
+        .map_err(|e| AegisError::Database(format!("Redis SET error: {}", e)))
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
-        let mut conn = self.manager.clone();
-        conn.del::<_, ()>(key)
-            .await
-            .map_err(|e| AegisError::Database(format!("Redis DEL error: {}", e)))?;
-        Ok(())
+        retry_on_reconnect(|| {
+            let mut conn = self.manager.clone();
+            async move { conn.del::<_, ()>(key).await }
+        })
+        .await
+        .map_err(|e| AegisError::Database(format!("Redis DEL error: {}", e)))
     }
 
     async fn exists(&self, key: &str) -> Result<bool> {
-        let mut conn = self.manager.clone();
-        let count: i64 = conn
-            .exists(key)
-            .await
-            .map_err(|e| AegisError::Database(format!("Redis EXISTS error: {}", e)))?;
+        let count: i64 = retry_on_reconnect(|| {
+            let mut conn = self.manager.clone();
+            async move { conn.exists(key).await }
+        })
+        .await
+        .map_err(|e| AegisError::Database(format!("Redis EXISTS error: {}", e)))?;
         Ok(count > 0)
     }
 
+    /// INCR は送り直すと二重に数えるおそれがあるので、接続のエラーでも送り直さない
     async fn increment(&self, key: &str, ttl_secs: Option<u64>) -> Result<u64> {
         // INCR と初回のみの EXPIRE を 1 つのスクリプトで実行し、TTL の付け忘れ（永続カウンタ化）を防ぐ
         let script = redis::Script::new(

@@ -23,7 +23,7 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | `task bench:all` | プラグイン性能計測と HTTP ベンチマークを一括実行 |
 | `task demo:shop` / `demo:shop:seed` | サンプルショップの起動 / データ投入（[examples/coffee-shop](../examples/coffee-shop)） |
 | `task docker:build` / `docker:run` / `docker:stop` / `docker:logs` | Docker イメージ（[5](#5-docker-イメージ)） |
-| `task docker:dbs:up` / `docker:dbs:down` | 実機検証用 DB コンテナ（PostgreSQL 16 / MySQL 8.0）の起動 / 停止（[7](#7-データベース実機検証-postgresql--mysql)） |
+| `task docker:dbs:up` / `docker:dbs:down` | 実機検証用コンテナ（PostgreSQL 16 / MySQL 8.0 / Redis 7）の起動 / 停止（[7](#7-データベース実機検証-postgresql--mysql)） |
 | `task test:dbs` | 実機コンテナ環境での注文・在庫の統合テストを一括実行 |
 
 ---
@@ -148,6 +148,7 @@ task docker:dbs:down
   - 無制限在庫（`stock IS NULL`）商品の取り扱い
   - 注文キャンセル時の在庫返却（`restock`）
   - 注文確認ページ・スタッフ用注文一覧/詳細 API・状態変更 API の E2E 動作
+  - Redis の Pub/Sub によるサーバー間のイベントバス（2 台分の接続で送受信、購読を切ったあとの再接続と `Resync`。`REDIS_URL` で接続先を変えられます）
 
 ---
 
