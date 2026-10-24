@@ -26,6 +26,7 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 | `calculate-order` | `calculate_order` | `Plugin::calculate_order` | `OrderContext` | `OrderContext` | ✅ 実装済み（送料・税・割引の追加、注文の拒否。[EC](commerce.md)） |
 | `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange` | なし | ✅ 実装済み（注文の作成・状態の変化の通知） |
 | `send-notification` | `send_notification` | `Plugin::send_notification` | `NotificationMessage` | `Delivery` | ✅ 実装済み（通知の配信チャネル。Slack・SMS など。[通知](notifications.md#5-配信方法を加える)） |
+| `on-content-published` | `on_content_published` | `Plugin::on_content_published` | `PublishedContent` | なし | ✅ 実装済み（予約公開などコンテンツ公開時の通知） |
 
 - フックを有効にするには、**マニフェストの `capabilities.hooks` にフック名（ケバブケース）を列挙**する必要があります。列挙されていないフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
 - 逆に、マニフェストに列挙されていても該当の関数がエクスポートされていない場合は、入力がそのまま次へ渡されます（エラーにはなりません）。
@@ -185,6 +186,19 @@ impl Plugin for SlackPlugin {
 - 送り先のドメインはマニフェストの `capabilities.network.allowed_domains` に含めてください。フックの `execution_timeout_ms` に通信の時間も含まれます。
 - `aegis-server notify test --staff` で、運営者向けのテスト通知をプラグインに送れます。
 
+### 1.8 `on-content-published`
+
+予約公開などでコンテンツが公開状態になった直後に呼び出されます。外部 Webhook の呼び出し、SNS への自動投稿、静的サイトジェネレーターの再ビルドトリガーなどに使います。
+
+```rust
+fn on_content_published(&mut self, content: PublishedContent) -> Result<()>;
+```
+
+- 予約日時にスケジューラ（`publish_due_contents`）がコンテンツを `published` に更新し、監査ログ `content.publish` を記録した**後**に呼び出されます。
+- 結果はコンテンツの公開状態に影響しません。
+- プラグインが `Err` を返した（またはトラップ・タイムアウトが発生した）場合は、警告ログおよび監査ログ `plugin.error`（`details.hook = "on-content-published"`）が記録されます。他のプラグインの呼び出しや公開処理はそのまま継続します。
+- 運営者への通知（メール等）は `[[notifications.audit.rules]]` で `action = "content.publish"` を設定すれば自動的に送信できます。
+
 ---
 
 ## 2. フックに渡されるデータ型
@@ -295,6 +309,18 @@ SDK ヘルパー:
 | `PluginError::Execution(String)` | プラグインロジックのエラー |
 | `PluginError::Serialization(String)` | JSON 変換エラー（`serde_json::Error` から自動変換） |
 | `PluginError::Host(String)` | ホスト API 呼び出しのエラー |
+
+### 2.7 `PublishedContent`（`on-content-published`）
+
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `id` | string | 公開されたコンテンツ ID (UUID v4) |
+| `content_type` | string | スキーマ名（`articles`, `news` など） |
+| `title` | string | タイトル |
+| `slug` | string | スラッグ |
+| `published_at` | string | 公開日時 (RFC 3339) |
+| `author_id` | string \| null | 著者 ID（未指定時は null） |
+| `fields` | object | カスタムフィールド値のマップ |
 
 ---
 

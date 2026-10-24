@@ -198,6 +198,7 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 | `calculate-order` | `calculate_order` | `(ptr: i32, len: i32)` | `i64` | 送料・税・割引の追加、注文の拒否 |
 | `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64` | 注文の作成・状態の変化の通知 |
 | `send-notification` | `send_notification` | `(ptr: i32, len: i32)` | `i64` | 通知の配信チャネル（Slack・SMS など） |
+| `on-content-published` | `on_content_published` | `(ptr: i32, len: i32)` | `i64` | 予約公開などコンテンツ公開時の通知 |
 
 ### 4.1 `on_before_save`
 
@@ -281,6 +282,13 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 | `{"error": "...", "permanent": false}` | 一時的な失敗。ホストが間隔を空けて再試行する（`permanent` を省略した場合も同じ） |
 | `{"error": "...", "permanent": true}` | 再試行しても変わらない失敗（設定の不備・相手の 4xx など） |
 
+### 4.8 `on_content_published`
+
+予約公開などでコンテンツが公開状態になった直後に呼び出されます。
+
+- **入力**: `PublishedContent` の JSON（[5.8](#58-publishedcontent)）
+- **戻り値**: `0`（成功）、または `{"error": "..."}`（ログと監査ログ `plugin.error` に残るだけで、公開処理には影響しない）
+
 ---
 
 ## 5. データ構造仕様 (JSON Schemas)
@@ -354,6 +362,23 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 }
 ```
 フックが処理を拒否したい場合、この JSON をホストへ返却します。
+
+### 5.5 `PublishedContent`
+```json
+{
+  "id": "c0a80101-0000-0000-0000-000000000001",
+  "content_type": "articles",
+  "title": "AegisCMS 予約公開の仕組み",
+  "slug": "scheduled-publishing-deep-dive",
+  "published_at": "2026-10-24T12:00:00Z",
+  "author_id": "editor1",
+  "fields": {
+    "category": "Tech",
+    "featured": true
+  }
+}
+```
+`on_content_published` フックに渡される公開完了コンテンツの情報です。
 
 ---
 

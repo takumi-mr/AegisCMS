@@ -172,6 +172,16 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #[no_mangle]
+        pub extern "C" fn on_content_published(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                ::aegis_plugin_sdk::abi::run_notification_hook(ptr, len, "PublishedContent", |content: ::aegis_plugin_sdk::types::PublishedContent| {
+                    let mut plugin = <#ident_type as ::std::default::Default>::default();
+                    <#ident_type as ::aegis_plugin_sdk::types::Plugin>::on_content_published(&mut plugin, content)
+                })
+            }
+        }
+
+        #[no_mangle]
         pub extern "C" fn on_render_page(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = ::aegis_plugin_sdk::abi::read_bytes_from_host(ptr, len);

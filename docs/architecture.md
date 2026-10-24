@@ -90,6 +90,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - 予約日時は既存の `published_at` 列に UTC（`...Z`、秒精度）で保存する。スキーマ・マイグレーションの変更は無く、公開後もその日時が公開日になる。
   - 公開側（`/`、`/articles/{slug}`、`/{slug}`、`/products`、カート）は `status == "published"` だけを見るので、`scheduled` は何もしなくても隠れる。
   - 公開は `DatabaseAdapter::publish_scheduled_content` の `UPDATE ... WHERE id = ? AND status = 'scheduled' AND published_at = ?`。一覧を取った後に編集者が日時を変えた・下書きに戻した場合や、複数台のサーバーが同時に動いた場合でも、古い予約で公開したり監査ログ `content.publish` を二重に残したりしない。
+  - 公開成功時、監査ログ `content.publish` を記録した後にプラグインフック `on-content-published`（`PublishedContent`）を呼び出す。外部 Webhook や SNS 自動投稿、静的サイト再ビルドとの連携を可能にし、プラグインのエラーは `plugin.error` に記録して公開自体はロールバックしない。
   - 保存時、`published` の `published_at` は「今の状態が `published` のときだけ」引き継ぐ（`scheduled` の未来の日時を引き継がないため）。
 - **予約非公開化（`unpublish_at`）**:
   - `ContentRecord` および各スキーマテーブルに `unpublish_at` 列（UTC RFC 3339 文字列）を追加（既存テーブルは起動時マイグレーションで自動追加）。

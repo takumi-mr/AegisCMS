@@ -329,6 +329,40 @@ pub struct OrderStatusChange {
     pub occurred_at: String,
 }
 
+/// コンテンツ公開の通知（`on-content-published`）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct PublishedContent {
+    pub id: String,
+    pub content_type: String,
+    pub title: String,
+    pub slug: String,
+    pub published_at: String,
+    #[serde(default)]
+    pub author_id: Option<String>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub fields: HashMap<String, serde_json::Value>,
+}
+
+impl PublishedContent {
+    pub fn new(
+        id: impl Into<String>,
+        content_type: impl Into<String>,
+        title: impl Into<String>,
+        slug: impl Into<String>,
+        published_at: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            content_type: content_type.into(),
+            title: title.into(),
+            slug: slug.into(),
+            published_at: published_at.into(),
+            author_id: None,
+            fields: HashMap::new(),
+        }
+    }
+}
+
 /// 通知の宛先（`send-notification`）
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -416,5 +450,13 @@ pub trait Plugin: Default {
     fn send_notification(&mut self, message: NotificationMessage) -> Result<Delivery> {
         let _ = message;
         Ok(Delivery::Skipped)
+    }
+
+    /// コンテンツ公開の通知フック (`on-content-published`)
+    /// 予約公開した時点などに呼ばれる。通知・外部サービスへの連携・静的サイトの再ビルド用で、
+    /// 結果は公開に影響しない（`Err` はログと監査ログに残る）
+    fn on_content_published(&mut self, content: PublishedContent) -> Result<()> {
+        let _ = content;
+        Ok(())
     }
 }

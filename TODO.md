@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: スキーマ定義（`schemas/*.yaml`）におけるシステム標準カラム（`title`, `slug`, `published_at` 等）の重複定義解消とコード生成器（TypeScript / OpenAPI）の共通標準カラム自動付加・スキップ統一。設計・仕様は [architecture.md 2.3](docs/architecture.md#23-スキーマからのコード生成とシステム標準カラム)。その前は公開予定の一覧・カレンダー画面（`GET /api/v1/schedule`、Admin Studio カレンダービュー・アジェンダビュー）および予約での非公開化（`unpublish_at`、リクエスト時即時判定、定期スケジューラでの自動アーカイブ化と監査ログ `content.unpublish`、エディタ・商品フォームでの設定・クイック解除）。設計・仕様は [architecture.md 3.4](docs/architecture.md#34-予約公開予約非公開化スケジュール管理-aegis-serversrcschedulerrs-handlerscontentrs)、[theme_and_publishing_guide.md](docs/theme_and_publishing_guide.md#予約での非公開化期間限定公開)、[admin/README.md](admin/README.md)。その前は公開サイトのサイト名と favicon を Admin Studio の **Settings › Site** から変更できるようにした（DB の `_aegis_settings` に保存し再起動なしで反映。[theme_and_publishing_guide.md](docs/theme_and_publishing_guide.md#サイト名と-faviconadmin-studio)、設計は [architecture.md 2.1, 3.2](docs/architecture.md#21-テーブルとデータ)）。その前は Admin Studio の Products / Orders タブを EC が有効（`[commerce].enabled`）なときだけ表示するようにした（[commerce.md 3.3](docs/commerce.md#33-admin-studio)）。その前は Themed Page プレビューの `iframe` から `allow-same-origin` を外し、テーマやプラグインのスクリプトがセッショントークンを読めないようにした（理由と制約は [admin/README.md の設計メモ](admin/README.md#-設計メモ)）。その前は HTTP サーバー包括的パフォーマンスベンチマークスクリプトの追加（`scripts/benchmark.mjs`、`Taskfile.yml` の `bench:http` / `bench:all`、主要エンドポイント計測とレポート出力、[development.md 6](docs/development.md#6-パフォーマンスベンチマーク)）。その前は SAML 2.0 認証プロバイダ（SP-initiated、`[auth.saml]`。使い方は [authentication.md 8](docs/authentication.md#8-シングルサインオン-saml-20)、設計・依存の判断・XML Signature Wrapping 対策は [architecture.md 6.5a](docs/architecture.md#65a-saml-20-aegis_authsaml)）。その前はロール変更・無効化・削除・パスワード変更を発行済みのセッションに即時反映（キャッシュ上の失効マーカーによるブラックリスト判定。[authentication.md 2, 3](docs/authentication.md#2-cli-でのユーザー管理-aegis-user)、設計は [architecture.md 6.2](docs/architecture.md#62-ローカル認証とロール)）。
+- **直近の完了**: 予約公開時のプラグインフック呼び出し（`on-content-published` フック、`PublishedContent` 構造体、スケジューラでのステータス更新成功時に通知実行、プラグインの失敗は監査ログ `plugin.error` に記録して公開自体はロールバックしない。通知は既存の `[[notifications.audit.rules]]` の `content.publish` と連携）。仕様は [plugin_hooks.md 1.8](docs/plugin_hooks.md#18-on-content-published)・[plugin_abi_specification.md 4.8](docs/plugin_abi_specification.md#48-on_content_published)、設計は [architecture.md 3.4](docs/architecture.md#34-予約公開予約非公開化スケジュール管理-aegis-serversrcschedulerrs-handlerscontentrs)。その前はスキーマ定義（`schemas/*.yaml`）におけるシステム標準カラム（`title`, `slug`, `published_at` 等）の重複定義解消とコード生成器（TypeScript / OpenAPI）の共通標準カラム自動付加・スキップ統一。設計・仕様は [architecture.md 2.3](docs/architecture.md#23-スキーマからのコード生成とシステム標準カラム)。その前は公開予定の一覧・カレンダー画面（`GET /api/v1/schedule`、Admin Studio カレンダービュー・アジェンダビュー）および予約での非公開化（`unpublish_at`、リクエスト時即時判定、定期スケジューラでの自動アーカイブ化と監査ログ `content.unpublish`、エディタ・商品フォームでの設定・クイック解除）。設計・仕様は [architecture.md 3.4](docs/architecture.md#34-予約公開予約非公開化スケジュール管理-aegis-serversrcschedulerrs-handlerscontentrs)、[theme_and_publishing_guide.md](docs/theme_and_publishing_guide.md#予約での非公開化期間限定公開)、[admin/README.md](admin/README.md)。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -28,10 +28,6 @@
 - [ ] **招待リンク**: admin がメールアドレスとロールを指定して招待し、本人がパスワードを決める（`require_approval` の代わりに使える）。
 - [ ] **SAML の拡張**（要望があれば）: IdP のメタデータ URL からの設定の読み込み（証明書の自動更新）、暗号化したアサーション（SP の秘密鍵が要る）、AuthnRequest の署名、シングルログアウト、ECDSA の署名。今の対応範囲は [authentication.md 8](docs/authentication.md#8-シングルサインオン-saml-20)。
 
-### コンテンツ・公開
-
-- [ ] **公開時のフック・通知**: 予約公開した時点でプラグインフック（例: `on-content-published`）を呼ぶ。通知は `[[notifications.audit.rules]]` の `content.publish` ですでに送れる。
-
 ### Admin Studio
 
 - [ ] **モバイル対応**: エディタは一覧 300px・プレビュー 480px 固定の 3 列で、スマホでは本文がほぼ見えない。ヘッダーは `nowrap` / `flex-shrink: 0` ではみ出し、`.app` が `height: 100vh; overflow: hidden` のため切れる。狭い画面では一覧・プレビューをドロワーやタブに、ヘッダーをメニューにまとめる。
@@ -42,7 +38,7 @@
 
 - [ ] **実行時の有効・無効の切り替え**: 今は設定ファイル + 再起動。API で切り替えるには、有効化リストの永続化（DB）と `PluginSupervisor` の差し替えが要る。
 - [ ] **ストアからのインストール**: パッケージの検証（テーマの `validate_theme_package` に相当）・署名・`min_aegis_version` の確認、展開先は `plugins/<name>/`。テーマの ZIP 導入も同じ仕組みで。
-- [ ] **AssemblyScript / TinyGo SDK の追従**: EC のフック・ホスト API（`calculate-order` / `on-order-status-changed` / `http_fetch` / `kv_get` / `config_get`）と `send-notification` のラッパー。ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) に記載済み。
+- [ ] **AssemblyScript / TinyGo SDK の追従**: EC のフック・ホスト API（`calculate-order` / `on-order-status-changed` / `http_fetch` / `kv_get` / `config_get`）と `send-notification`、`on-content-published` のラッパー。ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) に記載済み。
 - [ ] **AssemblyScript SDK の JSON 処理の高速化**: `escapeJson` / `findStringField` が入力の大きさの二乗で遅い（[architecture.md 12](docs/architecture.md#12-性能の記録)）。
 
 ### 通知

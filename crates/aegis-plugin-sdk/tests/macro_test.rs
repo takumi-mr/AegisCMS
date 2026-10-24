@@ -68,4 +68,20 @@ fn test_macro_generated_exports() {
     let updated_blocks: Vec<BlockNode> = serde_json::from_slice(&b_out_bytes).unwrap();
     assert_eq!(updated_blocks.len(), 2);
     assert_eq!(updated_blocks[1].name, "core/code");
+
+    // 4. on_content_published のテスト（既定実装は Ok(()) で 0 を返す）
+    let content = PublishedContent::new(
+        "id-123",
+        "article",
+        "Hello",
+        "hello",
+        "2099-01-01T00:00:00Z",
+    );
+    let content_json = serde_json::to_vec(&content).unwrap();
+    let c_len = content_json.len() as i32;
+    let c_ptr = allocate(c_len);
+    write_to_guest_memory(c_ptr, &content_json);
+
+    let res = on_content_published(c_ptr, c_len);
+    assert_eq!(res, 0);
 }
