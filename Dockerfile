@@ -42,8 +42,10 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 # 2-2. 依存クレートだけを先にビルド（レシピが同じならこのレイヤーはキャッシュされる）
 FROM chef AS rust-builder
+# ビルドプロファイル。CI のビルド検証では LTO を省いた ci-release を渡して時間を短縮する
+ARG CARGO_PROFILE=release
 COPY --from=planner /build/recipe.json recipe.json
-RUN cargo chef cook --release -p aegis-server --recipe-path recipe.json
+RUN cargo chef cook --profile ${CARGO_PROFILE} -p aegis-server --recipe-path recipe.json
 
 # 2-3. ソースコードをコピーして本番用最適化リリースビルド（ワークスペースのクレートのみ再コンパイル）
 COPY Cargo.toml Cargo.lock ./
@@ -51,7 +53,8 @@ COPY crates/ ./crates/
 COPY schemas/ ./schemas/
 COPY sdk/ ./sdk/
 COPY plugins/ ./plugins/
-RUN cargo build --release -p aegis-server
+RUN cargo build --profile ${CARGO_PROFILE} -p aegis-server \
+    && cp target/${CARGO_PROFILE}/aegis-server /build/aegis-server
 
 # ==========================================
 # Stage 3: Runtime Environment (Minimal & Secure)
@@ -73,7 +76,7 @@ RUN groupadd -g 10001 aegis && \
 RUN mkdir -p /app/data /app/config /app/schemas /app/plugins /app/themes /app/admin/dist
 
 # ビルド成果物の配置
-COPY --from=rust-builder /build/target/release/aegis-server /usr/local/bin/aegis-server
+COPY --from=rust-builder /build/aegis-server /usr/local/bin/aegis-server
 COPY --from=frontend-builder /build/admin/dist /app/admin/dist
 COPY config/docker.toml /app/config/docker.toml
 COPY config/default.toml /app/config/default.toml
