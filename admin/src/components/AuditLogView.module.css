@@ -200,3 +200,19 @@
   padding: 10px 12px;
   font-size: 0.8rem;
 }
+
+@media (max-width: 768px) {
+  .column {
+    padding: 16px 12px;
+  }
+
+  .heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .filters {
+    grid-template-columns: 1fr;
+  }
+}

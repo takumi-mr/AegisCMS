@@ -418,3 +418,24 @@
   font-size: 0.9rem;
   max-width: 500px;
 }
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem 1rem 3rem 1rem;
+    gap: 1.25rem;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab {
+    white-space: nowrap;
+  }
+}

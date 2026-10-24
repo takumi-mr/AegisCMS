@@ -2,6 +2,8 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
   overflow: hidden;
   background:
     radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
@@ -10,8 +12,68 @@
 
 .workspace {
   display: flex;
+  flex-direction: column;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
+}
+
+/* Mobile Pane Switcher */
+.mobilePaneBar {
+  display: none;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 4px 8px;
+  gap: 4px;
+  flex-shrink: 0;
+  z-index: 25;
+}
+
+.mobilePaneTab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.mobilePaneTab:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mobilePaneTab.mobilePaneTabActive {
+  background: var(--accent-indigo);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.workspaceColumns {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.paneList {
+  display: flex;
+  height: 100%;
+}
+
+.panePreview {
+  display: flex;
+  height: 100%;
 }
 
 .editorMain {
@@ -202,5 +264,86 @@
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  .mobilePaneBar {
+    display: flex;
+  }
+
+  .paneHiddenMobile {
+    display: none !important;
+  }
+
+  .paneList {
+    width: 100%;
+    flex: 1;
+  }
+
+  .panePreview {
+    width: 100%;
+    flex: 1;
+  }
+
+  .editorMain {
+    width: 100%;
+    flex: 1;
+  }
+
+  .editorColumn {
+    width: 100%;
+    padding: 16px 14px;
+    gap: 16px;
+    max-width: 100%;
+  }
+
+  .metaSection {
+    padding: 16px 14px;
+    gap: 12px;
+  }
+
+  .titleInput {
+    font-size: 1.4rem;
+  }
+
+  .statusField {
+    max-width: 100%;
+  }
+
+  .editorModeBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .modeTabs {
+    width: 100%;
+    display: flex;
+  }
+
+  .modeTab {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .modeActions {
+    justify-content: flex-end;
+  }
+
+  .blockToolbar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .toastContainer {
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .toast {
+    width: 100%;
+    justify-content: center;
   }
 }

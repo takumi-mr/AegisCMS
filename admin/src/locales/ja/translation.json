@@ -204,6 +204,12 @@
     "markdown": "Markdown",
     "pasteMarkdown": "Markdown を貼り付け",
     "pasteMarkdownTitle": "クリップボードの Markdown をブロックに変換して貼り付けます",
+    "mobilePanes": {
+      "aria": "エディタ画面の切り替え",
+      "list": "記事一覧",
+      "editor": "編集",
+      "preview": "プレビュー"
+    },
     "addBlock": "ブロックを追加",
     "heading": "見出し",
     "paragraph": "段落",
@@ -249,7 +255,8 @@
     "saving": "フックを実行中...",
     "save": "保存してフックを実行",
     "profileTitle": "{{who}} — プロフィール",
-    "signOut": "ログアウト"
+    "signOut": "ログアウト",
+    "toggleMenu": "メニューの開閉"
   },
   "login": {
     "subtitle": "Admin Studio にログイン",

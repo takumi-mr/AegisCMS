@@ -12,6 +12,8 @@ import {
   FileText,
   Clipboard,
   List,
+  PenSquare,
+  Eye,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Header, type AppView } from './components/Header';
@@ -69,6 +71,7 @@ export const App: React.FC = () => {
   const [categories, setCategories] = useState<ContentItem[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('themes');
+  const [mobilePane, setMobilePane] = useState<'list' | 'editor' | 'preview'>('editor');
 
   // Editor Form State
   const [title, setTitle] = useState<string>('Next-Gen WebAssembly CMS with Aegis');
@@ -262,6 +265,7 @@ export const App: React.FC = () => {
     setBlocks(itemBlocks);
     setMarkdownText(blocksToMarkdown(itemBlocks));
     setCategoryId(categoryIdOf(item) ?? '');
+    setMobilePane('editor');
   };
 
   const handleNew = () => {
@@ -278,6 +282,7 @@ export const App: React.FC = () => {
     ];
     setBlocks(newBlocks);
     setMarkdownText(blocksToMarkdown(newBlocks));
+    setMobilePane('editor');
   };
 
   // Block Manipulation
@@ -494,246 +499,311 @@ export const App: React.FC = () => {
         />
       ) : (
         <div className={styles.workspace}>
-          {/* Sidebar */}
-          <ContentList
-            contents={contents}
-            categories={categories}
-            selectedId={selectedId}
-            onSelect={handleSelectContent}
-            onNew={handleNew}
-            contentType={contentType}
-          />
-
-          {/* Main Editor Center Column */}
-          <main className={styles.editorMain}>
-            <div className={styles.editorColumn}>
-              {/* Meta Section */}
-              <div className={styles.metaSection}>
-                <input
-                  type="text"
-                  className={styles.titleInput}
-                  placeholder={t('editor.titlePlaceholder')}
-                  value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value);
-                    if (!selectedId) {
-                      setSlug(
-                        e.target.value
-                          .toLowerCase()
-                          .replace(/[^a-z0-9-]+/g, '-')
-                          .replace(/^-|-$/g, '')
-                      );
-                    }
-                  }}
-                />
-
-                <FieldRow>
-                  <Field label={t('editor.slug')}>
-                    <input
-                      type="text"
-                      value={slug}
-                      onChange={(e) => setSlug(e.target.value)}
-                      placeholder="post-slug"
-                    />
-                  </Field>
-
-                  <Field label={t('editor.status')} className={styles.statusField}>
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as EditorStatus)}
-                    >
-                      <option value="draft">{t('common.status.draft')}</option>
-                      <option value="scheduled">{t('common.status.scheduled')}</option>
-                      <option value="published">{t('common.status.published')}</option>
-                    </select>
-                  </Field>
-
-                  {status === 'scheduled' && (
-                    <Field label={t('editor.publishAt')}>
-                      <input
-                        type="datetime-local"
-                        value={publishAt}
-                        onChange={(e) => setPublishAt(e.target.value)}
-                        aria-label={t('editor.publishAtAria')}
-                      />
-                    </Field>
-                  )}
-
-                  {(status === 'published' || status === 'scheduled') && (
-                    <Field label={t('editor.unpublishAt')}>
-                      <input
-                        type="datetime-local"
-                        value={unpublishAt}
-                        onChange={(e) => setUnpublishAt(e.target.value)}
-                        aria-label={t('editor.unpublishAtAria')}
-                      />
-                    </Field>
-                  )}
-                </FieldRow>
-
-                <FieldRow>
-                  <Field label={t('editor.category')}>
-                    <select
-                      value={categoryId}
-                      onChange={(e) => setCategoryId(e.target.value)}
-                      aria-label={t('editor.categoryAria')}
-                    >
-                      <option value="">{t('editor.noCategory')}</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.title}
-                        </option>
-                      ))}
-                      {categoryId && !categories.some((c) => c.id === categoryId) && (
-                        <option value={categoryId}>
-                          {t('editor.unknownCategory', { id: categoryId.slice(0, 8) })}
-                        </option>
-                      )}
-                    </select>
-                  </Field>
-                  <Button
-                    variant="tool"
-                    onClick={() => {
-                      setSettingsSection('categories');
-                      setView('settings');
-                    }}
-                    title={t('editor.manageCategoriesTitle')}
-                  >
-                    <Tags size={14} />
-                    <span>{t('editor.manageCategories')}</span>
-                  </Button>
-                </FieldRow>
-              </div>
-
-              {/* Editor Mode Selector & Paste Actions */}
-              <div className={styles.editorModeBar}>
-                <div className={styles.modeTabs} role="tablist" aria-label={t('editor.mode')}>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={editorMode === 'blocks'}
-                    className={cx(styles.modeTab, editorMode === 'blocks' && styles.activeMode)}
-                    onClick={() => handleSwitchMode('blocks')}
-                  >
-                    <LayoutGrid size={14} />
-                    <span>{t('editor.blocks')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={editorMode === 'markdown'}
-                    className={cx(styles.modeTab, editorMode === 'markdown' && styles.activeMode)}
-                    onClick={() => handleSwitchMode('markdown')}
-                  >
-                    <FileText size={14} />
-                    <span>{t('editor.markdown')}</span>
-                  </button>
-                </div>
-
-                <div className={styles.modeActions}>
-                  <Button
-                    variant="tool"
-                    onClick={() => setIsPasteModalOpen(true)}
-                    title={t('editor.pasteMarkdownTitle')}
-                  >
-                    <Clipboard size={14} />
-                    <span>{t('editor.pasteMarkdown')}</span>
-                  </Button>
-                </div>
-              </div>
-
-              {editorMode === 'markdown' ? (
-                <MarkdownEditor
-                  value={markdownText}
-                  onChange={handleMarkdownChange}
-                  blocks={blocks}
-                  onSave={handleSave}
-                />
-              ) : (
-                <>
-                  {/* Block Insertion Toolbar */}
-                  <div className={styles.blockToolbar}>
-                    <span className={styles.toolbarLabel}>{t('editor.addBlock')}</span>
-                    <Button
-                      variant="tool"
-                      onClick={() =>
-                        addBlock('core/heading', t('editor.defaults.sectionTitle'), { level: 2 })
-                      }
-                    >
-                      <Hash size={14} />
-                      <span>{t('editor.heading')}</span>
-                    </Button>
-                    <Button variant="tool" onClick={() => addBlock('core/paragraph', '')}>
-                      <AlignLeft size={14} />
-                      <span>{t('editor.paragraph')}</span>
-                    </Button>
-                    <Button
-                      variant="tool"
-                      onClick={() => addBlock('core/code', '', { language: 'rust' })}
-                    >
-                      <Code2 size={14} />
-                      <span>{t('editor.code')}</span>
-                    </Button>
-                    <Button
-                      variant="tool"
-                      onClick={() => addBlock('core/list', '', { ordered: false })}
-                    >
-                      <List size={14} />
-                      <span>{t('editor.list')}</span>
-                    </Button>
-                    <Button
-                      variant="tool"
-                      onClick={() =>
-                        // Starts empty: the image and its alt text come from an upload or the media library
-                        addBlock('core/image', '', { src: '', alt: '' })
-                      }
-                    >
-                      <ImageIcon size={14} />
-                      <span>{t('editor.image')}</span>
-                    </Button>
-                  </div>
-
-                  {/* Block Canvas */}
-                  <div className={styles.blocksList} onPaste={handleCanvasPaste}>
-                    {blocks.map((block, idx) => (
-                      <BlockItem
-                        key={idx}
-                        block={block}
-                        index={idx}
-                        total={blocks.length}
-                        onChange={(updated) => updateBlock(idx, updated)}
-                        onMoveUp={() => moveBlock(idx, 'up')}
-                        onMoveDown={() => moveBlock(idx, 'down')}
-                        onDelete={() => deleteBlock(idx)}
-                        canUpload={editable}
-                      />
-                    ))}
-
-                    {blocks.length === 0 && (
-                      <div className={styles.emptyBlocks}>
-                        <p>{t('editor.noBlocks')}</p>
-                        <Button
-                          className={styles.addFirst}
-                          onClick={() => addBlock('core/paragraph')}
-                        >
-                          <Plus size={16} /> {t('editor.addFirst')}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </>
+          {/* Mobile Pane Switcher Bar */}
+          <div
+            className={styles.mobilePaneBar}
+            role="tablist"
+            aria-label={t('editor.mobilePanes.aria')}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobilePane === 'list'}
+              className={cx(
+                styles.mobilePaneTab,
+                mobilePane === 'list' && styles.mobilePaneTabActive
               )}
+              onClick={() => setMobilePane('list')}
+            >
+              <List size={14} />
+              <span>{t('editor.mobilePanes.list')}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobilePane === 'editor'}
+              className={cx(
+                styles.mobilePaneTab,
+                mobilePane === 'editor' && styles.mobilePaneTabActive
+              )}
+              onClick={() => setMobilePane('editor')}
+            >
+              <PenSquare size={14} />
+              <span>{t('editor.mobilePanes.editor')}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobilePane === 'preview'}
+              className={cx(
+                styles.mobilePaneTab,
+                mobilePane === 'preview' && styles.mobilePaneTabActive
+              )}
+              onClick={() => setMobilePane('preview')}
+            >
+              <Eye size={14} />
+              <span>{t('editor.mobilePanes.preview')}</span>
+            </button>
+          </div>
+
+          <div className={styles.workspaceColumns}>
+            {/* Sidebar */}
+            <div className={cx(styles.paneList, mobilePane !== 'list' && styles.paneHiddenMobile)}>
+              <ContentList
+                contents={contents}
+                categories={categories}
+                selectedId={selectedId}
+                onSelect={handleSelectContent}
+                onNew={handleNew}
+                contentType={contentType}
+              />
             </div>
 
-            {/* Right Live Preview Column */}
-            <Preview
-              contentType={contentType}
-              title={title}
-              slug={slug}
-              categoryId={categoryId}
-              blocks={blocks}
-            />
-          </main>
+            {/* Main Editor Center Column */}
+            <main
+              className={cx(styles.editorMain, mobilePane === 'list' && styles.paneHiddenMobile)}
+            >
+              <div
+                className={cx(
+                  styles.editorColumn,
+                  mobilePane !== 'editor' && styles.paneHiddenMobile
+                )}
+              >
+                {/* Meta Section */}
+                <div className={styles.metaSection}>
+                  <input
+                    type="text"
+                    className={styles.titleInput}
+                    placeholder={t('editor.titlePlaceholder')}
+                    value={title}
+                    onChange={(e) => {
+                      setTitle(e.target.value);
+                      if (!selectedId) {
+                        setSlug(
+                          e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9-]+/g, '-')
+                            .replace(/^-|-$/g, '')
+                        );
+                      }
+                    }}
+                  />
+
+                  <FieldRow>
+                    <Field label={t('editor.slug')}>
+                      <input
+                        type="text"
+                        value={slug}
+                        onChange={(e) => setSlug(e.target.value)}
+                        placeholder="post-slug"
+                      />
+                    </Field>
+
+                    <Field label={t('editor.status')} className={styles.statusField}>
+                      <select
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value as EditorStatus)}
+                      >
+                        <option value="draft">{t('common.status.draft')}</option>
+                        <option value="scheduled">{t('common.status.scheduled')}</option>
+                        <option value="published">{t('common.status.published')}</option>
+                      </select>
+                    </Field>
+
+                    {status === 'scheduled' && (
+                      <Field label={t('editor.publishAt')}>
+                        <input
+                          type="datetime-local"
+                          value={publishAt}
+                          onChange={(e) => setPublishAt(e.target.value)}
+                          aria-label={t('editor.publishAtAria')}
+                        />
+                      </Field>
+                    )}
+
+                    {(status === 'published' || status === 'scheduled') && (
+                      <Field label={t('editor.unpublishAt')}>
+                        <input
+                          type="datetime-local"
+                          value={unpublishAt}
+                          onChange={(e) => setUnpublishAt(e.target.value)}
+                          aria-label={t('editor.unpublishAtAria')}
+                        />
+                      </Field>
+                    )}
+                  </FieldRow>
+
+                  <FieldRow>
+                    <Field label={t('editor.category')}>
+                      <select
+                        value={categoryId}
+                        onChange={(e) => setCategoryId(e.target.value)}
+                        aria-label={t('editor.categoryAria')}
+                      >
+                        <option value="">{t('editor.noCategory')}</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.title}
+                          </option>
+                        ))}
+                        {categoryId && !categories.some((c) => c.id === categoryId) && (
+                          <option value={categoryId}>
+                            {t('editor.unknownCategory', { id: categoryId.slice(0, 8) })}
+                          </option>
+                        )}
+                      </select>
+                    </Field>
+                    <Button
+                      variant="tool"
+                      onClick={() => {
+                        setSettingsSection('categories');
+                        setView('settings');
+                      }}
+                      title={t('editor.manageCategoriesTitle')}
+                    >
+                      <Tags size={14} />
+                      <span>{t('editor.manageCategories')}</span>
+                    </Button>
+                  </FieldRow>
+                </div>
+
+                {/* Editor Mode Selector & Paste Actions */}
+                <div className={styles.editorModeBar}>
+                  <div className={styles.modeTabs} role="tablist" aria-label={t('editor.mode')}>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={editorMode === 'blocks'}
+                      className={cx(styles.modeTab, editorMode === 'blocks' && styles.activeMode)}
+                      onClick={() => handleSwitchMode('blocks')}
+                    >
+                      <LayoutGrid size={14} />
+                      <span>{t('editor.blocks')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={editorMode === 'markdown'}
+                      className={cx(styles.modeTab, editorMode === 'markdown' && styles.activeMode)}
+                      onClick={() => handleSwitchMode('markdown')}
+                    >
+                      <FileText size={14} />
+                      <span>{t('editor.markdown')}</span>
+                    </button>
+                  </div>
+
+                  <div className={styles.modeActions}>
+                    <Button
+                      variant="tool"
+                      onClick={() => setIsPasteModalOpen(true)}
+                      title={t('editor.pasteMarkdownTitle')}
+                    >
+                      <Clipboard size={14} />
+                      <span>{t('editor.pasteMarkdown')}</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {editorMode === 'markdown' ? (
+                  <MarkdownEditor
+                    value={markdownText}
+                    onChange={handleMarkdownChange}
+                    blocks={blocks}
+                    onSave={handleSave}
+                  />
+                ) : (
+                  <>
+                    {/* Block Insertion Toolbar */}
+                    <div className={styles.blockToolbar}>
+                      <span className={styles.toolbarLabel}>{t('editor.addBlock')}</span>
+                      <Button
+                        variant="tool"
+                        onClick={() =>
+                          addBlock('core/heading', t('editor.defaults.sectionTitle'), { level: 2 })
+                        }
+                      >
+                        <Hash size={14} />
+                        <span>{t('editor.heading')}</span>
+                      </Button>
+                      <Button variant="tool" onClick={() => addBlock('core/paragraph', '')}>
+                        <AlignLeft size={14} />
+                        <span>{t('editor.paragraph')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() => addBlock('core/code', '', { language: 'rust' })}
+                      >
+                        <Code2 size={14} />
+                        <span>{t('editor.code')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() => addBlock('core/list', '', { ordered: false })}
+                      >
+                        <List size={14} />
+                        <span>{t('editor.list')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() =>
+                          // Starts empty: the image and its alt text come from an upload or the media library
+                          addBlock('core/image', '', { src: '', alt: '' })
+                        }
+                      >
+                        <ImageIcon size={14} />
+                        <span>{t('editor.image')}</span>
+                      </Button>
+                    </div>
+
+                    {/* Block Canvas */}
+                    <div className={styles.blocksList} onPaste={handleCanvasPaste}>
+                      {blocks.map((block, idx) => (
+                        <BlockItem
+                          key={idx}
+                          block={block}
+                          index={idx}
+                          total={blocks.length}
+                          onChange={(updated) => updateBlock(idx, updated)}
+                          onMoveUp={() => moveBlock(idx, 'up')}
+                          onMoveDown={() => moveBlock(idx, 'down')}
+                          onDelete={() => deleteBlock(idx)}
+                          canUpload={editable}
+                        />
+                      ))}
+
+                      {blocks.length === 0 && (
+                        <div className={styles.emptyBlocks}>
+                          <p>{t('editor.noBlocks')}</p>
+                          <Button
+                            className={styles.addFirst}
+                            onClick={() => addBlock('core/paragraph')}
+                          >
+                            <Plus size={16} /> {t('editor.addFirst')}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Right Live Preview Column */}
+              <div
+                className={cx(
+                  styles.panePreview,
+                  mobilePane !== 'preview' && styles.paneHiddenMobile
+                )}
+              >
+                <Preview
+                  contentType={contentType}
+                  title={title}
+                  slug={slug}
+                  categoryId={categoryId}
+                  blocks={blocks}
+                />
+              </div>
+            </main>
+          </div>
         </div>
       )}
 

@@ -205,6 +205,12 @@
     "markdown": "Markdown",
     "pasteMarkdown": "Paste Markdown",
     "pasteMarkdownTitle": "Paste Markdown from clipboard to convert into blocks",
+    "mobilePanes": {
+      "aria": "Editor panels",
+      "list": "Articles",
+      "editor": "Editor",
+      "preview": "Preview"
+    },
     "addBlock": "Add Block",
     "heading": "Heading",
     "paragraph": "Paragraph",
@@ -252,7 +258,8 @@
     "saving": "Executing Hooks...",
     "save": "Save & Run Hooks",
     "profileTitle": "{{who}} — My profile",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "toggleMenu": "Toggle navigation menu"
   },
   "login": {
     "subtitle": "Sign in to Admin Studio",
