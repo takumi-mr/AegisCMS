@@ -59,8 +59,6 @@ impl RecordingNotifier {
     }
 }
 
-/// The `test_state_with_config` state before it is shared, with `extra_schemas` migrated too
-/// (e.g. to enable `[commerce]` with `AppState::with_commerce`)
 pub async fn test_app_state(
     config: AegisConfig,
     supervisor: PluginSupervisor,
@@ -68,7 +66,16 @@ pub async fn test_app_state(
 ) -> AppState {
     let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
     adapter.init().await.unwrap();
-    let db: Arc<dyn DatabaseAdapter> = Arc::new(adapter);
+    test_app_state_with_db(Arc::new(adapter), config, supervisor, extra_schemas).await
+}
+
+/// The `test_app_state` backed by any `DatabaseAdapter` implementation (e.g. Postgres, MySQL)
+pub async fn test_app_state_with_db(
+    db: Arc<dyn DatabaseAdapter>,
+    config: AegisConfig,
+    supervisor: PluginSupervisor,
+    extra_schemas: Vec<SchemaDefinition>,
+) -> AppState {
     let article: SchemaDefinition = serde_json::from_value(serde_json::json!({
         "content_type": "article",
         "label": "Articles",

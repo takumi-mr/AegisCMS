@@ -47,7 +47,9 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **カスタムフィールドの型**: `CustomFieldValue::from_json` がスキーマの型に合わせて変換する（jsonb → JSON、integer → i64、boolean → bool、その他は文字列）。変換できない値は `AegisError::Validation`（400）。SQLite は文字列で保存し、`null` は NULL で保存する（以前は空文字になり、数値の計算で 0 扱いになっていた）。読み出しは各アダプタの `custom_fields_from_row` で型ごとにデコードし、NULL は `fields` に含めない。**フィールド型を足すときは `SchemaMigration` の型対応・`CustomFieldValue`・各アダプタのデコードを揃えて変える**。
 - **リレーション**: `type: relation` / `target: <schema>.<column>` のフィールドは、応答の `relations` に参照先（`id` / `content_type` / `title` / `slug`）を入れる。解決は `resolve_relations_for_records` がリレーション列ごとに `IN (...)` の 1 回でまとめて行う（単一レコードも同じ関数）。参照の値は `relation_ref`（空文字・文字列以外は参照なし）。
 - **一覧**: `list_contents_page`（`ContentListQuery`: status / limit / offset、`ORDER BY created_at DESC, id DESC`）で取得し、総件数は同じ条件の `COUNT(*)`。インデックス `(created_at, id)` / `(status, created_at, id)` で並べ替えを避ける。全件が要る処理（メディアの使用中チェック）だけ `list_contents` を使う。
-- **注文**: 注文の DB 操作は `OrderStorage` トレイト（`DatabaseAdapter` のスーパートレイト）。`#[async_trait]` はマクロが impl ブロック内に生成したメソッドを変換しないため、`impl_order_storage!` が `#[async_trait] impl OrderStorage for ...` ごと生成する。SQL はダイアレクト共通の組み立てで、テストは SQLite のみ。
+- **注文**: 注文の DB 操作は `OrderStorage` トレイト（`DatabaseAdapter` のスーパートレイト）。`#[async_trait]` はマクロが impl ブロック内に生成したメソッドを変換しないため、`impl_order_storage!` が `#[async_trait] impl OrderStorage for ...` ごと生成する。
+  - **ダイアレクト共通の SQL 構築と実機検証**: プレースホルダ（SQLite: `?1`, PostgreSQL: `$1`, MySQL: `?`）や型キャスト、排他制御（注文作成と在庫減算のアトミックトランザクション、キャンセル時の restock 復帰）は SQLite だけでなく、Docker コンテナを用いた PostgreSQL 16 および MySQL 8.0 の実機環境で統合テスト（ストレージ層: `orders_integration`、E2E: `shop_tests`）を実施・パス済み。
+  - **テスト環境設計**: 専用 Compose（`docker-compose.test-dbs.yml`）と `task test:dbs` によりヘルスチェック待機付きで一括実行可能。CI や通常の開発時（コンテナ非稼働時）は高速 TCP プローブ（150ms）により即座にスキップされ、`cargo test` を阻害しない。
 
 ### 2.3 スキーマからのコード生成とシステム標準カラム
 

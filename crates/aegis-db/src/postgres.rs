@@ -37,6 +37,10 @@ impl PostgresAdapter {
     pub fn new(pool: Pool<Postgres>) -> Self {
         Self { pool }
     }
+
+    pub fn pool(&self) -> &Pool<Postgres> {
+        &self.pool
+    }
 }
 
 /// 行からスキーマ定義の列型に合わせてカスタムフィールドを読み出す（NULL の列は含めない）

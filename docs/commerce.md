@@ -104,6 +104,7 @@ pending_payment ──▶ paid ──▶ shipped ──▶ completed
 - 注文の作成時に、注文の保存と**同じトランザクション**で `stock = stock - 数量`（`stock >= 数量` のときだけ）を実行します。1 つでも足りなければ何も保存せず `409` を返すため、同時に注文されても売り越しません。
 - 発送前（`pending_payment` / `paid`）の取り消しで在庫を戻します。発送後は戻しません。
 - 未払いの注文は期限（`manual`: `payment_due_hours`、`stripe`: `reservation_minutes`）を過ぎると、1 分ごとの処理で取り消して在庫を戻します（決済サービスの通知を待つため 5 分の猶予があります）。複数のサーバーで動かしても、条件付きの更新なので二重に戻りません。
+- **RDBMS 実機での ACID 保証**: SQLite のインメモリ検証に加え、Docker 上の PostgreSQL 16 および MySQL 8.0 実機コンテナ環境においても、アトミックな在庫減算・複数商品における部分不足時のロールバック・注文キャンセル時の在庫復帰（restock）の動作を検証・テスト済みです（実行手順は [development.md](development.md#7-データベース実機検証-postgresql--mysql) を参照）。
 
 ### 3.3 Admin Studio
 

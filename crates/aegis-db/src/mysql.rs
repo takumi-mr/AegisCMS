@@ -37,6 +37,10 @@ impl MySqlAdapter {
     pub fn new(pool: Pool<MySql>) -> Self {
         Self { pool }
     }
+
+    pub fn pool(&self) -> &Pool<MySql> {
+        &self.pool
+    }
 }
 
 /// MySQL のエラー番号 1061 (ER_DUP_KEYNAME: 同名インデックスが既に存在する) か

@@ -9,10 +9,10 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: パスワードの再設定・承認の知らせ・ユーザー招待リンク機能の実装。
-  1. **パスワード再設定（メール）**: キャッシュ + SHA-256 ハッシュ + URL フラグメント（`#reset-password=<token>`）。アカウント列挙防止（常に `202 Accepted`、Argon2id 擬似ハッシュ処理）、ログイン画面の「パスワードをお忘れですか？」および再設定フォーム、通知 `account.password_reset`。仕様は [authentication.md 9](docs/authentication.md#9-パスワードの再設定)、設計は [architecture.md 6.7](docs/architecture.md#67-パスワードの再設定-aegis_authpassword_reset-handlerspassword_resetrs)。
-  2. **承認の知らせ**: `_aegis_users` に `pending_approval` カラム追加（SQLite / PostgreSQL / MySQL マイグレーション対応）、自己登録時の承認待ちフラグ設定、admin がユーザーを有効化（`disabled: false`）した際の自動クリアおよび承認通知メール `account.approved` 送信、Admin Studio での「承認待ち」バッジと承認ボタン。仕様は [authentication.md 11](docs/authentication.md#11-承認通知-accountapproved)、設計は [architecture.md 6.6](docs/architecture.md#66-アカウント登録-aegis_authregistration-handlersregistrationrs)。
-  3. **ユーザー招待リンク**: admin によるメールアドレス・ロール指定での招待発行（`POST /api/v1/auth/invitations`）、キャッシュ + SHA-256 + URL フラグメント（`#invite=<token>`）、通知 `account.invite`、招待受諾フォーム（`GET /api/v1/auth/invitations/info`、`POST /api/v1/auth/invitations/accept`）でのユーザー名・パスワード設定、即時有効アカウント開設。仕様は [authentication.md 10](docs/authentication.md#10-ユーザー招待リンク)、設計は [architecture.md 6.8](docs/architecture.md#68-ユーザー招待リンク-aegis_authinvitation-handlersinvitationrs)。その前は予約公開時のプラグインフック呼び出し（`on-content-published` フック）。
+- **直近の完了**: PostgreSQL / MySQL での注文・在庫の実機検証（テスト用コンテナ環境、ストレージ層および E2E テスト、`task test:dbs`）。
+  - **検証内容**: PostgreSQL 16 および MySQL 8.0 の実機コンテナにおいて、スキーママイグレーション（`_aegis_orders`）、アトミックな在庫減算・ロールバック、注文作成・決済・キャンセル（在庫復帰 `restock`）、一覧取得・カウント・期限切れ注文取得、HTTP チェックアウト〜スタッフ注文管理 E2E フローを網羅。
+  - **開発環境対応**: `docker-compose.test-dbs.yml` と Taskfile（`docker:dbs:up`, `docker:dbs:down`, `test:dbs`）を整備。コンテナ非稼働時は 150ms の TCP プローブで安全にテストをスキップし通常の `cargo test` を阻害しない。
+  - **ドキュメント反映**: 仕様・ACID 保証は [commerce.md 3.2](docs/commerce.md#32-在庫)、設計は [architecture.md 2.2](docs/architecture.md#22-databaseadapter)、実行手順は [development.md 7](docs/development.md#7-データベース実機検証-postgresql--mysql)。その前はパスワード再設定・承認通知・招待リンク。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -50,7 +50,6 @@
 
 - [ ] **フェーズ 4**: 顧客アカウント（会員登録・注文履歴）、売上レポート、在庫切れの通知、On-demand ISR との連動。
 - [ ] **商品のバリエーション**（サイズ・色ごとの在庫・価格）、返金 API（Stripe Refund）、複数通貨。
-- [ ] **PostgreSQL / MySQL での注文・在庫の実機検証**（テストは SQLite のみ）。
 
 ### 将来のロードマップ
 
