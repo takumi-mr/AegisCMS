@@ -10,6 +10,40 @@ pub struct PostContext {
     pub blocks_json: String,
 }
 
+/// `on-content-published` フックに渡す、公開されたコンテンツの情報
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PublishedContent {
+    pub id: String,
+    pub content_type: String,
+    pub title: String,
+    pub slug: String,
+    pub published_at: String,
+    #[serde(default)]
+    pub author_id: Option<String>,
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub fields: std::collections::HashMap<String, serde_json::Value>,
+}
+
+impl PublishedContent {
+    pub fn new(
+        id: impl Into<String>,
+        content_type: impl Into<String>,
+        title: impl Into<String>,
+        slug: impl Into<String>,
+        published_at: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            content_type: content_type.into(),
+            title: title.into(),
+            slug: slug.into(),
+            published_at: published_at.into(),
+            author_id: None,
+            fields: std::collections::HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ContentSummary {
     pub id: String,

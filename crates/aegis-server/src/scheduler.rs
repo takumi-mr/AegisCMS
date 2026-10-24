@@ -85,6 +85,42 @@ pub async fn publish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize
                         .with_details(details),
                 )
                 .await;
+
+            if outcome != AuditOutcome::Success {
+                continue;
+            }
+
+            let published_content = aegis_core::PublishedContent {
+                id: record.id.clone(),
+                content_type: record.content_type.clone(),
+                title: record.title.clone(),
+                slug: record.slug.clone(),
+                published_at: at.to_string(),
+                author_id: record.author_id.clone(),
+                fields: record.custom_fields.clone(),
+            };
+            let failures = {
+                let supervisor = state.supervisor.read().await;
+                supervisor
+                    .notify_content_published(&published_content)
+                    .await
+            };
+            for (plugin, error) in failures {
+                tracing::warn!("Plugin '{}' on-content-published failed: {}", plugin, error);
+                state
+                    .audit
+                    .record(
+                        AuditEvent::new(AuditAction::PluginError, AuditOutcome::Failure)
+                            .with_resource("content", Some(record.id.clone()))
+                            .with_details(json!({
+                                "hook": "on-content-published",
+                                "plugin": plugin,
+                                "content_type": record.content_type,
+                                "error": error.to_string(),
+                            })),
+                    )
+                    .await;
+            }
         }
     }
     published
@@ -480,5 +516,144 @@ mod tests {
         )
         .await;
         assert_eq!(bad_published.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    struct MockPublishPlugin {
+        manifest: aegis_core::PluginManifest,
+        published: Arc<std::sync::Mutex<Vec<aegis_core::PublishedContent>>>,
+        should_fail: bool,
+    }
+
+    #[async_trait::async_trait]
+    impl aegis_runtime::AegisPlugin for MockPublishPlugin {
+        fn manifest(&self) -> &aegis_core::PluginManifest {
+            &self.manifest
+        }
+
+        async fn on_content_published(
+            &self,
+            content: aegis_core::PublishedContent,
+        ) -> aegis_core::Result<()> {
+            if self.should_fail {
+                return Err(aegis_core::AegisError::PluginRuntime(
+                    "simulated webhook failure".to_string(),
+                ));
+            }
+            self.published.lock().unwrap().push(content);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_scheduled_content_triggers_on_content_published_hook() {
+        let mut supervisor = PluginSupervisor::new();
+        let published_items = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut manifest = aegis_core::PluginManifest::default();
+        manifest.name = "publisher-webhook".to_string();
+        manifest.capabilities.hooks = vec!["on-content-published".to_string()];
+
+        supervisor.register(Arc::new(MockPublishPlugin {
+            manifest,
+            published: published_items.clone(),
+            should_fail: false,
+        }));
+
+        let state = test_state(supervisor).await;
+        let created = create(
+            &state,
+            serde_json::json!({
+                "title": "Release Notes",
+                "slug": "release-notes",
+                "status": "scheduled",
+                "published_at": "2099-05-01T12:00:00Z"
+            }),
+        )
+        .await
+        .unwrap();
+
+        // 予約日時前はフックは呼ばれない
+        let before: DateTime<Utc> = "2099-05-01T11:59:59Z".parse().unwrap();
+        assert_eq!(publish_due_contents(&state, before).await, 0);
+        assert!(published_items.lock().unwrap().is_empty());
+
+        // 予約日時に公開され、フックが呼ばれる
+        let due: DateTime<Utc> = "2099-05-01T12:00:00Z".parse().unwrap();
+        assert_eq!(publish_due_contents(&state, due).await, 1);
+
+        let items = published_items.lock().unwrap().clone();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, created.id);
+        assert_eq!(items[0].slug, "release-notes");
+        assert_eq!(items[0].title, "Release Notes");
+        assert_eq!(items[0].published_at, "2099-05-01T12:00:00Z");
+        assert_eq!(items[0].content_type, "article");
+    }
+
+    #[tokio::test]
+    async fn test_scheduled_content_plugin_error_is_audited_and_does_not_block_publishing() {
+        let mut supervisor = PluginSupervisor::new();
+        let mut manifest = aegis_core::PluginManifest::default();
+        manifest.name = "failing-plugin".to_string();
+        manifest.capabilities.hooks = vec!["on-content-published".to_string()];
+
+        supervisor.register(Arc::new(MockPublishPlugin {
+            manifest,
+            published: Arc::new(std::sync::Mutex::new(Vec::new())),
+            should_fail: true,
+        }));
+
+        let state = test_state(supervisor).await;
+        let created = create(
+            &state,
+            serde_json::json!({
+                "title": "Important News",
+                "slug": "important-news",
+                "status": "scheduled",
+                "published_at": "2099-06-01T00:00:00Z"
+            }),
+        )
+        .await
+        .unwrap();
+
+        let due: DateTime<Utc> = "2099-06-01T00:00:00Z".parse().unwrap();
+        // 公開自体は成功する
+        assert_eq!(publish_due_contents(&state, due).await, 1);
+        assert_eq!(status_of(&state, "important-news").await.0, "published");
+
+        // 監査ログに ContentPublish と PluginError の両方が記録されている
+        let publish_events = state
+            .db
+            .query_audit_events(&aegis_core::AuditQuery {
+                action: Some(AuditAction::ContentPublish),
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(publish_events.len(), 1);
+        assert_eq!(publish_events[0].outcome, AuditOutcome::Success);
+        assert_eq!(
+            publish_events[0].resource_id.as_deref(),
+            Some(created.id.as_str())
+        );
+
+        let error_events = state
+            .db
+            .query_audit_events(&aegis_core::AuditQuery {
+                action: Some(AuditAction::PluginError),
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(error_events.len(), 1);
+        assert_eq!(error_events[0].outcome, AuditOutcome::Failure);
+        assert_eq!(
+            error_events[0].resource_id.as_deref(),
+            Some(created.id.as_str())
+        );
+        let details = &error_events[0].details;
+        assert_eq!(details["hook"], "on-content-published");
+        assert_eq!(details["plugin"], "failing-plugin");
     }
 }

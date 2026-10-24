@@ -2,7 +2,7 @@ use crate::guard::CapabilityGuard;
 use aegis_ast::BlockNode;
 use aegis_core::{
     Delivered, NotificationMessage, OrderContext, OrderStatusChange, PluginManifest, PostContext,
-    Result, SendError, UserAuthContext,
+    PublishedContent, Result, SendError, UserAuthContext,
 };
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -52,6 +52,14 @@ pub trait AegisPlugin: Send + Sync {
         let guard = CapabilityGuard::new(self.manifest());
         guard.check_hook("on-order-status-changed")?;
         let _ = change;
+        Ok(())
+    }
+
+    /// コンテンツ公開の通知（予約公開など）。結果は公開に影響しない
+    async fn on_content_published(&self, content: PublishedContent) -> Result<()> {
+        let guard = CapabilityGuard::new(self.manifest());
+        guard.check_hook("on-content-published")?;
+        let _ = content;
         Ok(())
     }
 
@@ -235,6 +243,24 @@ impl PluginSupervisor {
                 continue;
             }
             if let Err(e) = plugin.on_order_status_changed(change.clone()).await {
+                failures.push((plugin.manifest().name.clone(), e));
+            }
+        }
+        failures
+    }
+
+    /// Notifies every `on-content-published` plugin. A failing plugin does not stop the
+    /// others; the failures are returned (plugin name, error) for logging and auditing
+    pub async fn notify_content_published(
+        &self,
+        content: &PublishedContent,
+    ) -> Vec<(String, aegis_core::AegisError)> {
+        let mut failures = Vec::new();
+        for plugin in &self.plugins {
+            if !declares_hook(plugin.as_ref(), "on-content-published") {
+                continue;
+            }
+            if let Err(e) = plugin.on_content_published(content.clone()).await {
                 failures.push((plugin.manifest().name.clone(), e));
             }
         }

@@ -19,7 +19,7 @@ pub use commerce::{
     OrderStatusChange, ShippingAddress,
 };
 
-pub use entity::{ContentSummary, PageRenderContext, Pagination, PostContext};
+pub use entity::{ContentSummary, PageRenderContext, Pagination, PostContext, PublishedContent};
 
 pub use error::{AegisError, Result};
 pub use manifest::{

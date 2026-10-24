@@ -4,7 +4,7 @@ use wasmtime::{Instance, InstancePre, Module, Store, TypedFunc};
 use aegis_ast::BlockNode;
 use aegis_core::{
     AegisError, Delivered, NotificationMessage, OrderContext, OrderStatusChange, PageRenderContext,
-    PluginManifest, PostContext, Result, SendError, UserAuthContext,
+    PluginManifest, PostContext, PublishedContent, Result, SendError, UserAuthContext,
 };
 
 use super::engine::WasmEngine;
@@ -280,6 +280,32 @@ impl AegisPlugin for WasmPluginInstance {
                 "on-order-status-changed",
                 "on_order_status_changed",
                 &to_json(&change)?,
+            )
+            .await?;
+        // 通知の結果は使わない。`{"error": ...}` だけを失敗として扱う
+        if let Some(out) = out {
+            if let Ok(serde_json::Value::Object(body)) = serde_json::from_slice(&out) {
+                if let Some(error) = body.get("error") {
+                    return Err(AegisError::PluginRuntime(format!(
+                        "{}: {}",
+                        self.manifest.name,
+                        error
+                            .as_str()
+                            .map(str::to_string)
+                            .unwrap_or_else(|| error.to_string())
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn on_content_published(&self, content: PublishedContent) -> Result<()> {
+        let out = self
+            .call_hook(
+                "on-content-published",
+                "on_content_published",
+                &to_json(&content)?,
             )
             .await?;
         // 通知の結果は使わない。`{"error": ...}` だけを失敗として扱う
