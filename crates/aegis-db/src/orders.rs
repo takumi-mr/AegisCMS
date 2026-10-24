@@ -115,11 +115,12 @@ pub const ORDER_COLUMNS: [&str; 24] = [
     "refunds_json",
 ];
 
-/// 注文の作成時に確保する在庫（商品テーブル `table` の `id` の `stock` を `quantity` 減らす）
+/// 注文の作成時に確保する在庫（variant_id があればバリエーションテーブル、無ければ商品テーブル `table` の `id` の `stock` を `quantity` 減らす）
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StockReservation {
     pub table: String,
     pub product_id: String,
+    pub variant_id: Option<String>,
     pub quantity: i64,
 }
 
@@ -127,6 +128,7 @@ pub struct StockReservation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutOfStock {
     pub product_id: String,
+    pub variant_id: Option<String>,
 }
 
 /// 注文の状態の変更（`from_status` のときだけ変える。決済の Webhook の重複・同時の変更に備える）
@@ -467,17 +469,23 @@ macro_rules! impl_order_storage {
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
                 let mut tx = self.pool.begin().await.map_err(db_err)?;
                 for r in reservations {
-                    let result = sqlx::query(&$crate::orders::build_stock_reserve(&r.table, $ph))
-                        .bind(r.quantity)
-                        .bind(&r.product_id)
-                        .bind(r.quantity)
-                        .execute(&mut *tx)
-                        .await
-                        .map_err(db_err)?;
+                    let (target_table, target_id) = match &r.variant_id {
+                        Some(vid) => ($crate::variants::PRODUCT_VARIANT_TABLE, vid.as_str()),
+                        None => (r.table.as_str(), r.product_id.as_str()),
+                    };
+                    let result =
+                        sqlx::query(&$crate::orders::build_stock_reserve(target_table, $ph))
+                            .bind(r.quantity)
+                            .bind(target_id)
+                            .bind(r.quantity)
+                            .execute(&mut *tx)
+                            .await
+                            .map_err(db_err)?;
                     if result.rows_affected() == 0 {
                         tx.rollback().await.map_err(db_err)?;
                         return Ok(Err($crate::OutOfStock {
                             product_id: r.product_id.clone(),
+                            variant_id: r.variant_id.clone(),
                         }));
                     }
                 }
@@ -583,9 +591,13 @@ macro_rules! impl_order_storage {
                     return Ok(false);
                 }
                 for r in &refund.restock {
-                    sqlx::query(&$crate::orders::build_stock_release(&r.table, $ph))
+                    let (target_table, target_id) = match &r.variant_id {
+                        Some(vid) => ($crate::variants::PRODUCT_VARIANT_TABLE, vid.as_str()),
+                        None => (r.table.as_str(), r.product_id.as_str()),
+                    };
+                    sqlx::query(&$crate::orders::build_stock_release(target_table, $ph))
                         .bind(r.quantity)
-                        .bind(&r.product_id)
+                        .bind(target_id)
                         .execute(&mut *tx)
                         .await
                         .map_err(db_err)?;
@@ -616,9 +628,13 @@ macro_rules! impl_order_storage {
                     return Ok(false);
                 }
                 for r in &change.restock {
-                    sqlx::query(&$crate::orders::build_stock_release(&r.table, $ph))
+                    let (target_table, target_id) = match &r.variant_id {
+                        Some(vid) => ($crate::variants::PRODUCT_VARIANT_TABLE, vid.as_str()),
+                        None => (r.table.as_str(), r.product_id.as_str()),
+                    };
+                    sqlx::query(&$crate::orders::build_stock_release(target_table, $ph))
                         .bind(r.quantity)
-                        .bind(&r.product_id)
+                        .bind(target_id)
                         .execute(&mut *tx)
                         .await
                         .map_err(db_err)?;

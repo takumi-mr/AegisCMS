@@ -42,7 +42,10 @@
     "updatePluginSettingsFailed": "Failed to update plugin settings",
     "setPluginEnabledFailed": "Failed to enable or disable the plugin",
     "siteSettingsFailed": "Failed to load the site settings",
-    "updateSiteSettingsFailed": "Failed to save the site settings"
+    "updateSiteSettingsFailed": "Failed to save the site settings",
+    "variantsFailed": "Could not load product variants",
+    "saveVariantFailed": "Could not save product variant",
+    "deleteVariantFailed": "Could not delete product variant"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -606,7 +609,21 @@
     "save": "Save product",
     "create": "Create product",
     "deleted": "Deleted \"{{title}}\"",
-    "priceAndStock": "Price & stock ({{currency}})"
+    "priceAndStock": "Price & stock ({{currency}})",
+    "variants": {
+      "title": "Product Variants",
+      "add": "Add Variant",
+      "edit": "Edit Variant",
+      "name": "Variant Name",
+      "priceOverride": "Price Override",
+      "inheritsBase": "Inherits base price",
+      "empty": "No variants yet. You can configure variants for different sizes, colors, and per-variant stock.",
+      "confirmDelete": "Delete variant \"{{title}}\"?",
+      "deleteFailed": "Could not delete variant",
+      "saved": "Variant saved",
+      "createFirstHint": "Save the product first to configure variants (sizes, colors, SKUs, stock, and pricing overrides).",
+      "attributesHint": "Attributes (comma-separated key:value, e.g. color:Red, size:M)"
+    }
   },
   "profile": {
     "title": "My profile",

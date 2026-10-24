@@ -485,3 +485,26 @@ export interface ScheduleResponse {
   items: ScheduleItem[];
   total: number;
 }
+
+export interface ProductVariant {
+  id: string;
+  product_id: string;
+  sku: string | null;
+  title: string;
+  price_override: number | null;
+  stock: number | null;
+  attributes: Record<string, string>;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertVariantPayload {
+  id?: string;
+  sku?: string | null;
+  title: string;
+  price_override?: number | null;
+  stock?: number | null;
+  attributes?: Record<string, string>;
+  position?: number;
+}

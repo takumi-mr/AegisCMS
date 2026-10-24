@@ -17,6 +17,7 @@ import type {
   PluginInfo,
   PreviewRequest,
   PreviewResult,
+  ProductVariant,
   RefundOrderPayload,
   RegistrationPayload,
   RegistrationResult,
@@ -31,6 +32,7 @@ import type {
   StorageObjectQuery,
   ThemeInfo,
   UpdateUserPayload,
+  UpsertVariantPayload,
   UserAccount,
 } from '../types';
 import { getSessionToken } from './session';
@@ -329,6 +331,47 @@ export const aegisApi = {
     if (res.status === 401 && token) unauthorizedHandler?.();
     const err = await res.json().catch(() => ({ error: i18n.t('api.deleteContentFailed') }));
     throw new ApiError(res.status, err.error || i18n.t('api.deleteContentFailed'));
+  },
+
+  async listVariants(contentType: string, productId: string): Promise<ProductVariant[]> {
+    return request(
+      `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(productId)}/variants`,
+      {},
+      i18n.t('api.variantsFailed')
+    );
+  },
+
+  async upsertVariant(
+    contentType: string,
+    productId: string,
+    payload: UpsertVariantPayload
+  ): Promise<ProductVariant> {
+    return request(
+      `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(productId)}/variants`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      i18n.t('api.saveVariantFailed')
+    );
+  },
+
+  async deleteVariant(contentType: string, productId: string, variantId: string): Promise<void> {
+    const token = getSessionToken();
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(
+      `${API_BASE}/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`,
+      {
+        method: 'DELETE',
+        headers,
+      }
+    );
+    if (res.ok) return;
+    if (res.status === 401 && token) unauthorizedHandler?.();
+    const err = await res.json().catch(() => ({ error: i18n.t('api.deleteVariantFailed') }));
+    throw new ApiError(res.status, err.error || i18n.t('api.deleteVariantFailed'));
   },
 
   async getShopConfig(): Promise<ShopConfig> {

@@ -80,10 +80,34 @@ impl std::fmt::Display for OrderStatus {
     }
 }
 
+/// 商品のバリエーション（サイズ・色・SKUごとの価格上書きと在庫）
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProductVariant {
+    pub id: String,
+    pub product_id: String,
+    #[serde(default)]
+    pub sku: Option<String>,
+    pub title: String,
+    #[serde(default)]
+    pub price_override: Option<i64>,
+    #[serde(default)]
+    pub stock: Option<i64>,
+    #[serde(default)]
+    pub attributes: HashMap<String, String>,
+    #[serde(default)]
+    pub position: i32,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// 注文の 1 行（商品 × 数量）。単価はサーバーが商品から決める
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderLine {
     pub product_id: String,
+    #[serde(default)]
+    pub variant_id: Option<String>,
+    #[serde(default)]
+    pub variant_title: Option<String>,
     pub slug: String,
     pub title: String,
     #[serde(default)]

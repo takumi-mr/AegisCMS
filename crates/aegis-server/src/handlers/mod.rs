@@ -23,7 +23,8 @@ pub mod users;
 pub use audit::{get_metrics, list_audit_logs};
 pub use auth::{create_session, delete_session, get_current_session};
 pub use content::{
-    create_content, delete_content, get_content, list_content, list_schedule, update_content,
+    create_content, delete_content, delete_variant, get_content, list_content, list_schedule,
+    list_variants, update_content, upsert_variant,
 };
 pub use health::health_check;
 pub use invitation::{accept_invitation, create_invitation, get_invitation_info};
@@ -37,8 +38,8 @@ pub use registration::{register, verify_registration};
 pub use saml::{saml_acs, saml_login, saml_metadata};
 pub use schemas::{get_schema, list_schemas};
 pub use shop::{
-    checkout, get_order, get_public_order, list_orders, payment_webhook, quote, refund_order,
-    shop_config, update_order_status,
+    checkout, get_order, get_public_order, get_public_product_variants, list_orders,
+    payment_webhook, quote, refund_order, shop_config, update_order_status,
 };
 pub use site::{get_site_settings, update_site_settings};
 pub use sso::list_auth_providers;

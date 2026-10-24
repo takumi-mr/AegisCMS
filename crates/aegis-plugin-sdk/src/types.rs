@@ -222,6 +222,10 @@ pub struct PageRenderContext {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct OrderLine {
     pub product_id: String,
+    #[serde(default)]
+    pub variant_id: Option<String>,
+    #[serde(default)]
+    pub variant_title: Option<String>,
     pub slug: String,
     pub title: String,
     #[serde(default)]

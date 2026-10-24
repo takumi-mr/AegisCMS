@@ -501,6 +501,36 @@ pub async fn refund_order(
     Ok(Json(admin_view(&state, &commerce, &updated)))
 }
 
+/// `GET /api/v1/shop/products/{id}/variants` — 商品のバリエーション一覧を取得（公開）
+pub async fn get_public_product_variants(
+    State(state): State<Arc<AppState>>,
+    Path(id_or_slug): Path<String>,
+) -> Result<Json<Vec<aegis_core::ProductVariant>>, ApiError> {
+    let product_id = if let Some(schema) = state
+        .schemas
+        .read()
+        .await
+        .get(&state.config.commerce.product_type)
+    {
+        if let Ok(Some(content)) = state.db.get_content(schema, &id_or_slug).await {
+            content.id
+        } else {
+            id_or_slug
+        }
+    } else {
+        id_or_slug
+    };
+    let variants: Vec<aegis_core::ProductVariant> = state
+        .db
+        .list_product_variants(&product_id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    Ok(Json(variants))
+}
+
 #[cfg(test)]
 #[path = "shop_tests.rs"]
 mod tests;

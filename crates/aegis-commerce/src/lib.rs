@@ -85,6 +85,8 @@ pub type CommerceResult<T> = std::result::Result<T, CommerceError>;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CartItem {
     pub product: String,
+    #[serde(default)]
+    pub variant: Option<String>,
     pub quantity: u32,
 }
 
@@ -247,15 +249,21 @@ impl CommerceService {
         if items.is_empty() {
             return Err(CommerceError::Invalid("The cart is empty".to_string()));
         }
-        // 同じ商品は 1 行にまとめる（並び順はカートの順）
-        let mut merged: Vec<(String, u32)> = Vec::new();
+        // 同じ商品・バリエーションは 1 行にまとめる（並び順はカートの順）
+        let mut merged: Vec<((String, Option<String>), u32)> = Vec::new();
         for item in items {
-            let key = item.product.trim().to_string();
-            if key.is_empty() || item.quantity == 0 {
+            let prod_key = item.product.trim().to_string();
+            let var_key = item
+                .variant
+                .as_ref()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty());
+            if prod_key.is_empty() || item.quantity == 0 {
                 return Err(CommerceError::Invalid(
                     "Each cart item needs a product and a quantity of at least 1".to_string(),
                 ));
             }
+            let key = (prod_key, var_key);
             match merged.iter_mut().find(|(k, _)| *k == key) {
                 Some((_, quantity)) => *quantity = quantity.saturating_add(item.quantity),
                 None => merged.push((key, item.quantity)),
@@ -272,7 +280,7 @@ impl CommerceService {
         let table = schema.table_name();
         let mut lines = Vec::with_capacity(merged.len());
         let mut reservations = Vec::with_capacity(merged.len());
-        for (key, quantity) in merged {
+        for ((prod_key, var_key), quantity) in merged {
             if quantity > self.config.max_quantity_per_item {
                 return Err(CommerceError::Invalid(format!(
                     "At most {} of each product per order",
@@ -282,56 +290,136 @@ impl CommerceService {
             let product = self
                 .deps
                 .db
-                .get_content(&schema, &key)
+                .get_content(&schema, &prod_key)
                 .await
                 .map_err(|e| CommerceError::Internal(e.to_string()))?
                 .filter(|p| p.status == "published")
                 .ok_or_else(|| {
-                    CommerceError::NotFound(format!("Product '{}' is not available", key))
+                    CommerceError::NotFound(format!("Product '{}' is not available", prod_key))
                 })?;
-            if lines.iter().any(|l: &OrderLine| l.product_id == product.id) {
-                // ID と slug で同じ商品を指定した
-                return Err(CommerceError::Invalid(format!(
-                    "Product '{}' is listed twice",
-                    product.slug
-                )));
-            }
-            let unit_price = integer_field(&product.custom_fields, "price")
-                .filter(|price| *price >= 0)
-                .ok_or_else(|| {
-                    CommerceError::NotFound(format!("Product '{}' has no price", product.slug))
-                })?;
-            // 見積もりの時点でも在庫切れを知らせる（確定は注文作成時の UPDATE で行う）
-            if let Some(stock) = integer_field(&product.custom_fields, "stock") {
-                if stock < i64::from(quantity) {
-                    return Err(CommerceError::OutOfStock {
-                        product_id: product.id,
-                        title: product.title,
-                    });
+
+            let (variant, unit_price, sku, title) = if let Some(ref vk) = var_key {
+                let v = self
+                    .deps
+                    .db
+                    .get_product_variant(vk)
+                    .await
+                    .map_err(|e| CommerceError::Internal(e.to_string()))?;
+                let v = match v {
+                    Some(v) => v,
+                    None => self
+                        .deps
+                        .db
+                        .get_product_variant_by_sku(vk)
+                        .await
+                        .map_err(|e| CommerceError::Internal(e.to_string()))?
+                        .ok_or_else(|| {
+                            CommerceError::NotFound(format!(
+                                "Product variant '{}' is not available",
+                                vk
+                            ))
+                        })?,
+                };
+                if v.product_id != product.id {
+                    return Err(CommerceError::Invalid(format!(
+                        "Variant '{}' does not belong to product '{}'",
+                        vk, product.slug
+                    )));
                 }
-            }
-            let sku = product
-                .custom_fields
-                .get("sku")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(str::to_string);
+                if lines.iter().any(|l: &OrderLine| {
+                    l.product_id == product.id && l.variant_id.as_deref() == Some(&v.id)
+                }) {
+                    return Err(CommerceError::Invalid(format!(
+                        "Product variant '{}' is listed twice",
+                        v.title
+                    )));
+                }
+                let base_price = integer_field(&product.custom_fields, "price");
+                let price = v
+                    .price_override
+                    .or(base_price)
+                    .filter(|price| *price >= 0)
+                    .ok_or_else(|| {
+                        CommerceError::NotFound(format!(
+                            "Product variant '{}' has no price",
+                            v.title
+                        ))
+                    })?;
+                if let Some(stock) = v.stock {
+                    if stock < i64::from(quantity) {
+                        return Err(CommerceError::OutOfStock {
+                            product_id: product.id.clone(),
+                            title: format!("{} ({})", product.title, v.title),
+                        });
+                    }
+                }
+                let var_sku = v.sku.clone().or_else(|| {
+                    product
+                        .custom_fields
+                        .get("sku")
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string)
+                });
+                let full_title = format!("{} - {}", product.title, v.title);
+                (Some(v), price, var_sku, full_title)
+            } else {
+                if lines
+                    .iter()
+                    .any(|l: &OrderLine| l.product_id == product.id && l.variant_id.is_none())
+                {
+                    // ID と slug で同じ商品を指定した
+                    return Err(CommerceError::Invalid(format!(
+                        "Product '{}' is listed twice",
+                        product.slug
+                    )));
+                }
+                let unit_price = integer_field(&product.custom_fields, "price")
+                    .filter(|price| *price >= 0)
+                    .ok_or_else(|| {
+                        CommerceError::NotFound(format!("Product '{}' has no price", product.slug))
+                    })?;
+                // 見積もりの時点でも在庫切れを知らせる（確定は注文作成時の UPDATE で行う）
+                if let Some(stock) = integer_field(&product.custom_fields, "stock") {
+                    if stock < i64::from(quantity) {
+                        return Err(CommerceError::OutOfStock {
+                            product_id: product.id.clone(),
+                            title: product.title.clone(),
+                        });
+                    }
+                }
+                let sku = product
+                    .custom_fields
+                    .get("sku")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string);
+                (None, unit_price, sku, product.title.clone())
+            };
+
             let line_total = unit_price
                 .checked_mul(i64::from(quantity))
                 .ok_or_else(|| CommerceError::Invalid("Amount is too large".to_string()))?;
+            let (variant_id, variant_title) = match variant {
+                Some(v) => (Some(v.id), Some(v.title)),
+                None => (None, None),
+            };
             reservations.push(StockReservation {
                 table: table.clone(),
                 product_id: product.id.clone(),
+                variant_id: variant_id.clone(),
                 quantity: i64::from(quantity),
             });
             lines.push(OrderLine {
                 product_id: product.id,
                 slug: product.slug,
-                title: product.title,
+                title,
                 sku,
                 unit_price,
                 quantity,
                 line_total,
+                variant_id,
+                variant_title,
             });
         }
         Ok((lines, reservations))
@@ -582,6 +670,7 @@ impl CommerceService {
                 .map(|line| StockReservation {
                     table: table.clone(),
                     product_id: line.product_id.clone(),
+                    variant_id: line.variant_id.clone(),
                     quantity: i64::from(line.quantity),
                 })
                 .collect()
@@ -729,6 +818,7 @@ impl CommerceService {
                 .map(|l| StockReservation {
                     table: product_table.clone(),
                     product_id: l.product_id,
+                    variant_id: l.variant_id,
                     quantity: l.quantity as i64,
                 })
                 .collect()

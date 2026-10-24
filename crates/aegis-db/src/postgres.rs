@@ -100,6 +100,7 @@ fn record_from_row(schema: &SchemaDefinition, r: &PgRow) -> ContentRecord {
 }
 
 super::orders::impl_order_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::variants::impl_product_variant_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
@@ -242,6 +243,20 @@ impl DatabaseAdapter for PostgresAdapter {
         .execute(&self.pool)
         .await
         .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // 商品バリエーション
+        let (variant_table, variant_indexes) =
+            super::variants::build_product_variant_table("TEXT", "VARCHAR(255)", "BIGINT", false);
+        sqlx::query(&variant_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in variant_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
 
         Ok(())
     }

@@ -956,6 +956,7 @@ async fn test_official_wasm_plugins_in_checkout() {
     let request = |coupon: Option<&str>| CartRequest {
         items: vec![CartItem {
             product: "lamp".to_string(),
+            variant: None,
             quantity: 2,
         }],
         email: "buyer@example.com".to_string(),
@@ -1356,4 +1357,174 @@ async fn test_order_refund_api_e2e() {
         .as_str()
         .unwrap()
         .contains("already fully refunded"));
+}
+
+#[tokio::test]
+async fn test_product_variant_crud_and_checkout_flow() {
+    let shop = shop(|_| {}).await;
+
+    // 1. バリエーション作成 (Red / S)
+    let (status, var1) = shop
+        .call(
+            "POST",
+            "/api/v1/contents/product/p-shirt/variants",
+            Some(json!({
+                "id": "var-red-s",
+                "title": "Red / Small",
+                "sku": "TSH-RED-S",
+                "price_override": 2500,
+                "stock": 5,
+                "attributes": { "color": "Red", "size": "S" },
+                "position": 1
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(var1["id"], "var-red-s");
+    assert_eq!(var1["title"], "Red / Small");
+    assert_eq!(var1["price_override"], 2500);
+    assert_eq!(var1["stock"], 5);
+
+    // 2. バリエーション作成 (Blue / L: 価格上書きなし、親の 3000 円を継承)
+    let (status, var2) = shop
+        .call(
+            "POST",
+            "/api/v1/contents/product/p-shirt/variants",
+            Some(json!({
+                "id": "var-blue-l",
+                "title": "Blue / Large",
+                "sku": "TSH-BLU-L",
+                "price_override": null,
+                "stock": 3,
+                "attributes": { "color": "Blue", "size": "L" },
+                "position": 2
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(var2["id"], "var-blue-l");
+
+    // 3. 管理者向け一覧取得
+    let (status, list) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-shirt/variants",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let items = list.as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["id"], "var-red-s");
+    assert_eq!(items[1]["id"], "var-blue-l");
+
+    // 4. 公開ショップ向け一覧取得（slug でのアクセス）
+    let (status, pub_list) = shop
+        .call("GET", "/api/v1/shop/products/shirt/variants", None, None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(pub_list.as_array().unwrap().len(), 2);
+
+    // 5. バリエーション付き商品の見積もり (Red/S x 2: 2500 x 2 = 5000, Blue/L x 1: 3000 x 1 = 3000)
+    let (status, quote) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [
+                    { "product": "p-shirt", "variant": "var-red-s", "quantity": 2 },
+                    { "product": "p-shirt", "variant": "var-blue-l", "quantity": 1 }
+                ]
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote["subtotal"], 8000);
+    assert_eq!(quote["total"], 8000);
+    let lines = quote["lines"].as_array().unwrap();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["variant_id"], "var-red-s");
+    assert_eq!(lines[0]["variant_title"], "Red / Small");
+    assert_eq!(lines[0]["unit_price"], 2500);
+    assert_eq!(lines[1]["variant_id"], "var-blue-l");
+    assert_eq!(lines[1]["variant_title"], "Blue / Large");
+    assert_eq!(lines[1]["unit_price"], 3000);
+
+    // 6. チェックアウトと在庫引き当て確認
+    let (status, checkout) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/checkout",
+            Some(json!({
+                "items": [
+                    { "product": "p-shirt", "variant": "var-red-s", "quantity": 2 }
+                ],
+                "email": "buyer-var@example.com",
+                "name": "Variant Customer"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let order_id = checkout["order"]["id"].as_str().unwrap();
+
+    // Red/S の在庫が 5 -> 3 に減っていること
+    let (status, list_after) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-shirt/variants",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list_after.as_array().unwrap()[0]["stock"], 3);
+
+    // 7. 注文キャンセルによるバリエーション在庫復帰
+    let (status, _) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/status", order_id),
+            Some(json!({ "status": "cancelled" })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, list_restocked) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-shirt/variants",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list_restocked.as_array().unwrap()[0]["stock"], 5);
+
+    // 8. バリエーション削除
+    let (status, _) = shop
+        .call(
+            "DELETE",
+            "/api/v1/contents/product/p-shirt/variants/var-blue-l",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, list_deleted) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-shirt/variants",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list_deleted.as_array().unwrap().len(), 1);
 }

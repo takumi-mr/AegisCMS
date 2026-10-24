@@ -915,6 +915,119 @@ pub async fn list_schedule(
     Ok(Json(ScheduleResponse { items, total }))
 }
 
+/// 商品バリエーションの新規作成・更新リクエスト
+#[derive(Debug, Deserialize)]
+pub struct UpsertVariantRequest {
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub sku: Option<String>,
+    pub title: String,
+    #[serde(default)]
+    pub price_override: Option<i64>,
+    #[serde(default)]
+    pub stock: Option<i64>,
+    #[serde(default)]
+    pub attributes: HashMap<String, String>,
+    #[serde(default)]
+    pub position: i32,
+}
+
+/// `GET /api/v1/contents/{content_type}/{id}/variants`
+/// 指定された商品のバリエーション一覧を取得（viewer以上）
+pub async fn list_variants(
+    State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
+    Path((_content_type, id)): Path<(String, String)>,
+) -> Result<Json<Vec<aegis_core::ProductVariant>>, ApiError> {
+    let variants: Vec<aegis_core::ProductVariant> = state
+        .db
+        .list_product_variants(&id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    Ok(Json(variants))
+}
+
+/// `POST /api/v1/contents/{content_type}/{id}/variants`
+/// 商品バリエーションを作成または更新（editor以上）
+pub async fn upsert_variant(
+    State(state): State<Arc<AppState>>,
+    RequireRole(_session): EditorSession,
+    Path((content_type, id)): Path<(String, String)>,
+    Json(payload): Json<UpsertVariantRequest>,
+) -> Result<(StatusCode, Json<aegis_core::ProductVariant>), ApiError> {
+    let schema = find_schema(&state, &content_type).await?;
+    let product = state
+        .db
+        .get_content(&schema, &id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, format!("Product '{}' not found", id)))?;
+
+    if payload.title.trim().is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "Variant title is required",
+        ));
+    }
+
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let variant_id = payload
+        .id
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let existing = state
+        .db
+        .get_product_variant(&variant_id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let created_at = existing
+        .as_ref()
+        .map(|e| e.created_at.clone())
+        .unwrap_or_else(|| now.clone());
+
+    let variant = aegis_core::ProductVariant {
+        id: variant_id,
+        product_id: product.id,
+        sku: payload.sku.filter(|s| !s.trim().is_empty()),
+        title: payload.title.trim().to_string(),
+        price_override: payload.price_override,
+        stock: payload.stock,
+        attributes: payload.attributes,
+        position: payload.position,
+        created_at,
+        updated_at: now,
+    };
+    let record: aegis_db::ProductVariantRecord = (&variant).into();
+
+    state
+        .db
+        .upsert_product_variant(&record)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok((StatusCode::OK, Json(variant)))
+}
+
+/// `DELETE /api/v1/contents/{content_type}/{id}/variants/{variant_id}`
+/// 商品バリエーションを削除（editor以上）
+pub async fn delete_variant(
+    State(state): State<Arc<AppState>>,
+    RequireRole(_session): EditorSession,
+    Path((_content_type, _id, variant_id)): Path<(String, String, String)>,
+) -> Result<StatusCode, ApiError> {
+    state
+        .db
+        .delete_product_variant(&variant_id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

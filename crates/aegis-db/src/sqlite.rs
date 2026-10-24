@@ -117,6 +117,7 @@ impl SqliteAdapter {
 }
 
 super::orders::impl_order_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::variants::impl_product_variant_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 
 #[async_trait]
 impl DatabaseAdapter for SqliteAdapter {
@@ -284,6 +285,20 @@ impl DatabaseAdapter for SqliteAdapter {
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 商品バリエーション
+        let (variant_table, variant_indexes) =
+            super::variants::build_product_variant_table("TEXT", "TEXT", "INTEGER", false);
+        sqlx::query(&variant_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in variant_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
         }
 
         Ok(())

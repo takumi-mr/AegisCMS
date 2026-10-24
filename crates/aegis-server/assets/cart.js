@@ -105,7 +105,7 @@
   function addToCart(product, quantity) {
     var items = loadCart();
     var existing = items.find(function (item) {
-      return item.product === product.product;
+      return item.product === product.product && (item.variant || null) === (product.variant || null);
     });
     if (existing) existing.quantity += quantity;
     else items.push(Object.assign({}, product, { quantity: quantity }));
@@ -119,12 +119,19 @@
       button.addEventListener('click', function () {
         var input = button.dataset.quantityInput && document.querySelector(button.dataset.quantityInput);
         var quantity = Math.max(1, parseInt((input && input.value) || '1', 10) || 1);
+        var variantSelect = button.dataset.variantSelect && document.querySelector(button.dataset.variantSelect);
+        var variantId = (variantSelect && variantSelect.value) || button.dataset.variantId || null;
+        var selectedOpt = variantSelect && variantSelect.selectedOptions && variantSelect.selectedOptions[0];
+        var variantTitle = (selectedOpt && (selectedOpt.dataset.variantTitle || selectedOpt.textContent)) || button.dataset.variantTitle || null;
+        var variantPrice = (selectedOpt && selectedOpt.dataset.variantPrice) || button.dataset.variantPrice || null;
         addToCart(
           {
             product: button.dataset.productId,
+            variant: variantId,
+            variantTitle: variantTitle,
             slug: button.dataset.productSlug,
             title: button.dataset.productTitle,
-            price: parseInt(button.dataset.productPrice || '0', 10),
+            price: parseInt(variantPrice || button.dataset.productPrice || '0', 10),
           },
           quantity
         );
@@ -146,7 +153,11 @@
 
     function cartItems() {
       return loadCart().map(function (item) {
-        return { product: item.product, quantity: item.quantity };
+        return {
+          product: item.product,
+          variant: item.variant || null,
+          quantity: item.quantity,
+        };
       });
     }
 
@@ -266,12 +277,16 @@
       var list = el('div', { className: 'aegis-cart-lines' });
       items.forEach(function (item, index) {
         var line = state.quote && state.quote.lines.find(function (l) {
-          return l.product_id === item.product || l.slug === item.slug;
+          if (item.variant) {
+            return (l.product_id === item.product || l.slug === item.slug) && l.variant_id === item.variant;
+          }
+          return (l.product_id === item.product || l.slug === item.slug) && !l.variant_id;
         });
         var price = line ? line.unit_price : item.price;
+        var displayTitle = (line && line.title) || (item.variantTitle ? (item.title + ' - ' + item.variantTitle) : item.title) || item.slug;
         list.appendChild(
           el('div', { className: 'aegis-cart-line' }, [
-            el('a', { href: config.productsUrl + '/' + encodeURIComponent(item.slug || item.product), className: 'aegis-line-title', text: item.title || item.slug }),
+            el('a', { href: config.productsUrl + '/' + encodeURIComponent(item.slug || item.product), className: 'aegis-line-title', text: displayTitle }),
             el('span', { className: 'aegis-muted', text: formatMoney(price) }),
             el('input', {
               type: 'number',

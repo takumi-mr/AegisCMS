@@ -201,6 +201,15 @@ pub async fn render_product(
             .map(|(name, rel)| (name.clone(), render::relation_summary(rel)))
             .collect()
     };
+    let variants = state
+        .db
+        .list_product_variants(&record.id)
+        .await
+        .unwrap_or_default();
+    let variants_json = serde_json::to_string(&variants).unwrap_or_else(|_| "[]".to_string());
+    let mut theme_vars = HashMap::new();
+    theme_vars.insert("variants_json".to_string(), variants_json);
+
     let ctx = PageRenderContext {
         template: "product.html".to_string(),
         content_type: schema.content_type.clone(),
@@ -212,9 +221,14 @@ pub async fn render_product(
         fields: {
             let mut fields = record.custom_fields;
             fields.insert("id".to_string(), serde_json::json!(record.id));
+            fields.insert(
+                "variants".to_string(),
+                serde_json::to_value(&variants).unwrap_or_default(),
+            );
             fields
         },
         relations,
+        theme_vars,
         ..Default::default()
     };
     render_shop_page(&state, ctx).await
