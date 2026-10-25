@@ -298,6 +298,7 @@ dependencies = [
  "aegis-commerce",
  "aegis-core",
  "aegis-db",
+ "aegis-forum",
  "aegis-notify",
  "aegis-runtime",
  "aegis-schema",

@@ -70,6 +70,49 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             post(handlers::reply_comment),
         )
         .route("/comments/unsubscribe", get(handlers::unsubscribe_page))
+        // --- 掲示板（[forum]） ---
+        .route(
+            "/api/v1/forum/categories",
+            get(handlers::forum::api_list_categories).post(handlers::forum::api_create_category),
+        )
+        .route(
+            "/api/v1/forum/categories/{slug}",
+            get(handlers::forum::api_get_category)
+                .put(handlers::forum::api_update_category)
+                .delete(handlers::forum::api_delete_category),
+        )
+        .route(
+            "/api/v1/forum/categories/{slug}/threads",
+            get(handlers::forum::api_list_threads),
+        )
+        .route(
+            "/api/v1/forum/threads",
+            post(handlers::forum::api_create_thread),
+        )
+        .route(
+            "/api/v1/forum/threads/{id}",
+            get(handlers::forum::api_get_thread).delete(handlers::forum::api_delete_thread),
+        )
+        .route(
+            "/api/v1/forum/threads/{id}/posts",
+            get(handlers::forum::api_list_posts),
+        )
+        .route(
+            "/api/v1/forum/posts",
+            post(handlers::forum::api_create_post),
+        )
+        .route(
+            "/api/v1/forum/threads/{id}/pin",
+            post(handlers::forum::api_pin_thread),
+        )
+        .route(
+            "/api/v1/forum/threads/{id}/lock",
+            post(handlers::forum::api_lock_thread),
+        )
+        .route(
+            "/api/v1/forum/posts/{id}",
+            delete(handlers::forum::api_delete_post),
+        )
         .route("/api/v1/schedule", get(handlers::list_schedule))
         .route(
             "/api/v1/storage/upload",
@@ -250,6 +293,23 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/cart", get(handlers::render_cart))
         .route("/orders/{id}", get(handlers::render_order))
         .route("/shop/cart.js", get(handlers::cart_script))
+        .route("/forum", get(handlers::forum::render_forum_index))
+        .route(
+            "/forum/{category_slug}",
+            get(handlers::forum::render_forum_category),
+        )
+        .route(
+            "/forum/{category_slug}/threads",
+            post(handlers::forum::handle_create_thread_form),
+        )
+        .route(
+            "/forum/{category_slug}/{thread_id}",
+            get(handlers::forum::render_forum_thread),
+        )
+        .route(
+            "/forum/{category_slug}/{thread_id}/posts",
+            post(handlers::forum::handle_create_post_form),
+        )
         .route("/{slug}", get(handlers::render_page_or_slug));
 
     // ローカルストレージの場合、/uploads で静的ファイル配信

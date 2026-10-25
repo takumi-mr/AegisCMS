@@ -2,6 +2,7 @@ pub mod audit;
 pub mod auth;
 pub mod comments;
 pub mod content;
+pub mod forum;
 pub mod health;
 pub mod invitation;
 pub mod notifications;
@@ -70,5 +71,7 @@ pub use users::{
     create_user, delete_avatar, delete_user, get_user, list_users, update_user, upload_avatar,
 };
 
+#[cfg(test)]
+mod forum_tests;
 #[cfg(test)]
 mod package_install_tests;

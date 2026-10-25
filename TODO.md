@@ -9,7 +9,21 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: 固定ページ（Page）の作成・管理、ブランク/フル幅LPレイアウト切り替え、カスタムHTMLブロック（Raw HTML）の追加（ブランチ `feat/custom-pages-and-layouts`、PR #91）
+- **直近の完了**: フォーラム機能のテーマUI追加および専用データベース分離（Write負荷・ロック競合隔離）の実装（ブランチ `feat/forum-theme-and-split-db`）
+  - **専用データベース分離 (`[forum].database_url`)**:
+    - `ForumConfig` に `database_url: Option<String>` を追加。未指定時はメイン CMS の DB を共有するゼロコンフィグ運用を維持しつつ、指定時は完全に独立したデータベースアダプター（SQLite / PostgreSQL / MySQL）を初期化・接続。
+    - **SQLite の Write ロック競合（`SQLITE_BUSY`）回避**: 掲示板の投稿バースト時にも、メイン CMS のコンテンツ更新・EC 決済・顧客セッションが一切ブロックされない物理的分離を実現。
+    - **RDBMS コネクション枯渇防止**: PostgreSQL / MySQL 環境において、掲示板専用のコネクションプールを運用することで、コア CMS 本体の接続枠枯渇を防護。
+    - `aegis migrate` およびサーバー起動時に専用 DB が設定されている場合は自動マイグレーション（テーブル・インデックス自動生成）を実行。
+  - **テーマ統合とモダンなフォーラム UI**:
+    - `aegis-theme` にガラスモーフィズムと洗練されたダーク/ライトトーンを採用した組み込みテンプレート群（`forum_common.html`, `forum_index.html`, `forum_category.html`, `forum_thread.html`）を新設。テーマ側で同名ファイルを配置することで完全オーバーライド可能。
+    - カテゴリ一覧、最新アクティブスレッド、ピン留め/ロックバッジ、スレッド作成フォーム、レス番号付きタイムライン、返信フォーム、カーソル/ページネーションナビゲーションを完備。
+  - **公開ルーティング・フォーム POST・JSON REST API**:
+    - `aegis-server` に公開画面ルーティング（`/forum`, `/forum/{category_slug}`, `/forum/{category_slug}/{thread_id}`）および HTML フォーム POST ハンドラー（303 See Other リダイレクトとアンカー遷移 `#post-N`、フラッシュメッセージ対応）を統合。
+    - JSON REST API（`/api/v1/forum/categories`, `/api/v1/forum/threads`, `/api/v1/forum/posts`, モデレーション）をマウント。
+  - **厳格なテスト検証**:
+    - `aegis-server/src/handlers/forum_tests.rs` にて、専用 DB へのデータ完全隔離（メイン DB への非混入）、HTML 描画、フォーム投稿＆リダイレクト、JSON API、レートリミット（429）を網羅する結合テストを追加。
+- **その前**: 固定ページ（Page）の作成・管理、ブランク/フル幅LPレイアウト切り替え、カスタムHTMLブロック（Raw HTML）の追加（ブランチ `feat/custom-pages-and-layouts`、PR #91）
   - **Admin Studio 固定ページ管理 & レイアウトセレクター**:
     - コンテンツ一覧画面（`ContentList`）に「記事（Articles）」と「固定ページ（Pages）」のタブ切り替えを導入。固定ページ一覧には「テーマ標準」または「ブランクLP」のレイアウトバッジを表示。
     - エディタヘッダーのメタ情報セクションにレイアウト切り替えドロップダウン（テーマ標準 `page.html` / ブランク/フル幅LP `blank.html`）を新設。リアルタイムプレビューおよび保存 payload（`layout` フィールド）と連携。
@@ -125,6 +139,15 @@
 - **フォーラム機能（`aegis-forum`）の設計判断**:
   - **描画ボトルネックの回避**: ベンチマーク結果から明らかな「HTML描画・Wasmフックがボトルネック」という課題を踏まえ、掲示板機能はJSON API / 軽量レスポンスを前提としてコアCMSの重いレンダリングパイプラインを通さない独立クレートとして設計。
   - **専用データモデルとストレージ分離**: CMSの「記事（Articles）」テーブルを流用せず、専用テーブル（`_aegis_forum_categories`, `_aegis_forum_threads`, `_aegis_forum_posts`）を定義。`aegis-db::ForumStorage` により SQLite / PostgreSQL / MySQL すべてで自動マイグレーション。
+  - **フォーラム専用データベース分離（Write負荷・コネクション枯渇対策）**:
+    - `[forum].database_url` 設定により、メインCMSのDBとは完全に独立した専用DB接続・ストレージアダプターを運用可能に設計。
+    - **SQLite の Write ロック競合（`SQLITE_BUSY`）回避**: 掲示板の投稿バースト時にも、メイン CMS のコンテンツ更新・EC 決済・顧客セッションが一切ブロックされない物理的分離を実現。
+    - **RDBMS コネクション枯渇防止**: PostgreSQL / MySQL 環境において、掲示板専用のコネクションプールを運用することで、コア CMS 本体の接続枠枯渇を防護。未指定時はメイン DB をそのまま共有するゼロコンフィグ運用も担保。
+    - `aegis migrate` コマンドおよびサーバー起動時に、分離DBが存在する場合は自動マイグレーション（テーブル・インデックス生成）を実行。
+  - **テーマ統合とモダンなフォーラム UI**:
+    - `aegis-theme` にガラスモーフィズムと洗練されたダーク/ライトトーンを採用した組み込みテンプレート群（`forum_common.html`, `forum_index.html`, `forum_category.html`, `forum_thread.html`）を新設。テーマ側で同名ファイルを配置することで完全オーバーライド可能。
+    - 公開 Web 画面ルーティング（`/forum`, `/forum/:category_slug`, `/forum/:category_slug/:thread_id`）および HTML フォーム POST（スレッド作成、レス投稿、303 リダイレクト・フラッシュ表示）を `aegis-server` に統合。
+    - JSON REST API（`/api/v1/forum/...`）も完備し、SPA や外部クライアントからの操作にも対応。
   - **キーセット（カーソル）ページネーション**: `OFFSET` による性能劣化を防ぐため、スレッド一覧は `(is_pinned DESC, last_post_at DESC, id DESC)`、レス一覧は `post_number > ?` のカーソル走査を標準化。数万〜数十万件規模でも 1ms 未満の応答を保証。
   - **連投防止・モデレーション**: `CacheBackend` を活用した IP / ユーザーごとのレートリミット（`rate_limit_secs`）、スレッドのピン留め・ロック・自動ロック（`auto_lock_post_count`）、ソフトデリート、監査ログ（`AuditAction::Forum*`）を完全装備。
 - **プラグイン・テーマ パッケージ検証・ZIP導入設計**:
@@ -138,6 +161,7 @@
   - **スキーマ駆動と既存テーブルの完全互換**: 既存の `schemas/pages.yaml`（`layout` 文字列フィールド、`page` コンテンツタイプ）と `_aegis_content_pages` テーブル定義をそのまま活用し、DB マイグレーション不要で後方互換性を維持。
   - **Admin Studio UI/UX**: コンテンツ一覧の「記事」「固定ページ」タブ分割、固定ページ専用のレイアウト切替セレクター、等幅フォントによる HTML ブロックエディタ、Markdown モードとの双方向シームレス変換を完備。
 - **次のステップ**:
-  - `feat/forum-crate` の PR #88 レビュー・マージ
-  - 必要に応じた `aegis-server` へのエンドポイントマウント（`/api/v1/forum/...`）またはテーマ用マクロの検討
+  - `feat/forum-theme-and-split-db` の PR レビュー・マージ
+  - Admin Studio へのフォーラム管理画面の追加（必要に応じて）
+  - EC 拡張 Phase 4: 顧客アカウント・売上レポート等の設計・検討
 

@@ -9,6 +9,7 @@ use aegis_comments::CommentsConfig;
 use aegis_commerce::CommerceConfig;
 use aegis_core::{AegisError, Result};
 use aegis_db::DatabaseConfig;
+use aegis_forum::ForumConfig;
 use aegis_notify::NotificationsConfig;
 use aegis_runtime::{PluginsConfig, RuntimeConfig};
 use aegis_storage::StorageConfig;
@@ -46,6 +47,8 @@ pub struct AegisConfig {
     pub notifications: NotificationsConfig,
     #[serde(default)]
     pub comments: CommentsConfig,
+    #[serde(default)]
+    pub forum: ForumConfig,
 }
 
 impl AegisConfig {

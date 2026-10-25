@@ -22,6 +22,7 @@ aegis-auth = { path = "../aegis-auth", default-features = false }
 aegis-commerce = { path = "../aegis-commerce" }
 aegis-comments = { path = "../aegis-comments" }
 aegis-notify = { path = "../aegis-notify" }
+aegis-forum = { path = "../aegis-forum" }
 
 
 tokio.workspace = true
