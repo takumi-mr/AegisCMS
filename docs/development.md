@@ -119,6 +119,14 @@ node scripts/benchmark.mjs --token <セッション ID>   # 環境変数 AEGIS_B
 ```
 
 - **一覧 API（`api`）とプレビュー（`preview`）は Viewer 以上のセッションが必要**です。`--user` / `--token` を指定しない場合、この 2 つは計測しません（`-t api` などで個別に指定するとエラー）。セッションなしで回すと、本来の処理ではなく 401 の応答と、拒否を記録する監査ログ（`access.denied`）の書き込みを測ることになるためです。記事ページに使う slug の検索にも同じセッションを使います。
+- 記事が多い状態で測るには、先に `scripts/seed-benchmark.mjs`（`task bench:seed`）でデータを入れます。カテゴリ 20 件と記事 1 万件（約 10 ブロック・約 4KB、カテゴリへのリレーションつき、10 件に 1 件は下書き）を API 経由で作り、投入の速さ（件数/秒）も表示します。同じ接頭辞（`--prefix`、既定 `bench`）で 2 回流すと slug が重複して失敗するので、測り直すときは DB を作り直してください。
+
+  ```bash
+  export AEGIS_BENCH_PASSWORD=...
+  task bench:seed -- --user admin            # 記事 1 万件（-n で件数、-c で並行数）
+  task bench:http -- --user admin
+  ```
+
 - 4xx / 5xx の応答が混ざったシナリオは ⚠️ と応答の内訳（例: `HTTP 422 x 32106`）を表示します。この数字はエンドポイント本来の性能ではありません。
 
 ### 6.2 Wasm プラグインのプロファイリング (`task bench:plugins`)

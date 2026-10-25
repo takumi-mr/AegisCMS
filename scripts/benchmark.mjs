@@ -343,7 +343,7 @@ async function login(baseUrl, username, password) {
 
 async function discoverArticleSlug(baseUrl, authHeaders) {
   try {
-    const res = await fetch(`${baseUrl}/api/v1/contents/article?limit=1`, {
+    const res = await fetch(`${baseUrl}/api/v1/contents/article?limit=1&status=published`, {
       headers: authHeaders,
     });
     if (res.ok) {
