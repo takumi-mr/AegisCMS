@@ -14,6 +14,11 @@
     - ヘッダーナビゲーションに「フォーラム (`forum`)」タブを追加（`[forum].enabled` が有効かつ編集者以上の場合に動的表示）。
     - **スレッド管理 & モデレーション**: 全スレッド/カテゴリ絞り込み一覧、📌 ピン留めトグル（Pin/Unpin）、🔒 ロックトグル（Lock/Unlock）、🗑️ スレッド削除（確認ダイアログ付き）、💬 レス一覧閲覧モーダル & 迷惑レスの個別削除、公開サイトへの直接リンク（`↗`）を装備。
     - **カテゴリ管理**: カテゴリ一覧表示、新規カテゴリ作成モーダル（名前、スラッグ、説明、並び順）、カテゴリ編集モーダル、カテゴリ削除機能を完備。
+    - **Storybook インタラクションテストの追加 (`ForumManager.stories.tsx`)**:
+      - `Default`: スレッド一覧ロード・カテゴリバッジ・スレッド総数の自動検証。
+      - `SwitchToCategories`: カテゴリ管理サブタブへの切り替えとカテゴリ一覧テーブル表示の自動検証。
+      - `PinAndLockInteraction`: スレッドピン留めボタンのクリック操作とトースト通知呼び出しの自動検証。
+      - `ViewPostsModal`: 投稿（レス）一覧モーダルの展開と各レス本文の自動検証。
     - **国際化 (i18n)**: 日本語（`ja`）および英語（`en`）の完全なローカライズを適用。
   - **専用データベース分離 (`[forum].database_url`)**:
     - `ForumConfig` に `database_url: Option<String>` を追加。未指定時はメイン CMS の DB を共有するゼロコンフィグ運用を維持しつつ、指定時は完全に独立したデータベースアダプター（SQLite / PostgreSQL / MySQL）を初期化・接続。
@@ -28,7 +33,7 @@
     - JSON REST API（`/api/v1/forum/categories`, `GET/POST /api/v1/forum/threads`, `/api/v1/forum/posts`, モデレーション）をマウント。
   - **厳格なテスト検証**:
     - `aegis-server/src/handlers/forum_tests.rs` にて、専用 DB へのデータ完全隔離（メイン DB への非混入）、HTML 描画、フォーム投稿＆リダイレクト、JSON API、レートリミット（429）を網羅する結合テストを追加。
-    - Admin Studio ユニットテスト（90 passed）、Storybook テスト（31 passed）、ビルド、oxlint / clippy ゼロ警告を確認。
+    - `task check`（fmt, prettier, clippy, oxlint, cargo test 138+, vitest unit 90+, Storybook 35+, build:admin）が 100% パス。
 - **その前**: 固定ページ（Page）の作成・管理、ブランク/フル幅LPレイアウト切り替え、カスタムHTMLブロック（Raw HTML）の追加（ブランチ `feat/custom-pages-and-layouts`、PR #91）
   - **Admin Studio 固定ページ管理 & レイアウトセレクター**:
     - コンテンツ一覧画面（`ContentList`）に「記事（Articles）」と「固定ページ（Pages）」のタブ切り替えを導入。固定ページ一覧には「テーマ標準」または「ブランクLP」のレイアウトバッジを表示。
