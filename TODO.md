@@ -9,12 +9,10 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: 通知の拡張（ブランチ `feat/notification-queue`）
-  - **送信待ちの永続化**: DB の outbox `_aegis_notification_queue`（SQLite / PostgreSQL / MySQL。実機コンテナで確認済み）。宛先 × チャネルごとに描画済みの通知を保存し、ワーカーが送る。再起動しても失われず、一時的な失敗は時間を空けて再試行、送れなかったものは `failed` として残す（`retention_days` で削除）。複数台では条件付き UPDATE のリース（5 分）で 1 台だけが送る。`[notifications.queue]`（`persistent` / `poll_interval_secs` / `retention_days`）。
-  - **HTML メール**: `multipart/alternative`（テキスト + HTML）。共通のレイアウト `_layout.html` がテキストの本文から HTML を作る（段落・改行・リンク・フッター）。種類ごとの `<種類>.html` で上書き可。`[notifications].html`（既定 true）。プラグインのチャネルにも `html` を渡す（SDK の `NotificationMessage.html`）。
-  - **Admin Studio の Settings › Notifications**: 配信の状態・送れなかった通知の再送・破棄、見本の値でのテスト送信、テンプレートの編集（`_aegis_settings` の `notification_template:<名前>`。イベントバス `notifications.templates` で全サーバーに反映）とライブプレビュー。E2E テスト `admin/e2e/notifications.spec.ts`、ユニットテスト `src/utils/notificationTemplates.test.ts`（編集するテンプレートの決め方）・`src/api/notifications.test.ts`（API の呼び方）。
-  - **監査ログ**: `notification.template_update` / `notification.queue_update`。
-  - 仕様は [docs/notifications.md](docs/notifications.md)（3.1 HTML、4 配信と信頼性、6 Admin Studio）、設計判断は [architecture.md 8](docs/architecture.md#8-通知-aegis-notify)。
+- **直近の完了**: ベンチマークの見直しと SQLite の WAL 化（ブランチ `ccr-813a580e-kaorks`）
+  - `scripts/benchmark.mjs`: 一覧 API とプレビューは Viewer 以上が必要なのにセッションなしで叩いており、401 と監査ログ（`access.denied`）の同期 INSERT を測っていた。`--user`（`AEGIS_BENCH_PASSWORD`）/ `--token` を追加し、無い場合はこの 2 つを計測しない。4xx / 5xx が混ざったシナリオは ⚠️ と内訳を表示。手順は [development.md 6.1](docs/development.md#61-http-エンドポイントのベンチマーク-scriptsbenchmarkmjs)。
+  - SQLite を WAL（`synchronous = NORMAL`）で開く。監査ログを書く 401 の経路が約 490 → 約 3,900 req/s（並行 50）。設計判断は [architecture.md](docs/architecture.md) の DB の節、運用の注意は [configuration.md](docs/configuration.md)。
+- **その前**: 通知の拡張（outbox `_aegis_notification_queue` による送信待ちの永続化、HTML メール、Admin Studio の Settings › Notifications。[docs/notifications.md](docs/notifications.md)、[architecture.md 8](docs/architecture.md#8-通知-aegis-notify)）。
 - **その前**: Admin Studio のユニットテスト（Vitest。`src/utils/`・`src/api/`、`task test:admin`、CI の `frontend-ci` に統合。#82）と E2E テストの拡充（認証・コンテンツ・テーマ・ユーザー・EC・モバイル。#81。[development.md 8.2](docs/development.md#82-e2e-テスト-playwrightadmine2e)）。
 - **その前**: コメント機能とコメントの通知（`aegis-comments`、WordPress 方式の承認、Admin Studio の Comments タブ。[docs/comments.md](docs/comments.md)、[architecture.md 13](docs/architecture.md#13-コメント-aegis-comments)）。
 - **その前**: SEO & Bot 対策機能（robots.txt / sitemap.xml / メタタグ / OGP / Admin Studio 設定画面）（[docs/configuration.md 5](docs/configuration.md#5-管理画面から設定する動的サイトseo設定)）。その前は EC 拡張 Phase 1〜3（決済の抽象化と返金、商品のバリエーション、複数通貨。[docs/commerce.md](docs/commerce.md)）。その前は予約公開・予約非公開の完了を著者にメールで通知（`content.published` / `content.unpublished`、組み込みテンプレート en / ja、公開ページの URL `content_url`）。仕様は [notifications.md 2](docs/notifications.md#2-送る通知)。あわせて Windows で依存を足したときのロックファイルの注意（CI の npm 10 で `npm ci` を確かめる）を [development.md 8.3](docs/development.md#83-依存パッケージを追加したときpackage-lockjson) に記載。その前は Admin Studio に Playwright の E2E テストと Storybook を導入（[development.md 8](docs/development.md#8-admin-studio-の-e2e-テストと-storybook)）。その前は Admin Studio のモバイル対応。
@@ -30,6 +28,11 @@
 ---
 
 ## 2. 未着手タスク
+
+### 性能
+
+- **監査ログ `database` 出力先の非同期化（保留）**: 今は `AuditService::record` がリクエスト中に全出力先を順に `await` し、DB へ 1 件ずつ INSERT する。有限の `mpsc` キュー + バックグラウンドの書き込み（まとめて INSERT）にすると速くなるが、終了時に残りを書き切る処理と、キューが溢れたときの扱い（捨てて警告 / 待つ）＝監査ログの取りこぼしをどこまで許すかを決めてから。WAL 化で当面は足りている。
+- **ベンチマークの `quote` が常に 422**: 本文が `lines` だが API は `items`（`CartRequest`）のため、JSON の解析で失敗している（エラー応答の速さを測っている）。直しても、既定では `[commerce].enabled = false`（404）で、商品 ID も実在しない（`sample-product-id`）。商品を探して使う（記事の slug と同様）か、ショップが無効・商品が無いときは計測しないようにする。
 
 ### 認証・アカウント
 

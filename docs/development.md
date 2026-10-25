@@ -112,7 +112,14 @@ node scripts/benchmark.mjs -t index      # トップページのみ
 node scripts/benchmark.mjs -t api        # 一覧 API のみ
 node scripts/benchmark.mjs --auto-server # サーバーを自動起動して計測後終了
 node scripts/benchmark.mjs --json        # 結果を JSON 形式で出力
+
+# 一覧 API とプレビューも計測する（Viewer 以上のユーザーでログイン）
+AEGIS_BENCH_PASSWORD=... node scripts/benchmark.mjs --user admin
+node scripts/benchmark.mjs --token <セッション ID>   # 環境変数 AEGIS_BENCH_TOKEN でも可
 ```
+
+- **一覧 API（`api`）とプレビュー（`preview`）は Viewer 以上のセッションが必要**です。`--user` / `--token` を指定しない場合、この 2 つは計測しません（`-t api` などで個別に指定するとエラー）。セッションなしで回すと、本来の処理ではなく 401 の応答と、拒否を記録する監査ログ（`access.denied`）の書き込みを測ることになるためです。記事ページに使う slug の検索にも同じセッションを使います。
+- 4xx / 5xx の応答が混ざったシナリオは ⚠️ と応答の内訳（例: `HTTP 422 x 32106`）を表示します。この数字はエンドポイント本来の性能ではありません。
 
 ### 6.2 Wasm プラグインのプロファイリング (`task bench:plugins`)
 
