@@ -12,7 +12,7 @@
 - **直近の完了**: 通知の拡張（ブランチ `feat/notification-queue`）
   - **送信待ちの永続化**: DB の outbox `_aegis_notification_queue`（SQLite / PostgreSQL / MySQL。実機コンテナで確認済み）。宛先 × チャネルごとに描画済みの通知を保存し、ワーカーが送る。再起動しても失われず、一時的な失敗は時間を空けて再試行、送れなかったものは `failed` として残す（`retention_days` で削除）。複数台では条件付き UPDATE のリース（5 分）で 1 台だけが送る。`[notifications.queue]`（`persistent` / `poll_interval_secs` / `retention_days`）。
   - **HTML メール**: `multipart/alternative`（テキスト + HTML）。共通のレイアウト `_layout.html` がテキストの本文から HTML を作る（段落・改行・リンク・フッター）。種類ごとの `<種類>.html` で上書き可。`[notifications].html`（既定 true）。プラグインのチャネルにも `html` を渡す（SDK の `NotificationMessage.html`）。
-  - **Admin Studio の Settings › Notifications**: 配信の状態・送れなかった通知の再送・破棄、見本の値でのテスト送信、テンプレートの編集（`_aegis_settings` の `notification_template:<名前>`。イベントバス `notifications.templates` で全サーバーに反映）とライブプレビュー。E2E テスト `admin/e2e/notifications.spec.ts`。
+  - **Admin Studio の Settings › Notifications**: 配信の状態・送れなかった通知の再送・破棄、見本の値でのテスト送信、テンプレートの編集（`_aegis_settings` の `notification_template:<名前>`。イベントバス `notifications.templates` で全サーバーに反映）とライブプレビュー。E2E テスト `admin/e2e/notifications.spec.ts`、ユニットテスト `src/utils/notificationTemplates.test.ts`（編集するテンプレートの決め方）・`src/api/notifications.test.ts`（API の呼び方）。
   - **監査ログ**: `notification.template_update` / `notification.queue_update`。
   - 仕様は [docs/notifications.md](docs/notifications.md)（3.1 HTML、4 配信と信頼性、6 Admin Studio）、設計判断は [architecture.md 8](docs/architecture.md#8-通知-aegis-notify)。
 - **その前**: Admin Studio のユニットテスト（Vitest。`src/utils/`・`src/api/`、`task test:admin`、CI の `frontend-ci` に統合。#82）と E2E テストの拡充（認証・コンテンツ・テーマ・ユーザー・EC・モバイル。#81。[development.md 8.2](docs/development.md#82-e2e-テスト-playwrightadmine2e)）。

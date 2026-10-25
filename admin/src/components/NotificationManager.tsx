@@ -19,11 +19,19 @@ import type {
   NotificationQueueItem,
   NotificationQueueStatus,
   NotificationStatus,
-  NotificationTemplateDetail,
   NotificationTemplateInfo,
   NotificationTestDelivery,
 } from '../types';
 import { cx } from '../utils/cx';
+import {
+  editsStaff,
+  isDirty,
+  isSharedPart,
+  previewTarget,
+  templateNames,
+  unsavedTemplates,
+  type EditorState,
+} from '../utils/notificationTemplates';
 import { Button } from './ui/Button';
 import { Field } from './ui/Field';
 import styles from './NotificationManager.module.css';
@@ -381,22 +389,6 @@ const TestSendCard: React.FC<{ status: NotificationStatus }> = ({ status }) => {
   );
 };
 
-/** Templates for a notification kind live under `<base>` (`audit.*` share the `audit` templates) */
-const templateBase = (kind: string) => (kind.startsWith('audit.') ? 'audit' : kind);
-const EXTENSIONS = ['subject', 'txt', 'html'] as const;
-/** The notification a shared part is previewed with */
-const PART_PREVIEW_KIND: Record<string, string> = {
-  '_summary.txt': 'order.placed',
-  '_comment_summary.txt': 'comment.pending',
-  '_audit_title.txt': 'audit.session.create',
-};
-
-interface EditorState {
-  detail: NotificationTemplateDetail;
-  /** Text in the editor */
-  draft: string;
-}
-
 const TemplateCard: React.FC<{
   status: NotificationStatus;
   onShowToast: NotificationManagerProps['onShowToast'];
@@ -413,18 +405,14 @@ const TemplateCard: React.FC<{
   const [saving, setSaving] = useState<string | null>(null);
 
   const targetId = useId();
-  const isPart = target.startsWith('_');
+  const isPart = isSharedPart(target);
   const kindInfo = status.kinds.find((k) => k.kind === target);
-  // Kinds with templates for one audience only (account.registered: staff) are edited for it
-  const staff =
-    kindInfo && !kindInfo.person ? true : kindInfo && !kindInfo.staff ? false : wantStaff;
-  const previewKind = isPart ? (PART_PREVIEW_KIND[target] ?? 'test') : target;
-  const previewStaff = isPart ? false : staff;
-  const names = useMemo(() => {
-    if (isPart) return [target];
-    const base = templateBase(target) + (staff ? '.staff' : '');
-    return EXTENSIONS.filter((ext) => ext !== 'html' || status.html).map((ext) => `${base}.${ext}`);
-  }, [isPart, target, staff, status.html]);
+  const staff = editsStaff(kindInfo, wantStaff);
+  const { kind: previewKind, staff: previewStaff } = previewTarget(target, staff);
+  const names = useMemo(
+    () => templateNames(target, staff, status.html),
+    [target, staff, status.html]
+  );
   const parts = templates.filter((tpl) => tpl.name.startsWith('_'));
 
   const refreshList = useCallback(() => {
@@ -458,17 +446,7 @@ const TemplateCard: React.FC<{
     };
   }, [names, onShowToast, t]);
 
-  const isDirty = (state: EditorState) => state.draft !== (state.detail.current?.content ?? '');
-  const dirtyTemplates = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.values(editors)
-          .filter((state) => isDirty(state) && state.draft !== '')
-          .map((state) => [state.detail.name, state.draft])
-      ),
-    [editors]
-  );
-  const dirtyKey = JSON.stringify(dirtyTemplates);
+  const dirtyKey = useMemo(() => JSON.stringify(unsavedTemplates(editors)), [editors]);
 
   // Live preview with the unsaved edits
   useEffect(() => {
