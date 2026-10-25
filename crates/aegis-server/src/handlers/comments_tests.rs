@@ -507,3 +507,32 @@ async fn test_comments_disabled() {
     let (_, html) = site.page("/articles/hello").await;
     assert!(!html.contains("id=\"comments\""));
 }
+
+#[tokio::test]
+async fn test_script_in_name_and_body_is_escaped_on_the_page() {
+    let site = site(|config| config.comments.moderation.require_approval = false).await;
+    let (status, body) = site
+        .post_comment(json!({
+            "name": "<script>alert('name')</script>",
+            "email": "x@example.com",
+            "body": "<script>alert(\"body\")</script>\n<img src=x onerror=alert(1)>"
+        }))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{}", body);
+
+    let (_, html) = site.page("/articles/hello").await;
+    assert!(html.contains("1 comment"), "{}", html);
+    // Neither the name (text and the reply button's data-reply-name) nor the body runs
+    assert!(!html.contains("<script>alert"), "{}", html);
+    assert!(!html.contains("<img src=x"), "{}", html);
+    assert!(
+        html.contains("<strong>&lt;script&gt;alert(&#x27;name&#x27;)&lt;&#x2f;script&gt;</strong>"),
+        "{}",
+        html
+    );
+    assert!(html
+        .contains("data-reply-name=\"&lt;script&gt;alert(&#x27;name&#x27;)&lt;&#x2f;script&gt;\""));
+    assert!(html.contains(
+        "<p>&lt;script&gt;alert(&quot;body&quot;)&lt;/script&gt;<br>&lt;img src=x onerror=alert(1)&gt;</p>"
+    ));
+}
