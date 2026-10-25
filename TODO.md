@@ -9,8 +9,11 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: ベンチマークの見直しと SQLite の WAL 化（ブランチ `ccr-813a580e-kaorks`）
-  - `scripts/benchmark.mjs`: 一覧 API とプレビューは Viewer 以上が必要なのにセッションなしで叩いており、401 と監査ログ（`access.denied`）の同期 INSERT を測っていた。`--user`（`AEGIS_BENCH_PASSWORD`）/ `--token` を追加し、無い場合はこの 2 つを計測しない。4xx / 5xx が混ざったシナリオは ⚠️ と内訳を表示。記事ページの slug は公開済みの記事から選ぶ（下書きを選んで 404 を測っていた）。件数の多い状態で測るためのデータ投入 `scripts/seed-benchmark.mjs`（`task bench:seed`。既定でカテゴリ 20 件・記事 1 万件）。手順は [development.md 6.1](docs/development.md#61-http-エンドポイントのベンチマーク-scriptsbenchmarkmjs)。
+- **直近の完了**: Storybook インタラクションテストの CI 連携とコンポーネントストーリー拡充（ブランチ `feat/storybook-vitest`）
+  - `@storybook/addon-vitest`（10.6.2）を導入し、Vitest Browser Mode（Playwright Chromium）でストーリーおよび `play` 関数の自動検証を実現（`task test:storybook`）。`Taskfile.yml` の `task check` および GitHub Actions（`frontend-ci`）に統合。
+  - コンポーネントストーリーの拡充: `Avatar`（イニシャル・画像フォールバック）、`Modal`（Escapeキー・閉じるボタン）、`SiteManager`（タイトル変更・保存・トースト）、`SeoManager`（設定変更・保存）、`Button`（クリック・disabled）、`PluginManager`（有効化・無効化・並び替え）の各ストーリーおよびインタラクションテストを整備。
+- **その前**: ベンチマークの見直しと SQLite の WAL 化（ブランチ `ccr-813a580e-kaorks`）
+  - `scripts/benchmark.mjs`: 一覧 API とプレビューは Viewer 以上が必要なのにセッションなしで叩いており、401 と監査ログ（`access.denied`）の同期 INSERT を測っていた。`--user`（`AEGIS_BENCH_PASSWORD`）/ `--token` を追加し、無い場合はこの 2 つを計測しない。`quote` の本文を `CartRequest` 仕様（`items: [{ product, quantity }]`）に修正し、`[commerce].enabled` チェックと商品自動探索（API / `/products`）を追加。ショップ無効・商品不在時は安全にスキップ（`-t quote` で明示指定時は理由を表示して終了）。4xx / 5xx が混ざったシナリオは ⚠️ と内訳を表示。記事ページの slug は公開済みの記事から選ぶ（下書きを選んで 404 を測っていた）。件数の多い状態で測るためのデータ投入 `scripts/seed-benchmark.mjs`（`task bench:seed`。既定でカテゴリ 20 件・記事 1 万件）。手順は [development.md 6.1](docs/development.md#61-http-エンドポイントのベンチマーク-scriptsbenchmarkmjs)。
   - SQLite を WAL（`synchronous = NORMAL`）で開く。監査ログを書く 401 の経路が約 490 → 約 3,900 req/s（並行 50）。設計判断は [architecture.md](docs/architecture.md) の DB の節、運用の注意は [configuration.md](docs/configuration.md)。
 - **その前**: 通知の拡張（outbox `_aegis_notification_queue` による送信待ちの永続化、HTML メール、Admin Studio の Settings › Notifications。[docs/notifications.md](docs/notifications.md)、[architecture.md 8](docs/architecture.md#8-通知-aegis-notify)）。
 - **その前**: Admin Studio のユニットテスト（Vitest。`src/utils/`・`src/api/`、`task test:admin`、CI の `frontend-ci` に統合。#82）と E2E テストの拡充（認証・コンテンツ・テーマ・ユーザー・EC・モバイル。#81。[development.md 8.2](docs/development.md#82-e2e-テスト-playwrightadmine2e)）。
@@ -22,7 +25,7 @@
 ### 🚀 次に着手する項目
 
 1. **EC 拡張 Phase 4: 顧客アカウント・売上レポート等の設計・検討**
-2. **Storybook ストーリーの拡充・`play` の CI 連携 (`@storybook/addon-vitest`)**
+2. **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする。アカウント登録が先行例）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
 
 
 ---
@@ -36,7 +39,6 @@
   - プラグイン `official-code-enhancer` を外すと、記事ページ 約 2,900 → 6,400、トップページ 約 1,060 → 2,100 req/s。`on-render-page` でページの HTML 全体を Wasm に渡して受け取るコストが大きい。HTML の受け渡しを減らすか、フックが要らないページでは呼ばないようにできないか調べる（`task bench:plugins`）。
   - 一覧 API は 1 回の応答が約 400KB（全件の `blocks` を含む）。一覧では `blocks` を省く・`fields` で選べるようにする、などを検討する。
   - ページ送りが `OFFSET` 方式のため、後ろのページほど遅い。必要ならキーセット方式（`created_at, id` より前）にする。SQLite のページキャッシュ（既定 2MB/接続）に DB（約 55MB）が収まらないことの影響も未確認（`cache_size` / `mmap_size`）。
-- **ベンチマークの `quote` が常に 422**: 本文が `lines` だが API は `items`（`CartRequest`）のため、JSON の解析で失敗している（エラー応答の速さを測っている）。直しても、既定では `[commerce].enabled = false`（404）で、商品 ID も実在しない（`sample-product-id`）。商品を探して使う（記事の slug と同様）か、ショップが無効・商品が無いときは計測しないようにする。
 
 ### 認証・アカウント
 
@@ -44,7 +46,6 @@
 
 ### Admin Studio
 
-- [ ] **Storybook の `play` を CI で動かす**: `@storybook/addon-vitest` などの導入とコンポーネントストーリーの追加。
 - [ ] **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする。アカウント登録が先行例）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
 
 

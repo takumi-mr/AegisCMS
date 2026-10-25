@@ -119,6 +119,7 @@ node scripts/benchmark.mjs --token <セッション ID>   # 環境変数 AEGIS_B
 ```
 
 - **一覧 API（`api`）とプレビュー（`preview`）は Viewer 以上のセッションが必要**です。`--user` / `--token` を指定しない場合、この 2 つは計測しません（`-t api` などで個別に指定するとエラー）。セッションなしで回すと、本来の処理ではなく 401 の応答と、拒否を記録する監査ログ（`access.denied`）の書き込みを測ることになるためです。記事ページに使う slug の検索にも同じセッションを使います。
+- **カート見積もり（`quote`）は `[commerce].enabled = true` かつ公開中の商品が必要**です。ショップが無効、または商品が無い場合は計測しません（`-t quote` で明示指定した場合は理由を表示して終了）。ショップが無効（404）や商品が存在しない（404）状態で回すと、本来の見積もり・プラグインフック処理ではなくエラー応答を測ることになるためです。商品は API または公開の `/products` から自動で探して使用します。
 - 記事が多い状態で測るには、先に `scripts/seed-benchmark.mjs`（`task bench:seed`）でデータを入れます。カテゴリ 20 件と記事 1 万件（約 10 ブロック・約 4KB、カテゴリへのリレーションつき、10 件に 1 件は下書き）を API 経由で作り、投入の速さ（件数/秒）も表示します。同じ接頭辞（`--prefix`、既定 `bench`）で 2 回流すと slug が重複して失敗するので、測り直すときは DB を作り直してください。
 
   ```bash
@@ -210,7 +211,7 @@ task build:storybook    # admin/storybook-static/（CI でもビルド）
 
 - 自分でデータを読み込む画面（`PluginManager` など）は、`.storybook/mockApi.ts` の `mockApi` で `/api/v1/*` への `fetch` を差し替えて表示する（ストーリーの `beforeEach` で呼び、戻り値の関数で元に戻す）。サーバーと同じ応答の形にする。
 - ツールバーの Language で英語・日本語を切り替えられる。
-- `play` 関数は Storybook の Interactions パネルで動く（テストランナーはまだ入れていない）。
+- **コンポーネント & インタラクションテスト (`task test:storybook`)**: `@storybook/addon-vitest`（Vitest Browser Mode + Playwright Chromium）により、すべてのストーリーと `play` 関数をヘッドレスブラウザで自動検証します。`task check` および CI（`frontend-ci`）内で自動実行されます。
 - バージョンは固定（`--save-exact`）。公開から 2 週間以上たったものを選ぶ（脆弱性の修正版は除く。10.6.2 は GHSA-f2ph-cmg5-wxc8 の修正）。
 
 ### 8.4 依存パッケージを追加したとき（`package-lock.json`）

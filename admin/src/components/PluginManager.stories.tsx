@@ -213,10 +213,14 @@ export const Reorder: Story = {
     await expect(items[0]).toHaveTextContent('removed-plugin');
     await expect(items[1]).toHaveTextContent('Shop Rules');
 
+    const win = canvasElement.ownerDocument.defaultView ?? window;
+    win.confirm = () => true;
     window.confirm = () => true;
-    await userEvent.click(
-      await within(panel).findByRole('button', { name: 'Use the configuration file' })
-    );
+    const resetBtn = await within(panel).findByRole('button', {
+      name: 'Use the configuration file',
+    });
+    await waitFor(() => expect(resetBtn).not.toBeDisabled());
+    await userEvent.click(resetBtn);
     await waitFor(() =>
       expect(args.onShowToast).toHaveBeenCalledWith(
         'Using the plugins of the configuration file',

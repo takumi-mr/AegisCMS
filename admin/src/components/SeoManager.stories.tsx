@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { fn } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { mockApi } from '../../.storybook/mockApi';
 import type { SeoSettings } from '../types';
 import { SeoManager } from './SeoManager';
@@ -61,5 +61,34 @@ export const NoindexActive: Story = {
       }
       return undefined;
     });
+  },
+};
+
+export const SaveSettings: Story = {
+  beforeEach: () => {
+    let current = { ...defaultSettings };
+    return mockApi((req) => {
+      if (req.method === 'GET' && req.path === '/seo') {
+        return current;
+      }
+      if (req.method === 'PUT' && req.path === '/seo') {
+        current = { ...current, ...(req.body as Partial<SeoSettings>) };
+        return current;
+      }
+      return undefined;
+    });
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const input = await canvas.findByPlaceholderText('https://example.com');
+    await waitFor(() => expect(input).toBeEnabled());
+    await userEvent.clear(input);
+    await userEvent.type(input, 'https://updated.example.com');
+
+    const saveButton = canvas.getByRole('button', { name: /save changes/i });
+    await expect(saveButton).toBeEnabled();
+    await userEvent.click(saveButton);
+
+    await waitFor(() => expect(args.onShowToast).toHaveBeenCalledWith('SEO & Bot settings saved'));
   },
 };

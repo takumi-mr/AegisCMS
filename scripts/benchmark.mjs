@@ -11,6 +11,8 @@
  *
  * api / preview は Viewer 以上のセッションが必要なため、--token か --user を指定しない場合は計測しない
  * （401 の応答と、拒否を記録する監査ログの書き込みを測ることになるため）。
+ * quote は [commerce].enabled = true かつ公開中の商品が必要なため、ショップが無効または商品が無い場合は計測しない
+ * （404 やエラー応答を測ることになるため）。
  *
  * オプション:
  *   --url <url>          サーバーのベース URL (既定: http://127.0.0.1:8080)
@@ -106,6 +108,8 @@ AegisCMS HTTP パフォーマンスベンチマークツール
 
 api / preview は Viewer 以上のセッションが必要です。--token / --user を指定しない場合は
 この 2 つを計測しません (401 の応答と監査ログの書き込みを測ることになるため)。
+quote は [commerce].enabled = true かつ公開中の商品が必要です。ショップが無効または
+商品が無い場合は計測しません (404 やエラー応答を測ることになるため)。
 `);
 }
 
@@ -358,7 +362,82 @@ async function discoverArticleSlug(baseUrl, authHeaders) {
   return 'hello-world';
 }
 
-function getScenarios(baseUrl, articleSlug, authHeaders) {
+/**
+ * EC（[commerce]）が有効か確認し、公開中の商品（ID または slug）を探す。
+ * ショップが無効、または公開中の商品が無い場合は理由付きで返す。
+ */
+async function discoverProduct(baseUrl, authHeaders) {
+  try {
+    const configRes = await fetch(`${baseUrl}/api/v1/shop/config`);
+    if (!configRes.ok) {
+      return {
+        enabled: false,
+        product: null,
+        reason: `ショップ設定の取得に失敗しました (HTTP ${configRes.status})`,
+      };
+    }
+    const config = await configRes.json();
+    if (!config.enabled) {
+      return {
+        enabled: false,
+        product: null,
+        reason: 'ショップが無効 ([commerce].enabled = false)',
+      };
+    }
+
+    const productType = config.product_type || 'product';
+
+    // 1. 認証ヘッダーがあれば API から探す
+    if (authHeaders && Object.keys(authHeaders).length > 0) {
+      try {
+        const apiRes = await fetch(
+          `${baseUrl}/api/v1/contents/${encodeURIComponent(productType)}?limit=1&status=published`,
+          { headers: authHeaders }
+        );
+        if (apiRes.ok) {
+          const data = await apiRes.json();
+          if (data.contents && data.contents.length > 0) {
+            const first = data.contents[0];
+            const prod = first.slug || first.id;
+            if (prod) {
+              return { enabled: true, product: prod };
+            }
+          }
+        }
+      } catch {
+        // 公開ページへのフォールバックへ
+      }
+    }
+
+    // 2. 公開の /products ページから探す
+    try {
+      const publicRes = await fetch(`${baseUrl}/products`);
+      if (publicRes.ok) {
+        const html = await publicRes.text();
+        const match = html.match(/\/products\/([a-zA-Z0-9_\-]+)/);
+        if (match && match[1]) {
+          return { enabled: true, product: match[1] };
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return {
+      enabled: true,
+      product: null,
+      reason: '公開中の商品が登録されていません',
+    };
+  } catch (err) {
+    return {
+      enabled: false,
+      product: null,
+      reason: `ショップへの接続に失敗しました: ${err.message}`,
+    };
+  }
+}
+
+function getScenarios(baseUrl, articleSlug, authHeaders, productId) {
   return [
     {
       id: 'health',
@@ -415,10 +494,10 @@ function getScenarios(baseUrl, articleSlug, authHeaders) {
       url: `${baseUrl}/api/v1/shop/quote`,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      requiresShop: true,
       body: JSON.stringify({
-        lines: [
-          { product_id: 'sample-product-id', quantity: 2 },
-          { product_id: 'sample-product-id-2', quantity: 1 },
+        items: [
+          { product: productId || 'sample-product-id', quantity: 2 },
         ],
       }),
     },
@@ -461,7 +540,8 @@ async function main() {
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
     const articleSlug = await discoverArticleSlug(opts.url, authHeaders);
-    const allScenarios = getScenarios(opts.url, articleSlug, authHeaders);
+    const shopInfo = await discoverProduct(opts.url, authHeaders);
+    const allScenarios = getScenarios(opts.url, articleSlug, authHeaders, shopInfo.product);
 
     let activeScenarios =
       opts.target === 'all'
@@ -486,6 +566,20 @@ async function main() {
           `⚠️  セッション未指定のため ${skipped.map((s) => s.id).join(', ')} を計測しません (--token / --user で計測できます)。`
         );
         activeScenarios = activeScenarios.filter((s) => !s.requiresAuth);
+      }
+    }
+
+    // ショップが無効・商品が無い場合、quote は 404 やエラー応答を測ることになるためスキップする
+    if (!shopInfo.enabled || !shopInfo.product) {
+      const shopScenarios = activeScenarios.filter((s) => s.requiresShop);
+      if (shopScenarios.length > 0) {
+        const reason = shopInfo.reason || 'ショップが無効または商品がありません';
+        if (opts.target !== 'all') {
+          console.error(`❌ ${opts.target} の計測を中止しました: ${reason}。`);
+          process.exit(1);
+        }
+        console.error(`⚠️  ${reason} のため quote を計測しません。`);
+        activeScenarios = activeScenarios.filter((s) => !s.requiresShop);
       }
     }
 
