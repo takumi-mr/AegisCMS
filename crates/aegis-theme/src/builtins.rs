@@ -475,6 +475,38 @@ pub const PAGE_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
+pub const BLANK_TEMPLATE: &str = r#"<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Published Content{% endif %}">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      min-height: 100vh;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    {% if extra_css %}
+    {{ extra_css | safe }}
+    {% endif %}
+  </style>
+  {% if extra_head %}
+  {{ extra_head | safe }}
+  {% endif %}
+</head>
+<body>
+  {{ content_html | safe }}
+</body>
+</html>
+"#;
+
 pub const NOT_FOUND_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}

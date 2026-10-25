@@ -9,7 +9,18 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: 全言語（Rust / AssemblyScript / TinyGo）プラグイン SDK の GitHub 中心パッケージ化と CI 手動リリースタスク新設（ブランチ `feat/publish-plugin-sdks`）
+- **直近の完了**: 固定ページ（Page）の作成・管理、ブランク/フル幅LPレイアウト切り替え、カスタムHTMLブロック（Raw HTML）の追加（ブランチ `feat/custom-pages-and-layouts`）
+  - **Admin Studio 固定ページ管理 & レイアウトセレクター**:
+    - コンテンツ一覧画面（`ContentList`）に「記事（Articles）」と「固定ページ（Pages）」のタブ切り替えを導入。固定ページ一覧には「テーマ標準」または「ブランクLP」のレイアウトバッジを表示。
+    - エディタヘッダーのメタ情報セクションにレイアウト切り替えドロップダウン（テーマ標準 `page.html` / ブランク/フル幅LP `blank.html`）を新設。リアルタイムプレビューおよび保存 payload（`layout` フィールド）と連携。
+    - カテゴリセレクターを固定ページ作成時は非表示にし、適切なスキーマ（`content_type: page`）で API 保存。
+  - **カスタム HTML ブロック (`core/html`) のサポート**:
+    - `aegis-ast` の `HtmlRenderer` に `core/html` ブロックの直接レンダリングを追加。後続の Zero-Trust セキュリティパイプライン（lol-html ストリーミングリライター）による `target="_blank"` や `rel="noopener noreferrer"` の付与、スクリプト属性の安全化が自動適用されるため、安全に Raw HTML を出力可能。
+    - Admin Studio のブロックエディタツールバーに「カスタムHTML」ブロック追加ボタンを追加。`BlockItem` で等幅フォントのエディタ UI を提供し、Markdown モードとの相互変換（````html ... ````）をサポート。
+  - **ブランク / フル幅LP テンプレートとルーティング**:
+    - `aegis-theme` にヘッダー・フッター・コンテナ制約を排除した組み込みテンプレート `blank.html`（`BLANK_TEMPLATE`）を新設。LP 全体をカスタム HTML やセクションで自由に構築可能。
+    - `aegis-server` の公開ルーティング `render_page_or_slug` およびプレビュー `preview_content` において、`layout` フィールド（`"blank"` / `"default"`）に応じた適切なテンプレートの自動解決を実装。
+- **その前**: 全言語（Rust / AssemblyScript / TinyGo）プラグイン SDK の GitHub 中心パッケージ化と CI 手動リリースタスク新設（ブランチ `feat/publish-plugin-sdks`）
   - **Rust SDK (GitHub Git 依存)**: `aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.1.0" }` による配布体制。内部の `aegis-plugin-macros` も Cargo が自動解決。
   - **AssemblyScript SDK (GitHub Packages)**: `sdk/assemblyscript` に独立した npm パッケージ `@takumi-mr/plugin-sdk` を切り出し、GitHub Packages レジストリ（`npm.pkg.github.com`）への `publishConfig` および README、asconfig、tsconfig を整備。テンプレート側の依存・ビルド検証済み。
   - **TinyGo SDK (Go Modules)**: `sdk/tinygo` に独立した Go モジュール `github.com/takumi-mr/AegisCMS/sdk/tinygo` を切り出し、`abi.go` のポインタ安全性を `go vet` (unsafeptr) 適合化。Git タグ（`sdk/tinygo/v0.1.0`）による配布体制。
@@ -117,6 +128,11 @@
   - **プラグイン・テーマローダーの拡張**: `WasmPluginLoader::validate_plugin_package` および `ThemeEngine::validate_theme_package_with_policy` により、各エンジンで同一ポリシー（署名必須設定 `require_signatures`、信頼する公開鍵リスト `trusted_public_keys`）に基づく厳格な事前検証を実施。
   - **Admin API**: `POST /api/v1/plugins/install` および `POST /api/v1/themes/install`（Multipart ZIP アップロード、管理者認可、`find_plugin_package_root` / `find_theme_package_root` によるアーカイブ構造の自動吸収、`plugins/<name>/` および `themes/<id>/` への安全配置、監査ログ `plugin.install` / `theme.install` 記録）。
   - **Admin Studio UI**: プラグイン画面にドラッグ＆ドロップ対応の ZIP インストール UI、テーマ画面に ZIP アップロードボタンを新設。日本語・英語の完全なローカライズを適用。
+- **固定ページ管理 & ブランクLP & カスタムHTMLブロック設計**:
+  - **Zero-Trust パイプラインでの Raw HTML 共存**: 管理画面からのリッチなカスタムページ作成要望に対し、AST レベルで `core/html` ブロック（属性エスケープなしで展開）を新設。後続の lol-html ストリーミングリライターがリンク属性（`target="_blank"`, `rel="noopener noreferrer"`）やスクリプト安全化を一律適用するため、テーマのファイル構造を汚さずにセキュアな自由記述を実現。
+  - **組み込み `blank.html` テンプレート**: テーマの標準レイアウト（header / footer / container）の影響を受けない白紙キャンバスとして `blank.html` を `aegis-theme` に登録。公開側 `render_page_or_slug` とプレビュー API双方で `layout: "blank"` を検知して自動ルーティング。
+  - **スキーマ駆動と既存テーブルの完全互換**: 既存の `schemas/pages.yaml`（`layout` 文字列フィールド、`page` コンテンツタイプ）と `_aegis_content_pages` テーブル定義をそのまま活用し、DB マイグレーション不要で後方互換性を維持。
+  - **Admin Studio UI/UX**: コンテンツ一覧の「記事」「固定ページ」タブ分割、固定ページ専用のレイアウト切替セレクター、等幅フォントによる HTML ブロックエディタ、Markdown モードとの双方向シームレス変換を完備。
 - **次のステップ**:
   - `feat/forum-crate` の PR #88 レビュー・マージ
   - 必要に応じた `aegis-server` へのエンドポイントマウント（`/api/v1/forum/...`）またはテーマ用マクロの検討

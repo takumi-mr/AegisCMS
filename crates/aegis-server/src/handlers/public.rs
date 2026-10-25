@@ -258,8 +258,20 @@ pub async fn render_page_or_slug(
                 let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
                 let comments = comments::page_section(&state, "page", &record.id).await;
+                let template = match record.custom_fields.get("layout").and_then(|v| v.as_str()) {
+                    Some("blank") => "blank.html".to_string(),
+                    Some(custom) if !custom.trim().is_empty() && custom != "default" => {
+                        let c = custom.trim();
+                        if c.ends_with(".html") {
+                            c.to_string()
+                        } else {
+                            format!("{}.html", c)
+                        }
+                    }
+                    _ => "page.html".to_string(),
+                };
                 let page = render::PageInput {
-                    template: "page.html".to_string(),
+                    template,
                     content_type: "page".to_string(),
                     title: record.title,
                     slug: record.slug,
@@ -380,8 +392,26 @@ mod tests {
             }],
         };
 
+        let page_schema = SchemaDefinition {
+            content_type: "page".to_string(),
+            label: "Pages".to_string(),
+            description: None,
+            fields: vec![FieldDefinition {
+                name: "layout".to_string(),
+                field_type: FieldType::String,
+                required: false,
+                nullable: true,
+                unique: false,
+                index: false,
+                max_length: Some(100),
+                target: None,
+                indexed_paths: vec![],
+            }],
+        };
+
         let mut schemas = HashMap::new();
         schemas.insert("article".to_string(), article_schema.clone());
+        schemas.insert("page".to_string(), page_schema);
 
         db.run_migrations(&schemas)
             .await
@@ -720,5 +750,86 @@ mod tests {
         assert!(html.contains(r#"<div class="neon-wrapper">"#));
         assert!(html.contains("Cyberpunk aesthetic content."));
         assert!(html.contains("--accent: #00ffcc"));
+    }
+
+    #[tokio::test]
+    async fn test_render_page_or_slug_with_layouts() {
+        let supervisor = PluginSupervisor::new();
+        let state = create_test_state(supervisor).await;
+
+        let page_schema = {
+            let s = state.schemas.read().await;
+            s.get("page").unwrap().clone()
+        };
+
+        // 1. テーマ標準レイアウトの固定ページ (layout: "default")
+        let standard_page = ContentRecord {
+            id: "page-standard".to_string(),
+            content_type: "page".to_string(),
+            title: "About Us".to_string(),
+            slug: "about".to_string(),
+            status: "published".to_string(),
+            blocks_json: serde_json::to_string(&[BlockNode::paragraph("About company text.")])
+                .unwrap(),
+            author_id: None,
+            published_at: Some("2026-10-22T00:00:00Z".to_string()),
+            unpublish_at: None,
+            created_at: "2026-10-22T00:00:00Z".to_string(),
+            updated_at: "2026-10-22T00:00:00Z".to_string(),
+            custom_fields: HashMap::from([("layout".to_string(), serde_json::json!("default"))]),
+        };
+        state
+            .db
+            .insert_content(&page_schema, &standard_page)
+            .await
+            .unwrap();
+
+        // 2. ブランク/フル幅LPレイアウトの固定ページ (layout: "blank")
+        let blank_page = ContentRecord {
+            id: "page-lp".to_string(),
+            content_type: "page".to_string(),
+            title: "Special LP".to_string(),
+            slug: "lp".to_string(),
+            status: "published".to_string(),
+            blocks_json: serde_json::to_string(&[BlockNode::new("core/html")]).unwrap(),
+            author_id: None,
+            published_at: Some("2026-10-22T00:00:00Z".to_string()),
+            unpublish_at: None,
+            created_at: "2026-10-22T00:00:00Z".to_string(),
+            updated_at: "2026-10-22T00:00:00Z".to_string(),
+            custom_fields: HashMap::from([("layout".to_string(), serde_json::json!("blank"))]),
+        };
+        state
+            .db
+            .insert_content(&page_schema, &blank_page)
+            .await
+            .unwrap();
+
+        // Standard page は site-header や page-detail を含む
+        let resp = render_page_or_slug(State(state.clone()), Path("about".to_string()))
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), 100_000)
+            .await
+            .unwrap();
+        let html = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(html.contains("About Us"));
+        assert!(html.contains("About company text."));
+        assert!(html.contains("page-detail"));
+        assert!(html.contains("site-header"));
+
+        // Blank LP は site-header や site-footer を含まず、フル幅で出力される
+        let resp = render_page_or_slug(State(state.clone()), Path("lp".to_string()))
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), 100_000)
+            .await
+            .unwrap();
+        let html = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(html.contains("Special LP"));
+        assert!(!html.contains("site-header"));
+        assert!(!html.contains("site-footer"));
     }
 }

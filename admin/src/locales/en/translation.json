@@ -141,7 +141,9 @@
     "listType": "Type:",
     "bullet": "Bullet List (-)",
     "numbered": "Numbered List (1.)",
-    "listPlaceholder": "Item 1\nItem 2\nItem 3 (one item per line)"
+    "listPlaceholder": "Item 1\nItem 2\nItem 3 (one item per line)",
+    "htmlBlock": "Custom HTML:",
+    "htmlPlaceholder": "<!-- Enter custom HTML / embed code here... -->"
   },
   "categories": {
     "title": "Categories",
@@ -208,6 +210,8 @@
     "emptyHint": "Click \"+ New\" to create one.",
     "noMatch": "No articles match this category.",
     "articles": "Articles",
+    "pages": "Pages",
+    "typeSelector": "Content type selector",
     "scheduledFor": "Scheduled for {{date}}",
     "unpublishFor": "Unpublish at {{date}}"
   },
@@ -221,6 +225,12 @@
     "unpublishAtAria": "Unpublish date and time",
     "category": "category:",
     "categoryAria": "Category",
+    "layout": "layout:",
+    "layoutAria": "Page layout",
+    "layoutDefault": "Theme Default (page.html)",
+    "layoutBlank": "Blank / Full-width LP (blank.html)",
+    "layoutDefaultShort": "Theme",
+    "layoutBlankShort": "Blank LP",
     "noCategory": "No category",
     "unknownCategory": "Unknown category ({{id}})",
     "manageCategories": "Manage",
@@ -240,12 +250,14 @@
     "heading": "Heading",
     "paragraph": "Paragraph",
     "code": "Code Block",
+    "html": "HTML",
     "list": "List",
     "image": "Image",
     "noBlocks": "This post has no content blocks.",
     "addFirst": "Add First Paragraph",
     "defaults": {
       "untitled": "Untitled Document",
+      "untitledPage": "Untitled Page",
       "newHeading": "New Heading",
       "sectionTitle": "Section Title"
     },

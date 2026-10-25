@@ -54,6 +54,19 @@ describe('markdown utilities', () => {
       expect(markdown).toBe('```typescript\nconst x: number = 42;\nconsole.log(x);\n```');
     });
 
+    it('converts core/html blocks into html fenced blocks', () => {
+      const blocks: BlockNode[] = [
+        {
+          name: 'core/html',
+          attributes: {},
+          text: '<div class="custom-lp">\n  <h1>Hero</h1>\n</div>',
+        },
+      ];
+
+      const markdown = blocksToMarkdown(blocks);
+      expect(markdown).toBe('```html\n<div class="custom-lp">\n  <h1>Hero</h1>\n</div>\n```');
+    });
+
     it('converts core/image blocks with src and alt', () => {
       const blocks: BlockNode[] = [
         {
@@ -123,6 +136,18 @@ describe('markdown utilities', () => {
         name: 'core/code',
         attributes: { language: 'rust' },
         text: 'fn main() {\n    println!("hello");\n}',
+      });
+    });
+
+    it('parses html code blocks into core/html blocks', () => {
+      const md = '```html\n<section class="banner"><h1>LP Banner</h1></section>\n```';
+      const blocks = markdownToBlocks(md);
+
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0]).toEqual({
+        name: 'core/html',
+        attributes: {},
+        text: '<section class="banner"><h1>LP Banner</h1></section>',
       });
     });
 
