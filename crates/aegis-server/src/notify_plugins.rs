@@ -153,6 +153,7 @@ mod tests {
             recipient,
             subject: "Admin login".to_string(),
             body: "root logged in".to_string(),
+            html: None,
             data: serde_json::json!({}),
         }
     }

@@ -4,17 +4,22 @@
 
 配信方法は「チャネル」として差し替えられる作りで、メール（`email`）とサーバーのログ（`log`）が組み込みです。Slack や SMS などは、Wasm プラグインをチャネルとして加えられます（`plugin:<名前>`。[5. 配信方法を加える](#5-配信方法を加える)）。
 
+メールはプレーンテキストと HTML の両方を送ります（[3.1](#31-html-メール)）。送信待ちは DB に保存するので、サーバーを再起動しても失われません（[4](#4-配信と信頼性)）。テスト送信・テンプレートの編集・送れなかった通知の再送は Admin Studio の **Settings › Notifications** からできます（[6](#6-admin-studio-から管理する)）。
+
 ```text
  EC（注文の作成・状態の変化）          監査ログ（ルールに合うイベント。2.1）
         │  NotificationEvent { 種類: "order.placed" / "audit.session.create", 宛先, 値 }
         ▼
  NotificationService（aegis-notify）
-        │  宛先ごとにテンプレートから件名・本文を作る（<種類>.subject / <種類>.txt）
+        │  宛先ごとにテンプレートから件名・本文（テキスト + HTML）を作る（<種類>.subject / .txt / .html）
+        ▼
+ 送信待ち（DB の _aegis_notification_queue。宛先・チャネルごとに 1 件）
+        │  ワーカーが送る。一時的な失敗は時間を空けて再試行、送れなければ「送れなかった通知」として残す
         ├──▶ email チャネル ── SMTP サーバー ──▶ 顧客 / staff_recipients
         ├──▶ log チャネル   ── サーバーのログ（aegis::notify）
         └──▶ plugin:<名前>  ── Wasm プラグインの send-notification フック ──▶ Slack / SMS など
         │
-        └── 結果を監査ログに記録（notification.send）。一時的な失敗は再試行
+        └── 結果を監査ログに記録（notification.send）
 ```
 
 ---
@@ -45,7 +50,7 @@ aegis-server -c config/production.toml notify test --to you@example.com
 # email: sent "【Aegis Shop】テスト通知"
 ```
 
-失敗した場合は SMTP サーバーの応答（`535 Authentication failed` など）が表示されます。
+失敗した場合は SMTP サーバーの応答（`535 Authentication failed` など）が表示されます。サーバーの起動後は Admin Studio の **Settings › Notifications** からもテスト送信できます（[6](#6-admin-studio-から管理する)）。
 
 - 設定項目の一覧は [設定リファレンス](configuration.md#213-notifications--通知メール) を参照してください。
 - SMTP サーバーの無い開発環境では `channels = ["log"]` にすると、通知の件名と本文をサーバーのログに出します。
@@ -139,7 +144,11 @@ max_per_hour = 5
 
 件名と本文は [MiniJinja](https://docs.rs/minijinja)（Jinja2 互換）のプレーンテキストのテンプレートです。組み込みのものは `crates/aegis-notify/src/templates/<言語>/` にあります。
 
-`[notifications].templates_dir` を指定すると、そのディレクトリにあるファイルを優先して使います（無いファイルは組み込み）。
+テンプレートは次の順に探します。
+
+1. Admin Studio の **Settings › Notifications** で編集したもの（DB の `_aegis_settings` に `notification_template:<名前>` として保存。[6](#6-admin-studio-から管理する)）
+2. `[notifications].templates_dir` のファイル
+3. 組み込み（`locale` の言語）
 
 ```text
 notifications/
@@ -188,17 +197,55 @@ notifications/
 | `{{ amount \| money(order.currency) }}` | 金額の表示（`¥1,200`、`$12.50`） |
 
 - テンプレートが無ければ種類の最後の `.` 以降を外した名前を順に探します（`audit.session.create` → `audit.session` → `audit`）。
-- 本文はエスケープしません（プレーンテキスト）。
+- 本文（`.txt`）と件名はエスケープしません（プレーンテキスト）。
 - `{% if %}` などのタグだけの行は出力に空行を残しません（`trim_blocks`）。3 行以上続く空行は 1 行にまとめます。
+
+### 3.1 HTML メール
+
+`[notifications].html = true`（既定）のとき、メールはプレーンテキストと HTML の両方（`multipart/alternative`）で送ります。HTML を表示できないメールソフトではプレーンテキストが表示されます。
+
+HTML は、種類ごとにテンプレートを書かなくても作られます。
+
+- 件名・本文と同じ名前の `<種類>.html`（運営者向けは `<種類>.staff.html`）があればそれを使います。
+- 無ければ共通のレイアウト `_layout.html` を使います。レイアウトにはプレーンテキストの本文を HTML にしたもの（`body_html`）を渡します: 空行で区切った段落を `<p>`、段落の中の改行を `<br>`、`http(s)://` の URL をリンクにし、`--` だけの行（`_footer.txt` の区切り）から後はフッター（`footer_html`）にします。
+- サイトのロゴや色を変えるには `_layout.html` を、特定の通知だけデザインするには `<種類>.html` を書きます（Admin Studio か `templates_dir`）。
+
+```jinja
+{# order.shipped.html: レイアウトはそのままで、本文の前に見出しを足す #}
+{% extends "_layout.html" %}
+{% block content %}
+<h1 style="font-size:20px;margin:0 0 16px">ご注文 {{ order.number }} を発送しました</h1>
+{{ body_html }}
+{% endblock %}
+```
+
+| 値（`.html` のみ） | 内容 |
+| --- | --- |
+| `subject` / `body` | 作った件名とプレーンテキストの本文 |
+| `body_html` / `footer_html` | 本文・フッターを HTML にしたもの（エスケープ済み） |
+| `locale` | 組み込みテンプレートの言語（`<html lang>`） |
+
+- `.html` のテンプレートは値を自動でエスケープします（`{{ comment.body }}` に `<script>` が入っていても文字として出ます）。エスケープ済みの値（`body_html` など）以外に `| safe` を使わないでください。
+- 運営者向けの本文（`<種類>.staff.txt`）があるとき、HTML は `<種類>.staff.html` か `_layout.html` を使い、顧客向けの `<種類>.html` は使いません（本文と HTML の内容が食い違わないように）。
+- スタイルはメールソフトで消されないよう、`style` 属性に書きます（`<style>` や外部の CSS は効かないメールソフトがあります）。
+- プラグインのチャネルにも HTML の本文（`html`）が渡ります（メール配信 API へ送るプラグイン向け）。
+- プレーンテキストだけにするには `html = false` にします。
 
 ---
 
 ## 4. 配信と信頼性
 
-- 通知は注文の処理を待たせないよう、バックグラウンドで送ります。SMTP サーバーが落ちていても注文は成功します。
+- 通知は注文の処理を待たせないよう、送信待ちに入れてから送ります。SMTP サーバーが落ちていても注文は成功します。
+- **送信待ちは DB に保存します**（`_aegis_notification_queue`。`[notifications.queue].persistent = true`、既定）。宛先・チャネルごとに 1 件で、件名・本文はこのときテンプレートから作っておきます。送れたものは消します。サーバーを再起動しても送信待ち・再試行の予定は失われず、起動したサーバーが続きを送ります。
+- 新しい通知はすぐに送ります。再試行の時刻は `poll_interval_secs`（既定 10 秒）ごとに確かめます。
 - 一時的な失敗（接続できない、`4xx` の応答）は `max_attempts` 回まで、2 秒・8 秒・32 秒…と間隔を空けて再試行します。宛先の不備や認証の拒否（`5xx`）は再試行しません。
+- 再試行しない失敗・試行回数の上限に達したものは「送れなかった通知」として残り、Admin Studio から再送・破棄できます（[6](#6-admin-studio-から管理する)）。`retention_days`（既定 7 日）を過ぎたものは自動で消します。
 - 結果はチャネルごとに監査ログ `notification.send` に残します（`success` / `failure`、試行回数、エラー）。宛先のアドレスは残しません（顧客か運営者か）。Admin Studio の **Settings › Audit Logs** で `notification.send` に絞り込めます。
-- 送信待ちの通知はメモリ上にあるため、配信中にサーバーを再起動すると送られずに失われます。確実に届ける必要がある場合は、SMTP サーバー（リレー）側のキューを使ってください。
+- **複数台のサーバー**: どのサーバーも送信待ちを見ますが、送る前に DB で送信の権利を取るので、1 件の通知を送るのは 1 台だけです。サーバー間の時計は NTP などで合わせてください。
+- **送信中にサーバーが止まった場合**: その通知は 5 分後にほかのサーバー（または再起動したサーバー）が送り直します。SMTP サーバーが受け取った直後に止まった場合は、同じメールが 2 通届くことがあります（届かないよりは重複を選ぶ）。
+- 送信待ちを DB に入れられなかったとき（DB の障害）は、その通知をメモリ上で送ります（再起動すると失われます）。`persistent = false` にすると常にメモリ上で送ります（以前の動作）。
+- 送信待ちには本文がそのまま入ります（パスワード再設定・注文確認ページなどのリンクを含む）。DB のバックアップの扱いに注意してください。送れたものはすぐに消え、送れなかったものも `retention_days` で消えます。
+- `aegis-server notify test` と Admin Studio のテスト送信は、送信待ちに入れずにその場で送ります（設定を確かめるため）。
 
 ---
 
@@ -272,3 +319,20 @@ impl NotificationChannel for SmsChannel {
 - `send-notification`: 通知のチャネル（5.1）。監査イベントも含むすべての通知を、ホストのテンプレートの件名・本文で送る
 
 チャネルとして使う場合は、注文が二重に届かないよう `notify_on = "none"` にしてください。
+
+---
+
+## 6. Admin Studio から管理する
+
+`admin` のユーザーは **Settings › Notifications** で次のことができます。通知が無効（`[notifications].enabled = false`）なら、有効にする方法だけを表示します。
+
+| 項目 | できること | API |
+| --- | --- | --- |
+| 配信 | チャネル・形式（HTML / テキスト）・送信待ちの保存先と、送信待ち・送れなかった通知の一覧（エラー・試行回数・次の試行の日時）。送れなかった通知は **再送**（最初の試行から）・**破棄** | `GET /api/v1/notifications`、`GET /api/v1/notifications/queue?status=failed`、`POST /api/v1/notifications/queue/{id}/retry`、`DELETE /api/v1/notifications/queue/{id}` |
+| テスト送信 | 通知の種類と送り先（メールアドレス・運営者）を選び、見本の値（架空の注文・コメント・アカウント）でその場で送る。チャネルごとの結果（SMTP の応答など）を表示する。再試行はしない | `POST /api/v1/notifications/test` |
+| テンプレート | 種類と宛先（顧客・著者 / 運営者）ごとに件名・本文・HTML を編集し、見本の値でプレビューする（保存前の内容で HTML とテキストを表示）。共通の部品（`_footer.txt`・`_summary.txt`・`_layout.html` など）も編集できる。**元に戻す** で編集を捨てる（`templates_dir` のファイルか組み込みに戻る） | `GET /api/v1/notifications/templates`、`GET` / `PUT` / `DELETE /api/v1/notifications/templates/{名前}`、`POST /api/v1/notifications/preview` |
+
+- 編集したテンプレートは DB に保存し、すべてのサーバーですぐに使われます（イベントバスで知らせる）。保存のときに文法を確かめ、誤りがあれば保存しません。1 つのテンプレートは 60,000 バイトまでです。
+- テンプレートを壊してしまった（未定義のフィルタなどでその種類の通知が作れない）場合は、プレビューにエラーが出ます。**元に戻す** で直せます。
+- 編集・元に戻すは監査ログ `notification.template_update`、再送・破棄は `notification.queue_update` に残ります（[監査ログ](audit.md)）。テスト送信の結果は `notification.send` に残ります。
+- 送信待ち（`pending`）のうち送っている最中のものは破棄できません。

@@ -44,7 +44,7 @@ currency = "jpy"
 provider = "manual"
 public_url = "http://127.0.0.1:18080"
 
-# 招待・通知の E2E 検証用（log チャンネルなので外部 SMTP 不要）
+# 招待・通知の E2E 検証用（log チャンネルなので外部 SMTP 不要。notifications.spec.ts も使う）
 [notifications]
 enabled = true
 channels = ["log"]

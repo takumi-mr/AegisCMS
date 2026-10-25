@@ -301,9 +301,20 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | `enabled` | bool | `false` | `true` で通知を送る |
 | `channels` | string[] | `["email"]` | 配信チャネル。`email`（SMTP）/ `log`（サーバーのログ。動作確認用）/ `plugin:<名前>`（`send-notification` フックを持つ Wasm プラグイン。`[plugins].enabled` にあること） |
 | `locale` | string | `"en"` | 組み込みテンプレートの言語（`en` / `ja`） |
-| `templates_dir` | string | なし | テンプレートの置き場所（`<種類>.subject` / `<種類>.txt`）。無いファイルは組み込みを使う |
+| `templates_dir` | string | なし | テンプレートの置き場所（`<種類>.subject` / `<種類>.txt` / `<種類>.html`）。無いファイルは組み込みを使う。Admin Studio で編集したものはこれより優先する |
 | `disabled_events` | string[] | `[]` | 送らない通知の種類（`order.shipped` など） |
 | `max_attempts` | integer | `3` | 一時的な失敗（SMTP の 4xx・接続失敗）の試行回数（1〜10。間隔は 2 秒・8 秒・32 秒…） |
+| `html` | bool | `true` | HTML の本文も作る（メールはプレーンテキストと HTML の両方を送る。[通知 3.1](./notifications.md#31-html-メール)） |
+
+#### `[notifications.queue]`
+
+送信待ち（[通知 4](./notifications.md#4-配信と信頼性)）。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `persistent` | bool | `true` | 送信待ちを DB（`_aegis_notification_queue`）に保存する。再起動しても失われず、複数台では 1 台だけが送る。`false` ならメモリ上（再起動で失われる） |
+| `poll_interval_secs` | integer | `10` | 再試行の時刻を迎えた通知を確かめる間隔（秒、1〜3600）。新しい通知は待たずに送る |
+| `retention_days` | integer | `7` | 送れなかった通知を残す日数（Admin Studio から再送できる期間）。0 なら消さない |
 
 #### `[notifications.email]`
 
@@ -534,6 +545,12 @@ locale = "en"
 # templates_dir = "notifications"
 disabled_events = []
 max_attempts = 3
+html = true
+
+[notifications.queue]
+persistent = true
+poll_interval_secs = 10
+retention_days = 7
 
 [notifications.email]
 smtp_host = ""

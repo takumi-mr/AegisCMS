@@ -53,6 +53,8 @@ pub struct AppState {
     pub comments: Option<Arc<aegis_comments::CommentService>>,
     /// 通知（`[notifications]`）。無効なら `None`
     pub notifier: Option<Arc<dyn Notifier>>,
+    /// 通知の管理（Admin Studio のテンプレート編集・テスト送信・送信待ち）。`notifier` と同じもの
+    pub notifications: Option<aegis_notify::NotificationService>,
     /// Admin Studio からのアカウント登録（`[auth.registration]`）。無効なら `None`
     pub registration: Option<Arc<Registration>>,
     /// パスワード再設定（`[auth.password_reset]`）。無効なら `None`
@@ -143,6 +145,7 @@ impl AppState {
             commerce: None,
             comments: None,
             notifier: None,
+            notifications: None,
             registration: None,
             password_reset: None,
             invitation: None,
@@ -222,6 +225,13 @@ impl AppState {
     pub fn with_notifier(mut self, notifier: Arc<dyn Notifier>) -> Self {
         self.notifier = Some(notifier);
         self
+    }
+
+    /// 通知を有効にし、Admin Studio から管理できるようにする（`with_notifier` を兼ねる）
+    pub fn with_notifications(self, service: aegis_notify::NotificationService) -> Self {
+        let mut state = self.with_notifier(Arc::new(service.clone()));
+        state.notifications = Some(service);
+        state
     }
 
     /// アカウント登録（`[auth.registration]`）を有効にする

@@ -56,7 +56,15 @@
     "deleteCommentFailed": "コメントを削除できませんでした",
     "replyCommentFailed": "返信を投稿できませんでした",
     "commentSettingsFailed": "コメントの設定を読み込めませんでした",
-    "updateCommentSettingsFailed": "コメントの設定を保存できませんでした"
+    "updateCommentSettingsFailed": "コメントの設定を保存できませんでした",
+    "notificationStatusFailed": "通知の設定の取得に失敗しました",
+    "notificationQueueFailed": "送信待ちの取得に失敗しました",
+    "retryNotificationFailed": "通知の再送に失敗しました",
+    "discardNotificationFailed": "通知の破棄に失敗しました",
+    "notificationTemplatesFailed": "通知のテンプレートの取得に失敗しました",
+    "saveNotificationTemplateFailed": "通知のテンプレートの保存に失敗しました",
+    "previewNotificationFailed": "通知のプレビューに失敗しました",
+    "testNotificationFailed": "テスト送信に失敗しました"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -849,6 +857,7 @@
     "sections": {
       "site": "サイト",
       "seo": "SEO & Bot",
+      "notifications": "通知",
       "themes": "テーマ",
       "plugins": "プラグイン",
       "categories": "カテゴリ",
@@ -1038,6 +1047,86 @@
     "unpublishUpdateFailed": "非公開予定の更新に失敗しました",
     "errors": {
       "unpublishBeforePublish": "非公開予定日時は公開日時より後に設定してください"
+    }
+  },
+  "notifications": {
+    "title": "通知",
+    "description": "注文・コメント・アカウント・監査イベントのメールです。配信の状態の確認、送れなかった通知の再送、テスト送信、テンプレートの編集ができます。",
+    "loadFailed": "通知の設定の取得に失敗しました",
+    "disabled": "通知は無効です。設定ファイルで [notifications].enabled = true（と [notifications.email] の SMTP サーバー）を設定し、サーバーを再起動してください。",
+    "refresh": "最新の状態にする",
+    "staff": "運営者",
+    "kind": "通知",
+    "disabledKind": "停止中",
+    "delivery": {
+      "heading": "配信",
+      "channels": "チャネル",
+      "format": "形式",
+      "html": "HTML とプレーンテキスト",
+      "text": "プレーンテキスト",
+      "locale": "組み込みテンプレートの言語",
+      "queue": "送信待ち",
+      "queueDatabase": "DB（再起動しても残る。最大 {{attempts}} 回まで試行）",
+      "queueMemory": "メモリ（再起動すると失われる）"
+    },
+    "queue": {
+      "failed": "送れなかった通知（{{count}}）",
+      "pending": "送信待ち（{{count}}）",
+      "empty": {
+        "failed": "送れなかった通知はありません。",
+        "pending": "送信待ちの通知はありません。"
+      },
+      "attempts_one": "{{count}} 回試行",
+      "attempts_other": "{{count}} 回試行",
+      "sending": "送信中",
+      "next": "次の試行 {{at}}",
+      "retry": "再送",
+      "discard": "破棄",
+      "retried": "再送の待ちに入れました",
+      "discarded": "通知を破棄しました",
+      "actionFailed": "操作に失敗しました",
+      "more": "ほか {{count}} 件"
+    },
+    "test": {
+      "heading": "テスト送信",
+      "description": "見本の値（架空の注文・コメント・アカウント）で、すべてのチャネルからその場で送り（再試行なし）、チャネルごとの結果を表示します。",
+      "to": "送り先のメールアドレス",
+      "staff": "運営者にも送る",
+      "send": "送信",
+      "sending": "送信中...",
+      "sent": "「{{subject}}」を送りました",
+      "noStaffRecipients": "[notifications.email].staff_recipients が空のため、運営者向けのメールは送られません。"
+    },
+    "templates": {
+      "heading": "テンプレート",
+      "description": "編集したテンプレートは DB に保存され、すべてのサーバーですぐに使われます。HTML メールは、通知に .html のテンプレートが無ければ、プレーンテキストの本文を共通のレイアウト（_layout.html）に入れて作ります。",
+      "target": "テンプレート",
+      "kinds": "通知",
+      "parts": "共通の部品",
+      "audience": "宛先",
+      "person": "顧客・著者",
+      "source": {
+        "custom": "編集済み",
+        "file": "templates_dir",
+        "builtin": "組み込み",
+        "none": "未設定"
+      },
+      "unsaved": "未保存",
+      "save": "保存",
+      "saved": "{{name}} を保存しました",
+      "resetButton": "元に戻す",
+      "resetHint": "編集を捨てて templates_dir のファイルか組み込みのテンプレートを使う",
+      "resetConfirm": "{{name}} の編集を捨てますか？",
+      "reset": "{{name}} を元に戻しました",
+      "fallbackPlaceholder": "未設定: 共通のテンプレート（.staff の無いもの・親の種類）を使います。ここに書くと作られます。",
+      "htmlPlaceholder": "未設定: プレーンテキストの本文を共通のレイアウト（_layout.html）で表示します。{% extends \"_layout.html\" %}{% block content %}…{% endblock %} と書くとこの通知だけのデザインにできます。",
+      "variablesHint": "MiniJinja（Jinja2 互換）のテンプレートです。通知ごとに使える値は docs/notifications.md の「3. テンプレート」にあります。.html は自動でエスケープします。",
+      "preview": "プレビュー — {{kind}}（見本の値）",
+      "previewFrame": "HTML メールのプレビュー",
+      "view": {
+        "html": "HTML",
+        "text": "テキスト"
+      }
     }
   }
 }

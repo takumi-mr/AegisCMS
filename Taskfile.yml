@@ -272,11 +272,12 @@ tasks:
       - docker compose -f docker-compose.test-dbs.yml down -v
 
   test:dbs:
-    desc: PostgreSQL / MySQL / Redis 実機コンテナ環境で統合テスト（注文・在庫、コメント、サーバー間のイベントバス）を一括実行
+    desc: PostgreSQL / MySQL / Redis 実機コンテナ環境で統合テスト（注文・在庫、コメント、通知の送信待ち、サーバー間のイベントバス）を一括実行
     deps: [docker:dbs:up]
     cmds:
       - cargo test -p aegis-db --test orders_integration -- --nocapture
       - cargo test -p aegis-db --test comments_integration -- --nocapture
+      - cargo test -p aegis-db --test notification_queue_integration -- --nocapture
       - cargo test -p aegis-server -- test_postgres_order_and_stock_e2e --nocapture
       - cargo test -p aegis-server -- test_mysql_order_and_stock_e2e --nocapture
       - cargo test -p aegis-cache -- test_redis_bus_reaches_other_servers --nocapture

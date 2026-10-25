@@ -1,5 +1,5 @@
 //! 複数台のサーバーで動かすときの連携。
-//! - Admin Studio での変更（プラグインの有効・無効・実行順・設定値）をイベントバス（`aegis_cache::EventBus`、
+//! - Admin Studio での変更（プラグインの有効・無効・実行順・設定値、通知のテンプレート）をイベントバス（`aegis_cache::EventBus`、
 //!   `[cache]` と同じバックエンド）で知らせ、受け取ったサーバーが DB・キャッシュから読み直す。知らせは送った
 //!   サーバー自身にも届くので、1 台（メモリ）でも複数台（Redis）でも同じ処理になる
 //! - `[cache].backend = "memory"` はセッションも知らせもプロセスの中だけなので 1 台でしか使えない。
@@ -19,6 +19,8 @@ use crate::state::AppState;
 pub const TOPIC_PLUGINS: &str = "plugins.enabled";
 /// プラグインの設定値が変わった（payload はプラグイン名）。受け取ったらキャッシュから読み直す
 pub const TOPIC_PLUGIN_SETTINGS: &str = "plugins.settings";
+/// 通知のテンプレートが Admin Studio で編集された。受け取ったら DB から読み直す
+pub const TOPIC_NOTIFICATION_TEMPLATES: &str = "notifications.templates";
 
 /// ほかのサーバー（と自分）に知らせる。届かなくても操作は失敗にしない（ほかのサーバーは再接続・再起動で揃う）
 pub async fn announce(state: &AppState, topic: &str, payload: &str) {
@@ -49,10 +51,14 @@ pub async fn handle(state: &AppState, message: BusMessage) {
                     crate::handlers::plugin::refresh_plugin_settings(state, &payload).await;
                 }
             }
+            TOPIC_NOTIFICATION_TEMPLATES => {
+                crate::handlers::notifications::reload_templates(state).await
+            }
             _ => tracing::debug!("Ignoring event bus topic '{}'", topic),
         },
         BusMessage::Resync => {
             sync_plugins(state).await;
+            crate::handlers::notifications::reload_templates(state).await;
             let mut names: Vec<String> = state
                 .plugin_settings
                 .read()

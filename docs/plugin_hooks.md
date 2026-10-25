@@ -313,6 +313,7 @@ SDK ヘルパー:
 | `recipient` | object | `{"type": "staff"}`（運営者）または `{"type": "person", "email": "...", "name": "..."}` |
 | `subject` | string | 件名（テンプレートから作ったもの） |
 | `body` | string | 本文（プレーンテキスト） |
+| `html` | string（省略可） | HTML の本文（`[notifications].html = true` のとき。メール配信 API へ送るチャネル向け。[通知 3.1](notifications.md#31-html-メール)） |
 | `data` | object | テンプレートに渡した値（`order` / `audit` / `site_name` / `site_url` / `admin_url` / `kind` など。[通知 3](notifications.md#3-テンプレート)） |
 
 `Delivery` は `Sent`（送った）/ `Skipped`（扱わない）。

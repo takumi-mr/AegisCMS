@@ -1,8 +1,9 @@
-//! データベース（`[database]`: SQLite / PostgreSQL / MySQL）。コンテンツ・監査ログ・ユーザー・注文・コメントの保存
+//! データベース（`[database]`: SQLite / PostgreSQL / MySQL）。コンテンツ・監査ログ・ユーザー・注文・コメント・通知の送信待ちの保存
 
 pub mod comments;
 pub mod config;
 pub mod mysql;
+pub mod notifications;
 pub mod orders;
 pub mod postgres;
 pub mod sqlite;
@@ -19,6 +20,10 @@ use std::sync::Arc;
 pub use comments::{CommentListQuery, CommentPage, CommentRecord, CommentStorage, COMMENT_TABLE};
 pub use config::{DatabaseBackendKind, DatabaseConfig};
 pub use mysql::MySqlAdapter;
+pub use notifications::{
+    NotificationListQuery, NotificationPage, NotificationQueueStorage, NotificationRelease,
+    QueuedNotification, NOTIFICATION_QUEUE_TABLE, QUEUE_FAILED, QUEUE_PENDING,
+};
 pub use orders::{
     OrderListQuery, OrderPage, OrderRecord, OrderRefundUpdate, OrderStorage, OrderTransition,
     OutOfStock, StockReservation,
@@ -70,7 +75,7 @@ pub struct ContentPage {
 
 #[async_trait]
 pub trait DatabaseAdapter:
-    OrderStorage + ProductVariantStorage + CommentStorage + Send + Sync
+    OrderStorage + ProductVariantStorage + CommentStorage + NotificationQueueStorage + Send + Sync
 {
     /// Initialize the database, checking connectivity and setting up migration history tables
     async fn init(&self) -> Result<()>;

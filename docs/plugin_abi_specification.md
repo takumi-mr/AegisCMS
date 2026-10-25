@@ -267,11 +267,12 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
   "recipient": { "type": "staff" },
   "subject": "【Shop】ログインをロックしました（root）",
   "body": "ログインをロックしました（root）\n\n日時: ...",
+  "html": "<!DOCTYPE html>...",
   "data": { "audit": { "action": "session.create", "outcome": "failure", "details": { "locked": "username" } }, "site_name": "Shop" }
 }
 ```
 
-`recipient` は `{"type": "staff"}` か `{"type": "person", "email": "hanako@example.com", "name": "Hanako"}`。
+`recipient` は `{"type": "staff"}` か `{"type": "person", "email": "hanako@example.com", "name": "Hanako"}`。`html` は `[notifications].html = true` のときだけ入ります（無いものとして扱えるようにしてください）。
 
 - **戻り値**:
 

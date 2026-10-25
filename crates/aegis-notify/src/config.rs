@@ -71,6 +71,10 @@ pub struct NotificationsConfig {
     pub disabled_events: Vec<String>,
     /// 配信に失敗したときの試行回数（初回を含む、1〜10）
     pub max_attempts: u32,
+    /// HTML の本文も作る（メールはプレーンテキストと HTML の両方を送る）
+    pub html: bool,
+    /// 送信待ち（`[notifications.queue]`）
+    pub queue: QueueConfig,
     pub email: EmailConfig,
     /// 監査イベント（管理者のログイン・ログインのロックなど）の通知
     pub audit: AuditNotificationsConfig,
@@ -85,6 +89,8 @@ impl Default for NotificationsConfig {
             templates_dir: None,
             disabled_events: Vec::new(),
             max_attempts: 3,
+            html: true,
+            queue: QueueConfig::default(),
             email: EmailConfig::default(),
             audit: AuditNotificationsConfig::default(),
         }
@@ -117,12 +123,47 @@ impl NotificationsConfig {
         if self.channels.contains(&ChannelKind::Email) {
             self.email.validate()?;
         }
+        self.queue.validate()?;
         self.audit.validate()?;
         Ok(())
     }
 
     pub fn is_event_enabled(&self, kind: &str) -> bool {
         !self.disabled_events.iter().any(|e| e == kind)
+    }
+}
+
+/// 送信待ち（`[notifications.queue]`）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct QueueConfig {
+    /// 送信待ちを DB（`_aegis_notification_queue`）に保存する。再起動しても送信待ち・再試行が失われず、
+    /// 複数台のサーバーでは 1 台だけが送る。`false` ならメモリ上（再起動で失われる）
+    pub persistent: bool,
+    /// 送る時刻を迎えた通知を DB に確かめる間隔（秒、1〜3600）。新しい通知はこの間隔を待たずに送る
+    pub poll_interval_secs: u64,
+    /// 送れなかった通知を残す日数（Admin Studio から再送できる期間。0 なら消さない）
+    pub retention_days: u32,
+}
+
+impl Default for QueueConfig {
+    fn default() -> Self {
+        Self {
+            persistent: true,
+            poll_interval_secs: 10,
+            retention_days: 7,
+        }
+    }
+}
+
+impl QueueConfig {
+    fn validate(&self) -> Result<()> {
+        if !(1..=3600).contains(&self.poll_interval_secs) {
+            return Err(AegisError::Config(
+                "[notifications.queue].poll_interval_secs must be between 1 and 3600".to_string(),
+            ));
+        }
+        Ok(())
     }
 }
 

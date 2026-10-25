@@ -58,6 +58,8 @@ const ACTIONS: AuditAction[] = [
   'comment.moderate',
   'comment.delete',
   'comment.settings_update',
+  'notification.template_update',
+  'notification.queue_update',
 ];
 const OUTCOMES = ['success', 'failure', 'denied'] as const;
 

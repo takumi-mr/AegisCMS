@@ -683,15 +683,24 @@ async fn main() -> anyhow::Result<()> {
                     &app_state.supervisor,
                 )
                 .await?;
-                let notifier = aegis_notify::NotificationService::from_config_with_plugins(
+                let mut notifier = aegis_notify::NotificationService::from_config_with_plugins(
                     &config.notifications,
                     notification_site(&config, &app_state.site().title),
                     Some(app_state.audit.clone()),
                     notify_plugins::plugin_channel_factory(app_state.supervisor.clone()),
                 )?;
+                // 送信待ちを DB に保存する（ワーカーは状態を作り終えてから起動する）
+                if config.notifications.queue.persistent {
+                    notifier = notifier.with_queue(app_state.db.clone());
+                }
                 tracing::info!(
-                    "Notifications enabled (channels: {:?})",
-                    notifier.channel_names()
+                    "Notifications enabled (channels: {:?}, queue: {})",
+                    notifier.channel_names(),
+                    if notifier.is_persistent() {
+                        "database"
+                    } else {
+                        "memory"
+                    }
                 );
                 if let Some(sink) = &audit_notifications {
                     sink.attach(Arc::new(notifier.clone()));
@@ -700,7 +709,10 @@ async fn main() -> anyhow::Result<()> {
                         config.notifications.audit.rules.len()
                     );
                 }
-                app_state.with_notifier(Arc::new(notifier))
+                let app_state = app_state.with_notifications(notifier);
+                // Admin Studio で編集したテンプレート
+                handlers::notifications::reload_templates(&app_state).await;
+                app_state
             } else {
                 app_state
             };
@@ -824,6 +836,10 @@ async fn main() -> anyhow::Result<()> {
             let app_state = Arc::new(app_state);
             if let Some(commerce) = &app_state.commerce {
                 commerce.spawn_expiry_task();
+            }
+            // 通知の送信待ち（[notifications.queue].persistent）。前回の起動で送れなかったものも送る
+            if let Some(notifications) = &app_state.notifications {
+                notifications.spawn_worker();
             }
             // 予約公開（status: "scheduled"）
             scheduler::spawn_publish_task(app_state.clone());

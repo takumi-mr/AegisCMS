@@ -101,7 +101,7 @@ crates/
 ├── aegis-cache      # CacheBackend 実装（メモリ / Redis）
 ├── aegis-audit      # 監査ログの配送（AuditService）と出力先（log / database）、メトリクス
 ├── aegis-auth       # ユーザー・パスワード・セッション・ログイン制限・OIDC・SAML
-├── aegis-notify     # 通知: テンプレート（en / ja）と配信チャネル（メール = SMTP / ログ）
+├── aegis-notify     # 通知: テンプレート（en / ja、テキスト + HTML）・DB の送信待ちと配信チャネル（メール = SMTP / ログ）
 ├── aegis-commerce   # EC: 見積もり・注文・在庫・決済（手動 / Stripe）
 ├── aegis-comments   # コメント: 投稿・審査（承認制・スパム対策）・スレッド・通知
 └── aegis-server     # Axum HTTP 層（ルーティング・ハンドラ・認可）、CLI、Admin SPA 配信
@@ -121,7 +121,7 @@ crates/
 | [aegis-cache](crates/aegis-cache)                             | キャッシュ                                               | `MemoryCacheBackend`, `RedisCacheBackend`, `config` (`CacheConfig`)                                                                                                    |
 | [aegis-audit](crates/aegis-audit)                             | 監査ログ                                                 | `AuditService`, `AuditOrigin`, `log` / `database` 出力先, `metrics`, `config` (`AuditConfig`)                                                                           |
 | [aegis-auth](crates/aegis-auth)                               | 認証                                                     | `users` (`UserService`), `password` (Argon2id), `session` (`SessionService`), `rate_limit`, `oidc` (feature `oidc`), `saml` (feature `saml`), `sso`, `config` (`AuthConfig`)                            |
-| [aegis-notify](crates/aegis-notify)                           | 通知                                                     | `NotificationService`（`aegis_core::Notifier` の実装）, `channel` (`NotificationChannel`), `email` (SMTP), `log`, `templates`, `config` (`NotificationsConfig`) |
+| [aegis-notify](crates/aegis-notify)                           | 通知                                                     | `NotificationService`（`aegis_core::Notifier` の実装・送信待ちのワーカー）, `channel` (`NotificationChannel`), `email` (SMTP), `log`, `templates`, `html`, `samples`, `config` (`NotificationsConfig`) |
 | [aegis-commerce](crates/aegis-commerce)                       | EC                                                       | `CommerceService` (見積もり・注文・状態遷移), `payment` (`PaymentProvider`), `stripe`, `config` (`CommerceConfig`)                                                       |
 | [aegis-comments](crates/aegis-comments)                       | コメント                                                 | `CommentService` (投稿・審査・スレッド・通知), `moderation` (承認制・スパム対策。レビューと共有), `config` (`CommentsConfig`)                                          |
 | [aegis-server](crates/aegis-server)                           | HTTP 層・CLI・SPA配信                                    | `handlers` (REST API・公開ページ), `auth` (認可・フック), `audit` (`AuditContext` 抽出), `state` (`AppState`), `config` (`AegisConfig`), `main` (CLI)                     |
@@ -177,7 +177,7 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
 - **`aegis-audit`**: 監査イベントを設定された出力先へ配送する `AuditService`、操作元（IP・User-Agent）を表す `AuditOrigin`、メトリクス（[docs/audit.md](docs/audit.md)）。
 - **`aegis-auth`**: ユーザー管理 `UserService`、Argon2id パスワード、`CacheBackend` をバックストアとするセッション管理 `SessionService`、ログイン試行制限、OpenID Connect（feature `oidc`）・SAML 2.0（feature `saml`。XML 署名の検証は純 Rust）（[docs/authentication.md](docs/authentication.md)）。
-- **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文を作り、配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。条件に合う監査イベント（管理者のログイン・ログインのロックなど）の通知（`AuditNotificationSink`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.md](docs/notifications.md)）。
+- **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文（プレーンテキストと HTML）を作り、DB の送信待ち（`_aegis_notification_queue`。再起動しても失われず、複数台では 1 台だけが送る）から配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。Admin Studio からのテンプレート編集・テスト送信・再送。条件に合う監査イベント（管理者のログイン・ログインのロックなど）の通知（`AuditNotificationSink`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.md](docs/notifications.md)）。
 - **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査・通知は `CommerceDeps` で受け取ります。
 - **`aegis-comments`**: 読者のコメントの投稿・審査（WordPress と同じ承認制・承認済みの投稿者の自動承認・NG ワード・リンク数・IP ごとの投稿数・ハニーポット・`check-comment` プラグイン）・スレッド表示・通知を扱う `CommentService`（[docs/comments.md](docs/comments.md)）。審査の仕組み（`moderation`）は今後の商品レビューと共有します。
 

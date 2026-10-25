@@ -9,28 +9,15 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: Admin Studio ユニットテスト環境の構築とユーティリティ・API層テストの拡充（ブランチ `test/admin-unit-tests`）
-  - **Vitest 導入**: Vite 8 と連動する Vitest 5 を導入（`admin/vitest.config.ts`、`admin/package.json`）。
-  - **包括的ユニットテスト**: `src/utils/`（Markdown パーサー・シリアライザー、通貨フォーマッター、権限判定、日付フォーマット、クラスネーム結合、カテゴリー判定、公開ステータス、メール確認、SSO リダイレクト）および `src/api/`（セッショントークン管理、`ApiError` クラス）に対して 11 スイート・71 件のテストを作成し、全テスト 100% パスを確認。
-  - **タスクランナー & CI 統合**: `Taskfile.yml` に `task test:admin` を追加し、`task check` および `.github/workflows/ci.yml`（`frontend-ci` ジョブ）にユニットテスト実行を統合。
-  - **クロスプラットフォーム整合性**: Docker Alpine (`node:22-alpine`) 上で `npm ci` の整合性を検証・担保。
-- **その前**: Admin Studio E2E テストの全体的拡充（全 17 テスト合格、ブランチ `test/admin-e2e-suite`）
-  - **認証・セッション (`auth.spec.ts`)**: 正常系ログイン・サインアウト（セッション無効化後のリダイレクト）、誤資格情報のエラーメッセージ、レートリミット連動によるアカウント一時ロック（3回連続失敗で 429 ロックアウトメッセージ表示）の E2E 検証。
-  - **コンテンツ管理 (`content.spec.ts`)**: 記事の新規作成、Draft 保存・サイドバー反映、Published 公開、リロード後の永続化確認、Markdown モードと Blocks モードの相互変換検証。
-  - **テーマ管理 (`themes.spec.ts`)**: インストール済みテーマ一覧、ワンクリックでのアクティブテーマ切り替え（Aegis Horizon ↔ Nordic Minimal Editorial）、トースト表示および永続化検証。
-  - **ユーザー管理 (`users.spec.ts`)**: 初期管理者アカウント一覧確認、新規ユーザー作成（エディターロール）、メール招待モーダルによる招待リンク発行（`notifications` log チャンネル連動）の検証。
-  - **EC 管理 (`commerce.spec.ts`)**: `[commerce].enabled = true` 環境における商品作成（価格・在庫）とカタログ一覧表示、注文一覧・ステータスフィルター画面の表示・更新検証。
-  - **モバイルレスポンシブ (`responsive.spec.ts`)**: 375x667 ビューポートでのハンバーガーメニュー開閉・ビュー遷移、エディタ画面の 3 ペイン（記事一覧 / 編集 / プレビュー）タブ切り替えの動作検証。
-  - **品質検証**: `task test:e2e` 全 17 テスト合格、`task check`（fmt・Prettier・Clippy / oxlint ゼロ警告・全 117 Rust テスト・Admin Studio ビルド）パス。
-  - **ドキュメント反映**: [docs/development.md 8.2](docs/development.md#82-e2e-テスト-playwrightadmine2e) に全スイートの詳細を記録。
-- **その前**: コメント機能とコメントの通知（ブランチ `feat/comments`）
-  - **新クレート `aegis-comments`**: 投稿・審査・スレッド・通知の `CommentService`。審査の仕組み（承認制の設定・入力の正規化・NG ワード / リンク数の振り分け・IP ごとの投稿数・本文の HTML 化）は `moderation` にまとめ、今後の商品レビューと共有する。表は `_aegis_comments`（SQLite / PostgreSQL / MySQL。実機コンテナで確認済み）。
-  - **承認は WordPress 方式**: 承認制・同じ名前とメールアドレスの承認済みコメントがある人は自動承認。どちらも Admin Studio から切り替えられる（`_aegis_settings`。投稿のたびに読むので全サーバーに効く）。スパム対策はハニーポット・IP ごとの投稿数・NG ワード・リンク数・新しいフック `check-comment`（Rust SDK 対応）。
-  - **公開サイト**: 組み込みのコメント欄 `comments.html`（スレッド・返信・JSON で投稿）を組み込みテンプレートと同梱テーマ 4 つの記事・固定ページ・商品ページに追加。返信通知の停止ページ `/comments/unsubscribe`。
-  - **通知**: `comment.posted`（著者）/ `comment.pending`（著者・運営者）/ `comment.replied`（返信先の投稿者。希望者のみ・停止リンク付き）。組み込みテンプレート en / ja。
-  - **Admin Studio**: Comments タブ（状態別の一覧・一括操作・返信・承認の設定）。通知メールの `#comments` で開く。E2E テスト `admin/e2e/comments.spec.ts`。
-  - **監査ログ**: `comment.create` / `comment.moderate` / `comment.delete` / `comment.settings_update`。
-  - 仕様は [docs/comments.md](docs/comments.md)、設計判断は [architecture.md 13](docs/architecture.md#13-コメント-aegis-comments)。
+- **直近の完了**: 通知の拡張（ブランチ `feat/notification-queue`）
+  - **送信待ちの永続化**: DB の outbox `_aegis_notification_queue`（SQLite / PostgreSQL / MySQL。実機コンテナで確認済み）。宛先 × チャネルごとに描画済みの通知を保存し、ワーカーが送る。再起動しても失われず、一時的な失敗は時間を空けて再試行、送れなかったものは `failed` として残す（`retention_days` で削除）。複数台では条件付き UPDATE のリース（5 分）で 1 台だけが送る。`[notifications.queue]`（`persistent` / `poll_interval_secs` / `retention_days`）。
+  - **HTML メール**: `multipart/alternative`（テキスト + HTML）。共通のレイアウト `_layout.html` がテキストの本文から HTML を作る（段落・改行・リンク・フッター）。種類ごとの `<種類>.html` で上書き可。`[notifications].html`（既定 true）。プラグインのチャネルにも `html` を渡す（SDK の `NotificationMessage.html`）。
+  - **Admin Studio の Settings › Notifications**: 配信の状態・送れなかった通知の再送・破棄、見本の値でのテスト送信、テンプレートの編集（`_aegis_settings` の `notification_template:<名前>`。イベントバス `notifications.templates` で全サーバーに反映）とライブプレビュー。E2E テスト `admin/e2e/notifications.spec.ts`、ユニットテスト `src/utils/notificationTemplates.test.ts`（編集するテンプレートの決め方）・`src/api/notifications.test.ts`（API の呼び方）。
+  - **監査ログ**: `notification.template_update` / `notification.queue_update`。
+  - 仕様は [docs/notifications.md](docs/notifications.md)（3.1 HTML、4 配信と信頼性、6 Admin Studio）、設計判断は [architecture.md 8](docs/architecture.md#8-通知-aegis-notify)。
+- **その前**: Admin Studio のユニットテスト（Vitest。`src/utils/`・`src/api/`、`task test:admin`、CI の `frontend-ci` に統合。#82）と E2E テストの拡充（認証・コンテンツ・テーマ・ユーザー・EC・モバイル。#81。[development.md 8.2](docs/development.md#82-e2e-テスト-playwrightadmine2e)）。
+- **その前**: コメント機能とコメントの通知（`aegis-comments`、WordPress 方式の承認、Admin Studio の Comments タブ。[docs/comments.md](docs/comments.md)、[architecture.md 13](docs/architecture.md#13-コメント-aegis-comments)）。
+- **その前**: SEO & Bot 対策機能（robots.txt / sitemap.xml / メタタグ / OGP / Admin Studio 設定画面）（[docs/configuration.md 5](docs/configuration.md#5-管理画面から設定する動的サイトseo設定)）。その前は EC 拡張 Phase 1〜3（決済の抽象化と返金、商品のバリエーション、複数通貨。[docs/commerce.md](docs/commerce.md)）。その前は予約公開・予約非公開の完了を著者にメールで通知（`content.published` / `content.unpublished`、組み込みテンプレート en / ja、公開ページの URL `content_url`）。仕様は [notifications.md 2](docs/notifications.md#2-送る通知)。あわせて Windows で依存を足したときのロックファイルの注意（CI の npm 10 で `npm ci` を確かめる）を [development.md 8.3](docs/development.md#83-依存パッケージを追加したときpackage-lockjson) に記載。その前は Admin Studio に Playwright の E2E テストと Storybook を導入（[development.md 8](docs/development.md#8-admin-studio-の-e2e-テストと-storybook)）。その前は Admin Studio のモバイル対応。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
@@ -62,7 +49,7 @@
 
 ### 通知
 
-- [ ] **通知の追加**: HTML メール、送信待ちの永続化（再起動で失われないキュー）、Admin Studio からのテスト送信・テンプレート編集。
+- [ ] **通知の拡張**（要望があれば）: テンプレートの編集履歴（今は上書きのみ）、言語ごとのテンプレート（宛先の言語で送り分ける。今はサイトで 1 つ）、送信待ちの一括再送、送信の速度の上限（SMTP の送信数の制限への対応）。
 
 ### EC
 

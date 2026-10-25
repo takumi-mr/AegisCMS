@@ -66,6 +66,9 @@ pub struct NotificationMessage {
     pub subject: String,
     /// 本文（プレーンテキスト）
     pub body: String,
+    /// HTML の本文（`[notifications].html` のとき。メールは本文と両方を送る）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
     /// テンプレートに渡した値（注文・監査イベントの内容、`site_name` など）
     #[serde(default)]
     pub data: serde_json::Value,
