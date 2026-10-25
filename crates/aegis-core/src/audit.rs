@@ -104,10 +104,28 @@ pub enum AuditAction {
     /// Failed notification queued again or discarded from admin/API
     #[serde(rename = "notification.queue_update")]
     NotificationQueueUpdate,
+    #[serde(rename = "forum.category.create")]
+    ForumCategoryCreate,
+    #[serde(rename = "forum.category.update")]
+    ForumCategoryUpdate,
+    #[serde(rename = "forum.category.delete")]
+    ForumCategoryDelete,
+    #[serde(rename = "forum.thread.create")]
+    ForumThreadCreate,
+    #[serde(rename = "forum.thread.pin")]
+    ForumThreadPin,
+    #[serde(rename = "forum.thread.lock")]
+    ForumThreadLock,
+    #[serde(rename = "forum.thread.delete")]
+    ForumThreadDelete,
+    #[serde(rename = "forum.post.create")]
+    ForumPostCreate,
+    #[serde(rename = "forum.post.delete")]
+    ForumPostDelete,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 35] = [
+    pub const ALL: [AuditAction; 44] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -143,6 +161,15 @@ impl AuditAction {
         Self::CommentSettingsUpdate,
         Self::NotificationTemplateUpdate,
         Self::NotificationQueueUpdate,
+        Self::ForumCategoryCreate,
+        Self::ForumCategoryUpdate,
+        Self::ForumCategoryDelete,
+        Self::ForumThreadCreate,
+        Self::ForumThreadPin,
+        Self::ForumThreadLock,
+        Self::ForumThreadDelete,
+        Self::ForumPostCreate,
+        Self::ForumPostDelete,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -182,6 +209,15 @@ impl AuditAction {
             Self::CommentSettingsUpdate => "comment.settings_update",
             Self::NotificationTemplateUpdate => "notification.template_update",
             Self::NotificationQueueUpdate => "notification.queue_update",
+            Self::ForumCategoryCreate => "forum.category.create",
+            Self::ForumCategoryUpdate => "forum.category.update",
+            Self::ForumCategoryDelete => "forum.category.delete",
+            Self::ForumThreadCreate => "forum.thread.create",
+            Self::ForumThreadPin => "forum.thread.pin",
+            Self::ForumThreadLock => "forum.thread.lock",
+            Self::ForumThreadDelete => "forum.thread.delete",
+            Self::ForumPostCreate => "forum.post.create",
+            Self::ForumPostDelete => "forum.post.delete",
         }
     }
 }

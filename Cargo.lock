@@ -160,6 +160,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-forum"
+version = "0.1.0"
+dependencies = [
+ "aegis-audit",
+ "aegis-cache",
+ "aegis-core",
+ "aegis-db",
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "toml",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "aegis-notify"
 version = "0.1.0"
 dependencies = [

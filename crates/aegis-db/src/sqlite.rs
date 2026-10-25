@@ -129,6 +129,7 @@ super::notifications::impl_notification_queue_storage!(
     |i| format!("?{}", i),
     "SQLite"
 );
+super::forum::impl_forum_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 
 #[async_trait]
 impl DatabaseAdapter for SqliteAdapter {
@@ -334,6 +335,22 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in queue_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 掲示板
+        let (forum_tables, forum_indexes) =
+            super::forum::build_forum_tables("TEXT", "TEXT", "INTEGER", false);
+        for table in forum_tables {
+            sqlx::query(&table)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        for index in forum_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await
