@@ -56,6 +56,8 @@
     "commentsFailed": "コメントを読み込めませんでした",
     "moderateCommentFailed": "コメントを更新できませんでした",
     "deleteCommentFailed": "コメントを削除できませんでした",
+    "editCommentFailed": "コメントを編集できませんでした",
+    "contentCommentsFailed": "コメントの受付を切り替えられませんでした",
     "replyCommentFailed": "返信を投稿できませんでした",
     "commentSettingsFailed": "コメントの設定を読み込めませんでした",
     "updateCommentSettingsFailed": "コメントの設定を保存できませんでした",
@@ -566,6 +568,18 @@
     "replyPlaceholder": "返信はあなたの表示名ですぐに公開されます。",
     "replyApproves": "このコメントは承認待ちです。返信すると一緒に承認されます。",
     "replied": "返信を公開しました",
+    "edit": {
+      "action": "本文を編集",
+      "title": "{{name}} さんのコメントを編集",
+      "label": "コメントの本文",
+      "note": "公開ページにすぐ反映されます。編集は監査ログに残ります（本文は残りません）。",
+      "saved": "コメントを更新しました"
+    },
+    "closeComments": "このコンテンツへのコメントの受付を止める",
+    "openComments": "このコンテンツへのコメントの受付を再開する",
+    "commentsClosed": "受付停止中",
+    "commentsClosedToast": "「{{title}}」へのコメントの受付を止めました（すでに付いたコメントは表示されたままです）",
+    "commentsOpenedToast": "「{{title}}」へのコメントの受付を再開しました",
     "settings": {
       "title": "承認の設定",
       "requireApproval": "新しいコメントは承認してから公開する",

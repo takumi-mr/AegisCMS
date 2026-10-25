@@ -56,6 +56,7 @@ const ACTIONS: AuditAction[] = [
   'notification.send',
   'comment.create',
   'comment.moderate',
+  'comment.update',
   'comment.delete',
   'comment.settings_update',
   'notification.template_update',

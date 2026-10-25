@@ -114,6 +114,46 @@ async fn run_comment_storage_test<A: DatabaseAdapter>(adapter: &A) -> Result<()>
     assert_eq!(got.updated_at, "2026-10-26T00:00:00Z");
     assert_eq!(adapter.set_comments_status(&[], "trash", "x").await?, 0);
 
+    // 本文の更新と重複の判定（同じメールアドレスか同じ IP。ゴミ箱の行は無視する）
+    assert!(
+        adapter
+            .update_comment_body("c3", "Edited text", "2026-10-26T01:00:00Z")
+            .await?
+    );
+    let got = adapter.get_comment("c3").await?.expect("c3");
+    assert_eq!(got.body, "Edited text");
+    assert_eq!(got.updated_at, "2026-10-26T01:00:00Z");
+    assert!(
+        !adapter
+            .update_comment_body("missing", "x", "2026-10-26T01:00:00Z")
+            .await?
+    );
+    let dup = |content_id: &'static str, body: &'static str, email: &'static str, ip| {
+        adapter.has_duplicate_comment("article", content_id, body, email, ip)
+    };
+    assert!(dup("a1", "Edited text", "hanako@example.com", None).await?);
+    assert!(
+        dup(
+            "a1",
+            "Edited text",
+            "other@example.com",
+            Some("203.0.113.7")
+        )
+        .await?
+    );
+    assert!(
+        !dup(
+            "a1",
+            "Edited text",
+            "other@example.com",
+            Some("198.51.100.1")
+        )
+        .await?
+    );
+    assert!(!dup("a1", "Edited text", "other@example.com", None).await?);
+    assert!(!dup("a2", "Edited text", "hanako@example.com", None).await?);
+    assert!(!dup("a2", "Comment c4", "hanako@example.com", None).await?);
+
     assert!(adapter.set_comment_notify_replies("c2", false).await?);
     assert!(!adapter.get_comment("c2").await?.expect("c2").notify_replies);
     assert!(!adapter.set_comment_notify_replies("missing", false).await?);

@@ -106,6 +106,20 @@ pub trait CommentStorage: Send + Sync {
     /// Whether the same author (email and name) already has an approved comment
     async fn has_approved_comment(&self, author_email: &str, author_name: &str) -> Result<bool>;
 
+    /// Replace the text of a comment. Returns false when no comment has that id
+    async fn update_comment_body(&self, id: &str, body: &str, updated_at: &str) -> Result<bool>;
+
+    /// Whether a comment with exactly this text is already on the content from the same author
+    /// (email) or the same address (`ip`). Trashed comments are ignored
+    async fn has_duplicate_comment(
+        &self,
+        content_type: &str,
+        content_id: &str,
+        body: &str,
+        author_email: &str,
+        ip: Option<&str>,
+    ) -> Result<bool>;
+
     /// Stop (or resume) reply notifications for a comment. Returns false when no comment has that id
     async fn set_comment_notify_replies(&self, id: &str, notify: bool) -> Result<bool>;
 }
@@ -251,6 +265,30 @@ pub fn build_comment_delete(count: usize, placeholder: impl Fn(usize) -> String)
         "DELETE FROM {} WHERE id IN ({});",
         COMMENT_TABLE,
         ids.join(", ")
+    )
+}
+
+/// 同じ本文の重複を探す SELECT。バインド順は content_type, content_id, body, author_email（, ip）
+pub fn build_comment_duplicate_check(
+    with_ip: bool,
+    placeholder: impl Fn(usize) -> String,
+) -> String {
+    let who = if with_ip {
+        format!(
+            "(author_email = {} OR ip = {})",
+            placeholder(4),
+            placeholder(5)
+        )
+    } else {
+        format!("author_email = {}", placeholder(4))
+    };
+    format!(
+        "SELECT COUNT(*) FROM {} WHERE content_type = {} AND content_id = {} AND body = {} AND status <> 'trash' AND {};",
+        COMMENT_TABLE,
+        placeholder(1),
+        placeholder(2),
+        placeholder(3),
+        who
     )
 }
 
@@ -467,6 +505,55 @@ macro_rules! impl_comment_storage {
                 Ok(n > 0)
             }
 
+            async fn update_comment_body(
+                &self,
+                id: &str,
+                body: &str,
+                updated_at: &str,
+            ) -> aegis_core::Result<bool> {
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET body = {}, updated_at = {} WHERE id = {};",
+                    $crate::comments::COMMENT_TABLE,
+                    ph(1),
+                    ph(2),
+                    ph(3)
+                );
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let res = sqlx::query(&sql)
+                    .bind(body)
+                    .bind(updated_at)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                Ok(res.rows_affected() > 0)
+            }
+
+            async fn has_duplicate_comment(
+                &self,
+                content_type: &str,
+                content_id: &str,
+                body: &str,
+                author_email: &str,
+                ip: Option<&str>,
+            ) -> aegis_core::Result<bool> {
+                let sql = $crate::comments::build_comment_duplicate_check(ip.is_some(), $ph);
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let mut q = sqlx::query_scalar::<_, i64>(&sql)
+                    .bind(content_type)
+                    .bind(content_id)
+                    .bind(body)
+                    .bind(author_email);
+                if let Some(ip) = ip {
+                    q = q.bind(ip);
+                }
+                let n = q.fetch_one(&self.pool).await.map_err(db_err)?;
+                Ok(n > 0)
+            }
+
             async fn set_comment_notify_replies(
                 &self,
                 id: &str,
@@ -546,6 +633,16 @@ mod tests {
             build_comment_delete(3, |i| format!("?{}", i)),
             "DELETE FROM _aegis_comments WHERE id IN (?1, ?2, ?3);"
         );
+    }
+
+    #[test]
+    fn test_comment_duplicate_sql() {
+        assert_eq!(
+            build_comment_duplicate_check(true, |i| format!("${}", i)),
+            "SELECT COUNT(*) FROM _aegis_comments WHERE content_type = $1 AND content_id = $2 AND body = $3 AND status <> 'trash' AND (author_email = $4 OR ip = $5);"
+        );
+        assert!(build_comment_duplicate_check(false, |_| "?".to_string())
+            .ends_with("AND status <> 'trash' AND author_email = ?;"));
     }
 
     #[test]

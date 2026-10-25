@@ -89,6 +89,8 @@ builtin_templates!(
     "comment.pending.staff.txt",
     "comment.replied.subject",
     "comment.replied.txt",
+    "comment.approved.subject",
+    "comment.approved.txt",
     "_audit_title.txt",
     "audit.subject",
     "audit.txt",
@@ -903,6 +905,39 @@ https://shop.example.com/spring-sale
             ja.body.contains("Shop（Aegis Coffee） さんが返信しました"),
             "{}",
             ja.body
+        );
+    }
+
+    #[test]
+    fn renders_the_comment_approved_template_in_each_locale() {
+        let author = Recipient::person("hanako@example.com", "Hanako");
+        let approved = json!({
+            "site_name": "Aegis Coffee",
+            "site_url": "https://shop.example.com",
+            "name": "Hanako",
+            "comment": { "body": "Which roast?" },
+            "content": { "title": "Spring Sale" },
+            "content_url": "https://shop.example.com/spring-sale#comment-c1",
+            "unsubscribe_url": "https://shop.example.com/comments/unsubscribe?id=c1&token=t",
+        });
+        for locale in LOCALES {
+            let rendered = Templates::new(locale, None)
+                .render("comment.approved", &author, &approved)
+                .unwrap()
+                .unwrap();
+            assert!(rendered.subject.contains("Spring Sale"));
+            assert!(rendered.body.contains("Which roast?"));
+            assert!(rendered.body.contains("#comment-c1"));
+            assert!(rendered.body.contains("token=t"));
+            assert!(!rendered.body.contains("\n\n\n"), "{}", rendered.body);
+        }
+        let ja = Templates::new("ja", None)
+            .render("comment.approved", &author, &approved)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            ja.subject,
+            "【Aegis Coffee】「Spring Sale」へのあなたのコメントが承認されました"
         );
     }
 

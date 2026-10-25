@@ -56,6 +56,8 @@
     "commentsFailed": "Failed to load comments",
     "moderateCommentFailed": "Failed to update the comments",
     "deleteCommentFailed": "Failed to delete the comment",
+    "editCommentFailed": "Failed to edit the comment",
+    "contentCommentsFailed": "Failed to switch comments for this content",
     "replyCommentFailed": "Failed to post the reply",
     "commentSettingsFailed": "Failed to load the comment settings",
     "updateCommentSettingsFailed": "Failed to save the comment settings",
@@ -583,6 +585,18 @@
     "replyPlaceholder": "Your reply is published right away under your display name.",
     "replyApproves": "This comment is pending. Replying approves it too.",
     "replied": "Reply published",
+    "edit": {
+      "action": "Edit text",
+      "title": "Edit the comment by {{name}}",
+      "label": "Comment text",
+      "note": "The public page changes right away. The edit is recorded in the audit log (not the text).",
+      "saved": "Comment updated"
+    },
+    "closeComments": "Stop new comments on this content",
+    "openComments": "Accept new comments on this content again",
+    "commentsClosed": "Closed",
+    "commentsClosedToast": "Stopped new comments on \"{{title}}\" (the comments already there stay visible)",
+    "commentsOpenedToast": "\"{{title}}\" accepts comments again",
     "settings": {
       "title": "Moderation",
       "requireApproval": "Hold new comments for approval before they are published",

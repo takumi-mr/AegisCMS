@@ -98,10 +98,14 @@ pub enum AuditAction {
     /// Comment status changed (approved, held, marked as spam, trashed) from admin/API
     #[serde(rename = "comment.moderate")]
     CommentModerate,
+    /// Comment text edited from admin/API
+    #[serde(rename = "comment.update")]
+    CommentUpdate,
     /// Comment permanently deleted from admin/API
     #[serde(rename = "comment.delete")]
     CommentDelete,
-    /// Comment moderation settings (approval, auto-approval) changed from admin/API
+    /// Comment moderation settings (approval, auto-approval) or the per-content comment switch
+    /// changed from admin/API
     #[serde(rename = "comment.settings_update")]
     CommentSettingsUpdate,
     /// Notification template edited or reset to the default from admin/API
@@ -145,7 +149,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 53] = [
+    pub const ALL: [AuditAction; 54] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -179,6 +183,7 @@ impl AuditAction {
         Self::UserInvite,
         Self::CommentCreate,
         Self::CommentModerate,
+        Self::CommentUpdate,
         Self::CommentDelete,
         Self::CommentSettingsUpdate,
         Self::NotificationTemplateUpdate,
@@ -236,6 +241,7 @@ impl AuditAction {
             Self::UserInvite => "user.invite",
             Self::CommentCreate => "comment.create",
             Self::CommentModerate => "comment.moderate",
+            Self::CommentUpdate => "comment.update",
             Self::CommentDelete => "comment.delete",
             Self::CommentSettingsUpdate => "comment.settings_update",
             Self::NotificationTemplateUpdate => "notification.template_update",

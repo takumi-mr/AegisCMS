@@ -68,6 +68,7 @@ export type AuditAction =
   | 'plugin.reset'
   | 'comment.create'
   | 'comment.moderate'
+  | 'comment.update'
   | 'comment.delete'
   | 'comment.settings_update'
   | 'notification.template_update'
@@ -646,7 +647,7 @@ export interface AdminComment {
   content_type: string;
   content_id: string;
   /** The content the comment is on (`null` once that content is deleted) */
-  content: { title: string; slug: string; url: string } | null;
+  content: { title: string; slug: string; url: string; comments_open: boolean } | null;
   parent_id: string | null;
   /** Name of the person this comment replies to */
   parent_author: string | null;

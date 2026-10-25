@@ -1,0 +1,15 @@
+Hello {{ name }},
+
+Your comment on "{{ content.title }}" has been approved and is now visible.
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+
+Your comment:
+{{ comment.body }}
+{% if unsubscribe_url %}
+
+To stop emails about this comment, open: {{ unsubscribe_url }}
+{% endif %}
+{% include "_footer.txt" %}

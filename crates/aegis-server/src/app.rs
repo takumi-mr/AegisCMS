@@ -55,6 +55,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/contents/{content_type}/{slug}/comments",
             get(handlers::list_public_comments).post(handlers::submit_comment),
         )
+        .route(
+            "/api/v1/contents/{content_type}/{id}/comments/state",
+            put(handlers::set_content_comments),
+        )
         .route("/api/v1/comments", get(handlers::list_comments))
         .route(
             "/api/v1/comments/settings",

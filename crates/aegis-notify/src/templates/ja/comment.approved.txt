@@ -1,0 +1,15 @@
+{{ name }} 様
+
+「{{ content.title }}」へのあなたのコメントが承認され、公開されました。
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+
+あなたのコメント:
+{{ comment.body }}
+{% if unsubscribe_url %}
+
+このコメントのお知らせを止めるには、次のページを開いてください: {{ unsubscribe_url }}
+{% endif %}
+{% include "_footer.txt" %}

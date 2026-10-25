@@ -390,6 +390,9 @@ SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Re
 | `close_after_days` | integer | `0` | 公開からこの日数を過ぎたら新しいコメントを受け付けない（0 で閉じない） |
 | `notify_author` | bool | `true` | コメントが付いたこと（承認待ちを含む）をコンテンツの著者に知らせる（`comment.posted` / `comment.pending`） |
 | `notify_staff` | bool | `true` | 承認待ちのコメントを運営者に知らせる（`comment.pending`） |
+| `avatars` | string | `"none"` | 投稿者のアバター画像。`none`（出さない）/ `gravatar`（[コメント 3.1](./comments.md#31-アバター)） |
+| `avatar_default` | string | `"identicon"` | Gravatar に画像が無い人の画像（`mp` / `identicon` / `monsterid` / `wavatar` / `retro` / `robohash` / `blank` / `404`） |
+| `reject_duplicates` | bool | `true` | 同じコンテンツに、同じ人（メールアドレスか IP アドレスが同じ）が同じ本文を投稿したら断る（`409`） |
 
 #### `[comments.moderation]`
 
@@ -597,6 +600,9 @@ max_length = 5000
 close_after_days = 0
 notify_author = true
 notify_staff = true
+avatars = "none"
+avatar_default = "identicon"
+reject_duplicates = true
 
 [comments.moderation]
 require_approval = true

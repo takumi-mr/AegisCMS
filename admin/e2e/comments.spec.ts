@@ -25,7 +25,7 @@ const postComment = async (page: Page, slug: string, name: string, body: string)
   const form = page.locator('form.aegis-comment-form');
   await form.getByLabel('Name', { exact: true }).fill(name);
   await form.getByLabel('Email (not published)').fill(`${name.toLowerCase()}@example.com`);
-  await form.getByLabel('Comment').fill(body);
+  await form.getByLabel('Comment', { exact: true }).fill(body);
   await form.getByRole('button', { name: 'Post comment' }).click();
 };
 

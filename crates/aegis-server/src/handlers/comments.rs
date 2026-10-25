@@ -37,6 +37,7 @@ fn comment_error(e: CommentError) -> ApiError {
         CommentError::Invalid(_) => StatusCode::BAD_REQUEST,
         CommentError::NotFound(_) => StatusCode::NOT_FOUND,
         CommentError::Closed => StatusCode::FORBIDDEN,
+        CommentError::Duplicate => StatusCode::CONFLICT,
         CommentError::RateLimited => StatusCode::TOO_MANY_REQUESTS,
         CommentError::Rejected(_) => StatusCode::UNPROCESSABLE_ENTITY,
         CommentError::Internal(message) => {
@@ -270,10 +271,16 @@ pub async fn list_comments(
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateCommentRequest {
-    pub status: String,
+    /// 新しい状態（`approved` など）
+    #[serde(default)]
+    pub status: Option<String>,
+    /// 新しい本文（プレーンテキスト）
+    #[serde(default)]
+    pub body: Option<String>,
 }
 
-/// `PATCH /api/v1/comments/{id}` — 状態を変える（`{"status": "approved"}` など。`editor`）
+/// `PATCH /api/v1/comments/{id}` — 状態を変える（`{"status": "approved"}` など）、本文を直す
+/// （`{"body": "..."}`）。両方を同時に渡せる。`editor`
 pub async fn update_comment(
     State(state): State<Arc<AppState>>,
     _session: EditorSession,
@@ -282,18 +289,60 @@ pub async fn update_comment(
     Json(payload): Json<UpdateCommentRequest>,
 ) -> Result<StatusCode, ApiError> {
     let service = comments(&state)?;
-    let status = parse_status(&payload.status)?;
-    let changed = service
-        .moderate(&audit, std::slice::from_ref(&id), status)
-        .await
-        .map_err(comment_error)?;
-    if changed == 0 {
+    if payload.status.is_none() && payload.body.is_none() {
         return Err(api_error(
-            StatusCode::NOT_FOUND,
-            format!("Comment '{}' not found", id),
+            StatusCode::BAD_REQUEST,
+            "Give a status, a body, or both",
         ));
     }
+    let status = payload.status.as_deref().map(parse_status).transpose()?;
+    // 本文は状態より先に直す（承認と同時に直したとき、通知に直した本文を入れる）
+    if let Some(body) = &payload.body {
+        service
+            .edit(&audit, &id, body)
+            .await
+            .map_err(comment_error)?;
+    }
+    if let Some(status) = status {
+        let changed = service
+            .moderate(&audit, std::slice::from_ref(&id), status)
+            .await
+            .map_err(comment_error)?;
+        if changed == 0 {
+            return Err(api_error(
+                StatusCode::NOT_FOUND,
+                format!("Comment '{}' not found", id),
+            ));
+        }
+    }
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ContentCommentsRequest {
+    /// 新しいコメントを受け付けるか
+    pub open: bool,
+}
+
+/// `PUT /api/v1/contents/{content_type}/{id}/comments/state` — そのコンテンツへのコメントの受付を
+/// 止める・再開する（`{"open": false}`。`editor`）。すでに付いたコメントは公開ページに残る
+pub async fn set_content_comments(
+    State(state): State<Arc<AppState>>,
+    _session: EditorSession,
+    Path((content_type, id)): Path<(String, String)>,
+    audit: AuditContext,
+    Json(payload): Json<ContentCommentsRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let service = comments(&state)?;
+    let target = service
+        .set_content_open(&audit, &content_type, &id, payload.open)
+        .await
+        .map_err(comment_error)?;
+    Ok(Json(json!({
+        "content_type": target.content_type,
+        "content_id": target.id,
+        "open": !target.comments_closed,
+    })))
 }
 
 /// `DELETE /api/v1/comments/{id}` — 完全に削除する（`editor`）

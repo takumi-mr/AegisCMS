@@ -603,6 +603,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
   .aegis-comment { margin: 0 0 1rem calc(min(var(--depth, 0), 4) * 1.5rem); padding: 0.9rem 1rem; border-radius: 12px; background: rgba(127,127,127,0.07); border: 1px solid rgba(127,127,127,0.18); }
   .aegis-comment:target { border-color: var(--accent, #6366f1); }
   .aegis-comment-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 0.9rem; }
+  .aegis-comment-avatar { width: 28px; height: 28px; border-radius: 50%; align-self: center; object-fit: cover; }
   .aegis-comment-head time { opacity: 0.6; font-size: 0.8rem; }
   .aegis-comment-badge { padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--accent, #6366f1); color: #fff; font-size: 0.7rem; font-weight: 600; }
   .aegis-comment-body { overflow-wrap: anywhere; }
@@ -623,6 +624,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
   {% for c in comments["items"] %}
   <article class="aegis-comment" id="comment-{{ c.id }}" style="--depth: {{ c.depth }}">
     <header class="aegis-comment-head">
+      {% if c.avatar_url %}<img class="aegis-comment-avatar" src="{{ c.avatar_url }}" alt="" width="28" height="28" loading="lazy" referrerpolicy="no-referrer">{% endif %}
       <strong>{{ c.author_name }}</strong>
       {% if c.staff %}<span class="aegis-comment-badge">Staff</span>{% endif %}
       <time datetime="{{ c.created_at }}">{{ c.created_at | date_short }}</time>
@@ -642,7 +644,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
     <label>Email (not published) <input type="email" name="email" required maxlength="254" autocomplete="email"></label>
     <label>Comment <textarea name="body" required rows="5" maxlength="{{ comments.max_length }}"></textarea></label>
     <div class="aegis-comment-hp" aria-hidden="true"><label>Leave this empty <input name="website" tabindex="-1" autocomplete="off"></label></div>
-    <label class="aegis-comment-check"><input type="checkbox" name="notify_replies"> Email me when someone replies</label>
+    <label class="aegis-comment-check"><input type="checkbox" name="notify_replies"> Email me when someone replies or my comment is approved</label>
     <button type="submit">Post comment</button>
     <p class="aegis-comment-status" role="status" aria-live="polite"></p>
   </form>

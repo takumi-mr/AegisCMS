@@ -218,6 +218,9 @@ async fn test_post_moderate_and_show_on_the_article_page() {
         )
         .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
+    // Approving tells the reader who asked for emails
+    assert_eq!(site.mails.kinds(), ["comment.approved"]);
+    site.mails.events.lock().unwrap().clear();
     let (status, _) = site
         .call(
             "PATCH",
@@ -309,14 +312,14 @@ async fn test_public_errors_and_spam_protection() {
     assert_eq!(status, StatusCode::ACCEPTED);
     assert_eq!(body["status"], "pending");
 
-    for _ in 0..2 {
+    for text in ["x1", "x2"] {
         let (status, _) = site
-            .post_comment(json!({ "name": "A", "email": "a@example.com", "body": "x" }))
+            .post_comment(json!({ "name": "A", "email": "a@example.com", "body": text }))
             .await;
         assert_eq!(status, StatusCode::ACCEPTED);
     }
     let (status, body) = site
-        .post_comment(json!({ "name": "A", "email": "a@example.com", "body": "x" }))
+        .post_comment(json!({ "name": "A", "email": "a@example.com", "body": "x3" }))
         .await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "{}", body);
 
@@ -490,6 +493,128 @@ async fn test_deleting_content_deletes_its_comments_and_closed_comments_have_no_
         .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert!(site.state.db.get_comment("c1").await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn test_edit_text_close_per_content_and_reject_duplicates() {
+    let site = site(|config| {
+        config.comments.moderation.require_approval = false;
+        config.comments.avatars = aegis_comments::AvatarProvider::Gravatar;
+    })
+    .await;
+    let post = json!({ "name": "Hanako", "email": "hanako@example.com", "body": "Typo hrere" });
+    let (status, body) = site.post_comment(post.clone()).await;
+    assert_eq!(status, StatusCode::CREATED, "{}", body);
+    let id = body["comment"]["id"].as_str().unwrap().to_string();
+    assert!(body["comment"]["avatar_url"]
+        .as_str()
+        .unwrap()
+        .starts_with("https://www.gravatar.com/avatar/"));
+
+    // The same text again is a conflict
+    let (status, body) = site.post_comment(post).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{}", body);
+
+    // Editors fix the text; the page shows it. Nothing to change is a 400
+    let path = format!("/api/v1/comments/{}", id);
+    let (status, _) = site
+        .call("PATCH", &path, Some(json!({})), Some(&site.editor))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, body) = site
+        .call(
+            "PATCH",
+            &path,
+            Some(json!({ "body": "  " })),
+            Some(&site.editor),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{}", body);
+    let (status, _) = site
+        .call(
+            "PATCH",
+            &path,
+            Some(json!({ "body": "Typo here" })),
+            Some(&site.editor),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, html) = site.page("/articles/hello").await;
+    assert!(html.contains("Typo here"), "{}", html);
+    assert!(!html.contains("Typo hrere"));
+    assert!(html.contains("www.gravatar.com"), "{}", html);
+    let (status, _) = site
+        .call(
+            "PATCH",
+            "/api/v1/comments/missing",
+            Some(json!({ "body": "x" })),
+            Some(&site.editor),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (_, logs) = site
+        .call(
+            "GET",
+            "/api/v1/audit-logs?action=comment.update",
+            None,
+            Some(&site.admin),
+        )
+        .await;
+    assert_eq!(logs["items"].as_array().map(Vec::len), Some(1), "{}", logs);
+
+    // Close the article to new comments: the form goes away, the comment stays
+    let state_path = "/api/v1/contents/article/a1/comments/state";
+    let (status, _) = site
+        .call("PUT", state_path, Some(json!({ "open": false })), None)
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, body) = site
+        .call(
+            "PUT",
+            state_path,
+            Some(json!({ "open": false })),
+            Some(&site.editor),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{}", body);
+    assert_eq!(body["open"], false);
+    let (status, body) = site
+        .post_comment(json!({ "name": "Taro", "email": "taro@example.com", "body": "Late" }))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{}", body);
+    let (_, html) = site.page("/articles/hello").await;
+    assert!(html.contains("Comments are closed."));
+    assert!(html.contains("Typo here"));
+    let (_, list) = site
+        .call("GET", "/api/v1/comments", None, Some(&site.editor))
+        .await;
+    assert_eq!(list["comments"][0]["content"]["comments_open"], false);
+
+    let (status, body) = site
+        .call(
+            "PUT",
+            state_path,
+            Some(json!({ "open": true })),
+            Some(&site.editor),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["open"], true);
+    let (status, _) = site
+        .post_comment(
+            json!({ "name": "Taro", "email": "taro@example.com", "body": "Welcome back" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, _) = site
+        .call(
+            "PUT",
+            "/api/v1/contents/article/missing/comments/state",
+            Some(json!({ "open": false })),
+            Some(&site.editor),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

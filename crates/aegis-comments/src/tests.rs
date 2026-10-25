@@ -743,7 +743,11 @@ async fn test_admin_list_counts_and_delete() {
     let f = fixture(enabled()).await;
     for name in ["A", "B", "C"] {
         f.service
-            .submit(&f.target, request(name, "hi"), &client("192.0.2.9"))
+            .submit(
+                &f.target,
+                request(name, &format!("hi from {}", name)),
+                &client("192.0.2.9"),
+            )
             .await
             .unwrap();
     }
@@ -815,6 +819,288 @@ async fn test_targets_and_closing() {
         .is_open(&f.target, published + chrono::Duration::days(30)));
 }
 
+#[tokio::test]
+async fn test_comments_can_be_closed_per_content() {
+    let mut config = enabled();
+    config.moderation.require_approval = false;
+    let f = fixture(config).await;
+    f.service
+        .submit(&f.target, request("Hanako", "First"), &client("192.0.2.1"))
+        .await
+        .unwrap();
+
+    let closed = f
+        .service
+        .set_content_open(&admin(), "article", "hello", false)
+        .await
+        .unwrap();
+    assert!(closed.comments_closed);
+    let target = f.service.target("article", "hello").await.unwrap();
+    assert!(target.comments_closed);
+    assert!(!f.service.is_open(&target, Utc::now()));
+    assert!(matches!(
+        f.service
+            .submit(&target, request("Taro", "Second"), &client("192.0.2.2"))
+            .await,
+        Err(CommentError::Closed)
+    ));
+    // The comments that are already there stay on the page
+    let section = f.service.section(&target, String::new()).await.unwrap();
+    assert!(!section.open);
+    assert_eq!(section.count, 1);
+    let page = f
+        .service
+        .list(&AdminListQuery {
+            limit: 10,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(!page.comments[0].content.as_ref().unwrap().comments_open);
+
+    let reopened = f
+        .service
+        .set_content_open(&admin(), "article", "a1", true)
+        .await
+        .unwrap();
+    assert!(!reopened.comments_closed);
+    let target = f.service.target("article", "hello").await.unwrap();
+    assert!(f.service.is_open(&target, Utc::now()));
+    f.service
+        .submit(&target, request("Taro", "Second"), &client("192.0.2.2"))
+        .await
+        .unwrap();
+
+    // Deleting the content forgets the switch
+    f.service
+        .set_content_open(&admin(), "article", "hello", false)
+        .await
+        .unwrap();
+    f.service.delete_for_content("article", "a1").await.unwrap();
+    assert!(f
+        .db
+        .list_settings()
+        .await
+        .unwrap()
+        .keys()
+        .all(|k| !k.starts_with("comments.closed")));
+
+    assert!(matches!(
+        f.service
+            .set_content_open(&admin(), "article", "missing", false)
+            .await,
+        Err(CommentError::NotFound(_))
+    ));
+    assert!(matches!(
+        f.service
+            .set_content_open(&admin(), "page", "hello", false)
+            .await,
+        Err(CommentError::NotFound(_))
+    ));
+    assert!(f
+        .audit
+        .actions()
+        .contains(&("comment.settings_update".to_string(), "success".to_string())));
+}
+
+#[tokio::test]
+async fn test_duplicate_comments_are_rejected() {
+    let mut config = enabled();
+    config.moderation.require_approval = false;
+    let f = fixture(config.clone()).await;
+    f.service
+        .submit(&f.target, request("Hanako", "Nice!"), &client("192.0.2.1"))
+        .await
+        .unwrap();
+
+    // Same author, same text (even from another address)
+    assert!(matches!(
+        f.service
+            .submit(&f.target, request("Hanako", "Nice!"), &client("192.0.2.8"))
+            .await,
+        Err(CommentError::Duplicate)
+    ));
+    // Another author from the same address
+    assert!(matches!(
+        f.service
+            .submit(&f.target, request("Taro", "Nice!"), &client("192.0.2.1"))
+            .await,
+        Err(CommentError::Duplicate)
+    ));
+    // Another author from another address, or another text, is fine
+    f.service
+        .submit(&f.target, request("Taro", "Nice!"), &client("192.0.2.2"))
+        .await
+        .unwrap();
+    f.service
+        .submit(
+            &f.target,
+            request("Hanako", "Nice! Thanks"),
+            &client("192.0.2.1"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(all_comments(&f.db).await.len(), 3);
+
+    // A trashed comment can be posted again
+    let first = all_comments(&f.db).await[0].id.clone();
+    f.service
+        .moderate(&admin(), &[first], ModerationStatus::Trash)
+        .await
+        .unwrap();
+    f.service
+        .submit(&f.target, request("Hanako", "Nice!"), &client("192.0.2.1"))
+        .await
+        .unwrap();
+
+    let mut off = config;
+    off.reject_duplicates = false;
+    let f = fixture(off).await;
+    for _ in 0..2 {
+        f.service
+            .submit(&f.target, request("Hanako", "Nice!"), &client("192.0.2.1"))
+            .await
+            .unwrap();
+    }
+    assert_eq!(all_comments(&f.db).await.len(), 2);
+}
+
+#[tokio::test]
+async fn test_comment_text_can_be_edited() {
+    let mut config = enabled();
+    config.moderation.require_approval = false;
+    let f = fixture(config).await;
+    f.service
+        .submit(
+            &f.target,
+            request("Hanako", "Typo hrere"),
+            &client("192.0.2.1"),
+        )
+        .await
+        .unwrap();
+    let id = all_comments(&f.db).await[0].id.clone();
+
+    let edited = f
+        .service
+        .edit(&admin(), &id, "  Typo here\r\n\r\nfixed  ")
+        .await
+        .unwrap();
+    assert_eq!(edited.body, "Typo here\n\nfixed");
+    let stored = f.db.get_comment(&id).await.unwrap().unwrap();
+    assert_eq!(stored.body, "Typo here\n\nfixed");
+    assert_eq!(stored.status, "approved");
+    let section = f.service.section(&f.target, String::new()).await.unwrap();
+    assert!(section.items[0].body_html.contains("Typo here"));
+    assert!(f
+        .audit
+        .actions()
+        .contains(&("comment.update".to_string(), "success".to_string())));
+
+    assert!(matches!(
+        f.service.edit(&admin(), &id, "   ").await,
+        Err(CommentError::Invalid(_))
+    ));
+    assert!(matches!(
+        f.service.edit(&admin(), "missing", "x").await,
+        Err(CommentError::NotFound(_))
+    ));
+}
+
+#[tokio::test]
+async fn test_approving_notifies_the_commenter_who_asked() {
+    let f = fixture(enabled()).await;
+    for (name, notify, ip) in [("Hanako", true, "192.0.2.1"), ("Taro", false, "192.0.2.2")] {
+        f.service
+            .submit(
+                &f.target,
+                CommentRequest {
+                    notify_replies: notify,
+                    ..request(name, "Hello there")
+                },
+                &client(ip),
+            )
+            .await
+            .unwrap();
+    }
+    let ids: Vec<String> = all_comments(&f.db)
+        .await
+        .into_iter()
+        .map(|c| c.id)
+        .collect();
+    f.notifier.take();
+    f.service
+        .moderate(&admin(), &ids, ModerationStatus::Approved)
+        .await
+        .unwrap();
+    let events = f.notifier.take();
+    assert_eq!(events.len(), 1, "{:?}", events);
+    assert_eq!(events[0].kind, "comment.approved");
+    assert_eq!(events[0].data["name"], "Hanako");
+    assert_eq!(events[0].data["content"]["title"], "Hello");
+    assert!(events[0].data["content_url"]
+        .as_str()
+        .unwrap()
+        .starts_with("https://example.com/hello#comment-"));
+    assert!(events[0].data["unsubscribe_url"]
+        .as_str()
+        .unwrap()
+        .contains("/comments/unsubscribe?id="));
+
+    // Approving again (they are approved already) tells nobody
+    f.service
+        .moderate(&admin(), &ids, ModerationStatus::Approved)
+        .await
+        .unwrap();
+    assert!(f.notifier.take().is_empty());
+
+    // Once they stop the notifications, nothing is sent
+    let hanako = all_comments(&f.db)
+        .await
+        .into_iter()
+        .find(|c| c.author_name == "Hanako")
+        .unwrap();
+    f.service
+        .moderate(&admin(), &[hanako.id.clone()], ModerationStatus::Pending)
+        .await
+        .unwrap();
+    f.service
+        .unsubscribe(&hanako.id, hanako.notify_token.as_deref().unwrap())
+        .await
+        .unwrap();
+    f.service
+        .moderate(&admin(), &[hanako.id], ModerationStatus::Approved)
+        .await
+        .unwrap();
+    assert!(f.notifier.take().is_empty());
+}
+
+#[tokio::test]
+async fn test_avatars_only_with_gravatar() {
+    let mut config = enabled();
+    config.moderation.require_approval = false;
+    let f = fixture(config.clone()).await;
+    let submitted = f
+        .service
+        .submit(&f.target, request("Hanako", "Hi"), &client("192.0.2.1"))
+        .await
+        .unwrap();
+    assert_eq!(submitted.comment.unwrap().avatar_url, None);
+    let section = f.service.section(&f.target, String::new()).await.unwrap();
+    assert_eq!(section.items[0].avatar_url, None);
+
+    config.avatars = AvatarProvider::Gravatar;
+    let f = fixture(config).await;
+    let submitted = f
+        .service
+        .submit(&f.target, request("Hanako", "Hi"), &client("192.0.2.1"))
+        .await
+        .unwrap();
+    let url = submitted.comment.unwrap().avatar_url.unwrap();
+    assert!(url.starts_with("https://www.gravatar.com/avatar/"));
+    let section = f.service.section(&f.target, String::new()).await.unwrap();
+    assert_eq!(section.items[0].avatar_url, Some(url));
+}
+
 fn record(id: &str, parent: Option<&str>) -> CommentRecord {
     CommentRecord {
         id: id.to_string(),
@@ -836,7 +1122,7 @@ fn test_thread_order_and_depth() {
         record("orphan", Some("gone")),
         record("a1xy", Some("a1x")),
     ];
-    let threaded: Vec<_> = thread(records, 2)
+    let threaded: Vec<_> = thread(records, 2, &|_| None)
         .into_iter()
         .map(|c| (c.id, c.depth))
         .collect();
@@ -855,6 +1141,10 @@ fn test_thread_order_and_depth() {
     );
 
     // A loop (never written by the service) still shows every comment once
-    let looped = thread(vec![record("x", Some("y")), record("y", Some("x"))], 3);
+    let looped = thread(
+        vec![record("x", Some("y")), record("y", Some("x"))],
+        3,
+        &|_| None,
+    );
     assert_eq!(looped.len(), 2);
 }
