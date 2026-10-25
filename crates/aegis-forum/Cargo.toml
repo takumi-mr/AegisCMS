@@ -1,0 +1,28 @@
+[package]
+name = "aegis-forum"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Community forum and bulletin board for AegisCMS: categories, threads, posts, moderation, and rate limiting"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-db = { path = "../aegis-db" }
+aegis-audit = { path = "../aegis-audit" }
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+aegis-cache = { path = "../aegis-cache" }
+async-trait.workspace = true
+tokio = { workspace = true, features = ["full"] }
+toml = "0.8"
