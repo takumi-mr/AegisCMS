@@ -111,5 +111,6 @@
   - **キーセット（カーソル）ページネーション**: `OFFSET` による性能劣化を防ぐため、スレッド一覧は `(is_pinned DESC, last_post_at DESC, id DESC)`、レス一覧は `post_number > ?` のカーソル走査を標準化。数万〜数十万件規模でも 1ms 未満の応答を保証。
   - **連投防止・モデレーション**: `CacheBackend` を活用した IP / ユーザーごとのレートリミット（`rate_limit_secs`）、スレッドのピン留め・ロック・自動ロック（`auto_lock_post_count`）、ソフトデリート、監査ログ（`AuditAction::Forum*`）を完全装備。
 - **次のステップ**:
-  - SEO & Bot 対策完了後の Pull Request (PR) 作成（ブランチ: `feat/seo-and-bot-controls` -> `main`）。
+  - `feat/forum-crate` の PR #88 レビュー・マージ
+  - 必要に応じた `aegis-server` へのエンドポイントマウント（`/api/v1/forum/...`）またはテーマ用マクロの検討
 
