@@ -4,18 +4,47 @@
 
 import { PostContext, BlockNode, PageRenderContext } from "./types";
 
+/**
+ * 1 文字ずつ `+=` で連結すると入力の大きさの二乗になる。区間ごとに `substring` して `join` しても
+ * 確保の回数がエスケープの数に比例し、Wasmtime 上では 1 回の確保が重い（`blocks_json` は
+ * JSON の中の JSON でエスケープが多い）ため、結果の長さを先に数えて 1 回だけ確保し、直接書き込む
+ */
 export function escapeJson(str: string): string {
-  let out = "";
-  for (let i = 0; i < str.length; ++i) {
-    const c = str.charAt(i);
-    if (c == "\"") out += "\\\"";
-    else if (c == "\\") out += "\\\\";
-    else if (c == "\n") out += "\\n";
-    else if (c == "\r") out += "\\r";
-    else if (c == "\t") out += "\\t";
-    else out += c;
+  const len = str.length;
+  let extra = 0;
+  for (let i = 0; i < len; ++i) {
+    if (escapeChar(str.charCodeAt(i)) != 0) extra++;
+  }
+  if (extra == 0) return str;
+
+  const out = changetype<string>(__new((len + extra) << 1, idof<string>()));
+  const src = changetype<usize>(str);
+  let dst = changetype<usize>(out);
+  for (let i = 0; i < len; ++i) {
+    const c = load<u16>(src + ((i as usize) << 1));
+    const e = escapeChar(c);
+    if (e != 0) {
+      store<u16>(dst, 0x5c);
+      store<u16>(dst, e, 2);
+      dst += 4;
+    } else {
+      store<u16>(dst, c);
+      dst += 2;
+    }
   }
   return out;
+}
+
+/** エスケープが要る文字なら `\` の後ろに置く文字、要らなければ 0 */
+// @ts-ignore: decorator
+@inline
+function escapeChar(c: i32): u16 {
+  if (c == 0x22) return 0x22; // "
+  if (c == 0x5c) return 0x5c; // \
+  if (c == 0x0a) return 0x6e; // \n
+  if (c == 0x0d) return 0x72; // \r
+  if (c == 0x09) return 0x74; // \t
+  return 0;
 }
 
 export function findStringField(json: string, key: string): string {
@@ -26,39 +55,56 @@ export function findStringField(json: string, key: string): string {
   const start = idx + pattern.length;
   let end = start;
   let escaped = false;
+  let pairs = 0;
 
   while (end < json.length) {
-    const c = json.charAt(end);
+    const c = json.charCodeAt(end);
     if (escaped) {
       escaped = false;
-    } else if (c == "\\") {
+    } else if (c == 0x5c) {
       escaped = true;
-    } else if (c == "\"") {
+      pairs++;
+    } else if (c == 0x22) {
       break;
     }
     end++;
   }
 
-  const raw = json.substring(start, end);
-  // Unescape standard sequences
-  let unescaped = "";
-  let i = 0;
-  while (i < raw.length) {
-    if (raw.charAt(i) == "\\" && i + 1 < raw.length) {
-      const next = raw.charAt(i + 1);
-      if (next == "\"") unescaped += "\"";
-      else if (next == "\\") unescaped += "\\";
-      else if (next == "n") unescaped += "\n";
-      else if (next == "r") unescaped += "\r";
-      else if (next == "t") unescaped += "\t";
-      else unescaped += next;
+  if (pairs == 0) return json.substring(start, end);
+  return unescapeJson(json, start, end, pairs);
+}
+
+/**
+ * `json[start, end)` の標準のエスケープシーケンスを戻す。`pairs` は `\` で始まる組の数
+ * （`escapeJson` と同じく 1 回だけ確保して直接書き込む）
+ */
+function unescapeJson(json: string, start: i32, end: i32, pairs: i32): string {
+  // 末尾が `\` だけで終わる（閉じの `"` が無い）入力では、最後の `\` はそのまま残す
+  if (json.charCodeAt(end - 1) == 0x5c && end == json.length) {
+    let n = 0;
+    for (let i = end - 1; i >= start && json.charCodeAt(i) == 0x5c; --i) n++;
+    if (n & 1) pairs--;
+  }
+  const out = changetype<string>(__new((end - start - pairs) << 1, idof<string>()));
+  const src = changetype<usize>(json);
+  let dst = changetype<usize>(out);
+  let i = start;
+  while (i < end) {
+    let c = load<u16>(src + ((i as usize) << 1));
+    if (c == 0x5c && i + 1 < end) {
+      const next = load<u16>(src + ((i as usize) << 1), 2);
+      if (next == 0x6e) c = 0x0a;
+      else if (next == 0x72) c = 0x0d;
+      else if (next == 0x74) c = 0x09;
+      else c = next;
       i += 2;
     } else {
-      unescaped += raw.charAt(i);
       i++;
     }
+    store<u16>(dst, c);
+    dst += 2;
   }
-  return unescaped;
+  return out;
 }
 
 export function findIntField(json: string, key: string): i64 {
@@ -114,22 +160,16 @@ export function serializePostContext(post: PostContext): string {
 }
 
 export function serializeBlockNode(node: BlockNode): string {
-  let attrs = "{";
   const keys = node.attributes.keys();
+  const attrParts = new Array<string>(keys.length);
   for (let i = 0; i < keys.length; ++i) {
-    if (i > 0) attrs += ",";
     const k = keys[i];
     const v = node.attributes.get(k);
-    attrs += "\"" + escapeJson(k) + "\":\"" + escapeJson(v) + "\"";
+    attrParts[i] = "\"" + escapeJson(k) + "\":\"" + escapeJson(v) + "\"";
   }
-  attrs += "}";
+  const attrs = "{" + attrParts.join(",") + "}";
 
-  let childrenStr = "[";
-  for (let i = 0; i < node.children.length; ++i) {
-    if (i > 0) childrenStr += ",";
-    childrenStr += serializeBlockNode(node.children[i]);
-  }
-  childrenStr += "]";
+  const childrenStr = serializeBlockNodes(node.children);
 
   let textVal = node.text !== null ? "\"" + escapeJson(node.text!) + "\"" : "null";
 
@@ -142,13 +182,11 @@ export function serializeBlockNode(node: BlockNode): string {
 }
 
 export function serializeBlockNodes(blocks: Array<BlockNode>): string {
-  let res = "[";
+  const items = new Array<string>(blocks.length);
   for (let i = 0; i < blocks.length; ++i) {
-    if (i > 0) res += ",";
-    res += serializeBlockNode(blocks[i]);
+    items[i] = serializeBlockNode(blocks[i]);
   }
-  res += "]";
-  return res;
+  return "[" + items.join(",") + "]";
 }
 
 /**

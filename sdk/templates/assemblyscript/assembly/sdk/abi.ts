@@ -2,6 +2,8 @@
  * AegisCMS AssemblyScript Plugin SDK - Low-level ABI and Memory Protocol
  */
 
+import { escapeJson } from "./json";
+
 /**
  * ゲストメモリ領域を確保するアロケータ
  * ホストからエクスポート関数として直接呼び出されます。
@@ -54,17 +56,5 @@ export function packPtrLen(ptr: i32, len: i32): i64 {
  * フックの拒否・エラーをホストへ返却 ({"error": "message"})
  */
 export function writeError(message: string): i64 {
-  // JSON 文字列エスケープ処理
-  let escaped = "";
-  for (let i = 0; i < message.length; ++i) {
-    const char = message.charAt(i);
-    if (char == "\"") escaped += "\\\"";
-    else if (char == "\\") escaped += "\\\\";
-    else if (char == "\n") escaped += "\\n";
-    else if (char == "\r") escaped += "\\r";
-    else if (char == "\t") escaped += "\\t";
-    else escaped += char;
-  }
-  const json = "{\"error\":\"" + escaped + "\"}";
-  return writeString(json);
+  return writeString("{\"error\":\"" + escapeJson(message) + "\"}");
 }
