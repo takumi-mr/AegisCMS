@@ -360,6 +360,31 @@ SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Re
 
 属性は `Name` で探し、一致するものが無ければ `FriendlyName` で探します（Entra ID の `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` のような URI 形式の名前もそのまま書けます）。
 
+### 2.15 `[comments]` — コメント
+
+公開ページへの読者のコメント（[コメントのドキュメント](./comments.md)）。`enabled = true` で値が不正な場合（`content_types` が空、`max_length` が範囲外など）や `content_types` のスキーマが無い場合はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` でコメントを受け付ける |
+| `content_types` | string[] | `["article"]` | コメントを受け付けるコンテンツの種類 |
+| `max_depth` | integer | `3` | 返信できる深さ（0 で返信なし。最大 10） |
+| `max_length` | integer | `5000` | 本文の最大文字数（最大 100,000） |
+| `close_after_days` | integer | `0` | 公開からこの日数を過ぎたら新しいコメントを受け付けない（0 で閉じない） |
+| `notify_author` | bool | `true` | コメントが付いたこと（承認待ちを含む）をコンテンツの著者に知らせる（`comment.posted` / `comment.pending`） |
+| `notify_staff` | bool | `true` | 承認待ちのコメントを運営者に知らせる（`comment.pending`） |
+
+#### `[comments.moderation]`
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `require_approval` | bool | `true` | 承認してから公開する。Admin Studio から切り替えられる（そちらが優先） |
+| `auto_approve_known` | bool | `true` | 承認制のとき、同じ名前とメールアドレスの承認済みコメントがある人は承認を待たずに公開する。Admin Studio から切り替えられる |
+| `max_links` | integer | `2` | 本文のリンクがこれより多いと承認待ち |
+| `hold_words` | string[] | `[]` | 含むと承認待ちにする語（大文字・小文字を区別しない） |
+| `spam_words` | string[] | `[]` | 含むとスパムにする語 |
+| `max_per_ip_per_hour` | integer | `10` | 同じ IP からの 1 時間あたりの投稿数（0 で無制限。`[cache]` で数える） |
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
@@ -525,6 +550,23 @@ timeout_secs = 15
 # action = "session.create"
 # outcomes = ["success"]
 # roles = ["admin"]
+
+[comments]
+enabled = false
+content_types = ["article"]
+max_depth = 3
+max_length = 5000
+close_after_days = 0
+notify_author = true
+notify_staff = true
+
+[comments.moderation]
+require_approval = true
+auto_approve_known = true
+max_links = 2
+hold_words = []
+spam_words = []
+max_per_ip_per_hour = 10
 ```
 
 ---

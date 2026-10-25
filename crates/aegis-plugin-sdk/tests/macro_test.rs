@@ -14,6 +14,18 @@ impl Plugin for SampleMacroPlugin {
         blocks.push(BlockNode::code("rust", "println!(\"Hello Wasm!\");"));
         Ok(blocks)
     }
+
+    fn check_comment(&mut self, comment: CommentSubmission) -> Result<CommentVerdict> {
+        if comment.body.contains("casino") {
+            return Ok(CommentVerdict::Spam {
+                reason: Some("casino".to_string()),
+            });
+        }
+        if comment.body.is_empty() {
+            return Err(PluginError::Rejected("Say something".to_string()));
+        }
+        Ok(CommentVerdict::Allow)
+    }
 }
 
 fn write_to_guest_memory(ptr_or_id: i32, data: &[u8]) {
@@ -84,4 +96,26 @@ fn test_macro_generated_exports() {
 
     let res = on_content_published(c_ptr, c_len);
     assert_eq!(res, 0);
+
+    // 5. check_comment のテスト（判定をそのまま JSON で返す。断るときは {"error": ...}）
+    let call = |body: &str| {
+        let comment = CommentSubmission {
+            body: body.to_string(),
+            status: "approved".to_string(),
+            ..Default::default()
+        };
+        let json = serde_json::to_vec(&comment).unwrap();
+        let len = json.len() as i32;
+        let ptr = allocate(len);
+        write_to_guest_memory(ptr, &json);
+        let (out_ptr, out_len) = aegis_plugin_sdk::abi::unpack_ptr_len(check_comment(ptr, len));
+        let out = unsafe { aegis_plugin_sdk::abi::read_bytes_from_host(out_ptr, out_len) };
+        serde_json::from_slice::<serde_json::Value>(&out).unwrap()
+    };
+    assert_eq!(
+        call("cheap casino"),
+        serde_json::json!({ "verdict": "spam", "reason": "casino" })
+    );
+    assert_eq!(call("Nice post"), serde_json::json!({ "verdict": "allow" }));
+    assert_eq!(call(""), serde_json::json!({ "error": "Say something" }));
 }

@@ -1,5 +1,6 @@
 pub mod audit;
 pub mod auth;
+pub mod comments;
 pub mod content;
 pub mod health;
 pub mod invitation;
@@ -23,6 +24,10 @@ pub mod users;
 
 pub use audit::{get_metrics, list_audit_logs};
 pub use auth::{create_session, delete_session, get_current_session};
+pub use comments::{
+    bulk_comments, delete_comment, get_comment_settings, list_comments, list_public_comments,
+    reply_comment, submit_comment, unsubscribe_page, update_comment, update_comment_settings,
+};
 pub use content::{
     create_content, delete_content, delete_variant, get_content, list_content, list_schedule,
     list_variants, update_content, upsert_variant,

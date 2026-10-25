@@ -5,6 +5,7 @@ use aegis_ast::SecurityConfig;
 use aegis_audit::AuditConfig;
 use aegis_auth::AuthConfig;
 use aegis_cache::CacheConfig;
+use aegis_comments::CommentsConfig;
 use aegis_commerce::CommerceConfig;
 use aegis_core::{AegisError, Result};
 use aegis_db::DatabaseConfig;
@@ -43,6 +44,8 @@ pub struct AegisConfig {
     pub commerce: CommerceConfig,
     #[serde(default)]
     pub notifications: NotificationsConfig,
+    #[serde(default)]
+    pub comments: CommentsConfig,
 }
 
 impl AegisConfig {

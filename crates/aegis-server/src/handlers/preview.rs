@@ -79,6 +79,7 @@ pub async fn preview_content(
         published_at: None,
         updated_at: None,
         fields: payload.fields,
+        comments: None,
     };
     let page_html = match render::render_page(&state, &schema, page).await {
         Ok(page_html) => Some(page_html),

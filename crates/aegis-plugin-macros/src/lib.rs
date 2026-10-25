@@ -172,6 +172,16 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #[no_mangle]
+        pub extern "C" fn check_comment(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                ::aegis_plugin_sdk::abi::run_object_hook(ptr, len, "CommentSubmission", |comment: ::aegis_plugin_sdk::types::CommentSubmission| {
+                    let mut plugin = <#ident_type as ::std::default::Default>::default();
+                    <#ident_type as ::aegis_plugin_sdk::types::Plugin>::check_comment(&mut plugin, comment)
+                })
+            }
+        }
+
+        #[no_mangle]
         pub extern "C" fn on_content_published(ptr: i32, len: i32) -> i64 {
             unsafe {
                 ::aegis_plugin_sdk::abi::run_notification_hook(ptr, len, "PublishedContent", |content: ::aegis_plugin_sdk::types::PublishedContent| {

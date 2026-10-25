@@ -242,6 +242,8 @@ pub async fn render_product(
         false,
     );
 
+    let comments =
+        crate::handlers::comments::page_section(&state, &schema.content_type, &record.id).await;
     let ctx = PageRenderContext {
         template: "product.html".to_string(),
         content_type: schema.content_type.clone(),
@@ -262,6 +264,7 @@ pub async fn render_product(
         relations,
         theme_vars,
         extra_head,
+        comments,
         ..Default::default()
     };
     render_shop_page(&state, ctx).await

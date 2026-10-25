@@ -647,6 +647,23 @@ pub async fn delete_content(
         "slug": current.slug,
         "title": current.title,
     });
+    // コメントも消す（コメントを無効にしていても、以前のコメントが残らないように）
+    if result.is_ok() {
+        match state
+            .db
+            .delete_content_comments(&content_type, &current.id)
+            .await
+        {
+            Ok(0) => {}
+            Ok(n) => details["deleted_comments"] = json!(n),
+            Err(e) => tracing::warn!(
+                "Could not delete the comments of {}/{}: {}",
+                content_type,
+                current.id,
+                e
+            ),
+        }
+    }
     let outcome = match &result {
         Ok(_) => AuditOutcome::Success,
         Err(e) => {

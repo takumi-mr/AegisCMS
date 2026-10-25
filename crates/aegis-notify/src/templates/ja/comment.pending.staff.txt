@@ -1,0 +1,2 @@
+{{ content.label }}「{{ content.title }}」に承認待ちのコメントがあります。
+{% include "_comment_summary.txt" %}

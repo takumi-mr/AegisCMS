@@ -8,5 +8,6 @@
   <div class="cyber-article-body">
     {{ content_html | safe }}
   </div>
+  {% if comments %}{% include "comments.html" %}{% endif %}
 </article>
 {% endblock %}

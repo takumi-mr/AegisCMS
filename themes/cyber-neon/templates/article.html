@@ -22,5 +22,6 @@
   <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--cyber-border);">
     <a href="{{ base_path }}/articles" class="cyber-card-link">&larr; [ RETURN TO ARCHIVES ]</a>
   </div>
+  {% if comments %}{% include "comments.html" %}{% endif %}
 </article>
 {% endblock %}

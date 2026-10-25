@@ -1,5 +1,6 @@
-//! データベース（`[database]`: SQLite / PostgreSQL / MySQL）。コンテンツ・監査ログ・ユーザー・注文の保存
+//! データベース（`[database]`: SQLite / PostgreSQL / MySQL）。コンテンツ・監査ログ・ユーザー・注文・コメントの保存
 
+pub mod comments;
 pub mod config;
 pub mod mysql;
 pub mod orders;
@@ -15,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+pub use comments::{CommentListQuery, CommentPage, CommentRecord, CommentStorage, COMMENT_TABLE};
 pub use config::{DatabaseBackendKind, DatabaseConfig};
 pub use mysql::MySqlAdapter;
 pub use orders::{
@@ -67,7 +69,9 @@ pub struct ContentPage {
 }
 
 #[async_trait]
-pub trait DatabaseAdapter: OrderStorage + ProductVariantStorage + Send + Sync {
+pub trait DatabaseAdapter:
+    OrderStorage + ProductVariantStorage + CommentStorage + Send + Sync
+{
     /// Initialize the database, checking connectivity and setting up migration history tables
     async fn init(&self) -> Result<()>;
 
