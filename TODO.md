@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: 固定ページ（Page）の作成・管理、ブランク/フル幅LPレイアウト切り替え、カスタムHTMLブロック（Raw HTML）の追加（ブランチ `feat/custom-pages-and-layouts`）
+- **直近の完了**: 固定ページ（Page）の作成・管理、ブランク/フル幅LPレイアウト切り替え、カスタムHTMLブロック（Raw HTML）の追加（ブランチ `feat/custom-pages-and-layouts`、PR #91）
   - **Admin Studio 固定ページ管理 & レイアウトセレクター**:
     - コンテンツ一覧画面（`ContentList`）に「記事（Articles）」と「固定ページ（Pages）」のタブ切り替えを導入。固定ページ一覧には「テーマ標準」または「ブランクLP」のレイアウトバッジを表示。
     - エディタヘッダーのメタ情報セクションにレイアウト切り替えドロップダウン（テーマ標準 `page.html` / ブランク/フル幅LP `blank.html`）を新設。リアルタイムプレビューおよび保存 payload（`layout` フィールド）と連携。
