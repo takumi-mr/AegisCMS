@@ -1,0 +1,39 @@
+# サンプルの山歩きのコミュニティ掲示板「やまびこ」の設定。
+# リポジトリのルートで起動する（パスはルートからの相対パス）。手順は examples/hiking-forum/README.md
+
+[server]
+host = "127.0.0.1"
+port = 8080
+
+[database]
+backend = "sqlite"
+url = "sqlite://examples/hiking-forum/site.db?mode=rwc"
+
+[storage]
+backend = "local"
+
+[storage.local]
+upload_dir = "examples/hiking-forum/uploads"
+public_url_prefix = "/uploads"
+
+[paths]
+schemas_dir = "schemas"
+plugins_dir = "plugins"
+admin_dist_dir = "admin/dist"
+themes_dir = "themes"
+
+[theme]
+active = "trailhead"
+site_title = "やまびこ"
+site_description = "山歩きが好きな人のための掲示板です。はじめての山の相談から、道具の話、歩いた山の記録まで、気軽に書き込んでください。"
+posts_per_page = 12
+
+# 掲示板（docs/forum.md）。スレッドとレスは本体（site.db）とは別の forum.db に置く
+[forum]
+enabled = true
+database_url = "sqlite://examples/hiking-forum/forum.db?mode=rwc"
+allow_anonymous = true
+# 同じ IP・ユーザーの投稿の間隔（秒）。seed.mjs は 429 が返ると待ってから投稿し直す
+rate_limit_secs = 3
+auto_lock_post_count = 1000
+default_page_size = 50

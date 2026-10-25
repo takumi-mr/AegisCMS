@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="th-hero">
+  <div class="th-hero-text">
+    <p class="th-eyebrow">Hiking community</p>
+    <h1>山の話を、<br>みんなで。</h1>
+    <p class="th-hero-desc">{{ site_description }}</p>
+    <div class="th-hero-actions">
+      <a href="{{ base_path }}/forum" class="th-button">掲示板を見る</a>
+      <a href="{{ base_path }}/guidelines" class="th-button th-button-ghost">投稿ガイドライン</a>
+    </div>
+  </div>
+  <div class="th-hero-art" aria-hidden="true">
+    <svg viewBox="0 0 400 300">
+      <circle cx="290" cy="80" r="34" fill="var(--th-sun)"/>
+      <path d="M0 260 L120 90 L180 170 L240 110 L400 260 Z" fill="var(--th-accent)"/>
+      <path d="M120 90 L146 127 L128 140 L104 118 Z" fill="var(--th-bg)"/>
+      <path d="M240 110 L262 140 L246 150 L228 132 Z" fill="var(--th-bg)"/>
+      <path d="M0 300 L0 240 Q100 200 200 240 T400 230 L400 300 Z" fill="var(--th-accent-strong)"/>
+      <path d="M150 300 Q190 260 170 230 Q150 205 200 190" stroke="var(--th-bg)" stroke-width="5" fill="none" stroke-dasharray="4 10" stroke-linecap="round"/>
+    </svg>
+  </div>
+</section>
+
+<section class="th-features">
+  <div><strong>はじめての山</strong><span>山選びや持ち物など、どんな質問も歓迎です。</span></div>
+  <div><strong>道具・装備</strong><span>靴・雨具・ザックの使い心地を共有しましょう。</span></div>
+  <div><strong>山行記録</strong><span>歩いた山の様子や登山道の状況を残してください。</span></div>
+</section>
+
+<section>
+  <div class="th-section-head">
+    <h2>お知らせ</h2>
+    <a href="{{ base_path }}/articles">すべてのお知らせ &rarr;</a>
+  </div>
+  <div class="th-news">
+    {% for item in items %}
+    <article class="th-news-item">
+      <span class="th-date">{{ item.published_at | date_short }}</span>
+      <h3><a href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a></h3>
+      <p>{{ item.excerpt | truncate(90) }}</p>
+    </article>
+    {% else %}
+    <p class="th-muted">まだお知らせがありません。</p>
+    {% endfor %}
+  </div>
+  {% if pagination and pagination.total_pages > 1 %}
+  <nav class="th-pagination" aria-label="Pagination">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; 新しいお知らせ</a>{% else %}<span></span>{% endif %}
+    <span>{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">古いお知らせ &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,15 @@
+{
+  "id": "trailhead",
+  "name": "Trailhead",
+  "version": "1.0.0",
+  "description": "A fresh, light community theme for clubs and hobby groups: a home page that leads to the forum, news posts, and forum pages that pick up the theme's colors.",
+  "author": {
+    "name": "AegisCMS Core Team",
+    "url": "https://aegiscms.dev"
+  },
+  "license": "MIT",
+  "preview_image": "preview.svg",
+  "tags": ["light", "forum", "community", "green", "japanese"],
+  "homepage": "https://aegiscms.dev/themes/trailhead",
+  "min_aegis_version": "0.1.0"
+}

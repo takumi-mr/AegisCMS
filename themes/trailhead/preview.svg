@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="100%" height="100%">
+  <rect width="800" height="500" fill="#f6f8f4"/>
+  <line x1="0" y1="64" x2="800" y2="64" stroke="#dbe4d7"/>
+  <path d="M52 44 L64 24 L70 34 L75 27 L86 44 Z" fill="#2f7a4f"/>
+  <text x="96" y="42" font-family="sans-serif" font-weight="700" font-size="18" fill="#1f2a22">Trailhead</text>
+  <rect x="520" y="28" width="56" height="8" rx="4" fill="#1f2a22" opacity="0.7"/>
+  <rect x="596" y="28" width="56" height="8" rx="4" fill="#1f2a22" opacity="0.7"/>
+  <rect x="672" y="20" width="76" height="24" rx="12" fill="#2f7a4f"/>
+  <rect x="60" y="118" width="120" height="8" rx="4" fill="#2f7a4f"/>
+  <rect x="60" y="144" width="250" height="28" rx="6" fill="#1f2a22"/>
+  <rect x="60" y="184" width="200" height="28" rx="6" fill="#1f2a22"/>
+  <rect x="60" y="232" width="300" height="8" rx="4" fill="#5f6f63" opacity="0.6"/>
+  <rect x="60" y="248" width="250" height="8" rx="4" fill="#5f6f63" opacity="0.6"/>
+  <rect x="60" y="282" width="130" height="36" rx="18" fill="#2f7a4f"/>
+  <rect x="202" y="282" width="140" height="36" rx="18" fill="none" stroke="#dbe4d7"/>
+  <rect x="440" y="100" width="300" height="225" rx="22" fill="#e3ece0"/>
+  <circle cx="660" cy="150" r="24" fill="#f2b84b"/>
+  <path d="M440 300 L530 170 L575 230 L620 185 L740 300 Z" fill="#2f7a4f"/>
+  <path d="M440 325 L440 290 Q515 262 590 290 T740 285 L740 325 Z" fill="#225c3b"/>
+  <g fill="#ffffff" stroke="#dbe4d7">
+    <rect x="60" y="365" width="215" height="90" rx="12"/>
+    <rect x="292" y="365" width="215" height="90" rx="12"/>
+    <rect x="524" y="365" width="215" height="90" rx="12"/>
+  </g>
+  <g fill="#1f2a22" opacity="0.75">
+    <rect x="80" y="388" width="110" height="9" rx="4"/>
+    <rect x="312" y="388" width="110" height="9" rx="4"/>
+    <rect x="544" y="388" width="110" height="9" rx="4"/>
+  </g>
+  <g fill="#5f6f63" opacity="0.45">
+    <rect x="80" y="412" width="170" height="7" rx="3"/>
+    <rect x="312" y="412" width="170" height="7" rx="3"/>
+    <rect x="544" y="412" width="170" height="7" rx="3"/>
+  </g>
+</svg>

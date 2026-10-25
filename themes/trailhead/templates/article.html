@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="th-article">
+  <header>
+    {% if published_at %}<span class="th-date">{{ published_at | date_short }}</span>{% endif %}
+    <h1>{{ title }}</h1>
+  </header>
+  <div class="th-prose">
+    {{ content_html | safe }}
+  </div>
+  <footer class="th-article-footer">
+    <a href="{{ base_path }}/articles">&larr; お知らせに戻る</a>
+    <a href="{{ base_path }}/forum" class="th-button">掲示板を見る</a>
+  </footer>
+  {% if comments %}{% include "comments.html" %}{% endif %}
+</article>
+{% endblock %}
