@@ -162,10 +162,19 @@ npm --prefix admin run test:e2e -- --ui   # Playwright の UI モード
 ```
 
 - **実サーバーに対して動かす**（API はモックしない）。`playwright.config.ts` の `webServer` が `e2e/start-server.mjs` を起動し、Admin Studio と `aegis-server` をビルドしてから、`target/e2e/` を消し、admin ユーザー（`e2e/credentials.mjs`）を作って、`e2e/aegis.e2e.toml` でポート 18080 に立てる。API の形と画面の型の食い違い（プラグイン画面で実際にあった）はモックでは見つからないため。
+- **包括的なテストスイート（全 17 テスト）**:
+  - `auth.spec.ts`: ログイン成功、サインアウト（セッション破棄・リダイレクト）、誤ったパスワード時のエラー表示、レートリミットによるアカウント一時ロック（3回連続失敗後の 429 応答）。
+  - `content.spec.ts`: 記事新規作成、下書き（Draft）保存とサイドバー一覧反映、公開（Published）切り替え、リロード時の永続化検証、Markdown モードと Blocks モードの相互変換。
+  - `themes.spec.ts`: インストール済みテーマ一覧表示、アクティブテーマ切り替え（Aegis Horizon ↔ Nordic Minimal Editorial）、トースト通知およびリロード永続化検証。
+  - `users.spec.ts`: 既存管理者表示、新規ユーザー作成（エディターロール追加）、メール招待（`InviteUserModal` による招待リンク発行）。
+  - `commerce.spec.ts`: EC 有効環境（`[commerce].enabled = true`）での商品作成（価格・在庫設定）とカタログ一覧表示、注文一覧・ステータスフィルター画面の動作検証。
+  - `responsive.spec.ts`: モバイルビューポート（375x667）におけるハンバーガーメニュー開閉・ビュー遷移、エディタ画面の 3 ペイン（記事一覧 / 編集 / プレビュー）タブ切り替え。
+  - `plugins.spec.ts`: プラグイン一覧・フック表示、無停止での有効化・無効化、設定値の保存、フック実行順序の変更と設定ファイル復帰。
 - 初回はサーバーのコンパイルで数分かかる。ビルド済みなら `E2E_SKIP_BUILD=1` で省ける。ローカルでは起動済みのサーバー（18080）を使い回す（`reuseExistingServer`）。サーバーのログは `RUST_LOG=warn`（`RUST_LOG=debug` で全リクエスト）。
-- テストはサーバーの DB を共有するので 1 本ずつ動かす（`workers: 1`）。状態を変えたテストは元に戻すか、他のテストが前提にしない状態にする。
+- テストはサーバーの DB を共有するので 1 本ずつ動かす（`workers: 1`）。状態を変えたテストは元に戻すか、他のテストが前提にしない状態にする（ランダムサフィックス等を活用）。
 - プラグインはリポジトリの `plugins/`（公式プラグインのビルド済み Wasm）を使い、どれも無効の状態から始める。
 - 画面の要素は役割と名前（`getByRole`）で探す。英語（`locale: 'en-US'`）で動かす。プラグインのカードは表示名で名前の付いた `article`。
+
 
 ### 8.2 Storybook (`admin/.storybook/`、`src/**/*.stories.tsx`)
 

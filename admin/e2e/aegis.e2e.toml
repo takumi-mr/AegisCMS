@@ -30,6 +30,25 @@ enabled = []
 # テストを並列で動かさないので小さくてよい（プールのアドレス空間を CI で確保しすぎない）
 instance_pool_size = 4
 
+# ログインロックアウトの E2E 検証用（3回失敗で1分間ロック）
+[auth.login_rate_limit]
+enabled = true
+max_failures_per_user = 3
+window_secs = 900
+lockout_secs = 60
+
+# EC 機能の E2E 検証用
+[commerce]
+enabled = true
+currency = "jpy"
+provider = "manual"
+public_url = "http://127.0.0.1:18080"
+
+# 招待・通知の E2E 検証用（log チャンネルなので外部 SMTP 不要）
+[notifications]
+enabled = true
+channels = ["log"]
+
 # コメント（comments.spec.ts）。承認制の切り替えはテストの中で Admin Studio から
 [comments]
 enabled = true
