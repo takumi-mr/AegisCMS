@@ -20,6 +20,10 @@
   - **ブランク / フル幅LP テンプレートとルーティング**:
     - `aegis-theme` にヘッダー・フッター・コンテナ制約を排除した組み込みテンプレート `blank.html`（`BLANK_TEMPLATE`）を新設。LP 全体をカスタム HTML やセクションで自由に構築可能。
     - `aegis-server` の公開ルーティング `render_page_or_slug` およびプレビュー `preview_content` において、`layout` フィールド（`"blank"` / `"default"`）に応じた適切なテンプレートの自動解決を実装。
+  - **Storybook インタラクションテストの追加**:
+    - `ContentList.stories.tsx`: 記事一覧（Articles）と固定ページ一覧（Pages）の表示、タブ切り替え、レイアウトバッジ（テーマ標準 / ブランクLP）、アイテム選択、新規作成ボタンのインタラクションテストを整備。
+    - `BlockItem.stories.tsx`: カスタムHTML（`core/html`）ブロックの等幅フォントエディタ表示、入力同期（Controlled Component ラッパー）、段落・見出し・アクションボタン（上へ/下へ/削除）の自動検証を整備。
+    - `task test:storybook` にて 8 ファイル 31 テストが 100% パス。
 - **その前**: 全言語（Rust / AssemblyScript / TinyGo）プラグイン SDK の GitHub 中心パッケージ化と CI 手動リリースタスク新設（ブランチ `feat/publish-plugin-sdks`）
   - **Rust SDK (GitHub Git 依存)**: `aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.1.0" }` による配布体制。内部の `aegis-plugin-macros` も Cargo が自動解決。
   - **AssemblyScript SDK (GitHub Packages)**: `sdk/assemblyscript` に独立した npm パッケージ `@takumi-mr/plugin-sdk` を切り出し、GitHub Packages レジストリ（`npm.pkg.github.com`）への `publishConfig` および README、asconfig、tsconfig を整備。テンプレート側の依存・ビルド検証済み。
