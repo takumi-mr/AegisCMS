@@ -13,6 +13,12 @@ pub struct PluginsConfig {
     /// プラグインごとの設定値（`[plugins.settings.<name>]`）。プラグインは `host.config_get` で読む。
     /// 文字列の値 `env:NAME` は環境変数 `NAME` の値になる（API キーなどを設定ファイルに書かないため）
     pub settings: std::collections::HashMap<String, std::collections::HashMap<String, toml::Value>>,
+    /// プラグインのインストール時に署名を必須とするか（既定: false）
+    #[serde(default)]
+    pub require_signatures: bool,
+    /// 信頼する公開鍵リスト（hex形式、未指定時は任意の有効な署名を受け入れる）
+    #[serde(default)]
+    pub trusted_public_keys: Vec<String>,
 }
 
 impl PluginsConfig {

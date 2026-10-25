@@ -44,6 +44,9 @@ pub enum AuditAction {
     /// Enabled plugins saved from admin/API discarded in favour of `[plugins].enabled`
     #[serde(rename = "plugin.reset")]
     PluginReset,
+    /// Plugin installed from package/store
+    #[serde(rename = "plugin.install")]
+    PluginInstall,
     #[serde(rename = "audit.purge")]
     AuditPurge,
     /// API request rejected for a missing / invalid session (401) or an insufficient role (403)
@@ -52,6 +55,9 @@ pub enum AuditAction {
     /// Active theme switched via admin/API
     #[serde(rename = "theme.switch")]
     ThemeSwitch,
+    /// Theme installed from package/store
+    #[serde(rename = "theme.install")]
+    ThemeInstall,
     /// Site-wide settings (site title, favicon) changed via admin/API
     #[serde(rename = "site.update")]
     SiteUpdate,
@@ -125,7 +131,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 44] = [
+    pub const ALL: [AuditAction; 46] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -141,9 +147,11 @@ impl AuditAction {
         Self::PluginDisable,
         Self::PluginReorder,
         Self::PluginReset,
+        Self::PluginInstall,
         Self::AuditPurge,
         Self::AccessDenied,
         Self::ThemeSwitch,
+        Self::ThemeInstall,
         Self::SiteUpdate,
         Self::SeoUpdate,
         Self::UserCreate,
@@ -189,9 +197,11 @@ impl AuditAction {
             Self::PluginDisable => "plugin.disable",
             Self::PluginReorder => "plugin.reorder",
             Self::PluginReset => "plugin.reset",
+            Self::PluginInstall => "plugin.install",
             Self::AuditPurge => "audit.purge",
             Self::AccessDenied => "access.denied",
             Self::ThemeSwitch => "theme.switch",
+            Self::ThemeInstall => "theme.install",
             Self::SiteUpdate => "site.update",
             Self::SeoUpdate => "seo.update",
             Self::UserCreate => "user.create",

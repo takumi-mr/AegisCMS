@@ -20,6 +20,12 @@ pub struct ThemeConfig {
     /// `false`（既定）ではコンパイル済みのテンプレートを再利用し、テーマの切り替え時に読み直す
     #[serde(default)]
     pub reload_templates: bool,
+    /// テーマのインストール時に署名を必須とするか（既定: false）
+    #[serde(default)]
+    pub require_signatures: bool,
+    /// 信頼する公開鍵リスト（hex形式、未指定時は任意の有効な署名を受け入れる）
+    #[serde(default)]
+    pub trusted_public_keys: Vec<String>,
 }
 
 fn default_posts_per_page() -> u64 {
@@ -36,6 +42,8 @@ impl Default for ThemeConfig {
             custom_css: None,
             posts_per_page: default_posts_per_page(),
             reload_templates: false,
+            require_signatures: false,
+            trusted_public_keys: Vec::new(),
         }
     }
 }

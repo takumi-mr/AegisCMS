@@ -27,6 +27,8 @@
     "themesFailed": "テーマを取得できませんでした",
     "activeThemeFailed": "有効なテーマを取得できませんでした",
     "switchThemeFailed": "テーマを切り替えられませんでした",
+    "installThemeFailed": "テーマのインストールに失敗しました",
+    "installPluginFailed": "プラグインのインストールに失敗しました",
     "contentsFailed": "コンテンツを取得できませんでした",
     "uploadFailed": "ファイルをアップロードできませんでした",
     "logoutFailed": "ログアウトできませんでした",
@@ -764,7 +766,10 @@
     "importDescription": "AegisCMS のテーマは、<code>theme.json</code> マニフェストと <code>templates/</code> を含む独立したディレクトリです。対応するテーマをサーバーの <code>themes/</code> ディレクトリに置くか展開すれば、すぐに使えるようになります。",
     "zipNotice": "ZIP のアップロードでのインストールはマーケットプレイス v2 で対応予定です。今は ZIP を themes/ ディレクトリに展開してください。",
     "importZip": "テーマを取り込む（.zip）",
-    "browse": "テーマのテンプレートを見る"
+    "browse": "テーマのテンプレートを見る",
+    "installSuccess": "テーマ「{{name}}」を正常にインストールしました",
+    "installFailed": "テーマのインストールに失敗しました",
+    "installing": "インストール中..."
   },
   "upload": {
     "notImage": "「{{name}}」は画像ファイルではありません。",
@@ -942,7 +947,14 @@
     "resetOrderTitle": "Admin Studio での変更を取り消し、設定ファイルの [plugins].enabled を使います",
     "confirmResetOrder": "設定ファイルのプラグイン（{{plugins}}）をこの順に使いますか？Admin Studio で有効にしたプラグインは無効になります。",
     "configuredNone": "なし",
-    "orderReset": "設定ファイルのプラグインに戻しました"
+    "orderReset": "設定ファイルのプラグインに戻しました",
+    "importTitle": "ZIP パッケージからプラグインをインストール",
+    "importDescription": "AegisCMS プラグインは、<code>plugin.manifest.json</code> と Wasm バイナリを含む ZIP パッケージです。アップロードすると自動で検証（署名・Aegis バージョン互換性チェック）され、<code>plugins/<name>/</code> に展開・インストールされます。",
+    "importZip": "プラグインを取り込む（.zip）",
+    "browse": "プラグインのソースを見る",
+    "installSuccess": "プラグイン「{{name}}」を正常にインストールしました",
+    "installFailed": "プラグインのインストールに失敗しました",
+    "installing": "インストール中..."
   },
   "site": {
     "title": "サイト",

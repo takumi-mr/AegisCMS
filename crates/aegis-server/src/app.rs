@@ -162,6 +162,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             post(handlers::refund_order),
         )
         .route("/api/v1/plugins", get(handlers::list_plugins))
+        .route("/api/v1/plugins/install", post(handlers::install_plugin))
         .route(
             "/api/v1/plugins/order",
             get(handlers::get_plugin_order)
@@ -220,6 +221,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             post(handlers::send_test_notification),
         )
         .route("/api/v1/themes", get(handlers::list_themes))
+        .route("/api/v1/themes/install", post(handlers::install_theme))
         .route(
             "/api/v1/themes/active",
             get(handlers::get_active_theme).put(handlers::switch_active_theme),

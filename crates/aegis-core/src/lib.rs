@@ -7,6 +7,7 @@ pub mod entity;
 pub mod error;
 pub mod manifest;
 pub mod notify;
+pub mod package;
 pub mod storage;
 
 pub use audit::{
@@ -33,5 +34,9 @@ pub use manifest::{
 };
 pub use notify::{
     Delivered, NotificationEvent, NotificationMessage, Notifier, Recipient, SendError,
+};
+pub use package::{
+    check_min_aegis_version, compute_package_files_digest, create_test_signature,
+    extract_zip_safely, verify_package_signature, PackageSignature, ZipExtractOptions, VERSION,
 };
 pub use storage::{guess_content_type, StorageBackend, StorageMeta, StorageObject};

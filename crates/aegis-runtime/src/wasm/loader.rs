@@ -228,6 +228,75 @@ impl WasmPluginLoader {
         }
         Ok(())
     }
+
+    /// 将来のストアや ZIP パッケージからのインストールを見据えたプラグインパッケージの検証
+    /// （テーマの `validate_theme_package` に相当）。
+    /// - パッケージディレクトリの存在確認
+    /// - `plugin.manifest.json` の存在とパース
+    /// - `name` が有効形式（`is_valid_plugin_name`）
+    /// - `entrypoint` で指定された Wasm ファイルが存在すること
+    /// - `min_aegis_version` の確認（指定されていれば現在の Aegis バージョンと比較）
+    /// - 署名の確認（署名ファイルがある場合、または `require_signature == true` の場合に検証）
+    pub fn validate_plugin_package(
+        plugin_dir: &Path,
+        trusted_keys: Option<&[String]>,
+        require_signature: bool,
+    ) -> Result<PluginManifest> {
+        if !plugin_dir.is_dir() {
+            return Err(AegisError::Validation(format!(
+                "Path is not a directory: {}",
+                plugin_dir.display()
+            )));
+        }
+
+        let manifest_path = plugin_dir.join(MANIFEST_FILE);
+        if !manifest_path.is_file() {
+            return Err(AegisError::Validation(
+                "Missing required 'plugin.manifest.json' manifest in plugin package".to_string(),
+            ));
+        }
+
+        let manifest_bytes = std::fs::read(&manifest_path).map_err(AegisError::Io)?;
+        let manifest_str = std::str::from_utf8(&manifest_bytes).map_err(|e| {
+            AegisError::Validation(format!("Invalid UTF-8 in plugin manifest: {}", e))
+        })?;
+
+        let manifest =
+            PluginManifest::from_json_with_defaults(manifest_str, &PluginResourceLimits::default())
+                .map_err(|e| {
+                    AegisError::Validation(format!("Failed to parse 'plugin.manifest.json': {}", e))
+                })?;
+
+        if !is_valid_plugin_name(&manifest.name) {
+            return Err(AegisError::Validation(format!(
+                "Invalid plugin name {:?} in manifest (must be lowercase alphanumeric with '-' or '_')",
+                manifest.name
+            )));
+        }
+
+        let wasm_path = plugin_dir.join(&manifest.entrypoint);
+        if !wasm_path.is_file() {
+            return Err(AegisError::Validation(format!(
+                "Plugin entrypoint Wasm binary not found: {}",
+                wasm_path.display()
+            )));
+        }
+
+        // min_aegis_version の検証
+        if let Some(ref min_ver) = manifest.min_aegis_version {
+            aegis_core::check_min_aegis_version(min_ver)?;
+        }
+
+        // 署名検証
+        aegis_core::verify_package_signature(
+            plugin_dir,
+            &manifest_bytes,
+            trusted_keys,
+            require_signature,
+        )?;
+
+        Ok(manifest)
+    }
 }
 
 #[cfg(test)]
@@ -360,6 +429,61 @@ mod tests {
                 ("renamed", false, true),
             ]
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_validate_plugin_package() {
+        let dir = temp_plugins_dir("pkg_val");
+        let pkg_dir = dir.join("my-cool-plugin");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join(MANIFEST_FILE),
+            r#"{"name": "my-cool-plugin", "version": "1.0.0", "entrypoint": "plugin.wasm", "min_aegis_version": "0.1.0"}"#,
+        )
+        .unwrap();
+        std::fs::write(pkg_dir.join("plugin.wasm"), b"\0asm\x01\0\0\0").unwrap();
+
+        // 1. Valid package without signatures
+        let manifest = WasmPluginLoader::validate_plugin_package(&pkg_dir, None, false).unwrap();
+        assert_eq!(manifest.name, "my-cool-plugin");
+
+        // 2. Missing wasm binary
+        std::fs::remove_file(pkg_dir.join("plugin.wasm")).unwrap();
+        let err = WasmPluginLoader::validate_plugin_package(&pkg_dir, None, false);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("Wasm binary not found"));
+        std::fs::write(pkg_dir.join("plugin.wasm"), b"\0asm\x01\0\0\0").unwrap();
+
+        // 3. Higher min_aegis_version
+        std::fs::write(
+            pkg_dir.join(MANIFEST_FILE),
+            r#"{"name": "my-cool-plugin", "version": "1.0.0", "entrypoint": "plugin.wasm", "min_aegis_version": "99.0.0"}"#,
+        )
+        .unwrap();
+        let err = WasmPluginLoader::validate_plugin_package(&pkg_dir, None, false);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("Package requires Aegis version >="));
+
+        // 4. Signature required but missing
+        std::fs::write(
+            pkg_dir.join(MANIFEST_FILE),
+            r#"{"name": "my-cool-plugin", "version": "1.0.0", "entrypoint": "plugin.wasm"}"#,
+        )
+        .unwrap();
+        let err = WasmPluginLoader::validate_plugin_package(&pkg_dir, None, true);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("Package signature required by policy"));
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

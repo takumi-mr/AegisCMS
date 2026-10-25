@@ -58,7 +58,7 @@
 
 ### プラグイン
 
-- [ ] **ストアからのインストール**: パッケージの検証（テーマの `validate_theme_package` に相当）・署名・`min_aegis_version` の確認、展開先は `plugins/<name>/`。テーマの ZIP 導入も同じ仕組みで。
+- [x] **ストアからのインストール**: パッケージの検証（テーマの `validate_theme_package` に相当）・署名・`min_aegis_version` の確認、展開先は `plugins/<name>/`。テーマの ZIP 導入も同じ仕組みで。
 - [ ] **AssemblyScript / TinyGo SDK の追従**: EC のフック・ホスト API（`calculate-order` / `on-order-status-changed` / `http_fetch` / `kv_get` / `config_get`）と `send-notification`、`on-content-published`、`check-comment` のラッパー。ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) に記載済み。
 
 ### 通知
@@ -112,6 +112,11 @@
   - **専用データモデルとストレージ分離**: CMSの「記事（Articles）」テーブルを流用せず、専用テーブル（`_aegis_forum_categories`, `_aegis_forum_threads`, `_aegis_forum_posts`）を定義。`aegis-db::ForumStorage` により SQLite / PostgreSQL / MySQL すべてで自動マイグレーション。
   - **キーセット（カーソル）ページネーション**: `OFFSET` による性能劣化を防ぐため、スレッド一覧は `(is_pinned DESC, last_post_at DESC, id DESC)`、レス一覧は `post_number > ?` のカーソル走査を標準化。数万〜数十万件規模でも 1ms 未満の応答を保証。
   - **連投防止・モデレーション**: `CacheBackend` を活用した IP / ユーザーごとのレートリミット（`rate_limit_secs`）、スレッドのピン留め・ロック・自動ロック（`auto_lock_post_count`）、ソフトデリート、監査ログ（`AuditAction::Forum*`）を完全装備。
+- **プラグイン・テーマ パッケージ検証・ZIP導入設計**:
+  - **パッケージ検証とセキュリティ**: `aegis-core::package` に `extract_zip_safely`（ZipSlip パストラバーサル防止、単一50MB/合計100MB/1,000エントリ上限防御）、Ed25519 署名検証（`signature.json` とパッケージ内全ファイルの SHA-256 ダイジェスト検証）、`min_aegis_version`（semver 比較による現行バージョン `0.1.0` との互換性チェック）を集約。
+  - **プラグイン・テーマローダーの拡張**: `WasmPluginLoader::validate_plugin_package` および `ThemeEngine::validate_theme_package_with_policy` により、各エンジンで同一ポリシー（署名必須設定 `require_signatures`、信頼する公開鍵リスト `trusted_public_keys`）に基づく厳格な事前検証を実施。
+  - **Admin API**: `POST /api/v1/plugins/install` および `POST /api/v1/themes/install`（Multipart ZIP アップロード、管理者認可、`find_plugin_package_root` / `find_theme_package_root` によるアーカイブ構造の自動吸収、`plugins/<name>/` および `themes/<id>/` への安全配置、監査ログ `plugin.install` / `theme.install` 記録）。
+  - **Admin Studio UI**: プラグイン画面にドラッグ＆ドロップ対応の ZIP インストール UI、テーマ画面に ZIP アップロードボタンを新設。日本語・英語の完全なローカライズを適用。
 - **次のステップ**:
   - `feat/forum-crate` の PR #88 レビュー・マージ
   - 必要に応じた `aegis-server` へのエンドポイントマウント（`/api/v1/forum/...`）またはテーマ用マクロの検討
