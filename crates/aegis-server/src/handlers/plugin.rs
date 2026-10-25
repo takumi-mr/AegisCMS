@@ -12,8 +12,9 @@ use crate::audit::AuditContext;
 use crate::auth::authorize::RequireRole;
 use crate::auth::AdminSession;
 use crate::state::AppState;
-use aegis_core::{AuditAction, AuditActor, AuditOutcome};
-use aegis_runtime::{PluginInfo, WasmPluginLoader};
+use aegis_auth::SessionData;
+use aegis_core::{AegisError, AuditAction, AuditActor, AuditOutcome};
+use aegis_runtime::{PluginInfo, PluginSupervisor, WasmPluginLoader};
 
 type ApiError = (StatusCode, Json<serde_json::Value>);
 
@@ -65,6 +66,37 @@ pub(crate) async fn get_effective_plugin_settings(
     map
 }
 
+/// メモリに載せた設定値をキャッシュ（`plugin_settings:<名前>`）から読み直す（ほかのサーバーで変更されたとき）。
+/// キャッシュに無ければメモリからも消す。キャッシュを読めなければ今の値のまま
+pub(crate) async fn refresh_plugin_settings(state: &AppState, plugin_name: &str) {
+    let key = format!("plugin_settings:{}", plugin_name);
+    let saved = match state.cache.get(&key).await {
+        Ok(saved) => saved,
+        Err(e) => {
+            tracing::warn!(
+                "Could not reload the settings of plugin '{}': {}",
+                plugin_name,
+                e
+            );
+            return;
+        }
+    };
+    let settings =
+        saved.and_then(|json| serde_json::from_str::<HashMap<String, String>>(&json).ok());
+    let mut guard = state
+        .plugin_settings
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    match settings {
+        Some(settings) => {
+            guard.insert(plugin_name.to_string(), settings);
+        }
+        None => {
+            guard.remove(plugin_name);
+        }
+    }
+}
+
 /// `GET /api/v1/plugins` — インストール済み・有効化済みのプラグイン一覧（admin 権限必須）。
 /// 有効なもの（有効化リストの順 = フックの実行順）→ 無効なもの（名前順）の順に返す
 pub async fn list_plugins(
@@ -111,128 +143,276 @@ pub async fn set_plugin_enabled(
     if !aegis_core::is_valid_plugin_name(&name) {
         return Err(api_error(StatusCode::BAD_REQUEST, "Invalid plugin name"));
     }
-    let Some(loader) = state.plugin_registry.loader().cloned() else {
-        return Err(api_error(
-            StatusCode::CONFLICT,
-            "Wasm plugins are turned off on this server ([runtime].enable_wasm_plugins = false)",
-        ));
-    };
+    require_switchable(&state)?;
 
     // 同時の切り替えは順に処理する（一覧の読み書きと supervisor の差し替えの間ロックを持つ）
     let mut enabled = state.plugin_registry.lock().await;
     if enabled.contains(&name) == payload.enabled {
         return plugin_list(&state, &enabled).await.map(Json);
     }
-    if !payload.enabled && is_notification_channel(&state, &name) {
-        return Err(api_error(
-            StatusCode::CONFLICT,
-            format!(
-                "Plugin '{}' is a notification channel in [notifications].channels; remove it there first",
-                name
-            ),
-        ));
-    }
     let next: Vec<String> = if payload.enabled {
         enabled.iter().cloned().chain([name.clone()]).collect()
     } else {
         enabled.iter().filter(|n| **n != name).cloned().collect()
     };
-
     let (action, verb) = if payload.enabled {
         (AuditAction::PluginEnable, "enabled")
     } else {
         (AuditAction::PluginDisable, "disabled")
     };
-    let actor = Some(AuditActor {
-        user_id: session.user_id,
-        role: session.role,
-    });
-    let failure = |error: String| {
-        audit
-            .event(action, AuditOutcome::Failure)
-            .with_actor(actor.clone())
-            .with_resource("plugin", Some(name.clone()))
-            .with_details(json!({ "error": error }))
+    let change = Change {
+        action,
+        plugin: Some(name.clone()),
+        persist: Persist::Save,
     };
-
-    if payload.enabled {
-        // 管理画面で保存した設定値を、プラグインが読めるようにメモリに載せておく
-        get_effective_plugin_settings(&state, &name).await;
-    }
-
-    // Wasm のコンパイルは重いのでブロッキング用のスレッドで行う（読み込み済みのものは使い回す）
-    let loaded = state.supervisor.read().await.plugins().to_vec();
-    let rebuild_list = next.clone();
-    let supervisor =
-        match tokio::task::spawn_blocking(move || loader.rebuild(&rebuild_list, &loaded)).await {
-            Ok(Ok(supervisor)) => supervisor,
-            Ok(Err(e)) => {
-                state.audit.record(failure(e.to_string())).await;
-                return Err(api_error(StatusCode::BAD_REQUEST, e.to_string()));
-            }
-            Err(e) => {
-                tracing::error!("Plugin loading task failed: {}", e);
-                state.audit.record(failure(e.to_string())).await;
-                return Err(api_error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed to load the plugins",
-                ));
-            }
-        };
-
-    let json = serde_json::to_string(&next).unwrap_or_default();
-    if let Err(e) = state
-        .db
-        .set_setting(crate::plugin_registry::ENABLED_SETTING, &json)
-        .await
-    {
-        tracing::error!("Failed to save the enabled plugins: {}", e);
-        state.audit.record(failure(e.to_string())).await;
-        return Err(api_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to save the enabled plugins",
-        ));
-    }
-
-    // プラグインが登録するテンプレートを入れ替えて、supervisor を差し替える
-    let templates = supervisor.collect_plugin_templates();
-    {
-        let mut current = state.supervisor.write().await;
-        for old in current.collect_plugin_templates().keys() {
-            if !templates.contains_key(old) {
-                state.theme.unregister_template(old);
-            }
-        }
-        for (template, content) in &templates {
-            state.theme.register_template(template, content);
-        }
-        *current = supervisor;
-    }
-    let previous = std::mem::replace(&mut *enabled, next);
+    switch_plugins(&state, &session, &audit, &mut enabled, next, change).await?;
     tracing::info!("Plugin '{}' {} from Admin Studio", name, verb);
-
-    state
-        .audit
-        .record(
-            audit
-                .event(action, AuditOutcome::Success)
-                .with_actor(actor.clone())
-                .with_resource("plugin", Some(name.clone()))
-                .with_details(json!({ "from": previous, "to": *enabled })),
-        )
-        .await;
-
     plugin_list(&state, &enabled).await.map(Json)
 }
 
-/// `[notifications].channels` の `plugin:<名前>` に使われているか（無効にすると通知が届かなくなる）
-fn is_notification_channel(state: &AppState, name: &str) -> bool {
+/// 有効なプラグインの実行順（`GET` / `PUT` / `DELETE /api/v1/plugins/order` の応答）
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PluginOrder {
+    /// 有効なプラグイン（フックの実行順）
+    pub enabled: Vec<String>,
+    /// 設定ファイルの `[plugins].enabled`
+    pub configured: Vec<String>,
+    /// Admin Studio で変えた一覧を DB に保存しているか（`true` なら `[plugins].enabled` より優先）
+    pub customized: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SetPluginOrderRequest {
+    /// 有効なプラグインを新しい順に並べたもの（今有効なものをちょうど 1 回ずつ）
+    pub enabled: Vec<String>,
+}
+
+/// `GET /api/v1/plugins/order` — 有効なプラグインの実行順と、設定ファイルの値（admin 権限必須）
+pub async fn get_plugin_order(
+    State(state): State<Arc<AppState>>,
+    RequireRole(_session): AdminSession,
+) -> Result<Json<PluginOrder>, ApiError> {
+    let enabled = state.plugin_registry.enabled().await;
+    plugin_order(&state, enabled).await.map(Json)
+}
+
+/// `PUT /api/v1/plugins/order` — 有効なプラグインを並べ替える（admin 権限必須）。DB に保存して再起動せずに反映する
+pub async fn set_plugin_order(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): AdminSession,
+    audit: AuditContext,
+    Json(payload): Json<SetPluginOrderRequest>,
+) -> Result<Json<PluginOrder>, ApiError> {
+    require_switchable(&state)?;
+    let mut enabled = state.plugin_registry.lock().await;
+    let mut requested = payload.enabled.clone();
+    let mut current = enabled.clone();
+    requested.sort();
+    current.sort();
+    if requested != current {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "The order must list each enabled plugin exactly once",
+        ));
+    }
+    if payload.enabled != *enabled {
+        let change = Change {
+            action: AuditAction::PluginReorder,
+            plugin: None,
+            persist: Persist::Save,
+        };
+        switch_plugins(
+            &state,
+            &session,
+            &audit,
+            &mut enabled,
+            payload.enabled,
+            change,
+        )
+        .await?;
+        tracing::info!("Plugin order changed from Admin Studio: {:?}", *enabled);
+    }
+    plugin_order(&state, enabled.clone()).await.map(Json)
+}
+
+/// `DELETE /api/v1/plugins/order` — Admin Studio で保存した一覧を消し、設定ファイルの `[plugins].enabled`
+/// （有効なプラグインとその順）に戻す（admin 権限必須）。再起動せずに反映する
+pub async fn reset_plugin_order(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): AdminSession,
+    audit: AuditContext,
+) -> Result<Json<PluginOrder>, ApiError> {
+    require_switchable(&state)?;
+    let mut enabled = state.plugin_registry.lock().await;
+    let configured = state.config.plugins.enabled.clone();
+    if *enabled == configured && !is_customized(&state).await? {
+        return plugin_order(&state, enabled.clone()).await.map(Json);
+    }
+    let change = Change {
+        action: AuditAction::PluginReset,
+        plugin: None,
+        persist: Persist::Clear,
+    };
+    switch_plugins(&state, &session, &audit, &mut enabled, configured, change).await?;
+    tracing::info!(
+        "Plugins reset to [plugins].enabled from Admin Studio: {:?}",
+        *enabled
+    );
+    plugin_order(&state, enabled.clone()).await.map(Json)
+}
+
+async fn plugin_order(state: &AppState, enabled: Vec<String>) -> Result<PluginOrder, ApiError> {
+    Ok(PluginOrder {
+        enabled,
+        configured: state.config.plugins.enabled.clone(),
+        customized: is_customized(state).await?,
+    })
+}
+
+async fn is_customized(state: &AppState) -> Result<bool, ApiError> {
+    let settings = state.db.list_settings().await.map_err(|e| {
+        tracing::error!("Failed to read the saved plugin list: {}", e);
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to read the saved plugin list",
+        )
+    })?;
+    Ok(settings.contains_key(crate::plugin_registry::ENABLED_SETTING))
+}
+
+/// 切り替えられないサーバー（`[runtime].enable_wasm_plugins = false`）なら 409
+fn require_switchable(state: &AppState) -> Result<(), ApiError> {
+    if state.plugin_registry.loader().is_none() {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "Wasm plugins are turned off on this server ([runtime].enable_wasm_plugins = false)",
+        ));
+    }
+    Ok(())
+}
+
+/// 切り替えた一覧を DB にどう残すか
+enum Persist {
+    /// 一覧を保存する（`[plugins].enabled` より優先）
+    Save,
+    /// 保存した一覧を消す（`[plugins].enabled` に戻る）
+    Clear,
+}
+
+/// 切り替えの種類（監査ログ）と保存のしかた
+struct Change {
+    action: AuditAction,
+    /// 監査ログの対象のプラグイン（並べ替え・戻すときは `None`）
+    plugin: Option<String>,
+    persist: Persist,
+}
+
+/// 一覧を `next` に切り替える: 組み立て → DB に保存 → 差し替え → ほかのサーバーに知らせる（監査ログも残す）。
+/// 呼ぶ側は `plugin_registry.lock()` のガード（`enabled`）を持つ。失敗したら何も変えない
+async fn switch_plugins(
+    state: &AppState,
+    session: &SessionData,
+    audit: &AuditContext,
+    enabled: &mut Vec<String>,
+    next: Vec<String>,
+    change: Change,
+) -> Result<(), ApiError> {
+    if let Some(channel) = missing_notification_channel(state, &next) {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            format!(
+                "Plugin '{}' is a notification channel in [notifications].channels; remove it there first",
+                channel
+            ),
+        ));
+    }
+    let event = |outcome| {
+        audit
+            .event(change.action, outcome)
+            .with_actor(Some(AuditActor {
+                user_id: session.user_id.clone(),
+                role: session.role.clone(),
+            }))
+            .with_resource("plugin", change.plugin.clone())
+    };
+
+    let supervisor = match prepare_and_save(state, enabled, &next, &change.persist).await {
+        Ok(supervisor) => supervisor,
+        Err((status, message)) => {
+            state
+                .audit
+                .record(event(AuditOutcome::Failure).with_details(json!({ "error": message })))
+                .await;
+            return Err(api_error(status, message));
+        }
+    };
+
+    crate::plugin_registry::install(state, supervisor).await;
+    let previous = std::mem::replace(enabled, next);
+    crate::cluster::announce(state, crate::cluster::TOPIC_PLUGINS, "").await;
+    state
+        .audit
+        .record(
+            event(AuditOutcome::Success).with_details(json!({ "from": previous, "to": *enabled })),
+        )
+        .await;
+    Ok(())
+}
+
+/// 新しい supervisor を組み立ててから、一覧を DB に残す（組み立てに失敗したら保存しない）
+async fn prepare_and_save(
+    state: &AppState,
+    current: &[String],
+    next: &[String],
+    persist: &Persist,
+) -> Result<PluginSupervisor, (StatusCode, String)> {
+    let supervisor = crate::plugin_registry::prepare(state, current, next)
+        .await
+        .map_err(|e| match e {
+            AegisError::Validation(message) => (StatusCode::BAD_REQUEST, message),
+            other => {
+                tracing::error!("Failed to load the plugins: {}", other);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to load the plugins".to_string(),
+                )
+            }
+        })?;
+    let saved = match persist {
+        Persist::Save => {
+            let json = serde_json::to_string(next).unwrap_or_default();
+            state
+                .db
+                .set_setting(crate::plugin_registry::ENABLED_SETTING, &json)
+                .await
+        }
+        Persist::Clear => {
+            state
+                .db
+                .delete_setting(crate::plugin_registry::ENABLED_SETTING)
+                .await
+        }
+    };
+    saved.map_err(|e| {
+        tracing::error!("Failed to save the enabled plugins: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to save the enabled plugins".to_string(),
+        )
+    })?;
+    Ok(supervisor)
+}
+
+/// `[notifications].channels` の `plugin:<名前>` のうち `next` に無いもの（外すと通知が届かなくなる）
+fn missing_notification_channel(state: &AppState, next: &[String]) -> Option<String> {
     let notifications = &state.config.notifications;
-    notifications.enabled
-        && notifications
-            .channels
-            .iter()
-            .any(|c| matches!(c, aegis_notify::ChannelKind::Plugin(p) if p == name))
+    if !notifications.enabled {
+        return None;
+    }
+    notifications.channels.iter().find_map(|c| match c {
+        aegis_notify::ChannelKind::Plugin(p) if !next.contains(p) => Some(p.clone()),
+        _ => None,
+    })
 }
 
 /// `GET /api/v1/plugins/{name}/settings` — プラグインの設定値を取得する（admin 権限必須）
@@ -289,6 +469,8 @@ pub async fn update_plugin_settings(
     if let Ok(mut guard) = state.plugin_settings.write() {
         guard.insert(name.clone(), payload.settings.clone());
     }
+    // ほかのサーバーはメモリに載せた値を持っているので、キャッシュから読み直してもらう
+    crate::cluster::announce(&state, crate::cluster::TOPIC_PLUGIN_SETTINGS, &name).await;
 
     state
         .audit
@@ -374,11 +556,21 @@ mod tests {
         enabled: &[&str],
         configure: impl FnOnce(&mut AegisConfig),
     ) -> Arc<AppState> {
+        switchable_server(enabled, configure, None).await
+    }
+
+    /// [`switchable_state`] on the database, cache and event bus of `shared` (another server of the site)
+    async fn switchable_server(
+        enabled: &[&str],
+        configure: impl FnOnce(&mut AegisConfig),
+        shared: Option<&Shared>,
+    ) -> Arc<AppState> {
         let plugins_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
         let mut config = AegisConfig::default();
         config.paths.plugins_dir = plugins_dir.clone();
         configure(&mut config);
         let enabled: Vec<String> = enabled.iter().map(|n| n.to_string()).collect();
+        config.plugins.enabled = enabled.clone();
         let loader = crate::plugin_registry::PluginLoader::new(
             aegis_runtime::WasmEngine::new().unwrap(),
             Arc::new(std::sync::Mutex::new(HashMap::new())).into(),
@@ -386,12 +578,46 @@ mod tests {
             config.runtime.default_resource_limits(),
         );
         let supervisor = loader.load(&enabled).unwrap();
-        let mut state = crate::test_support::test_app_state(config, supervisor, Vec::new()).await;
+        let mut state = match shared {
+            Some(shared) => {
+                let mut state = crate::test_support::test_app_state_with_db(
+                    shared.db.clone(),
+                    config,
+                    supervisor,
+                    Vec::new(),
+                )
+                .await;
+                state.cache = shared.cache.clone();
+                state.bus = shared.bus.clone();
+                state
+            }
+            None => crate::test_support::test_app_state(config, supervisor, Vec::new()).await,
+        };
         state.plugin_registry = Arc::new(crate::plugin_registry::PluginRegistry::new(
             Some(loader),
             enabled,
         ));
         Arc::new(state)
+    }
+
+    /// What the servers of one site share: the database and the cache (Redis), whose Pub/Sub
+    /// carries the event bus
+    struct Shared {
+        db: Arc<dyn aegis_db::DatabaseAdapter>,
+        cache: Arc<dyn aegis_core::CacheBackend>,
+        bus: Arc<dyn aegis_cache::EventBus>,
+    }
+
+    /// Two servers on one database and one cache, both started with `[plugins].enabled = enabled`
+    async fn two_servers(enabled: &[&str]) -> (Arc<AppState>, Arc<AppState>) {
+        let first = switchable_state(enabled, |_| {}).await;
+        let shared = Shared {
+            db: first.db.clone(),
+            cache: first.cache.clone(),
+            bus: first.bus.clone(),
+        };
+        let second = switchable_server(enabled, |_| {}, Some(&shared)).await;
+        (first, second)
     }
 
     async fn set_enabled(
@@ -533,6 +759,163 @@ mod tests {
             StatusCode::CONFLICT
         );
         assert_eq!(saved_list(&state).await, None);
+    }
+
+    async fn set_order(state: &Arc<AppState>, order: &[&str]) -> Result<PluginOrder, StatusCode> {
+        set_plugin_order(
+            State(state.clone()),
+            admin(),
+            AuditContext::default(),
+            Json(SetPluginOrderRequest {
+                enabled: order.iter().map(|n| n.to_string()).collect(),
+            }),
+        )
+        .await
+        .map(|Json(order)| order)
+        .map_err(|(status, _)| status)
+    }
+
+    async fn reset_order(state: &Arc<AppState>) -> Result<PluginOrder, StatusCode> {
+        reset_plugin_order(State(state.clone()), admin(), AuditContext::default())
+            .await
+            .map(|Json(order)| order)
+            .map_err(|(status, _)| status)
+    }
+
+    #[tokio::test]
+    async fn test_reorder_plugins_and_reset_to_the_configuration() {
+        let state =
+            switchable_state(&["official-code-enhancer", "official-shop-rules"], |_| {}).await;
+        let Json(order) = get_plugin_order(State(state.clone()), admin())
+            .await
+            .unwrap();
+        assert_eq!(order.enabled, order.configured);
+        assert!(!order.customized);
+
+        // The new order must name exactly the enabled plugins
+        for wrong in [
+            &["official-shop-rules"][..],
+            &["official-shop-rules", "official-shop-rules"],
+            &[
+                "official-shop-rules",
+                "official-code-enhancer",
+                "official-order-notifier",
+            ],
+        ] {
+            assert_eq!(
+                set_order(&state, wrong).await.unwrap_err(),
+                StatusCode::BAD_REQUEST
+            );
+        }
+        // The same order changes nothing
+        let order = set_order(&state, &["official-code-enhancer", "official-shop-rules"])
+            .await
+            .unwrap();
+        assert!(!order.customized);
+        assert_eq!(saved_list(&state).await, None);
+
+        let order = set_order(&state, &["official-shop-rules", "official-code-enhancer"])
+            .await
+            .unwrap();
+        assert_eq!(
+            order.enabled,
+            vec!["official-shop-rules", "official-code-enhancer"]
+        );
+        assert!(order.customized);
+        assert_eq!(
+            loaded_names(&state).await,
+            vec!["official-shop-rules", "official-code-enhancer"]
+        );
+        assert_eq!(
+            saved_list(&state).await.as_deref(),
+            Some(r#"["official-shop-rules","official-code-enhancer"]"#)
+        );
+
+        // Resetting drops the saved list: enabled plugins and order come from [plugins].enabled
+        set_enabled(&state, "official-order-notifier", true)
+            .await
+            .unwrap();
+        let order = reset_order(&state).await.unwrap();
+        assert_eq!(
+            order.enabled,
+            vec!["official-code-enhancer", "official-shop-rules"]
+        );
+        assert!(!order.customized);
+        assert_eq!(saved_list(&state).await, None);
+        assert_eq!(
+            loaded_names(&state).await,
+            vec!["official-code-enhancer", "official-shop-rules"]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_switches_reach_the_other_servers() {
+        let (first, second) = two_servers(&["official-code-enhancer"]).await;
+        // Each server listens from startup (see cluster::spawn_listener)
+        let mut on_first = first.bus.subscribe();
+        let mut on_second = second.bus.subscribe();
+        async fn deliver(state: &AppState, subscription: &mut aegis_cache::BusSubscription) {
+            let message = subscription.recv().await.unwrap();
+            crate::cluster::handle(state, message).await;
+        }
+
+        set_enabled(&first, "official-shop-rules", true)
+            .await
+            .unwrap();
+        deliver(&second, &mut on_second).await;
+        assert_eq!(
+            loaded_names(&second).await,
+            vec!["official-code-enhancer", "official-shop-rules"]
+        );
+        // The server that switched gets its own message too: it already has the list
+        let before = first.supervisor.read().await.plugins()[1].clone();
+        deliver(&first, &mut on_first).await;
+        assert!(Arc::ptr_eq(
+            &before,
+            &first.supervisor.read().await.plugins()[1]
+        ));
+
+        set_order(&second, &["official-shop-rules", "official-code-enhancer"])
+            .await
+            .unwrap();
+        deliver(&first, &mut on_first).await;
+        deliver(&second, &mut on_second).await;
+        assert_eq!(
+            loaded_names(&first).await,
+            vec!["official-shop-rules", "official-code-enhancer"]
+        );
+        assert_eq!(
+            first.plugin_registry.enabled().await,
+            second.plugin_registry.enabled().await
+        );
+
+        // Settings saved on one server replace what the other holds in memory
+        get_effective_plugin_settings(&second, "official-shop-rules").await;
+        let _ = update_plugin_settings(
+            State(first.clone()),
+            admin(),
+            AuditContext::default(),
+            Path("official-shop-rules".to_string()),
+            Json(UpdatePluginSettingsRequest {
+                settings: HashMap::from([("shipping_fee".to_string(), "900".to_string())]),
+            }),
+        )
+        .await
+        .unwrap();
+        deliver(&first, &mut on_first).await;
+        deliver(&second, &mut on_second).await;
+        assert_eq!(
+            get_effective_plugin_settings(&second, "official-shop-rules")
+                .await
+                .get("shipping_fee")
+                .map(String::as_str),
+            Some("900")
+        );
+
+        // A missed message (e.g. Redis was unreachable) is caught up by the resync after reconnecting
+        reset_order(&first).await.unwrap();
+        crate::cluster::handle(&second, aegis_cache::BusMessage::Resync).await;
+        assert_eq!(loaded_names(&second).await, vec!["official-code-enhancer"]);
     }
 
     #[tokio::test]

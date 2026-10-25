@@ -62,7 +62,9 @@ export type AuditAction =
   | 'notification.send'
   | 'plugin.settings_update'
   | 'plugin.enable'
-  | 'plugin.disable';
+  | 'plugin.disable'
+  | 'plugin.reorder'
+  | 'plugin.reset';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 
@@ -467,6 +469,15 @@ export interface PluginInfo {
   /** Why the plugin cannot be enabled (not installed, invalid manifest, ...) */
   problem?: string;
   settings?: Record<string, string>;
+}
+
+/** `GET /api/v1/plugins/order`: the enabled plugins in hook order */
+export interface PluginOrder {
+  enabled: string[];
+  /** `[plugins].enabled` of the configuration file */
+  configured: string[];
+  /** The list was changed in Admin Studio (saved in the database, overrides `configured`) */
+  customized: boolean;
 }
 
 export interface ScheduleItem {

@@ -32,3 +32,15 @@ services:
       interval: 3s
       timeout: 5s
       retries: 15
+
+  redis:
+    image: redis:7-alpine
+    container_name: aegis-test-redis
+    restart: "no"
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

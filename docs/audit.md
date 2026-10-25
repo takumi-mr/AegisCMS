@@ -51,6 +51,8 @@ purge_interval_secs = 3600
 | `storage.delete` | `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md#ファイルの削除--delete-apiv1storageobjectskey)） | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `url`, `force`, `references`（参照元の件数）, `error` |
 | `plugin.error` | Wasm プラグインフックの実行失敗（トラップ、タイムアウト、Fuel 枯渇など） | `failure` | `content` / コンテンツ ID（`on-user-authenticated` では `session` / なし、`on-order-status-changed` では `order` / 注文 ID） | `hook`, `content_type` / `username` / `plugin`, `error` |
 | `plugin.enable` / `plugin.disable` | `PUT /api/v1/plugins/{name}/enabled`（[プラグインの有効・無効の切り替え](plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)） | `success` / `failure`（読み込めない、DB エラー） | `plugin` / プラグイン名 | `from` / `to`（有効化リスト）, `error` |
+| `plugin.reorder` | `PUT /api/v1/plugins/order`（[実行順の並べ替え](plugin_hooks.md#52-フックの実行順の並べ替えと設定ファイルの値に戻す)） | `success` / `failure` | `plugin` / なし | `from` / `to`, `error` |
+| `plugin.reset` | `DELETE /api/v1/plugins/order`（設定ファイルの `[plugins].enabled` に戻す） | `success` / `failure`（読み込めない、DB エラー） | `plugin` / なし | `from` / `to`, `error` |
 | `audit.purge` | 保持期間切れの監査ログを 1 件以上削除したとき（[5. 保持期間](#5-保持期間と自動削除)） | `success` | `audit_log` / なし | `deleted`, `cutoff`, `retention_days` |
 | `access.denied` | セッションとロールが必要な API（[必要なロール](authentication.md#ロールと-api-の権限)）を、セッション無し・無効（401）またはロール不足（403）で拒否したとき | `denied` | `endpoint` / `メソッド パス`（例: `POST /api/v1/contents/article`。クエリ文字列は含めない） | `reason`（`missing_session` / `invalid_session` / `insufficient_role` / `not_own_account`（他のユーザーのプロフィール・アバターへのアクセス。`resource_type` は `user`）/ `invalid_webhook_signature`（決済の Webhook の署名が不正））, `required_role`, `session`（無効なトークンの指紋。`invalid_session` のみ） |
 | `theme.switch` | `PUT /api/v1/themes/active` | `success` | なし | `from_theme`, `to_theme` |

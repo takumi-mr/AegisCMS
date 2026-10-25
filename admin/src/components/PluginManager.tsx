@@ -22,11 +22,15 @@ import {
   X,
   Lock,
   Power,
+  ListOrdered,
+  ArrowUp,
+  ArrowDown,
+  RotateCcw,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
 import i18n from '../i18n';
-import type { PackageAuthor, PluginInfo, SessionInfo } from '../types';
+import type { PackageAuthor, PluginInfo, PluginOrder, SessionInfo } from '../types';
 import { isAdmin } from '../utils/roles';
 import { cx } from '../utils/cx';
 import styles from './PluginManager.module.css';
@@ -65,16 +69,19 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
   // Plugin whose enable / disable request is in flight
   const [togglingName, setTogglingName] = useState<string | null>(null);
+  // Hook order of the enabled plugins, and whether a reorder / reset request is in flight
+  const [order, setOrder] = useState<PluginOrder | null>(null);
+  const [isReordering, setIsReordering] = useState<boolean>(false);
 
   const canConfigure = isAdmin(session);
 
   useEffect(() => {
     let cancelled = false;
-    aegisApi
-      .listPlugins()
-      .then((data) => {
+    Promise.all([aegisApi.listPlugins(), aegisApi.getPluginOrder()])
+      .then(([data, pluginOrder]) => {
         if (!cancelled) {
           setPlugins(data);
+          setOrder(pluginOrder);
           setIsLoading(false);
         }
       })
@@ -190,12 +197,55 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
         t(enable ? 'plugins.enabled' : 'plugins.disabled', { name: plugin.name }),
         'success'
       );
+      setOrder(await aegisApi.getPluginOrder());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t('api.setPluginEnabledFailed');
       onShowToast(msg, 'error');
     } finally {
       setTogglingName(null);
     }
+  };
+
+  /** Applies a reorder / reset, then reloads the cards (they are listed in hook order) */
+  const changeOrder = async (
+    run: () => Promise<PluginOrder>,
+    successMessage: string,
+    fallbackError: string
+  ) => {
+    setIsReordering(true);
+    try {
+      setOrder(await run());
+      onShowToast(successMessage, 'success');
+      setPlugins(await aegisApi.listPlugins());
+    } catch (err: unknown) {
+      onShowToast(err instanceof Error ? err.message : fallbackError, 'error');
+    } finally {
+      setIsReordering(false);
+    }
+  };
+
+  const handleMove = (index: number, delta: -1 | 1) => {
+    if (!order) return;
+    const next = [...order.enabled];
+    [next[index], next[index + delta]] = [next[index + delta], next[index]];
+    void changeOrder(
+      () => aegisApi.setPluginOrder(next),
+      t('plugins.orderChanged'),
+      t('api.setPluginOrderFailed')
+    );
+  };
+
+  const handleResetOrder = () => {
+    if (!order) return;
+    const configured = order.configured.length
+      ? order.configured.join(', ')
+      : t('plugins.configuredNone');
+    if (!window.confirm(t('plugins.confirmResetOrder', { plugins: configured }))) return;
+    void changeOrder(
+      () => aegisApi.resetPluginOrder(),
+      t('plugins.orderReset'),
+      t('api.resetPluginOrderFailed')
+    );
   };
 
   const isSensitiveKey = (key: string) => {
@@ -228,6 +278,10 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
   }, [plugins, searchQuery, statusFilter]);
 
   const presetSuggestions = editingPlugin ? KNOWN_PLUGIN_PRESETS[editingPlugin.name] || [] : [];
+  const isBusy = togglingName !== null || isReordering;
+  const canReorder = canConfigure && !isBusy;
+  const displayNameOf = (name: string) =>
+    plugins.find((p) => p.name === name)?.manifest?.display_name || name;
 
   return (
     <main className={styles.main}>
@@ -275,6 +329,71 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
 
         {activeTab === 'installed' && (
           <>
+            {order && (order.enabled.length > 0 || order.customized) && (
+              <section className={styles.orderPanel} aria-labelledby="plugin-order-title">
+                <div className={styles.orderHeader}>
+                  <div className={styles.orderHeading}>
+                    <h2 id="plugin-order-title" className={styles.orderTitle}>
+                      <ListOrdered size={16} className={styles.titleIcon} />
+                      <span>{t('plugins.orderTitle')}</span>
+                    </h2>
+                    <p className={styles.orderDesc}>{t('plugins.orderDescription')}</p>
+                    <p className={styles.orderSource}>
+                      {order.customized
+                        ? t('plugins.orderCustomized')
+                        : t('plugins.orderFromConfig')}
+                    </p>
+                  </div>
+                  {order.customized && (
+                    <button
+                      type="button"
+                      className={styles.resetOrderBtn}
+                      onClick={handleResetOrder}
+                      disabled={!canReorder}
+                      title={t('plugins.resetOrderTitle')}
+                    >
+                      <RotateCcw size={14} />
+                      <span>{t('plugins.resetOrder')}</span>
+                    </button>
+                  )}
+                </div>
+                {order.enabled.length > 0 && (
+                  <ol className={styles.orderList}>
+                    {order.enabled.map((name, index) => (
+                      <li key={name} className={styles.orderItem}>
+                        <span className={styles.orderIndex}>{index + 1}</span>
+                        <span className={styles.orderName} title={name}>
+                          {displayNameOf(name)}
+                        </span>
+                        <div className={styles.orderMoves}>
+                          <button
+                            type="button"
+                            className={styles.moveBtn}
+                            onClick={() => handleMove(index, -1)}
+                            disabled={!canReorder || index === 0}
+                            aria-label={t('plugins.moveUp', { name })}
+                            title={t('plugins.moveUp', { name })}
+                          >
+                            <ArrowUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.moveBtn}
+                            onClick={() => handleMove(index, 1)}
+                            disabled={!canReorder || index === order.enabled.length - 1}
+                            aria-label={t('plugins.moveDown', { name })}
+                            title={t('plugins.moveDown', { name })}
+                          >
+                            <ArrowDown size={14} />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
+            )}
+
             <div className={styles.filterBar}>
               <div className={styles.searchBox}>
                 <Search size={16} className={styles.searchIcon} />
@@ -336,7 +455,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                   const isToggling = togglingName === plugin.name;
                   // A broken plugin can still be disabled, but not enabled
                   const canToggle =
-                    canConfigure && togglingName === null && (plugin.is_enabled || !plugin.problem);
+                    canConfigure && !isBusy && (plugin.is_enabled || !plugin.problem);
 
                   return (
                     <article

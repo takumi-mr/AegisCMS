@@ -503,12 +503,30 @@ enabled = ["seo-tools", "slack-notifier"]
 Admin Studio のプラグイン画面（`admin` ロールのみ）の「有効にする」「無効にする」で、サーバーを再起動せずに切り替えられます。
 
 - API: `PUT /api/v1/plugins/{name}/enabled` に `{"enabled": true}` / `{"enabled": false}` を送ります。応答は `GET /api/v1/plugins` と同じ一覧です。監査ログは `plugin.enable` / `plugin.disable`。
-- 有効にしたプラグインは、フックの実行順の**最後**に加わります。
-- 切り替えた一覧は DB（`_aegis_settings` の `plugins.enabled`）に保存され、**以後は設定ファイルの `[plugins].enabled` より優先されます**（起動時のログに `Using the plugin list saved from Admin Studio` と出ます）。設定ファイルの値に戻すには、その行を DB から削除して再起動します。
+- 有効にしたプラグインは、フックの実行順の**最後**に加わります。順序はプラグイン画面の「フックの実行順」で変えられます（下記）。
+- 切り替えた一覧は DB（`_aegis_settings` の `plugins.enabled`）に保存され、**以後は設定ファイルの `[plugins].enabled` より優先されます**（起動時のログに `Using the plugin list saved from Admin Studio` と出ます）。設定ファイルの値に戻すには「設定ファイルの値に戻す」を使います（下記）。
 - 読み込めないプラグイン（未インストール、マニフェストの不備、ホストに無い関数のインポートなど）は有効にできず `400` を返します。そのときは何も変わりません。
 - `[notifications].channels` に `plugin:<名前>` で使っているプラグインは無効にできません（`409`。先に `channels` から外してください）。
 - `[runtime].enable_wasm_plugins = false` のサーバーでは切り替えられません（`409`）。
-- 複数台で動かしている場合、切り替えが反映されるのは操作を受けたサーバーだけです。ほかのサーバーは再起動すると DB の一覧で読み込みます。
+- 複数台で動かしている場合（`[cache].backend = "redis"`）、切り替え・並べ替え・設定値の変更はほかのサーバーにもすぐ反映されます（[5.3](#53-複数台での反映)）。
 - プラグインの設定値（`PUT /api/v1/plugins/{name}/settings`）は有効・無効にかかわらず保持され、有効にした時点から読まれます。
+
+### 5.2 フックの実行順の並べ替えと、設定ファイルの値に戻す
+
+プラグイン画面の上部の「フックの実行順」に、有効なプラグインが実行順に並びます（`admin` ロールのみ操作できます）。上下のボタンで並べ替えると、再起動せずにすぐ反映され、DB に保存されます。
+
+- API: `GET /api/v1/plugins/order` → `{"enabled": [...], "configured": [...], "customized": true}`。`enabled` は今の実行順、`configured` は設定ファイルの `[plugins].enabled`、`customized` は Admin Studio で変えた一覧を DB に保存しているか。
+- 並べ替え: `PUT /api/v1/plugins/order` に `{"enabled": ["b", "a"]}`。今有効なプラグインをちょうど 1 回ずつ並べます（足りない・余計・重複は `400`。有効・無効は `PUT /api/v1/plugins/{name}/enabled` で切り替えます）。監査ログは `plugin.reorder`。
+- 設定ファイルの値に戻す: `DELETE /api/v1/plugins/order`（画面の「設定ファイルの値に戻す」）。DB に保存した一覧を消し、`[plugins].enabled` のプラグインをその順に読み込み直します（Admin Studio だけで有効にしたものは無効になります）。監査ログは `plugin.reset`。`[plugins].enabled` のプラグインが読み込めなければ `400` で、何も変わりません。
+- 応答はどれも `GET /api/v1/plugins/order` と同じ形です。`[runtime].enable_wasm_plugins = false` なら `409`、通知チャネル（`[notifications].channels` の `plugin:<名前>`）が外れる場合も `409` です。
+
+### 5.3 複数台での反映
+
+Admin Studio での変更は、キャッシュと同じバックエンドのイベントバスで全サーバーに知らせます。
+
+- `[cache].backend = "redis"`: Redis の Pub/Sub（チャネル `aegis:events`）で知らせ、受け取ったサーバーが DB の一覧（設定値はキャッシュ）を読み直して差し替えます。通常は 1 秒もかからずに揃います。Redis との接続が切れていた間の知らせは、繋ぎ直したときにまとめて読み直して取り戻します。
+- `[cache].backend = "memory"`: 1 台構成専用です（セッションもプロセスの中にしか無いため）。同じ DB で 2 台目を起動すると、起動時に止まります（[設定リファレンス 2.4](./configuration.md#24-cache--キャッシュ--セッション)）。
+- 対象: 有効・無効の切り替え、並べ替え、設定ファイルの値に戻す、プラグインの設定値（`PUT /api/v1/plugins/{name}/settings`）。
+- 新しく有効になったプラグインがそのサーバーで読み込めない（そのサーバーにだけインストールされていない、など）場合は、エラーログを出して今のプラグインのまま動きます。プラグインはすべてのサーバーに同じものを置いてください。
 - `[runtime].enable_wasm_plugins = false` にすると、`enabled` に関係なくすべてのプラグインを読み込みません。
 - テンプレートとサンプルは `sdk/templates/*`・`sdk/examples/*` にあり、`plugins/` には含まれません（既定ではプラグインは 1 つも有効になっていません）。
