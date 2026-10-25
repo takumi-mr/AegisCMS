@@ -722,6 +722,7 @@ impl CommerceService {
             }
         }
 
+        self.notify_low_stock(&order).await;
         self.notify(&order, None, status);
         // Stripe などの決済ページで支払う注文は、支払いが済んでから（Webhook で）受付を知らせる
         if free || self.config.provider == PaymentProviderKind::Manual {
@@ -1249,6 +1250,59 @@ impl CommerceService {
             map.extend(extra);
         }
         notifier.notify(NotificationEvent::new(kind, recipients, data));
+    }
+
+    /// Notify staff when this reservation crosses the configured stock threshold.
+    /// The stock read follows the atomic reservation immediately, before payment-provider I/O.
+    async fn notify_low_stock(&self, order: &OrderRecord) {
+        let Some(threshold) = self.config.low_stock_threshold.map(i64::from) else {
+            return;
+        };
+        let Some(notifier) = &self.deps.notifier else {
+            return;
+        };
+        let lines: Vec<OrderLine> = serde_json::from_str(&order.lines_json).unwrap_or_default();
+        let schema = {
+            let schemas = self.deps.schemas.read().await;
+            schemas.get(&self.config.product_type).cloned()
+        };
+        let Some(schema) = schema else { return };
+        for line in lines {
+            let stock = if let Some(variant_id) = &line.variant_id {
+                self.deps
+                    .db
+                    .get_product_variant(variant_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|variant| variant.stock)
+            } else {
+                self.deps
+                    .db
+                    .get_content(&schema, &line.product_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|product| {
+                        product
+                            .custom_fields
+                            .get("stock")
+                            .and_then(serde_json::Value::as_i64)
+                    })
+            };
+            let Some(stock) = stock else { continue };
+            if stock <= threshold && stock.saturating_add(i64::from(line.quantity)) > threshold {
+                notifier.notify(NotificationEvent::new(
+                    "stock.low",
+                    vec![Recipient::Staff],
+                    json!({
+                        "product": { "id": line.product_id, "title": line.title, "stock": stock },
+                        "threshold": threshold,
+                        "order": { "number": order.number }
+                    }),
+                ));
+            }
+        }
     }
 
     /// `on-order-status-changed` プラグインへの通知（応答を待たない）

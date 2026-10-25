@@ -33,6 +33,7 @@ AegisCMS にはカート・注文・在庫・決済の機能があります（`[
 enabled = true
 currency = "jpy"            # ISO 4217（小文字）。金額はすべてこの通貨の最小単位の整数（JPY なら円）
 provider = "manual"         # "manual"（銀行振込・代引き）または "stripe"
+low_stock_threshold = 5      # 在庫がこの数以下になったとき運営者に通知。null で無効
 # public_url = "https://shop.example.com"   # 決済後の戻り先。空ならリクエストの Host から
 
 [commerce.manual]
@@ -42,6 +43,7 @@ payment_due_hours = 72      # 未払いの注文を取り消して在庫を戻�
 
 - 商品のスキーマ（既定 `product`、`[commerce].product_type`）には `price`（integer、必須）が必要です。`stock`（integer）があれば在庫を数えます。同梱の [`schemas/products.yaml`](../schemas/products.yaml) をそのまま使えます。起動時に確かめ、足りなければ起動しません。
 - `[commerce].enabled = false` でも商品一覧・商品ページは表示されます（カートは無効）。商品の `buy_url` に外部の決済リンク（Stripe Payment Links など）を入れると「Buy now」ボタンになります。
+- `low_stock_threshold` は商品・バリエーション共通の閾値です。在庫を数える商品の注文で閾値を下回ったとき `stock.low` を運営者に送ります（`[notifications].enabled = true` が必要）。在庫が `null` の商品は対象外です。
 
 設定項目の一覧は [設定リファレンス](configuration.md#212-commerce--ec) を参照してください。
 
@@ -288,9 +290,12 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 | API | 内容 |
 | --- | --- |
 | `GET /api/v1/orders?status=&limit=&offset=` | 注文の一覧（新しい順、`limit` 既定 50・最大 200）。`{ "orders", "total", "limit", "offset" }` |
+| `GET /api/v1/orders/report?start=YYYY-MM-DD&end=YYYY-MM-DD` | 日別売上レポート（支払い日時 UTC、終了日を含む。期間は最大 367 日） |
 | `GET /api/v1/orders/{id}` | 注文の詳細（顧客のメールアドレス・決済 ID・メモ・`can_mark_paid`・`can_refund`・`supports_online_refund` を含む） |
 | `POST /api/v1/orders/{id}/status` | `{ "status": "paid" \| "shipped" \| "completed" \| "cancelled", "note": "任意" }`。遷移できなければ `409` |
 | `POST /api/v1/orders/{id}/refund` | `{ "amount": 1000（省略時は残額全額）, "reason": "任意", "restock": true }`。返金を記録・実行（`can_refund` でなければ `409`） |
+
+Admin Studio の Orders タブでは直近 30 日の日別注文数・売上・返金額・返金後金額を通貨別に表示し、期間を変更できます。売上には支払い済み・発送済み・完了・返金済みの注文を含みます。
 
 **返金時の在庫の戻し（`restock`）**: `restock: true` を指定しても、在庫の二重戻しを防ぐため次の場合は在庫を戻しません（エラーにはならず、返金だけが成功します）。
 

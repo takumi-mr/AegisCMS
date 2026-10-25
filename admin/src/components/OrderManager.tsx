@@ -51,6 +51,15 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
   const [page, setPage] = useState<OrderPage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Order | null>(null);
+  const [today] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reportStart, setReportStart] = useState(() =>
+    new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10)
+  );
+  const [reportEnd, setReportEnd] = useState(today);
+  const [report, setReport] = useState<Awaited<ReturnType<typeof aegisApi.getSalesReport>> | null>(
+    null
+  );
+  const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +82,23 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
       cancelled = true;
     };
   }, [status, offset, reloadCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    aegisApi
+      .getSalesReport(reportStart, reportEnd)
+      .then((loaded) => {
+        if (cancelled) return;
+        setReport(loaded);
+        setReportError(null);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setReportError(messageOf(err, i18n.t('orders.reportFailed')));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reportStart, reportEnd, reloadCount]);
 
   const handleUpdated = (updated: Order) => {
     setSelected(updated);
@@ -103,6 +129,71 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
             </Button>
           </div>
         </div>
+
+        <section className={styles.report} aria-labelledby="sales-report-title">
+          <div className={styles.reportHeading}>
+            <h2 id="sales-report-title">{t('orders.reportTitle')}</h2>
+            <div className={styles.reportDates}>
+              <label>
+                <span>{t('orders.reportFrom')}</span>
+                <input
+                  type="date"
+                  value={reportStart}
+                  max={reportEnd}
+                  onChange={(e) => setReportStart(e.target.value)}
+                />
+              </label>
+              <label>
+                <span>{t('orders.reportTo')}</span>
+                <input
+                  type="date"
+                  value={reportEnd}
+                  min={reportStart}
+                  max={today}
+                  onChange={(e) => setReportEnd(e.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+          {reportError && <div className={cx(styles.notice, styles.error)}>{reportError}</div>}
+          {report && (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>{t('orders.reportDate')}</th>
+                    <th>{t('orders.reportCurrency')}</th>
+                    <th className={styles.numeric}>{t('orders.reportOrders')}</th>
+                    <th className={styles.numeric}>{t('orders.reportGross')}</th>
+                    <th className={styles.numeric}>{t('orders.reportRefunded')}</th>
+                    <th className={styles.numeric}>{t('orders.reportNet')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.days.map((row) => (
+                    <tr key={`${row.day}-${row.currency}`}>
+                      <td>{row.day}</td>
+                      <td>{row.currency.toUpperCase()}</td>
+                      <td className={styles.numeric}>{row.orders}</td>
+                      <td className={styles.numeric}>{formatMoney(row.gross, row.currency)}</td>
+                      <td className={styles.numeric}>{formatMoney(row.refunded, row.currency)}</td>
+                      <td className={styles.numeric}>
+                        {formatMoney(row.gross - row.refunded, row.currency)}
+                      </td>
+                    </tr>
+                  ))}
+                  {report.days.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className={styles.empty}>
+                        {t('orders.reportEmpty')}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
         <div className={styles.filters} role="tablist" aria-label={t('orders.statusFilter')}>
           {FILTERS.map((value) => (

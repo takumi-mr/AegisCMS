@@ -250,6 +250,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - 金額はすべて通貨の最小単位の `i64`（Stripe の `unit_amount` と同じ）。表示は `aegis_core::format_money` / テンプレートの `money` フィルター / Admin Studio の `formatMoney`。
 - 在庫の確保は `UPDATE ... SET stock = stock - ? WHERE id = ? AND (stock IS NULL OR stock >= ?)` を注文の INSERT と同じトランザクションで行う（売り越し防止）。`stock` が NULL の商品は無制限。
 - **バリエーションは別表 `_aegis_product_variants`**: 商品はスキーマごとに動的なコンテンツの表なので、サイズ・色ごとの価格・在庫は固定の表に分けた。`StockReservation` が `variant_id` を持ち、在庫の確保・戻しは同じトランザクションの中で親商品の表かバリエーションの表かを切り替える。カート・明細は `(product_id, Option<variant_id>)` で区別し、明細には注文時の `variant_title` / `sku` を残す。
+- **売上レポート**: `_aegis_orders.paid_at` を UTC 日付・通貨で集計し、支払い済み系の状態を対象に元売上と返金額を別々に返す。日付範囲は半開区間で DB 側集計し、SQLite / PostgreSQL / MySQL 共通の `SUBSTR` を使う。Admin Studio は通貨ごとに返金後金額（売上 − 返金）を表示する。
+- **在庫閾値通知**: 注文後に商品／バリエーションの残数を確認し、閾値を上から下へ越えた場合だけ `stock.low` を `Recipient::Staff` に送る。通知無効または `[commerce].low_stock_threshold = null` なら送らない。On-demand ISR はこの通知フローに含めない。
 - **複数通貨**: 金額は通貨ごとの最小単位の整数のまま扱い、換算は `aegis_core::convert_currency`（`currency_decimals` で 0 / 2 / 3 桁を合わせて四捨五入、`i64` の範囲で飽和）。単価は `CommerceService::resolve_item_price` で、通貨ごとの固定価格（`price_<通貨>`）を換算より優先する（端数を店側で決められるように）。注文は 1 つの通貨で計算・保存し、Stripe にもその通貨で渡す。
 - 状態の変更は `transition_order`（`WHERE status = 前の状態`）で、Webhook の重複・期限切れ処理との競合を防ぐ。プラグインへの通知（`on-order-status-changed`）は `tokio::spawn` で応答を待たない。
 - **外部連携決済の抽象化層 (`PaymentProvider`)**:

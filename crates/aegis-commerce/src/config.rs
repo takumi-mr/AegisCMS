@@ -54,6 +54,8 @@ pub struct CommerceConfig {
     pub max_items: usize,
     /// 同じクライアント IP からの 1 時間あたりの注文数の上限（0 で無制限）。在庫の買い占めを防ぐ
     pub max_orders_per_ip_per_hour: u64,
+    /// Notify staff when a tracked product or variant reaches this remaining stock. `None` disables alerts.
+    pub low_stock_threshold: Option<u32>,
     pub manual: ManualPaymentConfig,
     pub stripe: StripeConfig,
 }
@@ -72,6 +74,7 @@ impl Default for CommerceConfig {
             max_quantity_per_item: 99,
             max_items: 50,
             max_orders_per_ip_per_hour: 20,
+            low_stock_threshold: Some(5),
             manual: ManualPaymentConfig::default(),
             stripe: StripeConfig::default(),
         }

@@ -416,6 +416,20 @@ export interface OrderPage {
   offset: number;
 }
 
+export interface SalesReportDay {
+  day: string;
+  currency: string;
+  orders: number;
+  gross: number;
+  refunded: number;
+}
+
+export interface SalesReport {
+  start: string;
+  end: string;
+  days: SalesReportDay[];
+}
+
 /** Name and favicon of the public site (`GET` / `PUT /api/v1/site`) */
 export interface SiteSettings {
   /** Set in Admin Studio, or null to use the configuration file's value */

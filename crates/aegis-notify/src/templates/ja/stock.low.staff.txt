@@ -1,0 +1,5 @@
+{{ product.title }}（{{ product.id }}）の在庫が設定した閾値に達しました。
+
+現在の在庫数: {{ product.stock }}
+通知する閾値: {{ threshold }}
+対象の注文: {{ order.number }}

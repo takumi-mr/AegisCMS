@@ -64,6 +64,8 @@ builtin_templates!(
     "order.cancelled.txt",
     "order.cancelled.staff.subject",
     "order.cancelled.staff.txt",
+    "stock.low.staff.subject",
+    "stock.low.staff.txt",
     "test.subject",
     "test.txt",
     "account.verify.subject",

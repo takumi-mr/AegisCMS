@@ -47,6 +47,60 @@
   gap: 8px;
 }
 
+.report {
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.reportHeading,
+.reportDates {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reportHeading {
+  margin-bottom: 12px;
+}
+.reportHeading h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+.reportDates {
+  justify-content: flex-end;
+}
+.reportDates label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.reportDates input {
+  min-width: 130px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+@media (max-width: 720px) {
+  .reportHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .reportDates {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
 .notice {
   padding: 12px 16px;
   border-radius: var(--radius-md);

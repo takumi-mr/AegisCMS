@@ -10,6 +10,7 @@ pub const SAMPLE_KINDS: &[&str] = &[
     "order.paid",
     "order.shipped",
     "order.cancelled",
+    "stock.low",
     "account.verify",
     "account.registered",
     "account.password_reset",
@@ -90,6 +91,11 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
             "payment_due": "2026-11-01T00:00:00Z",
         }),
         "order.paid" => json!({ "order": order("paid", "") }),
+        "stock.low" => json!({
+            "product": { "id": "sample-product", "title": if ja { "マグカップ" } else { "Ceramic Mug" }, "stock": 4 },
+            "threshold": 5,
+            "order": { "number": "261025-SAMPLE" }
+        }),
         "order.shipped" => json!({
             "order": order("shipped", if ja { "ヤマト運輸 追跡番号 1234-5678-9012" } else { "UPS tracking number 1Z999AA10123456784" }),
         }),

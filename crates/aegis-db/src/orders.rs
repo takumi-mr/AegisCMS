@@ -20,6 +20,9 @@ pub trait OrderStorage: Send + Sync {
     /// Orders newest first, with the number of orders matching the filter
     async fn list_orders(&self, query: &OrderListQuery) -> Result<OrderPage>;
 
+    /// Paid sales grouped by UTC calendar day and currency for the half-open paid_at range.
+    async fn sales_report(&self, start: &str, end: &str) -> Result<Vec<SalesReportRow>>;
+
     /// Store the payment provider's id and the reservation deadline after starting a payment
     async fn set_order_payment(
         &self,
@@ -181,6 +184,16 @@ pub struct OrderListQuery {
 pub struct OrderPage {
     pub orders: Vec<OrderRecord>,
     pub total: u64,
+}
+
+/// One daily sales aggregate. Amounts use the currency's minor unit.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct SalesReportRow {
+    pub day: String,
+    pub currency: String,
+    pub orders: i64,
+    pub gross: i64,
+    pub refunded: i64,
 }
 
 /// 注文テーブルの CREATE 文と索引。`text` は長い文字列、`key` は索引を張る文字列（MySQL は
@@ -545,6 +558,37 @@ macro_rules! impl_order_storage {
                     orders,
                     total: total.max(0) as u64,
                 })
+            }
+
+            async fn sales_report(
+                &self,
+                start: &str,
+                end: &str,
+            ) -> aegis_core::Result<Vec<$crate::SalesReportRow>> {
+                let sql = format!(
+                    "SELECT SUBSTR(paid_at, 1, 10) AS day, currency, COUNT(*) AS orders, \
+                     COALESCE(SUM(total), 0) AS gross, COALESCE(SUM(refunded_amount), 0) AS refunded \
+                     FROM {} WHERE paid_at >= {} AND paid_at < {} \
+                     AND status IN ('paid', 'shipped', 'completed', 'refunded') \
+                     GROUP BY SUBSTR(paid_at, 1, 10), currency ORDER BY day, currency",
+                    $crate::orders::ORDER_TABLE, $ph(1), $ph(2)
+                );
+                let rows = sqlx::query(&sql)
+                    .bind(start)
+                    .bind(end)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(|e| aegis_core::AegisError::Database(e.to_string()))?;
+                rows.iter().map(|row| {
+                    let get = |e: sqlx::Error| aegis_core::AegisError::Database(e.to_string());
+                    Ok($crate::SalesReportRow {
+                        day: row.try_get("day").map_err(get)?,
+                        currency: row.try_get("currency").map_err(get)?,
+                        orders: row.try_get("orders").map_err(get)?,
+                        gross: row.try_get("gross").map_err(get)?,
+                        refunded: row.try_get("refunded").map_err(get)?,
+                    })
+                }).collect()
             }
 
             async fn set_order_payment(

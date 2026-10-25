@@ -199,6 +199,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             post(handlers::payment_webhook),
         )
         .route("/api/v1/orders", get(handlers::list_orders))
+        .route("/api/v1/orders/report", get(handlers::sales_report))
         .route("/api/v1/orders/{id}", get(handlers::get_order))
         .route(
             "/api/v1/orders/{id}/status",
