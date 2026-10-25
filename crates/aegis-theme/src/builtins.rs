@@ -811,8 +811,10 @@ pub const ORDER_TEMPLATE: &str = r#"{% extends "base.html" %}
 /// フォーラム共通スタイル・ナビゲーション
 pub const FORUM_COMMON_TEMPLATE: &str = r##"<style>
   .aegis-forum { max-width: 1040px; margin: 0 auto; padding: 1rem 0 3rem; }
-  .aegis-forum a { color: inherit; text-decoration: none; }
-  .aegis-forum a:hover { color: var(--accent, #6366f1); }
+  .aegis-forum a:not(.aegis-forum-btn) { color: inherit; text-decoration: none; }
+  .aegis-forum a:not(.aegis-forum-btn):hover { color: var(--accent, #6366f1); }
+  .aegis-forum a.aegis-forum-btn { text-decoration: none; }
+  .aegis-forum-reply-to { font-size: 0.82rem; font-weight: 600; opacity: 0.75; margin: 0 0 0.6rem; }
   .aegis-forum-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; padding-bottom: 0.85rem; border-bottom: 1px solid rgba(127,127,127,0.22); font-size: 0.92rem; }
   .aegis-forum-breadcrumbs { display: flex; align-items: center; gap: 0.5rem; opacity: 0.9; }
   .aegis-forum-breadcrumbs span { opacity: 0.5; }
@@ -905,7 +907,7 @@ pub const FORUM_INDEX_TEMPLATE: &str = r##"{% extends "base.html" %}
         <div class="aegis-forum-thread-meta">
           <span>in <strong>{{ t.category_name }}</strong></span>
           <span>by {{ t.author_name }}</span>
-          <span>Last active {{ t.last_post_at }}</span>
+          <span>Last active <time datetime="{{ t.last_post_at }}">{{ t.last_post_at | datetime_short }}</time></span>
         </div>
       </div>
       <div class="aegis-forum-badge-replies" title="Total replies">
@@ -950,7 +952,7 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
         </div>
         <div class="aegis-forum-thread-meta">
           <span>Started by <strong>{{ t.author_name }}</strong></span>
-          <span>Last post {{ t.last_post_at }}</span>
+          <span>Last post <time datetime="{{ t.last_post_at }}">{{ t.last_post_at | datetime_short }}</time></span>
         </div>
       </div>
       <div class="aegis-forum-badge-replies" title="Total replies">
@@ -1025,7 +1027,7 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
     <div style="font-size: 0.85rem; opacity: 0.65; display: flex; gap: 1rem; flex-wrap: wrap;">
       <span>Started by <strong>{{ fields.thread.author_name }}</strong></span>
       <span>{{ fields.thread.post_count }} posts</span>
-      <span>Created {{ fields.thread.created_at }}</span>
+      <span>Created <time datetime="{{ fields.thread.created_at }}">{{ fields.thread.created_at | date_short }}</time></span>
     </div>
   </header>
 
@@ -1041,10 +1043,13 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
           {% endif %}
         </div>
         <div class="aegis-forum-post-meta">
-          <time datetime="{{ p.created_at }}">{{ p.created_at }}</time>
+          <time datetime="{{ p.created_at }}">{{ p.created_at | datetime_short }}</time>
           <a href="#post-{{ p.post_number }}" style="font-weight: 700; opacity: 0.8;">#{{ p.post_number }}</a>
         </div>
       </div>
+      {% if p.reply_to_number %}
+      <p class="aegis-forum-reply-to"><a href="#post-{{ p.reply_to_number }}">&gt;&gt;{{ p.reply_to_number }}</a></p>
+      {% endif %}
       <div class="aegis-forum-post-body">
         {{ p.body_html | safe }}
       </div>
