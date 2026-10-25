@@ -175,6 +175,7 @@ const meta = {
     layout: 'fullscreen',
   },
   args: {
+    isAdmin: true,
     onShowToast: fn(),
   },
 } satisfies Meta<typeof ForumManager>;
@@ -220,6 +221,26 @@ export const SwitchToCategories: Story = {
       expect(canvas.getByText('General Discussion')).toBeInTheDocument();
       expect(canvas.getByText('Tech & Architecture')).toBeInTheDocument();
     });
+  },
+};
+
+export const EditorCategoriesReadOnly: Story = {
+  args: { isAdmin: false },
+  beforeEach: () => {
+    return forumApi();
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByRole('button', { name: /Categories/i }));
+
+    // Editors see the categories but cannot create, edit or delete them
+    await waitFor(() => {
+      expect(canvas.getByText('General Discussion')).toBeInTheDocument();
+    });
+    expect(canvas.getByText(/Requires the admin role|admin ロールが必要です/i)).toBeInTheDocument();
+    expect(canvas.queryByRole('button', { name: /New Category|カテゴリを追加/i })).toBeNull();
+    expect(canvas.queryAllByTitle(/Edit Category|カテゴリを編集/i)).toHaveLength(0);
   },
 };
 
