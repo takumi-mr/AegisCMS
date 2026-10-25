@@ -42,6 +42,14 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 .put(handlers::update_content)
                 .delete(handlers::delete_content),
         )
+        .route(
+            "/api/v1/contents/{content_type}/{id}/variants",
+            get(handlers::list_variants).post(handlers::upsert_variant),
+        )
+        .route(
+            "/api/v1/contents/{content_type}/{id}/variants/{variant_id}",
+            delete(handlers::delete_variant),
+        )
         .route("/api/v1/schedule", get(handlers::list_schedule))
         .route(
             "/api/v1/storage/upload",
@@ -116,6 +124,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/api/v1/shop/checkout", post(handlers::checkout))
         .route("/api/v1/shop/orders/{id}", get(handlers::get_public_order))
         .route(
+            "/api/v1/shop/products/{id}/variants",
+            get(handlers::get_public_product_variants),
+        )
+        .route(
             "/api/v1/shop/webhooks/{provider}",
             post(handlers::payment_webhook),
         )
@@ -124,6 +136,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route(
             "/api/v1/orders/{id}/status",
             post(handlers::update_order_status),
+        )
+        .route(
+            "/api/v1/orders/{id}/refund",
+            post(handlers::refund_order),
         )
         .route("/api/v1/plugins", get(handlers::list_plugins))
         .route(

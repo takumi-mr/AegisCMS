@@ -9,14 +9,25 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: プラグインのフックの実行順の並べ替えと「設定ファイルの値に戻す」（`GET` / `PUT` / `DELETE /api/v1/plugins/order`、監査ログ `plugin.reorder` / `plugin.reset`、Admin Studio の「フックの実行順」）。あわせて、切り替え・並べ替え・設定値の変更をイベントバス（`[cache]` と同じバックエンド。Redis は Pub/Sub）で全サーバーに反映し、`[cache].backend = "memory"` は同じ DB で 2 台目を起動させないようにした。仕様は [plugin_hooks.md 5.2・5.3](docs/plugin_hooks.md#52-フックの実行順の並べ替えと設定ファイルの値に戻す)、設計は [architecture.md 5](docs/architecture.md#5-キャッシュとセッション)。
-- **その前**: 予約公開・予約非公開の完了を著者にメールで通知（[notifications.md 2](docs/notifications.md#2-送る通知)）。その前は Admin Studio の Playwright E2E テストと Storybook。
+- **直近の完了**: EC 拡張 Phase 1: 外部決済抽象化層（`PaymentProvider`）と返金 API（Stripe Refund / 手動返金）
+  - **決済プロバイダ抽象化**: `PaymentProvider` トレイトに `supports_refund` / `refund` メソッドを追加し、外部決済ゲートウェイ通信を完全に抽象化。Stripe 以外の将来的な決済サービス（PayPal, Square 等）もコアロジック（`CommerceService`）や DB 構造を変更せずに追加できる設計を実現。
+  - **取引識別子の分離**: チェックアウト開始時の識別子（Stripe Checkout Session ID `cs_...`）を `payment_ref`、確定取引 ID（Stripe Payment Intent ID `pi_...`）を `transaction_id` として分離管理し、確実な返金照合を保証。
+  - **返金 API & ACID トランザクション**: `POST /api/v1/orders/{id}/refund` を新設。部分返金・全額返金、注文商品の在庫復帰（オプション）、累計返金額の加算、ステータス自動遷移（全額返金時に `refunded` へ）、監査ログ（`order.refund`）の記録を SQLite / PostgreSQL / MySQL のすべてで同一トランザクション内でアトミックに実行。
+  - **Stripe Refund & Webhook 同期**: 冪等性キー（`Idempotency-Key`）を付与した Stripe API `POST /v1/refunds` 呼び出し、および Stripe 側で直接返金された際の Webhook イベント（`charge.refunded`）の自動解釈・状態同期を実装。
+  - **Admin Studio (Orders)**: `OrderStatus::Refunded` バッジ、返金フィルター、注文詳細での返金額・返金履歴・トランザクションID表示、返金操作モーダル（残額バリデーション、リアルタイム通貨プレビュー、在庫復帰トグル、手動/オンライン別案内バナー）を実装。
+  - **品質検証**: `task check`（fmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio ビルド）パス。
+  - **ドキュメント反映**: 仕様・API は [docs/commerce.md](docs/commerce.md)、アーキテクチャ・設計判断は [docs/architecture.md 9](docs/architecture.md#9-ec-aegis-commerce)。
+- **その前**: 予約公開・予約非公開の完了を著者にメールで通知（`content.published` / `content.unpublished`、組み込みテンプレート en / ja、公開ページの URL `content_url`）。仕様は [notifications.md 2](docs/notifications.md#2-送る通知)。あわせて Windows で依存を足したときのロックファイルの注意（CI の npm 10 で `npm ci` を確かめる）を [development.md 8.3](docs/development.md#83-依存パッケージを追加したときpackage-lockjson) に記載。その前は Admin Studio に Playwright の E2E テストと Storybook を導入（[development.md 8](docs/development.md#8-admin-studio-の-e2e-テストと-storybook)）。その前は Admin Studio のモバイル対応。
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
 ### 🚀 次に着手する項目
 
-1. **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする。アカウント登録が先行例）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
+1. **EC 拡張 Phase 2: 商品のバリエーション（サイズ・色ごとの在庫・価格）**:
+   - `_aegis_product_variants` テーブルの新設（`product_id`, `sku`, `title`, `price_override`, `stock`, `attributes_json`, `position`）と SQLite / PostgreSQL / MySQL マイグレーション。
+   - アトミック在庫引き当て（`StockReservation`）を商品単位からバリエーション（SKU）単位へ拡張。
+   - カート・注文明細（`OrderLine`）におけるバリエーション ID・選択属性（サイズ、カラーなど）の保持。
+   - Admin Studio（Products 画面）へのバリエーション一覧・追加・在庫/価格編集 UI の実装。
 
 ---
 
@@ -44,8 +55,9 @@
 
 ### EC
 
+- [x] **EC 拡張 Phase 2: 商品のバリエーション**: `_aegis_product_variants` テーブル新設、サイズ・色ごとの在庫・価格、アトミックな在庫引き当て（`StockReservation` 拡張）、カート・注文明細対応、Admin Studio バリエーション管理。
+- [x] **EC 拡張 Phase 3: 複数通貨**: `supported_currencies` 設定、為替レート換算および通貨別価格、最小通貨単位（Zero-decimal / Cent）の正規化、多通貨 Stripe Checkout 連携、テーマ通貨セレクター。
 - [ ] **フェーズ 4**: 顧客アカウント（会員登録・注文履歴）、売上レポート、在庫切れの通知、On-demand ISR との連動。
-- [ ] **商品のバリエーション**（サイズ・色ごとの在庫・価格）、返金 API（Stripe Refund）、複数通貨。
 
 ### 将来のロードマップ
 
@@ -58,4 +70,15 @@
 
 作業中の判断や、まだ文書にしていない注意点をここに書きます。機能が完了したら、該当する文書（設計判断は [docs/architecture.md](docs/architecture.md)）へ移して消してください。
 
-- （なし）
+- **Phase 2 バリエーション設計**:
+  - `_aegis_product_variants` テーブル（SQLite / PostgreSQL / MySQL）を追加し、`StockReservation` に `variant_id` を伝搬。親商品テーブルかバリエーションテーブルかの在庫引き当てを同一トランザクション内で自動分岐。
+  - カート・明細は `(product_id, Option<variant_id>)` のペアで識別し、価格上書き・SKU・在庫復帰（キャンセル/返金時）まで一貫対応。
+  - Admin Studio の商品編集モーダルでバリエーション CRUD をシームレスに操作可能。
+- **Phase 3 複数通貨設計**:
+  - `CommerceConfig` に `supported_currencies` および `currency_rates` を新設し、小文字 ISO 4217 コードと正の実数レートを厳格にバリデーション。
+  - `aegis-core::commerce` に `currency_decimals`（0/2/3 桁）、`convert_currency`（丸めとオーバーフロー安全処理）を実装。
+  - 単価解決 `resolve_item_price`: バリエーションの `attributes.price_{currency}` または親商品の `price_{currency}` による特定通貨固定価格を最優先とし、未設定時は基軸価格から為替レートで自動換算。
+  - 見積もり (`/quote`)・注文 (`/checkout`) 共にリクエストの `currency`（未指定時は基軸通貨）で計算され、Stripe Checkout Session も注文通貨の最小単位でそのまま連携。
+  - 公開ストアフロントの `theme_vars`（`supported_currencies`, `currency_rates`）および `cart.js`（通貨セレクターバインディング、`localStorage` 永続化、自動再見積もり）を完備。
+- **次のステップ**:
+  - Phase 3 完了後の Pull Request (PR) 作成（ブランチ: `feat/commerce-expansion` -> `main`）。

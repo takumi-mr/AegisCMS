@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw, ShoppingBag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, RotateCcw, ShoppingBag } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi, ApiError } from '../api/client';
 import i18n from '../i18n';
@@ -20,6 +20,7 @@ const STATUS_BADGE: Record<OrderStatus, string | undefined> = {
   shipped: styles.good,
   completed: undefined,
   cancelled: styles.bad,
+  refunded: styles.bad,
 };
 
 const FILTERS: (OrderStatus | '')[] = [
@@ -29,6 +30,7 @@ const FILTERS: (OrderStatus | '')[] = [
   'shipped',
   'completed',
   'cancelled',
+  'refunded',
 ];
 
 const formatDate = (iso: string | null): string => (iso ? formatDateTime(iso) : '—');
@@ -209,6 +211,7 @@ export const OrderManager: React.FC<OrderManagerProps> = ({ onShowToast }) => {
           order={selected}
           onUpdated={handleUpdated}
           onError={(message) => onShowToast(message, 'error')}
+          onSuccess={(message) => onShowToast(message, 'success')}
           onClose={() => setSelected(null)}
         />
       )}
@@ -220,13 +223,21 @@ interface OrderDetailProps {
   order: Order;
   onUpdated: (order: Order) => void;
   onError: (message: string) => void;
+  onSuccess: (message: string) => void;
   onClose: () => void;
 }
 
-const OrderDetail: React.FC<OrderDetailProps> = ({ order, onUpdated, onError, onClose }) => {
+const OrderDetail: React.FC<OrderDetailProps> = ({
+  order,
+  onUpdated,
+  onError,
+  onSuccess,
+  onClose,
+}) => {
   const { t } = useTranslation();
   const [note, setNote] = useState<string>('');
   const [busy, setBusy] = useState<boolean>(false);
+  const [showRefund, setShowRefund] = useState<boolean>(false);
 
   const move = async (status: OrderStatus) => {
     if (status === 'cancelled') {
@@ -259,127 +270,316 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ order, onUpdated, onError, on
     : '';
 
   return (
-    <Modal
-      title={t('orders.detailTitle', { number: order.number })}
-      icon={<ShoppingBag size={18} />}
-      onClose={onClose}
-      wide
-    >
-      <div className={styles.detail}>
-        <div className={styles.actionsBar}>
-          <span className={cx(styles.badge, STATUS_BADGE[order.status])}>
-            {t(`orders.status.${order.status}`)}
-          </span>
-          <span className={styles.muted}>
-            {t('orders.placedAt', { date: formatDate(order.created_at) })}
-          </span>
-          {order.paid_at && (
-            <span className={styles.muted}>
-              {t('orders.paidAt', { date: formatDate(order.paid_at) })}
+    <>
+      <Modal
+        title={t('orders.detailTitle', { number: order.number })}
+        icon={<ShoppingBag size={18} />}
+        onClose={onClose}
+        wide
+      >
+        <div className={styles.detail}>
+          <div className={styles.actionsBar}>
+            <span className={cx(styles.badge, STATUS_BADGE[order.status])}>
+              {t(`orders.status.${order.status}`)}
             </span>
-          )}
-          {order.status === 'pending_payment' && order.expires_at && (
             <span className={styles.muted}>
-              {t('orders.heldUntil', { date: formatDate(order.expires_at) })}
+              {t('orders.placedAt', { date: formatDate(order.created_at) })}
             </span>
-          )}
-        </div>
-
-        <div className={styles.detailGrid}>
-          <div className={styles.box}>
-            <div className={styles.boxTitle}>{t('orders.customer')}</div>
-            {order.customer_name || '—'}
-            {'\n'}
-            <a href={`mailto:${order.customer_email}`}>{order.customer_email}</a>
-          </div>
-          <div className={styles.box}>
-            <div className={styles.boxTitle}>{t('orders.shipTo')}</div>
-            {addressText || <span className={styles.muted}>{t('orders.noAddress')}</span>}
-          </div>
-        </div>
-
-        <div className={styles.box} style={{ whiteSpace: 'normal' }}>
-          <div className={styles.boxTitle}>{t('orders.items')}</div>
-          {order.lines.map((line) => (
-            <div key={line.product_id} className={styles.sumRow}>
-              <span>
-                {line.title} × {line.quantity}
-                {line.sku && <span className={styles.muted}> ({line.sku})</span>}
+            {order.paid_at && (
+              <span className={styles.muted}>
+                {t('orders.paidAt', { date: formatDate(order.paid_at) })}
               </span>
-              <span>{formatMoney(line.line_total, order.currency)}</span>
-            </div>
-          ))}
-          {order.adjustments.map((adjustment, index) => (
-            <div key={index} className={styles.sumRow}>
-              <span>
-                {adjustment.label}
-                {adjustment.source && <span className={styles.muted}> · {adjustment.source}</span>}
-              </span>
-              <span>{formatMoney(adjustment.amount, order.currency)}</span>
-            </div>
-          ))}
-          <div className={cx(styles.sumRow, styles.sumTotal)}>
-            <span>{t('orders.total')}</span>
-            <span>{formatMoney(order.total, order.currency)}</span>
-          </div>
-        </div>
-
-        <div className={styles.detailGrid}>
-          <div className={styles.box}>
-            <div className={styles.boxTitle}>{t('orders.payment')}</div>
-            {order.payment_provider}
-            {order.payment_ref && (
-              <>
-                {'\n'}
-                <span className={styles.mono}>{order.payment_ref}</span>
-              </>
             )}
-            {order.coupon_code && `\n${t('orders.coupon', { code: order.coupon_code })}`}
+            {order.status === 'pending_payment' && order.expires_at && (
+              <span className={styles.muted}>
+                {t('orders.heldUntil', { date: formatDate(order.expires_at) })}
+              </span>
+            )}
           </div>
-          <div className={styles.box}>
-            <div className={styles.boxTitle}>{t('orders.note')}</div>
-            {order.note || <span className={styles.muted}>—</span>}
+
+          <div className={styles.detailGrid}>
+            <div className={styles.box}>
+              <div className={styles.boxTitle}>{t('orders.customer')}</div>
+              {order.customer_name || '—'}
+              {'\n'}
+              <a href={`mailto:${order.customer_email}`}>{order.customer_email}</a>
+            </div>
+            <div className={styles.box}>
+              <div className={styles.boxTitle}>{t('orders.shipTo')}</div>
+              {addressText || <span className={styles.muted}>{t('orders.noAddress')}</span>}
+            </div>
           </div>
+
+          <div className={styles.box} style={{ whiteSpace: 'normal' }}>
+            <div className={styles.boxTitle}>{t('orders.items')}</div>
+            {order.lines.map((line) => (
+              <div key={line.product_id} className={styles.sumRow}>
+                <span>
+                  {line.title} × {line.quantity}
+                  {line.sku && <span className={styles.muted}> ({line.sku})</span>}
+                </span>
+                <span>{formatMoney(line.line_total, order.currency)}</span>
+              </div>
+            ))}
+            {order.adjustments.map((adjustment, index) => (
+              <div key={index} className={styles.sumRow}>
+                <span>
+                  {adjustment.label}
+                  {adjustment.source && (
+                    <span className={styles.muted}> · {adjustment.source}</span>
+                  )}
+                </span>
+                <span>{formatMoney(adjustment.amount, order.currency)}</span>
+              </div>
+            ))}
+            {order.refunded_amount > 0 && (
+              <div className={cx(styles.sumRow, styles.warn)}>
+                <span>{t('orders.refundedAmount')}</span>
+                <span>-{formatMoney(order.refunded_amount, order.currency)}</span>
+              </div>
+            )}
+            <div className={cx(styles.sumRow, styles.sumTotal)}>
+              <span>{t('orders.total')}</span>
+              <span>{formatMoney(order.total, order.currency)}</span>
+            </div>
+          </div>
+
+          {order.refunds && order.refunds.length > 0 && (
+            <div className={styles.box} style={{ whiteSpace: 'normal' }}>
+              <div className={styles.boxTitle}>{t('orders.refundHistory')}</div>
+              {order.refunds.map((ref) => (
+                <div key={ref.id} className={styles.sumRow}>
+                  <span>
+                    <span className={styles.mono}>{formatDate(ref.created_at)}</span>
+                    {ref.reason && <span> · {ref.reason}</span>}
+                    {ref.refund_ref && <span className={styles.muted}> ({ref.refund_ref})</span>}
+                  </span>
+                  <span className={cx(styles.numeric, styles.warn)}>
+                    -{formatMoney(ref.amount, ref.currency || order.currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className={styles.detailGrid}>
+            <div className={styles.box}>
+              <div className={styles.boxTitle}>{t('orders.payment')}</div>
+              {order.payment_provider}
+              {order.payment_ref && (
+                <>
+                  {'\n'}
+                  <span className={styles.mono}>{order.payment_ref}</span>
+                </>
+              )}
+              {order.transaction_id && (
+                <>
+                  {'\n'}
+                  <span className={styles.muted}>Tx: </span>
+                  <span className={styles.mono}>{order.transaction_id}</span>
+                </>
+              )}
+              {order.coupon_code && `\n${t('orders.coupon', { code: order.coupon_code })}`}
+            </div>
+            <div className={styles.box}>
+              <div className={styles.boxTitle}>{t('orders.note')}</div>
+              {order.note || <span className={styles.muted}>—</span>}
+            </div>
+          </div>
+
+          {(order.status !== 'completed' &&
+            order.status !== 'cancelled' &&
+            order.status !== 'refunded') ||
+          order.can_refund ? (
+            <>
+              {order.status !== 'completed' &&
+                order.status !== 'cancelled' &&
+                order.status !== 'refunded' && (
+                  <Field label={t('orders.noteField')}>
+                    <input
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder={t('orders.notePlaceholder')}
+                      aria-label={t('orders.noteAria')}
+                    />
+                  </Field>
+                )}
+              <div className={styles.actionsBar}>
+                {order.status === 'pending_payment' && order.can_mark_paid && (
+                  <Button variant="primary" disabled={busy} onClick={() => move('paid')}>
+                    {t('orders.markPaid')}
+                  </Button>
+                )}
+                {order.status === 'pending_payment' && !order.can_mark_paid && (
+                  <span className={styles.muted}>{t('orders.waitingProvider')}</span>
+                )}
+                {order.status === 'paid' && (
+                  <Button variant="primary" disabled={busy} onClick={() => move('shipped')}>
+                    {t('orders.markShipped')}
+                  </Button>
+                )}
+                {order.status === 'shipped' && (
+                  <Button variant="primary" disabled={busy} onClick={() => move('completed')}>
+                    {t('orders.markCompleted')}
+                  </Button>
+                )}
+                {(order.status === 'pending_payment' || order.status === 'paid') && (
+                  <Button danger disabled={busy} onClick={() => move('cancelled')}>
+                    {t('orders.cancel')}
+                  </Button>
+                )}
+                {order.can_refund && (
+                  <Button variant="tool" disabled={busy} onClick={() => setShowRefund(true)}>
+                    <RotateCcw size={14} />
+                    <span>{t('orders.refund')}</span>
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : null}
+        </div>
+      </Modal>
+
+      {showRefund && (
+        <RefundModal
+          order={order}
+          onRefunded={onUpdated}
+          onError={onError}
+          onSuccess={onSuccess}
+          onClose={() => setShowRefund(false)}
+        />
+      )}
+    </>
+  );
+};
+
+interface RefundModalProps {
+  order: Order;
+  onRefunded: (order: Order) => void;
+  onError: (message: string) => void;
+  onSuccess: (message: string) => void;
+  onClose: () => void;
+}
+
+const RefundModal: React.FC<RefundModalProps> = ({
+  order,
+  onRefunded,
+  onError,
+  onSuccess,
+  onClose,
+}) => {
+  const { t } = useTranslation();
+  const maxRefundable = Math.max(0, order.total - order.refunded_amount);
+  const [amountStr, setAmountStr] = useState<string>('');
+  const [reason, setReason] = useState<string>('');
+  const [restock, setRestock] = useState<boolean>(true);
+  const [busy, setBusy] = useState<boolean>(false);
+
+  const previewAmount = amountStr.trim() === '' ? maxRefundable : Number(amountStr);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = amountStr.trim();
+    const amount = trimmed === '' ? maxRefundable : Number(trimmed);
+
+    if (Number.isNaN(amount) || amount <= 0 || amount > maxRefundable) {
+      onError(
+        t('orders.invalidRefundAmount', {
+          amount: formatMoney(maxRefundable, order.currency),
+        })
+      );
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const updated = await aegisApi.refundOrder(order.id, {
+        amount: trimmed === '' ? undefined : amount,
+        reason: reason.trim() || undefined,
+        restock,
+      });
+      onSuccess(t('orders.refundSuccess'));
+      onRefunded(updated);
+      onClose();
+    } catch (err) {
+      onError(messageOf(err, t('api.refundOrderFailed')));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={t('orders.refundTitle', { number: order.number })}
+      icon={<RotateCcw size={18} />}
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit} className={styles.detail}>
+        <div className={cx(styles.notice, !order.supports_online_refund && styles.warn)}>
+          {order.supports_online_refund
+            ? t('orders.onlineRefundNotice')
+            : t('orders.manualRefundNotice')}
         </div>
 
-        {order.status !== 'completed' && order.status !== 'cancelled' && (
-          <>
-            <Field label={t('orders.noteField')}>
-              <input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder={t('orders.notePlaceholder')}
-                aria-label={t('orders.noteAria')}
-              />
-            </Field>
-            <div className={styles.actionsBar}>
-              {order.status === 'pending_payment' && order.can_mark_paid && (
-                <Button variant="primary" disabled={busy} onClick={() => move('paid')}>
-                  {t('orders.markPaid')}
-                </Button>
-              )}
-              {order.status === 'pending_payment' && !order.can_mark_paid && (
-                <span className={styles.muted}>{t('orders.waitingProvider')}</span>
-              )}
-              {order.status === 'paid' && (
-                <Button variant="primary" disabled={busy} onClick={() => move('shipped')}>
-                  {t('orders.markShipped')}
-                </Button>
-              )}
-              {order.status === 'shipped' && (
-                <Button variant="primary" disabled={busy} onClick={() => move('completed')}>
-                  {t('orders.markCompleted')}
-                </Button>
-              )}
-              {(order.status === 'pending_payment' || order.status === 'paid') && (
-                <Button danger disabled={busy} onClick={() => move('cancelled')}>
-                  {t('orders.cancel')}
-                </Button>
-              )}
-            </div>
-          </>
+        <div className={styles.sumRow}>
+          <span className={styles.muted}>
+            {t('orders.maxRefundable', {
+              amount: formatMoney(maxRefundable, order.currency),
+            })}
+          </span>
+          <Button type="button" variant="tool" onClick={() => setAmountStr(String(maxRefundable))}>
+            {t('orders.fullRefund')}
+          </Button>
+        </div>
+
+        <Field label={t('orders.refundAmount')}>
+          <input
+            type="number"
+            min={1}
+            max={maxRefundable}
+            step={1}
+            value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value)}
+            placeholder={t('orders.refundAmountPlaceholder')}
+            aria-label={t('orders.refundAmount')}
+          />
+        </Field>
+        {!Number.isNaN(previewAmount) && previewAmount > 0 && (
+          <span className={styles.hint}>{formatMoney(previewAmount, order.currency)}</span>
         )}
-      </div>
+
+        <Field label={t('orders.refundReason')}>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={t('orders.refundReasonPlaceholder')}
+            aria-label={t('orders.refundReason')}
+          />
+        </Field>
+
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+          }}
+        >
+          <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} />
+          <span>{t('orders.refundRestock')}</span>
+        </label>
+
+        <div className={styles.actionsBar} style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+          <Button type="button" variant="tool" disabled={busy} onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" danger disabled={busy || maxRefundable <= 0}>
+            <RotateCcw size={14} />
+            <span>{t('orders.executeRefund')}</span>
+          </Button>
+        </div>
+      </form>
     </Modal>
   );
 };

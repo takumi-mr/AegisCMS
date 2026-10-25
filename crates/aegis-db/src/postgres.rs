@@ -100,6 +100,7 @@ fn record_from_row(schema: &SchemaDefinition, r: &PgRow) -> ContentRecord {
 }
 
 super::orders::impl_order_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::variants::impl_product_variant_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
@@ -212,6 +213,45 @@ impl DatabaseAdapter for PostgresAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in order_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 以前のバージョンで作成した注文テーブルに後から追加したカラムを足す
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(255);",
+            super::orders::ORDER_TABLE
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS refunded_amount BIGINT NOT NULL DEFAULT 0;",
+            super::orders::ORDER_TABLE
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS refunds_json TEXT NOT NULL DEFAULT '[]';",
+            super::orders::ORDER_TABLE
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        // 商品バリエーション
+        let (variant_table, variant_indexes) =
+            super::variants::build_product_variant_table("TEXT", "VARCHAR(255)", "BIGINT", false);
+        sqlx::query(&variant_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in variant_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

@@ -9,9 +9,18 @@
   'use strict';
 
   var script = document.currentScript;
+  var CURRENCY_KEY = 'aegis.currency';
+  var initialCurrency = (function () {
+    try {
+      var saved = localStorage.getItem(CURRENCY_KEY);
+      if (saved && saved.length === 3) return saved.toLowerCase();
+    } catch (e) {}
+    return (script && script.dataset.currency) || 'jpy';
+  })();
+
   var config = {
     api: (script && script.dataset.api) || '/api/v1/shop',
-    currency: (script && script.dataset.currency) || 'jpy',
+    currency: initialCurrency,
     cartUrl: (script && script.dataset.cartUrl) || '/cart',
     productsUrl: (script && script.dataset.productsUrl) || '/products',
     shopEnabled: !script || script.dataset.shopEnabled !== 'false',
@@ -105,7 +114,7 @@
   function addToCart(product, quantity) {
     var items = loadCart();
     var existing = items.find(function (item) {
-      return item.product === product.product;
+      return item.product === product.product && (item.variant || null) === (product.variant || null);
     });
     if (existing) existing.quantity += quantity;
     else items.push(Object.assign({}, product, { quantity: quantity }));
@@ -119,12 +128,19 @@
       button.addEventListener('click', function () {
         var input = button.dataset.quantityInput && document.querySelector(button.dataset.quantityInput);
         var quantity = Math.max(1, parseInt((input && input.value) || '1', 10) || 1);
+        var variantSelect = button.dataset.variantSelect && document.querySelector(button.dataset.variantSelect);
+        var variantId = (variantSelect && variantSelect.value) || button.dataset.variantId || null;
+        var selectedOpt = variantSelect && variantSelect.selectedOptions && variantSelect.selectedOptions[0];
+        var variantTitle = (selectedOpt && (selectedOpt.dataset.variantTitle || selectedOpt.textContent)) || button.dataset.variantTitle || null;
+        var variantPrice = (selectedOpt && selectedOpt.dataset.variantPrice) || button.dataset.variantPrice || null;
         addToCart(
           {
             product: button.dataset.productId,
+            variant: variantId,
+            variantTitle: variantTitle,
             slug: button.dataset.productSlug,
             title: button.dataset.productTitle,
-            price: parseInt(button.dataset.productPrice || '0', 10),
+            price: parseInt(variantPrice || button.dataset.productPrice || '0', 10),
           },
           quantity
         );
@@ -146,7 +162,11 @@
 
     function cartItems() {
       return loadCart().map(function (item) {
-        return { product: item.product, quantity: item.quantity };
+        return {
+          product: item.product,
+          variant: item.variant || null,
+          quantity: item.quantity,
+        };
       });
     }
 
@@ -160,7 +180,7 @@
       request('/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: items, coupon_code: state.coupon || null }),
+        body: JSON.stringify({ items: items, currency: config.currency, coupon_code: state.coupon || null }),
       })
         .then(function (quote) {
           state.quote = quote;
@@ -172,6 +192,7 @@
         })
         .then(draw);
     }
+    window.__aegis_requote = requote;
 
     function scheduleRequote() {
       clearTimeout(state.timer);
@@ -200,6 +221,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: cartItems(),
+          currency: config.currency,
           email: value('email'),
           name: value('name'),
           coupon_code: state.coupon || null,
@@ -266,12 +288,16 @@
       var list = el('div', { className: 'aegis-cart-lines' });
       items.forEach(function (item, index) {
         var line = state.quote && state.quote.lines.find(function (l) {
-          return l.product_id === item.product || l.slug === item.slug;
+          if (item.variant) {
+            return (l.product_id === item.product || l.slug === item.slug) && l.variant_id === item.variant;
+          }
+          return (l.product_id === item.product || l.slug === item.slug) && !l.variant_id;
         });
         var price = line ? line.unit_price : item.price;
+        var displayTitle = (line && line.title) || (item.variantTitle ? (item.title + ' - ' + item.variantTitle) : item.title) || item.slug;
         list.appendChild(
           el('div', { className: 'aegis-cart-line' }, [
-            el('a', { href: config.productsUrl + '/' + encodeURIComponent(item.slug || item.product), className: 'aegis-line-title', text: item.title || item.slug }),
+            el('a', { href: config.productsUrl + '/' + encodeURIComponent(item.slug || item.product), className: 'aegis-line-title', text: displayTitle }),
             el('span', { className: 'aegis-muted', text: formatMoney(price) }),
             el('input', {
               type: 'number',
@@ -415,9 +441,35 @@
     load();
   }
 
+  function setCurrency(currency) {
+    if (!currency || currency.length !== 3) return;
+    config.currency = currency.toLowerCase();
+    try {
+      localStorage.setItem(CURRENCY_KEY, config.currency);
+    } catch (e) {}
+    document.querySelectorAll('[data-aegis-currency-selector]').forEach(function (select) {
+      if (select.value.toLowerCase() !== config.currency) {
+        select.value = config.currency;
+      }
+    });
+    if (window.__aegis_requote) {
+      window.__aegis_requote();
+    }
+  }
+
+  function bindCurrencySelectors() {
+    document.querySelectorAll('[data-aegis-currency-selector]').forEach(function (select) {
+      select.value = config.currency;
+      select.addEventListener('change', function (e) {
+        setCurrency(e.target.value);
+      });
+    });
+  }
+
   function init() {
     updateCounts();
     bindAddToCart();
+    bindCurrencySelectors();
     var cart = document.getElementById('aegis-cart');
     if (cart) renderCart(cart);
     var order = document.getElementById('aegis-order');
@@ -427,5 +479,15 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  window.AegisCart = { add: addToCart, items: loadCart, clear: function () { saveCart([]); } };
+  window.AegisCart = {
+    add: addToCart,
+    items: loadCart,
+    clear: function () {
+      saveCart([]);
+    },
+    setCurrency: setCurrency,
+    getCurrency: function () {
+      return config.currency;
+    },
+  };
 })();

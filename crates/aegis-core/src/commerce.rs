@@ -15,15 +15,18 @@ pub enum OrderStatus {
     Completed,
     /// 取り消し（期限切れ・支払いの失敗を含む）。在庫は戻してある
     Cancelled,
+    /// 全額返金済み
+    Refunded,
 }
 
 impl OrderStatus {
-    pub const ALL: [OrderStatus; 5] = [
+    pub const ALL: [OrderStatus; 6] = [
         Self::PendingPayment,
         Self::Paid,
         Self::Shipped,
         Self::Completed,
         Self::Cancelled,
+        Self::Refunded,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -33,10 +36,11 @@ impl OrderStatus {
             Self::Shipped => "shipped",
             Self::Completed => "completed",
             Self::Cancelled => "cancelled",
+            Self::Refunded => "refunded",
         }
     }
 
-    /// `self` から `next` に移れるか。発送後の取り消し・完了後の変更はできない
+    /// `self` から `next` に移れるか。発送後の取り消し・完了後の変更はできない（返金は可能）
     pub fn can_transition_to(&self, next: OrderStatus) -> bool {
         use OrderStatus::*;
         matches!(
@@ -45,7 +49,11 @@ impl OrderStatus {
                 | (PendingPayment, Cancelled)
                 | (Paid, Shipped)
                 | (Paid, Cancelled)
+                | (Paid, Refunded)
                 | (Shipped, Completed)
+                | (Shipped, Refunded)
+                | (Completed, Refunded)
+                | (Cancelled, Refunded)
         )
     }
 
@@ -72,10 +80,34 @@ impl std::fmt::Display for OrderStatus {
     }
 }
 
+/// 商品のバリエーション（サイズ・色・SKUごとの価格上書きと在庫）
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProductVariant {
+    pub id: String,
+    pub product_id: String,
+    #[serde(default)]
+    pub sku: Option<String>,
+    pub title: String,
+    #[serde(default)]
+    pub price_override: Option<i64>,
+    #[serde(default)]
+    pub stock: Option<i64>,
+    #[serde(default)]
+    pub attributes: HashMap<String, String>,
+    #[serde(default)]
+    pub position: i32,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// 注文の 1 行（商品 × 数量）。単価はサーバーが商品から決める
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderLine {
     pub product_id: String,
+    #[serde(default)]
+    pub variant_id: Option<String>,
+    #[serde(default)]
+    pub variant_title: Option<String>,
     pub slug: String,
     pub title: String,
     #[serde(default)]
@@ -115,6 +147,18 @@ pub struct ShippingAddress {
     pub phone: String,
     /// ISO 3166-1 alpha-2（例: `JP`）
     pub country: String,
+}
+
+/// 返金の記録（`_aegis_orders.refunds_json` に格納）
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OrderRefundRecord {
+    pub id: String,
+    pub amount: i64,
+    pub currency: String,
+    pub refund_ref: String,
+    #[serde(default)]
+    pub reason: Option<String>,
+    pub created_at: String,
 }
 
 /// 見積もり・注文の内容。`calculate-order` / `on-order-status-changed` フックに渡す
@@ -176,9 +220,51 @@ const ZERO_DECIMAL_CURRENCIES: [&str; 16] = [
     "xaf", "xof", "xpf",
 ];
 
+/// 小数部が 3 桁の通貨（BHD, JOD, KWD, OMR, TND）
+const THREE_DECIMAL_CURRENCIES: [&str; 5] = ["bhd", "jod", "kwd", "omr", "tnd"];
+
 /// 小数部を持たない通貨か（`jpy` など。大文字小文字は区別しない）
 pub fn is_zero_decimal_currency(currency: &str) -> bool {
     ZERO_DECIMAL_CURRENCIES.contains(&currency.to_ascii_lowercase().as_str())
+}
+
+/// 通貨の小数桁数を返す（JPY/KRW 等は 0、BHD 等は 3、USD/EUR 等は 2）
+pub fn currency_decimals(currency: &str) -> u32 {
+    let lower = currency.to_ascii_lowercase();
+    if is_zero_decimal_currency(&lower) {
+        0
+    } else if THREE_DECIMAL_CURRENCIES.contains(&lower.as_str()) {
+        3
+    } else {
+        2
+    }
+}
+
+/// 為替レートを適用して金額（最小単位の整数）を通貨間で換算する。
+/// `rate` は「`from_currency` の 1 主要単位に対する `to_currency` の主要単位数」。
+/// 例えば 1 JPY = 0.0067 USD の場合、rate は 0.0067。
+/// 1 USD = 150.0 JPY の場合、rate は 150.0。
+pub fn convert_currency(amount: i64, from_currency: &str, to_currency: &str, rate: f64) -> i64 {
+    if from_currency.eq_ignore_ascii_case(to_currency) {
+        return amount;
+    }
+    if rate <= 0.0 || !rate.is_finite() {
+        return amount;
+    }
+    let from_dec = currency_decimals(from_currency);
+    let to_dec = currency_decimals(to_currency);
+    let from_factor = 10f64.powi(from_dec as i32);
+    let to_factor = 10f64.powi(to_dec as i32);
+    let from_major = amount as f64 / from_factor;
+    let to_major = from_major * rate;
+    let to_minor = (to_major * to_factor).round();
+    if to_minor > i64::MAX as f64 {
+        i64::MAX
+    } else if to_minor < i64::MIN as f64 {
+        i64::MIN
+    } else {
+        to_minor as i64
+    }
 }
 
 fn currency_symbol(currency: &str) -> Option<&'static str> {
@@ -209,8 +295,15 @@ fn group_thousands(digits: &str) -> String {
 pub fn format_money(amount: i64, currency: &str) -> String {
     let sign = if amount < 0 { "-" } else { "" };
     let abs = amount.unsigned_abs();
-    let number = if is_zero_decimal_currency(currency) {
+    let decimals = currency_decimals(currency);
+    let number = if decimals == 0 {
         group_thousands(&abs.to_string())
+    } else if decimals == 3 {
+        format!(
+            "{}.{:03}",
+            group_thousands(&(abs / 1000).to_string()),
+            abs % 1000
+        )
     } else {
         format!(
             "{}.{:02}",
@@ -233,13 +326,22 @@ mod tests {
         use OrderStatus::*;
         assert!(PendingPayment.can_transition_to(Paid));
         assert!(Paid.can_transition_to(Cancelled));
+        assert!(Paid.can_transition_to(Refunded));
+        assert!(Shipped.can_transition_to(Refunded));
+        assert!(Completed.can_transition_to(Refunded));
+        assert!(Cancelled.can_transition_to(Refunded));
         assert!(!Shipped.can_transition_to(Cancelled));
         assert!(!Cancelled.can_transition_to(Paid));
         assert!(!Completed.can_transition_to(Shipped));
         assert_eq!("pending_payment".parse::<OrderStatus>(), Ok(PendingPayment));
+        assert_eq!("refunded".parse::<OrderStatus>(), Ok(Refunded));
         assert_eq!(
             serde_json::to_value(PendingPayment).unwrap(),
             serde_json::json!("pending_payment")
+        );
+        assert_eq!(
+            serde_json::to_value(Refunded).unwrap(),
+            serde_json::json!("refunded")
         );
     }
 
@@ -251,7 +353,33 @@ mod tests {
         assert_eq!(format_money(100_005, "eur"), "€1,000.05");
         assert_eq!(format_money(-500, "jpy"), "-¥500");
         assert_eq!(format_money(990, "chf"), "CHF 9.90");
+        assert_eq!(format_money(1234, "kwd"), "KWD 1.234");
         assert!(is_zero_decimal_currency("KRW"));
         assert!(!is_zero_decimal_currency("usd"));
+    }
+
+    #[test]
+    fn test_currency_decimals_and_conversion() {
+        assert_eq!(currency_decimals("jpy"), 0);
+        assert_eq!(currency_decimals("JPY"), 0);
+        assert_eq!(currency_decimals("krw"), 0);
+        assert_eq!(currency_decimals("usd"), 2);
+        assert_eq!(currency_decimals("EUR"), 2);
+        assert_eq!(currency_decimals("kwd"), 3);
+
+        // 1000 JPY -> USD @ 0.0067 -> $6.70 (670 cents)
+        let usd = convert_currency(1000, "jpy", "usd", 0.0067);
+        assert_eq!(usd, 670);
+
+        // 670 cents ($6.70) -> JPY @ 149.2537 -> 1000 JPY
+        let jpy = convert_currency(670, "usd", "jpy", 149.2537);
+        assert_eq!(jpy, 1000);
+
+        // Same currency -> untouched
+        assert_eq!(convert_currency(1500, "jpy", "jpy", 0.0067), 1500);
+
+        // Invalid rate -> return amount safely
+        assert_eq!(convert_currency(1500, "jpy", "usd", 0.0), 1500);
+        assert_eq!(convert_currency(1500, "jpy", "usd", -1.0), 1500);
     }
 }

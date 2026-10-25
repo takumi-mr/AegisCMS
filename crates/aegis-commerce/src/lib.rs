@@ -14,7 +14,8 @@ use std::sync::Arc;
 
 use aegis_core::{
     AegisError, AuditAction, AuditOutcome, NotificationEvent, Notifier, OrderAdjustment,
-    OrderContext, OrderLine, OrderStatus, OrderStatusChange, Recipient, ShippingAddress,
+    OrderContext, OrderLine, OrderRefundRecord, OrderStatus, OrderStatusChange, Recipient,
+    ShippingAddress,
 };
 use aegis_schema::{FieldType, SchemaDefinition};
 use chrono::{SecondsFormat, Utc};
@@ -26,9 +27,14 @@ use uuid::Uuid;
 
 use aegis_audit::{AuditOrigin, AuditService};
 use aegis_core::CacheBackend;
-use aegis_db::{DatabaseAdapter, OrderRecord, OrderTransition, StockReservation};
+use aegis_db::{
+    DatabaseAdapter, OrderRecord, OrderRefundUpdate, OrderTransition, StockReservation,
+};
 use aegis_runtime::PluginSupervisor;
-use payment::{ManualPaymentProvider, PaymentEvent, PaymentEventKind, PaymentProvider, ReturnUrls};
+use payment::{
+    ManualPaymentProvider, PaymentEvent, PaymentEventKind, PaymentProvider, RefundRequest,
+    ReturnUrls,
+};
 use tokio::sync::RwLock;
 
 /// 期限切れの判定に足す猶予（秒）。決済サービス側の期限と同時に支払われた通知の到着を待つ
@@ -79,6 +85,8 @@ pub type CommerceResult<T> = std::result::Result<T, CommerceError>;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CartItem {
     pub product: String,
+    #[serde(default)]
+    pub variant: Option<String>,
     pub quantity: u32,
 }
 
@@ -86,6 +94,8 @@ pub struct CartItem {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct CartRequest {
     pub items: Vec<CartItem>,
+    #[serde(default)]
+    pub currency: Option<String>,
     #[serde(default)]
     pub email: String,
     #[serde(default)]
@@ -233,23 +243,120 @@ impl CommerceService {
             .ok_or_else(|| CommerceError::Internal("Product schema is missing".to_string()))
     }
 
+    /// 通貨の解決（指定があれば検証し小文字で返す、無ければ基軸通貨）
+    pub fn resolve_currency(&self, req_currency: Option<&str>) -> CommerceResult<String> {
+        match req_currency.map(str::trim).filter(|s| !s.is_empty()) {
+            Some(code) => {
+                let code_lower = code.to_ascii_lowercase();
+                let supported = self.config.effective_supported_currencies();
+                if supported.iter().any(|c| c == &code_lower) {
+                    Ok(code_lower)
+                } else {
+                    Err(CommerceError::Invalid(format!(
+                        "Currency '{}' is not supported. Supported currencies: {}",
+                        code,
+                        supported.join(", ")
+                    )))
+                }
+            }
+            None => Ok(self.config.currency.clone()),
+        }
+    }
+
+    /// 商品またはバリエーションの指定通貨における単価を解決する
+    fn resolve_item_price(
+        &self,
+        product: &aegis_db::ContentRecord,
+        variant: Option<&aegis_db::ProductVariantRecord>,
+        target_currency: &str,
+    ) -> CommerceResult<i64> {
+        let is_base = target_currency.eq_ignore_ascii_case(&self.config.currency);
+        let currency_key = format!("price_{}", target_currency.to_ascii_lowercase());
+
+        if let Some(v) = variant {
+            // 1. バリエーションの attributes_json 内に price_{currency} があれば優先
+            let attrs: HashMap<String, String> =
+                serde_json::from_str(&v.attributes_json).unwrap_or_default();
+            if let Some(val_str) = attrs.get(&currency_key) {
+                if let Ok(parsed) = val_str.trim().parse::<i64>() {
+                    if parsed >= 0 {
+                        return Ok(parsed);
+                    }
+                }
+            }
+            // 2. バリエーションの価格上書き
+            if let Some(price_override) = v.price_override.filter(|p| *p >= 0) {
+                if is_base {
+                    return Ok(price_override);
+                } else {
+                    return self.convert_from_base(price_override, target_currency);
+                }
+            }
+        }
+
+        // 3. 親商品の price_{currency} カスタムフィールドがあれば優先
+        if let Some(price) = integer_field(&product.custom_fields, &currency_key) {
+            if price >= 0 {
+                return Ok(price);
+            }
+        }
+
+        // 4. 親商品の基本価格 (price) を取得
+        let base_price = integer_field(&product.custom_fields, "price")
+            .filter(|p| *p >= 0)
+            .ok_or_else(|| {
+                CommerceError::NotFound(format!("Product '{}' has no price", product.slug))
+            })?;
+
+        if is_base {
+            Ok(base_price)
+        } else {
+            self.convert_from_base(base_price, target_currency)
+        }
+    }
+
+    fn convert_from_base(&self, base_price: i64, target_currency: &str) -> CommerceResult<i64> {
+        let rate = self
+            .config
+            .get_currency_rate(target_currency)
+            .ok_or_else(|| {
+                CommerceError::Invalid(format!(
+                    "No exchange rate configured for currency '{}'",
+                    target_currency
+                ))
+            })?;
+        Ok(aegis_core::convert_currency(
+            base_price,
+            &self.config.currency,
+            target_currency,
+            rate,
+        ))
+    }
+
     /// カートの検証と、商品から価格を引いた明細・在庫の確保内容を作る
     async fn build_lines(
         &self,
         items: &[CartItem],
+        target_currency: &str,
     ) -> CommerceResult<(Vec<OrderLine>, Vec<StockReservation>)> {
         if items.is_empty() {
             return Err(CommerceError::Invalid("The cart is empty".to_string()));
         }
-        // 同じ商品は 1 行にまとめる（並び順はカートの順）
-        let mut merged: Vec<(String, u32)> = Vec::new();
+        // 同じ商品・バリエーションは 1 行にまとめる（並び順はカートの順）
+        let mut merged: Vec<((String, Option<String>), u32)> = Vec::new();
         for item in items {
-            let key = item.product.trim().to_string();
-            if key.is_empty() || item.quantity == 0 {
+            let prod_key = item.product.trim().to_string();
+            let var_key = item
+                .variant
+                .as_ref()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty());
+            if prod_key.is_empty() || item.quantity == 0 {
                 return Err(CommerceError::Invalid(
                     "Each cart item needs a product and a quantity of at least 1".to_string(),
                 ));
             }
+            let key = (prod_key, var_key);
             match merged.iter_mut().find(|(k, _)| *k == key) {
                 Some((_, quantity)) => *quantity = quantity.saturating_add(item.quantity),
                 None => merged.push((key, item.quantity)),
@@ -266,7 +373,7 @@ impl CommerceService {
         let table = schema.table_name();
         let mut lines = Vec::with_capacity(merged.len());
         let mut reservations = Vec::with_capacity(merged.len());
-        for (key, quantity) in merged {
+        for ((prod_key, var_key), quantity) in merged {
             if quantity > self.config.max_quantity_per_item {
                 return Err(CommerceError::Invalid(format!(
                     "At most {} of each product per order",
@@ -276,56 +383,122 @@ impl CommerceService {
             let product = self
                 .deps
                 .db
-                .get_content(&schema, &key)
+                .get_content(&schema, &prod_key)
                 .await
                 .map_err(|e| CommerceError::Internal(e.to_string()))?
                 .filter(|p| p.status == "published")
                 .ok_or_else(|| {
-                    CommerceError::NotFound(format!("Product '{}' is not available", key))
+                    CommerceError::NotFound(format!("Product '{}' is not available", prod_key))
                 })?;
-            if lines.iter().any(|l: &OrderLine| l.product_id == product.id) {
-                // ID と slug で同じ商品を指定した
-                return Err(CommerceError::Invalid(format!(
-                    "Product '{}' is listed twice",
-                    product.slug
-                )));
-            }
-            let unit_price = integer_field(&product.custom_fields, "price")
-                .filter(|price| *price >= 0)
-                .ok_or_else(|| {
-                    CommerceError::NotFound(format!("Product '{}' has no price", product.slug))
-                })?;
-            // 見積もりの時点でも在庫切れを知らせる（確定は注文作成時の UPDATE で行う）
-            if let Some(stock) = integer_field(&product.custom_fields, "stock") {
-                if stock < i64::from(quantity) {
-                    return Err(CommerceError::OutOfStock {
-                        product_id: product.id,
-                        title: product.title,
-                    });
+
+            let (variant, unit_price, sku, title) = if let Some(ref vk) = var_key {
+                let v = self
+                    .deps
+                    .db
+                    .get_product_variant(vk)
+                    .await
+                    .map_err(|e| CommerceError::Internal(e.to_string()))?;
+                let v = match v {
+                    Some(v) => v,
+                    None => self
+                        .deps
+                        .db
+                        .get_product_variant_by_sku(vk)
+                        .await
+                        .map_err(|e| CommerceError::Internal(e.to_string()))?
+                        .ok_or_else(|| {
+                            CommerceError::NotFound(format!(
+                                "Product variant '{}' is not available",
+                                vk
+                            ))
+                        })?,
+                };
+                if v.product_id != product.id {
+                    return Err(CommerceError::Invalid(format!(
+                        "Variant '{}' does not belong to product '{}'",
+                        vk, product.slug
+                    )));
                 }
-            }
-            let sku = product
-                .custom_fields
-                .get("sku")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(str::to_string);
+                if lines.iter().any(|l: &OrderLine| {
+                    l.product_id == product.id && l.variant_id.as_deref() == Some(&v.id)
+                }) {
+                    return Err(CommerceError::Invalid(format!(
+                        "Product variant '{}' is listed twice",
+                        v.title
+                    )));
+                }
+                let price = self.resolve_item_price(&product, Some(&v), target_currency)?;
+                if let Some(stock) = v.stock {
+                    if stock < i64::from(quantity) {
+                        return Err(CommerceError::OutOfStock {
+                            product_id: product.id.clone(),
+                            title: format!("{} ({})", product.title, v.title),
+                        });
+                    }
+                }
+                let var_sku = v.sku.clone().or_else(|| {
+                    product
+                        .custom_fields
+                        .get("sku")
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string)
+                });
+                let full_title = format!("{} - {}", product.title, v.title);
+                (Some(v), price, var_sku, full_title)
+            } else {
+                if lines
+                    .iter()
+                    .any(|l: &OrderLine| l.product_id == product.id && l.variant_id.is_none())
+                {
+                    // ID と slug で同じ商品を指定した
+                    return Err(CommerceError::Invalid(format!(
+                        "Product '{}' is listed twice",
+                        product.slug
+                    )));
+                }
+                let unit_price = self.resolve_item_price(&product, None, target_currency)?;
+                // 見積もりの時点でも在庫切れを知らせる（確定は注文作成時の UPDATE で行う）
+                if let Some(stock) = integer_field(&product.custom_fields, "stock") {
+                    if stock < i64::from(quantity) {
+                        return Err(CommerceError::OutOfStock {
+                            product_id: product.id.clone(),
+                            title: product.title.clone(),
+                        });
+                    }
+                }
+                let sku = product
+                    .custom_fields
+                    .get("sku")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string);
+                (None, unit_price, sku, product.title.clone())
+            };
+
             let line_total = unit_price
                 .checked_mul(i64::from(quantity))
                 .ok_or_else(|| CommerceError::Invalid("Amount is too large".to_string()))?;
+            let (variant_id, variant_title) = match variant {
+                Some(v) => (Some(v.id), Some(v.title)),
+                None => (None, None),
+            };
             reservations.push(StockReservation {
                 table: table.clone(),
                 product_id: product.id.clone(),
+                variant_id: variant_id.clone(),
                 quantity: i64::from(quantity),
             });
             lines.push(OrderLine {
                 product_id: product.id,
                 slug: product.slug,
-                title: product.title,
+                title,
                 sku,
                 unit_price,
                 quantity,
                 line_total,
+                variant_id,
+                variant_title,
             });
         }
         Ok((lines, reservations))
@@ -336,9 +509,10 @@ impl CommerceService {
         &self,
         request: &CartRequest,
     ) -> CommerceResult<(OrderContext, Vec<StockReservation>)> {
-        let (lines, reservations) = self.build_lines(&request.items).await?;
+        let currency = self.resolve_currency(request.currency.as_deref())?;
+        let (lines, reservations) = self.build_lines(&request.items, &currency).await?;
         let ctx = OrderContext {
-            currency: self.config.currency.clone(),
+            currency,
             lines,
             customer_email: request.email.trim().to_string(),
             customer_name: request.name.trim().to_string(),
@@ -451,6 +625,9 @@ impl CommerceService {
             created_at: created_at.clone(),
             updated_at: created_at,
             note: None,
+            transaction_id: None,
+            refunded_amount: 0,
+            refunds_json: "[]".to_string(),
         };
 
         let stored = self
@@ -573,6 +750,7 @@ impl CommerceService {
                 .map(|line| StockReservation {
                     table: table.clone(),
                     product_id: line.product_id.clone(),
+                    variant_id: line.variant_id.clone(),
                     quantity: i64::from(line.quantity),
                 })
                 .collect()
@@ -630,7 +808,167 @@ impl CommerceService {
         Ok(updated)
     }
 
-    /// 決済サービスからの通知（入金・期限切れ・失敗）を注文に反映する。重複した通知は何もしない
+    /// 注文の返金を行う（管理者操作）
+    /// プロバイダがオンライン返金をサポートしていればプロバイダの `refund` を呼び出し、
+    /// 結果を注文の返金履歴に記録する。手動決済の場合は手動返金として記録する。
+    pub async fn refund_order(
+        &self,
+        audit: &AuditOrigin,
+        order: &OrderRecord,
+        amount: Option<i64>,
+        reason: Option<String>,
+        restock: bool,
+    ) -> CommerceResult<OrderRecord> {
+        let current_status: OrderStatus = order.status.parse().map_err(CommerceError::Internal)?;
+        if current_status == OrderStatus::PendingPayment {
+            return Err(CommerceError::Conflict(
+                "Cannot refund an unpaid order".to_string(),
+            ));
+        }
+
+        let refundable_balance = order.total.saturating_sub(order.refunded_amount);
+        if refundable_balance <= 0 {
+            return Err(CommerceError::Conflict(
+                "Order is already fully refunded".to_string(),
+            ));
+        }
+
+        let refund_amount = match amount {
+            Some(a) if a <= 0 => {
+                return Err(CommerceError::Invalid(
+                    "Refund amount must be greater than zero".to_string(),
+                ));
+            }
+            Some(a) if a > refundable_balance => {
+                return Err(CommerceError::Invalid(format!(
+                    "Refund amount ({}) exceeds refundable balance ({})",
+                    a, refundable_balance
+                )));
+            }
+            Some(a) => a,
+            None => refundable_balance,
+        };
+
+        // 決済プロバイダでの返金処理（オンライン返金対応プロバイダの場合）
+        let refund_ref = if self.provider.supports_refund() {
+            let req = RefundRequest {
+                order,
+                amount: refund_amount,
+                reason: reason.clone(),
+            };
+            let res = self
+                .provider
+                .refund(req)
+                .await
+                .map_err(|e| CommerceError::Payment(e.to_string()))?;
+            res.refund_ref
+        } else {
+            // 手動決済など
+            format!("manual-{}", Uuid::new_v4().simple())
+        };
+
+        let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+        let mut refunds: Vec<OrderRefundRecord> =
+            serde_json::from_str(&order.refunds_json).unwrap_or_default();
+        let refund_entry_id = format!("ref-{}", Uuid::new_v4().simple());
+        refunds.push(OrderRefundRecord {
+            id: refund_entry_id.clone(),
+            amount: refund_amount,
+            currency: order.currency.clone(),
+            refund_ref: refund_ref.clone(),
+            reason: reason.clone(),
+            created_at: now.clone(),
+        });
+        let refunds_json =
+            serde_json::to_string(&refunds).map_err(|e| CommerceError::Internal(e.to_string()))?;
+
+        let new_refunded_amount = order.refunded_amount + refund_amount;
+        let is_full = new_refunded_amount >= order.total;
+        let new_status = if is_full {
+            Some(OrderStatus::Refunded.as_str().to_string())
+        } else {
+            None
+        };
+
+        let restock_reservations = if restock {
+            let product_table = self.product_schema().await?.table_name();
+            let lines: Vec<OrderLine> = serde_json::from_str(&order.lines_json).unwrap_or_default();
+            lines
+                .into_iter()
+                .map(|l| StockReservation {
+                    table: product_table.clone(),
+                    product_id: l.product_id,
+                    variant_id: l.variant_id,
+                    quantity: l.quantity as i64,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let update = OrderRefundUpdate {
+            id: order.id.clone(),
+            refunded_amount: new_refunded_amount,
+            refunds_json: refunds_json.clone(),
+            new_status: new_status.clone(),
+            updated_at: now.clone(),
+            note: reason.clone(),
+            restock: restock_reservations,
+        };
+
+        let ok = self
+            .deps
+            .db
+            .record_order_refund(&update)
+            .await
+            .map_err(|e| CommerceError::Internal(e.to_string()))?;
+
+        if !ok {
+            return Err(CommerceError::Conflict(
+                "Failed to update order for refund. It may have been updated concurrently."
+                    .to_string(),
+            ));
+        }
+
+        self.deps
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::OrderUpdate, AuditOutcome::Success)
+                    .with_resource("order", Some(order.id.clone()))
+                    .with_details(json!({
+                        "number": order.number,
+                        "action": "refund",
+                        "refund_id": refund_entry_id,
+                        "refund_ref": refund_ref,
+                        "amount": refund_amount,
+                        "currency": order.currency,
+                        "total_refunded": new_refunded_amount,
+                        "status": new_status.as_deref().unwrap_or(&order.status),
+                        "restocked": restock,
+                        "reason": reason,
+                    })),
+            )
+            .await;
+
+        let mut updated = order.clone();
+        updated.refunded_amount = new_refunded_amount;
+        updated.refunds_json = refunds_json;
+        if let Some(status) = new_status {
+            let to = OrderStatus::Refunded;
+            updated.status = status;
+            self.notify(&updated, Some(current_status), to);
+            self.notify_status_change(&updated, current_status, to, "admin_refund");
+        }
+        updated.updated_at = now;
+        if reason.is_some() {
+            updated.note = reason;
+        }
+
+        Ok(updated)
+    }
+
+    /// 決済サービスからの通知（入金・期限切れ・失敗・返金）を注文に反映する。重複した通知は何もしない
     pub async fn apply_payment_event(
         &self,
         audit: &AuditOrigin,
@@ -649,6 +987,18 @@ impl CommerceService {
                     event.order_id, event.payment_ref
                 ))
             })?;
+
+        // 決済サービスから確定取引IDが通知された場合は保存
+        if let Some(tx_id) = &event.transaction_id {
+            if order.transaction_id.as_deref() != Some(tx_id) {
+                let _ = self
+                    .deps
+                    .db
+                    .set_order_transaction_id(&order.id, tx_id)
+                    .await;
+            }
+        }
+
         let status: OrderStatus = order.status.parse().map_err(CommerceError::Internal)?;
         let record_problem = |problem: &'static str, extra: serde_json::Value| {
             let mut details = json!({
@@ -677,7 +1027,8 @@ impl CommerceService {
                         order.total,
                         order.currency
                     );
-                    self.deps.audit
+                    self.deps
+                        .audit
                         .record(record_problem(
                             "amount_mismatch",
                             json!({ "paid": amount, "paid_currency": currency, "total": order.total }),
@@ -703,6 +1054,45 @@ impl CommerceService {
                     }
                     // 重複した通知
                     _ => {}
+                }
+            }
+            PaymentEventKind::Refunded {
+                amount,
+                currency: _,
+                refund_ref,
+            } => {
+                let mut refunds: Vec<OrderRefundRecord> =
+                    serde_json::from_str(&order.refunds_json).unwrap_or_default();
+                if !refunds.iter().any(|r| r.refund_ref == *refund_ref) {
+                    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+                    let refund_entry_id = format!("ref-{}", Uuid::new_v4().simple());
+                    refunds.push(OrderRefundRecord {
+                        id: refund_entry_id,
+                        amount: *amount,
+                        currency: order.currency.clone(),
+                        refund_ref: refund_ref.clone(),
+                        reason: Some("External webhook refund".to_string()),
+                        created_at: now.clone(),
+                    });
+                    let refunds_json =
+                        serde_json::to_string(&refunds).unwrap_or_else(|_| "[]".to_string());
+                    let new_refunded_amount = order.refunded_amount + amount;
+                    let is_full = new_refunded_amount >= order.total;
+                    let new_status = if is_full {
+                        Some(OrderStatus::Refunded.as_str().to_string())
+                    } else {
+                        None
+                    };
+                    let update = OrderRefundUpdate {
+                        id: order.id.clone(),
+                        refunded_amount: new_refunded_amount,
+                        refunds_json,
+                        new_status,
+                        updated_at: now,
+                        note: Some(format!("Refunded via webhook: {}", refund_ref)),
+                        restock: vec![],
+                    };
+                    let _ = self.deps.db.record_order_refund(&update).await;
                 }
             }
             PaymentEventKind::AwaitingPayment => {

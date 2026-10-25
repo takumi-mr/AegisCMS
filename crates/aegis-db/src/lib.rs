@@ -5,6 +5,7 @@ pub mod mysql;
 pub mod orders;
 pub mod postgres;
 pub mod sqlite;
+pub mod variants;
 
 use aegis_core::{AegisError, AuditActor, AuditEvent, AuditQuery, Result};
 
@@ -17,11 +18,12 @@ use std::sync::Arc;
 pub use config::{DatabaseBackendKind, DatabaseConfig};
 pub use mysql::MySqlAdapter;
 pub use orders::{
-    OrderListQuery, OrderPage, OrderRecord, OrderStorage, OrderTransition, OutOfStock,
-    StockReservation,
+    OrderListQuery, OrderPage, OrderRecord, OrderRefundUpdate, OrderStorage, OrderTransition,
+    OutOfStock, StockReservation,
 };
 pub use postgres::PostgresAdapter;
 pub use sqlite::SqliteAdapter;
+pub use variants::{ProductVariantRecord, ProductVariantStorage, PRODUCT_VARIANT_TABLE};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedRelation {
@@ -65,7 +67,7 @@ pub struct ContentPage {
 }
 
 #[async_trait]
-pub trait DatabaseAdapter: OrderStorage + Send + Sync {
+pub trait DatabaseAdapter: OrderStorage + ProductVariantStorage + Send + Sync {
     /// Initialize the database, checking connectivity and setting up migration history tables
     async fn init(&self) -> Result<()>;
 

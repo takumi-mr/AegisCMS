@@ -26,6 +26,8 @@ fn product_schema() -> SchemaDefinition {
         "fields": [
             { "name": "title", "type": "string", "required": true },
             { "name": "price", "type": "integer", "required": true },
+            { "name": "price_usd", "type": "integer", "nullable": true },
+            { "name": "price_eur", "type": "integer", "nullable": true },
             { "name": "stock", "type": "integer", "nullable": true },
             { "name": "sku", "type": "string", "nullable": true }
         ]
@@ -956,8 +958,10 @@ async fn test_official_wasm_plugins_in_checkout() {
     let request = |coupon: Option<&str>| CartRequest {
         items: vec![CartItem {
             product: "lamp".to_string(),
+            variant: None,
             quantity: 2,
         }],
+        currency: None,
         email: "buyer@example.com".to_string(),
         name: "Buyer".to_string(),
         shipping_address: None,
@@ -1231,4 +1235,476 @@ async fn test_mysql_order_and_stock_e2e() {
     config.commerce.max_quantity_per_item = 5;
     let shop = shop_with_db(Arc::new(adapter), config).await;
     run_db_order_lifecycle_verification(shop).await;
+}
+
+#[tokio::test]
+async fn test_order_refund_api_e2e() {
+    let shop = shop(|_| {}).await;
+
+    // 1. チェックアウト (p-mug 1200円 x 2 + 送料 500円 = 2900円、在庫 3 -> 1)
+    let (status, body) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/checkout",
+            Some(json!({
+                "items": [{ "product": "mug", "quantity": 2 }],
+                "email": "customer@example.com",
+                "name": "Customer",
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let order_id = body["order"]["id"].as_str().unwrap().to_string();
+
+    // 2. 未払い注文の返金は 409
+    let (status, err) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/refund", order_id),
+            Some(json!({ "amount": 1000 })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(err["error"].as_str().unwrap().contains("unpaid"));
+
+    // 3. スタッフにより支払い済みにマーク
+    let (status, _) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/status", order_id),
+            Some(json!({ "status": "paid" })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // 4. 部分返金 (1000円返金、在庫は戻さない)
+    let (status, res) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/refund", order_id),
+            Some(json!({
+                "amount": 1000,
+                "reason": "Customer changed mind on 1 item",
+                "restock": false,
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(res["status"], "paid");
+    assert_eq!(res["refunded_amount"], 1000);
+    assert_eq!(res["can_refund"], true);
+    let refunds = res["refunds"].as_array().unwrap();
+    assert_eq!(refunds.len(), 1);
+    assert_eq!(refunds[0]["amount"], 1000);
+    assert_eq!(refunds[0]["reason"], "Customer changed mind on 1 item");
+
+    // 在庫は 1 のまま
+    let (status, schema_body) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-mug",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(schema_body["fields"]["stock"], 1);
+
+    // 5. 残り全額返金 (amount 省略で残り 1900 円全額返金、在庫を 2 個戻す)
+    let (status, res2) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/refund", order_id),
+            Some(json!({
+                "reason": "Complete cancellation",
+                "restock": true,
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(res2["status"], "refunded");
+    assert_eq!(res2["refunded_amount"], 2900);
+    assert_eq!(res2["can_refund"], false); // 全額返金されたため返金不可
+    let refunds2 = res2["refunds"].as_array().unwrap();
+    assert_eq!(refunds2.len(), 2);
+    assert_eq!(refunds2[1]["amount"], 1900);
+
+    // 在庫が 1 -> 3 に戻っていることを確認
+    let (status, schema_body2) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-mug",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(schema_body2["fields"]["stock"], 3);
+
+    // 6. 全額返金済みの注文に対する再返金は 409
+    let (status, err2) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/refund", order_id),
+            Some(json!({ "amount": 100 })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(err2["error"]
+        .as_str()
+        .unwrap()
+        .contains("already fully refunded"));
+}
+
+#[tokio::test]
+async fn test_product_variant_crud_and_checkout_flow() {
+    let shop = shop(|_| {}).await;
+
+    // 1. バリエーション作成 (Red / S)
+    let (status, var1) = shop
+        .call(
+            "POST",
+            "/api/v1/contents/product/p-shirt/variants",
+            Some(json!({
+                "id": "var-red-s",
+                "title": "Red / Small",
+                "sku": "TSH-RED-S",
+                "price_override": 2500,
+                "stock": 5,
+                "attributes": { "color": "Red", "size": "S" },
+                "position": 1
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(var1["id"], "var-red-s");
+    assert_eq!(var1["title"], "Red / Small");
+    assert_eq!(var1["price_override"], 2500);
+    assert_eq!(var1["stock"], 5);
+
+    // 2. バリエーション作成 (Blue / L: 価格上書きなし、親の 3000 円を継承)
+    let (status, var2) = shop
+        .call(
+            "POST",
+            "/api/v1/contents/product/p-shirt/variants",
+            Some(json!({
+                "id": "var-blue-l",
+                "title": "Blue / Large",
+                "sku": "TSH-BLU-L",
+                "price_override": null,
+                "stock": 3,
+                "attributes": { "color": "Blue", "size": "L" },
+                "position": 2
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(var2["id"], "var-blue-l");
+
+    // 3. 管理者向け一覧取得
+    let (status, list) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-shirt/variants",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let items = list.as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["id"], "var-red-s");
+    assert_eq!(items[1]["id"], "var-blue-l");
+
+    // 4. 公開ショップ向け一覧取得（slug でのアクセス）
+    let (status, pub_list) = shop
+        .call("GET", "/api/v1/shop/products/shirt/variants", None, None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(pub_list.as_array().unwrap().len(), 2);
+
+    // 5. バリエーション付き商品の見積もり (Red/S x 2: 2500 x 2 = 5000, Blue/L x 1: 3000 x 1 = 3000)
+    let (status, quote) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [
+                    { "product": "p-shirt", "variant": "var-red-s", "quantity": 2 },
+                    { "product": "p-shirt", "variant": "var-blue-l", "quantity": 1 }
+                ]
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote["subtotal"], 8000);
+    assert_eq!(quote["total"], 8000);
+    let lines = quote["lines"].as_array().unwrap();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["variant_id"], "var-red-s");
+    assert_eq!(lines[0]["variant_title"], "Red / Small");
+    assert_eq!(lines[0]["unit_price"], 2500);
+    assert_eq!(lines[1]["variant_id"], "var-blue-l");
+    assert_eq!(lines[1]["variant_title"], "Blue / Large");
+    assert_eq!(lines[1]["unit_price"], 3000);
+
+    // 6. チェックアウトと在庫引き当て確認
+    let (status, checkout) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/checkout",
+            Some(json!({
+                "items": [
+                    { "product": "p-shirt", "variant": "var-red-s", "quantity": 2 }
+                ],
+                "email": "buyer-var@example.com",
+                "name": "Variant Customer"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let order_id = checkout["order"]["id"].as_str().unwrap();
+
+    // Red/S の在庫が 5 -> 3 に減っていること
+    let (status, list_after) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-shirt/variants",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list_after.as_array().unwrap()[0]["stock"], 3);
+
+    // 7. 注文キャンセルによるバリエーション在庫復帰
+    let (status, _) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/status", order_id),
+            Some(json!({ "status": "cancelled" })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, list_restocked) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-shirt/variants",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list_restocked.as_array().unwrap()[0]["stock"], 5);
+
+    // 8. バリエーション削除
+    let (status, _) = shop
+        .call(
+            "DELETE",
+            "/api/v1/contents/product/p-shirt/variants/var-blue-l",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, list_deleted) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-shirt/variants",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list_deleted.as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn test_multi_currency_quote_and_checkout_flow() {
+    let shop = shop(|config| {
+        config.commerce.supported_currencies =
+            vec!["jpy".to_string(), "usd".to_string(), "eur".to_string()];
+        config
+            .commerce
+            .currency_rates
+            .insert("usd".to_string(), 0.0067); // 1 JPY = 0.0067 USD
+        config
+            .commerce
+            .currency_rates
+            .insert("eur".to_string(), 0.0062); // 1 JPY = 0.0062 EUR
+    })
+    .await;
+
+    // 1. GET /api/v1/shop/config で設定を確認
+    let (status, cfg) = shop.call("GET", "/api/v1/shop/config", None, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cfg["currency"], "jpy");
+    assert_eq!(cfg["supported_currencies"], json!(["jpy", "usd", "eur"]));
+    assert_eq!(cfg["currency_rates"]["usd"], 0.0067);
+
+    // 2. 未対応通貨での見積もりリクエスト -> BAD_REQUEST (400)
+    let (status, err) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "shirt", "quantity": 1 }],
+                "currency": "gbp"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(err["error"]
+        .as_str()
+        .unwrap()
+        .contains("Currency 'gbp' is not supported"));
+
+    // 3. 通貨指定なし（基軸 JPY）での見積もり
+    // shirt: price = 3000 JPY, shipping = 500 JPY -> total = 3500 JPY
+    let (status, quote_jpy) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "shirt", "quantity": 1 }]
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote_jpy["currency"], "jpy");
+    assert_eq!(quote_jpy["lines"][0]["unit_price"], 3000);
+    assert_eq!(quote_jpy["subtotal"], 3000);
+    assert_eq!(quote_jpy["total"], 3500);
+
+    // 4. USD での見積もり (レート換算: 3000 * 0.0067 = 20.10 USD = 2010 cents, shipping = 500 cents -> total = 2510)
+    let (status, quote_usd) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "shirt", "quantity": 1 }],
+                "currency": "usd"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote_usd["currency"], "usd");
+    assert_eq!(quote_usd["lines"][0]["unit_price"], 2010);
+    assert_eq!(quote_usd["subtotal"], 2010);
+    assert_eq!(quote_usd["total"], 2510);
+
+    // 5. 商品に特定通貨の固定価格（price_usd）が設定されている場合
+    // mug (p-mug): price = 1200 JPY に price_usd = 950 (cents = $9.50) をカスタムフィールドに追加
+    let schema = shop
+        .state
+        .schemas
+        .read()
+        .await
+        .get("product")
+        .unwrap()
+        .clone();
+    let mut mug = shop
+        .state
+        .db
+        .get_content(&schema, "mug")
+        .await
+        .unwrap()
+        .unwrap();
+    mug.custom_fields
+        .insert("price_usd".to_string(), json!(950));
+    shop.state.db.update_content(&schema, &mug).await.unwrap();
+
+    let (status, quote_mug_usd) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "mug", "quantity": 2 }],
+                "currency": "usd"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote_mug_usd["currency"], "usd");
+    assert_eq!(quote_mug_usd["lines"][0]["unit_price"], 950);
+    assert_eq!(quote_mug_usd["subtotal"], 1900);
+    assert_eq!(quote_mug_usd["total"], 2400);
+
+    // 6. USD での購入（checkout）
+    let (status, checkout_res) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/checkout",
+            Some(json!({
+                "items": [{ "product": "mug", "quantity": 1 }],
+                "currency": "usd",
+                "email": "customer-usd@example.com",
+                "name": "USD Customer"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(checkout_res["order"]["currency"], "usd");
+    assert_eq!(checkout_res["order"]["subtotal"], 950);
+    assert_eq!(checkout_res["order"]["total"], 1450);
+
+    let order_id = checkout_res["order"]["id"].as_str().unwrap();
+    let order_in_db = shop.state.db.get_order(order_id).await.unwrap().unwrap();
+    assert_eq!(order_in_db.currency, "usd");
+    assert_eq!(order_in_db.subtotal, 950);
+    assert_eq!(order_in_db.total, 1450);
+
+    // 7. バリエーションと多通貨の組み合わせ
+    // shirt にバリエーションを追加: attributes に price_usd = "2200" (cents = $22.00)
+    let (status, var_res) = shop
+        .call(
+            "POST",
+            "/api/v1/contents/product/p-shirt/variants",
+            Some(json!({
+                "title": "Red XL",
+                "sku": "SHIRT-RED-XL",
+                "price_override": 3500,
+                "stock": 10,
+                "attributes": { "price_usd": "2200" }
+            })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let var_id = var_res["id"].as_str().unwrap();
+
+    let (status, quote_var_usd) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/quote",
+            Some(json!({
+                "items": [{ "product": "shirt", "variant": var_id, "quantity": 1 }],
+                "currency": "usd"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(quote_var_usd["currency"], "usd");
+    assert_eq!(quote_var_usd["lines"][0]["unit_price"], 2200);
+    assert_eq!(quote_var_usd["subtotal"], 2200);
+    assert_eq!(quote_var_usd["total"], 2700);
 }

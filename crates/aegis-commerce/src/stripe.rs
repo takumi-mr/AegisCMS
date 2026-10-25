@@ -9,7 +9,10 @@ use http::HeaderMap;
 use serde_json::Value;
 use sha2::Sha256;
 
-use super::payment::{PaymentEvent, PaymentEventKind, PaymentProvider, PaymentStart, ReturnUrls};
+use super::payment::{
+    PaymentEvent, PaymentEventKind, PaymentProvider, PaymentStart, RefundRequest, RefundResult,
+    ReturnUrls,
+};
 use aegis_db::OrderRecord;
 
 /// Webhook の署名の時刻と現在時刻の許容差（秒）。古い通知の再送（リプレイ）を受け付けない
@@ -98,6 +101,83 @@ impl PaymentProvider for StripePaymentProvider {
 
     fn allows_manual_confirmation(&self) -> bool {
         false
+    }
+
+    fn supports_refund(&self) -> bool {
+        true
+    }
+
+    async fn refund(&self, req: RefundRequest<'_>) -> Result<RefundResult> {
+        let payment_intent = req
+            .order
+            .transaction_id
+            .as_deref()
+            .or(req.order.payment_ref.as_deref())
+            .ok_or_else(|| {
+                AegisError::Validation(
+                    "Order has no transaction ID or payment reference for Stripe refund"
+                        .to_string(),
+                )
+            })?;
+
+        let mut form: Vec<(String, String)> = vec![
+            ("payment_intent".into(), payment_intent.to_string()),
+            ("amount".into(), req.amount.to_string()),
+            ("metadata[order_id]".into(), req.order.id.clone()),
+            ("metadata[order_number]".into(), req.order.number.clone()),
+        ];
+        if let Some(reason) = &req.reason {
+            form.push(("metadata[reason]".into(), reason.clone()));
+            if reason == "duplicate" || reason == "fraudulent" || reason == "requested_by_customer"
+            {
+                form.push(("reason".into(), reason.clone()));
+            }
+        }
+
+        // 二重返金を防止するべき等キー
+        let idempotency_key = format!("aegis-refund-{}-{}", req.order.id, req.amount);
+
+        let response = self
+            .client
+            .post(format!("{}/v1/refunds", self.api_base))
+            .bearer_auth(&self.secret_key)
+            .header("Idempotency-Key", idempotency_key)
+            .form(&form)
+            .send()
+            .await
+            .map_err(|e| AegisError::Internal(format!("Stripe refund request failed: {}", e)))?;
+
+        let status = response.status();
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| AegisError::Internal(format!("Stripe refund request failed: {}", e)))?;
+        let body: Value = serde_json::from_slice(&bytes)
+            .map_err(|e| AegisError::Internal(format!("Invalid Stripe refund response: {}", e)))?;
+
+        if !status.is_success() {
+            let message = body["error"]["message"].as_str().unwrap_or("unknown error");
+            return Err(AegisError::Internal(format!(
+                "Stripe refund returned {}: {}",
+                status, message
+            )));
+        }
+
+        let refund_ref = body["id"]
+            .as_str()
+            .ok_or_else(|| AegisError::Internal("Stripe refund response has no id".to_string()))?
+            .to_string();
+        let amount = body["amount"].as_i64().unwrap_or(req.amount);
+        let currency = body["currency"]
+            .as_str()
+            .unwrap_or(&req.order.currency)
+            .to_string();
+
+        Ok(RefundResult {
+            refund_ref,
+            amount,
+            currency,
+        })
     }
 
     async fn start_payment(
@@ -198,15 +278,46 @@ fn verify_signature(secret: &str, header: &str, body: &[u8], now: i64) -> Result
     Err(invalid("no matching v1 signature"))
 }
 
-/// Checkout Session のイベントを注文の出来事にする（それ以外のイベントは `None`）
+/// Checkout Session / Charge のイベントを注文の出来事にする（それ以外のイベントは `None`）
 fn event_to_payment(event: &Value) -> Option<PaymentEvent> {
     let event_type = event["type"].as_str()?;
+
+    // 外部（Stripe ダッシュボードなど）で返金された場合の Webhook 通知
+    if event_type == "charge.refunded" {
+        let charge = &event["data"]["object"];
+        let order_id = charge["metadata"]["order_id"].as_str()?.to_string();
+        let payment_ref = charge["payment_intent"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let refund_ref = charge["refunds"]["data"][0]["id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let amount = charge["amount_refunded"].as_i64().unwrap_or(0);
+        let currency = charge["currency"].as_str().unwrap_or_default().to_string();
+        let transaction_id = charge["payment_intent"].as_str().map(|s| s.to_string());
+
+        return Some(PaymentEvent {
+            event_id: event["id"].as_str().unwrap_or_default().to_string(),
+            order_id,
+            payment_ref,
+            transaction_id,
+            kind: PaymentEventKind::Refunded {
+                amount,
+                currency,
+                refund_ref,
+            },
+        });
+    }
+
     let session = &event["data"]["object"];
     let order_id = session["client_reference_id"]
         .as_str()
         .or_else(|| session["metadata"]["order_id"].as_str())?
         .to_string();
     let payment_ref = session["id"].as_str()?.to_string();
+    let transaction_id = session["payment_intent"].as_str().map(|s| s.to_string());
     let paid = || PaymentEventKind::Paid {
         amount: session["amount_total"].as_i64().unwrap_or(-1),
         currency: session["currency"].as_str().unwrap_or_default().to_string(),
@@ -226,6 +337,7 @@ fn event_to_payment(event: &Value) -> Option<PaymentEvent> {
         event_id: event["id"].as_str().unwrap_or_default().to_string(),
         order_id,
         payment_ref,
+        transaction_id,
         kind,
     })
 }
@@ -298,6 +410,30 @@ mod tests {
                 .unwrap()
                 .kind,
             PaymentEventKind::Expired
+        );
+        let refund_event = json!({
+            "id": "evt_ref_1",
+            "type": "charge.refunded",
+            "data": { "object": {
+                "metadata": { "order_id": "order-1" },
+                "payment_intent": "pi_123",
+                "amount_refunded": 1000,
+                "currency": "jpy",
+                "refunds": {
+                    "data": [{ "id": "re_999" }]
+                }
+            }}
+        });
+        let refunded = event_to_payment(&refund_event).unwrap();
+        assert_eq!(refunded.order_id, "order-1");
+        assert_eq!(refunded.transaction_id, Some("pi_123".to_string()));
+        assert_eq!(
+            refunded.kind,
+            PaymentEventKind::Refunded {
+                amount: 1000,
+                currency: "jpy".to_string(),
+                refund_ref: "re_999".to_string()
+            }
         );
         assert!(event_to_payment(&event("customer.created", "")).is_none());
     }

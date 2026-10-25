@@ -12,6 +12,7 @@
     "ordersFailed": "注文を取得できませんでした",
     "orderFailed": "注文を取得できませんでした",
     "updateOrderFailed": "注文を更新できませんでした",
+    "refundOrderFailed": "返金処理に失敗しました",
     "auditFailed": "監査ログを取得できませんでした",
     "mediaFailed": "メディアを取得できませんでした",
     "previewFailed": "プレビューを作成できませんでした",
@@ -44,7 +45,10 @@
     "setPluginOrderFailed": "プラグインの実行順を変更できませんでした",
     "resetPluginOrderFailed": "設定ファイルのプラグインに戻せませんでした",
     "siteSettingsFailed": "サイトの設定の取得に失敗しました",
-    "updateSiteSettingsFailed": "サイトの設定の保存に失敗しました"
+    "updateSiteSettingsFailed": "サイトの設定の保存に失敗しました",
+    "variantsFailed": "バリエーションを取得できませんでした",
+    "saveVariantFailed": "バリエーションを保存できませんでした",
+    "deleteVariantFailed": "バリエーションを削除できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -417,7 +421,8 @@
       "paid": "支払い済み",
       "shipped": "発送済み",
       "completed": "完了",
-      "cancelled": "取り消し"
+      "cancelled": "取り消し",
+      "refunded": "返金済み"
     },
     "shopDisabled": "ショップが有効になっていません。サーバーの設定で [commerce].enabled = true にしてください。",
     "loadFailed": "注文を読み込めませんでした",
@@ -459,7 +464,24 @@
     "waitingProvider": "決済サービスでの支払いの確認を待っています。",
     "markShipped": "発送済みにする",
     "markCompleted": "完了にする",
-    "cancel": "注文を取り消す"
+    "cancel": "注文を取り消す",
+    "refund": "返金",
+    "refundTitle": "注文 {{number}} の返金",
+    "refundAmount": "返金額",
+    "refundAmountPlaceholder": "未入力で全額",
+    "refundReason": "返金理由",
+    "refundReasonPlaceholder": "お客様都合、破損、キャンセルなど（任意）",
+    "refundRestock": "注文商品を在庫に戻す",
+    "refundHistory": "返金履歴",
+    "refundedAmount": "返金済み合計",
+    "maxRefundable": "返金可能残額: {{amount}}",
+    "onlineRefundNotice": "Stripe 経由のオンライン返金が行われます。決済手数料や引き落とし口座への返金反映は決済プロバイダの処理に準じます。",
+    "manualRefundNotice": "手動決済（銀行振込・代金引換等）の返金記録です。外部ゲートウェイへの自動返金は行われません。必要に応じて実際のお客様への返金を行ってください。",
+    "refundSuccess": "返金処理が完了しました",
+    "executeRefund": "返金を実行する",
+    "fullRefund": "全額返金",
+    "invalidRefundAmount": "正しい返金額を入力してください（最大: {{amount}}）",
+    "cannotRefund": "これ以上返金できる残額がありません"
   },
   "paste": {
     "title": "Markdown を貼り付けて取り込む",
@@ -579,7 +601,21 @@
     "save": "商品を保存",
     "create": "商品を作成",
     "deleted": "「{{title}}」を削除しました",
-    "priceAndStock": "価格と在庫（{{currency}}）"
+    "priceAndStock": "価格と在庫（{{currency}}）",
+    "variants": {
+      "title": "商品バリエーション",
+      "add": "バリエーションを追加",
+      "edit": "バリエーションを編集",
+      "name": "バリエーション名",
+      "priceOverride": "個別価格",
+      "inheritsBase": "基本価格と同じ",
+      "empty": "バリエーションはまだ登録されていません（サイズや色ごとに在庫や価格を設定できます）。",
+      "confirmDelete": "バリエーション「{{title}}」を削除しますか？",
+      "deleteFailed": "バリエーションの削除に失敗しました",
+      "saved": "バリエーションを保存しました",
+      "createFirstHint": "商品の保存後にバリエーション（サイズ・色・SKU・在庫・個別価格）を追加できます。",
+      "attributesHint": "属性（カンマ区切りの キー:値。例: color:Red, size:M）"
+    }
   },
   "profile": {
     "title": "プロフィール",

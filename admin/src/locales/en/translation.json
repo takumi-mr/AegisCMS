@@ -12,6 +12,7 @@
     "ordersFailed": "Failed to fetch orders",
     "orderFailed": "Failed to fetch the order",
     "updateOrderFailed": "Failed to update the order",
+    "refundOrderFailed": "Failed to process refund",
     "auditFailed": "Failed to fetch audit logs",
     "mediaFailed": "Failed to fetch media",
     "previewFailed": "Failed to render the preview",
@@ -44,7 +45,10 @@
     "setPluginOrderFailed": "Failed to change the plugin order",
     "resetPluginOrderFailed": "Failed to restore the plugins of the configuration file",
     "siteSettingsFailed": "Failed to load the site settings",
-    "updateSiteSettingsFailed": "Failed to save the site settings"
+    "updateSiteSettingsFailed": "Failed to save the site settings",
+    "variantsFailed": "Could not load product variants",
+    "saveVariantFailed": "Could not save product variant",
+    "deleteVariantFailed": "Could not delete product variant"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -427,7 +431,8 @@
       "paid": "Paid",
       "shipped": "Shipped",
       "completed": "Completed",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "refunded": "Refunded"
     },
     "shopDisabled": "The shop is not enabled. Set [commerce].enabled = true in the server configuration.",
     "loadFailed": "Failed to load orders",
@@ -469,7 +474,24 @@
     "waitingProvider": "Waiting for the payment provider to confirm the payment.",
     "markShipped": "Mark as shipped",
     "markCompleted": "Mark as completed",
-    "cancel": "Cancel order"
+    "cancel": "Cancel order",
+    "refund": "Refund",
+    "refundTitle": "Refund order {{number}}",
+    "refundAmount": "Refund amount",
+    "refundAmountPlaceholder": "Leave blank for full amount",
+    "refundReason": "Reason",
+    "refundReasonPlaceholder": "Customer request, damaged, cancelled, etc. (optional)",
+    "refundRestock": "Restock order items",
+    "refundHistory": "Refund history",
+    "refundedAmount": "Total refunded",
+    "maxRefundable": "Remaining refundable: {{amount}}",
+    "onlineRefundNotice": "An online refund will be issued via Stripe. Processing times depend on the payment provider.",
+    "manualRefundNotice": "This records a refund for a manual payment (e.g. bank transfer, COD). No funds are automatically transferred.",
+    "refundSuccess": "Refund processed successfully",
+    "executeRefund": "Process refund",
+    "fullRefund": "Full refund",
+    "invalidRefundAmount": "Please enter a valid refund amount (max: {{amount}})",
+    "cannotRefund": "No refundable amount remaining"
   },
   "paste": {
     "title": "Paste & Import Markdown",
@@ -590,7 +612,21 @@
     "save": "Save product",
     "create": "Create product",
     "deleted": "Deleted \"{{title}}\"",
-    "priceAndStock": "Price & stock ({{currency}})"
+    "priceAndStock": "Price & stock ({{currency}})",
+    "variants": {
+      "title": "Product Variants",
+      "add": "Add Variant",
+      "edit": "Edit Variant",
+      "name": "Variant Name",
+      "priceOverride": "Price Override",
+      "inheritsBase": "Inherits base price",
+      "empty": "No variants yet. You can configure variants for different sizes, colors, and per-variant stock.",
+      "confirmDelete": "Delete variant \"{{title}}\"?",
+      "deleteFailed": "Could not delete variant",
+      "saved": "Variant saved",
+      "createFirstHint": "Save the product first to configure variants (sizes, colors, SKUs, stock, and pricing overrides).",
+      "attributesHint": "Attributes (comma-separated key:value, e.g. color:Red, size:M)"
+    }
   },
   "profile": {
     "title": "My profile",

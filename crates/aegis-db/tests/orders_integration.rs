@@ -121,16 +121,21 @@ where
         created_at: "2026-10-25T00:05:00Z".to_string(),
         updated_at: "2026-10-25T00:05:00Z".to_string(),
         note: None,
+        transaction_id: None,
+        refunded_amount: 0,
+        refunds_json: "[]".to_string(),
     };
     let reservations = vec![
         StockReservation {
             table: "content_product".to_string(),
             product_id: "p-coffee".to_string(),
+            variant_id: None,
             quantity: 2,
         },
         StockReservation {
             table: "content_product".to_string(),
             product_id: "p-infinite".to_string(),
+            variant_id: None,
             quantity: 1,
         },
     ];
@@ -166,6 +171,9 @@ where
         created_at: "2026-10-25T00:06:00Z".to_string(),
         updated_at: "2026-10-25T00:06:00Z".to_string(),
         note: None,
+        transaction_id: None,
+        refunded_amount: 0,
+        refunds_json: "[]".to_string(),
     };
     let res_fail = adapter
         .create_order(
@@ -173,6 +181,7 @@ where
             &[StockReservation {
                 table: "content_product".to_string(),
                 product_id: "p-coffee".to_string(),
+                variant_id: None,
                 quantity: 5,
             }],
         )
@@ -180,7 +189,8 @@ where
     assert_eq!(
         res_fail,
         Err(OutOfStock {
-            product_id: "p-coffee".to_string()
+            product_id: "p-coffee".to_string(),
+            variant_id: None,
         })
     );
     // 在庫が減っていないこと（3のまま）
@@ -200,11 +210,13 @@ where
                     table: "content_product".to_string(),
                     product_id: "p-coffee".to_string(),
                     quantity: 1,
+                    variant_id: None,
                 },
                 StockReservation {
                     table: "content_product".to_string(),
                     product_id: "p-rare".to_string(),
                     quantity: 5,
+                    variant_id: None,
                 },
             ],
         )
@@ -212,7 +224,8 @@ where
     assert_eq!(
         res_fail_multi,
         Err(OutOfStock {
-            product_id: "p-rare".to_string()
+            product_id: "p-rare".to_string(),
+            variant_id: None,
         })
     );
     let coffee_rb = adapter.get_content(&schema, "p-coffee").await?.unwrap();
@@ -290,6 +303,7 @@ where
         restock: vec![StockReservation {
             table: "content_product".to_string(),
             product_id: "p-coffee".to_string(),
+            variant_id: None,
             quantity: 2,
         }],
     };
@@ -366,6 +380,9 @@ where
         created_at: "2026-10-24T00:00:00Z".to_string(),
         updated_at: "2026-10-24T00:00:00Z".to_string(),
         note: None,
+        transaction_id: None,
+        refunded_amount: 0,
+        refunds_json: "[]".to_string(),
     };
     adapter.create_order(&expired_order, &[]).await?.unwrap();
 
@@ -374,6 +391,215 @@ where
         .await?;
     assert_eq!(expired_list.len(), 1);
     assert_eq!(expired_list[0].id, "ord-expired");
+
+    // 12. set_order_transaction_id & record_order_refund
+    adapter
+        .set_order_transaction_id("ord-001", "pi_test_12345")
+        .await?;
+    let ord_with_tx = adapter.get_order("ord-001").await?.unwrap();
+    assert_eq!(
+        ord_with_tx.transaction_id,
+        Some("pi_test_12345".to_string())
+    );
+
+    // 返金（2400円のうち1000円部分返金、在庫は戻さない）
+    let refund1 = aegis_db::OrderRefundUpdate {
+        id: "ord-001".to_string(),
+        refunded_amount: 1000,
+        refunds_json: json!([
+            {"id": "ref-1", "amount": 1000, "currency": "jpy", "refund_ref": "re_123", "created_at": "2026-10-25T01:00:00Z"}
+        ]).to_string(),
+        new_status: None, // 部分返金のためステータス維持
+        updated_at: "2026-10-25T01:00:00Z".to_string(),
+        note: Some("Partial refund".to_string()),
+        restock: vec![],
+    };
+    let ok = adapter.record_order_refund(&refund1).await?;
+    assert!(ok);
+    let ord_after_ref1 = adapter.get_order("ord-001").await?.unwrap();
+    assert_eq!(ord_after_ref1.refunded_amount, 1000);
+    assert!(ord_after_ref1.refunds_json.contains("re_123"));
+
+    // 全額返金（残り3400円返金、全額返金ステータスへ、p-coffee の在庫を2個戻す）
+    let refund2 = aegis_db::OrderRefundUpdate {
+        id: "ord-001".to_string(),
+        refunded_amount: 4400,
+        refunds_json: json!([
+            {"id": "ref-1", "amount": 1000, "currency": "jpy", "refund_ref": "re_123", "created_at": "2026-10-25T01:00:00Z"},
+            {"id": "ref-2", "amount": 3400, "currency": "jpy", "refund_ref": "re_456", "created_at": "2026-10-25T01:05:00Z"}
+        ]).to_string(),
+        new_status: Some("refunded".to_string()),
+        updated_at: "2026-10-25T01:05:00Z".to_string(),
+        note: None,
+        restock: vec![StockReservation {
+            table: "content_product".to_string(),
+            product_id: "p-coffee".to_string(),
+            variant_id: None,
+            quantity: 2,
+        }],
+    };
+    let ok2 = adapter.record_order_refund(&refund2).await?;
+    assert!(ok2);
+    let ord_after_ref2 = adapter.get_order("ord-001").await?.unwrap();
+    assert_eq!(ord_after_ref2.status, "refunded");
+    assert_eq!(ord_after_ref2.refunded_amount, 4400);
+
+    // 在庫が戻ったか確認（キャンセル時に残3だったが、ここで2個戻るので5個に復旧）
+    let coffee_restocked = adapter.get_content(&schema, "p-coffee").await?.unwrap();
+    assert_eq!(coffee_restocked.custom_fields.get("stock"), Some(&json!(5)));
+
+    // 13. ProductVariantStorage CRUD and Variant Stock Reservation
+    let var1 = aegis_db::ProductVariantRecord {
+        id: "var-mug-red-s".to_string(),
+        product_id: "p-coffee".to_string(),
+        sku: Some("MUG-RED-S".to_string()),
+        title: "Red / Small".to_string(),
+        price_override: Some(1500),
+        stock: Some(4),
+        attributes_json: json!({"color": "Red", "size": "S"}).to_string(),
+        position: 0,
+        created_at: "2026-10-25T01:10:00Z".to_string(),
+        updated_at: "2026-10-25T01:10:00Z".to_string(),
+    };
+    let var2 = aegis_db::ProductVariantRecord {
+        id: "var-mug-red-l".to_string(),
+        product_id: "p-coffee".to_string(),
+        sku: Some("MUG-RED-L".to_string()),
+        title: "Red / Large".to_string(),
+        price_override: Some(1800),
+        stock: Some(2),
+        attributes_json: json!({"color": "Red", "size": "L"}).to_string(),
+        position: 1,
+        created_at: "2026-10-25T01:10:00Z".to_string(),
+        updated_at: "2026-10-25T01:10:00Z".to_string(),
+    };
+
+    adapter.upsert_product_variant(&var1).await?;
+    adapter.upsert_product_variant(&var2).await?;
+
+    let variants = adapter.list_product_variants("p-coffee").await?;
+    assert_eq!(variants.len(), 2);
+    assert_eq!(variants[0].id, "var-mug-red-s");
+    assert_eq!(variants[1].id, "var-mug-red-l");
+
+    let by_sku = adapter
+        .get_product_variant_by_sku("MUG-RED-S")
+        .await?
+        .unwrap();
+    assert_eq!(by_sku.title, "Red / Small");
+
+    // バリエーションの在庫引き当て
+    let order_var = OrderRecord {
+        id: "ord-var-001".to_string(),
+        number: "261025-VAR001".to_string(),
+        status: "pending_payment".to_string(),
+        currency: "jpy".to_string(),
+        subtotal: 3000,
+        total: 3000,
+        lines_json: json!([
+            {
+                "product_id": "p-coffee",
+                "variant_id": "var-mug-red-s",
+                "variant_title": "Red / Small",
+                "slug": "coffee",
+                "title": "Special Coffee - Red / Small",
+                "sku": "MUG-RED-S",
+                "unit_price": 1500,
+                "quantity": 2,
+                "line_total": 3000
+            }
+        ])
+        .to_string(),
+        adjustments_json: "[]".to_string(),
+        customer_email: "var@example.com".to_string(),
+        customer_name: "Variant Buyer".to_string(),
+        shipping_json: Some("{}".to_string()),
+        coupon_code: None,
+        metadata_json: "{}".to_string(),
+        payment_provider: "manual".to_string(),
+        payment_ref: None,
+        access_token_hash: "hash".to_string(),
+        expires_at: None,
+        paid_at: None,
+        created_at: "2026-10-25T01:20:00Z".to_string(),
+        updated_at: "2026-10-25T01:20:00Z".to_string(),
+        note: None,
+        transaction_id: None,
+        refunded_amount: 0,
+        refunds_json: "[]".to_string(),
+    };
+    let var_reservations = vec![StockReservation {
+        table: "content_product".to_string(),
+        product_id: "p-coffee".to_string(),
+        variant_id: Some("var-mug-red-s".to_string()),
+        quantity: 2,
+    }];
+    let res_var = adapter.create_order(&order_var, &var_reservations).await?;
+    assert!(res_var.is_ok());
+
+    // バリエーションの在庫が 4 -> 2 に減算され、親商品 (5) は影響を受けないこと
+    let v1_after = adapter.get_product_variant("var-mug-red-s").await?.unwrap();
+    assert_eq!(v1_after.stock, Some(2));
+    let parent_after = adapter.get_content(&schema, "p-coffee").await?.unwrap();
+    assert_eq!(parent_after.custom_fields.get("stock"), Some(&json!(5)));
+
+    // 在庫不足時の拒否検証（残り 2 個のバリエーションに対して 3 個要求）
+    let order_var_fail = OrderRecord {
+        id: "ord-var-fail".to_string(),
+        ..order_var.clone()
+    };
+    let var_fail_reservations = vec![StockReservation {
+        table: "content_product".to_string(),
+        product_id: "p-coffee".to_string(),
+        variant_id: Some("var-mug-red-s".to_string()),
+        quantity: 3,
+    }];
+    let res_var_fail = adapter
+        .create_order(&order_var_fail, &var_fail_reservations)
+        .await?;
+    assert_eq!(
+        res_var_fail,
+        Err(OutOfStock {
+            product_id: "p-coffee".to_string(),
+            variant_id: Some("var-mug-red-s".to_string()),
+        })
+    );
+    // 在庫が 2 のまま維持されていること
+    let v1_still = adapter.get_product_variant("var-mug-red-s").await?.unwrap();
+    assert_eq!(v1_still.stock, Some(2));
+
+    // バリエーション在庫の返金時復帰検証（2個戻して 4 に復旧）
+    let refund_var = aegis_db::OrderRefundUpdate {
+        id: "ord-var-001".to_string(),
+        refunded_amount: 3000,
+        refunds_json: "[]".to_string(),
+        new_status: Some("refunded".to_string()),
+        updated_at: "2026-10-25T01:25:00Z".to_string(),
+        note: None,
+        restock: vec![StockReservation {
+            table: "content_product".to_string(),
+            product_id: "p-coffee".to_string(),
+            variant_id: Some("var-mug-red-s".to_string()),
+            quantity: 2,
+        }],
+    };
+    adapter.record_order_refund(&refund_var).await?;
+    let v1_restocked = adapter.get_product_variant("var-mug-red-s").await?.unwrap();
+    assert_eq!(v1_restocked.stock, Some(4));
+
+    // バリエーション削除
+    let deleted = adapter.delete_product_variant("var-mug-red-l").await?;
+    assert!(deleted);
+    assert!(adapter
+        .get_product_variant("var-mug-red-l")
+        .await?
+        .is_none());
+
+    let deleted_count = adapter
+        .delete_product_variants_by_product_id("p-coffee")
+        .await?;
+    assert_eq!(deleted_count, 1);
+    assert!(adapter.list_product_variants("p-coffee").await?.is_empty());
 
     Ok(())
 }

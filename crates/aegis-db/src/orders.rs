@@ -34,6 +34,12 @@ pub trait OrderStorage: Send + Sync {
 
     /// Pending orders whose reservation deadline is before `now`
     async fn list_expired_orders(&self, now: &str, limit: u64) -> Result<Vec<OrderRecord>>;
+
+    /// 確定取引ID（Stripe payment_intent、PayPal capture_id など）を保存する
+    async fn set_order_transaction_id(&self, id: &str, transaction_id: &str) -> Result<()>;
+
+    /// 返金（部分・全額）を記録し、ステータス変更・在庫戻しを同一トランザクションで実行する
+    async fn record_order_refund(&self, refund: &OrderRefundUpdate) -> Result<bool>;
 }
 
 /// 注文テーブル名（コンテンツテーブル `content_*` と衝突しないシステムテーブル）
@@ -73,10 +79,16 @@ pub struct OrderRecord {
     pub updated_at: String,
     /// 管理者のメモ（最後の状態変更のもの）
     pub note: Option<String>,
+    /// 確定取引ID（Stripe payment_intent、PayPal capture_id など。返金API呼び出しに使う）
+    pub transaction_id: Option<String>,
+    /// 返金累計額
+    pub refunded_amount: i64,
+    /// `Vec<OrderRefundRecord>` の JSON
+    pub refunds_json: String,
 }
 
 /// INSERT / SELECT で使う注文テーブルのカラム（順序固定）
-pub const ORDER_COLUMNS: [&str; 21] = [
+pub const ORDER_COLUMNS: [&str; 24] = [
     "id",
     "number",
     "status",
@@ -98,13 +110,17 @@ pub const ORDER_COLUMNS: [&str; 21] = [
     "created_at",
     "updated_at",
     "note",
+    "transaction_id",
+    "refunded_amount",
+    "refunds_json",
 ];
 
-/// 注文の作成時に確保する在庫（商品テーブル `table` の `id` の `stock` を `quantity` 減らす）
+/// 注文の作成時に確保する在庫（variant_id があればバリエーションテーブル、無ければ商品テーブル `table` の `id` の `stock` を `quantity` 減らす）
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StockReservation {
     pub table: String,
     pub product_id: String,
+    pub variant_id: Option<String>,
     pub quantity: i64,
 }
 
@@ -112,6 +128,7 @@ pub struct StockReservation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutOfStock {
     pub product_id: String,
+    pub variant_id: Option<String>,
 }
 
 /// 注文の状態の変更（`from_status` のときだけ変える。決済の Webhook の重複・同時の変更に備える）
@@ -126,6 +143,23 @@ pub struct OrderTransition {
     /// `None` なら今のメモのまま
     pub note: Option<String>,
     /// 同じトランザクションで戻す在庫（取り消し時）
+    pub restock: Vec<StockReservation>,
+}
+
+/// 返金時の注文更新（ステータス変更と在庫戻しを含む）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrderRefundUpdate {
+    pub id: String,
+    /// 変更後の累計返金額
+    pub refunded_amount: i64,
+    /// 更新後の返金履歴 JSON (`Vec<OrderRefundRecord>` の JSON)
+    pub refunds_json: String,
+    /// 全額返金などで状態を変える場合（`None` なら今の status のまま）
+    pub new_status: Option<String>,
+    pub updated_at: String,
+    /// メモ
+    pub note: Option<String>,
+    /// 同一トランザクションで戻す在庫（商品行ごとの数量）
     pub restock: Vec<StockReservation>,
 }
 
@@ -156,6 +190,7 @@ pub fn build_order_table(
         ("idx_aegis_orders_created", "created_at"),
         ("idx_aegis_orders_payment_ref", "payment_ref"),
         ("idx_aegis_orders_expires", "status, expires_at"),
+        ("idx_aegis_orders_transaction", "transaction_id"),
     ];
     let inline = if inline_indexes {
         indexes
@@ -187,7 +222,10 @@ pub fn build_order_table(
          paid_at {key}, \
          created_at {key} NOT NULL, \
          updated_at {key} NOT NULL, \
-         note {text}{inline});",
+         note {text}, \
+         transaction_id {key}, \
+         refunded_amount {bigint} NOT NULL DEFAULT 0, \
+         refunds_json {text} NOT NULL{inline});",
         table = ORDER_TABLE,
         key = key,
         text = text,
@@ -307,6 +345,33 @@ pub fn build_order_payment_update(placeholder: impl Fn(usize) -> String) -> Stri
     )
 }
 
+/// 確定取引ID（transaction_id）を保存する。バインド順は transaction_id, updated_at, id
+pub fn build_order_transaction_id_update(placeholder: impl Fn(usize) -> String) -> String {
+    format!(
+        "UPDATE {} SET transaction_id = {}, updated_at = {} WHERE id = {};",
+        ORDER_TABLE,
+        placeholder(1),
+        placeholder(2),
+        placeholder(3)
+    )
+}
+
+/// 返金時の注文更新。バインド順: refunded_amount, refunds_json, status (nullable), note (nullable), updated_at, id
+pub fn build_order_refund_update(placeholder: impl Fn(usize) -> String) -> String {
+    format!(
+        "UPDATE {} SET refunded_amount = {}, refunds_json = {}, \
+         status = COALESCE({}, status), note = COALESCE({}, note), \
+         updated_at = {} WHERE id = {};",
+        ORDER_TABLE,
+        placeholder(1),
+        placeholder(2),
+        placeholder(3),
+        placeholder(4),
+        placeholder(5),
+        placeholder(6)
+    )
+}
+
 /// 期限切れの支払い待ちの注文。バインドは now
 pub fn build_expired_orders(limit: u64, placeholder: impl Fn(usize) -> String) -> String {
     build_order_select(
@@ -345,6 +410,12 @@ macro_rules! order_row_from_sqlx {
             created_at: row.try_get("created_at").map_err(get)?,
             updated_at: row.try_get("updated_at").map_err(get)?,
             note: row.try_get("note").map_err(get)?,
+            transaction_id: row.try_get("transaction_id").map_err(get)?,
+            refunded_amount: row.try_get("refunded_amount").map_err(get).unwrap_or(0),
+            refunds_json: row
+                .try_get("refunds_json")
+                .map_err(get)
+                .unwrap_or_else(|_| "[]".to_string()),
         }
     }};
 }
@@ -376,6 +447,9 @@ macro_rules! bind_order_insert {
             .bind(&o.created_at)
             .bind(&o.updated_at)
             .bind(&o.note)
+            .bind(&o.transaction_id)
+            .bind(o.refunded_amount)
+            .bind(&o.refunds_json)
     }};
 }
 pub(crate) use bind_order_insert;
@@ -395,17 +469,23 @@ macro_rules! impl_order_storage {
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
                 let mut tx = self.pool.begin().await.map_err(db_err)?;
                 for r in reservations {
-                    let result = sqlx::query(&$crate::orders::build_stock_reserve(&r.table, $ph))
-                        .bind(r.quantity)
-                        .bind(&r.product_id)
-                        .bind(r.quantity)
-                        .execute(&mut *tx)
-                        .await
-                        .map_err(db_err)?;
+                    let (target_table, target_id) = match &r.variant_id {
+                        Some(vid) => ($crate::variants::PRODUCT_VARIANT_TABLE, vid.as_str()),
+                        None => (r.table.as_str(), r.product_id.as_str()),
+                    };
+                    let result =
+                        sqlx::query(&$crate::orders::build_stock_reserve(target_table, $ph))
+                            .bind(r.quantity)
+                            .bind(target_id)
+                            .bind(r.quantity)
+                            .execute(&mut *tx)
+                            .await
+                            .map_err(db_err)?;
                     if result.rows_affected() == 0 {
                         tx.rollback().await.map_err(db_err)?;
                         return Ok(Err($crate::OutOfStock {
                             product_id: r.product_id.clone(),
+                            variant_id: r.variant_id.clone(),
                         }));
                     }
                 }
@@ -474,6 +554,58 @@ macro_rules! impl_order_storage {
                 Ok(())
             }
 
+            async fn set_order_transaction_id(
+                &self,
+                id: &str,
+                transaction_id: &str,
+            ) -> aegis_core::Result<()> {
+                sqlx::query(&$crate::orders::build_order_transaction_id_update($ph))
+                    .bind(transaction_id)
+                    .bind(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(|e| aegis_core::AegisError::Database(e.to_string()))?;
+                Ok(())
+            }
+
+            async fn record_order_refund(
+                &self,
+                refund: &$crate::OrderRefundUpdate,
+            ) -> aegis_core::Result<bool> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let mut tx = self.pool.begin().await.map_err(db_err)?;
+                let result = sqlx::query(&$crate::orders::build_order_refund_update($ph))
+                    .bind(refund.refunded_amount)
+                    .bind(&refund.refunds_json)
+                    .bind(&refund.new_status)
+                    .bind(&refund.note)
+                    .bind(&refund.updated_at)
+                    .bind(&refund.id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db_err)?;
+                if result.rows_affected() == 0 {
+                    tx.rollback().await.map_err(db_err)?;
+                    return Ok(false);
+                }
+                for r in &refund.restock {
+                    let (target_table, target_id) = match &r.variant_id {
+                        Some(vid) => ($crate::variants::PRODUCT_VARIANT_TABLE, vid.as_str()),
+                        None => (r.table.as_str(), r.product_id.as_str()),
+                    };
+                    sqlx::query(&$crate::orders::build_stock_release(target_table, $ph))
+                        .bind(r.quantity)
+                        .bind(target_id)
+                        .execute(&mut *tx)
+                        .await
+                        .map_err(db_err)?;
+                }
+                tx.commit().await.map_err(db_err)?;
+                Ok(true)
+            }
+
             async fn transition_order(
                 &self,
                 change: &$crate::OrderTransition,
@@ -496,9 +628,13 @@ macro_rules! impl_order_storage {
                     return Ok(false);
                 }
                 for r in &change.restock {
-                    sqlx::query(&$crate::orders::build_stock_release(&r.table, $ph))
+                    let (target_table, target_id) = match &r.variant_id {
+                        Some(vid) => ($crate::variants::PRODUCT_VARIANT_TABLE, vid.as_str()),
+                        None => (r.table.as_str(), r.product_id.as_str()),
+                    };
+                    sqlx::query(&$crate::orders::build_stock_release(target_table, $ph))
                         .bind(r.quantity)
-                        .bind(&r.product_id)
+                        .bind(target_id)
                         .execute(&mut *tx)
                         .await
                         .map_err(db_err)?;
@@ -546,6 +682,16 @@ mod tests {
              paid_at = COALESCE($3, paid_at), note = COALESCE($4, note) \
              WHERE id = $5 AND status = $6;"
         );
+        assert_eq!(
+            build_order_transaction_id_update(ph),
+            "UPDATE _aegis_orders SET transaction_id = $1, updated_at = $2 WHERE id = $3;"
+        );
+        assert_eq!(
+            build_order_refund_update(ph),
+            "UPDATE _aegis_orders SET refunded_amount = $1, refunds_json = $2, \
+             status = COALESCE($3, status), note = COALESCE($4, note), \
+             updated_at = $5 WHERE id = $6;"
+        );
         let (select, count) = build_order_list(
             &OrderListQuery {
                 status: Some("paid".to_string()),
@@ -562,12 +708,12 @@ mod tests {
             count,
             "SELECT COUNT(*) FROM _aegis_orders WHERE status = $1;"
         );
-        assert!(build_order_insert(ph).contains("$21)"));
+        assert!(build_order_insert(ph).contains("$24)"));
 
         let (mysql, indexes) = build_order_table("TEXT", "VARCHAR(255)", "BIGINT", true);
         assert!(mysql.contains(", INDEX idx_aegis_orders_status (status, created_at)"));
         assert!(indexes.is_empty());
         let (_, indexes) = build_order_table("TEXT", "TEXT", "INTEGER", false);
-        assert_eq!(indexes.len(), 4);
+        assert_eq!(indexes.len(), 5);
     }
 }

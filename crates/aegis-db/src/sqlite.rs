@@ -117,6 +117,7 @@ impl SqliteAdapter {
 }
 
 super::orders::impl_order_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::variants::impl_product_variant_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 
 #[async_trait]
 impl DatabaseAdapter for SqliteAdapter {
@@ -241,6 +242,59 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in order_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 以前のバージョンで作成した注文テーブルに後から追加したカラムを足す
+        let order_columns: HashSet<String> = sqlx::query(&format!(
+            "PRAGMA table_info({});",
+            super::orders::ORDER_TABLE
+        ))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?
+        .into_iter()
+        .map(|r| r.get::<String, _>("name"))
+        .collect();
+        if !order_columns.contains("transaction_id") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN transaction_id TEXT;",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        if !order_columns.contains("refunded_amount") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN refunded_amount INTEGER NOT NULL DEFAULT 0;",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        if !order_columns.contains("refunds_json") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN refunds_json TEXT NOT NULL DEFAULT '[]';",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 商品バリエーション
+        let (variant_table, variant_indexes) =
+            super::variants::build_product_variant_table("TEXT", "TEXT", "INTEGER", false);
+        sqlx::query(&variant_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in variant_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

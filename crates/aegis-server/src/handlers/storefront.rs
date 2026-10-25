@@ -27,12 +27,18 @@ fn shop_vars(state: &AppState) -> HashMap<String, String> {
         .normalized_base_path()
         .unwrap_or_default();
     let commerce = &state.config.commerce;
+    let supported = commerce.effective_supported_currencies();
+    let supported_json = serde_json::to_string(&supported).unwrap_or_else(|_| "[]".to_string());
+    let rates_json =
+        serde_json::to_string(&commerce.currency_rates).unwrap_or_else(|_| "{}".to_string());
     HashMap::from([
         (
             "shop_enabled".to_string(),
             state.commerce.is_some().to_string(),
         ),
         ("currency".to_string(), commerce.currency.clone()),
+        ("supported_currencies".to_string(), supported_json),
+        ("currency_rates".to_string(), rates_json),
         (
             "products_url".to_string(),
             format!("{}/products", base_path),
@@ -201,6 +207,15 @@ pub async fn render_product(
             .map(|(name, rel)| (name.clone(), render::relation_summary(rel)))
             .collect()
     };
+    let variants = state
+        .db
+        .list_product_variants(&record.id)
+        .await
+        .unwrap_or_default();
+    let variants_json = serde_json::to_string(&variants).unwrap_or_else(|_| "[]".to_string());
+    let mut theme_vars = HashMap::new();
+    theme_vars.insert("variants_json".to_string(), variants_json);
+
     let ctx = PageRenderContext {
         template: "product.html".to_string(),
         content_type: schema.content_type.clone(),
@@ -212,9 +227,14 @@ pub async fn render_product(
         fields: {
             let mut fields = record.custom_fields;
             fields.insert("id".to_string(), serde_json::json!(record.id));
+            fields.insert(
+                "variants".to_string(),
+                serde_json::to_value(&variants).unwrap_or_default(),
+            );
             fields
         },
         relations,
+        theme_vars,
         ..Default::default()
     };
     render_shop_page(&state, ctx).await

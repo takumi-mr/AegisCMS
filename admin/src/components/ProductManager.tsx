@@ -3,7 +3,13 @@ import { ExternalLink, Images, Package, Pencil, Plus, RefreshCw, Trash2 } from '
 import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi, SERVER_URL, serverAssetUrl } from '../api/client';
 import i18n from '../i18n';
-import type { ContentItem, ShopConfig, StorageMeta } from '../types';
+import type {
+  ContentItem,
+  ProductVariant,
+  ShopConfig,
+  StorageMeta,
+  UpsertVariantPayload,
+} from '../types';
 import { isLabeledStatus } from '../utils/contentStatus';
 import { cx } from '../utils/cx';
 import { toDateTimeLocal } from '../utils/format';
@@ -271,6 +277,135 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
   );
 };
 
+interface VariantEditorModalProps {
+  variant: ProductVariant | null;
+  currency: string;
+  onSave: (payload: UpsertVariantPayload) => Promise<void>;
+  onClose: () => void;
+}
+
+const VariantEditorModal: React.FC<VariantEditorModalProps> = ({
+  variant,
+  currency,
+  onSave,
+  onClose,
+}) => {
+  const { t } = useTranslation();
+  const [title, setTitle] = useState(variant?.title ?? '');
+  const [sku, setSku] = useState(variant?.sku ?? '');
+  const [priceOverride, setPriceOverride] = useState(
+    variant?.price_override !== null && variant?.price_override !== undefined
+      ? String(variant.price_override)
+      : ''
+  );
+  const [stock, setStock] = useState(
+    variant?.stock !== null && variant?.stock !== undefined ? String(variant.stock) : ''
+  );
+  const [attributesStr, setAttributesStr] = useState(() => {
+    if (!variant?.attributes) return '';
+    return Object.entries(variant.attributes)
+      .map(([k, v]) => `${k}:${v}`)
+      .join(', ');
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      setError(t('products.errors.required'));
+      return;
+    }
+    const attributes: Record<string, string> = {};
+    if (attributesStr.trim()) {
+      for (const part of attributesStr.split(',')) {
+        const [k, v] = part.split(':').map((s) => s.trim());
+        if (k && v) {
+          attributes[k] = v;
+        }
+      }
+    }
+    const priceVal = priceOverride.trim() ? Number(priceOverride) : null;
+    const stockVal = stock.trim() ? Number(stock) : null;
+
+    setSaving(true);
+    try {
+      await onSave({
+        id: variant?.id,
+        title: title.trim(),
+        sku: sku.trim() || null,
+        price_override: priceVal,
+        stock: stockVal,
+        attributes,
+      });
+      onClose();
+    } catch (err) {
+      setError(messageOf(err, t('products.errors.saveFailed')));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={variant ? t('products.variants.edit') : t('products.variants.add')}
+      icon={<Package size={18} />}
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit} className={styles.form}>
+        <Field label={t('products.variants.name')}>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Red / Small"
+            required
+            autoFocus
+          />
+        </Field>
+        <FieldRow>
+          <Field label={t('products.fields.sku')}>
+            <input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="TSH-RED-S" />
+          </Field>
+          <Field label={t('products.variants.priceOverride')}>
+            <input
+              inputMode="numeric"
+              value={priceOverride}
+              onChange={(e) => setPriceOverride(e.target.value)}
+              placeholder={`${t('products.variants.inheritsBase')} (${currency.toUpperCase()})`}
+            />
+          </Field>
+          <Field label={t('products.fields.stock')}>
+            <input
+              inputMode="numeric"
+              value={stock}
+              onChange={(e) => setStock(e.target.value)}
+              placeholder={t('products.placeholders.unlimited')}
+            />
+          </Field>
+        </FieldRow>
+        <Field label={t('products.variants.attributesHint')}>
+          <input
+            value={attributesStr}
+            onChange={(e) => setAttributesStr(e.target.value)}
+            placeholder="color: Red, size: S"
+          />
+        </Field>
+
+        {error && <span className={styles.formError}>{error}</span>}
+        <div className={styles.formActions}>
+          <div />
+          <div>
+            <Button onClick={onClose}>{t('common.cancel')}</Button>
+            <Button type="submit" variant="primary" disabled={saving}>
+              <span>{saving ? t('common.saving') : t('common.save')}</span>
+            </Button>
+          </div>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
 interface ProductEditorProps {
   /** null for a new product */
   product: ContentItem | null;
@@ -324,6 +459,45 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
   const [isLibraryOpen, setIsLibraryOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [loadingVariants, setLoadingVariants] = useState<boolean>(Boolean(product));
+  const [editingVariant, setEditingVariant] = useState<ProductVariant | null | undefined>(
+    undefined
+  );
+
+  useEffect(() => {
+    if (!product) return;
+    let cancelled = false;
+    aegisApi
+      .listVariants(productType, product.id)
+      .then((items) => {
+        if (!cancelled) {
+          setVariants(items);
+          setLoadingVariants(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoadingVariants(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [product, productType]);
+
+  const handleSaveVariant = async (payload: UpsertVariantPayload) => {
+    if (!product) return;
+    const saved = await aegisApi.upsertVariant(productType, product.id, payload);
+    setVariants((prev) => {
+      const idx = prev.findIndex((v) => v.id === saved.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = saved;
+        return copy;
+      }
+      return [...prev, saved];
+    });
+  };
+
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -595,6 +769,98 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
             </Field>
           </FieldRow>
 
+          <div
+            className={styles.formSection}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <span>{t('products.variants.title')}</span>
+            {product && (
+              <Button type="button" variant="tool" onClick={() => setEditingVariant(null)}>
+                <Plus size={14} />
+                <span>{t('products.variants.add')}</span>
+              </Button>
+            )}
+          </div>
+          {!product ? (
+            <p className={styles.hint} style={{ margin: '8px 0 16px' }}>
+              {t('products.variants.createFirstHint')}
+            </p>
+          ) : (
+            <div style={{ marginBottom: 16 }}>
+              {loadingVariants ? (
+                <p className={styles.hint}>{t('common.loading')}</p>
+              ) : variants.length === 0 ? (
+                <p className={styles.hint}>{t('products.variants.empty')}</p>
+              ) : (
+                <div className={styles.tableWrap} style={{ margin: '8px 0' }}>
+                  <table className={styles.table} style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th>{t('products.variants.name')}</th>
+                        <th>{t('products.fields.sku')}</th>
+                        <th>{t('products.variants.priceOverride')}</th>
+                        <th>{t('products.fields.stock')}</th>
+                        <th style={{ width: 80 }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {variants.map((v) => (
+                        <tr key={v.id}>
+                          <td>
+                            <strong>{v.title}</strong>
+                          </td>
+                          <td>{v.sku || '-'}</td>
+                          <td>
+                            {v.price_override !== null
+                              ? formatMoney(v.price_override, currency)
+                              : t('products.variants.inheritsBase')}
+                          </td>
+                          <td>
+                            {v.stock !== null ? v.stock : t('products.placeholders.unlimited')}
+                          </td>
+                          <td>
+                            <div className={styles.rowActions}>
+                              <Button
+                                type="button"
+                                variant="icon"
+                                title={t('common.edit')}
+                                onClick={() => setEditingVariant(v)}
+                              >
+                                <Pencil size={14} />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="icon"
+                                danger
+                                title={t('common.delete')}
+                                onClick={async () => {
+                                  if (
+                                    !window.confirm(
+                                      t('products.variants.confirmDelete', { title: v.title })
+                                    )
+                                  )
+                                    return;
+                                  try {
+                                    await aegisApi.deleteVariant(productType, product.id, v.id);
+                                    setVariants((prev) => prev.filter((item) => item.id !== v.id));
+                                  } catch (err) {
+                                    alert(messageOf(err, t('products.variants.deleteFailed')));
+                                  }
+                                }}
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {error && <span className={styles.formError}>{error}</span>}
           <div className={styles.formActions}>
             <div>
@@ -627,6 +893,14 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
             setIsLibraryOpen(false);
           }}
           onClose={() => setIsLibraryOpen(false)}
+        />
+      )}
+      {editingVariant !== undefined && (
+        <VariantEditorModal
+          variant={editingVariant}
+          currency={currency}
+          onSave={handleSaveVariant}
+          onClose={() => setEditingVariant(undefined)}
         />
       )}
     </>
