@@ -6,7 +6,7 @@ pub mod wasm;
 
 pub use config::{PluginsConfig, RuntimeConfig};
 pub use guard::CapabilityGuard;
-pub use plugin::{AegisPlugin, PluginSupervisor};
+pub use plugin::{AegisPlugin, CommentCheck, PluginSupervisor};
 pub use services::{HostServices, HttpRequest, HttpResponse, LocalHostServices, PluginServices};
 pub use wasm::{
     InstalledPlugin, InstancePoolConfig, PluginHostState, PluginInfo, WasmEngine,
@@ -382,6 +382,7 @@ mod tests {
             extra_head: "".to_string(),
             theme_vars: HashMap::new(),
             pagination: None,
+            comments: None,
         };
 
         let result = instance.on_render_page(ctx).await;

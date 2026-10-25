@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use crate::config::AegisConfig;
 use aegis_db::DatabaseAdapter;
 use aegis_theme::ThemeConfig;
 use serde::Serialize;
@@ -79,6 +80,21 @@ impl SiteInfo {
             })
             .unwrap_or_default()
     }
+}
+
+/// 公開サイトでのコンテンツの URL（通知の本文用。`[commerce].public_url` が無い、公開ページの無い種類なら空）。
+/// `page` / `article` は `/{slug}`、商品（`[commerce].product_type`）は `/products/{slug}`
+pub fn content_url(config: &AegisConfig, content_type: &str, slug: &str) -> String {
+    let site = config.commerce.public_url.trim().trim_end_matches('/');
+    let path = match content_type {
+        "page" | "article" => format!("/{}", slug),
+        t if t == config.commerce.product_type => format!("/products/{}", slug),
+        _ => return String::new(),
+    };
+    if site.is_empty() {
+        return String::new();
+    }
+    format!("{}{}", site, path)
 }
 
 /// サイト名の検査（前後の空白は除いてから渡す）

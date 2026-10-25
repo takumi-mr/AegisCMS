@@ -50,7 +50,13 @@
     "updateSeoSettingsFailed": "Failed to save SEO settings",
     "variantsFailed": "Could not load product variants",
     "saveVariantFailed": "Could not save product variant",
-    "deleteVariantFailed": "Could not delete product variant"
+    "deleteVariantFailed": "Could not delete product variant",
+    "commentsFailed": "Failed to load comments",
+    "moderateCommentFailed": "Failed to update the comments",
+    "deleteCommentFailed": "Failed to delete the comment",
+    "replyCommentFailed": "Failed to post the reply",
+    "commentSettingsFailed": "Failed to load the comment settings",
+    "updateCommentSettingsFailed": "Failed to save the comment settings"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -257,6 +263,7 @@
       "schedule": "Calendar",
       "products": "Products",
       "orders": "Orders",
+      "comments": "Comments",
       "settings": "Settings"
     },
     "gateway": "Core Gateway: {{state}}",
@@ -494,6 +501,75 @@
     "fullRefund": "Full refund",
     "invalidRefundAmount": "Please enter a valid refund amount (max: {{amount}})",
     "cannotRefund": "No refundable amount remaining"
+  },
+  "comments": {
+    "title": "Comments",
+    "disabled": "Comments are not enabled. Set [comments].enabled = true in the server configuration.",
+    "loadFailed": "Failed to load comments",
+    "statusFilter": "Filter by status",
+    "all": "All",
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "spam": "Spam",
+      "trash": "Trash"
+    },
+    "columns": {
+      "author": "Author",
+      "comment": "Comment",
+      "content": "On",
+      "status": "Status"
+    },
+    "staff": "Staff",
+    "inReplyTo": "in reply to {{name}}",
+    "contentGone": "(deleted content)",
+    "empty": "No comments yet.",
+    "emptyStatus": "No comments in “{{status}}”.",
+    "selectAll": "Select all comments on this page",
+    "selectOne": "Select the comment by {{name}}",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "bulkActions": "Actions for the selected comments",
+    "actions": {
+      "approved": "Approve",
+      "pending": "Unapprove",
+      "spam": "Spam",
+      "trash": "Trash",
+      "delete": "Delete permanently",
+      "reply": "Reply"
+    },
+    "done": {
+      "approved_one": "Approved {{count}} comment",
+      "approved_other": "Approved {{count}} comments",
+      "pending_one": "Moved {{count}} comment back to pending",
+      "pending_other": "Moved {{count}} comments back to pending",
+      "spam_one": "Marked {{count}} comment as spam",
+      "spam_other": "Marked {{count}} comments as spam",
+      "trash_one": "Moved {{count}} comment to the trash",
+      "trash_other": "Moved {{count}} comments to the trash",
+      "delete_one": "Deleted {{count}} comment",
+      "delete_other": "Deleted {{count}} comments"
+    },
+    "confirmDelete_one": "Delete {{count}} comment permanently? This cannot be undone.",
+    "confirmDelete_other": "Delete {{count}} comments permanently? This cannot be undone.",
+    "newer": "Newer",
+    "older": "Older",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "replyTitle": "Reply to {{name}}",
+    "replyLabel": "Your reply",
+    "replyPlaceholder": "Your reply is published right away under your display name.",
+    "replyApproves": "This comment is pending. Replying approves it too.",
+    "replied": "Reply published",
+    "settings": {
+      "title": "Moderation",
+      "requireApproval": "Hold new comments for approval before they are published",
+      "autoApproveKnown": "Publish right away when the author (same name and email) already has an approved comment",
+      "default": "Configuration file: {{value}}",
+      "on": "on",
+      "off": "off",
+      "reset": "Use the configuration file's values",
+      "saved": "Moderation settings saved"
+    }
   },
   "paste": {
     "title": "Paste & Import Markdown",

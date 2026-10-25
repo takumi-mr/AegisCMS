@@ -65,7 +65,11 @@ export type AuditAction =
   | 'plugin.enable'
   | 'plugin.disable'
   | 'plugin.reorder'
-  | 'plugin.reset';
+  | 'plugin.reset'
+  | 'comment.create'
+  | 'comment.moderate'
+  | 'comment.delete'
+  | 'comment.settings_update';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 
@@ -545,3 +549,56 @@ export interface UpsertVariantPayload {
   attributes?: Record<string, string>;
   position?: number;
 }
+
+/** Moderation status of a reader's comment */
+export type CommentStatus = 'pending' | 'approved' | 'spam' | 'trash';
+
+/** A comment as Admin Studio sees it (`GET /api/v1/comments`) */
+export interface AdminComment {
+  id: string;
+  content_type: string;
+  content_id: string;
+  /** The content the comment is on (`null` once that content is deleted) */
+  content: { title: string; slug: string; url: string } | null;
+  parent_id: string | null;
+  /** Name of the person this comment replies to */
+  parent_author: string | null;
+  author_name: string;
+  author_email: string;
+  /** Username when an Admin Studio user wrote it (a staff reply) */
+  author_user_id: string | null;
+  body: string;
+  status: CommentStatus;
+  ip: string | null;
+  user_agent: string | null;
+  notify_replies: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommentPage {
+  comments: AdminComment[];
+  total: number;
+  /** Comments per status, over all comments */
+  counts: Record<CommentStatus, number>;
+}
+
+export interface CommentPolicy {
+  /** Comments wait for approval before they are published */
+  require_approval: boolean;
+  /** While approval is on, people with an approved comment (same name and email) skip the wait */
+  auto_approve_known: boolean;
+}
+
+/** `GET` / `PUT /api/v1/comments/settings` */
+export interface CommentSettings {
+  /** The values in effect */
+  policy: CommentPolicy;
+  /** Values changed from Admin Studio (`null`: the configuration file's value) */
+  overrides: { require_approval: boolean | null; auto_approve_known: boolean | null };
+  /** `[comments.moderation]` in the configuration file */
+  defaults: CommentPolicy;
+}
+
+/** Bulk action on comments: a new status, or `delete` (permanently) */
+export type CommentBulkAction = CommentStatus | 'delete';

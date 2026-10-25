@@ -3,8 +3,9 @@ use wasmtime::{Instance, InstancePre, Module, Store, TypedFunc};
 
 use aegis_ast::BlockNode;
 use aegis_core::{
-    AegisError, Delivered, NotificationMessage, OrderContext, OrderStatusChange, PageRenderContext,
-    PluginManifest, PostContext, PublishedContent, Result, SendError, UserAuthContext,
+    AegisError, CommentSubmission, CommentVerdict, Delivered, NotificationMessage, OrderContext,
+    OrderStatusChange, PageRenderContext, PluginManifest, PostContext, PublishedContent, Result,
+    SendError, UserAuthContext,
 };
 
 use super::engine::WasmEngine;
@@ -326,6 +327,16 @@ impl AegisPlugin for WasmPluginInstance {
         Ok(())
     }
 
+    async fn check_comment(&self, comment: CommentSubmission) -> Result<CommentVerdict> {
+        match self
+            .call_hook("check-comment", "check_comment", &to_json(&comment)?)
+            .await?
+        {
+            Some(out) => parse_verdict_output(&self.manifest.name, &out),
+            None => Ok(CommentVerdict::Allow),
+        }
+    }
+
     async fn send_notification(
         &self,
         message: NotificationMessage,
@@ -358,6 +369,34 @@ impl AegisPlugin for WasmPluginInstance {
             None => Ok(ctx),
         }
     }
+}
+
+/// `check_comment` の返り値: `{"verdict": "allow" | "hold" | "spam", "reason": ...}`。
+/// 何も無い・`verdict` の無いオブジェクトは `allow`、`{"error": "..."}` は投稿を断る
+fn parse_verdict_output(plugin: &str, out: &[u8]) -> Result<CommentVerdict> {
+    let invalid = |e: String| {
+        AegisError::Serialization(format!(
+            "Invalid CommentVerdict returned by {}: {}",
+            plugin, e
+        ))
+    };
+    let value: serde_json::Value =
+        serde_json::from_slice(out).map_err(|e| invalid(e.to_string()))?;
+    let serde_json::Value::Object(body) = &value else {
+        return Err(invalid("expected a JSON object".to_string()));
+    };
+    if let Some(error) = body.get("error") {
+        return Err(AegisError::PluginRejected(
+            error
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| error.to_string()),
+        ));
+    }
+    if !body.contains_key("verdict") {
+        return Ok(CommentVerdict::Allow);
+    }
+    serde_json::from_value(value).map_err(|e| invalid(e.to_string()))
 }
 
 /// `send_notification` の返り値: 何も無い（0）なら送信済み、`{"skipped": true}` なら扱わない通知、
@@ -396,6 +435,26 @@ fn parse_delivery_output(
 #[cfg(test)]
 mod delivery_output_tests {
     use super::*;
+
+    #[test]
+    fn parses_the_check_comment_result() {
+        assert_eq!(
+            parse_verdict_output("p", b"{}").unwrap(),
+            CommentVerdict::Allow
+        );
+        assert_eq!(
+            parse_verdict_output("p", br#"{"verdict":"spam","reason":"listed"}"#).unwrap(),
+            CommentVerdict::Spam {
+                reason: Some("listed".to_string())
+            }
+        );
+        assert!(matches!(
+            parse_verdict_output("p", br#"{"error":"No links, please"}"#),
+            Err(AegisError::PluginRejected(m)) if m == "No links, please"
+        ));
+        assert!(parse_verdict_output("p", br#"{"verdict":"maybe"}"#).is_err());
+        assert!(parse_verdict_output("p", b"[]").is_err());
+    }
 
     #[test]
     fn parses_the_send_notification_result() {

@@ -367,6 +367,46 @@ impl PublishedContent {
     }
 }
 
+/// 公開サイトから投稿されたコメント（`check-comment`。保存する前）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct CommentSubmission {
+    pub content_type: String,
+    pub content_id: String,
+    pub content_title: String,
+    pub content_slug: String,
+    /// 返信先のコメント
+    #[serde(default)]
+    pub parent_id: Option<String>,
+    pub author_name: String,
+    pub author_email: String,
+    /// 本文（プレーンテキスト）
+    pub body: String,
+    #[serde(default)]
+    pub ip: Option<String>,
+    #[serde(default)]
+    pub user_agent: Option<String>,
+    /// ホストの判定（`approved` / `pending`）
+    pub status: String,
+}
+
+/// コメントの審査結果（`check-comment`）。`Allow` はホストの判定のまま、`Hold` は承認待ちに、
+/// `Spam` はスパムにする（ホストの判定より厳しくだけできる）。投稿そのものを断るときは
+/// `Err(PluginError::Rejected(..))` を返す
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "verdict", rename_all = "lowercase")]
+pub enum CommentVerdict {
+    #[default]
+    Allow,
+    Hold {
+        #[serde(default)]
+        reason: Option<String>,
+    },
+    Spam {
+        #[serde(default)]
+        reason: Option<String>,
+    },
+}
+
 /// 通知の宛先（`send-notification`）
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -454,6 +494,15 @@ pub trait Plugin: Default {
     fn send_notification(&mut self, message: NotificationMessage) -> Result<Delivery> {
         let _ = message;
         Ok(Delivery::Skipped)
+    }
+
+    /// コメントの審査フック (`check-comment`)
+    /// 公開サイトからコメントが投稿され、保存する前に呼ばれる。スパム判定サービス（Akismet など）への
+    /// 問い合わせ・独自の NG ワードなどで `Hold`（承認待ち）や `Spam` を返す。
+    /// `Err(PluginError::Rejected(..))` で投稿を断る（メッセージは投稿者に表示される）
+    fn check_comment(&mut self, comment: CommentSubmission) -> Result<CommentVerdict> {
+        let _ = comment;
+        Ok(CommentVerdict::Allow)
     }
 
     /// コンテンツ公開の通知フック (`on-content-published`)

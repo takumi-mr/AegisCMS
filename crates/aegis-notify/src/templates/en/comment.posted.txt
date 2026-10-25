@@ -1,0 +1,10 @@
+Hello {{ display_name or username }},
+
+{{ comment.author_name }} {% if comment.is_reply %}replied to a comment{% else %}commented{% endif %} on your {{ content.label }} "{{ content.title }}".
+
+{{ comment.body }}
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+{% include "_footer.txt" %}

@@ -118,6 +118,7 @@ impl SqliteAdapter {
 
 super::orders::impl_order_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::variants::impl_product_variant_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::comments::impl_comment_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 
 #[async_trait]
 impl DatabaseAdapter for SqliteAdapter {
@@ -295,6 +296,20 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in variant_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // コメント
+        let (comment_table, comment_indexes) =
+            super::comments::build_comment_table("TEXT", "TEXT", "INTEGER", false);
+        sqlx::query(&comment_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in comment_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

@@ -1,0 +1,17 @@
+Hello {{ name }},
+
+{{ reply.author_name }}{% if reply.staff %} ({{ site_name }}){% endif %} replied to your comment on "{{ content.title }}".
+
+{{ reply.body }}
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+
+Your comment:
+{{ comment.body }}
+{% if unsubscribe_url %}
+
+To stop emails about replies to this comment, open: {{ unsubscribe_url }}
+{% endif %}
+{% include "_footer.txt" %}

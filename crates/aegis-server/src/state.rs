@@ -49,6 +49,8 @@ pub struct AppState {
     pub saml: Option<SamlLogin>,
     /// EC（`[commerce]`）。無効なら `None`
     pub commerce: Option<Arc<aegis_commerce::CommerceService>>,
+    /// 読者のコメント（`[comments]`）。無効なら `None`
+    pub comments: Option<Arc<aegis_comments::CommentService>>,
     /// 通知（`[notifications]`）。無効なら `None`
     pub notifier: Option<Arc<dyn Notifier>>,
     /// Admin Studio からのアカウント登録（`[auth.registration]`）。無効なら `None`
@@ -139,6 +141,7 @@ impl AppState {
             oidc: None,
             saml: None,
             commerce: None,
+            comments: None,
             notifier: None,
             registration: None,
             password_reset: None,
@@ -179,6 +182,39 @@ impl AppState {
             supervisor: self.supervisor.clone(),
             audit: self.audit.clone(),
             notifier: self.notifier.clone(),
+        }
+    }
+
+    /// コメント（`[comments]`）を有効にする
+    pub fn with_comments(mut self, comments: aegis_comments::CommentService) -> Self {
+        self.comments = Some(Arc::new(comments));
+        self
+    }
+
+    /// コメントが使うサーバーの部品（`CommentService::new` に渡す）。通知と Admin Studio の URL を
+    /// 設定した後に呼ぶ
+    pub fn comment_deps(&self) -> aegis_comments::CommentDeps {
+        let config = self.config.clone();
+        aegis_comments::CommentDeps {
+            db: self.db.clone(),
+            cache: self.cache.clone(),
+            schemas: self.schemas.clone(),
+            supervisor: self.supervisor.clone(),
+            audit: self.audit.clone(),
+            notifier: self.notifier.clone(),
+            links: aegis_comments::Links {
+                content_url: Arc::new(move |content_type, slug| {
+                    crate::site::content_url(&config, content_type, slug)
+                }),
+                site_url: self
+                    .config
+                    .commerce
+                    .public_url
+                    .trim()
+                    .trim_end_matches('/')
+                    .to_string(),
+                admin_url: self.admin_url.clone().unwrap_or_default(),
+            },
         }
     }
 

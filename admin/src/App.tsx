@@ -18,6 +18,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Header, type AppView } from './components/Header';
 import { ProductManager } from './components/ProductManager';
+import { CommentManager } from './components/CommentManager';
 import { OrderManager } from './components/OrderManager';
 import { ScheduleCalendar } from './components/ScheduleCalendar';
 import { ProfileModal } from './components/ProfileModal';
@@ -34,7 +35,7 @@ import { isSsoSession, takeLoginRedirect } from './utils/loginRedirect';
 import { takeInviteToken, takeResetToken, takeVerifyToken } from './utils/verifyEmail';
 import type { BlockNode, ContentItem, SessionInfo, UserAccount } from './types';
 import { categoryIdOf } from './utils/category';
-import { canEdit } from './utils/roles';
+import { canEdit, isAdmin } from './utils/roles';
 import { cx } from './utils/cx';
 import { toDateTimeLocal } from './utils/format';
 import { blocksToMarkdown, markdownToBlocks, isMarkdownLike } from './utils/markdown';
@@ -47,6 +48,13 @@ type EditorStatus = 'draft' | 'scheduled' | 'published';
 
 /** Messages shown above the login form */
 type LoginNotice = 'unreachable' | 'expired' | 'signedOut';
+
+/** `#comments` (the link in comment notifications) opens the Comments view */
+const takeInitialView = (): AppView => {
+  if (window.location.hash !== '#comments') return 'editor';
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  return 'comments';
+};
 
 export const App: React.FC = () => {
   const { t } = useTranslation();
@@ -61,9 +69,11 @@ export const App: React.FC = () => {
   const [verifyToken] = useState<string | null>(takeVerifyToken);
   const [resetToken] = useState<string | null>(takeResetToken);
   const [inviteToken] = useState<string | null>(takeInviteToken);
-  const [view, setView] = useState<AppView>('editor');
+  const [view, setView] = useState<AppView>(takeInitialView);
   // Hidden until the server says the shop is on ([commerce].enabled)
   const [shopEnabled, setShopEnabled] = useState<boolean>(false);
+  // Hidden until the server says comments are on ([comments].enabled)
+  const [commentsEnabled, setCommentsEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType] = useState<string>('article');
   const [contents, setContents] = useState<ContentItem[]>([]);
@@ -208,6 +218,24 @@ export const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || !canEdit(session ?? null)) return;
+    let cancelled = false;
+    // The settings answer 404 when comments are disabled
+    aegisApi
+      .getCommentSettings()
+      .then(() => {
+        if (!cancelled) setCommentsEnabled(true);
+      })
+      .catch(() => {
+        if (!cancelled) setCommentsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   useEffect(() => {
@@ -460,6 +488,7 @@ export const App: React.FC = () => {
 
   const editable = canEdit(session);
   const showShop = editable && shopEnabled;
+  const showComments = editable && commentsEnabled;
 
   return (
     <div className={styles.app}>
@@ -472,6 +501,7 @@ export const App: React.FC = () => {
         session={session}
         canSave={editable}
         showShop={showShop}
+        showComments={showComments}
         profile={profile}
         onOpenProfile={() =>
           profile
@@ -487,6 +517,8 @@ export const App: React.FC = () => {
         <ProductManager categories={categories} onShowToast={showToast} />
       ) : view === 'orders' && showShop ? (
         <OrderManager onShowToast={showToast} />
+      ) : view === 'comments' && showComments ? (
+        <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
       ) : view === 'settings' ? (
         <SettingsView
           session={session}

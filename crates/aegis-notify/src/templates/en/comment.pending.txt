@@ -1,0 +1,5 @@
+Hello {{ display_name or username }},
+
+A comment on your {{ content.label }} "{{ content.title }}" is awaiting approval.
+{% include "_comment_summary.txt" %}
+{% include "_footer.txt" %}

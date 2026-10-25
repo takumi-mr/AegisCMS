@@ -54,6 +54,10 @@ const ACTIONS: AuditAction[] = [
   'order.create',
   'order.update',
   'notification.send',
+  'comment.create',
+  'comment.moderate',
+  'comment.delete',
+  'comment.settings_update',
 ];
 const OUTCOMES = ['success', 'failure', 'denied'] as const;
 

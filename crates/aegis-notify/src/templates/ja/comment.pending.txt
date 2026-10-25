@@ -1,0 +1,5 @@
+{{ display_name or username }} 様
+
+{{ content.label }}「{{ content.title }}」に付いたコメントが承認を待っています。
+{% include "_comment_summary.txt" %}
+{% include "_footer.txt" %}

@@ -5,6 +5,7 @@ use axum::{
 };
 use std::sync::Arc;
 
+use crate::handlers::comments;
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::BlockNode;
@@ -206,6 +207,7 @@ pub async fn render_article(
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
     let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
+    let comments = comments::page_section(&state, "article", &record.id).await;
     let page = render::PageInput {
         template: "article.html".to_string(),
         content_type: "article".to_string(),
@@ -216,6 +218,7 @@ pub async fn render_article(
         published_at: record.published_at,
         updated_at: Some(record.updated_at),
         fields: record.custom_fields,
+        comments,
     };
     themed_response(render::render_page(&state, &schema, page).await)
 }
@@ -254,6 +257,7 @@ pub async fn render_page_or_slug(
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
                 let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
+                let comments = comments::page_section(&state, "page", &record.id).await;
                 let page = render::PageInput {
                     template: "page.html".to_string(),
                     content_type: "page".to_string(),
@@ -264,6 +268,7 @@ pub async fn render_page_or_slug(
                     published_at: record.published_at,
                     updated_at: Some(record.updated_at),
                     fields: record.custom_fields,
+                    comments,
                 };
                 return themed_response(render::render_page(&state, &schema, page).await);
             }
@@ -283,6 +288,7 @@ pub async fn render_page_or_slug(
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
                 let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
+                let comments = comments::page_section(&state, "article", &record.id).await;
                 let page = render::PageInput {
                     template: "article.html".to_string(),
                     content_type: "article".to_string(),
@@ -293,6 +299,7 @@ pub async fn render_page_or_slug(
                     published_at: record.published_at,
                     updated_at: Some(record.updated_at),
                     fields: record.custom_fields,
+                    comments,
                 };
                 return themed_response(render::render_page(&state, &schema, page).await);
             }

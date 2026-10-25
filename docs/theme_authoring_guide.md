@@ -67,7 +67,7 @@ themes/my-theme/
 | URL | テンプレート | 主な変数 |
 |---|---|---|
 | `/`、`/articles` | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
-| `/articles/{slug}` | `article.html` | `title`、`content_html`、`author`、`published_at`、`updated_at`、`fields`、`relations` |
+| `/articles/{slug}` | `article.html` | `title`、`content_html`、`author`、`published_at`、`updated_at`、`fields`、`relations`、`comments`（[コメント](#6-コメント欄)） |
 | `/{slug}` | `page.html`（固定ページ）または `article.html` | 同上 |
 | 見つからない・非公開 | `404.html` | `title`（`Page Not Found`）、`content_html`（理由の一文） |
 | `/products` | `products.html` | `title`、`items`、`pagination`、`theme_vars` |
@@ -220,7 +220,18 @@ themes/my-theme/
 
 ショップで使える `theme_vars`: `shop_enabled`（`"true"` / `"false"`）、`currency`、`products_url`、`cart_url`、`shop_api`、`cart_script`（どれも `base_path` 込み）。
 
-## 6. 開発の流れ
+## 6. コメント欄
+
+`[comments].enabled = true` で、`[comments].content_types` の種類のページ（`article.html` / `page.html` / `product.html`）に変数 `comments` が渡ります（[コメント](comments.md#3-公開サイト)）。本文の後（`</article>` の前など）に組み込みのコメント欄を読み込んでください。コメントを受け付けないページでは `comments` が無いので、何も出ません。
+
+```jinja
+{% if comments %}{% include "comments.html" %}{% endif %}
+```
+
+- 組み込みのコメント欄は、色をテーマの文字色を基準にした半透明と `--accent` で指定しているので、多くのテーマはそのまま使えます。見た目は CSS で `.aegis-comments`、`.aegis-comment`、`.aegis-comment-form` などを上書きします。
+- 自分で書く場合は、テーマの `templates/comments.html` に置きます（組み込みの `COMMENTS_TEMPLATE` を写して始める）。一覧は `comments["items"]`（`.items` は辞書のメソッド名と重なる）、各コメントの本文は `{{ c.body_html | safe }}`（エスケープ済み）、返信の字下げは `c.depth` です。フォームは `comments.post_url` に JSON で送ります。ハニーポットの欄（`website`）を残してください。
+
+## 7. 開発の流れ
 
 1. `themes/` に既存のテーマ（`roastery` など）をコピーし、ディレクトリ名と `theme.json` の `id` を変える。
 2. 設定で `[theme].reload_templates = true` にする。描画のたびにテンプレートを読み直すので、サーバーを再起動せずに確かめられます（本番では `false`）。CSS などのアセットは毎回ファイルから配信されます。

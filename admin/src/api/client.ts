@@ -2,6 +2,10 @@ import i18n from '../i18n';
 import type {
   AcceptInvitePayload,
   AuditLogPage,
+  CommentBulkAction,
+  CommentPage,
+  CommentSettings,
+  CommentStatus,
   AuthProviders,
   AuditLogQuery,
   ContentItem,
@@ -121,6 +125,24 @@ const request = async <T>(path: string, init: RequestInit, fallbackError: string
   }
   return res.json();
 };
+
+/** `request` for endpoints that answer 204 No Content */
+const requestNoContent = async (
+  path: string,
+  init: RequestInit,
+  fallbackError: string
+): Promise<void> => {
+  const token = getSessionToken();
+  const headers = new Headers(init.headers);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  if (res.ok) return;
+  if (res.status === 401 && token) unauthorizedHandler?.();
+  const err = await res.json().catch(() => ({ error: fallbackError }));
+  throw new ApiError(res.status, err.error || fallbackError);
+};
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 export const aegisApi = {
   async checkHealth(): Promise<{ status: string; system: string; version: string }> {
@@ -379,6 +401,65 @@ export const aegisApi = {
 
   async getShopConfig(): Promise<ShopConfig> {
     return request('/shop/config', {}, i18n.t('api.shopConfigFailed'));
+  },
+
+  /** Readers' comments, newest first, with counts per status (404 when [comments] is disabled) */
+  async listComments(query: {
+    status?: CommentStatus | '';
+    limit?: number;
+    offset?: number;
+  }): Promise<CommentPage> {
+    return request(`/comments?${toQuery(query)}`, {}, i18n.t('api.commentsFailed'));
+  },
+
+  /** Approves, holds, marks as spam or trashes a comment */
+  async moderateComment(id: string, status: CommentStatus): Promise<void> {
+    return requestNoContent(
+      `/comments/${encodeURIComponent(id)}`,
+      { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },
+      i18n.t('api.moderateCommentFailed')
+    );
+  },
+
+  /** Deletes a comment permanently */
+  async deleteComment(id: string): Promise<void> {
+    return requestNoContent(
+      `/comments/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      i18n.t('api.deleteCommentFailed')
+    );
+  },
+
+  /** Changes the status of (or deletes) several comments; returns how many changed */
+  async bulkComments(ids: string[], action: CommentBulkAction): Promise<{ count: number }> {
+    return request(
+      '/comments/bulk',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ ids, action }) },
+      i18n.t('api.moderateCommentFailed')
+    );
+  },
+
+  /** Replies as the signed-in user (published right away; approves the comment if it waits) */
+  async replyToComment(id: string, body: string): Promise<{ id: string }> {
+    return request(
+      `/comments/${encodeURIComponent(id)}/replies`,
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ body }) },
+      i18n.t('api.replyCommentFailed')
+    );
+  },
+
+  /** Approval settings (404 when [comments] is disabled) */
+  async getCommentSettings(): Promise<CommentSettings> {
+    return request('/comments/settings', {}, i18n.t('api.commentSettingsFailed'));
+  },
+
+  /** Changes the approval settings (admin); `null` returns to the configuration file's value */
+  async updateCommentSettings(overrides: CommentSettings['overrides']): Promise<CommentSettings> {
+    return request(
+      '/comments/settings',
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(overrides) },
+      i18n.t('api.updateCommentSettingsFailed')
+    );
   },
 
   /** Shop orders, newest first (404 when [commerce] is disabled) */

@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod auth;
 pub mod cache;
+pub mod comments;
 pub mod commerce;
 pub mod entity;
 pub mod error;
@@ -14,6 +15,9 @@ pub use audit::{
 };
 pub use auth::{AuthCredentials, AuthIdentity, AuthProvider, AuthRedirect, UserAuthContext};
 pub use cache::CacheBackend;
+pub use comments::{
+    CommentSection, CommentSubmission, CommentVerdict, ModerationStatus, PublicComment,
+};
 pub use commerce::{
     convert_currency, currency_decimals, format_money, is_zero_decimal_currency, OrderAdjustment,
     OrderContext, OrderLine, OrderRefundRecord, OrderStatus, OrderStatusChange, ProductVariant,

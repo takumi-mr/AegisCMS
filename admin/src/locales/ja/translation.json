@@ -50,7 +50,13 @@
     "updateSeoSettingsFailed": "SEO設定の保存に失敗しました",
     "variantsFailed": "バリエーションを取得できませんでした",
     "saveVariantFailed": "バリエーションを保存できませんでした",
-    "deleteVariantFailed": "バリエーションを削除できませんでした"
+    "deleteVariantFailed": "バリエーションを削除できませんでした",
+    "commentsFailed": "コメントを読み込めませんでした",
+    "moderateCommentFailed": "コメントを更新できませんでした",
+    "deleteCommentFailed": "コメントを削除できませんでした",
+    "replyCommentFailed": "返信を投稿できませんでした",
+    "commentSettingsFailed": "コメントの設定を読み込めませんでした",
+    "updateCommentSettingsFailed": "コメントの設定を保存できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -254,6 +260,7 @@
       "schedule": "カレンダー",
       "products": "商品",
       "orders": "注文",
+      "comments": "コメント",
       "settings": "設定"
     },
     "gateway": "コアゲートウェイ: {{state}}",
@@ -484,6 +491,68 @@
     "fullRefund": "全額返金",
     "invalidRefundAmount": "正しい返金額を入力してください（最大: {{amount}}）",
     "cannotRefund": "これ以上返金できる残額がありません"
+  },
+  "comments": {
+    "title": "コメント",
+    "disabled": "コメントは無効です。サーバーの設定で [comments].enabled = true にしてください。",
+    "loadFailed": "コメントを読み込めませんでした",
+    "statusFilter": "状態で絞り込む",
+    "all": "すべて",
+    "status": {
+      "pending": "承認待ち",
+      "approved": "承認済み",
+      "spam": "スパム",
+      "trash": "ゴミ箱"
+    },
+    "columns": {
+      "author": "投稿者",
+      "comment": "コメント",
+      "content": "コンテンツ",
+      "status": "状態"
+    },
+    "staff": "スタッフ",
+    "inReplyTo": "{{name}} さんへの返信",
+    "contentGone": "（削除されたコンテンツ）",
+    "empty": "コメントはまだありません。",
+    "emptyStatus": "「{{status}}」のコメントはありません。",
+    "selectAll": "このページのコメントをすべて選択",
+    "selectOne": "{{name}} さんのコメントを選択",
+    "selected_other": "{{count}} 件を選択中",
+    "bulkActions": "選択したコメントの操作",
+    "actions": {
+      "approved": "承認",
+      "pending": "承認を取り消す",
+      "spam": "スパム",
+      "trash": "ゴミ箱へ",
+      "delete": "完全に削除",
+      "reply": "返信"
+    },
+    "done": {
+      "approved_other": "{{count}} 件のコメントを承認しました",
+      "pending_other": "{{count}} 件のコメントを承認待ちに戻しました",
+      "spam_other": "{{count}} 件のコメントをスパムにしました",
+      "trash_other": "{{count}} 件のコメントをゴミ箱に移しました",
+      "delete_other": "{{count}} 件のコメントを削除しました"
+    },
+    "confirmDelete_other": "{{count}} 件のコメントを完全に削除しますか？元に戻せません。",
+    "newer": "新しいコメント",
+    "older": "古いコメント",
+    "range": "{{total}} 件中 {{from}}–{{to}} 件",
+    "replyTitle": "{{name}} さんに返信",
+    "replyLabel": "返信",
+    "replyPlaceholder": "返信はあなたの表示名ですぐに公開されます。",
+    "replyApproves": "このコメントは承認待ちです。返信すると一緒に承認されます。",
+    "replied": "返信を公開しました",
+    "settings": {
+      "title": "承認の設定",
+      "requireApproval": "新しいコメントは承認してから公開する",
+      "autoApproveKnown": "承認済みのコメントがある投稿者（同じ名前とメールアドレス）は、承認を待たずに公開する",
+      "default": "設定ファイル: {{value}}",
+      "on": "オン",
+      "off": "オフ",
+      "reset": "設定ファイルの値に戻す",
+      "saved": "承認の設定を保存しました"
+    }
   },
   "paste": {
     "title": "Markdown を貼り付けて取り込む",
