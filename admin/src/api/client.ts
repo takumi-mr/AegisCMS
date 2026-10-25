@@ -14,6 +14,13 @@ import type {
   CreateInvitationPayload,
   CreateUserPayload,
   InvitationInfo,
+  NotificationPreview,
+  NotificationQueuePage,
+  NotificationQueueStatus,
+  NotificationStatus,
+  NotificationTemplateDetail,
+  NotificationTemplateInfo,
+  NotificationTestDelivery,
   ObjectReference,
   Order,
   OrderPage,
@@ -738,6 +745,102 @@ export const aegisApi = {
         body: JSON.stringify(payload),
       },
       i18n.t('api.updateSeoSettingsFailed')
+    );
+  },
+
+  /** Notification setup and queue counts (`enabled: false` when [notifications] is off) */
+  async getNotificationStatus(): Promise<NotificationStatus> {
+    return request('/notifications', {}, i18n.t('api.notificationStatusFailed'));
+  },
+
+  async listNotificationQueue(query: {
+    status?: NotificationQueueStatus;
+    limit?: number;
+    offset?: number;
+  }): Promise<NotificationQueuePage> {
+    const params = new URLSearchParams();
+    if (query.status) params.set('status', query.status);
+    if (query.limit) params.set('limit', String(query.limit));
+    if (query.offset) params.set('offset', String(query.offset));
+    return request(
+      `/notifications/queue?${params.toString()}`,
+      {},
+      i18n.t('api.notificationQueueFailed')
+    );
+  },
+
+  /** Queues a failed notification again from the first attempt */
+  async retryNotification(id: string): Promise<void> {
+    return requestNoContent(
+      `/notifications/queue/${encodeURIComponent(id)}/retry`,
+      { method: 'POST' },
+      i18n.t('api.retryNotificationFailed')
+    );
+  },
+
+  async discardNotification(id: string): Promise<void> {
+    return requestNoContent(
+      `/notifications/queue/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      i18n.t('api.discardNotificationFailed')
+    );
+  },
+
+  async listNotificationTemplates(): Promise<NotificationTemplateInfo[]> {
+    return request('/notifications/templates', {}, i18n.t('api.notificationTemplatesFailed'));
+  },
+
+  async getNotificationTemplate(name: string): Promise<NotificationTemplateDetail> {
+    return request(
+      `/notifications/templates/${encodeURIComponent(name)}`,
+      {},
+      i18n.t('api.notificationTemplatesFailed')
+    );
+  },
+
+  async saveNotificationTemplate(
+    name: string,
+    content: string
+  ): Promise<NotificationTemplateDetail> {
+    return request(
+      `/notifications/templates/${encodeURIComponent(name)}`,
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify({ content }) },
+      i18n.t('api.saveNotificationTemplateFailed')
+    );
+  },
+
+  /** Drops the edit: the `templates_dir` file or the built-in template applies again */
+  async resetNotificationTemplate(name: string): Promise<NotificationTemplateDetail> {
+    return request(
+      `/notifications/templates/${encodeURIComponent(name)}`,
+      { method: 'DELETE' },
+      i18n.t('api.saveNotificationTemplateFailed')
+    );
+  },
+
+  /** Renders a notification with sample values, using `templates` (unsaved edits) where given */
+  async previewNotification(payload: {
+    kind: string;
+    staff: boolean;
+    templates: Record<string, string>;
+  }): Promise<NotificationPreview> {
+    return request(
+      '/notifications/preview',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      i18n.t('api.previewNotificationFailed')
+    );
+  },
+
+  /** Sends a notification with sample values right away (no retries) and returns the results */
+  async sendTestNotification(payload: {
+    kind: string;
+    to: string | null;
+    staff: boolean;
+  }): Promise<NotificationTestDelivery[]> {
+    return request(
+      '/notifications/test',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      i18n.t('api.testNotificationFailed')
     );
   },
 };

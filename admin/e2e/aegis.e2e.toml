@@ -53,3 +53,8 @@ channels = ["log"]
 [comments]
 enabled = true
 content_types = ["article"]
+
+# 通知（notifications.spec.ts）。SMTP サーバーが無いのでログに出す
+[notifications]
+enabled = true
+channels = ["log"]

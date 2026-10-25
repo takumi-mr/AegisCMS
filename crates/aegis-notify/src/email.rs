@@ -1,11 +1,12 @@
-//! メール（`channels = ["email"]`）。外部の SMTP サーバーへ送る
+//! メール（`channels = ["email"]`）。外部の SMTP サーバーへ送る。HTML の本文があれば
+//! プレーンテキストと HTML の両方（`multipart/alternative`）を送る
 
 use std::time::Duration;
 
 use aegis_core::{AegisError, Recipient};
 use async_trait::async_trait;
 use lettre::message::header::ContentType;
-use lettre::message::Mailbox;
+use lettre::message::{Mailbox, MultiPart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 
@@ -88,17 +89,23 @@ impl NotificationChannel for EmailChannel {
     async fn send(&self, message: &NotificationMessage) -> Result<Delivered, SendError> {
         let mut builder = Message::builder()
             .from(self.from.clone())
-            .subject(message.subject.clone())
-            .header(ContentType::TEXT_PLAIN);
+            .subject(message.subject.clone());
         if let Some(reply_to) = &self.reply_to {
             builder = builder.reply_to(reply_to.clone());
         }
         for to in self.recipients(&message.recipient)? {
             builder = builder.to(to);
         }
-        let email = builder
-            .body(message.body.clone())
-            .map_err(|e| SendError::permanent(format!("Could not build the email: {}", e)))?;
+        let email = match &message.html {
+            Some(html) => builder.multipart(MultiPart::alternative_plain_html(
+                message.body.clone(),
+                html.clone(),
+            )),
+            None => builder
+                .header(ContentType::TEXT_PLAIN)
+                .body(message.body.clone()),
+        }
+        .map_err(|e| SendError::permanent(format!("Could not build the email: {}", e)))?;
         self.transport.send(email).await.map_err(|e| {
             let text = format!("SMTP: {}", e);
             if e.is_permanent() {

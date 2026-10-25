@@ -1,0 +1,31 @@
+{#- HTML メールの共通レイアウト。
+    body_html / footer_html はプレーンテキストの本文から作った HTML（エスケープ済み）。
+    <種類>.html では {% extends "_layout.html" %} と {% block content %} で本文だけを差し替えられる -#}
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>{{ subject }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Hiragino Sans','Noto Sans JP',Meiryo,sans-serif;font-size:15px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5">
+<tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
+<tr><td style="padding:0 4px 12px;font-size:16px;font-weight:600">
+{% if site_url %}<a href="{{ site_url }}" style="color:#18181b;text-decoration:none">{{ site_name }}</a>{% else %}{{ site_name }}{% endif %}
+</td></tr>
+<tr><td style="background:#ffffff;border:1px solid #e4e4e7;border-radius:8px;padding:28px 24px">
+{% block content %}{{ body_html }}{% endblock %}
+</td></tr>
+{% if footer_html %}
+<tr><td style="padding:16px 4px 0;color:#71717a;font-size:12px">
+{{ footer_html }}
+</td></tr>
+{% endif %}
+</table>
+</td></tr>
+</table>
+</body>
+</html>

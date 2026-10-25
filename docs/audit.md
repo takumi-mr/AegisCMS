@@ -63,11 +63,13 @@ purge_interval_secs = 3600
 | `user.register` | `POST /api/v1/auth/registration`（申し込み）、`POST /api/v1/auth/registration/verify`（確認。[アカウント登録](authentication.md#7-アカウント登録)） | `success` / `denied`（入力の不備・ユーザー名の重複・登録済みのメールアドレス・許可されていないドメイン・申し込み数の制限・無効な確認リンク）/ `failure`（サーバーのエラー） | `user` / ユーザー名（確認の成功時のみ） | `stage`（`requested` / `confirmed`）, `username`, `role`, `pending_approval`, `error`（`email_in_use` / `rate_limited` / `username_taken` / `invalid_token` など）。メールアドレスとトークンは残さない |
 | `order.create` | `POST /api/v1/shop/checkout`（[EC](commerce.md)） | `success` | `order` / 注文 ID | `number`, `total`, `currency`, `items`, `provider` |
 | `order.update` | 注文の状態の変化（管理者の操作、決済の Webhook、期限切れ）、決済の問題 | `success` / `failure`（金額の不一致 `amount_mismatch`、取り消し後の入金 `paid_after_cancel`） | `order` / 注文 ID | `number`, `from`, `to`, `source`（`admin` / `payment_webhook` / `payment_expired` / `payment_failed` / `expired` / `payment_start_failed`）, `restocked`, `note`, `problem`, `event_id` |
-| `notification.send` | 通知の配信（チャネルごと。一時的な失敗は再試行した後の結果） | `success` / `failure` | `notification` / 通知の種類（`order.placed` など） | `channel`, `recipient`（`person` / `staff`。アドレスは残さない）, `subject`, `attempts`, `error`, `order_number` |
+| `notification.send` | 通知の配信（チャネルごと。一時的な失敗は再試行した後の結果。Admin Studio・CLI のテスト送信を含む） | `success` / `failure` | `notification` / 通知の種類（`order.placed` など） | `channel`, `recipient`（`person` / `staff`。アドレスは残さない）, `subject`, `attempts`, `error`, `order_number` |
 | `comment.create` | Admin Studio からのコメントへの返信（`POST /api/v1/comments/{id}/replies`。[コメント](comments.md)） | `success` / `failure` | `comment` / 返信のコメント ID | `parent_id`, `content_type`, `content_id`, `error` |
 | `comment.moderate` | コメントの状態の変更（承認・承認待ち・スパム・ゴミ箱。1 件・まとめて） | `success` / `failure` | `comment` / コメント ID（1 件のとき） | `ids`, `status`, `count`（変えた件数）, `error` |
 | `comment.delete` | コメントの削除（1 件・まとめて） | `success` / `failure` | `comment` / コメント ID（1 件のとき） | `ids`, `count`, `error` |
 | `comment.settings_update` | コメントの承認の設定の変更（`PUT /api/v1/comments/settings`） | `success` / `failure` | なし | `require_approval` / `auto_approve_known`（`from` / `to`。`null` は設定ファイルの値）, `error` |
+| `notification.template_update` | 通知のテンプレートの保存・元に戻す（`PUT` / `DELETE /api/v1/notifications/templates/{名前}`。[通知 6](notifications.md#6-admin-studio-から管理する)） | `success` / `failure`（DB エラー） | `notification_template` / テンプレートの名前 | `operation`（`save` / `reset`）, `previous_source`（`custom` / `file` / `builtin`）, `bytes`, `error` |
+| `notification.queue_update` | 送れなかった通知の再送・送信待ちの破棄（`POST /api/v1/notifications/queue/{id}/retry`、`DELETE /api/v1/notifications/queue/{id}`） | `success` | `notification` / 通知の種類 | `operation`（`retry` / `discard`）, `id`, `channel`, `attempts` |
 
 - 入力不備（必須フィールド欠落、存在しないスキーマなど）で処理に入る前に弾かれたリクエストは記録しません。
 - `on-before-save` フックが失敗した場合（トラップ、タイムアウトなど）は、`plugin.error` と `content.create`（`denied`）の 2 件が記録されます。プラグインが `Err` を返して保存を拒否した場合はプラグインの失敗ではないため、`content.create`（`denied`。`reason` に拒否理由）の 1 件だけです。

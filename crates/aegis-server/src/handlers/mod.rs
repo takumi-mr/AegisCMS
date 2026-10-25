@@ -4,6 +4,7 @@ pub mod comments;
 pub mod content;
 pub mod health;
 pub mod invitation;
+pub mod notifications;
 pub mod oidc;
 pub mod openapi;
 pub mod password_reset;
@@ -34,6 +35,12 @@ pub use content::{
 };
 pub use health::health_check;
 pub use invitation::{accept_invitation, create_invitation, get_invitation_info};
+pub use notifications::{
+    delete_queued_notification, get_notification_status, get_notification_template,
+    list_notification_queue, list_notification_templates, preview_notification,
+    reset_notification_template, retry_queued_notification, save_notification_template,
+    send_test_notification,
+};
 pub use oidc::{oidc_callback, oidc_login};
 pub use openapi::get_openapi_spec;
 pub use password_reset::{confirm_password_reset, request_password_reset};

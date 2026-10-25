@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 use aegis_core::{AuditEvent, AuditSink};
@@ -412,6 +413,7 @@ async fn email_channel_sends_through_smtp() {
             recipient: Recipient::person("hanako@example.com", "Hanako"),
             subject: "Test notification".to_string(),
             body: "Hello from AegisCMS".to_string(),
+            html: None,
             data: json!({}),
         })
         .await
@@ -449,6 +451,7 @@ async fn email_channel_reports_rejected_recipients_as_permanent() {
             recipient: Recipient::Staff,
             subject: "Test".to_string(),
             body: "Hello".to_string(),
+            html: None,
             data: json!({}),
         })
         .await
@@ -462,9 +465,238 @@ async fn email_channel_reports_rejected_recipients_as_permanent() {
             recipient: Recipient::person("not an address", ""),
             subject: "Test".to_string(),
             body: "Hello".to_string(),
+            html: None,
             data: json!({}),
         })
         .await
         .unwrap_err();
     assert!(invalid.permanent);
+}
+
+#[tokio::test]
+async fn email_channel_sends_html_with_a_plain_text_alternative() {
+    let (port, server) = fake_smtp_server(false).await;
+    let channel = EmailChannel::new(&email_config(port)).unwrap();
+    channel
+        .send(&NotificationMessage {
+            kind: "test".to_string(),
+            recipient: Recipient::person("hanako@example.com", "Hanako"),
+            subject: "Test notification".to_string(),
+            body: "Hello from AegisCMS".to_string(),
+            html: Some("<p>Hello from <b>AegisCMS</b></p>".to_string()),
+            data: json!({}),
+        })
+        .await
+        .unwrap();
+    drop(channel);
+    let mails = tokio::time::timeout(Duration::from_secs(5), server)
+        .await
+        .unwrap()
+        .unwrap();
+    let mail = &mails[0];
+    assert!(
+        mail.contains("Content-Type: multipart/alternative"),
+        "{}",
+        mail
+    );
+    let plain = mail.find("Content-Type: text/plain").expect("text part");
+    let html = mail.find("Content-Type: text/html").expect("html part");
+    // メールソフトは読める部分のうち最後のものを表示するので HTML を後に置く
+    assert!(plain < html, "{}", mail);
+    assert!(
+        mail.contains("<p>Hello from <b>AegisCMS</b></p>"),
+        "{}",
+        mail
+    );
+}
+
+#[test]
+fn every_sample_renders_in_each_locale() {
+    for locale in templates::LOCALES {
+        let config = NotificationsConfig {
+            locale: locale.to_string(),
+            ..config()
+        };
+        let service = NotificationService::with_channels(&config, site(), None, vec![]);
+        for kind in samples::SAMPLE_KINDS {
+            let mut rendered = 0;
+            for recipient in [Recipient::person("a@example.com", "A"), Recipient::Staff] {
+                if let Some(r) = service.preview(kind, &recipient, HashMap::new()).unwrap() {
+                    assert!(!r.subject.is_empty(), "{} {}", locale, kind);
+                    assert!(r.html.as_deref().unwrap().contains("</html>"));
+                    // 見本の値に足りないものが無い（無い値は "none" と出る）
+                    assert!(!r.body.contains("none"), "{} {}\n{}", locale, kind, r.body);
+                    rendered += 1;
+                }
+            }
+            assert!(rendered > 0, "{} {} has no template", locale, kind);
+        }
+    }
+}
+
+#[test]
+fn preview_uses_unsaved_templates() {
+    let service = NotificationService::with_channels(&config(), site(), None, vec![]);
+    let staff = Recipient::Staff;
+    let edited = service
+        .preview(
+            "order.placed",
+            &staff,
+            HashMap::from([(
+                "order.placed.staff.subject".to_string(),
+                "Order {{ order.number }} for {{ site_name }}".to_string(),
+            )]),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(edited.subject, "Order 261025-SAMPLE for Aegis Coffee");
+    let saved = service
+        .preview("order.placed", &staff, HashMap::new())
+        .unwrap()
+        .unwrap();
+    assert!(saved.subject.starts_with("New order 261025-SAMPLE"));
+}
+
+async fn queue_db() -> Arc<aegis_db::SqliteAdapter> {
+    use aegis_db::DatabaseAdapter;
+    let db = aegis_db::SqliteAdapter::connect("sqlite::memory:", 1)
+        .await
+        .unwrap();
+    db.init().await.unwrap();
+    Arc::new(db)
+}
+
+async fn queued(db: &aegis_db::SqliteAdapter, status: &str) -> Vec<aegis_db::QueuedNotification> {
+    use aegis_db::NotificationQueueStorage;
+    db.list_notifications(&aegis_db::NotificationListQuery {
+        status: Some(status.to_string()),
+        limit: 100,
+        offset: 0,
+    })
+    .await
+    .unwrap()
+    .items
+}
+
+#[tokio::test]
+async fn queued_notifications_are_sent_by_the_worker() {
+    let db = queue_db().await;
+    let channel = RecordingChannel::new(true);
+    let audit_sink = Arc::new(MemoryAuditSink::default());
+    let audit = Arc::new(AuditService::with_sinks(vec![audit_sink.clone()]));
+    let service =
+        NotificationService::with_channels(&config(), site(), Some(audit), vec![channel.clone()])
+            .with_queue(db.clone());
+    assert!(service.is_persistent());
+
+    // 送る前に保存される（宛先ごとに 1 行。HTML の本文も）
+    assert_eq!(service.enqueue(&placed_event()).await.unwrap(), 2);
+    let pending = queued(&db, aegis_db::QUEUE_PENDING).await;
+    assert_eq!(pending.len(), 2);
+    let message: NotificationMessage = serde_json::from_str(&pending[0].message).unwrap();
+    assert!(message.html.unwrap().contains("261023-ABC234"));
+    assert_eq!(pending[0].channel, "recording");
+
+    assert_eq!(service.process_queue().await, 2);
+    assert_eq!(channel.sent().len(), 2);
+    // 送れたものは消える
+    assert!(queued(&db, aegis_db::QUEUE_PENDING).await.is_empty());
+    assert_eq!(audit_sink.events.lock().unwrap().len(), 2);
+    assert_eq!(service.process_queue().await, 0);
+
+    // notify は保存してワーカーを起こす
+    let worker = service.spawn_worker().unwrap();
+    service.notify(placed_event());
+    for _ in 0..200 {
+        if channel.sent().len() == 4 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    worker.abort();
+    assert_eq!(channel.sent().len(), 4);
+}
+
+#[tokio::test]
+async fn queued_notifications_are_retried_and_kept_when_they_fail() {
+    use aegis_db::NotificationQueueStorage;
+    let db = queue_db().await;
+    let mut config = config();
+    config.max_attempts = 3;
+    let flaky = RecordingChannel::failing(false, 1, false);
+    let service = NotificationService::with_channels(&config, site(), None, vec![flaky.clone()])
+        .with_queue(db.clone())
+        .with_retry_delay(Duration::from_millis(1));
+    service.enqueue(&placed_event()).await.unwrap();
+    service.process_queue().await;
+    // 一時的な失敗: 試行回数とエラーを残して次の時刻を待つ
+    let pending = queued(&db, aegis_db::QUEUE_PENDING).await;
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].attempts, 1);
+    assert_eq!(
+        pending[0].last_error.as_deref(),
+        Some("421 try again later")
+    );
+    assert!(pending[0].locked_until.is_none());
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    service.process_queue().await;
+    assert_eq!(flaky.sent().len(), 1);
+    assert!(queued(&db, aegis_db::QUEUE_PENDING).await.is_empty());
+
+    // 再試行しない失敗: failed として残り、再送できる
+    let rejected = RecordingChannel::failing(false, 1, true);
+    let service = NotificationService::with_channels(&config, site(), None, vec![rejected.clone()])
+        .with_queue(db.clone());
+    service.enqueue(&placed_event()).await.unwrap();
+    service.process_queue().await;
+    let failed = queued(&db, aegis_db::QUEUE_FAILED).await;
+    assert_eq!(failed.len(), 1);
+    assert_eq!(failed[0].attempts, 1);
+    assert_eq!(*rejected.calls.lock().unwrap(), 1);
+    let now = aegis_core::format_audit_timestamp(&chrono::Utc::now());
+    assert!(db.retry_notification(&failed[0].id, &now).await.unwrap());
+    service.process_queue().await;
+    assert_eq!(rejected.sent().len(), 1);
+    assert!(queued(&db, aegis_db::QUEUE_FAILED).await.is_empty());
+
+    // 設定から外したチャネルの送信待ちは送れない
+    let gone =
+        NotificationService::with_channels(&config, site(), None, vec![]).with_queue(db.clone());
+    service.enqueue(&placed_event()).await.unwrap();
+    gone.process_queue().await;
+    let failed = queued(&db, aegis_db::QUEUE_FAILED).await;
+    assert_eq!(failed.len(), 1);
+    assert!(failed[0]
+        .last_error
+        .as_deref()
+        .unwrap()
+        .contains("no longer in [notifications].channels"));
+}
+
+#[tokio::test]
+async fn two_servers_sharing_a_queue_send_each_notification_once() {
+    use aegis_db::DatabaseAdapter;
+    let dir = std::env::temp_dir().join(format!("aegis-notify-queue-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("queue.db");
+    std::fs::remove_file(&path).ok();
+    let url = format!("sqlite://{}?mode=rwc", path.display());
+    let db_a = Arc::new(aegis_db::SqliteAdapter::connect(&url, 4).await.unwrap());
+    db_a.init().await.unwrap();
+    let db_b = Arc::new(aegis_db::SqliteAdapter::connect(&url, 4).await.unwrap());
+    let channel = RecordingChannel::new(true);
+    let server_a =
+        NotificationService::with_channels(&config(), site(), None, vec![channel.clone()])
+            .with_queue(db_a);
+    let server_b =
+        NotificationService::with_channels(&config(), site(), None, vec![channel.clone()])
+            .with_queue(db_b);
+    for _ in 0..15 {
+        server_a.enqueue(&placed_event()).await.unwrap();
+    }
+    let (a, b) = tokio::join!(server_a.process_queue(), server_b.process_queue());
+    assert_eq!(a + b, 30, "a={} b={}", a, b);
+    assert_eq!(channel.sent().len(), 30);
+    drop((server_a, server_b));
+    std::fs::remove_dir_all(&dir).ok();
 }

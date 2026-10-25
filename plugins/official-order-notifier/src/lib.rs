@@ -266,6 +266,7 @@ mod tests {
         NotificationMessage {
             kind: kind.to_string(),
             recipient,
+            html: None,
             subject: "【Shop】ログインをロックしました（root）".to_string(),
             body: "日時: 2026-10-23T05:00:00Z\nIP アドレス: 203.0.113.7\n".to_string(),
             data: serde_json::json!({ "audit": { "action": "session.create" } }),

@@ -24,6 +24,7 @@
 - **商品・注文 (Products / Orders)**: 商品の作成・編集（価格・在庫・SKU・画像）と、注文の一覧・詳細・状態の変更（入金確認・発送・取り消し）。タブは EC が有効（`[commerce].enabled`）なときだけ表示する（[EC](../docs/commerce.md#33-admin-studio)）。
 - **コメント (Comments)**: 読者のコメントの承認・承認の取り消し・スパム・ゴミ箱・削除（1 件・まとめて）、返信、承認制の切り替え（`admin`）。タブはコメントが有効（`[comments].enabled`。`GET /api/v1/comments/settings` が 404 でない）かつ `editor` 以上のときだけ表示する。URL の `#comments`（通知メールのリンク）でこのタブが開く（[コメント](../docs/comments.md#4-admin-studio)）。
 - **サイト (Settings › Site)**: 公開サイトの名前と favicon の変更（`GET` / `PUT /api/v1/site`、`admin` のみ。`SiteManager.tsx`）。favicon はメディアライブラリから選ぶ・アップロードする・URL を入力する。空にして保存すると設定ファイル（`[theme]`）の値に戻る（[テーマと公開](../docs/theme_and_publishing_guide.md#サイト名と-faviconadmin-studio)）。
+- **通知 (Settings › Notifications)**: 配信の状態（チャネル・形式・送信待ちの保存先）と、送信待ち・送れなかった通知の一覧（再送・破棄）、見本の値でのテスト送信（チャネルごとの結果を表示）、テンプレートの編集（種類と宛先ごとの件名・本文・HTML、共通の部品）と保存前の内容でのプレビュー（HTML は `iframe` の `srcdoc`、`sandbox=""` でスクリプトを動かさない）、元に戻す。`admin` のみ（`NotificationManager.tsx`。[通知 6](../docs/notifications.md#6-admin-studio-から管理する)）。
 - **テーマ (Settings › Themes)**: インストール済みテーマのカード（プレビュー画像・タグ・作者）、ワンクリックでの切り替え（`PUT /api/v1/themes/active`、`admin`）、公開サイトの確認。マーケットプレイスのタブは将来の機能の予告（ZIP の導入は未実装）。
 - **ユーザー管理 (Settings › Users) & プロフィール**:
   - `admin` はユーザーの一覧・作成・編集・ロール変更・無効化・パスワードのリセット・削除（`UserManager.tsx`、[認証 3](../docs/authentication.md#3-ユーザー管理-api)）。
@@ -45,7 +46,7 @@
   - カテゴリの一覧表示（色・説明つき）と新規作成（slug 自動生成、色指定）は **Settings › Categories**。エディタの **Manage** ボタンからも開ける。
   - サイドバーの記事一覧にカテゴリバッジを表示し、カテゴリ（All / Uncategorized / 各カテゴリ）で絞り込み。
 - **設定画面 (Settings)**:
-  - サイト全体の管理（サイト名と favicon・テーマ・プラグイン・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Comments / Settings（Products / Orders は EC が有効かつ `editor` 以上のとき、Comments はコメントが有効かつ `editor` 以上のとき）。
+  - サイト全体の管理（サイト名と favicon・SEO・通知・テーマ・プラグイン・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Comments / Settings（Products / Orders は EC が有効かつ `editor` 以上のとき、Comments はコメントが有効かつ `editor` 以上のとき）。
   - ロールに応じて項目を出し分け: Themes・Plugins・Categories は全員（カテゴリの作成は `editor` 以上）、Site・Users・Audit Logs は `admin` のみ。
 - **監査ログ閲覧画面 (Settings › Audit Logs)**:
   - 監査ログ（`GET /api/v1/audit-logs`）を一覧表示。action / outcome / actor / resource / 期間での絞り込み、ページ送り、イベント詳細（JSON）の展開に対応。
@@ -201,7 +202,7 @@ files:
 - **保存**: 開いている記事は `PUT`（更新）、新規は `POST`。
 - **Themed Page プレビュー**: サーバーの `page_html` に `<base href="{SERVER_URL}/">` を差し込んで `srcdoc` に入れる（テーマのアセットやアップロード画像をサーバーから読むため）。`sandbox` に `allow-same-origin` を付けてはいけない。`srcdoc` の文書は親と同じオリジンになるため、テーマやプラグインが出力したスクリプトから `sessionStorage` のセッショントークンを読めてしまう。付けないと文書のオリジンは不透明（`null`）になり、`localStorage` などのストレージに触れると例外になる（`cart.js` は try/catch で受けてメモリ上に持つ）。CDN の通常の `<script>` は読み込めるが、`type="module"` や CORS が要る読み込み（`crossorigin` 付きのフォントなど）はサーバー側で `Access-Control-Allow-Origin` が要る。
 - **画面の高さとスクロール**: ルートの `.app` は `height: 100vh; overflow: hidden`。全幅の画面（監査ログ・テーマなど）は直下に `flex: 1; overflow-y: auto` のラッパーを置き、下に余白を取ってスクロールさせる。
-- **設定画面 (`SettingsView.tsx`)**: 各項目は既存の画面コンポーネント（`SiteManager` / `ThemeManager` / `PluginManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` と `settings.sections.<id>` の訳を足す。選んでいる項目は `App` が持つ（エディタの **Manage** から `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。エディタの状態も `App` にあるので、設定画面へ移って戻っても編集中の内容は消えない。
+- **設定画面 (`SettingsView.tsx`)**: 各項目は既存の画面コンポーネント（`SiteManager` / `SeoManager` / `NotificationManager` / `ThemeManager` / `PluginManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` と `settings.sections.<id>` の訳を足す。選んでいる項目は `App` が持つ（エディタの **Manage** から `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。エディタの状態も `App` にあるので、設定画面へ移って戻っても編集中の内容は消えない。
 - **モバイル・レスポンシブ対応**: 画面幅 900px 以下の狭小端末では、ヘッダーをコンパクト化しハンバーガーメニュー内にタブ・接続状態・言語切替・アカウント操作を統合。エディタ画面は 3 列固定（300px/可変/480px）からペイン切り替えタブ（記事一覧 / 編集 / プレビュー）へと切り替わり、一覧から記事を選択すると自動的に編集ペインへ遷移。フィールド行の折り返し、カレンダーやテーブルの横スクロール、各種管理画面の単一カラム化により、スマートフォン・タブレットでも UI が崩れず直感的に操作できます。
 
 ---

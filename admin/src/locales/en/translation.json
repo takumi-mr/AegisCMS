@@ -56,7 +56,15 @@
     "deleteCommentFailed": "Failed to delete the comment",
     "replyCommentFailed": "Failed to post the reply",
     "commentSettingsFailed": "Failed to load the comment settings",
-    "updateCommentSettingsFailed": "Failed to save the comment settings"
+    "updateCommentSettingsFailed": "Failed to save the comment settings",
+    "notificationStatusFailed": "Failed to load the notification settings",
+    "notificationQueueFailed": "Failed to load the notification queue",
+    "retryNotificationFailed": "Failed to send the notification again",
+    "discardNotificationFailed": "Failed to discard the notification",
+    "notificationTemplatesFailed": "Failed to load the notification templates",
+    "saveNotificationTemplateFailed": "Failed to save the notification template",
+    "previewNotificationFailed": "Failed to preview the notification",
+    "testNotificationFailed": "Failed to send the test notification"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -867,6 +875,7 @@
     "sections": {
       "site": "Site",
       "seo": "SEO & Bot",
+      "notifications": "Notifications",
       "themes": "Themes",
       "plugins": "Plugins",
       "categories": "Categories",
@@ -1056,6 +1065,86 @@
     "unpublishUpdateFailed": "Failed to update unpublish schedule",
     "errors": {
       "unpublishBeforePublish": "Unpublish date must be after publication date"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "description": "Emails about orders, comments, accounts and audit events. Check delivery, resend notifications that could not be sent, send tests and edit the templates.",
+    "loadFailed": "Failed to load the notification settings",
+    "disabled": "Notifications are disabled. Set [notifications].enabled = true in the configuration file (and the SMTP server in [notifications.email]) and restart the server.",
+    "refresh": "Refresh",
+    "staff": "Staff",
+    "kind": "Notification",
+    "disabledKind": "disabled",
+    "delivery": {
+      "heading": "Delivery",
+      "channels": "Channels",
+      "format": "Format",
+      "html": "HTML and plain text",
+      "text": "Plain text",
+      "locale": "Built-in template language",
+      "queue": "Queue",
+      "queueDatabase": "Database (kept across restarts, up to {{attempts}} attempts)",
+      "queueMemory": "Memory (lost on restart)"
+    },
+    "queue": {
+      "failed": "Failed ({{count}})",
+      "pending": "Waiting ({{count}})",
+      "empty": {
+        "failed": "No failed notifications.",
+        "pending": "Nothing is waiting to be sent."
+      },
+      "attempts_one": "{{count}} attempt",
+      "attempts_other": "{{count}} attempts",
+      "sending": "sending now",
+      "next": "next attempt {{at}}",
+      "retry": "Send again",
+      "discard": "Discard",
+      "retried": "Queued to be sent again",
+      "discarded": "Notification discarded",
+      "actionFailed": "The operation failed",
+      "more": "{{count}} more not shown"
+    },
+    "test": {
+      "heading": "Test send",
+      "description": "Sends the notification right away with sample values (a fictional order, comment or account) through every channel, without retries, and shows each result.",
+      "to": "Email address",
+      "staff": "Also send to the staff",
+      "send": "Send",
+      "sending": "Sending...",
+      "sent": "sent \"{{subject}}\"",
+      "noStaffRecipients": "[notifications.email].staff_recipients is empty, so email notifications for the staff are not sent."
+    },
+    "templates": {
+      "heading": "Templates",
+      "description": "Edits are saved in the database and used by every server right away. The HTML email wraps the plain text in the shared layout (_layout.html) unless the notification has its own .html template.",
+      "target": "Template",
+      "kinds": "Notifications",
+      "parts": "Shared parts",
+      "audience": "Recipient",
+      "person": "Customer / author",
+      "source": {
+        "custom": "Edited",
+        "file": "templates_dir",
+        "builtin": "Built-in",
+        "none": "Not set"
+      },
+      "unsaved": "Unsaved",
+      "save": "Save",
+      "saved": "Saved {{name}}",
+      "resetButton": "Reset",
+      "resetHint": "Discard the edit and use the templates_dir file or the built-in template",
+      "resetConfirm": "Discard your edit of {{name}}?",
+      "reset": "{{name}} reset",
+      "fallbackPlaceholder": "Not set: the shared template (without .staff, or the parent kind) is used. Write here to create one.",
+      "htmlPlaceholder": "Not set: the plain text is shown in the shared layout (_layout.html). Write {% extends \"_layout.html\" %}{% block content %}…{% endblock %} to design this notification.",
+      "variablesHint": "MiniJinja (Jinja2) templates. The values each notification receives are listed in docs/notifications.md (3. Templates). .html templates are escaped automatically.",
+      "preview": "Preview — {{kind}} (sample values)",
+      "previewFrame": "HTML email preview",
+      "view": {
+        "html": "HTML",
+        "text": "Text"
+      }
     }
   }
 }

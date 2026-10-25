@@ -167,12 +167,14 @@ dependencies = [
  "aegis-core",
  "aegis-db",
  "async-trait",
+ "chrono",
  "lettre",
  "minijinja",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

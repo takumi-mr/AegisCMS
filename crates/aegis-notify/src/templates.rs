@@ -1,22 +1,44 @@
-//! 通知の本文のテンプレート（MiniJinja、プレーンテキスト）。
+//! 通知の本文のテンプレート（MiniJinja）。
 //!
-//! 通知の種類ごとに `<種類>.subject`（件名）と `<種類>.txt`（本文）を使う。運営者向け
+//! 通知の種類ごとに `<種類>.subject`（件名）と `<種類>.txt`（本文、プレーンテキスト）を使う。運営者向け
 //! （`Recipient::Staff`）は `<種類>.staff.subject` / `<種類>.staff.txt` を先に探す。
 //! 無ければ種類の最後の `.` 以降を外した名前を順に探す（`audit.session.create` → `audit.session` → `audit`）。
-//! `[notifications].templates_dir` にあるファイルを優先し、無ければ組み込み（`locale` の言語）を使う
+//!
+//! HTML メール（`with_html`）は、同じ名前の `<種類>.html` があればそれを、無ければ共通のレイアウト
+//! `_layout.html` を使う。レイアウトにはプレーンテキストの本文を HTML にしたもの（`body_html`。段落・改行・
+//! URL のリンク）を渡すので、種類ごとに HTML を書かなくてもすべての通知が HTML になる。`.html` は自動でエスケープする。
+//!
+//! テンプレートは Admin Studio で編集したもの（`set_overrides`）、`[notifications].templates_dir` のファイル、
+//! 組み込み（`locale` の言語）の順に探す
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
 
 use aegis_core::{AegisError, Recipient, Result};
-use minijinja::{AutoEscape, Environment, ErrorKind, Value};
+use minijinja::{context, AutoEscape, Environment, ErrorKind, Value};
+use serde::Serialize;
 
 /// 組み込みテンプレートの言語
 pub const LOCALES: &[&str] = &["en", "ja"];
 
+/// HTML メールの共通レイアウト（言語に関係なく 1 つ）
+pub const LAYOUT: &str = "_layout.html";
+
+/// 編集できるテンプレートの拡張子
+const EXTENSIONS: &[&str] = &[".subject", ".txt", ".html"];
+
+/// 1 つのテンプレートの大きさの上限（Admin Studio から保存するもの）
+pub const MAX_TEMPLATE_BYTES: usize = 60_000;
+
 macro_rules! builtin_templates {
     ($($name:literal),* $(,)?) => {
+        /// 組み込みテンプレートの名前（`_layout.html` を除く。どの言語にもある）
+        pub const BUILTIN_NAMES: &[&str] = &[$($name),*];
+
         fn builtin(locale: &str, name: &str) -> Option<&'static str> {
             match (locale, name) {
+                (_, LAYOUT) => Some(include_str!("templates/_layout.html")),
                 $(
                     ("en", $name) => Some(include_str!(concat!("templates/en/", $name))),
                     ("ja", $name) => Some(include_str!(concat!("templates/ja/", $name))),
@@ -81,8 +103,82 @@ fn safe_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
+/// Admin Studio から編集できる名前か（`<種類>.subject` / `.txt` / `.html`、部品の `_*.txt` など）
+pub fn is_editable_name(name: &str) -> bool {
+    name.len() <= 200
+        && safe_name(name)
+        && EXTENSIONS
+            .iter()
+            .any(|ext| name.len() > ext.len() && name.ends_with(ext))
+}
+
+/// テンプレートの出どころ
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TemplateSource {
+    /// Admin Studio で編集したもの（DB の `_aegis_settings`）
+    Custom,
+    /// `[notifications].templates_dir` のファイル
+    File,
+    /// 組み込み
+    Builtin,
+}
+
+/// テンプレートの一覧の 1 件
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TemplateInfo {
+    pub name: String,
+    pub source: TemplateSource,
+}
+
+type Overrides = Arc<RwLock<HashMap<String, String>>>;
+
+/// `name` の中身を探す（編集したもの → ファイル → 組み込み）
+fn load_source(
+    overrides: Option<&Overrides>,
+    dir: Option<&Path>,
+    locale: &str,
+    name: &str,
+) -> std::io::Result<Option<(TemplateSource, String)>> {
+    if !safe_name(name) {
+        return Ok(None);
+    }
+    if let Some(overrides) = overrides {
+        let overrides = overrides
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(source) = overrides.get(name) {
+            return Ok(Some((TemplateSource::Custom, source.clone())));
+        }
+    }
+    if let Some(found) = load_default(dir, locale, name)? {
+        return Ok(Some(found));
+    }
+    Ok(None)
+}
+
+/// 編集したものを除いた中身（元に戻したときに使われるもの）
+fn load_default(
+    dir: Option<&Path>,
+    locale: &str,
+    name: &str,
+) -> std::io::Result<Option<(TemplateSource, String)>> {
+    if let Some(dir) = dir {
+        match std::fs::read_to_string(dir.join(name)) {
+            Ok(source) => return Ok(Some((TemplateSource::File, source))),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(builtin(locale, name).map(|s| (TemplateSource::Builtin, s.to_string())))
+}
+
 pub struct Templates {
-    env: Environment<'static>,
+    locale: String,
+    dir: Option<PathBuf>,
+    html: bool,
+    overrides: Overrides,
+    env: RwLock<Environment<'static>>,
 }
 
 /// 作った件名と本文
@@ -90,47 +186,149 @@ pub struct Templates {
 pub struct Rendered {
     pub subject: String,
     pub body: String,
+    /// HTML の本文（`with_html(true)` のとき）
+    pub html: Option<String>,
+}
+
+fn environment(overrides: Overrides, dir: Option<PathBuf>, locale: String) -> Environment<'static> {
+    let mut env = Environment::new();
+    // HTML のテンプレートだけエスケープする（件名・本文はプレーンテキスト）
+    env.set_auto_escape_callback(|name| {
+        if name.ends_with(".html") {
+            AutoEscape::Html
+        } else {
+            AutoEscape::None
+        }
+    });
+    env.set_trim_blocks(true);
+    env.set_lstrip_blocks(true);
+    env.set_keep_trailing_newline(true);
+    // 最小単位の整数の金額を通貨の表記にする（`{{ order.total | money(order.currency) }}`）
+    env.add_filter("money", |amount: Value, currency: String| -> String {
+        match i64::try_from(amount.clone()) {
+            Ok(amount) => aegis_core::format_money(amount, &currency),
+            Err(_) => amount.to_string(),
+        }
+    });
+    env.set_loader(move |name| {
+        load_source(Some(&overrides), dir.as_deref(), &locale, name)
+            .map(|found| found.map(|(_, source)| source))
+            .map_err(|e| {
+                minijinja::Error::new(
+                    ErrorKind::InvalidOperation,
+                    format!("Failed to read notification template {}: {}", name, e),
+                )
+            })
+    });
+    env
 }
 
 impl Templates {
     pub fn new(locale: &str, templates_dir: Option<&Path>) -> Self {
-        let mut env = Environment::new();
-        env.set_auto_escape_callback(|_| AutoEscape::None);
-        env.set_trim_blocks(true);
-        env.set_lstrip_blocks(true);
-        env.set_keep_trailing_newline(true);
-        // 最小単位の整数の金額を通貨の表記にする（`{{ order.total | money(order.currency) }}`）
-        env.add_filter("money", |amount: Value, currency: String| -> String {
-            match i64::try_from(amount.clone()) {
-                Ok(amount) => aegis_core::format_money(amount, &currency),
-                Err(_) => amount.to_string(),
-            }
-        });
         let locale = if LOCALES.contains(&locale) {
             locale.to_string()
         } else {
             "en".to_string()
         };
         let dir: Option<PathBuf> = templates_dir.map(Path::to_path_buf);
-        env.set_loader(move |name| {
-            if !safe_name(name) {
-                return Ok(None);
-            }
-            if let Some(dir) = &dir {
-                match std::fs::read_to_string(dir.join(name)) {
-                    Ok(source) => return Ok(Some(source)),
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(e) => {
-                        return Err(minijinja::Error::new(
-                            ErrorKind::InvalidOperation,
-                            format!("Failed to read notification template {}: {}", name, e),
-                        ))
+        let overrides: Overrides = Arc::default();
+        Self {
+            env: RwLock::new(environment(overrides.clone(), dir.clone(), locale.clone())),
+            locale,
+            dir,
+            html: false,
+            overrides,
+        }
+    }
+
+    /// HTML の本文も作る
+    pub fn with_html(mut self, html: bool) -> Self {
+        self.html = html;
+        self
+    }
+
+    pub fn html(&self) -> bool {
+        self.html
+    }
+
+    pub fn locale(&self) -> &str {
+        &self.locale
+    }
+
+    /// 同じ設定で、編集したテンプレートだけを差し替えたもの（保存前のプレビュー用）
+    pub fn preview(&self, overrides: HashMap<String, String>) -> Self {
+        let templates = Self::new(&self.locale, self.dir.as_deref()).with_html(self.html);
+        let mut merged = self.overrides();
+        merged.extend(overrides);
+        templates.set_overrides(merged);
+        templates
+    }
+
+    /// Admin Studio で編集したテンプレート（名前 → 中身）をすべて差し替える
+    pub fn set_overrides(&self, overrides: HashMap<String, String>) {
+        *self
+            .overrides
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = overrides;
+        // 読み込み済みのテンプレートを捨てて読み直させる
+        self.env
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear_templates();
+    }
+
+    pub fn overrides(&self) -> HashMap<String, String> {
+        self.overrides
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// テンプレートの中身と出どころ
+    pub fn source(&self, name: &str) -> Result<Option<(TemplateSource, String)>> {
+        load_source(
+            Some(&self.overrides),
+            self.dir.as_deref(),
+            &self.locale,
+            name,
+        )
+        .map_err(|e| AegisError::Internal(format!("Notification template {}: {}", name, e)))
+    }
+
+    /// 編集したものを除いた中身（ファイルか組み込み。元に戻すと使われる）
+    pub fn default_source(&self, name: &str) -> Result<Option<(TemplateSource, String)>> {
+        if !safe_name(name) {
+            return Ok(None);
+        }
+        load_default(self.dir.as_deref(), &self.locale, name)
+            .map_err(|e| AegisError::Internal(format!("Notification template {}: {}", name, e)))
+    }
+
+    /// 使えるテンプレートの一覧（組み込み・`templates_dir` のファイル・編集したもの。名前順）
+    pub fn list(&self) -> Vec<TemplateInfo> {
+        let mut names: Vec<String> = BUILTIN_NAMES.iter().map(|n| n.to_string()).collect();
+        names.push(LAYOUT.to_string());
+        if let Some(dir) = &self.dir {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    if let Some(name) = entry.file_name().to_str() {
+                        if is_editable_name(name) {
+                            names.push(name.to_string());
+                        }
                     }
                 }
             }
-            Ok(builtin(&locale, name).map(str::to_string))
-        });
-        Self { env }
+        }
+        names.extend(self.overrides().into_keys());
+        names.sort();
+        names.dedup();
+        names
+            .into_iter()
+            .filter_map(|name| {
+                let (source, _) = self.source(&name).ok()??;
+                Some(TemplateInfo { name, source })
+            })
+            .collect()
     }
 
     /// 宛先向けの件名と本文を作る。テンプレートが無ければ `Ok(None)`（その通知は送らない）
@@ -156,26 +354,78 @@ impl Templates {
             base = name.rsplit_once('.').map(|(parent, _)| parent);
         }
         let ctx = Value::from_serialize(context);
-        for base in candidates {
-            let subject = match self.env.get_template(&format!("{}.subject", base)) {
+        let env = self
+            .env
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for (index, base) in candidates.iter().enumerate() {
+            let subject = match env.get_template(&format!("{}.subject", base)) {
                 Ok(template) => template,
                 Err(e) if e.kind() == ErrorKind::TemplateNotFound => continue,
-                Err(e) => return Err(template_error(&base, e)),
+                Err(e) => return Err(template_error(base, e)),
             };
-            let body = self
-                .env
+            let body = env
                 .get_template(&format!("{}.txt", base))
-                .map_err(|e| template_error(&base, e))?;
-            let subject = subject.render(&ctx).map_err(|e| template_error(&base, e))?;
-            let body = body.render(&ctx).map_err(|e| template_error(&base, e))?;
+                .map_err(|e| template_error(base, e))?;
+            let subject = subject.render(&ctx).map_err(|e| template_error(base, e))?;
+            let body = body.render(&ctx).map_err(|e| template_error(base, e))?;
+            // 件名は 1 行
+            let subject = subject.split_whitespace().collect::<Vec<_>>().join(" ");
+            let body = tidy(&body);
+            let html = if self.html {
+                // 件名・本文と同じ名前まで（運営者向けの本文に顧客向けの HTML を使わない）
+                Some(self.render_html(&env, &candidates[..=index], &subject, &body, &ctx)?)
+            } else {
+                None
+            };
             return Ok(Some(Rendered {
-                // 件名は 1 行
-                subject: subject.split_whitespace().collect::<Vec<_>>().join(" "),
-                body: tidy(&body),
+                subject,
+                body,
+                html,
             }));
         }
         Ok(None)
     }
+
+    fn render_html(
+        &self,
+        env: &Environment<'static>,
+        candidates: &[String],
+        subject: &str,
+        body: &str,
+        ctx: &Value,
+    ) -> Result<String> {
+        let (body_html, footer_html) = crate::html::text_to_html(body);
+        let ctx = context! {
+            subject => subject,
+            body => body,
+            body_html => Value::from_safe_string(body_html),
+            footer_html => Value::from_safe_string(footer_html),
+            locale => self.locale.as_str(),
+            ..ctx.clone()
+        };
+        for base in candidates {
+            let name = format!("{}.html", base);
+            match env.get_template(&name) {
+                Ok(template) => {
+                    return template.render(&ctx).map_err(|e| template_error(&name, e));
+                }
+                Err(e) if e.kind() == ErrorKind::TemplateNotFound => {}
+                Err(e) => return Err(template_error(&name, e)),
+            }
+        }
+        env.get_template(LAYOUT)
+            .and_then(|template| template.render(&ctx))
+            .map_err(|e| template_error(LAYOUT, e))
+    }
+}
+
+/// テンプレートの文法を確かめる（保存の前）
+pub fn check_syntax(name: &str, source: &str) -> Result<()> {
+    let mut env = Environment::new();
+    env.add_template_owned(name.to_string(), source.to_string())
+        .map(|_| ())
+        .map_err(|e| AegisError::Validation(format!("{:#}", e)))
 }
 
 fn template_error(name: &str, e: minijinja::Error) -> AegisError {
@@ -653,6 +903,176 @@ https://shop.example.com/spring-sale
             ja.body.contains("Shop（Aegis Coffee） さんが返信しました"),
             "{}",
             ja.body
+        );
+    }
+
+    #[test]
+    fn html_uses_the_layout_and_escapes_the_values() {
+        let author = Recipient::person("a@example.com", "");
+        let context = json!({
+            "site_name": "Aegis <Coffee>",
+            "site_url": "https://shop.example.com",
+            "name": "Taro",
+            "comment": { "body": "<script>alert(1)</script>" },
+            "reply": { "author_name": "Shop", "body": "See https://shop.example.com/a?x=1&y=2", "staff": false },
+            "content": { "title": "Spring" },
+            "content_url": "",
+            "unsubscribe_url": "",
+        });
+        let plain = Templates::new("en", None)
+            .render("comment.replied", &author, &context)
+            .unwrap()
+            .unwrap();
+        assert_eq!(plain.html, None);
+
+        let rendered = Templates::new("en", None)
+            .with_html(true)
+            .render("comment.replied", &author, &context)
+            .unwrap()
+            .unwrap();
+        let html = rendered.html.unwrap();
+        assert!(html.starts_with("<!DOCTYPE html>"), "{}", html);
+        assert!(html.contains("<html lang=\"en\">"));
+        assert!(rendered.subject.contains("Aegis <Coffee>"));
+        assert!(html.contains("Aegis &lt;Coffee&gt;</title>"), "{}", html);
+        // 本文の値もサイト名もエスケープされる
+        assert!(
+            html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"),
+            "{}",
+            html
+        );
+        assert!(!html.contains("<script>"));
+        assert!(html.contains(">Aegis &lt;Coffee&gt;</a>"), "{}", html);
+        // URL はリンクになり、--- から後はフッター
+        assert!(html.contains("<a href=\"https://shop.example.com/a?x=1&amp;y=2\""));
+        assert!(html.contains("color:#71717a;font-size:12px"));
+        // プレーンテキストの本文は変わらない
+        assert_eq!(rendered.body, plain.body);
+    }
+
+    #[test]
+    fn kind_html_templates_override_the_layout_only_for_their_own_recipients() {
+        let templates = Templates::new("en", None).with_html(true);
+        templates.set_overrides(HashMap::from([(
+            "order.placed.html".to_string(),
+            "{% extends \"_layout.html\" %}{% block content %}<h1>{{ order.number }}</h1>{{ body_html }}{% endblock %}"
+                .to_string(),
+        )]));
+        let customer = templates
+            .render(
+                "order.placed",
+                &Recipient::person("hanako@example.com", "Hanako"),
+                &order("paid"),
+            )
+            .unwrap()
+            .unwrap()
+            .html
+            .unwrap();
+        assert!(customer.contains("<h1>261023-ABC234</h1>"), "{}", customer);
+        assert!(customer.contains("<p style="));
+        // 運営者向けは本文が別（order.placed.staff.txt）なので、顧客向けの HTML を使わない
+        let staff = templates
+            .render("order.placed", &Recipient::Staff, &order("paid"))
+            .unwrap()
+            .unwrap()
+            .html
+            .unwrap();
+        assert!(!staff.contains("<h1>"), "{}", staff);
+    }
+
+    #[test]
+    fn overrides_take_precedence_and_can_be_replaced() {
+        let dir = std::env::temp_dir().join(format!("aegis-notify-ovr-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("order.shipped.subject"),
+            "File: {{ order.number }}",
+        )
+        .unwrap();
+        std::fs::write(dir.join("custom.note.txt"), "x").unwrap();
+        let templates = Templates::new("en", Some(&dir));
+        let customer = Recipient::person("a@example.com", "");
+        let subject = |t: &Templates| {
+            t.render("order.shipped", &customer, &order("shipped"))
+                .unwrap()
+                .unwrap()
+                .subject
+        };
+        assert_eq!(subject(&templates), "File: 261023-ABC234");
+
+        templates.set_overrides(HashMap::from([(
+            "order.shipped.subject".to_string(),
+            "Custom: {{ order.number }}".to_string(),
+        )]));
+        // 読み込み済みのものも差し替わる
+        assert_eq!(subject(&templates), "Custom: 261023-ABC234");
+        assert_eq!(
+            templates
+                .source("order.shipped.subject")
+                .unwrap()
+                .unwrap()
+                .0,
+            TemplateSource::Custom
+        );
+        assert_eq!(
+            templates.default_source("order.shipped.subject").unwrap(),
+            Some((TemplateSource::File, "File: {{ order.number }}".to_string()))
+        );
+
+        // 保存前のプレビューは元のものを変えない
+        let preview = templates.preview(HashMap::from([(
+            "order.shipped.subject".to_string(),
+            "Preview".to_string(),
+        )]));
+        assert_eq!(subject(&preview), "Preview");
+        assert_eq!(subject(&templates), "Custom: 261023-ABC234");
+
+        let list = templates.list();
+        let source_of = |name: &str| list.iter().find(|t| t.name == name).map(|t| t.source);
+        assert_eq!(
+            source_of("order.shipped.subject"),
+            Some(TemplateSource::Custom)
+        );
+        assert_eq!(
+            source_of("order.shipped.txt"),
+            Some(TemplateSource::Builtin)
+        );
+        assert_eq!(source_of("custom.note.txt"), Some(TemplateSource::File));
+        assert_eq!(source_of(LAYOUT), Some(TemplateSource::Builtin));
+
+        templates.set_overrides(HashMap::new());
+        assert_eq!(subject(&templates), "File: 261023-ABC234");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn checks_names_and_syntax() {
+        for name in [
+            "order.placed.subject",
+            "_footer.txt",
+            "_layout.html",
+            "audit.session.create.html",
+        ] {
+            assert!(is_editable_name(name), "{}", name);
+        }
+        for name in [
+            "../x.txt",
+            ".txt",
+            "order.placed",
+            "a/b.txt",
+            "x.exe",
+            ".hidden.txt",
+        ] {
+            assert!(!is_editable_name(name), "{}", name);
+        }
+        check_syntax("a.txt", "Hello {{ name }}{% if x %}!{% endif %}").unwrap();
+        let error = check_syntax("a.txt", "Hello {% if x %}")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("syntax error") || error.contains("unexpected"),
+            "{}",
+            error
         );
     }
 }

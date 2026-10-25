@@ -69,7 +69,9 @@ export type AuditAction =
   | 'comment.create'
   | 'comment.moderate'
   | 'comment.delete'
-  | 'comment.settings_update';
+  | 'comment.settings_update'
+  | 'notification.template_update'
+  | 'notification.queue_update';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 
@@ -438,6 +440,91 @@ export interface SeoSettings {
     robots_txt: string;
     meta_description: string;
   };
+}
+
+/** A notification kind with built-in sample values (`GET /api/v1/notifications`) */
+export interface NotificationKindInfo {
+  kind: string;
+  /** Has a template for a specific person (customer, author…) */
+  person: boolean;
+  /** Has a template for the staff (its own or the shared one) */
+  staff: boolean;
+  /** Listed in `[notifications].disabled_events` */
+  disabled: boolean;
+}
+
+/** Notification setup and queue counts (`GET /api/v1/notifications`) */
+export interface NotificationStatus {
+  enabled: boolean;
+  channels: string[];
+  locale: string;
+  html: boolean;
+  /** The queue is kept in the database (`[notifications.queue].persistent`) */
+  persistent: boolean;
+  max_attempts: number;
+  /** `[notifications.email].staff_recipients` is set */
+  staff_recipients: boolean;
+  queue: { pending: number; failed: number };
+  kinds: NotificationKindInfo[];
+}
+
+export type NotificationQueueStatus = 'pending' | 'failed';
+
+export interface NotificationQueueItem {
+  id: string;
+  kind: string;
+  channel: string;
+  /** Email address, or `staff` */
+  recipient: string;
+  subject: string;
+  status: NotificationQueueStatus;
+  attempts: number;
+  last_error: string | null;
+  next_attempt_at: string;
+  /** A server is sending it right now */
+  sending: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationQueuePage {
+  items: NotificationQueueItem[];
+  total: number;
+}
+
+/** Where a notification template comes from */
+export type NotificationTemplateSource = 'custom' | 'file' | 'builtin';
+
+export interface NotificationTemplateInfo {
+  name: string;
+  source: NotificationTemplateSource;
+}
+
+export interface NotificationTemplateBody {
+  source: NotificationTemplateSource;
+  content: string;
+}
+
+export interface NotificationTemplateDetail {
+  name: string;
+  /** The template in use (null: none yet, a new one can be written) */
+  current: NotificationTemplateBody | null;
+  /** What applies after resetting the edit (file or built-in) */
+  default: NotificationTemplateBody | null;
+}
+
+export interface NotificationPreview {
+  subject: string;
+  body: string;
+  html: string | null;
+}
+
+export interface NotificationTestDelivery {
+  channel: string;
+  recipient: string;
+  subject: string;
+  ok: boolean;
+  error: string | null;
 }
 
 export interface UpdateSeoSettingsPayload {

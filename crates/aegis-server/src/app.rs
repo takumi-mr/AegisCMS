@@ -184,6 +184,41 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/seo",
             get(handlers::get_seo_settings).put(handlers::update_seo_settings),
         )
+        // --- 通知（[notifications]） ---
+        .route(
+            "/api/v1/notifications",
+            get(handlers::get_notification_status),
+        )
+        .route(
+            "/api/v1/notifications/queue",
+            get(handlers::list_notification_queue),
+        )
+        .route(
+            "/api/v1/notifications/queue/{id}",
+            delete(handlers::delete_queued_notification),
+        )
+        .route(
+            "/api/v1/notifications/queue/{id}/retry",
+            post(handlers::retry_queued_notification),
+        )
+        .route(
+            "/api/v1/notifications/templates",
+            get(handlers::list_notification_templates),
+        )
+        .route(
+            "/api/v1/notifications/templates/{name}",
+            get(handlers::get_notification_template)
+                .put(handlers::save_notification_template)
+                .delete(handlers::reset_notification_template),
+        )
+        .route(
+            "/api/v1/notifications/preview",
+            post(handlers::preview_notification),
+        )
+        .route(
+            "/api/v1/notifications/test",
+            post(handlers::send_test_notification),
+        )
         .route("/api/v1/themes", get(handlers::list_themes))
         .route(
             "/api/v1/themes/active",
