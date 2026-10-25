@@ -111,6 +111,9 @@ name = "aegis-commerce"
 version = "0.1.0"
 dependencies = [
  "aegis-audit",
+ "aegis-auth",
+ "aegis-cache",
+ "aegis-comments",
  "aegis-core",
  "aegis-db",
  "aegis-runtime",

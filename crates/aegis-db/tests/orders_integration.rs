@@ -124,6 +124,7 @@ where
         transaction_id: None,
         refunded_amount: 0,
         refunds_json: "[]".to_string(),
+        customer_id: None,
     };
     let reservations = vec![
         StockReservation {
@@ -174,6 +175,7 @@ where
         transaction_id: None,
         refunded_amount: 0,
         refunds_json: "[]".to_string(),
+        customer_id: None,
     };
     let res_fail = adapter
         .create_order(
@@ -383,6 +385,7 @@ where
         transaction_id: None,
         refunded_amount: 0,
         refunds_json: "[]".to_string(),
+        customer_id: None,
     };
     adapter.create_order(&expired_order, &[]).await?.unwrap();
 
@@ -527,6 +530,7 @@ where
         transaction_id: None,
         refunded_amount: 0,
         refunds_json: "[]".to_string(),
+        customer_id: None,
     };
     let var_reservations = vec![StockReservation {
         table: "content_product".to_string(),

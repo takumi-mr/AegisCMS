@@ -128,10 +128,24 @@ pub enum AuditAction {
     ForumPostCreate,
     #[serde(rename = "forum.post.delete")]
     ForumPostDelete,
+    #[serde(rename = "customer.register")]
+    CustomerRegister,
+    #[serde(rename = "customer.login")]
+    CustomerLogin,
+    #[serde(rename = "customer.update")]
+    CustomerUpdate,
+    #[serde(rename = "review.create")]
+    ReviewCreate,
+    #[serde(rename = "review.moderate")]
+    ReviewModerate,
+    #[serde(rename = "review.reply")]
+    ReviewReply,
+    #[serde(rename = "review.delete")]
+    ReviewDelete,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 46] = [
+    pub const ALL: [AuditAction; 53] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -178,6 +192,13 @@ impl AuditAction {
         Self::ForumThreadDelete,
         Self::ForumPostCreate,
         Self::ForumPostDelete,
+        Self::CustomerRegister,
+        Self::CustomerLogin,
+        Self::CustomerUpdate,
+        Self::ReviewCreate,
+        Self::ReviewModerate,
+        Self::ReviewReply,
+        Self::ReviewDelete,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -228,6 +249,13 @@ impl AuditAction {
             Self::ForumThreadDelete => "forum.thread.delete",
             Self::ForumPostCreate => "forum.post.create",
             Self::ForumPostDelete => "forum.post.delete",
+            Self::CustomerRegister => "customer.register",
+            Self::CustomerLogin => "customer.login",
+            Self::CustomerUpdate => "customer.update",
+            Self::ReviewCreate => "review.create",
+            Self::ReviewModerate => "review.moderate",
+            Self::ReviewReply => "review.reply",
+            Self::ReviewDelete => "review.delete",
         }
     }
 }

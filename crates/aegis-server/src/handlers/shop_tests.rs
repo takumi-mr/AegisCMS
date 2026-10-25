@@ -966,6 +966,7 @@ async fn test_official_wasm_plugins_in_checkout() {
         name: "Buyer".to_string(),
         shipping_address: None,
         coupon_code: coupon.map(str::to_string),
+        customer_id: None,
     };
 
     // 8,000 - 10% + 600 shipping (under the 10,000 threshold)

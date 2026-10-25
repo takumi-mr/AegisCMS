@@ -2,11 +2,13 @@
 
 pub mod comments;
 pub mod config;
+pub mod customers;
 pub mod forum;
 pub mod mysql;
 pub mod notifications;
 pub mod orders;
 pub mod postgres;
+pub mod reviews;
 pub mod sqlite;
 pub mod variants;
 
@@ -20,6 +22,9 @@ use std::sync::Arc;
 
 pub use comments::{CommentListQuery, CommentPage, CommentRecord, CommentStorage, COMMENT_TABLE};
 pub use config::{DatabaseBackendKind, DatabaseConfig};
+pub use customers::{
+    build_customer_table, CustomerRecord, CustomerStorage, CUSTOMER_COLUMNS, CUSTOMER_TABLE,
+};
 pub use forum::{
     ForumCategoryRecord, ForumPostRecord, ForumStorage, ForumThreadRecord, PostListQuery,
     ThreadListQuery, FORUM_CATEGORY_TABLE, FORUM_POST_TABLE, FORUM_THREAD_TABLE,
@@ -34,6 +39,10 @@ pub use orders::{
     OutOfStock, StockReservation,
 };
 pub use postgres::PostgresAdapter;
+pub use reviews::{
+    build_review_table, ReviewAggregateStats, ReviewListQuery, ReviewPage, ReviewRecord,
+    ReviewStorage, REVIEW_COLUMNS, REVIEW_TABLE,
+};
 pub use sqlite::SqliteAdapter;
 pub use variants::{ProductVariantRecord, ProductVariantStorage, PRODUCT_VARIANT_TABLE};
 
@@ -85,6 +94,8 @@ pub trait DatabaseAdapter:
     + CommentStorage
     + NotificationQueueStorage
     + ForumStorage
+    + CustomerStorage
+    + ReviewStorage
     + Send
     + Sync
 {

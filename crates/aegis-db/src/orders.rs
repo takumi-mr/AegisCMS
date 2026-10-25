@@ -40,13 +40,16 @@ pub trait OrderStorage: Send + Sync {
 
     /// 返金（部分・全額）を記録し、ステータス変更・在庫戻しを同一トランザクションで実行する
     async fn record_order_refund(&self, refund: &OrderRefundUpdate) -> Result<bool>;
+
+    /// 特定の顧客アカウントに紐づく注文一覧（作成日の新しい順）
+    async fn list_customer_orders(&self, customer_id: &str) -> Result<Vec<OrderRecord>>;
 }
 
 /// 注文テーブル名（コンテンツテーブル `content_*` と衝突しないシステムテーブル）
 pub const ORDER_TABLE: &str = "_aegis_orders";
 
 /// 注文（`_aegis_orders` の 1 行）。金額は通貨の最小単位の整数
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct OrderRecord {
     pub id: String,
     /// 顧客に見せる注文番号（`261022-7KQ2XM`）
@@ -85,10 +88,12 @@ pub struct OrderRecord {
     pub refunded_amount: i64,
     /// `Vec<OrderRefundRecord>` の JSON
     pub refunds_json: String,
+    /// 顧客アカウントID（会員購入の場合。ゲスト時は None）
+    pub customer_id: Option<String>,
 }
 
 /// INSERT / SELECT で使う注文テーブルのカラム（順序固定）
-pub const ORDER_COLUMNS: [&str; 24] = [
+pub const ORDER_COLUMNS: [&str; 25] = [
     "id",
     "number",
     "status",
@@ -113,6 +118,7 @@ pub const ORDER_COLUMNS: [&str; 24] = [
     "transaction_id",
     "refunded_amount",
     "refunds_json",
+    "customer_id",
 ];
 
 /// 注文の作成時に確保する在庫（variant_id があればバリエーションテーブル、無ければ商品テーブル `table` の `id` の `stock` を `quantity` 減らす）
@@ -191,6 +197,7 @@ pub fn build_order_table(
         ("idx_aegis_orders_payment_ref", "payment_ref"),
         ("idx_aegis_orders_expires", "status, expires_at"),
         ("idx_aegis_orders_transaction", "transaction_id"),
+        ("idx_aegis_orders_customer", "customer_id"),
     ];
     let inline = if inline_indexes {
         indexes
@@ -225,7 +232,8 @@ pub fn build_order_table(
          note {text}, \
          transaction_id {key}, \
          refunded_amount {bigint} NOT NULL DEFAULT 0, \
-         refunds_json {text} NOT NULL{inline});",
+         refunds_json {text} NOT NULL, \
+         customer_id {key}{inline});",
         table = ORDER_TABLE,
         key = key,
         text = text,
@@ -416,6 +424,7 @@ macro_rules! order_row_from_sqlx {
                 .try_get("refunds_json")
                 .map_err(get)
                 .unwrap_or_else(|_| "[]".to_string()),
+            customer_id: row.try_get("customer_id").ok(),
         }
     }};
 }
@@ -450,6 +459,7 @@ macro_rules! bind_order_insert {
             .bind(&o.transaction_id)
             .bind(o.refunded_amount)
             .bind(&o.refunds_json)
+            .bind(&o.customer_id)
     }};
 }
 pub(crate) use bind_order_insert;
@@ -659,6 +669,28 @@ macro_rules! impl_order_storage {
                 }
                 Ok(orders)
             }
+
+            async fn list_customer_orders(
+                &self,
+                customer_id: &str,
+            ) -> aegis_core::Result<Vec<$crate::OrderRecord>> {
+                let ph = $ph;
+                let sql = $crate::orders::build_order_select(
+                    Some(&format!("customer_id = {}", ph(1))),
+                    None,
+                );
+                let db_err = |e: sqlx::Error| aegis_core::AegisError::Database(e.to_string());
+                let rows = sqlx::query(&sql)
+                    .bind(customer_id)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                let mut orders = Vec::with_capacity(rows.len());
+                for row in &rows {
+                    orders.push($crate::orders::order_row_from_sqlx!(row));
+                }
+                Ok(orders)
+            }
         }
     };
 }
@@ -708,12 +740,12 @@ mod tests {
             count,
             "SELECT COUNT(*) FROM _aegis_orders WHERE status = $1;"
         );
-        assert!(build_order_insert(ph).contains("$24)"));
+        assert!(build_order_insert(ph).contains("$25)"));
 
         let (mysql, indexes) = build_order_table("TEXT", "VARCHAR(255)", "BIGINT", true);
         assert!(mysql.contains(", INDEX idx_aegis_orders_status (status, created_at)"));
         assert!(indexes.is_empty());
         let (_, indexes) = build_order_table("TEXT", "TEXT", "INTEGER", false);
-        assert_eq!(indexes.len(), 5);
+        assert_eq!(indexes.len(), 6);
     }
 }

@@ -2,6 +2,7 @@ pub mod audit;
 pub mod auth;
 pub mod comments;
 pub mod content;
+pub mod customers;
 pub mod forum;
 pub mod health;
 pub mod invitation;
@@ -13,6 +14,7 @@ pub mod plugin;
 pub mod preview;
 pub mod public;
 pub mod registration;
+pub mod reviews;
 pub mod saml;
 pub mod schemas;
 pub mod seo;
@@ -34,6 +36,11 @@ pub use content::{
     create_content, delete_content, delete_variant, get_content, list_content, list_schedule,
     list_variants, update_content, upsert_variant,
 };
+pub use customers::{
+    admin_get_customer, admin_list_customers, admin_set_customer_status, get_me, get_my_order,
+    list_my_orders, list_my_reviews, login as customer_login, logout as customer_logout,
+    register as customer_register, update_me,
+};
 pub use health::health_check;
 pub use invitation::{accept_invitation, create_invitation, get_invitation_info};
 pub use notifications::{
@@ -52,6 +59,11 @@ pub use plugin::{
 pub use preview::preview_content;
 pub use public::{render_article, render_index, render_page_or_slug};
 pub use registration::{register, verify_registration};
+pub use reviews::{
+    admin_bulk_reviews, admin_delete_reply, admin_get_review, admin_get_review_settings,
+    admin_list_reviews, admin_patch_review, admin_put_review_settings, admin_set_reply,
+    list_product_reviews, submit_product_review,
+};
 pub use saml::{saml_acs, saml_login, saml_metadata};
 pub use schemas::{get_schema, list_schemas};
 pub use seo::{get_robots_txt, get_seo_settings, get_sitemap_xml, update_seo_settings};
@@ -71,6 +83,8 @@ pub use users::{
     create_user, delete_avatar, delete_user, get_user, list_users, update_user, upload_avatar,
 };
 
+#[cfg(test)]
+mod customers_tests;
 #[cfg(test)]
 mod forum_tests;
 #[cfg(test)]

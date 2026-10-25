@@ -108,6 +108,8 @@ super::notifications::impl_notification_queue_storage!(
     "Postgres"
 );
 super::forum::impl_forum_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::customers::impl_customer_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::reviews::impl_review_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
@@ -245,6 +247,14 @@ impl DatabaseAdapter for PostgresAdapter {
         .await
         .map_err(|e| AegisError::Database(e.to_string()))?;
 
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS customer_id VARCHAR(255);",
+            super::orders::ORDER_TABLE
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+
         for index in order_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
@@ -260,6 +270,34 @@ impl DatabaseAdapter for PostgresAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in variant_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 顧客
+        let (customer_table, customer_indexes) =
+            super::customers::build_customer_table("TEXT", "VARCHAR(255)", false);
+        sqlx::query(&customer_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in customer_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 商品レビュー
+        let (review_table, review_indexes) =
+            super::reviews::build_review_table("TEXT", "VARCHAR(255)", "BIGINT", false);
+        sqlx::query(&review_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in review_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

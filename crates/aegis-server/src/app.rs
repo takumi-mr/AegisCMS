@@ -204,6 +204,41 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/orders/{id}/refund",
             post(handlers::refund_order),
         )
+        // --- 顧客アカウント（EC 顧客・AegisCMS スタッフとは別管理） ---
+        .route("/api/v1/customers/register", post(handlers::customer_register))
+        .route("/api/v1/customers/login", post(handlers::customer_login))
+        .route("/api/v1/customers/logout", post(handlers::customer_logout))
+        .route(
+            "/api/v1/customers/me",
+            get(handlers::get_me).put(handlers::update_me),
+        )
+        .route("/api/v1/customers/orders", get(handlers::list_my_orders))
+        .route("/api/v1/customers/orders/{id}", get(handlers::get_my_order))
+        .route("/api/v1/customers/reviews", get(handlers::list_my_reviews))
+        .route("/api/v1/admin/customers", get(handlers::admin_list_customers))
+        .route(
+            "/api/v1/admin/customers/{id}",
+            get(handlers::admin_get_customer).patch(handlers::admin_set_customer_status),
+        )
+        // --- 商品レビュー（購入者限定・ステマ規制配慮・モデレーション） ---
+        .route(
+            "/api/v1/products/{product_id}/reviews",
+            get(handlers::list_product_reviews).post(handlers::submit_product_review),
+        )
+        .route("/api/v1/admin/reviews", get(handlers::admin_list_reviews))
+        .route(
+            "/api/v1/admin/reviews/settings",
+            get(handlers::admin_get_review_settings).put(handlers::admin_put_review_settings),
+        )
+        .route("/api/v1/admin/reviews/bulk", post(handlers::admin_bulk_reviews))
+        .route(
+            "/api/v1/admin/reviews/{id}",
+            get(handlers::admin_get_review).patch(handlers::admin_patch_review),
+        )
+        .route(
+            "/api/v1/admin/reviews/{id}/reply",
+            post(handlers::admin_set_reply).delete(handlers::admin_delete_reply),
+        )
         .route("/api/v1/plugins", get(handlers::list_plugins))
         .route("/api/v1/plugins/install", post(handlers::install_plugin))
         .route(
