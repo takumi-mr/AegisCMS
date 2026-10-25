@@ -219,12 +219,6 @@ impl DatabaseAdapter for PostgresAdapter {
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in order_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
 
         // 以前のバージョンで作成した注文テーブルに後から追加したカラムを足す
         sqlx::query(&format!(
@@ -250,6 +244,13 @@ impl DatabaseAdapter for PostgresAdapter {
         .execute(&self.pool)
         .await
         .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        for index in order_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
 
         // 商品バリエーション
         let (variant_table, variant_indexes) =

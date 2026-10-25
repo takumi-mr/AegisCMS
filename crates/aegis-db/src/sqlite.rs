@@ -253,12 +253,6 @@ impl DatabaseAdapter for SqliteAdapter {
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in order_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
 
         // 以前のバージョンで作成した注文テーブルに後から追加したカラムを足す
         let order_columns: HashSet<String> = sqlx::query(&format!(
@@ -297,6 +291,13 @@ impl DatabaseAdapter for SqliteAdapter {
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        for index in order_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
         }
 
         // 商品バリエーション
