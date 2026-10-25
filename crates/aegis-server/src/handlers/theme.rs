@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Multipart, Path, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -90,6 +90,169 @@ pub async fn switch_active_theme(
             format!("Theme '{}' activated but failed to fetch info", new_theme),
         )),
     }
+}
+
+/// `POST /api/v1/themes/install` — テーマ ZIP パッケージを検証・展開・インストールする（admin 権限必須）
+pub async fn install_theme(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): AdminSession,
+    audit_ctx: AuditContext,
+    mut multipart: Multipart,
+) -> Result<Json<ThemeInfo>, (StatusCode, String)> {
+    let mut zip_bytes: Option<Vec<u8>> = None;
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name() == Some("file") || field.name() == Some("package") {
+            let bytes = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    format!("Failed to read upload: {}", e),
+                )
+            })?;
+            zip_bytes = Some(bytes.to_vec());
+            break;
+        }
+    }
+
+    let bytes = zip_bytes.ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "No 'file' field found in multipart request".to_string(),
+        )
+    })?;
+
+    let temp_root = std::env::temp_dir().join(format!(
+        "aegis_theme_inst_{}_{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let _ = std::fs::remove_dir_all(&temp_root);
+    std::fs::create_dir_all(&temp_root).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create temp dir: {}", e),
+        )
+    })?;
+
+    let res = (|| -> aegis_core::Result<(aegis_theme::ThemeManifest, std::path::PathBuf)> {
+        aegis_core::extract_zip_safely(&bytes, &temp_root, None)?;
+        let pkg_root = find_theme_package_root(&temp_root)?;
+
+        let trusted_keys = if state.config.theme.trusted_public_keys.is_empty() {
+            None
+        } else {
+            Some(state.config.theme.trusted_public_keys.as_slice())
+        };
+
+        let manifest = state.theme.validate_theme_package_with_policy(
+            &pkg_root,
+            trusted_keys,
+            state.config.theme.require_signatures,
+        )?;
+
+        Ok((manifest, pkg_root))
+    })();
+
+    let (manifest, pkg_root) = match res {
+        Ok(val) => val,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&temp_root);
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("Theme package validation failed: {}", e),
+            ));
+        }
+    };
+
+    let themes_dir = state.theme.themes_dir();
+    let target_dir = themes_dir.join(&manifest.id);
+
+    if target_dir.exists() {
+        if let Err(e) = std::fs::remove_dir_all(&target_dir) {
+            let _ = std::fs::remove_dir_all(&temp_root);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to remove existing theme directory: {}", e),
+            ));
+        }
+    } else if let Err(e) = std::fs::create_dir_all(themes_dir) {
+        let _ = std::fs::remove_dir_all(&temp_root);
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create themes dir: {}", e),
+        ));
+    }
+
+    if let Err(e) = copy_dir_all(&pkg_root, &target_dir) {
+        let _ = std::fs::remove_dir_all(&temp_root);
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to install theme files: {}", e),
+        ));
+    }
+
+    let _ = std::fs::remove_dir_all(&temp_root);
+
+    state
+        .audit
+        .record(
+            audit_ctx
+                .event(AuditAction::ThemeInstall, AuditOutcome::Success)
+                .with_actor(Some(aegis_core::AuditActor {
+                    user_id: session.user_id,
+                    role: session.role,
+                }))
+                .with_details(json!({
+                    "theme_id": manifest.id,
+                    "version": manifest.version,
+                    "name": manifest.name,
+                })),
+        )
+        .await;
+
+    let info = state
+        .theme
+        .get_theme_info(&manifest.id)
+        .unwrap_or(ThemeInfo {
+            is_active: state.theme.active_theme() == manifest.id,
+            has_templates: target_dir.join("templates").exists(),
+            has_assets: target_dir.join("assets").exists(),
+            preview_url: None,
+            manifest,
+        });
+
+    Ok(Json(info))
+}
+
+fn find_theme_package_root(dir: &std::path::Path) -> aegis_core::Result<std::path::PathBuf> {
+    if dir.join("theme.json").is_file() {
+        return Ok(dir.to_path_buf());
+    }
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.join("theme.json").is_file() {
+                return Ok(path);
+            }
+        }
+    }
+    Err(aegis_core::AegisError::Validation(
+        "Missing 'theme.json' in archive".to_string(),
+    ))
+}
+
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &dest_path)?;
+        } else {
+            std::fs::copy(entry.path(), dest_path)?;
+        }
+    }
+    Ok(())
 }
 
 /// `GET /themes/{theme_id}/preview` — テーマのプレビュー画像を配信

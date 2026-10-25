@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Multipart, Path, State},
     http::StatusCode,
     Json,
 };
@@ -484,6 +484,174 @@ pub async fn update_plugin_settings(
 
     let effective = get_effective_plugin_settings(&state, &name).await;
     Ok(Json(json!({ "name": name, "settings": effective })))
+}
+
+/// `POST /api/v1/plugins/install` — プラグイン ZIP パッケージを検証・展開・インストールする（admin 権限必須）
+pub async fn install_plugin(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): AdminSession,
+    audit: AuditContext,
+    mut multipart: Multipart,
+) -> Result<Json<PluginInfo>, ApiError> {
+    require_switchable(&state)?;
+
+    let mut zip_bytes: Option<Vec<u8>> = None;
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name() == Some("file") || field.name() == Some("package") {
+            let bytes = field.bytes().await.map_err(|e| {
+                api_error(
+                    StatusCode::BAD_REQUEST,
+                    format!("Failed to read upload: {}", e),
+                )
+            })?;
+            zip_bytes = Some(bytes.to_vec());
+            break;
+        }
+    }
+
+    let bytes = zip_bytes.ok_or_else(|| {
+        api_error(
+            StatusCode::BAD_REQUEST,
+            "No 'file' field found in multipart request",
+        )
+    })?;
+
+    let temp_root = std::env::temp_dir().join(format!(
+        "aegis_plugin_inst_{}_{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let _ = std::fs::remove_dir_all(&temp_root);
+    std::fs::create_dir_all(&temp_root).map_err(|e| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create temp dir: {}", e),
+        )
+    })?;
+
+    let res = (|| -> aegis_core::Result<(aegis_core::PluginManifest, std::path::PathBuf)> {
+        aegis_core::extract_zip_safely(&bytes, &temp_root, None)?;
+        let pkg_root = find_plugin_package_root(&temp_root)?;
+
+        let trusted_keys = if state.config.plugins.trusted_public_keys.is_empty() {
+            None
+        } else {
+            Some(state.config.plugins.trusted_public_keys.as_slice())
+        };
+
+        let manifest = WasmPluginLoader::validate_plugin_package(
+            &pkg_root,
+            trusted_keys,
+            state.config.plugins.require_signatures,
+        )?;
+
+        Ok((manifest, pkg_root))
+    })();
+
+    let (manifest, pkg_root) = match res {
+        Ok(val) => val,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&temp_root);
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                format!("Package validation failed: {}", e),
+            ));
+        }
+    };
+
+    let plugins_dir = &state.config.paths.plugins_dir;
+    let target_dir = plugins_dir.join(&manifest.name);
+
+    if target_dir.exists() {
+        if let Err(e) = std::fs::remove_dir_all(&target_dir) {
+            let _ = std::fs::remove_dir_all(&temp_root);
+            return Err(api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to remove existing plugin directory: {}", e),
+            ));
+        }
+    } else if let Err(e) = std::fs::create_dir_all(plugins_dir) {
+        let _ = std::fs::remove_dir_all(&temp_root);
+        return Err(api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create plugins dir: {}", e),
+        ));
+    }
+
+    if let Err(e) = copy_dir_all(&pkg_root, &target_dir) {
+        let _ = std::fs::remove_dir_all(&temp_root);
+        return Err(api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to install plugin files: {}", e),
+        ));
+    }
+
+    let _ = std::fs::remove_dir_all(&temp_root);
+
+    state
+        .audit
+        .record(
+            audit
+                .event(AuditAction::PluginInstall, AuditOutcome::Success)
+                .with_actor(Some(AuditActor {
+                    user_id: session.user_id,
+                    role: session.role,
+                }))
+                .with_resource("plugin", Some(manifest.name.clone()))
+                .with_details(json!({
+                    "version": manifest.version,
+                    "display_name": manifest.display_name,
+                })),
+        )
+        .await;
+
+    let enabled = state.plugin_registry.enabled().await;
+    let list = plugin_list(&state, &enabled).await?;
+    let info = list
+        .into_iter()
+        .find(|p| p.name == manifest.name)
+        .unwrap_or(PluginInfo {
+            name: manifest.name.clone(),
+            is_enabled: enabled.contains(&manifest.name),
+            is_installed: true,
+            problem: None,
+            manifest: Some(manifest),
+            settings: Default::default(),
+        });
+
+    Ok(Json(info))
+}
+
+fn find_plugin_package_root(dir: &std::path::Path) -> aegis_core::Result<std::path::PathBuf> {
+    if dir.join("plugin.manifest.json").is_file() {
+        return Ok(dir.to_path_buf());
+    }
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.join("plugin.manifest.json").is_file() {
+                return Ok(path);
+            }
+        }
+    }
+    Err(AegisError::Validation(
+        "Missing 'plugin.manifest.json' in archive".to_string(),
+    ))
+}
+
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &dest_path)?;
+        } else {
+            std::fs::copy(entry.path(), dest_path)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

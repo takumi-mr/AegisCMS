@@ -648,8 +648,28 @@ export const aegisApi = {
     );
   },
 
+  async installTheme(file: File): Promise<ThemeInfo> {
+    const form = new FormData();
+    form.append('file', file);
+    return request(
+      '/themes/install',
+      { method: 'POST', body: form },
+      i18n.t('api.installThemeFailed')
+    );
+  },
+
   async listPlugins(): Promise<PluginInfo[]> {
     return request('/plugins', {}, i18n.t('api.pluginsFailed'));
+  },
+
+  async installPlugin(file: File): Promise<PluginInfo> {
+    const form = new FormData();
+    form.append('file', file);
+    return request(
+      '/plugins/install',
+      { method: 'POST', body: form },
+      i18n.t('api.installPluginFailed')
+    );
   },
 
   async getPluginSettings(name: string): Promise<Record<string, string>> {

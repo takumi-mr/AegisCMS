@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Blocks,
   CheckCircle,
@@ -26,8 +26,9 @@ import {
   ArrowUp,
   ArrowDown,
   RotateCcw,
+  UploadCloud,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
 import i18n from '../i18n';
 import type { PackageAuthor, PluginInfo, PluginOrder, SessionInfo } from '../types';
@@ -72,8 +73,44 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
   // Hook order of the enabled plugins, and whether a reorder / reset request is in flight
   const [order, setOrder] = useState<PluginOrder | null>(null);
   const [isReordering, setIsReordering] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canConfigure = isAdmin(session);
+
+  const handleUploadClick = () => {
+    if (!canConfigure) {
+      onShowToast(t('plugins.adminRequired'), 'error');
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const plugin = await aegisApi.installPlugin(file);
+      onShowToast(
+        t('plugins.installSuccess', {
+          name: plugin.manifest?.display_name || plugin.name,
+        }),
+        'success'
+      );
+      reloadPlugins();
+      setActiveTab('installed');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t('plugins.installFailed');
+      onShowToast(msg, 'error');
+    } finally {
+      setIsUploading(false);
+      if (e.target) {
+        e.target.value = '';
+      }
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -699,6 +736,53 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                   </div>
                 </div>
                 <span className={styles.hookTag}>validate-submission</span>
+              </div>
+            </div>
+
+            {/* Direct Plugin ZIP Import Box */}
+            <div className={styles.importBox}>
+              <UploadCloud size={44} className={styles.importIcon} />
+              <div className={styles.importTitle}>{t('plugins.importTitle')}</div>
+              <p className={styles.importDesc}>
+                <Trans i18nKey="plugins.importDescription" components={{ code: <code /> }} />
+              </p>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".zip"
+                  style={{ display: 'none' }}
+                  onChange={handleFileChange}
+                />
+                <button
+                  type="button"
+                  className={cx(styles.toggleBtn, styles.toggleBtnEnable)}
+                  onClick={handleUploadClick}
+                  disabled={isUploading || !canConfigure}
+                  title={canConfigure ? t('plugins.importZip') : t('plugins.adminRequired')}
+                >
+                  {isUploading ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>{t('plugins.installing')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud size={16} />
+                      <span>{t('plugins.importZip')}</span>
+                    </>
+                  )}
+                </button>
+                <a
+                  href="https://github.com/takumi-mr/AegisCMS/tree/main/plugins"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.headerBtn}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <span>{t('plugins.browse')}</span>
+                  <ExternalLink size={14} />
+                </a>
               </div>
             </div>
           </div>

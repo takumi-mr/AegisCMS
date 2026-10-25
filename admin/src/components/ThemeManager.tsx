@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Palette,
   CheckCircle,
@@ -43,8 +43,39 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] =
     useState<(typeof MARKET_CATEGORIES)[number]>('all');
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canSwitchTheme = isAdmin(session);
+
+  const handleUploadClick = () => {
+    if (!canSwitchTheme) {
+      onShowToast(t('themes.adminRequired'), 'error');
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const theme = await aegisApi.installTheme(file);
+      onShowToast(t('themes.installSuccess', { name: theme.name }), 'success');
+      reloadThemes();
+      setActiveTab('installed');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t('themes.installFailed');
+      onShowToast(msg, 'error');
+    } finally {
+      setIsUploading(false);
+      if (e.target) {
+        e.target.value = '';
+      }
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -346,12 +377,30 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                 <Trans i18nKey="themes.importDescription" components={{ code: <code /> }} />
               </p>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".zip"
+                  style={{ display: 'none' }}
+                  onChange={handleFileChange}
+                />
                 <button
                   className={styles.activateBtn}
-                  onClick={() => onShowToast(t('themes.zipNotice'), 'success')}
+                  onClick={handleUploadClick}
+                  disabled={isUploading || !canSwitchTheme}
+                  title={canSwitchTheme ? t('themes.importZip') : t('themes.adminRequired')}
                 >
-                  <UploadCloud size={16} />
-                  <span>{t('themes.importZip')}</span>
+                  {isUploading ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>{t('themes.installing')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud size={16} />
+                      <span>{t('themes.importZip')}</span>
+                    </>
+                  )}
                 </button>
                 <a
                   href="https://github.com/takumi-mr/AegisCMS/tree/main/themes"

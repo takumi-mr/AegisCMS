@@ -1081,3 +1081,31 @@
     align-items: flex-start;
   }
 }
+
+.importBox {
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.importIcon {
+  color: var(--accent, #6366f1);
+}
+
+.importTitle {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.importDesc {
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.9rem;
+  max-width: 500px;
+}

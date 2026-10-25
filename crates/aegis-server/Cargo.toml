@@ -46,6 +46,8 @@ hmac = "0.12"
 hex = "0.4"
 rpassword = "7"
 redis.workspace = true
+zip.workspace = true
+ring.workspace = true
 
 [dev-dependencies]
 # A mock OpenID Connect IdP for the SSO handler tests

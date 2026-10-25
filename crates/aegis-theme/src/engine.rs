@@ -69,6 +69,11 @@ impl ThemeEngine {
         self
     }
 
+    /// テーマディレクトリのパスを取得
+    pub fn themes_dir(&self) -> &Path {
+        &self.themes_dir
+    }
+
     /// 現在アクティブなテーマ識別子を取得
     pub fn active_theme(&self) -> String {
         self.inner.read().unwrap().active_theme.clone()
@@ -254,6 +259,16 @@ impl ThemeEngine {
 
     /// 将来のマーケットプレイスからの導入を見据えたテーマパッケージの検証
     pub fn validate_theme_package(&self, theme_dir: &Path) -> Result<ThemeManifest> {
+        self.validate_theme_package_with_policy(theme_dir, None, false)
+    }
+
+    /// 署名検証およびポリシーを指定したテーマパッケージの検証
+    pub fn validate_theme_package_with_policy(
+        &self,
+        theme_dir: &Path,
+        trusted_keys: Option<&[String]>,
+        require_signature: bool,
+    ) -> Result<ThemeManifest> {
         if !theme_dir.is_dir() {
             return Err(AegisError::Theme(format!(
                 "Path is not a directory: {}",
@@ -268,9 +283,16 @@ impl ThemeEngine {
             ));
         }
 
+        let manifest_bytes = std::fs::read(&manifest_path).map_err(AegisError::Io)?;
         let manifest = ThemeManifest::load_from_dir(theme_dir).ok_or_else(|| {
             AegisError::Theme("Failed to parse valid 'theme.json' manifest".to_string())
         })?;
+
+        if manifest.id.trim().is_empty() {
+            return Err(AegisError::Theme(
+                "Theme manifest id cannot be empty".to_string(),
+            ));
+        }
 
         let templates_dir = theme_dir.join("templates");
         if !templates_dir.exists() {
@@ -285,6 +307,19 @@ impl ThemeEngine {
                 "Theme package templates must include 'base.html'".to_string(),
             ));
         }
+
+        // min_aegis_version の検証
+        if let Some(ref min_ver) = manifest.min_aegis_version {
+            aegis_core::check_min_aegis_version(min_ver)?;
+        }
+
+        // 署名検証
+        aegis_core::verify_package_signature(
+            theme_dir,
+            &manifest_bytes,
+            trusted_keys,
+            require_signature,
+        )?;
 
         Ok(manifest)
     }
@@ -665,5 +700,33 @@ mod tests {
         // 成功
         let manifest = engine.validate_theme_package(&theme_path).unwrap();
         assert_eq!(manifest.id, "my-cool-theme");
+
+        // 4. min_aegis_version の検証
+        std::fs::write(
+            theme_path.join("theme.json"),
+            r#"{"id":"my-cool-theme","name":"Cool Theme","min_aegis_version":"99.0.0"}"#,
+        )
+        .unwrap();
+        let err = engine.validate_theme_package(&theme_path);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("Package requires Aegis version >="));
+
+        // 5. 署名必須ポリシーの検証
+        std::fs::write(
+            theme_path.join("theme.json"),
+            r#"{"id":"my-cool-theme","name":"Cool Theme"}"#,
+        )
+        .unwrap();
+        let err = engine.validate_theme_package_with_policy(&theme_path, None, true);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("Package signature required by policy"));
+
+        let _ = std::fs::remove_dir_all(&temp_base);
     }
 }

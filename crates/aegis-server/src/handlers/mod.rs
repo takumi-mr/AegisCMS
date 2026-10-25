@@ -45,8 +45,8 @@ pub use oidc::{oidc_callback, oidc_login};
 pub use openapi::get_openapi_spec;
 pub use password_reset::{confirm_password_reset, request_password_reset};
 pub use plugin::{
-    get_plugin_order, get_plugin_settings, list_plugins, reset_plugin_order, set_plugin_enabled,
-    set_plugin_order, update_plugin_settings,
+    get_plugin_order, get_plugin_settings, install_plugin, list_plugins, reset_plugin_order,
+    set_plugin_enabled, set_plugin_order, update_plugin_settings,
 };
 pub use preview::preview_content;
 pub use public::{render_article, render_index, render_page_or_slug};
@@ -64,8 +64,11 @@ pub use storage::{delete_object, list_objects, upload_file};
 pub use storefront::{cart_script, render_cart, render_order, render_product, render_products};
 pub use theme::{
     get_active_theme, get_active_theme_asset, get_specific_theme_asset, get_theme_preview,
-    list_themes, switch_active_theme,
+    install_theme, list_themes, switch_active_theme,
 };
 pub use users::{
     create_user, delete_avatar, delete_user, get_user, list_users, update_user, upload_avatar,
 };
+
+#[cfg(test)]
+mod package_install_tests;

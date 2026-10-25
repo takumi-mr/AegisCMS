@@ -27,6 +27,8 @@
     "themesFailed": "Failed to fetch themes",
     "activeThemeFailed": "Failed to fetch active theme",
     "switchThemeFailed": "Failed to switch active theme",
+    "installThemeFailed": "Failed to install theme package",
+    "installPluginFailed": "Failed to install plugin package",
     "contentsFailed": "Failed to fetch contents",
     "uploadFailed": "Failed to upload the file",
     "logoutFailed": "Failed to log out",
@@ -782,7 +784,10 @@
     "importDescription": "AegisCMS themes are fully isolated directory packages containing a <code>theme.json</code> manifest and <code>templates/</code>. Simply drop or unpack any compatible theme into your server's <code>themes/</code> directory to make it available immediately.",
     "zipNotice": "Direct ZIP upload installer will be available in Marketplace v2! For now, extract ZIP packages to themes/ directory.",
     "importZip": "Import Theme (.zip)",
-    "browse": "Browse Theme Templates"
+    "browse": "Browse Theme Templates",
+    "installSuccess": "Successfully installed theme \"{{name}}\"",
+    "installFailed": "Failed to install theme package",
+    "installing": "Installing..."
   },
   "upload": {
     "notImage": "\"{{name}}\" is not an image file.",
@@ -960,7 +965,14 @@
     "resetOrderTitle": "Discard the changes made in Admin Studio and use [plugins].enabled of the configuration file",
     "confirmResetOrder": "Use the plugins of the configuration file ({{plugins}}) in that order? Plugins enabled in Admin Studio are disabled.",
     "configuredNone": "none",
-    "orderReset": "Using the plugins of the configuration file"
+    "orderReset": "Using the plugins of the configuration file",
+    "importTitle": "Install Plugin from ZIP Package",
+    "importDescription": "AegisCMS plugins are packaged as ZIP archives containing <code>plugin.manifest.json</code> and compiled Wasm binaries. Upon uploading, the package is verified (checking digital signatures and minimum AegisCMS version compatibility) and installed into <code>plugins/<name>/</code>.",
+    "importZip": "Import Plugin (.zip)",
+    "browse": "Browse Plugin Sources",
+    "installSuccess": "Successfully installed plugin \"{{name}}\"",
+    "installFailed": "Failed to install plugin package",
+    "installing": "Installing..."
   },
   "site": {
     "title": "Site",
