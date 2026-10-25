@@ -281,6 +281,7 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | `max_quantity_per_item` | integer | `99` | 1 商品あたりの最大数量 |
 | `max_items` | integer | `50` | 1 注文の最大商品数 |
 | `max_orders_per_ip_per_hour` | integer | `20` | 同じ IP からの 1 時間あたりの注文数（0 で無制限。`[cache]` で数える） |
+| `low_stock_threshold` | integer または `null` | `5` | 在庫が閾値に達したときスタッフ通知。`null` で無効 |
 
 #### `[commerce.manual]`
 
@@ -548,6 +549,7 @@ reservation_minutes = 60
 max_quantity_per_item = 99
 max_items = 50
 max_orders_per_ip_per_hour = 20
+low_stock_threshold = 5
 
 [commerce.manual]
 instructions = "ご注文ありがとうございます。お支払い方法はメールでご案内します。"

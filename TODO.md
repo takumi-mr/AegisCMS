@@ -6,13 +6,12 @@
 
 ## 現在の状況
 
-- 最新の `main`: 顧客アカウント・商品レビュー実装完了（#93 相当）。CMS 管理ユーザー（`_aegis_users`）とは完全に分離された顧客テーブル（`_aegis_customers`）および購入者限定・ステマ規制配慮・モデレーション共有の商品レビュー（`_aegis_reviews`、JSON-LD `AggregateRating` 対応）を実装。
+- 最新の `main`: 顧客アカウント・商品レビューに加え、売上レポート（日別・通貨別）と在庫閾値通知を実装。
 - `task check` がすべて通る状態を保つ。
 
 **次に着手する項目**
 
-1. EC 残り（売上レポート・在庫切れ通知）
-2. 下の「セキュリティ」の 2 件
+1. 下の「セキュリティ」の 2 件
 
 ---
 
@@ -43,10 +42,6 @@
 
 - [ ] **AssemblyScript / TinyGo SDK の追従**: `calculate-order` / `on-order-status-changed` / `send-notification` / `on-content-published` / `check-comment` と、ホスト API `http_fetch` / `kv_get` / `config_get` のラッパー（ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md)）。
 
-### EC
-
-- [ ] **売上レポート・在庫切れ通知**: 売上集計 API・レポート表示、在庫閾値到達時の管理者・スタッフ通知、On-demand ISR との連動。
-
 ### コメント・掲示板・通知（要望があれば）
 
 - [ ] **コメント**: コンテンツごとの受付の切り替え、Admin Studio からの本文の編集、アバター、承認時の投稿者への通知、コメント欄の翻訳、同じ内容の連投の検出。
@@ -57,4 +52,4 @@
 ### 将来
 
 - [ ] **分散ストレージ**: libSQL（Turso）への対応とクラスタ環境の最適化。
-- [ ] **On-demand ISR / Cache-Tag Purge**: コンテンツ更新時の CDN キャッシュの無効化。
+- [ ] **On-demand ISR / Cache-Tag Purge**: コンテンツ更新時の CDN キャッシュの無効化（EC 売上レポート・在庫通知とは切り離して保留）。

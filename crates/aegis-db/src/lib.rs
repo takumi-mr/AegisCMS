@@ -36,7 +36,7 @@ pub use notifications::{
 };
 pub use orders::{
     OrderListQuery, OrderPage, OrderRecord, OrderRefundUpdate, OrderStorage, OrderTransition,
-    OutOfStock, StockReservation,
+    OutOfStock, SalesReportRow, StockReservation,
 };
 pub use postgres::PostgresAdapter;
 pub use reviews::{

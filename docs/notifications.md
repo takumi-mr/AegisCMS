@@ -67,6 +67,7 @@ aegis-server -c config/production.toml notify test --to you@example.com
 | `order.paid` | 管理者が入金を確認した（`manual`） | 顧客 | 入金の確認 |
 | `order.shipped` | 発送した | 顧客 | 発送の知らせ。状態を変えるときのメモ（配送業者・追跡番号など）を本文に入れる |
 | `order.cancelled` | 取り消した（管理者の操作・支払い期限切れ） | 顧客・運営者 | 取り消しの理由（`reason`）、支払い済みなら返金の案内 |
+| `stock.low` | 注文で商品・バリエーションの在庫が閾値に達した | 運営者 | 商品名・ID、残数、閾値、注文番号 |
 | `account.verify` | Admin Studio からアカウント登録を申し込んだ（[認証 7](authentication.md#7-アカウント登録)） | 申し込んだメールアドレス | 確認リンク（`verify_url`）、有効期限、ユーザー名 |
 | `account.registered` | 確認リンクが開かれ、アカウントができた | 運営者 | ユーザー名・表示名・メールアドレス・ロール、承認が必要か（`pending_approval`） |
 | `content.published` | 予約公開（`status: "scheduled"`）のコンテンツを、公開日時になってサーバーが公開した（[予約公開](theme_and_publishing_guide.md#予約公開スケジュール公開)） | 著者 | タイトル・種類、公開ページの URL（`content_url`）、公開予定日時 |

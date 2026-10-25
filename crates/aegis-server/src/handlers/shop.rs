@@ -429,6 +429,46 @@ pub async fn list_orders(
     })))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SalesReportParams {
+    /// Inclusive UTC calendar date (YYYY-MM-DD).
+    pub start: String,
+    /// Inclusive UTC calendar date (YYYY-MM-DD).
+    pub end: String,
+}
+
+/// `GET /api/v1/orders/report?start=YYYY-MM-DD&end=YYYY-MM-DD` — 日別売上集計（editor 以上）
+pub async fn sales_report(
+    State(state): State<Arc<AppState>>,
+    _session: EditorSession,
+    Query(params): Query<SalesReportParams>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    commerce(&state)?;
+    let start = chrono::NaiveDate::parse_from_str(&params.start, "%Y-%m-%d")
+        .map_err(|_| api_error(StatusCode::BAD_REQUEST, "start must be YYYY-MM-DD"))?;
+    let end = chrono::NaiveDate::parse_from_str(&params.end, "%Y-%m-%d")
+        .map_err(|_| api_error(StatusCode::BAD_REQUEST, "end must be YYYY-MM-DD"))?;
+    if end < start || (end - start).num_days() > 366 {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "Invalid report date range (maximum 367 days)",
+        ));
+    }
+    let exclusive_end = end
+        .succ_opt()
+        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "Invalid end date"))?;
+    let start = format!("{}T00:00:00Z", start);
+    let exclusive_end = format!("{}T00:00:00Z", exclusive_end);
+    let rows = state
+        .db
+        .sales_report(&start, &exclusive_end)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(
+        json!({ "start": params.start, "end": params.end, "days": rows }),
+    ))
+}
+
 async fn find_order(state: &AppState, id: &str) -> Result<OrderRecord, ApiError> {
     state
         .db

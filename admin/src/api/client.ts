@@ -29,6 +29,7 @@ import type {
   ObjectReference,
   Order,
   OrderPage,
+  SalesReport,
   OrderStatus,
   PluginInfo,
   PluginOrder,
@@ -481,6 +482,14 @@ export const aegisApi = {
     offset?: number;
   }): Promise<OrderPage> {
     return request(`/orders?${toQuery(query)}`, {}, i18n.t('api.ordersFailed'));
+  },
+
+  async getSalesReport(start: string, end: string): Promise<SalesReport> {
+    return request(
+      `/orders/report?${toQuery({ start, end })}`,
+      {},
+      i18n.t('api.salesReportFailed')
+    );
   },
 
   async getOrder(id: string): Promise<Order> {

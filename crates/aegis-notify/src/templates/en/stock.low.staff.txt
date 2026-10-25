@@ -1,0 +1,5 @@
+{{ product.title }} ({{ product.id }}) has reached the low-stock threshold.
+
+Remaining stock: {{ product.stock }}
+Alert threshold: {{ threshold }}
+Order: {{ order.number }}
