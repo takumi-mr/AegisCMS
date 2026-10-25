@@ -10,7 +10,7 @@
 ## 1. 現在の状況
 
 - **直近の完了**: ベンチマークの見直しと SQLite の WAL 化（ブランチ `ccr-813a580e-kaorks`）
-  - `scripts/benchmark.mjs`: 一覧 API とプレビューは Viewer 以上が必要なのにセッションなしで叩いており、401 と監査ログ（`access.denied`）の同期 INSERT を測っていた。`--user`（`AEGIS_BENCH_PASSWORD`）/ `--token` を追加し、無い場合はこの 2 つを計測しない。4xx / 5xx が混ざったシナリオは ⚠️ と内訳を表示。記事ページの slug は公開済みの記事から選ぶ（下書きを選んで 404 を測っていた）。手順は [development.md 6.1](docs/development.md#61-http-エンドポイントのベンチマーク-scriptsbenchmarkmjs)。
+  - `scripts/benchmark.mjs`: 一覧 API とプレビューは Viewer 以上が必要なのにセッションなしで叩いており、401 と監査ログ（`access.denied`）の同期 INSERT を測っていた。`--user`（`AEGIS_BENCH_PASSWORD`）/ `--token` を追加し、無い場合はこの 2 つを計測しない。4xx / 5xx が混ざったシナリオは ⚠️ と内訳を表示。記事ページの slug は公開済みの記事から選ぶ（下書きを選んで 404 を測っていた）。件数の多い状態で測るためのデータ投入 `scripts/seed-benchmark.mjs`（`task bench:seed`。既定でカテゴリ 20 件・記事 1 万件）。手順は [development.md 6.1](docs/development.md#61-http-エンドポイントのベンチマーク-scriptsbenchmarkmjs)。
   - SQLite を WAL（`synchronous = NORMAL`）で開く。監査ログを書く 401 の経路が約 490 → 約 3,900 req/s（並行 50）。設計判断は [architecture.md](docs/architecture.md) の DB の節、運用の注意は [configuration.md](docs/configuration.md)。
 - **その前**: 通知の拡張（outbox `_aegis_notification_queue` による送信待ちの永続化、HTML メール、Admin Studio の Settings › Notifications。[docs/notifications.md](docs/notifications.md)、[architecture.md 8](docs/architecture.md#8-通知-aegis-notify)）。
 - **その前**: Admin Studio のユニットテスト（Vitest。`src/utils/`・`src/api/`、`task test:admin`、CI の `frontend-ci` に統合。#82）と E2E テストの拡充（認証・コンテンツ・テーマ・ユーザー・EC・モバイル。#81。[development.md 8.2](docs/development.md#82-e2e-テスト-playwrightadmine2e)）。
@@ -32,7 +32,7 @@
 ### 性能
 
 - **監査ログ `database` 出力先の非同期化（保留）**: 今は `AuditService::record` がリクエスト中に全出力先を順に `await` し、DB へ 1 件ずつ INSERT する。有限の `mpsc` キュー + バックグラウンドの書き込み（まとめて INSERT）にすると速くなるが、終了時に残りを書き切る処理と、キューが溢れたときの扱い（捨てて警告 / 待つ）＝監査ログの取りこぼしをどこまで許すかを決めてから。WAL 化で当面は足りている。
-- **記事 1 万件での計測結果（SQLite・WAL、並行 50、4 コアで負荷側も同居）と改善候補**: 記事ページ（ランダムな slug）約 2,900 req/s・p99 28ms、トップページ 1 ページ目 約 1,060 req/s（記事 1 件のときは約 3,900）、ランダムなページ 約 860 req/s、一覧 API（`limit=50`）約 400 req/s。投入（`POST`）は並行 16 で約 1,000 件/秒。SQL 自体は 1ms 未満で、時間の大半は描画側。
+- **記事 1 万件での計測結果（`task bench:seed` で投入。SQLite・WAL、並行 50、4 コアで負荷側も同居）と改善候補**: 記事ページ（ランダムな slug）約 2,900 req/s・p99 28ms、トップページ 1 ページ目 約 1,060 req/s（記事 1 件のときは約 3,900）、ランダムなページ 約 860 req/s、一覧 API（`limit=50`）約 400 req/s。投入（`POST`）は並行 16 で約 1,000 件/秒。SQL 自体は 1ms 未満で、時間の大半は描画側。
   - プラグイン `official-code-enhancer` を外すと、記事ページ 約 2,900 → 6,400、トップページ 約 1,060 → 2,100 req/s。`on-render-page` でページの HTML 全体を Wasm に渡して受け取るコストが大きい。HTML の受け渡しを減らすか、フックが要らないページでは呼ばないようにできないか調べる（`task bench:plugins`）。
   - 一覧 API は 1 回の応答が約 400KB（全件の `blocks` を含む）。一覧では `blocks` を省く・`fields` で選べるようにする、などを検討する。
   - ページ送りが `OFFSET` 方式のため、後ろのページほど遅い。必要ならキーセット方式（`created_at, id` より前）にする。SQLite のページキャッシュ（既定 2MB/接続）に DB（約 55MB）が収まらないことの影響も未確認（`cache_size` / `mmap_size`）。

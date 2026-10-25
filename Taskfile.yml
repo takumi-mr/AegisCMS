@@ -196,6 +196,11 @@ tasks:
     cmds:
       - node scripts/benchmark.mjs -c 100 -d 10 {{.CLI_ARGS}}
 
+  bench:seed:
+    desc: ベンチマーク用にカテゴリと記事 (既定 1 万件) を API で投入 (要サーバー起動。--user と AEGIS_BENCH_PASSWORD を指定)
+    cmds:
+      - node scripts/seed-benchmark.mjs {{.CLI_ARGS}}
+
   bench:plugins:
     desc: Wasm プラグインのフック 1 回あたりの所要時間（段階別）と同時実行時のスループットを計測 (sdk/ と plugins/ のプラグイン)
     cmds:
