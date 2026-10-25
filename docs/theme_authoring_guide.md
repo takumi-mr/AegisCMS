@@ -106,6 +106,7 @@ themes/my-theme/
 | フィルター | 例 | 結果 |
 |---|---|---|
 | `date_short` | `{{ published_at \| date_short }}` | `2026-10-23`（先頭 10 文字） |
+| `datetime_short` | `{{ created_at \| datetime_short }}` | `2026-10-23 14:05`（分まで。UTC のまま、`T` を空白に） |
 | `truncate(n)` | `{{ item.excerpt \| truncate(90) }}` | n 文字を超えたら切って `...` を付ける（文字数で数えるので日本語でも安全） |
 | `money(通貨)` | `{{ fields.price \| money(theme_vars.currency) }}` | `¥1,780`（金額は最小単位の整数） |
 | `safe` | `{{ content_html \| safe }}` | エスケープしない |

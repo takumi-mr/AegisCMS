@@ -389,14 +389,17 @@ impl ThemeEngine {
         let mut env = Environment::new();
 
         env.add_filter("date_short", |val: minijinja::Value| -> String {
-            if let Some(s) = val.as_str() {
-                if s.len() >= 10 {
-                    s[..10].to_string()
-                } else {
-                    s.to_string()
-                }
-            } else {
-                String::new()
+            match val.as_str() {
+                Some(s) => s.get(..10).unwrap_or(s).to_string(),
+                None => String::new(),
+            }
+        });
+
+        // RFC 3339 → `2026-10-25 23:41`（UTC のまま、分まで）
+        env.add_filter("datetime_short", |val: minijinja::Value| -> String {
+            match val.as_str() {
+                Some(s) => s.get(..16).unwrap_or(s).replacen('T', " ", 1),
+                None => String::new(),
             }
         });
 
@@ -770,5 +773,84 @@ mod tests {
             .contains("Package signature required by policy"));
 
         let _ = std::fs::remove_dir_all(&temp_base);
+    }
+
+    #[test]
+    fn test_forum_thread_template_shows_short_dates_and_reply_anchor() {
+        let engine = ThemeEngine::new(Path::new("non_existent_dir"), "default");
+        let mut fields = HashMap::new();
+        fields.insert(
+            "category".to_string(),
+            serde_json::json!({ "slug": "general", "name": "General" }),
+        );
+        fields.insert(
+            "thread".to_string(),
+            serde_json::json!({
+                "id": "t1", "title": "Hello", "author_name": "Ann", "post_count": 2,
+                "is_pinned": false, "is_locked": false,
+                "created_at": "2026-10-25T09:05:07.123456Z",
+            }),
+        );
+        fields.insert(
+            "posts".to_string(),
+            serde_json::json!([
+                {
+                    "id": "p1", "post_number": 1, "author_name": "Ann", "author_initial": "A",
+                    "is_author_staff": false, "body_html": "<p>Hi</p>",
+                    "created_at": "2026-10-25T09:05:07.123456Z", "reply_to_number": null,
+                },
+                {
+                    "id": "p2", "post_number": 2, "author_name": "Bob", "author_initial": "B",
+                    "is_author_staff": false, "body_html": "<p>Re</p>",
+                    "created_at": "2026-10-26T10:30:00.000000Z", "reply_to_number": 1,
+                },
+            ]),
+        );
+        let ctx = PageRenderContext {
+            site_title: "Forum".to_string(),
+            site_description: String::new(),
+            template: "forum_thread.html".to_string(),
+            content_type: "forum".to_string(),
+            title: "Hello".to_string(),
+            slug: String::new(),
+            content_html: String::new(),
+            author: None,
+            published_at: None,
+            updated_at: None,
+            fields,
+            relations: HashMap::new(),
+            items: Vec::new(),
+            extra_css: String::new(),
+            extra_head: String::new(),
+            theme_vars: HashMap::new(),
+            pagination: None,
+            comments: None,
+        };
+        let html = engine.render("forum_thread.html", &ctx).unwrap();
+        assert!(html.contains(">2026-10-25 09:05</time>"), "{html}");
+        assert!(html.contains(">2026-10-26 10:30</time>"), "{html}");
+        assert!(html.contains(">2026-10-25</time>"), "{html}");
+        assert!(!html.contains(">2026-10-25T09:05:07"), "{html}");
+        // only the reply shows `>>1`, linking to the post it answers
+        assert_eq!(html.matches("&gt;&gt;1</a>").count(), 1, "{html}");
+        assert!(html.contains("href=\"#post-1\">&gt;&gt;1</a>"), "{html}");
+        // link buttons keep their own text colour
+        assert!(html.contains(".aegis-forum a:not(.aegis-forum-btn) { color: inherit;"));
+        assert!(!html.contains(".aegis-forum a { color: inherit"));
+    }
+
+    #[test]
+    fn test_date_filters_are_char_boundary_safe() {
+        let env = ThemeEngine::build_environment(HashMap::new(), None, String::new());
+        let out = env
+            .render_str(
+                "{{ a | date_short }}|{{ a | datetime_short }}|{{ b | date_short }}|{{ b | datetime_short }}|{{ missing | date_short }}|{{ missing | datetime_short }}",
+                minijinja::context! { a => "2026-10-25T09:05:07Z", b => "あいうえおかきくけこ" },
+            )
+            .unwrap();
+        assert_eq!(
+            out,
+            "2026-10-25|2026-10-25 09:05|あいうえおかきくけこ|あいうえおかきくけこ||"
+        );
     }
 }

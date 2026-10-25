@@ -417,11 +417,6 @@ code {
   border-color: var(--th-accent);
 }
 
-/* .aegis-forum a { color: inherit } がリンクのボタンの文字色を上書きするので戻す */
-.th-main a.aegis-forum-btn {
-  color: #fff;
-}
-
 .th-main .aegis-forum-btn:hover {
   background: var(--th-accent-strong);
   color: #fff;
