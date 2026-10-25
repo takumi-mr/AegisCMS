@@ -12,6 +12,7 @@ members = [
     "crates/aegis-auth",
     "crates/aegis-notify",
     "crates/aegis-commerce",
+    "crates/aegis-comments",
     "crates/aegis-server",
     "crates/aegis-plugin-macros",
     "crates/aegis-plugin-sdk",

@@ -6,9 +6,9 @@ pub mod types;
 pub use aegis_plugin_macros::aegis_plugin;
 pub use host::{config, http, kv, log, net};
 pub use types::{
-    BlockNode, Delivery, NotificationMessage, OrderAdjustment, OrderContext, OrderLine,
-    OrderStatusChange, Plugin, PluginError, PostContext, PublishedContent, Recipient, Result,
-    ShippingAddress, UserAuthContext,
+    BlockNode, CommentSubmission, CommentVerdict, Delivery, NotificationMessage, OrderAdjustment,
+    OrderContext, OrderLine, OrderStatusChange, Plugin, PluginError, PostContext, PublishedContent,
+    Recipient, Result, ShippingAddress, UserAuthContext,
 };
 
 /// 宣言的マクロによる Wasm プラグイン登録
@@ -176,6 +176,21 @@ macro_rules! register_plugin {
                             &mut plugin,
                             message,
                         )
+                    },
+                )
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn check_comment(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                $crate::abi::run_object_hook(
+                    ptr,
+                    len,
+                    "CommentSubmission",
+                    |comment: $crate::types::CommentSubmission| {
+                        let mut plugin = <$plugin_type as ::std::default::Default>::default();
+                        <$plugin_type as $crate::types::Plugin>::check_comment(&mut plugin, comment)
                     },
                 )
             }

@@ -443,6 +443,8 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
     {{ content_html | safe }}
   </div>
 
+  {% if comments %}{% include "comments.html" %}{% endif %}
+
   <footer class="article-footer" style="margin-top: 3.5rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
     <a href="{{ base_path }}/" style="color: #818cf8; font-size: 0.9rem; text-decoration: none; font-weight: 600;">
       &larr; Back to all stories
@@ -468,6 +470,7 @@ pub const PAGE_TEMPLATE: &str = r#"{% extends "base.html" %}
   <div class="prose">
     {{ content_html | safe }}
   </div>
+  {% if comments %}{% include "comments.html" %}{% endif %}
 </article>
 {% endblock %}
 "#;
@@ -557,6 +560,123 @@ pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
 </nav>
 <script src="{{ theme_vars.cart_script }}" data-api="{{ theme_vars.shop_api }}" data-currency="{{ theme_vars.currency }}" data-cart-url="{{ theme_vars.cart_url }}" data-products-url="{{ theme_vars.products_url }}" data-shop-enabled="{{ theme_vars.shop_enabled }}" defer></script>"#;
 
+/// コメント欄（`[comments]`）。`article.html` / `page.html` / `product.html` が
+/// `{% if comments %}{% include "comments.html" %}{% endif %}` で読み込む。どのテーマの中でも読めるよう、
+/// 色はテーマの文字色を基準にした半透明で指定する。投稿はスクリプトで JSON を送る
+pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comments">
+<style>
+  .aegis-comments { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(127,127,127,0.25); }
+  .aegis-comments h2 { font-size: 1.35rem; margin-bottom: 1.25rem; }
+  .aegis-comments h3 { font-size: 1.1rem; margin-bottom: 0.75rem; }
+  .aegis-comment { margin: 0 0 1rem calc(min(var(--depth, 0), 4) * 1.5rem); padding: 0.9rem 1rem; border-radius: 12px; background: rgba(127,127,127,0.07); border: 1px solid rgba(127,127,127,0.18); }
+  .aegis-comment:target { border-color: var(--accent, #6366f1); }
+  .aegis-comment-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 0.9rem; }
+  .aegis-comment-head time { opacity: 0.6; font-size: 0.8rem; }
+  .aegis-comment-badge { padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--accent, #6366f1); color: #fff; font-size: 0.7rem; font-weight: 600; }
+  .aegis-comment-body { overflow-wrap: anywhere; }
+  .aegis-comment-body p + p { margin-top: 0.6rem; }
+  .aegis-comment-reply, .aegis-comment-cancel { margin-top: 0.4rem; background: none; border: none; padding: 0; color: inherit; opacity: 0.7; cursor: pointer; font: inherit; font-size: 0.8rem; text-decoration: underline; }
+  .aegis-comment-form { display: grid; gap: 0.8rem; max-width: 640px; margin-top: 2rem; }
+  .aegis-comment-form label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; }
+  .aegis-comment-form input:not([type=checkbox]), .aegis-comment-form textarea { padding: 0.6rem 0.75rem; border-radius: 10px; border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit; font: inherit; }
+  .aegis-comment-form .aegis-comment-check { flex-direction: row; align-items: center; gap: 0.5rem; }
+  .aegis-comment-form button[type=submit] { justify-self: start; padding: 0.6rem 1.3rem; border-radius: 10px; border: none; background: var(--accent, #6366f1); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  .aegis-comment-form button[disabled] { opacity: 0.5; cursor: wait; }
+  .aegis-comment-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  .aegis-comment-status:empty { display: none; }
+  .aegis-comment-status[data-kind=error] { color: #f43f5e; }
+  .aegis-comments-note { opacity: 0.65; font-size: 0.85rem; }
+</style>
+  <h2>{% if comments.count == 1 %}1 comment{% else %}{{ comments.count }} comments{% endif %}</h2>
+  {% for c in comments["items"] %}
+  <article class="aegis-comment" id="comment-{{ c.id }}" style="--depth: {{ c.depth }}">
+    <header class="aegis-comment-head">
+      <strong>{{ c.author_name }}</strong>
+      {% if c.staff %}<span class="aegis-comment-badge">Staff</span>{% endif %}
+      <time datetime="{{ c.created_at }}">{{ c.created_at | date_short }}</time>
+    </header>
+    <div class="aegis-comment-body">{{ c.body_html | safe }}</div>
+    {% if comments.open and c.depth < comments.max_depth %}<button type="button" class="aegis-comment-reply" data-reply-to="{{ c.id }}" data-reply-name="{{ c.author_name }}">Reply</button>{% endif %}
+  </article>
+  {% else %}
+  <p class="aegis-comments-note">No comments yet.</p>
+  {% endfor %}
+  {% if comments.open %}
+  <form class="aegis-comment-form" data-post-url="{{ comments.post_url }}">
+    <h3>Leave a comment</h3>
+    <p class="aegis-comments-note" data-replying hidden>Replying to <strong data-replying-name></strong> <button type="button" class="aegis-comment-cancel" data-cancel-reply>Cancel</button></p>
+    <input type="hidden" name="parent_id" value="">
+    <label>Name <input name="name" required maxlength="100" autocomplete="name"></label>
+    <label>Email (not published) <input type="email" name="email" required maxlength="254" autocomplete="email"></label>
+    <label>Comment <textarea name="body" required rows="5" maxlength="{{ comments.max_length }}"></textarea></label>
+    <div class="aegis-comment-hp" aria-hidden="true"><label>Leave this empty <input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <label class="aegis-comment-check"><input type="checkbox" name="notify_replies"> Email me when someone replies</label>
+    <button type="submit">Post comment</button>
+    <p class="aegis-comment-status" role="status" aria-live="polite"></p>
+  </form>
+  <script>
+  (function () {
+    var form = document.currentScript.previousElementSibling;
+    var status = form.querySelector(".aegis-comment-status");
+    var replying = form.querySelector("[data-replying]");
+    var KEY = "aegis-comment-author";
+    function show(text, kind) { status.textContent = text; status.dataset.kind = kind || ""; }
+    function replyTo(id, name) {
+      form.elements.parent_id.value = id || "";
+      replying.hidden = !id;
+      form.querySelector("[data-replying-name]").textContent = name || "";
+    }
+    try {
+      var saved = JSON.parse(localStorage.getItem(KEY) || "{}");
+      if (saved.name) form.elements.name.value = saved.name;
+      if (saved.email) form.elements.email.value = saved.email;
+    } catch (e) {}
+    document.querySelectorAll(".aegis-comment-reply").forEach(function (button) {
+      button.addEventListener("click", function () {
+        replyTo(button.dataset.replyTo, button.dataset.replyName);
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+        form.elements.body.focus({ preventScroll: true });
+      });
+    });
+    form.querySelector("[data-cancel-reply]").addEventListener("click", function () { replyTo(); });
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      var f = form.elements;
+      var submit = form.querySelector("button[type=submit]");
+      submit.disabled = true;
+      show("Sending\u2026");
+      fetch(form.dataset.postUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: f.name.value, email: f.email.value, body: f.body.value,
+          parent_id: f.parent_id.value || null, notify_replies: f.notify_replies.checked,
+          website: f.website.value
+        })
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data.error || "Your comment could not be posted. Please try again.");
+          try { localStorage.setItem(KEY, JSON.stringify({ name: f.name.value, email: f.email.value })); } catch (e) {}
+          if (data.status === "approved" && data.comment) {
+            location.hash = "comment-" + data.comment.id;
+            location.reload();
+            return;
+          }
+          f.body.value = "";
+          replyTo();
+          show("Thank you! Your comment will appear once it has been approved.");
+        });
+      }).catch(function (e) { show(e.message, "error"); })
+        .finally(function () { submit.disabled = false; });
+    });
+  })();
+  </script>
+  {% else %}
+  <p class="aegis-comments-note">Comments are closed.</p>
+  {% endif %}
+</section>"##;
+
 pub const PRODUCTS_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
@@ -628,6 +748,7 @@ pub const PRODUCT_TEMPLATE: &str = r##"{% extends "base.html" %}
       <div class="prose">{{ content_html | safe }}</div>
     </div>
   </article>
+  {% if comments %}{% include "comments.html" %}{% endif %}
 </section>
 {% endblock %}
 "##;

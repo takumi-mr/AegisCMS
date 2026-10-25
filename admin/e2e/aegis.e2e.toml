@@ -29,3 +29,8 @@ enabled = []
 [runtime]
 # テストを並列で動かさないので小さくてよい（プールのアドレス空間を CI で確保しすぎない）
 instance_pool_size = 4
+
+# コメント（comments.spec.ts）。承認制の切り替えはテストの中で Admin Studio から
+[comments]
+enabled = true
+content_types = ["article"]

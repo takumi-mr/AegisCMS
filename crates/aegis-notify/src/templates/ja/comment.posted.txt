@@ -1,0 +1,10 @@
+{{ display_name or username }} 様
+
+{{ content.label }}「{{ content.title }}」に {{ comment.author_name }} さんが{% if comment.is_reply %}ほかのコメントへの返信を書きました{% else %}コメントしました{% endif %}。
+
+{{ comment.body }}
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+{% include "_footer.txt" %}

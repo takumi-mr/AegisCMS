@@ -88,6 +88,9 @@ pub struct PageRenderContext {
     /// 一覧ページ（`index.html`）のページ送り。それ以外のページでは `None`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pagination: Option<Pagination>,
+    /// コメント欄（`[comments].content_types` の種類の公開ページ）。それ以外では `None`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comments: Option<crate::CommentSection>,
 }
 
 /// 一覧ページのページ送り情報（テンプレートの `pagination`）

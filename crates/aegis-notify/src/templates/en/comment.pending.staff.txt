@@ -1,0 +1,2 @@
+A comment on the {{ content.label }} "{{ content.title }}" is awaiting approval.
+{% include "_comment_summary.txt" %}

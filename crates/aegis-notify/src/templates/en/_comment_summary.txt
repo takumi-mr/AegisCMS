@@ -1,0 +1,12 @@
+
+Name: {{ comment.author_name }}
+Email: {{ comment.author_email }}
+{% if comment.ip %}
+IP address: {{ comment.ip }}
+{% endif %}
+
+{{ comment.body }}
+{% if moderation_url %}
+
+Approve it or mark it as spam in Admin Studio: {{ moderation_url }}
+{% endif %}

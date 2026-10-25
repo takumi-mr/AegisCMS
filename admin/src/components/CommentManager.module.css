@@ -1,0 +1,112 @@
+.filterCount {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.7rem;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  font-size: 0.85rem;
+}
+
+.settingsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.toggle input {
+  margin-top: 3px;
+}
+
+.toggle.inactive {
+  opacity: 0.55;
+}
+
+.toggleHint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.08);
+  font-size: 0.85rem;
+}
+
+.checkCell {
+  width: 32px;
+}
+
+.commentCell {
+  min-width: 260px;
+  max-width: 480px;
+}
+
+.body {
+  margin-top: 4px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.email {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.staffBadge {
+  margin-left: 6px;
+}
+
+.contentLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-indigo-light);
+  text-decoration: none;
+}
+
+.replyInput {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.replyInput:focus {
+  outline: none;
+  border-color: var(--accent-indigo);
+}

@@ -499,6 +499,7 @@ async fn main() -> anyhow::Result<()> {
             let base_path = config.server.normalized_base_path()?;
             config.plugins.validate()?;
             config.commerce.validate()?;
+            config.comments.validate()?;
             config.notifications.validate()?;
             config.auth.registration.validate()?;
             if config.notifications.enabled
@@ -795,6 +796,28 @@ async fn main() -> anyhow::Result<()> {
                     config.commerce.provider
                 );
                 app_state.with_commerce(commerce)
+            } else {
+                app_state
+            };
+            // 6.8 コメント（[comments]）。通知と Admin Studio の URL を使うのでその後に設定する
+            let app_state = if config.comments.enabled {
+                let comments = aegis_comments::CommentService::new(
+                    config.comments.clone(),
+                    app_state.comment_deps(),
+                )?;
+                comments.check_content_types(&*app_state.schemas.read().await)?;
+                if app_state.notifier.is_none() {
+                    tracing::warn!(
+                        "Comments are enabled without [notifications]: authors and staff are not told about new comments"
+                    );
+                }
+                tracing::info!(
+                    "Comments enabled (types: {:?}, approval: {}, auto-approve known authors: {})",
+                    config.comments.content_types,
+                    config.comments.moderation.require_approval,
+                    config.comments.moderation.auto_approve_known
+                );
+                app_state.with_comments(comments)
             } else {
                 app_state
             };

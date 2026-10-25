@@ -6,7 +6,7 @@ use axum::{
     extract::{DefaultBodyLimit, Request},
     http::{uri::PathAndQuery, Uri},
     response::Redirect,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 use tower::ServiceBuilder;
@@ -50,6 +50,26 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/contents/{content_type}/{id}/variants/{variant_id}",
             delete(handlers::delete_variant),
         )
+        // --- コメント（[comments]） ---
+        .route(
+            "/api/v1/contents/{content_type}/{slug}/comments",
+            get(handlers::list_public_comments).post(handlers::submit_comment),
+        )
+        .route("/api/v1/comments", get(handlers::list_comments))
+        .route(
+            "/api/v1/comments/settings",
+            get(handlers::get_comment_settings).put(handlers::update_comment_settings),
+        )
+        .route("/api/v1/comments/bulk", post(handlers::bulk_comments))
+        .route(
+            "/api/v1/comments/{id}",
+            patch(handlers::update_comment).delete(handlers::delete_comment),
+        )
+        .route(
+            "/api/v1/comments/{id}/replies",
+            post(handlers::reply_comment),
+        )
+        .route("/comments/unsubscribe", get(handlers::unsubscribe_page))
         .route("/api/v1/schedule", get(handlers::list_schedule))
         .route(
             "/api/v1/storage/upload",

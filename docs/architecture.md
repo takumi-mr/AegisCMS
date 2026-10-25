@@ -10,6 +10,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 | [media.md](media.md) | アップロード・メディア一覧・削除 API |
 | [commerce.md](commerce.md) | EC（商品・注文・在庫・決済） |
 | [notifications.md](notifications.md) | 通知（メール・監査イベントの通知・プラグインのチャネル） |
+| [comments.md](comments.md) | コメント（投稿・承認・スパム対策・通知） |
 | [theme_and_publishing_guide.md](theme_and_publishing_guide.md) / [theme_authoring_guide.md](theme_authoring_guide.md) | 公開ルーティング・テーマエンジン / テーマの作り方 |
 | [plugin_sdk_guide.md](plugin_sdk_guide.md) / [plugin_hooks.md](plugin_hooks.md) / [plugin_abi_specification.md](plugin_abi_specification.md) | プラグイン開発 / フックとホスト API / 言語共通の ABI |
 | [development.md](development.md) | 開発環境・検証・CI・Docker |
@@ -22,7 +23,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 依存の向きは `aegis-core` ← ドメインクレート ← `aegis-server` の一方向です（クレートの一覧と各モジュールは [README 2.3](../README.md#23-クレート構成と各モジュールの責務-crates)）。
 
 - **`aegis-core` は共有契約だけ**: 抽象トレイト（`StorageBackend` / `CacheBackend` / `AuthProvider` / `AuditSink` / `Notifier`）、監査イベントのモデル、プラグインに渡すコンテキスト型、`PluginManifest`、`AegisError`。Wasm プラグイン SDK も依存するため、実装や重い依存を足さないこと。
-- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-theme`、`aegis-runtime`。HTTP には依存しない。
+- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-theme`、`aegis-runtime`。HTTP には依存しない。
 - **`aegis-server` は HTTP 層**: ハンドラ・認可・エクストラクタ・CLI・組み立て（`main.rs`）。
 - **設定**: 各クレートが自分のセクションの型を持つ（`aegis_db::DatabaseConfig`、`SecurityConfig` は `aegis-ast`、`ThemeConfig` は `aegis-theme`、`PluginsConfig` / `RuntimeConfig` は `aegis-runtime` など）。`aegis.toml` 全体の `AegisConfig` は `aegis-server/src/config.rs`。
   - 全構造体が `#[serde(default)]` 付きで、省略した項目は `Default` 実装の値になる。**設定項目を足すときは必ず `Default` に既定値を入れる**。
@@ -36,8 +37,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 ### 2.1 テーブルとデータ
 
 - スキーマ `content_type: article` のテーブルは `content_article`。本文は Block AST の JSON を `blocks_json TEXT NOT NULL DEFAULT '[]'` に保存する。描画済み HTML は保存しない（`[security]` の変更を保存済みのコンテンツにも反映するため）。
-- システムテーブルは `_aegis_` 接頭辞（`_aegis_users`、`_aegis_user_identities`、`_aegis_audit_logs`、`_aegis_orders`、`_aegis_settings` など）。
-- `_aegis_settings` は Admin Studio から変更するサイト全体の設定（`name` → `value`。サイト名 `site.title`、favicon `site.favicon`、および SEO & Bot 設定 `seo.*`（`robots_txt`, `meta_description`, `meta_keywords`, `canonical_base_url`, `og_image`, `noindex_all`, `twitter_card`））。カラム名は MySQL の予約語 `key` を避けて `name` にした。上書きは SQLite / PostgreSQL が `ON CONFLICT`、MySQL が `ON DUPLICATE KEY UPDATE`。設定ファイルの値は既定値として残し、行を消すと設定ファイルの値に戻る（プラグイン設定のようにキャッシュへ置くと、メモリのキャッシュでは再起動と TTL で消えるため DB にした）。
+- システムテーブルは `_aegis_` 接頭辞（`_aegis_users`、`_aegis_user_identities`、`_aegis_audit_logs`、`_aegis_orders`、`_aegis_comments`、`_aegis_settings` など）。
+- `_aegis_settings` は Admin Studio から変更するサイト全体の設定（`name` → `value`。サイト名 `site.title`、favicon `site.favicon`、および SEO & Bot 設定 `seo.*`（`robots_txt`, `meta_description`, `meta_keywords`, `canonical_base_url`, `og_image`, `noindex_all`, `twitter_card`）、コメントの承認の設定 `comments.require_approval` / `comments.auto_approve_known`）。カラム名は MySQL の予約語 `key` を避けて `name` にした。上書きは SQLite / PostgreSQL が `ON CONFLICT`、MySQL が `ON DUPLICATE KEY UPDATE`。設定ファイルの値は既定値として残し、行を消すと設定ファイルの値に戻る（プラグイン設定のようにキャッシュへ置くと、メモリのキャッシュでは再起動と TTL で消えるため DB にした）。
 - コンテンツ作成 API（`POST /api/v1/contents/{type}`）のペイロードはトップレベルに `title` / `slug` / `status` / `blocks` / `author_id` とカスタムフィールドを持つ。応答ではカスタムフィールドは `fields`、解決済みリレーションは `relations` に入る（[Admin Studio の型](../admin/README.md#-設計メモ)に注意）。
 
 ### 2.2 `DatabaseAdapter`
@@ -315,3 +316,20 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - プラグインの呼び出しは単発で 1 回 40〜190µs（うちインスタンス化 10〜20µs。`task bench:plugins`）。遅かったのは同時実行時で、32 並列でスループットが 0.2〜0.5 倍に落ちていた（呼び出しごとの `mmap` / `munmap` のカーネル内の競合）。プールの導入で 32 並列のスループットが 3〜8 倍、`official-code-enhancer` を有効にした記事ページが 2,600 → 4,500 req/s。
 - プラグイン 3 つ（描画フックあり）を有効にすると記事ページは約 1,500 req/s（フック 1 回約 1ms）。
 - AssemblyScript SDK の `escapeJson` / `findStringField` は 1 文字ずつ連結するため入力の大きさの二乗で遅い（`on_before_save` で約 2ms、`official-code-enhancer` と併用すると `on_render_page` が約 13ms）。
+
+---
+
+## 13. コメント (`aegis-comments`)
+
+- **コメントと商品レビューは表を分け、審査の仕組みを共有する**: レビューには評価（★）の集計、購入者だけ・1 注文 1 件の制約、返信は運営者の 1 段だけ、通知先は運営者、という違いがあり、同じ表にすると（WooCommerce の `comment_type = review` のように）コメントを扱う箇所すべてに分岐が要る。そこで表は `_aegis_comments`（今後 `_aegis_reviews`）に分け、共通部分を `aegis_comments::moderation` に置いた: 承認制の設定（`ModerationConfig` / `PolicyOverrides`。`_aegis_settings` の `<接頭辞>.require_approval` など）、入力の正規化（`normalize_name` / `normalize_email` / `normalize_body`）、NG ワード・リンク数の振り分け（`screen`）、IP ごとの投稿数（`within_rate_limit`。キャッシュのキーの名前空間で分ける）、本文の HTML 化（`body_html`）。状態 `ModerationStatus` は `aegis-core`。レビューは顧客アカウント（EC フェーズ 4）と一緒に作る（購入の確認に要るため）。
+- **最初の状態は「厳しい方を採る」**: NG ワード・リンク数 → 承認制（WordPress と同じく、同じ名前とメールアドレスの承認済みコメントがあれば自動承認）→ `check-comment` プラグインの順で、`moderation::stricter` で合わせる。プラグインは承認待ちを公開にできない（スパム判定サービスの誤判定で公開されないように）。プラグインの失敗は承認待ちにする（投稿を失わず、公開もしない）。
+- **スパム・ハニーポットにも承認待ちと同じ応答を返す**: 判定の結果をボットに教えない。ハニーポットに掛かった投稿は保存もしない（スパムの一覧を埋めないため）。
+- **承認制の設定は投稿のたびに DB から読む**: サイト名（`site.rs`）のようにメモリに持つと、複数のサーバーではイベントバスでの同期が要る。投稿は頻繁でないので、`_aegis_settings` を毎回読めば同期の仕組みが要らない。
+- **本文はプレーンテキストで保存し、表示のときにエスケープする**: `body_html` は段落・改行だけの HTML を作る（リンクにしない）。テンプレートでは `body_html | safe`、Admin Studio は本文をテキストとして出す。
+- **投稿日時はマイクロ秒まで**（ほかの表は秒）: 同じ秒の投稿・返信がスレッドで投稿順に並ぶように（並びは `created_at, id`）。
+- **スレッド**: 公開ページは承認済みを古い順に 1 回で読み（上限 1,000 件）、`thread()` で親の直後に子を並べる。親が見えない（承認されていない・削除された）返信はトップレベルに出す。深さは `max_depth` で打ち切って表示する。返信の投稿時は親をたどって深さを確かめる。
+- **返信通知の停止トークンは平文で保存する**: 後から送る `comment.replied` のメールにリンクを入れるため（注文確認のトークンと違い、ハッシュでは後から URL を作れない）。できるのは返信通知の停止だけで、Admin Studio の API でも返さない。比較は定数時間。
+- **コンテンツの削除でコメントも消す**: 外部キーは使わず、`delete_content` のハンドラで `delete_content_comments` を呼ぶ（コンテンツの表はスキーマごとに動的なため）。
+- **MySQL の索引**: utf8mb4 の索引は 3,072 バイトまでなので、`VARCHAR(255)` の列は 1 つの索引に 3 つまで（`idx_aegis_comments_content` は `content_id, status, created_at`）。
+- **テンプレート**: 公開ページの `PageRenderContext.comments`（`CommentSection`）は `skip_serializing_if` で、コメントを受け付けないページには出ない。プラグインの `on-render-page` は返したキーだけを上書きするので、SDK の `PageRenderContext` に `comments` が無くても消えない。`items` は MiniJinja の辞書のメソッド名と重なるため、テンプレートでは `comments["items"]` で参照する。
+- 結合テストは `aegis-comments/src/tests.rs`（サービス）、`aegis-server/src/handlers/comments_tests.rs`（ルーター経由）、`aegis-db/tests/comments_integration.rs`（SQLite と、コンテナがあれば PostgreSQL / MySQL）。

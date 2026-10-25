@@ -86,10 +86,22 @@ pub enum AuditAction {
     /// User invitation created or accepted
     #[serde(rename = "user.invite")]
     UserInvite,
+    /// Reply to a comment written from Admin Studio
+    #[serde(rename = "comment.create")]
+    CommentCreate,
+    /// Comment status changed (approved, held, marked as spam, trashed) from admin/API
+    #[serde(rename = "comment.moderate")]
+    CommentModerate,
+    /// Comment permanently deleted from admin/API
+    #[serde(rename = "comment.delete")]
+    CommentDelete,
+    /// Comment moderation settings (approval, auto-approval) changed from admin/API
+    #[serde(rename = "comment.settings_update")]
+    CommentSettingsUpdate,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 29] = [
+    pub const ALL: [AuditAction; 33] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -119,6 +131,10 @@ impl AuditAction {
         Self::NotificationSend,
         Self::UserPasswordReset,
         Self::UserInvite,
+        Self::CommentCreate,
+        Self::CommentModerate,
+        Self::CommentDelete,
+        Self::CommentSettingsUpdate,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -152,6 +168,10 @@ impl AuditAction {
             Self::NotificationSend => "notification.send",
             Self::UserPasswordReset => "user.password_reset",
             Self::UserInvite => "user.invite",
+            Self::CommentCreate => "comment.create",
+            Self::CommentModerate => "comment.moderate",
+            Self::CommentDelete => "comment.delete",
+            Self::CommentSettingsUpdate => "comment.settings_update",
         }
     }
 }

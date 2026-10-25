@@ -101,6 +101,7 @@ fn record_from_row(schema: &SchemaDefinition, r: &PgRow) -> ContentRecord {
 
 super::orders::impl_order_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::variants::impl_product_variant_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::comments::impl_comment_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
@@ -252,6 +253,20 @@ impl DatabaseAdapter for PostgresAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in variant_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // コメント
+        let (comment_table, comment_indexes) =
+            super::comments::build_comment_table("TEXT", "VARCHAR(255)", "BIGINT", false);
+        sqlx::query(&comment_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in comment_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

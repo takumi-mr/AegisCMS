@@ -58,6 +58,15 @@ builtin_templates!(
     "content.published.txt",
     "content.unpublished.subject",
     "content.unpublished.txt",
+    "_comment_summary.txt",
+    "comment.posted.subject",
+    "comment.posted.txt",
+    "comment.pending.subject",
+    "comment.pending.txt",
+    "comment.pending.staff.subject",
+    "comment.pending.staff.txt",
+    "comment.replied.subject",
+    "comment.replied.txt",
     "_audit_title.txt",
     "audit.subject",
     "audit.txt",
@@ -541,6 +550,107 @@ https://shop.example.com/spring-sale
 
 "
             ),
+            "{}",
+            ja.body
+        );
+    }
+
+    #[test]
+    fn renders_the_comment_templates_in_each_locale() {
+        let author = Recipient::person("hanako@example.com", "Hanako");
+        let no_blank_runs = |text: &str| {
+            !text.contains(
+                "
+
+
+",
+            )
+        };
+        let data = json!({
+            "site_name": "Aegis Coffee",
+            "site_url": "https://shop.example.com",
+            "username": "hanako",
+            "display_name": "Hanako",
+            "comment": {
+                "id": "c1",
+                "author_name": "Taro",
+                "author_email": "taro@example.com",
+                "body": "Great beans!",
+                "ip": "203.0.113.7",
+                "is_reply": false,
+            },
+            "content": { "label": "Articles", "title": "Spring Sale", "slug": "spring-sale" },
+            "content_url": "https://shop.example.com/spring-sale#comment-c1",
+            "moderation_url": "https://shop.example.com/admin/#comments",
+        });
+        for locale in LOCALES {
+            let templates = Templates::new(locale, None);
+            for (kind, recipient) in [
+                ("comment.posted", &author),
+                ("comment.pending", &author),
+                ("comment.pending", &Recipient::Staff),
+            ] {
+                let rendered = templates.render(kind, recipient, &data).unwrap().unwrap();
+                assert!(
+                    rendered.subject.contains("Spring Sale"),
+                    "{}",
+                    rendered.subject
+                );
+                assert!(rendered.body.contains("Great beans!"), "{}", rendered.body);
+                assert!(rendered.body.contains("Taro"), "{}", rendered.body);
+                assert!(no_blank_runs(&rendered.body), "{}", rendered.body);
+            }
+            let staff = templates
+                .render("comment.pending", &Recipient::Staff, &data)
+                .unwrap()
+                .unwrap();
+            assert!(staff.body.contains("taro@example.com"));
+            assert!(staff.body.contains("203.0.113.7"));
+            assert!(staff
+                .body
+                .contains("https://shop.example.com/admin/#comments"));
+            assert!(!staff.body.contains("Hanako"), "{}", staff.body);
+        }
+
+        let en = Templates::new("en", None)
+            .render("comment.posted", &author, &data)
+            .unwrap()
+            .unwrap();
+        assert_eq!(en.subject, "New comment on \"Spring Sale\" - Aegis Coffee");
+        assert!(en
+            .body
+            .contains("Taro commented on your Articles \"Spring Sale\"."));
+
+        let replied = json!({
+            "site_name": "Aegis Coffee",
+            "site_url": "https://shop.example.com",
+            "name": "Hanako",
+            "comment": { "body": "Which roast?" },
+            "reply": { "author_name": "Shop", "body": "Medium.", "staff": true },
+            "content": { "title": "Spring Sale" },
+            "content_url": "https://shop.example.com/spring-sale#comment-c2",
+            "unsubscribe_url": "https://shop.example.com/comments/unsubscribe?id=c1&token=t",
+        });
+        for locale in LOCALES {
+            let rendered = Templates::new(locale, None)
+                .render("comment.replied", &author, &replied)
+                .unwrap()
+                .unwrap();
+            assert!(rendered.body.contains("Medium."));
+            assert!(rendered.body.contains("Which roast?"));
+            assert!(rendered.body.contains("token=t"));
+            assert!(no_blank_runs(&rendered.body), "{}", rendered.body);
+        }
+        let ja = Templates::new("ja", None)
+            .render("comment.replied", &author, &replied)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            ja.subject,
+            "【Aegis Coffee】「Spring Sale」のあなたのコメントに返信がありました"
+        );
+        assert!(
+            ja.body.contains("Shop（Aegis Coffee） さんが返信しました"),
             "{}",
             ja.body
         );

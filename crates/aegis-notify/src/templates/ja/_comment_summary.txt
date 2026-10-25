@@ -1,0 +1,12 @@
+
+名前: {{ comment.author_name }}
+メールアドレス: {{ comment.author_email }}
+{% if comment.ip %}
+IP アドレス: {{ comment.ip }}
+{% endif %}
+
+{{ comment.body }}
+{% if moderation_url %}
+
+管理画面で承認・スパムの判定ができます: {{ moderation_url }}
+{% endif %}

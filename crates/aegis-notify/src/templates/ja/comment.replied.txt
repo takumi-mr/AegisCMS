@@ -1,0 +1,17 @@
+{{ name }} 様
+
+「{{ content.title }}」へのあなたのコメントに、{{ reply.author_name }}{% if reply.staff %}（{{ site_name }}）{% endif %} さんが返信しました。
+
+{{ reply.body }}
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+
+あなたのコメント:
+{{ comment.body }}
+{% if unsubscribe_url %}
+
+このコメントへの返信のお知らせを止めるには、次のページを開いてください: {{ unsubscribe_url }}
+{% endif %}
+{% include "_footer.txt" %}

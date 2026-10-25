@@ -1,8 +1,9 @@
 use crate::guard::CapabilityGuard;
 use aegis_ast::BlockNode;
 use aegis_core::{
-    Delivered, NotificationMessage, OrderContext, OrderStatusChange, PluginManifest, PostContext,
-    PublishedContent, Result, SendError, UserAuthContext,
+    AegisError, CommentSubmission, CommentVerdict, Delivered, NotificationMessage, OrderContext,
+    OrderStatusChange, PluginManifest, PostContext, PublishedContent, Result, SendError,
+    UserAuthContext,
 };
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -63,6 +64,15 @@ pub trait AegisPlugin: Send + Sync {
         Ok(())
     }
 
+    /// 公開サイトから投稿されたコメントの審査（`check-comment`。スパム判定など）。
+    /// `Err(AegisError::PluginRejected)` で投稿を断る（メッセージは投稿者に表示される）
+    async fn check_comment(&self, comment: CommentSubmission) -> Result<CommentVerdict> {
+        let guard = CapabilityGuard::new(self.manifest());
+        guard.check_hook("check-comment")?;
+        let _ = comment;
+        Ok(CommentVerdict::Allow)
+    }
+
     /// 通知の配信フック（`send-notification`）。`[notifications].channels` に `plugin:<名前>` で
     /// 加えたプラグインが、テンプレートから作った通知を Slack・SMS などへ送る。
     /// 扱わない通知は `Ok(Delivered::Skipped)`、`SendError::permanent` は再試行しない失敗
@@ -90,6 +100,17 @@ fn declares_hook(plugin: &dyn AegisPlugin, hook: &str) -> bool {
         .hooks
         .iter()
         .any(|h| h == hook)
+}
+
+/// `check-comment` の結果（`PluginSupervisor::check_comment`）
+#[derive(Debug, Default)]
+pub struct CommentCheck {
+    /// いちばん厳しい判定（スパム > 承認待ち > そのまま）
+    pub verdict: CommentVerdict,
+    /// その判定をしたプラグイン（`Allow` なら `None`）
+    pub plugin: Option<String>,
+    /// 失敗したプラグイン（タイムアウトなど）と、そのエラー。呼び出し側は承認待ちにする
+    pub failures: Vec<(String, AegisError)>,
 }
 
 pub struct PluginSupervisor {
@@ -265,6 +286,37 @@ impl PluginSupervisor {
             }
         }
         failures
+    }
+
+    /// Runs every `check-comment` plugin in turn and keeps the strictest verdict (spam over hold
+    /// over allow). A spam verdict stops the chain. A refusal (`PluginRejected`) stops the chain
+    /// and is returned as the error; any other failure is collected in `failures` and the
+    /// remaining plugins still run
+    pub async fn check_comment(&self, comment: &CommentSubmission) -> Result<CommentCheck> {
+        let mut check = CommentCheck::default();
+        for plugin in &self.plugins {
+            if !declares_hook(plugin.as_ref(), "check-comment") {
+                continue;
+            }
+            let name = plugin.manifest().name.clone();
+            match plugin.check_comment(comment.clone()).await {
+                Ok(CommentVerdict::Allow) => {}
+                Ok(verdict @ CommentVerdict::Hold { .. }) => {
+                    if check.verdict == CommentVerdict::Allow {
+                        check.verdict = verdict;
+                        check.plugin = Some(name);
+                    }
+                }
+                Ok(verdict @ CommentVerdict::Spam { .. }) => {
+                    check.verdict = verdict;
+                    check.plugin = Some(name);
+                    break;
+                }
+                Err(e @ AegisError::PluginRejected(_)) => return Err(e),
+                Err(e) => check.failures.push((name, e)),
+            }
+        }
+        Ok(check)
     }
 
     pub fn collect_plugin_templates(&self) -> HashMap<String, String> {

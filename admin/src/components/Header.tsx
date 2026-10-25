@@ -7,6 +7,7 @@ import {
   Settings,
   Package,
   ShoppingBag,
+  MessageSquare,
   Calendar,
   Menu,
   X,
@@ -28,7 +29,7 @@ const ROLE_BADGE: Record<string, string | undefined> = {
   editor: styles.roleEditor,
 };
 
-export type AppView = 'editor' | 'schedule' | 'products' | 'orders' | 'settings';
+export type AppView = 'editor' | 'schedule' | 'products' | 'orders' | 'comments' | 'settings';
 
 interface HeaderProps {
   view: AppView;
@@ -41,6 +42,8 @@ interface HeaderProps {
   canSave: boolean;
   /** Products / Orders tabs: the shop is enabled (`[commerce].enabled`) and the user can edit */
   showShop: boolean;
+  /** Comments tab: comments are enabled (`[comments].enabled`) and the user can edit */
+  showComments: boolean;
   /** The signed-in user's account (avatar, current display name), once loaded */
   profile: UserAccount | null;
   onOpenProfile: () => void;
@@ -56,6 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   session,
   canSave,
   showShop,
+  showComments,
   profile,
   onOpenProfile,
   onLogout,
@@ -92,6 +96,15 @@ export const Header: React.FC<HeaderProps> = ({
             id: 'orders' as const,
             label: t('header.tabs.orders'),
             icon: <ShoppingBag size={15} />,
+          },
+        ]
+      : []),
+    ...(showComments
+      ? [
+          {
+            id: 'comments' as const,
+            label: t('header.tabs.comments'),
+            icon: <MessageSquare size={15} />,
           },
         ]
       : []),

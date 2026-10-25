@@ -440,6 +440,7 @@ impl ThemeEngine {
                     "product.html" => Ok(Some(PRODUCT_TEMPLATE.to_string())),
                     "cart.html" => Ok(Some(CART_TEMPLATE.to_string())),
                     "order.html" => Ok(Some(ORDER_TEMPLATE.to_string())),
+                    "comments.html" => Ok(Some(COMMENTS_TEMPLATE.to_string())),
                     _ => Ok(None),
                 }
             },
@@ -488,6 +489,7 @@ mod tests {
             extra_head: "".to_string(),
             theme_vars: HashMap::new(),
             pagination: None,
+            comments: None,
         };
 
         let html = engine.render("index.html", &ctx).expect("Render failed");
@@ -540,6 +542,7 @@ mod tests {
             extra_head: "".to_string(),
             theme_vars: HashMap::new(),
             pagination: None,
+            comments: None,
         };
 
         let html = engine
@@ -614,6 +617,7 @@ mod tests {
             extra_head: "".to_string(),
             theme_vars: HashMap::new(),
             pagination: None,
+            comments: None,
         };
 
         let html = engine.render("index.html", &ctx).unwrap();

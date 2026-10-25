@@ -27,6 +27,7 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 | `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange` | なし | ✅ 実装済み（注文の作成・状態の変化の通知） |
 | `send-notification` | `send_notification` | `Plugin::send_notification` | `NotificationMessage` | `Delivery` | ✅ 実装済み（通知の配信チャネル。Slack・SMS など。[通知](notifications.md#5-配信方法を加える)） |
 | `on-content-published` | `on_content_published` | `Plugin::on_content_published` | `PublishedContent` | なし | ✅ 実装済み（予約公開などコンテンツ公開時の通知） |
+| `check-comment` | `check_comment` | `Plugin::check_comment` | `CommentSubmission` | `CommentVerdict` | ✅ 実装済み（コメントの審査。スパム判定・承認待ち・投稿の拒否。[コメント](comments.md)） |
 
 - フックを有効にするには、**マニフェストの `capabilities.hooks` にフック名（ケバブケース）を列挙**する必要があります。列挙されていないフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
 - 逆に、マニフェストに列挙されていても該当の関数がエクスポートされていない場合は、入力がそのまま次へ渡されます（エラーにはなりません）。
@@ -199,6 +200,21 @@ fn on_content_published(&mut self, content: PublishedContent) -> Result<()>;
 - プラグインが `Err` を返した（またはトラップ・タイムアウトが発生した）場合は、警告ログおよび監査ログ `plugin.error`（`details.hook = "on-content-published"`）が記録されます。他のプラグインの呼び出しや公開処理はそのまま継続します。
 - 運営者への通知（メール等）は `[[notifications.audit.rules]]` で `action = "content.publish"` を設定すれば自動的に送信できます。
 
+### 1.9 `check-comment`
+
+公開サイトからコメントが投稿され、保存する前に呼び出されます（[コメント](comments.md#6-プラグインで審査する)）。外部のスパム判定サービス（Akismet など）への問い合わせや独自の NG ワードで、承認待ち・スパムに振り分けます。
+
+```rust
+fn check_comment(&mut self, comment: CommentSubmission) -> Result<CommentVerdict>;
+```
+
+- `CommentVerdict::Allow`（ホストの判定のまま）/ `Hold { reason }`（承認待ち）/ `Spam { reason }`（スパム）を返します。ホストの判定（`CommentSubmission.status`）より厳しくだけでき、承認待ちを公開に変えることはできません。
+- `Err(PluginError::Rejected(..))` で投稿を断ります。メッセージは投稿者にそのまま表示されます（`422`）。
+- 複数のプラグインがあれば順に呼び、いちばん厳しい判定を使います（`Spam` が出たらそこで止めます）。
+- トラップ・タイムアウトなどの失敗はコメントを承認待ちにし、警告ログと監査ログ `plugin.error`（`details.hook = "check-comment"`）を残します。
+- NG ワード・リンク数で既にスパムと判定した投稿・ハニーポットに掛かった投稿では呼ばれません。
+- ABI の出力は `{"verdict": "allow" | "hold" | "spam", "reason": "..."}`（何も返さない・`verdict` が無ければ `allow`）、断るときは `{"error": "..."}` です。
+
 ---
 
 ## 2. フックに渡されるデータ型
@@ -321,6 +337,20 @@ SDK ヘルパー:
 | `published_at` | string | 公開日時 (RFC 3339) |
 | `author_id` | string \| null | 著者 ID（未指定時は null） |
 | `fields` | object | カスタムフィールド値のマップ |
+
+### 2.8 `CommentSubmission` / `CommentVerdict`（`check-comment`）
+
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `content_type` / `content_id` | string | コメントが付くコンテンツの種類と ID |
+| `content_title` / `content_slug` | string | コンテンツのタイトルとスラッグ |
+| `parent_id` | string \| null | 返信先のコメント ID |
+| `author_name` / `author_email` | string | 投稿者の名前とメールアドレス（小文字） |
+| `body` | string | 本文（プレーンテキスト） |
+| `ip` / `user_agent` | string \| null | 投稿者の IP アドレスとブラウザ |
+| `status` | string | ホストの判定（`approved` / `pending`） |
+
+`CommentVerdict` は `{"verdict": "allow"}`、`{"verdict": "hold", "reason": "..."}`、`{"verdict": "spam", "reason": "..."}` のいずれかです（`reason` はログに残す理由。省略可）。
 
 ---
 

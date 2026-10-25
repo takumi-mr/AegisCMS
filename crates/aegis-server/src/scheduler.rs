@@ -249,29 +249,9 @@ async fn notify_author(
                 "title": record.title,
                 "slug": record.slug,
             },
-            "content_url": content_url(state, record),
+            "content_url": crate::site::content_url(&state.config, &record.content_type, &record.slug),
         }),
     ));
-}
-
-/// 公開サイトでのコンテンツの URL（`[commerce].public_url` が無い、公開ページの無い種類なら空）。
-/// `page` / `article` は `/{slug}`、商品（`[commerce].product_type`）は `/products/{slug}`
-fn content_url(state: &AppState, record: &ContentRecord) -> String {
-    let site = state
-        .config
-        .commerce
-        .public_url
-        .trim()
-        .trim_end_matches('/');
-    let path = match record.content_type.as_str() {
-        "page" | "article" => format!("/{}", record.slug),
-        t if t == state.config.commerce.product_type => format!("/products/{}", record.slug),
-        _ => return String::new(),
-    };
-    if site.is_empty() {
-        return String::new();
-    }
-    format!("{}{}", site, path)
 }
 
 /// 予約公開および予約非公開を定期的に行うタスクを起動する

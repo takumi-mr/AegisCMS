@@ -66,6 +66,9 @@ aegis-server -c config/production.toml notify test --to you@example.com
 | `account.registered` | 確認リンクが開かれ、アカウントができた | 運営者 | ユーザー名・表示名・メールアドレス・ロール、承認が必要か（`pending_approval`） |
 | `content.published` | 予約公開（`status: "scheduled"`）のコンテンツを、公開日時になってサーバーが公開した（[予約公開](theme_and_publishing_guide.md#予約公開スケジュール公開)） | 著者 | タイトル・種類、公開ページの URL（`content_url`）、公開予定日時 |
 | `content.unpublished` | 公開中のコンテンツを、非公開日時（`unpublish_at`）になってサーバーが非公開にした（アーカイブ） | 著者 | タイトル・種類、非公開日時 |
+| `comment.posted` | 承認済みのコメントが付いた（承認を待たずに公開されたとき。[コメント](comments.md)） | 著者（`[comments].notify_author`） | 投稿者の名前、本文、コメントの URL |
+| `comment.pending` | 承認待ちのコメントが来た | 著者（`notify_author`）・運営者（`notify_staff`） | 投稿者の名前・メールアドレス・IP アドレス、本文、Admin Studio の **Comments** を開く URL（`moderation_url`） |
+| `comment.replied` | 自分のコメントへの返信が公開された（読者の返信・Admin Studio からの返信。承認待ちの返信は承認したとき） | 返信先のコメントの投稿者（投稿時に「返信をメールで知らせる」を選んだ人だけ） | 返信した人の名前と本文、自分のコメント、返信の URL、通知を止めるリンク（`unsubscribe_url`） |
 | `test` | `aegis-server notify test` | 指定したアドレス | テスト |
 | `audit.<操作>` | 監査ログのイベントが `[[notifications.audit.rules]]` に合った（[2.1](#21-監査イベントの通知)） | 運営者（またはルールの `recipients`） | 操作・結果・ユーザー・IP アドレス・ブラウザ・詳細 |
 
@@ -73,6 +76,7 @@ aegis-server -c config/production.toml notify test --to you@example.com
 - `completed`（完了）は知らせません。
 - `content.published` / `content.unpublished` の宛先は著者（コンテンツの `author_id` のユーザー）のメールアドレスです。著者がいない・メールアドレスが無い・無効なアカウントなら送りません。Admin Studio から手で公開した場合は送りません（公開した本人が知っているため）。
 - 運営者にもすべての予約公開を知らせたい場合や、公開の失敗を知りたい場合は、監査イベントの通知（[2.1](#21-監査イベントの通知)）で `action = "content.publish"`（`outcomes = ["failure"]` で失敗だけ）を使います。
+- `comment.*` の宛先の著者はコンテンツの `author_id` のユーザーです（`content.published` と同じ条件）。スパムと判定したコメントは誰にも知らせません。`comment.replied` は返信した人と返信先が同じメールアドレスなら送りません。
 - `[notifications].disabled_events = ["order.shipped"]` のように、種類ごとに止められます。
 - 注文確認ページのトークンはサーバーに保存していない（ハッシュのみ）ため、URL を本文に入れられるのは注文したときの `order.placed` だけです。
 
@@ -178,6 +182,9 @@ notifications/
 | `username` / `display_name` / `email` / `role` / `pending_approval` | 新しいアカウントの知らせ（`account.registered`） |
 | `content.title` / `content.label` / `content.content_type` / `content.slug` / `content.id` | 予約公開・非公開の知らせ（`content.published` / `content.unpublished`）: コンテンツとその種類の表示名（スキーマの `label`） |
 | `at` / `content_url` / `username` / `display_name` | 同上: 公開予定日時・非公開日時（RFC 3339、UTC）、公開ページの URL（`page` / `article` は `/{slug}`、商品は `/products/{slug}`。`[commerce].public_url` が無ければ空）、著者 |
+| `comment.author_name` / `comment.author_email` / `comment.ip` / `comment.body` / `comment.created_at` / `comment.is_reply` | コメントの知らせ（`comment.posted` / `comment.pending`）: 投稿者・本文・返信かどうか。`content`・`username`・`display_name` は予約公開の知らせと同じ |
+| `content_url` / `moderation_url` | 同上: コメントの位置（`…#comment-<id>`。`[commerce].public_url` が無ければ空）、Admin Studio の **Comments**（`<Admin Studio の URL>#comments`。無ければ空） |
+| `name` / `comment.body` / `reply.author_name` / `reply.body` / `reply.staff` / `unsubscribe_url` | 返信の知らせ（`comment.replied`）: 宛先の名前、自分のコメント、返信（`staff` は Admin Studio からの返信）、返信通知を止めるリンク（`[commerce].public_url` が無ければ空） |
 | `{{ amount \| money(order.currency) }}` | 金額の表示（`¥1,200`、`$12.50`） |
 
 - テンプレートが無ければ種類の最後の `.` 以降を外した名前を順に探します（`audit.session.create` → `audit.session` → `audit`）。
