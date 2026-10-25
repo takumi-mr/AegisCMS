@@ -20,6 +20,7 @@ pub const SAMPLE_KINDS: &[&str] = &[
     "comment.posted",
     "comment.pending",
     "comment.replied",
+    "comment.approved",
     "audit.session.create",
 ];
 
@@ -137,6 +138,13 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
                 "staff": true,
             },
             "content_url": url("/autumn-blend#comment-sample-reply"),
+            "unsubscribe_url": url("/comments/unsubscribe?token=sample"),
+        }),
+        "comment.approved" => json!({
+            "name": comment["author_name"],
+            "content": content,
+            "comment": comment,
+            "content_url": url("/autumn-blend#comment-sample"),
             "unsubscribe_url": url("/comments/unsubscribe?token=sample"),
         }),
         "audit.session.create" => json!({

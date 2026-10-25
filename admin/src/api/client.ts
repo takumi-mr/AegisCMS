@@ -433,6 +433,28 @@ export const aegisApi = {
     );
   },
 
+  /** Rewrites the text of a comment (any status) */
+  async editComment(id: string, body: string): Promise<void> {
+    return requestNoContent(
+      `/comments/${encodeURIComponent(id)}`,
+      { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ body }) },
+      i18n.t('api.editCommentFailed')
+    );
+  },
+
+  /** Stops (or resumes) new comments on one content; the comments already there stay */
+  async setContentCommentsOpen(
+    contentType: string,
+    contentId: string,
+    open: boolean
+  ): Promise<{ open: boolean }> {
+    return request(
+      `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(contentId)}/comments/state`,
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify({ open }) },
+      i18n.t('api.contentCommentsFailed')
+    );
+  },
+
   /** Deletes a comment permanently */
   async deleteComment(id: string): Promise<void> {
     return requestNoContent(

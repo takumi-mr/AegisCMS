@@ -1,17 +1,17 @@
 # コメント
 
-公開サイトの記事・固定ページ・商品ページに、読者がコメントを書けるようにします（`[comments]`）。投稿は WordPress と同じ考え方で審査し（承認制・承認済みの投稿者の自動承認・NG ワード・リンク数）、Admin Studio の **Comments** タブで承認・スパム判定・返信を行います。コメントが付いたこと・承認待ちがあること・返信があったことはメールで知らせます（[通知](notifications.md)）。
+公開サイトの記事・固定ページ・商品ページに、読者がコメントを書けるようにします（`[comments]`）。投稿は WordPress と同じ考え方で審査し（承認制・承認済みの投稿者の自動承認・NG ワード・リンク数）、Admin Studio の **Comments** タブで承認・スパム判定・返信を行います。コメントが付いたこと・承認待ちがあること・返信があったこと・自分のコメントが承認されたことはメールで知らせます（[通知](notifications.md)）。
 
 ```text
  読者（公開ページのフォーム）
         │  POST /api/v1/contents/{type}/{slug}/comments
         ▼
- 検査: 必須項目・長さ → ハニーポット（ボットは保存しない）→ IP ごとの投稿数
+ 検査: 必須項目・長さ → 受付中か → ハニーポット（ボットは保存しない）→ IP ごとの投稿数 → 同じ本文の連投
         │
  最初の状態: NG ワード・リンク数 → 承認制（承認済みの投稿者は自動承認）→ check-comment プラグイン
         │
         ├── approved ──▶ 公開ページに表示。著者に comment.posted、返信先の投稿者に comment.replied
-        ├── pending ───▶ 著者と運営者に comment.pending → Admin Studio で承認 → comment.replied
+        ├── pending ───▶ 著者と運営者に comment.pending → Admin Studio で承認 → 投稿者に comment.approved、返信先の投稿者に comment.replied
         └── spam ──────▶ 誰にも知らせない（投稿者には「承認待ち」と見せる）
 ```
 
@@ -37,6 +37,8 @@ hold_words = []               # 含むと承認待ちにする語
 spam_words = []               # 含むとスパムにする語
 max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿数
 ```
+
+そのほかの `[comments]` の項目: `avatars`（[3.1](#31-アバター)）、`reject_duplicates`（[2.3](#23-ボット連投への対策)）。
 
 - 設定項目の一覧は [設定リファレンス](configuration.md#215-comments--コメント) を参照してください。
 - `content_types` のスキーマが無いとサーバーは起動しません。
@@ -70,6 +72,7 @@ max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿�
 
 - **ハニーポット**: フォームには人には見えない欄（`website`）があり、値が入っていたらボットとして保存も通知もしません。
 - **IP ごとの投稿数**: `max_per_ip_per_hour` を超えると `429` です（`[cache]` で数える）。リバースプロキシの配下では `[audit].trust_forwarded_for = true` にしないと全員が同じ IP として数えられます。
+- **同じ本文の連投**: 同じコンテンツに、同じ人（メールアドレスか IP アドレスが同じ）が同じ本文をすでに投稿していると `409` で断ります（二重送信・連投の防止。`reject_duplicates = false` で止められます）。ゴミ箱のコメントは数えません。MySQL は文字列の比較が大文字・小文字を区別しない設定が多く、その場合は大文字・小文字だけの違いも重複になります。本文は空白の違い（前後・改行コードの差）を除いて完全に一致したものだけを重複とします。IP アドレスで見るため、同じ回線（会社・学校など）の別の人が「ありがとう」のような短い一言を同じコンテンツに書くと断られることがあります。
 - **プラグイン**: 外部のスパム判定サービス（Akismet など）は `check-comment` フックで使えます。
 
 ---
@@ -86,16 +89,25 @@ max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿�
 | --- | --- |
 | `comments.count` | 承認済みのコメント数 |
 | `comments["items"]` | 承認済みのコメント（スレッドの順。返信は親の直後） |
-| `comments.open` | 新しいコメントを受け付けているか（`close_after_days`） |
+| `comments.open` | 新しいコメントを受け付けているか（`close_after_days`・Admin Studio での受付の停止） |
 | `comments.post_url` | 投稿先（`POST`、ベースパス込み） |
 | `comments.content_id` | コンテンツの ID |
 | `comments.max_depth` / `comments.max_length` | 返信できる深さ / 本文の最大文字数 |
 
-`items` の各要素は `id` / `parent_id` / `author_name` / `body_html`（エスケープ済みの本文。段落と改行だけ）/ `created_at` / `depth`（0 から。`max_depth` まで）/ `staff`（Admin Studio からの返信）です。メールアドレス・IP アドレスはテンプレートに渡りません。`items` は Jinja の辞書のメソッド名と重なるため `comments["items"]` で参照します。
+`items` の各要素は `id` / `parent_id` / `author_name` / `body_html`（エスケープ済みの本文。段落と改行だけ）/ `created_at` / `depth`（0 から。`max_depth` まで）/ `staff`（Admin Studio からの返信）/ `avatar_url`（[3.1](#31-アバター)。無ければ `null`）です。メールアドレス・IP アドレスはテンプレートに渡りません。`items` は Jinja の辞書のメソッド名と重なるため `comments["items"]` で参照します。
 
 - 組み込みのコメント欄は、フォームの送信をスクリプトで行います（`Content-Type: application/json`）。承認済みになったらそのコメントの位置（`#comment-<id>`）で再読み込みし、承認待ちなら案内を表示します。名前とメールアドレスはブラウザ（`localStorage`）に覚えます。
 - テーマで見た目を変える場合は、テーマの `templates/comments.html` に同名のテンプレートを置きます（[テーマの作り方](theme_authoring_guide.md)）。独自のフォームから送る場合は [5.1](#51-公開ログイン不要) の API を使います。
-- 返信通知のメールの停止リンクは `/comments/unsubscribe?id=...&token=...` で、テーマの `page.html` で「通知を停止しました」と表示します。
+- 返信通知のメールの停止リンクは `/comments/unsubscribe?id=...&token=...` で、テーマの `page.html` で「通知を停止しました」と表示します。返信の通知と承認の通知は同じ希望（フォームのチェックボックス）で、停止リンクで両方止まります。
+
+### 3.1 アバター
+
+`[comments].avatars = "gravatar"` にすると、`avatar_url` に [Gravatar](https://gravatar.com/) の画像の URL が入り、組み込みのコメント欄は名前の横に表示します。
+
+- URL はメールアドレス（小文字・前後の空白なし）の SHA-256 から作ります（`https://www.gravatar.com/avatar/<ハッシュ>?s=96&d=<avatar_default>&r=g`）。メールアドレスそのものは URL にもページにも出ません。
+- 画像は**読者のブラウザが gravatar.com から取得します**（読者の IP アドレスが Gravatar に渡ります）。外部への接続を避けたいサイトは既定の `none` のままにしてください。
+- Gravatar に画像が無い人は `avatar_default`（`identicon` など）の画像になります。`404` にすると画像が無いので表示は崩れます（テーマで `onerror` などで隠す場合のみ）。
+- テーマの `comments.html` を自作している場合は `{% if c.avatar_url %}<img src="{{ c.avatar_url }}" alt="" width="28" height="28" loading="lazy" referrerpolicy="no-referrer">{% endif %}` のように使います。
 
 ---
 
@@ -104,7 +116,9 @@ max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿�
 **Comments** タブ（`editor` 以上。`[comments].enabled = false` なら出ません）で次の操作ができます。通知メールのリンク（Admin Studio の URL + `#comments`）からもこのタブが開きます。
 
 - 状態ごとの一覧（承認待ち・承認済み・スパム・ゴミ箱・すべて。件数付き）。投稿者の名前・メールアドレス・IP アドレス、本文、コメントが付いたコンテンツ（公開ページへのリンク）。
-- 承認・承認の取り消し（承認待ちに戻す）・スパム・ゴミ箱・完全に削除。チェックボックスでまとめて操作できます（最大 200 件）。
+- 承認・承認の取り消し（承認待ちに戻す）・スパム・ゴミ箱・完全に削除。チェックボックスでまとめて操作できます（最大 200 件）。承認待ち（・スパム）から承認すると、投稿時に「メールで知らせる」を選んだ投稿者に `comment.approved` を送ります。
+- 本文の編集（鉛筆のボタン）: どの状態のコメントも直せます。公開ページにはすぐ反映されます。誤字の訂正や、公開したくない個人情報の削除に使います。編集は監査ログに残ります（文字数だけで、本文は残しません）。投稿者には知らせません。
+- コンテンツごとの受付の切り替え（コメントの行のボタン）: そのコンテンツへの新しいコメントを止める・再開します。止めている間もすでに付いたコメントは公開ページに残り、フォームの代わりに「Comments are closed.」と出ます。コンテンツの行に「受付停止中」と出ます。コメントが 1 件も無いコンテンツは Admin Studio から切り替えられません（API の `PUT /api/v1/contents/{type}/{id}/comments/state` なら切り替えられます）。コンテンツを削除すると、この設定も消えます。
 - 返信: Admin Studio のユーザーの表示名で、承認済みとしてすぐに公開されます（公開ページに「Staff」の印）。承認待ちのコメントに返信すると、そのコメントも承認されます。
 - 承認の設定（[2.2](#22-承認制の切り替え)）。
 
@@ -119,24 +133,25 @@ max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿�
 | メソッド・パス | 内容 |
 | --- | --- |
 | `GET /api/v1/contents/{type}/{slug または id}/comments` | 承認済みのコメント（テンプレートの `comments` と同じ形） |
-| `POST /api/v1/contents/{type}/{slug または id}/comments` | 投稿。本文は `name` / `email` / `body`（必須）、`parent_id`（返信先）、`notify_replies`（返信をメールで知らせる）、`website`（ハニーポット。空にする） |
+| `POST /api/v1/contents/{type}/{slug または id}/comments` | 投稿。本文は `name` / `email` / `body`（必須）、`parent_id`（返信先）、`notify_replies`（返信・承認をメールで知らせる）、`website`（ハニーポット。空にする） |
 | `GET /comments/unsubscribe?id=...&token=...` | 返信通知を止める（通知メールのリンク。HTML） |
 
-投稿の応答は、公開されたら `201` と `{"status": "approved", "comment": {...}}`、承認待ち（スパム・ハニーポットを含む）なら `202` と `{"status": "pending"}` です。エラーは `400`（入力の不備・返信先が無い・深すぎる）、`403`（コメントを閉じた）、`404`（公開中でない・コメントを受け付けない種類）、`422`（プラグインが断った。`error` は投稿者に見せる文）、`429`（投稿が多すぎる）です。
+投稿の応答は、公開されたら `201` と `{"status": "approved", "comment": {...}}`、承認待ち（スパム・ハニーポットを含む）なら `202` と `{"status": "pending"}` です。エラーは `400`（入力の不備・返信先が無い・深すぎる）、`403`（コメントを閉じた。`close_after_days` を過ぎた・Admin Studio で止めた）、`404`（公開中でない・コメントを受け付けない種類）、`409`（同じ本文をすでに投稿している）、`422`（プラグインが断った。`error` は投稿者に見せる文）、`429`（投稿が多すぎる）です。
 
 ### 5.2 管理
 
 | メソッド・パス | ロール | 内容 |
 | --- | --- | --- |
 | `GET /api/v1/comments` | `editor` | 一覧（新しい順）。`status` / `content_type` / `content_id` / `limit`（既定 50、最大 200）/ `offset`。応答は `comments`・`total`・状態ごとの件数 `counts` |
-| `PATCH /api/v1/comments/{id}` | `editor` | 状態を変える（`{"status": "approved"}` など） |
+| `PATCH /api/v1/comments/{id}` | `editor` | 状態を変える（`{"status": "approved"}` など）、本文を直す（`{"body": "..."}`）。両方同時でもよい（本文を先に直す）。どちらも無いと `400` |
+| `PUT /api/v1/contents/{type}/{id}/comments/state` | `editor` | そのコンテンツへの新しいコメントの受付を止める・再開する（`{"open": false}`）。`id` は ID か slug。応答は `{"content_type", "content_id", "open"}` |
 | `DELETE /api/v1/comments/{id}` | `editor` | 完全に削除する |
 | `POST /api/v1/comments/bulk` | `editor` | まとめて操作する（`{"ids": [...], "action": "approved" \| "pending" \| "spam" \| "trash" \| "delete"}`）。応答は `{"count": 変えた件数}` |
 | `POST /api/v1/comments/{id}/replies` | `editor` | 返信する（`{"body": "..."}`） |
 | `GET /api/v1/comments/settings` | `editor` | 承認の設定（`policy`: 実際の値、`overrides`: Admin Studio で変えた値、`defaults`: 設定ファイルの値） |
 | `PUT /api/v1/comments/settings` | `admin` | 承認の設定を変える（`{"require_approval": false, "auto_approve_known": null}`。`null` は設定ファイルの値に戻す） |
 
-監査ログには `comment.create`（Admin Studio からの返信）/ `comment.moderate` / `comment.delete` / `comment.settings_update` が残ります（[監査ログ](audit.md)）。
+監査ログには `comment.create`（Admin Studio からの返信）/ `comment.moderate` / `comment.update`（本文の編集）/ `comment.delete` / `comment.settings_update`（承認の設定・コンテンツごとの受付の切り替え）が残ります（[監査ログ](audit.md)）。
 
 ---
 
@@ -161,4 +176,5 @@ fn check_comment(&mut self, comment: CommentSubmission) -> Result<CommentVerdict
 - **個人情報**: メールアドレス・IP アドレス・ブラウザ（User-Agent）は Admin Studio（`editor` 以上）と、著者・運営者への承認待ちの通知にだけ出ます。返信通知（読者宛て）には返信した人のメールアドレスを入れません。
 - **返信通知の停止リンク**: コメントごとの推測できないトークンで、停止ページは `Referrer-Policy: no-referrer` です。
 - 公開ページに出すのは 1 つのコンテンツにつき古い順に 1,000 件までです。
-- Admin Studio からコメントの本文は編集できません。アバター画像（Gravatar など）はありません。
+- コメントの本文の翻訳（コメント欄の翻訳）はありません。
+- 本文を編集しても、公開ページの編集済みの印や編集履歴は残りません（監査ログには編集の事実と文字数が残ります）。

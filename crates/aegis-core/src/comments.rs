@@ -119,6 +119,9 @@ pub struct PublicComment {
     /// Admin Studio のユーザー（サイトの運営者）が書いた返信
     #[serde(default)]
     pub staff: bool,
+    /// アバター画像の URL（`[comments].avatars` が `gravatar` のときだけ）
+    #[serde(default)]
+    pub avatar_url: Option<String>,
 }
 
 #[cfg(test)]

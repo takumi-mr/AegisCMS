@@ -10,6 +10,8 @@
 //! - `comment.posted`: 承認済みのコメントが付いた → コンテンツの著者
 //! - `comment.pending`: 承認待ちのコメントが来た → コンテンツの著者・運営者
 //! - `comment.replied`: 返信が公開された → 返信先のコメントの投稿者（投稿時に希望した人だけ）
+//! - `comment.approved`: 承認待ち（・スパム）のコメントが承認された → そのコメントの投稿者
+//!   （投稿時に希望した人だけ）
 
 pub mod config;
 pub mod moderation;
@@ -31,11 +33,14 @@ use serde_json::json;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-pub use config::CommentsConfig;
+pub use config::{AvatarProvider, CommentsConfig};
 pub use moderation::{ModerationConfig, ModerationPolicy, PolicyOverrides};
 
 /// `_aegis_settings` の名前の接頭辞（`comments.require_approval` など）
 pub const SETTINGS_PREFIX: &str = "comments";
+/// コンテンツごとにコメントを閉じたことを覚える `_aegis_settings` の名前の接頭辞
+/// （`comments.closed.<content_type>.<content_id>` = `true`）
+const CLOSED_PREFIX: &str = "comments.closed";
 /// IP ごとの投稿数を数えるキャッシュのキーの名前空間
 const RATE_LIMIT_SCOPE: &str = "comments";
 /// 公開ページに出すコメントの上限（古い順）
@@ -54,6 +59,9 @@ pub enum CommentError {
     /// 公開から日数が経ってコメントを閉じた（403）
     #[error("Comments are closed")]
     Closed,
+    /// 同じコンテンツに同じ人が同じ本文をすでに投稿している（409）
+    #[error("You have already posted this comment")]
+    Duplicate,
     /// 同じ IP からの投稿が多すぎる（429）
     #[error("Too many comments from this address. Try again later.")]
     RateLimited,
@@ -127,6 +135,8 @@ pub struct CommentTarget {
     pub label: String,
     pub author_id: Option<String>,
     pub published_at: Option<String>,
+    /// Admin Studio でこのコンテンツへのコメントの受付を止めている
+    pub comments_closed: bool,
 }
 
 /// `POST /api/v1/contents/{type}/{slug}/comments` の本文
@@ -211,6 +221,8 @@ pub struct ContentRef {
     pub slug: String,
     /// 公開ページの URL（作れなければ空）
     pub url: String,
+    /// このコンテンツが新しいコメントを受け付けているか（Admin Studio での切り替え）
+    pub comments_open: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -351,6 +363,12 @@ impl CommentService {
         if !is_currently_published(&record.status, record.unpublish_at.as_deref(), Utc::now()) {
             return Err(not_found());
         }
+        let closed = self
+            .deps
+            .db
+            .list_settings()
+            .await?
+            .contains_key(&closed_key(&record.content_type, &record.id));
         Ok(CommentTarget {
             content_type: record.content_type,
             id: record.id,
@@ -359,11 +377,15 @@ impl CommentService {
             label: schema.label,
             author_id: record.author_id.filter(|a| !a.is_empty()),
             published_at: record.published_at,
+            comments_closed: closed,
         })
     }
 
-    /// 新しいコメントを受け付けているか（`close_after_days`）
+    /// 新しいコメントを受け付けているか（コンテンツごとの切り替えと `close_after_days`）
     pub fn is_open(&self, target: &CommentTarget, now: DateTime<Utc>) -> bool {
+        if target.comments_closed {
+            return false;
+        }
         if self.config.close_after_days == 0 {
             return true;
         }
@@ -400,7 +422,9 @@ impl CommentService {
             content_id: target.id.clone(),
             open: self.is_open(target, Utc::now()),
             count: page.total,
-            items: thread(page.comments, self.config.max_depth),
+            items: thread(page.comments, self.config.max_depth, &|email| {
+                self.config.avatar_url(email)
+            }),
             post_url,
             max_depth: self.config.max_depth,
             max_length: self.config.max_length,
@@ -445,6 +469,21 @@ impl CommentService {
         .await?
         {
             return Err(CommentError::RateLimited);
+        }
+        if self.config.reject_duplicates
+            && self
+                .deps
+                .db
+                .has_duplicate_comment(
+                    &target.content_type,
+                    &target.id,
+                    &body,
+                    &author_email,
+                    client.ip.as_deref(),
+                )
+                .await?
+        {
+            return Err(CommentError::Duplicate);
         }
         let (parent, depth) = match request.parent_id.as_deref().filter(|p| !p.is_empty()) {
             Some(parent_id) => {
@@ -536,7 +575,8 @@ impl CommentService {
                 if let Some(parent) = &parent {
                     self.notify_reply(target, parent, &record);
                 }
-                let comment = public_comment(&record, depth);
+                let comment =
+                    public_comment(&record, depth, self.config.avatar_url(&record.author_email));
                 Ok(Submitted {
                     status,
                     comment: Some(comment),
@@ -751,6 +791,7 @@ impl CommentService {
             }
         }
         let schemas = self.deps.schemas.read().await;
+        let settings = self.deps.db.list_settings().await.unwrap_or_default();
         let mut refs = HashMap::new();
         for (content_type, ids) in by_type {
             let Some(schema) = schemas.get(content_type) else {
@@ -760,12 +801,14 @@ impl CommentService {
                 Ok(found) => {
                     for (id, rel) in found {
                         let url = (self.deps.links.content_url)(content_type, &rel.slug);
+                        let comments_open = !settings.contains_key(&closed_key(content_type, &id));
                         refs.insert(
                             (content_type.to_string(), id),
                             ContentRef {
                                 title: rel.title,
                                 slug: rel.slug,
                                 url,
+                                comments_open,
                             },
                         );
                     }
@@ -826,8 +869,130 @@ impl CommentService {
                 };
                 self.notify_reply(&target, &parent, reply);
             }
+            // 承認待ち（・スパムの誤判定）から承認したコメントは、投稿者に知らせる
+            for comment in before.iter().filter(|c| {
+                c.status == ModerationStatus::Pending.as_str()
+                    || c.status == ModerationStatus::Spam.as_str()
+            }) {
+                if let Ok(target) = self.target_of(comment).await {
+                    self.notify_approved(&target, comment);
+                }
+            }
         }
         Ok(changed)
+    }
+
+    /// 本文を直す（Admin Studio。どの状態のコメントも直せる）。直したあとの行を返す
+    pub async fn edit(
+        &self,
+        audit: &AuditOrigin,
+        id: &str,
+        body: &str,
+    ) -> CommentResult<CommentRecord> {
+        let body = moderation::normalize_body(body, self.config.max_length)
+            .map_err(CommentError::Invalid)?;
+        let not_found = || CommentError::NotFound(format!("Comment '{}' not found", id));
+        let mut comment = self.deps.db.get_comment(id).await?.ok_or_else(not_found)?;
+        let before_length = comment.body.chars().count();
+        let updated_at = now();
+        let result = self
+            .deps
+            .db
+            .update_comment_body(id, &body, &updated_at)
+            .await;
+        let outcome = if result.is_ok() {
+            AuditOutcome::Success
+        } else {
+            AuditOutcome::Failure
+        };
+        self.deps
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::CommentUpdate, outcome)
+                    .with_resource("comment", Some(id.to_string()))
+                    .with_details(json!({
+                        "content_type": comment.content_type,
+                        "content_id": comment.content_id,
+                        "length": { "from": before_length, "to": body.chars().count() },
+                        "error": result.as_ref().err().map(|e| e.to_string()),
+                    })),
+            )
+            .await;
+        if !result? {
+            return Err(not_found());
+        }
+        comment.body = body;
+        comment.updated_at = updated_at;
+        Ok(comment)
+    }
+
+    /// コンテンツごとに新しいコメントの受付を止める・再開する（Admin Studio）。
+    /// すでに付いたコメントは公開ページに出たまま。設定は DB に保存するので全サーバーに効く
+    pub async fn set_content_open(
+        &self,
+        audit: &AuditOrigin,
+        content_type: &str,
+        slug_or_id: &str,
+        open: bool,
+    ) -> CommentResult<CommentTarget> {
+        let not_found = || CommentError::NotFound(format!("Content '{}' not found", slug_or_id));
+        if !self.config.accepts(content_type) {
+            return Err(CommentError::NotFound(format!(
+                "Comments are not enabled for '{}'",
+                content_type
+            )));
+        }
+        let schema = self
+            .deps
+            .schemas
+            .read()
+            .await
+            .get(content_type)
+            .cloned()
+            .ok_or_else(not_found)?;
+        let record = self
+            .deps
+            .db
+            .get_content(&schema, slug_or_id)
+            .await?
+            .ok_or_else(not_found)?;
+        let key = closed_key(content_type, &record.id);
+        let saved = if open {
+            self.deps.db.delete_setting(&key).await
+        } else {
+            self.deps.db.set_setting(&key, "true").await
+        };
+        let outcome = if saved.is_ok() {
+            AuditOutcome::Success
+        } else {
+            AuditOutcome::Failure
+        };
+        self.deps
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::CommentSettingsUpdate, outcome)
+                    .with_resource(content_type, Some(record.id.clone()))
+                    .with_details(json!({
+                        "content_type": content_type,
+                        "content_id": record.id,
+                        "comments_open": open,
+                        "error": saved.as_ref().err().map(|e| e.to_string()),
+                    })),
+            )
+            .await;
+        saved?;
+        Ok(CommentTarget {
+            content_type: record.content_type,
+            id: record.id,
+            title: record.title,
+            slug: record.slug,
+            label: schema.label,
+            author_id: record.author_id.filter(|a| !a.is_empty()),
+            published_at: record.published_at,
+            comments_closed: !open,
+        })
     }
 
     /// 完全に削除する。削除した件数を返す（返信は残り、公開ページではトップレベルに出る）
@@ -911,12 +1076,16 @@ impl CommentService {
         Ok(record)
     }
 
-    /// コンテンツを削除したときに、そのコメントも消す
+    /// コンテンツを削除したときに、そのコメントと受付の切り替えも消す
     pub async fn delete_for_content(
         &self,
         content_type: &str,
         content_id: &str,
     ) -> CommentResult<u64> {
+        self.deps
+            .db
+            .delete_setting(&closed_key(content_type, content_id))
+            .await?;
         Ok(self
             .deps
             .db
@@ -954,6 +1123,7 @@ impl CommentService {
             label: schema.label,
             author_id: record.author_id.filter(|a| !a.is_empty()),
             published_at: record.published_at,
+            comments_closed: false,
         })
     }
 
@@ -1073,15 +1243,7 @@ impl CommentService {
         {
             return;
         }
-        let site = self.deps.links.site_url.trim().trim_end_matches('/');
-        let unsubscribe_url = if site.is_empty() {
-            String::new()
-        } else {
-            format!(
-                "{}/comments/unsubscribe?id={}&token={}",
-                site, parent.id, token
-            )
-        };
+        let unsubscribe_url = self.unsubscribe_url(&parent.id, token);
         notifier.notify(NotificationEvent::new(
             "comment.replied",
             vec![Recipient::person(&parent.author_email, &parent.author_name)],
@@ -1101,6 +1263,50 @@ impl CommentService {
         ));
     }
 
+    /// 承認したコメントの投稿者に `comment.approved` を知らせる（希望した人だけ。運営者の返信は除く）
+    fn notify_approved(&self, target: &CommentTarget, comment: &CommentRecord) {
+        let Some(notifier) = &self.deps.notifier else {
+            return;
+        };
+        let Some(token) = comment
+            .notify_token
+            .as_deref()
+            .filter(|_| comment.notify_replies)
+        else {
+            return;
+        };
+        if comment.author_email.is_empty() || comment.author_user_id.is_some() {
+            return;
+        }
+        notifier.notify(NotificationEvent::new(
+            "comment.approved",
+            vec![Recipient::person(
+                &comment.author_email,
+                &comment.author_name,
+            )],
+            json!({
+                "name": comment.author_name,
+                "comment": { "body": comment.body, "created_at": comment.created_at },
+                "content": content_data(target),
+                "content_url": self.comment_url(target, &comment.id),
+                "unsubscribe_url": self.unsubscribe_url(&comment.id, token),
+            }),
+        ));
+    }
+
+    /// 返信・承認の通知を止めるリンク（`[commerce].public_url` が無ければ空）
+    fn unsubscribe_url(&self, comment_id: &str, token: &str) -> String {
+        let site = self.deps.links.site_url.trim().trim_end_matches('/');
+        if site.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "{}/comments/unsubscribe?id={}&token={}",
+                site, comment_id, token
+            )
+        }
+    }
+
     /// 通知を送れる著者（有効なアカウント）
     async fn content_author(&self, author_id: Option<&str>) -> Option<aegis_db::UserRecord> {
         let author_id = author_id?;
@@ -1117,6 +1323,11 @@ impl CommentService {
             }
         }
     }
+}
+
+/// コンテンツごとの受付の切り替えを保存する `_aegis_settings` の名前
+fn closed_key(content_type: &str, content_id: &str) -> String {
+    format!("{}.{}.{}", CLOSED_PREFIX, content_type, content_id)
 }
 
 fn content_data(target: &CommentTarget) -> serde_json::Value {
@@ -1165,7 +1376,7 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
             == 0
 }
 
-fn public_comment(record: &CommentRecord, depth: u32) -> PublicComment {
+fn public_comment(record: &CommentRecord, depth: u32, avatar_url: Option<String>) -> PublicComment {
     PublicComment {
         id: record.id.clone(),
         parent_id: record.parent_id.clone(),
@@ -1174,12 +1385,18 @@ fn public_comment(record: &CommentRecord, depth: u32) -> PublicComment {
         created_at: record.created_at.clone(),
         depth,
         staff: record.author_user_id.is_some(),
+        avatar_url,
     }
 }
 
 /// 古い順のコメントをスレッドの順に並べる（返信は親の直後。深さは `max_depth` まで）。
-/// 親が一覧に無い（承認されていない・削除された）返信はトップレベルとして扱う
-pub fn thread(records: Vec<CommentRecord>, max_depth: u32) -> Vec<PublicComment> {
+/// 親が一覧に無い（承認されていない・削除された）返信はトップレベルとして扱う。
+/// `avatar` はメールアドレスからアバター画像の URL を作る
+pub fn thread(
+    records: Vec<CommentRecord>,
+    max_depth: u32,
+    avatar: &dyn Fn(&str) -> Option<String>,
+) -> Vec<PublicComment> {
     let ids: HashSet<&str> = records.iter().map(|r| r.id.as_str()).collect();
     let mut children: HashMap<&str, Vec<usize>> = HashMap::new();
     let mut roots = Vec::new();
@@ -1202,7 +1419,11 @@ pub fn thread(records: Vec<CommentRecord>, max_depth: u32) -> Vec<PublicComment>
             if std::mem::replace(&mut visited[i], true) {
                 continue;
             }
-            out.push(public_comment(&records[i], depth.min(max_depth)));
+            out.push(public_comment(
+                &records[i],
+                depth.min(max_depth),
+                avatar(&records[i].author_email),
+            ));
             if let Some(kids) = children.get(records[i].id.as_str()) {
                 stack.extend(kids.iter().rev().map(|&k| (k, depth + 1)));
             }

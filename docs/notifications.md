@@ -74,6 +74,7 @@ aegis-server -c config/production.toml notify test --to you@example.com
 | `comment.posted` | 承認済みのコメントが付いた（承認を待たずに公開されたとき。[コメント](comments.md)） | 著者（`[comments].notify_author`） | 投稿者の名前、本文、コメントの URL |
 | `comment.pending` | 承認待ちのコメントが来た | 著者（`notify_author`）・運営者（`notify_staff`） | 投稿者の名前・メールアドレス・IP アドレス、本文、Admin Studio の **Comments** を開く URL（`moderation_url`） |
 | `comment.replied` | 自分のコメントへの返信が公開された（読者の返信・Admin Studio からの返信。承認待ちの返信は承認したとき） | 返信先のコメントの投稿者（投稿時に「返信をメールで知らせる」を選んだ人だけ） | 返信した人の名前と本文、自分のコメント、返信の URL、通知を止めるリンク（`unsubscribe_url`） |
+| `comment.approved` | 自分のコメントが承認された（承認待ち・スパムから Admin Studio で承認したとき） | そのコメントの投稿者（投稿時に「返信・承認をメールで知らせる」を選んだ人だけ） | 自分のコメント、コメントの URL、通知を止めるリンク（`unsubscribe_url`） |
 | `test` | `aegis-server notify test` | 指定したアドレス | テスト |
 | `audit.<操作>` | 監査ログのイベントが `[[notifications.audit.rules]]` に合った（[2.1](#21-監査イベントの通知)） | 運営者（またはルールの `recipients`） | 操作・結果・ユーザー・IP アドレス・ブラウザ・詳細 |
 
@@ -81,7 +82,7 @@ aegis-server -c config/production.toml notify test --to you@example.com
 - `completed`（完了）は知らせません。
 - `content.published` / `content.unpublished` の宛先は著者（コンテンツの `author_id` のユーザー）のメールアドレスです。著者がいない・メールアドレスが無い・無効なアカウントなら送りません。Admin Studio から手で公開した場合は送りません（公開した本人が知っているため）。
 - 運営者にもすべての予約公開を知らせたい場合や、公開の失敗を知りたい場合は、監査イベントの通知（[2.1](#21-監査イベントの通知)）で `action = "content.publish"`（`outcomes = ["failure"]` で失敗だけ）を使います。
-- `comment.*` の宛先の著者はコンテンツの `author_id` のユーザーです（`content.published` と同じ条件）。スパムと判定したコメントは誰にも知らせません。`comment.replied` は返信した人と返信先が同じメールアドレスなら送りません。
+- `comment.*` の宛先の著者はコンテンツの `author_id` のユーザーです（`content.published` と同じ条件）。スパムと判定したコメントは誰にも知らせません。`comment.replied` は返信した人と返信先が同じメールアドレスなら送りません。`comment.approved` は、投稿者が通知を止めた後・Admin Studio のユーザーが書いた返信には送りません（承認を待たずに公開されたコメントにも送りません。投稿した本人がその場で見ているため）。
 - `[notifications].disabled_events = ["order.shipped"]` のように、種類ごとに止められます。
 - 注文確認ページのトークンはサーバーに保存していない（ハッシュのみ）ため、URL を本文に入れられるのは注文したときの `order.placed` だけです。
 
@@ -194,6 +195,7 @@ notifications/
 | `comment.author_name` / `comment.author_email` / `comment.ip` / `comment.body` / `comment.created_at` / `comment.is_reply` | コメントの知らせ（`comment.posted` / `comment.pending`）: 投稿者・本文・返信かどうか。`content`・`username`・`display_name` は予約公開の知らせと同じ |
 | `content_url` / `moderation_url` | 同上: コメントの位置（`…#comment-<id>`。`[commerce].public_url` が無ければ空）、Admin Studio の **Comments**（`<Admin Studio の URL>#comments`。無ければ空） |
 | `name` / `comment.body` / `reply.author_name` / `reply.body` / `reply.staff` / `unsubscribe_url` | 返信の知らせ（`comment.replied`）: 宛先の名前、自分のコメント、返信（`staff` は Admin Studio からの返信）、返信通知を止めるリンク（`[commerce].public_url` が無ければ空） |
+| `name` / `comment.body` / `content_url` / `unsubscribe_url` | 承認の知らせ（`comment.approved`）: 宛先の名前、自分のコメント、コメントの URL、通知を止めるリンク（返信の知らせと同じ。止めると返信・承認のどちらも届かなくなる） |
 | `{{ amount \| money(order.currency) }}` | 金額の表示（`¥1,200`、`$12.50`） |
 
 - テンプレートが無ければ種類の最後の `.` 以降を外した名前を順に探します（`audit.session.create` → `audit.session` → `audit`）。

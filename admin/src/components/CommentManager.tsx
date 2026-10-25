@@ -5,6 +5,8 @@ import {
   ChevronRight,
   ExternalLink,
   MessageSquare,
+  MessageSquareOff,
+  Pencil,
   RefreshCw,
   Reply,
   ShieldAlert,
@@ -59,6 +61,7 @@ export const CommentManager: React.FC<CommentManagerProps> = ({ isAdmin, onShowT
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<boolean>(false);
   const [replyTo, setReplyTo] = useState<AdminComment | null>(null);
+  const [editing, setEditing] = useState<AdminComment | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +108,25 @@ export const CommentManager: React.FC<CommentManagerProps> = ({ isAdmin, onShowT
       reload();
     } catch (err) {
       onShowToast(messageOf(err, t('api.moderateCommentFailed')), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleContentComments = async (comment: AdminComment) => {
+    if (!comment.content) return;
+    const open = !comment.content.comments_open;
+    setBusy(true);
+    try {
+      await aegisApi.setContentCommentsOpen(comment.content_type, comment.content_id, open);
+      onShowToast(
+        t(open ? 'comments.commentsOpenedToast' : 'comments.commentsClosedToast', {
+          title: comment.content.title,
+        })
+      );
+      reload();
+    } catch (err) {
+      onShowToast(messageOf(err, t('api.contentCommentsFailed')), 'error');
     } finally {
       setBusy(false);
     }
@@ -253,6 +275,11 @@ export const CommentManager: React.FC<CommentManagerProps> = ({ isAdmin, onShowT
                       ) : (
                         <span className={shop.muted}>{t('comments.contentGone')}</span>
                       )}
+                      {comment.content && !comment.content.comments_open && (
+                        <span className={cx(shop.badge, shop.warn)}>
+                          {t('comments.commentsClosed')}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span className={cx(shop.badge, STATUS_BADGE[comment.status])}>
@@ -261,6 +288,38 @@ export const CommentManager: React.FC<CommentManagerProps> = ({ isAdmin, onShowT
                     </td>
                     <td>
                       <div className={shop.rowActions}>
+                        <Button
+                          variant="icon"
+                          disabled={busy}
+                          onClick={() => setEditing(comment)}
+                          title={t('comments.edit.action')}
+                          aria-label={t('comments.edit.action')}
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                        {comment.content && (
+                          <Button
+                            variant="icon"
+                            disabled={busy}
+                            onClick={() => toggleContentComments(comment)}
+                            title={t(
+                              comment.content.comments_open
+                                ? 'comments.closeComments'
+                                : 'comments.openComments'
+                            )}
+                            aria-label={t(
+                              comment.content.comments_open
+                                ? 'comments.closeComments'
+                                : 'comments.openComments'
+                            )}
+                          >
+                            {comment.content.comments_open ? (
+                              <MessageSquareOff size={14} />
+                            ) : (
+                              <MessageSquare size={14} />
+                            )}
+                          </Button>
+                        )}
                         {(comment.status === 'approved' || comment.status === 'pending') && (
                           <Button
                             variant="icon"
@@ -324,6 +383,19 @@ export const CommentManager: React.FC<CommentManagerProps> = ({ isAdmin, onShowT
           </div>
         )}
       </div>
+
+      {editing && (
+        <EditModal
+          comment={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            onShowToast(t('comments.edit.saved'));
+            reload();
+          }}
+          onError={(message) => onShowToast(message, 'error')}
+        />
+      )}
 
       {replyTo && (
         <ReplyModal
@@ -496,6 +568,66 @@ const ModerationSettingsPanel: React.FC<ModerationSettingsPanelProps> = ({
         </span>
       </label>
     </section>
+  );
+};
+
+interface EditModalProps {
+  comment: AdminComment;
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (message: string) => void;
+}
+
+/** Fixes the text of a comment (typos, a phone number someone left in public, ...) */
+const EditModal: React.FC<EditModalProps> = ({ comment, onClose, onSaved, onError }) => {
+  const { t } = useTranslation();
+  const [body, setBody] = useState<string>(comment.body);
+  const [busy, setBusy] = useState<boolean>(false);
+  const changed = body.trim() !== comment.body.trim();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!body.trim() || !changed) return;
+    setBusy(true);
+    try {
+      await aegisApi.editComment(comment.id, body);
+      onSaved();
+    } catch (err) {
+      onError(messageOf(err, t('api.editCommentFailed')));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={t('comments.edit.title', { name: comment.author_name })}
+      icon={<Pencil size={18} />}
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit} className={shop.detail}>
+        {comment.status === 'approved' && (
+          <div className={shop.notice}>{t('comments.edit.note')}</div>
+        )}
+        <textarea
+          className={styles.replyInput}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          aria-label={t('comments.edit.label')}
+          rows={8}
+          autoFocus
+        />
+        <div className={shop.actionsBar} style={{ justifyContent: 'flex-end' }}>
+          <Button type="button" variant="tool" disabled={busy} onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" variant="primary" disabled={busy || !body.trim() || !changed}>
+            <Check size={14} />
+            <span>{t('common.save')}</span>
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 
