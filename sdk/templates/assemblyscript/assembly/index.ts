@@ -19,7 +19,7 @@ import {
   appendBlockNodes,
   parsePageRenderContext,
   serializePageRenderContext,
-} from "./sdk";
+} from "@takumi-mr/plugin-sdk/assembly/index";
 
 // --- Required Export: Memory Allocator ---
 export function allocate(len: i32): i32 {

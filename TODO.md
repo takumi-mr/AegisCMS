@@ -9,10 +9,12 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: 掲示板・コミュニティ機能クレート `aegis-forum`（`crates/aegis-forum`）の新設
-  - **アーキテクチャ**: CMS本体の重い描画処理や記事テーブルを流用せず、専用テーブル（`_aegis_forum_categories`, `_aegis_forum_threads`, `_aegis_forum_posts`）によるモジュラーモノリスとして設計。
-  - **`aegis-db` 拡張**: `ForumStorage` トレイトを追加し、SQLite / PostgreSQL / MySQL の 3 つのダイアレクトでテーブル自動生成と CRUD・キーセットページネーション（スレッド一覧の `before_last_post_at`、レス一覧の `after_post_number`）を完全実装。
-  - **`aegis-forum` 機能**: カテゴリ管理、スレッド作成（1レス目のアトミック生成）、レス投稿（連番採番とスレッド更新）、連投防止（`CacheBackend` によるレートリミット）、ピン留め・ロック（モデレーション）、上限レス到達時の自動ロック（`auto_lock_post_count`）、ソフトデリート、監査ログ（`AuditService` / `AuditAction::Forum*`）を完備。全ユニットテストおよびワークスペース検証をパス。
+- **直近の完了**: 全言語（Rust / AssemblyScript / TinyGo）プラグイン SDK の GitHub 中心パッケージ化と CI 手動リリースタスク新設（ブランチ `feat/publish-plugin-sdks`）
+  - **Rust SDK (GitHub Git 依存)**: `aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.1.0" }` による配布体制。内部の `aegis-plugin-macros` も Cargo が自動解決。
+  - **AssemblyScript SDK (GitHub Packages)**: `sdk/assemblyscript` に独立した npm パッケージ `@takumi-mr/plugin-sdk` を切り出し、GitHub Packages レジストリ（`npm.pkg.github.com`）への `publishConfig` および README、asconfig、tsconfig を整備。テンプレート側の依存・ビルド検証済み。
+  - **TinyGo SDK (Go Modules)**: `sdk/tinygo` に独立した Go モジュール `github.com/takumi-mr/AegisCMS/sdk/tinygo` を切り出し、`abi.go` のポインタ安全性を `go vet` (unsafeptr) 適合化。Git タグ（`sdk/tinygo/v0.1.0`）による配布体制。
+  - **CI 手動リリースワークフロー**: `.github/workflows/release-sdk.yml` を新設（`workflow_dispatch` で target と version を指定して GitHub Packages 公開・Git タグ push・Release 作成を一括自動実行）。
+  - **タスク & ドキュメント**: `Taskfile.yml` に `task sdk:check`（全SDK検証）および `task sdk:pack:dry-run` を追加。[plugin_sdk_guide.md](docs/plugin_sdk_guide.md) の第 7 節に GitHub Releases / GitHub Packages / CI ワークフロー手順を詳述。
 - **その前**: AssemblyScript SDK の JSON 処理の高速化（`escapeJson` / `findStringField` の二乗の解消と、確保を 1 回にまとめる変更。テンプレートの `on-before-save` が 3,600 → 160µs。[architecture.md 12](docs/architecture.md#12-性能の記録)）。
 - **その前**: Storybook インタラクションテストの CI 連携とコンポーネントストーリー拡充（ブランチ `feat/storybook-vitest`）
   - `@storybook/addon-vitest`（10.6.2）を導入し、Vitest Browser Mode（Playwright Chromium）でストーリーおよび `play` 関数の自動検証を実現（`task test:storybook`）。`Taskfile.yml` の `task check` および GitHub Actions（`frontend-ci`）に統合。

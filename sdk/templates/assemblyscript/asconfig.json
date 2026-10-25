@@ -23,7 +23,7 @@
   "options": {
     "bindings": "esm",
     "use": [
-      "abort=assembly/sdk/host/abort"
+      "abort=~lib/@takumi-mr/plugin-sdk/assembly/host/abort"
     ]
   }
 }

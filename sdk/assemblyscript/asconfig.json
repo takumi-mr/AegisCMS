@@ -1,0 +1,11 @@
+{
+  "targets": {
+    "check": {
+      "outFile": "build/check.wasm",
+      "noEmit": true
+    }
+  },
+  "options": {
+    "bindings": "esm"
+  }
+}

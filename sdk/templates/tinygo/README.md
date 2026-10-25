@@ -43,15 +43,13 @@ AegisCMS サーバーの `plugins/<name>/`（`<name>` はマニフェストの `
 
 ```text
 sdk/templates/tinygo/
-├── go.mod                     # Go モジュール定義
+├── go.mod                     # Go モジュール定義 (github.com/takumi-mr/AegisCMS/sdk/tinygo を参照)
 ├── plugin.manifest.json       # プラグインマニフェスト (権限・フック宣言)
 ├── plugin.wasm                # ビルド済み Wasm バイナリ
-├── main.go                    # プラグインのライフサイクルフック実装とエクスポート
-└── sdk/                       # AegisCMS 公式 TinyGo SDK
-    ├── types.go               # PostContext, BlockNode, PageRenderContext 型定義
-    ├── host.go                # Log, Net, KV などのホスト API ラッパー (//go:wasmimport)
-    └── abi.go                 # メモリアロケーション・64bit パッキング・JSON 操作
+└── main.go                    # プラグインのライフサイクルフック実装とエクスポート
 ```
+
+公式 SDK パッケージ [`github.com/takumi-mr/AegisCMS/sdk/tinygo`](../../tinygo) をインポートして実装します。
 
 ### マニフェスト (`plugin.manifest.json`)
 ゼロ・トラスト実行モデルに基づき、プラグインが必要とする最小限のケイパビリティ（権限）を宣言します。未宣言の操作はホストランタイムによって即座にブロックされます。

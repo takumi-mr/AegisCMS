@@ -1,0 +1,40 @@
+{
+  "name": "@takumi-mr/plugin-sdk",
+  "version": "0.1.0",
+  "description": "Official AssemblyScript SDK for AegisCMS WebAssembly (Wasm) plugins",
+  "main": "assembly/index.ts",
+  "ascMain": "assembly/index.ts",
+  "types": "assembly/index.ts",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "files": [
+    "assembly",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "asc assembly/index.ts --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/takumi-mr/AegisCMS.git",
+    "directory": "sdk/assemblyscript"
+  },
+  "keywords": [
+    "aegiscms",
+    "webassembly",
+    "wasm",
+    "assemblyscript",
+    "plugin",
+    "sdk"
+  ],
+  "author": "AegisCMS Contributors",
+  "license": "Apache-2.0 OR MIT",
+  "peerDependencies": {
+    "assemblyscript": "^0.27.0"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.27.34"
+  }
+}

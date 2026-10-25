@@ -40,7 +40,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aegis-plugin-sdk = "0.1.0"
+aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.1.0" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ```
@@ -221,23 +221,23 @@ enabled = ["my-plugin"]
 
 AegisCMS では、Rust だけでなくフロントエンド/Web 開発者に親和性の高い **AssemblyScript**、および Go 開発者向けの **TinyGo** に対応した公式 SDK および開発テンプレートを提供しています。
 
-| 言語 | 公式テンプレート | SDK の場所 | 対象者・特徴 |
-|---|---|---|---|
-| **Rust** | [`sdk/templates/rust`](../sdk/templates/rust) | [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk) | 型安全・極限のパフォーマンス・ネイティブテスト |
-| **AssemblyScript** | [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript) | `sdk/templates/assemblyscript/assembly/sdk` | TypeScript 風構文・Node/npm 親和性 |
-| **TinyGo** | [`sdk/templates/tinygo`](../sdk/templates/tinygo) | `sdk/templates/tinygo/sdk` | Go 構文・軽量シングル Wasm バイナリ |
+| 言語 | 公式パッケージ | 公式テンプレート | パッケージソース | 配布エコシステム (GitHub 中心) |
+|---|---|---|---|---|
+| **Rust** | `aegis-plugin-sdk` | [`sdk/templates/rust`](../sdk/templates/rust) | [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk) | GitHub (Git 依存 `git = "https://github.com/takumi-mr/AegisCMS"`) |
+| **AssemblyScript** | `@takumi-mr/plugin-sdk` | [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript) | [`sdk/assemblyscript`](../sdk/assemblyscript) | GitHub Packages (`npm.pkg.github.com`) |
+| **TinyGo** | `github.com/takumi-mr/AegisCMS/sdk/tinygo` | [`sdk/templates/tinygo`](../sdk/templates/tinygo) | [`sdk/tinygo`](../sdk/tinygo) | GitHub (Go Modules `go get github.com/...`) |
 
 ---
 
 ### 5.1 AssemblyScript プラグイン開発
 
-AssemblyScript は TypeScript のサブセット構文から WebAssembly を直接出力する言語です。npm エコシステムで簡単にプラグインを構築できます。
+AssemblyScript は TypeScript のサブセット構文から WebAssembly を直接出力する言語です。GitHub Packages でホストされる公式 npm パッケージ `@takumi-mr/plugin-sdk` を利用してプラグインを構築できます。
 
 ```bash
 # テンプレートディレクトリへの移動
 cd sdk/templates/assemblyscript
 
-# 依存パッケージのインストール
+# 依存パッケージ (@takumi-mr/plugin-sdk, assemblyscript) のインストール
 npm install
 
 # Wasm ビルド (plugin.wasm を出力)
@@ -255,7 +255,7 @@ import {
   parsePostContext,
   serializePostContext,
   PostContext
-} from "./sdk";
+} from "@takumi-mr/plugin-sdk/assembly/index";
 
 export function allocate(len: i32): i32 {
   return sdkAllocate(len);
@@ -275,7 +275,7 @@ export function on_before_save(ptr: i32, len: i32): i64 {
 }
 ```
 
-`asconfig.json` の `"use": ["abort=assembly/sdk/host/abort"]` は削除しないでください。AssemblyScript は既定で実行時エラーの処理に `env.abort` をインポートしますが、ホストは `host` モジュールしか提供しないため、この設定が無いとプラグインを読み込めません。
+`asconfig.json` の `"use": ["abort=~lib/@takumi-mr/plugin-sdk/assembly/host/abort"]` は削除しないでください。AssemblyScript は既定で実行時エラーの処理に `env.abort` をインポートしますが、ホストは `host` モジュールしか提供しないため、この設定が無いとプラグインを読み込めません（SDK の `abort` に差し替えて、ログを出してから停止します）。
 
 詳細は [`sdk/templates/assemblyscript/README.md`](../sdk/templates/assemblyscript/README.md) を参照してください。
 
@@ -283,7 +283,7 @@ export function on_before_save(ptr: i32, len: i32): i64 {
 
 ### 5.2 TinyGo プラグイン開発
 
-TinyGo は Go 構文から極めて小さな Wasm バイナリを生成するコンパイラです。`//go:wasmimport` を用いてホスト API を型安全に呼び出せます。
+TinyGo は Go 構文から極めて小さな Wasm バイナリを生成するコンパイラです。公式 Go モジュール `github.com/takumi-mr/AegisCMS/sdk/tinygo` を用いてホスト API を型安全に呼び出せます。
 
 ```bash
 # テンプレートディレクトリへの移動
@@ -300,7 +300,8 @@ package main
 import (
 	"encoding/json"
 	"strings"
-	"aegis-plugin-template-tinygo/sdk"
+
+	"github.com/takumi-mr/AegisCMS/sdk/tinygo"
 )
 
 //export allocate
@@ -341,3 +342,86 @@ func main() {}
 すべての言語で共通の WebAssembly メモリレイアウト、ポインタパッキング規約、ホスト API インポート・エクスポート仕様、JSON スキーマについては、以下の仕様書を参照してください。
 
 👉 **[AegisCMS WebAssembly プラグイン 共通 ABI 仕様書 (`docs/plugin_abi_specification.md`)](./plugin_abi_specification.md)**
+
+---
+
+## 7. SDK パッケージの GitHub リリースと配布手順 (Publishing Guide)
+
+全言語の SDK は GitHub を中心として配布・リリースされます。
+
+### 7.1 GitHub Actions による自動リリース (推奨・CI 手動トリガー)
+
+リポジトリには手動実行可能な GitHub Actions ワークフロー [`.github/workflows/release-sdk.yml`](../.github/workflows/release-sdk.yml) が用意されています。
+
+1. GitHub リポジトリの **Actions** タブを開きます。
+2. 左メニューの **Release Plugin SDKs** を選択します。
+3. **Run workflow** をクリックし、以下を指定して実行します：
+   - **Target SDK**: `all` / `assemblyscript` / `tinygo` / `rust`
+   - **Release version**: `0.1.0` などの SemVer バージョン
+
+ワークフローが自動的に以下を実施します：
+- **AssemblyScript**: パッケージ検証後に `npm.pkg.github.com`（GitHub Packages）へ `@takumi-mr/plugin-sdk` を公開。
+- **TinyGo**: Go Modules 用 Git タグ（`sdk/tinygo/v<version>`）を作成・プッシュ。
+- **Rust**: リポジトリタグ（`v<version>`）を作成・プッシュし、GitHub Release を生成。
+
+---
+
+### 7.2 各言語の手動リリース手順
+
+CI ワークフローを使わずにローカルから手動でリリースする場合の手順です。
+
+#### 1. Rust SDK (`GitHub Git 依存`)
+
+Cargo は GitHub リポジトリを直接指定して依存関係を解決できるため、crates.io へのアップロードは不要です。
+
+1. **バージョンの Git タグを作成・プッシュ**:
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+2. **利用側の設定**:
+   利用者は `Cargo.toml` に以下を記述するだけでインストールできます。内部マクロクレート（`aegis-plugin-macros`）も同一リポジトリから Cargo が自動解決します。
+   ```toml
+   [dependencies]
+   aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.1.0" }
+   ```
+
+#### 2. AssemblyScript SDK (`GitHub Packages`)
+
+1. **事前検証**:
+   ```bash
+   task sdk:pack:dry-run
+   ```
+2. **GitHub Packages への公開**:
+   Personal Access Token (PAT, `write:packages` 権限) を用いて公開します。
+   ```bash
+   cd sdk/assemblyscript
+   npm publish
+   ```
+3. **利用側の設定**:
+   利用者のプロジェクトルートまたは `~/.npmrc` にレジストリを設定して `npm install` します。
+   ```text
+   @takumi-mr:registry=https://npm.pkg.github.com
+   ```
+   ```bash
+   npm install @takumi-mr/plugin-sdk
+   ```
+
+#### 3. TinyGo SDK (`Go Modules`)
+
+Go Modules では、サブディレクトリに配置されたモジュールは `<ディレクトリパス>/<バージョン>` 形式の Git タグで公開・解決されます。
+
+1. **静的検証**:
+   ```bash
+   task sdk:check
+   ```
+2. **Git タグの付与とプッシュ**:
+   ```bash
+   git tag sdk/tinygo/v0.1.0
+   git push origin sdk/tinygo/v0.1.0
+   ```
+3. **利用側の設定**:
+   利用者は標準の `go get` でインストールできます。
+   ```bash
+   go get github.com/takumi-mr/AegisCMS/sdk/tinygo@v0.1.0
+   ```

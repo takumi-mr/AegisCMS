@@ -4,7 +4,13 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/aegis-plugin-sdk"
+readme = "README.md"
 description = "Official Rust SDK for AegisCMS WebAssembly (Wasm) plugins"
+keywords = ["wasm", "webassembly", "cms", "plugin", "sdk"]
+categories = ["wasm", "api-bindings"]
 
 [lints]
 workspace = true

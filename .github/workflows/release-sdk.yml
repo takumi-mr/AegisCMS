@@ -1,0 +1,129 @@
+name: Release Plugin SDKs
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target SDK to release'
+        required: true
+        type: choice
+        options:
+          - all
+          - assemblyscript
+          - tinygo
+          - rust
+        default: 'all'
+      version:
+        description: 'Release version (SemVer, e.g. 0.1.0)'
+        required: true
+        default: '0.1.0'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release-assemblyscript:
+    name: Publish AssemblyScript SDK to GitHub Packages
+    if: inputs.target == 'all' || inputs.target == 'assemblyscript'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@takumi-mr'
+
+      - name: Install AssemblyScript dependencies
+        run: npm --prefix sdk/assemblyscript ci
+
+      - name: Verify AssemblyScript SDK
+        run: npm --prefix sdk/assemblyscript test
+
+      - name: Update version in package.json
+        run: |
+          npm --prefix sdk/assemblyscript version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Publish to GitHub Packages
+        run: cd sdk/assemblyscript && npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-tinygo:
+    name: Release TinyGo SDK (Go Modules Tag)
+    if: inputs.target == 'all' || inputs.target == 'tinygo'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Verify TinyGo SDK
+        run: |
+          cd sdk/tinygo
+          GOOS=wasip1 GOARCH=wasm go vet ./...
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push Go module tag
+        run: |
+          TAG_NAME="sdk/tinygo/v${{ inputs.version }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists, skipping tag creation."
+          else
+            git tag "$TAG_NAME"
+            git push origin "$TAG_NAME"
+          fi
+
+  release-rust:
+    name: Release Rust SDK (GitHub Tag & Release)
+    if: inputs.target == 'all' || inputs.target == 'rust'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify Rust SDK
+        run: cargo test -p aegis-plugin-sdk
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push Git tag
+        run: |
+          TAG_NAME="v${{ inputs.version }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists, skipping tag creation."
+          else
+            git tag "$TAG_NAME"
+            git push origin "$TAG_NAME"
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="v${{ inputs.version }}"
+          gh release view "$TAG_NAME" || gh release create "$TAG_NAME" \
+            --title "AegisCMS Plugin SDKs v${{ inputs.version }}" \
+            --notes "Official multi-language plugin SDKs for AegisCMS: Rust, AssemblyScript, and TinyGo."

@@ -41,19 +41,16 @@ AegisCMS サーバーの `plugins/<name>/`（`<name>` はマニフェストの `
 
 ```text
 sdk/templates/assemblyscript/
-├── package.json               # npm 依存関係およびビルドスクリプト
+├── package.json               # npm 依存関係 (@takumi-mr/plugin-sdk を参照) およびビルドスクリプト
 ├── asconfig.json              # AssemblyScript コンパイラ設定
 ├── plugin.manifest.json       # プラグインマニフェスト (権限・フック宣言)
 ├── plugin.wasm                # ビルド済み Wasm バイナリ
 └── assembly/
     ├── index.ts               # プラグインのライフサイクルフック実装
-    └── sdk/                   # AegisCMS 公式 AssemblyScript SDK
-        ├── index.ts           # SDK 公開エントリポイント
-        ├── types.ts           # PostContext, BlockNode, PageRenderContext 型定義
-        ├── host.ts            # log, net, kv などのホスト API ラッパー
-        ├── abi.ts             # メモリアロケーション・64bit パッキング
-        └── json.ts            # 軽量 JSON パース・シリアライズ
+    └── sdk/                   # 後方互換用シム (@takumi-mr/plugin-sdk の再エクスポート)
 ```
+
+公式 npm パッケージ [`@takumi-mr/plugin-sdk`](../../assemblyscript) をインポートして実装します。
 
 ### マニフェスト (`plugin.manifest.json`)
 ゼロ・トラスト実行モデルに基づき、プラグインが必要とする最小限のケイパビリティ（権限）を宣言します。未宣言の操作はホストランタイムによって即座にブロックされます。
