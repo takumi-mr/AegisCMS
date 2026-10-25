@@ -104,10 +104,11 @@ crates/
 ├── aegis-notify     # 通知: テンプレート（en / ja、テキスト + HTML）・DB の送信待ちと配信チャネル（メール = SMTP / ログ）
 ├── aegis-commerce   # EC: 見積もり・注文・在庫・決済（手動 / Stripe）
 ├── aegis-comments   # コメント: 投稿・審査（承認制・スパム対策）・スレッド・通知
+├── aegis-forum      # 掲示板: カテゴリ・スレッド・レス・モデレーション（専用 DB に分離可）
 └── aegis-server     # Axum HTTP 層（ルーティング・ハンドラ・認可）、CLI、Admin SPA 配信
 ```
 
-依存の向きは `aegis-core` ← ドメインクレート（`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-notify` / `aegis-commerce` / `aegis-comments` など）← `aegis-server` の一方向です。各クレートは自分の設定セクション（`DatabaseConfig`、`StorageConfig`、`CommerceConfig` …）を持ち、それらを束ねる `AegisConfig`（`aegis.toml` 全体）は `aegis-server` が定義します。
+依存の向きは `aegis-core` ← ドメインクレート（`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-notify` / `aegis-commerce` / `aegis-comments` / `aegis-forum` など）← `aegis-server` の一方向です。各クレートは自分の設定セクション（`DatabaseConfig`、`StorageConfig`、`CommerceConfig` …）を持ち、それらを束ねる `AegisConfig`（`aegis.toml` 全体）は `aegis-server` が定義します。
 
 | クレート名                                                    | 役割・責務                                               | 主な構成モジュール・対応技術                                                                                                                                           |
 | :------------------------------------------------------------ | :------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -124,6 +125,7 @@ crates/
 | [aegis-notify](crates/aegis-notify)                           | 通知                                                     | `NotificationService`（`aegis_core::Notifier` の実装・送信待ちのワーカー）, `channel` (`NotificationChannel`), `email` (SMTP), `log`, `templates`, `html`, `samples`, `config` (`NotificationsConfig`) |
 | [aegis-commerce](crates/aegis-commerce)                       | EC                                                       | `CommerceService` (見積もり・注文・状態遷移), `payment` (`PaymentProvider`), `stripe`, `config` (`CommerceConfig`)                                                       |
 | [aegis-comments](crates/aegis-comments)                       | コメント                                                 | `CommentService` (投稿・審査・スレッド・通知), `moderation` (承認制・スパム対策。レビューと共有), `config` (`CommentsConfig`)                                          |
+| [aegis-forum](crates/aegis-forum)                             | 掲示板                                                   | `ForumService` (カテゴリ・スレッド・レス・モデレーション), `config` (`ForumConfig`)                                                                                    |
 | [aegis-server](crates/aegis-server)                           | HTTP 層・CLI・SPA配信                                    | `handlers` (REST API・公開ページ), `auth` (認可・フック), `audit` (`AuditContext` 抽出), `state` (`AppState`), `config` (`AegisConfig`), `main` (CLI)                     |
 
 ---
@@ -168,7 +170,7 @@ WebAssembly（Wasm）サンドボックスによるサードパーティ拡張�
 - **`instance`**: ゲスト Wasm バイナリの実行インスタンス `WasmPluginInstance`。Fat Pointer 形式（`ptr:i32, len:i32`）およびゲスト側アロケータ（`allocate`）を用いた安全なリニアメモリデータ受け渡し。
 - **`supervisor` / `loader`**: `[plugins].enabled` に書いたプラグインを `plugins/<name>/` から読み込み（未インストール・不備があれば起動を中止）、書いた順にフックを実行する `PluginSupervisor`。
 
-#### 5. ドメインクレート (`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-notify` / `aegis-commerce` / `aegis-comments`)
+#### 5. ドメインクレート (`aegis-db` / `aegis-storage` / `aegis-cache` / `aegis-audit` / `aegis-auth` / `aegis-notify` / `aegis-commerce` / `aegis-comments` / `aegis-forum`)
 
 HTTP に依存しない機能ごとの実装です。各クレートは自分の設定セクションの型を持ち、`aegis-server` から組み立てて使います。
 
@@ -180,6 +182,7 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文（プレーンテキストと HTML）を作り、DB の送信待ち（`_aegis_notification_queue`。再起動しても失われず、複数台では 1 台だけが送る）から配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。Admin Studio からのテンプレート編集・テスト送信・再送。条件に合う監査イベント（管理者のログイン・ログインのロックなど）の通知（`AuditNotificationSink`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.md](docs/notifications.md)）。
 - **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査・通知は `CommerceDeps` で受け取ります。
 - **`aegis-comments`**: 読者のコメントの投稿・審査（WordPress と同じ承認制・承認済みの投稿者の自動承認・NG ワード・リンク数・IP ごとの投稿数・ハニーポット・`check-comment` プラグイン）・スレッド表示・通知を扱う `CommentService`（[docs/comments.md](docs/comments.md)）。審査の仕組み（`moderation`）は今後の商品レビューと共有します。
+- **`aegis-forum`**: カテゴリ・スレッド・レスの掲示板 `ForumService`（キーセット方式のページ送り・連投の制限・ピン留め・ロック・自動ロック）。`[forum].database_url` で本体と別の DB に置けます（[docs/forum.md](docs/forum.md)）。
 
 #### 6. `crates/aegis-server` (HTTP Gateway & Admin SPA 配信)
 
@@ -206,7 +209,7 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 > ドキュメント一覧:
 >
 > - 設計・開発: [内部設計 (`docs/architecture.md`)](docs/architecture.md) / [開発ガイド (`docs/development.md`)](docs/development.md) / [Admin Studio (`admin/README.md`)](admin/README.md)
-> - 運用・機能: [設定リファレンス](docs/configuration.md) / [認証 & ユーザー管理](docs/authentication.md) / [監査ログ](docs/audit.md) / [メディア](docs/media.md) / [EC](docs/commerce.md) / [通知](docs/notifications.md) / [コメント](docs/comments.md)
+> - 運用・機能: [設定リファレンス](docs/configuration.md) / [認証 & ユーザー管理](docs/authentication.md) / [監査ログ](docs/audit.md) / [メディア](docs/media.md) / [EC](docs/commerce.md) / [通知](docs/notifications.md) / [コメント](docs/comments.md) / [掲示板](docs/forum.md)
 > - テーマ: [公開 & テーマエンジン](docs/theme_and_publishing_guide.md) / [テーマ作成ガイド](docs/theme_authoring_guide.md)
 > - プラグイン: [開発ガイド](docs/plugin_sdk_guide.md) / [フック & ホスト API](docs/plugin_hooks.md) / [ABI 仕様](docs/plugin_abi_specification.md) / [公式プラグイン](plugins/README.md)
 > - 未着手のタスク: [TODO.md](TODO.md)

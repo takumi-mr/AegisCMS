@@ -65,6 +65,42 @@ Admin Studio の **Products** タブ（`editor` 以上）で作成・編集・�
 - API では `POST /api/v1/contents/product`（作成）、`PUT` / `DELETE /api/v1/contents/product/{id または slug}`（更新・削除）です（[コンテンツ API](authentication.md#ロールと-api-の権限)）。`PUT` は全体の置き換えで、省略したフィールドは空になります（`stock` を省略すると在庫を数えない商品になる）。
 - 注文で在庫は随時減るため、在庫を変えずに商品を保存するときは最新の `stock` を送ってください。Admin Studio は在庫の欄を編集していなければ、保存の直前に最新の在庫を読み直して送ります。
 
+### 2.1 バリエーション（サイズ・色など）
+
+商品ごとにバリエーションを登録できます（表 `_aegis_product_variants`。Admin Studio の商品の編集画面から作成・編集・削除）。
+
+| 項目 | 内容 |
+| --- | --- |
+| `title` | 表示名（例: `M / Black`）。注文明細には「商品名 - 表示名」で出る |
+| `sku` | 品番 |
+| `price_override` | このバリエーションの価格。空なら親商品の `price` |
+| `stock` | このバリエーションの在庫。空なら無制限 |
+| `attributes` | 任意の属性（`{"size": "M", "color": "black"}` など）。`price_<通貨>` で通貨ごとの固定価格も置ける |
+| `position` | 並び順 |
+
+- カートの行・注文明細は「商品 × バリエーション」で区別します（同じ商品の別のバリエーションは別の行）。
+- バリエーションを指定した注文は、親商品ではなくバリエーションの `stock` を減らします（引き当て・取り消し・返金での戻しも同じ）。
+
+### 2.2 複数通貨
+
+```toml
+[commerce]
+currency = "jpy"                         # 基軸通貨。商品の price はこの通貨
+supported_currencies = ["jpy", "usd", "eur"]
+currency_rates = { usd = 0.0067, eur = 0.0062 }   # 基軸通貨 1 単位あたり
+```
+
+単価は次の順に決まります（見積もり・注文とも、リクエストの `currency`。省略時は基軸通貨）:
+
+1. バリエーションの `attributes` の `price_<通貨>`（例: `price_usd`）
+2. バリエーションの `price_override`（基軸通貨以外ならレートで換算）
+3. 親商品のフィールド `price_<通貨>`
+4. 親商品の `price`（基軸通貨以外ならレートで換算）
+
+- 換算では通貨ごとの小数の桁（JPY などは 0、USD などは 2、KWD などは 3）に合わせて四捨五入します。
+- `supported_currencies` に無い通貨や、レートが無い通貨で換算が要る場合は `400` です。
+- Stripe には注文の通貨の最小単位の金額をそのまま渡します。
+
 ### 公開サイトのページ
 
 | URL | テンプレート | 内容 |
@@ -177,7 +213,8 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 | --- | --- |
 | `items`（一覧）/ `fields`（商品ページ） | 商品のフィールド（`fields.price` など）。商品ページの `fields.id` は商品 ID |
 | `theme_vars.shop_enabled` | `"true"` / `"false"`（`[commerce].enabled`） |
-| `theme_vars.currency` | 通貨コード |
+| `theme_vars.currency` | 基軸通貨のコード |
+| `theme_vars.supported_currencies` / `currency_rates` | 選べる通貨・レート（JSON 文字列） |
 | `theme_vars.products_url` / `cart_url` / `shop_api` / `cart_script` | ベースパス込みの URL |
 | `{{ fields.price \| money(theme_vars.currency) }}` | 金額の表示（`¥1,200`、`$12.50`） |
 
@@ -191,6 +228,13 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 <!-- カートに追加するボタン（data-quantity-input は数量の input のセレクタ。省略すると 1） -->
 <button data-aegis-add-to-cart data-product-id="{{ fields.id }}" data-product-slug="{{ slug }}"
         data-product-title="{{ title }}" data-product-price="{{ fields.price }}">Add to cart</button>
+
+<!-- バリエーションの選択: ボタンに data-variant-select="#variant" を付けると選択中の値を使う
+     （option の data-variant-title / data-variant-price も読む）。固定なら data-variant-id -->
+<select id="variant"><option value="{{ variant.id }}" data-variant-price="{{ variant.price_override }}">M</option></select>
+
+<!-- 通貨の切り替え（選んだ通貨は localStorage の aegis.currency に残り、カートを見積もり直す） -->
+<select data-aegis-currency-selector><option value="jpy">JPY</option><option value="usd">USD</option></select>
 
 <span data-aegis-cart-count></span>   <!-- カートの数量 -->
 <div id="aegis-cart"></div>            <!-- カートと購入手続き（cart.html） -->
@@ -207,7 +251,8 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 
 | API | 内容 |
 | --- | --- |
-| `GET /api/v1/shop/config` | `{ "enabled", "currency", "product_type", "provider" }` |
+| `GET /api/v1/shop/config` | `{ "enabled", "currency", "supported_currencies", "currency_rates", "product_type", "provider" }` |
+| `GET /api/v1/shop/products/{id または slug}/variants` | 商品のバリエーションの一覧 |
 | `POST /api/v1/shop/quote` | 見積もり（何も保存しない） |
 | `POST /api/v1/shop/checkout` | 注文の作成（`201`） |
 | `GET /api/v1/shop/orders/{id}?token=...` | 顧客の注文確認 |
@@ -217,7 +262,8 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 
 ```json
 {
-  "items": [{ "product": "ceramic-mug", "quantity": 2 }, { "product": "8f0c…", "quantity": 1 }],
+  "items": [{ "product": "ceramic-mug", "quantity": 2 }, { "product": "8f0c…", "variant": "a1b2…", "quantity": 1 }],
+  "currency": "usd",
   "email": "hanako@example.com",
   "name": "Hanako Yamada",
   "shipping_address": { "postal_code": "100-0001", "region": "Tokyo", "city": "Chiyoda", "line1": "1-1 Marunouchi" },
@@ -225,7 +271,7 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 }
 ```
 
-- `product` は商品の ID か slug。同じ商品の行はまとめます。`email` / `name` は注文時のみ必須。
+- `product` は商品の ID か slug、`variant` はバリエーションの ID（任意）。同じ商品・同じバリエーションの行はまとめます。`currency` は省略時に基軸通貨。`email` / `name` は注文時のみ必須。
 - 注文の応答は `{ "order": {...}, "token": "...", "order_url": "/orders/{id}?token=...", "redirect_url": "https://checkout.stripe.com/..." | null }`。`redirect_url` があればそこへ、無ければ `order_url` へ移動します。`token` は注文確認に必要で、サーバーには SHA-256 だけを保存します（再発行はできません）。
 
 | ステータス | 条件 |
@@ -306,5 +352,5 @@ format = "slack"                               # "json" なら OrderStatusChange
 
 現時点の制限:
 
-- 商品のバリエーション（サイズ・色ごとの在庫）、複数通貨、税率の自動判定はありません（バリエーションは別の商品として登録してください）。
+- 税率の自動判定はありません（`calculate-order` プラグインで計算します）。為替レートは設定ファイルの固定値で、自動では更新しません。
 - 顧客アカウント（会員登録・注文履歴）はありません。注文はゲスト購入で、注文確認は URL のトークンで行います。

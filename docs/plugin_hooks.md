@@ -561,3 +561,25 @@ Admin Studio での変更は、キャッシュと同じバックエンドのイ�
 - 新しく有効になったプラグインがそのサーバーで読み込めない（そのサーバーにだけインストールされていない、など）場合は、エラーログを出して今のプラグインのまま動きます。プラグインはすべてのサーバーに同じものを置いてください。
 - `[runtime].enable_wasm_plugins = false` にすると、`enabled` に関係なくすべてのプラグインを読み込みません。
 - テンプレートとサンプルは `sdk/templates/*`・`sdk/examples/*` にあり、`plugins/` には含まれません（既定ではプラグインは 1 つも有効になっていません）。
+
+### 5.4 ZIP パッケージからのインストールと署名
+
+Admin Studio のプラグイン画面（ドラッグ＆ドロップ）または `POST /api/v1/plugins/install`（`admin`、multipart の `file` フィールド）で、ZIP をアップロードしてインストールできます。テーマも同じ仕組みで `POST /api/v1/themes/install`（[テーマのガイド](./theme_and_publishing_guide.md#zip-からのインストール)）。
+
+1. ZIP を一時ディレクトリに展開します。パスの `..`・絶対パス（ZipSlip）は拒否し、1 ファイル 50MB・合計 100MB・1,000 エントリを超えるものも拒否します。
+2. `plugin.manifest.json` を ZIP の直下か、1 段下のディレクトリから探します。
+3. マニフェストと Wasm を検証し、`min_aegis_version`（semver）が今のバージョン以下かを確かめます。
+4. 署名を確かめます（下記）。
+5. `plugins/<name>/` に配置します。**同じ名前のプラグインがあれば置き換えます**。有効にはしません（[5.1](#51-admin-studio-からの有効無効の切り替え) で有効化）。監査ログは `plugin.install`。
+
+検証に失敗すると `400` で、何も配置しません。
+
+**署名（`signature.json`）**: パッケージの直下に置きます。
+
+```json
+{ "algorithm": "ed25519", "public_key": "<32 バイトの hex>", "signature": "<64 バイトの hex>", "target": "package" }
+```
+
+- `target` は `"package"`（`signature.json` 以外の全ファイルの、パスと SHA-256 を並べたダイジェストに署名）か `"manifest"`（`plugin.manifest.json` のバイト列だけに署名。既定）。**`"manifest"` では Wasm などほかのファイルの改ざんを検出できない**ため、配布するパッケージは `"package"` で署名してください。
+- `[plugins].require_signatures = true` なら署名の無いパッケージを拒否します。`false` でも、`signature.json` があれば確かめます（不正なら拒否）。
+- `[plugins].trusted_public_keys` が空だと、署名が正しければどの鍵でも受け入れます（誰でも自分の鍵で署名できる）。配布元を限るには信頼する鍵を列挙してください。テーマは `[theme]` の同名の設定です。

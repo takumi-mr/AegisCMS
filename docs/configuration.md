@@ -173,6 +173,8 @@ public_url_prefix = "https://cdn.example.com"
 | --- | --- | --- | --- |
 | `enabled` | array of string | `[]` | 有効にするプラグイン名（マニフェストの `name` = `plugins_dir` 直下のディレクトリ名）。フックはこの順に実行される |
 | `settings.<name>` | table | なし | プラグインごとの設定値。プラグインは `host.config_get`（SDK の `config::get`）で読む。文字列の値 `env:NAME` は環境変数 `NAME` の値になる（API キーなどを設定ファイルに書かないため） |
+| `require_signatures` | bool | `false` | ZIP でのインストール時に署名（`signature.json`）を必須にする（[パッケージのインストール](./plugin_hooks.md#54-zip-パッケージからのインストールと署名)） |
+| `trusted_public_keys` | string[] | `[]` | 受け入れる Ed25519 公開鍵（hex）。空なら署名が正しければどの鍵でも受け入れる |
 
 ```toml
 [plugins]
@@ -271,6 +273,8 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | `enabled` | bool | `false` | `true` でカート・注文を有効化（無効でも商品一覧・商品ページは表示される） |
 | `product_type` | string | `"product"` | 商品のコンテンツタイプ |
 | `currency` | string | `"jpy"` | ISO 4217 の通貨コード（小文字）。金額はすべてこの通貨の最小単位の整数 |
+| `supported_currencies` | string[] | `[]` | 顧客が選べる通貨（小文字 3 文字）。空なら `currency` だけ。`currency` は常に含まれる（[複数通貨](./commerce.md#22-複数通貨)） |
+| `currency_rates` | table | `{}` | `currency` の 1 単位に対する各通貨のレート（例: `{ usd = 0.0067 }`）。正の数のみ |
 | `public_url` | string | `""` | 公開サイトの URL（決済後の戻り先。サブパス運用なら `base_path` 込み）。空ならリクエストの Host（`trust_forwarded_for` なら `X-Forwarded-Host` / `-Proto`）から |
 | `provider` | string | `"manual"` | `manual`（銀行振込・代引きなど。管理者が入金を確認）または `stripe` |
 | `reservation_minutes` | integer | `60` | Stripe の決済ページの有効期限 = 在庫を確保しておく時間（Stripe では 30〜1440） |
@@ -397,6 +401,21 @@ SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Re
 | `hold_words` | string[] | `[]` | 含むと承認待ちにする語（大文字・小文字を区別しない） |
 | `spam_words` | string[] | `[]` | 含むとスパムにする語 |
 | `max_per_ip_per_hour` | integer | `10` | 同じ IP からの 1 時間あたりの投稿数（0 で無制限。`[cache]` で数える） |
+
+### 2.16 `[forum]` — 掲示板
+
+カテゴリ・スレッド・レスの掲示板（[掲示板のドキュメント](./forum.md)）。`enabled = true` で値が不正な場合（最小・最大の文字数の矛盾、`default_page_size` が範囲外など）はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で `/forum` と API を有効化 |
+| `database_url` | string | なし | 掲示板専用の DB（例: `sqlite:data/forum.db?mode=rwc`）。省略時は `[database].url` を共有 |
+| `title_min_length` / `title_max_length` | integer | `2` / `200` | スレッドのタイトルの文字数（最大 1,000） |
+| `body_min_length` / `body_max_length` | integer | `1` / `10000` | 本文の文字数（最大 100,000） |
+| `rate_limit_secs` | integer | `5` | 同じ IP・ユーザーの投稿の間隔（秒。`[cache]` で数える） |
+| `allow_anonymous` | bool | `true` | ログインしていない人の投稿を許可する |
+| `auto_lock_post_count` | integer | `1000` | この数のレスでスレッドを自動でロック（0 で無制限） |
+| `default_page_size` | integer | `50` | 1 ページの件数（1〜200） |
 
 ## 3. 完全な設定例
 
