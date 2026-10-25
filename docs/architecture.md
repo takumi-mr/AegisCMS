@@ -43,6 +43,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 ### 2.2 `DatabaseAdapter`
 
+- **SQLite は WAL モード**（`synchronous = NORMAL`）で開く。既定の rollback journal では書き込みが読み込みを止め、コミットごとに fsync するため、監査ログ（`database` 出力先はリクエスト中に同期で INSERT する）を書くリクエストが並ぶと詰まった（認証なしの 401 が並行 50 で約 490 req/s → WAL で約 3,900 req/s、p99 610ms → 44ms）。NORMAL は電源断で直前のコミットを失うことがあるが、DB が壊れることはない。
 - SQLite / PostgreSQL / MySQL の違い（プレースホルダ `?1` / `$1` / `?`、カラム情報の取得 `PRAGMA table_info` / `information_schema.columns`、接続プール）は `aegis_db::DatabaseAdapter` の実装に閉じ込める。ハンドラはアダプタ経由でのみ DB を扱う。
 - **スキーマ進化**: 起動時の `run_migrations` は `CREATE TABLE IF NOT EXISTS` に加え、既存テーブルのカラムを調べて YAML に増えたフィールドを `ALTER TABLE ... ADD COLUMN` してからインデックスを作る。システムテーブルの列追加（例: `_aegis_users.avatar_key`）も同じ方式（SQLite は `PRAGMA table_info`、PostgreSQL は `ADD COLUMN IF NOT EXISTS`、MySQL は `information_schema`）。MySQL は `CREATE INDEX IF NOT EXISTS` が無いため、重複エラー（1061）だけを無視する。
 - **カスタムフィールドの型**: `CustomFieldValue::from_json` がスキーマの型に合わせて変換する（jsonb → JSON、integer → i64、boolean → bool、その他は文字列）。変換できない値は `AegisError::Validation`（400）。SQLite は文字列で保存し、`null` は NULL で保存する（以前は空文字になり、数値の計算で 0 扱いになっていた）。読み出しは各アダプタの `custom_fields_from_row` で型ごとにデコードし、NULL は `fields` に含めない。**フィールド型を足すときは `SchemaMigration` の型対応・`CustomFieldValue`・各アダプタのデコードを揃えて変える**。

@@ -9,12 +9,17 @@
  * 使い方:
  *   node scripts/benchmark.mjs [オプション]
  *
+ * api / preview は Viewer 以上のセッションが必要なため、--token か --user を指定しない場合は計測しない
+ * （401 の応答と、拒否を記録する監査ログの書き込みを測ることになるため）。
+ *
  * オプション:
  *   --url <url>          サーバーのベース URL (既定: http://127.0.0.1:8080)
  *   --concurrency, -c    並行リクエスト数 (既定: 50)
  *   --duration, -d       各テストの計測時間(秒) (既定: 5)
  *   --warmup, -w         ウォームアップ時間(秒) (既定: 1)
  *   --target, -t         計測対象 (all | index | article | api | preview | quote | health)
+ *   --token <id>         セッション ID（環境変数 AEGIS_BENCH_TOKEN でも可）
+ *   --user <name>        このユーザーでログインしてセッションを作る（パスワードは環境変数 AEGIS_BENCH_PASSWORD）
  *   --auto-server        サーバーが起動していない場合に自動起動する
  *   --json               結果を JSON 形式で標準出力に出力する
  *   --help, -h           ヘルプを表示
@@ -39,6 +44,8 @@ function parseArgs() {
     target: 'all',
     autoServer: false,
     json: false,
+    token: process.env.AEGIS_BENCH_TOKEN || '',
+    user: process.env.AEGIS_BENCH_USER || '',
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -56,6 +63,10 @@ function parseArgs() {
       opts.warmup = Math.max(0, parseFloat(args[++i]) || 1);
     } else if ((arg === '--target' || arg === '-t') && args[i + 1]) {
       opts.target = args[++i].toLowerCase();
+    } else if (arg === '--token' && args[i + 1]) {
+      opts.token = args[++i];
+    } else if (arg === '--user' && args[i + 1]) {
+      opts.user = args[++i];
     } else if (arg === '--auto-server') {
       opts.autoServer = true;
     } else if (arg === '--json') {
@@ -79,6 +90,9 @@ AegisCMS HTTP パフォーマンスベンチマークツール
   -d, --duration <SEC>  各エンドポイントの測定秒数 (既定: 5)
   -w, --warmup <SEC>    各テスト前のウォームアップ秒数 (既定: 1)
   -t, --target <NAME>   実行対象 (all | index | article | api | preview | quote | health)
+  --token <ID>          セッション ID (環境変数 AEGIS_BENCH_TOKEN でも可)
+  --user <NAME>         このユーザーでログインする (パスワードは環境変数 AEGIS_BENCH_PASSWORD、
+                        ユーザーは環境変数 AEGIS_BENCH_USER でも可)
   --auto-server         サーバー未起動時に自動起動・終了する
   --json                測定結果を JSON で出力
   -h, --help            このヘルプを表示
@@ -88,6 +102,10 @@ AegisCMS HTTP パフォーマンスベンチマークツール
   node scripts/benchmark.mjs               # ターミナル2で全エンドポイント計測
   node scripts/benchmark.mjs -c 100 -d 10  # 並行100、10秒間の高負荷テスト
   node scripts/benchmark.mjs -t index      # トップページのみ計測
+  AEGIS_BENCH_PASSWORD=... node scripts/benchmark.mjs --user admin  # api / preview も計測
+
+api / preview は Viewer 以上のセッションが必要です。--token / --user を指定しない場合は
+この 2 つを計測しません (401 の応答と監査ログの書き込みを測ることになるため)。
 `);
 }
 
@@ -309,9 +327,25 @@ function sleep(ms) {
 // テストシナリオ定義
 // ============================================================================
 
-async function discoverArticleSlug(baseUrl) {
+/** `POST /api/v1/auth/session` でログインし、セッション ID を返す */
+async function login(baseUrl, username, password) {
+  const res = await fetch(`${baseUrl}/api/v1/auth/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    throw new Error(`ログインに失敗しました (HTTP ${res.status})`);
+  }
+  const data = await res.json();
+  return data.id;
+}
+
+async function discoverArticleSlug(baseUrl, authHeaders) {
   try {
-    const res = await fetch(`${baseUrl}/api/v1/contents/article?limit=1`);
+    const res = await fetch(`${baseUrl}/api/v1/contents/article?limit=1`, {
+      headers: authHeaders,
+    });
     if (res.ok) {
       const data = await res.json();
       if (data.contents && data.contents.length > 0 && data.contents[0].slug) {
@@ -324,7 +358,7 @@ async function discoverArticleSlug(baseUrl) {
   return 'hello-world';
 }
 
-function getScenarios(baseUrl, articleSlug) {
+function getScenarios(baseUrl, articleSlug, authHeaders) {
   return [
     {
       id: 'health',
@@ -353,6 +387,8 @@ function getScenarios(baseUrl, articleSlug) {
       description: 'コンテンツ一覧 API（SQLite クエリ + リレーション解決）',
       url: `${baseUrl}/api/v1/contents/article?limit=50`,
       method: 'GET',
+      headers: authHeaders,
+      requiresAuth: true,
     },
     {
       id: 'preview',
@@ -360,7 +396,8 @@ function getScenarios(baseUrl, articleSlug) {
       description: '公開プレビュー生成（Markdown / AST → HTML サニタイズ）',
       url: `${baseUrl}/api/v1/preview`,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      requiresAuth: true,
       body: JSON.stringify({
         title: 'Benchmark Preview Article',
         content_type: 'article',
@@ -412,10 +449,21 @@ async function main() {
     const isHttps = opts.url.startsWith('https:');
     const agent = createAgent(isHttps, opts.concurrency);
 
-    const articleSlug = await discoverArticleSlug(opts.url);
-    const allScenarios = getScenarios(opts.url, articleSlug);
+    let token = opts.token;
+    if (!token && opts.user) {
+      const password = process.env.AEGIS_BENCH_PASSWORD;
+      if (!password) {
+        console.error('❌ --user を使う場合は環境変数 AEGIS_BENCH_PASSWORD にパスワードを設定してください。');
+        process.exit(1);
+      }
+      token = await login(opts.url, opts.user, password);
+    }
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
-    const activeScenarios =
+    const articleSlug = await discoverArticleSlug(opts.url, authHeaders);
+    const allScenarios = getScenarios(opts.url, articleSlug, authHeaders);
+
+    let activeScenarios =
       opts.target === 'all'
         ? allScenarios
         : allScenarios.filter((s) => s.id === opts.target);
@@ -424,6 +472,21 @@ async function main() {
       console.error(`無効なターゲットです: ${opts.target}`);
       console.error(`利用可能: all, ${allScenarios.map((s) => s.id).join(', ')}`);
       process.exit(1);
+    }
+
+    // 認証が要るシナリオをセッションなしで回すと、401 と監査ログ（access.denied）の書き込みを測ることになる
+    if (!token) {
+      const skipped = activeScenarios.filter((s) => s.requiresAuth);
+      if (skipped.length > 0) {
+        if (opts.target !== 'all') {
+          console.error(`❌ ${opts.target} の計測にはセッションが必要です。--token または --user を指定してください。`);
+          process.exit(1);
+        }
+        console.error(
+          `⚠️  セッション未指定のため ${skipped.map((s) => s.id).join(', ')} を計測しません (--token / --user で計測できます)。`
+        );
+        activeScenarios = activeScenarios.filter((s) => !s.requiresAuth);
+      }
     }
 
     if (!opts.json) {
@@ -482,7 +545,9 @@ async function main() {
         const rpsStr = Math.round(res.rps).toLocaleString().padStart(8);
         const p50Str = (res.latencies.p50.toFixed(2) + 'ms').padStart(8);
         const p99Str = (res.latencies.p99.toFixed(2) + 'ms').padStart(8);
-        console.log(`✅ ${rpsStr} req/s | p50: ${p50Str} | p99: ${p99Str}`);
+        const failed = nonSuccessStatuses(res.statusCounts);
+        const mark = failed ? '⚠️ ' : '✅';
+        console.log(`${mark} ${rpsStr} req/s | p50: ${p50Str} | p99: ${p99Str}${failed ? ` | ${failed}` : ''}`);
       }
     }
 
@@ -517,6 +582,14 @@ async function main() {
 // レポート表示
 // ============================================================================
 
+/** 2xx / 3xx 以外の応答の内訳（例: "HTTP 401 x 4001"）。すべて成功なら空文字 */
+function nonSuccessStatuses(statusCounts) {
+  return Object.entries(statusCounts)
+    .filter(([status]) => Number(status) >= 400)
+    .map(([status, count]) => `HTTP ${status} x ${count}`)
+    .join(', ');
+}
+
 function printReport(results, opts) {
   console.log('\n==============================================================================');
   console.log('📊 Benchmark Results Summary');
@@ -547,6 +620,14 @@ function printReport(results, opts) {
     console.log(row.join(' | '));
   }
   console.log('==============================================================================');
+
+  const failed = results.filter((r) => nonSuccessStatuses(r.statusCounts));
+  if (failed.length > 0) {
+    console.log('\n⚠️  エラー応答を含むシナリオ (エンドポイント本来の処理を測れていません):');
+    for (const r of failed) {
+      console.log(` - ${r.scenario}: ${nonSuccessStatuses(r.statusCounts)}`);
+    }
+  }
 
   console.log('\n💡 備考・アドバイス:');
   console.log(' - リリースビルド (`cargo build --release -p aegis-server`) を使用すると大幅にスループットが向上します。');

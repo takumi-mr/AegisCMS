@@ -4,7 +4,9 @@ use std::str::FromStr;
 use aegis_core::{AegisError, AuditEvent, AuditQuery, Result};
 use aegis_schema::{FieldType, SchemaDefinition, SchemaMigration, SqlDialect};
 use async_trait::async_trait;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteRow};
+use sqlx::sqlite::{
+    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
+};
 use sqlx::{Pool, Row, Sqlite};
 
 use super::{
@@ -99,7 +101,10 @@ impl SqliteAdapter {
     pub async fn connect(database_url: &str, max_connections: u32) -> Result<Self> {
         let options = SqliteConnectOptions::from_str(database_url)
             .map_err(|e| AegisError::Database(e.to_string()))?
-            .create_if_missing(true);
+            .create_if_missing(true)
+            // WAL: 読み込みが書き込みを待たず、コミットごとの fsync も減る（`:memory:` では無視される）
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal);
 
         let pool = SqlitePoolOptions::new()
             .max_connections(max_connections)
@@ -851,6 +856,22 @@ mod tests {
         let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
         adapter.init().await.unwrap();
         adapter
+    }
+
+    #[tokio::test]
+    async fn test_file_database_uses_wal() {
+        let path = std::env::temp_dir().join(format!("aegis-wal-{}.db", std::process::id()));
+        let url = format!("sqlite://{}?mode=rwc", path.display());
+        let adapter = SqliteAdapter::connect(&url, 1).await.unwrap();
+        let mode: String = sqlx::query_scalar("PRAGMA journal_mode")
+            .fetch_one(&adapter.pool)
+            .await
+            .unwrap();
+        adapter.pool.close().await;
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{}", path.display(), suffix));
+        }
+        assert_eq!(mode, "wal");
     }
 
     #[tokio::test]
