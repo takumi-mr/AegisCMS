@@ -12,6 +12,7 @@ pub mod public;
 pub mod registration;
 pub mod saml;
 pub mod schemas;
+pub mod seo;
 pub mod shop;
 pub mod site;
 pub mod sso;
@@ -40,6 +41,7 @@ pub use public::{render_article, render_index, render_page_or_slug};
 pub use registration::{register, verify_registration};
 pub use saml::{saml_acs, saml_login, saml_metadata};
 pub use schemas::{get_schema, list_schemas};
+pub use seo::{get_robots_txt, get_seo_settings, get_sitemap_xml, update_seo_settings};
 pub use shop::{
     checkout, get_order, get_public_order, get_public_product_variants, list_orders,
     payment_webhook, quote, refund_order, shop_config, update_order_status,

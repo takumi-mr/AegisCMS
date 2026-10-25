@@ -616,3 +616,32 @@ server {
 
 > [!NOTE]
 > `X-Forwarded-For` はクライアントが自由に設定できます。`trust_forwarded_for` を有効にする場合は、AegisCMS に直接アクセスできないようにし（`[server].host = "127.0.0.1"` やファイアウォール）、上の例のようにプロキシ側で受け取った `X-Forwarded-For` を上書きしてください（`$proxy_add_x_forwarded_for` は受け取った値の後ろに追記するため、先頭を偽装できます）。プロキシを多段にする場合は、最も外側のプロキシで上書きしてください。
+
+---
+
+## 5. 管理画面から設定する動的サイト・SEO設定
+
+サーバーの再起動を伴わずに即時反映できるよう、サイトの基本情報および検索エンジン・Bot制御はデータベースの `_aegis_settings` テーブルに保存され、Admin Studio の「設定」画面からリアルタイムに変更できます。
+
+### 5.1 一般設定 (`site.*`)
+
+| 項目名 | DB キー | 説明 |
+| --- | --- | --- |
+| サイト名 | `site.title` | 公開サイトおよび管理画面のタイトル表示 |
+| ファビコン | `site.favicon` | `<link rel="icon">` で読み込むアイコン画像 URL（メディアライブラリから選択またはアップロード） |
+
+### 5.2 SEO & Bot 対策設定 (`seo.*`)
+
+| 項目名 | DB キー | 型 / 値の形式 | 既定値 | 説明 |
+| --- | --- | --- | --- | --- |
+| インデックス全体除外 | `seo.noindex_all` | `"true"` \| `"false"` | `"false"` | 有効時、サイト全体の `<head>` に `noindex, nofollow` を強制注入（開発環境や非公開環境向け） |
+| Canonical Base URL | `seo.canonical_base_url` | URL 文字列 | `""` | サイトの正規ドメイン（例: `https://example.com`）。設定時、全ページに `<link rel="canonical">` を出力 |
+| デフォルト Meta 説明文 | `seo.meta_description` | 文字列（最大 500 文字） | `""` | ページ個別の要約がない場合にフォールバック出力される `<meta name="description">` |
+| デフォルト Meta キーワード | `seo.meta_keywords` | 文字列（カンマ区切り） | `""` | `<meta name="keywords">` の出力 |
+| デフォルト OGP 画像 | `seo.og_image` | 画像 URL | `""` | SNS シェア時のデフォルトアイキャッチ画像（メディアライブラリから選択可能） |
+| Twitter Card 種別 | `seo.twitter_card` | `"summary"` \| `"summary_large_image"` | `"summary_large_image"` | Twitter / X 共有時のカード表示形式 |
+| カスタム robots.txt | `seo.robots_txt` | テキスト（最大 64 KB） | 空（自動生成） | クローラー巡回制御。空の場合は安全なデフォルトルールおよび動的 Sitemap 参照を出力 |
+
+> [!TIP]
+> Admin Studio の SEO 設定画面では「標準設定」「開発環境（全ブロック）」「生成AIクローラー拒否」のワンクリックプリセットが用意されており、安全かつ迅速に `robots.txt` を構成できます。
+

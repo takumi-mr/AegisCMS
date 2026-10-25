@@ -88,15 +88,53 @@ pub fn relation_summary(rel: &aegis_db::ResolvedRelation) -> serde_json::Value {
     serde_json::json!({ "id": rel.id, "title": rel.title, "slug": rel.slug })
 }
 
+/// Extra `<head>` tags containing favicon and SEO / OGP tags for any page
+pub fn build_extra_head(
+    state: &AppState,
+    title: Option<&str>,
+    description: Option<&str>,
+    image: Option<&str>,
+    path: Option<&str>,
+    is_article: bool,
+) -> String {
+    let site = state.site();
+    let seo = state.seo();
+    let head_params = crate::seo::PageHeadParams {
+        site_title: &site.title,
+        theme_description: &state.config.theme.site_description,
+        title,
+        description,
+        image,
+        path,
+        is_article,
+    };
+    let mut extra_head = site.head_html();
+    let seo_tags = seo.generate_head_tags(&head_params);
+    if !seo_tags.is_empty() {
+        if !extra_head.is_empty() {
+            extra_head.push('\n');
+            extra_head.push_str("  ");
+        }
+        extra_head.push_str(&seo_tags);
+    }
+    extra_head
+}
+
 /// A page context holding only the site-wide values: the site title and favicon (Admin Studio's
 /// settings over `[theme]`), the description and the custom CSS. The favicon `<link>` goes into
 /// `extra_head`, which every theme outputs, so `on-render-page` plugins can still change it
 pub fn site_page_context(state: &AppState) -> PageRenderContext {
     let site = state.site();
+    let seo = state.seo();
+    let effective_desc = seo
+        .meta_description
+        .as_deref()
+        .filter(|d| !d.trim().is_empty())
+        .unwrap_or(&state.config.theme.site_description);
     PageRenderContext {
-        extra_head: site.head_html(),
+        extra_head: build_extra_head(state, None, None, None, Some("/"), false),
         site_title: site.title,
-        site_description: state.config.theme.site_description.clone(),
+        site_description: effective_desc.to_string(),
         extra_css: state.config.theme.custom_css.clone().unwrap_or_default(),
         ..Default::default()
     }
@@ -110,6 +148,28 @@ pub async fn render_page(
     page: PageInput,
 ) -> Result<String, String> {
     let relations = resolve_page_relations(state, schema, &page.fields).await;
+    let is_article = page.content_type == "article";
+    let path = if is_article {
+        format!("/articles/{}", page.slug)
+    } else {
+        format!("/{}", page.slug)
+    };
+    let excerpt = page.fields.get("excerpt").and_then(|v| v.as_str());
+    let image = page
+        .fields
+        .get("featured_image")
+        .or_else(|| page.fields.get("image"))
+        .and_then(|v| v.as_str());
+
+    let extra_head = build_extra_head(
+        state,
+        Some(&page.title),
+        excerpt,
+        image,
+        Some(&path),
+        is_article,
+    );
+
     let mut ctx = PageRenderContext {
         template: page.template,
         content_type: page.content_type,
@@ -121,6 +181,7 @@ pub async fn render_page(
         updated_at: page.updated_at,
         fields: page.fields,
         relations,
+        extra_head,
         ..site_page_context(state)
     };
 

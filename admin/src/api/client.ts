@@ -28,6 +28,8 @@ import type {
   SessionInfo,
   ShopConfig,
   SiteSettings,
+  SeoSettings,
+  UpdateSeoSettingsPayload,
   StorageMeta,
   StorageObjectPage,
   StorageObjectQuery,
@@ -639,6 +641,22 @@ export const aegisApi = {
         body: JSON.stringify(settings),
       },
       i18n.t('api.updateSiteSettingsFailed')
+    );
+  },
+
+  async getSeoSettings(): Promise<SeoSettings> {
+    return request('/seo', {}, i18n.t('api.seoSettingsFailed'));
+  },
+
+  async updateSeoSettings(payload: UpdateSeoSettingsPayload): Promise<SeoSettings> {
+    return request(
+      '/seo',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      i18n.t('api.updateSeoSettingsFailed')
     );
   },
 };

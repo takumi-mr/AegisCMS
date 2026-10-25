@@ -1,5 +1,6 @@
 use crate::config::AegisConfig;
 use crate::plugin_registry::PluginRegistry;
+use crate::seo::SeoOverrides;
 use crate::site::{SiteInfo, SiteOverrides};
 use aegis_audit::AuditService;
 use aegis_auth::invitation::InvitationService;
@@ -40,6 +41,8 @@ pub struct AppState {
     pub plugin_settings: Arc<std::sync::RwLock<HashMap<String, HashMap<String, String>>>>,
     /// Admin Studio から変更したサイト名・favicon（`[theme]` より優先。DB の `_aegis_settings`）
     pub site: Arc<std::sync::RwLock<SiteOverrides>>,
+    /// Admin Studio から変更した SEO & Bot 設定（DB の `_aegis_settings`）
+    pub seo: Arc<std::sync::RwLock<SeoOverrides>>,
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
     pub oidc: Option<SsoLogin>,
     /// 外部 IdP ログイン（`[auth.saml]`）。無効なら `None`
@@ -132,6 +135,7 @@ impl AppState {
             theme,
             plugin_settings: Arc::new(std::sync::RwLock::new(HashMap::new())),
             site: Arc::new(std::sync::RwLock::new(SiteOverrides::default())),
+            seo: Arc::new(std::sync::RwLock::new(SeoOverrides::default())),
             oidc: None,
             saml: None,
             commerce: None,
@@ -150,6 +154,14 @@ impl AppState {
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         SiteInfo::resolve(&self.config.theme, &overrides)
+    }
+
+    /// 公開サイトの SEO & Bot 設定
+    pub fn seo(&self) -> SeoOverrides {
+        self.seo
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     /// EC（`[commerce]`）を有効にする

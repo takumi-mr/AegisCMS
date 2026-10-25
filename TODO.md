@@ -9,25 +9,23 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: EC 拡張 Phase 1: 外部決済抽象化層（`PaymentProvider`）と返金 API（Stripe Refund / 手動返金）
-  - **決済プロバイダ抽象化**: `PaymentProvider` トレイトに `supports_refund` / `refund` メソッドを追加し、外部決済ゲートウェイ通信を完全に抽象化。Stripe 以外の将来的な決済サービス（PayPal, Square 等）もコアロジック（`CommerceService`）や DB 構造を変更せずに追加できる設計を実現。
-  - **取引識別子の分離**: チェックアウト開始時の識別子（Stripe Checkout Session ID `cs_...`）を `payment_ref`、確定取引 ID（Stripe Payment Intent ID `pi_...`）を `transaction_id` として分離管理し、確実な返金照合を保証。
-  - **返金 API & ACID トランザクション**: `POST /api/v1/orders/{id}/refund` を新設。部分返金・全額返金、注文商品の在庫復帰（オプション）、累計返金額の加算、ステータス自動遷移（全額返金時に `refunded` へ）、監査ログ（`order.refund`）の記録を SQLite / PostgreSQL / MySQL のすべてで同一トランザクション内でアトミックに実行。
-  - **Stripe Refund & Webhook 同期**: 冪等性キー（`Idempotency-Key`）を付与した Stripe API `POST /v1/refunds` 呼び出し、および Stripe 側で直接返金された際の Webhook イベント（`charge.refunded`）の自動解釈・状態同期を実装。
-  - **Admin Studio (Orders)**: `OrderStatus::Refunded` バッジ、返金フィルター、注文詳細での返金額・返金履歴・トランザクションID表示、返金操作モーダル（残額バリデーション、リアルタイム通貨プレビュー、在庫復帰トグル、手動/オンライン別案内バナー）を実装。
+- **直近の完了**: SEO & Bot 対策機能（robots.txt / sitemap.xml / メタタグ / OGP / Admin Studio 設定画面）
+  - **SEO & Bot 設定機構**: `_aegis_settings` テーブルに `seo.*`（`robots_txt`, `meta_description`, `meta_keywords`, `canonical_base_url`, `og_image`, `noindex_all`, `twitter_card`）を永続化し、`AppState.seo`（`Arc<RwLock<SeoOverrides>>`）で管理。サーバー再起動不要で即時反映。
+  - **HTML `<head>` 自動注入**: テーマの規約である `{{ extra_head | safe }}` を通じて、SEO メタタグ・OGP・Twitter Card・Canonical タグ・noindex 指示を自動挿入（`render::build_extra_head`）。個別記事の `excerpt` や商品サムネイルを優先し、サイト全体設定にフォールバック。既存テーマの改修不要。
+  - **`GET /robots.txt` & `GET /sitemap.xml`**: カスタム robots.txt の配信（未設定時は安全な既定値）および動的 Sitemap 参照の自動注入。公開コンテンツ（記事・固定ページ・商品）を DB から動的集約した Sitemap 0.9 準拠 XML 配信。
+  - **管理 API**: `GET /api/v1/seo`, `PUT /api/v1/seo` を実装し、変更時は監査ログ `seo.update` を記録。
+  - **Admin Studio (Settings > SEO & Bot)**: インデックス制御（noindex 全体適用トグル＆注意喚起バナー）、Canonical Base URL、Meta Description/Keywords、OGP 画像設定（メディアライブラリ・アップローダー連携）、Twitter Card 種別、robots.txt プリセット（標準、開発環境全ブロック、生成AIクローラー拒否）挿入ツールバー付きエディタ、ライブ URL リンクを完備。
   - **品質検証**: `task check`（fmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio ビルド）パス。
-  - **ドキュメント反映**: 仕様・API は [docs/commerce.md](docs/commerce.md)、アーキテクチャ・設計判断は [docs/architecture.md 9](docs/architecture.md#9-ec-aegis-commerce)。
-- **その前**: 予約公開・予約非公開の完了を著者にメールで通知（`content.published` / `content.unpublished`、組み込みテンプレート en / ja、公開ページの URL `content_url`）。仕様は [notifications.md 2](docs/notifications.md#2-送る通知)。あわせて Windows で依存を足したときのロックファイルの注意（CI の npm 10 で `npm ci` を確かめる）を [development.md 8.3](docs/development.md#83-依存パッケージを追加したときpackage-lockjson) に記載。その前は Admin Studio に Playwright の E2E テストと Storybook を導入（[development.md 8](docs/development.md#8-admin-studio-の-e2e-テストと-storybook)）。その前は Admin Studio のモバイル対応。
+  - **ドキュメント反映**: 仕様・設定は [docs/configuration.md 5](docs/configuration.md#5-管理画面から設定する動的サイトseo設定)、アーキテクチャ・設計判断は [docs/architecture.md 3.5](docs/architecture.md#35-seo--bot-制御-aegis-serversrcseors-handlersseors)。
+- **その前**: EC 拡張 Phase 1: 外部決済抽象化層（`PaymentProvider`）と返金 API（Stripe Refund / 手動返金）
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
 ### 🚀 次に着手する項目
 
-1. **EC 拡張 Phase 2: 商品のバリエーション（サイズ・色ごとの在庫・価格）**:
-   - `_aegis_product_variants` テーブルの新設（`product_id`, `sku`, `title`, `price_override`, `stock`, `attributes_json`, `position`）と SQLite / PostgreSQL / MySQL マイグレーション。
-   - アトミック在庫引き当て（`StockReservation`）を商品単位からバリエーション（SKU）単位へ拡張。
-   - カート・注文明細（`OrderLine`）におけるバリエーション ID・選択属性（サイズ、カラーなど）の保持。
-   - Admin Studio（Products 画面）へのバリエーション一覧・追加・在庫/価格編集 UI の実装。
+1. **EC 拡張 Phase 4: 顧客アカウント・売上レポート等の設計・検討**
+2. **Admin Studio E2E テスト・Storybook ストーリーの拡充**
+
 
 ---
 
@@ -80,5 +78,11 @@
   - 単価解決 `resolve_item_price`: バリエーションの `attributes.price_{currency}` または親商品の `price_{currency}` による特定通貨固定価格を最優先とし、未設定時は基軸価格から為替レートで自動換算。
   - 見積もり (`/quote`)・注文 (`/checkout`) 共にリクエストの `currency`（未指定時は基軸通貨）で計算され、Stripe Checkout Session も注文通貨の最小単位でそのまま連携。
   - 公開ストアフロントの `theme_vars`（`supported_currencies`, `currency_rates`）および `cart.js`（通貨セレクターバインディング、`localStorage` 永続化、自動再見積もり）を完備。
+- **SEO & Bot 対策機能設計**:
+  - `_aegis_settings` に `seo.*` を永続化し、`AppState.seo`（`RwLock`）でサーバー再起動なしに即時反映。
+  - テーマのベーステンプレートの `{{ extra_head | safe }}` に `<link rel="canonical">`、`<meta name="description">`、`<meta property="og:...">`、`<meta name="twitter:...">`、および `noindex, nofollow` を自動注入することで、既存テーマ・新規テーマを問わず改修ゼロで完全な SEO / OGP 互換性を担保。
+  - `GET /robots.txt` は `Host` ヘッダーから動的に Sitemap の完全 URL（`http(s)://.../sitemap.xml`）を追記出力し、未設定時も安全なデフォルト（`/admin/`, `/api/` を遮断）を即座に提供。
+  - Admin Studio の SEO 設定画面では「標準設定」「開発環境（全ブロック）」「生成AIクローラー拒否」のワンクリックプリセットを用意し、手動入力ミスを防止。
 - **次のステップ**:
-  - Phase 3 完了後の Pull Request (PR) 作成（ブランチ: `feat/commerce-expansion` -> `main`）。
+  - SEO & Bot 対策完了後の Pull Request (PR) 作成（ブランチ: `feat/seo-and-bot-controls` -> `main`）。
+

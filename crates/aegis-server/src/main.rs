@@ -17,6 +17,7 @@ mod plugin_host;
 mod plugin_registry;
 mod render;
 mod scheduler;
+mod seo;
 mod site;
 mod state;
 #[cfg(test)]
@@ -660,6 +661,11 @@ async fn main() -> anyhow::Result<()> {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 site::SiteOverrides::load(app_state.db.as_ref()).await;
+            *app_state
+                .seo
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                seo::SeoOverrides::load(app_state.db.as_ref()).await;
             let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),
                 None => app_state,

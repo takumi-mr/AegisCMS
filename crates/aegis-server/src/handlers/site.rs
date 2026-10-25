@@ -201,7 +201,7 @@ mod tests {
         assert_eq!(initial.defaults.title, "Config Title");
         let ctx = site_page_context(&state);
         assert_eq!(ctx.site_title, "Config Title");
-        assert_eq!(ctx.extra_head, "");
+        assert!(!ctx.extra_head.contains("<link rel=\"icon\""));
 
         let Json(updated) = update(&state, Some("  New Title "), Some("/uploads/icon.png"))
             .await
@@ -212,10 +212,9 @@ mod tests {
         // 公開ページの値に反映され、DB に保存される
         let ctx = site_page_context(&state);
         assert_eq!(ctx.site_title, "New Title");
-        assert_eq!(
-            ctx.extra_head,
-            r#"<link rel="icon" href="/uploads/icon.png">"#
-        );
+        assert!(ctx
+            .extra_head
+            .contains(r#"<link rel="icon" href="/uploads/icon.png">"#));
         let saved = state.db.list_settings().await.unwrap();
         assert_eq!(saved[TITLE_SETTING], "New Title");
         // 再起動後と同じく DB から読み直しても同じ値

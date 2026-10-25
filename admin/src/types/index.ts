@@ -53,6 +53,7 @@ export type AuditAction =
   | 'access.denied'
   | 'theme.switch'
   | 'site.update'
+  | 'seo.update'
   | 'user.create'
   | 'user.update'
   | 'user.delete'
@@ -418,6 +419,31 @@ export interface SiteSettings {
     title: string;
     favicon: string | null;
   };
+}
+
+/** SEO and crawler settings (`GET` / `PUT /api/v1/seo`) */
+export interface SeoSettings {
+  robots_txt: string | null;
+  meta_description: string | null;
+  meta_keywords: string | null;
+  canonical_base_url: string | null;
+  og_image: string | null;
+  noindex_all: boolean;
+  twitter_card: 'summary' | 'summary_large_image' | null;
+  defaults: {
+    robots_txt: string;
+    meta_description: string;
+  };
+}
+
+export interface UpdateSeoSettingsPayload {
+  robots_txt?: string | null;
+  meta_description?: string | null;
+  meta_keywords?: string | null;
+  canonical_base_url?: string | null;
+  og_image?: string | null;
+  noindex_all?: boolean;
+  twitter_card?: 'summary' | 'summary_large_image' | null;
 }
 
 /** Public shop settings (`GET /api/v1/shop/config`) */
