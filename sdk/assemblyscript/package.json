@@ -1,10 +1,13 @@
 {
-  "name": "@aegiscms/plugin-sdk",
+  "name": "@takumi-mr/plugin-sdk",
   "version": "0.1.0",
   "description": "Official AssemblyScript SDK for AegisCMS WebAssembly (Wasm) plugins",
   "main": "assembly/index.ts",
   "ascMain": "assembly/index.ts",
   "types": "assembly/index.ts",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "files": [
     "assembly",
     "README.md",

@@ -23,7 +23,7 @@
   "options": {
     "bindings": "esm",
     "use": [
-      "abort=~lib/@aegiscms/plugin-sdk/assembly/host/abort"
+      "abort=~lib/@takumi-mr/plugin-sdk/assembly/host/abort"
     ]
   }
 }

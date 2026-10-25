@@ -1,1 +1,1 @@
-export * from "@aegiscms/plugin-sdk/assembly/json";
+export * from "@takumi-mr/plugin-sdk/assembly/json";

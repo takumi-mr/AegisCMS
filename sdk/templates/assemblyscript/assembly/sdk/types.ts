@@ -1,1 +1,1 @@
-export * from "@aegiscms/plugin-sdk/assembly/types";
+export * from "@takumi-mr/plugin-sdk/assembly/types";

@@ -9,11 +9,12 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: 全言語（Rust / AssemblyScript / TinyGo）プラグイン SDK のパッケージ化と配布体制の整備（ブランチ `feat/publish-plugin-sdks`）
-  - **Rust SDK (crates.io)**: `crates/aegis-plugin-macros` および `crates/aegis-plugin-sdk` に repository, homepage, documentation, keywords, categories 等のメタデータと専用 README を整備。`cargo package` による事前検証体制を構築。
-  - **AssemblyScript SDK (npm)**: `sdk/assemblyscript` に独立した npm パッケージ `@aegiscms/plugin-sdk` を切り出し、`package.json`, `asconfig.json`, `tsconfig.json` を整備。テンプレート側からは公式パッケージとして依存・ビルド（`~lib/@aegiscms/plugin-sdk` 経由のカスタム abort ハンドラー対応）し、後方互換シムも維持。
-  - **TinyGo SDK (Go Modules)**: `sdk/tinygo` に独立した Go モジュール `github.com/takumi-mr/AegisCMS/sdk/tinygo` を切り出し、`abi.go` のポインタ安全性を `go vet` (unsafeptr) 適合化。テンプレート側は `go.mod` 依存として解決。
-  - **タスク & ドキュメント**: `Taskfile.yml` に `task sdk:check`（全SDK検証）および `task sdk:pack:dry-run`（パッケージ事前作成検証）を追加。[plugin_sdk_guide.md](docs/plugin_sdk_guide.md) に各エコシステムの公式パッケージ案内および公開手順（Publishing Guide）を記載。
+- **直近の完了**: 全言語（Rust / AssemblyScript / TinyGo）プラグイン SDK の GitHub 中心パッケージ化と CI 手動リリースタスク新設（ブランチ `feat/publish-plugin-sdks`）
+  - **Rust SDK (GitHub Git 依存)**: `aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.1.0" }` による配布体制。内部の `aegis-plugin-macros` も Cargo が自動解決。
+  - **AssemblyScript SDK (GitHub Packages)**: `sdk/assemblyscript` に独立した npm パッケージ `@takumi-mr/plugin-sdk` を切り出し、GitHub Packages レジストリ（`npm.pkg.github.com`）への `publishConfig` および README、asconfig、tsconfig を整備。テンプレート側の依存・ビルド検証済み。
+  - **TinyGo SDK (Go Modules)**: `sdk/tinygo` に独立した Go モジュール `github.com/takumi-mr/AegisCMS/sdk/tinygo` を切り出し、`abi.go` のポインタ安全性を `go vet` (unsafeptr) 適合化。Git タグ（`sdk/tinygo/v0.1.0`）による配布体制。
+  - **CI 手動リリースワークフロー**: `.github/workflows/release-sdk.yml` を新設（`workflow_dispatch` で target と version を指定して GitHub Packages 公開・Git タグ push・Release 作成を一括自動実行）。
+  - **タスク & ドキュメント**: `Taskfile.yml` に `task sdk:check`（全SDK検証）および `task sdk:pack:dry-run` を追加。[plugin_sdk_guide.md](docs/plugin_sdk_guide.md) の第 7 節に GitHub Releases / GitHub Packages / CI ワークフロー手順を詳述。
 - **その前**: AssemblyScript SDK の JSON 処理の高速化（`escapeJson` / `findStringField` の二乗の解消と、確保を 1 回にまとめる変更。テンプレートの `on-before-save` が 3,600 → 160µs。[architecture.md 12](docs/architecture.md#12-性能の記録)）。
 - **その前**: Storybook インタラクションテストの CI 連携とコンポーネントストーリー拡充（ブランチ `feat/storybook-vitest`）
   - `@storybook/addon-vitest`（10.6.2）を導入し、Vitest Browser Mode（Playwright Chromium）でストーリーおよび `play` 関数の自動検証を実現（`task test:storybook`）。`Taskfile.yml` の `task check` および GitHub Actions（`frontend-ci`）に統合。

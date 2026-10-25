@@ -1,4 +1,4 @@
 /**
- * Backward compatibility re-export shim for @aegiscms/plugin-sdk
+ * Backward compatibility re-export shim for @takumi-mr/plugin-sdk
  */
-export * from "@aegiscms/plugin-sdk/assembly/index";
+export * from "@takumi-mr/plugin-sdk/assembly/index";

@@ -1,13 +1,21 @@
-# @aegiscms/plugin-sdk
+# @takumi-mr/plugin-sdk
 
-Official AssemblyScript SDK for AegisCMS WebAssembly (Wasm) plugins.
+Official AssemblyScript SDK for AegisCMS WebAssembly (Wasm) plugins, published via GitHub Packages.
 
 [AegisCMS](https://github.com/takumi-mr/AegisCMS) supports writing zero-trust WebAssembly plugins in AssemblyScript, offering TypeScript-like syntax and direct compilation to lightweight WebAssembly binaries.
 
-## Installation
+## Installation (GitHub Packages)
+
+Configure `.npmrc` in your project or home directory:
+
+```text
+@takumi-mr:registry=https://npm.pkg.github.com
+```
+
+Install the package:
 
 ```bash
-npm install @aegiscms/plugin-sdk --save
+npm install @takumi-mr/plugin-sdk --save
 ```
 
 Ensure `assemblyscript` is also installed in your project:
@@ -36,7 +44,7 @@ In your plugin's `asconfig.json`, configure the custom abort handler so that run
   "options": {
     "bindings": "esm",
     "use": [
-      "abort=@aegiscms/plugin-sdk/assembly/host/abort"
+      "abort=~lib/@takumi-mr/plugin-sdk/assembly/host/abort"
     ]
   }
 }
@@ -56,7 +64,7 @@ import {
   parsePostContext,
   serializePostContext,
   PostContext,
-} from "@aegiscms/plugin-sdk";
+} from "@takumi-mr/plugin-sdk/assembly/index";
 
 // Required memory allocator export
 export function allocate(len: i32): i32 {
