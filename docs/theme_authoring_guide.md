@@ -69,6 +69,8 @@ themes/my-theme/
 | `/`、`/articles` | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
 | `/articles/{slug}` | `article.html` | `title`、`content_html`、`author`、`published_at`、`updated_at`、`fields`、`relations`、`comments`（[コメント](#6-コメント欄)） |
 | `/{slug}` | `page.html`（固定ページ）または `article.html` | 同上 |
+| `/{slug}`（固定ページの `layout` が `blank`） | `blank.html` | 同上。ヘッダー・フッター・幅の制約の無い白紙のページ（LP 向け）。`layout` にほかの名前（例: `landing`）を入れると、テーマの `landing.html` を使う |
+| `/forum` 以下 | `forum_index.html` / `forum_category.html` / `forum_thread.html` | [掲示板](forum.md#2-公開サイト) |
 | 見つからない・非公開 | `404.html` | `title`（`Page Not Found`）、`content_html`（理由の一文） |
 | `/products` | `products.html` | `title`、`items`、`pagination`、`theme_vars` |
 | `/products/{slug}` | `product.html` | `title`、`content_html`、`fields`（`price` / `stock` など）、`relations`、`theme_vars` |
@@ -77,7 +79,9 @@ themes/my-theme/
 
 `/` と `/articles` は同じ `index.html` で同じ変数を受け取るので、テンプレートの中では区別できません。ヒーローなどトップだけに出したい要素も、`/articles` に表示されます。
 
-ショップのテンプレート（`products.html` 以降）は、テーマに無くても組み込みのテンプレートがテーマの `base.html` の中に描画されます（[5. ショップのページ](#5-ショップのページ)）。
+ショップのテンプレート（`products.html` 以降）は、テーマに無くても組み込みのテンプレートがテーマの `base.html` の中に描画されます（[5. ショップのページ](#5-ショップのページ)）。`blank.html` と掲示板のテンプレートも組み込みのものがあり、テーマに同じ名前のファイルを置くと置き換えられます。
+
+固定ページのレイアウトは Admin Studio のエディタ（「テーマ標準」/「ブランク LP」）で選び、スキーマ `page` の `layout` フィールドに保存されます。ブランク LP の中身は「カスタム HTML」ブロック（`core/html`）で自由に書けます。このブロックの HTML はエスケープせずにそのまま出力します（`[security]` のリンク・画像の属性の付与だけが掛かり、`<script>` も残ります）。
 
 ### 3.2 変数
 

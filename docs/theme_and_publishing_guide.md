@@ -186,6 +186,10 @@ reload_templates = false   # true でテンプレートを描画のたびに読�
 themes_dir = "themes"
 ```
 
+### ZIP からのインストール
+
+Admin Studio のテーマ画面の「ZIP をアップロード」または `POST /api/v1/themes/install`（`admin`、multipart の `file` フィールド）で、テーマのパッケージをインストールできます。`theme.json` を ZIP の直下か 1 段下から探し、`ThemeEngine::validate_theme_package` で検証してから `themes/<id>/` に置きます（同じ ID のテーマは置き換え。有効化はしない。監査ログ `theme.install`）。展開の制限と署名（`signature.json`）はプラグインと同じで、`[theme].require_signatures` / `[theme].trusted_public_keys` で設定します（[プラグインのインストールと署名](./plugin_hooks.md#54-zip-パッケージからのインストールと署名)）。
+
 ### サイト名と favicon（Admin Studio）
 
 `site_title` と `favicon` は Admin Studio の **Settings › Site**（`admin` のみ）からも変更できます。保存した値は DB（`_aegis_settings`）に入り、設定ファイルの値より優先されます。サーバーの再起動なしで公開サイトに反映され、欄を空にして保存すると設定ファイルの値に戻ります。

@@ -23,7 +23,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 依存の向きは `aegis-core` ← ドメインクレート ← `aegis-server` の一方向です（クレートの一覧と各モジュールは [README 2.3](../README.md#23-クレート構成と各モジュールの責務-crates)）。
 
 - **`aegis-core` は共有契約だけ**: 抽象トレイト（`StorageBackend` / `CacheBackend` / `AuthProvider` / `AuditSink` / `Notifier`）、監査イベントのモデル、プラグインに渡すコンテキスト型、`PluginManifest`、`AegisError`。Wasm プラグイン SDK も依存するため、実装や重い依存を足さないこと。
-- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-theme`、`aegis-runtime`。HTTP には依存しない。
+- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-forum`、`aegis-theme`、`aegis-runtime`。HTTP には依存しない。
 - **`aegis-server` は HTTP 層**: ハンドラ・認可・エクストラクタ・CLI・組み立て（`main.rs`）。
 - **設定**: 各クレートが自分のセクションの型を持つ（`aegis_db::DatabaseConfig`、`SecurityConfig` は `aegis-ast`、`ThemeConfig` は `aegis-theme`、`PluginsConfig` / `RuntimeConfig` は `aegis-runtime` など）。`aegis.toml` 全体の `AegisConfig` は `aegis-server/src/config.rs`。
   - 全構造体が `#[serde(default)]` 付きで、省略した項目は `Default` 実装の値になる。**設定項目を足すときは必ず `Default` に既定値を入れる**。
@@ -69,13 +69,15 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - `render_blocks_html` は `HtmlRenderer`（AST → HTML）の出力を `StreamingHtmlRewriter`（`lol-html`。外部リンクの `rel`、`<img>` の `loading` / `decoding`。[`[security]`](configuration.md#27-security--html-出力のセキュリティ--最適化)）に通す。
 - テーマ適用済みのページ全体は `render::render_page`（リレーション解決 → `on-render-page` → テンプレート）。公開ページとプレビューの `page_html` が共用する。
 - プレビューは編集のたびに `transform-content-ast` を呼ぶため、このフックは副作用なしが前提（[plugin_hooks.md](plugin_hooks.md)）。
+- **カスタム HTML ブロック（`core/html`）は `HtmlRenderer` がそのまま出力する**。後段のリライターはリンク・画像の属性を足すだけで、`<script>` やイベント属性は取り除かない（書けるのは `editor` 以上）。
+- **固定ページのレイアウト**: スキーマ `page` の既存の `layout` フィールドを使い（マイグレーション不要）、公開ページ（`render_page_or_slug`）とプレビューで同じ規則でテンプレートを選ぶ: `blank` → 組み込みの `blank.html`、空・`default` → `page.html`、それ以外 → テーマの `<layout>.html`。
 
 ### 3.2 テーマエンジン (`aegis-theme`)
 
 - テンプレートの探索は「`register_template` で登録したもの」→「`themes/{active}/templates/`」→「バイナリに埋め込んだ組み込みテンプレート」の順。
 - `ThemeEngine` は内部状態を `RwLock` で持ち、`set_active_theme` で再起動せずにテーマを切り替える。コンパイル済みの MiniJinja 環境は再利用し、テーマの切り替え・テンプレートの登録で破棄する（`[theme].reload_templates = true` なら毎回読み直す）。
 - フィルター（`date_short`、`truncate` など）は引数を `&str` ではなく `minijinja::Value` で受ける。`&str` だと `None` や未定義の値で `value is not a string` の実行時エラー（500）になる。
-- テーマパッケージ（`theme.json`・`preview.*`・`templates/`・`assets/`）の検証は `ThemeEngine::validate_theme_package`。ストアからの ZIP 導入はこれで検証してから `themes/<id>/` に展開する前提。
+- テーマパッケージ（`theme.json`・`preview.*`・`templates/`・`assets/`）の検証は `ThemeEngine::validate_theme_package`。ZIP 導入（`POST /api/v1/themes/install`）は署名の方針を加えた `validate_theme_package_with_policy` で検証してから `themes/<id>/` に置く（[10.2](#102-インストールと有効化-wasmpluginloader) のパッケージの共通部分を使う）。
 - アセット（`GET /theme/assets/{*path}`）はアクティブテーマの `assets/` からリクエスト時に解決し、`..` や絶対パスを拒否する。MIME は `aegis_core::guess_content_type`（拡張子から。`text/css` でないと CSS がブラウザに拒否される）。
 - サイト全体の値（サイト名・説明・favicon・`custom_css`）は `render::site_page_context` でまとめて作り、公開ページ・一覧・404・ショップの各ページはそこから組み立てる。サイト名と favicon は `AppState::site()`（Admin Studio の値 → `[theme]`）で、起動時に `_aegis_settings` から読み、`PUT /api/v1/site` で書き換える（再起動不要）。favicon は新しいテンプレート変数ではなく `extra_head` に `<link rel="icon">` として入れる（既存のテーマがすべて出力しているため、テーマの改修が要らない。プラグインの ABI の `PageRenderContext` も変えずに済む）。
 
@@ -247,6 +249,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 - 金額はすべて通貨の最小単位の `i64`（Stripe の `unit_amount` と同じ）。表示は `aegis_core::format_money` / テンプレートの `money` フィルター / Admin Studio の `formatMoney`。
 - 在庫の確保は `UPDATE ... SET stock = stock - ? WHERE id = ? AND (stock IS NULL OR stock >= ?)` を注文の INSERT と同じトランザクションで行う（売り越し防止）。`stock` が NULL の商品は無制限。
+- **バリエーションは別表 `_aegis_product_variants`**: 商品はスキーマごとに動的なコンテンツの表なので、サイズ・色ごとの価格・在庫は固定の表に分けた。`StockReservation` が `variant_id` を持ち、在庫の確保・戻しは同じトランザクションの中で親商品の表かバリエーションの表かを切り替える。カート・明細は `(product_id, Option<variant_id>)` で区別し、明細には注文時の `variant_title` / `sku` を残す。
+- **複数通貨**: 金額は通貨ごとの最小単位の整数のまま扱い、換算は `aegis_core::convert_currency`（`currency_decimals` で 0 / 2 / 3 桁を合わせて四捨五入、`i64` の範囲で飽和）。単価は `CommerceService::resolve_item_price` で、通貨ごとの固定価格（`price_<通貨>`）を換算より優先する（端数を店側で決められるように）。注文は 1 つの通貨で計算・保存し、Stripe にもその通貨で渡す。
 - 状態の変更は `transition_order`（`WHERE status = 前の状態`）で、Webhook の重複・期限切れ処理との競合を防ぐ。プラグインへの通知（`on-order-status-changed`）は `tokio::spawn` で応答を待たない。
 - **外部連携決済の抽象化層 (`PaymentProvider`)**:
   - `PaymentProvider` トレイト（`create_checkout_session`, `verify_webhook`, `supports_refund`, `refund`, `allows_manual_confirmation`）によりゲートウェイ固有の通信とロジックを分離。
@@ -277,6 +281,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - インストール = `plugins_dir/<name>/plugin.manifest.json`（ディレクトリ名とマニフェストの `name` は一致必須、`is_valid_plugin_name`）。有効化 = `[plugins].enabled`、または Admin Studio で切り替えて DB に保存した一覧（順序 = フックの実行順）。テーマの `themes/<id>/` + `[theme].active` と同じ考え方で、ストアからのインストールもこの形に展開する前提。
 - `load_enabled` は有効なものだけをコンパイルし、失敗したら起動を止める（fail-closed。アクセス制限系のプラグインが黙って外れるのを防ぐ）。無効なものは `discover` でマニフェストだけ読み、不備は警告ログ・`aegis plugin list`・`GET /api/v1/plugins` に出す。
 - **実行時の切り替え**（`aegis-server/src/plugin_registry.rs`、`PUT /api/v1/plugins/{name}/enabled`）: 有効化リストは `[plugins].enabled` を DB の `_aegis_settings`（`plugins.enabled`、JSON 配列）で上書きする（サイト名と同じ置き場所。キャッシュは消えうるので使わない）。保存した値が壊れていれば起動を止める（fail-closed）。切り替えは `PluginRegistry` の `Mutex` で直列化し、`PluginLoader::rebuild` で新しい `PluginSupervisor` を組み立ててから `RwLock` の中身を差し替える（読み込み済みのインスタンスは `Arc` で使い回し、新しく有効にしたものだけを `spawn_blocking` でコンパイル）。順序は「読み込み → DB 保存 → 差し替え」で、どこで失敗しても状態は変わらない。`supervisor` の `Arc` は EC・通知チャネルと共有しているので中身の差し替えだけで全体に効く。プラグインの登録テンプレートも差し替え時に入れ替える。通知チャネルに使っているプラグインは外させない（起動時の `validate_plugin_channels` と同じ条件を保つため。無効化・設定ファイルの値に戻すときとも）。有効化・無効化・並べ替え（`PUT /api/v1/plugins/order`、今有効なものの並べ替えに限る）・設定ファイルの値に戻す（`DELETE`、DB の行を消す）は `handlers/plugin.rs` の `switch_plugins` を共有する。差し替えたあとイベントバスで知らせ、受け取ったサーバー（自分を含む）は `plugin_registry::sync_from_db` で DB の一覧（無ければ自分の `[plugins].enabled`）と比べ、違えば同じ `prepare` → `install` で差し替える。プラグインの設定値（メモリに載せた `plugin_settings`）も同じように知らせ、受け取ったらキャッシュから読み直す。
+- **ZIP パッケージ（`aegis_core::package`）**: プラグインとテーマで共通。`extract_zip_safely`（ZipSlip・サイズ・エントリ数の制限）→ `check_min_aegis_version`（semver）→ `verify_package_signature`（Ed25519、`ring`）。署名の対象は `manifest`（マニフェストのバイト列）か `package`（`signature.json` 以外の全ファイルを相対パスで並べ、`パス:SHA-256\n` を連ねたものの SHA-256）。検証は一時ディレクトリで済ませてから `plugins/<name>/` に複写するので、失敗しても既存のプラグインは変わらない（置き換えは削除 → 複写で、原子的ではない）。インストールは有効化しない。
 - `WasmPluginInstance::from_bytes` で `Linker::instantiate_pre` してインポートを読み込み時に検査する。`_initialize` があればインスタンス化の直後に呼ぶ（TinyGo `wasm-unknown`）。
 
 ### 10.3 ホスト API (`HostServices`)
@@ -341,3 +346,14 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **MySQL の索引**: utf8mb4 の索引は 3,072 バイトまでなので、`VARCHAR(255)` の列は 1 つの索引に 3 つまで（`idx_aegis_comments_content` は `content_id, status, created_at`）。
 - **テンプレート**: 公開ページの `PageRenderContext.comments`（`CommentSection`）は `skip_serializing_if` で、コメントを受け付けないページには出ない。プラグインの `on-render-page` は返したキーだけを上書きするので、SDK の `PageRenderContext` に `comments` が無くても消えない。`items` は MiniJinja の辞書のメソッド名と重なるため、テンプレートでは `comments["items"]` で参照する。
 - 結合テストは `aegis-comments/src/tests.rs`（サービス）、`aegis-server/src/handlers/comments_tests.rs`（ルーター経由）、`aegis-db/tests/comments_integration.rs`（SQLite と、コンテナがあれば PostgreSQL / MySQL）。
+
+---
+
+## 14. 掲示板 (`aegis-forum`)
+
+- **記事・コメントとは別の表**（`_aegis_forum_categories` / `_aegis_forum_threads` / `_aegis_forum_posts`、`aegis_db::ForumStorage`）。スレッドの最終投稿日時・レス数・ロックなど掲示板だけの列と索引が要り、記事の描画の経路（`on-render-page` などのフック）も通さないため。
+- **専用の DB に分けられる（`[forum].database_url`）**: 投稿が集中したときの SQLite の書き込みロックや PostgreSQL / MySQL の接続数が、本体（記事・EC・セッション）に響かないように。分けた場合は `ForumService` にだけ別の `DatabaseAdapter` を渡し、起動時と `aegis migrate` でその DB に表を作る。省略時は本体の DB を共有する。
+- **ページ送りはキーセット方式**: スレッドは `(is_pinned DESC, last_post_at DESC, id DESC)`、レスは `post_number > ?`。`OFFSET` だと後ろのページほど遅くなるため。
+- **レス番号はスレッドごとの連番**で、レスの削除は論理削除（`is_deleted`。番号と「>>N」の参照を崩さない）。スレッドの削除は物理削除。`auto_lock_post_count` に達したら自動でロックする。
+- 連投の制限は `CacheBackend` で IP・ユーザーごとに数える。監査ログは `forum.*`。
+- 結合テストは `aegis-forum/src/tests.rs`（サービス）、`aegis-server/src/handlers/forum_tests.rs`（ルーター経由。専用 DB への分離も確かめる）。
