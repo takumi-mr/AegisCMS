@@ -112,6 +112,8 @@ super::variants::impl_product_variant_storage!(MySqlAdapter, |_| "?".to_string()
 super::comments::impl_comment_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::notifications::impl_notification_queue_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::forum::impl_forum_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
+super::customers::impl_customer_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
+super::reviews::impl_review_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 
 #[async_trait]
 impl DatabaseAdapter for MySqlAdapter {
@@ -285,6 +287,15 @@ impl DatabaseAdapter for MySqlAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         }
+        if !order_cols.iter().any(|c| c == "customer_id") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN customer_id VARCHAR(255);",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
 
         for index in order_indexes {
             sqlx::query(&index)
@@ -301,6 +312,34 @@ impl DatabaseAdapter for MySqlAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in variant_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 顧客
+        let (customer_table, customer_indexes) =
+            super::customers::build_customer_table("TEXT", "VARCHAR(255)", true);
+        sqlx::query(&customer_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in customer_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 商品レビュー
+        let (review_table, review_indexes) =
+            super::reviews::build_review_table("TEXT", "VARCHAR(255)", "BIGINT", true);
+        sqlx::query(&review_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in review_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

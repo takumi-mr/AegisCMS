@@ -822,7 +822,23 @@ async fn main() -> anyhow::Result<()> {
                     config.commerce.currency,
                     config.commerce.provider
                 );
-                app_state.with_commerce(commerce)
+
+                let customers = aegis_commerce::CustomerService::new(
+                    app_state.db.clone(),
+                    app_state.cache.clone(),
+                    app_state.audit.clone(),
+                );
+                let reviews = aegis_commerce::ReviewService::new(
+                    app_state.db.clone(),
+                    app_state.audit.clone(),
+                    app_state.notifier.clone(),
+                    config.comments.moderation.clone(),
+                );
+
+                app_state
+                    .with_commerce(commerce)
+                    .with_customers(customers)
+                    .with_reviews(reviews)
             } else {
                 app_state
             };

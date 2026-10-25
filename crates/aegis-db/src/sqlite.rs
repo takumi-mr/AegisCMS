@@ -130,6 +130,8 @@ super::notifications::impl_notification_queue_storage!(
     "SQLite"
 );
 super::forum::impl_forum_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::customers::impl_customer_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::reviews::impl_review_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 
 #[async_trait]
 impl DatabaseAdapter for SqliteAdapter {
@@ -292,6 +294,15 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         }
+        if !order_columns.contains("customer_id") {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ADD COLUMN customer_id TEXT;",
+                super::orders::ORDER_TABLE
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
 
         for index in order_indexes {
             sqlx::query(&index)
@@ -308,6 +319,34 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in variant_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 顧客
+        let (customer_table, customer_indexes) =
+            super::customers::build_customer_table("TEXT", "TEXT", false);
+        sqlx::query(&customer_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in customer_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 商品レビュー
+        let (review_table, review_indexes) =
+            super::reviews::build_review_table("TEXT", "TEXT", "INTEGER", false);
+        sqlx::query(&review_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in review_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

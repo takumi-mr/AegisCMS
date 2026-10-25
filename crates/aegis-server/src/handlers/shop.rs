@@ -202,10 +202,26 @@ pub async fn checkout(
     audit: AuditContext,
     ClientIp(client_ip): ClientIp,
     headers: HeaderMap,
-    Json(request): Json<CartRequest>,
+    Json(mut request): Json<CartRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let commerce = commerce(&state)?;
     let site = site_url(&state, &headers);
+
+    // ログイン中の顧客アカウントがあれば自動紐付け
+    if request.customer_id.is_none() {
+        if let Ok(session) =
+            crate::handlers::customers::resolve_customer_session(&state, &headers).await
+        {
+            request.customer_id = Some(session.customer_id);
+            if request.email.trim().is_empty() {
+                request.email = session.email;
+            }
+            if request.name.trim().is_empty() {
+                request.name = session.name;
+            }
+        }
+    }
+
     let result = commerce
         .checkout(&audit, &request, client_ip.as_deref(), |order, token| {
             ReturnUrls {

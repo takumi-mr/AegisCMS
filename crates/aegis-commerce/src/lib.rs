@@ -6,7 +6,9 @@
 //! 在庫は注文の作成と同じトランザクションで減らし（`stock >= 数量` のときだけ）、取り消し・期限切れで戻す
 
 pub mod config;
+pub mod customer;
 pub mod payment;
+pub mod review;
 pub mod stripe;
 
 use std::collections::HashMap;
@@ -20,6 +22,15 @@ use aegis_core::{
 use aegis_schema::{FieldType, SchemaDefinition};
 use chrono::{SecondsFormat, Utc};
 pub use config::{CommerceConfig, ManualPaymentConfig, PaymentProviderKind, StripeConfig};
+pub use customer::{
+    CustomerLoginRequest, CustomerRegisterRequest, CustomerResponse, CustomerService,
+    CustomerSessionData, CustomerUpdateProfileRequest, CUSTOMER_SESSION_PREFIX,
+    CUSTOMER_TOKEN_PREFIX,
+};
+pub use review::{
+    JsonLdAggregateRating, PublicReview, ReviewAuthor, ReviewService, ReviewSubmission,
+    REVIEW_SETTINGS_PREFIX,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -104,6 +115,8 @@ pub struct CartRequest {
     pub shipping_address: Option<ShippingAddress>,
     #[serde(default)]
     pub coupon_code: Option<String>,
+    #[serde(default)]
+    pub customer_id: Option<String>,
 }
 
 /// 注文の作成結果
@@ -628,6 +641,7 @@ impl CommerceService {
             transaction_id: None,
             refunded_amount: 0,
             refunds_json: "[]".to_string(),
+            customer_id: request.customer_id.clone(),
         };
 
         let stored = self
@@ -1302,3 +1316,8 @@ pub fn order_context(order: &OrderRecord) -> OrderContext {
         metadata: serde_json::from_str(&order.metadata_json).unwrap_or_default(),
     }
 }
+
+#[cfg(test)]
+mod customer_tests;
+#[cfg(test)]
+mod review_tests;

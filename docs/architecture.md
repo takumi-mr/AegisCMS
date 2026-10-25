@@ -262,7 +262,19 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - Webhook の `charge.refunded` イベントによる自動同期。
 - `calculate-order` の結果は `adjustments` / `metadata` だけを反映し、合計はホストが計算し直す。拒否メッセージは顧客に見せるため、ホストが付けるプラグイン名の接頭辞を外す（ログには残す）。
 - Stripe の注文は支払い済みになった時点（Webhook）で `order.placed` を送る（決済ページで離脱した注文に受付メールを送らない）。注文確認ページのトークンは平文を保存しないので、URL は `order.placed` のメールにしか入らない。
-- 結合テストは `aegis-server/src/handlers/shop_tests.rs`。
+- **顧客アカウント (`_aegis_customers`, `CustomerService`)**:
+  - CMS 管理スタッフ（`_aegis_users`）とは完全に独立したテーブルおよび専用セッショントークン（`cses_<uuid>`、キャッシュ保存）で管理。Admin Studio のロール権限・管理セッションとは混ざらない。
+  - Argon2id によるパスワードハッシュ化と、タイミング攻撃を防ぐダミー計算。
+  - チェックアウト時に `Authorization: Bearer cses_...` があればセッションから `customer_id` を注文に自動紐付け。
+  - 顧客マイページ向け API: プロフィール更新、自身の注文履歴一覧・詳細、投稿レビュー一覧。
+- **商品レビュー (`_aegis_reviews`, `ReviewService`)**:
+  - **購入者限定 (Verified Purchase)**: 注文ステータスが支払い済み/完了（`paid`, `completed`）かつ明細に対象商品を含む顧客のみ投稿可能。アカウント無しのゲスト購入者も、注文アクセストークンによる購入証明付き投稿に対応。
+  - **1 注文 1 商品 1 件の制約**: 同一注文から同一商品に対する重複レビューを厳格に拒否。
+  - **モデレーション共有**: `aegis-comments::moderation`（承認制、NGワード、リンク制限等）のポリシーをそのまま流用。
+  - **ステマ規制対応（景表法ステマ告示）**: 低評価（★1〜2）を機械的に非承認とせず、非承認時は `rejection_reason` の記録を可能にして運用の透明性を確保。
+  - **集計と SEO**: ★1〜5 の平均評価、件数、星別分布を集計し、JSON-LD の `AggregateRating` 形式を出力。
+  - **運営者返信**: 管理者からの 1 段の公式返信（`reply`）に対応。
+- 結合テストは `aegis-server/src/handlers/shop_tests.rs` および `customers_tests.rs`。
 
 ---
 
