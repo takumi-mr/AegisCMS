@@ -160,6 +160,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/site",
             get(handlers::get_site_settings).put(handlers::update_site_settings),
         )
+        .route(
+            "/api/v1/seo",
+            get(handlers::get_seo_settings).put(handlers::update_seo_settings),
+        )
         .route("/api/v1/themes", get(handlers::list_themes))
         .route(
             "/api/v1/themes/active",
@@ -178,7 +182,9 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             get(handlers::get_active_theme_asset),
         )
         .route("/metrics", get(handlers::get_metrics))
-        // --- 公開フロントエンド（テンプレートレンダリング） ---
+        // --- 公開エンドポイント（robots.txt, sitemap.xml, テンプレートレンダリング） ---
+        .route("/robots.txt", get(handlers::get_robots_txt))
+        .route("/sitemap.xml", get(handlers::get_sitemap_xml))
         .route("/", get(handlers::render_index))
         .route("/articles", get(handlers::render_index))
         .route("/articles/{slug}", get(handlers::render_article))

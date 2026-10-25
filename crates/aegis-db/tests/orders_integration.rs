@@ -444,9 +444,9 @@ where
     assert_eq!(ord_after_ref2.status, "refunded");
     assert_eq!(ord_after_ref2.refunded_amount, 4400);
 
-    // 在庫が戻ったか確認（キャンセル時に残3だったが、ここで2個戻るので5個に復旧）
+    // 在庫が戻ったか確認（キャンセル時に5に戻り、全額返金でさらに2個戻るので7個）
     let coffee_restocked = adapter.get_content(&schema, "p-coffee").await?.unwrap();
-    assert_eq!(coffee_restocked.custom_fields.get("stock"), Some(&json!(5)));
+    assert_eq!(coffee_restocked.custom_fields.get("stock"), Some(&json!(7)));
 
     // 13. ProductVariantStorage CRUD and Variant Stock Reservation
     let var1 = aegis_db::ProductVariantRecord {
@@ -537,11 +537,11 @@ where
     let res_var = adapter.create_order(&order_var, &var_reservations).await?;
     assert!(res_var.is_ok());
 
-    // バリエーションの在庫が 4 -> 2 に減算され、親商品 (5) は影響を受けないこと
+    // バリエーションの在庫が 4 -> 2 に減算され、親商品 (7) は影響を受けないこと
     let v1_after = adapter.get_product_variant("var-mug-red-s").await?.unwrap();
     assert_eq!(v1_after.stock, Some(2));
     let parent_after = adapter.get_content(&schema, "p-coffee").await?.unwrap();
-    assert_eq!(parent_after.custom_fields.get("stock"), Some(&json!(5)));
+    assert_eq!(parent_after.custom_fields.get("stock"), Some(&json!(7)));
 
     // 在庫不足時の拒否検証（残り 2 個のバリエーションに対して 3 個要求）
     let order_var_fail = OrderRecord {

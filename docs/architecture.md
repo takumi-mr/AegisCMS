@@ -37,7 +37,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 - スキーマ `content_type: article` のテーブルは `content_article`。本文は Block AST の JSON を `blocks_json TEXT NOT NULL DEFAULT '[]'` に保存する。描画済み HTML は保存しない（`[security]` の変更を保存済みのコンテンツにも反映するため）。
 - システムテーブルは `_aegis_` 接頭辞（`_aegis_users`、`_aegis_user_identities`、`_aegis_audit_logs`、`_aegis_orders`、`_aegis_settings` など）。
-- `_aegis_settings` は Admin Studio から変更するサイト全体の設定（`name` → `value`。今はサイト名 `site.title` と favicon `site.favicon`）。カラム名は MySQL の予約語 `key` を避けて `name` にした。上書きは SQLite / PostgreSQL が `ON CONFLICT`、MySQL が `ON DUPLICATE KEY UPDATE`。設定ファイルの値は既定値として残し、行を消すと設定ファイルの値に戻る（プラグイン設定のようにキャッシュへ置くと、メモリのキャッシュでは再起動と TTL で消えるため DB にした）。
+- `_aegis_settings` は Admin Studio から変更するサイト全体の設定（`name` → `value`。サイト名 `site.title`、favicon `site.favicon`、および SEO & Bot 設定 `seo.*`（`robots_txt`, `meta_description`, `meta_keywords`, `canonical_base_url`, `og_image`, `noindex_all`, `twitter_card`））。カラム名は MySQL の予約語 `key` を避けて `name` にした。上書きは SQLite / PostgreSQL が `ON CONFLICT`、MySQL が `ON DUPLICATE KEY UPDATE`。設定ファイルの値は既定値として残し、行を消すと設定ファイルの値に戻る（プラグイン設定のようにキャッシュへ置くと、メモリのキャッシュでは再起動と TTL で消えるため DB にした）。
 - コンテンツ作成 API（`POST /api/v1/contents/{type}`）のペイロードはトップレベルに `title` / `slug` / `status` / `blocks` / `author_id` とカスタムフィールドを持つ。応答ではカスタムフィールドは `fields`、解決済みリレーションは `relations` に入る（[Admin Studio の型](../admin/README.md#-設計メモ)に注意）。
 
 ### 2.2 `DatabaseAdapter`
@@ -103,6 +103,25 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - 全コンテンツタイプ（記事・商品等）を横断し、予約公開中（`scheduled`）、非公開予約あり、または公開中のコンテンツを日時順（`published_at` / `unpublish_at`）で集約して返す。
   - Admin Studio のカレンダービュー・アジェンダビューのデータソースとなる。
 - 確認間隔は定数 `PUBLISH_INTERVAL`（30 秒）。設定にしたくなったら `[server]` などに足す。
+
+### 3.5 SEO & Bot 制御 (`aegis-server/src/seo.rs`, `handlers/seo.rs`)
+
+- **設計思想**:
+  - テーマのベーステンプレート（`base.html`）は `{{ extra_head | safe }}` を `<head>` 内に出力する規約を採用しており、SEO メタタグ・OGP・Twitter Card・Canonical タグ・noindex 指示は `render::build_extra_head` により自動構築されて `extra_head` に挿入される。既存テーマを改修することなく、全公開ページ・個別商品・記事へ透過的に適用される。
+  - 設定値は `_aegis_settings` に永続化され、`AppState.seo`（`Arc<RwLock<SeoOverrides>>`）を通じてサーバー再起動不要で即時反映される。設定変更時は監査ログ `seo.update` を記録する。
+- **エンドポイント**:
+  - `GET /robots.txt`:
+    - 管理画面でカスタマイズされた `robots.txt` を配信する。未設定時は安全なデフォルト（`/admin/`, `/api/` を Disallow、Sitemap への参照を含む）を自動生成する。
+    - リクエストの `Host` ヘッダーまたは設定済みの Canonical Base URL を参照し、`Sitemap: http(s)://.../sitemap.xml` を動的に注入する。
+  - `GET /sitemap.xml`:
+    - 公開中のコンテンツ（記事、固定ページ、商品など `status == "published"` かつ未期限切れ）を DB から動的集約し、Sitemap 0.9 準拠の XML を配信する。
+    - 各 URL の `<lastmod>` にはコンテンツの更新日時（`updated_at`）を使用する。
+  - `GET /api/v1/seo` / `PUT /api/v1/seo`:
+    - 管理画面（Admin Studio）から SEO・Bot 設定の取得・更新を行う REST API。
+    - バリデーション: `canonical_base_url` は空または有効な HTTP/HTTPS URL、`robots_txt` のサイズ制限（最大 64 KB）、`twitter_card` は `"summary"` または `"summary_large_image"`。
+- **メタタグ自動注入の優先順位**:
+  - ページ個別設定（個別記事の `excerpt` や商品のサムネイル画像）が存在する場合はそれを優先し、未設定の場合はサイト全体の共通設定（`meta_description`, `og_image`）へフォールバックする。
+  - サイト全体で `noindex_all = true` が有効化されている場合、全ページの `<head>` に `<meta name="robots" content="noindex, nofollow">` が強制注入される（ステージング環境や構築中サイトの検索流入防止）。
 
 ---
 

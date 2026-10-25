@@ -46,7 +46,10 @@
     <line x1="60" y1="260" x2="385" y2="260" stroke="url(#gold-grad)" stroke-width="2" />
     <text x="85" y="295" fill="#f59e0b" font-family="sans-serif" font-weight="700" font-size="10" letter-spacing="2">COLLECTION I</text>
     <text x="85" y="328" fill="#ffffff" font-family="'Times New Roman', serif" font-weight="700" font-size="18">Deterministic Sandboxing</text>
-    <text x="85" y="355" fill="#9ca3af" font-family="sans-serif" font-size="12">Crafted with surgical precision in Rust, safeguarding your sovereign content.</text>
+    <text x="85" y="355" fill="#9ca3af" font-family="sans-serif" font-size="12">
+        <tspan x="85" dy="0">Crafted with surgical precision in Rust, </tspan>
+        <tspan x="85" dy="1.2em">safeguarding your sovereign content.</tspan>
+    </text>
     <text x="85" y="415" fill="#10b981" font-family="sans-serif" font-weight="600" font-size="11" letter-spacing="1">View Artifact</text>
 
     <!-- Card 2 -->
@@ -54,7 +57,10 @@
     <line x1="415" y1="260" x2="740" y2="260" stroke="url(#gold-grad)" stroke-width="2" />
     <text x="440" y="295" fill="#f59e0b" font-family="sans-serif" font-weight="700" font-size="10" letter-spacing="2">COLLECTION II</text>
     <text x="440" y="328" fill="#ffffff" font-family="'Times New Roman', serif" font-weight="700" font-size="18">The Sovereign Astrolabe</text>
-    <text x="440" y="355" fill="#9ca3af" font-family="sans-serif" font-size="12">Sub-millisecond templating ensuring unmatched clarity and timeless distinction.</text>
+    <text x="440" y="355" fill="#9ca3af" font-family="sans-serif" font-size="12">
+        <tspan x="440" dy="0">Sub-millisecond templating ensuring</tspan>
+        <tspan x="440" dy="1.2em">unmatched clarity and timeless distinction.</tspan>
+    </text>
     <text x="440" y="415" fill="#10b981" font-family="sans-serif" font-weight="600" font-size="11" letter-spacing="1">View Artifact</text>
   </g>
 </svg>

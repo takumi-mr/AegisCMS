@@ -58,7 +58,9 @@ async fn render_shop_page(state: &AppState, mut ctx: PageRenderContext) -> Respo
     ctx.site_title = site.site_title;
     ctx.site_description = site.site_description;
     ctx.extra_css = site.extra_css;
-    ctx.extra_head = site.extra_head;
+    if ctx.extra_head.is_empty() {
+        ctx.extra_head = site.extra_head;
+    }
     ctx.theme_vars.extend(shop_vars(state));
     {
         let supervisor = state.supervisor.read().await;
@@ -166,6 +168,14 @@ pub async fn render_products(
             prev_url: (page > 1).then(|| page_url(page - 1)),
             next_url: (page < total_pages).then(|| page_url(page + 1)),
         }),
+        extra_head: render::build_extra_head(
+            &state,
+            Some("Products"),
+            None,
+            None,
+            Some("/products"),
+            false,
+        ),
         ..Default::default()
     };
     render_shop_page(&state, ctx).await
@@ -216,6 +226,22 @@ pub async fn render_product(
     let mut theme_vars = HashMap::new();
     theme_vars.insert("variants_json".to_string(), variants_json);
 
+    let path = format!("/products/{}", record.slug);
+    let excerpt = extract_excerpt(&blocks, 120);
+    let image = record
+        .custom_fields
+        .get("image")
+        .or_else(|| record.custom_fields.get("featured_image"))
+        .and_then(|v| v.as_str());
+    let extra_head = render::build_extra_head(
+        &state,
+        Some(&record.title),
+        Some(&excerpt),
+        image,
+        Some(&path),
+        false,
+    );
+
     let ctx = PageRenderContext {
         template: "product.html".to_string(),
         content_type: schema.content_type.clone(),
@@ -235,6 +261,7 @@ pub async fn render_product(
         },
         relations,
         theme_vars,
+        extra_head,
         ..Default::default()
     };
     render_shop_page(&state, ctx).await

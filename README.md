@@ -182,7 +182,7 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 
 Axum を基盤とした REST API Gateway サーバーです。ドメインクレートを組み立て、HTTP の入出力と認可だけを担当します。
 
-- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`・削除 `DELETE /api/v1/storage/objects/{key}`（[docs/media.md](docs/media.md)）、エディタのプレビュー `POST /api/v1/preview`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン）・OpenID Connect によるシングルサインオン `GET /api/v1/auth/oidc/login`・SAML 2.0 によるシングルサインオン `GET /api/v1/auth/saml/login` / `POST /api/v1/auth/saml/acs` / `GET /api/v1/auth/saml/metadata`（[docs/authentication.md](docs/authentication.md)）、ショップ API・公開ページ、ヘルスチェック）。
+- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`・削除 `DELETE /api/v1/storage/objects/{key}`（[docs/media.md](docs/media.md)）、エディタのプレビュー `POST /api/v1/preview`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン）・OpenID Connect によるシングルサインオン `GET /api/v1/auth/oidc/login`・SAML 2.0 によるシングルサインオン `GET /api/v1/auth/saml/login` / `POST /api/v1/auth/saml/acs` / `GET /api/v1/auth/saml/metadata`（[docs/authentication.md](docs/authentication.md)）、ショップ API・公開ページ、動的 robots.txt `GET /robots.txt`・サイトマップ `GET /sitemap.xml`・SEO 設定 API `GET/PUT /api/v1/seo`、ヘルスチェック）。
 - **`auth`**: リクエストからのセッション抽出、ロールに基づく認可、プラグインの認証フック。
 - **`audit`**: リクエストから操作者と操作元を取り出す `AuditContext` エクストラクタ。
 - **`state`**: `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、`CommerceService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
