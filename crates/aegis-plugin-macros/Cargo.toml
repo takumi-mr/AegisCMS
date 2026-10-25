@@ -4,7 +4,13 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/aegis-plugin-macros"
+readme = "README.md"
 description = "Procedural macros for AegisCMS Wasm plugin SDK"
+keywords = ["wasm", "webassembly", "proc-macro", "aegiscms", "plugin"]
+categories = ["wasm", "development-tools::procedural-macro-helpers"]
 
 [lints]
 workspace = true

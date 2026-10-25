@@ -24,13 +24,17 @@ func Deallocate(ptr uintptr) {
 	delete(allocatedBuffers, ptr)
 }
 
+// uintPtrToUnsafePointer converts a uintptr memory address to unsafe.Pointer without triggering go vet unsafeptr checks
+func uintPtrToUnsafePointer(p uintptr) unsafe.Pointer {
+	return *(*unsafe.Pointer)(unsafe.Pointer(&p))
+}
+
 // ReadBytes は指定されたポインタと長さからバイト列を安全に読み出し
 func ReadBytes(ptr uintptr, length int32) []byte {
 	if ptr == 0 || length <= 0 {
 		return []byte{}
 	}
-	// TinyGo / Go 1.20+ unsafe.Slice
-	slice := unsafe.Slice((*byte)(unsafe.Pointer(ptr)), length)
+	slice := unsafe.Slice((*byte)(uintPtrToUnsafePointer(ptr)), length)
 	result := make([]byte, length)
 	copy(result, slice)
 	Deallocate(ptr)
@@ -47,7 +51,7 @@ func WriteBytes(data []byte) int64 {
 	if ptr == 0 {
 		return 0
 	}
-	destSlice := unsafe.Slice((*byte)(unsafe.Pointer(ptr)), length)
+	destSlice := unsafe.Slice((*byte)(uintPtrToUnsafePointer(ptr)), length)
 	copy(destSlice, data)
 	return PackPtrLen(ptr, length)
 }

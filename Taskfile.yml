@@ -226,6 +226,28 @@ tasks:
       - cmd: "cd sdk/templates/tinygo && tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go"
         platforms: [linux, darwin]
 
+  # ============================================================================
+  # 📦 プラグイン SDK パッケージ検証タスク
+  # ============================================================================
+  sdk:check:
+    desc: 全言語の公式プラグイン SDK (Rust / AssemblyScript / TinyGo) の静的検証・テストを一括実行
+    cmds:
+      - cargo test -p aegis-plugin-sdk
+      - npm --prefix sdk/assemblyscript test
+      - cmd: cmd /c "set GOOS=wasip1&& set GOARCH=wasm&& cd sdk\\tinygo && go vet ./..."
+        platforms: [windows]
+      - cmd: "cd sdk/tinygo && GOOS=wasip1 GOARCH=wasm go vet ./..."
+        platforms: [linux, darwin]
+
+  sdk:pack:dry-run:
+    desc: 各言語 SDK のパッケージング・公開事前検証を一括実行 (crates.io / npm)
+    cmds:
+      - cargo package -p aegis-plugin-macros --allow-dirty
+      - cmd: cmd /c "cd sdk\\assemblyscript && npm pack --dry-run"
+        platforms: [windows]
+      - cmd: "cd sdk/assemblyscript && npm pack --dry-run"
+        platforms: [linux, darwin]
+
 
   # ============================================================================
   # ☕ サンプルショップ（examples/coffee-shop）

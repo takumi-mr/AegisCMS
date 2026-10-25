@@ -1,8 +1,4 @@
 /**
- * AegisCMS AssemblyScript Plugin SDK Entrypoint
+ * Backward compatibility re-export shim for @aegiscms/plugin-sdk
  */
-
-export * from "./types";
-export * from "./host";
-export * from "./abi";
-export * from "./json";
+export * from "@aegiscms/plugin-sdk/assembly/index";

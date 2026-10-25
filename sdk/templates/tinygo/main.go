@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"aegis-plugin-template-tinygo/sdk"
+	"github.com/takumi-mr/AegisCMS/sdk/tinygo"
 )
 
 //export allocate

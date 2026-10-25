@@ -18,6 +18,9 @@
   ],
   "author": "AegisCMS Contributors",
   "license": "Apache-2.0",
+  "dependencies": {
+    "@aegiscms/plugin-sdk": "file:../../assemblyscript"
+  },
   "devDependencies": {
     "assemblyscript": "^0.27.34"
   }

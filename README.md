@@ -200,7 +200,7 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 - **`Plugin` トレイト**: ライフサイクルフック（記事保存前 `on_before_save`、コンテンツ AST 変換 `transform_content_ast`）の型安全な実装インターフェース。
 - **`host` API**: ホスト側ロガー（`log_info!`, `log_warn!`）、ネットワークアクセス事前検証（`net::is_allowed`）、ネームスペース分離 KVS 操作（`kv::set`）をラップした型安全関数群。
 - **ネイティブテストモック内蔵**: Wasm 環境にビルドせずとも通常の `cargo test` でプラグインのビジネスロジックを単体テスト可能。
-- **公式テンプレート**: 即座に開発を開始できる [`sdk/templates/rust`](sdk/templates/rust)（AssemblyScript / TinyGo 版も `sdk/templates/` に）を同梱（詳細は [Wasm プラグイン開発ガイド](file:///d:/projects/cms/docs/plugin_sdk_guide.md) を参照）。
+- **公式テンプレート & マルチ言語パッケージ**: 即座に開発を開始できる [`sdk/templates/rust`](sdk/templates/rust)（AssemblyScript / TinyGo 版も `sdk/templates/` に同梱）。各言語向けに公式パッケージ（Rust: `aegis-plugin-sdk`, AssemblyScript: `@aegiscms/plugin-sdk`, TinyGo: `github.com/takumi-mr/AegisCMS/sdk/tinygo`）を公開・配布（詳細は [Wasm プラグイン開発ガイド](docs/plugin_sdk_guide.md) を参照）。
 
 > [!TIP]
 > ドキュメント一覧:
