@@ -9,7 +9,7 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: フォーラム機能のテーマUI追加、専用データベース分離（Write負荷・ロック競合隔離）、および Admin Studio モデレーションUIの実装（ブランチ `feat/forum-theme-and-split-db`）
+- **直近の完了**: フォーラム機能のテーマUI追加、専用データベース分離（Write負荷・ロック競合隔離）、および Admin Studio モデレーションUIの実装（ブランチ `feat/forum-theme-and-split-db`、PR #92）
   - **Admin Studio フォーラムモデレーション UI (`ForumManager`)**:
     - ヘッダーナビゲーションに「フォーラム (`forum`)」タブを追加（`[forum].enabled` が有効かつ編集者以上の場合に動的表示）。
     - **スレッド管理 & モデレーション**: 全スレッド/カテゴリ絞り込み一覧、📌 ピン留めトグル（Pin/Unpin）、🔒 ロックトグル（Lock/Unlock）、🗑️ スレッド削除（確認ダイアログ付き）、💬 レス一覧閲覧モーダル & 迷惑レスの個別削除、公開サイトへの直接リンク（`↗`）を装備。
@@ -172,7 +172,6 @@
   - **スキーマ駆動と既存テーブルの完全互換**: 既存の `schemas/pages.yaml`（`layout` 文字列フィールド、`page` コンテンツタイプ）と `_aegis_content_pages` テーブル定義をそのまま活用し、DB マイグレーション不要で後方互換性を維持。
   - **Admin Studio UI/UX**: コンテンツ一覧の「記事」「固定ページ」タブ分割、固定ページ専用のレイアウト切替セレクター、等幅フォントによる HTML ブロックエディタ、Markdown モードとの双方向シームレス変換を完備。
 - **次のステップ**:
-  - `feat/forum-theme-and-split-db` の PR レビュー・マージ
-  - Admin Studio へのフォーラム管理画面の追加（必要に応じて）
+  - `feat/forum-theme-and-split-db` の PR #92 レビュー・マージ
   - EC 拡張 Phase 4: 顧客アカウント・売上レポート等の設計・検討
 
