@@ -9,7 +9,8 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: Storybook インタラクションテストの CI 連携とコンポーネントストーリー拡充（ブランチ `feat/storybook-vitest`）
+- **直近の完了**: AssemblyScript SDK の JSON 処理の高速化（`escapeJson` / `findStringField` の二乗の解消と、確保を 1 回にまとめる変更。テンプレートの `on-before-save` が 3,600 → 160µs。[architecture.md 12](docs/architecture.md#12-性能の記録)）。
+- **その前**: Storybook インタラクションテストの CI 連携とコンポーネントストーリー拡充（ブランチ `feat/storybook-vitest`）
   - `@storybook/addon-vitest`（10.6.2）を導入し、Vitest Browser Mode（Playwright Chromium）でストーリーおよび `play` 関数の自動検証を実現（`task test:storybook`）。`Taskfile.yml` の `task check` および GitHub Actions（`frontend-ci`）に統合。
   - コンポーネントストーリーの拡充: `Avatar`（イニシャル・画像フォールバック）、`Modal`（Escapeキー・閉じるボタン）、`SiteManager`（タイトル変更・保存・トースト）、`SeoManager`（設定変更・保存）、`Button`（クリック・disabled）、`PluginManager`（有効化・無効化・並び替え）の各ストーリーおよびインタラクションテストを整備。
 - **その前**: ベンチマークの見直しと SQLite の WAL 化（ブランチ `ccr-813a580e-kaorks`）
@@ -53,7 +54,6 @@
 
 - [ ] **ストアからのインストール**: パッケージの検証（テーマの `validate_theme_package` に相当）・署名・`min_aegis_version` の確認、展開先は `plugins/<name>/`。テーマの ZIP 導入も同じ仕組みで。
 - [ ] **AssemblyScript / TinyGo SDK の追従**: EC のフック・ホスト API（`calculate-order` / `on-order-status-changed` / `http_fetch` / `kv_get` / `config_get`）と `send-notification`、`on-content-published`、`check-comment` のラッパー。ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) に記載済み。
-- [ ] **AssemblyScript SDK の JSON 処理の高速化**: `escapeJson` / `findStringField` が入力の大きさの二乗で遅い（[architecture.md 12](docs/architecture.md#12-性能の記録)）。
 
 ### 通知
 

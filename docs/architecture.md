@@ -323,7 +323,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 - プラグインの呼び出しは単発で 1 回 40〜190µs（うちインスタンス化 10〜20µs。`task bench:plugins`）。遅かったのは同時実行時で、32 並列でスループットが 0.2〜0.5 倍に落ちていた（呼び出しごとの `mmap` / `munmap` のカーネル内の競合）。プールの導入で 32 並列のスループットが 3〜8 倍、`official-code-enhancer` を有効にした記事ページが 2,600 → 4,500 req/s。
 - プラグイン 3 つ（描画フックあり）を有効にすると記事ページは約 1,500 req/s（フック 1 回約 1ms）。
-- AssemblyScript SDK の `escapeJson` / `findStringField` は 1 文字ずつ連結するため入力の大きさの二乗で遅い（`on_before_save` で約 2ms、`official-code-enhancer` と併用すると `on_render_page` が約 13ms）。
+- AssemblyScript SDK の `escapeJson` / `findStringField` は 1 文字ずつ `+=` で連結していたため入力の大きさの二乗で遅かった（`on_before_save` で約 2〜3.6ms、`official-code-enhancer` と併用すると `on_render_page` が約 13ms）。結果の長さを先に数えて `__new` で 1 回だけ確保し、UTF-16 を直接書き込む方式に変えて、テンプレートの `on-before-save` が 3,600 → 160µs、`on-render-page` が 170 → 46µs（`task bench:plugins`）。区間ごとに `substring` して `Array#join` する方式でも二乗は消えるが、確保の回数がエスケープの数に比例し、Wasmtime 上では AssemblyScript の確保 1 回が重い（同じ処理が V8 の 10〜20 倍。ランタイムを `stub` にしても残る）ため 1.5ms までしか縮まなかった。`blocks_json` は JSON の中の JSON でエスケープが多いので特に効く。
 
 ---
 
