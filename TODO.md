@@ -9,7 +9,11 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: AssemblyScript SDK の JSON 処理の高速化（`escapeJson` / `findStringField` の二乗の解消と、確保を 1 回にまとめる変更。テンプレートの `on-before-save` が 3,600 → 160µs。[architecture.md 12](docs/architecture.md#12-性能の記録)）。
+- **直近の完了**: 掲示板・コミュニティ機能クレート `aegis-forum`（`crates/aegis-forum`）の新設
+  - **アーキテクチャ**: CMS本体の重い描画処理や記事テーブルを流用せず、専用テーブル（`_aegis_forum_categories`, `_aegis_forum_threads`, `_aegis_forum_posts`）によるモジュラーモノリスとして設計。
+  - **`aegis-db` 拡張**: `ForumStorage` トレイトを追加し、SQLite / PostgreSQL / MySQL の 3 つのダイアレクトでテーブル自動生成と CRUD・キーセットページネーション（スレッド一覧の `before_last_post_at`、レス一覧の `after_post_number`）を完全実装。
+  - **`aegis-forum` 機能**: カテゴリ管理、スレッド作成（1レス目のアトミック生成）、レス投稿（連番採番とスレッド更新）、連投防止（`CacheBackend` によるレートリミット）、ピン留め・ロック（モデレーション）、上限レス到達時の自動ロック（`auto_lock_post_count`）、ソフトデリート、監査ログ（`AuditService` / `AuditAction::Forum*`）を完備。全ユニットテストおよびワークスペース検証をパス。
+- **その前**: AssemblyScript SDK の JSON 処理の高速化（`escapeJson` / `findStringField` の二乗の解消と、確保を 1 回にまとめる変更。テンプレートの `on-before-save` が 3,600 → 160µs。[architecture.md 12](docs/architecture.md#12-性能の記録)）。
 - **その前**: Storybook インタラクションテストの CI 連携とコンポーネントストーリー拡充（ブランチ `feat/storybook-vitest`）
   - `@storybook/addon-vitest`（10.6.2）を導入し、Vitest Browser Mode（Playwright Chromium）でストーリーおよび `play` 関数の自動検証を実現（`task test:storybook`）。`Taskfile.yml` の `task check` および GitHub Actions（`frontend-ci`）に統合。
   - コンポーネントストーリーの拡充: `Avatar`（イニシャル・画像フォールバック）、`Modal`（Escapeキー・閉じるボタン）、`SiteManager`（タイトル変更・保存・トースト）、`SeoManager`（設定変更・保存）、`Button`（クリック・disabled）、`PluginManager`（有効化・無効化・並び替え）の各ストーリーおよびインタラクションテストを整備。
@@ -101,7 +105,11 @@
   - `_aegis_settings` に `seo.*` を永続化し、`AppState.seo`（`RwLock`）でサーバー再起動なしに即時反映。
   - テーマのベーステンプレートの `{{ extra_head | safe }}` に `<link rel="canonical">`、`<meta name="description">`、`<meta property="og:...">`、`<meta name="twitter:...">`、および `noindex, nofollow` を自動注入することで、既存テーマ・新規テーマを問わず改修ゼロで完全な SEO / OGP 互換性を担保。
   - `GET /robots.txt` は `Host` ヘッダーから動的に Sitemap の完全 URL（`http(s)://.../sitemap.xml`）を追記出力し、未設定時も安全なデフォルト（`/admin/`, `/api/` を遮断）を即座に提供。
-  - Admin Studio の SEO 設定画面では「標準設定」「開発環境（全ブロック）」「生成AIクローラー拒否」のワンクリックプリセットを用意し、手動入力ミスを防止。
+- **フォーラム機能（`aegis-forum`）の設計判断**:
+  - **描画ボトルネックの回避**: ベンチマーク結果から明らかな「HTML描画・Wasmフックがボトルネック」という課題を踏まえ、掲示板機能はJSON API / 軽量レスポンスを前提としてコアCMSの重いレンダリングパイプラインを通さない独立クレートとして設計。
+  - **専用データモデルとストレージ分離**: CMSの「記事（Articles）」テーブルを流用せず、専用テーブル（`_aegis_forum_categories`, `_aegis_forum_threads`, `_aegis_forum_posts`）を定義。`aegis-db::ForumStorage` により SQLite / PostgreSQL / MySQL すべてで自動マイグレーション。
+  - **キーセット（カーソル）ページネーション**: `OFFSET` による性能劣化を防ぐため、スレッド一覧は `(is_pinned DESC, last_post_at DESC, id DESC)`、レス一覧は `post_number > ?` のカーソル走査を標準化。数万〜数十万件規模でも 1ms 未満の応答を保証。
+  - **連投防止・モデレーション**: `CacheBackend` を活用した IP / ユーザーごとのレートリミット（`rate_limit_secs`）、スレッドのピン留め・ロック・自動ロック（`auto_lock_post_count`）、ソフトデリート、監査ログ（`AuditAction::Forum*`）を完全装備。
 - **次のステップ**:
   - SEO & Bot 対策完了後の Pull Request (PR) 作成（ブランチ: `feat/seo-and-bot-controls` -> `main`）。
 

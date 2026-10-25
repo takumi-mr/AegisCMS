@@ -2,6 +2,7 @@
 
 pub mod comments;
 pub mod config;
+pub mod forum;
 pub mod mysql;
 pub mod notifications;
 pub mod orders;
@@ -19,6 +20,10 @@ use std::sync::Arc;
 
 pub use comments::{CommentListQuery, CommentPage, CommentRecord, CommentStorage, COMMENT_TABLE};
 pub use config::{DatabaseBackendKind, DatabaseConfig};
+pub use forum::{
+    ForumCategoryRecord, ForumPostRecord, ForumStorage, ForumThreadRecord, PostListQuery,
+    ThreadListQuery, FORUM_CATEGORY_TABLE, FORUM_POST_TABLE, FORUM_THREAD_TABLE,
+};
 pub use mysql::MySqlAdapter;
 pub use notifications::{
     NotificationListQuery, NotificationPage, NotificationQueueStorage, NotificationRelease,
@@ -75,7 +80,13 @@ pub struct ContentPage {
 
 #[async_trait]
 pub trait DatabaseAdapter:
-    OrderStorage + ProductVariantStorage + CommentStorage + NotificationQueueStorage + Send + Sync
+    OrderStorage
+    + ProductVariantStorage
+    + CommentStorage
+    + NotificationQueueStorage
+    + ForumStorage
+    + Send
+    + Sync
 {
     /// Initialize the database, checking connectivity and setting up migration history tables
     async fn init(&self) -> Result<()>;

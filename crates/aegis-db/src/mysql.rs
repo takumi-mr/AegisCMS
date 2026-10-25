@@ -111,6 +111,7 @@ super::orders::impl_order_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::variants::impl_product_variant_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::comments::impl_comment_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::notifications::impl_notification_queue_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
+super::forum::impl_forum_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 
 #[async_trait]
 impl DatabaseAdapter for MySqlAdapter {
@@ -331,6 +332,22 @@ impl DatabaseAdapter for MySqlAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in queue_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 掲示板
+        let (forum_tables, forum_indexes) =
+            super::forum::build_forum_tables("TEXT", "VARCHAR(255)", "BIGINT", true);
+        for table in forum_tables {
+            sqlx::query(&table)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        for index in forum_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await
