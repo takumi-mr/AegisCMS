@@ -725,9 +725,46 @@ pub async fn api_delete_category(
 
 #[derive(Debug, Deserialize)]
 pub struct ThreadListApiQuery {
+    pub category_slug: Option<String>,
     pub cursor_last_post_at: Option<String>,
     pub cursor_id: Option<String>,
     pub limit: Option<u64>,
+}
+
+/// `GET /api/v1/forum/threads` — 全カテゴリまたは指定カテゴリのスレッド一覧
+pub async fn api_list_all_threads(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<ThreadListApiQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let forum = get_forum(&state)?;
+    let category_id = if let Some(slug) = &query.category_slug {
+        if !slug.trim().is_empty() {
+            let cat = forum
+                .get_category_by_slug(slug)
+                .await
+                .map_err(forum_error_to_api)?;
+            Some(cat.id)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let limit = query
+        .limit
+        .unwrap_or(forum.config().default_page_size)
+        .clamp(1, 100);
+
+    let q = ThreadListQuery {
+        category_id,
+        before_last_post_at: query.cursor_last_post_at,
+        before_id: query.cursor_id,
+        limit,
+    };
+
+    let threads = forum.list_threads(&q).await.map_err(forum_error_to_api)?;
+    Ok(Json(json!({ "threads": threads, "limit": limit })))
 }
 
 /// `GET /api/v1/forum/categories/:slug/threads`

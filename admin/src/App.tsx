@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { Header, type AppView } from './components/Header';
 import { ProductManager } from './components/ProductManager';
 import { CommentManager } from './components/CommentManager';
+import { ForumManager } from './components/ForumManager';
 import { OrderManager } from './components/OrderManager';
 import { ScheduleCalendar } from './components/ScheduleCalendar';
 import { ProfileModal } from './components/ProfileModal';
@@ -75,6 +76,8 @@ export const App: React.FC = () => {
   const [shopEnabled, setShopEnabled] = useState<boolean>(false);
   // Hidden until the server says comments are on ([comments].enabled)
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(false);
+  // Hidden until the server says forum is on ([forum].enabled)
+  const [forumEnabled, setForumEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType, setContentType] = useState<'article' | 'page'>('article');
   const [layout, setLayout] = useState<'default' | 'blank'>('default');
@@ -233,6 +236,23 @@ export const App: React.FC = () => {
       })
       .catch(() => {
         if (!cancelled) setCommentsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || !canEdit(session ?? null)) return;
+    let cancelled = false;
+    aegisApi
+      .listForumCategories()
+      .then(() => {
+        if (!cancelled) setForumEnabled(true);
+      })
+      .catch(() => {
+        if (!cancelled) setForumEnabled(false);
       });
     return () => {
       cancelled = true;
@@ -520,6 +540,7 @@ export const App: React.FC = () => {
   const editable = canEdit(session);
   const showShop = editable && shopEnabled;
   const showComments = editable && commentsEnabled;
+  const showForum = editable && forumEnabled;
 
   return (
     <div className={styles.app}>
@@ -533,6 +554,7 @@ export const App: React.FC = () => {
         canSave={editable}
         showShop={showShop}
         showComments={showComments}
+        showForum={showForum}
         profile={profile}
         onOpenProfile={() =>
           profile
@@ -550,6 +572,8 @@ export const App: React.FC = () => {
         <OrderManager onShowToast={showToast} />
       ) : view === 'comments' && showComments ? (
         <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
+      ) : view === 'forum' && showForum ? (
+        <ForumManager onShowToast={showToast} />
       ) : view === 'settings' ? (
         <SettingsView
           session={session}

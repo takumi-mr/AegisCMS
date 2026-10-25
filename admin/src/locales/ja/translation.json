@@ -283,6 +283,7 @@
       "products": "商品",
       "orders": "注文",
       "comments": "コメント",
+      "forum": "フォーラム",
       "settings": "設定"
     },
     "gateway": "コアゲートウェイ: {{state}}",
@@ -1151,6 +1152,68 @@
         "html": "HTML",
         "text": "テキスト"
       }
+    }
+  },
+  "forum": {
+    "title": "フォーラム管理・モデレーション",
+    "threadCount": "{{count}} 件のスレッド",
+    "categoryCount": "{{count}} 件のカテゴリ",
+    "newCategory": "カテゴリを追加",
+    "refresh": "更新",
+    "filterCategory": "カテゴリ絞り込み",
+    "allCategories": "すべてのカテゴリ",
+    "loading": "読み込み中...",
+    "noThreads": "スレッドがありません",
+    "noCategories": "カテゴリがありません",
+    "pin": "スレッドをピン留め",
+    "unpin": "ピン留めを解除",
+    "lock": "スレッドをロック",
+    "unlock": "ロックを解除",
+    "viewPosts": "投稿（レス）一覧・モデレーション",
+    "openPublic": "公開サイトでスレッドを開く",
+    "deleteThread": "スレッドを削除",
+    "deletePost": "投稿を削除",
+    "edit": "編集",
+    "delete": "削除",
+    "editCategory": "カテゴリを編集",
+    "deleteCategory": "カテゴリを削除",
+    "categoryName": "カテゴリ名",
+    "categorySlug": "スラッグ",
+    "categoryDescription": "説明",
+    "categoryPosition": "並び順",
+    "modalCreateCategory": "フォーラムカテゴリの作成",
+    "modalEditCategory": "フォーラムカテゴリの編集",
+    "postsModalTitle": "スレッド「{{title}}」の投稿一覧",
+    "noPosts": "投稿がありません",
+    "confirmDeleteThread": "スレッド「{{title}}」を削除しますか？紐づくすべての返信も削除されます。",
+    "confirmDeletePost": "投稿 #{{number}} を削除しますか？",
+    "confirmDeleteCategory": "カテゴリ「{{name}}」を削除しますか？",
+    "tabs": {
+      "threads": "スレッド・モデレーション",
+      "categories": "カテゴリ管理"
+    },
+    "table": {
+      "thread": "スレッド",
+      "category": "カテゴリ",
+      "author": "投稿者",
+      "replies": "返信数",
+      "lastActive": "最終更新",
+      "actions": "操作",
+      "categoryName": "カテゴリ名",
+      "slug": "スラッグ",
+      "description": "説明",
+      "position": "並び順"
+    },
+    "toasts": {
+      "threadPinned": "スレッドを上部にピン留めしました",
+      "threadUnpinned": "スレッドのピン留めを解除しました",
+      "threadLocked": "スレッドをロックしました（新規返信停止）",
+      "threadUnlocked": "スレッドのロックを解除しました",
+      "threadDeleted": "スレッドを削除しました",
+      "postDeleted": "投稿を削除しました",
+      "categoryCreated": "カテゴリを作成しました",
+      "categoryUpdated": "カテゴリを更新しました",
+      "categoryDeleted": "カテゴリを削除しました"
     }
   }
 }

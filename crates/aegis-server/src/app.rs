@@ -87,7 +87,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         )
         .route(
             "/api/v1/forum/threads",
-            post(handlers::forum::api_create_thread),
+            get(handlers::forum::api_list_all_threads).post(handlers::forum::api_create_thread),
         )
         .route(
             "/api/v1/forum/threads/{id}",

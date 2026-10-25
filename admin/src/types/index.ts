@@ -689,3 +689,64 @@ export interface CommentSettings {
 
 /** Bulk action on comments: a new status, or `delete` (permanently) */
 export type CommentBulkAction = CommentStatus | 'delete';
+
+// =========================================================================
+// Forum (掲示板モデレーション)
+// =========================================================================
+
+export interface ForumCategory {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  position: number;
+  is_private: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateForumCategoryPayload {
+  slug: string;
+  name: string;
+  description: string;
+  position: number;
+  is_private: boolean;
+}
+
+export interface UpdateForumCategoryPayload {
+  slug: string;
+  name: string;
+  description: string;
+  position: number;
+  is_private: boolean;
+}
+
+export interface ForumThread {
+  id: string;
+  category_id: string;
+  title: string;
+  author_id: string | null;
+  author_name: string;
+  is_pinned: boolean;
+  is_locked: boolean;
+  post_count: number;
+  last_post_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ForumPost {
+  id: string;
+  thread_id: string;
+  post_number: number;
+  author_id: string | null;
+  author_name: string;
+  body: string;
+  reply_to_post_id: string | null;
+  reply_to_number: number | null;
+  is_deleted: boolean;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+  updated_at: string;
+}

@@ -9,7 +9,12 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: フォーラム機能のテーマUI追加および専用データベース分離（Write負荷・ロック競合隔離）の実装（ブランチ `feat/forum-theme-and-split-db`）
+- **直近の完了**: フォーラム機能のテーマUI追加、専用データベース分離（Write負荷・ロック競合隔離）、および Admin Studio モデレーションUIの実装（ブランチ `feat/forum-theme-and-split-db`）
+  - **Admin Studio フォーラムモデレーション UI (`ForumManager`)**:
+    - ヘッダーナビゲーションに「フォーラム (`forum`)」タブを追加（`[forum].enabled` が有効かつ編集者以上の場合に動的表示）。
+    - **スレッド管理 & モデレーション**: 全スレッド/カテゴリ絞り込み一覧、📌 ピン留めトグル（Pin/Unpin）、🔒 ロックトグル（Lock/Unlock）、🗑️ スレッド削除（確認ダイアログ付き）、💬 レス一覧閲覧モーダル & 迷惑レスの個別削除、公開サイトへの直接リンク（`↗`）を装備。
+    - **カテゴリ管理**: カテゴリ一覧表示、新規カテゴリ作成モーダル（名前、スラッグ、説明、並び順）、カテゴリ編集モーダル、カテゴリ削除機能を完備。
+    - **国際化 (i18n)**: 日本語（`ja`）および英語（`en`）の完全なローカライズを適用。
   - **専用データベース分離 (`[forum].database_url`)**:
     - `ForumConfig` に `database_url: Option<String>` を追加。未指定時はメイン CMS の DB を共有するゼロコンフィグ運用を維持しつつ、指定時は完全に独立したデータベースアダプター（SQLite / PostgreSQL / MySQL）を初期化・接続。
     - **SQLite の Write ロック競合（`SQLITE_BUSY`）回避**: 掲示板の投稿バースト時にも、メイン CMS のコンテンツ更新・EC 決済・顧客セッションが一切ブロックされない物理的分離を実現。
@@ -20,9 +25,10 @@
     - カテゴリ一覧、最新アクティブスレッド、ピン留め/ロックバッジ、スレッド作成フォーム、レス番号付きタイムライン、返信フォーム、カーソル/ページネーションナビゲーションを完備。
   - **公開ルーティング・フォーム POST・JSON REST API**:
     - `aegis-server` に公開画面ルーティング（`/forum`, `/forum/{category_slug}`, `/forum/{category_slug}/{thread_id}`）および HTML フォーム POST ハンドラー（303 See Other リダイレクトとアンカー遷移 `#post-N`、フラッシュメッセージ対応）を統合。
-    - JSON REST API（`/api/v1/forum/categories`, `/api/v1/forum/threads`, `/api/v1/forum/posts`, モデレーション）をマウント。
+    - JSON REST API（`/api/v1/forum/categories`, `GET/POST /api/v1/forum/threads`, `/api/v1/forum/posts`, モデレーション）をマウント。
   - **厳格なテスト検証**:
     - `aegis-server/src/handlers/forum_tests.rs` にて、専用 DB へのデータ完全隔離（メイン DB への非混入）、HTML 描画、フォーム投稿＆リダイレクト、JSON API、レートリミット（429）を網羅する結合テストを追加。
+    - Admin Studio ユニットテスト（90 passed）、Storybook テスト（31 passed）、ビルド、oxlint / clippy ゼロ警告を確認。
 - **その前**: 固定ページ（Page）の作成・管理、ブランク/フル幅LPレイアウト切り替え、カスタムHTMLブロック（Raw HTML）の追加（ブランチ `feat/custom-pages-and-layouts`、PR #91）
   - **Admin Studio 固定ページ管理 & レイアウトセレクター**:
     - コンテンツ一覧画面（`ContentList`）に「記事（Articles）」と「固定ページ（Pages）」のタブ切り替えを導入。固定ページ一覧には「テーマ標準」または「ブランクLP」のレイアウトバッジを表示。
