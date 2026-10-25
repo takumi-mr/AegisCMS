@@ -62,6 +62,12 @@ jobs:
       - name: Run unit tests (Vitest)
         run: npm --prefix admin run test:unit
 
+      - name: Install Playwright browser for Storybook tests
+        run: npx --prefix admin playwright install --with-deps chromium
+
+      - name: Run Storybook component & interaction tests (Vitest)
+        run: npm --prefix admin run test:storybook
+
       - name: Typecheck and build Admin Studio
         run: npm --prefix admin run build
 

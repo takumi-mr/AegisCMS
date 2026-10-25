@@ -36,6 +36,9 @@ task test
 # Admin Studio ユニットテスト実行 (Vitest)
 task test:admin
 
+# Admin Studio Storybook インタラクションテスト実行 (Vitest Browser Mode)
+task test:storybook
+
 # 静的解析・リント検証 (ゼロ警告ポリシー: Rust は Clippy、Admin Studio は oxlint)
 task lint
 task lint:admin
@@ -117,6 +120,7 @@ Conventional Commits 形式に準拠します。
    - [ ] `cargo fmt --check` に違反がないこと
    - [ ] `cargo clippy --workspace -- -D warnings` で警告が 0 件であること
    - [ ] （フロントエンド変更時）`npm --prefix admin run test:unit` が 100% パスすること
+   - [ ] （フロントエンド変更時）`npm --prefix admin run test:storybook` が 100% パスすること
    - [ ] （フロントエンド変更時）`npm --prefix admin run build` でビルドが成功すること
    - [ ] （フロントエンド変更時）`npm --prefix admin run format:check` に違反がないこと（VS Code では保存時に自動整形）
    - [ ] （フロントエンド変更時）`npm --prefix admin run lint`（oxlint `--deny-warnings`）で警告が 0 件であること
