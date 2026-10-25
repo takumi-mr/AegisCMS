@@ -6,6 +6,11 @@ import type {
   CommentPage,
   CommentSettings,
   CommentStatus,
+  CreateForumCategoryPayload,
+  ForumCategory,
+  ForumPost,
+  ForumThread,
+  UpdateForumCategoryPayload,
   AuthProviders,
   AuditLogQuery,
   ContentItem,
@@ -861,6 +866,116 @@ export const aegisApi = {
       '/notifications/test',
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
       i18n.t('api.testNotificationFailed')
+    );
+  },
+
+  // --- Forum (掲示板モデレーション) ---
+
+  async listForumCategories(): Promise<ForumCategory[]> {
+    const data = await request<{ categories: ForumCategory[] }>(
+      '/forum/categories',
+      {},
+      'Failed to load forum categories'
+    );
+    return data.categories;
+  },
+
+  async createForumCategory(payload: CreateForumCategoryPayload): Promise<ForumCategory> {
+    const data = await request<{ category: ForumCategory }>(
+      '/forum/categories',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      'Failed to create forum category'
+    );
+    return data.category;
+  },
+
+  async updateForumCategory(
+    idOrSlug: string,
+    payload: UpdateForumCategoryPayload
+  ): Promise<ForumCategory> {
+    const data = await request<{ category: ForumCategory }>(
+      `/forum/categories/${encodeURIComponent(idOrSlug)}`,
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      'Failed to update forum category'
+    );
+    return data.category;
+  },
+
+  async deleteForumCategory(idOrSlug: string): Promise<void> {
+    await request<void>(
+      `/forum/categories/${encodeURIComponent(idOrSlug)}`,
+      { method: 'DELETE' },
+      'Failed to delete forum category'
+    );
+  },
+
+  async listForumThreads(params?: {
+    category_slug?: string;
+    limit?: number;
+    cursor_id?: string;
+    cursor_last_post_at?: string;
+  }): Promise<ForumThread[]> {
+    const sp = new URLSearchParams();
+    if (params?.category_slug) sp.set('category_slug', params.category_slug);
+    if (params?.limit) sp.set('limit', String(params.limit));
+    if (params?.cursor_id) sp.set('cursor_id', params.cursor_id);
+    if (params?.cursor_last_post_at) sp.set('cursor_last_post_at', params.cursor_last_post_at);
+    const qs = sp.toString() ? `?${sp.toString()}` : '';
+
+    const data = await request<{ threads: ForumThread[] }>(
+      `/forum/threads${qs}`,
+      {},
+      'Failed to load forum threads'
+    );
+    return data.threads;
+  },
+
+  async pinForumThread(threadId: string, pinned: boolean): Promise<void> {
+    await request<void>(
+      `/forum/threads/${encodeURIComponent(threadId)}/pin`,
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ pinned }) },
+      'Failed to update thread pin status'
+    );
+  },
+
+  async lockForumThread(threadId: string, locked: boolean): Promise<void> {
+    await request<void>(
+      `/forum/threads/${encodeURIComponent(threadId)}/lock`,
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ locked }) },
+      'Failed to update thread lock status'
+    );
+  },
+
+  async deleteForumThread(threadId: string): Promise<void> {
+    await request<void>(
+      `/forum/threads/${encodeURIComponent(threadId)}`,
+      { method: 'DELETE' },
+      'Failed to delete forum thread'
+    );
+  },
+
+  async listForumPosts(
+    threadId: string,
+    params?: { limit?: number; cursor_post_number?: number }
+  ): Promise<ForumPost[]> {
+    const sp = new URLSearchParams();
+    if (params?.limit) sp.set('limit', String(params.limit));
+    if (params?.cursor_post_number) sp.set('cursor_post_number', String(params.cursor_post_number));
+    const qs = sp.toString() ? `?${sp.toString()}` : '';
+
+    const data = await request<{ posts: ForumPost[] }>(
+      `/forum/threads/${encodeURIComponent(threadId)}/posts${qs}`,
+      {},
+      'Failed to load forum posts'
+    );
+    return data.posts;
+  },
+
+  async deleteForumPost(postId: string): Promise<void> {
+    await request<void>(
+      `/forum/posts/${encodeURIComponent(postId)}`,
+      { method: 'DELETE' },
+      'Failed to delete forum post'
     );
   },
 };

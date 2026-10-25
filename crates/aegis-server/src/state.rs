@@ -51,6 +51,8 @@ pub struct AppState {
     pub commerce: Option<Arc<aegis_commerce::CommerceService>>,
     /// 読者のコメント（`[comments]`）。無効なら `None`
     pub comments: Option<Arc<aegis_comments::CommentService>>,
+    /// 掲示板（`[forum]`）。無効なら `None`
+    pub forum: Option<Arc<aegis_forum::ForumService>>,
     /// 通知（`[notifications]`）。無効なら `None`
     pub notifier: Option<Arc<dyn Notifier>>,
     /// 通知の管理（Admin Studio のテンプレート編集・テスト送信・送信待ち）。`notifier` と同じもの
@@ -144,6 +146,7 @@ impl AppState {
             saml: None,
             commerce: None,
             comments: None,
+            forum: None,
             notifier: None,
             notifications: None,
             registration: None,
@@ -151,6 +154,12 @@ impl AppState {
             invitation: None,
             admin_url: None,
         }
+    }
+
+    /// 掲示板（`[forum]`）を有効にする
+    pub fn with_forum(mut self, forum: aegis_forum::ForumService) -> Self {
+        self.forum = Some(Arc::new(forum));
+        self
     }
 
     /// 公開サイトの名前と favicon（Admin Studio で変更した値 → `[theme]` の順）

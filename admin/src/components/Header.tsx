@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   User,
+  MessagesSquare,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SessionInfo, UserAccount } from '../types';
@@ -29,7 +30,8 @@ const ROLE_BADGE: Record<string, string | undefined> = {
   editor: styles.roleEditor,
 };
 
-export type AppView = 'editor' | 'schedule' | 'products' | 'orders' | 'comments' | 'settings';
+export type AppView =
+  'editor' | 'schedule' | 'products' | 'orders' | 'comments' | 'forum' | 'settings';
 
 interface HeaderProps {
   view: AppView;
@@ -44,6 +46,8 @@ interface HeaderProps {
   showShop: boolean;
   /** Comments tab: comments are enabled (`[comments].enabled`) and the user can edit */
   showComments: boolean;
+  /** Forum tab: forum is enabled (`[forum].enabled`) and the user can edit */
+  showForum: boolean;
   /** The signed-in user's account (avatar, current display name), once loaded */
   profile: UserAccount | null;
   onOpenProfile: () => void;
@@ -60,6 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
   canSave,
   showShop,
   showComments,
+  showForum,
   profile,
   onOpenProfile,
   onLogout,
@@ -105,6 +110,15 @@ export const Header: React.FC<HeaderProps> = ({
             id: 'comments' as const,
             label: t('header.tabs.comments'),
             icon: <MessageSquare size={15} />,
+          },
+        ]
+      : []),
+    ...(showForum
+      ? [
+          {
+            id: 'forum' as const,
+            label: t('header.tabs.forum'),
+            icon: <MessagesSquare size={15} />,
           },
         ]
       : []),

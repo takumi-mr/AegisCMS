@@ -286,6 +286,7 @@
       "products": "Products",
       "orders": "Orders",
       "comments": "Comments",
+      "forum": "Forum",
       "settings": "Settings"
     },
     "gateway": "Core Gateway: {{state}}",
@@ -1169,6 +1170,68 @@
         "html": "HTML",
         "text": "Text"
       }
+    }
+  },
+  "forum": {
+    "title": "Forum Moderation",
+    "threadCount": "{{count}} threads",
+    "categoryCount": "{{count}} categories",
+    "newCategory": "New Category",
+    "refresh": "Refresh",
+    "filterCategory": "Category",
+    "allCategories": "All Categories",
+    "loading": "Loading...",
+    "noThreads": "No threads found",
+    "noCategories": "No categories found",
+    "pin": "Pin Thread",
+    "unpin": "Unpin Thread",
+    "lock": "Lock Thread",
+    "unlock": "Unlock Thread",
+    "viewPosts": "View & Moderate Posts",
+    "openPublic": "Open Thread on Public Site",
+    "deleteThread": "Delete Thread",
+    "deletePost": "Delete Post",
+    "edit": "Edit",
+    "delete": "Delete",
+    "editCategory": "Edit Category",
+    "deleteCategory": "Delete Category",
+    "categoryName": "Category Name",
+    "categorySlug": "Slug",
+    "categoryDescription": "Description",
+    "categoryPosition": "Display Order (Position)",
+    "modalCreateCategory": "Create Forum Category",
+    "modalEditCategory": "Edit Forum Category",
+    "postsModalTitle": "Posts in \"{{title}}\"",
+    "noPosts": "No posts found",
+    "confirmDeleteThread": "Are you sure you want to delete the thread \"{{title}}\"? This will remove all replies.",
+    "confirmDeletePost": "Are you sure you want to delete post #{{number}}?",
+    "confirmDeleteCategory": "Are you sure you want to delete category \"{{name}}\"?",
+    "tabs": {
+      "threads": "Threads & Moderation",
+      "categories": "Categories"
+    },
+    "table": {
+      "thread": "Thread",
+      "category": "Category",
+      "author": "Author",
+      "replies": "Replies",
+      "lastActive": "Last Active",
+      "actions": "Actions",
+      "categoryName": "Name",
+      "slug": "Slug",
+      "description": "Description",
+      "position": "Order"
+    },
+    "toasts": {
+      "threadPinned": "Thread pinned to top",
+      "threadUnpinned": "Thread unpinned",
+      "threadLocked": "Thread locked (no new replies)",
+      "threadUnlocked": "Thread unlocked",
+      "threadDeleted": "Thread deleted",
+      "postDeleted": "Post deleted",
+      "categoryCreated": "Category created",
+      "categoryUpdated": "Category updated",
+      "categoryDeleted": "Category deleted"
     }
   }
 }

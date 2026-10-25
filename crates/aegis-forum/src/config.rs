@@ -29,6 +29,9 @@ pub struct ForumConfig {
     pub auto_lock_post_count: u64,
     /// 1ページあたりの既定の表示件数
     pub default_page_size: u64,
+    /// フォーラム専用のデータベース接続文字列（例: "sqlite:data/forum.db?mode=rwc"）
+    /// 未指定（None）の場合はメインの [database].url を共有する
+    pub database_url: Option<String>,
 }
 
 impl Default for ForumConfig {
@@ -43,6 +46,7 @@ impl Default for ForumConfig {
             allow_anonymous: true,
             auto_lock_post_count: 1000,
             default_page_size: 50,
+            database_url: None,
         }
     }
 }

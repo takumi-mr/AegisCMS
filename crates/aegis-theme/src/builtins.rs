@@ -807,3 +807,282 @@ pub const ORDER_TEMPLATE: &str = r#"{% extends "base.html" %}
 </section>
 {% endblock %}
 "#;
+
+/// フォーラム共通スタイル・ナビゲーション
+pub const FORUM_COMMON_TEMPLATE: &str = r##"<style>
+  .aegis-forum { max-width: 1040px; margin: 0 auto; padding: 1rem 0 3rem; }
+  .aegis-forum a { color: inherit; text-decoration: none; }
+  .aegis-forum a:hover { color: var(--accent, #6366f1); }
+  .aegis-forum-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; padding-bottom: 0.85rem; border-bottom: 1px solid rgba(127,127,127,0.22); font-size: 0.92rem; }
+  .aegis-forum-breadcrumbs { display: flex; align-items: center; gap: 0.5rem; opacity: 0.9; }
+  .aegis-forum-breadcrumbs span { opacity: 0.5; }
+  .aegis-forum-card { background: rgba(127,127,127,0.06); border: 1px solid rgba(127,127,127,0.18); border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; transition: transform 0.15s ease, border-color 0.15s ease; }
+  .aegis-forum-card:hover { border-color: rgba(99,102,241,0.45); }
+  .aegis-forum-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; margin-bottom: 2.5rem; }
+  .aegis-forum-cat-title { font-size: 1.2rem; font-weight: 700; margin: 0 0 0.4rem; display: flex; align-items: center; justify-content: space-between; }
+  .aegis-forum-cat-desc { font-size: 0.88rem; opacity: 0.75; margin: 0 0 1rem; line-height: 1.5; }
+  .aegis-forum-cat-stats { font-size: 0.8rem; opacity: 0.65; display: flex; gap: 1.2rem; }
+  .aegis-forum-threads { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2rem; }
+  .aegis-forum-thread-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; background: rgba(127,127,127,0.05); border: 1px solid rgba(127,127,127,0.16); border-radius: 12px; transition: all 0.15s ease; }
+  .aegis-forum-thread-item:hover { background: rgba(127,127,127,0.08); border-color: rgba(99,102,241,0.4); transform: translateX(3px); }
+  .aegis-forum-thread-main { flex: 1; min-width: 0; }
+  .aegis-forum-thread-title { font-size: 1.05rem; font-weight: 600; margin: 0 0 0.35rem; display: flex; align-items: center; gap: 0.5rem; overflow-wrap: anywhere; }
+  .aegis-forum-thread-meta { font-size: 0.82rem; opacity: 0.65; display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: center; }
+  .aegis-forum-badge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; line-height: 1; }
+  .aegis-forum-badge-pinned { background: rgba(245,158,11,0.18); color: #f59e0b; border: 1px solid rgba(245,158,11,0.35); }
+  .aegis-forum-badge-locked { background: rgba(244,63,94,0.18); color: #f43f5e; border: 1px solid rgba(244,63,94,0.35); }
+  .aegis-forum-badge-replies { background: rgba(99,102,241,0.16); color: var(--accent, #6366f1); font-weight: 700; border-radius: 8px; padding: 0.35rem 0.65rem; font-size: 0.85rem; text-align: center; min-width: 50px; }
+  .aegis-forum-posts { display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2.5rem; }
+  .aegis-forum-post { background: rgba(127,127,127,0.05); border: 1px solid rgba(127,127,127,0.18); border-radius: 14px; padding: 1.25rem 1.5rem; position: relative; }
+  .aegis-forum-post:target { border-color: var(--accent, #6366f1); box-shadow: 0 0 0 2px rgba(99,102,241,0.25); }
+  .aegis-forum-post-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.85rem; padding-bottom: 0.6rem; border-bottom: 1px solid rgba(127,127,127,0.15); font-size: 0.85rem; }
+  .aegis-forum-post-author { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; }
+  .aegis-forum-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--accent, #6366f1); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
+  .aegis-forum-post-meta { opacity: 0.6; display: flex; align-items: center; gap: 0.8rem; font-size: 0.8rem; }
+  .aegis-forum-post-body { line-height: 1.65; overflow-wrap: anywhere; }
+  .aegis-forum-post-body p { margin: 0 0 0.8rem; }
+  .aegis-forum-post-body p:last-child { margin-bottom: 0; }
+  .aegis-forum-form { background: rgba(127,127,127,0.05); border: 1px solid rgba(127,127,127,0.2); border-radius: 14px; padding: 1.5rem; margin-top: 2rem; }
+  .aegis-forum-form h3 { font-size: 1.25rem; margin: 0 0 1.25rem; font-weight: 700; }
+  .aegis-forum-form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
+  .aegis-forum-form-group label { font-size: 0.85rem; font-weight: 600; opacity: 0.85; }
+  .aegis-forum-form input[type=text], .aegis-forum-form textarea { width: 100%; box-sizing: border-box; padding: 0.7rem 0.9rem; border-radius: 10px; border: 1px solid rgba(127,127,127,0.3); background: rgba(127,127,127,0.06); color: inherit; font: inherit; font-size: 0.92rem; }
+  .aegis-forum-form input[type=text]:focus, .aegis-forum-form textarea:focus { outline: none; border-color: var(--accent, #6366f1); background: rgba(127,127,127,0.09); }
+  .aegis-forum-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.65rem 1.4rem; border-radius: 10px; border: none; background: var(--accent, #6366f1); color: #fff; font: inherit; font-weight: 600; font-size: 0.9rem; cursor: pointer; text-decoration: none; transition: opacity 0.15s ease, transform 0.15s ease; }
+  .aegis-forum-btn:hover { opacity: 0.92; transform: translateY(-1px); color: #fff; }
+  .aegis-forum-btn-secondary { background: rgba(127,127,127,0.18); color: inherit; }
+  .aegis-forum-btn-secondary:hover { background: rgba(127,127,127,0.28); color: inherit; }
+  .aegis-forum-banner-locked { padding: 1rem 1.25rem; border-radius: 12px; background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.3); color: #f43f5e; font-weight: 600; font-size: 0.92rem; margin-top: 1.5rem; text-align: center; }
+  .aegis-forum-empty { padding: 3rem 1rem; text-align: center; opacity: 0.6; font-size: 0.95rem; }
+</style>
+"##;
+
+/// フォーラムトップ画面（カテゴリ一覧 & 最近のスレッド）
+pub const FORUM_INDEX_TEMPLATE: &str = r##"{% extends "base.html" %}
+
+{% block content %}
+{% include "forum_common.html" %}
+<section class="aegis-forum">
+  <nav class="aegis-forum-nav" aria-label="Forum navigation">
+    <div class="aegis-forum-breadcrumbs">
+      <strong>Community Forum</strong>
+    </div>
+  </nav>
+
+  <h1 style="font-size: 2.2rem; margin: 0 0 0.5rem; font-weight: 800; letter-spacing: -0.02em;">Community Forum</h1>
+  <p style="opacity: 0.7; margin: 0 0 2.5rem; font-size: 1.05rem;">Join discussions, ask questions, and share knowledge with fellow members.</p>
+
+  <h2 style="font-size: 1.35rem; font-weight: 700; margin: 0 0 1.25rem;">Categories</h2>
+  <div class="aegis-forum-grid">
+    {% for cat in fields.categories %}
+    <a href="{{ theme_vars.forum_url }}/{{ cat.slug }}" class="aegis-forum-card">
+      <div class="aegis-forum-cat-title">
+        <span>{{ cat.name }}</span>
+        <span style="opacity: 0.5; font-size: 0.9rem;">&rarr;</span>
+      </div>
+      <p class="aegis-forum-cat-desc">{{ cat.description }}</p>
+      <div class="aegis-forum-cat-stats">
+        <span><strong>{{ cat.thread_count }}</strong> threads</span>
+        <span><strong>{{ cat.post_count }}</strong> posts</span>
+      </div>
+    </a>
+    {% else %}
+    <p class="aegis-forum-empty">No categories available.</p>
+    {% endfor %}
+  </div>
+
+  {% if fields.recent_threads | length > 0 %}
+  <h2 style="font-size: 1.35rem; font-weight: 700; margin: 2rem 0 1.25rem;">Recent Discussions</h2>
+  <div class="aegis-forum-threads">
+    {% for t in fields.recent_threads %}
+    <a href="{{ theme_vars.forum_url }}/{{ t.category_slug }}/{{ t.id }}" class="aegis-forum-thread-item">
+      <div class="aegis-forum-thread-main">
+        <div class="aegis-forum-thread-title">
+          {% if t.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">PIN</span>{% endif %}
+          {% if t.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">LOCKED</span>{% endif %}
+          <span>{{ t.title }}</span>
+        </div>
+        <div class="aegis-forum-thread-meta">
+          <span>in <strong>{{ t.category_name }}</strong></span>
+          <span>by {{ t.author_name }}</span>
+          <span>Last active {{ t.last_post_at }}</span>
+        </div>
+      </div>
+      <div class="aegis-forum-badge-replies" title="Total replies">
+        {{ t.post_count }}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+"##;
+
+/// カテゴリ別スレッド一覧
+pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
+
+{% block content %}
+{% include "forum_common.html" %}
+<section class="aegis-forum">
+  <nav class="aegis-forum-nav" aria-label="Forum navigation">
+    <div class="aegis-forum-breadcrumbs">
+      <a href="{{ theme_vars.forum_url }}">Forum</a>
+      <span>&gt;</span>
+      <strong>{{ fields.category.name }}</strong>
+    </div>
+    <a href="#new-thread" class="aegis-forum-btn">+ New Thread</a>
+  </nav>
+
+  <h1 style="font-size: 2rem; margin: 0 0 0.5rem; font-weight: 800;">{{ fields.category.name }}</h1>
+  {% if fields.category.description %}
+  <p style="opacity: 0.7; margin: 0 0 2rem; font-size: 1rem;">{{ fields.category.description }}</p>
+  {% endif %}
+
+  <div class="aegis-forum-threads">
+    {% for t in fields.threads %}
+    <a href="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/{{ t.id }}" class="aegis-forum-thread-item">
+      <div class="aegis-forum-thread-main">
+        <div class="aegis-forum-thread-title">
+          {% if t.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">PIN</span>{% endif %}
+          {% if t.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">LOCKED</span>{% endif %}
+          <span>{{ t.title }}</span>
+        </div>
+        <div class="aegis-forum-thread-meta">
+          <span>Started by <strong>{{ t.author_name }}</strong></span>
+          <span>Last post {{ t.last_post_at }}</span>
+        </div>
+      </div>
+      <div class="aegis-forum-badge-replies" title="Total replies">
+        {{ t.post_count }}
+      </div>
+    </a>
+    {% else %}
+    <div class="aegis-forum-card aegis-forum-empty">
+      No threads in this category yet. Be the first to start a conversation!
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if pagination %}
+  <div style="display: flex; justify-content: center; gap: 0.5rem; margin: 2rem 0;">
+    {% if pagination.prev_url %}
+    <a href="{{ pagination.prev_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">&larr; Previous</a>
+    {% endif %}
+    {% if pagination.next_url %}
+    <a href="{{ pagination.next_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">Next &rarr;</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <section class="aegis-forum-form" id="new-thread">
+    <h3>Start a New Thread</h3>
+    <form method="POST" action="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/threads">
+      <div class="aegis-forum-form-group">
+        <label for="thread-title">Thread Title</label>
+        <input type="text" id="thread-title" name="title" required minlength="2" maxlength="200" placeholder="Summarize your question or topic...">
+      </div>
+      <div class="aegis-forum-form-group">
+        <label for="thread-author">Your Name / Handle</label>
+        <input type="text" id="thread-author" name="author_name" placeholder="Anonymous" maxlength="50">
+      </div>
+      <div class="aegis-forum-form-group">
+        <label for="thread-body">Message Body</label>
+        <textarea id="thread-body" name="body" rows="6" required minlength="1" placeholder="Write your post here..."></textarea>
+      </div>
+      <button type="submit" class="aegis-forum-btn">Create Thread</button>
+    </form>
+  </section>
+</section>
+{% endblock %}
+"##;
+
+/// スレッド詳細 & レス一覧画面
+pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
+
+{% block content %}
+{% include "forum_common.html" %}
+<section class="aegis-forum">
+  <nav class="aegis-forum-nav" aria-label="Forum navigation">
+    <div class="aegis-forum-breadcrumbs">
+      <a href="{{ theme_vars.forum_url }}">Forum</a>
+      <span>&gt;</span>
+      <a href="{{ theme_vars.forum_url }}/{{ fields.category.slug }}">{{ fields.category.name }}</a>
+      <span>&gt;</span>
+      <strong style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ fields.thread.title }}</strong>
+    </div>
+    {% if not fields.thread.is_locked %}
+    <a href="#reply-form" class="aegis-forum-btn">Reply</a>
+    {% endif %}
+  </nav>
+
+  <header style="margin-bottom: 2rem;">
+    <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+      {% if fields.thread.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">PINNED</span>{% endif %}
+      {% if fields.thread.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">LOCKED</span>{% endif %}
+      <h1 style="font-size: 1.85rem; margin: 0; font-weight: 800; line-height: 1.3;">{{ fields.thread.title }}</h1>
+    </div>
+    <div style="font-size: 0.85rem; opacity: 0.65; display: flex; gap: 1rem; flex-wrap: wrap;">
+      <span>Started by <strong>{{ fields.thread.author_name }}</strong></span>
+      <span>{{ fields.thread.post_count }} posts</span>
+      <span>Created {{ fields.thread.created_at }}</span>
+    </div>
+  </header>
+
+  <div class="aegis-forum-posts">
+    {% for p in fields.posts %}
+    <article class="aegis-forum-post" id="post-{{ p.post_number }}">
+      <div class="aegis-forum-post-head">
+        <div class="aegis-forum-post-author">
+          <div class="aegis-forum-avatar">{{ p.author_initial }}</div>
+          <span>{{ p.author_name }}</span>
+          {% if p.is_author_staff %}
+          <span class="aegis-forum-badge" style="background: var(--accent, #6366f1); color: #fff;">Staff</span>
+          {% endif %}
+        </div>
+        <div class="aegis-forum-post-meta">
+          <time datetime="{{ p.created_at }}">{{ p.created_at }}</time>
+          <a href="#post-{{ p.post_number }}" style="font-weight: 700; opacity: 0.8;">#{{ p.post_number }}</a>
+        </div>
+      </div>
+      <div class="aegis-forum-post-body">
+        {{ p.body_html | safe }}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+
+  {% if pagination %}
+  <div style="display: flex; justify-content: center; gap: 0.5rem; margin: 2rem 0;">
+    {% if pagination.prev_url %}
+    <a href="{{ pagination.prev_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">&larr; Previous</a>
+    {% endif %}
+    {% if pagination.next_url %}
+    <a href="{{ pagination.next_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">Next &rarr;</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if fields.thread.is_locked %}
+  <div class="aegis-forum-banner-locked">
+    🔒 This thread has been locked. New replies are not accepted.
+  </div>
+  {% else %}
+  <section class="aegis-forum-form" id="reply-form">
+    <h3>Post a Reply</h3>
+    <form method="POST" action="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/{{ fields.thread.id }}/posts">
+      <div class="aegis-forum-form-group">
+        <label for="post-author">Your Name / Handle</label>
+        <input type="text" id="post-author" name="author_name" placeholder="Anonymous" maxlength="50">
+      </div>
+      <div class="aegis-forum-form-group">
+        <label for="post-body">Reply Content</label>
+        <textarea id="post-body" name="body" rows="5" required minlength="1" placeholder="Write your response..."></textarea>
+      </div>
+      <button type="submit" class="aegis-forum-btn">Submit Reply</button>
+    </form>
+  </section>
+  {% endif %}
+</section>
+{% endblock %}
+"##;

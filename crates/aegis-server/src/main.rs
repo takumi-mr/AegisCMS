@@ -459,6 +459,20 @@ async fn main() -> anyhow::Result<()> {
 
             let db_adapter = aegis_db::create_database_adapter(&config.database).await?;
             db_adapter.run_migrations(&schemas).await?;
+            if config.forum.enabled {
+                if let Some(ref forum_url) = config.forum.database_url {
+                    let trimmed = forum_url.trim();
+                    if !trimmed.is_empty() {
+                        let forum_db_cfg = aegis_db::DatabaseConfig {
+                            url: trimmed.to_string(),
+                            ..config.database.clone()
+                        };
+                        let forum_db = aegis_db::create_database_adapter(&forum_db_cfg).await?;
+                        forum_db.init().await?;
+                        tracing::info!("Forum dedicated database migration completed: {}", trimmed);
+                    }
+                }
+            }
             tracing::info!("Schema migrations completed successfully.");
         }
         Commands::Codegen { target, output } => {
@@ -500,6 +514,7 @@ async fn main() -> anyhow::Result<()> {
             config.plugins.validate()?;
             config.commerce.validate()?;
             config.comments.validate()?;
+            config.forum.validate()?;
             config.notifications.validate()?;
             config.auth.registration.validate()?;
             if config.notifications.enabled
@@ -830,6 +845,44 @@ async fn main() -> anyhow::Result<()> {
                     config.comments.moderation.auto_approve_known
                 );
                 app_state.with_comments(comments)
+            } else {
+                app_state
+            };
+
+            // 6.9 掲示板（[forum]）
+            let app_state = if config.forum.enabled {
+                let forum_db = if let Some(ref forum_url) = config.forum.database_url {
+                    let trimmed = forum_url.trim();
+                    if !trimmed.is_empty() {
+                        let forum_db_cfg = aegis_db::DatabaseConfig {
+                            url: trimmed.to_string(),
+                            ..config.database.clone()
+                        };
+                        let dedicated = aegis_db::create_database_adapter(&forum_db_cfg).await?;
+                        dedicated.init().await?;
+                        tracing::info!("Forum enabled with dedicated database (URL: {})", trimmed);
+                        dedicated
+                    } else {
+                        app_state.db.clone()
+                    }
+                } else {
+                    app_state.db.clone()
+                };
+
+                let forum_deps = aegis_forum::ForumDeps {
+                    db: forum_db,
+                    cache: app_state.cache.clone(),
+                    audit: app_state.audit.clone(),
+                };
+                let forum_service =
+                    aegis_forum::ForumService::new(config.forum.clone(), forum_deps)?;
+                tracing::info!(
+                    "Forum enabled (rate limit: {}s, anonymous: {}, auto-lock: {})",
+                    config.forum.rate_limit_secs,
+                    config.forum.allow_anonymous,
+                    config.forum.auto_lock_post_count
+                );
+                app_state.with_forum(forum_service)
             } else {
                 app_state
             };
