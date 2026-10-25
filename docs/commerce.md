@@ -292,6 +292,13 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 | `POST /api/v1/orders/{id}/status` | `{ "status": "paid" \| "shipped" \| "completed" \| "cancelled", "note": "任意" }`。遷移できなければ `409` |
 | `POST /api/v1/orders/{id}/refund` | `{ "amount": 1000（省略時は残額全額）, "reason": "任意", "restock": true }`。返金を記録・実行（`can_refund` でなければ `409`） |
 
+**返金時の在庫の戻し（`restock`）**: `restock: true` を指定しても、在庫の二重戻しを防ぐため次の場合は在庫を戻しません（エラーにはならず、返金だけが成功します）。
+
+- 注文が `cancelled` のとき。取り消しの時点で在庫を戻し済みです。
+- 同じ注文の過去の返金ですでに在庫を戻したとき（部分返金を繰り返す場合）。在庫を戻した返金には、返金履歴の `restocked: true` が記録されます。
+
+在庫を戻すときは、注文の全明細を戻します。監査ログの `restocked` には、実際に戻したかどうかが入ります。決済プロバイダからの返金通知（Webhook）では在庫を戻しません。
+
 監査ログには `order.create`（注文）、`order.update`（状態の変化。`from` / `to` / `source`（`admin` / `payment_webhook` / `payment_expired` / `expired` など）/ `restocked`）、および `order.refund`（返金実行。`order_number` / `amount` / `total_refunded` / `refund_ref` / `restocked`）を記録します。
 
 ---

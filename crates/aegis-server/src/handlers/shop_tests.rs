@@ -1363,6 +1363,99 @@ async fn test_order_refund_api_e2e() {
         .contains("already fully refunded"));
 }
 
+/// 注文を作って支払い済みにし、order_id を返す（p-mug x 2、在庫 3 -> 1）
+async fn paid_mug_order(shop: &Shop) -> String {
+    let (status, body) = shop
+        .call(
+            "POST",
+            "/api/v1/shop/checkout",
+            Some(json!({
+                "items": [{ "product": "mug", "quantity": 2 }],
+                "email": "customer@example.com",
+                "name": "Customer",
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let order_id = body["order"]["id"].as_str().unwrap().to_string();
+    let (status, _) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/status", order_id),
+            Some(json!({ "status": "paid" })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    order_id
+}
+
+async fn mug_stock(shop: &Shop) -> serde_json::Value {
+    let (status, body) = shop
+        .call(
+            "GET",
+            "/api/v1/contents/product/p-mug",
+            None,
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    body["fields"]["stock"].clone()
+}
+
+#[tokio::test]
+async fn test_refund_of_cancelled_order_does_not_restock_twice() {
+    let shop = shop(|_| {}).await;
+    let order_id = paid_mug_order(&shop).await;
+    assert_eq!(mug_stock(&shop).await, 1);
+
+    // 取り消しで在庫が 3 に戻る
+    let (status, _) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/status", order_id),
+            Some(json!({ "status": "cancelled" })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(mug_stock(&shop).await, 3);
+
+    // 取り消し済みの注文を restock: true で返金しても在庫は 3 のまま
+    let (status, res) = shop
+        .call(
+            "POST",
+            &format!("/api/v1/orders/{}/refund", order_id),
+            Some(json!({ "restock": true })),
+            Some(&shop.staff_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(res["status"], "refunded");
+    assert_eq!(mug_stock(&shop).await, 3);
+}
+
+#[tokio::test]
+async fn test_repeated_partial_refunds_restock_only_once() {
+    let shop = shop(|_| {}).await;
+    let order_id = paid_mug_order(&shop).await;
+
+    for amount in [1000, 500] {
+        let (status, _) = shop
+            .call(
+                "POST",
+                &format!("/api/v1/orders/{}/refund", order_id),
+                Some(json!({ "amount": amount, "restock": true })),
+                Some(&shop.staff_token),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    // 1 回目だけ在庫を 2 個戻す（1 -> 3）。2 回目では戻さない
+    assert_eq!(mug_stock(&shop).await, 3);
+}
+
 #[tokio::test]
 async fn test_product_variant_crud_and_checkout_flow() {
     let shop = shop(|_| {}).await;

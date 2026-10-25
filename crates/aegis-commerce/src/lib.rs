@@ -884,6 +884,11 @@ impl CommerceService {
         let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
         let mut refunds: Vec<OrderRefundRecord> =
             serde_json::from_str(&order.refunds_json).unwrap_or_default();
+        // 取り消し済みの注文は取り消し時に在庫を戻しているため戻さない。
+        // すでに在庫を戻した返金がある場合も、二重に戻さない。
+        let restock = restock
+            && current_status != OrderStatus::Cancelled
+            && !refunds.iter().any(|r| r.restocked);
         let refund_entry_id = format!("ref-{}", Uuid::new_v4().simple());
         refunds.push(OrderRefundRecord {
             id: refund_entry_id.clone(),
@@ -892,6 +897,7 @@ impl CommerceService {
             refund_ref: refund_ref.clone(),
             reason: reason.clone(),
             created_at: now.clone(),
+            restocked: restock,
         });
         let refunds_json =
             serde_json::to_string(&refunds).map_err(|e| CommerceError::Internal(e.to_string()))?;
@@ -1087,6 +1093,7 @@ impl CommerceService {
                         refund_ref: refund_ref.clone(),
                         reason: Some("External webhook refund".to_string()),
                         created_at: now.clone(),
+                        restocked: false,
                     });
                     let refunds_json =
                         serde_json::to_string(&refunds).unwrap_or_else(|_| "[]".to_string());
