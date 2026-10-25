@@ -9,22 +9,23 @@
 
 ## 1. 現在の状況
 
-- **直近の完了**: SEO & Bot 対策機能（robots.txt / sitemap.xml / メタタグ / OGP / Admin Studio 設定画面）
-  - **SEO & Bot 設定機構**: `_aegis_settings` テーブルに `seo.*`（`robots_txt`, `meta_description`, `meta_keywords`, `canonical_base_url`, `og_image`, `noindex_all`, `twitter_card`）を永続化し、`AppState.seo`（`Arc<RwLock<SeoOverrides>>`）で管理。サーバー再起動不要で即時反映。
-  - **HTML `<head>` 自動注入**: テーマの規約である `{{ extra_head | safe }}` を通じて、SEO メタタグ・OGP・Twitter Card・Canonical タグ・noindex 指示を自動挿入（`render::build_extra_head`）。個別記事の `excerpt` や商品サムネイルを優先し、サイト全体設定にフォールバック。既存テーマの改修不要。
-  - **`GET /robots.txt` & `GET /sitemap.xml`**: カスタム robots.txt の配信（未設定時は安全な既定値）および動的 Sitemap 参照の自動注入。公開コンテンツ（記事・固定ページ・商品）を DB から動的集約した Sitemap 0.9 準拠 XML 配信。
-  - **管理 API**: `GET /api/v1/seo`, `PUT /api/v1/seo` を実装し、変更時は監査ログ `seo.update` を記録。
-  - **Admin Studio (Settings > SEO & Bot)**: インデックス制御（noindex 全体適用トグル＆注意喚起バナー）、Canonical Base URL、Meta Description/Keywords、OGP 画像設定（メディアライブラリ・アップローダー連携）、Twitter Card 種別、robots.txt プリセット（標準、開発環境全ブロック、生成AIクローラー拒否）挿入ツールバー付きエディタ、ライブ URL リンクを完備。
-  - **品質検証**: `task check`（fmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio ビルド）パス。
-  - **ドキュメント反映**: 仕様・設定は [docs/configuration.md 5](docs/configuration.md#5-管理画面から設定する動的サイトseo設定)、アーキテクチャ・設計判断は [docs/architecture.md 3.5](docs/architecture.md#35-seo--bot-制御-aegis-serversrcseors-handlersseors)。
-- **その前**: EC 拡張 Phase 1: 外部決済抽象化層（`PaymentProvider`）と返金 API（Stripe Refund / 手動返金）
+- **直近の完了**: Admin Studio E2E テストの全体的拡充（全 17 テスト合格）
+  - **認証・セッション (`auth.spec.ts`)**: 正常系ログイン・サインアウト（セッション無効化後のリダイレクト）、誤資格情報のエラーメッセージ、レートリミット連動によるアカウント一時ロック（3回連続失敗で 429 ロックアウトメッセージ表示）の E2E 検証。
+  - **コンテンツ管理 (`content.spec.ts`)**: 記事の新規作成、Draft 保存・サイドバー反映、Published 公開、リロード後の永続化確認、Markdown モードと Blocks モードの相互変換検証。
+  - **テーマ管理 (`themes.spec.ts`)**: インストール済みテーマ一覧、ワンクリックでのアクティブテーマ切り替え（Aegis Horizon ↔ Nordic Minimal Editorial）、トースト表示および永続化検証。
+  - **ユーザー管理 (`users.spec.ts`)**: 初期管理者アカウント一覧確認、新規ユーザー作成（エディターロール）、メール招待モーダルによる招待リンク発行（`notifications` log チャンネル連動）の検証。
+  - **EC 管理 (`commerce.spec.ts`)**: `[commerce].enabled = true` 環境における商品作成（価格・在庫）とカタログ一覧表示、注文一覧・ステータスフィルター画面の表示・更新検証。
+  - **モバイルレスポンシブ (`responsive.spec.ts`)**: 375x667 ビューポートでのハンバーガーメニュー開閉・ビュー遷移、エディタ画面の 3 ペイン（記事一覧 / 編集 / プレビュー）タブ切り替えの動作検証。
+  - **品質検証**: `task test:e2e` 全 17 テスト合格、`task check`（fmt・Prettier・Clippy / oxlint ゼロ警告・全 117 Rust テスト・Admin Studio ビルド）パス。
+  - **ドキュメント反映**: [docs/development.md 8.1](docs/development.md#81-e2e-テスト-playwrightadmine2e) に全スイートの詳細を記録。
+- **その前**: SEO & Bot 対策機能（robots.txt / sitemap.xml / メタタグ / OGP / Admin Studio 設定画面）
 - **実装済みの機能**: 一覧は [README](README.md#23-クレート構成と各モジュールの責務-crates) とリファレンス（README 2.3 末尾のドキュメント一覧）を参照。
 - **検証**: `task check`（rustfmt・Prettier・Clippy / oxlint ゼロ警告・全テスト・Admin Studio のビルド）がすべて通る状態を維持する。
 
 ### 🚀 次に着手する項目
 
 1. **EC 拡張 Phase 4: 顧客アカウント・売上レポート等の設計・検討**
-2. **Admin Studio E2E テスト・Storybook ストーリーの拡充**
+2. **Storybook ストーリーの拡充・`play` の CI 連携 (`@storybook/addon-vitest`)**
 
 
 ---
@@ -37,8 +38,9 @@
 
 ### Admin Studio
 
-- [ ] **E2E テスト・ストーリーの拡充**: 今はプラグイン画面だけ。ログイン（失敗・ロック）、記事の作成・保存・公開、テーマの切り替え、ユーザー管理・招待、EC（商品・注文）、狭い画面（モバイル対応の確認）。Storybook の `play` を CI で動かす（`@storybook/addon-vitest` など）。
+- [ ] **Storybook の `play` を CI で動かす**: `@storybook/addon-vitest` などの導入とコンポーネントストーリーの追加。
 - [ ] **翻訳の続き**: サーバーのエラーメッセージ（API がエラーコードを返すようにする。アカウント登録が先行例）、公開サイトの組み込みテンプレート・カートのスクリプト（`Add to cart` など）、翻訳サービス（Crowdin など）の設定と 3 言語目。
+
 
 ### プラグイン
 
