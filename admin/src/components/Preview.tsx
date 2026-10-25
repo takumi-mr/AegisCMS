@@ -24,6 +24,8 @@ interface PreviewProps {
   slug: string;
   /** Selected category id, or '' for none */
   categoryId: string;
+  /** Page layout: 'default' or 'blank' */
+  layout?: string;
   blocks: BlockNode[];
 }
 
@@ -59,6 +61,7 @@ export const Preview: React.FC<PreviewProps> = ({
   title,
   slug,
   categoryId,
+  layout,
   blocks,
 }) => {
   const { t } = useTranslation();
@@ -71,7 +74,10 @@ export const Preview: React.FC<PreviewProps> = ({
     content_type: contentType,
     title,
     slug,
-    fields: categoryId ? { category_id: categoryId } : {},
+    fields: {
+      ...(categoryId ? { category_id: categoryId } : {}),
+      ...(layout ? { layout } : {}),
+    },
     blocks,
   };
   const requestKey = JSON.stringify(request);

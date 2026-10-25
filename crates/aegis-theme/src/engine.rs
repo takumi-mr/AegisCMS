@@ -469,6 +469,7 @@ impl ThemeEngine {
                     "index.html" => Ok(Some(INDEX_TEMPLATE.to_string())),
                     "article.html" => Ok(Some(ARTICLE_TEMPLATE.to_string())),
                     "page.html" => Ok(Some(PAGE_TEMPLATE.to_string())),
+                    "blank.html" => Ok(Some(BLANK_TEMPLATE.to_string())),
                     "404.html" => Ok(Some(NOT_FOUND_TEMPLATE.to_string())),
                     "shop_common.html" => Ok(Some(SHOP_COMMON_TEMPLATE.to_string())),
                     "products.html" => Ok(Some(PRODUCTS_TEMPLATE.to_string())),
@@ -586,6 +587,43 @@ mod tests {
         assert!(html.contains("Test Story Without Author"));
         assert!(html.contains("Hello world body"));
         assert!(html.contains("Aegis Author"));
+    }
+
+    #[test]
+    fn test_render_builtin_blank_template() {
+        let engine = ThemeEngine::new(Path::new("non_existent_dir"), "default");
+        let ctx = PageRenderContext {
+            site_title: "Landing Site".to_string(),
+            site_description: "LP Description".to_string(),
+            template: "blank.html".to_string(),
+            content_type: "page".to_string(),
+            title: "Special Campaign".to_string(),
+            slug: "campaign".to_string(),
+            content_html: "<section class=\"full-hero\"><h1>Hero Content</h1></section>"
+                .to_string(),
+            author: None,
+            published_at: None,
+            updated_at: None,
+            fields: HashMap::new(),
+            relations: HashMap::new(),
+            items: Vec::new(),
+            extra_css: ".full-hero { width: 100%; }".to_string(),
+            extra_head: "<meta name=\"custom\" content=\"val\">".to_string(),
+            theme_vars: HashMap::new(),
+            pagination: None,
+            comments: None,
+        };
+
+        let html = engine
+            .render("blank.html", &ctx)
+            .expect("Blank template render failed");
+        assert!(html.contains("<title>Special Campaign | Landing Site</title>"));
+        assert!(html.contains("<meta name=\"custom\" content=\"val\">"));
+        assert!(html.contains(".full-hero { width: 100%; }"));
+        assert!(html.contains("<section class=\"full-hero\"><h1>Hero Content</h1></section>"));
+        // base.html 由来のヘッダー・フッター（例: "Admin Studio", "Powered by"）が含まれないことを検証
+        assert!(!html.contains("site-header"));
+        assert!(!html.contains("site-footer"));
     }
 
     #[test]

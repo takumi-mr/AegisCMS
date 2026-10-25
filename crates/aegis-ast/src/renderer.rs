@@ -99,6 +99,14 @@ impl HtmlRenderer {
                 let inner = node.text.as_deref().map(escape_html).unwrap_or_default();
                 format!("<li>{}</li>\n", inner)
             }
+            "core/html" => {
+                let inner = node.text.as_deref().unwrap_or_default();
+                if inner.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!("{}\n", inner)
+                }
+            }
             _ => {
                 // カスタム要素またはShadow DOM / Web Component対応
                 // 名前が "custom/" やプラグイン名プレフィックスの場合
@@ -136,5 +144,19 @@ mod tests {
     fn test_image_block_without_src_renders_nothing() {
         assert_eq!(HtmlRenderer::render_nodes(&[image("")]), "");
         assert_eq!(HtmlRenderer::render_nodes(&[image("  ")]), "");
+    }
+
+    #[test]
+    fn test_core_html_block_renders_raw_html() {
+        let mut node = BlockNode::new("core/html");
+        node.text = Some("<div class=\"custom-banner\"><p>Hello Custom HTML</p></div>".to_string());
+        assert_eq!(
+            HtmlRenderer::render_nodes(&[node]),
+            "<div class=\"custom-banner\"><p>Hello Custom HTML</p></div>\n"
+        );
+
+        let mut empty_node = BlockNode::new("core/html");
+        empty_node.text = Some("   ".to_string());
+        assert_eq!(HtmlRenderer::render_nodes(&[empty_node]), "");
     }
 }

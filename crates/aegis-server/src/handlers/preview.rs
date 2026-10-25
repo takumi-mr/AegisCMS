@@ -69,8 +69,21 @@ pub async fn preview_content(
         .into_iter()
         .collect();
 
+    let template = match payload.fields.get("layout").and_then(|v| v.as_str()) {
+        Some("blank") => "blank.html".to_string(),
+        Some(custom) if !custom.trim().is_empty() && custom != "default" => {
+            let c = custom.trim();
+            if c.ends_with(".html") {
+                c.to_string()
+            } else {
+                format!("{}.html", c)
+            }
+        }
+        _ => format!("{}.html", payload.content_type),
+    };
+
     let page = render::PageInput {
-        template: format!("{}.html", payload.content_type),
+        template,
         content_type: payload.content_type,
         title: payload.title,
         slug: payload.slug,
@@ -245,5 +258,24 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(err.0, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_preview_supports_blank_layout() {
+        let state = test_state(PluginSupervisor::new()).await;
+        let mut req = request();
+        req.content_type = "page".to_string();
+        req.fields
+            .insert("layout".to_string(), serde_json::json!("blank"));
+
+        let Json(body) = preview_content(State(state), viewer(), Json(req))
+            .await
+            .expect("Blank preview must succeed");
+        let page_html = body["page_html"].as_str().expect("page_html should exist");
+        assert!(page_html.contains("<title>Preview Title |"));
+        assert!(page_html.contains("id=\"hello-world\""));
+        // ブランクレイアウトなので site-header や site-footer を含まない
+        assert!(!page_html.contains("site-header"));
+        assert!(!page_html.contains("site-footer"));
     }
 }

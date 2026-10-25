@@ -140,7 +140,9 @@
     "listType": "種類:",
     "bullet": "箇条書き（-）",
     "numbered": "番号付き（1.）",
-    "listPlaceholder": "項目 1\n項目 2\n項目 3（1 行に 1 項目）"
+    "listPlaceholder": "項目 1\n項目 2\n項目 3（1 行に 1 項目）",
+    "htmlBlock": "カスタム HTML:",
+    "htmlPlaceholder": "<!-- ここにカスタム HTML / 埋め込みコードを入力... -->"
   },
   "categories": {
     "title": "カテゴリ",
@@ -207,6 +209,8 @@
     "emptyHint": "「+ 新規」で作成できます。",
     "noMatch": "このカテゴリの記事はありません。",
     "articles": "記事",
+    "pages": "固定ページ",
+    "typeSelector": "コンテンツタイプの切り替え",
     "scheduledFor": "{{date}} に公開予定",
     "unpublishFor": "{{date}} に非公開予定"
   },
@@ -220,6 +224,12 @@
     "unpublishAtAria": "非公開にする日時",
     "category": "カテゴリ:",
     "categoryAria": "カテゴリ",
+    "layout": "レイアウト:",
+    "layoutAria": "固定ページのレイアウト",
+    "layoutDefault": "テーマ標準 (page.html)",
+    "layoutBlank": "ブランク / フル幅LP (blank.html)",
+    "layoutDefaultShort": "テーマ標準",
+    "layoutBlankShort": "ブランクLP",
     "noCategory": "カテゴリなし",
     "unknownCategory": "不明なカテゴリ（{{id}}）",
     "manageCategories": "管理",
@@ -239,12 +249,14 @@
     "heading": "見出し",
     "paragraph": "段落",
     "code": "コード",
+    "html": "HTML",
     "list": "リスト",
     "image": "画像",
     "noBlocks": "この記事にはブロックがありません。",
     "addFirst": "最初の段落を追加",
     "defaults": {
       "untitled": "無題のドキュメント",
+      "untitledPage": "無題の固定ページ",
       "newHeading": "新しい見出し",
       "sectionTitle": "セクションの見出し"
     },

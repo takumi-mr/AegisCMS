@@ -28,6 +28,11 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
         parts.push(`\`\`\`${lang}\n${code}\n\`\`\``);
         break;
       }
+      case 'core/html': {
+        const code = block.text ?? '';
+        parts.push(`\`\`\`html\n${code}\n\`\`\``);
+        break;
+      }
       case 'core/image': {
         const src = (block.attributes?.src ?? '').trim();
         const alt = (block.attributes?.alt ?? '').trim();
@@ -92,11 +97,19 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
       if (i < lines.length && lines[i].startsWith('```')) {
         i++; // Move past closing fence
       }
-      blocks.push({
-        name: 'core/code',
-        attributes: { language },
-        text: codeLines.join('\n'),
-      });
+      if (language.toLowerCase() === 'html' || language.toLowerCase() === 'raw') {
+        blocks.push({
+          name: 'core/html',
+          attributes: {},
+          text: codeLines.join('\n'),
+        });
+      } else {
+        blocks.push({
+          name: 'core/code',
+          attributes: { language },
+          text: codeLines.join('\n'),
+        });
+      }
       continue;
     }
 

@@ -82,7 +82,16 @@ pub async fn test_app_state_with_db(
         "fields": [{ "name": "title", "type": "string", "required": true }]
     }))
     .unwrap();
-    let mut schemas = HashMap::from([("article".to_string(), article)]);
+    let page: SchemaDefinition = serde_json::from_value(serde_json::json!({
+        "content_type": "page",
+        "label": "Pages",
+        "fields": [
+            { "name": "layout", "type": "string", "required": false, "nullable": true },
+            { "name": "custom_meta", "type": "jsonb", "required": false, "nullable": true }
+        ]
+    }))
+    .unwrap();
+    let mut schemas = HashMap::from([("article".to_string(), article), ("page".to_string(), page)]);
     for schema in extra_schemas {
         schemas.insert(schema.content_type.clone(), schema);
     }

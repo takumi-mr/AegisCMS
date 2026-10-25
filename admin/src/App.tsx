@@ -14,6 +14,7 @@ import {
   List,
   PenSquare,
   Eye,
+  FileCode,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Header, type AppView } from './components/Header';
@@ -75,7 +76,8 @@ export const App: React.FC = () => {
   // Hidden until the server says comments are on ([comments].enabled)
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
-  const [contentType] = useState<string>('article');
+  const [contentType, setContentType] = useState<'article' | 'page'>('article');
+  const [layout, setLayout] = useState<'default' | 'blank'>('default');
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [categories, setCategories] = useState<ContentItem[]>([]);
@@ -148,9 +150,9 @@ export const App: React.FC = () => {
     }
   };
 
-  const loadContents = async () => {
+  const loadContents = async (type: 'article' | 'page' = contentType) => {
     try {
-      const list = await aegisApi.getContents(contentType);
+      const list = await aegisApi.getContents(type);
       setContents(list);
     } catch (err) {
       console.warn('Could not load contents:', err);
@@ -293,17 +295,22 @@ export const App: React.FC = () => {
     setBlocks(itemBlocks);
     setMarkdownText(blocksToMarkdown(itemBlocks));
     setCategoryId(categoryIdOf(item) ?? '');
+    const rawLayout = item.fields?.layout ?? (item as unknown as { layout?: string }).layout;
+    setLayout(rawLayout === 'blank' ? 'blank' : 'default');
     setMobilePane('editor');
   };
 
   const handleNew = () => {
     setSelectedId(null);
-    setTitle(t('editor.defaults.untitled'));
+    setTitle(
+      contentType === 'article' ? t('editor.defaults.untitled') : t('editor.defaults.untitledPage')
+    );
     setSlug(`untitled-${Date.now().toString(36)}`);
     setStatus('draft');
     setPublishAt('');
     setUnpublishAt('');
     setCategoryId('');
+    setLayout('default');
     const newBlocks: BlockNode[] = [
       { name: 'core/heading', attributes: { level: 2 }, text: t('editor.defaults.newHeading') },
       { name: 'core/paragraph', attributes: {}, text: '' },
@@ -311,6 +318,29 @@ export const App: React.FC = () => {
     setBlocks(newBlocks);
     setMarkdownText(blocksToMarkdown(newBlocks));
     setMobilePane('editor');
+  };
+
+  const handleContentTypeChange = async (type: 'article' | 'page') => {
+    if (type === contentType) return;
+    setContentType(type);
+    setSelectedId(null);
+    setTitle(
+      type === 'article' ? t('editor.defaults.untitled') : t('editor.defaults.untitledPage')
+    );
+    setSlug(`untitled-${Date.now().toString(36)}`);
+    setStatus('draft');
+    setPublishAt('');
+    setUnpublishAt('');
+    setCategoryId('');
+    setLayout('default');
+    const newBlocks: BlockNode[] = [
+      { name: 'core/heading', attributes: { level: 2 }, text: t('editor.defaults.newHeading') },
+      { name: 'core/paragraph', attributes: {}, text: '' },
+    ];
+    setBlocks(newBlocks);
+    setMarkdownText(blocksToMarkdown(newBlocks));
+    setMobilePane('editor');
+    loadContents(type);
   };
 
   // Block Manipulation
@@ -436,7 +466,8 @@ export const App: React.FC = () => {
         blocks,
         // author_id is omitted: new content records the logged-in user, updates keep the author
         // Omit the relation entirely when no category is selected
-        ...(categoryId ? { category_id: categoryId } : {}),
+        ...(contentType === 'article' && categoryId ? { category_id: categoryId } : {}),
+        ...(contentType === 'page' ? { layout } : {}),
       };
       // Content opened from the list is updated in place; otherwise a new item is created
       const saved = selectedId
@@ -588,6 +619,7 @@ export const App: React.FC = () => {
                 onSelect={handleSelectContent}
                 onNew={handleNew}
                 contentType={contentType}
+                onContentTypeChange={handleContentTypeChange}
               />
             </div>
 
@@ -665,38 +697,53 @@ export const App: React.FC = () => {
                     )}
                   </FieldRow>
 
-                  <FieldRow>
-                    <Field label={t('editor.category')}>
-                      <select
-                        value={categoryId}
-                        onChange={(e) => setCategoryId(e.target.value)}
-                        aria-label={t('editor.categoryAria')}
+                  {contentType === 'article' ? (
+                    <FieldRow>
+                      <Field label={t('editor.category')}>
+                        <select
+                          value={categoryId}
+                          onChange={(e) => setCategoryId(e.target.value)}
+                          aria-label={t('editor.categoryAria')}
+                        >
+                          <option value="">{t('editor.noCategory')}</option>
+                          {categories.map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {category.title}
+                            </option>
+                          ))}
+                          {categoryId && !categories.some((c) => c.id === categoryId) && (
+                            <option value={categoryId}>
+                              {t('editor.unknownCategory', { id: categoryId.slice(0, 8) })}
+                            </option>
+                          )}
+                        </select>
+                      </Field>
+                      <Button
+                        variant="tool"
+                        onClick={() => {
+                          setSettingsSection('categories');
+                          setView('settings');
+                        }}
+                        title={t('editor.manageCategoriesTitle')}
                       >
-                        <option value="">{t('editor.noCategory')}</option>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.title}
-                          </option>
-                        ))}
-                        {categoryId && !categories.some((c) => c.id === categoryId) && (
-                          <option value={categoryId}>
-                            {t('editor.unknownCategory', { id: categoryId.slice(0, 8) })}
-                          </option>
-                        )}
-                      </select>
-                    </Field>
-                    <Button
-                      variant="tool"
-                      onClick={() => {
-                        setSettingsSection('categories');
-                        setView('settings');
-                      }}
-                      title={t('editor.manageCategoriesTitle')}
-                    >
-                      <Tags size={14} />
-                      <span>{t('editor.manageCategories')}</span>
-                    </Button>
-                  </FieldRow>
+                        <Tags size={14} />
+                        <span>{t('editor.manageCategories')}</span>
+                      </Button>
+                    </FieldRow>
+                  ) : (
+                    <FieldRow>
+                      <Field label={t('editor.layout')}>
+                        <select
+                          value={layout}
+                          onChange={(e) => setLayout(e.target.value as 'default' | 'blank')}
+                          aria-label={t('editor.layoutAria')}
+                        >
+                          <option value="default">{t('editor.layoutDefault')}</option>
+                          <option value="blank">{t('editor.layoutBlank')}</option>
+                        </select>
+                      </Field>
+                    </FieldRow>
+                  )}
                 </div>
 
                 {/* Editor Mode Selector & Paste Actions */}
@@ -785,6 +832,10 @@ export const App: React.FC = () => {
                         <ImageIcon size={14} />
                         <span>{t('editor.image')}</span>
                       </Button>
+                      <Button variant="tool" onClick={() => addBlock('core/html', '')}>
+                        <FileCode size={14} />
+                        <span>{t('editor.html')}</span>
+                      </Button>
                     </div>
 
                     {/* Block Canvas */}
@@ -831,6 +882,7 @@ export const App: React.FC = () => {
                   title={title}
                   slug={slug}
                   categoryId={categoryId}
+                  layout={contentType === 'page' ? layout : undefined}
                   blocks={blocks}
                 />
               </div>

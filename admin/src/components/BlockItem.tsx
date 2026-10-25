@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
   Images,
   List,
+  FileCode,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BlockNode } from '../types';
@@ -50,6 +51,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         return <Hash size={14} />;
       case 'core/code':
         return <Code2 size={14} />;
+      case 'core/html':
+        return <FileCode size={14} />;
       case 'core/image':
         return <ImageIcon size={14} />;
       case 'core/list':
@@ -158,6 +161,22 @@ export const BlockItem: React.FC<BlockItemProps> = ({
             placeholder={t('blocks.codePlaceholder')}
             value={block.text || ''}
             onChange={(e) => onChange({ ...block, text: e.target.value })}
+          />
+        </div>
+      )}
+
+      {block.name === 'core/html' && (
+        <div className={styles.stack}>
+          <div className={styles.inline}>
+            <span className={styles.languageLabel}>{t('blocks.htmlBlock')}</span>
+          </div>
+          <textarea
+            className={cx(styles.textarea, styles.code)}
+            placeholder={t('blocks.htmlPlaceholder')}
+            value={block.text || ''}
+            onChange={(e) => onChange({ ...block, text: e.target.value })}
+            rows={8}
+            spellCheck={false}
           />
         </div>
       )}

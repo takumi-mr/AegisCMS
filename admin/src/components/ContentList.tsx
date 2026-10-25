@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, FileText, Clock } from 'lucide-react';
+import { Plus, FileText, Layers, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem } from '../types';
 import { categoryColor, categoryIdOf } from '../utils/category';
@@ -27,6 +27,7 @@ interface ContentListProps {
   onSelect: (content: ContentItem) => void;
   onNew: () => void;
   contentType: string;
+  onContentTypeChange?: (type: 'article' | 'page') => void;
 }
 
 export const ContentList: React.FC<ContentListProps> = ({
@@ -36,19 +37,22 @@ export const ContentList: React.FC<ContentListProps> = ({
   onSelect,
   onNew,
   contentType,
+  onContentTypeChange,
 }) => {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<string>(ALL);
 
+  const isArticles = contentType === 'article';
   const categoriesById = new Map(categories.map((c) => [c.id, c]));
   const visible = contents.filter((item) => {
-    if (filter === ALL) return true;
+    if (!isArticles || filter === ALL) return true;
     const id = categoryIdOf(item);
     return filter === UNCATEGORIZED ? id === undefined : id === filter;
   });
 
   /** Category shown on a card; falls back to the relation resolved by the server */
   const categoryOf = (item: ContentItem): { title: string; color?: string } | undefined => {
+    if (!isArticles) return undefined;
     const id = categoryIdOf(item);
     if (!id) return undefined;
     const category = categoriesById.get(id);
@@ -57,13 +61,51 @@ export const ContentList: React.FC<ContentListProps> = ({
     return { title: resolved?.title ?? t('contentList.unknownCategory') };
   };
 
+  const getLayoutLabel = (item: ContentItem): string => {
+    const raw = item.fields?.layout ?? (item as unknown as { layout?: string }).layout;
+    if (raw === 'blank') return t('editor.layoutBlankShort');
+    return t('editor.layoutDefaultShort');
+  };
+
   return (
     <aside className={styles.sidebar}>
+      {onContentTypeChange && (
+        <div
+          className={styles.typeSelector}
+          role="tablist"
+          aria-label={t('contentList.typeSelector')}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isArticles}
+            className={cx(styles.typeButton, isArticles && styles.activeType)}
+            onClick={() => onContentTypeChange('article')}
+          >
+            <FileText size={13} />
+            <span>{t('contentList.articles')}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isArticles}
+            className={cx(styles.typeButton, !isArticles && styles.activeType)}
+            onClick={() => onContentTypeChange('page')}
+          >
+            <Layers size={13} />
+            <span>{t('contentList.pages')}</span>
+          </button>
+        </div>
+      )}
+
       <div className={styles.header}>
         <span className={styles.title}>
           {t('contentList.title', {
-            type: contentType === 'article' ? t('contentList.articles') : contentType,
-            count: filter === ALL ? contents.length : `${visible.length}/${contents.length}`,
+            type: isArticles ? t('contentList.articles') : t('contentList.pages'),
+            count:
+              filter === ALL || !isArticles
+                ? contents.length
+                : `${visible.length}/${contents.length}`,
           })}
         </span>
         <Button variant="tool" onClick={onNew} title={t('contentList.newTitle')}>
@@ -72,23 +114,25 @@ export const ContentList: React.FC<ContentListProps> = ({
         </Button>
       </div>
 
-      <div className={styles.filter}>
-        <Field label={t('contentList.category')} className={styles.filterField}>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            aria-label={t('contentList.filterAria')}
-          >
-            <option value={ALL}>{t('contentList.all')}</option>
-            <option value={UNCATEGORIZED}>{t('contentList.uncategorized')}</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.title}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
+      {isArticles && (
+        <div className={styles.filter}>
+          <Field label={t('contentList.category')} className={styles.filterField}>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label={t('contentList.filterAria')}
+            >
+              <option value={ALL}>{t('contentList.all')}</option>
+              <option value={UNCATEGORIZED}>{t('contentList.uncategorized')}</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      )}
 
       <div className={styles.list}>
         {visible.map((item) => {
@@ -114,6 +158,7 @@ export const ContentList: React.FC<ContentListProps> = ({
                   {category.title}
                 </span>
               )}
+              {!isArticles && <span className={styles.layoutBadge}>{getLayoutLabel(item)}</span>}
               <span className={styles.cardMeta}>
                 <span>/{item.slug}</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
