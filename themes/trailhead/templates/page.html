@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="th-article">
+  <header>
+    <h1>{{ title }}</h1>
+  </header>
+  <div class="th-prose">
+    {{ content_html | safe }}
+  </div>
+  {% if comments %}{% include "comments.html" %}{% endif %}
+</article>
+{% endblock %}

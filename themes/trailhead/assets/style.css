@@ -1,0 +1,508 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700&display=swap');
+
+:root {
+  --th-bg: #f6f8f4;
+  --th-surface: #ffffff;
+  --th-surface-strong: #e3ece0;
+  --th-text: #1f2a22;
+  --th-muted: #5f6f63;
+  --th-border: #dbe4d7;
+  --th-accent: #2f7a4f;
+  --th-accent-strong: #225c3b;
+  --th-sun: #f2b84b;
+  --th-dark: #1d2b23;
+  --font-sans: 'Noto Sans JP', system-ui, -apple-system, 'Hiragino Sans', sans-serif;
+  --font-round: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', var(--font-sans);
+  /* 組み込みの掲示板のテンプレートが使う色 */
+  --accent: var(--th-accent);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--th-bg);
+  color: var(--th-text);
+  font-family: var(--font-sans);
+  line-height: 1.8;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--th-accent);
+}
+
+code {
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: var(--th-surface-strong);
+  font-size: 0.9em;
+}
+
+.th-container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+.th-muted {
+  color: var(--th-muted);
+}
+
+/* ---------- Header ---------- */
+.th-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(246, 248, 244, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--th-border);
+}
+
+.th-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 4.25rem;
+}
+
+.th-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--th-text);
+  text-decoration: none;
+  font-family: var(--font-round);
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+.th-logo {
+  width: 1.9rem;
+  height: 1.9rem;
+  color: var(--th-accent);
+}
+
+.th-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-size: 0.92rem;
+}
+
+.th-nav a {
+  color: var(--th-text);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.th-nav a:hover {
+  color: var(--th-accent);
+}
+
+.th-nav .th-nav-cta {
+  padding: 0.4rem 1.1rem;
+  border-radius: 999px;
+  background: var(--th-accent);
+  color: #fff;
+}
+
+.th-nav .th-nav-cta:hover {
+  background: var(--th-accent-strong);
+  color: #fff;
+}
+
+/* ---------- Layout ---------- */
+.th-main {
+  flex: 1;
+  padding: 3rem 0 5rem;
+}
+
+.th-button {
+  display: inline-block;
+  padding: 0.75rem 1.6rem;
+  border-radius: 999px;
+  background: var(--th-accent);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.th-button:hover {
+  background: var(--th-accent-strong);
+}
+
+.th-button-ghost {
+  background: transparent;
+  color: var(--th-text);
+  border: 1px solid var(--th-border);
+}
+
+.th-button-ghost:hover {
+  background: var(--th-surface-strong);
+}
+
+.th-eyebrow {
+  color: var(--th-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.th-date {
+  color: var(--th-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+/* ---------- Home ---------- */
+.th-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  align-items: center;
+  gap: 2rem;
+  padding: 1rem 0 3rem;
+}
+
+.th-hero h1 {
+  font-family: var(--font-round);
+  font-size: clamp(2.2rem, 4.8vw, 3.6rem);
+  line-height: 1.3;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.th-hero-desc {
+  color: var(--th-muted);
+  max-width: 34rem;
+}
+
+.th-hero-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+.th-hero-art svg {
+  width: 100%;
+  max-width: 440px;
+  display: block;
+  margin: 0 auto;
+  border-radius: 24px;
+  background: var(--th-surface-strong);
+}
+
+.th-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 4rem;
+}
+
+.th-features div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.25rem 1.4rem;
+  background: var(--th-surface);
+  border: 1px solid var(--th-border);
+  border-radius: 16px;
+}
+
+.th-features span {
+  color: var(--th-muted);
+  font-size: 0.88rem;
+}
+
+.th-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1.25rem;
+}
+
+.th-section-head h2 {
+  font-family: var(--font-round);
+  font-size: 1.8rem;
+}
+
+.th-section-head a {
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.th-news {
+  display: flex;
+  flex-direction: column;
+  background: var(--th-surface);
+  border: 1px solid var(--th-border);
+  border-radius: 16px;
+}
+
+.th-news-item {
+  padding: 1.25rem 1.5rem;
+}
+
+.th-news-item + .th-news-item {
+  border-top: 1px solid var(--th-border);
+}
+
+.th-news-item h3 {
+  font-size: 1.1rem;
+  line-height: 1.5;
+  margin: 0.2rem 0 0.4rem;
+}
+
+.th-news-item h3 a {
+  color: var(--th-text);
+  text-decoration: none;
+}
+
+.th-news-item h3 a:hover {
+  color: var(--th-accent);
+}
+
+.th-news-item p {
+  color: var(--th-muted);
+  font-size: 0.9rem;
+}
+
+.th-news > .th-muted {
+  padding: 1.25rem 1.5rem;
+}
+
+.th-pagination {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+  color: var(--th-muted);
+}
+
+/* ---------- Article / Page ---------- */
+.th-article {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.th-article header {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--th-border);
+}
+
+.th-article h1 {
+  font-family: var(--font-round);
+  font-size: clamp(1.9rem, 4vw, 2.5rem);
+  line-height: 1.4;
+  margin-top: 0.35rem;
+}
+
+.th-article-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--th-border);
+}
+
+.th-prose > * + *,
+.prose > * + * {
+  margin-top: 1.1rem;
+}
+
+.th-prose h2,
+.prose h2 {
+  font-family: var(--font-round);
+  font-size: 1.45rem;
+  margin-top: 2.2rem;
+}
+
+.th-prose h3,
+.prose h3 {
+  font-size: 1.15rem;
+  margin-top: 1.8rem;
+}
+
+.th-prose ul,
+.th-prose ol,
+.prose ul,
+.prose ol {
+  padding-left: 1.4rem;
+}
+
+.th-prose img {
+  max-width: 100%;
+  border-radius: 14px;
+}
+
+.th-prose pre {
+  padding: 1rem;
+  border-radius: 10px;
+  background: var(--th-dark);
+  color: #eef3ec;
+  overflow-x: auto;
+}
+
+.th-empty {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.th-empty h1 {
+  font-family: var(--font-round);
+  font-size: 2rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.th-empty .th-button {
+  margin-top: 2rem;
+}
+
+/* ---------- Forum (組み込みテンプレートの調整) ---------- */
+.th-main .aegis-forum {
+  padding-top: 0;
+}
+
+.th-main .aegis-forum h1,
+.th-main .aegis-forum h2,
+.th-main .aegis-forum-form h3 {
+  font-family: var(--font-round);
+}
+
+.th-main .aegis-forum-card,
+.th-main .aegis-forum-thread-item,
+.th-main .aegis-forum-post,
+.th-main .aegis-forum-form {
+  background: var(--th-surface);
+  border-color: var(--th-border);
+}
+
+.th-main .aegis-forum-card:hover,
+.th-main .aegis-forum-thread-item:hover {
+  background: var(--th-surface);
+  border-color: var(--th-accent);
+  box-shadow: 0 10px 24px rgba(31, 60, 40, 0.07);
+}
+
+.th-main .aegis-forum-post:target {
+  border-color: var(--th-accent);
+  box-shadow: 0 0 0 3px rgba(47, 122, 79, 0.2);
+}
+
+.th-main .aegis-forum-badge-replies {
+  background: var(--th-surface-strong);
+  color: var(--th-accent-strong);
+}
+
+.th-main .aegis-forum-form input[type='text'],
+.th-main .aegis-forum-form textarea {
+  background: var(--th-bg);
+  border-color: var(--th-border);
+}
+
+.th-main .aegis-forum-form input[type='text']:focus,
+.th-main .aegis-forum-form textarea:focus {
+  background: var(--th-surface);
+  border-color: var(--th-accent);
+}
+
+/* .aegis-forum a { color: inherit } がリンクのボタンの文字色を上書きするので戻す */
+.th-main a.aegis-forum-btn {
+  color: #fff;
+}
+
+.th-main .aegis-forum-btn:hover {
+  background: var(--th-accent-strong);
+  color: #fff;
+  opacity: 1;
+}
+
+.th-main .aegis-forum-btn-secondary,
+.th-main a.aegis-forum-btn-secondary {
+  background: var(--th-surface-strong);
+  color: var(--th-text);
+}
+
+.th-main .aegis-forum-btn-secondary:hover {
+  background: var(--th-border);
+  color: var(--th-text);
+}
+
+/* ---------- Footer ---------- */
+.th-footer {
+  background: var(--th-dark);
+  color: #c9d6cc;
+  padding: 3rem 0 1.5rem;
+  font-size: 0.88rem;
+}
+
+.th-footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.th-footer-brand {
+  color: #fff;
+  font-family: var(--font-round);
+  font-size: 1.15rem;
+  margin-bottom: 0.4rem;
+}
+
+.th-footer p {
+  max-width: 28rem;
+}
+
+.th-footer-links {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 0.4rem 2rem;
+}
+
+.th-footer-links a {
+  color: #c9d6cc;
+  text-decoration: none;
+}
+
+.th-footer-links a:hover {
+  color: #fff;
+}
+
+.th-copy {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.78rem;
+  color: #93a597;
+}
+
+@media (max-width: 760px) {
+  .th-hero,
+  .th-features {
+    grid-template-columns: 1fr;
+  }
+
+  .th-hero-art {
+    display: none;
+  }
+
+  .th-nav {
+    gap: 0.9rem;
+  }
+
+  .th-nav a:not(.th-nav-cta):nth-child(2) {
+    display: none;
+  }
+}

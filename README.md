@@ -1,7 +1,7 @@
 # 次世代セキュアCMS「AegisCMS」
 
 > [!TIP]
-> すぐに動かして試すなら、EC のサンプルサイト [`examples/coffee-shop/`](examples/coffee-shop)（`task demo:shop`）をどうぞ。
+> すぐに動かして試すなら、EC のサンプルサイト [`examples/coffee-shop/`](examples/coffee-shop)（`task demo:shop`）か、掲示板のサンプルサイト [`examples/hiking-forum/`](examples/hiking-forum)（`task demo:forum`）をどうぞ。
 
 ---
 

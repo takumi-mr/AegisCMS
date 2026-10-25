@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
+  <meta name="description" content="{{ site_description }}">
+  <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
+  {% if extra_css %}
+  <style>{{ extra_css | safe }}</style>
+  {% endif %}
+  {{ extra_head | safe }}
+</head>
+<body>
+  <header class="th-header">
+    <div class="th-container th-header-inner">
+      <a href="{{ base_path }}/" class="th-brand">
+        <svg class="th-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M2 27 L12 10 L17 18 L21 12 L30 27 Z" fill="currentColor"/><path d="M12 10 L14.5 14.2 L12.6 15.6 L10.6 13.6 Z" fill="var(--th-bg)"/></svg>
+        <span>{{ site_title }}</span>
+      </a>
+      <nav class="th-nav" aria-label="Main">
+        <a href="{{ base_path }}/articles">お知らせ</a>
+        <a href="{{ base_path }}/guidelines">ガイドライン</a>
+        <a href="{{ base_path }}/forum" class="th-nav-cta">掲示板</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="th-main">
+    <div class="th-container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="th-footer">
+    <div class="th-container th-footer-inner">
+      <div>
+        <div class="th-footer-brand">{{ site_title }}</div>
+        <p>{{ site_description }}</p>
+      </div>
+      <nav class="th-footer-links" aria-label="Footer">
+        <a href="{{ base_path }}/forum">掲示板</a>
+        <a href="{{ base_path }}/articles">お知らせ</a>
+        <a href="{{ base_path }}/about">このサイトについて</a>
+        <a href="{{ base_path }}/guidelines">投稿ガイドライン</a>
+        <a href="{{ base_path }}/admin/">管理画面</a>
+      </nav>
+    </div>
+    <div class="th-container th-copy">Powered by AegisCMS</div>
+  </footer>
+</body>
+</html>

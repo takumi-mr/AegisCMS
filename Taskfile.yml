@@ -272,6 +272,30 @@ tasks:
       - node examples/coffee-shop/seed.mjs {{.CLI_ARGS}}
 
   # ============================================================================
+  # ⛰️ サンプル掲示板（examples/hiking-forum）
+  # ============================================================================
+  demo:forum:user:
+    desc: サンプル掲示板の管理者 owner とモデレーター moderator (editor) を作成 (パスワード sample-password。作成済みなら何もしない)
+    env:
+      AEGIS_USER_PASSWORD: sample-password
+    cmds:
+      - cmd: cargo run -p aegis-server -- -c examples/hiking-forum/aegis.toml user add owner --role admin --display-name 管理人
+        ignore_error: true
+      - cmd: cargo run -p aegis-server -- -c examples/hiking-forum/aegis.toml user add moderator --role editor --display-name モデレーター
+        ignore_error: true
+
+  demo:forum:
+    desc: サンプル掲示板「やまびこ」を起動 (http://127.0.0.1:8080/forum。初回は別のターミナルで task demo:forum:seed)
+    deps: [demo:forum:user]
+    cmds:
+      - cargo run -p aegis-server -- -c examples/hiking-forum/aegis.toml run
+
+  demo:forum:seed:
+    desc: 起動中のサンプル掲示板にカテゴリ・スレッド・レス・お知らせ・ページを投入 (要 Node.js 18+。何度実行してもよい)
+    cmds:
+      - node examples/hiking-forum/seed.mjs {{.CLI_ARGS}}
+
+  # ============================================================================
   # 🐳 Docker タスク
   # ============================================================================
   docker:build:
