@@ -573,7 +573,7 @@ export const App: React.FC = () => {
       ) : view === 'comments' && showComments ? (
         <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
       ) : view === 'forum' && showForum ? (
-        <ForumManager onShowToast={showToast} />
+        <ForumManager isAdmin={isAdmin(session)} onShowToast={showToast} />
       ) : view === 'settings' ? (
         <SettingsView
           session={session}

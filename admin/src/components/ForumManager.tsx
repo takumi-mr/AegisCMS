@@ -24,12 +24,14 @@ import shop from './Shop.module.css';
 import styles from './ForumManager.module.css';
 
 interface ForumManagerProps {
+  /** Admins may create, edit and delete categories; editors moderate threads and posts */
+  isAdmin: boolean;
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
 type TabMode = 'threads' | 'categories';
 
-export const ForumManager: React.FC<ForumManagerProps> = ({ onShowToast }) => {
+export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabMode>('threads');
   const [categories, setCategories] = useState<ForumCategory[]>([]);
@@ -273,10 +275,14 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ onShowToast }) => {
 
           <div className={shop.headingActions}>
             {activeTab === 'categories' ? (
-              <Button variant="primary" onClick={handleOpenCreateCategory}>
-                <Plus size={14} />
-                <span>{t('forum.newCategory')}</span>
-              </Button>
+              isAdmin ? (
+                <Button variant="primary" onClick={handleOpenCreateCategory}>
+                  <Plus size={14} />
+                  <span>{t('forum.newCategory')}</span>
+                </Button>
+              ) : (
+                <span className={shop.muted}>{t('common.requiresAdmin')}</span>
+              )
             ) : (
               <Button
                 variant="secondary"
@@ -459,14 +465,14 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ onShowToast }) => {
                   <th>{t('forum.table.slug')}</th>
                   <th>{t('forum.table.description')}</th>
                   <th>{t('forum.table.position')}</th>
-                  <th style={{ textAlign: 'right' }}>{t('forum.table.actions')}</th>
+                  {isAdmin && <th style={{ textAlign: 'right' }}>{t('forum.table.actions')}</th>}
                 </tr>
               </thead>
               <tbody>
                 {categories.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={isAdmin ? 5 : 4}
                       style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}
                     >
                       {t('forum.noCategories')}
@@ -483,26 +489,31 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ onShowToast }) => {
                         {cat.description || '-'}
                       </td>
                       <td>{cat.position}</td>
-                      <td>
-                        <div className={styles.actionsCell} style={{ justifyContent: 'flex-end' }}>
-                          <button
-                            className={styles.actionBtn}
-                            onClick={() => handleOpenEditCategory(cat)}
-                            title={t('forum.editCategory')}
+                      {isAdmin && (
+                        <td>
+                          <div
+                            className={styles.actionsCell}
+                            style={{ justifyContent: 'flex-end' }}
                           >
-                            <Edit3 size={13} />
-                            <span>{t('forum.edit')}</span>
-                          </button>
-                          <button
-                            className={cx(styles.actionBtn, styles.danger)}
-                            onClick={() => handleDeleteCategory(cat)}
-                            title={t('forum.deleteCategory')}
-                          >
-                            <Trash2 size={13} />
-                            <span>{t('forum.delete')}</span>
-                          </button>
-                        </div>
-                      </td>
+                            <button
+                              className={styles.actionBtn}
+                              onClick={() => handleOpenEditCategory(cat)}
+                              title={t('forum.editCategory')}
+                            >
+                              <Edit3 size={13} />
+                              <span>{t('forum.edit')}</span>
+                            </button>
+                            <button
+                              className={cx(styles.actionBtn, styles.danger)}
+                              onClick={() => handleDeleteCategory(cat)}
+                              title={t('forum.deleteCategory')}
+                            >
+                              <Trash2 size={13} />
+                              <span>{t('forum.delete')}</span>
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}

@@ -44,7 +44,7 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 - **カテゴリ**: 作成（名前・slug・説明・並び順）・編集・削除。
 
 > [!NOTE]
-> タブは `editor` 以上に表示されますが、カテゴリの変更とモデレーションの API は `admin` だけが使えます。
+> タブは `editor` 以上に表示されます。スレッドとレスのモデレーション（ピン留め・ロック・削除）は `editor` 以上、カテゴリの作成・編集・削除は `admin` だけが行えます（コメントの審査は `editor`・設定は `admin` と同じ分け方）。`editor` にはカテゴリの一覧だけが表示されます。
 
 ---
 
@@ -62,10 +62,10 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 | `GET /api/v1/forum/threads/{id}/posts?cursor_post_number=&limit=` | 不要 | レスの一覧（`cursor_post_number` より後） |
 | `POST /api/v1/forum/threads` | 不要（`allow_anonymous = false` ならログイン） | `{ "category_id", "title", "body", "author_name" }`。`{ "thread", "initial_post" }`（`201`） |
 | `POST /api/v1/forum/posts` | 同上 | `{ "thread_id", "body", "author_name", "reply_to_number" }`。`{ "post" }`（`201`） |
-| `POST /api/v1/forum/threads/{id}/pin` | `admin` | `{ "pinned": true }` |
-| `POST /api/v1/forum/threads/{id}/lock` | `admin` | `{ "locked": true }` |
-| `DELETE /api/v1/forum/threads/{id}` | `admin` | スレッドとレスの削除 |
-| `DELETE /api/v1/forum/posts/{id}` | `admin` | レスの削除（論理削除。レス番号は残る） |
+| `POST /api/v1/forum/threads/{id}/pin` | `editor` | `{ "pinned": true }` |
+| `POST /api/v1/forum/threads/{id}/lock` | `editor` | `{ "locked": true }` |
+| `DELETE /api/v1/forum/threads/{id}` | `editor` | スレッドとレスの削除 |
+| `DELETE /api/v1/forum/posts/{id}` | `editor` | レスの削除（論理削除。レス番号は残る） |
 
 ページ送りはカーソル方式です。次のページは、前の応答の最後のスレッドの `last_post_at` と `id`（レスは `post_number`）を渡して取ります。
 

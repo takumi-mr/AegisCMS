@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use super::public::{render_not_found, themed_response, IndexParams};
 use crate::audit::ClientIp;
-use crate::auth::{extract_session_id, AdminSession};
+use crate::auth::{extract_session_id, AdminSession, EditorSession};
 use crate::render;
 use crate::state::AppState;
 use aegis_core::{PageRenderContext, Pagination};
@@ -881,16 +881,16 @@ pub struct PinThreadReq {
     pub pinned: bool,
 }
 
-/// `POST /api/v1/forum/threads/:id/pin` (Admin認可)
+/// `POST /api/v1/forum/threads/:id/pin` (Editor認可)
 pub async fn api_pin_thread(
     State(state): State<Arc<AppState>>,
-    admin: AdminSession,
+    session: EditorSession,
     Path(id): Path<String>,
     Json(body): Json<PinThreadReq>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
     forum
-        .set_thread_pinned(&id, body.pinned, Some(&admin.0.user_id))
+        .set_thread_pinned(&id, body.pinned, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
     Ok(Json(json!({ "success": true, "pinned": body.pinned })))
@@ -901,44 +901,44 @@ pub struct LockThreadReq {
     pub locked: bool,
 }
 
-/// `POST /api/v1/forum/threads/:id/lock` (Admin認可)
+/// `POST /api/v1/forum/threads/:id/lock` (Editor認可)
 pub async fn api_lock_thread(
     State(state): State<Arc<AppState>>,
-    admin: AdminSession,
+    session: EditorSession,
     Path(id): Path<String>,
     Json(body): Json<LockThreadReq>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
     forum
-        .set_thread_locked(&id, body.locked, Some(&admin.0.user_id))
+        .set_thread_locked(&id, body.locked, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
     Ok(Json(json!({ "success": true, "locked": body.locked })))
 }
 
-/// `DELETE /api/v1/forum/threads/:id` (Admin認可)
+/// `DELETE /api/v1/forum/threads/:id` (Editor認可)
 pub async fn api_delete_thread(
     State(state): State<Arc<AppState>>,
-    admin: AdminSession,
+    session: EditorSession,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
     forum
-        .delete_thread(&id, Some(&admin.0.user_id))
+        .delete_thread(&id, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
     Ok(Json(json!({ "success": true })))
 }
 
-/// `DELETE /api/v1/forum/posts/:id` (Admin認可)
+/// `DELETE /api/v1/forum/posts/:id` (Editor認可)
 pub async fn api_delete_post(
     State(state): State<Arc<AppState>>,
-    admin: AdminSession,
+    session: EditorSession,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
     forum
-        .delete_post(&id, Some(&admin.0.user_id))
+        .delete_post(&id, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
     Ok(Json(json!({ "success": true })))
