@@ -159,6 +159,9 @@ pub struct OrderRefundRecord {
     #[serde(default)]
     pub reason: Option<String>,
     pub created_at: String,
+    /// この返金で在庫を戻したか（二重戻しの防止に使う。古い記録は `false`）
+    #[serde(default)]
+    pub restocked: bool,
 }
 
 /// 見積もり・注文の内容。`calculate-order` / `on-order-status-changed` フックに渡す

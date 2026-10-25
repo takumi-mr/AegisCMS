@@ -423,7 +423,7 @@ where
     assert_eq!(ord_after_ref1.refunded_amount, 1000);
     assert!(ord_after_ref1.refunds_json.contains("re_123"));
 
-    // 全額返金（残り3400円返金、全額返金ステータスへ、p-coffee の在庫を2個戻す）
+    // 全額返金（残り3400円返金、全額返金ステータスへ。取り消し済みなので在庫は戻さない）
     let refund2 = aegis_db::OrderRefundUpdate {
         id: "ord-001".to_string(),
         refunded_amount: 4400,
@@ -434,12 +434,7 @@ where
         new_status: Some("refunded".to_string()),
         updated_at: "2026-10-25T01:05:00Z".to_string(),
         note: None,
-        restock: vec![StockReservation {
-            table: "content_product".to_string(),
-            product_id: "p-coffee".to_string(),
-            variant_id: None,
-            quantity: 2,
-        }],
+        restock: vec![],
     };
     let ok2 = adapter.record_order_refund(&refund2).await?;
     assert!(ok2);
@@ -447,9 +442,9 @@ where
     assert_eq!(ord_after_ref2.status, "refunded");
     assert_eq!(ord_after_ref2.refunded_amount, 4400);
 
-    // 在庫が戻ったか確認（キャンセル時に5に戻り、全額返金でさらに2個戻るので7個）
+    // 在庫が戻ったか確認（取り消し済みの注文の返金では戻さないので 5 のまま）
     let coffee_restocked = adapter.get_content(&schema, "p-coffee").await?.unwrap();
-    assert_eq!(coffee_restocked.custom_fields.get("stock"), Some(&json!(7)));
+    assert_eq!(coffee_restocked.custom_fields.get("stock"), Some(&json!(5)));
 
     // 13. ProductVariantStorage CRUD and Variant Stock Reservation
     let var1 = aegis_db::ProductVariantRecord {
