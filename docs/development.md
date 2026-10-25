@@ -15,7 +15,8 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | `task migrate` | スキーマのマイグレーション |
 | `task codegen`（`codegen:ts` / `codegen:openapi`） | `schemas/*.yaml` から `admin/src/types/schemas.ts` と `docs/openapi.json` を生成。スキーマを変えたら実行する |
 | `task build` / `build:server` / `build:admin` | 本番ビルド |
-| `task test:e2e` | Admin Studio の E2E テスト（Playwright。[8](#8-admin-studio-の-e2e-テストと-storybook)） |
+| `task test:admin` | Admin Studio のユニットテスト（Vitest。[8.1](#81-ユニットテスト-vitestadminsrctests)） |
+| `task test:e2e` | Admin Studio の E2E テスト（Playwright。[8.2](#82-e2e-テスト-playwrightadmine2e)） |
 | `task storybook` / `build:storybook` | Admin Studio の Storybook（ポート 6006）/ 静的ビルド |
 | `task plugin:build*` | プラグインの Wasm ビルド（[4](#4-プラグインのビルド)） |
 | `task bench:plugins` | プラグインのフック 1 回あたりの所要時間と同時実行時のスループット（`crates/aegis-runtime/examples/plugin_profile.rs`） |
@@ -152,9 +153,19 @@ task docker:dbs:down
 
 ---
 
-## 8. Admin Studio の E2E テストと Storybook
+## 8. Admin Studio のテストと Storybook
 
-### 8.1 E2E テスト (Playwright、`admin/e2e/`)
+### 8.1 ユニットテスト (Vitest、`admin/src/**/*.test.ts`)
+
+```bash
+task test:admin                 # = npm --prefix admin run test:unit
+npm --prefix admin run test:unit:watch # ファイル変更監視モード
+```
+
+- **高速なユーティリティおよびロジックの検証**: `src/utils/`（Markdown パーサー・シリアライザー、通貨フォーマッター、権限判定、日付フォーマット、SSO / 認証リダイレクト等）や `src/api/` のヘルパー・クラスを対象に、Vite 設定と連動した Vitest で実行します。
+- **CI / task check への統合**: `task check` および GitHub Actions の `frontend-ci` ジョブ内で自動実行されます。
+
+### 8.2 E2E テスト (Playwright、`admin/e2e/`)
 
 ```bash
 task test:e2e                      # = npm --prefix admin run test:e2e
@@ -175,8 +186,7 @@ npm --prefix admin run test:e2e -- --ui   # Playwright の UI モード
 - プラグインはリポジトリの `plugins/`（公式プラグインのビルド済み Wasm）を使い、どれも無効の状態から始める。
 - 画面の要素は役割と名前（`getByRole`）で探す。英語（`locale: 'en-US'`）で動かす。プラグインのカードは表示名で名前の付いた `article`。
 
-
-### 8.2 Storybook (`admin/.storybook/`、`src/**/*.stories.tsx`)
+### 8.3 Storybook (`admin/.storybook/`、`src/**/*.stories.tsx`)
 
 ```bash
 task storybook          # http://localhost:6006
@@ -188,7 +198,7 @@ task build:storybook    # admin/storybook-static/（CI でもビルド）
 - `play` 関数は Storybook の Interactions パネルで動く（テストランナーはまだ入れていない）。
 - バージョンは固定（`--save-exact`）。公開から 2 週間以上たったものを選ぶ（脆弱性の修正版は除く。10.6.2 は GHSA-f2ph-cmg5-wxc8 の修正）。
 
-### 8.3 依存パッケージを追加したとき（`package-lock.json`）
+### 8.4 依存パッケージを追加したとき（`package-lock.json`）
 
 Windows の npm 11 で `npm install` すると、他のプラットフォーム向けの任意依存（`@oxc-parser/binding-wasm32-wasi` などが使う `@emnapi/*`）がロックファイルに書かれないことがあります。ローカルでは動いても、CI と Docker（Linux・Node 22 の npm 10）の `npm ci` が `package.json and package-lock.json ... are in sync` / `Missing: @emnapi/core@... from lock file` で失敗します（#74 で起きた）。
 

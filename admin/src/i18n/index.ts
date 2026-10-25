@@ -20,11 +20,14 @@ const isLanguage = (value: string | null | undefined): value is Language =>
 /** The language chosen before, else the browser's (Japanese or English) */
 function detectLanguage(): Language {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (isLanguage(stored)) return stored;
+    if (typeof localStorage !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (isLanguage(stored)) return stored;
+    }
   } catch {
     // Storage may be unavailable (private mode); fall back to the browser
   }
+  if (typeof navigator === 'undefined') return 'en';
   const preferred = navigator.languages?.length ? navigator.languages : [navigator.language];
   const match = preferred
     .map((tag) => tag?.toLowerCase().split('-')[0])
@@ -44,14 +47,18 @@ i18n.use(initReactI18next).init({
 });
 
 const applyLanguage = (language: string) => {
-  document.documentElement.lang = language;
+  if (typeof document !== 'undefined' && document.documentElement) {
+    document.documentElement.lang = language;
+  }
 };
 applyLanguage(i18n.language);
 
 i18n.on('languageChanged', (language) => {
   applyLanguage(language);
   try {
-    localStorage.setItem(STORAGE_KEY, language);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, language);
+    }
   } catch {
     // Not remembered across reloads; the switch still applies now
   }

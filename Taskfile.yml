@@ -55,6 +55,11 @@ tasks:
     cmds:
       - cargo test --workspace {{.CLI_ARGS}}
 
+  test:admin:
+    desc: Admin Studio のユニットテストを実行 (Vitest)
+    cmds:
+      - npm --prefix admin run test:unit -- {{.CLI_ARGS}}
+
   lint:
     desc: Clippy による静的解析を実行 (ゼロ警告ポリシー)
     cmds:
@@ -86,16 +91,17 @@ tasks:
       - npm --prefix admin run format:check
 
   check:
-    desc: PR・コミット前の全検証チェックを一括実行 (fmt, prettier, clippy, oxlint, test, admin:build)
+    desc: PR・コミット前の全検証チェックを一括実行 (fmt, prettier, clippy, oxlint, test, test:admin, admin:build)
     cmds:
       - task: fmt:check
       - task: fmt:admin:check
       - task: lint
       - task: lint:admin
       - task: test
+      - task: test:admin
       - task: build:admin
     summary: |
-      AGENTS.md の PR 作成前チェックリスト（フォーマット検証 rustfmt / Prettier、Clippy / oxlint、全テスト、フロントエンドビルド）を
+      AGENTS.md の PR 作成前チェックリスト（フォーマット検証 rustfmt / Prettier、Clippy / oxlint、全テスト、フロントエンドユニットテスト、フロントエンドビルド）を
       すべて順次実行して検証します。
 
   # ============================================================================

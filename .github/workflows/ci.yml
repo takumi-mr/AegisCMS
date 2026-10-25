@@ -59,6 +59,9 @@ jobs:
       - name: Lint (oxlint, zero warnings)
         run: npm --prefix admin run lint
 
+      - name: Run unit tests (Vitest)
+        run: npm --prefix admin run test:unit
+
       - name: Typecheck and build Admin Studio
         run: npm --prefix admin run build
 
