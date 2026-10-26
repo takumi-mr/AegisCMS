@@ -335,7 +335,8 @@ impl OpenApiGenerator {
                     },
                     "author_id": { "type": "string", "nullable": true },
                     "published_at": { "type": "string", "format": "date-time", "nullable": true },
-                    "unpublish_at": { "type": "string", "format": "date-time", "nullable": true }
+                    "unpublish_at": { "type": "string", "format": "date-time", "nullable": true },
+                    "publish": { "type": "boolean", "default": false, "description": "Update the public snapshot to the saved working version" }
                 },
                 "required": ["title", "slug"]
             }),

@@ -8,7 +8,7 @@
 - `task check` がすべて通る状態を保つ。
 
 ## 技術メモ・申し送り事項
-- コンテンツ版履歴・Admin Studio 履歴 UI を追加。履歴保存はコンテンツ更新と同一トランザクション。SQLite ロールバックテスト、Storybook 39 件、Content Editor E2E 3 件で確認。設計は [docs/architecture.md](docs/architecture.md#2-コンテンツと-db) を参照。次段階は公開版と作業版の分離。
+- コンテンツ版履歴・Admin Studio 履歴 UI と、公開版・作業版の分離を追加。作業版の保存と履歴追加・公開ポインター変更は同一トランザクション。SQLite / PostgreSQL / MySQL 対応。公開中の通常保存は公開ページに反映せず、「公開版を更新」で反映する。既存の公開中コンテンツは起動時に初期公開スナップショットへ移行する。`task check`（workspace tests、Clippy、Admin unit 90件、Storybook 39件、build）と Content Editor E2E 4件が通過。設計は [docs/architecture.md](docs/architecture.md#2-コンテンツと-db) を参照。
 
 **次に着手する項目**
 

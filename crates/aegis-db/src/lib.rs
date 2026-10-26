@@ -83,6 +83,68 @@ pub struct ContentVersionRecord {
 }
 
 pub const CONTENT_VERSIONS_TABLE: &str = "_aegis_content_versions";
+pub const CONTENT_PUBLICATIONS_TABLE: &str = "_aegis_content_publications";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentPublicationChange {
+    Keep,
+    /// Point the public view at one of the snapshots in this same transaction.
+    PublishVersion(usize),
+    /// Point at this snapshot only if the content has no published version yet.
+    EnsureVersion(usize),
+    Unpublish,
+}
+
+pub fn record_from_content_version(version: &ContentVersionRecord) -> Result<ContentRecord> {
+    serde_json::from_str(&version.snapshot_json)
+        .map_err(|e| AegisError::Database(format!("Invalid content version snapshot: {}", e)))
+}
+
+pub fn published_record_from_snapshot(
+    snapshot_json: &str,
+    status: String,
+    published_at: Option<String>,
+    unpublish_at: Option<String>,
+    updated_at: String,
+) -> Result<ContentRecord> {
+    let mut record: ContentRecord = serde_json::from_str(snapshot_json)
+        .map_err(|e| AegisError::Database(format!("Invalid published snapshot: {}", e)))?;
+    record.status = status;
+    record.published_at = published_at;
+    record.unpublish_at = unpublish_at;
+    record.updated_at = updated_at;
+    Ok(record)
+}
+
+/// Includes pre-pointer published rows while returning records in the same order and page shape.
+pub fn merge_published_content_records(
+    mut published: Vec<ContentRecord>,
+    legacy_working: Vec<ContentRecord>,
+    query: &ContentListQuery,
+) -> ContentPage {
+    let mut ids: std::collections::HashSet<String> =
+        published.iter().map(|record| record.id.clone()).collect();
+    published.extend(
+        legacy_working
+            .into_iter()
+            .filter(|record| record.status == "published" && ids.insert(record.id.clone())),
+    );
+    published.sort_by(|a, b| {
+        b.created_at
+            .cmp(&a.created_at)
+            .then_with(|| b.id.cmp(&a.id))
+    });
+    let total = published.len() as u64;
+    let offset = usize::try_from(query.offset).unwrap_or(usize::MAX);
+    let records = published
+        .into_iter()
+        .skip(offset)
+        .take(query.limit.map_or(usize::MAX, |limit| {
+            usize::try_from(limit).unwrap_or(usize::MAX)
+        }))
+        .collect();
+    ContentPage { records, total }
+}
 
 /// コンテンツ一覧の条件（`list_contents_page`）
 #[derive(Debug, Clone, Default)]
@@ -129,6 +191,7 @@ pub trait DatabaseAdapter:
         schema: &SchemaDefinition,
         record: &ContentRecord,
         versions: &[ContentVersionRecord],
+        publication: ContentPublicationChange,
     ) -> Result<()>;
 
     /// Overwrite a content record's mutable columns (matched by `id`; `content_type` and
@@ -145,6 +208,7 @@ pub trait DatabaseAdapter:
         schema: &SchemaDefinition,
         record: &ContentRecord,
         versions: &[ContentVersionRecord],
+        publication: ContentPublicationChange,
     ) -> Result<bool>;
 
     /// Append an immutable content snapshot and return its assigned revision.
@@ -164,6 +228,20 @@ pub trait DatabaseAdapter:
         content_id: &str,
         revision: i64,
     ) -> Result<Option<ContentVersionRecord>>;
+
+    /// Fetch the immutable currently published snapshot by its published slug or content ID.
+    async fn get_published_content(
+        &self,
+        schema: &SchemaDefinition,
+        slug_or_id: &str,
+    ) -> Result<Option<ContentRecord>>;
+
+    /// List published snapshots with the standard content paging rules.
+    async fn list_published_contents_page(
+        &self,
+        schema: &SchemaDefinition,
+        query: &ContentListQuery,
+    ) -> Result<ContentPage>;
 
     /// Publish a scheduled record (`status = 'scheduled'` → `'published'`, setting `updated_at`).
     /// Only matches while the record is still scheduled for `published_at`, so a record the

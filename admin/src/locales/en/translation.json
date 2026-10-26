@@ -307,6 +307,8 @@
     "connected": "Connected",
     "offline": "Offline",
     "saveTitle": "Save content and trigger Wasm guest hooks",
+    "publishTitle": "Publish the current working version",
+    "publish": "Publish changes",
     "saveNeedsEditor": "Saving requires the editor role",
     "saving": "Executing Hooks...",
     "save": "Save & Run Hooks",

@@ -62,6 +62,37 @@ test.describe('Content Editor', () => {
     await expect(statusSelect).toHaveValue('published');
   });
 
+  test('keeps published content stable until working changes are published', async ({ page }) => {
+    const suffix = Date.now();
+    const firstTitle = `Public version one ${suffix}`;
+    const workingTitle = `Working version ${suffix}`;
+    const slug = `publication-split-${suffix}`;
+
+    await page.getByRole('button', { name: 'New' }).click();
+    await page.getByPlaceholder('Enter post title...').fill(firstTitle);
+    await page.getByPlaceholder('post-slug').fill(slug);
+    const statusSelect = page.locator('select').filter({ hasText: /Draft|Published|Scheduled/ });
+    await statusSelect.selectOption('published');
+    await page.getByRole('button', { name: /Save/ }).click();
+    await expect(page.getByText(/Saved!/)).toBeVisible();
+
+    await page.getByPlaceholder('Enter post title...').fill(workingTitle);
+    await page.getByRole('button', { name: /Save/ }).click();
+    await expect(page.getByText(/Saved!/)).toBeVisible();
+
+    const publicPage = await page.request.get(`http://127.0.0.1:18080/articles/${slug}`);
+    const oldHtml = await publicPage.text();
+    expect(publicPage.ok()).toBeTruthy();
+    expect(oldHtml).toContain(firstTitle);
+    expect(oldHtml).not.toContain(workingTitle);
+
+    await page.getByRole('button', { name: 'Publish changes' }).click();
+    await expect(page.getByText(/Saved!/)).toBeVisible();
+
+    const updatedPage = await page.request.get(`http://127.0.0.1:18080/articles/${slug}`);
+    expect(await updatedPage.text()).toContain(workingTitle);
+  });
+
   test('switches editor modes and modifies content blocks', async ({ page }) => {
     await page.getByRole('button', { name: 'New' }).click();
 

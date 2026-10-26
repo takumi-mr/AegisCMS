@@ -38,10 +38,12 @@ interface HeaderProps {
   onViewChange: (view: AppView) => void;
   isOnline: boolean;
   onSave: () => void;
+  onPublish?: () => void;
   isSaving: boolean;
   session: SessionInfo;
   /** False for viewers: saving needs the editor role */
   canSave: boolean;
+  canPublish?: boolean;
   /** Products / Orders tabs: the shop is enabled (`[commerce].enabled`) and the user can edit */
   showShop: boolean;
   /** Comments tab: comments are enabled (`[comments].enabled`) and the user can edit */
@@ -59,9 +61,11 @@ export const Header: React.FC<HeaderProps> = ({
   onViewChange,
   isOnline,
   onSave,
+  onPublish,
   isSaving,
   session,
   canSave,
+  canPublish = false,
   showShop,
   showComments,
   showForum,
@@ -178,18 +182,32 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {view === 'editor' && (
-          <Button
-            variant="primary"
-            onClick={onSave}
-            disabled={isSaving || !canSave}
-            title={canSave ? t('header.saveTitle') : t('header.saveNeedsEditor')}
-            className={styles.saveButton}
-          >
-            {isSaving ? <Activity className="animate-spin" size={16} /> : <Send size={16} />}
-            <span className={styles.saveButtonLabel}>
-              {isSaving ? t('header.saving') : t('header.save')}
-            </span>
-          </Button>
+          <>
+            {canPublish && onPublish && (
+              <Button
+                variant="tool"
+                onClick={onPublish}
+                disabled={isSaving}
+                title={t('header.publishTitle')}
+                className={styles.saveButton}
+              >
+                <Send size={16} />
+                <span className={styles.saveButtonLabel}>{t('header.publish')}</span>
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              onClick={onSave}
+              disabled={isSaving || !canSave}
+              title={canSave ? t('header.saveTitle') : t('header.saveNeedsEditor')}
+              className={styles.saveButton}
+            >
+              {isSaving ? <Activity className="animate-spin" size={16} /> : <Send size={16} />}
+              <span className={styles.saveButtonLabel}>
+                {isSaving ? t('header.saving') : t('header.save')}
+              </span>
+            </Button>
+          </>
         )}
 
         <div className={styles.desktopControls}>

@@ -161,6 +161,11 @@
             },
             "type": "array"
           },
+          "publish": {
+            "default": false,
+            "description": "Update the public snapshot to the saved working version",
+            "type": "boolean"
+          },
           "published_at": {
             "format": "date-time",
             "nullable": true,

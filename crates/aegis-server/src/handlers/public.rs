@@ -83,7 +83,7 @@ pub async fn render_index(
             limit: Some(per_page),
             offset: (page - 1).saturating_mul(per_page),
         };
-        match state.db.list_contents_page(&schema, &query).await {
+        match state.db.list_published_contents_page(&schema, &query).await {
             Ok(content_page) => {
                 total_items = content_page.total;
                 let relations = {
@@ -189,7 +189,7 @@ pub async fn render_article(
         None => return render_not_found(&state, "Article schema not found").await,
     };
 
-    let maybe_record = match state.db.get_content(&schema, &slug).await {
+    let maybe_record = match state.db.get_published_content(&schema, &slug).await {
         Ok(rec) => rec,
         Err(e) => {
             tracing::error!("Database error fetching article '{}': {}", slug, e);
@@ -251,7 +251,7 @@ pub async fn render_page_or_slug(
 
     let now = chrono::Utc::now();
     if let Some(schema) = page_schema {
-        if let Ok(Some(record)) = state.db.get_content(&schema, &slug).await {
+        if let Ok(Some(record)) = state.db.get_published_content(&schema, &slug).await {
             if is_currently_published(&record.status, record.unpublish_at.as_deref(), now) {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
@@ -294,7 +294,7 @@ pub async fn render_page_or_slug(
     };
 
     if let Some(schema) = article_schema {
-        if let Ok(Some(record)) = state.db.get_content(&schema, &slug).await {
+        if let Ok(Some(record)) = state.db.get_published_content(&schema, &slug).await {
             if is_currently_published(&record.status, record.unpublish_at.as_deref(), now) {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();

@@ -466,7 +466,7 @@ export const App: React.FC = () => {
   };
 
   // Save via API Gateway & Wasm Hooks
-  const handleSave = async () => {
+  const handleSave = async (publish = false) => {
     if (!title.trim()) {
       showToast(t('editor.toasts.titleRequired'), 'error');
       return;
@@ -502,6 +502,7 @@ export const App: React.FC = () => {
         title,
         slug,
         status,
+        publish,
         // The server publishes scheduled content at this time (a past time publishes it now)
         ...(scheduledAt ? { published_at: scheduledAt.toISOString() } : {}),
         ...(unpublishDate ? { unpublish_at: unpublishDate.toISOString() } : { unpublish_at: null }),
@@ -570,10 +571,12 @@ export const App: React.FC = () => {
         view={view}
         onViewChange={setView}
         isOnline={isOnline}
-        onSave={handleSave}
+        onSave={() => handleSave()}
+        onPublish={() => handleSave(true)}
         isSaving={isSaving}
         session={session}
         canSave={editable}
+        canPublish={editable && Boolean(selectedId) && status === 'published'}
         showShop={showShop}
         showComments={showComments}
         showForum={showForum}
@@ -858,7 +861,7 @@ export const App: React.FC = () => {
                     value={markdownText}
                     onChange={handleMarkdownChange}
                     blocks={blocks}
-                    onSave={handleSave}
+                    onSave={() => handleSave()}
                   />
                 ) : (
                   <>

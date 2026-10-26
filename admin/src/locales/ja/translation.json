@@ -304,6 +304,8 @@
     "connected": "接続中",
     "offline": "オフライン",
     "saveTitle": "コンテンツを保存し、Wasm プラグインのフックを実行します",
+    "publishTitle": "作業版を公開版に反映します",
+    "publish": "公開版を更新",
     "saveNeedsEditor": "保存には editor 以上のロールが必要です",
     "saving": "フックを実行中...",
     "save": "保存してフックを実行",

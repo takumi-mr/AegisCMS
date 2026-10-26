@@ -18,8 +18,8 @@ use crate::state::AppState;
 use aegis_ast::BlockNode;
 use aegis_core::{AegisError, AuditAction, AuditOutcome, PostContext};
 use aegis_db::{
-    is_standard_column, resolve_relations_for_records, ContentListQuery, ContentRecord,
-    ContentVersionRecord, DatabaseAdapter, ResolvedRelation,
+    is_standard_column, resolve_relations_for_records, ContentListQuery, ContentPublicationChange,
+    ContentRecord, ContentVersionRecord, DatabaseAdapter, ResolvedRelation,
 };
 use aegis_schema::SchemaDefinition;
 
@@ -39,6 +39,9 @@ pub struct CreateContentRequest {
     /// 予約非公開（アーカイブ化）の日時（RFC 3339）。`published` または `scheduled` のみ有効
     #[serde(default)]
     pub unpublish_at: Option<String>,
+    /// 明示的に公開版ポインターを最新の作業版へ切り替える
+    #[serde(default)]
+    pub publish: bool,
     #[serde(flatten)]
     pub fields: HashMap<String, serde_json::Value>,
 }
@@ -512,9 +515,14 @@ pub async fn create_content(
         custom_fields: saved.custom_fields,
     };
     let version = content_version_snapshot(&record, Some(&session.user_id), None)?;
+    let publication = if record.status == STATUS_PUBLISHED {
+        ContentPublicationChange::PublishVersion(0)
+    } else {
+        ContentPublicationChange::Keep
+    };
     let result = state
         .db
-        .insert_content_with_versions(&schema, &record, &[version])
+        .insert_content_with_versions(&schema, &record, &[version], publication)
         .await;
     record_store_result(&state, &audit, AuditAction::ContentCreate, &record, result).await?;
 
@@ -554,14 +562,14 @@ pub async fn update_content(
         })?;
 
     // Seed a baseline for records saved before versioning was enabled.
-    let mut versions = Vec::new();
-    if state
+    let existing_versions = state
         .db
         .list_content_versions(&content_type, &current.id)
         .await
-        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .is_empty()
-    {
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let needs_baseline = existing_versions.is_empty();
+    let mut versions = Vec::new();
+    if needs_baseline {
         versions.push(content_version_snapshot(
             &current,
             Some(&session.user_id),
@@ -584,6 +592,7 @@ pub async fn update_content(
         Some(author) => Some(author.clone()),
     };
 
+    let publish_requested = payload.publish;
     let now_at = chrono::Utc::now();
     let now = now_at.to_rfc3339();
     let (status, published_at, unpublish_at) = resolve_publication(
@@ -623,9 +632,22 @@ pub async fn update_content(
         Some(&session.user_id),
         None,
     )?);
+    let publication = match record.status.as_str() {
+        "draft" | "archived" => ContentPublicationChange::Unpublish,
+        STATUS_SCHEDULED if current.status == STATUS_PUBLISHED && needs_baseline => {
+            ContentPublicationChange::EnsureVersion(0)
+        }
+        STATUS_PUBLISHED if publish_requested || current.status != STATUS_PUBLISHED => {
+            ContentPublicationChange::PublishVersion(versions.len() - 1)
+        }
+        STATUS_PUBLISHED if current.status == STATUS_PUBLISHED && needs_baseline => {
+            ContentPublicationChange::EnsureVersion(0)
+        }
+        _ => ContentPublicationChange::Keep,
+    };
     let result = match state
         .db
-        .update_content_with_versions(&schema, &record, &versions)
+        .update_content_with_versions(&schema, &record, &versions, publication)
         .await
     {
         Ok(true) => Ok(()),
@@ -743,7 +765,12 @@ pub async fn restore_content_version(
     )?;
     if !state
         .db
-        .update_content_with_versions(&schema, &restored, &[restored_version])
+        .update_content_with_versions(
+            &schema,
+            &restored,
+            &[restored_version],
+            ContentPublicationChange::Keep,
+        )
         .await
         .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     {
