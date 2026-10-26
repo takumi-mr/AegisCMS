@@ -367,6 +367,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({
         icon={<ShoppingBag size={18} />}
         onClose={onClose}
         wide
+        flush
       >
         <div className={styles.detail}>
           <div className={styles.actionsBar}>
@@ -604,6 +605,7 @@ const RefundModal: React.FC<RefundModalProps> = ({
       title={t('orders.refundTitle', { number: order.number })}
       icon={<RotateCcw size={18} />}
       onClose={onClose}
+      flush
     >
       <form onSubmit={handleSubmit} className={styles.detail}>
         <div className={cx(styles.notice, !order.supports_online_refund && styles.warn)}>

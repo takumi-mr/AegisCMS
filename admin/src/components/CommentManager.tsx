@@ -604,6 +604,7 @@ const EditModal: React.FC<EditModalProps> = ({ comment, onClose, onSaved, onErro
       title={t('comments.edit.title', { name: comment.author_name })}
       icon={<Pencil size={18} />}
       onClose={onClose}
+      flush
     >
       <form onSubmit={handleSubmit} className={shop.detail}>
         {comment.status === 'approved' && (
@@ -662,6 +663,7 @@ const ReplyModal: React.FC<ReplyModalProps> = ({ comment, onClose, onReplied, on
       title={t('comments.replyTitle', { name: comment.author_name })}
       icon={<Reply size={18} />}
       onClose={onClose}
+      flush
     >
       <form onSubmit={handleSubmit} className={shop.detail}>
         <div className={shop.box}>

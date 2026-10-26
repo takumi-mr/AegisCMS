@@ -23,6 +23,19 @@ test.describe('Authentication and Session', () => {
     await expect(page.getByRole('status')).toBeVisible();
   });
 
+  test('keeps the session after a page reload', async ({ page }) => {
+    await page.goto('./');
+    await page.getByLabel('Username').fill(E2E_USERNAME);
+    await page.getByLabel('Password').fill(E2E_PASSWORD);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible();
+
+    await page.reload();
+
+    await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible();
+    await expect(page.getByText(E2E_USERNAME)).toBeVisible();
+  });
+
   test('shows an error message for invalid credentials', async ({ page }) => {
     await page.goto('./');
 

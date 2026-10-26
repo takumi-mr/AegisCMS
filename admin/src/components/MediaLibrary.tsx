@@ -154,6 +154,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
       icon={<Images size={18} />}
       onClose={onClose}
       wide
+      flush
       actions={
         <Button
           variant="icon"

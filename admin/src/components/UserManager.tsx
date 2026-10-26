@@ -312,7 +312,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onCreated, onClose })
   };
 
   return (
-    <Modal title={t('users.newUser')} icon={<UserPlus size={18} />} onClose={onClose}>
+    <Modal title={t('users.newUser')} icon={<UserPlus size={18} />} onClose={onClose} flush>
       <form className={formStyles.body} onSubmit={handleSubmit}>
         <div className={formStyles.section}>
           <FieldRow>
@@ -454,6 +454,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       title={t('users.editTitle', { username: user.username })}
       icon={<Pencil size={18} />}
       onClose={onClose}
+      flush
     >
       <form className={formStyles.body} onSubmit={handleSubmit}>
         {user.pending_approval && disabled && (
@@ -594,7 +595,7 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({ onInvited, onClose })
   };
 
   return (
-    <Modal title={t('users.inviteTitle')} icon={<Mail size={18} />} onClose={onClose}>
+    <Modal title={t('users.inviteTitle')} icon={<Mail size={18} />} onClose={onClose} flush>
       <form className={formStyles.body} onSubmit={handleSubmit}>
         <div className={formStyles.section}>
           <Field label={t('users.fields.email')}>

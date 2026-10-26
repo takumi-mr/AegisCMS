@@ -16,6 +16,8 @@ interface ModalProps {
   actions?: React.ReactNode;
   /** 860px wide instead of 640px */
   wide?: boolean;
+  /** Disable the standard content inset when children already provide their own padding */
+  flush?: boolean;
   children: React.ReactNode;
 }
 
@@ -24,7 +26,15 @@ interface ModalProps {
  * the dialog and returns focus to the element that opened it. Children focus their own
  * first field on mount.
  */
-export const Modal: React.FC<ModalProps> = ({ title, icon, onClose, actions, wide, children }) => {
+export const Modal: React.FC<ModalProps> = ({
+  title,
+  icon,
+  onClose,
+  actions,
+  wide,
+  flush = false,
+  children,
+}) => {
   const { t } = useTranslation();
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -100,7 +110,7 @@ export const Modal: React.FC<ModalProps> = ({ title, icon, onClose, actions, wid
             closeButton
           )}
         </div>
-        {children}
+        <div className={cx(styles.body, flush && styles.flush)}>{children}</div>
       </div>
     </div>
   );

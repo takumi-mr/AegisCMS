@@ -99,7 +99,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <Modal title={t('profile.title')} icon={<UserRound size={18} />} onClose={onClose}>
+    <Modal title={t('profile.title')} icon={<UserRound size={18} />} onClose={onClose} flush>
       <div className={styles.body}>
         <div className={styles.section}>
           <div className={styles.identity}>
