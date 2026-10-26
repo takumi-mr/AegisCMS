@@ -13,8 +13,9 @@ use super::{
     build_scheduled_unpublish, build_setting_delete, build_setting_upsert, build_settings_select,
     build_settings_table, build_user_delete, build_user_insert, build_user_select,
     build_user_update, custom_columns, is_standard_column, user_row_from_sqlx, ContentListQuery,
-    ContentPage, ContentRecord, CustomFieldValue, DatabaseAdapter, ResolvedRelation, UserRecord,
-    AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN, USER_PENDING_APPROVAL_COLUMN, USER_TABLE,
+    ContentPage, ContentRecord, ContentVersionRecord, CustomFieldValue, DatabaseAdapter,
+    ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN,
+    USER_PENDING_APPROVAL_COLUMN, USER_TABLE,
 };
 
 #[derive(Debug, Clone)]
@@ -114,6 +115,8 @@ super::reviews::impl_review_storage!(PostgresAdapter, |i| format!("${}", i), "Po
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
     async fn init(&self) -> Result<()> {
+        sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_versions (content_type TEXT NOT NULL, content_id TEXT NOT NULL, revision BIGINT NOT NULL, snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL, created_by TEXT, change_note TEXT, PRIMARY KEY(content_type, content_id, revision));")
+            .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS _aegis_migrations (
@@ -536,6 +539,90 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(())
     }
 
+    async fn insert_content_with_versions(
+        &self,
+        schema: &SchemaDefinition,
+        record: &ContentRecord,
+        versions: &[ContentVersionRecord],
+    ) -> Result<()> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        let mut columns = vec![
+            "id",
+            "content_type",
+            "title",
+            "slug",
+            "status",
+            "blocks_json",
+            "author_id",
+            "published_at",
+            "unpublish_at",
+            "created_at",
+            "updated_at",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+        let mut values = Vec::new();
+        for field in schema
+            .fields
+            .iter()
+            .filter(|f| !is_standard_column(&f.name))
+        {
+            columns.push(field.name.clone());
+            values.push(CustomFieldValue::from_json(
+                field,
+                record.custom_fields.get(&field.name),
+            )?);
+        }
+        let placeholders: Vec<String> = (1..=columns.len()).map(|i| format!("${}", i)).collect();
+        let sql = format!(
+            "INSERT INTO {} ({}) VALUES ({})",
+            schema.table_name(),
+            columns.join(", "),
+            placeholders.join(", ")
+        );
+        let mut query = sqlx::query(&sql)
+            .bind(&record.id)
+            .bind(&record.content_type)
+            .bind(&record.title)
+            .bind(&record.slug)
+            .bind(&record.status)
+            .bind(&record.blocks_json)
+            .bind(&record.author_id)
+            .bind(&record.published_at)
+            .bind(&record.unpublish_at)
+            .bind(&record.created_at)
+            .bind(&record.updated_at);
+        for value in values {
+            query = match value {
+                CustomFieldValue::Text(v) => query.bind(v),
+                CustomFieldValue::BigInt(v) => query.bind(v),
+                CustomFieldValue::Bool(v) => query.bind(v),
+                CustomFieldValue::Json(v) => query.bind(v.map(sqlx::types::Json)),
+            };
+        }
+        query
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| AegisError::Database(format!("Postgres INSERT failed: {}", e)))?;
+        for version in versions {
+            let revision: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(revision), 0) + 1 FROM _aegis_content_versions WHERE content_type = $1 AND content_id = $2")
+                .bind(&version.content_type).bind(&version.content_id).fetch_one(&mut *tx).await.map_err(|e| AegisError::Database(e.to_string()))?;
+            sqlx::query("INSERT INTO _aegis_content_versions (content_type, content_id, revision, snapshot_json, created_at, created_by, change_note) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+                .bind(&version.content_type).bind(&version.content_id).bind(revision).bind(&version.snapshot_json)
+                .bind(&version.created_at).bind(&version.created_by).bind(&version.change_note).execute(&mut *tx).await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        tx.commit()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(())
+    }
+
     async fn update_content(
         &self,
         schema: &SchemaDefinition,
@@ -572,6 +659,115 @@ impl DatabaseAdapter for PostgresAdapter {
             .await
             .map_err(|e| AegisError::Database(format!("Postgres UPDATE failed: {}", e)))?;
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn update_content_with_versions(
+        &self,
+        schema: &SchemaDefinition,
+        record: &ContentRecord,
+        versions: &[ContentVersionRecord],
+    ) -> Result<bool> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        let sql = build_content_update(&schema.table_name(), &custom_columns(schema), |i| {
+            format!("${}", i)
+        });
+        let mut query = sqlx::query(&sql)
+            .bind(&record.title)
+            .bind(&record.slug)
+            .bind(&record.status)
+            .bind(&record.blocks_json)
+            .bind(&record.author_id)
+            .bind(&record.published_at)
+            .bind(&record.unpublish_at)
+            .bind(&record.updated_at);
+        for field in schema
+            .fields
+            .iter()
+            .filter(|f| !is_standard_column(&f.name))
+        {
+            query = match CustomFieldValue::from_json(field, record.custom_fields.get(&field.name))?
+            {
+                CustomFieldValue::Text(v) => query.bind(v),
+                CustomFieldValue::BigInt(v) => query.bind(v),
+                CustomFieldValue::Bool(v) => query.bind(v),
+                CustomFieldValue::Json(v) => query.bind(v.map(sqlx::types::Json)),
+            };
+        }
+        let result = query
+            .bind(&record.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| AegisError::Database(format!("Postgres UPDATE failed: {}", e)))?;
+        if result.rows_affected() == 0 {
+            tx.rollback()
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+            return Ok(false);
+        }
+        for version in versions {
+            let revision: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(revision), 0) + 1 FROM _aegis_content_versions WHERE content_type = $1 AND content_id = $2")
+                .bind(&version.content_type).bind(&version.content_id).fetch_one(&mut *tx).await.map_err(|e| AegisError::Database(e.to_string()))?;
+            sqlx::query("INSERT INTO _aegis_content_versions (content_type, content_id, revision, snapshot_json, created_at, created_by, change_note) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+                .bind(&version.content_type).bind(&version.content_id).bind(revision).bind(&version.snapshot_json)
+                .bind(&version.created_at).bind(&version.created_by).bind(&version.change_note).execute(&mut *tx).await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        tx.commit()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(true)
+    }
+
+    async fn insert_content_version(&self, version: &ContentVersionRecord) -> Result<i64> {
+        let revision: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(revision), 0) + 1 FROM _aegis_content_versions WHERE content_type = $1 AND content_id = $2")
+            .bind(&version.content_type).bind(&version.content_id).fetch_one(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
+        sqlx::query("INSERT INTO _aegis_content_versions (content_type, content_id, revision, snapshot_json, created_at, created_by, change_note) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+            .bind(&version.content_type).bind(&version.content_id).bind(revision).bind(&version.snapshot_json).bind(&version.created_at).bind(&version.created_by).bind(&version.change_note).execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(revision)
+    }
+
+    async fn list_content_versions(
+        &self,
+        content_type: &str,
+        content_id: &str,
+    ) -> Result<Vec<ContentVersionRecord>> {
+        let rows = sqlx::query("SELECT content_type, content_id, revision, snapshot_json, created_at, created_by, change_note FROM _aegis_content_versions WHERE content_type = $1 AND content_id = $2 ORDER BY revision DESC")
+            .bind(content_type).bind(content_id).fetch_all(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(rows
+            .iter()
+            .map(|r| ContentVersionRecord {
+                content_type: r.get("content_type"),
+                content_id: r.get("content_id"),
+                revision: r.get("revision"),
+                snapshot_json: r.get("snapshot_json"),
+                created_at: r.get("created_at"),
+                created_by: r.get("created_by"),
+                change_note: r.get("change_note"),
+            })
+            .collect())
+    }
+
+    async fn get_content_version(
+        &self,
+        content_type: &str,
+        content_id: &str,
+        revision: i64,
+    ) -> Result<Option<ContentVersionRecord>> {
+        let row = sqlx::query("SELECT content_type, content_id, revision, snapshot_json, created_at, created_by, change_note FROM _aegis_content_versions WHERE content_type = $1 AND content_id = $2 AND revision = $3")
+            .bind(content_type).bind(content_id).bind(revision).fetch_optional(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
+        Ok(row.map(|r| ContentVersionRecord {
+            content_type: r.get("content_type"),
+            content_id: r.get("content_id"),
+            revision: r.get("revision"),
+            snapshot_json: r.get("snapshot_json"),
+            created_at: r.get("created_at"),
+            created_by: r.get("created_by"),
+            change_note: r.get("change_note"),
+        }))
     }
 
     async fn publish_scheduled_content(

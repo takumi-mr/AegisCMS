@@ -34,8 +34,9 @@ pub use comments::{
     update_comment_settings,
 };
 pub use content::{
-    create_content, delete_content, delete_variant, get_content, list_content, list_schedule,
-    list_variants, update_content, upsert_variant,
+    create_content, delete_content, delete_variant, get_content, list_content,
+    list_content_versions, list_schedule, list_variants, restore_content_version, update_content,
+    upsert_variant,
 };
 pub use customers::{
     admin_get_customer, admin_list_customers, admin_set_customer_status, get_me, get_my_order,

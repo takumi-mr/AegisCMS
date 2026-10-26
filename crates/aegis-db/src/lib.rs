@@ -70,6 +70,20 @@ pub struct ContentRecord {
     pub custom_fields: HashMap<String, serde_json::Value>,
 }
 
+/// Immutable editorial snapshot of a content record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentVersionRecord {
+    pub content_type: String,
+    pub content_id: String,
+    pub revision: i64,
+    pub snapshot_json: String,
+    pub created_at: String,
+    pub created_by: Option<String>,
+    pub change_note: Option<String>,
+}
+
+pub const CONTENT_VERSIONS_TABLE: &str = "_aegis_content_versions";
+
 /// コンテンツ一覧の条件（`list_contents_page`）
 #[derive(Debug, Clone, Default)]
 pub struct ContentListQuery {
@@ -109,6 +123,14 @@ pub trait DatabaseAdapter:
     async fn insert_content(&self, schema: &SchemaDefinition, record: &ContentRecord)
         -> Result<()>;
 
+    /// Insert content and its immutable snapshots atomically.
+    async fn insert_content_with_versions(
+        &self,
+        schema: &SchemaDefinition,
+        record: &ContentRecord,
+        versions: &[ContentVersionRecord],
+    ) -> Result<()>;
+
     /// Overwrite a content record's mutable columns (matched by `id`; `content_type` and
     /// `created_at` stay). Returns false when no record has that id
     async fn update_content(
@@ -116,6 +138,32 @@ pub trait DatabaseAdapter:
         schema: &SchemaDefinition,
         record: &ContentRecord,
     ) -> Result<bool>;
+
+    /// Update content and append its immutable snapshots atomically.
+    async fn update_content_with_versions(
+        &self,
+        schema: &SchemaDefinition,
+        record: &ContentRecord,
+        versions: &[ContentVersionRecord],
+    ) -> Result<bool>;
+
+    /// Append an immutable content snapshot and return its assigned revision.
+    async fn insert_content_version(&self, version: &ContentVersionRecord) -> Result<i64>;
+
+    /// List versions for a content item, newest first.
+    async fn list_content_versions(
+        &self,
+        content_type: &str,
+        content_id: &str,
+    ) -> Result<Vec<ContentVersionRecord>>;
+
+    /// Fetch one immutable version.
+    async fn get_content_version(
+        &self,
+        content_type: &str,
+        content_id: &str,
+        revision: i64,
+    ) -> Result<Option<ContentVersionRecord>>;
 
     /// Publish a scheduled record (`status = 'scheduled'` → `'published'`, setting `updated_at`).
     /// Only matches while the record is still scheduled for `published_at`, so a record the

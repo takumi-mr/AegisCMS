@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Hash,
@@ -27,6 +27,10 @@ import { ProfileModal } from './components/ProfileModal';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { SettingsView, type SettingsSection } from './components/SettingsView';
 import { ContentList } from './components/ContentList';
+import {
+  ContentVersionHistory,
+  type ContentVersionSummary,
+} from './components/ContentVersionHistory';
 import { BlockItem } from './components/BlockItem';
 import { Preview } from './components/Preview';
 import { MarkdownEditor } from './components/MarkdownEditor';
@@ -83,6 +87,9 @@ export const App: React.FC = () => {
   const [layout, setLayout] = useState<'default' | 'blank'>('default');
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [contentVersions, setContentVersions] = useState<ContentVersionSummary[]>([]);
+  const [loadingContentVersions, setLoadingContentVersions] = useState(false);
+  const contentVersionRequest = useRef(0);
   const [categories, setCategories] = useState<ContentItem[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('themes');
@@ -304,6 +311,18 @@ export const App: React.FC = () => {
 
   const handleSelectContent = (item: ContentItem) => {
     setSelectedId(item.id);
+    setContentVersions([]);
+    const requestId = ++contentVersionRequest.current;
+    setLoadingContentVersions(true);
+    void aegisApi
+      .listContentVersions(item.content_type, item.id)
+      .then((versions) => {
+        if (requestId === contentVersionRequest.current) setContentVersions(versions);
+      })
+      .catch((error) => console.warn('Could not load content versions:', error))
+      .finally(() => {
+        if (requestId === contentVersionRequest.current) setLoadingContentVersions(false);
+      });
     setTitle(item.title);
     setSlug(item.slug);
     setStatus(item.status === 'published' || item.status === 'scheduled' ? item.status : 'draft');
@@ -321,7 +340,10 @@ export const App: React.FC = () => {
   };
 
   const handleNew = () => {
+    contentVersionRequest.current += 1;
     setSelectedId(null);
+    setContentVersions([]);
+    setLoadingContentVersions(false);
     setTitle(
       contentType === 'article' ? t('editor.defaults.untitled') : t('editor.defaults.untitledPage')
     );
@@ -769,6 +791,30 @@ export const App: React.FC = () => {
                     </FieldRow>
                   )}
                 </div>
+
+                {selectedId && (
+                  <ContentVersionHistory
+                    versions={contentVersions}
+                    loading={loadingContentVersions}
+                    onRestore={async (revision) => {
+                      if (!window.confirm(t('editor.restoreVersionConfirm', { revision }))) return;
+                      try {
+                        const restored = await aegisApi.restoreContentVersion(
+                          contentType,
+                          selectedId,
+                          revision
+                        );
+                        handleSelectContent(restored);
+                        showToast(t('editor.versionRestored'));
+                      } catch (error) {
+                        showToast(
+                          error instanceof Error ? error.message : t('editor.versionRestoreFailed'),
+                          'error'
+                        );
+                      }
+                    }}
+                  />
+                )}
 
                 {/* Editor Mode Selector & Paste Actions */}
                 <div className={styles.editorModeBar}>

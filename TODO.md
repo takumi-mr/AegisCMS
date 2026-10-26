@@ -5,9 +5,10 @@
 > 完了したタスクは残さない。仕様は `docs/*.md`・`admin/README.md`、設計判断・注意点は [docs/architecture.md](docs/architecture.md)、開発手順は [docs/development.md](docs/development.md) に書いてから消す。経緯は git の履歴（PR）で追う。
 
 ## 現在の状況
-
-- 最新の `main`: 顧客アカウント・商品レビューに加え、売上レポート（日別・通貨別）と在庫閾値通知を実装。
 - `task check` がすべて通る状態を保つ。
+
+## 技術メモ・申し送り事項
+- コンテンツ版履歴・Admin Studio 履歴 UI を追加。履歴保存はコンテンツ更新と同一トランザクション。SQLite ロールバックテスト、Storybook 39 件、Content Editor E2E 3 件で確認。設計は [docs/architecture.md](docs/architecture.md#2-コンテンツと-db) を参照。次段階は公開版と作業版の分離。
 
 **次に着手する項目**
 

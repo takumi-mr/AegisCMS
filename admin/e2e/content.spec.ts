@@ -80,4 +80,32 @@ test.describe('Content Editor', () => {
       'Paragraph text written in markdown.'
     );
   });
+
+  test('shows saved versions and restores an earlier content snapshot', async ({ page }) => {
+    const suffix = Date.now();
+    const originalTitle = `Version One ${suffix}`;
+    const slug = `version-history-${suffix}`;
+
+    await page.getByRole('button', { name: 'New' }).click();
+    await page.getByPlaceholder('Enter post title...').fill(originalTitle);
+    await page.getByPlaceholder('post-slug').fill(slug);
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText(/Saved!/)).toBeVisible();
+
+    await page.getByPlaceholder('Enter post title...').fill(`Version Two ${suffix}`);
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText(/Saved!/)).toBeVisible();
+
+    const history = page.getByRole('region', { name: 'Version history' });
+    await expect(history.getByText('Version 2')).toBeVisible();
+    await expect(history.getByText('Version 1')).toBeVisible();
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await history.getByRole('button', { name: 'Restore version 1' }).click();
+
+    await expect(page.getByPlaceholder('Enter post title...')).toHaveValue(originalTitle);
+    await expect(page.getByPlaceholder('post-slug')).toHaveValue(slug);
+    await expect(page.getByText('Version restored')).toBeVisible();
+    await expect(history.getByText('Version 3')).toBeVisible();
+  });
 });

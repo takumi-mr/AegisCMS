@@ -19,7 +19,7 @@ use aegis_ast::BlockNode;
 use aegis_core::{AegisError, AuditAction, AuditOutcome, PostContext};
 use aegis_db::{
     is_standard_column, resolve_relations_for_records, ContentListQuery, ContentRecord,
-    DatabaseAdapter, ResolvedRelation,
+    ContentVersionRecord, DatabaseAdapter, ResolvedRelation,
 };
 use aegis_schema::SchemaDefinition;
 
@@ -511,7 +511,11 @@ pub async fn create_content(
         updated_at: now,
         custom_fields: saved.custom_fields,
     };
-    let result = state.db.insert_content(&schema, &record).await;
+    let version = content_version_snapshot(&record, Some(&session.user_id), None)?;
+    let result = state
+        .db
+        .insert_content_with_versions(&schema, &record, &[version])
+        .await;
     record_store_result(&state, &audit, AuditAction::ContentCreate, &record, result).await?;
 
     Ok((
@@ -548,6 +552,22 @@ pub async fn update_content(
                 format!("Content '{}' not found", slug_or_id),
             )
         })?;
+
+    // Seed a baseline for records saved before versioning was enabled.
+    let mut versions = Vec::new();
+    if state
+        .db
+        .list_content_versions(&content_type, &current.id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .is_empty()
+    {
+        versions.push(content_version_snapshot(
+            &current,
+            Some(&session.user_id),
+            Some("Initial version".into()),
+        )?);
+    }
 
     let author_id = match &payload.author_id {
         None => current.author_id.clone(),
@@ -598,7 +618,16 @@ pub async fn update_content(
         updated_at: now,
         custom_fields: saved.custom_fields,
     };
-    let result = match state.db.update_content(&schema, &record).await {
+    versions.push(content_version_snapshot(
+        &record,
+        Some(&session.user_id),
+        None,
+    )?);
+    let result = match state
+        .db
+        .update_content_with_versions(&schema, &record, &versions)
+        .await
+    {
         Ok(true) => Ok(()),
         // 取得と更新の間に削除された
         Ok(false) => {
@@ -613,6 +642,128 @@ pub async fn update_content(
 
     Ok(Json(
         content_response(&state, &schema, record, saved.blocks, saved.rendered_html).await,
+    ))
+}
+
+fn content_version_snapshot(
+    record: &ContentRecord,
+    actor: Option<&str>,
+    note: Option<String>,
+) -> Result<ContentVersionRecord, ApiError> {
+    let snapshot_json = serde_json::to_string(record)
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(ContentVersionRecord {
+        content_type: record.content_type.clone(),
+        content_id: record.id.clone(),
+        revision: 0,
+        snapshot_json,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        created_by: actor.map(str::to_owned),
+        change_note: note,
+    })
+}
+
+#[derive(Serialize)]
+pub struct ContentVersionSummary {
+    pub revision: i64,
+    pub created_at: String,
+    pub created_by: Option<String>,
+    pub change_note: Option<String>,
+}
+
+pub async fn list_content_versions(
+    State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
+    Path((content_type, slug_or_id)): Path<(String, String)>,
+) -> Result<Json<Vec<ContentVersionSummary>>, ApiError> {
+    let schema = find_schema(&state, &content_type).await?;
+    let record = state
+        .db
+        .get_content(&schema, &slug_or_id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Content not found"))?;
+    let versions = state
+        .db
+        .list_content_versions(&content_type, &record.id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(
+        versions
+            .into_iter()
+            .map(|v| ContentVersionSummary {
+                revision: v.revision,
+                created_at: v.created_at,
+                created_by: v.created_by,
+                change_note: v.change_note,
+            })
+            .collect(),
+    ))
+}
+
+pub async fn restore_content_version(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): EditorSession,
+    Path((content_type, slug_or_id, revision)): Path<(String, String, i64)>,
+    audit: AuditContext,
+) -> Result<Json<ContentResponse>, ApiError> {
+    let schema = find_schema(&state, &content_type).await?;
+    let current = state
+        .db
+        .get_content(&schema, &slug_or_id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Content not found"))?;
+    let version = state
+        .db
+        .get_content_version(&content_type, &current.id, revision)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Content version not found"))?;
+    let mut restored: ContentRecord =
+        serde_json::from_str(&version.snapshot_json).map_err(|e| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Invalid stored content version: {}", e),
+            )
+        })?;
+    // Editorial rollback restores content fields only; publication state and timestamps stay current.
+    restored.id = current.id.clone();
+    restored.content_type = current.content_type.clone();
+    restored.status = current.status.clone();
+    restored.author_id = current.author_id.clone();
+    restored.published_at = current.published_at.clone();
+    restored.unpublish_at = current.unpublish_at.clone();
+    restored.created_at = current.created_at.clone();
+    restored.updated_at = chrono::Utc::now().to_rfc3339();
+    let restored_version = content_version_snapshot(
+        &restored,
+        Some(&session.user_id),
+        Some(format!("Restored revision {}", revision)),
+    )?;
+    if !state
+        .db
+        .update_content_with_versions(&schema, &restored, &[restored_version])
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    {
+        return Err(api_error(StatusCode::NOT_FOUND, "Content not found"));
+    }
+    state
+        .audit
+        .record(
+            audit
+                .event(AuditAction::ContentUpdate, AuditOutcome::Success)
+                .with_resource("content", Some(restored.id.clone()))
+                .with_details(
+                    json!({ "content_type": content_type, "restored_revision": revision }),
+                ),
+        )
+        .await;
+    let blocks: Vec<BlockNode> = serde_json::from_str(&restored.blocks_json).unwrap_or_default();
+    let html = render::render_blocks_html(&state.config.security, &blocks);
+    Ok(Json(
+        content_response(&state, &schema, restored, blocks, html).await,
     ))
 }
 

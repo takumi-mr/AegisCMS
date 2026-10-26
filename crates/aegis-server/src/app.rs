@@ -43,6 +43,14 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 .delete(handlers::delete_content),
         )
         .route(
+            "/api/v1/contents/{content_type}/{slug}/versions",
+            get(handlers::list_content_versions),
+        )
+        .route(
+            "/api/v1/contents/{content_type}/{slug}/versions/{revision}/restore",
+            post(handlers::restore_content_version),
+        )
+        .route(
             "/api/v1/contents/{content_type}/{id}/variants",
             get(handlers::list_variants).post(handlers::upsert_variant),
         )
