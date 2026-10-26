@@ -54,6 +54,7 @@ export type AuditAction =
   | 'theme.switch'
   | 'site.update'
   | 'seo.update'
+  | 'headers.update'
   | 'user.create'
   | 'user.update'
   | 'user.delete'
@@ -455,6 +456,42 @@ export interface SeoSettings {
     robots_txt: string;
     meta_description: string;
   };
+}
+
+export interface CustomHeader {
+  name: string;
+  value: string;
+}
+
+export interface HeaderDefaults {
+  content_security_policy: string;
+  x_frame_options: string;
+  x_content_type_options: string;
+  referrer_policy: string;
+  permissions_policy: string;
+  cross_origin_opener_policy: string;
+}
+
+/** HTTP and browser defense headers (`GET` / `PUT /api/v1/headers`) */
+export interface HeaderSettings {
+  content_security_policy: string | null;
+  x_frame_options: string | null;
+  x_content_type_options: string | null;
+  referrer_policy: string | null;
+  permissions_policy: string | null;
+  cross_origin_opener_policy: string | null;
+  custom_headers: CustomHeader[];
+  defaults: HeaderDefaults;
+}
+
+export interface UpdateHeaderSettings {
+  content_security_policy?: string | null;
+  x_frame_options?: string | null;
+  x_content_type_options?: string | null;
+  referrer_policy?: string | null;
+  permissions_policy?: string | null;
+  cross_origin_opener_policy?: string | null;
+  custom_headers?: CustomHeader[];
 }
 
 /** A notification kind with built-in sample values (`GET /api/v1/notifications`) */

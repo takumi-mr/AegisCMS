@@ -64,6 +64,9 @@ pub enum AuditAction {
     /// SEO and crawler settings (robots.txt, meta tags, OGP) changed via admin/API
     #[serde(rename = "seo.update")]
     SeoUpdate,
+    /// HTTP and browser defense headers changed via admin/API
+    #[serde(rename = "headers.update")]
+    HeadersUpdate,
     /// User account created via the user management API
     #[serde(rename = "user.create")]
     UserCreate,
@@ -149,7 +152,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 54] = [
+    pub const ALL: [AuditAction; 55] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -172,6 +175,7 @@ impl AuditAction {
         Self::ThemeInstall,
         Self::SiteUpdate,
         Self::SeoUpdate,
+        Self::HeadersUpdate,
         Self::UserCreate,
         Self::UserUpdate,
         Self::UserDelete,
@@ -230,6 +234,7 @@ impl AuditAction {
             Self::ThemeInstall => "theme.install",
             Self::SiteUpdate => "site.update",
             Self::SeoUpdate => "seo.update",
+            Self::HeadersUpdate => "headers.update",
             Self::UserCreate => "user.create",
             Self::UserUpdate => "user.update",
             Self::UserDelete => "user.delete",

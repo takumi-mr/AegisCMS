@@ -15,7 +15,8 @@
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   background: transparent;
   border: none;
   color: var(--text-primary);

@@ -1,11 +1,22 @@
 import React from 'react';
-import { Globe, Palette, Blocks, Tags, Users, ScrollText, Search, Bell } from 'lucide-react';
+import {
+  Globe,
+  Palette,
+  Blocks,
+  Tags,
+  Users,
+  ScrollText,
+  Search,
+  Bell,
+  ShieldCheck,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount } from '../types';
 import { canEdit, isAdmin } from '../utils/roles';
 import { cx } from '../utils/cx';
 import { AuditLogView } from './AuditLogView';
 import { CategoryManager } from './CategoryManager';
+import { HeaderManager } from './HeaderManager';
 import { NotificationManager } from './NotificationManager';
 import { PluginManager } from './PluginManager';
 import { SeoManager } from './SeoManager';
@@ -15,7 +26,15 @@ import { UserManager } from './UserManager';
 import styles from './SettingsView.module.css';
 
 export type SettingsSection =
-  'site' | 'seo' | 'notifications' | 'themes' | 'plugins' | 'categories' | 'users' | 'audit';
+  | 'site'
+  | 'seo'
+  | 'headers'
+  | 'notifications'
+  | 'themes'
+  | 'plugins'
+  | 'categories'
+  | 'users'
+  | 'audit';
 
 const SECTIONS: Array<{
   id: SettingsSection;
@@ -25,6 +44,7 @@ const SECTIONS: Array<{
 }> = [
   { id: 'site', icon: <Globe size={16} />, visible: isAdmin },
   { id: 'seo', icon: <Search size={16} />, visible: isAdmin },
+  { id: 'headers', icon: <ShieldCheck size={16} />, visible: isAdmin },
   { id: 'notifications', icon: <Bell size={16} />, visible: isAdmin },
   { id: 'themes', icon: <Palette size={16} /> },
   { id: 'plugins', icon: <Blocks size={16} /> },
@@ -79,6 +99,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className={styles.content}>
         {current === 'site' && <SiteManager onShowToast={onShowToast} />}
         {current === 'seo' && <SeoManager onShowToast={onShowToast} />}
+        {current === 'headers' && <HeaderManager onShowToast={onShowToast} />}
         {current === 'notifications' && <NotificationManager onShowToast={onShowToast} />}
         {current === 'themes' && <ThemeManager session={session} onShowToast={onShowToast} />}
         {current === 'plugins' && <PluginManager session={session} onShowToast={onShowToast} />}

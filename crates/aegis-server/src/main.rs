@@ -12,6 +12,7 @@ mod auth;
 mod cluster;
 mod config;
 mod handlers;
+mod headers;
 mod notify_plugins;
 mod plugin_host;
 mod plugin_registry;
@@ -682,6 +683,11 @@ async fn main() -> anyhow::Result<()> {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 seo::SeoOverrides::load(app_state.db.as_ref()).await;
+            *app_state
+                .headers
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                headers::HeaderOverrides::load(app_state.db.as_ref()).await;
             let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),
                 None => app_state,
