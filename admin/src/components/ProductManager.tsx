@@ -351,6 +351,7 @@ const VariantEditorModal: React.FC<VariantEditorModalProps> = ({
       title={variant ? t('products.variants.edit') : t('products.variants.add')}
       icon={<Package size={18} />}
       onClose={onClose}
+      flush
     >
       <form onSubmit={handleSubmit} className={styles.form}>
         <Field label={t('products.variants.name')}>
@@ -598,6 +599,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
         icon={<Package size={18} />}
         onClose={onClose}
         wide
+        flush
       >
         <form className={styles.form} onSubmit={handleSubmit}>
           <FieldRow>

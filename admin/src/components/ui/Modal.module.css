@@ -27,6 +27,16 @@
   max-width: 860px;
 }
 
+.body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.flush {
+  padding: 0;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -65,5 +75,13 @@
 
   .header {
     padding: 12px 14px;
+  }
+
+  .body {
+    padding: 16px;
+  }
+
+  .flush {
+    padding: 0;
   }
 }
