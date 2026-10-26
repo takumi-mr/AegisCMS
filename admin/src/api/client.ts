@@ -357,6 +357,31 @@ export const aegisApi = {
     );
   },
 
+  async listContentVersions(
+    contentType: string,
+    idOrSlug: string
+  ): Promise<
+    { revision: number; created_at: string; created_by?: string; change_note?: string }[]
+  > {
+    return request(
+      `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(idOrSlug)}/versions`,
+      {},
+      i18n.t('api.contentVersionsFailed')
+    );
+  },
+
+  async restoreContentVersion(
+    contentType: string,
+    idOrSlug: string,
+    revision: number
+  ): Promise<ContentItem> {
+    return request(
+      `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(idOrSlug)}/versions/${revision}/restore`,
+      { method: 'POST' },
+      i18n.t('api.restoreContentVersionFailed')
+    );
+  },
+
   async deleteContent(contentType: string, idOrSlug: string): Promise<void> {
     const token = getSessionToken();
     const headers = new Headers();

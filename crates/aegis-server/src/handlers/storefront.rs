@@ -100,7 +100,7 @@ pub async fn render_products(
         limit: Some(per_page),
         offset: (page - 1).saturating_mul(per_page),
     };
-    let content_page = match state.db.list_contents_page(&schema, &query).await {
+    let content_page = match state.db.list_published_contents_page(&schema, &query).await {
         Ok(content_page) => content_page,
         Err(e) => {
             tracing::error!("Failed to list products: {}", e);
@@ -190,7 +190,7 @@ pub async fn render_product(
         return render_not_found(&state, "This site has no products.").await;
     };
     let now = chrono::Utc::now();
-    let record = match state.db.get_content(&schema, &slug).await {
+    let record = match state.db.get_published_content(&schema, &slug).await {
         Ok(Some(record))
             if crate::handlers::content::is_currently_published(
                 &record.status,

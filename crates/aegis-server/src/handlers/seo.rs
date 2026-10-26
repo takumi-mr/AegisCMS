@@ -307,7 +307,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
             limit: Some(1000),
             offset: 0,
         };
-        if let Ok(page) = state.db.list_contents_page(schema, &query).await {
+        if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
             let now = chrono::Utc::now();
             for item in page.records {
                 if !super::content::is_currently_published(
@@ -353,7 +353,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
                 limit: Some(1000),
                 offset: 0,
             };
-            if let Ok(page) = state.db.list_contents_page(schema, &query).await {
+            if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
                 let now = chrono::Utc::now();
                 for item in page.records {
                     if !super::content::is_currently_published(
@@ -389,7 +389,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
             limit: Some(500),
             offset: 0,
         };
-        if let Ok(page) = state.db.list_contents_page(schema, &query).await {
+        if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
             let now = chrono::Utc::now();
             for item in page.records {
                 if !super::content::is_currently_published(
