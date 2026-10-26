@@ -47,6 +47,8 @@ import type {
   SiteSettings,
   SeoSettings,
   UpdateSeoSettingsPayload,
+  HeaderSettings,
+  UpdateHeaderSettings,
   StorageMeta,
   StorageObjectPage,
   StorageObjectQuery,
@@ -826,6 +828,22 @@ export const aegisApi = {
         body: JSON.stringify(payload),
       },
       i18n.t('api.updateSeoSettingsFailed')
+    );
+  },
+
+  async getHeadersSettings(): Promise<HeaderSettings> {
+    return request('/headers', {}, i18n.t('api.headersSettingsFailed'));
+  },
+
+  async updateHeadersSettings(payload: UpdateHeaderSettings): Promise<HeaderSettings> {
+    return request(
+      '/headers',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      i18n.t('api.updateHeadersSettingsFailed')
     );
   },
 

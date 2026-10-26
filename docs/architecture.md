@@ -38,7 +38,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 - スキーマ `content_type: article` のテーブルは `content_article`。本文は Block AST の JSON を `blocks_json TEXT NOT NULL DEFAULT '[]'` に保存する。描画済み HTML は保存しない（`[security]` の変更を保存済みのコンテンツにも反映するため）。
 - システムテーブルは `_aegis_` 接頭辞（`_aegis_users`、`_aegis_user_identities`、`_aegis_audit_logs`、`_aegis_orders`、`_aegis_comments`、`_aegis_settings` など）。
-- `_aegis_settings` は Admin Studio から変更するサイト全体の設定（`name` → `value`。サイト名 `site.title`、favicon `site.favicon`、および SEO & Bot 設定 `seo.*`（`robots_txt`, `meta_description`, `meta_keywords`, `canonical_base_url`, `og_image`, `noindex_all`, `twitter_card`）、コメントの承認の設定 `comments.require_approval` / `comments.auto_approve_known`）。カラム名は MySQL の予約語 `key` を避けて `name` にした。上書きは SQLite / PostgreSQL が `ON CONFLICT`、MySQL が `ON DUPLICATE KEY UPDATE`。設定ファイルの値は既定値として残し、行を消すと設定ファイルの値に戻る（プラグイン設定のようにキャッシュへ置くと、メモリのキャッシュでは再起動と TTL で消えるため DB にした）。
+- `_aegis_settings` は Admin Studio から変更するサイト全体の設定（`name` → `value`。サイト名 `site.title`、favicon `site.favicon`、SEO & Bot 設定 `seo.*`（`robots_txt`, `meta_description`, `meta_keywords`, `canonical_base_url`, `og_image`, `noindex_all`, `twitter_card`）、HTTP 共通ヘッダー・防御ポリシー `headers.*`（`content_security_policy`, `x_frame_options`, `x_content_type_options`, `referrer_policy`, `permissions_policy`, `cross_origin_opener_policy`, `custom_headers`）、コメントの承認の設定 `comments.require_approval` / `comments.auto_approve_known`）。カラム名は MySQL の予約語 `key` を避けて `name` にした。上書きは SQLite / PostgreSQL が `ON CONFLICT`、MySQL が `ON DUPLICATE KEY UPDATE`。設定ファイルの値は既定値として残し、行を消すと設定ファイルの値に戻る（プラグイン設定のようにキャッシュへ置くと、メモリのキャッシュでは再起動と TTL で消えるため DB にした）。
 - コンテンツ作成 API（`POST /api/v1/contents/{type}`）のペイロードはトップレベルに `title` / `slug` / `status` / `blocks` / `author_id` とカスタムフィールドを持つ。応答ではカスタムフィールドは `fields`、解決済みリレーションは `relations` に入る（[Admin Studio の型](../admin/README.md#-設計メモ)に注意）。
 
 ### 2.2 `DatabaseAdapter`
@@ -128,6 +128,26 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **メタタグ自動注入の優先順位**:
   - ページ個別設定（個別記事の `excerpt` や商品のサムネイル画像）が存在する場合はそれを優先し、未設定の場合はサイト全体の共通設定（`meta_description`, `og_image`）へフォールバックする。
   - サイト全体で `noindex_all = true` が有効化されている場合、全ページの `<head>` に `<meta name="robots" content="noindex, nofollow">` が強制注入される（ステージング環境や構築中サイトの検索流入防止）。
+
+### 3.6 共通ページヘッダー & ブラウザー防御ポリシー (`aegis-server/src/headers.rs`, `handlers/headers.rs`)
+
+- **設計思想**:
+  - OWASP ZAP / ペネトレーションテスト（F-03）に対応し、公開サイトの全ページ（トップ、記事、固定ページ、フォーラム、EC）および Admin Studio、API を含む全 HTTP レスポンスに対して、デフォルトで安全なブラウザー防御ヘッダーを付与する。
+  - レイヤーミドルウェア `security_headers_middleware`（`from_fn_with_state`）により、ルーター通過時に透過的にヘッダーを注入する。
+  - 管理者（`admin`）は Admin Studio の「設定 › ヘッダー」画面から、防御ヘッダー（CSP、X-Frame-Options、nosniff 等）のカスタマイズや任意のカスタム HTTP ヘッダーの動的追加・編集・削除が行える。
+- **デフォルト防御ヘッダー値**:
+  - `Content-Security-Policy`: SPA（Vite/React）やテーマのインラインスクリプト・フォント・メディアを壊さない安全なディレクティブ (`default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';`)。
+  - `X-Frame-Options: SAMEORIGIN`（クリックジャッキング保護）
+  - `X-Content-Type-Options: nosniff`（MIME スニッフィング防止）
+  - `Referrer-Policy: strict-origin-when-cross-origin`（リファラー漏洩防止）
+  - `Permissions-Policy: camera=(), microphone=(), geolocation=()`（不要なブラウザAPIの制限）
+  - `Cross-Origin-Opener-Policy: same-origin`（COOP ポップアップ分離）
+- **DB 永続化と即時反映**:
+  - `_aegis_settings` に `headers.*` キーで保存され、`AppState.headers`（`Arc<RwLock<HeaderOverrides>>`）を通じてサーバー再起動不要で即時反映される。設定変更時は監査ログ `headers.update` を記録する。
+  - フィールドを空にするとデフォルト値に戻る。特定のヘッダーを意図的に無効化したい場合は `"disabled"` を指定することでヘッダーの送出を停止できる。
+- **エンドポイント**:
+  - `GET /api/v1/headers`: 現在の設定値とデフォルト値を返す（admin 必須）。
+  - `PUT /api/v1/headers`: 設定値を更新する（admin 必須。CRLF インジェクションや不正文字のバリデーションを実施）。
 
 ---
 

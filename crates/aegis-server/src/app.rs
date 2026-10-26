@@ -276,6 +276,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/seo",
             get(handlers::get_seo_settings).put(handlers::update_seo_settings),
         )
+        .route(
+            "/api/v1/headers",
+            get(handlers::get_headers_settings).put(handlers::update_headers_settings),
+        )
         // --- 通知（[notifications]） ---
         .route(
             "/api/v1/notifications",
@@ -377,8 +381,23 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
     }
 
     app.layer(cors)
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            security_headers_middleware,
+        ))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+async fn security_headers_middleware(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let mut response = next.run(request).await;
+    let headers_config = state.headers();
+    headers_config.apply_to_headers(response.headers_mut());
+    response
 }
 
 /// `router` を `base_path`（`ServerConfig::normalized_base_path` の値）配下で公開する。

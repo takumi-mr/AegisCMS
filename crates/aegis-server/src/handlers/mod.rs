@@ -4,6 +4,7 @@ pub mod comments;
 pub mod content;
 pub mod customers;
 pub mod forum;
+pub mod headers;
 pub mod health;
 pub mod invitation;
 pub mod notifications;
@@ -43,6 +44,7 @@ pub use customers::{
     list_my_orders, list_my_reviews, login as customer_login, logout as customer_logout,
     register as customer_register, update_me,
 };
+pub use headers::{get_headers_settings, update_headers_settings};
 pub use health::health_check;
 pub use invitation::{accept_invitation, create_invitation, get_invitation_info};
 pub use notifications::{

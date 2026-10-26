@@ -1,4 +1,5 @@
 use crate::config::AegisConfig;
+use crate::headers::HeaderOverrides;
 use crate::plugin_registry::PluginRegistry;
 use crate::seo::SeoOverrides;
 use crate::site::{SiteInfo, SiteOverrides};
@@ -43,6 +44,8 @@ pub struct AppState {
     pub site: Arc<std::sync::RwLock<SiteOverrides>>,
     /// Admin Studio から変更した SEO & Bot 設定（DB の `_aegis_settings`）
     pub seo: Arc<std::sync::RwLock<SeoOverrides>>,
+    /// Admin Studio から変更した共通ヘッダーおよび防御ヘッダー設定（DB の `_aegis_settings`）
+    pub headers: Arc<std::sync::RwLock<HeaderOverrides>>,
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
     pub oidc: Option<SsoLogin>,
     /// 外部 IdP ログイン（`[auth.saml]`）。無効なら `None`
@@ -146,6 +149,7 @@ impl AppState {
             plugin_settings: Arc::new(std::sync::RwLock::new(HashMap::new())),
             site: Arc::new(std::sync::RwLock::new(SiteOverrides::default())),
             seo: Arc::new(std::sync::RwLock::new(SeoOverrides::default())),
+            headers: Arc::new(std::sync::RwLock::new(HeaderOverrides::default())),
             oidc: None,
             saml: None,
             commerce: None,
@@ -180,6 +184,14 @@ impl AppState {
     /// 公開サイトの SEO & Bot 設定
     pub fn seo(&self) -> SeoOverrides {
         self.seo
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// 共通ページヘッダーおよび防御ヘッダー設定
+    pub fn headers(&self) -> HeaderOverrides {
+        self.headers
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
