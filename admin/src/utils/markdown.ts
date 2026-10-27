@@ -30,7 +30,8 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
       }
       case 'core/html': {
         const code = block.text ?? '';
-        parts.push(`\`\`\`html\n${code}\n\`\`\``);
+        const fence = block.attributes?.mode === 'sandbox' ? 'html:sandbox' : 'html';
+        parts.push(`\`\`\`${fence}\n${code}\n\`\`\``);
         break;
       }
       case 'core/image': {
@@ -85,7 +86,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
     }
 
     // 2. Code Block: ```lang ... ```
-    const codeFenceMatch = line.match(/^```(\w*)/);
+    const codeFenceMatch = line.match(/^```([\w:]+)?/);
     if (codeFenceMatch) {
       const language = codeFenceMatch[1] || 'text';
       const codeLines: string[] = [];
@@ -97,10 +98,17 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
       if (i < lines.length && lines[i].startsWith('```')) {
         i++; // Move past closing fence
       }
-      if (language.toLowerCase() === 'html' || language.toLowerCase() === 'raw') {
+      const langLower = language.toLowerCase();
+      if (langLower === 'html' || langLower === 'raw') {
         blocks.push({
           name: 'core/html',
           attributes: {},
+          text: codeLines.join('\n'),
+        });
+      } else if (langLower === 'html:sandbox') {
+        blocks.push({
+          name: 'core/html',
+          attributes: { mode: 'sandbox' },
           text: codeLines.join('\n'),
         });
       } else {

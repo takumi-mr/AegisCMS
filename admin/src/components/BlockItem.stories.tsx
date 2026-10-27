@@ -79,6 +79,17 @@ export const CustomHtml: Story = {
         text: '<p>Updated Custom Content</p>',
       })
     );
+
+    // 実行モードを sandbox に切り替えた際に attributes.mode が更新されること
+    const modeSelect = canvas.getByRole('combobox');
+    await expect(modeSelect).toHaveValue('sanitized');
+    await userEvent.selectOptions(modeSelect, 'sandbox');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'core/html',
+        attributes: { mode: 'sandbox' },
+      })
+    );
   },
 };
 
