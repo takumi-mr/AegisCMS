@@ -8,24 +8,27 @@
 - `task check` がすべて通る状態を保つ。
 
 ## 技術メモ・申し送り事項
-- 共通ページヘッダー管理とブラウザー向け防御ヘッダー（F-03 対応）を追加。全レスポンスに適用される `security_headers_middleware` を導入し、デフォルトで安全なブラウザー防御ヘッダー（`Content-Security-Policy`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`、`Cross-Origin-Opener-Policy: same-origin`）を付与。Admin Studio の「設定 › ヘッダー」から個別の防御ヘッダー設定や任意のカスタム HTTP ヘッダー（名前・値）を動的に追加・編集・削除可能。設定は `_aegis_settings` に永続化されサーバー再起動不要で即時反映、監査ログ `headers.update` を記録。`task check`（workspace tests 148件、Clippy ゼロ警告、Admin unit 90件、Storybook 88件、Admin build）がすべて通過。
-- ペネトレーションテスト用の [Compose構成](docker-compose.pentest.yml) と [手順](docs/penetration-testing.md)、[セキュリティ評価レポート](docs/security-assessment-report.md) を追加。Ubuntu WSLからの検査、内部ネットワークでのZAP Baseline（12 URLs、PASS 55、WARN 6）と限定active scan（13 URLs、Low、API/POST除外）を実施後、コンテナ・ネットワーク・tmpfsデータは破棄済み。HTMLレポートは [docs/security-reports](docs/security-reports/) に保存。viewer/editor権限とログインロックは期待どおり。`core/html` でstored XSSを再現（F-01 High）、CORS wildcardと防御ヘッダー不足を記録。次はF-01〜F-03の修正と再検査、署名・IDOR等の追加評価。
-- コンテンツ版履歴・Admin Studio 履歴 UI と、公開版・作業版の分離を追加。作業版の保存と履歴追加・公開ポインター変更は同一トランザクション。SQLite / PostgreSQL / MySQL 対応。公開中の通常保存は公開ページに反映せず、「公開版を更新」で反映する。既存の公開中コンテンツは起動時に初期公開スナップショットへ移行する。`task check`（workspace tests、Clippy、Admin unit 90件、Storybook 39件、build）と Content Editor E2E 4件が通過。設計は [docs/architecture.md](docs/architecture.md#2-コンテンツと-db) を参照。
-- Admin Studio のテスト拡充: 認証セッションのリロード後維持を E2E で確認。Avatar の初期表示・画像エラー時フォールバックと Field のラベルフォーカス・選択操作を Storybook interaction で確認。
-- Storybook: `admin/src/components` の React コンポーネント 36 ファイルすべてに対応するストーリーファイルを追加（認証フォーム、設定・管理画面、エディタ部品、UI 部品を含む）。Storybook 本番ビルド、Admin build、lint、format check が通過。
-- Modal: 本文領域に標準の内側余白を追加。独自に余白を持つ既存フォームでは二重にならないよう `flush` を使用。
+- 共通ページヘッダー管理とブラウザー向け防御ヘッダー（F-03 対応）を追加。
+  - 全レスポンスに適用される `security_headers_middleware` を導入し、デフォルトで安全なブラウザー防御ヘッダー（`Content-Security-Policy`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`、`Cross-Origin-Opener-Policy: same-origin`）を付与。Admin Studio の「設定 › ヘッダー」から個別の防御ヘッダー設定や任意のカスタム HTTP ヘッダー（名前・値）を動的に追加・編集・削除可能。
+  - 設定は `_aegis_settings` に永続化されサーバー再起動不要で即時反映、監査ログ `headers.update` を記録。
+- コンテンツ版履歴・Admin Studio 履歴 UI と、公開版・作業版の分離を追加。
+    - 作業版の保存と履歴追加・公開ポインター変更は同一トランザクション。
+    - SQLite / PostgreSQL / MySQL 対応。公開中の通常保存は公開ページに反映せず、「公開版を更新」で反映する。
+    - 既存の公開中コンテンツは起動時に初期公開スナップショットへ移行する。
+    - 設計は [docs/architecture.md](docs/architecture.md#2-コンテンツと-db) を参照。
+- カスタム HTML ブロック（`core/html`）のハイブリッド保護（F-01 対応）を追加。
+    - 既定の `sanitized` モードでは `aegis-ast` の `lol_html` サニタイザーにより `<script>`・`<iframe>`・`on*` イベント属性・`javascript:` URL 等を除去してテーマ内に安全に直展開し、`attributes.mode = "sandbox"` モードでは `allow-same-origin` を持たない不透明オリジン（`Origin: null`）の `<iframe sandbox="allow-scripts allow-forms allow-popups">`（`ResizeObserver` による高さ自動追従付き）に隔離して独自 JS の実行とゼロトラスト境界を両立。
+    - Admin Studio の `BlockItem` モード選択 UI、日英翻訳、Markdown の ```` ```html:sandbox ```` 変換を追加。
 
 **次に着手する項目**
 
-1. 下の「セキュリティ」の 2 件
+1. パッケージ署名の既定値
 
 ---
 
 ## 未着手タスク
 
 ### セキュリティ
-
-- [ ] **カスタム HTML ブロック（`core/html`）の扱い**: `HtmlRenderer` がそのまま出力し、`<script>`・イベント属性も公開ページに出る（`editor` が書ける）。サニタイズする（許可リスト方式）か、`admin` だけに許すか、`[security]` の設定で切り替えるかを決める。
 - [ ] **パッケージ署名の既定値**: `signature.json` の `target` の既定が `manifest`（Wasm を守らない）で、`trusted_public_keys` が空だとどの鍵でも通る。既定を `package` にする・`require_signatures` 時は信頼する鍵を必須にする、などを検討（[plugin_hooks.md 5.4](docs/plugin_hooks.md#54-zip-パッケージからのインストールと署名)）。
 
 ### 性能

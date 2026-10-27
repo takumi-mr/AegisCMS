@@ -149,6 +149,9 @@
     "numbered": "番号付き（1.）",
     "listPlaceholder": "項目 1\n項目 2\n項目 3（1 行に 1 項目）",
     "htmlBlock": "カスタム HTML:",
+    "htmlMode": "HTML 実行モード",
+    "htmlModeSanitized": "標準（HTML/CSS・スクリプト除去）",
+    "htmlModeSandbox": "サンドボックス（独立 iframe・JS 実行可）",
     "htmlPlaceholder": "<!-- ここにカスタム HTML / 埋め込みコードを入力... -->"
   },
   "categories": {

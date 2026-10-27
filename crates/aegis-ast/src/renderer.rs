@@ -1,4 +1,5 @@
 use crate::node::BlockNode;
+use lol_html::{element, HtmlRewriter, Settings};
 
 pub fn escape_html(input: &str) -> String {
     let mut output = String::with_capacity(input.len());
@@ -13,6 +14,109 @@ pub fn escape_html(input: &str) -> String {
         }
     }
     output
+}
+
+/// Unsafe URI schemes blocked on URL-bearing attributes in sanitized HTML mode.
+fn is_unsafe_uri(val: &str) -> bool {
+    let normalized: String = val
+        .chars()
+        .filter(|c| !c.is_control() && !c.is_whitespace())
+        .collect::<String>()
+        .to_ascii_lowercase();
+    normalized.starts_with("javascript:")
+        || normalized.starts_with("vbscript:")
+        || normalized.starts_with("data:text/html")
+        || normalized.starts_with("data:application/xhtml+xml")
+}
+
+/// Sanitizes a raw HTML fragment using `lol_html`, stripping executable scripts,
+/// dangerous embedded frames/objects, inline event handlers (`on*`), and `javascript:` URLs.
+pub fn sanitize_html_fragment(raw: &str) -> String {
+    let mut output = Vec::with_capacity(raw.len());
+    let settings = Settings::new()
+        .append_element_content_handler(element!(
+            "script, iframe, object, embed, applet, base, meta",
+            |el| {
+                el.remove();
+                Ok(())
+            }
+        ))
+        .append_element_content_handler(element!("*", |el| {
+            let to_remove: Vec<String> = el
+                .attributes()
+                .iter()
+                .filter_map(|attr| {
+                    let name = attr.name().to_ascii_lowercase();
+                    let val = attr.value();
+                    if name.starts_with("on")
+                        || name == "srcdoc"
+                        || (matches!(
+                            name.as_str(),
+                            "href" | "src" | "action" | "formaction" | "xlink:href"
+                        ) && is_unsafe_uri(&val))
+                    {
+                        Some(attr.name())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for attr_name in to_remove {
+                el.remove_attribute(&attr_name);
+            }
+            Ok(())
+        }));
+
+    let mut rewriter = HtmlRewriter::new(settings, |c: &[u8]| output.extend_from_slice(c));
+    if rewriter.write(raw.as_bytes()).is_ok() && rewriter.end().is_ok() {
+        String::from_utf8(output).unwrap_or_else(|_| escape_html(raw))
+    } else {
+        escape_html(raw)
+    }
+}
+
+/// Renders custom HTML/JS inside an opaque-origin `<iframe sandbox="allow-scripts ...">`
+/// with automatic height synchronization via `postMessage`.
+fn render_sandboxed_html(raw: &str) -> String {
+    let srcdoc_document = format!(
+        "<!DOCTYPE html><html><head><meta charset=\"UTF-8\">\
+        <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
+        <style>html,body{{margin:0;padding:0;font-family:system-ui,-apple-system,sans-serif;}}</style>\
+        </head><body>{raw}<script>\
+        (function(){{\
+            function sync(){{\
+                var h=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0);\
+                parent.postMessage({{type:'aegis-sandbox-resize',height:h}},'*');\
+            }}\
+            window.addEventListener('load',sync);\
+            if(typeof ResizeObserver!=='undefined'){{\
+                new ResizeObserver(sync).observe(document.documentElement);\
+            }}\
+            sync();\
+        }})();\
+        </script></body></html>"
+    );
+
+    let escaped_srcdoc = escape_html(&srcdoc_document);
+    // Parent-side listener is idempotent (guarded by window.__aegisSandboxInit)
+    format!(
+        "<iframe class=\"aegis-html-sandbox\" sandbox=\"allow-scripts allow-forms allow-popups\" referrerpolicy=\"no-referrer\" loading=\"lazy\" style=\"width:100%;border:0;display:block;min-height:48px;\" srcdoc=\"{escaped_srcdoc}\"></iframe>\
+        <script>(function(){{\
+            if(window.__aegisSandboxInit)return;\
+            window.__aegisSandboxInit=true;\
+            window.addEventListener('message',function(e){{\
+                if(!e.data||e.data.type!=='aegis-sandbox-resize'||typeof e.data.height!=='number')return;\
+                var frames=document.querySelectorAll('iframe.aegis-html-sandbox');\
+                for(var i=0;i<frames.length;i++){{\
+                    if(frames[i].contentWindow===e.source){{\
+                        frames[i].style.height=Math.max(16,Math.min(e.data.height,20000))+'px';\
+                        break;\
+                    }};\
+                }};\
+            }});\
+        }})();</script>\n"
+    )
 }
 
 pub struct HtmlRenderer;
@@ -102,9 +206,23 @@ impl HtmlRenderer {
             "core/html" => {
                 let inner = node.text.as_deref().unwrap_or_default();
                 if inner.trim().is_empty() {
-                    String::new()
-                } else {
-                    format!("{}\n", inner)
+                    return String::new();
+                }
+                let mode = node
+                    .attributes
+                    .get("mode")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("sanitized");
+                match mode {
+                    "sandbox" => render_sandboxed_html(inner),
+                    _ => {
+                        let clean = sanitize_html_fragment(inner);
+                        if clean.trim().is_empty() {
+                            String::new()
+                        } else {
+                            format!("{}\n", clean)
+                        }
+                    }
                 }
             }
             _ => {
@@ -158,5 +276,29 @@ mod tests {
         let mut empty_node = BlockNode::new("core/html");
         empty_node.text = Some("   ".to_string());
         assert_eq!(HtmlRenderer::render_nodes(&[empty_node]), "");
+    }
+
+    #[test]
+    fn test_core_html_sanitized_mode_strips_scripts_and_events() {
+        let mut node = BlockNode::new("core/html");
+        node.text = Some(
+            r#"<div class="banner" onclick="alert(1)"><p>Safe</p><script>window.evil=true</script><a href="javascript:alert(2)">Bad Link</a><a href="/good">Good</a></div>"#.to_string(),
+        );
+        let rendered = HtmlRenderer::render_nodes(&[node]);
+        assert_eq!(
+            rendered,
+            "<div class=\"banner\"><p>Safe</p><a>Bad Link</a><a href=\"/good\">Good</a></div>\n"
+        );
+    }
+
+    #[test]
+    fn test_core_html_sandbox_mode_renders_isolated_iframe() {
+        let mut node = BlockNode::new("core/html").with_attr("mode", "sandbox");
+        node.text = Some("<div id=\"app\"></div><script>console.log('ok')</script>".to_string());
+        let rendered = HtmlRenderer::render_nodes(&[node]);
+        assert!(rendered.contains("<iframe class=\"aegis-html-sandbox\""));
+        assert!(rendered.contains("sandbox=\"allow-scripts allow-forms allow-popups\""));
+        assert!(!rendered.contains("allow-same-origin"));
+        assert!(rendered.contains("&lt;script&gt;console.log(&#x27;ok&#x27;)&lt;/script&gt;"));
     }
 }

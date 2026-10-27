@@ -54,17 +54,24 @@ describe('markdown utilities', () => {
       expect(markdown).toBe('```typescript\nconst x: number = 42;\nconsole.log(x);\n```');
     });
 
-    it('converts core/html blocks into html fenced blocks', () => {
+    it('converts core/html blocks into html or html:sandbox fenced blocks', () => {
       const blocks: BlockNode[] = [
         {
           name: 'core/html',
           attributes: {},
           text: '<div class="custom-lp">\n  <h1>Hero</h1>\n</div>',
         },
+        {
+          name: 'core/html',
+          attributes: { mode: 'sandbox' },
+          text: '<div id="widget"></div>\n<script>console.log("sandbox");</script>',
+        },
       ];
 
       const markdown = blocksToMarkdown(blocks);
-      expect(markdown).toBe('```html\n<div class="custom-lp">\n  <h1>Hero</h1>\n</div>\n```');
+      expect(markdown).toBe(
+        '```html\n<div class="custom-lp">\n  <h1>Hero</h1>\n</div>\n```\n\n```html:sandbox\n<div id="widget"></div>\n<script>console.log("sandbox");</script>\n```'
+      );
     });
 
     it('converts core/image blocks with src and alt', () => {
@@ -139,15 +146,21 @@ describe('markdown utilities', () => {
       });
     });
 
-    it('parses html code blocks into core/html blocks', () => {
-      const md = '```html\n<section class="banner"><h1>LP Banner</h1></section>\n```';
+    it('parses html and html:sandbox code blocks into core/html blocks', () => {
+      const md =
+        '```html\n<section class="banner"><h1>LP Banner</h1></section>\n```\n\n```html:sandbox\n<script>console.log(1)</script>\n```';
       const blocks = markdownToBlocks(md);
 
-      expect(blocks).toHaveLength(1);
+      expect(blocks).toHaveLength(2);
       expect(blocks[0]).toEqual({
         name: 'core/html',
         attributes: {},
         text: '<section class="banner"><h1>LP Banner</h1></section>',
+      });
+      expect(blocks[1]).toEqual({
+        name: 'core/html',
+        attributes: { mode: 'sandbox' },
+        text: '<script>console.log(1)</script>',
       });
     });
 

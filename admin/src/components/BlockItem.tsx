@@ -169,6 +169,20 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         <div className={styles.stack}>
           <div className={styles.inline}>
             <span className={styles.languageLabel}>{t('blocks.htmlBlock')}</span>
+            <select
+              className={styles.languageSelect}
+              aria-label={t('blocks.htmlMode')}
+              value={block.attributes?.mode === 'sandbox' ? 'sandbox' : 'sanitized'}
+              onChange={(e) =>
+                onChange({
+                  ...block,
+                  attributes: { ...block.attributes, mode: e.target.value },
+                })
+              }
+            >
+              <option value="sanitized">{t('blocks.htmlModeSanitized')}</option>
+              <option value="sandbox">{t('blocks.htmlModeSandbox')}</option>
+            </select>
           </div>
           <textarea
             className={cx(styles.textarea, styles.code)}

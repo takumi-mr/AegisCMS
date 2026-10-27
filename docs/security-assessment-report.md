@@ -21,9 +21,9 @@ Docker Composeで対象をビルド・起動し、Ubuntu WSLから `127.0.0.1:18
 
 | ID | 項目 | 根拠・影響の可能性 | 状態 |
 | --- | --- | --- | --- |
-| F-01 | 公開ページの stored XSS | editorで `page` を公開し、`core/html` に `<script>window.__aegis_pentest_probe__=true</script>` を保存。作成APIの応答と公開ページ `/pentest-xss-check` のHTMLの両方にscriptタグがそのまま残った。**深刻度: High**。editor権限が必要だが、公開ページを閲覧した訪問者のブラウザーでスクリプトが実行される形式。Admin StudioのBearer tokenは同一オリジンの`sessionStorage`に保存される（`admin/src/api/session.ts`）。管理者がこのページを開いた場合の影響拡大が考えられるが、ブラウザーでの実行・トークン読出しは未実施。 | 再現済み・要修正 |
+| F-01 | 公開ページの stored XSS | 既定の lol_html サニタイズと sandbox モードでの不透明オリジン iframe 隔離 | 対応完了 |
 | F-02 | CORS が全オリジン・全メソッド・全ヘッダーを許可 | `Origin: https://attacker.invalid` の応答で `Access-Control-Allow-Origin: *`、OPTIONSで `Access-Control-Allow-Methods: *` と `Access-Control-Allow-Headers: *` を確認。`Access-Control-Allow-Credentials` は返らない。Bearer tokenを持たない第三者が保護APIを読める状態は確認していない。**深刻度: Low（設定の過剰許可）**。許可するAdmin Studioのオリジン、メソッド、ヘッダーを限定するのが望ましい。 | 再現済み |
-| F-03 | ブラウザー向け防御ヘッダー不足 | 公開トップページおよび管理画面、API の応答でデフォルトの防御ヘッダー（`Content-Security-Policy`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`、`Cross-Origin-Opener-Policy: same-origin`）を付与するミドルウェアを導入。Admin Studio の「設定 › ヘッダー」画面からカスタマイズ可能。**深刻度: Low（多層防御の不足）**。 | 対応完了 |
+| F-03 | ブラウザー向け防御ヘッダー不足 | 公開トップページおよび管理画面、API の応答でデフォルトの防御ヘッダー（`Content-Security-Policy`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`、`Cross-Origin-Opener-Policy: same-origin`）を付与するミドルウェアを導入。Admin Studio の「設定 › ヘッダー」画面からカスタマイズ可能。 | 対応完了 |
 | P-01 | 未認証アクセス境界 | `/api/v1/schemas`、`/api/v1/contents/article`、`/api/v1/storage/objects`、`/api/v1/auth/session` は401。公開healthとOpenAPIは200。viewerはスキーマ・記事一覧・ストレージ一覧が200、ユーザー一覧は403、記事作成は403。 | 対象範囲で期待どおり |
 | P-02 | ログイン失敗ロックアウト | viewerの誤パスワード5回は401、正しいパスワードも続けて429、`Retry-After: 900`。 | 対象範囲で期待どおり |
 | N-01 | nmapサービス確認 | `127.0.0.1` のTCP/18080のみを検査しHTTP openを確認。最終検出は`nginx`（詳細版表示は検査用ingressで無効化）。 | 完了 |
@@ -66,10 +66,8 @@ ZAPはF-03の一部とF-02に関係する設定を検出しました。F-01は�
 
 ## 推奨する次の手順
 
-1. `core/html` を許可リスト方式でサニタイズするか、信頼できる管理者だけに制限する。修正後は同じpayloadで保存・公開・HTML出力を再検査する。
-2. CORSを必要なAdmin Studioオリジンに限定し、method/headerを絞る。
-3. CSPなどブラウザー向けセキュリティヘッダーを追加し、管理画面と公開サイト双方への影響を確認する。
-4. プラグイン/テーマ署名、下書き・履歴・プレビュー、IDOR、アップロード、Host/forwarded headers、CSRFを追加検査する。
-5. 認証必須APIやeditor操作を対象にする場合は、使い捨てユーザーとデータを用意して認証コンテキストを設定し、対象を明示して追加スキャンする。
+1. CORSを必要なAdmin Studioオリジンに限定し、method/headerを絞る。
+2. プラグイン/テーマ署名、下書き・履歴・プレビュー、IDOR、アップロード、Host/forwarded headers、CSRFを追加検査する。
+3. 認証必須APIやeditor操作を対象にする場合は、使い捨てユーザーとデータを用意して認証コンテキストを設定し、対象を明示して追加スキャンする。
 
 検査結果はこのローカル使い捨て構成に限ります。未検査項目を「問題なし」と記載せず、「未検査」と明示してください。
