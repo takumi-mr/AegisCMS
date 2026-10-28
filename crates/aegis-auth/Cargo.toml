@@ -16,7 +16,7 @@ argon2.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
 hex.workspace = true
-reqwest = { workspace = true, features = ["json"] }
+reqwest = { workspace = true, features = ["json", "form"] }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
