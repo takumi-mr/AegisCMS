@@ -79,7 +79,7 @@ walkdir = "2.5"
 wasmtime = "26.0"
 wat = "1.262"
 x509-cert = { version = "0.2", default-features = false, features = ["pem"] }
-zip = { version = "2.6", default-features = false, features = ["deflate"] }
+zip = { version = "9.0", default-features = false, features = ["deflate"] }
 
 
 
