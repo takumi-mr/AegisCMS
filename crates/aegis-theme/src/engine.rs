@@ -342,7 +342,7 @@ impl ThemeEngine {
             AegisError::Theme(format!("Template error for '{}': {}", template_name, e))
         })?;
 
-        let value = minijinja::Value::from_serialize(ctx);
+        let value = minijinja::Value::from(minijinja::value::Serde(ctx));
         let rendered = template.render(value).map_err(|e| {
             AegisError::Theme(format!(
                 "Failed to render template '{}': {}",

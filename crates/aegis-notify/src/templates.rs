@@ -210,9 +210,14 @@ fn environment(overrides: Overrides, dir: Option<PathBuf>, locale: String) -> En
             AutoEscape::None
         }
     });
-    env.set_trim_blocks(true);
-    env.set_lstrip_blocks(true);
-    env.set_keep_trailing_newline(true);
+    env.set_syntax(
+        minijinja::syntax::SyntaxConfig::builder()
+            .trim_blocks(true)
+            .lstrip_blocks(true)
+            .keep_trailing_newline(true)
+            .build()
+            .expect("syntax config"),
+    );
     // 最小単位の整数の金額を通貨の表記にする（`{{ order.total | money(order.currency) }}`）
     env.add_filter("money", |amount: Value, currency: String| -> String {
         match i64::try_from(amount.clone()) {
@@ -363,7 +368,7 @@ impl Templates {
             candidates.push(name.to_string());
             base = name.rsplit_once('.').map(|(parent, _)| parent);
         }
-        let ctx = Value::from_serialize(context);
+        let ctx = Value::from(minijinja::value::Serde(context));
         let env = self
             .env
             .read()
