@@ -13,6 +13,7 @@ workspace = true
 aegis-core = { path = "../aegis-core" }
 aegis-db = { path = "../aegis-db" }
 aegis-audit = { path = "../aegis-audit" }
+aegis-comments = { path = "../aegis-comments" }
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true

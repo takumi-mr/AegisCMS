@@ -172,6 +172,24 @@ impl AppState {
         self
     }
 
+    /// 掲示板が使うサーバーの部品（`ForumService::new` に渡す）
+    pub fn forum_deps(&self, db: Arc<dyn DatabaseAdapter>) -> aegis_forum::ForumDeps {
+        aegis_forum::ForumDeps {
+            db,
+            cache: self.cache.clone(),
+            audit: self.audit.clone(),
+            notifier: self.notifier.clone(),
+            site_url: self
+                .config
+                .commerce
+                .public_url
+                .trim()
+                .trim_end_matches('/')
+                .to_string(),
+            admin_url: self.admin_url.clone().unwrap_or_default(),
+        }
+    }
+
     /// 公開サイトの名前と favicon（Admin Studio で変更した値 → `[theme]` の順）
     pub fn site(&self) -> SiteInfo {
         let overrides = self

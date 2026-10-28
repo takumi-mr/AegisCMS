@@ -1,4 +1,4 @@
-//! 掲示板（`[forum]`）: カテゴリ・スレッド・投稿（レス）・モデレーション・レートリミット。
+//! 掲示板（`[forum]`）: カテゴリ・スレッド・投稿（レス）・モデレーション・通報・通知・レートリミット。
 //! HTTP 層（API・公開画面）とは疎結合で、ビジネスロジックとストレージ連携をカプセル化する。
 
 pub mod config;
@@ -8,10 +8,14 @@ mod tests;
 use std::sync::Arc;
 
 use aegis_audit::AuditService;
-use aegis_core::{AegisError, AuditAction, AuditActor, AuditEvent, AuditOutcome, CacheBackend};
+use aegis_comments::{moderation, ModerationConfig, ModerationPolicy, PolicyOverrides};
+use aegis_core::{
+    AegisError, AuditAction, AuditActor, AuditEvent, AuditOutcome, CacheBackend, ModerationStatus,
+    NotificationEvent, Notifier, Recipient,
+};
 use aegis_db::{
-    DatabaseAdapter, ForumCategoryRecord, ForumPostRecord, ForumThreadRecord, PostListQuery,
-    ThreadListQuery,
+    DatabaseAdapter, ForumCategoryRecord, ForumPostRecord, ForumReportRecord, ForumThreadRecord,
+    PostListQuery, ThreadListQuery,
 };
 use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
@@ -22,6 +26,12 @@ pub use config::ForumConfig;
 
 /// レートリミットのキャッシュキー接頭辞
 const RATE_LIMIT_PREFIX: &str = "forum:ratelimit:";
+/// 時間単位のIP投稿数制限のスコープ
+const IP_RATE_LIMIT_SCOPE: &str = "forum";
+/// `_aegis_settings` に保存するフォーラムのモデレーション設定の接頭辞
+const SETTINGS_PREFIX: &str = "forum";
+/// 通報理由の最大文字数
+const MAX_REPORT_REASON_CHARS: usize = 1_000;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ForumError {
@@ -59,6 +69,22 @@ pub struct ForumDeps {
     pub db: Arc<dyn DatabaseAdapter>,
     pub cache: Arc<dyn CacheBackend>,
     pub audit: Arc<AuditService>,
+    pub notifier: Option<Arc<dyn Notifier>>,
+    pub site_url: String,
+    pub admin_url: String,
+}
+
+/// 承認制の設定（`GET` / `PUT /api/v1/forum/settings`）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ForumModerationSettings {
+    /// 実際に使う値
+    pub policy: ModerationPolicy,
+    /// Admin Studio で変えた値（`null` は設定ファイルの値）
+    pub overrides: PolicyOverrides,
+    /// 設定ファイル（`[forum.moderation]`）の値
+    pub defaults: ModerationPolicy,
+    /// NG ワード・リンク上限などの設定値（参照用）
+    pub config: ModerationConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +126,16 @@ pub struct CreatePostRequest {
     pub author_id: Option<String>,
     pub ip: Option<String>,
     pub user_agent: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateReportRequest {
+    /// `"thread"` or `"post"`
+    pub target_type: String,
+    pub target_id: String,
+    pub reason: String,
+    pub reporter_id: Option<String>,
+    pub reporter_ip: Option<String>,
 }
 
 #[derive(Clone)]
@@ -153,18 +189,27 @@ impl ForumService {
     }
 
     /// レートリミット（連投防止）のチェック
-    async fn check_rate_limit(&self, identifier: &str) -> ForumResult<()> {
-        if self.config.rate_limit_secs == 0 {
-            return Ok(());
+    async fn check_rate_limit(&self, identifier: &str, ip: Option<&str>) -> ForumResult<()> {
+        if self.config.rate_limit_secs > 0 {
+            let key = format!("{}{}", RATE_LIMIT_PREFIX, identifier);
+            let exists = self
+                .deps
+                .cache
+                .get(&key)
+                .await
+                .map_err(|e| ForumError::Internal(e.to_string()))?;
+            if exists.is_some() {
+                return Err(ForumError::RateLimited);
+            }
         }
-        let key = format!("{}{}", RATE_LIMIT_PREFIX, identifier);
-        let exists = self
-            .deps
-            .cache
-            .get(&key)
-            .await
-            .map_err(|e| ForumError::Internal(e.to_string()))?;
-        if exists.is_some() {
+        if !moderation::within_rate_limit(
+            self.deps.cache.as_ref(),
+            IP_RATE_LIMIT_SCOPE,
+            ip,
+            self.config.moderation.max_per_ip_per_hour,
+        )
+        .await?
+        {
             return Err(ForumError::RateLimited);
         }
         Ok(())
@@ -182,6 +227,152 @@ impl ForumService {
             .await
             .map_err(|e| ForumError::Internal(e.to_string()))?;
         Ok(())
+    }
+
+    // ==========================================
+    // 承認制・モデレーション設定
+    // ==========================================
+
+    async fn overrides(&self) -> ForumResult<PolicyOverrides> {
+        let settings = self.deps.db.list_settings().await?;
+        Ok(PolicyOverrides::from_settings(SETTINGS_PREFIX, &settings))
+    }
+
+    pub async fn settings(&self) -> ForumResult<ForumModerationSettings> {
+        let overrides = self.overrides().await?;
+        Ok(ForumModerationSettings {
+            policy: self.config.moderation.policy(&overrides),
+            defaults: self.config.moderation.policy(&PolicyOverrides::default()),
+            overrides,
+            config: self.config.moderation.clone(),
+        })
+    }
+
+    pub async fn update_settings(
+        &self,
+        actor: Option<&str>,
+        next: PolicyOverrides,
+    ) -> ForumResult<ForumModerationSettings> {
+        let previous = self.overrides().await?;
+        let (approval, known) = moderation::setting_names(SETTINGS_PREFIX);
+        for (name, value) in [
+            (&approval, next.require_approval),
+            (&known, next.auto_approve_known),
+        ] {
+            match value {
+                Some(v) => self.deps.db.set_setting(name, &v.to_string()).await?,
+                None => self.deps.db.delete_setting(name).await?,
+            }
+        }
+
+        self.record_audit(
+            AuditAction::ForumSettingsUpdate,
+            AuditOutcome::Success,
+            actor.map(|s| s.to_string()),
+            "forum_settings",
+            None,
+            None,
+            None,
+            json!({
+                "require_approval": { "from": previous.require_approval, "to": next.require_approval },
+                "auto_approve_known": { "from": previous.auto_approve_known, "to": next.auto_approve_known },
+            }),
+        )
+        .await;
+
+        self.settings().await
+    }
+
+    /// 内容（NG ワード・リンク数）と承認制（`require_approval` / `auto_approve_known`）から最初の状態を決める
+    async fn evaluate_moderation(
+        &self,
+        texts: &[&str],
+        author_name: &str,
+        author_id: Option<&str>,
+    ) -> ForumResult<(ModerationStatus, Option<String>)> {
+        if let Some((status, reason)) = self.config.moderation.screen(texts) {
+            return Ok((status, Some(reason)));
+        }
+        let policy = self.config.moderation.policy(&self.overrides().await?);
+        let known = if policy.require_approval && policy.auto_approve_known {
+            self.deps
+                .db
+                .has_approved_forum_post(author_name, author_id)
+                .await?
+        } else {
+            false
+        };
+        Ok((policy.status_for(known), None))
+    }
+
+    fn thread_url(&self, category_slug: &str, thread_id: &str) -> String {
+        if self.deps.site_url.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "{}/forum/{}/{}",
+                self.deps.site_url.trim_end_matches('/'),
+                category_slug,
+                thread_id
+            )
+        }
+    }
+
+    fn moderation_url(&self) -> String {
+        if self.deps.admin_url.is_empty() {
+            String::new()
+        } else {
+            format!("{}#forum", self.deps.admin_url)
+        }
+    }
+
+    async fn notify_post(
+        &self,
+        category: &ForumCategoryRecord,
+        thread: &ForumThreadRecord,
+        post: &ForumPostRecord,
+        is_reply: bool,
+        status: ModerationStatus,
+    ) {
+        if !self.config.notify_staff {
+            return;
+        }
+        let Some(notifier) = &self.deps.notifier else {
+            return;
+        };
+        let kind = match status {
+            ModerationStatus::Approved => "forum.posted",
+            ModerationStatus::Pending => "forum.pending",
+            ModerationStatus::Spam | ModerationStatus::Trash => return,
+        };
+        let mut thread_url = self.thread_url(&category.slug, &thread.id);
+        if is_reply && !thread_url.is_empty() {
+            thread_url = format!("{}#post-{}", thread_url, post.post_number);
+        }
+        notifier.notify(NotificationEvent {
+            kind: kind.to_string(),
+            recipients: vec![Recipient::Staff],
+            data: json!({
+                "category": {
+                    "id": category.id,
+                    "name": category.name,
+                    "slug": category.slug,
+                },
+                "thread": {
+                    "id": thread.id,
+                    "title": thread.title,
+                },
+                "post": {
+                    "id": post.id,
+                    "author_name": post.author_name,
+                    "body": post.body,
+                    "ip": post.ip,
+                    "is_reply": is_reply,
+                },
+                "thread_url": thread_url,
+                "moderation_url": self.moderation_url(),
+            }),
+        });
     }
 
     // ==========================================
@@ -389,7 +580,7 @@ impl ForumService {
         let author_name = if req.author_name.trim().is_empty() {
             "Anonymous".to_string()
         } else {
-            req.author_name.trim().to_string()
+            moderation::normalize_name(&req.author_name).map_err(ForumError::Invalid)?
         };
 
         // レートリミットチェック
@@ -398,7 +589,7 @@ impl ForumService {
             .as_deref()
             .or(req.ip.as_deref())
             .unwrap_or("unknown");
-        self.check_rate_limit(rate_id).await?;
+        self.check_rate_limit(rate_id, req.ip.as_deref()).await?;
 
         // カテゴリ確認
         let cat = self.get_category(&req.category_id).await?;
@@ -407,6 +598,15 @@ impl ForumService {
                 "Cannot post to private category".into(),
             ));
         }
+
+        let (mod_status, mod_reason) = self
+            .evaluate_moderation(
+                &[&title, &body, &author_name],
+                &author_name,
+                req.author_id.as_deref(),
+            )
+            .await?;
+        let status_str = mod_status.as_str().to_string();
 
         let thread_id = Uuid::new_v4().to_string();
         let post_id = Uuid::new_v4().to_string();
@@ -420,6 +620,7 @@ impl ForumService {
             author_name: author_name.clone(),
             is_pinned: false,
             is_locked: false,
+            status: status_str.clone(),
             post_count: 1,
             last_post_at: timestamp.clone(),
             created_at: timestamp.clone(),
@@ -435,6 +636,7 @@ impl ForumService {
             body,
             reply_to_post_id: None,
             reply_to_number: None,
+            status: status_str.clone(),
             is_deleted: false,
             ip: req.ip.clone(),
             user_agent: req.user_agent.clone(),
@@ -453,9 +655,16 @@ impl ForumService {
             Some(thread_id),
             req.ip,
             req.user_agent,
-            json!({ "title": title }),
+            json!({
+                "title": title,
+                "status": status_str,
+                "reason": mod_reason,
+            }),
         )
         .await;
+
+        self.notify_post(&cat, &thread, &first_post, false, mod_status)
+            .await;
 
         Ok((thread, first_post))
     }
@@ -532,6 +741,38 @@ impl ForumService {
         Ok(())
     }
 
+    pub async fn moderate_thread(
+        &self,
+        id: &str,
+        status: ModerationStatus,
+        actor: Option<&str>,
+    ) -> ForumResult<ForumThreadRecord> {
+        let mut thread = self.get_thread(id).await?;
+        let prev_status = thread.status.clone();
+        let timestamp = now();
+        let status_str = status.as_str().to_string();
+        self.deps
+            .db
+            .set_thread_status(id, &status_str, &timestamp)
+            .await?;
+        thread.status = status_str.clone();
+        thread.updated_at = timestamp;
+
+        self.record_audit(
+            AuditAction::ForumModerate,
+            AuditOutcome::Success,
+            actor.map(|s| s.to_string()),
+            "forum_thread",
+            Some(id.to_string()),
+            None,
+            None,
+            json!({ "from": prev_status, "to": status_str, "title": thread.title }),
+        )
+        .await;
+
+        Ok(thread)
+    }
+
     pub async fn delete_thread(&self, id: &str, actor: Option<&str>) -> ForumResult<()> {
         let thread = self.get_thread(id).await?;
         let deleted = self.deps.db.delete_thread(id).await?;
@@ -585,7 +826,7 @@ impl ForumService {
         let author_name = if req.author_name.trim().is_empty() {
             "Anonymous".to_string()
         } else {
-            req.author_name.trim().to_string()
+            moderation::normalize_name(&req.author_name).map_err(ForumError::Invalid)?
         };
 
         // レートリミットチェック
@@ -594,13 +835,23 @@ impl ForumService {
             .as_deref()
             .or(req.ip.as_deref())
             .unwrap_or("unknown");
-        self.check_rate_limit(rate_id).await?;
+        self.check_rate_limit(rate_id, req.ip.as_deref()).await?;
 
         // スレッドチェック（存在＆ロック状態）
         let thread = self.get_thread(&req.thread_id).await?;
         if thread.is_locked {
             return Err(ForumError::Locked);
         }
+        let cat = self.get_category(&thread.category_id).await?;
+
+        let (mod_status, mod_reason) = self
+            .evaluate_moderation(
+                &[&body, &author_name],
+                &author_name,
+                req.author_id.as_deref(),
+            )
+            .await?;
+        let status_str = mod_status.as_str().to_string();
 
         let post_id = Uuid::new_v4().to_string();
         let timestamp = now();
@@ -614,6 +865,7 @@ impl ForumService {
             body,
             reply_to_post_id: req.reply_to_post_id,
             reply_to_number: req.reply_to_number,
+            status: status_str.clone(),
             is_deleted: false,
             ip: req.ip.clone(),
             user_agent: req.user_agent.clone(),
@@ -641,9 +893,17 @@ impl ForumService {
             Some(post_id),
             req.ip,
             req.user_agent,
-            json!({ "thread_id": req.thread_id, "post_number": new_num }),
+            json!({
+                "thread_id": req.thread_id,
+                "post_number": new_num,
+                "status": status_str,
+                "reason": mod_reason,
+            }),
         )
         .await;
+
+        self.notify_post(&cat, &thread, &post, true, mod_status)
+            .await;
 
         Ok(post)
     }
@@ -663,6 +923,43 @@ impl ForumService {
         }
         let posts = self.deps.db.list_posts(&q).await?;
         Ok(posts)
+    }
+
+    pub async fn moderate_post(
+        &self,
+        id: &str,
+        status: ModerationStatus,
+        actor: Option<&str>,
+    ) -> ForumResult<ForumPostRecord> {
+        let mut post = self.get_post(id).await?;
+        let prev_status = post.status.clone();
+        let timestamp = now();
+        let status_str = status.as_str().to_string();
+        self.deps
+            .db
+            .set_post_status(id, &status_str, &timestamp)
+            .await?;
+        post.status = status_str.clone();
+        post.updated_at = timestamp;
+
+        self.record_audit(
+            AuditAction::ForumModerate,
+            AuditOutcome::Success,
+            actor.map(|s| s.to_string()),
+            "forum_post",
+            Some(id.to_string()),
+            None,
+            None,
+            json!({
+                "thread_id": post.thread_id,
+                "post_number": post.post_number,
+                "from": prev_status,
+                "to": status_str,
+            }),
+        )
+        .await;
+
+        Ok(post)
     }
 
     pub async fn delete_post(&self, id: &str, actor: Option<&str>) -> ForumResult<()> {
@@ -685,5 +982,196 @@ impl ForumService {
         .await;
 
         Ok(())
+    }
+
+    // ==========================================
+    // 通報（Report）管理
+    // ==========================================
+
+    pub async fn report(&self, req: CreateReportRequest) -> ForumResult<ForumReportRecord> {
+        self.check_enabled()?;
+
+        let reason = req.reason.trim().to_string();
+        if reason.is_empty() {
+            return Err(ForumError::Invalid("Report reason cannot be empty".into()));
+        }
+        if reason.chars().count() > MAX_REPORT_REASON_CHARS {
+            return Err(ForumError::Invalid(format!(
+                "Report reason is too long (maximum {} characters)",
+                MAX_REPORT_REASON_CHARS
+            )));
+        }
+
+        if !moderation::within_rate_limit(
+            self.deps.cache.as_ref(),
+            "forum_report",
+            req.reporter_ip.as_deref(),
+            self.config.moderation.max_per_ip_per_hour,
+        )
+        .await?
+        {
+            return Err(ForumError::RateLimited);
+        }
+
+        let (thread, post_author, post_body) = match req.target_type.as_str() {
+            "thread" => {
+                let th = self.get_thread(&req.target_id).await?;
+                let posts = self
+                    .deps
+                    .db
+                    .list_posts(&PostListQuery {
+                        thread_id: th.id.clone(),
+                        after_post_number: 0,
+                        status: None,
+                        limit: 1,
+                    })
+                    .await?;
+                let body = posts
+                    .first()
+                    .map(|p| p.body.clone())
+                    .unwrap_or_else(|| th.title.clone());
+                let author = th.author_name.clone();
+                (th, author, body)
+            }
+            "post" => {
+                let p = self.get_post(&req.target_id).await?;
+                let th = self.get_thread(&p.thread_id).await?;
+                (th, p.author_name, p.body)
+            }
+            other => {
+                return Err(ForumError::Invalid(format!(
+                    "Invalid report target_type '{}'",
+                    other
+                )))
+            }
+        };
+        let cat = self.get_category(&thread.category_id).await?;
+
+        let timestamp = now();
+        let report_id = Uuid::new_v4().to_string();
+        let record = ForumReportRecord {
+            id: report_id.clone(),
+            target_type: req.target_type.clone(),
+            target_id: req.target_id.clone(),
+            thread_id: thread.id.clone(),
+            reason: reason.clone(),
+            reporter_id: req.reporter_id.clone(),
+            reporter_ip: req.reporter_ip.clone(),
+            status: "open".to_string(),
+            resolved_by: None,
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
+        };
+
+        self.deps.db.insert_report(&record).await?;
+
+        self.record_audit(
+            AuditAction::ForumReportCreate,
+            AuditOutcome::Success,
+            req.reporter_id,
+            "forum_report",
+            Some(report_id),
+            req.reporter_ip.clone(),
+            None,
+            json!({
+                "target_type": req.target_type,
+                "target_id": req.target_id,
+                "thread_id": thread.id,
+                "reason": reason,
+            }),
+        )
+        .await;
+
+        if self.config.notify_staff {
+            if let Some(notifier) = &self.deps.notifier {
+                notifier.notify(NotificationEvent {
+                    kind: "forum.reported".to_string(),
+                    recipients: vec![Recipient::Staff],
+                    data: json!({
+                        "category": {
+                            "id": cat.id,
+                            "name": cat.name,
+                            "slug": cat.slug,
+                        },
+                        "thread": {
+                            "id": thread.id,
+                            "title": thread.title,
+                        },
+                        "post": {
+                            "author_name": post_author,
+                            "body": post_body,
+                        },
+                        "report": {
+                            "id": record.id,
+                            "target_type": record.target_type,
+                            "target_id": record.target_id,
+                            "reason": record.reason,
+                            "reporter_ip": record.reporter_ip,
+                        },
+                        "thread_url": self.thread_url(&cat.slug, &thread.id),
+                        "moderation_url": self.moderation_url(),
+                    }),
+                });
+            }
+        }
+
+        Ok(record)
+    }
+
+    pub async fn list_reports(
+        &self,
+        status: Option<&str>,
+        limit: u64,
+    ) -> ForumResult<Vec<ForumReportRecord>> {
+        let limit = if limit == 0 { 100 } else { limit.min(500) };
+        Ok(self.deps.db.list_reports(status, limit).await?)
+    }
+
+    pub async fn resolve_report(
+        &self,
+        id: &str,
+        status: &str,
+        actor: Option<&str>,
+    ) -> ForumResult<ForumReportRecord> {
+        if !matches!(status, "resolved" | "dismissed" | "open") {
+            return Err(ForumError::Invalid(format!(
+                "Invalid report status '{}' (expected 'resolved', 'dismissed', or 'open')",
+                status
+            )));
+        }
+        let mut report = self
+            .deps
+            .db
+            .get_report(id)
+            .await?
+            .ok_or_else(|| ForumError::NotFound(format!("Report {} not found", id)))?;
+        let prev_status = report.status.clone();
+        let timestamp = now();
+        self.deps
+            .db
+            .set_report_status(id, status, actor, &timestamp)
+            .await?;
+        report.status = status.to_string();
+        report.resolved_by = actor.map(|s| s.to_string());
+        report.updated_at = timestamp;
+
+        self.record_audit(
+            AuditAction::ForumReportResolve,
+            AuditOutcome::Success,
+            actor.map(|s| s.to_string()),
+            "forum_report",
+            Some(id.to_string()),
+            None,
+            None,
+            json!({
+                "from": prev_status,
+                "to": status,
+                "target_type": report.target_type,
+                "target_id": report.target_id,
+            }),
+        )
+        .await;
+
+        Ok(report)
     }
 }

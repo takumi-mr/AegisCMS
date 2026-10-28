@@ -1,0 +1,13 @@
+A forum {% if post.is_reply %}reply{% else %}thread{% endif %} in "{{ category.name }}" ("{{ thread.title }}") is awaiting approval.
+
+Name: {{ post.author_name }}
+{% if post.ip %}
+IP address: {{ post.ip }}
+{% endif %}
+
+{{ post.body }}
+{% if moderation_url %}
+
+Approve it or mark it as spam in Admin Studio: {{ moderation_url }}
+{% endif %}
+

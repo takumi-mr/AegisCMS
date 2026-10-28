@@ -441,6 +441,27 @@ impl DatabaseAdapter for SqliteAdapter {
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;
         }
+        for table_name in [
+            super::forum::FORUM_THREAD_TABLE,
+            super::forum::FORUM_POST_TABLE,
+        ] {
+            let cols: HashSet<String> = sqlx::query(&format!("PRAGMA table_info({});", table_name))
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?
+                .into_iter()
+                .map(|r| r.get::<String, _>("name"))
+                .collect();
+            if !cols.contains("status") {
+                sqlx::query(&format!(
+                    "ALTER TABLE {} ADD COLUMN status TEXT NOT NULL DEFAULT 'approved';",
+                    table_name
+                ))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+            }
+        }
         for index in forum_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)

@@ -22,6 +22,9 @@ pub const SAMPLE_KINDS: &[&str] = &[
     "comment.pending",
     "comment.replied",
     "comment.approved",
+    "forum.posted",
+    "forum.pending",
+    "forum.reported",
     "audit.session.create",
 ];
 
@@ -152,6 +155,51 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
             "comment": comment,
             "content_url": url("/autumn-blend#comment-sample"),
             "unsubscribe_url": url("/comments/unsubscribe?token=sample"),
+        }),
+        "forum.posted" | "forum.pending" => json!({
+            "category": {
+                "id": "sample-cat",
+                "name": if ja { "雑談" } else { "General" },
+                "slug": "general",
+            },
+            "thread": {
+                "id": "sample-thread",
+                "title": if ja { "おすすめの抽出方法を教えてください" } else { "Favorite brewing method?" },
+            },
+            "post": {
+                "id": "sample-post",
+                "author_name": if ja { "佐藤 太郎" } else { "Taro Sato" },
+                "body": if ja { "ハンドドリップとフレンチプレス、どちらがお好みですか？" } else { "Do you prefer pour-over or French press?" },
+                "ip": "203.0.113.7",
+                "is_reply": false,
+            },
+            "thread_url": url("/forum/general/sample-thread"),
+            "moderation_url": if admin.is_empty() { String::new() } else { format!("{}#forum", admin) },
+        }),
+        "forum.reported" => json!({
+            "category": {
+                "id": "sample-cat",
+                "name": if ja { "雑談" } else { "General" },
+                "slug": "general",
+            },
+            "thread": {
+                "id": "sample-thread",
+                "title": if ja { "おすすめの抽出方法を教えてください" } else { "Favorite brewing method?" },
+            },
+            "post": {
+                "id": "sample-post",
+                "author_name": if ja { "佐藤 太郎" } else { "Taro Sato" },
+                "body": if ja { "宣伝目的の書き込みです。" } else { "Unsolicited promotional link." },
+            },
+            "report": {
+                "id": "sample-report",
+                "target_type": "post",
+                "target_id": "sample-post",
+                "reason": if ja { "スパム・宣伝" } else { "Spam / advertising" },
+                "reporter_ip": "203.0.113.8",
+            },
+            "thread_url": url("/forum/general/sample-thread"),
+            "moderation_url": if admin.is_empty() { String::new() } else { format!("{}#forum", admin) },
         }),
         "audit.session.create" => json!({
             "title": "",

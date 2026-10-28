@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use aegis_cache::MemoryCacheBackend;
-use aegis_core::{AuditEvent, AuditSink};
+use aegis_core::{AuditEvent, AuditSink, ModerationStatus, NotificationEvent, Notifier};
 use aegis_db::SqliteAdapter;
 
 use super::*;
@@ -21,12 +21,22 @@ impl AuditSink for RecordingSink {
     }
 }
 
+#[derive(Default)]
+struct RecordingNotifier(Mutex<Vec<NotificationEvent>>);
+
+impl Notifier for RecordingNotifier {
+    fn notify(&self, event: NotificationEvent) {
+        self.0.lock().unwrap().push(event);
+    }
+}
+
 struct Fixture {
     service: ForumService,
     #[allow(dead_code)]
     db: Arc<dyn DatabaseAdapter>,
     #[allow(dead_code)]
     sink: Arc<RecordingSink>,
+    notifier: Arc<RecordingNotifier>,
 }
 
 async fn fixture(mut config: ForumConfig) -> Fixture {
@@ -38,15 +48,24 @@ async fn fixture(mut config: ForumConfig) -> Fixture {
     let cache: Arc<dyn CacheBackend> = Arc::new(MemoryCacheBackend::new());
     let sink = Arc::new(RecordingSink::default());
     let audit = Arc::new(AuditService::with_sinks(vec![sink.clone()]));
+    let notifier = Arc::new(RecordingNotifier::default());
 
     let deps = ForumDeps {
         db: db.clone(),
         cache,
         audit,
+        notifier: Some(notifier.clone()),
+        site_url: "https://example.com".to_string(),
+        admin_url: "https://example.com/admin/".to_string(),
     };
 
     let service = ForumService::new(config, deps).unwrap();
-    Fixture { service, db, sink }
+    Fixture {
+        service,
+        db,
+        sink,
+        notifier,
+    }
 }
 
 #[tokio::test]
@@ -164,6 +183,7 @@ async fn test_thread_and_post_flow() {
 
     assert_eq!(th.title, "Rust 2026 Edition Discussion");
     assert_eq!(th.post_count, 1);
+    assert_eq!(th.status, "approved");
     assert_eq!(post1.post_number, 1);
     assert_eq!(post1.body, "What features are you most excited about?");
 
@@ -197,6 +217,7 @@ async fn test_thread_and_post_flow() {
         .list_posts(&PostListQuery {
             thread_id: th.id.clone(),
             after_post_number: 0,
+            status: None,
             limit: 10,
         })
         .await
@@ -211,6 +232,7 @@ async fn test_thread_and_post_flow() {
         .list_posts(&PostListQuery {
             thread_id: th.id.clone(),
             after_post_number: 1,
+            status: None,
             limit: 10,
         })
         .await
@@ -225,6 +247,12 @@ async fn test_thread_and_post_flow() {
         .unwrap();
     let deleted_post = f.service.get_post(&post2.id).await.unwrap();
     assert!(deleted_post.is_deleted);
+
+    // 新着通知が 2 件送られていること
+    let notifications = f.notifier.0.lock().unwrap();
+    assert_eq!(notifications.len(), 2);
+    assert_eq!(notifications[0].kind, "forum.posted");
+    assert_eq!(notifications[1].kind, "forum.posted");
 }
 
 #[tokio::test]
@@ -462,4 +490,174 @@ async fn test_anonymous_disallowed() {
         .unwrap_err();
 
     assert!(matches!(err, ForumError::Forbidden(_)));
+}
+
+#[tokio::test]
+async fn test_moderation_approval_ng_words_and_reports() {
+    let mut cfg = ForumConfig::default();
+    cfg.rate_limit_secs = 0;
+    cfg.moderation.require_approval = true;
+    cfg.moderation.auto_approve_known = true;
+    cfg.moderation.hold_words = vec!["reviewme".to_string()];
+    cfg.moderation.spam_words = vec!["buy-crypto-now".to_string()];
+    let f = fixture(cfg).await;
+
+    let cat = f
+        .service
+        .create_category(
+            CreateCategoryRequest {
+                slug: "mod".to_string(),
+                name: "Moderated".to_string(),
+                description: "".to_string(),
+                position: 0,
+                is_private: false,
+            },
+            None,
+        )
+        .await
+        .unwrap();
+
+    // 1. 新規ユーザーの初回スレッド作成 -> require_approval=true なので pending
+    let (th1, post1) = f
+        .service
+        .create_thread(CreateThreadRequest {
+            category_id: cat.id.clone(),
+            title: "First Thread by Alice".to_string(),
+            body: "Hello everyone!".to_string(),
+            author_name: "Alice".to_string(),
+            author_id: None,
+            ip: Some("203.0.113.10".to_string()),
+            user_agent: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(th1.status, "pending");
+    assert_eq!(post1.status, "pending");
+
+    // 通知に forum.pending が送られていること
+    {
+        let notes = f.notifier.0.lock().unwrap();
+        assert_eq!(notes.last().unwrap().kind, "forum.pending");
+    }
+
+    // 公開用フィルタ（status=Some("approved")）ではまだ見えない
+    let approved_threads = f
+        .service
+        .list_threads(&ThreadListQuery {
+            category_id: Some(cat.id.clone()),
+            status: Some("approved".to_string()),
+            before_last_post_at: None,
+            before_id: None,
+            limit: 10,
+        })
+        .await
+        .unwrap();
+    assert!(approved_threads.is_empty());
+
+    // 管理者がスレッドと投稿を承認する
+    f.service
+        .moderate_thread(&th1.id, ModerationStatus::Approved, Some("admin"))
+        .await
+        .unwrap();
+    f.service
+        .moderate_post(&post1.id, ModerationStatus::Approved, Some("admin"))
+        .await
+        .unwrap();
+
+    let approved_threads = f
+        .service
+        .list_threads(&ThreadListQuery {
+            category_id: Some(cat.id.clone()),
+            status: Some("approved".to_string()),
+            before_last_post_at: None,
+            before_id: None,
+            limit: 10,
+        })
+        .await
+        .unwrap();
+    assert_eq!(approved_threads.len(), 1);
+
+    // 2. Alice は承認済み投稿があるので、2回目のレスは auto_approve_known で自動承認される
+    let post2 = f
+        .service
+        .create_post(CreatePostRequest {
+            thread_id: th1.id.clone(),
+            body: "Follow-up from Alice".to_string(),
+            reply_to_post_id: None,
+            reply_to_number: None,
+            author_name: "Alice".to_string(),
+            author_id: None,
+            ip: Some("203.0.113.10".to_string()),
+            user_agent: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(post2.status, "approved");
+
+    // 3. NGワード（hold_words）を含む場合は承認済みユーザーでも pending になる
+    let post_hold = f
+        .service
+        .create_post(CreatePostRequest {
+            thread_id: th1.id.clone(),
+            body: "Please reviewme before publishing".to_string(),
+            reply_to_post_id: None,
+            reply_to_number: None,
+            author_name: "Alice".to_string(),
+            author_id: None,
+            ip: Some("203.0.113.10".to_string()),
+            user_agent: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(post_hold.status, "pending");
+
+    // 4. NGワード（spam_words）を含む場合は spam になり通知も送られない
+    let count_before = f.notifier.0.lock().unwrap().len();
+    let post_spam = f
+        .service
+        .create_post(CreatePostRequest {
+            thread_id: th1.id.clone(),
+            body: "Click here to buy-crypto-now!".to_string(),
+            reply_to_post_id: None,
+            reply_to_number: None,
+            author_name: "SpamBot".to_string(),
+            author_id: None,
+            ip: Some("203.0.113.99".to_string()),
+            user_agent: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(post_spam.status, "spam");
+    assert_eq!(f.notifier.0.lock().unwrap().len(), count_before);
+
+    // 5. 通報（Report）と解決（Resolve）
+    let report = f
+        .service
+        .report(CreateReportRequest {
+            target_type: "post".to_string(),
+            target_id: post2.id.clone(),
+            reason: "Off-topic content".to_string(),
+            reporter_id: None,
+            reporter_ip: Some("203.0.113.50".to_string()),
+        })
+        .await
+        .unwrap();
+    assert_eq!(report.status, "open");
+    assert_eq!(report.thread_id, th1.id);
+
+    {
+        let notes = f.notifier.0.lock().unwrap();
+        assert_eq!(notes.last().unwrap().kind, "forum.reported");
+    }
+
+    let open_reports = f.service.list_reports(Some("open"), 10).await.unwrap();
+    assert_eq!(open_reports.len(), 1);
+
+    let resolved = f
+        .service
+        .resolve_report(&report.id, "resolved", Some("admin"))
+        .await
+        .unwrap();
+    assert_eq!(resolved.status, "resolved");
+    assert_eq!(resolved.resolved_by.as_deref(), Some("admin"));
 }

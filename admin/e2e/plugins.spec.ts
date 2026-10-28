@@ -71,8 +71,16 @@ test('saves plugin settings', async ({ page }) => {
 });
 
 test('reorders the enabled plugins and goes back to the configuration file', async ({ page }) => {
+  await expect(pluginCard(page, SHOP_RULES)).toBeVisible();
+  const resetBtn = page.getByRole('button', { name: 'Use the configuration file' });
+  if (await resetBtn.isVisible()) {
+    page.once('dialog', (dialog) => dialog.accept());
+    await resetBtn.click();
+    await expect(resetBtn).toBeHidden();
+  }
   for (const name of [SHOP_RULES, CODE_ENHANCER]) {
     const card = pluginCard(page, name);
+    await expect(card).toBeVisible();
     if (await card.getByRole('button', { name: 'Enable' }).isVisible()) {
       await card.getByRole('button', { name: 'Enable' }).click();
       await expect(card.getByText('Enabled', { exact: true })).toBeVisible();

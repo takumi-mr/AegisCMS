@@ -76,6 +76,9 @@ aegis-server -c config/production.toml notify test --to you@example.com
 | `comment.pending` | 承認待ちのコメントが来た | 著者（`notify_author`）・運営者（`notify_staff`） | 投稿者の名前・メールアドレス・IP アドレス、本文、Admin Studio の **Comments** を開く URL（`moderation_url`） |
 | `comment.replied` | 自分のコメントへの返信が公開された（読者の返信・Admin Studio からの返信。承認待ちの返信は承認したとき） | 返信先のコメントの投稿者（投稿時に「返信をメールで知らせる」を選んだ人だけ） | 返信した人の名前と本文、自分のコメント、返信の URL、通知を止めるリンク（`unsubscribe_url`） |
 | `comment.approved` | 自分のコメントが承認された（承認待ち・スパムから Admin Studio で承認したとき） | そのコメントの投稿者（投稿時に「返信・承認をメールで知らせる」を選んだ人だけ） | 自分のコメント、コメントの URL、通知を止めるリンク（`unsubscribe_url`） |
+| `forum.posted` | 掲示板に承認済みのスレッド・返信が投稿された | 運営者（`[forum].notify_staff`） | カテゴリ、スレッド名、投稿者の名前、本文、スレッドの URL（`thread_url`） |
+| `forum.pending` | 掲示板に承認待ちのスレッド・返信が投稿された | 運営者（`[forum].notify_staff`） | カテゴリ、スレッド名、投稿者の名前・IP アドレス、本文、Admin Studio の **Forum** を開く URL（`moderation_url`） |
+| `forum.reported` | 掲示板のスレッド・投稿が通報された | 運営者（`[forum].notify_staff`） | 通報の対象（`target_type` / `target_id`）、理由、通報元の IP アドレス、Admin Studio の **Forum** を開く URL（`moderation_url`） |
 | `test` | `aegis-server notify test` | 指定したアドレス | テスト |
 | `audit.<操作>` | 監査ログのイベントが `[[notifications.audit.rules]]` に合った（[2.1](#21-監査イベントの通知)） | 運営者（またはルールの `recipients`） | 操作・結果・ユーザー・IP アドレス・ブラウザ・詳細 |
 

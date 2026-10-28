@@ -568,6 +568,9 @@ async fn test_edit_text_close_per_content_and_reject_duplicates() {
         .call("PUT", state_path, Some(json!({ "open": false })), None)
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, body) = site.call("GET", state_path, None, Some(&site.editor)).await;
+    assert_eq!(status, StatusCode::OK, "{}", body);
+    assert_eq!(body["open"], true);
     let (status, body) = site
         .call(
             "PUT",
@@ -578,6 +581,19 @@ async fn test_edit_text_close_per_content_and_reject_duplicates() {
         .await;
     assert_eq!(status, StatusCode::OK, "{}", body);
     assert_eq!(body["open"], false);
+    let (status, body) = site.call("GET", state_path, None, Some(&site.editor)).await;
+    assert_eq!(status, StatusCode::OK, "{}", body);
+    assert_eq!(body["open"], false);
+    let (status, content) = site
+        .call(
+            "GET",
+            "/api/v1/contents/article/hello",
+            None,
+            Some(&site.editor),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(content["comments_open"], false);
     let (status, body) = site
         .post_comment(json!({ "name": "Taro", "email": "taro@example.com", "body": "Late" }))
         .await;

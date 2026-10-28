@@ -23,6 +23,10 @@
     - 既定の `sanitized` モードでは `aegis-ast` の `lol_html` サニタイザーにより `<script>`・`<iframe>`・`on*` イベント属性・`javascript:` URL 等を除去してテーマ内に安全に直展開し、`attributes.mode = "sandbox"` モードでは `allow-same-origin` を持たない不透明オリジン（`Origin: null`）の `<iframe sandbox="allow-scripts allow-forms allow-popups">`（`ResizeObserver` による高さ自動追従付き）に隔離して独自 JS の実行とゼロトラスト境界を両立。
     - Admin Studio の `BlockItem` モード選択 UI、日英翻訳、Markdown の ```` ```html:sandbox ```` 変換を追加。
 
+- コンテンツ編集画面からのコメント受付切り替えと、掲示板（`aegis-forum`）のモデレーション・通報・新着通知を追加。
+    - コメント対象コンテンツ（`[comments].content_types`）の編集画面および商品編集画面にコメント受付状態（受付中 / 受付停止中）の切り替えボタンを追加し、コメントが 0 件のコンテンツでも編集画面から直接開閉可能に（`ContentResponse.comments_open` および `GET /api/v1/contents/{type}/{id}/comments/state` を追加）。
+    - 掲示板に `aegis_comments::moderation`（承認制 `require_approval`・既知の投稿者の自動承認 `auto_approve_known`・NG ワード `hold_words` / `spam_words`・リンク数上限 `max_links`・IP レート制限 `max_per_ip_per_hour`）を共有統合。スレッド・投稿ごとの `status`（`approved` / `pending` / `spam`）管理、通報機能（`_aegis_forum_reports`、公開通報フォーム、管理 API）、および運営者向け通知（`forum.posted` / `forum.pending` / `forum.reported` の日英組み込みテンプレート）を追加。
+
 **次に着手する項目**
 
 1. AssemblyScript / TinyGo SDK の追従、または翻訳の続き
@@ -53,8 +57,7 @@
 
 ### コメント・掲示板・通知（要望があれば）
 
-- [ ] **コメント**: コメント欄の翻訳（保留）。コメントが 1 件も無いコンテンツの受付の切り替えを、コンテンツの編集画面からもできるようにする（今はコメントの行のボタンか API のみ）。
-- [ ] **掲示板**: 承認制・NG ワード（コメントの `moderation` と共有）、通報、新着の通知。
+- [ ] **コメント**: コメント欄の翻訳（保留）。
 - [ ] **掲示板の組み込みテンプレートの文言**: 英語のみ（上の「翻訳の続き」と一緒に対応）。
 - [ ] **通知**: テンプレートの編集履歴、宛先の言語ごとのテンプレート、送信待ちの一括再送、送信の速度の上限。
 

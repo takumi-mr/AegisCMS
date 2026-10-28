@@ -1,0 +1,2 @@
+New forum {% if post.is_reply %}reply{% else %}thread{% endif %}: "{{ thread.title }}" - {{ site_name }}
+

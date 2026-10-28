@@ -65,7 +65,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         )
         .route(
             "/api/v1/contents/{content_type}/{id}/comments/state",
-            put(handlers::set_content_comments),
+            get(handlers::get_content_comments).put(handlers::set_content_comments),
         )
         .route("/api/v1/comments", get(handlers::list_comments))
         .route(
@@ -83,6 +83,19 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         )
         .route("/comments/unsubscribe", get(handlers::unsubscribe_page))
         // --- 掲示板（[forum]） ---
+        .route(
+            "/api/v1/forum/settings",
+            get(handlers::forum::api_get_forum_settings)
+                .put(handlers::forum::api_update_forum_settings),
+        )
+        .route(
+            "/api/v1/forum/reports",
+            get(handlers::forum::api_list_reports).post(handlers::forum::api_create_report),
+        )
+        .route(
+            "/api/v1/forum/reports/{id}",
+            patch(handlers::forum::api_resolve_report),
+        )
         .route(
             "/api/v1/forum/categories",
             get(handlers::forum::api_list_categories).post(handlers::forum::api_create_category),
@@ -106,6 +119,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             get(handlers::forum::api_get_thread).delete(handlers::forum::api_delete_thread),
         )
         .route(
+            "/api/v1/forum/threads/{id}/status",
+            patch(handlers::forum::api_moderate_thread),
+        )
+        .route(
             "/api/v1/forum/threads/{id}/posts",
             get(handlers::forum::api_list_posts),
         )
@@ -120,6 +137,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route(
             "/api/v1/forum/threads/{id}/lock",
             post(handlers::forum::api_lock_thread),
+        )
+        .route(
+            "/api/v1/forum/posts/{id}/status",
+            patch(handlers::forum::api_moderate_post),
         )
         .route(
             "/api/v1/forum/posts/{id}",
@@ -361,6 +382,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route(
             "/forum/{category_slug}/{thread_id}/posts",
             post(handlers::forum::handle_create_post_form),
+        )
+        .route(
+            "/forum/{category_slug}/{thread_id}/report",
+            post(handlers::forum::handle_create_report_form),
         )
         .route("/{slug}", get(handlers::render_page_or_slug));
 

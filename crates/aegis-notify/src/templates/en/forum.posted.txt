@@ -1,0 +1,9 @@
+{{ post.author_name }} {% if post.is_reply %}replied to the thread{% else %}created a new thread{% endif %} "{{ thread.title }}" in "{{ category.name }}".
+
+{{ post.body }}
+{% if thread_url %}
+
+{{ thread_url }}
+{% endif %}
+{% include "_footer.txt" %}
+

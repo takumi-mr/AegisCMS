@@ -157,6 +157,8 @@ pub struct ContentResponse {
     pub unpublish_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comments_open: Option<bool>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub fields: HashMap<String, serde_json::Value>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -427,6 +429,21 @@ async fn record_store_result(
     })
 }
 
+async fn resolve_comments_open_for_item(
+    state: &AppState,
+    content_type: &str,
+    content_id: &str,
+) -> Option<bool> {
+    let comments = state.comments.as_ref()?;
+    if !comments.config.accepts(content_type) {
+        return None;
+    }
+    let settings = state.db.list_settings().await.unwrap_or_default();
+    comments
+        .is_content_closed_in_settings(&settings, content_type, content_id)
+        .map(|closed| !closed)
+}
+
 async fn content_response(
     state: &AppState,
     schema: &SchemaDefinition,
@@ -438,6 +455,8 @@ async fn content_response(
         let schemas = state.schemas.read().await;
         resolve_relations_for_item(&*state.db, &schemas, schema, &record.custom_fields).await
     };
+    let comments_open =
+        resolve_comments_open_for_item(state, &record.content_type, &record.id).await;
     ContentResponse {
         id: record.id,
         content_type: record.content_type,
@@ -451,6 +470,7 @@ async fn content_response(
         unpublish_at: record.unpublish_at,
         created_at: record.created_at,
         updated_at: record.updated_at,
+        comments_open,
         fields: record.custom_fields,
         relations,
     }
@@ -905,6 +925,13 @@ pub async fn list_content(
         resolve_relations_for_records(&*state.db, &schemas, &schema_clone, &fields).await
     };
 
+    let comment_settings = match state.comments.as_ref() {
+        Some(comments) if comments.config.accepts(&content_type) => {
+            Some(state.db.list_settings().await.unwrap_or_default())
+        }
+        _ => None,
+    };
+
     let list: Vec<ContentResponse> = page
         .records
         .into_iter()
@@ -912,6 +939,13 @@ pub async fn list_content(
         .map(|(r, relations)| {
             let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
             let rendered_html = render::render_blocks_html(&state.config.security, &blocks);
+            let comments_open = comment_settings.as_ref().and_then(|settings| {
+                state
+                    .comments
+                    .as_ref()?
+                    .is_content_closed_in_settings(settings, &r.content_type, &r.id)
+                    .map(|closed| !closed)
+            });
             ContentResponse {
                 id: r.id,
                 content_type: r.content_type,
@@ -925,6 +959,7 @@ pub async fn list_content(
                 unpublish_at: r.unpublish_at,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
+                comments_open,
                 fields: r.custom_fields,
                 relations,
             }
@@ -975,6 +1010,8 @@ pub async fn get_content(
                 resolve_relations_for_item(&*state.db, &schemas, &schema_clone, &r.custom_fields)
                     .await
             };
+            let comments_open =
+                resolve_comments_open_for_item(&state, &r.content_type, &r.id).await;
 
             Ok(Json(ContentResponse {
                 id: r.id,
@@ -989,6 +1026,7 @@ pub async fn get_content(
                 unpublish_at: r.unpublish_at,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
+                comments_open,
                 fields: r.custom_fields,
                 relations,
             }))
