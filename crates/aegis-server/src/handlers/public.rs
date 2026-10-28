@@ -72,6 +72,11 @@ pub async fn render_index(
     let page = params.page.unwrap_or(1).max(1);
     let mut items = Vec::new();
     let mut total_items = 0;
+    let mut tags = crate::cdn::CacheTags::new();
+    tags.add_url("/");
+    tags.add_url("/articles");
+    tags.add_dependency("site", "global");
+    tags.add_dependency("collection", "article");
 
     let article_schema = {
         let schemas = state.schemas.read().await;
@@ -96,6 +101,9 @@ pub async fn render_index(
                     resolve_relations_for_records(&*state.db, &schemas, &schema, &fields).await
                 };
                 for (r, relations) in content_page.records.into_iter().zip(relations) {
+                    tags.add_dependency("article", &r.id);
+                    tags.add_dependency("article", &r.slug);
+                    crate::cdn::add_relation_tags(&mut tags, &relations);
                     let blocks: Vec<BlockNode> =
                         serde_json::from_str(&r.blocks_json).unwrap_or_default();
                     items.push(ContentSummary {
@@ -162,7 +170,11 @@ pub async fn render_index(
     }
 
     match state.theme.render(&ctx.template, &ctx) {
-        Ok(html) => (StatusCode::OK, Html(html)).into_response(),
+        Ok(html) => crate::cdn::apply_cache_tags(
+            &state,
+            (StatusCode::OK, Html(html)).into_response(),
+            &tags,
+        ),
         Err(e) => {
             tracing::error!("Template rendering error: {}", e);
             (
@@ -207,6 +219,14 @@ pub async fn render_article(
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
     let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
+    let mut tags = crate::cdn::CacheTags::new();
+    tags.add_url(&format!("/articles/{}", record.slug));
+    tags.add_dependency("site", "global");
+    tags.add_dependency("article", &record.id);
+    tags.add_dependency("article", &record.slug);
+    tags.add_dependency("comments", &record.id);
+    crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
+
     let comments = comments::page_section(&state, "article", &record.id).await;
     let page = render::PageInput {
         template: "article.html".to_string(),
@@ -220,7 +240,8 @@ pub async fn render_article(
         fields: record.custom_fields,
         comments,
     };
-    themed_response(render::render_page(&state, &schema, page).await)
+    let resp = themed_response(render::render_page(&state, &schema, page).await);
+    crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 /// Turns a rendered page (or a template error) into the HTTP response
@@ -270,6 +291,14 @@ pub async fn render_page_or_slug(
                     }
                     _ => "page.html".to_string(),
                 };
+                let mut tags = crate::cdn::CacheTags::new();
+                tags.add_url(&format!("/{}", record.slug));
+                tags.add_dependency("site", "global");
+                tags.add_dependency("page", &record.id);
+                tags.add_dependency("page", &record.slug);
+                tags.add_dependency("comments", &record.id);
+                crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
+
                 let page = render::PageInput {
                     template,
                     content_type: "page".to_string(),
@@ -282,7 +311,8 @@ pub async fn render_page_or_slug(
                     fields: record.custom_fields,
                     comments,
                 };
-                return themed_response(render::render_page(&state, &schema, page).await);
+                let resp = themed_response(render::render_page(&state, &schema, page).await);
+                return crate::cdn::apply_cache_tags(&state, resp, &tags);
             }
         }
     }
@@ -300,6 +330,15 @@ pub async fn render_page_or_slug(
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
                 let content_html = render::render_blocks_html(&state.config.security, &blocks);
 
+                let mut tags = crate::cdn::CacheTags::new();
+                tags.add_url(&format!("/{}", record.slug));
+                tags.add_url(&format!("/articles/{}", record.slug));
+                tags.add_dependency("site", "global");
+                tags.add_dependency("article", &record.id);
+                tags.add_dependency("article", &record.slug);
+                tags.add_dependency("comments", &record.id);
+                crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
+
                 let comments = comments::page_section(&state, "article", &record.id).await;
                 let page = render::PageInput {
                     template: "article.html".to_string(),
@@ -313,7 +352,8 @@ pub async fn render_page_or_slug(
                     fields: record.custom_fields,
                     comments,
                 };
-                return themed_response(render::render_page(&state, &schema, page).await);
+                let resp = themed_response(render::render_page(&state, &schema, page).await);
+                return crate::cdn::apply_cache_tags(&state, resp, &tags);
             }
         }
     }

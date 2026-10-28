@@ -22,6 +22,9 @@
 - カスタム HTML ブロック（`core/html`）のハイブリッド保護（F-01 対応）を追加。
     - 既定の `sanitized` モードでは `aegis-ast` の `lol_html` サニタイザーにより `<script>`・`<iframe>`・`on*` イベント属性・`javascript:` URL 等を除去してテーマ内に安全に直展開し、`attributes.mode = "sandbox"` モードでは `allow-same-origin` を持たない不透明オリジン（`Origin: null`）の `<iframe sandbox="allow-scripts allow-forms allow-popups">`（`ResizeObserver` による高さ自動追従付き）に隔離して独自 JS の実行とゼロトラスト境界を両立。
     - Admin Studio の `BlockItem` モード選択 UI、日英翻訳、Markdown の ```` ```html:sandbox ```` 変換を追加。
+- On-demand Cache-Tag Purge（`aegis_cache::cdn`, `aegis-server/src/cdn.rs`）を追加。
+    - バックエンドでは HTML ページキャッシュを持たず、`[cdn].enabled = true` のときに公開レスポンスへ `Cache-Tag`（カンマ区切り）と `Surrogate-Key`（スペース区切り）および `Cache-Control` を自動付与。
+    - マルチ CDN 抽象化（`CdnPurger` トレイト: `none`, `log`, `cloudflare`, `fastly`, `webhook`）を `aegis-cache` に実装し、コンテンツの作成・更新（旧スラッグ含む）・削除・予約公開/非公開・バリエーション変更・コメント/レビュー/掲示板更新・サイト/SEO/テーマ/ヘッダー設定変更時にタグベースで自動パージ。設計は [docs/architecture.md](docs/architecture.md#37-on-demand-cache-tag-purge-aegis-cachesrccdnrs-aegis-serversrccdnrs) および [docs/configuration.md](docs/configuration.md#217-cdn--on-demand-cache-tag-purge-cdn-エッジキャッシュ連携) を参照。
 
 - コンテンツ編集画面からのコメント受付切り替えと、掲示板（`aegis-forum`）のモデレーション・通報・新着通知を追加。
     - コメント対象コンテンツ（`[comments].content_types`）の編集画面および商品編集画面にコメント受付状態（受付中 / 受付停止中）の切り替えボタンを追加し、コメントが 0 件のコンテンツでも編集画面から直接開閉可能に（`ContentResponse.comments_open` および `GET /api/v1/contents/{type}/{id}/comments/state` を追加）。
@@ -64,4 +67,4 @@
 ### 将来
 
 - [ ] **分散ストレージ**: libSQL（Turso）への対応とクラスタ環境の最適化。
-- [ ] **On-demand ISR / Cache-Tag Purge**: コンテンツ更新時の CDN キャッシュの無効化（EC 売上レポート・在庫通知とは切り離して保留）。
+- [ ] **On-demand ISR（保留・検討）**: バックエンド側での HTML キャッシュや静的再生成（ISR）は、現時点では単体描画性能と CDN の Cache-Tag Purge で十分なため保留とし、将来必要になった際に検討する。

@@ -77,8 +77,11 @@ version = "0.1.0"
 dependencies = [
  "aegis-core",
  "async-trait",
+ "axum",
  "futures-util",
+ "http",
  "redis",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",

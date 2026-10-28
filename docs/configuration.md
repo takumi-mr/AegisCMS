@@ -421,6 +421,50 @@ SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Re
 | `auto_lock_post_count` | integer | `1000` | この数のレスでスレッドを自動でロック（0 で無制限） |
 | `default_page_size` | integer | `50` | 1 ページの件数（1〜200） |
 
+### 2.17 `[cdn]` — On-demand Cache-Tag Purge (CDN エッジキャッシュ連携)
+
+バックエンド側で HTML ページキャッシュを持たず、公開ページの HTTP レスポンスに `Cache-Tag`（カンマ区切り: Cloudflare / BunnyCDN / Netlify 等）および `Surrogate-Key`（スペース区切り: Fastly / Varnish / Google Cloud CDN 等）ヘッダーを付与し、コンテンツの公開・更新・削除・予約公開/非公開やサイト設定変更時にタグ指定で CDN キャッシュをパージします。CDN を使わない環境では `enabled = false`（既定）のままにすることでオーバーヘッド 0 で動作します。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で `Cache-Tag` / `Surrogate-Key` ヘッダー付与とパージを有効化 |
+| `provider` | `"none"` \| `"log"` \| `"cloudflare"` \| `"fastly"` \| `"webhook"` | `"none"` | パージ先の CDN プロバイダ。`"none"` はレスポンスヘッダーの送出のみ行い外部 API は呼ばない。`"log"` はパージ対象タグを構造化ログ（`aegis::cdn`）に出力 |
+| `emit_headers` | bool | `true` | `200 OK` の公開ページ応答に `Cache-Tag` と `Surrogate-Key` を付与する |
+| `cache_control` | string | `"public, max-age=0, s-maxage=86400, stale-while-revalidate=60"` | 公開ページ応答に `Cache-Control` が未設定の場合に付与する値（空文字列なら付与しない） |
+| `timeout_ms` | integer (u64) | `5000` | CDN パージ API 呼び出しの HTTP タイムアウト（ミリ秒、100〜60000） |
+
+#### `[cdn.cloudflare]` (`provider = "cloudflare"`)
+
+Cloudflare の `POST /zones/{zone_id}/purge_cache`（`{"tags": [...]}`）を呼び出します（30 タグずつ自動分割）。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `zone_id` | string | `""` | Cloudflare Zone ID（必須） |
+| `api_token` | string | `""` | Cache Purge 権限を持つ API トークン。`"env:VAR_NAME"` または環境変数 `AEGIS_CLOUDFLARE_API_TOKEN` でも指定可 |
+| `api_base` | string | `"https://api.cloudflare.com/client/v4"` | Cloudflare API ベース URL |
+
+#### `[cdn.fastly]` (`provider = "fastly"`)
+
+Fastly の `POST /service/{service_id}/purge`（`Surrogate-Key` ヘッダー、256 キーずつ自動分割）を呼び出します。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `service_id` | string | `""` | Fastly Service ID（必須） |
+| `api_token` | string | `""` | Fastly API トークン（`Fastly-Key`）。`"env:VAR_NAME"` または環境変数 `AEGIS_FASTLY_API_TOKEN` でも指定可 |
+| `soft_purge` | bool | `true` | `true` で `Fastly-Soft-Purge: 1` を付与（即削除せず stale 化してバックグラウンド再検証を行う） |
+| `api_base` | string | `"https://api.fastly.com"` | Fastly API ベース URL |
+
+#### `[cdn.webhook]` (`provider = "webhook"`)
+
+Varnish、Nginx、BunnyCDN、AWS CloudFront 用の Lambda / Cloudflare Workers アダプター、または独自リバースプロキシに対し、`{"action": "purge_tags" | "purge_all", "tags": [...], "surrogate_key": "..."}` の JSON ペイロードを HTTP リクエストで送信します。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `url` | string | `""` | 送信先エンドポイント URL（`http://` または `https://`、必須） |
+| `method` | string | `"POST"` | HTTP メソッド（`"POST"`, `"PURGE"`, `"DELETE"` など） |
+| `bearer_token` | string | `""` | `Authorization: Bearer <token>` に付与するトークン。`"env:VAR_NAME"` または環境変数 `AEGIS_CDN_WEBHOOK_TOKEN` でも指定可 |
+| `headers` | table | `{}` | 追加で付与する任意のカスタム HTTP ヘッダー |
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。

@@ -219,6 +219,9 @@ pub async fn update_headers_settings(
         )
         .await;
 
+    // セキュリティ・カスタムレスポンスヘッダーの変更をエッジにも反映させるためCDNキャッシュをパージ
+    crate::cdn::purge_site_global(&state).await;
+
     Ok(Json(response(next)))
 }
 

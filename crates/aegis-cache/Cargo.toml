@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Cache and session store backends for AegisCMS (in-memory, Redis)"
+description = "Cache, session store, and CDN Cache-Tag purge backends for AegisCMS"
 
 [lints]
 workspace = true
@@ -13,11 +13,14 @@ workspace = true
 aegis-core = { path = "../aegis-core" }
 async-trait.workspace = true
 futures-util = "0.3"
+http = "1"
 redis.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["sync", "time"] }
 tracing.workspace = true
 
 [dev-dependencies]
+axum.workspace = true
 tokio.workspace = true

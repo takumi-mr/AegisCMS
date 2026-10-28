@@ -9,6 +9,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod app;
 mod audit;
 mod auth;
+mod cdn;
 mod cluster;
 mod config;
 mod handlers;
@@ -519,6 +520,7 @@ async fn main() -> anyhow::Result<()> {
             config.comments.validate()?;
             config.forum.validate()?;
             config.notifications.validate()?;
+            config.cdn.validate()?;
             config.auth.registration.validate()?;
             if config.notifications.enabled
                 && !config.notifications.audit.rules.is_empty()
@@ -537,6 +539,13 @@ async fn main() -> anyhow::Result<()> {
             );
             tracing::info!("Storage backend: {:?}", config.storage.backend);
             tracing::info!("Cache backend: {:?}", config.cache.backend);
+            if config.cdn.enabled {
+                tracing::info!(
+                    "CDN Cache-Tag purge enabled (provider: {:?}, emit_headers: {})",
+                    config.cdn.provider,
+                    config.cdn.emit_headers
+                );
+            }
 
             // 1. スキーマ読み込み
             let schemas_vec = SchemaLoader::load_dir(&config.paths.schemas_dir)?;

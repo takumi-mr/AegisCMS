@@ -16,6 +16,7 @@ use crate::auth::{AdminSession, EditorSession};
 use crate::handlers::public::{render_not_found, themed_response};
 use crate::render;
 use crate::state::AppState;
+use aegis_cache::CacheTags;
 use aegis_comments::{
     AdminCommentPage, AdminListQuery, ClientInfo, CommentError, CommentRequest, CommentService,
     ModerationSettings, PolicyOverrides, StaffAuthor,
@@ -161,6 +162,10 @@ pub async fn submit_comment(
         .await
         .map_err(comment_error)?;
     let status = if submitted.status == ModerationStatus::Approved {
+        let mut tags = CacheTags::new();
+        tags.add_dependency("comments", &target.id);
+        tags.add_dependency(&target.content_type, &target.id);
+        crate::cdn::purge_tags(&state, &tags).await;
         StatusCode::CREATED
     } else {
         StatusCode::ACCEPTED
@@ -295,6 +300,7 @@ pub async fn update_comment(
             "Give a status, a body, or both",
         ));
     }
+    let existing = state.db.get_comment(&id).await.ok().flatten();
     let status = payload.status.as_deref().map(parse_status).transpose()?;
     // 本文は状態より先に直す（承認と同時に直したとき、通知に直した本文を入れる）
     if let Some(body) = &payload.body {
@@ -314,6 +320,12 @@ pub async fn update_comment(
                 format!("Comment '{}' not found", id),
             ));
         }
+    }
+    if let Some(c) = existing {
+        let mut tags = CacheTags::new();
+        tags.add_dependency("comments", &c.content_id);
+        tags.add_dependency(&c.content_type, &c.content_id);
+        crate::cdn::purge_tags(&state, &tags).await;
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -357,6 +369,10 @@ pub async fn set_content_comments(
         .set_content_open(&audit, &content_type, &id, payload.open)
         .await
         .map_err(comment_error)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("comments", &target.id);
+    tags.add_dependency(&target.content_type, &target.id);
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok(Json(json!({
         "content_type": target.content_type,
         "content_id": target.id,
@@ -372,6 +388,7 @@ pub async fn delete_comment(
     audit: AuditContext,
 ) -> Result<StatusCode, ApiError> {
     let service = comments(&state)?;
+    let existing = state.db.get_comment(&id).await.ok().flatten();
     let deleted = service
         .delete(&audit, std::slice::from_ref(&id))
         .await
@@ -381,6 +398,12 @@ pub async fn delete_comment(
             StatusCode::NOT_FOUND,
             format!("Comment '{}' not found", id),
         ));
+    }
+    if let Some(c) = existing {
+        let mut tags = CacheTags::new();
+        tags.add_dependency("comments", &c.content_id);
+        tags.add_dependency(&c.content_type, &c.content_id);
+        crate::cdn::purge_tags(&state, &tags).await;
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -440,6 +463,10 @@ pub async fn reply_comment(
         .reply(&audit, &id, &author, &payload.body)
         .await
         .map_err(comment_error)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("comments", &record.content_id);
+    tags.add_dependency(&record.content_type, &record.content_id);
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok((
         StatusCode::CREATED,
         Json(json!({ "id": record.id, "status": record.status, "created_at": record.created_at })),

@@ -43,6 +43,29 @@ default_ttl_secs = 3600
 url = "redis://127.0.0.1:6379"
 timeout_ms = 2000
 
+[cdn]
+# On-demand Cache-Tag Purge: emit `Cache-Tag` & `Surrogate-Key` headers on public responses and
+# purge edge caches by tag when contents or site settings change. Keep false when not using a CDN.
+enabled = false
+# Provider: "none" (emit headers only, no API purge) | "log" | "cloudflare" | "fastly" | "webhook"
+provider = "none"
+emit_headers = true
+cache_control = "public, max-age=0, s-maxage=86400, stale-while-revalidate=60"
+timeout_ms = 5000
+
+# [cdn.cloudflare]
+# zone_id = ""
+# api_token = "" # or set AEGIS_CLOUDFLARE_API_TOKEN / "env:CLOUDFLARE_API_TOKEN"
+
+# [cdn.fastly]
+# service_id = ""
+# api_token = "" # or set AEGIS_FASTLY_API_TOKEN / "env:FASTLY_API_TOKEN"
+# soft_purge = true
+
+# [cdn.webhook]
+# url = "https://edge-purger.example.com/purge"
+# bearer_token = "" # or set AEGIS_CDN_WEBHOOK_TOKEN / "env:CDN_WEBHOOK_TOKEN"
+
 [paths]
 schemas_dir = "schemas"
 plugins_dir = "plugins"

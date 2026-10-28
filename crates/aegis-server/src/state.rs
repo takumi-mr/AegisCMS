@@ -8,7 +8,7 @@ use aegis_auth::invitation::InvitationService;
 use aegis_auth::password_reset::PasswordResetService;
 use aegis_auth::registration::RegistrationService;
 use aegis_auth::{LoginRateLimiter, SessionService};
-use aegis_cache::{EventBus, MemoryEventBus};
+use aegis_cache::{create_cdn_purger, CdnPurger, EventBus, MemoryEventBus, NoopCdnPurger};
 use aegis_core::{AuthProvider, CacheBackend, Notifier, StorageBackend};
 use aegis_db::DatabaseAdapter;
 use aegis_runtime::PluginSupervisor;
@@ -25,6 +25,8 @@ pub struct AppState {
     pub storage: Arc<dyn StorageBackend>,
     #[allow(dead_code)]
     pub cache: Arc<dyn CacheBackend>,
+    /// CDN の Cache-Tag パージャー（`[cdn]`。無効時は `NoopCdnPurger`）
+    pub cdn: Arc<dyn CdnPurger>,
     /// サーバー間の変更の知らせ（`[cache]` と同じバックエンド。メモリならこのプロセスの中だけ）
     pub bus: Arc<dyn EventBus>,
     pub sessions: Arc<SessionService>,
@@ -132,11 +134,13 @@ impl AppState {
         theme: Arc<ThemeEngine>,
     ) -> Self {
         let plugin_registry = Arc::new(PluginRegistry::new(None, config.plugins.enabled.clone()));
+        let cdn = create_cdn_purger(&config.cdn).unwrap_or_else(|_| Arc::new(NoopCdnPurger));
         Self {
             config,
             db,
             storage,
             cache,
+            cdn,
             bus: Arc::new(MemoryEventBus::new()),
             sessions,
             auth_provider,
@@ -164,6 +168,13 @@ impl AppState {
             invitation: None,
             admin_url: None,
         }
+    }
+
+    /// CDN パージャーを差し替える（起動時の初期化やテスト用）
+    #[allow(dead_code)]
+    pub fn with_cdn(mut self, cdn: Arc<dyn CdnPurger>) -> Self {
+        self.cdn = cdn;
+        self
     }
 
     /// 掲示板（`[forum]`）を有効にする

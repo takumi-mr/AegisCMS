@@ -4,7 +4,7 @@
 use aegis_ast::SecurityConfig;
 use aegis_audit::AuditConfig;
 use aegis_auth::AuthConfig;
-use aegis_cache::CacheConfig;
+use aegis_cache::{CacheConfig, CdnConfig};
 use aegis_comments::CommentsConfig;
 use aegis_commerce::CommerceConfig;
 use aegis_core::{AegisError, Result};
@@ -27,6 +27,8 @@ pub struct AegisConfig {
     pub storage: StorageConfig,
     #[serde(default)]
     pub cache: CacheConfig,
+    #[serde(default)]
+    pub cdn: CdnConfig,
     #[serde(default)]
     pub paths: PathsConfig,
     #[serde(default)]
@@ -150,6 +152,7 @@ impl Default for PathsConfig {
 mod tests {
     use super::*;
     use aegis_audit::AuditSinkKind;
+    use aegis_cache::CdnProviderKind;
 
     #[test]
     fn test_plugin_settings() {
@@ -181,6 +184,32 @@ mod tests {
         );
         assert_eq!(plugins.setting("shop-rules", "secret"), None);
         assert_eq!(plugins.setting("other", "coupons"), None);
+    }
+
+    #[test]
+    fn test_cdn_config_parsing() {
+        let default = AegisConfig::default();
+        assert!(!default.cdn.enabled);
+        assert_eq!(default.cdn.provider, CdnProviderKind::None);
+        assert!(default.cdn.emit_headers);
+
+        let config: AegisConfig = toml::from_str(
+            r#"
+            [cdn]
+            enabled = true
+            provider = "cloudflare"
+            emit_headers = true
+
+            [cdn.cloudflare]
+            zone_id = "zone_123"
+            api_token = "tok_abc"
+            "#,
+        )
+        .unwrap();
+        assert!(config.cdn.enabled);
+        assert_eq!(config.cdn.provider, CdnProviderKind::Cloudflare);
+        assert_eq!(config.cdn.cloudflare.zone_id, "zone_123");
+        assert!(config.cdn.validate().is_ok());
     }
 
     #[test]

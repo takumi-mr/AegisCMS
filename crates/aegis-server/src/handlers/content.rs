@@ -546,6 +546,11 @@ pub async fn create_content(
         .await;
     record_store_result(&state, &audit, AuditAction::ContentCreate, &record, result).await?;
 
+    if record.status == STATUS_PUBLISHED {
+        crate::cdn::purge_content(&state, &record.content_type, &record.id, &record.slug, None)
+            .await;
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(content_response(&state, &schema, record, saved.blocks, saved.rendered_html).await),
@@ -633,6 +638,8 @@ pub async fn update_content(
     )
     .await?;
 
+    let previous_status = current.status.clone();
+    let previous_slug = current.slug.clone();
     let record = ContentRecord {
         id: current.id,
         content_type,
@@ -654,13 +661,13 @@ pub async fn update_content(
     )?);
     let publication = match record.status.as_str() {
         "draft" | "archived" => ContentPublicationChange::Unpublish,
-        STATUS_SCHEDULED if current.status == STATUS_PUBLISHED && needs_baseline => {
+        STATUS_SCHEDULED if previous_status == STATUS_PUBLISHED && needs_baseline => {
             ContentPublicationChange::EnsureVersion(0)
         }
-        STATUS_PUBLISHED if publish_requested || current.status != STATUS_PUBLISHED => {
+        STATUS_PUBLISHED if publish_requested || previous_status != STATUS_PUBLISHED => {
             ContentPublicationChange::PublishVersion(versions.len() - 1)
         }
-        STATUS_PUBLISHED if current.status == STATUS_PUBLISHED && needs_baseline => {
+        STATUS_PUBLISHED if previous_status == STATUS_PUBLISHED && needs_baseline => {
             ContentPublicationChange::EnsureVersion(0)
         }
         _ => ContentPublicationChange::Keep,
@@ -681,6 +688,18 @@ pub async fn update_content(
         Err(e) => Err(e),
     };
     record_store_result(&state, &audit, AuditAction::ContentUpdate, &record, result).await?;
+
+    // 公開状態に関わる変更（公開中だった、または今回公開になった）があればCDNキャッシュをパージ
+    if previous_status == STATUS_PUBLISHED || record.status == STATUS_PUBLISHED {
+        crate::cdn::purge_content(
+            &state,
+            &record.content_type,
+            &record.id,
+            &record.slug,
+            Some(&previous_slug),
+        )
+        .await;
+    }
 
     Ok(Json(
         content_response(&state, &schema, record, saved.blocks, saved.rendered_html).await,
@@ -879,6 +898,16 @@ pub async fn delete_content(
         )
         .await;
     result.map_err(db_error)?;
+    if current.status == STATUS_PUBLISHED {
+        crate::cdn::purge_content(
+            &state,
+            &current.content_type,
+            &current.id,
+            &current.slug,
+            None,
+        )
+        .await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1225,7 +1254,7 @@ pub async fn upsert_variant(
 
     let variant = aegis_core::ProductVariant {
         id: variant_id,
-        product_id: product.id,
+        product_id: product.id.clone(),
         sku: payload.sku.filter(|s| !s.trim().is_empty()),
         title: payload.title.trim().to_string(),
         price_override: payload.price_override,
@@ -1243,6 +1272,17 @@ pub async fn upsert_variant(
         .await
         .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    if product.status == STATUS_PUBLISHED {
+        crate::cdn::purge_content(
+            &state,
+            &product.content_type,
+            &product.id,
+            &product.slug,
+            None,
+        )
+        .await;
+    }
+
     Ok((StatusCode::OK, Json(variant)))
 }
 
@@ -1251,13 +1291,29 @@ pub async fn upsert_variant(
 pub async fn delete_variant(
     State(state): State<Arc<AppState>>,
     RequireRole(_session): EditorSession,
-    Path((_content_type, _id, variant_id)): Path<(String, String, String)>,
+    Path((content_type, id, variant_id)): Path<(String, String, String)>,
 ) -> Result<StatusCode, ApiError> {
     state
         .db
         .delete_product_variant(&variant_id)
         .await
         .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if let Ok(schema) = find_schema(&state, &content_type).await {
+        if let Ok(Some(product)) = state.db.get_content(&schema, &id).await {
+            if product.status == STATUS_PUBLISHED {
+                crate::cdn::purge_content(
+                    &state,
+                    &product.content_type,
+                    &product.id,
+                    &product.slug,
+                    None,
+                )
+                .await;
+            }
+        }
+    }
+
     Ok(StatusCode::NO_CONTENT)
 }
 
