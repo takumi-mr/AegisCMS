@@ -18,6 +18,7 @@ use crate::auth::authorize::RequireRole;
 use crate::auth::EditorSession;
 use crate::handlers::customers::resolve_customer_session;
 use crate::state::AppState;
+use aegis_cache::CacheTags;
 use aegis_comments::moderation::PolicyOverrides;
 use aegis_commerce::{
     JsonLdAggregateRating, PublicReview, ReviewAuthor, ReviewService, ReviewSubmission,
@@ -122,6 +123,13 @@ pub async fn submit_product_review(
         .await
         .map_err(map_aegis_error)?;
 
+    if record.status == "approved" {
+        let mut tags = CacheTags::new();
+        tags.add_dependency("reviews", &product_id);
+        tags.add_dependency(&state.config.commerce.product_type, &product_id);
+        crate::cdn::purge_tags(&state, &tags).await;
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(json!({
@@ -213,6 +221,12 @@ pub async fn admin_patch_review(
         .admin_set_status(&id, &req.status, req.rejection_reason.as_deref())
         .await
         .map_err(map_aegis_error)?;
+    if let Ok(record) = service.admin_get_review(&id).await {
+        let mut tags = CacheTags::new();
+        tags.add_dependency("reviews", &record.product_id);
+        tags.add_dependency(&state.config.commerce.product_type, &record.product_id);
+        crate::cdn::purge_tags(&state, &tags).await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -228,6 +242,12 @@ pub async fn admin_set_reply(
         .admin_set_reply(&id, Some(&req.reply))
         .await
         .map_err(map_aegis_error)?;
+    if let Ok(record) = service.admin_get_review(&id).await {
+        let mut tags = CacheTags::new();
+        tags.add_dependency("reviews", &record.product_id);
+        tags.add_dependency(&state.config.commerce.product_type, &record.product_id);
+        crate::cdn::purge_tags(&state, &tags).await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -242,6 +262,12 @@ pub async fn admin_delete_reply(
         .admin_set_reply(&id, None)
         .await
         .map_err(map_aegis_error)?;
+    if let Ok(record) = service.admin_get_review(&id).await {
+        let mut tags = CacheTags::new();
+        tags.add_dependency("reviews", &record.product_id);
+        tags.add_dependency(&state.config.commerce.product_type, &record.product_id);
+        crate::cdn::purge_tags(&state, &tags).await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -18,6 +18,7 @@ use crate::audit::ClientIp;
 use crate::auth::{extract_session_id, AdminSession, EditorSession};
 use crate::render;
 use crate::state::AppState;
+use aegis_cache::CacheTags;
 use aegis_comments::PolicyOverrides;
 use aegis_core::{ModerationStatus, PageRenderContext, Pagination};
 use aegis_db::{PostListQuery, ThreadListQuery};
@@ -258,7 +259,12 @@ pub async fn render_forum_index(State(state): State<Arc<AppState>>) -> Response 
         ctx.fields.insert("recent_threads".to_string(), v);
     }
 
-    render_forum_page(&state, ctx).await
+    let mut tags = CacheTags::new();
+    tags.add_url("/forum");
+    tags.add_tag("site-global");
+    tags.add_dependency("collection", "forum");
+    let resp = render_forum_page(&state, ctx).await;
+    crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 /// `GET /forum/:category_slug` — カテゴリ別スレッド一覧
@@ -360,7 +366,13 @@ pub async fn render_forum_category(
         ctx.fields.insert("pending_notice".to_string(), json!(true));
     }
 
-    render_forum_page(&state, ctx).await
+    let mut tags = CacheTags::new();
+    tags.add_url(&format!("/forum/{}", cat.slug));
+    tags.add_tag("site-global");
+    tags.add_dependency("collection", "forum");
+    tags.add_dependency("forum-category", &cat.slug);
+    let resp = render_forum_page(&state, ctx).await;
+    crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 /// `GET /forum/:category_slug/:thread_id` — スレッド詳細 & レス一覧
@@ -502,7 +514,14 @@ pub async fn render_forum_thread(
             .insert("reported_notice".to_string(), json!(true));
     }
 
-    render_forum_page(&state, ctx).await
+    let mut tags = CacheTags::new();
+    tags.add_url(&format!("/forum/{}/{}", cat.slug, thread.id));
+    tags.add_tag("site-global");
+    tags.add_dependency("collection", "forum");
+    tags.add_dependency("forum-category", &cat.slug);
+    tags.add_dependency("forum-thread", &thread.id);
+    let resp = render_forum_page(&state, ctx).await;
+    crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 // =========================================================================
@@ -583,6 +602,12 @@ pub async fn handle_create_thread_form(
 
     match forum.create_thread(req).await {
         Ok((thread, _)) => {
+            if thread.status == "approved" {
+                let mut tags = CacheTags::new();
+                tags.add_dependency("collection", "forum");
+                tags.add_dependency("forum-category", &category_slug);
+                crate::cdn::purge_tags(&state, &tags).await;
+            }
             let redirect_url = if thread.status == "approved" {
                 format!("{}/forum/{}/{}", base_path, category_slug, thread.id)
             } else {
@@ -646,6 +671,13 @@ pub async fn handle_create_post_form(
 
     match forum.create_post(req).await {
         Ok(post) => {
+            if post.status == "approved" {
+                let mut tags = CacheTags::new();
+                tags.add_dependency("collection", "forum");
+                tags.add_dependency("forum-category", &category_slug);
+                tags.add_dependency("forum-thread", &thread_id);
+                crate::cdn::purge_tags(&state, &tags).await;
+            }
             let redirect_url = if post.status == "approved" {
                 format!(
                     "{}/forum/{}/{}#post-{}",
@@ -783,6 +815,9 @@ pub async fn api_create_category(
         .create_category(req, Some(&admin.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("collection", "forum");
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok((StatusCode::CREATED, Json(json!({ "category": record }))))
 }
 
@@ -811,6 +846,10 @@ pub async fn api_update_category(
         .update_category(&id, req, Some(&admin.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("collection", "forum");
+    tags.add_dependency("forum-category", &updated.slug);
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok(Json(json!({ "category": updated })))
 }
 
@@ -825,6 +864,9 @@ pub async fn api_delete_category(
         .delete_category(&id, Some(&admin.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("collection", "forum");
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok(Json(json!({ "success": true })))
 }
 
@@ -938,6 +980,11 @@ pub async fn api_create_thread(
         .map(|s| s.to_string());
 
     let (thread, post) = forum.create_thread(req).await.map_err(forum_error_to_api)?;
+    if thread.status == "approved" {
+        let mut tags = CacheTags::new();
+        tags.add_dependency("collection", "forum");
+        crate::cdn::purge_tags(&state, &tags).await;
+    }
     Ok((
         StatusCode::CREATED,
         Json(json!({ "thread": thread, "initial_post": post })),
@@ -1007,6 +1054,12 @@ pub async fn api_create_post(
         .map(|s| s.to_string());
 
     let post = forum.create_post(req).await.map_err(forum_error_to_api)?;
+    if post.status == "approved" {
+        let mut tags = CacheTags::new();
+        tags.add_dependency("collection", "forum");
+        tags.add_dependency("forum-thread", &post.thread_id);
+        crate::cdn::purge_tags(&state, &tags).await;
+    }
     Ok((StatusCode::CREATED, Json(json!({ "post": post }))))
 }
 
@@ -1027,6 +1080,10 @@ pub async fn api_pin_thread(
         .set_thread_pinned(&id, body.pinned, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("collection", "forum");
+    tags.add_dependency("forum-thread", &id);
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok(Json(json!({ "success": true, "pinned": body.pinned })))
 }
 
@@ -1047,6 +1104,10 @@ pub async fn api_lock_thread(
         .set_thread_locked(&id, body.locked, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("collection", "forum");
+    tags.add_dependency("forum-thread", &id);
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok(Json(json!({ "success": true, "locked": body.locked })))
 }
 
@@ -1067,6 +1128,10 @@ pub async fn api_moderate_thread(
         .moderate_thread(&id, body.status, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("collection", "forum");
+    tags.add_dependency("forum-thread", &id);
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok(Json(json!({ "thread": thread })))
 }
 
@@ -1082,6 +1147,10 @@ pub async fn api_moderate_post(
         .moderate_post(&id, body.status, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("collection", "forum");
+    tags.add_dependency("forum-thread", &post.thread_id);
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok(Json(json!({ "post": post })))
 }
 
@@ -1096,6 +1165,10 @@ pub async fn api_delete_thread(
         .delete_thread(&id, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("collection", "forum");
+    tags.add_dependency("forum-thread", &id);
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok(Json(json!({ "success": true })))
 }
 
@@ -1110,6 +1183,9 @@ pub async fn api_delete_post(
         .delete_post(&id, Some(&session.0.user_id))
         .await
         .map_err(forum_error_to_api)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("collection", "forum");
+    crate::cdn::purge_tags(&state, &tags).await;
     Ok(Json(json!({ "success": true })))
 }
 

@@ -1,12 +1,18 @@
-//! キャッシュ・セッションストアのバックエンド（`[cache]`: メモリ / Redis）と、同じバックエンドを使う
-//! サーバー間のイベントバス
+//! キャッシュ・セッションストアのバックエンド（`[cache]`: メモリ / Redis）、同じバックエンドを使う
+//! サーバー間のイベントバス、および CDN の Cache-Tag / Surrogate-Key パージ抽象（`[cdn]`）
 
 pub mod bus;
+pub mod cdn;
 pub mod config;
 pub mod memory;
 pub mod redis;
 
 pub use bus::{BusMessage, BusSubscription, EventBus, MemoryEventBus, RedisEventBus};
+pub use cdn::{
+    create_cdn_purger, CacheTags, CdnConfig, CdnProviderKind, CdnPurger, CloudflareCdnConfig,
+    CloudflareCdnPurger, FastlyCdnConfig, FastlyCdnPurger, LogCdnPurger, NoopCdnPurger,
+    RecordingCdnPurger, WebhookCdnConfig, WebhookCdnPurger, DEFAULT_CDN_CACHE_CONTROL,
+};
 pub use config::{CacheBackendKind, CacheConfig, RedisCacheConfig};
 pub use memory::MemoryCacheBackend;
 pub use redis::RedisCacheBackend;

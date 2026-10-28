@@ -18,6 +18,7 @@ use crate::seo::{
 };
 use crate::state::AppState;
 use aegis_ast::renderer::escape_html;
+use aegis_cache::CacheTags;
 use aegis_core::{AuditAction, AuditActor, AuditOutcome};
 use aegis_db::ContentListQuery;
 
@@ -211,6 +212,15 @@ pub async fn update_seo_settings(
         )
         .await;
 
+    // SEO設定（meta/OGP/robots.txt/sitemap.xml）は公開ページ全体に影響するためCDNキャッシュをパージ
+    let mut purge_tags = CacheTags::new();
+    purge_tags.add_tag("site-global");
+    purge_tags.add_tag("seo-robots");
+    purge_tags.add_tag("seo-sitemap");
+    purge_tags.add_url("/robots.txt");
+    purge_tags.add_url("/sitemap.xml");
+    crate::cdn::purge_tags(&state, &purge_tags).await;
+
     Ok(Json(response(&state, next)))
 }
 
@@ -219,7 +229,7 @@ pub async fn get_robots_txt(State(state): State<Arc<AppState>>) -> Response {
     let seo = state.seo();
     let content = seo.effective_robots_txt();
 
-    (
+    let resp = (
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, "text/plain; charset=utf-8"),
@@ -227,7 +237,13 @@ pub async fn get_robots_txt(State(state): State<Arc<AppState>>) -> Response {
         ],
         content,
     )
-        .into_response()
+        .into_response();
+
+    let mut tags = CacheTags::new();
+    tags.add_url("/robots.txt");
+    tags.add_tag("site-global");
+    tags.add_tag("seo-robots");
+    crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 /// 日付文字列（RFC 3339 等）から `YYYY-MM-DD` を安全に抽出
@@ -419,7 +435,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
 
     xml.push_str("</urlset>\n");
 
-    (
+    let resp = (
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, "application/xml; charset=utf-8"),
@@ -427,7 +443,13 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
         ],
         xml,
     )
-        .into_response()
+        .into_response();
+
+    let mut tags = CacheTags::new();
+    tags.add_url("/sitemap.xml");
+    tags.add_tag("site-global");
+    tags.add_tag("seo-sitemap");
+    crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 #[cfg(test)]

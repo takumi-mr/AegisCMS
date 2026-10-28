@@ -149,6 +149,25 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - `GET /api/v1/headers`: 現在の設定値とデフォルト値を返す（admin 必須）。
   - `PUT /api/v1/headers`: 設定値を更新する（admin 必須。CRLF インジェクションや不正文字のバリデーションを実施）。
 
+### 3.7 On-demand Cache-Tag Purge (`aegis-cache/src/cdn.rs`, `aegis-server/src/cdn.rs`)
+
+- **設計思想（バックエンド HTML キャッシュレス + エッジ Cache-Tag パージ）**:
+  - ベンチマーク上、バックエンド単体で十分な描画スループット（記事ページ数千〜1.6万 req/s）が出ているため、バックエンドプロセスや Redis 内に描画済み HTML のページキャッシュは持たず（二重キャッシュによる古いページの残留やメモリ圧迫を回避）、前段の CDN / エッジプロキシとタグベースで連携する方式を採用した。
+  - クレートは新設せず既存の `aegis-cache`（`aegis_cache::cdn`）に抽象トレイト `CdnPurger`・`CacheTags`・各プロバイダ実装（`NoopCdnPurger`, `LogCdnPurger`, `CloudflareCdnPurger`, `FastlyCdnPurger`, `WebhookCdnPurger`, `RecordingCdnPurger`）を置き、Axum の `Response` / `AppState` と結合するヘルパーを `aegis-server/src/cdn.rs` に分離した。
+  - `[cdn].enabled = false`（既定）のときはヘッダー生成もパージ通信も一切行わず、CDN を使わない構成でオーバーヘッド 0 となる。
+- **マルチ CDN 対応のデュアルヘッダー出力 (`CacheTags`)**:
+  - `CacheTags::write_headers` は、1 つのタグ集合から **`Cache-Tag`**（カンマ区切り: Cloudflare, BunnyCDN, Netlify 等）と **`Surrogate-Key`**（スペース区切り: Fastly, Varnish, Google Cloud CDN 等）の両ヘッダーを同時に注入する（`200 OK` の公開レスポンスのみ。404 等には付与しない）。
+  - タグ文字列の正規化（`sanitize_tag`）: URL パス（`add_url`）はクエリ文字列を除き `/` を `-` に変換（`/` は `url-index`、`/articles/hello` は `url-articles-hello`）。日本語スラッグ等の非 ASCII 文字やスペース・カンマが含まれる場合は `:x<hex>` で安全にエスケープし、`HeaderValue` の生成失敗やタグ区切り文字の衝突を防ぐ。
+- **付与されるタグ体系と自動パージのトリガー**:
+  - トップ・一覧（`/`）：`url-index`, `url-articles`, `site-global`, `collection-article`, 表示中の各記事の `article-{id}`, `article-{slug}`, および参照先リレーションの `{rel_type}-{id}` / `{rel_type}-{slug}`。
+  - 個別記事（`/articles/{slug}`）・固定ページ（`/{slug}`）・商品（`/products`, `/products/{slug}`）：対応する `url-*`, `site-global`, `{type}-{id}`, `{type}-{slug}`, リレーションタグ、`comments-{id}`, `reviews-{id}`。
+  - SEO・テーマ・掲示板：`url-robots.txt` (`seo-robots`), `url-sitemap.xml` (`seo-sitemap`), `theme-{active}`, `collection-forum`, `forum-category-{slug}`, `forum-thread-{id}`。
+  - **パージ発火タイミング**:
+    - コンテンツの作成・更新・削除・バリエーション変更（公開状態に関わる場合）、およびスケジューラによる予約公開（`publish_due_contents`）・予約非公開（`unpublish_due_contents`）の成立時に、対象コンテンツの ID・新旧スラッグ・`collection-{type}`・`seo-sitemap`・関連 URL タグを一括パージする。
+    - サイト設定（`PUT /api/v1/site`）、テーマ切り替え（`PUT /api/v1/themes/active`）、共通ヘッダー更新（`PUT /api/v1/headers`）、SEO 設定更新（`PUT /api/v1/seo`）時は `site-global`（および `seo-*`）をパージする。
+    - コメント・商品レビュー・フォーラム投稿が公開状態で追加または管理変更された際は `comments-{id}` / `reviews-{id}` / `collection-forum` 等をパージする。
+  - 外部 CDN API の一時的な通信エラーは警告ログに記録し、CMS 側の保存・公開リクエスト自体は失敗させない。
+
 ---
 
 ## 4. メディア・ストレージ
