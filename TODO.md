@@ -40,7 +40,7 @@
 1. 依存ライブラリの段階的メジャーバージョンアップ:
    - [x] フェーズ 1: Admin Studio (TypeScript 7, @types/node 26)
    - [x] フェーズ 2: パーサー・ユーティリティ系 (toml 1.1, zip 9.1, syn 3.0, minijinja 3.0)
-   - [ ] フェーズ 3: ネットワーク・Web・サーバー系 (reqwest 0.13, tower-http 0.7, redis 1.8)
+   - [x] フェーズ 3: ネットワーク・Web・サーバー系 (reqwest 0.13, tower-http 0.7, redis 1.8)
    - [ ] フェーズ 4: 認証・暗号系 (RustCrypto, jsonwebtoken 11.1 等)
    - [ ] フェーズ 5: データベース層 (sqlx 0.9)
    - [ ] フェーズ 6: Wasm プラグイン実行基盤 (wasmtime 50.0)

@@ -18,14 +18,13 @@ pub(crate) async fn connect_manager(
         .map_err(|e| AegisError::Database(format!("Invalid Redis URL '{}': {}", url, e)))?;
 
     let config = ConnectionManagerConfig::new()
-        .set_connection_timeout(timeout)
-        .set_response_timeout(timeout)
-        // redis 0.27 の既定（factor 100 の指数バックオフ・6 回再試行）では、2 回目以降の待機が
-        // 100 秒単位に伸び、応答しない Redis で起動や再接続が数分止まる。再試行は 2 回、待機は
+        .set_connection_timeout(Some(timeout))
+        .set_response_timeout(Some(timeout))
+        // redis 1.8 の既定（指数バックオフ・6 回再試行）から、再試行は 2 回、待機は
         // 最大 1 秒にして、接続できなければすぐにエラーにする
         .set_number_of_retries(CONNECT_RETRIES)
-        .set_factor(2)
-        .set_max_delay(MAX_RETRY_DELAY_MS);
+        .set_exponent_base(2.0)
+        .set_max_delay(Duration::from_millis(MAX_RETRY_DELAY_MS));
     let manager = ConnectionManager::new_with_config(client.clone(), config)
         .await
         .map_err(|e| {
