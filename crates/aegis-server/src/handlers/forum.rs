@@ -13,16 +13,17 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::public::{render_not_found, themed_response, IndexParams};
+use super::public::{render_not_found, themed_response};
 use crate::audit::ClientIp;
 use crate::auth::{extract_session_id, AdminSession, EditorSession};
 use crate::render;
 use crate::state::AppState;
-use aegis_core::{PageRenderContext, Pagination};
+use aegis_comments::PolicyOverrides;
+use aegis_core::{ModerationStatus, PageRenderContext, Pagination};
 use aegis_db::{PostListQuery, ThreadListQuery};
 use aegis_forum::{
-    CreateCategoryRequest, CreatePostRequest, CreateThreadRequest, ForumError, ForumService,
-    UpdateCategoryRequest,
+    CreateCategoryRequest, CreatePostRequest, CreateReportRequest, CreateThreadRequest, ForumError,
+    ForumService, UpdateCategoryRequest,
 };
 
 type ApiError = (StatusCode, Json<serde_json::Value>);
@@ -138,6 +139,13 @@ fn author_initial(name: &str) -> String {
 // ビューモデル
 // =========================================================================
 
+#[derive(Debug, Default, Deserialize)]
+pub struct ForumPageParams {
+    pub page: Option<u64>,
+    pub submitted: Option<String>,
+    pub reported: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CategoryView {
     pub id: String,
@@ -197,6 +205,7 @@ pub async fn render_forum_index(State(state): State<Arc<AppState>>) -> Response 
     for cat in &categories {
         let q = ThreadListQuery {
             category_id: Some(cat.id.clone()),
+            status: Some("approved".to_string()),
             before_last_post_at: None,
             before_id: None,
             limit: 5,
@@ -256,7 +265,7 @@ pub async fn render_forum_index(State(state): State<Arc<AppState>>) -> Response 
 pub async fn render_forum_category(
     State(state): State<Arc<AppState>>,
     Path(category_slug): Path<String>,
-    Query(params): Query<IndexParams>,
+    Query(params): Query<ForumPageParams>,
 ) -> Response {
     let forum = match &state.forum {
         Some(f) => f.clone(),
@@ -273,6 +282,7 @@ pub async fn render_forum_category(
 
     let q = ThreadListQuery {
         category_id: Some(cat.id.clone()),
+        status: Some("approved".to_string()),
         before_last_post_at: None,
         before_id: None,
         limit: per_page * page,
@@ -346,6 +356,9 @@ pub async fn render_forum_category(
     if let Ok(v) = serde_json::to_value(&paged_threads) {
         ctx.fields.insert("threads".to_string(), v);
     }
+    if params.submitted.as_deref() == Some("pending") {
+        ctx.fields.insert("pending_notice".to_string(), json!(true));
+    }
 
     render_forum_page(&state, ctx).await
 }
@@ -354,7 +367,7 @@ pub async fn render_forum_category(
 pub async fn render_forum_thread(
     State(state): State<Arc<AppState>>,
     Path((category_slug, thread_id)): Path<(String, String)>,
-    Query(params): Query<IndexParams>,
+    Query(params): Query<ForumPageParams>,
 ) -> Response {
     let forum = match &state.forum {
         Some(f) => f.clone(),
@@ -367,8 +380,8 @@ pub async fn render_forum_thread(
     };
 
     let thread = match forum.get_thread(&thread_id).await {
-        Ok(t) => t,
-        Err(_) => return render_not_found(&state, "Thread not found.").await,
+        Ok(t) if t.status == "approved" => t,
+        _ => return render_not_found(&state, "Thread not found.").await,
     };
 
     if thread.category_id != cat.id {
@@ -381,6 +394,7 @@ pub async fn render_forum_thread(
     let q = PostListQuery {
         thread_id: thread_id.clone(),
         after_post_number: 0,
+        status: Some("approved".to_string()),
         limit: per_page * page,
     };
     let posts_raw = forum.list_posts(&q).await.unwrap_or_default();
@@ -480,6 +494,13 @@ pub async fn render_forum_thread(
     if let Ok(v) = serde_json::to_value(&paged_posts) {
         ctx.fields.insert("posts".to_string(), v);
     }
+    if params.submitted.as_deref() == Some("pending") {
+        ctx.fields.insert("pending_notice".to_string(), json!(true));
+    }
+    if params.reported.as_deref() == Some("1") {
+        ctx.fields
+            .insert("reported_notice".to_string(), json!(true));
+    }
 
     render_forum_page(&state, ctx).await
 }
@@ -502,6 +523,18 @@ pub struct CreatePostForm {
     pub author_name: String,
     pub body: String,
     pub reply_to_number: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateReportForm {
+    #[serde(default = "default_post_target")]
+    pub target_type: String,
+    pub target_id: String,
+    pub reason: String,
+}
+
+fn default_post_target() -> String {
+    "post".to_string()
 }
 
 /// `POST /forum/:category_slug/threads` — フォームからの新規スレッド作成
@@ -550,7 +583,11 @@ pub async fn handle_create_thread_form(
 
     match forum.create_thread(req).await {
         Ok((thread, _)) => {
-            let redirect_url = format!("{}/forum/{}/{}", base_path, category_slug, thread.id);
+            let redirect_url = if thread.status == "approved" {
+                format!("{}/forum/{}/{}", base_path, category_slug, thread.id)
+            } else {
+                format!("{}/forum/{}?submitted=pending", base_path, category_slug)
+            };
             Redirect::to(&redirect_url).into_response()
         }
         Err(e) => {
@@ -609,14 +646,71 @@ pub async fn handle_create_post_form(
 
     match forum.create_post(req).await {
         Ok(post) => {
-            let redirect_url = format!(
-                "{}/forum/{}/{}#post-{}",
-                base_path, category_slug, thread_id, post.post_number
-            );
+            let redirect_url = if post.status == "approved" {
+                format!(
+                    "{}/forum/{}/{}#post-{}",
+                    base_path, category_slug, thread_id, post.post_number
+                )
+            } else {
+                format!(
+                    "{}/forum/{}/{}?submitted=pending",
+                    base_path, category_slug, thread_id
+                )
+            };
             Redirect::to(&redirect_url).into_response()
         }
         Err(e) => {
             let msg = format!("Failed to post reply: {}", e);
+            (
+                StatusCode::BAD_REQUEST,
+                Html(format!(
+                    "<h1>Error</h1><p>{}</p><p><a href=\"{}/forum/{}/{}\">Go back</a></p>",
+                    msg, base_path, category_slug, thread_id
+                )),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// `POST /forum/:category_slug/:thread_id/report` — フォームからの通報送信
+pub async fn handle_create_report_form(
+    State(state): State<Arc<AppState>>,
+    Path((category_slug, thread_id)): Path<(String, String)>,
+    ClientIp(client_ip): ClientIp,
+    headers: HeaderMap,
+    Form(form): Form<CreateReportForm>,
+) -> Response {
+    let forum = match &state.forum {
+        Some(f) => f.clone(),
+        None => return render_not_found(&state, "Forum is currently disabled.").await,
+    };
+
+    let base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+
+    let (reporter_id, _) = resolve_author(&state, &headers, String::new()).await;
+    let req = CreateReportRequest {
+        target_type: form.target_type,
+        target_id: form.target_id,
+        reason: form.reason,
+        reporter_id,
+        reporter_ip: client_ip,
+    };
+
+    match forum.report(req).await {
+        Ok(_) => {
+            let redirect_url = format!(
+                "{}/forum/{}/{}?reported=1",
+                base_path, category_slug, thread_id
+            );
+            Redirect::to(&redirect_url).into_response()
+        }
+        Err(e) => {
+            let msg = format!("Failed to submit report: {}", e);
             (
                 StatusCode::BAD_REQUEST,
                 Html(format!(
@@ -651,6 +745,15 @@ async fn resolve_author(
     (None, specified_name)
 }
 
+async fn is_editor_authenticated(state: &AppState, headers: &HeaderMap) -> bool {
+    if let Some(session_id) = extract_session_id(headers) {
+        if let Ok(Some(session)) = state.sessions.get_session(&session_id).await {
+            return matches!(session.role.as_str(), "admin" | "editor");
+        }
+    }
+    false
+}
+
 // =========================================================================
 // REST API (`/api/v1/forum/...`)
 // =========================================================================
@@ -658,10 +761,12 @@ async fn resolve_author(
 /// `GET /api/v1/forum/categories`
 pub async fn api_list_categories(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
+    let include_private = is_editor_authenticated(&state, &headers).await;
     let categories = forum
-        .list_categories(false)
+        .list_categories(include_private)
         .await
         .map_err(forum_error_to_api)?;
     Ok(Json(json!({ "categories": categories })))
@@ -726,14 +831,27 @@ pub async fn api_delete_category(
 #[derive(Debug, Deserialize)]
 pub struct ThreadListApiQuery {
     pub category_slug: Option<String>,
+    pub status: Option<String>,
     pub cursor_last_post_at: Option<String>,
     pub cursor_id: Option<String>,
     pub limit: Option<u64>,
 }
 
+fn resolve_status_filter(requested: Option<&str>, is_editor: bool) -> Option<String> {
+    if !is_editor {
+        return Some("approved".to_string());
+    }
+    match requested.map(str::trim) {
+        None | Some("") | Some("approved") => Some("approved".to_string()),
+        Some("all") => None,
+        Some(other) => Some(other.to_string()),
+    }
+}
+
 /// `GET /api/v1/forum/threads` — 全カテゴリまたは指定カテゴリのスレッド一覧
 pub async fn api_list_all_threads(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Query(query): Query<ThreadListApiQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
@@ -755,9 +873,12 @@ pub async fn api_list_all_threads(
         .limit
         .unwrap_or(forum.config().default_page_size)
         .clamp(1, 100);
+    let is_editor = is_editor_authenticated(&state, &headers).await;
+    let status = resolve_status_filter(query.status.as_deref(), is_editor);
 
     let q = ThreadListQuery {
         category_id,
+        status,
         before_last_post_at: query.cursor_last_post_at,
         before_id: query.cursor_id,
         limit,
@@ -770,6 +891,7 @@ pub async fn api_list_all_threads(
 /// `GET /api/v1/forum/categories/:slug/threads`
 pub async fn api_list_threads(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(slug): Path<String>,
     Query(query): Query<ThreadListApiQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -783,9 +905,12 @@ pub async fn api_list_threads(
         .limit
         .unwrap_or(forum.config().default_page_size)
         .clamp(1, 100);
+    let is_editor = is_editor_authenticated(&state, &headers).await;
+    let status = resolve_status_filter(query.status.as_deref(), is_editor);
 
     let q = ThreadListQuery {
         category_id: Some(cat.id),
+        status,
         before_last_post_at: query.cursor_last_post_at,
         before_id: query.cursor_id,
         limit,
@@ -822,22 +947,28 @@ pub async fn api_create_thread(
 /// `GET /api/v1/forum/threads/:id`
 pub async fn api_get_thread(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
     let thread = forum.get_thread(&id).await.map_err(forum_error_to_api)?;
+    if thread.status != "approved" && !is_editor_authenticated(&state, &headers).await {
+        return Err(api_error(StatusCode::NOT_FOUND, "Thread not found"));
+    }
     Ok(Json(json!({ "thread": thread })))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct PostListApiQuery {
     pub cursor_post_number: Option<u64>,
+    pub status: Option<String>,
     pub limit: Option<u64>,
 }
 
 /// `GET /api/v1/forum/threads/:id/posts`
 pub async fn api_list_posts(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Query(query): Query<PostListApiQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -846,9 +977,12 @@ pub async fn api_list_posts(
         .limit
         .unwrap_or(forum.config().default_page_size)
         .clamp(1, 100);
+    let is_editor = is_editor_authenticated(&state, &headers).await;
+    let status = resolve_status_filter(query.status.as_deref(), is_editor);
     let q = PostListQuery {
         thread_id: id,
         after_post_number: query.cursor_post_number.unwrap_or(0),
+        status,
         limit,
     };
     let posts = forum.list_posts(&q).await.map_err(forum_error_to_api)?;
@@ -916,6 +1050,41 @@ pub async fn api_lock_thread(
     Ok(Json(json!({ "success": true, "locked": body.locked })))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ModerateStatusReq {
+    pub status: ModerationStatus,
+}
+
+/// `PATCH /api/v1/forum/threads/:id/status` (Editor認可)
+pub async fn api_moderate_thread(
+    State(state): State<Arc<AppState>>,
+    session: EditorSession,
+    Path(id): Path<String>,
+    Json(body): Json<ModerateStatusReq>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let forum = get_forum(&state)?;
+    let thread = forum
+        .moderate_thread(&id, body.status, Some(&session.0.user_id))
+        .await
+        .map_err(forum_error_to_api)?;
+    Ok(Json(json!({ "thread": thread })))
+}
+
+/// `PATCH /api/v1/forum/posts/:id/status` (Editor認可)
+pub async fn api_moderate_post(
+    State(state): State<Arc<AppState>>,
+    session: EditorSession,
+    Path(id): Path<String>,
+    Json(body): Json<ModerateStatusReq>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let forum = get_forum(&state)?;
+    let post = forum
+        .moderate_post(&id, body.status, Some(&session.0.user_id))
+        .await
+        .map_err(forum_error_to_api)?;
+    Ok(Json(json!({ "post": post })))
+}
+
 /// `DELETE /api/v1/forum/threads/:id` (Editor認可)
 pub async fn api_delete_thread(
     State(state): State<Arc<AppState>>,
@@ -942,4 +1111,102 @@ pub async fn api_delete_post(
         .await
         .map_err(forum_error_to_api)?;
     Ok(Json(json!({ "success": true })))
+}
+
+/// `GET /api/v1/forum/settings` (Editor認可)
+pub async fn api_get_forum_settings(
+    State(state): State<Arc<AppState>>,
+    _session: EditorSession,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let forum = get_forum(&state)?;
+    let settings = forum.settings().await.map_err(forum_error_to_api)?;
+    Ok(Json(serde_json::to_value(settings).unwrap_or_default()))
+}
+
+/// `PUT /api/v1/forum/settings` (Admin認可)
+pub async fn api_update_forum_settings(
+    State(state): State<Arc<AppState>>,
+    admin: AdminSession,
+    Json(overrides): Json<PolicyOverrides>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let forum = get_forum(&state)?;
+    let settings = forum
+        .update_settings(Some(&admin.0.user_id), overrides)
+        .await
+        .map_err(forum_error_to_api)?;
+    Ok(Json(serde_json::to_value(settings).unwrap_or_default()))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReportReqBody {
+    pub target_type: String,
+    pub target_id: String,
+    pub reason: String,
+}
+
+/// `POST /api/v1/forum/reports` (公開)
+pub async fn api_create_report(
+    State(state): State<Arc<AppState>>,
+    ClientIp(client_ip): ClientIp,
+    headers: HeaderMap,
+    Json(body): Json<ReportReqBody>,
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    let forum = get_forum(&state)?;
+    let (reporter_id, _) = resolve_author(&state, &headers, String::new()).await;
+    let report = forum
+        .report(CreateReportRequest {
+            target_type: body.target_type,
+            target_id: body.target_id,
+            reason: body.reason,
+            reporter_id,
+            reporter_ip: client_ip,
+        })
+        .await
+        .map_err(forum_error_to_api)?;
+    Ok((StatusCode::CREATED, Json(json!({ "report": report }))))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReportListApiQuery {
+    pub status: Option<String>,
+    pub limit: Option<u64>,
+}
+
+/// `GET /api/v1/forum/reports` (Editor認可)
+pub async fn api_list_reports(
+    State(state): State<Arc<AppState>>,
+    _session: EditorSession,
+    Query(query): Query<ReportListApiQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let forum = get_forum(&state)?;
+    let status = query
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != "all");
+    let reports = forum
+        .list_reports(status, query.limit.unwrap_or(100))
+        .await
+        .map_err(forum_error_to_api)?;
+    Ok(Json(json!({ "reports": reports })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResolveReportReq {
+    pub status: String,
+}
+
+/// `PATCH /api/v1/forum/reports/:id` (Editor認可)
+pub async fn api_resolve_report(
+    State(state): State<Arc<AppState>>,
+    session: EditorSession,
+    Path(id): Path<String>,
+    Json(body): Json<ResolveReportReq>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let forum = get_forum(&state)?;
+    let report = forum
+        .resolve_report(&id, &body.status, Some(&session.0.user_id))
+        .await
+        .map_err(forum_error_to_api)?;
+    Ok(Json(json!({ "report": report })))
 }

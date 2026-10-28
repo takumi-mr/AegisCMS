@@ -857,6 +857,12 @@ pub const FORUM_COMMON_TEMPLATE: &str = r##"<style>
   .aegis-forum-btn-secondary { background: rgba(127,127,127,0.18); color: inherit; }
   .aegis-forum-btn-secondary:hover { background: rgba(127,127,127,0.28); color: inherit; }
   .aegis-forum-banner-locked { padding: 1rem 1.25rem; border-radius: 12px; background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.3); color: #f43f5e; font-weight: 600; font-size: 0.92rem; margin-top: 1.5rem; text-align: center; }
+  .aegis-forum-banner-notice { padding: 0.85rem 1.25rem; border-radius: 12px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #10b981; font-weight: 600; font-size: 0.9rem; margin-bottom: 1.5rem; }
+  .aegis-forum-report { margin-top: 0.75rem; font-size: 0.8rem; }
+  .aegis-forum-report summary { cursor: pointer; opacity: 0.55; list-style: none; display: inline-block; }
+  .aegis-forum-report summary:hover { opacity: 0.9; }
+  .aegis-forum-report-form { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center; }
+  .aegis-forum-report-form input[type=text] { flex: 1; min-width: 180px; padding: 0.4rem 0.65rem; border-radius: 8px; border: 1px solid rgba(127,127,127,0.3); background: rgba(127,127,127,0.06); color: inherit; font: inherit; font-size: 0.82rem; }
   .aegis-forum-empty { padding: 3rem 1rem; text-align: center; opacity: 0.6; font-size: 0.95rem; }
 </style>
 "##;
@@ -941,6 +947,9 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
   <h1 style="font-size: 2rem; margin: 0 0 0.5rem; font-weight: 800;">{{ fields.category.name }}</h1>
   {% if fields.category.description %}
   <p style="opacity: 0.7; margin: 0 0 2rem; font-size: 1rem;">{{ fields.category.description }}</p>
+  {% endif %}
+  {% if fields.pending_notice %}
+  <div class="aegis-forum-banner-notice" role="status">Your thread was submitted and is awaiting moderator approval.</div>
   {% endif %}
 
   <div class="aegis-forum-threads">
@@ -1033,6 +1042,13 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
     </div>
   </header>
 
+  {% if fields.pending_notice %}
+  <div class="aegis-forum-banner-notice" role="status">Your reply was submitted and is awaiting moderator approval.</div>
+  {% endif %}
+  {% if fields.reported_notice %}
+  <div class="aegis-forum-banner-notice" role="status">Thank you. Your report has been submitted to the moderators.</div>
+  {% endif %}
+
   <div class="aegis-forum-posts">
     {% for p in fields.posts %}
     <article class="aegis-forum-post" id="post-{{ p.post_number }}">
@@ -1055,6 +1071,15 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
       <div class="aegis-forum-post-body">
         {{ p.body_html | safe }}
       </div>
+      <details class="aegis-forum-report">
+        <summary>Report</summary>
+        <form class="aegis-forum-report-form" method="POST" action="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/{{ fields.thread.id }}/report">
+          <input type="hidden" name="target_type" value="post">
+          <input type="hidden" name="target_id" value="{{ p.id }}">
+          <input type="text" name="reason" required maxlength="500" placeholder="Reason for reporting this post...">
+          <button type="submit" class="aegis-forum-btn aegis-forum-btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Report</button>
+        </form>
+      </details>
     </article>
     {% endfor %}
   </div>

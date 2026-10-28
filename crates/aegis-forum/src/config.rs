@@ -1,5 +1,6 @@
 //! 掲示板（`[forum]`）の設定
 
+use aegis_comments::ModerationConfig;
 use aegis_core::{AegisError, Result};
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +8,21 @@ use serde::{Deserialize, Serialize};
 const MAX_TITLE_LIMIT: usize = 1_000;
 /// 本文の最大文字数の上限
 const MAX_BODY_LIMIT: usize = 100_000;
+
+fn default_forum_moderation() -> ModerationConfig {
+    ModerationConfig {
+        require_approval: false,
+        auto_approve_known: true,
+        max_links: 5,
+        hold_words: Vec::new(),
+        spam_words: Vec::new(),
+        max_per_ip_per_hour: 30,
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
 
 /// 掲示板（`[forum]`）の設定
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,6 +48,12 @@ pub struct ForumConfig {
     /// フォーラム専用のデータベース接続文字列（例: "sqlite:data/forum.db?mode=rwc"）
     /// 未指定（None）の場合はメインの [database].url を共有する
     pub database_url: Option<String>,
+    /// 新着スレッド・レスや通報の運営者通知を送るか
+    #[serde(default = "default_true")]
+    pub notify_staff: bool,
+    /// 承認制・NG ワードなどの審査設定（コメントの `moderation` と共有）
+    #[serde(default = "default_forum_moderation")]
+    pub moderation: ModerationConfig,
 }
 
 impl Default for ForumConfig {
@@ -47,6 +69,8 @@ impl Default for ForumConfig {
             auto_lock_post_count: 1000,
             default_page_size: 50,
             database_url: None,
+            notify_staff: true,
+            moderation: default_forum_moderation(),
         }
     }
 }
@@ -93,6 +117,7 @@ impl ForumConfig {
                 "[forum].default_page_size must be between 1 and 200".to_string(),
             ));
         }
+        self.moderation.validate("[forum.moderation]")?;
         Ok(())
     }
 }

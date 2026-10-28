@@ -1,5 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Images, Package, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import {
+  ExternalLink,
+  Images,
+  MessageSquare,
+  MessageSquareOff,
+  Package,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi, SERVER_URL, serverAssetUrl } from '../api/client';
 import i18n from '../i18n';
@@ -269,6 +279,15 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
           currency={currency}
           categories={categories}
           onSaved={handleSaved}
+          onCommentsOpenChanged={(id, open) => {
+            setProducts((prev) =>
+              prev ? prev.map((p) => (p.id === id ? { ...p, comments_open: open } : p)) : prev
+            );
+            setEditing((prev) =>
+              prev && prev.id === id ? { ...prev, comments_open: open } : prev
+            );
+          }}
+          onShowToast={onShowToast}
           onDelete={handleDelete}
           onClose={() => setEditing(undefined)}
         />
@@ -414,6 +433,8 @@ interface ProductEditorProps {
   currency: string;
   categories: ContentItem[];
   onSaved: (saved: ContentItem, created: boolean) => void;
+  onCommentsOpenChanged: (id: string, open: boolean) => void;
+  onShowToast: (message: string, type?: 'success' | 'error') => void;
   onDelete: (product: ContentItem) => void;
   onClose: () => void;
 }
@@ -424,6 +445,8 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
   currency,
   categories,
   onSaved,
+  onCommentsOpenChanged,
+  onShowToast,
   onDelete,
   onClose,
 }) => {
@@ -465,6 +488,28 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
   const [editingVariant, setEditingVariant] = useState<ProductVariant | null | undefined>(
     undefined
   );
+  const [commentsOpen, setCommentsOpen] = useState<boolean | undefined>(product?.comments_open);
+  const [togglingComments, setTogglingComments] = useState<boolean>(false);
+
+  const handleToggleComments = async () => {
+    if (!product || commentsOpen === undefined || togglingComments) return;
+    const nextOpen = !commentsOpen;
+    setTogglingComments(true);
+    try {
+      const res = await aegisApi.setContentCommentsOpen(productType, product.id, nextOpen);
+      setCommentsOpen(res.open);
+      onCommentsOpenChanged(product.id, res.open);
+      onShowToast(
+        t(res.open ? 'comments.commentsOpenedToast' : 'comments.commentsClosedToast', {
+          title: title.trim() || product.title,
+        })
+      );
+    } catch (err) {
+      onShowToast(messageOf(err, t('api.contentCommentsFailed')), 'error');
+    } finally {
+      setTogglingComments(false);
+    }
+  };
 
   useEffect(() => {
     if (!product) return;
@@ -769,6 +814,21 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
                 aria-label={t('products.aria.buyUrl')}
               />
             </Field>
+            {product && commentsOpen !== undefined && (
+              <Button
+                type="button"
+                variant="tool"
+                disabled={togglingComments}
+                onClick={handleToggleComments}
+                title={t(commentsOpen ? 'comments.closeComments' : 'comments.openComments')}
+                aria-label={t(commentsOpen ? 'comments.closeComments' : 'comments.openComments')}
+              >
+                {commentsOpen ? <MessageSquare size={14} /> : <MessageSquareOff size={14} />}
+                <span>
+                  {t(commentsOpen ? 'editor.commentsAccepting' : 'editor.commentsStopped')}
+                </span>
+              </Button>
+            )}
           </FieldRow>
 
           <div

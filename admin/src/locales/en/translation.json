@@ -245,6 +245,8 @@
     "unknownCategory": "Unknown category ({{id}})",
     "manageCategories": "Manage",
     "manageCategoriesTitle": "Open category settings",
+    "commentsAccepting": "Comments: Open",
+    "commentsStopped": "Comments: Closed",
     "versionHistory": "Version history",
     "versionLabel": "Version {{revision}}",
     "restoreVersion": "Restore",
@@ -1279,12 +1281,49 @@
     "confirmDeleteCategory": "Are you sure you want to delete category \"{{name}}\"?",
     "tabs": {
       "threads": "Threads & Moderation",
-      "categories": "Categories"
+      "categories": "Categories",
+      "reports": "Reports",
+      "settings": "Moderation Settings"
+    },
+    "status": {
+      "all": "All Statuses",
+      "approved": "Approved",
+      "pending": "Pending Approval",
+      "spam": "Spam"
+    },
+    "filterStatus": "Status",
+    "approve": "Approve",
+    "markPending": "Hold for Review",
+    "markSpam": "Mark as Spam",
+    "reports": {
+      "filter": "Report Status",
+      "open": "Open",
+      "resolved": "Resolved",
+      "dismissed": "Dismissed",
+      "all": "All",
+      "empty": "No reports found",
+      "target": "Target",
+      "reason": "Reason",
+      "reporter": "Reporter",
+      "date": "Reported At",
+      "resolve": "Resolve",
+      "dismiss": "Dismiss"
+    },
+    "moderation": {
+      "requireApproval": "Require moderator approval before publishing new threads and replies",
+      "autoApproveKnown": "Automatically approve authors who already have an approved forum post",
+      "ngWordsTitle": "Configured Screening Rules ([forum.moderation])",
+      "maxLinks": "Max links before holding for review: {{count}}",
+      "maxPerIp": "Max posts per IP per hour: {{count}}",
+      "holdWords": "Hold words",
+      "spamWords": "Spam words",
+      "none": "None configured"
     },
     "table": {
       "thread": "Thread",
       "category": "Category",
       "author": "Author",
+      "status": "Status",
       "replies": "Replies",
       "lastActive": "Last Active",
       "actions": "Actions",
@@ -1299,7 +1338,11 @@
       "threadLocked": "Thread locked (no new replies)",
       "threadUnlocked": "Thread unlocked",
       "threadDeleted": "Thread deleted",
+      "threadModerated": "Thread status updated",
       "postDeleted": "Post deleted",
+      "postModerated": "Post status updated",
+      "reportUpdated": "Report status updated",
+      "settingsSaved": "Forum moderation settings saved",
       "categoryCreated": "Category created",
       "categoryUpdated": "Category updated",
       "categoryDeleted": "Category deleted"

@@ -33,6 +33,7 @@ export interface ResolvedRelation {
  * Schema-specific custom fields are returned under `fields` and resolved relations under `relations`.
  */
 export type ContentItem = import('./schemas').BaseContentItem & {
+  comments_open?: boolean;
   fields?: Record<string, unknown>;
   relations?: Record<string, ResolvedRelation>;
 };
@@ -72,6 +73,19 @@ export type AuditAction =
   | 'comment.update'
   | 'comment.delete'
   | 'comment.settings_update'
+  | 'forum.category.create'
+  | 'forum.category.update'
+  | 'forum.category.delete'
+  | 'forum.thread.create'
+  | 'forum.thread.pin'
+  | 'forum.thread.lock'
+  | 'forum.thread.delete'
+  | 'forum.post.create'
+  | 'forum.post.delete'
+  | 'forum.moderate'
+  | 'forum.settings_update'
+  | 'forum.report.create'
+  | 'forum.report.resolve'
   | 'notification.template_update'
   | 'notification.queue_update';
 
@@ -737,6 +751,8 @@ export interface CommentSettings {
   overrides: { require_approval: boolean | null; auto_approve_known: boolean | null };
   /** `[comments.moderation]` in the configuration file */
   defaults: CommentPolicy;
+  /** Content types that accept comments (`[comments].content_types`) */
+  content_types?: string[];
 }
 
 /** Bulk action on comments: a new status, or `delete` (permanently) */
@@ -781,6 +797,7 @@ export interface ForumThread {
   author_name: string;
   is_pinned: boolean;
   is_locked: boolean;
+  status?: CommentStatus;
   post_count: number;
   last_post_at: string;
   created_at: string;
@@ -796,9 +813,38 @@ export interface ForumPost {
   body: string;
   reply_to_post_id: string | null;
   reply_to_number: number | null;
+  status?: CommentStatus;
   is_deleted: boolean;
   ip: string | null;
   user_agent: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ForumReport {
+  id: string;
+  target_type: 'thread' | 'post';
+  target_id: string;
+  thread_id: string;
+  reason: string;
+  reporter_id: string | null;
+  reporter_ip: string | null;
+  status: 'open' | 'resolved' | 'dismissed';
+  resolved_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ForumModerationSettings {
+  policy: CommentPolicy;
+  overrides: { require_approval: boolean | null; auto_approve_known: boolean | null };
+  defaults: CommentPolicy;
+  config: {
+    require_approval: boolean;
+    auto_approve_known: boolean;
+    max_links: number;
+    hold_words: string[];
+    spam_words: string[];
+    max_per_ip_per_hour: number;
+  };
 }

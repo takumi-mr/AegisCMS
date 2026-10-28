@@ -135,6 +135,14 @@ pub enum AuditAction {
     ForumPostCreate,
     #[serde(rename = "forum.post.delete")]
     ForumPostDelete,
+    #[serde(rename = "forum.moderate")]
+    ForumModerate,
+    #[serde(rename = "forum.settings_update")]
+    ForumSettingsUpdate,
+    #[serde(rename = "forum.report.create")]
+    ForumReportCreate,
+    #[serde(rename = "forum.report.resolve")]
+    ForumReportResolve,
     #[serde(rename = "customer.register")]
     CustomerRegister,
     #[serde(rename = "customer.login")]
@@ -152,7 +160,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 55] = [
+    pub const ALL: [AuditAction; 59] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -201,6 +209,10 @@ impl AuditAction {
         Self::ForumThreadDelete,
         Self::ForumPostCreate,
         Self::ForumPostDelete,
+        Self::ForumModerate,
+        Self::ForumSettingsUpdate,
+        Self::ForumReportCreate,
+        Self::ForumReportResolve,
         Self::CustomerRegister,
         Self::CustomerLogin,
         Self::CustomerUpdate,
@@ -260,6 +272,10 @@ impl AuditAction {
             Self::ForumThreadDelete => "forum.thread.delete",
             Self::ForumPostCreate => "forum.post.create",
             Self::ForumPostDelete => "forum.post.delete",
+            Self::ForumModerate => "forum.moderate",
+            Self::ForumSettingsUpdate => "forum.settings_update",
+            Self::ForumReportCreate => "forum.report.create",
+            Self::ForumReportResolve => "forum.report.resolve",
             Self::CustomerRegister => "customer.register",
             Self::CustomerLogin => "customer.login",
             Self::CustomerUpdate => "customer.update",

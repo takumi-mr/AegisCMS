@@ -324,6 +324,25 @@ pub struct ContentCommentsRequest {
     pub open: bool,
 }
 
+/// `GET /api/v1/contents/{content_type}/{id}/comments/state` — そのコンテンツへのコメントの受付の状態を
+/// 取得する（`editor`）
+pub async fn get_content_comments(
+    State(state): State<Arc<AppState>>,
+    _session: EditorSession,
+    Path((content_type, id)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let service = comments(&state)?;
+    let (content_id, open) = service
+        .get_content_open(&content_type, &id)
+        .await
+        .map_err(comment_error)?;
+    Ok(Json(json!({
+        "content_type": content_type,
+        "content_id": content_id,
+        "open": open,
+    })))
+}
+
 /// `PUT /api/v1/contents/{content_type}/{id}/comments/state` — そのコンテンツへのコメントの受付を
 /// 止める・再開する（`{"open": false}`。`editor`）。すでに付いたコメントは公開ページに残る
 pub async fn set_content_comments(

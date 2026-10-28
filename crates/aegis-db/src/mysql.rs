@@ -438,6 +438,28 @@ impl DatabaseAdapter for MySqlAdapter {
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;
         }
+        for table_name in [
+            super::forum::FORUM_THREAD_TABLE,
+            super::forum::FORUM_POST_TABLE,
+        ] {
+            let has_status: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM information_schema.columns \
+                 WHERE table_schema = DATABASE() AND table_name = ? AND column_name = 'status';",
+            )
+            .bind(table_name)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+            if has_status == 0 {
+                sqlx::query(&format!(
+                    "ALTER TABLE {} ADD COLUMN status VARCHAR(255) NOT NULL DEFAULT 'approved';",
+                    table_name
+                ))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+            }
+        }
         for index in forum_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)

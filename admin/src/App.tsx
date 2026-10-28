@@ -15,6 +15,8 @@ import {
   PenSquare,
   Eye,
   FileCode,
+  MessageSquare,
+  MessageSquareOff,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Header, type AppView } from './components/Header';
@@ -55,11 +57,17 @@ type EditorStatus = 'draft' | 'scheduled' | 'published';
 /** Messages shown above the login form */
 type LoginNotice = 'unreachable' | 'expired' | 'signedOut';
 
-/** `#comments` (the link in comment notifications) opens the Comments view */
+/** `#comments` or `#forum` (links in notifications) open the matching view */
 const takeInitialView = (): AppView => {
-  if (window.location.hash !== '#comments') return 'editor';
-  window.history.replaceState(null, '', window.location.pathname + window.location.search);
-  return 'comments';
+  if (window.location.hash === '#comments') {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    return 'comments';
+  }
+  if (window.location.hash === '#forum') {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    return 'forum';
+  }
+  return 'editor';
 };
 
 export const App: React.FC = () => {
@@ -80,6 +88,9 @@ export const App: React.FC = () => {
   const [shopEnabled, setShopEnabled] = useState<boolean>(false);
   // Hidden until the server says comments are on ([comments].enabled)
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(false);
+  const [commentContentTypes, setCommentContentTypes] = useState<string[]>([]);
+  const [commentsOpen, setCommentsOpen] = useState<boolean>(true);
+  const [togglingComments, setTogglingComments] = useState<boolean>(false);
   // Hidden until the server says forum is on ([forum].enabled)
   const [forumEnabled, setForumEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
@@ -238,11 +249,17 @@ export const App: React.FC = () => {
     // The settings answer 404 when comments are disabled
     aegisApi
       .getCommentSettings()
-      .then(() => {
-        if (!cancelled) setCommentsEnabled(true);
+      .then((settings) => {
+        if (!cancelled) {
+          setCommentsEnabled(true);
+          setCommentContentTypes(settings.content_types ?? ['article']);
+        }
       })
       .catch(() => {
-        if (!cancelled) setCommentsEnabled(false);
+        if (!cancelled) {
+          setCommentsEnabled(false);
+          setCommentContentTypes([]);
+        }
       });
     return () => {
       cancelled = true;
@@ -311,6 +328,7 @@ export const App: React.FC = () => {
 
   const handleSelectContent = (item: ContentItem) => {
     setSelectedId(item.id);
+    setCommentsOpen(item.comments_open !== false);
     setContentVersions([]);
     const requestId = ++contentVersionRequest.current;
     setLoadingContentVersions(true);
@@ -342,6 +360,7 @@ export const App: React.FC = () => {
   const handleNew = () => {
     contentVersionRequest.current += 1;
     setSelectedId(null);
+    setCommentsOpen(true);
     setContentVersions([]);
     setLoadingContentVersions(false);
     setTitle(
@@ -366,6 +385,7 @@ export const App: React.FC = () => {
     if (type === contentType) return;
     setContentType(type);
     setSelectedId(null);
+    setCommentsOpen(true);
     setTitle(
       type === 'article' ? t('editor.defaults.untitled') : t('editor.defaults.untitledPage')
     );
@@ -525,6 +545,28 @@ export const App: React.FC = () => {
       showToast(err.message || t('editor.toasts.saveFailed'), 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleToggleCommentsOpen = async () => {
+    if (!selectedId || togglingComments) return;
+    const nextOpen = !commentsOpen;
+    setTogglingComments(true);
+    try {
+      const res = await aegisApi.setContentCommentsOpen(contentType, selectedId, nextOpen);
+      setCommentsOpen(res.open);
+      setContents((prev) =>
+        prev.map((item) => (item.id === selectedId ? { ...item, comments_open: res.open } : item))
+      );
+      showToast(
+        t(res.open ? 'comments.commentsOpenedToast' : 'comments.commentsClosedToast', {
+          title: title.trim() || slug,
+        })
+      );
+    } catch (err: any) {
+      showToast(err.message || t('api.contentCommentsFailed'), 'error');
+    } finally {
+      setTogglingComments(false);
     }
   };
 
@@ -778,6 +820,30 @@ export const App: React.FC = () => {
                         <Tags size={14} />
                         <span>{t('editor.manageCategories')}</span>
                       </Button>
+                      {showComments && selectedId && commentContentTypes.includes(contentType) && (
+                        <Button
+                          variant="tool"
+                          disabled={togglingComments}
+                          onClick={handleToggleCommentsOpen}
+                          title={t(
+                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                          )}
+                          aria-label={t(
+                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                          )}
+                        >
+                          {commentsOpen ? (
+                            <MessageSquare size={14} />
+                          ) : (
+                            <MessageSquareOff size={14} />
+                          )}
+                          <span>
+                            {t(
+                              commentsOpen ? 'editor.commentsAccepting' : 'editor.commentsStopped'
+                            )}
+                          </span>
+                        </Button>
+                      )}
                     </FieldRow>
                   ) : (
                     <FieldRow>
@@ -791,6 +857,30 @@ export const App: React.FC = () => {
                           <option value="blank">{t('editor.layoutBlank')}</option>
                         </select>
                       </Field>
+                      {showComments && selectedId && commentContentTypes.includes(contentType) && (
+                        <Button
+                          variant="tool"
+                          disabled={togglingComments}
+                          onClick={handleToggleCommentsOpen}
+                          title={t(
+                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                          )}
+                          aria-label={t(
+                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                          )}
+                        >
+                          {commentsOpen ? (
+                            <MessageSquare size={14} />
+                          ) : (
+                            <MessageSquareOff size={14} />
+                          )}
+                          <span>
+                            {t(
+                              commentsOpen ? 'editor.commentsAccepting' : 'editor.commentsStopped'
+                            )}
+                          </span>
+                        </Button>
+                      )}
                     </FieldRow>
                   )}
                 </div>

@@ -244,6 +244,8 @@
     "unknownCategory": "不明なカテゴリ（{{id}}）",
     "manageCategories": "管理",
     "manageCategoriesTitle": "設定のカテゴリを開く",
+    "commentsAccepting": "コメント: 受付中",
+    "commentsStopped": "コメント: 受付停止中",
     "versionHistory": "版履歴",
     "versionLabel": "版 {{revision}}",
     "restoreVersion": "復元",
@@ -1261,12 +1263,49 @@
     "confirmDeleteCategory": "カテゴリ「{{name}}」を削除しますか？",
     "tabs": {
       "threads": "スレッド・モデレーション",
-      "categories": "カテゴリ管理"
+      "categories": "カテゴリ管理",
+      "reports": "通報一覧",
+      "settings": "承認・NGワード設定"
+    },
+    "status": {
+      "all": "すべての状態",
+      "approved": "承認済み",
+      "pending": "承認待ち",
+      "spam": "スパム"
+    },
+    "filterStatus": "状態",
+    "approve": "承認する",
+    "markPending": "承認待ちに戻す",
+    "markSpam": "スパムにする",
+    "reports": {
+      "filter": "通報の状態",
+      "open": "未対応",
+      "resolved": "対応済み",
+      "dismissed": "却下",
+      "all": "すべて",
+      "empty": "通報はありません",
+      "target": "対象",
+      "reason": "通報理由",
+      "reporter": "通報元",
+      "date": "通報日時",
+      "resolve": "対応済みにする",
+      "dismiss": "却下する"
+    },
+    "moderation": {
+      "requireApproval": "承認制にする（承認するまで新しいスレッド・返信を公開しない）",
+      "autoApproveKnown": "すでに承認済みの投稿がある投稿者は自動で承認する",
+      "ngWordsTitle": "設定ファイルの自動振り分けルール ([forum.moderation])",
+      "maxLinks": "承認待ちにするリンク数の上限: {{count}}",
+      "maxPerIp": "同じ IP からの1時間あたりの投稿上限: {{count}}",
+      "holdWords": "承認待ちワード (hold_words)",
+      "spamWords": "スパムワード (spam_words)",
+      "none": "未設定"
     },
     "table": {
       "thread": "スレッド",
       "category": "カテゴリ",
       "author": "投稿者",
+      "status": "状態",
       "replies": "返信数",
       "lastActive": "最終更新",
       "actions": "操作",
@@ -1281,7 +1320,11 @@
       "threadLocked": "スレッドをロックしました（新規返信停止）",
       "threadUnlocked": "スレッドのロックを解除しました",
       "threadDeleted": "スレッドを削除しました",
+      "threadModerated": "スレッドの状態を更新しました",
       "postDeleted": "投稿を削除しました",
+      "postModerated": "投稿の状態を更新しました",
+      "reportUpdated": "通報の状態を更新しました",
+      "settingsSaved": "フォーラムの承認設定を保存しました",
       "categoryCreated": "カテゴリを作成しました",
       "categoryUpdated": "カテゴリを更新しました",
       "categoryDeleted": "カテゴリを削除しました"

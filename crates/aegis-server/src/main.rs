@@ -893,11 +893,7 @@ async fn main() -> anyhow::Result<()> {
                     app_state.db.clone()
                 };
 
-                let forum_deps = aegis_forum::ForumDeps {
-                    db: forum_db,
-                    cache: app_state.cache.clone(),
-                    audit: app_state.audit.clone(),
-                };
+                let forum_deps = app_state.forum_deps(forum_db);
                 let forum_service =
                     aegis_forum::ForumService::new(config.forum.clone(), forum_deps)?;
                 tracing::info!(

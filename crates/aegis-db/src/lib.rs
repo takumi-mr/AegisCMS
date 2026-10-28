@@ -26,8 +26,9 @@ pub use customers::{
     build_customer_table, CustomerRecord, CustomerStorage, CUSTOMER_COLUMNS, CUSTOMER_TABLE,
 };
 pub use forum::{
-    ForumCategoryRecord, ForumPostRecord, ForumStorage, ForumThreadRecord, PostListQuery,
-    ThreadListQuery, FORUM_CATEGORY_TABLE, FORUM_POST_TABLE, FORUM_THREAD_TABLE,
+    ForumCategoryRecord, ForumPostRecord, ForumReportRecord, ForumStorage, ForumThreadRecord,
+    PostListQuery, ThreadListQuery, FORUM_CATEGORY_TABLE, FORUM_POST_TABLE, FORUM_REPORT_TABLE,
+    FORUM_THREAD_TABLE,
 };
 pub use mysql::MySqlAdapter;
 pub use notifications::{

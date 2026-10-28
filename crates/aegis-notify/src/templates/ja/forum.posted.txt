@@ -1,0 +1,9 @@
+掲示板「{{ category.name }}」の{% if post.is_reply %}スレッド「{{ thread.title }}」に {{ post.author_name }} さんが返信しました{% else %}新しいスレッド「{{ thread.title }}」が {{ post.author_name }} さんによって作成されました{% endif %}。
+
+{{ post.body }}
+{% if thread_url %}
+
+{{ thread_url }}
+{% endif %}
+{% include "_footer.txt" %}
+
