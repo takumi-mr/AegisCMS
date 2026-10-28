@@ -174,7 +174,7 @@ public_url_prefix = "https://cdn.example.com"
 | `enabled` | array of string | `[]` | 有効にするプラグイン名（マニフェストの `name` = `plugins_dir` 直下のディレクトリ名）。フックはこの順に実行される |
 | `settings.<name>` | table | なし | プラグインごとの設定値。プラグインは `host.config_get`（SDK の `config::get`）で読む。文字列の値 `env:NAME` は環境変数 `NAME` の値になる（API キーなどを設定ファイルに書かないため） |
 | `require_signatures` | bool | `false` | ZIP でのインストール時に署名（`signature.json`）を必須にする（[パッケージのインストール](./plugin_hooks.md#54-zip-パッケージからのインストールと署名)） |
-| `trusted_public_keys` | string[] | `[]` | 受け入れる Ed25519 公開鍵（hex）。空なら署名が正しければどの鍵でも受け入れる |
+| `trusted_public_keys` | string[] | `[]` | 受け入れる Ed25519 公開鍵（32 バイトの hex）。`require_signatures = true` のときは 1 件以上必須（空だと起動しない）。`require_signatures = false` で空なら署名が正しければどの鍵でも受け入れる |
 
 ```toml
 [plugins]

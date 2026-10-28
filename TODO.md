@@ -8,6 +8,9 @@
 - `task check` がすべて通る状態を保つ。
 
 ## 技術メモ・申し送り事項
+- パッケージ署名検証の強化（`aegis_core::package`）:
+  - `signature.json` の `target` の既定値を `"package"` に変更し、Wasm やテンプレート等の改ざんを許してしまう `"manifest"` ターゲットを廃止（`"package"` のみ受付）。
+  - `require_signatures = true` のときは `trusted_public_keys`（32 バイト hex 公開鍵 1 件以上）を必須とし、起動時の設定検証（`PluginsConfig::validate` / `ThemeConfig::validate`）および `verify_package_signature` の双方で空リストを拒否。
 - 共通ページヘッダー管理とブラウザー向け防御ヘッダー（F-03 対応）を追加。
   - 全レスポンスに適用される `security_headers_middleware` を導入し、デフォルトで安全なブラウザー防御ヘッダー（`Content-Security-Policy`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`、`Cross-Origin-Opener-Policy: same-origin`）を付与。Admin Studio の「設定 › ヘッダー」から個別の防御ヘッダー設定や任意のカスタム HTTP ヘッダー（名前・値）を動的に追加・編集・削除可能。
   - 設定は `_aegis_settings` に永続化されサーバー再起動不要で即時反映、監査ログ `headers.update` を記録。
@@ -22,14 +25,11 @@
 
 **次に着手する項目**
 
-1. パッケージ署名の既定値
+1. AssemblyScript / TinyGo SDK の追従、または翻訳の続き
 
 ---
 
 ## 未着手タスク
-
-### セキュリティ
-- [ ] **パッケージ署名の既定値**: `signature.json` の `target` の既定が `manifest`（Wasm を守らない）で、`trusted_public_keys` が空だとどの鍵でも通る。既定を `package` にする・`require_signatures` 時は信頼する鍵を必須にする、などを検討（[plugin_hooks.md 5.4](docs/plugin_hooks.md#54-zip-パッケージからのインストールと署名)）。
 
 ### 性能
 

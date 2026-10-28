@@ -313,10 +313,11 @@ mod tests {
     }
 
     #[test]
-    fn test_plugins_config() {
+    fn test_plugins_and_theme_signature_config() {
         let config: AegisConfig = toml::from_str("").unwrap();
         assert!(config.plugins.enabled.is_empty());
         assert!(config.plugins.validate().is_ok());
+        assert!(config.theme.validate().is_ok());
 
         let config: AegisConfig =
             toml::from_str("[plugins]\nenabled = [\"slack-notifier\", \"seo_tools\"]\n").unwrap();
@@ -328,5 +329,30 @@ mod tests {
                 toml::from_str(&format!("[plugins]\nenabled = {}\n", invalid)).unwrap();
             assert!(config.plugins.validate().is_err(), "{}", invalid);
         }
+
+        // require_signatures = true without trusted_public_keys is rejected
+        let config: AegisConfig = toml::from_str("[plugins]\nrequire_signatures = true\n").unwrap();
+        assert!(config.plugins.validate().is_err());
+
+        let config: AegisConfig = toml::from_str(
+            r#"
+            [theme]
+            active = "default"
+            site_title = "Site"
+            site_description = "Desc"
+            require_signatures = true
+            "#,
+        )
+        .unwrap();
+        assert!(config.theme.validate().is_err());
+
+        // require_signatures = true with valid 32-byte hex key succeeds
+        let valid_key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let config: AegisConfig = toml::from_str(&format!(
+            "[plugins]\nrequire_signatures = true\ntrusted_public_keys = [\"{}\"]\n",
+            valid_key
+        ))
+        .unwrap();
+        assert!(config.plugins.validate().is_ok());
     }
 }

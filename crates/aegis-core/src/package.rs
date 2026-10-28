@@ -44,13 +44,69 @@ pub struct PackageSignature {
     pub public_key: String,
     /// 64-byte Ed25519 signature in hexadecimal representation
     pub signature: String,
-    /// Signature target ("manifest" or "package", defaults to "manifest")
+    /// Signature target ("package", defaults to "package")
     #[serde(default = "default_signature_target")]
     pub target: String,
 }
 
 fn default_signature_target() -> String {
-    "manifest".to_string()
+    "package".to_string()
+}
+
+/// Validates `[plugins]` / `[theme]` signature policy settings (`require_signatures` and `trusted_public_keys`).
+pub fn validate_signature_policy(
+    section: &str,
+    require_signatures: bool,
+    trusted_public_keys: &[String],
+) -> Result<()> {
+    if require_signatures && trusted_public_keys.is_empty() {
+        return Err(AegisError::Config(format!(
+            "[{}].trusted_public_keys must not be empty when [{}].require_signatures = true",
+            section, section
+        )));
+    }
+    for key in trusted_public_keys {
+        let trimmed = key.trim();
+        let bytes = hex::decode(trimmed).map_err(|e| {
+            AegisError::Config(format!(
+                "[{}].trusted_public_keys: invalid hex public key {:?}: {}",
+                section, key, e
+            ))
+        })?;
+        if bytes.len() != 32 {
+            return Err(AegisError::Config(format!(
+                "[{}].trusted_public_keys: public key {:?} must be 32 bytes (64 hex characters), got {} bytes",
+                section,
+                key,
+                bytes.len()
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Computes the canonical package digest over `(relative_path, content)` entries (excluding `signature.json`).
+/// Entries are sorted by their normalized slash-separated relative paths.
+pub fn compute_package_entries_digest<'a, I>(entries: I) -> Vec<u8>
+where
+    I: IntoIterator<Item = (&'a str, &'a [u8])>,
+{
+    let mut sorted: Vec<(&'a str, &'a [u8])> = entries
+        .into_iter()
+        .filter(|(rel_path, _)| *rel_path != "signature.json")
+        .collect();
+    sorted.sort_by(|a, b| a.0.cmp(b.0));
+
+    let mut hasher = Sha256::new();
+    for (rel_path, content) in sorted {
+        let file_hash = Sha256::digest(content);
+        hasher.update(rel_path.as_bytes());
+        hasher.update(b":");
+        hasher.update(file_hash);
+        hasher.update(b"\n");
+    }
+
+    hasher.finalize().to_vec()
 }
 
 /// Computes the canonical package digest over files in `package_dir` (excluding signature.json).
@@ -60,20 +116,20 @@ pub fn compute_package_files_digest(package_dir: &Path) -> Result<Vec<u8>> {
     collect_files_recursive(package_dir, package_dir, &mut files)?;
     files.sort();
 
-    let mut hasher = Sha256::new();
+    let mut loaded = Vec::with_capacity(files.len());
     for (rel_path, file_path) in files {
         if rel_path == "signature.json" {
             continue;
         }
         let content = std::fs::read(&file_path).map_err(AegisError::Io)?;
-        let file_hash = Sha256::digest(&content);
-        hasher.update(rel_path.as_bytes());
-        hasher.update(b":");
-        hasher.update(file_hash);
-        hasher.update(b"\n");
+        loaded.push((rel_path, content));
     }
 
-    Ok(hasher.finalize().to_vec())
+    Ok(compute_package_entries_digest(
+        loaded
+            .iter()
+            .map(|(rel, bytes)| (rel.as_str(), bytes.as_slice())),
+    ))
 }
 
 fn collect_files_recursive(
@@ -111,10 +167,17 @@ fn collect_files_recursive(
 /// Returns the verified public key hex string, or `None` if signature was optional and absent.
 pub fn verify_package_signature(
     package_dir: &Path,
-    manifest_bytes: &[u8],
     trusted_keys: Option<&[String]>,
     require_signature: bool,
 ) -> Result<Option<String>> {
+    let has_trusted_keys = trusted_keys.is_some_and(|keys| !keys.is_empty());
+    if require_signature && !has_trusted_keys {
+        return Err(AegisError::Validation(
+            "Package signature required by policy, but no trusted public keys are configured"
+                .to_string(),
+        ));
+    }
+
     let sig_file = package_dir.join("signature.json");
     if !sig_file.exists() {
         if require_signature {
@@ -172,13 +235,12 @@ pub fn verify_package_signature(
         }
     }
 
-    // Prepare target payload to verify
+    // Prepare target payload to verify (only "package" is supported)
     let target_data = match sig.target.as_str() {
-        "manifest" => manifest_bytes.to_vec(),
         "package" => compute_package_files_digest(package_dir)?,
         other => {
             return Err(AegisError::Validation(format!(
-                "Unsupported signature target '{}'",
+                "Unsupported signature target '{}' (only 'package' is supported)",
                 other
             )))
         }
@@ -196,7 +258,7 @@ pub fn verify_package_signature(
     Ok(Some(pk_hex.to_string()))
 }
 
-/// Signs manifest or package content using an Ed25519 key pair for tests/tooling.
+/// Signs package digest using an Ed25519 key pair for tests/tooling.
 pub fn create_test_signature(
     target_data: &[u8],
     key_pair: &signature::Ed25519KeyPair,
@@ -377,42 +439,63 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_roundtrip_manifest() {
+    fn test_signature_roundtrip_package_and_policy() {
         let rng = ring::rand::SystemRandom::new();
         let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
         let key_pair = signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-
-        let manifest_data = br#"{"name": "test-plugin", "version": "1.0.0"}"#;
-        let sig = create_test_signature(manifest_data, &key_pair, "manifest");
 
         let temp_dir = std::env::temp_dir().join(format!("aegis_sig_test_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
 
+        let manifest_data = br#"{"name": "test-plugin", "version": "1.0.0"}"#;
+        let wasm_data = b"\0asm\x01\0\0\0";
+        std::fs::write(temp_dir.join("plugin.manifest.json"), manifest_data).unwrap();
+        std::fs::write(temp_dir.join("plugin.wasm"), wasm_data).unwrap();
+
+        let pkg_digest = compute_package_files_digest(&temp_dir).unwrap();
+        let sig = create_test_signature(&pkg_digest, &key_pair, "package");
+
+        // Write signature omitting `target` to verify default is "package"
+        let sig_json = serde_json::json!({
+            "algorithm": sig.algorithm,
+            "public_key": sig.public_key,
+            "signature": sig.signature,
+        });
         std::fs::write(
             temp_dir.join("signature.json"),
-            serde_json::to_string_pretty(&sig).unwrap(),
+            serde_json::to_string_pretty(&sig_json).unwrap(),
         )
         .unwrap();
 
-        // 1. Valid signature without trusted keys restriction
-        let verified_pk = verify_package_signature(&temp_dir, manifest_data, None, true).unwrap();
+        // 1. require_signature = true without trusted keys is rejected
+        let err = verify_package_signature(&temp_dir, None, true);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("no trusted public keys are configured"));
+
+        let err = verify_package_signature(&temp_dir, Some(&[]), true);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("no trusted public keys are configured"));
+
+        // 2. Valid signature with require_signature = false and no trusted keys restriction
+        let verified_pk = verify_package_signature(&temp_dir, None, false).unwrap();
         assert_eq!(verified_pk, Some(sig.public_key.clone()));
 
-        // 2. Valid signature with matching trusted key
-        let verified_pk = verify_package_signature(
-            &temp_dir,
-            manifest_data,
-            Some(&[sig.public_key.clone()]),
-            true,
-        )
-        .unwrap();
+        // 3. Valid signature with require_signature = true and matching trusted key
+        let verified_pk =
+            verify_package_signature(&temp_dir, Some(std::slice::from_ref(&sig.public_key)), true)
+                .unwrap();
         assert_eq!(verified_pk, Some(sig.public_key.clone()));
 
-        // 3. Untrusted key rejection
+        // 4. Untrusted key rejection
         let err = verify_package_signature(
             &temp_dir,
-            manifest_data,
             Some(&["0000000000000000000000000000000000000000000000000000000000000000".to_string()]),
             true,
         );
@@ -422,15 +505,53 @@ mod tests {
             .to_string()
             .contains("not in trusted public keys list"));
 
-        // 4. Tampered manifest data rejection
-        let err = verify_package_signature(&temp_dir, b"tampered content", None, true);
+        // 5. Tampered Wasm file rejection (protects non-manifest files)
+        std::fs::write(temp_dir.join("plugin.wasm"), b"\0asm\x01\0\0\x99").unwrap();
+        let err =
+            verify_package_signature(&temp_dir, Some(std::slice::from_ref(&sig.public_key)), true);
         assert!(err.is_err());
         assert!(err
             .unwrap_err()
             .to_string()
             .contains("digital signature verification failed"));
+        std::fs::write(temp_dir.join("plugin.wasm"), wasm_data).unwrap();
+
+        // 6. Legacy "manifest" target is rejected
+        let manifest_sig = create_test_signature(manifest_data, &key_pair, "manifest");
+        std::fs::write(
+            temp_dir.join("signature.json"),
+            serde_json::to_string_pretty(&manifest_sig).unwrap(),
+        )
+        .unwrap();
+        let err =
+            verify_package_signature(&temp_dir, Some(std::slice::from_ref(&sig.public_key)), true);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("Unsupported signature target 'manifest'"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_validate_signature_policy() {
+        let valid_key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assert!(validate_signature_policy("plugins", false, &[]).is_ok());
+        assert!(validate_signature_policy("plugins", false, &[valid_key.to_string()]).is_ok());
+        assert!(validate_signature_policy("plugins", true, &[valid_key.to_string()]).is_ok());
+
+        // require_signatures = true with empty trusted_public_keys must fail
+        let err = validate_signature_policy("plugins", true, &[]);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("[plugins].trusted_public_keys must not be empty"));
+
+        // Invalid hex or wrong length must fail
+        assert!(validate_signature_policy("theme", false, &["not-hex".to_string()]).is_err());
+        assert!(validate_signature_policy("theme", false, &["012345".to_string()]).is_err());
     }
 
     #[test]
