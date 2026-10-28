@@ -48,7 +48,7 @@ http = "1.5"
 jsonwebtoken = "9.3"
 lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "smtp-transport", "pool", "tokio1", "tokio1-rustls-tls"] }
 lol_html = "3.0"
-minijinja = { version = "2.24", features = ["loader", "json"] }
+minijinja = { version = "3.0", features = ["serde", "json"] }
 p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem", "jwk"] }
 proc-macro2 = "1.0"
 quick-xml = "0.42"
@@ -65,10 +65,10 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 sha2 = "0.10"
 sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "sqlite", "postgres", "mysql", "chrono", "uuid", "json"] }
-syn = { version = "2.0", features = ["full"] }
+syn = { version = "3.0", features = ["full"] }
 thiserror = "2.0"
 tokio = { version = "1.54", features = ["full"] }
-toml = "0.8"
+toml = "1.1"
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
 tracing = "0.1"
@@ -79,7 +79,7 @@ walkdir = "2.5"
 wasmtime = "26.0"
 wat = "1.262"
 x509-cert = { version = "0.2", default-features = false, features = ["pem"] }
-zip = { version = "2.6", default-features = false, features = ["deflate"] }
+zip = { version = "9.1", default-features = false, features = ["deflate"] }
 
 
 

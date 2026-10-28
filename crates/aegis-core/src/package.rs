@@ -325,13 +325,20 @@ pub fn extract_zip_safely(
             AegisError::Validation(format!("Failed to read ZIP entry #{}: {}", i, e))
         })?;
 
+        let file_name = file
+            .name()
+            .map_err(|e| {
+                AegisError::Validation(format!("Failed to read ZIP entry #{} name: {}", i, e))
+            })?
+            .to_string();
+
         // 1. Enclosed name validation against ZipSlip
         let enclosed = match file.enclosed_name() {
             Some(path) => path.to_owned(),
             None => {
                 return Err(AegisError::Validation(format!(
                     "Malicious ZIP path detected: {:?}",
-                    file.name()
+                    file_name
                 )));
             }
         };
@@ -342,7 +349,7 @@ pub fn extract_zip_safely(
                 Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
                     return Err(AegisError::Validation(format!(
                         "Illegal path component in ZIP entry: {:?}",
-                        file.name()
+                        file_name
                     )));
                 }
                 _ => {}
@@ -358,7 +365,7 @@ pub fn extract_zip_safely(
             if file.size() > opts.max_file_size {
                 return Err(AegisError::Validation(format!(
                     "File '{}' exceeds maximum allowed size ({} > {})",
-                    file.name(),
+                    file_name,
                     file.size(),
                     opts.max_file_size
                 )));
@@ -385,7 +392,7 @@ pub fn extract_zip_safely(
                 if file_extracted > opts.max_file_size {
                     return Err(AegisError::Validation(format!(
                         "File '{}' exceeded maximum allowed size during extraction",
-                        file.name()
+                        file_name
                     )));
                 }
                 if total_extracted_size > opts.max_total_size {
