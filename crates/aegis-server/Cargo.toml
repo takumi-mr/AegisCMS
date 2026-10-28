@@ -38,14 +38,14 @@ clap.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 anyhow.workspace = true
-toml = "0.8"
+toml.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
-sha2 = "0.10"
-hmac = "0.12"
-hex = "0.4"
-rpassword = "7"
+reqwest = { workspace = true, features = ["stream"] }
+sha2.workspace = true
+hmac.workspace = true
+hex.workspace = true
+rpassword.workspace = true
 redis.workspace = true
 zip.workspace = true
 ring.workspace = true

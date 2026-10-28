@@ -8,6 +8,11 @@
 - `task check` がすべて通る状態を保つ。
 
 ## 技術メモ・申し送り事項
+- 依存パッケージの一括更新（Dependabot #78 の tokio 1.54.1 追従を含む）:
+  - 互換性維持と破壊的変更回避を優先し、マイナー・パッチバージョンの最新版へ安全に更新。
+  - Rust: tokio (1.54.1), lol_html (3.0.3), uuid (1.29.0), rustix (1.1.6), icu_* (2.4.0) 等 21 パッケージを更新。
+  - 各クレート（crates/*、plugins/*）で個別指定されていた外部クレートをすべてルートの [workspace.dependencies] に集約（workspace = true 化）し、バージョン指定を実態（major.minor）に合わせて統一。
+  - Admin Studio: i18next (26.5.11), react-i18next (17.1.9), lucide-react (1.63.0), oxlint (1.90.0), storybook (10.6.5), @playwright/test (1.64.1) を更新。
 - パッケージ署名検証の強化（`aegis_core::package`）:
   - `signature.json` の `target` の既定値を `"package"` に変更し、Wasm やテンプレート等の改ざんを許してしまう `"manifest"` ターゲットを廃止（`"package"` のみ受付）。
   - `require_signatures = true` のときは `trusted_public_keys`（32 バイト hex 公開鍵 1 件以上）を必須とし、起動時の設定検証（`PluginsConfig::validate` / `ThemeConfig::validate`）および `verify_package_signature` の双方で空リストを拒否。
