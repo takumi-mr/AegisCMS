@@ -273,6 +273,7 @@ async fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyh
     match action {
         PluginCommand::List => {
             config.plugins.validate()?;
+            config.theme.validate()?;
             let enabled = cli_enabled_plugins(config).await;
             let plugins = aegis_runtime::WasmPluginLoader::list(
                 &config.paths.plugins_dir,
@@ -513,6 +514,7 @@ async fn main() -> anyhow::Result<()> {
 
             let base_path = config.server.normalized_base_path()?;
             config.plugins.validate()?;
+            config.theme.validate()?;
             config.commerce.validate()?;
             config.comments.validate()?;
             config.forum.validate()?;

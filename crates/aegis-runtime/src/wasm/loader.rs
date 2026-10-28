@@ -288,12 +288,7 @@ impl WasmPluginLoader {
         }
 
         // 署名検証
-        aegis_core::verify_package_signature(
-            plugin_dir,
-            &manifest_bytes,
-            trusted_keys,
-            require_signature,
-        )?;
+        aegis_core::verify_package_signature(plugin_dir, trusted_keys, require_signature)?;
 
         Ok(manifest)
     }
@@ -471,7 +466,7 @@ mod tests {
             .to_string()
             .contains("Package requires Aegis version >="));
 
-        // 4. Signature required but missing
+        // 4. Signature required without trusted keys
         std::fs::write(
             pkg_dir.join(MANIFEST_FILE),
             r#"{"name": "my-cool-plugin", "version": "1.0.0", "entrypoint": "plugin.wasm"}"#,
@@ -482,7 +477,17 @@ mod tests {
         assert!(err
             .unwrap_err()
             .to_string()
-            .contains("Package signature required by policy"));
+            .contains("no trusted public keys are configured"));
+
+        // 5. Signature required with trusted key but signature.json missing
+        let trusted =
+            vec!["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string()];
+        let err = WasmPluginLoader::validate_plugin_package(&pkg_dir, Some(&trusted), true);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("Package signature required by policy, but 'signature.json' was not found"));
 
         let _ = std::fs::remove_dir_all(&dir);
     }

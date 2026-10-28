@@ -580,6 +580,6 @@ Admin Studio のプラグイン画面（ドラッグ＆ドロップ）または 
 { "algorithm": "ed25519", "public_key": "<32 バイトの hex>", "signature": "<64 バイトの hex>", "target": "package" }
 ```
 
-- `target` は `"package"`（`signature.json` 以外の全ファイルの、パスと SHA-256 を並べたダイジェストに署名）か `"manifest"`（`plugin.manifest.json` のバイト列だけに署名。既定）。**`"manifest"` では Wasm などほかのファイルの改ざんを検出できない**ため、配布するパッケージは `"package"` で署名してください。
-- `[plugins].require_signatures = true` なら署名の無いパッケージを拒否します。`false` でも、`signature.json` があれば確かめます（不正なら拒否）。
-- `[plugins].trusted_public_keys` が空だと、署名が正しければどの鍵でも受け入れます（誰でも自分の鍵で署名できる）。配布元を限るには信頼する鍵を列挙してください。テーマは `[theme]` の同名の設定です。
+- `target` は `"package"`（既定。省略可）のみで、`signature.json` 以外の全ファイルのパスと SHA-256 を並べたダイジェストに対する署名です（`"manifest"` などの他の値は受け付けません）。Wasm やテンプレートを含め、パッケージ内のどのファイルの改ざんも検出します。
+- `[plugins].require_signatures = true` なら署名の無いパッケージを拒否します。このとき `[plugins].trusted_public_keys` に少なくとも 1 つの公開鍵を設定する必要があります（空だとサーバーが起動せず、パッケージ検証も拒否されます）。`false` でも、`signature.json` があれば確かめます（不正なら拒否）。
+- `[plugins].trusted_public_keys` には信頼する Ed25519 公開鍵（32 バイトの hex）を列挙します（`require_signatures = false` で空のときは、署名が正しければどの鍵でも受け入れます）。テーマは `[theme]` の同名の設定です。

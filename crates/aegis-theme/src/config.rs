@@ -1,5 +1,6 @@
 //! `[theme]` の設定
 
+use aegis_core::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,13 +24,24 @@ pub struct ThemeConfig {
     /// テーマのインストール時に署名を必須とするか（既定: false）
     #[serde(default)]
     pub require_signatures: bool,
-    /// 信頼する公開鍵リスト（hex形式、未指定時は任意の有効な署名を受け入れる）
+    /// 信頼する公開鍵リスト（32バイト hex 形式、`require_signatures = true` のときは 1 件以上必須）
     #[serde(default)]
     pub trusted_public_keys: Vec<String>,
 }
 
 fn default_posts_per_page() -> u64 {
     10
+}
+
+impl ThemeConfig {
+    /// 署名ポリシー設定（`require_signatures` / `trusted_public_keys`）を検証する
+    pub fn validate(&self) -> Result<()> {
+        aegis_core::validate_signature_policy(
+            "theme",
+            self.require_signatures,
+            &self.trusted_public_keys,
+        )
+    }
 }
 
 impl Default for ThemeConfig {

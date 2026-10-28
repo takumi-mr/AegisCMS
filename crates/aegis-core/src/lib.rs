@@ -36,7 +36,8 @@ pub use notify::{
     Delivered, NotificationEvent, NotificationMessage, Notifier, Recipient, SendError,
 };
 pub use package::{
-    check_min_aegis_version, compute_package_files_digest, create_test_signature,
-    extract_zip_safely, verify_package_signature, PackageSignature, ZipExtractOptions, VERSION,
+    check_min_aegis_version, compute_package_entries_digest, compute_package_files_digest,
+    create_test_signature, extract_zip_safely, validate_signature_policy, verify_package_signature,
+    PackageSignature, ZipExtractOptions, VERSION,
 };
 pub use storage::{guess_content_type, StorageBackend, StorageMeta, StorageObject};
