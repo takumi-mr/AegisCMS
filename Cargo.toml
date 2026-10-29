@@ -38,48 +38,77 @@ repository = "https://github.com/takumi-mr/AegisCMS"
 homepage = "https://github.com/takumi-mr/AegisCMS"
 
 [workspace.dependencies]
-anyhow = "1.0"
+anyhow = "1.0.104"
 argon2 = "0.6"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["macros", "multipart"] }
 base64 = "0.23"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
 clap = { version = "4.6", features = ["derive", "env"] }
 flate2 = "1.1"
-futures-util = "0.3"
+futures-util = "0.3.34"
 hex = "0.4"
 hmac = "0.12"
 http = "1.5"
-jsonwebtoken = { version = "11.1", default-features = false, features = ["use_pem", "rust_crypto"] }
-lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "smtp-transport", "pool", "tokio1", "tokio1-rustls-tls"] }
+jsonwebtoken = { version = "11.1", default-features = false, features = [
+    "use_pem",
+    "rust_crypto",
+] }
+lettre = { version = "0.11.23", default-features = false, features = [
+    "builder",
+    "hostname",
+    "smtp-transport",
+    "pool",
+    "tokio1",
+    "tokio1-rustls-tls",
+] }
 lol_html = "3.0"
 minijinja = { version = "3.0", features = ["serde", "json"] }
 p256 = { version = "0.14", features = ["ecdsa", "pkcs8", "pem", "getrandom"] }
 proc-macro2 = "1.0"
 quick-xml = "0.42"
 quote = "1.0"
-rand_core = { version = "0.6", features = ["getrandom"] }
+rand_core = { version = "0.6.4", features = ["getrandom"] }
 redis = { version = "1.8", features = ["tokio-comp", "connection-manager"] }
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "webpki-roots"] }
-ring = "0.17"
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls",
+    "webpki-roots",
+] }
+ring = "0.17.14"
 rpassword = "7.5"
-rsa = { version = "0.9", default-features = false, features = ["std", "pem", "sha2"] }
+rsa = { version = "0.9.10", default-features = false, features = [
+    "std",
+    "pem",
+    "sha2",
+] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 sha2 = "0.10"
-sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls", "sqlite", "postgres", "mysql", "chrono", "uuid", "json"] }
-tantivy = { version = "0.27", default-features = false, features = ["mmap", "lz4-compression"] }
+sqlx = { version = "0.9", features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "sqlite",
+    "postgres",
+    "mysql",
+    "chrono",
+    "uuid",
+    "json",
+] }
+tantivy = { version = "0.27", default-features = false, features = [
+    "mmap",
+    "lz4-compression",
+] }
 tempfile = "3"
 syn = { version = "3.0", features = ["full"] }
 thiserror = "2.0"
-tokio = { version = "1.54", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 toml = "1.1"
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.7", features = ["cors", "trace", "fs"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 url = "2.5"
 uuid = { version = "1.29", features = ["v4", "serde"] }
 walkdir = "2.5"
@@ -89,11 +118,11 @@ x509-cert = { version = "0.3", default-features = false, features = ["pem"] }
 zip = { version = "9.1", default-features = false, features = ["deflate"] }
 
 
-
 [workspace.lints.rust]
 unused_imports = "warn"
 unused_variables = "warn"
 dead_code = "warn"
+linker_messages = "allow"
 
 [workspace.lints.clippy]
 all = "warn"
