@@ -463,3 +463,23 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - リストア時は、データベースやストレージへの書き込みを一切行う前に、ZIP 内の全エントリのパス安全性（ZipSlip・パストラバーサル防止）と SHA-256 ハッシュを完全検証し、不整合や破損・改ざんがあれば変更を 1 つも適用せずに拒否する。`--verify-only` オプションで復元せずに検証のみを実行することも可能。
 - **安全な衝突制御（`--overwrite`）**:
   - 既定（`overwrite = false`）では、既存のユーザーやコンテンツ、設定などの ID/キーが衝突した場合にバリデーションエラーとして処理を停止し、誤操作による既存データの破壊を防止する。`--overwrite` を指定した場合のみ、既存レコードを置換して復元する。
+
+## 18. テーマ開発サーバー (`aegis-server theme dev`)
+
+- `crates/aegis-server/src/theme_dev.rs`。`ThemeEngine`（`with_template_reload(true)`）だけで描画し、DB・プラグイン・認証・`AppState` を使わない。DB なしで動くので、`Commands::Theme` は設定の検証や接続の前に処理する。
+- サンプルは `PageRenderContext::default()` ← テンプレートごとの既定 ← `samples/<名前>.json` の順に最上位のキーで重ねて作る（`PageRenderContext` の文字列項目は `serde(default)` でないので、必ずデフォルト値から始める）。
+- 自動リロードは、ファイルの更新時刻・大きさ・数を 300ms ごとに調べて版を上げ、ページ側が `GET /__dev/version?since=N` を長ポーリングして（25 秒）、版が変わったら `location.reload()` する。追加の依存（ファイル監視・WebSocket・SSE）は使わない。`tokio::sync::watch` の `changed()` は受信側ごとの「見た」状態に左右されるので、ハンドラーでは `wait_for(|v| *v != since)` で現在の版を直接比べる。
+- 描画に失敗したときは 500 で理由のページを返し、そのページにもリロードのスクリプトを入れて、直して保存すれば戻るようにする。
+- 既定は `127.0.0.1` のみ。CORS は付けない（UI は Vite のプロキシ経由を想定）。
+- **診断**: `ThemeEngine::render_diagnosed` が `RenderDiagnostic { message, template, line }` を返す（`render` は文字列のまま）。`include`・`extends` 先の描画時のエラーは外側のエラーに包まれるので、`source()` の連鎖をたどって一番内側の（行を持つ）minijinja のエラーの場所を採る。
+- **ファイル API と保護**: `theme.json` と `templates/`・`samples/`・`assets/` の下のテキストファイルだけを、`is_editable_path`（`Component::Normal` のみ・隠しファイル不可・拡張子の許可リスト）と `resolve_editable`（いちばん近い既存のフォルダーを実体にして、テーマのフォルダーの外へのシンボリックリンクを拒否。作成後にもう一度確かめる）で扱う。`guard` ミドルウェアが、ループバックで待ち受けているときの `Host` の検査（DNS リバインディング）と、読み出し以外への `x-aegis-dev` ヘッダーの要求（カスタムヘッダーはほかのサイトのページから CORS の事前確認なしに付けられない）を行う。ループバック以外で待ち受けているときは、書き込み API を 403 にする。
+- **未保存のプレビュー**: `POST /__dev/api/render` は、共有のエンジンに触らず、リクエストごとに新しい `ThemeEngine` を作って `register_template`（動的な登録は、テーマのファイルより先に探される）で上書きし、サンプルは `load_samples_with` に名前 → JSON の上書きを渡して描画する。
+
+### 18.1 Theme Builder (`theme-builder/`)
+
+- React 19 + Vite + CodeMirror 6（`@codemirror/lang-jinja`）。`admin/` とは別のアプリ（別の `package.json`・CI のジョブ）で、`admin/` のコンポーネントは共有していない（Admin Studio の `i18n`・Storybook も入れていない。文言は日本語のみ）。Vite の開発サーバー（`:5174`）が `/__dev`・`/preview`・`/theme`・`/themes` を `:8090`（`THEME_DEV_URL`）へ中継する。`Host` を変えないので、開発サーバーの `Host` 検査を通る。
+- 画面の挙動に関わる処理は、UI から切り離した純粋なモジュールに置いてユニットテストする: `buffers.ts`（開いているファイル・未保存・ディスクの変更との衝突の reducer）、`previewDoc.ts`（未保存の内容から描画の要求とプレビューの `srcdoc` を作る）、`eol.ts`（改行の検出）。
+- プレビューの `iframe` は `sandbox="allow-scripts allow-forms allow-popups"`（`allow-same-origin` なし）で、`srcdoc` に未保存の CSS（`<style data-unsaved>`、`</style` は無害化）とリンクのクリックを止めるスクリプトを足す。
+- 外のエディターでの変更は、`/__dev/version` の長ポーリングで受け取り、編集していないファイルは読み込み直し、編集中のファイルは `conflict` を立てて通知する。
+- E2E は `theme-builder/e2e/`（Playwright。`start-servers.mjs` が専用ポートで開発サーバーと Vite を起動し、`fixtures/e2e-theme` のコピーを配る）。CI のジョブ `theme-builder-e2e`、手元では `task test:e2e:theme-builder`。
+- CodeMirror は、行の区切りを `EditorState.lineSeparator`（ファイルの LF / CRLF）に合わせ、内容を `sliceDoc()` で取る。既定の `doc.toString()` は常に `\n` なので、CRLF のファイルを開いただけで「編集した」ことになり、保存すると改行が変わってしまう。

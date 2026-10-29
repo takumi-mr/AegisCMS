@@ -54,6 +54,7 @@ redis.workspace = true
 zip.workspace = true
 ring.workspace = true
 url.workspace = true
+walkdir.workspace = true
 
 [dev-dependencies]
 # A mock OpenID Connect IdP for the SSO handler tests

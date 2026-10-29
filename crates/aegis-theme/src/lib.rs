@@ -5,5 +5,5 @@ pub mod manifest;
 
 pub use builtins::*;
 pub use config::{FrontPage, ThemeConfig};
-pub use engine::ThemeEngine;
+pub use engine::{RenderDiagnostic, ThemeEngine};
 pub use manifest::*;

@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ title }} | {{ site_title }}</title>
+    <link rel="stylesheet" href="/theme/assets/style.css" />
+    {{ extra_head | safe }}
+  </head>
+  <body>
+    <header><a id="home-link" href="{{ base_path }}/">{{ site_title }}</a></header>
+    <main>{% block content %}{% endblock %}</main>
+  </body>
+</html>

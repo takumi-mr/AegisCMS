@@ -74,6 +74,73 @@ jobs:
       - name: Build Storybook
         run: npm --prefix admin run build-storybook
 
+  theme-builder-ci:
+    name: Theme Builder Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: theme-builder/package-lock.json
+
+      - name: Install dependencies
+        run: npm --prefix theme-builder ci
+
+      - name: Check formatting (Prettier)
+        run: npm --prefix theme-builder run format:check
+
+      - name: Lint (oxlint, zero warnings)
+        run: npm --prefix theme-builder run lint
+
+      - name: Run unit tests (Vitest)
+        run: npm --prefix theme-builder run test
+
+      - name: Typecheck and build Theme Builder
+        run: npm --prefix theme-builder run build
+
+  theme-builder-e2e:
+    name: Theme Builder E2E (Playwright)
+    # 実際のテーマ開発サーバーに対して動かす（サーバーのビルドがあるので他のジョブと並列）
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: theme-builder/package-lock.json
+
+      - name: Install dependencies
+        run: npm --prefix theme-builder ci
+
+      - name: Install Playwright browser
+        run: npx --prefix theme-builder playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: npm --prefix theme-builder run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: theme-builder-playwright-report
+          path: theme-builder/playwright-report
+          retention-days: 7
+
   admin-e2e:
     name: Admin Studio E2E (Playwright)
     # 実サーバーに対して動かす（サーバーのビルドがあるので他のジョブと並列）

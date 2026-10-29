@@ -271,6 +271,45 @@ themes/my-theme/
 3. テーマを切り替える。Admin Studio の **Settings → Themes**、`PUT /api/v1/themes/active`（`{"theme_id": "my-theme"}`、admin のみ）、または `[theme].active` で切り替えます。
 4. 中身のあるサイトで確かめる。サンプルショップ（`task demo:shop` と、別のターミナルで `task demo:shop:seed`。手順は [examples/coffee-shop](../examples/coffee-shop)）を使うと、記事・固定ページ・商品・カテゴリが揃います。
 
+### `theme dev`（DB なしで素早く確かめる）
+
+```bash
+task dev:theme -- themes/my-theme      # = aegis-server theme dev themes/my-theme（http://127.0.0.1:8090/）
+```
+
+テーマのフォルダーを直接読み、DB・プラグイン・ログインなしでサンプルのデータを描画します。`templates/`・`assets/`・`samples/` のファイルを保存すると、開いているページが自動で読み込み直されます。テンプレートの文法エラーは、ページ上に理由を表示します（直して保存すれば、そのまま戻ります）。エディターは自由に選べます。
+
+- **サンプル**: `templates/` の `base.html` 以外すべてに、既定のデータ（タイトル・本文・一覧の記事 3 件・ページ送り）で `/preview/<名前>`（`index.html` なら `/preview/index`）が用意されます。
+- **データを変える・増やす**: `samples/<名前>.json` に `PageRenderContext` の項目（[3.2 変数](#32-変数)）を書くと、既定のデータの上書きになります（最上位のキー単位）。既定に無い名前なら、ページが増えます。`"template": "article.html"` で使うテンプレートを選べます（省くと `<名前>.html`）。`samples/` はインストール時に使われないので、そのまま置いておけます。
+- **アセット**: `/theme/assets/...` と `/themes/<id>/assets/...` で配信します。
+- **公開サイトとの違い**: プラグインの `on-render-page`、コメント欄・ショップ・フォーラムのデータ、`[theme]` の設定（`theme_vars`・`custom_css`）は反映されません。必要なら `samples/*.json` に書いてください。最終確認は、実際のサイトで行います。
+- **待ち受け**: 既定は `127.0.0.1:8090`（`--host`・`--port`）。テンプレートは任意のコードを実行できる開発用の機能なので、公開するネットワークには出さないでください。
+- **エラーの場所**: 失敗したときは、どのテンプレートの何行目かが分かります（`{% include %}`・`{% extends %}` の先で起きたときは、その先のファイルと行）。
+- **JSON API**（Theme Builder の UI 用）:
+  - `GET /__dev/api/theme`: マニフェスト・テンプレート・サンプルの一覧
+  - `GET /__dev/api/samples/<名前>`: 描画データ
+  - `GET /__dev/api/check`: 全サンプルを描画して、失敗（`error` に `message`・`template`・`line`）を返す。CI にも使えます
+  - `GET /__dev/api/files`、`GET`・`PUT /__dev/api/files/<パス>`: ファイルの一覧・読み出し・保存。対象は `theme.json` と、`templates/`・`samples/`・`assets/` の下のテキストファイル（`.html`・`.css`・`.js`・`.json`・`.svg` など、1MiB まで）です。`..`・隠しファイル・フォルダーの外は拒否します
+  - `POST /__dev/api/render`: 保存していない内容（`templates` に名前 → 中身、`samples` に名前 → JSON）を反映して描画する。何も書き込みません
+  - 書き込み（`PUT`・`POST`）は、ループバックで待ち受けているときだけ使えます。ヘッダー `x-aegis-dev` が必要で、`Host` がループバックの名前でないリクエストは拒否します（ほかのサイトのページからの書き込みと、DNS リバインディングを防ぐため）。CORS は許可しません
+
+### Theme Builder（エディター + ライブプレビュー）
+
+```bash
+task dev:theme -- themes/my-theme      # 1 つ目のターミナル: 開発サーバー（:8090）
+task dev:theme-builder                 # 2 つ目のターミナル: Theme Builder（http://localhost:5174/、初回は npm --prefix theme-builder ci）
+```
+
+左にファイル、中央にエディター（Jinja・HTML・CSS・JSON の色分け）、右にプレビューが並びます。
+
+- **未保存のままプレビュー**: 打ち込むと、約 0.25 秒後に保存前の内容で描画し直します（テンプレートとサンプルは `POST /__dev/api/render`、CSS はプレビューに追記）。保存（`Ctrl+S`、または「すべて保存」）するまで、ファイルは書き換わりません。
+- **エラー**: 描画に失敗すると、エディターのその行に波線と印が付き、「問題」の一覧に出ます（クリックでその行へ移動）。プレビューは、直前に描画できた表示を薄くして残します。
+- **ページと幅**: プレビューするページ（サンプル）と、幅（幅に合わせる・1280・768・390・320px）を切り替えます。編集中のファイルに合うページに、自動で切り替わります。
+- **確認**: 「すべてのサンプルを確認」は、保存済みのファイルで全サンプルを描画します。
+- **ほかのエディターとの併用**: VS Code などで保存したファイルは、編集していなければ自動で読み込み直します。編集中のファイルが変わったときは、通知が出ます。
+- **ファイルの作成**: 「新しいファイル」で `templates/`・`samples/`・`assets/` の下に作れます（改名・削除は未対応）。ファイルの改行（LF / CRLF）は、そのファイルのものを保つので、開くだけでは差分になりません。
+- プレビューは `sandbox` つきの `iframe`（`allow-same-origin` なし）で表示し、リンクを押してもページから出ません。画面の文言は日本語のみです。
+
 ### 確認するページと幅
 
 | ページ | URL の例（サンプルショップ） |

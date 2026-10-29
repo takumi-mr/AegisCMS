@@ -1,0 +1,9 @@
+dist
+node_modules
+test-results
+playwright-report
+# Jinja templates: formatting them as HTML would break the tags
+e2e/fixtures
+package-lock.json
+# Prose is reviewed by hand
+*.md

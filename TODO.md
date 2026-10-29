@@ -8,6 +8,9 @@
 - `task check` がすべて通る状態を保つ。
 
 ## 技術メモ・申し送り事項
+- テーマ開発サーバー `aegis-server theme dev <dir>`（`task dev:theme`）と Theme Builder（`theme-builder/`、`task dev:theme-builder`）を追加（[theme_authoring_guide.md](docs/theme_authoring_guide.md#theme-devdb-なしで素早く確かめる)、[architecture.md 18](docs/architecture.md#18-テーマ開発サーバー-aegis-server-theme-dev)）。DB なしでサンプルのデータを描画し、保存で自動リロード。Theme Builder は、エディター・未保存のままのライブプレビュー・エラー行の表示・幅の切り替えを持ち、Playwright の E2E（`task test:e2e:theme-builder`、CI の `theme-builder-e2e`）がある。
+    - 続き（Theme Builder）: ファイルの改名・削除、`theme.json` のフォーム編集、パッケージ書き出し（ZIP・署名）、ブロック単位のプレビュー、プレビュー上の要素から対応するテンプレートの行へ飛ぶ機能、`admin/` とのコンポーネント・翻訳の共有（現在は日本語のみ）、ビルドした UI を `aegis-server` に埋め込んで 1 つのプロセスで配る（今は Vite が別に要る）。
+    - 続き（開発サーバー）: 実サイトのコンテンツで確かめる口（`--content-from <URL>` で公開 API から記事を取る等）。
 - 依存ライブラリのマイナー・パッチ更新と Windows (MSVC) 環境でのリンカー警告の抑制:
   - `anyhow`, `chrono`, `futures-util`, `lettre`, `rand_core`, `reqwest`, `ring`, `rsa`, `tokio`, `tracing-subscriber` 等のワークスペース依存ライブラリを最新のマイナー・パッチ版へ更新。
   - Windows 環境において MSVC リンカー（`link.exe`）が DLL/proc-macro 生成時に出力する情報メッセージ（`ライブラリ ... とオブジェクト ... を作成中`）が Rustc 1.83+ の `linker_messages` リント（デフォルト warn）で警告として捕捉されていた問題を解消するため、ルート `Cargo.toml` の `[workspace.lints.rust]` に `linker_messages = "allow"` を追加（テストおよび Clippy 検証で 0 警告を維持）。
