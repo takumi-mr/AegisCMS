@@ -15,20 +15,16 @@
 
 ## 直近の着手タスク
 
-1. **PostgreSQL でのバリエーション在庫引き当ての不具合修正**:
-   - `crates/aegis-db/tests/orders_integration.rs` の `test_postgres_order_storage_real_db`（期待 7、実際 5）。
-   - PostgreSQL 環境において、`create_order` の `StockReservation` に `variant_id` がある際に親商品の在庫も減算される挙動を解消する（SQLite / MySQL では正常通過）。
-2. **AssemblyScript / TinyGo SDK の機能追従**:
+1. **AssemblyScript / TinyGo SDK の機能追従**:
    - Rust SDK に追加済みのフック（`calculate-order`, `on-order-status-changed`, `send-notification`, `on-content-published`, `check-comment`, `render-blocks`）およびホスト API（`http_fetch`, `kv_get`, `config_get`）のラッパーを整備（ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) 参照）。
-3. **UI / エラーメッセージの多言語翻訳の拡充**:
+2. **UI / エラーメッセージの多言語翻訳の拡充**:
    - サーバーエラーメッセージのコード化と多言語対応、公開サイト組み込みテンプレートやカートスクリプトの翻訳。
 
 ---
 
 ## 技術メモ・申し送り事項
 
-- **PostgreSQL のバリエーション在庫引き当て**:
-  - `crates/aegis-db` 内の注文作成トランザクション（`create_order`）において、バリエーション指定時の親商品在庫更新分岐ロジックを確認する必要がある。
+- 現在、未解決の申し送り事項はありません。
 
 ---
 
