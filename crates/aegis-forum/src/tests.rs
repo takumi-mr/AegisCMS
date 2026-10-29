@@ -128,8 +128,10 @@ async fn test_category_lifecycle() {
 
 #[tokio::test]
 async fn test_thread_and_post_flow() {
-    let mut cfg = ForumConfig::default();
-    cfg.rate_limit_secs = 0; // テスト用に連投制限オフ
+    let cfg = ForumConfig {
+        rate_limit_secs: 0, // テスト用に連投制限オフ
+        ..Default::default()
+    };
     let f = fixture(cfg).await;
 
     let cat = f
@@ -229,8 +231,10 @@ async fn test_thread_and_post_flow() {
 
 #[tokio::test]
 async fn test_thread_pin_and_lock() {
-    let mut cfg = ForumConfig::default();
-    cfg.rate_limit_secs = 0;
+    let cfg = ForumConfig {
+        rate_limit_secs: 0,
+        ..Default::default()
+    };
     let f = fixture(cfg).await;
 
     let cat = f
@@ -299,9 +303,11 @@ async fn test_thread_pin_and_lock() {
 
 #[tokio::test]
 async fn test_auto_lock_on_max_posts() {
-    let mut cfg = ForumConfig::default();
-    cfg.rate_limit_secs = 0;
-    cfg.auto_lock_post_count = 3; // 3レスで自動ロック
+    let cfg = ForumConfig {
+        rate_limit_secs: 0,
+        auto_lock_post_count: 3, // 3レスで自動ロック
+        ..Default::default()
+    };
     let f = fixture(cfg).await;
 
     let cat = f
@@ -373,8 +379,10 @@ async fn test_auto_lock_on_max_posts() {
 
 #[tokio::test]
 async fn test_rate_limiting() {
-    let mut cfg = ForumConfig::default();
-    cfg.rate_limit_secs = 10;
+    let cfg = ForumConfig {
+        rate_limit_secs: 10,
+        ..Default::default()
+    };
     let f = fixture(cfg).await;
 
     let cat = f
@@ -428,8 +436,10 @@ async fn test_rate_limiting() {
 
 #[tokio::test]
 async fn test_anonymous_disallowed() {
-    let mut cfg = ForumConfig::default();
-    cfg.allow_anonymous = false; // 匿名禁止
+    let cfg = ForumConfig {
+        allow_anonymous: false, // 匿名禁止
+        ..Default::default()
+    };
     let f = fixture(cfg).await;
 
     let cat = f

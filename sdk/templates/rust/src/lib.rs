@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_template_plugin_lifecycle() {
-        let mut plugin = TemplatePlugin::default();
+        let mut plugin = TemplatePlugin;
 
         // 1. on_before_save のテスト
         let post = PostContext::new("  My Untrimmed Title  ", "test-slug");
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_transform_content_ast_is_idempotent() {
-        let mut plugin = TemplatePlugin::default();
+        let mut plugin = TemplatePlugin;
         let once = plugin
             .transform_content_ast(vec![BlockNode::heading(2, "Section 1")])
             .expect("AST hook should succeed");

@@ -210,7 +210,7 @@ async fn test_forum_form_submission_and_redirects() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(&format!("/forum/general/{}/posts", thread_id))
+                .uri(format!("/forum/general/{}/posts", thread_id))
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .body(Body::from(post_form_body))
                 .unwrap(),

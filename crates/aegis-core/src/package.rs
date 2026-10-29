@@ -403,11 +403,11 @@ mod tests {
         let verified_pk = verify_package_signature(
             &temp_dir,
             manifest_data,
-            Some(&[sig.public_key.clone()]),
+            Some(std::slice::from_ref(&sig.public_key)),
             true,
         )
         .unwrap();
-        assert_eq!(verified_pk, Some(sig.public_key.clone()));
+        assert_eq!(verified_pk, Some(sig.public_key));
 
         // 3. Untrusted key rejection
         let err = verify_package_signature(

@@ -278,7 +278,11 @@ async fn test_first_comment_waits_and_known_authors_are_approved_like_wordpress(
 
     assert_eq!(
         f.service
-            .moderate(&admin(), &[first.id.clone()], ModerationStatus::Approved)
+            .moderate(
+                &admin(),
+                std::slice::from_ref(&first.id),
+                ModerationStatus::Approved
+            )
             .await
             .unwrap(),
         1
@@ -729,7 +733,11 @@ async fn test_approving_a_held_reply_notifies_the_subscriber() {
     assert_eq!(held.status, "pending");
     f.notifier.take();
     f.service
-        .moderate(&admin(), &[held.id.clone()], ModerationStatus::Approved)
+        .moderate(
+            &admin(),
+            std::slice::from_ref(&held.id),
+            ModerationStatus::Approved,
+        )
         .await
         .unwrap();
     let events = f.notifier.take();
@@ -1060,7 +1068,11 @@ async fn test_approving_notifies_the_commenter_who_asked() {
         .find(|c| c.author_name == "Hanako")
         .unwrap();
     f.service
-        .moderate(&admin(), &[hanako.id.clone()], ModerationStatus::Pending)
+        .moderate(
+            &admin(),
+            std::slice::from_ref(&hanako.id),
+            ModerationStatus::Pending,
+        )
         .await
         .unwrap();
     f.service

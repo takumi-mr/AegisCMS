@@ -859,6 +859,32 @@ async fn test_storefront_pages_render() {
     assert!(script.contains("aegis.cart.v1"));
 }
 
+#[tokio::test]
+async fn test_storefront_pages_are_not_found_when_shop_is_disabled() {
+    // The product schema exists, but `[commerce].enabled` is off, so there is no commerce service
+    let state = Arc::new(
+        crate::test_support::test_app_state(
+            AegisConfig::default(),
+            PluginSupervisor::new(),
+            vec![product_schema()],
+        )
+        .await,
+    );
+    assert!(state.commerce.is_none());
+    for path in [
+        "/products",
+        "/products/mug",
+        "/cart",
+        "/orders/o1",
+        "/shop/cart.js",
+    ] {
+        let request = Request::get(path).body(Body::empty()).unwrap();
+        let router = crate::app::router(&state.config, state.clone());
+        let response = router.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{}", path);
+    }
+}
+
 /// The compiled official plugins (`plugins/official-shop-rules`, `plugins/official-order-notifier`)
 /// on the real Wasm host: settings from `[plugins.settings]`, KV in the cache backend, and the
 /// notifier's webhook on a local server (its manifest's allowed_domains pointed at 127.0.0.1)

@@ -277,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_plugin_lifecycle_methods() {
-        let mut plugin = SampleTestPlugin::default();
+        let mut plugin = SampleTestPlugin;
 
         let post = PostContext::new("Original Title", "orig-slug");
         let result = plugin.on_before_save(post).unwrap();
