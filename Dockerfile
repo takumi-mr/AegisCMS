@@ -50,6 +50,8 @@ RUN cargo chef cook --profile ${CARGO_PROFILE} -p aegis-server --recipe-path rec
 # 2-3. ソースコードをコピーして本番用最適化リリースビルド（ワークスペースのクレートのみ再コンパイル）
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
+# aegis-server deploy generate がサイトの設定の土台として埋め込む（include_str!）
+COPY config/ ./config/
 COPY schemas/ ./schemas/
 COPY sdk/ ./sdk/
 COPY plugins/ ./plugins/

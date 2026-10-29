@@ -176,6 +176,11 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_shop_rules.wasm plugins/official-shop-rules/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_order_notifier.wasm plugins/official-order-notifier/plugin.wasm
         platforms: [linux, darwin]
 
+  deploy:generate:
+    desc: deploy/sites.toml から compose.yaml・Caddyfile・sites/*/aegis.toml を生成（本番では deploy/deploy.sh up がイメージの中で行う）
+    cmds:
+      - cargo run -p aegis-server -- deploy generate --dir deploy --builtin .
+
   plugin:build:blocks:
     desc: 公式ブロックプラグイン (official-blocks) を Wasm にビルドし plugins/official-blocks/plugin.wasm を更新
     cmds:
