@@ -1087,7 +1087,8 @@
     "browse": "Browse Plugin Sources",
     "installSuccess": "Successfully installed plugin \"{{name}}\"",
     "installFailed": "Failed to install plugin package",
-    "installing": "Installing..."
+    "installing": "Installing...",
+    "frameDomains": "Embeds (iframe): {{domains}}"
   },
   "site": {
     "title": "Site",

@@ -1069,7 +1069,8 @@
     "browse": "プラグインのソースを見る",
     "installSuccess": "プラグイン「{{name}}」を正常にインストールしました",
     "installFailed": "プラグインのインストールに失敗しました",
-    "installing": "インストール中..."
+    "installing": "インストール中...",
+    "frameDomains": "埋め込み（iframe）: {{domains}}"
   },
   "site": {
     "title": "サイト",
