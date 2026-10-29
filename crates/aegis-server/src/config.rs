@@ -93,6 +93,9 @@ pub struct ServerConfig {
     /// リバースプロキシのサブパス配下で公開する場合のパス（例: `/cms`）。空ならルートで公開。
     /// 読み出しは `normalized_base_path` を使う
     pub base_path: String,
+    /// Admin Studio を配信するパス（既定: `/admin`）。推測されにくい名前にすると、CMS の種類の特定や
+    /// ログイン画面への総当たりを受けにくくなる。読み出しは `normalized_admin_path` を使う
+    pub admin_path: String,
 }
 
 impl Default for ServerConfig {
@@ -101,9 +104,37 @@ impl Default for ServerConfig {
             host: "127.0.0.1".to_string(),
             port: 8080,
             base_path: String::new(),
+            admin_path: DEFAULT_ADMIN_PATH.to_string(),
         }
     }
 }
+
+/// `[server].admin_path` の既定値
+pub const DEFAULT_ADMIN_PATH: &str = "/admin";
+
+/// 公開サイト・API のルートと重なるため `admin_path` に使えない名前
+const RESERVED_ADMIN_PATHS: &[&str] = &[
+    "api",
+    "uploads",
+    "theme",
+    "themes",
+    "articles",
+    "category",
+    "search",
+    "products",
+    "cart",
+    "orders",
+    "shop",
+    "forum",
+    "contact",
+    "comments",
+    "health",
+    "metrics",
+    "feed.xml",
+    "sitemap.xml",
+    "robots.txt",
+    "favicon.ico",
+];
 
 impl ServerConfig {
     /// `base_path` を `""`（ルート）または末尾 `/` なしの `/segment[/segment...]` に正規化する。
@@ -128,6 +159,38 @@ impl ServerConfig {
             }
         }
         Ok(format!("/{}", trimmed))
+    }
+
+    /// `admin_path` を末尾 `/` なしの `/segment` に正規化する（ベースパスは含まない）。
+    /// Admin Studio は配信元の 2 階層上（`{admin_path}/assets/*.js` → `/`）を API のルートとみなすため
+    /// 1 階層だけ。使える文字は `base_path` と同じで、公開サイト・API のパスとは重ねられない
+    pub fn normalized_admin_path(&self) -> Result<String> {
+        let trimmed = self.admin_path.trim().trim_matches('/');
+        let valid = !trimmed.is_empty()
+            && trimmed != "."
+            && trimmed != ".."
+            && trimmed
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~'));
+        if !valid {
+            return Err(AegisError::Config(format!(
+                "[server].admin_path {:?} is invalid: use a single segment like \"/admin\" (letters, digits, '-', '.', '_', '~')",
+                self.admin_path
+            )));
+        }
+        if RESERVED_ADMIN_PATHS.contains(&trimmed.to_ascii_lowercase().as_str()) {
+            return Err(AegisError::Config(format!(
+                "[server].admin_path {:?} is used by the site or the API: choose another name",
+                self.admin_path
+            )));
+        }
+        Ok(format!("/{}", trimmed))
+    }
+
+    /// 検証済みの `admin_path`（起動時に `normalized_admin_path` で検証する。不正な値なら既定の `/admin`）
+    pub fn admin_path(&self) -> String {
+        self.normalized_admin_path()
+            .unwrap_or_else(|_| DEFAULT_ADMIN_PATH.to_string())
     }
 }
 
@@ -328,6 +391,41 @@ mod tests {
         let result = AegisConfig::load_or_default(&path);
         let _ = std::fs::remove_file(&path);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_normalized_admin_path() {
+        let admin = |value: &str| {
+            ServerConfig {
+                admin_path: value.to_string(),
+                ..Default::default()
+            }
+            .normalized_admin_path()
+        };
+        assert_eq!(
+            ServerConfig::default().normalized_admin_path().unwrap(),
+            "/admin"
+        );
+        assert_eq!(admin("studio-7f3k").unwrap(), "/studio-7f3k");
+        assert_eq!(admin(" /back_office/ ").unwrap(), "/back_office");
+        for invalid in [
+            "",
+            "/",
+            "/a/b",
+            "/..",
+            "/x?y",
+            "/a b",
+            "/api",
+            "/Uploads",
+            "/feed.xml",
+        ] {
+            assert!(admin(invalid).is_err(), "{} should be rejected", invalid);
+        }
+        let invalid = ServerConfig {
+            admin_path: "/api".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(invalid.admin_path(), "/admin");
     }
 
     #[test]

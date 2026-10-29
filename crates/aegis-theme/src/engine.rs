@@ -50,6 +50,8 @@ struct ThemeEngineInner {
     theme_templates_dir: Option<PathBuf>,
     dynamic_templates: HashMap<String, String>,
     base_path: String,
+    /// フッターに「Powered by」の表記を出すか（`[theme].show_powered_by`）
+    show_powered_by: bool,
     /// テンプレートをリクエストごとに読み直す（`[theme].reload_templates`、テーマ開発用）
     reload_templates: bool,
     /// コンパイル済みテンプレートを保持する環境。テーマ・テンプレート・ベースパスの変更で破棄する
@@ -79,6 +81,7 @@ impl ThemeEngine {
                 theme_templates_dir,
                 dynamic_templates: HashMap::new(),
                 base_path: String::new(),
+                show_powered_by: true,
                 reload_templates: false,
                 environment: None,
             })),
@@ -91,6 +94,17 @@ impl ThemeEngine {
         {
             let mut inner = self.inner.write().unwrap();
             inner.base_path = base_path.to_string();
+            inner.environment = None;
+        }
+        self
+    }
+
+    /// フッターに「Powered by AegisCMS」を出すか（`[theme].show_powered_by`、既定は `true`）。
+    /// テンプレートからはグローバル変数 `show_powered_by` として `{% if show_powered_by %}` のように使う
+    pub fn with_powered_by(self, show: bool) -> Self {
+        {
+            let mut inner = self.inner.write().unwrap();
+            inner.show_powered_by = show;
             inner.environment = None;
         }
         self
@@ -420,6 +434,7 @@ impl ThemeEngine {
             inner.dynamic_templates.clone(),
             inner.theme_templates_dir.clone(),
             inner.base_path.clone(),
+            inner.show_powered_by,
         ));
         if !inner.reload_templates {
             inner.environment = Some(env.clone());
@@ -433,6 +448,7 @@ impl ThemeEngine {
         dynamic_templates: HashMap<String, String>,
         fs_dir: Option<PathBuf>,
         base_path: String,
+        show_powered_by: bool,
     ) -> Environment<'static> {
         let mut env = Environment::new();
 
@@ -489,6 +505,7 @@ impl ThemeEngine {
 
         // `[server].base_path` の正規化済みの値（URL で安全な文字のみ）なので自動エスケープ（`/` → `&#x2f;`）しない
         env.add_global("base_path", minijinja::Value::from_safe_string(base_path));
+        env.add_global("show_powered_by", show_powered_by);
 
         env.set_loader(
             move |name: &str| -> std::result::Result<Option<String>, minijinja::Error> {
@@ -592,6 +609,36 @@ mod tests {
         assert!(html.contains("First Post"));
         assert!(html.contains("/articles/first-post"));
         assert!(html.contains("Powered by <strong>AegisCMS</strong>"));
+    }
+
+    #[test]
+    fn test_powered_by_can_be_hidden_in_every_bundled_theme() {
+        let ctx = PageRenderContext {
+            site_title: "Quiet Site".to_string(),
+            template: "index.html".to_string(),
+            ..Default::default()
+        };
+        let themes_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../themes");
+        let mut themes: Vec<String> = std::fs::read_dir(&themes_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        // 組み込みのテンプレート（テーマのディレクトリが無い場合）
+        themes.push("non-existent-theme".to_string());
+        for theme in themes {
+            let shown = ThemeEngine::new(&themes_dir, &theme)
+                .render("index.html", &ctx)
+                .unwrap();
+            let hidden = ThemeEngine::new(&themes_dir, &theme)
+                .with_powered_by(false)
+                .render("index.html", &ctx)
+                .unwrap();
+            assert!(hidden.contains("Quiet Site"), "{}", theme);
+            for mark in ["AegisCMS", "AEGIS-WASM"] {
+                assert!(!hidden.contains(mark), "{}: {}", theme, mark);
+            }
+            assert_ne!(shown, hidden, "{} has no powered-by mark to hide", theme);
+        }
     }
 
     #[test]
@@ -902,7 +949,7 @@ mod tests {
 
     #[test]
     fn test_date_filters_are_char_boundary_safe() {
-        let env = ThemeEngine::build_environment(HashMap::new(), None, String::new());
+        let env = ThemeEngine::build_environment(HashMap::new(), None, String::new(), true);
         let out = env
             .render_str(
                 "{{ a | date_short }}|{{ a | datetime_short }}|{{ b | date_short }}|{{ b | datetime_short }}|{{ missing | date_short }}|{{ missing | datetime_short }}",

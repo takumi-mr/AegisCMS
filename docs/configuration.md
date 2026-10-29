@@ -52,6 +52,7 @@ AegisCMS コアサーバー (`aegis-server`) の設定ファイル (`config/*.to
 | `host` | string | `"127.0.0.1"` | リッスンするアドレス。コンテナでは `"0.0.0.0"` を指定 |
 | `port` | integer (u16) | `8080` | リッスンするポート |
 | `base_path` | string | `""` | サブパス配下で公開する場合のパス（例: `"/cms"`）。空ならルート `/` で公開。使える文字は英数字と `- . _ ~`（不正な値はサーバーが起動しない）。[4.2](#42-サブパスで公開する) を参照 |
+| `admin_path` | string | `"/admin"` | Admin Studio を配信するパス。1 階層だけで、使える文字は `base_path` と同じ。公開サイト・API のパス（`/api`、`/uploads`、`/theme`、`/articles` など）とは重ねられない（不正な値はサーバーが起動しない）。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
 
 ### 2.2 `[database]` — データベース
 
@@ -845,6 +846,20 @@ server {
 [`deploy/`](../deploy) に、AegisCMS と Caddy（Let's Encrypt の証明書を自動で取得・更新）を Docker Compose で起動する構成があります。`deploy/sites.toml` にドメインとサイトの設定を書き、`./deploy.sh up` で起動します。サイトごとに AegisCMS のコンテナを分けるので、`[[sites]]` を足すだけで複数のサイト（ドメイン）を同じサーバーで公開できます。各サイトの `aegis.toml` は `aegis-server deploy generate` が `config/docker.toml` を土台に生成し、`[audit].trust_forwarded_for = true` を設定します。手順は [deploy/README.md](../deploy/README.md)。
 
 ---
+
+### 4.6 使っている CMS を特定されにくくする
+
+攻撃者の自動スキャンは、製品名・バージョン・決まった URL から CMS を判定して既知の脆弱性を試します。次の設定で手がかりを減らせます（隠すだけなので、アップデート・二段階認証・管理画面への経路の制限の代わりにはなりません）。
+
+| 設定 | 効果 |
+| --- | --- |
+| `[server].admin_path = "/<推測されにくい名前>"` | Admin Studio を別のパスで配信する。既定の `/admin` は Admin Studio ではなくなる（公開サイトの 404）。同じ名前のスラッグの固定ページは開けなくなる |
+| `[theme].show_powered_by = false` | 組み込みテンプレートと同梱テーマのフッターから「Powered by AegisCMS」などの表記を消す |
+
+- 変えたパスを `robots.txt` に書かないでください（`Disallow` に書くとパスが公開されます）。既定の `robots.txt` の `Disallow: /admin/` はそのままで構いません。
+- `[auth.oidc]` / `[auth.saml]` の `post_login_redirect` が既定（`/admin/`）のままなら、新しいパスに自動で合わせます。`[auth.registration].admin_url` を書いている場合は新しいパスに直してください。
+- `admin_path` を変えたら、ブックマークや IdP に登録した戻り先 URL も更新してください。
+- `GET /api/v1/health` は製品名とバージョンを `admin` のセッションにだけ返します。あわせてリバースプロキシで `/health`・`/api/v1/health`・`/metrics` を外部から遮断し、Admin Studio のパスを IP 制限や VPN で守るとより効果的です。
 
 ## 5. 管理画面から設定する動的サイト・SEO設定
 

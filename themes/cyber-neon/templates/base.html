@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} // {% endif %}{{ site_title }}</title>
-  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Tokyo Cyber Neon Theme{% endif %}">
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
   <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
   {% if extra_css %}
   <style>{{ extra_css | safe }}</style>
@@ -33,7 +33,7 @@
 
   <footer class="cyber-footer">
     <div class="footer-container">
-      <p>&copy; {{ site_title }} // SECURED BY <strong style="color: var(--cyber-cyan);">AEGIS-WASM</strong></p>
+      <p>&copy; {{ site_title }}{% if show_powered_by %} // SECURED BY <strong style="color: var(--cyber-cyan);">AEGIS-WASM</strong>{% endif %}</p>
     </div>
   </footer>
 </body>
