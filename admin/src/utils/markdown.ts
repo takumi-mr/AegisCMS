@@ -1,5 +1,6 @@
 import i18n from '../i18n';
 import type { BlockNode } from '../types';
+import { isPluginBlockName } from './pluginBlocks';
 
 /** Kinds of `core/callout`, as in GitHub's alerts (`> [!NOTE]`) */
 export const CALLOUT_VARIANTS = ['note', 'tip', 'important', 'warning', 'caution'] as const;
@@ -196,6 +197,16 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
         break;
       }
       default: {
+        // A plugin's block: `::: <plugin>/<block> {"attribute": "value"}` (attributes only)
+        if (isPluginBlockName(block.name)) {
+          const attributes = block.attributes ?? {};
+          parts.push(
+            Object.keys(attributes).length > 0
+              ? `::: ${block.name} ${JSON.stringify(attributes)}`
+              : `::: ${block.name}`
+          );
+          break;
+        }
         const text = (block.text ?? '').trim();
         if (text) {
           parts.push(text);
@@ -306,6 +317,29 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
         },
       });
       continue;
+    }
+
+    // A plugin's block: ::: <plugin>/<block> {"attribute": "value"} (one line)
+    const pluginMatch = line.match(
+      /^:::\s*([a-z0-9][a-z0-9_-]*\/[a-z0-9][a-z0-9_-]*)\s*(\{.*\})?\s*$/
+    );
+    if (pluginMatch && isPluginBlockName(pluginMatch[1])) {
+      let attributes: Record<string, any> | null = {};
+      if (pluginMatch[2]) {
+        try {
+          const parsed = JSON.parse(pluginMatch[2]);
+          attributes =
+            parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+        } catch {
+          attributes = null;
+        }
+      }
+      // Attributes that are not a JSON object stay as a paragraph so nothing is lost
+      if (attributes) {
+        blocks.push({ name: pluginMatch[1], attributes });
+        i++;
+        continue;
+      }
     }
 
     // Callout (:::note Title ... :::)
@@ -420,18 +454,21 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
       if (curLine.trim().length === 0) {
         break;
       }
-      // Stop if next line is a code fence, heading, standalone image, or list item
+      // Stop at the start of another block. The first line is always taken: a line no block
+      // above recognized (e.g. `:::` with nothing valid after it) is text, and would otherwise
+      // never be consumed
       if (
-        curLine.match(/^```/) ||
-        curLine.match(/^(#{1,6})\s+/) ||
-        curLine.match(/^!\[(.*?)\]\((.*?)\)$/) ||
-        curLine.match(/^[-*+]\s+/) ||
-        curLine.match(/^(\d+)\.\s+/) ||
-        curLine.match(/^\s*>/) ||
-        curLine.match(/^:::/) ||
-        curLine.trim().match(TOC_LINE) ||
-        SEPARATOR_LINE.test(curLine) ||
-        isTableStart(lines, i)
+        paragraphLines.length > 0 &&
+        (curLine.match(/^```/) ||
+          curLine.match(/^(#{1,6})\s+/) ||
+          curLine.match(/^!\[(.*?)\]\((.*?)\)$/) ||
+          curLine.match(/^[-*+]\s+/) ||
+          curLine.match(/^(\d+)\.\s+/) ||
+          curLine.match(/^\s*>/) ||
+          curLine.match(/^:::/) ||
+          curLine.trim().match(TOC_LINE) ||
+          SEPARATOR_LINE.test(curLine) ||
+          isTableStart(lines, i))
       ) {
         break;
       }

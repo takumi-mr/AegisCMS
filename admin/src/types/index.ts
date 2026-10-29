@@ -299,6 +299,35 @@ export interface PreviewRequest {
   blocks: BlockNode[];
 }
 
+/** Text in a plugin manifest: one string, or one per language (`{ "en": ..., "ja": ... }`) */
+export type LocalizedText = string | Record<string, string>;
+
+export type PluginBlockFieldType =
+  'string' | 'text' | 'url' | 'number' | 'boolean' | 'select' | 'image';
+
+/** An input of a plugin's custom block; its value goes to `attributes[name]` */
+export interface PluginBlockField {
+  name: string;
+  type: PluginBlockFieldType;
+  label: LocalizedText;
+  required?: boolean;
+  default?: unknown;
+  options?: { value: string; label: LocalizedText }[];
+  placeholder?: LocalizedText;
+  help?: LocalizedText;
+}
+
+/** A custom block an enabled plugin provides (`GET /api/v1/blocks`) */
+export interface PluginBlockDefinition {
+  /** Block name stored in the body: `<plugin>/<block>` */
+  name: string;
+  plugin: string;
+  plugin_display_name: string;
+  label: LocalizedText;
+  description?: LocalizedText;
+  fields: PluginBlockField[];
+}
+
 /** Returned by `POST /api/v1/preview` */
 export interface PreviewResult {
   /** Same body HTML the published page shows for these blocks */

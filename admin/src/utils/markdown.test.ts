@@ -336,4 +336,34 @@ describe('markdown utilities', () => {
       expect(isMarkdownLike('> quote')).toBe(true);
     });
   });
+  describe('plugin blocks', () => {
+    it('writes and reads a plugin block with its attributes on one line', () => {
+      const blocks: BlockNode[] = [
+        {
+          name: 'official-blocks/button',
+          attributes: { label: 'Start "now"', url: '/start', count: 2, wide: true },
+        },
+        { name: 'cards/divider', attributes: {} },
+      ];
+      const markdown = blocksToMarkdown(blocks);
+      expect(markdown).toBe(
+        '::: official-blocks/button {"label":"Start \\"now\\"","url":"/start","count":2,"wide":true}\n\n::: cards/divider'
+      );
+      expect(markdownToBlocks(markdown)).toEqual(blocks);
+    });
+
+    it('keeps a line with broken attributes as text and leaves callouts alone', () => {
+      expect(markdownToBlocks('::: cards/card {not json}')).toEqual([
+        { name: 'core/paragraph', attributes: {}, text: '::: cards/card {not json}' },
+      ]);
+      expect(markdownToBlocks(':::note\nText\n:::')[0].name).toBe('core/callout');
+      expect(markdownToBlocks('::: core/table {"rows": []}')[0].name).toBe('core/paragraph');
+    });
+  });
+  it('reads a line no block recognizes (e.g. a stray :::) as text instead of hanging', () => {
+    expect(markdownToBlocks(':::\n\n:::unknown\nafter')).toEqual([
+      { name: 'core/paragraph', attributes: {}, text: ':::' },
+      { name: 'core/paragraph', attributes: {}, text: ':::unknown\nafter' },
+    ]);
+  });
 });

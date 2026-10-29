@@ -15,15 +15,18 @@ import {
   Quote,
   Minus,
   Info,
+  Puzzle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { BlockNode } from '../types';
+import type { BlockNode, PluginBlockDefinition } from '../types';
 import { cx } from '../utils/cx';
 import { altFromKey } from '../utils/media';
 import { CALLOUT_VARIANTS, TOC_DEFAULT_MAX_LEVEL } from '../utils/markdown';
 import { ImageUploader } from './ImageUploader';
 import { MediaLibrary } from './MediaLibrary';
 import { TableBlockEditor } from './TableBlockEditor';
+import { PluginBlockEditor } from './PluginBlockEditor';
+import { isPluginBlockName, localize } from '../utils/pluginBlocks';
 import { Button } from './ui/Button';
 import styles from './BlockItem.module.css';
 
@@ -37,6 +40,8 @@ interface BlockItemProps {
   onDelete: () => void;
   /** Uploading needs the editor role; viewers can still pick from the media library */
   canUpload: boolean;
+  /** Custom blocks of the enabled plugins (`GET /api/v1/blocks`) */
+  blockDefinitions?: PluginBlockDefinition[];
 }
 
 export const BlockItem: React.FC<BlockItemProps> = ({
@@ -48,8 +53,11 @@ export const BlockItem: React.FC<BlockItemProps> = ({
   onMoveDown,
   onDelete,
   canUpload,
+  blockDefinitions = [],
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const pluginBlock = isPluginBlockName(block.name);
+  const definition = pluginBlock ? blockDefinitions.find((d) => d.name === block.name) : undefined;
   const [isLibraryOpen, setIsLibraryOpen] = useState<boolean>(false);
 
   const getIcon = () => {
@@ -75,7 +83,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       case 'core/callout':
         return <Info size={14} />;
       default:
-        return <AlignLeft size={14} />;
+        return pluginBlock ? <Puzzle size={14} /> : <AlignLeft size={14} />;
     }
   };
 
@@ -84,7 +92,10 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       <div className={styles.header}>
         <div className={styles.badge}>
           {getIcon()}
-          <span>{block.name}</span>
+          <span>
+            {definition ? `${localize(definition.label, i18n.language)} · ` : ''}
+            {block.name}
+          </span>
         </div>
 
         <div className={styles.controls}>
@@ -326,6 +337,21 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         </div>
       )}
       {block.name === 'core/table' && <TableBlockEditor block={block} onChange={onChange} />}
+
+      {definition && (
+        <PluginBlockEditor
+          block={block}
+          definition={definition}
+          onChange={onChange}
+          canUpload={canUpload}
+        />
+      )}
+
+      {pluginBlock && !definition && (
+        <p className={styles.note}>
+          {t('blocks.plugin.unavailable', { plugin: block.name.split('/')[0] })}
+        </p>
+      )}
 
       {block.name === 'core/toc' && (
         <div className={styles.stack}>
