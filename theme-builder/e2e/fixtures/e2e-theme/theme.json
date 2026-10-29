@@ -1,0 +1,6 @@
+{
+  "id": "e2e-theme",
+  "name": "E2E Theme",
+  "version": "1.0.0",
+  "description": "A tiny theme for the Theme Builder end-to-end tests."
+}

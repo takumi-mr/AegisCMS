@@ -31,6 +31,7 @@ mod site;
 mod state;
 #[cfg(test)]
 mod test_support;
+mod theme_dev;
 
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::{OpenApiGenerator, SchemaLoader, TypeScriptGenerator};
@@ -93,6 +94,11 @@ enum Commands {
         #[command(subcommand)]
         action: NotifyCommand,
     },
+    /// Develop a theme: preview it with sample data and reload on save
+    Theme {
+        #[command(subcommand)]
+        action: ThemeCommand,
+    },
     /// Serve several sites over HTTPS with Caddy (deploy/README.md)
     Deploy {
         #[command(subcommand)]
@@ -104,6 +110,12 @@ enum Commands {
     /// Restore database records and uploaded storage objects from a backup archive
     #[cfg(feature = "backup")]
     Restore(backup::RestoreArgs),
+}
+
+#[derive(Subcommand, Debug)]
+enum ThemeCommand {
+    /// Serve a theme directory with sample data (no database needed) and reload the browser on save
+    Dev(theme_dev::DevArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -537,6 +549,9 @@ async fn main() -> anyhow::Result<()> {
         Commands::User { action } => run_user_command(&config, action).await?,
         Commands::Plugin { action } => run_plugin_command(&config, action).await?,
         Commands::Notify { action } => run_notify_command(&config, action).await?,
+        Commands::Theme {
+            action: ThemeCommand::Dev(args),
+        } => theme_dev::run(args).await?,
         Commands::Deploy {
             action: DeployCommand::Generate { dir, builtin },
         } => deploy::run_generate(&dir, &builtin)?,

@@ -23,6 +23,16 @@ tasks:
     cmds:
       - npm --prefix admin run dev
 
+  dev:theme:
+    desc: 'テーマを開発用サーバー (DB 不要、保存で自動リロード、ポート 8090) で確認。task dev:theme -- themes/trailhead'
+    cmds:
+      - cargo run -p aegis-server -- theme dev {{.CLI_ARGS}}
+
+  dev:theme-builder:
+    desc: Theme Builder (エディター + ライブプレビュー、ポート 5174) の開発サーバーを起動 (別のターミナルで task dev:theme -- themes/<テーマ> も起動する)
+    cmds:
+      - npm --prefix theme-builder run dev
+
   migrate:
     desc: 宣言的スキーマの SQLite 自動マイグレーションを実行
     cmds:
@@ -70,6 +80,11 @@ tasks:
     cmds:
       - npm --prefix admin run test:unit -- {{.CLI_ARGS}}
 
+  test:theme-builder:
+    desc: Theme Builder のユニットテストを実行 (Vitest)
+    cmds:
+      - npm --prefix theme-builder run test
+
   test:storybook:
     desc: Admin Studio の Storybook コンポーネント・インタラクションテストを実行 (Vitest Browser Mode)
     cmds:
@@ -84,6 +99,11 @@ tasks:
     desc: oxlint による Admin Studio の静的解析を実行 (ゼロ警告ポリシー)
     cmds:
       - npm --prefix admin run lint
+
+  lint:theme-builder:
+    desc: oxlint による Theme Builder の静的解析を実行 (ゼロ警告ポリシー)
+    cmds:
+      - npm --prefix theme-builder run lint
 
   fmt:
     desc: rustfmt によるコードフォーマットを適用
@@ -105,17 +125,26 @@ tasks:
     cmds:
       - npm --prefix admin run format:check
 
+  fmt:theme-builder:check:
+    desc: Prettier で Theme Builder のコードフォーマットを検証
+    cmds:
+      - npm --prefix theme-builder run format:check
+
   check:
-    desc: PR・コミット前の全検証チェックを一括実行 (fmt, prettier, clippy, oxlint, test, test:admin, test:storybook, admin:build)
+    desc: PR・コミット前の全検証チェックを一括実行 (fmt, prettier, clippy, oxlint, test, test:admin, test:storybook, admin:build, theme-builder)
     cmds:
       - task: fmt:check
       - task: fmt:admin:check
+      - task: fmt:theme-builder:check
       - task: lint
       - task: lint:admin
+      - task: lint:theme-builder
       - task: test
       - task: test:admin
+      - task: test:theme-builder
       - task: test:storybook
       - task: build:admin
+      - task: build:theme-builder
     summary: |
       AGENTS.md の PR 作成前チェックリスト（フォーマット検証 rustfmt / Prettier、Clippy / oxlint、全テスト、フロントエンドユニットテスト、フロントエンドビルド）を
       すべて順次実行して検証します。
@@ -139,10 +168,20 @@ tasks:
     cmds:
       - npm --prefix admin run build
 
+  build:theme-builder:
+    desc: Theme Builder を型チェックして本番ビルド (theme-builder/dist/)
+    cmds:
+      - npm --prefix theme-builder run build
+
   test:e2e:
     desc: Admin Studio の E2E テスト (Playwright。使い捨てのサーバーをポート 18080 で起動)
     cmds:
       - npm --prefix admin run test:e2e -- {{.CLI_ARGS}}
+
+  test:e2e:theme-builder:
+    desc: Theme Builder の E2E テスト (Playwright。開発サーバーと Vite を専用のポート 18090・15174 で起動)
+    cmds:
+      - npm --prefix theme-builder run test:e2e -- {{.CLI_ARGS}}
 
   storybook:
     desc: Admin Studio の Storybook を起動 (ポート 6006)

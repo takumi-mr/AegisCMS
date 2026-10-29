@@ -7,6 +7,44 @@ use std::sync::{Arc, RwLock};
 use crate::builtins::*;
 use crate::manifest::{ThemeInfo, ThemeManifest};
 
+/// 描画の失敗の詳細（テーマ開発用）。どのテンプレートの何行目かを含む
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct RenderDiagnostic {
+    /// 原因（minijinja のエラーの種類・詳細と、その元のエラー）
+    pub message: String,
+    /// エラーが起きたテンプレート（`extends`・`include` の先のこともある）
+    pub template: Option<String>,
+    /// 1 始まりの行番号
+    pub line: Option<usize>,
+}
+
+impl RenderDiagnostic {
+    fn from_error(err: &minijinja::Error) -> Self {
+        let mut message = err.to_string();
+        // `include`・`extends` 先のエラーは外側のエラーに包まれるので、一番内側の場所を採る
+        let (mut template, mut line) = (err.name().map(str::to_string), err.line());
+        let mut source = std::error::Error::source(err);
+        while let Some(cause) = source {
+            message.push_str(&format!(
+                "
+caused by: {cause}"
+            ));
+            if let Some(inner) = cause.downcast_ref::<minijinja::Error>() {
+                if inner.line().is_some() {
+                    template = inner.name().map(str::to_string);
+                    line = inner.line();
+                }
+            }
+            source = cause.source();
+        }
+        Self {
+            message,
+            template,
+            line,
+        }
+    }
+}
+
 struct ThemeEngineInner {
     active_theme: String,
     theme_templates_dir: Option<PathBuf>,
@@ -351,6 +389,22 @@ impl ThemeEngine {
         })?;
 
         Ok(rendered)
+    }
+
+    /// `render` と同じ描画で、失敗したときにテンプレート名と行番号を返す（テーマ開発用）
+    pub fn render_diagnosed(
+        &self,
+        template_name: &str,
+        ctx: &PageRenderContext,
+    ) -> std::result::Result<String, RenderDiagnostic> {
+        let env = self.environment();
+        let template = env
+            .get_template(template_name)
+            .map_err(|e| RenderDiagnostic::from_error(&e))?;
+        let value = minijinja::Value::from(minijinja::value::Serde(ctx));
+        template
+            .render(value)
+            .map_err(|e| RenderDiagnostic::from_error(&e))
     }
 
     /// 描画に使う環境（キャッシュがあれば再利用し、無ければ作ってキャッシュする）
@@ -859,5 +913,40 @@ mod tests {
             out,
             "2026-10-25|2026-10-25 09:05|あいうえおかきくけこ|あいうえおかきくけこ||"
         );
+    }
+
+    #[test]
+    fn test_render_diagnosed_reports_the_template_and_line() {
+        let engine = ThemeEngine::new(Path::new("non_existent_dir"), "default");
+        let ctx = PageRenderContext::default();
+
+        engine.register_template(
+            "syntax.html",
+            "<p>ok</p>
+<p>{% if %}</p>
+",
+        );
+        let err = engine.render_diagnosed("syntax.html", &ctx).unwrap_err();
+        assert_eq!(err.template.as_deref(), Some("syntax.html"));
+        assert_eq!(err.line, Some(2));
+
+        // 描画時のエラーは、`include` の先のテンプレートと行を指す
+        engine.register_template(
+            "part.html",
+            "a
+b
+{{ 1 / 0 }}
+",
+        );
+        engine.register_template("page.html", "{% include 'part.html' %}");
+        let err = engine.render_diagnosed("page.html", &ctx).unwrap_err();
+        assert_eq!(err.template.as_deref(), Some("part.html"));
+        assert_eq!(err.line, Some(3));
+
+        let err = engine.render_diagnosed("missing.html", &ctx).unwrap_err();
+        assert!(err.message.contains("missing.html"), "{}", err.message);
+
+        engine.register_template("ok.html", "fine");
+        assert_eq!(engine.render_diagnosed("ok.html", &ctx).unwrap(), "fine");
     }
 }
