@@ -1,3 +1,5 @@
+[← ドキュメント一覧に戻る](README.md)
+
 # AegisCMS WebAssembly (Wasm) プラグイン開発公式ガイド
 
 本ドキュメントは、AegisCMS のゼロ・トラスト WebAssembly プラグインを開発するための公式ガイドです。

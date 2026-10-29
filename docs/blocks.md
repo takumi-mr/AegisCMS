@@ -1,3 +1,5 @@
+[← ドキュメント一覧に戻る](README.md)
+
 # 本文のブロック
 
 記事・固定ページ・商品の本文は、HTML ではなくブロックの木（`BlockNode`）として保存します。保存時に見出しの id を付け、プラグインの `transform-content-ast` フックを通してから、`aegis-ast` の `HtmlRenderer` が HTML にします（[architecture.md 3.1](architecture.md#31-html-の生成経路-aegis-serversrcrenderrs)）。

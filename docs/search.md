@@ -1,3 +1,5 @@
+[← ドキュメント一覧に戻る](README.md)
+
 # サイト内検索
 
 公開中の記事・固定ページを全文検索できるようにします（`[search]`）。検索ページ `/search` と、テーマや外部から使う API `GET /api/v1/search` があります。索引は [tantivy](https://github.com/quickwit-oss/tantivy) で作り、日本語は辞書を使わず 2 文字ずつに分けて索引します（N-gram）。

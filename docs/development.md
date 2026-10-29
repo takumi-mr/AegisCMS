@@ -1,3 +1,5 @@
+[← ドキュメント一覧に戻る](README.md)
+
 # 開発ガイド (Development)
 
 AegisCMS の開発環境、検証、ビルド、CI、Docker イメージについてまとめます。ブランチ・コミット・PR の規約は [AGENTS.md](../AGENTS.md)、内部設計は [architecture.md](architecture.md) を参照してください。
@@ -236,7 +238,7 @@ Windows の npm 11 で `npm install` すると、他のプラットフォーム�
 
 ---
 
-## 6. CLI サブコマンドリファレンス (`aegis`)
+## 9. CLI サブコマンドリファレンス (`aegis`)
 
 `aegis-server` バイナリ（`cargo run -p aegis-server -- <command>` またはインストール済み `aegis`）で利用可能な主要サブコマンドです。
 
@@ -285,3 +287,22 @@ aegis plugin list
 # 通知設定と配信チャネルのテスト
 aegis notify test --to <email> [--staff]
 ```
+
+
+---
+
+## 10. トラブルシューティング & 開発Tips
+
+### 10.1 ビルド時のディスク容量対策
+クラウド開発環境や CI コンテナ等でディスク容量が逼迫する場合（`target/debug` のインクリメンタルコンパイル成果物が 30GB 近くまで膨らむことがあります）、以下の対策を行ってください：
+```bash
+# インクリメンタルコンパイルを無効化してビルド
+CARGO_INCREMENTAL=0 cargo build
+
+# または不要になったインクリメンタルキャッシュを削除
+rm -rf target/debug/incremental
+```
+
+### 10.2 Storybook / Playwright 実行環境の注意点
+- **ブラウザシェルの互換性**: Linux / クラウド環境において Playwright のバージョンと `/opt/pw-browsers` 内のヘッドレスシェルバージョンが一致しないとブラウザが起動しない場合があります。その場合はシンボリックリンク等で利用可能なバージョンへエイリアスを設定してください。
+- **Storybook mockApi での 204 応答**: `.storybook/mockApi.ts` において `204 No Content` をモックする際は、必ず本文（body）なしでレスポンスを返却してください（本文付きの 204 はブラウザの `Response` オブジェクトが例外をスローします）。

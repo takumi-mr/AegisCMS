@@ -1,3 +1,5 @@
+[← ドキュメント一覧に戻る](README.md)
+
 # AegisCMS プラグインフック & ホスト API リファレンス
 
 Wasm プラグインから利用できるフック、マニフェスト項目、ホスト API の一覧です。
@@ -52,7 +54,7 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 - プレビュー API は手順 1・2・4・5 を実行し（保存・`on-before-save` はなし）、保存して公開ページで表示した場合と同じ HTML を返します。テーマを適用したページ全体（`page_html`）のため、`on-render-page` フック（[テーマガイド](theme_and_publishing_guide.md)）もプレビューのたびに呼ばれます。
 - 保存済みの記事を開いて再保存・プレビューすると、`transform-content-ast` は保存済み（変換済み）のブロックに再度適用されます。ブロックを追加するプラグインは、すでに追加済みなら追加しない（冪等な）実装にしてください。
 - 複数プラグインがある場合、前のプラグインの出力が次のプラグインの入力になります。
-- プラグインの実行順は有効化リストの順（設定ファイルの `[plugins].enabled` に書いた順。Admin Studio で有効にしたものは最後）です（[設定リファレンス](configuration.md#plugins--プラグインの有効化)、[5.1](#51-admin-studio-からの有効無効の切り替え)）。
+- プラグインの実行順は有効化リストの順（設定ファイルの `[plugins].enabled` に書いた順。Admin Studio で有効にしたものは最後）です（[設定リファレンス](configuration.md#plugins--プラグインの有効化)、[7.1](#71-admin-studio-からの有効無効の切り替え)）。
 
 ### 1.2 `transform-content-ast`
 
@@ -312,7 +314,7 @@ SDK ヘルパー:
 | `role` | string | `admin` / `editor` / `viewer` |
 | `metadata` | object | プロバイダ固有の属性。OIDC では `issuer`、`sub`、`claims`（ID トークンのクレーム。`groups` などのマッピングに使える）、SAML では `issuer`、`name_id`、`name_id_format`、`session_index`、`attributes`（属性名 → 値の配列）、ローカル認証では空 |
 
-### 2.5 `OrderContext` / `OrderStatusChange`
+### 2.4 `OrderContext` / `OrderStatusChange`
 
 金額はすべて通貨の最小単位の整数です（JPY なら円、USD ならセント）。
 
@@ -343,7 +345,7 @@ SDK ヘルパー:
 
 `OrderStatusChange` は `{ "order": OrderContext, "from_status": "pending_payment" | null, "to_status": "paid", "occurred_at": "RFC 3339" }` です。状態は `pending_payment` / `paid` / `shipped` / `completed` / `cancelled`。
 
-### 2.6 `NotificationMessage` / `Recipient` / `Delivery`（`send-notification`）
+### 2.5 `NotificationMessage` / `Recipient` / `Delivery`（`send-notification`）
 
 | フィールド | 型 | 説明 |
 | --- | --- | --- |
@@ -356,7 +358,7 @@ SDK ヘルパー:
 
 `Delivery` は `Sent`（送った）/ `Skipped`（扱わない）。
 
-### 2.4 `PluginError`（SDK）
+### 2.6 `PluginError`（SDK）
 
 | バリアント | 用途 |
 | --- | --- |
@@ -539,7 +541,7 @@ SDK ヘルパー:
 - 読み取りは `host.kv_get`（SDK の `kv::get` / `kv::get_json`）。戻り値は値の `(ptr << 32) | len`、未設定なら `0`、権限なしは `-1`、エラーは `-2` です。
 - 1 回の読み書きは独立しています（読んで +1 して書くような更新は同時実行で数え漏れることがあります）。
 
-### 5.5 HTTP リクエスト (`host.http_fetch`)
+### 5.4 HTTP リクエスト (`host.http_fetch`)
 
 ```rust
 let request = http::Request::post_json("https://hooks.slack.com/services/…", &json!({ "text": "New order" }))?;
@@ -553,7 +555,7 @@ if !response.is_success() { /* response.status, response.body */ }
 - 本文は送信・受信とも 1 MiB まで。1 回の通信は最大 10 秒、1 回のフック呼び出しで 8 回まで。フックの `execution_timeout_ms` には通信の待ち時間も含まれるので、通信するプラグインは大きめ（例: 5000〜10000）にしてください。
 - 失敗（許可されていない宛先・接続できない・上限超過）は `Err(PluginError::Host(...))` です。ホストは `{"error": "..."}` の JSON を返します。
 
-### 5.6 設定値 (`host.config_get`)
+### 5.5 設定値 (`host.config_get`)
 
 サーバーの設定ファイルの `[plugins.settings.<プラグイン名>]` の値を読みます（他のプラグインの設定は読めません）。文字列はそのまま、数値・真偽値・配列は JSON の文字列で返ります。
 
@@ -570,7 +572,7 @@ let url = config::get("webhook_url");             // Option<String>
 let fee: i64 = config::get_or("shipping_fee", 0); // 読めなければ既定値
 ```
 
-### 5.4 ネイティブテスト時のモック
+### 5.6 ネイティブテスト時のモック
 
 `cargo test` などネイティブターゲット (`not(target_arch = "wasm32")`) でビルドした場合、SDK のホスト API はモックに置き換わります。
 
@@ -604,7 +606,7 @@ let fee: i64 = config::get_or("shipping_fee", 0); // 読めなければ既定値
 - `on_before_save` で保存を、`on_user_authenticated` でログインを拒否するには、入力の型の代わりに `{"error": "<メッセージ>"}` を返します（SDK の `abi::write_error_to_host`）。`error` キーを持つオブジェクトはすべて拒否として扱います。
 - 返却された JSON が期待する型としてパースできない場合はホスト側エラー（[1.2](#12-transform-content-ast) / [1.3](#13-on-before-save) のエラー時の挙動を参照）になります。
 
-## 5. インストールと有効化
+## 7. インストールと有効化
 
 テーマ（`themes/<id>/` + `[theme].active`）と同じく、プラグインも「インストール」と「有効化」を分けて管理します。将来のストアからのインストールもこの形（`plugins/<name>/` への展開）を前提にしています。
 
@@ -618,7 +620,7 @@ enabled = ["seo-tools", "slack-notifier"]
 
 - インストール済みのプラグインと状態は `aegis plugin list`（CLI）または `GET /api/v1/plugins`（admin 権限）で確認できます。
 
-### 5.1 Admin Studio からの有効・無効の切り替え
+### 7.1 Admin Studio からの有効・無効の切り替え
 
 Admin Studio のプラグイン画面（`admin` ロールのみ）の「有効にする」「無効にする」で、サーバーを再起動せずに切り替えられます。
 
@@ -628,10 +630,10 @@ Admin Studio のプラグイン画面（`admin` ロールのみ）の「有効�
 - 読み込めないプラグイン（未インストール、マニフェストの不備、ホストに無い関数のインポートなど）は有効にできず `400` を返します。そのときは何も変わりません。
 - `[notifications].channels` に `plugin:<名前>` で使っているプラグインは無効にできません（`409`。先に `channels` から外してください）。
 - `[runtime].enable_wasm_plugins = false` のサーバーでは切り替えられません（`409`）。
-- 複数台で動かしている場合（`[cache].backend = "redis"`）、切り替え・並べ替え・設定値の変更はほかのサーバーにもすぐ反映されます（[5.3](#53-複数台での反映)）。
+- 複数台で動かしている場合（`[cache].backend = "redis"`）、切り替え・並べ替え・設定値の変更はほかのサーバーにもすぐ反映されます（[7.3](#73-複数台での反映)）。
 - プラグインの設定値（`PUT /api/v1/plugins/{name}/settings`）は有効・無効にかかわらず保持され、有効にした時点から読まれます。
 
-### 5.2 フックの実行順の並べ替えと、設定ファイルの値に戻す
+### 7.2 フックの実行順の並べ替えと、設定ファイルの値に戻す
 
 プラグイン画面の上部の「フックの実行順」に、有効なプラグインが実行順に並びます（`admin` ロールのみ操作できます）。上下のボタンで並べ替えると、再起動せずにすぐ反映され、DB に保存されます。
 
@@ -640,7 +642,7 @@ Admin Studio のプラグイン画面（`admin` ロールのみ）の「有効�
 - 設定ファイルの値に戻す: `DELETE /api/v1/plugins/order`（画面の「設定ファイルの値に戻す」）。DB に保存した一覧を消し、`[plugins].enabled` のプラグインをその順に読み込み直します（Admin Studio だけで有効にしたものは無効になります）。監査ログは `plugin.reset`。`[plugins].enabled` のプラグインが読み込めなければ `400` で、何も変わりません。
 - 応答はどれも `GET /api/v1/plugins/order` と同じ形です。`[runtime].enable_wasm_plugins = false` なら `409`、通知チャネル（`[notifications].channels` の `plugin:<名前>`）が外れる場合も `409` です。
 
-### 5.3 複数台での反映
+### 7.3 複数台での反映
 
 Admin Studio での変更は、キャッシュと同じバックエンドのイベントバスで全サーバーに知らせます。
 
@@ -651,7 +653,7 @@ Admin Studio での変更は、キャッシュと同じバックエンドのイ�
 - `[runtime].enable_wasm_plugins = false` にすると、`enabled` に関係なくすべてのプラグインを読み込みません。
 - テンプレートとサンプルは `sdk/templates/*`・`sdk/examples/*` にあり、`plugins/` には含まれません（既定ではプラグインは 1 つも有効になっていません）。
 
-### 5.4 ZIP パッケージからのインストールと署名
+### 7.4 ZIP パッケージからのインストールと署名
 
 Admin Studio のプラグイン画面（ドラッグ＆ドロップ）または `POST /api/v1/plugins/install`（`admin`、multipart の `file` フィールド）で、ZIP をアップロードしてインストールできます。テーマも同じ仕組みで `POST /api/v1/themes/install`（[テーマのガイド](./theme_and_publishing_guide.md#zip-からのインストール)）。
 

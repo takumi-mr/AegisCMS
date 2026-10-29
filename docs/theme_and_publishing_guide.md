@@ -1,3 +1,5 @@
+[← ドキュメント一覧に戻る](README.md)
+
 # AegisCMS コンテンツ公開 & テーマエンジン開発ガイド
 
 AegisCMS のコンテンツ公開エンジン（Public Publishing Engine）とテーマエンジン（MiniJinja）、およびプラグインによる動的テーマ書き換え仕様について解説します。
