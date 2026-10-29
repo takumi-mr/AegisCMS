@@ -370,6 +370,9 @@ fn site_config(site: &SiteSpec) -> anyhow::Result<String> {
     check(parsed.forum.validate())?;
     check(parsed.notifications.validate())?;
     check(parsed.cdn.validate())?;
+    if parsed.contact.enabled {
+        check(parsed.contact.validate())?;
+    }
     #[cfg(feature = "analytics")]
     parsed
         .analytics

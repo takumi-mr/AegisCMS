@@ -62,6 +62,8 @@ pub struct AppState {
     pub comments: Option<Arc<aegis_comments::CommentService>>,
     /// 掲示板（`[forum]`）。無効なら `None`
     pub forum: Option<Arc<aegis_forum::ForumService>>,
+    /// 問い合わせフォーム（`[contact]`）。無効なら `None`
+    pub contact: Option<Arc<aegis_contact::ContactService>>,
     /// 通知（`[notifications]`）。無効なら `None`
     pub notifier: Option<Arc<dyn Notifier>>,
     /// 通知の管理（Admin Studio のテンプレート編集・テスト送信・送信待ち）。`notifier` と同じもの
@@ -167,6 +169,7 @@ impl AppState {
             reviews: None,
             comments: None,
             forum: None,
+            contact: None,
             notifier: None,
             notifications: None,
             registration: None,
@@ -270,6 +273,24 @@ impl AppState {
     pub fn with_comments(mut self, comments: aegis_comments::CommentService) -> Self {
         self.comments = Some(Arc::new(comments));
         self
+    }
+
+    /// 問い合わせフォーム（`[contact]`）を有効にする
+    pub fn with_contact(mut self, contact: aegis_contact::ContactService) -> Self {
+        self.contact = Some(Arc::new(contact));
+        self
+    }
+
+    /// 問い合わせフォームが使うサーバーの部品（`ContactService::new` に渡す）。通知と Admin Studio の URL を
+    /// 設定した後に呼ぶ
+    pub fn contact_deps(&self) -> aegis_contact::ContactDeps {
+        aegis_contact::ContactDeps {
+            db: self.db.clone(),
+            cache: self.cache.clone(),
+            audit: self.audit.clone(),
+            notifier: self.notifier.clone(),
+            admin_url: self.admin_url.clone().unwrap_or_default(),
+        }
     }
 
     /// コメントが使うサーバーの部品（`CommentService::new` に渡す）。通知と Admin Studio の URL を

@@ -1,0 +1,30 @@
+[package]
+name = "aegis-contact"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Contact forms for AegisCMS: forms defined in the configuration, spam checks, an inbox and notifications"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-ast = { path = "../aegis-ast" }
+aegis-db = { path = "../aegis-db" }
+aegis-audit = { path = "../aegis-audit" }
+aegis-comments = { path = "../aegis-comments" }
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["time", "rt"] }
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+aegis-cache = { path = "../aegis-cache" }
+async-trait.workspace = true
+tokio = { workspace = true, features = ["full"] }
+toml.workspace = true

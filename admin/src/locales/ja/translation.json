@@ -75,7 +75,11 @@
     "previewNotificationFailed": "通知のプレビューに失敗しました",
     "testNotificationFailed": "テスト送信に失敗しました",
     "blocksFailed": "プラグインのブロックを取得できませんでした",
-    "analyticsFailed": "アクセス解析を読み込めませんでした"
+    "analyticsFailed": "アクセス解析を読み込めませんでした",
+    "contactFormsFailed": "問い合わせフォームを読み込めませんでした",
+    "contactMessagesFailed": "問い合わせを読み込めませんでした",
+    "updateContactMessageFailed": "問い合わせを更新できませんでした",
+    "deleteContactMessageFailed": "問い合わせを削除できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -189,7 +193,11 @@
     },
     "detailsSummary": "見出し（質問など）",
     "detailsOpen": "最初から開く",
-    "detailsPlaceholder": "開いたときに表示する本文（答え・詳細）..."
+    "detailsPlaceholder": "開いたときに表示する本文（答え・詳細）...",
+    "contactForm": "フォーム",
+    "contactFormFields": "項目: {{fields}}（設定ファイルの [[contact.forms]] で変えられます）",
+    "contactFormDisabled": "問い合わせフォームが無効です（[contact].enabled）。このブロックは何も表示しません。",
+    "contactFormMissing": "設定に「{{name}}」というフォームがありません。このブロックは何も表示しません。"
   },
   "categories": {
     "title": "カテゴリ",
@@ -338,7 +346,8 @@
     "quote": "引用",
     "callout": "注記",
     "separator": "区切り線",
-    "details": "折りたたみ"
+    "details": "折りたたみ",
+    "contactForm": "問い合わせフォーム"
   },
   "header": {
     "badge": "ゼロトラスト・サンドボックス",
@@ -350,6 +359,7 @@
       "orders": "注文",
       "comments": "コメント",
       "forum": "フォーラム",
+      "contact": "問い合わせ",
       "analytics": "アクセス解析",
       "settings": "設定"
     },
@@ -510,7 +520,8 @@
       "quote": "引用",
       "separator_block": "区切り線",
       "callout": "注記",
-      "details": "折りたたみ"
+      "details": "折りたたみ",
+      "contactForm": "問い合わせフォーム"
     },
     "inlineCode": "インラインコード（`コード`）",
     "table": "表（| A | B |）",
@@ -1422,6 +1433,56 @@
       "desktop": "パソコン",
       "mobile": "スマートフォン",
       "tablet": "タブレット"
+    }
+  },
+  "contact": {
+    "title": "問い合わせ",
+    "disabled": "問い合わせフォームが無効です（[contact].enabled）。",
+    "formFilter": "フォーム",
+    "allForms": "すべてのフォーム",
+    "publicForms": "公開中のフォーム:",
+    "statusFilter": "状態で絞り込む",
+    "status": {
+      "new": "新着",
+      "read": "既読",
+      "done": "対応済み",
+      "spam": "スパム"
+    },
+    "all": "すべて",
+    "bulkActions": "選択した問い合わせの操作",
+    "selected": "{{count}} 件を選択中",
+    "selectAll": "このページの問い合わせをすべて選択",
+    "selectOne": "{{name}} さんの問い合わせを選択",
+    "columns": {
+      "from": "送信者",
+      "message": "内容",
+      "form": "フォーム",
+      "status": "状態"
+    },
+    "noName": "（名前なし）",
+    "noSubject": "（件名なし）",
+    "emptyStatus": "「{{status}}」の問い合わせはありません。",
+    "empty": "まだ問い合わせはありません。",
+    "newer": "新しい",
+    "older": "古い",
+    "range": "{{total}} 件中 {{from}}–{{to}} 件",
+    "received": "受信日時",
+    "checked": "はい",
+    "reply": "メールで返信",
+    "confirmDelete": "{{count}} 件の問い合わせを完全に削除しますか？",
+    "done": {
+      "new": "{{count}} 件を新着に戻しました",
+      "read": "{{count}} 件を既読にしました",
+      "done": "{{count}} 件を対応済みにしました",
+      "spam": "{{count}} 件をスパムにしました",
+      "delete": "{{count}} 件を削除しました"
+    },
+    "actions": {
+      "new": "新着に戻す",
+      "read": "既読にする",
+      "done": "対応済みにする",
+      "spam": "スパムにする",
+      "delete": "削除"
     }
   }
 }

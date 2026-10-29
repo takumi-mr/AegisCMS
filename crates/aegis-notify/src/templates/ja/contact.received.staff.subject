@@ -1,0 +1,1 @@
+【{{ site_name }}】{{ form.title }}: {% if message.subject %}{{ message.subject }}{% else %}新しいメッセージ{% endif %}

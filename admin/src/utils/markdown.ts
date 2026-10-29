@@ -90,6 +90,14 @@ function parseAlign(cell: string): Align {
 /** `[TOC]`, optionally with `title="..."` and `maxLevel=N` */
 const TOC_LINE = /^\[(?:TOC|toc)((?:\s+(?:title="[^"]*"|maxLevel=\d))*)\s*\]$/;
 
+/** A contact form: `[CONTACT]` (the default form) or `[CONTACT form="sales"]` */
+const CONTACT_LINE = /^\[(?:CONTACT|contact)(?:\s+form="([a-z0-9_-]*)")?\s*\]$/;
+
+function contactToMarkdown(block: BlockNode): string {
+  const form = String(block.attributes?.form ?? '').trim();
+  return form && form !== 'default' ? `[CONTACT form="${form}"]` : '[CONTACT]';
+}
+
 function tocToMarkdown(block: BlockNode): string {
   let options = '';
   const title = String(block.attributes?.title ?? '').trim();
@@ -157,6 +165,10 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
       }
       case 'core/toc': {
         parts.push(tocToMarkdown(block));
+        break;
+      }
+      case 'core/contact-form': {
+        parts.push(contactToMarkdown(block));
         break;
       }
       case 'core/quote': {
@@ -280,6 +292,17 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
           text: codeLines.join('\n'),
         });
       }
+      continue;
+    }
+
+    // Contact form: [CONTACT] / [CONTACT form="sales"]
+    const contactMatch = line.trim().match(CONTACT_LINE);
+    if (contactMatch) {
+      blocks.push({
+        name: 'core/contact-form',
+        attributes: { form: contactMatch[1] || 'default' },
+      });
+      i++;
       continue;
     }
 
@@ -493,6 +516,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
           curLine.match(/^\s*>/) ||
           curLine.match(/^:::/) ||
           curLine.trim().match(TOC_LINE) ||
+          CONTACT_LINE.test(curLine.trim()) ||
           SEPARATOR_LINE.test(curLine) ||
           isTableStart(lines, i))
       ) {
@@ -548,6 +572,7 @@ const SUMMARY_KEYS = {
   'core/separator': 'markdown.summary.separator_block',
   'core/callout': 'markdown.summary.callout',
   'core/details': 'markdown.summary.details',
+  'core/contact-form': 'markdown.summary.contactForm',
 } as const;
 
 /**

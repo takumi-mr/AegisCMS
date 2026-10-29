@@ -79,6 +79,8 @@ aegis-server -c config/production.toml notify test --to you@example.com
 | `forum.posted` | 掲示板に承認済みのスレッド・返信が投稿された | 運営者（`[forum].notify_staff`） | カテゴリ、スレッド名、投稿者の名前、本文、スレッドの URL（`thread_url`） |
 | `forum.pending` | 掲示板に承認待ちのスレッド・返信が投稿された | 運営者（`[forum].notify_staff`） | カテゴリ、スレッド名、投稿者の名前・IP アドレス、本文、Admin Studio の **Forum** を開く URL（`moderation_url`） |
 | `forum.reported` | 掲示板のスレッド・投稿が通報された | 運営者（`[forum].notify_staff`） | 通報の対象（`target_type` / `target_id`）、理由、通報元の IP アドレス、Admin Studio の **Forum** を開く URL（`moderation_url`） |
+| `contact.received` | 問い合わせフォームから届いた（スパムを除く） | 運営者（`[contact].notify_staff`） | フォーム、入力されたすべての項目、IP アドレス、受信箱を開く URL（`admin_url`）（[問い合わせフォーム](contact.md#4-通知)） |
+| `contact.auto_reply` | 同上 | 送信した人（フォームの `auto_reply`） | 受け付けたことと、入力した内容 |
 | `test` | `aegis-server notify test` | 指定したアドレス | テスト |
 | `audit.<操作>` | 監査ログのイベントが `[[notifications.audit.rules]]` に合った（[2.1](#21-監査イベントの通知)） | 運営者（またはルールの `recipients`） | 操作・結果・ユーザー・IP アドレス・ブラウザ・詳細 |
 

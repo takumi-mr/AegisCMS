@@ -157,10 +157,16 @@ pub enum AuditAction {
     ReviewReply,
     #[serde(rename = "review.delete")]
     ReviewDelete,
+    /// Contact form message status changed (read, done, spam, back to new) from admin/API
+    #[serde(rename = "contact.update")]
+    ContactUpdate,
+    /// Contact form message permanently deleted from admin/API
+    #[serde(rename = "contact.delete")]
+    ContactDelete,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 59] = [
+    pub const ALL: [AuditAction; 61] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -220,6 +226,8 @@ impl AuditAction {
         Self::ReviewModerate,
         Self::ReviewReply,
         Self::ReviewDelete,
+        Self::ContactUpdate,
+        Self::ContactDelete,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -283,6 +291,8 @@ impl AuditAction {
             Self::ReviewModerate => "review.moderate",
             Self::ReviewReply => "review.reply",
             Self::ReviewDelete => "review.delete",
+            Self::ContactUpdate => "contact.update",
+            Self::ContactDelete => "contact.delete",
         }
     }
 }

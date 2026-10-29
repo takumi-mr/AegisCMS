@@ -391,4 +391,25 @@ describe('markdown utilities', () => {
       expect(blocksToMarkdown([{ name: 'core/details', attributes: { summary: '' } }])).toBe('');
     });
   });
+
+  describe('contact form', () => {
+    it('writes and reads the default and a named form', () => {
+      const blocks: BlockNode[] = [
+        { name: 'core/paragraph', attributes: {}, text: 'Write to us.' },
+        { name: 'core/contact-form', attributes: { form: 'default' } },
+        { name: 'core/contact-form', attributes: { form: 'sales' } },
+      ];
+      const markdown = blocksToMarkdown(blocks);
+      expect(markdown).toBe('Write to us.\n\n[CONTACT]\n\n[CONTACT form="sales"]');
+      expect(markdownToBlocks(markdown)).toEqual(blocks);
+    });
+
+    it('ends a paragraph at a [CONTACT] line and keeps other text as is', () => {
+      expect(markdownToBlocks('Questions?\n[contact]\n[CONTACT form="Bad Name"]')).toEqual([
+        { name: 'core/paragraph', attributes: {}, text: 'Questions?' },
+        { name: 'core/contact-form', attributes: { form: 'default' } },
+        { name: 'core/paragraph', attributes: {}, text: '[CONTACT form="Bad Name"]' },
+      ]);
+    });
+  });
 });

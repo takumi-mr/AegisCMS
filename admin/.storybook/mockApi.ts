@@ -42,7 +42,8 @@ export const mockApi = (handler: MockHandler, { delayMs = 150 } = {}): (() => vo
         : isWithStatus(result)
           ? result
           : { status: 200, body: result };
-    return new Response(JSON.stringify(body), {
+    // A 204 response must not have a body (the Response constructor throws)
+    return new Response(status === 204 ? null : JSON.stringify(body), {
       status,
       headers: { 'Content-Type': 'application/json' },
     });

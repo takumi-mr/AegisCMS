@@ -486,6 +486,21 @@ Cookie を使わないアクセス解析（[アクセス解析のドキュメン
 | `flush_interval_secs` | integer | `30` | メモリで溜めた集計を DB に書く間隔（秒） |
 | `exclude_paths` | string[] | `[]` | 数えないパス（前方一致。`"/preview"` なら `/preview` と `/preview/...`） |
 
+### 2.20 `[contact]` — 問い合わせフォーム
+
+公開サイトの問い合わせフォームと Admin Studio の受信箱（[問い合わせフォームのドキュメント](./contact.md)）。`enabled = true` で値が不正な場合（フォーム・項目の名前の重なり、`select` に選択肢が無い、`auto_reply` なのに必須のメールアドレスの項目が無いなど）はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で `/contact`・API・受信箱を有効化 |
+| `retention_days` | integer | `365` | 届いた問い合わせを残す日数（0 で消さない） |
+| `max_per_ip_per_hour` | integer | `5` | 同じ IP からの 1 時間あたりの送信数（0 で無制限。`[cache]` で数える） |
+| `max_links` | integer | `3` | 入力のリンクがこれより多いとスパム |
+| `spam_words` | string[] | `[]` | 含むとスパムにする語 |
+| `notify_staff` | bool | `true` | 届いたことを運営者に知らせる（`contact.received`） |
+| `locale` | string | `"en"` | 組み込みの文言（入力の誤り・既定の見出しや項目名）の言語。`en` / `ja` |
+| `forms` | table[] | `default` フォーム 1 つ | `[[contact.forms]]`（`name`・`title`・`description`・`submit_label`・`success_message`・`auto_reply`・`subject_field`・`fields`）。項目は `[[contact.forms.fields]]`（[contact.md 1.1](./contact.md#11-項目)） |
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
@@ -689,6 +704,48 @@ enabled = false
 retention_days = 400
 flush_interval_secs = 30
 exclude_paths = []
+
+[contact]
+enabled = false
+retention_days = 365
+max_per_ip_per_hour = 5
+max_links = 3
+spam_words = []
+notify_staff = true
+locale = "en"
+
+[[contact.forms]]
+name = "default"
+title = "Contact"
+description = ""
+submit_label = "Send"
+success_message = "Thank you. We have received your message."
+auto_reply = false
+subject_field = "subject"
+
+[[contact.forms.fields]]
+name = "name"
+label = "Name"
+type = "text"
+required = true
+
+[[contact.forms.fields]]
+name = "email"
+label = "Email"
+type = "email"
+required = true
+
+[[contact.forms.fields]]
+name = "subject"
+label = "Subject"
+type = "text"
+required = false
+
+[[contact.forms.fields]]
+name = "message"
+label = "Message"
+type = "textarea"
+required = true
 ```
 
 ---

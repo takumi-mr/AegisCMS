@@ -99,6 +99,11 @@ builtin_templates!(
     "forum.pending.txt",
     "forum.reported.subject",
     "forum.reported.txt",
+    "_contact_fields.txt",
+    "contact.received.staff.subject",
+    "contact.received.staff.txt",
+    "contact.auto_reply.subject",
+    "contact.auto_reply.txt",
     "_audit_title.txt",
     "audit.subject",
     "audit.txt",
@@ -818,6 +823,46 @@ https://shop.example.com/spring-sale
             "{}",
             ja.body
         );
+    }
+
+    #[test]
+    fn renders_the_contact_templates_in_each_locale() {
+        let no_blank_runs = |text: &str| !text.contains("\n\n\n");
+        for locale in LOCALES {
+            let templates = Templates::new(locale, None);
+            let mut data =
+                crate::samples::sample_data("contact.received", locale, "https://example.com");
+            data["site_name"] = json!("Aegis Coffee");
+            data["site_url"] = json!("https://example.com");
+            let staff = templates
+                .render("contact.received", &Recipient::Staff, &data)
+                .unwrap()
+                .unwrap();
+            let sender = Recipient::person("hanako@example.com", "Hanako");
+            let reply = templates
+                .render("contact.auto_reply", &sender, &data)
+                .unwrap()
+                .unwrap();
+            if std::env::var("SHOW_CONTACT").is_ok() {
+                println!(
+                    "{}\n{}\n----\n{}\n{}\n====",
+                    staff.subject, staff.body, reply.subject, reply.body
+                );
+            }
+            for rendered in [&staff, &reply] {
+                assert!(
+                    rendered.body.contains("hanako@example.com"),
+                    "{}",
+                    rendered.body
+                );
+                assert!(no_blank_runs(&rendered.body), "{}", rendered.body);
+                assert!(!rendered.subject.contains('\n'));
+            }
+            assert!(staff.body.contains("203.0.113.7"));
+            assert!(staff.body.contains("https://example.com/admin/#contact"));
+            assert!(!reply.body.contains("203.0.113.7"));
+            assert!(!reply.body.contains("/admin/"));
+        }
     }
 
     #[test]

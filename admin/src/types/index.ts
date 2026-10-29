@@ -86,6 +86,8 @@ export type AuditAction =
   | 'forum.settings_update'
   | 'forum.report.create'
   | 'forum.report.resolve'
+  | 'contact.update'
+  | 'contact.delete'
   | 'notification.template_update'
   | 'notification.queue_update';
 
@@ -909,4 +911,59 @@ export interface AnalyticsSummary {
   /** Entry page views from other sites; '' is direct visits */
   top_referrers: AnalyticsTotal[];
   devices: AnalyticsTotal[];
+}
+
+/** A field of a contact form (`[[contact.forms.fields]]` in the configuration file) */
+export interface ContactFieldConfig {
+  name: string;
+  label: string;
+  type: 'text' | 'email' | 'tel' | 'textarea' | 'select' | 'checkbox';
+  required: boolean;
+  placeholder: string;
+  options: string[];
+  max_length: number | null;
+}
+
+/** `GET /api/v1/contact/forms` (404 when [contact] is disabled) */
+export interface ContactForm {
+  /** Name used by the block and the URL (`/contact/{name}`) */
+  name: string;
+  title: string;
+  /** Public page path (with the base path) */
+  path: string;
+  fields: ContactFieldConfig[];
+  auto_reply: boolean;
+}
+
+export type ContactStatus = 'new' | 'read' | 'done' | 'spam';
+
+/** One answered field of a contact message (checkboxes are `yes` or empty) */
+export interface ContactFieldValue {
+  name: string;
+  label: string;
+  value: string;
+}
+
+/** A message in the contact inbox (`GET /api/v1/contact/messages`) */
+export interface ContactMessage {
+  id: string;
+  form: string;
+  /** The form's title (its name when the form is no longer configured) */
+  form_title: string;
+  name: string;
+  email: string;
+  subject: string;
+  fields: ContactFieldValue[];
+  status: ContactStatus;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactMessagePage {
+  messages: ContactMessage[];
+  total: number;
+  /** Messages per status (all forms) */
+  counts: Partial<Record<ContactStatus, number>>;
 }

@@ -944,6 +944,30 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 app_state
             };
+            // 6.9.1 問い合わせフォーム（[contact]）。通知と Admin Studio の URL を使うのでその後に設定する
+            let app_state = if config.contact.enabled {
+                let contact = aegis_contact::ContactService::new(
+                    config.contact.clone(),
+                    app_state.contact_deps(),
+                )?;
+                if app_state.notifier.is_none() {
+                    tracing::warn!(
+                        "Contact forms are enabled without [notifications]: messages are only in Admin Studio's inbox"
+                    );
+                }
+                tracing::info!(
+                    "Contact forms enabled ({:?})",
+                    config
+                        .contact
+                        .forms
+                        .iter()
+                        .map(|f| f.name.as_str())
+                        .collect::<Vec<_>>()
+                );
+                app_state.with_contact(contact)
+            } else {
+                app_state
+            };
             // 6.10 サイト内検索（[search]）。索引は起動後に裏で作り直す
             #[cfg(feature = "search")]
             let app_state = if config.search.enabled {
@@ -997,6 +1021,9 @@ async fn main() -> anyhow::Result<()> {
             // 通知の送信待ち（[notifications.queue].persistent）。前回の起動で送れなかったものも送る
             if let Some(notifications) = &app_state.notifications {
                 notifications.spawn_worker();
+            }
+            if let Some(contact) = &app_state.contact {
+                contact.spawn_retention_task();
             }
             // 予約公開（status: "scheduled"）
             scheduler::spawn_publish_task(app_state.clone());

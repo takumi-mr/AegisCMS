@@ -71,6 +71,9 @@ pub struct RenderedContent {
     pub warnings: Vec<String>,
 }
 
+/// 問い合わせフォームのブロック（`{"form": "<フォームの名前>"}`。トップレベルに置いたものだけ描く）
+pub const CONTACT_FORM_BLOCK: &str = "core/contact-form";
+
 /// Renders stored blocks to body HTML, including the plugins' custom blocks: a block named
 /// `<plugin>/<block>` that an enabled plugin declares is rendered by that plugin's
 /// `render-blocks` hook (one call per plugin with all of its blocks, in document order). The
@@ -78,7 +81,7 @@ pub struct RenderedContent {
 /// `javascript:` URLs; `<iframe>`s only from the plugin's `embed.frame_domains`) inside
 /// `<div class="aegis-plugin-block" data-block="...">`. A block the
 /// plugin returns nothing for, or whose plugin fails, shows nothing. Only top-level blocks are
-/// handed to plugins
+/// handed to plugins. Top-level [`CONTACT_FORM_BLOCK`]s become the configured contact form
 pub async fn render_content(state: &AppState, blocks: &[BlockNode]) -> RenderedContent {
     let mut warnings = Vec::new();
     let supervisor = state.supervisor.read().await;
@@ -95,14 +98,23 @@ pub async fn render_content(state: &AppState, blocks: &[BlockNode]) -> RenderedC
             }
         }
     }
-    if groups.is_empty() {
+    // 問い合わせフォームのブロック（設定のフォームから作る。HTML はエスケープ済み）
+    let mut prerendered = HashMap::new();
+    for (i, block) in blocks.iter().enumerate() {
+        if block.name == CONTACT_FORM_BLOCK {
+            prerendered.insert(
+                i,
+                crate::handlers::contact::block_html(state, &block.attributes),
+            );
+        }
+    }
+    if groups.is_empty() && prerendered.is_empty() {
         return RenderedContent {
             html: render_blocks_html(&state.config.security, blocks),
             warnings,
         };
     }
 
-    let mut prerendered = HashMap::new();
     for (plugin, indexes) in groups {
         let input: Vec<BlockNode> = indexes.iter().map(|&i| blocks[i].clone()).collect();
         let rendered = match plugin.render_blocks(input).await {

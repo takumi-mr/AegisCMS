@@ -9,6 +9,9 @@ import type {
   CommentPage,
   CommentSettings,
   CommentStatus,
+  ContactForm,
+  ContactMessagePage,
+  ContactStatus,
   ContentItem,
   CreateCategoryPayload,
   CreateContentPayload,
@@ -543,6 +546,50 @@ export const aegisApi = {
       '/comments/settings',
       { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(overrides) },
       i18n.t('api.updateCommentSettingsFailed')
+    );
+  },
+
+  /** Contact forms and their fields (404 when [contact] is disabled) */
+  async listContactForms(): Promise<ContactForm[]> {
+    return request('/contact/forms', {}, i18n.t('api.contactFormsFailed'));
+  },
+
+  /** The contact inbox, newest first, with counts per status */
+  async listContactMessages(query: {
+    status?: ContactStatus | '';
+    form?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ContactMessagePage> {
+    return request(`/contact/messages?${toQuery(query)}`, {}, i18n.t('api.contactMessagesFailed'));
+  },
+
+  /** Changes a message's status (`new` / `read` / `done` / `spam`) */
+  async updateContactMessage(id: string, status: ContactStatus): Promise<void> {
+    return requestNoContent(
+      `/contact/messages/${encodeURIComponent(id)}`,
+      { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },
+      i18n.t('api.updateContactMessageFailed')
+    );
+  },
+
+  /** Changes the status of (or deletes) several messages; returns how many changed */
+  async bulkContactMessages(
+    ids: string[],
+    action: ContactStatus | 'delete'
+  ): Promise<{ count: number }> {
+    return request(
+      '/contact/messages/bulk',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ ids, action }) },
+      i18n.t('api.updateContactMessageFailed')
+    );
+  },
+
+  async deleteContactMessage(id: string): Promise<void> {
+    return requestNoContent(
+      `/contact/messages/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      i18n.t('api.deleteContactMessageFailed')
     );
   },
 

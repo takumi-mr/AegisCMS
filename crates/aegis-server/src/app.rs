@@ -82,6 +82,31 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             post(handlers::reply_comment),
         )
         .route("/comments/unsubscribe", get(handlers::unsubscribe_page))
+        // --- 問い合わせフォーム（[contact]） ---
+        .route("/contact", get(handlers::contact::render_default_contact))
+        .route(
+            "/contact/{form}",
+            get(handlers::contact::render_contact).post(handlers::contact::submit_contact_form),
+        )
+        .route("/api/v1/contact/forms", get(handlers::contact::list_forms))
+        .route(
+            "/api/v1/contact/forms/{form}",
+            post(handlers::contact::submit_contact_api),
+        )
+        .route(
+            "/api/v1/contact/messages",
+            get(handlers::contact::list_messages),
+        )
+        .route(
+            "/api/v1/contact/messages/bulk",
+            post(handlers::contact::bulk_messages),
+        )
+        .route(
+            "/api/v1/contact/messages/{id}",
+            get(handlers::contact::get_message)
+                .patch(handlers::contact::update_message)
+                .delete(handlers::contact::delete_message),
+        )
         // --- 掲示板（[forum]） ---
         .route(
             "/api/v1/forum/settings",

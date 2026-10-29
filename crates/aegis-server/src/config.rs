@@ -51,6 +51,8 @@ pub struct AegisConfig {
     pub comments: CommentsConfig,
     #[serde(default)]
     pub forum: ForumConfig,
+    #[serde(default)]
+    pub contact: aegis_contact::ContactConfig,
     #[cfg(feature = "search")]
     #[serde(default)]
     pub search: crate::search::SearchConfig,

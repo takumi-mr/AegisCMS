@@ -17,9 +17,10 @@ import {
   Info,
   Puzzle,
   ListCollapse,
+  Mail,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { BlockNode, PluginBlockDefinition } from '../types';
+import type { BlockNode, ContactForm, PluginBlockDefinition } from '../types';
 import { cx } from '../utils/cx';
 import { altFromKey } from '../utils/media';
 import { CALLOUT_VARIANTS, TOC_DEFAULT_MAX_LEVEL } from '../utils/markdown';
@@ -43,6 +44,8 @@ interface BlockItemProps {
   canUpload: boolean;
   /** Custom blocks of the enabled plugins (`GET /api/v1/blocks`) */
   blockDefinitions?: PluginBlockDefinition[];
+  /** Contact forms (`GET /api/v1/contact/forms`; empty when [contact] is disabled) */
+  contactForms?: ContactForm[];
 }
 
 export const BlockItem: React.FC<BlockItemProps> = ({
@@ -55,6 +58,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
   onDelete,
   canUpload,
   blockDefinitions = [],
+  contactForms = [],
 }) => {
   const { t, i18n } = useTranslation();
   const pluginBlock = isPluginBlockName(block.name);
@@ -85,6 +89,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         return <Info size={14} />;
       case 'core/details':
         return <ListCollapse size={14} />;
+      case 'core/contact-form':
+        return <Mail size={14} />;
       default:
         return pluginBlock ? <Puzzle size={14} /> : <AlignLeft size={14} />;
     }
@@ -356,6 +362,10 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         </p>
       )}
 
+      {block.name === 'core/contact-form' && (
+        <ContactFormBlock block={block} forms={contactForms} onChange={onChange} />
+      )}
+
       {block.name === 'core/toc' && (
         <div className={styles.stack}>
           <div className={styles.inline}>
@@ -489,6 +499,52 @@ export const BlockItem: React.FC<BlockItemProps> = ({
             onChange={(e) => onChange({ ...block, text: e.target.value })}
           />
         </div>
+      )}
+    </div>
+  );
+};
+
+/** The contact form block: which configured form to show (the fields come from the configuration) */
+const ContactFormBlock: React.FC<{
+  block: BlockNode;
+  forms: ContactForm[];
+  onChange: (updated: BlockNode) => void;
+}> = ({ block, forms, onChange }) => {
+  const { t } = useTranslation();
+  const name = String(block.attributes?.form ?? 'default');
+  const form = forms.find((f) => f.name === name);
+  return (
+    <div className={styles.stack}>
+      <div className={styles.inline}>
+        <span className={styles.languageLabel}>{t('blocks.contactForm')}</span>
+        <select
+          className={styles.levelSelect}
+          aria-label={t('blocks.contactForm')}
+          value={name}
+          onChange={(e) =>
+            onChange({ ...block, attributes: { ...block.attributes, form: e.target.value } })
+          }
+        >
+          {!form && <option value={name}>{name}</option>}
+          {forms.map((f) => (
+            <option key={f.name} value={f.name}>
+              {f.title} ({f.name})
+            </option>
+          ))}
+        </select>
+      </div>
+      {form ? (
+        <p className={styles.note}>
+          {t('blocks.contactFormFields', {
+            fields: form.fields.map((f) => f.label).join(', '),
+          })}
+        </p>
+      ) : (
+        <p className={styles.note}>
+          {forms.length === 0
+            ? t('blocks.contactFormDisabled')
+            : t('blocks.contactFormMissing', { name })}
+        </p>
       )}
     </div>
   );
