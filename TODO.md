@@ -43,9 +43,16 @@
     - コメント対象コンテンツ（`[comments].content_types`）の編集画面および商品編集画面にコメント受付状態（受付中 / 受付停止中）の切り替えボタンを追加し、コメントが 0 件のコンテンツでも編集画面から直接開閉可能に（`ContentResponse.comments_open` および `GET /api/v1/contents/{type}/{id}/comments/state` を追加）。
     - 掲示板に `aegis_comments::moderation`（承認制 `require_approval`・既知の投稿者の自動承認 `auto_approve_known`・NG ワード `hold_words` / `spam_words`・リンク数上限 `max_links`・IP レート制限 `max_per_ip_per_hour`）を共有統合。スレッド・投稿ごとの `status`（`approved` / `pending` / `spam`）管理、通報機能（`_aegis_forum_reports`、公開通報フォーム、管理 API）、および運営者向け通知（`forum.posted` / `forum.pending` / `forum.reported` の日英組み込みテンプレート）を追加。
 
+- サイト内検索（`aegis-search`、feature `search`）と Cookie なしのアクセス解析（`aegis-analytics`、feature `analytics`）を追加（[search.md](docs/search.md)、[analytics.md](docs/analytics.md)、[architecture.md 15](docs/architecture.md#15-サイト内検索-aegis-search-とアクセス解析-aegis-analytics)）。
+    - あわせて、公開中のコンテンツを削除しても公開中の版（`_aegis_content_publications`）が残り、公開ページに出続けていた不具合を直した（`delete_content` で公開中の版も消す。版の履歴は残す）。
+    - PostgreSQL の `orders_integration`（`test_postgres_order_storage_real_db`）が main でも失敗する: バリエーションの在庫を引くと親商品の在庫（7 → 5）も減る。下の「EC」を参照。
+    - Storybook のテストは、Playwright の版と `/opt/pw-browsers` のヘッドレスシェルの版が違うと起動しない（クラウドの開発環境では `chromium_headless_shell-1248` を `-1243` へのシンボリックリンクにして実行した）。
+
 **次に着手する項目**
 
-1. AssemblyScript / TinyGo SDK の追従、または翻訳の続き
+1. 問い合わせフォーム（下の「サイトの機能」）
+2. PostgreSQL でのバリエーション在庫の不具合（下の「EC」）
+3. AssemblyScript / TinyGo SDK の追従、または翻訳の続き
 
 ---
 
@@ -58,6 +65,16 @@
   - `official-code-enhancer` を外すと記事ページ 約 6,400・トップ 約 2,100 req/s。`on-render-page` でページの HTML 全体を Wasm に渡すコストを減らす（`task bench:plugins`）。
   - 一覧 API の応答が約 400KB（全件の `blocks` を含む）。一覧では `blocks` を省く・`fields` で選べるようにする。
   - コンテンツの一覧は `OFFSET` 方式。必要ならキーセット方式に（掲示板は済み）。SQLite の `cache_size` / `mmap_size` の影響も未確認。
+
+### サイトの機能
+
+- [ ] **問い合わせフォーム**: 公開ページのフォーム（ブロックまたはテンプレートの部品）から送信 → 運営者にメール（`[notifications]`）・Admin Studio で一覧。スパム対策はコメントの `moderation`（ハニーポット・IP ごとの数・NG ワード）を共有。決めること: 項目の定義の場所（ブロックの属性か設定ファイルか）、保存するか通知だけか（保存するなら保存期間）、送信者への自動返信。
+- [ ] **サイト内検索の拡張（要望があれば）**: カテゴリ・タグでの絞り込み、並び順（新しい順）、テーマのヘッダーに置く検索欄の部品、検索語の集計（アクセス解析と合わせて）。
+- [ ] **アクセス解析の拡張（要望があれば）**: 期間の比較（前の期間との差）、国・ブラウザ別、UTM パラメータ、イベント（ボタンのクリックなど）、CSV の書き出し。
+
+### EC
+
+- [ ] **PostgreSQL でバリエーションの在庫を引くと親商品の在庫も減る**: `crates/aegis-db/tests/orders_integration.rs` の `test_postgres_order_storage_real_db`（543 行目、期待 7・実際 5）。SQLite・MySQL では通る。PostgreSQL の在庫の引き当て（`create_order` の `StockReservation` に `variant_id` があるとき）を確かめる。
 
 ### 認証・アカウント
 

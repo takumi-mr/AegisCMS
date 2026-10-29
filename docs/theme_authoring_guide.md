@@ -19,6 +19,7 @@ themes/my-theme/
 │   ├── index.html      # 記事一覧（トップページが記事一覧のときはトップも）
 │   ├── front.html      # トップページ（[theme].front_page = "template" のとき）
 │   ├── category.html   # カテゴリの記事一覧
+│   ├── search.html     # サイト内検索の結果
 │   ├── article.html    # 記事
 │   ├── page.html       # 固定ページ
 │   └── 404.html        # 見つからない・非公開のページ
@@ -73,6 +74,7 @@ themes/my-theme/
 | `/`（`front_page = "page:<slug>"`） | 固定ページと同じ（`page.html` など） | 固定ページと同じ。canonical などの URL は `/` |
 | `/articles` | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
 | `/category/{slug}` | `category.html` | `title`（カテゴリ名）、`slug`、`fields`（カテゴリのフィールド。`description` など）、`items`、`pagination` |
+| `/search` | `search.html` | [サイト内検索](search.md#3-検索ページsearch)（`fields.query`、`items`、`pagination`） |
 | `/articles/{slug}` | `article.html` | `title`、`content_html`、`author`、`published_at`、`updated_at`、`fields`、`relations`、`comments`（[コメント](#6-コメント欄)） |
 | `/{slug}` | `page.html`（固定ページ）または `article.html` | 同上 |
 | `/{slug}`（固定ページの `layout` が `blank`） | `blank.html` | 同上。ヘッダー・フッター・幅の制約の無い白紙のページ（LP 向け）。`layout` にほかの名前（例: `landing`）を入れると、テーマの `landing.html` を使う |

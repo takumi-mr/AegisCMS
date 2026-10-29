@@ -393,6 +393,28 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         )
         .route("/{slug}", get(handlers::render_page_or_slug));
 
+    // サイト内検索（[search]、feature `search`）。無効なら 404 を返す
+    #[cfg(feature = "search")]
+    {
+        app = app
+            .route("/search", get(crate::search::render_search_page))
+            .route("/api/v1/search", get(crate::search::search_api));
+    }
+
+    // アクセス解析（[analytics]、feature `analytics`）。無効なら 404 を返す
+    #[cfg(feature = "analytics")]
+    {
+        app = app
+            .route(
+                "/api/v1/analytics/event",
+                axum::routing::post(crate::analytics::track_event),
+            )
+            .route(
+                "/api/v1/analytics/summary",
+                get(crate::analytics::get_summary),
+            );
+    }
+
     // ローカルストレージの場合、/uploads で静的ファイル配信
     if config.storage.backend == StorageBackendKind::Local {
         let _ = std::fs::create_dir_all(&config.storage.local.upload_dir);

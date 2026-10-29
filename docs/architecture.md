@@ -11,6 +11,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 | [commerce.md](commerce.md) | EC（商品・注文・在庫・決済） |
 | [notifications.md](notifications.md) | 通知（メール・監査イベントの通知・プラグインのチャネル） |
 | [comments.md](comments.md) | コメント（投稿・承認・スパム対策・通知） |
+| [search.md](search.md) / [analytics.md](analytics.md) | サイト内検索 / アクセス解析 |
 | [theme_and_publishing_guide.md](theme_and_publishing_guide.md) / [theme_authoring_guide.md](theme_authoring_guide.md) | 公開ルーティング・テーマエンジン / テーマの作り方 |
 | [plugin_sdk_guide.md](plugin_sdk_guide.md) / [plugin_hooks.md](plugin_hooks.md) / [plugin_abi_specification.md](plugin_abi_specification.md) | プラグイン開発 / フックとホスト API / 言語共通の ABI |
 | [development.md](development.md) | 開発環境・検証・CI・Docker |
@@ -430,3 +431,11 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **レス番号はスレッドごとの連番**で、レスの削除は論理削除（`is_deleted`。番号と「>>N」の参照を崩さない）。スレッドの削除は物理削除。`auto_lock_post_count` に達したら自動でロックする。
 - 連投の制限は `CacheBackend` で IP・ユーザーごとに数える。監査ログは `forum.*`。
 - 結合テストは `aegis-forum/src/tests.rs`（サービス）、`aegis-server/src/handlers/forum_tests.rs`（ルーター経由。専用 DB への分離も確かめる）。
+
+## 15. サイト内検索 (`aegis-search`) とアクセス解析 (`aegis-analytics`)
+
+- **Cargo の feature で切り離す**: `aegis-server` の feature `search` / `analytics`（どちらも既定で有効）。無効でビルドすると、設定の項目・ルート・`AppState` のフィールドごと無くなる（`cargo check -p aegis-server --no-default-features`）。どちらのクレートも HTTP に依存しない。
+- **検索の索引は tantivy、正は DB**: 索引は作り直せるものとして扱い、起動時に公開中の版から作り直す。形式が読めないディレクトリは消して作り直し、使えない（別のプロセスが使っている）ときはメモリの索引にする。
+- **日本語は辞書なしの 2 文字分割**: 形態素解析の辞書（数十 MB）を持たずに済み、新語・固有名詞も漏れない。索引には 1 文字のトークンも同じ位置に入れて 1 文字の検索に応え、検索語は 2 文字のトークンのフレーズ（位置の差を索引と揃える）で探して「東京都」が「京都」に一致しないようにする。
+- **索引の更新はイベントバス**: コンテンツの変更（作成・更新・削除・予約公開・予約非公開）で `search.content` を流し、各サーバーが DB から公開中の版を読み直す。書き込みは 1 つずつ（tokio の Mutex）で、読み直しは順番が来てから行うので、作り直しと個別の更新が重なっても新しい方が残る。Redis への再接続（`Resync`）では作り直す。
+- **アクセス解析は個々のアクセスを残さない**: 訪問者の見分けは日ごとの秘密の値（キャッシュにだけ置く）を混ぜたハッシュで、重複の判定もキャッシュの `increment`（TTL 2 日）で行う。DB（`_aegis_analytics`、`aegis_db::AnalyticsStorage`）には日 × 切り口（サイト・ページ・参照元・端末）× 値の数だけを、メモリで溜めて一定間隔と終了時にまとめて加算する（方言ごとの UPSERT）。

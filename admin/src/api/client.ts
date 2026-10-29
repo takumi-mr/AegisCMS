@@ -1,6 +1,7 @@
 import i18n from '../i18n';
 import type {
   AcceptInvitePayload,
+  AnalyticsSummary,
   AuditLogPage,
   AuditLogQuery,
   AuthProviders,
@@ -520,6 +521,15 @@ export const aegisApi = {
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ body }) },
       i18n.t('api.replyCommentFailed')
     );
+  },
+
+  /** Access analytics for `from`..`to` (`YYYY-MM-DD`, UTC); 404 when [analytics] is disabled */
+  async getAnalyticsSummary(query: {
+    from: string;
+    to: string;
+    limit?: number;
+  }): Promise<AnalyticsSummary> {
+    return request(`/analytics/summary?${toQuery(query)}`, {}, i18n.t('api.analyticsFailed'));
   },
 
   /** Approval settings (404 when [comments] is disabled) */

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Activity,
+  BarChart3,
   Send,
   PenSquare,
   LogOut,
@@ -31,7 +32,7 @@ const ROLE_BADGE: Record<string, string | undefined> = {
 };
 
 export type AppView =
-  'editor' | 'schedule' | 'products' | 'orders' | 'comments' | 'forum' | 'settings';
+  'editor' | 'schedule' | 'products' | 'orders' | 'comments' | 'forum' | 'analytics' | 'settings';
 
 interface HeaderProps {
   view: AppView;
@@ -50,6 +51,8 @@ interface HeaderProps {
   showComments: boolean;
   /** Forum tab: forum is enabled (`[forum].enabled`) and the user can edit */
   showForum: boolean;
+  /** Analytics tab: access analytics are enabled (`[analytics].enabled`); every role can read them */
+  showAnalytics?: boolean;
   /** The signed-in user's account (avatar, current display name), once loaded */
   profile: UserAccount | null;
   onOpenProfile: () => void;
@@ -69,6 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
   showShop,
   showComments,
   showForum,
+  showAnalytics = false,
   profile,
   onOpenProfile,
   onLogout,
@@ -123,6 +127,15 @@ export const Header: React.FC<HeaderProps> = ({
             id: 'forum' as const,
             label: t('header.tabs.forum'),
             icon: <MessagesSquare size={15} />,
+          },
+        ]
+      : []),
+    ...(showAnalytics
+      ? [
+          {
+            id: 'analytics' as const,
+            label: t('header.tabs.analytics'),
+            icon: <BarChart3 size={15} />,
           },
         ]
       : []),

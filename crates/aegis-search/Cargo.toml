@@ -1,0 +1,21 @@
+[package]
+name = "aegis-search"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Full-text site search for AegisCMS: a tantivy index with a CJK bigram tokenizer"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-ast = { path = "../aegis-ast" }
+serde.workspace = true
+serde_json.workspace = true
+tantivy.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

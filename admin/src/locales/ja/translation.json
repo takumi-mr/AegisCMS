@@ -74,7 +74,8 @@
     "saveNotificationTemplateFailed": "通知のテンプレートの保存に失敗しました",
     "previewNotificationFailed": "通知のプレビューに失敗しました",
     "testNotificationFailed": "テスト送信に失敗しました",
-    "blocksFailed": "プラグインのブロックを取得できませんでした"
+    "blocksFailed": "プラグインのブロックを取得できませんでした",
+    "analyticsFailed": "アクセス解析を読み込めませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -349,6 +350,7 @@
       "orders": "注文",
       "comments": "コメント",
       "forum": "フォーラム",
+      "analytics": "アクセス解析",
       "settings": "設定"
     },
     "gateway": "コアゲートウェイ: {{state}}",
@@ -1392,6 +1394,34 @@
       "categoryCreated": "カテゴリを作成しました",
       "categoryUpdated": "カテゴリを更新しました",
       "categoryDeleted": "カテゴリを削除しました"
+    }
+  },
+  "analytics": {
+    "title": "アクセス解析",
+    "rangeLabel": "期間",
+    "lastDays": "過去 {{count}} 日",
+    "privacyNote": "Cookie を使わずに数えています。訪問者は 1 日の中だけ（毎日変わるハッシュで）見分け、IP アドレスは保存しません。Do Not Track・Global Privacy Control を有効にしたブラウザは数えません。日付は UTC です。",
+    "pageviews": "ページビュー",
+    "visitors": "訪問者",
+    "visitorsHint": "日ごとの訪問者数を期間で合計した値",
+    "daily": "日ごとの推移",
+    "chartLabel": "日ごとのページビューと訪問者。矢印キーで日ごとの値を読めます。",
+    "showTable": "表で見る",
+    "showChart": "グラフで見る",
+    "date": "日付",
+    "empty": "この期間の訪問はまだ記録されていません。",
+    "noData": "データなし",
+    "topPages": "よく見られたページ",
+    "topReferrers": "参照元",
+    "devices": "端末",
+    "page": "ページ",
+    "referrer": "参照元",
+    "device": "端末",
+    "direct": "直接・参照元なし",
+    "deviceNames": {
+      "desktop": "パソコン",
+      "mobile": "スマートフォン",
+      "tablet": "タブレット"
     }
   }
 }

@@ -879,3 +879,34 @@ export interface ForumModerationSettings {
     max_per_ip_per_hour: number;
   };
 }
+
+/** A value's totals in `GET /api/v1/analytics/summary` (a page, a referrer host or a device type) */
+export interface AnalyticsTotal {
+  /** The page path, referrer host ('' = direct / no referrer) or device (`desktop` / `mobile` / `tablet`) */
+  value: string;
+  pageviews: number;
+  visitors: number;
+}
+
+/** One day in `GET /api/v1/analytics/summary` */
+export interface AnalyticsDay {
+  /** `YYYY-MM-DD` (UTC) */
+  day: string;
+  pageviews: number;
+  visitors: number;
+}
+
+/** `GET /api/v1/analytics/summary` (404 when [analytics] is disabled) */
+export interface AnalyticsSummary {
+  from: string;
+  to: string;
+  pageviews: number;
+  /** The sum of each day's unique visitors (the same person on two days counts twice) */
+  visitors: number;
+  /** Every day of the range, oldest first (0 for days without visits) */
+  daily: AnalyticsDay[];
+  top_pages: AnalyticsTotal[];
+  /** Entry page views from other sites; '' is direct visits */
+  top_referrers: AnalyticsTotal[];
+  devices: AnalyticsTotal[];
+}

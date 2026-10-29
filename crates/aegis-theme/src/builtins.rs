@@ -462,6 +462,43 @@ pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
+/// サイト内検索の結果（`/search?q=...`）。`fields.query` が検索語、`items` の `fields.url` が公開ページの URL、
+/// `fields.snippet_html` が検索語を `<mark>` で囲んだ本文の抜粋（エスケープ済み）
+pub const SEARCH_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<style>:where(.aegis-search) mark{background:rgba(250,204,21,.3);color:inherit;border-radius:2px;padding:0 .1em}</style>
+<section class="aegis-search" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
+  <h1 style="margin: 0 0 1rem;">{{ title }}</h1>
+  <form class="aegis-search-form" role="search" action="{{ base_path }}/search" method="get" style="display: flex; gap: 0.5rem; margin: 0 0 1.5rem;">
+    <input type="search" name="q" value="{{ fields.query }}" aria-label="Search" placeholder="Search" maxlength="200" style="flex: 1; min-width: 0; padding: 0.55rem 0.75rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit;">
+    <button type="submit" style="padding: 0.55rem 1rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit; cursor: pointer;">Search</button>
+  </form>
+  {% if fields.query %}
+  <p class="aegis-search-count" style="opacity: 0.7; margin: 0 0 0.5rem; font-size: 0.9rem;">{{ pagination.total_items }} result{% if pagination.total_items != 1 %}s{% endif %}</p>
+  <ul class="aegis-search-results" style="list-style: none; padding: 0; margin: 0;">
+    {% for item in items %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
+      <h2 style="font-size: 1.15rem; margin: 0 0 0.3rem;"><a href="{{ item.fields.url }}" style="color: inherit;">{{ item.title }}</a></h2>
+      {% if item.fields.snippet_html %}<p class="aegis-search-snippet" style="opacity: 0.8; margin: 0;">{{ item.fields.snippet_html | safe }}</p>{% endif %}
+      {% if item.published_at %}<time datetime="{{ item.published_at }}" style="font-size: 0.8rem; opacity: 0.6;">{{ item.published_at | date_short }}</time>{% endif %}
+    </li>
+    {% else %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">No pages matched your search.</li>
+    {% endfor %}
+  </ul>
+  {% if pagination and pagination.total_pages > 1 %}
+  <nav class="pagination" aria-label="Pagination" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; Previous</a>{% else %}<span></span>{% endif %}
+    <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">Next &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}
+"#;
+
 pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}

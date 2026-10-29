@@ -23,6 +23,8 @@ aegis-commerce = { path = "../aegis-commerce" }
 aegis-comments = { path = "../aegis-comments" }
 aegis-notify = { path = "../aegis-notify" }
 aegis-forum = { path = "../aegis-forum" }
+aegis-search = { path = "../aegis-search", optional = true }
+aegis-analytics = { path = "../aegis-analytics", optional = true }
 
 
 tokio.workspace = true
@@ -49,16 +51,21 @@ rpassword.workspace = true
 redis.workspace = true
 zip.workspace = true
 ring.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 # A mock OpenID Connect IdP for the SSO handler tests
 aegis-auth = { path = "../aegis-auth", features = ["mock-idp"] }
 
 [features]
-default = ["oidc", "saml"]
+default = ["oidc", "saml", "search", "analytics"]
 # OpenID Connect login ([auth.oidc]): ID token signature verification via JWKS
 oidc = ["aegis-auth/oidc"]
 # SAML 2.0 login ([auth.saml]): XML signature verification in pure Rust
 saml = ["aegis-auth/saml"]
+# Site search ([search]): a full-text index of published content (tantivy, CJK bigrams), /search and GET /api/v1/search
+search = ["dep:aegis-search"]
+# Access analytics ([analytics]): a cookie-less beacon, daily aggregated counts and the Admin Studio dashboard
+analytics = ["dep:aegis-analytics"]
 
 

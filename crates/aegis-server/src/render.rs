@@ -212,6 +212,14 @@ pub fn build_extra_head(
         is_article,
     };
     let mut extra_head = String::from(aegis_theme::BLOCK_STYLES);
+    #[cfg(feature = "analytics")]
+    {
+        let beacon = crate::analytics::head_html(state);
+        if !beacon.is_empty() {
+            extra_head.push_str("\n  ");
+            extra_head.push_str(&beacon);
+        }
+    }
     let site_head = site.head_html();
     if !site_head.is_empty() {
         extra_head.push_str("\n  ");

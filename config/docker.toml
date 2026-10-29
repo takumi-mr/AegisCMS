@@ -160,6 +160,21 @@ staff_recipients = []
 # action = "session.create"
 # details = { locked = "*" }
 
+[search]
+# Site search: /search and GET /api/v1/search over published content (docs/search.md).
+# Japanese is indexed in 2-character pieces, so no dictionary is needed
+enabled = true
+# Where the index lives (rebuilt from the database at startup; empty keeps it in memory)
+index_dir = "/app/data/search"
+content_types = ["article", "page"]
+
+[analytics]
+# Cookie-less access analytics: a small beacon on public pages and daily counts in the database,
+# shown in Admin Studio's Analytics tab (docs/analytics.md). No IP addresses are stored
+enabled = false
+# Days of counts to keep (0 keeps them forever)
+retention_days = 400
+
 # Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
 # [plugins.settings.official-shop-rules]
 # shipping_fee = 600

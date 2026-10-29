@@ -74,7 +74,8 @@
     "saveNotificationTemplateFailed": "Failed to save the notification template",
     "previewNotificationFailed": "Failed to preview the notification",
     "testNotificationFailed": "Failed to send the test notification",
-    "blocksFailed": "Could not load the plugin blocks"
+    "blocksFailed": "Could not load the plugin blocks",
+    "analyticsFailed": "Failed to load the analytics"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -352,6 +353,7 @@
       "orders": "Orders",
       "comments": "Comments",
       "forum": "Forum",
+      "analytics": "Analytics",
       "settings": "Settings"
     },
     "gateway": "Core Gateway: {{state}}",
@@ -1410,6 +1412,34 @@
       "categoryCreated": "Category created",
       "categoryUpdated": "Category updated",
       "categoryDeleted": "Category deleted"
+    }
+  },
+  "analytics": {
+    "title": "Analytics",
+    "rangeLabel": "Period",
+    "lastDays": "Last {{count}} days",
+    "privacyNote": "Counted without cookies. Visitors are told apart only within a day (by a hash that changes daily); IP addresses are not stored. Browsers with Do Not Track or Global Privacy Control are not counted. Days are in UTC.",
+    "pageviews": "Pageviews",
+    "visitors": "Visitors",
+    "visitorsHint": "Unique visitors per day, added up over the period",
+    "daily": "Daily",
+    "chartLabel": "Daily pageviews and visitors. Use the arrow keys to read each day.",
+    "showTable": "Show as table",
+    "showChart": "Show as chart",
+    "date": "Date",
+    "empty": "No visits recorded in this period yet.",
+    "noData": "No data",
+    "topPages": "Top pages",
+    "topReferrers": "Referrers",
+    "devices": "Devices",
+    "page": "Page",
+    "referrer": "Source",
+    "device": "Device",
+    "direct": "Direct / none",
+    "deviceNames": {
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "tablet": "Tablet"
     }
   }
 }

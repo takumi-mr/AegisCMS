@@ -14,6 +14,8 @@ members = [
     "crates/aegis-commerce",
     "crates/aegis-comments",
     "crates/aegis-forum",
+    "crates/aegis-search",
+    "crates/aegis-analytics",
     "crates/aegis-server",
     "crates/aegis-plugin-macros",
     "crates/aegis-plugin-sdk",
@@ -66,6 +68,8 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 sha2 = "0.10"
 sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls", "sqlite", "postgres", "mysql", "chrono", "uuid", "json"] }
+tantivy = { version = "0.27", default-features = false, features = ["mmap", "lz4-compression"] }
+tempfile = "3"
 syn = { version = "3.0", features = ["full"] }
 thiserror = "2.0"
 tokio = { version = "1.54", features = ["full"] }
