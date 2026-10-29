@@ -222,9 +222,6 @@ async fn build_feed(
         "  <author><name>{}</name></author>\n",
         escape_html(&state.site().title)
     ));
-    xml.push_str(
-        "  <generator uri=\"https://github.com/takumi-mr/aegiscms\">AegisCMS</generator>\n",
-    );
     xml.push_str(&entries);
     xml.push_str("</feed>\n");
 

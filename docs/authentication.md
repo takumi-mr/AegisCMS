@@ -33,14 +33,14 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 
 | API | 必要なロール |
 | --- | --- |
-| `GET /api/v1/health`, `GET /api/v1/openapi.json`, `/metrics` | 不要（公開） |
+| `GET /api/v1/health`（製品名とバージョンは `admin` のセッションにだけ返す）, `/metrics` | 不要（公開） |
 | 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
 | `POST /api/v1/auth/session`（ログイン）, `POST /api/v1/auth/session/verify-2fa`（[二段階認証](#12-二段階認証-2fa--totp)）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッション・2FA 検証で判定） |
 | `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#6-シングルサインオン-openid-connect)） | 不要 |
 | `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm`（[パスワード再設定](#9-パスワードの再設定)） | 不要（メール確認・トークン検証） |
 | `GET /api/v1/auth/invitations/info`, `POST /api/v1/auth/invitations/accept`（[招待リンク](#10-ユーザー招待リンク)） | 不要（招待トークン検証） |
 | ショップ（`/products`, `/cart`, `/orders/{id}`, `/shop/cart.js`, `/api/v1/shop/*`。[EC](commerce.md#61-公開ログイン不要)） | 不要（注文確認はトークン、Webhook は署名で確認） |
-| `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}` | `viewer` |
+| `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}`, `GET /api/v1/openapi.json` | `viewer` |
 | `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
 | `GET /api/v1/storage/objects` | `viewer` |
 | `POST /api/v1/preview`（エディタのプレビュー。保存しない） | `viewer` |
