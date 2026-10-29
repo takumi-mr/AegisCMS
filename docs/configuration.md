@@ -749,6 +749,10 @@ server {
 > [!NOTE]
 > `X-Forwarded-For` はクライアントが自由に設定できます。`trust_forwarded_for` を有効にする場合は、AegisCMS に直接アクセスできないようにし（`[server].host = "127.0.0.1"` やファイアウォール）、上の例のようにプロキシ側で受け取った `X-Forwarded-For` を上書きしてください（`$proxy_add_x_forwarded_for` は受け取った値の後ろに追記するため、先頭を偽装できます）。プロキシを多段にする場合は、最も外側のプロキシで上書きしてください。
 
+### 4.5 Caddy でまとめて公開する（`deploy/`）
+
+[`deploy/`](../deploy) に、AegisCMS と Caddy（Let's Encrypt の証明書を自動で取得・更新）を Docker Compose で起動する構成があります。`deploy/sites.toml` にドメインとサイトの設定を書き、`./deploy.sh up` で起動します。サイトごとに AegisCMS のコンテナを分けるので、`[[sites]]` を足すだけで複数のサイト（ドメイン）を同じサーバーで公開できます。各サイトの `aegis.toml` は `aegis-server deploy generate` が `config/docker.toml` を土台に生成し、`[audit].trust_forwarded_for = true` を設定します。手順は [deploy/README.md](../deploy/README.md)。
+
 ---
 
 ## 5. 管理画面から設定する動的サイト・SEO設定

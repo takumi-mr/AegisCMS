@@ -1,0 +1,51 @@
+# AegisCMS + Caddy で公開するサイトの一覧。
+# cp sites.example.toml sites.toml して書き換え、./deploy.sh up で起動する（手順は README.md）。
+# 1 サイト = 1 コンテナ。DB・アップロード・管理者・プラグインはサイトごとに分かれる。
+
+[deploy]
+# Let's Encrypt に登録する連絡先（証明書の期限切れなどの通知が届く）。空でも証明書は取れる
+acme_email = "admin@example.com"
+# true で Let's Encrypt のステージング（試し用。発行回数の制限を受けないが、ブラウザーは警告を出す）
+acme_staging = false
+# Docker Compose のプロジェクト名（コンテナ・ボリュームの名前の接頭辞）
+# project = "aegiscms"
+
+# ---------------------------------------------------------------------------
+# サイト。[[sites]] を足せばサイトが増える（DNS の A / AAAA レコードをこのサーバーに向けておく）
+# ---------------------------------------------------------------------------
+
+[[sites]]
+# サービス名（英小文字で始まり、英小文字・数字・-）。データはボリューム <name>-data に入る
+name = "main"
+# 先頭が正規のドメイン。2 つ目以降は先頭へリダイレクトする
+domains = ["example.com", "www.example.com"]
+site_title = "Example"
+site_description = "AegisCMS で作ったサイトです。"
+# テーマ: default / minimal-editorial / emerald-luxury / cyber-neon / roastery / trailhead、
+# または deploy/themes/<id>/ に置いた自作のテーマ
+theme = "minimal-editorial"
+# 有効にするプラグイン（組み込み、または deploy/plugins/<name>/ に置いたもの）
+plugins = ["official-blocks"]
+# コンテナのメモリの上限（任意）
+# memory = "512m"
+
+# このサイトの aegis.toml に重ねる設定（任意）。項目は docs/configuration.md
+[sites.config.theme]
+front_page = "posts"
+
+[[sites]]
+name = "blog"
+domains = ["blog.example.com"]
+site_title = "Example Blog"
+theme = "default"
+
+# 例: ショップのサイト（決済の秘密鍵などは secrets/<name>.env に書く。README.md）
+# [[sites]]
+# name = "shop"
+# domains = ["shop.example.com"]
+# theme = "roastery"
+# plugins = ["official-shop-rules"]
+#
+# [sites.config.commerce]
+# enabled = true
+# provider = "stripe"

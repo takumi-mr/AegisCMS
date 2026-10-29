@@ -12,6 +12,7 @@ mod auth;
 mod cdn;
 mod cluster;
 mod config;
+mod deploy;
 mod handlers;
 mod headers;
 mod notify_plugins;
@@ -85,6 +86,25 @@ enum Commands {
     Notify {
         #[command(subcommand)]
         action: NotifyCommand,
+    },
+    /// Serve several sites over HTTPS with Caddy (deploy/README.md)
+    Deploy {
+        #[command(subcommand)]
+        action: DeployCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum DeployCommand {
+    /// Generate compose.yaml, Caddyfile and sites/<name>/aegis.toml from <dir>/sites.toml
+    Generate {
+        /// Directory with sites.toml (the files are written there)
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+        /// Where the built-in themes/ and plugins/ are, to check the names in sites.toml
+        /// (/app in the AegisCMS image)
+        #[arg(long, default_value = "/app")]
+        builtin: PathBuf,
     },
 }
 
@@ -505,6 +525,9 @@ async fn main() -> anyhow::Result<()> {
         Commands::User { action } => run_user_command(&config, action).await?,
         Commands::Plugin { action } => run_plugin_command(&config, action).await?,
         Commands::Notify { action } => run_notify_command(&config, action).await?,
+        Commands::Deploy {
+            action: DeployCommand::Generate { dir, builtin },
+        } => deploy::run_generate(&dir, &builtin)?,
         Commands::Run { port, host } => {
             if let Some(p) = port {
                 config.server.port = p;
