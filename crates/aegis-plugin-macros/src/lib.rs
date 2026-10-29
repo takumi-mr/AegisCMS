@@ -192,6 +192,16 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #[no_mangle]
+        pub extern "C" fn render_blocks(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                ::aegis_plugin_sdk::abi::run_render_blocks_hook(ptr, len, |blocks| {
+                    let mut plugin = <#ident_type as ::std::default::Default>::default();
+                    <#ident_type as ::aegis_plugin_sdk::types::Plugin>::render_blocks(&mut plugin, blocks)
+                })
+            }
+        }
+
+        #[no_mangle]
         pub extern "C" fn on_render_page(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = ::aegis_plugin_sdk::abi::read_bytes_from_host(ptr, len);

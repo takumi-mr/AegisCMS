@@ -11,6 +11,8 @@ use aegis_schema::SchemaDefinition;
 use std::collections::HashMap;
 
 use crate::state::AppState;
+use aegis_runtime::AegisPlugin;
+use std::sync::Arc;
 
 /// Blocks after the save-time transforms (what gets stored and later rendered)
 pub struct TransformedBlocks {
@@ -50,6 +52,87 @@ pub fn render_blocks_html(security: &SecurityConfig, blocks: &[BlockNode]) -> St
     let raw_html = HtmlRenderer::render_nodes(blocks);
     let rewriter_config = HtmlRewriterConfig::from(security.clone());
     StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html)
+}
+
+/// Body HTML and the problems met while rendering it (shown in the editor preview)
+pub struct RenderedContent {
+    pub html: String,
+    /// `<plugin>: <error>` for each plugin whose `render-blocks` hook failed
+    pub warnings: Vec<String>,
+}
+
+/// Renders stored blocks to body HTML, including the plugins' custom blocks: a block named
+/// `<plugin>/<block>` that an enabled plugin declares is rendered by that plugin's
+/// `render-blocks` hook (one call per plugin with all of its blocks, in document order). The
+/// plugin's HTML is sanitized like a `core/html` block (no scripts, event attributes or
+/// `javascript:` URLs) inside `<div class="aegis-plugin-block" data-block="...">`. A block the
+/// plugin returns nothing for, or whose plugin fails, shows nothing. Only top-level blocks are
+/// handed to plugins
+pub async fn render_content(state: &AppState, blocks: &[BlockNode]) -> RenderedContent {
+    let mut warnings = Vec::new();
+    let supervisor = state.supervisor.read().await;
+    // プラグインごとの（プラグイン、そのプラグインのブロックの位置）
+    let mut groups: Vec<(&Arc<dyn AegisPlugin>, Vec<usize>)> = Vec::new();
+    for (i, block) in blocks.iter().enumerate() {
+        if let Some(plugin) = supervisor.block_renderer(&block.name) {
+            match groups
+                .iter_mut()
+                .find(|(p, _)| p.manifest().name == plugin.manifest().name)
+            {
+                Some((_, indexes)) => indexes.push(i),
+                None => groups.push((plugin, vec![i])),
+            }
+        }
+    }
+    if groups.is_empty() {
+        return RenderedContent {
+            html: render_blocks_html(&state.config.security, blocks),
+            warnings,
+        };
+    }
+
+    let mut resolved = blocks.to_vec();
+    for (plugin, indexes) in groups {
+        let input: Vec<BlockNode> = indexes.iter().map(|&i| blocks[i].clone()).collect();
+        let rendered = match plugin.render_blocks(input).await {
+            Ok(rendered) => rendered,
+            Err(e) => {
+                tracing::warn!(
+                    "Plugin '{}' failed to render its blocks: {}",
+                    plugin.manifest().name,
+                    e
+                );
+                warnings.push(format!("{}: {}", plugin.manifest().name, e));
+                Vec::new()
+            }
+        };
+        for (k, &i) in indexes.iter().enumerate() {
+            let html = rendered.get(k).cloned().flatten();
+            resolved[i] = plugin_block_html(&blocks[i].name, html);
+        }
+    }
+    RenderedContent {
+        html: render_blocks_html(&state.config.security, &resolved),
+        warnings,
+    }
+}
+
+/// [`render_content`] without the warnings
+pub async fn render_content_html(state: &AppState, blocks: &[BlockNode]) -> String {
+    render_content(state, blocks).await.html
+}
+
+/// A plugin's HTML for one block, as a sanitized `core/html` block (nothing for no HTML)
+fn plugin_block_html(name: &str, html: Option<String>) -> BlockNode {
+    let mut node = BlockNode::new("core/html");
+    if let Some(html) = html.filter(|h| !h.trim().is_empty()) {
+        node.text = Some(format!(
+            "<div class=\"aegis-plugin-block\" data-block=\"{}\">{}</div>",
+            aegis_ast::renderer::escape_html(name),
+            html
+        ));
+    }
+    node
 }
 
 /// Content-specific inputs of a themed page (from a stored record, or from the editor for previews)
@@ -247,5 +330,134 @@ mod tests {
         let html = render_blocks_html(&SecurityConfig::default(), &blocks);
         assert!(html.contains("loading=\"lazy\""), "{}", html);
         assert!(html.contains("decoding=\"async\""), "{}", html);
+    }
+    /// Declares `cards/card` and `cards/broken`; renders each block as its `title` attribute
+    /// (with a script and an event attribute to strip), fails when asked for `cards/broken`
+    struct CardPlugin {
+        manifest: aegis_core::PluginManifest,
+        calls: std::sync::Mutex<Vec<usize>>,
+    }
+
+    #[async_trait::async_trait]
+    impl AegisPlugin for CardPlugin {
+        fn manifest(&self) -> &aegis_core::PluginManifest {
+            &self.manifest
+        }
+
+        async fn render_blocks(
+            &self,
+            blocks: Vec<BlockNode>,
+        ) -> aegis_core::Result<Vec<Option<String>>> {
+            self.calls.lock().unwrap().push(blocks.len());
+            if blocks.iter().any(|b| b.name == "cards/broken") {
+                return Err(aegis_core::AegisError::PluginRuntime("boom".to_string()));
+            }
+            Ok(blocks
+                .iter()
+                .map(|b| {
+                    b.attributes["title"].as_str().map(|t| {
+                        format!(
+                            r#"<p class="card" onclick="x()">{}</p><script>evil()</script>"#,
+                            t
+                        )
+                    })
+                })
+                .collect())
+        }
+    }
+
+    fn card_plugin() -> Arc<CardPlugin> {
+        let manifest: aegis_core::PluginManifest = serde_json::from_value(serde_json::json!({
+            "name": "cards",
+            "version": "1.0.0",
+            "entrypoint": "plugin.wasm",
+            "capabilities": { "hooks": ["render-blocks"] },
+            "blocks": [
+                { "name": "card", "label": "Card", "fields": [{ "name": "title", "type": "string", "label": "Title" }] },
+                { "name": "broken", "label": "Broken" }
+            ]
+        }))
+        .unwrap();
+        Arc::new(CardPlugin {
+            manifest,
+            calls: std::sync::Mutex::new(Vec::new()),
+        })
+    }
+
+    #[tokio::test]
+    async fn test_render_content_renders_plugin_blocks_in_one_call_and_sanitizes_them() {
+        let plugin = card_plugin();
+        let mut supervisor = aegis_runtime::PluginSupervisor::new();
+        supervisor.register(plugin.clone());
+        let state = crate::test_support::test_state(supervisor).await;
+
+        let blocks = vec![
+            block("cards/card", "", serde_json::json!({ "title": "First" })),
+            block("core/paragraph", "between", serde_json::json!({})),
+            block("cards/card", "", serde_json::json!({ "title": "Second" })),
+            // 属性が無く、プラグインが何も返さないブロック
+            block("cards/card", "", serde_json::json!({})),
+            // 宣言されていないブロックは今までどおりカスタム要素
+            block("cards/unknown", "", serde_json::json!({})),
+        ];
+        let rendered = render_content(&state, &blocks).await;
+        assert!(rendered.warnings.is_empty());
+        assert_eq!(*plugin.calls.lock().unwrap(), vec![3]);
+        let html = rendered.html;
+        assert!(
+            html.contains(r#"<div class="aegis-plugin-block" data-block="cards/card"><p class="card">First</p></div>"#),
+            "{}",
+            html
+        );
+        assert!(html.find("First").unwrap() < html.find("between").unwrap());
+        assert!(html.find("between").unwrap() < html.find("Second").unwrap());
+        assert!(
+            !html.contains("script") && !html.contains("onclick"),
+            "{}",
+            html
+        );
+        assert_eq!(html.matches("aegis-plugin-block").count(), 2);
+        assert!(html.contains("<cards-unknown>"));
+    }
+
+    #[tokio::test]
+    async fn test_a_failing_plugin_shows_nothing_and_reports_a_warning() {
+        let mut supervisor = aegis_runtime::PluginSupervisor::new();
+        supervisor.register(card_plugin());
+        let state = crate::test_support::test_state(supervisor).await;
+
+        let blocks = vec![
+            block("cards/card", "", serde_json::json!({ "title": "Lost" })),
+            block("cards/broken", "", serde_json::json!({})),
+            block("core/paragraph", "kept", serde_json::json!({})),
+        ];
+        let rendered = render_content(&state, &blocks).await;
+        assert_eq!(
+            rendered.warnings,
+            vec!["cards: Plugin runtime error: boom".to_string()]
+        );
+        assert!(!rendered.html.contains("Lost"), "{}", rendered.html);
+        assert!(rendered.html.contains("<p>kept</p>"));
+    }
+
+    #[tokio::test]
+    async fn test_blocks_of_a_plugin_without_the_hook_are_not_rendered_by_it() {
+        let mut manifest = card_plugin().manifest.clone();
+        manifest.capabilities.hooks.clear();
+        let plugin = Arc::new(CardPlugin {
+            manifest,
+            calls: std::sync::Mutex::new(Vec::new()),
+        });
+        let mut supervisor = aegis_runtime::PluginSupervisor::new();
+        supervisor.register(plugin.clone());
+        let state = crate::test_support::test_state(supervisor).await;
+
+        let html = render_content_html(
+            &state,
+            &[block("cards/card", "", serde_json::json!({ "title": "x" }))],
+        )
+        .await;
+        assert!(plugin.calls.lock().unwrap().is_empty());
+        assert!(html.contains("<cards-card>"), "{}", html);
     }
 }

@@ -62,11 +62,18 @@ pub async fn preview_content(
             e
         );
     }
-    let html = render::render_blocks_html(&state.config.security, &transformed.blocks);
+    let rendered = render::render_content(&state, &transformed.blocks).await;
+    let html = rendered.html;
     let mut warnings: Vec<String> = transformed
         .plugin_error
         .map(|e| format!("Plugin hook 'transform-content-ast' failed: {}", e))
         .into_iter()
+        .chain(
+            rendered
+                .warnings
+                .into_iter()
+                .map(|e| format!("Plugin hook 'render-blocks' failed: {}", e)),
+        )
         .collect();
 
     let template = match payload.fields.get("layout").and_then(|v| v.as_str()) {

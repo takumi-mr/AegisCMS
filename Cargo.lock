@@ -210,6 +210,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-blocks"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
 name = "aegis-plugin-code-enhancer"
 version = "0.1.0"
 dependencies = [

@@ -28,6 +28,7 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 | `send-notification` | `send_notification` | `Plugin::send_notification` | `NotificationMessage` | `Delivery` | ✅ 実装済み（通知の配信チャネル。Slack・SMS など。[通知](notifications.md#5-配信方法を加える)） |
 | `on-content-published` | `on_content_published` | `Plugin::on_content_published` | `PublishedContent` | なし | ✅ 実装済み（予約公開などコンテンツ公開時の通知） |
 | `check-comment` | `check_comment` | `Plugin::check_comment` | `CommentSubmission` | `CommentVerdict` | ✅ 実装済み（コメントの審査。スパム判定・承認待ち・投稿の拒否。[コメント](comments.md)） |
+| `render-blocks` | `render_blocks` | `Plugin::render_blocks` | `BlockNode[]`（このプラグインのブロック） | `Option<String>[]`（HTML） | ✅ 実装済み（本文のカスタムブロックの描画。[1.10](#110-render-blocks)） |
 
 - フックを有効にするには、**マニフェストの `capabilities.hooks` にフック名（ケバブケース）を列挙**する必要があります。列挙されていないフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
 - 逆に、マニフェストに列挙されていても該当の関数がエクスポートされていない場合は、入力がそのまま次へ渡されます（エラーにはなりません）。
@@ -215,6 +216,43 @@ fn check_comment(&mut self, comment: CommentSubmission) -> Result<CommentVerdict
 - NG ワード・リンク数で既にスパムと判定した投稿・ハニーポットに掛かった投稿では呼ばれません。
 - ABI の出力は `{"verdict": "allow" | "hold" | "spam", "reason": "..."}`（何も返さない・`verdict` が無ければ `allow`）、断るときは `{"error": "..."}` です。
 
+### 1.10 `render-blocks`
+
+本文に置けるカスタムブロックを提供します。マニフェストの `blocks`（[3.1](#31-カスタムブロック-blocks)）で宣言したブロックは Admin Studio のツールバーに並び、宣言した入力欄のフォームで編集できます。保存される名前は `<プラグイン名>/<ブロック名>`、入力値は `attributes` です。
+
+```rust
+fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>>;
+```
+
+- **呼ばれるとき**: 公開ページ（記事・固定ページ・商品）・フィード・コンテンツ API の `rendered_html`・エディタのプレビューで、**表示のたび**に呼ばれます。1 回の描画につきプラグインごとに 1 回、そのプラグインのブロックが文書の順にまとめて渡されます（トップレベルのブロックのみ）。
+- **出力**: 入力と同じ数・同じ順の HTML。`None`（や足りない分）のブロックは何も表示しません。入力が足りない・おかしいブロックは `None` にしてください。
+- **HTML はサニタイズされます**: `<script>`・`<iframe>` などと `on*` 属性・`javascript:` などの URL を取り除いたうえで、`<div class="aegis-plugin-block" data-block="<名前>">` に包んで出力します（カスタム HTML ブロックの標準モードと同じ）。`<style>` と `style` 属性は残ります。スクリプトが必要な場合は `on-render-page` で `extra_head` に足してください（`official-code-enhancer` と同じ方法）。
+- **見た目**: まとめて渡されるので、`<style>` は最初のブロックに 1 回だけ付けられます。`:where()` で詳細度を 0 にするとテーマの CSS で上書きしやすくなりますが、リンクの色・下線はテーマの本文のリンクの指定（`.prose a` など）に負けるので、クラス 2 つ程度の詳細度にしてください（`official-blocks` を参照）。
+- **失敗**: トラップ・タイムアウト・不正な JSON などのとき、そのプラグインのブロックは何も表示せず、警告ログを残します（ページの表示は続けます）。プレビューでは `warnings` に表示します。
+- **プラグインが無効なとき**: ブロックはそのまま保存され、Admin Studio には「プラグインが無効」と表示されます。公開ページには表示されません（中身の無いカスタム要素になります）。
+- **性能**: 表示のたびに Wasm を呼ぶため、`http::fetch` で外部の API を呼ぶとその分だけ表示が遅くなります。CDN のキャッシュ（[`[cdn]`](configuration.md#217-cdn--on-demand-cache-tag-purge-cdn-エッジキャッシュ連携)）と組み合わせるか、外部のデータは別の手段で用意してください。
+- ABI の入力は `{"blocks": [BlockNode, ...]}`、出力は `{"html": [string | null, ...]}`、失敗は `{"error": "..."}` です。
+
+```rust
+impl Plugin for MyBlocks {
+    fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
+        Ok(blocks
+            .iter()
+            .map(|b| match b.name.as_str() {
+                "my-blocks/note" => b
+                    .attributes
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .map(|t| format!("<p class=\"my-note\">{}</p>", escape(t))),
+                _ => None,
+            })
+            .collect())
+    }
+}
+```
+
+属性の値は利用者が入力したものです。HTML に入れるときは必ずエスケープしてください（サニタイズはスクリプトを取り除くだけで、レイアウトを壊すタグは残ります）。
+
 ---
 
 ## 2. フックに渡されるデータ型
@@ -389,6 +427,39 @@ SDK ヘルパー:
 | `resource_limits` | object | | 省略した項目（または全体）はサーバー設定 `[runtime].default_*` で補われる（下記） |
 
 有効にしたプラグインのマニフェストが読めない、`name` とディレクトリ名が違う、`entrypoint` のファイルが無い、ホストに無い関数をインポートしている（[ABI 仕様](plugin_abi_specification.md#3-ホスト-api-インポート仕様-host-モジュール)）場合は、**サーバーが起動しません**。アクセス制限などを実装したプラグインが黙って外れたまま動き続けることを防ぐためです。有効にしていないプラグインの不備は警告ログと `aegis plugin list` に表示されます。
+
+### 3.1 カスタムブロック (`blocks`)
+
+`render-blocks` フック（[1.10](#110-render-blocks)）で描画するブロックを宣言します。`blocks` があるのに `capabilities.hooks` に `render-blocks` が無いマニフェストは読み込めません。
+
+```json
+"capabilities": { "hooks": ["render-blocks"] },
+"blocks": [
+  {
+    "name": "button",
+    "label": { "en": "Button", "ja": "ボタン" },
+    "description": { "en": "A link styled as a button", "ja": "ボタンの形のリンク" },
+    "fields": [
+      { "name": "label", "type": "string", "label": { "en": "Label", "ja": "ボタンの文字" }, "required": true },
+      { "name": "url", "type": "url", "label": "URL", "required": true, "placeholder": "https://" },
+      { "name": "style", "type": "select", "label": "Style", "default": "primary",
+        "options": [{ "value": "primary", "label": "Filled" }, { "value": "secondary", "label": "Outline" }] }
+    ]
+  }
+]
+```
+
+| キー | 説明 |
+| --- | --- |
+| `name` | ブロック名（プラグイン名と同じ形式）。本文には `<プラグイン名>/<name>` で保存する |
+| `label` / `description` | Admin Studio に出す名前・説明。文字列か、言語ごとの `{"en": ..., "ja": ...}`（Admin Studio の言語 → 英語 → 最初のものの順に使う） |
+| `fields[].name` | 属性名（英字で始まり、英数字と `_`）。値は `attributes.<name>` |
+| `fields[].type` | `string`（1 行）/ `text`（複数行）/ `url` / `number` / `boolean` / `select`（`options` が必要）/ `image`（URL。アップロード・メディアライブラリから選べる） |
+| `fields[].label` / `placeholder` / `help` | 入力欄の名前・プレースホルダー・説明（`label` と同じく言語ごとにできる） |
+| `fields[].required` | 空のとき、エディタに注意を出す（保存は止めない） |
+| `fields[].default` | 新しく置いたブロックの初期値 |
+
+宣言の不備（名前の形式・重複、選択肢の無い `select`、知らない `type`）があると、そのプラグインを有効にしたサーバーは起動しません。
 
 ## 4. リソース制限 (`resource_limits`)
 

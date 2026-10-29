@@ -130,6 +130,10 @@ impl Plugin for MyPlugin {
 
 ---
 
+### 2.4 本文のカスタムブロックを足す
+
+マニフェストの `blocks` でブロックと入力欄を宣言し、`capabilities.hooks` に `render-blocks` を加えて `Plugin::render_blocks` を実装すると、Admin Studio のエディタに自分のブロックを足せます。宣言の形式とフックの決まりは [フック & ホスト API 1.10 / 3.1](./plugin_hooks.md#110-render-blocks)、動く例は公式プラグイン [`plugins/official-blocks`](../plugins/official-blocks) にあります。
+
 ## 3. ホスト API リファレンス
 
 SDK からインポートして使用できる標準 API です。

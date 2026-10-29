@@ -1,9 +1,9 @@
 use crate::guard::CapabilityGuard;
 use aegis_ast::BlockNode;
 use aegis_core::{
-    AegisError, CommentSubmission, CommentVerdict, Delivered, NotificationMessage, OrderContext,
-    OrderStatusChange, PluginManifest, PostContext, PublishedContent, Result, SendError,
-    UserAuthContext,
+    AegisError, BlockDefinition, CommentSubmission, CommentVerdict, Delivered, NotificationMessage,
+    OrderContext, OrderStatusChange, PluginManifest, PostContext, PublishedContent, Result,
+    SendError, UserAuthContext,
 };
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -88,6 +88,15 @@ pub trait AegisPlugin: Send + Sync {
         Ok(Delivered::Skipped)
     }
 
+    /// 本文のカスタムブロック（マニフェストの `blocks`）を HTML にする（`render-blocks`）。
+    /// 返す配列は `blocks` と同じ順で、`None` や足りない分のブロックは何も表示しない
+    async fn render_blocks(&self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
+        let guard = CapabilityGuard::new(self.manifest());
+        guard.check_hook("render-blocks")?;
+        let _ = blocks;
+        Ok(Vec::new())
+    }
+
     fn provide_templates(&self) -> HashMap<String, String> {
         HashMap::new()
     }
@@ -138,6 +147,29 @@ impl PluginSupervisor {
     /// 登録済みのプラグイン（フックの実行順）
     pub fn plugins(&self) -> &[Arc<dyn AegisPlugin>] {
         &self.plugins
+    }
+
+    /// 本文に置けるカスタムブロックの宣言（`render-blocks` を宣言したプラグインのもの。実行順）。
+    /// 組は（プラグイン名, 宣言）
+    pub fn block_definitions(&self) -> Vec<(String, BlockDefinition)> {
+        self.plugins
+            .iter()
+            .filter(|p| declares_hook(p.as_ref(), "render-blocks"))
+            .flat_map(|p| {
+                let name = p.manifest().name.clone();
+                p.manifest()
+                    .blocks
+                    .iter()
+                    .map(move |b| (name.clone(), b.clone()))
+            })
+            .collect()
+    }
+
+    /// 本文のブロック名（`<プラグイン名>/<ブロック名>`）を描画するプラグイン
+    pub fn block_renderer(&self, block_name: &str) -> Option<&Arc<dyn AegisPlugin>> {
+        self.plugins.iter().find(|p| {
+            declares_hook(p.as_ref(), "render-blocks") && p.manifest().declares_block(block_name)
+        })
     }
 
     /// 名前でプラグインを探す

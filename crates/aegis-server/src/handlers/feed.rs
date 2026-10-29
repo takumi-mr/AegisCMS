@@ -155,7 +155,7 @@ async fn build_feed(
             .filter(|s| !s.is_empty())
             .map(str::to_string)
             .unwrap_or_else(|| extract_excerpt(&blocks, 200));
-        let content_html = render::render_blocks_html(&state.config.security, &blocks);
+        let content_html = render::render_content_html(state, &blocks).await;
 
         entries.push_str("  <entry>\n");
         entries.push_str(&format!(

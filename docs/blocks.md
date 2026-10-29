@@ -24,7 +24,7 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 | `core/separator` | | `---`（`***`・`___` も可） | `<hr>` |
 | `core/html` | `mode`（`sanitized` / `sandbox`） | ` ```html ` / ` ```html:sandbox ` | [カスタム HTML](theme_authoring_guide.md#31-どの-url-でどのテンプレートが使われるか) |
 
-知らない名前のブロック（プラグインが足したものなど）は、名前の `/` を `-` にしたカスタム要素（`<my-plugin-card>`）として出力します。
+`<プラグイン名>/<ブロック名>` のブロックは、そのプラグインが描画します（[4. プラグインのブロック](#4-プラグインのブロック)）。それ以外の知らない名前のブロックは、名前の `/` を `-` にしたカスタム要素（`<my-plugin-card>`）として出力します。
 
 ### 1.1 表
 
@@ -99,3 +99,22 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 /* 例: 注記の「警告」の色をテーマの色に合わせる */
 .aegis-callout-warning { --aegis-callout: #c2410c; }
 ```
+
+## 4. プラグインのブロック
+
+Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）とリンクカード（`official-blocks/link-card`）が例です。
+
+- 有効なプラグインのブロックは、Admin Studio のブロックの追加ボタンに並びます（`GET /api/v1/blocks`）。編集画面には、プラグインのマニフェストで宣言した入力欄のフォームが出ます。
+- 保存するのはブロック名と属性だけで、HTML は**表示のたびに**プラグインが作ります。プラグインを更新すると、保存し直さなくても表示が変わります。
+- プラグインが返した HTML は、カスタム HTML ブロックの標準モードと同じくサニタイズしてから出力します（`<script>`・`on*` 属性・`javascript:` の URL などは残りません）。外側は `<div class="aegis-plugin-block" data-block="<名前>">` です。
+- プラグインを無効にしてもブロックは消えません。Admin Studio には「プラグインが無効」と表示され、公開ページには表示されません。
+
+Markdown では 1 行で書き、属性は JSON のオブジェクトです（属性が無ければ省略できます）。
+
+```markdown
+::: official-blocks/button {"label": "はじめる", "url": "/docs/start", "style": "primary"}
+
+::: official-blocks/link-card {"url": "https://github.com/takumi-mr/aegiscms", "title": "AegisCMS"}
+```
+
+JSON として読めない行は、そのまま段落になります。

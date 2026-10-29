@@ -191,6 +191,37 @@ where
     }
 }
 
+/// カスタムブロックの描画フック（`render-blocks`）の共通処理: 入力 `{"blocks": [...]}` を読み、
+/// 結果を `{"html": [...]}` で書き戻す。`Err` は `{"error": ...}`（ホストはそのブロックを出さない）
+///
+/// # Safety
+/// `ptr` / `len` はホストが `allocate` で確保して書き込んだ領域であること
+pub unsafe fn run_render_blocks_hook(
+    ptr: i32,
+    len: i32,
+    f: impl FnOnce(
+        Vec<crate::types::BlockNode>,
+    ) -> crate::types::Result<Vec<Option<std::string::String>>>,
+) -> i64 {
+    #[derive(serde::Deserialize)]
+    struct Input {
+        #[serde(default)]
+        blocks: Vec<crate::types::BlockNode>,
+    }
+    let in_bytes = read_bytes_from_host(ptr, len);
+    let input: Input = match serde_json::from_slice(&in_bytes) {
+        Ok(input) => input,
+        Err(e) => return write_error_to_host(&format!("Invalid render-blocks input: {}", e)),
+    };
+    match f(input.blocks) {
+        Ok(html) => match serde_json::to_vec(&serde_json::json!({ "html": html })) {
+            Ok(bytes) => write_bytes_to_host(bytes),
+            Err(e) => write_error_to_host(&format!("Failed to serialize the HTML: {}", e)),
+        },
+        Err(e) => write_error_to_host(&e.to_string()),
+    }
+}
+
 /// 結果を返さない通知フックの共通処理（成功なら 0、`Err` なら `{"error": ...}`）
 ///
 /// # Safety

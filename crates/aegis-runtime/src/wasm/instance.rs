@@ -217,6 +217,28 @@ fn parse_object_output<T: serde::Serialize + serde::de::DeserializeOwned>(
     serde_json::from_value(merged).map_err(invalid)
 }
 
+/// `render-blocks` の結果 `{"html": [string | null, ...]}`（`{"error": ...}` は失敗）
+fn parse_rendered_blocks(out: &[u8]) -> Result<Vec<Option<String>>> {
+    #[derive(serde::Deserialize)]
+    struct Rendered {
+        #[serde(default)]
+        html: Vec<Option<String>>,
+        #[serde(default)]
+        error: Option<serde_json::Value>,
+    }
+    let rendered: Rendered = serde_json::from_slice(out).map_err(|e| {
+        AegisError::Serialization(format!("Invalid render-blocks result returned: {}", e))
+    })?;
+    if let Some(error) = rendered.error {
+        let message = error
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| error.to_string());
+        return Err(AegisError::PluginRuntime(message));
+    }
+    Ok(rendered.html)
+}
+
 fn to_json<T: serde::Serialize>(value: &T) -> Result<Vec<u8>> {
     serde_json::to_vec(value).map_err(|e| AegisError::Serialization(e.to_string()))
 }
@@ -250,6 +272,17 @@ impl AegisPlugin for WasmPluginInstance {
                 AegisError::Serialization(format!("Invalid BlockNode array returned: {}", e))
             }),
             None => Ok(blocks),
+        }
+    }
+
+    async fn render_blocks(&self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
+        let input = to_json(&serde_json::json!({ "blocks": blocks }))?;
+        match self
+            .call_hook("render-blocks", "render_blocks", &input)
+            .await?
+        {
+            Some(out) => parse_rendered_blocks(&out),
+            None => Ok(Vec::new()),
         }
     }
 
@@ -435,6 +468,17 @@ fn parse_delivery_output(
 #[cfg(test)]
 mod delivery_output_tests {
     use super::*;
+
+    #[test]
+    fn parses_the_render_blocks_result() {
+        assert_eq!(
+            parse_rendered_blocks(br#"{"html": ["<p>a</p>", null]}"#).unwrap(),
+            vec![Some("<p>a</p>".to_string()), None]
+        );
+        assert!(parse_rendered_blocks(b"{}").unwrap().is_empty());
+        assert!(parse_rendered_blocks(br#"{"error": "boom"}"#).is_err());
+        assert!(parse_rendered_blocks(b"[1]").is_err());
+    }
 
     #[test]
     fn parses_the_check_comment_result() {

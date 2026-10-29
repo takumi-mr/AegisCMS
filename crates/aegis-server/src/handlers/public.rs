@@ -415,7 +415,7 @@ pub async fn render_article(
 
     // AST から HTML 変換 & ストリーミングリライター適用
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
-    let content_html = render::render_blocks_html(&state.config.security, &blocks);
+    let content_html = render::render_content_html(&state, &blocks).await;
 
     let mut tags = crate::cdn::CacheTags::new();
     tags.add_url(&format!("/articles/{}", record.slug));
@@ -476,7 +476,7 @@ async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<R
         })?;
 
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
-    let content_html = render::render_blocks_html(&state.config.security, &blocks);
+    let content_html = render::render_content_html(state, &blocks).await;
 
     let comments = comments::page_section(state, "page", &record.id).await;
     let template = match record.custom_fields.get("layout").and_then(|v| v.as_str()) {
@@ -543,7 +543,7 @@ pub async fn render_page_or_slug(
             if is_currently_published(&record.status, record.unpublish_at.as_deref(), now) {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
-                let content_html = render::render_blocks_html(&state.config.security, &blocks);
+                let content_html = render::render_content_html(&state, &blocks).await;
 
                 let mut tags = crate::cdn::CacheTags::new();
                 tags.add_url(&format!("/{}", record.slug));

@@ -364,7 +364,7 @@ async fn run_save_pipeline(
         }
     };
 
-    let rendered_html = render::render_blocks_html(&state.config.security, &saved.blocks);
+    let rendered_html = render::render_content_html(state, &saved.blocks).await;
 
     // 3. カスタムフィールドの抽出
     let custom_fields = schema
@@ -827,7 +827,7 @@ pub async fn restore_content_version(
         )
         .await;
     let blocks: Vec<BlockNode> = serde_json::from_str(&restored.blocks_json).unwrap_or_default();
-    let html = render::render_blocks_html(&state.config.security, &blocks);
+    let html = render::render_content_html(&state, &blocks).await;
     Ok(Json(
         content_response(&state, &schema, restored, blocks, html).await,
     ))
@@ -961,13 +961,11 @@ pub async fn list_content(
         _ => None,
     };
 
-    let list: Vec<ContentResponse> = page
-        .records
-        .into_iter()
-        .zip(relations)
-        .map(|(r, relations)| {
+    let mut list: Vec<ContentResponse> = Vec::with_capacity(page.records.len());
+    for (r, relations) in page.records.into_iter().zip(relations) {
+        list.push({
             let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
-            let rendered_html = render::render_blocks_html(&state.config.security, &blocks);
+            let rendered_html = render::render_content_html(&state, &blocks).await;
             let comments_open = comment_settings.as_ref().and_then(|settings| {
                 state
                     .comments
@@ -992,8 +990,8 @@ pub async fn list_content(
                 fields: r.custom_fields,
                 relations,
             }
-        })
-        .collect();
+        });
+    }
 
     Ok(Json(json!({
         "contents": list,
@@ -1033,7 +1031,7 @@ pub async fn get_content(
     match maybe_record {
         Some(r) => {
             let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
-            let rendered_html = render::render_blocks_html(&state.config.security, &blocks);
+            let rendered_html = render::render_content_html(&state, &blocks).await;
             let relations = {
                 let schemas = state.schemas.read().await;
                 resolve_relations_for_item(&*state.db, &schemas, &schema_clone, &r.custom_fields)

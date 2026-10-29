@@ -99,6 +99,34 @@ pub(crate) async fn refresh_plugin_settings(state: &AppState, plugin_name: &str)
 
 /// `GET /api/v1/plugins` — インストール済み・有効化済みのプラグイン一覧（admin 権限必須）。
 /// 有効なもの（有効化リストの順 = フックの実行順）→ 無効なもの（名前順）の順に返す
+/// `GET /api/v1/blocks` — 本文に置けるプラグインのカスタムブロック（有効なプラグインのマニフェストの
+/// `blocks`）。`name` は本文に保存する名前（`<プラグイン名>/<ブロック名>`）。Admin Studio の
+/// ブロックの追加と属性のフォームに使う
+pub async fn list_blocks(
+    State(state): State<Arc<AppState>>,
+    _session: crate::auth::ViewerSession,
+) -> Json<serde_json::Value> {
+    let supervisor = state.supervisor.read().await;
+    let blocks: Vec<serde_json::Value> = supervisor
+        .block_definitions()
+        .into_iter()
+        .map(|(plugin, block)| {
+            let display_name = supervisor
+                .plugin(&plugin)
+                .and_then(|p| p.manifest().display_name.clone())
+                .unwrap_or_else(|| plugin.clone());
+            let mut value = serde_json::to_value(&block).unwrap_or_default();
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert("name".into(), json!(format!("{}/{}", plugin, block.name)));
+                obj.insert("plugin".into(), json!(plugin));
+                obj.insert("plugin_display_name".into(), json!(display_name));
+            }
+            value
+        })
+        .collect();
+    Json(json!({ "blocks": blocks }))
+}
+
 pub async fn list_plugins(
     State(state): State<Arc<AppState>>,
     RequireRole(_session): AdminSession,
@@ -1143,6 +1171,59 @@ mod tests {
             .unwrap_err()
             .0,
             StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_blocks_returns_the_blocks_of_plugins_with_the_hook() {
+        struct BlocksOnly(aegis_core::PluginManifest);
+        #[async_trait::async_trait]
+        impl aegis_runtime::AegisPlugin for BlocksOnly {
+            fn manifest(&self) -> &aegis_core::PluginManifest {
+                &self.0
+            }
+        }
+        let manifest = |name: &str, hooks: serde_json::Value| -> aegis_core::PluginManifest {
+            serde_json::from_value(json!({
+                "name": name,
+                "version": "1.0.0",
+                "entrypoint": "plugin.wasm",
+                "display_name": "Cards",
+                "capabilities": { "hooks": hooks },
+                "blocks": [{ "name": "card", "label": { "en": "Card", "ja": "カード" },
+                             "fields": [{ "name": "title", "type": "string", "label": "Title" }] }]
+            }))
+            .unwrap()
+        };
+        let mut supervisor = PluginSupervisor::new();
+        supervisor.register(Arc::new(BlocksOnly(manifest(
+            "cards",
+            json!(["render-blocks"]),
+        ))));
+        supervisor.register(Arc::new(BlocksOnly(manifest("nohook", json!([])))));
+        let state = crate::test_support::test_state(supervisor).await;
+
+        let Json(body) = list_blocks(
+            State(state),
+            RequireRole(SessionData {
+                id: "s".to_string(),
+                user_id: "u".to_string(),
+                role: "viewer".to_string(),
+                created_at: String::new(),
+                expires_at: String::new(),
+                metadata: Default::default(),
+            }),
+        )
+        .await;
+        assert_eq!(
+            body,
+            json!({ "blocks": [{
+                "name": "cards/card",
+                "plugin": "cards",
+                "plugin_display_name": "Cards",
+                "label": { "en": "Card", "ja": "カード" },
+                "fields": [{ "name": "title", "type": "string", "label": "Title", "required": false }]
+            }] })
         );
     }
 }
