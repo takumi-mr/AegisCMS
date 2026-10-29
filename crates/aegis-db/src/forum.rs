@@ -1,4 +1,4 @@
-//! 掲示板テーブル（`_aegis_forum_categories`, `_aegis_forum_threads`, `_aegis_forum_posts`）とストレージ。
+//! 掲示板テーブル（`_aegis_forum_categories`, `_aegis_forum_threads`, `_aegis_forum_posts`, `_aegis_forum_reports`）とストレージ。
 //! SQLite / PostgreSQL / MySQL の 3 つのダイアレクトで SQL を共有し、
 //! キーセット（カーソル）ページネーションで高速にスレッド・投稿を取得する。
 
@@ -12,6 +12,8 @@ pub const FORUM_CATEGORY_TABLE: &str = "_aegis_forum_categories";
 pub const FORUM_THREAD_TABLE: &str = "_aegis_forum_threads";
 /// 投稿（レス）のテーブル名
 pub const FORUM_POST_TABLE: &str = "_aegis_forum_posts";
+/// 通報のテーブル名
+pub const FORUM_REPORT_TABLE: &str = "_aegis_forum_reports";
 
 pub const CATEGORY_COLUMNS: [&str; 8] = [
     "id",
@@ -24,12 +26,13 @@ pub const CATEGORY_COLUMNS: [&str; 8] = [
     "updated_at",
 ];
 
-pub const THREAD_COLUMNS: [&str; 11] = [
+pub const THREAD_COLUMNS: [&str; 12] = [
     "id",
     "category_id",
     "title",
     "author_id",
     "author_name",
+    "status",
     "is_pinned",
     "is_locked",
     "post_count",
@@ -38,13 +41,14 @@ pub const THREAD_COLUMNS: [&str; 11] = [
     "updated_at",
 ];
 
-pub const POST_COLUMNS: [&str; 13] = [
+pub const POST_COLUMNS: [&str; 14] = [
     "id",
     "thread_id",
     "post_number",
     "author_id",
     "author_name",
     "body",
+    "status",
     "reply_to_post_id",
     "reply_to_number",
     "is_deleted",
@@ -53,6 +57,24 @@ pub const POST_COLUMNS: [&str; 13] = [
     "created_at",
     "updated_at",
 ];
+
+pub const REPORT_COLUMNS: [&str; 11] = [
+    "id",
+    "target_type",
+    "target_id",
+    "thread_id",
+    "reason",
+    "reporter_id",
+    "reporter_ip",
+    "status",
+    "resolved_by",
+    "created_at",
+    "updated_at",
+];
+
+fn default_approved_status() -> String {
+    "approved".to_string()
+}
 
 /// カテゴリ（板）のレコード
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -75,6 +97,8 @@ pub struct ForumThreadRecord {
     pub title: String,
     pub author_id: Option<String>,
     pub author_name: String,
+    #[serde(default = "default_approved_status")]
+    pub status: String,
     pub is_pinned: bool,
     pub is_locked: bool,
     pub post_count: u64,
@@ -92,6 +116,8 @@ pub struct ForumPostRecord {
     pub author_id: Option<String>,
     pub author_name: String,
     pub body: String,
+    #[serde(default = "default_approved_status")]
+    pub status: String,
     pub reply_to_post_id: Option<String>,
     pub reply_to_number: Option<u64>,
     pub is_deleted: bool,
@@ -101,10 +127,28 @@ pub struct ForumPostRecord {
     pub updated_at: String,
 }
 
+/// 通報のレコード
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ForumReportRecord {
+    pub id: String,
+    pub target_type: String,
+    pub target_id: String,
+    pub thread_id: String,
+    pub reason: String,
+    pub reporter_id: Option<String>,
+    pub reporter_ip: Option<String>,
+    pub status: String,
+    pub resolved_by: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// スレッド一覧取得条件（キーセットページネーション対応）
 #[derive(Debug, Clone, Default)]
 pub struct ThreadListQuery {
     pub category_id: Option<String>,
+    /// `approved` / `pending` / `spam` / `trash`（`None` はすべての状態）
+    pub status: Option<String>,
     /// キーセット: カーソル (last_post_at, id)
     pub before_last_post_at: Option<String>,
     pub before_id: Option<String>,
@@ -115,6 +159,8 @@ pub struct ThreadListQuery {
 #[derive(Debug, Clone, Default)]
 pub struct PostListQuery {
     pub thread_id: String,
+    /// `approved` / `pending` / `spam` / `trash`（`None` はすべての状態）
+    pub status: Option<String>,
     /// キーセット: 指定した post_number より後のレスを取得（0なら最初から）
     pub after_post_number: u64,
     pub limit: u64,
@@ -140,13 +186,36 @@ pub trait ForumStorage: Send + Sync {
     async fn list_threads(&self, query: &ThreadListQuery) -> Result<Vec<ForumThreadRecord>>;
     async fn set_thread_pinned(&self, id: &str, pinned: bool, updated_at: &str) -> Result<bool>;
     async fn set_thread_locked(&self, id: &str, locked: bool, updated_at: &str) -> Result<bool>;
+    async fn set_thread_status(&self, id: &str, status: &str, updated_at: &str) -> Result<bool>;
     async fn delete_thread(&self, id: &str) -> Result<bool>;
 
     // 投稿操作
     async fn insert_post(&self, post: &mut ForumPostRecord) -> Result<u64>;
     async fn get_post(&self, id: &str) -> Result<Option<ForumPostRecord>>;
     async fn list_posts(&self, query: &PostListQuery) -> Result<Vec<ForumPostRecord>>;
+    async fn set_post_status(&self, id: &str, status: &str, updated_at: &str) -> Result<bool>;
     async fn delete_post(&self, id: &str, updated_at: &str) -> Result<bool>;
+    async fn has_approved_forum_post(
+        &self,
+        author_name: &str,
+        author_id: Option<&str>,
+    ) -> Result<bool>;
+
+    // 通報操作
+    async fn insert_report(&self, report: &ForumReportRecord) -> Result<()>;
+    async fn get_report(&self, id: &str) -> Result<Option<ForumReportRecord>>;
+    async fn list_reports(
+        &self,
+        status: Option<&str>,
+        limit: u64,
+    ) -> Result<Vec<ForumReportRecord>>;
+    async fn set_report_status(
+        &self,
+        id: &str,
+        status: &str,
+        resolved_by: Option<&str>,
+        updated_at: &str,
+    ) -> Result<bool>;
 }
 
 /// テーブル作成 SQL とインデックスの生成
@@ -217,6 +286,7 @@ pub fn build_forum_tables(
          title {text} NOT NULL, \
          author_id {key}, \
          author_name {text} NOT NULL, \
+         status {key} NOT NULL DEFAULT 'approved', \
          is_pinned {bigint} NOT NULL DEFAULT 0, \
          is_locked {bigint} NOT NULL DEFAULT 0, \
          post_count {bigint} NOT NULL DEFAULT 0, \
@@ -259,6 +329,7 @@ pub fn build_forum_tables(
          author_id {key}, \
          author_name {text} NOT NULL, \
          body {text} NOT NULL, \
+         status {key} NOT NULL DEFAULT 'approved', \
          reply_to_post_id {key}, \
          reply_to_number {bigint}, \
          is_deleted {bigint} NOT NULL DEFAULT 0, \
@@ -277,6 +348,46 @@ pub fn build_forum_tables(
             index_sqls.push(format!(
                 "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
                 name, FORUM_POST_TABLE, cols
+            ));
+        }
+    }
+
+    // 4. Reports
+    let rep_indexes = [
+        ("idx_aegis_forum_rep_status", "status, created_at"),
+        ("idx_aegis_forum_rep_target", "target_type, target_id"),
+    ];
+    let rep_inline = if inline_indexes {
+        rep_indexes
+            .iter()
+            .map(|(name, columns)| format!(", INDEX {} ({})", name, columns))
+            .collect::<String>()
+    } else {
+        String::new()
+    };
+    table_sqls.push(format!(
+        "CREATE TABLE IF NOT EXISTS {table} (\
+         id {key} PRIMARY KEY, \
+         target_type {key} NOT NULL, \
+         target_id {key} NOT NULL, \
+         thread_id {key} NOT NULL, \
+         reason {text} NOT NULL, \
+         reporter_id {key}, \
+         reporter_ip {key}, \
+         status {key} NOT NULL DEFAULT 'open', \
+         resolved_by {key}, \
+         created_at {key} NOT NULL, \
+         updated_at {key} NOT NULL{inline});",
+        table = FORUM_REPORT_TABLE,
+        key = key,
+        text = text,
+        inline = rep_inline,
+    ));
+    if !inline_indexes {
+        for (name, cols) in rep_indexes {
+            index_sqls.push(format!(
+                "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
+                name, FORUM_REPORT_TABLE, cols
             ));
         }
     }
@@ -311,6 +422,7 @@ macro_rules! forum_th_row_from_sqlx {
             title: row.try_get("title").map_err(get)?,
             author_id: row.try_get("author_id").map_err(get)?,
             author_name: row.try_get("author_name").map_err(get)?,
+            status: row.try_get("status").map_err(get)?,
             is_pinned: row.try_get::<i64, _>("is_pinned").map_err(get)? != 0,
             is_locked: row.try_get::<i64, _>("is_locked").map_err(get)? != 0,
             post_count: row.try_get::<i64, _>("post_count").map_err(get)? as u64,
@@ -332,6 +444,7 @@ macro_rules! forum_post_row_from_sqlx {
             author_id: row.try_get("author_id").map_err(get)?,
             author_name: row.try_get("author_name").map_err(get)?,
             body: row.try_get("body").map_err(get)?,
+            status: row.try_get("status").map_err(get)?,
             reply_to_post_id: row.try_get("reply_to_post_id").map_err(get)?,
             reply_to_number: row
                 .try_get::<Option<i64>, _>("reply_to_number")
@@ -346,8 +459,29 @@ macro_rules! forum_post_row_from_sqlx {
     }};
 }
 
+macro_rules! forum_rep_row_from_sqlx {
+    ($row:expr) => {{
+        let row = $row;
+        let get = |e: sqlx::Error| aegis_core::AegisError::Database(e.to_string());
+        $crate::forum::ForumReportRecord {
+            id: row.try_get("id").map_err(get)?,
+            target_type: row.try_get("target_type").map_err(get)?,
+            target_id: row.try_get("target_id").map_err(get)?,
+            thread_id: row.try_get("thread_id").map_err(get)?,
+            reason: row.try_get("reason").map_err(get)?,
+            reporter_id: row.try_get("reporter_id").map_err(get)?,
+            reporter_ip: row.try_get("reporter_ip").map_err(get)?,
+            status: row.try_get("status").map_err(get)?,
+            resolved_by: row.try_get("resolved_by").map_err(get)?,
+            created_at: row.try_get("created_at").map_err(get)?,
+            updated_at: row.try_get("updated_at").map_err(get)?,
+        }
+    }};
+}
+
 pub(crate) use forum_cat_row_from_sqlx;
 pub(crate) use forum_post_row_from_sqlx;
+pub(crate) use forum_rep_row_from_sqlx;
 pub(crate) use forum_th_row_from_sqlx;
 
 macro_rules! impl_forum_storage {
@@ -504,7 +638,7 @@ macro_rules! impl_forum_storage {
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
                 let ph = $ph;
 
-                let th_placeholders: Vec<String> = (1..=11).map(&ph).collect();
+                let th_placeholders: Vec<String> = (1..=12).map(&ph).collect();
                 let th_sql = format!(
                     "INSERT INTO {} ({}) VALUES ({});",
                     $crate::forum::FORUM_THREAD_TABLE,
@@ -512,13 +646,24 @@ macro_rules! impl_forum_storage {
                     th_placeholders.join(", ")
                 );
 
-                let post_placeholders: Vec<String> = (1..=13).map(&ph).collect();
+                let post_placeholders: Vec<String> = (1..=14).map(&ph).collect();
                 let post_sql = format!(
                     "INSERT INTO {} ({}) VALUES ({});",
                     $crate::forum::FORUM_POST_TABLE,
                     $crate::forum::POST_COLUMNS.join(", "),
                     post_placeholders.join(", ")
                 );
+
+                let th_status = if thread.status.is_empty() {
+                    "approved"
+                } else {
+                    thread.status.as_str()
+                };
+                let post_status = if first_post.status.is_empty() {
+                    th_status
+                } else {
+                    first_post.status.as_str()
+                };
 
                 let mut tx = self.pool.begin().await.map_err(db_err)?;
 
@@ -528,6 +673,7 @@ macro_rules! impl_forum_storage {
                     .bind(&thread.title)
                     .bind(&thread.author_id)
                     .bind(&thread.author_name)
+                    .bind(th_status)
                     .bind(i64::from(thread.is_pinned))
                     .bind(i64::from(thread.is_locked))
                     .bind(thread.post_count as i64)
@@ -545,6 +691,7 @@ macro_rules! impl_forum_storage {
                     .bind(&first_post.author_id)
                     .bind(&first_post.author_name)
                     .bind(&first_post.body)
+                    .bind(post_status)
                     .bind(&first_post.reply_to_post_id)
                     .bind(first_post.reply_to_number.map(|n| n as i64))
                     .bind(i64::from(first_post.is_deleted))
@@ -597,6 +744,11 @@ macro_rules! impl_forum_storage {
                 if let Some(cat_id) = &query.category_id {
                     binds.push(cat_id.clone());
                     conds.push(format!("category_id = {}", ph(binds.len())));
+                }
+
+                if let Some(status) = &query.status {
+                    binds.push(status.clone());
+                    conds.push(format!("status = {}", ph(binds.len())));
                 }
 
                 if let (Some(last_at), Some(bid)) = (&query.before_last_post_at, &query.before_id) {
@@ -689,6 +841,51 @@ macro_rules! impl_forum_storage {
                 Ok(res.rows_affected() > 0)
             }
 
+            async fn set_thread_status(
+                &self,
+                id: &str,
+                status: &str,
+                updated_at: &str,
+            ) -> aegis_core::Result<bool> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let mut tx = self.pool.begin().await.map_err(db_err)?;
+
+                let sql = format!(
+                    "UPDATE {} SET status = {}, updated_at = {} WHERE id = {};",
+                    $crate::forum::FORUM_THREAD_TABLE,
+                    ph(1), ph(2), ph(3)
+                );
+                let res = sqlx::query(&sql)
+                    .bind(status)
+                    .bind(updated_at)
+                    .bind(id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db_err)?;
+                if res.rows_affected() == 0 {
+                    return Ok(false);
+                }
+
+                // 1 番目のレス（スレッド本文）も同じ状態に揃える
+                let post_sql = format!(
+                    "UPDATE {} SET status = {}, updated_at = {} WHERE thread_id = {} AND post_number = 1;",
+                    $crate::forum::FORUM_POST_TABLE,
+                    ph(1), ph(2), ph(3)
+                );
+                sqlx::query(&post_sql)
+                    .bind(status)
+                    .bind(updated_at)
+                    .bind(id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db_err)?;
+
+                tx.commit().await.map_err(db_err)?;
+                Ok(true)
+            }
+
             async fn delete_thread(&self, id: &str) -> aegis_core::Result<bool> {
                 let db_err =
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
@@ -765,8 +962,13 @@ macro_rules! impl_forum_storage {
                     .map_err(db_err)?;
 
                 post.post_number = post_count as u64;
+                let post_status = if post.status.is_empty() {
+                    "approved"
+                } else {
+                    post.status.as_str()
+                };
 
-                let post_placeholders: Vec<String> = (1..=13).map(&ph).collect();
+                let post_placeholders: Vec<String> = (1..=14).map(&ph).collect();
                 let insert_sql = format!(
                     "INSERT INTO {} ({}) VALUES ({});",
                     $crate::forum::FORUM_POST_TABLE,
@@ -781,6 +983,7 @@ macro_rules! impl_forum_storage {
                     .bind(&post.author_id)
                     .bind(&post.author_name)
                     .bind(&post.body)
+                    .bind(post_status)
                     .bind(&post.reply_to_post_id)
                     .bind(post.reply_to_number.map(|n| n as i64))
                     .bind(i64::from(post.is_deleted))
@@ -828,8 +1031,13 @@ macro_rules! impl_forum_storage {
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
                 let ph = $ph;
                 let mut conds = Vec::new();
-                let binds = vec![query.thread_id.clone()];
+                let mut binds = vec![query.thread_id.clone()];
                 conds.push(format!("thread_id = {}", ph(1)));
+
+                if let Some(status) = &query.status {
+                    binds.push(status.clone());
+                    conds.push(format!("status = {}", ph(binds.len())));
+                }
 
                 if query.after_post_number > 0 {
                     conds.push(format!("post_number > {}", query.after_post_number));
@@ -862,6 +1070,30 @@ macro_rules! impl_forum_storage {
                 Ok(posts)
             }
 
+            async fn set_post_status(
+                &self,
+                id: &str,
+                status: &str,
+                updated_at: &str,
+            ) -> aegis_core::Result<bool> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET status = {}, updated_at = {} WHERE id = {};",
+                    $crate::forum::FORUM_POST_TABLE,
+                    ph(1), ph(2), ph(3)
+                );
+                let res = sqlx::query(&sql)
+                    .bind(status)
+                    .bind(updated_at)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                Ok(res.rows_affected() > 0)
+            }
+
             async fn delete_post(&self, id: &str, updated_at: &str) -> aegis_core::Result<bool> {
                 let db_err =
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
@@ -873,6 +1105,163 @@ macro_rules! impl_forum_storage {
                     ph(1), ph(2)
                 );
                 let res = sqlx::query(&sql)
+                    .bind(updated_at)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                Ok(res.rows_affected() > 0)
+            }
+
+            async fn has_approved_forum_post(
+                &self,
+                author_name: &str,
+                author_id: Option<&str>,
+            ) -> aegis_core::Result<bool> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let count: i64 = if let Some(aid) = author_id {
+                    let sql = format!(
+                        "SELECT COUNT(*) FROM {} WHERE status = 'approved' AND is_deleted = 0 AND author_id = {};",
+                        $crate::forum::FORUM_POST_TABLE,
+                        ph(1)
+                    );
+                    sqlx::query_scalar(&sql)
+                        .bind(aid)
+                        .fetch_one(&self.pool)
+                        .await
+                        .map_err(db_err)?
+                } else {
+                    let sql = format!(
+                        "SELECT COUNT(*) FROM {} WHERE status = 'approved' AND is_deleted = 0 AND author_name = {};",
+                        $crate::forum::FORUM_POST_TABLE,
+                        ph(1)
+                    );
+                    sqlx::query_scalar(&sql)
+                        .bind(author_name)
+                        .fetch_one(&self.pool)
+                        .await
+                        .map_err(db_err)?
+                };
+                Ok(count > 0)
+            }
+
+            async fn insert_report(
+                &self,
+                report: &$crate::forum::ForumReportRecord,
+            ) -> aegis_core::Result<()> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let placeholders: Vec<String> = (1..=11).map(&ph).collect();
+                let sql = format!(
+                    "INSERT INTO {} ({}) VALUES ({});",
+                    $crate::forum::FORUM_REPORT_TABLE,
+                    $crate::forum::REPORT_COLUMNS.join(", "),
+                    placeholders.join(", ")
+                );
+                sqlx::query(&sql)
+                    .bind(&report.id)
+                    .bind(&report.target_type)
+                    .bind(&report.target_id)
+                    .bind(&report.thread_id)
+                    .bind(&report.reason)
+                    .bind(&report.reporter_id)
+                    .bind(&report.reporter_ip)
+                    .bind(&report.status)
+                    .bind(&report.resolved_by)
+                    .bind(&report.created_at)
+                    .bind(&report.updated_at)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                Ok(())
+            }
+
+            async fn get_report(
+                &self,
+                id: &str,
+            ) -> aegis_core::Result<Option<$crate::forum::ForumReportRecord>> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let sql = format!(
+                    "SELECT {} FROM {} WHERE id = {};",
+                    $crate::forum::REPORT_COLUMNS.join(", "),
+                    $crate::forum::FORUM_REPORT_TABLE,
+                    ph(1)
+                );
+                let row = sqlx::query(&sql)
+                    .bind(id)
+                    .fetch_optional(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                match row {
+                    Some(r) => Ok(Some($crate::forum::forum_rep_row_from_sqlx!(&r))),
+                    None => Ok(None),
+                }
+            }
+
+            async fn list_reports(
+                &self,
+                status: Option<&str>,
+                limit: u64,
+            ) -> aegis_core::Result<Vec<$crate::forum::ForumReportRecord>> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let limit_val = if limit > 0 { limit } else { 100 };
+                let rows = if let Some(s) = status.filter(|s| !s.is_empty()) {
+                    let sql = format!(
+                        "SELECT {} FROM {} WHERE status = {} ORDER BY created_at DESC LIMIT {};",
+                        $crate::forum::REPORT_COLUMNS.join(", "),
+                        $crate::forum::FORUM_REPORT_TABLE,
+                        ph(1),
+                        limit_val
+                    );
+                    sqlx::query(&sql)
+                        .bind(s)
+                        .fetch_all(&self.pool)
+                        .await
+                        .map_err(db_err)?
+                } else {
+                    let sql = format!(
+                        "SELECT {} FROM {} ORDER BY created_at DESC LIMIT {};",
+                        $crate::forum::REPORT_COLUMNS.join(", "),
+                        $crate::forum::FORUM_REPORT_TABLE,
+                        limit_val
+                    );
+                    sqlx::query(&sql)
+                        .fetch_all(&self.pool)
+                        .await
+                        .map_err(db_err)?
+                };
+                let mut reports = Vec::with_capacity(rows.len());
+                for r in &rows {
+                    reports.push($crate::forum::forum_rep_row_from_sqlx!(r));
+                }
+                Ok(reports)
+            }
+
+            async fn set_report_status(
+                &self,
+                id: &str,
+                status: &str,
+                resolved_by: Option<&str>,
+                updated_at: &str,
+            ) -> aegis_core::Result<bool> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET status = {}, resolved_by = {}, updated_at = {} WHERE id = {};",
+                    $crate::forum::FORUM_REPORT_TABLE,
+                    ph(1), ph(2), ph(3), ph(4)
+                );
+                let res = sqlx::query(&sql)
+                    .bind(status)
+                    .bind(resolved_by)
                     .bind(updated_at)
                     .bind(id)
                     .execute(&self.pool)
@@ -892,18 +1281,20 @@ mod tests {
     #[test]
     fn test_forum_table_generation() {
         let (tables, indexes) = build_forum_tables("TEXT", "TEXT", "INTEGER", false);
-        assert_eq!(tables.len(), 3);
-        assert_eq!(indexes.len(), 5);
+        assert_eq!(tables.len(), 4);
+        assert_eq!(indexes.len(), 7);
         assert!(tables[0].starts_with("CREATE TABLE IF NOT EXISTS _aegis_forum_categories"));
         assert!(tables[1].starts_with("CREATE TABLE IF NOT EXISTS _aegis_forum_threads"));
         assert!(tables[2].starts_with("CREATE TABLE IF NOT EXISTS _aegis_forum_posts"));
+        assert!(tables[3].starts_with("CREATE TABLE IF NOT EXISTS _aegis_forum_reports"));
 
         let (mysql_tables, mysql_indexes) =
             build_forum_tables("TEXT", "VARCHAR(255)", "BIGINT", true);
-        assert_eq!(mysql_tables.len(), 3);
+        assert_eq!(mysql_tables.len(), 4);
         assert_eq!(mysql_indexes.len(), 0);
         assert!(mysql_tables[0].contains("INDEX idx_aegis_forum_cat_pos"));
         assert!(mysql_tables[1].contains("INDEX idx_aegis_forum_th_pinned"));
         assert!(mysql_tables[2].contains("INDEX idx_aegis_forum_post_th_num"));
+        assert!(mysql_tables[3].contains("INDEX idx_aegis_forum_rep_status"));
     }
 }

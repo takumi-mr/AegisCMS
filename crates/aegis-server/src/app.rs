@@ -65,7 +65,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         )
         .route(
             "/api/v1/contents/{content_type}/{id}/comments/state",
-            put(handlers::set_content_comments),
+            get(handlers::get_content_comments).put(handlers::set_content_comments),
         )
         .route("/api/v1/comments", get(handlers::list_comments))
         .route(
@@ -82,7 +82,45 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             post(handlers::reply_comment),
         )
         .route("/comments/unsubscribe", get(handlers::unsubscribe_page))
+        // --- 問い合わせフォーム（[contact]） ---
+        .route("/contact", get(handlers::contact::render_default_contact))
+        .route(
+            "/contact/{form}",
+            get(handlers::contact::render_contact).post(handlers::contact::submit_contact_form),
+        )
+        .route("/api/v1/contact/forms", get(handlers::contact::list_forms))
+        .route(
+            "/api/v1/contact/forms/{form}",
+            post(handlers::contact::submit_contact_api),
+        )
+        .route(
+            "/api/v1/contact/messages",
+            get(handlers::contact::list_messages),
+        )
+        .route(
+            "/api/v1/contact/messages/bulk",
+            post(handlers::contact::bulk_messages),
+        )
+        .route(
+            "/api/v1/contact/messages/{id}",
+            get(handlers::contact::get_message)
+                .patch(handlers::contact::update_message)
+                .delete(handlers::contact::delete_message),
+        )
         // --- 掲示板（[forum]） ---
+        .route(
+            "/api/v1/forum/settings",
+            get(handlers::forum::api_get_forum_settings)
+                .put(handlers::forum::api_update_forum_settings),
+        )
+        .route(
+            "/api/v1/forum/reports",
+            get(handlers::forum::api_list_reports).post(handlers::forum::api_create_report),
+        )
+        .route(
+            "/api/v1/forum/reports/{id}",
+            patch(handlers::forum::api_resolve_report),
+        )
         .route(
             "/api/v1/forum/categories",
             get(handlers::forum::api_list_categories).post(handlers::forum::api_create_category),
@@ -106,6 +144,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             get(handlers::forum::api_get_thread).delete(handlers::forum::api_delete_thread),
         )
         .route(
+            "/api/v1/forum/threads/{id}/status",
+            patch(handlers::forum::api_moderate_thread),
+        )
+        .route(
             "/api/v1/forum/threads/{id}/posts",
             get(handlers::forum::api_list_posts),
         )
@@ -120,6 +162,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route(
             "/api/v1/forum/threads/{id}/lock",
             post(handlers::forum::api_lock_thread),
+        )
+        .route(
+            "/api/v1/forum/posts/{id}/status",
+            patch(handlers::forum::api_moderate_post),
         )
         .route(
             "/api/v1/forum/posts/{id}",
@@ -138,6 +184,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             delete(handlers::delete_object),
         )
         .route("/api/v1/preview", post(handlers::preview_content))
+        .route("/api/v1/blocks", get(handlers::list_blocks))
         .route(
             "/api/v1/auth/session",
             post(handlers::create_session)
@@ -334,12 +381,15 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             get(handlers::get_active_theme_asset),
         )
         .route("/metrics", get(handlers::get_metrics))
-        // --- 公開エンドポイント（robots.txt, sitemap.xml, テンプレートレンダリング） ---
+        // --- 公開エンドポイント（robots.txt, sitemap.xml, フィード, テンプレートレンダリング） ---
         .route("/robots.txt", get(handlers::get_robots_txt))
         .route("/sitemap.xml", get(handlers::get_sitemap_xml))
+        .route("/feed.xml", get(handlers::get_feed))
         .route("/", get(handlers::render_index))
-        .route("/articles", get(handlers::render_index))
+        .route("/articles", get(handlers::render_articles))
         .route("/articles/{slug}", get(handlers::render_article))
+        .route("/category/{slug}", get(handlers::render_category))
+        .route("/category/{slug}/feed.xml", get(handlers::get_category_feed))
         .route("/products", get(handlers::render_products))
         .route("/products/{slug}", get(handlers::render_product))
         .route("/cart", get(handlers::render_cart))
@@ -362,7 +412,33 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/forum/{category_slug}/{thread_id}/posts",
             post(handlers::forum::handle_create_post_form),
         )
+        .route(
+            "/forum/{category_slug}/{thread_id}/report",
+            post(handlers::forum::handle_create_report_form),
+        )
         .route("/{slug}", get(handlers::render_page_or_slug));
+
+    // サイト内検索（[search]、feature `search`）。無効なら 404 を返す
+    #[cfg(feature = "search")]
+    {
+        app = app
+            .route("/search", get(crate::search::render_search_page))
+            .route("/api/v1/search", get(crate::search::search_api));
+    }
+
+    // アクセス解析（[analytics]、feature `analytics`）。無効なら 404 を返す
+    #[cfg(feature = "analytics")]
+    {
+        app = app
+            .route(
+                "/api/v1/analytics/event",
+                axum::routing::post(crate::analytics::track_event),
+            )
+            .route(
+                "/api/v1/analytics/summary",
+                get(crate::analytics::get_summary),
+            );
+    }
 
     // ローカルストレージの場合、/uploads で静的ファイル配信
     if config.storage.backend == StorageBackendKind::Local {
@@ -396,7 +472,9 @@ async fn security_headers_middleware(
 ) -> axum::response::Response {
     let mut response = next.run(request).await;
     let headers_config = state.headers();
-    headers_config.apply_to_headers(response.headers_mut());
+    // 有効なプラグインのカスタムブロックが埋め込む iframe の配信元を CSP の frame-src に足す
+    let frame_hosts = state.supervisor.read().await.frame_domains();
+    headers_config.apply_to_headers_with_frames(response.headers_mut(), &frame_hosts);
     response
 }
 

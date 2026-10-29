@@ -4,6 +4,6 @@ pub mod engine;
 pub mod manifest;
 
 pub use builtins::*;
-pub use config::ThemeConfig;
+pub use config::{FrontPage, ThemeConfig};
 pub use engine::ThemeEngine;
 pub use manifest::*;

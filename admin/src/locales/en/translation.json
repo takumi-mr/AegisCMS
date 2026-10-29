@@ -73,7 +73,13 @@
     "notificationTemplatesFailed": "Failed to load the notification templates",
     "saveNotificationTemplateFailed": "Failed to save the notification template",
     "previewNotificationFailed": "Failed to preview the notification",
-    "testNotificationFailed": "Failed to send the test notification"
+    "testNotificationFailed": "Failed to send the test notification",
+    "blocksFailed": "Could not load the plugin blocks",
+    "analyticsFailed": "Failed to load the analytics",
+    "contactFormsFailed": "Failed to load the contact forms",
+    "contactMessagesFailed": "Failed to load the contact messages",
+    "updateContactMessageFailed": "Failed to update the message",
+    "deleteContactMessageFailed": "Failed to delete the message"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -150,7 +156,49 @@
     "numbered": "Numbered List (1.)",
     "listPlaceholder": "Item 1\nItem 2\nItem 3 (one item per line)",
     "htmlBlock": "Custom HTML:",
-    "htmlPlaceholder": "<!-- Enter custom HTML / embed code here... -->"
+    "htmlMode": "HTML execution mode",
+    "htmlModeSanitized": "Standard (Sanitized HTML/CSS, no scripts)",
+    "htmlModeSandbox": "Sandboxed (Isolated iframe, JS allowed)",
+    "htmlPlaceholder": "<!-- Enter custom HTML / embed code here... -->",
+    "tableHeader": "First row is the header",
+    "tableAddRow": "Row",
+    "tableRemoveRow": "Row",
+    "tableAddColumn": "Column",
+    "tableRemoveColumn": "Column",
+    "tableAlign": "Alignment of column {{column}}",
+    "alignDefault": "Align: default",
+    "alignLeft": "Left",
+    "alignCenter": "Center",
+    "alignRight": "Right",
+    "tableCell": "Row {{row}}, column {{column}}",
+    "inlineHint": "You can use **bold**, *italic*, `code` and [links](URL)",
+    "tocTitle": "Title of the contents (leave empty to hide)",
+    "tocDepth": "Headings:",
+    "tocNote": "Built from the headings of the body (see the preview)",
+    "quotePlaceholder": "Quoted text...",
+    "citePlaceholder": "Source (a person or a work; optional)",
+    "calloutVariant": "Kind of callout",
+    "calloutTitle": "Title (optional)",
+    "calloutPlaceholder": "Callout text...",
+    "callout": {
+      "note": "Note",
+      "tip": "Tip",
+      "important": "Important",
+      "warning": "Warning",
+      "caution": "Caution"
+    },
+    "plugin": {
+      "from": "Block of the plugin \"{{plugin}}\"",
+      "unavailable": "The plugin of this block ({{plugin}}) is disabled or no longer has this block. The block is kept as it is but not shown on the site.",
+      "required": "Required"
+    },
+    "detailsSummary": "Summary (e.g. a question)",
+    "detailsOpen": "Open by default",
+    "detailsPlaceholder": "Text shown when opened (the answer or details)...",
+    "contactForm": "Form",
+    "contactFormFields": "Fields: {{fields}} (change them in [[contact.forms]] of the configuration file)",
+    "contactFormDisabled": "Contact forms are not enabled ([contact].enabled); this block shows nothing.",
+    "contactFormMissing": "There is no form named \"{{name}}\" in the configuration; this block shows nothing."
   },
   "categories": {
     "title": "Categories",
@@ -242,6 +290,8 @@
     "unknownCategory": "Unknown category ({{id}})",
     "manageCategories": "Manage",
     "manageCategoriesTitle": "Open category settings",
+    "commentsAccepting": "Comments: Open",
+    "commentsStopped": "Comments: Closed",
     "versionHistory": "Version history",
     "versionLabel": "Version {{revision}}",
     "restoreVersion": "Restore",
@@ -275,7 +325,9 @@
       "untitled": "Untitled Document",
       "untitledPage": "Untitled Page",
       "newHeading": "New Heading",
-      "sectionTitle": "Section Title"
+      "sectionTitle": "Section Title",
+      "column": "Column {{n}}",
+      "tocTitle": "Contents"
     },
     "toasts": {
       "categoryCreated": "Category \"{{title}}\" created",
@@ -291,7 +343,14 @@
       "publishAtRequired": "Choose when to publish the scheduled content",
       "unpublishAtInvalid": "Invalid unpublish date",
       "unpublishBeforePublish": "Unpublish date must be after publication date"
-    }
+    },
+    "table": "Table",
+    "toc": "Contents",
+    "quote": "Quote",
+    "callout": "Callout",
+    "separator": "Separator",
+    "details": "Details",
+    "contactForm": "Contact form"
   },
   "header": {
     "badge": "Zero-Trust Sandbox",
@@ -303,6 +362,8 @@
       "orders": "Orders",
       "comments": "Comments",
       "forum": "Forum",
+      "contact": "Inbox",
+      "analytics": "Analytics",
       "settings": "Settings"
     },
     "gateway": "Core Gateway: {{state}}",
@@ -436,7 +497,14 @@
       "listItem": "List item",
       "numberedItem": "Numbered item",
       "alt": "Alt description",
-      "link": "Link text"
+      "link": "Link text",
+      "inlineCode": "code",
+      "column": "Column {{n}}",
+      "cell": "cell",
+      "quote": "Quoted text",
+      "callout": "Callout text",
+      "detailsSummary": "Question",
+      "detailsBody": "Answer"
     },
     "placeholder": "Write your content in Markdown here...\n\n## Subheading\nParagraph content with **bold**, *italics*, and links.\n\n```rust\nfn main() {\n    println!(\"Hello AegisCMS\");\n}\n```",
     "lines_one": "{{count}} line",
@@ -455,8 +523,21 @@
       "paragraph": "Paragraph",
       "code": "Code",
       "image": "Image",
-      "list": "List"
-    }
+      "list": "List",
+      "table": "Table",
+      "toc": "Contents",
+      "quote": "Quote",
+      "separator_block": "Separator",
+      "callout": "Callout",
+      "details": "Details",
+      "contactForm": "Contact form"
+    },
+    "inlineCode": "Inline code (`code`)",
+    "table": "Table (| A | B |)",
+    "quote": "Quote (>)",
+    "callout": "Callout (> [!NOTE])",
+    "toc": "Table of contents ([TOC])",
+    "details": "Details (:::details Summary)"
   },
   "media": {
     "title": "Media Library",
@@ -1027,7 +1108,8 @@
     "browse": "Browse Plugin Sources",
     "installSuccess": "Successfully installed plugin \"{{name}}\"",
     "installFailed": "Failed to install plugin package",
-    "installing": "Installing..."
+    "installing": "Installing...",
+    "frameDomains": "Embeds (iframe): {{domains}}"
   },
   "site": {
     "title": "Site",
@@ -1276,12 +1358,49 @@
     "confirmDeleteCategory": "Are you sure you want to delete category \"{{name}}\"?",
     "tabs": {
       "threads": "Threads & Moderation",
-      "categories": "Categories"
+      "categories": "Categories",
+      "reports": "Reports",
+      "settings": "Moderation Settings"
+    },
+    "status": {
+      "all": "All Statuses",
+      "approved": "Approved",
+      "pending": "Pending Approval",
+      "spam": "Spam"
+    },
+    "filterStatus": "Status",
+    "approve": "Approve",
+    "markPending": "Hold for Review",
+    "markSpam": "Mark as Spam",
+    "reports": {
+      "filter": "Report Status",
+      "open": "Open",
+      "resolved": "Resolved",
+      "dismissed": "Dismissed",
+      "all": "All",
+      "empty": "No reports found",
+      "target": "Target",
+      "reason": "Reason",
+      "reporter": "Reporter",
+      "date": "Reported At",
+      "resolve": "Resolve",
+      "dismiss": "Dismiss"
+    },
+    "moderation": {
+      "requireApproval": "Require moderator approval before publishing new threads and replies",
+      "autoApproveKnown": "Automatically approve authors who already have an approved forum post",
+      "ngWordsTitle": "Configured Screening Rules ([forum.moderation])",
+      "maxLinks": "Max links before holding for review: {{count}}",
+      "maxPerIp": "Max posts per IP per hour: {{count}}",
+      "holdWords": "Hold words",
+      "spamWords": "Spam words",
+      "none": "None configured"
     },
     "table": {
       "thread": "Thread",
       "category": "Category",
       "author": "Author",
+      "status": "Status",
       "replies": "Replies",
       "lastActive": "Last Active",
       "actions": "Actions",
@@ -1296,10 +1415,92 @@
       "threadLocked": "Thread locked (no new replies)",
       "threadUnlocked": "Thread unlocked",
       "threadDeleted": "Thread deleted",
+      "threadModerated": "Thread status updated",
       "postDeleted": "Post deleted",
+      "postModerated": "Post status updated",
+      "reportUpdated": "Report status updated",
+      "settingsSaved": "Forum moderation settings saved",
       "categoryCreated": "Category created",
       "categoryUpdated": "Category updated",
       "categoryDeleted": "Category deleted"
+    }
+  },
+  "analytics": {
+    "title": "Analytics",
+    "rangeLabel": "Period",
+    "lastDays": "Last {{count}} days",
+    "privacyNote": "Counted without cookies. Visitors are told apart only within a day (by a hash that changes daily); IP addresses are not stored. Browsers with Do Not Track or Global Privacy Control are not counted. Days are in UTC.",
+    "pageviews": "Pageviews",
+    "visitors": "Visitors",
+    "visitorsHint": "Unique visitors per day, added up over the period",
+    "daily": "Daily",
+    "chartLabel": "Daily pageviews and visitors. Use the arrow keys to read each day.",
+    "showTable": "Show as table",
+    "showChart": "Show as chart",
+    "date": "Date",
+    "empty": "No visits recorded in this period yet.",
+    "noData": "No data",
+    "topPages": "Top pages",
+    "topReferrers": "Referrers",
+    "devices": "Devices",
+    "page": "Page",
+    "referrer": "Source",
+    "device": "Device",
+    "direct": "Direct / none",
+    "deviceNames": {
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "tablet": "Tablet"
+    }
+  },
+  "contact": {
+    "title": "Inbox",
+    "disabled": "Contact forms are not enabled ([contact].enabled).",
+    "formFilter": "Form",
+    "allForms": "All forms",
+    "publicForms": "Public forms:",
+    "statusFilter": "Filter by status",
+    "status": {
+      "new": "New",
+      "read": "Read",
+      "done": "Done",
+      "spam": "Spam"
+    },
+    "all": "All",
+    "bulkActions": "Actions for the selected messages",
+    "selected": "{{count}} selected",
+    "selectAll": "Select all messages on this page",
+    "selectOne": "Select the message from {{name}}",
+    "columns": {
+      "from": "From",
+      "message": "Message",
+      "form": "Form",
+      "status": "Status"
+    },
+    "noName": "(no name)",
+    "noSubject": "(no subject)",
+    "emptyStatus": "No messages in \"{{status}}\".",
+    "empty": "No messages yet.",
+    "newer": "Newer",
+    "older": "Older",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "received": "Received",
+    "checked": "Yes",
+    "reply": "Reply by email",
+    "confirmDelete": "Delete {{count}} message(s) permanently?",
+    "done": {
+      "new": "Marked {{count}} message(s) as new",
+      "read": "Marked {{count}} message(s) as read",
+      "done": "Marked {{count}} message(s) as done",
+      "spam": "Marked {{count}} message(s) as spam",
+      "delete": "Deleted {{count}} message(s)"
+    },
+    "actions": {
+      "new": "Mark as new",
+      "read": "Mark as read",
+      "done": "Mark as done",
+      "spam": "Mark as spam",
+      "delete": "Delete"
     }
   }
 }

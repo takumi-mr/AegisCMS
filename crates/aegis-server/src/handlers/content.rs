@@ -52,7 +52,7 @@ fn default_status() -> String {
 
 /// 予約公開の状態。`published_at` の日時になると `scheduler` が `published` にする
 pub const STATUS_SCHEDULED: &str = "scheduled";
-const STATUS_PUBLISHED: &str = "published";
+pub(crate) const STATUS_PUBLISHED: &str = "published";
 
 /// 保存する公開状態と `published_at`, `unpublish_at` を決める。
 /// - `published`: 最初に公開した日時を保つ（今まで公開されていなければ `now`）
@@ -157,6 +157,8 @@ pub struct ContentResponse {
     pub unpublish_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comments_open: Option<bool>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub fields: HashMap<String, serde_json::Value>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -362,7 +364,7 @@ async fn run_save_pipeline(
         }
     };
 
-    let rendered_html = render::render_blocks_html(&state.config.security, &saved.blocks);
+    let rendered_html = render::render_content_html(state, &saved.blocks).await;
 
     // 3. カスタムフィールドの抽出
     let custom_fields = schema
@@ -427,6 +429,21 @@ async fn record_store_result(
     })
 }
 
+async fn resolve_comments_open_for_item(
+    state: &AppState,
+    content_type: &str,
+    content_id: &str,
+) -> Option<bool> {
+    let comments = state.comments.as_ref()?;
+    if !comments.config.accepts(content_type) {
+        return None;
+    }
+    let settings = state.db.list_settings().await.unwrap_or_default();
+    comments
+        .is_content_closed_in_settings(&settings, content_type, content_id)
+        .map(|closed| !closed)
+}
+
 async fn content_response(
     state: &AppState,
     schema: &SchemaDefinition,
@@ -438,6 +455,8 @@ async fn content_response(
         let schemas = state.schemas.read().await;
         resolve_relations_for_item(&*state.db, &schemas, schema, &record.custom_fields).await
     };
+    let comments_open =
+        resolve_comments_open_for_item(state, &record.content_type, &record.id).await;
     ContentResponse {
         id: record.id,
         content_type: record.content_type,
@@ -451,6 +470,7 @@ async fn content_response(
         unpublish_at: record.unpublish_at,
         created_at: record.created_at,
         updated_at: record.updated_at,
+        comments_open,
         fields: record.custom_fields,
         relations,
     }
@@ -525,6 +545,13 @@ pub async fn create_content(
         .insert_content_with_versions(&schema, &record, &[version], publication)
         .await;
     record_store_result(&state, &audit, AuditAction::ContentCreate, &record, result).await?;
+
+    if record.status == STATUS_PUBLISHED {
+        crate::cdn::purge_content(&state, &record.content_type, &record.id, &record.slug, None)
+            .await;
+        #[cfg(feature = "search")]
+        crate::search::announce_change(&state, &record.content_type, &record.id).await;
+    }
 
     Ok((
         StatusCode::CREATED,
@@ -613,6 +640,8 @@ pub async fn update_content(
     )
     .await?;
 
+    let previous_status = current.status.clone();
+    let previous_slug = current.slug.clone();
     let record = ContentRecord {
         id: current.id,
         content_type,
@@ -634,13 +663,13 @@ pub async fn update_content(
     )?);
     let publication = match record.status.as_str() {
         "draft" | "archived" => ContentPublicationChange::Unpublish,
-        STATUS_SCHEDULED if current.status == STATUS_PUBLISHED && needs_baseline => {
+        STATUS_SCHEDULED if previous_status == STATUS_PUBLISHED && needs_baseline => {
             ContentPublicationChange::EnsureVersion(0)
         }
-        STATUS_PUBLISHED if publish_requested || current.status != STATUS_PUBLISHED => {
+        STATUS_PUBLISHED if publish_requested || previous_status != STATUS_PUBLISHED => {
             ContentPublicationChange::PublishVersion(versions.len() - 1)
         }
-        STATUS_PUBLISHED if current.status == STATUS_PUBLISHED && needs_baseline => {
+        STATUS_PUBLISHED if previous_status == STATUS_PUBLISHED && needs_baseline => {
             ContentPublicationChange::EnsureVersion(0)
         }
         _ => ContentPublicationChange::Keep,
@@ -661,6 +690,20 @@ pub async fn update_content(
         Err(e) => Err(e),
     };
     record_store_result(&state, &audit, AuditAction::ContentUpdate, &record, result).await?;
+
+    // 公開状態に関わる変更（公開中だった、または今回公開になった）があればCDNキャッシュをパージ
+    if previous_status == STATUS_PUBLISHED || record.status == STATUS_PUBLISHED {
+        crate::cdn::purge_content(
+            &state,
+            &record.content_type,
+            &record.id,
+            &record.slug,
+            Some(&previous_slug),
+        )
+        .await;
+        #[cfg(feature = "search")]
+        crate::search::announce_change(&state, &record.content_type, &record.id).await;
+    }
 
     Ok(Json(
         content_response(&state, &schema, record, saved.blocks, saved.rendered_html).await,
@@ -788,7 +831,7 @@ pub async fn restore_content_version(
         )
         .await;
     let blocks: Vec<BlockNode> = serde_json::from_str(&restored.blocks_json).unwrap_or_default();
-    let html = render::render_blocks_html(&state.config.security, &blocks);
+    let html = render::render_content_html(&state, &blocks).await;
     Ok(Json(
         content_response(&state, &schema, restored, blocks, html).await,
     ))
@@ -859,6 +902,18 @@ pub async fn delete_content(
         )
         .await;
     result.map_err(db_error)?;
+    if current.status == STATUS_PUBLISHED {
+        crate::cdn::purge_content(
+            &state,
+            &current.content_type,
+            &current.id,
+            &current.slug,
+            None,
+        )
+        .await;
+        #[cfg(feature = "search")]
+        crate::search::announce_change(&state, &current.content_type, &current.id).await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -905,13 +960,25 @@ pub async fn list_content(
         resolve_relations_for_records(&*state.db, &schemas, &schema_clone, &fields).await
     };
 
-    let list: Vec<ContentResponse> = page
-        .records
-        .into_iter()
-        .zip(relations)
-        .map(|(r, relations)| {
+    let comment_settings = match state.comments.as_ref() {
+        Some(comments) if comments.config.accepts(&content_type) => {
+            Some(state.db.list_settings().await.unwrap_or_default())
+        }
+        _ => None,
+    };
+
+    let mut list: Vec<ContentResponse> = Vec::with_capacity(page.records.len());
+    for (r, relations) in page.records.into_iter().zip(relations) {
+        list.push({
             let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
-            let rendered_html = render::render_blocks_html(&state.config.security, &blocks);
+            let rendered_html = render::render_content_html(&state, &blocks).await;
+            let comments_open = comment_settings.as_ref().and_then(|settings| {
+                state
+                    .comments
+                    .as_ref()?
+                    .is_content_closed_in_settings(settings, &r.content_type, &r.id)
+                    .map(|closed| !closed)
+            });
             ContentResponse {
                 id: r.id,
                 content_type: r.content_type,
@@ -925,11 +992,12 @@ pub async fn list_content(
                 unpublish_at: r.unpublish_at,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
+                comments_open,
                 fields: r.custom_fields,
                 relations,
             }
-        })
-        .collect();
+        });
+    }
 
     Ok(Json(json!({
         "contents": list,
@@ -969,12 +1037,14 @@ pub async fn get_content(
     match maybe_record {
         Some(r) => {
             let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
-            let rendered_html = render::render_blocks_html(&state.config.security, &blocks);
+            let rendered_html = render::render_content_html(&state, &blocks).await;
             let relations = {
                 let schemas = state.schemas.read().await;
                 resolve_relations_for_item(&*state.db, &schemas, &schema_clone, &r.custom_fields)
                     .await
             };
+            let comments_open =
+                resolve_comments_open_for_item(&state, &r.content_type, &r.id).await;
 
             Ok(Json(ContentResponse {
                 id: r.id,
@@ -989,6 +1059,7 @@ pub async fn get_content(
                 unpublish_at: r.unpublish_at,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
+                comments_open,
                 fields: r.custom_fields,
                 relations,
             }))
@@ -1187,7 +1258,7 @@ pub async fn upsert_variant(
 
     let variant = aegis_core::ProductVariant {
         id: variant_id,
-        product_id: product.id,
+        product_id: product.id.clone(),
         sku: payload.sku.filter(|s| !s.trim().is_empty()),
         title: payload.title.trim().to_string(),
         price_override: payload.price_override,
@@ -1205,6 +1276,17 @@ pub async fn upsert_variant(
         .await
         .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    if product.status == STATUS_PUBLISHED {
+        crate::cdn::purge_content(
+            &state,
+            &product.content_type,
+            &product.id,
+            &product.slug,
+            None,
+        )
+        .await;
+    }
+
     Ok((StatusCode::OK, Json(variant)))
 }
 
@@ -1213,13 +1295,29 @@ pub async fn upsert_variant(
 pub async fn delete_variant(
     State(state): State<Arc<AppState>>,
     RequireRole(_session): EditorSession,
-    Path((_content_type, _id, variant_id)): Path<(String, String, String)>,
+    Path((content_type, id, variant_id)): Path<(String, String, String)>,
 ) -> Result<StatusCode, ApiError> {
     state
         .db
         .delete_product_variant(&variant_id)
         .await
         .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if let Ok(schema) = find_schema(&state, &content_type).await {
+        if let Ok(Some(product)) = state.db.get_content(&schema, &id).await {
+            if product.status == STATUS_PUBLISHED {
+                crate::cdn::purge_content(
+                    &state,
+                    &product.content_type,
+                    &product.id,
+                    &product.slug,
+                    None,
+                )
+                .await;
+            }
+        }
+    }
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1411,6 +1509,7 @@ mod tests {
                 version: "1.0.0".to_string(),
                 entrypoint: "plugin.wasm".to_string(),
                 capabilities: aegis_core::PluginCapabilities {
+                    embed: None,
                     network: None,
                     storage: None,
                     hooks: vec!["on-before-save".to_string()],

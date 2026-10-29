@@ -2,6 +2,7 @@
 
 > [!TIP]
 > すぐに動かして試すなら、EC のサンプルサイト [`examples/coffee-shop/`](examples/coffee-shop)（`task demo:shop`）か、掲示板のサンプルサイト [`examples/hiking-forum/`](examples/hiking-forum)（`task demo:forum`）をどうぞ。
+> サーバーで HTTPS 公開するなら [`deploy/`](deploy)（AegisCMS + Caddy。`sites.toml` にドメインを書いて `./deploy.sh up`。複数サイトにも対応）。
 
 ---
 
@@ -105,6 +106,10 @@ crates/
 ├── aegis-commerce   # EC: 見積もり・注文・在庫・決済（手動 / Stripe）
 ├── aegis-comments   # コメント: 投稿・審査（承認制・スパム対策）・スレッド・通知
 ├── aegis-forum      # 掲示板: カテゴリ・スレッド・レス・モデレーション（専用 DB に分離可）
+├── aegis-contact    # 問い合わせフォーム: 設定で決めるフォーム・スパム対策・受信箱・通知
+├── aegis-search     # サイト内検索: tantivy の索引（日本語は 2 文字ずつ）（feature `search`）
+├── aegis-analytics  # アクセス解析: Cookie なしのビーコンと日ごとの集計（feature `analytics`）
+├── aegis-backup     # バックアップ・リストア: DB とストレージの一括 ZIP エクスポート/インポート（feature `backup`）
 └── aegis-server     # Axum HTTP 層（ルーティング・ハンドラ・認可）、CLI、Admin SPA 配信
 ```
 
@@ -126,6 +131,10 @@ crates/
 | [aegis-commerce](crates/aegis-commerce)                       | EC                                                       | `CommerceService` (見積もり・注文・状態遷移), `payment` (`PaymentProvider`), `stripe`, `config` (`CommerceConfig`)                                                       |
 | [aegis-comments](crates/aegis-comments)                       | コメント                                                 | `CommentService` (投稿・審査・スレッド・通知), `moderation` (承認制・スパム対策。レビューと共有), `config` (`CommentsConfig`)                                          |
 | [aegis-forum](crates/aegis-forum)                             | 掲示板                                                   | `ForumService` (カテゴリ・スレッド・レス・モデレーション), `config` (`ForumConfig`)                                                                                    |
+| [aegis-contact](crates/aegis-contact)                         | 問い合わせフォーム                                       | `ContactService` (送信・スパム対策・受信箱・通知・保存期間), `form` (入力の検査・フォームの HTML), `config` (`ContactConfig`)                                            |
+| [aegis-search](crates/aegis-search)                           | サイト内検索（feature `search`）                         | `SearchIndex` (tantivy の索引・検索), `tokenizer` (CJK の 2 文字分割), `snippet` (`<mark>` 付きの抜粋), `text` (ブロックの文字の取り出し)                                 |
+| [aegis-analytics](crates/aegis-analytics)                     | アクセス解析（feature `analytics`）                      | `AnalyticsService` (数える・まとめて書く・集計), `agent` (クローラー・端末・参照元), `beacon_script`, `config` (`AnalyticsConfig`)                                       |
+| [aegis-backup](crates/aegis-backup)                           | バックアップ・リストア（feature `backup`）               | `dump` / `restore` (DB + ストレージの一括入出力), `manifest` (SHA-256 チェックサム事前検証), ZIP パッケージ                                                            |
 | [aegis-server](crates/aegis-server)                           | HTTP 層・CLI・SPA配信                                    | `handlers` (REST API・公開ページ), `auth` (認可・フック), `audit` (`AuditContext` 抽出), `state` (`AppState`), `config` (`AegisConfig`), `main` (CLI)                     |
 
 ---
@@ -183,6 +192,9 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査・通知は `CommerceDeps` で受け取ります。
 - **`aegis-comments`**: 読者のコメントの投稿・審査（WordPress と同じ承認制・承認済みの投稿者の自動承認・NG ワード・リンク数・IP ごとの投稿数・ハニーポット・`check-comment` プラグイン）・スレッド表示・通知を扱う `CommentService`（[docs/comments.md](docs/comments.md)）。審査の仕組み（`moderation`）は今後の商品レビューと共有します。
 - **`aegis-forum`**: カテゴリ・スレッド・レスの掲示板 `ForumService`（キーセット方式のページ送り・連投の制限・ピン留め・ロック・自動ロック）。`[forum].database_url` で本体と別の DB に置けます（[docs/forum.md](docs/forum.md)）。
+- **`aegis-contact`**: 問い合わせフォーム `ContactService`（項目は設定ファイルの `[[contact.forms]]`。ボット除けの見えない欄・IP ごとの送信数・スパムの語とリンク数・運営者への通知と自動返信・Admin Studio の受信箱・保存期間）。`/contact` と本文のブロック `core/contact-form` で表示します（[docs/contact.md](docs/contact.md)）。
+- **`aegis-search`**: 公開中のコンテンツの全文検索（tantivy。日本語は辞書なしで 2 文字ずつに分けて索引）。サーバーの feature `search`（既定で有効）で組み込み、`/search` と `GET /api/v1/search` を出します（[docs/search.md](docs/search.md)）。
+- **`aegis-analytics`**: Cookie を使わないアクセス解析（日ごとに変わるハッシュで訪問者を見分け、DB には日ごとの集計だけを残す）。サーバーの feature `analytics` で組み込み、Admin Studio の Analytics タブで見られます（[docs/analytics.md](docs/analytics.md)）。
 
 #### 6. `crates/aegis-server` (HTTP Gateway & Admin SPA 配信)
 
@@ -193,7 +205,7 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 - **`audit`**: リクエストから操作者と操作元を取り出す `AuditContext` エクストラクタ。
 - **`state`**: `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、`CommerceService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
 - **`config`**: 各クレートの設定セクションを束ねる `AegisConfig`（`config/*.toml` からの読み込みおよび環境変数オーバーライド。[docs/configuration.md](docs/configuration.md)）。
-- **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、ユーザー管理 `user add|passwd|role|disable|enable|list|link-oidc|link-saml`、プラグインの状態 `plugin list`、通知のテスト `notify test`）および Admin Studio SPA の配信（`/admin/`）。
+- **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、バックアップ生成 `dump`、データ復元 `restore`、ユーザー管理 `user add|passwd|role|disable|enable|list|link-oidc|link-saml`、プラグインの状態 `plugin list`、通知のテスト `notify test`）および Admin Studio SPA の配信（`/admin/`）。
 
 #### 7. `crates/aegis-plugin-sdk` & `crates/aegis-plugin-macros` (公式 Wasm プラグイン SDK)
 
@@ -209,8 +221,8 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 > ドキュメント一覧:
 >
 > - 設計・開発: [内部設計 (`docs/architecture.md`)](docs/architecture.md) / [開発ガイド (`docs/development.md`)](docs/development.md) / [Admin Studio (`admin/README.md`)](admin/README.md)
-> - 運用・機能: [設定リファレンス](docs/configuration.md) / [認証 & ユーザー管理](docs/authentication.md) / [監査ログ](docs/audit.md) / [メディア](docs/media.md) / [EC](docs/commerce.md) / [通知](docs/notifications.md) / [コメント](docs/comments.md) / [掲示板](docs/forum.md)
-> - テーマ: [公開 & テーマエンジン](docs/theme_and_publishing_guide.md) / [テーマ作成ガイド](docs/theme_authoring_guide.md)
+> - 運用・機能: [設定リファレンス](docs/configuration.md) / [認証 & ユーザー管理](docs/authentication.md) / [監査ログ](docs/audit.md) / [メディア](docs/media.md) / [EC](docs/commerce.md) / [通知](docs/notifications.md) / [コメント](docs/comments.md) / [掲示板](docs/forum.md) / [問い合わせフォーム](docs/contact.md) / [サイト内検索](docs/search.md) / [アクセス解析](docs/analytics.md)
+> - テーマ・本文: [公開 & テーマエンジン](docs/theme_and_publishing_guide.md) / [テーマ作成ガイド](docs/theme_authoring_guide.md) / [本文のブロック & Markdown](docs/blocks.md)
 > - プラグイン: [開発ガイド](docs/plugin_sdk_guide.md) / [フック & ホスト API](docs/plugin_hooks.md) / [ABI 仕様](docs/plugin_abi_specification.md) / [公式プラグイン](plugins/README.md)
 > - 未着手のタスク: [TODO.md](TODO.md)
 

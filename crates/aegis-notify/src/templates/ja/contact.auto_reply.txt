@@ -1,0 +1,9 @@
+{% if message.name %}{{ message.name }} 様
+
+{% endif %}
+お問い合わせありがとうございます。以下の内容で受け付けました。担当者からの返信をお待ちください。
+
+{% include "_contact_fields.txt" %}
+
+このメールは自動で送信しています。お心当たりのない場合は、このメールを破棄してください。
+{% include "_footer.txt" %}

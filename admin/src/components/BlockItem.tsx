@@ -10,13 +10,25 @@ import {
   Images,
   List,
   FileCode,
+  Table,
+  ListTree,
+  Quote,
+  Minus,
+  Info,
+  Puzzle,
+  ListCollapse,
+  Mail,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { BlockNode } from '../types';
+import type { BlockNode, ContactForm, PluginBlockDefinition } from '../types';
 import { cx } from '../utils/cx';
 import { altFromKey } from '../utils/media';
+import { CALLOUT_VARIANTS, TOC_DEFAULT_MAX_LEVEL } from '../utils/markdown';
 import { ImageUploader } from './ImageUploader';
 import { MediaLibrary } from './MediaLibrary';
+import { TableBlockEditor } from './TableBlockEditor';
+import { PluginBlockEditor } from './PluginBlockEditor';
+import { isPluginBlockName, localize } from '../utils/pluginBlocks';
 import { Button } from './ui/Button';
 import styles from './BlockItem.module.css';
 
@@ -30,6 +42,10 @@ interface BlockItemProps {
   onDelete: () => void;
   /** Uploading needs the editor role; viewers can still pick from the media library */
   canUpload: boolean;
+  /** Custom blocks of the enabled plugins (`GET /api/v1/blocks`) */
+  blockDefinitions?: PluginBlockDefinition[];
+  /** Contact forms (`GET /api/v1/contact/forms`; empty when [contact] is disabled) */
+  contactForms?: ContactForm[];
 }
 
 export const BlockItem: React.FC<BlockItemProps> = ({
@@ -41,8 +57,12 @@ export const BlockItem: React.FC<BlockItemProps> = ({
   onMoveDown,
   onDelete,
   canUpload,
+  blockDefinitions = [],
+  contactForms = [],
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const pluginBlock = isPluginBlockName(block.name);
+  const definition = pluginBlock ? blockDefinitions.find((d) => d.name === block.name) : undefined;
   const [isLibraryOpen, setIsLibraryOpen] = useState<boolean>(false);
 
   const getIcon = () => {
@@ -57,8 +77,22 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         return <ImageIcon size={14} />;
       case 'core/list':
         return <List size={14} />;
+      case 'core/table':
+        return <Table size={14} />;
+      case 'core/toc':
+        return <ListTree size={14} />;
+      case 'core/quote':
+        return <Quote size={14} />;
+      case 'core/separator':
+        return <Minus size={14} />;
+      case 'core/callout':
+        return <Info size={14} />;
+      case 'core/details':
+        return <ListCollapse size={14} />;
+      case 'core/contact-form':
+        return <Mail size={14} />;
       default:
-        return <AlignLeft size={14} />;
+        return pluginBlock ? <Puzzle size={14} /> : <AlignLeft size={14} />;
     }
   };
 
@@ -67,7 +101,10 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       <div className={styles.header}>
         <div className={styles.badge}>
           {getIcon()}
-          <span>{block.name}</span>
+          <span>
+            {definition ? `${localize(definition.label, i18n.language)} · ` : ''}
+            {block.name}
+          </span>
         </div>
 
         <div className={styles.controls}>
@@ -169,6 +206,20 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         <div className={styles.stack}>
           <div className={styles.inline}>
             <span className={styles.languageLabel}>{t('blocks.htmlBlock')}</span>
+            <select
+              className={styles.languageSelect}
+              aria-label={t('blocks.htmlMode')}
+              value={block.attributes?.mode === 'sandbox' ? 'sandbox' : 'sanitized'}
+              onChange={(e) =>
+                onChange({
+                  ...block,
+                  attributes: { ...block.attributes, mode: e.target.value },
+                })
+              }
+            >
+              <option value="sanitized">{t('blocks.htmlModeSanitized')}</option>
+              <option value="sandbox">{t('blocks.htmlModeSandbox')}</option>
+            </select>
           </div>
           <textarea
             className={cx(styles.textarea, styles.code)}
@@ -293,6 +344,207 @@ export const BlockItem: React.FC<BlockItemProps> = ({
             }}
           />
         </div>
+      )}
+      {block.name === 'core/table' && <TableBlockEditor block={block} onChange={onChange} />}
+
+      {definition && (
+        <PluginBlockEditor
+          block={block}
+          definition={definition}
+          onChange={onChange}
+          canUpload={canUpload}
+        />
+      )}
+
+      {pluginBlock && !definition && (
+        <p className={styles.note}>
+          {t('blocks.plugin.unavailable', { plugin: block.name.split('/')[0] })}
+        </p>
+      )}
+
+      {block.name === 'core/contact-form' && (
+        <ContactFormBlock block={block} forms={contactForms} onChange={onChange} />
+      )}
+
+      {block.name === 'core/toc' && (
+        <div className={styles.stack}>
+          <div className={styles.inline}>
+            <input
+              type="text"
+              className={styles.urlInput}
+              aria-label={t('blocks.tocTitle')}
+              placeholder={t('blocks.tocTitle')}
+              value={block.attributes?.title || ''}
+              onChange={(e) =>
+                onChange({ ...block, attributes: { ...block.attributes, title: e.target.value } })
+              }
+            />
+            <span className={styles.languageLabel}>{t('blocks.tocDepth')}</span>
+            <select
+              className={styles.levelSelect}
+              aria-label={t('blocks.tocDepth')}
+              value={block.attributes?.maxLevel || TOC_DEFAULT_MAX_LEVEL}
+              onChange={(e) =>
+                onChange({
+                  ...block,
+                  attributes: { ...block.attributes, maxLevel: Number(e.target.value) },
+                })
+              }
+            >
+              {[2, 3, 4].map((l) => (
+                <option key={l} value={l}>
+                  {l === 2 ? 'H2' : `H2–H${l}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className={styles.note}>{t('blocks.tocNote')}</p>
+        </div>
+      )}
+
+      {block.name === 'core/quote' && (
+        <div className={styles.stack}>
+          <textarea
+            className={cx(styles.textarea, styles.quote)}
+            placeholder={t('blocks.quotePlaceholder')}
+            value={block.text || ''}
+            onChange={(e) => onChange({ ...block, text: e.target.value })}
+          />
+          <input
+            type="text"
+            className={styles.altInput}
+            placeholder={t('blocks.citePlaceholder')}
+            value={block.attributes?.cite || ''}
+            onChange={(e) =>
+              onChange({ ...block, attributes: { ...block.attributes, cite: e.target.value } })
+            }
+          />
+        </div>
+      )}
+
+      {block.name === 'core/separator' && <hr className={styles.separator} />}
+
+      {block.name === 'core/details' && (
+        <div className={styles.stack}>
+          <div className={styles.inline}>
+            <input
+              type="text"
+              className={cx(styles.urlInput, styles.grow)}
+              aria-label={t('blocks.detailsSummary')}
+              placeholder={t('blocks.detailsSummary')}
+              value={block.attributes?.summary || ''}
+              onChange={(e) =>
+                onChange({ ...block, attributes: { ...block.attributes, summary: e.target.value } })
+              }
+            />
+            <label className={styles.languageLabel}>
+              <input
+                type="checkbox"
+                checked={block.attributes?.open === true}
+                onChange={(e) =>
+                  onChange({
+                    ...block,
+                    attributes: { ...block.attributes, open: e.target.checked },
+                  })
+                }
+              />{' '}
+              {t('blocks.detailsOpen')}
+            </label>
+          </div>
+          <textarea
+            className={styles.textarea}
+            placeholder={t('blocks.detailsPlaceholder')}
+            value={block.text || ''}
+            onChange={(e) => onChange({ ...block, text: e.target.value })}
+          />
+        </div>
+      )}
+
+      {block.name === 'core/callout' && (
+        <div className={styles.stack}>
+          <div className={styles.inline}>
+            <select
+              className={styles.levelSelect}
+              aria-label={t('blocks.calloutVariant')}
+              value={
+                CALLOUT_VARIANTS.includes(block.attributes?.variant)
+                  ? block.attributes.variant
+                  : 'note'
+              }
+              onChange={(e) =>
+                onChange({ ...block, attributes: { ...block.attributes, variant: e.target.value } })
+              }
+            >
+              {CALLOUT_VARIANTS.map((v) => (
+                <option key={v} value={v}>
+                  {t(`blocks.callout.${v}`)}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              className={cx(styles.urlInput, styles.grow)}
+              aria-label={t('blocks.calloutTitle')}
+              placeholder={t('blocks.calloutTitle')}
+              value={block.attributes?.title || ''}
+              onChange={(e) =>
+                onChange({ ...block, attributes: { ...block.attributes, title: e.target.value } })
+              }
+            />
+          </div>
+          <textarea
+            className={styles.textarea}
+            placeholder={t('blocks.calloutPlaceholder')}
+            value={block.text || ''}
+            onChange={(e) => onChange({ ...block, text: e.target.value })}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** The contact form block: which configured form to show (the fields come from the configuration) */
+const ContactFormBlock: React.FC<{
+  block: BlockNode;
+  forms: ContactForm[];
+  onChange: (updated: BlockNode) => void;
+}> = ({ block, forms, onChange }) => {
+  const { t } = useTranslation();
+  const name = String(block.attributes?.form ?? 'default');
+  const form = forms.find((f) => f.name === name);
+  return (
+    <div className={styles.stack}>
+      <div className={styles.inline}>
+        <span className={styles.languageLabel}>{t('blocks.contactForm')}</span>
+        <select
+          className={styles.levelSelect}
+          aria-label={t('blocks.contactForm')}
+          value={name}
+          onChange={(e) =>
+            onChange({ ...block, attributes: { ...block.attributes, form: e.target.value } })
+          }
+        >
+          {!form && <option value={name}>{name}</option>}
+          {forms.map((f) => (
+            <option key={f.name} value={f.name}>
+              {f.title} ({f.name})
+            </option>
+          ))}
+        </select>
+      </div>
+      {form ? (
+        <p className={styles.note}>
+          {t('blocks.contactFormFields', {
+            fields: form.fields.map((f) => f.label).join(', '),
+          })}
+        </p>
+      ) : (
+        <p className={styles.note}>
+          {forms.length === 0
+            ? t('blocks.contactFormDisabled')
+            : t('blocks.contactFormMissing', { name })}
+        </p>
       )}
     </div>
   );

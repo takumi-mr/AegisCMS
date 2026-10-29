@@ -1,7 +1,7 @@
-use aegis_core::create_test_signature;
+use aegis_core::{compute_package_entries_digest, create_test_signature};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use ring::signature;
+use ring::signature::{self, KeyPair};
 use serde_json::Value;
 use std::io::{Cursor, Write};
 use std::path::PathBuf;
@@ -46,6 +46,7 @@ fn build_plugin_zip(
             r#"{{"name": "{}", "version": "{}", "entrypoint": "plugin.wasm"{}}}"#,
             name, version, min_ver_str
         );
+        let wasm_bytes = b"\0asm\x01\0\0\0";
 
         writer
             .start_file(format!("{}/plugin.manifest.json", name), options)
@@ -55,10 +56,14 @@ fn build_plugin_zip(
         writer
             .start_file(format!("{}/plugin.wasm", name), options)
             .unwrap();
-        writer.write_all(b"\0asm\x01\0\0\0").unwrap();
+        writer.write_all(wasm_bytes).unwrap();
 
         if let Some(kp) = key_pair {
-            let sig = create_test_signature(manifest_content.as_bytes(), kp, "manifest");
+            let pkg_digest = compute_package_entries_digest([
+                ("plugin.manifest.json", manifest_content.as_bytes()),
+                ("plugin.wasm", wasm_bytes.as_slice()),
+            ]);
+            let sig = create_test_signature(&pkg_digest, kp, "package");
             writer
                 .start_file(format!("{}/signature.json", name), options)
                 .unwrap();
@@ -91,6 +96,8 @@ fn build_theme_zip(
             r#"{{"id": "{}", "name": "{}", "version": "{}"{}}}"#,
             id, name, version, min_ver_str
         );
+        let base_html = b"<html><body>{% block content %}{% endblock %}</body></html>";
+        let style_css = b"body { background: #000; }";
 
         writer
             .start_file(format!("{}/theme.json", id), options)
@@ -100,17 +107,20 @@ fn build_theme_zip(
         writer
             .start_file(format!("{}/templates/base.html", id), options)
             .unwrap();
-        writer
-            .write_all(b"<html><body>{% block content %}{% endblock %}</body></html>")
-            .unwrap();
+        writer.write_all(base_html).unwrap();
 
         writer
             .start_file(format!("{}/assets/style.css", id), options)
             .unwrap();
-        writer.write_all(b"body { background: #000; }").unwrap();
+        writer.write_all(style_css).unwrap();
 
         if let Some(kp) = key_pair {
-            let sig = create_test_signature(manifest_content.as_bytes(), kp, "manifest");
+            let pkg_digest = compute_package_entries_digest([
+                ("theme.json", manifest_content.as_bytes()),
+                ("templates/base.html", base_html.as_slice()),
+                ("assets/style.css", style_css.as_slice()),
+            ]);
+            let sig = create_test_signature(&pkg_digest, kp, "package");
             writer
                 .start_file(format!("{}/signature.json", id), options)
                 .unwrap();
@@ -297,18 +307,46 @@ async fn test_install_theme_zip_success_and_validation() {
 }
 
 #[tokio::test]
-async fn test_install_signed_plugin() {
+async fn test_install_signed_plugin_and_require_signatures_policy() {
     let (state, token, plugins_dir, themes_dir) = test_site().await;
-    let router = crate::app::router(&state.config, state.clone());
 
     let rng = ring::rand::SystemRandom::new();
     let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key_pair = signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
+    let trusted_pk_hex = hex::encode(key_pair.public_key().as_ref());
 
     let signed_zip = build_plugin_zip("signed-plugin", "1.0.0", None, Some(&key_pair));
     let boundary = "---------------------------boundary_sig";
-    let body = make_multipart_body(boundary, "file", "signed.zip", &signed_zip);
 
+    // 1. require_signatures = true with empty trusted_public_keys must reject even signed packages
+    let mut state_no_keys = (*state).clone();
+    state_no_keys.config.plugins.require_signatures = true;
+    state_no_keys.config.plugins.trusted_public_keys = Vec::new();
+    let state_no_keys = Arc::new(state_no_keys);
+    let router_no_keys = crate::app::router(&state_no_keys.config, state_no_keys.clone());
+
+    let body = make_multipart_body(boundary, "file", "signed.zip", &signed_zip);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/plugins/install")
+        .header("authorization", format!("Bearer {}", token))
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={}", boundary),
+        )
+        .body(Body::from(body))
+        .unwrap();
+    let resp = router_no_keys.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    // 2. require_signatures = true with matching trusted_public_keys succeeds
+    let mut state_trusted = (*state).clone();
+    state_trusted.config.plugins.require_signatures = true;
+    state_trusted.config.plugins.trusted_public_keys = vec![trusted_pk_hex];
+    let state_trusted = Arc::new(state_trusted);
+    let router_trusted = crate::app::router(&state_trusted.config, state_trusted.clone());
+
+    let body = make_multipart_body(boundary, "file", "signed.zip", &signed_zip);
     let req = Request::builder()
         .method("POST")
         .uri("/api/v1/plugins/install")
@@ -320,7 +358,7 @@ async fn test_install_signed_plugin() {
         .body(Body::from(body))
         .unwrap();
 
-    let resp = router.oneshot(req).await.unwrap();
+    let resp = router_trusted.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
         .await

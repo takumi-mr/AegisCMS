@@ -1,0 +1,2 @@
+Forum {{ report.target_type }} reported: "{{ thread.title }}" - {{ site_name }}
+

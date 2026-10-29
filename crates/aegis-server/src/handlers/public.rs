@@ -10,17 +10,21 @@ use crate::render;
 use crate::state::AppState;
 use aegis_ast::BlockNode;
 use aegis_core::{ContentSummary, PageRenderContext, Pagination};
-use aegis_db::{resolve_relations_for_records, ContentListQuery};
+use aegis_db::{resolve_relations_for_records, ContentListQuery, ContentPage};
+use aegis_schema::SchemaDefinition;
+use aegis_theme::FrontPage;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 use crate::handlers::content::is_currently_published;
 
-/// ブロックノードから先頭段落を抽出して抜粋を生成
+/// ブロックノードから先頭段落を抽出して抜粋を生成（インライン書式の記号は除く）
 pub(crate) fn extract_excerpt(blocks: &[BlockNode], max_chars: usize) -> String {
     for block in blocks {
         if block.name == "core/paragraph" {
             if let Some(ref text) = block.text {
-                let trimmed = text.trim();
+                let plain = aegis_ast::plain_text(text);
+                let trimmed = plain.trim();
                 if !trimmed.is_empty() {
                     if trimmed.chars().count() > max_chars {
                         let mut s: String = trimmed.chars().take(max_chars).collect();
@@ -63,27 +67,230 @@ pub struct IndexParams {
     pub page: Option<u64>,
 }
 
-/// トップページ（最新の公開記事一覧、`?page=N` でページ送り）
+/// 記事一覧のページ（トップ・`/articles`・カテゴリ）ごとに違う部分
+struct ArticleListView {
+    template: &'static str,
+    content_type: &'static str,
+    title: String,
+    slug: String,
+    fields: HashMap<String, serde_json::Value>,
+    /// ページ送りの URL のパス（`base_path` を除く。例: `/articles`）
+    path: String,
+    /// 表示するページ（1 始まり）
+    page: u64,
+    /// この関係フィールドがこの値の記事だけを並べる（カテゴリの記事一覧）
+    filter: Option<(String, String)>,
+    /// `<head>` に足す HTML（カテゴリのフィードへのリンクなど）
+    extra_head: Option<String>,
+    tags: crate::cdn::CacheTags,
+}
+
+impl ArticleListView {
+    /// 記事一覧（`index.html`）
+    fn index(path: &str, page: Option<u64>) -> Self {
+        let mut tags = crate::cdn::CacheTags::new();
+        tags.add_url("/");
+        tags.add_url("/articles");
+        Self {
+            template: "index.html",
+            content_type: "index",
+            title: "Latest Stories".to_string(),
+            slug: String::new(),
+            fields: HashMap::new(),
+            path: path.to_string(),
+            page: page.unwrap_or(1).max(1),
+            filter: None,
+            extra_head: None,
+            tags,
+        }
+    }
+}
+
+/// トップページ (`/`)。`[theme].front_page` で記事一覧（`?page=N` でページ送り）・
+/// テーマの `front.html`・固定ページを切り替える
 pub async fn render_index(
     State(state): State<Arc<AppState>>,
     Query(params): Query<IndexParams>,
 ) -> Response {
+    match state.config.theme.front_page() {
+        FrontPage::Posts => {
+            render_article_list(&state, ArticleListView::index("/", params.page)).await
+        }
+        FrontPage::Template => {
+            // 最新の記事を渡す。続きのページ送りは /articles に向ける
+            let view = ArticleListView {
+                template: "front.html",
+                content_type: "front",
+                title: String::new(),
+                ..ArticleListView::index("/articles", None)
+            };
+            render_article_list(&state, view).await
+        }
+        FrontPage::Page(slug) => match render_fixed_page(&state, &slug, "/").await {
+            Some(resp) => resp,
+            None => {
+                tracing::warn!(
+                    "[theme].front_page: page '{}' is not published; showing the article list",
+                    slug
+                );
+                render_article_list(&state, ArticleListView::index("/", params.page)).await
+            }
+        },
+    }
+}
+
+/// 記事一覧 (`/articles`、`?page=N` でページ送り)
+pub async fn render_articles(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<IndexParams>,
+) -> Response {
+    render_article_list(&state, ArticleListView::index("/articles", params.page)).await
+}
+
+/// カテゴリの記事一覧 (`/category/{slug}`、`?page=N` でページ送り)。記事のスキーマで `category` を
+/// 指す関係フィールドの値で絞り込み、テンプレート `category.html` で描画する
+pub async fn render_category(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+    Query(params): Query<IndexParams>,
+) -> Response {
+    let Some((category, field)) = find_category(&state, &slug).await else {
+        return render_not_found(&state, "This category does not exist.").await;
+    };
+    let base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+
+    let mut tags = crate::cdn::CacheTags::new();
+    tags.add_url(&format!("/category/{}", category.slug));
+    tags.add_dependency("category", &category.id);
+    tags.add_dependency("category", &category.slug);
+
+    let mut extra_head = render::site_page_context(&state).extra_head;
+    extra_head.push_str(&crate::handlers::feed::feed_link_tag(
+        &format!("{}: {}", state.site().title, category.title),
+        &format!("{}/category/{}/feed.xml", base_path, category.slug),
+    ));
+
+    let view = ArticleListView {
+        template: "category.html",
+        content_type: "category",
+        title: category.title,
+        slug: category.slug.clone(),
+        fields: category.custom_fields,
+        path: format!("/category/{}", category.slug),
+        page: params.page.unwrap_or(1).max(1),
+        filter: Some(field),
+        extra_head: Some(extra_head),
+        tags,
+    };
+    render_article_list(&state, view).await
+}
+
+/// 公開中のカテゴリと、記事をそのカテゴリで絞り込む条件（記事の関係フィールド名と値）
+pub(crate) async fn find_category(
+    state: &AppState,
+    slug: &str,
+) -> Option<(aegis_db::ContentRecord, (String, String))> {
+    let (category_schema, article_schema) = {
+        let schemas = state.schemas.read().await;
+        (
+            schemas.get("category").cloned()?,
+            schemas.get("article").cloned()?,
+        )
+    };
+    // 記事のスキーマの `target: category.<フィールド>` の関係フィールド（`category_id` など）
+    let (field, target_field) = article_schema.fields.iter().find_map(|f| {
+        if f.field_type != aegis_schema::FieldType::Relation {
+            return None;
+        }
+        let (target_type, target_field) = f
+            .target
+            .as_deref()?
+            .split_once('.')
+            .unwrap_or((f.target.as_deref()?, "id"));
+        (target_type == "category").then(|| (f.name.clone(), target_field.to_string()))
+    })?;
+
+    let record = state
+        .db
+        .get_published_content(&category_schema, slug)
+        .await
+        .ok()
+        .flatten()
+        .filter(|r| {
+            is_currently_published(&r.status, r.unpublish_at.as_deref(), chrono::Utc::now())
+        })?;
+    let value = match target_field.as_str() {
+        "id" => record.id.clone(),
+        "slug" => record.slug.clone(),
+        other => record.custom_fields.get(other)?.as_str()?.to_string(),
+    };
+    Some((record, (field, value)))
+}
+
+/// 公開中の記事を新しい順に 1 ページ分（`filter` があれば絞り込んで）取得する。
+/// 戻り値は（そのページの記事、条件に合う記事の総数）
+pub(crate) async fn list_published_articles(
+    state: &AppState,
+    schema: &SchemaDefinition,
+    filter: Option<&(String, String)>,
+    limit: u64,
+    offset: u64,
+) -> aegis_core::Result<ContentPage> {
+    let status = Some("published".to_string());
+    let Some((field, value)) = filter else {
+        let query = ContentListQuery {
+            status,
+            limit: Some(limit),
+            offset,
+        };
+        return state.db.list_published_contents_page(schema, &query).await;
+    };
+    // 公開版の一覧は DB からまとめて読んでから並べ替えるので、絞り込みもその後で行う
+    let query = ContentListQuery {
+        status,
+        ..ContentListQuery::default()
+    };
+    let all = state
+        .db
+        .list_published_contents_page(schema, &query)
+        .await?;
+    let matching: Vec<_> = all
+        .records
+        .into_iter()
+        .filter(|r| r.custom_fields.get(field).and_then(|v| v.as_str()) == Some(value.as_str()))
+        .collect();
+    Ok(ContentPage {
+        total: matching.len() as u64,
+        records: matching
+            .into_iter()
+            .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+            .take(usize::try_from(limit).unwrap_or(usize::MAX))
+            .collect(),
+    })
+}
+
+/// 公開中の記事の一覧ページを描画する
+async fn render_article_list(state: &AppState, view: ArticleListView) -> Response {
     let per_page = state.config.theme.posts_per_page.max(1);
-    let page = params.page.unwrap_or(1).max(1);
+    let page = view.page;
     let mut items = Vec::new();
     let mut total_items = 0;
+    let mut tags = view.tags;
+    tags.add_dependency("site", "global");
+    tags.add_dependency("collection", "article");
 
     let article_schema = {
         let schemas = state.schemas.read().await;
         schemas.get("article").cloned()
     };
     if let Some(schema) = article_schema {
-        let query = ContentListQuery {
-            status: Some("published".to_string()),
-            limit: Some(per_page),
-            offset: (page - 1).saturating_mul(per_page),
-        };
-        match state.db.list_published_contents_page(&schema, &query).await {
+        let offset = (page - 1).saturating_mul(per_page);
+        match list_published_articles(state, &schema, view.filter.as_ref(), per_page, offset).await
+        {
             Ok(content_page) => {
                 total_items = content_page.total;
                 let relations = {
@@ -96,6 +303,9 @@ pub async fn render_index(
                     resolve_relations_for_records(&*state.db, &schemas, &schema, &fields).await
                 };
                 for (r, relations) in content_page.records.into_iter().zip(relations) {
+                    tags.add_dependency("article", &r.id);
+                    tags.add_dependency("article", &r.slug);
+                    crate::cdn::add_relation_tags(&mut tags, &relations);
                     let blocks: Vec<BlockNode> =
                         serde_json::from_str(&r.blocks_json).unwrap_or_default();
                     items.push(ContentSummary {
@@ -115,13 +325,13 @@ pub async fn render_index(
                     });
                 }
             }
-            Err(e) => tracing::error!("Failed to list articles for the index page: {}", e),
+            Err(e) => tracing::error!("Failed to list articles for {}: {}", view.path, e),
         }
     }
 
     let total_pages = total_items.div_ceil(per_page).max(1);
     if page > total_pages {
-        return render_not_found(&state, "This page does not exist.").await;
+        return render_not_found(state, "This page does not exist.").await;
     }
     let base_path = state
         .config
@@ -130,9 +340,9 @@ pub async fn render_index(
         .unwrap_or_default();
     let page_url = |n: u64| {
         if n <= 1 {
-            format!("{}/", base_path)
+            format!("{}{}", base_path, view.path)
         } else {
-            format!("{}/?page={}", base_path, n)
+            format!("{}{}?page={}", base_path, view.path, n)
         }
     };
     let pagination = Pagination {
@@ -144,13 +354,17 @@ pub async fn render_index(
         next_url: (page < total_pages).then(|| page_url(page + 1)),
     };
 
+    let site = render::site_page_context(state);
     let mut ctx = PageRenderContext {
-        template: "index.html".to_string(),
-        content_type: "index".to_string(),
-        title: "Latest Stories".to_string(),
+        template: view.template.to_string(),
+        content_type: view.content_type.to_string(),
+        title: view.title,
+        slug: view.slug,
+        fields: view.fields,
         items,
         pagination: Some(pagination),
-        ..render::site_page_context(&state)
+        extra_head: view.extra_head.unwrap_or(site.extra_head.clone()),
+        ..site
     };
 
     // プラグインによるテーマ・コンテキスト書き換えフックの適用
@@ -161,17 +375,13 @@ pub async fn render_index(
         }
     }
 
-    match state.theme.render(&ctx.template, &ctx) {
-        Ok(html) => (StatusCode::OK, Html(html)).into_response(),
-        Err(e) => {
-            tracing::error!("Template rendering error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Html(format!("<h1>Internal Server Error</h1><p>{}</p>", e)),
-            )
-                .into_response()
-        }
-    }
+    let resp = themed_response(
+        state
+            .theme
+            .render(&ctx.template, &ctx)
+            .map_err(|e| e.to_string()),
+    );
+    crate::cdn::apply_cache_tags(state, resp, &tags)
 }
 
 /// 記事詳細ページ (/articles/{slug})
@@ -205,7 +415,15 @@ pub async fn render_article(
 
     // AST から HTML 変換 & ストリーミングリライター適用
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
-    let content_html = render::render_blocks_html(&state.config.security, &blocks);
+    let content_html = render::render_content_html(&state, &blocks).await;
+
+    let mut tags = crate::cdn::CacheTags::new();
+    tags.add_url(&format!("/articles/{}", record.slug));
+    tags.add_dependency("site", "global");
+    tags.add_dependency("article", &record.id);
+    tags.add_dependency("article", &record.slug);
+    tags.add_dependency("comments", &record.id);
+    crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
     let comments = comments::page_section(&state, "article", &record.id).await;
     let page = render::PageInput {
@@ -213,6 +431,7 @@ pub async fn render_article(
         content_type: "article".to_string(),
         title: record.title,
         slug: record.slug,
+        path: None,
         content_html,
         author: record.author_id,
         published_at: record.published_at,
@@ -220,7 +439,8 @@ pub async fn render_article(
         fields: record.custom_fields,
         comments,
     };
-    themed_response(render::render_page(&state, &schema, page).await)
+    let resp = themed_response(render::render_page(&state, &schema, page).await);
+    crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 /// Turns a rendered page (or a template error) into the HTTP response
@@ -238,53 +458,77 @@ pub(crate) fn themed_response(result: Result<String, String>) -> Response {
     }
 }
 
+/// 公開中の固定ページ（`page`）を描画する。無い・非公開なら `None`。
+/// `path` はそのページを出している URL のパス（`/{slug}`、トップページなら `/`）
+async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<Response> {
+    let schema = {
+        let schemas = state.schemas.read().await;
+        schemas.get("page").cloned()
+    }?;
+    let record = state
+        .db
+        .get_published_content(&schema, slug)
+        .await
+        .ok()
+        .flatten()
+        .filter(|r| {
+            is_currently_published(&r.status, r.unpublish_at.as_deref(), chrono::Utc::now())
+        })?;
+
+    let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
+    let content_html = render::render_content_html(state, &blocks).await;
+
+    let comments = comments::page_section(state, "page", &record.id).await;
+    let template = match record.custom_fields.get("layout").and_then(|v| v.as_str()) {
+        Some("blank") => "blank.html".to_string(),
+        Some(custom) if !custom.trim().is_empty() && custom != "default" => {
+            let c = custom.trim();
+            if c.ends_with(".html") {
+                c.to_string()
+            } else {
+                format!("{}.html", c)
+            }
+        }
+        _ => "page.html".to_string(),
+    };
+    let mut tags = crate::cdn::CacheTags::new();
+    tags.add_url(&format!("/{}", record.slug));
+    tags.add_url(path);
+    tags.add_dependency("site", "global");
+    tags.add_dependency("page", &record.id);
+    tags.add_dependency("page", &record.slug);
+    tags.add_dependency("comments", &record.id);
+    crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
+
+    let page = render::PageInput {
+        template,
+        content_type: "page".to_string(),
+        title: record.title,
+        slug: record.slug,
+        path: Some(path.to_string()),
+        content_html,
+        author: record.author_id,
+        published_at: record.published_at,
+        updated_at: Some(record.updated_at),
+        fields: record.custom_fields,
+        comments,
+    };
+    let resp = themed_response(render::render_page(state, &schema, page).await);
+    Some(crate::cdn::apply_cache_tags(state, resp, &tags))
+}
+
 /// 固定ページまたはスラッグの汎用ルーティング (/{slug})
 pub async fn render_page_or_slug(
     State(state): State<Arc<AppState>>,
     Path(slug): Path<String>,
 ) -> impl IntoResponse {
-    // 1. pages スキーマをチェック
-    let page_schema = {
-        let schemas = state.schemas.read().await;
-        schemas.get("page").cloned()
+    // 1. 固定ページ。トップページに出しているページは、canonical などの URL を `/` にする
+    let path = match state.config.theme.front_page() {
+        FrontPage::Page(front) if front == slug => "/".to_string(),
+        _ => format!("/{}", slug),
     };
-
-    let now = chrono::Utc::now();
-    if let Some(schema) = page_schema {
-        if let Ok(Some(record)) = state.db.get_published_content(&schema, &slug).await {
-            if is_currently_published(&record.status, record.unpublish_at.as_deref(), now) {
-                let blocks: Vec<BlockNode> =
-                    serde_json::from_str(&record.blocks_json).unwrap_or_default();
-                let content_html = render::render_blocks_html(&state.config.security, &blocks);
-
-                let comments = comments::page_section(&state, "page", &record.id).await;
-                let template = match record.custom_fields.get("layout").and_then(|v| v.as_str()) {
-                    Some("blank") => "blank.html".to_string(),
-                    Some(custom) if !custom.trim().is_empty() && custom != "default" => {
-                        let c = custom.trim();
-                        if c.ends_with(".html") {
-                            c.to_string()
-                        } else {
-                            format!("{}.html", c)
-                        }
-                    }
-                    _ => "page.html".to_string(),
-                };
-                let page = render::PageInput {
-                    template,
-                    content_type: "page".to_string(),
-                    title: record.title,
-                    slug: record.slug,
-                    content_html,
-                    author: record.author_id,
-                    published_at: record.published_at,
-                    updated_at: Some(record.updated_at),
-                    fields: record.custom_fields,
-                    comments,
-                };
-                return themed_response(render::render_page(&state, &schema, page).await);
-            }
-        }
+    if let Some(resp) = render_fixed_page(&state, &slug, &path).await {
+        return resp;
     }
 
     // 2. article スキーマへのフォールバック
@@ -293,12 +537,22 @@ pub async fn render_page_or_slug(
         schemas.get("article").cloned()
     };
 
+    let now = chrono::Utc::now();
     if let Some(schema) = article_schema {
         if let Ok(Some(record)) = state.db.get_published_content(&schema, &slug).await {
             if is_currently_published(&record.status, record.unpublish_at.as_deref(), now) {
                 let blocks: Vec<BlockNode> =
                     serde_json::from_str(&record.blocks_json).unwrap_or_default();
-                let content_html = render::render_blocks_html(&state.config.security, &blocks);
+                let content_html = render::render_content_html(&state, &blocks).await;
+
+                let mut tags = crate::cdn::CacheTags::new();
+                tags.add_url(&format!("/{}", record.slug));
+                tags.add_url(&format!("/articles/{}", record.slug));
+                tags.add_dependency("site", "global");
+                tags.add_dependency("article", &record.id);
+                tags.add_dependency("article", &record.slug);
+                tags.add_dependency("comments", &record.id);
+                crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
                 let comments = comments::page_section(&state, "article", &record.id).await;
                 let page = render::PageInput {
@@ -306,6 +560,7 @@ pub async fn render_page_or_slug(
                     content_type: "article".to_string(),
                     title: record.title,
                     slug: record.slug,
+                    path: None,
                     content_html,
                     author: record.author_id,
                     published_at: record.published_at,
@@ -313,7 +568,8 @@ pub async fn render_page_or_slug(
                     fields: record.custom_fields,
                     comments,
                 };
-                return themed_response(render::render_page(&state, &schema, page).await);
+                let resp = themed_response(render::render_page(&state, &schema, page).await);
+                return crate::cdn::apply_cache_tags(&state, resp, &tags);
             }
         }
     }
@@ -686,6 +942,7 @@ mod tests {
                 version: "1.0.0".to_string(),
                 entrypoint: "plugin.wasm".to_string(),
                 capabilities: PluginCapabilities {
+                    embed: None,
                     network: None,
                     storage: None,
                     hooks: vec!["on-render-page".to_string()],
@@ -831,5 +1088,300 @@ mod tests {
         assert!(html.contains("Special LP"));
         assert!(!html.contains("site-header"));
         assert!(!html.contains("site-footer"));
+    }
+
+    /// 公開中のコンテンツを 1 件入れる（`n` が大きいほど新しい）
+    async fn insert_published(
+        state: &AppState,
+        content_type: &str,
+        slug: &str,
+        n: u32,
+        blocks: &[BlockNode],
+        fields: HashMap<String, serde_json::Value>,
+    ) -> String {
+        let schema = state.schemas.read().await[content_type].clone();
+        let id = format!("{}-{}", content_type, slug);
+        state
+            .db
+            .insert_content(
+                &schema,
+                &ContentRecord {
+                    id: id.clone(),
+                    content_type: content_type.to_string(),
+                    title: format!("Title of {}", slug),
+                    slug: slug.to_string(),
+                    status: "published".to_string(),
+                    blocks_json: serde_json::to_string(blocks).unwrap(),
+                    author_id: None,
+                    published_at: Some(format!("2026-10-22T00:00:{:02}Z", n)),
+                    unpublish_at: None,
+                    created_at: format!("2026-10-22T00:00:{:02}Z", n),
+                    updated_at: format!("2026-10-22T00:00:{:02}Z", n),
+                    custom_fields: fields,
+                },
+            )
+            .await
+            .unwrap();
+        id
+    }
+
+    async fn body_of(resp: Response) -> (StatusCode, String) {
+        let status = resp.status();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let html = String::from_utf8(body.to_vec())
+            .unwrap()
+            .replace("&#x2f;", "/");
+        (status, html)
+    }
+
+    /// `[theme].front_page` と、記事・カテゴリのスキーマ（記事は `category_id` でカテゴリを指す）を持つ状態
+    async fn front_page_state(front_page: &str) -> Arc<AppState> {
+        let mut config = AegisConfig::default();
+        config.theme.front_page = front_page.to_string();
+        config.theme.posts_per_page = 2;
+        let article: SchemaDefinition = serde_json::from_value(serde_json::json!({
+            "content_type": "article",
+            "label": "Articles",
+            "fields": [
+                { "name": "excerpt", "type": "string", "required": false },
+                { "name": "category_id", "type": "relation", "target": "category.id", "required": false, "nullable": true }
+            ]
+        }))
+        .unwrap();
+        let category: SchemaDefinition = serde_json::from_value(serde_json::json!({
+            "content_type": "category",
+            "label": "Categories",
+            "fields": [{ "name": "description", "type": "text", "nullable": true }]
+        }))
+        .unwrap();
+        Arc::new(
+            crate::test_support::test_app_state(
+                config,
+                PluginSupervisor::new(),
+                vec![article, category],
+            )
+            .await,
+        )
+    }
+
+    #[tokio::test]
+    async fn test_front_page_template_separates_the_article_list() {
+        let state = front_page_state("template").await;
+        for n in 1..=3 {
+            insert_published(
+                &state,
+                "article",
+                &format!("post-{}", n),
+                n,
+                &[],
+                HashMap::new(),
+            )
+            .await;
+        }
+        state.theme.register_template(
+            "front.html",
+            "FRONT[{% for item in items %}{{ item.slug }} {% endfor %}] next={{ pagination.next_url }}",
+        );
+
+        // トップはテーマの front.html。最新の記事と、続きのページ（/articles?page=2）を渡す
+        let (status, front) =
+            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(front.contains("FRONT[post-3 post-2 ]"), "{}", front);
+        assert!(front.contains("next=/articles?page=2"), "{}", front);
+
+        // /articles は記事一覧（index.html）で、ページ送りも /articles のまま
+        let (_, list) = body_of(
+            render_articles(State(state.clone()), Query(IndexParams { page: Some(2) })).await,
+        )
+        .await;
+        assert!(!list.contains("FRONT["));
+        assert!(list.contains("/articles/post-1") && !list.contains("/articles/post-3"));
+        assert!(list.contains(r#"href="/articles" rel="prev""#), "{}", list);
+
+        // テーマに front.html が無ければ記事一覧と同じ表示
+        state.theme.unregister_template("front.html");
+        let (status, fallback) =
+            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(fallback.contains("/articles/post-3"), "{}", fallback);
+    }
+
+    #[tokio::test]
+    async fn test_front_page_fixed_page() {
+        let state = front_page_state("page:home").await;
+        insert_published(&state, "article", "post-1", 1, &[], HashMap::new()).await;
+
+        // ページが無いうちは記事一覧
+        let (status, html) =
+            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("/articles/post-1"), "{}", html);
+
+        insert_published(
+            &state,
+            "page",
+            "home",
+            2,
+            &[BlockNode::paragraph("Welcome to the home page.")],
+            HashMap::new(),
+        )
+        .await;
+        let (status, html) =
+            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("Welcome to the home page."), "{}", html);
+        assert!(!html.contains("/articles/post-1"));
+
+        // 記事一覧は /articles に残る
+        let (_, list) =
+            body_of(render_articles(State(state.clone()), Query(IndexParams::default())).await)
+                .await;
+        assert!(list.contains("/articles/post-1"));
+    }
+
+    #[tokio::test]
+    async fn test_category_archive_lists_only_its_articles() {
+        let state = front_page_state("posts").await;
+        let news = insert_published(
+            &state,
+            "category",
+            "news",
+            1,
+            &[],
+            HashMap::from([(
+                "description".to_string(),
+                serde_json::json!("Announcements"),
+            )]),
+        )
+        .await;
+        let in_news =
+            |id: &str| HashMap::from([("category_id".to_string(), serde_json::json!(id))]);
+        for n in 1..=3 {
+            insert_published(
+                &state,
+                "article",
+                &format!("news-{}", n),
+                n,
+                &[],
+                in_news(&news),
+            )
+            .await;
+        }
+        insert_published(&state, "article", "other", 9, &[], HashMap::new()).await;
+
+        let category = |slug: &str, page: Option<u64>| {
+            let state = state.clone();
+            let slug = slug.to_string();
+            async move {
+                body_of(
+                    render_category(State(state), Path(slug), Query(IndexParams { page })).await,
+                )
+                .await
+            }
+        };
+
+        let (status, first) = category("news", None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(first.contains("Title of news"), "{}", first);
+        assert!(first.contains("Announcements"));
+        assert!(first.contains("/articles/news-3") && first.contains("/articles/news-2"));
+        assert!(!first.contains("/articles/other") && !first.contains("/articles/news-1"));
+        assert!(
+            first.contains(r#"href="/category/news?page=2" rel="next""#),
+            "{}",
+            first
+        );
+        assert!(first.contains(r#"type="application/atom+xml""#));
+        assert!(first.contains("/category/news/feed.xml"));
+
+        let (_, second) = category("news", Some(2)).await;
+        assert!(second.contains("/articles/news-1") && !second.contains("/articles/news-3"));
+
+        let (status, _) = category("news", Some(3)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        let (status, _) = category("no-such-category", None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_atom_feeds() {
+        let state = front_page_state("posts").await;
+        let news = insert_published(&state, "category", "news", 1, &[], HashMap::new()).await;
+        insert_published(
+            &state,
+            "article",
+            "launch",
+            2,
+            &[BlockNode::paragraph("We <launched> today.")],
+            HashMap::from([("category_id".to_string(), serde_json::json!(news))]),
+        )
+        .await;
+        insert_published(&state, "article", "other", 3, &[], HashMap::new()).await;
+
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(axum::http::header::HOST, "example.com".parse().unwrap());
+        headers.insert("x-forwarded-proto", "https".parse().unwrap());
+
+        let resp = crate::handlers::feed::get_feed(State(state.clone()), headers.clone()).await;
+        assert_eq!(
+            resp.headers()[axum::http::header::CONTENT_TYPE],
+            "application/atom+xml; charset=utf-8"
+        );
+        let (status, xml) = body_of(resp).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(
+            xml.contains(
+                r#"<feed xmlns="http://www.w3.org/2005/Atom" xml:base="https://example.com/">"#
+            ),
+            "{}",
+            xml
+        );
+        assert!(xml.contains(
+            r#"<link rel="self" type="application/atom+xml" href="https://example.com/feed.xml"/>"#
+        ));
+        assert!(xml.contains(r#"href="https://example.com/articles/launch""#));
+        assert!(xml.contains("<id>https://example.com/articles/article-launch</id>"));
+        assert!(xml.contains("<updated>2026-10-22T00:00:03Z</updated>"));
+        // 本文の HTML は 1 回エスケープして入れる（テキストの < は HTML で &lt; なので &amp;lt;）
+        assert!(
+            xml.contains("We &amp;lt;launched&amp;gt; today."),
+            "{}",
+            xml
+        );
+        // 新しい順
+        assert!(xml.find("articles/other").unwrap() < xml.find("articles/launch").unwrap());
+
+        let resp = crate::handlers::feed::get_category_feed(
+            State(state.clone()),
+            Path("news".to_string()),
+            headers.clone(),
+        )
+        .await;
+        let (status, xml) = body_of(resp).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(xml.contains("articles/launch") && !xml.contains("articles/other"));
+        assert!(xml.contains(
+            r#"<link rel="alternate" type="text/html" href="https://example.com/category/news"/>"#
+        ));
+
+        let resp = crate::handlers::feed::get_category_feed(
+            State(state.clone()),
+            Path("missing".to_string()),
+            headers,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        // 各ページの <head> にフィードの自動検出用のリンクが入る
+        let (_, html) =
+            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        assert!(
+            html.contains(r#"type="application/atom+xml""#) && html.contains(r#"href="/feed.xml""#),
+            "{}",
+            html
+        );
     }
 }

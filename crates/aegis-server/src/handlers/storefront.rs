@@ -13,6 +13,7 @@ use super::public::{extract_excerpt, render_not_found, themed_response, IndexPar
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::BlockNode;
+use aegis_cache::CacheTags;
 use aegis_core::{ContentSummary, PageRenderContext, Pagination};
 use aegis_db::{resolve_relations_for_records, ContentListQuery};
 
@@ -123,11 +124,19 @@ pub async fn render_products(
             .collect();
         resolve_relations_for_records(&*state.db, &schemas, &schema, &fields).await
     };
+    let mut tags = CacheTags::new();
+    tags.add_url("/products");
+    tags.add_tag("site-global");
+    tags.add_dependency("collection", &schema.content_type);
+
     let items = content_page
         .records
         .into_iter()
         .zip(relations)
         .map(|(r, relations)| {
+            tags.add_dependency(&r.content_type, &r.id);
+            tags.add_dependency(&r.content_type, &r.slug);
+            crate::cdn::add_relation_tags(&mut tags, &relations);
             let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
             ContentSummary {
                 id: r.id,
@@ -181,7 +190,8 @@ pub async fn render_products(
         ),
         ..Default::default()
     };
-    render_shop_page(&state, ctx).await
+    let resp = render_shop_page(&state, ctx).await;
+    crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 /// `GET /products/{slug}` — 商品ページ
@@ -213,16 +223,17 @@ pub async fn render_product(
         }
     };
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
-    let relations = {
+    let resolved_relations = {
         let schemas = state.schemas.read().await;
         resolve_relations_for_records(&*state.db, &schemas, &schema, &[&record.custom_fields])
             .await
             .pop()
             .unwrap_or_default()
-            .iter()
-            .map(|(name, rel)| (name.clone(), render::relation_summary(rel)))
-            .collect()
     };
+    let relations = resolved_relations
+        .iter()
+        .map(|(name, rel)| (name.clone(), render::relation_summary(rel)))
+        .collect();
     let variants = state
         .db
         .list_product_variants(&record.id)
@@ -233,6 +244,15 @@ pub async fn render_product(
     theme_vars.insert("variants_json".to_string(), variants_json);
 
     let path = format!("/products/{}", record.slug);
+    let mut tags = CacheTags::new();
+    tags.add_url(&path);
+    tags.add_tag("site-global");
+    tags.add_dependency(&schema.content_type, &record.id);
+    tags.add_dependency(&schema.content_type, &record.slug);
+    tags.add_dependency("reviews", &record.id);
+    tags.add_dependency("comments", &record.id);
+    crate::cdn::add_relation_tags(&mut tags, &resolved_relations);
+
     let excerpt = extract_excerpt(&blocks, 120);
     let image = record
         .custom_fields
@@ -255,7 +275,7 @@ pub async fn render_product(
         content_type: schema.content_type.clone(),
         title: record.title,
         slug: record.slug,
-        content_html: render::render_blocks_html(&state.config.security, &blocks),
+        content_html: render::render_content_html(&state, &blocks).await,
         published_at: record.published_at,
         updated_at: Some(record.updated_at),
         fields: {
@@ -273,7 +293,8 @@ pub async fn render_product(
         comments,
         ..Default::default()
     };
-    render_shop_page(&state, ctx).await
+    let resp = render_shop_page(&state, ctx).await;
+    crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 /// `GET /cart` — カートと購入手続き（内容はブラウザのスクリプトが描画する）

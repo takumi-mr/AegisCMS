@@ -1,0 +1,347 @@
+/* Chart roles (the admin is dark-only): categorical slots 1–2 of the reference palette, dark steps,
+   validated against --bg-surface (#141a27). Text stays in the text tokens, never the series color */
+.container {
+  --series-pageviews: #3987e5;
+  --series-visitors: #d95926;
+  --chart-grid: rgba(255, 255, 255, 0.07);
+  --chart-baseline: rgba(255, 255, 255, 0.22);
+
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  min-height: 0;
+}
+
+.column {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.titleArea {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.titleIcon {
+  color: var(--accent-indigo-light);
+}
+
+.titleText {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rangeTabs {
+  display: flex;
+  background: var(--bg-primary);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.rangeTab {
+  padding: 5px 12px;
+  border-radius: calc(var(--radius-md) - 2px);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.rangeTab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.rangeTabActive,
+.rangeTabActive:hover {
+  background: var(--bg-surface-elevated);
+  color: var(--text-primary);
+}
+
+.note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.tile,
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  min-width: 0;
+}
+
+.tile {
+  gap: 2px;
+}
+
+.tileLabel {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.tileValue {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.tileHint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.card {
+  gap: 12px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.swatchPageviews {
+  background: var(--series-pageviews);
+}
+
+.swatchVisitors {
+  background: var(--series-visitors);
+}
+
+.chartWrap {
+  position: relative;
+  width: 100%;
+}
+
+.chart {
+  display: block;
+  outline: none;
+}
+
+.chart:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.gridline {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.baseline {
+  stroke: var(--chart-baseline);
+  stroke-width: 1;
+}
+
+.axisLabel {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.endLabel {
+  fill: var(--text-secondary);
+  font-size: 11px;
+}
+
+.line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.line.seriesPageviews {
+  stroke: var(--series-pageviews);
+}
+
+.line.seriesVisitors {
+  stroke: var(--series-visitors);
+}
+
+.marker {
+  stroke: var(--bg-surface);
+  stroke-width: 2;
+}
+
+.marker.seriesPageviews {
+  fill: var(--series-pageviews);
+}
+
+.marker.seriesVisitors {
+  fill: var(--series-visitors);
+}
+
+.crosshair {
+  stroke: var(--chart-baseline);
+  stroke-width: 1;
+}
+
+.tooltip {
+  position: absolute;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-surface-elevated);
+  box-shadow: var(--shadow-md);
+  font-size: 0.78rem;
+  pointer-events: none;
+}
+
+.tooltipDate {
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+.tooltipRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.tooltipRow strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.tableScroll {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table td {
+  padding: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.nameCell {
+  max-width: 0;
+  width: 100%;
+}
+
+.name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barTrack {
+  display: block;
+  margin-top: 4px;
+  height: 4px;
+}
+
+.bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--series-pageviews);
+}
+
+.muted {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .column {
+    padding: 20px 16px;
+  }
+}

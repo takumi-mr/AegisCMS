@@ -79,6 +79,17 @@ export const CustomHtml: Story = {
         text: '<p>Updated Custom Content</p>',
       })
     );
+
+    // 実行モードを sandbox に切り替えた際に attributes.mode が更新されること
+    const modeSelect = canvas.getByRole('combobox');
+    await expect(modeSelect).toHaveValue('sanitized');
+    await userEvent.selectOptions(modeSelect, 'sandbox');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'core/html',
+        attributes: { mode: 'sandbox' },
+      })
+    );
   },
 };
 
@@ -129,5 +140,263 @@ export const Actions: Story = {
     const deleteBtn = canvas.getByTitle(/削除|delete/i);
     await userEvent.click(deleteBtn);
     await expect(args.onDelete).toHaveBeenCalled();
+  },
+};
+
+export const TableBlock: Story = {
+  args: {
+    block: {
+      name: 'core/table',
+      attributes: {
+        header: true,
+        align: [null, null],
+        rows: [
+          ['Plan', 'Price'],
+          ['Basic', '¥1,000'],
+        ],
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    // 見出し行とセルが表示されていること
+    await expect(canvas.getByText('core/table')).toBeVisible();
+    await expect(canvas.getByDisplayValue('Plan')).toBeVisible();
+
+    // セルを編集すると rows が変わること
+    const cell = canvas.getByDisplayValue('Basic');
+    await userEvent.clear(cell);
+    await userEvent.type(cell, 'Pro');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          rows: [
+            ['Plan', 'Price'],
+            ['Pro', '¥1,000'],
+          ],
+        }),
+      })
+    );
+
+    // 列を足すと全行に空のセルが増え、揃えの指定も増えること
+    await userEvent.click(canvas.getAllByRole('button', { name: /Column|列/ })[0]);
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          align: [null, null, null],
+          rows: [
+            ['Plan', 'Price', ''],
+            ['Pro', '¥1,000', ''],
+          ],
+        }),
+      })
+    );
+
+    // 2 列目を右揃えにできること
+    await userEvent.selectOptions(canvas.getAllByRole('combobox')[1], 'right');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({ align: [null, 'right', null] }),
+      })
+    );
+  },
+};
+
+export const CalloutBlock: Story = {
+  args: {
+    block: {
+      name: 'core/callout',
+      attributes: { variant: 'note' },
+      text: 'Back up the database first.',
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText('core/callout')).toBeVisible();
+    await expect(canvas.getByDisplayValue('Back up the database first.')).toBeVisible();
+
+    // 種類を「警告」に変えられること
+    await userEvent.selectOptions(canvas.getByRole('combobox'), 'warning');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'core/callout',
+        attributes: expect.objectContaining({ variant: 'warning' }),
+      })
+    );
+  },
+};
+
+export const PluginBlock: Story = {
+  args: {
+    block: {
+      name: 'official-blocks/button',
+      attributes: { label: '', url: '/start', style: 'primary' },
+    },
+    blockDefinitions: [
+      {
+        name: 'official-blocks/button',
+        plugin: 'official-blocks',
+        plugin_display_name: 'Content Blocks',
+        label: { en: 'Button', ja: 'ボタン' },
+        fields: [
+          {
+            name: 'label',
+            type: 'string',
+            label: { en: 'Label', ja: 'ボタンの文字' },
+            required: true,
+          },
+          { name: 'url', type: 'url', label: { en: 'Link', ja: 'リンク先' }, required: true },
+          {
+            name: 'style',
+            type: 'select',
+            label: { en: 'Style', ja: '見た目' },
+            options: [
+              { value: 'primary', label: { en: 'Filled', ja: '塗りつぶし' } },
+              { value: 'secondary', label: { en: 'Outline', ja: '枠線' } },
+            ],
+          },
+          {
+            name: 'new_tab',
+            type: 'boolean',
+            label: { en: 'Open in a new tab', ja: '新しいタブで開く' },
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    // マニフェストの入力欄からフォームができ、空の必須項目に注意が出ること
+    await expect(canvas.getByDisplayValue('/start')).toBeVisible();
+    await expect(canvas.getByText(/Required|必須/)).toBeVisible();
+
+    // 入力すると attributes に入ること
+    const label = canvas.getByLabelText(/Label|ボタンの文字/);
+    await userEvent.type(label, 'Go');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'official-blocks/button',
+        attributes: expect.objectContaining({ label: 'Go', url: '/start' }),
+      })
+    );
+    await userEvent.selectOptions(canvas.getByLabelText(/Style|見た目/), 'secondary');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attributes: expect.objectContaining({ style: 'secondary' }) })
+    );
+    await userEvent.click(canvas.getByLabelText(/new tab|新しいタブ/));
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attributes: expect.objectContaining({ new_tab: true }) })
+    );
+  },
+};
+
+export const UnavailablePluginBlock: Story = {
+  args: {
+    block: { name: 'removed-plugin/card', attributes: { title: 'Kept' } },
+    blockDefinitions: [],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/removed-plugin/, { selector: 'p' })).toBeVisible();
+  },
+};
+
+export const DetailsBlock: Story = {
+  args: {
+    block: {
+      name: 'core/details',
+      attributes: { summary: 'Is AegisCMS free?', open: false },
+      text: 'Yes, it is open source.',
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('core/details')).toBeVisible();
+    await expect(canvas.getByDisplayValue('Is AegisCMS free?')).toBeVisible();
+
+    // 「最初から開く」を付けると attributes.open が true になること
+    await userEvent.click(canvas.getByRole('checkbox'));
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'core/details',
+        attributes: expect.objectContaining({ open: true, summary: 'Is AegisCMS free?' }),
+      })
+    );
+  },
+};
+
+const contactForms = [
+  {
+    name: 'default',
+    title: 'Contact',
+    path: '/contact/default',
+    auto_reply: false,
+    fields: [
+      {
+        name: 'name',
+        label: 'Name',
+        type: 'text' as const,
+        required: true,
+        placeholder: '',
+        options: [],
+        max_length: null,
+      },
+      {
+        name: 'email',
+        label: 'Email',
+        type: 'email' as const,
+        required: true,
+        placeholder: '',
+        options: [],
+        max_length: null,
+      },
+    ],
+  },
+  {
+    name: 'sales',
+    title: 'Sales inquiry',
+    path: '/contact/sales',
+    auto_reply: true,
+    fields: [
+      {
+        name: 'company',
+        label: 'Company',
+        type: 'text' as const,
+        required: false,
+        placeholder: '',
+        options: [],
+        max_length: null,
+      },
+    ],
+  },
+];
+
+export const ContactFormBlock: Story = {
+  args: {
+    block: { name: 'core/contact-form', attributes: { form: 'default' } },
+    contactForms,
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Fields: Name, Email', { exact: false })).toBeVisible();
+    await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Form' }), 'sales');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attributes: { form: 'sales' } })
+    );
+    await expect(canvas.getByText('Fields: Company', { exact: false })).toBeVisible();
+  },
+};
+
+export const ContactFormBlockMissingForm: Story = {
+  args: {
+    block: { name: 'core/contact-form', attributes: { form: 'old' } },
+    contactForms,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/no form named "old"/)).toBeVisible();
   },
 };

@@ -1,23 +1,29 @@
 import i18n from '../i18n';
 import type {
   AcceptInvitePayload,
+  AnalyticsSummary,
   AuditLogPage,
+  AuditLogQuery,
+  AuthProviders,
   CommentBulkAction,
   CommentPage,
   CommentSettings,
   CommentStatus,
-  CreateForumCategoryPayload,
-  ForumCategory,
-  ForumPost,
-  ForumThread,
-  UpdateForumCategoryPayload,
-  AuthProviders,
-  AuditLogQuery,
+  ContactForm,
+  ContactMessagePage,
+  ContactStatus,
   ContentItem,
   CreateCategoryPayload,
   CreateContentPayload,
+  CreateForumCategoryPayload,
   CreateInvitationPayload,
   CreateUserPayload,
+  ForumCategory,
+  ForumModerationSettings,
+  ForumPost,
+  ForumReport,
+  ForumThread,
+  HeaderSettings,
   InvitationInfo,
   NotificationPreview,
   NotificationQueuePage,
@@ -29,8 +35,8 @@ import type {
   ObjectReference,
   Order,
   OrderPage,
-  SalesReport,
   OrderStatus,
+  PluginBlockDefinition,
   PluginInfo,
   PluginOrder,
   PreviewRequest,
@@ -39,20 +45,21 @@ import type {
   RefundOrderPayload,
   RegistrationPayload,
   RegistrationResult,
+  SalesReport,
   ScheduleItem,
   ScheduleResponse,
   SchemaDefinition,
+  SeoSettings,
   SessionInfo,
   ShopConfig,
   SiteSettings,
-  SeoSettings,
-  UpdateSeoSettingsPayload,
-  HeaderSettings,
-  UpdateHeaderSettings,
   StorageMeta,
   StorageObjectPage,
   StorageObjectQuery,
   ThemeInfo,
+  UpdateForumCategoryPayload,
+  UpdateHeaderSettings,
+  UpdateSeoSettingsPayload,
   UpdateUserPayload,
   UpsertVariantPayload,
   UserAccount,
@@ -470,6 +477,15 @@ export const aegisApi = {
     );
   },
 
+  /** Reads whether new comments are open on one content item */
+  async getContentCommentsOpen(contentType: string, contentId: string): Promise<{ open: boolean }> {
+    return request(
+      `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(contentId)}/comments/state`,
+      {},
+      i18n.t('api.contentCommentsFailed')
+    );
+  },
+
   /** Stops (or resumes) new comments on one content; the comments already there stay */
   async setContentCommentsOpen(
     contentType: string,
@@ -510,6 +526,15 @@ export const aegisApi = {
     );
   },
 
+  /** Access analytics for `from`..`to` (`YYYY-MM-DD`, UTC); 404 when [analytics] is disabled */
+  async getAnalyticsSummary(query: {
+    from: string;
+    to: string;
+    limit?: number;
+  }): Promise<AnalyticsSummary> {
+    return request(`/analytics/summary?${toQuery(query)}`, {}, i18n.t('api.analyticsFailed'));
+  },
+
   /** Approval settings (404 when [comments] is disabled) */
   async getCommentSettings(): Promise<CommentSettings> {
     return request('/comments/settings', {}, i18n.t('api.commentSettingsFailed'));
@@ -521,6 +546,50 @@ export const aegisApi = {
       '/comments/settings',
       { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(overrides) },
       i18n.t('api.updateCommentSettingsFailed')
+    );
+  },
+
+  /** Contact forms and their fields (404 when [contact] is disabled) */
+  async listContactForms(): Promise<ContactForm[]> {
+    return request('/contact/forms', {}, i18n.t('api.contactFormsFailed'));
+  },
+
+  /** The contact inbox, newest first, with counts per status */
+  async listContactMessages(query: {
+    status?: ContactStatus | '';
+    form?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ContactMessagePage> {
+    return request(`/contact/messages?${toQuery(query)}`, {}, i18n.t('api.contactMessagesFailed'));
+  },
+
+  /** Changes a message's status (`new` / `read` / `done` / `spam`) */
+  async updateContactMessage(id: string, status: ContactStatus): Promise<void> {
+    return requestNoContent(
+      `/contact/messages/${encodeURIComponent(id)}`,
+      { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },
+      i18n.t('api.updateContactMessageFailed')
+    );
+  },
+
+  /** Changes the status of (or deletes) several messages; returns how many changed */
+  async bulkContactMessages(
+    ids: string[],
+    action: ContactStatus | 'delete'
+  ): Promise<{ count: number }> {
+    return request(
+      '/contact/messages/bulk',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ ids, action }) },
+      i18n.t('api.updateContactMessageFailed')
+    );
+  },
+
+  async deleteContactMessage(id: string): Promise<void> {
+    return requestNoContent(
+      `/contact/messages/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      i18n.t('api.deleteContactMessageFailed')
     );
   },
 
@@ -580,6 +649,16 @@ export const aegisApi = {
   },
 
   /** Renders unsaved content with the server's save + publish pipeline (nothing is stored) */
+  /** Custom blocks of the enabled plugins */
+  async listBlocks(): Promise<PluginBlockDefinition[]> {
+    const data = await request<{ blocks?: PluginBlockDefinition[] }>(
+      '/blocks',
+      {},
+      i18n.t('api.blocksFailed')
+    );
+    return data.blocks || [];
+  },
+
   async previewContent(preview: PreviewRequest): Promise<PreviewResult> {
     return request(
       '/preview',
@@ -985,12 +1064,14 @@ export const aegisApi = {
 
   async listForumThreads(params?: {
     category_slug?: string;
+    status?: string;
     limit?: number;
     cursor_id?: string;
     cursor_last_post_at?: string;
   }): Promise<ForumThread[]> {
     const sp = new URLSearchParams();
     if (params?.category_slug) sp.set('category_slug', params.category_slug);
+    if (params?.status) sp.set('status', params.status);
     if (params?.limit) sp.set('limit', String(params.limit));
     if (params?.cursor_id) sp.set('cursor_id', params.cursor_id);
     if (params?.cursor_last_post_at) sp.set('cursor_last_post_at', params.cursor_last_post_at);
@@ -1020,6 +1101,15 @@ export const aegisApi = {
     );
   },
 
+  async moderateForumThread(threadId: string, status: CommentStatus): Promise<ForumThread> {
+    const data = await request<{ thread: ForumThread }>(
+      `/forum/threads/${encodeURIComponent(threadId)}/status`,
+      { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },
+      'Failed to moderate forum thread'
+    );
+    return data.thread;
+  },
+
   async deleteForumThread(threadId: string): Promise<void> {
     await request<void>(
       `/forum/threads/${encodeURIComponent(threadId)}`,
@@ -1030,11 +1120,12 @@ export const aegisApi = {
 
   async listForumPosts(
     threadId: string,
-    params?: { limit?: number; cursor_post_number?: number }
+    params?: { limit?: number; cursor_post_number?: number; status?: string }
   ): Promise<ForumPost[]> {
     const sp = new URLSearchParams();
     if (params?.limit) sp.set('limit', String(params.limit));
     if (params?.cursor_post_number) sp.set('cursor_post_number', String(params.cursor_post_number));
+    if (params?.status) sp.set('status', params.status);
     const qs = sp.toString() ? `?${sp.toString()}` : '';
 
     const data = await request<{ posts: ForumPost[] }>(
@@ -1045,11 +1136,64 @@ export const aegisApi = {
     return data.posts;
   },
 
+  async moderateForumPost(postId: string, status: CommentStatus): Promise<ForumPost> {
+    const data = await request<{ post: ForumPost }>(
+      `/forum/posts/${encodeURIComponent(postId)}/status`,
+      { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },
+      'Failed to moderate forum post'
+    );
+    return data.post;
+  },
+
   async deleteForumPost(postId: string): Promise<void> {
     await request<void>(
       `/forum/posts/${encodeURIComponent(postId)}`,
       { method: 'DELETE' },
       'Failed to delete forum post'
     );
+  },
+
+  async getForumSettings(): Promise<ForumModerationSettings> {
+    return request<ForumModerationSettings>(
+      '/forum/settings',
+      {},
+      'Failed to load forum moderation settings'
+    );
+  },
+
+  async updateForumSettings(payload: {
+    require_approval: boolean | null;
+    auto_approve_known: boolean | null;
+  }): Promise<ForumModerationSettings> {
+    return request<ForumModerationSettings>(
+      '/forum/settings',
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      'Failed to update forum moderation settings'
+    );
+  },
+
+  async listForumReports(params?: { status?: string; limit?: number }): Promise<ForumReport[]> {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set('status', params.status);
+    if (params?.limit) sp.set('limit', String(params.limit));
+    const qs = sp.toString() ? `?${sp.toString()}` : '';
+    const data = await request<{ reports: ForumReport[] }>(
+      `/forum/reports${qs}`,
+      {},
+      'Failed to load forum reports'
+    );
+    return data.reports;
+  },
+
+  async resolveForumReport(
+    reportId: string,
+    status: 'open' | 'resolved' | 'dismissed'
+  ): Promise<ForumReport> {
+    const data = await request<{ report: ForumReport }>(
+      `/forum/reports/${encodeURIComponent(reportId)}`,
+      { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },
+      'Failed to update forum report status'
+    );
+    return data.report;
   },
 };

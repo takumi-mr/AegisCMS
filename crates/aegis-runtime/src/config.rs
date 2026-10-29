@@ -16,7 +16,7 @@ pub struct PluginsConfig {
     /// プラグインのインストール時に署名を必須とするか（既定: false）
     #[serde(default)]
     pub require_signatures: bool,
-    /// 信頼する公開鍵リスト（hex形式、未指定時は任意の有効な署名を受け入れる）
+    /// 信頼する公開鍵リスト（32バイト hex 形式、`require_signatures = true` のときは 1 件以上必須）
     #[serde(default)]
     pub trusted_public_keys: Vec<String>,
 }
@@ -33,7 +33,7 @@ impl PluginsConfig {
         }
     }
 
-    /// 名前の形式（`is_valid_plugin_name`）と重複を検証する
+    /// 名前の形式（`is_valid_plugin_name`）・重複・署名ポリシーを検証する
     pub fn validate(&self) -> Result<()> {
         let mut seen = std::collections::HashSet::new();
         for name in &self.enabled {
@@ -50,6 +50,11 @@ impl PluginsConfig {
                 )));
             }
         }
+        aegis_core::validate_signature_policy(
+            "plugins",
+            self.require_signatures,
+            &self.trusted_public_keys,
+        )?;
         Ok(())
     }
 }

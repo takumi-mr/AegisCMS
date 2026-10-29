@@ -1,0 +1,9 @@
+{% if message.name %}Dear {{ message.name }},
+
+{% endif %}
+Thank you for contacting us. We have received the following message and will get back to you.
+
+{% include "_contact_fields.txt" %}
+
+This is an automatic reply. If you did not send this message, please ignore this email.
+{% include "_footer.txt" %}

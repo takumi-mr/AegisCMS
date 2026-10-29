@@ -15,11 +15,23 @@ import {
   PenSquare,
   Eye,
   FileCode,
+  Table,
+  ListTree,
+  Quote,
+  Minus,
+  Info,
+  Puzzle,
+  ListCollapse,
+  MessageSquare,
+  MessageSquareOff,
+  Mail,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { AnalyticsView } from './components/AnalyticsView';
 import { Header, type AppView } from './components/Header';
 import { ProductManager } from './components/ProductManager';
 import { CommentManager } from './components/CommentManager';
+import { ContactInbox } from './components/ContactInbox';
 import { ForumManager } from './components/ForumManager';
 import { OrderManager } from './components/OrderManager';
 import { ScheduleCalendar } from './components/ScheduleCalendar';
@@ -39,12 +51,25 @@ import { aegisApi, setUnauthorizedHandler } from './api/client';
 import { setSessionToken } from './api/session';
 import { isSsoSession, takeLoginRedirect } from './utils/loginRedirect';
 import { takeInviteToken, takeResetToken, takeVerifyToken } from './utils/verifyEmail';
-import type { BlockNode, ContentItem, SessionInfo, UserAccount } from './types';
+import type {
+  BlockNode,
+  ContactForm,
+  ContentItem,
+  PluginBlockDefinition,
+  SessionInfo,
+  UserAccount,
+} from './types';
+import { defaultAttributes, localize } from './utils/pluginBlocks';
 import { categoryIdOf } from './utils/category';
 import { canEdit, isAdmin } from './utils/roles';
 import { cx } from './utils/cx';
 import { toDateTimeLocal } from './utils/format';
-import { blocksToMarkdown, markdownToBlocks, isMarkdownLike } from './utils/markdown';
+import {
+  blocksToMarkdown,
+  markdownToBlocks,
+  isMarkdownLike,
+  TOC_DEFAULT_MAX_LEVEL,
+} from './utils/markdown';
 import { Button } from './components/ui/Button';
 import { Field, FieldRow } from './components/ui/Field';
 import styles from './App.module.css';
@@ -55,15 +80,25 @@ type EditorStatus = 'draft' | 'scheduled' | 'published';
 /** Messages shown above the login form */
 type LoginNotice = 'unreachable' | 'expired' | 'signedOut';
 
-/** `#comments` (the link in comment notifications) opens the Comments view */
+/** `#comments`, `#forum` or `#contact` (links in notifications) open the matching view */
 const takeInitialView = (): AppView => {
-  if (window.location.hash !== '#comments') return 'editor';
-  window.history.replaceState(null, '', window.location.pathname + window.location.search);
-  return 'comments';
+  if (window.location.hash === '#comments') {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    return 'comments';
+  }
+  if (window.location.hash === '#forum') {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    return 'forum';
+  }
+  if (window.location.hash === '#contact') {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    return 'contact';
+  }
+  return 'editor';
 };
 
 export const App: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // undefined = still checking the stored token, null = logged out
   const [session, setSession] = useState<SessionInfo | null | undefined>(undefined);
   const [loginNotice, setLoginNotice] = useState<LoginNotice | null>(null);
@@ -78,10 +113,19 @@ export const App: React.FC = () => {
   const [view, setView] = useState<AppView>(takeInitialView);
   // Hidden until the server says the shop is on ([commerce].enabled)
   const [shopEnabled, setShopEnabled] = useState<boolean>(false);
+  /** Custom blocks of the enabled plugins, offered in the block toolbar */
+  const [blockDefinitions, setBlockDefinitions] = useState<PluginBlockDefinition[]>([]);
   // Hidden until the server says comments are on ([comments].enabled)
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(false);
+  const [commentContentTypes, setCommentContentTypes] = useState<string[]>([]);
+  const [commentsOpen, setCommentsOpen] = useState<boolean>(true);
+  const [togglingComments, setTogglingComments] = useState<boolean>(false);
   // Hidden until the server says forum is on ([forum].enabled)
   const [forumEnabled, setForumEnabled] = useState<boolean>(false);
+  // Contact forms ([contact].enabled); empty until the server lists them
+  const [contactForms, setContactForms] = useState<ContactForm[]>([]);
+  // Hidden until the server says analytics are on ([analytics].enabled)
+  const [analyticsEnabled, setAnalyticsEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType, setContentType] = useState<'article' | 'page'>('article');
   const [layout, setLayout] = useState<'default' | 'blank'>('default');
@@ -222,6 +266,20 @@ export const App: React.FC = () => {
     if (!sessionId) return;
     let cancelled = false;
     aegisApi
+      .listBlocks()
+      .then((blocks) => {
+        if (!cancelled) setBlockDefinitions(blocks);
+      })
+      .catch((err) => console.warn('Could not load the plugin blocks:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    aegisApi
       .getShopConfig()
       .then((config) => {
         if (!cancelled) setShopEnabled(config.enabled);
@@ -238,11 +296,17 @@ export const App: React.FC = () => {
     // The settings answer 404 when comments are disabled
     aegisApi
       .getCommentSettings()
-      .then(() => {
-        if (!cancelled) setCommentsEnabled(true);
+      .then((settings) => {
+        if (!cancelled) {
+          setCommentsEnabled(true);
+          setCommentContentTypes(settings.content_types ?? ['article']);
+        }
       })
       .catch(() => {
-        if (!cancelled) setCommentsEnabled(false);
+        if (!cancelled) {
+          setCommentsEnabled(false);
+          setCommentContentTypes([]);
+        }
       });
     return () => {
       cancelled = true;
@@ -265,6 +329,41 @@ export const App: React.FC = () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    // Answers 404 when contact forms are disabled
+    aegisApi
+      .listContactForms()
+      .then((forms) => {
+        if (!cancelled) setContactForms(forms);
+      })
+      .catch(() => {
+        if (!cancelled) setContactForms([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    // Every signed-in role may read the summary; it answers 404 when analytics are disabled
+    const today = new Date().toISOString().slice(0, 10);
+    aegisApi
+      .getAnalyticsSummary({ from: today, to: today, limit: 1 })
+      .then(() => {
+        if (!cancelled) setAnalyticsEnabled(true);
+      })
+      .catch(() => {
+        if (!cancelled) setAnalyticsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -311,6 +410,7 @@ export const App: React.FC = () => {
 
   const handleSelectContent = (item: ContentItem) => {
     setSelectedId(item.id);
+    setCommentsOpen(item.comments_open !== false);
     setContentVersions([]);
     const requestId = ++contentVersionRequest.current;
     setLoadingContentVersions(true);
@@ -342,6 +442,7 @@ export const App: React.FC = () => {
   const handleNew = () => {
     contentVersionRequest.current += 1;
     setSelectedId(null);
+    setCommentsOpen(true);
     setContentVersions([]);
     setLoadingContentVersions(false);
     setTitle(
@@ -366,6 +467,7 @@ export const App: React.FC = () => {
     if (type === contentType) return;
     setContentType(type);
     setSelectedId(null);
+    setCommentsOpen(true);
     setTitle(
       type === 'article' ? t('editor.defaults.untitled') : t('editor.defaults.untitledPage')
     );
@@ -528,6 +630,28 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleToggleCommentsOpen = async () => {
+    if (!selectedId || togglingComments) return;
+    const nextOpen = !commentsOpen;
+    setTogglingComments(true);
+    try {
+      const res = await aegisApi.setContentCommentsOpen(contentType, selectedId, nextOpen);
+      setCommentsOpen(res.open);
+      setContents((prev) =>
+        prev.map((item) => (item.id === selectedId ? { ...item, comments_open: res.open } : item))
+      );
+      showToast(
+        t(res.open ? 'comments.commentsOpenedToast' : 'comments.commentsClosedToast', {
+          title: title.trim() || slug,
+        })
+      );
+    } catch (err: any) {
+      showToast(err.message || t('api.contentCommentsFailed'), 'error');
+    } finally {
+      setTogglingComments(false);
+    }
+  };
+
   const handleOpenContentFromSchedule = async (type: string, id: string) => {
     try {
       const item = await aegisApi.getContent(type, id);
@@ -564,6 +688,7 @@ export const App: React.FC = () => {
   const showShop = editable && shopEnabled;
   const showComments = editable && commentsEnabled;
   const showForum = editable && forumEnabled;
+  const showContact = editable && contactForms.length > 0;
 
   return (
     <div className={styles.app}>
@@ -580,6 +705,8 @@ export const App: React.FC = () => {
         showShop={showShop}
         showComments={showComments}
         showForum={showForum}
+        showContact={showContact}
+        showAnalytics={analyticsEnabled}
         profile={profile}
         onOpenProfile={() =>
           profile
@@ -599,6 +726,10 @@ export const App: React.FC = () => {
         <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
       ) : view === 'forum' && showForum ? (
         <ForumManager isAdmin={isAdmin(session)} onShowToast={showToast} />
+      ) : view === 'contact' && showContact ? (
+        <ContactInbox onShowToast={showToast} />
+      ) : view === 'analytics' && analyticsEnabled ? (
+        <AnalyticsView onShowToast={showToast} />
       ) : view === 'settings' ? (
         <SettingsView
           session={session}
@@ -778,6 +909,30 @@ export const App: React.FC = () => {
                         <Tags size={14} />
                         <span>{t('editor.manageCategories')}</span>
                       </Button>
+                      {showComments && selectedId && commentContentTypes.includes(contentType) && (
+                        <Button
+                          variant="tool"
+                          disabled={togglingComments}
+                          onClick={handleToggleCommentsOpen}
+                          title={t(
+                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                          )}
+                          aria-label={t(
+                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                          )}
+                        >
+                          {commentsOpen ? (
+                            <MessageSquare size={14} />
+                          ) : (
+                            <MessageSquareOff size={14} />
+                          )}
+                          <span>
+                            {t(
+                              commentsOpen ? 'editor.commentsAccepting' : 'editor.commentsStopped'
+                            )}
+                          </span>
+                        </Button>
+                      )}
                     </FieldRow>
                   ) : (
                     <FieldRow>
@@ -791,6 +946,30 @@ export const App: React.FC = () => {
                           <option value="blank">{t('editor.layoutBlank')}</option>
                         </select>
                       </Field>
+                      {showComments && selectedId && commentContentTypes.includes(contentType) && (
+                        <Button
+                          variant="tool"
+                          disabled={togglingComments}
+                          onClick={handleToggleCommentsOpen}
+                          title={t(
+                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                          )}
+                          aria-label={t(
+                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                          )}
+                        >
+                          {commentsOpen ? (
+                            <MessageSquare size={14} />
+                          ) : (
+                            <MessageSquareOff size={14} />
+                          )}
+                          <span>
+                            {t(
+                              commentsOpen ? 'editor.commentsAccepting' : 'editor.commentsStopped'
+                            )}
+                          </span>
+                        </Button>
+                      )}
                     </FieldRow>
                   )}
                 </div>
@@ -905,10 +1084,95 @@ export const App: React.FC = () => {
                         <ImageIcon size={14} />
                         <span>{t('editor.image')}</span>
                       </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() =>
+                          addBlock('core/table', '', {
+                            header: true,
+                            align: [null, null],
+                            rows: [
+                              [
+                                t('editor.defaults.column', { n: 1 }),
+                                t('editor.defaults.column', { n: 2 }),
+                              ],
+                              ['', ''],
+                              ['', ''],
+                            ],
+                          })
+                        }
+                      >
+                        <Table size={14} />
+                        <span>{t('editor.table')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() =>
+                          addBlock('core/toc', '', {
+                            title: t('editor.defaults.tocTitle'),
+                            maxLevel: TOC_DEFAULT_MAX_LEVEL,
+                          })
+                        }
+                      >
+                        <ListTree size={14} />
+                        <span>{t('editor.toc')}</span>
+                      </Button>
+                      <Button variant="tool" onClick={() => addBlock('core/quote', '')}>
+                        <Quote size={14} />
+                        <span>{t('editor.quote')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() => addBlock('core/callout', '', { variant: 'note' })}
+                      >
+                        <Info size={14} />
+                        <span>{t('editor.callout')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() => addBlock('core/details', '', { summary: '', open: false })}
+                      >
+                        <ListCollapse size={14} />
+                        <span>{t('editor.details')}</span>
+                      </Button>
+                      <Button variant="tool" onClick={() => addBlock('core/separator', '')}>
+                        <Minus size={14} />
+                        <span>{t('editor.separator')}</span>
+                      </Button>
                       <Button variant="tool" onClick={() => addBlock('core/html', '')}>
                         <FileCode size={14} />
                         <span>{t('editor.html')}</span>
                       </Button>
+                      {contactForms.length > 0 && (
+                        <Button
+                          variant="tool"
+                          onClick={() =>
+                            addBlock('core/contact-form', '', {
+                              form: contactForms.some((f) => f.name === 'default')
+                                ? 'default'
+                                : contactForms[0].name,
+                            })
+                          }
+                        >
+                          <Mail size={14} />
+                          <span>{t('editor.contactForm')}</span>
+                        </Button>
+                      )}
+                      {blockDefinitions.map((definition) => (
+                        <Button
+                          key={definition.name}
+                          variant="tool"
+                          title={
+                            localize(definition.description, i18n.language) ||
+                            definition.plugin_display_name
+                          }
+                          onClick={() =>
+                            addBlock(definition.name, '', defaultAttributes(definition))
+                          }
+                        >
+                          <Puzzle size={14} />
+                          <span>{localize(definition.label, i18n.language)}</span>
+                        </Button>
+                      ))}
                     </div>
 
                     {/* Block Canvas */}
@@ -924,6 +1188,8 @@ export const App: React.FC = () => {
                           onMoveDown={() => moveBlock(idx, 'down')}
                           onDelete={() => deleteBlock(idx)}
                           canUpload={editable}
+                          blockDefinitions={blockDefinitions}
+                          contactForms={contactForms}
                         />
                       ))}
 

@@ -33,6 +33,7 @@ export interface ResolvedRelation {
  * Schema-specific custom fields are returned under `fields` and resolved relations under `relations`.
  */
 export type ContentItem = import('./schemas').BaseContentItem & {
+  comments_open?: boolean;
   fields?: Record<string, unknown>;
   relations?: Record<string, ResolvedRelation>;
 };
@@ -72,6 +73,21 @@ export type AuditAction =
   | 'comment.update'
   | 'comment.delete'
   | 'comment.settings_update'
+  | 'forum.category.create'
+  | 'forum.category.update'
+  | 'forum.category.delete'
+  | 'forum.thread.create'
+  | 'forum.thread.pin'
+  | 'forum.thread.lock'
+  | 'forum.thread.delete'
+  | 'forum.post.create'
+  | 'forum.post.delete'
+  | 'forum.moderate'
+  | 'forum.settings_update'
+  | 'forum.report.create'
+  | 'forum.report.resolve'
+  | 'contact.update'
+  | 'contact.delete'
   | 'notification.template_update'
   | 'notification.queue_update';
 
@@ -283,6 +299,35 @@ export interface PreviewRequest {
   /** Custom fields, e.g. `category_id` */
   fields: Record<string, unknown>;
   blocks: BlockNode[];
+}
+
+/** Text in a plugin manifest: one string, or one per language (`{ "en": ..., "ja": ... }`) */
+export type LocalizedText = string | Record<string, string>;
+
+export type PluginBlockFieldType =
+  'string' | 'text' | 'url' | 'number' | 'boolean' | 'select' | 'image';
+
+/** An input of a plugin's custom block; its value goes to `attributes[name]` */
+export interface PluginBlockField {
+  name: string;
+  type: PluginBlockFieldType;
+  label: LocalizedText;
+  required?: boolean;
+  default?: unknown;
+  options?: { value: string; label: LocalizedText }[];
+  placeholder?: LocalizedText;
+  help?: LocalizedText;
+}
+
+/** A custom block an enabled plugin provides (`GET /api/v1/blocks`) */
+export interface PluginBlockDefinition {
+  /** Block name stored in the body: `<plugin>/<block>` */
+  name: string;
+  plugin: string;
+  plugin_display_name: string;
+  label: LocalizedText;
+  description?: LocalizedText;
+  fields: PluginBlockField[];
 }
 
 /** Returned by `POST /api/v1/preview` */
@@ -604,6 +649,8 @@ export interface PluginCapabilities {
   network?: { allowed_domains: string[] } | null;
   storage?: { kv_namespace: string } | null;
   hooks: string[];
+  /** Hosts whose `<iframe>`s the plugin's blocks may embed (also added to the CSP `frame-src`) */
+  embed?: { frame_domains: string[] } | null;
 }
 
 export interface PluginResourceLimits {
@@ -737,6 +784,8 @@ export interface CommentSettings {
   overrides: { require_approval: boolean | null; auto_approve_known: boolean | null };
   /** `[comments.moderation]` in the configuration file */
   defaults: CommentPolicy;
+  /** Content types that accept comments (`[comments].content_types`) */
+  content_types?: string[];
 }
 
 /** Bulk action on comments: a new status, or `delete` (permanently) */
@@ -781,6 +830,7 @@ export interface ForumThread {
   author_name: string;
   is_pinned: boolean;
   is_locked: boolean;
+  status?: CommentStatus;
   post_count: number;
   last_post_at: string;
   created_at: string;
@@ -796,9 +846,124 @@ export interface ForumPost {
   body: string;
   reply_to_post_id: string | null;
   reply_to_number: number | null;
+  status?: CommentStatus;
   is_deleted: boolean;
   ip: string | null;
   user_agent: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ForumReport {
+  id: string;
+  target_type: 'thread' | 'post';
+  target_id: string;
+  thread_id: string;
+  reason: string;
+  reporter_id: string | null;
+  reporter_ip: string | null;
+  status: 'open' | 'resolved' | 'dismissed';
+  resolved_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ForumModerationSettings {
+  policy: CommentPolicy;
+  overrides: { require_approval: boolean | null; auto_approve_known: boolean | null };
+  defaults: CommentPolicy;
+  config: {
+    require_approval: boolean;
+    auto_approve_known: boolean;
+    max_links: number;
+    hold_words: string[];
+    spam_words: string[];
+    max_per_ip_per_hour: number;
+  };
+}
+
+/** A value's totals in `GET /api/v1/analytics/summary` (a page, a referrer host or a device type) */
+export interface AnalyticsTotal {
+  /** The page path, referrer host ('' = direct / no referrer) or device (`desktop` / `mobile` / `tablet`) */
+  value: string;
+  pageviews: number;
+  visitors: number;
+}
+
+/** One day in `GET /api/v1/analytics/summary` */
+export interface AnalyticsDay {
+  /** `YYYY-MM-DD` (UTC) */
+  day: string;
+  pageviews: number;
+  visitors: number;
+}
+
+/** `GET /api/v1/analytics/summary` (404 when [analytics] is disabled) */
+export interface AnalyticsSummary {
+  from: string;
+  to: string;
+  pageviews: number;
+  /** The sum of each day's unique visitors (the same person on two days counts twice) */
+  visitors: number;
+  /** Every day of the range, oldest first (0 for days without visits) */
+  daily: AnalyticsDay[];
+  top_pages: AnalyticsTotal[];
+  /** Entry page views from other sites; '' is direct visits */
+  top_referrers: AnalyticsTotal[];
+  devices: AnalyticsTotal[];
+}
+
+/** A field of a contact form (`[[contact.forms.fields]]` in the configuration file) */
+export interface ContactFieldConfig {
+  name: string;
+  label: string;
+  type: 'text' | 'email' | 'tel' | 'textarea' | 'select' | 'checkbox';
+  required: boolean;
+  placeholder: string;
+  options: string[];
+  max_length: number | null;
+}
+
+/** `GET /api/v1/contact/forms` (404 when [contact] is disabled) */
+export interface ContactForm {
+  /** Name used by the block and the URL (`/contact/{name}`) */
+  name: string;
+  title: string;
+  /** Public page path (with the base path) */
+  path: string;
+  fields: ContactFieldConfig[];
+  auto_reply: boolean;
+}
+
+export type ContactStatus = 'new' | 'read' | 'done' | 'spam';
+
+/** One answered field of a contact message (checkboxes are `yes` or empty) */
+export interface ContactFieldValue {
+  name: string;
+  label: string;
+  value: string;
+}
+
+/** A message in the contact inbox (`GET /api/v1/contact/messages`) */
+export interface ContactMessage {
+  id: string;
+  form: string;
+  /** The form's title (its name when the form is no longer configured) */
+  form_title: string;
+  name: string;
+  email: string;
+  subject: string;
+  fields: ContactFieldValue[];
+  status: ContactStatus;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactMessagePage {
+  messages: ContactMessage[];
+  total: number;
+  /** Messages per status (all forms) */
+  counts: Partial<Record<ContactStatus, number>>;
 }

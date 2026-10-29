@@ -1,0 +1,29 @@
+[package]
+name = "aegis-backup"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Database and upload storage dump and restore for AegisCMS"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-schema = { path = "../aegis-schema" }
+aegis-db = { path = "../aegis-db" }
+aegis-storage = { path = "../aegis-storage" }
+
+chrono.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+

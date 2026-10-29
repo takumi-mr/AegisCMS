@@ -8,7 +8,9 @@
 ## 🌟 主な特徴
 
 - **ゼロトラスト・ブロックエディタ**:
-  - 見出し（H1〜H6）、段落、コードブロック（シンタックス指定対応）、画像、引用、カスタムHTMLブロックの追加・編集。
+  - 見出し（H1〜H6）、段落、リスト、コードブロック（シンタックス指定対応）、画像、表（`TableBlockEditor.tsx`。行・列の追加と削除、見出し行、列の揃え）、目次、引用、注記、折りたたみ（Q&A）、区切り線、カスタムHTMLブロックの追加・編集（ブロックの仕様は [本文のブロック](../docs/blocks.md)）。
+  - 有効なプラグインのカスタムブロック（`GET /api/v1/blocks`）もツールバーに並び、マニフェストで宣言された入力欄から作ったフォーム（`PluginBlockEditor.tsx`）で編集する（[本文のブロック 4](../docs/blocks.md#4-プラグインのブロック)）。
+  - 段落・リスト・表のセルなどでは `**太字**`・`*斜体*`・`` `コード` ``・`[リンク](URL)` のインライン書式が使える。
   - 直感的なブロック並び替え（Up / Down）と安全なノード削除。
   - AST 構造（`BlockNode`）を直接編集し、生の不正スクリプト注入を構造的に防止。
 - **リアルタイム HTML プレビュー**:
@@ -17,8 +19,10 @@
   - レンダリング結果をタブでプレビューと HTML ソースコード表示に切り替え可能。
 - **予約公開・予約非公開化**: エディタ・商品フォームの状態で「予約公開」を選び、公開日時（`datetime-local`）を入れて保存すると、その日時にサーバーが公開する。また、公開中・予約公開のコンテンツに非公開予定日時（`unpublish_at`）を指定することで期間限定公開が可能。一覧にはステータスバッジに加え非公開予定アイコン（ツールチップに日時）を表示（[予約公開・予約非公開化](../docs/theme_and_publishing_guide.md#予約公開スケジュール公開)）。
 - **公開スケジュール・カレンダー (Calendar)**: ヘッダーの「カレンダー」タブ（`ScheduleCalendar.tsx`）から、全コンテンツタイプの公開予定・非公開予定・公開中アイテムを月間カレンダーおよびアジェンダ形式で一覧表示。コンテンツタイプ・予定種別による絞り込み、詳細モーダルからの非公開日時のクイック編集・解除、エディタへの直接遷移に対応。
+- **アクセス解析 (Analytics)**: `[analytics].enabled = true` のときだけ出るヘッダーの「アクセス解析」タブ（`AnalyticsView.tsx`）で、過去 7 / 30 / 90 日のページビュー・訪問者の推移（グラフと表。グラフは矢印キーでも読める）、よく見られたページ・参照元・端末を表示（[docs/analytics.md](../docs/analytics.md)）。
+- **問い合わせ (Inbox)**: `[contact].enabled = true` のとき editor 以上に出るヘッダーの「問い合わせ」タブ（`ContactInbox.tsx`）で、問い合わせフォームから届いたメッセージを新着・既読・対応済み・スパムに分けて一覧・詳細表示・メールで返信・まとめて状態の変更・削除。本文には「問い合わせフォーム」ブロック（`core/contact-form`、Markdown では `[CONTACT]`）を置ける（[docs/contact.md](../docs/contact.md)）。
 - **Markdown 編集 & 貼り付け**:
-  - エディタ上部の **Blocks / Markdown** で編集方法を切り替える。ブロックと Markdown は相互に変換され（`utils/markdown.ts` の `blocksToMarkdown` / `markdownToBlocks`。見出し・段落・コード・画像・リスト）、どちらで編集してもプレビューと保存は同じブロックから行う。
+  - エディタ上部の **Blocks / Markdown** で編集方法を切り替える。ブロックと Markdown は相互に変換され（`utils/markdown.ts` の `blocksToMarkdown` / `markdownToBlocks`。見出し・段落・コード・画像・リスト・表・目次（`[TOC]`）・引用・注記（`> [!NOTE]`・`:::note`）・折りたたみ（`:::details`）・区切り線・プラグインのブロック（`::: <名前> {属性の JSON}`））、どちらで編集してもプレビューと保存は同じブロックから行う。
   - Markdown エディタ（`MarkdownEditor.tsx`）: 書式の挿入ツールバー、Tab でのインデント、Ctrl+S で保存、行数・文字数・ブロック数の表示。
   - ブロックエディタに Markdown を貼り付けるとブロックに変換して追加する。**Paste Markdown**（`PasteMarkdownModal.tsx`）ではクリップボードを読み込み、変換結果の内訳を確かめてから末尾に追加か全置換を選ぶ。
 - **商品・注文 (Products / Orders)**: 商品の作成・編集（価格・在庫・SKU・画像）と、注文の一覧・詳細・状態の変更（入金確認・発送・取り消し）。タブは EC が有効（`[commerce].enabled`）なときだけ表示する（[EC](../docs/commerce.md#33-admin-studio)）。
@@ -109,6 +113,8 @@ admin/
 │   │   ├── ProfileModal.tsx # 自分のプロフィール（AvatarPicker.tsx でアバターを選ぶ）
 │   │   ├── ProductManager.tsx # 商品
 │   │   ├── OrderManager.tsx # 注文
+│   │   ├── AnalyticsView.tsx # アクセス解析のダッシュボード
+│   │   ├── ContactInbox.tsx # 問い合わせの受信箱
 │   │   ├── CommentManager.tsx # コメントの審査・返信・承認の設定
 │   │   ├── AuditLogView.tsx # 監査ログ閲覧画面
 │   │   ├── CategoryManager.tsx # カテゴリ一覧・作成

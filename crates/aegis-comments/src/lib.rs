@@ -242,6 +242,8 @@ pub struct ModerationSettings {
     pub overrides: PolicyOverrides,
     /// 設定ファイル（`[comments.moderation]`）の値
     pub defaults: ModerationPolicy,
+    /// コメントを受け付けるコンテンツの種類（`[comments].content_types`）
+    pub content_types: Vec<String>,
 }
 
 pub struct CommentService {
@@ -285,6 +287,7 @@ impl CommentService {
             policy: self.config.moderation.policy(&overrides),
             defaults: self.config.moderation.policy(&PolicyOverrides::default()),
             overrides,
+            content_types: self.config.content_types.clone(),
         })
     }
 
@@ -925,6 +928,55 @@ impl CommentService {
         comment.body = body;
         comment.updated_at = updated_at;
         Ok(comment)
+    }
+
+    /// コンテンツごとに新しいコメントの受付が止められているか（`_aegis_settings` の設定を検査する）
+    pub fn is_content_closed_in_settings(
+        &self,
+        settings: &HashMap<String, String>,
+        content_type: &str,
+        content_id: &str,
+    ) -> Option<bool> {
+        if !self.config.accepts(content_type) {
+            return None;
+        }
+        Some(settings.contains_key(&closed_key(content_type, content_id)))
+    }
+
+    /// コンテンツごとに新しいコメントの受付の状態を取得する（公開・下書きを問わず Admin Studio で使う）
+    pub async fn get_content_open(
+        &self,
+        content_type: &str,
+        slug_or_id: &str,
+    ) -> CommentResult<(String, bool)> {
+        let not_found = || CommentError::NotFound(format!("Content '{}' not found", slug_or_id));
+        if !self.config.accepts(content_type) {
+            return Err(CommentError::NotFound(format!(
+                "Comments are not enabled for '{}'",
+                content_type
+            )));
+        }
+        let schema = self
+            .deps
+            .schemas
+            .read()
+            .await
+            .get(content_type)
+            .cloned()
+            .ok_or_else(not_found)?;
+        let record = self
+            .deps
+            .db
+            .get_content(&schema, slug_or_id)
+            .await?
+            .ok_or_else(not_found)?;
+        let closed = self
+            .deps
+            .db
+            .list_settings()
+            .await?
+            .contains_key(&closed_key(content_type, &record.id));
+        Ok((record.id, !closed))
     }
 
     /// コンテンツごとに新しいコメントの受付を止める・再開する（Admin Studio）。

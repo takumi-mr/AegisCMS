@@ -13,6 +13,7 @@ use crate::audit::AuditContext;
 use crate::auth::authorize::RequireRole;
 use crate::auth::{AdminSession, ViewerSession};
 use crate::state::AppState;
+use aegis_cache::CacheTags;
 use aegis_core::{guess_content_type, AuditAction, AuditOutcome};
 use aegis_theme::ThemeInfo;
 
@@ -81,6 +82,9 @@ pub async fn switch_active_theme(
             "to_theme": new_theme,
         }));
     state.audit.record(event).await;
+
+    // テーマ切り替えにより公開ページ全体・テーマアセットが変わるためCDNキャッシュをパージ
+    crate::cdn::purge_site_global(&state).await;
 
     // 更新後のテーマ情報を取得して返却
     match state.theme.get_theme_info(new_theme) {
@@ -285,7 +289,14 @@ pub async fn get_active_theme_asset(
 ) -> impl IntoResponse {
     let assets_dir = state.theme.active_assets_dir();
     match assets_dir {
-        Some(dir) => serve_file_safely(&dir, &path),
+        Some(dir) => {
+            let resp = serve_file_safely(&dir, &path);
+            let mut tags = CacheTags::new();
+            tags.add_url(&format!("/theme/assets/{}", path));
+            tags.add_tag("site-global");
+            tags.add_dependency("theme", &state.theme.active_theme());
+            crate::cdn::apply_cache_tags(&state, resp, &tags)
+        }
         None => (StatusCode::NOT_FOUND, "No assets found for active theme").into_response(),
     }
 }

@@ -199,6 +199,7 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 | `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64` | 注文の作成・状態の変化の通知 |
 | `send-notification` | `send_notification` | `(ptr: i32, len: i32)` | `i64` | 通知の配信チャネル（Slack・SMS など） |
 | `on-content-published` | `on_content_published` | `(ptr: i32, len: i32)` | `i64` | 予約公開などコンテンツ公開時の通知 |
+| `render-blocks` | `render_blocks` | `(ptr: i32, len: i32)` | `i64` | 本文のカスタムブロックの HTML（[4.9](#49-render_blocks)） |
 
 ### 4.1 `on_before_save`
 
@@ -291,6 +292,15 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - **戻り値**: `0`（成功）、または `{"error": "..."}`（ログと監査ログ `plugin.error` に残るだけで、公開処理には影響しない）
 
 ---
+
+### 4.9 `render_blocks`
+
+マニフェストの `blocks` で宣言したカスタムブロックを HTML にします。公開ページなどの描画のたびに、プラグインごとに 1 回呼ばれます。
+
+- **入力**: `{"blocks": [BlockNode, ...]}`（このプラグインのブロック。文書の順）
+- **戻り値**: `{"html": [string | null, ...]}`（入力と同じ順。`null` や足りない分は表示しない）。長さ 0（何も返さない）は全部表示しない
+- **失敗**: エラーエンベロープ `{"error": "..."}`。そのプラグインのブロックは表示されない
+- 返した HTML はホストがサニタイズします（`<script>`・`on*` 属性・`javascript:` の URL などを除去）。
 
 ## 5. データ構造仕様 (JSON Schemas)
 
@@ -415,6 +425,8 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - **`name`**: プラグインの識別子（英小文字・数字・`-`・`_`）。インストール先は `plugins/<name>/` で、`[plugins].enabled` に書くと有効になる。
 - **`display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version`**: ストア・一覧表示用のメタデータ（任意）。
 - **`resource_limits`**: メモリ上限（MB単位）、Fuel 上限、タイムアウト（ミリ秒単位）。
+- **`capabilities.embed.frame_domains`**: カスタムブロックの HTML に残せる `<iframe>` の配信元のホスト（CSP の `frame-src` にも足される）。形式は [plugin_hooks.md 3.2](plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)。
+- **`blocks`**: 本文に置けるカスタムブロックの宣言（名前・表示名・入力欄）。`render-blocks` フックが必要。形式は [plugin_hooks.md 3.1](plugin_hooks.md#31-カスタムブロック-blocks)。
 
 ---
 

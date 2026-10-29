@@ -28,6 +28,16 @@ tasks:
     cmds:
       - cargo run -p aegis-server -- migrate
 
+  dump:
+    desc: データベースとストレージの一括バックアップ ZIP を生成
+    cmds:
+      - cargo run -p aegis-server -- dump --output {{.OUTPUT | default "backup.zip"}} {{.CLI_ARGS}}
+
+  restore:
+    desc: バックアップ ZIP からデータベースとストレージを復元
+    cmds:
+      - cargo run -p aegis-server -- restore --input {{.INPUT | default "backup.zip"}} {{.CLI_ARGS}}
+
   # ============================================================================
   # ⚙️ コード生成タスク (TypeScript / OpenAPI)
   # ============================================================================
@@ -174,6 +184,20 @@ tasks:
       - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_shop_rules.wasm plugins\\official-shop-rules\\plugin.wasm && copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_order_notifier.wasm plugins\\official-order-notifier\\plugin.wasm"
         platforms: [windows]
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_shop_rules.wasm plugins/official-shop-rules/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_order_notifier.wasm plugins/official-order-notifier/plugin.wasm
+        platforms: [linux, darwin]
+
+  deploy:generate:
+    desc: deploy/sites.toml から compose.yaml・Caddyfile・sites/*/aegis.toml を生成（本番では deploy/deploy.sh up がイメージの中で行う）
+    cmds:
+      - cargo run -p aegis-server -- deploy generate --dir deploy --builtin .
+
+  plugin:build:blocks:
+    desc: 公式ブロックプラグイン (official-blocks) を Wasm にビルドし plugins/official-blocks/plugin.wasm を更新
+    cmds:
+      - cargo build -p aegis-plugin-blocks --target wasm32-unknown-unknown --release
+      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_blocks.wasm plugins\\official-blocks\\plugin.wasm"
+        platforms: [windows]
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_blocks.wasm plugins/official-blocks/plugin.wasm
         platforms: [linux, darwin]
 
   plugin:build:as:

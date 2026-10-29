@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Activity,
+  BarChart3,
+  Inbox,
   Send,
   PenSquare,
   LogOut,
@@ -31,7 +33,15 @@ const ROLE_BADGE: Record<string, string | undefined> = {
 };
 
 export type AppView =
-  'editor' | 'schedule' | 'products' | 'orders' | 'comments' | 'forum' | 'settings';
+  | 'editor'
+  | 'schedule'
+  | 'products'
+  | 'orders'
+  | 'comments'
+  | 'forum'
+  | 'contact'
+  | 'analytics'
+  | 'settings';
 
 interface HeaderProps {
   view: AppView;
@@ -50,6 +60,10 @@ interface HeaderProps {
   showComments: boolean;
   /** Forum tab: forum is enabled (`[forum].enabled`) and the user can edit */
   showForum: boolean;
+  /** Contact tab: contact forms are enabled (`[contact].enabled`) and the user can edit */
+  showContact?: boolean;
+  /** Analytics tab: access analytics are enabled (`[analytics].enabled`); every role can read them */
+  showAnalytics?: boolean;
   /** The signed-in user's account (avatar, current display name), once loaded */
   profile: UserAccount | null;
   onOpenProfile: () => void;
@@ -69,6 +83,8 @@ export const Header: React.FC<HeaderProps> = ({
   showShop,
   showComments,
   showForum,
+  showContact = false,
+  showAnalytics = false,
   profile,
   onOpenProfile,
   onLogout,
@@ -123,6 +139,24 @@ export const Header: React.FC<HeaderProps> = ({
             id: 'forum' as const,
             label: t('header.tabs.forum'),
             icon: <MessagesSquare size={15} />,
+          },
+        ]
+      : []),
+    ...(showContact
+      ? [
+          {
+            id: 'contact' as const,
+            label: t('header.tabs.contact'),
+            icon: <Inbox size={15} />,
+          },
+        ]
+      : []),
+    ...(showAnalytics
+      ? [
+          {
+            id: 'analytics' as const,
+            label: t('header.tabs.analytics'),
+            icon: <BarChart3 size={15} />,
           },
         ]
       : []),

@@ -140,6 +140,9 @@ pub async fn update_site_settings(
         )
         .await;
 
+    // サイト名・favicon の変更は全公開ページに影響するため CDN キャッシュをパージ
+    crate::cdn::purge_site_global(&state).await;
+
     Ok(Json(response(&state, next)))
 }
 

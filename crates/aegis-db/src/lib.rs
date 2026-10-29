@@ -1,7 +1,9 @@
 //! データベース（`[database]`: SQLite / PostgreSQL / MySQL）。コンテンツ・監査ログ・ユーザー・注文・コメント・通知の送信待ちの保存
 
+pub mod analytics;
 pub mod comments;
 pub mod config;
+pub mod contact;
 pub mod customers;
 pub mod forum;
 pub mod mysql;
@@ -10,6 +12,7 @@ pub mod orders;
 pub mod postgres;
 pub mod reviews;
 pub mod sqlite;
+pub mod sqlx_compat;
 pub mod variants;
 
 use aegis_core::{AegisError, AuditActor, AuditEvent, AuditQuery, Result};
@@ -20,14 +23,19 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+pub use analytics::{AnalyticsCount, AnalyticsStorage, AnalyticsTotal, ANALYTICS_TABLE};
 pub use comments::{CommentListQuery, CommentPage, CommentRecord, CommentStorage, COMMENT_TABLE};
 pub use config::{DatabaseBackendKind, DatabaseConfig};
+pub use contact::{
+    ContactListQuery, ContactMessageRecord, ContactPage, ContactStorage, CONTACT_TABLE,
+};
 pub use customers::{
     build_customer_table, CustomerRecord, CustomerStorage, CUSTOMER_COLUMNS, CUSTOMER_TABLE,
 };
 pub use forum::{
-    ForumCategoryRecord, ForumPostRecord, ForumStorage, ForumThreadRecord, PostListQuery,
-    ThreadListQuery, FORUM_CATEGORY_TABLE, FORUM_POST_TABLE, FORUM_THREAD_TABLE,
+    ForumCategoryRecord, ForumPostRecord, ForumReportRecord, ForumStorage, ForumThreadRecord,
+    PostListQuery, ThreadListQuery, FORUM_CATEGORY_TABLE, FORUM_POST_TABLE, FORUM_REPORT_TABLE,
+    FORUM_THREAD_TABLE,
 };
 pub use mysql::MySqlAdapter;
 pub use notifications::{
@@ -172,6 +180,8 @@ pub trait DatabaseAdapter:
     + ForumStorage
     + CustomerStorage
     + ReviewStorage
+    + AnalyticsStorage
+    + ContactStorage
     + Send
     + Sync
 {
@@ -343,10 +353,23 @@ pub trait DatabaseAdapter:
 
     /// Remove a setting (the configuration file's value applies again)
     async fn delete_setting(&self, name: &str) -> Result<()>;
+    /// List all external identity links
+    async fn list_identity_links(&self) -> Result<Vec<UserIdentityRecord>> {
+        Ok(Vec::new())
+    }
+}
+
+/// 外部 IdP とユーザーの紐付けレコード（`_aegis_user_identities` テーブルの 1 行）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UserIdentityRecord {
+    pub provider: String,
+    pub subject: String,
+    pub username: String,
+    pub created_at: String,
 }
 
 /// ローカル認証のユーザーアカウント（`_aegis_users` テーブルの 1 行）
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserRecord {
     pub id: String,
     /// ログイン名（一意・変更不可）。セッションの `user_id` や監査ログの actor に使う
@@ -480,6 +503,14 @@ pub fn build_identity_select(placeholder: impl Fn(usize) -> String) -> String {
         IDENTITY_TABLE,
         placeholder(1),
         placeholder(2)
+    )
+}
+
+/// 対応表の SELECT 文（全件）
+pub fn build_identity_list() -> String {
+    format!(
+        "SELECT provider, subject, username, created_at FROM {} ORDER BY provider, subject;",
+        IDENTITY_TABLE
     )
 }
 

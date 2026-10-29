@@ -1,0 +1,15 @@
+A forum {{ report.target_type }} in "{{ category.name }}" ("{{ thread.title }}") was reported.
+
+Reason: {{ report.reason }}
+{% if report.reporter_ip %}
+Reporter IP: {{ report.reporter_ip }}
+{% endif %}
+
+Author: {{ post.author_name }}
+
+{{ post.body }}
+{% if moderation_url %}
+
+Review reports in Admin Studio: {{ moderation_url }}
+{% endif %}
+

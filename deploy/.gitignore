@@ -1,0 +1,12 @@
+# 自分の環境の設定と、そこから生成するファイル
+/sites.toml
+/compose.yaml
+/Caddyfile
+/sites/
+/secrets/*
+!/secrets/.gitkeep
+# 自作のテーマ・プラグイン
+/themes/*
+!/themes/.gitkeep
+/plugins/*
+!/plugins/.gitkeep

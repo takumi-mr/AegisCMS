@@ -136,8 +136,8 @@ impl WasmEngine {
     fn build(pool: Option<InstancePoolConfig>) -> Result<Self> {
         let mut config = Config::new();
         config.consume_fuel(true);
-        config.async_support(true);
-        config.wasm_backtrace(false);
+        // async_support is enabled by default in wasmtime 50
+        config.wasm_backtrace_max_frames(None);
         if let Some(pool) = pool {
             let mut pooling = PoolingAllocationConfig::default();
             pooling

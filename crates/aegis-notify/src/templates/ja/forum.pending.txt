@@ -1,0 +1,13 @@
+掲示板「{{ category.name }}」の「{{ thread.title }}」に承認待ちの{% if post.is_reply %}返信{% else %}スレッド{% endif %}があります。
+
+名前: {{ post.author_name }}
+{% if post.ip %}
+IP アドレス: {{ post.ip }}
+{% endif %}
+
+{{ post.body }}
+{% if moderation_url %}
+
+管理画面で承認・スパムの判定ができます: {{ moderation_url }}
+{% endif %}
+

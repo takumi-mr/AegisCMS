@@ -11,3 +11,5 @@ data/
 .vscode/
 .idea/
 *.log
+# 本番の構成（deploy/）の設定・秘密の値・生成したファイルはイメージのビルドに使わない
+deploy/

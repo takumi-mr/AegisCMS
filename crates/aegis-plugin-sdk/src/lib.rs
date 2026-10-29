@@ -215,6 +215,16 @@ macro_rules! register_plugin {
         }
 
         #[no_mangle]
+        pub extern "C" fn render_blocks(ptr: i32, len: i32) -> i64 {
+            unsafe {
+                $crate::abi::run_render_blocks_hook(ptr, len, |blocks| {
+                    let mut plugin = <$plugin_type as ::std::default::Default>::default();
+                    <$plugin_type as $crate::types::Plugin>::render_blocks(&mut plugin, blocks)
+                })
+            }
+        }
+
+        #[no_mangle]
         pub extern "C" fn on_render_page(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = $crate::abi::read_bytes_from_host(ptr, len);

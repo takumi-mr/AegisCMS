@@ -283,7 +283,6 @@ impl ThemeEngine {
             ));
         }
 
-        let manifest_bytes = std::fs::read(&manifest_path).map_err(AegisError::Io)?;
         let manifest = ThemeManifest::load_from_dir(theme_dir).ok_or_else(|| {
             AegisError::Theme("Failed to parse valid 'theme.json' manifest".to_string())
         })?;
@@ -314,12 +313,7 @@ impl ThemeEngine {
         }
 
         // 署名検証
-        aegis_core::verify_package_signature(
-            theme_dir,
-            &manifest_bytes,
-            trusted_keys,
-            require_signature,
-        )?;
+        aegis_core::verify_package_signature(theme_dir, trusted_keys, require_signature)?;
 
         Ok(manifest)
     }
@@ -348,7 +342,7 @@ impl ThemeEngine {
             AegisError::Theme(format!("Template error for '{}': {}", template_name, e))
         })?;
 
-        let value = minijinja::Value::from_serialize(ctx);
+        let value = minijinja::Value::from(minijinja::value::Serde(ctx));
         let rendered = template.render(value).map_err(|e| {
             AegisError::Theme(format!(
                 "Failed to render template '{}': {}",
@@ -470,6 +464,10 @@ impl ThemeEngine {
                 match name {
                     "base.html" => Ok(Some(BASE_TEMPLATE.to_string())),
                     "index.html" => Ok(Some(INDEX_TEMPLATE.to_string())),
+                    "front.html" => Ok(Some(FRONT_TEMPLATE.to_string())),
+                    "category.html" => Ok(Some(CATEGORY_TEMPLATE.to_string())),
+                    "search.html" => Ok(Some(SEARCH_TEMPLATE.to_string())),
+                    "contact.html" => Ok(Some(CONTACT_TEMPLATE.to_string())),
                     "article.html" => Ok(Some(ARTICLE_TEMPLATE.to_string())),
                     "page.html" => Ok(Some(PAGE_TEMPLATE.to_string())),
                     "blank.html" => Ok(Some(BLANK_TEMPLATE.to_string())),
@@ -759,7 +757,7 @@ mod tests {
             .to_string()
             .contains("Package requires Aegis version >="));
 
-        // 5. 署名必須ポリシーの検証
+        // 5. 署名必須ポリシーの検証（trusted_keys 未設定、および signature.json 不在）
         std::fs::write(
             theme_path.join("theme.json"),
             r#"{"id":"my-cool-theme","name":"Cool Theme"}"#,
@@ -770,7 +768,16 @@ mod tests {
         assert!(err
             .unwrap_err()
             .to_string()
-            .contains("Package signature required by policy"));
+            .contains("no trusted public keys are configured"));
+
+        let trusted =
+            vec!["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string()];
+        let err = engine.validate_theme_package_with_policy(&theme_path, Some(&trusted), true);
+        assert!(err.is_err());
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("Package signature required by policy, but 'signature.json' was not found"));
 
         let _ = std::fs::remove_dir_all(&temp_base);
     }

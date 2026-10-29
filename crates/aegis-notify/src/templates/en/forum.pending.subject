@@ -1,0 +1,2 @@
+Forum {% if post.is_reply %}reply{% else %}thread{% endif %} awaiting approval: "{{ thread.title }}" - {{ site_name }}
+

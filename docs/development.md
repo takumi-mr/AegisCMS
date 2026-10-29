@@ -13,6 +13,7 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | `task dev` / `task dev:admin` | サーバー（ポート 8080）/ Admin Studio の開発サーバー |
 | `task check` | PR 前の検証一式: `fmt:check`・`fmt:admin:check`・`lint`・`lint:admin`・`test`・`build:admin` |
 | `task migrate` | スキーマのマイグレーション |
+| `task dump` / `task restore` | データベースとアップロードストレージの一括バックアップ ZIP の生成 / 復元 |
 | `task codegen`（`codegen:ts` / `codegen:openapi`） | `schemas/*.yaml` から `admin/src/types/schemas.ts` と `docs/openapi.json` を生成。スキーマを変えたら実行する |
 | `task build` / `build:server` / `build:admin` | 本番ビルド |
 | `task test:admin` | Admin Studio のユニットテスト（Vitest。[8.1](#81-ユニットテスト-vitestadminsrctests)） |
@@ -85,6 +86,7 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 - ビルドプロファイルは `ARG CARGO_PROFILE`（既定 `release`）で切り替えられる。CI の検証では `ci-release` を渡す（[3](#3-ci-githubworkflowsciyml)）。
 - ワークスペースのメンバー（`crates/`・`sdk/`・`plugins/`）は `cargo chef prepare` と `cargo build` の時点でコンテキストに必要（`COPY plugins/ ./plugins/` など）。実行環境には `themes/` も置く。
 - UID 10001 の非 root ユーザー `aegis` で実行し、HEALTHCHECK を持つ。データは `/app/data` をボリュームにする（例: `-v aegis-data:/app/data`）。
+- 本番の公開（Caddy で HTTPS、複数サイト）は [`deploy/`](../deploy)。`aegis-server deploy generate`（`crates/aegis-server/src/deploy.rs`）が `deploy/sites.toml` から `compose.yaml`・`Caddyfile`・サイトごとの `aegis.toml` を作る。手元では `task deploy:generate` で `deploy/sites.toml` から生成できる（組み込みのテーマ・プラグインはリポジトリの `themes/`・`plugins/` で確かめる）。
 - 設定は `config/docker.toml`（`host = "0.0.0.0"`, `port = 8080`）。`AEGIS_CONFIG`・`HOST`・`PORT` で上書きできる。Admin Studio の API 接続先を別にする場合は `--build-arg VITE_AEGIS_SERVER_URL=...`（[configuration.md 4.3](configuration.md#43-admin-studio-の接続先)）。
 
 ---
@@ -230,3 +232,56 @@ Windows の npm 11 で `npm install` すると、他のプラットフォーム�
 
 - 失敗したら、同じイメージの中で `npm install --ignore-scripts` してできた `package-lock.json` を使う（足りない記録だけが補われる）。`main` の `package-lock.json` と比べて、既存のパッケージのバージョンが変わっていないことを確かめる。
 - `npm ci` の出力を捨てない（`>/dev/null` で失敗に気づかず、古い `node_modules` のまま検証してしまう）。
+
+
+---
+
+## 6. CLI サブコマンドリファレンス (`aegis`)
+
+`aegis-server` バイナリ（`cargo run -p aegis-server -- <command>` またはインストール済み `aegis`）で利用可能な主要サブコマンドです。
+
+```bash
+# 全体ヘルプ
+aegis --help
+
+# サーバー起動 (既定: ポート 8080)
+aegis run [--port <PORT>] [--host <HOST>]
+
+# データベーススキーマのマイグレーション実行
+aegis migrate
+
+# バックアップアーカイブの生成 (DB + アップロードストレージ)
+aegis dump --output backup.zip
+# DB のみバックアップ (ストレージ除外)
+aegis dump --output db_only.zip --no-storage
+# ストレージのみバックアップ (DB 除外)
+aegis dump --output storage_only.zip --no-database
+
+# バックアップの整合性・チェックサム事前検証 (復元は行わない)
+aegis restore --input backup.zip --verify-only
+
+# バックアップアーカイブからの復元
+aegis restore --input backup.zip
+# 既存レコードと衝突する場合は上書き置換して復元
+aegis restore --input backup.zip --overwrite
+
+# TypeScript 型定義 / OpenAPI 3.1 仕様書の生成
+aegis codegen --target typescript --output admin/src/types/schemas.ts
+aegis codegen --target openapi --output docs/openapi.json
+
+# ユーザー管理
+aegis user add <username> --role admin [--email <email>]
+aegis user passwd <username>
+aegis user list
+aegis user role <username> <editor|admin|viewer>
+aegis user disable <username>
+aegis user enable <username>
+aegis user link-oidc <username> <sub_claim>
+aegis user link-saml <username> <name_id>
+
+# プラグイン一覧と稼働状況の確認
+aegis plugin list
+
+# 通知設定と配信チャネルのテスト
+aegis notify test --to <email> [--staff]
+```

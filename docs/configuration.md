@@ -174,7 +174,7 @@ public_url_prefix = "https://cdn.example.com"
 | `enabled` | array of string | `[]` | 有効にするプラグイン名（マニフェストの `name` = `plugins_dir` 直下のディレクトリ名）。フックはこの順に実行される |
 | `settings.<name>` | table | なし | プラグインごとの設定値。プラグインは `host.config_get`（SDK の `config::get`）で読む。文字列の値 `env:NAME` は環境変数 `NAME` の値になる（API キーなどを設定ファイルに書かないため） |
 | `require_signatures` | bool | `false` | ZIP でのインストール時に署名（`signature.json`）を必須にする（[パッケージのインストール](./plugin_hooks.md#54-zip-パッケージからのインストールと署名)） |
-| `trusted_public_keys` | string[] | `[]` | 受け入れる Ed25519 公開鍵（hex）。空なら署名が正しければどの鍵でも受け入れる |
+| `trusted_public_keys` | string[] | `[]` | 受け入れる Ed25519 公開鍵（32 バイトの hex）。`require_signatures = true` のときは 1 件以上必須（空だと起動しない）。`require_signatures = false` で空なら署名が正しければどの鍵でも受け入れる |
 
 ```toml
 [plugins]
@@ -421,6 +421,86 @@ SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Re
 | `auto_lock_post_count` | integer | `1000` | この数のレスでスレッドを自動でロック（0 で無制限） |
 | `default_page_size` | integer | `50` | 1 ページの件数（1〜200） |
 
+### 2.17 `[cdn]` — On-demand Cache-Tag Purge (CDN エッジキャッシュ連携)
+
+バックエンド側で HTML ページキャッシュを持たず、公開ページの HTTP レスポンスに `Cache-Tag`（カンマ区切り: Cloudflare / BunnyCDN / Netlify 等）および `Surrogate-Key`（スペース区切り: Fastly / Varnish / Google Cloud CDN 等）ヘッダーを付与し、コンテンツの公開・更新・削除・予約公開/非公開やサイト設定変更時にタグ指定で CDN キャッシュをパージします。CDN を使わない環境では `enabled = false`（既定）のままにすることでオーバーヘッド 0 で動作します。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で `Cache-Tag` / `Surrogate-Key` ヘッダー付与とパージを有効化 |
+| `provider` | `"none"` \| `"log"` \| `"cloudflare"` \| `"fastly"` \| `"webhook"` | `"none"` | パージ先の CDN プロバイダ。`"none"` はレスポンスヘッダーの送出のみ行い外部 API は呼ばない。`"log"` はパージ対象タグを構造化ログ（`aegis::cdn`）に出力 |
+| `emit_headers` | bool | `true` | `200 OK` の公開ページ応答に `Cache-Tag` と `Surrogate-Key` を付与する |
+| `cache_control` | string | `"public, max-age=0, s-maxage=86400, stale-while-revalidate=60"` | 公開ページ応答に `Cache-Control` が未設定の場合に付与する値（空文字列なら付与しない） |
+| `timeout_ms` | integer (u64) | `5000` | CDN パージ API 呼び出しの HTTP タイムアウト（ミリ秒、100〜60000） |
+
+#### `[cdn.cloudflare]` (`provider = "cloudflare"`)
+
+Cloudflare の `POST /zones/{zone_id}/purge_cache`（`{"tags": [...]}`）を呼び出します（30 タグずつ自動分割）。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `zone_id` | string | `""` | Cloudflare Zone ID（必須） |
+| `api_token` | string | `""` | Cache Purge 権限を持つ API トークン。`"env:VAR_NAME"` または環境変数 `AEGIS_CLOUDFLARE_API_TOKEN` でも指定可 |
+| `api_base` | string | `"https://api.cloudflare.com/client/v4"` | Cloudflare API ベース URL |
+
+#### `[cdn.fastly]` (`provider = "fastly"`)
+
+Fastly の `POST /service/{service_id}/purge`（`Surrogate-Key` ヘッダー、256 キーずつ自動分割）を呼び出します。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `service_id` | string | `""` | Fastly Service ID（必須） |
+| `api_token` | string | `""` | Fastly API トークン（`Fastly-Key`）。`"env:VAR_NAME"` または環境変数 `AEGIS_FASTLY_API_TOKEN` でも指定可 |
+| `soft_purge` | bool | `true` | `true` で `Fastly-Soft-Purge: 1` を付与（即削除せず stale 化してバックグラウンド再検証を行う） |
+| `api_base` | string | `"https://api.fastly.com"` | Fastly API ベース URL |
+
+#### `[cdn.webhook]` (`provider = "webhook"`)
+
+Varnish、Nginx、BunnyCDN、AWS CloudFront 用の Lambda / Cloudflare Workers アダプター、または独自リバースプロキシに対し、`{"action": "purge_tags" | "purge_all", "tags": [...], "surrogate_key": "..."}` の JSON ペイロードを HTTP リクエストで送信します。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `url` | string | `""` | 送信先エンドポイント URL（`http://` または `https://`、必須） |
+| `method` | string | `"POST"` | HTTP メソッド（`"POST"`, `"PURGE"`, `"DELETE"` など） |
+| `bearer_token` | string | `""` | `Authorization: Bearer <token>` に付与するトークン。`"env:VAR_NAME"` または環境変数 `AEGIS_CDN_WEBHOOK_TOKEN` でも指定可 |
+| `headers` | table | `{}` | 追加で付与する任意のカスタム HTTP ヘッダー |
+
+### 2.18 `[search]` — サイト内検索
+
+公開中のコンテンツの全文検索（[サイト内検索のドキュメント](./search.md)）。サーバーの Cargo の feature `search`（既定で有効）で組み込みます。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `true` | `true` で `/search` と `GET /api/v1/search` を有効化 |
+| `index_dir` | string | `"data/search"` | 索引を置くディレクトリ（空ならメモリの中だけ。起動のたびに作り直す） |
+| `content_types` | string[] | `["article", "page"]` | 検索の対象にするコンテンツの種類 |
+
+### 2.19 `[analytics]` — アクセス解析
+
+Cookie を使わないアクセス解析（[アクセス解析のドキュメント](./analytics.md)）。サーバーの Cargo の feature `analytics`（既定で組み込み）で組み込みます。`exclude_paths` が `/` で始まらない場合はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で公開ページにビーコンを入れて集計し、Admin Studio に Analytics タブを出す |
+| `retention_days` | integer | `400` | 集計を残す日数（0 で消さない） |
+| `flush_interval_secs` | integer | `30` | メモリで溜めた集計を DB に書く間隔（秒） |
+| `exclude_paths` | string[] | `[]` | 数えないパス（前方一致。`"/preview"` なら `/preview` と `/preview/...`） |
+
+### 2.20 `[contact]` — 問い合わせフォーム
+
+公開サイトの問い合わせフォームと Admin Studio の受信箱（[問い合わせフォームのドキュメント](./contact.md)）。`enabled = true` で値が不正な場合（フォーム・項目の名前の重なり、`select` に選択肢が無い、`auto_reply` なのに必須のメールアドレスの項目が無いなど）はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で `/contact`・API・受信箱を有効化 |
+| `retention_days` | integer | `365` | 届いた問い合わせを残す日数（0 で消さない） |
+| `max_per_ip_per_hour` | integer | `5` | 同じ IP からの 1 時間あたりの送信数（0 で無制限。`[cache]` で数える） |
+| `max_links` | integer | `3` | 入力のリンクがこれより多いとスパム |
+| `spam_words` | string[] | `[]` | 含むとスパムにする語 |
+| `notify_staff` | bool | `true` | 届いたことを運営者に知らせる（`contact.received`） |
+| `locale` | string | `"en"` | 組み込みの文言（入力の誤り・既定の見出しや項目名）の言語。`en` / `ja` |
+| `forms` | table[] | `default` フォーム 1 つ | `[[contact.forms]]`（`name`・`title`・`description`・`submit_label`・`success_message`・`auto_reply`・`subject_field`・`fields`）。項目は `[[contact.forms.fields]]`（[contact.md 1.1](./contact.md#11-項目)） |
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
@@ -613,6 +693,59 @@ max_links = 2
 hold_words = []
 spam_words = []
 max_per_ip_per_hour = 10
+
+[search]
+enabled = true
+index_dir = "data/search"
+content_types = ["article", "page"]
+
+[analytics]
+enabled = false
+retention_days = 400
+flush_interval_secs = 30
+exclude_paths = []
+
+[contact]
+enabled = false
+retention_days = 365
+max_per_ip_per_hour = 5
+max_links = 3
+spam_words = []
+notify_staff = true
+locale = "en"
+
+[[contact.forms]]
+name = "default"
+title = "Contact"
+description = ""
+submit_label = "Send"
+success_message = "Thank you. We have received your message."
+auto_reply = false
+subject_field = "subject"
+
+[[contact.forms.fields]]
+name = "name"
+label = "Name"
+type = "text"
+required = true
+
+[[contact.forms.fields]]
+name = "email"
+label = "Email"
+type = "email"
+required = true
+
+[[contact.forms.fields]]
+name = "subject"
+label = "Subject"
+type = "text"
+required = false
+
+[[contact.forms.fields]]
+name = "message"
+label = "Message"
+type = "textarea"
+required = true
 ```
 
 ---
@@ -704,6 +837,10 @@ server {
 
 > [!NOTE]
 > `X-Forwarded-For` はクライアントが自由に設定できます。`trust_forwarded_for` を有効にする場合は、AegisCMS に直接アクセスできないようにし（`[server].host = "127.0.0.1"` やファイアウォール）、上の例のようにプロキシ側で受け取った `X-Forwarded-For` を上書きしてください（`$proxy_add_x_forwarded_for` は受け取った値の後ろに追記するため、先頭を偽装できます）。プロキシを多段にする場合は、最も外側のプロキシで上書きしてください。
+
+### 4.5 Caddy でまとめて公開する（`deploy/`）
+
+[`deploy/`](../deploy) に、AegisCMS と Caddy（Let's Encrypt の証明書を自動で取得・更新）を Docker Compose で起動する構成があります。`deploy/sites.toml` にドメインとサイトの設定を書き、`./deploy.sh up` で起動します。サイトごとに AegisCMS のコンテナを分けるので、`[[sites]]` を足すだけで複数のサイト（ドメイン）を同じサーバーで公開できます。各サイトの `aegis.toml` は `aegis-server deploy generate` が `config/docker.toml` を土台に生成し、`[audit].trust_forwarded_for = true` を設定します。手順は [deploy/README.md](../deploy/README.md)。
 
 ---
 

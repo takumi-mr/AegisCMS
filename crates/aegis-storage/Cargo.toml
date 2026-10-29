@@ -13,11 +13,11 @@ workspace = true
 aegis-core = { path = "../aegis-core" }
 async-trait.workspace = true
 chrono.workspace = true
-hex = "0.4"
-hmac = "0.12"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+hex.workspace = true
+hmac.workspace = true
+reqwest = { workspace = true, features = ["stream"] }
 serde.workspace = true
-sha2 = "0.10"
+sha2.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util"] }
 tracing.workspace = true
 

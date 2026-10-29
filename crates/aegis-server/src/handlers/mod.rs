@@ -1,8 +1,10 @@
 pub mod audit;
 pub mod auth;
 pub mod comments;
+pub mod contact;
 pub mod content;
 pub mod customers;
+pub mod feed;
 pub mod forum;
 pub mod headers;
 pub mod health;
@@ -30,9 +32,9 @@ pub mod users;
 pub use audit::{get_metrics, list_audit_logs};
 pub use auth::{create_session, delete_session, get_current_session};
 pub use comments::{
-    bulk_comments, delete_comment, get_comment_settings, list_comments, list_public_comments,
-    reply_comment, set_content_comments, submit_comment, unsubscribe_page, update_comment,
-    update_comment_settings,
+    bulk_comments, delete_comment, get_comment_settings, get_content_comments, list_comments,
+    list_public_comments, reply_comment, set_content_comments, submit_comment, unsubscribe_page,
+    update_comment, update_comment_settings,
 };
 pub use content::{
     create_content, delete_content, delete_variant, get_content, list_content,
@@ -44,6 +46,7 @@ pub use customers::{
     list_my_orders, list_my_reviews, login as customer_login, logout as customer_logout,
     register as customer_register, update_me,
 };
+pub use feed::{get_category_feed, get_feed};
 pub use headers::{get_headers_settings, update_headers_settings};
 pub use health::health_check;
 pub use invitation::{accept_invitation, create_invitation, get_invitation_info};
@@ -57,11 +60,13 @@ pub use oidc::{oidc_callback, oidc_login};
 pub use openapi::get_openapi_spec;
 pub use password_reset::{confirm_password_reset, request_password_reset};
 pub use plugin::{
-    get_plugin_order, get_plugin_settings, install_plugin, list_plugins, reset_plugin_order,
-    set_plugin_enabled, set_plugin_order, update_plugin_settings,
+    get_plugin_order, get_plugin_settings, install_plugin, list_blocks, list_plugins,
+    reset_plugin_order, set_plugin_enabled, set_plugin_order, update_plugin_settings,
 };
 pub use preview::preview_content;
-pub use public::{render_article, render_index, render_page_or_slug};
+pub use public::{
+    render_article, render_articles, render_category, render_index, render_page_or_slug,
+};
 pub use registration::{register, verify_registration};
 pub use reviews::{
     admin_bulk_reviews, admin_delete_reply, admin_get_review, admin_get_review_settings,

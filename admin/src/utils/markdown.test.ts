@@ -54,17 +54,24 @@ describe('markdown utilities', () => {
       expect(markdown).toBe('```typescript\nconst x: number = 42;\nconsole.log(x);\n```');
     });
 
-    it('converts core/html blocks into html fenced blocks', () => {
+    it('converts core/html blocks into html or html:sandbox fenced blocks', () => {
       const blocks: BlockNode[] = [
         {
           name: 'core/html',
           attributes: {},
           text: '<div class="custom-lp">\n  <h1>Hero</h1>\n</div>',
         },
+        {
+          name: 'core/html',
+          attributes: { mode: 'sandbox' },
+          text: '<div id="widget"></div>\n<script>console.log("sandbox");</script>',
+        },
       ];
 
       const markdown = blocksToMarkdown(blocks);
-      expect(markdown).toBe('```html\n<div class="custom-lp">\n  <h1>Hero</h1>\n</div>\n```');
+      expect(markdown).toBe(
+        '```html\n<div class="custom-lp">\n  <h1>Hero</h1>\n</div>\n```\n\n```html:sandbox\n<div id="widget"></div>\n<script>console.log("sandbox");</script>\n```'
+      );
     });
 
     it('converts core/image blocks with src and alt', () => {
@@ -139,15 +146,21 @@ describe('markdown utilities', () => {
       });
     });
 
-    it('parses html code blocks into core/html blocks', () => {
-      const md = '```html\n<section class="banner"><h1>LP Banner</h1></section>\n```';
+    it('parses html and html:sandbox code blocks into core/html blocks', () => {
+      const md =
+        '```html\n<section class="banner"><h1>LP Banner</h1></section>\n```\n\n```html:sandbox\n<script>console.log(1)</script>\n```';
       const blocks = markdownToBlocks(md);
 
-      expect(blocks).toHaveLength(1);
+      expect(blocks).toHaveLength(2);
       expect(blocks[0]).toEqual({
         name: 'core/html',
         attributes: {},
         text: '<section class="banner"><h1>LP Banner</h1></section>',
+      });
+      expect(blocks[1]).toEqual({
+        name: 'core/html',
+        attributes: { mode: 'sandbox' },
+        text: '<script>console.log(1)</script>',
       });
     });
 
@@ -230,6 +243,173 @@ describe('markdown utilities', () => {
       ]);
       expect(summary).toBeTruthy();
       expect(summary).toContain('H2');
+    });
+  });
+  describe('tables, contents, quotes, separators and callouts', () => {
+    const blocks: BlockNode[] = [
+      { name: 'core/toc', attributes: { title: '目次', maxLevel: 3 } },
+      {
+        name: 'core/table',
+        attributes: {
+          header: true,
+          align: [null, 'center', 'right'],
+          rows: [
+            ['Name', 'Kind', 'Price'],
+            ['A | B', '**bold**', '1,200'],
+            ['Short', '', ''],
+          ],
+        },
+      },
+      { name: 'core/quote', attributes: { cite: 'Ada' }, text: 'First line\n\nSecond' },
+      { name: 'core/separator', attributes: {} },
+      {
+        name: 'core/callout',
+        attributes: { variant: 'warning', title: 'Back up first' },
+        text: 'Run `task backup`.',
+      },
+    ];
+
+    const markdown = [
+      '[TOC title="目次"]',
+      '| Name | Kind | Price |\n| --- | :---: | ---: |\n| A \\| B | **bold** | 1,200 |\n| Short |  |  |',
+      '> First line\n>\n> Second\n> — Ada',
+      '---',
+      '> [!WARNING] Back up first\n> Run `task backup`.',
+    ].join('\n\n');
+
+    it('serializes them to Markdown', () => {
+      expect(blocksToMarkdown(blocks)).toBe(markdown);
+    });
+
+    it('parses the Markdown back to the same blocks', () => {
+      expect(markdownToBlocks(markdown)).toEqual(blocks);
+    });
+
+    it('reads a table without a header row (an empty header) and ragged rows', () => {
+      const parsed = markdownToBlocks('|  |  |\n|---|---|\n| a |\n| b | c | d |');
+      expect(parsed).toEqual([
+        {
+          name: 'core/table',
+          attributes: {
+            header: false,
+            align: [null, null, null],
+            rows: [
+              ['a', '', ''],
+              ['b', 'c', 'd'],
+            ],
+          },
+        },
+      ]);
+      expect(blocksToMarkdown(parsed)).toBe(
+        '|  |  |  |\n| --- | --- | --- |\n| a |  |  |\n| b | c | d |'
+      );
+    });
+
+    it('reads :::note callouts, plain quotes and [TOC] options', () => {
+      expect(
+        markdownToBlocks(':::tip Hint\nUse **this**.\n:::\n\n> Just a quote\n\n[toc maxLevel=4]')
+      ).toEqual([
+        {
+          name: 'core/callout',
+          attributes: { variant: 'tip', title: 'Hint' },
+          text: 'Use **this**.',
+        },
+        { name: 'core/quote', attributes: {}, text: 'Just a quote' },
+        { name: 'core/toc', attributes: { maxLevel: 4 } },
+      ]);
+    });
+
+    it('ends a paragraph at a table, a quote or a separator', () => {
+      const parsed = markdownToBlocks('Intro\n| a | b |\n| --- | --- |\nText\n> quoted\nMore\n***');
+      expect(parsed.map((b) => b.name)).toEqual([
+        'core/paragraph',
+        'core/table',
+        'core/paragraph',
+        'core/quote',
+        'core/paragraph',
+        'core/separator',
+      ]);
+    });
+
+    it('detects tables and quotes as Markdown', () => {
+      expect(isMarkdownLike('| a | b |')).toBe(true);
+      expect(isMarkdownLike('> quote')).toBe(true);
+    });
+  });
+  describe('plugin blocks', () => {
+    it('writes and reads a plugin block with its attributes on one line', () => {
+      const blocks: BlockNode[] = [
+        {
+          name: 'official-blocks/button',
+          attributes: { label: 'Start "now"', url: '/start', count: 2, wide: true },
+        },
+        { name: 'cards/divider', attributes: {} },
+      ];
+      const markdown = blocksToMarkdown(blocks);
+      expect(markdown).toBe(
+        '::: official-blocks/button {"label":"Start \\"now\\"","url":"/start","count":2,"wide":true}\n\n::: cards/divider'
+      );
+      expect(markdownToBlocks(markdown)).toEqual(blocks);
+    });
+
+    it('keeps a line with broken attributes as text and leaves callouts alone', () => {
+      expect(markdownToBlocks('::: cards/card {not json}')).toEqual([
+        { name: 'core/paragraph', attributes: {}, text: '::: cards/card {not json}' },
+      ]);
+      expect(markdownToBlocks(':::note\nText\n:::')[0].name).toBe('core/callout');
+      expect(markdownToBlocks('::: core/table {"rows": []}')[0].name).toBe('core/paragraph');
+    });
+  });
+  it('reads a line no block recognizes (e.g. a stray :::) as text instead of hanging', () => {
+    expect(markdownToBlocks(':::\n\n:::unknown\nafter')).toEqual([
+      { name: 'core/paragraph', attributes: {}, text: ':::' },
+      { name: 'core/paragraph', attributes: {}, text: ':::unknown\nafter' },
+    ]);
+  });
+  describe('details', () => {
+    it('writes and reads details blocks, open ones with :::details+', () => {
+      const blocks: BlockNode[] = [
+        {
+          name: 'core/details',
+          attributes: { summary: 'Is it **free**?' },
+          text: 'Yes.\n\nSee the license.',
+        },
+        { name: 'core/details', attributes: { summary: 'Open one', open: true }, text: 'Body' },
+      ];
+      const markdown = blocksToMarkdown(blocks);
+      expect(markdown).toBe(
+        ':::details Is it **free**?\nYes.\n\nSee the license.\n:::\n\n:::details+ Open one\nBody\n:::'
+      );
+      expect(markdownToBlocks(markdown)).toEqual(blocks);
+    });
+
+    it('reads details without a summary or a closing line', () => {
+      expect(markdownToBlocks(':::details\nOnly body')).toEqual([
+        { name: 'core/details', attributes: { summary: '' }, text: 'Only body' },
+      ]);
+      // ブロックが空なら Markdown にも出さない
+      expect(blocksToMarkdown([{ name: 'core/details', attributes: { summary: '' } }])).toBe('');
+    });
+  });
+
+  describe('contact form', () => {
+    it('writes and reads the default and a named form', () => {
+      const blocks: BlockNode[] = [
+        { name: 'core/paragraph', attributes: {}, text: 'Write to us.' },
+        { name: 'core/contact-form', attributes: { form: 'default' } },
+        { name: 'core/contact-form', attributes: { form: 'sales' } },
+      ];
+      const markdown = blocksToMarkdown(blocks);
+      expect(markdown).toBe('Write to us.\n\n[CONTACT]\n\n[CONTACT form="sales"]');
+      expect(markdownToBlocks(markdown)).toEqual(blocks);
+    });
+
+    it('ends a paragraph at a [CONTACT] line and keeps other text as is', () => {
+      expect(markdownToBlocks('Questions?\n[contact]\n[CONTACT form="Bad Name"]')).toEqual([
+        { name: 'core/paragraph', attributes: {}, text: 'Questions?' },
+        { name: 'core/contact-form', attributes: { form: 'default' } },
+        { name: 'core/paragraph', attributes: {}, text: '[CONTACT form="Bad Name"]' },
+      ]);
     });
   });
 });

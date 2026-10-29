@@ -1,0 +1,239 @@
+{
+  "name": "official-blocks",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Content Blocks (Buttons, Link Cards & Videos)",
+  "description": "Adds button, link card and video (YouTube / Vimeo) blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "blocks",
+    "editor",
+    "content",
+    "video"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "hooks": [
+      "render-blocks"
+    ],
+    "embed": {
+      "frame_domains": [
+        "www.youtube-nocookie.com",
+        "player.vimeo.com"
+      ]
+    }
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "blocks": [
+    {
+      "name": "button",
+      "label": {
+        "en": "Button",
+        "ja": "ボタン"
+      },
+      "description": {
+        "en": "A link styled as a button",
+        "ja": "ボタンの形のリンク"
+      },
+      "fields": [
+        {
+          "name": "label",
+          "type": "string",
+          "label": {
+            "en": "Label",
+            "ja": "ボタンの文字"
+          },
+          "required": true,
+          "default": ""
+        },
+        {
+          "name": "url",
+          "type": "url",
+          "label": {
+            "en": "Link",
+            "ja": "リンク先"
+          },
+          "required": true,
+          "placeholder": "https://",
+          "default": ""
+        },
+        {
+          "name": "style",
+          "type": "select",
+          "label": {
+            "en": "Style",
+            "ja": "見た目"
+          },
+          "default": "primary",
+          "options": [
+            {
+              "value": "primary",
+              "label": {
+                "en": "Filled",
+                "ja": "塗りつぶし"
+              }
+            },
+            {
+              "value": "secondary",
+              "label": {
+                "en": "Outline",
+                "ja": "枠線"
+              }
+            }
+          ]
+        },
+        {
+          "name": "align",
+          "type": "select",
+          "label": {
+            "en": "Alignment",
+            "ja": "位置"
+          },
+          "default": "left",
+          "options": [
+            {
+              "value": "left",
+              "label": {
+                "en": "Left",
+                "ja": "左"
+              }
+            },
+            {
+              "value": "center",
+              "label": {
+                "en": "Center",
+                "ja": "中央"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "link-card",
+      "label": {
+        "en": "Link card",
+        "ja": "リンクカード"
+      },
+      "description": {
+        "en": "A link with a title, description and image",
+        "ja": "タイトル・説明・画像つきのリンク"
+      },
+      "fields": [
+        {
+          "name": "url",
+          "type": "url",
+          "label": {
+            "en": "Link",
+            "ja": "リンク先"
+          },
+          "required": true,
+          "placeholder": "https://",
+          "default": ""
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "ja": "タイトル"
+          },
+          "required": true,
+          "default": ""
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "label": {
+            "en": "Description",
+            "ja": "説明"
+          },
+          "default": ""
+        },
+        {
+          "name": "image",
+          "type": "image",
+          "label": {
+            "en": "Image",
+            "ja": "画像"
+          },
+          "default": ""
+        }
+      ]
+    },
+    {
+      "name": "video",
+      "label": {
+        "en": "Video",
+        "ja": "動画"
+      },
+      "description": {
+        "en": "A YouTube or Vimeo video",
+        "ja": "YouTube・Vimeo の動画"
+      },
+      "fields": [
+        {
+          "name": "url",
+          "type": "url",
+          "label": {
+            "en": "Video URL",
+            "ja": "動画の URL"
+          },
+          "required": true,
+          "placeholder": "https://www.youtube.com/watch?v=...",
+          "default": "",
+          "help": {
+            "en": "A YouTube (youtube.com, youtu.be, Shorts) or Vimeo URL. YouTube's start time (t=90 or t=1m30s) is kept.",
+            "ja": "YouTube（youtube.com・youtu.be・ショート）か Vimeo の URL。YouTube の再生開始位置（t=90、t=1m30s）も使えます。"
+          }
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "label": {
+            "en": "Title (for screen readers)",
+            "ja": "タイトル（読み上げ用）"
+          },
+          "default": ""
+        },
+        {
+          "name": "aspect",
+          "type": "select",
+          "label": {
+            "en": "Shape",
+            "ja": "形"
+          },
+          "default": "16x9",
+          "options": [
+            {
+              "value": "16x9",
+              "label": {
+                "en": "Wide (16:9)",
+                "ja": "横長（16:9）"
+              }
+            },
+            {
+              "value": "4x3",
+              "label": {
+                "en": "Standard (4:3)",
+                "ja": "標準（4:3）"
+              }
+            },
+            {
+              "value": "9x16",
+              "label": {
+                "en": "Vertical (9:16, Shorts)",
+                "ja": "縦長（9:16・ショート）"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

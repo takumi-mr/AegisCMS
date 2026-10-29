@@ -12,8 +12,11 @@ AegisCMS は Headless API Gateway、管理画面 Admin Studio、および高速�
 
 | パス / ルート | 配信内容 | 備考 |
 |---|---|---|
-| `GET /` | 公開トップページ（最新記事一覧） | テンプレート `index.html` 描画。`[theme].posts_per_page` 件ずつ、`?page=N` でページ送り（範囲外は 404） |
-| `GET /articles` | 記事一覧 | 同上 |
+| `GET /` | 公開トップページ | `[theme].front_page` で切り替え: `posts`（既定。記事一覧 `index.html`、`?page=N` でページ送り）、`template`（テーマの `front.html`）、`page:<slug>`（固定ページ） |
+| `GET /articles` | 記事一覧 | テンプレート `index.html` 描画。`[theme].posts_per_page` 件ずつ、`?page=N` でページ送り（範囲外は 404） |
+| `GET /category/{slug}` | カテゴリの記事一覧 | テンプレート `category.html` 描画。記事の `category` への関係フィールド（`category_id`）で絞り込む。ページ送りは同上 |
+| `GET /feed.xml` | 新しい記事の Atom フィード | 最新 20 件。各ページの `<head>` に自動検出用の `<link>` が入る |
+| `GET /category/{slug}/feed.xml` | カテゴリの記事の Atom フィード | 同上 |
 | `GET /articles/{slug}` | 記事詳細ページ | テンプレート `article.html` 描画 (`status == "published"` のみ公開) |
 | `GET /{slug}` | 固定ページまたは記事詳細 | テンプレート `page.html` または `article.html` 描画 |
 | `GET /theme/assets/*` | テーマ固有の静的アセット (CSS/JS/画像) | `themes/{active}/assets/` より高速配信 |
@@ -22,7 +25,7 @@ AegisCMS は Headless API Gateway、管理画面 Admin Studio、および高速�
 | `GET /uploads/*` | ローカルストレージアセット | アップロード画像・メディア配信 |
 
 ### ゼロ・トラストな公開制御
-- 下書き状態（`status: "draft"`）・予約公開の待ち（`status: "scheduled"`）・アーカイブ状態（`status: "archived"`）のコンテンツは、一般公開エンドポイント（`/`, `/articles/{slug}`, `/{slug}`, `/products`）では一切表示されず、安全に `404 Not Found` テンプレートが描画されます。
+- 下書き状態（`status: "draft"`）・予約公開の待ち（`status: "scheduled"`）・アーカイブ状態（`status: "archived"`）のコンテンツは、一般公開エンドポイント（`/`, `/articles/{slug}`, `/{slug}`, `/category/{slug}`, `/feed.xml`, `/products`）では一切表示されず、安全に `404 Not Found` テンプレートが描画されます。
 - 記事本文は `HtmlRenderer` による決定論的 HTML 生成の後、Cloudflare 製 `lol-html` ストリーミングリライター（`StreamingHtmlRewriter`）を透過的に通過し、外部リンクの `rel="noopener noreferrer"` 自動付与や画像の `loading="lazy"` / `decoding="async"` 強制適用が担保されます。
 
 ### 予約公開（スケジュール公開）
@@ -179,7 +182,8 @@ site_title = "AegisCMS Official Site"
 site_description = "Next-Generation High-Performance Secure CMS with Sandboxed WebAssembly Extensibility"
 # favicon = "/uploads/favicon.png"  # オプション: favicon（/ から始まるパスか http(s) の URL）
 # custom_css = ":root { --accent: #10b981; }" # オプション: グローバルカスタム CSS
-posts_per_page = 10        # トップページの 1 ページあたりの記事数（?page=N でページ送り）
+posts_per_page = 10        # 記事一覧の 1 ページあたりの記事数（?page=N でページ送り）
+front_page = "posts"       # トップページ: "posts"（記事一覧）/ "template"（テーマの front.html）/ "page:<slug>"（固定ページ）
 reload_templates = false   # true でテンプレートを描画のたびに読み直す（テーマ開発用）
 
 [paths]

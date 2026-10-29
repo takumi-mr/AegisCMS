@@ -1,0 +1,15 @@
+掲示板「{{ category.name }}」の「{{ thread.title }}」の投稿が通報されました。
+
+通報理由: {{ report.reason }}
+{% if report.reporter_ip %}
+通報元 IP アドレス: {{ report.reporter_ip }}
+{% endif %}
+
+投稿者: {{ post.author_name }}
+
+{{ post.body }}
+{% if moderation_url %}
+
+管理画面で通報を確認できます: {{ moderation_url }}
+{% endif %}
+

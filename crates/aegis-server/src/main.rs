@@ -6,11 +6,17 @@ use std::sync::Arc;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+#[cfg(feature = "analytics")]
+mod analytics;
 mod app;
 mod audit;
 mod auth;
+#[cfg(feature = "backup")]
+mod backup;
+mod cdn;
 mod cluster;
 mod config;
+mod deploy;
 mod handlers;
 mod headers;
 mod notify_plugins;
@@ -18,6 +24,8 @@ mod plugin_host;
 mod plugin_registry;
 mod render;
 mod scheduler;
+#[cfg(feature = "search")]
+mod search;
 mod seo;
 mod site;
 mod state;
@@ -84,6 +92,31 @@ enum Commands {
     Notify {
         #[command(subcommand)]
         action: NotifyCommand,
+    },
+    /// Serve several sites over HTTPS with Caddy (deploy/README.md)
+    Deploy {
+        #[command(subcommand)]
+        action: DeployCommand,
+    },
+    /// Export database records and uploaded storage objects into a verified ZIP backup archive
+    #[cfg(feature = "backup")]
+    Dump(backup::DumpArgs),
+    /// Restore database records and uploaded storage objects from a backup archive
+    #[cfg(feature = "backup")]
+    Restore(backup::RestoreArgs),
+}
+
+#[derive(Subcommand, Debug)]
+enum DeployCommand {
+    /// Generate compose.yaml, Caddyfile and sites/<name>/aegis.toml from <dir>/sites.toml
+    Generate {
+        /// Directory with sites.toml (the files are written there)
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+        /// Where the built-in themes/ and plugins/ are, to check the names in sites.toml
+        /// (/app in the AegisCMS image)
+        #[arg(long, default_value = "/app")]
+        builtin: PathBuf,
     },
 }
 
@@ -273,6 +306,7 @@ async fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyh
     match action {
         PluginCommand::List => {
             config.plugins.validate()?;
+            config.theme.validate()?;
             let enabled = cli_enabled_plugins(config).await;
             let plugins = aegis_runtime::WasmPluginLoader::list(
                 &config.paths.plugins_dir,
@@ -503,6 +537,13 @@ async fn main() -> anyhow::Result<()> {
         Commands::User { action } => run_user_command(&config, action).await?,
         Commands::Plugin { action } => run_plugin_command(&config, action).await?,
         Commands::Notify { action } => run_notify_command(&config, action).await?,
+        Commands::Deploy {
+            action: DeployCommand::Generate { dir, builtin },
+        } => deploy::run_generate(&dir, &builtin)?,
+        #[cfg(feature = "backup")]
+        Commands::Dump(args) => backup::run_dump(&config, args).await?,
+        #[cfg(feature = "backup")]
+        Commands::Restore(args) => backup::run_restore(&config, args).await?,
         Commands::Run { port, host } => {
             if let Some(p) = port {
                 config.server.port = p;
@@ -513,11 +554,15 @@ async fn main() -> anyhow::Result<()> {
 
             let base_path = config.server.normalized_base_path()?;
             config.plugins.validate()?;
+            config.theme.validate()?;
             config.commerce.validate()?;
             config.comments.validate()?;
             config.forum.validate()?;
             config.notifications.validate()?;
+            config.cdn.validate()?;
             config.auth.registration.validate()?;
+            #[cfg(feature = "analytics")]
+            config.analytics.validate().map_err(anyhow::Error::msg)?;
             if config.notifications.enabled
                 && !config.notifications.audit.rules.is_empty()
                 && !config.audit.enabled
@@ -535,6 +580,13 @@ async fn main() -> anyhow::Result<()> {
             );
             tracing::info!("Storage backend: {:?}", config.storage.backend);
             tracing::info!("Cache backend: {:?}", config.cache.backend);
+            if config.cdn.enabled {
+                tracing::info!(
+                    "CDN Cache-Tag purge enabled (provider: {:?}, emit_headers: {})",
+                    config.cdn.provider,
+                    config.cdn.emit_headers
+                );
+            }
 
             // 1. スキーマ読み込み
             let schemas_vec = SchemaLoader::load_dir(&config.paths.schemas_dir)?;
@@ -891,11 +943,7 @@ async fn main() -> anyhow::Result<()> {
                     app_state.db.clone()
                 };
 
-                let forum_deps = aegis_forum::ForumDeps {
-                    db: forum_db,
-                    cache: app_state.cache.clone(),
-                    audit: app_state.audit.clone(),
-                };
+                let forum_deps = app_state.forum_deps(forum_db);
                 let forum_service =
                     aegis_forum::ForumService::new(config.forum.clone(), forum_deps)?;
                 tracing::info!(
@@ -908,6 +956,76 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 app_state
             };
+            // 6.9.1 問い合わせフォーム（[contact]）。通知と Admin Studio の URL を使うのでその後に設定する
+            let app_state = if config.contact.enabled {
+                let contact = aegis_contact::ContactService::new(
+                    config.contact.clone(),
+                    app_state.contact_deps(),
+                )?;
+                if app_state.notifier.is_none() {
+                    tracing::warn!(
+                        "Contact forms are enabled without [notifications]: messages are only in Admin Studio's inbox"
+                    );
+                }
+                tracing::info!(
+                    "Contact forms enabled ({:?})",
+                    config
+                        .contact
+                        .forms
+                        .iter()
+                        .map(|f| f.name.as_str())
+                        .collect::<Vec<_>>()
+                );
+                app_state.with_contact(contact)
+            } else {
+                app_state
+            };
+            // 6.10 サイト内検索（[search]）。索引は起動後に裏で作り直す
+            #[cfg(feature = "search")]
+            let app_state = if config.search.enabled {
+                let schemas = app_state.schemas.read().await;
+                for content_type in &config.search.content_types {
+                    if !schemas.contains_key(content_type) {
+                        tracing::warn!(
+                            "[search].content_types has '{}', but no such schema is loaded",
+                            content_type
+                        );
+                    }
+                }
+                drop(schemas);
+                let search = search::SiteSearch::from_config(&config.search)?;
+                tracing::info!(
+                    "Site search enabled (types: {:?}, index: {})",
+                    search.content_types(),
+                    if config.search.index_dir.trim().is_empty() {
+                        "memory"
+                    } else {
+                        config.search.index_dir.trim()
+                    }
+                );
+                let mut app_state = app_state;
+                app_state.search = Some(Arc::new(search));
+                app_state
+            } else {
+                app_state
+            };
+            // 6.11 アクセス解析（[analytics]）
+            #[cfg(feature = "analytics")]
+            let app_state = if config.analytics.enabled {
+                tracing::info!(
+                    "Analytics enabled (cookie-less beacon, retention: {} days)",
+                    config.analytics.retention_days
+                );
+                let mut app_state = app_state;
+                app_state.analytics = Some(Arc::new(aegis_analytics::AnalyticsService::new(
+                    config.analytics.clone(),
+                    app_state.db.clone(),
+                    app_state.cache.clone(),
+                )));
+                app_state
+            } else {
+                app_state
+            };
             let app_state = Arc::new(app_state);
             if let Some(commerce) = &app_state.commerce {
                 commerce.spawn_expiry_task();
@@ -916,10 +1034,21 @@ async fn main() -> anyhow::Result<()> {
             if let Some(notifications) = &app_state.notifications {
                 notifications.spawn_worker();
             }
+            if let Some(contact) = &app_state.contact {
+                contact.spawn_retention_task();
+            }
             // 予約公開（status: "scheduled"）
             scheduler::spawn_publish_task(app_state.clone());
             // ほかのサーバーでの切り替え・設定変更を反映する
             cluster::spawn_listener(app_state.clone(), bus_events);
+            #[cfg(feature = "search")]
+            search::spawn_initial_rebuild(app_state.clone());
+            #[cfg(feature = "analytics")]
+            if let Some(analytics) = &app_state.analytics {
+                analytics.spawn_tasks();
+            }
+            #[cfg(feature = "analytics")]
+            let analytics_on_shutdown = app_state.analytics.clone();
 
             // 7. Router 設定（[server].base_path 配下で公開）
             let app = app::with_base_path(app::router(&config, app_state), &base_path);
@@ -939,6 +1068,11 @@ async fn main() -> anyhow::Result<()> {
             )
             .with_graceful_shutdown(shutdown_signal())
             .await?;
+            // 溜めていたアクセス解析の集計を書き出す
+            #[cfg(feature = "analytics")]
+            if let Some(analytics) = analytics_on_shutdown {
+                analytics.flush().await;
+            }
             if let Some(guard) = single_server {
                 guard.release().await;
             }

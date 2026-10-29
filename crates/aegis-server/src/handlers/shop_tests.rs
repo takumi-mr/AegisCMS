@@ -122,6 +122,7 @@ async fn shop_with_db(db: Arc<dyn aegis_db::DatabaseAdapter>, config: AegisConfi
             version: "1.0.0".to_string(),
             entrypoint: "plugin.wasm".to_string(),
             capabilities: PluginCapabilities {
+                embed: None,
                 network: None,
                 storage: None,
                 hooks: vec![

@@ -1,0 +1,11 @@
+A message was sent from the form "{{ form.title }}".
+
+{% include "_contact_fields.txt" %}
+{% if message.ip %}
+IP address: {{ message.ip }}
+{% endif %}
+{% if admin_url %}
+
+Read and answer it in Admin Studio: {{ admin_url }}
+{% endif %}
+{% include "_footer.txt" %}

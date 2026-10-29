@@ -43,6 +43,29 @@ default_ttl_secs = 3600
 url = "redis://127.0.0.1:6379"
 timeout_ms = 2000
 
+[cdn]
+# On-demand Cache-Tag Purge: emit `Cache-Tag` & `Surrogate-Key` headers on public responses and
+# purge edge caches by tag when contents or site settings change. Keep false when not using a CDN.
+enabled = false
+# Provider: "none" (emit headers only, no API purge) | "log" | "cloudflare" | "fastly" | "webhook"
+provider = "none"
+emit_headers = true
+cache_control = "public, max-age=0, s-maxage=86400, stale-while-revalidate=60"
+timeout_ms = 5000
+
+# [cdn.cloudflare]
+# zone_id = ""
+# api_token = "" # or set AEGIS_CLOUDFLARE_API_TOKEN / "env:CLOUDFLARE_API_TOKEN"
+
+# [cdn.fastly]
+# service_id = ""
+# api_token = "" # or set AEGIS_FASTLY_API_TOKEN / "env:FASTLY_API_TOKEN"
+# soft_purge = true
+
+# [cdn.webhook]
+# url = "https://edge-purger.example.com/purge"
+# bearer_token = "" # or set AEGIS_CDN_WEBHOOK_TOKEN / "env:CDN_WEBHOOK_TOKEN"
+
 [paths]
 schemas_dir = "schemas"
 plugins_dir = "plugins"
@@ -151,8 +174,11 @@ site_description = "Next-Generation High-Performance Secure CMS with Sandboxed W
 # Favicon of the public site: a root-relative path (e.g. "/uploads/favicon.png") or an http(s) URL.
 # The site title and favicon can also be changed in Admin Studio (Settings > Site), which overrides these.
 # favicon = "/uploads/favicon.png"
-# Articles per page on the index page (/?page=N)
+# Articles per page on the article lists (/?page=N, /articles, /category/{slug})
 posts_per_page = 10
+# What the top page (/) shows: "posts" (the article list), "template" (the theme's front.html,
+# given the latest articles) or "page:<slug>" (a page). Except for "posts", the article list is at /articles
+front_page = "posts"
 # Re-read theme templates on every render (for theme development; keep false in production)
 reload_templates = false
 
@@ -211,6 +237,42 @@ staff_recipients = []
 # [[notifications.audit.rules]]
 # action = "session.create"
 # details = { locked = "*" }
+
+[search]
+# Site search: /search and GET /api/v1/search over published content (docs/search.md).
+# Japanese is indexed in 2-character pieces, so no dictionary is needed
+enabled = true
+# Where the index lives (rebuilt from the database at startup; empty keeps it in memory)
+index_dir = "data/search"
+content_types = ["article", "page"]
+
+[analytics]
+# Cookie-less access analytics: a small beacon on public pages and daily counts in the database,
+# shown in Admin Studio's Analytics tab (docs/analytics.md). No IP addresses are stored
+enabled = false
+# Days of counts to keep (0 keeps them forever)
+retention_days = 400
+
+[contact]
+# Contact forms: /contact pages, a [CONTACT] block for the body, and an inbox in Admin Studio
+# (docs/contact.md). Staff are emailed through [notifications]
+enabled = false
+# Days to keep received messages (0 keeps them forever)
+retention_days = 365
+# Messages per hour from one IP address (0 = no limit)
+max_per_ip_per_hour = 5
+# Language of the built-in texts (errors, the default form's labels): "en" or "ja"
+locale = "en"
+# Without [[contact.forms]], one "default" form asks for name, email, subject and message, e.g.
+# [[contact.forms]]
+# name = "default"
+# title = "お問い合わせ"
+# auto_reply = true
+# [[contact.forms.fields]]
+# name = "email"
+# label = "メールアドレス"
+# type = "email"
+# required = true
 
 # Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
 # [plugins.settings.official-shop-rules]

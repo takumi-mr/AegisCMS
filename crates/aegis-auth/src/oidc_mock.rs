@@ -9,6 +9,8 @@ use axum::{Json, Router};
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use p256::elliptic_curve::sec1::ToSec1Point;
+use p256::elliptic_curve::Generate;
 use p256::pkcs8::{EncodePrivateKey, LineEnding};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
@@ -136,13 +138,19 @@ async fn token(
 
 impl MockIdp {
     pub async fn start() -> Self {
-        let secret = p256::SecretKey::random(&mut rand_core::OsRng);
+        let secret = p256::SecretKey::generate();
         let pem = secret.to_pkcs8_pem(LineEnding::LF).unwrap();
         let key = Arc::new(EncodingKey::from_ec_pem(pem.as_bytes()).unwrap());
-        let mut jwk: Value = serde_json::from_str(&secret.public_key().to_jwk_string()).unwrap();
-        jwk["kid"] = json!(KID);
-        jwk["alg"] = json!("ES256");
-        jwk["use"] = json!("sig");
+        let pt = secret.public_key().to_sec1_point(false);
+        let jwk = json!({
+            "kty": "EC",
+            "crv": "P-256",
+            "x": URL_SAFE_NO_PAD.encode(pt.x().expect("x coord")),
+            "y": URL_SAFE_NO_PAD.encode(pt.y().expect("y coord")),
+            "kid": KID,
+            "alg": "ES256",
+            "use": "sig",
+        });
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let issuer = format!("http://{}", listener.local_addr().unwrap());

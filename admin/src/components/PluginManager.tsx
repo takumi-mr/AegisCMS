@@ -27,6 +27,7 @@ import {
   ArrowDown,
   RotateCcw,
   UploadCloud,
+  MonitorPlay,
 } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
@@ -488,6 +489,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                   const settingsCount = Object.keys(plugin.settings || {}).length;
                   const hooks = m?.capabilities.hooks ?? [];
                   const allowedDomains = m?.capabilities.network?.allowed_domains ?? [];
+                  const frameDomains = m?.capabilities.embed?.frame_domains ?? [];
                   const limits = m?.resource_limits;
                   const isToggling = togglingName === plugin.name;
                   // A broken plugin can still be disabled, but not enabled
@@ -583,6 +585,16 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                                 <span className={styles.capText} title={allowedDomains.join(', ')}>
                                   {t('plugins.allowedDomains', {
                                     domains: allowedDomains.join(', '),
+                                  })}
+                                </span>
+                              </div>
+                            )}
+                            {frameDomains.length > 0 && (
+                              <div className={styles.capItem}>
+                                <MonitorPlay size={13} className={styles.capItemIcon} />
+                                <span className={styles.capText} title={frameDomains.join(', ')}>
+                                  {t('plugins.frameDomains', {
+                                    domains: frameDomains.join(', '),
                                   })}
                                 </span>
                               </div>

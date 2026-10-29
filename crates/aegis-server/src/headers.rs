@@ -161,10 +161,15 @@ impl HeaderOverrides {
         )
     }
 
-    /// レスポンスの HeaderMap に防御ヘッダーおよびカスタムヘッダーを注入する
-    pub fn apply_to_headers(&self, headers: &mut HeaderMap) {
+    /// レスポンスの HeaderMap に防御ヘッダーおよびカスタムヘッダーを注入する。CSP の `frame-src` には
+    /// `frame_hosts`（有効なプラグインの `embed.frame_domains`）を足す（[`with_frame_sources`]）
+    pub fn apply_to_headers_with_frames(&self, headers: &mut HeaderMap, frame_hosts: &[String]) {
         if let Some(val) = self.effective_csp() {
-            insert_if_valid(headers, "content-security-policy", val);
+            insert_if_valid(
+                headers,
+                "content-security-policy",
+                &with_frame_sources(val, frame_hosts),
+            );
         }
         if let Some(val) = self.effective_x_frame_options() {
             insert_if_valid(headers, "x-frame-options", val);
@@ -191,6 +196,67 @@ impl HeaderOverrides {
             }
         }
     }
+}
+
+/// CSP に `https://<host>` の埋め込みを許す。ブラウザーと同じ順で、iframe に効いているディレクティブ
+/// （`frame-src` → `child-src` → `default-src`）を探し、
+/// - `frame-src` があれば、その値に足す（`*` を含むならそのまま、`'none'` は管理者の明示的な拒否としてそのまま）
+/// - 無ければ、効いている `child-src` / `default-src` の値に足した `frame-src` を加える
+/// - どれも無ければ iframe は制限されていないので、そのまま
+pub fn with_frame_sources(csp: &str, hosts: &[String]) -> String {
+    if hosts.is_empty() {
+        return csp.to_string();
+    }
+    let directives: Vec<&str> = csp
+        .split(';')
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .collect();
+    let find = |name: &str| {
+        directives.iter().position(|d| {
+            d.split_whitespace()
+                .next()
+                .is_some_and(|n| n.eq_ignore_ascii_case(name))
+        })
+    };
+    let sources_of = |i: usize| -> Vec<String> {
+        directives[i]
+            .split_whitespace()
+            .skip(1)
+            .map(str::to_string)
+            .collect()
+    };
+    let add_hosts = |mut sources: Vec<String>| -> Option<Vec<String>> {
+        if sources
+            .iter()
+            .any(|s| s == "*" || s.eq_ignore_ascii_case("'none'"))
+        {
+            return None;
+        }
+        for host in hosts {
+            let source = format!("https://{}", host);
+            if !sources.iter().any(|s| s.eq_ignore_ascii_case(&source)) {
+                sources.push(source);
+            }
+        }
+        Some(sources)
+    };
+
+    let mut out: Vec<String> = directives.iter().map(|d| d.to_string()).collect();
+    if let Some(i) = find("frame-src") {
+        match add_hosts(sources_of(i)) {
+            Some(sources) => out[i] = format!("frame-src {}", sources.join(" ")),
+            None => return csp.to_string(),
+        }
+    } else if let Some(i) = find("child-src").or_else(|| find("default-src")) {
+        match add_hosts(sources_of(i)) {
+            Some(sources) => out.push(format!("frame-src {}", sources.join(" "))),
+            None => return csp.to_string(),
+        }
+    } else {
+        return csp.to_string();
+    }
+    format!("{};", out.join("; "))
 }
 
 fn insert_if_valid(headers: &mut HeaderMap, name: &str, val: &str) {
@@ -264,7 +330,7 @@ mod tests {
     fn test_default_headers_applied() {
         let overrides = HeaderOverrides::default();
         let mut headers = HeaderMap::new();
-        overrides.apply_to_headers(&mut headers);
+        overrides.apply_to_headers_with_frames(&mut headers, &[]);
 
         assert_eq!(headers.get("x-content-type-options").unwrap(), "nosniff");
         assert_eq!(headers.get("x-frame-options").unwrap(), "SAMEORIGIN");
@@ -293,7 +359,7 @@ mod tests {
         };
 
         let mut headers = HeaderMap::new();
-        overrides.apply_to_headers(&mut headers);
+        overrides.apply_to_headers_with_frames(&mut headers, &[]);
 
         assert_eq!(headers.get("x-frame-options").unwrap(), "DENY");
         assert!(!headers.contains_key("x-content-type-options"));
@@ -308,5 +374,57 @@ mod tests {
 
         assert!(validate_header_value("nosniff").is_ok());
         assert!(validate_header_value("val\r\nSet-Cookie: evil").is_err());
+    }
+
+    #[test]
+    fn test_frame_sources_are_added_to_the_effective_directive() {
+        let hosts = vec![
+            "player.vimeo.com".to_string(),
+            "www.youtube-nocookie.com".to_string(),
+        ];
+        // 既定の CSP（frame-src なし → default-src 'self' を引き継ぐ）
+        assert_eq!(
+            with_frame_sources("default-src 'self'; img-src 'self' data:;", &hosts),
+            "default-src 'self'; img-src 'self' data:; frame-src 'self' https://player.vimeo.com https://www.youtube-nocookie.com;"
+        );
+        // frame-src があればそこに足す（重複は足さない）
+        assert_eq!(
+            with_frame_sources(
+                "default-src 'none'; frame-src 'self' https://player.vimeo.com",
+                &hosts
+            ),
+            "default-src 'none'; frame-src 'self' https://player.vimeo.com https://www.youtube-nocookie.com;"
+        );
+        // child-src は default-src より先に効く
+        assert_eq!(
+            with_frame_sources("default-src 'self'; child-src https://a.example", &hosts[..1]),
+            "default-src 'self'; child-src https://a.example; frame-src https://a.example https://player.vimeo.com;"
+        );
+        // 管理者の明示的な拒否・無制限・iframe を制限していない CSP はそのまま
+        for csp in [
+            "default-src 'self'; frame-src 'none'",
+            "default-src 'self'; frame-src *",
+            "img-src 'self'",
+        ] {
+            assert_eq!(with_frame_sources(csp, &hosts), csp);
+        }
+        assert_eq!(
+            with_frame_sources("default-src 'self'", &[]),
+            "default-src 'self'"
+        );
+    }
+
+    #[test]
+    fn test_default_csp_gets_the_frame_hosts() {
+        let mut headers = HeaderMap::new();
+        HeaderOverrides::default()
+            .apply_to_headers_with_frames(&mut headers, &["player.vimeo.com".to_string()]);
+        let csp = headers["content-security-policy"].to_str().unwrap();
+        assert!(
+            csp.ends_with("frame-src 'self' https://player.vimeo.com;"),
+            "{}",
+            csp
+        );
+        assert!(csp.starts_with("default-src 'self';"));
     }
 }

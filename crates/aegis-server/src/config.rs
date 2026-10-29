@@ -4,7 +4,7 @@
 use aegis_ast::SecurityConfig;
 use aegis_audit::AuditConfig;
 use aegis_auth::AuthConfig;
-use aegis_cache::CacheConfig;
+use aegis_cache::{CacheConfig, CdnConfig};
 use aegis_comments::CommentsConfig;
 use aegis_commerce::CommerceConfig;
 use aegis_core::{AegisError, Result};
@@ -28,6 +28,8 @@ pub struct AegisConfig {
     #[serde(default)]
     pub cache: CacheConfig,
     #[serde(default)]
+    pub cdn: CdnConfig,
+    #[serde(default)]
     pub paths: PathsConfig,
     #[serde(default)]
     pub runtime: RuntimeConfig,
@@ -49,6 +51,14 @@ pub struct AegisConfig {
     pub comments: CommentsConfig,
     #[serde(default)]
     pub forum: ForumConfig,
+    #[serde(default)]
+    pub contact: aegis_contact::ContactConfig,
+    #[cfg(feature = "search")]
+    #[serde(default)]
+    pub search: crate::search::SearchConfig,
+    #[cfg(feature = "analytics")]
+    #[serde(default)]
+    pub analytics: aegis_analytics::AnalyticsConfig,
 }
 
 impl AegisConfig {
@@ -150,6 +160,7 @@ impl Default for PathsConfig {
 mod tests {
     use super::*;
     use aegis_audit::AuditSinkKind;
+    use aegis_cache::CdnProviderKind;
 
     #[test]
     fn test_plugin_settings() {
@@ -181,6 +192,32 @@ mod tests {
         );
         assert_eq!(plugins.setting("shop-rules", "secret"), None);
         assert_eq!(plugins.setting("other", "coupons"), None);
+    }
+
+    #[test]
+    fn test_cdn_config_parsing() {
+        let default = AegisConfig::default();
+        assert!(!default.cdn.enabled);
+        assert_eq!(default.cdn.provider, CdnProviderKind::None);
+        assert!(default.cdn.emit_headers);
+
+        let config: AegisConfig = toml::from_str(
+            r#"
+            [cdn]
+            enabled = true
+            provider = "cloudflare"
+            emit_headers = true
+
+            [cdn.cloudflare]
+            zone_id = "zone_123"
+            api_token = "tok_abc"
+            "#,
+        )
+        .unwrap();
+        assert!(config.cdn.enabled);
+        assert_eq!(config.cdn.provider, CdnProviderKind::Cloudflare);
+        assert_eq!(config.cdn.cloudflare.zone_id, "zone_123");
+        assert!(config.cdn.validate().is_ok());
     }
 
     #[test]
@@ -313,10 +350,11 @@ mod tests {
     }
 
     #[test]
-    fn test_plugins_config() {
+    fn test_plugins_and_theme_signature_config() {
         let config: AegisConfig = toml::from_str("").unwrap();
         assert!(config.plugins.enabled.is_empty());
         assert!(config.plugins.validate().is_ok());
+        assert!(config.theme.validate().is_ok());
 
         let config: AegisConfig =
             toml::from_str("[plugins]\nenabled = [\"slack-notifier\", \"seo_tools\"]\n").unwrap();
@@ -328,5 +366,30 @@ mod tests {
                 toml::from_str(&format!("[plugins]\nenabled = {}\n", invalid)).unwrap();
             assert!(config.plugins.validate().is_err(), "{}", invalid);
         }
+
+        // require_signatures = true without trusted_public_keys is rejected
+        let config: AegisConfig = toml::from_str("[plugins]\nrequire_signatures = true\n").unwrap();
+        assert!(config.plugins.validate().is_err());
+
+        let config: AegisConfig = toml::from_str(
+            r#"
+            [theme]
+            active = "default"
+            site_title = "Site"
+            site_description = "Desc"
+            require_signatures = true
+            "#,
+        )
+        .unwrap();
+        assert!(config.theme.validate().is_err());
+
+        // require_signatures = true with valid 32-byte hex key succeeds
+        let valid_key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let config: AegisConfig = toml::from_str(&format!(
+            "[plugins]\nrequire_signatures = true\ntrusted_public_keys = [\"{}\"]\n",
+            valid_key
+        ))
+        .unwrap();
+        assert!(config.plugins.validate().is_ok());
     }
 }

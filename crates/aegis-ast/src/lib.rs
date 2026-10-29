@@ -1,10 +1,12 @@
 pub mod config;
+pub mod inline;
 pub mod node;
 pub mod renderer;
 pub mod rewriter;
 pub mod transform;
 
 pub use config::SecurityConfig;
+pub use inline::{plain_text, render_inline};
 pub use node::BlockNode;
 pub use renderer::HtmlRenderer;
 pub use rewriter::{HtmlRewriterConfig, RewriterError, StreamingHtmlRewriter};

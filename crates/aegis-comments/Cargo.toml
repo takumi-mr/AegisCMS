@@ -28,4 +28,4 @@ uuid.workspace = true
 aegis-cache = { path = "../aegis-cache" }
 async-trait.workspace = true
 tokio = { workspace = true, features = ["full"] }
-toml = "0.8"
+toml.workspace = true

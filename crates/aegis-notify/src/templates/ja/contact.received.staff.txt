@@ -1,0 +1,11 @@
+フォーム「{{ form.title }}」からメッセージが届きました。
+
+{% include "_contact_fields.txt" %}
+{% if message.ip %}
+IP アドレス: {{ message.ip }}
+{% endif %}
+{% if admin_url %}
+
+管理画面の受信箱で確認できます: {{ admin_url }}
+{% endif %}
+{% include "_footer.txt" %}

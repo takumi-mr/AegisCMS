@@ -10,6 +10,12 @@ import {
   Link,
   Clipboard,
   CheckCircle2,
+  Code,
+  Table,
+  Quote,
+  Info,
+  ListTree,
+  ListCollapse,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from './ui/Button';
@@ -117,6 +123,13 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           >
             <Italic size={14} />
           </Button>
+          <Button
+            variant="icon"
+            onClick={() => insertText('`', '`', t('markdown.samples.inlineCode'))}
+            title={t('markdown.inlineCode')}
+          >
+            <Code size={14} />
+          </Button>
         </div>
 
         <div className={styles.divider} />
@@ -142,6 +155,54 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
             title={t('markdown.numbered')}
           >
             <ListOrdered size={14} />
+          </Button>
+        </div>
+
+        <div className={styles.divider} />
+
+        <div className={styles.toolbarGroup}>
+          <Button
+            variant="icon"
+            onClick={() =>
+              insertText(
+                `| ${t('markdown.samples.column', { n: 1 })} | ${t('markdown.samples.column', { n: 2 })} |\n| --- | --- |\n| `,
+                ' |  |\n',
+                t('markdown.samples.cell')
+              )
+            }
+            title={t('markdown.table')}
+          >
+            <Table size={14} />
+          </Button>
+          <Button
+            variant="icon"
+            onClick={() => insertText('> ', '', t('markdown.samples.quote'))}
+            title={t('markdown.quote')}
+          >
+            <Quote size={14} />
+          </Button>
+          <Button
+            variant="icon"
+            onClick={() => insertText('> [!NOTE]\n> ', '', t('markdown.samples.callout'))}
+            title={t('markdown.callout')}
+          >
+            <Info size={14} />
+          </Button>
+          <Button
+            variant="icon"
+            onClick={() =>
+              insertText(
+                `:::details ${t('markdown.samples.detailsSummary')}\n`,
+                '\n:::\n',
+                t('markdown.samples.detailsBody')
+              )
+            }
+            title={t('markdown.details')}
+          >
+            <ListCollapse size={14} />
+          </Button>
+          <Button variant="icon" onClick={() => insertText('[TOC]\n')} title={t('markdown.toc')}>
+            <ListTree size={14} />
           </Button>
         </div>
 

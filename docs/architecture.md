@@ -11,6 +11,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 | [commerce.md](commerce.md) | EC（商品・注文・在庫・決済） |
 | [notifications.md](notifications.md) | 通知（メール・監査イベントの通知・プラグインのチャネル） |
 | [comments.md](comments.md) | コメント（投稿・承認・スパム対策・通知） |
+| [search.md](search.md) / [analytics.md](analytics.md) | サイト内検索 / アクセス解析 |
+| [contact.md](contact.md) | 問い合わせフォーム（フォームの設定・受信箱・通知） |
 | [theme_and_publishing_guide.md](theme_and_publishing_guide.md) / [theme_authoring_guide.md](theme_authoring_guide.md) | 公開ルーティング・テーマエンジン / テーマの作り方 |
 | [plugin_sdk_guide.md](plugin_sdk_guide.md) / [plugin_hooks.md](plugin_hooks.md) / [plugin_abi_specification.md](plugin_abi_specification.md) | プラグイン開発 / フックとホスト API / 言語共通の ABI |
 | [development.md](development.md) | 開発環境・検証・CI・Docker |
@@ -23,7 +25,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 依存の向きは `aegis-core` ← ドメインクレート ← `aegis-server` の一方向です（クレートの一覧と各モジュールは [README 2.3](../README.md#23-クレート構成と各モジュールの責務-crates)）。
 
 - **`aegis-core` は共有契約だけ**: 抽象トレイト（`StorageBackend` / `CacheBackend` / `AuthProvider` / `AuditSink` / `Notifier`）、監査イベントのモデル、プラグインに渡すコンテキスト型、`PluginManifest`、`AegisError`。Wasm プラグイン SDK も依存するため、実装や重い依存を足さないこと。
-- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-forum`、`aegis-theme`、`aegis-runtime`。HTTP には依存しない。
+- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-forum`、`aegis-theme`、`aegis-runtime`、`aegis-backup`（バックアップ・リストア。feature `backup`）。HTTP には依存しない。
 - **`aegis-server` は HTTP 層**: ハンドラ・認可・エクストラクタ・CLI・組み立て（`main.rs`）。
 - **設定**: 各クレートが自分のセクションの型を持つ（`aegis_db::DatabaseConfig`、`SecurityConfig` は `aegis-ast`、`ThemeConfig` は `aegis-theme`、`PluginsConfig` / `RuntimeConfig` は `aegis-runtime` など）。`aegis.toml` 全体の `AegisConfig` は `aegis-server/src/config.rs`。
   - 全構造体が `#[serde(default)]` 付きで、省略した項目は `Default` 実装の値になる。**設定項目を足すときは必ず `Default` に既定値を入れる**。
@@ -71,6 +73,10 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - `render_blocks_html` は `HtmlRenderer`（AST → HTML）の出力を `StreamingHtmlRewriter`（`lol-html`。外部リンクの `rel`、`<img>` の `loading` / `decoding`。[`[security]`](configuration.md#27-security--html-出力のセキュリティ--最適化)）に通す。
 - テーマ適用済みのページ全体は `render::render_page`（リレーション解決 → `on-render-page` → テンプレート）。公開ページとプレビューの `page_html` が共用する。
 - プレビューは編集のたびに `transform-content-ast` を呼ぶため、このフックは副作用なしが前提（[plugin_hooks.md](plugin_hooks.md)）。
+- **ブロックの種類と Markdown の対応**は [blocks.md](blocks.md)。テキストのインライン書式（`aegis_ast::inline`）は描画時に変換し、保存するテキストは Markdown の記号のまま（Admin Studio の Markdown 編集と往復できるように）。HTML のタグは書けず、リンクの URL はスキームの許可リストで絞る。
+- **プラグインのカスタムブロック**（`<プラグイン名>/<ブロック名>`）は `render::render_content` が `HtmlRenderer` の前に解決する。そのプラグインのブロックをまとめて 1 回の `render-blocks` で HTML にし、`core/html` の標準モードと同じサニタイズ（そのプラグインの `embed.frame_domains` の `<iframe>` だけは残す。`sanitize_html_fragment_with_frames`）を掛けてから、`HtmlRenderer::render_nodes_with` で文書の中に差し込む（目次などは文書全体を見たまま）。リンク・画像のリライターは他のブロックと同じく後から掛かる。保存せずに表示のたびに呼ぶのは、プラグインの更新や設定の変更をすぐ反映するため（Wasm の呼び出しはインスタンスのプールで軽くし、ページは CDN でキャッシュできる）。HTML を描画する場所（公開ページ・フィード・コンテンツ API・プレビュー）はすべて `render_content` を通す。`render_blocks_html` を直接使うのは、プラグインを呼ばない描画だけ。
+- **目次（`core/toc`）は保存せず描画のたびに作る**。`HtmlRenderer::render_nodes` が文書全体の見出しから組み立てるので、見出しを直せば目次も追従する。リンク先の見出しの `id` は `HeadingIdTransformer` が保存時に付け、文書内で重ならないよう `-2` などを足す（既にある `id` は変えないので、公開済みのリンクは切れない）。
+- 表・目次・注記の最低限の CSS は `aegis_theme::BLOCK_STYLES`（`:where()` で詳細度 0）を全ページの `extra_head` に入れる。テーマごとに対応しなくても崩れず、テーマの CSS がいつも優先される。
 - **カスタム HTML ブロック（`core/html`）は `HtmlRenderer` がそのまま出力する**。後段のリライターはリンク・画像の属性を足すだけで、`<script>` やイベント属性は取り除かない（書けるのは `editor` 以上）。
 - **固定ページのレイアウト**: スキーマ `page` の既存の `layout` フィールドを使い（マイグレーション不要）、公開ページ（`render_page_or_slug`）とプレビューで同じ規則でテンプレートを選ぶ: `blank` → 組み込みの `blank.html`、空・`default` → `page.html`、それ以外 → テーマの `<layout>.html`。
 
@@ -136,6 +142,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - レイヤーミドルウェア `security_headers_middleware`（`from_fn_with_state`）により、ルーター通過時に透過的にヘッダーを注入する。
   - 管理者（`admin`）は Admin Studio の「設定 › ヘッダー」画面から、防御ヘッダー（CSP、X-Frame-Options、nosniff 等）のカスタマイズや任意のカスタム HTTP ヘッダーの動的追加・編集・削除が行える。
 - **デフォルト防御ヘッダー値**:
+  - 有効なプラグインの `capabilities.embed.frame_domains` は、ミドルウェアがレスポンスごとに CSP の `frame-src` に足す（`headers::with_frame_sources`。管理者の CSP の値は書き換えず、効いている `frame-src` / `child-src` / `default-src` から作る）。プラグインの有効・無効を切り替えると次のレスポンスから変わる。
   - `Content-Security-Policy`: SPA（Vite/React）やテーマのインラインスクリプト・フォント・メディアを壊さない安全なディレクティブ (`default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';`)。
   - `X-Frame-Options: SAMEORIGIN`（クリックジャッキング保護）
   - `X-Content-Type-Options: nosniff`（MIME スニッフィング防止）
@@ -148,6 +155,34 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **エンドポイント**:
   - `GET /api/v1/headers`: 現在の設定値とデフォルト値を返す（admin 必須）。
   - `PUT /api/v1/headers`: 設定値を更新する（admin 必須。CRLF インジェクションや不正文字のバリデーションを実施）。
+
+### 3.6a トップページ・記事一覧・フィード (`handlers/public.rs`, `handlers/feed.rs`)
+
+- トップページ（`/`）は `[theme].front_page` で記事一覧・テーマの `front.html`・固定ページを切り替える。設定値は起動時に検証する（`ThemeConfig::validate`）。サイトの構成はコードで管理する方針なので、Admin Studio の設定ではなく `aegis.toml` に置いた。`front.html` の組み込みは `index.html` を継承するだけなので、`"template"` にしてもテーマが対応していなければ表示は変わらない。
+- 固定ページを `/` に出すときは canonical・OGP の URL を `/` にし（`PageInput.path`）、そのページ自身の URL（`/{slug}`）でも同じ URL を指す。
+- 記事一覧・カテゴリの一覧・フィードは同じ取得処理（`list_published_articles`）を使う。カテゴリの絞り込みは記事のスキーマの `target: category.<フィールド>` の関係フィールドで行う。公開版の一覧は DB から全件を読んでから並べ替えている（`merge_published_content_records`）ので、絞り込みもその後に Rust 側で行い、`DatabaseAdapter` には条件を足していない。記事が多くなり一覧を SQL でページングするようにするときは、絞り込みも SQL に移す。
+- フィードは Atom 1.0。エントリの `<id>` は記事の ID の URL（`/articles/{id}`。`get_published_content` はスラッグと ID のどちらでも引ける）にして、スラッグを変えても購読者に別の記事として届かないようにした。自動検出用の `<link>` は `render::build_extra_head` で全ページの `extra_head` に入れるので、テーマ側の対応は要らない。
+
+### 3.7 On-demand Cache-Tag Purge (`aegis-cache/src/cdn.rs`, `aegis-server/src/cdn.rs`)
+
+- **設計思想（バックエンド HTML キャッシュレス + エッジ Cache-Tag パージ）**:
+  - ベンチマーク上、バックエンド単体で十分な描画スループット（記事ページ数千〜1.6万 req/s）が出ているため、バックエンドプロセスや Redis 内に描画済み HTML のページキャッシュは持たず（二重キャッシュによる古いページの残留やメモリ圧迫を回避）、前段の CDN / エッジプロキシとタグベースで連携する方式を採用した。
+  - クレートは新設せず既存の `aegis-cache`（`aegis_cache::cdn`）に抽象トレイト `CdnPurger`・`CacheTags`・各プロバイダ実装（`NoopCdnPurger`, `LogCdnPurger`, `CloudflareCdnPurger`, `FastlyCdnPurger`, `WebhookCdnPurger`, `RecordingCdnPurger`）を置き、Axum の `Response` / `AppState` と結合するヘルパーを `aegis-server/src/cdn.rs` に分離した。
+  - `[cdn].enabled = false`（既定）のときはヘッダー生成もパージ通信も一切行わず、CDN を使わない構成でオーバーヘッド 0 となる。
+- **マルチ CDN 対応のデュアルヘッダー出力 (`CacheTags`)**:
+  - `CacheTags::write_headers` は、1 つのタグ集合から **`Cache-Tag`**（カンマ区切り: Cloudflare, BunnyCDN, Netlify 等）と **`Surrogate-Key`**（スペース区切り: Fastly, Varnish, Google Cloud CDN 等）の両ヘッダーを同時に注入する（`200 OK` の公開レスポンスのみ。404 等には付与しない）。
+  - タグ文字列の正規化（`sanitize_tag`）: URL パス（`add_url`）はクエリ文字列を除き `/` を `-` に変換（`/` は `url-index`、`/articles/hello` は `url-articles-hello`）。日本語スラッグ等の非 ASCII 文字やスペース・カンマが含まれる場合は `:x<hex>` で安全にエスケープし、`HeaderValue` の生成失敗やタグ区切り文字の衝突を防ぐ。
+- **付与されるタグ体系と自動パージのトリガー**:
+  - トップ・一覧（`/`）：`url-index`, `url-articles`, `site-global`, `collection-article`, 表示中の各記事の `article-{id}`, `article-{slug}`, および参照先リレーションの `{rel_type}-{id}` / `{rel_type}-{slug}`。
+  - カテゴリの記事一覧（`/category/{slug}`）・フィード（`/feed.xml`, `/category/{slug}/feed.xml`）：対応する `url-*`, `site-global`, `collection-article`, 載せた各記事の `article-{id}` / `article-{slug}`、カテゴリでは `category-{id}` / `category-{slug}`。
+  - トップページに固定ページを出している場合（`[theme].front_page = "page:<slug>"`）、`/` にはそのページの `page-{id}` / `page-{slug}` が付くので、ページの更新で `/` もパージされる。
+  - 個別記事（`/articles/{slug}`）・固定ページ（`/{slug}`）・商品（`/products`, `/products/{slug}`）：対応する `url-*`, `site-global`, `{type}-{id}`, `{type}-{slug}`, リレーションタグ、`comments-{id}`, `reviews-{id}`。
+  - SEO・テーマ・掲示板：`url-robots.txt` (`seo-robots`), `url-sitemap.xml` (`seo-sitemap`), `theme-{active}`, `collection-forum`, `forum-category-{slug}`, `forum-thread-{id}`。
+  - **パージ発火タイミング**:
+    - コンテンツの作成・更新・削除・バリエーション変更（公開状態に関わる場合）、およびスケジューラによる予約公開（`publish_due_contents`）・予約非公開（`unpublish_due_contents`）の成立時に、対象コンテンツの ID・新旧スラッグ・`collection-{type}`・`seo-sitemap`・関連 URL タグを一括パージする。
+    - サイト設定（`PUT /api/v1/site`）、テーマ切り替え（`PUT /api/v1/themes/active`）、共通ヘッダー更新（`PUT /api/v1/headers`）、SEO 設定更新（`PUT /api/v1/seo`）時は `site-global`（および `seo-*`）をパージする。
+    - コメント・商品レビュー・フォーラム投稿が公開状態で追加または管理変更された際は `comments-{id}` / `reviews-{id}` / `collection-forum` 等をパージする。
+  - 外部 CDN API の一時的な通信エラーは警告ログに記録し、CMS 側の保存・公開リクエスト自体は失敗させない。
 
 ---
 
@@ -317,7 +352,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - インストール = `plugins_dir/<name>/plugin.manifest.json`（ディレクトリ名とマニフェストの `name` は一致必須、`is_valid_plugin_name`）。有効化 = `[plugins].enabled`、または Admin Studio で切り替えて DB に保存した一覧（順序 = フックの実行順）。テーマの `themes/<id>/` + `[theme].active` と同じ考え方で、ストアからのインストールもこの形に展開する前提。
 - `load_enabled` は有効なものだけをコンパイルし、失敗したら起動を止める（fail-closed。アクセス制限系のプラグインが黙って外れるのを防ぐ）。無効なものは `discover` でマニフェストだけ読み、不備は警告ログ・`aegis plugin list`・`GET /api/v1/plugins` に出す。
 - **実行時の切り替え**（`aegis-server/src/plugin_registry.rs`、`PUT /api/v1/plugins/{name}/enabled`）: 有効化リストは `[plugins].enabled` を DB の `_aegis_settings`（`plugins.enabled`、JSON 配列）で上書きする（サイト名と同じ置き場所。キャッシュは消えうるので使わない）。保存した値が壊れていれば起動を止める（fail-closed）。切り替えは `PluginRegistry` の `Mutex` で直列化し、`PluginLoader::rebuild` で新しい `PluginSupervisor` を組み立ててから `RwLock` の中身を差し替える（読み込み済みのインスタンスは `Arc` で使い回し、新しく有効にしたものだけを `spawn_blocking` でコンパイル）。順序は「読み込み → DB 保存 → 差し替え」で、どこで失敗しても状態は変わらない。`supervisor` の `Arc` は EC・通知チャネルと共有しているので中身の差し替えだけで全体に効く。プラグインの登録テンプレートも差し替え時に入れ替える。通知チャネルに使っているプラグインは外させない（起動時の `validate_plugin_channels` と同じ条件を保つため。無効化・設定ファイルの値に戻すときとも）。有効化・無効化・並べ替え（`PUT /api/v1/plugins/order`、今有効なものの並べ替えに限る）・設定ファイルの値に戻す（`DELETE`、DB の行を消す）は `handlers/plugin.rs` の `switch_plugins` を共有する。差し替えたあとイベントバスで知らせ、受け取ったサーバー（自分を含む）は `plugin_registry::sync_from_db` で DB の一覧（無ければ自分の `[plugins].enabled`）と比べ、違えば同じ `prepare` → `install` で差し替える。プラグインの設定値（メモリに載せた `plugin_settings`）も同じように知らせ、受け取ったらキャッシュから読み直す。
-- **ZIP パッケージ（`aegis_core::package`）**: プラグインとテーマで共通。`extract_zip_safely`（ZipSlip・サイズ・エントリ数の制限）→ `check_min_aegis_version`（semver）→ `verify_package_signature`（Ed25519、`ring`）。署名の対象は `manifest`（マニフェストのバイト列）か `package`（`signature.json` 以外の全ファイルを相対パスで並べ、`パス:SHA-256\n` を連ねたものの SHA-256）。検証は一時ディレクトリで済ませてから `plugins/<name>/` に複写するので、失敗しても既存のプラグインは変わらない（置き換えは削除 → 複写で、原子的ではない）。インストールは有効化しない。
+- **ZIP パッケージ（`aegis_core::package`）**: プラグインとテーマで共通。`extract_zip_safely`（ZipSlip・サイズ・エントリ数の制限）→ `check_min_aegis_version`（semver）→ `verify_package_signature`（Ed25519、`ring`）。署名の対象は `package`（既定・それ以外は拒否。`signature.json` 以外の全ファイルを相対パスで並べ、`パス:SHA-256\n` を連ねたものの SHA-256）。`require_signatures = true` のときは `trusted_public_keys`（32 バイト hex 1 件以上）が必須で、起動時の設定検証（`validate_signature_policy`）と `verify_package_signature` の両方で空リストを拒否する。検証は一時ディレクトリで済ませてから `plugins/<name>/` に複写するので、失敗しても既存のプラグインは変わらない（置き換えは削除 → 複写で、原子的ではない）。インストールは有効化しない。
 - `WasmPluginInstance::from_bytes` で `Linker::instantiate_pre` してインポートを読み込み時に検査する。`_initialize` があればインスタンス化の直後に呼ぶ（TinyGo `wasm-unknown`）。
 
 ### 10.3 ホスト API (`HostServices`)
@@ -397,3 +432,34 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **レス番号はスレッドごとの連番**で、レスの削除は論理削除（`is_deleted`。番号と「>>N」の参照を崩さない）。スレッドの削除は物理削除。`auto_lock_post_count` に達したら自動でロックする。
 - 連投の制限は `CacheBackend` で IP・ユーザーごとに数える。監査ログは `forum.*`。
 - 結合テストは `aegis-forum/src/tests.rs`（サービス）、`aegis-server/src/handlers/forum_tests.rs`（ルーター経由。専用 DB への分離も確かめる）。
+
+## 15. サイト内検索 (`aegis-search`) とアクセス解析 (`aegis-analytics`)
+
+- **Cargo の feature で切り離す**: `aegis-server` の feature `search` / `analytics`（どちらも既定で有効）。無効でビルドすると、設定の項目・ルート・`AppState` のフィールドごと無くなる（`cargo check -p aegis-server --no-default-features`）。どちらのクレートも HTTP に依存しない。
+- **検索の索引は tantivy、正は DB**: 索引は作り直せるものとして扱い、起動時に公開中の版から作り直す。形式が読めないディレクトリは消して作り直し、使えない（別のプロセスが使っている）ときはメモリの索引にする。
+- **日本語は辞書なしの 2 文字分割**: 形態素解析の辞書（数十 MB）を持たずに済み、新語・固有名詞も漏れない。索引には 1 文字のトークンも同じ位置に入れて 1 文字の検索に応え、検索語は 2 文字のトークンのフレーズ（位置の差を索引と揃える）で探して「東京都」が「京都」に一致しないようにする。
+- **索引の更新はイベントバス**: コンテンツの変更（作成・更新・削除・予約公開・予約非公開）で `search.content` を流し、各サーバーが DB から公開中の版を読み直す。書き込みは 1 つずつ（tokio の Mutex）で、読み直しは順番が来てから行うので、作り直しと個別の更新が重なっても新しい方が残る。Redis への再接続（`Resync`）では作り直す。
+- **アクセス解析は個々のアクセスを残さない**: 訪問者の見分けは日ごとの秘密の値（キャッシュにだけ置く）を混ぜたハッシュで、重複の判定もキャッシュの `increment`（TTL 2 日）で行う。DB（`_aegis_analytics`、`aegis_db::AnalyticsStorage`）には日 × 切り口（サイト・ページ・参照元・端末）× 値の数だけを、メモリで溜めて一定間隔と終了時にまとめて加算する（方言ごとの UPSERT）。
+
+## 16. 問い合わせフォーム (`aegis-contact`)
+
+- **項目は設定ファイルで決める**（`[[contact.forms]]`）: サーバー側の検査の基準（必須・長さ・種類・選択肢）が 1 か所に決まり、編集者が記事ごとに項目を変えて検査の抜けを作ることがない。本文のブロック `core/contact-form` はフォームの名前だけを持ち、描画のたびに設定から HTML を作る（プラグインのブロックと同じ「トップレベルのブロックを先に描く」経路）。
+- **JavaScript なしで動く**: 普通の HTML のフォームを `POST /contact/{form}` に送り、成功は `303` で `?sent=1` へ（PRG）、入力の誤りは同じページを `400` で返して値と誤りを出す。入力を含むページは `Cache-Control: private, no-store`。
+- **スパム対策はコメントと共有**（`aegis_comments::moderation` の IP ごとの数・リンク数・メールアドレスの検査）。ボット除けの見えない欄に値があれば、成功と同じ応答で何も保存しない。スパムと判定したものは保存するが通知しない（受信箱のスパムで確かめられる）。
+- **表は `_aegis_contact_messages`**（`aegis_db::ContactStorage`）。入力はフォームの項目の順に `[{name, label, value}]` の JSON で残し（後から設定の項目を変えても、届いた時点の表示名で読める）、一覧用に名前・メールアドレス・件名を列に持つ。保存期間はサービスが 1 日に 1 回消す。
+
+
+## 17. バックアップとリストア (`aegis-backup`)
+
+- **独立クレートと feature フラグ（`feature = "backup"`）**:
+  - `aegis-db`（全システムテーブル・動的コンテンツテーブル）と `aegis-storage`（アップロードファイル群）の上位オーケストレーション層として `crates/aegis-backup` に分離。`aegis-server` ではオプショナルな feature（既定有効）として切り離し可能（`cargo check -p aegis-server --no-default-features` で最小限のフットプリントを維持）。
+  - CLI コマンド `aegis dump`（バックアップ生成）および `aegis restore`（復元・整合性検証）として利用可能。
+- **異種 DB 間のポータビリティ（ダイアレクト非依存の JSON 表現）**:
+  - 特定 DB のバイナリダンプ（`pg_dump` や SQLite ファイルコピー）ではなく、各ドメインモデル（`ContentRecord`, `ContentVersionRecord`, `UserRecord`, `OrderRecord` 等）の構造化 JSON としてエクスポートする。これにより、「開発環境の SQLite から dump したアーカイブを、本番環境の PostgreSQL や MySQL へそのまま restore する」クロス DB マイグレーションを完全サポート。
+- **コンテンツ版履歴と公開ポインターの完全保持**:
+  - コンテンツごとに最新作業版（`record`）、編集履歴スナップショット（`versions`、リビジョン昇順）、および公開版ポインター（`published_version_index`）をバンドルして保存。復元時も `insert_content_with_versions` を通じて作業版と公開スナップショットの分離関係をそのまま再現する。
+- **整合性・改ざん防止の事前検証（Fail-Safe）**:
+  - アーカイブ（ZIP）のルートに `manifest.json`（フォーマットバージョン `format_version: 1`、CMS バージョン、テーブル一覧・件数、ストレージオブジェクト一覧、および全ファイルの SHA-256 チェックサム）を記録。
+  - リストア時は、データベースやストレージへの書き込みを一切行う前に、ZIP 内の全エントリのパス安全性（ZipSlip・パストラバーサル防止）と SHA-256 ハッシュを完全検証し、不整合や破損・改ざんがあれば変更を 1 つも適用せずに拒否する。`--verify-only` オプションで復元せずに検証のみを実行することも可能。
+- **安全な衝突制御（`--overwrite`）**:
+  - 既定（`overwrite = false`）では、既存のユーザーやコンテンツ、設定などの ID/キーが衝突した場合にバリデーションエラーとして処理を停止し、誤操作による既存データの破壊を防止する。`--overwrite` を指定した場合のみ、既存レコードを置換して復元する。

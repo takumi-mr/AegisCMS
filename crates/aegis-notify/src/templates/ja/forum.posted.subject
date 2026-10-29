@@ -1,0 +1,2 @@
+【{{ site_name }}】掲示板「{{ category.name }}」に{% if post.is_reply %}返信{% else %}新しいスレッド{% endif %}「{{ thread.title }}」が投稿されました
+

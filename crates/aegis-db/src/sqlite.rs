@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
+use crate::sqlx_compat as sqlx;
 use aegis_core::{AegisError, AuditEvent, AuditQuery, Result};
 use aegis_schema::{FieldType, SchemaDefinition, SchemaMigration, SqlDialect};
 use async_trait::async_trait;
@@ -171,6 +172,14 @@ impl SqliteAdapter {
 super::orders::impl_order_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::variants::impl_product_variant_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::comments::impl_comment_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::contact::impl_contact_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::analytics::impl_analytics_storage!(
+    SqliteAdapter,
+    |i| format!("?{}", i),
+    super::analytics::UPSERT_ON_CONFLICT,
+    "BIGINT",
+    "SQLite"
+);
 super::notifications::impl_notification_queue_storage!(
     SqliteAdapter,
     |i| format!("?{}", i),
@@ -404,6 +413,34 @@ impl DatabaseAdapter for SqliteAdapter {
                 .map_err(|e| AegisError::Database(e.to_string()))?;
         }
 
+        // アクセス解析の集計
+        let (analytics_table, analytics_indexes) =
+            super::analytics::build_analytics_table("TEXT", false);
+        sqlx::query(&analytics_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in analytics_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 問い合わせ
+        let (contact_table, contact_indexes) =
+            super::contact::build_contact_table("TEXT", "TEXT", false);
+        sqlx::query(&contact_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in contact_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
         // コメント
         let (comment_table, comment_indexes) =
             super::comments::build_comment_table("TEXT", "TEXT", "INTEGER", false);
@@ -440,6 +477,27 @@ impl DatabaseAdapter for SqliteAdapter {
                 .execute(&self.pool)
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        for table_name in [
+            super::forum::FORUM_THREAD_TABLE,
+            super::forum::FORUM_POST_TABLE,
+        ] {
+            let cols: HashSet<String> = sqlx::query(&format!("PRAGMA table_info({});", table_name))
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?
+                .into_iter()
+                .map(|r| r.get::<String, _>("name"))
+                .collect();
+            if !cols.contains("status") {
+                sqlx::query(&format!(
+                    "ALTER TABLE {} ADD COLUMN status TEXT NOT NULL DEFAULT 'approved';",
+                    table_name
+                ))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+            }
         }
         for index in forum_indexes {
             sqlx::query(&index)
@@ -1027,14 +1085,26 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     async fn delete_content(&self, schema: &SchemaDefinition, id: &str) -> Result<bool> {
+        let db_err = |e: sqlx::Error| AegisError::Database(e.to_string());
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
         let result = sqlx::query(&format!(
             "DELETE FROM {} WHERE id = ?1;",
             schema.table_name()
         ))
         .bind(id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
-        .map_err(|e| AegisError::Database(e.to_string()))?;
+        .map_err(db_err)?;
+        // 公開中の版も取り下げる（残すと削除したコンテンツが公開ページに出続ける）。版の履歴は残す
+        sqlx::query(
+            "DELETE FROM _aegis_content_publications WHERE content_type = ?1 AND content_id = ?2;",
+        )
+        .bind(&schema.content_type)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db_err)?;
+        tx.commit().await.map_err(db_err)?;
         Ok(result.rows_affected() > 0)
     }
 
@@ -1225,6 +1295,31 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         Ok(())
+    }
+
+    async fn list_identity_links(&self) -> Result<Vec<crate::UserIdentityRecord>> {
+        let rows = sqlx::query(&crate::build_identity_list())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        let mut links = Vec::with_capacity(rows.len());
+        for row in rows {
+            links.push(crate::UserIdentityRecord {
+                provider: row
+                    .try_get("provider")
+                    .map_err(|e| AegisError::Database(e.to_string()))?,
+                subject: row
+                    .try_get("subject")
+                    .map_err(|e| AegisError::Database(e.to_string()))?,
+                username: row
+                    .try_get("username")
+                    .map_err(|e| AegisError::Database(e.to_string()))?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|e| AegisError::Database(e.to_string()))?,
+            });
+        }
+        Ok(links)
     }
 
     async fn list_settings(&self) -> Result<HashMap<String, String>> {

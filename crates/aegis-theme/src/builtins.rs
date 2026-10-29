@@ -398,6 +398,138 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
+/// 本文のブロック（表・目次・注記・引用・折りたたみ）の最低限の見た目。全ページの `<head>` に入る。
+/// `:where()` で詳細度を 0 にしているので、テーマの CSS の指定がいつも優先される。
+/// 色は文字色の濃淡と、注記の種類ごとの `--aegis-callout`（テーマで上書きできる）だけを使う
+pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
+:where(.aegis-table){overflow-x:auto;margin:1.5rem 0}\
+:where(.aegis-table) table{border-collapse:collapse;width:100%}\
+:where(.aegis-table) :is(th,td){border:1px solid rgba(127,127,127,.3);padding:.5rem .75rem;text-align:left;vertical-align:top;overflow-wrap:break-word}\
+:where(.aegis-table) th{background:rgba(127,127,127,.08);font-weight:600}\
+:where(.aegis-toc){border:1px solid rgba(127,127,127,.3);border-radius:8px;padding:1rem 1.25rem;margin:1.5rem 0}\
+:where(.aegis-toc-title){font-weight:700;margin:0 0 .5rem}\
+:where(.aegis-toc) ol{margin:0;padding-left:1.25rem}\
+:where(.aegis-toc) ol ol{margin-top:.25rem}\
+:where(.aegis-callout){--aegis-callout:#3b82f6;border-left:4px solid var(--aegis-callout);background:rgba(127,127,127,.08);background:color-mix(in srgb,var(--aegis-callout) 10%,transparent);border-radius:0 8px 8px 0;padding:.75rem 1rem;margin:1.5rem 0}\
+:where(.aegis-callout)>:first-child{margin-top:0}\
+:where(.aegis-callout)>:last-child{margin-bottom:0}\
+:where(.aegis-callout-title){font-weight:700;color:var(--aegis-callout)}\
+:where(.aegis-callout-tip){--aegis-callout:#10b981}\
+:where(.aegis-callout-important){--aegis-callout:#8b5cf6}\
+:where(.aegis-callout-warning){--aegis-callout:#f59e0b}\
+:where(.aegis-callout-caution){--aegis-callout:#ef4444}\
+:where(.aegis-details){border:1px solid rgba(127,127,127,.3);border-radius:8px;margin:1rem 0;padding:0 1rem}\
+:where(.aegis-details)>summary{cursor:pointer;font-weight:600;padding:.75rem 0}\
+:where(.aegis-details-body){padding-bottom:.75rem}\
+:where(.aegis-details-body)>:first-child{margin-top:0}\
+:where(.aegis-details-body)>:last-child{margin-bottom:0}\
+:where(.aegis-details)+:where(.aegis-details){margin-top:-.5rem}\
+:where(.aegis-quote){margin:1.5rem 0}\
+:where(.aegis-quote) figcaption{opacity:.7;font-size:.9em;margin-top:.25rem}\
+:where(.aegis-contact-form){display:flex;flex-direction:column;gap:1rem;margin:1.5rem 0;max-width:40rem}\
+:where(.aegis-contact-field){display:flex;flex-direction:column;gap:.35rem}\
+:where(.aegis-contact-field) label{font-weight:600;font-size:.95em}\
+:where(.aegis-contact-checkbox) label{font-weight:400;display:flex;gap:.5rem;align-items:baseline}\
+:where(.aegis-contact-field) :is(input:not([type=checkbox]),textarea,select){font:inherit;color:inherit;background:transparent;border:1px solid rgba(127,127,127,.45);border-radius:6px;padding:.55rem .7rem;width:100%;box-sizing:border-box}\
+:where(.aegis-contact-field) :is(input,textarea,select)[aria-invalid=true]{border-color:#ef4444}\
+:where(.aegis-contact-field) textarea{resize:vertical;min-height:8rem}\
+:where(.aegis-contact-required){color:#ef4444}\
+:where(.aegis-contact-error){color:#ef4444;font-size:.875em;margin:0}\
+:where(.aegis-contact-description){margin:0;opacity:.8}\
+:where(.aegis-contact-submit){align-self:flex-start;font:inherit;font-weight:600;padding:.6rem 1.4rem;border-radius:6px;border:1px solid rgba(127,127,127,.45);background:rgba(127,127,127,.12);color:inherit;cursor:pointer}\
+:where(.aegis-contact-notice){border-left:3px solid #ef4444;padding:.5rem .9rem;margin:1rem 0}\
+:where(.aegis-contact-sent){border-left:3px solid #10b981;padding:.75rem 1rem;margin:1.5rem 0}\
+</style>";
+
+/// `[theme].front_page = "template"` のトップページ。テーマに `front.html` が無ければ記事一覧と同じ表示にする
+pub const FRONT_TEMPLATE: &str = r#"{% extends "index.html" %}"#;
+
+/// カテゴリの記事一覧（`/category/{slug}`）。どのテーマでも読めるよう、色は文字色の濃淡だけで付ける
+pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-archive" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
+  <p class="aegis-archive-label" style="font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin: 0 0 0.4rem;">Category</p>
+  <h1 style="margin: 0 0 0.75rem;">{{ title }}</h1>
+  {% if fields.description %}<p class="aegis-archive-description" style="opacity: 0.75; margin: 0 0 2rem;">{{ fields.description }}</p>{% endif %}
+  <ul class="aegis-archive-list" style="list-style: none; padding: 0; margin: 0;">
+    {% for item in items %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
+      {% if item.published_at %}<time datetime="{{ item.published_at }}" style="font-size: 0.85rem; opacity: 0.65;">{{ item.published_at | date_short }}</time>{% endif %}
+      <h2 style="font-size: 1.15rem; margin: 0.2rem 0 0.3rem;"><a href="{{ base_path }}/articles/{{ item.slug }}" style="color: inherit;">{{ item.title }}</a></h2>
+      {% if item.excerpt %}<p style="opacity: 0.75; margin: 0;">{{ item.excerpt }}</p>{% endif %}
+    </li>
+    {% else %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">No published articles in this category yet.</li>
+    {% endfor %}
+  </ul>
+  {% if pagination and pagination.total_pages > 1 %}
+  <nav class="pagination" aria-label="Pagination" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; Newer</a>{% else %}<span></span>{% endif %}
+    <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">Older &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+  <p style="margin-top: 2rem; font-size: 0.85rem;"><a href="{{ base_path }}/category/{{ slug }}/feed.xml">Feed (Atom)</a></p>
+</section>
+{% endblock %}
+"#;
+
+/// 問い合わせフォーム（`/contact`・`/contact/{name}`）。`fields.form_html` が組み込みのフォーム（エスケープ済み）、
+/// `fields.sent` が送信した後、`fields.form` がフォームの設定（`title`・`fields`・`action`・`success_message` など）、
+/// `fields.errors` が入力の誤り、`fields.notice` が送信できなかったときの知らせ（`[contact].locale` の言語）
+pub const CONTACT_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-contact-page" style="max-width: 720px; margin: 0 auto; padding: 1rem 0 3rem;">
+  <h1 style="margin: 0 0 1rem;">{{ title }}</h1>
+  {% if fields.sent %}
+  <div class="aegis-contact-sent" role="status"><p style="margin: 0;">{{ fields.form.success_message }}</p></div>
+  {% else %}
+  {% if fields.notice %}<p class="aegis-contact-notice" role="alert">{{ fields.notice }}</p>{% endif %}
+  <div class="aegis-contact">{{ fields.form_html | safe }}</div>
+  {% endif %}
+</section>
+{% endblock %}
+"#;
+
+/// サイト内検索の結果（`/search?q=...`）。`fields.query` が検索語、`items` の `fields.url` が公開ページの URL、
+/// `fields.snippet_html` が検索語を `<mark>` で囲んだ本文の抜粋（エスケープ済み）
+pub const SEARCH_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<style>:where(.aegis-search) mark{background:rgba(250,204,21,.3);color:inherit;border-radius:2px;padding:0 .1em}</style>
+<section class="aegis-search" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
+  <h1 style="margin: 0 0 1rem;">{{ title }}</h1>
+  <form class="aegis-search-form" role="search" action="{{ base_path }}/search" method="get" style="display: flex; gap: 0.5rem; margin: 0 0 1.5rem;">
+    <input type="search" name="q" value="{{ fields.query }}" aria-label="Search" placeholder="Search" maxlength="200" style="flex: 1; min-width: 0; padding: 0.55rem 0.75rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit;">
+    <button type="submit" style="padding: 0.55rem 1rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit; cursor: pointer;">Search</button>
+  </form>
+  {% if fields.query %}
+  <p class="aegis-search-count" style="opacity: 0.7; margin: 0 0 0.5rem; font-size: 0.9rem;">{{ pagination.total_items }} result{% if pagination.total_items != 1 %}s{% endif %}</p>
+  <ul class="aegis-search-results" style="list-style: none; padding: 0; margin: 0;">
+    {% for item in items %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
+      <h2 style="font-size: 1.15rem; margin: 0 0 0.3rem;"><a href="{{ item.fields.url }}" style="color: inherit;">{{ item.title }}</a></h2>
+      {% if item.fields.snippet_html %}<p class="aegis-search-snippet" style="opacity: 0.8; margin: 0;">{{ item.fields.snippet_html | safe }}</p>{% endif %}
+      {% if item.published_at %}<time datetime="{{ item.published_at }}" style="font-size: 0.8rem; opacity: 0.6;">{{ item.published_at | date_short }}</time>{% endif %}
+    </li>
+    {% else %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">No pages matched your search.</li>
+    {% endfor %}
+  </ul>
+  {% if pagination and pagination.total_pages > 1 %}
+  <nav class="pagination" aria-label="Pagination" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; Previous</a>{% else %}<span></span>{% endif %}
+    <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">Next &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}
+"#;
+
 pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
@@ -857,6 +989,12 @@ pub const FORUM_COMMON_TEMPLATE: &str = r##"<style>
   .aegis-forum-btn-secondary { background: rgba(127,127,127,0.18); color: inherit; }
   .aegis-forum-btn-secondary:hover { background: rgba(127,127,127,0.28); color: inherit; }
   .aegis-forum-banner-locked { padding: 1rem 1.25rem; border-radius: 12px; background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.3); color: #f43f5e; font-weight: 600; font-size: 0.92rem; margin-top: 1.5rem; text-align: center; }
+  .aegis-forum-banner-notice { padding: 0.85rem 1.25rem; border-radius: 12px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #10b981; font-weight: 600; font-size: 0.9rem; margin-bottom: 1.5rem; }
+  .aegis-forum-report { margin-top: 0.75rem; font-size: 0.8rem; }
+  .aegis-forum-report summary { cursor: pointer; opacity: 0.55; list-style: none; display: inline-block; }
+  .aegis-forum-report summary:hover { opacity: 0.9; }
+  .aegis-forum-report-form { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center; }
+  .aegis-forum-report-form input[type=text] { flex: 1; min-width: 180px; padding: 0.4rem 0.65rem; border-radius: 8px; border: 1px solid rgba(127,127,127,0.3); background: rgba(127,127,127,0.06); color: inherit; font: inherit; font-size: 0.82rem; }
   .aegis-forum-empty { padding: 3rem 1rem; text-align: center; opacity: 0.6; font-size: 0.95rem; }
 </style>
 "##;
@@ -941,6 +1079,9 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
   <h1 style="font-size: 2rem; margin: 0 0 0.5rem; font-weight: 800;">{{ fields.category.name }}</h1>
   {% if fields.category.description %}
   <p style="opacity: 0.7; margin: 0 0 2rem; font-size: 1rem;">{{ fields.category.description }}</p>
+  {% endif %}
+  {% if fields.pending_notice %}
+  <div class="aegis-forum-banner-notice" role="status">Your thread was submitted and is awaiting moderator approval.</div>
   {% endif %}
 
   <div class="aegis-forum-threads">
@@ -1033,6 +1174,13 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
     </div>
   </header>
 
+  {% if fields.pending_notice %}
+  <div class="aegis-forum-banner-notice" role="status">Your reply was submitted and is awaiting moderator approval.</div>
+  {% endif %}
+  {% if fields.reported_notice %}
+  <div class="aegis-forum-banner-notice" role="status">Thank you. Your report has been submitted to the moderators.</div>
+  {% endif %}
+
   <div class="aegis-forum-posts">
     {% for p in fields.posts %}
     <article class="aegis-forum-post" id="post-{{ p.post_number }}">
@@ -1055,6 +1203,15 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
       <div class="aegis-forum-post-body">
         {{ p.body_html | safe }}
       </div>
+      <details class="aegis-forum-report">
+        <summary>Report</summary>
+        <form class="aegis-forum-report-form" method="POST" action="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/{{ fields.thread.id }}/report">
+          <input type="hidden" name="target_type" value="post">
+          <input type="hidden" name="target_id" value="{{ p.id }}">
+          <input type="text" name="reason" required maxlength="500" placeholder="Reason for reporting this post...">
+          <button type="submit" class="aegis-forum-btn aegis-forum-btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Report</button>
+        </form>
+      </details>
     </article>
     {% endfor %}
   </div>

@@ -10,7 +10,7 @@ use tower::ServiceExt;
 use crate::app;
 use crate::config::AegisConfig;
 use crate::state::AppState;
-use aegis_forum::{CreateCategoryRequest, CreateThreadRequest, ForumDeps, ForumService};
+use aegis_forum::{CreateCategoryRequest, CreateThreadRequest, ForumService};
 use aegis_runtime::PluginSupervisor;
 
 async fn setup_forum_app(
@@ -41,11 +41,7 @@ async fn setup_forum_app(
         state.db.clone()
     };
 
-    let forum_deps = ForumDeps {
-        db: forum_db.clone(),
-        cache: state.cache.clone(),
-        audit: state.audit.clone(),
-    };
+    let forum_deps = state.forum_deps(forum_db.clone());
     let forum_service = ForumService::new(config.forum.clone(), forum_deps).unwrap();
 
     // デフォルトカテゴリ "general" を作成
@@ -314,11 +310,7 @@ async fn test_forum_rate_limiting() {
     let state =
         crate::test_support::test_app_state(config.clone(), PluginSupervisor::new(), Vec::new())
             .await;
-    let forum_deps = ForumDeps {
-        db: state.db.clone(),
-        cache: state.cache.clone(),
-        audit: state.audit.clone(),
-    };
+    let forum_deps = state.forum_deps(state.db.clone());
     let forum_service = ForumService::new(config.forum.clone(), forum_deps).unwrap();
 
     let cat = forum_service
@@ -378,4 +370,165 @@ async fn test_forum_rate_limiting() {
         .await
         .unwrap();
     assert_eq!(res2.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn test_forum_moderation_settings_and_reports_api() {
+    let (state, router, cat_id) = setup_forum_app(None).await;
+    let admin_session = state
+        .sessions
+        .create_session("admin1", "admin", Default::default(), None)
+        .await
+        .unwrap()
+        .id;
+    let auth_header = format!("Bearer {}", admin_session);
+
+    // 1. PUT /api/v1/forum/settings -> require_approval = true に変更
+    let res = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/v1/forum/settings")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, &auth_header)
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "require_approval": true,
+                        "auto_approve_known": true
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(res.into_body(), 100_000)
+        .await
+        .unwrap();
+    let settings_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(settings_json["policy"]["require_approval"], true);
+
+    // 2. 新規投稿 -> pending になる
+    let res = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/forum/threads")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "category_id": cat_id,
+                        "title": "Pending Thread",
+                        "body": "Needs moderation",
+                        "author_name": "Newbie"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(res.into_body(), 100_000)
+        .await
+        .unwrap();
+    let created: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let thread_id = created["thread"]["id"].as_str().unwrap().to_string();
+    let post_id = created["initial_post"]["id"].as_str().unwrap().to_string();
+    assert_eq!(created["thread"]["status"], "pending");
+
+    // 3. 未ログインでの GET /api/v1/forum/threads/:id は 404
+    let res = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/forum/threads/{}", thread_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+
+    // 4. PATCH /api/v1/forum/threads/:id/status & /posts/:id/status で承認
+    let res = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/v1/forum/threads/{}/status", thread_id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, &auth_header)
+                .body(Body::from(
+                    serde_json::to_vec(&json!({ "status": "approved" })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let res = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/v1/forum/posts/{}/status", post_id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, &auth_header)
+                .body(Body::from(
+                    serde_json::to_vec(&json!({ "status": "approved" })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 5. 通報 POST /api/v1/forum/reports
+    let res = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/forum/reports")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "target_type": "post",
+                        "target_id": post_id,
+                        "reason": "Inappropriate content"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(res.into_body(), 100_000)
+        .await
+        .unwrap();
+    let report_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let report_id = report_json["report"]["id"].as_str().unwrap().to_string();
+
+    // 6. PATCH /api/v1/forum/reports/:id で解決
+    let res = router
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/v1/forum/reports/{}", report_id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, &auth_header)
+                .body(Body::from(
+                    serde_json::to_vec(&json!({ "status": "resolved" })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 }

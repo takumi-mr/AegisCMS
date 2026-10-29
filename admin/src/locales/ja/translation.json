@@ -73,7 +73,13 @@
     "notificationTemplatesFailed": "通知のテンプレートの取得に失敗しました",
     "saveNotificationTemplateFailed": "通知のテンプレートの保存に失敗しました",
     "previewNotificationFailed": "通知のプレビューに失敗しました",
-    "testNotificationFailed": "テスト送信に失敗しました"
+    "testNotificationFailed": "テスト送信に失敗しました",
+    "blocksFailed": "プラグインのブロックを取得できませんでした",
+    "analyticsFailed": "アクセス解析を読み込めませんでした",
+    "contactFormsFailed": "問い合わせフォームを読み込めませんでした",
+    "contactMessagesFailed": "問い合わせを読み込めませんでした",
+    "updateContactMessageFailed": "問い合わせを更新できませんでした",
+    "deleteContactMessageFailed": "問い合わせを削除できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -149,7 +155,49 @@
     "numbered": "番号付き（1.）",
     "listPlaceholder": "項目 1\n項目 2\n項目 3（1 行に 1 項目）",
     "htmlBlock": "カスタム HTML:",
-    "htmlPlaceholder": "<!-- ここにカスタム HTML / 埋め込みコードを入力... -->"
+    "htmlMode": "HTML 実行モード",
+    "htmlModeSanitized": "標準（HTML/CSS・スクリプト除去）",
+    "htmlModeSandbox": "サンドボックス（独立 iframe・JS 実行可）",
+    "htmlPlaceholder": "<!-- ここにカスタム HTML / 埋め込みコードを入力... -->",
+    "tableHeader": "1 行目を見出しにする",
+    "tableAddRow": "行",
+    "tableRemoveRow": "行",
+    "tableAddColumn": "列",
+    "tableRemoveColumn": "列",
+    "tableAlign": "{{column}} 列目の揃え",
+    "alignDefault": "揃え: 指定なし",
+    "alignLeft": "左揃え",
+    "alignCenter": "中央揃え",
+    "alignRight": "右揃え",
+    "tableCell": "{{row}} 行 {{column}} 列",
+    "inlineHint": "**太字**・*斜体*・`コード`・[リンク](URL) が使えます",
+    "tocTitle": "目次の見出し（空なら表示しない）",
+    "tocDepth": "表示する見出し:",
+    "tocNote": "本文の見出しから自動で作られます（プレビューで確認できます）",
+    "quotePlaceholder": "引用する文章...",
+    "citePlaceholder": "出典（人名・書名など。任意）",
+    "calloutVariant": "注記の種類",
+    "calloutTitle": "見出し（任意）",
+    "calloutPlaceholder": "注記の本文...",
+    "callout": {
+      "note": "メモ",
+      "tip": "ヒント",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "注意"
+    },
+    "plugin": {
+      "from": "プラグイン「{{plugin}}」のブロック",
+      "unavailable": "このブロックのプラグイン（{{plugin}}）が無効か、このブロックがありません。内容はそのまま保存されますが、公開ページには表示されません。",
+      "required": "必須の項目です"
+    },
+    "detailsSummary": "見出し（質問など）",
+    "detailsOpen": "最初から開く",
+    "detailsPlaceholder": "開いたときに表示する本文（答え・詳細）...",
+    "contactForm": "フォーム",
+    "contactFormFields": "項目: {{fields}}（設定ファイルの [[contact.forms]] で変えられます）",
+    "contactFormDisabled": "問い合わせフォームが無効です（[contact].enabled）。このブロックは何も表示しません。",
+    "contactFormMissing": "設定に「{{name}}」というフォームがありません。このブロックは何も表示しません。"
   },
   "categories": {
     "title": "カテゴリ",
@@ -241,6 +289,8 @@
     "unknownCategory": "不明なカテゴリ（{{id}}）",
     "manageCategories": "管理",
     "manageCategoriesTitle": "設定のカテゴリを開く",
+    "commentsAccepting": "コメント: 受付中",
+    "commentsStopped": "コメント: 受付停止中",
     "versionHistory": "版履歴",
     "versionLabel": "版 {{revision}}",
     "restoreVersion": "復元",
@@ -274,7 +324,9 @@
       "untitled": "無題のドキュメント",
       "untitledPage": "無題の固定ページ",
       "newHeading": "新しい見出し",
-      "sectionTitle": "セクションの見出し"
+      "sectionTitle": "セクションの見出し",
+      "column": "列 {{n}}",
+      "tocTitle": "目次"
     },
     "toasts": {
       "categoryCreated": "カテゴリ「{{title}}」を作成しました",
@@ -288,7 +340,14 @@
       "publishAtRequired": "予約公開する日時を指定してください",
       "unpublishAtInvalid": "非公開予定日時の形式が正しくありません",
       "unpublishBeforePublish": "非公開予定日時は公開日時より後に設定してください"
-    }
+    },
+    "table": "表",
+    "toc": "目次",
+    "quote": "引用",
+    "callout": "注記",
+    "separator": "区切り線",
+    "details": "折りたたみ",
+    "contactForm": "問い合わせフォーム"
   },
   "header": {
     "badge": "ゼロトラスト・サンドボックス",
@@ -300,6 +359,8 @@
       "orders": "注文",
       "comments": "コメント",
       "forum": "フォーラム",
+      "contact": "問い合わせ",
+      "analytics": "アクセス解析",
       "settings": "設定"
     },
     "gateway": "コアゲートウェイ: {{state}}",
@@ -431,7 +492,14 @@
       "listItem": "項目",
       "numberedItem": "番号付きの項目",
       "alt": "画像の説明",
-      "link": "リンクのテキスト"
+      "link": "リンクのテキスト",
+      "inlineCode": "コード",
+      "column": "列 {{n}}",
+      "cell": "セル",
+      "quote": "引用する文章",
+      "callout": "注記の本文",
+      "detailsSummary": "質問",
+      "detailsBody": "答え"
     },
     "placeholder": "ここに Markdown で本文を書きます...\n\n## 小見出し\n**太字**・*斜体*・リンクを含む段落。\n\n```rust\nfn main() {\n    println!(\"Hello AegisCMS\");\n}\n```",
     "lines_other": "{{count}} 行",
@@ -446,8 +514,21 @@
       "paragraph": "段落",
       "code": "コード",
       "image": "画像",
-      "list": "リスト"
-    }
+      "list": "リスト",
+      "table": "表",
+      "toc": "目次",
+      "quote": "引用",
+      "separator_block": "区切り線",
+      "callout": "注記",
+      "details": "折りたたみ",
+      "contactForm": "問い合わせフォーム"
+    },
+    "inlineCode": "インラインコード（`コード`）",
+    "table": "表（| A | B |）",
+    "quote": "引用（>）",
+    "callout": "注記（> [!NOTE]）",
+    "toc": "目次（[TOC]）",
+    "details": "折りたたみ（:::details 見出し）"
   },
   "media": {
     "title": "メディアライブラリ",
@@ -1009,7 +1090,8 @@
     "browse": "プラグインのソースを見る",
     "installSuccess": "プラグイン「{{name}}」を正常にインストールしました",
     "installFailed": "プラグインのインストールに失敗しました",
-    "installing": "インストール中..."
+    "installing": "インストール中...",
+    "frameDomains": "埋め込み（iframe）: {{domains}}"
   },
   "site": {
     "title": "サイト",
@@ -1258,12 +1340,49 @@
     "confirmDeleteCategory": "カテゴリ「{{name}}」を削除しますか？",
     "tabs": {
       "threads": "スレッド・モデレーション",
-      "categories": "カテゴリ管理"
+      "categories": "カテゴリ管理",
+      "reports": "通報一覧",
+      "settings": "承認・NGワード設定"
+    },
+    "status": {
+      "all": "すべての状態",
+      "approved": "承認済み",
+      "pending": "承認待ち",
+      "spam": "スパム"
+    },
+    "filterStatus": "状態",
+    "approve": "承認する",
+    "markPending": "承認待ちに戻す",
+    "markSpam": "スパムにする",
+    "reports": {
+      "filter": "通報の状態",
+      "open": "未対応",
+      "resolved": "対応済み",
+      "dismissed": "却下",
+      "all": "すべて",
+      "empty": "通報はありません",
+      "target": "対象",
+      "reason": "通報理由",
+      "reporter": "通報元",
+      "date": "通報日時",
+      "resolve": "対応済みにする",
+      "dismiss": "却下する"
+    },
+    "moderation": {
+      "requireApproval": "承認制にする（承認するまで新しいスレッド・返信を公開しない）",
+      "autoApproveKnown": "すでに承認済みの投稿がある投稿者は自動で承認する",
+      "ngWordsTitle": "設定ファイルの自動振り分けルール ([forum.moderation])",
+      "maxLinks": "承認待ちにするリンク数の上限: {{count}}",
+      "maxPerIp": "同じ IP からの1時間あたりの投稿上限: {{count}}",
+      "holdWords": "承認待ちワード (hold_words)",
+      "spamWords": "スパムワード (spam_words)",
+      "none": "未設定"
     },
     "table": {
       "thread": "スレッド",
       "category": "カテゴリ",
       "author": "投稿者",
+      "status": "状態",
       "replies": "返信数",
       "lastActive": "最終更新",
       "actions": "操作",
@@ -1278,10 +1397,92 @@
       "threadLocked": "スレッドをロックしました（新規返信停止）",
       "threadUnlocked": "スレッドのロックを解除しました",
       "threadDeleted": "スレッドを削除しました",
+      "threadModerated": "スレッドの状態を更新しました",
       "postDeleted": "投稿を削除しました",
+      "postModerated": "投稿の状態を更新しました",
+      "reportUpdated": "通報の状態を更新しました",
+      "settingsSaved": "フォーラムの承認設定を保存しました",
       "categoryCreated": "カテゴリを作成しました",
       "categoryUpdated": "カテゴリを更新しました",
       "categoryDeleted": "カテゴリを削除しました"
+    }
+  },
+  "analytics": {
+    "title": "アクセス解析",
+    "rangeLabel": "期間",
+    "lastDays": "過去 {{count}} 日",
+    "privacyNote": "Cookie を使わずに数えています。訪問者は 1 日の中だけ（毎日変わるハッシュで）見分け、IP アドレスは保存しません。Do Not Track・Global Privacy Control を有効にしたブラウザは数えません。日付は UTC です。",
+    "pageviews": "ページビュー",
+    "visitors": "訪問者",
+    "visitorsHint": "日ごとの訪問者数を期間で合計した値",
+    "daily": "日ごとの推移",
+    "chartLabel": "日ごとのページビューと訪問者。矢印キーで日ごとの値を読めます。",
+    "showTable": "表で見る",
+    "showChart": "グラフで見る",
+    "date": "日付",
+    "empty": "この期間の訪問はまだ記録されていません。",
+    "noData": "データなし",
+    "topPages": "よく見られたページ",
+    "topReferrers": "参照元",
+    "devices": "端末",
+    "page": "ページ",
+    "referrer": "参照元",
+    "device": "端末",
+    "direct": "直接・参照元なし",
+    "deviceNames": {
+      "desktop": "パソコン",
+      "mobile": "スマートフォン",
+      "tablet": "タブレット"
+    }
+  },
+  "contact": {
+    "title": "問い合わせ",
+    "disabled": "問い合わせフォームが無効です（[contact].enabled）。",
+    "formFilter": "フォーム",
+    "allForms": "すべてのフォーム",
+    "publicForms": "公開中のフォーム:",
+    "statusFilter": "状態で絞り込む",
+    "status": {
+      "new": "新着",
+      "read": "既読",
+      "done": "対応済み",
+      "spam": "スパム"
+    },
+    "all": "すべて",
+    "bulkActions": "選択した問い合わせの操作",
+    "selected": "{{count}} 件を選択中",
+    "selectAll": "このページの問い合わせをすべて選択",
+    "selectOne": "{{name}} さんの問い合わせを選択",
+    "columns": {
+      "from": "送信者",
+      "message": "内容",
+      "form": "フォーム",
+      "status": "状態"
+    },
+    "noName": "（名前なし）",
+    "noSubject": "（件名なし）",
+    "emptyStatus": "「{{status}}」の問い合わせはありません。",
+    "empty": "まだ問い合わせはありません。",
+    "newer": "新しい",
+    "older": "古い",
+    "range": "{{total}} 件中 {{from}}–{{to}} 件",
+    "received": "受信日時",
+    "checked": "はい",
+    "reply": "メールで返信",
+    "confirmDelete": "{{count}} 件の問い合わせを完全に削除しますか？",
+    "done": {
+      "new": "{{count}} 件を新着に戻しました",
+      "read": "{{count}} 件を既読にしました",
+      "done": "{{count}} 件を対応済みにしました",
+      "spam": "{{count}} 件をスパムにしました",
+      "delete": "{{count}} 件を削除しました"
+    },
+    "actions": {
+      "new": "新着に戻す",
+      "read": "既読にする",
+      "done": "対応済みにする",
+      "spam": "スパムにする",
+      "delete": "削除"
     }
   }
 }
