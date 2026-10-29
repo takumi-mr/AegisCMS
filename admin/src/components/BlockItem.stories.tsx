@@ -142,3 +142,88 @@ export const Actions: Story = {
     await expect(args.onDelete).toHaveBeenCalled();
   },
 };
+
+export const TableBlock: Story = {
+  args: {
+    block: {
+      name: 'core/table',
+      attributes: {
+        header: true,
+        align: [null, null],
+        rows: [
+          ['Plan', 'Price'],
+          ['Basic', '¥1,000'],
+        ],
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    // 見出し行とセルが表示されていること
+    await expect(canvas.getByText('core/table')).toBeVisible();
+    await expect(canvas.getByDisplayValue('Plan')).toBeVisible();
+
+    // セルを編集すると rows が変わること
+    const cell = canvas.getByDisplayValue('Basic');
+    await userEvent.clear(cell);
+    await userEvent.type(cell, 'Pro');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          rows: [
+            ['Plan', 'Price'],
+            ['Pro', '¥1,000'],
+          ],
+        }),
+      })
+    );
+
+    // 列を足すと全行に空のセルが増え、揃えの指定も増えること
+    await userEvent.click(canvas.getAllByRole('button', { name: /Column|列/ })[0]);
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          align: [null, null, null],
+          rows: [
+            ['Plan', 'Price', ''],
+            ['Pro', '¥1,000', ''],
+          ],
+        }),
+      })
+    );
+
+    // 2 列目を右揃えにできること
+    await userEvent.selectOptions(canvas.getAllByRole('combobox')[1], 'right');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({ align: [null, 'right', null] }),
+      })
+    );
+  },
+};
+
+export const CalloutBlock: Story = {
+  args: {
+    block: {
+      name: 'core/callout',
+      attributes: { variant: 'note' },
+      text: 'Back up the database first.',
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText('core/callout')).toBeVisible();
+    await expect(canvas.getByDisplayValue('Back up the database first.')).toBeVisible();
+
+    // 種類を「警告」に変えられること
+    await userEvent.selectOptions(canvas.getByRole('combobox'), 'warning');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'core/callout',
+        attributes: expect.objectContaining({ variant: 'warning' }),
+      })
+    );
+  },
+};

@@ -147,3 +147,26 @@
   border-radius: var(--radius-sm);
   margin-top: 4px;
 }
+
+.note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.textarea.quote {
+  border-left: 3px solid var(--border-medium);
+  padding-left: 12px;
+  font-style: italic;
+}
+
+.separator {
+  border: none;
+  border-top: 1px dashed var(--border-medium);
+  margin: 8px 0;
+}

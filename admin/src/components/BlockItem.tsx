@@ -10,13 +10,20 @@ import {
   Images,
   List,
   FileCode,
+  Table,
+  ListTree,
+  Quote,
+  Minus,
+  Info,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BlockNode } from '../types';
 import { cx } from '../utils/cx';
 import { altFromKey } from '../utils/media';
+import { CALLOUT_VARIANTS, TOC_DEFAULT_MAX_LEVEL } from '../utils/markdown';
 import { ImageUploader } from './ImageUploader';
 import { MediaLibrary } from './MediaLibrary';
+import { TableBlockEditor } from './TableBlockEditor';
 import { Button } from './ui/Button';
 import styles from './BlockItem.module.css';
 
@@ -57,6 +64,16 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         return <ImageIcon size={14} />;
       case 'core/list':
         return <List size={14} />;
+      case 'core/table':
+        return <Table size={14} />;
+      case 'core/toc':
+        return <ListTree size={14} />;
+      case 'core/quote':
+        return <Quote size={14} />;
+      case 'core/separator':
+        return <Minus size={14} />;
+      case 'core/callout':
+        return <Info size={14} />;
       default:
         return <AlignLeft size={14} />;
     }
@@ -305,6 +322,106 @@ export const BlockItem: React.FC<BlockItemProps> = ({
                 })),
               });
             }}
+          />
+        </div>
+      )}
+      {block.name === 'core/table' && <TableBlockEditor block={block} onChange={onChange} />}
+
+      {block.name === 'core/toc' && (
+        <div className={styles.stack}>
+          <div className={styles.inline}>
+            <input
+              type="text"
+              className={styles.urlInput}
+              aria-label={t('blocks.tocTitle')}
+              placeholder={t('blocks.tocTitle')}
+              value={block.attributes?.title || ''}
+              onChange={(e) =>
+                onChange({ ...block, attributes: { ...block.attributes, title: e.target.value } })
+              }
+            />
+            <span className={styles.languageLabel}>{t('blocks.tocDepth')}</span>
+            <select
+              className={styles.levelSelect}
+              aria-label={t('blocks.tocDepth')}
+              value={block.attributes?.maxLevel || TOC_DEFAULT_MAX_LEVEL}
+              onChange={(e) =>
+                onChange({
+                  ...block,
+                  attributes: { ...block.attributes, maxLevel: Number(e.target.value) },
+                })
+              }
+            >
+              {[2, 3, 4].map((l) => (
+                <option key={l} value={l}>
+                  {l === 2 ? 'H2' : `H2–H${l}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className={styles.note}>{t('blocks.tocNote')}</p>
+        </div>
+      )}
+
+      {block.name === 'core/quote' && (
+        <div className={styles.stack}>
+          <textarea
+            className={cx(styles.textarea, styles.quote)}
+            placeholder={t('blocks.quotePlaceholder')}
+            value={block.text || ''}
+            onChange={(e) => onChange({ ...block, text: e.target.value })}
+          />
+          <input
+            type="text"
+            className={styles.altInput}
+            placeholder={t('blocks.citePlaceholder')}
+            value={block.attributes?.cite || ''}
+            onChange={(e) =>
+              onChange({ ...block, attributes: { ...block.attributes, cite: e.target.value } })
+            }
+          />
+        </div>
+      )}
+
+      {block.name === 'core/separator' && <hr className={styles.separator} />}
+
+      {block.name === 'core/callout' && (
+        <div className={styles.stack}>
+          <div className={styles.inline}>
+            <select
+              className={styles.levelSelect}
+              aria-label={t('blocks.calloutVariant')}
+              value={
+                CALLOUT_VARIANTS.includes(block.attributes?.variant)
+                  ? block.attributes.variant
+                  : 'note'
+              }
+              onChange={(e) =>
+                onChange({ ...block, attributes: { ...block.attributes, variant: e.target.value } })
+              }
+            >
+              {CALLOUT_VARIANTS.map((v) => (
+                <option key={v} value={v}>
+                  {t(`blocks.callout.${v}`)}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              className={cx(styles.urlInput, styles.grow)}
+              aria-label={t('blocks.calloutTitle')}
+              placeholder={t('blocks.calloutTitle')}
+              value={block.attributes?.title || ''}
+              onChange={(e) =>
+                onChange({ ...block, attributes: { ...block.attributes, title: e.target.value } })
+              }
+            />
+          </div>
+          <textarea
+            className={styles.textarea}
+            placeholder={t('blocks.calloutPlaceholder')}
+            value={block.text || ''}
+            onChange={(e) => onChange({ ...block, text: e.target.value })}
           />
         </div>
       )}
