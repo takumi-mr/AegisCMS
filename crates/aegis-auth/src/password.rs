@@ -1,5 +1,5 @@
 use aegis_core::{AegisError, Result};
-use argon2::password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, SaltString};
+use argon2::password_hash::{phc::PasswordHash, PasswordHasher};
 use argon2::{Argon2, PasswordVerifier};
 use std::sync::OnceLock;
 
@@ -14,9 +14,9 @@ pub fn hash_password(password: &str) -> Result<String> {
             MIN_PASSWORD_LEN
         )));
     }
-    let salt = SaltString::generate(&mut OsRng);
+
     Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map(|hash| hash.to_string())
         .map_err(|e| AegisError::Internal(format!("Failed to hash password: {}", e)))
 }

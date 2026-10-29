@@ -34,10 +34,10 @@ homepage = "https://github.com/takumi-mr/AegisCMS"
 
 [workspace.dependencies]
 anyhow = "1.0"
-argon2 = "0.5"
+argon2 = "0.6"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["macros", "multipart"] }
-base64 = "0.22"
+base64 = "0.23"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.6", features = ["derive", "env"] }
 flate2 = "1.1"
@@ -45,11 +45,11 @@ futures-util = "0.3"
 hex = "0.4"
 hmac = "0.12"
 http = "1.5"
-jsonwebtoken = "9.3"
+jsonwebtoken = { version = "11.1", default-features = false, features = ["use_pem", "rust_crypto"] }
 lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "smtp-transport", "pool", "tokio1", "tokio1-rustls-tls"] }
 lol_html = "3.0"
 minijinja = { version = "3.0", features = ["serde", "json"] }
-p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem", "jwk"] }
+p256 = { version = "0.14", features = ["ecdsa", "pkcs8", "pem", "getrandom"] }
 proc-macro2 = "1.0"
 quick-xml = "0.42"
 quote = "1.0"
@@ -78,7 +78,7 @@ uuid = { version = "1.29", features = ["v4", "serde"] }
 walkdir = "2.5"
 wasmtime = "26.0"
 wat = "1.262"
-x509-cert = { version = "0.2", default-features = false, features = ["pem"] }
+x509-cert = { version = "0.3", default-features = false, features = ["pem"] }
 zip = { version = "9.1", default-features = false, features = ["deflate"] }
 
 

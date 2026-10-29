@@ -127,8 +127,8 @@ impl TrustedKeys {
 
 fn rsa_key_of(cert: &x509_cert::Certificate) -> Result<RsaPublicKey, String> {
     let spki = cert
-        .tbs_certificate
-        .subject_public_key_info
+        .tbs_certificate()
+        .subject_public_key_info()
         .to_der()
         .map_err(|e| e.to_string())?;
     RsaPublicKey::from_public_key_der(&spki).map_err(|_| "not an RSA certificate".to_string())
