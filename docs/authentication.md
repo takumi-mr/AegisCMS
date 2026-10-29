@@ -22,6 +22,9 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `disabled` | `1` ならログイン不可 |
 | `avatar_key` | アバター画像のストレージキー（`avatars/...`）。未設定なら NULL。既存の DB には起動時に列を追加 |
 | `pending_approval` | `1` なら自己登録後の管理者承認待ち状態。管理者が有効化すると自動的に `0` に更新される |
+| `totp_secret` | Base32 でエンコードされた TOTP シークレット（未設定なら NULL） |
+| `totp_enabled` | `1` なら二段階認証が有効化されている |
+| `backup_codes` | 使い捨てバックアップコードの SHA-256 ハッシュ配列（JSON 文字列） |
 | `created_at` / `updated_at` | RFC 3339 (UTC) |
 
 ### ロールと API の権限
@@ -32,7 +35,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | --- | --- |
 | `GET /api/v1/health`, `GET /api/v1/openapi.json`, `/metrics` | 不要（公開） |
 | 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
-| `POST /api/v1/auth/session`（ログイン）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッションで判定） |
+| `POST /api/v1/auth/session`（ログイン）, `POST /api/v1/auth/session/verify-2fa`（[二段階認証](#12-二段階認証-2fa--totp)）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッション・2FA 検証で判定） |
 | `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#6-シングルサインオン-openid-connect)） | 不要 |
 | `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm`（[パスワード再設定](#9-パスワードの再設定)） | 不要（メール確認・トークン検証） |
 | `GET /api/v1/auth/invitations/info`, `POST /api/v1/auth/invitations/accept`（[招待リンク](#10-ユーザー招待リンク)） | 不要（招待トークン検証） |
@@ -44,7 +47,8 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug または id}` | `editor` |
 | `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `POST /api/v1/orders/{id}/status`（[EC](commerce.md#62-管理editor-以上)） | `editor` |
 | `POST /api/v1/storage/upload`, `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md)） | `editor` |
-| `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`（[ユーザー管理 API](#3-ユーザー管理-api)） | 本人（`viewer` 以上）か `admin` |
+| `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`, `POST /api/v1/users/me/2fa/*`（[ユーザー管理 API](#3-ユーザー管理-api)・[二段階認証](#12-二段階認証-2fa--totp)） | 本人（`viewer` 以上）か `admin` |
+| `POST /api/v1/users/{username}/2fa/reset`（[二段階認証のリセット](#123-管理者による解除--復旧)） | `admin` |
 | `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}` | `admin` |
 | `POST /api/v1/auth/invitations`（[招待リンク](#10-ユーザー招待リンク)） | `admin` |
 | `GET /api/v1/audit-logs` | `admin` |
@@ -73,6 +77,7 @@ aegis-server user passwd editor1        # パスワード変更（既存セッ�
 aegis-server user role editor1 admin    # ロール変更（既存セッションは即時失効）
 aegis-server user disable editor1       # ログイン不可にする（既存セッションは即時失効）
 aegis-server user enable editor1
+aegis-server user disable-2fa editor1   # 二段階認証を緊急解除（セッションは即時失効）
 aegis-server user list
 aegis-server user link-oidc alice 248289761001   # 既存ユーザーを IdP のアカウント（sub）に紐付ける
 ```
@@ -513,3 +518,42 @@ token_ttl_secs = 604800                        # 招待リンクの有効期限�
 3. サーバーはユーザーを有効化（`disabled = false`）すると同時に `pending_approval = false` にクリアし、該当ユーザーのメールアドレス宛にアカウント承認通知メール（`account.approved`）を自動送信します。
 4. ユーザーは届いたメールを確認後、直ちにログインできるようになります。単なる無効化アカウントの一時的な解除など `pending_approval` が `false` のユーザーを更新した際にはこの通知は送信されません。
 
+
+---
+
+## 12. 二段階認証 (2FA / TOTP)
+
+AegisCMS では、パスワード認証に加えて **TOTP (Time-based One-Time Password / RFC 6238)** による二段階認証（2FA）をサポートしています。
+
+- **対応アプリ**: Google Authenticator、1Password、Authy、Apple パスワードキーチェーンなど標準的な TOTP アプリ
+- **バックアップコード**: 有効化時に **6 枚** の使い捨て復旧コードを発行。コードは SHA-256 ハッシュ化してデータベースに保存され、使用ごとに消費されます。
+- **緊急解除**: 認証端末の紛失やバックアップコード紛失時は、`admin` ロールの管理者による Web 画面からのリセット、またはサーバー端末での CLI コマンド（`aegis-server user disable-2fa <username>`）で即時解除できます。
+
+### 12.1 二段階認証の設定手順 (ユーザー)
+
+1. Admin Studio のヘッダー右上のアバターから **プロフィール (My profile)** を開きます。
+2. **二段階認証 (TOTP)** セクションの **二段階認証を設定する** をクリックします。
+3. 表示された QR コードをお手元の認証アプリでスキャンします（手動入力用の Base32 シークレットも表示されます）。
+4. 認証アプリに表示された 6 桁のコードを入力し、**有効化する** をクリックします。
+5. 有効化に成功すると、画面上に **6 枚の使い捨てバックアップコード**（例: `A1B2-C3D4`）が表示されます。**すべてコピー** をクリックして安全な場所に保存し、**保存しました（閉じる）** をクリックして完了します。
+
+### 12.2 二段階認証ログインフロー
+
+1. 通常のログイン画面（`LoginView.tsx`）でユーザー名とパスワードを入力します。
+2. サーバー（`POST /api/v1/auth/session`）はパスワードを検証後、対象ユーザーの 2FA が有効な場合はセッションを発行せず、5 分間有効な一時トークン（`challenge_token`）と `{ "mfa_required": true }` を返します。
+3. 画面が自動的に二段階認証コード入力フォームへ切り替わります。
+4. ユーザーが 6 桁の認証コード（または「バックアップコードを使用する」から 8 桁のバックアップコード）を入力して送信します（`POST /api/v1/auth/session/verify-2fa`）。
+5. サーバーがコードを検証し、正規の Bearer セッションを発行します。バックアップコードが使われた場合は該当コードが DB から自動的に消費・削除されます。
+
+### 12.3 管理者による解除・復旧
+
+端末紛失等でログインできなくなったユーザーが存在する場合、管理者は以下のいずれかの方法で 2FA を解除できます。
+
+1. **Admin Studio からの解除**:
+   - **設定 → ユーザー**（`UserManager.tsx`）を開き、一覧で該当ユーザーの「2FA」列（有効バッジ）を確認します。
+   - ユーザー編集モーダルを開き、**2FA を強制解除** ボタンをクリックして確認ダイアログを承認します（`POST /api/v1/users/{username}/2fa/reset`）。
+2. **CLI からの緊急解除**:
+   ```bash
+   aegis-server user disable-2fa <username>
+   ```
+   解除と同時に対象ユーザーの既存セッションは即時失効され、次回からパスワードのみでログイン可能になります。

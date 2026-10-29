@@ -9,7 +9,7 @@
 
 ## 現在の状況
 
-- コアエンジン（Rust）、Admin Studio（React/TypeScript）、Wasm プラグインランタイム、テーマエンジン、動的運用設定（`system.*`）、一括バックアップ＆リストア機能が安定稼働。全検証（`task check`）を通過。
+- コアエンジン（Rust）、Admin Studio（React/TypeScript）、Wasm プラグインランタイム、テーマエンジン、二段階認証（TOTP + バックアップコード 6 枚）、動的運用設定（`system.*`）、一括バックアップ＆リストア機能が安定稼働。全検証（`task check`）を通過。
 
 ---
 
