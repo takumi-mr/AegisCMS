@@ -10,6 +10,7 @@ pub mod orders;
 pub mod postgres;
 pub mod reviews;
 pub mod sqlite;
+pub mod sqlx_compat;
 pub mod variants;
 
 use aegis_core::{AegisError, AuditActor, AuditEvent, AuditQuery, Result};

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
+use crate::sqlx_compat as sqlx;
 use aegis_core::{AegisError, AuditEvent, AuditQuery, Result};
 use aegis_schema::{FieldType, SchemaDefinition, SchemaMigration, SqlDialect};
 use async_trait::async_trait;
