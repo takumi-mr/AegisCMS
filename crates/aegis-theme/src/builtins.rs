@@ -398,6 +398,40 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
+/// `[theme].front_page = "template"` のトップページ。テーマに `front.html` が無ければ記事一覧と同じ表示にする
+pub const FRONT_TEMPLATE: &str = r#"{% extends "index.html" %}"#;
+
+/// カテゴリの記事一覧（`/category/{slug}`）。どのテーマでも読めるよう、色は文字色の濃淡だけで付ける
+pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-archive" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
+  <p class="aegis-archive-label" style="font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin: 0 0 0.4rem;">Category</p>
+  <h1 style="margin: 0 0 0.75rem;">{{ title }}</h1>
+  {% if fields.description %}<p class="aegis-archive-description" style="opacity: 0.75; margin: 0 0 2rem;">{{ fields.description }}</p>{% endif %}
+  <ul class="aegis-archive-list" style="list-style: none; padding: 0; margin: 0;">
+    {% for item in items %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
+      {% if item.published_at %}<time datetime="{{ item.published_at }}" style="font-size: 0.85rem; opacity: 0.65;">{{ item.published_at | date_short }}</time>{% endif %}
+      <h2 style="font-size: 1.15rem; margin: 0.2rem 0 0.3rem;"><a href="{{ base_path }}/articles/{{ item.slug }}" style="color: inherit;">{{ item.title }}</a></h2>
+      {% if item.excerpt %}<p style="opacity: 0.75; margin: 0;">{{ item.excerpt }}</p>{% endif %}
+    </li>
+    {% else %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">No published articles in this category yet.</li>
+    {% endfor %}
+  </ul>
+  {% if pagination and pagination.total_pages > 1 %}
+  <nav class="pagination" aria-label="Pagination" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; Newer</a>{% else %}<span></span>{% endif %}
+    <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">Older &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+  <p style="margin-top: 2rem; font-size: 0.85rem;"><a href="{{ base_path }}/category/{{ slug }}/feed.xml">Feed (Atom)</a></p>
+</section>
+{% endblock %}
+"#;
+
 pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}

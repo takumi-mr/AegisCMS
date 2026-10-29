@@ -87,6 +87,7 @@ pub async fn preview_content(
         content_type: payload.content_type,
         title: payload.title,
         slug: payload.slug,
+        path: None,
         content_html: html.clone(),
         author: Some(session.user_id),
         published_at: None,

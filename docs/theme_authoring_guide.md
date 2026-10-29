@@ -16,7 +16,9 @@ themes/my-theme/
 ├── preview.svg         # Admin Studio のテーマ一覧に出すプレビュー画像（preview.png / .webp / .jpg でも可）
 ├── templates/
 │   ├── base.html       # 全ページ共通の骨組み（必須）
-│   ├── index.html      # トップ・記事一覧
+│   ├── index.html      # 記事一覧（トップページが記事一覧のときはトップも）
+│   ├── front.html      # トップページ（[theme].front_page = "template" のとき）
+│   ├── category.html   # カテゴリの記事一覧
 │   ├── article.html    # 記事
 │   ├── page.html       # 固定ページ
 │   └── 404.html        # 見つからない・非公開のページ
@@ -66,7 +68,11 @@ themes/my-theme/
 
 | URL | テンプレート | 主な変数 |
 |---|---|---|
-| `/`、`/articles` | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
+| `/`（`[theme].front_page = "posts"`、既定） | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
+| `/`（`front_page = "template"`） | `front.html` | `content_type`（`front`）、`items`（最新の記事 `posts_per_page` 件）、`pagination`（続きは `/articles?page=2`） |
+| `/`（`front_page = "page:<slug>"`） | 固定ページと同じ（`page.html` など） | 固定ページと同じ。canonical などの URL は `/` |
+| `/articles` | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
+| `/category/{slug}` | `category.html` | `title`（カテゴリ名）、`slug`、`fields`（カテゴリのフィールド。`description` など）、`items`、`pagination` |
 | `/articles/{slug}` | `article.html` | `title`、`content_html`、`author`、`published_at`、`updated_at`、`fields`、`relations`、`comments`（[コメント](#6-コメント欄)） |
 | `/{slug}` | `page.html`（固定ページ）または `article.html` | 同上 |
 | `/{slug}`（固定ページの `layout` が `blank`） | `blank.html` | 同上。ヘッダー・フッター・幅の制約の無い白紙のページ（LP 向け）。`layout` にほかの名前（例: `landing`）を入れると、テーマの `landing.html` を使う |
@@ -77,7 +83,21 @@ themes/my-theme/
 | `/cart` | `cart.html` | `theme_vars` |
 | `/orders/{id}` | `order.html` | `slug`（注文 ID）、`theme_vars` |
 
-`/` と `/articles` は同じ `index.html` で同じ変数を受け取るので、テンプレートの中では区別できません。ヒーローなどトップだけに出したい要素も、`/articles` に表示されます。
+### 3.1.1 トップページ（`[theme].front_page`）
+
+| 値 | `/` に出すもの | 記事一覧 |
+|---|---|---|
+| `"posts"`（既定） | 記事一覧（`index.html`） | `/` と `/articles` の両方。テンプレートの中では区別できないので、ヒーローなどトップだけに出したい要素も `/articles` に表示される |
+| `"template"` | テーマの `front.html`。ランディングページ向け。最新の記事が `items` に入るので、「お知らせ」の欄などに使える。テーマに無ければ `index.html` と同じ表示 | `/articles` |
+| `"page:<slug>"` | 固定ページ（Admin Studio で編集できる。「ブランク LP」のレイアウトも使える）。ページが無い・非公開なら記事一覧 | `/articles` |
+
+`"posts"` 以外にするときは、テーマのナビゲーションの記事一覧へのリンクを `{{ base_path }}/articles` にしてください。
+
+### 3.1.2 カテゴリの記事一覧とフィード
+
+- `/category/{slug}` は、記事のスキーマの `target: category.<フィールド>` の関係フィールド（同梱のスキーマでは `category_id`）がそのカテゴリを指す記事を並べます。テーマに `category.html` が無ければ組み込みのテンプレートを使います。カテゴリへのリンクは `{{ base_path }}/category/{{ item.relations.category_id.slug }}` のように書けます。
+- Atom フィードは `/feed.xml`（新しい記事）と `/category/{slug}/feed.xml`（カテゴリの記事）。どちらも最新 20 件で、本文の HTML も含みます。自動検出用の `<link rel="alternate" type="application/atom+xml">` はサーバーが `extra_head` に入れるので、テーマで出力する必要はありません（カテゴリのページにはカテゴリのフィードも入ります）。
+- フィードの URL は Admin Studio の **Settings › SEO** の canonical URL を基準にします。未設定ならリクエストの Host（とリバースプロキシの `X-Forwarded-Proto`）から作ります。
 
 ショップのテンプレート（`products.html` 以降）は、テーマに無くても組み込みのテンプレートがテーマの `base.html` の中に描画されます（[5. ショップのページ](#5-ショップのページ)）。`blank.html` と掲示板のテンプレートも組み込みのものがあり、テーマに同じ名前のファイルを置くと置き換えられます。
 
