@@ -46,13 +46,15 @@
 - サイト内検索（`aegis-search`、feature `search`）と Cookie なしのアクセス解析（`aegis-analytics`、feature `analytics`）を追加（[search.md](docs/search.md)、[analytics.md](docs/analytics.md)、[architecture.md 15](docs/architecture.md#15-サイト内検索-aegis-search-とアクセス解析-aegis-analytics)）。
     - あわせて、公開中のコンテンツを削除しても公開中の版（`_aegis_content_publications`）が残り、公開ページに出続けていた不具合を直した（`delete_content` で公開中の版も消す。版の履歴は残す）。
     - PostgreSQL の `orders_integration`（`test_postgres_order_storage_real_db`）が main でも失敗する: バリエーションの在庫を引くと親商品の在庫（7 → 5）も減る。下の「EC」を参照。
+- 問い合わせフォーム（`aegis-contact`、`[contact]`）を追加（[contact.md](docs/contact.md)、[architecture.md 16](docs/architecture.md#16-問い合わせフォーム-aegis-contact)）。項目は設定ファイルの `[[contact.forms]]`、表示は `/contact` と本文のブロック `core/contact-form`（`[CONTACT]`）、届いたものは Admin Studio の「問い合わせ」タブ。
+    - Storybook のモック（`.storybook/mockApi.ts`）は `204` を本文なしで返すようにした（本文付きの `204` は `Response` が例外を投げ、204 を返す API の成功を試せなかった）。
+    - クラウドの開発環境ではディスクが足りなくなることがある（`target/debug` が 30GB 近くになる）。`CARGO_INCREMENTAL=0` でビルドするか、`target/debug/incremental` を消す。
     - Storybook のテストは、Playwright の版と `/opt/pw-browsers` のヘッドレスシェルの版が違うと起動しない（クラウドの開発環境では `chromium_headless_shell-1248` を `-1243` へのシンボリックリンクにして実行した）。
 
 **次に着手する項目**
 
-1. 問い合わせフォーム（下の「サイトの機能」）
-2. PostgreSQL でのバリエーション在庫の不具合（下の「EC」）
-3. AssemblyScript / TinyGo SDK の追従、または翻訳の続き
+1. PostgreSQL でのバリエーション在庫の不具合（下の「EC」）
+2. AssemblyScript / TinyGo SDK の追従、または翻訳の続き
 
 ---
 
@@ -68,7 +70,7 @@
 
 ### サイトの機能
 
-- [ ] **問い合わせフォーム**: 公開ページのフォーム（ブロックまたはテンプレートの部品）から送信 → 運営者にメール（`[notifications]`）・Admin Studio で一覧。スパム対策はコメントの `moderation`（ハニーポット・IP ごとの数・NG ワード）を共有。決めること: 項目の定義の場所（ブロックの属性か設定ファイルか）、保存するか通知だけか（保存するなら保存期間）、送信者への自動返信。
+- [ ] **問い合わせフォームの拡張（要望があれば）**: ファイルの添付、Admin Studio からの返信（今はメールアプリで返信）、Admin Studio でのフォームの編集、CAPTCHA（Turnstile など）、受信箱の検索。
 - [ ] **サイト内検索の拡張（要望があれば）**: カテゴリ・タグでの絞り込み、並び順（新しい順）、テーマのヘッダーに置く検索欄の部品、検索語の集計（アクセス解析と合わせて）。
 - [ ] **アクセス解析の拡張（要望があれば）**: 期間の比較（前の期間との差）、国・ブラウザ別、UTM パラメータ、イベント（ボタンのクリックなど）、CSV の書き出し。
 

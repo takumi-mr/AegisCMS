@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod auth;
 pub mod comments;
+pub mod contact;
 pub mod content;
 pub mod customers;
 pub mod feed;

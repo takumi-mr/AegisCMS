@@ -3,6 +3,7 @@
 pub mod analytics;
 pub mod comments;
 pub mod config;
+pub mod contact;
 pub mod customers;
 pub mod forum;
 pub mod mysql;
@@ -25,6 +26,9 @@ use std::sync::Arc;
 pub use analytics::{AnalyticsCount, AnalyticsStorage, AnalyticsTotal, ANALYTICS_TABLE};
 pub use comments::{CommentListQuery, CommentPage, CommentRecord, CommentStorage, COMMENT_TABLE};
 pub use config::{DatabaseBackendKind, DatabaseConfig};
+pub use contact::{
+    ContactListQuery, ContactMessageRecord, ContactPage, ContactStorage, CONTACT_TABLE,
+};
 pub use customers::{
     build_customer_table, CustomerRecord, CustomerStorage, CUSTOMER_COLUMNS, CUSTOMER_TABLE,
 };
@@ -177,6 +181,7 @@ pub trait DatabaseAdapter:
     + CustomerStorage
     + ReviewStorage
     + AnalyticsStorage
+    + ContactStorage
     + Send
     + Sync
 {

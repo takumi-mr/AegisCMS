@@ -426,6 +426,19 @@ pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
 :where(.aegis-details)+:where(.aegis-details){margin-top:-.5rem}\
 :where(.aegis-quote){margin:1.5rem 0}\
 :where(.aegis-quote) figcaption{opacity:.7;font-size:.9em;margin-top:.25rem}\
+:where(.aegis-contact-form){display:flex;flex-direction:column;gap:1rem;margin:1.5rem 0;max-width:40rem}\
+:where(.aegis-contact-field){display:flex;flex-direction:column;gap:.35rem}\
+:where(.aegis-contact-field) label{font-weight:600;font-size:.95em}\
+:where(.aegis-contact-checkbox) label{font-weight:400;display:flex;gap:.5rem;align-items:baseline}\
+:where(.aegis-contact-field) :is(input:not([type=checkbox]),textarea,select){font:inherit;color:inherit;background:transparent;border:1px solid rgba(127,127,127,.45);border-radius:6px;padding:.55rem .7rem;width:100%;box-sizing:border-box}\
+:where(.aegis-contact-field) :is(input,textarea,select)[aria-invalid=true]{border-color:#ef4444}\
+:where(.aegis-contact-field) textarea{resize:vertical;min-height:8rem}\
+:where(.aegis-contact-required){color:#ef4444}\
+:where(.aegis-contact-error){color:#ef4444;font-size:.875em;margin:0}\
+:where(.aegis-contact-description){margin:0;opacity:.8}\
+:where(.aegis-contact-submit){align-self:flex-start;font:inherit;font-weight:600;padding:.6rem 1.4rem;border-radius:6px;border:1px solid rgba(127,127,127,.45);background:rgba(127,127,127,.12);color:inherit;cursor:pointer}\
+:where(.aegis-contact-notice){border-left:3px solid #ef4444;padding:.5rem .9rem;margin:1rem 0}\
+:where(.aegis-contact-sent){border-left:3px solid #10b981;padding:.75rem 1rem;margin:1.5rem 0}\
 </style>";
 
 /// `[theme].front_page = "template"` のトップページ。テーマに `front.html` が無ければ記事一覧と同じ表示にする
@@ -458,6 +471,24 @@ pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
   </nav>
   {% endif %}
   <p style="margin-top: 2rem; font-size: 0.85rem;"><a href="{{ base_path }}/category/{{ slug }}/feed.xml">Feed (Atom)</a></p>
+</section>
+{% endblock %}
+"#;
+
+/// 問い合わせフォーム（`/contact`・`/contact/{name}`）。`fields.form_html` が組み込みのフォーム（エスケープ済み）、
+/// `fields.sent` が送信した後、`fields.form` がフォームの設定（`title`・`fields`・`action`・`success_message` など）、
+/// `fields.errors` が入力の誤り、`fields.notice` が送信できなかったときの知らせ（`[contact].locale` の言語）
+pub const CONTACT_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-contact-page" style="max-width: 720px; margin: 0 auto; padding: 1rem 0 3rem;">
+  <h1 style="margin: 0 0 1rem;">{{ title }}</h1>
+  {% if fields.sent %}
+  <div class="aegis-contact-sent" role="status"><p style="margin: 0;">{{ fields.form.success_message }}</p></div>
+  {% else %}
+  {% if fields.notice %}<p class="aegis-contact-notice" role="alert">{{ fields.notice }}</p>{% endif %}
+  <div class="aegis-contact">{{ fields.form_html | safe }}</div>
+  {% endif %}
 </section>
 {% endblock %}
 "#;

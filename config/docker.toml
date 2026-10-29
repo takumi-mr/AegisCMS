@@ -175,6 +175,27 @@ enabled = false
 # Days of counts to keep (0 keeps them forever)
 retention_days = 400
 
+[contact]
+# Contact forms: /contact pages, a [CONTACT] block for the body, and an inbox in Admin Studio
+# (docs/contact.md). Staff are emailed through [notifications]
+enabled = false
+# Days to keep received messages (0 keeps them forever)
+retention_days = 365
+# Messages per hour from one IP address (0 = no limit)
+max_per_ip_per_hour = 5
+# Language of the built-in texts (errors, the default form's labels): "en" or "ja"
+locale = "en"
+# Without [[contact.forms]], one "default" form asks for name, email, subject and message, e.g.
+# [[contact.forms]]
+# name = "default"
+# title = "お問い合わせ"
+# auto_reply = true
+# [[contact.forms.fields]]
+# name = "email"
+# label = "メールアドレス"
+# type = "email"
+# required = true
+
 # Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
 # [plugins.settings.official-shop-rules]
 # shipping_fee = 600

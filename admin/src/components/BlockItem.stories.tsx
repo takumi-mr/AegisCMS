@@ -327,3 +327,76 @@ export const DetailsBlock: Story = {
     );
   },
 };
+
+const contactForms = [
+  {
+    name: 'default',
+    title: 'Contact',
+    path: '/contact/default',
+    auto_reply: false,
+    fields: [
+      {
+        name: 'name',
+        label: 'Name',
+        type: 'text' as const,
+        required: true,
+        placeholder: '',
+        options: [],
+        max_length: null,
+      },
+      {
+        name: 'email',
+        label: 'Email',
+        type: 'email' as const,
+        required: true,
+        placeholder: '',
+        options: [],
+        max_length: null,
+      },
+    ],
+  },
+  {
+    name: 'sales',
+    title: 'Sales inquiry',
+    path: '/contact/sales',
+    auto_reply: true,
+    fields: [
+      {
+        name: 'company',
+        label: 'Company',
+        type: 'text' as const,
+        required: false,
+        placeholder: '',
+        options: [],
+        max_length: null,
+      },
+    ],
+  },
+];
+
+export const ContactFormBlock: Story = {
+  args: {
+    block: { name: 'core/contact-form', attributes: { form: 'default' } },
+    contactForms,
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Fields: Name, Email', { exact: false })).toBeVisible();
+    await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Form' }), 'sales');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attributes: { form: 'sales' } })
+    );
+    await expect(canvas.getByText('Fields: Company', { exact: false })).toBeVisible();
+  },
+};
+
+export const ContactFormBlockMissingForm: Story = {
+  args: {
+    block: { name: 'core/contact-form', attributes: { form: 'old' } },
+    contactForms,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/no form named "old"/)).toBeVisible();
+  },
+};

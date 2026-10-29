@@ -23,6 +23,7 @@ aegis-commerce = { path = "../aegis-commerce" }
 aegis-comments = { path = "../aegis-comments" }
 aegis-notify = { path = "../aegis-notify" }
 aegis-forum = { path = "../aegis-forum" }
+aegis-contact = { path = "../aegis-contact" }
 aegis-search = { path = "../aegis-search", optional = true }
 aegis-analytics = { path = "../aegis-analytics", optional = true }
 

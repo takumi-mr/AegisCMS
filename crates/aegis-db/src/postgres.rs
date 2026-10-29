@@ -150,6 +150,7 @@ fn record_from_row(schema: &SchemaDefinition, r: &PgRow) -> ContentRecord {
 super::orders::impl_order_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::variants::impl_product_variant_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::comments::impl_comment_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::contact::impl_contact_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::analytics::impl_analytics_storage!(
     PostgresAdapter,
     |i| format!("${}", i),
@@ -371,6 +372,20 @@ impl DatabaseAdapter for PostgresAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in analytics_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 問い合わせ
+        let (contact_table, contact_indexes) =
+            super::contact::build_contact_table("TEXT", "VARCHAR(255)", false);
+        sqlx::query(&contact_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in contact_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

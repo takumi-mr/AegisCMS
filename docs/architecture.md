@@ -12,6 +12,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 | [notifications.md](notifications.md) | 通知（メール・監査イベントの通知・プラグインのチャネル） |
 | [comments.md](comments.md) | コメント（投稿・承認・スパム対策・通知） |
 | [search.md](search.md) / [analytics.md](analytics.md) | サイト内検索 / アクセス解析 |
+| [contact.md](contact.md) | 問い合わせフォーム（フォームの設定・受信箱・通知） |
 | [theme_and_publishing_guide.md](theme_and_publishing_guide.md) / [theme_authoring_guide.md](theme_authoring_guide.md) | 公開ルーティング・テーマエンジン / テーマの作り方 |
 | [plugin_sdk_guide.md](plugin_sdk_guide.md) / [plugin_hooks.md](plugin_hooks.md) / [plugin_abi_specification.md](plugin_abi_specification.md) | プラグイン開発 / フックとホスト API / 言語共通の ABI |
 | [development.md](development.md) | 開発環境・検証・CI・Docker |
@@ -439,3 +440,10 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **日本語は辞書なしの 2 文字分割**: 形態素解析の辞書（数十 MB）を持たずに済み、新語・固有名詞も漏れない。索引には 1 文字のトークンも同じ位置に入れて 1 文字の検索に応え、検索語は 2 文字のトークンのフレーズ（位置の差を索引と揃える）で探して「東京都」が「京都」に一致しないようにする。
 - **索引の更新はイベントバス**: コンテンツの変更（作成・更新・削除・予約公開・予約非公開）で `search.content` を流し、各サーバーが DB から公開中の版を読み直す。書き込みは 1 つずつ（tokio の Mutex）で、読み直しは順番が来てから行うので、作り直しと個別の更新が重なっても新しい方が残る。Redis への再接続（`Resync`）では作り直す。
 - **アクセス解析は個々のアクセスを残さない**: 訪問者の見分けは日ごとの秘密の値（キャッシュにだけ置く）を混ぜたハッシュで、重複の判定もキャッシュの `increment`（TTL 2 日）で行う。DB（`_aegis_analytics`、`aegis_db::AnalyticsStorage`）には日 × 切り口（サイト・ページ・参照元・端末）× 値の数だけを、メモリで溜めて一定間隔と終了時にまとめて加算する（方言ごとの UPSERT）。
+
+## 16. 問い合わせフォーム (`aegis-contact`)
+
+- **項目は設定ファイルで決める**（`[[contact.forms]]`）: サーバー側の検査の基準（必須・長さ・種類・選択肢）が 1 か所に決まり、編集者が記事ごとに項目を変えて検査の抜けを作ることがない。本文のブロック `core/contact-form` はフォームの名前だけを持ち、描画のたびに設定から HTML を作る（プラグインのブロックと同じ「トップレベルのブロックを先に描く」経路）。
+- **JavaScript なしで動く**: 普通の HTML のフォームを `POST /contact/{form}` に送り、成功は `303` で `?sent=1` へ（PRG）、入力の誤りは同じページを `400` で返して値と誤りを出す。入力を含むページは `Cache-Control: private, no-store`。
+- **スパム対策はコメントと共有**（`aegis_comments::moderation` の IP ごとの数・リンク数・メールアドレスの検査）。ボット除けの見えない欄に値があれば、成功と同じ応答で何も保存しない。スパムと判定したものは保存するが通知しない（受信箱のスパムで確かめられる）。
+- **表は `_aegis_contact_messages`**（`aegis_db::ContactStorage`）。入力はフォームの項目の順に `[{name, label, value}]` の JSON で残し（後から設定の項目を変えても、届いた時点の表示名で読める）、一覧用に名前・メールアドレス・件名を列に持つ。保存期間はサービスが 1 日に 1 回消す。

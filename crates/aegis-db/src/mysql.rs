@@ -158,6 +158,7 @@ fn record_from_row(schema: &SchemaDefinition, r: &MySqlRow) -> ContentRecord {
 super::orders::impl_order_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::variants::impl_product_variant_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::comments::impl_comment_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
+super::contact::impl_contact_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::analytics::impl_analytics_storage!(
     MySqlAdapter,
     |_| "?".to_string(),
@@ -413,6 +414,20 @@ impl DatabaseAdapter for MySqlAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in analytics_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 問い合わせ
+        let (contact_table, contact_indexes) =
+            super::contact::build_contact_table("TEXT", "VARCHAR(255)", true);
+        sqlx::query(&contact_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in contact_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

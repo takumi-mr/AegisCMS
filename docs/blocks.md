@@ -23,6 +23,7 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 | `core/callout` | `variant`（`note` / `tip` / `important` / `warning` / `caution`、既定 `note`）、`title`（任意） | `> [!WARNING] 見出し` に続く `> 本文`、または `:::warning 見出し` 〜 `:::` | `<aside class="aegis-callout aegis-callout-warning" role="note">` |
 | `core/separator` | | `---`（`***`・`___` も可） | `<hr>` |
 | `core/details` | `summary`（見出し）、`open`（最初から開く。既定 `false`） | `:::details 見出し` 〜 `:::`（開いた状態は `:::details+`） | `<details class="aegis-details"><summary>` |
+| `core/contact-form` | `form`（`[[contact.forms]]` の名前。既定 `default`） | `[CONTACT]`、`[CONTACT form="sales"]` | [問い合わせフォーム](contact.md#2-フォームを置く)（`[contact].enabled` のときだけ） |
 | `core/html` | `mode`（`sanitized` / `sandbox`） | ` ```html ` / ` ```html:sandbox ` | [カスタム HTML](theme_authoring_guide.md#31-どの-url-でどのテンプレートが使われるか) |
 
 `<プラグイン名>/<ブロック名>` のブロックは、そのプラグインが描画します（[4. プラグインのブロック](#4-プラグインのブロック)）。それ以外の知らない名前のブロックは、名前の `/` を `-` にしたカスタム要素（`<my-plugin-card>`）として出力します。
@@ -114,6 +115,7 @@ Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>`
 | `.aegis-quote` | 出典のある引用の `<figure>`（出典は `figcaption`） |
 | `.aegis-callout`、`.aegis-callout-{note,tip,important,warning,caution}`、`.aegis-callout-title` | 注記と種類・見出し |
 | `.aegis-details`、`.aegis-details-body` | 折りたたみと、その本文 |
+| `.aegis-contact-form`、`.aegis-contact-field`、`.aegis-contact-error`、`.aegis-contact-required`、`.aegis-contact-submit` | 問い合わせフォームと項目・誤り・必須の印・送信ボタン |
 
 ```css
 /* 例: 注記の「警告」の色をテーマの色に合わせる */

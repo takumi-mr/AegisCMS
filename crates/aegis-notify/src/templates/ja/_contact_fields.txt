@@ -1,0 +1,9 @@
+{% for field in message.fields %}
+{% if "\n" in field.value %}
+{{ field.label }}:
+{{ field.value }}
+
+{% else %}
+{{ field.label }}: {{ field.value }}
+{% endif %}
+{% endfor %}

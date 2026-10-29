@@ -25,6 +25,8 @@ pub const SAMPLE_KINDS: &[&str] = &[
     "forum.posted",
     "forum.pending",
     "forum.reported",
+    "contact.received",
+    "contact.auto_reply",
     "audit.session.create",
 ];
 
@@ -200,6 +202,29 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
             },
             "thread_url": url("/forum/general/sample-thread"),
             "moderation_url": if admin.is_empty() { String::new() } else { format!("{}#forum", admin) },
+        }),
+        "contact.received" | "contact.auto_reply" => json!({
+            "form": {
+                "name": "default",
+                "title": if ja { "お問い合わせ" } else { "Contact" },
+            },
+            "message": {
+                "id": "sample-message",
+                "name": customer,
+                "email": "hanako@example.com",
+                "subject": if ja { "法人向けプランについて" } else { "About the business plan" },
+                "fields": [
+                    { "name": "name", "label": if ja { "お名前" } else { "Name" }, "value": customer },
+                    { "name": "email", "label": if ja { "メールアドレス" } else { "Email" }, "value": "hanako@example.com" },
+                    { "name": "subject", "label": if ja { "件名" } else { "Subject" },
+                      "value": if ja { "法人向けプランについて" } else { "About the business plan" } },
+                    { "name": "message", "label": if ja { "お問い合わせ内容" } else { "Message" },
+                      "value": if ja { "10 名で使う場合の見積もりをお願いします。\n請求書払いはできますか？" } else { "Could you send a quote for 10 users?\nDo you accept invoices?" } },
+                ],
+                "created_at": "2026-10-25T01:23:45Z",
+                "ip": "203.0.113.7",
+            },
+            "admin_url": if admin.is_empty() { String::new() } else { format!("{}#contact", admin) },
         }),
         "audit.session.create" => json!({
             "title": "",

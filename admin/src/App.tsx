@@ -24,12 +24,14 @@ import {
   ListCollapse,
   MessageSquare,
   MessageSquareOff,
+  Mail,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { AnalyticsView } from './components/AnalyticsView';
 import { Header, type AppView } from './components/Header';
 import { ProductManager } from './components/ProductManager';
 import { CommentManager } from './components/CommentManager';
+import { ContactInbox } from './components/ContactInbox';
 import { ForumManager } from './components/ForumManager';
 import { OrderManager } from './components/OrderManager';
 import { ScheduleCalendar } from './components/ScheduleCalendar';
@@ -51,6 +53,7 @@ import { isSsoSession, takeLoginRedirect } from './utils/loginRedirect';
 import { takeInviteToken, takeResetToken, takeVerifyToken } from './utils/verifyEmail';
 import type {
   BlockNode,
+  ContactForm,
   ContentItem,
   PluginBlockDefinition,
   SessionInfo,
@@ -77,7 +80,7 @@ type EditorStatus = 'draft' | 'scheduled' | 'published';
 /** Messages shown above the login form */
 type LoginNotice = 'unreachable' | 'expired' | 'signedOut';
 
-/** `#comments` or `#forum` (links in notifications) open the matching view */
+/** `#comments`, `#forum` or `#contact` (links in notifications) open the matching view */
 const takeInitialView = (): AppView => {
   if (window.location.hash === '#comments') {
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -86,6 +89,10 @@ const takeInitialView = (): AppView => {
   if (window.location.hash === '#forum') {
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
     return 'forum';
+  }
+  if (window.location.hash === '#contact') {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    return 'contact';
   }
   return 'editor';
 };
@@ -115,6 +122,8 @@ export const App: React.FC = () => {
   const [togglingComments, setTogglingComments] = useState<boolean>(false);
   // Hidden until the server says forum is on ([forum].enabled)
   const [forumEnabled, setForumEnabled] = useState<boolean>(false);
+  // Contact forms ([contact].enabled); empty until the server lists them
+  const [contactForms, setContactForms] = useState<ContactForm[]>([]);
   // Hidden until the server says analytics are on ([analytics].enabled)
   const [analyticsEnabled, setAnalyticsEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
@@ -320,6 +329,23 @@ export const App: React.FC = () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    // Answers 404 when contact forms are disabled
+    aegisApi
+      .listContactForms()
+      .then((forms) => {
+        if (!cancelled) setContactForms(forms);
+      })
+      .catch(() => {
+        if (!cancelled) setContactForms([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -662,6 +688,7 @@ export const App: React.FC = () => {
   const showShop = editable && shopEnabled;
   const showComments = editable && commentsEnabled;
   const showForum = editable && forumEnabled;
+  const showContact = editable && contactForms.length > 0;
 
   return (
     <div className={styles.app}>
@@ -678,6 +705,7 @@ export const App: React.FC = () => {
         showShop={showShop}
         showComments={showComments}
         showForum={showForum}
+        showContact={showContact}
         showAnalytics={analyticsEnabled}
         profile={profile}
         onOpenProfile={() =>
@@ -698,6 +726,8 @@ export const App: React.FC = () => {
         <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
       ) : view === 'forum' && showForum ? (
         <ForumManager isAdmin={isAdmin(session)} onShowToast={showToast} />
+      ) : view === 'contact' && showContact ? (
+        <ContactInbox onShowToast={showToast} />
       ) : view === 'analytics' && analyticsEnabled ? (
         <AnalyticsView onShowToast={showToast} />
       ) : view === 'settings' ? (
@@ -1112,6 +1142,21 @@ export const App: React.FC = () => {
                         <FileCode size={14} />
                         <span>{t('editor.html')}</span>
                       </Button>
+                      {contactForms.length > 0 && (
+                        <Button
+                          variant="tool"
+                          onClick={() =>
+                            addBlock('core/contact-form', '', {
+                              form: contactForms.some((f) => f.name === 'default')
+                                ? 'default'
+                                : contactForms[0].name,
+                            })
+                          }
+                        >
+                          <Mail size={14} />
+                          <span>{t('editor.contactForm')}</span>
+                        </Button>
+                      )}
                       {blockDefinitions.map((definition) => (
                         <Button
                           key={definition.name}
@@ -1144,6 +1189,7 @@ export const App: React.FC = () => {
                           onDelete={() => deleteBlock(idx)}
                           canUpload={editable}
                           blockDefinitions={blockDefinitions}
+                          contactForms={contactForms}
                         />
                       ))}
 

@@ -172,6 +172,7 @@ impl SqliteAdapter {
 super::orders::impl_order_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::variants::impl_product_variant_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::comments::impl_comment_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::contact::impl_contact_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::analytics::impl_analytics_storage!(
     SqliteAdapter,
     |i| format!("?{}", i),
@@ -420,6 +421,20 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in analytics_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 問い合わせ
+        let (contact_table, contact_indexes) =
+            super::contact::build_contact_table("TEXT", "TEXT", false);
+        sqlx::query(&contact_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in contact_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

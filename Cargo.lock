@@ -156,6 +156,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-contact"
+version = "0.1.0"
+dependencies = [
+ "aegis-ast",
+ "aegis-audit",
+ "aegis-cache",
+ "aegis-comments",
+ "aegis-core",
+ "aegis-db",
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "toml",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "aegis-core"
 version = "0.1.0"
 dependencies = [
@@ -344,6 +365,7 @@ dependencies = [
  "aegis-cache",
  "aegis-comments",
  "aegis-commerce",
+ "aegis-contact",
  "aegis-core",
  "aegis-db",
  "aegis-forum",

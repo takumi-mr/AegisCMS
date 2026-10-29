@@ -75,7 +75,11 @@
     "previewNotificationFailed": "Failed to preview the notification",
     "testNotificationFailed": "Failed to send the test notification",
     "blocksFailed": "Could not load the plugin blocks",
-    "analyticsFailed": "Failed to load the analytics"
+    "analyticsFailed": "Failed to load the analytics",
+    "contactFormsFailed": "Failed to load the contact forms",
+    "contactMessagesFailed": "Failed to load the contact messages",
+    "updateContactMessageFailed": "Failed to update the message",
+    "deleteContactMessageFailed": "Failed to delete the message"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -190,7 +194,11 @@
     },
     "detailsSummary": "Summary (e.g. a question)",
     "detailsOpen": "Open by default",
-    "detailsPlaceholder": "Text shown when opened (the answer or details)..."
+    "detailsPlaceholder": "Text shown when opened (the answer or details)...",
+    "contactForm": "Form",
+    "contactFormFields": "Fields: {{fields}} (change them in [[contact.forms]] of the configuration file)",
+    "contactFormDisabled": "Contact forms are not enabled ([contact].enabled); this block shows nothing.",
+    "contactFormMissing": "There is no form named \"{{name}}\" in the configuration; this block shows nothing."
   },
   "categories": {
     "title": "Categories",
@@ -341,7 +349,8 @@
     "quote": "Quote",
     "callout": "Callout",
     "separator": "Separator",
-    "details": "Details"
+    "details": "Details",
+    "contactForm": "Contact form"
   },
   "header": {
     "badge": "Zero-Trust Sandbox",
@@ -353,6 +362,7 @@
       "orders": "Orders",
       "comments": "Comments",
       "forum": "Forum",
+      "contact": "Inbox",
       "analytics": "Analytics",
       "settings": "Settings"
     },
@@ -519,7 +529,8 @@
       "quote": "Quote",
       "separator_block": "Separator",
       "callout": "Callout",
-      "details": "Details"
+      "details": "Details",
+      "contactForm": "Contact form"
     },
     "inlineCode": "Inline code (`code`)",
     "table": "Table (| A | B |)",
@@ -1440,6 +1451,56 @@
       "desktop": "Desktop",
       "mobile": "Mobile",
       "tablet": "Tablet"
+    }
+  },
+  "contact": {
+    "title": "Inbox",
+    "disabled": "Contact forms are not enabled ([contact].enabled).",
+    "formFilter": "Form",
+    "allForms": "All forms",
+    "publicForms": "Public forms:",
+    "statusFilter": "Filter by status",
+    "status": {
+      "new": "New",
+      "read": "Read",
+      "done": "Done",
+      "spam": "Spam"
+    },
+    "all": "All",
+    "bulkActions": "Actions for the selected messages",
+    "selected": "{{count}} selected",
+    "selectAll": "Select all messages on this page",
+    "selectOne": "Select the message from {{name}}",
+    "columns": {
+      "from": "From",
+      "message": "Message",
+      "form": "Form",
+      "status": "Status"
+    },
+    "noName": "(no name)",
+    "noSubject": "(no subject)",
+    "emptyStatus": "No messages in \"{{status}}\".",
+    "empty": "No messages yet.",
+    "newer": "Newer",
+    "older": "Older",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "received": "Received",
+    "checked": "Yes",
+    "reply": "Reply by email",
+    "confirmDelete": "Delete {{count}} message(s) permanently?",
+    "done": {
+      "new": "Marked {{count}} message(s) as new",
+      "read": "Marked {{count}} message(s) as read",
+      "done": "Marked {{count}} message(s) as done",
+      "spam": "Marked {{count}} message(s) as spam",
+      "delete": "Deleted {{count}} message(s)"
+    },
+    "actions": {
+      "new": "Mark as new",
+      "read": "Mark as read",
+      "done": "Mark as done",
+      "spam": "Mark as spam",
+      "delete": "Delete"
     }
   }
 }
