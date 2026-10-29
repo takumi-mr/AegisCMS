@@ -1,0 +1,61 @@
+{
+  "name": "official-blocks",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Content Blocks (Buttons & Link Cards)",
+  "description": "Adds a button and a link card block to the editor. Also a small example of the render-blocks hook.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": ["blocks", "editor", "content"],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "hooks": ["render-blocks"]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "blocks": [
+    {
+      "name": "button",
+      "label": { "en": "Button", "ja": "ボタン" },
+      "description": { "en": "A link styled as a button", "ja": "ボタンの形のリンク" },
+      "fields": [
+        { "name": "label", "type": "string", "label": { "en": "Label", "ja": "ボタンの文字" }, "required": true, "default": "" },
+        { "name": "url", "type": "url", "label": { "en": "Link", "ja": "リンク先" }, "required": true, "placeholder": "https://", "default": "" },
+        {
+          "name": "style",
+          "type": "select",
+          "label": { "en": "Style", "ja": "見た目" },
+          "default": "primary",
+          "options": [
+            { "value": "primary", "label": { "en": "Filled", "ja": "塗りつぶし" } },
+            { "value": "secondary", "label": { "en": "Outline", "ja": "枠線" } }
+          ]
+        },
+        {
+          "name": "align",
+          "type": "select",
+          "label": { "en": "Alignment", "ja": "位置" },
+          "default": "left",
+          "options": [
+            { "value": "left", "label": { "en": "Left", "ja": "左" } },
+            { "value": "center", "label": { "en": "Center", "ja": "中央" } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "link-card",
+      "label": { "en": "Link card", "ja": "リンクカード" },
+      "description": { "en": "A link with a title, description and image", "ja": "タイトル・説明・画像つきのリンク" },
+      "fields": [
+        { "name": "url", "type": "url", "label": { "en": "Link", "ja": "リンク先" }, "required": true, "placeholder": "https://", "default": "" },
+        { "name": "title", "type": "string", "label": { "en": "Title", "ja": "タイトル" }, "required": true, "default": "" },
+        { "name": "description", "type": "text", "label": { "en": "Description", "ja": "説明" }, "default": "" },
+        { "name": "image", "type": "image", "label": { "en": "Image", "ja": "画像" }, "default": "" }
+      ]
+    }
+  ]
+}

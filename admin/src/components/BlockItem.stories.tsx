@@ -227,3 +227,79 @@ export const CalloutBlock: Story = {
     );
   },
 };
+
+export const PluginBlock: Story = {
+  args: {
+    block: {
+      name: 'official-blocks/button',
+      attributes: { label: '', url: '/start', style: 'primary' },
+    },
+    blockDefinitions: [
+      {
+        name: 'official-blocks/button',
+        plugin: 'official-blocks',
+        plugin_display_name: 'Content Blocks',
+        label: { en: 'Button', ja: 'ボタン' },
+        fields: [
+          {
+            name: 'label',
+            type: 'string',
+            label: { en: 'Label', ja: 'ボタンの文字' },
+            required: true,
+          },
+          { name: 'url', type: 'url', label: { en: 'Link', ja: 'リンク先' }, required: true },
+          {
+            name: 'style',
+            type: 'select',
+            label: { en: 'Style', ja: '見た目' },
+            options: [
+              { value: 'primary', label: { en: 'Filled', ja: '塗りつぶし' } },
+              { value: 'secondary', label: { en: 'Outline', ja: '枠線' } },
+            ],
+          },
+          {
+            name: 'new_tab',
+            type: 'boolean',
+            label: { en: 'Open in a new tab', ja: '新しいタブで開く' },
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    // マニフェストの入力欄からフォームができ、空の必須項目に注意が出ること
+    await expect(canvas.getByDisplayValue('/start')).toBeVisible();
+    await expect(canvas.getByText(/Required|必須/)).toBeVisible();
+
+    // 入力すると attributes に入ること
+    const label = canvas.getByLabelText(/Label|ボタンの文字/);
+    await userEvent.type(label, 'Go');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'official-blocks/button',
+        attributes: expect.objectContaining({ label: 'Go', url: '/start' }),
+      })
+    );
+    await userEvent.selectOptions(canvas.getByLabelText(/Style|見た目/), 'secondary');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attributes: expect.objectContaining({ style: 'secondary' }) })
+    );
+    await userEvent.click(canvas.getByLabelText(/new tab|新しいタブ/));
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attributes: expect.objectContaining({ new_tab: true }) })
+    );
+  },
+};
+
+export const UnavailablePluginBlock: Story = {
+  args: {
+    block: { name: 'removed-plugin/card', attributes: { title: 'Kept' } },
+    blockDefinitions: [],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/removed-plugin/, { selector: 'p' })).toBeVisible();
+  },
+};

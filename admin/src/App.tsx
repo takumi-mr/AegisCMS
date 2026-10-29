@@ -20,6 +20,7 @@ import {
   Quote,
   Minus,
   Info,
+  Puzzle,
   MessageSquare,
   MessageSquareOff,
 } from 'lucide-react';
@@ -46,7 +47,14 @@ import { aegisApi, setUnauthorizedHandler } from './api/client';
 import { setSessionToken } from './api/session';
 import { isSsoSession, takeLoginRedirect } from './utils/loginRedirect';
 import { takeInviteToken, takeResetToken, takeVerifyToken } from './utils/verifyEmail';
-import type { BlockNode, ContentItem, SessionInfo, UserAccount } from './types';
+import type {
+  BlockNode,
+  ContentItem,
+  PluginBlockDefinition,
+  SessionInfo,
+  UserAccount,
+} from './types';
+import { defaultAttributes, localize } from './utils/pluginBlocks';
 import { categoryIdOf } from './utils/category';
 import { canEdit, isAdmin } from './utils/roles';
 import { cx } from './utils/cx';
@@ -81,7 +89,7 @@ const takeInitialView = (): AppView => {
 };
 
 export const App: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // undefined = still checking the stored token, null = logged out
   const [session, setSession] = useState<SessionInfo | null | undefined>(undefined);
   const [loginNotice, setLoginNotice] = useState<LoginNotice | null>(null);
@@ -96,6 +104,8 @@ export const App: React.FC = () => {
   const [view, setView] = useState<AppView>(takeInitialView);
   // Hidden until the server says the shop is on ([commerce].enabled)
   const [shopEnabled, setShopEnabled] = useState<boolean>(false);
+  /** Custom blocks of the enabled plugins, offered in the block toolbar */
+  const [blockDefinitions, setBlockDefinitions] = useState<PluginBlockDefinition[]>([]);
   // Hidden until the server says comments are on ([comments].enabled)
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(false);
   const [commentContentTypes, setCommentContentTypes] = useState<string[]>([]);
@@ -237,6 +247,20 @@ export const App: React.FC = () => {
     loadContents();
     loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    aegisApi
+      .listBlocks()
+      .then((blocks) => {
+        if (!cancelled) setBlockDefinitions(blocks);
+      })
+      .catch((err) => console.warn('Could not load the plugin blocks:', err));
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -1056,6 +1080,22 @@ export const App: React.FC = () => {
                         <FileCode size={14} />
                         <span>{t('editor.html')}</span>
                       </Button>
+                      {blockDefinitions.map((definition) => (
+                        <Button
+                          key={definition.name}
+                          variant="tool"
+                          title={
+                            localize(definition.description, i18n.language) ||
+                            definition.plugin_display_name
+                          }
+                          onClick={() =>
+                            addBlock(definition.name, '', defaultAttributes(definition))
+                          }
+                        >
+                          <Puzzle size={14} />
+                          <span>{localize(definition.label, i18n.language)}</span>
+                        </Button>
+                      ))}
                     </div>
 
                     {/* Block Canvas */}
@@ -1071,6 +1111,7 @@ export const App: React.FC = () => {
                           onMoveDown={() => moveBlock(idx, 'down')}
                           onDelete={() => deleteBlock(idx)}
                           canUpload={editable}
+                          blockDefinitions={blockDefinitions}
                         />
                       ))}
 

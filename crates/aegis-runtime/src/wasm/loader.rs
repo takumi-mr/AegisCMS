@@ -213,6 +213,9 @@ impl WasmPluginLoader {
                 manifest.name
             )));
         }
+        manifest
+            .validate_blocks()
+            .map_err(|e| AegisError::Config(format!("Plugin '{}': {}", manifest.name, e)))?;
         if manifest.name != dir_name {
             return Err(AegisError::Config(format!(
                 "Plugin '{}' must be installed in a directory named '{}' (found '{}')",
@@ -273,6 +276,10 @@ impl WasmPluginLoader {
                 manifest.name
             )));
         }
+
+        manifest
+            .validate_blocks()
+            .map_err(|e| AegisError::Validation(format!("Invalid `blocks` in manifest: {}", e)))?;
 
         let wasm_path = plugin_dir.join(&manifest.entrypoint);
         if !wasm_path.is_file() {

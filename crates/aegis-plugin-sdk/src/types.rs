@@ -466,6 +466,16 @@ pub trait Plugin: Default {
         Ok(ctx)
     }
 
+    /// カスタムブロックの描画フック (`render-blocks`)
+    /// マニフェストの `blocks` で宣言したブロック（本文での名前は `<プラグイン名>/<ブロック名>`）を
+    /// 公開ページの表示・プレビューのたびに HTML にする。1 ページのこのプラグインのブロックが
+    /// 文書の順にまとめて渡されるので、同じ数・同じ順で HTML を返す（`None` はそのブロックを出さない）。
+    /// 返した HTML はサニタイズされる（`<script>`・`on*` 属性・`javascript:` の URL は取り除かれる）
+    fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
+        let _ = blocks;
+        Ok(Vec::new())
+    }
+
     /// 認証後フック (`on-user-authenticated`)
     /// ログイン成功後・セッション発行前に呼ばれる。IdP のグループからのロールマッピング、
     /// 表示名や属性の補完、ログイン通知などを実行可能。`Err` を返すとログインを拒否する

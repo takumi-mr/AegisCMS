@@ -73,7 +73,8 @@
     "notificationTemplatesFailed": "通知のテンプレートの取得に失敗しました",
     "saveNotificationTemplateFailed": "通知のテンプレートの保存に失敗しました",
     "previewNotificationFailed": "通知のプレビューに失敗しました",
-    "testNotificationFailed": "テスト送信に失敗しました"
+    "testNotificationFailed": "テスト送信に失敗しました",
+    "blocksFailed": "プラグインのブロックを取得できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -179,6 +180,11 @@
       "important": "重要",
       "warning": "警告",
       "caution": "注意"
+    },
+    "plugin": {
+      "from": "プラグイン「{{plugin}}」のブロック",
+      "unavailable": "このブロックのプラグイン（{{plugin}}）が無効か、このブロックがありません。内容はそのまま保存されますが、公開ページには表示されません。",
+      "required": "必須の項目です"
     }
   },
   "categories": {

@@ -73,7 +73,8 @@
     "notificationTemplatesFailed": "Failed to load the notification templates",
     "saveNotificationTemplateFailed": "Failed to save the notification template",
     "previewNotificationFailed": "Failed to preview the notification",
-    "testNotificationFailed": "Failed to send the test notification"
+    "testNotificationFailed": "Failed to send the test notification",
+    "blocksFailed": "Could not load the plugin blocks"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -180,6 +181,11 @@
       "important": "Important",
       "warning": "Warning",
       "caution": "Caution"
+    },
+    "plugin": {
+      "from": "Block of the plugin \"{{plugin}}\"",
+      "unavailable": "The plugin of this block ({{plugin}}) is disabled or no longer has this block. The block is kept as it is but not shown on the site.",
+      "required": "Required"
     }
   },
   "categories": {

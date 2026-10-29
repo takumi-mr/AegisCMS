@@ -59,8 +59,8 @@ pub use oidc::{oidc_callback, oidc_login};
 pub use openapi::get_openapi_spec;
 pub use password_reset::{confirm_password_reset, request_password_reset};
 pub use plugin::{
-    get_plugin_order, get_plugin_settings, install_plugin, list_plugins, reset_plugin_order,
-    set_plugin_enabled, set_plugin_order, update_plugin_settings,
+    get_plugin_order, get_plugin_settings, install_plugin, list_blocks, list_plugins,
+    reset_plugin_order, set_plugin_enabled, set_plugin_order, update_plugin_settings,
 };
 pub use preview::preview_content;
 pub use public::{

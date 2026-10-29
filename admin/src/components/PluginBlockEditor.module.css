@@ -1,0 +1,86 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.source {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checkField {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.required {
+  color: var(--accent-rose, #f43f5e);
+}
+
+.input,
+.textarea {
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--accent-indigo);
+}
+
+.textarea {
+  min-height: 72px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.image {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.library {
+  align-self: flex-start;
+}
+
+.preview {
+  max-height: 120px;
+  max-width: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  align-self: flex-start;
+}
+
+.warning {
+  font-size: 0.75rem;
+  color: var(--accent-amber, #f59e0b);
+}
+
+.help {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

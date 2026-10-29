@@ -1,0 +1,13 @@
+[package]
+name = "aegis-plugin-blocks"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Core Team"]
+description = "Official Wasm plugin with content blocks: buttons and link cards"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.1.0" }
+serde_json.workspace = true

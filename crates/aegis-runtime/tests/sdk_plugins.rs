@@ -117,3 +117,38 @@ async fn run_sdk_plugins(engine: &WasmEngine) {
         }
     }
 }
+
+/// 公式プラグイン `official-blocks` のビルド済み `plugin.wasm` で、`render-blocks` がホストから
+/// 呼べること（入力 `{"blocks": [...]}` と出力 `{"html": [...]}` の形が SDK と合っていること）
+#[tokio::test]
+async fn test_official_blocks_plugin_renders_its_blocks() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/official-blocks");
+    let plugin = load(&WasmEngine::new().unwrap(), &dir);
+    plugin.manifest().validate_blocks().unwrap();
+    assert!(plugin.manifest().declares_block("official-blocks/button"));
+
+    let block = |name: &str, attributes: serde_json::Value| {
+        let mut node = BlockNode::new(name);
+        node.attributes = attributes;
+        node
+    };
+    let html = plugin
+        .render_blocks(vec![
+            block(
+                "official-blocks/button",
+                serde_json::json!({ "label": "Get started", "url": "/start" }),
+            ),
+            block(
+                "official-blocks/link-card",
+                serde_json::json!({ "url": "javascript:alert(1)", "title": "x" }),
+            ),
+        ])
+        .await
+        .unwrap();
+    assert_eq!(html.len(), 2);
+    assert!(html[0]
+        .as_deref()
+        .unwrap()
+        .contains(r#"<a class="ob-button ob-button-primary" href="/start">Get started</a>"#));
+    assert_eq!(html[1], None);
+}

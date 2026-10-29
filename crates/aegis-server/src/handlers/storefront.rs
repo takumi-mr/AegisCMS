@@ -269,7 +269,7 @@ pub async fn render_product(
         content_type: schema.content_type.clone(),
         title: record.title,
         slug: record.slug,
-        content_html: render::render_blocks_html(&state.config.security, &blocks),
+        content_html: render::render_content_html(&state, &blocks).await,
         published_at: record.published_at,
         updated_at: Some(record.updated_at),
         fields: {

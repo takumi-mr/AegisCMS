@@ -22,6 +22,7 @@ members = [
     "plugins/official-code-enhancer",
     "plugins/official-shop-rules",
     "plugins/official-order-notifier",
+    "plugins/official-blocks",
 ]
 
 [workspace.package]

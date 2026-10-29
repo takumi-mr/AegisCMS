@@ -159,6 +159,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             delete(handlers::delete_object),
         )
         .route("/api/v1/preview", post(handlers::preview_content))
+        .route("/api/v1/blocks", get(handlers::list_blocks))
         .route(
             "/api/v1/auth/session",
             post(handlers::create_session)

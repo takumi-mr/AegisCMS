@@ -29,7 +29,8 @@ pub use entity::{ContentSummary, PageRenderContext, Pagination, PostContext, Pub
 
 pub use error::{AegisError, Result};
 pub use manifest::{
-    is_valid_plugin_name, NetworkCapability, PackageAuthor, PluginCapabilities, PluginManifest,
+    is_valid_plugin_name, BlockDefinition, BlockField, BlockFieldOption, BlockFieldType,
+    LocalizedText, NetworkCapability, PackageAuthor, PluginCapabilities, PluginManifest,
     PluginResourceLimits, StorageCapability,
 };
 pub use notify::{
