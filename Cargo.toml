@@ -76,7 +76,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2.5"
 uuid = { version = "1.29", features = ["v4", "serde"] }
 walkdir = "2.5"
-wasmtime = "26.0"
+wasmtime = "36.0"
 wat = "1.262"
 x509-cert = { version = "0.3", default-features = false, features = ["pem"] }
 zip = { version = "9.1", default-features = false, features = ["deflate"] }
