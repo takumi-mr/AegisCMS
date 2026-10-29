@@ -1,3 +1,5 @@
+[← ドキュメント一覧に戻る](README.md)
+
 # AegisCMS 設定リファレンス (Configuration Reference)
 
 AegisCMS コアサーバー (`aegis-server`) の設定ファイル (`config/*.toml`) で指定できる項目の一覧です。

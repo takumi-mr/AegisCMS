@@ -1,3 +1,5 @@
+[← ドキュメント一覧に戻る](README.md)
+
 # AegisCMS WebAssembly プラグイン 共通 ABI 仕様書 (ABI Specification)
 
 本ドキュメントは、AegisCMS のゼロ・トラスト WebAssembly プラグインとホストランタイム (`aegis-runtime`) 間で取り交わされる低レイヤー ABI (Application Binary Interface)、メモリモデル、ホスト API、ライフサイクルフック、およびデータ交換規約を定義する言語非依存の標準仕様書です。
