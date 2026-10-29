@@ -17,6 +17,7 @@ pub mod registration;
 pub mod saml;
 pub mod session;
 pub mod sso;
+pub mod totp;
 pub mod users;
 
 use sha2::{Digest, Sha256};
@@ -30,6 +31,7 @@ pub use local::LocalAuthProvider;
 pub use password_reset::PasswordResetService;
 pub use rate_limit::LoginRateLimiter;
 pub use session::{SessionData, SessionService};
+pub use totp::*;
 
 /// OpenID Connect の `AuthProvider::provider_id`（ID 連携テーブルのプロバイダ名にも使う）
 pub const OIDC_PROVIDER: &str = "oidc";

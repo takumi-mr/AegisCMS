@@ -105,6 +105,9 @@ pub async fn insert_new_user(
         created_at: now.clone(),
         updated_at: now,
         pending_approval,
+        totp_secret: None,
+        totp_enabled: false,
+        backup_codes: None,
     };
     db.insert_user(&user).await?;
     Ok(user)
@@ -131,6 +134,45 @@ pub async fn set_role(db: &dyn DatabaseAdapter, username: &str, role: &str) -> R
 pub async fn set_disabled(db: &dyn DatabaseAdapter, username: &str, disabled: bool) -> Result<()> {
     let mut user = find_user(db, username).await?;
     user.disabled = disabled;
+    user.updated_at = now();
+    db.update_user(&user).await
+}
+
+/// 二段階認証を有効化し、シークレットとバックアップコードを保存する
+pub async fn enable_2fa(
+    db: &dyn DatabaseAdapter,
+    username: &str,
+    secret: &str,
+    backup_codes_json: &str,
+) -> Result<UserRecord> {
+    let mut user = find_user(db, username).await?;
+    user.totp_secret = Some(secret.to_string());
+    user.totp_enabled = true;
+    user.backup_codes = Some(backup_codes_json.to_string());
+    user.updated_at = now();
+    db.update_user(&user).await?;
+    Ok(user)
+}
+
+/// 二段階認証を無効化する
+pub async fn disable_2fa(db: &dyn DatabaseAdapter, username: &str) -> Result<UserRecord> {
+    let mut user = find_user(db, username).await?;
+    user.totp_secret = None;
+    user.totp_enabled = false;
+    user.backup_codes = None;
+    user.updated_at = now();
+    db.update_user(&user).await?;
+    Ok(user)
+}
+
+/// バックアップコード消費後に残りのバックアップコードリストを更新する
+pub async fn update_backup_codes(
+    db: &dyn DatabaseAdapter,
+    username: &str,
+    backup_codes_json: &str,
+) -> Result<()> {
+    let mut user = find_user(db, username).await?;
+    user.backup_codes = Some(backup_codes_json.to_string());
     user.updated_at = now();
     db.update_user(&user).await
 }

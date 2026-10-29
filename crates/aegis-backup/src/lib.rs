@@ -93,6 +93,9 @@ mod tests {
             created_at: "2026-10-29T00:00:00Z".to_string(),
             updated_at: "2026-10-29T00:00:00Z".to_string(),
             pending_approval: false,
+            totp_secret: Some("JBSWY3DPEHPK3PXP".to_string()),
+            totp_enabled: true,
+            backup_codes: Some(r#"["hash1"]"#.to_string()),
         };
         src_db.insert_user(&user).await.unwrap();
         src_db
