@@ -619,6 +619,165 @@ pub async fn delete_avatar(
     Ok(Json(view(&state, user)))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct Enable2faRequest {
+    pub secret: String,
+    pub code: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Enable2faResponse {
+    pub enabled: bool,
+    pub backup_codes: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Disable2faRequest {
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub code: Option<String>,
+}
+
+/// `POST /api/v1/users/me/2fa/setup` - ログイン中ユーザーの 2FA シークレット・QR コードを生成する
+pub async fn setup_2fa(
+    State(_state): State<Arc<AppState>>,
+    RequireRole(session): ViewerSession,
+) -> Result<Json<aegis_auth::TotpSetup>, ApiError> {
+    let setup =
+        aegis_auth::generate_totp_setup(&session.user_id, "AegisCMS").map_err(from_aegis)?;
+    Ok(Json(setup))
+}
+
+/// `POST /api/v1/users/me/2fa/enable` - 2FA コードを検証し、バックアップコード 6 枚を発行して有効化する
+pub async fn enable_2fa(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): ViewerSession,
+    audit: AuditContext,
+    Json(payload): Json<Enable2faRequest>,
+) -> Result<Json<Enable2faResponse>, ApiError> {
+    let secret = payload.secret.trim();
+    let code = payload.code.trim();
+
+    if !aegis_auth::verify_totp_code(secret, code) {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "Invalid verification code. Please check your authenticator app and try again.",
+        ));
+    }
+
+    let (backup_codes, backup_json) = aegis_auth::generate_backup_codes();
+    let user = aegis_auth::users::enable_2fa(&*state.db, &session.user_id, secret, &backup_json)
+        .await
+        .map_err(from_aegis)?;
+
+    state
+        .audit
+        .record(
+            audit
+                .event(AuditAction::UserUpdate, AuditOutcome::Success)
+                .with_resource("user", Some(user.username))
+                .with_details(json!({ "action": "enable_2fa" })),
+        )
+        .await;
+
+    Ok(Json(Enable2faResponse {
+        enabled: true,
+        backup_codes,
+    }))
+}
+
+/// `POST /api/v1/users/me/2fa/disable` - ログイン中ユーザーの 2FA を無効化する（パスワードまたはコードで確認）
+pub async fn disable_2fa(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): ViewerSession,
+    audit: AuditContext,
+    Json(payload): Json<Disable2faRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user = state
+        .db
+        .get_user_by_username(&session.user_id)
+        .await
+        .map_err(from_aegis)?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "User not found"))?;
+
+    let mut verified = false;
+    if let Some(pass) = payload.password.filter(|p| !p.trim().is_empty()) {
+        if aegis_auth::password::verify_password(&pass, &user.password_hash).is_ok() {
+            verified = true;
+        }
+    }
+    if !verified {
+        if let (Some(code), Some(secret)) = (
+            payload.code.filter(|c| !c.trim().is_empty()),
+            &user.totp_secret,
+        ) {
+            if aegis_auth::verify_totp_code(secret, &code) {
+                verified = true;
+            }
+        }
+    }
+
+    if !verified {
+        return Err(api_error(
+            StatusCode::UNAUTHORIZED,
+            "Authentication failed: please provide your current password or 2FA code",
+        ));
+    }
+
+    aegis_auth::users::disable_2fa(&*state.db, &session.user_id)
+        .await
+        .map_err(from_aegis)?;
+
+    state
+        .audit
+        .record(
+            audit
+                .event(AuditAction::UserUpdate, AuditOutcome::Success)
+                .with_resource("user", Some(session.user_id.clone()))
+                .with_details(json!({ "action": "disable_2fa" })),
+        )
+        .await;
+
+    Ok(Json(json!({ "enabled": false })))
+}
+
+/// `POST /api/v1/users/{username}/2fa/reset` - 管理者が対象ユーザーの 2FA を緊急解除する
+pub async fn reset_user_2fa(
+    State(state): State<Arc<AppState>>,
+    RequireRole(_session): AdminSession,
+    audit: AuditContext,
+    Path(username): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user = state
+        .db
+        .get_user_by_username(&username)
+        .await
+        .map_err(from_aegis)?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                format!("User '{}' does not exist", username),
+            )
+        })?;
+
+    aegis_auth::users::disable_2fa(&*state.db, &user.username)
+        .await
+        .map_err(from_aegis)?;
+
+    state
+        .audit
+        .record(
+            audit
+                .event(AuditAction::UserUpdate, AuditOutcome::Success)
+                .with_resource("user", Some(username.clone()))
+                .with_details(json!({ "action": "reset_2fa_by_admin" })),
+        )
+        .await;
+
+    Ok(Json(json!({ "success": true, "username": username })))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

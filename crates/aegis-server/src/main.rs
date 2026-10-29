@@ -175,6 +175,8 @@ enum UserCommand {
     Enable { username: String },
     /// List users
     List,
+    /// Disable two-factor authentication (2FA) for a user
+    Disable2fa { username: String },
     /// Link an existing user to an OpenID Connect account ([auth.oidc].issuer_url + the IdP's `sub`)
     LinkOidc {
         username: String,
@@ -440,6 +442,13 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
         UserCommand::Enable { username } => {
             aegis_auth::users::set_disabled(db, &username, false).await?;
             println!("Enabled '{}'", username);
+        }
+        UserCommand::Disable2fa { username } => {
+            aegis_auth::users::disable_2fa(db, &username).await?;
+            if let Some(sessions) = &sessions {
+                let _ = sessions.revoke_user_sessions(&username).await;
+            }
+            println!("Disabled two-factor authentication for '{}'", username);
         }
         UserCommand::LinkOidc { username, sub } => {
             anyhow::ensure!(
@@ -1397,6 +1406,26 @@ mod tests {
 
         let user = db.get_user_by_username("dave").await.unwrap().unwrap();
         assert!(user.disabled);
+
+        // 2FA を有効化してから CLI で解除
+        aegis_auth::users::enable_2fa(db.as_ref(), "dave", "JBSWY3DPEHPK3PXP", "[]")
+            .await
+            .unwrap();
+        let user = db.get_user_by_username("dave").await.unwrap().unwrap();
+        assert!(user.totp_enabled);
+
+        run_user_command(
+            &config,
+            UserCommand::Disable2fa {
+                username: "dave".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let user = db.get_user_by_username("dave").await.unwrap().unwrap();
+        assert!(!user.totp_enabled);
+        assert_eq!(user.totp_secret, None);
 
         let _ = std::fs::remove_file(&temp_db);
     }

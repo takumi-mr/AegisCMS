@@ -139,6 +139,47 @@ pub async fn create_session(
         }
     };
 
+    // 2FA (TOTP) が有効か確認
+    let user_record = state
+        .db
+        .get_user_by_username(&username)
+        .await
+        .ok()
+        .flatten();
+    if let Some(user) = &user_record {
+        if user.totp_enabled {
+            let challenge_token = format!("mfa_{}", uuid::Uuid::new_v4().simple());
+            let challenge_data = json!({
+                "username": username,
+                "provider": provider,
+                "identity": identity,
+                "ttl_secs": payload.ttl_secs,
+            });
+            let cache_key = format!("mfa_challenge:{}", challenge_token);
+            if let Err(e) = state
+                .cache
+                .set(&cache_key, &challenge_data.to_string(), Some(300))
+                .await
+            {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("Failed to initiate 2FA challenge: {}", e) })),
+                )
+                    .into_response();
+            }
+
+            return (
+                StatusCode::OK,
+                Json(json!({
+                    "mfa_required": true,
+                    "challenge_token": challenge_token,
+                    "user_id": username,
+                })),
+            )
+                .into_response();
+        }
+    }
+
     if let Err(e) = state.login_limiter.record_success(&username).await {
         tracing::warn!("Failed to reset login failures: {}", e);
     }
@@ -147,6 +188,160 @@ pub async fn create_session(
     let ttl_secs = payload.ttl_secs.map(|ttl| ttl.clamp(1, max_ttl));
     match complete_login(&state, &audit, provider, identity, ttl_secs).await {
         Ok(session) => (StatusCode::CREATED, Json(session)).into_response(),
+        Err(LoginRefusal::Rejected(message)) => {
+            (StatusCode::FORBIDDEN, Json(json!({ "error": message }))).into_response()
+        }
+        Err(LoginRefusal::Failed(message)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": message })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Verify2faRequest {
+    pub challenge_token: String,
+    pub code: String,
+}
+
+/// `POST /api/v1/auth/session/verify-2fa` - 2FA チャレンジに対するコード（TOTP またはバックアップコード）を検証し、セッションを発行する
+pub async fn verify_2fa(
+    State(state): State<Arc<AppState>>,
+    audit: AuditContext,
+    ClientIp(client_ip): ClientIp,
+    Json(payload): Json<Verify2faRequest>,
+) -> Response {
+    let ip = client_ip.as_deref();
+    let cache_key = format!("mfa_challenge:{}", payload.challenge_token.trim());
+    let challenge_json = match state.cache.get(&cache_key).await {
+        Ok(Some(json_str)) => json_str,
+        _ => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "Invalid or expired verification challenge" })),
+            )
+                .into_response();
+        }
+    };
+
+    // チャレンジは 1 回限り使用可能
+    let _ = state.cache.delete(&cache_key).await;
+
+    let challenge: serde_json::Value = match serde_json::from_str(&challenge_json) {
+        Ok(v) => v,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Malformed challenge data" })),
+            )
+                .into_response();
+        }
+    };
+
+    let username = challenge["username"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    let provider = challenge["provider"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    let identity: AuthIdentity = match serde_json::from_value(challenge["identity"].clone()) {
+        Ok(id) => id,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("Invalid identity data: {}", e) })),
+            )
+                .into_response();
+        }
+    };
+    let ttl_secs = challenge["ttl_secs"].as_u64();
+
+    let user = match state.db.get_user_by_username(&username).await {
+        Ok(Some(u)) => u,
+        _ => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "User not found" })),
+            )
+                .into_response();
+        }
+    };
+
+    let valid_totp = if let Some(secret) = &user.totp_secret {
+        aegis_auth::verify_totp_code(secret, &payload.code)
+    } else {
+        false
+    };
+
+    let mut is_backup_code = false;
+    let is_valid = if valid_totp {
+        true
+    } else if let Some(codes_json) = &user.backup_codes {
+        if let Some(remaining_json) =
+            aegis_auth::verify_and_consume_backup_code(codes_json, &payload.code)
+        {
+            if let Err(e) =
+                aegis_auth::users::update_backup_codes(&*state.db, &user.username, &remaining_json)
+                    .await
+            {
+                tracing::error!(
+                    "Failed to update backup codes for user {}: {}",
+                    user.username,
+                    e
+                );
+            }
+            is_backup_code = true;
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    if !is_valid {
+        let _ = state
+            .login_limiter
+            .record_failure_with_max_ip(&username, ip, state.system().max_login_attempts)
+            .await;
+
+        state
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::SessionCreate, AuditOutcome::Failure)
+                    .with_resource("session", None)
+                    .with_details(json!({
+                        "username": username,
+                        "provider": provider,
+                        "error": "invalid_2fa_code",
+                    })),
+            )
+            .await;
+
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "Invalid verification code" })),
+        )
+            .into_response();
+    }
+
+    if let Err(e) = state.login_limiter.record_success(&username).await {
+        tracing::warn!("Failed to reset login failures: {}", e);
+    }
+
+    let max_ttl = state.config.cache.default_ttl_secs;
+    let ttl_secs = ttl_secs.map(|ttl| ttl.clamp(1, max_ttl));
+    match complete_login(&state, &audit, &provider, identity, ttl_secs).await {
+        Ok(session) => {
+            if is_backup_code {
+                tracing::info!("User '{}' logged in using a 2FA backup code", username);
+            }
+            (StatusCode::CREATED, Json(session)).into_response()
+        }
         Err(LoginRefusal::Rejected(message)) => {
             (StatusCode::FORBIDDEN, Json(json!({ "error": message }))).into_response()
         }
@@ -562,5 +757,136 @@ mod tests {
                 (AuditAction::SessionCreate, AuditOutcome::Failure),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn test_two_factor_auth_flow_and_backup_codes() {
+        use axum::body::to_bytes;
+        let config = AegisConfig::default();
+        let state = crate::test_support::test_state_with_config(
+            config,
+            aegis_runtime::PluginSupervisor::new(),
+        )
+        .await;
+
+        create_user(
+            state.db.as_ref(),
+            NewUser {
+                username: "alice".to_string(),
+                password: "correct-password".to_string(),
+                role: "editor".to_string(),
+                email: None,
+                display_name: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // 2FA 有効化
+        let setup = aegis_auth::generate_totp_setup("alice", "AegisCMS").unwrap();
+        let (plain_codes, backup_json) = aegis_auth::generate_backup_codes();
+        assert_eq!(plain_codes.len(), 6);
+        aegis_auth::users::enable_2fa(state.db.as_ref(), "alice", &setup.secret, &backup_json)
+            .await
+            .unwrap();
+
+        let ip = "203.0.113.10";
+
+        // 1. パスワードログイン -> mfa_required: true と challenge_token が返る
+        let resp = login(&state, "alice", "correct-password", ip).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body_bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(body["mfa_required"], true);
+        let challenge_token = body["challenge_token"].as_str().unwrap().to_string();
+
+        // 2. 誤ったコードで verify_2fa -> 401 Unauthorized
+        let bad_verify = verify_2fa(
+            State(state.clone()),
+            AuditContext::default(),
+            ClientIp(Some(ip.to_string())),
+            Json(Verify2faRequest {
+                challenge_token: challenge_token.clone(),
+                code: "000000".to_string(),
+            }),
+        )
+        .await;
+        assert_eq!(bad_verify.status(), StatusCode::UNAUTHORIZED);
+
+        // チャレンジトークンは 1 回きりなので再利用できない
+        let bad_retry = verify_2fa(
+            State(state.clone()),
+            AuditContext::default(),
+            ClientIp(Some(ip.to_string())),
+            Json(Verify2faRequest {
+                challenge_token: challenge_token.clone(),
+                code: "000000".to_string(),
+            }),
+        )
+        .await;
+        assert_eq!(bad_retry.status(), StatusCode::UNAUTHORIZED);
+
+        // 3. 再ログインして challenge_token を再取得
+        let resp2 = login(&state, "alice", "correct-password", ip).await;
+        assert_eq!(resp2.status(), StatusCode::OK);
+        let body2: serde_json::Value =
+            serde_json::from_slice(&to_bytes(resp2.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let challenge_token2 = body2["challenge_token"].as_str().unwrap().to_string();
+
+        // 4. 正しい TOTP コードで verify_2fa -> 201 Created でセッション発行
+        let current_code = aegis_auth::generate_current_totp_code(&setup.secret).unwrap();
+
+        let ok_verify = verify_2fa(
+            State(state.clone()),
+            AuditContext::default(),
+            ClientIp(Some(ip.to_string())),
+            Json(Verify2faRequest {
+                challenge_token: challenge_token2,
+                code: current_code,
+            }),
+        )
+        .await;
+        assert_eq!(ok_verify.status(), StatusCode::CREATED);
+
+        // 5. バックアップコードでのログイン検証
+        let resp3 = login(&state, "alice", "correct-password", ip).await;
+        assert_eq!(resp3.status(), StatusCode::OK);
+        let body3: serde_json::Value =
+            serde_json::from_slice(&to_bytes(resp3.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let challenge_token3 = body3["challenge_token"].as_str().unwrap().to_string();
+
+        let backup_code = &plain_codes[0];
+        let backup_verify = verify_2fa(
+            State(state.clone()),
+            AuditContext::default(),
+            ClientIp(Some(ip.to_string())),
+            Json(Verify2faRequest {
+                challenge_token: challenge_token3,
+                code: backup_code.clone(),
+            }),
+        )
+        .await;
+        assert_eq!(backup_verify.status(), StatusCode::CREATED);
+
+        // 6. 使用済みバックアップコードは 2 回目使えない
+        let resp4 = login(&state, "alice", "correct-password", ip).await;
+        let body4: serde_json::Value =
+            serde_json::from_slice(&to_bytes(resp4.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let challenge_token4 = body4["challenge_token"].as_str().unwrap().to_string();
+
+        let reuse_verify = verify_2fa(
+            State(state.clone()),
+            AuditContext::default(),
+            ClientIp(Some(ip.to_string())),
+            Json(Verify2faRequest {
+                challenge_token: challenge_token4,
+                code: backup_code.clone(),
+            }),
+        )
+        .await;
+        assert_eq!(reuse_verify.status(), StatusCode::UNAUTHORIZED);
     }
 }
