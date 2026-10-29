@@ -647,6 +647,8 @@ export interface PluginCapabilities {
   network?: { allowed_domains: string[] } | null;
   storage?: { kv_namespace: string } | null;
   hooks: string[];
+  /** Hosts whose `<iframe>`s the plugin's blocks may embed (also added to the CSP `frame-src`) */
+  embed?: { frame_domains: string[] } | null;
 }
 
 export interface PluginResourceLimits {

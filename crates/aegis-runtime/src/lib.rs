@@ -29,6 +29,7 @@ mod tests {
             version: "1.0.0".to_string(),
             entrypoint: "plugin.wasm".to_string(),
             capabilities: PluginCapabilities {
+                embed: None,
                 network: Some(NetworkCapability {
                     allowed_domains: vec!["hooks.slack.com".to_string()],
                 }),

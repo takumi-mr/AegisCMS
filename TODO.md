@@ -79,7 +79,7 @@
 
 ### 将来
 
-- [ ] **埋め込みブロック（要望があれば）**: YouTube などの埋め込み（`core/embed`）。許可するドメインの管理と、`frame-src` を含む CSP の調整が要る。今は `core/html` のサンドボックスで代用できる。
+- [ ] **広告のプラグイン（要望があれば）**: 広告のスクリプトは `on-render-page` で `extra_head` に 1 回だけ入れ、表示枠（`<ins data-ad-slot>` など）はカスタムブロックか `transform-content-ast` で置く。`script-src`・`frame-src`・`connect-src` に広告のドメインが要る（`embed.frame_domains` は iframe だけなので、スクリプトの許可の仕組みを足すか、管理画面の CSP で設定する）。Cookie の同意とプライバシーポリシーも合わせて。
 
 - [ ] **分散ストレージ**: libSQL（Turso）への対応とクラスタ環境の最適化。
 - [ ] **テンプレートから任意のコンテンツを引く関数（検討）**: 例 `latest("article", 5, category="release")`。トップページ以外（記事の下・フッターなど）に最新記事やカテゴリの記事を出すため。決めること: 関数の形（MiniJinja のグローバル関数か、テーマのマニフェストで宣言して描画前にまとめて取得するか）、描画中の DB アクセス（`ThemeEngine::render` は同期）、Cache-Tag への依存の伝え方、取得できる種類・件数の上限。

@@ -45,6 +45,19 @@ const PLUGINS: PluginInfo[] = [
     }),
   },
   {
+    name: 'official-blocks',
+    is_enabled: false,
+    is_installed: true,
+    manifest: manifest({
+      name: 'official-blocks',
+      description: 'Button, link card and video blocks.',
+      capabilities: {
+        hooks: ['render-blocks'],
+        embed: { frame_domains: ['www.youtube-nocookie.com', 'player.vimeo.com'] },
+      },
+    }),
+  },
+  {
     name: 'broken-plugin',
     is_enabled: false,
     is_installed: true,
@@ -134,7 +147,15 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /** Enabled, disabled, broken and enabled-but-removed plugins */
-export const Default: Story = {};
+export const Default: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // 埋め込みを許可したホストが権限の欄に出ること
+    await expect(
+      await canvas.findByText(/www\.youtube-nocookie\.com, player\.vimeo\.com/)
+    ).toBeVisible();
+  },
+};
 
 export const Empty: Story = {
   beforeEach: () => pluginApi([]),

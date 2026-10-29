@@ -425,6 +425,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - **`name`**: プラグインの識別子（英小文字・数字・`-`・`_`）。インストール先は `plugins/<name>/` で、`[plugins].enabled` に書くと有効になる。
 - **`display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version`**: ストア・一覧表示用のメタデータ（任意）。
 - **`resource_limits`**: メモリ上限（MB単位）、Fuel 上限、タイムアウト（ミリ秒単位）。
+- **`capabilities.embed.frame_domains`**: カスタムブロックの HTML に残せる `<iframe>` の配信元のホスト（CSP の `frame-src` にも足される）。形式は [plugin_hooks.md 3.2](plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)。
 - **`blocks`**: 本文に置けるカスタムブロックの宣言（名前・表示名・入力欄）。`render-blocks` フックが必要。形式は [plugin_hooks.md 3.1](plugin_hooks.md#31-カスタムブロック-blocks)。
 
 ---

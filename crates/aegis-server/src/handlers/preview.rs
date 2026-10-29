@@ -140,6 +140,7 @@ mod tests {
                     version: "1.0.0".to_string(),
                     entrypoint: "plugin.wasm".to_string(),
                     capabilities: PluginCapabilities {
+                        embed: None,
                         network: None,
                         storage: None,
                         hooks: vec![

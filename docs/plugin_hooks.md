@@ -226,7 +226,7 @@ fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>
 
 - **呼ばれるとき**: 公開ページ（記事・固定ページ・商品）・フィード・コンテンツ API の `rendered_html`・エディタのプレビューで、**表示のたび**に呼ばれます。1 回の描画につきプラグインごとに 1 回、そのプラグインのブロックが文書の順にまとめて渡されます（トップレベルのブロックのみ）。
 - **出力**: 入力と同じ数・同じ順の HTML。`None`（や足りない分）のブロックは何も表示しません。入力が足りない・おかしいブロックは `None` にしてください。
-- **HTML はサニタイズされます**: `<script>`・`<iframe>` などと `on*` 属性・`javascript:` などの URL を取り除いたうえで、`<div class="aegis-plugin-block" data-block="<名前>">` に包んで出力します（カスタム HTML ブロックの標準モードと同じ）。`<style>` と `style` 属性は残ります。スクリプトが必要な場合は `on-render-page` で `extra_head` に足してください（`official-code-enhancer` と同じ方法）。
+- **HTML はサニタイズされます**: `<script>`・`<iframe>` などと `on*` 属性・`javascript:` などの URL を取り除いたうえで（`<iframe>` は `capabilities.embed.frame_domains` で宣言したホストのものだけ残せます。[3.2](#32-外部のページの埋め込み-capabilitiesembed)）、`<div class="aegis-plugin-block" data-block="<名前>">` に包んで出力します（カスタム HTML ブロックの標準モードと同じ）。`<style>` と `style` 属性は残ります。スクリプトが必要な場合は `on-render-page` で `extra_head` に足してください（`official-code-enhancer` と同じ方法）。
 - **見た目**: まとめて渡されるので、`<style>` は最初のブロックに 1 回だけ付けられます。`:where()` で詳細度を 0 にするとテーマの CSS で上書きしやすくなりますが、リンクの色・下線はテーマの本文のリンクの指定（`.prose a` など）に負けるので、クラス 2 つ程度の詳細度にしてください（`official-blocks` を参照）。
 - **失敗**: トラップ・タイムアウト・不正な JSON などのとき、そのプラグインのブロックは何も表示せず、警告ログを残します（ページの表示は続けます）。プレビューでは `warnings` に表示します。
 - **プラグインが無効なとき**: ブロックはそのまま保存され、Admin Studio には「プラグインが無効」と表示されます。公開ページには表示されません（中身の無いカスタム要素になります）。
@@ -424,6 +424,7 @@ SDK ヘルパー:
 | `capabilities.network.allowed_domains` | string[] | | `net::is_allowed` で許可するドメイン。完全一致またはサブドメイン一致 |
 | `capabilities.storage.kv_namespace` | string | | KVS のネームスペース。未宣言の場合 `kv::set` は権限エラー |
 | `capabilities.hooks` | string[] | | 有効にするフック名（[1. フック一覧](#1-フック一覧)） |
+| `capabilities.embed.frame_domains` | string[] | | カスタムブロックに埋め込める `<iframe>` の配信元のホスト（[3.2](#32-外部のページの埋め込み-capabilitiesembed)） |
 | `resource_limits` | object | | 省略した項目（または全体）はサーバー設定 `[runtime].default_*` で補われる（下記） |
 
 有効にしたプラグインのマニフェストが読めない、`name` とディレクトリ名が違う、`entrypoint` のファイルが無い、ホストに無い関数をインポートしている（[ABI 仕様](plugin_abi_specification.md#3-ホスト-api-インポート仕様-host-モジュール)）場合は、**サーバーが起動しません**。アクセス制限などを実装したプラグインが黙って外れたまま動き続けることを防ぐためです。有効にしていないプラグインの不備は警告ログと `aegis plugin list` に表示されます。
@@ -460,6 +461,23 @@ SDK ヘルパー:
 | `fields[].default` | 新しく置いたブロックの初期値 |
 
 宣言の不備（名前の形式・重複、選択肢の無い `select`、知らない `type`）があると、そのプラグインを有効にしたサーバーは起動しません。
+
+### 3.2 外部のページの埋め込み (`capabilities.embed`)
+
+動画のプレーヤーなど、外部のページを `<iframe>` でカスタムブロックに埋め込むには、配信元のホストを宣言します。
+
+```json
+"capabilities": {
+  "hooks": ["render-blocks"],
+  "embed": { "frame_domains": ["www.youtube-nocookie.com", "player.vimeo.com"] }
+}
+```
+
+- **サニタイズ**: そのプラグインのブロックの HTML に限り、`src` が `https://<宣言したホスト>/...` の `<iframe>` を残します。ホストは完全一致です（サブドメイン・ユーザー情報 `user@`・ポートの付いた URL は不可）。残す属性は `src`・`title`・`width`・`height`・`allow`・`allowfullscreen`・`loading`・`referrerpolicy`・`sandbox`・`class`・`style`・`frameborder` だけです（`srcdoc`・`on*` などは取り除きます）。宣言していないホストの `<iframe>`、ほかのプラグインのブロックの `<iframe>`、`<script>` は今までどおり取り除きます。
+- **CSP**: 有効なプラグインが宣言したホストを、すべてのレスポンスの `Content-Security-Policy` の `frame-src` に `https://<ホスト>` として足します。CSP に `frame-src` があればそこに、無ければ iframe に効いている `child-src`（無ければ `default-src`）の値に足した `frame-src` を加えます。管理者が `frame-src 'none'`・`*` と書いた CSP と、iframe を制限していない CSP はそのままです。Admin Studio の **Settings › Headers** で CSP を変えても、この追加は続きます。
+- **書き方**: ホスト名だけ（`www.youtube-nocookie.com`）。英小文字・数字・`-` のラベルを `.` でつなぎ、2 つ以上。スキーム・パス・ポート・ワイルドカードは書けません。`blocks` の無いプラグインには宣言できません。
+- 利用者が書いた HTML をそのまま埋め込むのではなく、入力された URL から ID を取り出してプレーヤーの URL を組み立ててください（`official-blocks` の動画ブロックを参照）。
+- 宣言したホストは Admin Studio のプラグインの一覧の「機能・権限」に表示されます。
 
 ## 4. リソース制限 (`resource_limits`)
 
