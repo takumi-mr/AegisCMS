@@ -31,7 +31,7 @@ pub mod users;
 
 pub use crate::system::{get_system_settings, update_system_settings};
 pub use audit::{get_metrics, list_audit_logs};
-pub use auth::{create_session, delete_session, get_current_session};
+pub use auth::{create_session, delete_session, get_current_session, verify_2fa};
 pub use comments::{
     bulk_comments, delete_comment, get_comment_settings, get_content_comments, list_comments,
     list_public_comments, reply_comment, set_content_comments, submit_comment, unsubscribe_page,
@@ -90,7 +90,8 @@ pub use theme::{
     install_theme, list_themes, switch_active_theme,
 };
 pub use users::{
-    create_user, delete_avatar, delete_user, get_user, list_users, update_user, upload_avatar,
+    create_user, delete_avatar, delete_user, disable_2fa, enable_2fa, get_user, list_users,
+    reset_user_2fa, setup_2fa, update_user, upload_avatar,
 };
 
 #[cfg(test)]

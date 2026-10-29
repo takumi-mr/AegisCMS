@@ -191,6 +191,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 .get(handlers::get_current_session)
                 .delete(handlers::delete_session),
         )
+        .route(
+            "/api/v1/auth/session/verify-2fa",
+            post(handlers::verify_2fa),
+        )
         .route("/api/v1/auth/providers", get(handlers::list_auth_providers))
         .route("/api/v1/auth/registration", post(handlers::register))
         .route(
@@ -239,6 +243,13 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             put(handlers::upload_avatar)
                 .delete(handlers::delete_avatar)
                 .layer(DefaultBodyLimit::max(handlers::users::MAX_AVATAR_BYTES + 64 * 1024)),
+        )
+        .route("/api/v1/users/me/2fa/setup", post(handlers::setup_2fa))
+        .route("/api/v1/users/me/2fa/enable", post(handlers::enable_2fa))
+        .route("/api/v1/users/me/2fa/disable", post(handlers::disable_2fa))
+        .route(
+            "/api/v1/users/{username}/2fa/reset",
+            post(handlers::reset_user_2fa),
         )
         // --- EC（[commerce]） ---
         .route("/api/v1/shop/config", get(handlers::shop_config))
