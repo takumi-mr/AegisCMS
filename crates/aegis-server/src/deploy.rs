@@ -370,6 +370,11 @@ fn site_config(site: &SiteSpec) -> anyhow::Result<String> {
     check(parsed.forum.validate())?;
     check(parsed.notifications.validate())?;
     check(parsed.cdn.validate())?;
+    #[cfg(feature = "analytics")]
+    parsed
+        .analytics
+        .validate()
+        .map_err(|e| anyhow::anyhow!("サイト {:?} の設定: {}", site.name, e))?;
     parsed
         .server
         .normalized_base_path()

@@ -1,0 +1,27 @@
+[package]
+name = "aegis-analytics"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Privacy-friendly access analytics for AegisCMS: a cookie-less beacon with daily aggregated counts"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-db = { path = "../aegis-db" }
+chrono.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "rt"] }
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+aegis-cache = { path = "../aegis-cache" }
+tokio = { workspace = true, features = ["full"] }

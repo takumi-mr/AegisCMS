@@ -26,6 +26,7 @@ import {
   MessageSquareOff,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { AnalyticsView } from './components/AnalyticsView';
 import { Header, type AppView } from './components/Header';
 import { ProductManager } from './components/ProductManager';
 import { CommentManager } from './components/CommentManager';
@@ -114,6 +115,8 @@ export const App: React.FC = () => {
   const [togglingComments, setTogglingComments] = useState<boolean>(false);
   // Hidden until the server says forum is on ([forum].enabled)
   const [forumEnabled, setForumEnabled] = useState<boolean>(false);
+  // Hidden until the server says analytics are on ([analytics].enabled)
+  const [analyticsEnabled, setAnalyticsEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType, setContentType] = useState<'article' | 'page'>('article');
   const [layout, setLayout] = useState<'default' | 'blank'>('default');
@@ -317,6 +320,24 @@ export const App: React.FC = () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    // Every signed-in role may read the summary; it answers 404 when analytics are disabled
+    const today = new Date().toISOString().slice(0, 10);
+    aegisApi
+      .getAnalyticsSummary({ from: today, to: today, limit: 1 })
+      .then(() => {
+        if (!cancelled) setAnalyticsEnabled(true);
+      })
+      .catch(() => {
+        if (!cancelled) setAnalyticsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -657,6 +678,7 @@ export const App: React.FC = () => {
         showShop={showShop}
         showComments={showComments}
         showForum={showForum}
+        showAnalytics={analyticsEnabled}
         profile={profile}
         onOpenProfile={() =>
           profile
@@ -676,6 +698,8 @@ export const App: React.FC = () => {
         <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
       ) : view === 'forum' && showForum ? (
         <ForumManager isAdmin={isAdmin(session)} onShowToast={showToast} />
+      ) : view === 'analytics' && analyticsEnabled ? (
+        <AnalyticsView onShowToast={showToast} />
       ) : view === 'settings' ? (
         <SettingsView
           session={session}

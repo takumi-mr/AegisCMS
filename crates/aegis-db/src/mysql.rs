@@ -158,6 +158,13 @@ fn record_from_row(schema: &SchemaDefinition, r: &MySqlRow) -> ContentRecord {
 super::orders::impl_order_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::variants::impl_product_variant_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::comments::impl_comment_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
+super::analytics::impl_analytics_storage!(
+    MySqlAdapter,
+    |_| "?".to_string(),
+    super::analytics::UPSERT_MYSQL,
+    "SIGNED",
+    "MySQL"
+);
 super::notifications::impl_notification_queue_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::forum::impl_forum_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::customers::impl_customer_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
@@ -392,6 +399,20 @@ impl DatabaseAdapter for MySqlAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in review_indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // アクセス解析の集計
+        let (analytics_table, analytics_indexes) =
+            super::analytics::build_analytics_table("VARCHAR(255)", true);
+        sqlx::query(&analytics_table)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for index in analytics_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await
@@ -1104,14 +1125,26 @@ impl DatabaseAdapter for MySqlAdapter {
     }
 
     async fn delete_content(&self, schema: &SchemaDefinition, id: &str) -> Result<bool> {
+        let db_err = |e: sqlx::Error| AegisError::Database(e.to_string());
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
         let result = sqlx::query(&format!(
             "DELETE FROM {} WHERE id = ?;",
             schema.table_name()
         ))
         .bind(id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
-        .map_err(|e| AegisError::Database(e.to_string()))?;
+        .map_err(db_err)?;
+        // 公開中の版も取り下げる（残すと削除したコンテンツが公開ページに出続ける）。版の履歴は残す
+        sqlx::query(
+            "DELETE FROM _aegis_content_publications WHERE content_type = ? AND content_id = ?;",
+        )
+        .bind(&schema.content_type)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db_err)?;
+        tx.commit().await.map_err(db_err)?;
         Ok(result.rows_affected() > 0)
     }
 

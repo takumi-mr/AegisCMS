@@ -91,6 +91,8 @@ pub async fn publish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize
             }
             crate::cdn::purge_content(state, &record.content_type, &record.id, &record.slug, None)
                 .await;
+            #[cfg(feature = "search")]
+            crate::search::announce_change(state, &record.content_type, &record.id).await;
             notify_author(state, "content.published", &schema, &record, at).await;
 
             let published_content = aegis_core::PublishedContent {
@@ -207,6 +209,8 @@ pub async fn unpublish_due_contents(state: &AppState, now: DateTime<Utc>) -> usi
                     None,
                 )
                 .await;
+                #[cfg(feature = "search")]
+                crate::search::announce_change(state, &record.content_type, &record.id).await;
                 notify_author(state, "content.unpublished", &schema, &record, at).await;
             }
         }

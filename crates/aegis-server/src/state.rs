@@ -74,6 +74,12 @@ pub struct AppState {
     pub invitation: Option<Arc<Invitation>>,
     /// Admin Studio の URL
     pub admin_url: Option<String>,
+    /// サイト内検索（`[search]`）。無効なら `None`
+    #[cfg(feature = "search")]
+    pub search: Option<Arc<crate::search::SiteSearch>>,
+    /// アクセス解析（`[analytics]`）。無効なら `None`
+    #[cfg(feature = "analytics")]
+    pub analytics: Option<Arc<aegis_analytics::AnalyticsService>>,
 }
 
 /// シングルサインオン（OpenID Connect / SAML）の設定済みプロバイダと、ログイン画面・リダイレクトに使う値
@@ -167,6 +173,10 @@ impl AppState {
             password_reset: None,
             invitation: None,
             admin_url: None,
+            #[cfg(feature = "search")]
+            search: None,
+            #[cfg(feature = "analytics")]
+            analytics: None,
         }
     }
 

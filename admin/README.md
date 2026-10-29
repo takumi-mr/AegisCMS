@@ -19,6 +19,7 @@
   - レンダリング結果をタブでプレビューと HTML ソースコード表示に切り替え可能。
 - **予約公開・予約非公開化**: エディタ・商品フォームの状態で「予約公開」を選び、公開日時（`datetime-local`）を入れて保存すると、その日時にサーバーが公開する。また、公開中・予約公開のコンテンツに非公開予定日時（`unpublish_at`）を指定することで期間限定公開が可能。一覧にはステータスバッジに加え非公開予定アイコン（ツールチップに日時）を表示（[予約公開・予約非公開化](../docs/theme_and_publishing_guide.md#予約公開スケジュール公開)）。
 - **公開スケジュール・カレンダー (Calendar)**: ヘッダーの「カレンダー」タブ（`ScheduleCalendar.tsx`）から、全コンテンツタイプの公開予定・非公開予定・公開中アイテムを月間カレンダーおよびアジェンダ形式で一覧表示。コンテンツタイプ・予定種別による絞り込み、詳細モーダルからの非公開日時のクイック編集・解除、エディタへの直接遷移に対応。
+- **アクセス解析 (Analytics)**: `[analytics].enabled = true` のときだけ出るヘッダーの「アクセス解析」タブ（`AnalyticsView.tsx`）で、過去 7 / 30 / 90 日のページビュー・訪問者の推移（グラフと表。グラフは矢印キーでも読める）、よく見られたページ・参照元・端末を表示（[docs/analytics.md](../docs/analytics.md)）。
 - **Markdown 編集 & 貼り付け**:
   - エディタ上部の **Blocks / Markdown** で編集方法を切り替える。ブロックと Markdown は相互に変換され（`utils/markdown.ts` の `blocksToMarkdown` / `markdownToBlocks`。見出し・段落・コード・画像・リスト・表・目次（`[TOC]`）・引用・注記（`> [!NOTE]`・`:::note`）・折りたたみ（`:::details`）・区切り線・プラグインのブロック（`::: <名前> {属性の JSON}`））、どちらで編集してもプレビューと保存は同じブロックから行う。
   - Markdown エディタ（`MarkdownEditor.tsx`）: 書式の挿入ツールバー、Tab でのインデント、Ctrl+S で保存、行数・文字数・ブロック数の表示。
@@ -111,6 +112,7 @@ admin/
 │   │   ├── ProfileModal.tsx # 自分のプロフィール（AvatarPicker.tsx でアバターを選ぶ）
 │   │   ├── ProductManager.tsx # 商品
 │   │   ├── OrderManager.tsx # 注文
+│   │   ├── AnalyticsView.tsx # アクセス解析のダッシュボード
 │   │   ├── CommentManager.tsx # コメントの審査・返信・承認の設定
 │   │   ├── AuditLogView.tsx # 監査ログ閲覧画面
 │   │   ├── CategoryManager.tsx # カテゴリ一覧・作成

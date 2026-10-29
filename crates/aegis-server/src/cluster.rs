@@ -54,6 +54,8 @@ pub async fn handle(state: &AppState, message: BusMessage) {
             TOPIC_NOTIFICATION_TEMPLATES => {
                 crate::handlers::notifications::reload_templates(state).await
             }
+            #[cfg(feature = "search")]
+            crate::search::TOPIC_SEARCH => crate::search::handle_event(state, &payload).await,
             _ => tracing::debug!("Ignoring event bus topic '{}'", topic),
         },
         BusMessage::Resync => {
@@ -74,6 +76,9 @@ pub async fn handle(state: &AppState, message: BusMessage) {
             for name in names {
                 crate::handlers::plugin::refresh_plugin_settings(state, &name).await;
             }
+            // 切断中に届かなかったコンテンツの変更を取り込む
+            #[cfg(feature = "search")]
+            crate::search::rebuild(state).await;
         }
     }
 }

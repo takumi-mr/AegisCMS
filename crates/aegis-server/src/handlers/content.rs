@@ -52,7 +52,7 @@ fn default_status() -> String {
 
 /// 予約公開の状態。`published_at` の日時になると `scheduler` が `published` にする
 pub const STATUS_SCHEDULED: &str = "scheduled";
-const STATUS_PUBLISHED: &str = "published";
+pub(crate) const STATUS_PUBLISHED: &str = "published";
 
 /// 保存する公開状態と `published_at`, `unpublish_at` を決める。
 /// - `published`: 最初に公開した日時を保つ（今まで公開されていなければ `now`）
@@ -549,6 +549,8 @@ pub async fn create_content(
     if record.status == STATUS_PUBLISHED {
         crate::cdn::purge_content(&state, &record.content_type, &record.id, &record.slug, None)
             .await;
+        #[cfg(feature = "search")]
+        crate::search::announce_change(&state, &record.content_type, &record.id).await;
     }
 
     Ok((
@@ -699,6 +701,8 @@ pub async fn update_content(
             Some(&previous_slug),
         )
         .await;
+        #[cfg(feature = "search")]
+        crate::search::announce_change(&state, &record.content_type, &record.id).await;
     }
 
     Ok(Json(
@@ -907,6 +911,8 @@ pub async fn delete_content(
             None,
         )
         .await;
+        #[cfg(feature = "search")]
+        crate::search::announce_change(&state, &current.content_type, &current.id).await;
     }
     Ok(StatusCode::NO_CONTENT)
 }

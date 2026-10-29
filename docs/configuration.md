@@ -465,6 +465,27 @@ Varnish、Nginx、BunnyCDN、AWS CloudFront 用の Lambda / Cloudflare Workers �
 | `bearer_token` | string | `""` | `Authorization: Bearer <token>` に付与するトークン。`"env:VAR_NAME"` または環境変数 `AEGIS_CDN_WEBHOOK_TOKEN` でも指定可 |
 | `headers` | table | `{}` | 追加で付与する任意のカスタム HTTP ヘッダー |
 
+### 2.18 `[search]` — サイト内検索
+
+公開中のコンテンツの全文検索（[サイト内検索のドキュメント](./search.md)）。サーバーの Cargo の feature `search`（既定で有効）で組み込みます。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `true` | `true` で `/search` と `GET /api/v1/search` を有効化 |
+| `index_dir` | string | `"data/search"` | 索引を置くディレクトリ（空ならメモリの中だけ。起動のたびに作り直す） |
+| `content_types` | string[] | `["article", "page"]` | 検索の対象にするコンテンツの種類 |
+
+### 2.19 `[analytics]` — アクセス解析
+
+Cookie を使わないアクセス解析（[アクセス解析のドキュメント](./analytics.md)）。サーバーの Cargo の feature `analytics`（既定で組み込み）で組み込みます。`exclude_paths` が `/` で始まらない場合はサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で公開ページにビーコンを入れて集計し、Admin Studio に Analytics タブを出す |
+| `retention_days` | integer | `400` | 集計を残す日数（0 で消さない） |
+| `flush_interval_secs` | integer | `30` | メモリで溜めた集計を DB に書く間隔（秒） |
+| `exclude_paths` | string[] | `[]` | 数えないパス（前方一致。`"/preview"` なら `/preview` と `/preview/...`） |
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
@@ -657,6 +678,17 @@ max_links = 2
 hold_words = []
 spam_words = []
 max_per_ip_per_hour = 10
+
+[search]
+enabled = true
+index_dir = "data/search"
+content_types = ["article", "page"]
+
+[analytics]
+enabled = false
+retention_days = 400
+flush_interval_secs = 30
+exclude_paths = []
 ```
 
 ---

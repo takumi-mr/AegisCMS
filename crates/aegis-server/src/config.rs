@@ -51,6 +51,12 @@ pub struct AegisConfig {
     pub comments: CommentsConfig,
     #[serde(default)]
     pub forum: ForumConfig,
+    #[cfg(feature = "search")]
+    #[serde(default)]
+    pub search: crate::search::SearchConfig,
+    #[cfg(feature = "analytics")]
+    #[serde(default)]
+    pub analytics: aegis_analytics::AnalyticsConfig,
 }
 
 impl AegisConfig {
