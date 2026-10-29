@@ -102,11 +102,12 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 
 ## 4. プラグインのブロック
 
-Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）とリンクカード（`official-blocks/link-card`）が例です。
+Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・動画（`official-blocks/video`。YouTube・Vimeo）が例です。
 
 - 有効なプラグインのブロックは、Admin Studio のブロックの追加ボタンに並びます（`GET /api/v1/blocks`）。編集画面には、プラグインのマニフェストで宣言した入力欄のフォームが出ます。
 - 保存するのはブロック名と属性だけで、HTML は**表示のたびに**プラグインが作ります。プラグインを更新すると、保存し直さなくても表示が変わります。
 - プラグインが返した HTML は、カスタム HTML ブロックの標準モードと同じくサニタイズしてから出力します（`<script>`・`on*` 属性・`javascript:` の URL などは残りません）。外側は `<div class="aegis-plugin-block" data-block="<名前>">` です。
+- `<iframe>` は、プラグインがマニフェストで宣言したホスト（`capabilities.embed.frame_domains`）のものだけが残り、そのホストは CSP の `frame-src` にも自動で足されます（[plugin_hooks.md 3.2](plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)）。動画の埋め込みはこの仕組みで行い、カスタム HTML ブロックは使いません（標準モードでは `<iframe>` が消え、サンドボックスモードでは中のプレーヤーにも制限が掛かります）。
 - プラグインを無効にしてもブロックは消えません。Admin Studio には「プラグインが無効」と表示され、公開ページには表示されません。
 
 Markdown では 1 行で書き、属性は JSON のオブジェクトです（属性が無ければ省略できます）。
@@ -115,6 +116,8 @@ Markdown では 1 行で書き、属性は JSON のオブジェクトです（�
 ::: official-blocks/button {"label": "はじめる", "url": "/docs/start", "style": "primary"}
 
 ::: official-blocks/link-card {"url": "https://github.com/takumi-mr/aegiscms", "title": "AegisCMS"}
+
+::: official-blocks/video {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "aspect": "16x9"}
 ```
 
 JSON として読めない行は、そのまま段落になります。

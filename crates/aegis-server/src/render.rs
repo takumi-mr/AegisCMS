@@ -49,7 +49,17 @@ pub fn builtin_transforms(blocks: Vec<BlockNode>) -> Vec<BlockNode> {
 /// Renders stored (already transformed) blocks to the HTML the public site shows:
 /// `HtmlRenderer`, then the streaming rewriter with the `[security]` settings
 pub fn render_blocks_html(security: &SecurityConfig, blocks: &[BlockNode]) -> String {
-    let raw_html = HtmlRenderer::render_nodes(blocks);
+    render_blocks_html_with(security, blocks, &HashMap::new())
+}
+
+/// [`render_blocks_html`] with the HTML of some top-level blocks made by the caller
+/// ([`HtmlRenderer::render_nodes_with`])
+fn render_blocks_html_with(
+    security: &SecurityConfig,
+    blocks: &[BlockNode],
+    prerendered: &HashMap<usize, String>,
+) -> String {
+    let raw_html = HtmlRenderer::render_nodes_with(blocks, prerendered);
     let rewriter_config = HtmlRewriterConfig::from(security.clone());
     StreamingHtmlRewriter::rewrite(&raw_html, &rewriter_config).unwrap_or(raw_html)
 }
@@ -65,7 +75,8 @@ pub struct RenderedContent {
 /// `<plugin>/<block>` that an enabled plugin declares is rendered by that plugin's
 /// `render-blocks` hook (one call per plugin with all of its blocks, in document order). The
 /// plugin's HTML is sanitized like a `core/html` block (no scripts, event attributes or
-/// `javascript:` URLs) inside `<div class="aegis-plugin-block" data-block="...">`. A block the
+/// `javascript:` URLs; `<iframe>`s only from the plugin's `embed.frame_domains`) inside
+/// `<div class="aegis-plugin-block" data-block="...">`. A block the
 /// plugin returns nothing for, or whose plugin fails, shows nothing. Only top-level blocks are
 /// handed to plugins
 pub async fn render_content(state: &AppState, blocks: &[BlockNode]) -> RenderedContent {
@@ -91,7 +102,7 @@ pub async fn render_content(state: &AppState, blocks: &[BlockNode]) -> RenderedC
         };
     }
 
-    let mut resolved = blocks.to_vec();
+    let mut prerendered = HashMap::new();
     for (plugin, indexes) in groups {
         let input: Vec<BlockNode> = indexes.iter().map(|&i| blocks[i].clone()).collect();
         let rendered = match plugin.render_blocks(input).await {
@@ -106,13 +117,14 @@ pub async fn render_content(state: &AppState, blocks: &[BlockNode]) -> RenderedC
                 Vec::new()
             }
         };
+        let frame_domains = plugin.manifest().frame_domains();
         for (k, &i) in indexes.iter().enumerate() {
             let html = rendered.get(k).cloned().flatten();
-            resolved[i] = plugin_block_html(&blocks[i].name, html);
+            prerendered.insert(i, plugin_block_html(&blocks[i].name, html, frame_domains));
         }
     }
     RenderedContent {
-        html: render_blocks_html(&state.config.security, &resolved),
+        html: render_blocks_html_with(&state.config.security, blocks, &prerendered),
         warnings,
     }
 }
@@ -122,17 +134,19 @@ pub async fn render_content_html(state: &AppState, blocks: &[BlockNode]) -> Stri
     render_content(state, blocks).await.html
 }
 
-/// A plugin's HTML for one block, as a sanitized `core/html` block (nothing for no HTML)
-fn plugin_block_html(name: &str, html: Option<String>) -> BlockNode {
-    let mut node = BlockNode::new("core/html");
-    if let Some(html) = html.filter(|h| !h.trim().is_empty()) {
-        node.text = Some(format!(
-            "<div class=\"aegis-plugin-block\" data-block=\"{}\">{}</div>",
-            aegis_ast::renderer::escape_html(name),
-            html
-        ));
-    }
-    node
+/// A plugin's HTML for one block, sanitized (keeping `<iframe>`s from `frame_domains`) and
+/// wrapped in `div.aegis-plugin-block` (nothing for no HTML)
+fn plugin_block_html(name: &str, html: Option<String>, frame_domains: &[String]) -> String {
+    let Some(html) = html.filter(|h| !h.trim().is_empty()) else {
+        return String::new();
+    };
+    let wrapped = format!(
+        "<div class=\"aegis-plugin-block\" data-block=\"{}\">{}</div>",
+        aegis_ast::renderer::escape_html(name),
+        html
+    );
+    let clean = aegis_ast::renderer::sanitize_html_fragment_with_frames(&wrapped, frame_domains);
+    format!("{}\n", clean)
 }
 
 /// Content-specific inputs of a themed page (from a stored record, or from the editor for previews)
@@ -459,5 +473,93 @@ mod tests {
         .await;
         assert!(plugin.calls.lock().unwrap().is_empty());
         assert!(html.contains("<cards-card>"), "{}", html);
+    }
+
+    /// `video/player` を描画する。許可したホストと許可していないホストの iframe を返す
+    struct VideoPlugin(aegis_core::PluginManifest);
+
+    #[async_trait::async_trait]
+    impl AegisPlugin for VideoPlugin {
+        fn manifest(&self) -> &aegis_core::PluginManifest {
+            &self.0
+        }
+
+        async fn render_blocks(
+            &self,
+            blocks: Vec<BlockNode>,
+        ) -> aegis_core::Result<Vec<Option<String>>> {
+            Ok(blocks
+                .iter()
+                .map(|_| {
+                    Some(
+                        r#"<iframe src="https://player.example.com/v/1" title="ok" srcdoc="x"></iframe><iframe src="https://evil.example/x"></iframe>"#
+                            .to_string(),
+                    )
+                })
+                .collect())
+        }
+    }
+
+    fn video_supervisor() -> aegis_runtime::PluginSupervisor {
+        let manifest: aegis_core::PluginManifest = serde_json::from_value(serde_json::json!({
+            "name": "video",
+            "version": "1.0.0",
+            "entrypoint": "plugin.wasm",
+            "capabilities": {
+                "hooks": ["render-blocks"],
+                "embed": { "frame_domains": ["player.example.com"] }
+            },
+            "blocks": [{ "name": "player", "label": "Player" }]
+        }))
+        .unwrap();
+        let mut supervisor = aegis_runtime::PluginSupervisor::new();
+        supervisor.register(Arc::new(VideoPlugin(manifest)));
+        supervisor
+    }
+
+    #[tokio::test]
+    async fn test_plugin_blocks_keep_only_frames_from_the_declared_hosts() {
+        let mut supervisor = video_supervisor();
+        // 埋め込みを宣言していない別のプラグインは、同じ iframe を返しても残らない
+        supervisor.register(card_plugin());
+        let state = crate::test_support::test_state(supervisor).await;
+        let html = render_content_html(
+            &state,
+            &[
+                block("video/player", "", serde_json::json!({})),
+                block("cards/card", "", serde_json::json!({ "title": "<iframe src=\"https://player.example.com/v/2\"></iframe>" })),
+            ],
+        )
+        .await;
+        assert!(
+            html.contains(r#"<iframe src="https://player.example.com/v/1" title="ok"></iframe>"#),
+            "{}",
+            html
+        );
+        assert!(!html.contains("evil.example") && !html.contains("srcdoc"));
+        assert!(!html.contains("/v/2"), "{}", html);
+    }
+
+    #[tokio::test]
+    async fn test_responses_allow_the_declared_frame_hosts_in_the_csp() {
+        use tower::ServiceExt;
+        let state = crate::test_support::test_state(video_supervisor()).await;
+        let config = state.config.clone();
+        let response = crate::app::router(&config, state)
+            .oneshot(
+                axum::http::Request::get("/api/v1/health")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let csp = response.headers()["content-security-policy"]
+            .to_str()
+            .unwrap();
+        assert!(
+            csp.contains("frame-src 'self' https://player.example.com"),
+            "{}",
+            csp
+        );
     }
 }

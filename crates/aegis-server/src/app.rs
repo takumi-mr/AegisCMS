@@ -425,7 +425,9 @@ async fn security_headers_middleware(
 ) -> axum::response::Response {
     let mut response = next.run(request).await;
     let headers_config = state.headers();
-    headers_config.apply_to_headers(response.headers_mut());
+    // 有効なプラグインのカスタムブロックが埋め込む iframe の配信元を CSP の frame-src に足す
+    let frame_hosts = state.supervisor.read().await.frame_domains();
+    headers_config.apply_to_headers_with_frames(response.headers_mut(), &frame_hosts);
     response
 }
 

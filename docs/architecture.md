@@ -72,7 +72,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - テーマ適用済みのページ全体は `render::render_page`（リレーション解決 → `on-render-page` → テンプレート）。公開ページとプレビューの `page_html` が共用する。
 - プレビューは編集のたびに `transform-content-ast` を呼ぶため、このフックは副作用なしが前提（[plugin_hooks.md](plugin_hooks.md)）。
 - **ブロックの種類と Markdown の対応**は [blocks.md](blocks.md)。テキストのインライン書式（`aegis_ast::inline`）は描画時に変換し、保存するテキストは Markdown の記号のまま（Admin Studio の Markdown 編集と往復できるように）。HTML のタグは書けず、リンクの URL はスキームの許可リストで絞る。
-- **プラグインのカスタムブロック**（`<プラグイン名>/<ブロック名>`）は `render::render_content` が `HtmlRenderer` の前に解決する。そのプラグインのブロックをまとめて 1 回の `render-blocks` で HTML にし、`core/html`（標準モード）のブロックに置き換えるので、サニタイズ・リライターは他のブロックと同じ経路を通る。保存せずに表示のたびに呼ぶのは、プラグインの更新や設定の変更をすぐ反映するため（Wasm の呼び出しはインスタンスのプールで軽くし、ページは CDN でキャッシュできる）。HTML を描画する場所（公開ページ・フィード・コンテンツ API・プレビュー）はすべて `render_content` を通す。`render_blocks_html` を直接使うのは、プラグインを呼ばない描画だけ。
+- **プラグインのカスタムブロック**（`<プラグイン名>/<ブロック名>`）は `render::render_content` が `HtmlRenderer` の前に解決する。そのプラグインのブロックをまとめて 1 回の `render-blocks` で HTML にし、`core/html` の標準モードと同じサニタイズ（そのプラグインの `embed.frame_domains` の `<iframe>` だけは残す。`sanitize_html_fragment_with_frames`）を掛けてから、`HtmlRenderer::render_nodes_with` で文書の中に差し込む（目次などは文書全体を見たまま）。リンク・画像のリライターは他のブロックと同じく後から掛かる。保存せずに表示のたびに呼ぶのは、プラグインの更新や設定の変更をすぐ反映するため（Wasm の呼び出しはインスタンスのプールで軽くし、ページは CDN でキャッシュできる）。HTML を描画する場所（公開ページ・フィード・コンテンツ API・プレビュー）はすべて `render_content` を通す。`render_blocks_html` を直接使うのは、プラグインを呼ばない描画だけ。
 - **目次（`core/toc`）は保存せず描画のたびに作る**。`HtmlRenderer::render_nodes` が文書全体の見出しから組み立てるので、見出しを直せば目次も追従する。リンク先の見出しの `id` は `HeadingIdTransformer` が保存時に付け、文書内で重ならないよう `-2` などを足す（既にある `id` は変えないので、公開済みのリンクは切れない）。
 - 表・目次・注記の最低限の CSS は `aegis_theme::BLOCK_STYLES`（`:where()` で詳細度 0）を全ページの `extra_head` に入れる。テーマごとに対応しなくても崩れず、テーマの CSS がいつも優先される。
 - **カスタム HTML ブロック（`core/html`）は `HtmlRenderer` がそのまま出力する**。後段のリライターはリンク・画像の属性を足すだけで、`<script>` やイベント属性は取り除かない（書けるのは `editor` 以上）。
@@ -140,6 +140,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - レイヤーミドルウェア `security_headers_middleware`（`from_fn_with_state`）により、ルーター通過時に透過的にヘッダーを注入する。
   - 管理者（`admin`）は Admin Studio の「設定 › ヘッダー」画面から、防御ヘッダー（CSP、X-Frame-Options、nosniff 等）のカスタマイズや任意のカスタム HTTP ヘッダーの動的追加・編集・削除が行える。
 - **デフォルト防御ヘッダー値**:
+  - 有効なプラグインの `capabilities.embed.frame_domains` は、ミドルウェアがレスポンスごとに CSP の `frame-src` に足す（`headers::with_frame_sources`。管理者の CSP の値は書き換えず、効いている `frame-src` / `child-src` / `default-src` から作る）。プラグインの有効・無効を切り替えると次のレスポンスから変わる。
   - `Content-Security-Policy`: SPA（Vite/React）やテーマのインラインスクリプト・フォント・メディアを壊さない安全なディレクティブ (`default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';`)。
   - `X-Frame-Options: SAMEORIGIN`（クリックジャッキング保護）
   - `X-Content-Type-Options: nosniff`（MIME スニッフィング防止）

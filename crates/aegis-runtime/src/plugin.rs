@@ -165,6 +165,20 @@ impl PluginSupervisor {
             .collect()
     }
 
+    /// カスタムブロックに埋め込める `<iframe>` の配信元（`render-blocks` を宣言したプラグインの
+    /// `embed.frame_domains` の和。重複なし・並べ替え済み）。CSP の `frame-src` に足す
+    pub fn frame_domains(&self) -> Vec<String> {
+        let mut domains: Vec<String> = self
+            .plugins
+            .iter()
+            .filter(|p| declares_hook(p.as_ref(), "render-blocks"))
+            .flat_map(|p| p.manifest().frame_domains().to_vec())
+            .collect();
+        domains.sort();
+        domains.dedup();
+        domains
+    }
+
     /// 本文のブロック名（`<プラグイン名>/<ブロック名>`）を描画するプラグイン
     pub fn block_renderer(&self, block_name: &str) -> Option<&Arc<dyn AegisPlugin>> {
         self.plugins.iter().find(|p| {

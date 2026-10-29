@@ -1503,6 +1503,7 @@ mod tests {
                 version: "1.0.0".to_string(),
                 entrypoint: "plugin.wasm".to_string(),
                 capabilities: aegis_core::PluginCapabilities {
+                    embed: None,
                     network: None,
                     storage: None,
                     hooks: vec!["on-before-save".to_string()],

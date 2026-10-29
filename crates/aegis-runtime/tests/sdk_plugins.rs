@@ -146,6 +146,21 @@ async fn test_official_blocks_plugin_renders_its_blocks() {
         .await
         .unwrap();
     assert_eq!(html.len(), 2);
+    assert_eq!(
+        plugin.manifest().frame_domains(),
+        ["www.youtube-nocookie.com", "player.vimeo.com"]
+    );
+    let video = plugin
+        .render_blocks(vec![block(
+            "official-blocks/video",
+            serde_json::json!({ "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }),
+        )])
+        .await
+        .unwrap();
+    assert!(video[0]
+        .as_deref()
+        .unwrap()
+        .contains(r#"<iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ""#));
     assert!(html[0]
         .as_deref()
         .unwrap()

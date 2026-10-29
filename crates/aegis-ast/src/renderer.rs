@@ -33,15 +33,71 @@ fn is_unsafe_uri(val: &str) -> bool {
 /// Sanitizes a raw HTML fragment using `lol_html`, stripping executable scripts,
 /// dangerous embedded frames/objects, inline event handlers (`on*`), and `javascript:` URLs.
 pub fn sanitize_html_fragment(raw: &str) -> String {
+    sanitize_html_fragment_with_frames(raw, &[])
+}
+
+/// Attributes kept on an allowed `<iframe>` (everything else, e.g. `srcdoc` or `name`, is removed)
+const FRAME_ATTRIBUTES: &[&str] = &[
+    "src",
+    "title",
+    "width",
+    "height",
+    "allow",
+    "allowfullscreen",
+    "loading",
+    "referrerpolicy",
+    "sandbox",
+    "class",
+    "style",
+    "frameborder",
+];
+
+/// Whether `src` is an `https://` URL on one of `frame_domains` (exact host; no user info or port)
+fn is_allowed_frame_src(src: &str, frame_domains: &[String]) -> bool {
+    let src = src.trim();
+    let Some(rest) = src
+        .get(..8)
+        .filter(|scheme| scheme.eq_ignore_ascii_case("https://"))
+        .map(|_| &src[8..])
+    else {
+        return false;
+    };
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    !host.contains(['@', ':', '\\']) && frame_domains.iter().any(|d| d.eq_ignore_ascii_case(host))
+}
+
+/// [`sanitize_html_fragment`], but keeps an `<iframe>` whose `src` is `https://` on one of
+/// `frame_domains` (a plugin's `embed.frame_domains`), with only the attributes in
+/// `FRAME_ATTRIBUTES`. Other frames are removed as usual
+pub fn sanitize_html_fragment_with_frames(raw: &str, frame_domains: &[String]) -> String {
     let mut output = Vec::with_capacity(raw.len());
     let settings = Settings::new()
         .append_element_content_handler(element!(
-            "script, iframe, object, embed, applet, base, meta",
+            "script, object, embed, applet, base, meta",
             |el| {
                 el.remove();
                 Ok(())
             }
         ))
+        .append_element_content_handler(element!("iframe", |el| {
+            let allowed = el
+                .get_attribute("src")
+                .is_some_and(|src| is_allowed_frame_src(&src, frame_domains));
+            if !allowed {
+                el.remove();
+                return Ok(());
+            }
+            let extra: Vec<String> = el
+                .attributes()
+                .iter()
+                .map(|attr| attr.name())
+                .filter(|name| !FRAME_ATTRIBUTES.contains(&name.to_ascii_lowercase().as_str()))
+                .collect();
+            for name in extra {
+                el.remove_attribute(&name);
+            }
+            Ok(())
+        }))
         .append_element_content_handler(element!("*", |el| {
             let to_remove: Vec<String> = el
                 .attributes()
@@ -305,8 +361,22 @@ pub struct HtmlRenderer;
 
 impl HtmlRenderer {
     pub fn render_nodes(nodes: &[BlockNode]) -> String {
+        Self::render_nodes_with(nodes, &std::collections::HashMap::new())
+    }
+
+    /// [`HtmlRenderer::render_nodes`], but outputs the given HTML for the top-level blocks at those
+    /// positions (HTML the caller already made safe, e.g. a plugin's custom block). The other
+    /// blocks, the table of contents included, still see the whole document
+    pub fn render_nodes_with(
+        nodes: &[BlockNode],
+        prerendered: &std::collections::HashMap<usize, String>,
+    ) -> String {
         let mut html = String::new();
-        for node in nodes {
+        for (i, node) in nodes.iter().enumerate() {
+            if let Some(done) = prerendered.get(&i) {
+                html.push_str(done);
+                continue;
+            }
             // 目次は文書全体の見出しから作るので、ここで描画する
             if node.name == "core/toc" {
                 html.push_str(&render_toc(node, nodes));
@@ -653,5 +723,59 @@ mod tests {
             HtmlRenderer::render_nodes(&[BlockNode::new("core/callout")]),
             ""
         );
+    }
+
+    #[test]
+    fn test_frames_are_kept_only_for_the_declared_hosts() {
+        let domains = vec!["www.youtube-nocookie.com".to_string()];
+        let html = sanitize_html_fragment_with_frames(
+            r#"<div><iframe src="https://www.youtube-nocookie.com/embed/abc?start=3" title="T" allow="autoplay" allowfullscreen srcdoc="<script>x</script>" onload="x()" name="n" loading="lazy"></iframe></div>"#,
+            &domains,
+        );
+        assert_eq!(
+            html,
+            r#"<div><iframe src="https://www.youtube-nocookie.com/embed/abc?start=3" title="T" allow="autoplay" allowfullscreen loading="lazy"></iframe></div>"#
+        );
+
+        for src in [
+            "http://www.youtube-nocookie.com/embed/a",
+            "https://evil.example/embed/a",
+            "https://www.youtube-nocookie.com.evil.example/a",
+            "https://www.youtube-nocookie.com@evil.example/a",
+            "https://www.youtube-nocookie.com:8443/a",
+            "//www.youtube-nocookie.com/embed/a",
+            "javascript:alert(1)",
+        ] {
+            let html = sanitize_html_fragment_with_frames(
+                &format!(r#"<p>a</p><iframe src="{}"></iframe>"#, src),
+                &domains,
+            );
+            assert_eq!(html, "<p>a</p>", "{}", src);
+        }
+        // 宣言が無ければ今までどおりすべて取り除く
+        assert_eq!(
+            sanitize_html_fragment(
+                r#"<iframe src="https://www.youtube-nocookie.com/embed/a"></iframe>"#
+            ),
+            ""
+        );
+        // スクリプトは許可したホストがあっても取り除く
+        assert_eq!(
+            sanitize_html_fragment_with_frames("<script>x</script><b>ok</b>", &domains),
+            "<b>ok</b>"
+        );
+    }
+
+    #[test]
+    fn test_render_nodes_with_prerendered_blocks_keeps_the_toc() {
+        let nodes = vec![
+            BlockNode::new("core/toc"),
+            BlockNode::new("my/block"),
+            BlockNode::heading(2, "A").with_attr("id", "a"),
+        ];
+        let prerendered = std::collections::HashMap::from([(1, "<p>plugin</p>\n".to_string())]);
+        let html = HtmlRenderer::render_nodes_with(&nodes, &prerendered);
+        assert!(html.contains("href=\"#a\""), "{}", html);
+        assert!(html.contains("<p>plugin</p>") && !html.contains("<my-block>"));
     }
 }
