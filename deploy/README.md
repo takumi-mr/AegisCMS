@@ -69,6 +69,7 @@ enabled = true
 | `domains` | 小文字のホスト名。`https://`・ポート・パス・ワイルドカード・IP アドレスは書けない。同じドメインを複数のサイトに書くことはできない |
 | `site_title` / `site_description` / `theme` / `plugins` | そのサイトの `[theme]` と `[plugins].enabled` |
 | `memory` | コンテナのメモリの上限（`512m`・`1g` など） |
+| `public_health` | `true` でヘルスチェック（`/health`・`/api/v1/health`）をインターネットに公開する（既定 `false`。[5. 運用](#5-運用)） |
 | `[sites.config.*]` | そのサイトの `aegis.toml` に重ねる任意の設定（[設定リファレンス](../docs/configuration.md)）。`[sites.config.xxx]` は直前の `[[sites]]` に付く |
 
 書き間違い（知らないキー・不正なドメイン・重複・無いテーマやプラグイン・設定の型の誤り）は、生成の時点でエラーになり、起動中のサイトはそのまま動き続けます。
@@ -80,7 +81,7 @@ enabled = true
 | ファイル | 内容 |
 | --- | --- |
 | `compose.yaml` | Caddy と各サイトのコンテナ・ネットワーク・ボリューム |
-| `Caddyfile` | ドメインごとの振り分け・リダイレクト・HSTS・圧縮 |
+| `Caddyfile` | ドメインごとの振り分け・リダイレクト・HSTS・圧縮・内部向けのパスの遮断 |
 | `sites/<name>/aegis.toml` | サイトの設定（[`config/docker.toml`](../config/docker.toml) に `sites.toml` の値を重ねたもの。`[audit].trust_forwarded_for = true`） |
 
 設定を変えて `./deploy.sh up` すると、設定が変わったサイトのコンテナだけを作り直し、Caddy は止めずに設定を読み直します。
@@ -114,4 +115,7 @@ AEGIS_STRIPE_WEBHOOK_SECRET=whsec_...
 - **サイトを外す**: `sites.toml` から消して `./deploy.sh up` すると、コンテナは止まって消えますが、データのボリューム（`<project>_<name>-data`）は残ります。完全に消すときは `docker volume rm aegiscms_<name>-data`。
 - **バックアップ**: サイトのデータはボリュームにまとまっています。例: `docker run --rm -v aegiscms_main-data:/data -v "$PWD:/backup" alpine tar czf /backup/main-$(date +%F).tar.gz -C /data .`。書き込み中のデータまで確実に取るには、先に `docker compose -f compose.yaml stop main` でそのサイトを止め、取ったあと `docker compose -f compose.yaml start main` で戻します。
 - **フィード・サイトマップの URL**: Caddy が `X-Forwarded-Proto: https` を付けるので、`https://<ドメイン>/...` になります。Admin Studio の **Settings › SEO** で canonical URL を設定しておくと確実です。
+- **内部向けのパス（`/metrics`・`/health`）**: Caddy が `/metrics`・`/health`・`/api/v1/health`（`[server].base_path` があればその配下も）に 404 を返し、インターネットからは見えません（使っている CMS を特定されにくくするため。[設定リファレンス 4.6](../docs/configuration.md#46-使っている-cms-を特定されにくくする)）。
+  - Prometheus は Caddy を通さず、Docker のネットワークの中から `http://<name>:8080/metrics` を読みます（Prometheus のコンテナをサイトのネットワーク `<project>_site-<name>` に参加させる。`/metrics` は `[sites.config.audit]` で `prometheus` の出力先を有効にしたときだけ応答します）。
+  - コンテナのヘルスチェックはコンテナの中から `127.0.0.1:8080` を読むので影響しません。外部の死活監視サービスでヘルスチェックを使う場合は、そのサイトに `public_health = true` を書きます（製品名とバージョンは `admin` のセッションにしか返しません）。
 - **アップロードの上限**: Caddy 側には上限を設けていません。AegisCMS の `[storage].max_upload_mb`（既定 10MB）で決まります（`[sites.config.storage]` で変更）。

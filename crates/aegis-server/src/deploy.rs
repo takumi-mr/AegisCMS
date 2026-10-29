@@ -88,6 +88,10 @@ pub struct SiteSpec {
     /// コンテナのメモリの上限（Docker の `mem_limit`。例: `"512m"`）
     #[serde(default)]
     pub memory: Option<String>,
+    /// `true` でヘルスチェック（`/health`・`/api/v1/health`）をインターネットに公開する
+    /// （外部の死活監視で使うとき）。既定では `/metrics` と同じく Caddy が 404 を返す
+    #[serde(default)]
+    pub public_health: bool,
     /// このサイトの `aegis.toml` に重ねる設定（`[sites.config.commerce]` など）
     #[serde(default)]
     pub config: Option<toml::Table>,
@@ -228,6 +232,7 @@ pub fn generate_from(sites: &SitesFile, dir: &Path, builtin: &Path) -> anyhow::R
     let mut names = HashSet::new();
     let mut domains = HashSet::new();
     let mut files = Vec::new();
+    let mut base_paths = Vec::new();
     for site in &sites.sites {
         if !is_valid_site_name(&site.name) {
             bail!(
@@ -290,7 +295,8 @@ pub fn generate_from(sites: &SitesFile, dir: &Path, builtin: &Path) -> anyhow::R
             }
         }
 
-        let config = site_config(site)?;
+        let (config, base_path) = site_config(site)?;
+        base_paths.push(base_path);
         files.push((
             PathBuf::from(format!("sites/{}/aegis.toml", site.name)),
             config,
@@ -298,7 +304,7 @@ pub fn generate_from(sites: &SitesFile, dir: &Path, builtin: &Path) -> anyhow::R
     }
 
     let config_hashes: Vec<String> = files.iter().map(|(_, c)| fnv1a(c)).collect();
-    files.push((PathBuf::from("Caddyfile"), caddyfile(sites)));
+    files.push((PathBuf::from("Caddyfile"), caddyfile(sites, &base_paths)));
     files.push((
         PathBuf::from("compose.yaml"),
         compose(sites, dir, &custom_themes, &custom_plugins, &config_hashes),
@@ -306,8 +312,9 @@ pub fn generate_from(sites: &SitesFile, dir: &Path, builtin: &Path) -> anyhow::R
     Ok(Generated { files, warnings })
 }
 
-/// サイトの `aegis.toml`: コンテナ用の設定に、サイトの値と `config` を重ねる
-fn site_config(site: &SiteSpec) -> anyhow::Result<String> {
+/// サイトの `aegis.toml`: コンテナ用の設定に、サイトの値と `config` を重ねる。
+/// 中身と、正規化した `[server].base_path` を返す
+fn site_config(site: &SiteSpec) -> anyhow::Result<(String, String)> {
     let mut table: toml::Table = toml::from_str(BASE_CONFIG).context("config/docker.toml")?;
     // Caddy の後ろで動くので、X-Forwarded-For の先頭を閲覧者の IP とみなす
     set(
@@ -378,19 +385,35 @@ fn site_config(site: &SiteSpec) -> anyhow::Result<String> {
         .analytics
         .validate()
         .map_err(|e| anyhow::anyhow!("サイト {:?} の設定: {}", site.name, e))?;
-    parsed
+    let base_path = parsed
         .server
         .normalized_base_path()
         .map_err(|e| anyhow::anyhow!("サイト {:?} の [server].base_path: {}", site.name, e))?;
 
     let body = toml::to_string_pretty(&table).context("サイトの設定を書き出せません")?;
-    Ok(format!(
+    let config = format!(
         "# サイト {:?} の設定（{}）\n# 項目の説明は docs/configuration.md\n\n{}",
         site.name, GENERATED_NOTE, body
-    ))
+    );
+    Ok((config, base_path))
 }
 
-fn caddyfile(sites: &SitesFile) -> String {
+/// インターネットから見せないパス（Prometheus などは Docker のネットワークの中から
+/// `http://<name>:8080/metrics` を直接読む）。サーバーはベースパスの有無のどちらでも受け付けるので両方
+fn internal_paths(site: &SiteSpec, base_path: &str) -> Vec<String> {
+    let mut paths = vec!["/metrics"];
+    if !site.public_health {
+        paths.extend(["/health", "/api/v1/health"]);
+    }
+    let mut out: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
+    if !base_path.is_empty() {
+        out.extend(paths.iter().map(|p| format!("{}{}", base_path, p)));
+    }
+    out
+}
+
+/// `base_paths` はサイトの順の `[server].base_path`
+fn caddyfile(sites: &SitesFile, base_paths: &[String]) -> String {
     let deploy = &sites.deploy;
     let mut out = format!("# {}\n", GENERATED_NOTE);
     if !deploy.acme_email.trim().is_empty() || deploy.acme_staging {
@@ -403,7 +426,7 @@ fn caddyfile(sites: &SitesFile) -> String {
         }
         out.push_str("}\n");
     }
-    for site in &sites.sites {
+    for (site, base_path) in sites.sites.iter().zip(base_paths) {
         let primary = &site.domains[0];
         let _ = write!(
             out,
@@ -414,6 +437,12 @@ fn caddyfile(sites: &SitesFile) -> String {
             // サブドメインに別のテナントがいることがあるので includeSubDomains は付けない
             out.push_str("\theader Strict-Transport-Security \"max-age=31536000\"\n");
         }
+        // 存在を知らせないよう 403 ではなく 404
+        let _ = writeln!(
+            out,
+            "\t@internal path {}\n\trespond @internal 404",
+            internal_paths(site, base_path).join(" ")
+        );
         let _ = writeln!(out, "\treverse_proxy {}:8080\n}}", site.name);
         for alias in &site.domains[1..] {
             let _ = writeln!(
@@ -614,7 +643,7 @@ mod tests {
             "{}",
             caddy
         );
-        assert!(caddy.contains("\nexample.com {\n\tencode zstd gzip\n\theader Strict-Transport-Security \"max-age=31536000\"\n\treverse_proxy main:8080\n}\n"), "{}", caddy);
+        assert!(caddy.contains("\nexample.com {\n\tencode zstd gzip\n\theader Strict-Transport-Security \"max-age=31536000\"\n\t@internal path /metrics /health /api/v1/health\n\trespond @internal 404\n\treverse_proxy main:8080\n}\n"), "{}", caddy);
         assert!(
             caddy.contains("\nwww.example.com {\n\tredir https://example.com{uri} permanent\n}\n")
         );
@@ -652,6 +681,37 @@ mod tests {
         assert_eq!(main.database.url, "sqlite:///app/data/aegis.db?mode=rwc");
         let blog: AegisConfig = toml::from_str(file(&generated, "sites/blog/aegis.toml")).unwrap();
         assert!(!blog.commerce.enabled && blog.plugins.enabled.is_empty());
+    }
+
+    #[test]
+    fn test_internal_paths_are_hidden_from_the_internet() {
+        let sites = parse(
+            r#"
+            [[sites]]
+            name = "main"
+            domains = ["example.com"]
+
+            [[sites]]
+            name = "status"
+            domains = ["status.example.com"]
+            public_health = true
+
+            [sites.config.server]
+            base_path = "/cms"
+            "#,
+        );
+        let generated = generate_from(&sites, empty_dir().path(), &repo()).unwrap();
+        let caddy = file(&generated, "Caddyfile");
+        assert!(
+            caddy.contains("\n\t@internal path /metrics /health /api/v1/health\n\trespond @internal 404\n\treverse_proxy main:8080\n"),
+            "{}",
+            caddy
+        );
+        assert!(
+            caddy.contains("\n\t@internal path /metrics /cms/metrics\n\trespond @internal 404\n\treverse_proxy status:8080\n"),
+            "{}",
+            caddy
+        );
     }
 
     #[test]
