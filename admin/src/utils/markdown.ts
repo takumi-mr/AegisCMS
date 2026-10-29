@@ -173,6 +173,16 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
         parts.push('---');
         break;
       }
+      case 'core/details': {
+        // :::details Summary ... :::  (`:::details+` starts open)
+        const summary = String(block.attributes?.summary ?? '').trim();
+        const text = (block.text ?? '').trim();
+        if (summary || text) {
+          const open = block.attributes?.open === true ? '+' : '';
+          parts.push(`:::details${open}${summary ? ` ${summary}` : ''}\n${text}\n:::`);
+        }
+        break;
+      }
       case 'core/callout': {
         const variant = CALLOUT_VARIANTS.includes(block.attributes?.variant)
           ? (block.attributes.variant as CalloutVariant)
@@ -340,6 +350,22 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
         i++;
         continue;
       }
+    }
+
+    // Details (:::details Summary ... :::, `:::details+` starts open)
+    const detailsMatch = line.match(/^:::\s*details(\+)?(?:\s+(.*))?$/i);
+    if (detailsMatch) {
+      const bodyLines: string[] = [];
+      i++;
+      while (i < lines.length && !/^:::\s*$/.test(lines[i])) {
+        bodyLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++; // closing :::
+      const attributes: Record<string, any> = { summary: (detailsMatch[2] ?? '').trim() };
+      if (detailsMatch[1]) attributes.open = true;
+      blocks.push({ name: 'core/details', attributes, text: bodyLines.join('\n').trim() });
+      continue;
     }
 
     // Callout (:::note Title ... :::)
@@ -521,6 +547,7 @@ const SUMMARY_KEYS = {
   'core/quote': 'markdown.summary.quote',
   'core/separator': 'markdown.summary.separator_block',
   'core/callout': 'markdown.summary.callout',
+  'core/details': 'markdown.summary.details',
 } as const;
 
 /**

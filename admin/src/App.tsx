@@ -21,6 +21,7 @@ import {
   Minus,
   Info,
   Puzzle,
+  ListCollapse,
   MessageSquare,
   MessageSquareOff,
 } from 'lucide-react';
@@ -1071,6 +1072,13 @@ export const App: React.FC = () => {
                       >
                         <Info size={14} />
                         <span>{t('editor.callout')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() => addBlock('core/details', '', { summary: '', open: false })}
+                      >
+                        <ListCollapse size={14} />
+                        <span>{t('editor.details')}</span>
                       </Button>
                       <Button variant="tool" onClick={() => addBlock('core/separator', '')}>
                         <Minus size={14} />
