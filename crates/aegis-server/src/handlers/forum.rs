@@ -193,6 +193,9 @@ pub async fn render_forum_index(State(state): State<Arc<AppState>>) -> Response 
         Some(f) => f.clone(),
         None => return render_not_found(&state, "Forum is currently disabled.").await,
     };
+    if !state.system().forum_enabled {
+        return render_not_found(&state, "Forum is currently disabled.").await;
+    }
 
     let categories_res = forum.list_categories(false).await;
     let categories = match categories_res {
@@ -277,6 +280,9 @@ pub async fn render_forum_category(
         Some(f) => f.clone(),
         None => return render_not_found(&state, "Forum is currently disabled.").await,
     };
+    if !state.system().forum_enabled {
+        return render_not_found(&state, "Forum is currently disabled.").await;
+    }
 
     let cat = match forum.get_category_by_slug(&category_slug).await {
         Ok(c) => c,
@@ -385,6 +391,9 @@ pub async fn render_forum_thread(
         Some(f) => f.clone(),
         None => return render_not_found(&state, "Forum is currently disabled.").await,
     };
+    if !state.system().forum_enabled {
+        return render_not_found(&state, "Forum is currently disabled.").await;
+    }
 
     let cat = match forum.get_category_by_slug(&category_slug).await {
         Ok(c) => c,
@@ -568,6 +577,9 @@ pub async fn handle_create_thread_form(
         Some(f) => f.clone(),
         None => return render_not_found(&state, "Forum is currently disabled.").await,
     };
+    if !state.system().forum_enabled {
+        return render_not_found(&state, "Forum is currently disabled.").await;
+    }
 
     let cat = match forum.get_category_by_slug(&category_slug).await {
         Ok(c) => c,
@@ -641,6 +653,9 @@ pub async fn handle_create_post_form(
         Some(f) => f.clone(),
         None => return render_not_found(&state, "Forum is currently disabled.").await,
     };
+    if !state.system().forum_enabled {
+        return render_not_found(&state, "Forum is currently disabled.").await;
+    }
 
     let base_path = state
         .config
@@ -717,6 +732,9 @@ pub async fn handle_create_report_form(
         Some(f) => f.clone(),
         None => return render_not_found(&state, "Forum is currently disabled.").await,
     };
+    if !state.system().forum_enabled {
+        return render_not_found(&state, "Forum is currently disabled.").await;
+    }
 
     let base_path = state
         .config
@@ -969,6 +987,12 @@ pub async fn api_create_thread(
     headers: HeaderMap,
     Json(mut req): Json<CreateThreadRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    if !state.system().forum_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Forum is temporarily disabled" })),
+        ));
+    }
     let forum = get_forum(&state)?;
     let (author_id, author_name) = resolve_author(&state, &headers, req.author_name).await;
     req.author_id = author_id;
@@ -1043,6 +1067,12 @@ pub async fn api_create_post(
     headers: HeaderMap,
     Json(mut req): Json<CreatePostRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    if !state.system().forum_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Forum is temporarily disabled" })),
+        ));
+    }
     let forum = get_forum(&state)?;
     let (author_id, author_name) = resolve_author(&state, &headers, req.author_name).await;
     req.author_id = author_id;

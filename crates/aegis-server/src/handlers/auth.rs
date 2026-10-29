@@ -114,7 +114,11 @@ pub async fn create_session(
             });
             // サーバー側のエラーは利用者の失敗として数えない
             if status == StatusCode::UNAUTHORIZED {
-                match state.login_limiter.record_failure(&username, ip).await {
+                match state
+                    .login_limiter
+                    .record_failure_with_max_ip(&username, ip, state.system().max_login_attempts)
+                    .await
+                {
                     Ok(Some(locked)) => {
                         details["locked"] = json!(locked.scope.as_str());
                     }

@@ -859,7 +859,7 @@ server {
 
 | 項目名 | DB キー | 型 / 値の形式 | 既定値 | 説明 |
 | --- | --- | --- | --- | --- |
-| インデックス全体除外 | `seo.noindex_all` | `"true"` \| `"false"` | `"false"` | 有効時、サイト全体の `<head>` に `noindex, nofollow` を強制注入（開発環境や非公開環境向け） |
+| インデックス全体除外 | `seo.noindex_all` | `"true"` | `"false"` | 有効時、サイト全体の `<head>` に `noindex, nofollow` を強制注入（開発環境や非公開環境向け） |
 | Canonical Base URL | `seo.canonical_base_url` | URL 文字列 | `""` | サイトの正規ドメイン（例: `https://example.com`）。設定時、全ページに `<link rel="canonical">` を出力 |
 | デフォルト Meta 説明文 | `seo.meta_description` | 文字列（最大 500 文字） | `""` | ページ個別の要約がない場合にフォールバック出力される `<meta name="description">` |
 | デフォルト Meta キーワード | `seo.meta_keywords` | 文字列（カンマ区切り） | `""` | `<meta name="keywords">` の出力 |
@@ -869,4 +869,20 @@ server {
 
 > [!TIP]
 > Admin Studio の SEO 設定画面では「標準設定」「開発環境（全ブロック）」「生成AIクローラー拒否」のワンクリックプリセットが用意されており、安全かつ迅速に `robots.txt` を構成できます。
+
+### 5.3 システム運用設定 (`system.*`)
+
+サーバープロセスの再起動を行わずに、Admin Studio の「設定 › システム」から即時反映できます。設定値はデータベースの `_aegis_settings` に保存され、設定ファイル（TOML）の初期値をオーバーライドします。
+
+| 項目名 | DB キー | 型 / 値の形式 | 既定値 | 説明 |
+| --- | --- | --- | --- | --- |
+| メンテナンスモード | `system.maintenance_mode` | `"true"` \| `"false"` | `"false"` | 有効時、一般リクエストに対し `503 Service Unavailable` とメンテナンス画面を返却。管理画面や管理者は通常通りアクセス可能 |
+| メンテナンスメッセージ | `system.maintenance_message` | 文字列（最大 1000 文字） | `"Site is currently under maintenance..."` | メンテナンス画面に表示する案内メッセージ |
+| 最大アップロードサイズ | `system.max_upload_mb` | 整数 (1〜1024) | `[storage].max_upload_mb` | アセットアップロード時の最大ファイルサイズ（MB） |
+| キャッシュ有効化 | `system.cache_enabled` | `"true"` \| `"false"` | `[cdn].enabled` | 公開ページのレスポンスキャッシュの有効/無効 |
+| キャッシュ TTL | `system.cache_ttl_secs` | 整数（秒） | `[cache].default_ttl_secs` | 公開ページの `Cache-Control: max-age={ttl}` の秒数 |
+| 新規ユーザー登録受付 | `system.registration_enabled` | `"true"` \| `"false"` | `[auth.registration].enabled` | Admin Studio ログイン画面からの自己アカウント新規登録受付の可否 |
+| ログイン試行制限回数 | `system.max_login_attempts` | 整数 (0 で無制限) | `[auth.login_rate_limit].max_failures_per_ip` | 同一 IP アドレスからの最大ログイン失敗許容回数 |
+| コメント投稿受付 | `system.comments_enabled` | `"true"` \| `"false"` | `[comments].enabled` | 公開サイトからの新規コメント投稿受付の一時停止/再開 |
+| 掲示板投稿受付 | `system.forum_enabled` | `"true"` \| `"false"` | `[forum].enabled` | フォーラムへの新規スレッド・返信投稿受付の一時停止/再開 |
 

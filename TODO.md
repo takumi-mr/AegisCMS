@@ -5,7 +5,24 @@
 > 完了したタスクは残さない。仕様は `docs/*.md`・`admin/README.md`、設計判断・注意点は [docs/architecture.md](docs/architecture.md)、開発手順は [docs/development.md](docs/development.md) に書いてから消す。経緯は git の履歴（PR）で追う。
 
 ## 現在の状況
-- `task check` がすべて通る状態を保つ。
+- 動的システム設定（アプローチ1: `_aegis_settings` を拡張し、Admin Studio からメンテナンスモード、ストレージ上限、キャッシュTTL、ユーザー登録受付、コメント・掲示板受付等をサーバー再起動なしで動的変更可能にする機能）の実装および全検証が完了。
+
+## 次に着手する項目
+
+1. **必要に応じた機能拡張または保守タスク**:
+   - ユーザーからの要望に基づく機能開発、または継続的なリファクタリング・依存関係の保守。
+
+## 技術メモ・申し送り事項
+- Admin Studio からの動的システム運用設定（`system.*`）の実装:
+  - 構成概要: `_aegis_settings` テーブルを用いたキー・バリュー形式の動的オーバーライド機構（`site.*`, `seo.*`, `headers.*` と同一基盤）を拡張し、`system.*` プレフィックスによる運用パラメータの動的制御を実現。設定ファイル TOML に記載された初期値を DB の設定値で透過的にオーバーライドし、サーバー再起動なしで即時反映される。
+  - 制御対象パラメータ:
+    - メンテナンスモード (`system.maintenance_mode`, `system.maintenance_message`): 有効化時、一般ユーザーに対して 503 Service Unavailable（Retry-After: 300）を返却。管理画面（`/admin`）、API（`/api/`）、監視用エンドポイント（`/health`, `/metrics`）、静的アセット、およびログイン済み管理者セッションは通常通りアクセス可能。
+    - ストレージ上限 (`system.max_upload_mb`): アセットアップロード時の最大ファイルサイズ動的制限。ルーター層の `DefaultBodyLimit` は 1GB に引き上げ、ハンドラー内で `state.system().max_upload_mb` に基づく動的チェックを行うことで、サーバー再起動なしの容量変更を実現。
+    - キャッシュ制御 (`system.cache_enabled`, `system.cache_ttl_secs`): 公開レスポンスの `Cache-Control` ヘッダー出力および TTL の動的制御。無効化時は `no-store, no-cache` を出力し CDN/ブラウザキャッシュを即座にバイパス。
+    - 認証・アカウント受付 (`system.registration_enabled`, `system.max_login_attempts`): 新規ユーザー自己登録受付の即時停止/再開（SSO 連携時も連動）、および連続ログイン失敗による IP/アカウントロック回数上限の動的調整。
+    - 投稿受付制御 (`system.comments_enabled`, `system.forum_enabled`): 読者からのコメント投稿および掲示板新規スレッド・返信投稿の一時停止/再開。
+  - フロントエンド UI: Admin Studio の「設定」内に「システム」タブを追加。各項目の即時トグル・数値入力・メッセージ入力、および初期値へのリセットボタンを実装。
+  - 監査ログ連動: 設定変更時は `system.update` (`AuditAction::SystemUpdate`) として操作ログを記録。
 
 ## 技術メモ・申し送り事項
 - テーマ開発サーバー `aegis-server theme dev <dir>`（`task dev:theme`）と Theme Builder（`theme-builder/`、`task dev:theme-builder`）を追加（[theme_authoring_guide.md](docs/theme_authoring_guide.md#theme-devdb-なしで素早く確かめる)、[architecture.md 18](docs/architecture.md#18-テーマ開発サーバー-aegis-server-theme-dev)）。DB なしでサンプルのデータを描画し、保存で自動リロード。Theme Builder は、エディター・未保存のままのライブプレビュー・エラー行の表示・幅の切り替えを持ち、Playwright の E2E（`task test:e2e:theme-builder`、CI の `theme-builder-e2e`）がある。

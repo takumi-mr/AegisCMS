@@ -46,6 +46,15 @@ impl LoginRateLimiter {
 
     /// 有効な (単位, キャッシュキー用 ID, 失敗回数の上限) の一覧
     fn scopes(&self, username: &str, ip: Option<&str>) -> Vec<(LockScope, String, u64)> {
+        self.scopes_with_max_ip(username, ip, self.config.max_failures_per_ip)
+    }
+
+    fn scopes_with_max_ip(
+        &self,
+        username: &str,
+        ip: Option<&str>,
+        max_failures_per_ip: u64,
+    ) -> Vec<(LockScope, String, u64)> {
         if !self.config.enabled {
             return Vec::new();
         }
@@ -59,12 +68,8 @@ impl LoginRateLimiter {
                 self.config.max_failures_per_user,
             ));
         }
-        if let (Some(ip), true) = (ip, self.config.max_failures_per_ip > 0) {
-            scopes.push((
-                LockScope::Ip,
-                ip.to_string(),
-                self.config.max_failures_per_ip,
-            ));
+        if let (Some(ip), true) = (ip, max_failures_per_ip > 0) {
+            scopes.push((LockScope::Ip, ip.to_string(), max_failures_per_ip));
         }
         scopes
     }
@@ -109,10 +114,22 @@ impl LoginRateLimiter {
         username: &str,
         ip: Option<&str>,
     ) -> Result<Option<LoginLockout>> {
+        self.record_failure_with_max_ip(username, ip, self.config.max_failures_per_ip)
+            .await
+    }
+
+    /// IP 制限回数を動的に指定して認証失敗を記録する
+    pub async fn record_failure_with_max_ip(
+        &self,
+        username: &str,
+        ip: Option<&str>,
+        max_failures_per_ip: u64,
+    ) -> Result<Option<LoginLockout>> {
         let window = self.config.window_secs.max(1);
         let lockout_secs = self.config.lockout_secs.max(1);
         let mut lockout = None;
-        for (scope, id, max_failures) in self.scopes(username, ip) {
+        for (scope, id, max_failures) in self.scopes_with_max_ip(username, ip, max_failures_per_ip)
+        {
             let count = self
                 .cache
                 .increment(&Self::fail_key(scope, &id), Some(window))

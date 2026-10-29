@@ -61,6 +61,9 @@ pub enum AuditAction {
     /// Site-wide settings (site title, favicon) changed via admin/API
     #[serde(rename = "site.update")]
     SiteUpdate,
+    /// System and runtime operation settings changed via admin/API
+    #[serde(rename = "system.update")]
+    SystemUpdate,
     /// SEO and crawler settings (robots.txt, meta tags, OGP) changed via admin/API
     #[serde(rename = "seo.update")]
     SeoUpdate,
@@ -166,7 +169,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 61] = [
+    pub const ALL: [AuditAction; 62] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -188,6 +191,7 @@ impl AuditAction {
         Self::ThemeSwitch,
         Self::ThemeInstall,
         Self::SiteUpdate,
+        Self::SystemUpdate,
         Self::SeoUpdate,
         Self::HeadersUpdate,
         Self::UserCreate,
@@ -253,6 +257,7 @@ impl AuditAction {
             Self::ThemeSwitch => "theme.switch",
             Self::ThemeInstall => "theme.install",
             Self::SiteUpdate => "site.update",
+            Self::SystemUpdate => "system.update",
             Self::SeoUpdate => "seo.update",
             Self::HeadersUpdate => "headers.update",
             Self::UserCreate => "user.create",

@@ -28,6 +28,7 @@
 - **商品・注文 (Products / Orders)**: 商品の作成・編集（価格・在庫・SKU・画像）と、注文の一覧・詳細・状態の変更（入金確認・発送・取り消し）。タブは EC が有効（`[commerce].enabled`）なときだけ表示する（[EC](../docs/commerce.md#33-admin-studio)）。
 - **コメント (Comments)**: 読者のコメントの承認・承認の取り消し・スパム・ゴミ箱・削除（1 件・まとめて）、本文の編集、返信、コンテンツごとの受付の停止・再開、承認制の切り替え（`admin`）。タブはコメントが有効（`[comments].enabled`。`GET /api/v1/comments/settings` が 404 でない）かつ `editor` 以上のときだけ表示する。URL の `#comments`（通知メールのリンク）でこのタブが開く（[コメント](../docs/comments.md#4-admin-studio)）。
 - **サイト (Settings › Site)**: 公開サイトの名前と favicon の変更（`GET` / `PUT /api/v1/site`、`admin` のみ。`SiteManager.tsx`）。favicon はメディアライブラリから選ぶ・アップロードする・URL を入力する。空にして保存すると設定ファイル（`[theme]`）の値に戻る（[テーマと公開](../docs/theme_and_publishing_guide.md#サイト名と-faviconadmin-studio)）。
+- **システム運用設定 (Settings › System)**: メンテナンスモードの切り替え（案内文の編集）、アセットアップロード上限（MB）、CDN/ブラウザキャッシュの有効化とTTL、ユーザー自己登録受付の停止・再開、連続ログイン失敗時のロック回数、コメント受付および掲示板投稿の受付停止・再開をサーバー再起動なしで動的に変更（`GET` / `PUT /api/v1/system/settings`、`admin` のみ。`SystemManager.tsx`。[システム設定](../docs/configuration.md#53-システム運用設定-system)）。既定値へのリセットボタン付き。
 - **通知 (Settings › Notifications)**: 配信の状態（チャネル・形式・送信待ちの保存先）と、送信待ち・送れなかった通知の一覧（再送・破棄）、見本の値でのテスト送信（チャネルごとの結果を表示）、テンプレートの編集（種類と宛先ごとの件名・本文・HTML、共通の部品）と保存前の内容でのプレビュー（HTML は `iframe` の `srcdoc`、`sandbox=""` でスクリプトを動かさない）、元に戻す。`admin` のみ（`NotificationManager.tsx`。[通知 6](../docs/notifications.md#6-admin-studio-から管理する)）。
 - **テーマ (Settings › Themes)**: インストール済みテーマのカード（プレビュー画像・タグ・作者）、ワンクリックでの切り替え（`PUT /api/v1/themes/active`、`admin`）、公開サイトの確認。マーケットプレイスのタブは将来の機能の予告（ZIP の導入は未実装）。
 - **ユーザー管理 (Settings › Users) & プロフィール**:

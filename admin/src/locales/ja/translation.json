@@ -79,7 +79,9 @@
     "contactFormsFailed": "問い合わせフォームを読み込めませんでした",
     "contactMessagesFailed": "問い合わせを読み込めませんでした",
     "updateContactMessageFailed": "問い合わせを更新できませんでした",
-    "deleteContactMessageFailed": "問い合わせを削除できませんでした"
+    "deleteContactMessageFailed": "問い合わせを削除できませんでした",
+    "systemSettingsFailed": "システム設定の取得に失敗しました",
+    "updateSystemSettingsFailed": "システム設定の保存に失敗しました"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -1003,7 +1005,8 @@
       "plugins": "プラグイン",
       "categories": "カテゴリ",
       "users": "ユーザー",
-      "audit": "監査ログ"
+      "audit": "監査ログ",
+      "system": "システム"
     }
   },
   "plugins": {
@@ -1484,5 +1487,48 @@
       "spam": "スパムにする",
       "delete": "削除"
     }
+  },
+  "system": {
+    "title": "システム運用設定",
+    "description": "サーバーの再起動を伴わずに、メンテナンスモード、ストレージ上限、キャッシュTTL、ユーザー登録・投稿受付等を動的に制御します",
+    "loadFailed": "設定の読み込みに失敗しました",
+    "saved": "システム設定を保存しました",
+    "saveFailed": "設定の保存に失敗しました",
+    "save": "変更を保存",
+    "saving": "保存中...",
+    "resetToDefault": "既定値に戻す",
+    "defaultLabel": "（設定ファイル既定値: {{value}}）",
+    "activeOverride": "カスタム設定適用中",
+    "maintenance": {
+      "heading": "メンテナンスモード",
+      "hint": "有効化すると、管理者以外の一般リクエストに対して 503 メンテナンス中画面を表示します。管理画面および管理者は通常通りアクセス可能です。",
+      "enable": "メンテナンスモードを有効にする",
+      "messageLabel": "メンテナンス画面に表示するメッセージ",
+      "messagePlaceholder": "現在メンテナンス中です。しばらく経ってから再度アクセスしてください。"
+    },
+    "storage": {
+      "heading": "ストレージ & アップロード上限",
+      "hint": "メディアライブラリ等へのファイルアップロード 1 回あたりの最大容量（MB）を制限します。",
+      "maxUploadLabel": "最大アップロードサイズ (MB)"
+    },
+    "cache": {
+      "heading": "エッジ & レスポンスキャッシュ",
+      "hint": "公開レスポンスのキャッシュヘッダー出力およびキャッシュ生存期間（TTL）を制御します。",
+      "enable": "キャッシュを有効にする",
+      "ttlLabel": "デフォルトキャッシュ生存期間 (秒)"
+    },
+    "auth": {
+      "heading": "アカウント & ログイン制御",
+      "hint": "Admin Studio ログイン画面からの自己アカウント新規登録受付および連続ログイン失敗時のロックアウト制限です。",
+      "registrationEnable": "新規ユーザーのアカウント登録を受け付ける",
+      "maxLoginAttemptsLabel": "同一IPからの最大ログイン試行回数"
+    },
+    "interactions": {
+      "heading": "コンテンツへの投稿受付 (コメント・掲示板)",
+      "hint": "読者からのコメント投稿や掲示板への新規スレッド・返信投稿の一時受付停止を即座に切り替えます。",
+      "commentsEnable": "コメント投稿を受け付ける",
+      "forumEnable": "掲示板（フォーラム）投稿を受け付ける"
+    },
+    "loading": "読み込み中..."
   }
 }

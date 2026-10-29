@@ -53,6 +53,8 @@ import type {
   SessionInfo,
   ShopConfig,
   SiteSettings,
+  SystemSettingsResponse,
+  UpdateSystemSettings,
   StorageMeta,
   StorageObjectPage,
   StorageObjectQuery,
@@ -872,6 +874,22 @@ export const aegisApi = {
   /** Drops the list saved from Admin Studio: `[plugins].enabled` of the configuration file applies */
   async resetPluginOrder(): Promise<PluginOrder> {
     return request('/plugins/order', { method: 'DELETE' }, i18n.t('api.resetPluginOrderFailed'));
+  },
+
+  async getSystemSettings(): Promise<SystemSettingsResponse> {
+    return request('/system/settings', {}, i18n.t('api.systemSettingsFailed'));
+  },
+
+  async updateSystemSettings(settings: UpdateSystemSettings): Promise<SystemSettingsResponse> {
+    return request(
+      '/system/settings',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      },
+      i18n.t('api.updateSystemSettingsFailed')
+    );
   },
 
   async getSiteSettings(): Promise<SiteSettings> {

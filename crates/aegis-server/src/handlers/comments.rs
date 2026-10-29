@@ -119,6 +119,12 @@ pub async fn list_public_comments(
     Path((content_type, slug)): Path<(String, String)>,
 ) -> Result<Json<CommentSection>, ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     let target = service
         .target(&content_type, &slug)
         .await
@@ -146,6 +152,12 @@ pub async fn submit_comment(
     Json(request): Json<CommentRequest>,
 ) -> Result<(StatusCode, Json<SubmitResponse>), ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     let target = service
         .target(&content_type, &slug)
         .await
@@ -260,6 +272,12 @@ pub async fn list_comments(
     Query(params): Query<AdminListParams>,
 ) -> Result<Json<AdminCommentPage>, ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     let status = match params.status.as_deref().filter(|s| !s.is_empty()) {
         Some(s) => Some(parse_status(s)?),
         None => None,
@@ -294,6 +312,12 @@ pub async fn update_comment(
     Json(payload): Json<UpdateCommentRequest>,
 ) -> Result<StatusCode, ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     if payload.status.is_none() && payload.body.is_none() {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
@@ -344,6 +368,12 @@ pub async fn get_content_comments(
     Path((content_type, id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     let (content_id, open) = service
         .get_content_open(&content_type, &id)
         .await
@@ -365,6 +395,12 @@ pub async fn set_content_comments(
     Json(payload): Json<ContentCommentsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     let target = service
         .set_content_open(&audit, &content_type, &id, payload.open)
         .await
@@ -388,6 +424,12 @@ pub async fn delete_comment(
     audit: AuditContext,
 ) -> Result<StatusCode, ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     let existing = state.db.get_comment(&id).await.ok().flatten();
     let deleted = service
         .delete(&audit, std::slice::from_ref(&id))
@@ -423,6 +465,12 @@ pub async fn bulk_comments(
     Json(payload): Json<BulkRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     let count = if payload.action == "delete" {
         service.delete(&audit, &payload.ids).await
     } else {
@@ -448,6 +496,12 @@ pub async fn reply_comment(
     Json(payload): Json<ReplyRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     let username = session.0.user_id.clone();
     let user = state
         .db
@@ -479,6 +533,12 @@ pub async fn get_comment_settings(
     _session: EditorSession,
 ) -> Result<Json<ModerationSettings>, ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     Ok(Json(service.settings().await.map_err(comment_error)?))
 }
 
@@ -491,6 +551,12 @@ pub async fn update_comment_settings(
     Json(payload): Json<PolicyOverrides>,
 ) -> Result<Json<ModerationSettings>, ApiError> {
     let service = comments(&state)?;
+    if !state.system().comments_enabled {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Comments are temporarily disabled" })),
+        ));
+    }
     Ok(Json(
         service
             .update_settings(&audit, payload)
