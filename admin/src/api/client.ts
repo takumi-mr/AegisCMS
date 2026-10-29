@@ -172,7 +172,7 @@ const requestNoContent = async (
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 export const aegisApi = {
-  async checkHealth(): Promise<{ status: string; system: string; version: string }> {
+  async checkHealth(): Promise<{ status: string; system?: string; version?: string }> {
     const res = await fetch(`${API_BASE}/health`);
     if (!res.ok) throw new ApiError(res.status, i18n.t('api.healthFailed'));
     return res.json();

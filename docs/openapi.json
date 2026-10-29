@@ -519,19 +519,23 @@
     },
     "/api/v1/health": {
       "get": {
-        "description": "Check if AegisCMS core service and database connection are healthy.",
+        "description": "Check if AegisCMS core service is running. `system` and `version` are only returned to an `admin` session.",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
-                    "database": {
-                      "example": "connected",
-                      "type": "string"
-                    },
                     "status": {
                       "example": "ok",
+                      "type": "string"
+                    },
+                    "system": {
+                      "example": "AegisCMS",
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "format": "date-time",
                       "type": "string"
                     },
                     "version": {
@@ -541,8 +545,7 @@
                   },
                   "required": [
                     "status",
-                    "version",
-                    "database"
+                    "timestamp"
                   ],
                   "type": "object"
                 }

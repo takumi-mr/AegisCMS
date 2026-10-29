@@ -1345,6 +1345,8 @@ mod tests {
         assert!(xml.contains(r#"href="https://example.com/articles/launch""#));
         assert!(xml.contains("<id>https://example.com/articles/article-launch</id>"));
         assert!(xml.contains("<updated>2026-10-22T00:00:03Z</updated>"));
+        // 製品名を出さない（CMS の種類を特定させない）
+        assert!(!xml.contains("<generator"), "{}", xml);
         // 本文の HTML は 1 回エスケープして入れる（テキストの < は HTML で &lt; なので &amp;lt;）
         assert!(
             xml.contains("We &amp;lt;launched&amp;gt; today."),
