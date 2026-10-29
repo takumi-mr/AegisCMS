@@ -59,6 +59,9 @@ pub struct PageInput {
     pub content_type: String,
     pub title: String,
     pub slug: String,
+    /// URL path the page is served at, for the canonical / OGP URLs (`None`: `/articles/{slug}`
+    /// for articles, `/{slug}` otherwise)
+    pub path: Option<String>,
     /// Body HTML from [`render_blocks_html`]
     pub content_html: String,
     pub author: Option<String>,
@@ -90,7 +93,7 @@ pub fn relation_summary(rel: &aegis_db::ResolvedRelation) -> serde_json::Value {
     serde_json::json!({ "id": rel.id, "title": rel.title, "slug": rel.slug })
 }
 
-/// Extra `<head>` tags containing favicon and SEO / OGP tags for any page
+/// Extra `<head>` tags for any page: the favicon, the link to the site's Atom feed and the SEO / OGP tags
 pub fn build_extra_head(
     state: &AppState,
     title: Option<&str>,
@@ -111,6 +114,18 @@ pub fn build_extra_head(
         is_article,
     };
     let mut extra_head = site.head_html();
+    let base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+    let feed_link =
+        crate::handlers::feed::feed_link_tag(&site.title, &format!("{}/feed.xml", base_path));
+    if !extra_head.is_empty() {
+        extra_head.push('\n');
+        extra_head.push_str("  ");
+    }
+    extra_head.push_str(&feed_link);
     let seo_tags = seo.generate_head_tags(&head_params);
     if !seo_tags.is_empty() {
         if !extra_head.is_empty() {
@@ -151,11 +166,13 @@ pub async fn render_page(
 ) -> Result<String, String> {
     let relations = resolve_page_relations(state, schema, &page.fields).await;
     let is_article = page.content_type == "article";
-    let path = if is_article {
-        format!("/articles/{}", page.slug)
-    } else {
-        format!("/{}", page.slug)
-    };
+    let path = page.path.clone().unwrap_or_else(|| {
+        if is_article {
+            format!("/articles/{}", page.slug)
+        } else {
+            format!("/{}", page.slug)
+        }
+    });
     let excerpt = page.fields.get("excerpt").and_then(|v| v.as_str());
     let image = page
         .fields

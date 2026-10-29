@@ -149,6 +149,13 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - `GET /api/v1/headers`: 現在の設定値とデフォルト値を返す（admin 必須）。
   - `PUT /api/v1/headers`: 設定値を更新する（admin 必須。CRLF インジェクションや不正文字のバリデーションを実施）。
 
+### 3.6a トップページ・記事一覧・フィード (`handlers/public.rs`, `handlers/feed.rs`)
+
+- トップページ（`/`）は `[theme].front_page` で記事一覧・テーマの `front.html`・固定ページを切り替える。設定値は起動時に検証する（`ThemeConfig::validate`）。サイトの構成はコードで管理する方針なので、Admin Studio の設定ではなく `aegis.toml` に置いた。`front.html` の組み込みは `index.html` を継承するだけなので、`"template"` にしてもテーマが対応していなければ表示は変わらない。
+- 固定ページを `/` に出すときは canonical・OGP の URL を `/` にし（`PageInput.path`）、そのページ自身の URL（`/{slug}`）でも同じ URL を指す。
+- 記事一覧・カテゴリの一覧・フィードは同じ取得処理（`list_published_articles`）を使う。カテゴリの絞り込みは記事のスキーマの `target: category.<フィールド>` の関係フィールドで行う。公開版の一覧は DB から全件を読んでから並べ替えている（`merge_published_content_records`）ので、絞り込みもその後に Rust 側で行い、`DatabaseAdapter` には条件を足していない。記事が多くなり一覧を SQL でページングするようにするときは、絞り込みも SQL に移す。
+- フィードは Atom 1.0。エントリの `<id>` は記事の ID の URL（`/articles/{id}`。`get_published_content` はスラッグと ID のどちらでも引ける）にして、スラッグを変えても購読者に別の記事として届かないようにした。自動検出用の `<link>` は `render::build_extra_head` で全ページの `extra_head` に入れるので、テーマ側の対応は要らない。
+
 ### 3.7 On-demand Cache-Tag Purge (`aegis-cache/src/cdn.rs`, `aegis-server/src/cdn.rs`)
 
 - **設計思想（バックエンド HTML キャッシュレス + エッジ Cache-Tag パージ）**:
@@ -160,6 +167,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - タグ文字列の正規化（`sanitize_tag`）: URL パス（`add_url`）はクエリ文字列を除き `/` を `-` に変換（`/` は `url-index`、`/articles/hello` は `url-articles-hello`）。日本語スラッグ等の非 ASCII 文字やスペース・カンマが含まれる場合は `:x<hex>` で安全にエスケープし、`HeaderValue` の生成失敗やタグ区切り文字の衝突を防ぐ。
 - **付与されるタグ体系と自動パージのトリガー**:
   - トップ・一覧（`/`）：`url-index`, `url-articles`, `site-global`, `collection-article`, 表示中の各記事の `article-{id}`, `article-{slug}`, および参照先リレーションの `{rel_type}-{id}` / `{rel_type}-{slug}`。
+  - カテゴリの記事一覧（`/category/{slug}`）・フィード（`/feed.xml`, `/category/{slug}/feed.xml`）：対応する `url-*`, `site-global`, `collection-article`, 載せた各記事の `article-{id}` / `article-{slug}`、カテゴリでは `category-{id}` / `category-{slug}`。
+  - トップページに固定ページを出している場合（`[theme].front_page = "page:<slug>"`）、`/` にはそのページの `page-{id}` / `page-{slug}` が付くので、ページの更新で `/` もパージされる。
   - 個別記事（`/articles/{slug}`）・固定ページ（`/{slug}`）・商品（`/products`, `/products/{slug}`）：対応する `url-*`, `site-global`, `{type}-{id}`, `{type}-{slug}`, リレーションタグ、`comments-{id}`, `reviews-{id}`。
   - SEO・テーマ・掲示板：`url-robots.txt` (`seo-robots`), `url-sitemap.xml` (`seo-sitemap`), `theme-{active}`, `collection-forum`, `forum-category-{slug}`, `forum-thread-{id}`。
   - **パージ発火タイミング**:

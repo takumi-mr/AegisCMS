@@ -89,6 +89,7 @@ pub fn content_invalidation_tags(
     if content_type == "article" {
         tags.add_url("/");
         tags.add_url("/articles");
+        tags.add_url("/feed.xml");
         tags.add_url(&format!("/articles/{}", slug));
     }
     if content_type == state.config.commerce.product_type {

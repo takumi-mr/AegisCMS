@@ -351,6 +351,36 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
         }
     }
 
+    // カテゴリの記事一覧 (/category/{slug})
+    if let (Some(schema), Some(_)) = (schemas.get("category"), schemas.get("article")) {
+        let query = ContentListQuery {
+            status: Some("published".to_string()),
+            limit: Some(500),
+            offset: 0,
+        };
+        if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
+            let now = chrono::Utc::now();
+            for item in page.records {
+                if !super::content::is_currently_published(
+                    &item.status,
+                    item.unpublish_at.as_deref(),
+                    now,
+                ) {
+                    continue;
+                }
+                xml.push_str("  <url>\n");
+                xml.push_str(&format!(
+                    "    <loc>{}/category/{}</loc>\n",
+                    escape_html(&base_url),
+                    escape_html(&item.slug)
+                ));
+                xml.push_str("    <changefreq>weekly</changefreq>\n");
+                xml.push_str("    <priority>0.5</priority>\n");
+                xml.push_str("  </url>\n");
+            }
+        }
+    }
+
     // 商品 (product)
     if state.commerce.is_some() {
         let product_type = &state.config.commerce.product_type;

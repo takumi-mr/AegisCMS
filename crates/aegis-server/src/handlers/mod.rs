@@ -3,6 +3,7 @@ pub mod auth;
 pub mod comments;
 pub mod content;
 pub mod customers;
+pub mod feed;
 pub mod forum;
 pub mod headers;
 pub mod health;
@@ -44,6 +45,7 @@ pub use customers::{
     list_my_orders, list_my_reviews, login as customer_login, logout as customer_logout,
     register as customer_register, update_me,
 };
+pub use feed::{get_category_feed, get_feed};
 pub use headers::{get_headers_settings, update_headers_settings};
 pub use health::health_check;
 pub use invitation::{accept_invitation, create_invitation, get_invitation_info};
@@ -61,7 +63,9 @@ pub use plugin::{
     set_plugin_enabled, set_plugin_order, update_plugin_settings,
 };
 pub use preview::preview_content;
-pub use public::{render_article, render_index, render_page_or_slug};
+pub use public::{
+    render_article, render_articles, render_category, render_index, render_page_or_slug,
+};
 pub use registration::{register, verify_registration};
 pub use reviews::{
     admin_bulk_reviews, admin_delete_reply, admin_get_review, admin_get_review_settings,
