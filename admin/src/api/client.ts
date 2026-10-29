@@ -62,6 +62,9 @@ import type {
   UpdateForumCategoryPayload,
   UpdateHeaderSettings,
   UpdateSeoSettingsPayload,
+  Enable2faResult,
+  LoginResponse,
+  TotpSetupResult,
   UpdateUserPayload,
   UpsertVariantPayload,
   UserAccount,
@@ -179,7 +182,7 @@ export const aegisApi = {
    * Logs in with a username and password. A wrong password is an `ApiError` with status 401,
    * and too many failed attempts an `ApiError` with status 429 and `retryAfterSecs`
    */
-  async login(username: string, password: string): Promise<SessionInfo> {
+  async login(username: string, password: string): Promise<LoginResponse> {
     const res = await fetch(`${API_BASE}/auth/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -190,6 +193,20 @@ export const aegisApi = {
       const retryAfter =
         typeof err.retry_after_secs === 'number' ? err.retry_after_secs : undefined;
       throw new ApiError(res.status, err.error || i18n.t('api.loginFailed'), retryAfter);
+    }
+    return res.json();
+  },
+
+  /** Verifies a 2FA code (TOTP or backup code) for an MFA challenge */
+  async verify2fa(challenge_token: string, code: string): Promise<SessionInfo> {
+    const res = await fetch(`${API_BASE}/auth/session/verify-2fa`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge_token, code }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Invalid verification code' }));
+      throw new ApiError(res.status, err.error || 'Invalid verification code');
     }
     return res.json();
   },
@@ -761,6 +778,46 @@ export const aegisApi = {
       `/users/${encodeURIComponent(username)}/avatar`,
       { method: 'PUT', body: form },
       i18n.t('api.uploadAvatarFailed')
+    );
+  },
+
+  /** Initiates 2FA setup for the current user (returns secret, otpauth URL and QR code) */
+  async setup2fa(): Promise<TotpSetupResult> {
+    return request('/users/me/2fa/setup', { method: 'POST' }, 'Failed to set up 2FA');
+  },
+
+  /** Confirms 2FA setup with a code and returns the 6 one-time backup codes */
+  async enable2fa(secret: string, code: string): Promise<Enable2faResult> {
+    return request(
+      '/users/me/2fa/enable',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, code }),
+      },
+      'Failed to enable 2FA'
+    );
+  },
+
+  /** Disables 2FA for the current user */
+  async disable2fa(payload: { password?: string; code?: string }): Promise<{ enabled: boolean }> {
+    return request(
+      '/users/me/2fa/disable',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      'Failed to disable 2FA'
+    );
+  },
+
+  /** Admin operation: forcibly resets a user\'s 2FA */
+  async resetUser2fa(username: string): Promise<{ success: boolean; username: string }> {
+    return request(
+      `/users/${encodeURIComponent(username)}/2fa/reset`,
+      { method: 'POST' },
+      'Failed to reset user 2FA'
     );
   },
 

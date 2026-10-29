@@ -473,6 +473,20 @@
       "successTitle": "AegisCMS へようこそ",
       "success": "アカウントの登録が完了しました。ユーザー名とパスワードでログインしてください。",
       "invalid": "この招待リンクは無効であるか、有効期限が切れています。"
+    },
+    "twoFactor": {
+      "title": "二段階認証",
+      "subtitle": "認証アプリまたはバックアップコードを入力してください",
+      "codeLabel": "認証コード",
+      "codePlaceholder": "6桁のコード (例: 123456)",
+      "backupCodeLabel": "バックアップコード",
+      "backupCodePlaceholder": "8桁のコード (例: A1B2-C3D4)",
+      "useBackupCode": "バックアップコードを使用する",
+      "useTotpCode": "認証アプリのコードを使用する",
+      "verify": "認証してログイン",
+      "verifying": "認証中...",
+      "invalidCode": "認証コードが無効または期限切れです",
+      "backToLogin": "通常のログインに戻る"
     }
   },
   "markdown": {
@@ -863,7 +877,30 @@
     "mismatch": "新しいパスワードが一致しません。",
     "changing": "変更中...",
     "changed": "パスワードを変更しました",
-    "changeFailed": "パスワードを変更できませんでした"
+    "changeFailed": "パスワードを変更できませんでした",
+    "twoFactor": {
+      "title": "二段階認証 (TOTP)",
+      "statusEnabled": "二段階認証は有効です",
+      "statusDisabled": "二段階認証は無効です",
+      "setupBtn": "二段階認証を設定する",
+      "disableBtn": "無効化する",
+      "scanQr": "以下の QR コードを Google Authenticator などの認証アプリでスキャンしてください。",
+      "manualSecret": "手動入力用シークレット:",
+      "enterCode": "アプリに表示される 6 桁の認証コードを入力してください:",
+      "verifyAndEnable": "有効化する",
+      "verifying": "確認中...",
+      "backupTitle": "バックアップコード (6枚)",
+      "backupWarning": "これらのバックアップコードは二度と表示されません。端末を紛失した際の復旧用として必ず安全な場所に控えてください。",
+      "copyAll": "すべてコピー",
+      "copied": "クリップボードにコピーしました",
+      "complete": "保存しました（閉じる）",
+      "confirmDisableTitle": "二段階認証の解除",
+      "confirmDisablePrompt": "二段階認証を解除するには現在のパスワードを入力してください:",
+      "disableConfirmBtn": "解除を実行",
+      "disabling": "解除中...",
+      "enabledSuccess": "二段階認証を有効化しました",
+      "disabledSuccess": "二段階認証を無効化しました"
+    }
   },
   "themes": {
     "loadFailed": "インストール済みのテーマを読み込めませんでした",
@@ -991,7 +1028,13 @@
     "resetPassword": "パスワードの再設定",
     "keepPassword": "空欄なら今のパスワードのまま",
     "saving": "保存中...",
-    "save": "変更を保存"
+    "save": "変更を保存",
+    "twoFactor": "2FA",
+    "twoFactorActive": "有効",
+    "twoFactorInactive": "未設定",
+    "reset2fa": "2FAを強制解除",
+    "reset2faConfirm": "{{username}} の二段階認証を解除しますか？次回ログインからパスワードのみでログイン可能になります。",
+    "reset2faSuccess": "{{username}} の二段階認証を解除しました"
   },
   "settings": {
     "title": "設定",

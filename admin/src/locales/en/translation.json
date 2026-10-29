@@ -478,6 +478,20 @@
       "successTitle": "Welcome to AegisCMS",
       "success": "Your account has been set up successfully. Sign in with your username and password.",
       "invalid": "This invitation link is invalid or has expired."
+    },
+    "twoFactor": {
+      "title": "Two-Factor Authentication",
+      "subtitle": "Enter the code from your authenticator app or a backup code",
+      "codeLabel": "Authentication Code",
+      "codePlaceholder": "6-digit code (e.g. 123456)",
+      "backupCodeLabel": "Backup Code",
+      "backupCodePlaceholder": "8-digit code (e.g. A1B2-C3D4)",
+      "useBackupCode": "Use a backup code instead",
+      "useTotpCode": "Use authenticator app code instead",
+      "verify": "Verify & Sign In",
+      "verifying": "Verifying...",
+      "invalidCode": "Invalid or expired verification code",
+      "backToLogin": "Back to login"
     }
   },
   "markdown": {
@@ -881,7 +895,30 @@
     "mismatch": "The new passwords do not match.",
     "changing": "Changing...",
     "changed": "Password changed",
-    "changeFailed": "Failed to change the password"
+    "changeFailed": "Failed to change the password",
+    "twoFactor": {
+      "title": "Two-Factor Authentication (TOTP)",
+      "statusEnabled": "Two-factor authentication is active",
+      "statusDisabled": "Two-factor authentication is disabled",
+      "setupBtn": "Set Up Two-Factor Authentication",
+      "disableBtn": "Disable",
+      "scanQr": "Scan this QR code with an authenticator app such as Google Authenticator or 1Password.",
+      "manualSecret": "Manual entry secret:",
+      "enterCode": "Enter the 6-digit code shown in your app:",
+      "verifyAndEnable": "Verify & Enable",
+      "verifying": "Verifying...",
+      "backupTitle": "Backup Codes (6 codes)",
+      "backupWarning": "These backup codes will not be shown again. Please save them in a secure place in case you lose access to your authenticator device.",
+      "copyAll": "Copy All",
+      "copied": "Copied to clipboard",
+      "complete": "I have saved them (Done)",
+      "confirmDisableTitle": "Disable Two-Factor Authentication",
+      "confirmDisablePrompt": "Enter your current password to disable two-factor authentication:",
+      "disableConfirmBtn": "Disable 2FA",
+      "disabling": "Disabling...",
+      "enabledSuccess": "Two-factor authentication has been enabled",
+      "disabledSuccess": "Two-factor authentication has been disabled"
+    }
   },
   "themes": {
     "loadFailed": "Failed to load installed themes",
@@ -1009,7 +1046,13 @@
     "resetPassword": "Reset password",
     "keepPassword": "Leave empty to keep the current password",
     "saving": "Saving...",
-    "save": "Save changes"
+    "save": "Save changes",
+    "twoFactor": "2FA",
+    "twoFactorActive": "Enabled",
+    "twoFactorInactive": "Off",
+    "reset2fa": "Reset 2FA",
+    "reset2faConfirm": "Are you sure you want to disable 2FA for {{username}}? They will only need their password to log in.",
+    "reset2faSuccess": "Two-factor authentication disabled for {{username}}"
   },
   "settings": {
     "title": "Settings",

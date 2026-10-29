@@ -189,7 +189,28 @@ export interface UserAccount {
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
+  /** True when two-factor authentication (TOTP) is enabled */
+  totp_enabled?: boolean;
 }
+
+export interface TotpSetupResult {
+  secret: string;
+  otpauth_url: string;
+  qr_code_base64: string;
+}
+
+export interface Enable2faResult {
+  enabled: boolean;
+  backup_codes: string[];
+}
+
+export interface LoginMfaChallenge {
+  mfa_required: true;
+  challenge_token: string;
+  user_id: string;
+}
+
+export type LoginResponse = SessionInfo | LoginMfaChallenge;
 
 /** Body of `POST /api/v1/users` */
 export interface CreateUserPayload {
