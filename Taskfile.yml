@@ -28,6 +28,16 @@ tasks:
     cmds:
       - cargo run -p aegis-server -- migrate
 
+  dump:
+    desc: データベースとストレージの一括バックアップ ZIP を生成
+    cmds:
+      - cargo run -p aegis-server -- dump --output {{.OUTPUT | default "backup.zip"}} {{.CLI_ARGS}}
+
+  restore:
+    desc: バックアップ ZIP からデータベースとストレージを復元
+    cmds:
+      - cargo run -p aegis-server -- restore --input {{.INPUT | default "backup.zip"}} {{.CLI_ARGS}}
+
   # ============================================================================
   # ⚙️ コード生成タスク (TypeScript / OpenAPI)
   # ============================================================================

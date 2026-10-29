@@ -90,6 +90,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-backup"
+version = "0.1.0"
+dependencies = [
+ "aegis-core",
+ "aegis-db",
+ "aegis-schema",
+ "aegis-storage",
+ "chrono",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "zip",
+]
+
+[[package]]
 name = "aegis-cache"
 version = "0.1.0"
 dependencies = [
@@ -362,6 +381,7 @@ dependencies = [
  "aegis-ast",
  "aegis-audit",
  "aegis-auth",
+ "aegis-backup",
  "aegis-cache",
  "aegis-comments",
  "aegis-commerce",
@@ -390,6 +410,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "sqlx",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "toml",

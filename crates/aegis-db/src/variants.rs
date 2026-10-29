@@ -133,6 +133,11 @@ pub trait ProductVariantStorage: Send + Sync {
 
     /// 指定商品の全バリエーションの削除（商品削除時に呼び出す）
     async fn delete_product_variants_by_product_id(&self, product_id: &str) -> Result<u64>;
+
+    /// 全バリエーションの取得（バックアップ・ダンプ用）
+    async fn list_all_product_variants(&self) -> Result<Vec<ProductVariantRecord>> {
+        Ok(Vec::new())
+    }
 }
 
 /// テーブル定義 SQL。MySQL は inline_indexes = true、SQLite / PostgreSQL は false
@@ -403,6 +408,23 @@ macro_rules! impl_product_variant_storage {
                     .await
                     .map_err(db_err)?;
                 Ok(res.rows_affected())
+            }
+
+            async fn list_all_product_variants(
+                &self,
+            ) -> aegis_core::Result<Vec<$crate::variants::ProductVariantRecord>> {
+                let sql = $crate::variants::build_variant_select(None);
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let rows = sqlx::query(&sql)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                let mut list = Vec::with_capacity(rows.len());
+                for r in &rows {
+                    list.push($crate::variants::variant_row_from_sqlx!(r));
+                }
+                Ok(list)
             }
         }
     };

@@ -109,6 +109,7 @@ crates/
 ├── aegis-contact    # 問い合わせフォーム: 設定で決めるフォーム・スパム対策・受信箱・通知
 ├── aegis-search     # サイト内検索: tantivy の索引（日本語は 2 文字ずつ）（feature `search`）
 ├── aegis-analytics  # アクセス解析: Cookie なしのビーコンと日ごとの集計（feature `analytics`）
+├── aegis-backup     # バックアップ・リストア: DB とストレージの一括 ZIP エクスポート/インポート（feature `backup`）
 └── aegis-server     # Axum HTTP 層（ルーティング・ハンドラ・認可）、CLI、Admin SPA 配信
 ```
 
@@ -133,6 +134,7 @@ crates/
 | [aegis-contact](crates/aegis-contact)                         | 問い合わせフォーム                                       | `ContactService` (送信・スパム対策・受信箱・通知・保存期間), `form` (入力の検査・フォームの HTML), `config` (`ContactConfig`)                                            |
 | [aegis-search](crates/aegis-search)                           | サイト内検索（feature `search`）                         | `SearchIndex` (tantivy の索引・検索), `tokenizer` (CJK の 2 文字分割), `snippet` (`<mark>` 付きの抜粋), `text` (ブロックの文字の取り出し)                                 |
 | [aegis-analytics](crates/aegis-analytics)                     | アクセス解析（feature `analytics`）                      | `AnalyticsService` (数える・まとめて書く・集計), `agent` (クローラー・端末・参照元), `beacon_script`, `config` (`AnalyticsConfig`)                                       |
+| [aegis-backup](crates/aegis-backup)                           | バックアップ・リストア（feature `backup`）               | `dump` / `restore` (DB + ストレージの一括入出力), `manifest` (SHA-256 チェックサム事前検証), ZIP パッケージ                                                            |
 | [aegis-server](crates/aegis-server)                           | HTTP 層・CLI・SPA配信                                    | `handlers` (REST API・公開ページ), `auth` (認可・フック), `audit` (`AuditContext` 抽出), `state` (`AppState`), `config` (`AegisConfig`), `main` (CLI)                     |
 
 ---
@@ -203,7 +205,7 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 - **`audit`**: リクエストから操作者と操作元を取り出す `AuditContext` エクストラクタ。
 - **`state`**: `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、`CommerceService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
 - **`config`**: 各クレートの設定セクションを束ねる `AegisConfig`（`config/*.toml` からの読み込みおよび環境変数オーバーライド。[docs/configuration.md](docs/configuration.md)）。
-- **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、ユーザー管理 `user add|passwd|role|disable|enable|list|link-oidc|link-saml`、プラグインの状態 `plugin list`、通知のテスト `notify test`）および Admin Studio SPA の配信（`/admin/`）。
+- **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、バックアップ生成 `dump`、データ復元 `restore`、ユーザー管理 `user add|passwd|role|disable|enable|list|link-oidc|link-saml`、プラグインの状態 `plugin list`、通知のテスト `notify test`）および Admin Studio SPA の配信（`/admin/`）。
 
 #### 7. `crates/aegis-plugin-sdk` & `crates/aegis-plugin-macros` (公式 Wasm プラグイン SDK)
 
