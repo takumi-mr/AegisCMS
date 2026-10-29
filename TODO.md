@@ -8,6 +8,14 @@
 - `task check` がすべて通る状態を保つ。
 
 ## 技術メモ・申し送り事項
+- 依存ライブラリの段階的メジャーバージョンアップ（全 6 フェーズ完了）:
+  - ワークスペース全体の外部クレート依存関係をルート `Cargo.toml` (`[workspace.dependencies]`) に集約・一本化し、バージョン定義を整理。
+  - フロントエンド (Admin Studio): `typescript` (7.0.2), `@types/node` (26.6.6) へ更新 (PR #111)。
+  - パーサー・ユーティリティ: `toml` (1.1), `zip` (9.1), `syn` (3.0), `minijinja` (3.0) へ更新 (PR #114)。
+  - ネットワーク・Web・サーバー: `reqwest` (0.13, rustls/form features), `tower-http` (0.7), `redis` (1.8, `ConnectionManagerConfig` 追従) へ更新 (PR #115)。
+  - 認証・暗号: `argon2` (0.6, ソルト自動生成), `base64` (0.23), `jsonwebtoken` (11.1, `rust_crypto` プロバイダー明示), `p256` (0.14, SECP256r1 点座標から JWK 構築), `x509-cert` (0.3, getter メソッド化) へ更新 (PR #116)。※ `rsa 0.9` の互換性の都合上、`hmac 0.12` / `sha2 0.10` は維持。
+  - データベース: `sqlx` (0.9.0) へ更新。動的クエリの `SqlSafeStr` 制約に対し、`crates/aegis-db/src/sqlx_compat.rs` 互換レイヤーを新設して安全かつ透過的に対応 (PR #117)。
+  - Wasm プラグイン実行基盤: `wasmtime` (50.0.0) へ更新。`Config` の非推奨 API（`async_support`, `wasm_backtrace`）を整理 (PR #118)。
 - 依存パッケージの一括更新（Dependabot #78 の tokio 1.54.1 追従を含む）:
   - 互換性維持と破壊的変更回避を優先し、マイナー・パッチバージョンの最新版へ安全に更新。
   - Rust: tokio (1.54.1), lol_html (3.0.3), uuid (1.29.0), rustix (1.1.6), icu_* (2.4.0) 等 21 パッケージを更新。
@@ -37,14 +45,7 @@
 
 **次に着手する項目**
 
-1. 依存ライブラリの段階的メジャーバージョンアップ:
-   - [x] フェーズ 1: Admin Studio (TypeScript 7, @types/node 26)
-   - [x] フェーズ 2: パーサー・ユーティリティ系 (toml 1.1, zip 9.1, syn 3.0, minijinja 3.0)
-   - [x] フェーズ 3: ネットワーク・Web・サーバー系 (reqwest 0.13, tower-http 0.7, redis 1.8)
-   - [x] フェーズ 4: 認証・暗号系 (RustCrypto, jsonwebtoken 11.1 等)
-   - [x] フェーズ 5: データベース層 (sqlx 0.9)
-   - [x] フェーズ 6: Wasm プラグイン実行基盤 (wasmtime 50.0)
-2. AssemblyScript / TinyGo SDK の追従、または翻訳の続き
+1. AssemblyScript / TinyGo SDK の追従、または翻訳の続き
 
 ---
 
