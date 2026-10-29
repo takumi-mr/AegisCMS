@@ -17,7 +17,7 @@ impl OpenApiGenerator {
                 "get": {
                     "tags": ["System"],
                     "summary": "Health check",
-                    "description": "Check if AegisCMS core service and database connection are healthy.",
+                    "description": "Check if AegisCMS core service is running. `system` and `version` are only returned to an `admin` session.",
                     "responses": {
                         "200": {
                             "description": "Service is healthy",
@@ -27,10 +27,11 @@ impl OpenApiGenerator {
                                         "type": "object",
                                         "properties": {
                                             "status": { "type": "string", "example": "ok" },
-                                            "version": { "type": "string", "example": "0.1.0" },
-                                            "database": { "type": "string", "example": "connected" }
+                                            "timestamp": { "type": "string", "format": "date-time" },
+                                            "system": { "type": "string", "example": "AegisCMS" },
+                                            "version": { "type": "string", "example": "0.1.0" }
                                         },
-                                        "required": ["status", "version", "database"]
+                                        "required": ["status", "timestamp"]
                                     }
                                 }
                             }
