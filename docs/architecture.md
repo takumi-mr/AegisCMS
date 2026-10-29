@@ -71,6 +71,9 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - `render_blocks_html` は `HtmlRenderer`（AST → HTML）の出力を `StreamingHtmlRewriter`（`lol-html`。外部リンクの `rel`、`<img>` の `loading` / `decoding`。[`[security]`](configuration.md#27-security--html-出力のセキュリティ--最適化)）に通す。
 - テーマ適用済みのページ全体は `render::render_page`（リレーション解決 → `on-render-page` → テンプレート）。公開ページとプレビューの `page_html` が共用する。
 - プレビューは編集のたびに `transform-content-ast` を呼ぶため、このフックは副作用なしが前提（[plugin_hooks.md](plugin_hooks.md)）。
+- **ブロックの種類と Markdown の対応**は [blocks.md](blocks.md)。テキストのインライン書式（`aegis_ast::inline`）は描画時に変換し、保存するテキストは Markdown の記号のまま（Admin Studio の Markdown 編集と往復できるように）。HTML のタグは書けず、リンクの URL はスキームの許可リストで絞る。
+- **目次（`core/toc`）は保存せず描画のたびに作る**。`HtmlRenderer::render_nodes` が文書全体の見出しから組み立てるので、見出しを直せば目次も追従する。リンク先の見出しの `id` は `HeadingIdTransformer` が保存時に付け、文書内で重ならないよう `-2` などを足す（既にある `id` は変えないので、公開済みのリンクは切れない）。
+- 表・目次・注記の最低限の CSS は `aegis_theme::BLOCK_STYLES`（`:where()` で詳細度 0）を全ページの `extra_head` に入れる。テーマごとに対応しなくても崩れず、テーマの CSS がいつも優先される。
 - **カスタム HTML ブロック（`core/html`）は `HtmlRenderer` がそのまま出力する**。後段のリライターはリンク・画像の属性を足すだけで、`<script>` やイベント属性は取り除かない（書けるのは `editor` 以上）。
 - **固定ページのレイアウト**: スキーマ `page` の既存の `layout` フィールドを使い（マイグレーション不要）、公開ページ（`render_page_or_slug`）とプレビューで同じ規則でテンプレートを選ぶ: `blank` → 組み込みの `blank.html`、空・`default` → `page.html`、それ以外 → テーマの `<layout>.html`。
 

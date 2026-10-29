@@ -398,6 +398,30 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
+/// 本文のブロック（表・目次・注記・引用）の最低限の見た目。全ページの `<head>` に入る。
+/// `:where()` で詳細度を 0 にしているので、テーマの CSS の指定がいつも優先される。
+/// 色は文字色の濃淡と、注記の種類ごとの `--aegis-callout`（テーマで上書きできる）だけを使う
+pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
+:where(.aegis-table){overflow-x:auto;margin:1.5rem 0}\
+:where(.aegis-table) table{border-collapse:collapse;width:100%}\
+:where(.aegis-table) :is(th,td){border:1px solid rgba(127,127,127,.3);padding:.5rem .75rem;text-align:left;vertical-align:top;overflow-wrap:break-word}\
+:where(.aegis-table) th{background:rgba(127,127,127,.08);font-weight:600}\
+:where(.aegis-toc){border:1px solid rgba(127,127,127,.3);border-radius:8px;padding:1rem 1.25rem;margin:1.5rem 0}\
+:where(.aegis-toc-title){font-weight:700;margin:0 0 .5rem}\
+:where(.aegis-toc) ol{margin:0;padding-left:1.25rem}\
+:where(.aegis-toc) ol ol{margin-top:.25rem}\
+:where(.aegis-callout){--aegis-callout:#3b82f6;border-left:4px solid var(--aegis-callout);background:rgba(127,127,127,.08);background:color-mix(in srgb,var(--aegis-callout) 10%,transparent);border-radius:0 8px 8px 0;padding:.75rem 1rem;margin:1.5rem 0}\
+:where(.aegis-callout)>:first-child{margin-top:0}\
+:where(.aegis-callout)>:last-child{margin-bottom:0}\
+:where(.aegis-callout-title){font-weight:700;color:var(--aegis-callout)}\
+:where(.aegis-callout-tip){--aegis-callout:#10b981}\
+:where(.aegis-callout-important){--aegis-callout:#8b5cf6}\
+:where(.aegis-callout-warning){--aegis-callout:#f59e0b}\
+:where(.aegis-callout-caution){--aegis-callout:#ef4444}\
+:where(.aegis-quote){margin:1.5rem 0}\
+:where(.aegis-quote) figcaption{opacity:.7;font-size:.9em;margin-top:.25rem}\
+</style>";
+
 /// `[theme].front_page = "template"` のトップページ。テーマに `front.html` が無ければ記事一覧と同じ表示にする
 pub const FRONT_TEMPLATE: &str = r#"{% extends "index.html" %}"#;
 

@@ -210,7 +210,7 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 >
 > - 設計・開発: [内部設計 (`docs/architecture.md`)](docs/architecture.md) / [開発ガイド (`docs/development.md`)](docs/development.md) / [Admin Studio (`admin/README.md`)](admin/README.md)
 > - 運用・機能: [設定リファレンス](docs/configuration.md) / [認証 & ユーザー管理](docs/authentication.md) / [監査ログ](docs/audit.md) / [メディア](docs/media.md) / [EC](docs/commerce.md) / [通知](docs/notifications.md) / [コメント](docs/comments.md) / [掲示板](docs/forum.md)
-> - テーマ: [公開 & テーマエンジン](docs/theme_and_publishing_guide.md) / [テーマ作成ガイド](docs/theme_authoring_guide.md)
+> - テーマ・本文: [公開 & テーマエンジン](docs/theme_and_publishing_guide.md) / [テーマ作成ガイド](docs/theme_authoring_guide.md) / [本文のブロック & Markdown](docs/blocks.md)
 > - プラグイン: [開発ガイド](docs/plugin_sdk_guide.md) / [フック & ホスト API](docs/plugin_hooks.md) / [ABI 仕様](docs/plugin_abi_specification.md) / [公式プラグイン](plugins/README.md)
 > - 未着手のタスク: [TODO.md](TODO.md)
 
