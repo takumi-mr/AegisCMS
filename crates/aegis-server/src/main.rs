@@ -209,7 +209,7 @@ fn registration_notifier(
     Ok(notifier)
 }
 
-/// Admin Studio の URL（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `/admin/`）。
+/// Admin Studio の URL（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `[server].admin_path`）。
 /// リンクを偽装させないよう、リクエストの Host からは作らない
 fn resolve_admin_url(config: &AegisConfig) -> Option<String> {
     let configured = config.auth.registration.admin_url.trim();
@@ -218,12 +218,12 @@ fn resolve_admin_url(config: &AegisConfig) -> Option<String> {
     }
     let public_url = config.commerce.public_url.trim().trim_end_matches('/');
     if !public_url.is_empty() {
-        return Some(format!("{}/admin/", public_url));
+        return Some(format!("{}{}/", public_url, config.server.admin_path()));
     }
     None
 }
 
-/// 確認リンクの開き先（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `/admin/`）。
+/// 確認リンクの開き先（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `[server].admin_path`）。
 fn registration_admin_url(config: &AegisConfig) -> anyhow::Result<String> {
     resolve_admin_url(config).ok_or_else(|| {
         anyhow::anyhow!(
@@ -246,7 +246,7 @@ fn notification_site(config: &AegisConfig, site_name: &str) -> aegis_notify::Sit
         admin_url: if url.is_empty() {
             String::new()
         } else {
-            format!("{}/admin/", url)
+            format!("{}{}/", url, config.server.admin_path())
         },
         url,
     }
@@ -578,6 +578,23 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let base_path = config.server.normalized_base_path()?;
+            let admin_path = config.server.normalized_admin_path()?;
+            if config.storage.local.public_url_prefix.trim_end_matches('/') == admin_path {
+                anyhow::bail!(
+                    "[server].admin_path {:?} is the same as [storage.local].public_url_prefix: choose another name",
+                    admin_path
+                );
+            }
+            // SSO ログイン後の戻り先が既定（/admin/）のままなら、Admin Studio のパスに合わせる
+            let admin_index = format!("{}/", admin_path);
+            for redirect in [
+                &mut config.auth.oidc.post_login_redirect,
+                &mut config.auth.saml.post_login_redirect,
+            ] {
+                if redirect.as_str() == "/admin/" {
+                    *redirect = admin_index.clone();
+                }
+            }
             config.plugins.validate()?;
             config.theme.validate()?;
             config.commerce.validate()?;
@@ -686,7 +703,8 @@ async fn main() -> anyhow::Result<()> {
             let theme_engine = Arc::new(
                 aegis_theme::ThemeEngine::new(&config.paths.themes_dir, &config.theme.active)
                     .with_base_path(&base_path)
-                    .with_template_reload(config.theme.reload_templates),
+                    .with_template_reload(config.theme.reload_templates)
+                    .with_powered_by(config.theme.show_powered_by),
             );
             let plugin_templates = supervisor.collect_plugin_templates();
             for (name, content) in plugin_templates {
@@ -1081,7 +1099,7 @@ async fn main() -> anyhow::Result<()> {
             let analytics_on_shutdown = app_state.analytics.clone();
 
             // 7. Router 設定（[server].base_path 配下で公開）
-            let app = app::with_base_path(app::router(&config, app_state), &base_path);
+            let app = app::with_base_path(app::router(&config, app_state), &base_path, &admin_path);
 
             let addr: SocketAddr =
                 format!("{}:{}", config.server.host, config.server.port).parse()?;

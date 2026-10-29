@@ -462,13 +462,13 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         app = app.nest_service(&prefix, ServeDir::new(&config.storage.local.upload_dir));
     }
 
-    // Admin Studio SPA 配信 (/admin/)。ビルドはアセットを相対パス（./assets/）で参照するため、
-    // ベースパスに関係なく /admin/assets/* から配信される（/admin はスラッシュ付きへリダイレクト）
+    // Admin Studio SPA 配信（`[server].admin_path`、既定 /admin/）。ビルドはアセットを相対パス（./assets/）で
+    // 参照するため、ベースパスに関係なく {admin_path}/assets/* から配信される（スラッシュ無しはリダイレクト）
     if config.paths.admin_dist_dir.exists() {
         let index_file = config.paths.admin_dist_dir.join("index.html");
         let admin_serve = ServeDir::new(&config.paths.admin_dist_dir)
             .not_found_service(ServeFile::new(index_file));
-        app = app.nest_service("/admin", admin_serve);
+        app = app.nest_service(&config.server.admin_path(), admin_serve);
     }
 
     app.layer(cors)
@@ -495,7 +495,10 @@ async fn maintenance_middleware(
     }
 
     let path = request.uri().path();
-    if path.starts_with("/admin")
+    let admin_path = state.config.server.admin_path();
+    if path
+        .strip_prefix(admin_path.as_str())
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
         || path.starts_with("/api/")
         || path.starts_with("/uploads/")
         || path.starts_with("/theme/")
@@ -571,12 +574,14 @@ async fn security_headers_middleware(
 /// `{base_path}/...` へのリクエストはベースパスを取り除いてから `router` に渡す。ベースパスの無い
 /// リクエストもそのまま受け付けるため、プロキシがパスを取り除く設定でも、コンテナのヘルスチェック
 /// （`/api/v1/health`）のようにサーバーへ直接アクセスする場合でも動く。
-pub fn with_base_path(router: Router, base_path: &str) -> Router {
-    let admin_index = format!("{}/admin/", base_path);
+///
+/// `admin_path`（`ServerConfig::normalized_admin_path` の値）はスラッシュ付きへリダイレクトする。
+pub fn with_base_path(router: Router, base_path: &str, admin_path: &str) -> Router {
+    let admin_index = format!("{}{}/", base_path, admin_path);
     let redirect_to_admin = get(move || async move { Redirect::temporary(&admin_index) });
-    let mut app = Router::new().route("/admin", redirect_to_admin.clone());
+    let mut app = Router::new().route(admin_path, redirect_to_admin.clone());
     if !base_path.is_empty() {
-        app = app.route(&format!("{}/admin", base_path), redirect_to_admin);
+        app = app.route(&format!("{}{}", base_path, admin_path), redirect_to_admin);
     }
     let base_path = base_path.to_string();
     app.fallback_service(
@@ -723,7 +728,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_base_path_is_stripped_before_routing() {
-        let app = with_base_path(echo_router(), "/sites/cms");
+        let app = with_base_path(echo_router(), "/sites/cms", "/admin");
         assert_eq!(get_text(&app, "/sites/cms").await.1, "index");
         assert_eq!(get_text(&app, "/sites/cms/").await.1, "index");
         assert_eq!(
@@ -734,7 +739,7 @@ mod tests {
         // ベースパスの無いリクエスト（パスを取り除くプロキシ・直接のヘルスチェック）
         assert_eq!(get_text(&app, "/api/v1/health").await.1, "/api/v1/health");
         // 前方一致するだけの別のパスは取り除かない
-        let app = with_base_path(echo_router(), "/cms");
+        let app = with_base_path(echo_router(), "/cms", "/admin");
         assert_eq!(get_text(&app, "/cmsx").await.1, "/cmsx");
         assert_eq!(get_text(&app, "/cms/cmsx").await.1, "/cmsx");
     }
@@ -746,10 +751,40 @@ mod tests {
             ("/cms", "/cms/admin", "/cms/admin/"),
             ("/cms", "/admin", "/cms/admin/"),
         ] {
-            let app = with_base_path(echo_router(), base);
+            let app = with_base_path(echo_router(), base, "/admin");
             let (status, _, location) = get_text(&app, path).await;
             assert_eq!(status, StatusCode::TEMPORARY_REDIRECT, "{}", path);
             assert_eq!(location.as_deref(), Some(expected), "{}", path);
         }
+    }
+
+    #[tokio::test]
+    async fn test_custom_admin_path_serves_the_admin_studio_instead_of_admin() {
+        let dist = std::env::temp_dir().join(format!("aegis-admin-dist-{}", std::process::id()));
+        std::fs::create_dir_all(&dist).unwrap();
+        std::fs::write(dist.join("index.html"), "admin studio").unwrap();
+        let mut config = AegisConfig::default();
+        config.paths.admin_dist_dir = dist.clone();
+        config.server.admin_path = "/backstage".to_string();
+        let state = crate::test_support::test_state_with_config(
+            config.clone(),
+            aegis_runtime::PluginSupervisor::new(),
+        )
+        .await;
+        let app = with_base_path(router(&config, state), "", "/backstage");
+
+        let (status, _, location) = get_text(&app, "/backstage").await;
+        assert_eq!(status, StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(location.as_deref(), Some("/backstage/"));
+        let (status, body, _) = get_text(&app, "/backstage/").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, "admin studio");
+        // 既定の /admin は Admin Studio ではなくなる（公開サイトの 404）
+        let (status, body, location) = get_text(&app, "/admin/").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_ne!(body, "admin studio");
+        assert_eq!(get_text(&app, "/admin").await.0, StatusCode::NOT_FOUND);
+        assert!(location.is_none());
+        let _ = std::fs::remove_dir_all(&dist);
     }
 }

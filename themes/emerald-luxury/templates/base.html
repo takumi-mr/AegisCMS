@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
-  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Emerald & Obsidian Studio Theme{% endif %}">
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
   <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
   {% if extra_css %}
   <style>{{ extra_css | safe }}</style>
@@ -32,7 +32,7 @@
   </main>
 
   <footer class="lux-footer">
-    <p>&copy; {{ site_title }}. Form and Function Secured by <strong>AegisCMS</strong>.</p>
+    <p>&copy; {{ site_title }}.{% if show_powered_by %} Form and Function Secured by <strong>AegisCMS</strong>.{% endif %}</p>
   </footer>
 </body>
 </html>

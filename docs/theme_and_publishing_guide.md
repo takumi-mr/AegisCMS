@@ -82,6 +82,7 @@ AegisCMS では Jinja2 / Django 互換で高速・軽量・堅牢なテンプレ
 
 ### テンプレートで使えるグローバル変数
 - `base_path`: サイトを公開しているパス（`[server].base_path`、例: `/cms`。ルートで公開している場合は空文字）。サイト内へのリンクやテーマアセットは `{{ base_path }}/articles/{{ item.slug }}`、`{{ base_path }}/theme/assets/style.css` のように先頭に付けてください。付けなくてもルート公開では動きますが、サブパス配下（[設定リファレンス](./configuration.md#42-サブパスで公開する)）ではリンク切れになります。
+- `show_powered_by`: フッターに「Powered by AegisCMS」などの表記を出すか（`[theme].show_powered_by`、既定は `true`）。独自テーマでも表記は `{% if show_powered_by %}...{% endif %}` で囲んでください。
 - `pagination`（`index.html` のみ）: `page`（1 始まり）、`per_page`、`total_items`、`total_pages`、`prev_url` / `next_url`（`base_path` 込み。無ければ空）。例:
 
 ```jinja
@@ -187,6 +188,7 @@ site_description = "Next-Generation High-Performance Secure CMS with Sandboxed W
 posts_per_page = 10        # 記事一覧の 1 ページあたりの記事数（?page=N でページ送り）
 front_page = "posts"       # トップページ: "posts"（記事一覧）/ "template"（テーマの front.html）/ "page:<slug>"（固定ページ）
 reload_templates = false   # true でテンプレートを描画のたびに読み直す（テーマ開発用）
+show_powered_by = true     # false でフッターの「Powered by AegisCMS」を出さない
 
 [paths]
 themes_dir = "themes"
