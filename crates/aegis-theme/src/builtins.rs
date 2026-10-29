@@ -4,7 +4,7 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
-  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Published Content{% endif %}">
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -307,11 +307,13 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
 
   <footer class="site-footer">
     <div class="footer-content">
+      {% if show_powered_by %}
       <div class="footer-badge">
         <span>Powered by <strong>AegisCMS</strong></span>
         <span>•</span>
         <span>Zero-Trust WebAssembly Architecture</span>
       </div>
+      {% endif %}
       <div>&copy; 2026 {{ site_title }}. All rights reserved.</div>
     </div>
   </footer>
@@ -613,7 +615,7 @@ pub const BLANK_TEMPLATE: &str = r#"<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
-  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Published Content{% endif %}">
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
   <style>
     * {
       box-sizing: border-box;

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} &bull; {% endif %}{{ site_title }}</title>
-  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}AegisCMS Nordic Minimal Editorial Theme{% endif %}">
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
   <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
   {% if extra_css %}
   <style>{{ extra_css | safe }}</style>
@@ -29,7 +29,7 @@
 
   <footer class="ed-footer">
     <div class="ed-footer-inner">
-      <p>&copy; {{ site_title }}. Powered by <strong>AegisCMS</strong> Zero-Trust Engine.</p>
+      <p>&copy; {{ site_title }}.{% if show_powered_by %} Powered by <strong>AegisCMS</strong> Zero-Trust Engine.{% endif %}</p>
     </div>
   </footer>
 </body>

@@ -25,6 +25,10 @@ pub struct ThemeConfig {
     /// `false`（既定）ではコンパイル済みのテンプレートを再利用し、テーマの切り替え時に読み直す
     #[serde(default)]
     pub reload_templates: bool,
+    /// テーマのフッターに「Powered by AegisCMS」の表記を出すか（既定: true）。
+    /// `false` で、使っている CMS を公開サイトから読み取りにくくする
+    #[serde(default = "default_show_powered_by")]
+    pub show_powered_by: bool,
     /// テーマのインストール時に署名を必須とするか（既定: false）
     #[serde(default)]
     pub require_signatures: bool,
@@ -35,6 +39,10 @@ pub struct ThemeConfig {
 
 fn default_posts_per_page() -> u64 {
     10
+}
+
+fn default_show_powered_by() -> bool {
+    true
 }
 
 fn default_front_page() -> String {
@@ -99,6 +107,7 @@ impl Default for ThemeConfig {
             posts_per_page: default_posts_per_page(),
             front_page: default_front_page(),
             reload_templates: false,
+            show_powered_by: default_show_powered_by(),
             require_signatures: false,
             trusted_public_keys: Vec::new(),
         }
