@@ -476,6 +476,39 @@ export interface SalesReport {
   days: SalesReportDay[];
 }
 
+/** Dynamic system and runtime settings (`GET` / `PUT /api/v1/system/settings`) */
+export interface SystemSettingsValues {
+  maintenance_mode: boolean;
+  maintenance_message: string;
+  max_upload_mb: number;
+  cache_enabled: boolean;
+  cache_ttl_secs: number;
+  registration_enabled: boolean;
+  max_login_attempts: number;
+  comments_enabled: boolean;
+  forum_enabled: boolean;
+}
+
+export interface SystemOverrides {
+  maintenance_mode: boolean | null;
+  maintenance_message: string | null;
+  max_upload_mb: number | null;
+  cache_enabled: boolean | null;
+  cache_ttl_secs: number | null;
+  registration_enabled: boolean | null;
+  max_login_attempts: number | null;
+  comments_enabled: boolean | null;
+  forum_enabled: boolean | null;
+}
+
+export interface SystemSettingsResponse {
+  settings: SystemSettingsValues;
+  overrides: SystemOverrides;
+  defaults: SystemSettingsValues;
+}
+
+export type UpdateSystemSettings = Partial<SystemOverrides>;
+
 /** Name and favicon of the public site (`GET` / `PUT /api/v1/site`) */
 export interface SiteSettings {
   /** Set in Admin Studio, or null to use the configuration file's value */

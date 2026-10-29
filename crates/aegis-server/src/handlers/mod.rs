@@ -29,6 +29,7 @@ pub mod storefront;
 pub mod theme;
 pub mod users;
 
+pub use crate::system::{get_system_settings, update_system_settings};
 pub use audit::{get_metrics, list_audit_logs};
 pub use auth::{create_session, delete_session, get_current_session};
 pub use comments::{

@@ -79,7 +79,9 @@
     "contactFormsFailed": "Failed to load the contact forms",
     "contactMessagesFailed": "Failed to load the contact messages",
     "updateContactMessageFailed": "Failed to update the message",
-    "deleteContactMessageFailed": "Failed to delete the message"
+    "deleteContactMessageFailed": "Failed to delete the message",
+    "systemSettingsFailed": "Failed to load system settings",
+    "updateSystemSettingsFailed": "Failed to save system settings"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -1021,7 +1023,8 @@
       "plugins": "Plugins",
       "categories": "Categories",
       "users": "Users",
-      "audit": "Audit Logs"
+      "audit": "Audit Logs",
+      "system": "System"
     }
   },
   "plugins": {
@@ -1502,5 +1505,48 @@
       "spam": "Mark as spam",
       "delete": "Delete"
     }
+  },
+  "system": {
+    "title": "System Settings",
+    "description": "Dynamically configure maintenance mode, storage limits, cache TTL, registration, and interaction acceptance without restarting the server",
+    "loadFailed": "Failed to load system settings",
+    "saved": "System settings saved successfully",
+    "saveFailed": "Failed to save system settings",
+    "save": "Save Changes",
+    "saving": "Saving...",
+    "resetToDefault": "Reset to default",
+    "defaultLabel": "(Config default: {{value}})",
+    "activeOverride": "Custom override active",
+    "maintenance": {
+      "heading": "Maintenance Mode",
+      "hint": "When enabled, visitors are shown a 503 Maintenance page. Admin Studio and signed-in administrators remain accessible.",
+      "enable": "Enable maintenance mode",
+      "messageLabel": "Maintenance page message",
+      "messagePlaceholder": "Site is currently under maintenance. Please check back soon."
+    },
+    "storage": {
+      "heading": "Storage & Upload Limit",
+      "hint": "Restricts the maximum file size (in MB) per asset upload.",
+      "maxUploadLabel": "Max upload size (MB)"
+    },
+    "cache": {
+      "heading": "Edge & Response Cache",
+      "hint": "Controls response cache headers and default cache time-to-live (TTL).",
+      "enable": "Enable cache",
+      "ttlLabel": "Default cache TTL (seconds)"
+    },
+    "auth": {
+      "heading": "Account & Login Protection",
+      "hint": "Control self-registration from the login view and rate limiting for repeated login failures.",
+      "registrationEnable": "Allow new user registration",
+      "maxLoginAttemptsLabel": "Max login attempts per IP"
+    },
+    "interactions": {
+      "heading": "Interactions (Comments & Forum)",
+      "hint": "Quickly toggle whether readers can submit new comments or forum threads/posts.",
+      "commentsEnable": "Accept new comments",
+      "forumEnable": "Accept new forum threads & posts"
+    },
+    "loading": "Loading..."
   }
 }

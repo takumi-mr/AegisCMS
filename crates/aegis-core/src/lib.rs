@@ -1,3 +1,5 @@
+//! Core types, traits, and utilities for AegisCMS.
+
 pub mod audit;
 pub mod auth;
 pub mod cache;

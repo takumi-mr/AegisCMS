@@ -29,6 +29,7 @@ mod search;
 mod seo;
 mod site;
 mod state;
+mod system;
 #[cfg(test)]
 mod test_support;
 mod theme_dev;
@@ -755,6 +756,11 @@ async fn main() -> anyhow::Result<()> {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 headers::HeaderOverrides::load(app_state.db.as_ref()).await;
+            *app_state
+                .system
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                system::SystemOverrides::load(app_state.db.as_ref()).await;
             let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),
                 None => app_state,

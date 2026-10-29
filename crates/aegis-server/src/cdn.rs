@@ -16,7 +16,16 @@ use crate::state::AppState;
 /// 公開ページの `200 OK` レスポンスに `[cdn]` 設定に基づいて `Cache-Tag`、`Surrogate-Key`、
 /// および `Cache-Control` ヘッダーを付与する。`[cdn].enabled = false` のときは何もしない。
 pub fn apply_cache_tags(state: &AppState, mut response: Response, tags: &CacheTags) -> Response {
-    if !state.config.cdn.enabled || response.status() != StatusCode::OK {
+    if response.status() != StatusCode::OK {
+        return response;
+    }
+
+    let system = state.system();
+    if !system.cache_enabled {
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-cache, no-store, must-revalidate"),
+        );
         return response;
     }
 
@@ -26,8 +35,13 @@ pub fn apply_cache_tags(state: &AppState, mut response: Response, tags: &CacheTa
     }
 
     let cc = state.config.cdn.cache_control.trim();
-    if !cc.is_empty() && !headers.contains_key(header::CACHE_CONTROL) {
-        if let Ok(val) = HeaderValue::from_str(cc) {
+    let cc_val = if !cc.is_empty() {
+        cc.to_string()
+    } else {
+        format!("public, max-age={}", system.cache_ttl_secs)
+    };
+    if !headers.contains_key(header::CACHE_CONTROL) {
+        if let Ok(val) = HeaderValue::from_str(&cc_val) {
             headers.insert(header::CACHE_CONTROL, val);
         }
     }

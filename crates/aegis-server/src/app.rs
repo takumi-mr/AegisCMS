@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use axum::{
     extract::{DefaultBodyLimit, Request},
-    http::{uri::PathAndQuery, Uri},
-    response::Redirect,
+    http::{uri::PathAndQuery, StatusCode, Uri},
+    response::{IntoResponse, Redirect},
     routing::{delete, get, patch, post, put},
     Router,
 };
@@ -176,7 +176,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/storage/upload",
             // axum の既定 (2MB) ではなく設定値をアップロードの上限にする
             post(handlers::upload_file)
-                .layer(DefaultBodyLimit::max(config.storage.max_upload_bytes())),
+                .layer(DefaultBodyLimit::max(std::cmp::max(config.storage.max_upload_bytes(), 1024 * 1024 * 1024))),
         )
         .route("/api/v1/storage/objects", get(handlers::list_objects))
         .route(
@@ -314,6 +314,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route(
             "/api/v1/plugins/{name}/enabled",
             put(handlers::set_plugin_enabled),
+        )
+        .route(
+            "/api/v1/system/settings",
+            get(handlers::get_system_settings).put(handlers::update_system_settings),
         )
         .route(
             "/api/v1/site",
@@ -461,8 +465,81 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             state.clone(),
             security_headers_middleware,
         ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            maintenance_middleware,
+        ))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+async fn maintenance_middleware(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let system = state.system();
+    if !system.maintenance_mode {
+        return next.run(request).await;
+    }
+
+    let path = request.uri().path();
+    if path.starts_with("/admin")
+        || path.starts_with("/api/")
+        || path.starts_with("/uploads/")
+        || path.starts_with("/theme/")
+        || path.starts_with("/themes/")
+        || path == "/health"
+        || path == "/metrics"
+        || path == "/robots.txt"
+        || path == "/sitemap.xml"
+        || path == "/favicon.ico"
+    {
+        return next.run(request).await;
+    }
+
+    if let Some(session_id) = crate::auth::extract_session_id(request.headers()) {
+        if let Ok(Some(s)) = state.sessions.get_session(&session_id).await {
+            if matches!(s.role.as_str(), "admin" | "editor") {
+                return next.run(request).await;
+            }
+        }
+    }
+
+    let message = aegis_ast::renderer::escape_html(&system.maintenance_message);
+    let title = state.site().title;
+    let title = aegis_ast::renderer::escape_html(&title);
+    let html = format!(
+        r#"<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{} - Maintenance</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background-color: #f8fafc; color: #1e293b; }}
+        .box {{ background: white; padding: 2.5rem; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-width: 480px; width: 90%; text-align: center; }}
+        h1 {{ font-size: 1.5rem; font-weight: 600; margin-top: 0; margin-bottom: 1rem; color: #0f172a; }}
+        p {{ line-height: 1.6; color: #64748b; margin-bottom: 0; }}
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>{}</h1>
+        <p>{}</p>
+    </div>
+</body>
+</html>"#,
+        title, title, message
+    );
+
+    let mut response = axum::response::Html(html).into_response();
+    *response.status_mut() = StatusCode::SERVICE_UNAVAILABLE;
+    response.headers_mut().insert(
+        axum::http::header::RETRY_AFTER,
+        axum::http::HeaderValue::from_static("300"),
+    );
+    response
 }
 
 async fn security_headers_middleware(
@@ -568,6 +645,54 @@ mod tests {
             .await
             .unwrap();
         (status, String::from_utf8(body.to_vec()).unwrap(), location)
+    }
+
+    #[tokio::test]
+    async fn test_maintenance_mode_middleware() {
+        let config = AegisConfig::default();
+        let state = crate::test_support::test_state_with_config(
+            config.clone(),
+            aegis_runtime::PluginSupervisor::new(),
+        )
+        .await;
+        let app = router(&config, state.clone());
+
+        // 既定ではメンテナンスモードは無効
+        let (status, _, _) = get_text(&app, "/health").await;
+        assert_eq!(status, StatusCode::OK);
+
+        // メンテナンスモードを有効化
+        state.system.write().unwrap().maintenance_mode = Some(true);
+        state.system.write().unwrap().maintenance_message = Some("System is updating".to_string());
+
+        // 公開ルート / は 503 Service Unavailable
+        let (status, body, _) = get_text(&app, "/").await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert!(body.contains("System is updating"));
+
+        // 管理・ヘルスチェック・API ルートはアクセス可能
+        let (status, _, _) = get_text(&app, "/health").await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, _, _) = get_text(&app, "/api/v1/health").await;
+        assert_eq!(status, StatusCode::OK);
+
+        // 管理者セッション付きリクエストなら公開ルートもアクセス可能
+        let session = state
+            .sessions
+            .create_session("admin1", "admin", std::collections::HashMap::new(), None)
+            .await
+            .unwrap();
+        let res = app
+            .clone()
+            .oneshot(
+                Request::get("/")
+                    .header(header::AUTHORIZATION, format!("Bearer {}", session.id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[test]

@@ -61,6 +61,9 @@ pub async fn register(
     let Some(registration) = state.registration.clone() else {
         return registration_disabled();
     };
+    if !state.system().registration_enabled {
+        return registration_disabled();
+    }
     let username = payload.username.trim().to_string();
 
     let limit = registration.service.config().max_per_ip_per_hour;
@@ -201,6 +204,9 @@ pub async fn verify_registration(
     let Some(registration) = state.registration.clone() else {
         return registration_disabled();
     };
+    if !state.system().registration_enabled {
+        return registration_disabled();
+    }
     match registration.service.complete(&payload.token).await {
         Ok(user) => {
             let pending_approval = user.disabled;

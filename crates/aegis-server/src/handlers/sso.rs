@@ -23,7 +23,7 @@ pub async fn list_auth_providers(State(state): State<Arc<AppState>>) -> Json<ser
     Json(json!({
         "local": true,
         // Admin Studio のログイン画面に「アカウントを作成」を出す（`[auth.registration]`）
-        "registration": state.registration.is_some(),
+        "registration": state.registration.is_some() && state.system().registration_enabled,
         // ログイン画面に「パスワードを忘れた」を出す（`[auth.password_reset]`）
         "password_reset": state.password_reset.is_some(),
         "invitation": state.invitation.is_some(),

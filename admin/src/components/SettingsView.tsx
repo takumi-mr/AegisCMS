@@ -9,6 +9,7 @@ import {
   Search,
   Bell,
   ShieldCheck,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount } from '../types';
@@ -21,12 +22,14 @@ import { NotificationManager } from './NotificationManager';
 import { PluginManager } from './PluginManager';
 import { SeoManager } from './SeoManager';
 import { SiteManager } from './SiteManager';
+import { SystemManager } from './SystemManager';
 import { ThemeManager } from './ThemeManager';
 import { UserManager } from './UserManager';
 import styles from './SettingsView.module.css';
 
 export type SettingsSection =
   | 'site'
+  | 'system'
   | 'seo'
   | 'headers'
   | 'notifications'
@@ -43,6 +46,7 @@ const SECTIONS: Array<{
   visible?: (session: SessionInfo) => boolean;
 }> = [
   { id: 'site', icon: <Globe size={16} />, visible: isAdmin },
+  { id: 'system', icon: <SlidersHorizontal size={16} />, visible: isAdmin },
   { id: 'seo', icon: <Search size={16} />, visible: isAdmin },
   { id: 'headers', icon: <ShieldCheck size={16} />, visible: isAdmin },
   { id: 'notifications', icon: <Bell size={16} />, visible: isAdmin },
@@ -98,6 +102,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       <div className={styles.content}>
         {current === 'site' && <SiteManager onShowToast={onShowToast} />}
+        {current === 'system' && <SystemManager onShowToast={onShowToast} />}
         {current === 'seo' && <SeoManager onShowToast={onShowToast} />}
         {current === 'headers' && <HeaderManager onShowToast={onShowToast} />}
         {current === 'notifications' && <NotificationManager onShowToast={onShowToast} />}

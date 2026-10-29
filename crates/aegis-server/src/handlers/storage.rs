@@ -131,16 +131,24 @@ pub async fn upload_file(
             let bytes = field.bytes().await.map_err(|e| {
                 // 上限超過は 413 として返す（axum の MultipartError が適切なステータスを持つ）
                 let status = e.status();
+                let max_mb = state.system().max_upload_mb;
                 let message = if status == StatusCode::PAYLOAD_TOO_LARGE {
-                    format!(
-                        "File is too large (limit: {} MB)",
-                        state.config.storage.max_upload_mb
-                    )
+                    format!("File is too large (limit: {} MB)", max_mb)
                 } else {
                     format!("Failed to read multipart file: {}", e)
                 };
                 (status, Json(json!({ "error": message })))
             })?;
+            let max_mb = state.system().max_upload_mb;
+            let max_bytes = (max_mb as usize).saturating_mul(1024 * 1024);
+            if bytes.len() > max_bytes {
+                return Err((
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    Json(json!({
+                        "error": format!("File is too large (limit: {} MB)", max_mb)
+                    })),
+                ));
+            }
             file_data = Some(bytes.to_vec());
         } else if name == "key" || name == "path" {
             if let Ok(text) = field.text().await {

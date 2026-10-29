@@ -3,6 +3,7 @@ use crate::headers::HeaderOverrides;
 use crate::plugin_registry::PluginRegistry;
 use crate::seo::SeoOverrides;
 use crate::site::{SiteInfo, SiteOverrides};
+use crate::system::{SystemOverrides, SystemSettings};
 use aegis_audit::AuditService;
 use aegis_auth::invitation::InvitationService;
 use aegis_auth::password_reset::PasswordResetService;
@@ -48,6 +49,7 @@ pub struct AppState {
     pub seo: Arc<std::sync::RwLock<SeoOverrides>>,
     /// Admin Studio から変更した共通ヘッダーおよび防御ヘッダー設定（DB の `_aegis_settings`）
     pub headers: Arc<std::sync::RwLock<HeaderOverrides>>,
+    pub system: Arc<std::sync::RwLock<SystemOverrides>>,
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
     pub oidc: Option<SsoLogin>,
     /// 外部 IdP ログイン（`[auth.saml]`）。無効なら `None`
@@ -162,6 +164,7 @@ impl AppState {
             site: Arc::new(std::sync::RwLock::new(SiteOverrides::default())),
             seo: Arc::new(std::sync::RwLock::new(SeoOverrides::default())),
             headers: Arc::new(std::sync::RwLock::new(HeaderOverrides::default())),
+            system: Arc::new(std::sync::RwLock::new(SystemOverrides::default())),
             oidc: None,
             saml: None,
             commerce: None,
@@ -232,6 +235,26 @@ impl AppState {
     }
 
     /// 共通ページヘッダーおよび防御ヘッダー設定
+    /// システム運用設定
+    pub fn system(&self) -> SystemSettings {
+        let overrides = self
+            .system
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let mut resolved = SystemSettings::resolve(&self.config, &overrides);
+        if overrides.registration_enabled.is_none() && self.registration.is_some() {
+            resolved.registration_enabled = true;
+        }
+        if overrides.comments_enabled.is_none() && self.comments.is_some() {
+            resolved.comments_enabled = true;
+        }
+        if overrides.forum_enabled.is_none() && self.forum.is_some() {
+            resolved.forum_enabled = true;
+        }
+        resolved
+    }
+
     pub fn headers(&self) -> HeaderOverrides {
         self.headers
             .read()
