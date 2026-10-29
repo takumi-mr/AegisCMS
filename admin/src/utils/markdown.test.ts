@@ -245,4 +245,95 @@ describe('markdown utilities', () => {
       expect(summary).toContain('H2');
     });
   });
+  describe('tables, contents, quotes, separators and callouts', () => {
+    const blocks: BlockNode[] = [
+      { name: 'core/toc', attributes: { title: '目次', maxLevel: 3 } },
+      {
+        name: 'core/table',
+        attributes: {
+          header: true,
+          align: [null, 'center', 'right'],
+          rows: [
+            ['Name', 'Kind', 'Price'],
+            ['A | B', '**bold**', '1,200'],
+            ['Short', '', ''],
+          ],
+        },
+      },
+      { name: 'core/quote', attributes: { cite: 'Ada' }, text: 'First line\n\nSecond' },
+      { name: 'core/separator', attributes: {} },
+      {
+        name: 'core/callout',
+        attributes: { variant: 'warning', title: 'Back up first' },
+        text: 'Run `task backup`.',
+      },
+    ];
+
+    const markdown = [
+      '[TOC title="目次"]',
+      '| Name | Kind | Price |\n| --- | :---: | ---: |\n| A \\| B | **bold** | 1,200 |\n| Short |  |  |',
+      '> First line\n>\n> Second\n> — Ada',
+      '---',
+      '> [!WARNING] Back up first\n> Run `task backup`.',
+    ].join('\n\n');
+
+    it('serializes them to Markdown', () => {
+      expect(blocksToMarkdown(blocks)).toBe(markdown);
+    });
+
+    it('parses the Markdown back to the same blocks', () => {
+      expect(markdownToBlocks(markdown)).toEqual(blocks);
+    });
+
+    it('reads a table without a header row (an empty header) and ragged rows', () => {
+      const parsed = markdownToBlocks('|  |  |\n|---|---|\n| a |\n| b | c | d |');
+      expect(parsed).toEqual([
+        {
+          name: 'core/table',
+          attributes: {
+            header: false,
+            align: [null, null, null],
+            rows: [
+              ['a', '', ''],
+              ['b', 'c', 'd'],
+            ],
+          },
+        },
+      ]);
+      expect(blocksToMarkdown(parsed)).toBe(
+        '|  |  |  |\n| --- | --- | --- |\n| a |  |  |\n| b | c | d |'
+      );
+    });
+
+    it('reads :::note callouts, plain quotes and [TOC] options', () => {
+      expect(
+        markdownToBlocks(':::tip Hint\nUse **this**.\n:::\n\n> Just a quote\n\n[toc maxLevel=4]')
+      ).toEqual([
+        {
+          name: 'core/callout',
+          attributes: { variant: 'tip', title: 'Hint' },
+          text: 'Use **this**.',
+        },
+        { name: 'core/quote', attributes: {}, text: 'Just a quote' },
+        { name: 'core/toc', attributes: { maxLevel: 4 } },
+      ]);
+    });
+
+    it('ends a paragraph at a table, a quote or a separator', () => {
+      const parsed = markdownToBlocks('Intro\n| a | b |\n| --- | --- |\nText\n> quoted\nMore\n***');
+      expect(parsed.map((b) => b.name)).toEqual([
+        'core/paragraph',
+        'core/table',
+        'core/paragraph',
+        'core/quote',
+        'core/paragraph',
+        'core/separator',
+      ]);
+    });
+
+    it('detects tables and quotes as Markdown', () => {
+      expect(isMarkdownLike('| a | b |')).toBe(true);
+      expect(isMarkdownLike('> quote')).toBe(true);
+    });
+  });
 });

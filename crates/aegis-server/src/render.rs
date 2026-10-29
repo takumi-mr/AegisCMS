@@ -93,7 +93,8 @@ pub fn relation_summary(rel: &aegis_db::ResolvedRelation) -> serde_json::Value {
     serde_json::json!({ "id": rel.id, "title": rel.title, "slug": rel.slug })
 }
 
-/// Extra `<head>` tags for any page: the favicon, the link to the site's Atom feed and the SEO / OGP tags
+/// Extra `<head>` tags for any page: the base styles of the content blocks, the favicon, the link
+/// to the site's Atom feed and the SEO / OGP tags
 pub fn build_extra_head(
     state: &AppState,
     title: Option<&str>,
@@ -113,7 +114,12 @@ pub fn build_extra_head(
         path,
         is_article,
     };
-    let mut extra_head = site.head_html();
+    let mut extra_head = String::from(aegis_theme::BLOCK_STYLES);
+    let site_head = site.head_html();
+    if !site_head.is_empty() {
+        extra_head.push_str("\n  ");
+        extra_head.push_str(&site_head);
+    }
     let base_path = state
         .config
         .server
@@ -121,10 +127,7 @@ pub fn build_extra_head(
         .unwrap_or_default();
     let feed_link =
         crate::handlers::feed::feed_link_tag(&site.title, &format!("{}/feed.xml", base_path));
-    if !extra_head.is_empty() {
-        extra_head.push('\n');
-        extra_head.push_str("  ");
-    }
+    extra_head.push_str("\n  ");
     extra_head.push_str(&feed_link);
     let seo_tags = seo.generate_head_tags(&head_params);
     if !seo_tags.is_empty() {

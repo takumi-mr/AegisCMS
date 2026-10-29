@@ -18,12 +18,13 @@ use std::collections::HashMap;
 
 use crate::handlers::content::is_currently_published;
 
-/// ブロックノードから先頭段落を抽出して抜粋を生成
+/// ブロックノードから先頭段落を抽出して抜粋を生成（インライン書式の記号は除く）
 pub(crate) fn extract_excerpt(blocks: &[BlockNode], max_chars: usize) -> String {
     for block in blocks {
         if block.name == "core/paragraph" {
             if let Some(ref text) = block.text {
-                let trimmed = text.trim();
+                let plain = aegis_ast::plain_text(text);
+                let trimmed = plain.trim();
                 if !trimmed.is_empty() {
                     if trimmed.chars().count() > max_chars {
                         let mut s: String = trimmed.chars().take(max_chars).collect();

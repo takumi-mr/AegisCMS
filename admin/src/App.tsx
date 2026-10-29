@@ -15,6 +15,11 @@ import {
   PenSquare,
   Eye,
   FileCode,
+  Table,
+  ListTree,
+  Quote,
+  Minus,
+  Info,
   MessageSquare,
   MessageSquareOff,
 } from 'lucide-react';
@@ -46,7 +51,12 @@ import { categoryIdOf } from './utils/category';
 import { canEdit, isAdmin } from './utils/roles';
 import { cx } from './utils/cx';
 import { toDateTimeLocal } from './utils/format';
-import { blocksToMarkdown, markdownToBlocks, isMarkdownLike } from './utils/markdown';
+import {
+  blocksToMarkdown,
+  markdownToBlocks,
+  isMarkdownLike,
+  TOC_DEFAULT_MAX_LEVEL,
+} from './utils/markdown';
 import { Button } from './components/ui/Button';
 import { Field, FieldRow } from './components/ui/Field';
 import styles from './App.module.css';
@@ -994,6 +1004,53 @@ export const App: React.FC = () => {
                       >
                         <ImageIcon size={14} />
                         <span>{t('editor.image')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() =>
+                          addBlock('core/table', '', {
+                            header: true,
+                            align: [null, null],
+                            rows: [
+                              [
+                                t('editor.defaults.column', { n: 1 }),
+                                t('editor.defaults.column', { n: 2 }),
+                              ],
+                              ['', ''],
+                              ['', ''],
+                            ],
+                          })
+                        }
+                      >
+                        <Table size={14} />
+                        <span>{t('editor.table')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() =>
+                          addBlock('core/toc', '', {
+                            title: t('editor.defaults.tocTitle'),
+                            maxLevel: TOC_DEFAULT_MAX_LEVEL,
+                          })
+                        }
+                      >
+                        <ListTree size={14} />
+                        <span>{t('editor.toc')}</span>
+                      </Button>
+                      <Button variant="tool" onClick={() => addBlock('core/quote', '')}>
+                        <Quote size={14} />
+                        <span>{t('editor.quote')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() => addBlock('core/callout', '', { variant: 'note' })}
+                      >
+                        <Info size={14} />
+                        <span>{t('editor.callout')}</span>
+                      </Button>
+                      <Button variant="tool" onClick={() => addBlock('core/separator', '')}>
+                        <Minus size={14} />
+                        <span>{t('editor.separator')}</span>
                       </Button>
                       <Button variant="tool" onClick={() => addBlock('core/html', '')}>
                         <FileCode size={14} />

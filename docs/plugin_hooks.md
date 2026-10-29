@@ -247,7 +247,7 @@ SDK ヘルパー:
 
 | フィールド | 型 | 説明 |
 | --- | --- | --- |
-| `name` | string | ブロック種別（`core/heading`, `core/paragraph`, `core/code`, `core/image` など） |
+| `name` | string | ブロック種別（`core/heading`, `core/paragraph`, `core/code`, `core/image`, `core/table` など。一覧と属性は [本文のブロック](blocks.md)） |
 | `attributes` | object \| null | 任意の属性。属性を省略して保存されたブロックは `null` で渡される（SDK は空のマップとして読む） |
 | `text` | string \| null | テキスト内容 |
 | `children` | `BlockNode[]` | 子ブロック |
