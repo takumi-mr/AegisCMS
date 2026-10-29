@@ -185,7 +185,10 @@
       "from": "プラグイン「{{plugin}}」のブロック",
       "unavailable": "このブロックのプラグイン（{{plugin}}）が無効か、このブロックがありません。内容はそのまま保存されますが、公開ページには表示されません。",
       "required": "必須の項目です"
-    }
+    },
+    "detailsSummary": "見出し（質問など）",
+    "detailsOpen": "最初から開く",
+    "detailsPlaceholder": "開いたときに表示する本文（答え・詳細）..."
   },
   "categories": {
     "title": "カテゴリ",
@@ -333,7 +336,8 @@
     "toc": "目次",
     "quote": "引用",
     "callout": "注記",
-    "separator": "区切り線"
+    "separator": "区切り線",
+    "details": "折りたたみ"
   },
   "header": {
     "badge": "ゼロトラスト・サンドボックス",
@@ -481,7 +485,9 @@
       "column": "列 {{n}}",
       "cell": "セル",
       "quote": "引用する文章",
-      "callout": "注記の本文"
+      "callout": "注記の本文",
+      "detailsSummary": "質問",
+      "detailsBody": "答え"
     },
     "placeholder": "ここに Markdown で本文を書きます...\n\n## 小見出し\n**太字**・*斜体*・リンクを含む段落。\n\n```rust\nfn main() {\n    println!(\"Hello AegisCMS\");\n}\n```",
     "lines_other": "{{count}} 行",
@@ -501,13 +507,15 @@
       "toc": "目次",
       "quote": "引用",
       "separator_block": "区切り線",
-      "callout": "注記"
+      "callout": "注記",
+      "details": "折りたたみ"
     },
     "inlineCode": "インラインコード（`コード`）",
     "table": "表（| A | B |）",
     "quote": "引用（>）",
     "callout": "注記（> [!NOTE]）",
-    "toc": "目次（[TOC]）"
+    "toc": "目次（[TOC]）",
+    "details": "折りたたみ（:::details 見出し）"
   },
   "media": {
     "title": "メディアライブラリ",

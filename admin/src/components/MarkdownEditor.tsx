@@ -15,6 +15,7 @@ import {
   Quote,
   Info,
   ListTree,
+  ListCollapse,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from './ui/Button';
@@ -186,6 +187,19 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
             title={t('markdown.callout')}
           >
             <Info size={14} />
+          </Button>
+          <Button
+            variant="icon"
+            onClick={() =>
+              insertText(
+                `:::details ${t('markdown.samples.detailsSummary')}\n`,
+                '\n:::\n',
+                t('markdown.samples.detailsBody')
+              )
+            }
+            title={t('markdown.details')}
+          >
+            <ListCollapse size={14} />
           </Button>
           <Button variant="icon" onClick={() => insertText('[TOC]\n')} title={t('markdown.toc')}>
             <ListTree size={14} />

@@ -16,6 +16,7 @@ import {
   Minus,
   Info,
   Puzzle,
+  ListCollapse,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BlockNode, PluginBlockDefinition } from '../types';
@@ -82,6 +83,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         return <Minus size={14} />;
       case 'core/callout':
         return <Info size={14} />;
+      case 'core/details':
+        return <ListCollapse size={14} />;
       default:
         return pluginBlock ? <Puzzle size={14} /> : <AlignLeft size={14} />;
     }
@@ -410,6 +413,42 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       )}
 
       {block.name === 'core/separator' && <hr className={styles.separator} />}
+
+      {block.name === 'core/details' && (
+        <div className={styles.stack}>
+          <div className={styles.inline}>
+            <input
+              type="text"
+              className={cx(styles.urlInput, styles.grow)}
+              aria-label={t('blocks.detailsSummary')}
+              placeholder={t('blocks.detailsSummary')}
+              value={block.attributes?.summary || ''}
+              onChange={(e) =>
+                onChange({ ...block, attributes: { ...block.attributes, summary: e.target.value } })
+              }
+            />
+            <label className={styles.languageLabel}>
+              <input
+                type="checkbox"
+                checked={block.attributes?.open === true}
+                onChange={(e) =>
+                  onChange({
+                    ...block,
+                    attributes: { ...block.attributes, open: e.target.checked },
+                  })
+                }
+              />{' '}
+              {t('blocks.detailsOpen')}
+            </label>
+          </div>
+          <textarea
+            className={styles.textarea}
+            placeholder={t('blocks.detailsPlaceholder')}
+            value={block.text || ''}
+            onChange={(e) => onChange({ ...block, text: e.target.value })}
+          />
+        </div>
+      )}
 
       {block.name === 'core/callout' && (
         <div className={styles.stack}>

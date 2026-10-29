@@ -366,4 +366,29 @@ describe('markdown utilities', () => {
       { name: 'core/paragraph', attributes: {}, text: ':::unknown\nafter' },
     ]);
   });
+  describe('details', () => {
+    it('writes and reads details blocks, open ones with :::details+', () => {
+      const blocks: BlockNode[] = [
+        {
+          name: 'core/details',
+          attributes: { summary: 'Is it **free**?' },
+          text: 'Yes.\n\nSee the license.',
+        },
+        { name: 'core/details', attributes: { summary: 'Open one', open: true }, text: 'Body' },
+      ];
+      const markdown = blocksToMarkdown(blocks);
+      expect(markdown).toBe(
+        ':::details Is it **free**?\nYes.\n\nSee the license.\n:::\n\n:::details+ Open one\nBody\n:::'
+      );
+      expect(markdownToBlocks(markdown)).toEqual(blocks);
+    });
+
+    it('reads details without a summary or a closing line', () => {
+      expect(markdownToBlocks(':::details\nOnly body')).toEqual([
+        { name: 'core/details', attributes: { summary: '' }, text: 'Only body' },
+      ]);
+      // ブロックが空なら Markdown にも出さない
+      expect(blocksToMarkdown([{ name: 'core/details', attributes: { summary: '' } }])).toBe('');
+    });
+  });
 });

@@ -477,6 +477,24 @@ impl HtmlRenderer {
                 }
             }
             "core/separator" => "<hr>\n".to_string(),
+            // 折りたたみ（Q&A・詳細）。`attributes.summary` が見出し、`attributes.open` で最初から開く
+            "core/details" => {
+                let body = render_paragraphs(node.text.as_deref().unwrap_or_default());
+                let summary = attr_str(node, "summary");
+                if summary.is_none() && body.is_empty() {
+                    return String::new();
+                }
+                let open = node
+                    .attributes
+                    .get("open")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                format!(
+                    "<details class=\"aegis-details\"{}><summary>{}</summary>\n<div class=\"aegis-details-body\">\n{body}</div></details>\n",
+                    if open { " open" } else { "" },
+                    render_inline(summary.unwrap_or("Details"))
+                )
+            }
             "core/callout" => {
                 let variant = attr_str(node, "variant")
                     .filter(|v| CALLOUT_VARIANTS.contains(v))
@@ -777,5 +795,27 @@ mod tests {
         let html = HtmlRenderer::render_nodes_with(&nodes, &prerendered);
         assert!(html.contains("href=\"#a\""), "{}", html);
         assert!(html.contains("<p>plugin</p>") && !html.contains("<my-block>"));
+    }
+
+    #[test]
+    fn test_details_block() {
+        let mut details = BlockNode::new("core/details").with_attr("summary", "Is it **free**?");
+        details.text = Some("Yes.\n\nSee [the license](/license).".to_string());
+        assert_eq!(
+            HtmlRenderer::render_nodes(&[details.clone()]),
+            "<details class=\"aegis-details\"><summary>Is it <strong>free</strong>?</summary>\n<div class=\"aegis-details-body\">\n<p>Yes.</p>\n<p>See <a href=\"/license\">the license</a>.</p>\n</div></details>\n"
+        );
+        let open = HtmlRenderer::render_nodes(&[details.with_attr("open", true)]);
+        assert!(open.starts_with("<details class=\"aegis-details\" open><summary>"));
+
+        // 見出しが無ければ「Details」、両方空なら何も出さない
+        let mut untitled = BlockNode::new("core/details");
+        untitled.text = Some("<b>body</b>".to_string());
+        let html = HtmlRenderer::render_nodes(&[untitled]);
+        assert!(html.contains("<summary>Details</summary>") && html.contains("&lt;b&gt;body"));
+        assert_eq!(
+            HtmlRenderer::render_nodes(&[BlockNode::new("core/details")]),
+            ""
+        );
     }
 }

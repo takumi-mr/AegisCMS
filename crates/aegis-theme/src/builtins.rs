@@ -398,7 +398,7 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
-/// 本文のブロック（表・目次・注記・引用）の最低限の見た目。全ページの `<head>` に入る。
+/// 本文のブロック（表・目次・注記・引用・折りたたみ）の最低限の見た目。全ページの `<head>` に入る。
 /// `:where()` で詳細度を 0 にしているので、テーマの CSS の指定がいつも優先される。
 /// 色は文字色の濃淡と、注記の種類ごとの `--aegis-callout`（テーマで上書きできる）だけを使う
 pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
@@ -418,6 +418,12 @@ pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
 :where(.aegis-callout-important){--aegis-callout:#8b5cf6}\
 :where(.aegis-callout-warning){--aegis-callout:#f59e0b}\
 :where(.aegis-callout-caution){--aegis-callout:#ef4444}\
+:where(.aegis-details){border:1px solid rgba(127,127,127,.3);border-radius:8px;margin:1rem 0;padding:0 1rem}\
+:where(.aegis-details)>summary{cursor:pointer;font-weight:600;padding:.75rem 0}\
+:where(.aegis-details-body){padding-bottom:.75rem}\
+:where(.aegis-details-body)>:first-child{margin-top:0}\
+:where(.aegis-details-body)>:last-child{margin-bottom:0}\
+:where(.aegis-details)+:where(.aegis-details){margin-top:-.5rem}\
 :where(.aegis-quote){margin:1.5rem 0}\
 :where(.aegis-quote) figcaption{opacity:.7;font-size:.9em;margin-top:.25rem}\
 </style>";

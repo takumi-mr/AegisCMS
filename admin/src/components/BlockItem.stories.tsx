@@ -303,3 +303,27 @@ export const UnavailablePluginBlock: Story = {
     await expect(canvas.getByText(/removed-plugin/, { selector: 'p' })).toBeVisible();
   },
 };
+
+export const DetailsBlock: Story = {
+  args: {
+    block: {
+      name: 'core/details',
+      attributes: { summary: 'Is AegisCMS free?', open: false },
+      text: 'Yes, it is open source.',
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('core/details')).toBeVisible();
+    await expect(canvas.getByDisplayValue('Is AegisCMS free?')).toBeVisible();
+
+    // 「最初から開く」を付けると attributes.open が true になること
+    await userEvent.click(canvas.getByRole('checkbox'));
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'core/details',
+        attributes: expect.objectContaining({ open: true, summary: 'Is AegisCMS free?' }),
+      })
+    );
+  },
+};

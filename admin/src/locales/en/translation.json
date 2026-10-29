@@ -186,7 +186,10 @@
       "from": "Block of the plugin \"{{plugin}}\"",
       "unavailable": "The plugin of this block ({{plugin}}) is disabled or no longer has this block. The block is kept as it is but not shown on the site.",
       "required": "Required"
-    }
+    },
+    "detailsSummary": "Summary (e.g. a question)",
+    "detailsOpen": "Open by default",
+    "detailsPlaceholder": "Text shown when opened (the answer or details)..."
   },
   "categories": {
     "title": "Categories",
@@ -336,7 +339,8 @@
     "toc": "Contents",
     "quote": "Quote",
     "callout": "Callout",
-    "separator": "Separator"
+    "separator": "Separator",
+    "details": "Details"
   },
   "header": {
     "badge": "Zero-Trust Sandbox",
@@ -486,7 +490,9 @@
       "column": "Column {{n}}",
       "cell": "cell",
       "quote": "Quoted text",
-      "callout": "Callout text"
+      "callout": "Callout text",
+      "detailsSummary": "Question",
+      "detailsBody": "Answer"
     },
     "placeholder": "Write your content in Markdown here...\n\n## Subheading\nParagraph content with **bold**, *italics*, and links.\n\n```rust\nfn main() {\n    println!(\"Hello AegisCMS\");\n}\n```",
     "lines_one": "{{count}} line",
@@ -510,13 +516,15 @@
       "toc": "Contents",
       "quote": "Quote",
       "separator_block": "Separator",
-      "callout": "Callout"
+      "callout": "Callout",
+      "details": "Details"
     },
     "inlineCode": "Inline code (`code`)",
     "table": "Table (| A | B |)",
     "quote": "Quote (>)",
     "callout": "Callout (> [!NOTE])",
-    "toc": "Table of contents ([TOC])"
+    "toc": "Table of contents ([TOC])",
+    "details": "Details (:::details Summary)"
   },
   "media": {
     "title": "Media Library",

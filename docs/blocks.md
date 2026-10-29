@@ -22,6 +22,7 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 | `core/quote` | `cite`（出典。任意） | `> 引用`（最後の行が `> — 出典` なら出典） | `<blockquote>`（出典があれば `<figure class="aegis-quote">` と `<figcaption>`） |
 | `core/callout` | `variant`（`note` / `tip` / `important` / `warning` / `caution`、既定 `note`）、`title`（任意） | `> [!WARNING] 見出し` に続く `> 本文`、または `:::warning 見出し` 〜 `:::` | `<aside class="aegis-callout aegis-callout-warning" role="note">` |
 | `core/separator` | | `---`（`***`・`___` も可） | `<hr>` |
+| `core/details` | `summary`（見出し）、`open`（最初から開く。既定 `false`） | `:::details 見出し` 〜 `:::`（開いた状態は `:::details+`） | `<details class="aegis-details"><summary>` |
 | `core/html` | `mode`（`sanitized` / `sandbox`） | ` ```html ` / ` ```html:sandbox ` | [カスタム HTML](theme_authoring_guide.md#31-どの-url-でどのテンプレートが使われるか) |
 
 `<プラグイン名>/<ブロック名>` のブロックは、そのプラグインが描画します（[4. プラグインのブロック](#4-プラグインのブロック)）。それ以外の知らない名前のブロックは、名前の `/` を `-` にしたカスタム要素（`<my-plugin-card>`）として出力します。
@@ -63,9 +64,27 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 
 注記の種類は GitHub のアラートと同じ 5 種類です。本文は空行で段落に分かれ、インライン書式が使えます。
 
+### 1.4 折りたたみ
+
+Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>` なので、JavaScript は使わず、キーボードでも開け閉めでき、閉じていても本文は検索エンジンに読まれます。
+
+```markdown
+:::details 無料で使えますか？
+はい。**オープンソース**です。
+
+商用利用もできます。
+:::
+
+:::details+ 最初から開いておく項目
+本文
+:::
+```
+
+見出しと本文ではインライン書式が使えます。本文は空行で段落に分かれます。見出しが空なら `Details` と表示します。
+
 ## 2. インライン書式
 
-段落・リストの項目・見出し・表のセル・引用・注記の本文と見出しで使えます。
+段落・リストの項目・見出し・表のセル・引用・注記・折りたたみの本文と見出しで使えます。
 
 | 書き方 | 出力 |
 |---|---|
@@ -84,7 +103,7 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 
 ## 3. 見た目
 
-表・目次・引用の出典・注記には、最低限のスタイルが組み込まれています（全ページの `<head>` の `<style id="aegis-block-styles">`）。セレクタを `:where()` で包んで詳細度を 0 にしているので、テーマの CSS がいつも優先されます。色は文字色の濃淡と、注記の種類ごとの CSS 変数 `--aegis-callout` だけを使うので、明るいテーマでも暗いテーマでも読めます。
+表・目次・引用の出典・注記・折りたたみには、最低限のスタイルが組み込まれています（全ページの `<head>` の `<style id="aegis-block-styles">`）。セレクタを `:where()` で包んで詳細度を 0 にしているので、テーマの CSS がいつも優先されます。色は文字色の濃淡と、注記の種類ごとの CSS 変数 `--aegis-callout` だけを使うので、明るいテーマでも暗いテーマでも読めます。
 
 テーマで見た目を変えるときのクラス:
 
@@ -94,6 +113,7 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 | `.aegis-toc`、`.aegis-toc-title` | 目次の `<nav>` と見出し |
 | `.aegis-quote` | 出典のある引用の `<figure>`（出典は `figcaption`） |
 | `.aegis-callout`、`.aegis-callout-{note,tip,important,warning,caution}`、`.aegis-callout-title` | 注記と種類・見出し |
+| `.aegis-details`、`.aegis-details-body` | 折りたたみと、その本文 |
 
 ```css
 /* 例: 注記の「警告」の色をテーマの色に合わせる */
