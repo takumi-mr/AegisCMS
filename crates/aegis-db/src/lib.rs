@@ -386,13 +386,22 @@ pub struct UserRecord {
     pub updated_at: String,
     /// 登録後の承認待ち（admin が有効化するまでログインできない）
     pub pending_approval: bool,
+    /// TOTP (二段階認証) の Base32 シークレット
+    #[serde(default)]
+    pub totp_secret: Option<String>,
+    /// 二段階認証が有効化されているか
+    #[serde(default)]
+    pub totp_enabled: bool,
+    /// 使い捨てバックアップコードのハッシュ一覧（JSON 配列）
+    #[serde(default)]
+    pub backup_codes: Option<String>,
 }
 
 /// ユーザーテーブル名（コンテンツテーブル `content_*` と衝突しないシステムテーブル）
 pub const USER_TABLE: &str = "_aegis_users";
 
 /// INSERT / SELECT で使うユーザーテーブルのカラム（順序固定）
-pub const USER_COLUMNS: [&str; 11] = [
+pub const USER_COLUMNS: [&str; 14] = [
     "id",
     "username",
     "email",
@@ -404,11 +413,17 @@ pub const USER_COLUMNS: [&str; 11] = [
     "updated_at",
     "avatar_key",
     "pending_approval",
+    "totp_secret",
+    "totp_enabled",
+    "backup_codes",
 ];
 
 /// 後から追加したユーザーテーブルのカラム（既存の DB には起動時に `ALTER TABLE` で追加する）
 pub const USER_AVATAR_COLUMN: &str = "avatar_key";
 pub const USER_PENDING_APPROVAL_COLUMN: &str = "pending_approval";
+pub const USER_TOTP_SECRET_COLUMN: &str = "totp_secret";
+pub const USER_TOTP_ENABLED_COLUMN: &str = "totp_enabled";
+pub const USER_BACKUP_CODES_COLUMN: &str = "backup_codes";
 
 /// プレースホルダ生成関数（1 始まりの番号を受け取る）を使ってユーザーの INSERT 文を組み立てる。
 /// バインド順は `USER_COLUMNS` の順
@@ -423,11 +438,12 @@ pub fn build_user_insert(placeholder: impl Fn(usize) -> String) -> String {
 }
 
 /// ユーザーの UPDATE 文。バインド順は email, display_name, role, password_hash, disabled,
-/// avatar_key, pending_approval, updated_at, id
+/// avatar_key, pending_approval, totp_secret, totp_enabled, backup_codes, updated_at, id
 pub fn build_user_update(placeholder: impl Fn(usize) -> String) -> String {
     format!(
         "UPDATE {} SET email = {}, display_name = {}, role = {}, password_hash = {}, \
-         disabled = {}, avatar_key = {}, pending_approval = {}, updated_at = {} WHERE id = {};",
+         disabled = {}, avatar_key = {}, pending_approval = {}, totp_secret = {}, \
+         totp_enabled = {}, backup_codes = {}, updated_at = {} WHERE id = {};",
         USER_TABLE,
         placeholder(1),
         placeholder(2),
@@ -437,7 +453,10 @@ pub fn build_user_update(placeholder: impl Fn(usize) -> String) -> String {
         placeholder(6),
         placeholder(7),
         placeholder(8),
-        placeholder(9)
+        placeholder(9),
+        placeholder(10),
+        placeholder(11),
+        placeholder(12)
     )
 }
 
@@ -582,6 +601,9 @@ macro_rules! user_row_from_sqlx {
             created_at: row.try_get("created_at").map_err(get)?,
             updated_at: row.try_get("updated_at").map_err(get)?,
             pending_approval: row.try_get::<i64, _>("pending_approval").unwrap_or(0) != 0,
+            totp_secret: row.try_get("totp_secret").unwrap_or(None),
+            totp_enabled: row.try_get::<i64, _>("totp_enabled").unwrap_or(0) != 0,
+            backup_codes: row.try_get("backup_codes").unwrap_or(None),
         }
     }};
 }

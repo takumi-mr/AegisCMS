@@ -59,6 +59,7 @@ pub struct UserView {
     pub created_at: String,
     pub updated_at: String,
     pub pending_approval: bool,
+    pub totp_enabled: bool,
 }
 
 fn view(state: &AppState, user: UserRecord) -> UserView {
@@ -76,6 +77,7 @@ fn view(state: &AppState, user: UserRecord) -> UserView {
         created_at: user.created_at,
         updated_at: user.updated_at,
         pending_approval: user.pending_approval,
+        totp_enabled: user.totp_enabled,
     }
 }
 

@@ -16,7 +16,8 @@ use super::{
     build_user_update, custom_columns, is_standard_column, user_row_from_sqlx, ContentListQuery,
     ContentPage, ContentPublicationChange, ContentRecord, ContentVersionRecord, CustomFieldValue,
     DatabaseAdapter, ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN,
-    USER_PENDING_APPROVAL_COLUMN, USER_TABLE,
+    USER_BACKUP_CODES_COLUMN, USER_PENDING_APPROVAL_COLUMN, USER_TABLE, USER_TOTP_ENABLED_COLUMN,
+    USER_TOTP_SECRET_COLUMN,
 };
 
 async fn apply_publication_change(
@@ -236,7 +237,10 @@ impl DatabaseAdapter for PostgresAdapter {
                 created_at VARCHAR(64) NOT NULL,
                 updated_at VARCHAR(64) NOT NULL,
                 avatar_key TEXT,
-                pending_approval BIGINT NOT NULL DEFAULT 0
+                pending_approval BIGINT NOT NULL DEFAULT 0,
+                totp_secret TEXT,
+                totp_enabled BIGINT NOT NULL DEFAULT 0,
+                backup_codes TEXT
             );
             "#,
             USER_TABLE
@@ -257,6 +261,27 @@ impl DatabaseAdapter for PostgresAdapter {
         sqlx::query(&format!(
             "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} BIGINT NOT NULL DEFAULT 0;",
             USER_TABLE, USER_PENDING_APPROVAL_COLUMN
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} TEXT;",
+            USER_TABLE, USER_TOTP_SECRET_COLUMN
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} BIGINT NOT NULL DEFAULT 0;",
+            USER_TABLE, USER_TOTP_ENABLED_COLUMN
+        ))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AegisError::Database(e.to_string()))?;
+        sqlx::query(&format!(
+            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} TEXT;",
+            USER_TABLE, USER_BACKUP_CODES_COLUMN
         ))
         .execute(&self.pool)
         .await
@@ -1258,6 +1283,9 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(&user.updated_at)
             .bind(&user.avatar_key)
             .bind(i64::from(user.pending_approval))
+            .bind(&user.totp_secret)
+            .bind(i64::from(user.totp_enabled))
+            .bind(&user.backup_codes)
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -1370,6 +1398,9 @@ impl DatabaseAdapter for PostgresAdapter {
             .bind(i64::from(user.disabled))
             .bind(&user.avatar_key)
             .bind(i64::from(user.pending_approval))
+            .bind(&user.totp_secret)
+            .bind(i64::from(user.totp_enabled))
+            .bind(&user.backup_codes)
             .bind(&user.updated_at)
             .bind(&user.id)
             .execute(&self.pool)
