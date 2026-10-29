@@ -1305,6 +1305,31 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(())
     }
 
+    async fn list_identity_links(&self) -> Result<Vec<crate::UserIdentityRecord>> {
+        let rows = sqlx::query(&crate::build_identity_list())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        let mut links = Vec::with_capacity(rows.len());
+        for row in rows {
+            links.push(crate::UserIdentityRecord {
+                provider: row
+                    .try_get("provider")
+                    .map_err(|e| AegisError::Database(e.to_string()))?,
+                subject: row
+                    .try_get("subject")
+                    .map_err(|e| AegisError::Database(e.to_string()))?,
+                username: row
+                    .try_get("username")
+                    .map_err(|e| AegisError::Database(e.to_string()))?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|e| AegisError::Database(e.to_string()))?,
+            });
+        }
+        Ok(links)
+    }
+
     async fn list_settings(&self) -> Result<HashMap<String, String>> {
         let rows = sqlx::query(&build_settings_select())
             .fetch_all(&self.pool)

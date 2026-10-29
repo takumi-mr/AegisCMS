@@ -26,6 +26,7 @@ aegis-forum = { path = "../aegis-forum" }
 aegis-contact = { path = "../aegis-contact" }
 aegis-search = { path = "../aegis-search", optional = true }
 aegis-analytics = { path = "../aegis-analytics", optional = true }
+aegis-backup = { path = "../aegis-backup", optional = true }
 
 
 tokio.workspace = true
@@ -57,9 +58,10 @@ url.workspace = true
 [dev-dependencies]
 # A mock OpenID Connect IdP for the SSO handler tests
 aegis-auth = { path = "../aegis-auth", features = ["mock-idp"] }
+tempfile.workspace = true
 
 [features]
-default = ["oidc", "saml", "search", "analytics"]
+default = ["oidc", "saml", "search", "analytics", "backup"]
 # OpenID Connect login ([auth.oidc]): ID token signature verification via JWKS
 oidc = ["aegis-auth/oidc"]
 # SAML 2.0 login ([auth.saml]): XML signature verification in pure Rust
@@ -68,5 +70,7 @@ saml = ["aegis-auth/saml"]
 search = ["dep:aegis-search"]
 # Access analytics ([analytics]): a cookie-less beacon, daily aggregated counts and the Admin Studio dashboard
 analytics = ["dep:aegis-analytics"]
+# Database & upload storage dump and restore (aegis dump / aegis restore)
+backup = ["dep:aegis-backup"]
 
 

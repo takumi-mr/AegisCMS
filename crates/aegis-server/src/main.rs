@@ -11,6 +11,8 @@ mod analytics;
 mod app;
 mod audit;
 mod auth;
+#[cfg(feature = "backup")]
+mod backup;
 mod cdn;
 mod cluster;
 mod config;
@@ -96,6 +98,12 @@ enum Commands {
         #[command(subcommand)]
         action: DeployCommand,
     },
+    /// Export database records and uploaded storage objects into a verified ZIP backup archive
+    #[cfg(feature = "backup")]
+    Dump(backup::DumpArgs),
+    /// Restore database records and uploaded storage objects from a backup archive
+    #[cfg(feature = "backup")]
+    Restore(backup::RestoreArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -532,6 +540,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Deploy {
             action: DeployCommand::Generate { dir, builtin },
         } => deploy::run_generate(&dir, &builtin)?,
+        #[cfg(feature = "backup")]
+        Commands::Dump(args) => backup::run_dump(&config, args).await?,
+        #[cfg(feature = "backup")]
+        Commands::Restore(args) => backup::run_restore(&config, args).await?,
         Commands::Run { port, host } => {
             if let Some(p) = port {
                 config.server.port = p;

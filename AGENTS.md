@@ -30,6 +30,10 @@ task dev
 # 宣言的スキーマの SQLite 自動マイグレーション実行
 task migrate
 
+# データベースおよびアップロードストレージの一括バックアップ生成 / 復元
+task dump
+task restore
+
 # ワークスペース全体のテスト実行
 task test
 

@@ -8,6 +8,13 @@
 - `task check` がすべて通る状態を保つ。
 
 ## 技術メモ・申し送り事項
+- データベースおよびアップロードストレージの一括 dump / restore（バックアップ & リストア）機能を追加:
+  - クレート設計: `aegis-db` と `aegis-storage` の責務分離と単一方向依存を維持するため、独立ドメインクレート `crates/aegis-backup` を新設。`aegis-server` ではオプショナルな feature（`default = [..., "backup"]`）として統合（`--no-default-features` による最小限ビルドに対応）。
+  - 異種 DB 間のポータビリティ: 特定 DB に依存する SQL ダンプではなく、各モデル構造体（`ContentRecord`, `ContentVersionRecord`, `UserRecord`, `OrderRecord` 等）の構造化 JSON（キーソートによる決定性保証）で保存。SQLite で開発した環境のダンプを PostgreSQL や MySQL の本番環境へそのまま restore 可能。
+  - コンテンツ版履歴と公開ポインターの完全再現: 最新作業版、履歴スナップショット（リビジョン昇順）、公開中ポインター（`published_version_index`）をバンドルし、復元時も `insert_content_with_versions` を通じて公開版と作業版の分離状態を正確に復元。
+  - 整合性・改ざん防止の事前検証: アーカイブ内の `manifest.json` にフォーマット版数（v1）と全テーブル・全ストレージファイルの SHA-256 チェックサムを記録。リストア時は DB・ストレージへ変更を加える前に全エントリのパス安全性（ZipSlip 防止）とチェックサムを事前検証し、破損・改ざん時は一切の副作用なしに安全に停止。
+  - 安全な衝突制御: 既存レコードの ID/キー衝突時はデフォルトでバリデーションエラーとして停止し、誤操作による上書きを防止。`--overwrite` 指定時のみ置換復元を実施。
+  - CLI サブコマンド（`aegis dump`, `aegis restore`）および Task コマンド（`task dump`, `task restore`）を整備（`--overwrite`, `--verify-only`, `--no-database`, `--no-storage`）。
 - 依存ライブラリの段階的メジャーバージョンアップ（全 6 フェーズ完了）:
   - ワークスペース全体の外部クレート依存関係をルート `Cargo.toml` (`[workspace.dependencies]`) に集約・一本化し、バージョン定義を整理。
   - フロントエンド (Admin Studio): `typescript` (7.0.2), `@types/node` (26.6.6) へ更新 (PR #111)。

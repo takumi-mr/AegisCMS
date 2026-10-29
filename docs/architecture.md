@@ -25,7 +25,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 依存の向きは `aegis-core` ← ドメインクレート ← `aegis-server` の一方向です（クレートの一覧と各モジュールは [README 2.3](../README.md#23-クレート構成と各モジュールの責務-crates)）。
 
 - **`aegis-core` は共有契約だけ**: 抽象トレイト（`StorageBackend` / `CacheBackend` / `AuthProvider` / `AuditSink` / `Notifier`）、監査イベントのモデル、プラグインに渡すコンテキスト型、`PluginManifest`、`AegisError`。Wasm プラグイン SDK も依存するため、実装や重い依存を足さないこと。
-- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-forum`、`aegis-theme`、`aegis-runtime`。HTTP には依存しない。
+- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-forum`、`aegis-theme`、`aegis-runtime`、`aegis-backup`（バックアップ・リストア。feature `backup`）。HTTP には依存しない。
 - **`aegis-server` は HTTP 層**: ハンドラ・認可・エクストラクタ・CLI・組み立て（`main.rs`）。
 - **設定**: 各クレートが自分のセクションの型を持つ（`aegis_db::DatabaseConfig`、`SecurityConfig` は `aegis-ast`、`ThemeConfig` は `aegis-theme`、`PluginsConfig` / `RuntimeConfig` は `aegis-runtime` など）。`aegis.toml` 全体の `AegisConfig` は `aegis-server/src/config.rs`。
   - 全構造体が `#[serde(default)]` 付きで、省略した項目は `Default` 実装の値になる。**設定項目を足すときは必ず `Default` に既定値を入れる**。
@@ -447,3 +447,19 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **JavaScript なしで動く**: 普通の HTML のフォームを `POST /contact/{form}` に送り、成功は `303` で `?sent=1` へ（PRG）、入力の誤りは同じページを `400` で返して値と誤りを出す。入力を含むページは `Cache-Control: private, no-store`。
 - **スパム対策はコメントと共有**（`aegis_comments::moderation` の IP ごとの数・リンク数・メールアドレスの検査）。ボット除けの見えない欄に値があれば、成功と同じ応答で何も保存しない。スパムと判定したものは保存するが通知しない（受信箱のスパムで確かめられる）。
 - **表は `_aegis_contact_messages`**（`aegis_db::ContactStorage`）。入力はフォームの項目の順に `[{name, label, value}]` の JSON で残し（後から設定の項目を変えても、届いた時点の表示名で読める）、一覧用に名前・メールアドレス・件名を列に持つ。保存期間はサービスが 1 日に 1 回消す。
+
+
+## 17. バックアップとリストア (`aegis-backup`)
+
+- **独立クレートと feature フラグ（`feature = "backup"`）**:
+  - `aegis-db`（全システムテーブル・動的コンテンツテーブル）と `aegis-storage`（アップロードファイル群）の上位オーケストレーション層として `crates/aegis-backup` に分離。`aegis-server` ではオプショナルな feature（既定有効）として切り離し可能（`cargo check -p aegis-server --no-default-features` で最小限のフットプリントを維持）。
+  - CLI コマンド `aegis dump`（バックアップ生成）および `aegis restore`（復元・整合性検証）として利用可能。
+- **異種 DB 間のポータビリティ（ダイアレクト非依存の JSON 表現）**:
+  - 特定 DB のバイナリダンプ（`pg_dump` や SQLite ファイルコピー）ではなく、各ドメインモデル（`ContentRecord`, `ContentVersionRecord`, `UserRecord`, `OrderRecord` 等）の構造化 JSON としてエクスポートする。これにより、「開発環境の SQLite から dump したアーカイブを、本番環境の PostgreSQL や MySQL へそのまま restore する」クロス DB マイグレーションを完全サポート。
+- **コンテンツ版履歴と公開ポインターの完全保持**:
+  - コンテンツごとに最新作業版（`record`）、編集履歴スナップショット（`versions`、リビジョン昇順）、および公開版ポインター（`published_version_index`）をバンドルして保存。復元時も `insert_content_with_versions` を通じて作業版と公開スナップショットの分離関係をそのまま再現する。
+- **整合性・改ざん防止の事前検証（Fail-Safe）**:
+  - アーカイブ（ZIP）のルートに `manifest.json`（フォーマットバージョン `format_version: 1`、CMS バージョン、テーブル一覧・件数、ストレージオブジェクト一覧、および全ファイルの SHA-256 チェックサム）を記録。
+  - リストア時は、データベースやストレージへの書き込みを一切行う前に、ZIP 内の全エントリのパス安全性（ZipSlip・パストラバーサル防止）と SHA-256 ハッシュを完全検証し、不整合や破損・改ざんがあれば変更を 1 つも適用せずに拒否する。`--verify-only` オプションで復元せずに検証のみを実行することも可能。
+- **安全な衝突制御（`--overwrite`）**:
+  - 既定（`overwrite = false`）では、既存のユーザーやコンテンツ、設定などの ID/キーが衝突した場合にバリデーションエラーとして処理を停止し、誤操作による既存データの破壊を防止する。`--overwrite` を指定した場合のみ、既存レコードを置換して復元する。

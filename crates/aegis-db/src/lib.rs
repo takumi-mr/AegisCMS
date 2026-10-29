@@ -353,10 +353,23 @@ pub trait DatabaseAdapter:
 
     /// Remove a setting (the configuration file's value applies again)
     async fn delete_setting(&self, name: &str) -> Result<()>;
+    /// List all external identity links
+    async fn list_identity_links(&self) -> Result<Vec<UserIdentityRecord>> {
+        Ok(Vec::new())
+    }
+}
+
+/// 外部 IdP とユーザーの紐付けレコード（`_aegis_user_identities` テーブルの 1 行）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UserIdentityRecord {
+    pub provider: String,
+    pub subject: String,
+    pub username: String,
+    pub created_at: String,
 }
 
 /// ローカル認証のユーザーアカウント（`_aegis_users` テーブルの 1 行）
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserRecord {
     pub id: String,
     /// ログイン名（一意・変更不可）。セッションの `user_id` や監査ログの actor に使う
@@ -490,6 +503,14 @@ pub fn build_identity_select(placeholder: impl Fn(usize) -> String) -> String {
         IDENTITY_TABLE,
         placeholder(1),
         placeholder(2)
+    )
+}
+
+/// 対応表の SELECT 文（全件）
+pub fn build_identity_list() -> String {
+    format!(
+        "SELECT provider, subject, username, created_at FROM {} ORDER BY provider, subject;",
+        IDENTITY_TABLE
     )
 }
 
