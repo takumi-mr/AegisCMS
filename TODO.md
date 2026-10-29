@@ -8,6 +8,7 @@
 - `task check` がすべて通る状態を保つ。
 
 ## 技術メモ・申し送り事項
+- EC 機能（`[commerce].enabled = false`）のときも `/products`・`/products/{slug}`・`/cart`・`/shop/cart.js` が表示できた問題を修正し、無効時は 404 を返すようにした（`/orders/{id}`・掲示板・コメント購読解除は対応済みだった）。回帰テストは `test_storefront_pages_are_not_found_when_shop_is_disabled`。あわせて、新しいツールチェーンの Clippy が `--all-targets` でだけ出していたテストコード・プラグインの警告をワークスペース全体で解消した（`cargo clippy --workspace --all-targets -- -D warnings` がゼロ警告）。
 - データベースおよびアップロードストレージの一括 dump / restore（バックアップ & リストア）機能を追加:
   - クレート設計: `aegis-db` と `aegis-storage` の責務分離と単一方向依存を維持するため、独立ドメインクレート `crates/aegis-backup` を新設。`aegis-server` ではオプショナルな feature（`default = [..., "backup"]`）として統合（`--no-default-features` による最小限ビルドに対応）。
   - 異種 DB 間のポータビリティ: 特定 DB に依存する SQL ダンプではなく、各モデル構造体（`ContentRecord`, `ContentVersionRecord`, `UserRecord`, `OrderRecord` 等）の構造化 JSON（キーソートによる決定性保証）で保存。SQLite で開発した環境のダンプを PostgreSQL や MySQL の本番環境へそのまま restore 可能。

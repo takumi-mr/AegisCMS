@@ -871,8 +871,10 @@ mod tests {
     #[test]
     fn test_cdn_config_validation() {
         // enabled = false ならプロバイダ未設定でも通る
-        let mut cfg = CdnConfig::default();
-        cfg.provider = CdnProviderKind::Cloudflare;
+        let mut cfg = CdnConfig {
+            provider: CdnProviderKind::Cloudflare,
+            ..Default::default()
+        };
         assert!(cfg.validate().is_ok());
 
         // enabled = true で Cloudflare 必須項目欠如はエラー

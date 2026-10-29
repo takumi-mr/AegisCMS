@@ -946,7 +946,8 @@ mod tests {
     #[tokio::test]
     async fn test_assertion_conditions_are_checked() {
         let setup = setup(|_| {}).await;
-        let cases: Vec<(&str, Box<dyn Fn(String) -> String>)> = vec![
+        type Tamper = Box<dyn Fn(String) -> String>;
+        let cases: Vec<(&str, Tamper)> = vec![
             (
                 "other audience",
                 Box::new(|a| a.replace(SP_ENTITY_ID, "https://other-sp.example")),

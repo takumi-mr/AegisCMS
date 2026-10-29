@@ -1481,7 +1481,7 @@ mod tests {
         adapter.init().await.unwrap();
         let user = adapter.get_user_by_username("old").await.unwrap().unwrap();
         assert_eq!(user.avatar_key, None);
-        assert_eq!(user.pending_approval, false);
+        assert!(!user.pending_approval);
     }
 
     fn schemas() -> HashMap<String, SchemaDefinition> {
@@ -1733,7 +1733,7 @@ mod tests {
             .update_content_with_versions(
                 schema,
                 &working,
-                &[working_version.clone()],
+                std::slice::from_ref(&working_version),
                 ContentPublicationChange::Keep,
             )
             .await

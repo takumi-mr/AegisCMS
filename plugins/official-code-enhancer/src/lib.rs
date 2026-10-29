@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn test_transform_mermaid_block() {
-        let mut plugin = CodeEnhancerPlugin::default();
+        let mut plugin = CodeEnhancerPlugin;
         let blocks = vec![
             BlockNode::code("mermaid", "graph TD;\n  A-->B;"),
             BlockNode::code("rust", "fn main() {}"),
@@ -320,9 +320,11 @@ mod tests {
 
     #[test]
     fn test_on_render_page_injects_theme_and_bundle() {
-        let mut plugin = CodeEnhancerPlugin::default();
-        let mut ctx = PageRenderContext::default();
-        ctx.title = "Sample Post".to_string();
+        let mut plugin = CodeEnhancerPlugin;
+        let ctx = PageRenderContext {
+            title: "Sample Post".to_string(),
+            ..Default::default()
+        };
 
         let updated = plugin.on_render_page(ctx).expect("Hook should succeed");
 
@@ -337,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_custom_theme_selection_and_external_url() {
-        let mut plugin = CodeEnhancerPlugin::default();
+        let mut plugin = CodeEnhancerPlugin;
         let mut ctx = PageRenderContext::default();
         ctx.fields
             .insert("code_theme".to_string(), serde_json::json!("github-light"));

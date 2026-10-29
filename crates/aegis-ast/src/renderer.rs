@@ -651,7 +651,7 @@ mod tests {
             )
             .with_attr("align", serde_json::json!([null, "right"]));
         assert_eq!(
-            HtmlRenderer::render_nodes(&[table.clone()]),
+            HtmlRenderer::render_nodes(std::slice::from_ref(&table)),
             "<div class=\"aegis-table\"><table>\n<thead>\n<tr><th>Name</th><th style=\"text-align: right\">Price</th></tr>\n</thead>\n<tbody>\n<tr><td><strong>Beans</strong></td><td style=\"text-align: right\">1,200</td></tr>\n<tr><td>Short</td><td style=\"text-align: right\"></td></tr>\n</tbody>\n</table></div>\n"
         );
 

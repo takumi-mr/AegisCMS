@@ -1149,8 +1149,8 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(resp.disabled, false);
-        assert_eq!(resp.pending_approval, false);
+        assert!(!resp.disabled);
+        assert!(!resp.pending_approval);
 
         // 承認メールが送られたことを確認
         let events = mails.take();

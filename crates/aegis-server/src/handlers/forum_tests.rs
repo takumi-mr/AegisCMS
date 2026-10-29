@@ -206,7 +206,7 @@ async fn test_forum_form_submission_and_redirects() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(&format!("/forum/general/{}/posts", thread_id))
+                .uri(format!("/forum/general/{}/posts", thread_id))
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .body(Body::from(post_form_body))
                 .unwrap(),
@@ -445,7 +445,7 @@ async fn test_forum_moderation_settings_and_reports_api() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(&format!("/api/v1/forum/threads/{}", thread_id))
+                .uri(format!("/api/v1/forum/threads/{}", thread_id))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -459,7 +459,7 @@ async fn test_forum_moderation_settings_and_reports_api() {
         .oneshot(
             Request::builder()
                 .method("PATCH")
-                .uri(&format!("/api/v1/forum/threads/{}/status", thread_id))
+                .uri(format!("/api/v1/forum/threads/{}/status", thread_id))
                 .header(header::CONTENT_TYPE, "application/json")
                 .header(header::AUTHORIZATION, &auth_header)
                 .body(Body::from(
@@ -476,7 +476,7 @@ async fn test_forum_moderation_settings_and_reports_api() {
         .oneshot(
             Request::builder()
                 .method("PATCH")
-                .uri(&format!("/api/v1/forum/posts/{}/status", post_id))
+                .uri(format!("/api/v1/forum/posts/{}/status", post_id))
                 .header(header::CONTENT_TYPE, "application/json")
                 .header(header::AUTHORIZATION, &auth_header)
                 .body(Body::from(
@@ -520,7 +520,7 @@ async fn test_forum_moderation_settings_and_reports_api() {
         .oneshot(
             Request::builder()
                 .method("PATCH")
-                .uri(&format!("/api/v1/forum/reports/{}", report_id))
+                .uri(format!("/api/v1/forum/reports/{}", report_id))
                 .header(header::CONTENT_TYPE, "application/json")
                 .header(header::AUTHORIZATION, &auth_header)
                 .body(Body::from(

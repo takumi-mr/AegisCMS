@@ -702,9 +702,14 @@ mod tests {
     async fn test_scheduled_content_triggers_on_content_published_hook() {
         let mut supervisor = PluginSupervisor::new();
         let published_items = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let mut manifest = aegis_core::PluginManifest::default();
-        manifest.name = "publisher-webhook".to_string();
-        manifest.capabilities.hooks = vec!["on-content-published".to_string()];
+        let manifest = aegis_core::PluginManifest {
+            name: "publisher-webhook".to_string(),
+            capabilities: aegis_core::PluginCapabilities {
+                hooks: vec!["on-content-published".to_string()],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         supervisor.register(Arc::new(MockPublishPlugin {
             manifest,
@@ -746,9 +751,14 @@ mod tests {
     #[tokio::test]
     async fn test_scheduled_content_plugin_error_is_audited_and_does_not_block_publishing() {
         let mut supervisor = PluginSupervisor::new();
-        let mut manifest = aegis_core::PluginManifest::default();
-        manifest.name = "failing-plugin".to_string();
-        manifest.capabilities.hooks = vec!["on-content-published".to_string()];
+        let manifest = aegis_core::PluginManifest {
+            name: "failing-plugin".to_string(),
+            capabilities: aegis_core::PluginCapabilities {
+                hooks: vec!["on-content-published".to_string()],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         supervisor.register(Arc::new(MockPublishPlugin {
             manifest,

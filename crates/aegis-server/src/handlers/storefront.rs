@@ -91,6 +91,9 @@ pub async fn render_products(
     State(state): State<Arc<AppState>>,
     Query(params): Query<IndexParams>,
 ) -> Response {
+    if state.commerce.is_none() {
+        return render_not_found(&state, "The shop is not enabled.").await;
+    }
     let Some(schema) = product_schema(&state).await else {
         return render_not_found(&state, "This site has no products.").await;
     };
@@ -196,6 +199,9 @@ pub async fn render_product(
     State(state): State<Arc<AppState>>,
     Path(slug): Path<String>,
 ) -> Response {
+    if state.commerce.is_none() {
+        return render_not_found(&state, "The shop is not enabled.").await;
+    }
     let Some(schema) = product_schema(&state).await else {
         return render_not_found(&state, "This site has no products.").await;
     };
@@ -293,6 +299,9 @@ pub async fn render_product(
 
 /// `GET /cart` — カートと購入手続き（内容はブラウザのスクリプトが描画する）
 pub async fn render_cart(State(state): State<Arc<AppState>>) -> Response {
+    if state.commerce.is_none() {
+        return render_not_found(&state, "The shop is not enabled.").await;
+    }
     let ctx = PageRenderContext {
         template: "cart.html".to_string(),
         content_type: "cart".to_string(),
@@ -325,7 +334,10 @@ pub async fn render_order(State(state): State<Arc<AppState>>, Path(id): Path<Str
 }
 
 /// `GET /shop/cart.js` — カート（`localStorage`）・購入手続き・注文確認のスクリプト
-pub async fn cart_script() -> impl IntoResponse {
+pub async fn cart_script(State(state): State<Arc<AppState>>) -> Response {
+    if state.commerce.is_none() {
+        return render_not_found(&state, "The shop is not enabled.").await;
+    }
     (
         StatusCode::OK,
         [
@@ -337,4 +349,5 @@ pub async fn cart_script() -> impl IntoResponse {
         ],
         CART_SCRIPT,
     )
+        .into_response()
 }
