@@ -28,7 +28,8 @@ interface LoginViewProps {
   inviteToken?: string | null;
 }
 
-type ScreenMode = 'login' | 'register' | 'forgot_password' | 'reset_password' | 'accept_invite';
+type ScreenMode =
+  'login' | 'register' | 'forgot_password' | 'reset_password' | 'accept_invite' | 'mfa';
 
 const describeError = (err: unknown, t: TFunction): string => {
   if (err instanceof ApiError) {
@@ -58,6 +59,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const { t } = useTranslation();
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [mfaChallengeToken, setMfaChallengeToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState<string>('');
+  const [useBackupCode, setUseBackupCode] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(() =>
     initialError ? describeSsoError(initialError, t) : null
@@ -115,6 +119,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const backToLogin = () => {
     setMode('login');
     setError(null);
+    setMfaChallengeToken(null);
+    setMfaCode('');
+    setUseBackupCode(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,10 +133,33 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setIsSubmitting(true);
     setError(null);
     try {
-      onLoggedIn(await aegisApi.login(username.trim(), password));
+      const res = await aegisApi.login(username.trim(), password);
+      if ('mfa_required' in res && res.mfa_required) {
+        setMfaChallengeToken(res.challenge_token);
+        setMode('mfa');
+        setError(null);
+        return;
+      }
+      onLoggedIn(res as SessionInfo);
     } catch (err) {
       setError(describeError(err, t));
       setPassword('');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaCode.trim() || !mfaChallengeToken) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const session = await aegisApi.verify2fa(mfaChallengeToken, mfaCode.trim());
+      onLoggedIn(session);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('login.twoFactor.invalidCode'));
+      setMfaCode('');
     } finally {
       setIsSubmitting(false);
     }
@@ -141,6 +171,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return t('login.resetPassword.requestSubtitle');
     }
     if (mode === 'accept_invite') return t('login.invitation.subtitle');
+    if (mode === 'mfa') return t('login.twoFactor.title');
     return t('login.subtitle');
   };
 
@@ -153,6 +184,79 @@ export const LoginView: React.FC<LoginViewProps> = ({
       </div>
     </div>
   );
+
+  if (mode === 'mfa') {
+    return (
+      <div className={styles.screen}>
+        <div className={styles.card}>
+          {brand}
+          <form className={styles.form} onSubmit={handleMfaSubmit}>
+            <div className={styles.mfaHeader}>
+              <KeyRound size={28} className={styles.mfaIcon} />
+              <h2>{t('login.twoFactor.title')}</h2>
+              <p className={styles.mfaSubtitle}>{t('login.twoFactor.subtitle')}</p>
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="mfa-code">
+                {useBackupCode
+                  ? t('login.twoFactor.backupCodeLabel')
+                  : t('login.twoFactor.codeLabel')}
+              </label>
+              <input
+                id="mfa-code"
+                type="text"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)}
+                placeholder={
+                  useBackupCode
+                    ? t('login.twoFactor.backupCodePlaceholder')
+                    : t('login.twoFactor.codePlaceholder')
+                }
+                autoFocus
+                autoComplete="one-time-code"
+                required
+              />
+            </div>
+            {error && <div className={styles.error}>{error}</div>}
+            <div className={styles.submit}>
+              <Button type="submit" variant="primary" disabled={isSubmitting || !mfaCode.trim()}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={16} className={styles.spinner} />
+                    <span>{t('login.twoFactor.verifying')}</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn size={16} />
+                    <span>{t('login.twoFactor.verify')}</span>
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className={styles.links}>
+              <button
+                type="button"
+                className={styles.linkButton}
+                onClick={() => {
+                  setUseBackupCode(!useBackupCode);
+                  setMfaCode('');
+                  setError(null);
+                }}
+              >
+                {useBackupCode
+                  ? t('login.twoFactor.useTotpCode')
+                  : t('login.twoFactor.useBackupCode')}
+              </button>
+              <button type="button" className={styles.linkButton} onClick={backToLogin}>
+                {t('login.twoFactor.backToLogin')}
+              </button>
+            </div>
+          </form>
+          <LanguageSelect className={styles.language} />
+        </div>
+      </div>
+    );
+  }
 
   if (mode === 'register') {
     return (

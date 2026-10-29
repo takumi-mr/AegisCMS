@@ -136,6 +136,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
                   <th>{t('users.columns.email')}</th>
                   <th>{t('users.columns.role')}</th>
                   <th>{t('users.columns.status')}</th>
+                  <th>{t('users.twoFactor')}</th>
                   <th>{t('users.columns.created')}</th>
                   <th aria-label={t('users.columns.actions')} />
                 </tr>
@@ -183,6 +184,15 @@ export const UserManager: React.FC<UserManagerProps> = ({
                               ? t('users.pendingApproval')
                               : t('users.disabled')
                             : t('users.active')}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={cx(styles.status, user.totp_enabled ? styles.on : styles.off)}
+                        >
+                          {user.totp_enabled
+                            ? t('users.twoFactorActive')
+                            : t('users.twoFactorInactive')}
                         </span>
                       </td>
                       <td className={styles.muted}>{formatDate(user.created_at)}</td>
@@ -526,6 +536,33 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             </span>
           )}
         </div>
+
+        {user.totp_enabled && (
+          <div className={formStyles.section}>
+            <div className={formStyles.sectionTitle}>{t('users.twoFactor')}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className={formStyles.hint}>{t('users.twoFactorActive')}</span>
+              <Button
+                type="button"
+                variant="secondary"
+                danger
+                onClick={async () => {
+                  if (window.confirm(t('users.reset2faConfirm', { username: user.username }))) {
+                    try {
+                      await aegisApi.resetUser2fa(user.username);
+                      onUpdated({ ...user, totp_enabled: false });
+                      onShowToast(t('users.reset2faSuccess', { username: user.username }));
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Failed to reset 2FA');
+                    }
+                  }
+                }}
+              >
+                {t('users.reset2fa')}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {!isSelf && (
           <div className={formStyles.section}>

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { KeyRound, Save, UserRound } from 'lucide-react';
+import { Check, Copy, KeyRound, Save, ShieldAlert, ShieldCheck, UserRound } from 'lucide-react';
+import type { TotpSetupResult } from '../types';
 import { Trans, useTranslation } from 'react-i18next';
 import { useRoleName } from '../i18n/roles';
 import { aegisApi } from '../api/client';
@@ -43,6 +44,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  // 2FA state
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(Boolean(user.totp_enabled));
+  const [setupData, setSetupData] = useState<TotpSetupResult | null>(null);
+  const [setupCode, setSetupCode] = useState<string>('');
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
+  const [isSettingUp2fa, setIsSettingUp2fa] = useState<boolean>(false);
+  const [isVerifying2fa, setIsVerifying2fa] = useState<boolean>(false);
+  const [showDisablePrompt, setShowDisablePrompt] = useState<boolean>(false);
+  const [disablePassword, setDisablePassword] = useState<string>('');
+  const [isDisabling2fa, setIsDisabling2fa] = useState<boolean>(false);
+  const [copiedBackupCodes, setCopiedBackupCodes] = useState<boolean>(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -68,6 +82,65 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleStart2faSetup = async () => {
+    setIsSettingUp2fa(true);
+    setTwoFactorError(null);
+    try {
+      const data = await aegisApi.setup2fa();
+      setSetupData(data);
+    } catch (err) {
+      setTwoFactorError(err instanceof Error ? err.message : 'Failed to set up 2FA');
+    } finally {
+      setIsSettingUp2fa(false);
+    }
+  };
+
+  const handleConfirm2fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!setupData || !setupCode.trim()) return;
+    setIsVerifying2fa(true);
+    setTwoFactorError(null);
+    try {
+      const res = await aegisApi.enable2fa(setupData.secret, setupCode.trim());
+      setBackupCodes(res.backup_codes);
+      setTwoFactorEnabled(true);
+      setSetupData(null);
+      setSetupCode('');
+      onUpdated({ ...user, totp_enabled: true });
+      onShowToast(t('profile.twoFactor.enabledSuccess'));
+    } catch (err) {
+      setTwoFactorError(err instanceof Error ? err.message : 'Invalid code');
+    } finally {
+      setIsVerifying2fa(false);
+    }
+  };
+
+  const handleDisable2fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsDisabling2fa(true);
+    setTwoFactorError(null);
+    try {
+      await aegisApi.disable2fa({ password: disablePassword });
+      setTwoFactorEnabled(false);
+      setShowDisablePrompt(false);
+      setDisablePassword('');
+      onUpdated({ ...user, totp_enabled: false });
+      onShowToast(t('profile.twoFactor.disabledSuccess'));
+    } catch (err) {
+      setTwoFactorError(err instanceof Error ? err.message : 'Failed to disable 2FA');
+    } finally {
+      setIsDisabling2fa(false);
+    }
+  };
+
+  const handleCopyBackupCodes = () => {
+    if (!backupCodes) return;
+    navigator.clipboard.writeText(backupCodes.join('\n')).then(() => {
+      setCopiedBackupCodes(true);
+      setTimeout(() => setCopiedBackupCodes(false), 2000);
+    });
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -194,6 +267,155 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </form>
         )}
+
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>{t('profile.twoFactor.title')}</div>
+          <div className={styles.twoFactorStatus}>
+            <span
+              className={`${styles.twoFactorBadge} ${
+                twoFactorEnabled ? styles.twoFactorBadgeOn : styles.twoFactorBadgeOff
+              }`}
+            >
+              {twoFactorEnabled ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
+              <span>
+                {twoFactorEnabled
+                  ? t('profile.twoFactor.statusEnabled')
+                  : t('profile.twoFactor.statusDisabled')}
+              </span>
+            </span>
+            {!twoFactorEnabled && !setupData && !backupCodes && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleStart2faSetup}
+                disabled={isSettingUp2fa}
+              >
+                {t('profile.twoFactor.setupBtn')}
+              </Button>
+            )}
+            {twoFactorEnabled && !showDisablePrompt && (
+              <Button type="button" variant="secondary" onClick={() => setShowDisablePrompt(true)}>
+                {t('profile.twoFactor.disableBtn')}
+              </Button>
+            )}
+          </div>
+
+          {backupCodes && (
+            <div className={styles.backupContainer}>
+              <div className={styles.backupWarning}>{t('profile.twoFactor.backupWarning')}</div>
+              <div className={styles.backupGrid}>
+                {backupCodes.map((code, idx) => (
+                  <div key={idx} className={styles.backupItem}>
+                    {code}
+                  </div>
+                ))}
+              </div>
+              <div className={styles.actions}>
+                <Button type="button" variant="secondary" onClick={handleCopyBackupCodes}>
+                  {copiedBackupCodes ? <Check size={16} /> : <Copy size={16} />}
+                  <span>
+                    {copiedBackupCodes
+                      ? t('profile.twoFactor.copied')
+                      : t('profile.twoFactor.copyAll')}
+                  </span>
+                </Button>
+                <Button type="button" variant="primary" onClick={() => setBackupCodes(null)}>
+                  {t('profile.twoFactor.complete')}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {setupData && !backupCodes && (
+            <form className={styles.twoFactorBox} onSubmit={handleConfirm2fa}>
+              <p className={styles.hint}>{t('profile.twoFactor.scanQr')}</p>
+              <div className={styles.qrContainer}>
+                <img
+                  src={`data:image/png;base64,${setupData.qr_code_base64}`}
+                  alt="2FA QR Code"
+                  className={styles.qrImage}
+                />
+              </div>
+              <div className={styles.secretKey}>
+                <span className={styles.hint}>{t('profile.twoFactor.manualSecret')} </span>
+                <code>{setupData.secret}</code>
+              </div>
+              <Field label={t('profile.twoFactor.enterCode')}>
+                <input
+                  type="text"
+                  value={setupCode}
+                  onChange={(e) => setSetupCode(e.target.value)}
+                  placeholder="123456"
+                  maxLength={10}
+                  autoComplete="one-time-code"
+                  required
+                />
+              </Field>
+              {twoFactorError && <span className={styles.error}>{twoFactorError}</span>}
+              <div className={styles.actions}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setSetupData(null);
+                    setSetupCode('');
+                    setTwoFactorError(null);
+                  }}
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={isVerifying2fa || !setupCode.trim()}
+                >
+                  {isVerifying2fa
+                    ? t('profile.twoFactor.verifying')
+                    : t('profile.twoFactor.verifyAndEnable')}
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {showDisablePrompt && (
+            <form className={styles.twoFactorBox} onSubmit={handleDisable2fa}>
+              <p className={styles.hint}>{t('profile.twoFactor.confirmDisablePrompt')}</p>
+              <Field label={t('profile.current')}>
+                <input
+                  type="password"
+                  value={disablePassword}
+                  onChange={(e) => setDisablePassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </Field>
+              {twoFactorError && <span className={styles.error}>{twoFactorError}</span>}
+              <div className={styles.actions}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setShowDisablePrompt(false);
+                    setDisablePassword('');
+                    setTwoFactorError(null);
+                  }}
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  danger
+                  disabled={isDisabling2fa || !disablePassword}
+                >
+                  {isDisabling2fa
+                    ? t('profile.twoFactor.disabling')
+                    : t('profile.twoFactor.disableConfirmBtn')}
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </Modal>
   );
