@@ -859,7 +859,7 @@ server {
 - 変えたパスを `robots.txt` に書かないでください（`Disallow` に書くとパスが公開されます）。既定の `robots.txt` の `Disallow: /admin/` はそのままで構いません。
 - `[auth.oidc]` / `[auth.saml]` の `post_login_redirect` が既定（`/admin/`）のままなら、新しいパスに自動で合わせます。`[auth.registration].admin_url` を書いている場合は新しいパスに直してください。
 - `admin_path` を変えたら、ブックマークや IdP に登録した戻り先 URL も更新してください。
-- `GET /api/v1/health` は製品名とバージョンを `admin` のセッションにだけ返します。あわせてリバースプロキシで `/health`・`/api/v1/health`・`/metrics` を外部から遮断し、Admin Studio のパスを IP 制限や VPN で守るとより効果的です。
+- `GET /api/v1/health` は製品名とバージョンを `admin` のセッションにだけ返します。あわせてリバースプロキシで `/health`・`/api/v1/health`・`/metrics` を外部から遮断し（`deploy/` の Caddy 構成では既定で遮断。[deploy/README.md](../deploy/README.md#5-運用)）、Admin Studio のパスを IP 制限や VPN で守るとより効果的です。
 
 ## 5. 管理画面から設定する動的サイト・SEO設定
 

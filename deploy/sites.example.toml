@@ -28,6 +28,9 @@ theme = "minimal-editorial"
 plugins = ["official-blocks"]
 # コンテナのメモリの上限（任意）
 # memory = "512m"
+# true でヘルスチェック（/health・/api/v1/health）をインターネットに公開する（外部の死活監視用）。
+# 既定では /metrics と同じく Caddy が 404 を返す
+# public_health = true
 
 # このサイトの aegis.toml に重ねる設定（任意）。項目は docs/configuration.md
 [sites.config.theme]
