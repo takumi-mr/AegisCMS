@@ -43,7 +43,7 @@
         <a href="{{ base_path }}/articles">お知らせ</a>
         <a href="{{ base_path }}/about">このサイトについて</a>
         <a href="{{ base_path }}/guidelines">投稿ガイドライン</a>
-        <a href="{{ base_path }}/admin/">管理画面</a>
+        {% if admin_url %}<a href="{{ admin_url }}">管理画面</a>{% endif %}
       </nav>
     </div>
     {% if show_powered_by %}<div class="th-container th-copy">Powered by AegisCMS</div>{% endif %}

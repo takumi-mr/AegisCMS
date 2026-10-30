@@ -45,7 +45,7 @@
         <a href="{{ base_path }}/articles">ジャーナル</a>
         <a href="{{ base_path }}/about">私たちについて</a>
         <a href="{{ base_path }}/shipping">配送・お支払い</a>
-        <a href="{{ base_path }}/admin/">管理画面</a>
+        {% if admin_url %}<a href="{{ admin_url }}">管理画面</a>{% endif %}
       </nav>
     </div>
     {% if show_powered_by %}<div class="rs-container rs-copy">Powered by AegisCMS</div>{% endif %}

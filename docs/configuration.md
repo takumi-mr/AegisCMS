@@ -855,6 +855,7 @@ server {
 | --- | --- |
 | `[server].admin_path = "/<推測されにくい名前>"` | Admin Studio を別のパスで配信する。既定の `/admin` は Admin Studio ではなくなる（公開サイトの 404）。同じ名前のスラッグの固定ページは開けなくなる |
 | `[theme].show_powered_by = false` | 組み込みテンプレートと同梱テーマのフッターから「Powered by AegisCMS」などの表記を消す |
+| `[theme].show_admin_link` | 公開ページ（組み込みテンプレートと同梱テーマのヘッダー・フッター）に Admin Studio へのリンクを出すか。**未指定なら、`admin_path` が既定の `/admin` のときだけ出す**（パスを変えたのは隠すためなので、変えたらリンクも出さない）。`true` で変えたパスへのリンクを出し、`false` でパスが既定でも出さない |
 
 - 変えたパスを `robots.txt` に書かないでください（`Disallow` に書くとパスが公開されます）。既定の `robots.txt` の `Disallow: /admin/` はそのままで構いません。
 - `[auth.oidc]` / `[auth.saml]` の `post_login_redirect` が既定（`/admin/`）のままなら、新しいパスに自動で合わせます。`[auth.registration].admin_url` を書いている場合は新しいパスに直してください。

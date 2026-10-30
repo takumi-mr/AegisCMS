@@ -50,6 +50,9 @@ struct ThemeEngineInner {
     theme_templates_dir: Option<PathBuf>,
     dynamic_templates: HashMap<String, String>,
     base_path: String,
+    /// 公開ページから Admin Studio へのリンク（グローバル変数 `admin_url`。空ならリンクを出さない）。
+    /// `None` なら `{base_path}/admin/`
+    admin_url: Option<String>,
     /// フッターに「Powered by」の表記を出すか（`[theme].show_powered_by`）
     show_powered_by: bool,
     /// テンプレートをリクエストごとに読み直す（`[theme].reload_templates`、テーマ開発用）
@@ -81,6 +84,7 @@ impl ThemeEngine {
                 theme_templates_dir,
                 dynamic_templates: HashMap::new(),
                 base_path: String::new(),
+                admin_url: None,
                 show_powered_by: true,
                 reload_templates: false,
                 environment: None,
@@ -94,6 +98,18 @@ impl ThemeEngine {
         {
             let mut inner = self.inner.write().unwrap();
             inner.base_path = base_path.to_string();
+            inner.environment = None;
+        }
+        self
+    }
+
+    /// 公開ページから Admin Studio へのリンクの URL（`base_path` 込み）。空文字なら出さない。
+    /// テンプレートからはグローバル変数 `admin_url` として `{% if admin_url %}<a href="{{ admin_url }}">...{% endif %}` のように使う。
+    /// 指定しなければ `{base_path}/admin/`
+    pub fn with_admin_url(self, url: &str) -> Self {
+        {
+            let mut inner = self.inner.write().unwrap();
+            inner.admin_url = Some(url.to_string());
             inner.environment = None;
         }
         self
@@ -434,6 +450,7 @@ impl ThemeEngine {
             inner.dynamic_templates.clone(),
             inner.theme_templates_dir.clone(),
             inner.base_path.clone(),
+            inner.admin_url.clone(),
             inner.show_powered_by,
         ));
         if !inner.reload_templates {
@@ -448,6 +465,7 @@ impl ThemeEngine {
         dynamic_templates: HashMap<String, String>,
         fs_dir: Option<PathBuf>,
         base_path: String,
+        admin_url: Option<String>,
         show_powered_by: bool,
     ) -> Environment<'static> {
         let mut env = Environment::new();
@@ -504,7 +522,10 @@ impl ThemeEngine {
         );
 
         // `[server].base_path` の正規化済みの値（URL で安全な文字のみ）なので自動エスケープ（`/` → `&#x2f;`）しない
+        // `base_path` と `[server].admin_path` の検証済みの値から作る URL（URL で安全な文字のみ）
+        let admin_url = admin_url.unwrap_or_else(|| format!("{}/admin/", base_path));
         env.add_global("base_path", minijinja::Value::from_safe_string(base_path));
+        env.add_global("admin_url", minijinja::Value::from_safe_string(admin_url));
         env.add_global("show_powered_by", show_powered_by);
 
         env.set_loader(
@@ -638,6 +659,35 @@ mod tests {
                 assert!(!hidden.contains(mark), "{}: {}", theme, mark);
             }
             assert_ne!(shown, hidden, "{} has no powered-by mark to hide", theme);
+        }
+    }
+
+    #[test]
+    fn test_admin_link_follows_admin_url_in_every_bundled_theme() {
+        let ctx = PageRenderContext {
+            site_title: "Quiet Site".to_string(),
+            template: "index.html".to_string(),
+            ..Default::default()
+        };
+        let themes_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../themes");
+        let mut themes: Vec<String> = std::fs::read_dir(&themes_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        themes.push("non-existent-theme".to_string());
+        for theme in themes {
+            let render = |engine: ThemeEngine| engine.render("index.html", &ctx).unwrap();
+            // 既定は {base_path}/admin/
+            let default = render(ThemeEngine::new(&themes_dir, &theme));
+            assert!(default.contains(r#"href="/admin/""#), "{}", theme);
+            // パスを変えたら、そのパスへ
+            let custom = render(ThemeEngine::new(&themes_dir, &theme).with_admin_url("/cms/back/"));
+            assert!(custom.contains(r#"href="/cms/back/""#), "{}", theme);
+            assert!(!custom.contains(r#"href="/admin/""#), "{}", theme);
+            // 空ならリンクごと出さない（パスも漏れない）
+            let hidden = render(ThemeEngine::new(&themes_dir, &theme).with_admin_url(""));
+            assert!(!hidden.contains("/admin"), "{}", theme);
+            assert!(!hidden.contains("Admin Studio"), "{}", theme);
         }
     }
 
@@ -949,7 +999,7 @@ mod tests {
 
     #[test]
     fn test_date_filters_are_char_boundary_safe() {
-        let env = ThemeEngine::build_environment(HashMap::new(), None, String::new(), true);
+        let env = ThemeEngine::build_environment(HashMap::new(), None, String::new(), None, true);
         let out = env
             .render_str(
                 "{{ a | date_short }}|{{ a | datetime_short }}|{{ b | date_short }}|{{ b | datetime_short }}|{{ missing | date_short }}|{{ missing | datetime_short }}",
