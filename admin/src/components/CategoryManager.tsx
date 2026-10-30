@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Plus, Tags } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
-import type { ContentItem } from '../types';
+import type { ContentItem, ContentSummary } from '../types';
 import { categoryColor } from '../utils/category';
 import { Button } from './ui/Button';
 import { Field, FieldRow } from './ui/Field';
@@ -11,7 +11,7 @@ import styles from './CategoryManager.module.css';
 const DEFAULT_COLOR = '#6366f1';
 
 interface CategoryManagerProps {
-  categories: ContentItem[];
+  categories: ContentSummary[];
   /** False for viewers: creating categories needs the editor role */
   canCreate: boolean;
   /** Called after a category is created so the parent can add it to its list */

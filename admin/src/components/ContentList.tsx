@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
-import { Plus, FileText, Layers, Clock } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Plus, FileText, Layers, Clock, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { ContentItem } from '../types';
+import type { ContentSummary } from '../types';
 import { categoryColor, categoryIdOf } from '../utils/category';
 import { isLabeledStatus } from '../utils/contentStatus';
 import { cx } from '../utils/cx';
+import {
+  isFiltered as hasFilters,
+  STATUS_FILTERS,
+  UNCATEGORIZED,
+  type ContentListFilters,
+} from '../utils/contentFilters';
 import { formatDateTime } from '../utils/format';
 import { Button } from './ui/Button';
 import { Field } from './ui/Field';
@@ -16,15 +22,25 @@ const STATUS_BADGE: Record<string, string | undefined> = {
   draft: styles.draft,
 };
 
-/** Category filter: every item, items without a category, or a category id */
-const ALL = '__all__';
-const UNCATEGORIZED = '__none__';
+/** Wait this long after the last key press before searching */
+const SEARCH_DELAY_MS = 300;
 
 interface ContentListProps {
-  contents: ContentItem[];
-  categories: ContentItem[];
+  /** The current page of the list (the server searches, filters and pages it) */
+  contents: ContentSummary[];
+  /** The number of items matching the filters, not only this page */
+  total: number;
+  /** The current page, starting at 1 */
+  page: number;
+  pageSize: number;
+  /** True while a page is being loaded */
+  loading?: boolean;
+  filters: ContentListFilters;
+  onFiltersChange: (filters: ContentListFilters) => void;
+  onPageChange: (page: number) => void;
+  categories: ContentSummary[];
   selectedId: string | null;
-  onSelect: (content: ContentItem) => void;
+  onSelect: (content: ContentSummary) => void;
   onNew: () => void;
   contentType: string;
   onContentTypeChange?: (type: 'article' | 'page') => void;
@@ -32,6 +48,13 @@ interface ContentListProps {
 
 export const ContentList: React.FC<ContentListProps> = ({
   contents,
+  total,
+  page,
+  pageSize,
+  loading = false,
+  filters,
+  onFiltersChange,
+  onPageChange,
   categories,
   selectedId,
   onSelect,
@@ -40,18 +63,44 @@ export const ContentList: React.FC<ContentListProps> = ({
   onContentTypeChange,
 }) => {
   const { t } = useTranslation();
-  const [filter, setFilter] = useState<string>(ALL);
-
   const isArticles = contentType === 'article';
   const categoriesById = new Map(categories.map((c) => [c.id, c]));
-  const visible = contents.filter((item) => {
-    if (!isArticles || filter === ALL) return true;
-    const id = categoryIdOf(item);
-    return filter === UNCATEGORIZED ? id === undefined : id === filter;
-  });
+
+  // The search box keeps what is typed; the list is searched once typing pauses. `emitted` is the
+  // last search sent up, so a slow answer never overwrites newer typing
+  const [draft, setDraft] = useState(filters.q);
+  const emitted = useRef(filters.q);
+  const latestFilters = useRef(filters);
+  latestFilters.current = filters;
+  useEffect(() => {
+    if (filters.q !== emitted.current) {
+      emitted.current = filters.q;
+      setDraft(filters.q);
+    }
+  }, [filters.q]);
+  useEffect(() => {
+    if (draft === emitted.current) return;
+    const timer = setTimeout(() => {
+      emitted.current = draft;
+      onFiltersChange({ ...latestFilters.current, q: draft });
+    }, SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+
+  const searchNow = (q: string) => {
+    emitted.current = q;
+    setDraft(q);
+    if (q !== latestFilters.current.q) onFiltersChange({ ...latestFilters.current, q });
+  };
+
+  const isFiltered = hasFilters(filters, isArticles);
+  const lastPage = Math.max(1, Math.ceil(total / pageSize));
+  const from = contents.length === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = contents.length === 0 ? 0 : from + contents.length - 1;
 
   /** Category shown on a card; falls back to the relation resolved by the server */
-  const categoryOf = (item: ContentItem): { title: string; color?: string } | undefined => {
+  const categoryOf = (item: ContentSummary): { title: string; color?: string } | undefined => {
     if (!isArticles) return undefined;
     const id = categoryIdOf(item);
     if (!id) return undefined;
@@ -61,7 +110,7 @@ export const ContentList: React.FC<ContentListProps> = ({
     return { title: resolved?.title ?? t('contentList.unknownCategory') };
   };
 
-  const getLayoutLabel = (item: ContentItem): string => {
+  const getLayoutLabel = (item: ContentSummary): string => {
     const raw = item.fields?.layout ?? (item as unknown as { layout?: string }).layout;
     if (raw === 'blank') return t('editor.layoutBlankShort');
     return t('editor.layoutDefaultShort');
@@ -102,10 +151,7 @@ export const ContentList: React.FC<ContentListProps> = ({
         <span className={styles.title}>
           {t('contentList.title', {
             type: isArticles ? t('contentList.articles') : t('contentList.pages'),
-            count:
-              filter === ALL || !isArticles
-                ? contents.length
-                : `${visible.length}/${contents.length}`,
+            count: total,
           })}
         </span>
         <Button variant="tool" onClick={onNew} title={t('contentList.newTitle')}>
@@ -114,15 +160,40 @@ export const ContentList: React.FC<ContentListProps> = ({
         </Button>
       </div>
 
-      {isArticles && (
-        <div className={styles.filter}>
+      <div className={styles.search} role="search">
+        <Search size={14} className={styles.searchIcon} aria-hidden="true" />
+        <input
+          type="search"
+          value={draft}
+          maxLength={100}
+          placeholder={t('contentList.search')}
+          aria-label={t('contentList.searchAria')}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') searchNow(draft);
+          }}
+        />
+        {draft !== '' && (
+          <button
+            type="button"
+            className={styles.clearSearch}
+            aria-label={t('contentList.clearSearch')}
+            onClick={() => searchNow('')}
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
+      <div className={styles.filter}>
+        {isArticles && (
           <Field label={t('contentList.category')} className={styles.filterField}>
             <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              value={filters.category}
+              onChange={(e) => onFiltersChange({ ...filters, category: e.target.value })}
               aria-label={t('contentList.filterAria')}
             >
-              <option value={ALL}>{t('contentList.all')}</option>
+              <option value="">{t('contentList.all')}</option>
               <option value={UNCATEGORIZED}>{t('contentList.uncategorized')}</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
@@ -131,11 +202,25 @@ export const ContentList: React.FC<ContentListProps> = ({
               ))}
             </select>
           </Field>
-        </div>
-      )}
+        )}
+        <Field label={t('contentList.status')} className={styles.filterField}>
+          <select
+            value={filters.status}
+            onChange={(e) => onFiltersChange({ ...filters, status: e.target.value })}
+            aria-label={t('contentList.statusAria')}
+          >
+            <option value="">{t('contentList.all')}</option>
+            {STATUS_FILTERS.map((status) => (
+              <option key={status} value={status}>
+                {t(`common.status.${status}`)}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
 
-      <div className={styles.list}>
-        {visible.map((item) => {
+      <div className={cx(styles.list, loading && styles.loading)} aria-busy={loading}>
+        {contents.map((item) => {
           const category = categoryOf(item);
           return (
             <button
@@ -159,6 +244,7 @@ export const ContentList: React.FC<ContentListProps> = ({
                 </span>
               )}
               {!isArticles && <span className={styles.layoutBadge}>{getLayoutLabel(item)}</span>}
+              {item.excerpt && <span className={styles.excerpt}>{item.excerpt}</span>}
               <span className={styles.cardMeta}>
                 <span>/{item.slug}</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -188,21 +274,49 @@ export const ContentList: React.FC<ContentListProps> = ({
           );
         })}
 
-        {visible.length === 0 && (
+        {contents.length === 0 && (
           <div className={styles.empty}>
             <FileText size={32} className={styles.emptyIcon} />
-            {contents.length === 0 ? (
+            {loading ? (
+              <p>{t('contentList.loading')}</p>
+            ) : isFiltered ? (
+              <p>{t('contentList.noMatch')}</p>
+            ) : (
               <p>
                 {t('contentList.empty')}
                 <br />
                 {t('contentList.emptyHint')}
               </p>
-            ) : (
-              <p>{t('contentList.noMatch')}</p>
             )}
           </div>
         )}
       </div>
+
+      {total > pageSize && (
+        <nav className={styles.pager} aria-label={t('contentList.pagination')}>
+          <button
+            type="button"
+            className={styles.pagerButton}
+            aria-label={t('contentList.previousPage')}
+            disabled={page <= 1}
+            onClick={() => onPageChange(page - 1)}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className={styles.pagerRange} aria-live="polite">
+            {t('contentList.range', { from, to, total })}
+          </span>
+          <button
+            type="button"
+            className={styles.pagerButton}
+            aria-label={t('contentList.nextPage')}
+            disabled={page >= lastPage}
+            onClick={() => onPageChange(page + 1)}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </nav>
+      )}
     </aside>
   );
 };

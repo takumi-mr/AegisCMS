@@ -25,7 +25,10 @@ test.describe('Content Editor', () => {
     await slugInput.fill(articleSlug);
 
     // Set Status to Draft
-    const statusSelect = page.locator('select').filter({ hasText: /Draft|Published|Scheduled/ });
+    const statusSelect = page
+      .getByRole('main')
+      .locator('select')
+      .filter({ hasText: /Draft|Published|Scheduled/ });
     await statusSelect.selectOption('draft');
 
     // Save article as Draft
@@ -71,7 +74,10 @@ test.describe('Content Editor', () => {
     await page.getByRole('button', { name: 'New' }).click();
     await page.getByPlaceholder('Enter post title...').fill(firstTitle);
     await page.getByPlaceholder('post-slug').fill(slug);
-    const statusSelect = page.locator('select').filter({ hasText: /Draft|Published|Scheduled/ });
+    const statusSelect = page
+      .getByRole('main')
+      .locator('select')
+      .filter({ hasText: /Draft|Published|Scheduled/ });
     await statusSelect.selectOption('published');
     await page.getByRole('button', { name: /Save/ }).click();
     await expect(page.getByText(/Saved!/)).toBeVisible();

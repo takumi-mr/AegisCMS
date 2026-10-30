@@ -159,9 +159,33 @@ pub fn merge_published_content_records(
 pub struct ContentListQuery {
     /// 指定した公開状態（`published` など）のみ
     pub status: Option<String>,
+    /// タイトル・スラッグ（と `search_columns`）への部分一致。大文字小文字を区別しない（ASCII のみ）
+    pub search: Option<String>,
+    /// `search` の対象に加える列（スキーマの文字列フィールド。タイトルとスラッグは常に対象）
+    pub search_columns: Vec<String>,
+    /// カスタムフィールドの値での絞り込み（列名, 値）。値が `None` なら未設定（NULL か空文字）のもの。
+    /// 列名はスキーマのフィールド名を渡す（安全な識別子でなければ何にも一致しない）
+    pub filters: Vec<(String, Option<String>)>,
     /// 取得する最大件数。`None` なら全件（`offset` は無視）
     pub limit: Option<u64>,
     pub offset: u64,
+}
+
+/// SQL に埋め込んでよい列名（英数字と `_`）
+fn is_safe_identifier(name: &str) -> bool {
+    !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+}
+
+/// `LIKE ... ESCAPE '!'` に渡す値の中の `%` `_` と、エスケープ文字 `!` を無効にする
+fn escape_like(term: &str) -> String {
+    let mut out = String::with_capacity(term.len());
+    for c in term.chars() {
+        if matches!(c, '!' | '%' | '_') {
+            out.push('!');
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// `list_contents_page` の結果: 条件に一致する行（作成日の新しい順）と、ページングしない場合の総件数
@@ -907,12 +931,59 @@ pub fn build_content_list(
     placeholder: impl Fn(usize) -> String,
 ) -> (String, String, Vec<String>) {
     let mut binds = Vec::new();
-    let where_clause = match &query.status {
-        Some(status) => {
-            binds.push(status.clone());
-            format!(" WHERE status = {}", placeholder(1))
+    let mut conditions: Vec<String> = Vec::new();
+    if let Some(status) = &query.status {
+        binds.push(status.clone());
+        conditions.push(format!("status = {}", placeholder(binds.len())));
+    }
+    for (column, value) in &query.filters {
+        if !is_safe_identifier(column) {
+            conditions.push("1 = 0".to_string());
+            continue;
         }
-        None => String::new(),
+        match value {
+            Some(value) => {
+                binds.push(value.clone());
+                conditions.push(format!("{} = {}", column, placeholder(binds.len())));
+            }
+            None => conditions.push(format!("({0} IS NULL OR {0} = '')", column)),
+        }
+    }
+    if let Some(term) = query
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|term| !term.is_empty())
+    {
+        let pattern = format!("%{}%", escape_like(&term.to_lowercase()));
+        let columns = ["title", "slug"]
+            .into_iter()
+            .chain(
+                query
+                    .search_columns
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|column| is_safe_identifier(column)),
+            )
+            .collect::<Vec<_>>();
+        // 値は列の数だけバインドする（`?` の MySQL は位置で対応づけるため）
+        let matches: Vec<String> = columns
+            .iter()
+            .map(|column| {
+                binds.push(pattern.clone());
+                format!(
+                    "LOWER({}) LIKE {} ESCAPE '!'",
+                    column,
+                    placeholder(binds.len())
+                )
+            })
+            .collect();
+        conditions.push(format!("({})", matches.join(" OR ")));
+    }
+    let where_clause = if conditions.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", conditions.join(" AND "))
     };
     let paging = match query.limit {
         Some(limit) => format!(" LIMIT {} OFFSET {}", limit, query.offset),
@@ -1113,6 +1184,7 @@ mod tests {
             status: Some("published".to_string()),
             limit: Some(10),
             offset: 20,
+            ..Default::default()
         };
         let (select, count, binds) =
             build_content_list("content_article", &query, |i| format!("${}", i));
@@ -1136,6 +1208,63 @@ mod tests {
         );
         assert_eq!(count, "SELECT COUNT(*) FROM content_article;");
         assert!(binds.is_empty());
+
+        // 検索と絞り込み: 値はすべてバインドし、`?` でも `$n` でも同じ順に並ぶ
+        let query = ContentListQuery {
+            status: Some("draft".to_string()),
+            search: Some("  50%_Off!  ".to_string()),
+            search_columns: vec!["excerpt".to_string(), "bad column".to_string()],
+            filters: vec![
+                ("category_id".to_string(), Some("cat-1".to_string())),
+                ("brand_id".to_string(), None),
+            ],
+            limit: Some(20),
+            offset: 40,
+        };
+        let (select, count, binds) =
+            build_content_list("content_article", &query, |i| format!("${}", i));
+        let where_clause =
+            "WHERE status = $1 AND category_id = $2 AND (brand_id IS NULL OR brand_id = '') \
+             AND (LOWER(title) LIKE $3 ESCAPE '!' OR LOWER(slug) LIKE $4 ESCAPE '!' \
+             OR LOWER(excerpt) LIKE $5 ESCAPE '!')";
+        assert_eq!(
+            select,
+            format!(
+                "SELECT * FROM content_article {} ORDER BY created_at DESC, id DESC LIMIT 20 OFFSET 40;",
+                where_clause
+            )
+        );
+        assert_eq!(
+            count,
+            format!("SELECT COUNT(*) FROM content_article {};", where_clause)
+        );
+        // 検索語の `%` `_` `!` は `!` でエスケープし、小文字にする（列名に使えない文字を含むものは対象外）
+        let pattern = "%50!%!_off!!%".to_string();
+        assert_eq!(
+            binds,
+            vec![
+                "draft",
+                "cat-1",
+                pattern.as_str(),
+                pattern.as_str(),
+                pattern.as_str()
+            ]
+        );
+        // 列名が安全でない絞り込みは何にも一致しない
+        let query = ContentListQuery {
+            filters: vec![("x; DROP TABLE y".to_string(), Some("1".to_string()))],
+            ..Default::default()
+        };
+        let (select, _, binds) = build_content_list("content_article", &query, |_| "?".into());
+        assert!(select.contains("WHERE 1 = 0"), "{}", select);
+        assert!(binds.is_empty());
+        // 空の検索語は無視する
+        let query = ContentListQuery {
+            search: Some("   ".to_string()),
+            ..Default::default()
+        };
+        let (select, _, _) = build_content_list("content_article", &query, |_| "?".into());
+        assert!(!select.contains("WHERE"), "{}", select);
 
         assert_eq!(
             build_relation_lookup("content_category", "id", 3, |_| "?".into()),

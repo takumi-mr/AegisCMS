@@ -128,6 +128,27 @@ impl OpenApiGenerator {
                             "in": "query",
                             "required": false,
                             "schema": { "$ref": "#/components/schemas/ContentStatus" }
+                        },
+                        {
+                            "name": "q",
+                            "in": "query",
+                            "required": false,
+                            "description": "Search words: a case-insensitive (ASCII) partial match on the title and the slug, and on the `excerpt` field when the schema has one. Only the first 100 characters are used",
+                            "schema": { "type": "string", "maxLength": 100 }
+                        },
+                        {
+                            "name": "category",
+                            "in": "query",
+                            "required": false,
+                            "description": "A category id, or `none` for uncategorized. Only for schemas with a `category_id` field (400 otherwise)",
+                            "schema": { "type": "string" }
+                        },
+                        {
+                            "name": "view",
+                            "in": "query",
+                            "required": false,
+                            "description": "`summary` returns ContentSummary items (no blocks and no rendered HTML, with an `excerpt`), which is cheaper to list. `full` (the default) returns the whole record",
+                            "schema": { "type": "string", "enum": ["full", "summary"], "default": "full" }
                         }
                     ],
                     "responses": {
@@ -141,9 +162,14 @@ impl OpenApiGenerator {
                                         "properties": {
                                             "contents": {
                                                 "type": "array",
-                                                "items": { "$ref": "#/components/schemas/BaseContentItem" }
+                                                "items": {
+                                                    "oneOf": [
+                                                        { "$ref": "#/components/schemas/BaseContentItem" },
+                                                        { "$ref": "#/components/schemas/ContentSummary" }
+                                                    ]
+                                                }
                                             },
-                                            "total": { "type": "integer" },
+                                            "total": { "type": "integer", "description": "The number of records matching the filters" },
                                             "limit": { "type": "integer" },
                                             "offset": { "type": "integer" }
                                         }
@@ -323,6 +349,30 @@ impl OpenApiGenerator {
         );
 
         component_schemas.insert(
+            "ContentSummary".to_string(),
+            json!({
+                "type": "object",
+                "description": "A content record in a list with `view=summary`: no blocks and no rendered HTML",
+                "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "content_type": { "type": "string" },
+                    "title": { "type": "string" },
+                    "slug": { "type": "string" },
+                    "status": { "$ref": "#/components/schemas/ContentStatus" },
+                    "excerpt": { "type": "string", "description": "The `excerpt` field, or the start of the first paragraph" },
+                    "author_id": { "type": "string", "nullable": true },
+                    "published_at": { "type": "string", "format": "date-time", "nullable": true },
+                    "unpublish_at": { "type": "string", "format": "date-time", "nullable": true },
+                    "created_at": { "type": "string", "format": "date-time" },
+                    "updated_at": { "type": "string", "format": "date-time" },
+                    "fields": { "type": "object", "description": "The schema's custom fields", "additionalProperties": true },
+                    "relations": { "type": "object", "description": "Resolved relations by field name", "additionalProperties": true }
+                },
+                "required": ["id", "content_type", "title", "slug", "status", "excerpt", "created_at", "updated_at"]
+            }),
+        );
+
+        component_schemas.insert(
             "CreateContentPayload".to_string(),
             json!({
                 "type": "object",
@@ -485,6 +535,13 @@ mod tests {
         let val = OpenApiGenerator::generate_value(&[schema]);
         assert_eq!(val["openapi"], "3.1.0");
         assert!(val["paths"]["/api/v1/health"].is_object());
+        let list_params = val["paths"]["/api/v1/contents/{content_type}"]["get"]["parameters"]
+            .as_array()
+            .unwrap();
+        for name in ["limit", "offset", "status", "q", "category", "view"] {
+            assert!(list_params.iter().any(|p| p["name"] == name), "{}", name);
+        }
+        assert!(val["components"]["schemas"]["ContentSummary"].is_object());
         assert!(val["components"]["schemas"]["ArticleContent"].is_object());
         assert!(val["components"]["schemas"]["BlockNode"].is_object());
 

@@ -13,6 +13,7 @@ import type {
   ContactMessagePage,
   ContactStatus,
   ContentItem,
+  ContentSummary,
   CreateCategoryPayload,
   CreateContentPayload,
   CreateForumCategoryPayload,
@@ -127,6 +128,25 @@ let unauthorizedHandler: (() => void) | null = null;
 export const setUnauthorizedHandler = (handler: (() => void) | null) => {
   unauthorizedHandler = handler;
 };
+
+/** Search words and filters of `listContentSummaries` */
+export interface ContentListParams {
+  /** Partial match on the title, the slug and the excerpt */
+  q?: string;
+  /** A category id, or `none` for uncategorized */
+  category?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ContentSummaryPage {
+  items: ContentSummary[];
+  /** The number of items matching the search and filters (not only this page) */
+  total: number;
+  limit: number;
+  offset: number;
+}
 
 const toQuery = (query: object): string => {
   const params = new URLSearchParams();
@@ -318,7 +338,51 @@ export const aegisApi = {
     return data.schemas || [];
   },
 
-  /** Every item of the content type (the list API returns at most 500 per page) */
+  /**
+   * One page of content summaries (no blocks and no rendered HTML, with an `excerpt`) matching the
+   * search words and filters. `total` counts every match, not only this page.
+   * `category` is a category id, or `none` for uncategorized.
+   */
+  async listContentSummaries(
+    contentType: string,
+    params: ContentListParams = {}
+  ): Promise<ContentSummaryPage> {
+    const data = await request<{
+      contents?: ContentSummary[];
+      total?: number;
+      limit?: number;
+      offset?: number;
+    }>(
+      `/contents/${encodeURIComponent(contentType)}?${toQuery({ ...params, view: 'summary' })}`,
+      {},
+      i18n.t('api.contentsFailed')
+    );
+    return {
+      items: data.contents ?? [],
+      total: data.total ?? 0,
+      limit: data.limit ?? params.limit ?? 0,
+      offset: data.offset ?? params.offset ?? 0,
+    };
+  },
+
+  /** Every item of the content type as summaries (for small lists such as the categories) */
+  async getAllContentSummaries(contentType: string): Promise<ContentSummary[]> {
+    const pageSize = 500;
+    const items: ContentSummary[] = [];
+    for (;;) {
+      const page = await aegisApi.listContentSummaries(contentType, {
+        limit: pageSize,
+        offset: items.length,
+      });
+      items.push(...page.items);
+      if (page.items.length < pageSize || items.length >= page.total) return items;
+    }
+  },
+
+  /**
+   * Every item of the content type, with blocks and rendered HTML (the list API returns at most 500
+   * per page). Prefer `listContentSummaries`: this renders every item on the server
+   */
   async getContents(contentType: string): Promise<ContentItem[]> {
     const pageSize = 500;
     const items: ContentItem[] = [];

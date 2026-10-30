@@ -103,6 +103,7 @@ pub async fn render_products(
         status: Some("published".to_string()),
         limit: Some(per_page),
         offset: (page - 1).saturating_mul(per_page),
+        ..Default::default()
     };
     let content_page = match state.db.list_published_contents_page(&schema, &query).await {
         Ok(content_page) => content_page,

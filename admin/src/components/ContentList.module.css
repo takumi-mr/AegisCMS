@@ -63,7 +63,76 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 12px 12px 0;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.search:focus-within {
+  border-color: var(--accent-indigo);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.searchIcon {
+  position: absolute;
+  left: 11px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 30px 8px 32px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+/* The browser's own clear button would double ours */
+.search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.clearSearch {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.clearSearch:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.clearSearch:focus-visible,
+.pagerButton:focus-visible {
+  outline: 2px solid var(--accent-indigo);
+  outline-offset: 1px;
+}
+
 .filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px 12px 0;
 }
 
@@ -82,6 +151,11 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.list.loading {
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
 }
 
 .card {
@@ -125,6 +199,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
 }
 
 .cardMeta {
@@ -223,6 +307,44 @@
 
 .empty p {
   font-size: 0.85rem;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pagerButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.pagerButton:hover:not(:disabled) {
+  border-color: var(--border-medium);
+  background: var(--bg-surface-elevated);
+}
+
+.pagerButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagerRange {
+  font-size: 0.78rem;
+  color: var(--text-muted);
 }
 
 @media (max-width: 900px) {

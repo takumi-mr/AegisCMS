@@ -37,6 +37,13 @@ export type ContentItem = import('./schemas').BaseContentItem & {
   fields?: Record<string, unknown>;
   relations?: Record<string, ResolvedRelation>;
 };
+/**
+ * A content item in a list (`GET /contents/{type}?view=summary`): no blocks and no rendered HTML,
+ * with a short `excerpt`. A full `ContentItem` is also a valid summary.
+ */
+export type ContentSummary = Omit<ContentItem, 'blocks' | 'rendered_html' | 'comments_open'> & {
+  excerpt?: string;
+};
 export type CreateContentPayload = import('./schemas').CreateArticlePayload;
 
 export type AuditAction =
