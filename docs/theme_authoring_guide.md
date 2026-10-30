@@ -77,6 +77,8 @@ themes/my-theme/
 | `/`（`front_page = "page:<slug>"`） | 固定ページと同じ（`page.html` など） | 固定ページと同じ。canonical などの URL は `/` |
 | `/articles` | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
 | `/category/{slug}` | `category.html` | `title`（カテゴリ名）、`slug`、`fields`（カテゴリのフィールド。`description` など）、`items`、`pagination` |
+| `/tags/{slug}` | `tag.html` | `title`（タグの名前）、`slug`、`fields`（`description`）、`items`（記事・固定ページ・商品を新しい順。公開ページの URL は `item.fields.url`）、`pagination`（[タグ](tags.md#6-公開サイト)） |
+| `/tags` | `tags.html` | `items`（公開中のコンテンツが付いたタグ。`item.title` が名前、`item.fields.url`・`item.fields.count`・`item.fields.description`）（[タグ](tags.md#6-公開サイト)） |
 | `/search` | `search.html` | [サイト内検索](search.md#3-検索ページsearch)（`fields.query`、`items`、`pagination`） |
 | `/contact`、`/contact/{name}` | `contact.html` | [問い合わせフォーム](contact.md#21-テーマのテンプレートcontacthtml)（`fields.form_html`、`fields.sent`、`fields.form`） |
 | `/articles/{slug}` | `article.html` | `title`、`content_html`、`author`、`published_at`、`updated_at`、`fields`、`relations`、`comments`（[コメント](#6-コメント欄)） |

@@ -16,7 +16,6 @@ use aegis_db::{ContentListQuery, ContentRecord};
 use aegis_search::{
     SearchChange, SearchDocument, SearchIndex, SearchQuery, SearchResults, SearchSort,
 };
-use aegis_theme::FrontPage;
 use axum::extract::{Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -127,19 +126,6 @@ impl SiteSearch {
     }
 }
 
-/// 公開ページのパス（`base_path` を除く）
-fn public_path(state: &AppState, record: &ContentRecord) -> String {
-    match record.content_type.as_str() {
-        "article" => format!("/articles/{}", record.slug),
-        "page" => match state.config.theme.front_page() {
-            FrontPage::Page(front) if front == record.slug => "/".to_string(),
-            _ => format!("/{}", record.slug),
-        },
-        t if t == state.config.commerce.product_type => format!("/products/{}", record.slug),
-        _ => format!("/{}", record.slug),
-    }
-}
-
 fn to_document(state: &AppState, record: &ContentRecord) -> SearchDocument {
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
     let mut body = String::new();
@@ -155,7 +141,11 @@ fn to_document(state: &AppState, record: &ContentRecord) -> SearchDocument {
         slug: record.slug.clone(),
         title: record.title.clone(),
         body: body.trim().to_string(),
-        url: public_path(state, record),
+        url: crate::handlers::public::public_content_path(
+            state,
+            &record.content_type,
+            &record.slug,
+        ),
         published_at: record.published_at.clone(),
         category_id: record
             .custom_fields

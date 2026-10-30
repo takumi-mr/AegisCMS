@@ -271,6 +271,12 @@ pub async fn render_product(
 
     let comments =
         crate::handlers::comments::page_section(&state, &schema.content_type, &record.id).await;
+    let product_tags = crate::handlers::tags_public::TagLookup::load(
+        &state,
+        &schema.content_type,
+        std::slice::from_ref(&record.id),
+    )
+    .await;
     let ctx = PageRenderContext {
         template: "product.html".to_string(),
         content_type: schema.content_type.clone(),
@@ -286,6 +292,7 @@ pub async fn render_product(
                 "variants".to_string(),
                 serde_json::to_value(&variants).unwrap_or_default(),
             );
+            product_tags.attach(&record.id, &mut fields, &mut tags);
             fields
         },
         relations,

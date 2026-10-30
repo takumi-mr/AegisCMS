@@ -479,6 +479,60 @@ pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
+/// タグのページ（`/tags/{slug}`）。種類をまたいで、そのタグが付いた公開中のコンテンツを新しい順に並べる。
+/// `title` がタグの名前、`fields.description` が説明、`items` の `fields.url` が公開ページの URL
+pub const TAG_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-archive" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
+  <p class="aegis-archive-label" style="font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin: 0 0 0.4rem;">{{ t("tag.label") }}</p>
+  <h1 style="margin: 0 0 0.75rem;">{{ title }}</h1>
+  {% if fields.description %}<p class="aegis-archive-description" style="opacity: 0.75; margin: 0 0 2rem;">{{ fields.description }}</p>{% endif %}
+  <ul class="aegis-archive-list" style="list-style: none; padding: 0; margin: 0;">
+    {% for item in items %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
+      {% if item.published_at %}<time datetime="{{ item.published_at }}" style="font-size: 0.85rem; opacity: 0.65;">{{ item.published_at | date_short }}</time>{% endif %}
+      <h2 style="font-size: 1.15rem; margin: 0.2rem 0 0.3rem;"><a href="{{ item.fields.url }}" style="color: inherit;">{{ item.title }}</a></h2>
+      {% if item.excerpt %}<p style="opacity: 0.75; margin: 0;">{{ item.excerpt }}</p>{% endif %}
+    </li>
+    {% else %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">{{ t("tag.empty") }}</li>
+    {% endfor %}
+  </ul>
+  {% if pagination and pagination.total_pages > 1 %}
+  <nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; {{ t("pagination.newer") }}</a>{% else %}<span></span>{% endif %}
+    <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">{{ t("pagination.older") }} &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+  <p style="margin-top: 2rem; font-size: 0.85rem;"><a href="{{ base_path }}/tags/{{ slug }}/feed.xml">{{ t("tag.feed") }}</a></p>
+</section>
+{% endblock %}
+"#;
+
+/// タグの一覧（`/tags`）。公開中のコンテンツに付いているタグを名前順に並べる。`items` はタグで、`title` が名前、
+/// `slug` が slug、`fields.url` がタグのページの URL、`fields.count` が公開中のコンテンツの数、`fields.description` が説明
+pub const TAGS_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-archive" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
+  <h1 style="margin: 0 0 1.5rem;">{{ t("tags.title") }}</h1>
+  <ul class="aegis-tag-list" style="list-style: none; padding: 0; margin: 0;">
+    {% for item in items %}
+    <li style="padding: 0.75rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
+      <a href="{{ item.fields.url }}" style="color: inherit; font-weight: 600;">{{ item.title }}</a>
+      <span style="opacity: 0.65; font-size: 0.85rem;"> &middot; {{ t("tags.count", n=item.fields.count) }}</span>
+      {% if item.fields.description %}<p style="opacity: 0.75; margin: 0.25rem 0 0;">{{ item.fields.description }}</p>{% endif %}
+    </li>
+    {% else %}
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">{{ t("tags.empty") }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
+"#;
+
 /// 問い合わせフォーム（`/contact`・`/contact/{name}`）。`fields.form_html` が組み込みのフォーム（エスケープ済み）、
 /// `fields.sent` が送信した後、`fields.form` がフォームの設定（`title`・`fields`・`action`・`success_message` など）、
 /// `fields.errors` が入力の誤り、`fields.notice` が送信できなかったときの知らせ（`[contact].locale` の言語）
@@ -579,6 +633,7 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
         <div style="font-size: 0.78rem; color: var(--text-dim);">{{ t("author.verified") }}</div>
       </div>
     </div>
+    {% if fields.tags %}<ul class="aegis-tags" aria-label="{{ t("tags.aria") }}" style="list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0; margin: 1rem 0 0;">{% for tag in fields.tags %}<li><a href="{{ tag.url }}" rel="tag" style="display: inline-block; padding: 0.15rem 0.6rem; border: 1px solid rgba(127, 127, 127, 0.4); border-radius: 999px; font-size: 0.8rem; color: inherit; text-decoration: none;">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
   </header>
 
   <div class="prose">
@@ -609,6 +664,7 @@ pub const PAGE_TEMPLATE: &str = r#"{% extends "base.html" %}
     </h1>
   </header>
 
+  {% if fields.tags %}<ul class="aegis-tags" aria-label="{{ t("tags.aria") }}" style="list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0; margin: 0 0 1.5rem;">{% for tag in fields.tags %}<li><a href="{{ tag.url }}" rel="tag" style="display: inline-block; padding: 0.15rem 0.6rem; border: 1px solid rgba(127, 127, 127, 0.4); border-radius: 999px; font-size: 0.8rem; color: inherit; text-decoration: none;">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
   <div class="prose">
     {{ content_html | safe }}
   </div>

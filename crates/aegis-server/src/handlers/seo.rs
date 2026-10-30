@@ -383,6 +383,26 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
         }
     }
 
+    // タグ (/tags と /tags/{slug})。公開中のコンテンツが付いているタグだけ
+    let tags_in_use = super::tags_public::tags_in_use(&state).await;
+    if !tags_in_use.is_empty() {
+        for path in std::iter::once("/tags".to_string()).chain(
+            tags_in_use
+                .iter()
+                .map(|(tag, _)| format!("/tags/{}", tag.slug)),
+        ) {
+            xml.push_str("  <url>\n");
+            xml.push_str(&format!(
+                "    <loc>{}{}</loc>\n",
+                escape_html(&base_url),
+                escape_html(&path)
+            ));
+            xml.push_str("    <changefreq>weekly</changefreq>\n");
+            xml.push_str("    <priority>0.4</priority>\n");
+            xml.push_str("  </url>\n");
+        }
+    }
+
     // 商品 (product)
     if state.commerce.is_some() {
         let product_type = &state.config.commerce.product_type;

@@ -106,6 +106,28 @@ fn contexts() -> Vec<PageRenderContext> {
         ..base("category.html")
     });
     out.push(base("category.html"));
+    // タグのページ・一覧
+    out.push(PageRenderContext {
+        fields: object(json!({ "description": "About it" })),
+        items: vec![ContentSummary {
+            fields: object(json!({ "url": "/articles/a" })),
+            ..item("a", None)
+        }],
+        pagination: pagination(),
+        ..base("tag.html")
+    });
+    out.push(base("tag.html"));
+    out.push(PageRenderContext {
+        items: vec![ContentSummary {
+            title: "Rust".to_string(),
+            fields: object(
+                json!({ "url": "/tags/rust", "count": 3, "description": "The language" }),
+            ),
+            ..item("rust", None)
+        }],
+        ..base("tags.html")
+    });
+    out.push(base("tags.html"));
     out.push(PageRenderContext {
         fields: object(json!({ "query": "rust" })),
         items: vec![ContentSummary {
@@ -137,6 +159,13 @@ fn contexts() -> Vec<PageRenderContext> {
             ..comments(true).unwrap()
         }),
         ..base("page.html")
+    });
+    // タグの付いた記事
+    out.push(PageRenderContext {
+        fields: object(
+            json!({ "tags": [{ "name": "Rust", "slug": "rust", "url": "/tags/rust" }] }),
+        ),
+        ..base("article.html")
     });
     out.push(base("404.html"));
     // ショップ
