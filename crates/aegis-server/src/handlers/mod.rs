@@ -8,6 +8,7 @@ pub mod feed;
 pub mod forum;
 pub mod headers;
 pub mod health;
+pub mod honeypot;
 pub mod invitation;
 pub mod notifications;
 pub mod oidc;
@@ -52,6 +53,7 @@ pub use customers::{
 pub use feed::{get_category_feed, get_feed};
 pub use headers::{get_headers_settings, update_headers_settings};
 pub use health::health_check;
+pub use honeypot::honeypot_trap;
 pub use invitation::{accept_invitation, create_invitation, get_invitation_info};
 pub use notifications::{
     delete_queued_notification, get_notification_status, get_notification_template,
