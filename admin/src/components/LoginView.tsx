@@ -7,6 +7,7 @@ import type { AuthProviders, SessionInfo, SsoProvider } from '../types';
 import { BrandMark } from './ui/BrandMark';
 import { Button } from './ui/Button';
 import { LanguageSelect } from './ui/LanguageSelect';
+import { ThemeSelect } from './ui/ThemeSelect';
 import { isSsoErrorCode } from '../utils/loginRedirect';
 import { describeRegistrationError } from '../utils/verifyEmail';
 import { RegisterForm } from './RegisterForm';
@@ -30,6 +31,14 @@ interface LoginViewProps {
 
 type ScreenMode =
   'login' | 'register' | 'forgot_password' | 'reset_password' | 'accept_invite' | 'mfa';
+
+/** The color theme and the language, for the screens before sign-in */
+const Preferences: React.FC = () => (
+  <div className={styles.preferences}>
+    <ThemeSelect />
+    <LanguageSelect />
+  </div>
+);
 
 const describeError = (err: unknown, t: TFunction): string => {
   if (err instanceof ApiError) {
@@ -252,7 +261,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </button>
             </div>
           </form>
-          <LanguageSelect className={styles.language} />
+          <Preferences />
         </div>
       </div>
     );
@@ -264,7 +273,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         <div className={styles.card}>
           {brand}
           <RegisterForm onBack={backToLogin} />
-          <LanguageSelect className={styles.language} />
+          <Preferences />
         </div>
       </div>
     );
@@ -276,7 +285,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         <div className={styles.card}>
           {brand}
           <PasswordResetRequestForm onBack={backToLogin} />
-          <LanguageSelect className={styles.language} />
+          <Preferences />
         </div>
       </div>
     );
@@ -295,7 +304,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
             }}
             onBack={backToLogin}
           />
-          <LanguageSelect className={styles.language} />
+          <Preferences />
         </div>
       </div>
     );
@@ -314,7 +323,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
             }}
             onBack={backToLogin}
           />
-          <LanguageSelect className={styles.language} />
+          <Preferences />
         </div>
       </div>
     );
@@ -409,7 +418,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </button>
         )}
 
-        <LanguageSelect className={styles.language} />
+        <Preferences />
 
         {!providers?.registration && (
           <p className={styles.hint}>

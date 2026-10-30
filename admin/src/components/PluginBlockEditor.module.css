@@ -30,7 +30,7 @@
 }
 
 .required {
-  color: var(--accent-rose, #f43f5e);
+  color: var(--accent-rose);
 }
 
 .input,
@@ -77,7 +77,7 @@
 
 .warning {
   font-size: 0.75rem;
-  color: var(--accent-amber, #f59e0b);
+  color: var(--accent-amber);
 }
 
 .help {

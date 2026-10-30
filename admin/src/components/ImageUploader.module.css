@@ -30,5 +30,5 @@
 .error {
   margin-top: 6px;
   font-size: 0.8rem;
-  color: #fda4af;
+  color: var(--text-rose);
 }

@@ -49,7 +49,7 @@
 
 .mobilePaneTab:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--overlay-rgb) / 0.04);
 }
 
 .mobilePaneTab.mobilePaneTabActive {
@@ -112,7 +112,7 @@
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: #fff;
+  color: var(--text-primary);
   padding: 4px 0;
   outline: none;
   transition: border-color var(--transition-fast);
@@ -164,7 +164,7 @@
 
 .modeTab:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--overlay-rgb) / 0.04);
 }
 
 .modeTab.activeMode {

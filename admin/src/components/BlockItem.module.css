@@ -72,7 +72,7 @@
   flex: 1;
   background: transparent;
   border: none;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 1.25rem;
   font-weight: 600;
   outline: none;

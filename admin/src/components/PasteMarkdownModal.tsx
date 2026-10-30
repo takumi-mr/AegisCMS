@@ -67,7 +67,7 @@ export const PasteMarkdownModal: React.FC<PasteMarkdownModalProps> = ({ onInsert
 
         {errorNotice && (
           <div className={styles.summaryBar} style={{ borderColor: 'rgba(244, 63, 94, 0.4)' }}>
-            <div className={styles.summaryContent} style={{ color: '#fda4af' }}>
+            <div className={styles.summaryContent} style={{ color: 'var(--text-rose)' }}>
               <AlertCircle size={16} />
               <span>{errorNotice}</span>
             </div>

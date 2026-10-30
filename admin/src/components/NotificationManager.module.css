@@ -39,7 +39,7 @@
   border-radius: var(--radius-md);
   background: rgba(245, 158, 11, 0.1);
   border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #fbbf24;
+  color: var(--text-amber);
   font-size: 0.85rem;
   line-height: 1.5;
 }
@@ -195,7 +195,7 @@
 .queueError {
   font-family: var(--font-mono);
   font-size: 0.76rem;
-  color: #fda4af;
+  color: var(--text-rose);
   overflow-wrap: anywhere;
 }
 
@@ -286,7 +286,7 @@
 }
 
 .resultFailed {
-  color: #fda4af;
+  color: var(--text-rose);
 }
 
 .templateBar {
@@ -475,7 +475,7 @@
 
 .error {
   font-size: 0.82rem;
-  color: #fda4af;
+  color: var(--text-rose);
   overflow-wrap: anywhere;
 }
 

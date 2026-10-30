@@ -1,10 +1,11 @@
-/* Chart roles (the admin is dark-only): categorical slots 1–2 of the reference palette, dark steps,
-   validated against --bg-surface (#141a27). Text stays in the text tokens, never the series color */
+/* Chart roles: categorical slots 1–2 of the reference palette, validated against --bg-surface
+   (#141a27 dark, #f8fafc light: the light steps are deeper). Text stays in the text tokens, never the
+   series color */
 .container {
   --series-pageviews: #3987e5;
   --series-visitors: #d95926;
-  --chart-grid: rgba(255, 255, 255, 0.07);
-  --chart-baseline: rgba(255, 255, 255, 0.22);
+  --chart-grid: rgb(var(--overlay-rgb) / 0.07);
+  --chart-baseline: rgb(var(--overlay-rgb) / 0.22);
 
   flex: 1;
   display: flex;
@@ -12,6 +13,13 @@
   overflow-y: auto;
   background: var(--bg-primary);
   min-height: 0;
+}
+
+:global(:root[data-theme='light']) .container {
+  --series-pageviews: #1f5fbf;
+  --series-visitors: #b8430e;
+  --chart-grid: rgb(var(--overlay-rgb) / 0.1);
+  --chart-baseline: rgb(var(--overlay-rgb) / 0.3);
 }
 
 .column {
@@ -75,7 +83,7 @@
 }
 
 .rangeTab:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgb(var(--overlay-rgb) / 0.05);
   color: var(--text-primary);
 }
 

@@ -93,7 +93,7 @@
 .title {
   font-family: var(--font-heading);
   font-size: 1.6rem;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .status {
@@ -103,12 +103,12 @@
 }
 
 .status.statusError {
-  color: #fda4af;
+  color: var(--text-rose);
 }
 
 /* Rendered article HTML (from the server) */
 .htmlOutput {
-  color: #e2e8f0;
+  color: var(--text-primary);
   transition: opacity var(--transition-fast);
 }
 
@@ -124,7 +124,7 @@
   font-family: var(--font-heading);
   margin-top: 1.2em;
   margin-bottom: 0.6em;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .htmlOutput p {
@@ -133,7 +133,7 @@
 }
 
 .htmlOutput pre {
-  background: #0b0f19;
+  background: var(--inset-strong);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 14px;

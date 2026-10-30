@@ -252,6 +252,12 @@
     },
     "unreachable": "Cannot reach the AegisCMS server. Check that it is running."
   },
+  "theme": {
+    "label": "Theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
   "contentList": {
     "title": "{{type}} ({{count}})",
     "newTitle": "Create new content",

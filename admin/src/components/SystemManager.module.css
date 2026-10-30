@@ -127,7 +127,7 @@
   border-radius: var(--radius-md);
   background: rgba(245, 158, 11, 0.12);
   border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #fbbf24;
+  color: var(--text-amber);
   font-size: 0.82rem;
   line-height: 1.4;
 }
@@ -154,7 +154,7 @@
 }
 
 .resetBtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgb(var(--overlay-rgb) / 0.05);
   color: var(--text-secondary);
 }
 
@@ -165,7 +165,7 @@
 
 .error {
   font-size: 0.82rem;
-  color: var(--danger-text, #f87171);
+  color: var(--danger-text);
 }
 
 .footer {
