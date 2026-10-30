@@ -233,6 +233,74 @@ async fn run_list_query_test<A: DatabaseAdapter>(adapter: &A) -> Result<()> {
     };
     assert_eq!(ids(adapter, unsafe_filter).await?, (vec![], 0));
     assert_eq!(ids(adapter, ContentListQuery::default()).await?.1, 7);
+
+    // タグでの絞り込み
+    adapter
+        .insert_tag(&aegis_db::TagRecord {
+            id: "t-rust".to_string(),
+            slug: "rust".to_string(),
+            name: "Rust".to_string(),
+            description: None,
+            created_at: "2026-10-01T00:00:00Z".to_string(),
+            updated_at: "2026-10-01T00:00:00Z".to_string(),
+        })
+        .await?;
+    adapter
+        .insert_tag(&aegis_db::TagRecord {
+            id: "t-web".to_string(),
+            slug: "web".to_string(),
+            name: "Web".to_string(),
+            description: None,
+            created_at: "2026-10-01T00:00:00Z".to_string(),
+            updated_at: "2026-10-01T00:00:00Z".to_string(),
+        })
+        .await?;
+
+    // a1 と a6 に rust、a2 に web を付ける
+    adapter
+        .set_content_tags(
+            "article",
+            "a1",
+            &["t-rust".to_string()],
+            "2026-10-01T00:00:00Z",
+        )
+        .await?;
+    adapter
+        .set_content_tags(
+            "article",
+            "a6",
+            &["t-rust".to_string()],
+            "2026-10-01T00:00:00Z",
+        )
+        .await?;
+    adapter
+        .set_content_tags(
+            "article",
+            "a2",
+            &["t-web".to_string()],
+            "2026-10-01T00:00:00Z",
+        )
+        .await?;
+
+    let by_tag = |tag_id: &str| ContentListQuery {
+        tag_id: Some(tag_id.to_string()),
+        ..Default::default()
+    };
+    assert_eq!(
+        ids(adapter, by_tag("t-rust")).await?,
+        (strings(&["a6", "a1"]), 2)
+    );
+    assert_eq!(ids(adapter, by_tag("t-web")).await?, (strings(&["a2"]), 1));
+    assert_eq!(ids(adapter, by_tag("no-such-tag")).await?, (vec![], 0));
+
+    // タグとステータスの組み合わせ
+    let tag_and_status = ContentListQuery {
+        tag_id: Some("t-rust".to_string()),
+        status: Some("published".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(ids(adapter, tag_and_status).await?, (strings(&["a1"]), 1));
+
     Ok(())
 }
 
@@ -264,7 +332,7 @@ async fn test_content_list_query_postgres() {
         eprintln!("Skipping PostgreSQL test: failed to connect");
         return;
     };
-    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, _aegis_migrations CASCADE;")
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, _aegis_content_tags, _aegis_tags, _aegis_migrations CASCADE;")
         .execute(adapter.pool())
         .await;
     run_list_query_test(&adapter)
@@ -287,7 +355,7 @@ async fn test_content_list_query_mysql() {
         eprintln!("Skipping MySQL test: failed to connect");
         return;
     };
-    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, _aegis_migrations;")
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, _aegis_content_tags, _aegis_tags, _aegis_migrations;")
         .execute(adapter.pool())
         .await;
     run_list_query_test(&adapter)

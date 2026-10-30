@@ -10,7 +10,7 @@ use tower::ServiceExt;
 
 use crate::config::AegisConfig;
 use crate::state::AppState;
-use aegis_db::ContentRecord;
+use aegis_db::{ContentRecord, DatabaseAdapter};
 use aegis_tags::TagService;
 
 struct Site {
@@ -22,6 +22,74 @@ struct Site {
 
 async fn site(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     site_with_cdn(configure, None).await
+}
+
+async fn site_with_db_adapter(
+    db: Arc<dyn aegis_db::DatabaseAdapter>,
+    configure: impl FnOnce(&mut AegisConfig),
+) -> Site {
+    let mut config = AegisConfig::default();
+    config.audit.enabled = true;
+    configure(&mut config);
+    let state = crate::test_support::test_app_state_with_db(
+        db,
+        config,
+        PluginSupervisor::new(),
+        Vec::new(),
+    )
+    .await;
+    let state = if state.config.tags.enabled {
+        let tags = TagService::new(state.db.clone(), state.config.tags.clone());
+        state.with_tags(tags)
+    } else {
+        state
+    };
+    let state = Arc::new(state);
+
+    for (content_type, id, slug) in [("article", "a1", "hello"), ("page", "p1", "about")] {
+        let schema = state.schemas.read().await[content_type].clone();
+        state
+            .db
+            .insert_content(
+                &schema,
+                &ContentRecord {
+                    id: id.to_string(),
+                    content_type: content_type.to_string(),
+                    title: slug.to_uppercase(),
+                    slug: slug.to_string(),
+                    status: "published".to_string(),
+                    blocks_json: "[]".to_string(),
+                    author_id: None,
+                    published_at: Some("2026-10-01T00:00:00Z".to_string()),
+                    unpublish_at: None,
+                    created_at: "2026-10-01T00:00:00Z".to_string(),
+                    updated_at: "2026-10-01T00:00:00Z".to_string(),
+                    custom_fields: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+    }
+    let session = |user: &'static str, role: &'static str| {
+        let state = state.clone();
+        async move {
+            state
+                .sessions
+                .create_session(user, role, Default::default(), None)
+                .await
+                .unwrap()
+                .id
+        }
+    };
+    let editor = session("editor1", "editor").await;
+    let viewer = session("viewer1", "viewer").await;
+    let admin = session("admin", "admin").await;
+    Site {
+        state,
+        editor,
+        viewer,
+        admin,
+    }
 }
 
 async fn site_with_cdn(
@@ -635,10 +703,7 @@ async fn test_tag_changes_purge_the_cached_pages() {
     );
 }
 
-#[tokio::test]
-async fn test_list_contents_filter_by_tag() {
-    let site = site(|_| {}).await;
-
+async fn verify_list_contents_filter_by_tag(site: Site) {
     // タグを作成
     let (_, body) = site
         .editor(
@@ -738,11 +803,66 @@ async fn test_list_contents_filter_by_tag() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["total"], 0);
     assert!(body["contents"].as_array().unwrap().is_empty());
+}
 
-    // 5. タグ機能が無効のときは 404
+#[tokio::test]
+async fn test_list_contents_filter_by_tag() {
+    let site = site(|_| {}).await;
+    verify_list_contents_filter_by_tag(site).await;
+
+    // タグ機能が無効のときは 404
     let disabled = self::site(|config| config.tags.enabled = false).await;
     let (status, _) = disabled
         .viewer("GET", "/api/v1/contents/article?tag=rust", None)
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+fn is_port_reachable(host_port: &str) -> bool {
+    let Ok(addr) = host_port.parse() else {
+        return false;
+    };
+    std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(150)).is_ok()
+}
+
+#[tokio::test]
+async fn test_postgres_list_contents_filter_by_tag() {
+    let custom_url = std::env::var("POSTGRES_URL").ok();
+    if custom_url.is_none() && !is_port_reachable("127.0.0.1:5432") {
+        eprintln!("Skipping PostgreSQL test: 127.0.0.1:5432 is not reachable");
+        return;
+    }
+    let url = custom_url
+        .unwrap_or_else(|| "postgres://aegis:password@127.0.0.1:5432/aegis_test".to_string());
+    let Ok(adapter) = aegis_db::PostgresAdapter::connect(&url, 5).await else {
+        eprintln!("Skipping PostgreSQL test: failed to connect");
+        return;
+    };
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, content_page, _aegis_content_tags, _aegis_tags, _aegis_migrations, _aegis_audit CASCADE;")
+        .execute(adapter.pool())
+        .await;
+    let _ = adapter.init().await;
+    let site = site_with_db_adapter(Arc::new(adapter), |_| {}).await;
+    verify_list_contents_filter_by_tag(site).await;
+}
+
+#[tokio::test]
+async fn test_mysql_list_contents_filter_by_tag() {
+    let custom_url = std::env::var("MYSQL_URL").ok();
+    if custom_url.is_none() && !is_port_reachable("127.0.0.1:3306") {
+        eprintln!("Skipping MySQL test: 127.0.0.1:3306 is not reachable");
+        return;
+    }
+    let url = custom_url
+        .unwrap_or_else(|| "mysql://aegis:password@127.0.0.1:3306/aegis_test".to_string());
+    let Ok(adapter) = aegis_db::MySqlAdapter::connect(&url, 5).await else {
+        eprintln!("Skipping MySQL test: failed to connect");
+        return;
+    };
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, content_page, _aegis_content_tags, _aegis_tags, _aegis_migrations, _aegis_audit;")
+        .execute(adapter.pool())
+        .await;
+    let _ = adapter.init().await;
+    let site = site_with_db_adapter(Arc::new(adapter), |_| {}).await;
+    verify_list_contents_filter_by_tag(site).await;
 }
