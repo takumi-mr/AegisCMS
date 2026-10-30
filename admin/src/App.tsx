@@ -126,6 +126,7 @@ export const App: React.FC = () => {
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(false);
   // `[tags]` on the server: the tags of the opened content are picked in the editor
   const [tagsEnabled, setTagsEnabled] = useState<boolean>(false);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [contentTags, setContentTags] = useState<Tag[]>([]);
   const tagsRequest = useRef(0);
   const [commentContentTypes, setCommentContentTypes] = useState<string[]>([]);
@@ -236,6 +237,7 @@ export const App: React.FC = () => {
       const result = await aegisApi.listContentSummaries(type, {
         q: filters.q.trim(),
         category: type === 'article' ? filters.category : '',
+        tag: filters.tag,
         status: filters.status,
         limit: LIST_PAGE_SIZE,
         offset: (page - 1) * LIST_PAGE_SIZE,
@@ -350,12 +352,18 @@ export const App: React.FC = () => {
     let cancelled = false;
     // The tag list answers 404 when tags are disabled
     aegisApi
-      .listTags({ limit: 1 })
-      .then(() => {
-        if (!cancelled) setTagsEnabled(true);
+      .listTags({ limit: 200 })
+      .then((res) => {
+        if (!cancelled) {
+          setTagsEnabled(true);
+          setTags(res.tags);
+        }
       })
       .catch(() => {
-        if (!cancelled) setTagsEnabled(false);
+        if (!cancelled) {
+          setTagsEnabled(false);
+          setTags([]);
+        }
       });
     return () => {
       cancelled = true;
@@ -928,6 +936,7 @@ export const App: React.FC = () => {
                 onFiltersChange={handleFiltersChange}
                 onPageChange={handlePageChange}
                 categories={categories}
+                tags={tags}
                 selectedId={selectedId}
                 onSelect={handleSelectSummary}
                 onNew={handleNew}

@@ -1178,7 +1178,9 @@ impl DatabaseAdapter for PostgresAdapter {
         query: &ContentListQuery,
     ) -> Result<ContentPage> {
         let (select, count, binds) =
-            build_content_list(&schema.table_name(), query, |i| format!("${}", i));
+            build_content_list(&schema.table_name(), &schema.content_type, query, |i| {
+                format!("${}", i)
+            });
 
         let mut rows_query = sqlx::query(&select);
         let mut count_query = sqlx::query_scalar::<_, i64>(&count);

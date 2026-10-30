@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Plus, FileText, Layers, Clock, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { ContentSummary } from '../types';
+import type { ContentSummary, Tag } from '../types';
 import { categoryColor, categoryIdOf } from '../utils/category';
 import { isLabeledStatus } from '../utils/contentStatus';
 import { cx } from '../utils/cx';
@@ -39,6 +39,7 @@ interface ContentListProps {
   onFiltersChange: (filters: ContentListFilters) => void;
   onPageChange: (page: number) => void;
   categories: ContentSummary[];
+  tags?: Tag[];
   selectedId: string | null;
   onSelect: (content: ContentSummary) => void;
   onNew: () => void;
@@ -56,6 +57,7 @@ export const ContentList: React.FC<ContentListProps> = ({
   onFiltersChange,
   onPageChange,
   categories,
+  tags,
   selectedId,
   onSelect,
   onNew,
@@ -198,6 +200,22 @@ export const ContentList: React.FC<ContentListProps> = ({
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {tags && tags.length > 0 && (
+          <Field label={t('contentList.tag')} className={styles.filterField}>
+            <select
+              value={filters.tag}
+              onChange={(e) => onFiltersChange({ ...filters, tag: e.target.value })}
+              aria-label={t('contentList.tagAria')}
+            >
+              <option value="">{t('contentList.all')}</option>
+              {tags.map((tag) => (
+                <option key={tag.id} value={tag.slug}>
+                  {tag.name}
                 </option>
               ))}
             </select>

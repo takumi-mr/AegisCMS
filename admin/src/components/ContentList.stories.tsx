@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState, type ComponentProps } from 'react';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
-import type { ContentSummary } from '../types';
+import type { ContentSummary, Tag } from '../types';
 import { NO_FILTERS } from '../utils/contentFilters';
 import { ContentList } from './ContentList';
 
@@ -17,6 +17,25 @@ const summary = (item: Partial<ContentSummary> & Pick<ContentSummary, 'id' | 'ti
 const mockCategories: ContentSummary[] = [
   summary({ id: 'cat-1', content_type: 'category', title: 'Technology', slug: 'tech' }),
   summary({ id: 'cat-2', content_type: 'category', title: 'Design', slug: 'design' }),
+];
+
+const mockTags: Tag[] = [
+  {
+    id: 'tag-1',
+    slug: 'rust',
+    name: 'Rust',
+    description: null,
+    created_at: '2026-10-20T10:00:00Z',
+    updated_at: '2026-10-20T10:00:00Z',
+  },
+  {
+    id: 'tag-2',
+    slug: 'web',
+    name: 'Web',
+    description: null,
+    created_at: '2026-10-20T10:00:00Z',
+    updated_at: '2026-10-20T10:00:00Z',
+  },
 ];
 
 const mockArticles: ContentSummary[] = [
@@ -85,6 +104,7 @@ const meta = {
   parameters: { layout: 'centered' },
   args: {
     categories: mockCategories,
+    tags: mockTags,
     total: mockArticles.length,
     page: 1,
     pageSize: 20,
@@ -203,6 +223,7 @@ export const Search: Story = {
       expect(args.onFiltersChange).toHaveBeenCalledWith({
         q: 'rust',
         category: 'cat-1',
+        tag: '',
         status: '',
       })
     );
@@ -213,6 +234,7 @@ export const Search: Story = {
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith({
       q: 'rust guide',
       category: 'cat-1',
+      tag: '',
       status: '',
     });
 
@@ -222,6 +244,7 @@ export const Search: Story = {
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith({
       q: '',
       category: 'cat-1',
+      tag: '',
       status: '',
     });
   },
@@ -245,6 +268,7 @@ export const Filters: Story = {
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith({
       q: 'ui',
       category: 'cat-2',
+      tag: '',
       status: '',
     });
 
@@ -256,6 +280,18 @@ export const Filters: Story = {
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith({
       q: 'ui',
       category: 'none',
+      tag: '',
+      status: '',
+    });
+
+    await userEvent.selectOptions(
+      canvas.getByRole('combobox', { name: /filter by tag|タグで絞り込む/i }),
+      'rust'
+    );
+    await expect(args.onFiltersChange).toHaveBeenLastCalledWith({
+      q: 'ui',
+      category: '',
+      tag: 'rust',
       status: '',
     });
 
@@ -266,6 +302,7 @@ export const Filters: Story = {
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith({
       q: 'ui',
       category: '',
+      tag: '',
       status: 'draft',
     });
   },

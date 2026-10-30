@@ -146,6 +146,11 @@ impl Site {
             .await
     }
 
+    async fn viewer(&self, method: &str, path: &str, body: Option<Value>) -> (StatusCode, Value) {
+        self.call(method, path, body, Some(&self.viewer.clone()))
+            .await
+    }
+
     async fn create(&self, name: &str) -> Value {
         let (status, tag) = self
             .editor("POST", "/api/v1/tags", Some(json!({ "name": name })))
@@ -628,4 +633,116 @@ async fn test_tag_changes_purge_the_cached_pages() {
         "{:?}",
         purged
     );
+}
+
+#[tokio::test]
+async fn test_list_contents_filter_by_tag() {
+    let site = site(|_| {}).await;
+
+    // タグを作成
+    let (_, body) = site
+        .editor(
+            "POST",
+            "/api/v1/tags",
+            Some(json!({ "name": "Rust", "slug": "rust" })),
+        )
+        .await;
+    let rust_id = body["id"].as_str().unwrap().to_string();
+
+    let (_, body) = site
+        .editor(
+            "POST",
+            "/api/v1/tags",
+            Some(json!({ "name": "Go", "slug": "go" })),
+        )
+        .await;
+    let go_id = body["id"].as_str().unwrap().to_string();
+
+    // 追加の記事 a2, a3 を DB に入れる
+    let schema = site.state.schemas.read().await["article"].clone();
+    for (id, slug, title) in [
+        ("a2", "go-lang", "Go Title"),
+        ("a3", "plain", "Plain Title"),
+    ] {
+        site.state
+            .db
+            .insert_content(
+                &schema,
+                &ContentRecord {
+                    id: id.to_string(),
+                    content_type: "article".to_string(),
+                    title: title.to_string(),
+                    slug: slug.to_string(),
+                    status: "published".to_string(),
+                    blocks_json: "[]".to_string(),
+                    author_id: None,
+                    published_at: Some("2026-10-01T00:00:00Z".to_string()),
+                    unpublish_at: None,
+                    created_at: "2026-10-01T00:00:00Z".to_string(),
+                    updated_at: "2026-10-01T00:00:00Z".to_string(),
+                    custom_fields: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+    }
+
+    // タグ付け: a1 に rust, a2 に go, a3 はタグなし
+    let (status, _) = site
+        .editor(
+            "PUT",
+            "/api/v1/contents/article/a1/tags",
+            Some(json!({ "tag_ids": [rust_id] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = site
+        .editor(
+            "PUT",
+            "/api/v1/contents/article/a2/tags",
+            Some(json!({ "tag_ids": [go_id] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // 1. 全件取得 (a1, a2, a3 の 3 件)
+    let (status, body) = site.editor("GET", "/api/v1/contents/article", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total"], 3);
+
+    // 2. tag slug で絞り込み ("rust")
+    let (status, body) = site
+        .viewer("GET", "/api/v1/contents/article?tag=rust", None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total"], 1);
+    assert_eq!(body["contents"][0]["id"], "a1");
+
+    // 3. tag id で絞り込み
+    let (status, body) = site
+        .viewer(
+            "GET",
+            &format!("/api/v1/contents/article?tag={}", go_id),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total"], 1);
+    assert_eq!(body["contents"][0]["id"], "a2");
+
+    // 4. 存在しないタグ
+    let (status, body) = site
+        .viewer("GET", "/api/v1/contents/article?tag=no-such", None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total"], 0);
+    assert!(body["contents"].as_array().unwrap().is_empty());
+
+    // 5. タグ機能が無効のときは 404
+    let disabled = self::site(|config| config.tags.enabled = false).await;
+    let (status, _) = disabled
+        .viewer("GET", "/api/v1/contents/article?tag=rust", None)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }

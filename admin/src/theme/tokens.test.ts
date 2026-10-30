@@ -1,11 +1,12 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // The color theme lives in the tokens of index.css. These checks keep the stylesheets from drifting
 // away from it: a color written into a component stays the same in the light theme
 
-const SRC = new URL('..', import.meta.url).pathname;
+const SRC = fileURLToPath(new URL('..', import.meta.url));
 
 const cssFiles = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -15,7 +16,7 @@ const cssFiles = (dir: string): string[] =>
   });
 
 const indexCss = readFileSync(join(SRC, 'index.css'), 'utf8');
-const componentCss = cssFiles(SRC).filter((path) => !path.endsWith('/index.css'));
+const componentCss = cssFiles(SRC).filter((path) => !path.endsWith('index.css'));
 
 const lightStart = indexCss.indexOf(":root[data-theme='light']");
 const darkBlock = indexCss.slice(indexCss.indexOf(':root {'), lightStart);

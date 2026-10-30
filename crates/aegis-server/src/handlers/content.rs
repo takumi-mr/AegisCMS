@@ -194,6 +194,8 @@ pub struct ListContentParams {
     pub q: Option<String>,
     /// カテゴリの ID。`none` なら未分類。スキーマに `category_id` フィールドがあるときだけ使える
     pub category: Option<String>,
+    /// 絞り込むタグの slug または ID
+    pub tag: Option<String>,
     /// `summary` なら、ブロックと描画済み HTML を返さず、要約（`excerpt`）を付ける。
     /// 省略か `full` なら、これまでどおり全体のデータ
     pub view: Option<String>,
@@ -1020,6 +1022,53 @@ pub async fn list_content(
             )))
         }
     };
+    let mut tag_id: Option<String> = None;
+    if let Some(tag_str) = params
+        .tag
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    {
+        if state.tags.is_none() {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "Tags are not enabled ([tags].enabled)" })),
+            ));
+        }
+        let tag_record = match state.db.get_tag_by_slug(tag_str).await {
+            Ok(Some(tag)) => Some(tag),
+            Ok(None) => match state.db.get_tag(tag_str).await {
+                Ok(t) => t,
+                Err(e) => {
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({ "error": format!("Database error: {}", e) })),
+                    ));
+                }
+            },
+            Err(e) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("Database error: {}", e) })),
+                ));
+            }
+        };
+        match tag_record {
+            Some(tag) => tag_id = Some(tag.id),
+            None => {
+                let limit = params
+                    .limit
+                    .unwrap_or(DEFAULT_LIST_LIMIT)
+                    .clamp(1, MAX_LIST_LIMIT);
+                return Ok(Json(json!({
+                    "contents": [],
+                    "total": 0,
+                    "limit": limit,
+                    "offset": params.offset,
+                })));
+            }
+        }
+    }
     let mut filters = Vec::new();
     if let Some(category) = params.category.as_deref().filter(|c| !c.is_empty()) {
         if !has_field(
@@ -1056,6 +1105,7 @@ pub async fn list_content(
             .map(|q| q.chars().take(MAX_SEARCH_CHARS).collect()),
         search_columns,
         filters,
+        tag_id,
         limit: Some(limit),
         offset: params.offset,
     };
