@@ -236,6 +236,26 @@ mod tests {
         };
         src_db.insert_comment(&comment).await.unwrap();
 
+        // Tags and the tags on content
+        let tag = aegis_db::TagRecord {
+            id: "tag-1".to_string(),
+            slug: "rust".to_string(),
+            name: "Rust".to_string(),
+            description: Some("The Rust language".to_string()),
+            created_at: "2026-10-29T01:11:00Z".to_string(),
+            updated_at: "2026-10-29T01:11:00Z".to_string(),
+        };
+        src_db.insert_tag(&tag).await.unwrap();
+        src_db
+            .set_content_tags(
+                "article",
+                "art-1",
+                &["tag-1".to_string()],
+                "2026-10-29T01:12:00Z",
+            )
+            .await
+            .unwrap();
+
         let review = ReviewRecord {
             id: "rev-1".to_string(),
             product_id: "prod-1".to_string(),
@@ -401,7 +421,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(summary.storage_files_restored, 2);
-        assert!(summary.records_restored >= 12);
+        assert!(summary.records_restored >= 14);
 
         // Verify restored settings, users, identity
         assert_eq!(
@@ -433,6 +453,19 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(restored_versions.len(), 2);
+
+        // The tags and the tags on content come back
+        assert_eq!(dst_db.get_tag("tag-1").await.unwrap().unwrap(), tag);
+        assert_eq!(
+            dst_db
+                .list_content_tags("article", "art-1")
+                .await
+                .unwrap()
+                .iter()
+                .map(|t| t.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["tag-1"]
+        );
 
         // Verify variant, order, comment, review, contact, forum
         assert_eq!(

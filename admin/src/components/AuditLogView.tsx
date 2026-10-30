@@ -63,6 +63,10 @@ const ACTIONS: AuditAction[] = [
   'contact.delete',
   'notification.template_update',
   'notification.queue_update',
+  'tag.create',
+  'tag.update',
+  'tag.delete',
+  'content.tags',
 ];
 const OUTCOMES = ['success', 'failure', 'denied'] as const;
 

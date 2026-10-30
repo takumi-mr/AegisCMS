@@ -504,6 +504,15 @@ Cookie を使わないアクセス解析（[アクセス解析のドキュメン
 | `locale` | string | `"en"` | 組み込みの文言（入力の誤り・既定の見出しや項目名）の言語。`en` / `ja` |
 | `forms` | table[] | `default` フォーム 1 つ | `[[contact.forms]]`（`name`・`title`・`description`・`submit_label`・`success_message`・`auto_reply`・`subject_field`・`fields`）。項目は `[[contact.forms.fields]]`（[contact.md 1.1](./contact.md#11-項目)） |
 
+### 2.21 `[tags]` — タグ
+
+記事・固定ページ・商品など、どの種類のコンテンツにも付けられるタグ（[タグのドキュメント](./tags.md)）。既定で有効です。`max_per_content` が範囲外だとサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `true` | `false` でタグの API・Admin Studio の画面を使わない（`404`）。付けたタグは DB に残る |
+| `max_per_content` | integer | `20` | 1 つのコンテンツに付けられるタグの数（1〜100） |
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
@@ -676,6 +685,10 @@ timeout_secs = 15
 # action = "session.create"
 # outcomes = ["success"]
 # roles = ["admin"]
+
+[tags]
+enabled = true
+max_per_content = 20
 
 [comments]
 enabled = false

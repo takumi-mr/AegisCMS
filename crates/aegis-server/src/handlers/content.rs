@@ -946,6 +946,21 @@ pub async fn delete_content(
             ),
         }
     }
+    // タグも外す（タグを無効にしていても、以前のタグの結びつきが残らないように）
+    if result.is_ok() {
+        if let Err(e) = state
+            .db
+            .delete_content_tags(&content_type, &current.id)
+            .await
+        {
+            tracing::warn!(
+                "Could not take the tags off {}/{}: {}",
+                content_type,
+                current.id,
+                e
+            );
+        }
+    }
     let outcome = match &result {
         Ok(_) => AuditOutcome::Success,
         Err(e) => {

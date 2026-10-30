@@ -81,7 +81,12 @@
     "updateContactMessageFailed": "問い合わせを更新できませんでした",
     "deleteContactMessageFailed": "問い合わせを削除できませんでした",
     "systemSettingsFailed": "システム設定の取得に失敗しました",
-    "updateSystemSettingsFailed": "システム設定の保存に失敗しました"
+    "updateSystemSettingsFailed": "システム設定の保存に失敗しました",
+    "tagsFailed": "タグを読み込めませんでした",
+    "createTagFailed": "タグを作成できませんでした",
+    "updateTagFailed": "タグを更新できませんでした",
+    "deleteTagFailed": "タグを削除できませんでした",
+    "setContentTagsFailed": "このコンテンツのタグを保存できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -1076,7 +1081,8 @@
       "categories": "カテゴリ",
       "users": "ユーザー",
       "audit": "監査ログ",
-      "system": "システム"
+      "system": "システム",
+      "tags": "タグ"
     }
   },
   "plugins": {
@@ -1600,5 +1606,50 @@
       "forumEnable": "掲示板（フォーラム）投稿を受け付ける"
     },
     "loading": "読み込み中..."
+  },
+  "tags": {
+    "title": "タグ",
+    "description": "タグは記事・固定ページ・商品など、どのコンテンツにも付けられます。付けるのはエディタで行います。タグを削除すると、付いていたすべてのコンテンツから外れます。",
+    "loadFailed": "タグを読み込めませんでした",
+    "search": "名前・slug で検索…",
+    "searchAria": "タグを検索",
+    "empty": "タグはまだありません。下のフォームから最初のタグを作成してください。",
+    "noMatch": "検索に合うタグがありません。",
+    "usage_other": "{{count}} 件のコンテンツ",
+    "new": "新しいタグ",
+    "editTitle": "「{{name}}」を編集",
+    "fieldName": "名前:",
+    "nameAria": "タグの名前",
+    "namePlaceholder": "Rust",
+    "fieldSlug": "slug:",
+    "slugAria": "タグの slug",
+    "slugPlaceholder": "名前から作成",
+    "fieldDescription": "説明:",
+    "descriptionAria": "タグの説明",
+    "create": "タグを作成",
+    "save": "タグを保存",
+    "nameRequired": "名前は必須です。",
+    "saveFailed": "タグを保存できませんでした",
+    "createFailed": "タグを作成できませんでした",
+    "created": "タグ「{{name}}」を作成しました",
+    "updated": "タグ「{{name}}」を保存しました",
+    "deleted": "タグ「{{name}}」を削除しました",
+    "deleteFailed": "タグを削除できませんでした",
+    "confirmDelete": "タグ「{{name}}」を削除しますか？ {{count}} 件のコンテンツから外れます。",
+    "editAria": "タグ {{name}} を編集",
+    "deleteAria": "タグ {{name}} を削除",
+    "readOnly": "タグの作成・変更には editor ロールが必要です。",
+    "range": "{{from}}–{{to}} / {{total}} 件",
+    "pagination": "タグ一覧のページ",
+    "previousPage": "前のページ",
+    "nextPage": "次のページ",
+    "label": "タグ",
+    "pickerAria": "タグを追加",
+    "pickerPlaceholder": "タグを検索・作成…",
+    "noneSelected": "タグなし",
+    "removeAria": "タグ {{name}} を外す",
+    "createNamed": "「{{name}}」を作成",
+    "saveFailedForContent": "コンテンツは保存しましたが、タグを保存できませんでした",
+    "loadFailedForContent": "このコンテンツのタグを読み込めませんでした"
   }
 }

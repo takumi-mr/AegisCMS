@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use aegis_core::{guess_content_type, AegisError, Result, StorageBackend};
 use aegis_db::{
-    CommentRecord, ContactMessageRecord, ContentPublicationChange, CustomerRecord, DatabaseAdapter,
-    ForumCategoryRecord, ForumPostRecord, ForumReportRecord, OrderRecord, ProductVariantRecord,
-    ReviewRecord, UserIdentityRecord, UserRecord,
+    CommentRecord, ContactMessageRecord, ContentPublicationChange, ContentTagRecord,
+    CustomerRecord, DatabaseAdapter, ForumCategoryRecord, ForumPostRecord, ForumReportRecord,
+    OrderRecord, ProductVariantRecord, ReviewRecord, TagRecord, UserIdentityRecord, UserRecord,
 };
 use aegis_schema::SchemaDefinition;
 use serde::de::DeserializeOwned;
@@ -384,6 +384,44 @@ async fn restore_database_section<R: Read + Seek>(
                 }
             }
             db.insert_comment(comment).await?;
+            summary.records_restored += 1;
+        }
+        summary.tables_restored += 1;
+    }
+
+    // 8b. Tags (_aegis_tags) and the tags on content (_aegis_content_tags)
+    if has_path("database/tags.json") {
+        let tags: Vec<TagRecord> = read_json_entry(archive, "database/tags.json")?;
+        for tag in &tags {
+            // The slug is unique: a different tag with the same slug is a conflict, not an overwrite
+            if let Some(other) = db.get_tag_by_slug(&tag.slug).await? {
+                if other.id != tag.id {
+                    return Err(AegisError::Validation(format!(
+                        "Tag slug '{}' is already used by another tag",
+                        tag.slug
+                    )));
+                }
+            }
+            if db.get_tag(&tag.id).await?.is_some() {
+                if options.overwrite {
+                    db.update_tag(tag).await?;
+                    summary.records_restored += 1;
+                    continue;
+                }
+                return Err(AegisError::Validation(format!(
+                    "Tag '{}' already exists (use overwrite option to replace)",
+                    tag.id
+                )));
+            }
+            db.insert_tag(tag).await?;
+            summary.records_restored += 1;
+        }
+        summary.tables_restored += 1;
+    }
+    if has_path("database/content_tags.json") {
+        let links: Vec<ContentTagRecord> = read_json_entry(archive, "database/content_tags.json")?;
+        for link in &links {
+            db.insert_content_tag(link).await?;
             summary.records_restored += 1;
         }
         summary.tables_restored += 1;

@@ -20,6 +20,7 @@ const meta = {
     onSectionChange: fn(),
     categories: [],
     onCategoryCreated: fn(),
+    tagsEnabled: true,
     onSelfUpdated: fn(),
     onShowToast: fn(),
   },
@@ -28,4 +29,5 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const SiteSettings: Story = {};
 export const Categories: Story = { args: { section: 'categories' } };
+export const Tags: Story = { args: { section: 'tags' } };
 export const ViewerSettings: Story = { args: { session: { ...session, role: 'viewer' } } };

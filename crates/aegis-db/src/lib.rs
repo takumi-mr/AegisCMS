@@ -13,6 +13,7 @@ pub mod postgres;
 pub mod reviews;
 pub mod sqlite;
 pub mod sqlx_compat;
+pub mod tags;
 pub mod variants;
 
 use aegis_core::{AegisError, AuditActor, AuditEvent, AuditQuery, Result};
@@ -52,6 +53,10 @@ pub use reviews::{
     ReviewStorage, REVIEW_COLUMNS, REVIEW_TABLE,
 };
 pub use sqlite::SqliteAdapter;
+pub use tags::{
+    ContentTagRecord, TagListQuery, TagPage, TagRecord, TagStorage, TagWithUsage,
+    CONTENT_TAG_TABLE, TAG_TABLE,
+};
 pub use variants::{ProductVariantRecord, ProductVariantStorage, PRODUCT_VARIANT_TABLE};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -177,7 +182,7 @@ fn is_safe_identifier(name: &str) -> bool {
 }
 
 /// `LIKE ... ESCAPE '!'` に渡す値の中の `%` `_` と、エスケープ文字 `!` を無効にする
-fn escape_like(term: &str) -> String {
+pub(crate) fn escape_like(term: &str) -> String {
     let mut out = String::with_capacity(term.len());
     for c in term.chars() {
         if matches!(c, '!' | '%' | '_') {
@@ -200,6 +205,7 @@ pub trait DatabaseAdapter:
     OrderStorage
     + ProductVariantStorage
     + CommentStorage
+    + TagStorage
     + NotificationQueueStorage
     + ForumStorage
     + CustomerStorage

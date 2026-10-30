@@ -26,6 +26,7 @@ pub mod site;
 pub mod sso;
 pub mod storage;
 pub mod storefront;
+pub mod tags;
 pub mod theme;
 pub mod users;
 
@@ -85,6 +86,10 @@ pub use site::{get_site_settings, update_site_settings};
 pub use sso::list_auth_providers;
 pub use storage::{delete_object, list_objects, upload_file};
 pub use storefront::{cart_script, render_cart, render_order, render_product, render_products};
+pub use tags::{
+    create_tag, delete_tag, get_content_tags, list_tags, set_content_tags as set_content_tag_list,
+    update_tag,
+};
 pub use theme::{
     get_active_theme, get_active_theme_asset, get_specific_theme_asset, get_theme_preview,
     install_theme, list_themes, switch_active_theme,
@@ -100,3 +105,5 @@ mod customers_tests;
 mod forum_tests;
 #[cfg(test)]
 mod package_install_tests;
+#[cfg(test)]
+mod tags_tests;

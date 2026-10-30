@@ -105,6 +105,7 @@ crates/
 ├── aegis-notify     # 通知: テンプレート（en / ja、テキスト + HTML）・DB の送信待ちと配信チャネル（メール = SMTP / ログ）
 ├── aegis-commerce   # EC: 見積もり・注文・在庫・決済（手動 / Stripe）
 ├── aegis-comments   # コメント: 投稿・審査（承認制・スパム対策）・スレッド・通知
+├── aegis-tags       # タグ: どのコンテンツにも付けられる管理されたタグ
 ├── aegis-forum      # 掲示板: カテゴリ・スレッド・レス・モデレーション（専用 DB に分離可）
 ├── aegis-contact    # 問い合わせフォーム: 設定で決めるフォーム・スパム対策・受信箱・通知
 ├── aegis-search     # サイト内検索: tantivy の索引（日本語は 2 文字ずつ）（feature `search`）
@@ -130,6 +131,7 @@ crates/
 | [aegis-notify](crates/aegis-notify)                           | 通知                                                     | `NotificationService`（`aegis_core::Notifier` の実装・送信待ちのワーカー）, `channel` (`NotificationChannel`), `email` (SMTP), `log`, `templates`, `html`, `samples`, `config` (`NotificationsConfig`) |
 | [aegis-commerce](crates/aegis-commerce)                       | EC                                                       | `CommerceService` (見積もり・注文・状態遷移), `payment` (`PaymentProvider`), `stripe`, `config` (`CommerceConfig`)                                                       |
 | [aegis-comments](crates/aegis-comments)                       | コメント                                                 | `CommentService` (投稿・審査・スレッド・通知), `moderation` (承認制・スパム対策。レビューと共有), `config` (`CommentsConfig`)                                          |
+| [aegis-tags](crates/aegis-tags)                               | タグ                                                     | `TagService` (作成・更新・削除・コンテンツへの付け外し), `config` (`TagsConfig`)                                                                                      |
 | [aegis-forum](crates/aegis-forum)                             | 掲示板                                                   | `ForumService` (カテゴリ・スレッド・レス・モデレーション), `config` (`ForumConfig`)                                                                                    |
 | [aegis-contact](crates/aegis-contact)                         | 問い合わせフォーム                                       | `ContactService` (送信・スパム対策・受信箱・通知・保存期間), `form` (入力の検査・フォームの HTML), `config` (`ContactConfig`)                                            |
 | [aegis-search](crates/aegis-search)                           | サイト内検索（feature `search`）                         | `SearchIndex` (tantivy の索引・検索), `tokenizer` (CJK の 2 文字分割), `snippet` (`<mark>` 付きの抜粋), `text` (ブロックの文字の取り出し)                                 |
@@ -190,6 +192,7 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-auth`**: ユーザー管理 `UserService`、Argon2id パスワード、`CacheBackend` をバックストアとするセッション管理 `SessionService`、ログイン試行制限、OpenID Connect（feature `oidc`）・SAML 2.0（feature `saml`。XML 署名の検証は純 Rust）（[docs/authentication.md](docs/authentication.md)）。
 - **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文（プレーンテキストと HTML）を作り、DB の送信待ち（`_aegis_notification_queue`。再起動しても失われず、複数台では 1 台だけが送る）から配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。Admin Studio からのテンプレート編集・テスト送信・再送。条件に合う監査イベント（管理者のログイン・ログインのロックなど）の通知（`AuditNotificationSink`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.md](docs/notifications.md)）。
 - **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査・通知は `CommerceDeps` で受け取ります。
+- **`aegis-tags`**: どの種類のコンテンツにも付けられる、名前と slug を持つ管理されたタグ（作成・更新・削除・付け外し）を扱う `TagService`（[docs/tags.md](docs/tags.md)）。表は `aegis-db` の `TagStorage`（`_aegis_tags` / `_aegis_content_tags`）。
 - **`aegis-comments`**: 読者のコメントの投稿・審査（WordPress と同じ承認制・承認済みの投稿者の自動承認・NG ワード・リンク数・IP ごとの投稿数・ハニーポット・`check-comment` プラグイン）・スレッド表示・通知を扱う `CommentService`（[docs/comments.md](docs/comments.md)）。審査の仕組み（`moderation`）は今後の商品レビューと共有します。
 - **`aegis-forum`**: カテゴリ・スレッド・レスの掲示板 `ForumService`（キーセット方式のページ送り・連投の制限・ピン留め・ロック・自動ロック）。`[forum].database_url` で本体と別の DB に置けます（[docs/forum.md](docs/forum.md)）。
 - **`aegis-contact`**: 問い合わせフォーム `ContactService`（項目は設定ファイルの `[[contact.forms]]`。ボット除けの見えない欄・IP ごとの送信数・スパムの語とリンク数・運営者への通知と自動返信・Admin Studio の受信箱・保存期間）。`/contact` と本文のブロック `core/contact-form` で表示します（[docs/contact.md](docs/contact.md)）。

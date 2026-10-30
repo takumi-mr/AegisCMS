@@ -166,10 +166,22 @@ pub enum AuditAction {
     /// Contact form message permanently deleted from admin/API
     #[serde(rename = "contact.delete")]
     ContactDelete,
+    /// Tag created via admin/API
+    #[serde(rename = "tag.create")]
+    TagCreate,
+    /// Tag renamed or changed via admin/API
+    #[serde(rename = "tag.update")]
+    TagUpdate,
+    /// Tag deleted via admin/API (it comes off every content record)
+    #[serde(rename = "tag.delete")]
+    TagDelete,
+    /// The tags on a content record changed via admin/API
+    #[serde(rename = "content.tags")]
+    ContentTags,
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 62] = [
+    pub const ALL: [AuditAction; 66] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -232,6 +244,10 @@ impl AuditAction {
         Self::ReviewDelete,
         Self::ContactUpdate,
         Self::ContactDelete,
+        Self::TagCreate,
+        Self::TagUpdate,
+        Self::TagDelete,
+        Self::ContentTags,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -298,6 +314,10 @@ impl AuditAction {
             Self::ReviewDelete => "review.delete",
             Self::ContactUpdate => "contact.update",
             Self::ContactDelete => "contact.delete",
+            Self::TagCreate => "tag.create",
+            Self::TagUpdate => "tag.update",
+            Self::TagDelete => "tag.delete",
+            Self::ContentTags => "content.tags",
         }
     }
 }
