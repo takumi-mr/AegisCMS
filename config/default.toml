@@ -181,6 +181,9 @@ posts_per_page = 10
 front_page = "posts"
 # Re-read theme templates on every render (for theme development; keep false in production)
 reload_templates = false
+# Language of the built-in templates, the comment form, the shop cart and the maintenance page: "en" or "ja".
+# API error messages are always in English
+locale = "en"
 
 
 # Shop: cart, orders, stock and payments (docs/commerce.md). Products are `product` contents

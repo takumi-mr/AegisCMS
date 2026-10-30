@@ -347,7 +347,18 @@ pub async fn cart_script(State(state): State<Arc<AppState>>) -> Response {
             ),
             (header::CACHE_CONTROL, "public, max-age=300"),
         ],
-        CART_SCRIPT,
+        cart_script_with_messages(&state.config.theme.locale),
     )
         .into_response()
+}
+
+/// カートのスクリプトの前に、`[theme].locale` の言語の文言（`window.AEGIS_CART_I18N`）を置く
+fn cart_script_with_messages(locale: &str) -> String {
+    let messages: serde_json::Map<String, serde_json::Value> =
+        aegis_theme::messages::bundle(locale, "js.")
+            .into_iter()
+            .map(|(name, text)| (name.to_string(), serde_json::Value::from(text)))
+            .collect();
+    let i18n = serde_json::json!({ "locale": locale, "messages": messages });
+    format!("window.AEGIS_CART_I18N = {};\n{}", i18n, CART_SCRIPT)
 }

@@ -4,6 +4,8 @@
  *   <script src="..." data-api="{base}/api/v1/shop" data-currency="jpy"
  *           data-cart-url="{base}/cart" data-products-url="{base}/products" defer></script>
  * Prices shown before checkout come from the server's quote; the browser never decides them.
+ * The texts come from window.AEGIS_CART_I18N ({ locale, messages }), which the server puts in front of
+ * this script in the language of [theme].locale. Error messages from the API are shown as they are (English).
  */
 (function () {
   'use strict';
@@ -25,10 +27,20 @@
     productsUrl: (script && script.dataset.productsUrl) || '/products',
     shopEnabled: !script || script.dataset.shopEnabled !== 'false',
   };
+  var I18N = window.AEGIS_CART_I18N || { locale: undefined, messages: {} };
   var STORAGE_KEY = 'aegis.cart.v1';
   var memoryCart = [];
 
   // ---------- helpers ----------
+
+  // A text of the page language, with {name} replaced. An unknown key is shown as it is (a missed translation)
+  function msg(key, params) {
+    var text = I18N.messages[key];
+    if (text === undefined) return key;
+    return text.replace(/\{(\w+)\}/g, function (match, name) {
+      return params && params[name] !== undefined ? String(params[name]) : match;
+    });
+  }
 
   function el(tag, attrs, children) {
     var node = document.createElement(tag);
@@ -49,7 +61,7 @@
   function formatMoney(amount, currency) {
     currency = (currency || config.currency).toUpperCase();
     try {
-      var format = new Intl.NumberFormat(undefined, { style: 'currency', currency: currency });
+      var format = new Intl.NumberFormat(I18N.locale, { style: 'currency', currency: currency });
       var digits = format.resolvedOptions().maximumFractionDigits;
       return format.format(amount / Math.pow(10, digits));
     } catch (e) {
@@ -66,7 +78,7 @@
         })
         .then(function (body) {
           if (!res.ok) {
-            var error = new Error(body.error || 'Request failed (' + res.status + ')');
+            var error = new Error(body.error || msg('request_failed', { status: res.status }));
             error.status = res.status;
             error.body = body;
             throw error;
@@ -145,7 +157,7 @@
           quantity
         );
         var label = button.textContent;
-        button.textContent = button.dataset.addedLabel || 'Added to cart ✓';
+        button.textContent = button.dataset.addedLabel || msg('added');
         button.disabled = true;
         setTimeout(function () {
           button.textContent = label;
@@ -252,7 +264,7 @@
     function summaryRows() {
       var quote = state.quote;
       if (!quote) return [];
-      var rows = [el('div', { className: 'aegis-sum-row' }, [el('span', { text: 'Subtotal' }), el('span', { text: formatMoney(quote.subtotal, quote.currency) })])];
+      var rows = [el('div', { className: 'aegis-sum-row' }, [el('span', { text: msg('subtotal') }), el('span', { text: formatMoney(quote.subtotal, quote.currency) })])];
       quote.adjustments.forEach(function (adjustment) {
         rows.push(
           el('div', { className: 'aegis-sum-row' + (adjustment.amount < 0 ? ' aegis-discount' : '') }, [
@@ -261,7 +273,7 @@
           ])
         );
       });
-      rows.push(el('div', { className: 'aegis-sum-row aegis-total' }, [el('span', { text: 'Total' }), el('strong', { text: formatMoney(quote.total, quote.currency) })]));
+      rows.push(el('div', { className: 'aegis-sum-row aegis-total' }, [el('span', { text: msg('total') }), el('strong', { text: formatMoney(quote.total, quote.currency) })]));
       return rows;
     }
 
@@ -278,8 +290,8 @@
       if (!items.length) {
         root.appendChild(
           el('div', { className: 'aegis-empty' }, [
-            el('p', { text: 'Your cart is empty.' }),
-            el('a', { href: config.productsUrl, className: 'aegis-button', text: 'Browse products' }),
+            el('p', { text: msg('empty') }),
+            el('a', { href: config.productsUrl, className: 'aegis-button', text: msg('browse') }),
           ])
         );
         return;
@@ -303,32 +315,32 @@
               type: 'number',
               min: '1',
               value: String(item.quantity),
-              'aria-label': 'Quantity of ' + (item.title || item.slug),
+              'aria-label': msg('quantity_of', { title: item.title || item.slug }),
               className: 'aegis-qty',
               onchange: function (e) {
                 setQuantity(index, parseInt(e.target.value, 10) || 0);
               },
             }),
             el('strong', { text: formatMoney(price * item.quantity) }),
-            el('button', { type: 'button', className: 'aegis-link', text: 'Remove', onclick: function () { setQuantity(index, 0); } }),
+            el('button', { type: 'button', className: 'aegis-link', text: msg('remove'), onclick: function () { setQuantity(index, 0); } }),
           ])
         );
       });
       root.appendChild(list);
 
       if (!config.shopEnabled) {
-        root.appendChild(el('p', { className: 'aegis-error', text: 'Online checkout is not available on this site.' }));
+        root.appendChild(el('p', { className: 'aegis-error', text: msg('checkout_unavailable') }));
         return;
       }
 
-      var coupon = el('input', { name: 'coupon', placeholder: 'Coupon code', value: state.coupon, 'aria-label': 'Coupon code' });
+      var coupon = el('input', { name: 'coupon', placeholder: msg('coupon'), value: state.coupon, 'aria-label': msg('coupon') });
       root.appendChild(
         el('div', { className: 'aegis-coupon' }, [
           coupon,
           el('button', {
             type: 'button',
             className: 'aegis-button aegis-secondary',
-            text: 'Apply',
+            text: msg('apply'),
             onclick: function () {
               state.coupon = coupon.value.trim();
               requote();
@@ -349,20 +361,20 @@
           },
         },
         [
-          el('h2', { text: 'Checkout' }),
-          field('name', 'Name', { required: true, autocomplete: 'name' }),
-          field('email', 'Email', { type: 'email', required: true, autocomplete: 'email' }),
-          field('postal_code', 'Postal code', { autocomplete: 'postal-code' }),
-          field('region', 'Prefecture / State', { autocomplete: 'address-level1' }),
-          field('city', 'City', { autocomplete: 'address-level2' }),
-          field('line1', 'Address', { autocomplete: 'address-line1' }),
-          field('line2', 'Building / Room', { autocomplete: 'address-line2' }),
-          field('phone', 'Phone', { type: 'tel', autocomplete: 'tel' }),
+          el('h2', { text: msg('checkout') }),
+          field('name', msg('name'), { required: true, autocomplete: 'name' }),
+          field('email', msg('email'), { type: 'email', required: true, autocomplete: 'email' }),
+          field('postal_code', msg('postal_code'), { autocomplete: 'postal-code' }),
+          field('region', msg('region'), { autocomplete: 'address-level1' }),
+          field('city', msg('city'), { autocomplete: 'address-level2' }),
+          field('line1', msg('address'), { autocomplete: 'address-line1' }),
+          field('line2', msg('building'), { autocomplete: 'address-line2' }),
+          field('phone', msg('phone'), { type: 'tel', autocomplete: 'tel' }),
           el('button', {
             type: 'submit',
             className: 'aegis-button',
             disabled: state.busy || !state.quote,
-            text: state.busy ? 'Placing order…' : 'Place order',
+            text: state.busy ? msg('placing') : msg('place_order'),
           }),
         ]
       );
@@ -375,13 +387,9 @@
 
   // ---------- order page ----------
 
-  var STATUS_LABELS = {
-    pending_payment: 'Awaiting payment',
-    paid: 'Paid',
-    shipped: 'Shipped',
-    completed: 'Completed',
-    cancelled: 'Cancelled',
-  };
+  function statusLabel(status) {
+    return I18N.messages['status.' + status] || status;
+  }
 
   function renderOrder(root) {
     var id = root.dataset.orderId;
@@ -392,15 +400,15 @@
       root.textContent = '';
       root.appendChild(
         el('div', { className: 'aegis-order-head' }, [
-          el('div', {}, [el('div', { className: 'aegis-muted', text: 'Order number' }), el('h2', { text: order.number })]),
-          el('span', { className: 'aegis-status aegis-status-' + order.status, text: STATUS_LABELS[order.status] || order.status }),
+          el('div', {}, [el('div', { className: 'aegis-muted', text: msg('order_number') }), el('h2', { text: order.number })]),
+          el('span', { className: 'aegis-status aegis-status-' + order.status, text: statusLabel(order.status) }),
         ])
       );
       if (order.status === 'pending_payment' && order.payment_provider === 'stripe') {
-        root.appendChild(el('p', { className: 'aegis-muted', text: 'Confirming your payment… this page updates automatically.' }));
+        root.appendChild(el('p', { className: 'aegis-muted', text: msg('confirming') }));
       }
       if (order.payment_instructions) {
-        root.appendChild(el('div', { className: 'aegis-instructions' }, [el('strong', { text: 'How to pay' }), el('p', { text: order.payment_instructions })]));
+        root.appendChild(el('div', { className: 'aegis-instructions' }, [el('strong', { text: msg('how_to_pay') }), el('p', { text: order.payment_instructions })]));
       }
       var lines = el('div', { className: 'aegis-summary' });
       order.lines.forEach(function (line) {
@@ -409,18 +417,18 @@
       order.adjustments.forEach(function (adjustment) {
         lines.appendChild(el('div', { className: 'aegis-sum-row' }, [el('span', { text: adjustment.label }), el('span', { text: formatMoney(adjustment.amount, order.currency) })]));
       });
-      lines.appendChild(el('div', { className: 'aegis-sum-row aegis-total' }, [el('span', { text: 'Total' }), el('strong', { text: formatMoney(order.total, order.currency) })]));
+      lines.appendChild(el('div', { className: 'aegis-sum-row aegis-total' }, [el('span', { text: msg('total') }), el('strong', { text: formatMoney(order.total, order.currency) })]));
       root.appendChild(lines);
       var address = order.shipping_address;
       if (address && (address.line1 || address.city)) {
         root.appendChild(
           el('div', { className: 'aegis-address' }, [
-            el('strong', { text: 'Ship to' }),
+            el('strong', { text: msg('ship_to') }),
             el('p', { text: [address.name, address.postal_code, address.region + ' ' + address.city, address.line1, address.line2].filter(function (s) { return s && s.trim(); }).join('\n') }),
           ])
         );
       }
-      root.appendChild(el('a', { href: config.productsUrl, className: 'aegis-button aegis-secondary', text: 'Continue shopping' }));
+      root.appendChild(el('a', { href: config.productsUrl, className: 'aegis-button aegis-secondary', text: msg('continue') }));
     }
 
     function load() {
@@ -435,7 +443,7 @@
         })
         .catch(function (err) {
           root.textContent = '';
-          root.appendChild(el('p', { className: 'aegis-error', text: err.status === 404 ? 'Order not found. Use the link from your confirmation.' : err.message }));
+          root.appendChild(el('p', { className: 'aegis-error', text: err.status === 404 ? msg('order_not_found') : err.message }));
         });
     }
     load();

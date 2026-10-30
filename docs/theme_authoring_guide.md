@@ -122,6 +122,8 @@ themes/my-theme/
 | `extra_css` | `[theme].custom_css` とプラグインが足した CSS |
 | `extra_head` | `<head>` に足す HTML（サイトの favicon の `<link rel="icon">` と、プラグインが足したもの）。**`<head>` の中で必ず `{{ extra_head \| safe }}` を出力する** |
 | `theme_vars` | プラグインやショップが渡す文字列の辞書 |
+| `locale` | 表示言語（`[theme].locale`、`en` / `ja`）。`<html lang="{{ locale }}">` に使う |
+| `t("キー", ...)` | 組み込みの文言を表示言語で返す関数（`{{ t("nav.home") }}`。キーは `crates/aegis-theme/src/messages.rs`）。独自の文言はテーマに直接書いてよい。ループ変数に `t` を使わない（この関数を隠してしまう） |
 | `admin_url` | Admin Studio へのリンクの URL（`base_path` と `[server].admin_path` 込み）。**出さない設定のときは空文字**なので `{% if admin_url %}...{% endif %}` で囲む。`/admin/` を直接書かない |
 | `show_powered_by` | フッターに「Powered by AegisCMS」などの表記を出すか（`[theme].show_powered_by`、既定は `true`）。表記は `{% if show_powered_by %}...{% endif %}` で囲む |
 

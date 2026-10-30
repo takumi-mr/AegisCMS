@@ -103,6 +103,7 @@ pub async fn test_app_state_with_db(
         config.auth.login_rate_limit.clone(),
     ));
     let base_path = config.server.normalized_base_path().unwrap();
+    let locale = config.theme.locale.clone();
     AppState::new(
         config,
         db.clone(),
@@ -116,7 +117,8 @@ pub async fn test_app_state_with_db(
         audit,
         Arc::new(
             aegis_theme::ThemeEngine::new(std::path::Path::new("themes"), "default")
-                .with_base_path(&base_path),
+                .with_base_path(&base_path)
+                .with_locale(&locale),
         ),
     )
 }

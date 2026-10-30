@@ -861,6 +861,59 @@ async fn test_storefront_pages_render() {
 }
 
 #[tokio::test]
+async fn test_storefront_pages_and_cart_script_follow_the_theme_locale() {
+    let get = |shop: &Shop, path: &'static str| {
+        let request = Request::get(path).body(Body::empty()).unwrap();
+        let router = crate::app::router(&shop.state.config, shop.state.clone());
+        async move {
+            let response = router.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{}", path);
+            let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            String::from_utf8(bytes.to_vec()).unwrap()
+        }
+    };
+
+    // 既定は英語
+    let en = shop(|_| {}).await;
+    let cart = get(&en, "/cart").await;
+    assert!(cart.contains(r#"<html lang="en">"#) && cart.contains("Loading your cart…"));
+    let script = get(&en, "/shop/cart.js").await;
+    assert!(
+        script.starts_with("window.AEGIS_CART_I18N = {"),
+        "{}",
+        &script[..80]
+    );
+    assert!(
+        script.contains(r#""added":"Added to cart ✓""#),
+        "{}",
+        &script[..400]
+    );
+    assert!(script.contains(r#""locale":"en""#));
+    assert!(script.contains("aegis.cart.v1"));
+
+    // [theme].locale = "ja"
+    let ja = shop(|config| config.theme.locale = "ja".to_string()).await;
+    let cart = get(&ja, "/cart").await;
+    assert!(cart.contains(r#"<html lang="ja">"#), "{}", cart);
+    assert!(cart.contains("カートを読み込んでいます…"));
+    assert!(!cart.contains("Loading your cart"));
+    let products = get(&ja, "/products").await;
+    assert!(products.contains("すべての商品") && products.contains("カート"));
+    let script = get(&ja, "/shop/cart.js").await;
+    assert!(
+        script.contains(r#""added":"カートに追加しました ✓""#),
+        "{}",
+        &script[..400]
+    );
+    assert!(script.contains(r#""locale":"ja""#));
+    assert!(script.contains(r#""status.paid":"お支払い済み""#));
+    // 関数の本体は言語に依らず同じ
+    assert!(script.ends_with(include_str!("../../assets/cart.js")));
+}
+
+#[tokio::test]
 async fn test_storefront_pages_are_not_found_when_shop_is_disabled() {
     // The product schema exists, but `[commerce].enabled` is off, so there is no commerce service
     let state = Arc::new(
