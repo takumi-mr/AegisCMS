@@ -13,7 +13,9 @@ use std::sync::Arc;
 use aegis_ast::BlockNode;
 use aegis_core::{ContentSummary, PageRenderContext, Pagination};
 use aegis_db::{ContentListQuery, ContentRecord};
-use aegis_search::{SearchChange, SearchDocument, SearchIndex, SearchQuery, SearchResults};
+use aegis_search::{
+    SearchChange, SearchDocument, SearchIndex, SearchQuery, SearchResults, SearchSort,
+};
 use aegis_theme::FrontPage;
 use axum::extract::{Query, State};
 use axum::http::{header, StatusCode};
@@ -30,6 +32,8 @@ pub const TOPIC_SEARCH: &str = "search.content";
 
 /// API で 1 回に返す件数の上限
 pub const MAX_API_LIMIT: usize = 50;
+/// `category` に使う文字数の上限
+const MAX_CATEGORY_CHARS: usize = 100;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -50,6 +54,18 @@ impl Default for SearchConfig {
             content_types: vec!["article".to_string(), "page".to_string()],
         }
     }
+}
+
+/// 検索の条件（API と検索ページが共通で使う）
+pub struct SearchRequest {
+    pub text: String,
+    /// 空ならすべての種類
+    pub content_types: Vec<String>,
+    /// このカテゴリ（ID）のものだけ
+    pub category: Option<String>,
+    pub sort: SearchSort,
+    pub limit: usize,
+    pub offset: usize,
 }
 
 /// 検索の索引と、その書き込みの順番待ち
@@ -94,20 +110,16 @@ impl SiteSearch {
     }
 
     /// 検索する（索引を読むだけなので順番待ちはしない）
-    pub async fn search(
-        &self,
-        text: String,
-        content_types: Vec<String>,
-        limit: usize,
-        offset: usize,
-    ) -> anyhow::Result<SearchResults> {
+    pub async fn search(&self, request: SearchRequest) -> anyhow::Result<SearchResults> {
         let index = self.index.clone();
         let results = tokio::task::spawn_blocking(move || {
             index.search(&SearchQuery {
-                text: &text,
-                content_types: &content_types,
-                limit,
-                offset,
+                text: &request.text,
+                content_types: &request.content_types,
+                category: request.category.as_deref(),
+                sort: request.sort,
+                limit: request.limit,
+                offset: request.offset,
             })
         })
         .await??;
@@ -145,6 +157,12 @@ fn to_document(state: &AppState, record: &ContentRecord) -> SearchDocument {
         body: body.trim().to_string(),
         url: public_path(state, record),
         published_at: record.published_at.clone(),
+        category_id: record
+            .custom_fields
+            .get("category_id")
+            .and_then(|v| v.as_str())
+            .filter(|c| !c.is_empty())
+            .map(str::to_string),
     }
 }
 
@@ -276,6 +294,10 @@ pub struct SearchParams {
     /// 絞り込むコンテンツの種類（カンマ区切り）
     #[serde(default, rename = "type")]
     pub content_type: Option<String>,
+    /// 絞り込むカテゴリの ID
+    pub category: Option<String>,
+    /// 並び（`relevance`＝一致の良い順、`newest`＝公開日時の新しい順）。省略時は `relevance`
+    pub sort: Option<String>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
     /// 検索ページのページ番号（1 始まり）
@@ -294,6 +316,14 @@ fn requested_types(search: &SiteSearch, param: Option<&str>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// `category` パラメーター（空は絞り込まない）
+fn requested_category(param: Option<&str>) -> Option<String> {
+    param
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(|c| c.chars().take(MAX_CATEGORY_CHARS).collect())
+}
+
 fn base_path(state: &AppState) -> String {
     state
         .config
@@ -302,7 +332,7 @@ fn base_path(state: &AppState) -> String {
         .unwrap_or_default()
 }
 
-/// `GET /api/v1/search?q=...&type=article,page&limit=10&offset=0` — 公開中のコンテンツを検索する（ログイン不要）
+/// `GET /api/v1/search?q=...&type=article,page&category=...&sort=newest&limit=10&offset=0` — 公開中のコンテンツを検索する（ログイン不要）
 pub async fn search_api(
     State(state): State<Arc<AppState>>,
     Query(params): Query<SearchParams>,
@@ -326,9 +356,30 @@ pub async fn search_api(
     if params.content_type.is_some() && types.is_empty() {
         return Json(json!({ "query": q, "total": 0, "items": [] })).into_response();
     }
-    let limit = params.limit.unwrap_or(10).clamp(1, MAX_API_LIMIT);
-    let offset = params.offset.unwrap_or(0);
-    match search.search(q.to_string(), types, limit, offset).await {
+    let sort = match params.sort.as_deref().filter(|s| !s.is_empty()) {
+        None => SearchSort::Relevance,
+        Some(value) => match SearchSort::parse(value) {
+            Some(sort) => sort,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(
+                        json!({ "error": format!("Unknown sort '{}' (use 'relevance' or 'newest')", value) }),
+                    ),
+                )
+                    .into_response();
+            }
+        },
+    };
+    let request = SearchRequest {
+        text: q.to_string(),
+        content_types: types,
+        category: requested_category(params.category.as_deref()),
+        sort,
+        limit: params.limit.unwrap_or(10).clamp(1, MAX_API_LIMIT),
+        offset: params.offset.unwrap_or(0),
+    };
+    match search.search(request).await {
         Ok(mut results) => {
             let base = base_path(&state);
             for hit in &mut results.hits {
@@ -369,16 +420,28 @@ pub async fn render_search_page(
     let per_page = state.config.theme.posts_per_page.max(1);
     let page = params.page.unwrap_or(1).max(1);
     let types = requested_types(&search, params.content_type.as_deref());
+    let category = requested_category(params.category.as_deref());
+    // 知らない並びは、検索ページでは一致の良い順にする
+    let sort = params
+        .sort
+        .as_deref()
+        .and_then(SearchSort::parse)
+        .unwrap_or_default();
     let base = base_path(&state);
 
     let mut items = Vec::new();
     let mut total_items = 0u64;
     if !q.is_empty() {
         let offset = (page - 1).saturating_mul(per_page);
-        match search
-            .search(q.clone(), types, per_page as usize, offset as usize)
-            .await
-        {
+        let request = SearchRequest {
+            text: q.clone(),
+            content_types: types,
+            category: category.clone(),
+            sort,
+            limit: per_page as usize,
+            offset: offset as usize,
+        };
+        match search.search(request).await {
             Ok(results) => {
                 total_items = results.total as u64;
                 for hit in results.hits {
@@ -414,6 +477,13 @@ pub async fn render_search_page(
             url.push_str("&type=");
             url.extend(url::form_urlencoded::byte_serialize(t.as_bytes()));
         }
+        if let Some(category) = &category {
+            url.push_str("&category=");
+            url.extend(url::form_urlencoded::byte_serialize(category.as_bytes()));
+        }
+        if sort == SearchSort::Newest {
+            url.push_str("&sort=newest");
+        }
         if n > 1 {
             url.push_str(&format!("&page={}", n));
         }
@@ -431,6 +501,15 @@ pub async fn render_search_page(
     let site = crate::render::site_page_context(&state);
     let mut fields = std::collections::HashMap::new();
     fields.insert("query".to_string(), json!(q));
+    fields.insert("category".to_string(), json!(category.unwrap_or_default()));
+    fields.insert(
+        "sort".to_string(),
+        json!(if sort == SearchSort::Newest {
+            "newest"
+        } else {
+            "relevance"
+        }),
+    );
     let mut ctx = PageRenderContext {
         template: "search.html".to_string(),
         content_type: "search".to_string(),

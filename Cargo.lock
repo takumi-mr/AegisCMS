@@ -366,6 +366,7 @@ name = "aegis-search"
 version = "0.1.0"
 dependencies = [
  "aegis-ast",
+ "chrono",
  "serde",
  "serde_json",
  "tantivy",

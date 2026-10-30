@@ -9,6 +9,7 @@ fn doc(content_type: &str, id: &str, title: &str, body: &str) -> SearchDocument 
         body: body.into(),
         url: format!("/{}s/slug-{}", content_type, id),
         published_at: Some("2026-10-01T00:00:00Z".into()),
+        category_id: None,
     }
 }
 
@@ -103,7 +104,7 @@ fn test_content_type_filter_and_paging() {
             text: "aegiscms",
             content_types: &types,
             limit: 10,
-            offset: 0,
+            ..Default::default()
         })
         .unwrap();
     assert_eq!(ids(&results), vec!["3"]);
@@ -180,4 +181,77 @@ fn test_unreadable_index_dir_is_recreated() {
     std::fs::write(dir.path().join("meta.json"), "not json").unwrap();
     let index = SearchIndex::open_in_dir(dir.path()).unwrap();
     assert!(index.is_empty());
+}
+
+#[test]
+fn test_category_filter() {
+    let index = SearchIndex::in_memory().unwrap();
+    let mut news = doc("article", "1", "Release notes", "Docker image");
+    news.category_id = Some("cat-news".into());
+    let mut guide = doc("article", "2", "Install guide", "Docker image");
+    guide.category_id = Some("cat-guide".into());
+    let uncategorized = doc("page", "3", "About", "Docker image");
+    index.rebuild(&[news, guide, uncategorized]).unwrap();
+
+    let in_category = |category: Option<&str>| {
+        ids(&index
+            .search(&SearchQuery {
+                text: "docker",
+                category,
+                limit: 10,
+                ..Default::default()
+            })
+            .unwrap())
+    };
+    assert_eq!(in_category(Some("cat-news")), vec!["1"]);
+    assert_eq!(in_category(Some("cat-guide")), vec!["2"]);
+    assert_eq!(in_category(Some("no-such")), Vec::<String>::new());
+    // 空のカテゴリは絞り込まない
+    assert_eq!(in_category(Some("")).len(), 3);
+    assert_eq!(in_category(None).len(), 3);
+}
+
+#[test]
+fn test_newest_sort_orders_by_published_at_and_pages() {
+    let index = SearchIndex::in_memory().unwrap();
+    let dated = |id: &str, title: &str, published_at: Option<&str>| {
+        let mut d = doc("article", id, title, "Docker");
+        d.published_at = published_at.map(str::to_string);
+        d
+    };
+    index
+        .rebuild(&[
+            // 一致が最も良い（タイトルに語がある）のに一番古い
+            dated("old", "Docker", Some("2026-01-01T00:00:00Z")),
+            dated("new", "News", Some("2026-10-30T00:00:00Z")),
+            // タイムゾーン付きの日時も、時刻として比べる
+            dated("mid", "Mid", Some("2026-06-01T09:00:00+09:00")),
+            dated("none", "Undated", None),
+        ])
+        .unwrap();
+    let newest = |offset: usize, limit: usize| {
+        index
+            .search(&SearchQuery {
+                text: "docker",
+                sort: SearchSort::Newest,
+                limit,
+                offset,
+                ..Default::default()
+            })
+            .unwrap()
+    };
+    let all = newest(0, 10);
+    assert_eq!(all.total, 4);
+    assert_eq!(ids(&all), vec!["new", "mid", "old", "none"]);
+    assert!(all.hits.iter().all(|h| h.score == 0.0));
+    assert_eq!(ids(&newest(1, 2)), vec!["mid", "old"]);
+    // 既定は一致の良い順: タイトルに語がある文書が先
+    assert_eq!(ids(&search(&index, "docker"))[0], "old");
+}
+
+#[test]
+fn test_sort_parse() {
+    assert_eq!(SearchSort::parse("newest"), Some(SearchSort::Newest));
+    assert_eq!(SearchSort::parse("relevance"), Some(SearchSort::Relevance));
+    assert_eq!(SearchSort::parse("oldest"), None);
 }

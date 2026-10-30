@@ -72,6 +72,9 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ),
     ("category.feed", "Feed (Atom)", "フィード（Atom）"),
     ("search.label", "Search", "検索"),
+    ("search.sort", "Sort by", "並び順"),
+    ("search.sort_relevance", "Most relevant", "一致の良い順"),
+    ("search.sort_newest", "Newest first", "新しい順"),
     ("search.results.one", "{n} result", "{n} 件の結果"),
     ("search.results.other", "{n} results", "{n} 件の結果"),
     (

@@ -498,7 +498,8 @@ pub const CONTACT_TEMPLATE: &str = r#"{% extends "base.html" %}
 "#;
 
 /// サイト内検索の結果（`/search?q=...`）。`fields.query` が検索語、`items` の `fields.url` が公開ページの URL、
-/// `fields.snippet_html` が検索語を `<mark>` で囲んだ本文の抜粋（エスケープ済み）
+/// `fields.snippet_html` が検索語を `<mark>` で囲んだ本文の抜粋（エスケープ済み）。
+/// `fields.category`（絞り込み中のカテゴリ ID）と `fields.sort`（`relevance` / `newest`）も渡される
 pub const SEARCH_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
@@ -507,6 +508,11 @@ pub const SEARCH_TEMPLATE: &str = r#"{% extends "base.html" %}
   <h1 style="margin: 0 0 1rem;">{{ title }}</h1>
   <form class="aegis-search-form" role="search" action="{{ base_path }}/search" method="get" style="display: flex; gap: 0.5rem; margin: 0 0 1.5rem;">
     <input type="search" name="q" value="{{ fields.query }}" aria-label="{{ t("search.label") }}" placeholder="{{ t("search.label") }}" maxlength="200" style="flex: 1; min-width: 0; padding: 0.55rem 0.75rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit;">
+    {% if fields.category %}<input type="hidden" name="category" value="{{ fields.category }}">{% endif %}
+    <select name="sort" aria-label="{{ t("search.sort") }}" style="padding: 0.55rem 0.5rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit;">
+      <option value="relevance"{% if fields.sort != "newest" %} selected{% endif %}>{{ t("search.sort_relevance") }}</option>
+      <option value="newest"{% if fields.sort == "newest" %} selected{% endif %}>{{ t("search.sort_newest") }}</option>
+    </select>
     <button type="submit" style="padding: 0.55rem 1rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit; cursor: pointer;">{{ t("search.label") }}</button>
   </form>
   {% if fields.query %}
