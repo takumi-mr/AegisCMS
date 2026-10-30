@@ -2,9 +2,9 @@
 
 {% block content %}
 <div style="text-align: center; padding: 6rem 1rem;">
-  <div class="cyber-subtitle" style="font-size: 1.2rem; margin-bottom: 1rem;">// 404 :: NODE NOT FOUND</div>
-  <h1 class="cyber-title" style="font-size: 4rem; color: var(--cyber-magenta); text-shadow: var(--cyber-magenta-glow);">NULL VECTOR</h1>
-  <p class="cyber-desc" style="margin: 1.5rem auto; max-width: 500px;">The requested cybernetic node does not exist or has been wiped from memory.</p>
-  <a href="{{ base_path }}/" class="cyber-card-link" style="font-size: 1.1rem; margin-top: 2rem;">[ RE-ENGAGE CORE SYSTEM ] &rarr;</a>
+  <div class="cyber-subtitle" style="font-size: 1.2rem; margin-bottom: 1rem;">{{ t("theme.cyber.404_subtitle") }}</div>
+  <h1 class="cyber-title" style="font-size: 4rem; color: var(--cyber-magenta); text-shadow: var(--cyber-magenta-glow);">{{ t("theme.cyber.404_title") }}</h1>
+  <p class="cyber-desc" style="margin: 1.5rem auto; max-width: 500px;">{{ t("theme.cyber.404_desc") }}</p>
+  <a href="{{ base_path }}/" class="cyber-card-link" style="font-size: 1.1rem; margin-top: 2rem;">{{ t("theme.cyber.404_action") }} &rarr;</a>
 </div>
 {% endblock %}

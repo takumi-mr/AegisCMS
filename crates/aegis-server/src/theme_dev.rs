@@ -37,6 +37,9 @@ pub struct DevArgs {
     pub host: String,
     #[arg(short, long, default_value_t = 8090)]
     pub port: u16,
+    /// Language code for rendering (e.g. "en" or "ja")
+    #[arg(short = 'l', long, default_value = "en")]
+    pub locale: String,
 }
 
 /// 開いているページの再読み込みを待つ長さ（これを過ぎたら同じ版を返し、ページ側がつなぎ直す）
@@ -96,7 +99,9 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
         tracing::warn!("{} has no theme.json (needed to install it)", dir.display());
     }
 
-    let engine = ThemeEngine::new(themes_dir, theme_id).with_template_reload(true);
+    let engine = ThemeEngine::new(themes_dir, theme_id)
+        .with_template_reload(true)
+        .with_locale(&args.locale);
     let (tx, rx) = watch::channel(0u64);
     tokio::spawn(watch_files(dir.clone(), tx));
 
@@ -725,6 +730,7 @@ async fn api_render(State(state): State<DevState>, Json(req): Json<RenderRequest
     };
     // 共有のエンジンには触らず、上書きを入れた別のエンジンで描画する
     let engine = ThemeEngine::new(state.engine.themes_dir(), &state.engine.active_theme())
+        .with_locale(&state.engine.locale())
         .with_template_reload(true);
     for (name, content) in &req.templates {
         engine.register_template(name, content);
@@ -754,7 +760,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             theme.join("templates/base.html"),
-            "<html><body>{% block content %}{% endblock %}</body></html>",
+            "<html lang=\"{{ locale }}\"><body>{% block content %}{% endblock %}</body></html>",
         )
         .unwrap();
         std::fs::write(
@@ -798,6 +804,28 @@ mod tests {
         let status = res.status();
         let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
         (status, String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    #[tokio::test]
+    async fn test_preview_respects_locale_setting() {
+        let tmp = theme_dir();
+        let dir = tmp.path().join("mytheme").canonicalize().unwrap();
+        let engine = ThemeEngine::new(dir.parent().unwrap(), "mytheme")
+            .with_template_reload(true)
+            .with_locale("ja");
+        let (_tx, rx) = watch::channel(0u64);
+        assert_eq!(engine.locale(), "ja");
+        let state = DevState {
+            dir,
+            engine,
+            version: rx,
+            loopback: true,
+        };
+        let app = router(state);
+        let (status, html) = get_text(&app, "/preview/index").await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("<html lang=\"ja\">"), "{html}");
+        assert!(html.contains("Sample Site:[サンプル記事 1]"), "{html}");
     }
 
     #[tokio::test]

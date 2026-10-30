@@ -174,6 +174,11 @@ impl ThemeEngine {
         self.inner.read().unwrap().active_theme.clone()
     }
 
+    /// 現在の言語（`en` / `ja` など）を取得
+    pub fn locale(&self) -> String {
+        self.inner.read().unwrap().locale.clone()
+    }
+
     /// アクティブなテーマを動的に切り替える
     pub fn set_active_theme(&self, theme_id: &str) -> Result<()> {
         let target_id = theme_id.trim();

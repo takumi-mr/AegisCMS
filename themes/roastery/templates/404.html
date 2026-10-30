@@ -3,8 +3,8 @@
 {% block content %}
 <section class="rs-empty">
   <p class="rs-eyebrow">404</p>
-  <h1>ページが見つかりません</h1>
-  <p class="rs-muted">お探しのページは移動または削除されたか、まだ公開されていません。</p>
-  <a href="{{ base_path }}/products" class="rs-button">商品一覧へ</a>
+  <h1>{{ t("notfound.title") }}</h1>
+  <p class="rs-muted">{{ t("theme.roastery.404_desc") }}</p>
+  <a href="{{ base_path }}/products" class="rs-button">{{ t("theme.roastery.404_action") }}</a>
 </section>
 {% endblock %}

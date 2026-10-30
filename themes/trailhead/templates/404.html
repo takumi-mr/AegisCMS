@@ -3,8 +3,8 @@
 {% block content %}
 <section class="th-empty">
   <p class="th-eyebrow">404</p>
-  <h1>ページが見つかりません</h1>
-  <p class="th-muted">お探しのページは移動または削除されたか、まだ公開されていません。</p>
-  <a href="{{ base_path }}/forum" class="th-button">掲示板へ</a>
+  <h1>{{ t("notfound.title") }}</h1>
+  <p class="th-muted">{{ t("theme.trailhead.404_desc") }}</p>
+  <a href="{{ base_path }}/forum" class="th-button">{{ t("theme.trailhead.404_action") }}</a>
 </section>
 {% endblock %}

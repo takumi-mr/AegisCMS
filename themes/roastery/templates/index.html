@@ -3,12 +3,12 @@
 {% block content %}
 <section class="rs-hero">
   <div class="rs-hero-text">
-    <p class="rs-eyebrow">Small batch coffee roasters</p>
-    <h1>毎朝の一杯を、<br>焙煎したての豆で。</h1>
+    <p class="rs-eyebrow">{{ t("theme.roastery.eyebrow") }}</p>
+    <h1>{{ t("theme.roastery.hero_title") | safe }}</h1>
     <p class="rs-hero-desc">{{ site_description }}</p>
     <div class="rs-hero-actions">
-      <a href="{{ base_path }}/products" class="rs-button">商品を見る</a>
-      <a href="{{ base_path }}/about" class="rs-button rs-button-ghost">私たちについて</a>
+      <a href="{{ base_path }}/products" class="rs-button">{{ t("theme.roastery.view_products") }}</a>
+      <a href="{{ base_path }}/about" class="rs-button rs-button-ghost">{{ t("theme.roastery.about_us") }}</a>
     </div>
   </div>
   <div class="rs-hero-art" aria-hidden="true">
@@ -24,15 +24,15 @@
 </section>
 
 <section class="rs-features">
-  <div><strong>焙煎から3日以内に発送</strong><span>ご注文を受けてから小さな釜で焙煎します。</span></div>
-  <div><strong>5,000円以上で送料無料</strong><span>それ以外は全国一律 650円です。</span></div>
-  <div><strong>はじめての方は10%オフ</strong><span>カートでクーポン <code>WELCOME10</code> を入力してください。</span></div>
+  <div>{{ t("theme.roastery.feature1") | safe }}</div>
+  <div>{{ t("theme.roastery.feature2") | safe }}</div>
+  <div>{{ t("theme.roastery.feature3") | safe }}</div>
 </section>
 
 <section>
   <div class="rs-section-head">
-    <h2>Journal</h2>
-    <a href="{{ base_path }}/articles">すべての記事 &rarr;</a>
+    <h2>{{ t("theme.roastery.nav_journal") }}</h2>
+    <a href="{{ base_path }}/articles">{{ t("theme.roastery.all_articles") }} &rarr;</a>
   </div>
   <div class="rs-journal">
     {% for item in items %}
@@ -42,14 +42,14 @@
       <p>{{ item.excerpt | truncate(90) }}</p>
     </article>
     {% else %}
-    <p class="rs-muted">まだ記事がありません。</p>
+    <p class="rs-muted">{{ t("theme.roastery.empty") }}</p>
     {% endfor %}
   </div>
   {% if pagination and pagination.total_pages > 1 %}
-  <nav class="rs-pagination" aria-label="Pagination">
-    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; 新しい記事</a>{% else %}<span></span>{% endif %}
-    <span>{{ pagination.page }} / {{ pagination.total_pages }}</span>
-    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">古い記事 &rarr;</a>{% else %}<span></span>{% endif %}
+  <nav class="rs-pagination" aria-label="{{ t("pagination.label") }}">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; {{ t("pagination.newer") }}</a>{% else %}<span></span>{% endif %}
+    <span>{{ t("pagination.page", page=pagination.page, total=pagination.total_pages) }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">{{ t("pagination.older") }} &rarr;</a>{% else %}<span></span>{% endif %}
   </nav>
   {% endif %}
 </section>

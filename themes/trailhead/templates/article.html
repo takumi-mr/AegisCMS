@@ -10,8 +10,8 @@
     {{ content_html | safe }}
   </div>
   <footer class="th-article-footer">
-    <a href="{{ base_path }}/articles">&larr; お知らせに戻る</a>
-    <a href="{{ base_path }}/forum" class="th-button">掲示板を見る</a>
+    <a href="{{ base_path }}/articles">&larr; {{ t("theme.trailhead.return_news") }}</a>
+    <a href="{{ base_path }}/forum" class="th-button">{{ t("theme.trailhead.view_forum") }}</a>
   </footer>
   {% if fields.tags %}<ul class="aegis-tags" aria-label="{{ t("tags.aria") }}" style="list-style: none; display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; margin: 2rem 0 0;">{% for tag in fields.tags %}<li><a href="{{ tag.url }}" rel="tag" style="display: inline-block; padding: 0.15rem 0.7rem; border: 1px solid currentColor; border-radius: 999px; font-size: 0.8rem; color: inherit; text-decoration: none; opacity: 0.75;">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
   {% if comments %}{% include "comments.html" %}{% endif %}

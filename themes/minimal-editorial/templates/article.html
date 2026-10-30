@@ -5,10 +5,10 @@
   <header class="ed-article-header">
     <div class="ed-article-meta">
       {% if published_at %}
-      <span>Published {{ published_at | date_short }}</span>
+      <span>{{ t("theme.editorial.published_on", date=published_at | date_short) }}</span>
       {% endif %}
       {% if author %}
-      <span>&bull; Written by {{ author }}</span>
+      <span>&bull; {{ t("theme.editorial.written_by", author=author) }}</span>
       {% endif %}
     </div>
     <h1 class="ed-article-title">{{ title }}</h1>
@@ -19,7 +19,7 @@
   </div>
 
   <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--ed-border);">
-    <a href="{{ base_path }}/articles" class="ed-card-link">&larr; Return to Journal Archives</a>
+    <a href="{{ base_path }}/articles" class="ed-card-link">&larr; {{ t("theme.editorial.return_archives") }}</a>
   </div>
   {% if fields.tags %}<ul class="aegis-tags" aria-label="{{ t("tags.aria") }}" style="list-style: none; display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; margin: 2rem 0 0;">{% for tag in fields.tags %}<li><a href="{{ tag.url }}" rel="tag" style="display: inline-block; padding: 0.15rem 0.7rem; border: 1px solid currentColor; border-radius: 999px; font-size: 0.8rem; color: inherit; text-decoration: none; opacity: 0.75;">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
   {% if comments %}{% include "comments.html" %}{% endif %}
