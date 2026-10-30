@@ -24,7 +24,7 @@
 
 .subTab:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--overlay-rgb) / 0.04);
 }
 
 .subTab.active {
@@ -55,7 +55,7 @@
   padding: 2px 6px;
   border-radius: var(--radius-full);
   background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  color: var(--accent-amber);
   border: 1px solid rgba(245, 158, 11, 0.3);
   font-size: 0.72rem;
   font-weight: 600;
@@ -68,7 +68,7 @@
   padding: 2px 6px;
   border-radius: var(--radius-full);
   background: rgba(244, 63, 94, 0.15);
-  color: #f43f5e;
+  color: var(--accent-rose);
   border: 1px solid rgba(244, 63, 94, 0.3);
   font-size: 0.72rem;
   font-weight: 600;
@@ -108,7 +108,7 @@
   padding: 5px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--overlay-rgb) / 0.03);
   color: var(--text-secondary);
   font: inherit;
   font-size: 0.8rem;
@@ -120,7 +120,7 @@
 }
 
 .actionBtn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--overlay-rgb) / 0.08);
   color: var(--text-primary);
 }
 
@@ -132,7 +132,7 @@
 
 .actionBtn.danger:hover {
   background: rgba(244, 63, 94, 0.15);
-  color: #f43f5e;
+  color: var(--accent-rose);
   border-color: rgba(244, 63, 94, 0.4);
 }
 
@@ -160,7 +160,7 @@
   color: var(--text-muted);
   margin-bottom: 6px;
   padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgb(var(--overlay-rgb) / 0.05);
 }
 
 .postBody {

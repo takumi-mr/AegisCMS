@@ -94,7 +94,7 @@
 
 .error {
   background: rgba(244, 63, 94, 0.12);
-  color: #fda4af;
+  color: var(--text-rose);
 }
 
 .divider {
@@ -130,7 +130,7 @@
 
 .sso:hover,
 .sso:focus-visible {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--overlay-rgb) / 0.08);
   border-color: var(--accent-indigo);
   outline: none;
 }
@@ -145,8 +145,12 @@
   font-size: 0.72rem;
 }
 
-.language {
+.preferences {
   align-self: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 
 /* Sign-up form (RegisterForm) inside the card */

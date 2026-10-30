@@ -25,7 +25,7 @@
 
 .error {
   font-size: 0.82rem;
-  color: #fda4af;
+  color: var(--text-rose);
 }
 
 .empty {
@@ -82,7 +82,7 @@
 }
 
 .warning {
-  color: #fda4af;
+  color: var(--text-rose);
 }
 
 .references {
@@ -116,7 +116,7 @@
 .notice {
   margin-bottom: 12px;
   font-size: 0.82rem;
-  color: #6ee7b7;
+  color: var(--text-teal);
 }
 
 .item {

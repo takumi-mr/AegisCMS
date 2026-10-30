@@ -33,7 +33,7 @@
 }
 
 .secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--overlay-rgb) / 0.08);
 }
 
 /* Compact toolbar button */

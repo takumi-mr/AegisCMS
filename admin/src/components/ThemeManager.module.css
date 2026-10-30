@@ -34,16 +34,16 @@
   gap: 0.75rem;
   font-size: 1.75rem;
   font-weight: 700;
-  color: var(--text-main, #f3f4f6);
+  color: var(--text-main);
   letter-spacing: -0.02em;
 }
 
 .titleIcon {
-  color: var(--accent, #6366f1);
+  color: var(--accent);
 }
 
 .description {
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted);
   font-size: 0.95rem;
   max-width: 750px;
   line-height: 1.5;
@@ -53,7 +53,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid rgb(var(--overlay-rgb) / 0.08);
   padding-bottom: 0.5rem;
 }
 
@@ -65,7 +65,7 @@
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -73,18 +73,18 @@
 }
 
 .tab:hover {
-  color: var(--text-main, #f3f4f6);
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  background: rgb(var(--overlay-rgb) / 0.04);
 }
 
 .tabActive {
-  color: #ffffff;
+  color: var(--text-primary);
   background: rgba(99, 102, 241, 0.15);
   box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.4);
 }
 
 .tabBadge {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(var(--overlay-rgb) / 0.1);
   padding: 0.1rem 0.5rem;
   border-radius: 9999px;
   font-size: 0.75rem;
@@ -97,8 +97,8 @@
 }
 
 .card {
-  background: var(--bg-surface, #111827);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  background: var(--bg-surface);
+  border: 1px solid rgb(var(--overlay-rgb) / 0.08);
   border-radius: 16px;
   overflow: hidden;
   display: flex;
@@ -114,7 +114,7 @@
 }
 
 .cardActive {
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent);
   box-shadow:
     0 0 0 2px rgba(99, 102, 241, 0.4),
     0 12px 30px -10px rgba(99, 102, 241, 0.2);
@@ -126,7 +126,7 @@
   aspect-ratio: 16 / 10;
   background: #000000;
   overflow: hidden;
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid rgb(var(--overlay-rgb) / 0.08);
 }
 
 .previewImage {
@@ -149,7 +149,7 @@
   justify-content: center;
   gap: 0.75rem;
   background: linear-gradient(135deg, #0a0e17 0%, #151d30 100%);
-  color: var(--text-dim, #6b7280);
+  color: var(--text-dim);
 }
 
 .activeBadge {
@@ -189,20 +189,20 @@
 .themeName {
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--text-main, #f3f4f6);
+  color: var(--text-main);
 }
 
 .version {
   font-size: 0.8rem;
-  color: var(--text-dim, #6b7280);
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  background: rgb(var(--overlay-rgb) / 0.05);
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
 }
 
 .themeDesc {
   font-size: 0.9rem;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted);
   line-height: 1.5;
   flex: 1;
 }
@@ -214,9 +214,9 @@
 }
 
 .tag {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: var(--text-muted, #9ca3af);
+  background: rgb(var(--overlay-rgb) / 0.04);
+  border: 1px solid rgb(var(--overlay-rgb) / 0.06);
+  color: var(--text-muted);
   font-size: 0.75rem;
   padding: 0.2rem 0.6rem;
   border-radius: 9999px;
@@ -227,8 +227,8 @@
   align-items: center;
   justify-content: space-between;
   font-size: 0.8rem;
-  color: var(--text-dim, #6b7280);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  border-top: 1px solid rgb(var(--overlay-rgb) / 0.05);
   padding-top: 0.8rem;
 }
 
@@ -239,12 +239,12 @@
 }
 
 .author a {
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted);
   text-decoration: none;
 }
 
 .author a:hover {
-  color: var(--accent, #6366f1);
+  color: var(--accent);
 }
 
 .cardActions {
@@ -267,7 +267,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
-  background: var(--accent, #6366f1);
+  background: var(--accent);
   color: #ffffff;
 }
 
@@ -283,7 +283,7 @@
 
 .activeBtn {
   background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  color: var(--accent-teal);
   border: 1px solid rgba(16, 185, 129, 0.3);
   cursor: default;
 }
@@ -294,10 +294,10 @@
   justify-content: center;
   gap: 0.4rem;
   padding: 0.7rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  background: rgb(var(--overlay-rgb) / 0.05);
+  border: 1px solid rgb(var(--overlay-rgb) / 0.08);
   border-radius: 8px;
-  color: var(--text-main, #f3f4f6);
+  color: var(--text-main);
   font-size: 0.9rem;
   font-weight: 500;
   text-decoration: none;
@@ -305,8 +305,8 @@
 }
 
 .previewBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  background: rgb(var(--overlay-rgb) / 0.1);
+  color: var(--text-primary);
 }
 
 /* Marketplace Tab Styles */
@@ -331,13 +331,13 @@
 .marketTitle {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .marketBadge {
   background: rgba(99, 102, 241, 0.2);
   border: 1px solid rgba(99, 102, 241, 0.4);
-  color: #c7d2fe;
+  color: var(--text-indigo-soft);
   padding: 0.3rem 0.8rem;
   border-radius: 9999px;
   font-size: 0.8rem;
@@ -354,17 +354,17 @@
 .searchBox {
   flex: 1;
   min-width: 250px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  background: var(--inset-strong);
+  border: 1px solid rgb(var(--overlay-rgb) / 0.1);
   border-radius: 8px;
   padding: 0.6rem 1rem;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 0.9rem;
   outline: none;
 }
 
 .searchBox:focus {
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent);
 }
 
 .categoryFilter {
@@ -374,9 +374,9 @@
 }
 
 .categoryPill {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-muted, #9ca3af);
+  background: rgb(var(--overlay-rgb) / 0.05);
+  border: 1px solid rgb(var(--overlay-rgb) / 0.08);
+  color: var(--text-muted);
   padding: 0.4rem 0.85rem;
   border-radius: 9999px;
   font-size: 0.8rem;
@@ -387,12 +387,12 @@
 .categoryPill:hover,
 .categoryPillActive {
   background: rgba(99, 102, 241, 0.2);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(99, 102, 241, 0.4);
 }
 
 .importBox {
-  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border: 2px dashed rgb(var(--overlay-rgb) / 0.15);
   border-radius: 16px;
   padding: 3rem 2rem;
   text-align: center;
@@ -400,21 +400,21 @@
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--inset-soft);
 }
 
 .importIcon {
-  color: var(--accent, #6366f1);
+  color: var(--accent);
 }
 
 .importTitle {
   font-size: 1.15rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .importDesc {
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted);
   font-size: 0.9rem;
   max-width: 500px;
 }

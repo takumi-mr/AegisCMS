@@ -87,7 +87,7 @@
   border-radius: var(--radius-md);
   background: rgba(245, 158, 11, 0.1);
   border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #fbbf24;
+  color: var(--text-amber);
   font-size: 0.82rem;
   line-height: 1.4;
 }
@@ -161,7 +161,7 @@
   justify-content: center;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--overlay-rgb) / 0.03);
   color: var(--text-muted);
   overflow: hidden;
 }
@@ -212,7 +212,7 @@
   font-size: 0.85rem;
   line-height: 1.5;
   color: var(--text-primary);
-  background: var(--bg-surface-elevated, #181920);
+  background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   resize: vertical;
@@ -250,7 +250,7 @@
   padding: 8px 12px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
-  background: var(--bg-surface-elevated, #181920);
+  background: var(--bg-surface-elevated);
   color: var(--text-primary);
   font-size: 0.88rem;
   outline: none;
@@ -262,7 +262,7 @@
 
 .error {
   font-size: 0.82rem;
-  color: #fda4af;
+  color: var(--text-rose);
 }
 
 .formActions {
@@ -275,6 +275,6 @@
 
 .dirtyBadge {
   font-size: 0.78rem;
-  color: var(--accent-amber, #fbbf24);
+  color: var(--accent-amber);
   font-weight: 500;
 }

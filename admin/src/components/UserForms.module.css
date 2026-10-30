@@ -78,7 +78,7 @@
 
 .error {
   font-size: 0.82rem;
-  color: #fda4af;
+  color: var(--text-rose);
 }
 
 .success {
@@ -111,7 +111,7 @@
 
 .twoFactorBadgeOn {
   background: rgba(16, 185, 129, 0.12);
-  color: #34d399;
+  color: var(--text-teal);
 }
 
 .twoFactorBadgeOff {
@@ -171,7 +171,7 @@
 
 .backupWarning {
   font-size: 0.82rem;
-  color: #fbbf24;
+  color: var(--text-amber);
   line-height: 1.5;
 }
 

@@ -67,6 +67,9 @@
 - **多言語対応（英語 / 日本語）**:
   - ヘッダーとログイン画面の言語メニューで切り替え。選んだ言語はブラウザに保存し、初回はブラウザの言語（日本語なら日本語、それ以外は英語）で表示。日付・金額の書式も言語に合わせる。
   - 文言は [i18next](https://www.i18next.com/) の JSON（`src/locales/<言語>/translation.json`）で、翻訳サービスにそのまま渡せる（[多言語対応](#-多言語対応-i18n)）。
+- **カラーテーマ（ライト / ダーク / システムに合わせる）**:
+  - ヘッダー（スマートフォンではメニュー）とログイン画面のテーマ選択（`ThemeSelect.tsx`）で切り替え。選んだテーマはブラウザに保存（`localStorage` の `aegis.admin.theme`）し、初回は OS の設定（`prefers-color-scheme`）に従う。「システムに合わせる」では OS の切り替えにも追従する。OS がライトを求めているときだけライトにし、設定が読めないブラウザは従来どおりダークで表示する。
+  - 描画前に `public/theme-init.js` が `<html data-theme>` を設定するので、ライトを選んでいても最初にダークが一瞬映ることはない（[カラーテーマの設計](#-設計メモ)）。
 - **Core Engine との透過的連携**:
   - スキーマ一覧（`/api/v1/schemas`）および記事一覧・詳細・作成（`/api/v1/contents/{content_type}`）とのリアルタイム同期。
   - バックエンドサーバーのヘルスチェック（`/api/v1/health`）による接続ステータス表示。
@@ -128,6 +131,7 @@ admin/
 │   │   ├── PasteMarkdownModal.tsx # Markdown の貼り付け
 │   │   └── Preview.tsx     # リアルタイム HTML / ソースコードプレビュー
 │   ├── i18n/               # i18next の初期化・言語の検出と保存（index.ts）、キーの型（i18next.d.ts）
+│   ├── theme/              # カラーテーマの保存・適用・OS への追従（index.ts）、デザイントークンの検査（tokens.test.ts）
 │   ├── locales/            # 翻訳: en/translation.json（原文）、ja/translation.json
 │   ├── utils/              # カテゴリ・メディア・ロール判定、日付の書式（format.ts）、cx などのヘルパー
 │   ├── types/
@@ -205,6 +209,12 @@ files:
 
 ## 🧩 設計メモ
 
+- **カラーテーマ**: 色はすべて `src/index.css` のデザイントークン（CSS 変数）で決める。`:root` がダーク（既定）、`:root[data-theme='light']` がライトで、`<html data-theme>` は `public/theme-init.js`（描画前。CSP の `unsafe-inline` に頼らないよう外部ファイル）と `src/theme`（以降の切り替えと OS への追従）が設定する。両者の決め方は同じで、ユニットテストが `theme-init.js` を実際に動かして `resolveTheme` と突き合わせる。コンポーネントの CSS を書くときは次を守る（`src/theme/tokens.test.ts` が検査する）。
+  - 色はトークンで書く。`rgba(255, 255, 255, 0.08)` のような「白の半透明」は書かず、`rgb(var(--overlay-rgb) / 0.08)`（ダークは白、ライトはスレートになる）。くぼんだ面は `--inset-soft` / `--inset` / `--inset-strong`。
+  - アクセント色の上の淡い文字は `--text-rose` / `--text-amber` / `--text-teal` / `--text-indigo-soft` / `--text-blue`（ダークは淡く、ライトは濃くなる）。塗りつぶしたボタンやバッジの上の白文字だけは `#fff` のままにする。
+  - 使うトークンは `index.css` で定義する（未定義の `var(--x, #fallback)` はフォールバックの色に固定され、テーマに追従しない）。ダークで足したトークンはライトにも値を足す。
+  - グラフの系列色のように、背景に合わせて検証した色はコンポーネントの CSS に置き、ライトの値を `:global(:root[data-theme='light'])` で上書きする（`AnalyticsView.module.css`）。
+  - Storybook はツールバーの **Theme** でライト / ダークを切り替えて見られる（ストーリーのテストはダークで動かす）。
 - **API の接続先**: `src/api/client.ts` の `SERVER_URL`（オリジン + `[server].base_path`）は、ビルド時の `VITE_AEGIS_SERVER_URL` → 開発サーバーなら `http://127.0.0.1:8080` → 本番ビルドはバンドルの URL（`{サーバー}/admin/assets/*.js` から `../../`）の順に決まる。ドメインやベースパスごとに再ビルドする必要はない。サーバーが返すルート起点の URL（アバターなど）は `serverAssetUrl` でオリジンを付けて表示する。
 - **コンテンツの型**: 自動生成の `types/schemas.ts`（`ArticleContent` など）はカスタムフィールドをトップレベルに持つが、コンテンツ API の応答はカスタムフィールドを `fields`、解決済みリレーションを `relations` に入れて返す。画面では `types/index.ts` の `ContentItem` を使う。作成時のペイロード（`CreateArticlePayload` など）はトップレベルで正しい。エディタの一覧は要約（`ContentSummary`。ブロックと描画済み HTML なし）を `listContentSummaries` で 1 ページずつ取得し、カテゴリのような小さな一覧は `getAllContentSummaries` で全件の要約を取る。`getContents`（全体のデータを 500 件ずつ全件）は、商品の編集が本文（`blocks`）を使う商品管理だけが使う。サーバーは 1 件ごとにブロックを描画するので、一覧に全体は要らないときは使わない。
 - **保存**: 開いている記事は `PUT`（更新）、新規は `POST`。

@@ -24,6 +24,7 @@ import { Avatar } from './ui/Avatar';
 import { BrandMark } from './ui/BrandMark';
 import { Button } from './ui/Button';
 import { LanguageSelect } from './ui/LanguageSelect';
+import { ThemeSelect } from './ui/ThemeSelect';
 import { RoleLabel } from './ui/RoleLabel';
 import styles from './Header.module.css';
 
@@ -245,6 +246,7 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         <div className={styles.desktopControls}>
+          <ThemeSelect />
           <LanguageSelect />
 
           <div className={styles.userMenu}>
@@ -325,6 +327,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <div className={styles.mobileLang}>
+                <ThemeSelect />
                 <LanguageSelect />
               </div>
             </div>

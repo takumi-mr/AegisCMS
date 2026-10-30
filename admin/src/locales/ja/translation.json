@@ -251,6 +251,12 @@
     },
     "unreachable": "AegisCMS サーバーに接続できません。サーバーが起動しているか確認してください。"
   },
+  "theme": {
+    "label": "テーマ",
+    "system": "システムに合わせる",
+    "light": "ライト",
+    "dark": "ダーク"
+  },
   "contentList": {
     "title": "{{type}}（{{count}}）",
     "newTitle": "新しいコンテンツを作成",

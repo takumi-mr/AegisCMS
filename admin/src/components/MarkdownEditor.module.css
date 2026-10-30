@@ -1,8 +1,8 @@
 .editorContainer {
   display: flex;
   flex-direction: column;
-  background: var(--bg-surface, #0f121d);
-  border: 1px solid var(--border-subtle, #1e293b);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg, 12px);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
@@ -14,8 +14,8 @@
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: var(--bg-surface-elevated, #161b2a);
-  border-bottom: 1px solid var(--border-subtle, #1e293b);
+  background: var(--bg-surface-elevated);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .toolbarGroup {
@@ -27,7 +27,7 @@
 .divider {
   width: 1px;
   height: 20px;
-  background: var(--border-medium, #334155);
+  background: var(--border-medium);
   margin: 0 4px;
 }
 
@@ -35,7 +35,7 @@
   display: flex;
   position: relative;
   min-height: 480px;
-  background: var(--bg-surface, #0f121d);
+  background: var(--bg-surface);
 }
 
 .textarea {
@@ -45,7 +45,7 @@
   font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace);
   font-size: 0.92rem;
   line-height: 1.65;
-  color: var(--text-primary, #e2e8f0);
+  color: var(--text-primary);
   background: transparent;
   border: none;
   outline: none;
@@ -55,7 +55,7 @@
 }
 
 .textarea::placeholder {
-  color: var(--text-muted, #475569);
+  color: var(--text-muted);
 }
 
 .statusBar {
@@ -63,10 +63,10 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  background: var(--bg-surface-elevated, #161b2a);
-  border-top: 1px solid var(--border-subtle, #1e293b);
+  background: var(--bg-surface-elevated);
+  border-top: 1px solid var(--border-subtle);
   font-size: 0.78rem;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted);
 }
 
 .statusLeft {
@@ -79,7 +79,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--accent-indigo, #818cf8);
+  color: var(--accent-indigo);
 }
 
 .tag {
@@ -89,6 +89,6 @@
   padding: 2px 8px;
   border-radius: var(--radius-sm, 4px);
   background: rgba(99, 102, 241, 0.12);
-  color: #a5b4fc;
+  color: var(--accent-indigo-light);
   font-weight: 500;
 }

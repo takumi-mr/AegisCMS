@@ -74,7 +74,7 @@
   justify-content: center;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--overlay-rgb) / 0.03);
   color: var(--text-muted);
 }
 
@@ -98,7 +98,7 @@
 
 .error {
   font-size: 0.82rem;
-  color: #fda4af;
+  color: var(--text-rose);
 }
 
 .formActions {

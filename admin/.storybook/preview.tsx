@@ -15,8 +15,20 @@ const preview: Preview = {
         dynamicTitle: true,
       },
     },
+    theme: {
+      description: 'Admin Studio color theme',
+      toolbar: {
+        title: 'Theme',
+        icon: 'paintbrush',
+        items: [
+          { value: 'dark', title: 'Dark' },
+          { value: 'light', title: 'Light' },
+        ],
+        dynamicTitle: true,
+      },
+    },
   },
-  initialGlobals: { locale: 'en' },
+  initialGlobals: { locale: 'en', theme: 'dark' },
   decorators: [
     (Story, { globals }) => {
       const locale = (globals.locale as string) || 'en';
@@ -25,6 +37,9 @@ const preview: Preview = {
       useEffect(() => {
         document.documentElement.lang = locale;
       }, [locale]);
+      // The stories draw with the chosen theme (dark by default, as the tests were written for)
+      const theme = (globals.theme as string) === 'light' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = theme;
       return <Story />;
     },
   ],

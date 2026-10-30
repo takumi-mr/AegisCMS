@@ -37,7 +37,7 @@
   padding: 4px 10px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--overlay-rgb) / 0.03);
 }
 
 .filters {
@@ -73,7 +73,7 @@
 .notice.error {
   border-color: rgba(244, 63, 94, 0.35);
   background: rgba(244, 63, 94, 0.08);
-  color: #fda4af;
+  color: var(--text-rose);
 }
 
 .tableWrap {
