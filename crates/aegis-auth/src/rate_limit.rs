@@ -163,6 +163,24 @@ impl LoginRateLimiter {
         }
         Ok(())
     }
+
+    /// クライアント IP を即座にロックする（ハニーポットや悪意ある走査検知用）。
+    /// ロック期間（秒）を返す。
+    pub async fn lock_ip(&self, ip: &str, duration_secs: Option<u64>) -> Result<u64> {
+        let lockout_secs = duration_secs.unwrap_or(self.config.lockout_secs.max(1));
+        let until = Utc::now().timestamp() + lockout_secs as i64;
+        self.cache
+            .set(
+                &Self::lock_key(LockScope::Ip, ip),
+                &until.to_string(),
+                Some(lockout_secs),
+            )
+            .await?;
+        self.cache
+            .delete(&Self::fail_key(LockScope::Ip, ip))
+            .await?;
+        Ok(lockout_secs)
+    }
 }
 
 #[cfg(test)]
@@ -198,6 +216,8 @@ mod tests {
         assert_eq!(locked.retry_after_secs, 120);
 
         let lockout = limiter.check("Alice", None).await.unwrap().unwrap();
+
+        assert!(lockout.retry_after_secs > 0 && lockout.retry_after_secs <= 300);
         assert_eq!(lockout.scope, LockScope::Username);
         assert!(lockout.retry_after_secs > 0 && lockout.retry_after_secs <= 120);
         // 他のユーザーには影響しない（IP 単位の制限は無効）
@@ -255,5 +275,18 @@ mod tests {
             limiter.check("alice", Some("203.0.113.7")).await.unwrap(),
             None
         );
+    }
+    #[tokio::test]
+    async fn test_lock_ip_immediately() {
+        let limiter = limiter(config(5, 5));
+        let ip = "198.51.100.42";
+
+        assert_eq!(limiter.check("bob", Some(ip)).await.unwrap(), None);
+        let locked_secs = limiter.lock_ip(ip, Some(300)).await.unwrap();
+        assert_eq!(locked_secs, 300);
+
+        let lockout = limiter.check("bob", Some(ip)).await.unwrap().unwrap();
+        assert_eq!(lockout.scope, LockScope::Ip);
+        assert!(lockout.retry_after_secs > 0 && lockout.retry_after_secs <= 300);
     }
 }

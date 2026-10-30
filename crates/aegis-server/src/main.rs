@@ -222,9 +222,13 @@ fn public_admin_url(config: &AegisConfig, base_path: &str, admin_path: &str) -> 
     }
 }
 
-/// Admin Studio の URL（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `[server].admin_path`）。
-/// リンクを偽装させないよう、リクエストの Host からは作らない
+/// Admin Studio の URL（`[auth.password_reset].admin_url`、`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `[server].admin_path`）。
+/// リンクを偽装させないよう（Host ヘッダーインジェクション防止）、リクエストの Host からは作らず設定値のみを使用する
 fn resolve_admin_url(config: &AegisConfig) -> Option<String> {
+    let reset_url = config.auth.password_reset.admin_url.trim();
+    if !reset_url.is_empty() {
+        return Some(reset_url.to_string());
+    }
     let configured = config.auth.registration.admin_url.trim();
     if !configured.is_empty() {
         return Some(configured.to_string());
@@ -1487,5 +1491,28 @@ mod tests {
         assert_eq!(user.totp_secret, None);
 
         let _ = std::fs::remove_file(&temp_db);
+    }
+    #[test]
+    fn test_resolve_admin_url_precedence() {
+        let mut config = AegisConfig::default();
+        assert_eq!(resolve_admin_url(&config), None);
+
+        config.commerce.public_url = "https://example.com".to_string();
+        assert_eq!(
+            resolve_admin_url(&config),
+            Some("https://example.com/admin/".to_string())
+        );
+
+        config.auth.registration.admin_url = "https://reg.example.com/admin/".to_string();
+        assert_eq!(
+            resolve_admin_url(&config),
+            Some("https://reg.example.com/admin/".to_string())
+        );
+
+        config.auth.password_reset.admin_url = "https://reset.example.com/admin/".to_string();
+        assert_eq!(
+            resolve_admin_url(&config),
+            Some("https://reset.example.com/admin/".to_string())
+        );
     }
 }

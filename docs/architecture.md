@@ -276,6 +276,16 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - 招待リンク（`#invite=<token>`）を開いたユーザーは、`GET /api/v1/auth/invitations/info` で招待内容（メールアドレス・ロール）を確認した上で、ユーザー名とパスワードを設定して承諾する（`POST /api/v1/auth/invitations/accept`）。
 - 招待による登録では、アカウントは `disabled = false, pending_approval = false` の即時有効状態で作成され、管理者の事後承認フロー（`require_approval`）をバイパスして即座にログインが可能となる。
 
+### 6.9 偵察・攻撃ボット防御（ハニーポット）とメディアセキュリティ (`handlers/honeypot.rs`, `app.rs`)
+
+- **WordPress 走査ボットの自動ハニーポット遮断**:
+  - インターネット上の無差別スキャナーが頻繁に探索する WordPress 特有のパス（`/wp-login.php`, `/xmlrpc.php`, `/wp-admin`, `/wp-content`, `/wp-includes`, `/wp-json` 等）を `any(handlers::honeypot_trap)` で捕捉。
+  - 攻撃者には WordPress が存在しないように見せかけるため `404 Not Found` を返しつつ、裏側で送信元 IP を `LoginRateLimiter::lock_ip` により即時 3,600 秒（1 時間）ロックアウトし、以後の認証試行や総当たり攻撃を完全に遮断する。
+- **Host ヘッダー偽装防止の徹底**:
+  - パスワード再設定（`[auth.password_reset].admin_url`）やアカウント確認、招待メール内の URL は、リクエストの `Host` ヘッダーを一切参照せず、設定値からのみ厳格に組み立てる。
+- **SVG 画像直接アクセス時の XSS 封殺**:
+  - アップロードされた SVG ファイルがブラウザで直接開かれた際の Stored XSS（SVG 内 `<script>` やイベントハンドラーの実行）を防ぐため、`.svg` パスまたは `image/svg+xml` レスポンスに対して `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'` を強制付与する。
+
 ---
 
 ## 7. 監査ログ (`aegis-audit`)

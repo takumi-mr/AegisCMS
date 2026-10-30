@@ -237,6 +237,10 @@ pub struct PasswordResetConfig {
     pub token_ttl_secs: u64,
     /// 同じクライアント IP から 1 時間に受け付ける再設定要求の数（0 で無制限、既定 5）
     pub max_per_ip_per_hour: u64,
+    /// 再設定メール内のリンク先 Admin Studio URL（例: "https://example.com/admin/"）。
+    /// 省略時は [auth.registration].admin_url または [commerce].public_url + admin_path を使用。
+    /// ホストヘッダー偽装を防ぐため、リクエストの Host は使わず設定値のみを使用する
+    pub admin_url: String,
 }
 
 impl Default for PasswordResetConfig {
@@ -245,6 +249,7 @@ impl Default for PasswordResetConfig {
             enabled: true,
             token_ttl_secs: 3600,
             max_per_ip_per_hour: 5,
+            admin_url: String::new(),
         }
     }
 }

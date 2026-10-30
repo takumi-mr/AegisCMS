@@ -6,7 +6,7 @@ use axum::{
     extract::{DefaultBodyLimit, Request},
     http::{uri::PathAndQuery, StatusCode, Uri},
     response::{IntoResponse, Redirect},
-    routing::{delete, get, patch, post, put},
+    routing::{any, delete, get, patch, post, put},
     Router,
 };
 use tower::ServiceBuilder;
@@ -447,6 +447,15 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/forum/{category_slug}/{thread_id}/report",
             post(handlers::forum::handle_create_report_form),
         )
+        // --- WordPress 攻撃・走査ボット用ハニーポット ---
+        .route("/wp-login.php", any(handlers::honeypot_trap))
+        .route("/xmlrpc.php", any(handlers::honeypot_trap))
+        .route("/wp-admin", any(handlers::honeypot_trap))
+        .route("/wp-admin/{*path}", any(handlers::honeypot_trap))
+        .route("/wp-includes/{*path}", any(handlers::honeypot_trap))
+        .route("/wp-content/{*path}", any(handlers::honeypot_trap))
+        .route("/wp-json", any(handlers::honeypot_trap))
+        .route("/wp-json/{*path}", any(handlers::honeypot_trap))
         .route("/{slug}", get(handlers::render_page_or_slug));
 
     // サイト内検索（[search]、feature `search`）。無効なら 404 を返す
@@ -579,11 +588,27 @@ async fn security_headers_middleware(
     request: Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
+    let path = request.uri().path().to_string();
     let mut response = next.run(request).await;
     let headers_config = state.headers();
     // 有効なプラグインのカスタムブロックが埋め込む iframe の配信元を CSP の frame-src に足す
     let frame_hosts = state.supervisor.read().await.frame_domains();
     headers_config.apply_to_headers_with_frames(response.headers_mut(), &frame_hosts);
+
+    // SVG ドキュメントとして直接開かれた場合の XSS 防止: スクリプト実行を完全遮断
+    let is_svg = path.ends_with(".svg")
+        || response
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|ct| ct.starts_with("image/svg+xml"));
+    if is_svg {
+        response.headers_mut().insert(
+            axum::http::header::CONTENT_SECURITY_POLICY,
+            axum::http::HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'"),
+        );
+    }
+
     response
 }
 

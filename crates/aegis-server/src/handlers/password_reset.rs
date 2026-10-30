@@ -265,6 +265,7 @@ mod tests {
                 enabled: true,
                 token_ttl_secs: 3600,
                 max_per_ip_per_hour: 5,
+                admin_url: String::new(),
             },
         );
         let state = (*state).clone().with_password_reset(PasswordReset {

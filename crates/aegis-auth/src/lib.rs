@@ -29,7 +29,7 @@ pub use config::{
 pub use invitation::InvitationService;
 pub use local::LocalAuthProvider;
 pub use password_reset::PasswordResetService;
-pub use rate_limit::LoginRateLimiter;
+pub use rate_limit::{LockScope, LoginRateLimiter};
 pub use session::{SessionData, SessionService};
 pub use totp::*;
 
