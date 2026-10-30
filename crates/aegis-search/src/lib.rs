@@ -3,7 +3,8 @@
 //!
 //! - 索引は tantivy。日本語は辞書を使わず 2 文字ずつに分けて索引する（[`tokenizer`]）。
 //!   検索語は空白で区切った語をすべて含む文書（AND）を探し、語の中は語順どおりに続いているもの（フレーズ）だけを一致とする
-//! - タイトルの一致は本文の一致より重く数える
+//! - タイトルの一致は本文の一致より重く数える。並びは一致の良い順（既定）か、公開日時の新しい順
+//! - カテゴリ（`category_id`）とコンテンツの種類で絞り込める
 //! - 索引はデータから作り直せるもの（正は DB）。ディスクに置くと再起動後すぐ検索できるが、置かなくても動く
 
 pub mod snippet;
@@ -18,8 +19,9 @@ use tantivy::collector::{Count, TopDocs};
 use tantivy::directory::MmapDirectory;
 use tantivy::query::{BooleanQuery, BoostQuery, Occur, PhraseQuery, Query, TermQuery};
 use tantivy::schema::{
-    Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, STORED, STRING,
+    Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, FAST, STORED, STRING,
 };
+use tantivy::Order;
 use tantivy::{Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term};
 
 pub use snippet::snippet_html;
@@ -58,6 +60,8 @@ pub struct SearchDocument {
     /// 公開ページのパス（`/articles/hello` など）
     pub url: String,
     pub published_at: Option<String>,
+    /// カテゴリの ID（`category_id` フィールド。無ければ `None`）
+    pub category_id: Option<String>,
 }
 
 /// 索引の変更
@@ -69,11 +73,35 @@ pub enum SearchChange {
     Remove { content_type: String, id: String },
 }
 
+/// 検索結果の並び
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SearchSort {
+    /// 一致の良い順（タイトルの一致が先）
+    #[default]
+    Relevance,
+    /// 公開日時の新しい順（同じ日時は不定）
+    Newest,
+}
+
+impl SearchSort {
+    /// API・検索ページのパラメーター（`relevance` / `newest`）から。知らない値は `None`
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "relevance" => Some(Self::Relevance),
+            "newest" => Some(Self::Newest),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct SearchQuery<'a> {
     pub text: &'a str,
     /// 空ならすべての種類
     pub content_types: &'a [String],
+    /// このカテゴリ（ID）のものだけ。`None` ならすべて
+    pub category: Option<&'a str>,
+    pub sort: SearchSort,
     pub limit: usize,
     pub offset: usize,
 }
@@ -88,6 +116,7 @@ pub struct SearchHit {
     pub published_at: Option<String>,
     /// 本文の抜粋（HTML。エスケープ済みで、検索語は `<mark>`）
     pub snippet_html: String,
+    /// 一致の度合い。公開日時の新しい順（`SearchSort::Newest`）のときは 0
     pub score: f32,
 }
 
@@ -108,6 +137,9 @@ struct Fields {
     body: Field,
     url: Field,
     published_at: Field,
+    category_id: Field,
+    /// 公開日時の UNIX 秒（新しい順の並びに使う。無ければ 0）
+    published_ts: Field,
 }
 
 fn build_schema() -> (Schema, Fields) {
@@ -128,8 +160,18 @@ fn build_schema() -> (Schema, Fields) {
         body: builder.add_text_field("body", text),
         url: builder.add_text_field("url", STORED),
         published_at: builder.add_text_field("published_at", STORED),
+        category_id: builder.add_text_field("category_id", STRING),
+        published_ts: builder.add_i64_field("published_ts", FAST),
     };
     (builder.build(), fields)
+}
+
+/// 公開日時（RFC 3339）の UNIX 秒。無いか読めなければ 0
+fn published_timestamp(published_at: Option<&str>) -> i64 {
+    published_at
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .map(|time| time.timestamp())
+        .unwrap_or(0)
 }
 
 fn doc_key(content_type: &str, id: &str) -> String {
@@ -214,6 +256,13 @@ impl SearchIndex {
         if let Some(published_at) = &doc.published_at {
             out.add_text(f.published_at, published_at);
         }
+        if let Some(category_id) = doc.category_id.as_deref().filter(|c| !c.is_empty()) {
+            out.add_text(f.category_id, category_id);
+        }
+        out.add_i64(
+            f.published_ts,
+            published_timestamp(doc.published_at.as_deref()),
+        );
         out
     }
 
@@ -311,25 +360,54 @@ impl SearchIndex {
                 .collect();
             clauses.push((Occur::Must, Box::new(BooleanQuery::new(types))));
         }
+        if let Some(category) = query.category.filter(|c| !c.is_empty()) {
+            clauses.push((
+                Occur::Must,
+                Box::new(TermQuery::new(
+                    Term::from_field_text(self.fields.category_id, category),
+                    IndexRecordOption::Basic,
+                )),
+            ));
+        }
         Some(Box::new(BooleanQuery::new(clauses)))
     }
 
-    /// 検索する。一致の良い順
+    /// 検索する。並びは `query.sort`（既定は一致の良い順）
     pub fn search(&self, query: &SearchQuery<'_>) -> Result<SearchResults> {
         let Some(tantivy_query) = self.build_query(query) else {
             return Ok(SearchResults::default());
         };
         let searcher = self.reader.searcher();
         let limit = query.limit.max(1);
-        let (top, total) = searcher.search(
-            &tantivy_query,
-            &(
-                TopDocs::with_limit(limit)
-                    .and_offset(query.offset)
-                    .order_by_score(),
-                Count,
-            ),
-        )?;
+        let (top, total): (Vec<(f32, tantivy::DocAddress)>, usize) = match query.sort {
+            SearchSort::Relevance => searcher.search(
+                &tantivy_query,
+                &(
+                    TopDocs::with_limit(limit)
+                        .and_offset(query.offset)
+                        .order_by_score(),
+                    Count,
+                ),
+            )?,
+            SearchSort::Newest => {
+                let (newest, total) = searcher.search(
+                    &tantivy_query,
+                    &(
+                        TopDocs::with_limit(limit)
+                            .and_offset(query.offset)
+                            .order_by_fast_field::<i64>("published_ts", Order::Desc),
+                        Count,
+                    ),
+                )?;
+                (
+                    newest
+                        .into_iter()
+                        .map(|(_, address)| (0.0, address))
+                        .collect(),
+                    total,
+                )
+            }
+        };
         let f = &self.fields;
         let mut hits = Vec::with_capacity(top.len());
         for (score, address) in top {

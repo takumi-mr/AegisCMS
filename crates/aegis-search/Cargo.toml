@@ -11,6 +11,7 @@ workspace = true
 
 [dependencies]
 aegis-ast = { path = "../aegis-ast" }
+chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tantivy.workspace = true

@@ -18,11 +18,18 @@ struct Site {
 }
 
 async fn site(configure: impl FnOnce(&mut AegisConfig)) -> Site {
+    site_with_schemas(configure, Vec::new()).await
+}
+
+async fn site_with_schemas(
+    configure: impl FnOnce(&mut AegisConfig),
+    extra_schemas: Vec<aegis_schema::SchemaDefinition>,
+) -> Site {
     let mut config = AegisConfig::default();
     config.search.index_dir = String::new();
     configure(&mut config);
     let mut state =
-        crate::test_support::test_app_state(config, PluginSupervisor::new(), Vec::new()).await;
+        crate::test_support::test_app_state(config, PluginSupervisor::new(), extra_schemas).await;
     if state.config.search.enabled {
         state.search = Some(Arc::new(
             super::SiteSearch::from_config(&state.config.search).unwrap(),
@@ -174,6 +181,97 @@ async fn test_rebuild_indexes_only_published_content_of_configured_types() {
         .await;
     let unknown: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(unknown["total"], 0);
+}
+
+#[tokio::test]
+async fn test_category_filter_and_newest_sort() {
+    // 記事に `category_id` のあるスキーマ
+    let article = serde_json::from_value(json!({
+        "content_type": "article",
+        "label": "Articles",
+        "fields": [
+            { "name": "title", "type": "string", "required": true },
+            { "name": "category_id", "type": "string", "required": false, "nullable": true }
+        ]
+    }))
+    .unwrap();
+    let site = site_with_schemas(|_| {}, vec![article]).await;
+    let schemas = site.state.schemas.read().await.clone();
+    let article = |id: &str, title: &str, published_at: &str, category: Option<&str>| {
+        let mut r = record("article", id, id, title, "published", "Docker guide.");
+        r.published_at = Some(published_at.to_string());
+        if let Some(category) = category {
+            r.custom_fields
+                .insert("category_id".to_string(), json!(category));
+        }
+        r
+    };
+    for r in [
+        // タイトルに語があるので、一致の良い順では先頭
+        article("old", "Docker", "2026-01-01T00:00:00Z", Some("news")),
+        article("new", "News", "2026-10-30T00:00:00Z", Some("news")),
+        article("guide", "Guide", "2026-06-01T00:00:00Z", Some("guide")),
+        article("plain", "Plain", "2026-05-01T00:00:00Z", None),
+    ] {
+        site.state
+            .db
+            .insert_content(&schemas["article"], &r)
+            .await
+            .unwrap();
+    }
+    super::rebuild(&site.state).await;
+
+    let slugs = |result: &Value| -> Vec<String> {
+        result["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["slug"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let get = |query: &str| {
+        let path = format!("/api/v1/search?q=docker{}", query);
+        let site = &site;
+        async move {
+            let (status, _, body) = site.get(&path).await;
+            (status, serde_json::from_str::<Value>(&body).unwrap())
+        }
+    };
+
+    // 既定は一致の良い順
+    let (_, result) = get("").await;
+    assert_eq!(result["total"], 4);
+    assert_eq!(slugs(&result)[0], "old");
+
+    let (_, result) = get("&sort=newest").await;
+    assert_eq!(slugs(&result), vec!["new", "guide", "plain", "old"]);
+
+    let (_, result) = get("&category=news").await;
+    assert_eq!(result["total"], 2);
+    let (_, result) = get("&category=news&sort=newest").await;
+    assert_eq!(slugs(&result), vec!["new", "old"]);
+    let (_, result) = get("&category=nothing").await;
+    assert_eq!(result["total"], 0);
+    // 空の `category` と `sort` は指定なし
+    let (_, result) = get("&category=&sort=").await;
+    assert_eq!(result["total"], 4);
+
+    let (status, result) = get("&sort=oldest").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(result["error"].as_str().unwrap().contains("Unknown sort"));
+
+    // 検索ページ: 絞り込みと並びをページ送りのリンクに引き継ぐ
+    let (status, _, html) = site.get("/search?q=docker&category=news&sort=newest").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(html.contains("New") || html.contains("News"), "{}", html);
+    assert!(!html.contains("Guide"), "{}", html);
+    // 並びの選択とカテゴリは、検索フォームで引き継ぐ
+    assert!(
+        html.contains(r#"<option value="newest" selected>"#),
+        "{}",
+        html
+    );
+    assert!(html.contains(r#"name="category" value="news""#), "{}", html);
 }
 
 #[tokio::test]
