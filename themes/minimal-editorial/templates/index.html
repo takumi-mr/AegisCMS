@@ -2,7 +2,7 @@
 
 {% block content %}
 <section class="ed-hero">
-  <div class="ed-issue-tag">Editorial Perspectives</div>
+  <div class="ed-issue-tag">{{ t("theme.editorial.hero_tag") }}</div>
   <h1 class="ed-hero-title">{{ site_title }}</h1>
   {% if site_description %}
   <p class="ed-hero-desc">{{ site_description }}</p>
@@ -19,20 +19,20 @@
     <p class="ed-card-excerpt">{{ item.excerpt | truncate(150) }}</p>
     <div class="ed-card-footer">
       <span>{{ item.published_at | date_short }}</span>
-      <a href="{{ base_path }}/articles/{{ item.slug }}" class="ed-card-link">Read Essay &rarr;</a>
+      <a href="{{ base_path }}/articles/{{ item.slug }}" class="ed-card-link">{{ t("theme.editorial.read_essay") }} &rarr;</a>
     </div>
   </article>
   {% else %}
   <div style="grid-column: 1 / -1; padding: 4rem; text-align: center; color: var(--ed-muted); font-style: italic;">
-    No published articles yet. Visit the studio to author a new essay.
+    {{ t("theme.editorial.empty") }}
   </div>
   {% endfor %}
 </section>
 {% if pagination and pagination.total_pages > 1 %}
-<nav class="pagination" aria-label="Pagination" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem;">
-  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="ed-card-link">&larr; Newer Essays</a>{% else %}<span></span>{% endif %}
-  <span>Page {{ pagination.page }} / {{ pagination.total_pages }}</span>
-  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="ed-card-link">Older Essays &rarr;</a>{% else %}<span></span>{% endif %}
+<nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem;">
+  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="ed-card-link">&larr; {{ t("theme.editorial.pagination_newer") }}</a>{% else %}<span></span>{% endif %}
+  <span>{{ t("pagination.page", page=pagination.page, total=pagination.total_pages) }}</span>
+  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="ed-card-link">{{ t("theme.editorial.pagination_older") }} &rarr;</a>{% else %}<span></span>{% endif %}
 </nav>
 {% endif %}
 {% endblock %}

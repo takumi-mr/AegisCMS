@@ -2,7 +2,7 @@
 
 {% block content %}
 <section class="cyber-hero">
-  <div class="cyber-subtitle">// NEURAL PROTOCOL CONNECTED :: PORT 8080</div>
+  <div class="cyber-subtitle">{{ t("theme.cyber.hero_subtitle") }}</div>
   <h1 class="cyber-title">{{ site_title }}</h1>
   {% if site_description %}
   <p class="cyber-desc">{{ site_description }}</p>
@@ -23,21 +23,21 @@
     </h2>
     <p class="cyber-card-excerpt">{{ item.excerpt | truncate(140) }}</p>
     <a href="{{ base_path }}/articles/{{ item.slug }}" class="cyber-card-link">
-      <span>[ ACCESS NODE ]</span>
+      <span>{{ t("theme.cyber.access_node") }}</span>
       <span>&rarr;</span>
     </a>
   </article>
   {% else %}
   <div style="grid-column: 1 / -1; padding: 4rem; text-align: center; border: 1px dashed var(--cyber-border);">
-    <p style="color: var(--cyber-muted); font-family: var(--font-cyber);">// NO POSTS LOCATED IN SECURE STORAGE</p>
+    <p style="color: var(--cyber-muted); font-family: var(--font-cyber);">{{ t("theme.cyber.empty") }}</p>
   </div>
   {% endfor %}
 </section>
 {% if pagination and pagination.total_pages > 1 %}
-<nav class="pagination" aria-label="Pagination" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem;">
-  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="cyber-card-link"><span>[ &larr; NEWER ]</span></a>{% else %}<span></span>{% endif %}
-  <span>Page {{ pagination.page }} / {{ pagination.total_pages }}</span>
-  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="cyber-card-link"><span>[ OLDER &rarr; ]</span></a>{% else %}<span></span>{% endif %}
+<nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem;">
+  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="cyber-card-link"><span>{{ t("theme.cyber.pagination_newer") }}</span></a>{% else %}<span></span>{% endif %}
+  <span>{{ t("pagination.page", page=pagination.page, total=pagination.total_pages) }}</span>
+  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="cyber-card-link"><span>{{ t("theme.cyber.pagination_older") }}</span></a>{% else %}<span></span>{% endif %}
 </nav>
 {% endif %}
 {% endblock %}

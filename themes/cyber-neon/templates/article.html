@@ -4,12 +4,12 @@
 <article class="cyber-article">
   <header class="cyber-article-header">
     <div class="cyber-card-meta" style="margin-bottom: 0.8rem;">
-      <span>// NODE ID: {{ slug }}</span>
+      <span>{{ t("theme.cyber.node_id", slug=slug) }}</span>
       {% if published_at %}
-      <span>&bull; TIMESTAMP: {{ published_at | date_short }}</span>
+      <span>&bull; {{ t("theme.cyber.timestamp", date=published_at | date_short) }}</span>
       {% endif %}
       {% if author %}
-      <span>&bull; OPERATOR: {{ author }}</span>
+      <span>&bull; {{ t("theme.cyber.operator", author=author) }}</span>
       {% endif %}
     </div>
     <h1 class="cyber-article-title">{{ title }}</h1>
@@ -20,7 +20,7 @@
   </div>
 
   <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--cyber-border);">
-    <a href="{{ base_path }}/articles" class="cyber-card-link">&larr; [ RETURN TO ARCHIVES ]</a>
+    <a href="{{ base_path }}/articles" class="cyber-card-link">&larr; {{ t("theme.cyber.return_archives") }}</a>
   </div>
   {% if fields.tags %}<ul class="aegis-tags" aria-label="{{ t("tags.aria") }}" style="list-style: none; display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; margin: 2rem 0 0;">{% for tag in fields.tags %}<li><a href="{{ tag.url }}" rel="tag" style="display: inline-block; padding: 0.15rem 0.7rem; border: 1px solid currentColor; border-radius: 999px; font-size: 0.8rem; color: inherit; text-decoration: none; opacity: 0.75;">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
   {% if comments %}{% include "comments.html" %}{% endif %}

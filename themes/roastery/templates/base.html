@@ -12,7 +12,7 @@
   {{ extra_head | safe }}
 </head>
 <body>
-  <div class="rs-notice">5,000円以上のご注文で送料無料 ・ 焙煎から3日以内に発送します</div>
+  <div class="rs-notice">{{ t("theme.roastery.notice") }}</div>
   <header class="rs-header">
     <div class="rs-container rs-header-inner">
       <a href="{{ base_path }}/" class="rs-brand">
@@ -20,10 +20,10 @@
         <span>{{ site_title }}</span>
       </a>
       <nav class="rs-nav" aria-label="Main">
-        <a href="{{ base_path }}/products">Shop</a>
-        <a href="{{ base_path }}/articles">Journal</a>
-        <a href="{{ base_path }}/about">About</a>
-        <a href="{{ base_path }}/cart" class="rs-nav-cart">Cart</a>
+        <a href="{{ base_path }}/products">{{ t("theme.roastery.nav_shop") }}</a>
+        <a href="{{ base_path }}/articles">{{ t("theme.roastery.nav_journal") }}</a>
+        <a href="{{ base_path }}/about">{{ t("theme.roastery.nav_about") }}</a>
+        <a href="{{ base_path }}/cart" class="rs-nav-cart">{{ t("theme.roastery.nav_cart") }}</a>
       </nav>
     </div>
   </header>
@@ -41,11 +41,11 @@
         <p>{{ site_description }}</p>
       </div>
       <nav class="rs-footer-links" aria-label="Footer">
-        <a href="{{ base_path }}/products">オンラインショップ</a>
-        <a href="{{ base_path }}/articles">ジャーナル</a>
-        <a href="{{ base_path }}/about">私たちについて</a>
-        <a href="{{ base_path }}/shipping">配送・お支払い</a>
-        {% if admin_url %}<a href="{{ admin_url }}">管理画面</a>{% endif %}
+        <a href="{{ base_path }}/products">{{ t("theme.roastery.footer_shop") }}</a>
+        <a href="{{ base_path }}/articles">{{ t("theme.roastery.footer_journal") }}</a>
+        <a href="{{ base_path }}/about">{{ t("theme.roastery.footer_about") }}</a>
+        <a href="{{ base_path }}/shipping">{{ t("theme.roastery.footer_shipping") }}</a>
+        {% if admin_url %}<a href="{{ admin_url }}">{{ t("admin.studio") }}</a>{% endif %}
       </nav>
     </div>
     {% if show_powered_by %}<div class="rs-container rs-copy">Powered by AegisCMS</div>{% endif %}

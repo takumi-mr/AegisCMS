@@ -20,9 +20,9 @@
         <span>{{ site_title }}</span>
       </a>
       <nav class="cyber-nav-links">
-        <a href="{{ base_path }}/" class="cyber-nav-link">[ TERMINAL ]</a>
-        <a href="{{ base_path }}/articles" class="cyber-nav-link">[ ARCHIVES ]</a>
-        {% if admin_url %}<a href="{{ admin_url }}" class="cyber-status-tag">&bull; ADMIN MATRIX</a>{% endif %}
+        <a href="{{ base_path }}/" class="cyber-nav-link">{{ t("theme.cyber.nav_terminal") }}</a>
+        <a href="{{ base_path }}/articles" class="cyber-nav-link">{{ t("theme.cyber.nav_archives") }}</a>
+        {% if admin_url %}<a href="{{ admin_url }}" class="cyber-status-tag">&bull; {{ t("theme.cyber.nav_admin") }}</a>{% endif %}
       </nav>
     </div>
   </header>
@@ -33,7 +33,7 @@
 
   <footer class="cyber-footer">
     <div class="footer-container">
-      <p>&copy; {{ site_title }}{% if show_powered_by %} // SECURED BY <strong style="color: var(--cyber-cyan);">AEGIS-WASM</strong>{% endif %}</p>
+      <p>&copy; {{ site_title }}{% if show_powered_by %} // {{ t("theme.cyber.secured_by") }} <strong style="color: var(--cyber-cyan);">AEGIS-WASM</strong>{% endif %}</p>
     </div>
   </footer>
 </body>

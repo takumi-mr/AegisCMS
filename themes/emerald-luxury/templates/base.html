@@ -20,9 +20,9 @@
         <span>{{ site_title }}</span>
       </a>
       <nav class="lux-nav">
-        <a href="{{ base_path }}/" class="lux-nav-link">Atelier</a>
-        <a href="{{ base_path }}/articles" class="lux-nav-link">Exhibits</a>
-        {% if admin_url %}<a href="{{ admin_url }}" class="lux-admin-link">Console</a>{% endif %}
+        <a href="{{ base_path }}/" class="lux-nav-link">{{ t("theme.lux.nav_atelier") }}</a>
+        <a href="{{ base_path }}/articles" class="lux-nav-link">{{ t("theme.lux.nav_exhibits") }}</a>
+        {% if admin_url %}<a href="{{ admin_url }}" class="lux-admin-link">{{ t("theme.lux.nav_console") }}</a>{% endif %}
       </nav>
     </div>
   </header>
@@ -32,7 +32,7 @@
   </main>
 
   <footer class="lux-footer">
-    <p>&copy; {{ site_title }}.{% if show_powered_by %} Form and Function Secured by <strong>AegisCMS</strong>.{% endif %}</p>
+    <p>&copy; {{ site_title }}.{% if show_powered_by %} {{ t("theme.lux.footer_secured") | safe }}{% endif %}</p>
   </footer>
 </body>
 </html>

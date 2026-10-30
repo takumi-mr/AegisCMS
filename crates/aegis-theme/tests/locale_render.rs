@@ -264,6 +264,7 @@ fn plain_texts() -> Vec<(&'static str, &'static str, &'static str)> {
         .filter(|(key, en, ja)| {
             !key.starts_with("js.")
                 && !key.starts_with("maintenance.")
+                && !key.starts_with("theme.")
                 && en != ja
                 && !en.contains(['{', '<'])
         })
@@ -377,4 +378,124 @@ fn test_every_key_used_by_a_template_exists() {
         assert!(exists, "t(\"{}\") has no message", key);
     }
     assert!(found > 100, "found only {} keys", found);
+}
+
+#[test]
+fn test_bundled_themes_render_in_both_locales() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let themes_dir = root.join("themes");
+    let bundled = [
+        "cyber-neon",
+        "emerald-luxury",
+        "minimal-editorial",
+        "roastery",
+        "trailhead",
+    ];
+
+    for theme_id in bundled {
+        let en_engine = ThemeEngine::new(&themes_dir, theme_id).with_locale("en");
+        let ja_engine = ThemeEngine::new(&themes_dir, theme_id).with_locale("ja");
+
+        // 全テンプレートファイル内の t("...") キーが messages に存在するか検査
+        let templates_path = themes_dir.join(theme_id).join("templates");
+        if templates_path.is_dir() {
+            for entry in std::fs::read_dir(&templates_path).unwrap().flatten() {
+                if entry.path().extension().is_some_and(|e| e == "html") {
+                    let src = std::fs::read_to_string(entry.path()).unwrap();
+                    for part in src.split("t(\"").skip(1) {
+                        let key = part.split('\"').next().unwrap();
+                        if !key.chars().all(|c| {
+                            c.is_ascii_lowercase() || c == '.' || c == '_' || c.is_ascii_digit()
+                        }) {
+                            continue;
+                        }
+                        let exists = messages::lookup("en", key).is_some()
+                            || messages::lookup("en", &format!("{}.one", key)).is_some();
+                        assert!(
+                            exists,
+                            "{}/{}: t(\"{}\") has no message in catalog",
+                            theme_id,
+                            entry.file_name().to_string_lossy(),
+                            key
+                        );
+                    }
+                }
+            }
+        }
+
+        for ctx in contexts() {
+            // 当該テーマにテンプレートが存在する場合のみ描画テスト
+            let tpl_path = templates_path.join(&ctx.template);
+            if !tpl_path.is_file() {
+                continue;
+            }
+
+            let en = markup(&en_engine.render(&ctx.template, &ctx).unwrap());
+            let ja = markup(&ja_engine.render(&ctx.template, &ctx).unwrap());
+
+            assert!(
+                en.contains(r#"<html lang="en">"#),
+                "{}/{} en lang missing",
+                theme_id,
+                ctx.template
+            );
+            assert!(
+                ja.contains(r#"<html lang="ja">"#),
+                "{}/{} ja lang missing",
+                theme_id,
+                ctx.template
+            );
+        }
+
+        // 各テーマ固有のデザイン文言が英語と日本語で正しく切り替わっていることを検査
+        let index_ctx = contexts()
+            .into_iter()
+            .find(|c| c.template == "index.html")
+            .unwrap();
+        let en_index = markup(&en_engine.render("index.html", &index_ctx).unwrap());
+        let ja_index = markup(&ja_engine.render("index.html", &index_ctx).unwrap());
+        match theme_id {
+            "cyber-neon" => {
+                assert!(en_index.contains("[ TERMINAL ]") && en_index.contains("[ ACCESS NODE ]"));
+                assert!(
+                    ja_index.contains("[ ターミナル ]")
+                        && ja_index.contains("[ ノードにアクセス ]")
+                );
+                assert!(
+                    !ja_index.contains("[ TERMINAL ]") && !ja_index.contains("[ ACCESS NODE ]")
+                );
+            }
+            "emerald-luxury" => {
+                assert!(en_index.contains("Atelier") && en_index.contains("View Exhibit"));
+                assert!(ja_index.contains("アトリエ") && ja_index.contains("展示作品を鑑賞"));
+                assert!(!ja_index.contains("Atelier") && !ja_index.contains("View Exhibit"));
+            }
+            "minimal-editorial" => {
+                assert!(en_index.contains("Journal") && en_index.contains("Read Essay"));
+                assert!(ja_index.contains("ジャーナル") && ja_index.contains("エッセイを読む"));
+                assert!(!ja_index.contains("Journal") && !ja_index.contains("Read Essay"));
+            }
+            "roastery" => {
+                assert!(
+                    en_index.contains("Free shipping on orders over")
+                        && en_index.contains("Small batch coffee roasters")
+                );
+                assert!(
+                    ja_index.contains("5,000円以上のご注文で送料無料")
+                        && ja_index.contains("スモールバッチ・コーヒーロースター")
+                );
+                assert!(!ja_index.contains("Free shipping on orders over"));
+            }
+            "trailhead" => {
+                assert!(en_index.contains("News") && en_index.contains("Visit Forum"));
+                assert!(ja_index.contains("お知らせ") && ja_index.contains("掲示板を見る"));
+                assert!(!ja_index.contains("Visit Forum"));
+            }
+            _ => {}
+        }
+    }
 }
