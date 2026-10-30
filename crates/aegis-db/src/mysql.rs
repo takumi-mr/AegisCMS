@@ -1258,7 +1258,9 @@ impl DatabaseAdapter for MySqlAdapter {
         query: &ContentListQuery,
     ) -> Result<ContentPage> {
         let (select, count, binds) =
-            build_content_list(&schema.table_name(), query, |_| "?".to_string());
+            build_content_list(&schema.table_name(), &schema.content_type, query, |_| {
+                "?".to_string()
+            });
 
         let mut rows_query = sqlx::query(&select);
         let mut count_query = sqlx::query_scalar::<_, i64>(&count);

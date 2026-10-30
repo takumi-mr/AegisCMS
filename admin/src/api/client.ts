@@ -136,6 +136,8 @@ export interface ContentListParams {
   q?: string;
   /** A category id, or `none` for uncategorized */
   category?: string;
+  /** A tag slug or id */
+  tag?: string;
   status?: string;
   limit?: number;
   offset?: number;

@@ -171,6 +171,8 @@ pub struct ContentListQuery {
     /// カスタムフィールドの値での絞り込み（列名, 値）。値が `None` なら未設定（NULL か空文字）のもの。
     /// 列名はスキーマのフィールド名を渡す（安全な識別子でなければ何にも一致しない）
     pub filters: Vec<(String, Option<String>)>,
+    /// このタグ（ID）がついているものだけ
+    pub tag_id: Option<String>,
     /// 取得する最大件数。`None` なら全件（`offset` は無視）
     pub limit: Option<u64>,
     pub offset: u64,
@@ -933,6 +935,7 @@ pub async fn resolve_relations_for_records(
 /// 値はすべてバインドし、LIMIT / OFFSET のみ数値を埋め込む
 pub fn build_content_list(
     table: &str,
+    content_type: &str,
     query: &ContentListQuery,
     placeholder: impl Fn(usize) -> String,
 ) -> (String, String, Vec<String>) {
@@ -941,6 +944,18 @@ pub fn build_content_list(
     if let Some(status) = &query.status {
         binds.push(status.clone());
         conditions.push(format!("status = {}", placeholder(binds.len())));
+    }
+    if let Some(tag_id) = &query.tag_id {
+        binds.push(content_type.to_string());
+        let ct_ph = placeholder(binds.len());
+        binds.push(tag_id.clone());
+        let tag_ph = placeholder(binds.len());
+        conditions.push(format!(
+            "id IN (SELECT content_id FROM {} WHERE content_type = {} AND tag_id = {})",
+            crate::tags::CONTENT_TAG_TABLE,
+            ct_ph,
+            tag_ph,
+        ));
     }
     for (column, value) in &query.filters {
         if !is_safe_identifier(column) {
@@ -1193,7 +1208,7 @@ mod tests {
             ..Default::default()
         };
         let (select, count, binds) =
-            build_content_list("content_article", &query, |i| format!("${}", i));
+            build_content_list("content_article", "article", &query, |i| format!("${}", i));
         assert_eq!(
             select,
             "SELECT * FROM content_article WHERE status = $1 ORDER BY created_at DESC, id DESC LIMIT 10 OFFSET 20;"
@@ -1204,10 +1219,12 @@ mod tests {
         );
         assert_eq!(binds, vec!["published"]);
 
-        let (select, count, binds) =
-            build_content_list("content_article", &ContentListQuery::default(), |_| {
-                "?".into()
-            });
+        let (select, count, binds) = build_content_list(
+            "content_article",
+            "article",
+            &ContentListQuery::default(),
+            |_| "?".into(),
+        );
         assert_eq!(
             select,
             "SELECT * FROM content_article ORDER BY created_at DESC, id DESC;"
@@ -1224,11 +1241,12 @@ mod tests {
                 ("category_id".to_string(), Some("cat-1".to_string())),
                 ("brand_id".to_string(), None),
             ],
+            tag_id: None,
             limit: Some(20),
             offset: 40,
         };
         let (select, count, binds) =
-            build_content_list("content_article", &query, |i| format!("${}", i));
+            build_content_list("content_article", "article", &query, |i| format!("${}", i));
         let where_clause =
             "WHERE status = $1 AND category_id = $2 AND (brand_id IS NULL OR brand_id = '') \
              AND (LOWER(title) LIKE $3 ESCAPE '!' OR LOWER(slug) LIKE $4 ESCAPE '!' \
@@ -1256,12 +1274,30 @@ mod tests {
                 pattern.as_str()
             ]
         );
+
+        // タグでの絞り込み
+        let query = ContentListQuery {
+            tag_id: Some("tag-123".to_string()),
+            ..Default::default()
+        };
+        let (select, count, binds) =
+            build_content_list("content_article", "article", &query, |i| format!("${}", i));
+        assert_eq!(
+            select,
+            "SELECT * FROM content_article WHERE id IN (SELECT content_id FROM _aegis_content_tags WHERE content_type = $1 AND tag_id = $2) ORDER BY created_at DESC, id DESC;"
+        );
+        assert_eq!(
+            count,
+            "SELECT COUNT(*) FROM content_article WHERE id IN (SELECT content_id FROM _aegis_content_tags WHERE content_type = $1 AND tag_id = $2);"
+        );
+        assert_eq!(binds, vec!["article", "tag-123"]);
         // 列名が安全でない絞り込みは何にも一致しない
         let query = ContentListQuery {
             filters: vec![("x; DROP TABLE y".to_string(), Some("1".to_string()))],
             ..Default::default()
         };
-        let (select, _, binds) = build_content_list("content_article", &query, |_| "?".into());
+        let (select, _, binds) =
+            build_content_list("content_article", "article", &query, |_| "?".into());
         assert!(select.contains("WHERE 1 = 0"), "{}", select);
         assert!(binds.is_empty());
         // 空の検索語は無視する
@@ -1269,7 +1305,8 @@ mod tests {
             search: Some("   ".to_string()),
             ..Default::default()
         };
-        let (select, _, _) = build_content_list("content_article", &query, |_| "?".into());
+        let (select, _, _) =
+            build_content_list("content_article", "article", &query, |_| "?".into());
         assert!(!select.contains("WHERE"), "{}", select);
 
         assert_eq!(

@@ -10,6 +10,7 @@ describe('isFiltered', () => {
   it('is true for search words, a status or (articles only) a category', () => {
     expect(isFiltered({ ...NO_FILTERS, q: 'rust' }, false)).toBe(true);
     expect(isFiltered({ ...NO_FILTERS, status: 'draft' }, false)).toBe(true);
+    expect(isFiltered({ ...NO_FILTERS, tag: 'rust' }, false)).toBe(true);
     expect(isFiltered({ ...NO_FILTERS, category: 'cat-1' }, true)).toBe(true);
     expect(isFiltered({ ...NO_FILTERS, category: 'none' }, true)).toBe(true);
     // Pages have no categories, so a leftover category value is not a condition

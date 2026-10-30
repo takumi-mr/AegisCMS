@@ -267,6 +267,8 @@
     "newTitle": "新しいコンテンツを作成",
     "new": "新規",
     "category": "カテゴリ:",
+    "tag": "タグ:",
+    "tagAria": "タグで絞り込む",
     "filterAria": "カテゴリで絞り込む",
     "all": "すべて",
     "uncategorized": "カテゴリなし",
