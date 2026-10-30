@@ -17,6 +17,32 @@ struct Site {
     editor: String,
 }
 
+async fn site_with_tags(configure: impl FnOnce(&mut AegisConfig)) -> Site {
+    let mut config = AegisConfig::default();
+    config.search.index_dir = String::new();
+    config.tags.enabled = true;
+    configure(&mut config);
+    let mut state =
+        crate::test_support::test_app_state(config, PluginSupervisor::new(), Vec::new()).await;
+    if state.config.tags.enabled {
+        let tag_service = aegis_tags::TagService::new(state.db.clone(), state.config.tags.clone());
+        state = state.with_tags(tag_service);
+    }
+    if state.config.search.enabled {
+        state.search = Some(Arc::new(
+            super::SiteSearch::from_config(&state.config.search).unwrap(),
+        ));
+    }
+    let state = Arc::new(state);
+    crate::cluster::spawn_listener(state.clone(), state.bus.subscribe());
+    let editor = state
+        .sessions
+        .create_session("editor1", "editor", Default::default(), None)
+        .await
+        .unwrap()
+        .id;
+    Site { state, editor }
+}
 async fn site(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     site_with_schemas(configure, Vec::new()).await
 }
@@ -111,6 +137,19 @@ impl Site {
     }
 
     /// イベントバス経由の反映は非同期なので、`total` が期待どおりになるまで待つ
+    async fn wait_for_query_total(&self, path: &str, total: u64) -> Value {
+        for _ in 0..100 {
+            let (status, _, body) = self.get(path).await;
+            assert_eq!(status, StatusCode::OK);
+            let result: Value = serde_json::from_str(&body).unwrap();
+            if result["total"] == total {
+                return result;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        panic!("search for {:?} never reached {} results", path, total);
+    }
+
     async fn wait_for_total(&self, q: &str, total: u64) -> Value {
         for _ in 0..100 {
             let result = self.api(q).await;
@@ -392,4 +431,150 @@ async fn test_limits_and_disabled_search() {
         StatusCode::NOT_FOUND
     );
     assert_eq!(disabled.get("/search?q=a").await.0, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_tag_filter_and_search_page() {
+    let site = site_with_tags(|_| {}).await;
+    let schemas = site.state.schemas.read().await.clone();
+    let tag_service = site.state.tags.as_ref().unwrap().clone();
+
+    let tag_rust = tag_service
+        .create(aegis_tags::TagInput {
+            name: "Rust".to_string(),
+            slug: Some("rust".to_string()),
+            description: None,
+        })
+        .await
+        .unwrap();
+
+    let tag_caddy = tag_service
+        .create(aegis_tags::TagInput {
+            name: "Caddy".to_string(),
+            slug: Some("caddy".to_string()),
+            description: None,
+        })
+        .await
+        .unwrap();
+
+    for r in [
+        record(
+            "article",
+            "a1",
+            "a1",
+            "AegisCMS with Rust",
+            "published",
+            "Fast engine.",
+        ),
+        record(
+            "article",
+            "a2",
+            "a2",
+            "AegisCMS with Caddy",
+            "published",
+            "Reverse proxy.",
+        ),
+        record(
+            "article",
+            "a3",
+            "a3",
+            "AegisCMS with Both",
+            "published",
+            "Complete setup.",
+        ),
+    ] {
+        site.state
+            .db
+            .insert_content(&schemas[&r.content_type], &r)
+            .await
+            .unwrap();
+    }
+
+    tag_service
+        .set_content_tags("article", "a1", &[tag_rust.id.clone()])
+        .await
+        .unwrap();
+    tag_service
+        .set_content_tags("article", "a2", &[tag_caddy.id.clone()])
+        .await
+        .unwrap();
+    tag_service
+        .set_content_tags(
+            "article",
+            "a3",
+            &[tag_rust.id.clone(), tag_caddy.id.clone()],
+        )
+        .await
+        .unwrap();
+
+    super::rebuild(&site.state).await;
+
+    // 1. API: 全件検索
+    let res = site.api("AegisCMS").await;
+    assert_eq!(res["total"], 3);
+
+    // 2. API: slug でのタグ絞り込み
+    let (status, _, body) = site.get("/api/v1/search?q=AegisCMS&tag=rust").await;
+    assert_eq!(status, StatusCode::OK);
+    let res: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(res["total"], 2);
+    let ids: Vec<_> = res["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["id"].as_str().unwrap())
+        .collect();
+    assert!(ids.contains(&"a1"));
+    assert!(ids.contains(&"a3"));
+
+    let (status, _, body) = site.get("/api/v1/search?q=AegisCMS&tag=caddy").await;
+    assert_eq!(status, StatusCode::OK);
+    let res: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(res["total"], 2);
+
+    // 3. API: ID でのタグ絞り込み
+    let (status, _, body) = site
+        .get(&format!("/api/v1/search?q=AegisCMS&tag={}", tag_rust.id))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let res: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(res["total"], 2);
+
+    // 4. API: 存在しないタグ
+    let (status, _, body) = site.get("/api/v1/search?q=AegisCMS&tag=no-such").await;
+    assert_eq!(status, StatusCode::OK);
+    let res: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(res["total"], 0);
+
+    // 5. 検索ページ
+    let (status, _, html) = site.get("/search?q=AegisCMS&tag=rust").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(html.contains(r#"<input type="hidden" name="tag" value="rust">"#));
+    assert!(html.contains("2 results"));
+
+    // 6. イベントバス経由でのタグ更新の反映
+    let status = site
+        .write(
+            "PUT",
+            "/api/v1/contents/article/a1/tags",
+            json!({ "tag_ids": [] }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let res = site
+        .wait_for_query_total("/api/v1/search?q=AegisCMS&tag=rust", 1)
+        .await;
+    assert_eq!(res["items"][0]["id"], "a3");
+
+    // 7. タグの削除で、そのタグが付いていた全コンテンツのインデックスが更新される
+    let status = site
+        .write(
+            "DELETE",
+            &format!("/api/v1/tags/{}", tag_caddy.id),
+            json!({}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    site.wait_for_query_total("/api/v1/search?q=AegisCMS&tag=caddy", 0)
+        .await;
 }

@@ -62,6 +62,8 @@ pub struct SearchDocument {
     pub published_at: Option<String>,
     /// カテゴリの ID（`category_id` フィールド。無ければ `None`）
     pub category_id: Option<String>,
+    /// タグ（slug や ID。空なら無し）
+    pub tags: Vec<String>,
 }
 
 /// 索引の変更
@@ -101,6 +103,8 @@ pub struct SearchQuery<'a> {
     pub content_types: &'a [String],
     /// このカテゴリ（ID）のものだけ。`None` ならすべて
     pub category: Option<&'a str>,
+    /// このタグ（slug または ID）のものだけ。`None` ならすべて
+    pub tag: Option<&'a str>,
     pub sort: SearchSort,
     pub limit: usize,
     pub offset: usize,
@@ -138,6 +142,7 @@ struct Fields {
     url: Field,
     published_at: Field,
     category_id: Field,
+    tag: Field,
     /// 公開日時の UNIX 秒（新しい順の並びに使う。無ければ 0）
     published_ts: Field,
 }
@@ -161,6 +166,7 @@ fn build_schema() -> (Schema, Fields) {
         url: builder.add_text_field("url", STORED),
         published_at: builder.add_text_field("published_at", STORED),
         category_id: builder.add_text_field("category_id", STRING),
+        tag: builder.add_text_field("tag", STRING),
         published_ts: builder.add_i64_field("published_ts", FAST),
     };
     (builder.build(), fields)
@@ -258,6 +264,12 @@ impl SearchIndex {
         }
         if let Some(category_id) = doc.category_id.as_deref().filter(|c| !c.is_empty()) {
             out.add_text(f.category_id, category_id);
+        }
+        for tag in &doc.tags {
+            let tag = tag.trim();
+            if !tag.is_empty() {
+                out.add_text(f.tag, tag);
+            }
         }
         out.add_i64(
             f.published_ts,
@@ -359,6 +371,15 @@ impl SearchIndex {
                 })
                 .collect();
             clauses.push((Occur::Must, Box::new(BooleanQuery::new(types))));
+        }
+        if let Some(tag) = query.tag.filter(|t| !t.is_empty()) {
+            clauses.push((
+                Occur::Must,
+                Box::new(TermQuery::new(
+                    Term::from_field_text(self.fields.tag, tag),
+                    IndexRecordOption::Basic,
+                )),
+            ));
         }
         if let Some(category) = query.category.filter(|c| !c.is_empty()) {
             clauses.push((

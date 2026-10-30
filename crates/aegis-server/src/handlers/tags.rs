@@ -224,6 +224,19 @@ pub async fn update_tag(
             let mut changed = vec![&tag];
             changed.extend(before.as_ref());
             purge_tag_pages(&state, &changed).await;
+            #[cfg(feature = "search")]
+            if before.as_ref().is_some_and(|b| b.slug != tag.slug) {
+                if let Ok(tagged) = state.db.list_tagged_contents(&tag.id, None).await {
+                    for link in tagged {
+                        crate::search::announce_change(
+                            &state,
+                            &link.content_type,
+                            &link.content_id,
+                        )
+                        .await;
+                    }
+                }
+            }
             audit_tag(
                 &state,
                 &audit,
@@ -258,8 +271,18 @@ pub async fn delete_tag(
     audit: AuditContext,
 ) -> Result<StatusCode, ApiError> {
     let service = tags(&state)?;
+    #[cfg(feature = "search")]
+    let tagged = state
+        .db
+        .list_tagged_contents(&id, None)
+        .await
+        .unwrap_or_default();
     let tag = service.delete(&id).await.map_err(tag_error)?;
     purge_tag_pages(&state, &[&tag]).await;
+    #[cfg(feature = "search")]
+    for link in tagged {
+        crate::search::announce_change(&state, &link.content_type, &link.content_id).await;
+    }
     audit_tag(
         &state,
         &audit,
@@ -353,6 +376,8 @@ pub async fn set_content_tags(
     crate::cdn::purge_content(&state, &content_type, &id, &slug, None).await;
     let changed: Vec<&TagRecord> = before.iter().chain(set.iter()).collect();
     purge_tag_pages(&state, &changed).await;
+    #[cfg(feature = "search")]
+    crate::search::announce_change(&state, &content_type, &id).await;
     audit_tag(
         &state,
         &audit,
