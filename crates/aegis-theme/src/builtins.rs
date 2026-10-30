@@ -296,7 +296,7 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
       </a>
       <nav class="nav-links">
         <a href="{{ base_path }}/" class="nav-link">Home</a>
-        <a href="{{ base_path }}/admin/" class="admin-pill">Admin Studio</a>
+        {% if admin_url %}<a href="{{ admin_url }}" class="admin-pill">Admin Studio</a>{% endif %}
       </nav>
     </div>
   </header>
@@ -385,8 +385,8 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
       &bull;
     </div>
     <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; color: #ffffff;">No Published Content Yet</h3>
-    <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">Create and publish articles from Admin Studio to see them listed here.</p>
-    <a href="{{ base_path }}/admin/" class="admin-pill" style="display: inline-block; padding: 0.5rem 1.25rem;">Launch Admin Studio</a>
+    {% if admin_url %}<p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">Create and publish articles from Admin Studio to see them listed here.</p>{% endif %}
+    {% if admin_url %}<a href="{{ admin_url }}" class="admin-pill" style="display: inline-block; padding: 0.5rem 1.25rem;">Launch Admin Studio</a>{% endif %}
   </div>
   {% endif %}
 {% if pagination and pagination.total_pages > 1 %}

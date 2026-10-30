@@ -209,6 +209,19 @@ fn registration_notifier(
     Ok(notifier)
 }
 
+/// 公開ページに出す Admin Studio へのリンク。出さないなら空文字
+fn public_admin_url(config: &AegisConfig, base_path: &str, admin_path: &str) -> String {
+    let show = config
+        .theme
+        .show_admin_link
+        .unwrap_or(admin_path == config::DEFAULT_ADMIN_PATH);
+    if show {
+        format!("{}{}/", base_path, admin_path)
+    } else {
+        String::new()
+    }
+}
+
 /// Admin Studio の URL（`[auth.registration].admin_url`、無ければ `[commerce].public_url` + `[server].admin_path`）。
 /// リンクを偽装させないよう、リクエストの Host からは作らない
 fn resolve_admin_url(config: &AegisConfig) -> Option<String> {
@@ -703,6 +716,7 @@ async fn main() -> anyhow::Result<()> {
             let theme_engine = Arc::new(
                 aegis_theme::ThemeEngine::new(&config.paths.themes_dir, &config.theme.active)
                     .with_base_path(&base_path)
+                    .with_admin_url(&public_admin_url(&config, &base_path, &admin_path))
                     .with_template_reload(config.theme.reload_templates)
                     .with_powered_by(config.theme.show_powered_by),
             );
@@ -1340,6 +1354,19 @@ fn build_saml_login(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_public_admin_url_hides_a_custom_admin_path_by_default() {
+        let url = |admin_path: &str, show: Option<bool>| {
+            let mut config = AegisConfig::default();
+            config.theme.show_admin_link = show;
+            public_admin_url(&config, "/cms", admin_path)
+        };
+        assert_eq!(url("/admin", None), "/cms/admin/");
+        assert_eq!(url("/backstage", None), "");
+        assert_eq!(url("/backstage", Some(true)), "/cms/backstage/");
+        assert_eq!(url("/admin", Some(false)), "");
+    }
 
     #[test]
     fn test_registration_admin_url_never_comes_from_the_request() {

@@ -29,6 +29,10 @@ pub struct ThemeConfig {
     /// `false` で、使っている CMS を公開サイトから読み取りにくくする
     #[serde(default = "default_show_powered_by")]
     pub show_powered_by: bool,
+    /// 公開ページに Admin Studio へのリンクを出すか。未指定なら `[server].admin_path` が既定の `/admin` のときだけ
+    /// 出す（パスを変えたのは隠すためなので、リンクで公開しない）。`true` / `false` で固定できる
+    #[serde(default)]
+    pub show_admin_link: Option<bool>,
     /// テーマのインストール時に署名を必須とするか（既定: false）
     #[serde(default)]
     pub require_signatures: bool,
@@ -108,6 +112,7 @@ impl Default for ThemeConfig {
             front_page: default_front_page(),
             reload_templates: false,
             show_powered_by: default_show_powered_by(),
+            show_admin_link: None,
             require_signatures: false,
             trusted_public_keys: Vec::new(),
         }
