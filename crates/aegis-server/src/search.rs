@@ -33,6 +33,8 @@ pub const TOPIC_SEARCH: &str = "search.content";
 pub const MAX_API_LIMIT: usize = 50;
 /// `category` に使う文字数の上限
 const MAX_CATEGORY_CHARS: usize = 100;
+/// `tag` に使う文字数の上限
+const MAX_TAG_CHARS: usize = 100;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -62,6 +64,8 @@ pub struct SearchRequest {
     pub content_types: Vec<String>,
     /// このカテゴリ（ID）のものだけ
     pub category: Option<String>,
+    /// このタグ（slug または ID）のものだけ
+    pub tag: Option<String>,
     pub sort: SearchSort,
     pub limit: usize,
     pub offset: usize,
@@ -116,6 +120,7 @@ impl SiteSearch {
                 text: &request.text,
                 content_types: &request.content_types,
                 category: request.category.as_deref(),
+                tag: request.tag.as_deref(),
                 sort: request.sort,
                 limit: request.limit,
                 offset: request.offset,
@@ -126,7 +131,20 @@ impl SiteSearch {
     }
 }
 
-fn to_document(state: &AppState, record: &ContentRecord) -> SearchDocument {
+fn tag_tokens(tags: impl IntoIterator<Item = aegis_db::TagRecord>) -> Vec<String> {
+    let mut out = Vec::new();
+    for tag in tags {
+        if !tag.slug.is_empty() {
+            out.push(tag.slug);
+        }
+        if !tag.id.is_empty() {
+            out.push(tag.id);
+        }
+    }
+    out
+}
+
+fn to_document(state: &AppState, record: &ContentRecord, tags: Vec<String>) -> SearchDocument {
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
     let mut body = String::new();
     // 抜粋（excerpt）を書いていれば、それも検索の対象にする
@@ -153,6 +171,7 @@ fn to_document(state: &AppState, record: &ContentRecord) -> SearchDocument {
             .and_then(|v| v.as_str())
             .filter(|c| !c.is_empty())
             .map(str::to_string),
+        tags,
     }
 }
 
@@ -174,12 +193,47 @@ pub async fn rebuild(state: &AppState) {
             ..ContentListQuery::default()
         };
         match state.db.list_published_contents_page(&schema, &query).await {
-            Ok(page) => docs.extend(
-                page.records
-                    .iter()
+            Ok(page) => {
+                let published: Vec<_> = page
+                    .records
+                    .into_iter()
                     .filter(|r| is_currently_published(&r.status, r.unpublish_at.as_deref(), now))
-                    .map(|r| to_document(state, r)),
-            ),
+                    .collect();
+                let ids: Vec<String> = published.iter().map(|r| r.id.clone()).collect();
+                let tags_by_id: std::collections::HashMap<String, Vec<String>> =
+                    if state.tags.is_some() && !ids.is_empty() {
+                        match state.db.list_tags_for_contents(content_type, &ids).await {
+                            Ok(links) => {
+                                let mut map: std::collections::HashMap<String, Vec<String>> =
+                                    std::collections::HashMap::new();
+                                for (content_id, tag) in links {
+                                    let entry = map.entry(content_id).or_default();
+                                    if !tag.slug.is_empty() {
+                                        entry.push(tag.slug);
+                                    }
+                                    if !tag.id.is_empty() {
+                                        entry.push(tag.id);
+                                    }
+                                }
+                                map
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Could not read tags for {} search index: {}",
+                                    content_type,
+                                    e
+                                );
+                                Default::default()
+                            }
+                        }
+                    } else {
+                        Default::default()
+                    };
+                docs.extend(published.into_iter().map(|r| {
+                    let tags = tags_by_id.get(&r.id).cloned().unwrap_or_default();
+                    to_document(state, &r, tags)
+                }));
+            }
             Err(e) => {
                 tracing::error!(
                     "Could not read the published {} contents for the search index (keeping the current index): {}",
@@ -225,15 +279,34 @@ pub async fn refresh(state: &AppState, content_type: &str, id: &str) {
         None => None,
     };
     let now = chrono::Utc::now();
-    let change = match record
+    let is_pub = record
+        .as_ref()
         .filter(|r| r.id == id)
-        .filter(|r| is_currently_published(&r.status, r.unpublish_at.as_deref(), now))
-    {
-        Some(record) => SearchChange::Upsert(to_document(state, &record)),
-        None => SearchChange::Remove {
+        .is_some_and(|r| is_currently_published(&r.status, r.unpublish_at.as_deref(), now));
+    let change = if is_pub {
+        let record = record.unwrap();
+        let tags = if state.tags.is_some() {
+            match state.db.list_content_tags(content_type, id).await {
+                Ok(tags) => tag_tokens(tags),
+                Err(e) => {
+                    tracing::warn!(
+                        "Could not read tags for {} {} for search index: {}",
+                        content_type,
+                        id,
+                        e
+                    );
+                    Vec::new()
+                }
+            }
+        } else {
+            Vec::new()
+        };
+        SearchChange::Upsert(to_document(state, &record, tags))
+    } else {
+        SearchChange::Remove {
             content_type: content_type.to_string(),
             id: id.to_string(),
-        },
+        }
     };
     let index = search.index.clone();
     match tokio::task::spawn_blocking(move || index.apply(&[change])).await {
@@ -286,6 +359,9 @@ pub struct SearchParams {
     pub content_type: Option<String>,
     /// 絞り込むカテゴリの ID
     pub category: Option<String>,
+    /// 絞り込むタグ（slug または ID）
+    #[serde(default)]
+    pub tag: Option<String>,
     /// 並び（`relevance`＝一致の良い順、`newest`＝公開日時の新しい順）。省略時は `relevance`
     pub sort: Option<String>,
     pub limit: Option<usize>,
@@ -312,6 +388,14 @@ fn requested_category(param: Option<&str>) -> Option<String> {
         .map(str::trim)
         .filter(|c| !c.is_empty())
         .map(|c| c.chars().take(MAX_CATEGORY_CHARS).collect())
+}
+
+/// `tag` パラメーター（空は絞り込まない）
+fn requested_tag(param: Option<&str>) -> Option<String> {
+    param
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(|t| t.chars().take(MAX_TAG_CHARS).collect())
 }
 
 fn base_path(state: &AppState) -> String {
@@ -365,6 +449,7 @@ pub async fn search_api(
         text: q.to_string(),
         content_types: types,
         category: requested_category(params.category.as_deref()),
+        tag: requested_tag(params.tag.as_deref()),
         sort,
         limit: params.limit.unwrap_or(10).clamp(1, MAX_API_LIMIT),
         offset: params.offset.unwrap_or(0),
@@ -411,6 +496,7 @@ pub async fn render_search_page(
     let page = params.page.unwrap_or(1).max(1);
     let types = requested_types(&search, params.content_type.as_deref());
     let category = requested_category(params.category.as_deref());
+    let tag = requested_tag(params.tag.as_deref());
     // 知らない並びは、検索ページでは一致の良い順にする
     let sort = params
         .sort
@@ -427,6 +513,7 @@ pub async fn render_search_page(
             text: q.clone(),
             content_types: types,
             category: category.clone(),
+            tag: tag.clone(),
             sort,
             limit: per_page as usize,
             offset: offset as usize,
@@ -471,6 +558,10 @@ pub async fn render_search_page(
             url.push_str("&category=");
             url.extend(url::form_urlencoded::byte_serialize(category.as_bytes()));
         }
+        if let Some(tag) = &tag {
+            url.push_str("&tag=");
+            url.extend(url::form_urlencoded::byte_serialize(tag.as_bytes()));
+        }
         if sort == SearchSort::Newest {
             url.push_str("&sort=newest");
         }
@@ -492,6 +583,7 @@ pub async fn render_search_page(
     let mut fields = std::collections::HashMap::new();
     fields.insert("query".to_string(), json!(q));
     fields.insert("category".to_string(), json!(category.unwrap_or_default()));
+    fields.insert("tag".to_string(), json!(tag.unwrap_or_default()));
     fields.insert(
         "sort".to_string(),
         json!(if sort == SearchSort::Newest {

@@ -40,12 +40,13 @@ content_types = ["article", "page"]  # 検索の対象にするコンテンツ�
 - 1 文字の漢字・かなでも探せます。
 - 並びは既定で一致の良い順で、タイトルの一致は本文の一致より上に並びます。`sort=newest` を付けると公開日時の新しい順になります（[§3](#3-検索ページsearch)・[§4](#4-api)）。
 - `category` にカテゴリの ID を付けると、そのカテゴリのコンテンツだけを探します（スキーマに `category_id` フィールドがある種類。無い種類は絞り込むと出てきません）。
+- `tag` にタグの slug（または ID）を付けると、そのタグが付いたコンテンツだけを探します（[タグ](tags.md)）。
 - 本文として探すのは、段落・見出し・リスト・表のセル・引用・注記・折りたたみ・コードの文字と画像の代替テキスト、抜粋（`excerpt`）です。カスタム HTML・プラグインのブロックの中は対象にしません。
 - 検索語は 200 文字まで、語は 10 個までです。
 
 ## 3. 検索ページ（`/search`）
 
-`/search?q=検索語&page=2` で（`&category=カテゴリID`、`&sort=newest` も使えます）、テーマの `search.html`（無ければ組み込みのテンプレート）で表示します。1 ページの件数は `[theme].posts_per_page` です。検索エンジンには載せません（`X-Robots-Tag: noindex`）。
+`/search?q=検索語&page=2` で（`&category=カテゴリID`、`&tag=タグslug`、`&sort=newest` も使えます）、テーマの `search.html`（無ければ組み込みのテンプレート）で表示します。1 ページの件数は `[theme].posts_per_page` です。検索エンジンには載せません（`X-Robots-Tag: noindex`）。
 
 テンプレートに渡す値:
 
@@ -53,6 +54,7 @@ content_types = ["article", "page"]  # 検索の対象にするコンテンツ�
 | --- | --- |
 | `fields.query` | 検索語 |
 | `fields.category` | 絞り込み中のカテゴリの ID（無ければ空） |
+| `fields.tag` | 絞り込み中のタグ（無ければ空） |
 | `fields.sort` | 並び（`relevance` または `newest`。知らない値は `relevance`） |
 | `items` | 一致したコンテンツ（一致の良い順）。`item.title`、`item.content_type`、`item.published_at`、`item.fields.url`（公開ページの URL、`base_path` 込み）、`item.fields.snippet_html`（本文の抜粋。検索語を `<mark>` で囲んだエスケープ済みの HTML なので `{{ item.fields.snippet_html \| safe }}` で出す） |
 | `pagination` | `total_items`（一致した件数）、`total_pages`、`prev_url` / `next_url` |
@@ -71,13 +73,14 @@ content_types = ["article", "page"]  # 検索の対象にするコンテンツ�
 
 ## 4. API
 
-`GET /api/v1/search?q=検索語&type=article,page&category=カテゴリID&sort=newest&limit=10&offset=0`（ログイン不要）
+`GET /api/v1/search?q=検索語&type=article,page&category=カテゴリID&tag=タグslug&sort=newest&limit=10&offset=0`（ログイン不要）
 
 | パラメータ | 内容 |
 | --- | --- |
 | `q` | 検索語（200 文字まで。超えると `400`） |
 | `type` | 絞り込むコンテンツの種類（カンマ区切り。`[search].content_types` にあるものだけ） |
 | `category` | 絞り込むカテゴリの ID（空なら絞り込まない） |
+| `tag` | 絞り込むタグの slug または ID（空なら絞り込まない） |
 | `sort` | 並び。`relevance`（一致の良い順。既定）か `newest`（公開日時の新しい順）。知らない値は `400` |
 | `limit` | 件数（既定 10、最大 50） |
 | `offset` | 飛ばす件数 |

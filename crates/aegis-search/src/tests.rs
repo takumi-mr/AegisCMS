@@ -10,6 +10,7 @@ fn doc(content_type: &str, id: &str, title: &str, body: &str) -> SearchDocument 
         url: format!("/{}s/slug-{}", content_type, id),
         published_at: Some("2026-10-01T00:00:00Z".into()),
         category_id: None,
+        tags: Vec::new(),
     }
 }
 
@@ -209,6 +210,36 @@ fn test_category_filter() {
     // 空のカテゴリは絞り込まない
     assert_eq!(in_category(Some("")).len(), 3);
     assert_eq!(in_category(None).len(), 3);
+}
+
+#[test]
+fn test_tag_filter() {
+    let index = SearchIndex::in_memory().unwrap();
+    let mut rust_post = doc("article", "1", "Rust Release notes", "Docker image");
+    rust_post.tags = vec!["rust".into(), "release".into(), "tag-uuid-1".into()];
+    let mut docker_post = doc("article", "2", "Docker guide", "Docker image");
+    docker_post.tags = vec!["docker".into()];
+    let untagged = doc("page", "3", "About", "Docker image");
+    index.rebuild(&[rust_post, docker_post, untagged]).unwrap();
+
+    let with_tag = |tag: Option<&str>| {
+        ids(&index
+            .search(&SearchQuery {
+                text: "docker",
+                tag,
+                limit: 10,
+                ..Default::default()
+            })
+            .unwrap())
+    };
+    assert_eq!(with_tag(Some("rust")), vec!["1"]);
+    assert_eq!(with_tag(Some("release")), vec!["1"]);
+    assert_eq!(with_tag(Some("tag-uuid-1")), vec!["1"]);
+    assert_eq!(with_tag(Some("docker")), vec!["2"]);
+    assert_eq!(with_tag(Some("no-such")), Vec::<String>::new());
+    // 空のタグは絞り込まない
+    assert_eq!(with_tag(Some("")).len(), 3);
+    assert_eq!(with_tag(None).len(), 3);
 }
 
 #[test]
