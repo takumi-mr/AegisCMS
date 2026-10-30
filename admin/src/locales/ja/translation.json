@@ -863,7 +863,18 @@
       "saved": "バリエーションを保存しました",
       "createFirstHint": "商品の保存後にバリエーション（サイズ・色・SKU・在庫・個別価格）を追加できます。",
       "attributesHint": "属性（カンマ区切りの キー:値。例: color:Red, size:M）"
-    }
+    },
+    "openFailed": "商品を開けませんでした",
+    "search": "名前・スラッグ・SKU・要約で検索…",
+    "searchAria": "商品を検索",
+    "clearSearch": "検索をクリア",
+    "statusAria": "状態で絞り込み",
+    "allStatuses": "すべての状態",
+    "noMatch": "検索や絞り込みに合う商品がありません。",
+    "range": "{{from}}–{{to}} / {{total}} 件",
+    "pagination": "一覧のページ",
+    "previousPage": "前のページ",
+    "nextPage": "次のページ"
   },
   "profile": {
     "title": "プロフィール",

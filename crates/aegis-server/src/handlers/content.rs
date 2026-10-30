@@ -1020,15 +1020,12 @@ pub async fn list_content(
         let value = (category != "none").then(|| category.to_string());
         filters.push(("category_id".to_string(), value));
     }
-    let search_columns = if has_field(
-        &schema_clone,
-        "excerpt",
-        &[FieldType::String, FieldType::Text],
-    ) {
-        vec!["excerpt".to_string()]
-    } else {
-        Vec::new()
-    };
+    // `excerpt` (articles, products) and `sku` (products) are searched along with the title and slug
+    let search_columns: Vec<String> = ["excerpt", "sku"]
+        .into_iter()
+        .filter(|name| has_field(&schema_clone, name, &[FieldType::String, FieldType::Text]))
+        .map(str::to_string)
+        .collect();
 
     let limit = params
         .limit

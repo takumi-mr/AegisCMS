@@ -881,7 +881,18 @@
       "saved": "Variant saved",
       "createFirstHint": "Save the product first to configure variants (sizes, colors, SKUs, stock, and pricing overrides).",
       "attributesHint": "Attributes (comma-separated key:value, e.g. color:Red, size:M)"
-    }
+    },
+    "openFailed": "Failed to open the product",
+    "search": "Search name, slug, SKU or summary…",
+    "searchAria": "Search products",
+    "clearSearch": "Clear search",
+    "statusAria": "Filter by status",
+    "allStatuses": "All statuses",
+    "noMatch": "No products match your search or filter.",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "pagination": "Pages of the list",
+    "previousPage": "Previous page",
+    "nextPage": "Next page"
   },
   "profile": {
     "title": "My profile",
