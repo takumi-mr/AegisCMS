@@ -13,6 +13,7 @@ use aegis_forum::ForumConfig;
 use aegis_notify::NotificationsConfig;
 use aegis_runtime::{PluginsConfig, RuntimeConfig};
 use aegis_storage::StorageConfig;
+use aegis_tags::TagsConfig;
 use aegis_theme::ThemeConfig;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -49,6 +50,8 @@ pub struct AegisConfig {
     pub notifications: NotificationsConfig,
     #[serde(default)]
     pub comments: CommentsConfig,
+    #[serde(default)]
+    pub tags: TagsConfig,
     #[serde(default)]
     pub forum: ForumConfig,
     #[serde(default)]
@@ -128,6 +131,7 @@ const RESERVED_ADMIN_PATHS: &[&str] = &[
     "forum",
     "contact",
     "comments",
+    "tags",
     "health",
     "metrics",
     "feed.xml",

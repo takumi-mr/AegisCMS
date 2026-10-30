@@ -7,7 +7,7 @@ use aegis_core::{AegisError, Result, StorageBackend};
 use aegis_db::{
     record_from_content_version, CommentListQuery, ContactListQuery, ContentRecord,
     ContentVersionRecord, DatabaseAdapter, ForumPostRecord, ForumThreadRecord, OrderListQuery,
-    PostListQuery, ReviewListQuery, ThreadListQuery,
+    PostListQuery, ReviewListQuery, TagListQuery, ThreadListQuery,
 };
 use aegis_schema::SchemaDefinition;
 use chrono::{SecondsFormat, Utc};
@@ -337,6 +337,32 @@ async fn dump_database_section<W: Write + Seek>(
         "database/comments.json",
         comments.len() as u64,
         &comments,
+    )?;
+
+    // 8b. Tags (_aegis_tags) and the tags on content (_aegis_content_tags)
+    let tags: Vec<aegis_db::TagRecord> = db
+        .list_tags(&TagListQuery::default())
+        .await?
+        .tags
+        .into_iter()
+        .map(|t| t.tag)
+        .collect();
+    write_table_json(
+        zip,
+        tables,
+        aegis_db::TAG_TABLE,
+        "database/tags.json",
+        tags.len() as u64,
+        &tags,
+    )?;
+    let content_tags = db.list_all_content_tags().await?;
+    write_table_json(
+        zip,
+        tables,
+        aegis_db::CONTENT_TAG_TABLE,
+        "database/content_tags.json",
+        content_tags.len() as u64,
+        &content_tags,
     )?;
 
     // 9. Reviews (_aegis_reviews)

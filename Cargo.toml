@@ -13,6 +13,7 @@ members = [
     "crates/aegis-notify",
     "crates/aegis-commerce",
     "crates/aegis-comments",
+    "crates/aegis-tags",
     "crates/aegis-forum",
     "crates/aegis-search",
     "crates/aegis-analytics",

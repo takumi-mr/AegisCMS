@@ -44,6 +44,16 @@ export type ContentItem = import('./schemas').BaseContentItem & {
 export type ContentSummary = Omit<ContentItem, 'blocks' | 'rendered_html' | 'comments_open'> & {
   excerpt?: string;
 };
+/** A managed tag (`/api/v1/tags`); `usage` (the number of contents it is on) is in lists only */
+export interface Tag {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  usage?: number;
+  created_at: string;
+  updated_at: string;
+}
 export type CreateContentPayload = import('./schemas').CreateArticlePayload;
 
 export type AuditAction =
@@ -96,7 +106,11 @@ export type AuditAction =
   | 'contact.update'
   | 'contact.delete'
   | 'notification.template_update'
-  | 'notification.queue_update';
+  | 'notification.queue_update'
+  | 'tag.create'
+  | 'tag.update'
+  | 'tag.delete'
+  | 'content.tags';
 
 export type AuditOutcome = 'success' | 'failure' | 'denied';
 

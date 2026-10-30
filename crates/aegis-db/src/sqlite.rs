@@ -173,6 +173,7 @@ impl SqliteAdapter {
 super::orders::impl_order_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::variants::impl_product_variant_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::comments::impl_comment_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::tags::impl_tag_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::contact::impl_contact_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::analytics::impl_analytics_storage!(
     SqliteAdapter,
@@ -481,6 +482,15 @@ impl DatabaseAdapter for SqliteAdapter {
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in comment_indexes {
             sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // タグ
+        let (tag_tables, tag_indexes) = super::tags::build_tag_tables("TEXT", "TEXT", false);
+        for statement in tag_tables.iter().chain(tag_indexes.iter()) {
+            sqlx::query(statement)
                 .execute(&self.pool)
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;

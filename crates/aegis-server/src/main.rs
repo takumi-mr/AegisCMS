@@ -612,6 +612,7 @@ async fn main() -> anyhow::Result<()> {
             config.theme.validate()?;
             config.commerce.validate()?;
             config.comments.validate()?;
+            config.tags.validate()?;
             config.forum.validate()?;
             config.notifications.validate()?;
             config.cdn.validate()?;
@@ -982,6 +983,18 @@ async fn main() -> anyhow::Result<()> {
                     config.comments.moderation.auto_approve_known
                 );
                 app_state.with_comments(comments)
+            } else {
+                app_state
+            };
+
+            // 6.8b タグ（[tags]）
+            let app_state = if config.tags.enabled {
+                tracing::info!(
+                    "Tags enabled (up to {} per content)",
+                    config.tags.max_per_content
+                );
+                let tags = aegis_tags::TagService::new(app_state.db.clone(), config.tags.clone());
+                app_state.with_tags(tags)
             } else {
                 app_state
             };

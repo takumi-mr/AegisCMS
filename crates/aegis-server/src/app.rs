@@ -58,6 +58,19 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/contents/{content_type}/{id}/variants/{variant_id}",
             delete(handlers::delete_variant),
         )
+        // --- タグ（[tags]） ---
+        .route(
+            "/api/v1/tags",
+            get(handlers::list_tags).post(handlers::create_tag),
+        )
+        .route(
+            "/api/v1/tags/{id}",
+            put(handlers::update_tag).delete(handlers::delete_tag),
+        )
+        .route(
+            "/api/v1/contents/{content_type}/{slug}/tags",
+            get(handlers::get_content_tags).put(handlers::set_content_tag_list),
+        )
         // --- コメント（[comments]） ---
         .route(
             "/api/v1/contents/{content_type}/{slug}/comments",

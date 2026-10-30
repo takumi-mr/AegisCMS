@@ -27,7 +27,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 依存の向きは `aegis-core` ← ドメインクレート ← `aegis-server` の一方向です（クレートの一覧と各モジュールは [README 2.3](../README.md#23-クレート構成と各モジュールの責務-crates)）。
 
 - **`aegis-core` は共有契約だけ**: 抽象トレイト（`StorageBackend` / `CacheBackend` / `AuthProvider` / `AuditSink` / `Notifier`）、監査イベントのモデル、プラグインに渡すコンテキスト型、`PluginManifest`、`AegisError`。Wasm プラグイン SDK も依存するため、実装や重い依存を足さないこと。
-- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-forum`、`aegis-theme`、`aegis-runtime`、`aegis-backup`（バックアップ・リストア。feature `backup`）。HTTP には依存しない。
+- **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-tags`、`aegis-forum`、`aegis-theme`、`aegis-runtime`、`aegis-backup`（バックアップ・リストア。feature `backup`）。HTTP には依存しない。
 - **`aegis-server` は HTTP 層**: ハンドラ・認可・エクストラクタ・CLI・組み立て（`main.rs`）。
 - **設定**: 各クレートが自分のセクションの型を持つ（`aegis_db::DatabaseConfig`、`SecurityConfig` は `aegis-ast`、`ThemeConfig` は `aegis-theme`、`PluginsConfig` / `RuntimeConfig` は `aegis-runtime` など）。`aegis.toml` 全体の `AegisConfig` は `aegis-server/src/config.rs`。
   - 全構造体が `#[serde(default)]` 付きで、省略した項目は `Default` 実装の値になる。**設定項目を足すときは必ず `Default` に既定値を入れる**。
@@ -513,3 +513,16 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **別の設定を持つ機能**: 通知メール（`[notifications].locale`）、問い合わせフォーム（`[contact].locale`）、Admin Studio（画面の言語）は、それぞれの言語の設定に従う。
 - **対象外**: 同梱テーマ 5 種のデザイン固有の文言（ナビゲーションの名前など）、テーマ開発サーバー（`aegis-server theme dev`。`en` のまま）。
 
+
+---
+
+## 20. タグ (`aegis-tags`)
+
+- **タグは独立した行で、コンテンツとは結びつきの表でつなぐ**: `_aegis_tags`（id・slug・名前・説明）と `_aegis_content_tags`（`content_type`・`content_id`・`tag_id`）。コンテンツの種類ごとに表やフィールドを足さなくても、記事・固定ページ・商品、これから足す種類にも付けられる。カテゴリ（スキーマの `category_id` リレーション）とは別物で、1 つのコンテンツに複数付けられる。
+- **自由入力ではなく管理されたタグ**: 先に作り（名前・slug）、コンテンツには ID で付ける。表記ゆれが起きにくく、`/tags/{slug}` の URL が安定する。名前は大文字小文字を区別せず重複できず、slug は重複できない。slug を省略した更新は今のままにする（名前を直しても URL が変わらない）。
+- **外部キーは使わない**（コメントと同じ）: コンテンツの削除は `delete_content` のハンドラが結びつきを消し（`[tags].enabled = false` でも）、タグの削除は `delete_tag` がトランザクションで結びつきごと消す。
+- **`set_content_tags` は置き換え**: 結びつきをトランザクションで消して入れ直す。存在しないタグ・上限（`max_per_content`）超えは入れる前に断るので、失敗しても元のタグのまま。
+- **MySQL の主キー**: 結びつきの主キー `(content_type, content_id, tag_id)` は `VARCHAR(255)` が 3 つ（3,060 バイト）で、utf8mb4 の上限 3,072 バイトにほぼ収まる。列を足さない。
+- **使われている数は一覧のサブクエリ**（`SELECT COUNT(*) FROM _aegis_content_tags WHERE tag_id = t.id`）: 索引 `(tag_id, content_type)` を使う。別名は `use_count`（`usage` は MySQL の予約語）。
+- **バックアップ**: `database/tags.json`・`database/content_tags.json`。リストアは slug が別のタグと重なるとエラーにする（上書きの指定でも、別のタグの slug は奪わない）。
+- 結合テストは `aegis-tags/src/tests.rs`（サービス）、`aegis-server/src/handlers/tags_tests.rs`（ルーター経由）、`aegis-db/tests/tags_integration.rs`（SQLite と、コンテナがあれば PostgreSQL / MySQL）、`admin/e2e/tags.spec.ts`。

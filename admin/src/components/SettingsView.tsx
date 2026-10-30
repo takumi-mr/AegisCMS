@@ -4,6 +4,7 @@ import {
   Palette,
   Blocks,
   Tags,
+  Tag as TagIcon,
   Users,
   ScrollText,
   Search,
@@ -23,6 +24,7 @@ import { PluginManager } from './PluginManager';
 import { SeoManager } from './SeoManager';
 import { SiteManager } from './SiteManager';
 import { SystemManager } from './SystemManager';
+import { TagManager } from './TagManager';
 import { ThemeManager } from './ThemeManager';
 import { UserManager } from './UserManager';
 import styles from './SettingsView.module.css';
@@ -36,6 +38,7 @@ export type SettingsSection =
   | 'themes'
   | 'plugins'
   | 'categories'
+  | 'tags'
   | 'users'
   | 'audit';
 
@@ -53,6 +56,7 @@ const SECTIONS: Array<{
   { id: 'themes', icon: <Palette size={16} /> },
   { id: 'plugins', icon: <Blocks size={16} /> },
   { id: 'categories', icon: <Tags size={16} /> },
+  { id: 'tags', icon: <TagIcon size={16} /> },
   { id: 'users', icon: <Users size={16} />, visible: isAdmin },
   { id: 'audit', icon: <ScrollText size={16} />, visible: isAdmin },
 ];
@@ -63,6 +67,8 @@ interface SettingsViewProps {
   onSectionChange: (section: SettingsSection) => void;
   categories: ContentSummary[];
   onCategoryCreated: (category: ContentItem) => void;
+  /** Whether `[tags]` is enabled on the server (the Tags section is hidden otherwise) */
+  tagsEnabled: boolean;
   onSelfUpdated: (account: UserAccount) => void;
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
@@ -74,11 +80,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onSectionChange,
   categories,
   onCategoryCreated,
+  tagsEnabled,
   onSelfUpdated,
   onShowToast,
 }) => {
   const { t } = useTranslation();
-  const sections = SECTIONS.filter((s) => !s.visible || s.visible(session));
+  const sections = SECTIONS.filter(
+    (s) => (!s.visible || s.visible(session)) && (s.id !== 'tags' || tagsEnabled)
+  );
   // A section the role cannot see (e.g. after signing in as another user) falls back to the first
   const current = sections.some((s) => s.id === section) ? section : sections[0].id;
 
@@ -115,6 +124,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onCreated={onCategoryCreated}
           />
         )}
+        {current === 'tags' && <TagManager canEdit={canEdit(session)} onShowToast={onShowToast} />}
         {current === 'users' && (
           <UserManager session={session} onSelfUpdated={onSelfUpdated} onShowToast={onShowToast} />
         )}

@@ -69,6 +69,7 @@ import type {
   UpdateUserPayload,
   UpsertVariantPayload,
   UserAccount,
+  Tag,
 } from '../types';
 import { getSessionToken } from './session';
 
@@ -548,6 +549,68 @@ export const aegisApi = {
       {},
       i18n.t('api.contentCommentsFailed')
     );
+  },
+
+  /** One page of tags by name, with the number of contents each is on (404 when [tags] is disabled) */
+  async listTags(
+    params: { q?: string; limit?: number; offset?: number } = {}
+  ): Promise<{ tags: Tag[]; total: number }> {
+    const data = await request<{ tags?: Tag[]; total?: number }>(
+      `/tags?${toQuery(params)}`,
+      {},
+      i18n.t('api.tagsFailed')
+    );
+    return { tags: data.tags ?? [], total: data.total ?? 0 };
+  },
+
+  /** Creates a tag; the slug is made from the name when it is left out */
+  async createTag(payload: { name: string; slug?: string; description?: string }): Promise<Tag> {
+    return request(
+      '/tags',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      i18n.t('api.createTagFailed')
+    );
+  },
+
+  /** Changes a tag; the slug stays as it is when it is left out */
+  async updateTag(
+    id: string,
+    payload: { name: string; slug?: string; description?: string }
+  ): Promise<Tag> {
+    return request(
+      `/tags/${encodeURIComponent(id)}`,
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      i18n.t('api.updateTagFailed')
+    );
+  },
+
+  /** Deletes a tag; it comes off every content */
+  async deleteTag(id: string): Promise<void> {
+    return requestNoContent(
+      `/tags/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      i18n.t('api.deleteTagFailed')
+    );
+  },
+
+  /** The tags of one content (any content type) */
+  async getContentTags(contentType: string, slugOrId: string): Promise<Tag[]> {
+    const data = await request<{ tags?: Tag[] }>(
+      `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(slugOrId)}/tags`,
+      {},
+      i18n.t('api.tagsFailed')
+    );
+    return data.tags ?? [];
+  },
+
+  /** Makes `tagIds` the tags of one content (the others come off) */
+  async setContentTags(contentType: string, slugOrId: string, tagIds: string[]): Promise<Tag[]> {
+    const data = await request<{ tags?: Tag[] }>(
+      `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(slugOrId)}/tags`,
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify({ tag_ids: tagIds }) },
+      i18n.t('api.setContentTagsFailed')
+    );
+    return data.tags ?? [];
   },
 
   /** Stops (or resumes) new comments on one content; the comments already there stay */

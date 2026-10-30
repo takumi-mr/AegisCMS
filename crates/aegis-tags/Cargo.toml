@@ -1,0 +1,21 @@
+[package]
+name = "aegis-tags"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Tags for AegisCMS: managed tags that can be put on any content type, with slugs, names and usage counts"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-db = { path = "../aegis-db" }
+chrono.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

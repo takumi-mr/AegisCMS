@@ -38,6 +38,7 @@ import { ScheduleCalendar } from './components/ScheduleCalendar';
 import { ProfileModal } from './components/ProfileModal';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { SettingsView, type SettingsSection } from './components/SettingsView';
+import { TagPicker } from './components/TagPicker';
 import { ContentList } from './components/ContentList';
 import { NO_FILTERS, type ContentListFilters } from './utils/contentFilters';
 import {
@@ -59,6 +60,7 @@ import type {
   ContentSummary,
   PluginBlockDefinition,
   SessionInfo,
+  Tag,
   UserAccount,
 } from './types';
 import { defaultAttributes, localize } from './utils/pluginBlocks';
@@ -122,6 +124,10 @@ export const App: React.FC = () => {
   const [blockDefinitions, setBlockDefinitions] = useState<PluginBlockDefinition[]>([]);
   // Hidden until the server says comments are on ([comments].enabled)
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(false);
+  // `[tags]` on the server: the tags of the opened content are picked in the editor
+  const [tagsEnabled, setTagsEnabled] = useState<boolean>(false);
+  const [contentTags, setContentTags] = useState<Tag[]>([]);
+  const tagsRequest = useRef(0);
   const [commentContentTypes, setCommentContentTypes] = useState<string[]>([]);
   const [commentsOpen, setCommentsOpen] = useState<boolean>(true);
   const [togglingComments, setTogglingComments] = useState<boolean>(false);
@@ -340,6 +346,23 @@ export const App: React.FC = () => {
   }, [sessionId]);
 
   useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    // The tag list answers 404 when tags are disabled
+    aegisApi
+      .listTags({ limit: 1 })
+      .then(() => {
+        if (!cancelled) setTagsEnabled(true);
+      })
+      .catch(() => {
+        if (!cancelled) setTagsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
     if (!sessionId || !canEdit(session ?? null)) return;
     let cancelled = false;
     // The settings answer 404 when comments are disabled
@@ -460,6 +483,24 @@ export const App: React.FC = () => {
     showToast(t('editor.toasts.categoryCreated', { title: category.title }));
   };
 
+  /** Loads the tags of the opened content (nothing when tags are disabled) */
+  const loadContentTags = (type: string, id: string) => {
+    const requestId = ++tagsRequest.current;
+    setContentTags([]);
+    if (!tagsEnabled) return;
+    aegisApi
+      .getContentTags(type, id)
+      .then((loaded) => {
+        if (requestId === tagsRequest.current) setContentTags(loaded);
+      })
+      .catch((err: unknown) => {
+        if (requestId === tagsRequest.current) {
+          console.warn('Could not load the tags of the content:', err);
+          showToast(t('tags.loadFailedForContent'), 'error');
+        }
+      });
+  };
+
   const handleSelectContent = (item: ContentItem) => {
     setSelectedId(item.id);
     setCommentsOpen(item.comments_open !== false);
@@ -486,6 +527,7 @@ export const App: React.FC = () => {
     setBlocks(itemBlocks);
     setMarkdownText(blocksToMarkdown(itemBlocks));
     setCategoryId(categoryIdOf(item) ?? '');
+    loadContentTags(item.content_type, item.id);
     const rawLayout = item.fields?.layout ?? (item as unknown as { layout?: string }).layout;
     setLayout(rawLayout === 'blank' ? 'blank' : 'default');
     setMobilePane('editor');
@@ -505,6 +547,8 @@ export const App: React.FC = () => {
   };
 
   const handleNew = () => {
+    tagsRequest.current += 1;
+    setContentTags([]);
     selectRequest.current += 1;
     contentVersionRequest.current += 1;
     setSelectedId(null);
@@ -531,6 +575,8 @@ export const App: React.FC = () => {
 
   const handleContentTypeChange = async (type: 'article' | 'page') => {
     if (type === contentType) return;
+    tagsRequest.current += 1;
+    setContentTags([]);
     setContentType(type);
     setSelectedId(null);
     setCommentsOpen(true);
@@ -690,6 +736,18 @@ export const App: React.FC = () => {
         : await aegisApi.createContent(contentType, payload);
 
       showToast(t('editor.toasts.saved', { id: saved.id.slice(0, 8) }));
+      if (tagsEnabled) {
+        // The tags are saved with the content (they have their own endpoint)
+        try {
+          await aegisApi.setContentTags(
+            contentType,
+            saved.id,
+            contentTags.map((tag) => tag.id)
+          );
+        } catch (err: any) {
+          showToast(err.message || t('tags.saveFailedForContent'), 'error');
+        }
+      }
       loadContents();
       // Show what was stored: plugins may change the title, slug and blocks on save
       handleSelectContent(saved);
@@ -786,7 +844,7 @@ export const App: React.FC = () => {
       {view === 'schedule' ? (
         <ScheduleCalendar onOpenContent={handleOpenContentFromSchedule} onShowToast={showToast} />
       ) : view === 'products' && showShop ? (
-        <ProductManager categories={categories} onShowToast={showToast} />
+        <ProductManager categories={categories} tagsEnabled={tagsEnabled} onShowToast={showToast} />
       ) : view === 'orders' && showShop ? (
         <OrderManager onShowToast={showToast} />
       ) : view === 'comments' && showComments ? (
@@ -804,6 +862,7 @@ export const App: React.FC = () => {
           onSectionChange={setSettingsSection}
           categories={categories}
           onCategoryCreated={handleCategoryCreated}
+          tagsEnabled={tagsEnabled}
           onSelfUpdated={setProfile}
           onShowToast={showToast}
         />
@@ -1044,6 +1103,19 @@ export const App: React.FC = () => {
                           </span>
                         </Button>
                       )}
+                    </FieldRow>
+                  )}
+
+                  {tagsEnabled && (
+                    <FieldRow>
+                      <Field label={t('tags.label')}>
+                        <TagPicker
+                          selected={contentTags}
+                          onChange={setContentTags}
+                          canCreate={editable}
+                          onShowToast={showToast}
+                        />
+                      </Field>
                     </FieldRow>
                   )}
                 </div>

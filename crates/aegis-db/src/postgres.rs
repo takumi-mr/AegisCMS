@@ -151,6 +151,7 @@ fn record_from_row(schema: &SchemaDefinition, r: &PgRow) -> ContentRecord {
 super::orders::impl_order_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::variants::impl_product_variant_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::comments::impl_comment_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::tags::impl_tag_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::contact::impl_contact_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::analytics::impl_analytics_storage!(
     PostgresAdapter,
@@ -426,6 +427,16 @@ impl DatabaseAdapter for PostgresAdapter {
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in comment_indexes {
             sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // タグ
+        let (tag_tables, tag_indexes) =
+            super::tags::build_tag_tables("TEXT", "VARCHAR(255)", false);
+        for statement in tag_tables.iter().chain(tag_indexes.iter()) {
+            sqlx::query(statement)
                 .execute(&self.pool)
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;

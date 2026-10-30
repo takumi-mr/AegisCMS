@@ -81,7 +81,12 @@
     "updateContactMessageFailed": "Failed to update the message",
     "deleteContactMessageFailed": "Failed to delete the message",
     "systemSettingsFailed": "Failed to load system settings",
-    "updateSystemSettingsFailed": "Failed to save system settings"
+    "updateSystemSettingsFailed": "Failed to save system settings",
+    "tagsFailed": "Failed to load tags",
+    "createTagFailed": "Failed to create the tag",
+    "updateTagFailed": "Failed to update the tag",
+    "deleteTagFailed": "Failed to delete the tag",
+    "setContentTagsFailed": "Failed to save the tags of this content"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -1094,7 +1099,8 @@
       "categories": "Categories",
       "users": "Users",
       "audit": "Audit Logs",
-      "system": "System"
+      "system": "System",
+      "tags": "Tags"
     }
   },
   "plugins": {
@@ -1618,5 +1624,51 @@
       "forumEnable": "Accept new forum threads & posts"
     },
     "loading": "Loading..."
+  },
+  "tags": {
+    "title": "Tags",
+    "description": "Tags can be put on any content (articles, pages, products). Pick them in the editor; a tag that is deleted comes off every content.",
+    "loadFailed": "Failed to load tags",
+    "search": "Search name or slug…",
+    "searchAria": "Search tags",
+    "empty": "No tags yet. Create the first one below.",
+    "noMatch": "No tags match your search.",
+    "usage_one": "{{count}} content",
+    "usage_other": "{{count}} contents",
+    "new": "New tag",
+    "editTitle": "Edit \"{{name}}\"",
+    "fieldName": "name:",
+    "nameAria": "Tag name",
+    "namePlaceholder": "Rust",
+    "fieldSlug": "slug:",
+    "slugAria": "Tag slug",
+    "slugPlaceholder": "made from the name",
+    "fieldDescription": "description:",
+    "descriptionAria": "Tag description",
+    "create": "Create tag",
+    "save": "Save tag",
+    "nameRequired": "The name is required.",
+    "saveFailed": "Failed to save the tag",
+    "createFailed": "Failed to create the tag",
+    "created": "Created the tag \"{{name}}\"",
+    "updated": "Saved the tag \"{{name}}\"",
+    "deleted": "Deleted the tag \"{{name}}\"",
+    "deleteFailed": "Failed to delete the tag",
+    "confirmDelete": "Delete the tag \"{{name}}\"? It comes off {{count}} content(s).",
+    "editAria": "Edit tag {{name}}",
+    "deleteAria": "Delete tag {{name}}",
+    "readOnly": "Creating and changing tags needs the editor role.",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "pagination": "Pages of the tag list",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "label": "Tags",
+    "pickerAria": "Add a tag",
+    "pickerPlaceholder": "Search or create a tag…",
+    "noneSelected": "No tags",
+    "removeAria": "Remove the tag {{name}}",
+    "createNamed": "Create \"{{name}}\"",
+    "saveFailedForContent": "The content was saved, but its tags could not be saved",
+    "loadFailedForContent": "Could not load the tags of this content"
   }
 }

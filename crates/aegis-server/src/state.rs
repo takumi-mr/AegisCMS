@@ -62,6 +62,8 @@ pub struct AppState {
     pub reviews: Option<Arc<aegis_commerce::ReviewService>>,
     /// 読者のコメント（`[comments]`）。無効なら `None`
     pub comments: Option<Arc<aegis_comments::CommentService>>,
+    /// タグ（`[tags]`）。無効なら `None`
+    pub tags: Option<Arc<aegis_tags::TagService>>,
     /// 掲示板（`[forum]`）。無効なら `None`
     pub forum: Option<Arc<aegis_forum::ForumService>>,
     /// 問い合わせフォーム（`[contact]`）。無効なら `None`
@@ -171,6 +173,7 @@ impl AppState {
             customers: None,
             reviews: None,
             comments: None,
+            tags: None,
             forum: None,
             contact: None,
             notifier: None,
@@ -290,6 +293,12 @@ impl AppState {
             audit: self.audit.clone(),
             notifier: self.notifier.clone(),
         }
+    }
+
+    /// タグ（`[tags]`）を有効にする
+    pub fn with_tags(mut self, tags: aegis_tags::TagService) -> Self {
+        self.tags = Some(Arc::new(tags));
+        self
     }
 
     /// コメント（`[comments]`）を有効にする

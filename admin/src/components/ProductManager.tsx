@@ -24,6 +24,7 @@ import type {
   StorageMeta,
   UpsertVariantPayload,
   ContentSummary,
+  Tag,
 } from '../types';
 import { isLabeledStatus } from '../utils/contentStatus';
 import { STATUS_FILTERS } from '../utils/contentFilters';
@@ -36,6 +37,7 @@ import { MediaLibrary } from './MediaLibrary';
 import { Button } from './ui/Button';
 import { Field, FieldRow } from './ui/Field';
 import { Modal } from './ui/Modal';
+import { TagPicker } from './TagPicker';
 import styles from './Shop.module.css';
 
 /** A product field as a number (the API may return numbers or numeric strings) */
@@ -63,6 +65,8 @@ const messageOf = (err: unknown, fallback: string): string =>
 
 interface ProductManagerProps {
   categories: ContentSummary[];
+  /** Whether `[tags]` is enabled on the server (products can be tagged like any content) */
+  tagsEnabled?: boolean;
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -72,7 +76,11 @@ const PAGE_SIZE = 25;
 const SEARCH_DELAY_MS = 300;
 
 /** Product catalog for editors: list, create, edit and delete products (`product` contents) */
-export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onShowToast }) => {
+export const ProductManager: React.FC<ProductManagerProps> = ({
+  categories,
+  tagsEnabled = false,
+  onShowToast,
+}) => {
   const { t } = useTranslation();
   const [config, setConfig] = useState<ShopConfig | null>(null);
   const [products, setProducts] = useState<ContentSummary[] | null>(null);
@@ -422,6 +430,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
           productType={productType ?? 'product'}
           currency={currency}
           categories={categories}
+          tagsEnabled={tagsEnabled}
           onSaved={handleSaved}
           onCommentsOpenChanged={(id, open) => {
             setEditing((prev) =>
@@ -573,6 +582,7 @@ interface ProductEditorProps {
   productType: string;
   currency: string;
   categories: ContentSummary[];
+  tagsEnabled: boolean;
   onSaved: (saved: ContentItem, created: boolean) => void;
   onCommentsOpenChanged: (id: string, open: boolean) => void;
   onShowToast: (message: string, type?: 'success' | 'error') => void;
@@ -585,6 +595,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
   productType,
   currency,
   categories,
+  tagsEnabled,
   onSaved,
   onCommentsOpenChanged,
   onShowToast,
@@ -596,6 +607,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
     const value = product ? numberField(product, name) : null;
     return value === null ? '' : String(value);
   };
+  const [tags, setTags] = useState<Tag[]>([]);
   const [title, setTitle] = useState<string>(product?.title ?? '');
   const [slug, setSlug] = useState<string>(product?.slug ?? '');
   const [slugEdited, setSlugEdited] = useState<boolean>(Boolean(product));
@@ -769,12 +781,43 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
       const saved = product
         ? await aegisApi.updateContent(productType, product.id, payload)
         : await aegisApi.createContent(productType, payload as never);
+      if (tagsEnabled) {
+        // The product is saved: a failure to save its tags is reported without undoing that
+        try {
+          await aegisApi.setContentTags(
+            productType,
+            saved.id,
+            tags.map((tag) => tag.id)
+          );
+        } catch (err) {
+          onShowToast(messageOf(err, t('tags.saveFailedForContent')), 'error');
+        }
+      }
       onSaved(saved, !product);
     } catch (err) {
       setError(messageOf(err, t('products.errors.saveFailed')));
       setIsSaving(false);
     }
   };
+
+  // The tags of an existing product are loaded when it is opened
+  const productId = product?.id;
+  useEffect(() => {
+    if (!tagsEnabled || !productId) return;
+    let cancelled = false;
+    aegisApi
+      .getContentTags(productType, productId)
+      .then((loaded) => {
+        if (!cancelled) setTags(loaded);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) onShowToast(messageOf(err, t('tags.loadFailedForContent')), 'error');
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagsEnabled, productId, productType]);
 
   return (
     <>
@@ -932,6 +975,13 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
             placeholder={t('products.placeholders.description')}
             aria-label={t('products.aria.description')}
           />
+          {tagsEnabled && (
+            <FieldRow>
+              <Field label={t('tags.label')}>
+                <TagPicker selected={tags} onChange={setTags} onShowToast={onShowToast} />
+              </Field>
+            </FieldRow>
+          )}
           <FieldRow>
             <Field label={t('products.fields.category')}>
               <select
