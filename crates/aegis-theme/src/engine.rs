@@ -45,6 +45,14 @@ caused by: {cause}"
     }
 }
 
+/// テンプレートのグローバル変数の元になる設定
+struct Globals {
+    base_path: String,
+    admin_url: Option<String>,
+    show_powered_by: bool,
+    locale: String,
+}
+
 struct ThemeEngineInner {
     active_theme: String,
     theme_templates_dir: Option<PathBuf>,
@@ -55,6 +63,8 @@ struct ThemeEngineInner {
     admin_url: Option<String>,
     /// フッターに「Powered by」の表記を出すか（`[theme].show_powered_by`）
     show_powered_by: bool,
+    /// 組み込みテンプレートの言語（`[theme].locale`）
+    locale: String,
     /// テンプレートをリクエストごとに読み直す（`[theme].reload_templates`、テーマ開発用）
     reload_templates: bool,
     /// コンパイル済みテンプレートを保持する環境。テーマ・テンプレート・ベースパスの変更で破棄する
@@ -86,6 +96,7 @@ impl ThemeEngine {
                 base_path: String::new(),
                 admin_url: None,
                 show_powered_by: true,
+                locale: "en".to_string(),
                 reload_templates: false,
                 environment: None,
             })),
@@ -121,6 +132,22 @@ impl ThemeEngine {
         {
             let mut inner = self.inner.write().unwrap();
             inner.show_powered_by = show;
+            inner.environment = None;
+        }
+        self
+    }
+
+    /// 組み込みテンプレートの言語（`[theme].locale`、`en` / `ja`。知らない値は `en`）。
+    /// テンプレートからはグローバル変数 `locale`（`<html lang="{{ locale }}">`）と、組み込みの文言を返す
+    /// 関数 `t("キー", n=件数, 名前=値)` として使う
+    pub fn with_locale(self, locale: &str) -> Self {
+        {
+            let mut inner = self.inner.write().unwrap();
+            inner.locale = if crate::messages::is_supported(locale) {
+                locale.to_string()
+            } else {
+                "en".to_string()
+            };
             inner.environment = None;
         }
         self
@@ -449,9 +476,12 @@ impl ThemeEngine {
         let env = Arc::new(Self::build_environment(
             inner.dynamic_templates.clone(),
             inner.theme_templates_dir.clone(),
-            inner.base_path.clone(),
-            inner.admin_url.clone(),
-            inner.show_powered_by,
+            Globals {
+                base_path: inner.base_path.clone(),
+                admin_url: inner.admin_url.clone(),
+                show_powered_by: inner.show_powered_by,
+                locale: inner.locale.clone(),
+            },
         ));
         if !inner.reload_templates {
             inner.environment = Some(env.clone());
@@ -464,10 +494,14 @@ impl ThemeEngine {
     fn build_environment(
         dynamic_templates: HashMap<String, String>,
         fs_dir: Option<PathBuf>,
-        base_path: String,
-        admin_url: Option<String>,
-        show_powered_by: bool,
+        globals: Globals,
     ) -> Environment<'static> {
+        let Globals {
+            base_path,
+            admin_url,
+            show_powered_by,
+            locale,
+        } = globals;
         let mut env = Environment::new();
 
         env.add_filter("date_short", |val: minijinja::Value| -> String {
@@ -527,6 +561,23 @@ impl ThemeEngine {
         env.add_global("base_path", minijinja::Value::from_safe_string(base_path));
         env.add_global("admin_url", minijinja::Value::from_safe_string(admin_url));
         env.add_global("show_powered_by", show_powered_by);
+        // 組み込みの文言。値は HTML エスケープして差し込み、結果は安全な文字列として返す
+        // （文言は信頼できる静的な文字列で、`<strong>` のようなマークアップを含むものがある）
+        env.add_global("locale", locale.clone());
+        env.add_function(
+            "t",
+            move |key: &str, kwargs: minijinja::value::Kwargs| -> minijinja::Value {
+                let mut params = Vec::new();
+                for name in kwargs.args() {
+                    if let Ok(value) = kwargs.get::<minijinja::Value>(name) {
+                        params.push((name.to_string(), value.to_string()));
+                    }
+                }
+                minijinja::Value::from_safe_string(crate::messages::translate(
+                    &locale, key, &params,
+                ))
+            },
+        );
 
         env.set_loader(
             move |name: &str| -> std::result::Result<Option<String>, minijinja::Error> {
@@ -999,7 +1050,16 @@ mod tests {
 
     #[test]
     fn test_date_filters_are_char_boundary_safe() {
-        let env = ThemeEngine::build_environment(HashMap::new(), None, String::new(), None, true);
+        let env = ThemeEngine::build_environment(
+            HashMap::new(),
+            None,
+            Globals {
+                base_path: String::new(),
+                admin_url: None,
+                show_powered_by: true,
+                locale: "en".to_string(),
+            },
+        );
         let out = env
             .render_str(
                 "{{ a | date_short }}|{{ a | datetime_short }}|{{ b | date_short }}|{{ b | datetime_short }}|{{ missing | date_short }}|{{ missing | datetime_short }}",

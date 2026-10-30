@@ -523,13 +523,15 @@ async fn maintenance_middleware(
     let message = aegis_ast::renderer::escape_html(&system.maintenance_message);
     let title = state.site().title;
     let title = aegis_ast::renderer::escape_html(&title);
+    let locale = state.config.theme.locale.as_str();
+    let suffix = aegis_theme::messages::translate(locale, "maintenance.title", &[]);
     let html = format!(
         r#"<!DOCTYPE html>
-<html lang="ja">
+<html lang="{}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{} - Maintenance</title>
+    <title>{} - {}</title>
     <style>
         body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background-color: #f8fafc; color: #1e293b; }}
         .box {{ background: white; padding: 2.5rem; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-width: 480px; width: 90%; text-align: center; }}
@@ -544,7 +546,7 @@ async fn maintenance_middleware(
     </div>
 </body>
 </html>"#,
-        title, title, message
+        locale, title, suffix, title, message
     );
 
     let mut response = axum::response::Html(html).into_response();
@@ -686,6 +688,8 @@ mod tests {
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert!(body.contains("System is updating"));
 
+        assert!(body.contains(r#"<html lang="en">"#) && body.contains("- Maintenance</title>"));
+
         // 管理・ヘルスチェック・API ルートはアクセス可能
         let (status, _, _) = get_text(&app, "/health").await;
         assert_eq!(status, StatusCode::OK);
@@ -709,6 +713,23 @@ mod tests {
             .await
             .unwrap();
         assert_ne!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn test_maintenance_page_follows_the_theme_locale() {
+        let mut config = AegisConfig::default();
+        config.theme.locale = "ja".to_string();
+        let state = crate::test_support::test_state_with_config(
+            config.clone(),
+            aegis_runtime::PluginSupervisor::new(),
+        )
+        .await;
+        state.system.write().unwrap().maintenance_mode = Some(true);
+        let app = router(&config, state);
+        let (status, body, _) = get_text(&app, "/").await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert!(body.contains(r#"<html lang="ja">"#), "{}", body);
+        assert!(body.contains("- メンテナンス中</title>"), "{}", body);
     }
 
     #[test]

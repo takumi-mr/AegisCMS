@@ -29,6 +29,10 @@ pub struct ThemeConfig {
     /// `false` で、使っている CMS を公開サイトから読み取りにくくする
     #[serde(default = "default_show_powered_by")]
     pub show_powered_by: bool,
+    /// 組み込みテンプレートとカートのスクリプトの言語（`en` / `ja`、既定 `en`）。
+    /// 訪問者に見せる文言だけが対象で、API のエラーメッセージは常に英語
+    #[serde(default = "default_locale")]
+    pub locale: String,
     /// 公開ページに Admin Studio へのリンクを出すか。未指定なら `[server].admin_path` が既定の `/admin` のときだけ
     /// 出す（パスを変えたのは隠すためなので、リンクで公開しない）。`true` / `false` で固定できる
     #[serde(default)]
@@ -47,6 +51,10 @@ fn default_posts_per_page() -> u64 {
 
 fn default_show_powered_by() -> bool {
     true
+}
+
+fn default_locale() -> String {
+    "en".to_string()
 }
 
 fn default_front_page() -> String {
@@ -92,6 +100,13 @@ impl ThemeConfig {
                 self.front_page
             )));
         }
+        if !crate::messages::is_supported(&self.locale) {
+            return Err(aegis_core::AegisError::Config(format!(
+                "[theme].locale must be one of {} (got \"{}\")",
+                crate::messages::LOCALES.join(", "),
+                self.locale
+            )));
+        }
         aegis_core::validate_signature_policy(
             "theme",
             self.require_signatures,
@@ -111,6 +126,7 @@ impl Default for ThemeConfig {
             posts_per_page: default_posts_per_page(),
             front_page: default_front_page(),
             reload_templates: false,
+            locale: default_locale(),
             show_powered_by: default_show_powered_by(),
             show_admin_link: None,
             require_signatures: false,
@@ -139,5 +155,18 @@ mod tests {
             assert!(with(invalid).validate().is_err(), "{}", invalid);
         }
         assert!(with("posts").validate().is_ok());
+    }
+
+    #[test]
+    fn test_locale_values() {
+        let with = |value: &str| ThemeConfig {
+            locale: value.to_string(),
+            ..ThemeConfig::default()
+        };
+        assert_eq!(ThemeConfig::default().locale, "en");
+        assert!(with("en").validate().is_ok() && with("ja").validate().is_ok());
+        for invalid in ["", "EN", "fr", "ja-JP"] {
+            assert!(with(invalid).validate().is_err(), "{}", invalid);
+        }
     }
 }

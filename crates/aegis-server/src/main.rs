@@ -718,7 +718,8 @@ async fn main() -> anyhow::Result<()> {
                     .with_base_path(&base_path)
                     .with_admin_url(&public_admin_url(&config, &base_path, &admin_path))
                     .with_template_reload(config.theme.reload_templates)
-                    .with_powered_by(config.theme.show_powered_by),
+                    .with_powered_by(config.theme.show_powered_by)
+                    .with_locale(&config.theme.locale),
             );
             let plugin_templates = supervisor.collect_plugin_templates();
             for (name, content) in plugin_templates {

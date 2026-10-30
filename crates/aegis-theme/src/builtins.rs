@@ -1,5 +1,5 @@
 pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
-<html lang="ja">
+<html lang="{{ locale }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -295,8 +295,8 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
         <span>{{ site_title }}</span>
       </a>
       <nav class="nav-links">
-        <a href="{{ base_path }}/" class="nav-link">Home</a>
-        {% if admin_url %}<a href="{{ admin_url }}" class="admin-pill">Admin Studio</a>{% endif %}
+        <a href="{{ base_path }}/" class="nav-link">{{ t("nav.home") }}</a>
+        {% if admin_url %}<a href="{{ admin_url }}" class="admin-pill">{{ t("admin.studio") }}</a>{% endif %}
       </nav>
     </div>
   </header>
@@ -314,7 +314,7 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
         <span>Zero-Trust WebAssembly Architecture</span>
       </div>
       {% endif %}
-      <div>&copy; 2026 {{ site_title }}. All rights reserved.</div>
+      <div>&copy; 2026 {{ site_title }}. {{ t("footer.rights") }}</div>
     </div>
   </footer>
 </body>
@@ -325,9 +325,11 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
 <section class="hero-section" style="margin-bottom: 3.5rem; text-align: center; padding: 2.5rem 1rem;">
+  {% if show_powered_by %}
   <div style="display: inline-block; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.25); color: #a5b4fc; padding: 0.35rem 0.85rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; margin-bottom: 1.25rem;">
-    Zero-Trust Content Engine
+    {{ t("index.badge") }}
   </div>
+  {% endif %}
   <h1 style="font-size: 2.85rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 1rem; background: linear-gradient(135deg, #ffffff 30%, #9ca3af 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
     {{ site_title }}
   </h1>
@@ -338,8 +340,8 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 <section class="articles-section">
   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
-    <h2 style="font-size: 1.35rem; font-weight: 700; color: #ffffff;">Latest Published Stories</h2>
-    <span style="font-size: 0.85rem; color: var(--text-dim);">{% if pagination %}{{ pagination.total_items }}{% else %}{{ items | length }}{% endif %} posts</span>
+    <h2 style="font-size: 1.35rem; font-weight: 700; color: #ffffff;">{{ t("index.latest") }}</h2>
+    <span style="font-size: 0.85rem; color: var(--text-dim);">{{ t("index.posts", n=(pagination.total_items if pagination else items | length)) }}</span>
   </div>
 
   {% if items and items | length > 0 %}
@@ -370,10 +372,10 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
       </div>
       <div style="padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
         <span style="font-size: 0.8rem; color: var(--text-dim);">
-          {% if item.author_id %}By {{ item.author_id }}{% else %}Aegis Team{% endif %}
+          {% if item.author_id %}{{ t("author.by", name=item.author_id) }}{% else %}{{ t("author.team") }}{% endif %}
         </span>
         <a href="{{ base_path }}/articles/{{ item.slug }}" style="font-size: 0.85rem; font-weight: 600; color: #818cf8; text-decoration: none; display: flex; align-items: center; gap: 0.25rem;">
-          Read story &rarr;
+          {{ t("read_story") }} &rarr;
         </a>
       </div>
     </article>
@@ -384,16 +386,16 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
     <div style="width: 48px; height: 48px; background: rgba(255, 255, 255, 0.05); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto; color: var(--text-dim);">
       &bull;
     </div>
-    <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; color: #ffffff;">No Published Content Yet</h3>
-    {% if admin_url %}<p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">Create and publish articles from Admin Studio to see them listed here.</p>{% endif %}
-    {% if admin_url %}<a href="{{ admin_url }}" class="admin-pill" style="display: inline-block; padding: 0.5rem 1.25rem;">Launch Admin Studio</a>{% endif %}
+    <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; color: #ffffff;">{{ t("empty.title") }}</h3>
+    {% if admin_url %}<p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">{{ t("empty.hint") }}</p>{% endif %}
+    {% if admin_url %}<a href="{{ admin_url }}" class="admin-pill" style="display: inline-block; padding: 0.5rem 1.25rem;">{{ t("empty.launch") }}</a>{% endif %}
   </div>
   {% endif %}
 {% if pagination and pagination.total_pages > 1 %}
-<nav class="pagination" aria-label="Pagination" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem; color: var(--text-dim); font-size: 0.85rem;">
-  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="admin-pill">&larr; Newer stories</a>{% else %}<span></span>{% endif %}
-  <span>Page {{ pagination.page }} / {{ pagination.total_pages }}</span>
-  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="admin-pill">Older stories &rarr;</a>{% else %}<span></span>{% endif %}
+<nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem; color: var(--text-dim); font-size: 0.85rem;">
+  {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="admin-pill">&larr; {{ t("pagination.newer_stories") }}</a>{% else %}<span></span>{% endif %}
+  <span>{{ t("pagination.page", page=pagination.page, total=pagination.total_pages) }}</span>
+  {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="admin-pill">{{ t("pagination.older_stories") }} &rarr;</a>{% else %}<span></span>{% endif %}
 </nav>
 {% endif %}
 </section>
@@ -451,7 +453,7 @@ pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
 <section class="aegis-archive" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
-  <p class="aegis-archive-label" style="font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin: 0 0 0.4rem;">Category</p>
+  <p class="aegis-archive-label" style="font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin: 0 0 0.4rem;">{{ t("category.label") }}</p>
   <h1 style="margin: 0 0 0.75rem;">{{ title }}</h1>
   {% if fields.description %}<p class="aegis-archive-description" style="opacity: 0.75; margin: 0 0 2rem;">{{ fields.description }}</p>{% endif %}
   <ul class="aegis-archive-list" style="list-style: none; padding: 0; margin: 0;">
@@ -462,17 +464,17 @@ pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
       {% if item.excerpt %}<p style="opacity: 0.75; margin: 0;">{{ item.excerpt }}</p>{% endif %}
     </li>
     {% else %}
-    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">No published articles in this category yet.</li>
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">{{ t("category.empty") }}</li>
     {% endfor %}
   </ul>
   {% if pagination and pagination.total_pages > 1 %}
-  <nav class="pagination" aria-label="Pagination" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
-    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; Newer</a>{% else %}<span></span>{% endif %}
+  <nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; {{ t("pagination.newer") }}</a>{% else %}<span></span>{% endif %}
     <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
-    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">Older &rarr;</a>{% else %}<span></span>{% endif %}
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">{{ t("pagination.older") }} &rarr;</a>{% else %}<span></span>{% endif %}
   </nav>
   {% endif %}
-  <p style="margin-top: 2rem; font-size: 0.85rem;"><a href="{{ base_path }}/category/{{ slug }}/feed.xml">Feed (Atom)</a></p>
+  <p style="margin-top: 2rem; font-size: 0.85rem;"><a href="{{ base_path }}/category/{{ slug }}/feed.xml">{{ t("category.feed") }}</a></p>
 </section>
 {% endblock %}
 "#;
@@ -504,11 +506,11 @@ pub const SEARCH_TEMPLATE: &str = r#"{% extends "base.html" %}
 <section class="aegis-search" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
   <h1 style="margin: 0 0 1rem;">{{ title }}</h1>
   <form class="aegis-search-form" role="search" action="{{ base_path }}/search" method="get" style="display: flex; gap: 0.5rem; margin: 0 0 1.5rem;">
-    <input type="search" name="q" value="{{ fields.query }}" aria-label="Search" placeholder="Search" maxlength="200" style="flex: 1; min-width: 0; padding: 0.55rem 0.75rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit;">
-    <button type="submit" style="padding: 0.55rem 1rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit; cursor: pointer;">Search</button>
+    <input type="search" name="q" value="{{ fields.query }}" aria-label="{{ t("search.label") }}" placeholder="{{ t("search.label") }}" maxlength="200" style="flex: 1; min-width: 0; padding: 0.55rem 0.75rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit;">
+    <button type="submit" style="padding: 0.55rem 1rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit; cursor: pointer;">{{ t("search.label") }}</button>
   </form>
   {% if fields.query %}
-  <p class="aegis-search-count" style="opacity: 0.7; margin: 0 0 0.5rem; font-size: 0.9rem;">{{ pagination.total_items }} result{% if pagination.total_items != 1 %}s{% endif %}</p>
+  <p class="aegis-search-count" style="opacity: 0.7; margin: 0 0 0.5rem; font-size: 0.9rem;">{{ t("search.results", n=pagination.total_items) }}</p>
   <ul class="aegis-search-results" style="list-style: none; padding: 0; margin: 0;">
     {% for item in items %}
     <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
@@ -517,14 +519,14 @@ pub const SEARCH_TEMPLATE: &str = r#"{% extends "base.html" %}
       {% if item.published_at %}<time datetime="{{ item.published_at }}" style="font-size: 0.8rem; opacity: 0.6;">{{ item.published_at | date_short }}</time>{% endif %}
     </li>
     {% else %}
-    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">No pages matched your search.</li>
+    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">{{ t("search.empty") }}</li>
     {% endfor %}
   </ul>
   {% if pagination and pagination.total_pages > 1 %}
-  <nav class="pagination" aria-label="Pagination" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
-    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; Previous</a>{% else %}<span></span>{% endif %}
+  <nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; {{ t("pagination.previous") }}</a>{% else %}<span></span>{% endif %}
     <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
-    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">Next &rarr;</a>{% else %}<span></span>{% endif %}
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">{{ t("pagination.next") }} &rarr;</a>{% else %}<span></span>{% endif %}
   </nav>
   {% endif %}
   {% endif %}
@@ -537,7 +539,7 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% block content %}
 <article class="article-detail" style="max-width: 820px; margin: 0 auto;">
   <nav class="breadcrumb" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1.75rem;">
-    <a href="{{ base_path }}/" style="color: var(--text-dim); text-decoration: none;">Home</a>
+    <a href="{{ base_path }}/" style="color: var(--text-dim); text-decoration: none;">{{ t("nav.home") }}</a>
     <span>/</span>
     <span style="text-transform: capitalize;">{{ content_type }}</span>
     <span>/</span>
@@ -551,7 +553,7 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
       </span>
       {% if published_at %}
       <time style="font-size: 0.85rem; color: var(--text-dim);" datetime="{{ published_at }}">
-        Published on {{ published_at | date_short }}
+        {{ t("article.published_on", date=(published_at | date_short)) }}
       </time>
       {% endif %}
     </div>
@@ -566,9 +568,9 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
       </div>
       <div>
         <div style="font-size: 0.9rem; font-weight: 600; color: #ffffff;">
-          {% if author %}{{ author }}{% else %}Aegis Author{% endif %}
+          {% if author %}{{ author }}{% else %}{{ t("author.default") }}{% endif %}
         </div>
-        <div style="font-size: 0.78rem; color: var(--text-dim);">Verified Creator</div>
+        <div style="font-size: 0.78rem; color: var(--text-dim);">{{ t("author.verified") }}</div>
       </div>
     </div>
   </header>
@@ -581,10 +583,10 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 
   <footer class="article-footer" style="margin-top: 3.5rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
     <a href="{{ base_path }}/" style="color: #818cf8; font-size: 0.9rem; text-decoration: none; font-weight: 600;">
-      &larr; Back to all stories
+      &larr; {{ t("article.back") }}
     </a>
     <button onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); padding: 0.4rem 0.85rem; border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; transition: all 0.2s ease;">
-      Scroll to top &uarr;
+      {{ t("article.scroll_top") }} &uarr;
     </button>
   </footer>
 </article>
@@ -610,7 +612,7 @@ pub const PAGE_TEMPLATE: &str = r#"{% extends "base.html" %}
 "#;
 
 pub const BLANK_TEMPLATE: &str = r#"<!DOCTYPE html>
-<html lang="ja">
+<html lang="{{ locale }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -648,12 +650,12 @@ pub const NOT_FOUND_TEMPLATE: &str = r#"{% extends "base.html" %}
   <div style="font-size: 5rem; font-weight: 900; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 1rem; line-height: 1;">
     404
   </div>
-  <h2 style="font-size: 1.75rem; font-weight: 700; color: #ffffff; margin-bottom: 0.75rem;">Page Not Found</h2>
+  <h2 style="font-size: 1.75rem; font-weight: 700; color: #ffffff; margin-bottom: 0.75rem;">{{ t("notfound.title") }}</h2>
   <p style="font-size: 1rem; color: var(--text-muted); max-width: 480px; margin: 0 auto 2rem auto;">
-    The page or article you are looking for does not exist, has been archived, or is in draft status.
+    {{ t("notfound.message") }}
   </p>
   <a href="{{ base_path }}/" style="background: var(--accent-gradient); color: #ffffff; text-decoration: none; padding: 0.65rem 1.5rem; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.95rem; display: inline-block;">
-    Return to Homepage
+    {{ t("notfound.home") }}
   </a>
 </div>
 {% endblock %}
@@ -720,9 +722,9 @@ pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
   .aegis-instructions, .aegis-address { margin: 1rem 0; padding: 1rem 1.25rem; border-radius: 14px; border: 1px solid rgba(127,127,127,0.25); }
   .aegis-instructions p, .aegis-address p { white-space: pre-line; margin-top: 0.4rem; }
 </style>
-<nav class="aegis-shop-nav" aria-label="Shop">
-  <a href="{{ theme_vars.products_url }}">All products</a>
-  <a href="{{ theme_vars.cart_url }}" class="aegis-cart-link">Cart <span class="aegis-badge" data-aegis-cart-count hidden>0</span></a>
+<nav class="aegis-shop-nav" aria-label="{{ t("shop.label") }}">
+  <a href="{{ theme_vars.products_url }}">{{ t("shop.all_products") }}</a>
+  <a href="{{ theme_vars.cart_url }}" class="aegis-cart-link">{{ t("shop.cart") }} <span class="aegis-badge" data-aegis-cart-count hidden>0</span></a>
 </nav>
 <script src="{{ theme_vars.cart_script }}" data-api="{{ theme_vars.shop_api }}" data-currency="{{ theme_vars.currency }}" data-cart-url="{{ theme_vars.cart_url }}" data-products-url="{{ theme_vars.products_url }}" data-shop-enabled="{{ theme_vars.shop_enabled }}" defer></script>"#;
 
@@ -754,32 +756,32 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
   .aegis-comment-status[data-kind=error] { color: #f43f5e; }
   .aegis-comments-note { opacity: 0.65; font-size: 0.85rem; }
 </style>
-  <h2>{% if comments.count == 1 %}1 comment{% else %}{{ comments.count }} comments{% endif %}</h2>
+  <h2>{{ t("comments.count", n=comments.count) }}</h2>
   {% for c in comments["items"] %}
   <article class="aegis-comment" id="comment-{{ c.id }}" style="--depth: {{ c.depth }}">
     <header class="aegis-comment-head">
       {% if c.avatar_url %}<img class="aegis-comment-avatar" src="{{ c.avatar_url }}" alt="" width="28" height="28" loading="lazy" referrerpolicy="no-referrer">{% endif %}
       <strong>{{ c.author_name }}</strong>
-      {% if c.staff %}<span class="aegis-comment-badge">Staff</span>{% endif %}
+      {% if c.staff %}<span class="aegis-comment-badge">{{ t("staff") }}</span>{% endif %}
       <time datetime="{{ c.created_at }}">{{ c.created_at | date_short }}</time>
     </header>
     <div class="aegis-comment-body">{{ c.body_html | safe }}</div>
-    {% if comments.open and c.depth < comments.max_depth %}<button type="button" class="aegis-comment-reply" data-reply-to="{{ c.id }}" data-reply-name="{{ c.author_name }}">Reply</button>{% endif %}
+    {% if comments.open and c.depth < comments.max_depth %}<button type="button" class="aegis-comment-reply" data-reply-to="{{ c.id }}" data-reply-name="{{ c.author_name }}">{{ t("reply") }}</button>{% endif %}
   </article>
   {% else %}
-  <p class="aegis-comments-note">No comments yet.</p>
+  <p class="aegis-comments-note">{{ t("comments.none") }}</p>
   {% endfor %}
   {% if comments.open %}
-  <form class="aegis-comment-form" data-post-url="{{ comments.post_url }}">
-    <h3>Leave a comment</h3>
-    <p class="aegis-comments-note" data-replying hidden>Replying to <strong data-replying-name></strong> <button type="button" class="aegis-comment-cancel" data-cancel-reply>Cancel</button></p>
+  <form class="aegis-comment-form" data-post-url="{{ comments.post_url }}" data-msg-sending="{{ t("comments.sending") }}" data-msg-failed="{{ t("comments.failed") }}" data-msg-pending="{{ t("comments.pending") }}">
+    <h3>{{ t("comments.leave") }}</h3>
+    <p class="aegis-comments-note" data-replying hidden>{{ t("comments.replying_to") }} <strong data-replying-name></strong> <button type="button" class="aegis-comment-cancel" data-cancel-reply>{{ t("comments.cancel") }}</button></p>
     <input type="hidden" name="parent_id" value="">
-    <label>Name <input name="name" required maxlength="100" autocomplete="name"></label>
-    <label>Email (not published) <input type="email" name="email" required maxlength="254" autocomplete="email"></label>
-    <label>Comment <textarea name="body" required rows="5" maxlength="{{ comments.max_length }}"></textarea></label>
-    <div class="aegis-comment-hp" aria-hidden="true"><label>Leave this empty <input name="website" tabindex="-1" autocomplete="off"></label></div>
-    <label class="aegis-comment-check"><input type="checkbox" name="notify_replies"> Email me when someone replies or my comment is approved</label>
-    <button type="submit">Post comment</button>
+    <label>{{ t("comments.name") }} <input name="name" required maxlength="100" autocomplete="name"></label>
+    <label>{{ t("comments.email") }} <input type="email" name="email" required maxlength="254" autocomplete="email"></label>
+    <label>{{ t("comments.body") }} <textarea name="body" required rows="5" maxlength="{{ comments.max_length }}"></textarea></label>
+    <div class="aegis-comment-hp" aria-hidden="true"><label>{{ t("comments.honeypot") }} <input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <label class="aegis-comment-check"><input type="checkbox" name="notify_replies"> {{ t("comments.notify") }}</label>
+    <button type="submit">{{ t("comments.submit") }}</button>
     <p class="aegis-comment-status" role="status" aria-live="polite"></p>
   </form>
   <script>
@@ -813,7 +815,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
       var f = form.elements;
       var submit = form.querySelector("button[type=submit]");
       submit.disabled = true;
-      show("Sending\u2026");
+      show(form.dataset.msgSending);
       fetch(form.dataset.postUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -824,7 +826,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
         })
       }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (data) {
-          if (!res.ok) throw new Error(data.error || "Your comment could not be posted. Please try again.");
+          if (!res.ok) throw new Error(data.error || form.dataset.msgFailed);
           try { localStorage.setItem(KEY, JSON.stringify({ name: f.name.value, email: f.email.value })); } catch (e) {}
           if (data.status === "approved" && data.comment) {
             location.hash = "comment-" + data.comment.id;
@@ -833,7 +835,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
           }
           f.body.value = "";
           replyTo();
-          show("Thank you! Your comment will appear once it has been approved.");
+          show(form.dataset.msgPending);
         });
       }).catch(function (e) { show(e.message, "error"); })
         .finally(function () { submit.disabled = false; });
@@ -841,7 +843,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
   })();
   </script>
   {% else %}
-  <p class="aegis-comments-note">Comments are closed.</p>
+  <p class="aegis-comments-note">{{ t("comments.closed") }}</p>
   {% endif %}
 </section>"##;
 
@@ -863,19 +865,19 @@ pub const PRODUCTS_TEMPLATE: &str = r#"{% extends "base.html" %}
           <span class="aegis-price">{{ item.fields.price | money(theme_vars.currency) }}</span>
           {% if item.fields.compare_at_price %}<span class="aegis-compare">{{ item.fields.compare_at_price | money(theme_vars.currency) }}</span>{% endif %}
         </span>
-        {% if item.fields.stock is defined and item.fields.stock is not none and item.fields.stock | int <= 0 %}<span class="aegis-soldout">Sold out</span>{% endif %}
+        {% if item.fields.stock is defined and item.fields.stock is not none and item.fields.stock | int <= 0 %}<span class="aegis-soldout">{{ t("shop.sold_out") }}</span>{% endif %}
       </div>
     </a>
     {% endfor %}
   </div>
   {% else %}
-  <div class="aegis-empty"><p>No products yet.</p></div>
+  <div class="aegis-empty"><p>{{ t("shop.no_products") }}</p></div>
   {% endif %}
   {% if pagination and pagination.total_pages > 1 %}
-  <nav aria-label="Pagination" style="display: flex; justify-content: space-between; margin-top: 2rem;">
-    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" class="aegis-button aegis-secondary">&larr; Previous</a>{% else %}<span></span>{% endif %}
-    <span class="aegis-muted">Page {{ pagination.page }} / {{ pagination.total_pages }}</span>
-    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" class="aegis-button aegis-secondary">Next &rarr;</a>{% else %}<span></span>{% endif %}
+  <nav aria-label="{{ t("pagination.label") }}" style="display: flex; justify-content: space-between; margin-top: 2rem;">
+    {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" class="aegis-button aegis-secondary">&larr; {{ t("pagination.previous") }}</a>{% else %}<span></span>{% endif %}
+    <span class="aegis-muted">{{ t("pagination.page", page=pagination.page, total=pagination.total_pages) }}</span>
+    {% if pagination.next_url %}<a href="{{ pagination.next_url }}" class="aegis-button aegis-secondary">{{ t("pagination.next") }} &rarr;</a>{% else %}<span></span>{% endif %}
   </nav>
   {% endif %}
 </section>
@@ -898,19 +900,19 @@ pub const PRODUCT_TEMPLATE: &str = r##"{% extends "base.html" %}
         <span class="aegis-price" style="font-size: 1.5rem;">{{ fields.price | money(theme_vars.currency) }}</span>
         {% if fields.compare_at_price %}<span class="aegis-compare">{{ fields.compare_at_price | money(theme_vars.currency) }}</span>{% endif %}
       </div>
-      {% if fields.sku %}<div class="aegis-muted">SKU: {{ fields.sku }}</div>{% endif %}
+      {% if fields.sku %}<div class="aegis-muted">{{ t("shop.sku", sku=fields.sku) }}</div>{% endif %}
       {% set sold_out = fields.stock is defined and fields.stock is not none and fields.stock | int <= 0 %}
       <div class="aegis-buy">
         {% if sold_out %}
-        <span class="aegis-soldout">Sold out</span>
+        <span class="aegis-soldout">{{ t("shop.sold_out") }}</span>
         {% elif theme_vars.shop_enabled == "true" %}
-        <input id="aegis-qty" class="aegis-qty" type="number" min="1" value="1" aria-label="Quantity">
+        <input id="aegis-qty" class="aegis-qty" type="number" min="1" value="1" aria-label="{{ t("shop.quantity") }}">
         <button type="button" class="aegis-button" data-aegis-add-to-cart data-quantity-input="#aegis-qty"
-          data-product-id="{{ fields.id }}" data-product-slug="{{ slug }}" data-product-title="{{ title }}" data-product-price="{{ fields.price }}">Add to cart</button>
+          data-product-id="{{ fields.id }}" data-product-slug="{{ slug }}" data-product-title="{{ title }}" data-product-price="{{ fields.price }}">{{ t("shop.add_to_cart") }}</button>
         {% elif fields.buy_url %}
-        <a class="aegis-button" href="{{ fields.buy_url }}" rel="noopener">Buy now</a>
+        <a class="aegis-button" href="{{ fields.buy_url }}" rel="noopener">{{ t("shop.buy_now") }}</a>
         {% endif %}
-        {% if not sold_out and fields.stock is defined and fields.stock is not none and fields.stock | int <= 5 %}<span class="aegis-muted">Only {{ fields.stock }} left</span>{% endif %}
+        {% if not sold_out and fields.stock is defined and fields.stock is not none and fields.stock | int <= 5 %}<span class="aegis-muted">{{ t("shop.only_left", n=fields.stock) }}</span>{% endif %}
       </div>
       {% if fields.excerpt %}<p style="margin-bottom: 1rem;">{{ fields.excerpt }}</p>{% endif %}
       <div class="prose">{{ content_html | safe }}</div>
@@ -927,8 +929,8 @@ pub const CART_TEMPLATE: &str = r#"{% extends "base.html" %}
 <section class="aegis-shop">
   {% include "shop_common.html" %}
   <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ title }}</h1>
-  <div id="aegis-cart"><p class="aegis-muted">Loading your cart…</p></div>
-  <noscript><p class="aegis-error">The cart needs JavaScript.</p></noscript>
+  <div id="aegis-cart"><p class="aegis-muted">{{ t("shop.cart_loading") }}</p></div>
+  <noscript><p class="aegis-error">{{ t("shop.cart_needs_js") }}</p></noscript>
 </section>
 {% endblock %}
 "#;
@@ -938,8 +940,8 @@ pub const ORDER_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% block content %}
 <section class="aegis-shop" style="max-width: 720px;">
   {% include "shop_common.html" %}
-  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">Thank you for your order</h1>
-  <div id="aegis-order" data-order-id="{{ slug }}"><p class="aegis-muted">Loading your order…</p></div>
+  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ t("shop.order_thanks") }}</h1>
+  <div id="aegis-order" data-order-id="{{ slug }}"><p class="aegis-muted">{{ t("shop.order_loading") }}</p></div>
 </section>
 {% endblock %}
 "#;
@@ -1007,16 +1009,16 @@ pub const FORUM_INDEX_TEMPLATE: &str = r##"{% extends "base.html" %}
 {% block content %}
 {% include "forum_common.html" %}
 <section class="aegis-forum">
-  <nav class="aegis-forum-nav" aria-label="Forum navigation">
+  <nav class="aegis-forum-nav" aria-label="{{ t("forum.label") }}">
     <div class="aegis-forum-breadcrumbs">
-      <strong>Community Forum</strong>
+      <strong>{{ t("forum.title") }}</strong>
     </div>
   </nav>
 
-  <h1 style="font-size: 2.2rem; margin: 0 0 0.5rem; font-weight: 800; letter-spacing: -0.02em;">Community Forum</h1>
-  <p style="opacity: 0.7; margin: 0 0 2.5rem; font-size: 1.05rem;">Join discussions, ask questions, and share knowledge with fellow members.</p>
+  <h1 style="font-size: 2.2rem; margin: 0 0 0.5rem; font-weight: 800; letter-spacing: -0.02em;">{{ t("forum.title") }}</h1>
+  <p style="opacity: 0.7; margin: 0 0 2.5rem; font-size: 1.05rem;">{{ t("forum.tagline") }}</p>
 
-  <h2 style="font-size: 1.35rem; font-weight: 700; margin: 0 0 1.25rem;">Categories</h2>
+  <h2 style="font-size: 1.35rem; font-weight: 700; margin: 0 0 1.25rem;">{{ t("forum.categories") }}</h2>
   <div class="aegis-forum-grid">
     {% for cat in fields.categories %}
     <a href="{{ theme_vars.forum_url }}/{{ cat.slug }}" class="aegis-forum-card">
@@ -1026,34 +1028,34 @@ pub const FORUM_INDEX_TEMPLATE: &str = r##"{% extends "base.html" %}
       </div>
       <p class="aegis-forum-cat-desc">{{ cat.description }}</p>
       <div class="aegis-forum-cat-stats">
-        <span><strong>{{ cat.thread_count }}</strong> threads</span>
-        <span><strong>{{ cat.post_count }}</strong> posts</span>
+        <span>{{ t("forum.threads_count", n=cat.thread_count) }}</span>
+        <span>{{ t("forum.posts_count", n=cat.post_count) }}</span>
       </div>
     </a>
     {% else %}
-    <p class="aegis-forum-empty">No categories available.</p>
+    <p class="aegis-forum-empty">{{ t("forum.no_categories") }}</p>
     {% endfor %}
   </div>
 
   {% if fields.recent_threads | length > 0 %}
-  <h2 style="font-size: 1.35rem; font-weight: 700; margin: 2rem 0 1.25rem;">Recent Discussions</h2>
+  <h2 style="font-size: 1.35rem; font-weight: 700; margin: 2rem 0 1.25rem;">{{ t("forum.recent") }}</h2>
   <div class="aegis-forum-threads">
-    {% for t in fields.recent_threads %}
-    <a href="{{ theme_vars.forum_url }}/{{ t.category_slug }}/{{ t.id }}" class="aegis-forum-thread-item">
+    {% for thread in fields.recent_threads %}
+    <a href="{{ theme_vars.forum_url }}/{{ thread.category_slug }}/{{ thread.id }}" class="aegis-forum-thread-item">
       <div class="aegis-forum-thread-main">
         <div class="aegis-forum-thread-title">
-          {% if t.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">PIN</span>{% endif %}
-          {% if t.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">LOCKED</span>{% endif %}
-          <span>{{ t.title }}</span>
+          {% if thread.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">{{ t("forum.pin") }}</span>{% endif %}
+          {% if thread.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">{{ t("forum.locked") }}</span>{% endif %}
+          <span>{{ thread.title }}</span>
         </div>
         <div class="aegis-forum-thread-meta">
-          <span>in <strong>{{ t.category_name }}</strong></span>
-          <span>by {{ t.author_name }}</span>
-          <span>Last active <time datetime="{{ t.last_post_at }}">{{ t.last_post_at | datetime_short }}</time></span>
+          <span>{{ t("forum.in_category", name=thread.category_name) }}</span>
+          <span>{{ t("forum.by", name=thread.author_name) }}</span>
+          <span>{{ t("forum.last_active") }} <time datetime="{{ thread.last_post_at }}">{{ thread.last_post_at | datetime_short }}</time></span>
         </div>
       </div>
-      <div class="aegis-forum-badge-replies" title="Total replies">
-        {{ t.post_count }}
+      <div class="aegis-forum-badge-replies" title="{{ t("forum.total_replies") }}">
+        {{ thread.post_count }}
       </div>
     </a>
     {% endfor %}
@@ -1069,13 +1071,13 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
 {% block content %}
 {% include "forum_common.html" %}
 <section class="aegis-forum">
-  <nav class="aegis-forum-nav" aria-label="Forum navigation">
+  <nav class="aegis-forum-nav" aria-label="{{ t("forum.label") }}">
     <div class="aegis-forum-breadcrumbs">
-      <a href="{{ theme_vars.forum_url }}">Forum</a>
+      <a href="{{ theme_vars.forum_url }}">{{ t("forum.name") }}</a>
       <span>&gt;</span>
       <strong>{{ fields.category.name }}</strong>
     </div>
-    <a href="#new-thread" class="aegis-forum-btn">+ New Thread</a>
+    <a href="#new-thread" class="aegis-forum-btn">{{ t("forum.new_thread") }}</a>
   </nav>
 
   <h1 style="font-size: 2rem; margin: 0 0 0.5rem; font-weight: 800;">{{ fields.category.name }}</h1>
@@ -1083,30 +1085,30 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
   <p style="opacity: 0.7; margin: 0 0 2rem; font-size: 1rem;">{{ fields.category.description }}</p>
   {% endif %}
   {% if fields.pending_notice %}
-  <div class="aegis-forum-banner-notice" role="status">Your thread was submitted and is awaiting moderator approval.</div>
+  <div class="aegis-forum-banner-notice" role="status">{{ t("forum.thread_pending") }}</div>
   {% endif %}
 
   <div class="aegis-forum-threads">
-    {% for t in fields.threads %}
-    <a href="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/{{ t.id }}" class="aegis-forum-thread-item">
+    {% for thread in fields.threads %}
+    <a href="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/{{ thread.id }}" class="aegis-forum-thread-item">
       <div class="aegis-forum-thread-main">
         <div class="aegis-forum-thread-title">
-          {% if t.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">PIN</span>{% endif %}
-          {% if t.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">LOCKED</span>{% endif %}
-          <span>{{ t.title }}</span>
+          {% if thread.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">{{ t("forum.pin") }}</span>{% endif %}
+          {% if thread.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">{{ t("forum.locked") }}</span>{% endif %}
+          <span>{{ thread.title }}</span>
         </div>
         <div class="aegis-forum-thread-meta">
-          <span>Started by <strong>{{ t.author_name }}</strong></span>
-          <span>Last post <time datetime="{{ t.last_post_at }}">{{ t.last_post_at | datetime_short }}</time></span>
+          <span>{{ t("forum.started_by", name=thread.author_name) }}</span>
+          <span>{{ t("forum.last_post") }} <time datetime="{{ thread.last_post_at }}">{{ thread.last_post_at | datetime_short }}</time></span>
         </div>
       </div>
-      <div class="aegis-forum-badge-replies" title="Total replies">
-        {{ t.post_count }}
+      <div class="aegis-forum-badge-replies" title="{{ t("forum.total_replies") }}">
+        {{ thread.post_count }}
       </div>
     </a>
     {% else %}
     <div class="aegis-forum-card aegis-forum-empty">
-      No threads in this category yet. Be the first to start a conversation!
+      {{ t("forum.no_threads") }}
     </div>
     {% endfor %}
   </div>
@@ -1114,30 +1116,30 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
   {% if pagination %}
   <div style="display: flex; justify-content: center; gap: 0.5rem; margin: 2rem 0;">
     {% if pagination.prev_url %}
-    <a href="{{ pagination.prev_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">&larr; Previous</a>
+    <a href="{{ pagination.prev_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">&larr; {{ t("pagination.previous") }}</a>
     {% endif %}
     {% if pagination.next_url %}
-    <a href="{{ pagination.next_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">Next &rarr;</a>
+    <a href="{{ pagination.next_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">{{ t("pagination.next") }} &rarr;</a>
     {% endif %}
   </div>
   {% endif %}
 
   <section class="aegis-forum-form" id="new-thread">
-    <h3>Start a New Thread</h3>
+    <h3>{{ t("forum.start_thread") }}</h3>
     <form method="POST" action="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/threads">
       <div class="aegis-forum-form-group">
-        <label for="thread-title">Thread Title</label>
-        <input type="text" id="thread-title" name="title" required minlength="2" maxlength="200" placeholder="Summarize your question or topic...">
+        <label for="thread-title">{{ t("forum.thread_title") }}</label>
+        <input type="text" id="thread-title" name="title" required minlength="2" maxlength="200" placeholder="{{ t("forum.thread_title_hint") }}">
       </div>
       <div class="aegis-forum-form-group">
-        <label for="thread-author">Your Name / Handle</label>
-        <input type="text" id="thread-author" name="author_name" placeholder="Anonymous" maxlength="50">
+        <label for="thread-author">{{ t("forum.your_name") }}</label>
+        <input type="text" id="thread-author" name="author_name" placeholder="{{ t("forum.anonymous") }}" maxlength="50">
       </div>
       <div class="aegis-forum-form-group">
-        <label for="thread-body">Message Body</label>
-        <textarea id="thread-body" name="body" rows="6" required minlength="1" placeholder="Write your post here..."></textarea>
+        <label for="thread-body">{{ t("forum.message_body") }}</label>
+        <textarea id="thread-body" name="body" rows="6" required minlength="1" placeholder="{{ t("forum.message_hint") }}"></textarea>
       </div>
-      <button type="submit" class="aegis-forum-btn">Create Thread</button>
+      <button type="submit" class="aegis-forum-btn">{{ t("forum.create_thread") }}</button>
     </form>
   </section>
 </section>
@@ -1150,37 +1152,37 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
 {% block content %}
 {% include "forum_common.html" %}
 <section class="aegis-forum">
-  <nav class="aegis-forum-nav" aria-label="Forum navigation">
+  <nav class="aegis-forum-nav" aria-label="{{ t("forum.label") }}">
     <div class="aegis-forum-breadcrumbs">
-      <a href="{{ theme_vars.forum_url }}">Forum</a>
+      <a href="{{ theme_vars.forum_url }}">{{ t("forum.name") }}</a>
       <span>&gt;</span>
       <a href="{{ theme_vars.forum_url }}/{{ fields.category.slug }}">{{ fields.category.name }}</a>
       <span>&gt;</span>
       <strong style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ fields.thread.title }}</strong>
     </div>
     {% if not fields.thread.is_locked %}
-    <a href="#reply-form" class="aegis-forum-btn">Reply</a>
+    <a href="#reply-form" class="aegis-forum-btn">{{ t("reply") }}</a>
     {% endif %}
   </nav>
 
   <header style="margin-bottom: 2rem;">
     <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
-      {% if fields.thread.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">PINNED</span>{% endif %}
-      {% if fields.thread.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">LOCKED</span>{% endif %}
+      {% if fields.thread.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">{{ t("forum.pinned") }}</span>{% endif %}
+      {% if fields.thread.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">{{ t("forum.locked") }}</span>{% endif %}
       <h1 style="font-size: 1.85rem; margin: 0; font-weight: 800; line-height: 1.3;">{{ fields.thread.title }}</h1>
     </div>
     <div style="font-size: 0.85rem; opacity: 0.65; display: flex; gap: 1rem; flex-wrap: wrap;">
-      <span>Started by <strong>{{ fields.thread.author_name }}</strong></span>
-      <span>{{ fields.thread.post_count }} posts</span>
-      <span>Created <time datetime="{{ fields.thread.created_at }}">{{ fields.thread.created_at | date_short }}</time></span>
+      <span>{{ t("forum.started_by", name=fields.thread.author_name) }}</span>
+      <span>{{ t("forum.posts", n=fields.thread.post_count) }}</span>
+      <span>{{ t("forum.created") }} <time datetime="{{ fields.thread.created_at }}">{{ fields.thread.created_at | date_short }}</time></span>
     </div>
   </header>
 
   {% if fields.pending_notice %}
-  <div class="aegis-forum-banner-notice" role="status">Your reply was submitted and is awaiting moderator approval.</div>
+  <div class="aegis-forum-banner-notice" role="status">{{ t("forum.reply_pending") }}</div>
   {% endif %}
   {% if fields.reported_notice %}
-  <div class="aegis-forum-banner-notice" role="status">Thank you. Your report has been submitted to the moderators.</div>
+  <div class="aegis-forum-banner-notice" role="status">{{ t("forum.reported") }}</div>
   {% endif %}
 
   <div class="aegis-forum-posts">
@@ -1191,7 +1193,7 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
           <div class="aegis-forum-avatar">{{ p.author_initial }}</div>
           <span>{{ p.author_name }}</span>
           {% if p.is_author_staff %}
-          <span class="aegis-forum-badge" style="background: var(--accent, #6366f1); color: #fff;">Staff</span>
+          <span class="aegis-forum-badge" style="background: var(--accent, #6366f1); color: #fff;">{{ t("staff") }}</span>
           {% endif %}
         </div>
         <div class="aegis-forum-post-meta">
@@ -1206,12 +1208,12 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
         {{ p.body_html | safe }}
       </div>
       <details class="aegis-forum-report">
-        <summary>Report</summary>
+        <summary>{{ t("forum.report") }}</summary>
         <form class="aegis-forum-report-form" method="POST" action="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/{{ fields.thread.id }}/report">
           <input type="hidden" name="target_type" value="post">
           <input type="hidden" name="target_id" value="{{ p.id }}">
-          <input type="text" name="reason" required maxlength="500" placeholder="Reason for reporting this post...">
-          <button type="submit" class="aegis-forum-btn aegis-forum-btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Report</button>
+          <input type="text" name="reason" required maxlength="500" placeholder="{{ t("forum.report_reason") }}">
+          <button type="submit" class="aegis-forum-btn aegis-forum-btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">{{ t("forum.report") }}</button>
         </form>
       </details>
     </article>
@@ -1221,31 +1223,31 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
   {% if pagination %}
   <div style="display: flex; justify-content: center; gap: 0.5rem; margin: 2rem 0;">
     {% if pagination.prev_url %}
-    <a href="{{ pagination.prev_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">&larr; Previous</a>
+    <a href="{{ pagination.prev_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">&larr; {{ t("pagination.previous") }}</a>
     {% endif %}
     {% if pagination.next_url %}
-    <a href="{{ pagination.next_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">Next &rarr;</a>
+    <a href="{{ pagination.next_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">{{ t("pagination.next") }} &rarr;</a>
     {% endif %}
   </div>
   {% endif %}
 
   {% if fields.thread.is_locked %}
   <div class="aegis-forum-banner-locked">
-    🔒 This thread has been locked. New replies are not accepted.
+    {{ t("forum.locked_banner") }}
   </div>
   {% else %}
   <section class="aegis-forum-form" id="reply-form">
-    <h3>Post a Reply</h3>
+    <h3>{{ t("forum.post_reply") }}</h3>
     <form method="POST" action="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/{{ fields.thread.id }}/posts">
       <div class="aegis-forum-form-group">
-        <label for="post-author">Your Name / Handle</label>
-        <input type="text" id="post-author" name="author_name" placeholder="Anonymous" maxlength="50">
+        <label for="post-author">{{ t("forum.your_name") }}</label>
+        <input type="text" id="post-author" name="author_name" placeholder="{{ t("forum.anonymous") }}" maxlength="50">
       </div>
       <div class="aegis-forum-form-group">
-        <label for="post-body">Reply Content</label>
-        <textarea id="post-body" name="body" rows="5" required minlength="1" placeholder="Write your response..."></textarea>
+        <label for="post-body">{{ t("forum.reply_content") }}</label>
+        <textarea id="post-body" name="body" rows="5" required minlength="1" placeholder="{{ t("forum.reply_hint") }}"></textarea>
       </div>
-      <button type="submit" class="aegis-forum-btn">Submit Reply</button>
+      <button type="submit" class="aegis-forum-btn">{{ t("forum.submit_reply") }}</button>
     </form>
   </section>
   {% endif %}

@@ -17,8 +17,6 @@
 
 1. **AssemblyScript / TinyGo SDK の機能追従**:
    - Rust SDK に追加済みのフック（`calculate-order`, `on-order-status-changed`, `send-notification`, `on-content-published`, `check-comment`, `render-blocks`）およびホスト API（`http_fetch`, `kv_get`, `config_get`）のラッパーを整備（ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) 参照）。
-2. **UI / エラーメッセージの多言語翻訳の拡充**:
-   - サーバーエラーメッセージのコード化と多言語対応、公開サイト組み込みテンプレートやカートスクリプトの翻訳。
 
 ---
 
@@ -43,6 +41,7 @@
 - [ ] **アクセス解析の拡張**: 前期間との比較表示、国・ブラウザ別集計、UTM パラメータ解析、カスタムイベントトラッキング、CSV エクスポート。
 
 ### 🎨 テーマ & Theme Builder
+- [ ] **同梱テーマの固定文言の多言語化**: 同梱テーマ 5 種のナビゲーションなどデザイン固有の文言（`<html lang>` と組み込みテンプレートは `[theme].locale` に対応済み。方針は [architecture.md 19](docs/architecture.md#19-多言語対応の方針)）。テーマ開発サーバー（`aegis-server theme dev`）にも言語の指定を足す。
 - [ ] **Theme Builder の機能拡張**: ファイルの改名・削除、`theme.json` のフォーム編集 UI、ZIP パッケージ書き出しと署名、ブロック単位のプレビュー、プレビュー要素からテンプレート該当行へのジャンプ。
 - [ ] **テーマ開発サーバーの機能拡張**: 実サイトの公開 API から記事を取得して描画する `--content-from <URL>` オプション。
 
