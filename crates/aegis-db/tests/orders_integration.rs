@@ -1,6 +1,7 @@
-//! PostgreSQL / MySQL での注文・在庫の実機検証テスト。
-//! コンテナ稼働時に実行され、スキーママイグレーション、商品登録、在庫確保、在庫不足ロールバック、
-//! 状態遷移、キャンセル時の在庫返却、注文一覧・検索、期限切れ取得などを検証する。
+//! SQLite（インメモリ）/ PostgreSQL / MySQL での注文・在庫の検証テスト。
+//! SQLite は常に実行し、PostgreSQL / MySQL はコンテナ稼働時（無ければスキップ）に実行する。
+//! スキーママイグレーション、商品登録、在庫確保、在庫不足ロールバック、状態遷移、
+//! キャンセル時の在庫返却、注文一覧・検索、期限切れ取得、バリエーションの在庫などを検証する。
 
 use std::collections::HashMap;
 use std::env;
@@ -8,7 +9,7 @@ use std::env;
 use aegis_core::Result;
 use aegis_db::{
     ContentRecord, DatabaseAdapter, MySqlAdapter, OrderListQuery, OrderRecord, OrderStorage,
-    OrderTransition, OutOfStock, PostgresAdapter, StockReservation,
+    OrderTransition, OutOfStock, PostgresAdapter, SqliteAdapter, StockReservation,
 };
 use aegis_schema::SchemaDefinition;
 use serde_json::json;
@@ -536,11 +537,11 @@ where
     let res_var = adapter.create_order(&order_var, &var_reservations).await?;
     assert!(res_var.is_ok());
 
-    // バリエーションの在庫が 4 -> 2 に減算され、親商品 (7) は影響を受けないこと
+    // バリエーションの在庫が 4 -> 2 に減算され、親商品 (5) は影響を受けないこと
     let v1_after = adapter.get_product_variant("var-mug-red-s").await?.unwrap();
     assert_eq!(v1_after.stock, Some(2));
     let parent_after = adapter.get_content(&schema, "p-coffee").await?.unwrap();
-    assert_eq!(parent_after.custom_fields.get("stock"), Some(&json!(7)));
+    assert_eq!(parent_after.custom_fields.get("stock"), Some(&json!(5)));
 
     // 在庫不足時の拒否検証（残り 2 個のバリエーションに対して 3 個要求）
     let order_var_fail = OrderRecord {
@@ -628,6 +629,15 @@ async fn connect_mysql_with_retry(url: &str) -> Option<MySqlAdapter> {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
     None
+}
+
+#[tokio::test]
+async fn test_sqlite_order_storage_in_memory() {
+    let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
+    adapter.init().await.unwrap();
+    run_order_and_stock_lifecycle_test(&adapter)
+        .await
+        .expect("SQLite order & stock integration test failed");
 }
 
 #[tokio::test]
