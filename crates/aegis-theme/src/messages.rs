@@ -64,6 +64,22 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("article.back", "Back to all stories", "記事一覧に戻る"),
     ("article.scroll_top", "Scroll to top", "ページの先頭へ"),
     // --- カテゴリ・検索・404 ---
+    ("tag.label", "Tag", "タグ"),
+    (
+        "tag.empty",
+        "No published content has this tag yet.",
+        "このタグが付いた公開済みのコンテンツはまだありません。",
+    ),
+    ("tag.feed", "Feed (Atom)", "フィード（Atom）"),
+    ("tags.title", "Tags", "タグ"),
+    (
+        "tags.empty",
+        "No tags are in use yet.",
+        "使われているタグはまだありません。",
+    ),
+    ("tags.count.one", "{n} item", "{n} 件"),
+    ("tags.count.other", "{n} items", "{n} 件"),
+    ("tags.aria", "Tags", "タグ"),
     ("category.label", "Category", "カテゴリ"),
     (
         "category.empty",

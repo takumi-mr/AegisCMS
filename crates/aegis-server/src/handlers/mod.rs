@@ -27,6 +27,7 @@ pub mod sso;
 pub mod storage;
 pub mod storefront;
 pub mod tags;
+pub mod tags_public;
 pub mod theme;
 pub mod users;
 
@@ -90,6 +91,7 @@ pub use tags::{
     create_tag, delete_tag, get_content_tags, list_tags, set_content_tags as set_content_tag_list,
     update_tag,
 };
+pub use tags_public::{get_tag_feed, render_tag, render_tags_index};
 pub use theme::{
     get_active_theme, get_active_theme_asset, get_specific_theme_asset, get_theme_preview,
     install_theme, list_themes, switch_active_theme,

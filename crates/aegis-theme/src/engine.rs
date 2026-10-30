@@ -609,6 +609,8 @@ impl ThemeEngine {
                     "index.html" => Ok(Some(INDEX_TEMPLATE.to_string())),
                     "front.html" => Ok(Some(FRONT_TEMPLATE.to_string())),
                     "category.html" => Ok(Some(CATEGORY_TEMPLATE.to_string())),
+                    "tag.html" => Ok(Some(TAG_TEMPLATE.to_string())),
+                    "tags.html" => Ok(Some(TAGS_TEMPLATE.to_string())),
                     "search.html" => Ok(Some(SEARCH_TEMPLATE.to_string())),
                     "contact.html" => Ok(Some(CONTACT_TEMPLATE.to_string())),
                     "article.html" => Ok(Some(ARTICLE_TEMPLATE.to_string())),

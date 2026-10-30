@@ -21,11 +21,22 @@ struct Site {
 }
 
 async fn site(configure: impl FnOnce(&mut AegisConfig)) -> Site {
+    site_with_cdn(configure, None).await
+}
+
+async fn site_with_cdn(
+    configure: impl FnOnce(&mut AegisConfig),
+    purger: Option<Arc<aegis_cache::RecordingCdnPurger>>,
+) -> Site {
     let mut config = AegisConfig::default();
     config.audit.enabled = true;
     configure(&mut config);
     let state =
         crate::test_support::test_app_state(config, PluginSupervisor::new(), Vec::new()).await;
+    let state = match purger {
+        Some(purger) => state.with_cdn(purger),
+        None => state,
+    };
     let state = if state.config.tags.enabled {
         let tags = TagService::new(state.db.clone(), state.config.tags.clone());
         state.with_tags(tags)
@@ -110,6 +121,23 @@ impl Site {
         (
             status,
             serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        )
+    }
+
+    /// 公開ページ・フィードの本文（ログインなし）
+    async fn text(&self, path: &str) -> (StatusCode, String) {
+        let response = crate::app::router(&self.state.config, self.state.clone())
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        // テンプレートの属性値では `/` が `&#x2f;` にエスケープされる
+        (
+            status,
+            String::from_utf8_lossy(&bytes).replace("&#x2f;", "/"),
         )
     }
 
@@ -349,4 +377,255 @@ async fn test_limit_per_content_and_disabled() {
     let off = site(|config| config.tags.enabled = false).await;
     let (status, _) = off.editor("GET", "/api/v1/tags", None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// 公開記事・公開固定ページ・下書き記事を加える（`site()` の `hello` と `about` に足す）
+async fn add_content(site: &Site) {
+    let article = site.state.schemas.read().await["article"].clone();
+    for (id, slug, status, published_at) in [
+        ("a2", "second", "published", "2026-10-02T00:00:00Z"),
+        ("a3", "secret-draft", "draft", "2026-10-03T00:00:00Z"),
+    ] {
+        site.state
+            .db
+            .insert_content(
+                &article,
+                &ContentRecord {
+                    id: id.to_string(),
+                    content_type: "article".to_string(),
+                    title: slug.to_uppercase(),
+                    slug: slug.to_string(),
+                    status: status.to_string(),
+                    blocks_json:
+                        json!([{ "name": "core/paragraph", "text": format!("About {}", slug) }])
+                            .to_string(),
+                    author_id: None,
+                    published_at: Some(published_at.to_string()),
+                    unpublish_at: None,
+                    created_at: published_at.to_string(),
+                    updated_at: published_at.to_string(),
+                    custom_fields: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test]
+async fn test_public_tag_pages_list_published_content_of_every_type() {
+    let site = site(|config| config.theme.posts_per_page = 2).await;
+    add_content(&site).await;
+    let rust = site.create("Rust Lang").await;
+    let docker = site.create("Docker").await;
+    let rust_id = rust["id"].as_str().unwrap();
+    let docker_id = docker["id"].as_str().unwrap();
+    for (path, tag_ids) in [
+        (
+            "/api/v1/contents/article/hello/tags",
+            vec![rust_id, docker_id],
+        ),
+        ("/api/v1/contents/article/second/tags", vec![rust_id]),
+        ("/api/v1/contents/article/secret-draft/tags", vec![rust_id]),
+        ("/api/v1/contents/page/about/tags", vec![rust_id]),
+    ] {
+        let (status, _) = site
+            .editor("PUT", path, Some(json!({ "tag_ids": tag_ids })))
+            .await;
+        assert_eq!(status, StatusCode::OK, "{}", path);
+    }
+
+    // タグのページ: 公開中の記事と固定ページが新しい順（下書きは出ない）。1 ページ 2 件で、
+    // 公開日時が同じなら ID の降順（`p1`＝about が先、`a1`＝hello が後）
+    let (status, html) = site.text("/tags/rust-lang").await;
+    assert_eq!(status, StatusCode::OK, "{}", html);
+    assert!(
+        html.contains("<h1 style=\"margin: 0 0 0.75rem;\">Rust Lang</h1>"),
+        "{}",
+        html
+    );
+    assert!(html.contains(r#"href="/articles/second""#), "{}", html);
+    assert!(html.contains(r#"href="/about""#), "{}", html);
+    assert!(!html.contains(r#"href="/articles/hello""#), "{}", html);
+    assert!(!html.contains("SECRET-DRAFT"), "{}", html);
+    assert!(html.contains("/tags/rust-lang?page=2"), "{}", html);
+    assert!(html.contains("/tags/rust-lang/feed.xml"), "{}", html);
+    let (status, second) = site.text("/tags/rust-lang?page=2").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(second.contains(r#"href="/articles/hello""#), "{}", second);
+    assert_eq!(
+        site.text("/tags/rust-lang?page=3").await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        site.text("/tags/no-such-tag").await.0,
+        StatusCode::NOT_FOUND
+    );
+
+    // 記事のページに、付いているタグのリンク
+    let (status, article) = site.text("/articles/hello").await;
+    assert_eq!(status, StatusCode::OK, "{}", article);
+    assert!(article.contains("rel=\"tag\""), "{}", article);
+    assert!(article.contains("/tags/rust-lang"), "{}", article);
+    assert!(article.contains("/tags/docker"), "{}", article);
+    // 固定ページにも
+    let (_, page) = site.text("/about").await;
+    assert!(page.contains("/tags/rust-lang"), "{}", page);
+
+    // 一覧: 公開中のコンテンツが付いたタグと、その数（下書きは数えない）
+    let (status, index) = site.text("/tags").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        index.contains("/tags/rust-lang") && index.contains("3 items"),
+        "{}",
+        index
+    );
+    assert!(
+        index.contains("/tags/docker") && index.contains("1 item"),
+        "{}",
+        index
+    );
+
+    // 公開中の記事が付いていないタグは、一覧とサイトマップに出ない
+    let empty = site.create("Unused").await;
+    let (_, index) = site.text("/tags").await;
+    assert!(
+        !index.contains(empty["slug"].as_str().unwrap()),
+        "{}",
+        index
+    );
+    let (_, sitemap) = site.text("/sitemap.xml").await;
+    assert!(sitemap.contains("/tags/rust-lang</loc>"), "{}", sitemap);
+    assert!(sitemap.contains("/tags</loc>"), "{}", sitemap);
+    assert!(!sitemap.contains("/tags/unused"), "{}", sitemap);
+
+    // フィードは記事だけ（固定ページは載せない）。下書きも載せない
+    let (status, feed) = site.text("/tags/rust-lang/feed.xml").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        feed.contains("/articles/second") && feed.contains("/articles/hello"),
+        "{}",
+        feed
+    );
+    assert!(
+        !feed.contains("secret-draft") && !feed.contains("/about"),
+        "{}",
+        feed
+    );
+    assert_eq!(
+        site.text("/tags/no-such-tag/feed.xml").await.0,
+        StatusCode::NOT_FOUND
+    );
+
+    // タグを外すとページから消え、タグを消すと 404
+    let (status, _) = site
+        .editor(
+            "PUT",
+            "/api/v1/contents/article/second/tags",
+            Some(json!({ "tag_ids": [] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, html) = site.text("/tags/rust-lang").await;
+    assert!(!html.contains("/articles/second"), "{}", html);
+    let (status, _) = site
+        .editor("DELETE", &format!("/api/v1/tags/{}", rust_id), None)
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(site.text("/tags/rust-lang").await.0, StatusCode::NOT_FOUND);
+    let (_, article) = site.text("/articles/hello").await;
+    assert!(!article.contains("/tags/rust-lang"), "{}", article);
+}
+
+#[tokio::test]
+async fn test_public_tag_pages_are_off_when_tags_are_disabled() {
+    let off = site(|config| config.tags.enabled = false).await;
+    for path in ["/tags", "/tags/anything", "/tags/anything/feed.xml"] {
+        assert_eq!(off.text(path).await.0, StatusCode::NOT_FOUND, "{}", path);
+    }
+    // 記事のページにタグは出ない
+    let (status, article) = off.text("/articles/hello").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!article.contains("rel=\"tag\""), "{}", article);
+}
+
+#[tokio::test]
+async fn test_tag_changes_purge_the_cached_pages() {
+    let purger = Arc::new(aegis_cache::RecordingCdnPurger::new());
+    let site = site_with_cdn(
+        |config| {
+            config.cdn.enabled = true;
+            config.cdn.provider = aegis_cache::CdnProviderKind::Log;
+        },
+        Some(purger.clone()),
+    )
+    .await;
+    let take = |purger: &aegis_cache::RecordingCdnPurger| -> Vec<String> {
+        purger.take_batches().into_iter().flatten().collect()
+    };
+    let tag = site.create("Rust").await;
+    let id = tag["id"].as_str().unwrap();
+    take(&purger);
+
+    // 付ける: 記事のページと、タグのページ・一覧・サイトマップ
+    let (status, _) = site
+        .editor(
+            "PUT",
+            "/api/v1/contents/article/hello/tags",
+            Some(json!({ "tag_ids": [id] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let purged = take(&purger);
+    for expected in [
+        "article-a1".to_string(),
+        "url-articles-hello".to_string(),
+        format!("tag-{}", id),
+        "tag-rust".to_string(),
+        "url-tags-rust".to_string(),
+        "url-tags".to_string(),
+        "url-sitemap.xml".to_string(),
+    ] {
+        assert!(
+            purged.contains(&expected),
+            "{:?} is missing in {:?}",
+            expected,
+            purged
+        );
+    }
+
+    // 名前の変更では、前の slug のページも
+    let (status, _) = site
+        .editor(
+            "PUT",
+            &format!("/api/v1/tags/{}", id),
+            Some(json!({ "name": "Rust Lang", "slug": "rust-lang" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let purged = take(&purger);
+    for expected in [
+        "url-tags-rust",
+        "url-tags-rust-lang",
+        &format!("tag-{}", id),
+    ] {
+        assert!(
+            purged.iter().any(|t| t == expected),
+            "{:?} is missing in {:?}",
+            expected,
+            purged
+        );
+    }
+
+    // 削除
+    let (status, _) = site
+        .editor("DELETE", &format!("/api/v1/tags/{}", id), None)
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let purged = take(&purger);
+    assert!(
+        purged.contains(&"url-tags-rust-lang".to_string()),
+        "{:?}",
+        purged
+    );
 }

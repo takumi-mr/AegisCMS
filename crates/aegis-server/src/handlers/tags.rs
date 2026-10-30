@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use crate::audit::AuditContext;
 use crate::auth::{EditorSession, ViewerSession};
+use crate::cdn::CacheTags;
 use crate::state::AppState;
 use aegis_core::{AuditAction, AuditOutcome};
 use aegis_db::{TagListQuery, TagRecord, TagWithUsage};
@@ -142,6 +143,23 @@ impl From<TagRequest> for TagInput {
     }
 }
 
+/// タグの名前・slug・付け外しが変わったとき、そのタグのページ・フィード・一覧・サイトマップと、
+/// タグを表示しているページ（依存タグ `tag-<id>`）のキャッシュを消す
+async fn purge_tag_pages(state: &AppState, changed: &[&TagRecord]) {
+    let mut cache_tags = CacheTags::new();
+    cache_tags.add_dependency("collection", "tags");
+    cache_tags.add_url("/tags");
+    cache_tags.add_dependency("seo", "sitemap");
+    cache_tags.add_url("/sitemap.xml");
+    for tag in changed {
+        cache_tags.add_dependency("tag", &tag.id);
+        cache_tags.add_dependency("tag", &tag.slug);
+        cache_tags.add_url(&format!("/tags/{}", tag.slug));
+        cache_tags.add_url(&format!("/tags/{}/feed.xml", tag.slug));
+    }
+    crate::cdn::purge_tags(state, &cache_tags).await;
+}
+
 async fn audit_tag(
     state: &AppState,
     audit: &AuditContext,
@@ -200,8 +218,12 @@ pub async fn update_tag(
     Json(payload): Json<TagRequest>,
 ) -> Result<Json<TagResponse>, ApiError> {
     let service = tags(&state)?;
+    let before = service.get(&id).await.ok();
     match service.update(&id, payload.into()).await {
         Ok(tag) => {
+            let mut changed = vec![&tag];
+            changed.extend(before.as_ref());
+            purge_tag_pages(&state, &changed).await;
             audit_tag(
                 &state,
                 &audit,
@@ -237,6 +259,7 @@ pub async fn delete_tag(
 ) -> Result<StatusCode, ApiError> {
     let service = tags(&state)?;
     let tag = service.delete(&id).await.map_err(tag_error)?;
+    purge_tag_pages(&state, &[&tag]).await;
     audit_tag(
         &state,
         &audit,
@@ -248,12 +271,12 @@ pub async fn delete_tag(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// コンテンツ（スラッグか ID）の ID を調べる。無ければ 404
-async fn content_id(
+/// コンテンツ（スラッグか ID）の ID とスラッグを調べる。無ければ 404
+async fn find_content(
     state: &AppState,
     content_type: &str,
     slug_or_id: &str,
-) -> Result<String, ApiError> {
+) -> Result<(String, String), ApiError> {
     let schema = state
         .schemas
         .read()
@@ -280,7 +303,7 @@ async fn content_id(
                 format!("Content '{}' not found", slug_or_id),
             )
         })?;
-    Ok(record.id)
+    Ok((record.id, record.slug))
 }
 
 /// `GET /api/v1/contents/{content_type}/{slug}/tags` — そのコンテンツのタグ（名前の昇順。`viewer`）
@@ -290,7 +313,7 @@ pub async fn get_content_tags(
     Path((content_type, slug_or_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let service = tags(&state)?;
-    let id = content_id(&state, &content_type, &slug_or_id).await?;
+    let (id, _) = find_content(&state, &content_type, &slug_or_id).await?;
     let found = service
         .content_tags(&content_type, &id)
         .await
@@ -317,11 +340,19 @@ pub async fn set_content_tags(
     Json(payload): Json<ContentTagsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let service = tags(&state)?;
-    let id = content_id(&state, &content_type, &slug_or_id).await?;
+    let (id, slug) = find_content(&state, &content_type, &slug_or_id).await?;
+    let before = service
+        .content_tags(&content_type, &id)
+        .await
+        .map_err(tag_error)?;
     let set = service
         .set_content_tags(&content_type, &id, &payload.tag_ids)
         .await
         .map_err(tag_error)?;
+    // コンテンツのページと、外れた・付いたタグのページのキャッシュを消す
+    crate::cdn::purge_content(&state, &content_type, &id, &slug, None).await;
+    let changed: Vec<&TagRecord> = before.iter().chain(set.iter()).collect();
+    purge_tag_pages(&state, &changed).await;
     audit_tag(
         &state,
         &audit,

@@ -8,7 +8,9 @@ use axum::{
 use std::sync::Arc;
 
 use crate::handlers::content::is_currently_published;
-use crate::handlers::public::{extract_excerpt, find_category, list_published_articles};
+use crate::handlers::public::{
+    extract_excerpt, find_category, list_published_articles, ArticleFilter,
+};
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::renderer::escape_html;
@@ -88,20 +90,20 @@ pub async fn get_category_feed(
         &title,
         &format!("/category/{}/feed.xml", category.slug),
         &format!("/category/{}", category.slug),
-        Some(&filter),
+        Some(&ArticleFilter::Field(filter.0, filter.1)),
         tags,
     )
     .await
 }
 
 /// フィードの XML を組み立てる。`self_path` はフィード、`alternate_path` は対応する HTML のページのパス
-async fn build_feed(
+pub(crate) async fn build_feed(
     state: &AppState,
     headers: &HeaderMap,
     title: &str,
     self_path: &str,
     alternate_path: &str,
-    filter: Option<&(String, String)>,
+    filter: Option<&ArticleFilter>,
     mut tags: CacheTags,
 ) -> Response {
     tags.add_dependency("site", "global");

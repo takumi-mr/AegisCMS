@@ -6,6 +6,7 @@ use axum::{
 use std::sync::Arc;
 
 use crate::handlers::comments;
+use crate::handlers::tags_public::TagLookup;
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::BlockNode;
@@ -14,7 +15,7 @@ use aegis_db::{resolve_relations_for_records, ContentListQuery, ContentPage};
 use aegis_schema::SchemaDefinition;
 use aegis_theme::FrontPage;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::handlers::content::is_currently_published;
 
@@ -67,6 +68,39 @@ pub struct IndexParams {
     pub page: Option<u64>,
 }
 
+/// 記事一覧を絞り込む条件
+#[derive(Debug, Clone)]
+pub(crate) enum ArticleFilter {
+    /// この関係フィールドがこの値の記事だけ（カテゴリの記事一覧）
+    Field(String, String),
+    /// この ID の記事だけ（タグの記事一覧）
+    Ids(HashSet<String>),
+}
+
+impl ArticleFilter {
+    fn matches(&self, record: &aegis_db::ContentRecord) -> bool {
+        match self {
+            Self::Field(field, value) => {
+                record.custom_fields.get(field).and_then(|v| v.as_str()) == Some(value.as_str())
+            }
+            Self::Ids(ids) => ids.contains(&record.id),
+        }
+    }
+}
+
+/// 公開ページのパス（`base_path` を除く）。コンテンツの種類ごとの公開ページの URL の決まりを 1 か所に置く
+pub(crate) fn public_content_path(state: &AppState, content_type: &str, slug: &str) -> String {
+    match content_type {
+        "article" => format!("/articles/{}", slug),
+        "page" => match state.config.theme.front_page() {
+            FrontPage::Page(front) if front == slug => "/".to_string(),
+            _ => format!("/{}", slug),
+        },
+        t if t == state.config.commerce.product_type => format!("/products/{}", slug),
+        _ => format!("/{}", slug),
+    }
+}
+
 /// 記事一覧のページ（トップ・`/articles`・カテゴリ）ごとに違う部分
 struct ArticleListView {
     template: &'static str,
@@ -78,8 +112,8 @@ struct ArticleListView {
     path: String,
     /// 表示するページ（1 始まり）
     page: u64,
-    /// この関係フィールドがこの値の記事だけを並べる（カテゴリの記事一覧）
-    filter: Option<(String, String)>,
+    /// 並べる記事の絞り込み（カテゴリの記事一覧）
+    filter: Option<ArticleFilter>,
     /// `<head>` に足す HTML（カテゴリのフィードへのリンクなど）
     extra_head: Option<String>,
     tags: crate::cdn::CacheTags,
@@ -182,7 +216,7 @@ pub async fn render_category(
         fields: category.custom_fields,
         path: format!("/category/{}", category.slug),
         page: params.page.unwrap_or(1).max(1),
-        filter: Some(field),
+        filter: Some(ArticleFilter::Field(field.0, field.1)),
         extra_head: Some(extra_head),
         tags,
     };
@@ -236,12 +270,12 @@ pub(crate) async fn find_category(
 pub(crate) async fn list_published_articles(
     state: &AppState,
     schema: &SchemaDefinition,
-    filter: Option<&(String, String)>,
+    filter: Option<&ArticleFilter>,
     limit: u64,
     offset: u64,
 ) -> aegis_core::Result<ContentPage> {
     let status = Some("published".to_string());
-    let Some((field, value)) = filter else {
+    let Some(filter) = filter else {
         let query = ContentListQuery {
             status,
             limit: Some(limit),
@@ -262,7 +296,7 @@ pub(crate) async fn list_published_articles(
     let matching: Vec<_> = all
         .records
         .into_iter()
-        .filter(|r| r.custom_fields.get(field).and_then(|v| v.as_str()) == Some(value.as_str()))
+        .filter(|r| filter.matches(r))
         .collect();
     Ok(ContentPage {
         total: matching.len() as u64,
@@ -303,12 +337,16 @@ async fn render_article_list(state: &AppState, view: ArticleListView) -> Respons
                         .collect();
                     resolve_relations_for_records(&*state.db, &schemas, &schema, &fields).await
                 };
+                let ids: Vec<String> = content_page.records.iter().map(|r| r.id.clone()).collect();
+                let tag_lookup = TagLookup::load(state, "article", &ids).await;
                 for (r, relations) in content_page.records.into_iter().zip(relations) {
                     tags.add_dependency("article", &r.id);
                     tags.add_dependency("article", &r.slug);
                     crate::cdn::add_relation_tags(&mut tags, &relations);
                     let blocks: Vec<BlockNode> =
                         serde_json::from_str(&r.blocks_json).unwrap_or_default();
+                    let mut fields = r.custom_fields;
+                    tag_lookup.attach(&r.id, &mut fields, &mut tags);
                     items.push(ContentSummary {
                         id: r.id,
                         content_type: r.content_type,
@@ -318,7 +356,7 @@ async fn render_article_list(state: &AppState, view: ArticleListView) -> Respons
                         author_id: r.author_id,
                         published_at: r.published_at,
                         created_at: r.created_at,
-                        fields: r.custom_fields,
+                        fields,
                         relations: relations
                             .iter()
                             .map(|(name, rel)| (name.clone(), render::relation_summary(rel)))
@@ -427,6 +465,10 @@ pub async fn render_article(
     crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
     let comments = comments::page_section(&state, "article", &record.id).await;
+    let mut fields = record.custom_fields;
+    TagLookup::load(&state, "article", std::slice::from_ref(&record.id))
+        .await
+        .attach(&record.id, &mut fields, &mut tags);
     let page = render::PageInput {
         template: "article.html".to_string(),
         content_type: "article".to_string(),
@@ -437,7 +479,7 @@ pub async fn render_article(
         author: record.author_id,
         published_at: record.published_at,
         updated_at: Some(record.updated_at),
-        fields: record.custom_fields,
+        fields,
         comments,
     };
     let resp = themed_response(render::render_page(&state, &schema, page).await);
@@ -501,6 +543,10 @@ async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<R
     tags.add_dependency("comments", &record.id);
     crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
+    let mut fields = record.custom_fields;
+    TagLookup::load(state, "page", std::slice::from_ref(&record.id))
+        .await
+        .attach(&record.id, &mut fields, &mut tags);
     let page = render::PageInput {
         template,
         content_type: "page".to_string(),
@@ -511,7 +557,7 @@ async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<R
         author: record.author_id,
         published_at: record.published_at,
         updated_at: Some(record.updated_at),
-        fields: record.custom_fields,
+        fields,
         comments,
     };
     let resp = themed_response(render::render_page(state, &schema, page).await);

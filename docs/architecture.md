@@ -526,3 +526,6 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **使われている数は一覧のサブクエリ**（`SELECT COUNT(*) FROM _aegis_content_tags WHERE tag_id = t.id`）: 索引 `(tag_id, content_type)` を使う。別名は `use_count`（`usage` は MySQL の予約語）。
 - **バックアップ**: `database/tags.json`・`database/content_tags.json`。リストアは slug が別のタグと重なるとエラーにする（上書きの指定でも、別のタグの slug は奪わない）。
 - 結合テストは `aegis-tags/src/tests.rs`（サービス）、`aegis-server/src/handlers/tags_tests.rs`（ルーター経由）、`aegis-db/tests/tags_integration.rs`（SQLite と、コンテナがあれば PostgreSQL / MySQL）、`admin/e2e/tags.spec.ts`。
+- **公開サイトのタグのページは、公開中のコンテンツを読んでから絞る**（`tags_public.rs`）: `/tags/{slug}` は種類ごとに `list_published_contents_page` で公開版を読み、結びつきの ID で絞って新しい順に並べる（カテゴリの記事一覧と同じ方式。SQL でのページングに移すときは絞り込みも移す）。公開中のコンテンツが付いていないタグは、一覧とサイトマップに出さない。
+- **タグは `fields.tags` で渡す**: `PageRenderContext` / `ContentSummary` の型を変えず、既存の `fields` にタグの配列を足す（スキーマに `tags` フィールドがあればそちらを優先）。プラグイン ABI（`on-render-page`）の JSON に項目が増えるだけで、既存のプラグインに影響しない。
+- **キャッシュの依存タグ**: タグを表示するページは `tag-<id>` を持つ。タグの変更・削除、付け外しで `purge_tag_pages`（タグのページ・フィード・`/tags`・サイトマップ）とコンテンツ自身のページを消す。
