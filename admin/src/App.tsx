@@ -39,6 +39,7 @@ import { ProfileModal } from './components/ProfileModal';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { SettingsView, type SettingsSection } from './components/SettingsView';
 import { ContentList } from './components/ContentList';
+import { NO_FILTERS, type ContentListFilters } from './utils/contentFilters';
 import {
   ContentVersionHistory,
   type ContentVersionSummary,
@@ -55,6 +56,7 @@ import type {
   BlockNode,
   ContactForm,
   ContentItem,
+  ContentSummary,
   PluginBlockDefinition,
   SessionInfo,
   UserAccount,
@@ -81,6 +83,9 @@ type EditorStatus = 'draft' | 'scheduled' | 'published';
 type LoginNotice = 'unreachable' | 'expired' | 'signedOut';
 
 /** `#comments`, `#forum` or `#contact` (links in notifications) open the matching view */
+/** Items per page of the content list */
+const LIST_PAGE_SIZE = 20;
+
 const takeInitialView = (): AppView => {
   if (window.location.hash === '#comments') {
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -129,12 +134,19 @@ export const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [contentType, setContentType] = useState<'article' | 'page'>('article');
   const [layout, setLayout] = useState<'default' | 'blank'>('default');
-  const [contents, setContents] = useState<ContentItem[]>([]);
+  // The list shows one page of summaries; the server searches, filters and pages it
+  const [contents, setContents] = useState<ContentSummary[]>([]);
+  const [contentsTotal, setContentsTotal] = useState(0);
+  const [contentsLoading, setContentsLoading] = useState(false);
+  const [listFilters, setListFilters] = useState<ContentListFilters>(NO_FILTERS);
+  const [listPage, setListPage] = useState(1);
+  const listRequest = useRef(0);
+  const selectRequest = useRef(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [contentVersions, setContentVersions] = useState<ContentVersionSummary[]>([]);
   const [loadingContentVersions, setLoadingContentVersions] = useState(false);
   const contentVersionRequest = useRef(0);
-  const [categories, setCategories] = useState<ContentItem[]>([]);
+  const [categories, setCategories] = useState<ContentSummary[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('themes');
   const [mobilePane, setMobilePane] = useState<'list' | 'editor' | 'preview'>('editor');
@@ -198,19 +210,56 @@ export const App: React.FC = () => {
 
   const loadCategories = async () => {
     try {
-      setCategories(await aegisApi.getContents('category'));
+      setCategories(await aegisApi.getAllContentSummaries('category'));
     } catch (err) {
       console.warn('Could not load categories:', err);
     }
   };
 
-  const loadContents = async (type: 'article' | 'page' = contentType) => {
+  /** Loads one page of the list (the current type, filters and page unless given) */
+  const loadContents = async (
+    options: { type?: 'article' | 'page'; filters?: ContentListFilters; page?: number } = {}
+  ): Promise<void> => {
+    const type = options.type ?? contentType;
+    const filters = options.filters ?? listFilters;
+    const page = options.page ?? listPage;
+    // Only the newest request may show its answer
+    const requestId = ++listRequest.current;
+    setContentsLoading(true);
     try {
-      const list = await aegisApi.getContents(type);
-      setContents(list);
+      const result = await aegisApi.listContentSummaries(type, {
+        q: filters.q.trim(),
+        category: type === 'article' ? filters.category : '',
+        status: filters.status,
+        limit: LIST_PAGE_SIZE,
+        offset: (page - 1) * LIST_PAGE_SIZE,
+      });
+      if (requestId !== listRequest.current) return;
+      const lastPage = Math.max(1, Math.ceil(result.total / LIST_PAGE_SIZE));
+      if (page > lastPage) {
+        // The page is gone (its last item was deleted or moved): show the last page instead
+        await loadContents({ type, filters, page: lastPage });
+        return;
+      }
+      setContents(result.items);
+      setContentsTotal(result.total);
+      setListPage(page);
     } catch (err) {
-      console.warn('Could not load contents:', err);
+      if (requestId === listRequest.current) console.warn('Could not load contents:', err);
+    } finally {
+      if (requestId === listRequest.current) setContentsLoading(false);
     }
+  };
+
+  const handleFiltersChange = (filters: ContentListFilters) => {
+    setListFilters(filters);
+    setListPage(1);
+    void loadContents({ filters, page: 1 });
+  };
+
+  const handlePageChange = (page: number) => {
+    setListPage(page);
+    void loadContents({ page });
   };
 
   // 1. Restore the session of the stored token; any later 401 returns to the login screen
@@ -400,6 +449,9 @@ export const App: React.FC = () => {
     setLoginNotice('signedOut');
     setView('editor');
     setContents([]);
+    setContentsTotal(0);
+    setListFilters(NO_FILTERS);
+    setListPage(1);
     setCategories([]);
   };
 
@@ -439,7 +491,21 @@ export const App: React.FC = () => {
     setMobilePane('editor');
   };
 
+  /** Opens an item of the list: the list has summaries only, so the whole item is fetched */
+  const handleSelectSummary = async (summary: ContentSummary) => {
+    const requestId = ++selectRequest.current;
+    try {
+      const item = await aegisApi.getContent(summary.content_type, summary.id);
+      if (requestId === selectRequest.current) handleSelectContent(item);
+    } catch (err: any) {
+      if (requestId === selectRequest.current) {
+        showToast(err.message || t('api.contentNotFound'), 'error');
+      }
+    }
+  };
+
   const handleNew = () => {
+    selectRequest.current += 1;
     contentVersionRequest.current += 1;
     setSelectedId(null);
     setCommentsOpen(true);
@@ -484,7 +550,11 @@ export const App: React.FC = () => {
     setBlocks(newBlocks);
     setMarkdownText(blocksToMarkdown(newBlocks));
     setMobilePane('editor');
-    loadContents(type);
+    // Another type is another list: start from its first page without the search and filters
+    selectRequest.current += 1;
+    setListFilters(NO_FILTERS);
+    setListPage(1);
+    void loadContents({ type, filters: NO_FILTERS, page: 1 });
   };
 
   // Block Manipulation
@@ -637,9 +707,6 @@ export const App: React.FC = () => {
     try {
       const res = await aegisApi.setContentCommentsOpen(contentType, selectedId, nextOpen);
       setCommentsOpen(res.open);
-      setContents((prev) =>
-        prev.map((item) => (item.id === selectedId ? { ...item, comments_open: res.open } : item))
-      );
       showToast(
         t(res.open ? 'comments.commentsOpenedToast' : 'comments.commentsClosedToast', {
           title: title.trim() || slug,
@@ -794,9 +861,16 @@ export const App: React.FC = () => {
             <div className={cx(styles.paneList, mobilePane !== 'list' && styles.paneHiddenMobile)}>
               <ContentList
                 contents={contents}
+                total={contentsTotal}
+                page={listPage}
+                pageSize={LIST_PAGE_SIZE}
+                loading={contentsLoading}
+                filters={listFilters}
+                onFiltersChange={handleFiltersChange}
+                onPageChange={handlePageChange}
                 categories={categories}
                 selectedId={selectedId}
-                onSelect={handleSelectContent}
+                onSelect={handleSelectSummary}
                 onNew={handleNew}
                 contentType={contentType}
                 onContentTypeChange={handleContentTypeChange}

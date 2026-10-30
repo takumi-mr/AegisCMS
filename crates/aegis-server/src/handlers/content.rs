@@ -21,7 +21,7 @@ use aegis_db::{
     is_standard_column, resolve_relations_for_records, ContentListQuery, ContentPublicationChange,
     ContentRecord, ContentVersionRecord, DatabaseAdapter, ResolvedRelation,
 };
-use aegis_schema::SchemaDefinition;
+use aegis_schema::{FieldType, SchemaDefinition};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateContentRequest {
@@ -189,6 +189,67 @@ pub struct ListContentParams {
     pub offset: u64,
     /// `published` / `draft` など。省略時はすべて
     pub status: Option<String>,
+    /// タイトル・スラッグ（スキーマに `excerpt` の文字列フィールドがあれば要約も）への部分一致。
+    /// 大文字小文字を区別しない（ASCII のみ）。先頭の 100 文字まで使う
+    pub q: Option<String>,
+    /// カテゴリの ID。`none` なら未分類。スキーマに `category_id` フィールドがあるときだけ使える
+    pub category: Option<String>,
+    /// `summary` なら、ブロックと描画済み HTML を返さず、要約（`excerpt`）を付ける。
+    /// 省略か `full` なら、これまでどおり全体のデータ
+    pub view: Option<String>,
+}
+
+/// `q` に使う文字数の上限
+const MAX_SEARCH_CHARS: usize = 100;
+/// 要約（`excerpt`）の最大文字数（本文の最初の段落から作るとき）
+const SUMMARY_EXCERPT_CHARS: usize = 140;
+
+/// 一覧の 1 件の要約（`GET /api/v1/contents/{type}?view=summary`）。一覧から探すだけなら、
+/// ブロックも描画済み HTML も要らない（編集のときに 1 件ずつ取得する）
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ContentSummaryResponse {
+    pub id: String,
+    pub content_type: String,
+    pub title: String,
+    pub slug: String,
+    pub status: String,
+    /// 要約。`excerpt` フィールドがあればそれ、無ければ本文の最初の段落の先頭
+    pub excerpt: String,
+    pub author_id: Option<String>,
+    pub published_at: Option<String>,
+    pub unpublish_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub fields: HashMap<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub relations: HashMap<String, ResolvedRelation>,
+}
+
+fn bad_request(message: String) -> (StatusCode, Json<serde_json::Value>) {
+    (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+}
+
+fn has_field(schema: &SchemaDefinition, name: &str, types: &[FieldType]) -> bool {
+    schema
+        .fields
+        .iter()
+        .any(|field| field.name == name && types.contains(&field.field_type))
+}
+
+/// `excerpt` フィールドの値。無ければ本文の最初の段落の先頭
+fn summary_excerpt(record: &ContentRecord) -> String {
+    if let Some(excerpt) = record
+        .custom_fields
+        .get("excerpt")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|excerpt| !excerpt.is_empty())
+    {
+        return excerpt.to_string();
+    }
+    let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
+    crate::handlers::public::extract_excerpt(&blocks, SUMMARY_EXCERPT_CHARS)
 }
 
 /// The parts of a post `on-before-save` may change
@@ -934,12 +995,55 @@ pub async fn list_content(
         schema.clone()
     };
 
+    let summary = match params.view.as_deref() {
+        None | Some("") | Some("full") => false,
+        Some("summary") => true,
+        Some(other) => {
+            return Err(bad_request(format!(
+                "Unknown view '{}' (use 'summary' or 'full')",
+                other
+            )))
+        }
+    };
+    let mut filters = Vec::new();
+    if let Some(category) = params.category.as_deref().filter(|c| !c.is_empty()) {
+        if !has_field(
+            &schema_clone,
+            "category_id",
+            &[FieldType::Relation, FieldType::String],
+        ) {
+            return Err(bad_request(format!(
+                "Schema '{}' has no 'category_id' field to filter by",
+                content_type
+            )));
+        }
+        let value = (category != "none").then(|| category.to_string());
+        filters.push(("category_id".to_string(), value));
+    }
+    let search_columns = if has_field(
+        &schema_clone,
+        "excerpt",
+        &[FieldType::String, FieldType::Text],
+    ) {
+        vec!["excerpt".to_string()]
+    } else {
+        Vec::new()
+    };
+
     let limit = params
         .limit
         .unwrap_or(DEFAULT_LIST_LIMIT)
         .clamp(1, MAX_LIST_LIMIT);
     let query = ContentListQuery {
         status: params.status.filter(|s| !s.is_empty()),
+        search: params
+            .q
+            .as_deref()
+            .map(str::trim)
+            .filter(|q| !q.is_empty())
+            .map(|q| q.chars().take(MAX_SEARCH_CHARS).collect()),
+        search_columns,
+        filters,
         limit: Some(limit),
         offset: params.offset,
     };
@@ -959,6 +1063,35 @@ pub async fn list_content(
         let fields: Vec<_> = page.records.iter().map(|r| &r.custom_fields).collect();
         resolve_relations_for_records(&*state.db, &schemas, &schema_clone, &fields).await
     };
+
+    if summary {
+        let list: Vec<ContentSummaryResponse> = page
+            .records
+            .into_iter()
+            .zip(relations)
+            .map(|(r, relations)| ContentSummaryResponse {
+                excerpt: summary_excerpt(&r),
+                id: r.id,
+                content_type: r.content_type,
+                title: r.title,
+                slug: r.slug,
+                status: r.status,
+                author_id: r.author_id,
+                published_at: r.published_at,
+                unpublish_at: r.unpublish_at,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+                fields: r.custom_fields,
+                relations,
+            })
+            .collect();
+        return Ok(Json(json!({
+            "contents": list,
+            "total": page.total,
+            "limit": limit,
+            "offset": params.offset,
+        })));
+    }
 
     let comment_settings = match state.comments.as_ref() {
         Some(comments) if comments.config.accepts(&content_type) => {
@@ -1601,6 +1734,7 @@ mod tests {
             limit: Some(2),
             offset: 1,
             status: Some("published".to_string()),
+            ..Default::default()
         })
         .await;
         assert_eq!(page["total"], 4);
@@ -1612,6 +1746,216 @@ mod tests {
         })
         .await;
         assert_eq!(capped["limit"], MAX_LIST_LIMIT);
+    }
+
+    /// 検索・カテゴリの絞り込み・要約表示（`q` / `category` / `view=summary`）
+    #[tokio::test]
+    async fn test_list_content_search_filter_and_summary() {
+        let article: SchemaDefinition = serde_json::from_value(json!({
+            "content_type": "article",
+            "label": "Articles",
+            "fields": [
+                { "name": "excerpt", "type": "string", "required": false, "nullable": true },
+                { "name": "category_id", "type": "string", "required": false, "nullable": true }
+            ]
+        }))
+        .unwrap();
+        let state = crate::test_support::test_state_with_plugins(
+            aegis_runtime::PluginSupervisor::new(),
+            vec![article.clone()],
+        )
+        .await;
+        // (title, slug, category, excerpt, 本文)
+        let rows = [
+            (
+                "Rust Streaming",
+                "rust-streaming",
+                Some("cat-1"),
+                Some("About wasm"),
+                "Body one",
+            ),
+            (
+                "Cooking 50%_off",
+                "cooking",
+                Some("cat-1"),
+                None,
+                "Boil the water first",
+            ),
+            ("日本語の記事", "japanese", None, None, "本文です"),
+            ("Another rust note", "rust-note", Some("cat-2"), None, ""),
+        ];
+        for (n, (title, slug, category, excerpt, body)) in rows.iter().enumerate() {
+            let mut fields = HashMap::new();
+            if let Some(category) = category {
+                fields.insert("category_id".to_string(), json!(category));
+            }
+            if let Some(excerpt) = excerpt {
+                fields.insert("excerpt".to_string(), json!(excerpt));
+            }
+            let blocks = if body.is_empty() {
+                "[]".to_string()
+            } else {
+                json!([{ "name": "core/paragraph", "text": body }]).to_string()
+            };
+            state
+                .db
+                .insert_content(
+                    &article,
+                    &ContentRecord {
+                        id: format!("id-{}", n + 1),
+                        content_type: "article".to_string(),
+                        title: title.to_string(),
+                        slug: slug.to_string(),
+                        status: "draft".to_string(),
+                        blocks_json: blocks,
+                        author_id: None,
+                        published_at: None,
+                        unpublish_at: None,
+                        created_at: format!("2026-10-22T00:00:0{}Z", n + 1),
+                        updated_at: format!("2026-10-22T00:00:0{}Z", n + 1),
+                        custom_fields: fields,
+                    },
+                )
+                .await
+                .unwrap();
+        }
+        let viewer = || {
+            RequireRole(aegis_auth::SessionData {
+                id: "ses_viewer".to_string(),
+                user_id: "viewer1".to_string(),
+                role: "viewer".to_string(),
+                created_at: String::new(),
+                expires_at: String::new(),
+                metadata: Default::default(),
+            })
+        };
+        let list = |content_type: &'static str, params: ListContentParams| {
+            let state = state.clone();
+            async move {
+                match list_content(
+                    State(state),
+                    viewer(),
+                    Path(content_type.to_string()),
+                    Query(params),
+                )
+                .await
+                {
+                    Ok(response) => {
+                        let body =
+                            axum::body::to_bytes(response.into_response().into_body(), usize::MAX)
+                                .await
+                                .unwrap();
+                        (
+                            StatusCode::OK,
+                            serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+                        )
+                    }
+                    Err((status, Json(body))) => (status, body),
+                }
+            }
+        };
+        let slugs = |body: &serde_json::Value| -> Vec<String> {
+            body["contents"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["slug"].as_str().unwrap().to_string())
+                .collect()
+        };
+        let params =
+            |q: Option<&str>, category: Option<&str>, view: Option<&str>| ListContentParams {
+                q: q.map(str::to_string),
+                category: category.map(str::to_string),
+                view: view.map(str::to_string),
+                ..Default::default()
+            };
+
+        // 検索: タイトル・スラッグ・要約（excerpt）。`%` は文字として探す。`total` は条件に合う件数
+        let (status, body) = list("article", params(Some("RUST"), None, None)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            (slugs(&body), body["total"].clone()),
+            (
+                vec!["rust-note".to_string(), "rust-streaming".to_string()],
+                json!(2)
+            )
+        );
+        let (_, body) = list("article", params(Some("wasm"), None, None)).await;
+        assert_eq!(slugs(&body), vec!["rust-streaming"]);
+        let (_, body) = list("article", params(Some("50%"), None, None)).await;
+        assert_eq!(slugs(&body), vec!["cooking"]);
+        let (_, body) = list("article", params(Some("記事"), None, None)).await;
+        assert_eq!(slugs(&body), vec!["japanese"]);
+        // 空の検索語は無視、100 文字を超えた分は使わない
+        let (_, body) = list("article", params(Some("  "), None, None)).await;
+        assert_eq!(body["total"], 4);
+        let (_, body) = list("article", params(Some(&"a".repeat(500)), None, None)).await;
+        assert_eq!(body["total"], 0);
+
+        // カテゴリ: ID・未分類（`none`）・検索との組み合わせ
+        let (_, body) = list("article", params(None, Some("cat-1"), None)).await;
+        assert_eq!(slugs(&body), vec!["cooking", "rust-streaming"]);
+        let (_, body) = list("article", params(None, Some("none"), None)).await;
+        assert_eq!(slugs(&body), vec!["japanese"]);
+        let (_, body) = list("article", params(Some("rust"), Some("cat-1"), None)).await;
+        assert_eq!(slugs(&body), vec!["rust-streaming"]);
+
+        // 要約表示: ブロックも描画済み HTML も無く、excerpt が付く（フィールド → 本文の最初の段落 → 空）
+        let (_, body) = list("article", params(None, None, Some("summary"))).await;
+        assert_eq!(body["total"], 4);
+        let first = &body["contents"][0];
+        assert!(
+            first.get("blocks").is_none() && first.get("rendered_html").is_none(),
+            "{}",
+            first
+        );
+        let excerpts: Vec<(String, String)> = body["contents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                (
+                    c["slug"].as_str().unwrap().to_string(),
+                    c["excerpt"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            excerpts,
+            vec![
+                ("rust-note".to_string(), String::new()),
+                ("japanese".to_string(), "本文です".to_string()),
+                ("cooking".to_string(), "Boil the water first".to_string()),
+                ("rust-streaming".to_string(), "About wasm".to_string()),
+            ]
+        );
+        assert_eq!(first["fields"]["category_id"], "cat-2");
+        // 既定（と `view=full`）は、これまでどおり全体のデータ
+        for view in [None, Some("full")] {
+            let (_, body) = list("article", params(None, None, view)).await;
+            assert!(body["contents"][0].get("blocks").is_some());
+            assert!(body["contents"][0].get("rendered_html").is_some());
+            assert!(body["contents"][0].get("excerpt").is_none());
+        }
+
+        // 誤った指定は 400（知らない view、`category_id` の無いスキーマへのカテゴリ指定）
+        let (status, body) = list("article", params(None, None, Some("tiny"))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(
+            body["error"].as_str().unwrap().contains("Unknown view"),
+            "{}",
+            body
+        );
+        let (status, body) = list("page", params(None, Some("cat-1"), None)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(
+            body["error"].as_str().unwrap().contains("category_id"),
+            "{}",
+            body
+        );
+        // 空の `category` は指定なし
+        let (status, _) = list("page", params(None, Some(""), None)).await;
+        assert_eq!(status, StatusCode::OK);
     }
 
     async fn create(

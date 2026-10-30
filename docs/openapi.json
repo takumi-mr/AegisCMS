@@ -149,6 +149,74 @@
         ],
         "type": "string"
       },
+      "ContentSummary": {
+        "description": "A content record in a list with `view=summary`: no blocks and no rendered HTML",
+        "properties": {
+          "author_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "excerpt": {
+            "description": "The `excerpt` field, or the start of the first paragraph",
+            "type": "string"
+          },
+          "fields": {
+            "additionalProperties": true,
+            "description": "The schema's custom fields",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "relations": {
+            "additionalProperties": true,
+            "description": "Resolved relations by field name",
+            "type": "object"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ContentStatus"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unpublish_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "content_type",
+          "title",
+          "slug",
+          "status",
+          "excerpt",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
       "CreateContentPayload": {
         "properties": {
           "author_id": {
@@ -386,6 +454,39 @@
             "schema": {
               "$ref": "#/components/schemas/ContentStatus"
             }
+          },
+          {
+            "description": "Search words: a case-insensitive (ASCII) partial match on the title and the slug, and on the `excerpt` field when the schema has one. Only the first 100 characters are used",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "description": "A category id, or `none` for uncategorized. Only for schemas with a `category_id` field (400 otherwise)",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`summary` returns ContentSummary items (no blocks and no rendered HTML, with an `excerpt`), which is cheaper to list. `full` (the default) returns the whole record",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "enum": [
+                "full",
+                "summary"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -396,7 +497,14 @@
                   "properties": {
                     "contents": {
                       "items": {
-                        "$ref": "#/components/schemas/BaseContentItem"
+                        "oneOf": [
+                          {
+                            "$ref": "#/components/schemas/BaseContentItem"
+                          },
+                          {
+                            "$ref": "#/components/schemas/ContentSummary"
+                          }
+                        ]
                       },
                       "type": "array"
                     },
@@ -407,6 +515,7 @@
                       "type": "integer"
                     },
                     "total": {
+                      "description": "The number of records matching the filters",
                       "type": "integer"
                     }
                   },

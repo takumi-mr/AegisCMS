@@ -49,7 +49,8 @@
 - **カテゴリ選択 & 管理**:
   - 記事エディタでカテゴリ（`category_id` リレーション）をドロップダウンから選択。既存記事を開くと選択状態を復元。
   - カテゴリの一覧表示（色・説明つき）と新規作成（slug 自動生成、色指定）は **Settings › Categories**。エディタの **Manage** ボタンからも開ける。
-  - サイドバーの記事一覧にカテゴリバッジを表示し、カテゴリ（All / Uncategorized / 各カテゴリ）で絞り込み。
+  - サイドバーの記事一覧にカテゴリバッジを表示する。
+- **コンテンツ一覧の検索・絞り込み・ページ送り（サイドバー）**: タイトル・スラッグ・要約（`excerpt`）の検索ボックス（入力が 300ms 止まると検索、Enter ですぐ検索）、カテゴリ（All / Uncategorized / 各カテゴリ。記事のみ）と状態（Draft / Scheduled / Published）の絞り込み、1 ページ 20 件のページ送りに対応。検索・絞り込み・ページ送りはサーバーで行い（`GET /api/v1/contents/{type}?view=summary&q=&category=&status=&limit=&offset=`）、一覧は要約（タイトル・スラッグ・状態・カテゴリ・要約。ブロックと描画済み HTML は含まない）だけを取得する。記事を選ぶと、その 1 件の全体を取得してエディタに開く。種類（記事 / 固定ページ）を切り替えると検索と絞り込みは戻る。
 - **設定画面 (Settings)**:
   - サイト全体の管理（サイト名と favicon・SEO・通知・テーマ・プラグイン・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Comments / Settings（Products / Orders は EC が有効かつ `editor` 以上のとき、Comments はコメントが有効かつ `editor` 以上のとき）。
   - ロールに応じて項目を出し分け: Themes・Plugins・Categories は全員（カテゴリの作成は `editor` 以上）、Site・Users・Audit Logs は `admin` のみ。
@@ -205,7 +206,7 @@ files:
 ## 🧩 設計メモ
 
 - **API の接続先**: `src/api/client.ts` の `SERVER_URL`（オリジン + `[server].base_path`）は、ビルド時の `VITE_AEGIS_SERVER_URL` → 開発サーバーなら `http://127.0.0.1:8080` → 本番ビルドはバンドルの URL（`{サーバー}/admin/assets/*.js` から `../../`）の順に決まる。ドメインやベースパスごとに再ビルドする必要はない。サーバーが返すルート起点の URL（アバターなど）は `serverAssetUrl` でオリジンを付けて表示する。
-- **コンテンツの型**: 自動生成の `types/schemas.ts`（`ArticleContent` など）はカスタムフィールドをトップレベルに持つが、コンテンツ API の応答はカスタムフィールドを `fields`、解決済みリレーションを `relations` に入れて返す。画面では `types/index.ts` の `ContentItem` を使う。作成時のペイロード（`CreateArticlePayload` など）はトップレベルで正しい。一覧は `getContents` が 500 件ずつ全件を取得する。
+- **コンテンツの型**: 自動生成の `types/schemas.ts`（`ArticleContent` など）はカスタムフィールドをトップレベルに持つが、コンテンツ API の応答はカスタムフィールドを `fields`、解決済みリレーションを `relations` に入れて返す。画面では `types/index.ts` の `ContentItem` を使う。作成時のペイロード（`CreateArticlePayload` など）はトップレベルで正しい。エディタの一覧は要約（`ContentSummary`。ブロックと描画済み HTML なし）を `listContentSummaries` で 1 ページずつ取得し、カテゴリのような小さな一覧は `getAllContentSummaries` で全件の要約を取る。`getContents`（全体のデータを 500 件ずつ全件）は、商品の編集が本文（`blocks`）を使う商品管理だけが使う。サーバーは 1 件ごとにブロックを描画するので、一覧に全体は要らないときは使わない。
 - **保存**: 開いている記事は `PUT`（更新）、新規は `POST`。
 - **Themed Page プレビュー**: サーバーの `page_html` に `<base href="{SERVER_URL}/">` を差し込んで `srcdoc` に入れる（テーマのアセットやアップロード画像をサーバーから読むため）。`sandbox` に `allow-same-origin` を付けてはいけない。`srcdoc` の文書は親と同じオリジンになるため、テーマやプラグインが出力したスクリプトから `sessionStorage` のセッショントークンを読めてしまう。付けないと文書のオリジンは不透明（`null`）になり、`localStorage` などのストレージに触れると例外になる（`cart.js` は try/catch で受けてメモリ上に持つ）。CDN の通常の `<script>` は読み込めるが、`type="module"` や CORS が要る読み込み（`crossorigin` 付きのフォントなど）はサーバー側で `Access-Control-Allow-Origin` が要る。
 - **画面の高さとスクロール**: ルートの `.app` は `height: 100vh; overflow: hidden`。全幅の画面（監査ログ・テーマなど）は直下に `flex: 1; overflow-y: auto` のラッパーを置き、下に余白を取ってスクロールさせる。

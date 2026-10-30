@@ -322,6 +322,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
             status: Some("published".to_string()),
             limit: Some(1000),
             offset: 0,
+            ..Default::default()
         };
         if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
             let now = chrono::Utc::now();
@@ -357,6 +358,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
             status: Some("published".to_string()),
             limit: Some(500),
             offset: 0,
+            ..Default::default()
         };
         if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
             let now = chrono::Utc::now();
@@ -398,6 +400,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
                 status: Some("published".to_string()),
                 limit: Some(1000),
                 offset: 0,
+                ..Default::default()
             };
             if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
                 let now = chrono::Utc::now();
@@ -434,6 +437,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
             status: Some("published".to_string()),
             limit: Some(500),
             offset: 0,
+            ..Default::default()
         };
         if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
             let now = chrono::Utc::now();

@@ -12,7 +12,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { ContentItem, SessionInfo, UserAccount } from '../types';
+import type { ContentItem, SessionInfo, UserAccount, ContentSummary } from '../types';
 import { canEdit, isAdmin } from '../utils/roles';
 import { cx } from '../utils/cx';
 import { AuditLogView } from './AuditLogView';
@@ -61,7 +61,7 @@ interface SettingsViewProps {
   session: SessionInfo;
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
-  categories: ContentItem[];
+  categories: ContentSummary[];
   onCategoryCreated: (category: ContentItem) => void;
   onSelfUpdated: (account: UserAccount) => void;
   onShowToast: (message: string, type?: 'success' | 'error') => void;

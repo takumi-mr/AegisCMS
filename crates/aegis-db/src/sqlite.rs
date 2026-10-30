@@ -1658,6 +1658,7 @@ mod tests {
                     status: Some("published".to_string()),
                     limit: Some(2),
                     offset: 2,
+                    ..Default::default()
                 },
             )
             .await

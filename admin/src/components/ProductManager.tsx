@@ -19,6 +19,7 @@ import type {
   ShopConfig,
   StorageMeta,
   UpsertVariantPayload,
+  ContentSummary,
 } from '../types';
 import { isLabeledStatus } from '../utils/contentStatus';
 import { cx } from '../utils/cx';
@@ -56,7 +57,7 @@ const messageOf = (err: unknown, fallback: string): string =>
   err instanceof Error ? err.message : fallback;
 
 interface ProductManagerProps {
-  categories: ContentItem[];
+  categories: ContentSummary[];
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -431,7 +432,7 @@ interface ProductEditorProps {
   product: ContentItem | null;
   productType: string;
   currency: string;
-  categories: ContentItem[];
+  categories: ContentSummary[];
   onSaved: (saved: ContentItem, created: boolean) => void;
   onCommentsOpenChanged: (id: string, open: boolean) => void;
   onShowToast: (message: string, type?: 'success' | 'error') => void;

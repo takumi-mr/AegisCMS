@@ -246,6 +246,7 @@ pub(crate) async fn list_published_articles(
             status,
             limit: Some(limit),
             offset,
+            ..Default::default()
         };
         return state.db.list_published_contents_page(schema, &query).await;
     };
