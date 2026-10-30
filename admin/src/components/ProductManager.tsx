@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   Images,
   MessageSquare,
@@ -8,7 +10,9 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Search,
   Trash2,
+  X,
 } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi, SERVER_URL, serverAssetUrl } from '../api/client';
@@ -22,6 +26,7 @@ import type {
   ContentSummary,
 } from '../types';
 import { isLabeledStatus } from '../utils/contentStatus';
+import { STATUS_FILTERS } from '../utils/contentFilters';
 import { cx } from '../utils/cx';
 import { toDateTimeLocal } from '../utils/format';
 import { blocksToMarkdown, markdownToBlocks } from '../utils/markdown';
@@ -34,7 +39,7 @@ import { Modal } from './ui/Modal';
 import styles from './Shop.module.css';
 
 /** A product field as a number (the API may return numbers or numeric strings) */
-const numberField = (item: ContentItem, name: string): number | null => {
+const numberField = (item: ContentSummary, name: string): number | null => {
   const value = item.fields?.[name];
   if (typeof value === 'number') return value;
   if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value)))
@@ -42,7 +47,7 @@ const numberField = (item: ContentItem, name: string): number | null => {
   return null;
 };
 
-const textField = (item: ContentItem, name: string): string => {
+const textField = (item: ContentSummary, name: string): string => {
   const value = item.fields?.[name];
   return typeof value === 'string' ? value : '';
 };
@@ -61,29 +66,36 @@ interface ProductManagerProps {
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
+/** Products per page of the list */
+const PAGE_SIZE = 25;
+/** Wait this long after the last key press before searching */
+const SEARCH_DELAY_MS = 300;
+
 /** Product catalog for editors: list, create, edit and delete products (`product` contents) */
 export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onShowToast }) => {
   const { t } = useTranslation();
   const [config, setConfig] = useState<ShopConfig | null>(null);
-  const [products, setProducts] = useState<ContentItem[] | null>(null);
+  const [products, setProducts] = useState<ContentSummary[] | null>(null);
+  const [total, setTotal] = useState<number>(0);
+  // The request the list on screen answers; while it differs from the wanted one, a load is running
+  const [loadedKey, setLoadedKey] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [reloadCount, setReloadCount] = useState<number>(0);
+  const [page, setPage] = useState<number>(1);
+  // The search box keeps what is typed; the list is searched once typing pauses
+  const [draft, setDraft] = useState<string>('');
+  const [query, setQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
   // undefined = closed, null = new product
   const [editing, setEditing] = useState<ContentItem | null | undefined>(undefined);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     aegisApi
       .getShopConfig()
       .then((loaded) => {
-        if (cancelled) return null;
-        setConfig(loaded);
-        return aegisApi.getContents(loaded.product_type);
-      })
-      .then((items) => {
-        if (cancelled || !items) return;
-        setProducts(items);
-        setError(null);
+        if (!cancelled) setConfig(loaded);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(messageOf(err, i18n.t('products.loadFailed')));
@@ -91,17 +103,76 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
     return () => {
       cancelled = true;
     };
-  }, [reloadCount]);
+  }, []);
+
+  useEffect(() => {
+    if (draft.trim() === query) return;
+    const timer = setTimeout(() => {
+      setQuery(draft.trim());
+      setPage(1);
+    }, SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [draft, query]);
+
+  const productType = config?.product_type;
+  const listKey = JSON.stringify([query, statusFilter, page, reloadCount]);
+  const loading = Boolean(productType) && loadedKey !== listKey;
+  useEffect(() => {
+    if (!productType) return;
+    let cancelled = false;
+    aegisApi
+      .listContentSummaries(productType, {
+        q: query,
+        status: statusFilter,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      })
+      .then((result) => {
+        if (cancelled) return;
+        const lastPage = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
+        if (page > lastPage) {
+          // The page is gone (its last item was deleted): show the last page instead
+          setPage(lastPage);
+          return;
+        }
+        setProducts(result.items);
+        setTotal(result.total);
+        setError(null);
+        setLoadedKey(listKey);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(messageOf(err, i18n.t('products.loadFailed')));
+        setLoadedKey(listKey);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productType, listKey, query, statusFilter, page, reloadCount]);
 
   const currency = config?.currency ?? 'jpy';
-  const productType = config?.product_type ?? 'product';
+  const isFiltered = query !== '' || statusFilter !== '';
+  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const from = products && products.length > 0 ? (page - 1) * PAGE_SIZE + 1 : 0;
+  const to = products && products.length > 0 ? from + products.length - 1 : 0;
+
+  /** The list holds summaries only: the editor needs the blocks, so it loads the one product */
+  const handleOpen = async (summary: ContentSummary) => {
+    if (!productType || openingId) return;
+    setOpeningId(summary.id);
+    try {
+      setEditing(await aegisApi.getContent(productType, summary.id));
+    } catch (err) {
+      onShowToast(messageOf(err, t('products.openFailed')), 'error');
+    } finally {
+      setOpeningId(null);
+    }
+  };
 
   const handleSaved = (saved: ContentItem, created: boolean) => {
-    setProducts((prev) => {
-      const rest = (prev ?? []).filter((p) => p.id !== saved.id);
-      return created ? [saved, ...rest] : (prev ?? []).map((p) => (p.id === saved.id ? saved : p));
-    });
     setEditing(undefined);
+    if (created) setPage(1);
+    setReloadCount((n) => n + 1);
     onShowToast(
       created
         ? t('products.created', { title: saved.title })
@@ -109,12 +180,13 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
     );
   };
 
-  const handleDelete = async (product: ContentItem) => {
+  const handleDelete = async (product: { id: string; title: string }) => {
+    if (!productType) return;
     if (!window.confirm(t('products.confirmDelete', { title: product.title }))) return;
     try {
       await aegisApi.deleteContent(productType, product.id);
-      setProducts((prev) => prev?.filter((p) => p.id !== product.id) ?? null);
       setEditing(undefined);
+      setReloadCount((n) => n + 1);
       onShowToast(t('products.deleted', { title: product.title }));
     } catch (err) {
       onShowToast(messageOf(err, t('products.deleteFailed')), 'error');
@@ -128,7 +200,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
           <div className={styles.title}>
             <Package size={22} />
             <h1>{t('products.title')}</h1>
-            {products && <span className={styles.count}>{products.length}</span>}
+            {products && <span className={styles.count}>{total}</span>}
           </div>
           <div className={styles.headingActions}>
             <a
@@ -158,8 +230,58 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
         )}
         {error && <div className={cx(styles.notice, styles.error)}>{error}</div>}
 
+        <div className={styles.toolbar}>
+          <div className={styles.searchBox} role="search">
+            <Search size={14} className={styles.searchIcon} aria-hidden="true" />
+            <input
+              type="search"
+              value={draft}
+              maxLength={100}
+              placeholder={t('products.search')}
+              aria-label={t('products.searchAria')}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setQuery(draft.trim());
+                  setPage(1);
+                }
+              }}
+            />
+            {draft !== '' && (
+              <button
+                type="button"
+                className={styles.clearSearch}
+                aria-label={t('products.clearSearch')}
+                onClick={() => {
+                  setDraft('');
+                  setQuery('');
+                  setPage(1);
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <select
+            className={styles.statusFilter}
+            value={statusFilter}
+            aria-label={t('products.statusAria')}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">{t('products.allStatuses')}</option>
+            {STATUS_FILTERS.map((status) => (
+              <option key={status} value={status}>
+                {t(`common.status.${status}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {products && (
-          <div className={styles.tableWrap}>
+          <div className={cx(styles.tableWrap, loading && styles.loading)} aria-busy={loading}>
             <table className={styles.table}>
               <thead>
                 <tr>
@@ -180,7 +302,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
                     <tr
                       key={product.id}
                       className={styles.clickable}
-                      onClick={() => setEditing(product)}
+                      onClick={() => void handleOpen(product)}
                     >
                       <td>
                         <div className={styles.productCell}>
@@ -235,7 +357,7 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
                             title={t('common.edit')}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEditing(product);
+                              void handleOpen(product);
                             }}
                           >
                             <Pencil size={14} />
@@ -260,13 +382,34 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
                 {products.length === 0 && (
                   <tr>
                     <td colSpan={6} className={styles.empty}>
-                      {t('products.empty')}
+                      {isFiltered ? t('products.noMatch') : t('products.empty')}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+        )}
+        {total > PAGE_SIZE && (
+          <nav className={styles.pagination} aria-label={t('products.pagination')}>
+            <Button
+              variant="icon"
+              aria-label={t('products.previousPage')}
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              <ChevronLeft size={16} />
+            </Button>
+            <span aria-live="polite">{t('products.range', { from, to, total })}</span>
+            <Button
+              variant="icon"
+              aria-label={t('products.nextPage')}
+              disabled={page >= lastPage}
+              onClick={() => setPage(page + 1)}
+            >
+              <ChevronRight size={16} />
+            </Button>
+          </nav>
         )}
         <p className={styles.hint}>
           {t('products.priceHint', { currency: currency.toUpperCase() })}
@@ -276,14 +419,11 @@ export const ProductManager: React.FC<ProductManagerProps> = ({ categories, onSh
       {editing !== undefined && (
         <ProductEditor
           product={editing}
-          productType={productType}
+          productType={productType ?? 'product'}
           currency={currency}
           categories={categories}
           onSaved={handleSaved}
           onCommentsOpenChanged={(id, open) => {
-            setProducts((prev) =>
-              prev ? prev.map((p) => (p.id === id ? { ...p, comments_open: open } : p)) : prev
-            );
             setEditing((prev) =>
               prev && prev.id === id ? { ...prev, comments_open: open } : prev
             );

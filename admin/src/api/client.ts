@@ -379,25 +379,6 @@ export const aegisApi = {
     }
   },
 
-  /**
-   * Every item of the content type, with blocks and rendered HTML (the list API returns at most 500
-   * per page). Prefer `listContentSummaries`: this renders every item on the server
-   */
-  async getContents(contentType: string): Promise<ContentItem[]> {
-    const pageSize = 500;
-    const items: ContentItem[] = [];
-    for (;;) {
-      const data = await request<{ contents?: ContentItem[]; total?: number }>(
-        `/contents/${contentType}?${toQuery({ limit: pageSize, offset: items.length })}`,
-        {},
-        i18n.t('api.contentsFailed')
-      );
-      const page = data.contents || [];
-      items.push(...page);
-      if (page.length < pageSize || items.length >= (data.total ?? 0)) return items;
-    }
-  },
-
   /** Scheduled and published content across schemas for the calendar view */
   async getSchedule(contentType?: string): Promise<ScheduleItem[]> {
     const query = contentType ? `?content_type=${encodeURIComponent(contentType)}` : '';
