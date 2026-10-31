@@ -464,10 +464,15 @@ pub async fn render_article(
     tags.add_dependency("comments", &record.id);
     crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
-    let related_articles = state
-        .related_strategy
-        .find_related(&state, &schema, &record, 4)
-        .await;
+    let related_limit = state.config.theme.related_posts_limit;
+    let related_articles = if related_limit > 0 {
+        state
+            .related_strategy
+            .find_related(&state, &schema, &record, related_limit)
+            .await
+    } else {
+        Vec::new()
+    };
     for rel in &related_articles {
         tags.add_dependency("article", &rel.id);
         tags.add_dependency("article", &rel.slug);
@@ -614,10 +619,15 @@ pub async fn render_page_or_slug(
                 crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
                 let comments = comments::page_section(&state, "article", &record.id).await;
-                let related_articles = state
-                    .related_strategy
-                    .find_related(&state, &schema, &record, 4)
-                    .await;
+                let related_limit = state.config.theme.related_posts_limit;
+                let related_articles = if related_limit > 0 {
+                    state
+                        .related_strategy
+                        .find_related(&state, &schema, &record, related_limit)
+                        .await
+                } else {
+                    Vec::new()
+                };
                 for rel in &related_articles {
                     tags.add_dependency("article", &rel.id);
                     tags.add_dependency("article", &rel.slug);
@@ -1476,5 +1486,30 @@ mod tests {
             "Should not include self: {}",
             html
         );
+    }
+
+    #[tokio::test]
+    async fn test_render_article_disabled_related_articles_when_limit_zero() {
+        let mut config = crate::config::AegisConfig::default();
+        config.theme.related_posts_limit = 0;
+        let state = Arc::new(
+            crate::test_support::test_app_state(
+                config,
+                aegis_runtime::PluginSupervisor::new(),
+                Vec::new(),
+            )
+            .await,
+        );
+        insert_published(&state, "article", "first-post", 1, &[], HashMap::new()).await;
+        insert_published(&state, "article", "second-post", 2, &[], HashMap::new()).await;
+
+        let (status, html) = body_of(
+            render_article(State(state.clone()), Path("first-post".to_string()))
+                .await
+                .into_response(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(!html.contains("related-articles"), "{}", html);
     }
 }

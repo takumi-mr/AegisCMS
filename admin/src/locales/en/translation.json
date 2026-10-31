@@ -99,7 +99,9 @@
     "noticesFailed": "Failed to load the notices",
     "createNoticeFailed": "Failed to add the notice",
     "updateNoticeFailed": "Failed to change the notice",
-    "deleteNoticeFailed": "Failed to delete the notice"
+    "deleteNoticeFailed": "Failed to delete the notice",
+    "brokenLinksFailed": "Failed to get broken links report",
+    "triggerBrokenLinksScanFailed": "Failed to start broken links scan"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -1118,7 +1120,8 @@
       "tags": "Tags",
       "redirects": "Redirects",
       "newsletter": "Newsletter",
-      "notices": "Notices"
+      "notices": "Notices",
+      "broken-links": "Broken Links"
     }
   },
   "plugins": {
@@ -1871,5 +1874,28 @@
     "hint": "Leave the dates empty to show it right away and without an end. Changing a notice shows it again to the visitors who closed it. Pages kept by a CDN may show the old state for a while.",
     "create": "Add",
     "save": "Save"
+  },
+  "brokenLinks": {
+    "title": "Broken Links",
+    "description": "Scans published articles and pages to detect broken internal and external links.",
+    "scanNow": "Scan Now",
+    "scanning": "Scanning...",
+    "lastScannedAt": "Last Scanned",
+    "neverScanned": "Never",
+    "totalChecked": "Links Checked",
+    "brokenCount": "Broken Links",
+    "noBrokenLinks": "No broken links found. All checked links are valid.",
+    "emptyState": "No scan has been performed yet. Click \"Scan Now\" to check for broken links.",
+    "sourceContent": "Source Content",
+    "targetUrl": "Target URL",
+    "statusOrError": "Status / Reason",
+    "type": "Type",
+    "internal": "Internal",
+    "external": "External",
+    "scanStarted": "Link scan started.",
+    "scanAlreadyInProgress": "A scan is already in progress.",
+    "loadFailed": "Failed to load broken link report.",
+    "scanFailed": "Failed to start link scan.",
+    "filterPlaceholder": "Search by URL or title..."
   }
 }

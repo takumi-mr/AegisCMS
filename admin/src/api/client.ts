@@ -5,6 +5,7 @@ import type {
   AuditLogPage,
   AuditLogQuery,
   AuthProviders,
+  BrokenLinksStatusResponse,
   CommentBulkAction,
   CommentPage,
   CommentSettings,
@@ -1609,6 +1610,18 @@ export const aegisApi = {
       'Failed to load forum reports'
     );
     return data.reports;
+  },
+
+  async getBrokenLinks(): Promise<BrokenLinksStatusResponse> {
+    return request<BrokenLinksStatusResponse>('/broken-links', {}, i18n.t('api.brokenLinksFailed'));
+  },
+
+  async triggerBrokenLinksScan(): Promise<{ message: string }> {
+    return request<{ message: string }>(
+      '/broken-links/scan',
+      { method: 'POST' },
+      i18n.t('api.triggerBrokenLinksScanFailed')
+    );
   },
 
   async resolveForumReport(

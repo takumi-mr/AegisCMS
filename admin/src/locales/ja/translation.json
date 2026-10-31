@@ -99,7 +99,9 @@
     "noticesFailed": "お知らせを読み込めませんでした",
     "createNoticeFailed": "お知らせを追加できませんでした",
     "updateNoticeFailed": "お知らせを変更できませんでした",
-    "deleteNoticeFailed": "お知らせを削除できませんでした"
+    "deleteNoticeFailed": "お知らせを削除できませんでした",
+    "brokenLinksFailed": "リンク切れレポートの取得に失敗しました",
+    "triggerBrokenLinksScanFailed": "リンク切れ検査の開始に失敗しました"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -1100,7 +1102,8 @@
       "tags": "タグ",
       "redirects": "リダイレクト",
       "newsletter": "ニュースレター",
-      "notices": "お知らせ"
+      "notices": "お知らせ",
+      "broken-links": "リンク切れチェック"
     }
   },
   "plugins": {
@@ -1852,5 +1855,28 @@
     "hint": "日時を空にすると、すぐに表示を始め、終わりもありません。お知らせを変更すると、閉じた訪問者にもう一度出ます。CDN にキャッシュされたページでは、しばらく古い状態が残ることがあります。",
     "create": "追加",
     "save": "保存"
+  },
+  "brokenLinks": {
+    "title": "リンク切れチェック",
+    "description": "公開中の記事や固定ページに含まれる内部・外部リンクを検査し、切れているリンクを検出します。",
+    "scanNow": "検査を開始",
+    "scanning": "検査中...",
+    "lastScannedAt": "最終検査日時",
+    "neverScanned": "未実行",
+    "totalChecked": "検査リンク数",
+    "brokenCount": "リンク切れ数",
+    "noBrokenLinks": "リンク切れは検出されませんでした。すべてのリンクが有効です。",
+    "emptyState": "まだ検査が実行されていません。「検査を開始」をクリックしてリンク切れをチェックしてください。",
+    "sourceContent": "掲載元コンテンツ",
+    "targetUrl": "リンク先 URL",
+    "statusOrError": "ステータス / 理由",
+    "type": "種別",
+    "internal": "内部",
+    "external": "外部",
+    "scanStarted": "リンク切れ検査を開始しました。",
+    "scanAlreadyInProgress": "すでに検査が実行中です。",
+    "loadFailed": "リンク切れレポートの読み込みに失敗しました。",
+    "scanFailed": "リンク切れ検査の開始に失敗しました。",
+    "filterPlaceholder": "URLまたはタイトルで絞り込み..."
   }
 }

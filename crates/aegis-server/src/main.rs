@@ -13,6 +13,7 @@ mod audit;
 mod auth;
 #[cfg(feature = "backup")]
 mod backup;
+mod broken_links;
 mod cdn;
 mod cluster;
 mod config;
