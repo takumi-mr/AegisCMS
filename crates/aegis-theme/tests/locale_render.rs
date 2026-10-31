@@ -146,6 +146,7 @@ fn contexts() -> Vec<PageRenderContext> {
         author: None,
         published_at: Some("2026-10-22T09:30:00Z".to_string()),
         comments: comments(true),
+        related_articles: vec![item("rel", None)],
         ..base("article.html")
     });
     out.push(PageRenderContext {

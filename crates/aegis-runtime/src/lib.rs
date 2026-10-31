@@ -384,6 +384,7 @@ mod tests {
             theme_vars: HashMap::new(),
             pagination: None,
             comments: None,
+            ..Default::default()
         };
 
         let result = instance.on_render_page(ctx).await;

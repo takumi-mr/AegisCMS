@@ -25,6 +25,7 @@ mod notify_plugins;
 mod plugin_host;
 mod plugin_registry;
 mod redirects;
+mod related;
 mod render;
 mod scheduler;
 #[cfg(feature = "search")]

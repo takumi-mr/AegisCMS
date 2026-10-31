@@ -79,6 +79,9 @@ pub struct PageRenderContext {
     pub relations: std::collections::HashMap<String, serde_json::Value>,
     #[serde(default)]
     pub items: Vec<ContentSummary>,
+    /// 記事詳細ページ等の関連記事
+    #[serde(default)]
+    pub related_articles: Vec<ContentSummary>,
     #[serde(default)]
     pub extra_css: String,
     #[serde(default)]

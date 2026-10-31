@@ -41,6 +41,8 @@ pub struct AppState {
     pub plugin_registry: Arc<PluginRegistry>,
     pub audit: Arc<AuditService>,
     pub theme: Arc<ThemeEngine>,
+    /// 関連記事の推薦・抽出ストラテジー
+    pub related_strategy: Arc<dyn crate::related::RelatedArticlesStrategy>,
     /// 動的プラグイン設定（管理画面から変更された設定値のキャッシュ）
     pub plugin_settings: Arc<std::sync::RwLock<HashMap<String, HashMap<String, String>>>>,
     /// Admin Studio から変更したサイト名・favicon（`[theme]` より優先。DB の `_aegis_settings`）
@@ -166,6 +168,7 @@ impl AppState {
             plugin_registry,
             audit,
             theme,
+            related_strategy: Arc::new(crate::related::TagCategoryRelatedStrategy::new()),
             plugin_settings: Arc::new(std::sync::RwLock::new(HashMap::new())),
             site: Arc::new(std::sync::RwLock::new(SiteOverrides::default())),
             seo: Arc::new(std::sync::RwLock::new(SeoOverrides::default())),
@@ -195,6 +198,16 @@ impl AppState {
             #[cfg(feature = "analytics")]
             analytics: None,
         }
+    }
+
+    /// 関連記事の推薦ストラテジーを差し替える
+    #[allow(dead_code)]
+    pub fn with_related_strategy(
+        mut self,
+        strategy: Arc<dyn crate::related::RelatedArticlesStrategy>,
+    ) -> Self {
+        self.related_strategy = strategy;
+        self
     }
 
     /// CDN パージャーを差し替える（起動時の初期化やテスト用）
