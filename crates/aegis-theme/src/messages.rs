@@ -63,6 +63,7 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("article.published_on", "Published on {date}", "{date} に公開"),
     ("article.back", "Back to all stories", "記事一覧に戻る"),
     ("article.scroll_top", "Scroll to top", "ページの先頭へ"),
+    ("article.related", "Related Articles", "関連記事"),
     // --- カテゴリ・検索・404 ---
     ("tag.label", "Tag", "タグ"),
     (

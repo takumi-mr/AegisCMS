@@ -101,6 +101,7 @@ pub async fn preview_content(
         updated_at: None,
         fields: payload.fields,
         comments: None,
+        related_articles: Vec::new(),
     };
     let page_html = match render::render_page(&state, &schema, page).await {
         Ok(page_html) => Some(page_html),

@@ -464,11 +464,21 @@ pub async fn render_article(
     tags.add_dependency("comments", &record.id);
     crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
+    let related_articles = state
+        .related_strategy
+        .find_related(&state, &schema, &record, 4)
+        .await;
+    for rel in &related_articles {
+        tags.add_dependency("article", &rel.id);
+        tags.add_dependency("article", &rel.slug);
+    }
+
     let comments = comments::page_section(&state, "article", &record.id).await;
     let mut fields = record.custom_fields;
     TagLookup::load(&state, "article", std::slice::from_ref(&record.id))
         .await
         .attach(&record.id, &mut fields, &mut tags);
+
     let page = render::PageInput {
         template: "article.html".to_string(),
         content_type: "article".to_string(),
@@ -481,6 +491,7 @@ pub async fn render_article(
         updated_at: Some(record.updated_at),
         fields,
         comments,
+        related_articles,
     };
     let resp = themed_response(render::render_page(&state, &schema, page).await);
     crate::cdn::apply_cache_tags(&state, resp, &tags)
@@ -559,6 +570,7 @@ async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<R
         updated_at: Some(record.updated_at),
         fields,
         comments,
+        related_articles: Vec::new(),
     };
     let resp = themed_response(render::render_page(state, &schema, page).await);
     Some(crate::cdn::apply_cache_tags(state, resp, &tags))
@@ -602,6 +614,15 @@ pub async fn render_page_or_slug(
                 crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
                 let comments = comments::page_section(&state, "article", &record.id).await;
+                let related_articles = state
+                    .related_strategy
+                    .find_related(&state, &schema, &record, 4)
+                    .await;
+                for rel in &related_articles {
+                    tags.add_dependency("article", &rel.id);
+                    tags.add_dependency("article", &rel.slug);
+                }
+
                 let page = render::PageInput {
                     template: "article.html".to_string(),
                     content_type: "article".to_string(),
@@ -614,6 +635,7 @@ pub async fn render_page_or_slug(
                     updated_at: Some(record.updated_at),
                     fields: record.custom_fields,
                     comments,
+                    related_articles,
                 };
                 let resp = themed_response(render::render_page(&state, &schema, page).await);
                 return crate::cdn::apply_cache_tags(&state, resp, &tags);
@@ -1430,6 +1452,28 @@ mod tests {
         assert!(
             html.contains(r#"type="application/atom+xml""#) && html.contains(r#"href="/feed.xml""#),
             "{}",
+            html
+        );
+    }
+
+    #[tokio::test]
+    async fn test_render_article_shows_related_articles() {
+        let state = front_page_state("posts").await;
+        insert_published(&state, "article", "first-post", 1, &[], HashMap::new()).await;
+        insert_published(&state, "article", "second-post", 2, &[], HashMap::new()).await;
+
+        let (status, html) = body_of(
+            render_article(State(state.clone()), Path("first-post".to_string()))
+                .await
+                .into_response(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("related-articles"), "{}", html);
+        assert!(html.contains("/articles/second-post"), "{}", html);
+        assert!(
+            !html.contains("href=\"/articles/first-post\""),
+            "Should not include self: {}",
             html
         );
     }

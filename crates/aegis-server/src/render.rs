@@ -179,6 +179,8 @@ pub struct PageInput {
     pub fields: HashMap<String, serde_json::Value>,
     /// Comment section (`[comments]`), for content types that take comments
     pub comments: Option<aegis_core::CommentSection>,
+    /// Related articles for single article pages
+    pub related_articles: Vec<aegis_core::ContentSummary>,
 }
 
 /// Resolves the schema's relation fields to `{ id, title, slug }` objects for the templates
@@ -322,6 +324,7 @@ pub async fn render_page(
         relations,
         extra_head,
         comments: page.comments,
+        related_articles: page.related_articles,
         ..site_page_context(state)
     };
 

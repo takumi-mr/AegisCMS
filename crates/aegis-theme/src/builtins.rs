@@ -641,6 +641,33 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
     {{ content_html | safe }}
   </div>
 
+  {% if related_articles and related_articles | length > 0 %}
+  <section class="related-articles" style="margin-top: 3.5rem; padding-top: 2.5rem; border-top: 1px solid var(--border-color);">
+    <h2 style="font-size: 1.4rem; font-weight: 700; color: #ffffff; margin-bottom: 1.25rem;">
+      {{ t("article.related") }}
+    </h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;">
+      {% for item in related_articles %}
+      <a href="{{ base_path }}/articles/{{ item.slug }}" style="display: flex; flex-direction: column; padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: border-color 0.2s, transform 0.2s;">
+        <h3 style="font-size: 1.05rem; font-weight: 600; color: #ffffff; margin-bottom: 0.5rem; line-height: 1.4;">
+          {{ item.title }}
+        </h3>
+        {% if item.excerpt %}
+        <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.75rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+          {{ item.excerpt }}
+        </p>
+        {% endif %}
+        {% if item.published_at %}
+        <time style="font-size: 0.75rem; color: var(--text-dim); margin-top: auto;" datetime="{{ item.published_at }}">
+          {{ item.published_at | date_short }}
+        </time>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   {% if comments %}{% include "comments.html" %}{% endif %}
 
   <footer class="article-footer" style="margin-top: 3.5rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
@@ -669,6 +696,33 @@ pub const PAGE_TEMPLATE: &str = r#"{% extends "base.html" %}
   <div class="prose">
     {{ content_html | safe }}
   </div>
+  {% if related_articles and related_articles | length > 0 %}
+  <section class="related-articles" style="margin-top: 3.5rem; padding-top: 2.5rem; border-top: 1px solid var(--border-color);">
+    <h2 style="font-size: 1.4rem; font-weight: 700; color: #ffffff; margin-bottom: 1.25rem;">
+      {{ t("article.related") }}
+    </h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;">
+      {% for item in related_articles %}
+      <a href="{{ base_path }}/articles/{{ item.slug }}" style="display: flex; flex-direction: column; padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: border-color 0.2s, transform 0.2s;">
+        <h3 style="font-size: 1.05rem; font-weight: 600; color: #ffffff; margin-bottom: 0.5rem; line-height: 1.4;">
+          {{ item.title }}
+        </h3>
+        {% if item.excerpt %}
+        <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.75rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+          {{ item.excerpt }}
+        </p>
+        {% endif %}
+        {% if item.published_at %}
+        <time style="font-size: 0.75rem; color: var(--text-dim); margin-top: auto;" datetime="{{ item.published_at }}">
+          {{ item.published_at | date_short }}
+        </time>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   {% if comments %}{% include "comments.html" %}{% endif %}
 </article>
 {% endblock %}
@@ -981,6 +1035,33 @@ pub const PRODUCT_TEMPLATE: &str = r##"{% extends "base.html" %}
       <div class="prose">{{ content_html | safe }}</div>
     </div>
   </article>
+  {% if related_articles and related_articles | length > 0 %}
+  <section class="related-articles" style="margin-top: 3.5rem; padding-top: 2.5rem; border-top: 1px solid var(--border-color);">
+    <h2 style="font-size: 1.4rem; font-weight: 700; color: #ffffff; margin-bottom: 1.25rem;">
+      {{ t("article.related") }}
+    </h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;">
+      {% for item in related_articles %}
+      <a href="{{ base_path }}/articles/{{ item.slug }}" style="display: flex; flex-direction: column; padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: border-color 0.2s, transform 0.2s;">
+        <h3 style="font-size: 1.05rem; font-weight: 600; color: #ffffff; margin-bottom: 0.5rem; line-height: 1.4;">
+          {{ item.title }}
+        </h3>
+        {% if item.excerpt %}
+        <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.75rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+          {{ item.excerpt }}
+        </p>
+        {% endif %}
+        {% if item.published_at %}
+        <time style="font-size: 0.75rem; color: var(--text-dim); margin-top: auto;" datetime="{{ item.published_at }}">
+          {{ item.published_at | date_short }}
+        </time>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   {% if comments %}{% include "comments.html" %}{% endif %}
 </section>
 {% endblock %}
