@@ -22,6 +22,7 @@ mod headers;
 mod notify_plugins;
 mod plugin_host;
 mod plugin_registry;
+mod redirects;
 mod render;
 mod scheduler;
 #[cfg(feature = "search")]
@@ -803,6 +804,8 @@ async fn main() -> anyhow::Result<()> {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 headers::HeaderOverrides::load(app_state.db.as_ref()).await;
+            *app_state.redirects.write().await =
+                redirects::RedirectTable::load(app_state.db.as_ref()).await;
             *app_state
                 .system
                 .write()

@@ -43,6 +43,7 @@ import type {
   PreviewRequest,
   PreviewResult,
   ProductVariant,
+  Redirect,
   RefundOrderPayload,
   RegistrationPayload,
   RegistrationResult,
@@ -617,6 +618,45 @@ export const aegisApi = {
       `/tags/${encodeURIComponent(id)}`,
       { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(payload) },
       i18n.t('api.updateTagFailed')
+    );
+  },
+
+  /** One page of redirects (newest first), `q` searches both paths (admin) */
+  async listRedirects(
+    params: { q?: string; limit?: number; offset?: number } = {}
+  ): Promise<{ redirects: Redirect[]; total: number }> {
+    const data = await request<{ redirects?: Redirect[]; total?: number }>(
+      `/redirects?${toQuery(params)}`,
+      {},
+      i18n.t('api.redirectsFailed')
+    );
+    return { redirects: data.redirects ?? [], total: data.total ?? 0 };
+  },
+
+  async createRedirect(payload: { from: string; to: string; status: number }): Promise<Redirect> {
+    return request(
+      '/redirects',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      i18n.t('api.createRedirectFailed')
+    );
+  },
+
+  async updateRedirect(
+    id: string,
+    payload: { from: string; to: string; status: number }
+  ): Promise<Redirect> {
+    return request(
+      `/redirects/${encodeURIComponent(id)}`,
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      i18n.t('api.updateRedirectFailed')
+    );
+  },
+
+  async deleteRedirect(id: string): Promise<void> {
+    return requestNoContent(
+      `/redirects/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      i18n.t('api.deleteRedirectFailed')
     );
   },
 

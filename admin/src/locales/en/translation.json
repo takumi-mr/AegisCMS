@@ -87,7 +87,11 @@
     "createTagFailed": "Failed to create the tag",
     "updateTagFailed": "Failed to update the tag",
     "deleteTagFailed": "Failed to delete the tag",
-    "setContentTagsFailed": "Failed to save the tags of this content"
+    "setContentTagsFailed": "Failed to save the tags of this content",
+    "redirectsFailed": "Failed to load the redirects",
+    "createRedirectFailed": "Failed to add the redirect",
+    "updateRedirectFailed": "Failed to change the redirect",
+    "deleteRedirectFailed": "Failed to delete the redirect"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -1103,7 +1107,8 @@
       "users": "Users",
       "audit": "Audit Logs",
       "system": "System",
-      "tags": "Tags"
+      "tags": "Tags",
+      "redirects": "Redirects"
     }
   },
   "plugins": {
@@ -1708,5 +1713,45 @@
     "createNamed": "Create \"{{name}}\"",
     "saveFailedForContent": "The content was saved, but its tags could not be saved",
     "loadFailedForContent": "Could not load the tags of this content"
+  },
+  "redirects": {
+    "title": "Redirects",
+    "description": "Send visitors of an old URL to a new one. A redirect is used only when the old URL has no page, and it is added automatically when a published page gets a new slug.",
+    "loadFailed": "Failed to load the redirects",
+    "search": "Search by path",
+    "searchAria": "Search redirects",
+    "empty": "No redirects yet.",
+    "noMatch": "No redirects match.",
+    "auto": "Auto",
+    "autoTitle": "Added automatically when a slug changed",
+    "editAria": "Edit the redirect from {{from}}",
+    "deleteAria": "Delete the redirect from {{from}}",
+    "confirmDelete": "Delete the redirect from \"{{from}}\"? Visitors of that URL will see a 404 page.",
+    "created": "Added a redirect from {{from}}",
+    "updated": "Changed the redirect from {{from}}",
+    "deleted": "Deleted the redirect from {{from}}",
+    "saveFailed": "Failed to save the redirect",
+    "deleteFailed": "Failed to delete the redirect",
+    "pagination": "Redirect pages",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "new": "Add a redirect",
+    "editTitle": "Edit the redirect from {{from}}",
+    "fieldFrom": "From",
+    "fieldTo": "To",
+    "fieldStatus": "Type",
+    "fromAria": "Old path",
+    "toAria": "New path or URL",
+    "statusAria": "Redirect type",
+    "permanent": "301 Permanent (search engines move to the new URL)",
+    "temporary": "302 Temporary (search engines keep the old URL)",
+    "hint": "From is a path such as /old-page (without the query string). To is a path of this site or an http(s) URL. The query string of the visit is kept.",
+    "bothRequired": "Enter both the old and the new address",
+    "duplicate": "A redirect from this path already exists",
+    "loop": "This redirect would lead back to the old path",
+    "tooMany": "There are too many redirects. Delete some first",
+    "create": "Add",
+    "save": "Save"
   }
 }

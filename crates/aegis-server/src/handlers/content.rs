@@ -711,6 +711,8 @@ pub async fn update_content(
 
     let previous_status = current.status.clone();
     let previous_slug = current.slug.clone();
+    // The URL visitors use now: the published version's slug, which only changes when a new version is published
+    let live_before = crate::handlers::redirects::live_slug(&state, &schema, &current.id).await;
     let record = ContentRecord {
         id: current.id,
         content_type,
@@ -772,6 +774,23 @@ pub async fn update_content(
         .await;
         #[cfg(feature = "search")]
         crate::search::announce_change(&state, &record.content_type, &record.id).await;
+    }
+
+    // 公開中の URL（公開版の slug）が変わったら、旧 URL からの転送を残す
+    if let Some(old) = live_before {
+        if let Some(new) = crate::handlers::redirects::live_slug(&state, &schema, &record.id).await
+        {
+            if new != old {
+                crate::handlers::redirects::record_slug_change(
+                    &state,
+                    &audit,
+                    &record.content_type,
+                    &old,
+                    &new,
+                )
+                .await;
+            }
+        }
     }
 
     Ok(Json(
