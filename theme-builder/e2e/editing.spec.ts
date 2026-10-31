@@ -191,3 +191,26 @@ test('renames and deletes a file', async ({ page }) => {
   await expect(file(page, 'renamed.html')).not.toBeVisible();
   expect(() => readTheme('templates/renamed.html')).toThrow();
 });
+test('edits theme.json via manifest form and switches to raw JSON', async ({ page }) => {
+  await file(page, 'theme.json').click();
+  await expect(page.locator('.manifest-editor')).toBeVisible();
+
+  const nameInput = page.getByLabel(/テーマ名/);
+  await expect(nameInput).toHaveValue('E2E Theme');
+
+  await nameInput.fill('Updated E2E Theme');
+  await expect(dirtyDot(page)).toBeVisible();
+
+  await page.getByRole('button', { name: 'JSON', exact: true }).click();
+  await expect(page.locator('.manifest-editor')).not.toBeVisible();
+  await expect(page.locator('.cm-content')).toContainText('"name": "Updated E2E Theme"');
+
+  await page.locator('.cm-content').click();
+  await page.keyboard.press('Control+s');
+  await expect(dirtyDot(page)).toHaveCount(0);
+  expect(readTheme('theme.json')).toContain('"Updated E2E Theme"');
+
+  await page.getByRole('button', { name: 'フォーム', exact: true }).click();
+  await expect(page.locator('.manifest-editor')).toBeVisible();
+  await expect(page.getByLabel(/テーマ名/)).toHaveValue('Updated E2E Theme');
+});
