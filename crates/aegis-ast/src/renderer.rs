@@ -36,6 +36,9 @@ pub fn sanitize_html_fragment(raw: &str) -> String {
     sanitize_html_fragment_with_frames(raw, &[])
 }
 
+/// Longest file name (in characters) of a code block that is written to `data-filename`
+const MAX_FILENAME_CHARS: usize = 120;
+
 /// Attributes kept on an allowed `<iframe>` (everything else, e.g. `srcdoc` or `name`, is removed)
 const FRAME_ATTRIBUTES: &[&str] = &[
     "src",
@@ -416,8 +419,21 @@ impl HtmlRenderer {
                     .and_then(|v| v.as_str())
                     .unwrap_or("text");
                 let inner = node.text.as_deref().map(escape_html).unwrap_or_default();
+                // The file name goes to `data-filename`; showing it is up to the theme or a plugin
+                let filename = node
+                    .attributes
+                    .get("filename")
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|v| !v.is_empty())
+                    .map(|v| {
+                        let v: String = v.chars().take(MAX_FILENAME_CHARS).collect();
+                        format!(" data-filename=\"{}\"", escape_html(&v))
+                    })
+                    .unwrap_or_default();
                 format!(
-                    "<pre><code class=\"language-{}\">{}</code></pre>\n",
+                    "<pre{}><code class=\"language-{}\">{}</code></pre>\n",
+                    filename,
                     escape_html(lang),
                     inner
                 )
@@ -584,6 +600,34 @@ mod tests {
         let mut node = BlockNode::new("core/image");
         node.attributes = serde_json::json!({ "src": src, "alt": "A \"quoted\" alt" });
         node
+    }
+
+    #[test]
+    fn test_code_block_filename_is_written_escaped_and_limited() {
+        let code = |filename: serde_json::Value| {
+            let mut node = BlockNode::code("rust", "fn main() {}");
+            node.attributes = serde_json::json!({ "language": "rust", "filename": filename });
+            HtmlRenderer::render_nodes(&[node])
+        };
+        assert_eq!(
+            code(serde_json::json!(" src/main.rs ")),
+            "<pre data-filename=\"src/main.rs\"><code class=\"language-rust\">fn main() {}</code></pre>\n"
+        );
+        assert!(code(serde_json::json!("\"><script>"))
+            .contains("data-filename=\"&quot;&gt;&lt;script&gt;\""));
+        let long = code(serde_json::json!("a".repeat(500)));
+        assert!(long.contains(&format!(
+            "data-filename=\"{}\"",
+            "a".repeat(MAX_FILENAME_CHARS)
+        )));
+        // empty or not a string: no attribute
+        for value in [
+            serde_json::json!(""),
+            serde_json::json!("  "),
+            serde_json::json!(5),
+        ] {
+            assert!(code(value).starts_with("<pre><code"));
+        }
     }
 
     #[test]

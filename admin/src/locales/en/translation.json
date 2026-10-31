@@ -169,6 +169,8 @@
     "paragraphPlaceholder": "Start typing your paragraph content...",
     "language": "Language:",
     "codePlaceholder": "// Enter source code here...",
+    "filename": "Filename",
+    "filenamePlaceholder": "File name (optional, e.g. src/main.rs)",
     "library": "Choose from media library",
     "urlPlaceholder": "Image URL (e.g. https://images.unsplash.com/...)",
     "altPlaceholder": "Alt description text...",

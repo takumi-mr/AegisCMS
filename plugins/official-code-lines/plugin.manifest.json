@@ -1,0 +1,106 @@
+{
+  "name": "official-code-lines",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Code Line Numbers & File Names",
+  "description": "Adds line numbers and a file name header to code blocks. Set a block's file name in the editor or with ```rust title=\"main.rs\" in Markdown. Configure it in [plugins.settings.official-code-lines].",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "code",
+    "reading"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "hooks": [
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "settings": [
+    {
+      "key": "content_types",
+      "type": "string",
+      "label": {
+        "en": "Content types",
+        "ja": "対象のコンテンツ"
+      },
+      "description": {
+        "en": "Comma-separated content types the plugin works on.",
+        "ja": "動かすコンテンツの種類（カンマ区切り）。"
+      },
+      "default": "article,page"
+    },
+    {
+      "key": "selector",
+      "type": "string",
+      "label": {
+        "en": "Content area (CSS selector)",
+        "ja": "本文の範囲（CSS セレクター）"
+      },
+      "description": {
+        "en": "Only code blocks inside this area are handled. Comma-separated selectors are allowed.",
+        "ja": "この範囲の中のcode blocksだけを対象にする。カンマ区切りで複数指定できる。"
+      },
+      "default": ".prose"
+    },
+    {
+      "key": "line_numbers",
+      "type": "boolean",
+      "label": {
+        "en": "Line numbers",
+        "ja": "行番号"
+      },
+      "default": true,
+      "description": {
+        "en": "Numbered blocks do not wrap long lines; they scroll sideways.",
+        "ja": "行番号を付けたブロックは折り返さず、横にスクロールする。"
+      }
+    },
+    {
+      "key": "show_filename",
+      "type": "boolean",
+      "label": {
+        "en": "File name header",
+        "ja": "ファイル名の見出し"
+      },
+      "default": true,
+      "description": {
+        "en": "Shows the file name set on a code block above it.",
+        "ja": "コードブロックに付けたファイル名を、ブロックの上に出す。"
+      }
+    },
+    {
+      "key": "min_lines",
+      "type": "number",
+      "label": {
+        "en": "Minimum lines for numbering",
+        "ja": "行番号を付ける最小の行数"
+      },
+      "description": {
+        "en": "Blocks with fewer lines get no numbers.",
+        "ja": "これより行数が少ないブロックには付けない。"
+      },
+      "min": 1,
+      "max": 1000,
+      "default": 2
+    },
+    {
+      "key": "number_color",
+      "type": "color",
+      "label": {
+        "en": "Line number color",
+        "ja": "行番号の色"
+      },
+      "description": {
+        "en": "Empty uses the theme's --text-muted.",
+        "ja": "空欄ならテーマの --text-muted。"
+      },
+      "placeholder": "#8b949e"
+    }
+  ]
+}

@@ -32,6 +32,9 @@ members = [
     "plugins/official-blocks",
     "plugins/official-page-toc",
     "plugins/official-back-to-top",
+    "plugins/official-code-lines",
+    "plugins/official-lightbox",
+    "plugins/official-external-links",
     "plugins/official-share-buttons",
 ]
 

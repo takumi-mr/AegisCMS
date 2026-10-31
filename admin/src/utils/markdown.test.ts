@@ -146,6 +146,26 @@ describe('markdown utilities', () => {
       });
     });
 
+    it('keeps the file name of a code block (title="...") both ways', () => {
+      const md = '```rust title="src/main.rs"\nfn main() {}\n```';
+      const blocks = markdownToBlocks(md);
+      expect(blocks).toEqual([
+        {
+          name: 'core/code',
+          attributes: { language: 'rust', filename: 'src/main.rs' },
+          text: 'fn main() {}',
+        },
+      ]);
+      expect(blocksToMarkdown(blocks)).toBe(md);
+      // quotes cannot be written back, and an empty name is left out
+      expect(
+        blocksToMarkdown([
+          { name: 'core/code', attributes: { language: 'rust', filename: 'a"b' }, text: 'x' },
+          { name: 'core/code', attributes: { language: 'rust', filename: ' ' }, text: 'y' },
+        ])
+      ).toBe('```rust title="ab"\nx\n```\n\n```rust\ny\n```');
+    });
+
     it('parses html and html:sandbox code blocks into core/html blocks', () => {
       const md =
         '```html\n<section class="banner"><h1>LP Banner</h1></section>\n```\n\n```html:sandbox\n<script>console.log(1)</script>\n```';
