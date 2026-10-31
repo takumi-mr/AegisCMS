@@ -665,3 +665,212 @@ async fn test_full_text_search() {
     assert_eq!(page.messages.len(), 1);
     assert!(page.total >= 2);
 }
+
+/// 手元で動く siteverify（トークン `good` だけ通す。`down` は 500）。呼ばれた回数も返す
+async fn mock_captcha_service() -> (String, Arc<std::sync::atomic::AtomicUsize>) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = calls.clone();
+    let app = axum::Router::new().route(
+        "/siteverify",
+        axum::routing::post(
+            move |axum::Form(form): axum::Form<HashMap<String, String>>| {
+                counter.fetch_add(1, Ordering::SeqCst);
+                async move {
+                    match form.get("response").map(String::as_str) {
+                        Some("good") => (axum::http::StatusCode::OK, r#"{"success": true}"#),
+                        Some("down") => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "down"),
+                        _ => (axum::http::StatusCode::OK, r#"{"success": false}"#),
+                    }
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/siteverify", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    (url, calls)
+}
+
+fn captcha_config(verify_url: &str, fail_open: bool) -> aegis_captcha::CaptchaConfig {
+    aegis_captcha::CaptchaConfig {
+        provider: aegis_captcha::Provider::Turnstile,
+        site_key: "site-key".to_string(),
+        secret: "secret-key".to_string(),
+        fail_open,
+        timeout_secs: 5,
+        verify_url: verify_url.to_string(),
+        script_url: String::new(),
+        widget_class: String::new(),
+        response_field: String::new(),
+    }
+}
+
+fn with_token(token: &str) -> HashMap<String, String> {
+    let mut v = valid();
+    v.insert("cf-turnstile-response".to_string(), token.to_string());
+    v
+}
+
+#[tokio::test]
+async fn test_captcha_is_off_unless_configured() {
+    let f = fixture(|_| {}).await;
+    assert_eq!(f.service.captcha_widget_html(), "");
+    assert!(f.service.captcha_csp_hosts().is_empty());
+    let form = f.service.default_form();
+    let html = f
+        .service
+        .form_html(form, "/contact/default", &HashMap::new(), &[]);
+    assert!(!html.contains("aegis-contact-captcha"));
+    f.service
+        .submit("default", &valid(), &client("203.0.113.1"))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_captcha_gates_the_submission() {
+    let (url, calls) = mock_captcha_service().await;
+    let f = fixture(|c| {
+        c.captcha = Some(captcha_config(&url, false));
+        c.max_per_ip_per_hour = 1;
+    })
+    .await;
+    let ip = client("203.0.113.1");
+
+    // ウィジェットは送信ボタンの前に入る
+    let form = f.service.default_form();
+    let html = f
+        .service
+        .form_html(form, "/contact/default", &HashMap::new(), &[]);
+    let widget = html.find("class=\"cf-turnstile\"").expect("widget");
+    assert!(widget < html.find("<button").unwrap());
+    assert!(html.contains("data-sitekey=\"site-key\""));
+    assert_eq!(f.service.captcha_csp_hosts(), ["challenges.cloudflare.com"]);
+
+    // トークンが無い・違うものは保存せず、IP の枠も使わない
+    for values in [valid(), with_token("wrong")] {
+        let err = f.service.submit("default", &values, &ip).await.unwrap_err();
+        assert!(
+            matches!(err, ContactError::Captcha(CaptchaError::Failed)),
+            "{err}"
+        );
+    }
+    assert_eq!(
+        f.service
+            .list(&AdminListQuery::default())
+            .await
+            .unwrap()
+            .total,
+        0
+    );
+
+    // 通ったら保存する（トークンの欄は項目として保存しない）。枠は 1 回分
+    let saved = f
+        .service
+        .submit("default", &with_token("good"), &ip)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!saved.fields_json.contains("turnstile"));
+    assert!(matches!(
+        f.service.submit("default", &with_token("good"), &ip).await,
+        Err(ContactError::RateLimited)
+    ));
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 3);
+}
+
+#[tokio::test]
+async fn test_captcha_is_not_asked_for_bots_or_invalid_input() {
+    let (url, calls) = mock_captcha_service().await;
+    let f = fixture(|c| c.captcha = Some(captcha_config(&url, false))).await;
+    let mut bot = with_token("good");
+    bot.insert("website".to_string(), "http://spam.example".to_string());
+    assert!(f
+        .service
+        .submit("default", &bot, &client("203.0.113.1"))
+        .await
+        .unwrap()
+        .is_none());
+    let mut invalid = with_token("good");
+    invalid.remove("email");
+    assert!(matches!(
+        f.service
+            .submit("default", &invalid, &client("203.0.113.1"))
+            .await,
+        Err(ContactError::Invalid(_))
+    ));
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn test_captcha_service_down_fails_closed_unless_fail_open() {
+    let (url, _) = mock_captcha_service().await;
+    let closed = fixture(|c| c.captcha = Some(captcha_config(&url, false))).await;
+    assert!(matches!(
+        closed
+            .service
+            .submit("default", &with_token("down"), &client("203.0.113.1"))
+            .await,
+        Err(ContactError::Captcha(CaptchaError::Unavailable))
+    ));
+    assert_eq!(
+        closed
+            .service
+            .list(&AdminListQuery::default())
+            .await
+            .unwrap()
+            .total,
+        0
+    );
+
+    let open = fixture(|c| c.captcha = Some(captcha_config(&url, true))).await;
+    open.service
+        .submit("default", &with_token("down"), &client("203.0.113.1"))
+        .await
+        .unwrap();
+    // 検証サービスが「違う」と答えたものは、fail_open でも通さない
+    assert!(matches!(
+        open.service
+            .submit("default", &with_token("wrong"), &client("203.0.113.1"))
+            .await,
+        Err(ContactError::Captcha(CaptchaError::Failed))
+    ));
+}
+
+#[tokio::test]
+async fn test_captcha_config_is_checked_at_startup() {
+    let mut bad = captcha_config("", false);
+    bad.secret = "env:AEGIS_CONTACT_TEST_UNSET_SECRET".to_string();
+    let config = ContactConfig {
+        enabled: true,
+        captcha: Some(bad),
+        ..ContactConfig::default()
+    };
+    let err = config.validate().unwrap_err().to_string();
+    assert!(
+        err.contains("[contact.captcha]") && err.contains("secret"),
+        "{err}"
+    );
+}
+
+#[test]
+fn test_captcha_table_parses_from_toml() {
+    let config: ContactConfig = toml::from_str(
+        r#"
+        enabled = true
+        [captcha]
+        provider = "hcaptcha"
+        site_key = "k"
+        secret = "env:HCAPTCHA_SECRET"
+        fail_open = true
+        "#,
+    )
+    .unwrap();
+    let captcha = config.captcha.unwrap();
+    assert_eq!(captcha.provider, aegis_captcha::Provider::Hcaptcha);
+    assert!(captcha.fail_open);
+    assert_eq!(captcha.timeout_secs, 5);
+    assert_eq!(captcha.response_field(), "h-captcha-response");
+    assert!(ContactConfig::default().captcha.is_none());
+}

@@ -655,7 +655,16 @@ async fn security_headers_middleware(
     let headers_config = state.headers();
     // 有効なプラグインのカスタムブロックが埋め込む iframe の配信元を CSP の frame-src に足す
     let frame_hosts = state.supervisor.read().await.frame_domains();
-    headers_config.apply_to_headers_with_frames(response.headers_mut(), &frame_hosts);
+    let captcha_hosts = state
+        .contact
+        .as_ref()
+        .map(|c| c.captcha_csp_hosts())
+        .unwrap_or_default();
+    headers_config.apply_to_headers_with_sources(
+        response.headers_mut(),
+        &frame_hosts,
+        &captcha_hosts,
+    );
 
     // SVG ドキュメントとして直接開かれた場合の XSS 防止: スクリプト実行を完全遮断
     let is_svg = path.ends_with(".svg")

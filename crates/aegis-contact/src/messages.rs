@@ -21,6 +21,12 @@ pub fn text(locale: &str, key: &str) -> &'static str {
         "failed" => "Your message could not be sent. Please try again later.",
         "upload_too_large" if ja => "添付ファイルが大きすぎます。小さいファイルを選んでください。",
         "upload_too_large" => "The attached files are too large. Please choose smaller files.",
+        "captcha_failed" if ja => "確認に失敗しました。もう一度お試しください。",
+        "captcha_failed" => "The verification failed. Please try again.",
+        "captcha_unavailable" if ja => {
+            "確認を行えませんでした。しばらくしてからもう一度お試しください。"
+        }
+        "captcha_unavailable" => "The verification is unavailable. Please try again later.",
         _ => "",
     }
 }

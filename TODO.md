@@ -34,7 +34,7 @@
   - `on-render-page` フックで HTML 全体を Wasm に渡すオーバーヘッドの軽減。
 
 ### 🌐 サイト機能拡張
-- [ ] **問い合わせフォームの拡張**: Cloudflare Turnstile / CAPTCHA 連携。
+- [ ] **コメント・掲示板への CAPTCHA 適用**: `aegis-captcha`（問い合わせフォームで導入済み。[contact.md 1.2](docs/contact.md#12-captcha任意)）を `[comments]` / `[forum]` にも使えるようにする。
 - [ ] **サイト内検索の拡張**: 検索キーワードのアクセス解析集計。
 
 ### 🔌 プラグイン・将来構想

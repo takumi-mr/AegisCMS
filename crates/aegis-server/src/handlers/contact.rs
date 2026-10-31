@@ -19,7 +19,7 @@ use crate::handlers::public::{render_not_found, themed_response};
 use crate::render;
 use crate::state::AppState;
 use aegis_contact::{
-    form::form_html_with, AdminListQuery, AdminMessage, AdminMessagePage, ClientInfo, ContactError,
+    AdminListQuery, AdminMessage, AdminMessagePage, CaptchaError, ClientInfo, ContactError,
     ContactService, FieldError, FormConfig, FormSummary, UploadedFile,
 };
 use aegis_core::PageRenderContext;
@@ -44,6 +44,18 @@ fn contact_error(e: ContactError) -> ApiError {
         ContactError::BadRequest(_) => StatusCode::BAD_REQUEST,
         ContactError::NotFound(_) => StatusCode::NOT_FOUND,
         ContactError::RateLimited => StatusCode::TOO_MANY_REQUESTS,
+        ContactError::Captcha(failure) => {
+            let (status, code) = match failure {
+                CaptchaError::Failed => (StatusCode::BAD_REQUEST, "captcha_failed"),
+                CaptchaError::Unavailable => {
+                    (StatusCode::SERVICE_UNAVAILABLE, "captcha_unavailable")
+                }
+            };
+            return (
+                status,
+                Json(json!({ "error": e.to_string(), "code": code })),
+            );
+        }
         ContactError::Internal(message) => {
             tracing::error!("Contact request failed: {}", message);
             return api_error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error");
@@ -97,13 +109,7 @@ pub fn block_html(state: &AppState, attributes: &serde_json::Value) -> String {
     match service.config.form(name) {
         Some(form) => format!(
             "<div class=\"aegis-contact\">\n{}\n</div>",
-            form_html_with(
-                form,
-                &form_action(state, &form.name),
-                &HashMap::new(),
-                &[],
-                &service.config.attachment_extensions
-            )
+            service.form_html(form, &form_action(state, &form.name), &HashMap::new(), &[])
         ),
         None => String::new(),
     }
@@ -129,11 +135,7 @@ async fn render_form_page(
     status: StatusCode,
 ) -> Response {
     let action = form_action(state, &form.name);
-    let extensions = state
-        .contact
-        .as_ref()
-        .map(|c| c.config.attachment_extensions.clone())
-        .unwrap_or_default();
+    let service = state.contact.as_ref();
     let mut fields = HashMap::new();
     fields.insert(
         "form".to_string(),
@@ -146,6 +148,7 @@ async fn render_form_page(
             "fields": form.fields,
             "action": action,
             "honeypot": aegis_contact::config::HONEYPOT_FIELD,
+            "captcha_html": service.map(|s| s.captcha_widget_html()).unwrap_or_default(),
         }),
     );
     fields.insert("sent".to_string(), json!(sent));
@@ -154,7 +157,9 @@ async fn render_form_page(
         json!(if sent {
             String::new()
         } else {
-            form_html_with(form, &action, values, errors, &extensions)
+            service
+                .map(|s| s.form_html(form, &action, values, errors))
+                .unwrap_or_default()
         }),
     );
     fields.insert("values".to_string(), json!(values));
@@ -366,6 +371,24 @@ pub async fn submit_contact_form(
                 &[],
                 Some(service.text("rate_limited")),
                 StatusCode::TOO_MANY_REQUESTS,
+            )
+            .await
+        }
+        Err(ContactError::Captcha(failure)) => {
+            let (key, status) = match failure {
+                CaptchaError::Failed => ("captcha_failed", StatusCode::BAD_REQUEST),
+                CaptchaError::Unavailable => {
+                    ("captcha_unavailable", StatusCode::SERVICE_UNAVAILABLE)
+                }
+            };
+            render_form_page(
+                &state,
+                &form,
+                false,
+                &values,
+                &[],
+                Some(service.text(key)),
+                status,
             )
             .await
         }

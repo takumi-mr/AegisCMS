@@ -267,6 +267,18 @@ pub fn form_html_with(
     errors: &[FieldError],
     extensions: &[String],
 ) -> String {
+    form_html_with_captcha(form, action, values, errors, extensions, "")
+}
+
+/// [`form_html_with`] に、送信ボタンの前に置く CAPTCHA のウィジェットの HTML（空なら置かない）を加えたもの
+pub fn form_html_with_captcha(
+    form: &FormConfig,
+    action: &str,
+    values: &HashMap<String, String>,
+    errors: &[FieldError],
+    extensions: &[String],
+    captcha_html: &str,
+) -> String {
     let id = |field: &str| format!("aegis-contact-{}-{}", form.name, field);
     let has_file = form.fields.iter().any(|f| f.kind == FieldKind::File);
     let accept = extensions
@@ -419,6 +431,15 @@ pub fn form_html_with(
             ));
         }
         html.push_str("</div>\n");
+    }
+    if !captcha_html.is_empty() {
+        html.push_str(&format!(
+            "<div class=\"aegis-contact-captcha\">
+{}
+</div>
+",
+            captcha_html
+        ));
     }
     html.push_str(&format!(
         "<button type=\"submit\" class=\"aegis-contact-submit\">{}</button>\n</form>",

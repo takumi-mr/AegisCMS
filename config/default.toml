@@ -266,6 +266,13 @@ retention_days = 365
 max_per_ip_per_hour = 5
 # Language of the built-in texts (errors, the default form's labels): "en" or "ja"
 locale = "en"
+# Optional CAPTCHA on the HTML forms (docs/contact.md): "turnstile", "hcaptcha", "recaptcha" or "custom".
+# The secret may be "env:VAR_NAME". If the CAPTCHA service is unreachable, submissions are rejected
+# unless fail_open = true
+# [contact.captcha]
+# provider = "turnstile"
+# site_key = ""
+# secret = "env:TURNSTILE_SECRET"
 # Without [[contact.forms]], one "default" form asks for name, email, subject and message, e.g.
 # [[contact.forms]]
 # name = "default"

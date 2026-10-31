@@ -460,6 +460,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **項目は設定ファイルで決める**（`[[contact.forms]]`）: サーバー側の検査の基準（必須・長さ・種類・選択肢）が 1 か所に決まり、編集者が記事ごとに項目を変えて検査の抜けを作ることがない。本文のブロック `core/contact-form` はフォームの名前だけを持ち、描画のたびに設定から HTML を作る（プラグインのブロックと同じ「トップレベルのブロックを先に描く」経路）。
 - **JavaScript なしで動く**: 普通の HTML のフォームを `POST /contact/{form}` に送り、成功は `303` で `?sent=1` へ（PRG）、入力の誤りは同じページを `400` で返して値と誤りを出す。入力を含むページは `Cache-Control: private, no-store`。
 - **スパム対策はコメントと共有**（`aegis_comments::moderation` の IP ごとの数・リンク数・メールアドレスの検査）。ボット除けの見えない欄に値があれば、成功と同じ応答で何も保存しない。スパムと判定したものは保存するが通知しない（受信箱のスパムで確かめられる）。
+- **CAPTCHA は任意で、提供元を抽象化する**（`aegis-captcha`、`[contact.captcha]`）: Turnstile・hCaptcha・reCAPTCHA は「ウィジェットがトークンの欄を足す → `secret` とトークンを `siteverify` に `POST` → `success`」で同じなので、`provider` が決めるのは URL・スクリプト・class・欄の名前の既定値だけ（`custom` なら全部書く）。**fail-closed が既定**（検証サービスに届かない・読めない → `503`。`fail_open = true` で通すが、サービスが「違う」と答えたものは通さない）。検証は見えない欄・入力の検査の後、IP ごとの数を数える前に行い、ボットに IP の枠を使い切られないようにする。JSON の API も同じ検査を受ける（API にだけ検査を省くとそこが抜け道になるため。API 向けのトークン取得は用意しない）。ウィジェットが読み込む提供元のホストは、公開ページの CSP の `script-src` / `frame-src` / `connect-src` / `style-src` に自動で足す（`with_captcha_sources`）。`secret` は `env:` で環境変数から読み、設定の出力には含めない。
 - **表は `_aegis_contact_messages`**（`aegis_db::ContactStorage`）。入力はフォームの項目の順に `[{name, label, value}]` の JSON で残し（後から設定の項目を変えても、届いた時点の表示名で読める）、一覧用に名前・メールアドレス・件名を列に持つ。保存期間はサービスが 1 日に 1 回消す。
 
 

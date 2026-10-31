@@ -2,6 +2,7 @@
 //! Admin Studio の受信箱。HTTP 層（公開ページ・API）はサーバー側にあり、ここは HTTP に依存しない
 //!
 //! - フォームと項目は設定ファイル（`[[contact.forms]]`）で決める（[`config`]）。HTML は [`form::form_html`]
+//! - CAPTCHA（任意。`[contact.captcha]`）: 送信のたびにトークンを検証する（`aegis-captcha`）
 //! - ボット除け: 見えない欄（[`config::HONEYPOT_FIELD`]）に値があれば、受け付けたふりをして保存しない。
 //!   IP ごとの送信数（`max_per_ip_per_hour`）を超えたら断る。スパムの語・リンクの数でスパムとして保存する
 //!   （通知しない）。仕組みはコメントの `aegis_comments::moderation` と同じ
@@ -21,6 +22,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use aegis_audit::{AuditOrigin, AuditService};
+use aegis_captcha::Captcha;
 use aegis_core::{
     AegisError, AuditAction, AuditOutcome, CacheBackend, NotificationEvent, Notifier, Recipient,
     StorageBackend,
@@ -30,6 +32,7 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use serde::Serialize;
 use serde_json::json;
 
+pub use aegis_captcha::CaptchaError;
 pub use config::{ContactConfig, FieldConfig, FieldKind, FormConfig};
 pub use form::{Attachment, FieldError, FieldValue, FileRules, UploadedFile};
 
@@ -54,6 +57,9 @@ pub enum ContactError {
     /// 同じ IP からの送信が多すぎる（429）
     #[error("Too many messages from this address. Try again later.")]
     RateLimited,
+    /// CAPTCHA を通らなかった（400 `captcha_failed`）、検証サービスに届かなかった（503 `captcha_unavailable`）
+    #[error("{0}")]
+    Captcha(CaptchaError),
     /// それ以外のサーバー側の失敗（500）
     #[error("{0}")]
     Internal(String),
@@ -144,6 +150,8 @@ pub struct FormSummary {
 pub struct ContactService {
     pub config: ContactConfig,
     deps: ContactDeps,
+    /// `[contact.captcha]` があるとき
+    captcha: Option<Captcha>,
 }
 
 /// 公開ページのパス（`base_path` を除く）
@@ -155,10 +163,50 @@ impl ContactService {
     /// `config` の空の文言・項目は `locale` の既定で埋める
     pub fn new(config: ContactConfig, deps: ContactDeps) -> aegis_core::Result<Self> {
         config.validate()?;
+        let captcha = config
+            .captcha
+            .clone()
+            .map(|c| Captcha::new(c, "[contact.captcha]"))
+            .transpose()?;
         Ok(Self {
             config: config.resolved(),
             deps,
+            captcha,
         })
+    }
+
+    /// CAPTCHA のウィジェットの HTML（`[contact.captcha]` が無ければ空）
+    pub fn captcha_widget_html(&self) -> String {
+        self.captcha
+            .as_ref()
+            .map(Captcha::widget_html)
+            .unwrap_or_default()
+    }
+
+    /// CAPTCHA のウィジェットが読み込む・つなぐ先のホスト（CSP に足す。`[contact.captcha]` が無ければ空）
+    pub fn captcha_csp_hosts(&self) -> Vec<String> {
+        self.captcha
+            .as_ref()
+            .map(Captcha::csp_hosts)
+            .unwrap_or_default()
+    }
+
+    /// フォームの HTML。添付できる拡張子と CAPTCHA のウィジェットを入れる
+    pub fn form_html(
+        &self,
+        form: &FormConfig,
+        action: &str,
+        values: &HashMap<String, String>,
+        errors: &[FieldError],
+    ) -> String {
+        form::form_html_with_captcha(
+            form,
+            action,
+            values,
+            errors,
+            &self.config.attachment_extensions,
+            &self.captcha_widget_html(),
+        )
     }
 
     /// 組み込みの文言（`[contact].locale`。[`messages::text`]）
@@ -247,6 +295,15 @@ impl ContactService {
         let mut fields =
             form::validate_with_files(form, values, files, &rules, &self.config.locale)
                 .map_err(ContactError::Invalid)?;
+        // 見えない欄・入力の誤りで落ちたものは検証サービスに聞かない。IP の枠を使う前に確かめる
+        // （ボットに枠を使い切られて、同じ IP の人が送れなくなるのを防ぐ）
+        if let Some(captcha) = &self.captcha {
+            let token = values.get(captcha.response_field()).map(String::as_str);
+            captcha
+                .verify(token, client.ip.as_deref())
+                .await
+                .map_err(ContactError::Captcha)?;
+        }
         if !aegis_comments::moderation::within_rate_limit(
             self.deps.cache.as_ref(),
             RATE_LIMIT_SCOPE,
