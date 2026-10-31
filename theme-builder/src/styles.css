@@ -262,6 +262,82 @@ main {
   background: var(--accent);
 }
 
+.file-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.file-item .file {
+  flex: 1;
+  min-width: 0;
+  padding-right: 1.5rem;
+}
+
+.file-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  position: absolute;
+  right: 4px;
+}
+
+.file-item:hover .file-actions,
+.file-item:focus-within .file-actions {
+  display: flex;
+}
+
+.action-btn {
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.action-btn:hover {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.action-btn.danger:hover {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.rename-form {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  width: 100%;
+}
+
+.rename-form input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 3px 6px;
+}
+
+.rename-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.rename-actions button {
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .files .add {
   margin-top: 1rem;
   width: 100%;

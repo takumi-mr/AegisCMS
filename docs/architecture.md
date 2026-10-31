@@ -486,7 +486,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - 描画に失敗したときは 500 で理由のページを返し、そのページにもリロードのスクリプトを入れて、直して保存すれば戻るようにする。
 - 既定は `127.0.0.1` のみ。CORS は付けない（UI は Vite のプロキシ経由を想定）。
 - **診断**: `ThemeEngine::render_diagnosed` が `RenderDiagnostic { message, template, line }` を返す（`render` は文字列のまま）。`include`・`extends` 先の描画時のエラーは外側のエラーに包まれるので、`source()` の連鎖をたどって一番内側の（行を持つ）minijinja のエラーの場所を採る。
-- **ファイル API と保護**: `theme.json` と `templates/`・`samples/`・`assets/` の下のテキストファイルだけを、`is_editable_path`（`Component::Normal` のみ・隠しファイル不可・拡張子の許可リスト）と `resolve_editable`（いちばん近い既存のフォルダーを実体にして、テーマのフォルダーの外へのシンボリックリンクを拒否。作成後にもう一度確かめる）で扱う。`guard` ミドルウェアが、ループバックで待ち受けているときの `Host` の検査（DNS リバインディング）と、読み出し以外への `x-aegis-dev` ヘッダーの要求（カスタムヘッダーはほかのサイトのページから CORS の事前確認なしに付けられない）を行う。ループバック以外で待ち受けているときは、書き込み API を 403 にする。
+- **ファイル API と保護**: `theme.json` と `templates/`・`samples/`・`assets/` の下のテキストファイルだけを、`is_editable_path`（`Component::Normal` のみ・隠しファイル不可・拡張子の許可リスト）と `resolve_editable`（いちばん近い既存のフォルダーを実体にして、テーマのフォルダーの外へのシンボリックリンクを拒否。作成後にもう一度確かめる）で扱う。保存（`PUT`）に加え、削除（`DELETE`）と改名（`POST /__dev/api/rename`）に対応（`theme.json` は保護のため削除・改名不可）。`guard` ミドルウェアが、ループバックで待ち受けているときの `Host` の検査（DNS リバインディング）と、読み出し以外への `x-aegis-dev` ヘッダーの要求（カスタムヘッダーはほかのサイトのページから CORS の事前確認なしに付けられない）を行う。ループバック以外で待ち受けているときは、書き込み API を 403 にする。
 - **未保存のプレビュー**: `POST /__dev/api/render` は、共有のエンジンに触らず、リクエストごとに新しい `ThemeEngine` を作って `register_template`（動的な登録は、テーマのファイルより先に探される）で上書きし、サンプルは `load_samples_with` に名前 → JSON の上書きを渡して描画する。
 
 ### 18.1 Theme Builder (`theme-builder/`)

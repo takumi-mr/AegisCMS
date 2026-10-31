@@ -147,8 +147,9 @@ fn router(state: DevState) -> Router {
         .route("/__dev/api/files", get(api_files))
         .route(
             "/__dev/api/files/{*path}",
-            get(api_read_file).put(api_write_file),
+            get(api_read_file).put(api_write_file).delete(api_delete_file),
         )
+        .route("/__dev/api/rename", post(api_rename_file))
         .route("/__dev/api/render", post(api_render))
         // 公開サイトと同じ URL（テンプレートが `/theme/assets/...` や `/themes/<id>/assets/...` で参照する）
         .nest_service("/theme/assets", assets.clone())
@@ -702,6 +703,83 @@ async fn api_write_file(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// `DELETE /__dev/api/files/{*path}` — ファイルを削除する
+async fn api_delete_file(
+    State(state): State<DevState>,
+    UrlPath(rel): UrlPath<String>,
+) -> Result<StatusCode, ApiError> {
+    if !state.loopback {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "Editing is only available when listening on a loopback address",
+        ));
+    }
+    if rel == "theme.json" {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "theme.json cannot be deleted",
+        ));
+    }
+    let path = resolve_editable(&state.dir, &rel)?;
+    if !path.is_file() {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            format!("'{rel}' does not exist"),
+        ));
+    }
+    std::fs::remove_file(&path)
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct RenameRequest {
+    from: String,
+    to: String,
+}
+
+/// `POST /__dev/api/rename` — ファイルを改名・移動する
+async fn api_rename_file(
+    State(state): State<DevState>,
+    Json(body): Json<RenameRequest>,
+) -> Result<StatusCode, ApiError> {
+    if !state.loopback {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "Editing is only available when listening on a loopback address",
+        ));
+    }
+    if body.from == "theme.json" || body.to == "theme.json" {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "theme.json cannot be renamed",
+        ));
+    }
+    let from_path = resolve_editable(&state.dir, &body.from)?;
+    if !from_path.is_file() {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            format!("'{}' does not exist", body.from),
+        ));
+    }
+    let to_path = resolve_editable(&state.dir, &body.to)?;
+    if to_path.exists() {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            format!("'{}' already exists", body.to),
+        ));
+    }
+    if let Some(parent) = to_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+    // 作ったフォルダーも含めて、もう一度外に出ていないか確かめる
+    resolve_editable(&state.dir, &body.to)?;
+    std::fs::rename(&from_path, &to_path)
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[derive(Deserialize)]
 struct RenderRequest {
     /// 描画するサンプルの名前
@@ -1051,6 +1129,85 @@ mod tests {
         assert_eq!(status, StatusCode::NO_CONTENT);
         let saved = std::fs::read_to_string(tmp.path().join("mytheme/samples/new.json")).unwrap();
         assert_eq!(saved, "{}");
+    }
+
+    #[tokio::test]
+    async fn test_files_can_be_deleted_and_renamed() {
+        let tmp = theme_dir();
+        let (app, _tx) = app(&tmp);
+
+        // 新規ファイル作成
+        let (status, _) = send(
+            &app,
+            "PUT",
+            "/__dev/api/files/templates/extra.html",
+            &[DEV],
+            Some(json!({ "content": "<div>Extra</div>" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(tmp.path().join("mytheme/templates/extra.html").is_file());
+
+        // 改名 (rename)
+        let (status, _) = send(
+            &app,
+            "POST",
+            "/__dev/api/rename",
+            &[DEV],
+            Some(json!({ "from": "templates/extra.html", "to": "templates/renamed.html" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(!tmp.path().join("mytheme/templates/extra.html").exists());
+        assert!(tmp.path().join("mytheme/templates/renamed.html").is_file());
+
+        // 既存への改名衝突 (conflict)
+        let (status, _) = send(
+            &app,
+            "POST",
+            "/__dev/api/rename",
+            &[DEV],
+            Some(json!({ "from": "templates/renamed.html", "to": "templates/index.html" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+
+        // 削除 (delete)
+        let (status, _) = send(
+            &app,
+            "DELETE",
+            "/__dev/api/files/templates/renamed.html",
+            &[DEV],
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(!tmp.path().join("mytheme/templates/renamed.html").exists());
+
+        // 存在しないファイルの削除
+        let (status, _) = send(
+            &app,
+            "DELETE",
+            "/__dev/api/files/templates/renamed.html",
+            &[DEV],
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        // theme.json の削除・改名は禁止
+        let (status, _) = send(&app, "DELETE", "/__dev/api/files/theme.json", &[DEV], None).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+
+        let (status, _) = send(
+            &app,
+            "POST",
+            "/__dev/api/rename",
+            &[DEV],
+            Some(json!({ "from": "theme.json", "to": "theme-renamed.json" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

@@ -68,4 +68,22 @@ describe('bufferReducer', () => {
     state = bufferReducer(state, { type: 'close', path: 'a' });
     expect(state.active).toBeNull();
   });
+
+  it('updates buffer path and open/active tabs when renamed', () => {
+    let state = open(emptyBuffers, 'templates/a.html', 'content');
+    state = open(state, 'templates/b.html', 'other');
+    state = bufferReducer(state, { type: 'activate', path: 'templates/a.html' });
+    state = bufferReducer(state, {
+      type: 'renamed',
+      from: 'templates/a.html',
+      to: 'templates/new_a.html',
+    });
+    expect(state.open).toEqual(['templates/new_a.html', 'templates/b.html']);
+    expect(state.active).toBe('templates/new_a.html');
+    expect(state.buffers['templates/a.html']).toBeUndefined();
+    expect(state.buffers['templates/new_a.html']).toMatchObject({
+      path: 'templates/new_a.html',
+      content: 'content',
+    });
+  });
 });

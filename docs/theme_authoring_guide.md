@@ -297,7 +297,7 @@ task dev:theme -- themes/my-theme      # = aegis-server theme dev themes/my-them
   - `GET /__dev/api/theme`: マニフェスト・テンプレート・サンプルの一覧
   - `GET /__dev/api/samples/<名前>`: 描画データ
   - `GET /__dev/api/check`: 全サンプルを描画して、失敗（`error` に `message`・`template`・`line`）を返す。CI にも使えます
-  - `GET /__dev/api/files`、`GET`・`PUT /__dev/api/files/<パス>`: ファイルの一覧・読み出し・保存。対象は `theme.json` と、`templates/`・`samples/`・`assets/` の下のテキストファイル（`.html`・`.css`・`.js`・`.json`・`.svg` など、1MiB まで）です。`..`・隠しファイル・フォルダーの外は拒否します
+  - `GET /__dev/api/files`、`GET`・`PUT`・`DELETE /__dev/api/files/<パス>`、`POST /__dev/api/rename`: ファイルの一覧・読み出し・保存・削除・改名。対象は `theme.json`（削除・改名不可）と、`templates/`・`samples/`・`assets/` の下のテキストファイル（`.html`・`.css`・`.js`・`.json`・`.svg` など、1MiB まで）です。`..`・隠しファイル・フォルダーの外は拒否します
   - `POST /__dev/api/render`: 保存していない内容（`templates` に名前 → 中身、`samples` に名前 → JSON）を反映して描画する。何も書き込みません
   - 書き込み（`PUT`・`POST`）は、ループバックで待ち受けているときだけ使えます。ヘッダー `x-aegis-dev` が必要で、`Host` がループバックの名前でないリクエストは拒否します（ほかのサイトのページからの書き込みと、DNS リバインディングを防ぐため）。CORS は許可しません
 
@@ -315,7 +315,7 @@ task dev:theme-builder                 # 2 つ目のターミナル: Theme Build
 - **ページと幅**: プレビューするページ（サンプル）と、幅（幅に合わせる・1280・768・390・320px）を切り替えます。編集中のファイルに合うページに、自動で切り替わります。
 - **確認**: 「すべてのサンプルを確認」は、保存済みのファイルで全サンプルを描画します。
 - **ほかのエディターとの併用**: VS Code などで保存したファイルは、編集していなければ自動で読み込み直します。編集中のファイルが変わったときは、通知が出ます。
-- **ファイルの作成**: 「新しいファイル」で `templates/`・`samples/`・`assets/` の下に作れます（改名・削除は未対応）。ファイルの改行（LF / CRLF）は、そのファイルのものを保つので、開くだけでは差分になりません。
+- **ファイルの作成・改名・削除**: 「新しいファイル」で `templates/`・`samples/`・`assets/` の下に作成でき、ファイル一覧のアイコンから改名（インライン編集）および削除（確認付き）ができます（`theme.json` は保護のため改名・削除不可）。ファイルの改行（LF / CRLF）は、そのファイルのものを保つので、開くだけでは差分になりません。
 - プレビューは `sandbox` つきの `iframe`（`allow-same-origin` なし）で表示し、リンクを押してもページから出ません。画面の文言は日本語のみです。
 
 ### 確認するページと幅
