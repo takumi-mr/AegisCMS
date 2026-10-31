@@ -526,6 +526,24 @@ Cookie を使わないアクセス解析（[アクセス解析のドキュメン
 | `locale` | string | `"en"` | 申し込み・確認・停止のページの文言の言語。`en` / `ja` |
 | `captcha` | table | なし | `[newsletter.captcha]`。`provider`・`site_key`・`secret`（`"env:VAR_NAME"` 可）・`fail_open`・`timeout_secs`（[問い合わせフォーム 1.2](./contact.md#12-captcha任意)と同じ） |
 
+### 2.23 `[consent]` — Cookie の同意バナー
+
+同意が要る広告・アクセス解析・外部の埋め込みを、同意があるまで実行しないための同意バナー（[Cookie の同意バナーのドキュメント](./consent.md)）。バナーの HTML と文言はテーマの `consent.html`（無ければ組み込み）で、文言の言語は `[theme].locale`。`enabled = true` で値が不正なときはサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で公開ページにバナーを出す |
+| `layout` | string | `"banner"` | バナーの形。`banner`（画面の端の帯）/ `box`（隅のカード）/ `modal`（中央） |
+| `position` | string | 形の既定 | 位置。`banner`: `bottom` / `top`、`box`: `bottom-right` / `bottom-left` / `top-right` / `top-left`、`modal`: `center` |
+| `backdrop` | bool | `modal` だけ `true` | 背景を暗くしてページを操作できなくする |
+| `delay_ms` | integer | `0` | 表示を遅らせる時間（0〜10000） |
+| `cookie_days` | integer | `180` | 選択を残す日数（1〜395） |
+| `policy_url` | string | `""` | プライバシーポリシーの URL（`/` で始まるパスか `http(s)://`） |
+| `message` | string | `""` | 説明文（600 文字まで）。空ならテーマの既定の文 |
+| `reopen_button` | bool | `true` | 選択したあとの設定ボタンを出す |
+| `revision` | integer | `1` | 増やすと、全員にもう一度聞く |
+| `categories` | table[] | `analytics` と `marketing` | `[[consent.categories]]`（`id`・`label`・`description`。10 個まで） |
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
@@ -708,6 +726,17 @@ enabled = false
 max_per_ip_per_hour = 10
 confirm_ttl_hours = 48
 locale = "en"
+
+[consent]
+enabled = false
+layout = "banner"
+position = ""
+delay_ms = 0
+cookie_days = 180
+policy_url = ""
+message = ""
+reopen_button = true
+revision = 1
 
 [comments]
 enabled = false

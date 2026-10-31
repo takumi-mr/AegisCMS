@@ -551,6 +551,36 @@ pub const CONTACT_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
+/// Cookie の同意バナー（`[consent]`）。ページの `</body>` の前に差し込む断片で、`base.html` は継承しない。
+/// テーマは `templates/consent.html` で丸ごと差し替えられる。スクリプト（`/_aegis/consent.js`）は `data-aegis-consent-*`
+/// の属性で要素を見つけて動かす: `data-aegis-consent-root`（ダイアログ。最初は `hidden`）、
+/// `data-aegis-consent-action="accept-all|reject-all|customize|save"`、`data-aegis-consent-details`（「選択する」で開く部分。
+/// 最初は `hidden`）、`data-aegis-consent-category="<区分の ID>"`（チェックボックス）、`data-aegis-consent-reopen`
+/// （選択したあとに出す設定のボタン。最初は `hidden`）。値は `fields`:
+/// `consent`（`layout`・`position`・`backdrop`・`policy_url`・`reopen_button`・`delay_ms`・`cookie_days`）、
+/// `message`（`[consent].message`。空なら既定の文）、`categories`（`id`・`label`・`description`。空なら既定の名前と説明）、
+/// `preview`（テーマ開発サーバーのプレビュー。`true` なら最初から表示する）
+pub const CONSENT_TEMPLATE: &str = r#"<div class="aegis-consent aegis-consent-layout-{{ fields.consent.layout }} aegis-consent-pos-{{ fields.consent.position }}{% if fields.consent.backdrop %} aegis-consent-backdrop{% endif %}" data-aegis-consent-root role="dialog"{% if fields.consent.layout == "modal" %} aria-modal="true"{% endif %} aria-labelledby="aegis-consent-title" aria-describedby="aegis-consent-message"{% if not fields.preview %} hidden{% endif %}>
+  <div class="aegis-consent-body">
+    <h2 class="aegis-consent-title" id="aegis-consent-title">{{ t("consent.title") }}</h2>
+    <p class="aegis-consent-message" id="aegis-consent-message">{% if fields.message %}{{ fields.message }}{% else %}{{ t("consent.message") }}{% endif %}{% if fields.consent.policy_url %} <a class="aegis-consent-policy" href="{{ fields.consent.policy_url }}">{{ t("consent.policy") }}</a>{% endif %}</p>
+    <div class="aegis-consent-details" data-aegis-consent-details hidden>
+      <label class="aegis-consent-category"><input type="checkbox" checked disabled><span><strong>{{ t("consent.necessary") }}</strong><small>{{ t("consent.necessary_description") }}</small></span></label>
+      {% for category in fields.categories %}
+      <label class="aegis-consent-category"><input type="checkbox" data-aegis-consent-category="{{ category.id }}"><span><strong>{% if category.label %}{{ category.label }}{% else %}{{ t("consent.category." ~ category.id) }}{% endif %}</strong><small>{% if category.description %}{{ category.description }}{% else %}{{ t("consent.category." ~ category.id ~ ".description") }}{% endif %}</small></span></label>
+      {% endfor %}
+    </div>
+    <div class="aegis-consent-actions">
+      <button type="button" class="aegis-consent-button" data-aegis-consent-action="reject-all">{{ t("consent.reject_all") }}</button>
+      <button type="button" class="aegis-consent-button" data-aegis-consent-action="customize">{{ t("consent.customize") }}</button>
+      <button type="button" class="aegis-consent-button" data-aegis-consent-action="save" hidden>{{ t("consent.save") }}</button>
+      <button type="button" class="aegis-consent-button" data-aegis-consent-action="accept-all">{{ t("consent.accept_all") }}</button>
+    </div>
+  </div>
+</div>
+{% if fields.consent.reopen_button %}<button type="button" class="aegis-consent-button aegis-consent-reopen" data-aegis-consent-reopen hidden>{{ t("consent.reopen") }}</button>{% endif %}
+"#;
+
 /// サイト内検索の結果（`/search?q=...`）。`fields.query` が検索語、`items` の `fields.url` が公開ページの URL、
 /// `fields.snippet_html` が検索語を `<mark>` で囲んだ本文の抜粋（エスケープ済み）。
 /// `fields.category`（絞り込み中のカテゴリ ID）と `fields.tag`（絞り込み中のタグ）、`fields.sort`（`relevance` / `newest`）も渡される

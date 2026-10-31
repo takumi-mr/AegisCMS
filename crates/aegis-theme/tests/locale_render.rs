@@ -237,6 +237,25 @@ fn contexts() -> Vec<PageRenderContext> {
             ..base("forum_thread.html")
         });
     }
+    // Cookie の同意バナー（`</body>` の前に差し込む断片）。既定の名前と説明を使う区分と、名前を決めた区分
+    out.push(PageRenderContext {
+        fields: object(json!({
+            "consent": {
+                "layout": "banner", "position": "bottom", "backdrop": false,
+                "policy_url": "/privacy", "reopen_button": true, "delay_ms": 0, "cookie_days": 180
+            },
+            "message": "",
+            "categories": [
+                { "id": "analytics", "label": "", "description": "" },
+                { "id": "marketing", "label": "", "description": "" },
+                { "id": "preferences", "label": "", "description": "" },
+                { "id": "functional", "label": "", "description": "" },
+                { "id": "video", "label": "Videos", "description": "Embedded players." }
+            ],
+            "preview": false
+        })),
+        ..base("consent.html")
+    });
     out
 }
 
@@ -279,8 +298,11 @@ fn test_japanese_pages_have_no_english_built_in_text() {
     for ctx in contexts() {
         let en = markup(&en_engine.render(&ctx.template, &ctx).unwrap());
         let ja = markup(&ja_engine.render(&ctx.template, &ctx).unwrap());
-        assert!(en.contains(r#"<html lang="en">"#), "{}", ctx.template);
-        assert!(ja.contains(r#"<html lang="ja">"#), "{}", ctx.template);
+        // 同意バナーは `</body>` の前に差し込む断片で、`<html>` を持たない
+        if ctx.template != "consent.html" {
+            assert!(en.contains(r#"<html lang="en">"#), "{}", ctx.template);
+            assert!(ja.contains(r#"<html lang="ja">"#), "{}", ctx.template);
+        }
         for (key, en_text, ja_text) in plain_texts() {
             if en.contains(en_text) {
                 used.insert(key);
@@ -371,6 +393,22 @@ fn test_every_key_used_by_a_template_exists() {
             .chars()
             .all(|c| c.is_ascii_lowercase() || c == '.' || c == '_')
         {
+            continue;
+        }
+        // `t("consent.category." ~ id)` のように、後ろを組み立てるキーは前半だけが読める。区分の ID ごとに確かめる
+        if key.ends_with('.') {
+            for id in ["analytics", "marketing", "preferences", "functional"] {
+                for suffix in ["", ".description"] {
+                    let full = format!("{}{}{}", key, id, suffix);
+                    assert!(
+                        messages::lookup("en", &full).is_some()
+                            && messages::lookup("ja", &full).is_some(),
+                        "t(\"{}\" ~ id) has no message for {}",
+                        key,
+                        full
+                    );
+                }
+            }
             continue;
         }
         found += 1;

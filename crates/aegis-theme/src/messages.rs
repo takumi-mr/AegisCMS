@@ -35,6 +35,49 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("pagination.newer_stories", "Newer stories", "新しい記事"),
     ("pagination.older_stories", "Older stories", "過去の記事"),
     ("pagination.page", "Page {page} / {total}", "{page} / {total} ページ"),
+    // --- Cookie の同意バナー（consent.html） ---
+    ("consent.title", "Cookies", "Cookie の利用について"),
+    (
+        "consent.message",
+        "We use cookies to make the site work and, with your consent, to measure its use and show relevant content.",
+        "このサイトは、サイトを動かすために Cookie を使います。同意いただいた場合は、利用状況の把握や関連する内容の表示にも使います。",
+    ),
+    ("consent.policy", "Privacy policy", "プライバシーポリシー"),
+    ("consent.accept_all", "Accept all", "すべて許可"),
+    ("consent.reject_all", "Reject all", "すべて拒否"),
+    ("consent.customize", "Customize", "選択する"),
+    ("consent.save", "Save choices", "選択を保存"),
+    ("consent.necessary", "Necessary", "必須"),
+    (
+        "consent.necessary_description",
+        "Needed for the site to work. Always on.",
+        "サイトを動かすために必要です。常にオンです。",
+    ),
+    ("consent.reopen", "Cookie settings", "Cookie の設定"),
+    ("consent.category.analytics", "Analytics", "アクセス解析"),
+    (
+        "consent.category.analytics.description",
+        "Helps us understand how the site is used.",
+        "サイトがどのように使われているかを把握するために使います。",
+    ),
+    ("consent.category.marketing", "Marketing", "マーケティング"),
+    (
+        "consent.category.marketing.description",
+        "Used to show relevant content and ads.",
+        "関連する内容や広告を表示するために使います。",
+    ),
+    ("consent.category.preferences", "Preferences", "設定の保存"),
+    (
+        "consent.category.preferences.description",
+        "Remembers your settings, such as language.",
+        "言語などの設定を覚えておくために使います。",
+    ),
+    ("consent.category.functional", "Functional", "追加の機能"),
+    (
+        "consent.category.functional.description",
+        "Features such as embedded videos and maps.",
+        "埋め込みの動画や地図などの機能のために使います。",
+    ),
     // --- 記事一覧・記事・固定ページ ---
     (
         "index.badge",

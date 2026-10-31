@@ -481,6 +481,14 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/cart", get(handlers::render_cart))
         .route("/orders/{id}", get(handlers::render_order))
         .route("/shop/cart.js", get(handlers::cart_script))
+        .route(
+            "/_aegis/consent.js",
+            get(handlers::site_assets::consent_script),
+        )
+        .route(
+            "/_aegis/consent.css",
+            get(handlers::site_assets::consent_style),
+        )
         .route("/forum", get(handlers::forum::render_forum_index))
         .route(
             "/forum/{category_slug}",
@@ -564,6 +572,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
     }
 
     app.layer(cors)
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::inject::inject_middleware,
+        ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             redirect_middleware,

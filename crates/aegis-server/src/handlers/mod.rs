@@ -26,6 +26,7 @@ pub mod schemas;
 pub mod seo;
 pub mod shop;
 pub mod site;
+pub mod site_assets;
 pub mod sso;
 pub mod storage;
 pub mod storefront;
