@@ -36,6 +36,8 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 
 ![サンプル掲示板「やまびこ」のトップページ](images/forum-public.png)
 
+![サンプル掲示板のスレッド（レス番号・返信先・スタッフの印）](images/forum-thread.png)
+
 - フォームは `POST /forum/{slug}/threads`・`POST /forum/{slug}/{スレッド ID}/posts` に送ります。成功すると `303` で元のページ（レスは `#post-N`）に戻り、結果のメッセージを表示します。
 - ログイン中は表示名をアカウントから取ります。未ログインで名前を空にすると `Anonymous`。
 - テーマに同じ名前のテンプレートを置くと組み込みのものの代わりに使います（共通部分は `forum_common.html`）。
