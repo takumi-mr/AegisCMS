@@ -41,6 +41,8 @@ pub struct AppState {
     pub plugin_registry: Arc<PluginRegistry>,
     pub audit: Arc<AuditService>,
     pub theme: Arc<ThemeEngine>,
+    /// リンク切れ検査サービス
+    pub broken_links: Arc<crate::broken_links::BrokenLinksService>,
     /// 関連記事の推薦・抽出ストラテジー
     pub related_strategy: Arc<dyn crate::related::RelatedArticlesStrategy>,
     /// 動的プラグイン設定（管理画面から変更された設定値のキャッシュ）
@@ -168,6 +170,7 @@ impl AppState {
             plugin_registry,
             audit,
             theme,
+            broken_links: Arc::new(crate::broken_links::BrokenLinksService::new()),
             related_strategy: Arc::new(crate::related::TagCategoryRelatedStrategy::new()),
             plugin_settings: Arc::new(std::sync::RwLock::new(HashMap::new())),
             site: Arc::new(std::sync::RwLock::new(SiteOverrides::default())),

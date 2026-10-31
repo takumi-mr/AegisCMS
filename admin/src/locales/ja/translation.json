@@ -95,7 +95,9 @@
     "newsletterFailed": "ニュースレターを読み込めませんでした",
     "deleteNewsletterSubscribersFailed": "購読者を削除できませんでした",
     "exportNewsletterFailed": "購読者を書き出せませんでした",
-    "sendNewsletterFailed": "ニュースレターを送れませんでした"
+    "sendNewsletterFailed": "ニュースレターを送れませんでした",
+    "brokenLinksFailed": "リンク切れレポートの取得に失敗しました",
+    "triggerBrokenLinksScanFailed": "リンク切れ検査の開始に失敗しました"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -1095,7 +1097,8 @@
       "system": "システム",
       "tags": "タグ",
       "redirects": "リダイレクト",
-      "newsletter": "ニュースレター"
+      "newsletter": "ニュースレター",
+      "broken-links": "リンク切れチェック"
     }
   },
   "plugins": {
@@ -1792,5 +1795,28 @@
     "historyEmpty": "まだ送信していません。",
     "recipients": "{{count}} 人に送信",
     "disabled": "サーバーでニュースレターが有効になっていません（[newsletter].enabled）。"
+  },
+  "brokenLinks": {
+    "title": "リンク切れチェック",
+    "description": "公開中の記事や固定ページに含まれる内部・外部リンクを検査し、切れているリンクを検出します。",
+    "scanNow": "検査を開始",
+    "scanning": "検査中...",
+    "lastScannedAt": "最終検査日時",
+    "neverScanned": "未実行",
+    "totalChecked": "検査リンク数",
+    "brokenCount": "リンク切れ数",
+    "noBrokenLinks": "リンク切れは検出されませんでした。すべてのリンクが有効です。",
+    "emptyState": "まだ検査が実行されていません。「検査を開始」をクリックしてリンク切れをチェックしてください。",
+    "sourceContent": "掲載元コンテンツ",
+    "targetUrl": "リンク先 URL",
+    "statusOrError": "ステータス / 理由",
+    "type": "種別",
+    "internal": "内部",
+    "external": "外部",
+    "scanStarted": "リンク切れ検査を開始しました。",
+    "scanAlreadyInProgress": "すでに検査が実行中です。",
+    "loadFailed": "リンク切れレポートの読み込みに失敗しました。",
+    "scanFailed": "リンク切れ検査の開始に失敗しました。",
+    "filterPlaceholder": "URLまたはタイトルで絞り込み..."
   }
 }
