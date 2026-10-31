@@ -46,7 +46,7 @@ struct BeaconEvent {
 }
 
 /// ブラウザが追跡を断っている（Do Not Track・Global Privacy Control）
-fn opted_out(headers: &HeaderMap) -> bool {
+pub(crate) fn opted_out(headers: &HeaderMap) -> bool {
     let is_one = |name: &str| headers.get(name).and_then(|v| v.to_str().ok()) == Some("1");
     is_one("dnt") || is_one("sec-gpc")
 }

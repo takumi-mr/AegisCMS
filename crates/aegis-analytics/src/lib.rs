@@ -31,6 +31,8 @@ pub const DIMENSION_DEVICE: &str = "device";
 pub const DIMENSION_UTM_SOURCE: &str = "utm_source";
 pub const DIMENSION_UTM_CAMPAIGN: &str = "utm_campaign";
 pub const DIMENSION_UTM_MEDIUM: &str = "utm_medium";
+pub const DIMENSION_SEARCH_QUERY: &str = "search_query";
+pub const DIMENSION_SEARCH_EMPTY: &str = "search_empty";
 
 /// 訪問者の見分けに使うキャッシュのキーを残す時間（日付が変わってからも少し残す）
 const VISITOR_TTL_SECS: u64 = 2 * 24 * 60 * 60;
@@ -116,6 +118,8 @@ pub struct AnalyticsSummary {
     pub top_utm_sources: Vec<AnalyticsTotal>,
     pub top_utm_campaigns: Vec<AnalyticsTotal>,
     pub top_utm_mediums: Vec<AnalyticsTotal>,
+    pub top_search_queries: Vec<AnalyticsTotal>,
+    pub top_search_empty: Vec<AnalyticsTotal>,
     pub previous: Option<AnalyticsComparison>,
 }
 
@@ -322,6 +326,69 @@ impl AnalyticsService {
         TrackOutcome::Counted
     }
 
+    /// 検索キーワードを 1 回数える（書き込みは [`flush`](Self::flush) でまとめて行う）。
+    /// `hits` が 0 件の場合は `DIMENSION_SEARCH_EMPTY` にも加算する
+    pub async fn track_search(
+        &self,
+        query: &str,
+        hits: u64,
+        ip: &str,
+        user_agent: &str,
+        host: &str,
+        now: DateTime<Utc>,
+    ) -> TrackOutcome {
+        if agent::is_bot(user_agent) {
+            return TrackOutcome::Bot;
+        }
+        let q = query.trim();
+        if q.is_empty() {
+            return TrackOutcome::Excluded;
+        }
+        let q_clipped: String = q
+            .chars()
+            .take(aegis_db::analytics::ANALYTICS_VALUE_MAX_CHARS)
+            .collect();
+        let day = now.format("%Y-%m-%d").to_string();
+        let salt = self.daily_salt(&day).await;
+        let visitor = short_hash(&[&salt, ip, user_agent, host]);
+        let new_on_query = self
+            .first_time(&format!(
+                "analytics:vsq:{}:{}:{}",
+                day,
+                visitor,
+                short_hash(&[&q_clipped])
+            ))
+            .await;
+
+        let new_on_empty = if hits == 0 {
+            self.first_time(&format!(
+                "analytics:vse:{}:{}:{}",
+                day,
+                visitor,
+                short_hash(&[&q_clipped])
+            ))
+            .await
+        } else {
+            false
+        };
+
+        let mut pending = self
+            .pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut add = |dimension: &'static str, value: String, visitor: bool| {
+            let entry = pending.entry((day.clone(), dimension, value)).or_default();
+            entry.0 += 1;
+            entry.1 += u64::from(visitor);
+        };
+
+        add(DIMENSION_SEARCH_QUERY, q_clipped.clone(), new_on_query);
+        if hits == 0 {
+            add(DIMENSION_SEARCH_EMPTY, q_clipped, new_on_empty);
+        }
+        TrackOutcome::Counted
+    }
+
     /// 溜まった集計を DB に書く。書けなければ戻して次の回に書く
     pub async fn flush(&self) {
         let counts: Vec<AnalyticsCount> = {
@@ -363,6 +430,8 @@ impl AnalyticsService {
                     DIMENSION_UTM_SOURCE => DIMENSION_UTM_SOURCE,
                     DIMENSION_UTM_CAMPAIGN => DIMENSION_UTM_CAMPAIGN,
                     DIMENSION_UTM_MEDIUM => DIMENSION_UTM_MEDIUM,
+                    DIMENSION_SEARCH_QUERY => DIMENSION_SEARCH_QUERY,
+                    DIMENSION_SEARCH_EMPTY => DIMENSION_SEARCH_EMPTY,
                     _ => DIMENSION_DEVICE,
                 };
                 let entry = pending.entry((c.day, dimension, c.value)).or_default();
@@ -455,7 +524,7 @@ impl AnalyticsService {
             }
         }
         let daily: Vec<DailyPoint> = by_day.into_values().collect();
-        let mut tops = Vec::with_capacity(6);
+        let mut tops = Vec::with_capacity(8);
         for dimension in [
             DIMENSION_PATH,
             DIMENSION_REFERRER,
@@ -463,6 +532,8 @@ impl AnalyticsService {
             DIMENSION_UTM_SOURCE,
             DIMENSION_UTM_CAMPAIGN,
             DIMENSION_UTM_MEDIUM,
+            DIMENSION_SEARCH_QUERY,
+            DIMENSION_SEARCH_EMPTY,
         ] {
             tops.push(
                 db.top_analytics_values(dimension, &from, &to, limit)
@@ -470,6 +541,8 @@ impl AnalyticsService {
                     .map_err(|e| SummaryError::Database(e.to_string()))?,
             );
         }
+        let top_search_empty = tops.pop().unwrap_or_default();
+        let top_search_queries = tops.pop().unwrap_or_default();
         let top_utm_mediums = tops.pop().unwrap_or_default();
         let top_utm_campaigns = tops.pop().unwrap_or_default();
         let top_utm_sources = tops.pop().unwrap_or_default();
@@ -523,6 +596,8 @@ impl AnalyticsService {
             top_utm_sources,
             top_utm_campaigns,
             top_utm_mediums,
+            top_search_queries,
+            top_search_empty,
             previous,
         })
     }
@@ -599,6 +674,18 @@ pub fn export_summary_csv(summary: &AnalyticsSummary) -> String {
         &summary.top_utm_campaigns,
     );
     write_section(&mut csv, "UTM Mediums", "Medium", &summary.top_utm_mediums);
+    write_section(
+        &mut csv,
+        "Top Search Queries",
+        "Search Query",
+        &summary.top_search_queries,
+    );
+    write_section(
+        &mut csv,
+        "Top No-Result Search Queries",
+        "Search Query",
+        &summary.top_search_empty,
+    );
 
     csv
 }

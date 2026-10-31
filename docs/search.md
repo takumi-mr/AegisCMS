@@ -73,6 +73,9 @@ content_types = ["article", "page"]  # 検索の対象にするコンテンツ�
 
 テーマのヘッダーなどに置く検索欄は、このフォームを `/search` に送るだけで使えます。
 
+### アクセス解析との連携
+アクセス解析（`[analytics]`）が有効な場合、検索ページ（`/search?q=...`）で検索されたキーワードは個人を特定しない形で自動集計されます（1 ページ目のアクセス時のみカウント）。検索結果が 0 件だったキーワードは「該当なし検索」として別枠で記録され、Admin Studio の Analytics ダッシュボードや CSV エクスポートでユーザーのコンテンツ需要分析に活用できます（検索 API `GET /api/v1/search` の呼び出しは集計対象外です）。
+
 ## 4. API
 
 `GET /api/v1/search?q=検索語&type=article,page&category=カテゴリID&tag=タグslug&sort=newest&limit=10&offset=0`（ログイン不要）

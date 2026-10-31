@@ -484,6 +484,18 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onShowToast }) => 
                 rows={summary.top_utm_campaigns}
                 label={(v) => v}
               />
+              <TopTable
+                title={t('analytics.topSearchQueries')}
+                column={t('analytics.query')}
+                rows={summary.top_search_queries}
+                label={(v) => v}
+              />
+              <TopTable
+                title={t('analytics.topSearchEmpty')}
+                column={t('analytics.query')}
+                rows={summary.top_search_empty}
+                label={(v) => v}
+              />
             </div>
           </>
         )}

@@ -46,6 +46,11 @@ const sampleSummary = (days: number): AnalyticsSummary => {
     ],
     top_utm_campaigns: [{ value: 'launch2026', pageviews: 450, visitors: 320 }],
     top_utm_mediums: [{ value: 'social', pageviews: 450, visitors: 320 }],
+    top_search_queries: [
+      { value: 'rust', pageviews: 120, visitors: 95 },
+      { value: 'theme', pageviews: 85, visitors: 70 },
+    ],
+    top_search_empty: [{ value: 'wordpress', pageviews: 15, visitors: 12 }],
     previous: {
       from: '2026-09-01',
       to: '2026-09-30',
@@ -84,6 +89,8 @@ export const Default: Story = {
     await expect(await canvas.findByText('Top pages')).toBeVisible();
     await expect(canvas.getByRole('button', { name: 'Export CSV' })).toBeVisible();
     await expect(canvas.getByText('Campaign sources (utm_source)')).toBeVisible();
+    await expect(canvas.getByText('Top search queries')).toBeVisible();
+    await expect(canvas.getByText('No-result searches')).toBeVisible();
     await expect(canvas.getByText('/docs/getting-started')).toBeVisible();
     await expect(canvas.getByText('Direct / none')).toBeVisible();
     await expect(canvas.getByText('Mobile')).toBeVisible();
