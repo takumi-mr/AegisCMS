@@ -664,6 +664,31 @@ export const aegisApi = {
     return request(`/analytics/summary?${toQuery(query)}`, {}, i18n.t('api.analyticsFailed'));
   },
 
+  /** Downloads analytics CSV for `from`..`to` */
+  async downloadAnalyticsCsv(query: { from: string; to: string }): Promise<void> {
+    const token = getSessionToken();
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/analytics/export?${toQuery(query)}`, { headers });
+    if (!res.ok) {
+      if (res.status === 401 && token) unauthorizedHandler?.();
+      const err = await res.json().catch(() => ({ error: i18n.t('api.analyticsFailed') }));
+      throw new ApiError(res.status, err.error || i18n.t('api.analyticsFailed'));
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    const filename = match ? match[1] : `analytics-${query.from}_${query.to}.csv`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
   /** Approval settings (404 when [comments] is disabled) */
   async getCommentSettings(): Promise<CommentSettings> {
     return request('/comments/settings', {}, i18n.t('api.commentSettingsFailed'));

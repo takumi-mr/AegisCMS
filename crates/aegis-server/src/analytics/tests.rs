@@ -79,6 +79,14 @@ impl Site {
         let (status, body) = self.send(request.body(Body::empty()).unwrap()).await;
         (status, serde_json::from_str(&body).unwrap_or(Value::Null))
     }
+
+    async fn export_csv(&self, query: &str, token: Option<&str>) -> (StatusCode, String) {
+        let mut request = Request::get(format!("/api/v1/analytics/export{}", query));
+        if let Some(token) = token {
+            request = request.header("authorization", format!("Bearer {}", token));
+        }
+        self.send(request.body(Body::empty()).unwrap()).await
+    }
 }
 
 #[tokio::test]
@@ -169,4 +177,39 @@ async fn test_events_are_counted_and_summarized() {
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(error["error"].as_str().unwrap().contains("after"));
+
+    // UTM パラメータ付きビーコン送信
+    let utm_event = json!({
+        "p": "/campaign",
+        "q": "?utm_source=twitter&utm_campaign=winter2026",
+        "r": "https://t.co/abc"
+    })
+    .to_string();
+    assert_eq!(
+        site.beacon(&utm_event, [198, 51, 100, 10], None).await,
+        StatusCode::NO_CONTENT
+    );
+
+    let (status, summary) = site.summary("?limit=5", Some(&site.viewer)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(summary["top_utm_sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|v| v["value"] == "twitter"));
+    assert!(summary["top_utm_campaigns"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|v| v["value"] == "winter2026"));
+    assert!(summary["previous"].is_object());
+
+    // CSV エクスポートのテスト
+    assert_eq!(site.export_csv("", None).await.0, StatusCode::UNAUTHORIZED);
+    let (status, csv) = site.export_csv("?limit=5", Some(&site.viewer)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(csv.starts_with('\u{FEFF}'));
+    assert!(csv.contains("Summary Report"));
+    assert!(csv.contains("Daily Trend"));
+    assert!(csv.contains("Top Pages"));
 }

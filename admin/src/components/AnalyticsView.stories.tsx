@@ -40,6 +40,20 @@ const sampleSummary = (days: number): AnalyticsSummary => {
       { value: 'mobile', pageviews: 1250, visitors: 1020 },
       { value: 'tablet', pageviews: 120, visitors: 90 },
     ],
+    top_utm_sources: [
+      { value: 'twitter', pageviews: 450, visitors: 320 },
+      { value: 'newsletter', pageviews: 210, visitors: 180 },
+    ],
+    top_utm_campaigns: [{ value: 'launch2026', pageviews: 450, visitors: 320 }],
+    top_utm_mediums: [{ value: 'social', pageviews: 450, visitors: 320 }],
+    previous: {
+      from: '2026-09-01',
+      to: '2026-09-30',
+      pageviews: 3200,
+      visitors: 1800,
+      pageviews_change_pct: 24.1,
+      visitors_change_pct: 18.5,
+    },
   };
 };
 
@@ -68,6 +82,8 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('Top pages')).toBeVisible();
+    await expect(canvas.getByRole('button', { name: 'Export CSV' })).toBeVisible();
+    await expect(canvas.getByText('Campaign sources (utm_source)')).toBeVisible();
     await expect(canvas.getByText('/docs/getting-started')).toBeVisible();
     await expect(canvas.getByText('Direct / none')).toBeVisible();
     await expect(canvas.getByText('Mobile')).toBeVisible();
@@ -112,12 +128,16 @@ export const NoVisitsYet: Story = {
         top_pages: [],
         top_referrers: [],
         devices: [],
+        top_utm_sources: [],
+        top_utm_campaigns: [],
+        top_utm_mediums: [],
+        previous: null,
       };
     }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('No visits recorded in this period yet.')).toBeVisible();
-    await expect(canvas.getAllByText('No data')).toHaveLength(3);
+    await expect(canvas.getAllByText('No data')).toHaveLength(5);
   },
 };
 

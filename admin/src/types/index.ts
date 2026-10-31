@@ -973,6 +973,16 @@ export interface AnalyticsDay {
   visitors: number;
 }
 
+/** Comparison with the previous period in `GET /api/v1/analytics/summary` */
+export interface AnalyticsComparison {
+  from: string;
+  to: string;
+  pageviews: number;
+  visitors: number;
+  pageviews_change_pct: number | null;
+  visitors_change_pct: number | null;
+}
+
 /** `GET /api/v1/analytics/summary` (404 when [analytics] is disabled) */
 export interface AnalyticsSummary {
   from: string;
@@ -986,6 +996,10 @@ export interface AnalyticsSummary {
   /** Entry page views from other sites; '' is direct visits */
   top_referrers: AnalyticsTotal[];
   devices: AnalyticsTotal[];
+  top_utm_sources: AnalyticsTotal[];
+  top_utm_campaigns: AnalyticsTotal[];
+  top_utm_mediums: AnalyticsTotal[];
+  previous?: AnalyticsComparison | null;
 }
 
 /** A field of a contact form (`[[contact.forms.fields]]` in the configuration file) */

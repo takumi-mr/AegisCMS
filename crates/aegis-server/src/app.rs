@@ -477,6 +477,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             .route(
                 "/api/v1/analytics/summary",
                 get(crate::analytics::get_summary),
+            )
+            .route(
+                "/api/v1/analytics/export",
+                get(crate::analytics::export_csv),
             );
     }
 

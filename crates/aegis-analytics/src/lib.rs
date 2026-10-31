@@ -18,7 +18,7 @@ use std::time::Duration;
 use aegis_core::CacheBackend;
 use aegis_db::{AnalyticsCount, AnalyticsTotal, DatabaseAdapter};
 use chrono::{DateTime, NaiveDate, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub use config::AnalyticsConfig;
@@ -28,6 +28,9 @@ pub const DIMENSION_SITE: &str = "site";
 pub const DIMENSION_PATH: &str = "path";
 pub const DIMENSION_REFERRER: &str = "referrer";
 pub const DIMENSION_DEVICE: &str = "device";
+pub const DIMENSION_UTM_SOURCE: &str = "utm_source";
+pub const DIMENSION_UTM_CAMPAIGN: &str = "utm_campaign";
+pub const DIMENSION_UTM_MEDIUM: &str = "utm_medium";
 
 /// 訪問者の見分けに使うキャッシュのキーを残す時間（日付が変わってからも少し残す）
 const VISITOR_TTL_SECS: u64 = 2 * 24 * 60 * 60;
@@ -55,6 +58,8 @@ pub fn beacon_script(endpoint: &str) -> String {
 pub struct PageView<'a> {
     /// 表示したページのパス（`location.pathname`）
     pub path: &'a str,
+    /// ページのクエリ文字列（`location.search`）
+    pub query: &'a str,
     /// `document.referrer`
     pub referrer: &'a str,
     /// リクエストの `Host`（自分のサイトからの移動を参照元から除くため）
@@ -76,15 +81,26 @@ pub enum TrackOutcome {
 
 type Key = (String, &'static str, String);
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DailyPoint {
     pub day: String,
     pub pageviews: u64,
     pub visitors: u64,
 }
 
+/// 前期間との比較集計
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AnalyticsComparison {
+    pub from: String,
+    pub to: String,
+    pub pageviews: u64,
+    pub visitors: u64,
+    pub pageviews_change_pct: Option<f64>,
+    pub visitors_change_pct: Option<f64>,
+}
+
 /// 期間の集計
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct AnalyticsSummary {
     pub from: String,
     pub to: String,
@@ -97,6 +113,10 @@ pub struct AnalyticsSummary {
     /// ほかのサイトからの入口のページ表示（`value` は参照元のホスト。空文字列なら直接の訪問・参照元なし）
     pub top_referrers: Vec<AnalyticsTotal>,
     pub devices: Vec<AnalyticsTotal>,
+    pub top_utm_sources: Vec<AnalyticsTotal>,
+    pub top_utm_campaigns: Vec<AnalyticsTotal>,
+    pub top_utm_mediums: Vec<AnalyticsTotal>,
+    pub previous: Option<AnalyticsComparison>,
 }
 
 pub struct AnalyticsService {
@@ -234,6 +254,43 @@ impl AnalyticsService {
             }
             None => false,
         };
+        let utm = agent::extract_utm(view.query);
+        let new_from_utm_source = match &utm.source {
+            Some(src) => {
+                self.first_time(&format!(
+                    "analytics:us:{}:{}:{}",
+                    day,
+                    visitor,
+                    short_hash(&[src])
+                ))
+                .await
+            }
+            None => false,
+        };
+        let new_from_utm_campaign = match &utm.campaign {
+            Some(camp) => {
+                self.first_time(&format!(
+                    "analytics:uc:{}:{}:{}",
+                    day,
+                    visitor,
+                    short_hash(&[camp])
+                ))
+                .await
+            }
+            None => false,
+        };
+        let new_from_utm_medium = match &utm.medium {
+            Some(med) => {
+                self.first_time(&format!(
+                    "analytics:um:{}:{}:{}",
+                    day,
+                    visitor,
+                    short_hash(&[med])
+                ))
+                .await
+            }
+            None => false,
+        };
         let device = agent::device(view.user_agent);
 
         let mut pending = self
@@ -253,6 +310,15 @@ impl AnalyticsService {
         }
         // 端末の種類は User-Agent で決まり、訪問者の見分けにも User-Agent を使うので、その日の最初の 1 回で数える
         add(DIMENSION_DEVICE, device.to_string(), new_visitor);
+        if let Some(src) = utm.source {
+            add(DIMENSION_UTM_SOURCE, src, new_from_utm_source);
+        }
+        if let Some(camp) = utm.campaign {
+            add(DIMENSION_UTM_CAMPAIGN, camp, new_from_utm_campaign);
+        }
+        if let Some(med) = utm.medium {
+            add(DIMENSION_UTM_MEDIUM, med, new_from_utm_medium);
+        }
         TrackOutcome::Counted
     }
 
@@ -294,6 +360,9 @@ impl AnalyticsService {
                     DIMENSION_SITE => DIMENSION_SITE,
                     DIMENSION_PATH => DIMENSION_PATH,
                     DIMENSION_REFERRER => DIMENSION_REFERRER,
+                    DIMENSION_UTM_SOURCE => DIMENSION_UTM_SOURCE,
+                    DIMENSION_UTM_CAMPAIGN => DIMENSION_UTM_CAMPAIGN,
+                    DIMENSION_UTM_MEDIUM => DIMENSION_UTM_MEDIUM,
                     _ => DIMENSION_DEVICE,
                 };
                 let entry = pending.entry((c.day, dimension, c.value)).or_default();
@@ -386,30 +455,153 @@ impl AnalyticsService {
             }
         }
         let daily: Vec<DailyPoint> = by_day.into_values().collect();
-        let mut tops = Vec::with_capacity(3);
-        for dimension in [DIMENSION_PATH, DIMENSION_REFERRER, DIMENSION_DEVICE] {
+        let mut tops = Vec::with_capacity(6);
+        for dimension in [
+            DIMENSION_PATH,
+            DIMENSION_REFERRER,
+            DIMENSION_DEVICE,
+            DIMENSION_UTM_SOURCE,
+            DIMENSION_UTM_CAMPAIGN,
+            DIMENSION_UTM_MEDIUM,
+        ] {
             tops.push(
                 db.top_analytics_values(dimension, &from, &to, limit)
                     .await
                     .map_err(|e| SummaryError::Database(e.to_string()))?,
             );
         }
+        let top_utm_mediums = tops.pop().unwrap_or_default();
+        let top_utm_campaigns = tops.pop().unwrap_or_default();
+        let top_utm_sources = tops.pop().unwrap_or_default();
         let devices = tops.pop().unwrap_or_default();
         let top_referrers = tops.pop().unwrap_or_default();
         let top_pages = tops.pop().unwrap_or_default();
+
+        let pageviews: u64 = daily.iter().map(|d| d.pageviews).sum();
+        let visitors: u64 = daily.iter().map(|d| d.visitors).sum();
+
+        // 前期間（同じ日数分だけ遡った直前期間）の集計
+        let num_days = (to_day - from_day).num_days() + 1;
+        let prev_to_day = from_day - chrono::Duration::days(1);
+        let prev_from_day = prev_to_day - chrono::Duration::days(num_days - 1);
+        let prev_from = prev_from_day.format("%Y-%m-%d").to_string();
+        let prev_to = prev_to_day.format("%Y-%m-%d").to_string();
+
+        let prev_rows = db
+            .list_analytics_daily(DIMENSION_SITE, &prev_from, &prev_to)
+            .await
+            .unwrap_or_default();
+        let prev_pageviews: u64 = prev_rows.iter().map(|r| r.pageviews).sum();
+        let prev_visitors: u64 = prev_rows.iter().map(|r| r.visitors).sum();
+
+        let calc_pct = |cur: u64, prev: u64| -> Option<f64> {
+            if prev == 0 {
+                return None;
+            }
+            let pct = ((cur as f64 - prev as f64) / prev as f64) * 100.0;
+            Some((pct * 10.0).round() / 10.0)
+        };
+
+        let previous = Some(AnalyticsComparison {
+            from: prev_from,
+            to: prev_to,
+            pageviews: prev_pageviews,
+            visitors: prev_visitors,
+            pageviews_change_pct: calc_pct(pageviews, prev_pageviews),
+            visitors_change_pct: calc_pct(visitors, prev_visitors),
+        });
+
         Ok(AnalyticsSummary {
             from: from_day.format("%Y-%m-%d").to_string(),
             to: to_day.format("%Y-%m-%d").to_string(),
-            pageviews: daily.iter().map(|d| d.pageviews).sum(),
-            visitors: daily.iter().map(|d| d.visitors).sum(),
+            pageviews,
+            visitors,
             daily,
             top_pages,
             top_referrers,
             devices,
+            top_utm_sources,
+            top_utm_campaigns,
+            top_utm_mediums,
+            previous,
         })
     }
 }
 
+/// 集計データを UTF-8 BOM 付き CSV 文字列として書き出す
+pub fn export_summary_csv(summary: &AnalyticsSummary) -> String {
+    let mut csv = String::from("\u{FEFF}");
+    csv.push_str("Summary Report\n");
+    csv.push_str(&format!("Period,{} to {}\n", summary.from, summary.to));
+    csv.push_str(&format!("Total Pageviews,{}\n", summary.pageviews));
+    csv.push_str(&format!("Total Daily Visitors,{}\n", summary.visitors));
+
+    if let Some(prev) = &summary.previous {
+        csv.push_str(&format!("Previous Period,{} to {}\n", prev.from, prev.to));
+        csv.push_str(&format!("Previous Pageviews,{}\n", prev.pageviews));
+        csv.push_str(&format!("Previous Daily Visitors,{}\n", prev.visitors));
+        let pv_change = prev
+            .pageviews_change_pct
+            .map(|p| format!("{p}%"))
+            .unwrap_or_else(|| "N/A".to_string());
+        let vis_change = prev
+            .visitors_change_pct
+            .map(|p| format!("{p}%"))
+            .unwrap_or_else(|| "N/A".to_string());
+        csv.push_str(&format!("Pageviews Change,{pv_change}\n"));
+        csv.push_str(&format!("Visitors Change,{vis_change}\n"));
+    }
+    csv.push('\n');
+
+    csv.push_str("Daily Trend\nDate,Pageviews,Visitors\n");
+    for d in &summary.daily {
+        csv.push_str(&format!("{},{},{}\n", d.day, d.pageviews, d.visitors));
+    }
+    csv.push('\n');
+
+    fn write_section(csv: &mut String, title: &str, header: &str, items: &[AnalyticsTotal]) {
+        csv.push_str(title);
+        csv.push('\n');
+        csv.push_str(header);
+        csv.push_str(",Pageviews,Visitors\n");
+        for item in items {
+            let val = if item.value.is_empty() {
+                "(direct)"
+            } else {
+                &item.value
+            };
+            let escaped = if val.contains(',') || val.contains('"') || val.contains('\n') {
+                format!("\"{}\"", val.replace('"', "\"\""))
+            } else {
+                val.to_string()
+            };
+            csv.push_str(&format!(
+                "{},{},{}\n",
+                escaped, item.pageviews, item.visitors
+            ));
+        }
+        csv.push('\n');
+    }
+
+    write_section(&mut csv, "Top Pages", "Path", &summary.top_pages);
+    write_section(
+        &mut csv,
+        "Top Referrers",
+        "Referrer",
+        &summary.top_referrers,
+    );
+    write_section(&mut csv, "Devices", "Device", &summary.devices);
+    write_section(&mut csv, "UTM Sources", "Source", &summary.top_utm_sources);
+    write_section(
+        &mut csv,
+        "UTM Campaigns",
+        "Campaign",
+        &summary.top_utm_campaigns,
+    );
+    write_section(&mut csv, "UTM Mediums", "Medium", &summary.top_utm_mediums);
+
+    csv
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SummaryError {
     InvalidDate,

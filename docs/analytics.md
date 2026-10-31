@@ -61,9 +61,10 @@ exclude_paths = []          # 数えないパス（前方一致。例: ["/previe
 
 **Analytics** タブ（`[analytics].enabled = true` のときだけ表示。viewer 以上）で、過去 7 / 30 / 90 日の集計を見られます。
 
-- ページビューと訪問者の合計
-- 日ごとの推移のグラフ（矢印キーで日ごとの値を読めます。表でも見られます）
-- よく見られたページ・参照元・端末（上位 10 件）
+- **ページビューと訪問者の合計と前期間比**: 選択した期間と同じ長さの直前期間（前週・前月など）との比較（％変化率および前期間数値）を表示します。
+- **日ごとの推移**: グラフ表示（矢印キーで日ごとの値を読めます）および表形式の切り替えが可能です。
+- **内訳ランキング**: よく見られたページ・参照元（リファラー）・端末・UTM 流入元（`utm_source`）・UTM キャンペーン（`utm_campaign`）の上位を表示します。
+- **CSV 出力**: 右上の「CSV出力」ボタンから、表示中期間の日別推移および各ランキングを含むレポート CSV（Excel で文字化けしない UTF-8 BOM 付き）をダウンロードできます。
 
 日付は UTC で区切ります。
 
@@ -85,8 +86,19 @@ exclude_paths = []          # 数えないパス（前方一致。例: ["/previe
   "daily": [{ "day": "2026-10-01", "pageviews": 40, "visitors": 15 }],
   "top_pages": [{ "value": "/", "pageviews": 300, "visitors": 120 }],
   "top_referrers": [{ "value": "google.com", "pageviews": 80, "visitors": 70 }],
-  "devices": [{ "value": "mobile", "pageviews": 600, "visitors": 250 }]
+  "devices": [{ "value": "mobile", "pageviews": 600, "visitors": 250 }],
+  "top_utm_sources": [{ "value": "twitter", "pageviews": 150, "visitors": 90 }],
+  "top_utm_campaigns": [{ "value": "autumn_sale", "pageviews": 150, "visitors": 90 }],
+  "previous": {
+    "from": "2026-08-31",
+    "to": "2026-09-30",
+    "pageviews": 1100,
+    "visitors": 400,
+    "pageviews_change_pct": 12.2,
+    "visitors_change_pct": 14.0
+  }
 }
 ```
 
-ビーコンの受け口 `POST /api/v1/analytics/event` は、本文 `{"p": パス, "r": 参照元}`（4KB まで）を受け取り、数えたかどうかにかかわらず `204` を返します。
+- `GET /api/v1/analytics/export?from=2026-10-01&to=2026-10-31`（viewer 以上）: 期間集計（概要、前期間比、日別推移、人気ページ、参照元、端末、UTM）を UTF-8 BOM 付き CSV ファイルとしてダウンロードします。
+- ビーコンの受け口 `POST /api/v1/analytics/event` は、本文 `{"p": パス, "q": クエリ文字列, "r": 参照元}`（4KB まで）を受け取り、数えたかどうかにかかわらず `204` を返します。

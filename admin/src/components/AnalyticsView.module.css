@@ -119,6 +119,36 @@
   gap: 2px;
 }
 
+.tileHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.changeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.changePositive {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.changeNegative {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.changeNeutral {
+  background: var(--bg-surface-elevated);
+  color: var(--text-muted);
+}
 .tileLabel {
   font-size: 0.8rem;
   color: var(--text-secondary);
