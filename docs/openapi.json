@@ -487,6 +487,24 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Keyset pagination cursor: created_at timestamp of the last record from the previous page. Must be used with cursor_id",
+            "in": "query",
+            "name": "cursor_created_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Keyset pagination cursor: id of the last record from the previous page. Must be used with cursor_created_at",
+            "in": "query",
+            "name": "cursor_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -510,6 +528,14 @@
                     },
                     "limit": {
                       "type": "integer"
+                    },
+                    "next_cursor_created_at": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "next_cursor_id": {
+                      "nullable": true,
+                      "type": "string"
                     },
                     "offset": {
                       "type": "integer"
