@@ -63,6 +63,7 @@ walkdir.workspace = true
 # A mock OpenID Connect IdP for the SSO handler tests
 aegis-auth = { path = "../aegis-auth", features = ["mock-idp"] }
 tempfile.workspace = true
+wat.workspace = true
 
 [features]
 default = ["oidc", "saml", "search", "analytics", "backup"]

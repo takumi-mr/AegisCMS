@@ -4,6 +4,6 @@ pub mod instance;
 pub mod loader;
 
 pub use engine::{InstancePoolConfig, WasmEngine};
-pub use host_state::PluginHostState;
-pub use instance::WasmPluginInstance;
+pub use host_state::{PluginHostState, PluginLogEntry};
+pub use instance::{HookInvocationResult, WasmPluginInstance};
 pub use loader::{InstalledPlugin, PluginInfo, WasmPluginLoader};

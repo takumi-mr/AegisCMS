@@ -9,8 +9,8 @@ pub use guard::CapabilityGuard;
 pub use plugin::{AegisPlugin, CommentCheck, PluginSupervisor};
 pub use services::{HostServices, HttpRequest, HttpResponse, LocalHostServices, PluginServices};
 pub use wasm::{
-    InstalledPlugin, InstancePoolConfig, PluginHostState, PluginInfo, WasmEngine,
-    WasmPluginInstance, WasmPluginLoader,
+    HookInvocationResult, InstalledPlugin, InstancePoolConfig, PluginHostState, PluginInfo,
+    PluginLogEntry, WasmEngine, WasmPluginInstance, WasmPluginLoader,
 };
 
 #[cfg(test)]
@@ -157,6 +157,56 @@ mod tests {
         let output = result.unwrap();
         assert_eq!(output.slug, "secure-architecture");
         assert_eq!(output.author_id, "takumi");
+    }
+
+    #[tokio::test]
+    async fn test_call_hook_raw_captures_logs_and_metrics() {
+        let engine = WasmEngine::new().expect("WasmEngine initialization failed");
+        let kv = Arc::new(Mutex::new(HashMap::new()));
+
+        let wat_src = r#"
+        (module
+            (import "host" "log" (func $log (param i32 i32 i32)))
+            (memory (export "memory") 1)
+            (data (i32.const 256) "Hello from Wasm logger")
+            (func (export "allocate") (param $len i32) (result i32)
+                i32.const 16
+            )
+            (func (export "on_before_save") (param $ptr i32) (param $len i32) (result i64)
+                (call $log (i32.const 1) (i32.const 256) (i32.const 22))
+                (i64.or
+                    (i64.shl (i64.extend_i32_u (local.get $ptr)) (i64.const 32))
+                    (i64.extend_i32_u (local.get $len))
+                )
+            )
+        )
+        "#;
+
+        let wasm_bytes = wat::parse_str(wat_src).expect("WAT parse failed");
+        let manifest = make_sample_manifest(vec!["on-before-save".to_string()]);
+
+        let instance = WasmPluginInstance::from_bytes(engine, manifest, &wasm_bytes, kv)
+            .expect("Instance creation failed");
+
+        let exports = instance.exports();
+        assert!(exports.contains(&"on_before_save".to_string()));
+        assert!(exports.contains(&"allocate".to_string()));
+
+        let raw_res = instance
+            .call_hook_raw("on-before-save", "on_before_save", b"{\"title\":\"Test\"}")
+            .await
+            .expect("Hook raw execution failed");
+
+        assert!(raw_res.fuel_consumed > 0);
+        assert!(raw_res.duration_ms >= 0.0);
+        assert_eq!(
+            raw_res.output.as_deref(),
+            Some(b"{\"title\":\"Test\"}".as_slice())
+        );
+        assert_eq!(raw_res.logs.len(), 1);
+        assert_eq!(raw_res.logs[0].level, "info");
+        assert_eq!(raw_res.logs[0].message, "Hello from Wasm logger");
+        assert!(!raw_res.logs[0].timestamp.is_empty());
     }
 
     #[tokio::test]

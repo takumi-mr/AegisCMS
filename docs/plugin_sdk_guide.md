@@ -206,7 +206,16 @@ cp target/wasm32-unknown-unknown/release/<plugin_name>.wasm plugin.wasm
 copy target\wasm32-unknown-unknown\release\<plugin_name>.wasm plugin.wasm
 ```
 
-### 4.3 AegisCMS へのデプロイ
+### 4.3 プラグイン開発サーバーでの即時検証 (	ask dev:plugin)
+
+コンパイル後の plugin.wasm と plugin.manifest.json は、実サーバーや DB を起動することなく、開発サーバーでフックの動作、CPU 命令数（Fuel）、実行時間、ログ、KVS/HTTP の挙動を即時検証できます（詳細は [プラグイン開発サーバー (plugin_dev_server.md)](plugin_dev_server.md) 参照）。
+
+`ash
+# プラグイン開発サーバーの起動 (ポート 8091)
+task dev:plugin -- plugins/my-plugin
+`
+
+### 4.4 AegisCMS へのデプロイ
 
 AegisCMS サーバーの `plugins/<name>/` ディレクトリ（`<name>` はマニフェストの `name`）を作成し、以下を配置します。
 

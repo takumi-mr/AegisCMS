@@ -23,6 +23,11 @@ tasks:
     cmds:
       - npm --prefix admin run dev
 
+  dev:plugin:
+    desc: 'プラグイン開発用サーバー (DB 不要、保存で自動リロード、ポート 8091)。task dev:plugin -- plugins/official-code-enhancer'
+    cmds:
+      - cargo run -p aegis-server -- plugin dev {{.CLI_ARGS}}
+
   dev:theme:
     desc: 'テーマを開発用サーバー (DB 不要、保存で自動リロード、ポート 8090) で確認。task dev:theme -- themes/trailhead'
     cmds:
