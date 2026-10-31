@@ -401,6 +401,15 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/headers",
             get(handlers::get_headers_settings).put(handlers::update_headers_settings),
         )
+        // --- お知らせバナー ---
+        .route(
+            "/api/v1/notices",
+            get(handlers::notices::list_notices).post(handlers::notices::create_notice),
+        )
+        .route(
+            "/api/v1/notices/{id}",
+            put(handlers::notices::update_notice).delete(handlers::notices::delete_notice),
+        )
         // --- リダイレクト ---
         .route(
             "/api/v1/redirects",
@@ -497,6 +506,14 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route(
             "/_aegis/consent.css",
             get(handlers::site_assets::consent_style),
+        )
+        .route(
+            "/_aegis/notices.js",
+            get(handlers::site_assets::notices_script),
+        )
+        .route(
+            "/_aegis/notices.css",
+            get(handlers::site_assets::notices_style),
         )
         .route("/forum", get(handlers::forum::render_forum_index))
         .route(

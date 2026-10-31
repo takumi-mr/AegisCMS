@@ -256,6 +256,19 @@ fn contexts() -> Vec<PageRenderContext> {
         })),
         ..base("consent.html")
     });
+    // お知らせバナー（`<body>` の直後に差し込む断片）。リンクの文字を決めていないお知らせと、閉じられるお知らせ
+    out.push(PageRenderContext {
+        fields: object(json!({
+            "notices": [
+                { "id": "n1", "message": "Maintenance tonight.", "link_url": "/status", "link_label": "",
+                  "style": "warning", "dismissible": true, "rev": "r1" },
+                { "id": "n2", "message": "Sale!", "link_url": "", "link_label": "",
+                  "style": "info", "dismissible": false, "rev": "r2" }
+            ],
+            "preview": false
+        })),
+        ..base("notices.html")
+    });
     out
 }
 
@@ -299,7 +312,7 @@ fn test_japanese_pages_have_no_english_built_in_text() {
         let en = markup(&en_engine.render(&ctx.template, &ctx).unwrap());
         let ja = markup(&ja_engine.render(&ctx.template, &ctx).unwrap());
         // 同意バナーは `</body>` の前に差し込む断片で、`<html>` を持たない
-        if ctx.template != "consent.html" {
+        if ctx.template != "consent.html" && ctx.template != "notices.html" {
             assert!(en.contains(r#"<html lang="en">"#), "{}", ctx.template);
             assert!(ja.contains(r#"<html lang="ja">"#), "{}", ctx.template);
         }

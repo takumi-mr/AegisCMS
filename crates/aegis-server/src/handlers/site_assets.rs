@@ -42,3 +42,16 @@ pub async fn consent_style(State(state): State<Arc<AppState>>) -> Response {
     }
     asset("text/css; charset=utf-8", crate::consent::style())
 }
+
+/// `GET /_aegis/notices.js` — お知らせバナーの「閉じる」のスクリプト
+pub async fn notices_script() -> Response {
+    asset(
+        "application/javascript; charset=utf-8",
+        crate::notices::script(),
+    )
+}
+
+/// `GET /_aegis/notices.css` — 組み込みのお知らせバナーのスタイル
+pub async fn notices_style() -> Response {
+    asset("text/css; charset=utf-8", crate::notices::style())
+}

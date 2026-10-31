@@ -23,6 +23,8 @@ pub const TOPIC_PLUGIN_SETTINGS: &str = "plugins.settings";
 pub const TOPIC_NOTIFICATION_TEMPLATES: &str = "notifications.templates";
 /// リダイレクトの規則が変わった。受け取ったら DB から読み直す
 pub const TOPIC_REDIRECTS: &str = "redirects";
+/// お知らせバナーが変わった。受け取ったら DB から読み直す
+pub const TOPIC_NOTICES: &str = "notices";
 
 /// ほかのサーバー（と自分）に知らせる。届かなくても操作は失敗にしない（ほかのサーバーは再接続・再起動で揃う）
 pub async fn announce(state: &AppState, topic: &str, payload: &str) {
@@ -52,6 +54,10 @@ pub async fn handle(state: &AppState, message: BusMessage) {
                 if aegis_core::is_valid_plugin_name(&payload) {
                     crate::handlers::plugin::refresh_plugin_settings(state, &payload).await;
                 }
+            }
+            TOPIC_NOTICES => {
+                *state.notices.write().await =
+                    crate::notices::NoticeList::load(state.db.as_ref()).await;
             }
             TOPIC_REDIRECTS => {
                 *state.redirects.write().await =

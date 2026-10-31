@@ -306,6 +306,20 @@ fn default_sample(template: &str) -> Value {
         "published_at": "2026-10-20T09:00:00Z",
         "updated_at": "2026-10-25T18:30:00Z",
     });
+    if stem == "notices" {
+        // お知らせバナー: 閉じられるもの・リンクの文字を決めたもの・決めていないもの
+        context["fields"] = json!({
+            "notices": [
+                { "id": "n1", "message": "今夜 0 時から 2 時まで、メンテナンスのため一部の機能をお使いいただけません。",
+                  "link_url": "/status", "link_label": "", "style": "warning", "dismissible": true, "rev": "r1" },
+                { "id": "n2", "message": "秋のセールを開催中です。", "link_url": "/sale", "link_label": "セールを見る",
+                  "style": "info", "dismissible": true, "rev": "r2" },
+                { "id": "n3", "message": "ご注文が完了しました。", "link_url": "", "link_label": "",
+                  "style": "success", "dismissible": false, "rev": "r3" },
+            ],
+            "preview": true,
+        });
+    }
     if stem == "consent" {
         // 同意バナー: 最初から表示する（`preview`）。設定の既定と、既定の名前の区分・名前を決めた区分
         context["fields"] = json!({
@@ -438,6 +452,14 @@ fn escape(s: &str) -> String {
 /// 断片のテンプレート（`</body>` の前に差し込む同意バナー）は、プレビューのために文書で包み、組み込みの CSS を付ける
 /// （テーマが自分の CSS で作るなら、`<style>` を足しても上書きできる）。ほかのテンプレートはそのまま
 fn as_document(template: &str, html: String) -> String {
+    if template == "notices.html" {
+        // お知らせバナーはページの上に出る。閉じるボタンは、スクリプトが動くサイトでだけ出る
+        return format!(
+            "<!doctype html><html><head><meta charset=\"utf-8\"><style>{css}</style></head><body style=\"margin:0;font-family:system-ui\">{html}<p style=\"opacity:.55;margin:1rem\">(the page below the notices)</p></body></html>",
+            css = crate::notices::style(),
+            html = html
+        );
+    }
     if template != "consent.html" {
         return html;
     }

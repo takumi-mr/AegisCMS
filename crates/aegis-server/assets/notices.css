@@ -1,0 +1,113 @@
+/*
+ * AegisCMS site notices: the styles of the built-in notices.html. Served at /_aegis/notices.css.
+ * Every rule is :where(...) (specificity 0), so a theme restyles it with any selector.
+ */
+:where(.aegis-notices) {
+  font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+:where(.aegis-notice) {
+  --aegis-notice-bg: #e0efff;
+  --aegis-notice-fg: #0b3a66;
+  --aegis-notice-border: #9cc7f5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--aegis-notice-bg);
+  color: var(--aegis-notice-fg);
+  border-bottom: 1px solid var(--aegis-notice-border);
+}
+
+:where(.aegis-notice-success) {
+  --aegis-notice-bg: #dff5e6;
+  --aegis-notice-fg: #14532d;
+  --aegis-notice-border: #8fd5a6;
+}
+
+:where(.aegis-notice-warning) {
+  --aegis-notice-bg: #fff3d1;
+  --aegis-notice-fg: #6b4400;
+  --aegis-notice-border: #f0c96a;
+}
+
+:where(.aegis-notice-alert) {
+  --aegis-notice-bg: #fde2e2;
+  --aegis-notice-fg: #7f1d1d;
+  --aegis-notice-border: #f1a4a4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :where(.aegis-notice) {
+    --aegis-notice-bg: #14304d;
+    --aegis-notice-fg: #cfe5ff;
+    --aegis-notice-border: #285784;
+  }
+
+  :where(.aegis-notice-success) {
+    --aegis-notice-bg: #11331f;
+    --aegis-notice-fg: #c5f0d3;
+    --aegis-notice-border: #226b3c;
+  }
+
+  :where(.aegis-notice-warning) {
+    --aegis-notice-bg: #3d2d08;
+    --aegis-notice-fg: #fde7ae;
+    --aegis-notice-border: #7a5b12;
+  }
+
+  :where(.aegis-notice-alert) {
+    --aegis-notice-bg: #3f1616;
+    --aegis-notice-fg: #fbcaca;
+    --aegis-notice-border: #7f2c2c;
+  }
+}
+
+:where(.aegis-notice-message) {
+  flex: 1;
+  margin: 0;
+  max-width: 60rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+:where(.aegis-notice-link) {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+:where(.aegis-notice-close) {
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+:where(.aegis-notice-close):hover {
+  background: rgba(127, 127, 127, 0.25);
+}
+
+:where(.aegis-notice-close):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+:where(.aegis-notice-close)[hidden] {
+  display: none;
+}
+
+@media print {
+  :where(.aegis-notices) {
+    display: none;
+  }
+}

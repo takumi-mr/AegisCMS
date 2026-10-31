@@ -78,6 +78,9 @@ export type AuditAction =
   | 'redirect.delete'
   | 'newsletter.send'
   | 'newsletter.delete'
+  | 'notice.create'
+  | 'notice.update'
+  | 'notice.delete'
   | 'user.create'
   | 'user.update'
   | 'user.delete'
@@ -840,6 +843,39 @@ export interface NewsletterIssue {
   recipients: number;
   created_at: string;
   created_by: string | null;
+}
+
+export type NoticeStyle = 'info' | 'success' | 'warning' | 'alert';
+
+/** A site notice (`/api/v1/notices`): a banner on every public page during its period */
+export interface Notice {
+  id: string;
+  message: string;
+  /** A path of the site or an http(s) URL; empty for no link */
+  link_url: string;
+  /** Empty uses the theme's default wording */
+  link_label: string;
+  style: NoticeStyle;
+  /** RFC 3339; null for "right away" / "no end" */
+  start_at: string | null;
+  end_at: string | null;
+  dismissible: boolean;
+  enabled: boolean;
+  /** Where it is now: shown, waiting for its start, past its end, or switched off */
+  status: 'active' | 'scheduled' | 'expired' | 'disabled';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoticePayload {
+  message: string;
+  link_url: string;
+  link_label: string;
+  style: NoticeStyle;
+  start_at: string | null;
+  end_at: string | null;
+  dismissible: boolean;
+  enabled: boolean;
 }
 
 export interface ScheduleItem {

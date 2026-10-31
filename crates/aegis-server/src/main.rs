@@ -22,6 +22,7 @@ mod deploy;
 mod handlers;
 mod headers;
 mod inject;
+mod notices;
 mod notify_plugins;
 mod plugin_host;
 mod plugin_registry;
@@ -813,6 +814,8 @@ async fn main() -> anyhow::Result<()> {
                 headers::HeaderOverrides::load(app_state.db.as_ref()).await;
             *app_state.redirects.write().await =
                 redirects::RedirectTable::load(app_state.db.as_ref()).await;
+            *app_state.notices.write().await =
+                notices::NoticeList::load(app_state.db.as_ref()).await;
             *app_state
                 .system
                 .write()

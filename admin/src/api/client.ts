@@ -28,6 +28,8 @@ import type {
   HeaderSettings,
   InvitationInfo,
   NewsletterCounts,
+  Notice,
+  NoticePayload,
   NewsletterIssue,
   NewsletterStatus,
   NewsletterSubscriber,
@@ -116,18 +118,22 @@ export class ApiError extends Error {
   code?: string;
   /** Per-field reasons (`errors` of a 400 response), e.g. the plugin settings that were refused */
   fieldErrors?: { key: string; message: string }[];
+  /** The input field a 400 response refused (`field` of the body), e.g. a redirect's `from` */
+  field?: string;
   constructor(
     status: number,
     message: string,
     retryAfterSecs?: number,
     code?: string,
-    fieldErrors?: { key: string; message: string }[]
+    fieldErrors?: { key: string; message: string }[],
+    field?: string
   ) {
     super(message);
     this.status = status;
     this.retryAfterSecs = retryAfterSecs;
     this.code = code;
     this.fieldErrors = fieldErrors;
+    this.field = field;
   }
 }
 
@@ -206,7 +212,8 @@ const request = async <T>(path: string, init: RequestInit, fallbackError: string
       err.error || fallbackError,
       undefined,
       err.code,
-      fieldErrorsOf(err)
+      fieldErrorsOf(err),
+      typeof err.field === 'string' ? err.field : undefined
     );
   }
   return res.json();
@@ -623,6 +630,40 @@ export const aegisApi = {
       `/tags/${encodeURIComponent(id)}`,
       { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(payload) },
       i18n.t('api.updateTagFailed')
+    );
+  },
+
+  /** The site notices in the order they are shown (admin) */
+  async listNotices(): Promise<{ notices: Notice[]; total: number }> {
+    const data = await request<{ notices?: Notice[]; total?: number }>(
+      '/notices',
+      {},
+      i18n.t('api.noticesFailed')
+    );
+    return { notices: data.notices ?? [], total: data.total ?? 0 };
+  },
+
+  async createNotice(payload: NoticePayload): Promise<Notice> {
+    return request(
+      '/notices',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      i18n.t('api.createNoticeFailed')
+    );
+  },
+
+  async updateNotice(id: string, payload: NoticePayload): Promise<Notice> {
+    return request(
+      `/notices/${encodeURIComponent(id)}`,
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      i18n.t('api.updateNoticeFailed')
+    );
+  },
+
+  async deleteNotice(id: string): Promise<void> {
+    return requestNoContent(
+      `/notices/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      i18n.t('api.deleteNoticeFailed')
     );
   },
 

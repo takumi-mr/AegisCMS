@@ -55,6 +55,8 @@ pub struct AppState {
     pub headers: Arc<std::sync::RwLock<HeaderOverrides>>,
     /// リダイレクトの規則（DB の `_aegis_settings`。ページが 404 のときだけ見る）
     pub redirects: Arc<tokio::sync::RwLock<crate::redirects::RedirectTable>>,
+    /// お知らせバナー（DB の `_aegis_settings`。期間内で有効なものを公開ページに差し込む）
+    pub notices: Arc<tokio::sync::RwLock<crate::notices::NoticeList>>,
     pub system: Arc<std::sync::RwLock<SystemOverrides>>,
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
     pub oidc: Option<SsoLogin>,
@@ -178,6 +180,9 @@ impl AppState {
             headers: Arc::new(std::sync::RwLock::new(HeaderOverrides::default())),
             redirects: Arc::new(tokio::sync::RwLock::new(
                 crate::redirects::RedirectTable::default(),
+            )),
+            notices: Arc::new(tokio::sync::RwLock::new(
+                crate::notices::NoticeList::default(),
             )),
             system: Arc::new(std::sync::RwLock::new(SystemOverrides::default())),
             oidc: None,
