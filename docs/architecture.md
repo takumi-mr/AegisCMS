@@ -390,6 +390,12 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - TinyGo テンプレートは `//go:wasmimport host <func>` でインポートし、`-target=wasm-unknown` でビルドする。ホストに渡すバッファが GC に回収されないよう `allocatedBuffers` で追跡する。
 - テンプレートのビルド済み `plugin.wasm` はコミットしており、`crates/aegis-runtime/tests/sdk_plugins.rs` が実ホストで全フックを実行する（[development.md](development.md#4-プラグインのビルド)）。
 
+### 10.6 設定項目の宣言
+
+- **設定項目の宣言（マニフェストの `settings`）**: 値の保存は従来の仕組みのまま（`plugin_settings:<名前>`、キー → 文字列）で、マニフェストは入力欄の宣言だけを足す。型（数値・真偽値・色）を保存の形式に持ち込まないので、プラグインは `config::get` の文字列を自分で型に直すだけで、設定ファイルの `[plugins.settings.<名前>]` とも同じに読める。`LocalizedText` と選択肢の形はブロックの入力欄（`blocks[].fields`）と共有する。
+- **設定値の検査は 2 か所で同じ規則**: サーバー（`PUT /api/v1/plugins/{name}/settings`、`SettingDefinition::validate_value`）が正で、Admin Studio は保存前の案内として同じ規則を持つ（`utils/pluginSettings.ts`）。誤りが 1 つでもあれば何も保存せず、キーごとの理由を `errors`（`code: invalid_setting`）で返す。宣言のないキーと設定ファイルの値は検査しない（既存の値・自由なキーを壊さない。プラグインが読むときに絞る）。空欄は「未設定」で、宣言した項目の空の値は保存せずキーごと消す。`default` は表示用で保存しない（マニフェストの検査で、自分の検査を通ることだけ確かめる）。
+- **色は `is_safe_css_color`**: `color` の値は CSS にそのまま入るので、`#hex`・`rgb()` 系・`var(--名前)`・色名だけを許す（`;` `}` `url(` を含むものは通らない）。
+
 ---
 
 ## 11. Admin Studio の配信

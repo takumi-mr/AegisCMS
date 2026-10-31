@@ -427,6 +427,8 @@ SDK ヘルパー:
 | `capabilities.storage.kv_namespace` | string | | KVS のネームスペース。未宣言の場合 `kv::set` は権限エラー |
 | `capabilities.hooks` | string[] | | 有効にするフック名（[1. フック一覧](#1-フック一覧)） |
 | `capabilities.embed.frame_domains` | string[] | | カスタムブロックに埋め込める `<iframe>` の配信元のホスト（[3.2](#32-外部のページの埋め込み-capabilitiesembed)） |
+| `blocks` | object[] | | 本文に置けるカスタムブロックの宣言（[3.1](#31-カスタムブロック-blocks)） |
+| `settings` | object[] | | 設定項目の宣言。Admin Studio のプラグイン設定に入力欄として出て、保存時に値を検査する（[3.3](#33-設定項目-settings)） |
 | `resource_limits` | object | | 省略した項目（または全体）はサーバー設定 `[runtime].default_*` で補われる（下記） |
 
 有効にしたプラグインのマニフェストが読めない、`name` とディレクトリ名が違う、`entrypoint` のファイルが無い、ホストに無い関数をインポートしている（[ABI 仕様](plugin_abi_specification.md#3-ホスト-api-インポート仕様-host-モジュール)）場合は、**サーバーが起動しません**。アクセス制限などを実装したプラグインが黙って外れたまま動き続けることを防ぐためです。有効にしていないプラグインの不備は警告ログと `aegis plugin list` に表示されます。
@@ -480,6 +482,58 @@ SDK ヘルパー:
 - **書き方**: ホスト名だけ（`www.youtube-nocookie.com`）。英小文字・数字・`-` のラベルを `.` でつなぎ、2 つ以上。スキーム・パス・ポート・ワイルドカードは書けません。`blocks` の無いプラグインには宣言できません。
 - 利用者が書いた HTML をそのまま埋め込むのではなく、入力された URL から ID を取り出してプレーヤーの URL を組み立ててください（`official-blocks` の動画ブロックを参照）。
 - 宣言したホストは Admin Studio のプラグインの一覧の「機能・権限」に表示されます。
+
+### 3.3 設定項目 (`settings`)
+
+プラグインの設定値（`config::get` で読む値）の入力欄を宣言します。宣言した項目は Admin Studio の **Settings › Plugins** の「設定」画面に、種類に合った入力欄（選択肢・スイッチ・数値・色など）として出ます。宣言のないキーは今までどおり、キーと値の一覧に残ります。
+
+```json
+"settings": [
+  {
+    "key": "position",
+    "type": "select",
+    "label": { "en": "Position", "ja": "位置" },
+    "default": "right",
+    "options": [
+      { "value": "right", "label": { "en": "Right", "ja": "右" } },
+      { "value": "left", "label": { "en": "Left", "ja": "左" } }
+    ]
+  },
+  {
+    "key": "top_offset_px",
+    "type": "number",
+    "label": { "en": "Top offset (px)", "ja": "上からの位置 (px)" },
+    "description": { "en": "Space above a heading after jumping to it.", "ja": "見出しへ移動したときの上の余白。" },
+    "min": 0, "max": 400, "default": 96
+  },
+  { "key": "accent_color", "type": "color", "label": "Accent color", "placeholder": "#6366f1" }
+]
+```
+
+| キー | 必須 | 説明 |
+| --- | --- | --- |
+| `key` | ✅ | 設定のキー。英字で始まり、英数字と `_` のみ（64 文字以内）。`config::get(key)` で読む |
+| `type` | ✅ | 入力欄の種類（下の表） |
+| `label` | ✅ | 入力欄の名前。文字列か `{"en": ..., "ja": ...}`（Admin Studio の言語 → 英語 → 最初のものの順に使う） |
+| `description` / `placeholder` | | 入力欄の下の説明・薄い文字。`label` と同じ形式 |
+| `default` | | 未設定のときにプラグインが使う値。入力欄の薄い文字や「既定値（…）」の選択肢に出すだけで、**保存はしない**（プラグイン側でも同じ既定値を使うこと） |
+| `options` | `select` で必須 | `[{"value": "...", "label": ...}]`。`value` は空でなく、重ならない |
+| `min` / `max` | | `number` の下限・上限 |
+| `max_length` | | 文字数の上限（`string` 500、`text` 20000、`url` 2000 が既定） |
+
+| `type` | 入力欄 | 保存される値の検査 |
+| --- | --- | --- |
+| `string` / `text` | 1 行 / 複数行 | 文字数の上限。制御文字は不可（`text` は改行・タブは可） |
+| `url` | 1 行 | `http://`・`https://`、または `/` で始まる相対パス（`//` と空白は不可） |
+| `number` | 数値 | 数値であること、`min`・`max` の範囲 |
+| `boolean` | 既定値 / オン / オフ | `true` か `false` |
+| `select` | 選択肢 | `options` のどれか |
+| `color` | 色の選択と文字 | `#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名（CSS にそのまま入れても安全な形） |
+
+- **値は文字列で保存**します（`boolean` は `"true"` / `"false"`、`number` は 10 進数）。読むときは `config::get` が返す文字列を、プラグインが型に直します。
+- **空欄は「未設定」**です。宣言した項目の空の値は保存せず（キーごと消します）、プラグインは `config::get` が `None` のときの既定値を使います。検査はサーバー（`PUT /api/v1/plugins/{name}/settings`）でも行い、誤りは `400 {"code": "invalid_setting", "errors": [{"key", "message"}]}` で返します（保存は 1 つもしません）。宣言のないキーは検査しません。
+- **設定ファイル（`[plugins.settings.<名前>]`）の値は検査されません**（起動時の設定として読むだけです）。プラグインは、読んだ値を CSS や HTML に入れる前に、自分でも許可する形だけに絞ってください。`default` が自分の検査を通らない宣言や、`select` に選択肢がない宣言は、マニフェストの不備になります。
+- 動く例は [`official-page-toc`](../plugins/official-page-toc/plugin.manifest.json) と [`official-back-to-top`](../plugins/official-back-to-top/plugin.manifest.json) です。
 
 ## 4. リソース制限 (`resource_limits`)
 

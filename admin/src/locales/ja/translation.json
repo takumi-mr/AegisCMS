@@ -1136,6 +1136,26 @@
     "applyPresetKey": "「{{key}}」を入力欄にセット",
     "activeSettingsLabel": "現在の設定値",
     "noSettingsConfigured": "設定されたキー・値はありません。",
+    "declaredSettingsLabel": "設定項目",
+    "otherSettingsLabel": "そのほかの設定",
+    "fixSettings": "赤く表示された設定を直してください",
+    "field": {
+      "useDefault": "既定値",
+      "useDefaultValue": "既定値（{{value}}）",
+      "on": "オン",
+      "off": "オフ",
+      "pickColor": "色を選ぶ"
+    },
+    "settingProblem": {
+      "tooLong": "{{max}} 文字以内で入力してください",
+      "notNumber": "数値を入力してください",
+      "tooSmall": "{{min}} 以上にしてください",
+      "tooLarge": "{{max}} 以下にしてください",
+      "notBoolean": "オンかオフを選んでください",
+      "notOption": "選択肢から選んでください",
+      "notColor": "#e11d48・rgb(225 29 72)・var(--accent) のような CSS の色を入力してください",
+      "notUrl": "http(s) の URL か、/ で始まるパスを入力してください"
+    },
     "valuePlaceholder": "設定値",
     "showValue": "値を表示",
     "hideValue": "値を隠す",

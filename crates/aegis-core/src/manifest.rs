@@ -37,6 +37,10 @@ pub struct PluginManifest {
     /// 保存するブロックの名前は `<プラグイン名>/<ブロック名>`
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocks: Vec<BlockDefinition>,
+    /// 設定項目の宣言。Admin Studio のプラグイン設定に入力欄として出て、保存時に値を検査する。
+    /// 値は `[plugins.settings.<名前>]` と同じ場所に文字列で保存され、プラグインは `config::get` で読む
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub settings: Vec<SettingDefinition>,
 }
 
 /// 文字列、または言語ごとの文字列（`{"en": "Link card", "ja": "リンクカード"}`）
@@ -114,6 +118,176 @@ pub enum BlockFieldType {
 pub struct BlockFieldOption {
     pub value: String,
     pub label: LocalizedText,
+}
+
+/// プラグインの設定項目の宣言（`plugin.manifest.json` の `settings`）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SettingDefinition {
+    /// 設定のキー（英字で始まり、英数字と `_` のみ）。プラグインが `config::get(key)` で読む
+    pub key: String,
+    #[serde(rename = "type")]
+    pub setting_type: SettingType,
+    pub label: LocalizedText,
+    /// 入力欄の下に出す説明
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<LocalizedText>,
+    /// 未設定のときにプラグインが使う値。入力欄の薄い文字（プレースホルダー）に出す。
+    /// 保存はされない（空欄は「未設定」で、プラグインが既定値を使う）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<serde_json::Value>,
+    /// `select` の選択肢
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<BlockFieldOption>,
+    /// `number` の下限・上限
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+    /// 入力する文字数の上限（`string` 既定 500、`text` 既定 20000、`url` 既定 2000）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_length: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder: Option<LocalizedText>,
+}
+
+/// 設定項目の種類。値は常に文字列で保存する（`boolean` は `true` / `false`、`number` は 10 進数）
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SettingType {
+    /// 1 行の文字列
+    String,
+    /// 複数行の文字列
+    Text,
+    /// `http://`・`https://` か、`/` で始まる相対 URL
+    Url,
+    Number,
+    Boolean,
+    Select,
+    /// CSS の色（`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名）
+    Color,
+}
+
+impl SettingDefinition {
+    /// `default` を保存と同じ文字列にしたもの
+    pub fn default_text(&self) -> Option<String> {
+        match self.default.as_ref()? {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Null => None,
+            other => Some(other.to_string()),
+        }
+    }
+
+    /// 保存しようとしている値を検査する。空文字は「未設定」なので常に通る
+    pub fn validate_value(&self, value: &str) -> std::result::Result<(), String> {
+        if value.is_empty() {
+            return Ok(());
+        }
+        let too_long = |max: usize| {
+            (value.chars().count() > max).then(|| format!("must be {} characters or fewer", max))
+        };
+        let has_control = |allow_newlines: bool| {
+            value
+                .chars()
+                .any(|c| c.is_control() && !(allow_newlines && matches!(c, '\n' | '\r' | '\t')))
+        };
+        match self.setting_type {
+            SettingType::String => {
+                if let Some(m) = too_long(self.max_length.unwrap_or(500)) {
+                    return Err(m);
+                }
+                if has_control(false) {
+                    return Err("must not contain control characters".to_string());
+                }
+            }
+            SettingType::Text => {
+                if let Some(m) = too_long(self.max_length.unwrap_or(20_000)) {
+                    return Err(m);
+                }
+                if has_control(true) {
+                    return Err("must not contain control characters".to_string());
+                }
+            }
+            SettingType::Url => {
+                if let Some(m) = too_long(self.max_length.unwrap_or(2000)) {
+                    return Err(m);
+                }
+                let allowed_start = value.starts_with("http://")
+                    || value.starts_with("https://")
+                    || (value.starts_with('/') && !value.starts_with("//"));
+                if !allowed_start || value.chars().any(|c| c.is_control() || c.is_whitespace()) {
+                    return Err(
+                        "must be an http(s) URL or a path starting with '/', without spaces"
+                            .to_string(),
+                    );
+                }
+            }
+            SettingType::Number => {
+                let number: f64 = value
+                    .parse()
+                    .ok()
+                    .filter(|n: &f64| n.is_finite())
+                    .ok_or_else(|| "must be a number".to_string())?;
+                if let Some(min) = self.min.filter(|min| number < *min) {
+                    return Err(format!("must be {} or more", min));
+                }
+                if let Some(max) = self.max.filter(|max| number > *max) {
+                    return Err(format!("must be {} or less", max));
+                }
+            }
+            SettingType::Boolean => {
+                if value != "true" && value != "false" {
+                    return Err("must be true or false".to_string());
+                }
+            }
+            SettingType::Select => {
+                if !self.options.iter().any(|o| o.value == value) {
+                    return Err(format!(
+                        "must be one of: {}",
+                        self.options
+                            .iter()
+                            .map(|o| o.value.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+            }
+            SettingType::Color => {
+                if !is_safe_css_color(value) {
+                    return Err(
+                        "must be a CSS color: #hex, rgb(), hsl(), var(--name) or a color name"
+                            .to_string(),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// CSS にそのまま入れてよい色か（`#hex`・`rgb()` / `rgba()` / `hsl()` / `hsla()`・`var(--名前)`・色名）
+pub fn is_safe_css_color(value: &str) -> bool {
+    let v = value.trim();
+    if let Some(hex) = v.strip_prefix('#') {
+        matches!(hex.len(), 3 | 4 | 6 | 8) && hex.bytes().all(|b| b.is_ascii_hexdigit())
+    } else if let Some(name) = v.strip_prefix("var(--").and_then(|r| r.strip_suffix(')')) {
+        !name.is_empty()
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    } else if ["rgb(", "rgba(", "hsl(", "hsla("]
+        .iter()
+        .any(|f| v.starts_with(f))
+    {
+        v.ends_with(')')
+            && v.matches('(').count() == 1
+            && v.matches(')').count() == 1
+            && v.bytes().all(|b| {
+                b.is_ascii_alphanumeric()
+                    || matches!(b, b'(' | b')' | b',' | b'.' | b'%' | b' ' | b'/')
+            })
+    } else {
+        !v.is_empty() && v.len() <= 20 && v.bytes().all(|b| b.is_ascii_alphabetic())
+    }
 }
 
 /// ブロックの属性名に使える形式か（英字で始まり、英数字と `_` のみ、64 文字以内）
@@ -216,6 +390,72 @@ impl PluginManifest {
             }
         }
         Ok(())
+    }
+
+    /// 設定項目の宣言を確かめる: キーの形式と重複、ラベル、`select` の選択肢、`number` の範囲、
+    /// `default` が自分の検査を通ること
+    pub fn validate_settings(&self) -> std::result::Result<(), String> {
+        let mut keys = std::collections::HashSet::new();
+        for setting in &self.settings {
+            let key = &setting.key;
+            if !is_valid_field_name(key) {
+                return Err(format!(
+                    "setting key {:?} is invalid (a letter, then letters, digits or '_')",
+                    key
+                ));
+            }
+            if !keys.insert(key.as_str()) {
+                return Err(format!("setting {:?} is declared twice", key));
+            }
+            if setting.label.is_empty() {
+                return Err(format!("setting {:?} has no label", key));
+            }
+            if setting.setting_type == SettingType::Select {
+                if setting.options.is_empty() {
+                    return Err(format!("select setting {:?} has no options", key));
+                }
+                let mut values = std::collections::HashSet::new();
+                for option in &setting.options {
+                    if option.value.is_empty() || !values.insert(option.value.as_str()) {
+                        return Err(format!(
+                            "select setting {:?} has an empty or repeated option value",
+                            key
+                        ));
+                    }
+                }
+            }
+            if let (Some(min), Some(max)) = (setting.min, setting.max) {
+                if min > max {
+                    return Err(format!("setting {:?} has min greater than max", key));
+                }
+            }
+            if let Some(default) = setting.default_text() {
+                setting
+                    .validate_value(&default)
+                    .map_err(|e| format!("default of setting {:?} {}", key, e))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// 保存しようとしている設定値のうち、宣言のある項目の誤り（`(キー, 理由)`）。宣言のないキーは検査しない
+    pub fn invalid_setting_values(
+        &self,
+        values: &std::collections::HashMap<String, String>,
+    ) -> Vec<(String, String)> {
+        let mut errors: Vec<(String, String)> = self
+            .settings
+            .iter()
+            .filter_map(|setting| {
+                let value = values.get(&setting.key)?;
+                setting
+                    .validate_value(value)
+                    .err()
+                    .map(|reason| (setting.key.clone(), reason))
+            })
+            .collect();
+        errors.sort();
+        errors
     }
 
     /// カスタムブロックに埋め込める `<iframe>` の配信元（`embed.frame_domains`）
@@ -527,5 +767,133 @@ mod tests {
         let plain =
             manifest_with_blocks(r#"[{"name": "a", "label": "A"}]"#, r#""render-blocks""#).unwrap();
         assert!(plain.frame_domains().is_empty());
+    }
+
+    fn manifest_with_settings(settings: &str) -> std::result::Result<PluginManifest, String> {
+        let json = format!(
+            r#"{{"name": "tweaks", "version": "1.0.0", "entrypoint": "plugin.wasm",
+                "settings": {}}}"#,
+            settings
+        );
+        let manifest =
+            PluginManifest::from_json_with_defaults(&json, &DEFAULTS).map_err(|e| e.to_string())?;
+        manifest.validate_settings().map(|_| manifest)
+    }
+
+    const ALL_TYPES: &str = r#"[
+        {"key": "title", "type": "string", "label": "Title", "default": "Hello", "max_length": 10},
+        {"key": "note", "type": "text", "label": {"en": "Note", "ja": "メモ"}},
+        {"key": "link", "type": "url", "label": "Link"},
+        {"key": "offset", "type": "number", "label": "Offset", "min": 0, "max": 400, "default": 96},
+        {"key": "enabled", "type": "boolean", "label": "On", "default": true},
+        {"key": "side", "type": "select", "label": "Side", "default": "right",
+         "options": [{"value": "right", "label": "Right"}, {"value": "left", "label": "Left"}]},
+        {"key": "accent", "type": "color", "label": "Accent", "description": "Highlight color"}
+    ]"#;
+
+    #[test]
+    fn test_setting_declarations_and_defaults() {
+        let manifest = manifest_with_settings(ALL_TYPES).unwrap();
+        assert_eq!(manifest.settings.len(), 7);
+        assert_eq!(manifest.settings[3].default_text().as_deref(), Some("96"));
+        assert_eq!(manifest.settings[4].default_text().as_deref(), Some("true"));
+        assert_eq!(manifest.settings[6].default_text(), None);
+        // 宣言の無いプラグインは今までどおり、JSON に出さない
+        let plain = manifest_with_settings("[]").unwrap();
+        assert!(!serde_json::to_string(&plain).unwrap().contains("settings"));
+    }
+
+    #[test]
+    fn test_invalid_setting_declarations() {
+        let bad = |s: &str| manifest_with_settings(s).unwrap_err();
+        assert!(bad(r#"[{"key": "1a", "type": "string", "label": "A"}]"#).contains("invalid"));
+        assert!(bad(r#"[{"key": "a-b", "type": "string", "label": "A"}]"#).contains("invalid"));
+        assert!(bad(
+            r#"[{"key": "a", "type": "string", "label": "A"}, {"key": "a", "type": "text", "label": "B"}]"#
+        )
+        .contains("twice"));
+        assert!(bad(r#"[{"key": "a", "type": "string", "label": ""}]"#).contains("no label"));
+        assert!(bad(r#"[{"key": "a", "type": "select", "label": "A"}]"#).contains("no options"));
+        assert!(bad(r#"[{"key": "a", "type": "select", "label": "A",
+                 "options": [{"value": "x", "label": "X"}, {"value": "x", "label": "Y"}]}]"#)
+        .contains("repeated"));
+        assert!(
+            bad(r#"[{"key": "a", "type": "number", "label": "A", "min": 5, "max": 1}]"#)
+                .contains("min greater than max")
+        );
+        // 既定値は自分の検査を通ること
+        assert!(
+            bad(r#"[{"key": "a", "type": "number", "label": "A", "max": 5, "default": 9}]"#)
+                .contains("default of setting")
+        );
+        assert!(
+            bad(r#"[{"key": "a", "type": "color", "label": "A", "default": "red;"}]"#)
+                .contains("default of setting")
+        );
+        assert!(bad(r#"[{"key": "a", "type": "nope", "label": "A"}]"#).contains("unknown variant"));
+    }
+
+    #[test]
+    fn test_setting_values_are_checked_by_type() {
+        let manifest = manifest_with_settings(ALL_TYPES).unwrap();
+        let check = |key: &str, value: &str| {
+            manifest
+                .settings
+                .iter()
+                .find(|s| s.key == key)
+                .unwrap()
+                .validate_value(value)
+        };
+        // 空文字は「未設定」
+        for key in ["title", "offset", "enabled", "side", "accent", "link"] {
+            assert!(check(key, "").is_ok(), "{}", key);
+        }
+        assert!(check("title", "short").is_ok());
+        assert!(check("title", "longer than ten").is_err());
+        assert!(check("title", "a\nb").is_err());
+        assert!(check("note", "a\nb").is_ok());
+        assert!(check("note", "a\u{0}b").is_err());
+        assert!(check("link", "https://example.com/a?b=1").is_ok());
+        assert!(check("link", "/contact").is_ok());
+        for bad in [
+            "//evil.example",
+            "javascript:alert(1)",
+            "ftp://x",
+            "https://a b",
+            "example.com",
+        ] {
+            assert!(check("link", bad).is_err(), "{}", bad);
+        }
+        assert!(check("offset", "0").is_ok());
+        assert!(check("offset", "399.5").is_ok());
+        for bad in ["-1", "401", "abc", "NaN", "inf"] {
+            assert!(check("offset", bad).is_err(), "{}", bad);
+        }
+        assert!(check("enabled", "true").is_ok());
+        assert!(check("enabled", "yes").is_err());
+        assert!(check("side", "left").is_ok());
+        assert!(check("side", "top").unwrap_err().contains("right, left"));
+        assert!(check("accent", "#e11d48").is_ok());
+        assert!(check("accent", "var(--accent)").is_ok());
+        assert!(check("accent", "red;} body{display:none").is_err());
+    }
+
+    #[test]
+    fn test_invalid_setting_values_ignores_undeclared_keys() {
+        let manifest = manifest_with_settings(ALL_TYPES).unwrap();
+        let values: std::collections::HashMap<String, String> = [
+            ("offset", "999"),
+            ("side", "top"),
+            ("title", "ok"),
+            ("legacy_key", "anything goes"),
+        ]
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        let errors = manifest.invalid_setting_values(&values);
+        assert_eq!(
+            errors.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>(),
+            ["offset", "side"]
+        );
     }
 }

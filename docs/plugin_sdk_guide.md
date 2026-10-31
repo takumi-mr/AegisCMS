@@ -132,7 +132,11 @@ impl Plugin for MyPlugin {
 
 ---
 
-### 2.4 本文のカスタムブロックを足す
+### 2.4 設定項目を宣言する
+
+プラグインの設定値を Admin Studio で入力できるようにするには、マニフェストの `settings` で項目（キー・種類・名前・既定値・範囲）を宣言します。種類は文字列・複数行・URL・数値・オン/オフ・選択肢・色で、保存時にサーバーが値を検査します。宣言の形式は [フック & ホスト API 3.3](./plugin_hooks.md#33-設定項目-settings)、動く例は [`plugins/official-page-toc`](../plugins/official-page-toc) にあります。値は `config::get("key")` で文字列として読みます。
+
+### 2.5 本文のカスタムブロックを足す
 
 マニフェストの `blocks` でブロックと入力欄を宣言し、`capabilities.hooks` に `render-blocks` を加えて `Plugin::render_blocks` を実装すると、Admin Studio のエディタに自分のブロックを足せます。宣言の形式とフックの決まりは [フック & ホスト API 1.10 / 3.1](./plugin_hooks.md#110-render-blocks)、動く例は公式プラグイン [`plugins/official-blocks`](../plugins/official-blocks) にあります。
 

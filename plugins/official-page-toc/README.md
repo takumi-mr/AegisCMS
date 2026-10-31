@@ -19,7 +19,7 @@ enabled = ["official-page-toc"]
 
 ## 設定
 
-`[plugins.settings.official-page-toc]`（Admin Studio のプラグインの設定でも、同じキーを足せます）。省略・不正な値は既定値になります。
+Admin Studio の **Settings › Plugins** の「設定」（入力欄が出ます。項目はマニフェストの `settings` で宣言していて、保存時に値を検査します）か、設定ファイルの `[plugins.settings.official-page-toc]` で変えます。省略した項目・不正な値は既定値になります。
 
 | キー | 既定値 | 説明 |
 | --- | --- | --- |

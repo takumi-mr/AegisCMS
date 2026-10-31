@@ -1,0 +1,89 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: var(--inset);
+  border: 1px solid rgb(var(--overlay-rgb) / 0.06);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+}
+
+.invalid {
+  border-color: var(--danger-text);
+}
+
+.label {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.key {
+  font-family: monospace;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.control {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgb(var(--overlay-rgb) / 0.05);
+  border: 1px solid rgb(var(--overlay-rgb) / 0.08);
+  border-radius: 6px;
+  padding: 0.45rem 0.65rem;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.control:focus {
+  border-color: var(--accent);
+  background: rgb(var(--overlay-rgb) / 0.08);
+}
+
+.control:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.textarea {
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.swatch {
+  flex: none;
+  width: 2.25rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 1px solid rgb(var(--overlay-rgb) / 0.12);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.help {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--danger-text);
+}
