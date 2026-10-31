@@ -213,3 +213,105 @@ async fn test_events_are_counted_and_summarized() {
     assert!(csv.contains("Daily Trend"));
     assert!(csv.contains("Top Pages"));
 }
+
+#[tokio::test]
+async fn test_search_page_keyword_tracking() {
+    let mut config = AegisConfig::default();
+    config.analytics.enabled = true;
+    config.search.enabled = true;
+    config.search.index_dir = String::new();
+    let mut state =
+        crate::test_support::test_app_state(config, PluginSupervisor::new(), Vec::new()).await;
+    state.analytics = Some(Arc::new(aegis_analytics::AnalyticsService::new(
+        state.config.analytics.clone(),
+        state.db.clone(),
+        state.cache.clone(),
+    )));
+    state.search = Some(Arc::new(
+        crate::search::SiteSearch::from_config(&state.config.search).unwrap(),
+    ));
+    let state = Arc::new(state);
+    let viewer = state
+        .sessions
+        .create_session("viewer1", "viewer", Default::default(), None)
+        .await
+        .unwrap()
+        .id;
+    let site = Site { state, viewer };
+
+    // コンテンツを 1 件投入してインデックスを構築
+    let schema = site
+        .state
+        .schemas
+        .read()
+        .await
+        .get("article")
+        .cloned()
+        .unwrap();
+    let record = aegis_db::ContentRecord {
+        id: "a1".to_string(),
+        content_type: "article".to_string(),
+        slug: "rust-guide".to_string(),
+        title: "Rust Guide".to_string(),
+        status: "published".to_string(),
+        published_at: Some("2026-01-01T00:00:00Z".to_string()),
+        created_at: "2026-01-01T00:00:00Z".to_string(),
+        updated_at: "2026-01-01T00:00:00Z".to_string(),
+        author_id: None,
+        unpublish_at: None,
+        blocks_json: json!([{ "name": "core/paragraph", "text": "Rust guide" }]).to_string(),
+        custom_fields: Default::default(),
+    };
+    site.state
+        .db
+        .insert_content(&schema, &record)
+        .await
+        .unwrap();
+    crate::search::rebuild(&site.state).await;
+
+    // 1. 検索ページで "Rust" を検索（1件ヒット）
+    let req1 = Request::get("/search?q=Rust")
+        .header("host", "example.com")
+        .header("user-agent", DESKTOP)
+        .header("x-forwarded-for", "203.0.113.1")
+        .body(Body::empty())
+        .unwrap();
+    let (status1, _) = site.send(req1).await;
+    assert_eq!(status1, StatusCode::OK);
+
+    // 2. 検索ページで "UnknownKeyword" を検索（0件ヒット）
+    let req2 = Request::get("/search?q=UnknownKeyword")
+        .header("host", "example.com")
+        .header("user-agent", DESKTOP)
+        .header("x-forwarded-for", "203.0.113.1")
+        .body(Body::empty())
+        .unwrap();
+    let (status2, _) = site.send(req2).await;
+    assert_eq!(status2, StatusCode::OK);
+
+    // 3. アクセス解析の summary を取得して検証
+    let (status, summary) = site.summary("?limit=10", Some(&site.viewer)).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let queries = summary["top_search_queries"].as_array().unwrap();
+    assert!(queries
+        .iter()
+        .any(|q| q["value"] == "Rust" && q["pageviews"] == 1));
+    assert!(queries
+        .iter()
+        .any(|q| q["value"] == "UnknownKeyword" && q["pageviews"] == 1));
+
+    let empty_queries = summary["top_search_empty"].as_array().unwrap();
+    assert!(!empty_queries.iter().any(|q| q["value"] == "Rust"));
+    assert!(empty_queries
+        .iter()
+        .any(|q| q["value"] == "UnknownKeyword" && q["pageviews"] == 1));
+
+    // 4. CSV にも検索キーワードセクションが含まれること
+    let (status, csv) = site.export_csv("?limit=10", Some(&site.viewer)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(csv.contains("Top Search Queries"));
+    assert!(csv.contains("Rust,1,1"));
+    assert!(csv.contains("Top No-Result Search Queries"));
+    assert!(csv.contains("UnknownKeyword,1,1"));
+}

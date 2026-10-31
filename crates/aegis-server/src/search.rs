@@ -10,6 +10,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::audit::ClientIp;
 use aegis_ast::BlockNode;
 use aegis_core::{ContentSummary, PageRenderContext, Pagination};
 use aegis_db::{ContentListQuery, ContentRecord};
@@ -17,7 +18,7 @@ use aegis_search::{
     SearchChange, SearchDocument, SearchIndex, SearchQuery, SearchResults, SearchSort,
 };
 use axum::extract::{Query, State};
-use axum::http::{header, StatusCode};
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -480,6 +481,8 @@ pub async fn search_api(
 /// `GET /search?q=...&page=2` — 検索ページ（テーマの `search.html`）
 pub async fn render_search_page(
     State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
+    headers: HeaderMap,
     Query(params): Query<SearchParams>,
 ) -> Response {
     let Some(search) = state.search.clone() else {
@@ -521,6 +524,30 @@ pub async fn render_search_page(
         match search.search(request).await {
             Ok(results) => {
                 total_items = results.total as u64;
+                #[cfg(feature = "analytics")]
+                if let Some(analytics) = &state.analytics {
+                    if page == 1 && !crate::analytics::opted_out(&headers) {
+                        let ip = ip.clone().unwrap_or_default();
+                        let user_agent = headers
+                            .get(header::USER_AGENT)
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or_default();
+                        let host = headers
+                            .get(header::HOST)
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or_default();
+                        analytics
+                            .track_search(
+                                &q,
+                                total_items,
+                                &ip,
+                                user_agent,
+                                host,
+                                chrono::Utc::now(),
+                            )
+                            .await;
+                    }
+                }
                 for hit in results.hits {
                     let mut fields = std::collections::HashMap::new();
                     fields.insert("url".to_string(), json!(format!("{}{}", base, hit.url)));

@@ -1540,7 +1540,10 @@
     "topUtmSources": "Campaign sources (utm_source)",
     "topUtmCampaigns": "Campaigns (utm_campaign)",
     "source": "Source",
-    "campaign": "Campaign"
+    "campaign": "Campaign",
+    "topSearchQueries": "Top search queries",
+    "topSearchEmpty": "No-result searches",
+    "query": "Query"
   },
   "contact": {
     "title": "Inbox",
