@@ -176,11 +176,26 @@ impl WasmEngine {
                     if memory.read(&caller, ptr as usize, &mut buffer).is_ok() {
                         let msg = String::from_utf8_lossy(&buffer);
                         let plugin_name = &caller.data().manifest.name;
+                        let level_str = match level {
+                            0 => "debug",
+                            1 => "info",
+                            2 => "warn",
+                            _ => "error",
+                        };
                         match level {
                             0 => tracing::debug!("[Wasm:{}] {}", plugin_name, msg),
                             1 => tracing::info!("[Wasm:{}] {}", plugin_name, msg),
                             2 => tracing::warn!("[Wasm:{}] {}", plugin_name, msg),
                             _ => tracing::error!("[Wasm:{}] {}", plugin_name, msg),
+                        }
+                        if let Some(collector) = &caller.data().log_collector {
+                            if let Ok(mut logs) = collector.lock() {
+                                logs.push(super::host_state::PluginLogEntry {
+                                    level: level_str.to_string(),
+                                    message: msg.into_owned(),
+                                    timestamp: chrono::Utc::now().to_rfc3339(),
+                                });
+                            }
                         }
                     }
                 },

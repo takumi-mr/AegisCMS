@@ -512,6 +512,15 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - E2E は `theme-builder/e2e/`（Playwright。`start-servers.mjs` が専用ポートで開発サーバーと Vite を起動し、`fixtures/e2e-theme` のコピーを配る）。CI のジョブ `theme-builder-e2e`、手元では `task test:e2e:theme-builder`。
 - CodeMirror は、行の区切りを `EditorState.lineSeparator`（ファイルの LF / CRLF）に合わせ、内容を `sliceDoc()` で取る。既定の `doc.toString()` は常に `\n` なので、CRLF のファイルを開いただけで「編集した」ことになり、保存すると改行が変わってしまう。
 
+### 18.2 プラグイン開発環境 (Plugin Dev Server)
+
+- **egis-server plugin dev <dir>**（または 	ask dev:plugin -- <dir>）:
+  - データベース・ログイン・実コンテンツを必要とせず、プラグイン単体（plugin.manifest.json と plugin.wasm）を即時テスト・デバッグするための開発用サーバー（ポート 8091）。
+  - Wasmtime 上で各フックを完全なメモリ分離環境で実行し、戻り値、CPU 命令数（Fuel）、ミリ秒単位の実行時間、プラグインが出力したログ（log_info! 等）をリアルタイムに収集して返却（POST /__dev/api/invoke）。
+  - モックホストサービス（DevHostServices）により、プラグインが要求する外部 HTTP リクエスト（http_fetch）のモック応答定義と送信履歴キャプチャ、および KVS（kv_get / kv_set）の状態追跡と差分記録を提供。
+  - 	heme_dev と同様のセキュリティ防御を適用（ループバック限定時の Host ヘッダー検査、ミューテーション操作における x-aegis-dev ヘッダー必須化、ディレクトリ脱出を防ぐパストラバーサル防止）。
+  - GET /__dev/version のロングポーリングにより、Wasm やマニフェストの再コンパイル・変更を検知してクライアントに自動通知。
+
 ## 19. 多言語対応の方針
 
 ### 19.1 API レスポンスのエラーメッセージ（英語のみ）

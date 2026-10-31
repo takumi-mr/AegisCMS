@@ -1,10 +1,24 @@
+use std::sync::{Arc, Mutex};
+
 use crate::guard::CapabilityGuard;
 use crate::services::PluginServices;
 use aegis_core::PluginManifest;
+use serde::{Deserialize, Serialize};
 use wasmtime::{StoreLimits, StoreLimitsBuilder};
 
 /// 1 回のフック呼び出しで `host.http_fetch` を呼べる回数
 pub const MAX_FETCHES_PER_CALL: u32 = 8;
+
+/// プラグイン実行中に `host.log` 経由でキャプチャされたログエントリ
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PluginLogEntry {
+    /// ログレベル ("debug", "info", "warn", "error")
+    pub level: String,
+    /// ログ本文
+    pub message: String,
+    /// ISO 8601 (RFC 3339) タイムスタンプ
+    pub timestamp: String,
+}
 
 /// WasmtimeのStore内に保持されるホスト状態
 pub struct PluginHostState {
@@ -16,6 +30,8 @@ pub struct PluginHostState {
     pub last_error: Option<String>,
     /// Linear memory cap from `resource_limits.max_memory_mb` (installed with `Store::limiter`)
     pub limits: StoreLimits,
+    /// ログのリアルタイム収集用コレクタ（開発サーバー・テスト向け）
+    pub log_collector: Option<Arc<Mutex<Vec<PluginLogEntry>>>>,
 }
 
 impl PluginHostState {
@@ -33,7 +49,13 @@ impl PluginHostState {
             fetch_count: 0,
             last_error: None,
             limits,
+            log_collector: None,
         }
+    }
+
+    pub fn with_log_collector(mut self, collector: Arc<Mutex<Vec<PluginLogEntry>>>) -> Self {
+        self.log_collector = Some(collector);
+        self
     }
 
     pub fn guard(&self) -> CapabilityGuard<'_> {

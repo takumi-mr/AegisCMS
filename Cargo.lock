@@ -421,6 +421,7 @@ dependencies = [
  "aegis-ast",
  "aegis-core",
  "async-trait",
+ "chrono",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -510,6 +511,7 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+ "wat",
  "zip",
 ]
 

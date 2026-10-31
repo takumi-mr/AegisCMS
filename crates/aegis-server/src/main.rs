@@ -24,6 +24,7 @@ mod headers;
 mod inject;
 mod notices;
 mod notify_plugins;
+mod plugin_dev;
 mod plugin_host;
 mod plugin_registry;
 mod redirects;
@@ -156,6 +157,8 @@ enum NotifyCommand {
 enum PluginCommand {
     /// List installed and enabled plugins
     List,
+    /// Develop a plugin: inspect, test hooks and mock host APIs with live reload
+    Dev(plugin_dev::DevArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -384,6 +387,7 @@ async fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyh
                 );
             }
         }
+        PluginCommand::Dev(args) => plugin_dev::run(args).await?,
     }
     Ok(())
 }
@@ -580,6 +584,9 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Commands::User { action } => run_user_command(&config, action).await?,
+        Commands::Plugin {
+            action: PluginCommand::Dev(args),
+        } => plugin_dev::run(args).await?,
         Commands::Plugin { action } => run_plugin_command(&config, action).await?,
         Commands::Notify { action } => run_notify_command(&config, action).await?,
         Commands::Theme {

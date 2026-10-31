@@ -9,7 +9,21 @@ use aegis_core::{
 };
 
 use super::engine::WasmEngine;
-use super::host_state::PluginHostState;
+pub use super::host_state::{PluginHostState, PluginLogEntry};
+use std::sync::{Arc, Mutex};
+
+/// Hook execution metrics and output
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HookInvocationResult {
+    /// Raw output binary returned by the plugin (UTF-8 / JSON), or None if unchanged
+    pub output: Option<Vec<u8>>,
+    /// Number of fuel instructions consumed during this invocation
+    pub fuel_consumed: u64,
+    /// Execution duration in milliseconds
+    pub duration_ms: f64,
+    /// Log messages captured via host.log
+    pub logs: Vec<PluginLogEntry>,
+}
 use crate::plugin::AegisPlugin;
 use crate::services::PluginServices;
 
@@ -52,14 +66,14 @@ impl WasmPluginInstance {
         })
     }
 
-    /// 各フック呼び出しごとに独立した Store / Instance を初期化（Zero-Trust & 完全分離）
-    async fn instantiate(&self) -> Result<(Store<PluginHostState>, Instance)> {
-        let host_state = PluginHostState::new(self.manifest.clone(), self.services.clone());
+    /// Initializes an isolated Store / Instance per invocation (Zero-Trust & memory safety)
+    async fn instantiate_with_state(
+        &self,
+        host_state: PluginHostState,
+    ) -> Result<(Store<PluginHostState>, Instance)> {
         let mut store = Store::new(self.engine.engine(), host_state);
-        // メモリ上限（max_memory_mb）。初期メモリが上限を超えるモジュールはインスタンス化で失敗する
         store.limiter(|state| &mut state.limits);
 
-        // Fuel設定（CPU暴走・無限ループ防止）
         store
             .set_fuel(self.manifest.resource_limits.max_fuel_units)
             .map_err(|e| AegisError::ResourceLimitExceeded(e.to_string()))?;
@@ -70,8 +84,6 @@ impl WasmPluginInstance {
             .await
             .map_err(|e| AegisError::PluginRuntime(format!("Instantiation failed: {}", e)))?;
 
-        // リアクター形式のモジュール（TinyGo の wasm-unknown など）は、ランタイムとグローバル変数の
-        // 初期化関数 `_initialize` を他のエクスポートより先に呼ぶ必要がある
         if let Ok(initialize) = instance.get_typed_func::<(), ()>(&mut store, "_initialize") {
             self.with_timeout("_initialize", initialize.call_async(&mut store, ()))
                 .await?;
@@ -146,33 +158,77 @@ impl WasmPluginInstance {
         Ok(buffer)
     }
 
+    /// Wasm module export names
+    pub fn exports(&self) -> Vec<String> {
+        self.module
+            .exports()
+            .map(|e| e.name().to_string())
+            .collect()
+    }
+
+    /// Invokes a hook at a low level, capturing fuel consumption, timing, and logs.
+    pub async fn call_hook_raw(
+        &self,
+        hook: &str,
+        export: &str,
+        input: &[u8],
+    ) -> Result<HookInvocationResult> {
+        let logs_arc = Arc::new(Mutex::new(Vec::new()));
+        let host_state = PluginHostState::new(self.manifest.clone(), self.services.clone())
+            .with_log_collector(logs_arc.clone());
+        host_state.guard().check_hook(hook)?;
+
+        let _slot = self.engine.acquire_slot().await;
+        let (mut store, instance) = self.instantiate_with_state(host_state).await?;
+        let initial_fuel = self.manifest.resource_limits.max_fuel_units;
+
+        let Ok(func) = instance.get_typed_func::<(i32, i32), i64>(&mut store, export) else {
+            let logs = logs_arc.lock().map(|l| l.clone()).unwrap_or_default();
+            return Ok(HookInvocationResult {
+                output: None,
+                fuel_consumed: 0,
+                duration_ms: 0.0,
+                logs,
+            });
+        };
+
+        let (ptr, len) = Self::write_to_guest(&mut store, &instance, input).await?;
+
+        let start = std::time::Instant::now();
+        let packed_res = self
+            .with_timeout(export, func.call_async(&mut store, (ptr, len)))
+            .await?;
+        let duration = start.elapsed();
+
+        let remaining_fuel = store.get_fuel().unwrap_or(0);
+        let fuel_consumed = initial_fuel.saturating_sub(remaining_fuel);
+
+        let res_ptr = (packed_res >> 32) as i32;
+        let res_len = (packed_res & 0xFFFF_FFFF) as i32;
+        let output = if res_len <= 0 {
+            None
+        } else {
+            Some(Self::read_from_guest(
+                &mut store, &instance, res_ptr, res_len,
+            )?)
+        };
+
+        let logs = logs_arc.lock().map(|l| l.clone()).unwrap_or_default();
+
+        Ok(HookInvocationResult {
+            output,
+            fuel_consumed,
+            duration_ms: duration.as_secs_f64() * 1000.0,
+            logs,
+        })
+    }
+
     /// Calls `export` with `input` as JSON in a fresh instance, under the manifest's timeout.
     /// Returns the JSON the guest wrote back, or `None` when the module does not export the
     /// function or returned nothing (length 0), meaning "unchanged".
     async fn call_hook(&self, hook: &str, export: &str, input: &[u8]) -> Result<Option<Vec<u8>>> {
-        let host_state = PluginHostState::new(self.manifest.clone(), self.services.clone());
-        host_state.guard().check_hook(hook)?;
-
-        // プールの枠（プーリングアロケータ使用時）。Store を捨てて枠が返るまで保持するため、
-        // Store より先に宣言する（ローカル変数は宣言の逆順に破棄される）
-        let _slot = self.engine.acquire_slot().await;
-        let (mut store, instance) = self.instantiate().await?;
-        let Ok(func) = instance.get_typed_func::<(i32, i32), i64>(&mut store, export) else {
-            return Ok(None);
-        };
-        let (ptr, len) = Self::write_to_guest(&mut store, &instance, input).await?;
-
-        let packed_res = self
-            .with_timeout(export, func.call_async(&mut store, (ptr, len)))
-            .await?;
-
-        // 返り値は i64: 上位32bitがptr、下位32bitがlen
-        let res_ptr = (packed_res >> 32) as i32;
-        let res_len = (packed_res & 0xFFFF_FFFF) as i32;
-        if res_len <= 0 {
-            return Ok(None);
-        }
-        Self::read_from_guest(&mut store, &instance, res_ptr, res_len).map(Some)
+        let res = self.call_hook_raw(hook, export, input).await?;
+        Ok(res.output)
     }
 }
 
