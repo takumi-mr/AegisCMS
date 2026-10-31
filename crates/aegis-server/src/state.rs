@@ -49,6 +49,8 @@ pub struct AppState {
     pub seo: Arc<std::sync::RwLock<SeoOverrides>>,
     /// Admin Studio から変更した共通ヘッダーおよび防御ヘッダー設定（DB の `_aegis_settings`）
     pub headers: Arc<std::sync::RwLock<HeaderOverrides>>,
+    /// リダイレクトの規則（DB の `_aegis_settings`。ページが 404 のときだけ見る）
+    pub redirects: Arc<tokio::sync::RwLock<crate::redirects::RedirectTable>>,
     pub system: Arc<std::sync::RwLock<SystemOverrides>>,
     /// 外部 IdP ログイン（`[auth.oidc]`）。無効なら `None`
     pub oidc: Option<SsoLogin>,
@@ -166,6 +168,9 @@ impl AppState {
             site: Arc::new(std::sync::RwLock::new(SiteOverrides::default())),
             seo: Arc::new(std::sync::RwLock::new(SeoOverrides::default())),
             headers: Arc::new(std::sync::RwLock::new(HeaderOverrides::default())),
+            redirects: Arc::new(tokio::sync::RwLock::new(
+                crate::redirects::RedirectTable::default(),
+            )),
             system: Arc::new(std::sync::RwLock::new(SystemOverrides::default())),
             oidc: None,
             saml: None,

@@ -364,6 +364,15 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/headers",
             get(handlers::get_headers_settings).put(handlers::update_headers_settings),
         )
+        // --- リダイレクト ---
+        .route(
+            "/api/v1/redirects",
+            get(handlers::redirects::list_redirects).post(handlers::redirects::create_redirect),
+        )
+        .route(
+            "/api/v1/redirects/{id}",
+            put(handlers::redirects::update_redirect).delete(handlers::redirects::delete_redirect),
+        )
         // --- 通知（[notifications]） ---
         .route(
             "/api/v1/notifications",
@@ -520,6 +529,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
     app.layer(cors)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
+            redirect_middleware,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
             security_headers_middleware,
         ))
         .layer(axum::middleware::from_fn_with_state(
@@ -643,6 +656,74 @@ async fn maintenance_middleware(
         axum::http::HeaderValue::from_static("300"),
     );
     response
+}
+
+/// ページが 404 になったとき、リダイレクトの規則（[`crate::redirects`]）に一致すれば 301 / 302 で転送する。
+/// 生きているページの URL は規則があっても奪わない。クエリは、転送先に無ければそのまま引き継ぐ
+async fn redirect_middleware(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let lookup = matches!(
+        *request.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD
+    )
+    .then(|| {
+        (
+            request.uri().path().to_string(),
+            request.uri().query().map(str::to_string),
+        )
+    });
+    let response = next.run(request).await;
+    if response.status() != StatusCode::NOT_FOUND {
+        return response;
+    }
+    let Some((path, query)) = lookup else {
+        return response;
+    };
+    let rule = state.redirects.read().await.resolve(&path).cloned();
+    let Some(rule) = rule else {
+        return response;
+    };
+
+    let base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+    let mut target = under_base_path(&base_path, &rule.to);
+    if let Some(query) = query.filter(|q| !q.is_empty() && !rule.to.contains('?')) {
+        let (before, fragment) = match target.split_once('#') {
+            Some((before, fragment)) => (before.to_string(), format!("#{}", fragment)),
+            None => (target.clone(), String::new()),
+        };
+        target = format!("{}?{}{}", before, query, fragment);
+    }
+    let Ok(location) =
+        axum::http::HeaderValue::from_str(&crate::redirects::encode_location(&target))
+    else {
+        return response;
+    };
+    let status = if rule.status == 302 {
+        StatusCode::FOUND
+    } else {
+        StatusCode::MOVED_PERMANENTLY
+    };
+    let mut redirect = axum::response::Response::new(axum::body::Body::empty());
+    *redirect.status_mut() = status;
+    redirect
+        .headers_mut()
+        .insert(axum::http::header::LOCATION, location);
+    redirect.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static(if status == StatusCode::FOUND {
+            "no-cache"
+        } else {
+            "public, max-age=3600"
+        }),
+    );
+    redirect
 }
 
 async fn security_headers_middleware(

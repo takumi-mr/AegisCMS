@@ -17,6 +17,7 @@ pub mod password_reset;
 pub mod plugin;
 pub mod preview;
 pub mod public;
+pub mod redirects;
 pub mod registration;
 pub mod reviews;
 pub mod saml;

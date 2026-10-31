@@ -70,6 +70,15 @@ pub enum AuditAction {
     /// HTTP and browser defense headers changed via admin/API
     #[serde(rename = "headers.update")]
     HeadersUpdate,
+    /// Redirect rule added via admin/API, or kept automatically when a slug changed
+    #[serde(rename = "redirect.create")]
+    RedirectCreate,
+    /// Redirect rule changed via admin/API
+    #[serde(rename = "redirect.update")]
+    RedirectUpdate,
+    /// Redirect rule deleted via admin/API
+    #[serde(rename = "redirect.delete")]
+    RedirectDelete,
     /// User account created via the user management API
     #[serde(rename = "user.create")]
     UserCreate,
@@ -181,7 +190,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 66] = [
+    pub const ALL: [AuditAction; 69] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -206,6 +215,9 @@ impl AuditAction {
         Self::SystemUpdate,
         Self::SeoUpdate,
         Self::HeadersUpdate,
+        Self::RedirectCreate,
+        Self::RedirectUpdate,
+        Self::RedirectDelete,
         Self::UserCreate,
         Self::UserUpdate,
         Self::UserDelete,
@@ -276,6 +288,9 @@ impl AuditAction {
             Self::SystemUpdate => "system.update",
             Self::SeoUpdate => "seo.update",
             Self::HeadersUpdate => "headers.update",
+            Self::RedirectCreate => "redirect.create",
+            Self::RedirectUpdate => "redirect.update",
+            Self::RedirectDelete => "redirect.delete",
             Self::UserCreate => "user.create",
             Self::UserUpdate => "user.update",
             Self::UserDelete => "user.delete",

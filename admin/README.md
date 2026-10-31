@@ -51,6 +51,7 @@
   - カテゴリの一覧表示（色・説明つき）と新規作成（slug 自動生成、色指定）は **Settings › Categories**。エディタの **Manage** ボタンからも開ける。
   - サイドバーの記事一覧にカテゴリバッジを表示する。
 - **コンテンツ一覧の検索・絞り込み・ページ送り（サイドバー）**: タイトル・スラッグ・要約（`excerpt`）の検索ボックス（入力が 300ms 止まると検索、Enter ですぐ検索）、カテゴリ（All / Uncategorized / 各カテゴリ。記事のみ）と状態（Draft / Scheduled / Published）の絞り込み、1 ページ 20 件のページ送りに対応。検索・絞り込み・ページ送りはサーバーで行い（`GET /api/v1/contents/{type}?view=summary&q=&category=&status=&limit=&offset=`）、一覧は要約（タイトル・スラッグ・状態・カテゴリ・要約。ブロックと描画済み HTML は含まない）だけを取得する。記事を選ぶと、その 1 件の全体を取得してエディタに開く。種類（記事 / 固定ページ）を切り替えると検索と絞り込みは戻る。
+- **リダイレクト（Settings › Redirects、`admin`）**: 旧 URL → 新 URL の規則の一覧（新しい順・25 件ずつ・パスで検索）と追加・編集・削除（`RedirectManager.tsx`）。種類は 301（恒久）/ 302（一時）。slug を変えて公開したときに自動で足された規則には「自動」の印が付く。サーバーの理由は英語なので、`code`（`duplicate_redirect` など）から画面の言語の文言を出す（[リダイレクト](../docs/redirects.md)）。
 - **タグ（Settings › Tags、エディタ、商品の編集）**: タグの一覧（名前順・25 件ずつ・名前か slug で検索・付いているコンテンツの数）と作成・編集・削除（作成・変更は `editor` 以上）。記事・固定ページのエディタと商品の編集には「Tags」欄（`TagPicker`）があり、名前を入力して既存のタグを探して付けるか、その場で作って付ける。タグはコンテンツの保存のときに保存する（`PUT /api/v1/contents/{type}/{id}/tags`）。サーバーが `[tags].enabled = false` のときは、Settings の項目とエディタの欄を出さない（[タグ](../docs/tags.md)）。
 - **設定画面 (Settings)**:
   - サイト全体の管理（サイト名と favicon・SEO・通知・テーマ・プラグイン・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Comments / Settings（Products / Orders は EC が有効かつ `editor` 以上のとき、Comments はコメントが有効かつ `editor` 以上のとき）。

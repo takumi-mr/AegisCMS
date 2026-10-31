@@ -73,6 +73,9 @@ export type AuditAction =
   | 'site.update'
   | 'seo.update'
   | 'headers.update'
+  | 'redirect.create'
+  | 'redirect.update'
+  | 'redirect.delete'
   | 'user.create'
   | 'user.update'
   | 'user.delete'
@@ -789,6 +792,21 @@ export interface PluginOrder {
   configured: string[];
   /** The list was changed in Admin Studio (saved in the database, overrides `configured`) */
   customized: boolean;
+}
+
+/** A redirect rule (`/api/v1/redirects`): visitors of a missing page `from` are sent to `to` */
+export interface Redirect {
+  id: string;
+  /** Old path, without the base path */
+  from: string;
+  /** A path of the site (the base path is added) or an http(s) URL */
+  to: string;
+  /** 301 (permanent) or 302 (temporary) */
+  status: number;
+  /** Kept automatically when a published slug changed */
+  auto: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ScheduleItem {

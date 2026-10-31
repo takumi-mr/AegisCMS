@@ -11,6 +11,7 @@ import {
   Bell,
   ShieldCheck,
   SlidersHorizontal,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount, ContentSummary } from '../types';
@@ -21,6 +22,7 @@ import { CategoryManager } from './CategoryManager';
 import { HeaderManager } from './HeaderManager';
 import { NotificationManager } from './NotificationManager';
 import { PluginManager } from './PluginManager';
+import { RedirectManager } from './RedirectManager';
 import { SeoManager } from './SeoManager';
 import { SiteManager } from './SiteManager';
 import { SystemManager } from './SystemManager';
@@ -34,6 +36,7 @@ export type SettingsSection =
   | 'system'
   | 'seo'
   | 'headers'
+  | 'redirects'
   | 'notifications'
   | 'themes'
   | 'plugins'
@@ -52,6 +55,7 @@ const SECTIONS: Array<{
   { id: 'system', icon: <SlidersHorizontal size={16} />, visible: isAdmin },
   { id: 'seo', icon: <Search size={16} />, visible: isAdmin },
   { id: 'headers', icon: <ShieldCheck size={16} />, visible: isAdmin },
+  { id: 'redirects', icon: <ArrowRightLeft size={16} />, visible: isAdmin },
   { id: 'notifications', icon: <Bell size={16} />, visible: isAdmin },
   { id: 'themes', icon: <Palette size={16} /> },
   { id: 'plugins', icon: <Blocks size={16} /> },
@@ -114,6 +118,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {current === 'system' && <SystemManager onShowToast={onShowToast} />}
         {current === 'seo' && <SeoManager onShowToast={onShowToast} />}
         {current === 'headers' && <HeaderManager onShowToast={onShowToast} />}
+        {current === 'redirects' && <RedirectManager onShowToast={onShowToast} />}
         {current === 'notifications' && <NotificationManager onShowToast={onShowToast} />}
         {current === 'themes' && <ThemeManager session={session} onShowToast={onShowToast} />}
         {current === 'plugins' && <PluginManager session={session} onShowToast={onShowToast} />}

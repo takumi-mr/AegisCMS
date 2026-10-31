@@ -87,7 +87,11 @@
     "createTagFailed": "タグを作成できませんでした",
     "updateTagFailed": "タグを更新できませんでした",
     "deleteTagFailed": "タグを削除できませんでした",
-    "setContentTagsFailed": "このコンテンツのタグを保存できませんでした"
+    "setContentTagsFailed": "このコンテンツのタグを保存できませんでした",
+    "redirectsFailed": "リダイレクトを読み込めませんでした",
+    "createRedirectFailed": "リダイレクトを追加できませんでした",
+    "updateRedirectFailed": "リダイレクトを変更できませんでした",
+    "deleteRedirectFailed": "リダイレクトを削除できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -1085,7 +1089,8 @@
       "users": "ユーザー",
       "audit": "監査ログ",
       "system": "システム",
-      "tags": "タグ"
+      "tags": "タグ",
+      "redirects": "リダイレクト"
     }
   },
   "plugins": {
@@ -1689,5 +1694,45 @@
     "createNamed": "「{{name}}」を作成",
     "saveFailedForContent": "コンテンツは保存しましたが、タグを保存できませんでした",
     "loadFailedForContent": "このコンテンツのタグを読み込めませんでした"
+  },
+  "redirects": {
+    "title": "リダイレクト",
+    "description": "古い URL を開いた訪問者を、新しい URL へ転送します。転送するのは、古い URL にページが無いときだけです。公開中のページの slug を変えたときは、自動で追加されます。",
+    "loadFailed": "リダイレクトを読み込めませんでした",
+    "search": "パスで検索",
+    "searchAria": "リダイレクトを検索",
+    "empty": "リダイレクトはまだありません。",
+    "noMatch": "一致するリダイレクトはありません。",
+    "auto": "自動",
+    "autoTitle": "slug を変えたときに自動で追加されたもの",
+    "editAria": "{{from}} からのリダイレクトを編集",
+    "deleteAria": "{{from}} からのリダイレクトを削除",
+    "confirmDelete": "「{{from}}」からのリダイレクトを削除しますか？ その URL は 404 ページになります。",
+    "created": "{{from}} からのリダイレクトを追加しました",
+    "updated": "{{from}} からのリダイレクトを変更しました",
+    "deleted": "{{from}} からのリダイレクトを削除しました",
+    "saveFailed": "リダイレクトを保存できませんでした",
+    "deleteFailed": "リダイレクトを削除できませんでした",
+    "pagination": "リダイレクトのページ",
+    "previousPage": "前のページ",
+    "nextPage": "次のページ",
+    "range": "{{total}} 件中 {{from}}–{{to}} 件",
+    "new": "リダイレクトを追加",
+    "editTitle": "{{from}} からのリダイレクトを編集",
+    "fieldFrom": "転送元",
+    "fieldTo": "転送先",
+    "fieldStatus": "種類",
+    "fromAria": "古いパス",
+    "toAria": "新しいパスまたは URL",
+    "statusAria": "リダイレクトの種類",
+    "permanent": "301 恒久（検索エンジンは新しい URL に移る）",
+    "temporary": "302 一時（検索エンジンは古い URL を残す）",
+    "hint": "転送元は /old-page のようなパス（クエリ文字列は含めない）、転送先はこのサイトのパスか http(s) の URL です。訪問時のクエリ文字列は引き継ぎます。",
+    "bothRequired": "古いアドレスと新しいアドレスの両方を入力してください",
+    "duplicate": "このパスからのリダイレクトはすでにあります",
+    "loop": "このリダイレクトは古いパスに戻ってしまいます",
+    "tooMany": "リダイレクトが多すぎます。先にいくつか削除してください",
+    "create": "追加",
+    "save": "保存"
   }
 }

@@ -54,10 +54,30 @@ pub async fn publish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize
                 }
             }
 
+            let live_before =
+                crate::handlers::redirects::live_slug(state, &schema, &record.id).await;
             let result = state
                 .db
                 .publish_scheduled_content(&schema, &record.id, at, &now.to_rfc3339())
                 .await;
+            // 公開版の slug が変わったら、旧 URL からの転送を残す
+            if matches!(result, Ok(true)) {
+                if let (Some(old), Some(new)) = (
+                    live_before,
+                    crate::handlers::redirects::live_slug(state, &schema, &record.id).await,
+                ) {
+                    if old != new {
+                        crate::handlers::redirects::record_slug_change(
+                            state,
+                            &aegis_audit::AuditOrigin::default(),
+                            &record.content_type,
+                            &old,
+                            &new,
+                        )
+                        .await;
+                    }
+                }
+            }
             let mut details = json!({
                 "content_type": record.content_type,
                 "slug": record.slug,
