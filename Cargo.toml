@@ -32,6 +32,7 @@ members = [
     "plugins/official-blocks",
     "plugins/official-page-toc",
     "plugins/official-back-to-top",
+    "plugins/official-share-buttons",
 ]
 
 [workspace.package]

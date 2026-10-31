@@ -200,4 +200,16 @@ async fn test_official_reading_plugins_add_to_the_page() {
     let other = top.on_render_page(page("index")).await.unwrap();
     assert_eq!(other.content_html, page("index").content_html);
     assert!(other.extra_css.is_empty() && other.extra_head.is_empty());
+
+    let share = load(&engine, &plugins.join("official-share-buttons"));
+    let rendered = share.on_render_page(page("article")).await.unwrap();
+    assert!(rendered.content_html.contains("class=\"osb-container\""));
+    assert!(rendered.content_html.contains("osb-btn-x"));
+    assert!(rendered.content_html.contains("osb-btn-line"));
+    assert!(rendered.content_html.contains("osb-btn-copy"));
+    assert!(rendered.extra_css.contains(".osb-container"));
+    assert!(rendered.extra_head.contains("osb-btn-copy"));
+    let other = share.on_render_page(page("index")).await.unwrap();
+    assert_eq!(other.content_html, page("index").content_html);
+    assert!(other.extra_css.is_empty() && other.extra_head.is_empty());
 }

@@ -36,12 +36,13 @@
 ### 🌐 サイト機能拡張
 - [x] **関連記事**: Strategy パターンで差し替え可能な推薦機構（既定: タグ一致数 ＞ 同一カテゴリ ＞ 新着フォールバック）。
 - [x] **リンク切れチェック**: 公開記事の内部・外部リンクを検査し、Admin Studio（設定 > リンク切れチェック）で一覧表示・手動再検査を実行可能。
+- [ ] **お知らせバナー**: 期間を指定して全ページの上部に出す（メンテナンス・セールの告知）。
 - [ ] **コメント・掲示板への CAPTCHA 適用**: `aegis-captcha`（問い合わせフォームで導入済み。[contact.md 1.2](docs/contact.md#12-captcha任意)）を `[comments]` / `[forum]` にも使えるようにする。
 
 ### 🔌 プラグイン・将来構想
 - [ ] **読者向けの小さな公式プラグイン**（`official-page-toc` / `official-back-to-top` と同じ作りで足す。それぞれ別プラグイン）:
   - 読了時間・文字数の表示（`on-render-page`）
-  - SNS 共有ボタン（X・LINE・URL コピー）
+  - [x] SNS 共有ボタン（X・LINE・URL コピー、設定で任意の共有先を追加可能）: 公式プラグイン [official-share-buttons](plugins/official-share-buttons)
   - コードブロックの行番号・ファイル名表示（`official-code-enhancer` の拡張でも可）
   - 画像ライトボックス（本文の画像をクリックで拡大）
   - 外部リンクの自動処理（`target="_blank" rel="noopener nofollow"` と外部アイコン。`transform-content-ast`）
