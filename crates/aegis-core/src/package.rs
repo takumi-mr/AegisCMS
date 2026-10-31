@@ -422,6 +422,81 @@ pub fn extract_zip_safely(
     Ok(extracted_paths)
 }
 
+/// Generates a new random Ed25519 key pair, returning `(private_key_pkcs8_hex, public_key_hex)`.
+pub fn generate_ed25519_keypair() -> Result<(String, String)> {
+    let rng = ring::rand::SystemRandom::new();
+    let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng)
+        .map_err(|e| AegisError::Internal(format!("Failed to generate Ed25519 key pair: {}", e)))?;
+    let key_pair = signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).map_err(|e| {
+        AegisError::Internal(format!("Failed to parse generated Ed25519 key pair: {}", e))
+    })?;
+    let pub_hex = hex::encode(key_pair.public_key().as_ref());
+    let priv_hex = hex::encode(pkcs8.as_ref());
+    Ok((priv_hex, pub_hex))
+}
+
+/// Parses an Ed25519 key pair from a hex-encoded private key (either PKCS#8 or 32-byte seed).
+pub fn parse_ed25519_keypair(priv_hex: &str) -> Result<signature::Ed25519KeyPair> {
+    let raw = hex::decode(priv_hex.trim())
+        .map_err(|e| AegisError::Validation(format!("Invalid private key hex format: {}", e)))?;
+    if raw.len() == 32 {
+        signature::Ed25519KeyPair::from_seed_unchecked(&raw)
+            .map_err(|e| AegisError::Validation(format!("Invalid Ed25519 seed key: {}", e)))
+    } else {
+        signature::Ed25519KeyPair::from_pkcs8(&raw)
+            .map_err(|e| AegisError::Validation(format!("Invalid Ed25519 PKCS#8 key: {}", e)))
+    }
+}
+
+/// Signs a package directory by computing its canonical digest and saving `signature.json`.
+pub fn sign_package_dir(package_dir: &Path, priv_key_hex: &str) -> Result<PackageSignature> {
+    let key_pair = parse_ed25519_keypair(priv_key_hex)?;
+    let digest = compute_package_files_digest(package_dir)?;
+    let sig = create_test_signature(&digest, &key_pair, "package");
+    let sig_path = package_dir.join("signature.json");
+    let sig_json = serde_json::to_string_pretty(&sig)
+        .map_err(|e| AegisError::Internal(format!("Failed to serialize signature.json: {}", e)))?;
+    std::fs::write(&sig_path, sig_json).map_err(AegisError::Io)?;
+    Ok(sig)
+}
+
+/// Creates a distribution ZIP archive for a theme directory.
+/// Excludes hidden files, development samples, and build targets.
+pub fn create_theme_zip(theme_dir: &Path) -> Result<Vec<u8>> {
+    let mut files = Vec::new();
+    collect_files_recursive(theme_dir, theme_dir, &mut files)?;
+    files.sort();
+
+    let mut buf = Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut buf);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        for (rel_path, file_path) in files {
+            // Exclude hidden files / development samples / build targets
+            if rel_path.starts_with('.') || rel_path.contains("/.") {
+                continue;
+            }
+            if rel_path.starts_with("samples/") || rel_path == "samples" {
+                continue;
+            }
+            if rel_path.starts_with("target/") || rel_path == "target" {
+                continue;
+            }
+
+            let content = std::fs::read(&file_path).map_err(AegisError::Io)?;
+            zip.start_file(&rel_path, options).map_err(|e| {
+                AegisError::Internal(format!("Failed to add file '{}' to ZIP: {}", rel_path, e))
+            })?;
+            zip.write_all(&content).map_err(AegisError::Io)?;
+        }
+        zip.finish()
+            .map_err(|e| AegisError::Internal(format!("Failed to finalize ZIP archive: {}", e)))?;
+    }
+    Ok(buf.into_inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -615,6 +690,62 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Malicious ZIP path detected"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_sign_package_dir_and_create_theme_zip() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("aegis_theme_zip_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(temp_dir.join("templates")).unwrap();
+        std::fs::create_dir_all(temp_dir.join("assets")).unwrap();
+        std::fs::create_dir_all(temp_dir.join("samples")).unwrap();
+
+        std::fs::write(
+            temp_dir.join("theme.json"),
+            r#"{"id":"zip-theme","name":"Zip Theme","version":"1.0.0"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            temp_dir.join("templates/base.html"),
+            "<html><body>{% block content %}{% endblock %}</body></html>",
+        )
+        .unwrap();
+        std::fs::write(temp_dir.join("assets/style.css"), "body{color:red}").unwrap();
+        std::fs::write(temp_dir.join("samples/page.json"), "{}").unwrap();
+
+        // 1. Generate keypair
+        let (priv_hex, pub_hex) = generate_ed25519_keypair().unwrap();
+        assert_eq!(pub_hex.len(), 64);
+
+        // 2. Sign directory
+        let sig = sign_package_dir(&temp_dir, &priv_hex).unwrap();
+        assert_eq!(sig.public_key, pub_hex);
+        assert!(temp_dir.join("signature.json").exists());
+
+        // 3. Verify signature
+        let verified = verify_package_signature(&temp_dir, Some(&[pub_hex.clone()]), true).unwrap();
+        assert_eq!(verified, Some(pub_hex));
+
+        // 4. Create ZIP
+        let zip_bytes = create_theme_zip(&temp_dir).unwrap();
+        assert!(!zip_bytes.is_empty());
+
+        // Verify ZIP entries: samples/ must not be included, but templates, assets, signature.json must
+        let reader = Cursor::new(&zip_bytes);
+        let mut archive = zip::ZipArchive::new(reader).unwrap();
+        let mut names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().unwrap().to_string())
+            .collect();
+        names.sort();
+
+        assert!(names.contains(&"theme.json".to_string()));
+        assert!(names.contains(&"templates/base.html".to_string()));
+        assert!(names.contains(&"assets/style.css".to_string()));
+        assert!(names.contains(&"signature.json".to_string()));
+        assert!(!names.iter().any(|n| n.starts_with("samples")));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

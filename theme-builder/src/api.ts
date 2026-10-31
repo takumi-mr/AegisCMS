@@ -1,4 +1,12 @@
-import type { CheckResult, FileList, RenderRequest, RenderResult, ThemeInfo } from './types.ts';
+import type {
+  CheckResult,
+  FileList,
+  PackageSignResponse,
+  PackageValidationResult,
+  RenderRequest,
+  RenderResult,
+  ThemeInfo,
+} from './types.ts';
 
 /** Sent on every write: a page on another site cannot add it without a CORS preflight */
 export const WRITE_HEADER = 'x-aegis-dev';
@@ -62,4 +70,8 @@ export const api = {
       since === undefined ? '/__dev/version' : `/__dev/version?since=${since}`,
       { signal }
     ),
+  packageValidate: () => request<PackageValidationResult>('/__dev/api/package/validate'),
+  packageSign: (data: { private_key?: string; generate_key?: boolean }) =>
+    request<PackageSignResponse>('/__dev/api/package/sign', { method: 'POST', body: data }),
+  packageExportUrl: () => '/__dev/api/package/export',
 };

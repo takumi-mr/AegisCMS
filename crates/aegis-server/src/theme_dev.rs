@@ -151,6 +151,9 @@ fn router(state: DevState) -> Router {
         )
         .route("/__dev/api/rename", post(api_rename_file))
         .route("/__dev/api/render", post(api_render))
+        .route("/__dev/api/package/validate", get(api_package_validate))
+        .route("/__dev/api/package/sign", post(api_package_sign))
+        .route("/__dev/api/package/export", get(api_package_export))
         // 公開サイトと同じ URL（テンプレートが `/theme/assets/...` や `/themes/<id>/assets/...` で参照する）
         .nest_service("/theme/assets", assets.clone())
         .nest_service(&format!("/themes/{}/assets", theme_id), assets)
@@ -584,7 +587,7 @@ fn is_editable_path(rel: &str) -> bool {
         .and_then(|e| e.to_str())
         .is_some_and(|e| TEXT_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()));
     match parts.as_slice() {
-        ["theme.json"] => true,
+        ["theme.json"] | ["signature.json"] => true,
         [top, _, ..] => matches!(*top, "templates" | "samples" | "assets") && text,
         _ => false,
     }
@@ -632,7 +635,7 @@ async fn api_files(State(state): State<DevState>) -> Json<Value> {
                 .to_string_lossy()
                 .replace('\\', "/");
             let kind = match rel.split('/').next()? {
-                "theme.json" => "manifest",
+                "theme.json" | "signature.json" => "manifest",
                 "templates" => "template",
                 "samples" => "sample",
                 "assets" => "asset",
@@ -749,7 +752,11 @@ async fn api_rename_file(
             "Editing is only available when listening on a loopback address",
         ));
     }
-    if body.from == "theme.json" || body.to == "theme.json" {
+    if body.from == "theme.json"
+        || body.to == "theme.json"
+        || body.from == "signature.json"
+        || body.to == "signature.json"
+    {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
             "theme.json cannot be renamed",
@@ -980,6 +987,138 @@ async fn api_render(State(state): State<DevState>, Json(req): Json<RenderRequest
             })),
         }
     }
+}
+
+#[derive(Serialize)]
+struct PackageValidationResult {
+    ok: bool,
+    manifest: Option<ThemeManifest>,
+    signed: bool,
+    public_key: Option<String>,
+    errors: Vec<String>,
+}
+
+/// `GET /__dev/api/package/validate` — テーマパッケージとしての適合性を検証する
+async fn api_package_validate(State(state): State<DevState>) -> Json<PackageValidationResult> {
+    let mut errors = Vec::new();
+    let manifest_result = state
+        .engine
+        .validate_theme_package_with_policy(&state.dir, None, false);
+
+    let (manifest, signature_key) = match manifest_result {
+        Ok(m) => {
+            let sig_file = state.dir.join("signature.json");
+            let pk = if sig_file.exists() {
+                match aegis_core::verify_package_signature(&state.dir, None, false) {
+                    Ok(k) => k,
+                    Err(e) => {
+                        errors.push(format!("Signature verification error: {}", e));
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            (Some(m), pk)
+        }
+        Err(e) => {
+            errors.push(e.to_string());
+            (None, None)
+        }
+    };
+
+    let ok = errors.is_empty();
+    let signed = signature_key.is_some();
+
+    Json(PackageValidationResult {
+        ok,
+        manifest,
+        signed,
+        public_key: signature_key,
+        errors,
+    })
+}
+
+#[derive(Deserialize)]
+struct PackageSignRequest {
+    #[serde(default)]
+    private_key: Option<String>,
+    #[serde(default)]
+    generate_key: bool,
+}
+
+#[derive(Serialize)]
+struct PackageSignResponse {
+    ok: bool,
+    public_key: String,
+    generated_private_key: Option<String>,
+    signature: String,
+}
+
+/// `POST /__dev/api/package/sign` — テーマディレクトリを署名し、signature.json を保存する
+async fn api_package_sign(
+    State(state): State<DevState>,
+    Json(req): Json<PackageSignRequest>,
+) -> std::result::Result<Json<PackageSignResponse>, (StatusCode, Json<Value>)> {
+    let (priv_hex, generated_priv) =
+        if req.generate_key || req.private_key.as_deref().unwrap_or("").trim().is_empty() {
+            let (priv_k, _pub_k) = aegis_core::generate_ed25519_keypair().map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("Failed to generate keypair: {}", e) })),
+                )
+            })?;
+            (priv_k.clone(), Some(priv_k))
+        } else {
+            let priv_k = req.private_key.unwrap().trim().to_string();
+            (priv_k, None)
+        };
+
+    let sig = aegis_core::sign_package_dir(&state.dir, &priv_hex).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": format!("Failed to sign package: {}", e) })),
+        )
+    })?;
+
+    // change will be detected by watcher loop
+
+    Ok(Json(PackageSignResponse {
+        ok: true,
+        public_key: sig.public_key,
+        generated_private_key: generated_priv,
+        signature: sig.signature,
+    }))
+}
+
+/// `GET /__dev/api/package/export` — テーマディレクトリを ZIP アーカイブとしてエクスポートする
+async fn api_package_export(
+    State(state): State<DevState>,
+) -> std::result::Result<Response, (StatusCode, String)> {
+    let manifest = ThemeManifest::load_from_dir(&state.dir)
+        .unwrap_or_else(|| ThemeManifest::fallback_from_id(&state.engine.active_theme()));
+    let zip_bytes = aegis_core::create_theme_zip(&state.dir).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create ZIP: {}", e),
+        )
+    })?;
+
+    let filename = format!("{}-{}.zip", manifest.id, manifest.version);
+    let disposition = format!(r#"attachment; filename="{}""#, filename);
+
+    let mut response = Response::new(axum::body::Body::from(zip_bytes));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("application/zip"),
+    );
+    if let Ok(disp_val) = header::HeaderValue::from_str(&disposition) {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, disp_val);
+    }
+
+    Ok(response)
 }
 
 #[cfg(test)]
@@ -1555,5 +1694,75 @@ mod tests {
         let block_html = body_block["html"].as_str().unwrap();
         assert!(block_html.contains("<!DOCTYPE html>"));
         assert!(block_html.contains("サンプル記事 1"));
+    }
+
+    #[tokio::test]
+    async fn test_package_validate_sign_and_export() {
+        let tmp = theme_dir();
+        let (app, _) = app(&tmp);
+
+        // 1. 初期状態の検証 (unsigned)
+        let (status, text) = send(&app, "GET", "/__dev/api/package/validate", &[], None).await;
+        assert_eq!(status, StatusCode::OK);
+        let val: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(val["ok"], true);
+        assert_eq!(val["signed"], false);
+        assert!(val["public_key"].is_null());
+
+        // 2. 自動鍵生成で署名
+        let (status, text) = send(
+            &app,
+            "POST",
+            "/__dev/api/package/sign",
+            &[DEV],
+            Some(json!({ "generate_key": true })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let sign_res: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(sign_res["ok"], true);
+        let pub_key = sign_res["public_key"].as_str().unwrap();
+        assert_eq!(pub_key.len(), 64);
+        assert!(sign_res["generated_private_key"].is_string());
+
+        // 3. 署名後の検証 (signed)
+        let (status, text) = send(&app, "GET", "/__dev/api/package/validate", &[], None).await;
+        assert_eq!(status, StatusCode::OK);
+        let val: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(val["ok"], true);
+        assert_eq!(val["signed"], true);
+        assert_eq!(val["public_key"], pub_key);
+
+        // 4. ZIP アーカイブのエクスポート
+        let req = Request::builder()
+            .method("GET")
+            .uri("/__dev/api/package/export")
+            .header("host", "localhost:8090")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/zip"
+        );
+        let disp = res
+            .headers()
+            .get(header::CONTENT_DISPOSITION)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(disp.contains("mytheme-1.0.0.zip") || disp.contains(".zip"));
+        let bytes = to_bytes(res.into_body(), 10 * 1024 * 1024).await.unwrap();
+        assert!(!bytes.is_empty());
+
+        let reader = std::io::Cursor::new(bytes);
+        let mut zip = zip::ZipArchive::new(reader).unwrap();
+        let entry_names: Vec<String> = (0..zip.len())
+            .map(|i| zip.by_index(i).unwrap().name().unwrap().to_string())
+            .collect();
+        assert!(entry_names.contains(&"theme.json".to_string()));
+        assert!(entry_names.contains(&"signature.json".to_string()));
+        assert!(entry_names.contains(&"templates/base.html".to_string()));
     }
 }
