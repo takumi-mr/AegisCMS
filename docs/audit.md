@@ -180,6 +180,8 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 Admin Studio（`/admin`）に `admin` ロールのユーザーでログインすると、ヘッダーの **Settings** に **Audit Logs** が表示され、監査ログを閲覧できます（`editor` / `viewer` には表示されません）。ユーザーの作成は [認証 & ユーザー管理](authentication.md) を参照してください。
 
+![Admin Studio の監査ログ（Settings → Audit Logs）](images/audit-log.png)
+
 - **絞り込み**: action / outcome / actor / resource（種別・ID）/ 期間（since・until。ブラウザのローカル時刻で入力し、UTC に変換して送信）
 - **一覧**: 新しい順に 50 件ずつ表示し、**Newer** / **Older** でページ送り。行をクリックすると、イベント ID・User-Agent・`details` の JSON を展開表示
 - 右上に、サーバーに設定された保持期間を表示（無期限なら `unlimited`）

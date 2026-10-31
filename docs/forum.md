@@ -34,6 +34,8 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 | `/forum/{カテゴリの slug}`（`?page=N`） | `forum_category.html` | カテゴリのスレッドの一覧（ピン留め → 最終投稿の新しい順）とスレッドの作成フォーム |
 | `/forum/{カテゴリの slug}/{スレッド ID}` | `forum_thread.html` | レスの一覧（レス番号付き）と返信フォーム |
 
+![サンプル掲示板「やまびこ」のトップページ](images/forum-public.png)
+
 - フォームは `POST /forum/{slug}/threads`・`POST /forum/{slug}/{スレッド ID}/posts` に送ります。成功すると `303` で元のページ（レスは `#post-N`）に戻り、結果のメッセージを表示します。
 - ログイン中は表示名をアカウントから取ります。未ログインで名前を空にすると `Anonymous`。
 - テーマに同じ名前のテンプレートを置くと組み込みのものの代わりに使います（共通部分は `forum_common.html`）。
@@ -43,6 +45,8 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 ## 3. Admin Studio
 
 **Forum** タブ（`[forum].enabled = true` のときに表示）:
+
+![Admin Studio のスレッド・モデレーション](images/forum-admin.png)
 
 - **スレッド**: 一覧（カテゴリで絞り込み）、ピン留め・ロックの切り替え、削除、レスの一覧と個別の削除、公開ページへのリンク。
 - **カテゴリ**: 作成（名前・slug・説明・並び順）・編集・削除。

@@ -336,6 +336,8 @@ impl NotificationChannel for SmsChannel {
 
 `admin` のユーザーは **Settings › Notifications** で次のことができます。通知が無効（`[notifications].enabled = false`）なら、有効にする方法だけを表示します。
 
+![Admin Studio の通知の管理（Settings → Notifications）](images/notifications-admin.png)
+
 | 項目 | できること | API |
 | --- | --- | --- |
 | 配信 | チャネル・形式（HTML / テキスト）・送信待ちの保存先と、送信待ち・送れなかった通知の一覧（エラー・試行回数・次の試行の日時）。送れなかった通知は **再送**（最初の試行から）・**破棄** | `GET /api/v1/notifications`、`GET /api/v1/notifications/queue?status=failed`、`POST /api/v1/notifications/queue/{id}/retry`、`DELETE /api/v1/notifications/queue/{id}` |

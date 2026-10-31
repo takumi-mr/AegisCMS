@@ -178,6 +178,13 @@ tasks:
     cmds:
       - npm --prefix admin run test:e2e -- {{.CLI_ARGS}}
 
+  docs:screenshots:
+    desc: docs/images/ のスクリーンショットを撮り直す (サンプルのデータで使い捨てのサーバーをポート 18091 で起動。--only shop,forum / --filter <名前> で絞れる)
+    cmds:
+      - npm --prefix admin run build
+      - cargo build -p aegis-server
+      - node scripts/capture-docs-screenshots.mjs {{.CLI_ARGS}}
+
   test:e2e:theme-builder:
     desc: Theme Builder の E2E テスト (Playwright。開発サーバーと Vite を専用のポート 18090・15174 で起動)
     cmds:

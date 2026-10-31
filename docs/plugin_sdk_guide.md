@@ -206,6 +206,8 @@ copy target\wasm32-unknown-unknown\release\<plugin_name>.wasm plugin.wasm
 
 AegisCMS サーバーの `plugins/<name>/` ディレクトリ（`<name>` はマニフェストの `name`）を作成し、以下を配置します。
 
+![Admin Studio のプラグイン管理（Settings → Plugins）](images/plugins-admin.png)
+
 ```
 plugins/my-plugin/
   ├── plugin.manifest.json   # "name": "my-plugin"

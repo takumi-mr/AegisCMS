@@ -59,6 +59,8 @@ exclude_paths = []          # 数えないパス（前方一致。例: ["/previe
 
 ## 4. Admin Studio
 
+![Admin Studio のアクセス解析（ページビュー・訪問者の推移、よく見られたページ、参照元、端末）](images/analytics-dashboard.png)
+
 **Analytics** タブ（`[analytics].enabled = true` のときだけ表示。viewer 以上）で、過去 7 / 30 / 90 日の集計を見られます。
 
 - **ページビューと訪問者の合計と前期間比**: 選択した期間と同じ長さの直前期間（前週・前月など）との比較（％変化率および前期間数値）を表示します。

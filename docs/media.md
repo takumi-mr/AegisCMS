@@ -4,6 +4,8 @@
 
 画像などのアップロードファイルは `[storage]` のバックエンド（ローカルディスク / S3 互換。[設定リファレンス](configuration.md#23-storage--アセットストレージ)）に保存し、公開 URL で配信します。Admin Studio では画像ブロックのアップロードと **Media Library**（一覧・選択・削除）から使います。
 
+![画像ブロックから開くメディアライブラリ](images/media-library.png)
+
 | API | 必要なロール | 内容 |
 | --- | --- | --- |
 | `POST /api/v1/storage/upload` | `editor` | マルチパートの `file` を保存し、`201` と `{ key, url, size, content_type }` を返す。キーは `YYYY/MM/<8 桁>-<ファイル名>`（`key` / `path` フィールドで指定も可）。上限は `[storage].max_upload_mb`（超過は `413`） |

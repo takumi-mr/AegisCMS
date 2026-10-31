@@ -106,6 +106,8 @@ max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿�
 
 `[comments].avatars = "gravatar"` にすると、`avatar_url` に [Gravatar](https://gravatar.com/) の画像の URL が入り、組み込みのコメント欄は名前の横に表示します。
 
+![公開ページのコメント欄（スタッフの返信つき）](images/comments-public.png)
+
 - URL はメールアドレス（小文字・前後の空白なし）の SHA-256 から作ります（`https://www.gravatar.com/avatar/<ハッシュ>?s=96&d=<avatar_default>&r=g`）。メールアドレスそのものは URL にもページにも出ません。
 - 画像は**読者のブラウザが gravatar.com から取得します**（読者の IP アドレスが Gravatar に渡ります）。外部への接続を避けたいサイトは既定の `none` のままにしてください。
 - Gravatar に画像が無い人は `avatar_default`（`identicon` など）の画像になります。`404` にすると画像が無いので表示は崩れます（テーマで `onerror` などで隠す場合のみ）。
@@ -114,6 +116,8 @@ max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿�
 ---
 
 ## 4. Admin Studio
+
+![Admin Studio のコメント管理（承認待ち・承認済み・スパム）](images/comments-admin.png)
 
 **Comments** タブ（`editor` 以上。`[comments].enabled = false` なら出ません）で次の操作ができます。通知メールのリンク（Admin Studio の URL + `#comments`）からもこのタブが開きます。
 
