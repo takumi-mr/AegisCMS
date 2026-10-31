@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { CircleAlert, Save, WifiOff, X } from 'lucide-react';
+import { CircleAlert, Code, Save, SlidersHorizontal, WifiOff, X } from 'lucide-react';
 import { api } from './api.ts';
 import { bufferReducer, dirtyBuffers, emptyBuffers, isDirty, type BufferState } from './buffers.ts';
 import { Editor } from './components/Editor.tsx';
+import { ManifestEditor } from './components/ManifestEditor.tsx';
 import { FileTree } from './components/FileTree.tsx';
 import { Preview } from './components/Preview.tsx';
 import { Problems } from './components/Problems.tsx';
@@ -42,6 +43,7 @@ export function App() {
   const [check, setCheck] = useState<CheckResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [jump, setJump] = useState<{ line: number; nonce: number } | null>(null);
+  const [manifestMode, setManifestMode] = useState<'form' | 'json'>('form');
   const [offline, setOffline] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // Bumped when files change on disk, to render again
@@ -100,6 +102,20 @@ export function App() {
 
   const saveAll = useCallback(async () => {
     for (const buffer of dirtyBuffers(buffersRef.current)) await save(buffer.path);
+  }, [save, buffersRef]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        const active = buffersRef.current.active;
+        if (active) {
+          void save(active);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [save, buffersRef]);
 
   const createFile = useCallback(
@@ -363,31 +379,53 @@ export function App() {
         />
 
         <section className="editing" aria-label="エディター">
-          <div className="tabs" role="tablist">
-            {buffers.open.map((path) => {
-              const buffer = buffers.buffers[path];
-              return (
-                <div key={path} className={path === active ? 'tab active' : 'tab'}>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={path === active}
-                    onClick={() => dispatch({ type: 'activate', path })}
-                  >
-                    {path.split('/').pop()}
-                    {buffer && isDirty(buffer) && <span className="dot" aria-label="未保存" />}
-                  </button>
-                  <button
-                    type="button"
-                    className="close"
-                    aria-label={`${path} を閉じる`}
-                    onClick={() => dispatch({ type: 'close', path })}
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              );
-            })}
+          <div className="editor-tab-bar">
+            <div className="tabs" role="tablist">
+              {buffers.open.map((path) => {
+                const buffer = buffers.buffers[path];
+                return (
+                  <div key={path} className={path === active ? 'tab active' : 'tab'}>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={path === active}
+                      onClick={() => dispatch({ type: 'activate', path })}
+                    >
+                      {path.split('/').pop()}
+                      {buffer && isDirty(buffer) && <span className="dot" aria-label="未保存" />}
+                    </button>
+                    <button
+                      type="button"
+                      className="close"
+                      aria-label={`${path} を閉じる`}
+                      onClick={() => dispatch({ type: 'close', path })}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            {activeBuffer?.path === 'theme.json' && (
+              <div className="manifest-mode-toggle" role="group" aria-label="表示モード">
+                <button
+                  type="button"
+                  className={manifestMode === 'form' ? 'active' : ''}
+                  onClick={() => setManifestMode('form')}
+                  aria-pressed={manifestMode === 'form'}
+                >
+                  <SlidersHorizontal size={13} /> フォーム
+                </button>
+                <button
+                  type="button"
+                  className={manifestMode === 'json' ? 'active' : ''}
+                  onClick={() => setManifestMode('json')}
+                  aria-pressed={manifestMode === 'json'}
+                >
+                  <Code size={13} /> JSON
+                </button>
+              </div>
+            )}
           </div>
 
           {activeBuffer?.conflict && (
@@ -400,16 +438,27 @@ export function App() {
           )}
 
           {activeBuffer ? (
-            <Editor
-              key={activeBuffer.path}
-              path={activeBuffer.path}
-              value={activeBuffer.content}
-              readOnly={readOnly}
-              problems={problems}
-              jump={jump}
-              onChange={(content) => dispatch({ type: 'edit', path: activeBuffer.path, content })}
-              onSave={() => save(activeBuffer.path)}
-            />
+            activeBuffer.path === 'theme.json' && manifestMode === 'form' ? (
+              <ManifestEditor
+                key={activeBuffer.path}
+                value={activeBuffer.content}
+                readOnly={readOnly}
+                onChange={(content) => dispatch({ type: 'edit', path: activeBuffer.path, content })}
+                onSave={() => save(activeBuffer.path)}
+                onSwitchToJson={() => setManifestMode('json')}
+              />
+            ) : (
+              <Editor
+                key={activeBuffer.path}
+                path={activeBuffer.path}
+                value={activeBuffer.content}
+                readOnly={readOnly}
+                problems={problems}
+                jump={jump}
+                onChange={(content) => dispatch({ type: 'edit', path: activeBuffer.path, content })}
+                onSave={() => save(activeBuffer.path)}
+              />
+            )
           ) : (
             <p className="empty">左のファイルを選んでください</p>
           )}
