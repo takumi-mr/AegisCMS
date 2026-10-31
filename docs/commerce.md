@@ -114,6 +114,8 @@ currency_rates = { usd = 0.0067, eur = 0.0062 }   # 基軸通貨 1 単位あた�
 | `/cart` | `cart.html` | カート・クーポン・購入手続き |
 | `/orders/{id}?token=...` | `order.html` | 注文確認（顧客用。URL のトークンが必要） |
 
+![サンプルショップ「朝凪珈琲」の商品一覧ページ](images/commerce-storefront.png)
+
 テーマにこれらのテンプレートが無ければ組み込みのテンプレートを使います（テーマの `base.html` の中に表示されます）。独自に作る場合は [5. テーマのカスタマイズ](#5-テーマのカスタマイズ) を参照してください。`/products`・`/cart`・`/orders` は同名の固定ページより優先されます。
 
 ---
@@ -153,6 +155,10 @@ pending_payment ──▶ paid ───────▶ shipped ──▶ comple
 ### 3.3 Admin Studio
 
 **Orders** タブ（`editor` 以上）で、状態での絞り込み・注文の詳細（明細・送料などの内訳とそれを加えたプラグイン・配送先・連絡先・決済 ID）・状態の変更ができます。注文には顧客の個人情報が含まれるため、`viewer` には表示しません。
+
+![Admin Studio の商品一覧](images/commerce-products.png)
+
+![Admin Studio の注文一覧と売上レポート](images/commerce-orders.png)
 
 **Products** / **Orders** タブは `[commerce].enabled = true` のときだけ表示します（ログイン時に `GET /api/v1/shop/config` の `enabled` を読む）。設定を変えたらサーバーを再起動し、Admin Studio を再読み込みしてください。
 

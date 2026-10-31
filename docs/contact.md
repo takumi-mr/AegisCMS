@@ -106,6 +106,8 @@ required = true
 
 ## 2. フォームを置く
 
+![公開ページの問い合わせフォーム](images/contact-form.png)
+
 - **ページ**: `/contact`（`default`、無ければ最初のフォーム）と `/contact/{name}`。テーマの `contact.html`（無ければ組み込みのテンプレート）で描きます。ヘッダー・フッターのメニューからリンクしてください。
 - **本文のブロック**: Admin Studio のブロックの追加ボタン「問い合わせフォーム」で置き、どのフォームを出すかを選びます。Markdown では `[CONTACT]`（`default`）・`[CONTACT form="sales"]` と書きます。本文のトップレベルに置いたものだけを描きます（折りたたみなどの中には置けません）。送信すると `/contact/{name}?sent=1` に移ります。
 
@@ -125,6 +127,8 @@ required = true
 自分でフォームを組み立てるときは、`fields.form.action` に `POST` し、`fields.form.honeypot`（`website`）の名前の見えない欄を必ず入れてください（人には見えないように隠す）。
 
 ## 3. 受信箱（Admin Studio）
+
+![Admin Studio の問い合わせ受信箱](images/contact-inbox.png)
 
 **問い合わせ** タブ（editor 以上。`[contact].enabled = true` のときだけ表示）で、新着・既読・対応済み・スパムに分けて一覧できます。
 

@@ -31,6 +31,9 @@ AegisCMS は Headless API Gateway、管理画面 Admin Studio、および高速�
 - 記事本文は `HtmlRenderer` による決定論的 HTML 生成の後、Cloudflare 製 `lol-html` ストリーミングリライター（`StreamingHtmlRewriter`）を透過的に通過し、外部リンクの `rel="noopener noreferrer"` 自動付与や画像の `loading="lazy"` / `decoding="async"` 強制適用が担保されます。
 
 ### 予約公開（スケジュール公開）
+
+![Admin Studio のエディタ（スラッグ・状態・公開日時・タグ、プレビュー）](images/editor-article.png)
+
 - `status: "scheduled"` と公開日時 `published_at`（RFC 3339、タイムゾーン付き）を指定して保存すると、その日時にサーバーが自動で `published` にします。Admin Studio ではエディタ・商品フォームの状態で「予約公開」を選び、公開日時を入力します。
 
   ```bash
@@ -202,6 +205,8 @@ themes_dir = "themes"
 ### ZIP からのインストール
 
 Admin Studio のテーマ画面の「ZIP をアップロード」または `POST /api/v1/themes/install`（`admin`、multipart の `file` フィールド）で、テーマのパッケージをインストールできます。`theme.json` を ZIP の直下か 1 段下から探し、`ThemeEngine::validate_theme_package` で検証してから `themes/<id>/` に置きます（同じ ID のテーマは置き換え。有効化はしない。監査ログ `theme.install`）。展開の制限と署名（`signature.json`）はプラグインと同じで、`[theme].require_signatures` / `[theme].trusted_public_keys` で設定します（[プラグインのインストールと署名](./plugin_hooks.md#54-zip-パッケージからのインストールと署名)）。
+
+![Admin Studio のテーマ管理（Settings → Themes）](images/themes-admin.png)
 
 ### サイト名と favicon（Admin Studio）
 

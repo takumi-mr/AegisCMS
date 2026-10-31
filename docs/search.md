@@ -48,6 +48,8 @@ content_types = ["article", "page"]  # 検索の対象にするコンテンツ�
 
 `/search?q=検索語&page=2` で（`&category=カテゴリID`、`&tag=タグslug`、`&sort=newest` も使えます）、テーマの `search.html`（無ければ組み込みのテンプレート）で表示します。1 ページの件数は `[theme].posts_per_page` です。検索エンジンには載せません（`X-Robots-Tag: noindex`）。
 
+![検索ページ（`/search`）の結果](images/search-results.png)
+
 テンプレートに渡す値:
 
 | 値 | 内容 |

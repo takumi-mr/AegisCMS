@@ -12,6 +12,8 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 
 アカウントは DB のシステムテーブル `_aegis_users` に保存します（SQLite / PostgreSQL / MySQL 共通。サーバー起動時・CLI 実行時に自動作成）。
 
+![Admin Studio のユーザー管理（Settings → Users）](images/users-admin.png)
+
 | カラム | 内容 |
 | --- | --- |
 | `id` | UUID |
@@ -182,6 +184,8 @@ curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
 ### Admin Studio
 
 Admin Studio（`/admin`）はログイン画面からこの API でログインし、トークンを `sessionStorage` に保持してすべての API 呼び出しに付与します。API が `401` を返すとログイン画面に戻ります。ロールが足りない操作（`viewer` の保存・アップロードなど）は画面上でも無効化します。
+
+![Admin Studio のログイン画面](images/login.png)
 
 ---
 
@@ -530,6 +534,8 @@ AegisCMS では、パスワード認証に加えて **TOTP (Time-based One-Time 
 - **緊急解除**: 認証端末の紛失やバックアップコード紛失時は、`admin` ロールの管理者による Web 画面からのリセット、またはサーバー端末での CLI コマンド（`aegis-server user disable-2fa <username>`）で即時解除できます。
 
 ### 12.1 二段階認証の設定手順 (ユーザー)
+
+![プロフィールの二段階認証の設定（QR コードを認証アプリで読み取る）](images/profile-2fa.png)
 
 1. Admin Studio のヘッダー右上のアバターから **プロフィール (My profile)** を開きます。
 2. **二段階認証 (TOTP)** セクションの **二段階認証を設定する** をクリックします。
