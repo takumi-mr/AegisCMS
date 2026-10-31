@@ -249,10 +249,10 @@ tasks:
   plugin:build:reading:
     desc: 公式の読書補助プラグイン (official-page-toc / official-back-to-top) を Wasm にビルドし plugins/*/plugin.wasm を更新
     cmds:
-      - cargo build -p aegis-plugin-page-toc -p aegis-plugin-back-to-top --target wasm32-unknown-unknown --release
-      - cmd: cmd /c "copy /y target\wasm32-unknown-unknown\release\aegis_plugin_page_toc.wasm plugins\official-page-toc\plugin.wasm && copy /y target\wasm32-unknown-unknown\release\aegis_plugin_back_to_top.wasm plugins\official-back-to-top\plugin.wasm"
+      - cargo build -p aegis-plugin-page-toc -p aegis-plugin-back-to-top -p aegis-plugin-share-buttons --target wasm32-unknown-unknown --release
+      - cmd: cmd /c "copy /y target\wasm32-unknown-unknown\release\aegis_plugin_page_toc.wasm plugins\official-page-toc\plugin.wasm && copy /y target\wasm32-unknown-unknown\release\aegis_plugin_back_to_top.wasm plugins\official-back-to-top\plugin.wasm && copy /y target\wasm32-unknown-unknown\release\aegis_plugin_share_buttons.wasm plugins\official-share-buttons\plugin.wasm"
         platforms: [windows]
-      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_page_toc.wasm plugins/official-page-toc/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_back_to_top.wasm plugins/official-back-to-top/plugin.wasm
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_page_toc.wasm plugins/official-page-toc/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_back_to_top.wasm plugins/official-back-to-top/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_share_buttons.wasm plugins/official-share-buttons/plugin.wasm
         platforms: [linux, darwin]
 
   plugin:build:as:

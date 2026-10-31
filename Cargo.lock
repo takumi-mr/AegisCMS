@@ -365,6 +365,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-share-buttons"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
 name = "aegis-plugin-shop-rules"
 version = "0.1.0"
 dependencies = [

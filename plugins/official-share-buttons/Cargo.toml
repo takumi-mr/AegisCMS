@@ -1,0 +1,14 @@
+[package]
+name = "aegis-plugin-share-buttons"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Core Team"]
+description = "Official Wasm plugin that adds customizable SNS share buttons to articles and pages"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.1.0" }
+serde_json.workspace = true
+

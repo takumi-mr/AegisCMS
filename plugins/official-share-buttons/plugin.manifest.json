@@ -1,0 +1,203 @@
+{
+  "name": "official-share-buttons",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "SNS Share Buttons",
+  "description": "Adds customizable SNS sharing buttons (X, LINE, URL copy, Facebook, Hatena, Bluesky, Threads, and custom destinations) to articles and pages. Configure in [plugins.settings.official-share-buttons].",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "social",
+    "reading",
+    "marketing"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "hooks": [
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "settings": [
+    {
+      "key": "content_types",
+      "type": "string",
+      "label": {
+        "en": "Content types",
+        "ja": "表示する種類"
+      },
+      "description": {
+        "en": "Comma-separated content types that get the share buttons.",
+        "ja": "共有ボタンを出すコンテンツの種類（カンマ区切り）。"
+      },
+      "default": "article"
+    },
+    {
+      "key": "platforms",
+      "type": "string",
+      "label": {
+        "en": "Enabled platforms",
+        "ja": "有効にするプラットフォーム"
+      },
+      "description": {
+        "en": "Comma-separated list of share destinations in order: x, line, copy, facebook, hatena, bluesky, threads, pocket, linkedin.",
+        "ja": "表示する共有先のカンマ区切り（表示順）: x, line, copy, facebook, hatena, bluesky, threads, pocket, linkedin。"
+      },
+      "default": "x,line,copy"
+    },
+    {
+      "key": "custom_services",
+      "type": "text",
+      "label": {
+        "en": "Custom share services",
+        "ja": "カスタム共有先"
+      },
+      "description": {
+        "en": "Add additional custom share destinations (one per line). Format: Name|URL_TEMPLATE|Background_Color (Color is optional). Placeholders: {url}, {title}.",
+        "ja": "追加の共有先を設定（1行に1件）。形式: サービス名|共有URLテンプレート|背景色（省略可）。使えるプレースホルダー: {url}, {title}。"
+      },
+      "default": ""
+    },
+    {
+      "key": "position",
+      "type": "select",
+      "label": {
+        "en": "Position",
+        "ja": "配置位置"
+      },
+      "default": "bottom",
+      "description": {
+        "en": "Where to place the buttons in the article.",
+        "ja": "記事内の配置位置。"
+      },
+      "options": [
+        {
+          "value": "bottom",
+          "label": {
+            "en": "End of content",
+            "ja": "本文の末尾"
+          }
+        },
+        {
+          "value": "top",
+          "label": {
+            "en": "Beginning of content",
+            "ja": "本文の先頭"
+          }
+        },
+        {
+          "value": "both",
+          "label": {
+            "en": "Both top and bottom",
+            "ja": "先頭と末尾の両方"
+          }
+        }
+      ]
+    },
+    {
+      "key": "style",
+      "type": "select",
+      "label": {
+        "en": "Button style",
+        "ja": "ボタンスタイル"
+      },
+      "default": "buttons",
+      "description": {
+        "en": "Buttons include icon and label text. Icons show icon only.",
+        "ja": "「ボタン」はアイコンと文字を表示。「アイコンのみ」は正方形/円形でアイコンのみ表示。"
+      },
+      "options": [
+        {
+          "value": "buttons",
+          "label": {
+            "en": "Icon + Label",
+            "ja": "アイコンと文字"
+          }
+        },
+        {
+          "value": "icons",
+          "label": {
+            "en": "Icon only",
+            "ja": "アイコンのみ"
+          }
+        }
+      ]
+    },
+    {
+      "key": "shape",
+      "type": "select",
+      "label": {
+        "en": "Shape",
+        "ja": "角の丸み"
+      },
+      "default": "rounded",
+      "options": [
+        {
+          "value": "rounded",
+          "label": {
+            "en": "Rounded rectangle",
+            "ja": "角丸"
+          }
+        },
+        {
+          "value": "pill",
+          "label": {
+            "en": "Pill / Circle",
+            "ja": "カプセル / 丸"
+          }
+        },
+        {
+          "value": "square",
+          "label": {
+            "en": "Square",
+            "ja": "四角"
+          }
+        }
+      ]
+    },
+    {
+      "key": "heading",
+      "type": "string",
+      "label": {
+        "en": "Heading text",
+        "ja": "見出しテキスト"
+      },
+      "description": {
+        "en": "Optional title above the buttons (empty for default: Share this article / この記事をシェアする).",
+        "ja": "ボタン上部の見出し（空欄で言語に応じた既定見出しを表示）。"
+      },
+      "default": ""
+    },
+    {
+      "key": "x_via",
+      "type": "string",
+      "label": {
+        "en": "X account (via)",
+        "ja": "X アカウント名（via）"
+      },
+      "description": {
+        "en": "Optional X username without @ (e.g. aegiscms). Added as via=@username in tweet text.",
+        "ja": "@なしの X ユーザー名（例: aegiscms）。ポスト時に via=@ユーザー名 として付与。"
+      },
+      "default": ""
+    },
+    {
+      "key": "x_hashtags",
+      "type": "string",
+      "label": {
+        "en": "X hashtags",
+        "ja": "X ハッシュタグ"
+      },
+      "description": {
+        "en": "Optional comma-separated hashtags for X shares (without #).",
+        "ja": "ポスト時に付与するハッシュタグ（#なし・カンマ区切り）。"
+      },
+      "default": ""
+    }
+  ]
+}
+
