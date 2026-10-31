@@ -62,3 +62,20 @@ export interface CheckResult {
   results: { name: string; template: string; ok: boolean; error?: Diagnostic }[];
   sample_errors: string[];
 }
+
+/** `GET /__dev/api/package/validate` */
+export interface PackageValidationResult {
+  ok: boolean;
+  manifest: { id: string; name: string; version: string; min_aegis_version?: string } | null;
+  signed: boolean;
+  public_key: string | null;
+  errors: string[];
+}
+
+/** `POST /__dev/api/package/sign` */
+export interface PackageSignResponse {
+  ok: boolean;
+  public_key: string;
+  generated_private_key?: string | null;
+  signature: string;
+}

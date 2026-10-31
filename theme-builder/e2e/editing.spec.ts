@@ -241,3 +241,37 @@ test('previews a specific block and jumps to the line from preview click', async
   await expect(page.locator('.tab.active')).toContainText('index.html');
   await expect(page.locator('.cm-activeLine')).toContainText('<h1>E2E-HOME</h1>');
 });
+
+test('validates, signs, and exports theme package via export modal', async ({ page }) => {
+  // 1. パッケージ書き出しボタンをクリック
+  await page.getByRole('button', { name: 'パッケージ書き出し' }).click();
+  const modal = page.locator('.export-modal');
+  await expect(modal).toBeVisible();
+
+  // 2. パッケージ適合性検証の表示確認
+  await expect(modal.locator('.check-list')).toContainText('templates/base.html');
+  await expect(modal.locator('.check-list')).toContainText('theme.json');
+  await expect(modal.locator('.check-list')).toContainText('未署名');
+
+  // 3. 鍵ペアを生成して署名
+  const signBtn = modal.getByRole('button', { name: /鍵ペアを生成して署名/ });
+  await signBtn.click();
+
+  // 署名完了後、署名済みバッジ、公開鍵、生成された秘密鍵が表示される
+  await expect(modal.locator('.badge.success')).toContainText('署名済み');
+  await expect(modal.locator('.pubkey')).toBeVisible();
+  await expect(modal.locator('.generated-key-alert')).toBeVisible();
+
+  // 4. ZIP パッケージダウンロードボタンの確認
+  const downloadLink = modal.locator('a.download-btn');
+  await expect(downloadLink).toBeVisible();
+  await expect(downloadLink).toHaveAttribute('href', '/__dev/api/package/export');
+  await expect(downloadLink).toHaveAttribute('download', /e2e-theme-.*\.zip/);
+
+  // 5. モーダルを閉じる
+  await modal.locator('.modal-footer').getByRole('button', { name: '閉じる' }).click();
+  await expect(modal).not.toBeVisible();
+
+  // ファイル一覧に signature.json が出現することを確認
+  await expect(file(page, 'signature.json')).toBeVisible();
+});

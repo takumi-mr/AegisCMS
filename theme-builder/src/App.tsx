@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { CircleAlert, Code, Save, SlidersHorizontal, WifiOff, X } from 'lucide-react';
+import { CircleAlert, Code, Package, Save, SlidersHorizontal, WifiOff, X } from 'lucide-react';
 import { api } from './api.ts';
 import { bufferReducer, dirtyBuffers, emptyBuffers, isDirty, type BufferState } from './buffers.ts';
 import { Editor } from './components/Editor.tsx';
@@ -7,6 +7,7 @@ import { ManifestEditor } from './components/ManifestEditor.tsx';
 import { FileTree } from './components/FileTree.tsx';
 import { Preview } from './components/Preview.tsx';
 import { Problems } from './components/Problems.tsx';
+import { ExportModal } from './components/ExportModal.tsx';
 import { useLatest } from './useLatest.ts';
 import { buildPreviewDoc, diagnosticPath, renderRequest, unsavedCss } from './previewDoc.ts';
 import type { ViewportId } from './viewports.ts';
@@ -47,6 +48,7 @@ export function App() {
   const [checking, setChecking] = useState(false);
   const [jump, setJump] = useState<{ line: number; nonce: number } | null>(null);
   const [manifestMode, setManifestMode] = useState<'form' | 'json'>('form');
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [offline, setOffline] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // Bumped when files change on disk, to render again
@@ -373,6 +375,15 @@ export function App() {
           )}
           <button
             type="button"
+            className="secondary"
+            onClick={() => setExportModalOpen(true)}
+            title="テーマの ZIP アーカイブ書き出しと Ed25519 署名"
+            aria-label="パッケージ書き出し"
+          >
+            <Package size={14} /> パッケージ書き出し
+          </button>
+          <button
+            type="button"
             className="primary"
             onClick={saveAll}
             disabled={dirtyCount === 0 || readOnly}
@@ -518,6 +529,12 @@ export function App() {
           onViewport={setViewport}
         />
       </main>
+
+      <ExportModal
+        isOpen={exportModalOpen}
+        hasDirtyFiles={dirtyCount > 0}
+        onClose={() => setExportModalOpen(false)}
+      />
     </div>
   );
 }
