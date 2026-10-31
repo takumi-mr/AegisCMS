@@ -999,6 +999,8 @@ export interface AnalyticsSummary {
   top_utm_sources: AnalyticsTotal[];
   top_utm_campaigns: AnalyticsTotal[];
   top_utm_mediums: AnalyticsTotal[];
+  top_search_queries: AnalyticsTotal[];
+  top_search_empty: AnalyticsTotal[];
   previous?: AnalyticsComparison | null;
 }
 

@@ -1522,7 +1522,10 @@
     "topUtmSources": "UTM 流入元 (utm_source)",
     "topUtmCampaigns": "UTM キャンペーン (utm_campaign)",
     "source": "流入元",
-    "campaign": "キャンペーン"
+    "campaign": "キャンペーン",
+    "topSearchQueries": "検索キーワード",
+    "topSearchEmpty": "該当なし検索",
+    "query": "キーワード"
   },
   "contact": {
     "title": "問い合わせ",

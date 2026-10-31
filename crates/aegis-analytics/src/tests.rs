@@ -316,3 +316,83 @@ async fn test_utm_tracking_comparison_and_csv() {
     assert!(csv.contains("twitter,2,1"));
     assert!(csv.contains("sale2026,2,1"));
 }
+
+#[tokio::test]
+async fn test_track_search_and_no_hit_queries() {
+    let service = service(AnalyticsConfig::default()).await;
+    let ip_a = "203.0.113.1";
+    let ip_b = "198.51.100.2";
+
+    // 訪問者 A が "rust" を検索（ヒット 5 件）
+    assert_eq!(
+        service
+            .track_search("rust", 5, ip_a, DESKTOP, "example.com", at(1, 1))
+            .await,
+        TrackOutcome::Counted
+    );
+    // 訪問者 A が再度 "rust" を検索（ヒット 5 件）
+    service
+        .track_search("rust", 5, ip_a, DESKTOP, "example.com", at(1, 2))
+        .await;
+
+    // 訪問者 B が "rust" を検索（ヒット 5 件）
+    service
+        .track_search("rust", 5, ip_b, IPHONE, "example.com", at(1, 3))
+        .await;
+
+    // 訪問者 A が "golang" を検索（ヒット 0 件: 該当なし）
+    service
+        .track_search("golang", 0, ip_a, DESKTOP, "example.com", at(1, 4))
+        .await;
+
+    // 空クエリや空白のみは除外
+    assert_eq!(
+        service
+            .track_search("   ", 0, ip_a, DESKTOP, "example.com", at(1, 5))
+            .await,
+        TrackOutcome::Excluded
+    );
+
+    // クローラーは除外
+    assert_eq!(
+        service
+            .track_search(
+                "rust",
+                5,
+                "66.249.66.1",
+                "Googlebot/2.1",
+                "example.com",
+                at(1, 6)
+            )
+            .await,
+        TrackOutcome::Bot
+    );
+
+    let summary = service
+        .summary("2026-10-01", "2026-10-01", 10)
+        .await
+        .unwrap();
+
+    // 検索クエリ全体の集計
+    assert_eq!(
+        summary.top_search_queries,
+        vec![total("rust", 3, 2), total("golang", 1, 1)]
+    );
+
+    // 該当なし（0件）クエリの集計
+    assert_eq!(summary.top_search_empty, vec![total("golang", 1, 1)]);
+
+    // CSV エクスポート
+    let csv = export_summary_csv(&summary);
+    assert!(csv.contains(
+        "Top Search Queries
+Search Query,Pageviews,Visitors
+rust,3,2
+golang,1,1"
+    ));
+    assert!(csv.contains(
+        "Top No-Result Search Queries
+Search Query,Pageviews,Visitors
+golang,1,1"
+    ));
+}
