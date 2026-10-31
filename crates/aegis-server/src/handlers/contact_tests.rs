@@ -677,3 +677,165 @@ async fn test_attachment_rejected_by_type_and_too_large_body() {
     );
     assert_eq!(site.inbox().await["total"], 0);
 }
+
+/// 手元で動く siteverify。トークン `good` だけ通し、`down` は 500 を返す
+async fn mock_siteverify() -> String {
+    let app = axum::Router::new().route(
+        "/siteverify",
+        axum::routing::post(
+            |axum::Form(form): axum::Form<std::collections::HashMap<String, String>>| async move {
+                match form.get("response").map(String::as_str) {
+                    Some("good") => (StatusCode::OK, r#"{"success": true}"#),
+                    Some("down") => (StatusCode::INTERNAL_SERVER_ERROR, "down"),
+                    _ => (StatusCode::OK, r#"{"success": false}"#),
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/siteverify", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    url
+}
+
+fn captcha(verify_url: String) -> aegis_contact::config::ContactConfig {
+    aegis_contact::config::ContactConfig {
+        enabled: true,
+        captcha: Some(aegis_captcha::CaptchaConfig {
+            provider: aegis_captcha::Provider::Turnstile,
+            site_key: "site-key".to_string(),
+            secret: "secret-key".to_string(),
+            fail_open: false,
+            timeout_secs: 5,
+            verify_url,
+            script_url: String::new(),
+            widget_class: String::new(),
+            response_field: String::new(),
+        }),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn test_captcha_widget_csp_and_html_form_verification() {
+    let url = mock_siteverify().await;
+    let site = site(|config| config.contact = captcha(url)).await;
+
+    // ページのフォームと、ブロック・自前のテンプレート用の値にウィジェットが入り、CSP が通す
+    let page = site.get("/contact").await;
+    assert_eq!(page.status, StatusCode::OK);
+    assert!(page
+        .body
+        .contains(r#"class="cf-turnstile" data-sitekey="site-key""#));
+    let csp = page.headers["content-security-policy"].to_str().unwrap();
+    assert!(
+        csp.contains(
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com"
+        ),
+        "{}",
+        csp
+    );
+    assert!(
+        csp.contains("frame-src 'self' https://challenges.cloudflare.com"),
+        "{}",
+        csp
+    );
+
+    // トークンが無い・違う → 入力を残したまま 400
+    for pairs in [
+        VALID.to_vec(),
+        [VALID, &[("cf-turnstile-response", "wrong")]].concat(),
+    ] {
+        let reply = site.post_form("/contact/default", &pairs).await;
+        assert_eq!(reply.status, StatusCode::BAD_REQUEST);
+        assert!(
+            reply.body.contains("The verification failed."),
+            "{}",
+            reply.body
+        );
+        assert!(reply.body.contains("hanako@example.com"));
+        assert_eq!(reply.headers["cache-control"], "private, no-store");
+    }
+    assert_eq!(site.inbox().await["total"], 0);
+
+    // 検証サービスが落ちている → 503（fail-closed）
+    let down = site
+        .post_form(
+            "/contact/default",
+            &[VALID, &[("cf-turnstile-response", "down")]].concat(),
+        )
+        .await;
+    assert_eq!(down.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(down.body.contains("The verification is unavailable."));
+
+    let ok = site
+        .post_form(
+            "/contact/default",
+            &[VALID, &[("cf-turnstile-response", "good")]].concat(),
+        )
+        .await;
+    assert_eq!(ok.status, StatusCode::SEE_OTHER);
+    assert_eq!(site.inbox().await["total"], 1);
+}
+
+#[tokio::test]
+async fn test_captcha_json_api_needs_a_token_too() {
+    let url = mock_siteverify().await;
+    let site = site(|config| config.contact = captcha(url)).await;
+    let body = |token: Option<&str>| {
+        let mut body = json!({
+            "name": "Hanako", "email": "hanako@example.com", "message": "Hello"
+        });
+        if let Some(token) = token {
+            body["cf-turnstile-response"] = json!(token);
+        }
+        body
+    };
+    let path = "/api/v1/contact/forms/default";
+    let missing = site
+        .send(
+            "POST",
+            path,
+            Some("application/json"),
+            body(None).to_string(),
+            None,
+        )
+        .await;
+    assert_eq!(missing.status, StatusCode::BAD_REQUEST);
+    assert_eq!(missing.json()["code"], "captcha_failed");
+    assert_eq!(missing.json()["error"], "Captcha verification failed");
+
+    let down = site
+        .send(
+            "POST",
+            path,
+            Some("application/json"),
+            body(Some("down")).to_string(),
+            None,
+        )
+        .await;
+    assert_eq!(down.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(down.json()["code"], "captcha_unavailable");
+
+    let ok = site
+        .send(
+            "POST",
+            path,
+            Some("application/json"),
+            body(Some("good")).to_string(),
+            None,
+        )
+        .await;
+    assert_eq!(ok.status, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn test_no_captcha_means_no_widget_and_default_csp() {
+    let site = site(|_| {}).await;
+    let page = site.get("/contact").await;
+    assert!(!page.body.contains("cf-turnstile"));
+    assert!(!page.headers["content-security-policy"]
+        .to_str()
+        .unwrap()
+        .contains("challenges.cloudflare.com"));
+}

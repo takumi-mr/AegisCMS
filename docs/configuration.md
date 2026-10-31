@@ -502,6 +502,7 @@ Cookie を使わないアクセス解析（[アクセス解析のドキュメン
 | `spam_words` | string[] | `[]` | 含むとスパムにする語 |
 | `notify_staff` | bool | `true` | 届いたことを運営者に知らせる（`contact.received`） |
 | `locale` | string | `"en"` | 組み込みの文言（入力の誤り・既定の見出しや項目名）の言語。`en` / `ja` |
+| `captcha` | table | なし | `[contact.captcha]`。書くと送信のたびに CAPTCHA（Turnstile / hCaptcha / reCAPTCHA / 同じ形の別のサービス）を検証する。`provider`・`site_key`・`secret`（`"env:VAR_NAME"` 可）・`fail_open`（既定 `false` = 検証サービスに届かないときは断る）・`timeout_secs`（既定 5）。値が不正なときはサーバーが起動しません（[contact.md 1.2](./contact.md#12-captcha任意)） |
 | `forms` | table[] | `default` フォーム 1 つ | `[[contact.forms]]`（`name`・`title`・`description`・`submit_label`・`success_message`・`auto_reply`・`subject_field`・`fields`）。項目は `[[contact.forms.fields]]`（[contact.md 1.1](./contact.md#11-項目)） |
 
 ### 2.21 `[tags]` — タグ

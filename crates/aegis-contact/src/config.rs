@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use aegis_captcha::CaptchaConfig;
 use aegis_core::{AegisError, Result};
 use serde::{Deserialize, Serialize};
 
@@ -33,6 +34,9 @@ pub struct ContactConfig {
     pub max_attachment_mb: u64,
     /// 添付できるファイルの拡張子（小文字・ドットなし。大文字・小文字を区別しない）
     pub attachment_extensions: Vec<String>,
+    /// CAPTCHA（`[contact.captcha]`）。書かなければ使わない。HTML のフォームにウィジェットを置き、
+    /// 送信のたびに検証する
+    pub captcha: Option<CaptchaConfig>,
     /// フォーム。省略時は名前・メールアドレス・件名・本文の `default` フォーム 1 つ
     pub forms: Vec<FormConfig>,
 }
@@ -59,6 +63,7 @@ impl Default for ContactConfig {
                 .iter()
                 .map(|e| e.to_string())
                 .collect(),
+            captcha: None,
             forms: vec![FormConfig::default()],
         }
     }
@@ -290,6 +295,9 @@ impl ContactConfig {
                 "attachment_extensions must be lowercase letters and digits without a dot"
                     .to_string(),
             );
+        }
+        if let Some(captcha) = &self.captcha {
+            captcha.validate("[contact.captcha]")?;
         }
         let resolved = self.clone().resolved();
         if resolved.forms.is_empty() {

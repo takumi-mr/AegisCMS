@@ -1,0 +1,21 @@
+[package]
+name = "aegis-captcha"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Optional CAPTCHA verification for AegisCMS forms: Turnstile, hCaptcha, reCAPTCHA or any siteverify-compatible service"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+reqwest = { workspace = true, features = ["json", "form"] }
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+tokio.workspace = true

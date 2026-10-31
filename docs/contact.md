@@ -14,6 +14,8 @@
         │
  入力の検査（必須・長さ・メールアドレス・電話番号・選択肢・添付ファイル）→ 誤りはフォームに出して返す
         │
+ CAPTCHA（[contact.captcha] があるときだけ）のトークンを検証 → 通らなければ 400、検証サービスに届かなければ 503
+        │
  IP ごとの送信数（max_per_ip_per_hour）を超えた → 429
         │
  スパムの語・リンクの数 ──▶ spam として保存（誰にも知らせない）
@@ -94,7 +96,7 @@ required = true
 | --- | --- |
 | `name` | 送信される名前（英小文字・数字・`_`。`website` はボット除けに使うので使えない） |
 | `label` | 表示名（受信箱・通知にもこの名前で出る） |
-| `type` | `text`（既定）/ `email` / `tel` / `textarea` / `select` / `checkbox` / `file`（[添付ファイル](#12-添付ファイル)） |
+| `type` | `text`（既定）/ `email` / `tel` / `textarea` / `select` / `checkbox` / `file`（[添付ファイル](#13-添付ファイル)） |
 | `required` | 必須（チェックボックスなら、チェックが必須） |
 | `placeholder` | 入力欄の例（`select` では未選択の項目の文言） |
 | `options` | `select` の選択肢（必須） |
@@ -106,7 +108,38 @@ required = true
 - `auto_reply = true` のフォームには、必須のメールアドレスの項目が要ります。
 - 設定が正しくない（名前が重なる、`select` に選択肢が無いなど）とサーバーが起動しません。
 
-### 1.2 添付ファイル
+### 1.2 CAPTCHA（任意）
+
+ボットが多いときだけ、フォームに CAPTCHA を足せます。書かなければ何も変わりません（見えない欄・IP ごとの送信数・スパムの語の対策は常に働きます）。
+
+```toml
+[contact.captcha]
+provider = "turnstile"                 # turnstile | hcaptcha | recaptcha | custom
+site_key = "0x4AAAA..."                # 公開してよい
+secret = "env:TURNSTILE_SECRET"        # 環境変数から読む（設定ファイルに直接書いてもよい）
+# fail_open = false                    # 検証サービスに届かないとき、通すか（既定は断る）
+# timeout_secs = 5                     # 検証サービスの応答を待つ秒数（1〜30）
+```
+
+Cloudflare Turnstile・hCaptcha・reCAPTCHA は、どれも「ウィジェットがフォームにトークンを足す → サーバーが `secret` とトークンを `siteverify` に送って `success` を確かめる」という同じ仕組みなので、`provider` を選ぶだけで足ります。reCAPTCHA は v2（チェックボックス）に対応しています。
+
+| `provider` | トークンの欄 | 検証の URL |
+| --- | --- | --- |
+| `turnstile` | `cf-turnstile-response` | `https://challenges.cloudflare.com/turnstile/v0/siteverify` |
+| `hcaptcha` | `h-captcha-response` | `https://api.hcaptcha.com/siteverify` |
+| `recaptcha` | `g-recaptcha-response` | `https://www.google.com/recaptcha/api/siteverify` |
+| `custom` | `response_field` | `verify_url` |
+
+同じ形の別のサービスは `provider = "custom"` にして、`verify_url`・`script_url`・`widget_class`（ウィジェットの `div` の class）・`response_field` をすべて書きます。`provider` が上の 3 つのときも、これらを書くと既定値を置き換えられます。`verify_url` は秘密を送る先なので `https://` だけです（手元の `localhost` / `127.0.0.1` への `http://` は開発用に認めます）。
+
+- **検証サービスが落ちたとき**: 既定では断ります（fail-closed。HTML のフォームには「確認を行えませんでした」を `503` で、API には `503 {"code": "captcha_unavailable"}`）。サービスの障害で問い合わせが止まるより、ボットを通すほうが困らないときは `fail_open = true` にします。サービスが「違う」と答えたトークンは、`fail_open` でも通しません。
+- **HTML のフォームが対象**です。ウィジェットはフォーム（`/contact/{form}`・本文のブロック）の送信ボタンの前に入り、ブラウザーで JavaScript が動く必要があります。JSON の API（`POST /api/v1/contact/forms/{form}`）にも同じ検査がかかり、トークンの欄が無いと `400 {"code": "captcha_failed"}` になります（API 向けにトークンを取る仕組みは用意しません）。
+- **見えない欄・入力の誤りで落ちたものは検証サービスに聞きません**。IP ごとの送信数を数える前に検証するので、ボットが枠を使い切って、同じ IP の人が送れなくなることもありません。
+- **CSP**: ウィジェットのスクリプト・iframe・通信が止められないよう、設定した提供元のホスト（Turnstile は `challenges.cloudflare.com`）を、公開ページの Content-Security-Policy の `script-src` / `frame-src` / `connect-src` / `style-src` に自動で足します（`'none'` や `*` を管理者が書いているディレクティブは変えません）。
+- **`secret` は API では返しません**。`env:` の環境変数が未設定のときは、起動時にエラーになります。
+- Cloudflare などの前段（WAF・Bot 対策）でフォームの `POST` を守っているなら、この設定は要りません。
+
+### 1.3 添付ファイル
 
 `type = "file"` の項目を置くと、フォームにファイルを添付できます（`required` で必須にもできます）。
 
@@ -131,7 +164,7 @@ type = "file"
 - **ページ**: `/contact`（`default`、無ければ最初のフォーム）と `/contact/{name}`。テーマの `contact.html`（無ければ組み込みのテンプレート）で描きます。ヘッダー・フッターのメニューからリンクしてください。
 - **本文のブロック**: Admin Studio のブロックの追加ボタン「問い合わせフォーム」で置き、どのフォームを出すかを選びます。Markdown では `[CONTACT]`（`default`）・`[CONTACT form="sales"]` と書きます。本文のトップレベルに置いたものだけを描きます（折りたたみなどの中には置けません）。送信すると `/contact/{name}?sent=1` に移ります。
 
-フォームは JavaScript を使わない普通の HTML のフォームで、入力の誤りは項目の下に出し、入力した値を残して返します。項目の HTML とクラス（`.aegis-contact-form`・`.aegis-contact-field`・`.aegis-contact-error`・`.aegis-contact-required`・`.aegis-contact-submit`）には最低限のスタイルが組み込まれています（[blocks.md 3](blocks.md#3-見た目)。テーマの CSS が優先されます）。
+フォームは JavaScript を使わない普通の HTML のフォーム（[CAPTCHA](#12-captcha任意) を設定したときだけ、ウィジェットのために JavaScript が要ります）で、入力の誤りは項目の下に出し、入力した値を残して返します。項目の HTML とクラス（`.aegis-contact-form`・`.aegis-contact-field`・`.aegis-contact-error`・`.aegis-contact-required`・`.aegis-contact-submit`）には最低限のスタイルが組み込まれています（[blocks.md 3](blocks.md#3-見た目)。テーマの CSS が優先されます）。
 
 ### 2.1 テーマのテンプレート（`contact.html`）
 
@@ -140,11 +173,11 @@ type = "file"
 | `title` | フォームの見出し（`title`） |
 | `fields.form_html` | 組み込みのフォームの HTML（エスケープ済み。`{{ fields.form_html \| safe }}`） |
 | `fields.sent` | 送信した後のページ（`?sent=1`）なら `true` |
-| `fields.form` | フォームの設定（`name`・`title`・`description`・`submit_label`・`success_message`・`fields`・`action`・`honeypot`）。自分でフォームを組み立てるときに使う |
+| `fields.form` | フォームの設定（`name`・`title`・`description`・`submit_label`・`success_message`・`fields`・`action`・`honeypot`・`captcha_html`）。自分でフォームを組み立てるときに使う |
 | `fields.values` / `fields.errors` | 送信に失敗したときの入力と誤り（`[{field, code, message}]`） |
 | `fields.notice` | 送信できなかったときの知らせ（入力の誤り・送信が多すぎるなど。`locale` の言語） |
 
-自分でフォームを組み立てるときは、`fields.form.action` に `POST` し、`fields.form.honeypot`（`website`）の名前の見えない欄を必ず入れてください（人には見えないように隠す）。
+自分でフォームを組み立てるときは、`fields.form.action` に `POST` し、`fields.form.honeypot`（`website`）の名前の見えない欄を必ず入れてください（人には見えないように隠す）。[CAPTCHA](#12-captcha任意) を設定しているときは、`<form>` の中の送信ボタンの前に `{{ fields.form.captcha_html | safe }}` も置いてください（設定が無ければ空です）。
 
 ## 3. 受信箱（Admin Studio）
 

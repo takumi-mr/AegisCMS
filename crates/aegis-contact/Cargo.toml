@@ -11,6 +11,7 @@ workspace = true
 
 [dependencies]
 aegis-core = { path = "../aegis-core" }
+aegis-captcha = { path = "../aegis-captcha" }
 aegis-ast = { path = "../aegis-ast" }
 aegis-db = { path = "../aegis-db" }
 aegis-audit = { path = "../aegis-audit" }
@@ -24,6 +25,7 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+axum.workspace = true
 aegis-cache = { path = "../aegis-cache" }
 async-trait.workspace = true
 tokio = { workspace = true, features = ["full"] }

@@ -162,13 +162,19 @@ impl HeaderOverrides {
     }
 
     /// レスポンスの HeaderMap に防御ヘッダーおよびカスタムヘッダーを注入する。CSP の `frame-src` には
-    /// `frame_hosts`（有効なプラグインの `embed.frame_domains`）を足す（[`with_frame_sources`]）
-    pub fn apply_to_headers_with_frames(&self, headers: &mut HeaderMap, frame_hosts: &[String]) {
+    /// `frame_hosts`（有効なプラグインの `embed.frame_domains`。[`with_frame_sources`]）を、CSP の `script-src` など
+    /// には `captcha_hosts`（問い合わせフォームの CAPTCHA のウィジェットが使うホスト。[`with_captcha_sources`]）を足す
+    pub fn apply_to_headers_with_sources(
+        &self,
+        headers: &mut HeaderMap,
+        frame_hosts: &[String],
+        captcha_hosts: &[String],
+    ) {
         if let Some(val) = self.effective_csp() {
             insert_if_valid(
                 headers,
                 "content-security-policy",
-                &with_frame_sources(val, frame_hosts),
+                &with_captcha_sources(&with_frame_sources(val, frame_hosts), captcha_hosts),
             );
         }
         if let Some(val) = self.effective_x_frame_options() {
@@ -204,6 +210,33 @@ impl HeaderOverrides {
 /// - 無ければ、効いている `child-src` / `default-src` の値に足した `frame-src` を加える
 /// - どれも無ければ iframe は制限されていないので、そのまま
 pub fn with_frame_sources(csp: &str, hosts: &[String]) -> String {
+    with_directive_sources(csp, "frame-src", &["child-src", "default-src"], hosts)
+}
+
+/// 問い合わせフォームの CAPTCHA のウィジェット（スクリプト・iframe・検証前の通信・スタイル）に
+/// `https://<host>` を許す。それぞれ [`with_frame_sources`] と同じ規則で足す
+pub fn with_captcha_sources(csp: &str, hosts: &[String]) -> String {
+    let mut csp = csp.to_string();
+    for directive in ["script-src", "frame-src", "connect-src", "style-src"] {
+        let fallbacks: &[&str] = if directive == "frame-src" {
+            &["child-src", "default-src"]
+        } else {
+            &["default-src"]
+        };
+        csp = with_directive_sources(&csp, directive, fallbacks, hosts);
+    }
+    csp
+}
+
+/// `directive` に効いている値（無ければ `fallbacks` の最初に見つかったもの）に、`https://<host>` を足す。
+/// `directive` が無いときは、足した値で `directive` を加える。値に `*` か `'none'` を含む（制限していない・
+/// 管理者が明示的に拒否している）とき、どれも無い（制限していない）ときは、そのまま
+fn with_directive_sources(
+    csp: &str,
+    directive: &str,
+    fallbacks: &[&str],
+    hosts: &[String],
+) -> String {
     if hosts.is_empty() {
         return csp.to_string();
     }
@@ -243,14 +276,14 @@ pub fn with_frame_sources(csp: &str, hosts: &[String]) -> String {
     };
 
     let mut out: Vec<String> = directives.iter().map(|d| d.to_string()).collect();
-    if let Some(i) = find("frame-src") {
+    if let Some(i) = find(directive) {
         match add_hosts(sources_of(i)) {
-            Some(sources) => out[i] = format!("frame-src {}", sources.join(" ")),
+            Some(sources) => out[i] = format!("{} {}", directive, sources.join(" ")),
             None => return csp.to_string(),
         }
-    } else if let Some(i) = find("child-src").or_else(|| find("default-src")) {
+    } else if let Some(i) = fallbacks.iter().find_map(|name| find(name)) {
         match add_hosts(sources_of(i)) {
-            Some(sources) => out.push(format!("frame-src {}", sources.join(" "))),
+            Some(sources) => out.push(format!("{} {}", directive, sources.join(" "))),
             None => return csp.to_string(),
         }
     } else {
@@ -330,7 +363,7 @@ mod tests {
     fn test_default_headers_applied() {
         let overrides = HeaderOverrides::default();
         let mut headers = HeaderMap::new();
-        overrides.apply_to_headers_with_frames(&mut headers, &[]);
+        overrides.apply_to_headers_with_sources(&mut headers, &[], &[]);
 
         assert_eq!(headers.get("x-content-type-options").unwrap(), "nosniff");
         assert_eq!(headers.get("x-frame-options").unwrap(), "SAMEORIGIN");
@@ -359,7 +392,7 @@ mod tests {
         };
 
         let mut headers = HeaderMap::new();
-        overrides.apply_to_headers_with_frames(&mut headers, &[]);
+        overrides.apply_to_headers_with_sources(&mut headers, &[], &[]);
 
         assert_eq!(headers.get("x-frame-options").unwrap(), "DENY");
         assert!(!headers.contains_key("x-content-type-options"));
@@ -417,8 +450,11 @@ mod tests {
     #[test]
     fn test_default_csp_gets_the_frame_hosts() {
         let mut headers = HeaderMap::new();
-        HeaderOverrides::default()
-            .apply_to_headers_with_frames(&mut headers, &["player.vimeo.com".to_string()]);
+        HeaderOverrides::default().apply_to_headers_with_sources(
+            &mut headers,
+            &["player.vimeo.com".to_string()],
+            &[],
+        );
         let csp = headers["content-security-policy"].to_str().unwrap();
         assert!(
             csp.ends_with("frame-src 'self' https://player.vimeo.com;"),
@@ -426,5 +462,44 @@ mod tests {
             csp
         );
         assert!(csp.starts_with("default-src 'self';"));
+    }
+
+    #[test]
+    fn test_captcha_hosts_are_added_to_the_directives_the_widget_needs() {
+        let hosts = ["challenges.cloudflare.com".to_string()];
+        let mut headers = HeaderMap::new();
+        HeaderOverrides::default().apply_to_headers_with_sources(&mut headers, &[], &hosts);
+        let csp = headers["content-security-policy"].to_str().unwrap();
+        for directive in ["script-src", "frame-src", "connect-src", "style-src"] {
+            let part = csp
+                .split(';')
+                .map(str::trim)
+                .find(|d| d.starts_with(directive))
+                .unwrap_or_else(|| panic!("{} in {}", directive, csp));
+            assert!(
+                part.contains("https://challenges.cloudflare.com"),
+                "{}",
+                part
+            );
+            assert!(part.contains("'self'"), "{}", part);
+        }
+        // 他のディレクティブは変えない
+        assert!(csp.contains("img-src 'self' data: https:;"));
+
+        // ホストが無ければ何も変えない。管理者が `'none'` や CSP の無効化にしているときも触らない
+        let mut plain = HeaderMap::new();
+        HeaderOverrides::default().apply_to_headers_with_sources(&mut plain, &[], &[]);
+        assert_eq!(
+            plain["content-security-policy"].to_str().unwrap(),
+            DEFAULT_CONTENT_SECURITY_POLICY
+        );
+        assert_eq!(
+            with_captcha_sources("default-src 'none'", &hosts),
+            "default-src 'none'"
+        );
+        assert_eq!(
+            with_captcha_sources("img-src 'self'", &hosts),
+            "img-src 'self'"
+        );
     }
 }
