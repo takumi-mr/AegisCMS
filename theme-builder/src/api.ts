@@ -50,6 +50,9 @@ export const api = {
   readFile: (path: string) => request<{ path: string; content: string }>(filePath(path)),
   writeFile: (path: string, content: string) =>
     request<void>(filePath(path), { method: 'PUT', body: { content } }),
+  deleteFile: (path: string) => request<void>(filePath(path), { method: 'DELETE' }),
+  renameFile: (from: string, to: string) =>
+    request<void>('/__dev/api/rename', { method: 'POST', body: { from, to } }),
   render: (body: RenderRequest, signal?: AbortSignal) =>
     request<RenderResult>('/__dev/api/render', { method: 'POST', body, signal }),
   check: () => request<CheckResult>('/__dev/api/check'),

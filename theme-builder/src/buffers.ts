@@ -22,7 +22,8 @@ export type BufferAction =
   | { type: 'saved'; path: string; content: string }
   | { type: 'external'; path: string; content: string }
   | { type: 'activate'; path: string }
-  | { type: 'close'; path: string };
+  | { type: 'close'; path: string }
+  | { type: 'renamed'; from: string; to: string };
 
 export const emptyBuffers: BufferState = { buffers: {}, open: [], active: null };
 
@@ -86,6 +87,18 @@ export function bufferReducer(state: BufferState, action: BufferAction): BufferS
         const index = state.open.indexOf(action.path);
         active = open[Math.min(index, open.length - 1)] ?? null;
       }
+      return { buffers, open, active };
+    }
+    case 'renamed': {
+      const { from, to } = action;
+      if (!state.buffers[from]) return state;
+      const { [from]: oldBuffer, ...rest } = state.buffers;
+      const buffers = {
+        ...rest,
+        [to]: { ...oldBuffer, path: to },
+      };
+      const open = state.open.map((p) => (p === from ? to : p));
+      const active = state.active === from ? to : state.active;
       return { buffers, open, active };
     }
   }

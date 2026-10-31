@@ -161,3 +161,33 @@ test('previews a sample file that is not saved yet', async ({ page }) => {
   await expect(preview(page).locator('h1')).toHaveText('FROM-SAMPLE');
   expect(readTheme('samples/page.json')).toBe('');
 });
+
+test('renames and deletes a file', async ({ page }) => {
+  // 新しいファイル作成
+  await page.getByRole('button', { name: '新しいファイル' }).click();
+  await page.getByLabel('新しいファイルのパス').fill('templates/temp.html');
+  await page.getByRole('button', { name: '作成', exact: true }).click();
+  await expect(file(page, 'temp.html')).toBeVisible();
+
+  // 改名 (rename)
+  const item = page.locator('.file-item').filter({ hasText: 'temp.html' });
+  await item.hover();
+  await item.getByRole('button', { name: /改名/ }).click();
+  const renameInput = page.getByLabel('改名後のパス');
+  await expect(renameInput).toHaveValue('templates/temp.html');
+  await renameInput.fill('templates/renamed.html');
+  await page.getByRole('button', { name: '改名を確定' }).click();
+
+  await expect(file(page, 'renamed.html')).toBeVisible();
+  await expect(file(page, 'temp.html')).not.toBeVisible();
+  expect(readTheme('templates/renamed.html')).toBe('');
+
+  // 削除 (delete)
+  page.on('dialog', (dialog) => dialog.accept());
+  const renamedItem = page.locator('.file-item').filter({ hasText: 'renamed.html' });
+  await renamedItem.hover();
+  await renamedItem.getByRole('button', { name: /削除/ }).click();
+
+  await expect(file(page, 'renamed.html')).not.toBeVisible();
+  expect(() => readTheme('templates/renamed.html')).toThrow();
+});

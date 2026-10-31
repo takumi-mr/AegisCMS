@@ -115,6 +115,42 @@ export function App() {
     [fail, reloadFromDisk]
   );
 
+  const deleteFile = useCallback(
+    async (path: string) => {
+      try {
+        await api.deleteFile(path);
+        dispatch({ type: 'close', path });
+        const [themeInfo, files] = await Promise.all([api.theme(), api.files()]);
+        setInfo(themeInfo);
+        setFileList(files);
+        setNotice(null);
+      } catch (e) {
+        fail(e);
+      }
+    },
+    [fail]
+  );
+
+  const renameFile = useCallback(
+    async (from: string, to: string) => {
+      try {
+        const buffer = buffersRef.current.buffers[from];
+        if (buffer && isDirty(buffer)) {
+          await api.writeFile(from, buffer.content);
+        }
+        await api.renameFile(from, to);
+        dispatch({ type: 'renamed', from, to });
+        const [themeInfo, files] = await Promise.all([api.theme(), api.files()]);
+        setInfo(themeInfo);
+        setFileList(files);
+        setNotice(null);
+      } catch (e) {
+        fail(e);
+      }
+    },
+    [fail, buffersRef]
+  );
+
   // --- first load ------------------------------------------------------------------------------
 
   useEffect(() => {
@@ -322,6 +358,8 @@ export function App() {
           writable={fileList.writable}
           onOpen={openFile}
           onCreate={createFile}
+          onRename={renameFile}
+          onDelete={deleteFile}
         />
 
         <section className="editing" aria-label="エディター">
