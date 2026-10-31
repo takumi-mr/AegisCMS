@@ -415,6 +415,19 @@ OpenID Connect（6.4）と同じ理由コードを使います。`invalid_token`
 > [!NOTE]
 > SAML のログインも `[auth.login_rate_limit]` の対象外です。AuthnRequest には署名しません（メタデータは `AuthnRequestsSigned="false"`）。IdP 側で署名付きの AuthnRequest を必須にしている場合は外してください。
 
+### 8.6 今後の拡張方針・未対応機能
+
+AegisCMS では、標準的な SP-initiated Web Browser SSO（AuthnRequest、ACS、RSA-SHA256 署名検証、属性・ロールマッピング）を実装しており、Microsoft Entra ID や Okta 等の主要 IdP との基本的な連携が可能です。
+
+現代の企業・組織におけるシングルサインオンは、JSON/REST ベースで構成がシンプルな **OpenID Connect (OIDC, [6. シングルサインオン](#6-シングルサインオン-openid-connect))** が第一推奨となっており、95% 以上のケースで OIDC で必要十分です。
+
+SAML における以下の高度な拡張機能は、XML 暗号化やプロトコル複雑性に伴う脆弱性リスクおよび保守コストを避けるため現時点では未対応（保留）としています。学術認証フェデレーション（学認・Shibboleth）や特定のレガシー社内規程など、将来的に実運用上の強い要望が寄せられた段階で再検討します：
+- **IdP メタデータ URL からの自動読み込み**: 現状は Entity ID・SSO URL・署名用証明書を設定ファイル（`aegis.toml`）に明示的に設定。
+- **暗号化アサーション (`EncryptedAssertion`)**: 暗号化されたアサーションの復号には未対応（平文アサーションの署名検証のみ対応）。
+- **AuthnRequest への署名付与**: `AuthnRequestsSigned="false"`（署名付きリクエストを強制する IdP には未対応）。
+- **シングルログアウト (SLO)**: AegisCMS 側のログアウトは AegisCMS のセッション失効のみ行い、IdP 側のセッションは破棄しません。
+- **ECDSA 署名対応**: 署名アルゴリズムは RSA-SHA256 / RSA-SHA384 / RSA-SHA512 に対応（ECDSA は未対応）。
+
 ---
 
 ## 9. パスワードの再設定
