@@ -37,6 +37,9 @@ pub fn head_html(state: &AppState) -> String {
 struct BeaconEvent {
     /// ページのパス
     p: String,
+    /// クエリ文字列
+    #[serde(default)]
+    q: String,
     /// 参照元
     #[serde(default)]
     r: String,
@@ -80,6 +83,7 @@ pub async fn track_event(
             .track(
                 PageView {
                     path: &event.p,
+                    query: &event.q,
                     referrer: &event.r,
                     host: &host,
                     user_agent: &user_agent,
@@ -150,5 +154,63 @@ pub async fn get_summary(
     }
 }
 
+/// `GET /api/v1/analytics/export?from=2026-10-01&to=2026-10-31` — 集計結果の CSV エクスポート（`viewer` 以上）
+pub async fn export_csv(
+    State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
+    Query(params): Query<SummaryParams>,
+) -> Response {
+    let Some(analytics) = state.analytics.clone() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Analytics is not enabled" })),
+        )
+            .into_response();
+    };
+    let to = params
+        .to
+        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
+    let from = match params.from {
+        Some(from) => from,
+        None => match chrono::NaiveDate::parse_from_str(&to, "%Y-%m-%d") {
+            Ok(day) => (day - chrono::Duration::days(29))
+                .format("%Y-%m-%d")
+                .to_string(),
+            Err(_) => to.clone(),
+        },
+    };
+    let limit = params.limit.unwrap_or(100).clamp(1, MAX_SUMMARY_LIMIT);
+    match analytics.summary(&from, &to, limit).await {
+        Ok(summary) => {
+            let csv = aegis_analytics::export_summary_csv(&summary);
+            let filename = format!("analytics-{}_{}.csv", summary.from, summary.to);
+            let disposition = format!(r#"attachment; filename="{}""#, filename);
+
+            let mut res = Response::new(axum::body::Body::from(csv));
+            res.headers_mut().insert(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("text/csv; charset=utf-8"),
+            );
+            if let Ok(disp_val) = header::HeaderValue::from_str(&disposition) {
+                res.headers_mut()
+                    .insert(header::CONTENT_DISPOSITION, disp_val);
+            }
+            res
+        }
+        Err(SummaryError::Database(e)) => {
+            tracing::error!("Could not read analytics for export: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Could not read analytics" })),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
 #[cfg(test)]
 mod tests;

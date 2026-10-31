@@ -91,6 +91,43 @@ pub fn normalize_path(path: &str) -> Option<String> {
     Some(path.to_string())
 }
 
+/// URL クエリから抽出した UTM パラメータ
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct UtmParams {
+    pub source: Option<String>,
+    pub medium: Option<String>,
+    pub campaign: Option<String>,
+}
+
+fn clean_utm_value(value: &str) -> Option<String> {
+    let s = value.trim();
+    if s.is_empty() || s.chars().any(char::is_control) {
+        return None;
+    }
+    let chars: String = s
+        .chars()
+        .take(aegis_db::analytics::ANALYTICS_VALUE_MAX_CHARS)
+        .collect();
+    Some(chars)
+}
+
+/// クエリ文字列から UTM パラメータ（source, medium, campaign）を抽出する
+pub fn extract_utm(query: &str) -> UtmParams {
+    let query = query.trim().trim_start_matches('?');
+    if query.is_empty() {
+        return UtmParams::default();
+    }
+    let mut utm = UtmParams::default();
+    for (key, val) in url::form_urlencoded::parse(query.as_bytes()) {
+        match key.as_ref() {
+            "utm_source" if utm.source.is_none() => utm.source = clean_utm_value(&val),
+            "utm_medium" if utm.medium.is_none() => utm.medium = clean_utm_value(&val),
+            "utm_campaign" if utm.campaign.is_none() => utm.campaign = clean_utm_value(&val),
+            _ => {}
+        }
+    }
+    utm
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +189,18 @@ mod tests {
         assert_eq!(normalize_path("//evil.example/"), None);
         assert_eq!(normalize_path("/a\nb"), None);
         assert_eq!(normalize_path(&format!("/{}", "a".repeat(300))), None);
+    }
+    #[test]
+    fn test_extract_utm() {
+        let utm = extract_utm("?utm_source=twitter&utm_medium=social&utm_campaign=summer_2026");
+        assert_eq!(utm.source.as_deref(), Some("twitter"));
+        assert_eq!(utm.medium.as_deref(), Some("social"));
+        assert_eq!(utm.campaign.as_deref(), Some("summer_2026"));
+
+        let empty = extract_utm("");
+        assert_eq!(empty, UtmParams::default());
+
+        let invalid = extract_utm("utm_source=foo%00bar");
+        assert_eq!(invalid.source, None);
     }
 }

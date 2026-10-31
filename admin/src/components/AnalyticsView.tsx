@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { BarChart3, RefreshCw } from 'lucide-react';
+import { BarChart3, Download, Minus, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
 import type { AnalyticsDay, AnalyticsSummary, AnalyticsTotal } from '../types';
@@ -262,6 +262,49 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onShowToast }) => 
   const loading = answeredKey !== requestKey;
   // The parent's toast callback may change on every render; reloading must not follow it
   const toastRef = useRef(onShowToast);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportCsv = async () => {
+    if (!summary || exporting) return;
+    setExporting(true);
+    try {
+      await aegisApi.downloadAnalyticsCsv({ from: summary.from, to: summary.to });
+      toastRef.current?.(t('analytics.exportSuccess'), 'success');
+    } catch (e: unknown) {
+      toastRef.current?.(e instanceof Error ? e.message : String(e), 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const renderChange = (pct: number | null | undefined) => {
+    if (pct === null || pct === undefined) {
+      return (
+        <span
+          className={cx(styles.changeBadge, styles.changeNeutral)}
+          title={t('analytics.previousPeriod')}
+        >
+          <Minus size={12} />
+          <span>--</span>
+        </span>
+      );
+    }
+    const isPos = pct > 0;
+    const isNeg = pct < 0;
+    const Icon = isPos ? TrendingUp : isNeg ? TrendingDown : Minus;
+    const badgeClass = isPos
+      ? styles.changePositive
+      : isNeg
+        ? styles.changeNegative
+        : styles.changeNeutral;
+    const text = `${isPos ? '+' : ''}${pct}%`;
+    return (
+      <span className={cx(styles.changeBadge, badgeClass)} title={t('analytics.previousPeriod')}>
+        <Icon size={12} />
+        <span>{text}</span>
+      </span>
+    );
+  };
   useEffect(() => {
     toastRef.current = onShowToast;
   });
@@ -311,6 +354,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onShowToast }) => 
                 </button>
               ))}
             </div>
+            <Button
+              variant="tool"
+              onClick={handleExportCsv}
+              disabled={loading || exporting || !summary}
+            >
+              <Download size={14} />
+              <span>{t('analytics.exportCsv')}</span>
+            </Button>
             <Button variant="tool" onClick={() => setReloadCount((n) => n + 1)} disabled={loading}>
               <RefreshCw className={loading ? 'animate-spin' : ''} size={14} />
               <span>{t('common.reload')}</span>
@@ -324,13 +375,30 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onShowToast }) => 
           <>
             <div className={styles.tiles}>
               <div className={styles.tile}>
-                <span className={styles.tileLabel}>{t('analytics.pageviews')}</span>
+                <div className={styles.tileHeader}>
+                  <span className={styles.tileLabel}>{t('analytics.pageviews')}</span>
+                  {summary.previous && renderChange(summary.previous.pageviews_change_pct)}
+                </div>
                 <span className={styles.tileValue}>{formatNumber(summary.pageviews)}</span>
+                {summary.previous && (
+                  <span className={styles.tileHint}>
+                    {t('analytics.previousPeriod')}: {formatNumber(summary.previous.pageviews)}
+                  </span>
+                )}
               </div>
               <div className={styles.tile}>
-                <span className={styles.tileLabel}>{t('analytics.visitors')}</span>
+                <div className={styles.tileHeader}>
+                  <span className={styles.tileLabel}>{t('analytics.visitors')}</span>
+                  {summary.previous && renderChange(summary.previous.visitors_change_pct)}
+                </div>
                 <span className={styles.tileValue}>{formatNumber(summary.visitors)}</span>
-                <span className={styles.tileHint}>{t('analytics.visitorsHint')}</span>
+                {summary.previous ? (
+                  <span className={styles.tileHint}>
+                    {t('analytics.previousPeriod')}: {formatNumber(summary.previous.visitors)}
+                  </span>
+                ) : (
+                  <span className={styles.tileHint}>{t('analytics.visitorsHint')}</span>
+                )}
               </div>
             </div>
 
@@ -403,6 +471,18 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onShowToast }) => 
                 column={t('analytics.device')}
                 rows={summary.devices}
                 label={deviceLabel}
+              />
+              <TopTable
+                title={t('analytics.topUtmSources')}
+                column={t('analytics.source')}
+                rows={summary.top_utm_sources}
+                label={(v) => v}
+              />
+              <TopTable
+                title={t('analytics.topUtmCampaigns')}
+                column={t('analytics.campaign')}
+                rows={summary.top_utm_campaigns}
+                label={(v) => v}
               />
             </div>
           </>

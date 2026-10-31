@@ -1514,7 +1514,14 @@
       "desktop": "パソコン",
       "mobile": "スマートフォン",
       "tablet": "タブレット"
-    }
+    },
+    "exportCsv": "CSV出力",
+    "exportSuccess": "アクセス解析の CSV を書き出しました",
+    "previousPeriod": "前期間比",
+    "topUtmSources": "UTM 流入元 (utm_source)",
+    "topUtmCampaigns": "UTM キャンペーン (utm_campaign)",
+    "source": "流入元",
+    "campaign": "キャンペーン"
   },
   "contact": {
     "title": "問い合わせ",

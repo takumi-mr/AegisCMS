@@ -19,8 +19,19 @@ fn at(day: u32, hour: u32) -> DateTime<Utc> {
 }
 
 fn view<'a>(path: &'a str, referrer: &'a str, ua: &'a str, ip: &'a str) -> PageView<'a> {
+    view_with_query(path, "", referrer, ua, ip)
+}
+
+fn view_with_query<'a>(
+    path: &'a str,
+    query: &'a str,
+    referrer: &'a str,
+    ua: &'a str,
+    ip: &'a str,
+) -> PageView<'a> {
     PageView {
         path,
+        query,
         referrer,
         host: "example.com",
         user_agent: ua,
@@ -220,4 +231,88 @@ async fn test_referrer_visitors_are_counted_per_referrer() {
         vec![total("google.com", 2, 1), total("", 1, 1)]
     );
     assert_eq!(summary.visitors, 1);
+}
+
+#[tokio::test]
+async fn test_utm_tracking_comparison_and_csv() {
+    let service = service(AnalyticsConfig::default()).await;
+    // 前期間: 2026-10-01 〜 2026-10-07 (7日間)
+    // 訪問者 1 人、PV 2
+    service
+        .track(view("/", "", DESKTOP, "203.0.113.1"), at(5, 10))
+        .await;
+    service
+        .track(view("/about", "", DESKTOP, "203.0.113.1"), at(5, 11))
+        .await;
+
+    // 現在期間: 2026-10-08 〜 2026-10-14 (7日間)
+    // UTM 付きで訪問者 2 人、PV 4
+    service
+        .track(
+            view_with_query(
+                "/product",
+                "utm_source=twitter&utm_medium=social&utm_campaign=sale2026",
+                "https://t.co/",
+                DESKTOP,
+                "203.0.113.2",
+            ),
+            at(10, 10),
+        )
+        .await;
+    service
+        .track(
+            view_with_query(
+                "/product",
+                "utm_source=twitter&utm_campaign=sale2026",
+                "",
+                DESKTOP,
+                "203.0.113.2",
+            ),
+            at(10, 11),
+        )
+        .await;
+    service
+        .track(
+            view_with_query("/blog", "utm_source=newsletter", "", IPHONE, "203.0.113.3"),
+            at(11, 10),
+        )
+        .await;
+    service
+        .track(view("/", "", IPHONE, "203.0.113.3"), at(11, 12))
+        .await;
+
+    let summary = service
+        .summary("2026-10-08", "2026-10-14", 10)
+        .await
+        .unwrap();
+
+    assert_eq!(summary.pageviews, 4);
+    assert_eq!(summary.visitors, 2);
+
+    // UTM パラメータ集計確認
+    assert_eq!(
+        summary.top_utm_sources,
+        vec![total("twitter", 2, 1), total("newsletter", 1, 1)]
+    );
+    assert_eq!(summary.top_utm_campaigns, vec![total("sale2026", 2, 1)]);
+    assert_eq!(summary.top_utm_mediums, vec![total("social", 1, 1)]);
+
+    // 前期間比較確認 (前期間は 2026-10-01 〜 2026-10-07: PV 2, 訪問者 1)
+    let prev = summary.previous.as_ref().expect("previous comparison");
+    assert_eq!(prev.from, "2026-10-01");
+    assert_eq!(prev.to, "2026-10-07");
+    assert_eq!(prev.pageviews, 2);
+    assert_eq!(prev.visitors, 1);
+    // 変化率: PV 2 -> 4 (+100.0%), Visitors 1 -> 2 (+100.0%)
+    assert_eq!(prev.pageviews_change_pct, Some(100.0));
+    assert_eq!(prev.visitors_change_pct, Some(100.0));
+
+    // CSV エクスポート確認
+    let csv = export_summary_csv(&summary);
+    assert!(csv.starts_with('\u{FEFF}'));
+    assert!(csv.contains("Total Pageviews,4"));
+    assert!(csv.contains("Previous Pageviews,2"));
+    assert!(csv.contains("Pageviews Change,100%"));
+    assert!(csv.contains("twitter,2,1"));
+    assert!(csv.contains("sale2026,2,1"));
 }

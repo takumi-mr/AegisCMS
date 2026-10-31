@@ -1532,7 +1532,14 @@
       "desktop": "Desktop",
       "mobile": "Mobile",
       "tablet": "Tablet"
-    }
+    },
+    "exportCsv": "Export CSV",
+    "exportSuccess": "Exported analytics CSV",
+    "previousPeriod": "vs previous period",
+    "topUtmSources": "Campaign sources (utm_source)",
+    "topUtmCampaigns": "Campaigns (utm_campaign)",
+    "source": "Source",
+    "campaign": "Campaign"
   },
   "contact": {
     "title": "Inbox",
