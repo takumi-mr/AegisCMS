@@ -26,6 +26,7 @@ aegis-notify = { path = "../aegis-notify" }
 aegis-forum = { path = "../aegis-forum" }
 aegis-captcha = { path = "../aegis-captcha" }
 aegis-contact = { path = "../aegis-contact" }
+aegis-newsletter = { path = "../aegis-newsletter" }
 aegis-search = { path = "../aegis-search", optional = true }
 aegis-analytics = { path = "../aegis-analytics", optional = true }
 aegis-backup = { path = "../aegis-backup", optional = true }

@@ -514,6 +514,18 @@ Cookie を使わないアクセス解析（[アクセス解析のドキュメン
 | `enabled` | bool | `true` | `false` でタグの API・Admin Studio の画面を使わない（`404`）。付けたタグは DB に残る |
 | `max_per_content` | integer | `20` | 1 つのコンテンツに付けられるタグの数（1〜100） |
 
+### 2.22 `[newsletter]` — ニュースレター
+
+メールアドレスの申し込み（確認メールのダブルオプトイン）と、公開中の記事の一斉配信（[ニュースレターのドキュメント](./newsletter.md)）。メールは `[notifications]` で送るので、`[notifications].enabled = true` と SMTP の設定が先に要ります。`enabled = true` のとき、`[commerce].public_url` が空だったり値が不正だったりするとサーバーが起動しません。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で `/newsletter`・API・Admin Studio の画面を有効化 |
+| `max_per_ip_per_hour` | integer | `10` | 同じ IP からの 1 時間あたりの申し込みの数（0 で無制限。`[cache]` で数える） |
+| `confirm_ttl_hours` | integer | `48` | 確認リンクの有効期限（時間。1〜336） |
+| `locale` | string | `"en"` | 申し込み・確認・停止のページの文言の言語。`en` / `ja` |
+| `captcha` | table | なし | `[newsletter.captcha]`。`provider`・`site_key`・`secret`（`"env:VAR_NAME"` 可）・`fail_open`・`timeout_secs`（[問い合わせフォーム 1.2](./contact.md#12-captcha任意)と同じ） |
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
@@ -690,6 +702,12 @@ timeout_secs = 15
 [tags]
 enabled = true
 max_per_content = 20
+
+[newsletter]
+enabled = false
+max_per_ip_per_hour = 10
+confirm_ttl_hours = 48
+locale = "en"
 
 [comments]
 enabled = false

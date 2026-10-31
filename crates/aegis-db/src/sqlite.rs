@@ -175,6 +175,7 @@ super::variants::impl_product_variant_storage!(SqliteAdapter, |i| format!("?{}",
 super::comments::impl_comment_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::tags::impl_tag_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::contact::impl_contact_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::newsletter::impl_newsletter_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::analytics::impl_analytics_storage!(
     SqliteAdapter,
     |i| format!("?{}", i),
@@ -468,6 +469,16 @@ impl DatabaseAdapter for SqliteAdapter {
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in contact_indexes {
             sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // ニュースレター
+        let (newsletter_tables, newsletter_indexes) =
+            super::newsletter::build_newsletter_tables("TEXT", "TEXT", "INTEGER", false);
+        for statement in newsletter_tables.iter().chain(newsletter_indexes.iter()) {
+            sqlx::query(statement)
                 .execute(&self.pool)
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;

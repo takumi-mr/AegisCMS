@@ -284,6 +284,23 @@ locale = "en"
 # type = "email"
 # required = true
 
+[newsletter]
+# Newsletter: sign-up page /newsletter with email confirmation (double opt-in), unsubscribe links and
+# sending published articles to the subscribers (docs/newsletter.md). Needs [notifications] (the mails)
+# and [commerce].public_url (the links in the mails)
+enabled = false
+# Sign-ups per hour from one IP address (0 = no limit)
+max_per_ip_per_hour = 10
+# Hours a confirmation link works
+confirm_ttl_hours = 48
+# Language of the built-in texts of the pages: "en" or "ja"
+locale = "en"
+# Optional CAPTCHA on the sign-up form ("turnstile", "hcaptcha", "recaptcha" or "custom")
+# [newsletter.captcha]
+# provider = "turnstile"
+# site_key = ""
+# secret = "env:TURNSTILE_SECRET"
+
 # Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
 # [plugins.settings.official-shop-rules]
 # shipping_fee = 600

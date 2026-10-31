@@ -109,6 +109,7 @@ crates/
 ├── aegis-forum      # 掲示板: カテゴリ・スレッド・レス・モデレーション（専用 DB に分離可）
 ├── aegis-captcha    # フォームの CAPTCHA 検証（任意）: Turnstile / hCaptcha / reCAPTCHA / siteverify 互換
 ├── aegis-contact    # 問い合わせフォーム: 設定で決めるフォーム・スパム対策・受信箱・通知
+├── aegis-newsletter # ニュースレター: ダブルオプトインの申し込み・解除リンク・公開中の記事の一斉配信
 ├── aegis-search     # サイト内検索: tantivy の索引（日本語は 2 文字ずつ）（feature `search`）
 ├── aegis-analytics  # アクセス解析: Cookie なしのビーコンと日ごとの集計（feature `analytics`）
 ├── aegis-backup     # バックアップ・リストア: DB とストレージの一括 ZIP エクスポート/インポート（feature `backup`）
@@ -135,6 +136,7 @@ crates/
 | [aegis-tags](crates/aegis-tags)                               | タグ                                                     | `TagService` (作成・更新・削除・コンテンツへの付け外し), `config` (`TagsConfig`)                                                                                      |
 | [aegis-forum](crates/aegis-forum)                             | 掲示板                                                   | `ForumService` (カテゴリ・スレッド・レス・モデレーション), `config` (`ForumConfig`)                                                                                    |
 | [aegis-captcha](crates/aegis-captcha)                         | フォームの CAPTCHA 検証（任意）                          | `Captcha` (siteverify の検証・ウィジェットの HTML・CSP に足すホスト), `CaptchaConfig` (`provider` で既定値を切り替え。fail-closed が既定)                              |
+| [aegis-newsletter](crates/aegis-newsletter)                   | ニュースレター                                           | `NewsletterService` (申し込み・確認・解除・配信・履歴), `config` (`NewsletterConfig`), `messages` (en / ja)                                                             |
 | [aegis-contact](crates/aegis-contact)                         | 問い合わせフォーム                                       | `ContactService` (送信・スパム対策・受信箱・通知・保存期間), `form` (入力の検査・フォームの HTML), `config` (`ContactConfig`)                                            |
 | [aegis-search](crates/aegis-search)                           | サイト内検索（feature `search`）                         | `SearchIndex` (tantivy の索引・検索), `tokenizer` (CJK の 2 文字分割), `snippet` (`<mark>` 付きの抜粋), `text` (ブロックの文字の取り出し)                                 |
 | [aegis-analytics](crates/aegis-analytics)                     | アクセス解析（feature `analytics`）                      | `AnalyticsService` (数える・まとめて書く・集計), `agent` (クローラー・端末・参照元), `beacon_script`, `config` (`AnalyticsConfig`)                                       |
@@ -198,6 +200,7 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-comments`**: 読者のコメントの投稿・審査（WordPress と同じ承認制・承認済みの投稿者の自動承認・NG ワード・リンク数・IP ごとの投稿数・ハニーポット・`check-comment` プラグイン）・スレッド表示・通知を扱う `CommentService`（[docs/comments.md](docs/comments.md)）。審査の仕組み（`moderation`）は今後の商品レビューと共有します。
 - **`aegis-forum`**: カテゴリ・スレッド・レスの掲示板 `ForumService`（キーセット方式のページ送り・連投の制限・ピン留め・ロック・自動ロック）。`[forum].database_url` で本体と別の DB に置けます（[docs/forum.md](docs/forum.md)）。
 - **`aegis-contact`**: 問い合わせフォーム `ContactService`（項目は設定ファイルの `[[contact.forms]]`。ボット除けの見えない欄・任意の CAPTCHA（`[contact.captcha]`）・IP ごとの送信数・スパムの語とリンク数・運営者への通知と自動返信・Admin Studio の受信箱・保存期間）。`/contact` と本文のブロック `core/contact-form` で表示します（[docs/contact.md](docs/contact.md)）。
+- **`aegis-newsletter`**: ニュースレター `NewsletterService`（`/newsletter` の申し込み → 確認メールのリンクで購読が始まるダブルオプトイン・メールごとの停止リンク・公開中の記事を購読者に 1 通ずつ送る配信と履歴。送信は `aegis-notify` の送信待ちを使い、CAPTCHA は任意）。Admin Studio の Settings › Newsletter から管理します（[docs/newsletter.md](docs/newsletter.md)）。
 - **`aegis-search`**: 公開中のコンテンツの全文検索（tantivy。日本語は辞書なしで 2 文字ずつに分けて索引）。サーバーの feature `search`（既定で有効）で組み込み、`/search` と `GET /api/v1/search` を出します（[docs/search.md](docs/search.md)）。
 - **`aegis-analytics`**: Cookie を使わないアクセス解析（日ごとに変わるハッシュで訪問者を見分け、DB には日ごとの集計だけを残す）。サーバーの feature `analytics` で組み込み、Admin Studio の Analytics タブで見られます（[docs/analytics.md](docs/analytics.md)）。
 

@@ -1,0 +1,7 @@
+Thank you for subscribing to the {{ site_name }} newsletter.
+
+To confirm your subscription, open this link (it expires in {{ expires_hours }} hours):
+{{ confirm_url }}
+
+If you did not sign up, just ignore this email: you will not be subscribed unless you open the link.
+{% include "_footer.txt" %}

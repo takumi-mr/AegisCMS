@@ -153,6 +153,7 @@ super::variants::impl_product_variant_storage!(PostgresAdapter, |i| format!("${}
 super::comments::impl_comment_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::tags::impl_tag_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::contact::impl_contact_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::newsletter::impl_newsletter_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::analytics::impl_analytics_storage!(
     PostgresAdapter,
     |i| format!("${}", i),
@@ -413,6 +414,16 @@ impl DatabaseAdapter for PostgresAdapter {
             .map_err(|e| AegisError::Database(e.to_string()))?;
         for index in contact_indexes {
             sqlx::query(&index)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // ニュースレター
+        let (newsletter_tables, newsletter_indexes) =
+            super::newsletter::build_newsletter_tables("TEXT", "VARCHAR(255)", "BIGINT", false);
+        for statement in newsletter_tables.iter().chain(newsletter_indexes.iter()) {
+            sqlx::query(statement)
                 .execute(&self.pool)
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;

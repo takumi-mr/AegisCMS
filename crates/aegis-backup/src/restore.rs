@@ -559,6 +559,51 @@ async fn restore_database_section<R: Read + Seek>(
         summary.tables_restored += 1;
     }
 
+    // 12. Newsletter subscribers (_aegis_newsletter_subscribers). An address or a token that belongs to
+    // another subscriber makes the insert fail, so a restore never hands one person's link to another
+    if has_path("database/newsletter_subscribers.json") {
+        let subscribers: Vec<aegis_db::NewsletterSubscriberRecord> =
+            read_json_entry(archive, "database/newsletter_subscribers.json")?;
+        for subscriber in &subscribers {
+            if db
+                .get_newsletter_subscriber(&subscriber.id)
+                .await?
+                .is_some()
+            {
+                if options.overwrite {
+                    db.delete_newsletter_subscribers(std::slice::from_ref(&subscriber.id))
+                        .await?;
+                } else {
+                    return Err(AegisError::Validation(format!(
+                        "Newsletter subscriber '{}' already exists (use overwrite option to replace)",
+                        subscriber.id
+                    )));
+                }
+            }
+            db.insert_newsletter_subscriber(subscriber).await?;
+            summary.records_restored += 1;
+        }
+        summary.tables_restored += 1;
+    }
+
+    // 13. Sent newsletter issues (_aegis_newsletter_issues): an immutable history, so one that is
+    // already there is left alone
+    if has_path("database/newsletter_issues.json") {
+        let issues: Vec<aegis_db::NewsletterIssueRecord> =
+            read_json_entry(archive, "database/newsletter_issues.json")?;
+        let (existing, _) = db.list_newsletter_issues(None, 0).await?;
+        let existing: std::collections::HashSet<String> =
+            existing.into_iter().map(|i| i.id).collect();
+        for issue in &issues {
+            if existing.contains(&issue.id) {
+                continue;
+            }
+            db.insert_newsletter_issue(issue).await?;
+            summary.records_restored += 1;
+        }
+        summary.tables_restored += 1;
+    }
+
     Ok(())
 }
 

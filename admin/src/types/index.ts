@@ -76,6 +76,8 @@ export type AuditAction =
   | 'redirect.create'
   | 'redirect.update'
   | 'redirect.delete'
+  | 'newsletter.send'
+  | 'newsletter.delete'
   | 'user.create'
   | 'user.update'
   | 'user.delete'
@@ -807,6 +809,37 @@ export interface Redirect {
   auto: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type NewsletterStatus = 'pending' | 'active' | 'unsubscribed';
+
+/** A newsletter subscriber (`/api/v1/newsletter/subscribers`); the link tokens never leave the server */
+export interface NewsletterSubscriber {
+  id: string;
+  email: string;
+  status: NewsletterStatus;
+  ip: string | null;
+  created_at: string;
+  confirmed_at: string | null;
+  unsubscribed_at: string | null;
+}
+
+export interface NewsletterCounts {
+  pending: number;
+  active: number;
+  unsubscribed: number;
+}
+
+/** One time published content was sent to the subscribers (`/api/v1/newsletter/issues`) */
+export interface NewsletterIssue {
+  id: string;
+  content_type: string;
+  content_id: string;
+  title: string;
+  url: string;
+  recipients: number;
+  created_at: string;
+  created_by: string | null;
 }
 
 export interface ScheduleItem {

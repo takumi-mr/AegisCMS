@@ -6,8 +6,8 @@ use std::sync::Arc;
 use aegis_core::{AegisError, Result, StorageBackend};
 use aegis_db::{
     record_from_content_version, CommentListQuery, ContactListQuery, ContentRecord,
-    ContentVersionRecord, DatabaseAdapter, ForumPostRecord, ForumThreadRecord, OrderListQuery,
-    PostListQuery, ReviewListQuery, TagListQuery, ThreadListQuery,
+    ContentVersionRecord, DatabaseAdapter, ForumPostRecord, ForumThreadRecord, NewsletterListQuery,
+    OrderListQuery, PostListQuery, ReviewListQuery, TagListQuery, ThreadListQuery,
 };
 use aegis_schema::SchemaDefinition;
 use chrono::{SecondsFormat, Utc};
@@ -469,6 +469,29 @@ async fn dump_database_section<W: Write + Seek>(
         "database/contact_messages.json",
         contact_messages.len() as u64,
         &contact_messages,
+    )?;
+
+    // 12. Newsletter subscribers and sent issues (_aegis_newsletter_subscribers / _issues)
+    let newsletter_subscribers = db
+        .list_newsletter_subscribers(&NewsletterListQuery::default())
+        .await?
+        .subscribers;
+    write_table_json(
+        zip,
+        tables,
+        aegis_db::NEWSLETTER_SUBSCRIBER_TABLE,
+        "database/newsletter_subscribers.json",
+        newsletter_subscribers.len() as u64,
+        &newsletter_subscribers,
+    )?;
+    let (newsletter_issues, _) = db.list_newsletter_issues(None, 0).await?;
+    write_table_json(
+        zip,
+        tables,
+        aegis_db::NEWSLETTER_ISSUE_TABLE,
+        "database/newsletter_issues.json",
+        newsletter_issues.len() as u64,
+        &newsletter_issues,
     )?;
 
     Ok(())

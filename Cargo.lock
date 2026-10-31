@@ -266,6 +266,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-newsletter"
+version = "0.1.0"
+dependencies = [
+ "aegis-audit",
+ "aegis-cache",
+ "aegis-captcha",
+ "aegis-core",
+ "aegis-db",
+ "async-trait",
+ "axum",
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "toml",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "aegis-notify"
 version = "0.1.0"
 dependencies = [
@@ -423,6 +444,7 @@ dependencies = [
  "aegis-core",
  "aegis-db",
  "aegis-forum",
+ "aegis-newsletter",
  "aegis-notify",
  "aegis-runtime",
  "aegis-schema",

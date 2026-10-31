@@ -29,8 +29,9 @@ mod tests {
         CommentListQuery, CommentRecord, ContactListQuery, ContactMessageRecord,
         ContentPublicationChange, ContentRecord, ContentVersionRecord, CustomerRecord,
         DatabaseAdapter, ForumCategoryRecord, ForumPostRecord, ForumReportRecord,
-        ForumThreadRecord, OrderRecord, PostListQuery, ProductVariantRecord, ReviewListQuery,
-        ReviewRecord, SqliteAdapter, UserRecord,
+        ForumThreadRecord, NewsletterIssueRecord, NewsletterListQuery, NewsletterSubscriberRecord,
+        OrderRecord, PostListQuery, ProductVariantRecord, ReviewListQuery, ReviewRecord,
+        SqliteAdapter, UserRecord,
     };
     use aegis_schema::SchemaDefinition;
     use aegis_storage::LocalStorageBackend;
@@ -293,6 +294,34 @@ mod tests {
         };
         src_db.insert_contact_message(&contact).await.unwrap();
 
+        src_db
+            .insert_newsletter_subscriber(&NewsletterSubscriberRecord {
+                id: "nl-1".to_string(),
+                email: "reader@example.com".to_string(),
+                status: "active".to_string(),
+                token: "token-1".to_string(),
+                ip: None,
+                created_at: "2026-10-29T01:25:00Z".to_string(),
+                confirmed_at: Some("2026-10-29T01:26:00Z".to_string()),
+                unsubscribed_at: None,
+                updated_at: "2026-10-29T01:26:00Z".to_string(),
+            })
+            .await
+            .unwrap();
+        src_db
+            .insert_newsletter_issue(&NewsletterIssueRecord {
+                id: "iss-1".to_string(),
+                content_type: "article".to_string(),
+                content_id: "a1".to_string(),
+                title: "Hello".to_string(),
+                url: "https://example.com/articles/hello".to_string(),
+                recipients: 1,
+                created_at: "2026-10-29T01:30:00Z".to_string(),
+                created_by: Some("admin".to_string()),
+            })
+            .await
+            .unwrap();
+
         // 7. Forum Category, Thread + 2 Posts, Report
         let fcat = ForumCategoryRecord {
             id: "fcat-1".to_string(),
@@ -500,6 +529,15 @@ mod tests {
                 .len(),
             1
         );
+        let restored_subscribers = dst_db
+            .list_newsletter_subscribers(&NewsletterListQuery::default())
+            .await
+            .unwrap()
+            .subscribers;
+        assert_eq!(restored_subscribers.len(), 1);
+        assert_eq!(restored_subscribers[0].token, "token-1");
+        let (restored_issues, _) = dst_db.list_newsletter_issues(None, 0).await.unwrap();
+        assert_eq!(restored_issues[0].recipients, 1);
         let restored_thread = dst_db.get_thread("fth-1").await.unwrap().unwrap();
         assert_eq!(restored_thread.post_count, 2);
         let restored_posts = dst_db

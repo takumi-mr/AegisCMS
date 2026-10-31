@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   ArrowRightLeft,
+  Mail,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount, ContentSummary } from '../types';
@@ -20,6 +21,7 @@ import { cx } from '../utils/cx';
 import { AuditLogView } from './AuditLogView';
 import { CategoryManager } from './CategoryManager';
 import { HeaderManager } from './HeaderManager';
+import { NewsletterManager } from './NewsletterManager';
 import { NotificationManager } from './NotificationManager';
 import { PluginManager } from './PluginManager';
 import { RedirectManager } from './RedirectManager';
@@ -37,6 +39,7 @@ export type SettingsSection =
   | 'seo'
   | 'headers'
   | 'redirects'
+  | 'newsletter'
   | 'notifications'
   | 'themes'
   | 'plugins'
@@ -56,6 +59,7 @@ const SECTIONS: Array<{
   { id: 'seo', icon: <Search size={16} />, visible: isAdmin },
   { id: 'headers', icon: <ShieldCheck size={16} />, visible: isAdmin },
   { id: 'redirects', icon: <ArrowRightLeft size={16} />, visible: isAdmin },
+  { id: 'newsletter', icon: <Mail size={16} />, visible: isAdmin },
   { id: 'notifications', icon: <Bell size={16} />, visible: isAdmin },
   { id: 'themes', icon: <Palette size={16} /> },
   { id: 'plugins', icon: <Blocks size={16} /> },
@@ -119,6 +123,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {current === 'seo' && <SeoManager onShowToast={onShowToast} />}
         {current === 'headers' && <HeaderManager onShowToast={onShowToast} />}
         {current === 'redirects' && <RedirectManager onShowToast={onShowToast} />}
+        {current === 'newsletter' && <NewsletterManager onShowToast={onShowToast} />}
         {current === 'notifications' && <NotificationManager onShowToast={onShowToast} />}
         {current === 'themes' && <ThemeManager session={session} onShowToast={onShowToast} />}
         {current === 'plugins' && <PluginManager session={session} onShowToast={onShowToast} />}
