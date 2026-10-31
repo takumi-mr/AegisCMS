@@ -34,7 +34,7 @@
   - `on-render-page` フックで HTML 全体を Wasm に渡すオーバーヘッドの軽減。
 
 ### 🌐 サイト機能拡張
-- [ ] **問い合わせフォームの拡張**: Admin Studio からの直接返信、フォーム編集 UI、Cloudflare Turnstile / CAPTCHA 連携。
+- [ ] **問い合わせフォームの拡張**: フォーム編集 UI、Cloudflare Turnstile / CAPTCHA 連携。
 - [ ] **サイト内検索の拡張**: 検索キーワードのアクセス解析集計。
 
 ### 🔐 認証・アカウント
