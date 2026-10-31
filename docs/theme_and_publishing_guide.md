@@ -192,6 +192,7 @@ site_description = "Next-Generation High-Performance Secure CMS with Sandboxed W
 # favicon = "/uploads/favicon.png"  # オプション: favicon（/ から始まるパスか http(s) の URL）
 # custom_css = ":root { --accent: #10b981; }" # オプション: グローバルカスタム CSS
 posts_per_page = 10        # 記事一覧の 1 ページあたりの記事数（?page=N でページ送り）
+related_posts_limit = 4    # 記事詳細の関連記事の最大表示件数（既定: 4、0 で非表示）
 front_page = "posts"       # トップページ: "posts"（記事一覧）/ "template"（テーマの front.html）/ "page:<slug>"（固定ページ）
 reload_templates = false   # true でテンプレートを描画のたびに読み直す（テーマ開発用）
 locale = "en"              # 組み込みテンプレート・コメント欄・カートの言語（en / ja）

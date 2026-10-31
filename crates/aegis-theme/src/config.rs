@@ -17,6 +17,9 @@ pub struct ThemeConfig {
     /// トップページ（記事一覧）の 1 ページあたりの件数（`/?page=N` でページ送り）
     #[serde(default = "default_posts_per_page")]
     pub posts_per_page: u64,
+    /// 記事詳細ページに表示する関連記事の最大件数（既定: 4、0 で非表示）
+    #[serde(default = "default_related_posts_limit")]
+    pub related_posts_limit: usize,
     /// トップページ（`/`）に出すもの: `"posts"`（既定。記事一覧）、`"template"`（テーマの `front.html`）、
     /// `"page:<slug>"`（固定ページ）。`"posts"` 以外では記事一覧は `/articles` だけになる
     #[serde(default = "default_front_page")]
@@ -47,6 +50,10 @@ pub struct ThemeConfig {
 
 fn default_posts_per_page() -> u64 {
     10
+}
+
+fn default_related_posts_limit() -> usize {
+    4
 }
 
 fn default_show_powered_by() -> bool {
@@ -107,6 +114,12 @@ impl ThemeConfig {
                 self.locale
             )));
         }
+        if self.related_posts_limit > 50 {
+            return Err(aegis_core::AegisError::Config(format!(
+                "[theme].related_posts_limit must be between 0 and 50 (got {})",
+                self.related_posts_limit
+            )));
+        }
         aegis_core::validate_signature_policy(
             "theme",
             self.require_signatures,
@@ -124,6 +137,7 @@ impl Default for ThemeConfig {
             favicon: None,
             custom_css: None,
             posts_per_page: default_posts_per_page(),
+            related_posts_limit: default_related_posts_limit(),
             front_page: default_front_page(),
             reload_templates: false,
             locale: default_locale(),
@@ -138,6 +152,19 @@ impl Default for ThemeConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_related_posts_limit() {
+        let config = ThemeConfig::default();
+        assert_eq!(config.related_posts_limit, 4);
+        assert!(config.validate().is_ok());
+
+        let invalid = ThemeConfig {
+            related_posts_limit: 51,
+            ..ThemeConfig::default()
+        };
+        assert!(invalid.validate().is_err());
+    }
 
     #[test]
     fn test_front_page_values() {
