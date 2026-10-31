@@ -51,41 +51,57 @@
 .badgePinned {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
   background: rgba(245, 158, 11, 0.15);
   color: var(--accent-amber);
   border: 1px solid rgba(245, 158, 11, 0.3);
   font-size: 0.72rem;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.2;
 }
 
 .badgeLocked {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
   background: rgba(244, 63, 94, 0.15);
   color: var(--accent-rose);
   border: 1px solid rgba(244, 63, 94, 0.3);
   font-size: 0.72rem;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.2;
 }
 
 .threadTitleCell {
   min-width: 280px;
-  max-width: 440px;
 }
 
 .threadTitle {
   font-weight: 600;
   color: var(--text-primary);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+
+.threadTitleText {
   overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.nowrapCell {
+  white-space: nowrap;
 }
 
 .threadMeta {

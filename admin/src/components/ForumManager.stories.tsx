@@ -35,7 +35,7 @@ const mockThreads: ForumThread[] = [
     author_id: 'admin',
     author_name: 'Admin',
     is_pinned: true,
-    is_locked: false,
+    is_locked: true,
     post_count: 5,
     last_post_at: '2026-10-25T12:00:00Z',
     created_at: '2026-10-20T10:00:00Z',
@@ -195,6 +195,10 @@ export const Default: Story = {
       expect(canvas.getByText('Welcome to the AegisCMS Community!')).toBeInTheDocument();
       expect(canvas.getByText('How to write custom Wasm plugins in Rust')).toBeInTheDocument();
     });
+
+    // Check PIN and LOCKED badges
+    expect(canvas.getByText(/PIN/)).toBeInTheDocument();
+    expect(canvas.getByText(/LOCKED/)).toBeInTheDocument();
 
     // Check thread count badge
     expect(canvas.getByText(/2 threads/i)).toBeInTheDocument();

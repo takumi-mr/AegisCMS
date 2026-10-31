@@ -391,16 +391,12 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
   const renderStatusBadge = (status?: CommentStatus) => {
     const st = status || 'approved';
     if (st === 'pending') {
-      return <span className={styles.badgePinned}>{t('forum.status.pending')}</span>;
+      return <span className={cx(shop.badge, shop.warn)}>{t('forum.status.pending')}</span>;
     }
     if (st === 'spam') {
-      return <span className={styles.badgeLocked}>{t('forum.status.spam')}</span>;
+      return <span className={cx(shop.badge, shop.bad)}>{t('forum.status.spam')}</span>;
     }
-    return (
-      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-        {t('forum.status.approved')}
-      </span>
-    );
+    return <span className={cx(shop.badge, shop.good)}>{t('forum.status.approved')}</span>;
   };
 
   return (
@@ -583,17 +579,17 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
                                 <Lock size={10} /> LOCKED
                               </span>
                             )}
-                            <span>{thread.title}</span>
+                            <span className={styles.threadTitleText}>{thread.title}</span>
                           </div>
                           <div className={styles.threadMeta}>
                             <span>Created {formatDateTime(thread.created_at)}</span>
                           </div>
                         </td>
-                        <td>{getCategoryName(thread.category_id)}</td>
-                        <td>{thread.author_name}</td>
-                        <td>{renderStatusBadge(thread.status)}</td>
-                        <td>{thread.post_count}</td>
-                        <td>{formatDateTime(thread.last_post_at)}</td>
+                        <td className={styles.nowrapCell}>{getCategoryName(thread.category_id)}</td>
+                        <td className={styles.nowrapCell}>{thread.author_name}</td>
+                        <td className={styles.nowrapCell}>{renderStatusBadge(thread.status)}</td>
+                        <td className={styles.nowrapCell}>{thread.post_count}</td>
+                        <td className={styles.nowrapCell}>{formatDateTime(thread.last_post_at)}</td>
                         <td>
                           <div
                             className={styles.actionsCell}
