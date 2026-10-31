@@ -192,6 +192,19 @@ export const BlockItem: React.FC<BlockItemProps> = ({
               <option value="html">HTML</option>
               <option value="css">CSS</option>
             </select>
+            <input
+              className={styles.filenameInput}
+              placeholder={t('blocks.filenamePlaceholder')}
+              aria-label={t('blocks.filename')}
+              maxLength={120}
+              value={block.attributes?.filename || ''}
+              onChange={(e) =>
+                onChange({
+                  ...block,
+                  attributes: { ...block.attributes, filename: e.target.value },
+                })
+              }
+            />
           </div>
           <textarea
             className={cx(styles.textarea, styles.code)}

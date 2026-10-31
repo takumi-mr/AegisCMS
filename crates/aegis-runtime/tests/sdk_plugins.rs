@@ -213,3 +213,53 @@ async fn test_official_reading_plugins_add_to_the_page() {
     assert_eq!(other.content_html, page("index").content_html);
     assert!(other.extra_css.is_empty() && other.extra_head.is_empty());
 }
+
+/// 公式プラグイン `official-code-lines` / `official-lightbox` / `official-external-links` のビルド済み `plugin.wasm` で、
+/// `on-render-page` がホストから呼べること（本文に対象が無いページには何も足さない）
+#[tokio::test]
+async fn test_official_content_plugins_add_to_the_page() {
+    let engine = WasmEngine::new().unwrap();
+    let plugins = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+    let page = |html: &str| PageRenderContext {
+        template: "article.html".to_string(),
+        content_type: "article".to_string(),
+        content_html: html.to_string(),
+        ..Default::default()
+    };
+
+    let cases = [
+        (
+            "official-code-lines",
+            "<pre data-filename=\"a.rs\"><code class=\"language-rust\">fn a() {}</code></pre>",
+            "pre.ocl-numbered{",
+        ),
+        (
+            "official-lightbox",
+            "<figure><img src=\"/uploads/a.png\" alt=\"A\"></figure>",
+            "dialog.olb{",
+        ),
+        (
+            "official-external-links",
+            "<p><a href=\"https://example.org/\">x</a></p>",
+            "a.oel-external::after",
+        ),
+    ];
+    for (name, html, css) in cases {
+        let plugin = load(&engine, &plugins.join(name));
+        let rendered = plugin.on_render_page(page(html)).await.unwrap();
+        assert_eq!(rendered.content_html, html, "{name} changed the content");
+        assert!(
+            rendered.extra_css.contains(css),
+            "{name}: {}",
+            rendered.extra_css
+        );
+        assert!(rendered.extra_head.starts_with("<script>"), "{name}");
+        let plain = page("<p>Nothing to do</p>");
+        let other = plugin.on_render_page(plain.clone()).await.unwrap();
+        assert_eq!(other.content_html, plain.content_html, "{name}");
+        assert!(
+            other.extra_css.is_empty() && other.extra_head.is_empty(),
+            "{name} added to a page without targets"
+        );
+    }
+}
