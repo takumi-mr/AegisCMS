@@ -1,0 +1,291 @@
+[server]
+host = "127.0.0.1"
+port = 8080
+# Path to serve under behind a reverse proxy, e.g. "/cms" for https://example.com/cms/ (empty: the root).
+# See docs/configuration.md "リバースプロキシ配下での運用"
+base_path = ""
+
+[database]
+# Backend: "sqlite" | "postgres" | "mysql" (auto-inferred from url if omitted)
+backend = "mysql"
+# SQLite: "sqlite://aegis.db?mode=rwc"
+# PostgreSQL: "postgres://user:password@localhost:5432/aegis"
+# MySQL: "mysql://user:password@localhost:3306/aegis"
+url = "mysql://aegis:password@localhost:3306/aegis_test"
+max_connections = 10
+
+[storage]
+# Backend: "local" (disk/volume mount) | "s3" (AWS S3 / Cloudflare R2 / MinIO)
+backend = "local"
+# Maximum size of a single upload, in MB (responds 413 when exceeded)
+max_upload_mb = 10
+
+[storage.local]
+upload_dir = "data/uploads"
+public_url_prefix = "/uploads"
+
+[storage.s3]
+# AWS S3 / Cloudflare R2 / MinIO settings
+bucket = "aegis-bucket"
+region = "auto"
+# endpoint = "https://<account_id>.r2.cloudflarestorage.com" # Required for MinIO / Cloudflare R2
+# access_key_id = "..."
+# secret_access_key = "..."
+# force_path_style = false # Set true for MinIO
+# public_url_prefix = "https://cdn.example.com" # Optional custom domain / CDN
+
+[cache]
+# Backend: "memory" (default, in-memory TTL cache) | "redis" (distributed cache & stateless sessions)
+backend = "memory"
+default_ttl_secs = 3600
+
+[cache.redis]
+url = "redis://127.0.0.1:6379"
+timeout_ms = 2000
+
+[cdn]
+# On-demand Cache-Tag Purge: emit `Cache-Tag` & `Surrogate-Key` headers on public responses and
+# purge edge caches by tag when contents or site settings change. Keep false when not using a CDN.
+enabled = false
+# Provider: "none" (emit headers only, no API purge) | "log" | "cloudflare" | "fastly" | "webhook"
+provider = "none"
+emit_headers = true
+cache_control = "public, max-age=0, s-maxage=86400, stale-while-revalidate=60"
+timeout_ms = 5000
+
+# [cdn.cloudflare]
+# zone_id = ""
+# api_token = "" # or set AEGIS_CLOUDFLARE_API_TOKEN / "env:CLOUDFLARE_API_TOKEN"
+
+# [cdn.fastly]
+# service_id = ""
+# api_token = "" # or set AEGIS_FASTLY_API_TOKEN / "env:FASTLY_API_TOKEN"
+# soft_purge = true
+
+# [cdn.webhook]
+# url = "https://edge-purger.example.com/purge"
+# bearer_token = "" # or set AEGIS_CDN_WEBHOOK_TOKEN / "env:CDN_WEBHOOK_TOKEN"
+
+[paths]
+schemas_dir = "schemas"
+plugins_dir = "plugins"
+admin_dist_dir = "admin/dist"
+themes_dir = "themes"
+
+[runtime]
+enable_wasm_plugins = true
+default_max_memory_mb = 16
+default_max_fuel_units = 100000000
+default_timeout_ms = 250
+# Wasm instance pool: concurrent hook calls (extra calls wait for a free slot); 0 = allocate per call.
+# Each slot reserves ~6 GiB of virtual address space (not RAM). See docs/configuration.md
+instance_pool_size = 64
+# Linear memory per pool slot (MiB); plugins with a larger resource_limits.max_memory_mb do not load
+pool_max_memory_mb = 64
+
+[plugins]
+# Plugins to load, by name (installed as <plugins_dir>/<name>/ with a plugin.manifest.json).
+# Hooks run in this order. The server does not start if a listed plugin is missing or cannot load.
+# Templates and samples live in sdk/; see docs/plugin_hooks.md "インストールと有効化"
+enabled = ["official-code-enhancer"]
+
+[security]
+enforce_external_link_rel = true
+open_external_links_in_new_tab = false
+internal_domains = []
+enforce_image_lazy_loading = true
+enforce_image_async_decoding = true
+
+[audit]
+enabled = true
+# Sinks: "database" (audit_logs table + GET /api/v1/audit-logs) | "log" (JSON lines on the aegis::audit target) | "prometheus" (GET /metrics)
+sinks = ["database"]
+# Use the first X-Forwarded-For address as the client IP for audit logs and login rate limits
+# (enable only behind a trusted reverse proxy)
+trust_forwarded_for = false
+# Days to keep audit events in the database sink; older events are purged periodically (0 = keep forever)
+retention_days = 0
+# How often to purge expired audit events, in seconds (minimum 60)
+purge_interval_secs = 3600
+
+[auth.login_rate_limit]
+# Temporarily lock logins (POST /api/v1/auth/session) after repeated failures.
+# Failures are counted in the [cache] backend, so use "redis" to share the limits across servers.
+enabled = true
+# Failed logins per username / per client IP within window_secs before locking (0 = unlimited)
+max_failures_per_user = 5
+max_failures_per_ip = 20
+window_secs = 900
+# How long a lock lasts, in seconds (logins are rejected with 429 even with the right password)
+lockout_secs = 900
+
+[auth.oidc]
+# Single sign-on with an OpenID Connect provider (Entra ID, Google, Okta, Keycloak, ...).
+# Register https://<host>/api/v1/auth/oidc/callback as the redirect URI. See docs/authentication.md
+enabled = false
+display_name = "SSO"
+issuer_url = ""
+client_id = ""
+client_secret = ""
+redirect_url = "http://127.0.0.1:8080/api/v1/auth/oidc/callback"
+# Create unknown users on their first login (false: only users linked with `aegis user link-oidc`)
+auto_create_users = true
+default_role = "viewer"
+# Claim that decides the role on every login, e.g. "groups" (empty: the account's role applies)
+role_claim = ""
+post_login_redirect = "/admin/"
+
+[auth.oidc.role_mapping]
+# cms-admins = "admin"
+# cms-editors = "editor"
+
+[auth.saml]
+# Single sign-on with a SAML 2.0 IdP (Entra ID, Okta, AD FS, Keycloak, Google Workspace, ...).
+# Register the SP metadata at https://<host>/api/v1/auth/saml/metadata. See docs/authentication.md
+enabled = false
+display_name = "SSO"
+entity_id = "http://127.0.0.1:8080/api/v1/auth/saml/metadata"
+acs_url = "http://127.0.0.1:8080/api/v1/auth/saml/acs"
+idp_entity_id = ""
+idp_sso_url = ""
+# The IdP's signing certificates (PEM, or the base64 of <X509Certificate> in the IdP's metadata)
+idp_certificates = []
+# NameID format to ask for (empty: the IdP decides). transient cannot be used
+name_id_format = ""
+# Attribute used as the user name of new accounts (empty: the NameID)
+username_attribute = ""
+email_attribute = "email"
+display_name_attribute = "displayName"
+# Create unknown users on their first login (false: only users linked with `aegis user link-saml`)
+auto_create_users = true
+default_role = "viewer"
+# Attribute that decides the role on every login, e.g. "groups" (empty: the account's role applies)
+role_attribute = ""
+post_login_redirect = "/admin/"
+
+[auth.saml.role_mapping]
+# cms-admins = "admin"
+# cms-editors = "editor"
+
+[theme]
+active = "default"
+site_title = "AegisCMS Official Site"
+site_description = "Next-Generation High-Performance Secure CMS with Sandboxed WebAssembly Extensibility"
+# Favicon of the public site: a root-relative path (e.g. "/uploads/favicon.png") or an http(s) URL.
+# The site title and favicon can also be changed in Admin Studio (Settings > Site), which overrides these.
+# favicon = "/uploads/favicon.png"
+# Articles per page on the article lists (/?page=N, /articles, /category/{slug})
+posts_per_page = 10
+# What the top page (/) shows: "posts" (the article list), "template" (the theme's front.html,
+# given the latest articles) or "page:<slug>" (a page). Except for "posts", the article list is at /articles
+front_page = "posts"
+# Re-read theme templates on every render (for theme development; keep false in production)
+reload_templates = false
+# Language of the built-in templates, the comment form, the shop cart and the maintenance page: "en" or "ja".
+# API error messages are always in English
+locale = "en"
+
+
+# Shop: cart, orders, stock and payments (docs/commerce.md). Products are `product` contents
+# (schemas/products.yaml); the product pages work even when this is disabled.
+[commerce]
+enabled = false
+currency = "jpy"
+# "manual" (bank transfer / cash on delivery, confirmed by staff) or "stripe" (Stripe Checkout)
+provider = "manual"
+# Public site URL for payment return links (empty: built from the request's Host)
+public_url = ""
+# How long an unpaid Stripe checkout holds its stock (30-1440 minutes)
+reservation_minutes = 60
+
+[commerce.manual]
+instructions = "ご注文ありがとうございます。お支払い方法はメールでご案内します。"
+payment_due_hours = 72
+
+[commerce.stripe]
+# Prefer the environment variables AEGIS_STRIPE_SECRET_KEY / AEGIS_STRIPE_WEBHOOK_SECRET
+secret_key = ""
+webhook_secret = ""
+
+# Notifications (docs/notifications.md): order emails to customers and staff, sent through an
+# external SMTP server. channels = ["log"] prints them to the server log instead (no SMTP needed).
+# Check the settings with: aegis-server notify test --to you@example.com
+[notifications]
+enabled = false
+channels = ["email"]
+# Language of the built-in templates: "en" or "ja"
+locale = "en"
+# Directory with templates that replace the built-in ones (<kind>.subject / <kind>.txt)
+# templates_dir = "notifications"
+
+[notifications.email]
+smtp_host = ""
+# 0: 587 for starttls, 465 for tls, 25 for none
+smtp_port = 0
+# "starttls" (required STARTTLS), "tls" (implicit TLS) or "none" (local relay only)
+tls = "starttls"
+username = ""
+# Prefer the environment variable AEGIS_SMTP_PASSWORD
+password = ""
+from = "Shop <shop@example.com>"
+# Staff notified of new and cancelled orders
+staff_recipients = []
+
+# Audit events to notify staff about (docs/notifications.md "2.1"), e.g. admin logins and lockouts
+# [[notifications.audit.rules]]
+# action = "session.create"
+# outcomes = ["success"]
+# roles = ["admin"]
+#
+# [[notifications.audit.rules]]
+# action = "session.create"
+# details = { locked = "*" }
+
+[search]
+# Site search: /search and GET /api/v1/search over published content (docs/search.md).
+# Japanese is indexed in 2-character pieces, so no dictionary is needed
+enabled = true
+# Where the index lives (rebuilt from the database at startup; empty keeps it in memory)
+index_dir = "data/search"
+content_types = ["article", "page"]
+
+[analytics]
+# Cookie-less access analytics: a small beacon on public pages and daily counts in the database,
+# shown in Admin Studio's Analytics tab (docs/analytics.md). No IP addresses are stored
+enabled = false
+# Days of counts to keep (0 keeps them forever)
+retention_days = 400
+
+[contact]
+# Contact forms: /contact pages, a [CONTACT] block for the body, and an inbox in Admin Studio
+# (docs/contact.md). Staff are emailed through [notifications]
+enabled = false
+# Days to keep received messages (0 keeps them forever)
+retention_days = 365
+# Messages per hour from one IP address (0 = no limit)
+max_per_ip_per_hour = 5
+# Language of the built-in texts (errors, the default form's labels): "en" or "ja"
+locale = "en"
+# Optional CAPTCHA on the HTML forms (docs/contact.md): "turnstile", "hcaptcha", "recaptcha" or "custom".
+# The secret may be "env:VAR_NAME". If the CAPTCHA service is unreachable, submissions are rejected
+# unless fail_open = true
+# [contact.captcha]
+# provider = "turnstile"
+# site_key = ""
+# secret = "env:TURNSTILE_SECRET"
+# Without [[contact.forms]], one "default" form asks for name, email, subject and message, e.g.
+# [[contact.forms]]
+# name = "default"
+# title = "お問い合わせ"
+# auto_reply = true
+# [[contact.forms.fields]]
+# name = "email"
+# label = "メールアドレス"
+# type = "email"
+# required = true
+
+# Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
+# [plugins.settings.official-shop-rules]
+# shipping_fee = 600
+# free_shipping_over = 10000
+# coupons = "WELCOME10:10%"

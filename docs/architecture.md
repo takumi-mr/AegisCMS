@@ -60,6 +60,11 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **注文**: 注文の DB 操作は `OrderStorage` トレイト（`DatabaseAdapter` のスーパートレイト）。`#[async_trait]` はマクロが impl ブロック内に生成したメソッドを変換しないため、`impl_order_storage!` が `#[async_trait] impl OrderStorage for ...` ごと生成する。
   - **ダイアレクト共通の SQL 構築と実機検証**: プレースホルダ（SQLite: `?1`, PostgreSQL: `$1`, MySQL: `?`）や型キャスト、排他制御（注文作成と在庫減算のアトミックトランザクション、キャンセル時の restock 復帰）は SQLite だけでなく、Docker コンテナを用いた PostgreSQL 16 および MySQL 8.0 の実機環境で統合テスト（ストレージ層: `orders_integration`、E2E: `shop_tests`）を実施・パス済み。
   - **テスト環境設計**: 専用 Compose（`docker-compose.test-dbs.yml`）と `task test:dbs` によりヘルスチェック待機付きで一括実行可能。CI や通常の開発時（コンテナ非稼働時）は高速 TCP プローブ（150ms）により即座にスキップされ、`cargo test` を阻害しない。
+- **データベース別パフォーマンス特性（実測ベンチマーク比較）**:
+  - 同一リリースバイナリ（Release / LTO 有効）を用いて、SQLite（WAL）、PostgreSQL 16（Docker）、MySQL 8.0（Docker）の主要エンドポイント（並行 50）を比較（詳細は [docs/development.md](development.md#63-データベース別パフォーマンス比較-task-benchdbs--scriptscompare-dbsmjs) 参照）。
+  - **読み込み（公開トップページ）**: SQLite (WAL) が約 2,730 req/s（p50: 17.8ms）に対し、PostgreSQL / MySQL はコネクションプール（既定 10）と TCP ラウンドトリップにより約 490 req/s（p50: 95ms）。
+  - **同期 INSERT（未認証 401 による監査ログ記録）**: SQLite (WAL) は約 2,010 req/s、PostgreSQL は約 990 req/s を維持する一方、MySQL は InnoDB のトランザクション同期コミットとプール待ちにより約 230 req/s（p50: 178ms, p99: 675ms）まで低下。
+  - **示唆**: SQLite 単体では WAL モードにより同期 INSERT でも十分なスループットが出ているが、外部 RDBMS（特に MySQL）ではリクエスト中の同期 INSERT が明確なボトルネックとなる。そのため、高スループットな外部 DB 運用では、監査ログ `database` 出力先の非同期化（有限 `mpsc` キュー + バッチ INSERT）の導入効果が極めて高い。
 
 ### 2.3 スキーマからのコード生成とシステム標準カラム
 
@@ -295,6 +300,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - 操作主体はセッションから解決する `AuditContext`（失敗しない `FromRequestParts`）。クライアント IP のため、サーバーは `into_make_service_with_connect_info::<SocketAddr>()` で起動する。
 - セッショントークンは保存せず、`session_fingerprint`（SHA-256 の先頭 16 桁）で突き合わせる。パスワード・通知の宛先アドレスも残さない。
 - 保持期間: `spawn_retention_task` が起動直後と `purge_interval_secs` ごとに `occurred_at` が基準より古いものを削除し、1 件以上あれば `audit.purge` を記録する。既定の `retention_days = 0` は無期限（アップデートで既存の監査ログが消えないように）。
+- **出力先の同期 INSERT と DB エンジン依存性**:
+  - `database` シンクはリクエストハンドラ内で直接 DB に INSERT する。SQLite (WAL モード) では約 2,000 req/s のスループットを維持できるが、外部 RDBMS（Docker コンテナ経由）では PostgreSQL で約 990 req/s、MySQL ではトランザクションコミットの fsync オーバーヘッドにより約 230 req/s まで低下する（[2.2](#22-databaseadapter)）。将来的な大規模クラスタや MySQL 運用においては、有限 `mpsc` キューを挟んだバッチ INSERT 化（終了時フラッシュ対応）の再検討が有効。
 
 ---
 
