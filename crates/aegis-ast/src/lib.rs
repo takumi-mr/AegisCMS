@@ -8,7 +8,7 @@ pub mod transform;
 pub use config::SecurityConfig;
 pub use inline::{plain_text, render_inline};
 pub use node::BlockNode;
-pub use renderer::HtmlRenderer;
+pub use renderer::{extract_links, HtmlRenderer};
 pub use rewriter::{HtmlRewriterConfig, RewriterError, StreamingHtmlRewriter};
 pub use transform::{AstPipeline, AstTransformer, HeadingIdTransformer};
 

@@ -552,6 +552,30 @@ impl HtmlRenderer {
     }
 }
 
+/// Extracts all `href` URLs from `<a>` tags in an HTML document.
+/// Skips empty links, fragments (`#`), `javascript:`, `mailto:`, and `tel:` schemes.
+pub fn extract_links(html: &str) -> Vec<String> {
+    let mut links = Vec::new();
+    let settings = Settings::new().append_element_content_handler(element!("a[href]", |el| {
+        if let Some(href) = el.get_attribute("href") {
+            let trimmed = href.trim();
+            if !trimmed.is_empty()
+                && !trimmed.starts_with('#')
+                && !trimmed.starts_with("javascript:")
+                && !trimmed.starts_with("mailto:")
+                && !trimmed.starts_with("tel:")
+            {
+                links.push(trimmed.to_string());
+            }
+        }
+        Ok(())
+    }));
+    let mut rewriter = HtmlRewriter::new(settings, |_c: &[u8]| {});
+    let _ = rewriter.write(html.as_bytes());
+    let _ = rewriter.end();
+    links
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -817,5 +841,12 @@ mod tests {
             HtmlRenderer::render_nodes(&[BlockNode::new("core/details")]),
             ""
         );
+    }
+
+    #[test]
+    fn test_extract_links() {
+        let html = "<p>Visit <a href=\"https://example.com\">Example</a> or <a href=\"/articles/hello\">Hello</a>.</p><p><a href=\"#top\">Top</a> and <a href=\"mailto:info@example.com\">Email</a></p><p><a href=\"javascript:void(0)\">Noop</a></p>";
+        let links = extract_links(html);
+        assert_eq!(links, vec!["https://example.com", "/articles/hello"]);
     }
 }

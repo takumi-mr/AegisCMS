@@ -13,6 +13,7 @@ import {
   SlidersHorizontal,
   ArrowRightLeft,
   Mail,
+  Unlink,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount, ContentSummary } from '../types';
@@ -31,6 +32,7 @@ import { SystemManager } from './SystemManager';
 import { TagManager } from './TagManager';
 import { ThemeManager } from './ThemeManager';
 import { UserManager } from './UserManager';
+import { BrokenLinksManager } from './BrokenLinksManager';
 import styles from './SettingsView.module.css';
 
 export type SettingsSection =
@@ -39,6 +41,7 @@ export type SettingsSection =
   | 'seo'
   | 'headers'
   | 'redirects'
+  | 'broken-links'
   | 'newsletter'
   | 'notifications'
   | 'themes'
@@ -59,6 +62,7 @@ const SECTIONS: Array<{
   { id: 'seo', icon: <Search size={16} />, visible: isAdmin },
   { id: 'headers', icon: <ShieldCheck size={16} />, visible: isAdmin },
   { id: 'redirects', icon: <ArrowRightLeft size={16} />, visible: isAdmin },
+  { id: 'broken-links', icon: <Unlink size={16} />, visible: isAdmin },
   { id: 'newsletter', icon: <Mail size={16} />, visible: isAdmin },
   { id: 'notifications', icon: <Bell size={16} />, visible: isAdmin },
   { id: 'themes', icon: <Palette size={16} /> },
@@ -123,6 +127,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {current === 'seo' && <SeoManager onShowToast={onShowToast} />}
         {current === 'headers' && <HeaderManager onShowToast={onShowToast} />}
         {current === 'redirects' && <RedirectManager onShowToast={onShowToast} />}
+        {current === 'broken-links' && <BrokenLinksManager onShowToast={onShowToast} />}
         {current === 'newsletter' && <NewsletterManager onShowToast={onShowToast} />}
         {current === 'notifications' && <NotificationManager onShowToast={onShowToast} />}
         {current === 'themes' && <ThemeManager session={session} onShowToast={onShowToast} />}

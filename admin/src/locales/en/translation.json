@@ -95,7 +95,9 @@
     "newsletterFailed": "Failed to load the newsletter",
     "deleteNewsletterSubscribersFailed": "Failed to delete the subscribers",
     "exportNewsletterFailed": "Failed to export the subscribers",
-    "sendNewsletterFailed": "Failed to send the newsletter"
+    "sendNewsletterFailed": "Failed to send the newsletter",
+    "brokenLinksFailed": "Failed to get broken links report",
+    "triggerBrokenLinksScanFailed": "Failed to start broken links scan"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -1113,7 +1115,8 @@
       "system": "System",
       "tags": "Tags",
       "redirects": "Redirects",
-      "newsletter": "Newsletter"
+      "newsletter": "Newsletter",
+      "broken-links": "Broken Links"
     }
   },
   "plugins": {
@@ -1811,5 +1814,28 @@
     "historyEmpty": "Nothing has been sent yet.",
     "recipients": "{{count}} recipients",
     "disabled": "The newsletter is not enabled on the server ([newsletter].enabled)."
+  },
+  "brokenLinks": {
+    "title": "Broken Links",
+    "description": "Scans published articles and pages to detect broken internal and external links.",
+    "scanNow": "Scan Now",
+    "scanning": "Scanning...",
+    "lastScannedAt": "Last Scanned",
+    "neverScanned": "Never",
+    "totalChecked": "Links Checked",
+    "brokenCount": "Broken Links",
+    "noBrokenLinks": "No broken links found. All checked links are valid.",
+    "emptyState": "No scan has been performed yet. Click \"Scan Now\" to check for broken links.",
+    "sourceContent": "Source Content",
+    "targetUrl": "Target URL",
+    "statusOrError": "Status / Reason",
+    "type": "Type",
+    "internal": "Internal",
+    "external": "External",
+    "scanStarted": "Link scan started.",
+    "scanAlreadyInProgress": "A scan is already in progress.",
+    "loadFailed": "Failed to load broken link report.",
+    "scanFailed": "Failed to start link scan.",
+    "filterPlaceholder": "Search by URL or title..."
   }
 }

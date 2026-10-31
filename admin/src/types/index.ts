@@ -1137,3 +1137,27 @@ export interface ContactMessagePage {
   /** Messages per status (all forms) */
   counts: Partial<Record<ContactStatus, number>>;
 }
+
+export interface BrokenLinkItem {
+  id: string;
+  content_type: string;
+  content_id: string;
+  content_title: string;
+  content_slug: string;
+  target_url: string;
+  is_external: boolean;
+  status_code: number | null;
+  error_message: string | null;
+}
+
+export interface BrokenLinksReport {
+  last_scanned_at: string | null;
+  total_links_checked: number;
+  broken_count: number;
+  items: BrokenLinkItem[];
+}
+
+export interface BrokenLinksStatusResponse {
+  is_scanning: boolean;
+  report: BrokenLinksReport;
+}

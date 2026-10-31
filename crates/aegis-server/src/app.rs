@@ -410,6 +410,15 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/redirects/{id}",
             put(handlers::redirects::update_redirect).delete(handlers::redirects::delete_redirect),
         )
+        // --- リンク切れ検査 ---
+        .route(
+            "/api/v1/broken-links",
+            get(handlers::broken_links::api_get_broken_links),
+        )
+        .route(
+            "/api/v1/broken-links/scan",
+            post(handlers::broken_links::api_trigger_scan),
+        )
         // --- 通知（[notifications]） ---
         .route(
             "/api/v1/notifications",

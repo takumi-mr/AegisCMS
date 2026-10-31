@@ -1,5 +1,6 @@
 pub mod audit;
 pub mod auth;
+pub mod broken_links;
 pub mod comments;
 pub mod contact;
 pub mod content;
