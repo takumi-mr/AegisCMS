@@ -95,7 +95,11 @@
     "newsletterFailed": "Failed to load the newsletter",
     "deleteNewsletterSubscribersFailed": "Failed to delete the subscribers",
     "exportNewsletterFailed": "Failed to export the subscribers",
-    "sendNewsletterFailed": "Failed to send the newsletter"
+    "sendNewsletterFailed": "Failed to send the newsletter",
+    "noticesFailed": "Failed to load the notices",
+    "createNoticeFailed": "Failed to add the notice",
+    "updateNoticeFailed": "Failed to change the notice",
+    "deleteNoticeFailed": "Failed to delete the notice"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -1113,7 +1117,8 @@
       "system": "System",
       "tags": "Tags",
       "redirects": "Redirects",
-      "newsletter": "Newsletter"
+      "newsletter": "Newsletter",
+      "notices": "Notices"
     }
   },
   "plugins": {
@@ -1811,5 +1816,60 @@
     "historyEmpty": "Nothing has been sent yet.",
     "recipients": "{{count}} recipients",
     "disabled": "The newsletter is not enabled on the server ([newsletter].enabled)."
+  },
+  "notices": {
+    "title": "Notices",
+    "description": "A banner at the top of every page, for maintenance or a sale. It is shown during its period; up to {{count}} are shown at once, in the order below. Visitors can close the ones that allow it.",
+    "loadFailed": "Failed to load the notices",
+    "empty": "No notices yet.",
+    "tooManyActive": "More notices are active than the {{count}} that are shown at once. The first ones in the list are shown.",
+    "statusActive": "Showing",
+    "statusScheduled": "Scheduled",
+    "statusExpired": "Ended",
+    "statusDisabled": "Off",
+    "always": "Always",
+    "now": "now",
+    "noEnd": "no end",
+    "period": "{{from}} – {{to}}",
+    "notDismissible": "cannot be closed",
+    "editAria": "Edit the notice: {{message}}",
+    "deleteAria": "Delete the notice: {{message}}",
+    "confirmDelete": "Delete this notice? It disappears from the site.",
+    "created": "Added the notice",
+    "updated": "Changed the notice",
+    "deleted": "Deleted the notice",
+    "saveFailed": "Failed to save the notice",
+    "deleteFailed": "Failed to delete the notice",
+    "tooMany": "There are too many notices. Delete some first",
+    "messageRequired": "Enter the message",
+    "endBeforeStart": "The end must be after the start",
+    "new": "Add a notice",
+    "editTitle": "Edit the notice",
+    "field": {
+      "message": "Message",
+      "link_url": "Link to",
+      "link_label": "Link text",
+      "style": "Kind",
+      "start_at": "Show from",
+      "end_at": "Show until"
+    },
+    "style": {
+      "info": "Information (blue)",
+      "success": "Good news (green)",
+      "warning": "Warning (yellow)",
+      "alert": "Urgent (red)"
+    },
+    "messageAria": "Message of the notice",
+    "linkUrlAria": "Link address (a path or an URL)",
+    "linkLabelAria": "Link text",
+    "linkLabelPlaceholder": "Learn more",
+    "styleAria": "Kind of notice",
+    "startAria": "Show from",
+    "endAria": "Show until",
+    "dismissible": "Visitors can close it",
+    "enabled": "Show it (turn off to keep it as a draft)",
+    "hint": "Leave the dates empty to show it right away and without an end. Changing a notice shows it again to the visitors who closed it. Pages kept by a CDN may show the old state for a while.",
+    "create": "Add",
+    "save": "Save"
   }
 }

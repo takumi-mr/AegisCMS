@@ -551,6 +551,22 @@ pub const CONTACT_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
+/// お知らせバナー（Admin Studio の Settings › Notices）。各ページの `<body>` の直後に差し込む断片で、`base.html` は継承しない。
+/// テーマは `templates/notices.html` で丸ごと差し替えられる。値は `fields.notices`（今表示するお知らせ。`id`・`message`・
+/// `link_url`・`link_label`・`style`（`info` / `success` / `warning` / `alert`）・`dismissible`・`rev`）と
+/// `fields.preview`（テーマ開発サーバーのプレビュー）。スクリプト（`/_aegis/notices.js`）は、閉じられるお知らせの
+/// `data-aegis-notice`（お知らせの ID）・`data-aegis-notice-rev`（版）と、その中の `data-aegis-notice-close`
+/// （閉じるボタン。最初は `hidden`。スクリプトが使えるときだけ表示する）で動く
+pub const NOTICES_TEMPLATE: &str = r#"<div class="aegis-notices" role="region" aria-label="{{ t("notice.label") }}">
+{% for notice in fields.notices %}
+  <div class="aegis-notice aegis-notice-{{ notice.style }}" data-aegis-notice="{{ notice.id }}" data-aegis-notice-rev="{{ notice.rev }}"{% if notice.style == "warning" or notice.style == "alert" %} role="alert"{% else %} role="status"{% endif %}>
+    <p class="aegis-notice-message">{{ notice.message }}{% if notice.link_url %} <a class="aegis-notice-link" href="{{ notice.link_url }}">{% if notice.link_label %}{{ notice.link_label }}{% else %}{{ t("notice.more") }}{% endif %}</a>{% endif %}</p>
+    {% if notice.dismissible %}<button type="button" class="aegis-notice-close" data-aegis-notice-close hidden aria-label="{{ t("notice.close") }}">&times;</button>{% endif %}
+  </div>
+{% endfor %}
+</div>
+"#;
+
 /// Cookie の同意バナー（`[consent]`）。ページの `</body>` の前に差し込む断片で、`base.html` は継承しない。
 /// テーマは `templates/consent.html` で丸ごと差し替えられる。スクリプト（`/_aegis/consent.js`）は `data-aegis-consent-*`
 /// の属性で要素を見つけて動かす: `data-aegis-consent-root`（ダイアログ。最初は `hidden`）、

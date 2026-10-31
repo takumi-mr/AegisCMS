@@ -16,6 +16,13 @@ export const toDateTimeLocal = (iso: string): string => {
   )}:${pad(date.getMinutes())}`;
 };
 
+/** A `datetime-local` value (local time, no zone) as an RFC 3339 UTC timestamp; undefined when empty or invalid */
+export const fromDateTimeLocal = (local: string): string | undefined => {
+  if (!local) return undefined;
+  const date = new Date(local);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+};
+
 /** Date only, in the Admin Studio language */
 export const formatDate = (iso: string): string => {
   const date = new Date(iso);

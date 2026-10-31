@@ -85,6 +85,15 @@ pub enum AuditAction {
     /// Newsletter subscribers deleted via admin/API
     #[serde(rename = "newsletter.delete")]
     NewsletterDelete,
+    /// Site notice (banner) added via admin/API
+    #[serde(rename = "notice.create")]
+    NoticeCreate,
+    /// Site notice changed via admin/API
+    #[serde(rename = "notice.update")]
+    NoticeUpdate,
+    /// Site notice deleted via admin/API
+    #[serde(rename = "notice.delete")]
+    NoticeDelete,
     /// User account created via the user management API
     #[serde(rename = "user.create")]
     UserCreate,
@@ -196,7 +205,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 71] = [
+    pub const ALL: [AuditAction; 74] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -226,6 +235,9 @@ impl AuditAction {
         Self::RedirectDelete,
         Self::NewsletterSend,
         Self::NewsletterDelete,
+        Self::NoticeCreate,
+        Self::NoticeUpdate,
+        Self::NoticeDelete,
         Self::UserCreate,
         Self::UserUpdate,
         Self::UserDelete,
@@ -301,6 +313,9 @@ impl AuditAction {
             Self::RedirectDelete => "redirect.delete",
             Self::NewsletterSend => "newsletter.send",
             Self::NewsletterDelete => "newsletter.delete",
+            Self::NoticeCreate => "notice.create",
+            Self::NoticeUpdate => "notice.update",
+            Self::NoticeDelete => "notice.delete",
             Self::UserCreate => "user.create",
             Self::UserUpdate => "user.update",
             Self::UserDelete => "user.delete",

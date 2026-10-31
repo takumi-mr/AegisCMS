@@ -35,6 +35,10 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("pagination.newer_stories", "Newer stories", "新しい記事"),
     ("pagination.older_stories", "Older stories", "過去の記事"),
     ("pagination.page", "Page {page} / {total}", "{page} / {total} ページ"),
+    // --- お知らせバナー（notices.html） ---
+    ("notice.label", "Notices", "お知らせ"),
+    ("notice.more", "Learn more", "詳しく見る"),
+    ("notice.close", "Close this notice", "このお知らせを閉じる"),
     // --- Cookie の同意バナー（consent.html） ---
     ("consent.title", "Cookies", "Cookie の利用について"),
     (

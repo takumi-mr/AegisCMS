@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatDate, formatDateTime, toDateTimeLocal } from './format';
+import { formatDate, formatDateTime, fromDateTimeLocal, toDateTimeLocal } from './format';
 
 describe('format utilities', () => {
   describe('toDateTimeLocal', () => {
@@ -14,6 +14,22 @@ describe('format utilities', () => {
     it('returns empty string for invalid date', () => {
       expect(toDateTimeLocal('not-a-valid-date')).toBe('');
       expect(toDateTimeLocal('')).toBe('');
+    });
+  });
+
+  describe('fromDateTimeLocal', () => {
+    it('turns a local input value into a UTC timestamp', () => {
+      const d = new Date(2026, 9, 25, 9, 5, 0);
+      expect(fromDateTimeLocal('2026-10-25T09:05')).toBe(d.toISOString());
+    });
+
+    it('round-trips with toDateTimeLocal', () => {
+      expect(toDateTimeLocal(fromDateTimeLocal('2026-12-02T09:00')!)).toBe('2026-12-02T09:00');
+    });
+
+    it('returns undefined for an empty or invalid value', () => {
+      expect(fromDateTimeLocal('')).toBeUndefined();
+      expect(fromDateTimeLocal('tomorrow')).toBeUndefined();
     });
   });
 

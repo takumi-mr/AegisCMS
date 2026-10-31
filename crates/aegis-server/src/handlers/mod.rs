@@ -11,6 +11,7 @@ pub mod health;
 pub mod honeypot;
 pub mod invitation;
 pub mod newsletter;
+pub mod notices;
 pub mod notifications;
 pub mod oidc;
 pub mod openapi;
