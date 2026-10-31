@@ -10,7 +10,7 @@ import { Problems } from './components/Problems.tsx';
 import { useLatest } from './useLatest.ts';
 import { buildPreviewDoc, diagnosticPath, renderRequest, unsavedCss } from './previewDoc.ts';
 import type { ViewportId } from './viewports.ts';
-import type { CheckResult, Diagnostic, FileList, ThemeInfo } from './types.ts';
+import type { BlockInfo, CheckResult, Diagnostic, FileList, ThemeInfo } from './types.ts';
 
 /** Wait before rendering, so typing does not render on every key */
 const RENDER_DELAY_MS = 250;
@@ -33,6 +33,9 @@ export function App() {
   const [buffers, dispatch] = useReducer(bufferReducer, emptyBuffers);
   const [sample, setSample] = useState('');
   const [viewport, setViewport] = useState<ViewportId>('fit');
+  const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
+  const [blocks, setBlocks] = useState<BlockInfo[]>([]);
+  const [inspecting, setInspecting] = useState(false);
   const [render, setRender] = useState<RenderState>({
     html: null,
     snapshot: emptyBuffers,
@@ -254,7 +257,10 @@ export function App() {
     if (match) setSample(match.name);
   }, [active, infoRef]);
 
-  const request = useMemo(() => renderRequest(sample, buffers), [sample, buffers]);
+  const request = useMemo(
+    () => renderRequest(sample, buffers, selectedBlock),
+    [sample, buffers, selectedBlock]
+  );
   const requestRef = useLatest(request);
   const renderKey = JSON.stringify([request, unsavedCss(buffers), diskVersion]);
   useEffect(() => {
@@ -265,6 +271,7 @@ export function App() {
       setRender((r) => ({ ...r, pending: true }));
       try {
         const result = await api.render(requestRef.current, controller.signal);
+        if (result.blocks) setBlocks(result.blocks);
         setRender((r) => ({
           html: result.ok ? result.html : r.html,
           snapshot: result.ok ? snapshot : r.snapshot,
@@ -287,9 +294,26 @@ export function App() {
   }, [renderKey, sample, fail, buffersRef, requestRef]);
 
   const doc = useMemo(
-    () => (render.html === null ? null : buildPreviewDoc(render.html, render.snapshot)),
-    [render.html, render.snapshot]
+    () => (render.html === null ? null : buildPreviewDoc(render.html, render.snapshot, inspecting)),
+    [render.html, render.snapshot, inspecting]
   );
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'aegis-jump-to-source') {
+        const source = e.data.source as string;
+        const match = /^(.+):(\d+)$/.exec(source);
+        if (match) {
+          const [, path, lineStr] = match;
+          void openFile(path).then(() => {
+            setJump({ line: parseInt(lineStr, 10), nonce: Date.now() });
+          });
+        }
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [openFile]);
 
   // --- problems --------------------------------------------------------------------------------
 
@@ -479,10 +503,18 @@ export function App() {
           samples={info?.samples ?? []}
           sample={sample}
           viewport={viewport}
+          blocks={blocks}
+          selectedBlock={selectedBlock}
+          inspecting={inspecting}
           doc={doc}
           failed={render.error !== null}
           pending={render.pending}
-          onSample={setSample}
+          onSample={(s) => {
+            setSample(s);
+            setSelectedBlock(null);
+          }}
+          onBlock={setSelectedBlock}
+          onToggleInspect={() => setInspecting((v) => !v)}
           onViewport={setViewport}
         />
       </main>

@@ -40,6 +40,15 @@ describe('renderRequest', () => {
     });
     expect(renderRequest('a', state)).toEqual({ sample: 'a', templates: {}, samples: {} });
   });
+
+  it('includes block parameter when provided', () => {
+    expect(renderRequest('a', emptyBuffers, 'content')).toEqual({
+      sample: 'a',
+      block: 'content',
+      templates: {},
+      samples: {},
+    });
+  });
 });
 
 describe('buildPreviewDoc', () => {

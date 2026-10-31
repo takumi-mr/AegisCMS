@@ -6,5 +6,5 @@ pub mod messages;
 
 pub use builtins::*;
 pub use config::{FrontPage, ThemeConfig};
-pub use engine::{RenderDiagnostic, ThemeEngine};
+pub use engine::{BlockInfo, RenderDiagnostic, ThemeEngine};
 pub use manifest::*;

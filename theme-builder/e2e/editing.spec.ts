@@ -214,3 +214,30 @@ test('edits theme.json via manifest form and switches to raw JSON', async ({ pag
   await expect(page.locator('.manifest-editor')).toBeVisible();
   await expect(page.getByLabel(/テーマ名/)).toHaveValue('Updated E2E Theme');
 });
+
+test('previews a specific block and jumps to the line from preview click', async ({ page }) => {
+  await expect(preview(page).locator('h1')).toHaveText('E2E-HOME');
+  await expect(preview(page).locator('#home-link')).toBeVisible();
+
+  const blockSelect = page.getByLabel('ブロック選択');
+  await expect(blockSelect).toBeVisible();
+  await expect(blockSelect.locator('option')).toContainText([
+    '（ページ全体）',
+    'content（index.html:3）',
+  ]);
+
+  await blockSelect.selectOption('content');
+  await expect(preview(page).locator('h1')).toHaveText('E2E-HOME');
+  await expect(preview(page).locator('#home-link')).toHaveCount(0);
+
+  await blockSelect.selectOption('');
+  await expect(preview(page).locator('#home-link')).toBeVisible();
+
+  const jumpBtn = page.getByRole('button', { name: '要素クリックで該当行へジャンプ' });
+  await jumpBtn.click();
+  await expect(jumpBtn).toHaveAttribute('aria-pressed', 'true');
+
+  await preview(page).locator('h1').click();
+  await expect(page.locator('.tab.active')).toContainText('index.html');
+  await expect(page.locator('.cm-activeLine')).toContainText('<h1>E2E-HOME</h1>');
+});

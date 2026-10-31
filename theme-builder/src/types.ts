@@ -37,12 +37,19 @@ export interface ThemeInfo {
 }
 
 /** `POST /__dev/api/render` */
+export interface BlockInfo {
+  name: string;
+  template: string;
+  line: number;
+}
+
 export type RenderResult =
-  | { ok: true; html: string; sample_errors: string[] }
-  | { ok: false; error: Diagnostic; sample_errors: string[] };
+  | { ok: true; html: string; sample_errors: string[]; blocks?: BlockInfo[] }
+  | { ok: false; error: Diagnostic; sample_errors: string[]; blocks?: BlockInfo[] };
 
 export interface RenderRequest {
   sample: string;
+  block?: string | null;
   /** Unsaved templates, keyed by the name under templates/ (`article.html`) */
   templates: Record<string, string>;
   /** Unsaved sample files, keyed by the file name without `.json` */

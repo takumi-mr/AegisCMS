@@ -784,12 +784,123 @@ async fn api_rename_file(
 struct RenderRequest {
     /// 描画するサンプルの名前
     sample: String,
+    /// 特定のブロックのみを描画する場合のブロック名（省略時はページ全体）
+    #[serde(default)]
+    block: Option<String>,
     /// 保存していないテンプレート（`templates/` からの名前 → 中身。例: `article.html`）
     #[serde(default)]
     templates: HashMap<String, String>,
     /// 保存していないサンプル（名前 → `samples/<名前>.json` の中身）
     #[serde(default)]
     samples: HashMap<String, String>,
+}
+
+fn wrap_block_preview(block_html: &str, locale: &str) -> String {
+    format!(
+        r#"<!DOCTYPE html>
+<html lang="{locale}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/theme/assets/style.css">
+  <style>
+    body {{
+      margin: 0;
+      padding: 1.5rem;
+      background: var(--bg, #ffffff);
+      color: var(--text, #111827);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }}
+  </style>
+</head>
+<body>
+{block_html}
+</body>
+</html>"#
+    )
+}
+
+fn annotate_template_source(source: &str, template_name: &str) -> String {
+    let mut out = String::with_capacity(source.len() + 512);
+    for (line_idx, line) in source.lines().enumerate() {
+        let line_num = line_idx + 1;
+        let mut cursor = line;
+        while let Some(pos) = cursor.find('<') {
+            out.push_str(&cursor[..pos]);
+            let rest = &cursor[pos + 1..];
+            if rest.starts_with('/') || rest.starts_with('!') || rest.starts_with('?') {
+                out.push('<');
+                cursor = rest;
+                continue;
+            }
+            let tag_len = rest
+                .find(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_')
+                .unwrap_or(rest.len());
+            let tag_name = &rest[..tag_len];
+            let is_ui = matches!(
+                tag_name.to_ascii_lowercase().as_str(),
+                "body"
+                    | "header"
+                    | "footer"
+                    | "nav"
+                    | "main"
+                    | "section"
+                    | "article"
+                    | "aside"
+                    | "div"
+                    | "p"
+                    | "h1"
+                    | "h2"
+                    | "h3"
+                    | "h4"
+                    | "h5"
+                    | "h6"
+                    | "ul"
+                    | "ol"
+                    | "li"
+                    | "a"
+                    | "button"
+                    | "form"
+                    | "input"
+                    | "textarea"
+                    | "select"
+                    | "option"
+                    | "label"
+                    | "span"
+                    | "img"
+                    | "table"
+                    | "thead"
+                    | "tbody"
+                    | "tr"
+                    | "td"
+                    | "th"
+                    | "figure"
+                    | "figcaption"
+                    | "time"
+                    | "small"
+                    | "blockquote"
+                    | "details"
+                    | "summary"
+            );
+            if is_ui {
+                out.push('<');
+                out.push_str(tag_name);
+                out.push_str(&format!(
+                    r#" data-aegis-source="templates/{template_name}:{line_num}""#
+                ));
+                cursor = &rest[tag_len..];
+            } else {
+                out.push('<');
+                cursor = rest;
+            }
+        }
+        out.push_str(cursor);
+        out.push('\n');
+    }
+    if !source.ends_with('\n') && out.ends_with('\n') {
+        out.pop();
+    }
+    out
 }
 
 /// `POST /__dev/api/render` — 保存していない編集中の内容を反映して描画する。何も書き込まない
@@ -810,12 +921,64 @@ async fn api_render(State(state): State<DevState>, Json(req): Json<RenderRequest
     let engine = ThemeEngine::new(state.engine.themes_dir(), &state.engine.active_theme())
         .with_locale(&state.engine.locale())
         .with_template_reload(true);
-    for (name, content) in &req.templates {
-        engine.register_template(name, content);
+
+    let templates_dir = state.dir.join("templates");
+    if let Ok(entries) = std::fs::read_dir(&templates_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("html") {
+                if let Some(file_name) = path.file_name().and_then(|s| s.to_str()) {
+                    if !req.templates.contains_key(file_name) {
+                        if let Ok(content) = std::fs::read_to_string(&path) {
+                            let annotated = annotate_template_source(&content, file_name);
+                            engine.register_template(file_name, &annotated);
+                        }
+                    }
+                }
+            }
+        }
     }
-    match engine.render_diagnosed(&sample.context.template, &sample.context) {
-        Ok(html) => Json(json!({ "ok": true, "html": html, "sample_errors": sample_errors })),
-        Err(e) => Json(json!({ "ok": false, "error": e, "sample_errors": sample_errors })),
+
+    for (name, content) in &req.templates {
+        let annotated = annotate_template_source(content, name);
+        engine.register_template(name, &annotated);
+    }
+
+    let blocks = engine.template_blocks(&sample.context.template);
+
+    if let Some(ref block_name) = req.block {
+        match engine.render_block_diagnosed(&sample.context.template, block_name, &sample.context) {
+            Ok(block_html) => {
+                let wrapped = wrap_block_preview(&block_html, &state.engine.locale());
+                Json(json!({
+                    "ok": true,
+                    "html": wrapped,
+                    "sample_errors": sample_errors,
+                    "blocks": blocks,
+                }))
+            }
+            Err(e) => Json(json!({
+                "ok": false,
+                "error": e,
+                "sample_errors": sample_errors,
+                "blocks": blocks,
+            })),
+        }
+    } else {
+        match engine.render_diagnosed(&sample.context.template, &sample.context) {
+            Ok(html) => Json(json!({
+                "ok": true,
+                "html": html,
+                "sample_errors": sample_errors,
+                "blocks": blocks,
+            })),
+            Err(e) => Json(json!({
+                "ok": false,
+                "error": e,
+                "sample_errors": sample_errors,
+                "blocks": blocks,
+            })),
+        }
     }
 }
 
@@ -1346,5 +1509,51 @@ mod tests {
         // ディスクには何も書かれず、共有のエンジンの描画も変わらない
         let (_, html) = get_text(&app, "/preview/article").await;
         assert!(html.contains("<h1>サンプルのタイトル</h1>"), "{html}");
+    }
+
+    #[tokio::test]
+    async fn test_render_with_block_and_source_annotations() {
+        let tmp = theme_dir();
+        let (app, _) = app(&tmp);
+
+        let (status, text) = send(
+            &app,
+            "POST",
+            "/__dev/api/render",
+            &[DEV],
+            Some(json!({
+                "sample": "index",
+                "templates": {},
+                "samples": {},
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let body: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(body["ok"], true);
+        let html = body["html"].as_str().unwrap();
+        assert!(html.contains("data-aegis-source="));
+        let blocks = body["blocks"].as_array().unwrap();
+        assert!(blocks.iter().any(|b| b["name"] == "content"));
+
+        let (status_block, text_block) = send(
+            &app,
+            "POST",
+            "/__dev/api/render",
+            &[DEV],
+            Some(json!({
+                "sample": "index",
+                "block": "content",
+                "templates": {},
+                "samples": {},
+            })),
+        )
+        .await;
+        assert_eq!(status_block, StatusCode::OK);
+        let body_block: Value = serde_json::from_str(&text_block).unwrap();
+        assert_eq!(body_block["ok"], true);
+        let block_html = body_block["html"].as_str().unwrap();
+        assert!(block_html.contains("<!DOCTYPE html>"));
+        assert!(block_html.contains("サンプル記事 1"));
     }
 }

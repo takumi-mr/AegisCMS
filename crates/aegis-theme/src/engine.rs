@@ -8,7 +8,7 @@ use crate::builtins::*;
 use crate::manifest::{ThemeInfo, ThemeManifest};
 
 /// 描画の失敗の詳細（テーマ開発用）。どのテンプレートの何行目かを含む
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RenderDiagnostic {
     /// 原因（minijinja のエラーの種類・詳細と、その元のエラー）
     pub message: String,
@@ -16,6 +16,17 @@ pub struct RenderDiagnostic {
     pub template: Option<String>,
     /// 1 始まりの行番号
     pub line: Option<usize>,
+}
+
+/// テンプレート内で定義されているブロックの情報
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BlockInfo {
+    /// ブロック名（`{% block <name> %}`）
+    pub name: String,
+    /// 定義されているテンプレート（例: `index.html`, `base.html`）
+    pub template: String,
+    /// 1 始まりの行番号
+    pub line: usize,
 }
 
 impl RenderDiagnostic {
@@ -469,6 +480,109 @@ impl ThemeEngine {
             .map_err(|e| RenderDiagnostic::from_error(&e))
     }
 
+    /// 特定のブロックのみを描画し、失敗したときにテンプレート名と行番号を返す（テーマ開発用）
+    pub fn render_block_diagnosed(
+        &self,
+        template_name: &str,
+        block_name: &str,
+        ctx: &PageRenderContext,
+    ) -> std::result::Result<String, RenderDiagnostic> {
+        let env = self.environment();
+        let template = env
+            .get_template(template_name)
+            .map_err(|e| RenderDiagnostic::from_error(&e))?;
+        let value = minijinja::Value::from(minijinja::value::Serde(ctx));
+        let mut captured = template
+            .render_captured(value)
+            .map_err(|e| RenderDiagnostic::from_error(&e))?;
+        captured
+            .with_state_mut(|state| state.render_block(block_name))
+            .map_err(|e| RenderDiagnostic::from_error(&e))
+    }
+
+    /// テンプレートのソースコードを取得する（動的登録 → テーマディレクトリ → 組み込み）
+    pub fn template_source(&self, name: &str) -> Option<String> {
+        let inner = self.inner.read().unwrap();
+        if let Some(content) = inner.dynamic_templates.get(name) {
+            return Some(content.clone());
+        }
+        if let Some(ref dir) = inner.theme_templates_dir {
+            let file_path = dir.join(name);
+            if file_path.exists() {
+                if let Ok(content) = std::fs::read_to_string(&file_path) {
+                    return Some(content);
+                }
+            }
+        }
+        match name {
+            "base.html" => Some(BASE_TEMPLATE.to_string()),
+            "index.html" => Some(INDEX_TEMPLATE.to_string()),
+            "front.html" => Some(FRONT_TEMPLATE.to_string()),
+            "category.html" => Some(CATEGORY_TEMPLATE.to_string()),
+            "tag.html" => Some(TAG_TEMPLATE.to_string()),
+            "tags.html" => Some(TAGS_TEMPLATE.to_string()),
+            "search.html" => Some(SEARCH_TEMPLATE.to_string()),
+            "contact.html" => Some(CONTACT_TEMPLATE.to_string()),
+            "article.html" => Some(ARTICLE_TEMPLATE.to_string()),
+            "page.html" => Some(PAGE_TEMPLATE.to_string()),
+            "404.html" => Some(NOT_FOUND_TEMPLATE.to_string()),
+            "blank.html" => Some(BLANK_TEMPLATE.to_string()),
+            "products.html" => Some(PRODUCTS_TEMPLATE.to_string()),
+            "product.html" => Some(PRODUCT_TEMPLATE.to_string()),
+            "cart.html" => Some(CART_TEMPLATE.to_string()),
+            "order.html" => Some(ORDER_TEMPLATE.to_string()),
+            "forum_index.html" => Some(FORUM_INDEX_TEMPLATE.to_string()),
+            "forum_category.html" => Some(FORUM_CATEGORY_TEMPLATE.to_string()),
+            "forum_thread.html" => Some(FORUM_THREAD_TEMPLATE.to_string()),
+            _ => None,
+        }
+    }
+
+    /// テンプレートおよびその継承元（`extends`）で定義されているブロックの一覧を返す
+    pub fn template_blocks(&self, template_name: &str) -> Vec<BlockInfo> {
+        let mut visited = std::collections::HashSet::new();
+        let mut blocks = Vec::new();
+        self.collect_blocks(template_name, &mut visited, &mut blocks);
+        blocks
+    }
+
+    fn collect_blocks(
+        &self,
+        template_name: &str,
+        visited: &mut std::collections::HashSet<String>,
+        out: &mut Vec<BlockInfo>,
+    ) {
+        if !visited.insert(template_name.to_string()) {
+            return;
+        }
+        let Some(source) = self.template_source(template_name) else {
+            return;
+        };
+
+        let mut parent = None;
+        for (line_idx, line) in source.lines().enumerate() {
+            let line_num = line_idx + 1;
+            if parent.is_none() {
+                if let Some(p) = extract_extends_target(line) {
+                    parent = Some(p);
+                }
+            }
+            for block_name in extract_block_names(line) {
+                if !out.iter().any(|b| b.name == block_name) {
+                    out.push(BlockInfo {
+                        name: block_name,
+                        template: template_name.to_string(),
+                        line: line_num,
+                    });
+                }
+            }
+        }
+
+        if let Some(parent_name) = parent {
+            self.collect_blocks(&parent_name, visited, out);
+        }
+    }
+
     /// 描画に使う環境（キャッシュがあれば再利用し、無ければ作ってキャッシュする）
     fn environment(&self) -> Arc<Environment<'static>> {
         if let Some(env) = &self.inner.read().unwrap().environment {
@@ -639,6 +753,53 @@ impl ThemeEngine {
 
         env
     }
+}
+
+fn extract_extends_target(line: &str) -> Option<String> {
+    let mut cursor = line;
+    while let Some(start) = cursor.find("{%") {
+        let after = &cursor[start + 2..];
+        let Some(end) = after.find("%}") else { break };
+        let tag = after[..end].trim();
+        let tag = tag.strip_prefix('-').unwrap_or(tag).trim();
+        let tag = tag.strip_suffix('-').unwrap_or(tag).trim();
+        if let Some(rest) = tag.strip_prefix("extends") {
+            let target = rest.trim();
+            let quote = target.chars().next()?;
+            if quote == '"' || quote == '\'' {
+                let inner = &target[1..];
+                if let Some(close) = inner.find(quote) {
+                    return Some(inner[..close].to_string());
+                }
+            }
+        }
+        cursor = &after[end + 2..];
+    }
+    None
+}
+
+fn extract_block_names(line: &str) -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut cursor = line;
+    while let Some(start) = cursor.find("{%") {
+        let after = &cursor[start + 2..];
+        let Some(end) = after.find("%}") else { break };
+        let tag = after[..end].trim();
+        let tag = tag.strip_prefix('-').unwrap_or(tag).trim();
+        let tag = tag.strip_suffix('-').unwrap_or(tag).trim();
+        if let Some(rest) = tag.strip_prefix("block") {
+            let name = rest.split_whitespace().next().unwrap_or("").trim();
+            if !name.is_empty()
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            {
+                blocks.push(name.to_string());
+            }
+        }
+        cursor = &after[end + 2..];
+    }
+    blocks
 }
 
 #[cfg(test)]
@@ -1112,5 +1273,40 @@ b
 
         engine.register_template("ok.html", "fine");
         assert_eq!(engine.render_diagnosed("ok.html", &ctx).unwrap(), "fine");
+    }
+
+    #[test]
+    fn test_template_blocks_and_render_block_diagnosed() {
+        let tmp = std::env::temp_dir();
+        let engine = ThemeEngine::new(tmp.as_path(), "mytheme").with_template_reload(true);
+        engine.register_template(
+            "base.html",
+            "<!DOCTYPE html><html><body><header>{% block header %}Default Header{% endblock %}</header><main>{% block content %}{% endblock %}</main></body></html>",
+        );
+        engine.register_template(
+            "child.html",
+            "{% extends 'base.html' %}{% block content %}<h1>Child Content: {{ title }}</h1>{% endblock %}",
+        );
+
+        let blocks = engine.template_blocks("child.html");
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].name, "content");
+        assert_eq!(blocks[0].template, "child.html");
+        assert_eq!(blocks[0].line, 1);
+        assert_eq!(blocks[1].name, "header");
+        assert_eq!(blocks[1].template, "base.html");
+        assert_eq!(blocks[1].line, 1);
+
+        let mut ctx = PageRenderContext::default();
+        ctx.title = "Hello World".to_string();
+        let rendered_header = engine
+            .render_block_diagnosed("child.html", "header", &ctx)
+            .unwrap();
+        assert_eq!(rendered_header, "Default Header");
+
+        let rendered_content = engine
+            .render_block_diagnosed("child.html", "content", &ctx)
+            .unwrap();
+        assert_eq!(rendered_content, "<h1>Child Content: Hello World</h1>");
     }
 }
