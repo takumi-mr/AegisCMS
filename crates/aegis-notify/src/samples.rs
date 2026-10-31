@@ -27,6 +27,8 @@ pub const SAMPLE_KINDS: &[&str] = &[
     "forum.reported",
     "contact.received",
     "contact.auto_reply",
+    "newsletter.confirm",
+    "newsletter.issue",
     "audit.session.create",
 ];
 
@@ -118,6 +120,19 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
         "account.password_reset" => json!({
             "username": "hanako", "display_name": customer,
             "reset_url": url("/admin/#reset=sample"), "expires_hours": 1,
+        }),
+        "newsletter.confirm" => json!({
+            "confirm_url": url("/newsletter/confirm?token=sample"), "expires_hours": 48,
+        }),
+        "newsletter.issue" => json!({
+            "title": if ja { "秋のブレンドが入荷しました" } else { "The autumn blend is here" },
+            "summary": if ja {
+                "今年のコーヒー豆が届きました。深いコクとやわらかな酸味が特長です。"
+            } else {
+                "This year's beans have arrived, with a deep body and a soft acidity."
+            },
+            "url": url("/articles/autumn-blend"),
+            "unsubscribe_url": url("/newsletter/unsubscribe?token=sample"),
         }),
         "account.approved" => json!({
             "username": "hanako", "display_name": customer, "login_url": admin,

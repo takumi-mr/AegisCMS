@@ -1063,6 +1063,22 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 app_state
             };
+            // 6.9.2 ニュースレター（[newsletter]）。確認メールと配信は通知で送るので、通知の後に設定する
+            let app_state = if config.newsletter.enabled {
+                let newsletter = aegis_newsletter::NewsletterService::new(
+                    config.newsletter.clone(),
+                    app_state.newsletter_deps(),
+                )?;
+                if app_state.notifier.is_none() {
+                    tracing::warn!(
+                        "The newsletter is enabled without [notifications]: confirmation emails and issues cannot be sent"
+                    );
+                }
+                tracing::info!("Newsletter enabled");
+                app_state.with_newsletter(newsletter)
+            } else {
+                app_state
+            };
             // 6.10 サイト内検索（[search]）。索引は起動後に裏で作り直す
             #[cfg(feature = "search")]
             let app_state = if config.search.enabled {
@@ -1119,6 +1135,9 @@ async fn main() -> anyhow::Result<()> {
             }
             if let Some(contact) = &app_state.contact {
                 contact.spawn_retention_task();
+            }
+            if let Some(newsletter) = &app_state.newsletter {
+                newsletter.spawn_cleanup_task();
             }
             // 予約公開（status: "scheduled"）
             scheduler::spawn_publish_task(app_state.clone());

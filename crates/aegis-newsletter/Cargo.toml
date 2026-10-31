@@ -1,0 +1,30 @@
+[package]
+name = "aegis-newsletter"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Newsletter for AegisCMS: double opt-in subscription, one-click unsubscribe and sending published content to subscribers"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-captcha = { path = "../aegis-captcha" }
+aegis-db = { path = "../aegis-db" }
+aegis-audit = { path = "../aegis-audit" }
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["time", "rt"] }
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+async-trait.workspace = true
+aegis-cache = { path = "../aegis-cache" }
+axum.workspace = true
+tokio = { workspace = true, features = ["full"] }
+toml.workspace = true

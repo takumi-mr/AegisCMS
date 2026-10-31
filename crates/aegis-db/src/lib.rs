@@ -7,6 +7,7 @@ pub mod contact;
 pub mod customers;
 pub mod forum;
 pub mod mysql;
+pub mod newsletter;
 pub mod notifications;
 pub mod orders;
 pub mod postgres;
@@ -39,6 +40,10 @@ pub use forum::{
     FORUM_THREAD_TABLE,
 };
 pub use mysql::MySqlAdapter;
+pub use newsletter::{
+    NewsletterIssueRecord, NewsletterListQuery, NewsletterPage, NewsletterStorage,
+    NewsletterSubscriberRecord, NEWSLETTER_ISSUE_TABLE, NEWSLETTER_SUBSCRIBER_TABLE,
+};
 pub use notifications::{
     NotificationListQuery, NotificationPage, NotificationQueueStorage, NotificationRelease,
     QueuedNotification, NOTIFICATION_QUEUE_TABLE, QUEUE_FAILED, QUEUE_PENDING,
@@ -224,6 +229,7 @@ pub trait DatabaseAdapter:
     + ReviewStorage
     + AnalyticsStorage
     + ContactStorage
+    + NewsletterStorage
     + Send
     + Sync
 {

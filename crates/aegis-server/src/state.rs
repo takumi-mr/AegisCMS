@@ -70,6 +70,8 @@ pub struct AppState {
     pub forum: Option<Arc<aegis_forum::ForumService>>,
     /// 問い合わせフォーム（`[contact]`）。無効なら `None`
     pub contact: Option<Arc<aegis_contact::ContactService>>,
+    /// ニュースレター（`[newsletter]`）。無効なら `None`
+    pub newsletter: Option<Arc<aegis_newsletter::NewsletterService>>,
     /// 通知（`[notifications]`）。無効なら `None`
     pub notifier: Option<Arc<dyn Notifier>>,
     /// 通知の管理（Admin Studio のテンプレート編集・テスト送信・送信待ち）。`notifier` と同じもの
@@ -181,6 +183,7 @@ impl AppState {
             tags: None,
             forum: None,
             contact: None,
+            newsletter: None,
             notifier: None,
             notifications: None,
             registration: None,
@@ -316,6 +319,29 @@ impl AppState {
     pub fn with_contact(mut self, contact: aegis_contact::ContactService) -> Self {
         self.contact = Some(Arc::new(contact));
         self
+    }
+
+    /// ニュースレター（`[newsletter]`）を有効にする
+    pub fn with_newsletter(mut self, newsletter: aegis_newsletter::NewsletterService) -> Self {
+        self.newsletter = Some(Arc::new(newsletter));
+        self
+    }
+
+    /// ニュースレターが使うサーバーの部品（`NewsletterService::new` に渡す）。通知を設定した後に呼ぶ
+    pub fn newsletter_deps(&self) -> aegis_newsletter::NewsletterDeps {
+        aegis_newsletter::NewsletterDeps {
+            db: self.db.clone(),
+            cache: self.cache.clone(),
+            audit: self.audit.clone(),
+            notifier: self.notifier.clone(),
+            site_url: self
+                .config
+                .commerce
+                .public_url
+                .trim()
+                .trim_end_matches('/')
+                .to_string(),
+        }
     }
 
     /// 問い合わせフォームが使うサーバーの部品（`ContactService::new` に渡す）。通知と Admin Studio の URL を

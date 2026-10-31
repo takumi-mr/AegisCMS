@@ -1,0 +1,13 @@
+{{ title }}
+{% if summary %}
+
+{{ summary }}
+{% endif %}
+{% if url %}
+
+Read more: {{ url }}
+{% endif %}
+
+You are receiving this because you subscribed to the {{ site_name }} newsletter.
+To unsubscribe, open: {{ unsubscribe_url }}
+{% include "_footer.txt" %}

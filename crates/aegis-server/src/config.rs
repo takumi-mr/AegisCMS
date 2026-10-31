@@ -56,6 +56,8 @@ pub struct AegisConfig {
     pub forum: ForumConfig,
     #[serde(default)]
     pub contact: aegis_contact::ContactConfig,
+    #[serde(default)]
+    pub newsletter: aegis_newsletter::NewsletterConfig,
     #[cfg(feature = "search")]
     #[serde(default)]
     pub search: crate::search::SearchConfig,
@@ -130,6 +132,7 @@ const RESERVED_ADMIN_PATHS: &[&str] = &[
     "shop",
     "forum",
     "contact",
+    "newsletter",
     "comments",
     "tags",
     "health",

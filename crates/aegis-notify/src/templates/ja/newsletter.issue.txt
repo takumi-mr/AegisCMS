@@ -1,0 +1,13 @@
+{{ title }}
+{% if summary %}
+
+{{ summary }}
+{% endif %}
+{% if url %}
+
+続きを読む: {{ url }}
+{% endif %}
+
+このメールは、{{ site_name }} のニュースレターを購読している方にお送りしています。
+配信を停止するには、次のページを開いてください: {{ unsubscribe_url }}
+{% include "_footer.txt" %}

@@ -95,6 +95,43 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             post(handlers::reply_comment),
         )
         .route("/comments/unsubscribe", get(handlers::unsubscribe_page))
+        // --- ニュースレター（[newsletter]） ---
+        .route(
+            "/newsletter",
+            get(handlers::newsletter::render_newsletter_page),
+        )
+        .route(
+            "/newsletter/subscribe",
+            post(handlers::newsletter::submit_subscribe_form),
+        )
+        .route(
+            "/newsletter/confirm",
+            get(handlers::newsletter::show_confirm).post(handlers::newsletter::do_confirm),
+        )
+        .route(
+            "/newsletter/unsubscribe",
+            get(handlers::newsletter::show_unsubscribe).post(handlers::newsletter::do_unsubscribe),
+        )
+        .route(
+            "/api/v1/newsletter/subscribe",
+            post(handlers::newsletter::subscribe_api),
+        )
+        .route(
+            "/api/v1/newsletter/subscribers",
+            get(handlers::newsletter::list_subscribers),
+        )
+        .route(
+            "/api/v1/newsletter/subscribers/delete",
+            post(handlers::newsletter::delete_subscribers),
+        )
+        .route(
+            "/api/v1/newsletter/subscribers/export",
+            get(handlers::newsletter::export_subscribers),
+        )
+        .route(
+            "/api/v1/newsletter/issues",
+            get(handlers::newsletter::list_issues).post(handlers::newsletter::send_issue),
+        )
         // --- 問い合わせフォーム（[contact]） ---
         .route("/contact", get(handlers::contact::render_default_contact))
         .route(
@@ -736,11 +773,18 @@ async fn security_headers_middleware(
     let headers_config = state.headers();
     // 有効なプラグインのカスタムブロックが埋め込む iframe の配信元を CSP の frame-src に足す
     let frame_hosts = state.supervisor.read().await.frame_domains();
-    let captcha_hosts = state
+    let mut captcha_hosts = state
         .contact
         .as_ref()
         .map(|c| c.captcha_csp_hosts())
         .unwrap_or_default();
+    if let Some(newsletter) = &state.newsletter {
+        for host in newsletter.captcha_csp_hosts() {
+            if !captcha_hosts.contains(&host) {
+                captcha_hosts.push(host);
+            }
+        }
+    }
     headers_config.apply_to_headers_with_sources(
         response.headers_mut(),
         &frame_hosts,

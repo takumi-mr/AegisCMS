@@ -26,6 +26,10 @@ import type {
   ForumThread,
   HeaderSettings,
   InvitationInfo,
+  NewsletterCounts,
+  NewsletterIssue,
+  NewsletterStatus,
+  NewsletterSubscriber,
   NotificationPreview,
   NotificationQueuePage,
   NotificationQueueStatus,
@@ -618,6 +622,76 @@ export const aegisApi = {
       `/tags/${encodeURIComponent(id)}`,
       { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(payload) },
       i18n.t('api.updateTagFailed')
+    );
+  },
+
+  /** One page of newsletter subscribers (newest first) and the number of people per status (admin) */
+  async listNewsletterSubscribers(
+    params: { status?: NewsletterStatus | ''; q?: string; limit?: number; offset?: number } = {}
+  ): Promise<{ subscribers: NewsletterSubscriber[]; total: number; counts: NewsletterCounts }> {
+    const data = await request<{
+      subscribers?: NewsletterSubscriber[];
+      total?: number;
+      counts?: NewsletterCounts;
+    }>(`/newsletter/subscribers?${toQuery(params)}`, {}, i18n.t('api.newsletterFailed'));
+    return {
+      subscribers: data.subscribers ?? [],
+      total: data.total ?? 0,
+      counts: data.counts ?? { pending: 0, active: 0, unsubscribed: 0 },
+    };
+  },
+
+  /** Deletes subscribers with their records; returns how many were deleted */
+  async deleteNewsletterSubscribers(ids: string[]): Promise<number> {
+    const data = await request<{ count: number }>(
+      '/newsletter/subscribers/delete',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ ids }) },
+      i18n.t('api.deleteNewsletterSubscribersFailed')
+    );
+    return data.count;
+  },
+
+  /** The addresses that get the newsletter, as a CSV file's text */
+  async exportNewsletterSubscribers(): Promise<string> {
+    const token = getSessionToken();
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/newsletter/subscribers/export`, { headers });
+    if (!res.ok) {
+      if (res.status === 401 && token) unauthorizedHandler?.();
+      const err = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, err.error || i18n.t('api.exportNewsletterFailed'));
+    }
+    return res.text();
+  },
+
+  /** One page of sent issues, newest first */
+  async listNewsletterIssues(
+    params: { limit?: number; offset?: number } = {}
+  ): Promise<{ issues: NewsletterIssue[]; total: number }> {
+    const data = await request<{ issues?: NewsletterIssue[]; total?: number }>(
+      `/newsletter/issues?${toQuery(params)}`,
+      {},
+      i18n.t('api.newsletterFailed')
+    );
+    return { issues: data.issues ?? [], total: data.total ?? 0 };
+  },
+
+  /**
+   * Sends published content to every confirmed subscriber, or only to `test_to`. Content that was
+   * already sent is refused (`ApiError.code` is `already_sent`) unless `force` is set
+   */
+  async sendNewsletterIssue(payload: {
+    content_type: string;
+    slug_or_id: string;
+    summary?: string;
+    test_to?: string;
+    force?: boolean;
+  }): Promise<{ status?: string; recipients?: number }> {
+    return request(
+      '/newsletter/issues',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      i18n.t('api.sendNewsletterFailed')
     );
   },
 

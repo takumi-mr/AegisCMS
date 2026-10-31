@@ -246,7 +246,7 @@ fn has_field(schema: &SchemaDefinition, name: &str, types: &[FieldType]) -> bool
 }
 
 /// `excerpt` フィールドの値。無ければ本文の最初の段落の先頭
-fn summary_excerpt(record: &ContentRecord) -> String {
+pub(crate) fn summary_excerpt(record: &ContentRecord) -> String {
     if let Some(excerpt) = record
         .custom_fields
         .get("excerpt")
