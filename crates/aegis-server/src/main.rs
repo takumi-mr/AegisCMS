@@ -16,9 +16,11 @@ mod backup;
 mod cdn;
 mod cluster;
 mod config;
+mod consent;
 mod deploy;
 mod handlers;
 mod headers;
+mod inject;
 mod notify_plugins;
 mod plugin_host;
 mod plugin_registry;
@@ -618,6 +620,9 @@ async fn main() -> anyhow::Result<()> {
             config.commerce.validate()?;
             config.comments.validate()?;
             config.tags.validate()?;
+            if config.consent.enabled {
+                config.consent.validate()?;
+            }
             config.forum.validate()?;
             config.notifications.validate()?;
             config.cdn.validate()?;

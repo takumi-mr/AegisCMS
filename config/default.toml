@@ -284,6 +284,28 @@ locale = "en"
 # type = "email"
 # required = true
 
+[consent]
+# Cookie consent banner for the ads, analytics and embeds you add (docs/consent.md). Scripts that need
+# consent are written as <script type="text/plain" data-aegis-consent="marketing" ...> and wait for it.
+# The banner's HTML and wording come from the theme's consent.html (built in when the theme has none)
+enabled = false
+# Shape: "banner" (bar along an edge), "box" (card in a corner) or "modal" (centered, dims the page)
+layout = "banner"
+# Banner: "bottom" or "top". Box: "bottom-right", "bottom-left", "top-right" or "top-left". Empty = the shape's default
+position = ""
+# Dim the page behind and block it (default: only for "modal")
+# backdrop = true
+# Milliseconds to wait before asking
+delay_ms = 0
+# Days to remember the choice
+cookie_days = 180
+# Link to your privacy policy (a path or an http(s) URL)
+policy_url = ""
+# Without [[consent.categories]]: "analytics" and "marketing". Add one to ask about other things, e.g.
+# [[consent.categories]]
+# id = "video"
+# label = "Embedded videos"
+
 [newsletter]
 # Newsletter: sign-up page /newsletter with email confirmation (double opt-in), unsubscribe links and
 # sending published articles to the subscribers (docs/newsletter.md). Needs [notifications] (the mails)

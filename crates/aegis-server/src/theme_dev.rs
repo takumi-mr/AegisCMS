@@ -306,6 +306,22 @@ fn default_sample(template: &str) -> Value {
         "published_at": "2026-10-20T09:00:00Z",
         "updated_at": "2026-10-25T18:30:00Z",
     });
+    if stem == "consent" {
+        // 同意バナー: 最初から表示する（`preview`）。設定の既定と、既定の名前の区分・名前を決めた区分
+        context["fields"] = json!({
+            "consent": {
+                "layout": "banner", "position": "bottom", "backdrop": false, "policy_url": "/privacy",
+                "reopen_button": true, "delay_ms": 0, "cookie_days": 180,
+            },
+            "message": "",
+            "categories": [
+                { "id": "analytics", "label": "", "description": "" },
+                { "id": "marketing", "label": "", "description": "" },
+                { "id": "video", "label": "埋め込みの動画", "description": "YouTube などの動画を表示します。" },
+            ],
+            "preview": true,
+        });
+    }
     if stem == "index" {
         context["items"] = Value::Array(items);
         context["pagination"] = json!({
@@ -419,6 +435,19 @@ fn escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+/// 断片のテンプレート（`</body>` の前に差し込む同意バナー）は、プレビューのために文書で包み、組み込みの CSS を付ける
+/// （テーマが自分の CSS で作るなら、`<style>` を足しても上書きできる）。ほかのテンプレートはそのまま
+fn as_document(template: &str, html: String) -> String {
+    if template != "consent.html" {
+        return html;
+    }
+    format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><style>{css}</style></head><body style=\"min-height:100vh;margin:0;font-family:system-ui\"><p style=\"opacity:.55;margin:1rem\">(the page behind the banner)</p>{html}</body></html>",
+        css = crate::consent::style(),
+        html = html
+    )
+}
+
 fn with_reload(mut html: String) -> String {
     match html.rfind("</body>") {
         Some(at) => html.insert_str(at, RELOAD_SCRIPT),
@@ -475,7 +504,7 @@ async fn preview_page(State(state): State<DevState>, UrlPath(name): UrlPath<Stri
         .engine
         .render_diagnosed(&sample.context.template, &sample.context)
     {
-        Ok(html) => Html(with_reload(html)).into_response(),
+        Ok(html) => Html(with_reload(as_document(&sample.context.template, html))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             error_page(
@@ -975,7 +1004,7 @@ async fn api_render(State(state): State<DevState>, Json(req): Json<RenderRequest
         match engine.render_diagnosed(&sample.context.template, &sample.context) {
             Ok(html) => Json(json!({
                 "ok": true,
-                "html": html,
+                "html": as_document(&sample.context.template, html),
                 "sample_errors": sample_errors,
                 "blocks": blocks,
             })),
@@ -1206,6 +1235,31 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert!(html.contains("<html lang=\"ja\">"), "{html}");
         assert!(html.contains("Sample Site:[サンプル記事 1]"), "{html}");
+    }
+
+    /// The cookie banner is a fragment (it goes before `</body>` on the site): the preview shows it
+    /// right away, on a page of its own with the built-in styles
+    #[tokio::test]
+    async fn test_the_consent_banner_template_is_previewed_as_a_visible_document() {
+        let tmp = theme_dir();
+        std::fs::write(
+            tmp.path().join("mytheme/templates/consent.html"),
+            r#"<aside data-aegis-consent-root{% if not fields.preview %} hidden{% endif %} class="mine-{{ fields.consent.layout }}">{% for c in fields.categories %}[{{ c.id }}]{% endfor %}</aside>"#,
+        )
+        .unwrap();
+        let (app, _tx) = app(&tmp);
+        let (status, html) = get_text(&app, "/preview/consent").await;
+        assert_eq!(status, StatusCode::OK, "{html}");
+        assert!(html.starts_with("<!doctype html>"), "{html}");
+        assert!(
+            html.contains(".aegis-consent"),
+            "the built-in styles are included: {html}"
+        );
+        assert!(
+            html.contains(r#"<aside data-aegis-consent-root class="mine-banner">[analytics][marketing][video]</aside>"#),
+            "{html}"
+        );
+        assert!(html.contains("/__dev/version"), "{html}");
     }
 
     #[tokio::test]

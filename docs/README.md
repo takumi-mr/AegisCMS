@@ -44,6 +44,7 @@ AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラ�
 | [サイト内検索 (`search.md`)](search.md) | tantivy を用いた全文検索、インデックス構築・自動更新、検索 API / 画面表示 | 運用者・開発者 |
 | [アクセス解析 (`analytics.md`)](analytics.md) | Cookie を使用しないプライバシー配慮型軽量アクセス解析、統計収集と Admin Studio 表示 | 運用者 |
 | [問い合わせフォーム (`contact.md`)](contact.md) | 設定ファイルによるフォーム動的生成、ボット対策、通知連携、Admin Studio 受信箱 | 運用者・制作者 |
+| [Cookie の同意バナー (`consent.md`)](consent.md) | 同意が要る広告・解析・埋め込みを、同意があるまで実行しないバナー、`data-aegis-consent` の書き方、JavaScript の API | 運用者・制作者 |
 | [ニュースレター (`newsletter.md`)](newsletter.md) | メールアドレスの申し込み（ダブルオプトイン）、配信停止リンク、公開中の記事の一斉配信、Admin Studio での管理 | 運用者・制作者 |
 | [リダイレクト (`redirects.md`)](redirects.md) | 旧 URL から新 URL への 301 / 302 転送、slug 変更時の自動の規則、API、Admin Studio での管理 | 運用者・制作者 |
 | [タグ (`tags.md`)](tags.md) | どのコンテンツにも付けられる管理されたタグ、API、Admin Studio での管理と付与、バックアップ | 運用者・制作者・開発者 |
