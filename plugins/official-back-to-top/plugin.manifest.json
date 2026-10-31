@@ -20,5 +20,226 @@
     "max_memory_mb": 16,
     "max_fuel_units": 20000000,
     "execution_timeout_ms": 250
-  }
+  },
+  "settings": [
+    {
+      "key": "content_types",
+      "type": "string",
+      "label": {
+        "en": "Content types",
+        "ja": "表示する種類"
+      },
+      "description": {
+        "en": "Comma-separated content types that get the button.",
+        "ja": "ボタンを出すコンテンツの種類（カンマ区切り）。"
+      },
+      "default": "article,page"
+    },
+    {
+      "key": "style",
+      "type": "select",
+      "label": {
+        "en": "Style",
+        "ja": "表示方法"
+      },
+      "default": "inline",
+      "description": {
+        "en": "Inline puts a link at the end of the content (no JavaScript). Fixed floats on screen after scrolling.",
+        "ja": "「本文の末尾」は JavaScript なしで動く。「画面に固定」はスクロール後に現れる。"
+      },
+      "options": [
+        {
+          "value": "inline",
+          "label": {
+            "en": "End of the content",
+            "ja": "本文の末尾"
+          }
+        },
+        {
+          "value": "fixed",
+          "label": {
+            "en": "Floating on screen",
+            "ja": "画面に固定"
+          }
+        }
+      ]
+    },
+    {
+      "key": "position",
+      "type": "select",
+      "label": {
+        "en": "Position",
+        "ja": "位置"
+      },
+      "default": "right",
+      "options": [
+        {
+          "value": "right",
+          "label": {
+            "en": "Right",
+            "ja": "右"
+          }
+        },
+        {
+          "value": "left",
+          "label": {
+            "en": "Left",
+            "ja": "左"
+          }
+        },
+        {
+          "value": "center",
+          "label": {
+            "en": "Center",
+            "ja": "中央"
+          }
+        }
+      ]
+    },
+    {
+      "key": "shape",
+      "type": "select",
+      "label": {
+        "en": "Shape",
+        "ja": "形"
+      },
+      "default": "circle",
+      "options": [
+        {
+          "value": "circle",
+          "label": {
+            "en": "Circle (arrow only)",
+            "ja": "丸（矢印だけ）"
+          }
+        },
+        {
+          "value": "square",
+          "label": {
+            "en": "Rounded square (arrow only)",
+            "ja": "角丸（矢印だけ）"
+          }
+        },
+        {
+          "value": "pill",
+          "label": {
+            "en": "Pill (arrow and text)",
+            "ja": "矢印と文字"
+          }
+        }
+      ]
+    },
+    {
+      "key": "label",
+      "type": "string",
+      "label": {
+        "en": "Label",
+        "ja": "文字"
+      },
+      "description": {
+        "en": "Shown in the pill shape and read by screen readers. Empty uses the built-in text.",
+        "ja": "「矢印と文字」の形と読み上げに使う。空欄なら組み込みの文言。"
+      }
+    },
+    {
+      "key": "locale",
+      "type": "select",
+      "label": {
+        "en": "Built-in text language",
+        "ja": "組み込みの文言の言語"
+      },
+      "default": "en",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "ja": "English"
+          }
+        },
+        {
+          "value": "ja",
+          "label": {
+            "en": "日本語",
+            "ja": "日本語"
+          }
+        }
+      ]
+    },
+    {
+      "key": "bg_color",
+      "type": "color",
+      "label": {
+        "en": "Background color",
+        "ja": "背景色"
+      },
+      "description": {
+        "en": "Empty uses the theme's --accent.",
+        "ja": "空欄ならテーマの --accent。"
+      },
+      "placeholder": "#6366f1"
+    },
+    {
+      "key": "fg_color",
+      "type": "color",
+      "label": {
+        "en": "Text color",
+        "ja": "矢印と文字の色"
+      },
+      "description": {
+        "en": "Empty uses the theme's --accent-contrast (white if missing).",
+        "ja": "空欄ならテーマの --accent-contrast（無ければ白）。"
+      },
+      "placeholder": "#ffffff"
+    },
+    {
+      "key": "size_px",
+      "type": "number",
+      "label": {
+        "en": "Size (px)",
+        "ja": "大きさ (px)"
+      },
+      "min": 32,
+      "max": 72,
+      "default": 44
+    },
+    {
+      "key": "offset_px",
+      "type": "number",
+      "label": {
+        "en": "Distance from the edge (px)",
+        "ja": "画面の端からの距離 (px)"
+      },
+      "description": {
+        "en": "Floating style only.",
+        "ja": "「画面に固定」のときだけ。"
+      },
+      "min": 8,
+      "max": 96,
+      "default": 24
+    },
+    {
+      "key": "show_after_px",
+      "type": "number",
+      "label": {
+        "en": "Show after scrolling (px)",
+        "ja": "現れるスクロール量 (px)"
+      },
+      "description": {
+        "en": "Floating style only.",
+        "ja": "「画面に固定」のときだけ。"
+      },
+      "min": 0,
+      "max": 5000,
+      "default": 400
+    },
+    {
+      "key": "smooth_scroll",
+      "type": "boolean",
+      "label": {
+        "en": "Smooth scrolling",
+        "ja": "なめらかにスクロール"
+      },
+      "default": true
+    }
+  ]
 }

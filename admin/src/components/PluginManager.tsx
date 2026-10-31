@@ -30,11 +30,13 @@ import {
   MonitorPlay,
 } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { aegisApi } from '../api/client';
+import { aegisApi, ApiError } from '../api/client';
 import i18n from '../i18n';
 import type { PackageAuthor, PluginInfo, PluginOrder, SessionInfo } from '../types';
 import { isAdmin } from '../utils/roles';
+import { declaredSettings, settingProblem, undeclaredSettings } from '../utils/pluginSettings';
 import { cx } from '../utils/cx';
+import { PluginSettingField } from './PluginSettingField';
 import styles from './PluginManager.module.css';
 
 interface PluginManagerProps {
@@ -69,6 +71,8 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
   const [newValue, setNewValue] = useState<string>('');
   const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+  // Reasons the server refused declared settings (by key); cleared when the field is edited
+  const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   // Plugin whose enable / disable request is in flight
   const [togglingName, setTogglingName] = useState<string | null>(null);
   // Hook order of the enabled plugins, and whether a reorder / reset request is in flight
@@ -147,6 +151,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
     setNewKey('');
     setNewValue('');
     setRevealedKeys(new Set());
+    setServerErrors({});
   };
 
   const handleCloseSettings = () => {
@@ -187,6 +192,48 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
     });
   };
 
+  /** A declared setting: an empty field means "not set", so the key is removed */
+  const handleDeclaredChange = (key: string, value: string) => {
+    setCurrentSettings((prev) => {
+      const next = { ...prev };
+      if (value === '') delete next[key];
+      else next[key] = value;
+      return next;
+    });
+    setServerErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  /** Why a declared setting's current value cannot be saved (checked here and by the server) */
+  const problemOf = (setting: ReturnType<typeof declaredSettings>[number]): string | null => {
+    if (serverErrors[setting.key]) return serverErrors[setting.key];
+    const problem = settingProblem(setting, currentSettings[setting.key] ?? '');
+    if (!problem) return null;
+    const params = problem.params;
+    switch (problem.code) {
+      case 'tooLong':
+        return t('plugins.settingProblem.tooLong', { max: params?.max });
+      case 'notNumber':
+        return t('plugins.settingProblem.notNumber');
+      case 'tooSmall':
+        return t('plugins.settingProblem.tooSmall', { min: params?.min });
+      case 'tooLarge':
+        return t('plugins.settingProblem.tooLarge', { max: params?.max });
+      case 'notBoolean':
+        return t('plugins.settingProblem.notBoolean');
+      case 'notOption':
+        return t('plugins.settingProblem.notOption');
+      case 'notColor':
+        return t('plugins.settingProblem.notColor');
+      default:
+        return t('plugins.settingProblem.notUrl');
+    }
+  };
+
   const handleSettingChange = (key: string, value: string) => {
     setCurrentSettings((prev) => ({
       ...prev,
@@ -201,6 +248,12 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
       return;
     }
 
+    const refused = declaredSettings(editingPlugin.manifest).filter((s) => problemOf(s));
+    if (refused.length > 0) {
+      onShowToast(t('plugins.fixSettings'), 'error');
+      return;
+    }
+
     setIsSavingSettings(true);
     try {
       const updated = await aegisApi.updatePluginSettings(editingPlugin.name, currentSettings);
@@ -211,6 +264,9 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
       );
       handleCloseSettings();
     } catch (err: unknown) {
+      if (err instanceof ApiError && err.fieldErrors?.length) {
+        setServerErrors(Object.fromEntries(err.fieldErrors.map((e) => [e.key, e.message])));
+      }
       const msg = err instanceof Error ? err.message : t('plugins.saveFailed');
       onShowToast(msg, 'error');
     } finally {
@@ -316,6 +372,8 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
   }, [plugins, searchQuery, statusFilter]);
 
   const presetSuggestions = editingPlugin ? KNOWN_PLUGIN_PRESETS[editingPlugin.name] || [] : [];
+  const declared = declaredSettings(editingPlugin?.manifest ?? null);
+  const others = undeclaredSettings(editingPlugin?.manifest ?? null, currentSettings);
   const isBusy = togglingName !== null || isReordering;
   const canReorder = canConfigure && !isBusy;
   const displayNameOf = (name: string) =>
@@ -847,54 +905,80 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                 </div>
               )}
 
+              {declared.length > 0 && (
+                <div className={styles.settingsTable}>
+                  <span className={styles.sectionLabel}>{t('plugins.declaredSettingsLabel')}</span>
+                  {declared.map((setting) => (
+                    <PluginSettingField
+                      key={setting.key}
+                      setting={setting}
+                      value={currentSettings[setting.key] ?? ''}
+                      error={problemOf(setting)}
+                      disabled={!canConfigure}
+                      onChange={(value) => handleDeclaredChange(setting.key, value)}
+                    />
+                  ))}
+                </div>
+              )}
+
               <div className={styles.settingsTable}>
-                <span className={styles.sectionLabel}>{t('plugins.activeSettingsLabel')}</span>
+                <span className={styles.sectionLabel}>
+                  {declared.length > 0
+                    ? t('plugins.otherSettingsLabel')
+                    : t('plugins.activeSettingsLabel')}
+                </span>
 
-                {Object.keys(currentSettings).length === 0 ? (
-                  <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', fontStyle: 'italic' }}>
-                    {t('plugins.noSettingsConfigured')}
-                  </p>
-                ) : (
-                  Object.entries(currentSettings).map(([key, value]) => {
-                    const sensitive = isSensitiveKey(key);
-                    const revealed = revealedKeys.has(key);
+                {others.length === 0
+                  ? declared.length === 0 && (
+                      <p
+                        style={{
+                          color: 'var(--text-dim)',
+                          fontSize: '0.85rem',
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        {t('plugins.noSettingsConfigured')}
+                      </p>
+                    )
+                  : others.map(([key, value]) => {
+                      const sensitive = isSensitiveKey(key);
+                      const revealed = revealedKeys.has(key);
 
-                    return (
-                      <div key={key} className={styles.settingRow}>
-                        <div className={styles.settingKey} title={key}>
-                          {key}
+                      return (
+                        <div key={key} className={styles.settingRow}>
+                          <div className={styles.settingKey} title={key}>
+                            {key}
+                          </div>
+                          <div className={styles.settingValueWrapper}>
+                            <input
+                              type={sensitive && !revealed ? 'password' : 'text'}
+                              value={value}
+                              onChange={(e) => handleSettingChange(key, e.target.value)}
+                              className={styles.settingValueInput}
+                              placeholder={t('plugins.valuePlaceholder')}
+                            />
+                            {sensitive && (
+                              <button
+                                type="button"
+                                className={styles.visibilityToggle}
+                                onClick={() => handleToggleReveal(key)}
+                                title={revealed ? t('plugins.hideValue') : t('plugins.showValue')}
+                              >
+                                {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
+                              </button>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            className={styles.deleteRowBtn}
+                            onClick={() => handleDeleteSetting(key)}
+                            title={t('plugins.deleteSetting')}
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         </div>
-                        <div className={styles.settingValueWrapper}>
-                          <input
-                            type={sensitive && !revealed ? 'password' : 'text'}
-                            value={value}
-                            onChange={(e) => handleSettingChange(key, e.target.value)}
-                            className={styles.settingValueInput}
-                            placeholder={t('plugins.valuePlaceholder')}
-                          />
-                          {sensitive && (
-                            <button
-                              type="button"
-                              className={styles.visibilityToggle}
-                              onClick={() => handleToggleReveal(key)}
-                              title={revealed ? t('plugins.hideValue') : t('plugins.showValue')}
-                            >
-                              {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
-                            </button>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          className={styles.deleteRowBtn}
-                          onClick={() => handleDeleteSetting(key)}
-                          title={t('plugins.deleteSetting')}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
+                      );
+                    })}
               </div>
 
               <div className={styles.addSettingForm}>

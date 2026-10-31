@@ -1154,6 +1154,26 @@
     "applyPresetKey": "Set '{{key}}' to input",
     "activeSettingsLabel": "Active Settings",
     "noSettingsConfigured": "No settings configured yet.",
+    "declaredSettingsLabel": "Settings",
+    "otherSettingsLabel": "Other settings",
+    "fixSettings": "Fix the highlighted settings first",
+    "field": {
+      "useDefault": "Default",
+      "useDefaultValue": "Default ({{value}})",
+      "on": "On",
+      "off": "Off",
+      "pickColor": "Pick a color"
+    },
+    "settingProblem": {
+      "tooLong": "Must be {{max}} characters or fewer",
+      "notNumber": "Enter a number",
+      "tooSmall": "Must be {{min}} or more",
+      "tooLarge": "Must be {{max}} or less",
+      "notBoolean": "Choose On or Off",
+      "notOption": "Choose one of the options",
+      "notColor": "Enter a CSS color such as #e11d48, rgb(225 29 72) or var(--accent)",
+      "notUrl": "Enter an http(s) URL or a path starting with /"
+    },
     "valuePlaceholder": "Value",
     "showValue": "Show value",
     "hideValue": "Hide value",

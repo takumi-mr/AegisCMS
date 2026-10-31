@@ -58,6 +58,53 @@ const PLUGINS: PluginInfo[] = [
     }),
   },
   {
+    name: 'official-page-toc',
+    is_enabled: false,
+    is_installed: true,
+    manifest: manifest({
+      name: 'official-page-toc',
+      display_name: 'Page TOC & Reading Progress',
+      description: 'A table of contents and a reading progress bar beside articles.',
+      capabilities: { hooks: ['on-render-page'] },
+      settings: [
+        {
+          key: 'position',
+          type: 'select',
+          label: { en: 'Position', ja: '位置' },
+          default: 'right',
+          options: [
+            { value: 'right', label: { en: 'Right', ja: '右' } },
+            { value: 'left', label: { en: 'Left', ja: '左' } },
+          ],
+        },
+        {
+          key: 'top_offset_px',
+          type: 'number',
+          label: { en: 'Top offset (px)', ja: '上からの位置 (px)' },
+          description: { en: 'Also the space above a heading after jumping to it.' },
+          min: 0,
+          max: 400,
+          default: 96,
+        },
+        {
+          key: 'show_progress',
+          type: 'boolean',
+          label: { en: 'Show progress bar', ja: '進捗バーを出す' },
+          default: true,
+        },
+        {
+          key: 'accent_color',
+          type: 'color',
+          label: { en: 'Accent color', ja: '強調色' },
+          placeholder: '#6366f1',
+        },
+        { key: 'title', type: 'string', label: { en: 'Title', ja: '目次の見出し' } },
+      ],
+    }),
+    // `legacy_flag` is not declared: it stays in the key/value list
+    settings: { position: 'left', legacy_flag: 'on' },
+  },
+  {
     name: 'broken-plugin',
     is_enabled: false,
     is_installed: true,
@@ -252,5 +299,50 @@ export const Reorder: Story = {
     await expect(
       within(panel).queryByRole('button', { name: 'Use the configuration file' })
     ).not.toBeInTheDocument();
+  },
+};
+
+/** Settings the manifest declares are form fields; the others stay in the key/value list */
+export const DeclaredSettings: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const card = await canvas.findByRole('article', { name: 'Page TOC & Reading Progress' });
+    await userEvent.click(within(card).getByRole('button', { name: /Settings/ }));
+    await canvas.findByText('Configure Page TOC & Reading Progress');
+    const dialog = canvas;
+
+    // The saved value is selected; the default shows for the empty ones
+    await expect(dialog.getByLabelText(/Position/)).toHaveValue('left');
+    await expect(dialog.getByLabelText(/Top offset/)).toHaveAttribute('placeholder', '96');
+    await expect(dialog.getByLabelText(/Show progress bar/)).toHaveDisplayValue('Default (On)');
+    // Undeclared keys are listed apart
+    await expect(dialog.getByText('Other settings')).toBeInTheDocument();
+    await expect(dialog.getByDisplayValue('on')).toBeInTheDocument();
+
+    // An out-of-range number is refused before it is sent
+    const offset = dialog.getByLabelText(/Top offset/);
+    await userEvent.type(offset, '9999');
+    await expect(await dialog.findByText('Must be 400 or less')).toBeInTheDocument();
+    await userEvent.click(dialog.getByRole('button', { name: 'Save Settings' }));
+    await expect(args.onShowToast).toHaveBeenCalledWith(
+      'Fix the highlighted settings first',
+      'error'
+    );
+
+    // A valid value is saved, and an emptied field is left out ("not set")
+    await userEvent.clear(offset);
+    await userEvent.type(offset, '64');
+    await userEvent.selectOptions(dialog.getByLabelText(/Position/), 'right');
+    await userEvent.selectOptions(dialog.getByLabelText(/Position/), '');
+    await userEvent.type(dialog.getByLabelText(/Accent color/), '#e11d48');
+    await userEvent.click(dialog.getByRole('button', { name: 'Save Settings' }));
+    await waitFor(() =>
+      expect(args.onShowToast).toHaveBeenCalledWith(
+        "Settings for plugin 'official-page-toc' saved",
+        'success'
+      )
+    );
+    // legacy_flag and the three fields filled in (position and title are not set)
+    await expect(await within(card).findByText('3 keys')).toBeVisible();
   },
 };

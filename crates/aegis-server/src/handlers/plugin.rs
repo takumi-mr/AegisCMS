@@ -459,6 +459,18 @@ pub async fn get_plugin_settings(
     Ok(Json(json!({ "name": name, "settings": settings })))
 }
 
+/// `plugins_dir/<name>/` のマニフェスト（読めなければ `None`）
+fn installed_manifest(state: &AppState, name: &str) -> Option<aegis_core::PluginManifest> {
+    WasmPluginLoader::discover(
+        &state.config.paths.plugins_dir,
+        &state.config.runtime.default_resource_limits(),
+    )
+    .ok()?
+    .into_iter()
+    .find(|p| p.dir_name == name)?
+    .manifest
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UpdatePluginSettingsRequest {
     pub settings: HashMap<String, String>,
@@ -479,8 +491,30 @@ pub async fn update_plugin_settings(
         ));
     }
 
+    // マニフェストで宣言した項目は型・範囲を検査し、空欄（未設定）は保存しない。宣言のないキーはそのまま保存する
+    let mut settings = payload.settings;
+    if let Some(manifest) = installed_manifest(&state, &name) {
+        let errors = manifest.invalid_setting_values(&settings);
+        if !errors.is_empty() {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": format!("Invalid setting value: {}", errors[0].0),
+                    "code": "invalid_setting",
+                    "errors": errors
+                        .iter()
+                        .map(|(key, message)| json!({ "key": key, "message": message }))
+                        .collect::<Vec<_>>(),
+                })),
+            ));
+        }
+        settings.retain(|key, value| {
+            !value.is_empty() || !manifest.settings.iter().any(|s| s.key == *key)
+        });
+    }
+
     let key = format!("plugin_settings:{}", name);
-    let json_str = serde_json::to_string(&payload.settings).map_err(|e| {
+    let json_str = serde_json::to_string(&settings).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": format!("Serialization failed: {}", e) })),
@@ -495,7 +529,7 @@ pub async fn update_plugin_settings(
     })?;
 
     if let Ok(mut guard) = state.plugin_settings.write() {
-        guard.insert(name.clone(), payload.settings.clone());
+        guard.insert(name.clone(), settings.clone());
     }
     // ほかのサーバーはメモリに載せた値を持っているので、キャッシュから読み直してもらう
     crate::cluster::announce(&state, crate::cluster::TOPIC_PLUGIN_SETTINGS, &name).await;
@@ -506,7 +540,7 @@ pub async fn update_plugin_settings(
             audit
                 .event(AuditAction::PluginSettingsUpdate, AuditOutcome::Success)
                 .with_resource("plugin", Some(name.clone()))
-                .with_details(json!({ "keys": payload.settings.keys().collect::<Vec<_>>() })),
+                .with_details(json!({ "keys": settings.keys().collect::<Vec<_>>() })),
         )
         .await;
 
@@ -1112,6 +1146,86 @@ mod tests {
         reset_order(&first).await.unwrap();
         crate::cluster::handle(&second, aegis_cache::BusMessage::Resync).await;
         assert_eq!(loaded_names(&second).await, vec!["official-code-enhancer"]);
+    }
+
+    /// Settings a plugin declares in its manifest (`settings`) are checked on save; keys it does not
+    /// declare are stored as they are
+    #[tokio::test]
+    async fn test_declared_plugin_settings_are_validated() {
+        let mut config = AegisConfig::default();
+        config.paths.plugins_dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+        let state = test_state_with_config(config, PluginSupervisor::new()).await;
+        let put = |pairs: &[(&str, &str)]| {
+            let state = state.clone();
+            let settings: HashMap<String, String> = pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
+            async move {
+                update_plugin_settings(
+                    State(state),
+                    admin(),
+                    AuditContext::default(),
+                    Path("official-page-toc".to_string()),
+                    Json(UpdatePluginSettingsRequest { settings }),
+                )
+                .await
+            }
+        };
+
+        // Wrong types and ranges are refused, with the reason per key
+        let (status, Json(body)) = put(&[
+            ("top_offset_px", "9999"),
+            ("position", "top"),
+            ("accent_color", "red;} body{display:none"),
+            ("show_toc", "true"),
+        ])
+        .await
+        .unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["code"], "invalid_setting");
+        let keys: Vec<&str> = body["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["key"].as_str().unwrap())
+            .collect();
+        assert_eq!(keys, ["accent_color", "position", "top_offset_px"]);
+        assert!(body["errors"][2]["message"]
+            .as_str()
+            .unwrap()
+            .contains("400 or less"));
+        // Nothing was saved
+        let Json(saved) = get_plugin_settings(
+            State(state.clone()),
+            admin(),
+            Path("official-page-toc".to_string()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(saved["settings"], json!({}));
+
+        // Valid values are saved; an empty declared value means "unset" and is dropped;
+        // undeclared keys are kept
+        let Json(ok) = put(&[
+            ("top_offset_px", "64"),
+            ("position", "left"),
+            ("accent_color", "#e11d48"),
+            ("title", ""),
+            ("my_custom_key", "anything"),
+        ])
+        .await
+        .unwrap();
+        assert_eq!(
+            ok["settings"],
+            json!({
+                "top_offset_px": "64",
+                "position": "left",
+                "accent_color": "#e11d48",
+                "my_custom_key": "anything"
+            })
+        );
     }
 
     #[tokio::test]

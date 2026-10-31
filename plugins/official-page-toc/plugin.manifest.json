@@ -21,5 +21,199 @@
     "max_memory_mb": 16,
     "max_fuel_units": 50000000,
     "execution_timeout_ms": 250
-  }
+  },
+  "settings": [
+    {
+      "key": "content_types",
+      "type": "string",
+      "label": {
+        "en": "Content types",
+        "ja": "表示する種類"
+      },
+      "description": {
+        "en": "Comma-separated content types that get the table of contents.",
+        "ja": "目次を出すコンテンツの種類（カンマ区切り）。"
+      },
+      "default": "article,page"
+    },
+    {
+      "key": "show_toc",
+      "type": "boolean",
+      "label": {
+        "en": "Show table of contents",
+        "ja": "目次を出す"
+      },
+      "default": true
+    },
+    {
+      "key": "show_progress",
+      "type": "boolean",
+      "label": {
+        "en": "Show progress bar",
+        "ja": "進捗バーを出す"
+      },
+      "default": true
+    },
+    {
+      "key": "heading_levels",
+      "type": "string",
+      "label": {
+        "en": "Heading levels",
+        "ja": "目次に入れる見出しの階層"
+      },
+      "description": {
+        "en": "Comma-separated levels from 1 to 6.",
+        "ja": "1〜6 をカンマ区切りで。"
+      },
+      "default": "2,3"
+    },
+    {
+      "key": "min_headings",
+      "type": "number",
+      "label": {
+        "en": "Minimum headings",
+        "ja": "目次を出す最小の見出し数"
+      },
+      "description": {
+        "en": "With fewer headings only the progress bar is shown.",
+        "ja": "これより少ないときは進捗バーだけを出す。"
+      },
+      "min": 1,
+      "max": 50,
+      "default": 2
+    },
+    {
+      "key": "position",
+      "type": "select",
+      "label": {
+        "en": "Position",
+        "ja": "位置"
+      },
+      "default": "right",
+      "options": [
+        {
+          "value": "right",
+          "label": {
+            "en": "Right",
+            "ja": "右"
+          }
+        },
+        {
+          "value": "left",
+          "label": {
+            "en": "Left",
+            "ja": "左"
+          }
+        }
+      ]
+    },
+    {
+      "key": "accent_color",
+      "type": "color",
+      "label": {
+        "en": "Accent color",
+        "ja": "強調色"
+      },
+      "description": {
+        "en": "Progress bar and current heading. Empty uses the theme's --accent.",
+        "ja": "進捗バーと現在の見出しの色。空欄ならテーマの --accent。"
+      },
+      "placeholder": "#6366f1"
+    },
+    {
+      "key": "top_offset_px",
+      "type": "number",
+      "label": {
+        "en": "Top offset (px)",
+        "ja": "上からの位置 (px)"
+      },
+      "description": {
+        "en": "Also the space above a heading after jumping to it (fixed header height).",
+        "ja": "見出しへ移動したときの上の余白（固定ヘッダーの高さ）にも使う。"
+      },
+      "min": 0,
+      "max": 400,
+      "default": 96
+    },
+    {
+      "key": "width_px",
+      "type": "number",
+      "label": {
+        "en": "Width (px)",
+        "ja": "幅 (px)"
+      },
+      "min": 120,
+      "max": 480,
+      "default": 220
+    },
+    {
+      "key": "min_viewport_px",
+      "type": "number",
+      "label": {
+        "en": "Hide below width (px)",
+        "ja": "これより狭い画面では出さない (px)"
+      },
+      "min": 320,
+      "max": 4000,
+      "default": 1200
+    },
+    {
+      "key": "smooth_scroll",
+      "type": "boolean",
+      "label": {
+        "en": "Smooth scrolling",
+        "ja": "なめらかにスクロール"
+      },
+      "default": true
+    },
+    {
+      "key": "locale",
+      "type": "select",
+      "label": {
+        "en": "Built-in text language",
+        "ja": "組み込みの文言の言語"
+      },
+      "default": "en",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "ja": "English"
+          }
+        },
+        {
+          "value": "ja",
+          "label": {
+            "en": "日本語",
+            "ja": "日本語"
+          }
+        }
+      ]
+    },
+    {
+      "key": "title",
+      "type": "string",
+      "label": {
+        "en": "Title",
+        "ja": "目次の見出し"
+      },
+      "description": {
+        "en": "Empty uses the built-in text.",
+        "ja": "空欄なら組み込みの文言。"
+      }
+    },
+    {
+      "key": "progress_label",
+      "type": "string",
+      "label": {
+        "en": "Progress bar label",
+        "ja": "進捗バーの読み上げ用の名前"
+      },
+      "description": {
+        "en": "Empty uses the built-in text.",
+        "ja": "空欄なら組み込みの文言。"
+      }
+    }
+  ]
 }

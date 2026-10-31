@@ -737,6 +737,24 @@ export interface PluginResourceLimits {
 /** A name, or a name with contact details */
 export type PackageAuthor = string | { name: string; email?: string; url?: string };
 
+export type PluginSettingType =
+  'string' | 'text' | 'url' | 'number' | 'boolean' | 'select' | 'color';
+
+/** A setting a plugin declares in its manifest (`settings`); the value is stored as a string */
+export interface PluginSettingDefinition {
+  key: string;
+  type: PluginSettingType;
+  label: LocalizedText;
+  description?: LocalizedText;
+  /** What the plugin uses while the setting is empty (shown as the placeholder; never saved) */
+  default?: unknown;
+  options?: { value: string; label: LocalizedText }[];
+  min?: number;
+  max?: number;
+  max_length?: number;
+  placeholder?: LocalizedText;
+}
+
 export interface PluginManifest {
   name: string;
   version: string;
@@ -747,6 +765,8 @@ export interface PluginManifest {
   homepage?: string;
   capabilities: PluginCapabilities;
   resource_limits: PluginResourceLimits;
+  /** Settings Admin Studio shows as form fields (the others stay in the key/value list) */
+  settings?: PluginSettingDefinition[];
 }
 
 export interface PluginInfo {

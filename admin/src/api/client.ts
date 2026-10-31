@@ -108,13 +108,31 @@ export class ApiError extends Error {
   retryAfterSecs?: number;
   /** Machine-readable reason (`code`), sent by some endpoints such as registration */
   code?: string;
-  constructor(status: number, message: string, retryAfterSecs?: number, code?: string) {
+  /** Per-field reasons (`errors` of a 400 response), e.g. the plugin settings that were refused */
+  fieldErrors?: { key: string; message: string }[];
+  constructor(
+    status: number,
+    message: string,
+    retryAfterSecs?: number,
+    code?: string,
+    fieldErrors?: { key: string; message: string }[]
+  ) {
     super(message);
     this.status = status;
     this.retryAfterSecs = retryAfterSecs;
     this.code = code;
+    this.fieldErrors = fieldErrors;
   }
 }
+
+/** The `{key, message}` list of an error body (other shapes of `errors` are ignored) */
+const fieldErrorsOf = (body: { errors?: unknown }): ApiError['fieldErrors'] =>
+  Array.isArray(body.errors)
+    ? body.errors.filter(
+        (e): e is { key: string; message: string } =>
+          typeof e?.key === 'string' && typeof e?.message === 'string'
+      )
+    : undefined;
 
 /** Turns a failed unauthenticated JSON request into an `ApiError` with the server's `code` */
 const unauthenticatedError = async (res: Response, fallback: string): Promise<ApiError> => {
@@ -177,7 +195,13 @@ const request = async <T>(path: string, init: RequestInit, fallbackError: string
   if (!res.ok) {
     if (res.status === 401 && token) unauthorizedHandler?.();
     const err = await res.json().catch(() => ({ error: fallbackError }));
-    throw new ApiError(res.status, err.error || fallbackError);
+    throw new ApiError(
+      res.status,
+      err.error || fallbackError,
+      undefined,
+      err.code,
+      fieldErrorsOf(err)
+    );
   }
   return res.json();
 };
