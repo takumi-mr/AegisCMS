@@ -25,8 +25,9 @@ plugins/
 | [`official-blocks`](official-blocks/) | `render-blocks` | 本文に置けるボタン・リンクカード・動画（YouTube・Vimeo）のブロック（[本文のブロック](../docs/blocks.md#4-プラグインのブロック)）。カスタムブロックのお手本 |
 | [`official-page-toc`](official-page-toc/) | `on-render-page` | 記事・固定ページの横に、見出しへのリンク（目次）とスクロールの進捗を出す。位置・色・階層などは `[plugins.settings.official-page-toc]` で変えられる |
 | [`official-back-to-top`](official-back-to-top/) | `on-render-page` | 本文の末尾（または画面に固定）に「トップへ戻る」ボタンを出す。形・色・位置などは `[plugins.settings.official-back-to-top]` で変えられる |
+| [`official-share-buttons`](official-share-buttons/) | `on-render-page` | 記事・固定ページの末尾（または上部/両方）に SNS 共有ボタン（X・LINE・URLコピーなど）を出す。表示先やカスタム共有先の設定が可能 |
 | [`official-code-lines`](official-code-lines/) | `on-render-page` | コードブロックに行番号とファイル名の見出しを出す（ファイル名はコードブロックの `filename`）。最小の行数・色などは `[plugins.settings.official-code-lines]` で変えられる |
 | [`official-lightbox`](official-lightbox/) | `on-render-page` | 本文の画像をクリックで拡大表示する（前後の画像・キーボード操作・説明文）。小さい画像やリンクの中の画像は対象外。`[plugins.settings.official-lightbox]` で変えられる |
 | [`official-external-links`](official-external-links/) | `on-render-page` | 本文の外部リンクを新しいタブで開き、`rel="noopener nofollow"` と外部リンクのアイコンを付ける（ブラウザーのスクリプトで動く）。`[plugins.settings.official-external-links]` で変えられる |
 
-`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-page-toc` / `official-back-to-top` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`）で作り直してください。
+`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-page-toc` / `official-back-to-top` / `official-share-buttons` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`）で作り直してください。

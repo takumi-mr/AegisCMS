@@ -35,6 +35,7 @@ members = [
     "plugins/official-code-lines",
     "plugins/official-lightbox",
     "plugins/official-external-links",
+    "plugins/official-share-buttons",
 ]
 
 [workspace.package]
