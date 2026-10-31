@@ -22,7 +22,7 @@
 
 ## 技術メモ・申し送り事項
 
-- **SAML 2.0 の拡張方針（保留）**: 基本的な SP-initiated SSO（AuthnRequest, ACS, RSA 署名検証, ロールマッピング）で主要 IdP（Entra ID, Okta 等）との連携は動作確認済み。現代のエンタープライズ SSO は OIDC が主流であり必要十分なため、暗号化アサーション・SLO・メタデータ動的取得などの拡張は不要な複雑化・保守リスクを避けるため実装を保留とし、将来的に特定環境（学認・レガシー ADFS 等）からの具体的な要望が出た時点で再検討する（仕様・制約の詳細は [docs/authentication.md 8.6](docs/authentication.md#86-今後の拡張方針未対応機能) 参照）。
+（現在なし）
 
 ---
 
@@ -34,7 +34,7 @@
   - `on-render-page` フックで HTML 全体を Wasm に渡すオーバーヘッドの軽減。
 
 ### 🌐 サイト機能拡張
-- [ ] **問い合わせフォームの拡張**: フォーム編集 UI、Cloudflare Turnstile / CAPTCHA 連携。
+- [ ] **問い合わせフォームの拡張**: Cloudflare Turnstile / CAPTCHA 連携。
 - [ ] **サイト内検索の拡張**: 検索キーワードのアクセス解析集計。
 
 ### 🔌 プラグイン・将来構想
