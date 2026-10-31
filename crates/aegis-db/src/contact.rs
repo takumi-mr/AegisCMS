@@ -51,6 +51,8 @@ pub struct ContactMessageRecord {
 pub struct ContactListQuery {
     pub status: Option<String>,
     pub form: Option<String>,
+    /// この日時（RFC 3339）より前に届いたものだけ
+    pub created_before: Option<String>,
     /// 取得する最大件数。`None` なら全件（`offset` は無視）
     pub limit: Option<u64>,
     pub offset: u64,
@@ -159,10 +161,19 @@ pub fn build_contact_list(
 ) -> (String, String, Vec<String>) {
     let mut conditions = Vec::new();
     let mut binds = Vec::new();
-    for (column, value) in [("status", &query.status), ("form", &query.form)] {
+    for (column, operator, value) in [
+        ("status", "=", &query.status),
+        ("form", "=", &query.form),
+        ("created_at", "<", &query.created_before),
+    ] {
         if let Some(value) = value {
             binds.push(value.clone());
-            conditions.push(format!("{} = {}", column, placeholder(binds.len())));
+            conditions.push(format!(
+                "{} {} {}",
+                column,
+                operator,
+                placeholder(binds.len())
+            ));
         }
     }
     let where_clause = if conditions.is_empty() {

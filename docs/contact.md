@@ -12,7 +12,7 @@
         ▼
  ボット除けの見えない欄に値がある → 受け付けたふりをして保存しない
         │
- 入力の検査（必須・長さ・メールアドレス・電話番号・選択肢）→ 誤りはフォームに出して返す
+ 入力の検査（必須・長さ・メールアドレス・電話番号・選択肢・添付ファイル）→ 誤りはフォームに出して返す
         │
  IP ごとの送信数（max_per_ip_per_hour）を超えた → 429
         │
@@ -44,6 +44,8 @@ locale = "ja"               # 入力の誤りなど組み込みの文言の言�
 max_links = 3               # リンクがこれより多いとスパム
 spam_words = ["casino"]     # 含むとスパム（大文字・小文字を区別しない）
 notify_staff = true         # 届いたら運営者に知らせる
+max_attachment_mb = 5       # 添付ファイル 1 つの大きさの上限（1〜50）
+attachment_extensions = ["jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "docx", "xlsx"]  # 添付できる拡張子（既定）
 
 [[contact.forms]]
 name = "default"            # /contact/default（/contact はこのフォーム）
@@ -92,7 +94,7 @@ required = true
 | --- | --- |
 | `name` | 送信される名前（英小文字・数字・`_`。`website` はボット除けに使うので使えない） |
 | `label` | 表示名（受信箱・通知にもこの名前で出る） |
-| `type` | `text`（既定）/ `email` / `tel` / `textarea` / `select` / `checkbox` |
+| `type` | `text`（既定）/ `email` / `tel` / `textarea` / `select` / `checkbox` / `file`（[添付ファイル](#12-添付ファイル)） |
 | `required` | 必須（チェックボックスなら、チェックが必須） |
 | `placeholder` | 入力欄の例（`select` では未選択の項目の文言） |
 | `options` | `select` の選択肢（必須） |
@@ -103,6 +105,24 @@ required = true
 - 入力の誤り（「「お名前」を入力してください」など）と、送信できなかったときの知らせも `locale` の言語です。
 - `auto_reply = true` のフォームには、必須のメールアドレスの項目が要ります。
 - 設定が正しくない（名前が重なる、`select` に選択肢が無いなど）とサーバーが起動しません。
+
+### 1.2 添付ファイル
+
+`type = "file"` の項目を置くと、フォームにファイルを添付できます（`required` で必須にもできます）。
+
+```toml
+[[contact.forms.fields]]
+name = "attachment"
+label = "添付ファイル"
+type = "file"
+```
+
+- フォームは `multipart/form-data` で送ります（JavaScript なしで動く）。JSON の API（`POST /api/v1/contact/forms/{form}`）では添付できません。
+- 1 つの項目につき 1 ファイル。大きさは `max_attachment_mb`、種類は `attachment_extensions`（拡張子。大文字・小文字を区別しない）で制限します。HTML・SVG・スクリプトなど、開くと実行されうる形式は既定に含めていません。拡張子の追加は、開く側のリスクを理解したうえで行ってください。
+- 入力の誤りの `code` は、ファイルが無い `required`、大きすぎる `file_too_large`、許可されない拡張子の `invalid_file_type` です。
+- 添付は `contact/{問い合わせの id}/` の下に保存します（[ストレージ](architecture.md)）。**公開 URL はありません**。ローカルストレージの `/uploads/contact/...` は 404 を返し、Admin Studio の受信箱（editor 以上）から、認証付きの API でダウンロードします（常に `attachment` として返し、`nosniff` を付けます）。S3 互換ストレージでは、バケットを公開設定にしないでください（`contact/` のオブジェクトが URL で読めるようになります）。
+- 問い合わせを削除したとき、保存期間（`retention_days`）で消えたときは、添付ファイルも消えます。スパムと判定された問い合わせの添付も保存します（受信箱の「スパム」から確認・削除できます）。
+- 通知メールには、添付のファイル名だけが入ります（ファイルそのものは付けません）。
 
 ## 2. フォームを置く
 
@@ -132,6 +152,8 @@ required = true
 
 **問い合わせ** タブ（editor 以上。`[contact].enabled = true` のときだけ表示）で、新着・既読・対応済み・スパムに分けて一覧できます。
 
+- 上の検索欄で、名前・メールアドレス・件名・各項目の入力・添付のファイル名を、空白区切りの語がすべて含まれるもので絞り込めます（大文字・小文字を区別しない。状態・フォームの絞り込みと併用できます）。検索は絞り込んだ問い合わせをサーバー側で走査するので、保存期間（`retention_days`）で件数を抑えた運用を想定しています。
+- 添付ファイルのある問い合わせには一覧にクリップが付き、開くとファイルをダウンロードできます。
 - 開くとすべての項目が見られ、新着は既読になります。「メールで返信」でメールアプリが開きます（宛先と `Re: 件名`）。
 - 対応済み・スパム・新着に戻す・削除を、1 件ずつかまとめて行えます（監査ログ `contact.update` / `contact.delete`）。
 - 保存期間（`retention_days`）を過ぎた問い合わせは、1 日に 1 回消します。
@@ -154,8 +176,9 @@ required = true
 | --- | --- | --- |
 | `GET /api/v1/contact/forms` | なし | フォームと項目の一覧 |
 | `POST /api/v1/contact/forms/{form}` | なし | JSON で送信（`{"name": "...", "email": "...", ...}`。チェックボックスは `true`）。`201 {"status": "received"}`、入力の誤りは `400 {"error", "errors": [{field, code, message}]}`、送信が多すぎると `429` |
-| `GET /api/v1/contact/messages?status=new&form=default&limit=50&offset=0` | editor | 受信箱（新しい順）と状態ごとの件数（`counts`） |
+| `GET /api/v1/contact/messages?status=new&form=default&q=見積&limit=50&offset=0` | editor | 受信箱（新しい順）と状態ごとの件数（`counts`）。`q` は全文検索 |
+| `GET /api/v1/contact/messages/{id}/attachments/{field}` | editor | 添付ファイルのダウンロード（`{field}` は項目の名前） |
 | `GET` / `PATCH` / `DELETE /api/v1/contact/messages/{id}` | editor | 1 件の取得・状態の変更（`{"status": "done"}`）・削除 |
 | `POST /api/v1/contact/messages/bulk` | editor | まとめて（`{"ids": [...], "action": "read" \| "done" \| "spam" \| "new" \| "delete"}`） |
 
-入力の誤りの `code` は `required` / `too_long` / `invalid_email` / `invalid_tel` / `invalid_option` / `invalid_text` です（`message` は `[contact].locale` の言語）。
+入力の誤りの `code` は `required` / `too_long` / `invalid_email` / `invalid_tel` / `invalid_option` / `invalid_text`（添付ファイルは `file_too_large` / `invalid_file_type`）です（`message` は `[contact].locale` の言語）。

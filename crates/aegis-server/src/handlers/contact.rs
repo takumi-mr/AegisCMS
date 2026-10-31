@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{FromRequest, Multipart, Path, Query, Request, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Redirect, Response},
     Form, Json,
@@ -19,8 +19,8 @@ use crate::handlers::public::{render_not_found, themed_response};
 use crate::render;
 use crate::state::AppState;
 use aegis_contact::{
-    form::form_html, AdminListQuery, AdminMessage, AdminMessagePage, ClientInfo, ContactError,
-    ContactService, FieldError, FormConfig, FormSummary,
+    form::form_html_with, AdminListQuery, AdminMessage, AdminMessagePage, ClientInfo, ContactError,
+    ContactService, FieldError, FormConfig, FormSummary, UploadedFile,
 };
 use aegis_core::PageRenderContext;
 
@@ -97,7 +97,13 @@ pub fn block_html(state: &AppState, attributes: &serde_json::Value) -> String {
     match service.config.form(name) {
         Some(form) => format!(
             "<div class=\"aegis-contact\">\n{}\n</div>",
-            form_html(form, &form_action(state, &form.name), &HashMap::new(), &[])
+            form_html_with(
+                form,
+                &form_action(state, &form.name),
+                &HashMap::new(),
+                &[],
+                &service.config.attachment_extensions
+            )
         ),
         None => String::new(),
     }
@@ -123,6 +129,11 @@ async fn render_form_page(
     status: StatusCode,
 ) -> Response {
     let action = form_action(state, &form.name);
+    let extensions = state
+        .contact
+        .as_ref()
+        .map(|c| c.config.attachment_extensions.clone())
+        .unwrap_or_default();
     let mut fields = HashMap::new();
     fields.insert(
         "form".to_string(),
@@ -143,7 +154,7 @@ async fn render_form_page(
         json!(if sent {
             String::new()
         } else {
-            form_html(form, &action, values, errors)
+            form_html_with(form, &action, values, errors, &extensions)
         }),
     );
     fields.insert("values".to_string(), json!(values));
@@ -236,14 +247,70 @@ pub async fn render_contact(
     .await
 }
 
-/// `POST /contact/{form}` — HTML のフォームからの送信（`application/x-www-form-urlencoded`）。
-/// 受け付けたら `?sent=1` へリダイレクトし、入力の誤りはフォームに出して返す（JavaScript なしで動く）
+/// 送られてきたフォーム。`multipart/form-data`（添付ファイルあり）と `application/x-www-form-urlencoded` の両方を受ける。
+/// 読めない・大きすぎるときは `Err`（送信した人に見せる知らせ）
+async fn read_submission(
+    state: &Arc<AppState>,
+    request: Request,
+) -> Result<(HashMap<String, String>, Vec<UploadedFile>), &'static str> {
+    let is_multipart = request
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| {
+            v.trim_start()
+                .to_ascii_lowercase()
+                .starts_with("multipart/form-data")
+        });
+    if !is_multipart {
+        return Form::<HashMap<String, String>>::from_request(request, state)
+            .await
+            .map(|Form(values)| (values, Vec::new()))
+            .map_err(|_| "invalid");
+    }
+    let mut multipart = Multipart::from_request(request, state)
+        .await
+        .map_err(|_| "invalid")?;
+    let mut values = HashMap::new();
+    let mut files = Vec::new();
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
+            "too_large"
+        } else {
+            "invalid"
+        }
+    })? {
+        let name = field.name().unwrap_or_default().to_string();
+        if let Some(filename) = field.file_name().map(str::to_string) {
+            let data = field.bytes().await.map_err(|e| {
+                if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
+                    "too_large"
+                } else {
+                    "invalid"
+                }
+            })?;
+            files.push(UploadedFile {
+                field: name,
+                filename,
+                data: data.to_vec(),
+            });
+        } else {
+            let text = field.text().await.map_err(|_| "invalid")?;
+            values.insert(name, text);
+        }
+    }
+    Ok((values, files))
+}
+
+/// `POST /contact/{form}` — HTML のフォームからの送信（`application/x-www-form-urlencoded`、添付ファイルがあれば
+/// `multipart/form-data`）。受け付けたら `?sent=1` へリダイレクトし、入力の誤りはフォームに出して返す
+/// （JavaScript なしで動く）
 pub async fn submit_contact_form(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
     ClientIp(ip): ClientIp,
     headers: HeaderMap,
-    Form(values): Form<HashMap<String, String>>,
+    request: Request,
 ) -> Response {
     let Some(service) = state.contact.clone() else {
         return render_not_found(&state, "This page does not exist.").await;
@@ -251,9 +318,30 @@ pub async fn submit_contact_form(
     let Ok(form) = service.form(&name) else {
         return render_not_found(&state, "This form does not exist.").await;
     };
+    let (values, files) = match read_submission(&state, request).await {
+        Ok(submission) => submission,
+        Err(reason) => {
+            let (key, status) = if reason == "too_large" {
+                ("upload_too_large", StatusCode::PAYLOAD_TOO_LARGE)
+            } else {
+                ("failed", StatusCode::BAD_REQUEST)
+            };
+            let notice = service.text(key);
+            return render_form_page(
+                &state,
+                form,
+                false,
+                &HashMap::new(),
+                &[],
+                Some(notice),
+                status,
+            )
+            .await;
+        }
+    };
     let form = form.clone();
     match service
-        .submit(&name, &values, &client_info(ip, &headers))
+        .submit_with_files(&name, &values, &files, &client_info(ip, &headers))
         .await
     {
         Ok(_) => Redirect::to(&format!("{}?sent=1", form_action(&state, &name))).into_response(),
@@ -351,6 +439,8 @@ pub struct AdminListParams {
     /// `new` / `read` / `done` / `spam`。省略時はすべて
     pub status: Option<String>,
     pub form: Option<String>,
+    /// 全文検索（名前・メールアドレス・件名・各項目の値・添付のファイル名）
+    pub q: Option<String>,
     pub limit: Option<u64>,
     #[serde(default)]
     pub offset: u64,
@@ -366,6 +456,7 @@ pub async fn list_messages(
     let query = AdminListQuery {
         status: params.status.filter(|s| !s.is_empty()),
         form: params.form.filter(|s| !s.is_empty()),
+        q: params.q.filter(|s| !s.trim().is_empty()),
         limit: params.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT),
         offset: params.offset,
     };
@@ -380,6 +471,54 @@ pub async fn get_message(
 ) -> Result<Json<AdminMessage>, ApiError> {
     let service = contact(&state)?;
     Ok(Json(service.get(&id).await.map_err(contact_error)?))
+}
+
+/// `GET /api/v1/contact/messages/{id}/attachments/{field}` — 添付ファイルをダウンロードする（`editor`）。
+/// 公開 URL は無く、常に `attachment` として返す
+pub async fn download_attachment(
+    State(state): State<Arc<AppState>>,
+    _session: EditorSession,
+    Path((id, field)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    let service = contact(&state)?;
+    let (file, data) = service
+        .attachment(&id, &field)
+        .await
+        .map_err(contact_error)?;
+    // ファイル名は ASCII 以外を含みうるので RFC 5987 の `filename*` で渡す
+    let encoded: String = file
+        .filename
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-_.".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{:02X}", b)
+            }
+        })
+        .collect();
+    let mut response = (StatusCode::OK, data).into_response();
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(&file.content_type)
+            .unwrap_or(HeaderValue::from_static("application/octet-stream")),
+    );
+    if let Ok(value) = HeaderValue::from_str(&format!(
+        "attachment; filename=\"download\"; filename*=UTF-8''{}",
+        encoded
+    )) {
+        headers.insert(header::CONTENT_DISPOSITION, value);
+    }
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
 }
 
 #[derive(Debug, Deserialize)]

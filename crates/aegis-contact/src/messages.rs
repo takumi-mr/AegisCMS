@@ -19,7 +19,32 @@ pub fn text(locale: &str, key: &str) -> &'static str {
         "rate_limited" => "Too many messages from this address. Try again later.",
         "failed" if ja => "送信できませんでした。しばらくしてからもう一度お試しください。",
         "failed" => "Your message could not be sent. Please try again later.",
+        "upload_too_large" if ja => "添付ファイルが大きすぎます。小さいファイルを選んでください。",
+        "upload_too_large" => "The attached files are too large. Please choose smaller files.",
         _ => "",
+    }
+}
+
+/// 添付ファイルの誤りの文言。`code` は `required` / `file_too_large`（`detail` は上限の MB）/
+/// `invalid_file_type`（`detail` は選べる拡張子）
+pub fn file_error(locale: &str, code: &str, label: &str, detail: &str) -> String {
+    if locale == "ja" {
+        match code {
+            "required" => format!("「{}」のファイルを選んでください", label),
+            "file_too_large" => {
+                format!("「{}」のファイルは {} MB 以下にしてください", label, detail)
+            }
+            _ => format!("「{}」には {} のファイルだけ添付できます", label, detail),
+        }
+    } else {
+        match code {
+            "required" => format!("Please attach a file to \"{}\"", label),
+            "file_too_large" => format!(
+                "The file for \"{}\" must be {} MB or smaller",
+                label, detail
+            ),
+            _ => format!("\"{}\" accepts these file types only: {}", label, detail),
+        }
     }
 }
 

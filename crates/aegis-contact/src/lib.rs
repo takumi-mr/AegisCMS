@@ -23,6 +23,7 @@ use std::time::Duration;
 use aegis_audit::{AuditOrigin, AuditService};
 use aegis_core::{
     AegisError, AuditAction, AuditOutcome, CacheBackend, NotificationEvent, Notifier, Recipient,
+    StorageBackend,
 };
 use aegis_db::{ContactListQuery, ContactMessageRecord, DatabaseAdapter};
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -30,7 +31,7 @@ use serde::Serialize;
 use serde_json::json;
 
 pub use config::{ContactConfig, FieldConfig, FieldKind, FormConfig};
-pub use form::{FieldError, FieldValue};
+pub use form::{Attachment, FieldError, FieldValue, FileRules, UploadedFile};
 
 /// IP ごとの送信数を数えるキャッシュのキーの名前空間
 const RATE_LIMIT_SCOPE: &str = "contact";
@@ -77,6 +78,8 @@ pub struct ContactDeps {
     /// IP ごとの送信数を数える
     pub cache: Arc<dyn CacheBackend>,
     pub audit: Arc<AuditService>,
+    /// 添付ファイルの保存先（`contact/{id}/` の下。公開しない）
+    pub storage: Arc<dyn StorageBackend>,
     /// `contact.*` の通知（`[notifications]`）。無効なら `None`
     pub notifier: Option<Arc<dyn Notifier>>,
     /// Admin Studio の URL（運営者への通知に入れる。空なら入れない）
@@ -95,6 +98,8 @@ pub struct ClientInfo {
 pub struct AdminListQuery {
     pub status: Option<String>,
     pub form: Option<String>,
+    /// 全文検索（空白で区切った語をすべて含むもの。大文字・小文字を区別しない）
+    pub q: Option<String>,
     pub limit: u64,
     pub offset: u64,
 }
@@ -216,6 +221,17 @@ impl ContactService {
         values: &HashMap<String, String>,
         client: &ClientInfo,
     ) -> ContactResult<Option<ContactMessageRecord>> {
+        self.submit_with_files(form_name, values, &[], client).await
+    }
+
+    /// [`submit`](Self::submit) に添付ファイルを加えたもの（`type = "file"` の項目）
+    pub async fn submit_with_files(
+        &self,
+        form_name: &str,
+        values: &HashMap<String, String>,
+        files: &[UploadedFile],
+        client: &ClientInfo,
+    ) -> ContactResult<Option<ContactMessageRecord>> {
         let form = self.form(form_name)?;
         if values
             .get(config::HONEYPOT_FIELD)
@@ -224,8 +240,13 @@ impl ContactService {
             tracing::info!("Contact form '{}': dropped a bot submission", form.name);
             return Ok(None);
         }
-        let fields =
-            form::validate(form, values, &self.config.locale).map_err(ContactError::Invalid)?;
+        let rules = FileRules {
+            max_bytes: self.config.max_attachment_bytes(),
+            extensions: &self.config.attachment_extensions,
+        };
+        let mut fields =
+            form::validate_with_files(form, values, files, &rules, &self.config.locale)
+                .map_err(ContactError::Invalid)?;
         if !aegis_comments::moderation::within_rate_limit(
             self.deps.cache.as_ref(),
             RATE_LIMIT_SCOPE,
@@ -248,17 +269,21 @@ impl ContactService {
             .email_field()
             .map(|f| value_of(&f.name))
             .unwrap_or_default();
+        let (name, subject) = (value_of("name"), value_of(&form.subject_field));
         let spam = self.spam_reason(&fields);
         if let Some(reason) = &spam {
             tracing::info!("Contact form '{}': marked as spam ({})", form.name, reason);
         }
         let at = now();
+        let id = uuid::Uuid::new_v4().to_string();
+        self.store_attachments(&id, form, files, &mut fields)
+            .await?;
         let record = ContactMessageRecord {
-            id: uuid::Uuid::new_v4().to_string(),
+            id,
             form: form.name.clone(),
-            name: value_of("name"),
+            name,
             email,
-            subject: value_of(&form.subject_field),
+            subject,
             fields_json: serde_json::to_string(&fields).unwrap_or_else(|_| "[]".to_string()),
             status: if spam.is_some() { "spam" } else { "new" }.to_string(),
             ip: client.ip.clone(),
@@ -269,11 +294,83 @@ impl ContactService {
             created_at: at.clone(),
             updated_at: at,
         };
-        self.deps.db.insert_contact_message(&record).await?;
+        if let Err(e) = self.deps.db.insert_contact_message(&record).await {
+            self.delete_attachments(&fields).await;
+            return Err(e.into());
+        }
         if spam.is_none() {
             self.notify(form, &record, &fields);
         }
         Ok(Some(record))
+    }
+
+    /// 検査を通した添付ファイルを `contact/{id}/` に保存し、`fields` の `file` を埋める。
+    /// 途中で失敗したら保存したものを消す
+    async fn store_attachments(
+        &self,
+        id: &str,
+        form: &FormConfig,
+        files: &[UploadedFile],
+        fields: &mut [FieldValue],
+    ) -> ContactResult<()> {
+        for field in form.fields.iter().filter(|f| f.kind == FieldKind::File) {
+            let Some(file) = files.iter().find(|f| f.field == field.name) else {
+                continue;
+            };
+            let Some(value) = fields.iter_mut().find(|v| v.name == field.name) else {
+                continue;
+            };
+            if value.value.is_empty() {
+                continue;
+            }
+            let extension = form::extension_of(&value.value);
+            let key = format!(
+                "contact/{}/{}-{}.{}",
+                id,
+                field.name,
+                &uuid::Uuid::new_v4().to_string()[..8],
+                extension
+            );
+            let content_type = aegis_core::guess_content_type(&key);
+            if let Err(e) = self.deps.storage.put(&key, &file.data, content_type).await {
+                self.delete_attachments(fields).await;
+                return Err(e.into());
+            }
+            value.file = Some(Attachment {
+                key,
+                filename: value.value.clone(),
+                size: file.data.len(),
+                content_type: content_type.to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    /// 添付ファイルを消す（失敗は記録するだけ）
+    async fn delete_attachments(&self, fields: &[FieldValue]) {
+        for file in fields.iter().filter_map(|f| f.file.as_ref()) {
+            if let Err(e) = self.deps.storage.delete(&file.key).await {
+                tracing::warn!("Could not delete contact attachment {}: {}", file.key, e);
+            }
+        }
+    }
+
+    /// 添付ファイルの中身（Admin Studio の取得用）。`field` は項目の名前
+    pub async fn attachment(&self, id: &str, field: &str) -> ContactResult<(Attachment, Vec<u8>)> {
+        let message = self.get(id).await?;
+        let file = message
+            .fields
+            .into_iter()
+            .find(|f| f.name == field)
+            .and_then(|f| f.file)
+            .ok_or_else(|| ContactError::NotFound("Attachment not found".to_string()))?;
+        let data = self
+            .deps
+            .storage
+            .get(&file.key)
+            .await
+            .map_err(|_| ContactError::NotFound("Attachment not found".to_string()))?;
+        Ok((file, data))
     }
 
     fn notify(&self, form: &FormConfig, record: &ContactMessageRecord, fields: &[FieldValue]) {
@@ -340,16 +437,45 @@ impl ContactService {
         if let Some(status) = &query.status {
             check_status(status)?;
         }
-        let page = self
-            .deps
-            .db
-            .list_contact_messages(&ContactListQuery {
-                status: query.status.clone(),
-                form: query.form.clone(),
-                limit: Some(query.limit.clamp(1, 200)),
-                offset: query.offset,
-            })
-            .await?;
+        let terms = search_terms(query.q.as_deref());
+        let limit = query.limit.clamp(1, 200);
+        let page = if terms.is_empty() {
+            self.deps
+                .db
+                .list_contact_messages(&ContactListQuery {
+                    status: query.status.clone(),
+                    form: query.form.clone(),
+                    limit: Some(limit),
+                    offset: query.offset,
+                    ..Default::default()
+                })
+                .await?
+        } else {
+            // 全文検索はデータベースの方言（大文字・小文字、JSON の中身）に頼らず、絞り込んだ行をここで検索する
+            let all = self
+                .deps
+                .db
+                .list_contact_messages(&ContactListQuery {
+                    status: query.status.clone(),
+                    form: query.form.clone(),
+                    limit: None,
+                    ..Default::default()
+                })
+                .await?;
+            let matched: Vec<_> = all
+                .messages
+                .into_iter()
+                .filter(|m| matches_terms(m, &terms))
+                .collect();
+            aegis_db::ContactPage {
+                total: matched.len() as u64,
+                messages: matched
+                    .into_iter()
+                    .skip(query.offset as usize)
+                    .take(limit as usize)
+                    .collect(),
+            }
+        };
         let counts = self
             .deps
             .db
@@ -404,7 +530,17 @@ impl ContactService {
 
     pub async fn delete(&self, audit: &AuditOrigin, ids: &[String]) -> ContactResult<u64> {
         let ids = checked_ids(ids)?;
+        // 行を消した後では添付ファイルの場所が分からないので、先に控える
+        let mut attached: Vec<FieldValue> = Vec::new();
+        for id in &ids {
+            if let Ok(Some(message)) = self.deps.db.get_contact_message(id).await {
+                attached.extend(attachments_of(&message));
+            }
+        }
         let result = self.deps.db.delete_contact_messages(&ids).await;
+        if result.is_ok() {
+            self.delete_attachments(&attached).await;
+        }
         self.record(audit, AuditAction::ContactDelete, &ids, json!({}), &result)
             .await;
         Ok(result?)
@@ -448,10 +584,26 @@ impl ContactService {
         }
         let cutoff = (now - chrono::Duration::days(i64::from(self.config.retention_days)))
             .to_rfc3339_opts(SecondsFormat::Micros, true);
+        let expired = self
+            .deps
+            .db
+            .list_contact_messages(&ContactListQuery {
+                created_before: Some(cutoff.clone()),
+                ..Default::default()
+            })
+            .await
+            .map(|page| {
+                page.messages
+                    .iter()
+                    .flat_map(attachments_of)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         match self.deps.db.delete_contact_messages_before(&cutoff).await {
             Ok(n) => {
                 if n > 0 {
                     tracing::info!("Deleted {} contact messages older than {}", n, cutoff);
+                    self.delete_attachments(&expired).await;
                 }
                 n
             }
@@ -475,6 +627,35 @@ impl ContactService {
             }
         });
     }
+}
+
+/// 添付ファイルのある項目
+fn attachments_of(message: &ContactMessageRecord) -> Vec<FieldValue> {
+    serde_json::from_str::<Vec<FieldValue>>(&message.fields_json)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|f| f.file.is_some())
+        .collect()
+}
+
+/// 検索語（空白で区切り、小文字にしたもの）
+fn search_terms(q: Option<&str>) -> Vec<String> {
+    q.unwrap_or("")
+        .split_whitespace()
+        .map(str::to_lowercase)
+        .collect()
+}
+
+/// すべての語が、名前・メールアドレス・件名・各項目の値（添付のファイル名を含む）のどこかにある
+fn matches_terms(message: &ContactMessageRecord, terms: &[String]) -> bool {
+    let fields: Vec<FieldValue> = serde_json::from_str(&message.fields_json).unwrap_or_default();
+    let haystack = std::iter::once(message.name.as_str())
+        .chain([message.email.as_str(), message.subject.as_str()])
+        .chain(fields.iter().map(|f| f.value.as_str()))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .to_lowercase();
+    terms.iter().all(|t| haystack.contains(t.as_str()))
 }
 
 fn check_status(status: &str) -> ContactResult<()> {

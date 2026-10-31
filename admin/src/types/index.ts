@@ -1006,7 +1006,7 @@ export interface AnalyticsSummary {
 export interface ContactFieldConfig {
   name: string;
   label: string;
-  type: 'text' | 'email' | 'tel' | 'textarea' | 'select' | 'checkbox';
+  type: 'text' | 'email' | 'tel' | 'textarea' | 'select' | 'checkbox' | 'file';
   required: boolean;
   placeholder: string;
   options: string[];
@@ -1026,11 +1026,19 @@ export interface ContactForm {
 
 export type ContactStatus = 'new' | 'read' | 'done' | 'spam';
 
-/** One answered field of a contact message (checkboxes are `yes` or empty) */
+/** A file attached to a contact message (downloaded through the API; it has no public URL) */
+export interface ContactAttachment {
+  filename: string;
+  size: number;
+  content_type: string;
+}
+
+/** One answered field of a contact message (checkboxes are `yes` or empty; files carry the file name) */
 export interface ContactFieldValue {
   name: string;
   label: string;
   value: string;
+  file?: ContactAttachment;
 }
 
 /** A message in the contact inbox (`GET /api/v1/contact/messages`) */

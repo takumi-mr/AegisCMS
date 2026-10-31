@@ -99,7 +99,12 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/contact", get(handlers::contact::render_default_contact))
         .route(
             "/contact/{form}",
-            get(handlers::contact::render_contact).post(handlers::contact::submit_contact_form),
+            get(handlers::contact::render_contact)
+                .post(handlers::contact::submit_contact_form)
+                // 添付ファイルのある multipart（大きさそのものの上限は項目ごとに確かめる）
+                .layer(DefaultBodyLimit::max(
+                    config.contact.max_submission_bytes().max(2 * 1024 * 1024),
+                )),
         )
         .route("/api/v1/contact/forms", get(handlers::contact::list_forms))
         .route(
@@ -113,6 +118,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route(
             "/api/v1/contact/messages/bulk",
             post(handlers::contact::bulk_messages),
+        )
+        .route(
+            "/api/v1/contact/messages/{id}/attachments/{field}",
+            get(handlers::contact::download_attachment),
         )
         .route(
             "/api/v1/contact/messages/{id}",
@@ -488,7 +497,15 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
     if config.storage.backend == StorageBackendKind::Local {
         let _ = std::fs::create_dir_all(&config.storage.local.upload_dir);
         let prefix = config.storage.local.public_url_prefix.clone();
-        app = app.nest_service(&prefix, ServeDir::new(&config.storage.local.upload_dir));
+        // 問い合わせの添付ファイル（`contact/`）は公開しない。Admin Studio の API からだけ取り出せる
+        let private_prefix = format!("{}/contact/", prefix.trim_end_matches('/')).to_lowercase();
+        let uploads = Router::new()
+            .fallback_service(ServeDir::new(&config.storage.local.upload_dir))
+            .layer(axum::middleware::from_fn_with_state(
+                private_prefix,
+                hide_private_uploads,
+            ));
+        app = app.nest_service(&prefix, uploads);
     }
 
     // Admin Studio SPA 配信（`[server].admin_path`、既定 /admin/）。ビルドはアセットを相対パス（./assets/）で
@@ -511,6 +528,47 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         ))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+/// `/uploads/contact/...`（問い合わせの添付ファイル）を 404 にする
+async fn hide_private_uploads(
+    axum::extract::State(private_prefix): axum::extract::State<String>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let path = request
+        .extensions()
+        .get::<axum::extract::OriginalUri>()
+        .map(|uri| uri.0.path())
+        .unwrap_or_else(|| request.uri().path());
+    // `%63ontact` や `Contact`（大文字・小文字を区別しないファイルシステム）でも抜けないように、
+    // パーセントエンコードを戻して小文字にしてから確かめる。ベースパス配下でも合うよう部分一致にする
+    let decoded = percent_decode(path).to_lowercase();
+    if decoded.contains(&private_prefix) {
+        return axum::http::StatusCode::NOT_FOUND.into_response();
+    }
+    next.run(request).await
+}
+
+fn percent_decode(path: &str) -> String {
+    fn hex(b: u8) -> Option<u8> {
+        (b as char).to_digit(16).map(|d| d as u8)
+    }
+    let bytes = path.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(h), Some(l)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
+                out.push(h * 16 + l);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 async fn maintenance_middleware(
