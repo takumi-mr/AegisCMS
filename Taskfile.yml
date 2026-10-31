@@ -297,6 +297,12 @@ tasks:
       - task: bench:plugins
       - task: bench:http
 
+  bench:dbs:
+    desc: SQLite (WAL) / PostgreSQL 16 (Docker) / MySQL 8.0 (Docker) の 3 エンジン間でベンチマークを比較実行
+    deps: [docker:dbs:up]
+    cmds:
+      - node scripts/compare-dbs.mjs
+
   plugin:build:tinygo:
     desc: TinyGo プラグインテンプレートを Wasm にビルドし sdk/templates/tinygo/plugin.wasm を生成 (要 TinyGo 0.31+)
     cmds:

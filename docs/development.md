@@ -25,6 +25,7 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | `task bench:plugins` | プラグインのフック 1 回あたりの所要時間と同時実行時のスループット（`crates/aegis-runtime/examples/plugin_profile.rs`） |
 | `task bench:http`（`bench`） | サーバーの HTTP パフォーマンスベンチマーク（トップページ、記事、API、プレビュー、見積もり。`scripts/benchmark.mjs`） |
 | `task bench:all` | プラグイン性能計測と HTTP ベンチマークを一括実行 |
+| `task bench:dbs` | SQLite / PostgreSQL / MySQL の 3 エンジン間でベンチマーク比較を実行（[6.3](#63-データベース別パフォーマンス比較-task-benchdbs--scriptscompare-dbsmjs)） |
 | `task demo:shop` / `demo:shop:seed` | サンプルショップの起動 / データ投入（[examples/coffee-shop](../examples/coffee-shop)） |
 | `task demo:forum` / `demo:forum:seed` | サンプル掲示板の起動 / データ投入（[examples/hiking-forum](../examples/hiking-forum)） |
 | `task docs:screenshots` | `docs/images/` のスクリーンショットを撮り直す（サンプルのデータで使い捨てのサーバーを立て、Playwright で撮る。`scripts/capture-docs-screenshots.mjs`。画面を変えたら実行して差分をコミットする） |
@@ -145,6 +146,30 @@ task bench:plugins
 ```
 
 両方を一括実行する場合は `task bench:all` を使用します。
+
+### 6.3 データベース別パフォーマンス比較 (`task bench:dbs` / `scripts/compare-dbs.mjs`)
+
+同一のリリースバイナリ（LTO 有効化・最適化済み）を用いて、組み込み **SQLite (WAL モード)**、Docker 上の **PostgreSQL 16**、および **MySQL 8.0** の 3 つのデータベースエンジン間で主要エンドポイントの負荷耐性とスループットを計測・比較します。
+
+```bash
+# 事前にテスト用 DB コンテナを起動（ヘルスチェック待機付き）
+task docker:dbs:up
+
+# 3 つの DB に対する自動比較ベンチマーク（ビルド、マイグレーション、データ投入、測定、比較レポート出力）を一括実行
+task bench:dbs
+```
+
+#### 実測ベンチマーク結果（Windows 11 / AMD Ryzen 7 / Docker Desktop、並行度 50）
+
+| エンドポイント / ワークロード | SQLite (WAL) | PostgreSQL 16 (Docker) | MySQL 8.0 (Docker) | 特性と分析 |
+| :--- | :--- | :--- | :--- | :--- |
+| **公開トップページ** (`GET /`)<br>*(参照中心・キャッシュ・テンプレート描画)* | **2,733 req/s**<br>(p50: 17.8ms / p99: 32.0ms) | **494 req/s**<br>(p50: 94.8ms / p99: 180.9ms) | **486 req/s**<br>(p50: 96.5ms / p99: 170.4ms) | SQLite はインプロセス・ゼロコピーアクセスのため約 5.5 倍高速。外部 RDBMS は TCP ループバックと接続プール（既定 10）によるオーバーヘッドが支配的。 |
+| **未認証アクセス** (`GET /api/v1/contents/article`)<br>*(401 Unauthorized + 監査ログ同期 INSERT)* | **2,014 req/s**<br>(p50: 16.4ms / p99: 89.8ms) | **992 req/s**<br>(p50: 45.2ms / p99: 138.7ms) | **230 req/s**<br>(p50: 178.7ms / p99: 675.1ms) | SQLite は `synchronous = NORMAL` により高速。PostgreSQL も MVCC/WAL が優秀。MySQL は InnoDB トランザクションコミットの fsync とプール枯渇で急激にスループットが低下。 |
+| **セッションログイン** (`POST /api/v1/auth/session`)<br>*(Argon2id 検証 + セッション発行 + 監査ログ)* | **119 req/s**<br>(p50: 405.0ms / p99: 509.9ms) | **106 req/s**<br>(p50: 454.4ms / p99: 588.6ms) | **78 req/s**<br>(p50: 610.7ms / p99: 846.5ms) | Argon2id の計算コスト（メモリ 64MB / 反復 3 回）がボトルネックとなり、DB 間の差は比較的小さい。 |
+
+#### 設計上の考察と示唆
+1. **読み込み性能**: SQLite はプロセス内メモリ・ローカルファイル直結のため圧倒的な性能（2,700+ req/s）を誇ります。外部 DB ではコネクションプールのチューニング（`max_connections` の拡大など）を行わない限り、接続待ちによるレイテンシが増加します。
+2. **監査ログの同期 INSERT**: `database` シンクを有効にした場合、SQLite では WAL モードにより 2,000 req/s を維持できますが、MySQL では同期トランザクション書き込みの待ち時間によりスループットが約 1/9 まで制限されます。外部 RDBMS（特に MySQL）を主系 DB として高トラフィック運用する場合は、監査ログを `database` ではなく `log` シンク（ファイル/stdout 出力 + Fluentd/Logstash 転送）に逃がすか、内部で有限チャネル（`mpsc`）による非同期バッチ INSERT を導入することが強く推奨されます。
  
 ---
 

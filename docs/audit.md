@@ -33,6 +33,7 @@ purge_interval_secs = 3600
 | `prometheus` | `aegis_audit_events_total` カウンタを `GET /metrics` で公開 | Prometheus, CloudWatch Agent (Prometheus 収集) |
 
 - 出力先への書き込みに失敗しても**リクエストは失敗しません**（`ERROR` ログを出して処理を続行）。
+- `database` シンクはリクエストハンドラ内で同期 INSERT されます。SQLite (WAL モード) では 2,000+ req/s を維持しますが、外部 RDBMS（特に MySQL）ではトランザクションコミットの fsync やコネクションプールの競合によりスループットが低下しやすいため、高負荷環境では出力先の選定（`log` シンクなど）や将来の非同期キュー導入が有効です（詳細は [architecture.md 2.2](architecture.md#22-databaseadapter) および [development.md 6.3](development.md#63-データベース別パフォーマンス比較-task-benchdbs--scriptscompare-dbsmjs) 参照）。
 - `enabled = false` または `sinks = []` の場合は記録を行いません。
 - 管理者のログインやログインのロックなど、特定のイベントをメールで知らせるには `[[notifications.audit.rules]]` を設定します（[通知ドキュメント 2.1](notifications.md#21-監査イベントの通知)）。
 
