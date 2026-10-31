@@ -1,0 +1,24 @@
+{
+  "name": "official-back-to-top",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Back to Top Button",
+  "description": "Adds a back-to-top button at the end of articles and pages, or floating on screen. Configure it in [plugins.settings.official-back-to-top].",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "navigation",
+    "reading"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "hooks": [
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  }
+}

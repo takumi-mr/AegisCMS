@@ -1,0 +1,13 @@
+[package]
+name = "aegis-plugin-page-toc"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Core Team"]
+description = "Official Wasm plugin that adds a table of contents with heading links and a reading progress bar beside the page"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.1.0" }
+serde_json.workspace = true

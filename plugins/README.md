@@ -23,5 +23,7 @@ plugins/
 | [`official-shop-rules`](official-shop-rules/) | `calculate-order`, `on-order-status-changed` | EC の送料（送料無料の条件）・クーポン（利用回数の上限）・税（[EC](../docs/commerce.md#71-公式プラグイン)） |
 | [`official-order-notifier`](official-order-notifier/) | `on-order-status-changed` | 注文の作成・状態の変化を Slack / Webhook に通知（`http::fetch`） |
 | [`official-blocks`](official-blocks/) | `render-blocks` | 本文に置けるボタン・リンクカード・動画（YouTube・Vimeo）のブロック（[本文のブロック](../docs/blocks.md#4-プラグインのブロック)）。カスタムブロックのお手本 |
+| [`official-page-toc`](official-page-toc/) | `on-render-page` | 記事・固定ページの横に、見出しへのリンク（目次）とスクロールの進捗を出す。位置・色・階層などは `[plugins.settings.official-page-toc]` で変えられる |
+| [`official-back-to-top`](official-back-to-top/) | `on-render-page` | 本文の末尾（または画面に固定）に「トップへ戻る」ボタンを出す。形・色・位置などは `[plugins.settings.official-back-to-top]` で変えられる |
 
-`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`）で作り直してください。
+`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-page-toc` / `official-back-to-top` は `task plugin:build:reading`）で作り直してください。

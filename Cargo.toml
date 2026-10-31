@@ -29,6 +29,8 @@ members = [
     "plugins/official-shop-rules",
     "plugins/official-order-notifier",
     "plugins/official-blocks",
+    "plugins/official-page-toc",
+    "plugins/official-back-to-top",
 ]
 
 [workspace.package]

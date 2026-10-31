@@ -284,6 +284,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-back-to-top"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
 name = "aegis-plugin-blocks"
 version = "0.1.0"
 dependencies = [
@@ -315,6 +323,14 @@ version = "0.1.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "aegis-plugin-page-toc"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
  "serde_json",
 ]
 
