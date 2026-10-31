@@ -2,6 +2,14 @@
 
 AegisCMS の掲示板（[docs/forum.md](../../docs/forum.md)）で作った、山歩きのコミュニティサイトのサンプルです。投稿・人物・オフ会はすべて架空のものです。
 
+![サンプル掲示板「やまびこ」のトップページ](../../docs/images/forum-public.png)
+
+![スレッド（レス番号・返信先・スタッフの印）](../../docs/images/forum-thread.png)
+
+管理画面では、スレッドのピン留め・ロック・削除などのモデレーションができます。
+
+![Admin Studio のスレッド・モデレーション](../../docs/images/forum-admin.png)
+
 | 内容 | 場所 |
 | --- | --- |
 | 設定（掲示板・専用のデータベース・連投の制限・テーマ） | [`aegis.toml`](aegis.toml) |

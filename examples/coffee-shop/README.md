@@ -2,6 +2,16 @@
 
 AegisCMS の EC 機能（[docs/commerce.md](../../docs/commerce.md)）で作った、コーヒー豆のオンラインショップのサンプルです。商品・注文・店名はすべて架空のものです。
 
+![サンプルショップ「朝凪珈琲」の商品一覧ページ](../../docs/images/commerce-storefront.png)
+
+![商品ページ（値引き前の価格・数量・カートに追加）](../../docs/images/commerce-product.png)
+
+管理画面では、商品の管理と、注文・売上の確認ができます。
+
+![Admin Studio の商品一覧](../../docs/images/commerce-products.png)
+
+![Admin Studio の注文一覧と売上レポート](../../docs/images/commerce-orders.png)
+
 | 内容 | 場所 |
 | --- | --- |
 | 設定（ショップ・送料とクーポン・テーマ・銀行振込の案内・通知） | [`aegis.toml`](aegis.toml) |

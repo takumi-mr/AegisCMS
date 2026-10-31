@@ -250,6 +250,7 @@ enabled = true
       { file: 'commerce-products.png', admin: tab('商品') },
       { file: 'commerce-orders.png', admin: tab('注文') },
       { file: 'commerce-storefront.png', public: '/products' },
+      { file: 'commerce-product.png', public: '/products/house-blend-asanagi' },
       {
         file: 'comments-admin.png',
         admin: async (page) => {
@@ -286,6 +287,17 @@ enabled = true
     shots: [
       { file: 'forum-admin.png', admin: tab('フォーラム') },
       { file: 'forum-public.png', public: '/forum' },
+      {
+        file: 'forum-thread.png',
+        // スレッドの ID は投入のたびに変わるので、タイトルで探す
+        public: async () => {
+          const res = await fetch(`${BASE}/api/v1/forum/threads?category_slug=beginners&limit=100`);
+          const body = await res.json();
+          const threads = Array.isArray(body) ? body : body.threads;
+          const thread = threads.find((t) => t.title === 'はじめての山におすすめの山はありますか？');
+          return `/forum/beginners/${thread.id}`;
+        },
+      },
     ],
   },
 };
@@ -369,7 +381,8 @@ const captureSite = async (name, site) => {
         await anonymous.close();
       } else if (shot.public) {
         const publicPage = await context.newPage();
-        await publicPage.goto(`${BASE}${shot.public}`);
+        const path = typeof shot.public === 'function' ? await shot.public() : shot.public;
+        await publicPage.goto(`${BASE}${path}`);
         await publicPage.waitForLoadState('networkidle');
         if (shot.scrollTo) {
           await publicPage.locator(shot.scrollTo).first().scrollIntoViewIfNeeded();
