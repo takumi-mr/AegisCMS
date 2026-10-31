@@ -29,9 +29,20 @@ pub struct ContactConfig {
     pub notify_staff: bool,
     /// 組み込みの文言（入力の誤り・既定のフォームの見出しや項目名）の言語: `en` / `ja`
     pub locale: String,
+    /// 添付ファイル（`type = "file"` の項目）1 つあたりの大きさの上限（MB）
+    pub max_attachment_mb: u64,
+    /// 添付できるファイルの拡張子（小文字・ドットなし。大文字・小文字を区別しない）
+    pub attachment_extensions: Vec<String>,
     /// フォーム。省略時は名前・メールアドレス・件名・本文の `default` フォーム 1 つ
     pub forms: Vec<FormConfig>,
 }
+
+/// 添付できるファイルの拡張子の既定（画面で開くと危険な HTML・SVG・スクリプトは含めない）
+pub const DEFAULT_ATTACHMENT_EXTENSIONS: [&str; 10] = [
+    "jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "docx", "xlsx",
+];
+/// `max_attachment_mb` の上限
+const MAX_ATTACHMENT_MB_LIMIT: u64 = 50;
 
 impl Default for ContactConfig {
     fn default() -> Self {
@@ -43,6 +54,11 @@ impl Default for ContactConfig {
             spam_words: Vec::new(),
             notify_staff: true,
             locale: "en".to_string(),
+            max_attachment_mb: 5,
+            attachment_extensions: DEFAULT_ATTACHMENT_EXTENSIONS
+                .iter()
+                .map(|e| e.to_string())
+                .collect(),
             forms: vec![FormConfig::default()],
         }
     }
@@ -102,6 +118,8 @@ pub enum FieldKind {
     Select,
     /// チェックボックス（必須なら同意の確認などに使う）
     Checkbox,
+    /// ファイルの添付（`max_attachment_mb` / `attachment_extensions`。HTML のフォームからだけ送れる）
+    File,
 }
 
 /// フォームの 1 項目（`[[contact.forms.fields]]`）
@@ -188,7 +206,38 @@ fn valid_identifier(value: &str, allow_dash: bool, max: usize) -> bool {
         })
 }
 
+fn valid_extension(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 10
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+}
+
 impl ContactConfig {
+    /// 添付ファイルの大きさの上限（バイト）
+    pub fn max_attachment_bytes(&self) -> usize {
+        (self.max_attachment_mb as usize).saturating_mul(1024 * 1024)
+    }
+
+    /// 1 回の送信で受け付ける本文の大きさの上限（添付の最大数 × 上限 + 項目分の余裕）
+    pub fn max_submission_bytes(&self) -> usize {
+        let files = self
+            .forms
+            .iter()
+            .map(|f| {
+                f.fields
+                    .iter()
+                    .filter(|x| x.kind == FieldKind::File)
+                    .count()
+            })
+            .max()
+            .unwrap_or(0);
+        self.max_attachment_bytes()
+            .saturating_mul(files)
+            .saturating_add(512 * 1024)
+    }
+
     pub fn form(&self, name: &str) -> Option<&FormConfig> {
         self.forms.iter().find(|f| f.name == name)
     }
@@ -224,6 +273,23 @@ impl ContactConfig {
                 crate::messages::LOCALES,
                 self.locale
             ));
+        }
+        if self.max_attachment_mb == 0 || self.max_attachment_mb > MAX_ATTACHMENT_MB_LIMIT {
+            return err(format!(
+                "max_attachment_mb must be 1 to {}",
+                MAX_ATTACHMENT_MB_LIMIT
+            ));
+        }
+        if self.attachment_extensions.is_empty()
+            || self
+                .attachment_extensions
+                .iter()
+                .any(|e| !valid_extension(e))
+        {
+            return err(
+                "attachment_extensions must be lowercase letters and digits without a dot"
+                    .to_string(),
+            );
         }
         let resolved = self.clone().resolved();
         if resolved.forms.is_empty() {

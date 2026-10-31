@@ -48,8 +48,18 @@ const inbox = (initial: ContactMessage[]) => {
   const cleanup = mockApi((req) => {
     if (req.path === '/contact/forms') return forms;
     if (req.method === 'GET' && req.path === '/contact/messages') {
-      const status = new URLSearchParams(lastQuery).get('status');
-      const shown = status ? messages.filter((m) => m.status === status) : messages;
+      const params = new URLSearchParams(lastQuery);
+      const status = params.get('status');
+      const q = (params.get('q') ?? '').toLowerCase();
+      const shown = messages
+        .filter((m) => !status || m.status === status)
+        .filter(
+          (m) =>
+            !q ||
+            [m.name, m.email, m.subject, ...m.fields.map((f) => f.value)].some((v) =>
+              v.toLowerCase().includes(q)
+            )
+        );
       return { messages: shown, total: shown.length, counts: counts() };
     }
     const one = req.path.match(/^\/contact\/messages\/([^/]+)$/);
@@ -164,5 +174,38 @@ export const Disabled: Story = {
     await expect(
       await canvas.findByText('Contact forms are not enabled ([contact].enabled).')
     ).toBeVisible();
+  },
+};
+
+export const SearchAndAttachment: Story = {
+  beforeEach: () => {
+    const withFile = message('m1', 'new', 'Hanako Yamada', 'Contract review', 'See the file.');
+    withFile.fields.push({
+      name: 'attachment',
+      label: 'Attachment',
+      value: 'contract-draft.pdf',
+      file: { filename: 'contract-draft.pdf', size: 20480, content_type: 'application/pdf' },
+    });
+    return inbox([withFile, message('m2', 'new', 'Taro Sato', 'Login problem', 'Cannot sign in.')]);
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText('Contract review')).toBeVisible();
+    await expect(canvas.getByLabelText('Has an attachment')).toBeInTheDocument();
+
+    // The search filters the list by an answer (here: the attached file name)
+    await userEvent.type(canvas.getByRole('searchbox'), 'contract-draft{Enter}');
+    await waitFor(() => expect(canvas.queryByText('Login problem')).toBeNull());
+    await expect(canvas.getByText('Contract review')).toBeVisible();
+
+    await userEvent.click(canvas.getByText('Contract review'));
+    const dialog = within(await within(document.body).findByRole('dialog'));
+    await expect(dialog.getByRole('button', { name: /contract-draft\.pdf/ })).toBeVisible();
+
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(canvas.getByRole('searchbox'), '{Backspace>20/}nothing{Enter}');
+    await waitFor(() => expect(canvas.getByText('No messages match "nothing".')).toBeVisible());
+    await userEvent.click(canvas.getByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(canvas.getByText('Login problem')).toBeVisible());
   },
 };

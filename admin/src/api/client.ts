@@ -712,10 +712,37 @@ export const aegisApi = {
   async listContactMessages(query: {
     status?: ContactStatus | '';
     form?: string;
+    /** Full-text search over the sender, subject, answers and attached file names */
+    q?: string;
     limit?: number;
     offset?: number;
   }): Promise<ContactMessagePage> {
     return request(`/contact/messages?${toQuery(query)}`, {}, i18n.t('api.contactMessagesFailed'));
+  },
+
+  /** Downloads a file attached to a message (the API needs the session token, so a plain link cannot) */
+  async downloadContactAttachment(id: string, field: string, fallbackName: string): Promise<void> {
+    const token = getSessionToken();
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(
+      `${API_BASE}/contact/messages/${encodeURIComponent(id)}/attachments/${encodeURIComponent(field)}`,
+      { headers }
+    );
+    if (!res.ok) {
+      if (res.status === 401 && token) unauthorizedHandler?.();
+      const err = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, err.error || i18n.t('api.contactAttachmentFailed'));
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fallbackName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   },
 
   /** Changes a message's status (`new` / `read` / `done` / `spam`) */

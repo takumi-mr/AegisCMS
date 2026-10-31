@@ -7,16 +7,26 @@ import {
   Inbox,
   Mail,
   MailOpen,
+  Paperclip,
   RefreshCw,
+  Search,
   ShieldAlert,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi, ApiError } from '../api/client';
 import i18n from '../i18n';
-import type { ContactForm, ContactMessage, ContactMessagePage, ContactStatus } from '../types';
+import type {
+  ContactFieldValue,
+  ContactForm,
+  ContactMessage,
+  ContactMessagePage,
+  ContactStatus,
+} from '../types';
 import { cx } from '../utils/cx';
 import { formatDateTime } from '../utils/format';
+import { formatSize } from '../utils/media';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import shop from './Shop.module.css';
@@ -68,6 +78,9 @@ export const ContactInbox: React.FC<ContactInboxProps> = ({ onShowToast }) => {
   const [status, setStatus] = useState<ContactStatus | ''>('new');
   const [form, setForm] = useState<string>('');
   const [forms, setForms] = useState<ContactForm[]>([]);
+  // `draft` is what is typed; `query` is what the list is filtered by (applied on submit)
+  const [draft, setDraft] = useState<string>('');
+  const [query, setQuery] = useState<string>('');
   const [offset, setOffset] = useState<number>(0);
   const [reloadCount, setReloadCount] = useState<number>(0);
   const [page, setPage] = useState<ContactMessagePage | null>(null);
@@ -99,7 +112,7 @@ export const ContactInbox: React.FC<ContactInboxProps> = ({ onShowToast }) => {
   useEffect(() => {
     let cancelled = false;
     aegisApi
-      .listContactMessages({ status, form, limit: PAGE_SIZE, offset })
+      .listContactMessages({ status, form, q: query, limit: PAGE_SIZE, offset })
       .then((loaded) => {
         if (cancelled) return;
         setPage(loaded);
@@ -117,9 +130,23 @@ export const ContactInbox: React.FC<ContactInboxProps> = ({ onShowToast }) => {
     return () => {
       cancelled = true;
     };
-  }, [status, form, offset, reloadCount]);
+  }, [status, form, query, offset, reloadCount]);
 
   const reload = () => setReloadCount((n) => n + 1);
+
+  const search = (value: string) => {
+    setDraft(value);
+    setQuery(value.trim());
+    setOffset(0);
+  };
+
+  const download = async (message: ContactMessage, field: ContactFieldValue) => {
+    try {
+      await aegisApi.downloadContactAttachment(message.id, field.name, field.value);
+    } catch (err) {
+      toastRef.current(messageOf(err, t('api.contactAttachmentFailed')), 'error');
+    }
+  };
 
   const apply = async (ids: string[], action: Action) => {
     if (ids.length === 0) return;
@@ -206,6 +233,31 @@ export const ContactInbox: React.FC<ContactInboxProps> = ({ onShowToast }) => {
             </Button>
           </div>
         </div>
+
+        <form
+          className={styles.search}
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            search(draft);
+          }}
+        >
+          <Search size={14} aria-hidden="true" />
+          <input
+            type="search"
+            className={styles.searchInput}
+            aria-label={t('contact.search')}
+            placeholder={t('contact.searchPlaceholder')}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          {query && (
+            <Button variant="tool" type="button" onClick={() => search('')}>
+              <X size={14} />
+              <span>{t('contact.clearSearch')}</span>
+            </Button>
+          )}
+        </form>
 
         {forms.length > 0 && (
           <p className={styles.formLinks}>
@@ -306,6 +358,13 @@ export const ContactInbox: React.FC<ContactInboxProps> = ({ onShowToast }) => {
                       >
                         <span className={styles.subject}>
                           {message.subject || t('contact.noSubject')}
+                          {message.fields.some((f) => f.file) && (
+                            <Paperclip
+                              size={12}
+                              className={styles.clip}
+                              aria-label={t('contact.hasAttachment')}
+                            />
+                          )}
                         </span>
                         <span className={styles.preview}>{preview(message)}</span>
                       </button>
@@ -332,9 +391,11 @@ export const ContactInbox: React.FC<ContactInboxProps> = ({ onShowToast }) => {
                 {messages.length === 0 && (
                   <tr>
                     <td colSpan={6} className={shop.empty}>
-                      {status
-                        ? t('contact.emptyStatus', { status: t(`contact.status.${status}`) })
-                        : t('contact.empty')}
+                      {query
+                        ? t('contact.emptySearch', { query })
+                        : status
+                          ? t('contact.emptyStatus', { status: t(`contact.status.${status}`) })
+                          : t('contact.empty')}
                     </td>
                   </tr>
                 )}
@@ -402,9 +463,21 @@ export const ContactInbox: React.FC<ContactInboxProps> = ({ onShowToast }) => {
                 <React.Fragment key={field.name}>
                   <dt>{field.label}</dt>
                   <dd className={styles.value}>
-                    {field.value === 'yes' && field.name !== 'message'
-                      ? t('contact.checked')
-                      : field.value || <span className={shop.muted}>—</span>}
+                    {field.file ? (
+                      <button
+                        type="button"
+                        className={styles.attachment}
+                        onClick={() => download(open, field)}
+                      >
+                        <Paperclip size={14} />
+                        <span>{field.file.filename}</span>
+                        <span className={shop.muted}>({formatSize(field.file.size)})</span>
+                      </button>
+                    ) : field.value === 'yes' && field.name !== 'message' ? (
+                      t('contact.checked')
+                    ) : (
+                      field.value || <span className={shop.muted}>—</span>
+                    )}
                   </dd>
                 </React.Fragment>
               ))}

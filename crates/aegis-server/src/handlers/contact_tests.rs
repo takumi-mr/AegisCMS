@@ -452,3 +452,228 @@ async fn test_japanese_messages_and_subject_field() {
     let thanks = site.get("/contact/default?sent=1").await;
     assert!(thanks.body.contains("お問い合わせありがとうございます。"));
 }
+
+fn multipart(parts: &[(&str, Option<(&str, &str)>, &[u8])]) -> (String, Vec<u8>) {
+    let boundary = "----aegis-test-boundary";
+    let mut body = Vec::new();
+    for (name, file, data) in parts {
+        body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
+        match file {
+            Some((filename, content_type)) => body.extend_from_slice(
+                format!(
+                    "Content-Disposition: form-data; name=\"{}\"; filename=\"{}\"\r\nContent-Type: {}\r\n\r\n",
+                    name, filename, content_type
+                )
+                .as_bytes(),
+            ),
+            None => body.extend_from_slice(
+                format!("Content-Disposition: form-data; name=\"{}\"\r\n\r\n", name).as_bytes(),
+            ),
+        }
+        body.extend_from_slice(data);
+        body.extend_from_slice(b"\r\n");
+    }
+    body.extend_from_slice(format!("--{}--\r\n", boundary).as_bytes());
+    (format!("multipart/form-data; boundary={}", boundary), body)
+}
+
+#[tokio::test]
+async fn test_attachment_upload_download_and_search() {
+    let site = site(|config| {
+        config.storage.local.upload_dir = "target/test_uploads".into();
+        let mut fields = aegis_contact::config::default_fields("en");
+        fields.push(aegis_contact::FieldConfig {
+            name: "attachment".into(),
+            label: "Attachment".into(),
+            kind: aegis_contact::FieldKind::File,
+            required: false,
+            placeholder: String::new(),
+            options: vec![],
+            max_length: None,
+        });
+        config.contact.forms[0].fields = fields;
+    })
+    .await;
+    let page = site.get("/contact").await;
+    assert!(page.body.contains(r#"enctype="multipart/form-data""#));
+    assert!(page.body.contains(r#"type="file""#));
+    assert!(page.body.contains(r#"accept=".jpg,"#), "{}", page.body);
+
+    let mut parts: Vec<(&str, Option<(&str, &str)>, &[u8])> = VALID
+        .iter()
+        .map(|(k, v)| (*k, None, v.as_bytes()))
+        .collect();
+    parts.push((
+        "attachment",
+        Some(("estimate.pdf", "application/pdf")),
+        b"%PDF-1.4 test",
+    ));
+    let (content_type, body) = multipart(&parts);
+    let request = Request::builder()
+        .method("POST")
+        .uri("/contact/default")
+        .header("content-type", content_type)
+        .extension(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+            [203, 0, 113, 8],
+            40000,
+        ))))
+        .body(Body::from(body))
+        .unwrap();
+    let sent = crate::app::router(&site.state.config, site.state.clone())
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(sent.status(), StatusCode::SEE_OTHER);
+
+    let inbox = site.inbox().await;
+    let message = &inbox["messages"][0];
+    let id = message["id"].as_str().unwrap();
+    let file = message["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["name"] == "attachment")
+        .unwrap();
+    assert_eq!(file["value"], "estimate.pdf");
+    assert_eq!(file["file"]["size"], 13);
+
+    let search = site
+        .api(
+            "GET",
+            "/api/v1/contact/messages?q=ESTIMATE",
+            None,
+            &site.editor,
+        )
+        .await
+        .json();
+    assert_eq!(search["total"], 1);
+    let none = site
+        .api(
+            "GET",
+            "/api/v1/contact/messages?q=nothing",
+            None,
+            &site.editor,
+        )
+        .await
+        .json();
+    assert_eq!(none["total"], 0);
+
+    let url = format!("/api/v1/contact/messages/{}/attachments/attachment", id);
+    let download = site.api("GET", &url, None, &site.editor).await;
+    assert_eq!(download.status, StatusCode::OK);
+    assert_eq!(download.body, "%PDF-1.4 test");
+    assert_eq!(download.headers["content-type"], "application/pdf");
+    assert!(download.headers["content-disposition"]
+        .to_str()
+        .unwrap()
+        .starts_with("attachment;"));
+    assert_eq!(download.headers["x-content-type-options"], "nosniff");
+    assert_eq!(
+        site.api("GET", &url, None, &site.viewer).await.status,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(site.get(&url).await.status, StatusCode::UNAUTHORIZED);
+
+    // 保存先は公開されない（大文字・パーセントエンコードでも）
+    let key = file["file"]["key"].as_str().unwrap();
+    for path in [
+        format!("/uploads/{}", key),
+        format!("/uploads/{}", key.replace("contact/", "Contact/")),
+        format!("/uploads/{}", key.replace("contact/", "%63ontact/")),
+    ] {
+        assert_eq!(
+            site.get(&path).await.status,
+            StatusCode::NOT_FOUND,
+            "{}",
+            path
+        );
+    }
+
+    site.api(
+        "DELETE",
+        &format!("/api/v1/contact/messages/{}", id),
+        None,
+        &site.editor,
+    )
+    .await;
+    assert!(!site.state.storage.exists(key).await.unwrap());
+}
+
+#[tokio::test]
+async fn test_attachment_rejected_by_type_and_too_large_body() {
+    let site = site(|config| {
+        config.contact.max_attachment_mb = 1;
+        let mut fields = aegis_contact::config::default_fields("en");
+        fields.push(aegis_contact::FieldConfig {
+            name: "attachment".into(),
+            label: "Attachment".into(),
+            kind: aegis_contact::FieldKind::File,
+            required: false,
+            placeholder: String::new(),
+            options: vec![],
+            max_length: None,
+        });
+        config.contact.forms[0].fields = fields;
+    })
+    .await;
+    let post = |parts: Vec<(&'static str, Option<(&'static str, &'static str)>, Vec<u8>)>| {
+        let site = &site;
+        async move {
+            let borrowed: Vec<(&str, Option<(&str, &str)>, &[u8])> = parts
+                .iter()
+                .map(|(n, f, d)| (*n, *f, d.as_slice()))
+                .collect();
+            let (content_type, body) = multipart(&borrowed);
+            let request = Request::builder()
+                .method("POST")
+                .uri("/contact/default")
+                .header("content-type", content_type)
+                .extension(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+                    [203, 0, 113, 9],
+                    40000,
+                ))))
+                .body(Body::from(body))
+                .unwrap();
+            crate::app::router(&site.state.config, site.state.clone())
+                .oneshot(request)
+                .await
+                .unwrap()
+        }
+    };
+    let base = || -> Vec<(&'static str, Option<(&'static str, &'static str)>, Vec<u8>)> {
+        VALID
+            .iter()
+            .map(|(k, v)| (*k, None, v.as_bytes().to_vec()))
+            .collect()
+    };
+
+    let mut exe = base();
+    exe.push((
+        "attachment",
+        Some(("run.exe", "application/octet-stream")),
+        b"MZ".to_vec(),
+    ));
+    let reply = post(exe).await;
+    assert_eq!(reply.status(), StatusCode::BAD_REQUEST);
+    let body = axum::body::to_bytes(reply.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert!(String::from_utf8_lossy(&body).contains("accepts these file types only"));
+
+    let mut huge = base();
+    huge.push((
+        "attachment",
+        Some(("big.png", "image/png")),
+        vec![0u8; 3 * 1024 * 1024],
+    ));
+    let reply = post(huge).await;
+    assert!(
+        matches!(
+            reply.status(),
+            StatusCode::BAD_REQUEST | StatusCode::PAYLOAD_TOO_LARGE
+        ),
+        "{}",
+        reply.status()
+    );
+    assert_eq!(site.inbox().await["total"], 0);
+}

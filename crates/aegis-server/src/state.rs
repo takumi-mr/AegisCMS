@@ -320,6 +320,7 @@ impl AppState {
             db: self.db.clone(),
             cache: self.cache.clone(),
             audit: self.audit.clone(),
+            storage: self.storage.clone(),
             notifier: self.notifier.clone(),
             admin_url: self.admin_url.clone().unwrap_or_default(),
         }

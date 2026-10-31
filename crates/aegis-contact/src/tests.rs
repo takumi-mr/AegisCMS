@@ -36,7 +36,71 @@ impl AuditSink for RecordingSink {
     }
 }
 
+#[derive(Default)]
+struct MemoryStorage(Mutex<std::collections::BTreeMap<String, Vec<u8>>>);
+
+#[async_trait::async_trait]
+impl StorageBackend for MemoryStorage {
+    async fn put(
+        &self,
+        key: &str,
+        data: &[u8],
+        content_type: &str,
+    ) -> aegis_core::Result<aegis_core::StorageMeta> {
+        self.0
+            .lock()
+            .unwrap()
+            .insert(key.to_string(), data.to_vec());
+        Ok(aegis_core::StorageMeta {
+            key: key.to_string(),
+            url: format!("/uploads/{}", key),
+            size: data.len(),
+            content_type: content_type.to_string(),
+        })
+    }
+
+    async fn get(&self, key: &str) -> aegis_core::Result<Vec<u8>> {
+        self.0
+            .lock()
+            .unwrap()
+            .get(key)
+            .cloned()
+            .ok_or_else(|| AegisError::NotFound(key.to_string()))
+    }
+
+    async fn delete(&self, key: &str) -> aegis_core::Result<()> {
+        self.0.lock().unwrap().remove(key);
+        Ok(())
+    }
+
+    async fn list(
+        &self,
+        prefix: &str,
+        _max_objects: usize,
+    ) -> aegis_core::Result<Vec<aegis_core::StorageObject>> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .keys()
+            .filter(|k| k.starts_with(prefix))
+            .map(|k| aegis_core::StorageObject {
+                key: k.clone(),
+                url: String::new(),
+                size: 0,
+                content_type: String::new(),
+                last_modified: None,
+            })
+            .collect())
+    }
+
+    fn public_url(&self, key: &str) -> String {
+        format!("/uploads/{}", key)
+    }
+}
+
 struct Fixture {
+    storage: Arc<MemoryStorage>,
     service: ContactService,
     notifier: Arc<RecordingNotifier>,
     audit: Arc<RecordingSink>,
@@ -52,18 +116,21 @@ async fn fixture(configure: impl FnOnce(&mut ContactConfig)) -> Fixture {
     db.init().await.unwrap();
     let notifier = Arc::new(RecordingNotifier::default());
     let audit = Arc::new(RecordingSink::default());
+    let storage = Arc::new(MemoryStorage::default());
     let service = ContactService::new(
         config,
         ContactDeps {
             db: Arc::new(db),
             cache: Arc::new(MemoryCacheBackend::new()),
             audit: Arc::new(AuditService::with_sinks(vec![audit.clone()])),
+            storage: storage.clone(),
             notifier: Some(notifier.clone()),
             admin_url: "https://example.com/admin/".to_string(),
         },
     )
     .unwrap();
     Fixture {
+        storage,
         service,
         notifier,
         audit,
@@ -372,4 +439,229 @@ fn test_forms_summary_and_default_form() {
         .unwrap();
     assert_eq!(saved.subject, "Pricing");
     assert_eq!(saved.email, "");
+}
+
+fn attach_form(config: &mut ContactConfig) {
+    let mut form = FormConfig {
+        fields: config::default_fields("en"),
+        ..FormConfig::default()
+    };
+    form.fields.push(FieldConfig {
+        name: "attachment".to_string(),
+        label: "Attachment".to_string(),
+        kind: FieldKind::File,
+        required: false,
+        placeholder: String::new(),
+        options: Vec::new(),
+        max_length: None,
+    });
+    config.forms = vec![form];
+}
+
+fn upload(filename: &str, data: &[u8]) -> UploadedFile {
+    UploadedFile {
+        field: "attachment".to_string(),
+        filename: filename.to_string(),
+        data: data.to_vec(),
+    }
+}
+
+#[tokio::test]
+async fn test_attachment_is_stored_downloaded_and_deleted() {
+    let f = fixture(attach_form).await;
+    let saved = f
+        .service
+        .submit_with_files(
+            "default",
+            &valid(),
+            &[upload("../見積もり 2026.PDF", b"%PDF-1.4")],
+            &client("203.0.113.1"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let message = f.service.get(&saved.id).await.unwrap();
+    let file = message
+        .fields
+        .iter()
+        .find(|v| v.name == "attachment")
+        .unwrap();
+    assert_eq!(file.value, "見積もり 2026.PDF");
+    let attachment = file.file.clone().unwrap();
+    assert!(attachment
+        .key
+        .starts_with(&format!("contact/{}/", saved.id)));
+    assert!(attachment.key.ends_with(".pdf"));
+    assert_eq!(attachment.size, 8);
+    assert_eq!(attachment.content_type, "application/pdf");
+    assert_eq!(f.storage.0.lock().unwrap().len(), 1);
+
+    let (meta, data) = f.service.attachment(&saved.id, "attachment").await.unwrap();
+    assert_eq!(meta.filename, "見積もり 2026.PDF");
+    assert_eq!(data, b"%PDF-1.4");
+    assert!(matches!(
+        f.service.attachment(&saved.id, "message").await,
+        Err(ContactError::NotFound(_))
+    ));
+
+    f.service
+        .delete(&admin(), std::slice::from_ref(&saved.id))
+        .await
+        .unwrap();
+    assert!(f.storage.0.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_attachment_rules() {
+    let f = fixture(|c| {
+        attach_form(c);
+        c.max_attachment_mb = 1;
+    })
+    .await;
+    let submit = |file: UploadedFile| {
+        let f = &f;
+        async move {
+            f.service
+                .submit_with_files("default", &valid(), &[file], &client("203.0.113.2"))
+                .await
+        }
+    };
+    let code = |result: ContactResult<Option<ContactMessageRecord>>| match result {
+        Err(ContactError::Invalid(errors)) => errors[0].code.clone(),
+        other => panic!("expected an input error, got {:?}", other.map(|_| ())),
+    };
+    assert_eq!(
+        code(submit(upload("run.exe", b"MZ")).await),
+        "invalid_file_type"
+    );
+    assert_eq!(
+        code(submit(upload("noext", b"x")).await),
+        "invalid_file_type"
+    );
+    assert_eq!(
+        code(submit(upload("big.png", &vec![0u8; 1024 * 1024 + 1])).await),
+        "file_too_large"
+    );
+    assert!(f.storage.0.lock().unwrap().is_empty());
+    // ファイルを選ばずに送る（空のファイル名・空の中身）のは、任意の項目なら誤りではない
+    let none = submit(upload("", b"")).await.unwrap().unwrap();
+    assert!(f.service.get(&none.id).await.unwrap().fields[4]
+        .file
+        .is_none());
+}
+
+#[tokio::test]
+async fn test_required_attachment() {
+    let f = fixture(|c| {
+        attach_form(c);
+        c.forms[0].fields[4].required = true;
+    })
+    .await;
+    let result = f
+        .service
+        .submit("default", &valid(), &client("203.0.113.3"))
+        .await;
+    match result {
+        Err(ContactError::Invalid(errors)) => assert_eq!(errors[0].code, "required"),
+        other => panic!("expected required, got {:?}", other.map(|_| ())),
+    }
+}
+
+#[tokio::test]
+async fn test_retention_removes_attachments() {
+    let f = fixture(|c| {
+        attach_form(c);
+        c.retention_days = 30;
+    })
+    .await;
+    f.service
+        .submit_with_files(
+            "default",
+            &valid(),
+            &[upload("a.txt", b"hello")],
+            &client("203.0.113.4"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(f.storage.0.lock().unwrap().len(), 1);
+    assert_eq!(f.service.apply_retention(Utc::now()).await, 0);
+    let later = Utc::now() + chrono::Duration::days(31);
+    assert_eq!(f.service.apply_retention(later).await, 1);
+    assert!(f.storage.0.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_full_text_search() {
+    let f = fixture(attach_form).await;
+    let send = |ip: &'static str, pairs: &[(&str, &str)], file: Option<UploadedFile>| {
+        let mut input = valid();
+        input.extend(pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())));
+        let f = &f;
+        async move {
+            let files: Vec<UploadedFile> = file.into_iter().collect();
+            f.service
+                .submit_with_files("default", &input, &files, &client(ip))
+                .await
+                .unwrap()
+                .unwrap()
+        }
+    };
+    send(
+        "203.0.113.10",
+        &[("message", "Pricing for ACME Corp")],
+        None,
+    )
+    .await;
+    send(
+        "203.0.113.11",
+        &[
+            ("name", "Taro"),
+            ("email", "taro@example.org"),
+            ("message", "Hello"),
+        ],
+        Some(upload("contract-draft.pdf", b"%PDF")),
+    )
+    .await;
+    send(
+        "203.0.113.12",
+        &[("subject", "名前のテスト"), ("message", "別件")],
+        None,
+    )
+    .await;
+
+    let search = |q: &str| {
+        let q = q.to_string();
+        let f = &f;
+        async move {
+            f.service
+                .list(&AdminListQuery {
+                    q: Some(q),
+                    limit: 50,
+                    ..Default::default()
+                })
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(search("acme").await.total, 1);
+    assert_eq!(search("ACME pricing").await.total, 1);
+    assert_eq!(search("acme taro").await.total, 0);
+    assert_eq!(search("example.org").await.total, 1);
+    assert_eq!(search("contract-draft").await.total, 1);
+    assert_eq!(search("テスト").await.total, 1);
+    // JSON の項目名（name / label / value）には当たらない
+    assert_eq!(search("label").await.total, 0);
+    assert_eq!(search("   ").await.total, 3);
+    let page = f
+        .service
+        .list(&AdminListQuery {
+            q: Some("a".to_string()),
+            limit: 1,
+            offset: 1,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(page.messages.len(), 1);
+    assert!(page.total >= 2);
 }
