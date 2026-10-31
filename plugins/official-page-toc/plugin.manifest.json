@@ -1,0 +1,25 @@
+{
+  "name": "official-page-toc",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Page TOC & Reading Progress",
+  "description": "Adds a table of contents with heading links and a reading progress bar beside articles and pages. Configure it in [plugins.settings.official-page-toc].",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "toc",
+    "navigation",
+    "reading"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "hooks": [
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 50000000,
+    "execution_timeout_ms": 250
+  }
+}
