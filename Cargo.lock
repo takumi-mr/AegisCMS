@@ -330,6 +330,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-code-lines"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
+name = "aegis-plugin-external-links"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
+name = "aegis-plugin-lightbox"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
 name = "aegis-plugin-macros"
 version = "0.1.0"
 dependencies = [

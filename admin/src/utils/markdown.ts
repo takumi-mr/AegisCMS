@@ -141,7 +141,9 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
       case 'core/code': {
         const lang = (block.attributes?.language ?? 'rust').trim();
         const code = block.text ?? '';
-        parts.push(`\`\`\`${lang}\n${code}\n\`\`\``);
+        const filename = (block.attributes?.filename ?? '').trim().replace(/"/g, '');
+        const title = filename ? ` title="${filename}"` : '';
+        parts.push(`\`\`\`${lang}${title}\n${code}\n\`\`\``);
         break;
       }
       case 'core/html': {
@@ -259,8 +261,8 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
       continue;
     }
 
-    // 2. Code Block: ```lang ... ```
-    const codeFenceMatch = line.match(/^```([\w:]+)?/);
+    // 2. Code Block: ```lang ... ``` (a file name can follow the language: ```rust title="main.rs")
+    const codeFenceMatch = line.match(/^```([\w:]+)?(?:\s+title="([^"]*)")?/);
     if (codeFenceMatch) {
       const language = codeFenceMatch[1] || 'text';
       const codeLines: string[] = [];
@@ -288,7 +290,9 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
       } else {
         blocks.push({
           name: 'core/code',
-          attributes: { language },
+          attributes: codeFenceMatch[2]?.trim()
+            ? { language, filename: codeFenceMatch[2].trim() }
+            : { language },
           text: codeLines.join('\n'),
         });
       }

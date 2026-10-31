@@ -400,3 +400,19 @@ export const ContactFormBlockMissingForm: Story = {
     await expect(canvas.getByText(/no form named "old"/)).toBeVisible();
   },
 };
+
+/** The file name of a code block is written to its `filename` attribute */
+export const CodeWithFilename: Story = {
+  args: {
+    block: { name: 'core/code', attributes: { language: 'rust' }, text: 'fn main() {}' },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(canvas.getByLabelText('Filename'), 'src/main.rs');
+    await expect(args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: { language: 'rust', filename: 'src/main.rs' },
+      })
+    );
+  },
+};

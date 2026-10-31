@@ -1,0 +1,121 @@
+{
+  "name": "official-external-links",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "External Links",
+  "description": "Opens external links in a new tab, adds rel=\"noopener nofollow\" and an external-link icon. It runs in the browser, so crawlers that do not run scripts do not see the nofollow. Configure it in [plugins.settings.official-external-links].",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "links",
+    "seo"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "hooks": [
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "settings": [
+    {
+      "key": "content_types",
+      "type": "string",
+      "label": {
+        "en": "Content types",
+        "ja": "対象のコンテンツ"
+      },
+      "description": {
+        "en": "Comma-separated content types the plugin works on.",
+        "ja": "動かすコンテンツの種類（カンマ区切り）。"
+      },
+      "default": "article,page"
+    },
+    {
+      "key": "selector",
+      "type": "string",
+      "label": {
+        "en": "Content area (CSS selector)",
+        "ja": "本文の範囲（CSS セレクター）"
+      },
+      "description": {
+        "en": "Only links inside this area are handled. Comma-separated selectors are allowed.",
+        "ja": "この範囲の中のlinksだけを対象にする。カンマ区切りで複数指定できる。"
+      },
+      "default": ".prose"
+    },
+    {
+      "key": "new_tab",
+      "type": "boolean",
+      "label": {
+        "en": "Open in a new tab",
+        "ja": "新しいタブで開く"
+      },
+      "default": true
+    },
+    {
+      "key": "nofollow",
+      "type": "boolean",
+      "label": {
+        "en": "Add rel=\"nofollow\"",
+        "ja": "rel=\"nofollow\" を付ける"
+      },
+      "default": true,
+      "description": {
+        "en": "Set by a script in the browser: search engines that do not run scripts do not see it.",
+        "ja": "ブラウザーのスクリプトが付ける。スクリプトを実行しない検索エンジンには見えない。"
+      }
+    },
+    {
+      "key": "icon",
+      "type": "boolean",
+      "label": {
+        "en": "Show the external-link icon",
+        "ja": "外部リンクのアイコンを出す"
+      },
+      "default": true
+    },
+    {
+      "key": "internal_domains",
+      "type": "string",
+      "label": {
+        "en": "Domains treated as internal",
+        "ja": "内部として扱うドメイン"
+      },
+      "description": {
+        "en": "Comma-separated (subdomains included), e.g. example.com. The site's own domain is always internal.",
+        "ja": "カンマ区切り（サブドメインを含む）。例: example.com。このサイト自身のドメインは常に内部。"
+      },
+      "placeholder": "example.com"
+    },
+    {
+      "key": "locale",
+      "type": "select",
+      "label": {
+        "en": "Built-in text language",
+        "ja": "組み込みの文言の言語"
+      },
+      "default": "en",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "ja": "English"
+          }
+        },
+        {
+          "value": "ja",
+          "label": {
+            "en": "日本語",
+            "ja": "日本語"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -170,3 +170,14 @@
   border-top: 1px dashed var(--border-medium);
   margin: 8px 0;
 }
+
+.filenameInput {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+}

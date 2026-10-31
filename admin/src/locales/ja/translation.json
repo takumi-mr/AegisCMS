@@ -168,6 +168,8 @@
     "paragraphPlaceholder": "段落の本文を入力...",
     "language": "言語:",
     "codePlaceholder": "// ここにソースコードを入力...",
+    "filename": "ファイル名",
+    "filenamePlaceholder": "ファイル名（任意。例: src/main.rs）",
     "library": "メディアライブラリから選ぶ",
     "urlPlaceholder": "画像の URL（例: https://images.unsplash.com/...）",
     "altPlaceholder": "代替テキスト（alt）...",

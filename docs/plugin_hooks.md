@@ -533,7 +533,7 @@ SDK ヘルパー:
 - **値は文字列で保存**します（`boolean` は `"true"` / `"false"`、`number` は 10 進数）。読むときは `config::get` が返す文字列を、プラグインが型に直します。
 - **空欄は「未設定」**です。宣言した項目の空の値は保存せず（キーごと消します）、プラグインは `config::get` が `None` のときの既定値を使います。検査はサーバー（`PUT /api/v1/plugins/{name}/settings`）でも行い、誤りは `400 {"code": "invalid_setting", "errors": [{"key", "message"}]}` で返します（保存は 1 つもしません）。宣言のないキーは検査しません。
 - **設定ファイル（`[plugins.settings.<名前>]`）の値は検査されません**（起動時の設定として読むだけです）。プラグインは、読んだ値を CSS や HTML に入れる前に、自分でも許可する形だけに絞ってください。`default` が自分の検査を通らない宣言や、`select` に選択肢がない宣言は、マニフェストの不備になります。
-- 動く例は [`official-page-toc`](../plugins/official-page-toc/plugin.manifest.json) と [`official-back-to-top`](../plugins/official-back-to-top/plugin.manifest.json) です。
+- 動く例は [`official-page-toc`](../plugins/official-page-toc/plugin.manifest.json)・[`official-back-to-top`](../plugins/official-back-to-top/plugin.manifest.json)（本文に足す）と、[`official-code-lines`](../plugins/official-code-lines/plugin.manifest.json)・[`official-lightbox`](../plugins/official-lightbox/plugin.manifest.json)・[`official-external-links`](../plugins/official-external-links/plugin.manifest.json)（スクリプトで本文の HTML を整える）です。
 
 ## 4. リソース制限 (`resource_limits`)
 
