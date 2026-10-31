@@ -141,6 +141,10 @@ export interface ContentListParams {
   status?: string;
   limit?: number;
   offset?: number;
+  /** Keyset pagination cursor: created_at timestamp of the previous page's last item */
+  cursor_created_at?: string;
+  /** Keyset pagination cursor: id of the previous page's last item */
+  cursor_id?: string;
 }
 
 export interface ContentSummaryPage {
@@ -149,6 +153,8 @@ export interface ContentSummaryPage {
   total: number;
   limit: number;
   offset: number;
+  next_cursor_created_at?: string | null;
+  next_cursor_id?: string | null;
 }
 
 const toQuery = (query: object): string => {
@@ -355,6 +361,8 @@ export const aegisApi = {
       total?: number;
       limit?: number;
       offset?: number;
+      next_cursor_created_at?: string | null;
+      next_cursor_id?: string | null;
     }>(
       `/contents/${encodeURIComponent(contentType)}?${toQuery({ ...params, view: 'summary' })}`,
       {},
@@ -365,6 +373,8 @@ export const aegisApi = {
       total: data.total ?? 0,
       limit: data.limit ?? params.limit ?? 0,
       offset: data.offset ?? params.offset ?? 0,
+      next_cursor_created_at: data.next_cursor_created_at,
+      next_cursor_id: data.next_cursor_id,
     };
   },
 

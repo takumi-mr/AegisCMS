@@ -223,6 +223,58 @@ async fn run_list_query_test<A: DatabaseAdapter>(adapter: &A) -> Result<()> {
     assert_eq!(ids(adapter, page(2)).await?, (strings(&["a1"]), 3));
     assert_eq!(ids(adapter, page(4)).await?, (vec![], 3));
 
+    // キーセットページネーション（カーソル指定で次ページを取得）
+    let p1 = adapter
+        .list_contents_page(
+            &article_schema(),
+            &ContentListQuery {
+                search: Some("rust".to_string()),
+                limit: Some(2),
+                ..Default::default()
+            },
+        )
+        .await?;
+    assert_eq!(
+        p1.records.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+        vec!["a6", "a2"]
+    );
+    assert_eq!(p1.total, 3);
+
+    let last = p1.records.last().unwrap();
+    let p2 = adapter
+        .list_contents_page(
+            &article_schema(),
+            &ContentListQuery {
+                search: Some("rust".to_string()),
+                limit: Some(2),
+                cursor_created_at: Some(last.created_at.clone()),
+                cursor_id: Some(last.id.clone()),
+                ..Default::default()
+            },
+        )
+        .await?;
+    assert_eq!(
+        p2.records.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+        vec!["a1"]
+    );
+    assert_eq!(p2.total, 3);
+
+    let last2 = p2.records.last().unwrap();
+    let p3 = adapter
+        .list_contents_page(
+            &article_schema(),
+            &ContentListQuery {
+                search: Some("rust".to_string()),
+                limit: Some(2),
+                cursor_created_at: Some(last2.created_at.clone()),
+                cursor_id: Some(last2.id.clone()),
+                ..Default::default()
+            },
+        )
+        .await?;
+    assert!(p3.records.is_empty());
+    assert_eq!(p3.total, 3);
+
     // 安全でない列名では何にも一致しない（SQL に埋め込まない）
     let unsafe_filter = ContentListQuery {
         filters: vec![(

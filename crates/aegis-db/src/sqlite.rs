@@ -1174,15 +1174,16 @@ impl DatabaseAdapter for SqliteAdapter {
         schema: &SchemaDefinition,
         query: &ContentListQuery,
     ) -> Result<ContentPage> {
-        let (select, count, binds) =
-            build_content_list(&schema.table_name(), &schema.content_type, query, |i| {
-                format!("?{}", i)
-            });
+        let plan = build_content_list(&schema.table_name(), &schema.content_type, query, |i| {
+            format!("?{}", i)
+        });
 
-        let mut rows_query = sqlx::query(&select);
-        let mut count_query = sqlx::query_scalar::<_, i64>(&count);
-        for value in &binds {
+        let mut rows_query = sqlx::query(&plan.select);
+        for value in &plan.select_binds {
             rows_query = rows_query.bind(value);
+        }
+        let mut count_query = sqlx::query_scalar::<_, i64>(&plan.count);
+        for value in &plan.count_binds {
             count_query = count_query.bind(value);
         }
         let rows = rows_query

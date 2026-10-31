@@ -74,4 +74,27 @@ describe('content summaries', () => {
       urls().map((url) => new URL(url, 'http://localhost').searchParams.get('offset'))
     ).toEqual(['0', '500']);
   });
+
+  it('supports keyset pagination with cursor_created_at and cursor_id', async () => {
+    fetchMock.mockImplementation(async () =>
+      respond(200, {
+        contents: [{ id: 'a2', title: 'A2', slug: 'a2', created_at: '2026-10-22T00:00:02Z' }],
+        total: 41,
+        limit: 20,
+        offset: 0,
+        next_cursor_created_at: '2026-10-22T00:00:02Z',
+        next_cursor_id: 'a2',
+      })
+    );
+    const page = await aegisApi.listContentSummaries('article', {
+      limit: 20,
+      cursor_created_at: '2026-10-22T00:00:04Z',
+      cursor_id: 'a4',
+    });
+    expect(page.next_cursor_created_at).toBe('2026-10-22T00:00:02Z');
+    expect(page.next_cursor_id).toBe('a2');
+    const query = new URL(urls()[0], 'http://localhost').searchParams;
+    expect(query.get('cursor_created_at')).toBe('2026-10-22T00:00:04Z');
+    expect(query.get('cursor_id')).toBe('a4');
+  });
 });

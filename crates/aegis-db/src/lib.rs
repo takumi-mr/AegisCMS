@@ -148,6 +148,13 @@ pub fn merge_published_content_records(
             .then_with(|| b.id.cmp(&a.id))
     });
     let total = published.len() as u64;
+    if let (Some(cur_created), Some(cur_id)) = (&query.cursor_created_at, &query.cursor_id) {
+        published.retain(|record| {
+            record.created_at.as_str() < cur_created.as_str()
+                || (record.created_at.as_str() == cur_created.as_str()
+                    && record.id.as_str() < cur_id.as_str())
+        });
+    }
     let offset = usize::try_from(query.offset).unwrap_or(usize::MAX);
     let records = published
         .into_iter()
@@ -176,6 +183,9 @@ pub struct ContentListQuery {
     /// 取得する最大件数。`None` なら全件（`offset` は無視）
     pub limit: Option<u64>,
     pub offset: u64,
+    /// キーセットページネーション: 指定した作成日時・ID より古いレコードを取得する
+    pub cursor_created_at: Option<String>,
+    pub cursor_id: Option<String>,
 }
 
 /// SQL に埋め込んでよい列名（英数字と `_`）
@@ -931,14 +941,23 @@ pub async fn resolve_relations_for_records(
     resolved
 }
 
-/// コンテンツ一覧の SELECT 文・件数の SELECT 文と、両方に共通のバインド値を組み立てる。
+/// コンテンツ一覧の生成 SQL とバインド値
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentListSql {
+    pub select: String,
+    pub select_binds: Vec<String>,
+    pub count: String,
+    pub count_binds: Vec<String>,
+}
+
+/// コンテンツ一覧の SELECT 文・件数の SELECT 文とそれぞれのバインド値を組み立てる。
 /// 値はすべてバインドし、LIMIT / OFFSET のみ数値を埋め込む
 pub fn build_content_list(
     table: &str,
     content_type: &str,
     query: &ContentListQuery,
     placeholder: impl Fn(usize) -> String,
-) -> (String, String, Vec<String>) {
+) -> ContentListSql {
     let mut binds = Vec::new();
     let mut conditions: Vec<String> = Vec::new();
     if let Some(status) = &query.status {
@@ -1001,23 +1020,55 @@ pub fn build_content_list(
             .collect();
         conditions.push(format!("({})", matches.join(" OR ")));
     }
-    let where_clause = if conditions.is_empty() {
+    let count_where_clause = if conditions.is_empty() {
         String::new()
     } else {
         format!(" WHERE {}", conditions.join(" AND "))
     };
+    let count_binds = binds.clone();
+
+    let mut select_conditions = conditions;
+    let mut select_binds = binds;
+    if let (Some(created_at), Some(id)) = (&query.cursor_created_at, &query.cursor_id) {
+        let p1 = placeholder(select_binds.len() + 1);
+        let p2 = placeholder(select_binds.len() + 2);
+        let p3 = placeholder(select_binds.len() + 3);
+        select_conditions.push(format!(
+            "(created_at < {} OR (created_at = {} AND id < {}))",
+            p1, p2, p3
+        ));
+        select_binds.push(created_at.clone());
+        select_binds.push(created_at.clone());
+        select_binds.push(id.clone());
+    }
+
+    let select_where_clause = if select_conditions.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", select_conditions.join(" AND "))
+    };
+
     let paging = match query.limit {
+        Some(limit)
+            if query.cursor_created_at.is_some()
+                && query.cursor_id.is_some()
+                && query.offset == 0 =>
+        {
+            format!(" LIMIT {}", limit)
+        }
         Some(limit) => format!(" LIMIT {} OFFSET {}", limit, query.offset),
         None => String::new(),
     };
-    (
-        format!(
+
+    ContentListSql {
+        select: format!(
             "SELECT * FROM {}{} ORDER BY created_at DESC, id DESC{};",
-            table, where_clause, paging
+            table, select_where_clause, paging
         ),
-        format!("SELECT COUNT(*) FROM {}{};", table, where_clause),
-        binds,
-    )
+        select_binds,
+        count: format!("SELECT COUNT(*) FROM {}{};", table, count_where_clause),
+        count_binds,
+    }
 }
 
 /// `resolve_relations` の SELECT 文（`ref_key` 列に `target_field` の値）。`count` 個の値を IN でバインドする
@@ -1207,30 +1258,59 @@ mod tests {
             offset: 20,
             ..Default::default()
         };
-        let (select, count, binds) =
-            build_content_list("content_article", "article", &query, |i| format!("${}", i));
+        let plan = build_content_list("content_article", "article", &query, |i| format!("${}", i));
         assert_eq!(
-            select,
+            plan.select,
             "SELECT * FROM content_article WHERE status = $1 ORDER BY created_at DESC, id DESC LIMIT 10 OFFSET 20;"
         );
         assert_eq!(
-            count,
+            plan.count,
             "SELECT COUNT(*) FROM content_article WHERE status = $1;"
         );
-        assert_eq!(binds, vec!["published"]);
+        assert_eq!(plan.select_binds, vec!["published"]);
+        assert_eq!(plan.count_binds, vec!["published"]);
 
-        let (select, count, binds) = build_content_list(
+        let plan = build_content_list(
             "content_article",
             "article",
             &ContentListQuery::default(),
             |_| "?".into(),
         );
         assert_eq!(
-            select,
+            plan.select,
             "SELECT * FROM content_article ORDER BY created_at DESC, id DESC;"
         );
-        assert_eq!(count, "SELECT COUNT(*) FROM content_article;");
-        assert!(binds.is_empty());
+        assert_eq!(plan.count, "SELECT COUNT(*) FROM content_article;");
+        assert!(plan.select_binds.is_empty());
+        assert!(plan.count_binds.is_empty());
+
+        // キーセットページネーション
+        let query = ContentListQuery {
+            status: Some("published".to_string()),
+            cursor_created_at: Some("2026-10-22T00:00:03Z".to_string()),
+            cursor_id: Some("id-3".to_string()),
+            limit: Some(10),
+            ..Default::default()
+        };
+        let plan = build_content_list("content_article", "article", &query, |i| format!("${}", i));
+        assert_eq!(
+            plan.select,
+            "SELECT * FROM content_article WHERE status = $1 AND (created_at < $2 OR (created_at = $3 AND id < $4)) ORDER BY created_at DESC, id DESC LIMIT 10;"
+        );
+        assert_eq!(
+            plan.count,
+            "SELECT COUNT(*) FROM content_article WHERE status = $1;"
+        );
+        assert_eq!(
+            plan.select_binds,
+            vec![
+                "published",
+                "2026-10-22T00:00:03Z",
+                "2026-10-22T00:00:03Z",
+                "id-3"
+            ]
+        );
+        assert_eq!(plan.count_binds, vec!["published"]);
 
         // 検索と絞り込み: 値はすべてバインドし、`?` でも `$n` でも同じ順に並ぶ
         let query = ContentListQuery {
@@ -1244,28 +1324,28 @@ mod tests {
             tag_id: None,
             limit: Some(20),
             offset: 40,
+            ..Default::default()
         };
-        let (select, count, binds) =
-            build_content_list("content_article", "article", &query, |i| format!("${}", i));
+        let plan = build_content_list("content_article", "article", &query, |i| format!("${}", i));
         let where_clause =
             "WHERE status = $1 AND category_id = $2 AND (brand_id IS NULL OR brand_id = '') \
              AND (LOWER(title) LIKE $3 ESCAPE '!' OR LOWER(slug) LIKE $4 ESCAPE '!' \
              OR LOWER(excerpt) LIKE $5 ESCAPE '!')";
         assert_eq!(
-            select,
+            plan.select,
             format!(
                 "SELECT * FROM content_article {} ORDER BY created_at DESC, id DESC LIMIT 20 OFFSET 40;",
                 where_clause
             )
         );
         assert_eq!(
-            count,
+            plan.count,
             format!("SELECT COUNT(*) FROM content_article {};", where_clause)
         );
         // 検索語の `%` `_` `!` は `!` でエスケープし、小文字にする（列名に使えない文字を含むものは対象外）
         let pattern = "%50!%!_off!!%".to_string();
         assert_eq!(
-            binds,
+            plan.select_binds,
             vec![
                 "draft",
                 "cat-1",
@@ -1274,40 +1354,39 @@ mod tests {
                 pattern.as_str()
             ]
         );
+        assert_eq!(plan.count_binds, plan.select_binds);
 
         // タグでの絞り込み
         let query = ContentListQuery {
             tag_id: Some("tag-123".to_string()),
             ..Default::default()
         };
-        let (select, count, binds) =
-            build_content_list("content_article", "article", &query, |i| format!("${}", i));
+        let plan = build_content_list("content_article", "article", &query, |i| format!("${}", i));
         assert_eq!(
-            select,
+            plan.select,
             "SELECT * FROM content_article WHERE id IN (SELECT content_id FROM _aegis_content_tags WHERE content_type = $1 AND tag_id = $2) ORDER BY created_at DESC, id DESC;"
         );
         assert_eq!(
-            count,
+            plan.count,
             "SELECT COUNT(*) FROM content_article WHERE id IN (SELECT content_id FROM _aegis_content_tags WHERE content_type = $1 AND tag_id = $2);"
         );
-        assert_eq!(binds, vec!["article", "tag-123"]);
+        assert_eq!(plan.select_binds, vec!["article", "tag-123"]);
+        assert_eq!(plan.count_binds, vec!["article", "tag-123"]);
         // 列名が安全でない絞り込みは何にも一致しない
         let query = ContentListQuery {
             filters: vec![("x; DROP TABLE y".to_string(), Some("1".to_string()))],
             ..Default::default()
         };
-        let (select, _, binds) =
-            build_content_list("content_article", "article", &query, |_| "?".into());
-        assert!(select.contains("WHERE 1 = 0"), "{}", select);
-        assert!(binds.is_empty());
+        let plan = build_content_list("content_article", "article", &query, |_| "?".into());
+        assert!(plan.select.contains("WHERE 1 = 0"), "{}", plan.select);
+        assert!(plan.select_binds.is_empty());
         // 空の検索語は無視する
         let query = ContentListQuery {
             search: Some("   ".to_string()),
             ..Default::default()
         };
-        let (select, _, _) =
-            build_content_list("content_article", "article", &query, |_| "?".into());
-        assert!(!select.contains("WHERE"), "{}", select);
+        let plan = build_content_list("content_article", "article", &query, |_| "?".into());
+        assert!(!plan.select.contains("WHERE"), "{}", plan.select);
 
         assert_eq!(
             build_relation_lookup("content_category", "id", 3, |_| "?".into()),

@@ -149,6 +149,20 @@ impl OpenApiGenerator {
                             "required": false,
                             "description": "`summary` returns ContentSummary items (no blocks and no rendered HTML, with an `excerpt`), which is cheaper to list. `full` (the default) returns the whole record",
                             "schema": { "type": "string", "enum": ["full", "summary"], "default": "full" }
+                        },
+                        {
+                            "name": "cursor_created_at",
+                            "in": "query",
+                            "required": false,
+                            "description": "Keyset pagination cursor: created_at timestamp of the last record from the previous page. Must be used with cursor_id",
+                            "schema": { "type": "string" }
+                        },
+                        {
+                            "name": "cursor_id",
+                            "in": "query",
+                            "required": false,
+                            "description": "Keyset pagination cursor: id of the last record from the previous page. Must be used with cursor_created_at",
+                            "schema": { "type": "string" }
                         }
                     ],
                     "responses": {
@@ -171,7 +185,9 @@ impl OpenApiGenerator {
                                             },
                                             "total": { "type": "integer", "description": "The number of records matching the filters" },
                                             "limit": { "type": "integer" },
-                                            "offset": { "type": "integer" }
+                                            "offset": { "type": "integer" },
+                                            "next_cursor_created_at": { "type": "string", "nullable": true },
+                                            "next_cursor_id": { "type": "string", "nullable": true }
                                         }
                                     }
                                 }
@@ -538,7 +554,16 @@ mod tests {
         let list_params = val["paths"]["/api/v1/contents/{content_type}"]["get"]["parameters"]
             .as_array()
             .unwrap();
-        for name in ["limit", "offset", "status", "q", "category", "view"] {
+        for name in [
+            "limit",
+            "offset",
+            "status",
+            "q",
+            "category",
+            "view",
+            "cursor_created_at",
+            "cursor_id",
+        ] {
             assert!(list_params.iter().any(|p| p["name"] == name), "{}", name);
         }
         assert!(val["components"]["schemas"]["ContentSummary"].is_object());

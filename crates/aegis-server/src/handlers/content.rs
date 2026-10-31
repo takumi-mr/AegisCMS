@@ -199,6 +199,12 @@ pub struct ListContentParams {
     /// `summary` なら、ブロックと描画済み HTML を返さず、要約（`excerpt`）を付ける。
     /// 省略か `full` なら、これまでどおり全体のデータ
     pub view: Option<String>,
+    /// キーセットページネーション用のカーソル（作成日時）
+    #[serde(alias = "before_created_at")]
+    pub cursor_created_at: Option<String>,
+    /// キーセットページネーション用のカーソル（コンテンツID）
+    #[serde(alias = "before_id")]
+    pub cursor_id: Option<String>,
 }
 
 /// `q` に使う文字数の上限
@@ -1012,6 +1018,12 @@ pub async fn list_content(
         schema.clone()
     };
 
+    if params.cursor_created_at.is_some() ^ params.cursor_id.is_some() {
+        return Err(bad_request(
+            "Both 'cursor_created_at' and 'cursor_id' must be provided together".to_string(),
+        ));
+    }
+
     let summary = match params.view.as_deref() {
         None | Some("") | Some("full") => false,
         Some("summary") => true,
@@ -1065,6 +1077,8 @@ pub async fn list_content(
                     "total": 0,
                     "limit": limit,
                     "offset": params.offset,
+                    "next_cursor_created_at": serde_json::Value::Null,
+                    "next_cursor_id": serde_json::Value::Null,
                 })));
             }
         }
@@ -1108,6 +1122,8 @@ pub async fn list_content(
         tag_id,
         limit: Some(limit),
         offset: params.offset,
+        cursor_created_at: params.cursor_created_at.filter(|s| !s.is_empty()),
+        cursor_id: params.cursor_id.filter(|s| !s.is_empty()),
     };
     let page = state
         .db
@@ -1147,11 +1163,22 @@ pub async fn list_content(
                 relations,
             })
             .collect();
+        let (next_cursor_created_at, next_cursor_id) = if list.len() == limit as usize {
+            if let Some(last) = list.last() {
+                (Some(last.created_at.clone()), Some(last.id.clone()))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
         return Ok(Json(json!({
             "contents": list,
             "total": page.total,
             "limit": limit,
             "offset": params.offset,
+            "next_cursor_created_at": next_cursor_created_at,
+            "next_cursor_id": next_cursor_id,
         })));
     }
 
@@ -1194,11 +1221,23 @@ pub async fn list_content(
         });
     }
 
+    let (next_cursor_created_at, next_cursor_id) = if list.len() == limit as usize {
+        if let Some(last) = list.last() {
+            (Some(last.created_at.clone()), Some(last.id.clone()))
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    };
+
     Ok(Json(json!({
         "contents": list,
         "total": page.total,
         "limit": limit,
         "offset": params.offset,
+        "next_cursor_created_at": next_cursor_created_at,
+        "next_cursor_id": next_cursor_id,
     })))
 }
 
@@ -1808,6 +1847,62 @@ mod tests {
         })
         .await;
         assert_eq!(capped["limit"], MAX_LIST_LIMIT);
+
+        // キーセットページネーション: 最初のページ
+        let p1 = list(ListContentParams {
+            limit: Some(2),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(p1["total"], 5);
+        assert_eq!(slugs(&p1), vec!["post-5", "post-4"]);
+        assert_eq!(p1["next_cursor_created_at"], "2026-10-22T00:00:04Z");
+        assert_eq!(p1["next_cursor_id"], "id-4");
+
+        // キーセットページネーション: カーソルによる次ページ
+        let p2 = list(ListContentParams {
+            limit: Some(2),
+            cursor_created_at: p1["next_cursor_created_at"].as_str().map(str::to_string),
+            cursor_id: p1["next_cursor_id"].as_str().map(str::to_string),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(p2["total"], 5);
+        assert_eq!(slugs(&p2), vec!["post-3", "post-2"]);
+        assert_eq!(p2["next_cursor_created_at"], "2026-10-22T00:00:02Z");
+        assert_eq!(p2["next_cursor_id"], "id-2");
+
+        // キーセットページネーション: 最終ページ
+        let p3 = list(ListContentParams {
+            limit: Some(2),
+            cursor_created_at: p2["next_cursor_created_at"].as_str().map(str::to_string),
+            cursor_id: p2["next_cursor_id"].as_str().map(str::to_string),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(p3["total"], 5);
+        assert_eq!(slugs(&p3), vec!["post-1"]);
+        assert!(p3["next_cursor_created_at"].is_null());
+        assert!(p3["next_cursor_id"].is_null());
+
+        // 片方のみ指定した場合は 400 Bad Request
+        let err_res = list_content(
+            State(state.clone()),
+            viewer(),
+            Path("article".to_string()),
+            Query(ListContentParams {
+                cursor_created_at: Some("2026-10-22T00:00:04Z".to_string()),
+                ..Default::default()
+            }),
+        )
+        .await;
+        assert!(err_res.is_err());
+        let (status, err_json) = err_res.err().unwrap();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err_json.0["error"],
+            "Both 'cursor_created_at' and 'cursor_id' must be provided together"
+        );
     }
 
     /// 検索・カテゴリの絞り込み・要約表示（`q` / `category` / `view=summary`）
@@ -2018,6 +2113,53 @@ mod tests {
         // 空の `category` は指定なし
         let (status, _) = list("page", params(None, Some(""), None)).await;
         assert_eq!(status, StatusCode::OK);
+
+        // view=summary でのキーセットページネーション
+        let (_, s1) = list(
+            "article",
+            ListContentParams {
+                limit: Some(2),
+                view: Some("summary".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+        assert_eq!(s1["total"], 4);
+        assert_eq!(slugs(&s1), vec!["rust-note", "japanese"]);
+        assert!(s1["next_cursor_created_at"].is_string());
+        assert!(s1["next_cursor_id"].is_string());
+
+        let (_, s2) = list(
+            "article",
+            ListContentParams {
+                limit: Some(2),
+                view: Some("summary".to_string()),
+                cursor_created_at: s1["next_cursor_created_at"].as_str().map(str::to_string),
+                cursor_id: s1["next_cursor_id"].as_str().map(str::to_string),
+                ..Default::default()
+            },
+        )
+        .await;
+        assert_eq!(s2["total"], 4);
+        assert_eq!(slugs(&s2), vec!["cooking", "rust-streaming"]);
+        assert!(s2["next_cursor_created_at"].is_string());
+        assert!(s2["next_cursor_id"].is_string());
+
+        let (_, s3) = list(
+            "article",
+            ListContentParams {
+                limit: Some(2),
+                view: Some("summary".to_string()),
+                cursor_created_at: s2["next_cursor_created_at"].as_str().map(str::to_string),
+                cursor_id: s2["next_cursor_id"].as_str().map(str::to_string),
+                ..Default::default()
+            },
+        )
+        .await;
+        assert_eq!(s3["total"], 4);
+        assert!(s3["contents"].as_array().unwrap().is_empty());
+        assert!(s3["next_cursor_created_at"].is_null());
+        assert!(s3["next_cursor_id"].is_null());
     }
 
     async fn create(
