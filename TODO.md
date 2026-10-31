@@ -9,18 +9,16 @@
 
 ## 現在の状況
 
-- プラグイン開発サーバー（`aegis-server plugin dev <dir>` / `task dev:plugin`）のコア API（Phase 1）が稼働。DB・ログイン不要で単体 Wasm フックの即時実行、ログ・Fuel・実行時間計測、KVS/HTTP モックを提供。
-- コアエンジン（Rust）、Admin Studio（React/TypeScript）、Wasm プラグインランタイム、テーマエンジン、二段階認証、動的運用設定、一括バックアップ＆リストア機能、アクセス解析集計が安定稼働。全検証（`task check`）を通過。
+- プラグイン開発環境（Plugin Builder MVP）が稼働。`aegis-server plugin dev` の JSON API と `plugin-builder`（React 19 + Vite + CodeMirror 6、ポート 5175）が連携し、フック選択、モックフィクスチャ入力、即時サンドボックス実行、Diff/JSON結果表示、リアルタイムログ、Fuel/実行時間計測、KVS差分表示を提供。全検証を通過。
 
 ---
 
 ## 直近の着手タスク
 
-1. **Plugin Builder Phase 2: Web UI (`plugin-builder/`) の構築 (MVP)**:
-   - `theme-builder` と同等の React 19 + TypeScript + Vite による開発用 Web スタジオの新設。
-   - フック選択セレクター、入力 JSON/テキストエディター、プリセット読み込み（フィクスチャ）、ワンクリック実行ボタン。
-   - 実行結果の可視化（Diff / JSON 表示、実行時間 ms、消費 Fuel、リアルタイム Wasm ログストリーム、KVS 差分）。
-   - `task dev:plugin-builder`、ビルド・リント・テストスクリプトの整備。
+1. **Plugin Builder Phase 3: HTML ライブプレビュー & ホスト API モック & 各言語ビルド監視**:
+   - フロントエンド系フック（`on-render-page`, `render-blocks`）の出力を iframe 上でモック記事としてプレビュー描画。
+   - UI 上での HTTP モックレスポンス追加・編集インターフェース。
+   - プラグインソースコード（Rust / AssemblyScript / TinyGo）の変更監視と自動ビルドトリガー。
 
 2. **AssemblyScript / TinyGo SDK の機能追従**:
    - Rust SDK に追加済みのフック（`calculate-order`, `on-order-status-changed`, `send-notification`, `on-content-published`, `check-comment`, `render-blocks`）およびホスト API（`http_fetch`, `kv_get`, `config_get`）のラッパーを整備（ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) 参照）。
@@ -38,11 +36,14 @@
 ### 🔌 プラグイン・将来構想
 - [ ] **Plugin Builder (プラグイン開発体験向上ツール)**:
   - [x] **Phase 1**: コア開発サーバー API (`aegis plugin dev` / `task dev:plugin`)。DB不要で単体Wasmフック実行、ログ・Fuel取得、モックホストAPI。
-  - [ ] **Phase 2**: Plugin Builder Web UI (`plugin-builder/` - React/Vite)。フック選択、モックデータ入力、Diff・ログ表示。
+  - [x] **Phase 2**: Plugin Builder Web UI (`plugin-builder/` - React/Vite)。フック選択、モックデータ入力、Diff・ログ表示。
   - [ ] **Phase 3**: フロントエンド系フックの HTML ライブプレビュー (iframe)、KVS/HTTP インスペクター、各言語（Rust/TS/Go）の自動ビルド監視。
 - [ ] **読者向けの小さな公式プラグイン**（`official-page-toc` / `official-back-to-top` と同じ作りで足す。それぞれ別プラグイン）:
   - 読了時間・文字数の表示（`on-render-page`）
   - [x] SNS 共有ボタン（X・LINE・URL コピー、設定で任意の共有先を追加可能）: 公式プラグイン [official-share-buttons](plugins/official-share-buttons)
+  - コードブロックの行番号・ファイル名表示（`official-code-enhancer` の拡張でも可）
+  - 画像ライトボックス（本文の画像をクリックで拡大）
+  - 外部リンクの自動処理（`target="_blank" rel="noopener nofollow"` と外部アイコン。`transform-content-ast`）
   - 前後の記事ナビ（同じカテゴリ内の「前の記事 / 次の記事」）
 - [ ] **広告配信プラグイン**: `on-render-page` によるヘッダー注入とカスタムブロック表示、動的 CSP 設定との連携、Cookie 同意バナー対応。
 - [ ] **テンプレートからの動的コンテンツ取得関数（検討）**: `latest("article", 5, category="news")` などの MiniJinja グローバル関数または事前取得宣言機構。

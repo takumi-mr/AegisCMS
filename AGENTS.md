@@ -112,6 +112,7 @@ Conventional Commits 形式に準拠します。
   - `runtime`: `crates/aegis-runtime`
   - `server`: `crates/aegis-server`
   - `admin`: `admin/` (Admin Studio フロントエンド)
+  - `plugin-builder`: `plugin-builder/` (Plugin Builder: プラグイン開発用のエディター + 実行サンドボックス)
   - `theme-builder`: `theme-builder/` (Theme Builder: テーマ開発用のエディター + ライブプレビュー)、`crates/aegis-server/src/theme_dev.rs` (開発サーバー `aegis-server theme dev`)
   - `plugin`: `sdk/` (Wasm プラグインのテンプレート・サンプル)、`crates/aegis-plugin-sdk`
 - **記述例**:
@@ -136,6 +137,7 @@ Conventional Commits 形式に準拠します。
    - [ ] （フロントエンド変更時）`npm --prefix admin run build` でビルドが成功すること
    - [ ] （フロントエンド変更時）`npm --prefix admin run format:check` に違反がないこと（VS Code では保存時に自動整形）
    - [ ] （フロントエンド変更時）`npm --prefix admin run lint`（oxlint `--deny-warnings`）で警告が 0 件であること
+   - [ ] （Plugin Builder 変更時）`npm --prefix plugin-builder run test`・`run build`・`run format:check`・`run lint` がすべてパスすること
    - [ ] （Theme Builder 変更時）`npm --prefix theme-builder run test`・`run test:e2e`・`run build`・`run format:check`・`run lint` がすべてパスすること
 3. **PR テンプレート構造**:
    - **概要 (Summary)**: 変更の背景と目的を簡潔に記述。

@@ -33,6 +33,11 @@ tasks:
     cmds:
       - cargo run -p aegis-server -- theme dev {{.CLI_ARGS}}
 
+  dev:plugin-builder:
+    desc: Plugin Builder (エディター + 実行サンドボックス、ポート 5175) の開発サーバー起動 (別のターミナルで task dev:plugin -- plugins/<プラグイン名> 起動)
+    cmds:
+      - npm --prefix plugin-builder run dev
+
   dev:theme-builder:
     desc: Theme Builder (エディター + ライブプレビュー、ポート 5174) の開発サーバーを起動 (別のターミナルで task dev:theme -- themes/<テーマ> も起動する)
     cmds:
@@ -85,6 +90,11 @@ tasks:
     cmds:
       - npm --prefix admin run test:unit -- {{.CLI_ARGS}}
 
+  test:plugin-builder:
+    desc: Plugin Builder のユニットテスト実行 (Vitest)
+    cmds:
+      - npm --prefix plugin-builder run test
+
   test:theme-builder:
     desc: Theme Builder のユニットテストを実行 (Vitest)
     cmds:
@@ -104,6 +114,11 @@ tasks:
     desc: oxlint による Admin Studio の静的解析を実行 (ゼロ警告ポリシー)
     cmds:
       - npm --prefix admin run lint
+
+  lint:plugin-builder:
+    desc: oxlint による Plugin Builder の静的解析実行 (ゼロ警告ポリシー)
+    cmds:
+      - npm --prefix plugin-builder run lint
 
   lint:theme-builder:
     desc: oxlint による Theme Builder の静的解析を実行 (ゼロ警告ポリシー)
@@ -130,6 +145,11 @@ tasks:
     cmds:
       - npm --prefix admin run format:check
 
+  fmt:plugin-builder:check:
+    desc: Prettier で Plugin Builder のコードフォーマット検証
+    cmds:
+      - npm --prefix plugin-builder run format:check
+
   fmt:theme-builder:check:
     desc: Prettier で Theme Builder のコードフォーマットを検証
     cmds:
@@ -141,15 +161,19 @@ tasks:
       - task: fmt:check
       - task: fmt:admin:check
       - task: fmt:theme-builder:check
+      - task: fmt:plugin-builder:check
       - task: lint
       - task: lint:admin
       - task: lint:theme-builder
+      - task: lint:plugin-builder
       - task: test
       - task: test:admin
       - task: test:theme-builder
+      - task: test:plugin-builder
       - task: test:storybook
       - task: build:admin
       - task: build:theme-builder
+      - task: build:plugin-builder
     summary: |
       AGENTS.md の PR 作成前チェックリスト（フォーマット検証 rustfmt / Prettier、Clippy / oxlint、全テスト、フロントエンドユニットテスト、フロントエンドビルド）を
       すべて順次実行して検証します。
@@ -172,6 +196,11 @@ tasks:
     desc: Admin Studio フロントエンドの本番バンドルをビルド (admin/dist/)
     cmds:
       - npm --prefix admin run build
+
+  build:plugin-builder:
+    desc: Plugin Builder の型チェックと本番ビルド (plugin-builder/dist/)
+    cmds:
+      - npm --prefix plugin-builder run build
 
   build:theme-builder:
     desc: Theme Builder を型チェックして本番ビルド (theme-builder/dist/)

@@ -74,6 +74,35 @@ jobs:
       - name: Build Storybook
         run: npm --prefix admin run build-storybook
 
+  plugin-builder-ci:
+    name: Plugin Builder Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: plugin-builder/package-lock.json
+
+      - name: Install dependencies
+        run: npm --prefix plugin-builder ci
+
+      - name: Check formatting (Prettier)
+        run: npm --prefix plugin-builder run format:check
+
+      - name: Lint (oxlint, zero warnings)
+        run: npm --prefix plugin-builder run lint
+
+      - name: Run unit tests (Vitest)
+        run: npm --prefix plugin-builder run test
+
+      - name: Typecheck and build Plugin Builder
+        run: npm --prefix plugin-builder run build
+
   theme-builder-ci:
     name: Theme Builder Build
     runs-on: ubuntu-latest
