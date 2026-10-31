@@ -842,6 +842,7 @@ mod tests {
             theme_vars: HashMap::new(),
             pagination: None,
             comments: None,
+            related_articles: Vec::new(),
         };
 
         let html = engine.render("index.html", &ctx).expect("Render failed");
@@ -954,6 +955,7 @@ mod tests {
             theme_vars: HashMap::new(),
             pagination: None,
             comments: None,
+            related_articles: Vec::new(),
         };
 
         let html = engine
@@ -987,6 +989,7 @@ mod tests {
             theme_vars: HashMap::new(),
             pagination: None,
             comments: None,
+            related_articles: Vec::new(),
         };
 
         let html = engine
@@ -1066,6 +1069,7 @@ mod tests {
             theme_vars: HashMap::new(),
             pagination: None,
             comments: None,
+            related_articles: Vec::new(),
         };
 
         let html = engine.render("index.html", &ctx).unwrap();
@@ -1202,6 +1206,7 @@ mod tests {
             theme_vars: HashMap::new(),
             pagination: None,
             comments: None,
+            related_articles: Vec::new(),
         };
         let html = engine.render("forum_thread.html", &ctx).unwrap();
         assert!(html.contains(">2026-10-25 09:05</time>"), "{html}");
