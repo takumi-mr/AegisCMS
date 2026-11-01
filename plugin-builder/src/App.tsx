@@ -3,8 +3,15 @@ import { Header } from './components/Header.tsx';
 import { CodeEditor } from './components/CodeEditor.tsx';
 import { MetricsBar } from './components/MetricsBar.tsx';
 import { OutputViewer } from './components/OutputViewer.tsx';
-import { fetchPluginInfo, fetchFixtures, invokeHook, pollVersion } from './api.ts';
-import type { PluginInfo, InvokeResponse, MockHttpRule } from './types.ts';
+import {
+  fetchPluginInfo,
+  fetchFixtures,
+  invokeHook,
+  pollVersion,
+  triggerBuild,
+  generatePreview,
+} from './api.ts';
+import type { PluginInfo, InvokeResponse, MockHttpRule, BuildResponse } from './types.ts';
 
 export function App() {
   const [pluginInfo, setPluginInfo] = useState<PluginInfo | null>(null);
@@ -20,6 +27,11 @@ export function App() {
   const [response, setResponse] = useState<InvokeResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [connected, setConnected] = useState<boolean>(false);
+
+  const [building, setBuilding] = useState<boolean>(false);
+  const [buildStatus, setBuildStatus] = useState<BuildResponse | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<boolean>(false);
 
   const lastVersionRef = useRef<number>(0);
 
@@ -89,6 +101,7 @@ export function App() {
       if (fixtures[hook]) {
         setPayloadText(JSON.stringify(fixtures[hook], null, 2));
       }
+      setPreviewHtml(null);
     },
     [fixtures],
   );
@@ -99,6 +112,29 @@ export function App() {
       setPayloadText(JSON.stringify(fixtures[selectedHook], null, 2));
     }
   }, [selectedHook, fixtures]);
+
+  // ビルド実行
+  const handleBuild = useCallback(async () => {
+    if (building) return;
+    setBuilding(true);
+    try {
+      const res = await triggerBuild();
+      setBuildStatus(res);
+      if (res.success) {
+        const updated = await fetchPluginInfo();
+        setPluginInfo(updated);
+      }
+    } catch (err) {
+      setBuildStatus({
+        success: false,
+        duration_ms: 0,
+        output: '',
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setBuilding(false);
+    }
+  }, [building]);
 
   // フック実行
   const handleExecute = useCallback(async () => {
@@ -143,6 +179,21 @@ export function App() {
       });
 
       setResponse(res);
+
+      if (res.success && res.output !== null && res.output !== undefined) {
+        // プレビュー生成を試行
+        setPreviewLoading(true);
+        try {
+          const html = await generatePreview(selectedHook, res.output);
+          setPreviewHtml(html);
+        } catch {
+          setPreviewHtml(null);
+        } finally {
+          setPreviewLoading(false);
+        }
+      } else {
+        setPreviewHtml(null);
+      }
     } catch (err) {
       setResponse({
         success: false,
@@ -155,6 +206,7 @@ export function App() {
         kv_mutations: {},
         http_requests: [],
       });
+      setPreviewHtml(null);
     } finally {
       setLoading(false);
     }
@@ -185,8 +237,11 @@ export function App() {
         onSelectHook={handleSelectHook}
         onExecute={handleExecute}
         onResetFixture={handleResetFixture}
+        onBuild={handleBuild}
         loading={loading}
+        building={building}
         connected={connected}
+        buildStatus={buildStatus}
       />
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -254,7 +309,12 @@ export function App() {
             maxFuel={pluginInfo?.manifest.resource_limits.max_fuel_units}
           />
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <OutputViewer response={response} />
+            <OutputViewer
+              hook={selectedHook}
+              response={response}
+              previewHtml={previewHtml}
+              previewLoading={previewLoading}
+            />
           </div>
         </div>
       </div>

@@ -1,10 +1,10 @@
 [← ドキュメント一覧に戻る](README.md)
 
-# AegisCMS プラグイン開発サーバー (`aegis plugin dev`)
+# AegisCMS プラグイン開発サーバー (`aegis plugin dev`) & Plugin Builder
 
 `aegis plugin dev`（または `task dev:plugin -- <dir>`）は、AegisCMS の Wasm プラグインをデータベースやログイン不要で、単体で即時テスト・デバッグするための軽量開発サーバーです。
 
-`theme dev`（Theme Builder）と同様に、プラグインの変更を監視して自動リロードし、Wasm サンドボックス内でのフック実行結果、CPU 命令数（Fuel）、ミリ秒単位の実行時間、プラグインログ（`log_info!` 等）、KVS 変更、送信 HTTP リクエストをリアルタイムに可視化する REST API を提供します。
+`theme dev`（Theme Builder）と同様に、プラグインの変更を監視して自動リロードし、Wasm サンドボックス内でのフック実行結果、CPU 命令数（Fuel）、ミリ秒単位の実行時間、プラグインログ（`log_info!` 等）、KVS 変更、送信 HTTP リクエスト、HTML プレビューをリアルタイムに可視化・操作できる Web UI（Plugin Builder）および REST API を提供します。
 
 ---
 
@@ -14,11 +14,12 @@
 # 既存の公式プラグインで開発サーバーを起動 (既定: http://127.0.0.1:8091)
 task dev:plugin -- plugins/official-code-enhancer
 
-# または直接 cargo で起動
-cargo run -p aegis-server -- plugin dev plugins/official-code-enhancer --port 8091
-```
+# または自動ビルドコマンドを指定して起動 (ソース変更時に自動再コンパイル)
+task dev:plugin -- plugins/official-code-enhancer --build-command "cargo build --target wasm32-wasip1 --release"
 
-ブラウザで `http://127.0.0.1:8091` を開くと、プラグインのロード状況と利用可能なエンドポイントが表示されます。
+# フロントエンド開発 UI (Plugin Builder) を起動 (http://localhost:5175)
+task dev:plugin-builder
+```
 
 ---
 
@@ -148,6 +149,37 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
 
 プラグインフォルダー内のファイル更新（`plugin.wasm` の再コンパイルなど）を検知すると、即座に新しいタイムスタンプを返します。フロントエンド（Plugin Builder）の自動再実行に使用されます。
 
+### 2.6 HTML ライブプレビュー API (`POST /__dev/api/preview`)
+
+フロントエンド系フック（`on-render-page`, `render-blocks`, `transform-content-ast` など）の出力を受け取り、CSS・JS を埋め込んだ安全なスタンドアロン HTML ドキュメントを動的に合成して返却します。
+
+```bash
+curl -X POST http://127.0.0.1:8091/__dev/api/preview \
+  -H "x-aegis-dev: 1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "hook": "render-blocks",
+    "output": ["<div class=\"cta-banner\">Special Offer!</div>"]
+  }'
+```
+
+**レスポンス例**:
+```json
+{
+  "html": "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Plugin Preview</title><style>...</style></head><body><div class=\"preview-wrapper\"><div class=\"rendered-blocks\"><div class=\"block-item\"><div class=\"cta-banner\">Special Offer!</div></div></div></div></body></html>"
+}
+```
+
+### 2.7 ビルドトリガー API (`POST /__dev/api/build`)
+
+プラグインフォルダーのビルドコマンドを実行し、実行結果・出力ログ（stdout/stderr）・所要時間（ms）を返却します。
+ビルドコマンドは `--build-command` オプション、または言語ごとのデフォルトコマンド（`Cargo.toml` があれば `cargo build --target wasm32-wasip1` 等）が使用されます。
+
+```bash
+curl -X POST http://127.0.0.1:8091/__dev/api/build \
+  -H "x-aegis-dev: 1"
+```
+
 ---
 
 ## 3. セキュリティ設計
@@ -157,4 +189,17 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
 1. **DNS リバインディング防止**: ループバック接続時、`Host` ヘッダーが `localhost` / `127.0.0.1` / `::1` であることを検証。
 2. **CSRF / 不正 Fetch 防止**: `GET` / `HEAD` 以外のすべてのミューテーションリクエストで `x-aegis-dev` カスタムヘッダーを必須化。
 3. **パストラバーサル防止**: ファイル API はプラグインディレクトリ配下から脱出するパス（`..` やシンボリックリンク）を遮断。
+4. **プレビューサンドボックス**: Plugin Builder の HTML プレビュー iframe は `sandbox="allow-scripts allow-forms allow-popups allow-modals"` 属性で隔離され、親画面への同一オリジンアクセスを防止。
 
+---
+
+## 4. Plugin Builder Web UI (`plugin-builder/`)
+
+React 19 + TypeScript + Vite + CodeMirror 6 で構築された開発用 SPA です。
+`task dev:plugin-builder` で起動します（既定ポート: `5175`）。
+
+- **フック切り替え & プリセットフィクスチャ**: マニフェストに定義されたフックを選択すると、即座に対応する標準テストデータがセットされます。
+- **コードエディタ (CodeMirror 6)**: Payload (JSON)、Settings (Config)、Initial KV Store、Mock HTTP Rules をタブで切り替え編集可能。Ctrl+Enter で即時実行。
+- **メトリクスバー**: Fuel 消費量（最大リソース制限に対するパーセンテージ）と実行時間 (ms) をプログレスバーで可視化。
+- **HTML ライブプレビュー**: `on-render-page` などの実行結果を iframe 上で Desktop / Tablet / Mobile サイズに切り替えてリアルタイム描画。別タブ表示やリロードにも対応。
+- **ワンクリック Rebuild**: 画面上の「Rebuild」ボタンから Wasm 再ビルドを実行。ビルドエラー時はログを即座に確認可能。

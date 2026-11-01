@@ -1,21 +1,50 @@
 import { useState } from 'react';
 import { CodeEditor } from './CodeEditor.tsx';
 import { LogsViewer } from './LogsViewer.tsx';
+import { PreviewIframe } from './PreviewIframe.tsx';
 import type { InvokeResponse } from '../types.ts';
 
 interface OutputViewerProps {
+  hook: string;
   response: InvokeResponse | null;
+  previewHtml: string | null;
+  previewLoading?: boolean;
 }
 
-export function OutputViewer({ response }: OutputViewerProps) {
-  const [activeTab, setActiveTab] = useState<'output' | 'logs' | 'kv' | 'http'>('output');
+export function OutputViewer({
+  hook,
+  response,
+  previewHtml,
+  previewLoading = false,
+}: OutputViewerProps) {
+  const [userTab, setUserTab] = useState<'output' | 'preview' | 'logs' | 'kv' | 'http' | null>(
+    null,
+  );
+  const [prevResponse, setPrevResponse] = useState<InvokeResponse | null>(response);
+
+  // フロントエンド系フック実行時、成功していれば自動的に preview タブを選択
+  if (prevResponse !== response) {
+    setPrevResponse(response);
+    if (
+      response?.success &&
+      ['on-render-page', 'render-blocks', 'transform-content-ast'].includes(hook)
+    ) {
+      setUserTab('preview');
+    }
+  }
+
+  const activeTab = userTab ?? 'output';
 
   const tabs = [
-    { id: 'output', label: 'Output' },
-    { id: 'logs', label: `Logs (${response?.logs.length ?? 0})` },
-    { id: 'kv', label: `KV Changes (${response ? Object.keys(response.kv_mutations).length : 0})` },
-    { id: 'http', label: `HTTP (${response?.http_requests.length ?? 0})` },
-  ] as const;
+    { id: 'output' as const, label: 'Output' },
+    { id: 'preview' as const, label: 'HTML Preview' },
+    { id: 'logs' as const, label: `Logs (${response?.logs.length ?? 0})` },
+    {
+      id: 'kv' as const,
+      label: `KV Changes (${response ? Object.keys(response.kv_mutations).length : 0})`,
+    },
+    { id: 'http' as const, label: `HTTP (${response?.http_requests.length ?? 0})` },
+  ];
 
   const outputString =
     response?.output !== undefined && response?.output !== null
@@ -36,7 +65,7 @@ export function OutputViewer({ response }: OutputViewerProps) {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => setUserTab(tab.id)}
             style={{
               padding: '8px 14px',
               fontSize: '12px',
@@ -55,6 +84,7 @@ export function OutputViewer({ response }: OutputViewerProps) {
 
       <div style={{ flex: 1, overflow: 'hidden' }}>
         {activeTab === 'output' && <CodeEditor value={outputString} readOnly />}
+        {activeTab === 'preview' && <PreviewIframe html={previewHtml} loading={previewLoading} />}
         {activeTab === 'logs' && <LogsViewer logs={response?.logs ?? []} />}
         {activeTab === 'kv' && <CodeEditor value={kvString} readOnly />}
         {activeTab === 'http' && <CodeEditor value={httpString} readOnly />}
