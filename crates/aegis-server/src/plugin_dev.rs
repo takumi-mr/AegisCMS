@@ -7,7 +7,8 @@
 //! - Wasmtime サンドボックス上でのフック関数の直接実行 (`POST /__dev/api/invoke`)
 //! - Fuel（CPU命令数）・実行時間（ms）・Wasm ログ（`host.log`）の収集と可視化
 //! - KVS / HTTP / 設定値（`config_get`）のモックと、KV変更・送信HTTPリクエストの追跡
-//! - `plugin.manifest.json` や `plugin.wasm` の変更監視とホットリロード (`GET /__dev/version`)
+//! - フロントエンド系フック（`on-render-page`, `render-blocks`, `transform-content-ast`）の HTML ライブプレビュー (`POST /__dev/api/preview`)
+//! - プラグインソースコードの自動ビルド（Rust / AssemblyScript / TinyGo）とホットリロード (`GET /__dev/version`)
 //! - Plugin Builder UI（React 19 + Vite）との連携用 REST API
 
 use std::collections::{BTreeMap, HashMap};
@@ -44,6 +45,9 @@ pub struct DevArgs {
     /// 待ち受けポート番号
     #[arg(short, long, default_value_t = 8091)]
     pub port: u16,
+    /// 自動ビルドコマンド（省略時は Cargo.toml や package.json から自動検出）
+    #[arg(long)]
+    pub build_command: Option<String>,
 }
 
 /// 書き込み・更新 API で要求するセキュリティヘッダー
@@ -169,6 +173,15 @@ fn pattern_matches(pattern: &str, url: &str) -> bool {
     }
 }
 
+/// 自動ビルド状態
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BuildStatus {
+    pub is_building: bool,
+    pub last_error: Option<String>,
+    pub last_built_at: Option<u64>,
+    pub command: Option<String>,
+}
+
 /// 開発サーバーの共有状態
 #[derive(Clone)]
 struct DevState {
@@ -177,6 +190,92 @@ struct DevState {
     version: watch::Receiver<u64>,
     loopback: bool,
     host_services: DevHostServices,
+    build_status: Arc<RwLock<BuildStatus>>,
+}
+
+/// プラグインディレクトリからビルドコマンドを自動検出
+fn detect_build_command(dir: &Path) -> Option<String> {
+    // 1. plugin.manifest.json の "dev": { "build_command": "..." }
+    if let Ok(manifest_bytes) = std::fs::read(dir.join("plugin.manifest.json")) {
+        if let Ok(val) = serde_json::from_slice::<Value>(&manifest_bytes) {
+            if let Some(cmd) = val
+                .get("dev")
+                .and_then(|d| d.get("build_command"))
+                .and_then(|c| c.as_str())
+            {
+                return Some(cmd.to_string());
+            }
+        }
+    }
+    // 2. Cargo.toml (Rust プラグイン)
+    if dir.join("Cargo.toml").is_file() {
+        return Some("cargo build --target wasm32-unknown-unknown".to_string());
+    }
+    // 3. package.json (AssemblyScript プラグイン)
+    if dir.join("package.json").is_file() {
+        if let Ok(pkg_bytes) = std::fs::read(dir.join("package.json")) {
+            if let Ok(val) = serde_json::from_slice::<Value>(&pkg_bytes) {
+                if val.get("scripts").and_then(|s| s.get("asbuild")).is_some() {
+                    return Some("npm run asbuild".to_string());
+                }
+                if val.get("scripts").and_then(|s| s.get("build")).is_some() {
+                    return Some("npm run build".to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// ビルドコマンドの非同期実行
+async fn trigger_build(
+    dir: PathBuf,
+    cmd_str: String,
+    status: Arc<RwLock<BuildStatus>>,
+) -> Result<(), String> {
+    {
+        let mut st = status.write().map_err(|e| e.to_string())?;
+        st.is_building = true;
+        st.command = Some(cmd_str.clone());
+    }
+
+    #[cfg(target_os = "windows")]
+    let output_res = tokio::process::Command::new("cmd")
+        .args(["/C", &cmd_str])
+        .current_dir(&dir)
+        .output()
+        .await;
+
+    #[cfg(not(target_os = "windows"))]
+    let output_res = tokio::process::Command::new("sh")
+        .args(["-c", &cmd_str])
+        .current_dir(&dir)
+        .output()
+        .await;
+
+    let mut st = status.write().map_err(|e| e.to_string())?;
+    st.is_building = false;
+    st.last_built_at = Some(current_timestamp_millis());
+
+    match output_res {
+        Ok(output) => {
+            if output.status.success() {
+                st.last_error = None;
+                Ok(())
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+                let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+                let err_msg = if !stderr.is_empty() { stderr } else { stdout };
+                st.last_error = Some(err_msg.clone());
+                Err(err_msg)
+            }
+        }
+        Err(e) => {
+            let err_msg = format!("Failed to execute '{}': {}", cmd_str, e);
+            st.last_error = Some(err_msg.clone());
+            Err(err_msg)
+        }
+    }
 }
 
 /// `plugin dev` サーバーの起動
@@ -198,18 +297,37 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
     let engine = WasmEngine::new()?;
     let host_services = DevHostServices::new();
 
+    let detected_cmd = args.build_command.or_else(|| detect_build_command(&dir));
+    let build_status = Arc::new(RwLock::new(BuildStatus {
+        is_building: false,
+        last_error: None,
+        last_built_at: None,
+        command: detected_cmd.clone(),
+    }));
+
     let (version_tx, version_rx) = watch::channel(current_timestamp_millis());
 
-    // ファイル変更監視タスク（Wasm やマニフェスト等の更新を検知して通知）
+    // ファイル変更監視タスク（Wasm やマニフェスト、ソースコード等の更新を検知して通知・ビルド）
     let watch_dir = dir.clone();
+    let watch_status = build_status.clone();
+    let watch_tx = version_tx.clone();
     tokio::spawn(async move {
         let mut last_modified = highest_mtime(&watch_dir);
         loop {
             tokio::time::sleep(WATCH_INTERVAL).await;
-            let current = highest_mtime(&watch_dir);
+            let (current, is_source_changed) = check_mtime_and_sources(&watch_dir);
             if current > last_modified {
                 last_modified = current;
-                let _ = version_tx.send(current_timestamp_millis());
+
+                // ソースファイルの変更があり、ビルドコマンドが存在する場合は自動ビルドを実行
+                if is_source_changed {
+                    let cmd_to_run = watch_status.read().ok().and_then(|s| s.command.clone());
+                    if let Some(cmd) = cmd_to_run {
+                        let _ = trigger_build(watch_dir.clone(), cmd, watch_status.clone()).await;
+                    }
+                }
+
+                let _ = watch_tx.send(current_timestamp_millis());
             }
         }
     });
@@ -220,6 +338,7 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
         version: version_rx,
         loopback,
         host_services,
+        build_status,
     };
 
     let app = Router::new()
@@ -228,6 +347,8 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
         .route("/__dev/api/plugin", get(api_plugin_info))
         .route("/__dev/api/fixtures", get(api_fixtures))
         .route("/__dev/api/invoke", post(api_invoke_hook))
+        .route("/__dev/api/preview", post(api_generate_preview))
+        .route("/__dev/api/build", post(api_trigger_build))
         .route("/__dev/api/files", get(api_files_list))
         .route(
             "/__dev/api/files/{*path}",
@@ -245,6 +366,9 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
     println!("--------------------------------------------------");
     println!("  AegisCMS Plugin Development Server");
     println!("  Plugin:  {}", dir.display());
+    if let Some(ref cmd) = detected_cmd {
+        println!("  Build:   {}", cmd);
+    }
     println!("  Listen:  http://{}", addr);
     println!("  API:     http://{}/__dev/api/plugin", addr);
     println!("--------------------------------------------------");
@@ -262,24 +386,44 @@ fn current_timestamp_millis() -> u64 {
 }
 
 fn highest_mtime(dir: &Path) -> u64 {
+    check_mtime_and_sources(dir).0
+}
+
+fn check_mtime_and_sources(dir: &Path) -> (u64, bool) {
     let mut highest = 0;
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if let Ok(metadata) = path.metadata() {
-                if let Ok(modified) = metadata.modified() {
-                    let millis = modified
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis() as u64;
-                    if millis > highest {
-                        highest = millis;
+    let mut source_changed = false;
+
+    for entry in walkdir::WalkDir::new(dir)
+        .max_depth(5)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+    {
+        let path = entry.path();
+        if path
+            .components()
+            .any(|c| c.as_os_str() == "target" || c.as_os_str() == "node_modules")
+        {
+            continue;
+        }
+
+        if let Ok(metadata) = path.metadata() {
+            if let Ok(modified) = metadata.modified() {
+                let millis = modified
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64;
+                if millis > highest {
+                    highest = millis;
+                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                        if matches!(ext, "rs" | "ts" | "js" | "go" | "wat") {
+                            source_changed = true;
+                        }
                     }
                 }
             }
         }
     }
-    highest
+    (highest, source_changed)
 }
 
 fn is_loopback_host(host: &str) -> bool {
@@ -382,9 +526,11 @@ async fn welcome_page(State(state): State<DevState>) -> Html<String> {
     <p>Target: <span class="badge">{name} v{version}</span></p>
     <h3>Available Endpoints</h3>
     <ul>
-        <li><code>GET /__dev/api/plugin</code> - プラグインメタデータ、ケイパビリティ、エクスポート一覧</li>
+        <li><code>GET /__dev/api/plugin</code> - プラグインメタデータ、ケイパビリティ、エクスポート一覧、ビルド状態</li>
         <li><code>GET /__dev/api/fixtures</code> - 各フック検証用の標準モックデータプリセット</li>
         <li><code>POST /__dev/api/invoke</code> - フックの直接実行（ログ、Fuel、実行時間、KV/HTTPキャプチャ）</li>
+        <li><code>POST /__dev/api/preview</code> - フロントエンド系フックの HTML プレビュー合成</li>
+        <li><code>POST /__dev/api/build</code> - 手動ビルド実行トリガー</li>
         <li><code>GET /__dev/version</code> - ホットリロード用ロングポーリング</li>
         <li><code>GET /__dev/api/files</code> - プラグインファイル一覧</li>
     </ul>
@@ -457,12 +603,19 @@ async fn api_plugin_info(
         (false, 0, Vec::new())
     };
 
+    let build_status = state
+        .build_status
+        .read()
+        .map(|s| s.clone())
+        .unwrap_or_default();
+
     Ok(Json(json!({
         "manifest": manifest,
         "entrypoint": manifest.entrypoint,
         "wasm_exists": wasm_exists,
         "wasm_size_bytes": wasm_size,
         "exports": exports,
+        "build_status": build_status,
         "updated_at": current_timestamp_millis(),
     })))
 }
@@ -761,6 +914,170 @@ async fn api_invoke_hook(
 }
 
 // ---------------------------------------------------------------------------
+// プレビュー生成 & ビルドトリガー API
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct PreviewRequest {
+    hook: String,
+    output: Value,
+}
+
+#[derive(Serialize)]
+struct PreviewResponse {
+    html: String,
+}
+
+/// `POST /__dev/api/preview`
+async fn api_generate_preview(Json(payload): Json<PreviewRequest>) -> Json<PreviewResponse> {
+    let html = render_preview_document(&payload.hook, &payload.output);
+    Json(PreviewResponse { html })
+}
+
+/// フック実行結果から完全なプレビュー HTML を生成
+fn render_preview_document(hook: &str, output: &Value) -> String {
+    let mut title = "Plugin Live Preview".to_string();
+    let mut extra_head = String::new();
+    let mut extra_css = String::new();
+    let mut extra_js = String::new();
+    let mut body_content = String::new();
+
+    match hook {
+        "on-render-page" => {
+            if let Some(obj) = output.as_object() {
+                if let Some(t) = obj.get("site_title").and_then(|v| v.as_str()) {
+                    title = t.to_string();
+                }
+                if let Some(h) = obj.get("extra_head").and_then(|v| v.as_str()) {
+                    extra_head.push_str(h);
+                }
+                if let Some(c) = obj.get("extra_css").and_then(|v| v.as_str()) {
+                    extra_css.push_str(c);
+                }
+                if let Some(j) = obj.get("extra_js").and_then(|v| v.as_str()) {
+                    extra_js.push_str(j);
+                }
+                if let Some(items) = obj.get("items").and_then(|v| v.as_array()) {
+                    for item in items {
+                        if let Some(html) = item.get("html").and_then(|v| v.as_str()) {
+                            body_content.push_str(html);
+                        } else if let Some(item_title) = item.get("title").and_then(|v| v.as_str())
+                        {
+                            body_content.push_str(&format!("<h2>{}</h2>", item_title));
+                        }
+                    }
+                }
+            }
+        }
+        "render-blocks" => {
+            if let Some(html_list) = output.as_array() {
+                body_content.push_str("<div class=\"rendered-blocks\">");
+                for item in html_list {
+                    if let Some(html) = item.as_str() {
+                        body_content.push_str("<div class=\"block-item\">");
+                        body_content.push_str(html);
+                        body_content.push_str("</div>");
+                    }
+                }
+                body_content.push_str("</div>");
+            }
+        }
+        "transform-content-ast" => {
+            if let Ok(blocks) = serde_json::from_value::<Vec<aegis_ast::BlockNode>>(output.clone())
+            {
+                body_content.push_str(&aegis_ast::HtmlRenderer::render_nodes(&blocks));
+            } else {
+                body_content.push_str(&format!(
+                    "<pre><code>{}</code></pre>",
+                    serde_json::to_string_pretty(output).unwrap_or_default()
+                ));
+            }
+        }
+        _ => {
+            body_content.push_str(&format!(
+                "<div class=\"preview-card\"><h3>Hook Output: {}</h3><pre><code>{}</code></pre></div>",
+                hook,
+                serde_json::to_string_pretty(output).unwrap_or_default()
+            ));
+        }
+    }
+
+    if body_content.is_empty() {
+        body_content = "<p class=\"empty-notice\">No content generated by plugin.</p>".to_string();
+    }
+
+    format!(
+        r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        :root {{
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --color-bg: #ffffff;
+            --color-text: #24292f;
+            --color-primary: #0969da;
+            --color-border: #d0d7de;
+        }}
+        body {{
+            font-family: var(--font-sans);
+            color: var(--color-text);
+            background-color: var(--color-bg);
+            line-height: 1.6;
+            margin: 0;
+            padding: 32px 24px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }}
+        h1, h2, h3, h4 {{ color: #1f2328; margin-top: 1.5em; margin-bottom: 0.5em; }}
+        pre {{ background: #f6f8fa; padding: 14px; border-radius: 6px; overflow-x: auto; border: 1px solid var(--color-border); }}
+        code {{ font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; }}
+        img {{ max-width: 100%; height: auto; }}
+        .rendered-blocks {{ display: flex; flex-direction: column; gap: 16px; margin: 20px 0; }}
+        .preview-card {{ border: 1px solid var(--color-border); border-radius: 8px; padding: 20px; background: #f6f8fa; }}
+        .empty-notice {{ color: #6e7781; font-style: italic; text-align: center; margin: 40px 0; }}
+    </style>
+    <style>{extra_css}</style>
+    {extra_head}
+</head>
+<body>
+    <article>
+        {body_content}
+    </article>
+    <script>{extra_js}</script>
+</body>
+</html>"#
+    )
+}
+
+/// `POST /__dev/api/build`
+async fn api_trigger_build(
+    State(state): State<DevState>,
+) -> Result<Json<BuildStatus>, (StatusCode, String)> {
+    let cmd = {
+        let st = state
+            .build_status
+            .read()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        st.command.clone()
+    };
+
+    if let Some(cmd_str) = cmd {
+        let _ = trigger_build(state.dir.clone(), cmd_str, state.build_status.clone()).await;
+    }
+
+    let st = state
+        .build_status
+        .read()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .clone();
+    Ok(Json(st))
+}
+
+// ---------------------------------------------------------------------------
 // ファイル操作 API
 // ---------------------------------------------------------------------------
 
@@ -899,6 +1216,10 @@ async fn api_delete_file(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ---------------------------------------------------------------------------
+// テスト
+// ---------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -954,12 +1275,14 @@ mod tests {
         let engine = WasmEngine::new().unwrap();
         let host_services = DevHostServices::new();
         let (_tx, rx) = watch::channel(0);
+        let build_status = Arc::new(RwLock::new(BuildStatus::default()));
         let state = DevState {
             dir,
             engine,
             version: rx,
             loopback: true,
             host_services,
+            build_status,
         };
 
         Router::new()
@@ -968,6 +1291,8 @@ mod tests {
             .route("/__dev/api/plugin", get(api_plugin_info))
             .route("/__dev/api/fixtures", get(api_fixtures))
             .route("/__dev/api/invoke", post(api_invoke_hook))
+            .route("/__dev/api/preview", post(api_generate_preview))
+            .route("/__dev/api/build", post(api_trigger_build))
             .route("/__dev/api/files", get(api_files_list))
             .route(
                 "/__dev/api/files/{*path}",
@@ -1072,19 +1397,43 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_files_api_prevents_traversal() {
+    async fn test_api_generate_preview() {
         let tmp = setup_test_plugin_dir();
         let dir = tmp.path().join("my-test-plugin");
         let app = create_test_router(dir);
 
+        let preview_payload = json!({
+            "hook": "on-render-page",
+            "output": {
+                "site_title": "Custom Preview Title",
+                "extra_css": ".highlight { color: red; }",
+                "items": [
+                    {
+                        "title": "My Article",
+                        "html": "<p>Article text here</p>"
+                    }
+                ]
+            }
+        });
+
         let req = Request::builder()
-            .uri("/__dev/api/files/../../secret.txt")
+            .method(Method::POST)
+            .uri("/__dev/api/preview")
             .header("Host", "localhost:8091")
-            .body(Body::empty())
+            .header(WRITE_HEADER, "1")
+            .header("Content-Type", "application/json")
+            .body(Body::from(serde_json::to_vec(&preview_payload).unwrap()))
             .unwrap();
 
         let res = app.oneshot(req).await.unwrap();
-        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let body = to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+        let json: Value = serde_json::from_slice(&body).unwrap();
+        let html = json["html"].as_str().unwrap();
+        assert!(html.contains("Custom Preview Title"));
+        assert!(html.contains(".highlight { color: red; }"));
+        assert!(html.contains("<p>Article text here</p>"));
     }
 
     #[tokio::test]
@@ -1175,5 +1524,21 @@ mod tests {
         assert_eq!(http_reqs.len(), 1);
         assert_eq!(http_reqs[0]["method"], "POST");
         assert_eq!(http_reqs[0]["url"], "https://api.slack.com/webhook");
+    }
+
+    #[tokio::test]
+    async fn test_files_api_prevents_traversal() {
+        let tmp = setup_test_plugin_dir();
+        let dir = tmp.path().join("my-test-plugin");
+        let app = create_test_router(dir);
+
+        let req = Request::builder()
+            .uri("/__dev/api/files/../../secret.txt")
+            .header("Host", "localhost:8091")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     }
 }

@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchPluginInfo, fetchFixtures, invokeHook, pollVersion } from './api.ts';
+import {
+  fetchPluginInfo,
+  fetchFixtures,
+  invokeHook,
+  pollVersion,
+  triggerBuild,
+  generatePreview,
+} from './api.ts';
 
 describe('plugin-builder api', () => {
   beforeEach(() => {
@@ -85,5 +92,51 @@ describe('plugin-builder api', () => {
     const v = await pollVersion(100);
     expect(v).toBe(12345);
     expect(mockFetch).toHaveBeenCalledWith('/__dev/version?since=100');
+  });
+
+  it('triggerBuild sends POST to build API', async () => {
+    const mockResponse = {
+      success: true,
+      duration_ms: 250,
+      output: 'Finished dev build',
+      error: null,
+    };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockResponse,
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const res = await triggerBuild();
+    expect(res.success).toBe(true);
+    expect(res.duration_ms).toBe(250);
+    expect(mockFetch).toHaveBeenCalledWith('/__dev/api/build', {
+      method: 'POST',
+      headers: {
+        'x-aegis-dev': '1',
+      },
+    });
+  });
+
+  it('generatePreview posts hook and output to preview API', async () => {
+    const mockResponse = {
+      html: '<!DOCTYPE html><html><body><h1>Preview</h1></body></html>',
+    };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockResponse,
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const html = await generatePreview('on-render-page', { items: [] });
+    expect(html).toContain('<h1>Preview</h1>');
+    expect(mockFetch).toHaveBeenCalledWith('/__dev/api/preview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-aegis-dev': '1',
+      },
+      body: JSON.stringify({ hook: 'on-render-page', output: { items: [] } }),
+    });
   });
 });

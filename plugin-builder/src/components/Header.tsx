@@ -1,5 +1,6 @@
-import { Play, RotateCcw, Box, CheckCircle2, AlertCircle } from 'lucide-react';
-import type { PluginInfo } from '../types.ts';
+import { useState } from 'react';
+import { Play, RotateCcw, Box, CheckCircle2, AlertCircle, Hammer, Loader2 } from 'lucide-react';
+import type { PluginInfo, BuildResponse } from '../types.ts';
 
 interface HeaderProps {
   pluginInfo: PluginInfo | null;
@@ -7,8 +8,11 @@ interface HeaderProps {
   onSelectHook: (hook: string) => void;
   onExecute: () => void;
   onResetFixture: () => void;
+  onBuild: () => void;
   loading: boolean;
+  building: boolean;
   connected: boolean;
+  buildStatus: BuildResponse | null;
 }
 
 export function Header({
@@ -17,9 +21,13 @@ export function Header({
   onSelectHook,
   onExecute,
   onResetFixture,
+  onBuild,
   loading,
+  building,
   connected,
+  buildStatus,
 }: HeaderProps) {
+  const [showBuildOutput, setShowBuildOutput] = useState(false);
   const hooks = pluginInfo?.manifest.capabilities.hooks ?? [];
 
   return (
@@ -31,6 +39,7 @@ export function Header({
         padding: '10px 16px',
         backgroundColor: '#f6f8fa',
         borderBottom: '1px solid #d0d7de',
+        position: 'relative',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -73,9 +82,105 @@ export function Header({
           {connected ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
           <span>{connected ? 'Live Sync' : 'Offline'}</span>
         </div>
+
+        {buildStatus && (
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowBuildOutput((v) => !v)}
+              title="Click to view build output"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '11px',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: buildStatus.success ? '#dafbe1' : '#ffebe9',
+                color: buildStatus.success ? '#1a7f37' : '#cf222e',
+                fontWeight: 500,
+              }}
+            >
+              {buildStatus.success ? 'Built (' + buildStatus.duration_ms + 'ms)' : 'Build Failed'}
+            </button>
+            {showBuildOutput && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '26px',
+                  left: '0',
+                  zIndex: 100,
+                  width: '420px',
+                  maxHeight: '260px',
+                  overflow: 'auto',
+                  backgroundColor: '#24292f',
+                  color: '#f0f6fc',
+                  padding: '10px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'pre-wrap',
+                  boxShadow: '0 8px 24px rgba(140,149,159,0.2)',
+                  border: '1px solid #444c56',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: '6px',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>Build Output</span>
+                  <button
+                    onClick={() => setShowBuildOutput(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#8b949e',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                {buildStatus.error && (
+                  <div style={{ color: '#ff7b72', marginBottom: '6px' }}>{buildStatus.error}</div>
+                )}
+                <div>{buildStatus.output || '(No stdout)'}</div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <button
+          onClick={onBuild}
+          disabled={building || !connected}
+          title="Run build command (recompile Wasm)"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '5px 10px',
+            fontSize: '12px',
+            fontWeight: 500,
+            border: '1px solid #d0d7de',
+            borderRadius: '6px',
+            backgroundColor: '#ffffff',
+            color: '#24292f',
+            cursor: building ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {building ? <Loader2 size={13} className="spin" /> : <Hammer size={13} />}
+          <span>{building ? 'Building...' : 'Rebuild'}</span>
+        </button>
+
+        <div style={{ width: '1px', height: '18px', backgroundColor: '#d0d7de' }} />
+
         <label style={{ fontSize: '12px', fontWeight: 500, color: '#57606a' }}>Hook:</label>
         <select
           value={selectedHook}

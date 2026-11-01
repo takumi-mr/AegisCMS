@@ -67,3 +67,19 @@ export interface InvokeResponse {
   kv_mutations: Record<string, string>;
   http_requests: HttpRequest[];
 }
+
+export interface BuildResponse {
+  success: boolean;
+  duration_ms: number;
+  output: string;
+  error: string | null;
+}
+
+export interface PreviewRequest {
+  hook: string;
+  output: unknown;
+}
+
+export interface PreviewResponse {
+  html: string;
+}
