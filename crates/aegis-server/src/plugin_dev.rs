@@ -661,21 +661,23 @@ async fn api_fixtures() -> Json<Value> {
             ]
         },
         "on-render-page": {
-            "context": {
-                "site_title": "My Aegis Site",
-                "template": "post.html",
-                "extra_head": "",
-                "extra_css": "",
-                "extra_js": "",
-                "items": [
-                    {
-                        "id": "post-1",
-                        "slug": "getting-started",
-                        "title": "Getting Started with AegisCMS",
-                        "html": "<article class=\"post\"><h1>Getting Started</h1><p>Welcome to our new site built on AegisCMS.</p><pre><code class=\"language-rust\">fn hello() {}</code></pre></article>"
-                    }
-                ]
-            }
+            "site_title": "My Aegis Site",
+            "site_description": "A site built on AegisCMS",
+            "template": "article.html",
+            "content_type": "article",
+            "title": "Getting Started with AegisCMS",
+            "slug": "getting-started",
+            "content_html": "<p>Welcome to our new site built on AegisCMS.</p>\n<h2 id=\"install\">Install</h2>\n<p>Download the binary and start the server.</p>\n<pre><code class=\"language-bash\">aegis-server serve\ncurl http://127.0.0.1:8080/\n</code></pre>\n<h2 id=\"write\">Write</h2>\n<p>Open <a href=\"https://example.org/docs\">the docs</a> and write your first article.</p>\n<h2 id=\"publish\">Publish</h2>\n<p>Press the publish button.</p>",
+            "author": "Takumi",
+            "published_at": "2026-11-01T09:00:00Z",
+            "updated_at": "2026-11-01T09:00:00Z",
+            "fields": {},
+            "relations": {},
+            "items": [],
+            "related_articles": [],
+            "extra_css": "",
+            "extra_head": "",
+            "theme_vars": {}
         },
         "calculate-order": {
             "order": {
@@ -956,6 +958,10 @@ fn render_preview_document(hook: &str, output: &Value) -> String {
                 }
                 if let Some(j) = obj.get("extra_js").and_then(|v| v.as_str()) {
                     extra_js.push_str(j);
+                }
+                // The hook returns the page context: its body is `content_html`
+                if let Some(html) = obj.get("content_html").and_then(|v| v.as_str()) {
+                    body_content.push_str(html);
                 }
                 if let Some(items) = obj.get("items").and_then(|v| v.as_array()) {
                     for item in items {
