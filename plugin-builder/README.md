@@ -16,6 +16,8 @@ task dev:plugin-builder                             # http://localhost:5175/
 | `npm run lint` / `npm run format:check` | oxlint（ゼロ警告）/ Prettier                        |
 | `npm run build`                         | 型チェックと本番ビルド（`dist/`）                   |
 
+![Plugin Builder](../docs/images/plugin-builder.png)
+
 ## 機能
 
 - **フック即時実行**: マニフェストに定義されたフックを選択し、ワンクリック（または `Ctrl+Enter`）で Wasm サンドボックス内で実行

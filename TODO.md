@@ -7,16 +7,6 @@
 
 ---
 
-## 現在の状況
-
-- プラグイン開発環境（Plugin Builder）の全フェーズ（Phase 1〜3）が完了。`aegis plugin dev` サーバー（ポート 8091）と `plugin-builder` Web UI（React 19 + TypeScript + Vite + CodeMirror 6、ポート 5175）が連携。
-  - Wasm サンドボックス内フック実行、リアルタイムログ、Fuel/実行時間計測、KVS差分表示、HTTPモックと通信記録。
-  - フロントエンド系フックの HTML ライブプレビュー（iframe / Desktop・Tablet・Mobile 切替 / 新規タブ表示）。
-  - ワンクリック Wasm 再ビルド & ビルドエラーログ表示、ソースファイル監視による自動バックグラウンドビルド。
-  - 全ワークスペーステスト・Clippy・Oxlint・Prettier 通過。
-
----
-
 ## 直近の着手タスク
 
 1. **AssemblyScript / TinyGo SDK の機能追従**:
@@ -27,23 +17,15 @@
 
 ## 技術メモ・申し送り事項
 
-（現在なし）
+- **Plugin Builder のフィクスチャ**: `GET /__dev/api/fixtures`（`crates/aegis-server/src/plugin_dev.rs`）のうち、`on-render-page` 以外は実際のフックの入力（`PostContext` など。`{"post": {...}}` のような包みは付かない）と形が合っていない。`on-render-page` は `PageRenderContext` そのものに直し、プレビューも `content_html` を使うようにした。残りのフックのフィクスチャとプレビューを、`crates/aegis-core/src/entity.rs` などの型に合わせる。
 
 ---
 
 ## 未着手タスク (Backlog)
 
 ### 🔌 プラグイン・将来構想
-- [x] **Plugin Builder (プラグイン開発体験向上ツール)**:
-  - [x] **Phase 1**: コア開発サーバー API (`aegis plugin dev` / `task dev:plugin`)。DB不要で単体Wasmフック実行、ログ・Fuel取得、モックホストAPI。
-  - [x] **Phase 2**: Plugin Builder Web UI (`plugin-builder/` - React/Vite)。フック選択、モックデータ入力、Diff・ログ表示。
-  - [x] **Phase 3**: フロントエンド系フックの HTML ライブプレビュー (iframe)、KVS/HTTP インスペクター、各言語（Rust/TS/Go）の自動ビルド監視。
 - [ ] **読者向けの小さな公式プラグイン**（`official-page-toc` / `official-back-to-top` と同じ作りで足す。それぞれ別プラグイン）:
   - 読了時間・文字数の表示（`on-render-page`）
-  - [x] SNS 共有ボタン（X・LINE・URL コピー、設定で任意の共有先を追加可能）: 公式プラグイン [official-share-buttons](plugins/official-share-buttons)
-  - コードブロックの行番号・ファイル名表示（`official-code-enhancer` の拡張でも可）
-  - 画像ライトボックス（本文の画像をクリックで拡大）
-  - 外部リンクの自動処理（`target="_blank" rel="noopener nofollow"` と外部アイコン。`transform-content-ast`）
   - 前後の記事ナビ（同じカテゴリ内の「前の記事 / 次の記事」）
 - [ ] **広告配信プラグイン**: `on-render-page` によるヘッダー注入とカスタムブロック表示、動的 CSP 設定との連携、Cookie 同意バナー対応。
 - [ ] **テンプレートからの動的コンテンツ取得関数（検討）**: `latest("article", 5, category="news")` などの MiniJinja グローバル関数または事前取得宣言機構。
@@ -55,7 +37,4 @@
   - `on-render-page` フックで HTML 全体を Wasm に渡すオーバーヘッドの軽減。
 
 ### 🌐 サイト機能拡張
-- [x] **関連記事**: Strategy パターンで差し替え可能な推薦機構（既定: タグ一致数 ＞ 同一カテゴリ ＞ 新着フォールバック）。
-- [x] **リンク切れチェック**: 公開記事の内部・外部リンクを検査し、Admin Studio（設定 > リンク切れチェック）で一覧表示・手動再検査を実行可能。
-- [ ] **お知らせバナー**: 期間を指定して全ページの上部に出す（メンテナンス・セール告知）。
 - [ ] **コメント・掲示板への CAPTCHA 適用**: `aegis-captcha`（問い合わせフォームで導入済み。[contact.md 1.2](docs/contact.md#12-captcha任意)）を `[comments]` / `[forum]` にも使えるようにする。

@@ -3,7 +3,7 @@
 // target/docs-shots/ に立て、Playwright で画面を開いて docs/images/ に PNG を書き出す。
 // 事前に Admin Studio と aegis-server をビルドしておく（task docs:screenshots がやる）。
 //
-//   node scripts/capture-docs-screenshots.mjs [--only shop,forum,theme] [--filter <ファイル名の一部>]
+//   node scripts/capture-docs-screenshots.mjs [--only shop,forum,theme,plugin] [--filter <ファイル名の一部>]
 //
 // 撮る画面の定義は scenes/ ではなく下の SITES にまとめてある。UI が変わったら撮り直して差分をコミットする。
 import { spawn, spawnSync } from 'node:child_process';
@@ -489,9 +489,84 @@ const captureThemeBuilder = async () => {
   }
 };
 
+/** Plugin Builder（開発サーバー `plugin dev` + Vite）。プラグインはコピーに対して開くので、元のプラグインは変わらない */
+const capturePluginBuilder = async () => {
+  const devPort = 18093;
+  const builderPort = 15176;
+  const builder = `http://localhost:${builderPort}`;
+  const pluginsDir = join(workDir, 'plugin');
+  rmSync(pluginsDir, { recursive: true, force: true });
+  mkdirSync(pluginsDir, { recursive: true });
+  cpSync(join(root, 'plugins', 'official-back-to-top'), join(pluginsDir, 'official-back-to-top'), {
+    recursive: true,
+  });
+
+  const children = [
+    spawn(serverBin, ['plugin', 'dev', join(pluginsDir, 'official-back-to-top'), '--port', String(devPort), '--build-command', 'echo skipped'], {
+      cwd: root,
+      stdio: 'inherit',
+      env: { ...process.env, RUST_LOG: 'warn' },
+    }),
+    spawn('npx', ['vite', '--port', String(builderPort), '--strictPort'], {
+      cwd: join(root, 'plugin-builder'),
+      stdio: 'inherit',
+      shell: isWindows,
+      env: { ...process.env, PLUGIN_DEV_URL: `http://127.0.0.1:${devPort}` },
+    }),
+  ];
+  try {
+    for (let i = 0; ; i++) {
+      try {
+        if ((await fetch(builder)).ok && (await fetch(`http://127.0.0.1:${devPort}/__dev/api/plugin`)).ok) break;
+      } catch {
+        /* まだ起動していない */
+      }
+      if (i > 120) throw new Error('plugin builder did not start');
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    const browser = await chromium.launch();
+    const page = await (await browser.newContext({ viewport: VIEWPORT, colorScheme: 'light' })).newPage();
+    const run = async (hook) => {
+      await page.goto(builder);
+      await page.locator('select').first().selectOption(hook);
+      await page.getByRole('button', { name: 'Fixture' }).click();
+      await page.getByRole('button', { name: /^Run/ }).click();
+      await page.getByRole('button', { name: /^Logs \(\d+\)/ }).waitFor();
+      await page.waitForTimeout(1200);
+    };
+    const pluginBuilderShots = [
+      { file: 'plugin-builder.png', hook: 'on-render-page', run: async () => {} },
+      {
+        file: 'plugin-builder-output.png',
+        hook: 'on-render-page',
+        run: async () => {
+          await page.getByRole('button', { name: 'Output', exact: true }).click();
+          await page.waitForTimeout(500);
+        },
+      },
+    ];
+    for (const shot of pluginBuilderShots) {
+      if (filter && !shot.file.includes(filter)) continue;
+      await run(shot.hook);
+      await shot.run();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: join(imagesDir, shot.file) });
+      console.log(`captured ${shot.file}`);
+    }
+    await browser.close();
+  } finally {
+    for (const child of children) {
+      if (isWindows) spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+      else child.kill();
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+};
+
 mkdirSync(imagesDir, { recursive: true });
 for (const [name, site] of Object.entries(SITES)) {
   if (only && !only.includes(name)) continue;
   await captureSite(name, site);
 }
 if (!only || only.includes('theme')) await captureThemeBuilder();
+if (!only || only.includes('plugin')) await capturePluginBuilder();

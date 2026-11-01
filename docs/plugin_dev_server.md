@@ -198,6 +198,12 @@ curl -X POST http://127.0.0.1:8091/__dev/api/build \
 React 19 + TypeScript + Vite + CodeMirror 6 で構築された開発用 SPA です。
 `task dev:plugin-builder` で起動します（既定ポート: `5175`）。
 
+![Plugin Builder: 左に入力（Payload）、右に実行結果の HTML プレビュー](images/plugin-builder.png)
+
+左で入力（Payload・設定・初期 KV・HTTP モック）を編集して実行すると、右に結果・メトリクス・プレビューが出ます。結果のタブ（Output）には、フックが返した JSON がそのまま出ます。
+
+![Plugin Builder: Output タブ（フックが返した JSON）](images/plugin-builder-output.png)
+
 - **フック切り替え & プリセットフィクスチャ**: マニフェストに定義されたフックを選択すると、即座に対応する標準テストデータがセットされます。
 - **コードエディタ (CodeMirror 6)**: Payload (JSON)、Settings (Config)、Initial KV Store、Mock HTTP Rules をタブで切り替え編集可能。Ctrl+Enter で即時実行。
 - **メトリクスバー**: Fuel 消費量（最大リソース制限に対するパーセンテージ）と実行時間 (ms) をプログレスバーで可視化。
