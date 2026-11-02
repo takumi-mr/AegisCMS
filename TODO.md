@@ -23,10 +23,6 @@
 ## 未着手タスク (Backlog)
 
 ### 🔌 プラグイン・将来構想
-- [ ] **読者向けの小さな公式プラグイン**（`official-page-toc` / `official-back-to-top` と同じ作りで足す。それぞれ別プラグイン）:
-  - 読了時間・文字数の表示（`on-render-page`）
-  - 前後の記事ナビ（同じカテゴリ内の「前の記事 / 次の記事」）
-- [x] **広告配信プラグイン**: `on-render-page` によるヘッダー注入とカスタムブロック表示、動的 CSP 設定との連携、Cookie 同意バナー対応: 公式プラグイン [official-ads](plugins/official-ads)
 - [ ] **テンプレートからの動的コンテンツ取得関数（検討）**: `latest("article", 5, category="news")` などの MiniJinja グローバル関数または事前取得宣言機構。
 
 ### 🚀 性能最適化

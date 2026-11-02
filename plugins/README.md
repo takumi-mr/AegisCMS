@@ -26,9 +26,11 @@ plugins/
 | [`official-page-toc`](official-page-toc/) | `on-render-page` | 記事・固定ページの横に、見出しへのリンク（目次）とスクロールの進捗を出す。位置・色・階層などは `[plugins.settings.official-page-toc]` で変えられる |
 | [`official-back-to-top`](official-back-to-top/) | `on-render-page` | 本文の末尾（または画面に固定）に「トップへ戻る」ボタンを出す。形・色・位置などは `[plugins.settings.official-back-to-top]` で変えられる |
 | [`official-share-buttons`](official-share-buttons/) | `on-render-page` | 記事・固定ページの末尾（または上部/両方）に SNS 共有ボタン（X・LINE・URLコピーなど）を出す。表示先やカスタム共有先の設定が可能 |
+| [`official-reading-time`](official-reading-time/) | `on-render-page` | 記事・固定ページの本文から読了目安時間および文字数/単語数を算出し、先頭や末尾にバッジ表示する。`[plugins.settings.official-reading-time]` で変えられる |
+| [`official-post-navigation`](official-post-navigation/) | `on-render-page` | 記事詳細ページの末尾に前後の記事ナビゲーション（Prev/Next）を出す。同一カテゴリ優先または全体日付順の算出設定、デザインなどは `[plugins.settings.official-post-navigation]` で変えられる |
 | [`official-code-lines`](official-code-lines/) | `on-render-page` | コードブロックに行番号とファイル名の見出しを出す（ファイル名はコードブロックの `filename`）。最小の行数・色などは `[plugins.settings.official-code-lines]` で変えられる |
 | [`official-lightbox`](official-lightbox/) | `on-render-page` | 本文の画像をクリックで拡大表示する（前後の画像・キーボード操作・説明文）。小さい画像やリンクの中の画像は対象外。`[plugins.settings.official-lightbox]` で変えられる |
 | [`official-external-links`](official-external-links/) | `on-render-page` | 本文の外部リンクを新しいタブで開き、`rel="noopener nofollow"` と外部リンクのアイコンを付ける（ブラウザーのスクリプトで動く）。`[plugins.settings.official-external-links]` で変えられる |
 | [`official-ads`](official-ads/) | `on-render-page`, `render-blocks` | Google AdSense および独自広告・バナー配信。`<head>` へのスクリプト注入、カスタムブロック（`official-ads/display`）、動的 CSP 連携、Cookie 同意バナー（`[consent]`）対応 |
 
-`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-page-toc` / `official-back-to-top` / `official-share-buttons` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`、`official-ads` は `task plugin:build:ads`）で作り直してください。
+`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-page-toc` / `official-back-to-top` / `official-share-buttons` / `official-reading-time` / `official-post-navigation` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`、`official-ads` は `task plugin:build:ads`）で作り直してください。

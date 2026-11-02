@@ -181,6 +181,10 @@ pub struct PageInput {
     pub comments: Option<aegis_core::CommentSection>,
     /// Related articles for single article pages
     pub related_articles: Vec<aegis_core::ContentSummary>,
+    /// Previous article for single article navigation
+    pub prev_article: Option<aegis_core::ContentSummary>,
+    /// Next article for single article navigation
+    pub next_article: Option<aegis_core::ContentSummary>,
 }
 
 /// Resolves the schema's relation fields to `{ id, title, slug }` objects for the templates
@@ -325,6 +329,8 @@ pub async fn render_page(
         extra_head,
         comments: page.comments,
         related_articles: page.related_articles,
+        prev_article: page.prev_article,
+        next_article: page.next_article,
         ..site_page_context(state)
     };
 

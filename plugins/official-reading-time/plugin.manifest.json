@@ -1,0 +1,214 @@
+{
+  "name": "official-reading-time",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Reading Time & Word Count",
+  "description": "Displays estimated reading time and word/character count on articles and pages. Configurable via [plugins.settings.official-reading-time].",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "reading",
+    "content",
+    "utility"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "hooks": [
+      "on-render-page"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "settings": [
+    {
+      "key": "content_types",
+      "type": "string",
+      "label": {
+        "en": "Content types",
+        "ja": "表示する種類"
+      },
+      "description": {
+        "en": "Comma-separated content types that display reading time (default: article).",
+        "ja": "読了時間・文字数を表示するコンテンツの種類（カンマ区切り、既定: article）。"
+      },
+      "default": "article"
+    },
+    {
+      "key": "display_mode",
+      "type": "select",
+      "label": {
+        "en": "Display mode",
+        "ja": "表示モード"
+      },
+      "description": {
+        "en": "Choose whether to show reading time, character/word count, or both.",
+        "ja": "読了時間のみ、文字数のみ、または両方を表示するかを選択します。"
+      },
+      "default": "both",
+      "options": [
+        {
+          "value": "both",
+          "label": {
+            "en": "Both reading time and word/char count",
+            "ja": "読了時間と文字数の両方"
+          }
+        },
+        {
+          "value": "time_only",
+          "label": {
+            "en": "Reading time only",
+            "ja": "読了時間のみ"
+          }
+        },
+        {
+          "value": "chars_only",
+          "label": {
+            "en": "Word/character count only",
+            "ja": "文字数・単語数のみ"
+          }
+        }
+      ]
+    },
+    {
+      "key": "position",
+      "type": "select",
+      "label": {
+        "en": "Position",
+        "ja": "表示位置"
+      },
+      "description": {
+        "en": "Where to place the badge relative to the content.",
+        "ja": "本文に対するバッジの表示位置。"
+      },
+      "default": "top",
+      "options": [
+        {
+          "value": "top",
+          "label": {
+            "en": "Beginning of content",
+            "ja": "本文の先頭"
+          }
+        },
+        {
+          "value": "bottom",
+          "label": {
+            "en": "End of content",
+            "ja": "本文の末尾"
+          }
+        },
+        {
+          "value": "both",
+          "label": {
+            "en": "Both top and bottom",
+            "ja": "先頭と末尾の両方"
+          }
+        }
+      ]
+    },
+    {
+      "key": "badge_style",
+      "type": "select",
+      "label": {
+        "en": "Badge style",
+        "ja": "バッジスタイル"
+      },
+      "description": {
+        "en": "Visual style of the reading time indicator.",
+        "ja": "インジケーターの視覚スタイル。"
+      },
+      "default": "badge",
+      "options": [
+        {
+          "value": "badge",
+          "label": {
+            "en": "Rounded pill badge",
+            "ja": "角丸ピルバッジ"
+          }
+        },
+        {
+          "value": "simple",
+          "label": {
+            "en": "Subtle inline text",
+            "ja": "シンプルなテキスト"
+          }
+        },
+        {
+          "value": "card",
+          "label": {
+            "en": "Bordered card",
+            "ja": "枠線付きカード"
+          }
+        }
+      ]
+    },
+    {
+      "key": "show_icon",
+      "type": "boolean",
+      "label": {
+        "en": "Show clock icon",
+        "ja": "時計アイコンの表示"
+      },
+      "description": {
+        "en": "Display a clock icon next to the reading time indicator.",
+        "ja": "インジケーターの横に時計アイコンを表示します。"
+      },
+      "default": true
+    },
+    {
+      "key": "words_per_minute",
+      "type": "number",
+      "label": {
+        "en": "Reading speed (words/min)",
+        "ja": "読書速度（単語/分、欧文向け）"
+      },
+      "description": {
+        "en": "Estimated words per minute for latin/space-separated text (default: 200).",
+        "ja": "欧文等の単語区切りテキストにおける1分あたりの読書単語数（既定: 200）。"
+      },
+      "default": 200
+    },
+    {
+      "key": "chars_per_minute",
+      "type": "number",
+      "label": {
+        "en": "Reading speed (characters/min)",
+        "ja": "読書速度（文字/分、日本語/CJK向け）"
+      },
+      "description": {
+        "en": "Estimated characters per minute for CJK text (default: 500).",
+        "ja": "日本語・中国語などCJK文字における1分あたりの読書文字数（既定: 500）。"
+      },
+      "default": 500
+    },
+    {
+      "key": "accent_color",
+      "type": "string",
+      "label": {
+        "en": "Accent color",
+        "ja": "アクセントカラー"
+      },
+      "description": {
+        "en": "Custom color for the icon/badge (e.g. #6366f1, or leave empty for theme accent).",
+        "ja": "アイコンやバッジのアクセント色（空欄時はテーマの --accent を使用）。"
+      },
+      "default": ""
+    },
+    {
+      "key": "format",
+      "type": "string",
+      "label": {
+        "en": "Custom format template",
+        "ja": "カスタム表示フォーマット"
+      },
+      "description": {
+        "en": "Custom text template with placeholders: {time}, {chars}, {words}. Leave empty for auto locale.",
+        "ja": "プレースホルダー（{time}, {chars}, {words}）を含むカスタム文言。空欄時は言語に応じた既定文言。"
+      },
+      "default": ""
+    }
+  ]
+}
+

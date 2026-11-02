@@ -213,6 +213,12 @@ pub struct PageRenderContext {
     /// 記事詳細ページ等の関連記事
     #[serde(default)]
     pub related_articles: Vec<ContentSummary>,
+    /// 記事詳細ページ等の直前の記事
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prev_article: Option<ContentSummary>,
+    /// 記事詳細ページ等の直後の記事
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_article: Option<ContentSummary>,
     #[serde(default)]
     pub extra_css: String,
     #[serde(default)]
