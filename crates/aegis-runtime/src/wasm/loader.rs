@@ -219,6 +219,9 @@ impl WasmPluginLoader {
         manifest
             .validate_settings()
             .map_err(|e| AegisError::Config(format!("Plugin '{}': {}", manifest.name, e)))?;
+        manifest
+            .validate_csp()
+            .map_err(|e| AegisError::Config(format!("Plugin '{}': {}", manifest.name, e)))?;
         if manifest.name != dir_name {
             return Err(AegisError::Config(format!(
                 "Plugin '{}' must be installed in a directory named '{}' (found '{}')",
@@ -286,6 +289,9 @@ impl WasmPluginLoader {
         manifest.validate_settings().map_err(|e| {
             AegisError::Validation(format!("Invalid `settings` in manifest: {}", e))
         })?;
+        manifest
+            .validate_csp()
+            .map_err(|e| AegisError::Validation(format!("Invalid `csp` in manifest: {}", e)))?;
 
         let wasm_path = plugin_dir.join(&manifest.entrypoint);
         if !wasm_path.is_file() {

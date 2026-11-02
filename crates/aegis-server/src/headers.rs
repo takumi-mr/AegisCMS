@@ -164,18 +164,20 @@ impl HeaderOverrides {
     /// レスポンスの HeaderMap に防御ヘッダーおよびカスタムヘッダーを注入する。CSP の `frame-src` には
     /// `frame_hosts`（有効なプラグインの `embed.frame_domains`。[`with_frame_sources`]）を、CSP の `script-src` など
     /// には `captcha_hosts`（問い合わせフォームの CAPTCHA のウィジェットが使うホスト。[`with_captcha_sources`]）を足す
+    /// レスポンスの HeaderMap に防御ヘッダーおよびカスタムヘッダーを注入する。
+    /// CSP にはプラグインの frame_hosts、CAPTCHA の captcha_hosts、および有効なプラグインが宣言した plugin_csp を動的にマージする
     pub fn apply_to_headers_with_sources(
         &self,
         headers: &mut HeaderMap,
         frame_hosts: &[String],
         captcha_hosts: &[String],
+        plugin_csp: &aegis_runtime::PluginCspSources,
     ) {
         if let Some(val) = self.effective_csp() {
-            insert_if_valid(
-                headers,
-                "content-security-policy",
-                &with_captcha_sources(&with_frame_sources(val, frame_hosts), captcha_hosts),
-            );
+            let mut csp =
+                with_captcha_sources(&with_frame_sources(val, frame_hosts), captcha_hosts);
+            csp = with_plugin_csp_sources(&csp, plugin_csp);
+            insert_if_valid(headers, "content-security-policy", &csp);
         }
         if let Some(val) = self.effective_x_frame_options() {
             insert_if_valid(headers, "x-frame-options", val);
@@ -202,6 +204,47 @@ impl HeaderOverrides {
             }
         }
     }
+}
+
+/// 有効なプラグインが要求する CSP (Content Security Policy) のドメインをディレクティブごとに足す
+pub fn with_plugin_csp_sources(csp: &str, plugin_csp: &aegis_runtime::PluginCspSources) -> String {
+    let mut csp = csp.to_string();
+    if !plugin_csp.script_domains.is_empty() {
+        csp = with_directive_sources(
+            &csp,
+            "script-src",
+            &["default-src"],
+            &plugin_csp.script_domains,
+        );
+    }
+    if !plugin_csp.frame_domains.is_empty() {
+        csp = with_directive_sources(
+            &csp,
+            "frame-src",
+            &["child-src", "default-src"],
+            &plugin_csp.frame_domains,
+        );
+    }
+    if !plugin_csp.connect_domains.is_empty() {
+        csp = with_directive_sources(
+            &csp,
+            "connect-src",
+            &["default-src"],
+            &plugin_csp.connect_domains,
+        );
+    }
+    if !plugin_csp.style_domains.is_empty() {
+        csp = with_directive_sources(
+            &csp,
+            "style-src",
+            &["default-src"],
+            &plugin_csp.style_domains,
+        );
+    }
+    if !plugin_csp.img_domains.is_empty() {
+        csp = with_directive_sources(&csp, "img-src", &["default-src"], &plugin_csp.img_domains);
+    }
+    csp
 }
 
 /// CSP に `https://<host>` の埋め込みを許す。ブラウザーと同じ順で、iframe に効いているディレクティブ
@@ -363,7 +406,7 @@ mod tests {
     fn test_default_headers_applied() {
         let overrides = HeaderOverrides::default();
         let mut headers = HeaderMap::new();
-        overrides.apply_to_headers_with_sources(&mut headers, &[], &[]);
+        overrides.apply_to_headers_with_sources(&mut headers, &[], &[], &Default::default());
 
         assert_eq!(headers.get("x-content-type-options").unwrap(), "nosniff");
         assert_eq!(headers.get("x-frame-options").unwrap(), "SAMEORIGIN");
@@ -392,7 +435,7 @@ mod tests {
         };
 
         let mut headers = HeaderMap::new();
-        overrides.apply_to_headers_with_sources(&mut headers, &[], &[]);
+        overrides.apply_to_headers_with_sources(&mut headers, &[], &[], &Default::default());
 
         assert_eq!(headers.get("x-frame-options").unwrap(), "DENY");
         assert!(!headers.contains_key("x-content-type-options"));
@@ -454,6 +497,7 @@ mod tests {
             &mut headers,
             &["player.vimeo.com".to_string()],
             &[],
+            &Default::default(),
         );
         let csp = headers["content-security-policy"].to_str().unwrap();
         assert!(
@@ -468,7 +512,12 @@ mod tests {
     fn test_captcha_hosts_are_added_to_the_directives_the_widget_needs() {
         let hosts = ["challenges.cloudflare.com".to_string()];
         let mut headers = HeaderMap::new();
-        HeaderOverrides::default().apply_to_headers_with_sources(&mut headers, &[], &hosts);
+        HeaderOverrides::default().apply_to_headers_with_sources(
+            &mut headers,
+            &[],
+            &hosts,
+            &Default::default(),
+        );
         let csp = headers["content-security-policy"].to_str().unwrap();
         for directive in ["script-src", "frame-src", "connect-src", "style-src"] {
             let part = csp
@@ -488,7 +537,12 @@ mod tests {
 
         // ホストが無ければ何も変えない。管理者が `'none'` や CSP の無効化にしているときも触らない
         let mut plain = HeaderMap::new();
-        HeaderOverrides::default().apply_to_headers_with_sources(&mut plain, &[], &[]);
+        HeaderOverrides::default().apply_to_headers_with_sources(
+            &mut plain,
+            &[],
+            &[],
+            &Default::default(),
+        );
         assert_eq!(
             plain["content-security-policy"].to_str().unwrap(),
             DEFAULT_CONTENT_SECURITY_POLICY
@@ -500,6 +554,45 @@ mod tests {
         assert_eq!(
             with_captcha_sources("img-src 'self'", &hosts),
             "img-src 'self'"
+        );
+    }
+    #[test]
+    fn test_plugin_csp_sources_are_added_to_directives() {
+        let plugin_csp = aegis_runtime::PluginCspSources {
+            script_domains: vec!["pagead2.googlesyndication.com".to_string()],
+            frame_domains: vec!["googleads.g.doubleclick.net".to_string()],
+            connect_domains: vec!["ep2.adtrafficquality.google".to_string()],
+            style_domains: vec![],
+            img_domains: vec![],
+        };
+        let mut headers = HeaderMap::new();
+        HeaderOverrides::default().apply_to_headers_with_sources(
+            &mut headers,
+            &[],
+            &[],
+            &plugin_csp,
+        );
+        let csp = headers["content-security-policy"].to_str().unwrap();
+        let part_of = |dir: &str| {
+            csp.split(';')
+                .map(str::trim)
+                .find(|d| d.starts_with(dir))
+                .unwrap_or("")
+        };
+        assert!(
+            part_of("script-src").contains("https://pagead2.googlesyndication.com"),
+            "{}",
+            csp
+        );
+        assert!(
+            part_of("frame-src").contains("https://googleads.g.doubleclick.net"),
+            "{}",
+            csp
+        );
+        assert!(
+            part_of("connect-src").contains("https://ep2.adtrafficquality.google"),
+            "{}",
+            csp
         );
     }
 }

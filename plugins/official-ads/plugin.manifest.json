@@ -1,0 +1,323 @@
+{
+  "name": "official-ads",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Ad & Banner Delivery",
+  "description": "Delivers Google AdSense and custom display/banner ads with on-render-page header injection, custom content blocks, dynamic CSP integration, and Cookie consent banner support.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "ads",
+    "monetization",
+    "marketing",
+    "banner",
+    "blocks"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "hooks": [
+      "on-render-page",
+      "render-blocks"
+    ],
+    "embed": {
+      "frame_domains": [
+        "googleads.g.doubleclick.net",
+        "tpc.googlesyndication.com",
+        "pagead2.googlesyndication.com"
+      ]
+    },
+    "csp": {
+      "script_domains": [
+        "pagead2.googlesyndication.com"
+      ],
+      "frame_domains": [
+        "googleads.g.doubleclick.net",
+        "tpc.googlesyndication.com",
+        "pagead2.googlesyndication.com"
+      ],
+      "connect_domains": [
+        "pagead2.googlesyndication.com",
+        "ep2.adtrafficquality.google"
+      ]
+    }
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "blocks": [
+    {
+      "name": "display",
+      "label": {
+        "en": "Ad / Banner",
+        "ja": "広告 / バナー"
+      },
+      "description": {
+        "en": "Insert a Google AdSense unit or custom advertisement banner into the content.",
+        "ja": "本文中に Google AdSense 広告ユニットまたはカスタムバナー広告を挿入します。"
+      },
+      "fields": [
+        {
+          "name": "slot",
+          "type": "string",
+          "label": {
+            "en": "AdSense Slot ID",
+            "ja": "AdSense スロット ID"
+          },
+          "required": false,
+          "default": "",
+          "placeholder": {
+            "en": "e.g. 1234567890",
+            "ja": "例: 1234567890"
+          },
+          "help": {
+            "en": "Ad unit slot ID from Google AdSense. Leave empty to use custom HTML or default slot.",
+            "ja": "Google AdSense の広告スロット ID。カスタム HTML や既定スロットを使う場合は空欄にします。"
+          }
+        },
+        {
+          "name": "format",
+          "type": "select",
+          "label": {
+            "en": "Ad Format",
+            "ja": "広告フォーマット"
+          },
+          "required": false,
+          "default": "auto",
+          "options": [
+            {
+              "value": "auto",
+              "label": {
+                "en": "Responsive (Auto)",
+                "ja": "レスポンシブ (自動)"
+              }
+            },
+            {
+              "value": "rectangle",
+              "label": {
+                "en": "Rectangle (300x250 / 336x280)",
+                "ja": "レクタングル (300x250 / 336x280)"
+              }
+            },
+            {
+              "value": "horizontal",
+              "label": {
+                "en": "Horizontal (Leaderboard 728x90)",
+                "ja": "横長リーダーボード (728x90)"
+              }
+            },
+            {
+              "value": "vertical",
+              "label": {
+                "en": "Vertical (Skyscraper 160x600)",
+                "ja": "縦長スカイスクレイパー (160x600)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "align",
+          "type": "select",
+          "label": {
+            "en": "Alignment",
+            "ja": "配置"
+          },
+          "required": false,
+          "default": "center",
+          "options": [
+            {
+              "value": "center",
+              "label": {
+                "en": "Center",
+                "ja": "中央揃え"
+              }
+            },
+            {
+              "value": "left",
+              "label": {
+                "en": "Left",
+                "ja": "左寄せ"
+              }
+            },
+            {
+              "value": "right",
+              "label": {
+                "en": "Right",
+                "ja": "右寄せ"
+              }
+            }
+          ]
+        },
+        {
+          "name": "custom_html",
+          "type": "text",
+          "label": {
+            "en": "Custom HTML / Affiliate Code",
+            "ja": "カスタム HTML / アフィリエイトコード"
+          },
+          "required": false,
+          "default": "",
+          "placeholder": {
+            "en": "<a href=\"...\"><img src=\"...\" alt=\"Ad\"></a>",
+            "ja": "<a href=\"...\"><img src=\"...\" alt=\"広告\"></a>"
+          },
+          "help": {
+            "en": "Custom HTML or affiliate banner tag. If specified, this overrides AdSense unit for this block.",
+            "ja": "任意のアフィリエイトコードやバナー HTML。指定された場合、このブロックでは AdSense より優先されます。"
+          }
+        }
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "client_id",
+      "type": "string",
+      "label": {
+        "en": "Google AdSense Publisher ID",
+        "ja": "AdSense パブリッシャー ID"
+      },
+      "description": {
+        "en": "Your Google AdSense publisher ID (e.g. ca-pub-1234567890123456).",
+        "ja": "Google AdSense のパブリッシャー ID（例: ca-pub-1234567890123456）。"
+      },
+      "default": ""
+    },
+    {
+      "key": "auto_ads",
+      "type": "boolean",
+      "label": {
+        "en": "Enable Auto Ads",
+        "ja": "自動広告を有効化"
+      },
+      "description": {
+        "en": "Inject Google AdSense Auto Ads script into header.",
+        "ja": "Google AdSense の自動広告タグをヘッダーに注入します。"
+      },
+      "default": false
+    },
+    {
+      "key": "auto_insert_position",
+      "type": "select",
+      "label": {
+        "en": "Auto-insert Position",
+        "ja": "本文への自動挿入位置"
+      },
+      "description": {
+        "en": "Automatically insert an ad unit into articles without manual blocks.",
+        "ja": "記事本文への広告ユニットの自動挿入位置。"
+      },
+      "default": "none",
+      "options": [
+        {
+          "value": "none",
+          "label": {
+            "en": "Disabled (Manual blocks only)",
+            "ja": "無効（手動ブロックのみ）"
+          }
+        },
+        {
+          "value": "top",
+          "label": {
+            "en": "Top of article body",
+            "ja": "本文の先頭"
+          }
+        },
+        {
+          "value": "bottom",
+          "label": {
+            "en": "Bottom of article body",
+            "ja": "本文の末尾"
+          }
+        },
+        {
+          "value": "both",
+          "label": {
+            "en": "Both top and bottom",
+            "ja": "先頭と末尾の両方"
+          }
+        }
+      ]
+    },
+    {
+      "key": "default_slot",
+      "type": "string",
+      "label": {
+        "en": "Default AdSense Slot ID",
+        "ja": "既定の AdSense スロット ID"
+      },
+      "description": {
+        "en": "Ad unit slot ID used for auto-insertion and blocks without a slot ID specified.",
+        "ja": "自動挿入およびスロット ID 未指定のブロックで使用する既定の広告スロット ID。"
+      },
+      "default": ""
+    },
+    {
+      "key": "require_consent",
+      "type": "boolean",
+      "label": {
+        "en": "Require Cookie Consent",
+        "ja": "Cookie 同意バナーと連携"
+      },
+      "description": {
+        "en": "Hold ad loading until the visitor grants cookie consent (uses data-aegis-consent).",
+        "ja": "訪問者が同意バナーで許可するまで広告の読み込みを保留します（data-aegis-consent 属性を付与）。"
+      },
+      "default": true
+    },
+    {
+      "key": "consent_category",
+      "type": "string",
+      "label": {
+        "en": "Consent Category",
+        "ja": "同意区分"
+      },
+      "description": {
+        "en": "Category ID for the cookie consent banner (default: 'marketing').",
+        "ja": "Cookie 同意バナーの区分 ID（既定: 'marketing'）。"
+      },
+      "default": "marketing"
+    },
+    {
+      "key": "custom_head_code",
+      "type": "text",
+      "label": {
+        "en": "Custom Head Code",
+        "ja": "カスタムヘッダータグ"
+      },
+      "description": {
+        "en": "Custom tracking or ad network script tags to inject into <head>.",
+        "ja": "<head> に追加で注入する任意の広告スクリプトやタグ。"
+      },
+      "default": ""
+    },
+    {
+      "key": "custom_ad_html",
+      "type": "text",
+      "label": {
+        "en": "Default Custom Ad HTML",
+        "ja": "既定のカスタム広告 HTML"
+      },
+      "description": {
+        "en": "Fallback HTML banner used for auto-insertion when no client_id or slot is configured.",
+        "ja": "AdSense 未設定時に自動挿入で表示する既定のバナー HTML。"
+      },
+      "default": ""
+    },
+    {
+      "key": "content_types",
+      "type": "string",
+      "label": {
+        "en": "Target Content Types",
+        "ja": "広告を表示するコンテンツ種別"
+      },
+      "description": {
+        "en": "Comma-separated content types that receive ad injection (default: 'article').",
+        "ja": "広告注入を行うコンテンツ種別（カンマ区切り、既定: 'article'）。"
+      },
+      "default": "article"
+    }
+  ]
+}
+

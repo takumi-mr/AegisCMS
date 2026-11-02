@@ -1,0 +1,14 @@
+[package]
+name = "aegis-plugin-ads"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Core Team"]
+description = "Official Wasm plugin for Google AdSense and custom display/banner ad delivery"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.1.0" }
+serde_json.workspace = true
+

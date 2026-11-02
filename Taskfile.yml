@@ -298,6 +298,15 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_code_lines.wasm plugins/official-code-lines/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_lightbox.wasm plugins/official-lightbox/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_external_links.wasm plugins/official-external-links/plugin.wasm
         platforms: [linux, darwin]
 
+  plugin:build:ads:
+    desc: 公式広告配信プラグイン (official-ads) を Wasm にビルドし plugins/official-ads/plugin.wasm を更新
+    cmds:
+      - cargo build -p aegis-plugin-ads --target wasm32-unknown-unknown --release
+      - cmd: cmd /c "copy /y target\wasm32-unknown-unknown\release\aegis_plugin_ads.wasm plugins\official-ads\plugin.wasm"
+        platforms: [windows]
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_ads.wasm plugins/official-ads/plugin.wasm
+        platforms: [linux, darwin]
+
   plugin:build:as:
     desc: AssemblyScript プラグインテンプレートを Wasm にビルドし sdk/templates/assemblyscript/plugin.wasm を生成
     cmds:

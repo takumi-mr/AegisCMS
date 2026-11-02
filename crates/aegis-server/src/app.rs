@@ -823,10 +823,12 @@ async fn security_headers_middleware(
             }
         }
     }
+    let plugin_csp = state.supervisor.read().await.csp_sources();
     headers_config.apply_to_headers_with_sources(
         response.headers_mut(),
         &frame_hosts,
         &captcha_hosts,
+        &plugin_csp,
     );
 
     // SVG ドキュメントとして直接開かれた場合の XSS 防止: スクリプト実行を完全遮断

@@ -263,3 +263,46 @@ async fn test_official_content_plugins_add_to_the_page() {
         );
     }
 }
+
+/// 公式プラグイン `official-ads` のビルド済み `plugin.wasm` で、マニフェスト、`render-blocks`、
+/// `on-render-page`、動的 CSP 設定および Cookie 同意連携が正しく動作することを確認する
+#[tokio::test]
+async fn test_official_ads_plugin_manifest_and_execution() {
+    let engine = WasmEngine::new().unwrap();
+    let plugins = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+    let ads_dir = plugins.join("official-ads");
+    let ads = load(&engine, &ads_dir);
+
+    // マニフェスト検査
+    let manifest = ads.manifest();
+    assert_eq!(manifest.name, "official-ads");
+    manifest.validate_blocks().unwrap();
+    manifest.validate_csp().unwrap();
+
+    // CSP ケーパビリティの宣言検証
+    assert_eq!(
+        manifest.csp_script_domains(),
+        ["pagead2.googlesyndication.com"]
+    );
+    assert!(manifest
+        .csp_frame_domains()
+        .contains(&"googleads.g.doubleclick.net".to_string()));
+    assert!(manifest
+        .csp_connect_domains()
+        .contains(&"pagead2.googlesyndication.com".to_string()));
+
+    // render-blocks フックの動作確認
+    let mut node = BlockNode::new("official-ads/display");
+    node.attributes = serde_json::json!({
+        "custom_html": "<iframe src=\"https://example.com/ad\"></iframe>",
+        "align": "center"
+    });
+    let blocks = vec![node];
+    let results = ads.render_blocks(blocks).await.unwrap();
+    assert_eq!(results.len(), 1);
+    let html = results[0].as_ref().unwrap();
+    assert!(html.contains("<div class=\"oa-ad-container oa-align-center\">"));
+    // 既定で Cookie 同意連携（require_consent = true）が効いて data-aegis-consent が付くこと
+    assert!(html.contains("data-aegis-consent=\"marketing\""));
+    assert!(html.contains("data-src=\"https://example.com/ad\""));
+}

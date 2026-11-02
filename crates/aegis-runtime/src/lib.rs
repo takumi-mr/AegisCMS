@@ -6,7 +6,7 @@ pub mod wasm;
 
 pub use config::{PluginsConfig, RuntimeConfig};
 pub use guard::CapabilityGuard;
-pub use plugin::{AegisPlugin, CommentCheck, PluginSupervisor};
+pub use plugin::{AegisPlugin, CommentCheck, PluginCspSources, PluginSupervisor};
 pub use services::{HostServices, HttpRequest, HttpResponse, LocalHostServices, PluginServices};
 pub use wasm::{
     HookInvocationResult, InstalledPlugin, InstancePoolConfig, PluginHostState, PluginInfo,
@@ -29,6 +29,7 @@ mod tests {
             version: "1.0.0".to_string(),
             entrypoint: "plugin.wasm".to_string(),
             capabilities: PluginCapabilities {
+                csp: None,
                 embed: None,
                 network: Some(NetworkCapability {
                     allowed_domains: vec!["hooks.slack.com".to_string()],

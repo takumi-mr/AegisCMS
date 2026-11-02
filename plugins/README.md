@@ -29,5 +29,6 @@ plugins/
 | [`official-code-lines`](official-code-lines/) | `on-render-page` | コードブロックに行番号とファイル名の見出しを出す（ファイル名はコードブロックの `filename`）。最小の行数・色などは `[plugins.settings.official-code-lines]` で変えられる |
 | [`official-lightbox`](official-lightbox/) | `on-render-page` | 本文の画像をクリックで拡大表示する（前後の画像・キーボード操作・説明文）。小さい画像やリンクの中の画像は対象外。`[plugins.settings.official-lightbox]` で変えられる |
 | [`official-external-links`](official-external-links/) | `on-render-page` | 本文の外部リンクを新しいタブで開き、`rel="noopener nofollow"` と外部リンクのアイコンを付ける（ブラウザーのスクリプトで動く）。`[plugins.settings.official-external-links]` で変えられる |
+| [`official-ads`](official-ads/) | `on-render-page`, `render-blocks` | Google AdSense および独自広告・バナー配信。`<head>` へのスクリプト注入、カスタムブロック（`official-ads/display`）、動的 CSP 連携、Cookie 同意バナー（`[consent]`）対応 |
 
-`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-page-toc` / `official-back-to-top` / `official-share-buttons` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`）で作り直してください。
+`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-page-toc` / `official-back-to-top` / `official-share-buttons` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`、`official-ads` は `task plugin:build:ads`）で作り直してください。
