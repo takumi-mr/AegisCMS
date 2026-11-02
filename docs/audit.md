@@ -33,9 +33,28 @@ purge_interval_secs = 3600
 | `prometheus` | `aegis_audit_events_total` カウンタを `GET /metrics` で公開 | Prometheus, CloudWatch Agent (Prometheus 収集) |
 
 - 出力先への書き込みに失敗しても**リクエストは失敗しません**（`ERROR` ログを出して処理を続行）。
-- `database` シンクはリクエストハンドラ内で同期 INSERT されます。SQLite (WAL モード) では 2,000+ req/s を維持しますが、外部 RDBMS（特に MySQL）ではトランザクションコミットの fsync やコネクションプールの競合によりスループットが低下しやすいため、高負荷環境では出力先の選定（`log` シンクなど）や将来の非同期キュー導入が有効です（詳細は [architecture.md 2.2](architecture.md#22-databaseadapter) および [development.md 6.3](development.md#63-データベース別パフォーマンス比較-task-benchdbs--scriptscompare-dbsmjs) 参照）。
+- `database` シンクの使いどころと注意点は [出力先の選び方](#11-出力先の選び方) を参照してください。
 - `enabled = false` または `sinks = []` の場合は記録を行いません。
 - 管理者のログインやログインのロックなど、特定のイベントをメールで知らせるには `[[notifications.audit.rules]]` を設定します（[通知ドキュメント 2.1](notifications.md#21-監査イベントの通知)）。
+
+### 1.1 出力先の選び方
+
+`database` シンクは、リクエストを処理する中で同期的に `_aegis_audit_logs` へ INSERT します（非同期キューやバッチ書き込みは行いません）。監査ログの書き込みが遅くなると、そのままリクエストの応答時間に影響します。
+
+| 運用 | 推奨する出力先 |
+| --- | --- |
+| SQLite の単体運用、または管理者の操作が中心の小〜中規模サイト | `database`（Admin Studio での閲覧・検索と、`retention_days` による自動削除が使える） |
+| PostgreSQL / MySQL を使う、アクセスの多いサイト | `log`（標準出力）+ 転送先での保管・検索。`database` は外す、または併用しても件数を抑える |
+| 件数の集計やアラートだけが目的 | `prometheus` |
+
+**`database` を使うときの注意**
+
+- **スループット**: 未認証 401 の記録だけを並行 50 で測ったときの目安は、SQLite (WAL) 約 2,000 req/s、PostgreSQL 約 990 req/s、MySQL 約 230 req/s です（Docker 上、[計測の詳細](development.md#63-データベース別パフォーマンス比較-task-benchdbs--scriptscompare-dbsmjs)）。外部 RDBMS ではネットワークの往復とコミットの待ちが乗るため、サイト全体の書き込み量が増えるほど影響が出ます。
+- **容量とバックアップ**: アクセスのたびに記録されるイベント（`access.denied` など）が多いと、テーブルが大きくなり、DB のバックアップも肥大化します。`retention_days` を必ず設定してください（既定の `0` は無期限です。[保持期間](#5-保持期間と自動削除)）。
+- **本体データとの競合**: 監査ログの書き込みは、コンテンツなど本体データと同じ DB・同じコネクションプールを使います。
+- **欠損**: 書き込みに失敗したイベントは `ERROR` ログに残るだけで、再送されません。取りこぼしが許されない用途では、`log` を併用して別系統にも残してください。
+
+大量のログを DB に溜めて検索する用途には向きません。その場合は `log` の出力を Loki / CloudWatch Logs などに集約してください（[構造化ログ](#7-構造化ログ-log)）。
 
 ---
 

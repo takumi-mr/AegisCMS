@@ -32,7 +32,6 @@
 - [ ] **分散ストレージ・クラスタ対応**: libSQL (Turso) への対応およびマルチノードクラスタ環境の最適化。
 
 ### 🚀 性能最適化
-- [ ] **監査ログ `database` 出力先の非同期化（保留）**: 有限 `mpsc` キュー + バッチ INSERT。SQLite WAL では約 2,000 req/s と十分なスループットだが、Docker 上の PostgreSQL（約 990 req/s）や MySQL（約 230 req/s）など外部 RDBMS では同期 INSERT のオーバーヘッドが顕著になるため、外部 DB 運用向け最適化として再検討（ベンチマーク詳細は [architecture.md 2.2](docs/architecture.md#22-databaseadapter) および [development.md 6.3](docs/development.md#63-データベース別パフォーマンス比較-task-benchdbs--scriptscompare-dbsmjs) 参照）。
 - [ ] **大規模コンテンツ（1 万件超）での最適化**:
   - `on-render-page` フックで HTML 全体を Wasm に渡すオーバーヘッドの軽減。
 
