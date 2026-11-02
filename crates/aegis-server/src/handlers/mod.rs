@@ -26,6 +26,7 @@ pub mod reviews;
 pub mod saml;
 pub mod schemas;
 pub mod seo;
+pub mod setup;
 pub mod shop;
 pub mod site;
 pub mod site_assets;
@@ -86,6 +87,7 @@ pub use reviews::{
 pub use saml::{saml_acs, saml_login, saml_metadata};
 pub use schemas::{get_schema, list_schemas};
 pub use seo::{get_robots_txt, get_seo_settings, get_sitemap_xml, update_seo_settings};
+pub use setup::{setup_init, setup_page, setup_status};
 pub use shop::{
     checkout, get_order, get_public_order, get_public_product_variants, list_orders,
     payment_webhook, quote, refund_order, sales_report, shop_config, update_order_status,
