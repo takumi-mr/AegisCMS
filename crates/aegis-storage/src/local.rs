@@ -20,13 +20,25 @@ impl LocalStorageBackend {
 
     fn resolve_path(&self, key: &str) -> Result<PathBuf> {
         let clean_key = key.trim_start_matches('/').trim_start_matches('\\');
-        // パストラバーサル防止
-        if clean_key.contains("..") {
+        // パストラバーサル防止: ".." に加え、絶対パス（Windows のドライブレター `C:\...`・UNC パス
+        // `\\host\share\...` を含む）と NTFS の代替データストリーム（`:`）も拒否する。
+        // `PathBuf::join` は引数が絶対パスのとき `upload_dir` を無視してその絶対パスをそのまま返すため、
+        // ここで弾かないと `upload_dir` の外に書込み・削除ができてしまう。
+        if clean_key.contains("..") || clean_key.contains(':') || Path::new(clean_key).is_absolute()
+        {
             return Err(AegisError::Config(
                 "Path traversal detected in storage key".to_string(),
             ));
         }
-        Ok(self.upload_dir.join(clean_key))
+        let resolved = self.upload_dir.join(clean_key);
+        // 多重防御: 上記のチェックをすべて回避する入力があっても、結合結果が `upload_dir` 配下から
+        // 外れていれば拒否する。
+        if !resolved.starts_with(&self.upload_dir) {
+            return Err(AegisError::Config(
+                "Path traversal detected in storage key".to_string(),
+            ));
+        }
+        Ok(resolved)
     }
 }
 
@@ -141,6 +153,50 @@ impl StorageBackend for LocalStorageBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `..`、Windows のドライブレター絶対パス（`C:\...`）、NTFS の代替データストリーム（`:`）のいずれも
+    /// `upload_dir` の外へは書込みできないことを確認する（ローカル・ペネトレーションテストで発見した
+    /// F-04 の回帰テスト。[docs/security-assessment-report.md](../../../docs/security-assessment-report.md) 参照）。
+    #[tokio::test]
+    async fn test_resolve_path_rejects_traversal_and_absolute_keys() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("aegis_test_storage_{}", uuid::Uuid::new_v4()));
+        let storage = LocalStorageBackend::new(&temp_dir, "/uploads");
+
+        let malicious_keys = [
+            "../secret.txt",
+            "a/../../b.png",
+            "..",
+            r"C:\Windows\win.ini",
+            "C:/Windows/win.ini",
+            "image.png:hidden-stream",
+        ];
+        for key in malicious_keys {
+            let err = storage
+                .put(key, b"pwned", "text/plain")
+                .await
+                .expect_err(&format!("key {:?} should be rejected", key));
+            assert!(
+                matches!(err, AegisError::Config(_)),
+                "key {:?} should fail resolve_path validation, got {:?}",
+                key,
+                err
+            );
+        }
+        // アップロード先ディレクトリは作られていないはず
+        assert!(!temp_dir.exists());
+
+        // UNC パス（`\\host\share\...`）は先頭の `\` がすべて除去されるため、もともと
+        // `upload_dir` の外には出ない（相対パスの一部として扱われ、配下に書き込まれる）
+        let unc_like_key = r"\\attacker-host\share\evil.txt";
+        storage
+            .put(unc_like_key, b"harmless-because-relative", "text/plain")
+            .await
+            .expect("a UNC-shaped key degrades to a relative path and stays inside upload_dir");
+        assert!(storage.get(unc_like_key).await.is_ok());
+
+        let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+    }
 
     #[tokio::test]
     async fn test_local_storage_lifecycle() {

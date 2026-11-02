@@ -6,12 +6,45 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| ステータス | 動的検査を部分実施。要修正所見あり |
+| ステータス | 動的検査を部分実施。F-04（Critical）は修正済み・実サーバーで再検証済み |
 | 評価対象 | AegisCMS ローカル検証環境 |
 | 攻撃元 | Ubuntu WSL（Kali Linux は未インストール。nmap 7.94SVN と curl を使用） |
 | 想定対象 | Docker 内の AegisCMS。`127.0.0.1:18080` のみ |
 | 評価環境 | Windows / Docker Desktop / Ubuntu WSL2 |
 | 記録日 | 2026-10-26 |
+
+## 追加検査（2026-11-02）
+
+| 項目 | 内容 |
+| --- | --- |
+| 攻撃元 | Windows ネイティブ（Git Bash + curl + cargo）。Kali/WSL は不使用 |
+| 想定対象 | `cargo run --bin aegis-server -- run`（`task dev` と同じ起動経路）でホスト OS 上に直接起動したネイティブ Windows プロセス。設定・DB・アップロード領域はすべてセッション専用のスクラッチ領域に分離し、`127.0.0.1:18090` のみで待受 |
+| 対象範囲 | ルーティング定義（`crates/aegis-server/src/app.rs`）から全 225 エンドポイントを抽出し、ハンドラの必須ロール（`PUBLIC`/`VIEWER`/`EDITOR`/`ADMIN`）を静的に突き合わせ。認証境界・CORS・ログインロックアウトは既知所見（F-02, P-02）の再現確認のみ、ストレージ API（`/api/v1/storage/*`）は新規に動的検査 |
+| 所見 | **F-04（new, Critical）** — 下記 |
+
+### F-04: ストレージ API のキーがドライブレター絶対パスを拒否せず、`upload_dir` 外への任意ファイル書込み・削除が可能（Critical・対応完了）
+
+- **深刻度**: Critical。`editor` ロールのセッションのみで、ホスト OS 上の任意パスへの書込み（上書き）・削除が可能
+- **再現環境**: Docker コンテナ（Linux）ではなく、`task dev` と同じ「ホスト OS 上でネイティブに起動した Windows プロセス」。Linux コンテナでは今回と同じ絶対パス化は起きないため**再現しない**
+- **根拠（コード）**: `crates/aegis-storage/src/local.rs` の `LocalStorageBackend::resolve_path` は、キーの先頭の `/` と `\` だけを `trim_start_matches` で除去し、`..` という部分文字列が含まれないことだけを検査してから `self.upload_dir.join(clean_key)` を呼ぶ。Windows の `PathBuf::join` は、与えた文字列がドライブレター付き絶対パス（例: `C:\Users\...`）のとき、結合先のベースパスを完全に無視してその絶対パスをそのまま返す仕様であり、`resolve_path` はこのケースを一切拒否していない。呼び出し元の `crates/aegis-server/src/handlers/storage.rs` の `upload_file` ハンドラも、multipart の `key`/`path` フィールドをそのまま `storage_key` として使い、追加の検証を行わない。`delete_object` ハンドラの検証も `key.split(['/', '\\']).any(|part| part == "..")` のみで、ドライブレターを拒否しない
+- **再現手順（実施済み・実サーバー経由）**:
+  1. スクラッチ専用の設定（`config/docker.toml` 相当。`upload_dir` はセッション専用の一時ディレクトリ）で `cargo run --bin aegis-server -- run` をネイティブ起動（`127.0.0.1:18090`）
+  2. `cargo run --bin aegis-server -- user add pentedit --role editor` で editor ユーザーを作成し、`POST /api/v1/auth/session` でログインして Bearer トークンを取得
+  3. 書込み: `upload_dir` 外（同じスクラッチ領域内の別ファイル、`outside_upload_dir_victim.txt`）に対し、`POST /api/v1/storage/upload` の multipart フィールド `key` にそのファイルの絶対パスを指定し `file` フィールドで任意内容を送信 → レスポンス `200`、対象ファイルの内容が `victim-content-before-attack` から送信した任意文字列に書き換わることを確認
+  4. 削除: 別の検証用ファイルの絶対パスを URL エンコードして `DELETE /api/v1/storage/objects/{*key}?force=true` に渡す → `204 No Content`、対象ファイルが実際に削除されることを確認
+  5. 検証後、使用した全ファイル・DB・設定はスクラッチ領域ごと削除済み。リポジトリ本体には変更を加えていない（`git status` で確認）
+- **影響・想定される攻撃チェーン**: `editor` ロールは `admin` より権限が低いが、`POST /api/v1/storage/upload` と `DELETE /api/v1/storage/objects/{*key}` はいずれも `EditorSession` のみを要求する（`crates/aegis-server/src/app.rs`）。ネイティブ Windows 運用（`task dev`、または Docker を使わない本番運用）では、editor 権限を持つアカウント（侵害されたものも含む）が:
+  - `[paths].admin_dist_dir`（既定 `admin/dist/index.html` 等）を書き換えて Admin Studio にスクリプトを混入させ、admin のセッション窃取・完全な権限奪取に繋げる
+  - 任意の設定ファイル・DB ファイル・バイナリを削除してサービス停止（破壊的影響）を起こす
+  - 任意のファイルパスへの書込みにより、起動スクリプトや次回実行されるファイルを汚染する余地（環境依存）
+  のいずれも可能になる。admin_dist_dir への実際の上書きはリポジトリの実ファイルを破壊するため本検査では実行していないが、書込みプリミティブ自体は手順 3 で実証済みであり、パスをそちらに向けるだけで成立する
+- **修正内容（対応完了。ブランチ `fix/storage-absolute-path-key`）**:
+  - `crates/aegis-storage/src/local.rs` の `LocalStorageBackend::resolve_path`: `..` に加え、`:` を含むキー（ドライブレター・NTFS 代替データストリーム双方を同時に塞ぐ）と `Path::is_absolute()` に該当するキーを拒否するよう変更。さらに、結合後のパスが `upload_dir` 配下から外れていないかを `starts_with` で再検証する多重防御を追加
+  - `crates/aegis-server/src/handlers/storage.rs`: `upload_file`（multipart の `key`/`path` フィールド）と `delete_object` の両方が共有する `validate_storage_key` 関数を追加し、バックエンド実装に依存せずハンドラ層でも同じ基準（`..`・`:`・絶対パス）で拒否するよう変更。`delete_object` 側の既存チェック（`key.split(['/', '\\']).any(|part| part == "..")`）はドライブレターを素通りさせていたため、この共通関数に統一
+  - UNC パス（`\\host\share\...`）はローカルバックエンドの既存の `trim_start_matches` によって先頭の `\` が除去され、もともと `upload_dir` 配下の相対パスとして安全に収まることを確認（ハンドラ層では `trim_start_matches` を通さないキーに対して `Path::is_absolute()` が正しく絶対パスとして拒否することも確認）
+  - 回帰テストを `local.rs`・`handlers/storage.rs` の双方に追加（`test_resolve_path_rejects_traversal_and_absolute_keys`、`test_validate_storage_key_rejects_traversal_and_absolute_keys`、`test_delete_rejects_invalid_keys` の拡張）
+- **再検証（実施済み・実サーバー経由）**: 修正後のビルドを同じ再現手順（editor セッションでの `POST /api/v1/storage/upload` の `key` フィールド、`DELETE /api/v1/storage/objects/{*key}`）で再攻撃し、いずれも `400 Bad Request`（`{"error":"Invalid storage key"}`）で拒否され、対象ファイルが無改変・未削除のままであることを確認。同じセッションでの正規の（キー省略の）アップロードは引き続き成功することも確認し、回帰がないことを確認した
+- **検証後の状態**: `cargo fmt --check` 準拠、`aegis-storage`・`aegis-server` の既存テストを含め 332 件のテストが成功。clippy は本修正ファイルに新規警告なし（他ファイルの既存警告はこの修正と無関係、`main` でも再現）。検証に使用したスクラッチ環境・ファイルはすべて削除済みで、リポジトリへの影響はこの修正差分のみ
 
 ## 実施状況と制約
 
