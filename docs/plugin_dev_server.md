@@ -61,7 +61,22 @@ curl http://127.0.0.1:8091/__dev/api/plugin
 
 ### 2.2 標準モックフィクスチャ一覧 (`GET /__dev/api/fixtures`)
 
-全フック（`on-before-save`, `transform-content-ast`, `render-blocks`, `on-render-page`, `calculate-order` など）の標準テスト用ダミーデータを返します。
+全フックの標準の入力を返します。値は、ホストが実際にフックへ渡す JSON そのものです（`{"post": {...}}` のような包みは付きません）。
+
+| フック | 入力（Rust の型） |
+| --- | --- |
+| `on-before-save` | `PostContext` |
+| `transform-content-ast` | `BlockNode` の配列 |
+| `render-blocks` | `{"blocks": [BlockNode, ...]}`（結果は `{"html": ["<div>…</div>", null, ...]}`。`null` はそのプラグインが描かないブロック） |
+| `on-render-page` | `PageRenderContext` |
+| `calculate-order` | `OrderContext` |
+| `on-order-status-changed` | `OrderStatusChange` |
+| `on-content-published` | `PublishedContent` |
+| `check-comment` | `CommentSubmission`（結果は `CommentVerdict`） |
+| `send-notification` | `NotificationMessage` |
+| `on-user-authenticated` | `UserAuthContext` |
+
+型は `aegis-core` / `aegis-ast` にあり、各フィクスチャが型に読み込めることはテストで検査しています。
 
 ```bash
 curl http://127.0.0.1:8091/__dev/api/fixtures
@@ -78,15 +93,13 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
   -H "Content-Type: application/json" \
   -d '{
     "hook": "transform-content-ast",
-    "input": {
-      "blocks": [
-        {
-          "type": "code",
-          "language": "rust",
-          "code": "fn main() { println!(\"Hello\"); }"
-        }
-      ]
-    },
+    "input": [
+      {
+        "name": "core/code",
+        "attributes": { "language": "rust" },
+        "text": "fn main() { println!(\"Hello\"); }"
+      }
+    ],
     "config": {
       "highlight_theme": "github-dark"
     }
@@ -99,11 +112,13 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
   "success": true,
   "output": [
     {
-      "type": "raw_html",
-      "html": "<pre class=\"highlight\"><code class=\"language-rust\">...</code></pre>"
+      "name": "core/code",
+      "attributes": { "language": "rust", "data-enhanced-code": true },
+      "text": "fn main() { println!(\"Hello\"); }",
+      "children": []
     }
   ],
-  "raw_output": "[{\"type\":\"raw_html\",...}]",
+  "raw_output": "[{\"name\":\"core/code\",...}]",
   "error": null,
   "fuel_consumed": 15420,
   "duration_ms": 1.45,
@@ -127,8 +142,10 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
 {
   "hook": "on-order-status-changed",
   "input": {
-    "order_id": "ord-123",
-    "new_status": "paid"
+    "order": { "order_id": "ord-123", "currency": "JPY", "lines": [], "subtotal": 0, "total": 0 },
+    "from_status": "pending_payment",
+    "to_status": "paid",
+    "occurred_at": "2026-11-01T09:00:00Z"
   },
   "kv": {
     "notify_count": "5"
