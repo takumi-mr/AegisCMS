@@ -40,9 +40,9 @@ pub use notify::{
     Delivered, NotificationEvent, NotificationMessage, Notifier, Recipient, SendError,
 };
 pub use package::{
-    check_min_aegis_version, compute_package_entries_digest, compute_package_files_digest,
-    create_test_signature, create_theme_zip, extract_zip_safely, generate_ed25519_keypair,
-    parse_ed25519_keypair, sign_package_dir, validate_signature_policy, verify_package_signature,
-    PackageSignature, ZipExtractOptions, VERSION,
+    check_min_aegis_version, check_plugin_abi_version, compute_package_entries_digest,
+    compute_package_files_digest, create_test_signature, create_theme_zip, extract_zip_safely,
+    generate_ed25519_keypair, parse_ed25519_keypair, sign_package_dir, validate_signature_policy,
+    verify_package_signature, PackageSignature, ZipExtractOptions, PLUGIN_ABI_VERSION, VERSION,
 };
 pub use storage::{guess_content_type, StorageBackend, StorageMeta, StorageObject};

@@ -23,6 +23,7 @@ pub async fn health_check(
     if is_admin(&state, &headers).await {
         body["system"] = json!("AegisCMS");
         body["version"] = json!(env!("CARGO_PKG_VERSION"));
+        body["plugin_abi_version"] = json!(aegis_core::PLUGIN_ABI_VERSION);
     }
     Json(body)
 }
@@ -83,6 +84,12 @@ mod tests {
             assert_eq!(body["status"], "ok");
             assert!(body.get("system").is_none(), "{:?}: {}", token, body);
             assert!(body.get("version").is_none(), "{:?}: {}", token, body);
+            assert!(
+                body.get("plugin_abi_version").is_none(),
+                "{:?}: {}",
+                token,
+                body
+            );
         }
     }
 
@@ -92,5 +99,6 @@ mod tests {
         assert_eq!(body["status"], "ok");
         assert_eq!(body["system"], "AegisCMS");
         assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(body["plugin_abi_version"], aegis_core::PLUGIN_ABI_VERSION);
     }
 }

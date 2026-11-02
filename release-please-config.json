@@ -1,0 +1,305 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "2b71f42776172cb35abe678f2d63032f286de75f",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "separate-pull-requests": false,
+  "include-v-in-tag": true,
+  "changelog-sections": [
+    {
+      "type": "feat",
+      "section": "Features"
+    },
+    {
+      "type": "fix",
+      "section": "Bug Fixes"
+    },
+    {
+      "type": "perf",
+      "section": "Performance"
+    },
+    {
+      "type": "refactor",
+      "section": "Refactoring"
+    },
+    {
+      "type": "docs",
+      "section": "Documentation",
+      "hidden": true
+    },
+    {
+      "type": "style",
+      "section": "Style",
+      "hidden": true
+    },
+    {
+      "type": "test",
+      "section": "Tests",
+      "hidden": true
+    },
+    {
+      "type": "chore",
+      "section": "Chores",
+      "hidden": true
+    }
+  ],
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "aegiscms",
+      "include-component-in-tag": false,
+      "exclude-paths": [
+        "plugins",
+        "sdk"
+      ],
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.package.version"
+        },
+        {
+          "type": "toml",
+          "path": "crates/aegis-plugin-sdk/Cargo.toml",
+          "jsonpath": "$.dependencies.aegis-plugin-macros.version"
+        },
+        {
+          "type": "toml",
+          "path": "sdk/templates/rust/Cargo.toml",
+          "jsonpath": "$.dependencies.aegis-plugin-sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "admin/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "admin/package-lock.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "admin/package-lock.json",
+          "jsonpath": "$.packages[''].version"
+        },
+        {
+          "type": "json",
+          "path": "theme-builder/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "theme-builder/package-lock.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "theme-builder/package-lock.json",
+          "jsonpath": "$.packages[''].version"
+        },
+        {
+          "type": "json",
+          "path": "plugin-builder/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin-builder/package-lock.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin-builder/package-lock.json",
+          "jsonpath": "$.packages[''].version"
+        }
+      ]
+    },
+    "sdk/assemblyscript": {
+      "release-type": "node",
+      "package-name": "@takumi-mr/plugin-sdk",
+      "component": "sdk-assemblyscript"
+    },
+    "sdk/tinygo": {
+      "release-type": "simple",
+      "component": "sdk/tinygo",
+      "tag-separator": "/"
+    },
+    "plugins/official-ads": {
+      "release-type": "simple",
+      "component": "plugin-official-ads",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-back-to-top": {
+      "release-type": "simple",
+      "component": "plugin-official-back-to-top",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-blocks": {
+      "release-type": "simple",
+      "component": "plugin-official-blocks",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-code-enhancer": {
+      "release-type": "simple",
+      "component": "plugin-official-code-enhancer",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-code-lines": {
+      "release-type": "simple",
+      "component": "plugin-official-code-lines",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-external-links": {
+      "release-type": "simple",
+      "component": "plugin-official-external-links",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-lightbox": {
+      "release-type": "simple",
+      "component": "plugin-official-lightbox",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-order-notifier": {
+      "release-type": "simple",
+      "component": "plugin-official-order-notifier",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-page-toc": {
+      "release-type": "simple",
+      "component": "plugin-official-page-toc",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-share-buttons": {
+      "release-type": "simple",
+      "component": "plugin-official-share-buttons",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-shop-rules": {
+      "release-type": "simple",
+      "component": "plugin-official-shop-rules",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    }
+  }
+}

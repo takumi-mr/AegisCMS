@@ -9,5 +9,5 @@ description = "Official Wasm plugin that adds line numbers and file names to cod
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.1.0" }
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }
 serde_json.workspace = true

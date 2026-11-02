@@ -115,6 +115,7 @@ Conventional Commits 形式に準拠します。
   - `plugin-builder`: `plugin-builder/` (Plugin Builder: プラグイン開発用のエディター + 実行サンドボックス)
   - `theme-builder`: `theme-builder/` (Theme Builder: テーマ開発用のエディター + ライブプレビュー)、`crates/aegis-server/src/theme_dev.rs` (開発サーバー `aegis-server theme dev`)
   - `plugin`: `sdk/` (Wasm プラグインのテンプレート・サンプル)、`crates/aegis-plugin-sdk`
+- **破壊的変更**は `feat(scope)!:` のように `!` を付けるか、本文に `BREAKING CHANGE:` を書きます。バージョン・タグ・CHANGELOG はこの規約から release-please が自動で決めます（[docs/versioning.md](docs/versioning.md)）。
 - **記述例**:
   - `feat(ast): integrate lol-html streaming rewriter for security attributes`
   - `fix(runtime): resolve msvc trap handling in wasm engine`
@@ -129,6 +130,7 @@ Conventional Commits 形式に準拠します。
 1. **単一責任の原則**:
    - 1 PR につき 1 つの目的・タスクに集中し、レビューしやすい粒度を維持します。
 2. **PR作成前のローカル検証チェックリスト (全て必須)**:
+   - [ ] `node scripts/check-versions.mjs`（`task version:check`）でバージョン表記の食い違いがないこと
    - [ ] `cargo test --workspace` が 100% パスすること
    - [ ] `cargo fmt --check` に違反がないこと
    - [ ] `cargo clippy --workspace -- -D warnings` で警告が 0 件であること

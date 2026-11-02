@@ -1,0 +1,16 @@
+{
+  ".": "0.1.0",
+  "sdk/assemblyscript": "0.1.0",
+  "sdk/tinygo": "0.1.0",
+  "plugins/official-ads": "0.1.0",
+  "plugins/official-back-to-top": "0.1.0",
+  "plugins/official-blocks": "0.1.0",
+  "plugins/official-code-enhancer": "0.1.0",
+  "plugins/official-code-lines": "0.1.0",
+  "plugins/official-external-links": "0.1.0",
+  "plugins/official-lightbox": "0.1.0",
+  "plugins/official-order-notifier": "0.1.0",
+  "plugins/official-page-toc": "0.1.0",
+  "plugins/official-share-buttons": "0.1.0",
+  "plugins/official-shop-rules": "0.1.0"
+}

@@ -34,6 +34,7 @@ AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラ�
 | ドキュメント | 概要 | 対象 |
 |---|---|---|
 | [Wasm プラグイン開発公式ガイド (`plugin_sdk_guide.md`)](plugin_sdk_guide.md) | Rust / AssemblyScript / TinyGo SDK によるプラグイン開発、ビルド、テスト、配布・署名手順 | プラグイン開発者 |
+| [バージョニングとリリース (`versioning.md`)](versioning.md) | コア・SDK・プラグインのバージョン方針、プラグインの互換性（`min_aegis_version` / `abi_version`）、release-please によるリリース手順 | 開発者・リリース担当 |
 | [プラグインフック & ホスト API リファレンス (`plugin_hooks.md`)](plugin_hooks.md) | 利用可能な全フック仕様、データ構造、マニフェスト定義、ホスト API、動的実行順制御 | プラグイン開発者 |
 | [共通 ABI 仕様書 (`plugin_abi_specification.md`)](plugin_abi_specification.md) | Wasm モジュールとホスト間の低レベル ABI シグネチャ、メモリレイアウト、データ交換規約 | SDK開発者 |
 
