@@ -3,18 +3,23 @@
 #
 #   ./deploy.sh up                    イメージを用意し、設定を生成して起動（もう一度実行すると設定を反映）
 #   ./deploy.sh generate              設定（compose.yaml・Caddyfile・sites/*/aegis.toml）だけを生成
+#   ./deploy.sh pull                  最新の公開イメージを取得する
 #   ./deploy.sh build                 AegisCMS のイメージをビルドし直す（リポジトリのソースから）
 #   ./deploy.sh user <サイト> [名前]   サイトの管理者を作る（既定の名前は admin。パスワードを聞かれる）
 #   ./deploy.sh ps | logs [サイト] | restart [サイト] | down
 #
-# AegisCMS のイメージは環境変数 AEGIS_IMAGE（既定 aegiscms:latest）
+# AegisCMS のイメージは環境変数 AEGIS_IMAGE（既定 ghcr.io/takumi-mr/aegiscms:latest）
 set -eu
 cd "$(dirname "$0")"
-IMAGE="${AEGIS_IMAGE:-aegiscms:latest}"
+IMAGE="${AEGIS_IMAGE:-ghcr.io/takumi-mr/aegiscms:latest}"
 export AEGIS_IMAGE="$IMAGE"
 
 compose() {
 	docker compose -f compose.yaml "$@"
+}
+
+pull() {
+	docker pull "$IMAGE"
 }
 
 build() {
@@ -34,7 +39,7 @@ generate() {
 
 case "${1:-up}" in
 up)
-	docker image inspect "$IMAGE" >/dev/null 2>&1 || build
+	docker image inspect "$IMAGE" >/dev/null 2>&1 || pull
 	generate
 	compose up -d --remove-orphans
 	# 設定の変更を反映する（Caddy は止めずに読み直す）
@@ -42,6 +47,7 @@ up)
 	compose ps
 	;;
 generate) generate ;;
+pull) pull ;;
 build) build ;;
 user)
 	if [ $# -lt 2 ]; then
@@ -61,7 +67,7 @@ restart)
 	;;
 down) compose down ;;
 *)
-	sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
 	exit 1
 	;;
 esac

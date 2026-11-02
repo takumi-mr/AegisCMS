@@ -483,7 +483,7 @@ fn compose(
 
     for (site, hash) in sites.sites.iter().zip(config_hashes) {
         let _ = writeln!(out, "\n  {}:", site.name);
-        out.push_str("    image: ${AEGIS_IMAGE:-aegiscms:latest}\n    restart: unless-stopped\n");
+        out.push_str("    image: ${AEGIS_IMAGE:-ghcr.io/takumi-mr/aegiscms:latest}\n    restart: unless-stopped\n");
         // 設定（bind mount）が変わったら作り直させる
         let _ = writeln!(
             out,
@@ -659,7 +659,8 @@ mod tests {
             "{}",
             compose
         );
-        assert!(compose.contains("  main:\n    image: ${AEGIS_IMAGE:-aegiscms:latest}"));
+        assert!(compose
+            .contains("  main:\n    image: ${AEGIS_IMAGE:-ghcr.io/takumi-mr/aegiscms:latest}"));
         assert!(compose.contains("    env_file:\n      - \"./secrets/main.env\""));
         assert_eq!(compose.matches("env_file").count(), 1);
         assert!(compose.contains("      - \"./themes/my-theme:/app/themes/my-theme:ro\""));

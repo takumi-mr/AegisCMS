@@ -1,8 +1,9 @@
 # 次世代セキュアCMS「AegisCMS」
 
 > [!TIP]
-> すぐに動かして試すなら、EC のサンプルサイト [`examples/coffee-shop/`](examples/coffee-shop)（`task demo:shop`）か、掲示板のサンプルサイト [`examples/hiking-forum/`](examples/hiking-forum)（`task demo:forum`）をどうぞ。
-> サーバーで HTTPS 公開するなら [`deploy/`](deploy)（AegisCMS + Caddy。`sites.toml` にドメインを書いて `./deploy.sh up`。複数サイトにも対応）。
+> - すぐに動かして試すなら、EC のサンプルサイト [`examples/coffee-shop/`](examples/coffee-shop)（`task demo:shop`）か、掲示板のサンプルサイト [`examples/hiking-forum/`](examples/hiking-forum)（`task demo:forum`）をどうぞ。
+> - Docker イメージ（GitHub Container Registry）から直接動かすなら `docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest`。
+> - サーバーで HTTPS 公開するなら [`deploy/`](deploy)（AegisCMS + Caddy。`sites.toml` にドメインを書いて `./deploy.sh up`。複数サイトにも対応）。
 
 ---
 

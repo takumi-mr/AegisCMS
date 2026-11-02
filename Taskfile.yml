@@ -454,6 +454,11 @@ tasks:
   # ============================================================================
   # 🐳 Docker タスク
   # ============================================================================
+  docker:pull:
+    desc: GitHub Container Registry から最新の公式 Docker イメージを取得
+    cmds:
+      - docker pull ghcr.io/takumi-mr/aegiscms:latest
+
   docker:build:
     desc: 本番対応マルチステージ Docker イメージをビルド (aegiscms:latest)
     cmds:
