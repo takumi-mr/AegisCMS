@@ -343,6 +343,28 @@ fn default_sample(template: &str) -> Value {
             "prev_url": "/?page=1", "next_url": "/?page=3",
         });
     }
+    if stem == "article" {
+        context["prev_article"] = json!({
+            "id": "sample-prev",
+            "content_type": "article",
+            "title": "前の記事のサンプルタイトル",
+            "slug": "sample-prev",
+            "excerpt": "これは前の記事の抜粋文です。",
+            "author_id": "editor",
+            "published_at": "2026-10-18T09:00:00Z",
+            "created_at": "2026-10-18T09:00:00Z",
+        });
+        context["next_article"] = json!({
+            "id": "sample-next",
+            "content_type": "article",
+            "title": "次の記事のサンプルタイトル",
+            "slug": "sample-next",
+            "excerpt": "これは次の記事の抜粋文です。",
+            "author_id": "editor",
+            "published_at": "2026-10-22T09:00:00Z",
+            "created_at": "2026-10-22T09:00:00Z",
+        });
+    }
     context
 }
 

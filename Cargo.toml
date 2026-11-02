@@ -36,6 +36,8 @@ members = [
     "plugins/official-lightbox",
     "plugins/official-external-links",
     "plugins/official-share-buttons",
+    "plugins/official-reading-time",
+    "plugins/official-post-navigation",
     "plugins/official-ads",
 ]
 
