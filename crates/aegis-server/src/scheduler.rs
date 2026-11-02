@@ -725,6 +725,7 @@ mod tests {
         let manifest = aegis_core::PluginManifest {
             name: "publisher-webhook".to_string(),
             capabilities: aegis_core::PluginCapabilities {
+                csp: None,
                 hooks: vec!["on-content-published".to_string()],
                 ..Default::default()
             },
@@ -774,6 +775,7 @@ mod tests {
         let manifest = aegis_core::PluginManifest {
             name: "failing-plugin".to_string(),
             capabilities: aegis_core::PluginCapabilities {
+                csp: None,
                 hooks: vec!["on-content-published".to_string()],
                 ..Default::default()
             },

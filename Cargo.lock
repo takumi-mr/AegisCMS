@@ -305,6 +305,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-ads"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
 name = "aegis-plugin-back-to-top"
 version = "0.1.0"
 dependencies = [

@@ -458,6 +458,74 @@ impl PluginManifest {
         errors
     }
 
+    /// CSP ホスト宣言を確かめる: 各ディレクティブのドメインが有効なホスト名であること
+    pub fn validate_csp(&self) -> std::result::Result<(), String> {
+        if let Some(csp) = &self.capabilities.csp {
+            let check = |domains: &[String], directive: &str| -> std::result::Result<(), String> {
+                for d in domains {
+                    if !is_valid_csp_domain(d) {
+                        return Err(format!(
+                            "capabilities.csp.{}: {:?} is not a host name (e.g. \"pagead2.googlesyndication.com\")",
+                            directive, d
+                        ));
+                    }
+                }
+                Ok(())
+            };
+            check(&csp.script_domains, "script_domains")?;
+            check(&csp.frame_domains, "frame_domains")?;
+            check(&csp.connect_domains, "connect_domains")?;
+            check(&csp.style_domains, "style_domains")?;
+            check(&csp.img_domains, "img_domains")?;
+        }
+        Ok(())
+    }
+
+    /// CSP の `script-src` に足すホスト一覧（`capabilities.csp.script_domains`）
+    pub fn csp_script_domains(&self) -> &[String] {
+        self.capabilities
+            .csp
+            .as_ref()
+            .map(|c| c.script_domains.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// CSP の `frame-src` に足すホスト一覧（`capabilities.csp.frame_domains`）
+    pub fn csp_frame_domains(&self) -> &[String] {
+        self.capabilities
+            .csp
+            .as_ref()
+            .map(|c| c.frame_domains.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// CSP の `connect-src` に足すホスト一覧（`capabilities.csp.connect_domains`）
+    pub fn csp_connect_domains(&self) -> &[String] {
+        self.capabilities
+            .csp
+            .as_ref()
+            .map(|c| c.connect_domains.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// CSP の `style-src` に足すホスト一覧（`capabilities.csp.style_domains`）
+    pub fn csp_style_domains(&self) -> &[String] {
+        self.capabilities
+            .csp
+            .as_ref()
+            .map(|c| c.style_domains.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// CSP の `img-src` に足すホスト一覧（`capabilities.csp.img_domains`）
+    pub fn csp_img_domains(&self) -> &[String] {
+        self.capabilities
+            .csp
+            .as_ref()
+            .map(|c| c.img_domains.as_slice())
+            .unwrap_or(&[])
+    }
+
     /// カスタムブロックに埋め込める `<iframe>` の配信元（`embed.frame_domains`）
     pub fn frame_domains(&self) -> &[String] {
         self.capabilities
@@ -512,6 +580,9 @@ pub struct PluginCapabilities {
     /// カスタムブロックに埋め込める外部のページ（動画のプレーヤーなど）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub embed: Option<EmbedCapability>,
+    /// プラグインが外部リソース（広告・ウィジェット等）のために要求する CSP (Content Security Policy) ホスト宣言
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub csp: Option<CspCapability>,
 }
 
 /// カスタムブロック（`render-blocks`）の HTML に残せる `<iframe>` の配信元。
@@ -538,6 +609,31 @@ pub fn is_valid_frame_domain(host: &str) -> bool {
                     .bytes()
                     .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
         })
+}
+
+/// CSP (Content Security Policy) に書けるホスト名か（`is_valid_frame_domain` と同等）
+pub fn is_valid_csp_domain(host: &str) -> bool {
+    is_valid_frame_domain(host)
+}
+
+/// プラグインが要求する CSP (Content Security Policy) のディレクティブ別ホスト一覧
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CspCapability {
+    /// `script-src` に足すホスト名
+    #[serde(default)]
+    pub script_domains: Vec<String>,
+    /// `frame-src` に足すホスト名
+    #[serde(default)]
+    pub frame_domains: Vec<String>,
+    /// `connect-src` に足すホスト名
+    #[serde(default)]
+    pub connect_domains: Vec<String>,
+    /// `style-src` に足すホスト名
+    #[serde(default)]
+    pub style_domains: Vec<String>,
+    /// `img-src` に足すホスト名
+    #[serde(default)]
+    pub img_domains: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -767,6 +863,49 @@ mod tests {
         let plain =
             manifest_with_blocks(r#"[{"name": "a", "label": "A"}]"#, r#""render-blocks""#).unwrap();
         assert!(plain.frame_domains().is_empty());
+    }
+
+    #[test]
+    fn test_csp_capability() {
+        let parse_csp = |csp_json: &str| {
+            let json = format!(
+                r#"{{"name": "ad-plugin", "version": "1.0.0", "entrypoint": "plugin.wasm",
+                    "capabilities": {{"csp": {}}}}}"#,
+                csp_json
+            );
+            let manifest = PluginManifest::from_json_with_defaults(&json, &DEFAULTS)
+                .map_err(|e| e.to_string())?;
+            manifest.validate_csp().map(|_| manifest)
+        };
+        let valid = parse_csp(
+            r#"{"script_domains": ["pagead2.googlesyndication.com"],
+                "frame_domains": ["googleads.g.doubleclick.net"],
+                "connect_domains": ["pagead2.googlesyndication.com", "ep2.adtrafficquality.google"]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            valid.csp_script_domains(),
+            ["pagead2.googlesyndication.com"]
+        );
+        assert_eq!(valid.csp_frame_domains(), ["googleads.g.doubleclick.net"]);
+        assert_eq!(
+            valid.csp_connect_domains(),
+            [
+                "pagead2.googlesyndication.com",
+                "ep2.adtrafficquality.google"
+            ]
+        );
+        assert!(valid.csp_style_domains().is_empty());
+        assert!(valid.csp_img_domains().is_empty());
+
+        for bad in [
+            r#"{"script_domains": ["https://pagead2.googlesyndication.com"]}"#,
+            r#"{"frame_domains": ["*.doubleclick.net"]}"#,
+            r#"{"connect_domains": ["google:8080"]}"#,
+            r#"{"style_domains": ["-bad.com"]}"#,
+        ] {
+            assert!(parse_csp(bad).is_err(), "{}", bad);
+        }
     }
 
     fn manifest_with_settings(settings: &str) -> std::result::Result<PluginManifest, String> {

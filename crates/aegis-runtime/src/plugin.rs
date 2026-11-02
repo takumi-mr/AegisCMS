@@ -122,6 +122,16 @@ pub struct CommentCheck {
     pub failures: Vec<(String, AegisError)>,
 }
 
+/// 有効なプラグインが要求する CSP (Content Security Policy) のドメイン一覧
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PluginCspSources {
+    pub script_domains: Vec<String>,
+    pub frame_domains: Vec<String>,
+    pub connect_domains: Vec<String>,
+    pub style_domains: Vec<String>,
+    pub img_domains: Vec<String>,
+}
+
 pub struct PluginSupervisor {
     plugins: Vec<Arc<dyn AegisPlugin>>,
 }
@@ -174,9 +184,43 @@ impl PluginSupervisor {
             .filter(|p| declares_hook(p.as_ref(), "render-blocks"))
             .flat_map(|p| p.manifest().frame_domains().to_vec())
             .collect();
+        for p in &self.plugins {
+            domains.extend(p.manifest().csp_frame_domains().iter().cloned());
+        }
         domains.sort();
         domains.dedup();
         domains
+    }
+
+    /// 有効なプラグインが要求する CSP ソースの集計
+    pub fn csp_sources(&self) -> PluginCspSources {
+        let mut script = Vec::new();
+        let frame = self.frame_domains();
+        let mut connect = Vec::new();
+        let mut style = Vec::new();
+        let mut img = Vec::new();
+
+        for p in &self.plugins {
+            let m = p.manifest();
+            script.extend(m.csp_script_domains().iter().cloned());
+            connect.extend(m.csp_connect_domains().iter().cloned());
+            style.extend(m.csp_style_domains().iter().cloned());
+            img.extend(m.csp_img_domains().iter().cloned());
+        }
+
+        let dedup = |mut list: Vec<String>| {
+            list.sort();
+            list.dedup();
+            list
+        };
+
+        PluginCspSources {
+            script_domains: dedup(script),
+            frame_domains: frame,
+            connect_domains: dedup(connect),
+            style_domains: dedup(style),
+            img_domains: dedup(img),
+        }
     }
 
     /// 本文のブロック名（`<プラグイン名>/<ブロック名>`）を描画するプラグイン

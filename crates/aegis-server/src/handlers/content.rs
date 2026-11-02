@@ -1762,6 +1762,7 @@ mod tests {
                 version: "1.0.0".to_string(),
                 entrypoint: "plugin.wasm".to_string(),
                 capabilities: aegis_core::PluginCapabilities {
+                    csp: None,
                     embed: None,
                     network: None,
                     storage: None,

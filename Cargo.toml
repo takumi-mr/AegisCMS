@@ -36,6 +36,7 @@ members = [
     "plugins/official-lightbox",
     "plugins/official-external-links",
     "plugins/official-share-buttons",
+    "plugins/official-ads",
 ]
 
 [workspace.package]
