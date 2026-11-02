@@ -13,6 +13,7 @@
     "sample"
   ],
   "min_aegis_version": "0.1.0",
+  "abi_version": 1,
   "capabilities": {
     "network": {
       "allowed_domains": [

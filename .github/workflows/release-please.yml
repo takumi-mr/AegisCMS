@@ -1,0 +1,72 @@
+name: Release Please
+
+# main への push ごとに、Conventional Commits からリリース PR（バージョン更新 + CHANGELOG）を作る。
+# リリース PR をマージするとタグと GitHub Release が作られ、SDK は続けて公開される。
+# 方針は docs/versioning.md を参照。
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  release-please:
+    name: Release PR and tags
+    runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.rp.outputs.releases_created }}
+      paths_released: ${{ steps.rp.outputs.paths_released }}
+      pr: ${{ steps.rp.outputs.pr }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          # GITHUB_TOKEN で作った PR では CI が動かない。CI を走らせたい場合は PAT を secret に置く
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+  # リリース PR のバージョン更新に合わせて Cargo.lock も更新する
+  sync-lockfile:
+    name: Sync Cargo.lock on the release PR
+    needs: release-please
+    if: ${{ needs.release-please.outputs.pr != '' && needs.release-please.outputs.pr != '{}' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Update Cargo.lock
+        run: cargo update --workspace
+
+      - name: Commit Cargo.lock
+        run: |
+          if git diff --quiet -- Cargo.lock; then
+            echo "Cargo.lock is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock
+          git commit -m "chore: sync Cargo.lock with the release versions"
+          git push
+
+  publish-assemblyscript-sdk:
+    name: Publish the AssemblyScript SDK
+    needs: release-please
+    if: ${{ contains(fromJSON(needs.release-please.outputs.paths_released || '[]'), 'sdk/assemblyscript') }}
+    uses: ./.github/workflows/release-sdk.yml
+    permissions:
+      contents: read
+      packages: write

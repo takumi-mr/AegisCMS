@@ -306,6 +306,11 @@ impl WasmPluginLoader {
             aegis_core::check_min_aegis_version(min_ver)?;
         }
 
+        // プラグイン ABI バージョンの検証
+        if let Some(abi_version) = manifest.abi_version {
+            aegis_core::check_plugin_abi_version(abi_version)?;
+        }
+
         // 署名検証
         aegis_core::verify_package_signature(plugin_dir, trusted_keys, require_signature)?;
 
@@ -484,6 +489,26 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Package requires Aegis version >="));
+
+        // 3b. Plugin ABI newer than the host supports
+        std::fs::write(
+            pkg_dir.join(MANIFEST_FILE),
+            r#"{"name": "my-cool-plugin", "version": "1.0.0", "entrypoint": "plugin.wasm", "abi_version": 999}"#,
+        )
+        .unwrap();
+        let err = WasmPluginLoader::validate_plugin_package(&pkg_dir, None, false);
+        assert!(err.unwrap_err().to_string().contains("plugin ABI version"));
+
+        // 3c. Supported plugin ABI
+        std::fs::write(
+            pkg_dir.join(MANIFEST_FILE),
+            format!(
+                r#"{{"name": "my-cool-plugin", "version": "1.0.0", "entrypoint": "plugin.wasm", "abi_version": {}}}"#,
+                aegis_core::PLUGIN_ABI_VERSION
+            ),
+        )
+        .unwrap();
+        assert!(WasmPluginLoader::validate_plugin_package(&pkg_dir, None, false).is_ok());
 
         // 4. Signature required without trusted keys
         std::fs::write(

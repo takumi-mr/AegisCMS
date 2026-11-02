@@ -15,7 +15,8 @@
 
 ## 技術メモ・申し送り事項
 
-（現在なし）
+- **release-please は未実行（初回の動作確認が必要）**: 設定（`release-please-config.json`）と `.github/workflows/release-please.yml` は手元で動かせないため未検証。`main` にマージ後、最初に出るリリース PR で、(1) 各 `extra-files`（`Cargo.toml` の TOML・`package-lock.json` の `packages['']`）が更新される、(2) 変更のない公式プラグインが対象に入らない、(3) `Cargo.lock` の同期コミットが付く、を確かめる。`GITHUB_TOKEN` の PR では CI が動かないので、必要なら `RELEASE_PLEASE_TOKEN`（PAT）を登録する（[docs/versioning.md](docs/versioning.md)）。
+- 公式プラグインの `plugin.wasm` はリポジトリにコミット済みで、バージョンを上げても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースを変えたリリースでは各自 `task` で再生成してから出す。
 
 ---
 

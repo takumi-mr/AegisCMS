@@ -9,6 +9,6 @@ description = "Official Wasm plugin that posts new and updated shop orders to Sl
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.1.0" }
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }
 serde.workspace = true
 serde_json.workspace = true

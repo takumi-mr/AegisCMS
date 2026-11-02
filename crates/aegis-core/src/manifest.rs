@@ -29,6 +29,10 @@ pub struct PluginManifest {
     /// 対応する最小 AegisCMS バージョン
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_aegis_version: Option<String>,
+    /// 対応するプラグイン ABI のバージョン（`PLUGIN_ABI_VERSION`）。
+    /// 省略時は検査しない。ホストより新しい ABI を要求するプラグインは読み込まない
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub abi_version: Option<u32>,
     #[serde(default)]
     pub capabilities: PluginCapabilities,
     #[serde(default)]

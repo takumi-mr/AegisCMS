@@ -433,7 +433,9 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 
 - **`capabilities.hooks`**: プラグインが受領するフックの一覧（ケバブケース）。ここに未列挙のフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
 - **`name`**: プラグインの識別子（英小文字・数字・`-`・`_`）。インストール先は `plugins/<name>/` で、`[plugins].enabled` に書くと有効になる。
-- **`display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version`**: ストア・一覧表示用のメタデータ（任意）。
+- **`display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository`**: ストア・一覧表示用のメタデータ（任意）。
+- **`min_aegis_version`**: 動かせる AegisCMS 本体の最小バージョン（SemVer。任意）。本体がこれより古いと読み込まない。
+- **`abi_version`**: プラグインが前提にするこの ABI のバージョン（整数。現在は `1`。任意だが公式プラグイン・テンプレートは必ず書く）。ホストが対応するバージョンより新しい値、または `0` だと読み込まない。互換性を壊す変更を入れたときだけホストが上げる（[versioning.md](versioning.md#2-プラグインの互換性)）。
 - **`resource_limits`**: メモリ上限（MB単位）、Fuel 上限、タイムアウト（ミリ秒単位）。
 - **`capabilities.embed.frame_domains`**: カスタムブロックの HTML に残せる `<iframe>` の配信元のホスト（CSP の `frame-src` にも足される）。形式は [plugin_hooks.md 3.2](plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)。
 - **`blocks`**: 本文に置けるカスタムブロックの宣言（名前・表示名・入力欄）。`render-blocks` フックが必要。形式は [plugin_hooks.md 3.1](plugin_hooks.md#31-カスタムブロック-blocks)。

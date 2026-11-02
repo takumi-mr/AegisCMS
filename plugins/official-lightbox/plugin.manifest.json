@@ -11,6 +11,7 @@
     "reading"
   ],
   "min_aegis_version": "0.1.0",
+  "abi_version": 1,
   "capabilities": {
     "hooks": [
       "on-render-page"

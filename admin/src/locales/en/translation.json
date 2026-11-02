@@ -409,6 +409,7 @@
       "settings": "Settings"
     },
     "gateway": "Core Gateway: {{state}}",
+    "gatewayWithVersion": "Core Gateway: {{state}} (v{{version}})",
     "connected": "Connected",
     "offline": "Offline",
     "saveTitle": "Save content and trigger Wasm guest hooks",

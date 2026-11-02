@@ -1,6 +1,7 @@
 {
   "name": "official-post-navigation",
   "version": "0.1.0",
+  "abi_version": 1,
   "entrypoint": "plugin.wasm",
   "display_name": "Post Navigation (Prev/Next)",
   "description": "Adds previous and next article navigation links to single post pages. Calculation rules (same category or chronological date) and appearance can be configured via [plugins.settings.official-post-navigation].",

@@ -9,6 +9,6 @@ description = "Official Wasm plugin for syntax highlighting, external code theme
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.1.0" }
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }
 serde.workspace = true
 serde_json.workspace = true

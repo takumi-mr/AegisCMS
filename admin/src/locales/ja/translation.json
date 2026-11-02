@@ -406,6 +406,7 @@
       "settings": "設定"
     },
     "gateway": "コアゲートウェイ: {{state}}",
+    "gatewayWithVersion": "コアゲートウェイ: {{state}} (v{{version}})",
     "connected": "接続中",
     "offline": "オフライン",
     "saveTitle": "コンテンツを保存し、Wasm プラグインのフックを実行します",

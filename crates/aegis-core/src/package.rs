@@ -9,6 +9,22 @@ use std::path::{Component, Path, PathBuf};
 /// Current AegisCMS Core version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// ホストが話せるプラグイン ABI のバージョン（`docs/plugin_abi_specification.md`）。
+/// ホスト API・フックの入出力に互換性のない変更を入れたときだけ上げる（SemVer の MAJOR に相当）
+pub const PLUGIN_ABI_VERSION: u32 = 1;
+
+/// マニフェストの `abi_version` をホストが扱えるか確かめる。
+/// プラグインがホストより新しい ABI を要求する場合と、0 の場合は拒否する
+pub fn check_plugin_abi_version(abi_version: u32) -> Result<()> {
+    if abi_version == 0 || abi_version > PLUGIN_ABI_VERSION {
+        return Err(AegisError::Validation(format!(
+            "Package requires plugin ABI version {}, but this Aegis supports up to {}",
+            abi_version, PLUGIN_ABI_VERSION
+        )));
+    }
+    Ok(())
+}
+
 /// Validates that the current AegisCMS version meets the required minimum version.
 pub fn check_min_aegis_version(min_ver: &str) -> Result<()> {
     let req = semver::Version::parse(min_ver.trim()).map_err(|e| {
@@ -500,6 +516,14 @@ pub fn create_theme_zip(theme_dir: &Path) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_check_plugin_abi_version() {
+        assert!(check_plugin_abi_version(PLUGIN_ABI_VERSION).is_ok());
+        assert!(check_plugin_abi_version(0).is_err());
+        let err = check_plugin_abi_version(PLUGIN_ABI_VERSION + 1).unwrap_err();
+        assert!(err.to_string().contains("plugin ABI version"));
+    }
 
     #[test]
     fn test_check_min_aegis_version() {

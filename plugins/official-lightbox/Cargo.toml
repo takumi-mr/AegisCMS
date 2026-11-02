@@ -9,5 +9,5 @@ description = "Official Wasm plugin that opens the images of articles and pages 
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.1.0" }
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }
 serde_json.workspace = true

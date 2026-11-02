@@ -139,6 +139,7 @@ export const App: React.FC = () => {
   // Hidden until the server says analytics are on ([analytics].enabled)
   const [analyticsEnabled, setAnalyticsEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
+  const [coreVersion, setCoreVersion] = useState<string | undefined>(undefined);
   const [contentType, setContentType] = useState<'article' | 'page'>('article');
   const [layout, setLayout] = useState<'default' | 'blank'>('default');
   // The list shows one page of summaries; the server searches, filters and pages it
@@ -298,7 +299,8 @@ export const App: React.FC = () => {
   useEffect(() => {
     const checkServer = async () => {
       try {
-        await aegisApi.checkHealth();
+        const health = await aegisApi.checkHealth();
+        setCoreVersion(health.version);
         setIsOnline(true);
       } catch {
         setIsOnline(false);
@@ -829,6 +831,7 @@ export const App: React.FC = () => {
         view={view}
         onViewChange={setView}
         isOnline={isOnline}
+        coreVersion={coreVersion}
         onSave={() => handleSave()}
         onPublish={() => handleSave(true)}
         isSaving={isSaving}

@@ -8,6 +8,7 @@
   "license": "MIT OR Apache-2.0",
   "tags": ["commerce", "shipping", "coupon", "tax"],
   "min_aegis_version": "0.1.0",
+  "abi_version": 1,
   "capabilities": {
     "storage": {
       "kv_namespace": "official_shop_rules"

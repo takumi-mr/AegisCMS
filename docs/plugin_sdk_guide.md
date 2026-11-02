@@ -370,20 +370,16 @@ func main() {}
 
 全言語の SDK は GitHub を中心として配布・リリースされます。
 
-### 7.1 GitHub Actions による自動リリース (推奨・CI 手動トリガー)
+### 7.1 release-please による自動リリース (推奨)
 
-リポジトリには手動実行可能な GitHub Actions ワークフロー [`.github/workflows/release-sdk.yml`](../.github/workflows/release-sdk.yml) が用意されています。
+バージョンの上げ方・タグ・CHANGELOG は release-please が Conventional Commits から自動で行います（詳細は [versioning.md](versioning.md)）。
 
-1. GitHub リポジトリの **Actions** タブを開きます。
-2. 左メニューの **Release Plugin SDKs** を選択します。
-3. **Run workflow** をクリックし、以下を指定して実行します：
-   - **Target SDK**: `all` / `assemblyscript` / `tinygo` / `rust`
-   - **Release version**: `0.1.0` などの SemVer バージョン
+- **Rust SDK**（`crates/aegis-plugin-sdk`）はコアと同じバージョンです。タグは `v<version>`。
+- **AssemblyScript SDK** と **TinyGo SDK** は個別のバージョンです。タグはそれぞれ `sdk-assemblyscript-v<version>`、`sdk/tinygo/v<version>`（Go モジュールの規約）。
 
-ワークフローが自動的に以下を実施します：
-- **AssemblyScript**: パッケージ検証後に `npm.pkg.github.com`（GitHub Packages）へ `@takumi-mr/plugin-sdk` を公開。
-- **TinyGo**: Go Modules 用 Git タグ（`sdk/tinygo/v<version>`）を作成・プッシュ。
-- **Rust**: リポジトリタグ（`v<version>`）を作成・プッシュし、GitHub Release を生成。
+`main` に出る **リリース PR** をマージすると、タグと GitHub Release が作られます。AssemblyScript SDK は続けて [`.github/workflows/release-sdk.yml`](../.github/workflows/release-sdk.yml) で `npm.pkg.github.com`（GitHub Packages）に公開され、TinyGo SDK はタグがそのまま配布になります。
+
+公開に失敗したときは、Actions の **Release Plugin SDKs** を **Run workflow** で再実行できます（`ref` にタグを指定すると、そのバージョンを公開します）。
 
 ---
 

@@ -48,6 +48,8 @@ interface HeaderProps {
   view: AppView;
   onViewChange: (view: AppView) => void;
   isOnline: boolean;
+  /** Core version reported by /health (admins only); shown in the gateway tooltip */
+  coreVersion?: string;
   onSave: () => void;
   onPublish?: () => void;
   isSaving: boolean;
@@ -75,6 +77,7 @@ export const Header: React.FC<HeaderProps> = ({
   view,
   onViewChange,
   isOnline,
+  coreVersion,
   onSave,
   onPublish,
   isSaving,
@@ -92,6 +95,10 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { t } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const gatewayState = isOnline ? t('header.connected') : t('header.offline');
+  const gatewayTitle = coreVersion
+    ? t('header.gatewayWithVersion', { state: gatewayState, version: coreVersion })
+    : t('header.gateway', { state: gatewayState });
 
   // Close menu with Escape key
   useEffect(() => {
@@ -202,12 +209,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className={styles.right}>
-        <div
-          className={styles.health}
-          title={t('header.gateway', {
-            state: isOnline ? t('header.connected') : t('header.offline'),
-          })}
-        >
+        <div className={styles.health} title={gatewayTitle}>
           <span className={cx(styles.statusDot, isOnline && styles.online)} />
           <span className={styles.healthLabel}>
             {t('header.gateway', {
@@ -313,12 +315,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className={styles.mobileDivider} />
 
             <div className={styles.mobileExtras}>
-              <div
-                className={styles.mobileHealth}
-                title={t('header.gateway', {
-                  state: isOnline ? t('header.connected') : t('header.offline'),
-                })}
-              >
+              <div className={styles.mobileHealth} title={gatewayTitle}>
                 <span className={cx(styles.statusDot, isOnline && styles.online)} />
                 <span>
                   {t('header.gateway', {

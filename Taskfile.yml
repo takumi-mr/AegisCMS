@@ -155,9 +155,15 @@ tasks:
     cmds:
       - npm --prefix theme-builder run format:check
 
+  version:check:
+    desc: コア・SDK・プラグインのバージョン表記が .release-please-manifest.json と一致しているか検査 (scripts/check-versions.mjs)
+    cmds:
+      - node scripts/check-versions.mjs
+
   check:
     desc: PR・コミット前の全検証チェックを一括実行 (fmt, prettier, clippy, oxlint, test, test:admin, test:storybook, admin:build, theme-builder)
     cmds:
+      - task: version:check
       - task: fmt:check
       - task: fmt:admin:check
       - task: fmt:theme-builder:check

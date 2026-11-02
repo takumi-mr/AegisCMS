@@ -1,6 +1,7 @@
 {
   "name": "official-reading-time",
   "version": "0.1.0",
+  "abi_version": 1,
   "entrypoint": "plugin.wasm",
   "display_name": "Reading Time & Word Count",
   "description": "Displays estimated reading time and word/character count on articles and pages. Configurable via [plugins.settings.official-reading-time].",
