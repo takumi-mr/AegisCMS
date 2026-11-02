@@ -164,4 +164,3 @@ export const Interactions: Story = {
     await expect(args.onChange).toHaveBeenCalled();
   },
 };
-
