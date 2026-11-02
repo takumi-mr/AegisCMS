@@ -52,6 +52,7 @@ fn comments(open: bool) -> Option<CommentSection> {
         post_url: "/api/v1/contents/article/a/comments".to_string(),
         max_depth: 2,
         max_length: 2000,
+        ..Default::default()
     })
 }
 

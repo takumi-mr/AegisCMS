@@ -156,6 +156,9 @@ pub struct CommentRequest {
     /// ハニーポット（人には見えない欄）。値があればボットとして扱い、保存しない
     #[serde(default)]
     pub website: String,
+    /// CAPTCHA のトークン（`[captcha]` でコメントにかけているときにサーバーが検証する。ここでは使わない）
+    #[serde(default)]
+    pub captcha_token: Option<String>,
 }
 
 /// 投稿者のクライアント情報
@@ -431,6 +434,9 @@ impl CommentService {
             post_url,
             max_depth: self.config.max_depth,
             max_length: self.config.max_length,
+            // CAPTCHA は共通の設定（`[captcha]`）なので、サーバーのハンドラーが足す
+            captcha_html: String::new(),
+            captcha_field: String::new(),
         })
     }
 

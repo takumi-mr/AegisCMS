@@ -45,10 +45,11 @@ async fn site(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     config.comments.enabled = true;
     config.audit.enabled = true;
     configure(&mut config);
+    let captchas = config.resolve_captcha().unwrap();
     let state =
         crate::test_support::test_app_state(config, PluginSupervisor::new(), Vec::new()).await;
     let mails = Arc::new(RecordingNotifier::default());
-    let state = state.with_notifier(mails.clone());
+    let state = state.with_notifier(mails.clone()).with_captcha(captchas);
     let comments =
         CommentService::new(state.config.comments.clone(), state.comment_deps()).unwrap();
     let state = Arc::new(state.with_comments(comments));
@@ -676,4 +677,112 @@ async fn test_script_in_name_and_body_is_escaped_on_the_page() {
     assert!(html.contains(
         "<p>&lt;script&gt;alert(&quot;body&quot;)&lt;/script&gt;<br>&lt;img src=x onerror=alert(1)&gt;</p>"
     ));
+}
+
+/// 手元で動く siteverify。トークン `good` だけ通し、`down` は 500 を返す
+async fn mock_siteverify() -> String {
+    let app = axum::Router::new().route(
+        "/siteverify",
+        axum::routing::post(
+            |axum::Form(form): axum::Form<std::collections::HashMap<String, String>>| async move {
+                match form.get("response").map(String::as_str) {
+                    Some("good") => (StatusCode::OK, r#"{"success": true}"#),
+                    Some("down") => (StatusCode::INTERNAL_SERVER_ERROR, "down"),
+                    _ => (StatusCode::OK, r#"{"success": false}"#),
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/siteverify", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    url
+}
+
+use crate::test_support::shared_captcha;
+
+#[tokio::test]
+async fn test_captcha_on_comments_when_targeted() {
+    use aegis_captcha::CaptchaTarget;
+    let url = mock_siteverify().await;
+    let site = site(|config| {
+        config.comments.moderation.require_approval = false;
+        config.captcha = Some(shared_captcha(url, vec![CaptchaTarget::Comments]));
+    })
+    .await;
+
+    // ページにウィジェットとトークンの欄の名前が入り、CSP が通す
+    let (status, html) = site.page("/articles/hello").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        html.contains(r#"class="cf-turnstile" data-sitekey="site-key""#),
+        "{}",
+        html
+    );
+    assert!(html.contains(r#"data-captcha-field="cf-turnstile-response""#));
+
+    let comment = |token: Option<&str>| {
+        let mut body = json!({ "name": "Hanako", "email": "hanako@example.com", "body": "Hi" });
+        if let Some(token) = token {
+            body["captcha_token"] = json!(token);
+        }
+        body
+    };
+    let (status, body) = site.post_comment(comment(None)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{}", body);
+    assert_eq!(body["code"], "captcha_failed");
+    let (status, body) = site.post_comment(comment(Some("bad"))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{}", body);
+    let (status, body) = site.post_comment(comment(Some("down"))).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{}", body);
+    assert_eq!(body["code"], "captcha_unavailable");
+    let (status, body) = site.post_comment(comment(Some("good"))).await;
+    assert_eq!(status, StatusCode::CREATED, "{}", body);
+}
+
+#[tokio::test]
+async fn test_captcha_skips_comments_when_not_targeted() {
+    use aegis_captcha::CaptchaTarget;
+    let url = mock_siteverify().await;
+    let site = site(|config| {
+        config.comments.moderation.require_approval = false;
+        config.captcha = Some(shared_captcha(url, vec![CaptchaTarget::Contact]));
+    })
+    .await;
+
+    let (_, html) = site.page("/articles/hello").await;
+    assert!(!html.contains("cf-turnstile"), "{}", html);
+    // 対象外なのでトークンなしで投稿できる
+    let (status, body) = site
+        .post_comment(json!({ "name": "Hanako", "email": "hanako@example.com", "body": "Hi" }))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{}", body);
+}
+
+#[test]
+fn test_shared_captcha_validation_and_routing() {
+    use aegis_captcha::CaptchaTarget::*;
+    let url = "http://127.0.0.1:1/siteverify".to_string();
+
+    let mut config = AegisConfig {
+        captcha: Some(shared_captcha(url.clone(), vec![])),
+        ..Default::default()
+    };
+    assert!(config.resolve_captcha().is_err(), "empty targets");
+    config.captcha = Some(shared_captcha(url.clone(), vec![Forum, Forum]));
+    assert!(config.resolve_captcha().is_err(), "duplicate targets");
+
+    // targets に挙げ、かつその機能が有効なものにだけ作る
+    config.captcha = Some(shared_captcha(url, vec![Contact, Newsletter, Forum]));
+    config.contact.enabled = true;
+    config.newsletter.enabled = true;
+    let captchas = config.resolve_captcha().unwrap();
+    assert!(captchas.contact.is_some() && captchas.newsletter.is_some());
+    assert!(captchas.comments.is_none(), "not in targets");
+    assert!(captchas.forum.is_none(), "forum is disabled");
+
+    config.forum.enabled = true;
+    config.contact.enabled = false;
+    let captchas = config.resolve_captcha().unwrap();
+    assert!(captchas.forum.is_some() && captchas.contact.is_none());
 }

@@ -106,6 +106,8 @@ pub struct NewsletterDeps {
     pub notifier: Option<Arc<dyn Notifier>>,
     /// 公開サイトの URL（確認・解除のリンクと配信の本文に使う）
     pub site_url: String,
+    /// CAPTCHA（`[captcha]` の `targets` に `newsletter` があるとき）
+    pub captcha: Option<Arc<Captcha>>,
 }
 
 /// 申し込んだ人のクライアント情報
@@ -154,7 +156,7 @@ pub struct IssueContent {
 pub struct NewsletterService {
     pub config: NewsletterConfig,
     deps: NewsletterDeps,
-    captcha: Option<Captcha>,
+    captcha: Option<Arc<Captcha>>,
 }
 
 /// メールアドレスの整形と検査（前後の空白を除いて小文字にする）。正しくなければ `None`
@@ -229,11 +231,7 @@ impl NewsletterService {
                     .to_string(),
             ));
         }
-        let captcha = config
-            .captcha
-            .clone()
-            .map(|c| Captcha::new(c, "[newsletter.captcha]"))
-            .transpose()?;
+        let captcha = deps.captcha.clone();
         Ok(Self {
             config,
             deps,
@@ -258,17 +256,17 @@ impl NewsletterService {
         format!("{}/newsletter/unsubscribe?token={}", self.site_url(), token)
     }
 
-    /// 送られてきた値の中の CAPTCHA のトークン（`[newsletter.captcha]` が無ければ `None`）
+    /// 送られてきた値の中の CAPTCHA のトークン（CAPTCHA をかけていなければ `None`）
     pub fn captcha_token<'a>(&self, values: &'a HashMap<String, String>) -> Option<&'a str> {
         let field = self.captcha.as_ref()?.response_field();
         values.get(field).map(String::as_str)
     }
 
-    /// CAPTCHA のウィジェットが読み込む・つなぐ先のホスト（CSP に足す。`[newsletter.captcha]` が無ければ空）
+    /// CAPTCHA のウィジェットが読み込む・つなぐ先のホスト（CSP に足す。CAPTCHA をかけていなければ空）
     pub fn captcha_csp_hosts(&self) -> Vec<String> {
         self.captcha
             .as_ref()
-            .map(Captcha::csp_hosts)
+            .map(|c| c.csp_hosts())
             .unwrap_or_default()
     }
 

@@ -222,3 +222,51 @@ async fn test_fail_open_lets_unavailable_through_but_not_a_wrong_token() {
     );
     assert_eq!(captcha.verify(None, None).await, Err(CaptchaError::Failed));
 }
+
+#[test]
+fn test_shared_table_parses_and_validates_targets() {
+    #[derive(Deserialize)]
+    struct Root {
+        captcha: SharedCaptchaConfig,
+    }
+    let root: Root = toml::from_str(
+        r#"
+        [captcha]
+        targets = ["contact", "forum"]
+        provider = "hcaptcha"
+        site_key = "k"
+        secret = "s"
+        fail_open = true
+        "#,
+    )
+    .unwrap();
+    let shared = root.captcha;
+    assert!(shared.validate().is_ok());
+    assert!(shared.applies_to(CaptchaTarget::Contact));
+    assert!(shared.applies_to(CaptchaTarget::Forum));
+    assert!(!shared.applies_to(CaptchaTarget::Comments));
+    assert_eq!(shared.config.provider, Provider::Hcaptcha);
+    assert!(shared.config.fail_open);
+    assert_eq!(shared.config.timeout_secs, 5);
+
+    let with = |targets: Vec<CaptchaTarget>| SharedCaptchaConfig {
+        targets,
+        ..shared.clone()
+    };
+    assert!(with(vec![]).validate().is_err());
+    assert!(with(vec![CaptchaTarget::Forum, CaptchaTarget::Forum])
+        .validate()
+        .is_err());
+
+    // キーの誤りは `[captcha]` の設定として報告する
+    let mut bad = with(vec![CaptchaTarget::Contact]);
+    bad.config.secret = "env:AEGIS_CAPTCHA_TEST_UNSET_SECRET".to_string();
+    let err = bad.validate().unwrap_err().to_string();
+    assert!(err.contains("[captcha]") && err.contains("secret"), "{err}");
+
+    // 未知の送信先は読み込めない
+    assert!(toml::from_str::<Root>(
+        "[captcha]\ntargets = [\"blog\"]\nprovider = \"turnstile\"\nsite_key = \"k\"\nsecret = \"s\"\n"
+    )
+    .is_err());
+}

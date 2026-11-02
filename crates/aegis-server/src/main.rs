@@ -838,6 +838,8 @@ async fn main() -> anyhow::Result<()> {
             config.notifications.validate()?;
             config.cdn.validate()?;
             config.auth.registration.validate()?;
+            // 共通の CAPTCHA（[captcha]）。`targets` に挙げた送信先ごとの検証を作り、サービスの部品に渡す
+            let captchas = config.resolve_captcha()?;
             #[cfg(feature = "analytics")]
             config.analytics.validate().map_err(anyhow::Error::msg)?;
             if config.notifications.enabled
@@ -1029,6 +1031,7 @@ async fn main() -> anyhow::Result<()> {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 system::SystemOverrides::load(app_state.db.as_ref()).await;
+            let app_state = app_state.with_captcha(captchas);
             let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),
                 None => app_state,

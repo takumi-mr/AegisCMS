@@ -63,6 +63,7 @@ async fn fixture(configure: impl FnOnce(&mut NewsletterConfig)) -> Fixture {
             audit: Arc::new(AuditService::with_sinks(vec![audit.clone()])),
             notifier: Some(notifier.clone()),
             site_url: "https://example.com".to_string(),
+            captcha: None,
         },
     )
     .unwrap();
@@ -181,10 +182,6 @@ fn test_config_is_checked() {
         r#"
         enabled = true
         locale = "ja"
-        [captcha]
-        provider = "turnstile"
-        site_key = "k"
-        secret = "s"
         "#,
     )
     .unwrap();

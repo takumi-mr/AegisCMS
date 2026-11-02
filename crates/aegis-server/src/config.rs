@@ -17,6 +17,16 @@ use aegis_tags::TagsConfig;
 use aegis_theme::ThemeConfig;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+/// `[captcha]` から作った、送信先ごとの検証用の CAPTCHA。かけていない送信先は `None`
+#[derive(Clone, Default)]
+pub struct Captchas {
+    pub contact: Option<Arc<aegis_captcha::Captcha>>,
+    pub newsletter: Option<Arc<aegis_captcha::Captcha>>,
+    pub comments: Option<Arc<aegis_captcha::Captcha>>,
+    pub forum: Option<Arc<aegis_captcha::Captcha>>,
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AegisConfig {
@@ -58,6 +68,9 @@ pub struct AegisConfig {
     pub contact: aegis_contact::ContactConfig,
     #[serde(default)]
     pub newsletter: aegis_newsletter::NewsletterConfig,
+    /// 共通の CAPTCHA（`[captcha]`）。`targets` に挙げた送信先にかける。書かなければ使わない
+    #[serde(default)]
+    pub captcha: Option<aegis_captcha::SharedCaptchaConfig>,
     #[serde(default)]
     pub consent: crate::consent::ConsentConfig,
     #[cfg(feature = "search")]
@@ -75,6 +88,27 @@ impl AegisConfig {
         let config: AegisConfig = toml::from_str(&content)
             .map_err(|e| AegisError::Config(format!("Failed to parse config file: {}", e)))?;
         Ok(config)
+    }
+
+    /// 共通の CAPTCHA（`[captcha]`）を検査し、`targets` に挙がった送信先ごとの検証用の [`Captchas`] を作る。
+    /// コメント・掲示板は、その機能が有効なときだけ作る
+    pub fn resolve_captcha(&self) -> Result<Captchas> {
+        use aegis_captcha::{Captcha, CaptchaTarget};
+        let Some(shared) = &self.captcha else {
+            return Ok(Captchas::default());
+        };
+        shared.validate()?;
+        let make = |target: CaptchaTarget, enabled: bool| -> Result<Option<Arc<Captcha>>> {
+            (enabled && shared.applies_to(target))
+                .then(|| Captcha::new(shared.config.clone(), "[captcha]").map(Arc::new))
+                .transpose()
+        };
+        Ok(Captchas {
+            contact: make(CaptchaTarget::Contact, self.contact.enabled)?,
+            newsletter: make(CaptchaTarget::Newsletter, self.newsletter.enabled)?,
+            comments: make(CaptchaTarget::Comments, self.comments.enabled)?,
+            forum: make(CaptchaTarget::Forum, self.forum.enabled)?,
+        })
     }
 
     /// 設定ファイルが存在しない場合のみ既定値を返す。

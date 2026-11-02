@@ -1,6 +1,5 @@
 //! `[newsletter]` の設定
 
-use aegis_captcha::CaptchaConfig;
 use aegis_core::{AegisError, Result};
 use serde::{Deserialize, Serialize};
 
@@ -20,8 +19,6 @@ pub struct NewsletterConfig {
     pub confirm_ttl_hours: u64,
     /// 組み込みの文言（申し込みのページ・メールの確認ページ）の言語: `en` / `ja`
     pub locale: String,
-    /// CAPTCHA（`[newsletter.captcha]`）。書かなければ使わない
-    pub captcha: Option<CaptchaConfig>,
 }
 
 impl Default for NewsletterConfig {
@@ -31,7 +28,6 @@ impl Default for NewsletterConfig {
             max_per_ip_per_hour: 10,
             confirm_ttl_hours: 48,
             locale: "en".to_string(),
-            captcha: None,
         }
     }
 }
@@ -52,9 +48,6 @@ impl NewsletterConfig {
                 "confirm_ttl_hours must be 1 to {}",
                 MAX_CONFIRM_TTL_HOURS
             ));
-        }
-        if let Some(captcha) = &self.captcha {
-            captcha.validate("[newsletter.captcha]")?;
         }
         Ok(())
     }

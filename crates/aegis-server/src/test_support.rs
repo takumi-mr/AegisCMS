@@ -122,3 +122,24 @@ pub async fn test_app_state_with_db(
         ),
     )
 }
+
+/// テスト用の共通の CAPTCHA 設定（Turnstile。`verify_url` は手元の siteverify）
+pub fn shared_captcha(
+    verify_url: String,
+    targets: Vec<aegis_captcha::CaptchaTarget>,
+) -> aegis_captcha::SharedCaptchaConfig {
+    aegis_captcha::SharedCaptchaConfig {
+        config: aegis_captcha::CaptchaConfig {
+            provider: aegis_captcha::Provider::Turnstile,
+            site_key: "site-key".to_string(),
+            secret: "secret-key".to_string(),
+            fail_open: false,
+            timeout_secs: 5,
+            verify_url,
+            script_url: String::new(),
+            widget_class: String::new(),
+            response_field: String::new(),
+        },
+        targets,
+    }
+}

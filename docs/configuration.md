@@ -503,7 +503,6 @@ Cookie を使わないアクセス解析（[アクセス解析のドキュメン
 | `spam_words` | string[] | `[]` | 含むとスパムにする語 |
 | `notify_staff` | bool | `true` | 届いたことを運営者に知らせる（`contact.received`） |
 | `locale` | string | `"en"` | 組み込みの文言（入力の誤り・既定の見出しや項目名）の言語。`en` / `ja` |
-| `captcha` | table | なし | `[contact.captcha]`。書くと送信のたびに CAPTCHA（Turnstile / hCaptcha / reCAPTCHA / 同じ形の別のサービス）を検証する。`provider`・`site_key`・`secret`（`"env:VAR_NAME"` 可）・`fail_open`（既定 `false` = 検証サービスに届かないときは断る）・`timeout_secs`（既定 5）。値が不正なときはサーバーが起動しません（[contact.md 1.2](./contact.md#12-captcha任意)） |
 | `forms` | table[] | `default` フォーム 1 つ | `[[contact.forms]]`（`name`・`title`・`description`・`submit_label`・`success_message`・`auto_reply`・`subject_field`・`fields`）。項目は `[[contact.forms.fields]]`（[contact.md 1.1](./contact.md#11-項目)） |
 
 ### 2.21 `[tags]` — タグ
@@ -525,7 +524,6 @@ Cookie を使わないアクセス解析（[アクセス解析のドキュメン
 | `max_per_ip_per_hour` | integer | `10` | 同じ IP からの 1 時間あたりの申し込みの数（0 で無制限。`[cache]` で数える） |
 | `confirm_ttl_hours` | integer | `48` | 確認リンクの有効期限（時間。1〜336） |
 | `locale` | string | `"en"` | 申し込み・確認・停止のページの文言の言語。`en` / `ja` |
-| `captcha` | table | なし | `[newsletter.captcha]`。`provider`・`site_key`・`secret`（`"env:VAR_NAME"` 可）・`fail_open`・`timeout_secs`（[問い合わせフォーム 1.2](./contact.md#12-captcha任意)と同じ） |
 
 ### 2.23 `[consent]` — Cookie の同意バナー
 
@@ -544,6 +542,28 @@ Cookie を使わないアクセス解析（[アクセス解析のドキュメン
 | `reopen_button` | bool | `true` | 選択したあとの設定ボタンを出す |
 | `revision` | integer | `1` | 増やすと、全員にもう一度聞く |
 | `categories` | table[] | `analytics` と `marketing` | `[[consent.categories]]`（`id`・`label`・`description`。10 個まで） |
+
+### 2.24 `[captcha]` — 共通の CAPTCHA
+
+Cloudflare Turnstile・hCaptcha・reCAPTCHA などの CAPTCHA を、`targets` に挙げた送信先にまとめてかけます（[問い合わせフォーム 1.2](./contact.md#12-captcha任意)）。キーを 1 か所に書き、どこにかけるかを `targets` で切り替えます。`targets` が空・重複、またはキーが不正なときはサーバーが起動しません。
+
+```toml
+[captcha]
+targets = ["contact", "newsletter", "comments", "forum"]   # かける送信先
+provider = "turnstile"
+site_key = "0x4AAAA..."
+secret = "env:TURNSTILE_SECRET"
+```
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `targets` | string[] | （必須） | `contact`（問い合わせ）/ `newsletter`（ニュースレターの申し込み）/ `comments`（コメント）/ `forum`（掲示板のスレッド作成・レス）。その機能が無効なら何もしない |
+| `provider` | string | （必須） | `turnstile` / `hcaptcha` / `recaptcha` / `custom` |
+| `site_key` | string | （必須） | サイトキー（公開してよい） |
+| `secret` | string | （必須） | シークレットキー。`"env:VAR_NAME"` で環境変数から読める |
+| `fail_open` | bool | `false` | 検証サービスに届かないときに通す（既定は断る） |
+| `timeout_secs` | integer | `5` | 検証サービスの応答を待つ秒数（1〜30） |
+| `verify_url`・`script_url`・`widget_class`・`response_field` | string | 提供元の既定値 | `custom` では必須。ほかの提供元では書くと既定値を置き換える |
 
 ## 3. 完全な設定例
 
