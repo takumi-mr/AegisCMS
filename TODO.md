@@ -17,7 +17,7 @@
 
 ## 技術メモ・申し送り事項
 
-- **Plugin Builder のフィクスチャ**: `GET /__dev/api/fixtures`（`crates/aegis-server/src/plugin_dev.rs`）のうち、`on-render-page` 以外は実際のフックの入力（`PostContext` など。`{"post": {...}}` のような包みは付かない）と形が合っていない。`on-render-page` は `PageRenderContext` そのものに直し、プレビューも `content_html` を使うようにした。残りのフックのフィクスチャとプレビューを、`crates/aegis-core/src/entity.rs` などの型に合わせる。
+（現在なし）
 
 ---
 

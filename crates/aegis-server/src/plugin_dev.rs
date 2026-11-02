@@ -621,42 +621,48 @@ async fn api_plugin_info(
 }
 
 /// `GET /__dev/api/fixtures`
+///
+/// フックごとの標準の入力。ホストがフックに渡す JSON そのもの（`aegis-core` / `aegis-ast` の型。
+/// `test_fixtures_match_the_hook_input_types` が型への読み込みを検査する）
 async fn api_fixtures() -> Json<Value> {
-    Json(json!({
+    Json(fixtures())
+}
+
+fn fixtures() -> Value {
+    json!({
         "on-before-save": {
-            "post": {
-                "id": "post-sample-1",
-                "title": "Welcome to AegisCMS",
-                "slug": "welcome-to-aegiscms",
-                "author_id": "user-admin",
-                "blocks_json": "[]"
+            "id": "post-sample-1",
+            "title": "Welcome to AegisCMS",
+            "slug": "welcome-to-aegiscms",
+            "author_id": "user-admin",
+            "blocks_json": "[{\"name\":\"core/paragraph\",\"attributes\":{},\"text\":\"Hello!\"}]"
+        },
+        "transform-content-ast": [
+            {
+                "name": "core/heading",
+                "attributes": { "level": 2 },
+                "text": "Getting started"
+            },
+            {
+                "name": "core/paragraph",
+                "attributes": {},
+                "text": "This is a paragraph with a **bold** word and a [link](https://example.org/)."
+            },
+            {
+                "name": "core/code",
+                "attributes": { "language": "rust" },
+                "text": "fn main() {\n    println!(\"Hello Aegis!\");\n}"
             }
-        },
-        "transform-content-ast": {
-            "blocks": [
-                {
-                    "type": "paragraph",
-                    "content": "This is a paragraph with a code block below."
-                },
-                {
-                    "type": "code",
-                    "language": "rust",
-                    "code": "fn main() {\n    println!(\"Hello Aegis!\");\n}"
-                }
-            ]
-        },
+        ],
         "render-blocks": {
             "blocks": [
                 {
-                    "type": "official-blocks/button",
-                    "props": {
-                        "label": "Get Started",
-                        "url": "https://example.com"
-                    }
+                    "name": "official-blocks/button",
+                    "attributes": { "label": "Get Started", "url": "https://example.com" }
                 },
                 {
-                    "type": "paragraph",
-                    "content": "Regular unhandled block"
+                    "name": "official-blocks/video",
+                    "attributes": { "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }
                 }
             ]
         },
@@ -680,66 +686,96 @@ async fn api_fixtures() -> Json<Value> {
             "theme_vars": {}
         },
         "calculate-order": {
-            "order": {
-                "items": [
-                    {
-                        "product_id": "prod-1",
-                        "title": "Aegis T-Shirt",
-                        "unit_price": 3000,
-                        "quantity": 2
-                    }
-                ],
-                "subtotal": 6000,
-                "shipping_fee": 500,
-                "discount_amount": 0,
-                "total": 6500,
-                "currency": "JPY",
-                "coupon_code": "WELCOME10"
-            }
+            "currency": "JPY",
+            "lines": [
+                {
+                    "product_id": "prod-1",
+                    "slug": "aegis-t-shirt",
+                    "title": "Aegis T-Shirt",
+                    "unit_price": 3000,
+                    "quantity": 2,
+                    "line_total": 6000
+                }
+            ],
+            "adjustments": [],
+            "subtotal": 6000,
+            "total": 6000,
+            "customer_email": "customer@example.com",
+            "customer_name": "Taro Yamada",
+            "shipping_address": {
+                "name": "Taro Yamada",
+                "postal_code": "100-0001",
+                "region": "Tokyo",
+                "city": "Chiyoda",
+                "line1": "1-1 Chiyoda",
+                "country": "JP"
+            },
+            "coupon_code": "WELCOME10"
         },
         "on-order-status-changed": {
-            "change": {
+            "order": {
                 "order_id": "ord-2026-001",
-                "previous_status": "pending",
-                "new_status": "paid",
-                "total": 6500,
-                "customer_email": "customer@example.com"
-            }
+                "order_number": "A-1001",
+                "currency": "JPY",
+                "lines": [
+                    {
+                        "product_id": "prod-1",
+                        "slug": "aegis-t-shirt",
+                        "title": "Aegis T-Shirt",
+                        "unit_price": 3000,
+                        "quantity": 2,
+                        "line_total": 6000
+                    }
+                ],
+                "adjustments": [],
+                "subtotal": 6000,
+                "total": 6000,
+                "customer_email": "customer@example.com",
+                "customer_name": "Taro Yamada",
+                "status": "paid"
+            },
+            "from_status": "pending_payment",
+            "to_status": "paid",
+            "occurred_at": "2026-11-01T09:00:00Z"
         },
         "on-content-published": {
-            "content": {
-                "id": "post-sample-1",
-                "title": "New Features Released",
-                "slug": "new-features-released",
-                "url": "http://localhost:8080/posts/new-features-released"
-            }
+            "id": "post-sample-1",
+            "content_type": "article",
+            "title": "New Features Released",
+            "slug": "new-features-released",
+            "published_at": "2026-11-01T09:00:00Z",
+            "author_id": "user-admin",
+            "fields": {}
         },
         "check-comment": {
-            "comment": {
-                "content_id": "post-sample-1",
-                "author_name": "Friendly Reader",
-                "author_email": "reader@example.com",
-                "content": "Thanks for this amazing article!",
-                "ip": "192.168.1.1"
-            }
+            "content_type": "article",
+            "content_id": "post-sample-1",
+            "content_title": "New Features Released",
+            "content_slug": "new-features-released",
+            "parent_id": null,
+            "author_name": "Friendly Reader",
+            "author_email": "reader@example.com",
+            "body": "Thanks for this amazing article!",
+            "ip": "192.168.1.1",
+            "user_agent": "Mozilla/5.0",
+            "status": "pending"
         },
         "send-notification": {
-            "notification": {
-                "channel": "plugin:slack",
-                "recipient": "#general",
-                "subject": "System Alert",
-                "body": "Daily backup completed successfully."
-            }
+            "kind": "order.paid",
+            "recipient": { "type": "person", "email": "customer@example.com", "name": "Taro Yamada" },
+            "subject": "We received your payment",
+            "body": "Thank you for your order A-1001.",
+            "data": { "order_number": "A-1001" }
         },
         "on-user-authenticated": {
-            "auth": {
-                "user_id": "user-123",
-                "username": "takumi",
-                "roles": ["admin"],
-                "metadata": {}
-            }
+            "provider": "oidc",
+            "user_id": "user-123",
+            "email": "takumi@example.com",
+            "display_name": "Takumi",
+            "role": "viewer",
+            "metadata": { "groups": ["staff"] }
         }
-    }))
+    })
 }
 
 /// フック実行リクエスト
@@ -976,7 +1012,9 @@ fn render_preview_document(hook: &str, output: &Value) -> String {
             }
         }
         "render-blocks" => {
-            if let Some(html_list) = output.as_array() {
+            // The hook answers `{"html": ["<div>…</div>", null, …]}` (null: not rendered by this plugin)
+            let list = output.get("html").unwrap_or(output);
+            if let Some(html_list) = list.as_array() {
                 body_content.push_str("<div class=\"rendered-blocks\">");
                 for item in html_list {
                     if let Some(html) = item.as_str() {
@@ -1359,6 +1397,60 @@ mod tests {
         assert!(json.get("on-before-save").is_some());
         assert!(json.get("transform-content-ast").is_some());
         assert!(json.get("calculate-order").is_some());
+    }
+
+    /// The previews understand what the hooks really return
+    #[test]
+    fn test_preview_shows_the_real_hook_outputs() {
+        let blocks = render_preview_document(
+            "render-blocks",
+            &json!({ "html": ["<a class=\"cta\">Go</a>", null] }),
+        );
+        assert!(blocks.contains("<a class=\"cta\">Go</a>"));
+        assert!(!blocks.contains("No content generated"));
+        let page = render_preview_document(
+            "on-render-page",
+            &json!({ "content_html": "<p>Body</p>", "extra_css": "p{color:red}", "site_title": "Site" }),
+        );
+        assert!(page.contains("<p>Body</p>") && page.contains("p{color:red}"));
+        let ast = render_preview_document(
+            "transform-content-ast",
+            &json!([{ "name": "core/paragraph", "attributes": {}, "text": "Hi" }]),
+        );
+        assert!(ast.contains("<p>Hi</p>"));
+    }
+
+    /// The fixtures are what the host really passes: each one has to load into the hook's input type
+    #[test]
+    fn test_fixtures_match_the_hook_input_types() {
+        use aegis_core::{
+            CommentSubmission, NotificationMessage, OrderContext, OrderStatusChange,
+            PageRenderContext, PostContext, PublishedContent, UserAuthContext,
+        };
+
+        fn load<T: serde::de::DeserializeOwned>(hook: &str) {
+            let value = fixtures()[hook].clone();
+            if let Err(e) = serde_json::from_value::<T>(value) {
+                panic!("the {hook} fixture does not match its input type: {e}");
+            }
+        }
+        load::<PostContext>("on-before-save");
+        load::<Vec<aegis_ast::BlockNode>>("transform-content-ast");
+        // render-blocks gets `{"blocks": [...]}` and answers `{"html": [...]}`
+        #[derive(serde::Deserialize)]
+        struct RenderBlocksInput {
+            blocks: Vec<aegis_ast::BlockNode>,
+        }
+        load::<RenderBlocksInput>("render-blocks");
+        load::<PageRenderContext>("on-render-page");
+        load::<OrderContext>("calculate-order");
+        load::<OrderStatusChange>("on-order-status-changed");
+        load::<PublishedContent>("on-content-published");
+        load::<CommentSubmission>("check-comment");
+        load::<NotificationMessage>("send-notification");
+        load::<UserAuthContext>("on-user-authenticated");
+        // every hook has a fixture
+        assert_eq!(fixtures().as_object().unwrap().len(), 10);
     }
 
     #[tokio::test]
