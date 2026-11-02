@@ -9,12 +9,9 @@
 
 ## 直近の着手タスク
 
-1. **初期データ構築機能 Phase 2 (Web インストーラ API)**:
-   - `POST /api/v1/setup` および `GET /api/v1/setup/status` API の追加。
-   - 未セットアップ状態（ユーザー0人）の検知と管理者乗っ取り防止ガードの実装。
-2. **初期データ構築機能 Phase 3 (Web UI セットアップ画面)**:
-   - ブラウザから初期設定を行えるセットアップ画面の実装。
-3. **プラグイン例の Plugin Builder 上での動作確認**: `sdk/examples/assemblyscript-hooks` と `sdk/tinygo/examples/hooks` は実ホストの統合テスト（`sdk_hook_examples.rs`）で検証済み。Plugin Builder の画面上でも `task dev:plugin` で動かして確認する。
+1. **初期データ構築機能 Phase 3 (Admin Studio Web UI セットアップ連携)**:
+   - Admin Studio (SPA) 側で `/api/v1/setup/status` を確認し、未初期化時に `/setup` 画面へ誘導・初期設定できる導線を追加。
+2. **プラグイン例の Plugin Builder 上での動作確認**: `sdk/examples/assemblyscript-hooks` と `sdk/tinygo/examples/hooks` は実ホストの統合テスト（`sdk_hook_examples.rs`）で検証済み。Plugin Builder の画面上でも `task dev:plugin` で動かして確認する。
 
 ---
 

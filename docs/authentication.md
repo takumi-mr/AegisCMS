@@ -36,6 +36,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | API | 必要なロール |
 | --- | --- |
 | `GET /api/v1/health`（製品名とバージョンは `admin` のセッションにだけ返す）, `/metrics` | 不要（公開） |
+| `GET /setup`（Web インストーラ画面）, `GET /api/v1/setup/status`, `POST /api/v1/setup`（初期セットアップ） | 不要（未初期化時のみ受付。セットアップ完了後は 403 またはリダイレクト） |
 | 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
 | `POST /api/v1/auth/session`（ログイン）, `POST /api/v1/auth/session/verify-2fa`（[二段階認証](#12-二段階認証-2fa--totp)）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッション・2FA 検証で判定） |
 | `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#6-シングルサインオン-openid-connect)） | 不要 |
