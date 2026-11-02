@@ -201,6 +201,7 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 | `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64` | 注文の作成・状態の変化の通知 |
 | `send-notification` | `send_notification` | `(ptr: i32, len: i32)` | `i64` | 通知の配信チャネル（Slack・SMS など） |
 | `on-content-published` | `on_content_published` | `(ptr: i32, len: i32)` | `i64` | 予約公開などコンテンツ公開時の通知 |
+| `check-comment` | `check_comment` | `(ptr: i32, len: i32)` | `i64` | コメントの審査（[4.8.1](#481-check_comment)） |
 | `render-blocks` | `render_blocks` | `(ptr: i32, len: i32)` | `i64` | 本文のカスタムブロックの HTML（[4.9](#49-render_blocks)） |
 
 ### 4.1 `on_before_save`
@@ -292,6 +293,13 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 
 - **入力**: `PublishedContent` の JSON（[5.8](#58-publishedcontent)）
 - **戻り値**: `0`（成功）、または `{"error": "..."}`（ログと監査ログ `plugin.error` に残るだけで、公開処理には影響しない）
+
+### 4.8.1 `check_comment`
+
+公開サイトからコメントが投稿され、保存される前に呼び出されます（[プラグインフック 1.9](plugin_hooks.md#19-check-comment)）。
+
+- **入力**: `CommentSubmission` の JSON（`content_type`, `content_id`, `content_title`, `content_slug`, `parent_id`, `author_name`, `author_email`, `body`, `ip`, `user_agent`, `status`）
+- **戻り値**: `{"verdict": "allow" | "hold" | "spam", "reason": "..."}`（何も返さない・`verdict` が無ければ `allow`）、または投稿を断るエラーエンベロープ `{"error": "<投稿者に見せる理由>"}`
 
 ---
 

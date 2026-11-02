@@ -1,0 +1,49 @@
+{
+  "name": "example-tinygo-hooks",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "TinyGo Hooks (example)",
+  "description": "TinyGo example that implements calculate-order, on-order-status-changed, send-notification, on-content-published, check-comment and render-blocks.",
+  "author": {
+    "name": "AegisCMS Contributors",
+    "url": "https://github.com/takumi-mr/AegisCMS"
+  },
+  "license": "Apache-2.0",
+  "tags": [
+    "example",
+    "tinygo"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "network": {
+      "allowed_domains": [
+        "hooks.example.com"
+      ]
+    },
+    "storage": {
+      "kv_namespace": "example_tinygo_hooks_state"
+    },
+    "hooks": [
+      "calculate-order",
+      "on-order-status-changed",
+      "send-notification",
+      "on-content-published",
+      "check-comment",
+      "render-blocks"
+    ]
+  },
+  "blocks": [
+    {
+      "name": "callout",
+      "label": { "en": "Callout" },
+      "fields": [
+        { "name": "message", "type": "string", "label": { "en": "Message" }, "required": true, "default": "" }
+      ]
+    }
+  ],
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 100000000,
+    "execution_timeout_ms": 250
+  }
+}

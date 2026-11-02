@@ -312,6 +312,11 @@ tasks:
     cmds:
       - npm --prefix sdk/templates/assemblyscript run build
 
+  plugin:build:as-hooks:
+    desc: AssemblyScript のフック実装例を Wasm にビルドし sdk/examples/assemblyscript-hooks/plugin.wasm を生成
+    cmds:
+      - npm --prefix sdk/examples/assemblyscript-hooks run build
+
   bench:
     desc: AegisCMS サーバーの主要エンドポイント HTTP パフォーマンスベンチマークを実行 (bench:http のエイリアス)
     cmds:
@@ -361,6 +366,14 @@ tasks:
       - cmd: cmd /c "cd sdk\\templates\\tinygo && tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go"
         platforms: [windows]
       - cmd: "cd sdk/templates/tinygo && tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go"
+        platforms: [linux, darwin]
+
+  plugin:build:tinygo-hooks:
+    desc: TinyGo のフック実装例を Wasm にビルドし sdk/tinygo/examples/hooks/plugin.wasm を生成 (要 TinyGo 0.31+)
+    cmds:
+      - cmd: cmd /c "cd sdk\\tinygo\\examples\\hooks && tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm ."
+        platforms: [windows]
+      - cmd: "cd sdk/tinygo/examples/hooks && tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm ."
         platforms: [linux, darwin]
 
   # ============================================================================

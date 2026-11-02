@@ -2,6 +2,8 @@
  * AegisCMS AssemblyScript Plugin SDK - Types
  */
 
+import { JsonValue } from "./jsonvalue";
+
 export class PostContext {
   id: string = "";
   title: string = "";
@@ -28,6 +30,24 @@ export class BlockNode {
   constructor(name: string = "core/paragraph", text: string | null = null) {
     this.name = name;
     this.text = text;
+  }
+
+  /**
+   * ホストから渡されたブロック（`render-blocks` の入力など）を読む。
+   * 属性は文字列で持つ（文字列以外の値は JSON の表記になる。`level: 2` は "2"、`true` は "true"）
+   */
+  static fromJson(v: JsonValue): BlockNode {
+    const node = new BlockNode(v.get("name").asString(), v.get("text").asNullableString());
+    const attributes = v.get("attributes");
+    if (attributes.isObject()) {
+      const keys = attributes.fields.keys();
+      for (let i = 0; i < keys.length; ++i) {
+        node.attributes.set(keys[i], attributes.fields.get(keys[i]).asText());
+      }
+    }
+    const children = v.get("children");
+    for (let i = 0; i < children.length; ++i) node.children.push(BlockNode.fromJson(children.at(i)));
+    return node;
   }
 
   static heading(level: i32, text: string): BlockNode {

@@ -109,12 +109,29 @@ This compiles your code into `plugin.wasm` ready to be loaded by AegisCMS.
 - `on_before_save(ptr: i32, len: i32): i64`
 - `transform_content_ast(ptr: i32, len: i32): i64`
 - `on_render_page(ptr: i32, len: i32): i64`
+- `calculate_order`, `on_order_status_changed`, `send_notification`, `on_content_published`, `check_comment`, `render_blocks` (all `(ptr: i32, len: i32): i64`)
+
+The hooks after `on_render_page` are declared in the manifest's `capabilities.hooks` in kebab-case (`calculate-order`, ...). Their inputs are nested JSON, so read them with `readHookJson(ptr, len)` (returns `null` for invalid JSON) and the typed `fromJson` of each class:
+
+| Hook | Read | Write |
+| --- | --- | --- |
+| `calculate-order` | `OrderContext.fromJson(json)` | push to `order.adjustments`, then `writeOrderResult(order)` (the host applies only `adjustments` and `metadata`) |
+| `on-order-status-changed` | `OrderStatusChange.fromJson(json)` | `writeOk()` |
+| `on-content-published` | `PublishedContent.fromJson(json)` | `writeOk()` |
+| `send-notification` | `NotificationMessage.fromJson(json)` | `writeDelivery(Delivery.Sent)` / `writeDelivery(Delivery.Skipped)` / `writeDeliveryError(message, permanent)` |
+| `check-comment` | `CommentSubmission.fromJson(json)` | `writeVerdict(CommentVerdict.allow())` / `.hold(reason)` / `.spam(reason)` |
+| `render-blocks` | `readBlocks(ptr, len)` | `writeBlocksHtml([...])` (same order as the input; `null` hides the block) |
+
+`writeError(message)` refuses the input (the message is shown as is). `JsonValue` / `parseJson` is a small JSON tree you can use for anything else. A block's `attributes` are strings (non-string values are in their JSON form). See [`sdk/examples/assemblyscript-hooks`](../examples/assemblyscript-hooks) for a complete plugin.
 
 ## Host APIs
 
 - `log.debug(msg)`, `log.info(msg)`, `log.warn(msg)`, `log.error(msg)`
 - `net.isAllowed(url: string): bool`
 - `kv.set(key: string, value: string): bool`
+- `kv.get(key: string): string | null` (needs `capabilities.storage`; `null` when unset or denied, with a warning log)
+- `config.get(key: string): string | null` / `config.getOr(key, fallback)` (the server's `[plugins.settings.<plugin name>]`; non-string values come back as JSON)
+- `http.fetch(request: HttpRequest): HttpResponse` (only `allowed_domains`; no redirects; 8 calls per hook; 1 MiB bodies; counts toward `execution_timeout_ms`). A failed request has `response.error` set (`response.ok` is false); a 4xx/5xx status is still `ok`. `HttpRequest.get(url)` and `HttpRequest.postJson(url, json)` build requests
 
 ## License
 
