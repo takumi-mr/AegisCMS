@@ -63,6 +63,9 @@ import type {
   ShopConfig,
   SiteSettings,
   SystemSettingsResponse,
+  SetupPayload,
+  SetupResponse,
+  SetupStatusResponse,
   UpdateSystemSettings,
   StorageMeta,
   StorageObjectPage,
@@ -350,6 +353,25 @@ export const aegisApi = {
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw await unauthenticatedError(res, i18n.t('api.acceptInvitationFailed'));
+    return res.json();
+  },
+
+  async getSetupStatus(): Promise<SetupStatusResponse> {
+    const res = await fetch(`${API_BASE}/setup/status`);
+    if (!res.ok) throw new ApiError(res.status, 'Failed to fetch setup status');
+    return res.json();
+  },
+
+  async runSetup(payload: SetupPayload): Promise<SetupResponse> {
+    const res = await fetch(`${API_BASE}/setup`, {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, err.error || 'Setup failed');
+    }
     return res.json();
   },
 

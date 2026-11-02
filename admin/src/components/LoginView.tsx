@@ -13,6 +13,7 @@ import { describeRegistrationError } from '../utils/verifyEmail';
 import { RegisterForm } from './RegisterForm';
 import { PasswordResetRequestForm, PasswordResetConfirmForm } from './PasswordResetForms';
 import { AcceptInviteForm } from './AcceptInviteForm';
+import { SetupForm } from './SetupForm';
 import styles from './LoginView.module.css';
 
 interface LoginViewProps {
@@ -30,7 +31,7 @@ interface LoginViewProps {
 }
 
 type ScreenMode =
-  'login' | 'register' | 'forgot_password' | 'reset_password' | 'accept_invite' | 'mfa';
+  'login' | 'register' | 'forgot_password' | 'reset_password' | 'accept_invite' | 'mfa' | 'setup';
 
 /** The color theme and the language, for the screens before sign-in */
 const Preferences: React.FC = () => (
@@ -99,6 +100,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
       .then(setProviders)
       .catch(() => setProviders(null));
   }, [mode]);
+
+  useEffect(() => {
+    if (!resetToken && !inviteToken && !verifyToken) {
+      aegisApi
+        .getSetupStatus()
+        .then((status) => {
+          if (status.requires_setup) {
+            setMode('setup');
+          }
+        })
+        .catch(() => {});
+    }
+  }, [resetToken, inviteToken, verifyToken]);
 
   useEffect(() => {
     if (!verifyToken) return;
@@ -261,6 +275,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </button>
             </div>
           </form>
+          <Preferences />
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'setup') {
+    return (
+      <div className={styles.screen}>
+        <div className={styles.card}>
+          {brand}
+          <SetupForm onSetupComplete={onLoggedIn} onBack={backToLogin} />
           <Preferences />
         </div>
       </div>

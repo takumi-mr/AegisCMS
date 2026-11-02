@@ -1197,3 +1197,30 @@ export interface BrokenLinksStatusResponse {
   is_scanning: boolean;
   report: BrokenLinksReport;
 }
+
+// =========================================================================
+// Setup (初期データ構築・Web インストーラ)
+// =========================================================================
+
+export interface SetupStatusResponse {
+  initialized: boolean;
+  requires_setup: boolean;
+}
+
+export interface SetupPayload {
+  site_title: string;
+  admin_username: string;
+  admin_password: string;
+  admin_email?: string | null;
+  admin_display_name?: string | null;
+  create_sample_data?: boolean;
+}
+
+export interface SetupResponse {
+  success: boolean;
+  admin_user_id: string;
+  admin_username: string;
+  site_title: string;
+  sample_article_id?: string | null;
+  sample_page_id?: string | null;
+}
