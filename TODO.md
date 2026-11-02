@@ -9,14 +9,19 @@
 
 ## 直近の着手タスク
 
-1. **プラグイン例の Plugin Builder 上での動作確認**: `sdk/examples/assemblyscript-hooks` と `sdk/tinygo/examples/hooks` は実ホストの統合テスト（`sdk_hook_examples.rs`）で検証済み。Plugin Builder の画面上でも `task dev:plugin` で動かして確認する。
+1. **初期データ構築機能 Phase 2 (Web インストーラ API)**:
+   - `POST /api/v1/setup` および `GET /api/v1/setup/status` API の追加。
+   - 未セットアップ状態（ユーザー0人）の検知と管理者乗っ取り防止ガードの実装。
+2. **初期データ構築機能 Phase 3 (Web UI セットアップ画面)**:
+   - ブラウザから初期設定を行えるセットアップ画面の実装。
+3. **プラグイン例の Plugin Builder 上での動作確認**: `sdk/examples/assemblyscript-hooks` と `sdk/tinygo/examples/hooks` は実ホストの統合テスト（`sdk_hook_examples.rs`）で検証済み。Plugin Builder の画面上でも `task dev:plugin` で動かして確認する。
 
 ---
 
 ## 技術メモ・申し送り事項
 
 - **AssemblyScript SDK の npm 公開は未検証**: release-please の PR・タグ・`Cargo.lock` の同期は動作確認済み（v0.2.0）。`sdk/assemblyscript` を初めて上げるリリースで、`release-please.yml` から `release-sdk.yml` が呼ばれて GitHub Packages に公開されるかを確かめる。GitHub Release の「Latest」は最後に作られたものに付くため、コアの `v0.2.0` でなくプラグインのリリースに付くことがある（見た目のみ）。
-- **GHCR Docker イメージの初回公開設定**: `release-docker.yml` で GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) に初回 push された後、GitHub リポジトリの Packages 設定からパッケージの Visibility を「Public」に変更する必要がある（デフォルトでは Private になる場合がある）。
+- **GHCR Docker イメージの初回公開設定**: `release-docker.yml` で GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) に初回 pushされた後、GitHub リポジトリの Packages 設定からパッケージの Visibility を「Public」に変更する必要がある（デフォルトでは Private になる場合がある）。
 - 公式プラグインの `plugin.wasm` はリポジトリにコミット済みで、バージョンを上げても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースを変えたリリースでは各自 `task` で再生成してから出す。
 
 ---

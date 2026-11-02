@@ -279,6 +279,11 @@ aegis --help
 # サーバー起動 (既定: ポート 8080)
 aegis run [--port <PORT>] [--host <HOST>]
 
+# 初期セットアップ (マイグレーション、管理者作成、初期サンプルデータ投入を一括実行)
+aegis init
+# 非対話型での実行 (CI / 自動構築環境向け)
+aegis init --site-title "My Site" --admin-user admin --admin-password <PASSWORD> --non-interactive
+
 # データベーススキーマのマイグレーション実行
 aegis migrate
 
