@@ -24,7 +24,7 @@ AegisCMS のプラグインシステムは、**Bytecode Alliance 製 WebAssembly
 
 ## 2. クイックスタート: Rust 公式 SDK
 
-公式 SDK [`aegis-plugin-sdk`](file:///d:/projects/cms/crates/aegis-plugin-sdk) を利用することで、低レイヤーのポインタ操作やメモリ管理を意識することなく、型安全にプラグインを開発できます。
+公式 SDK [`aegis-plugin-sdk`](../crates/aegis-plugin-sdk) を利用することで、低レイヤーのポインタ操作やメモリ管理を意識することなく、型安全にプラグインを開発できます。
 
 ### 2.1 テンプレートの準備
 

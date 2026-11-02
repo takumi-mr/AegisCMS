@@ -72,7 +72,7 @@ flowchart TD
 
 1. **Core Host Engine (Rust)**
 
-- シングルバイナリ配布（Zero-Config）。起動時に設定・スキーマ定義を読み込み、ローカルDB（SQLite/libSQL）または外部DBへ接続。
+- シングルバイナリ配布（Zero-Config）。起動時に設定・スキーマ定義を読み込み、ローカルDB（SQLite）または外部DB（PostgreSQL / MySQL）へ接続。
 
 2. **Admin Studio (TypeScript + React)**
 
@@ -232,7 +232,7 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 > - 設計・開発: [内部設計 (`docs/architecture.md`)](docs/architecture.md) / [開発ガイド (`docs/development.md`)](docs/development.md) / [Admin Studio (`admin/README.md`)](admin/README.md)
 > - 運用・機能: [設定リファレンス](docs/configuration.md) / [認証 & ユーザー管理](docs/authentication.md) / [監査ログ](docs/audit.md) / [メディア](docs/media.md) / [EC](docs/commerce.md) / [通知](docs/notifications.md) / [コメント](docs/comments.md) / [掲示板](docs/forum.md) / [問い合わせフォーム](docs/contact.md) / [サイト内検索](docs/search.md) / [アクセス解析](docs/analytics.md)
 > - テーマ・本文: [公開 & テーマエンジン](docs/theme_and_publishing_guide.md) / [テーマ作成ガイド](docs/theme_authoring_guide.md) / [本文のブロック & Markdown](docs/blocks.md)
-> - プラグイン: [開発ガイド](docs/plugin_sdk_guide.md) / [フック & ホスト API](docs/plugin_hooks.md) / [ABI 仕様](docs/plugin_abi_specification.md) / [公式プラグイン](plugins/README.md)
+> - プラグイン: [開発ガイド](docs/plugin_sdk_guide.md) / [開発サーバー & Plugin Builder](docs/plugin_dev_server.md) / [フック & ホスト API](docs/plugin_hooks.md) / [ABI 仕様](docs/plugin_abi_specification.md) / [公式プラグイン](plugins/README.md)
 > - 未着手のタスク: [TODO.md](TODO.md)
 
 ---
@@ -417,14 +417,14 @@ fields:
           - "seo.canonical_url"
 ```
 
-- **自動マイグレーション**: コアエンジン起動時またはスキーマ同期コマンド実行時に、スキーマ差分を検出し内部テーブル（PostgreSQL/SQLite）へ自動マイグレーションを実行。
-- **型定義自動生成**: スキーマ定義からTypeScript型定義およびGraphQL/OpenAPI仕様書をコンパイル時に出力。
+- **自動マイグレーション**: コアエンジン起動時またはスキーマ同期コマンド実行時に、スキーマ差分を検出し内部テーブル（SQLite / PostgreSQL / MySQL）へ自動マイグレーションを実行。
+- **型定義自動生成**: スキーマ定義からTypeScript型定義およびOpenAPI仕様書（OpenAPI 3.1）を出力。
 
 ### 5.2 GitOps・環境分離構成
 
 - **リポジトリ管理対象（Code-as-Configuration）**:
     - スキーマ定義ファイル (`/schemas/*.yaml`)
-    - サイト設定・権限ロール設定 (`/config/*.json`)
+    - サイト設定・権限ロール設定 (`/config/*.toml`)
     - インストール済みプラグイン (`/plugins/<name>/`) と有効化リスト（設定ファイルの `[plugins].enabled`。Admin Studio で切り替え・並べ替えると DB の一覧が優先される）
     - テーマ・UIテンプレート (`/themes/*`)
 
@@ -440,26 +440,9 @@ fields:
 | レイヤー               | 採用技術                            | 選定理由・技術的トレードオフ                                                                                                 |
 | ---------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | **コアエンジン**       | **Rust**                            | メモリ安全性、ゼロコスト抽象化、起動速度。Wasmtimeランタイムとのネイティブ親和性。単一バイナリ配布が可能。                   |
-| **ストレージ**         | **SQLite (libSQL) / PostgreSQL**    | エッジ/単一サーバー運用時はZero-Configで動くSQLiteを使用。クラスタリング時はPostgreSQL/JSONBインデックスへ透過的に切替可能。 |
-| **サンドボックス**     | **Wasmtime + Extism**               | Bytecode Alliance準拠の安定したランタイム。Extismをラッパーに採用することでマルチ言語SDKの生成コストを圧縮。                 |
+| **ストレージ**         | **SQLite / PostgreSQL / MySQL**     | エッジ/単一サーバー運用時はZero-Configで動くSQLiteを使用。クラスタリング時はPostgreSQL/MySQL（JSONBインデックス等）へ透過的に切替可能。 |
+| **サンドボックス**     | **Wasmtime**                        | Bytecode Alliance準拠の安定したランタイム。Fuel（命令数）制限とタイムアウトによる安全なリニアメモリ隔離実行。                 |
 | **プラグイン開発言語** | **Tier 1: AssemblyScript / TinyGo** | **Tier 1**: 軽量GC・型安全・数十〜数百KBのコンパクトバイナリでWeb開発者の参入障壁を低減。                                    |
 | **プラグイン開発言語** | **Tier 2: Rust**                    | **Tier 2**: 極限のパフォーマンスとメモリ制御を要する処理用。                                                                 |
 | **管理画面**           | **TypeScript + React**              | 豊富なReactエコシステムと洗練されたモダンUI（CSS Modules）によるブロック編集UIの高速動作。                                  |
 
----
-
-## 7. 開発・運用ロードマップ
-
-- **フェーズ 1 (PoC・コア基盤確立)** — ✅ 完了
-    - Rust製コアエンジンとWasmtime組み込み、AST変換フックとメモリ受け渡し（Fat Pointer方式）。
-
-- **フェーズ 2 (スキーマエンジンとエディタ統合)** — ✅ 完了
-    - YAMLスキーマからのDB自動マイグレーション（SQLite / PostgreSQL / MySQL）、ブロックエディタ（Admin Studio）とREST API。
-    - 認証（ローカル・OIDC・SAML）・RBAC・監査ログ・メディア・テーマエンジン・EC・通知。
-
-- **フェーズ 3 (SDK整備とエコシステム公開)** — 進行中
-    - ✅ 言語非依存 共通 ABI 仕様書および Rust / AssemblyScript / TinyGo 向け公式プラグイン SDK & テンプレートの提供。
-    - ✅ プラグイン・テーマのインストールと有効化の分離、ストア用メタデータ。
-    - プラグイン・テーマのストア（パッケージの検証・署名・導入）、ケイパビリティ検証ガードおよびマニフェストパーサーのセキュリティ監査。
-
-現在の未着手タスクは [TODO.md](TODO.md) を参照してください。

@@ -143,7 +143,7 @@ async fn test_set_content_tags_validates_and_dedupes() {
     assert_eq!(tags.content_tags("article", "a1").await.unwrap().len(), 2);
 
     // 別の種類のコンテンツにも付けられる。タグを消すと外れる
-    tags.set_content_tags("page", "a1", &[a.id.clone()])
+    tags.set_content_tags("page", "a1", std::slice::from_ref(&a.id))
         .await
         .unwrap();
     tags.delete(&a.id).await.unwrap();
