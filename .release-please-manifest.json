@@ -12,5 +12,7 @@
   "plugins/official-order-notifier": "0.1.0",
   "plugins/official-page-toc": "0.1.0",
   "plugins/official-share-buttons": "0.1.0",
-  "plugins/official-shop-rules": "0.1.0"
+  "plugins/official-shop-rules": "0.1.0",
+  "plugins/official-post-navigation": "0.1.0",
+  "plugins/official-reading-time": "0.1.0"
 }

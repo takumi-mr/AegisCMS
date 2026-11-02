@@ -300,6 +300,38 @@
           "jsonpath": "$.version"
         }
       ]
+    },
+    "plugins/official-post-navigation": {
+      "release-type": "simple",
+      "component": "plugin-official-post-navigation",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/official-reading-time": {
+      "release-type": "simple",
+      "component": "plugin-official-reading-time",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   }
 }

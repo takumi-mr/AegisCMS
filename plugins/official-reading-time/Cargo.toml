@@ -9,6 +9,6 @@ description = "Official Wasm plugin that displays estimated reading time and wor
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.1.0" }
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }
 serde_json.workspace = true
 
