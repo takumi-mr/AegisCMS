@@ -19,7 +19,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "aegis-analytics"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-cache",
  "aegis-core",
@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-ast"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "lol_html",
@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-audit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "aegis-db",
@@ -62,7 +62,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-auth"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-cache",
  "aegis-core",
@@ -92,7 +92,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-backup"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "aegis-db",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-cache"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "async-trait",
@@ -128,7 +128,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-captcha"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "axum",
@@ -141,7 +141,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-comments"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-audit",
  "aegis-cache",
@@ -163,7 +163,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-commerce"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-audit",
  "aegis-auth",
@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-contact"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-ast",
  "aegis-audit",
@@ -213,7 +213,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-db"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "aegis-schema",
@@ -247,7 +247,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-forum"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-audit",
  "aegis-cache",
@@ -267,7 +267,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-newsletter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-audit",
  "aegis-cache",
@@ -288,7 +288,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-notify"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-audit",
  "aegis-core",
@@ -306,7 +306,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-ads"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -314,7 +314,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-back-to-top"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -322,7 +322,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-blocks"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-code-enhancer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde",
@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-code-lines"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -347,7 +347,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-external-links"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -355,7 +355,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-lightbox"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -363,7 +363,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-macros"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -372,7 +372,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-order-notifier"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde",
@@ -381,7 +381,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-page-toc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-post-navigation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -397,7 +397,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-reading-time"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-sdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-macros",
  "serde",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-share-buttons"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde_json",
@@ -422,7 +422,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-plugin-shop-rules"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-plugin-sdk",
  "serde",
@@ -440,7 +440,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-runtime"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-ast",
  "aegis-core",
@@ -459,7 +459,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "serde",
@@ -472,7 +472,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-search"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-ast",
  "chrono",
@@ -486,7 +486,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-analytics",
  "aegis-ast",
@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-storage"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "async-trait",
@@ -558,7 +558,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-tags"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "aegis-db",
@@ -571,7 +571,7 @@ dependencies = [
 
 [[package]]
 name = "aegis-theme"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aegis-core",
  "minijinja",
