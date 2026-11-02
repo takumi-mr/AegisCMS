@@ -388,6 +388,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-post-navigation"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
+name = "aegis-plugin-reading-time"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
 name = "aegis-plugin-sdk"
 version = "0.1.0"
 dependencies = [

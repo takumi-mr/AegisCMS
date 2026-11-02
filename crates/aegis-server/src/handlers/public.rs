@@ -40,6 +40,162 @@ pub(crate) fn extract_excerpt(blocks: &[BlockNode], max_chars: usize) -> String 
     String::new()
 }
 
+/// 前後の記事（前の記事・次の記事）の探索
+pub(crate) async fn find_adjacent_articles(
+    state: &AppState,
+    schema: &SchemaDefinition,
+    current_record: &aegis_db::ContentRecord,
+) -> (Option<ContentSummary>, Option<ContentSummary>) {
+    let mode_setting = state
+        .config
+        .plugins
+        .setting("official-post-navigation", "mode")
+        .or_else(|| {
+            state
+                .config
+                .plugins
+                .setting("official-post-navigation", "navigation_mode")
+        })
+        .unwrap_or_else(|| "category".to_string());
+
+    let same_category_setting = state
+        .config
+        .plugins
+        .setting("official-post-navigation", "same_category");
+
+    let is_category_mode = match same_category_setting.as_deref() {
+        Some("false" | "0" | "no" | "off") => false,
+        Some("true" | "1" | "yes" | "on") => true,
+        _ => mode_setting.eq_ignore_ascii_case("category"),
+    };
+
+    let fallback_to_all = state
+        .config
+        .plugins
+        .setting("official-post-navigation", "fallback_to_all")
+        .map(|s| {
+            !matches!(
+                s.to_ascii_lowercase().as_str(),
+                "false" | "0" | "no" | "off"
+            )
+        })
+        .unwrap_or(true);
+
+    let order_by = state
+        .config
+        .plugins
+        .setting("official-post-navigation", "order_by")
+        .unwrap_or_else(|| "published_at".to_string());
+
+    let query = aegis_db::ContentListQuery {
+        limit: Some(500),
+        ..Default::default()
+    };
+    let published_records = match state.db.list_published_contents_page(schema, &query).await {
+        Ok(page) => page.records,
+        Err(_) => return (None, None),
+    };
+
+    let now = chrono::Utc::now();
+    let valid_records: Vec<&aegis_db::ContentRecord> = published_records
+        .iter()
+        .filter(|r| is_currently_published(&r.status, r.unpublish_at.as_deref(), now))
+        .collect();
+
+    let order_by_created = order_by == "created_at";
+    fn get_time(r: &aegis_db::ContentRecord, order_by_created: bool) -> &str {
+        if order_by_created {
+            &r.created_at
+        } else {
+            r.published_at.as_deref().unwrap_or(&r.created_at)
+        }
+    }
+
+    let current_time = get_time(current_record, order_by_created);
+    let current_key = (current_time, current_record.id.as_str());
+
+    let current_category = current_record
+        .custom_fields
+        .get("category_id")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty());
+
+    let find_in_slice = |records: &[&aegis_db::ContentRecord]| -> (
+        Option<aegis_db::ContentRecord>,
+        Option<aegis_db::ContentRecord>,
+    ) {
+        let mut prev: Option<&aegis_db::ContentRecord> = None;
+        let mut next: Option<&aegis_db::ContentRecord> = None;
+
+        for r in records {
+            if r.id == current_record.id {
+                continue;
+            }
+            let key = (get_time(r, order_by_created), r.id.as_str());
+            if key < current_key
+                && (prev.is_none()
+                    || (
+                        get_time(prev.unwrap(), order_by_created),
+                        prev.unwrap().id.as_str(),
+                    ) < key)
+            {
+                prev = Some(r);
+            } else if key > current_key
+                && (next.is_none()
+                    || (
+                        get_time(next.unwrap(), order_by_created),
+                        next.unwrap().id.as_str(),
+                    ) > key)
+            {
+                next = Some(r);
+            }
+        }
+        (prev.cloned(), next.cloned())
+    };
+
+    let (prev_record, next_record) = if is_category_mode && current_category.is_some() {
+        let cat_records: Vec<&aegis_db::ContentRecord> = valid_records
+            .iter()
+            .copied()
+            .filter(|r| {
+                r.custom_fields
+                    .get("category_id")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.trim().is_empty())
+                    == current_category
+            })
+            .collect();
+        let (p, n) = find_in_slice(&cat_records);
+        if fallback_to_all && (p.is_none() || n.is_none()) {
+            let (all_p, all_n) = find_in_slice(&valid_records);
+            (p.or(all_p), n.or(all_n))
+        } else {
+            (p, n)
+        }
+    } else {
+        find_in_slice(&valid_records)
+    };
+
+    let to_summary = |r: aegis_db::ContentRecord| -> ContentSummary {
+        let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
+        let excerpt = extract_excerpt(&blocks, 140);
+        ContentSummary {
+            id: r.id,
+            content_type: r.content_type,
+            title: r.title,
+            slug: r.slug,
+            excerpt,
+            author_id: r.author_id,
+            published_at: r.published_at,
+            created_at: r.created_at,
+            fields: r.custom_fields,
+            relations: HashMap::new(),
+        }
+    };
+
+    (prev_record.map(to_summary), next_record.map(to_summary))
+}
+
 /// 404 Not Found ページをテーマテンプレートでレンダリング
 pub async fn render_not_found(state: &AppState, message: &str) -> Response {
     let ctx = PageRenderContext {
@@ -478,6 +634,16 @@ pub async fn render_article(
         tags.add_dependency("article", &rel.slug);
     }
 
+    let (prev_article, next_article) = find_adjacent_articles(&state, &schema, &record).await;
+    if let Some(ref prev) = prev_article {
+        tags.add_dependency("article", &prev.id);
+        tags.add_dependency("article", &prev.slug);
+    }
+    if let Some(ref next) = next_article {
+        tags.add_dependency("article", &next.id);
+        tags.add_dependency("article", &next.slug);
+    }
+
     let comments = comments::page_section(&state, "article", &record.id).await;
     let mut fields = record.custom_fields;
     TagLookup::load(&state, "article", std::slice::from_ref(&record.id))
@@ -497,6 +663,8 @@ pub async fn render_article(
         fields,
         comments,
         related_articles,
+        prev_article,
+        next_article,
     };
     let resp = themed_response(render::render_page(&state, &schema, page).await);
     crate::cdn::apply_cache_tags(&state, resp, &tags)
@@ -576,6 +744,8 @@ async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<R
         fields,
         comments,
         related_articles: Vec::new(),
+        prev_article: None,
+        next_article: None,
     };
     let resp = themed_response(render::render_page(state, &schema, page).await);
     Some(crate::cdn::apply_cache_tags(state, resp, &tags))
@@ -618,6 +788,17 @@ pub async fn render_page_or_slug(
                 tags.add_dependency("comments", &record.id);
                 crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
+                let (prev_article, next_article) =
+                    find_adjacent_articles(&state, &schema, &record).await;
+                if let Some(ref prev) = prev_article {
+                    tags.add_dependency("article", &prev.id);
+                    tags.add_dependency("article", &prev.slug);
+                }
+                if let Some(ref next) = next_article {
+                    tags.add_dependency("article", &next.id);
+                    tags.add_dependency("article", &next.slug);
+                }
+
                 let comments = comments::page_section(&state, "article", &record.id).await;
                 let related_limit = state.config.theme.related_posts_limit;
                 let related_articles = if related_limit > 0 {
@@ -646,6 +827,8 @@ pub async fn render_page_or_slug(
                     fields: record.custom_fields,
                     comments,
                     related_articles,
+                    prev_article,
+                    next_article,
                 };
                 let resp = themed_response(render::render_page(&state, &schema, page).await);
                 return crate::cdn::apply_cache_tags(&state, resp, &tags);
@@ -1512,5 +1695,39 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::OK);
         assert!(!html.contains("related-articles"), "{}", html);
+    }
+
+    #[tokio::test]
+    async fn test_find_adjacent_articles_chronological_and_category() {
+        let state = front_page_state("posts").await;
+        let schema = {
+            let schemas = state.schemas.read().await;
+            schemas.get("article").cloned().unwrap()
+        };
+
+        let mut cat_tech = HashMap::new();
+        cat_tech.insert("category_id".to_string(), serde_json::json!("tech"));
+
+        let mut cat_news = HashMap::new();
+        cat_news.insert("category_id".to_string(), serde_json::json!("news"));
+
+        let id1 = insert_published(&state, "article", "post-1", 1, &[], cat_tech.clone()).await;
+        let id2 = insert_published(&state, "article", "post-2", 2, &[], cat_news.clone()).await;
+        let _id3 = insert_published(&state, "article", "post-3", 3, &[], cat_tech.clone()).await;
+
+        let cur_record = state.db.get_content(&schema, &id2).await.unwrap().unwrap();
+
+        // 1. カテゴリモード（既定）: post-2 は news カテゴリなので、同カテゴリに前後記事が無い
+        // fallback_to_all が true（既定）なら、全記事から post-1 (prev) と post-3 (next) が取れる
+        let (prev, next) = find_adjacent_articles(&state, &schema, &cur_record).await;
+        assert_eq!(prev.as_ref().map(|p| p.slug.as_str()), Some("post-1"));
+        assert_eq!(next.as_ref().map(|n| n.slug.as_str()), Some("post-3"));
+
+        // post-1 (tech カテゴリ) の前後を検索
+        let cur_record_1 = state.db.get_content(&schema, &id1).await.unwrap().unwrap();
+        let (prev_1, next_1) = find_adjacent_articles(&state, &schema, &cur_record_1).await;
+        assert!(prev_1.is_none());
+        // post-3 は同じ tech カテゴリなので next に選ばれる（post-2 は news なのでスキップ）
+        assert_eq!(next_1.as_ref().map(|n| n.slug.as_str()), Some("post-3"));
     }
 }
