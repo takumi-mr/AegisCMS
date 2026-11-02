@@ -19,6 +19,30 @@ const MAX_LIST_LIMIT: usize = 500;
 /// 一覧のために走査するオブジェクト数の上限（超えた分は `truncated: true` で通知）
 const MAX_LIST_SCAN: usize = 10_000;
 
+/// アップロード・削除で受け取るストレージキーが安全かを検証する。
+/// `..`、絶対パス（Windows のドライブレター `C:\...`・UNC パス `\\host\share\...` を含む）、NTFS の
+/// 代替データストリーム（`:`）を拒否する。`StorageBackend` 実装（`local.rs` 等）側でも同様の検証を
+/// 行っているが、バックエンドの実装詳細に依存しない多重防御としてハンドラ層でも検証する。
+/// `std::path::Path::is_absolute()` は実行 OS によって判定基準が変わる
+/// （Windows のドライブレターなしの `/foo` は絶対パス扱いされない、Linux では UNC パスの
+/// `\\host\share` が絶対パス扱いされない等）ため、ここでは先頭が `/` または `\` であるかという
+/// 文字列としての判定をどの OS でも同じ基準で行う。
+fn validate_storage_key(key: &str) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
+    let invalid = key.is_empty()
+        || key.contains("..")
+        || key.contains(':')
+        || key.starts_with('/')
+        || key.starts_with('\\')
+        || std::path::Path::new(key).is_absolute();
+    if invalid {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Invalid storage key" })),
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct ListObjectsParams {
     /// キーの前方一致（例: `2026/10/`）
@@ -175,6 +199,7 @@ pub async fn upload_file(
         .to_string();
 
     let storage_key = if let Some(key) = custom_key {
+        validate_storage_key(&key)?;
         key
     } else {
         let date_folder = now.format("%Y/%m").to_string();
@@ -295,12 +320,7 @@ pub async fn delete_object(
     audit: AuditContext,
 ) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
     let key = key.trim().trim_start_matches('/').to_string();
-    if key.is_empty() || key.split(['/', '\\']).any(|part| part == "..") {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "Invalid storage key" })),
-        ));
-    }
+    validate_storage_key(&key)?;
     let storage_error = |e: aegis_core::AegisError| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -379,6 +399,35 @@ pub async fn delete_object(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// F-04 回帰テスト: `upload_file`/`delete_object` が共有する検証関数そのものを直接確認する
+    /// （docs/security-assessment-report.md 参照）。
+    #[test]
+    fn test_validate_storage_key_rejects_traversal_and_absolute_keys() {
+        for key in [
+            "",
+            "..",
+            "../secret.txt",
+            "a/../../b.png",
+            r"C:\Windows\win.ini",
+            "C:/Windows/win.ini",
+            r"\\attacker-host\share\evil.txt",
+            "image.png:hidden-stream",
+        ] {
+            assert!(
+                validate_storage_key(key).is_err(),
+                "key {:?} should be rejected",
+                key
+            );
+        }
+        for key in ["images/sample.txt", "2026/10/report.pdf", "a-b_c.png"] {
+            assert!(
+                validate_storage_key(key).is_ok(),
+                "key {:?} should be accepted",
+                key
+            );
+        }
+    }
 
     fn object(key: &str, last_modified: Option<&str>) -> StorageObject {
         StorageObject {
@@ -560,7 +609,18 @@ mod tests {
     #[tokio::test]
     async fn test_delete_rejects_invalid_keys() {
         let state = crate::test_support::test_state(aegis_runtime::PluginSupervisor::new()).await;
-        for key in ["", "  ", "../secret.txt", "a/../../b.png"] {
+        for key in [
+            "",
+            "  ",
+            "../secret.txt",
+            "a/../../b.png",
+            // F-04 回帰テスト: ドライブレター絶対パス・UNC パス・ADS も拒否する
+            // (docs/security-assessment-report.md 参照)
+            r"C:\Windows\win.ini",
+            "C:/Windows/win.ini",
+            r"\\attacker-host\share\evil.txt",
+            "image.png:hidden-stream",
+        ] {
             assert_eq!(
                 delete(&state, key, true).await.unwrap_err().0,
                 StatusCode::BAD_REQUEST,
