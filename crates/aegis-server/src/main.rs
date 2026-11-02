@@ -35,6 +35,7 @@ mod scheduler;
 #[cfg(feature = "search")]
 mod search;
 mod seo;
+mod setup;
 mod site;
 mod state;
 mod system;
@@ -77,6 +78,36 @@ enum Commands {
         host: Option<String>,
     },
     /// Run schema migrations against the configured database
+    /// Initialize database, create initial administrator account and seed sample content
+    Init {
+        /// Site title
+        #[arg(long)]
+        site_title: Option<String>,
+
+        /// Initial admin username
+        #[arg(short = 'u', long)]
+        admin_user: Option<String>,
+
+        /// Initial admin password (env: AEGIS_ADMIN_PASSWORD)
+        #[arg(long, env = "AEGIS_ADMIN_PASSWORD")]
+        admin_password: Option<String>,
+
+        /// Initial admin email address
+        #[arg(long)]
+        admin_email: Option<String>,
+
+        /// Initial admin display name
+        #[arg(long)]
+        admin_display_name: Option<String>,
+
+        /// Seed sample content (welcome article and about page)
+        #[arg(long)]
+        sample_data: Option<bool>,
+
+        /// Run in non-interactive mode (fails if required arguments are missing)
+        #[arg(long)]
+        non_interactive: bool,
+    },
     Migrate,
     /// Generate TypeScript type definitions or OpenAPI specifications from schemas
     Codegen {
@@ -394,6 +425,147 @@ async fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyh
 }
 
 /// 新しいパスワードを読み込む: 環境変数 `AEGIS_USER_PASSWORD` → 端末なら非表示入力（確認つき）→ 標準入力の 1 行
+fn prompt_line(prompt: &str, default: Option<&str>) -> anyhow::Result<String> {
+    use std::io::{stdin, stdout, Write};
+    if let Some(def) = default {
+        print!("{} [{}]: ", prompt, def);
+    } else {
+        print!("{}: ", prompt);
+    }
+    stdout().flush()?;
+    let mut line = String::new();
+    stdin().read_line(&mut line)?;
+    let trimmed = line.trim_end_matches(['\r', '\n']).trim();
+    if trimmed.is_empty() {
+        if let Some(def) = default {
+            return Ok(def.to_string());
+        }
+    }
+    Ok(trimmed.to_string())
+}
+
+fn prompt_password_init(prompt: &str) -> anyhow::Result<String> {
+    use std::io::IsTerminal;
+    if std::io::stdin().is_terminal() {
+        let password = rpassword::prompt_password(prompt)?;
+        let confirm = rpassword::prompt_password("Confirm password: ")?;
+        anyhow::ensure!(password == confirm, "Passwords do not match");
+        return Ok(password);
+    }
+    let mut line = String::new();
+    std::io::stdin().read_line(&mut line)?;
+    Ok(line.trim_end_matches(['\r', '\n']).to_string())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_init_command(
+    config: &AegisConfig,
+    site_title: Option<String>,
+    admin_user: Option<String>,
+    admin_password: Option<String>,
+    admin_email: Option<String>,
+    admin_display_name: Option<String>,
+    sample_data: Option<bool>,
+    non_interactive: bool,
+) -> anyhow::Result<()> {
+    use std::io::IsTerminal;
+
+    let is_interactive = !non_interactive && std::io::stdin().is_terminal();
+
+    let resolved_title = if let Some(t) = site_title {
+        t
+    } else if is_interactive {
+        prompt_line("Site title", Some("AegisCMS"))?
+    } else {
+        "AegisCMS".to_string()
+    };
+
+    let resolved_username = if let Some(u) = admin_user {
+        u
+    } else if is_interactive {
+        prompt_line("Initial admin username", Some("admin"))?
+    } else {
+        "admin".to_string()
+    };
+
+    let resolved_password = if let Some(p) = admin_password {
+        p
+    } else if is_interactive {
+        prompt_password_init("Admin password (min 8 characters): ")?
+    } else {
+        anyhow::bail!(
+            "Admin password is required: pass --admin-password or set AEGIS_ADMIN_PASSWORD"
+        );
+    };
+
+    let resolved_email = if let Some(e) = admin_email {
+        Some(e)
+    } else if is_interactive {
+        let e = prompt_line("Admin email address (optional)", None)?;
+        if e.is_empty() {
+            None
+        } else {
+            Some(e)
+        }
+    } else {
+        None
+    };
+
+    let resolved_display_name = if let Some(d) = admin_display_name {
+        Some(d)
+    } else if is_interactive {
+        let d = prompt_line("Admin display name", Some("Administrator"))?;
+        if d.is_empty() {
+            None
+        } else {
+            Some(d)
+        }
+    } else {
+        Some("Administrator".to_string())
+    };
+
+    let resolved_sample_data = if let Some(s) = sample_data {
+        s
+    } else if is_interactive {
+        let resp = prompt_line(
+            "Create sample content (welcome article and about page)? [Y/n]",
+            Some("Y"),
+        )?;
+        !resp.eq_ignore_ascii_case("n")
+    } else {
+        true
+    };
+
+    let opts = setup::InitOptions {
+        site_title: resolved_title,
+        admin_username: resolved_username,
+        admin_password: resolved_password,
+        admin_email: resolved_email,
+        admin_display_name: resolved_display_name,
+        create_sample_data: resolved_sample_data,
+    };
+
+    let res = setup::run_init(config, opts).await?;
+
+    println!("\n====================================================");
+    println!(" AegisCMS initialization completed successfully!");
+    println!("====================================================");
+    println!("  Site Title : {}", res.site_title);
+    println!(
+        "  Admin User : {} (id: {})",
+        res.admin_username, res.admin_user_id
+    );
+    if let Some(id) = res.sample_article_id {
+        println!("  Sample Post: welcome-to-aegiscms (id: {})", id);
+    }
+    if let Some(id) = res.sample_page_id {
+        println!("  Sample Page: about (id: {})", id);
+    }
+    println!("\nYou can now start the server with: aegis run\n");
+
+    Ok(())
+}
+
 fn read_new_password() -> anyhow::Result<String> {
     use std::io::IsTerminal;
 
@@ -534,6 +706,27 @@ async fn main() -> anyhow::Result<()> {
         port: None,
         host: None,
     }) {
+        Commands::Init {
+            site_title,
+            admin_user,
+            admin_password,
+            admin_email,
+            admin_display_name,
+            sample_data,
+            non_interactive,
+        } => {
+            run_init_command(
+                &config,
+                site_title,
+                admin_user,
+                admin_password,
+                admin_email,
+                admin_display_name,
+                sample_data,
+                non_interactive,
+            )
+            .await?;
+        }
         Commands::Migrate => {
             tracing::info!("Loading schemas from {:?}", config.paths.schemas_dir);
             let schemas_vec = SchemaLoader::load_dir(&config.paths.schemas_dir)?;
@@ -1561,5 +1754,38 @@ mod tests {
             resolve_admin_url(&config),
             Some("https://reset.example.com/admin/".to_string())
         );
+    }
+    #[tokio::test]
+    async fn test_run_init_command_non_interactive() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let schemas_dir = temp_dir.path().join("schemas");
+        tokio::fs::create_dir_all(&schemas_dir).await.unwrap();
+        let db_file = temp_dir.path().join("init_cli_test.db");
+
+        let mut config = AegisConfig::default();
+        config.database.url = format!("sqlite://{}?mode=rwc", db_file.to_str().unwrap());
+        config.paths.schemas_dir = schemas_dir;
+
+        let result = run_init_command(
+            &config,
+            Some("My Site".to_string()),
+            Some("owner".to_string()),
+            Some("secretpass123".to_string()),
+            Some("owner@example.com".to_string()),
+            Some("Site Owner".to_string()),
+            Some(false),
+            true,
+        )
+        .await;
+
+        assert!(result.is_ok());
+
+        let db = aegis_db::create_database_adapter(&config.database)
+            .await
+            .unwrap();
+        let users = db.list_users().await.unwrap();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].username, "owner");
+        assert_eq!(users[0].role, "admin");
     }
 }
