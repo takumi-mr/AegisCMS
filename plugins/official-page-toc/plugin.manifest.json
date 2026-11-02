@@ -1,6 +1,6 @@
 {
   "name": "official-page-toc",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Page TOC & Reading Progress",
   "description": "Adds a table of contents with heading links and a reading progress bar beside articles and pages. Configure it in [plugins.settings.official-page-toc].",

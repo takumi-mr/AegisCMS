@@ -1,6 +1,6 @@
 {
   "name": "official-post-navigation",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "abi_version": 1,
   "entrypoint": "plugin.wasm",
   "display_name": "Post Navigation (Prev/Next)",
