@@ -349,7 +349,7 @@ fields: []
         );
 
         let article_schema_def = aegis_schema::SchemaLoader::load_from_file(
-            &config.paths.schemas_dir.join("article.yaml"),
+            config.paths.schemas_dir.join("article.yaml"),
         )
         .unwrap();
         let article = db

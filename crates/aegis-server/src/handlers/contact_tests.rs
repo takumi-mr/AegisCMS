@@ -55,10 +55,11 @@ async fn site(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     config.contact.enabled = true;
     config.audit.enabled = true;
     configure(&mut config);
+    let captchas = config.resolve_captcha().unwrap();
     let state =
         crate::test_support::test_app_state(config, PluginSupervisor::new(), Vec::new()).await;
     let mails = Arc::new(RecordingNotifier::default());
-    let mut state = state.with_notifier(mails.clone());
+    let mut state = state.with_notifier(mails.clone()).with_captcha(captchas);
     if state.config.contact.enabled {
         let contact =
             aegis_contact::ContactService::new(state.config.contact.clone(), state.contact_deps())
@@ -453,7 +454,12 @@ async fn test_japanese_messages_and_subject_field() {
     assert!(thanks.body.contains("お問い合わせありがとうございます。"));
 }
 
-fn multipart(parts: &[(&str, Option<(&str, &str)>, &[u8])]) -> (String, Vec<u8>) {
+/// `(name, Some((filename, content_type)), body)`
+type Part<'a> = (&'a str, Option<(&'a str, &'a str)>, &'a [u8]);
+/// [`Part`] の、本文を持つ版
+type OwnedPart = (&'static str, Option<(&'static str, &'static str)>, Vec<u8>);
+
+fn multipart(parts: &[Part]) -> (String, Vec<u8>) {
     let boundary = "----aegis-test-boundary";
     let mut body = Vec::new();
     for (name, file, data) in parts {
@@ -499,7 +505,7 @@ async fn test_attachment_upload_download_and_search() {
     assert!(page.body.contains(r#"type="file""#));
     assert!(page.body.contains(r#"accept=".jpg,"#), "{}", page.body);
 
-    let mut parts: Vec<(&str, Option<(&str, &str)>, &[u8])> = VALID
+    let mut parts: Vec<Part> = VALID
         .iter()
         .map(|(k, v)| (*k, None, v.as_bytes()))
         .collect();
@@ -616,10 +622,10 @@ async fn test_attachment_rejected_by_type_and_too_large_body() {
         config.contact.forms[0].fields = fields;
     })
     .await;
-    let post = |parts: Vec<(&'static str, Option<(&'static str, &'static str)>, Vec<u8>)>| {
+    let post = |parts: Vec<OwnedPart>| {
         let site = &site;
         async move {
-            let borrowed: Vec<(&str, Option<(&str, &str)>, &[u8])> = parts
+            let borrowed: Vec<Part> = parts
                 .iter()
                 .map(|(n, f, d)| (*n, *f, d.as_slice()))
                 .collect();
@@ -640,7 +646,7 @@ async fn test_attachment_rejected_by_type_and_too_large_body() {
                 .unwrap()
         }
     };
-    let base = || -> Vec<(&'static str, Option<(&'static str, &'static str)>, Vec<u8>)> {
+    let base = || -> Vec<OwnedPart> {
         VALID
             .iter()
             .map(|(k, v)| (*k, None, v.as_bytes().to_vec()))
@@ -698,28 +704,14 @@ async fn mock_siteverify() -> String {
     url
 }
 
-fn captcha(verify_url: String) -> aegis_contact::config::ContactConfig {
-    aegis_contact::config::ContactConfig {
-        enabled: true,
-        captcha: Some(aegis_captcha::CaptchaConfig {
-            provider: aegis_captcha::Provider::Turnstile,
-            site_key: "site-key".to_string(),
-            secret: "secret-key".to_string(),
-            fail_open: false,
-            timeout_secs: 5,
-            verify_url,
-            script_url: String::new(),
-            widget_class: String::new(),
-            response_field: String::new(),
-        }),
-        ..Default::default()
-    }
+fn captcha(verify_url: String) -> aegis_captcha::SharedCaptchaConfig {
+    crate::test_support::shared_captcha(verify_url, vec![aegis_captcha::CaptchaTarget::Contact])
 }
 
 #[tokio::test]
 async fn test_captcha_widget_csp_and_html_form_verification() {
     let url = mock_siteverify().await;
-    let site = site(|config| config.contact = captcha(url)).await;
+    let site = site(|config| config.captcha = Some(captcha(url))).await;
 
     // ページのフォームと、ブロック・自前のテンプレート用の値にウィジェットが入り、CSP が通す
     let page = site.get("/contact").await;
@@ -781,7 +773,7 @@ async fn test_captcha_widget_csp_and_html_form_verification() {
 #[tokio::test]
 async fn test_captcha_json_api_needs_a_token_too() {
     let url = mock_siteverify().await;
-    let site = site(|config| config.contact = captcha(url)).await;
+    let site = site(|config| config.captcha = Some(captcha(url))).await;
     let body = |token: Option<&str>| {
         let mut body = json!({
             "name": "Hanako", "email": "hanako@example.com", "message": "Hello"

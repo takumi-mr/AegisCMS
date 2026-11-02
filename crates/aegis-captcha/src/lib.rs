@@ -77,7 +77,7 @@ impl Provider {
     }
 }
 
-/// `[contact.captcha]` など、フォームごとの CAPTCHA の設定
+/// CAPTCHA の設定（共通の `[captcha]` に平らに入る。[`SharedCaptchaConfig`]）
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CaptchaConfig {
     pub provider: Provider,
@@ -109,6 +109,55 @@ pub struct CaptchaConfig {
 
 fn default_timeout_secs() -> u64 {
     5
+}
+
+/// CAPTCHA をかけられる送信先
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CaptchaTarget {
+    /// 問い合わせフォーム（`[contact]`）
+    Contact,
+    /// ニュースレターの申し込み（`[newsletter]`）
+    Newsletter,
+    /// コメント（`[comments]`）
+    Comments,
+    /// 掲示板のスレッド作成・レス（`[forum]`。ログイン済みのユーザーは対象外）
+    Forum,
+}
+
+/// 共通の CAPTCHA 設定（`[captcha]`）。`targets` に挙げた送信先にだけかける
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SharedCaptchaConfig {
+    #[serde(flatten)]
+    pub config: CaptchaConfig,
+    /// かける送信先
+    pub targets: Vec<CaptchaTarget>,
+}
+
+impl SharedCaptchaConfig {
+    /// `target` にかけるか
+    pub fn applies_to(&self, target: CaptchaTarget) -> bool {
+        self.targets.contains(&target)
+    }
+
+    /// 設定の検査（`targets` が空・重複していないか、`config` が正しいか）
+    pub fn validate(&self) -> Result<()> {
+        if self.targets.is_empty() {
+            return Err(AegisError::Config(
+                "[captcha] targets must list at least one of contact, newsletter, comments, forum"
+                    .to_string(),
+            ));
+        }
+        for (i, target) in self.targets.iter().enumerate() {
+            if self.targets[..i].contains(target) {
+                return Err(AegisError::Config(format!(
+                    "[captcha] targets lists {:?} more than once",
+                    target
+                )));
+            }
+        }
+        self.config.validate("[captcha]")
+    }
 }
 
 /// `"env:VAR_NAME"` なら環境変数の値、それ以外はそのまま。空・未設定は `None`
@@ -162,7 +211,7 @@ impl CaptchaConfig {
         non_empty(&self.response_field, self.provider.preset().response_field)
     }
 
-    /// 設定の検査。`enabled` のときに起動時に呼ぶ（`context` は `[contact.captcha]` のような設定の場所）
+    /// 設定の検査。`enabled` のときに起動時に呼ぶ（`context` は `[captcha]` のような設定の場所）
     pub fn validate(&self, context: &str) -> Result<()> {
         let err = |m: String| Err(AegisError::Config(format!("{} {}", context, m)));
         if self.site_key.trim().is_empty() {

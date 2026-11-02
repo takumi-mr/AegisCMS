@@ -102,6 +102,12 @@ pub struct CommentSection {
     pub max_depth: u32,
     /// 本文の最大文字数
     pub max_length: usize,
+    /// CAPTCHA のウィジェットの HTML（エスケープ済み。`[captcha]` の `targets` に `comments` があるときだけ。無ければ空）
+    #[serde(default)]
+    pub captcha_html: String,
+    /// CAPTCHA のトークンが入るフォームの欄の名前（`captcha_html` があるときだけ）
+    #[serde(default)]
+    pub captcha_field: String,
 }
 
 /// 公開ページに出すコメント（メールアドレス・IP アドレスは含めない）

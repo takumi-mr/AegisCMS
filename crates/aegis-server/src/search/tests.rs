@@ -491,11 +491,11 @@ async fn test_tag_filter_and_search_page() {
     }
 
     tag_service
-        .set_content_tags("article", "a1", &[tag_rust.id.clone()])
+        .set_content_tags("article", "a1", std::slice::from_ref(&tag_rust.id))
         .await
         .unwrap();
     tag_service
-        .set_content_tags("article", "a2", &[tag_caddy.id.clone()])
+        .set_content_tags("article", "a2", std::slice::from_ref(&tag_caddy.id))
         .await
         .unwrap();
     tag_service

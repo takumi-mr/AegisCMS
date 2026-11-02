@@ -78,6 +78,8 @@ pub struct AppState {
     pub contact: Option<Arc<aegis_contact::ContactService>>,
     /// ニュースレター（`[newsletter]`）。無効なら `None`
     pub newsletter: Option<Arc<aegis_newsletter::NewsletterService>>,
+    /// 送信先ごとの CAPTCHA（`[captcha]`）。掲示板はログインしていない投稿者だけにかける
+    pub captcha: crate::config::Captchas,
     /// 通知（`[notifications]`）。無効なら `None`
     pub notifier: Option<Arc<dyn Notifier>>,
     /// 通知の管理（Admin Studio のテンプレート編集・テスト送信・送信待ち）。`notifier` と同じもの
@@ -195,6 +197,7 @@ impl AppState {
             forum: None,
             contact: None,
             newsletter: None,
+            captcha: Default::default(),
             notifier: None,
             notifications: None,
             registration: None,
@@ -348,6 +351,12 @@ impl AppState {
         self
     }
 
+    /// 送信先ごとの CAPTCHA（`[captcha]`）を設定する。問い合わせ・ニュースレターの部品を作る前に呼ぶ
+    pub fn with_captcha(mut self, captcha: crate::config::Captchas) -> Self {
+        self.captcha = captcha;
+        self
+    }
+
     /// ニュースレターが使うサーバーの部品（`NewsletterService::new` に渡す）。通知を設定した後に呼ぶ
     pub fn newsletter_deps(&self) -> aegis_newsletter::NewsletterDeps {
         aegis_newsletter::NewsletterDeps {
@@ -355,6 +364,7 @@ impl AppState {
             cache: self.cache.clone(),
             audit: self.audit.clone(),
             notifier: self.notifier.clone(),
+            captcha: self.captcha.newsletter.clone(),
             site_url: self
                 .config
                 .commerce
@@ -375,6 +385,7 @@ impl AppState {
             storage: self.storage.clone(),
             notifier: self.notifier.clone(),
             admin_url: self.admin_url.clone().unwrap_or_default(),
+            captcha: self.captcha.contact.clone(),
         }
     }
 

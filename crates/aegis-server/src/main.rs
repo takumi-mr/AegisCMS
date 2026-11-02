@@ -838,6 +838,8 @@ async fn main() -> anyhow::Result<()> {
             config.notifications.validate()?;
             config.cdn.validate()?;
             config.auth.registration.validate()?;
+            // 共通の CAPTCHA（[captcha]）。`targets` に挙げた送信先ごとの検証を作り、サービスの部品に渡す
+            let captchas = config.resolve_captcha()?;
             #[cfg(feature = "analytics")]
             config.analytics.validate().map_err(anyhow::Error::msg)?;
             if config.notifications.enabled
@@ -999,6 +1001,7 @@ async fn main() -> anyhow::Result<()> {
                 audit,
                 theme_engine,
             );
+            app_state.captcha = captchas;
             app_state.plugin_settings = plugin_settings;
             app_state.bus = bus;
             app_state.plugin_registry = Arc::new(plugin_registry::PluginRegistry::new(

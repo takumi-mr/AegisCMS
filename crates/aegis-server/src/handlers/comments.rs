@@ -17,6 +17,7 @@ use crate::handlers::public::{render_not_found, themed_response};
 use crate::render;
 use crate::state::AppState;
 use aegis_cache::CacheTags;
+use aegis_captcha::CaptchaError;
 use aegis_comments::{
     AdminCommentPage, AdminListQuery, ClientInfo, CommentError, CommentRequest, CommentService,
     ModerationSettings, PolicyOverrides, StaffAuthor,
@@ -49,6 +50,14 @@ fn comment_error(e: CommentError) -> ApiError {
     api_error(status, e.to_string())
 }
 
+/// CAPTCHA を通らなかった（400）、検証サービスに届かなかった（503）。機械可読な `code` も付ける
+fn captcha_error(status: StatusCode, code: &str, failure: CaptchaError) -> ApiError {
+    (
+        status,
+        Json(json!({ "error": failure.to_string(), "code": code })),
+    )
+}
+
 fn comments(state: &AppState) -> Result<Arc<CommentService>, ApiError> {
     state.comments.clone().ok_or_else(|| {
         api_error(
@@ -69,6 +78,15 @@ fn post_url(state: &AppState, content_type: &str, id: &str) -> String {
         "{}/api/v1/contents/{}/{}/comments",
         base_path, content_type, id
     )
+}
+
+/// コメントに CAPTCHA をかけているとき（`[captcha]` の `targets` に `comments`）、ウィジェットを足す
+fn with_captcha(state: &AppState, mut section: CommentSection) -> CommentSection {
+    if let Some(captcha) = &state.captcha.comments {
+        section.captcha_html = captcha.widget_html();
+        section.captcha_field = captcha.response_field().to_string();
+    }
+    section
 }
 
 /// 公開ページのコメント欄（コメントを受け付ける種類のときだけ。失敗したら出さない）
@@ -98,7 +116,7 @@ pub async fn page_section(
         .section(&target, post_url(state, content_type, &target.id))
         .await
     {
-        Ok(section) => Some(section),
+        Ok(section) => Some(with_captcha(state, section)),
         Err(e) => {
             tracing::error!(
                 "Could not load the comments of {}/{}: {}",
@@ -130,9 +148,8 @@ pub async fn list_public_comments(
         .await
         .map_err(comment_error)?;
     let url = post_url(&state, &content_type, &target.id);
-    Ok(Json(
-        service.section(&target, url).await.map_err(comment_error)?,
-    ))
+    let section = service.section(&target, url).await.map_err(comment_error)?;
+    Ok(Json(with_captcha(&state, section)))
 }
 
 /// `POST` の応答。承認待ち（スパムを含む）なら `comment` は無い
@@ -169,6 +186,26 @@ pub async fn submit_comment(
             .and_then(|v| v.to_str().ok())
             .map(|s| s.chars().take(512).collect()),
     };
+    // 見えない欄に値があるものは、検証サービスに聞かずに `submit` が黙って捨てる
+    if let Some(captcha) = &state.captcha.comments {
+        if request.website.trim().is_empty() {
+            if let Err(failure) = captcha
+                .verify(request.captcha_token.as_deref(), client.ip.as_deref())
+                .await
+            {
+                return Err(match failure {
+                    CaptchaError::Failed => {
+                        captcha_error(StatusCode::BAD_REQUEST, "captcha_failed", failure)
+                    }
+                    CaptchaError::Unavailable => captcha_error(
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        "captcha_unavailable",
+                        failure,
+                    ),
+                });
+            }
+        }
+    }
     let submitted = service
         .submit(&target, request, &client)
         .await

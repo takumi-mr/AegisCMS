@@ -10,7 +10,7 @@
  読者 ── /newsletter のフォーム（または POST /api/v1/newsletter/subscribe）
         │  メールアドレス
         ▼
- ボット除けの見えない欄／CAPTCHA（任意）／IP ごとの申し込み数 ── 断る・成功と同じに見せて捨てる
+ ボット除けの見えない欄／CAPTCHA（`[captcha]` の `targets` に `newsletter`）／IP ごとの申し込み数 ── 断る・成功と同じに見せて捨てる
         │
  新しいアドレス・解除したアドレス ──▶ 確認待ち（pending）で保存 → 確認メール newsletter.confirm
  登録済み・確認待ち（1 分以内）   ──▶ 何も送らない（どの状態かは応答から分からない）
@@ -49,14 +49,14 @@ locale = "ja"                         # 申し込み・確認・停止のペー�
 | `max_per_ip_per_hour` | integer | `10` | 同じ IP からの 1 時間あたりの申し込みの数（0 で無制限。`[cache]` で数える） |
 | `confirm_ttl_hours` | integer | `48` | 確認リンクの有効期限（時間。1〜336）。過ぎたら同じアドレスでもう一度申し込む |
 | `locale` | string | `"en"` | 申し込み・確認・停止のページの文言の言語。`en` / `ja` |
-| `captcha` | table | なし | `[newsletter.captcha]`。書くと申し込みのたびに CAPTCHA を検証する（[2](#2-captcha任意)） |
 
 ## 2. CAPTCHA（任意）
 
 申し込みフォームがボットに狙われるときだけ、CAPTCHA を足せます。書き方・fail-closed の既定・CSP の自動追加は問い合わせフォームと同じです（[問い合わせフォーム 1.2](contact.md#12-captcha任意)）。
 
 ```toml
-[newsletter.captcha]
+[captcha]
+targets = ["newsletter"]
 provider = "turnstile"
 site_key = "0x4AAAA..."
 secret = "env:TURNSTILE_SECRET"

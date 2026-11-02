@@ -824,16 +824,18 @@ async fn security_headers_middleware(
     let headers_config = state.headers();
     // 有効なプラグインのカスタムブロックが埋め込む iframe の配信元を CSP の frame-src に足す
     let frame_hosts = state.supervisor.read().await.frame_domains();
-    let mut captcha_hosts = state
-        .contact
-        .as_ref()
-        .map(|c| c.captcha_csp_hosts())
-        .unwrap_or_default();
-    if let Some(newsletter) = &state.newsletter {
-        for host in newsletter.captcha_csp_hosts() {
-            if !captcha_hosts.contains(&host) {
-                captcha_hosts.push(host);
-            }
+    let captchas = &state.captcha;
+    let others = [
+        &captchas.contact,
+        &captchas.newsletter,
+        &captchas.comments,
+        &captchas.forum,
+    ]
+    .map(|c| c.as_ref().map(|c| c.csp_hosts()).unwrap_or_default());
+    let mut captcha_hosts: Vec<String> = Vec::new();
+    for host in others.into_iter().flatten() {
+        if !captcha_hosts.contains(&host) {
+            captcha_hosts.push(host);
         }
     }
     let plugin_csp = state.supervisor.read().await.csp_sources();

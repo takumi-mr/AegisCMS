@@ -532,3 +532,132 @@ async fn test_forum_moderation_settings_and_reports_api() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 }
+
+/// 手元で動く siteverify。トークン `good` だけ通す
+async fn mock_siteverify() -> String {
+    let app = axum::Router::new().route(
+        "/siteverify",
+        axum::routing::post(
+            |axum::Form(form): axum::Form<std::collections::HashMap<String, String>>| async move {
+                match form.get("response").map(String::as_str) {
+                    Some("good") => r#"{"success": true}"#,
+                    _ => r#"{"success": false}"#,
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/siteverify", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    url
+}
+
+#[tokio::test]
+async fn test_forum_captcha_applies_to_guests_only() {
+    let mut config = AegisConfig::default();
+    config.forum.enabled = true;
+    config.forum.rate_limit_secs = 0;
+    config.captcha = Some(crate::test_support::shared_captcha(
+        mock_siteverify().await,
+        vec![aegis_captcha::CaptchaTarget::Forum],
+    ));
+    let captchas = config.resolve_captcha().unwrap();
+    assert!(captchas.comments.is_none() && captchas.forum.is_some());
+
+    let state =
+        crate::test_support::test_app_state(config.clone(), PluginSupervisor::new(), Vec::new())
+            .await;
+    let forum_service =
+        ForumService::new(config.forum.clone(), state.forum_deps(state.db.clone())).unwrap();
+    let cat = forum_service
+        .create_category(
+            CreateCategoryRequest {
+                slug: "general".to_string(),
+                name: "General Discussion".to_string(),
+                description: String::new(),
+                position: 0,
+                is_private: false,
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    let session = state
+        .sessions
+        .create_session("member", "editor", Default::default(), None)
+        .await
+        .unwrap()
+        .id;
+    let state = Arc::new(state.with_forum(forum_service).with_captcha(captchas));
+    let router = app::router(&config, state.clone());
+
+    // 新規スレッドのフォームにウィジェットが入る
+    let res = router
+        .clone()
+        .oneshot(Request::get("/forum/general").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let body = axum::body::to_bytes(res.into_body(), 200_000)
+        .await
+        .unwrap();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(
+        html.contains(r#"class="cf-turnstile" data-sitekey="site-key""#),
+        "{}",
+        html
+    );
+
+    let post_form = |body: &str, token: Option<&str>| {
+        let mut req = Request::post("/forum/general/threads")
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+        if let Some(token) = token {
+            req = req.header(header::AUTHORIZATION, format!("Bearer {}", token));
+        }
+        req.body(Body::from(body.to_string())).unwrap()
+    };
+    let status_of = |req: Request<Body>| {
+        let router = router.clone();
+        async move { router.oneshot(req).await.unwrap().status() }
+    };
+
+    // ゲスト: トークンなし・違うトークンは断る、正しいトークンは通る（リダイレクト）
+    assert_eq!(
+        status_of(post_form("title=Hello&body=Hi", None)).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        status_of(post_form(
+            "title=Hello&body=Hi&cf-turnstile-response=bad",
+            None
+        ))
+        .await,
+        StatusCode::BAD_REQUEST
+    );
+    assert!(status_of(post_form(
+        "title=Hello&body=Hi&cf-turnstile-response=good",
+        None
+    ))
+    .await
+    .is_redirection());
+
+    // ログイン済みのユーザーはトークンなしで投稿できる
+    assert!(status_of(post_form("title=Member&body=Hi", Some(&session)))
+        .await
+        .is_redirection());
+
+    // JSON API も同じ（`captcha_token`）
+    let api = |token: Option<&str>| {
+        let mut body = json!({
+            "category_id": cat.id, "title": "Via API", "body": "Hi", "author_name": "Bot"
+        });
+        if let Some(token) = token {
+            body["captcha_token"] = json!(token);
+        }
+        Request::post("/api/v1/forum/threads")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    };
+    assert_eq!(status_of(api(None)).await, StatusCode::BAD_REQUEST);
+    assert_eq!(status_of(api(Some("good"))).await, StatusCode::CREATED);
+}

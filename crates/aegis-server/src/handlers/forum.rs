@@ -19,6 +19,7 @@ use crate::auth::{extract_session_id, AdminSession, EditorSession};
 use crate::render;
 use crate::state::AppState;
 use aegis_cache::CacheTags;
+use aegis_captcha::CaptchaError;
 use aegis_comments::PolicyOverrides;
 use aegis_core::{ModerationStatus, PageRenderContext, Pagination};
 use aegis_db::{PostListQuery, ThreadListQuery};
@@ -368,6 +369,7 @@ pub async fn render_forum_category(
     if let Ok(v) = serde_json::to_value(&paged_threads) {
         ctx.fields.insert("threads".to_string(), v);
     }
+    insert_captcha_html(&state, &mut ctx);
     if params.submitted.as_deref() == Some("pending") {
         ctx.fields.insert("pending_notice".to_string(), json!(true));
     }
@@ -515,6 +517,7 @@ pub async fn render_forum_thread(
     if let Ok(v) = serde_json::to_value(&paged_posts) {
         ctx.fields.insert("posts".to_string(), v);
     }
+    insert_captcha_html(&state, &mut ctx);
     if params.submitted.as_deref() == Some("pending") {
         ctx.fields.insert("pending_notice".to_string(), json!(true));
     }
@@ -543,6 +546,9 @@ pub struct CreateThreadForm {
     #[serde(default)]
     pub author_name: String,
     pub body: String,
+    /// 上以外の欄。CAPTCHA のトークン（提供元ごとに欄の名前が違う）はここから取る
+    #[serde(flatten)]
+    pub extra: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -550,7 +556,78 @@ pub struct CreatePostForm {
     #[serde(default)]
     pub author_name: String,
     pub body: String,
-    pub reply_to_number: Option<u64>,
+    /// 返信先のレス番号。`flatten` と数値は併用できないので文字列で受けて読む
+    #[serde(default)]
+    pub reply_to_number: String,
+    /// 上以外の欄。CAPTCHA のトークンはここから取る
+    #[serde(flatten)]
+    pub extra: HashMap<String, String>,
+}
+
+/// 掲示板の CAPTCHA。ログインしている投稿者（`author_id` がある）は対象外。
+/// 通らなければ、投稿者に見せる英語の文言を返す
+async fn check_forum_captcha(
+    state: &AppState,
+    author_id: &Option<String>,
+    token: Option<&str>,
+    ip: Option<&str>,
+) -> Result<(), CaptchaError> {
+    match &state.captcha.forum {
+        Some(captcha) if author_id.is_none() => captcha.verify(token, ip).await,
+        _ => Ok(()),
+    }
+}
+
+/// フォームから CAPTCHA のトークンを取る
+fn form_captcha_token<'a>(state: &AppState, extra: &'a HashMap<String, String>) -> Option<&'a str> {
+    let captcha = state.captcha.forum.as_ref()?;
+    extra.get(captcha.response_field()).map(String::as_str)
+}
+
+/// CAPTCHA を通らなかった API の応答
+fn captcha_api_error(failure: CaptchaError) -> ApiError {
+    let (status, code) = match failure {
+        CaptchaError::Failed => (StatusCode::BAD_REQUEST, "captcha_failed"),
+        CaptchaError::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, "captcha_unavailable"),
+    };
+    (
+        status,
+        Json(json!({ "error": failure.to_string(), "code": code })),
+    )
+}
+
+/// 投稿フォームに置く CAPTCHA のウィジェットを `fields.captcha_html` に入れる（掲示板にかけているときだけ）。
+/// ページはキャッシュされるので、ログインしている人にも出る（検証はログインしていない投稿者だけ）
+fn insert_captcha_html(state: &AppState, ctx: &mut PageRenderContext) {
+    if let Some(captcha) = &state.captcha.forum {
+        ctx.fields
+            .insert("captcha_html".to_string(), json!(captcha.widget_html()));
+    }
+}
+
+/// CAPTCHA を通らなかったフォームの応答（`back` は戻り先のパス）
+fn captcha_form_error(failure: CaptchaError, base_path: &str, back: &str) -> Response {
+    let status = match failure {
+        CaptchaError::Failed => StatusCode::BAD_REQUEST,
+        CaptchaError::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+    };
+    (
+        status,
+        Html(format!(
+            "<h1>Error</h1><p>{}</p><p><a href=\"{}/{}\">Go back</a></p>",
+            failure, base_path, back
+        )),
+    )
+        .into_response()
+}
+
+/// JSON の API の本文。CAPTCHA のトークン（`captcha_token`）を足して受ける
+#[derive(Debug, Deserialize)]
+pub struct WithCaptcha<T> {
+    #[serde(flatten)]
+    pub request: T,
+    #[serde(default)]
+    pub captcha_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -595,6 +672,16 @@ pub async fn handle_create_thread_form(
     let (author_id, mut author_name) = resolve_author(&state, &headers, form.author_name).await;
     if author_name.trim().is_empty() {
         author_name = "Anonymous".to_string();
+    }
+    if let Err(failure) = check_forum_captcha(
+        &state,
+        &author_id,
+        form_captcha_token(&state, &form.extra),
+        client_ip.as_deref(),
+    )
+    .await
+    {
+        return captcha_form_error(failure, &base_path, &format!("forum/{}", category_slug));
     }
 
     let user_agent = headers
@@ -667,6 +754,20 @@ pub async fn handle_create_post_form(
     if author_name.trim().is_empty() {
         author_name = "Anonymous".to_string();
     }
+    if let Err(failure) = check_forum_captcha(
+        &state,
+        &author_id,
+        form_captcha_token(&state, &form.extra),
+        client_ip.as_deref(),
+    )
+    .await
+    {
+        return captcha_form_error(
+            failure,
+            &base_path,
+            &format!("forum/{}/{}", category_slug, thread_id),
+        );
+    }
 
     let user_agent = headers
         .get(header::USER_AGENT)
@@ -677,7 +778,7 @@ pub async fn handle_create_post_form(
         thread_id: thread_id.clone(),
         body: form.body,
         reply_to_post_id: None,
-        reply_to_number: form.reply_to_number,
+        reply_to_number: form.reply_to_number.trim().parse().ok(),
         author_name,
         author_id,
         ip: client_ip,
@@ -985,7 +1086,10 @@ pub async fn api_create_thread(
     State(state): State<Arc<AppState>>,
     ClientIp(client_ip): ClientIp,
     headers: HeaderMap,
-    Json(mut req): Json<CreateThreadRequest>,
+    Json(WithCaptcha {
+        request: mut req,
+        captcha_token,
+    }): Json<WithCaptcha<CreateThreadRequest>>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     if !state.system().forum_enabled {
         return Err((
@@ -995,6 +1099,14 @@ pub async fn api_create_thread(
     }
     let forum = get_forum(&state)?;
     let (author_id, author_name) = resolve_author(&state, &headers, req.author_name).await;
+    check_forum_captcha(
+        &state,
+        &author_id,
+        captcha_token.as_deref(),
+        client_ip.as_deref(),
+    )
+    .await
+    .map_err(captcha_api_error)?;
     req.author_id = author_id;
     req.author_name = author_name;
     req.ip = client_ip;
@@ -1065,7 +1177,10 @@ pub async fn api_create_post(
     State(state): State<Arc<AppState>>,
     ClientIp(client_ip): ClientIp,
     headers: HeaderMap,
-    Json(mut req): Json<CreatePostRequest>,
+    Json(WithCaptcha {
+        request: mut req,
+        captcha_token,
+    }): Json<WithCaptcha<CreatePostRequest>>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     if !state.system().forum_enabled {
         return Err((
@@ -1075,6 +1190,14 @@ pub async fn api_create_post(
     }
     let forum = get_forum(&state)?;
     let (author_id, author_name) = resolve_author(&state, &headers, req.author_name).await;
+    check_forum_captcha(
+        &state,
+        &author_id,
+        captcha_token.as_deref(),
+        client_ip.as_deref(),
+    )
+    .await
+    .map_err(captcha_api_error)?;
     req.author_id = author_id;
     req.author_name = author_name;
     req.ip = client_ip;

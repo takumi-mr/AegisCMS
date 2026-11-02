@@ -217,8 +217,10 @@ fn test_the_head_has_the_assets_and_a_safe_json_config() {
 fn test_state(
     configure: impl FnOnce(&mut crate::config::AegisConfig),
 ) -> impl std::future::Future<Output = AppState> {
-    let mut config = crate::config::AegisConfig::default();
-    config.consent = enabled();
+    let mut config = crate::config::AegisConfig {
+        consent: enabled(),
+        ..Default::default()
+    };
     configure(&mut config);
     crate::test_support::test_app_state(config, aegis_runtime::PluginSupervisor::new(), Vec::new())
 }

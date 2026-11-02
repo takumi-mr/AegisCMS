@@ -14,7 +14,7 @@
         │
  入力の検査（必須・長さ・メールアドレス・電話番号・選択肢・添付ファイル）→ 誤りはフォームに出して返す
         │
- CAPTCHA（[contact.captcha] があるときだけ）のトークンを検証 → 通らなければ 400、検証サービスに届かなければ 503
+ CAPTCHA（[captcha] の targets に contact があるときだけ）のトークンを検証 → 通らなければ 400、検証サービスに届かなければ 503
         │
  IP ごとの送信数（max_per_ip_per_hour）を超えた → 429
         │
@@ -110,10 +110,11 @@ required = true
 
 ### 1.2 CAPTCHA（任意）
 
-ボットが多いときだけ、フォームに CAPTCHA を足せます。書かなければ何も変わりません（見えない欄・IP ごとの送信数・スパムの語の対策は常に働きます）。
+ボットが多いときだけ、CAPTCHA を足せます。書かなければ何も変わりません（見えない欄・IP ごとの送信数・スパムの語の対策は常に働きます）。CAPTCHA は問い合わせ専用の設定ではなく、共通の `[captcha]` に書き、`targets` でかける送信先（`contact`・`newsletter`・`comments`・`forum`）を選びます。
 
 ```toml
-[contact.captcha]
+[captcha]
+targets = ["contact"]                  # contact | newsletter | comments | forum
 provider = "turnstile"                 # turnstile | hcaptcha | recaptcha | custom
 site_key = "0x4AAAA..."                # 公開してよい
 secret = "env:TURNSTILE_SECRET"        # 環境変数から読む（設定ファイルに直接書いてもよい）

@@ -1437,7 +1437,9 @@ mod tests {
         load::<PostContext>("on-before-save");
         load::<Vec<aegis_ast::BlockNode>>("transform-content-ast");
         // render-blocks gets `{"blocks": [...]}` and answers `{"html": [...]}`
+        // 入力の型が読めるかを確かめるだけで、値は使わない
         #[derive(serde::Deserialize)]
+        #[allow(dead_code)]
         struct RenderBlocksInput {
             blocks: Vec<aegis_ast::BlockNode>,
         }

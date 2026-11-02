@@ -107,6 +107,14 @@ struct Fixture {
 }
 
 async fn fixture(configure: impl FnOnce(&mut ContactConfig)) -> Fixture {
+    fixture_with(None, configure).await
+}
+
+async fn fixture_with(
+    captcha: Option<aegis_captcha::CaptchaConfig>,
+    configure: impl FnOnce(&mut ContactConfig),
+) -> Fixture {
+    let captcha = captcha.map(|c| Arc::new(aegis_captcha::Captcha::new(c, "[captcha]").unwrap()));
     let mut config = ContactConfig {
         enabled: true,
         ..ContactConfig::default()
@@ -126,6 +134,7 @@ async fn fixture(configure: impl FnOnce(&mut ContactConfig)) -> Fixture {
             storage: storage.clone(),
             notifier: Some(notifier.clone()),
             admin_url: "https://example.com/admin/".to_string(),
+            captcha,
         },
     )
     .unwrap();
@@ -731,8 +740,7 @@ async fn test_captcha_is_off_unless_configured() {
 #[tokio::test]
 async fn test_captcha_gates_the_submission() {
     let (url, calls) = mock_captcha_service().await;
-    let f = fixture(|c| {
-        c.captcha = Some(captcha_config(&url, false));
+    let f = fixture_with(Some(captcha_config(&url, false)), |c| {
         c.max_per_ip_per_hour = 1;
     })
     .await;
@@ -783,7 +791,7 @@ async fn test_captcha_gates_the_submission() {
 #[tokio::test]
 async fn test_captcha_is_not_asked_for_bots_or_invalid_input() {
     let (url, calls) = mock_captcha_service().await;
-    let f = fixture(|c| c.captcha = Some(captcha_config(&url, false))).await;
+    let f = fixture_with(Some(captcha_config(&url, false)), |_| {}).await;
     let mut bot = with_token("good");
     bot.insert("website".to_string(), "http://spam.example".to_string());
     assert!(f
@@ -806,7 +814,7 @@ async fn test_captcha_is_not_asked_for_bots_or_invalid_input() {
 #[tokio::test]
 async fn test_captcha_service_down_fails_closed_unless_fail_open() {
     let (url, _) = mock_captcha_service().await;
-    let closed = fixture(|c| c.captcha = Some(captcha_config(&url, false))).await;
+    let closed = fixture_with(Some(captcha_config(&url, false)), |_| {}).await;
     assert!(matches!(
         closed
             .service
@@ -824,7 +832,7 @@ async fn test_captcha_service_down_fails_closed_unless_fail_open() {
         0
     );
 
-    let open = fixture(|c| c.captcha = Some(captcha_config(&url, true))).await;
+    let open = fixture_with(Some(captcha_config(&url, true)), |_| {}).await;
     open.service
         .submit("default", &with_token("down"), &client("203.0.113.1"))
         .await
@@ -836,41 +844,4 @@ async fn test_captcha_service_down_fails_closed_unless_fail_open() {
             .await,
         Err(ContactError::Captcha(CaptchaError::Failed))
     ));
-}
-
-#[tokio::test]
-async fn test_captcha_config_is_checked_at_startup() {
-    let mut bad = captcha_config("", false);
-    bad.secret = "env:AEGIS_CONTACT_TEST_UNSET_SECRET".to_string();
-    let config = ContactConfig {
-        enabled: true,
-        captcha: Some(bad),
-        ..ContactConfig::default()
-    };
-    let err = config.validate().unwrap_err().to_string();
-    assert!(
-        err.contains("[contact.captcha]") && err.contains("secret"),
-        "{err}"
-    );
-}
-
-#[test]
-fn test_captcha_table_parses_from_toml() {
-    let config: ContactConfig = toml::from_str(
-        r#"
-        enabled = true
-        [captcha]
-        provider = "hcaptcha"
-        site_key = "k"
-        secret = "env:HCAPTCHA_SECRET"
-        fail_open = true
-        "#,
-    )
-    .unwrap();
-    let captcha = config.captcha.unwrap();
-    assert_eq!(captcha.provider, aegis_captcha::Provider::Hcaptcha);
-    assert!(captcha.fail_open);
-    assert_eq!(captcha.timeout_secs, 5);
-    assert_eq!(captcha.response_field(), "h-captcha-response");
-    assert!(ContactConfig::default().captcha.is_none());
 }

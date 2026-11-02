@@ -2,7 +2,7 @@
 //! Admin Studio の受信箱。HTTP 層（公開ページ・API）はサーバー側にあり、ここは HTTP に依存しない
 //!
 //! - フォームと項目は設定ファイル（`[[contact.forms]]`）で決める（[`config`]）。HTML は [`form::form_html`]
-//! - CAPTCHA（任意。`[contact.captcha]`）: 送信のたびにトークンを検証する（`aegis-captcha`）
+//! - CAPTCHA（任意。共通の `[captcha]` の `targets` に `contact`）: 送信のたびにトークンを検証する（`aegis-captcha`）
 //! - ボット除け: 見えない欄（[`config::HONEYPOT_FIELD`]）に値があれば、受け付けたふりをして保存しない。
 //!   IP ごとの送信数（`max_per_ip_per_hour`）を超えたら断る。スパムの語・リンクの数でスパムとして保存する
 //!   （通知しない）。仕組みはコメントの `aegis_comments::moderation` と同じ
@@ -90,6 +90,8 @@ pub struct ContactDeps {
     pub notifier: Option<Arc<dyn Notifier>>,
     /// Admin Studio の URL（運営者への通知に入れる。空なら入れない）
     pub admin_url: String,
+    /// CAPTCHA（`[captcha]` の `targets` に `contact` があるとき）
+    pub captcha: Option<Arc<Captcha>>,
 }
 
 /// 送信した人のクライアント情報
@@ -150,8 +152,8 @@ pub struct FormSummary {
 pub struct ContactService {
     pub config: ContactConfig,
     deps: ContactDeps,
-    /// `[contact.captcha]` があるとき
-    captcha: Option<Captcha>,
+    /// `[captcha]` の `targets` に `contact` があるとき
+    captcha: Option<Arc<Captcha>>,
 }
 
 /// 公開ページのパス（`base_path` を除く）
@@ -163,11 +165,7 @@ impl ContactService {
     /// `config` の空の文言・項目は `locale` の既定で埋める
     pub fn new(config: ContactConfig, deps: ContactDeps) -> aegis_core::Result<Self> {
         config.validate()?;
-        let captcha = config
-            .captcha
-            .clone()
-            .map(|c| Captcha::new(c, "[contact.captcha]"))
-            .transpose()?;
+        let captcha = deps.captcha.clone();
         Ok(Self {
             config: config.resolved(),
             deps,
@@ -175,19 +173,19 @@ impl ContactService {
         })
     }
 
-    /// CAPTCHA のウィジェットの HTML（`[contact.captcha]` が無ければ空）
+    /// CAPTCHA のウィジェットの HTML（CAPTCHA をかけていなければ空）
     pub fn captcha_widget_html(&self) -> String {
         self.captcha
             .as_ref()
-            .map(Captcha::widget_html)
+            .map(|c| c.widget_html())
             .unwrap_or_default()
     }
 
-    /// CAPTCHA のウィジェットが読み込む・つなぐ先のホスト（CSP に足す。`[contact.captcha]` が無ければ空）
+    /// CAPTCHA のウィジェットが読み込む・つなぐ先のホスト（CSP に足す。CAPTCHA をかけていなければ空）
     pub fn captcha_csp_hosts(&self) -> Vec<String> {
         self.captcha
             .as_ref()
-            .map(Captcha::csp_hosts)
+            .map(|c| c.csp_hosts())
             .unwrap_or_default()
     }
 

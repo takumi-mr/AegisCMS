@@ -60,10 +60,11 @@ async fn site(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     config.newsletter.enabled = true;
     config.commerce.public_url = "https://example.com".to_string();
     configure(&mut config);
+    let captchas = config.resolve_captcha().unwrap();
     let state =
         crate::test_support::test_app_state(config, PluginSupervisor::new(), Vec::new()).await;
     let mails = Arc::new(RecordingNotifier::default());
-    let mut state = state.with_notifier(mails.clone());
+    let mut state = state.with_notifier(mails.clone()).with_captcha(captchas);
     if state.config.newsletter.enabled {
         let service = aegis_newsletter::NewsletterService::new(
             state.config.newsletter.clone(),
@@ -481,17 +482,10 @@ async fn mock_siteverify() -> String {
 async fn test_captcha_on_the_signup_form() {
     let verify_url = mock_siteverify().await;
     let site = site(|config| {
-        config.newsletter.captcha = Some(aegis_captcha::CaptchaConfig {
-            provider: aegis_captcha::Provider::Turnstile,
-            site_key: "site-key".to_string(),
-            secret: "secret-key".to_string(),
-            fail_open: false,
-            timeout_secs: 5,
+        config.captcha = Some(crate::test_support::shared_captcha(
             verify_url,
-            script_url: String::new(),
-            widget_class: String::new(),
-            response_field: String::new(),
-        });
+            vec![aegis_captcha::CaptchaTarget::Newsletter],
+        ));
     })
     .await;
 

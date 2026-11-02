@@ -86,6 +86,14 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 | `404` | カテゴリ・スレッドが無い、掲示板が無効 |
 | `429` | `rate_limit_secs` 以内の連投 |
 
+### 4.1 CAPTCHA（任意）
+
+共通の `[captcha]` の `targets` に `forum` を入れると、スレッド作成とレスの投稿にかかります（[設定リファレンス 2.24](configuration.md#224-captcha--共通の-captcha)）。通報にはかけません。
+
+- **ログインしていない投稿者だけ**が対象です。`Authorization: Bearer` などでセッションを付けた API の呼び出しは検証しません。ブラウザーの投稿フォーム（`POST /forum/...`）はセッションを送らないため、常に対象です。
+- 組み込みのテンプレートは自動で対応します。自前のテンプレートでは、新規スレッドとレスのフォームの送信ボタンの前に `{{ fields.captcha_html | safe }}` を置いてください（掲示板にかけていなければ空です）。ページはキャッシュされるので、ウィジェットはログイン中の人にも出ます。
+- JSON の API は、本文に `captcha_token` を足します。通らなければ `400 {"code": "captcha_failed"}`、検証サービスに届かなければ `503 {"code": "captcha_unavailable"}` です。
+
 監査ログには `forum.category.create` / `update` / `delete`、`forum.thread.create` / `pin` / `lock` / `delete`、`forum.post.create` / `delete` を記録します。
 
 ---

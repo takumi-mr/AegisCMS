@@ -935,7 +935,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
   <p class="aegis-comments-note">{{ t("comments.none") }}</p>
   {% endfor %}
   {% if comments.open %}
-  <form class="aegis-comment-form" data-post-url="{{ comments.post_url }}" data-msg-sending="{{ t("comments.sending") }}" data-msg-failed="{{ t("comments.failed") }}" data-msg-pending="{{ t("comments.pending") }}">
+  <form class="aegis-comment-form" data-post-url="{{ comments.post_url }}" data-msg-sending="{{ t("comments.sending") }}" data-msg-failed="{{ t("comments.failed") }}" data-msg-pending="{{ t("comments.pending") }}"{% if comments.captcha_html %} data-captcha-field="{{ comments.captcha_field }}"{% endif %}>
     <h3>{{ t("comments.leave") }}</h3>
     <p class="aegis-comments-note" data-replying hidden>{{ t("comments.replying_to") }} <strong data-replying-name></strong> <button type="button" class="aegis-comment-cancel" data-cancel-reply>{{ t("comments.cancel") }}</button></p>
     <input type="hidden" name="parent_id" value="">
@@ -944,6 +944,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
     <label>{{ t("comments.body") }} <textarea name="body" required rows="5" maxlength="{{ comments.max_length }}"></textarea></label>
     <div class="aegis-comment-hp" aria-hidden="true"><label>{{ t("comments.honeypot") }} <input name="website" tabindex="-1" autocomplete="off"></label></div>
     <label class="aegis-comment-check"><input type="checkbox" name="notify_replies"> {{ t("comments.notify") }}</label>
+    {% if comments.captcha_html %}<div class="aegis-comment-captcha">{{ comments.captcha_html | safe }}</div>{% endif %}
     <button type="submit">{{ t("comments.submit") }}</button>
     <p class="aegis-comment-status" role="status" aria-live="polite"></p>
   </form>
@@ -985,7 +986,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
         body: JSON.stringify({
           name: f.name.value, email: f.email.value, body: f.body.value,
           parent_id: f.parent_id.value || null, notify_replies: f.notify_replies.checked,
-          website: f.website.value
+          website: f.website.value, captcha_token: captchaToken()
         })
       }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (data) {
@@ -1001,8 +1002,20 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
           show(form.dataset.msgPending);
         });
       }).catch(function (e) { show(e.message, "error"); })
-        .finally(function () { submit.disabled = false; });
+        .finally(function () { submit.disabled = false; resetCaptcha(); });
     });
+    // CAPTCHA のトークンは 1 回しか使えない。送信のたびにウィジェットを作り直す
+    function captchaToken() {
+      var field = form.dataset.captchaField;
+      var input = field && form.querySelector('[name="' + field + '"]');
+      return input ? input.value : null;
+    }
+    function resetCaptcha() {
+      if (!form.dataset.captchaField) return;
+      [window.turnstile, window.hcaptcha, window.grecaptcha].forEach(function (api) {
+        try { if (api && api.reset) api.reset(); } catch (e) {}
+      });
+    }
   })();
   </script>
   {% else %}
@@ -1329,6 +1342,7 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
         <label for="thread-body">{{ t("forum.message_body") }}</label>
         <textarea id="thread-body" name="body" rows="6" required minlength="1" placeholder="{{ t("forum.message_hint") }}"></textarea>
       </div>
+      {% if fields.captcha_html %}<div class="aegis-forum-form-group">{{ fields.captcha_html | safe }}</div>{% endif %}
       <button type="submit" class="aegis-forum-btn">{{ t("forum.create_thread") }}</button>
     </form>
   </section>
@@ -1437,6 +1451,7 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
         <label for="post-body">{{ t("forum.reply_content") }}</label>
         <textarea id="post-body" name="body" rows="5" required minlength="1" placeholder="{{ t("forum.reply_hint") }}"></textarea>
       </div>
+      {% if fields.captcha_html %}<div class="aegis-forum-form-group">{{ fields.captcha_html | safe }}</div>{% endif %}
       <button type="submit" class="aegis-forum-btn">{{ t("forum.submit_reply") }}</button>
     </form>
   </section>
