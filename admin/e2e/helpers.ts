@@ -14,11 +14,13 @@ export const signIn = async (page: Page) => {
 /** Opens a top-level view from the Views navigation tab */
 export const openView = async (
   page: Page,
-  viewName: 'Editor' | 'Schedule' | 'Products' | 'Orders' | 'Settings'
+  viewName: 'Editor' | 'Calendar' | 'Schedule' | 'Products' | 'Orders' | 'Settings'
 ) => {
+  const pattern =
+    viewName === 'Schedule' || viewName === 'Calendar' ? /Calendar|Schedule/ : viewName;
   await page
     .getByRole('navigation', { name: 'Views' })
-    .getByRole('button', { name: viewName })
+    .getByRole('button', { name: pattern })
     .click();
 };
 
