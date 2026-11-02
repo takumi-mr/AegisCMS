@@ -1,0 +1,26 @@
+{
+  "name": "aegis-plugin-example-assemblyscript-hooks",
+  "version": "0.1.0",
+  "description": "AegisCMS example plugin written in AssemblyScript that implements the commerce, notification, comment and block hooks",
+  "main": "build/release.wasm",
+  "types": "assembly/index.ts",
+  "scripts": {
+    "asbuild:debug": "asc assembly/index.ts --target debug",
+    "asbuild:release": "asc assembly/index.ts --target release",
+    "build": "npm run asbuild:release"
+  },
+  "keywords": [
+    "aegiscms",
+    "webassembly",
+    "assemblyscript",
+    "plugin"
+  ],
+  "author": "AegisCMS Contributors",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@takumi-mr/plugin-sdk": "file:../../assemblyscript"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.27.34"
+  }
+}

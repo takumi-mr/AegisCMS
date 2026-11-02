@@ -79,12 +79,29 @@ Place `plugin.wasm` alongside `plugin.manifest.json` into `plugins/<name>/` in y
 - `on_before_save(ptr int32, length int32) int64`
 - `transform_content_ast(ptr int32, length int32) int64`
 - `on_render_page(ptr int32, length int32) int64`
+- `calculate_order`, `on_order_status_changed`, `send_notification`, `on_content_published`, `check_comment`, `render_blocks` (all `(ptr int32, length int32) int64`)
+
+The hooks above after `on_render_page` are declared in the manifest's `capabilities.hooks` in kebab-case (`calculate-order`, ...). Each has a runner that reads the input, calls your function and writes the result in the ABI format:
+
+| Hook | Runner | Your function |
+| --- | --- | --- |
+| `calculate-order` | `sdk.RunHook(ptr, length, "OrderContext", f)` | `func(*sdk.OrderContext) error` (append to `Adjustments`; the host applies only `Adjustments` and `Metadata`) |
+| `on-order-status-changed` | `sdk.RunNotificationHook(ptr, length, "OrderStatusChange", f)` | `func(*sdk.OrderStatusChange) error` |
+| `on-content-published` | `sdk.RunNotificationHook(ptr, length, "PublishedContent", f)` | `func(*sdk.PublishedContent) error` |
+| `send-notification` | `sdk.RunDeliveryHook(ptr, length, f)` | `func(*sdk.NotificationMessage) (sdk.Delivery, error)` (`DeliverySent` / `DeliverySkipped`) |
+| `check-comment` | `sdk.RunCheckCommentHook(ptr, length, f)` | `func(*sdk.CommentSubmission) (sdk.CommentVerdict, error)` (`AllowComment()` / `HoldComment(reason)` / `SpamComment(reason)`) |
+| `render-blocks` | `sdk.RunRenderBlocksHook(ptr, length, f)` | `func([]sdk.BlockNode) ([]*string, error)` (`sdk.HTML(...)`; `nil` hides the block) |
+
+`sdk.Reject(message)` refuses the input (the message is shown as is) and, in `send-notification`, marks the failure as permanent so the host does not retry. Any other error is retried. See [`sdk/examples`](../examples) for complete plugins.
 
 ## Host APIs
 
 - `sdk.LogDebug(msg)`, `sdk.LogInfo(msg)`, `sdk.LogWarn(msg)`, `sdk.LogError(msg)`
 - `sdk.NetIsAllowed(url string) bool`
 - `sdk.KVSet(key, value string) bool`
+- `sdk.KVGet(key string) (value string, found bool, err error)` (needs `capabilities.storage`)
+- `sdk.ConfigGet(key string) (value string, found bool)` / `sdk.ConfigGetOr(key, fallback string) string` (the server's `[plugins.settings.<plugin name>]`; non-string values come back as JSON)
+- `sdk.HTTPFetch(sdk.HTTPRequest) (*sdk.HTTPResponse, error)` (only `allowed_domains`; no redirects; 8 calls per hook; 1 MiB bodies; counts toward `execution_timeout_ms`). `sdk.NewHTTPGet(url)` and `sdk.NewHTTPPostJSON(url, body)` build requests
 
 ## License
 

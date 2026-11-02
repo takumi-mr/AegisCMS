@@ -9,9 +9,7 @@
 
 ## 直近の着手タスク
 
-1. **AssemblyScript / TinyGo SDK の機能追従**:
-   - Rust SDK に追加済みのフック（`calculate-order`, `on-order-status-changed`, `send-notification`, `on-content-published`, `check-comment`, `render-blocks`）およびホスト API（`http_fetch`, `kv_get`, `config_get`）のラッパーを整備（ABI は [plugin_abi_specification.md](docs/plugin_abi_specification.md) 参照）。
-   - 各言語 SDK でコンパイルした Wasm プラグインを Plugin Builder 上で動作検証。
+1. **プラグイン例の Plugin Builder 上での動作確認**: `sdk/examples/assemblyscript-hooks` と `sdk/tinygo/examples/hooks` は実ホストの統合テスト（`sdk_hook_examples.rs`）で検証済み。Plugin Builder の画面上でも `task dev:plugin` で動かして確認する。
 
 ---
 
