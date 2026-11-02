@@ -49,7 +49,12 @@ docker run --rm --network aegiscms_lab --memory 1g --cpus 2 --pids-limit 256 `
   ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://target:8080 -m 1
 ```
 
-Active scanも使い捨て環境に限定して実行できます。リポジトリ内のプランは公開ページのみ・Low強度・最大3分に制限し、APIとフォーム送信を除外します。結果HTMLは `docs/security-reports/` に保存します。
+## Active Scan の実行
+
+Active scan も使い捨て環境に限定して実行できます。未認証スキャンとログイン済み認証スキャンの 2 つのプロファイルが用意されています。
+
+### 1. 未認証スキャン（Web + API）
+リポジトリ内のプラン（`docker/pentest/zap-active.yaml`）は公開 Web ページおよび主要 API エンドポイント（OpenAPI 定義 `docker/pentest/openapi.json` 含む）を対象とし、Low 強度でスキャンを実施します。結果 HTML は `docs/security-reports/zap-active-report.html` に保存されます。
 
 ```powershell
 docker compose -f docker-compose.pentest.yml up -d --wait target
@@ -61,7 +66,28 @@ docker run --rm --network aegiscms_lab --memory 1g --cpus 1 --pids-limit 256 `
 docker compose -f docker-compose.pentest.yml down
 ```
 
-ZAPは未認証状態を検査します。認証必須APIやeditor操作の検査結果は別途手動確認してください。active scanを実行する場合は、対象・負荷・データ変更の影響を理解した上で使い捨て環境に限定します。
+### 2. ログイン済み認証スキャン（Medium 強度）
+別プロファイル（`docker/pentest/zap-authenticated.yaml`）は、管理者セッション（Bearer トークン / X-Session-Id）を ZAP Replacer で全リクエストに注入し、保護 API や Admin Studio に対して Medium 強度での能動的検査を実施します。結果は `docs/security-reports/zap-authenticated-report.html` に保存されます。
+
+```powershell
+# 1. ターゲットと ingress を起動
+docker compose -f docker-compose.pentest.yml up -d --wait target
+docker compose -f docker-compose.pentest.yml up -d ingress
+
+# 2. 初期セットアップを行い管理者セッションを取得
+Invoke-RestMethod -Uri "http://127.0.0.1:18080/api/v1/setup" -Method Post -ContentType "application/json" -Body '{"admin_username":"admin","admin_password":"AdminPassword123!"}'
+$login = Invoke-RestMethod -Uri "http://127.0.0.1:18080/api/v1/auth/session" -Method Post -ContentType "application/json" -Body '{"username":"admin","password":"AdminPassword123!"}'
+
+# 3. 認証済みスキャンを実行
+New-Item -ItemType Directory -Force -Path docs/security-reports | Out-Null
+docker run --rm --network aegiscms_lab --memory 1g --cpus 1 --pids-limit 256 `
+  -v "${PWD}/docker/pentest:/zap/wrk:ro" `
+  -v "${PWD}/docs/security-reports:/zap/out:rw" `
+  ghcr.io/zaproxy/zaproxy:stable zap.sh -cmd -autorun /zap/wrk/zap-authenticated.yaml
+
+# 4. 破棄
+docker compose -f docker-compose.pentest.yml down
+```
 
 重点確認項目:
 
