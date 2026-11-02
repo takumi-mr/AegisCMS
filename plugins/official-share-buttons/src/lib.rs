@@ -517,7 +517,7 @@ mod tests {
     }
 
     fn render(ctx: PageRenderContext) -> PageRenderContext {
-        ShareButtonsPlugin::default().on_render_page(ctx).unwrap()
+        ShareButtonsPlugin.on_render_page(ctx).unwrap()
     }
 
     #[test]

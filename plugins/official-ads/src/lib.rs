@@ -413,7 +413,7 @@ mod tests {
     }
 
     fn render(ctx: PageRenderContext) -> PageRenderContext {
-        AdsPlugin::default().on_render_page(ctx).unwrap()
+        AdsPlugin.on_render_page(ctx).unwrap()
     }
 
     #[test]
@@ -513,7 +513,7 @@ mod tests {
             },
         ];
 
-        let results = AdsPlugin::default().render_blocks(blocks).unwrap();
+        let results = AdsPlugin.render_blocks(blocks).unwrap();
         assert_eq!(results.len(), 2);
 
         let html1 = results[0].as_ref().unwrap();

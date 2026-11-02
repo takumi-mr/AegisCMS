@@ -199,7 +199,7 @@ async fn test_the_site_url_is_required_for_the_links() {
         NewsletterConfig::default(),
         NewsletterDeps {
             site_url: " ".to_string(),
-            ..f.service.deps.clone()
+            ..f.service.deps
         },
     );
     assert!(result.err().unwrap().to_string().contains("public_url"));
@@ -694,7 +694,7 @@ async fn test_sending_needs_notifications() {
         NewsletterConfig::default(),
         NewsletterDeps {
             notifier: None,
-            ..f.service.deps.clone()
+            ..f.service.deps
         },
     )
     .unwrap();

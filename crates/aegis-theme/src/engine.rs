@@ -1311,8 +1311,11 @@ b
         assert_eq!(blocks[1].template, "base.html");
         assert_eq!(blocks[1].line, 1);
 
-        let mut ctx = PageRenderContext::default();
-        ctx.title = "Hello World".to_string();
+        let ctx = PageRenderContext {
+            title: "Hello World".to_string(),
+            ..Default::default()
+        };
+
         let rendered_header = engine
             .render_block_diagnosed("child.html", "header", &ctx)
             .unwrap();

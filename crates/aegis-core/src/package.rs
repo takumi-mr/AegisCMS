@@ -750,7 +750,9 @@ mod tests {
         assert!(temp_dir.join("signature.json").exists());
 
         // 3. Verify signature
-        let verified = verify_package_signature(&temp_dir, Some(&[pub_hex.clone()]), true).unwrap();
+        let verified =
+            verify_package_signature(&temp_dir, Some(std::slice::from_ref(&pub_hex)), true)
+                .unwrap();
         assert_eq!(verified, Some(pub_hex));
 
         // 4. Create ZIP

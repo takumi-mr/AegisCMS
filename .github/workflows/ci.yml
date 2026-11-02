@@ -4,9 +4,19 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "LICENSE*"
+      - ".gitignore"
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "LICENSE*"
+      - ".gitignore"
 
 env:
   CARGO_TERM_COLOR: always
@@ -37,7 +47,13 @@ jobs:
         run: cargo clippy --workspace -- -D warnings
 
       - name: Run all workspace tests (cargo test)
-        run: cargo test --workspace --verbose
+        run: cargo test --workspace --all-features --verbose
+
+      - name: Verify generated code freshness (codegen drift check)
+        run: |
+          cargo run -p aegis-server -- codegen --target typescript --output admin/src/types/schemas.ts
+          cargo run -p aegis-server -- codegen --target openapi --output docs/openapi.json
+          git diff --exit-code admin/src/types/schemas.ts docs/openapi.json
 
   frontend-ci:
     name: Admin Studio Frontend Build
