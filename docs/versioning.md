@@ -13,7 +13,7 @@ AegisCMS は [Semantic Versioning 2.0.0](https://semver.org/lang/ja/) に従い�
 
 - コアの crate は `version.workspace = true` で 1 つの番号を共有します。個別に番号を持たせないでください。
 - `sdk/templates/` と `sdk/examples/` はコピー元のひな形で、単独ではリリースしません（バージョンは `0.1.0` のままで構いません）。ただし Rust テンプレートの `aegis-plugin-sdk` へのバージョン要求はコアに追従させます。
-- 1.0 になるまでは、破壊的変更はマイナー（`0.x`）を、機能追加と修正はパッチを上げます。
+- 1.0 になるまでは、機能追加（`feat`）も破壊的変更もマイナー（`0.x`）を上げ、修正（`fix`・`perf`）はパッチを上げます。
 
 ## 2. プラグインの互換性
 
@@ -33,7 +33,7 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.md) に�
 | コミット | 上がるバージョン |
 |---|---|
 | `fix:` / `perf:` | パッチ |
-| `feat:` | 1.0 前はパッチ、1.0 以降はマイナー |
+| `feat:` | マイナー（1.0 前も同じ） |
 | `feat!:` や本文の `BREAKING CHANGE:` | 1.0 前はマイナー、1.0 以降はメジャー |
 | `docs` / `style` / `test` / `chore` | 上がらない（CHANGELOG にも出ない） |
 
@@ -45,7 +45,9 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.md) に�
 2. リリース PR のバージョンと CHANGELOG を確かめてマージする。`Cargo.lock` はワークフローが同じ PR に追従させる。
 3. マージするとタグと GitHub Release が作られる。AssemblyScript SDK は GitHub Packages に自動で公開され、TinyGo SDK はタグ（`sdk/tinygo/vX.Y.Z`）が配布になる。
 
-`GITHUB_TOKEN` で作った PR では CI が動きません。リリース PR でも CI を走らせたい場合は、`RELEASE_PLEASE_TOKEN`（PAT）をリポジトリの secret に登録してください。
+リリース PR にも CI を走らせるため（`GITHUB_TOKEN` で作った PR では CI が動かない）、リポジトリの secret に `RELEASE_PLEASE_TOKEN`（PAT）を登録しています。Fine-grained PAT なら、対象リポジトリに **Contents** と **Pull requests** の Read and write が要ります（足りないと PR のブランチ作成で失敗する）。未登録でも `GITHUB_TOKEN` で動きますが、リリース PR の CI は動きません。
+
+初めてリリース PR を作るときは、それまでに変更したパスすべてが対象になります。新しく仕組みを入れた直後は、全プラグインと TinyGo SDK が同時に上がるのはこのためです（次回からは変更したパスだけ）。
 
 ## 5. 整合性の検査
 

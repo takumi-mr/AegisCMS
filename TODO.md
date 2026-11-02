@@ -15,7 +15,7 @@
 
 ## 技術メモ・申し送り事項
 
-- **release-please は未実行（初回の動作確認が必要）**: 設定（`release-please-config.json`）と `.github/workflows/release-please.yml` は手元で動かせないため未検証。`main` にマージ後、最初に出るリリース PR で、(1) 各 `extra-files`（`Cargo.toml` の TOML・`package-lock.json` の `packages['']`）が更新される、(2) 変更のない公式プラグインが対象に入らない、(3) `Cargo.lock` の同期コミットが付く、を確かめる。`GITHUB_TOKEN` の PR では CI が動かないので、必要なら `RELEASE_PLEASE_TOKEN`（PAT）を登録する（[docs/versioning.md](docs/versioning.md)）。
+- **AssemblyScript SDK の npm 公開は未検証**: release-please の PR・タグ・`Cargo.lock` の同期は動作確認済み（v0.2.0）。`sdk/assemblyscript` を初めて上げるリリースで、`release-please.yml` から `release-sdk.yml` が呼ばれて GitHub Packages に公開されるかを確かめる。GitHub Release の「Latest」は最後に作られたものに付くため、コアの `v0.2.0` でなくプラグインのリリースに付くことがある（見た目のみ）。
 - 公式プラグインの `plugin.wasm` はリポジトリにコミット済みで、バージョンを上げても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースを変えたリリースでは各自 `task` で再生成してから出す。
 
 ---
