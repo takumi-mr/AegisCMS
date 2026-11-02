@@ -499,22 +499,6 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/cart", get(handlers::render_cart))
         .route("/orders/{id}", get(handlers::render_order))
         .route("/shop/cart.js", get(handlers::cart_script))
-        .route(
-            "/_aegis/consent.js",
-            get(handlers::site_assets::consent_script),
-        )
-        .route(
-            "/_aegis/consent.css",
-            get(handlers::site_assets::consent_style),
-        )
-        .route(
-            "/_aegis/notices.js",
-            get(handlers::site_assets::notices_script),
-        )
-        .route(
-            "/_aegis/notices.css",
-            get(handlers::site_assets::notices_style),
-        )
         .route("/forum", get(handlers::forum::render_forum_index))
         .route(
             "/forum/{category_slug}",
@@ -546,6 +530,28 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/wp-json", any(handlers::honeypot_trap))
         .route("/wp-json/{*path}", any(handlers::honeypot_trap))
         .route("/{slug}", get(handlers::render_page_or_slug));
+
+    // サイトの機能が配信するスクリプト・スタイル（`/_<namespace>/...`。URL の `aegis` は応答時に接頭辞へ置き換わる）
+    {
+        let assets = format!("/_{}", config.server.namespace());
+        app = app
+            .route(
+                &format!("{assets}/consent.js"),
+                get(handlers::site_assets::consent_script),
+            )
+            .route(
+                &format!("{assets}/consent.css"),
+                get(handlers::site_assets::consent_style),
+            )
+            .route(
+                &format!("{assets}/notices.js"),
+                get(handlers::site_assets::notices_script),
+            )
+            .route(
+                &format!("{assets}/notices.css"),
+                get(handlers::site_assets::notices_style),
+            );
+    }
 
     // サイト内検索（[search]、feature `search`）。無効なら 404 を返す
     #[cfg(feature = "search")]
@@ -601,6 +607,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             crate::inject::inject_middleware,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::namespace::namespace_middleware,
         ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

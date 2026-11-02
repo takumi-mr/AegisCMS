@@ -24,7 +24,7 @@ test('an admin sees the delivery setup and sends a test notification', async ({ 
 
   await page.getByLabel('Email address').fill('you@example.com');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(page.getByText('sent "Test notification from AegisCMS"')).toBeVisible();
+  await expect(page.getByText('sent "Test notification from My Site"')).toBeVisible();
 });
 
 test('an admin edits a template with a live preview and resets it', async ({ page }) => {
@@ -38,7 +38,7 @@ test('an admin edits a template with a live preview and resets it', async ({ pag
   await subject.fill('E2E check for {{ site_name }}');
   await expect(page.getByText('Unsaved')).toBeVisible();
   // The preview uses the unsaved edit
-  await expect(page.getByText('E2E check for AegisCMS', { exact: true })).toBeVisible();
+  await expect(page.getByText('E2E check for My Site', { exact: true })).toBeVisible();
   await expect(
     page.frameLocator('iframe[title="HTML email preview"]').locator('body')
   ).toContainText('If you are reading this, notifications are delivered.');
@@ -50,7 +50,7 @@ test('an admin edits a template with a live preview and resets it', async ({ pag
   // Test sends use the saved template
   await page.getByLabel('Email address').fill('you@example.com');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(page.getByText('sent "E2E check for AegisCMS"')).toBeVisible();
+  await expect(page.getByText('sent "E2E check for My Site"')).toBeVisible();
 
   page.once('dialog', (dialog) => dialog.accept());
   await editor.getByRole('button', { name: 'Reset' }).click();

@@ -1,5 +1,5 @@
 /*
- * AegisCMS cookie consent: the styles of the built-in consent.html. Served at /_aegis/consent.css.
+ * Cookie consent: the styles of the built-in consent.html. Served at /_aegis/consent.css.
  * Every rule is :where(...) (specificity 0), so a theme restyles it with any selector. A theme with its
  * own consent.html can ignore this file's classes.
  */

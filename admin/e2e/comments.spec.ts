@@ -22,7 +22,7 @@ const publishArticle = async (page: Page, slug: string) => {
 
 const postComment = async (page: Page, slug: string, name: string, body: string) => {
   await page.goto(`${SERVER}/articles/${slug}`);
-  const form = page.locator('form.aegis-comment-form');
+  const form = page.locator('form.cms-comment-form');
   await form.getByLabel('Name', { exact: true }).fill(name);
   await form.getByLabel('Email (not published)').fill(`${name.toLowerCase()}@example.com`);
   await form.getByLabel('Comment', { exact: true }).fill(body);
@@ -56,7 +56,7 @@ test('a reader comments and an editor approves it from Admin Studio', async ({ p
 
   await page.goto(`${SERVER}/articles/${slug}`);
   await expect(page.getByRole('heading', { name: '1 comment' })).toBeVisible();
-  await expect(page.locator('.aegis-comment')).toContainText('Waiting for approval');
+  await expect(page.locator('.cms-comment')).toContainText('Waiting for approval');
 });
 
 test('approval can be switched off and back on from Admin Studio', async ({ page }) => {
@@ -74,7 +74,7 @@ test('approval can be switched off and back on from Admin Studio', async ({ page
   // Published right away: the page reloads at the new comment
   await postComment(page, slug, 'Taro', 'Published at once');
   await expect(page.getByRole('heading', { name: '1 comment' })).toBeVisible();
-  await expect(page.locator('.aegis-comment')).toContainText('Published at once');
+  await expect(page.locator('.cms-comment')).toContainText('Published at once');
 
   // Back to the configuration file's value (approval on) for the other tests
   await page.goto('./');

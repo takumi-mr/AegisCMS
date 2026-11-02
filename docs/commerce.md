@@ -245,7 +245,7 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
      （option の data-variant-title / data-variant-price も読む）。固定なら data-variant-id -->
 <select id="variant"><option value="{{ variant.id }}" data-variant-price="{{ variant.price_override }}">M</option></select>
 
-<!-- 通貨の切り替え（選んだ通貨は localStorage の aegis.currency に残り、カートを見積もり直す） -->
+<!-- 通貨の切り替え（選んだ通貨は localStorage の `aegis_currency`（接頭辞は `[server].namespace`）に残り、カートを見積もり直す） -->
 <select data-aegis-currency-selector><option value="jpy">JPY</option><option value="usd">USD</option></select>
 
 <span data-aegis-cart-count></span>   <!-- カートの数量 -->

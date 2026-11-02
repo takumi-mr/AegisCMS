@@ -103,6 +103,9 @@ pub struct ServerConfig {
     /// Admin Studio を配信するパス（既定: `/admin`）。推測されにくい名前にすると、CMS の種類の特定や
     /// ログイン画面への総当たりを受けにくくなる。読み出しは `normalized_admin_path` を使う
     pub admin_path: String,
+    /// 公開ページに出る識別子（CSS のクラス名・`id`・`data-*` 属性・Cookie と localStorage のキー・JS のグローバル名・
+    /// `/_<namespace>/` の配信パス）の接頭辞（既定: `cms`）。読み出しは `namespace` を使う
+    pub namespace: String,
 }
 
 impl Default for ServerConfig {
@@ -112,9 +115,13 @@ impl Default for ServerConfig {
             port: 8080,
             base_path: String::new(),
             admin_path: DEFAULT_ADMIN_PATH.to_string(),
+            namespace: DEFAULT_NAMESPACE.to_string(),
         }
     }
 }
+
+/// `[server].namespace` の既定値
+pub const DEFAULT_NAMESPACE: &str = "cms";
 
 /// `[server].admin_path` の既定値
 pub const DEFAULT_ADMIN_PATH: &str = "/admin";
@@ -195,6 +202,31 @@ impl ServerConfig {
             )));
         }
         Ok(format!("/{}", trimmed))
+    }
+
+    /// `namespace` を検証して返す。英小文字で始まり、英小文字・数字だけの 16 文字以内
+    /// （CSS のクラス名・HTML の `id`・Cookie・URL のパスにそのまま書き込むため）
+    pub fn normalized_namespace(&self) -> Result<String> {
+        let ns = self.namespace.trim();
+        let valid = !ns.is_empty()
+            && ns.len() <= 16
+            && ns.as_bytes()[0].is_ascii_lowercase()
+            && ns
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit());
+        if !valid {
+            return Err(AegisError::Config(format!(
+                "[server].namespace {:?} is invalid: use lowercase letters and digits, starting with a letter (up to 16 characters)",
+                self.namespace
+            )));
+        }
+        Ok(ns.to_string())
+    }
+
+    /// 検証済みの `namespace`（起動時に `normalized_namespace` で検証する。不正な値なら既定値）
+    pub fn namespace(&self) -> String {
+        self.normalized_namespace()
+            .unwrap_or_else(|_| DEFAULT_NAMESPACE.to_string())
     }
 
     /// 検証済みの `admin_path`（起動時に `normalized_admin_path` で検証する。不正な値なら既定の `/admin`）

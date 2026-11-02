@@ -1,5 +1,5 @@
 /*
- * AegisCMS cookie consent. Served at /_aegis/consent.js when [consent].enabled = true.
+ * Cookie consent. Served at /_aegis/consent.js when [consent].enabled = true.
  *
  * The banner's HTML comes from the theme's consent.html (a built-in one when the theme has none); this
  * script finds its parts by data attributes and makes them work:
@@ -288,7 +288,7 @@
     document.addEventListener('click', onDocumentClick);
     document.addEventListener('keydown', onKeydown);
     if (!root && window.console) {
-      console.warn('AegisCMS consent: the theme\'s consent.html has no [data-aegis-consent-root]');
+      console.warn('consent: the theme\'s consent.html has no [data-aegis-consent-root]');
     }
     if (state) {
       activate();

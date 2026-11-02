@@ -378,7 +378,7 @@ async fn test_contact_form_block_in_an_article() {
     assert_eq!(page.status, StatusCode::OK);
     assert_eq!(
         page.body
-            .matches(r#"<form class="aegis-contact-form""#)
+            .matches(r#"<form class="cms-contact-form""#)
             .count(),
         1,
         "{}",

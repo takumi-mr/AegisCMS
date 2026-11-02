@@ -233,7 +233,7 @@ async fn test_api_manages_notices_and_refuses_bad_ones() {
 async fn test_an_active_notice_is_added_right_after_the_body_tag() {
     let site = site(|_| {}).await;
     assert!(
-        !site.page().await.contains("aegis-notice"),
+        !site.page().await.contains("cms-notice"),
         "nothing without notices"
     );
 
@@ -246,7 +246,7 @@ async fn test_an_active_notice_is_added_right_after_the_body_tag() {
     let body_open = lower.find("<body").unwrap();
     let after_open = body_open + lower[body_open..].find('>').unwrap() + 1;
     let notice = page
-        .find("<div class=\"aegis-notices\"")
+        .find("<div class=\"cms-notices\"")
         .unwrap_or_else(|| panic!("{}", page));
     // it is the first thing in the body
     assert_eq!(notice, after_open + page[after_open..].find('<').unwrap());
@@ -255,7 +255,7 @@ async fn test_an_active_notice_is_added_right_after_the_body_tag() {
         "{}",
         &page[after_open..notice]
     );
-    assert!(page.contains("aegis-notice aegis-notice-alert"));
+    assert!(page.contains("cms-notice cms-notice-alert"));
     assert!(page.contains(r#"role="alert""#));
     // the message is escaped; the link has the built-in label
     assert!(
@@ -265,12 +265,12 @@ async fn test_an_active_notice_is_added_right_after_the_body_tag() {
         page
     );
     assert!(page.contains(">Learn more</a>"));
-    assert!(page.contains("data-aegis-notice-close hidden"));
+    assert!(page.contains("data-cms-notice-close hidden"));
     // the head has the assets, once
     let head_end = lower.find("</head>").unwrap();
-    let script = page.find("/_aegis/notices.js").unwrap();
+    let script = page.find("/_cms/notices.js").unwrap();
     assert!(script < head_end);
-    assert_eq!(page.matches("/_aegis/notices.js").count(), 1);
+    assert_eq!(page.matches("/_cms/notices.js").count(), 1);
 }
 
 #[tokio::test]
@@ -283,7 +283,7 @@ async fn test_notices_follow_their_period_and_switch() {
     // all three are saved, none is shown, and the page has no notice tags at all
     assert_eq!(site.list().await["total"], 3);
     let page = site.page().await;
-    assert!(!page.contains("aegis-notice"), "{}", page);
+    assert!(!page.contains("cms-notice"), "{}", page);
     assert!(!page.contains("notices.js"));
 
     add(json!({ "message": "Current one", "start_at": "2020-01-01T00:00:00Z", "end_at": "2999-01-01T00:00:00Z" }))
@@ -306,8 +306,8 @@ async fn test_at_most_three_notices_and_dismissible_ones_have_a_close_button() {
     assert!(page.contains("Notice 1") && page.contains("Notice 2") && page.contains("Notice 3"));
     assert!(!page.contains("Notice 4"));
     // only the dismissible ones (1 and 3) have a close button
-    assert_eq!(page.matches("data-aegis-notice-close").count(), 2);
-    assert_eq!(page.matches("data-aegis-notice=").count(), 3);
+    assert_eq!(page.matches("data-cms-notice-close").count(), 2);
+    assert_eq!(page.matches("data-cms-notice=").count(), 3);
 }
 
 #[tokio::test]
@@ -318,8 +318,7 @@ async fn test_editing_a_notice_gives_it_a_new_version() {
         .unwrap()
         .to_string();
     let rev_of = |page: &str| {
-        let start =
-            page.find("data-aegis-notice-rev=\"").unwrap() + "data-aegis-notice-rev=\"".len();
+        let start = page.find("data-cms-notice-rev=\"").unwrap() + "data-cms-notice-rev=\"".len();
         page[start..start + page[start..].find('"').unwrap()].to_string()
     };
     let before = rev_of(&site.page().await);
@@ -340,9 +339,9 @@ async fn test_editing_a_notice_gives_it_a_new_version() {
 async fn test_notices_are_added_to_html_pages_only() {
     let site = site(|_| {}).await;
     site.add(json!({ "message": "Hello" })).await;
-    for path in ["/api/v1/health", "/feed.xml", "/_aegis/notices.js"] {
+    for path in ["/api/v1/health", "/feed.xml", "/_cms/notices.js"] {
         let reply = site.send("GET", path, None, None).await;
-        assert!(!reply.body.contains("class=\"aegis-notices\""), "{}", path);
+        assert!(!reply.body.contains("class=\"cms-notices\""), "{}", path);
     }
     // the 404 page gets them, like every public page
     let missing = site.send("GET", "/does-not-exist", None, None).await;
@@ -353,16 +352,16 @@ async fn test_notices_are_added_to_html_pages_only() {
 #[tokio::test]
 async fn test_assets_are_served() {
     let site = site(|_| {}).await;
-    let script = site.send("GET", "/_aegis/notices.js", None, None).await;
+    let script = site.send("GET", "/_cms/notices.js", None, None).await;
     assert_eq!(script.status, StatusCode::OK);
     assert_eq!(
         script.headers["content-type"],
         "application/javascript; charset=utf-8"
     );
-    assert!(script.body.contains("aegis_notices"));
-    let style = site.send("GET", "/_aegis/notices.css", None, None).await;
+    assert!(script.body.contains("cms_notices"));
+    let style = site.send("GET", "/_cms/notices.css", None, None).await;
     assert_eq!(style.headers["content-type"], "text/css; charset=utf-8");
-    assert!(style.body.contains(".aegis-notice-warning"));
+    assert!(style.body.contains(".cms-notice-warning"));
 }
 
 #[tokio::test]
@@ -370,12 +369,8 @@ async fn test_the_base_path_is_in_the_asset_urls() {
     let site = site(|config| config.server.base_path = "/cms".to_string()).await;
     site.add(json!({ "message": "Hello" })).await;
     let page = site.page().await;
-    assert!(
-        page.contains("href=\"/cms/_aegis/notices.css?v="),
-        "{}",
-        page
-    );
-    assert!(page.contains("src=\"/cms/_aegis/notices.js?v="));
+    assert!(page.contains("href=\"/cms/_cms/notices.css?v="), "{}", page);
+    assert!(page.contains("src=\"/cms/_cms/notices.js?v="));
 }
 
 #[tokio::test]
@@ -385,7 +380,7 @@ async fn test_a_theme_can_replace_the_notices() {
     std::fs::create_dir_all(&templates).unwrap();
     std::fs::write(
         templates.join("notices.html"),
-        r#"{% for n in fields.notices %}<aside class="mine-{{ n.style }}" data-aegis-notice="{{ n.id }}" data-aegis-notice-rev="{{ n.rev }}">{{ n.message }}</aside>{% endfor %}"#,
+        r#"{% for n in fields.notices %}<aside class="mine-{{ n.style }}" data-cms-notice="{{ n.id }}" data-cms-notice-rev="{{ n.rev }}">{{ n.message }}</aside>{% endfor %}"#,
     )
     .unwrap();
     let mut state = crate::test_support::test_app_state(
@@ -412,7 +407,7 @@ async fn test_a_theme_can_replace_the_notices() {
     let page = site.page().await;
     assert!(page.contains(r#"class="mine-success""#), "{}", page);
     assert!(page.contains("Custom look"));
-    assert!(!page.contains("aegis-notices"));
+    assert!(!page.contains("cms-notices"));
 }
 
 #[tokio::test]

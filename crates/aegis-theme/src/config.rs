@@ -132,8 +132,8 @@ impl Default for ThemeConfig {
     fn default() -> Self {
         Self {
             active: "default".to_string(),
-            site_title: "AegisCMS".to_string(),
-            site_description: "Next-Generation Secure CMS with Sandboxed Extensibility".to_string(),
+            site_title: "My Site".to_string(),
+            site_description: "A website".to_string(),
             favicon: None,
             custom_css: None,
             posts_per_page: default_posts_per_page(),

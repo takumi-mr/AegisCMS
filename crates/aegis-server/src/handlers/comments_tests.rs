@@ -260,7 +260,7 @@ async fn test_post_moderate_and_show_on_the_article_page() {
     assert_eq!(site.mails.kinds(), ["comment.replied"]);
     let (_, html) = site.page("/articles/hello").await;
     assert!(html.contains("2 comments"));
-    assert!(html.contains("aegis-comment-badge"));
+    assert!(html.contains("cms-comment-badge"));
 
     // The moderation is in the audit log
     let (_, logs) = site
@@ -464,7 +464,7 @@ async fn test_deleting_content_deletes_its_comments_and_closed_comments_have_no_
     assert_eq!(status, StatusCode::FORBIDDEN, "{}", body);
     let (_, html) = site.page("/articles/hello").await;
     assert!(html.contains("Comments are closed."));
-    assert!(!html.contains("<form class=\"aegis-comment-form\""));
+    assert!(!html.contains("<form class=\"cms-comment-form\""));
 
     // A comment from before closing is removed with its article
     site.state

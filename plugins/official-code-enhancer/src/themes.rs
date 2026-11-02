@@ -1,8 +1,8 @@
-//! Code and Diagram theme configurations for AegisCMS Code Enhancer.
+//! Code and Diagram theme configurations for the Code Enhancer.
 
 /// Base CSS for enhanced inline code, copy buttons, and diagram containers.
 pub const BASE_ENHANCER_CSS: &str = r#"
-/* AegisCMS Code & Diagram Enhancer Base Styles */
+/* Code & Diagram Enhancer Base Styles */
 .prose code.inline-code-enhanced,
 .prose p > code,
 .prose li > code {
@@ -103,7 +103,7 @@ pub const THEME_DRACULA: ThemeDefinition = ThemeDefinition {
     display_name: "Dracula",
     mermaid_theme: "dark",
     css: r#"
-/* Dracula Theme for AegisCMS */
+/* Dracula Theme */
 .prose code.inline-code-enhanced,
 .prose p > code,
 .prose li > code {
@@ -136,7 +136,7 @@ pub const THEME_GITHUB_DARK: ThemeDefinition = ThemeDefinition {
     display_name: "GitHub Dark",
     mermaid_theme: "dark",
     css: r#"
-/* GitHub Dark Theme for AegisCMS */
+/* GitHub Dark Theme */
 .prose code.inline-code-enhanced,
 .prose p > code,
 .prose li > code {
@@ -169,7 +169,7 @@ pub const THEME_ONE_DARK: ThemeDefinition = ThemeDefinition {
     display_name: "One Dark Pro",
     mermaid_theme: "dark",
     css: r#"
-/* One Dark Pro Theme for AegisCMS */
+/* One Dark Pro Theme */
 .prose code.inline-code-enhanced,
 .prose p > code,
 .prose li > code {
@@ -202,7 +202,7 @@ pub const THEME_NORD: ThemeDefinition = ThemeDefinition {
     display_name: "Nord Arctic",
     mermaid_theme: "dark",
     css: r#"
-/* Nord Theme for AegisCMS */
+/* Nord Theme */
 .prose code.inline-code-enhanced,
 .prose p > code,
 .prose li > code {
@@ -235,7 +235,7 @@ pub const THEME_GITHUB_LIGHT: ThemeDefinition = ThemeDefinition {
     display_name: "GitHub Light",
     mermaid_theme: "default",
     css: r#"
-/* GitHub Light Theme for AegisCMS */
+/* GitHub Light Theme */
 .prose code.inline-code-enhanced,
 .prose p > code,
 .prose li > code {
@@ -268,7 +268,7 @@ pub const THEME_MONOKAI: ThemeDefinition = ThemeDefinition {
     display_name: "Monokai Pro",
     mermaid_theme: "dark",
     css: r#"
-/* Monokai Theme for AegisCMS */
+/* Monokai Theme */
 .prose code.inline-code-enhanced,
 .prose p > code,
 .prose li > code {

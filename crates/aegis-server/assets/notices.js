@@ -1,5 +1,5 @@
 /*
- * AegisCMS site notices. Served at /_aegis/notices.js when a notice is shown.
+ * Site notices. Served at /_aegis/notices.js when a notice is shown.
  *
  * The notices' HTML comes from the theme's notices.html (a built-in one when the theme has none). A notice
  * the visitor can close has this in it:

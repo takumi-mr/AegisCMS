@@ -132,6 +132,9 @@ themes/my-theme/
 | `admin_url` | Admin Studio へのリンクの URL（`base_path` と `[server].admin_path` 込み）。**出さない設定のときは空文字**なので `{% if admin_url %}...{% endif %}` で囲む。`/admin/` を直接書かない |
 | `show_powered_by` | フッターに「Powered by AegisCMS」などの表記を出すか（`[theme].show_powered_by`、既定は `true`）。表記は `{% if show_powered_by %}...{% endif %}` で囲む |
 
+> [!NOTE]
+> 組み込みの機能が出す名前（`aegis-consent-*`、`data-aegis-*`、`/_aegis/consent.js` など）は、応答が返る直前に `[server].namespace`（既定 `cms`）の接頭辞へ置き換わります。テンプレートや CSS には `aegis-` と書いたままでよく、HTML・CSS・JS で同じ置き換えが掛かるので食い違いません。ブラウザの開発者ツールやサイト上では `cms-consent-*` などの名前で見えます（[configuration.md 4.6](configuration.md#46-使っている-cms-を特定されにくくする)）。
+
 一覧（`items` の各要素）: `title`、`slug`、`excerpt`（本文の先頭 140 文字）、`published_at`、`created_at`、`content_type`、`fields`（カスタムフィールド）、`relations`（解決済みのリレーション。例: `item.relations.category_id.title`）。
 
 ページ送り（`pagination`）: `page`、`per_page`、`total_items`、`total_pages`、`prev_url` / `next_url`（`base_path` 込み。無ければ空）。
