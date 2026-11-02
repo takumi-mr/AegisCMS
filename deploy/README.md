@@ -28,16 +28,17 @@ git clone https://github.com/takumi-mr/aegiscms
 cd aegiscms/deploy
 cp sites.example.toml sites.toml
 vi sites.toml          # ドメイン・サイト名・テーマなどを書く
-./deploy.sh up         # イメージをビルドし、設定を生成して起動
+./deploy.sh up         # 公開イメージを取得し、設定を生成して起動
 ./deploy.sh user main  # サイト main の管理者 admin を作る（パスワードを聞かれる）
 ```
 
 `https://<ドメイン>/` がサイト、`https://<ドメイン>/admin/` が Admin Studio です。
 
-初回の `./deploy.sh up` は AegisCMS のイメージをリポジトリのソースからビルドするので、数分〜十数分かかります。レジストリに置いたイメージを使う場合は `AEGIS_IMAGE=ghcr.io/... ./deploy.sh up` のように指定します（`docker compose` を直接使うときも同じ環境変数を使います）。
+初回の `./deploy.sh up` は GitHub Container Registry（`ghcr.io/takumi-mr/aegiscms:latest`）から公式公開イメージを自動で取得（`docker pull`）し、設定を生成して起動します（Rust のコンパイル環境等は不要で、即座に起動します）。
 
 > [!TIP]
-> 初めて試すときは `acme_staging = true` にすると、Let's Encrypt の発行回数の制限を気にせず試せます（証明書はブラウザーに信頼されません）。うまく動いたら `false` に戻して `./deploy.sh up` します。手元で試すなら、`domains = ["main.localhost"]` のように `.localhost` のドメインにすると、Caddy が自分の認証局で証明書を作ります。
+> - リポジトリのソースコードから自前でイメージをビルドしたい場合は、`./deploy.sh build` を実行するか、`AEGIS_IMAGE=aegiscms:latest ./deploy.sh up` のようにローカルイメージ名を指定します。
+> - 初めて試すときは `acme_staging = true` にすると、Let's Encrypt の発行回数の制限を気にせず試せます（証明書はブラウザーに信頼されません）。うまく動いたら `false` に戻して `./deploy.sh up` します。手元で試すなら、`domains = ["main.localhost"]` のように `.localhost` のドメインにすると、Caddy が自分の認証局で証明書を作ります。
 
 ## 2. `sites.toml`
 
@@ -108,7 +109,8 @@ AEGIS_STRIPE_WEBHOOK_SECRET=whsec_...
 | 状態を見る | `./deploy.sh ps` |
 | ログを見る | `./deploy.sh logs`（サイトを絞るなら `./deploy.sh logs main`） |
 | サイトを足す・設定を変える | `sites.toml` を直して `./deploy.sh up` |
-| AegisCMS を更新する | `git pull && ./deploy.sh build && ./deploy.sh up` |
+| 最新のイメージを取得する | `./deploy.sh pull` |
+| AegisCMS を更新する | `./deploy.sh pull && ./deploy.sh up`（ソースから自前ビルドしている場合は `git pull && ./deploy.sh build && ./deploy.sh up`） |
 | 再起動 | `./deploy.sh restart main` |
 | 全部止める | `./deploy.sh down`（データのボリュームは残る） |
 

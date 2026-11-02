@@ -70,3 +70,12 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+  publish-docker:
+    name: Publish Docker Image to GHCR
+    needs: release-please
+    if: ${{ contains(fromJSON(needs.release-please.outputs.paths_released || '[]'), '.') }}
+    uses: ./.github/workflows/release-docker.yml
+    permissions:
+      contents: read
+      packages: write

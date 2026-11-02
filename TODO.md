@@ -16,6 +16,7 @@
 ## 技術メモ・申し送り事項
 
 - **AssemblyScript SDK の npm 公開は未検証**: release-please の PR・タグ・`Cargo.lock` の同期は動作確認済み（v0.2.0）。`sdk/assemblyscript` を初めて上げるリリースで、`release-please.yml` から `release-sdk.yml` が呼ばれて GitHub Packages に公開されるかを確かめる。GitHub Release の「Latest」は最後に作られたものに付くため、コアの `v0.2.0` でなくプラグインのリリースに付くことがある（見た目のみ）。
+- **GHCR Docker イメージの初回公開設定**: `release-docker.yml` で GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) に初回 push された後、GitHub リポジトリの Packages 設定からパッケージの Visibility を「Public」に変更する必要がある（デフォルトでは Private になる場合がある）。
 - 公式プラグインの `plugin.wasm` はリポジトリにコミット済みで、バージョンを上げても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースを変えたリリースでは各自 `task` で再生成してから出す。
 
 ---
