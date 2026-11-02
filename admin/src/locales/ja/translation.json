@@ -528,6 +528,20 @@
       "verifying": "認証中...",
       "invalidCode": "認証コードが無効または期限切れです",
       "backToLogin": "通常のログインに戻る"
+    },
+    "setup": {
+      "title": "初期セットアップ",
+      "subtitle": "サイトの基本設定と管理者アカウントの作成を行います。",
+      "siteTitle": "サイト名",
+      "adminUsername": "管理者ユーザー名",
+      "adminPassword": "管理者パスワード (8文字以上)",
+      "adminEmail": "管理者メールアドレス (任意)",
+      "sampleData": "初期サンプルコンテンツ (ウェルカム記事・固定ページ) を作成する",
+      "submit": "インストール完了",
+      "submitting": "セットアップ中...",
+      "errors": {
+        "passwordLength": "パスワードは8文字以上で入力してください。"
+      }
     }
   },
   "markdown": {

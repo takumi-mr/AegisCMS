@@ -533,6 +533,20 @@
       "verifying": "Verifying...",
       "invalidCode": "Invalid or expired verification code",
       "backToLogin": "Back to login"
+    },
+    "setup": {
+      "title": "Initial Setup",
+      "subtitle": "Configure your site and create the first administrator.",
+      "siteTitle": "Site Title",
+      "adminUsername": "Admin Username",
+      "adminPassword": "Admin Password (min. 8 chars)",
+      "adminEmail": "Admin Email (optional)",
+      "sampleData": "Create sample content (welcome article & page)",
+      "submit": "Complete Installation",
+      "submitting": "Setting up...",
+      "errors": {
+        "passwordLength": "Password must be at least 8 characters long."
+      }
     }
   },
   "markdown": {
