@@ -53,6 +53,7 @@ AegisCMS コアサーバー (`aegis-server`) の設定ファイル (`config/*.to
 | `port` | integer (u16) | `8080` | リッスンするポート |
 | `base_path` | string | `""` | サブパス配下で公開する場合のパス（例: `"/cms"`）。空ならルート `/` で公開。使える文字は英数字と `- . _ ~`（不正な値はサーバーが起動しない）。[4.2](#42-サブパスで公開する) を参照 |
 | `admin_path` | string | `"/admin"` | Admin Studio を配信するパス。1 階層だけで、使える文字は `base_path` と同じ。公開サイト・API のパス（`/api`、`/uploads`、`/theme`、`/articles` など）とは重ねられない（不正な値はサーバーが起動しない）。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
+| `namespace` | string | `"cms"` | 公開ページに出る識別子（CSS のクラス名・`id`・`data-*` 属性・Cookie と localStorage のキー・JS のグローバル名・`/_<namespace>/` の配信パス）の接頭辞。英小文字で始まり、英小文字と数字だけの 16 文字以内（不正な値はサーバーが起動しない）。`admin_path` と `/_<namespace>` を同じにはできない。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
 
 ### 2.2 `[database]` — データベース
 
@@ -915,9 +916,11 @@ server {
 | 設定 | 効果 |
 | --- | --- |
 | `[server].admin_path = "/<推測されにくい名前>"` | Admin Studio を別のパスで配信する。既定の `/admin` は Admin Studio ではなくなる（公開サイトの 404）。同じ名前のスラッグの固定ページは開けなくなる |
+| `[server].namespace = "<好きな名前>"` | 公開ページの HTML・CSS・JS に出る識別子の接頭辞（`aegis-consent` → `<名前>-consent`、`/_aegis/consent.js` → `/_<名前>/consent.js`、`window.AegisConsent` → `window.<名前>Consent` など）を変える。既定は `cms`（`aegis` を指定すると元の名前のまま）。HTML・CSS・JS の応答が返る直前に置き換えるので、テンプレートや自作テーマは `aegis-` と書いたままでよい |
 | `[theme].show_powered_by = false` | 組み込みテンプレートと同梱テーマのフッターから「Powered by AegisCMS」などの表記を消す |
 | `[theme].show_admin_link` | 公開ページ（組み込みテンプレートと同梱テーマのヘッダー・フッター）に Admin Studio へのリンクを出すか。**未指定なら、`admin_path` が既定の `/admin` のときだけ出す**（パスを変えたのは隠すためなので、変えたらリンクも出さない）。`true` で変えたパスへのリンクを出し、`false` でパスが既定でも出さない |
 
+- `namespace` の置き換え対象は、`text/html`・`text/css`・JavaScript の応答（`/api/`・Admin Studio・アップロードは除く）の `aegis-`・`aegis_`・`aegis:`・`/_aegis/`・`AegisConsent` のような名前・`AEGIS_` で始まる定数名です。記事の本文に同じ形の文字列（例: コード例の `aegis-server`）があると、それも置き換わります。URL の一部（`/aegis-…`）と製品名の `AegisCMS` は置き換えません。変えると保存済みの Cookie・localStorage（同意の選択、カート）は引き継がれず、テーマの CSS を `aegis-` 以外の名前に直書きしている場合は合わせて直してください。
 - 変えたパスを `robots.txt` に書かないでください（`Disallow` に書くとパスが公開されます）。既定の `robots.txt` の `Disallow: /admin/` はそのままで構いません。
 - `[auth.oidc]` / `[auth.saml]` の `post_login_redirect` が既定（`/admin/`）のままなら、新しいパスに自動で合わせます。`[auth.registration].admin_url` を書いている場合は新しいパスに直してください。
 - `admin_path` を変えたら、ブックマークや IdP に登録した戻り先 URL も更新してください。

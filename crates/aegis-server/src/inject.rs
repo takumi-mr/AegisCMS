@@ -3,7 +3,7 @@
 //! プラグイン・テーマが作ったページにも付く
 //!
 //! 対象は `text/html` の `GET` 応答だけ。API（`/api/`）、Admin Studio、アップロード、この機能のアセット
-//! （`/_aegis/`）は触らない。差し込む内容が無いとき（機能がすべて無効）は、本文を読まずに素通しする
+//! （`/_<namespace>/`）は触らない。差し込む内容が無いとき（機能がすべて無効）は、本文を読まずに素通しする
 
 use std::sync::Arc;
 
@@ -62,7 +62,7 @@ fn is_excluded(state: &AppState, path: &str) -> bool {
     let admin = admin.trim_end_matches('/');
     let prefix_of = |prefix: &str| path == prefix || path.starts_with(&format!("{}/", prefix));
     prefix_of("/api")
-        || prefix_of("/_aegis")
+        || prefix_of(&format!("/_{}", state.config.server.namespace()))
         || (!admin.is_empty() && prefix_of(admin))
         || prefix_of(
             state

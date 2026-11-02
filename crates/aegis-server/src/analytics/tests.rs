@@ -95,7 +95,7 @@ async fn test_beacon_is_on_public_pages_only_when_enabled() {
     let (_, html) = site
         .send(Request::get("/articles").body(Body::empty()).unwrap())
         .await;
-    assert!(html.contains(r#"<script id="aegis-analytics">"#));
+    assert!(html.contains(r#"<script id="cms-analytics">"#));
     assert!(html.contains(r#"u="/cms/api/v1/analytics/event""#));
     // Cookie は使わない
     assert!(!html.contains("document.cookie"));
@@ -104,7 +104,7 @@ async fn test_beacon_is_on_public_pages_only_when_enabled() {
     let (_, html) = disabled
         .send(Request::get("/articles").body(Body::empty()).unwrap())
         .await;
-    assert!(!html.contains("aegis-analytics"));
+    assert!(!html.contains("cms-analytics"));
     assert_eq!(
         disabled
             .beacon(r#"{"p":"/"}"#, [203, 0, 113, 1], None)

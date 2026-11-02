@@ -268,28 +268,23 @@ async fn test_public_pages_get_the_tags_in_the_head_and_the_banner_before_the_bo
         let head_end = lower.find("</head>").unwrap();
         let body_end = lower.rfind("</body>").unwrap();
         let script = body
-            .find("/_aegis/consent.js")
+            .find("/_cms/consent.js")
             .unwrap_or_else(|| panic!("{}: {}", path, body));
         assert!(script < head_end, "{}", path);
         assert_eq!(
-            body.matches("id=\"aegis-consent-config\"").count(),
+            body.matches("id=\"cms-consent-config\"").count(),
             1,
             "{}",
             path
         );
         // the banner (built-in consent.html) is just before the end of the page
         let banner = body
-            .find("data-aegis-consent-root")
+            .find("data-cms-consent-root")
             .unwrap_or_else(|| panic!("{}: {}", path, body));
         assert!(head_end < banner && banner < body_end, "{}", path);
-        assert_eq!(
-            body.matches("data-aegis-consent-root").count(),
-            1,
-            "{}",
-            path
-        );
+        assert_eq!(body.matches("data-cms-consent-root").count(), 1, "{}", path);
         assert!(
-            body.contains("aegis-consent-layout-banner aegis-consent-pos-bottom"),
+            body.contains("cms-consent-layout-banner cms-consent-pos-bottom"),
             "{}",
             body
         );
@@ -370,24 +365,24 @@ async fn test_the_built_in_texts_follow_the_theme_language() {
 #[tokio::test]
 async fn test_a_theme_can_replace_the_banner() {
     let (state, _dir) = state_with_theme(
-        r#"<aside data-aegis-consent-root hidden class="mine-{{ fields.consent.layout }}">
+        r#"<aside data-cms-consent-root hidden class="mine-{{ fields.consent.layout }}">
   <p>{{ site_title }}: {{ fields.message or "custom words" }}</p>
-  {% for c in fields.categories %}<label><input type="checkbox" data-aegis-consent-category="{{ c.id }}"> {{ c.id }}</label>{% endfor %}
-  <button data-aegis-consent-action="accept-all">OK</button>
+  {% for c in fields.categories %}<label><input type="checkbox" data-cms-consent-category="{{ c.id }}"> {{ c.id }}</label>{% endfor %}
+  <button data-cms-consent-action="accept-all">OK</button>
 </aside>"#,
     )
     .await;
     let (_, _, body) = get(&state, "/").await;
     assert!(
-        body.contains(r#"<aside data-aegis-consent-root hidden class="mine-banner">"#),
+        body.contains(r#"<aside data-cms-consent-root hidden class="mine-banner">"#),
         "{}",
         body
     );
     assert!(body.contains("custom words"));
-    assert!(body.contains(r#"data-aegis-consent-category="marketing""#));
+    assert!(body.contains(r#"data-cms-consent-category="marketing""#));
     // The built-in markup is gone, the script and its settings are still added
-    assert!(!body.contains("aegis-consent-title"));
-    assert!(body.contains("/_aegis/consent.js"));
+    assert!(!body.contains("cms-consent-title"));
+    assert!(body.contains("/_cms/consent.js"));
 }
 
 #[tokio::test]
@@ -396,23 +391,23 @@ async fn test_a_broken_banner_template_leaves_the_page_working() {
     assert_eq!(body_html(&state), "");
     let (status, _, body) = get(&state, "/").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(!body.contains("data-aegis-consent-root"));
+    assert!(!body.contains("data-cms-consent-root"));
     // The head still has the script: with no banner it just never asks, so nothing waiting for consent runs
-    assert!(body.contains("/_aegis/consent.js"));
+    assert!(body.contains("/_cms/consent.js"));
 }
 
 #[tokio::test]
 async fn test_nothing_is_added_when_consent_is_off() {
     let state = state(|config| config.consent.enabled = false).await;
     let (_, _, body) = get(&state, "/").await;
-    assert!(!body.contains("aegis-consent"));
+    assert!(!body.contains("cms-consent"));
     assert_eq!(body_html(&state), "");
     assert_eq!(
-        get(&state, "/_aegis/consent.js").await.0,
+        get(&state, "/_cms/consent.js").await.0,
         StatusCode::NOT_FOUND
     );
     assert_eq!(
-        get(&state, "/_aegis/consent.css").await.0,
+        get(&state, "/_cms/consent.css").await.0,
         StatusCode::NOT_FOUND
     );
 }
@@ -420,7 +415,7 @@ async fn test_nothing_is_added_when_consent_is_off() {
 #[tokio::test]
 async fn test_assets_are_served_with_the_right_types() {
     let state = state(|_| {}).await;
-    let (status, headers, body) = get(&state, "/_aegis/consent.js").await;
+    let (status, headers, body) = get(&state, "/_cms/consent.js").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         headers["content-type"],
@@ -428,36 +423,88 @@ async fn test_assets_are_served_with_the_right_types() {
     );
     assert_eq!(headers["x-content-type-options"], "nosniff");
     assert_eq!(headers["cache-control"], "public, max-age=3600");
-    assert!(body.contains("window.AegisConsent"));
-    let (status, headers, body) = get(&state, "/_aegis/consent.css").await;
+    assert!(body.contains("window.CmsConsent"));
+    let (status, headers, body) = get(&state, "/_cms/consent.css").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers["content-type"], "text/css; charset=utf-8");
-    assert!(body.contains(".aegis-consent"));
+    assert!(body.contains(".cms-consent"));
 }
 
 #[tokio::test]
 async fn test_api_admin_and_assets_are_left_alone() {
     let state = state(|_| {}).await;
     let (_, _, body) = get(&state, "/api/v1/health").await;
-    assert!(!body.contains("aegis-consent"));
+    assert!(!body.contains("cms-consent"));
     // the feed and the sitemap are XML
     let (_, _, feed) = get(&state, "/feed.xml").await;
-    assert!(!feed.contains("aegis-consent"));
+    assert!(!feed.contains("cms-consent"));
     // the asset files themselves
-    let (_, _, script) = get(&state, "/_aegis/consent.js").await;
-    assert!(!script.contains("id=\"aegis-consent-config\"></script>"));
+    let (_, _, script) = get(&state, "/_cms/consent.js").await;
+    assert!(!script.contains("id=\"cms-consent-config\"></script>"));
 }
 
 #[tokio::test]
 async fn test_the_base_path_is_in_the_asset_urls() {
     let state = state(|config| config.server.base_path = "/cms".to_string()).await;
     let (_, _, body) = get(&state, "/").await;
+    assert!(body.contains("href=\"/cms/_cms/consent.css?v="), "{}", body);
+    assert!(body.contains("src=\"/cms/_cms/consent.js?v="));
+}
+
+#[tokio::test]
+async fn test_the_namespace_renames_the_identifiers_and_the_asset_path() {
+    let state = state(|config| config.server.namespace = "x7".to_string()).await;
+    let (_, _, body) = get(&state, "/").await;
+    assert!(body.contains("/_x7/consent.js?v="), "{}", body);
+    assert!(body.contains("data-x7-consent-root"));
+    assert!(body.contains("id=\"x7-consent-config\""));
+    assert!(!body.contains("aegis-"), "{}", body);
+    let (status, _, script) = get(&state, "/_x7/consent.js").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(script.contains("window.X7Consent") && script.contains("x7_consent"));
     assert!(
-        body.contains("href=\"/cms/_aegis/consent.css?v="),
+        !script.contains("aegis") && !script.contains("Aegis"),
         "{}",
-        body
+        script
     );
-    assert!(body.contains("src=\"/cms/_aegis/consent.js?v="));
+    let (_, _, style) = get(&state, "/_x7/consent.css").await;
+    assert!(style.contains(".x7-consent") && !style.to_lowercase().contains("aegis"));
+    // the default asset path is gone
+    assert_eq!(
+        get(&state, "/_cms/consent.js").await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn test_the_namespace_aegis_keeps_the_original_names() {
+    let state = state(|config| config.server.namespace = "aegis".to_string()).await;
+    let (_, _, body) = get(&state, "/").await;
+    assert!(body.contains("/_aegis/consent.js?v="), "{}", body);
+    assert!(body.contains("data-aegis-consent-root"));
+    assert_eq!(get(&state, "/_aegis/consent.js").await.0, StatusCode::OK);
+}
+
+#[test]
+fn test_the_namespace_must_be_a_short_lowercase_word() {
+    let check = |ns: &str| {
+        let mut config = crate::config::AegisConfig::default();
+        config.server.namespace = ns.to_string();
+        config.server.normalized_namespace().is_ok()
+    };
+    assert!(check("cms") && check("x7") && check("aegis"));
+    for bad in [
+        "",
+        "7x",
+        "My",
+        "a-b",
+        "a_b",
+        "a/b",
+        "abcdefghijklmnopq",
+        "é",
+    ] {
+        assert!(!check(bad), "{:?}", bad);
+    }
 }
 
 /// The names a theme's consent.html and the script agree on (documented in docs/consent.md)

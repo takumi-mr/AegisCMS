@@ -845,20 +845,20 @@ async fn test_storefront_pages_render() {
     assert!(!html.contains("SECRET"), "drafts are not listed");
     let (status, html) = page("/products/mug").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(html.contains("data-aegis-add-to-cart"));
+    assert!(html.contains("data-cms-add-to-cart"));
     assert!(html.contains("data-product-id=\"p-mug\""));
     assert!(html.contains("Only 3 left"));
     assert_eq!(page("/products/secret").await.0, StatusCode::NOT_FOUND);
     let (status, html) = page("/cart").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(html.contains("id=\"aegis-cart\""));
+    assert!(html.contains("id=\"cms-cart\""));
     // Attribute values are HTML-escaped (`/` → `&#x2f;`); browsers decode them
     assert!(html
         .replace("&#x2f;", "/")
         .contains("data-api=\"/api/v1/shop\""));
     let (status, script) = page("/shop/cart.js").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(script.contains("aegis.cart.v1"));
+    assert!(script.contains("cms_cart_v1"));
 }
 
 #[tokio::test]
@@ -882,7 +882,7 @@ async fn test_storefront_pages_and_cart_script_follow_the_theme_locale() {
     assert!(cart.contains(r#"<html lang="en">"#) && cart.contains("Loading your cart…"));
     let script = get(&en, "/shop/cart.js").await;
     assert!(
-        script.starts_with("window.AEGIS_CART_I18N = {"),
+        script.starts_with("window.CMS_CART_I18N = {"),
         "{}",
         &script[..80]
     );
@@ -892,7 +892,7 @@ async fn test_storefront_pages_and_cart_script_follow_the_theme_locale() {
         &script[..400]
     );
     assert!(script.contains(r#""locale":"en""#));
-    assert!(script.contains("aegis.cart.v1"));
+    assert!(script.contains("cms_cart_v1"));
 
     // [theme].locale = "ja"
     let ja = shop(|config| config.theme.locale = "ja".to_string()).await;
@@ -911,7 +911,10 @@ async fn test_storefront_pages_and_cart_script_follow_the_theme_locale() {
     assert!(script.contains(r#""locale":"ja""#));
     assert!(script.contains(r#""status.paid":"お支払い済み""#));
     // 関数の本体は言語に依らず同じ
-    assert!(script.ends_with(include_str!("../../assets/cart.js")));
+    assert!(script.ends_with(&*crate::namespace::rewrite(
+        include_str!("../../assets/cart.js"),
+        "cms"
+    )));
 }
 
 #[tokio::test]

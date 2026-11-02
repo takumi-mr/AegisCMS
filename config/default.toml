@@ -4,6 +4,9 @@ port = 8080
 # Path to serve under behind a reverse proxy, e.g. "/cms" for https://example.com/cms/ (empty: the root).
 # See docs/configuration.md "リバースプロキシ配下での運用"
 base_path = ""
+# Prefix of the names the public pages use (CSS classes, ids, data-* attributes, cookie / localStorage keys,
+# JS globals and the /_<namespace>/ asset path). Lowercase letters and digits, up to 16. See docs/configuration.md 4.6
+# namespace = "cms"
 
 [database]
 # Backend: "sqlite" | "postgres" | "mysql" (auto-inferred from url if omitted)
@@ -169,8 +172,8 @@ post_login_redirect = "/admin/"
 
 [theme]
 active = "default"
-site_title = "AegisCMS Official Site"
-site_description = "Next-Generation High-Performance Secure CMS with Sandboxed WebAssembly Extensibility"
+site_title = "My Site"
+site_description = "A website"
 # Favicon of the public site: a root-relative path (e.g. "/uploads/favicon.png") or an http(s) URL.
 # The site title and favicon can also be changed in Admin Studio (Settings > Site), which overrides these.
 # favicon = "/uploads/favicon.png"

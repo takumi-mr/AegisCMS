@@ -1,5 +1,5 @@
 /*
- * AegisCMS shop: cart (localStorage), checkout and the order page.
+ * Shop: cart (localStorage), checkout and the order page.
  * Served at /shop/cart.js and loaded by the shop templates with
  *   <script src="..." data-api="{base}/api/v1/shop" data-currency="jpy"
  *           data-cart-url="{base}/cart" data-products-url="{base}/products" defer></script>
@@ -11,7 +11,7 @@
   'use strict';
 
   var script = document.currentScript;
-  var CURRENCY_KEY = 'aegis.currency';
+  var CURRENCY_KEY = 'aegis_currency';
   var initialCurrency = (function () {
     try {
       var saved = localStorage.getItem(CURRENCY_KEY);
@@ -28,7 +28,7 @@
     shopEnabled: !script || script.dataset.shopEnabled !== 'false',
   };
   var I18N = window.AEGIS_CART_I18N || { locale: undefined, messages: {} };
-  var STORAGE_KEY = 'aegis.cart.v1';
+  var STORAGE_KEY = 'aegis_cart_v1';
   var memoryCart = [];
 
   // ---------- helpers ----------

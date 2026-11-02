@@ -184,7 +184,7 @@ window.AegisConsent.open();                  // 設定を開く
 
 ## 4. 仕組みと注意
 
-- **CSP に強い**: スクリプトと CSS は外部ファイル(`/_aegis/consent.js` / `consent.css`)、設定は実行しない JSON(`type="application/json"`)なので、`script-src 'self'` だけの CSP でも動きます。`[server].base_path` がある場合は URL に付きます。
+- **CSP に強い**: スクリプトと CSS は外部ファイル(`/_aegis/consent.js` / `consent.css`。`/_<namespace>/` の名前は `[server].namespace` で変わる)、設定は実行しない JSON(`type="application/json"`)なので、`script-src 'self'` だけの CSP でも動きます。`[server].base_path` がある場合は URL に付きます。
 - **差し込み**: `text/html` の `GET` 応答の `</head>` の前と、最後の `</body>` の前に足します。API(`/api/`)、Admin Studio、アップロード、`/_aegis/` は触りません。`[consent].enabled = false` なら何もしません(本文も読みません)。`consent.html` を描けないとき(テンプレートの誤り)は、バナーだけを出さず、ページはそのまま返します(ログにエラーを出します)。
 - **選択の保存**: Cookie `aegis_consent`(`Path=/`、`SameSite=Lax`、HTTPS では `Secure`、`cookie_days` 日)。値は `{"r": 版, "c": {区分: true/false}}` です。サーバーには送るだけで、保存や記録はしません(同意の記録が法的に必要な場合は、別途用意してください)。
 - **Global Privacy Control**: 初期状態は常に「すべてオフ」で、勝手に許可することはありません。

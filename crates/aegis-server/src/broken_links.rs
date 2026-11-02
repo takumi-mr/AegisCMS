@@ -146,7 +146,7 @@ impl BrokenLinksService {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .redirect(reqwest::redirect::Policy::limited(5))
-            .user_agent("Mozilla/5.0 (compatible; AegisCMS-LinkChecker/1.0)")
+            .user_agent("Mozilla/5.0 (compatible; LinkChecker/1.0)")
             .build()
             .map_err(|e| AegisError::Internal(e.to_string()))?;
 

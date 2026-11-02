@@ -22,6 +22,7 @@ mod deploy;
 mod handlers;
 mod headers;
 mod inject;
+mod namespace;
 mod notices;
 mod notify_plugins;
 mod plugin_dev;
@@ -609,6 +610,13 @@ async fn main() -> anyhow::Result<()> {
 
             let base_path = config.server.normalized_base_path()?;
             let admin_path = config.server.normalized_admin_path()?;
+            let namespace = config.server.normalized_namespace()?;
+            if admin_path == format!("/_{}", namespace) {
+                anyhow::bail!(
+                    "[server].admin_path {:?} is the asset path of [server].namespace: choose another name",
+                    admin_path
+                );
+            }
             if config.storage.local.public_url_prefix.trim_end_matches('/') == admin_path {
                 anyhow::bail!(
                     "[server].admin_path {:?} is the same as [storage.local].public_url_prefix: choose another name",

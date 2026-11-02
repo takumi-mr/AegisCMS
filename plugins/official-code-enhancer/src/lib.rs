@@ -63,7 +63,7 @@ impl CodeEnhancerPlugin {
     /// safe inline-code formatting, and the copy-to-clipboard button.
     fn generate_client_script(&self, mermaid_theme: &str) -> String {
         format!(
-            r#"<!-- AegisCMS Code & Diagram Enhancer Client Bundle -->
+            r#"<!-- Code & Diagram Enhancer Client Bundle -->
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>

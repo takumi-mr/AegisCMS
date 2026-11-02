@@ -1,5 +1,5 @@
 /*
- * AegisCMS site notices: the styles of the built-in notices.html. Served at /_aegis/notices.css.
+ * Site notices: the styles of the built-in notices.html. Served at /_aegis/notices.css.
  * Every rule is :where(...) (specificity 0), so a theme restyles it with any selector.
  */
 :where(.aegis-notices) {
