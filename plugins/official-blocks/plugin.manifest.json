@@ -1,6 +1,6 @@
 {
   "name": "official-blocks",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Content Blocks (Buttons, Link Cards & Videos)",
   "description": "Adds button, link card and video (YouTube / Vimeo) blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",

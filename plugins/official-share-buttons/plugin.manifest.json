@@ -1,6 +1,6 @@
 {
   "name": "official-share-buttons",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entrypoint": "plugin.wasm",
   "display_name": "SNS Share Buttons",
   "description": "Adds customizable SNS sharing buttons (X, LINE, URL copy, Facebook, Hatena, Bluesky, Threads, and custom destinations) to articles and pages. Configure in [plugins.settings.official-share-buttons].",

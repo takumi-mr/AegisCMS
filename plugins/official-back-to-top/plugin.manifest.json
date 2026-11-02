@@ -1,6 +1,6 @@
 {
   "name": "official-back-to-top",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Back to Top Button",
   "description": "Adds a back-to-top button at the end of articles and pages, or floating on screen. Configure it in [plugins.settings.official-back-to-top].",
