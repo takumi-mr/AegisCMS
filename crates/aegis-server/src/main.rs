@@ -1001,7 +1001,6 @@ async fn main() -> anyhow::Result<()> {
                 audit,
                 theme_engine,
             );
-            app_state.captcha = captchas;
             app_state.plugin_settings = plugin_settings;
             app_state.bus = bus;
             app_state.plugin_registry = Arc::new(plugin_registry::PluginRegistry::new(
@@ -1032,6 +1031,7 @@ async fn main() -> anyhow::Result<()> {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 system::SystemOverrides::load(app_state.db.as_ref()).await;
+            let app_state = app_state.with_captcha(captchas);
             let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),
                 None => app_state,
