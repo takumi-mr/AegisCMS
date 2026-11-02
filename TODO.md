@@ -15,8 +15,7 @@
 
 ## 技術メモ・申し送り事項
 
-- **AssemblyScript SDK の npm 公開は未検証**: release-please の PR・タグ・`Cargo.lock` の同期は動作確認済み（v0.2.0）。`sdk/assemblyscript` を初めて上げるリリースで、`release-please.yml` から `release-sdk.yml` が呼ばれて GitHub Packages に公開されるかを確かめる。GitHub Release の「Latest」は最後に作られたものに付くため、コアの `v0.2.0` でなくプラグインのリリースに付くことがある（見た目のみ）。
-- **GHCR Docker イメージの初回公開設定**: `release-docker.yml` で GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) に初回 pushされた後、GitHub リポジトリの Packages 設定からパッケージの Visibility を「Public」に変更する必要がある（デフォルトでは Private になる場合がある）。
+- **`release-please.yml` の `publish-docker`/`publish-assemblyscript-sdk` 自動連携は未検証（手動公開は確認済み）**: GitHub Packages の npm（`@takumi-mr/plugin-sdk`）と GHCR の Docker イメージ（`ghcr.io/takumi-mr/aegiscms`）はいずれも存在し、visibility も `public`（手動変更は不要だった）。ただしどちらも `workflow_dispatch` による手動実行で公開したもので、`release-please.yml` の `needs.release-please.outputs.paths_released` を使った自動呼び出し（`sdk/assemblyscript` 変更時に `release-sdk.yml`、`.`（コア）変更時に `release-docker.yml`）は、release-please が実際にリリースを作成した実行で一度も `paths_released` に対象パスが含まれず、確認した全実行でスキップされたまま。現在 open の release PR（`chore: release main`、v0.3.0 相当）をマージすれば `.` が対象になるため `publish-docker` の自動発火を確認できる。`sdk/assemblyscript` 側は、同パスへの変更を含むリリースが作られるまで検証不可。
 - 公式プラグインの `plugin.wasm` はリポジトリにコミット済みで、バージョンを上げても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースを変えたリリースでは各自 `task` で再生成してから出す。
 
 ---
