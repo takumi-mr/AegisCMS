@@ -23,10 +23,16 @@ const MAX_LIST_SCAN: usize = 10_000;
 /// `..`、絶対パス（Windows のドライブレター `C:\...`・UNC パス `\\host\share\...` を含む）、NTFS の
 /// 代替データストリーム（`:`）を拒否する。`StorageBackend` 実装（`local.rs` 等）側でも同様の検証を
 /// 行っているが、バックエンドの実装詳細に依存しない多重防御としてハンドラ層でも検証する。
+/// `std::path::Path::is_absolute()` は実行 OS によって判定基準が変わる
+/// （Windows のドライブレターなしの `/foo` は絶対パス扱いされない、Linux では UNC パスの
+/// `\\host\share` が絶対パス扱いされない等）ため、ここでは先頭が `/` または `\` であるかという
+/// 文字列としての判定をどの OS でも同じ基準で行う。
 fn validate_storage_key(key: &str) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
     let invalid = key.is_empty()
         || key.contains("..")
         || key.contains(':')
+        || key.starts_with('/')
+        || key.starts_with('\\')
         || std::path::Path::new(key).is_absolute();
     if invalid {
         return Err((
