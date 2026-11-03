@@ -386,8 +386,7 @@ impl Plugin for PageTocPlugin {
                 SCRIPT.replace("__OFFSET__", &settings.top_offset.to_string())
             ),
         );
-        ctx.content_html.push('\n');
-        ctx.content_html.push_str(&nav_html(&settings, &headings));
+        ctx.append_content = format!("\n{}", nav_html(&settings, &headings));
         Ok(ctx)
     }
 }
@@ -460,17 +459,17 @@ mod tests {
     fn adds_the_nav_styles_and_script() {
         mock::reset();
         let out = render(page(ARTICLE));
-        assert!(out.content_html.starts_with("<p>intro</p>"));
+        assert!(out.composed_html().starts_with("<p>intro</p>"));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("<nav class=\"apt apt-right\" aria-label=\"On this page\">"));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("<li class=\"apt-d0\"><a href=\"#first\">First &amp; best</a></li>"));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("<li class=\"apt-d1\"><a href=\"#sub\">Sub</a></li>"));
-        assert!(out.content_html.contains("role=\"progressbar\""));
+        assert!(out.composed_html().contains("role=\"progressbar\""));
         assert!(out.extra_css.contains("top:96px;right:1rem;width:220px"));
         assert!(out.extra_css.contains("var(--accent,#6366f1)"));
         assert!(out.extra_css.contains("@media (max-width:1199px)"));
@@ -505,8 +504,8 @@ mod tests {
         assert_eq!(render(hidden.clone()), hidden);
         // 見出しが少ないとき（既定は 2 つ以上）は目次を出さず、進捗だけ出す
         let few = render(page("<h2 id=\"only\">Only</h2><p>x</p>"));
-        assert!(!few.content_html.contains("apt-list"));
-        assert!(few.content_html.contains("apt-only"));
+        assert!(!few.composed_html().contains("apt-list"));
+        assert!(few.composed_html().contains("apt-only"));
         assert!(few.extra_css.contains(".apt{width:auto}"));
     }
 
@@ -524,10 +523,10 @@ mod tests {
         mock::set_config("smooth_scroll", "false");
         let out = render(page(ARTICLE));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("class=\"apt apt-left\" aria-label=\"目次\""));
-        assert!(!out.content_html.contains("apt-track"));
-        assert!(!out.content_html.contains("#sub"));
+        assert!(!out.composed_html().contains("apt-track"));
+        assert!(!out.composed_html().contains("#sub"));
         assert!(out.extra_css.contains("top:64px;left:1rem;width:300px"));
         assert!(out.extra_css.contains("flex-direction:row-reverse"));
         assert!(out.extra_css.contains("background:#ff0066"));
@@ -580,8 +579,8 @@ mod tests {
         mock::reset();
         mock::set_config("title", "<b>Contents</b>");
         let out = render(page(ARTICLE));
-        assert!(out.content_html.contains("&lt;b&gt;Contents&lt;/b&gt;"));
-        assert!(!out.content_html.contains("<b>Contents"));
+        assert!(out.composed_html().contains("&lt;b&gt;Contents&lt;/b&gt;"));
+        assert!(!out.composed_html().contains("<b>Contents"));
         mock::reset();
     }
 }

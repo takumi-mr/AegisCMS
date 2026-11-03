@@ -226,7 +226,7 @@ fn push_line(target: &mut String, addition: &str) {
 impl Plugin for BackToTopPlugin {
     fn on_render_page(&mut self, mut ctx: PageRenderContext) -> Result<PageRenderContext> {
         let settings = Settings::load();
-        if ctx.content_html.is_empty()
+        if ctx.content_length == 0
             || !settings.content_types.contains(&ctx.content_type)
             || ctx.fields.get("hide_back_to_top").is_some_and(truthy)
         {
@@ -244,8 +244,7 @@ impl Plugin for BackToTopPlugin {
                 ),
             );
         }
-        ctx.content_html.push('\n');
-        ctx.content_html.push_str(&button_html(&settings));
+        ctx.append_content = format!("\n{}", button_html(&settings));
         Ok(ctx)
     }
 }
@@ -261,6 +260,7 @@ mod tests {
         PageRenderContext {
             content_type: "article".to_string(),
             content_html: "<p>Hello</p>".to_string(),
+            content_length: 12,
             ..Default::default()
         }
     }
@@ -274,12 +274,12 @@ mod tests {
         mock::reset();
         let out = render(page());
         assert!(out
-            .content_html
+            .composed_html()
             .starts_with("<p>Hello</p>\n<div class=\"obt-row obt-right\">"));
-        assert!(out.content_html.contains(
+        assert!(out.composed_html().contains(
             "<a class=\"obt obt-inline obt-right obt-circle\" href=\"#top\" aria-label=\"Back to top\">"
         ));
-        assert!(!out.content_html.contains("<span>"));
+        assert!(!out.composed_html().contains("<span>"));
         assert!(out.extra_head.is_empty());
         assert!(out
             .extra_css
@@ -297,11 +297,11 @@ mod tests {
         mock::set_config("offset_px", "32");
         mock::set_config("locale", "ja");
         let out = render(page());
-        assert!(out.content_html.contains(
+        assert!(out.composed_html().contains(
             "<a class=\"obt obt-fixed obt-left obt-pill\" href=\"#top\" aria-label=\"トップへ戻る\">"
         ));
-        assert!(out.content_html.contains("<span>トップへ戻る</span>"));
-        assert!(!out.content_html.contains("obt-row"));
+        assert!(out.composed_html().contains("<span>トップへ戻る</span>"));
+        assert!(!out.composed_html().contains("obt-row"));
         assert!(out.extra_css.contains("a.obt-fixed.obt-left{left:32px}"));
         assert!(out.extra_head.contains(">800)"));
         assert!(out.extra_head.contains("'auto':'smooth'"));
@@ -317,16 +317,16 @@ mod tests {
         mock::set_config("shape", "square");
         let out = render(page());
         assert!(out
-            .content_html
+            .composed_html()
             .contains("class=\"obt obt-fixed obt-center obt-square\""));
         mock::reset();
         mock::set_config("position", "center");
         let out = render(page());
         assert!(out
-            .content_html
+            .composed_html()
             .contains("<div class=\"obt-row obt-center\">"));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("class=\"obt obt-inline obt-center obt-circle\""));
         mock::reset();
     }
@@ -339,6 +339,7 @@ mod tests {
         assert_eq!(render(index.clone()), index);
         let mut empty = page();
         empty.content_html.clear();
+        empty.content_length = 0;
         assert_eq!(render(empty.clone()), empty);
         let mut hidden = page();
         hidden
@@ -348,7 +349,7 @@ mod tests {
         mock::set_config("content_types", "article, product");
         let mut product = page();
         product.content_type = "product".to_string();
-        assert!(render(product).content_html.contains("obt-row"));
+        assert!(render(product).composed_html().contains("obt-row"));
         mock::reset();
     }
 
@@ -366,7 +367,7 @@ mod tests {
             .contains("background:#111827;color:var(--accent-contrast,#fff)"));
         assert!(!out.extra_css.contains("body{display:none"));
         assert!(out.extra_css.contains("min-width:44px"));
-        assert!(out.content_html.contains("obt-right obt-circle"));
+        assert!(out.composed_html().contains("obt-right obt-circle"));
         mock::reset();
     }
 
@@ -382,9 +383,9 @@ mod tests {
         mock::reset();
         mock::set_config("label", "\"><script>alert(1)</script>");
         let out = render(page());
-        assert!(!out.content_html.contains("<script>"));
+        assert!(!out.composed_html().contains("<script>"));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("aria-label=\"&quot;&gt;&lt;script&gt;"));
         mock::reset();
     }

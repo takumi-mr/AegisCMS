@@ -674,6 +674,7 @@ fn fixtures() -> Value {
             "title": "Getting Started with AegisCMS",
             "slug": "getting-started",
             "content_html": "<p>Welcome to our new site built on AegisCMS.</p>\n<h2 id=\"install\">Install</h2>\n<p>Download the binary and start the server.</p>\n<pre><code class=\"language-bash\">aegis-server serve\ncurl http://127.0.0.1:8080/\n</code></pre>\n<h2 id=\"write\">Write</h2>\n<p>Open <a href=\"https://example.org/docs\">the docs</a> and write your first article.</p>\n<h2 id=\"publish\">Publish</h2>\n<p>Press the publish button.</p>",
+            "content_length": 401,
             "author": "Takumi",
             "published_at": "2026-11-01T09:00:00Z",
             "updated_at": "2026-11-01T09:00:00Z",
@@ -995,10 +996,12 @@ fn render_preview_document(hook: &str, output: &Value) -> String {
                 if let Some(j) = obj.get("extra_js").and_then(|v| v.as_str()) {
                     extra_js.push_str(j);
                 }
-                // The hook returns the page context: its body is `content_html`
-                if let Some(html) = obj.get("content_html").and_then(|v| v.as_str()) {
-                    body_content.push_str(html);
-                }
+                // The hook returns the page context: its body is `content_html`, with what the
+                // plugin put in the `prepend_content`/`append_content` slots around it
+                let text = |key: &str| obj.get(key).and_then(|v| v.as_str()).unwrap_or_default();
+                body_content.push_str(text("prepend_content"));
+                body_content.push_str(text("content_html"));
+                body_content.push_str(text("append_content"));
                 if let Some(items) = obj.get("items").and_then(|v| v.as_array()) {
                     for item in items {
                         if let Some(html) = item.get("html").and_then(|v| v.as_str()) {

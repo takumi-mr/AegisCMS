@@ -75,4 +75,8 @@ export class PageRenderContext {
   slug: string = "";
   extra_css: string = "";
   extra_head: string = "";
+  /** 本文の前に足す HTML（書き込み専用。ホストが全プラグインのあとで本文と結合する） */
+  prepend_content: string = "";
+  /** 本文の後ろに足す HTML（書き込み専用） */
+  append_content: string = "";
 }

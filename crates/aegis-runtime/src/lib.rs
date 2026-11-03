@@ -36,6 +36,7 @@ mod tests {
                 }),
                 storage: None,
                 hooks,
+                render_page: None,
             },
             resource_limits: PluginResourceLimits {
                 max_memory_mb: 16,
@@ -111,6 +112,132 @@ mod tests {
         assert_eq!(rendered.site_title, "Site");
         assert_eq!(rendered.template, "index.html");
         assert_eq!(rendered.items.len(), 1);
+    }
+
+    /// `on_render_page` が、常に同じ JSON（`output`）を返すプラグイン
+    fn constant_render_page_plugin(
+        output: &str,
+        render_page_input: Option<Vec<String>>,
+    ) -> WasmPluginInstance {
+        let escaped = output.replace('\\', "\\\\").replace('"', "\\\"");
+        let wat_src = format!(
+            r#"
+        (module
+            (memory (export "memory") 1)
+            (data (i32.const 256) "{escaped}")
+            (func (export "allocate") (param $len i32) (result i32) i32.const 4096)
+            (func (export "on_render_page") (param $ptr i32) (param $len i32) (result i64)
+                (i64.or (i64.shl (i64.const 256) (i64.const 32)) (i64.const {len}))))
+        "#,
+            len = output.len()
+        );
+        let mut manifest = make_sample_manifest(vec!["on-render-page".to_string()]);
+        manifest.capabilities.render_page = Some(aegis_core::RenderPageCapability {
+            input: render_page_input,
+        });
+        WasmPluginInstance::from_bytes(
+            WasmEngine::new().unwrap(),
+            manifest,
+            &wat::parse_str(wat_src).unwrap(),
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+        .unwrap()
+    }
+
+    fn page_with_body() -> aegis_core::PageRenderContext {
+        aegis_core::PageRenderContext {
+            content_html: "<p>Body</p>".to_string(),
+            items: vec![aegis_core::ContentSummary {
+                slug: "first".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_render_page_input_keeps_fields_the_plugin_did_not_declare() {
+        // 本文と記事一覧を書き換えて返そうとするプラグイン
+        let output = r#"{"content_html":"HACK","items":[],"extra_css":"x"}"#;
+
+        // 何も宣言しない: 渡されなかった本文・一覧への書き換えは反映されず、他は反映される
+        let plugin = constant_render_page_plugin(output, Some(vec![]));
+        let rendered = plugin.on_render_page(page_with_body()).await.unwrap();
+        assert_eq!(rendered.content_html, "<p>Body</p>");
+        assert_eq!(rendered.items.len(), 1);
+        assert_eq!(rendered.extra_css, "x");
+
+        // 本文だけ宣言した: 本文は書き換えられ、一覧は保たれる
+        let plugin = constant_render_page_plugin(output, Some(vec!["content_html".to_string()]));
+        let rendered = plugin.on_render_page(page_with_body()).await.unwrap();
+        assert_eq!(rendered.content_html, "HACK");
+        assert_eq!(rendered.items.len(), 1);
+
+        // 宣言が無い: 従来どおり全部が反映される
+        let plugin = constant_render_page_plugin(output, None);
+        let rendered = plugin.on_render_page(page_with_body()).await.unwrap();
+        assert_eq!(rendered.content_html, "HACK");
+        assert!(rendered.items.is_empty());
+    }
+
+    /// `on_render_page` で、受け取った本文の長さと中身を記録し、決まった枠を足す
+    struct SlotPlugin {
+        manifest: PluginManifest,
+        prepend: &'static str,
+        append: &'static str,
+        seen: Mutex<Vec<(usize, String, String)>>,
+    }
+
+    #[async_trait::async_trait]
+    impl AegisPlugin for SlotPlugin {
+        fn manifest(&self) -> &PluginManifest {
+            &self.manifest
+        }
+
+        async fn on_render_page(
+            &self,
+            mut ctx: aegis_core::PageRenderContext,
+        ) -> aegis_core::Result<aegis_core::PageRenderContext> {
+            self.seen.lock().unwrap().push((
+                ctx.content_length,
+                ctx.prepend_content.clone(),
+                ctx.append_content.clone(),
+            ));
+            ctx.prepend_content = self.prepend.to_string();
+            ctx.append_content = self.append.to_string();
+            Ok(ctx)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_apply_render_page_joins_the_slots_once_in_plugin_order() {
+        let slot_plugin = |prepend, append| {
+            Arc::new(SlotPlugin {
+                manifest: make_sample_manifest(vec!["on-render-page".to_string()]),
+                prepend,
+                append,
+                seen: Mutex::new(Vec::new()),
+            })
+        };
+        let (first, second) = (slot_plugin("[a]", "(a)"), slot_plugin("[b]", "(b)"));
+        let mut supervisor = PluginSupervisor::new();
+        supervisor.register(first.clone());
+        supervisor.register(second.clone());
+
+        let rendered = supervisor
+            .apply_render_page(page_with_body())
+            .await
+            .unwrap();
+
+        // 後のプラグインの前置きは外側、後置きは内側の外（本文を直接書き換えた場合と同じ順）
+        assert_eq!(rendered.content_html, "[b][a]<p>Body</p>(a)(b)");
+        assert!(rendered.prepend_content.is_empty() && rendered.append_content.is_empty());
+        assert_eq!(rendered.content_length, rendered.content_html.len());
+        // 各プラグインには、枠が空で、結合前の本文の長さが渡る
+        for plugin in [first, second] {
+            let seen = plugin.seen.lock().unwrap();
+            assert_eq!(*seen, vec![(11, String::new(), String::new())]);
+        }
     }
 
     #[tokio::test]

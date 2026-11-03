@@ -5,6 +5,7 @@
   "entrypoint": "plugin.wasm",
   "description": "Official code syntax highlighter, external theme loader, and Mermaid diagram renderer",
   "capabilities": {
+    "render_page": { "input": ["content_html", "fields"] },
     "network": {
       "allowed_domains": [
         "cdn.jsdelivr.net",

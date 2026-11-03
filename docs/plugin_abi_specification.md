@@ -356,6 +356,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
   "title": "記事タイトル",
   "slug": "hello-world",
   "content_html": "<p>本文</p>",
+  "content_length": 12,
   "author": "admin",
   "published_at": "2026-10-22T00:00:00Z",
   "updated_at": null,
@@ -375,6 +376,32 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 ### 5.3.1 オブジェクトを返すフックの部分更新
 
 `on_before_save`・`on_render_page`・`on_user_authenticated` の返り値（JSON オブジェクト）は、**トップレベルのキー単位で入力に上書き**されます。変更したフィールドだけを返してもよく、返さなかったフィールドやプラグインが知らないフィールドは入力の値のまま保たれます（例: `{"extra_css": "..."}` だけを返す）。長さ 0 を返した場合は「変更なし」です。
+
+### 5.3.2 `on_render_page` の本文の前後に足す（`prepend_content` / `append_content`）
+
+本文（`content_html`）に HTML を**足すだけ**のプラグインは、`content_html` を書き換えて返さず、`prepend_content`（本文の前）・`append_content`（本文の後）に足す HTML だけを返します（例: `{"append_content": "<nav>…</nav>"}`）。本文を JSON として往復させずに済むので、本文が大きいページほど速くなります（本文 64KB で 1 プラグインあたり約 6µs/KB の JSON の読み書きが無くなります）。
+
+- **書き込み専用**: プラグインには常に空で渡されます。返した値をホストがプラグインごとに貯め、**全プラグインのあとで 1 回だけ**「前置き + `content_html` + 後置き」に結合します（結合後は両方とも空）。テンプレートやほかのフックは、結合済みの `content_html` だけを見ます。
+- **順序**は、本文を直接書き換えた場合と同じです。後に実行されるプラグインの前置きほど外側、後置きほど内側の外（つまり後ろ）に付きます。
+- **本文を読むプラグインが見る本文**は、ほかのプラグインが枠に足した HTML を含みません（例: 読了時間の文字数に、共有ボタンの文字は入りません）。`content_html` を直接書き換えるプラグインの結果は、従来どおり後のプラグインにも見えます。
+- `content_html` を直接書き換える従来の方法も使えます（互換）。
+- **`content_length`**: 本文（枠を除く）のバイト数。ホストが各プラグインの呼び出しの前に計算します。後述の `render_page.input` に `content_html` を含めないプラグインが「本文があるか」を調べるために使います。
+
+### 5.3.3 `on_render_page` に渡すフィールドの絞り込み（`capabilities.render_page.input`）
+
+`on_render_page` の入力 JSON は、本文（`content_html`）・記事一覧（`items`）・カスタムフィールド（`fields`）などを含み、プラグインが使わなくても Wasm のメモリへのコピーと JSON の読み書きの分だけ時間がかかります。マニフェストの `capabilities.render_page.input` に**必要な重いフィールドだけ**を書くと、それ以外は空の値（`""`・`{}`・`[]`・省略）で渡されます。
+
+```json
+"capabilities": {
+  "hooks": ["on-render-page"],
+  "render_page": { "input": ["fields", "prev_article", "next_article"] }
+}
+```
+
+- 書ける名前は `content_html`・`fields`・`relations`・`items`・`related_articles`・`prev_article`・`next_article`・`comments`。それ以外（`title`・`template`・`extra_head`・`theme_vars` など）は常に渡されます。
+- `render_page` を省略する（または `input` を省略する）と、従来どおり全フィールドを渡します。`"input": []` は重いフィールドを 1 つも要らない宣言です。
+- 渡さなかったフィールドは、プラグインが書き換えて返しても**反映されません**（ホストが元の値に戻します）。本文を足すには前述の枠を使います。
+- 書けない名前を宣言したプラグインは読み込めません。
 
 ### 5.4 エラーエンベロープ (Error Envelope)
 ```json
@@ -438,6 +465,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - **`abi_version`**: プラグインが前提にするこの ABI のバージョン（整数。現在は `1`。任意だが公式プラグイン・テンプレートは必ず書く）。ホストが対応するバージョンより新しい値、または `0` だと読み込まない。互換性を壊す変更を入れたときだけホストが上げる（[versioning.md](versioning.md#2-プラグインの互換性)）。
 - **`resource_limits`**: メモリ上限（MB単位）、Fuel 上限、タイムアウト（ミリ秒単位）。
 - **`capabilities.embed.frame_domains`**: カスタムブロックの HTML に残せる `<iframe>` の配信元のホスト（CSP の `frame-src` にも足される）。形式は [plugin_hooks.md 3.2](plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)。
+- **`capabilities.render_page.input`**: `on-render-page` に渡す重いフィールドの絞り込み。形式は [5.3.3](#533-on_render_page-に渡すフィールドの絞り込みcapabilitiesrender_pageinput)。
 - **`blocks`**: 本文に置けるカスタムブロックの宣言（名前・表示名・入力欄）。`render-blocks` フックが必要。形式は [plugin_hooks.md 3.1](plugin_hooks.md#31-カスタムブロック-blocks)。
 
 ---

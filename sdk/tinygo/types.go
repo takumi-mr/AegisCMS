@@ -49,16 +49,19 @@ func NewHeading(level int, text string) BlockNode {
 // ホストは返した JSON のフィールドだけを上書きするため、記事一覧 (items) やカスタムフィールドなど
 // ここに無いフィールドはそのまま保たれる
 type PageRenderContext struct {
-	SiteTitle       string            `json:"site_title"`
-	SiteDescription string            `json:"site_description"`
-	Template        string            `json:"template"`
-	ContentType     string            `json:"content_type"`
-	Title           string            `json:"title"`
-	Slug            string            `json:"slug"`
-	ContentHTML     string            `json:"content_html"`
-	ExtraCSS        string            `json:"extra_css"`
-	ExtraHead       string            `json:"extra_head"`
-	ThemeVars       map[string]string `json:"theme_vars,omitempty"`
+	SiteTitle       string `json:"site_title"`
+	SiteDescription string `json:"site_description"`
+	Template        string `json:"template"`
+	ContentType     string `json:"content_type"`
+	Title           string `json:"title"`
+	Slug            string `json:"slug"`
+	ContentHTML     string `json:"content_html"`
+	// PrependContent / AppendContent は本文の前後に足す HTML (書き込み専用。ホストが全プラグインのあとで本文と結合する)
+	PrependContent string            `json:"prepend_content,omitempty"`
+	AppendContent  string            `json:"append_content,omitempty"`
+	ExtraCSS       string            `json:"extra_css"`
+	ExtraHead      string            `json:"extra_head"`
+	ThemeVars      map[string]string `json:"theme_vars,omitempty"`
 }
 
 // ErrorEnvelope はフック拒否時にホストへ返却するエラー構造体
@@ -195,10 +198,14 @@ type CommentVerdict struct {
 func AllowComment() CommentVerdict { return CommentVerdict{Verdict: "allow"} }
 
 // HoldComment はコメントを承認待ちにする
-func HoldComment(reason string) CommentVerdict { return CommentVerdict{Verdict: "hold", Reason: reason} }
+func HoldComment(reason string) CommentVerdict {
+	return CommentVerdict{Verdict: "hold", Reason: reason}
+}
 
 // SpamComment はコメントをスパムにする
-func SpamComment(reason string) CommentVerdict { return CommentVerdict{Verdict: "spam", Reason: reason} }
+func SpamComment(reason string) CommentVerdict {
+	return CommentVerdict{Verdict: "spam", Reason: reason}
+}
 
 // Recipient は通知の宛先 (send-notification)。Type は "staff" (サイトの運営者) か "person" (特定の人)
 type Recipient struct {

@@ -70,6 +70,18 @@ pub struct PageRenderContext {
     pub title: String,
     pub slug: String,
     pub content_html: String,
+    /// 本文（`content_html`）の前に足す HTML。`on-render-page` プラグインの書き込み専用で、
+    /// プラグインには常に空で渡される。返された分をホストが貯め（後のプラグインのものが外側）、
+    /// 全プラグインのあとで 1 回だけ本文と結合する。結合後は空
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub prepend_content: String,
+    /// 本文の後ろに足す HTML。仕組みは `prepend_content` と同じ（先のプラグインのものが内側）
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub append_content: String,
+    /// 本文（`content_html`）のバイト数。ホストが各プラグインの呼び出しの前に計算する。
+    /// 本文を受け取らないプラグインが「本文があるか」を知るための値
+    #[serde(default)]
+    pub content_length: usize,
     pub author: Option<String>,
     pub published_at: Option<String>,
     pub updated_at: Option<String>,

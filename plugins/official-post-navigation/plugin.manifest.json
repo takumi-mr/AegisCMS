@@ -14,6 +14,7 @@
   ],
   "min_aegis_version": "0.1.0",
   "capabilities": {
+    "render_page": { "input": ["fields", "prev_article", "next_article"] },
     "hooks": [
       "on-render-page"
     ]

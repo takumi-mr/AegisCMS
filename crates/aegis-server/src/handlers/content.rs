@@ -1763,6 +1763,7 @@ mod tests {
                 entrypoint: "plugin.wasm".to_string(),
                 capabilities: aegis_core::PluginCapabilities {
                     csp: None,
+                    render_page: None,
                     embed: None,
                     network: None,
                     storage: None,

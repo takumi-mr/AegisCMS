@@ -33,8 +33,8 @@ pub use error::{AegisError, Result};
 pub use manifest::{
     is_safe_css_color, is_valid_frame_domain, is_valid_plugin_name, BlockDefinition, BlockField,
     BlockFieldOption, BlockFieldType, EmbedCapability, LocalizedText, NetworkCapability,
-    PackageAuthor, PluginCapabilities, PluginManifest, PluginResourceLimits, SettingDefinition,
-    SettingType, StorageCapability,
+    PackageAuthor, PluginCapabilities, PluginManifest, PluginResourceLimits, RenderPageCapability,
+    SettingDefinition, SettingType, StorageCapability, RENDER_PAGE_INPUT_FIELDS,
 };
 pub use notify::{
     Delivered, NotificationEvent, NotificationMessage, Notifier, Recipient, SendError,
