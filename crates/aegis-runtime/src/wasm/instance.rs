@@ -295,6 +295,79 @@ fn parse_rendered_blocks(out: &[u8]) -> Result<Vec<Option<String>>> {
     Ok(rendered.html)
 }
 
+/// `on-render-page` のコンテキストのうち、プラグインが `render_page.input` で宣言しなかった
+/// 重いフィールド。呼び出しの間だけホストが預かる（コピーせず `mem::take` で移す）。
+/// プラグインにはそれぞれ空の値が渡り、プラグインが返した値は `restore` で捨てて元に戻す
+#[derive(Default)]
+struct HeldRenderFields {
+    content_html: Option<String>,
+    fields: Option<std::collections::HashMap<String, serde_json::Value>>,
+    relations: Option<std::collections::HashMap<String, serde_json::Value>>,
+    items: Option<Vec<aegis_core::ContentSummary>>,
+    related_articles: Option<Vec<aegis_core::ContentSummary>>,
+    prev_article: Option<Option<aegis_core::ContentSummary>>,
+    next_article: Option<Option<aegis_core::ContentSummary>>,
+    comments: Option<Option<aegis_core::CommentSection>>,
+}
+
+impl HeldRenderFields {
+    fn take(manifest: &PluginManifest, ctx: &mut PageRenderContext) -> Self {
+        let mut held = Self::default();
+        if !manifest.wants_render_input("content_html") {
+            held.content_html = Some(std::mem::take(&mut ctx.content_html));
+        }
+        if !manifest.wants_render_input("fields") {
+            held.fields = Some(std::mem::take(&mut ctx.fields));
+        }
+        if !manifest.wants_render_input("relations") {
+            held.relations = Some(std::mem::take(&mut ctx.relations));
+        }
+        if !manifest.wants_render_input("items") {
+            held.items = Some(std::mem::take(&mut ctx.items));
+        }
+        if !manifest.wants_render_input("related_articles") {
+            held.related_articles = Some(std::mem::take(&mut ctx.related_articles));
+        }
+        if !manifest.wants_render_input("prev_article") {
+            held.prev_article = Some(ctx.prev_article.take());
+        }
+        if !manifest.wants_render_input("next_article") {
+            held.next_article = Some(ctx.next_article.take());
+        }
+        if !manifest.wants_render_input("comments") {
+            held.comments = Some(ctx.comments.take());
+        }
+        held
+    }
+
+    fn restore(self, ctx: &mut PageRenderContext) {
+        if let Some(v) = self.content_html {
+            ctx.content_html = v;
+        }
+        if let Some(v) = self.fields {
+            ctx.fields = v;
+        }
+        if let Some(v) = self.relations {
+            ctx.relations = v;
+        }
+        if let Some(v) = self.items {
+            ctx.items = v;
+        }
+        if let Some(v) = self.related_articles {
+            ctx.related_articles = v;
+        }
+        if let Some(v) = self.prev_article {
+            ctx.prev_article = v;
+        }
+        if let Some(v) = self.next_article {
+            ctx.next_article = v;
+        }
+        if let Some(v) = self.comments {
+            ctx.comments = v;
+        }
+    }
+}
+
 fn to_json<T: serde::Serialize>(value: &T) -> Result<Vec<u8>> {
     serde_json::to_vec(value).map_err(|e| AegisError::Serialization(e.to_string()))
 }
@@ -342,16 +415,20 @@ impl AegisPlugin for WasmPluginInstance {
         }
     }
 
-    async fn on_render_page(&self, ctx: PageRenderContext) -> Result<PageRenderContext> {
-        match self
+    async fn on_render_page(&self, mut ctx: PageRenderContext) -> Result<PageRenderContext> {
+        // 宣言していない重いフィールドは、渡さず（空にして）あとで元に戻す
+        let held = HeldRenderFields::take(&self.manifest, &mut ctx);
+        let mut ctx = match self
             .call_hook("on-render-page", "on_render_page", &to_json(&ctx)?)
             .await?
         {
             Some(out) => {
-                parse_object_output(&self.manifest.name, "PageRenderContext", &ctx, &out, false)
+                parse_object_output(&self.manifest.name, "PageRenderContext", &ctx, &out, false)?
             }
-            None => Ok(ctx),
-        }
+            None => ctx,
+        };
+        held.restore(&mut ctx);
+        Ok(ctx)
     }
 
     async fn calculate_order(&self, ctx: OrderContext) -> Result<OrderContext> {

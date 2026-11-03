@@ -13,6 +13,7 @@
   "min_aegis_version": "0.1.0",
   "abi_version": 1,
   "capabilities": {
+    "render_page": { "input": ["fields"] },
     "hooks": [
       "on-render-page"
     ]

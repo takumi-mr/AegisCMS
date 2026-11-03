@@ -227,6 +227,8 @@ export function serializePageRenderContext(ctx: PageRenderContext): string {
     + "\"title\":\"" + escapeJson(ctx.title) + "\","
     + "\"slug\":\"" + escapeJson(ctx.slug) + "\","
     + "\"extra_css\":\"" + escapeJson(ctx.extra_css) + "\","
-    + "\"extra_head\":\"" + escapeJson(ctx.extra_head) + "\""
+    + "\"extra_head\":\"" + escapeJson(ctx.extra_head) + "\","
+    + "\"prepend_content\":\"" + escapeJson(ctx.prepend_content) + "\","
+    + "\"append_content\":\"" + escapeJson(ctx.append_content) + "\""
     + "}";
 }

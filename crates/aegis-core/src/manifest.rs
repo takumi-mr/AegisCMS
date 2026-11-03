@@ -485,6 +485,42 @@ impl PluginManifest {
         Ok(())
     }
 
+    /// `render_page.input` を確かめる: 書けるフィールド名だけであること
+    pub fn validate_render_page(&self) -> std::result::Result<(), String> {
+        let Some(input) = self
+            .capabilities
+            .render_page
+            .as_ref()
+            .and_then(|r| r.input.as_ref())
+        else {
+            return Ok(());
+        };
+        match input
+            .iter()
+            .find(|f| !RENDER_PAGE_INPUT_FIELDS.contains(&f.as_str()))
+        {
+            Some(unknown) => Err(format!(
+                "capabilities.render_page.input: {:?} is not one of {}",
+                unknown,
+                RENDER_PAGE_INPUT_FIELDS.join(", ")
+            )),
+            None => Ok(()),
+        }
+    }
+
+    /// `on-render-page` で `field`（[`RENDER_PAGE_INPUT_FIELDS`] の 1 つ）をプラグインへ渡すか
+    pub fn wants_render_input(&self, field: &str) -> bool {
+        match self
+            .capabilities
+            .render_page
+            .as_ref()
+            .and_then(|r| r.input.as_ref())
+        {
+            Some(input) => input.iter().any(|f| f == field),
+            None => true,
+        }
+    }
+
     /// CSP の `script-src` に足すホスト一覧（`capabilities.csp.script_domains`）
     pub fn csp_script_domains(&self) -> &[String] {
         self.capabilities
@@ -587,7 +623,33 @@ pub struct PluginCapabilities {
     /// プラグインが外部リソース（広告・ウィジェット等）のために要求する CSP (Content Security Policy) ホスト宣言
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub csp: Option<CspCapability>,
+    /// `on-render-page` に渡すコンテキストの絞り込み。無ければ従来どおり全フィールドを渡す
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub render_page: Option<RenderPageCapability>,
 }
+
+/// `on-render-page` の入力の宣言。Wasm への書き込み・JSON の読み書きは渡す量に比例するので、
+/// 使わない重いフィールドを渡さないための宣言
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RenderPageCapability {
+    /// 渡してほしい重いフィールド（[`RENDER_PAGE_INPUT_FIELDS`] のうち）。ここに無いものは
+    /// 空の値（`""`・`{}`・`[]`・省略）で渡され、プラグインが返しても反映されない。
+    /// 省略すると全部を渡す。`[]` は 1 つも要らない
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<Vec<String>>,
+}
+
+/// `render_page.input` に書ける重いフィールド名（`PageRenderContext` のフィールド）
+pub const RENDER_PAGE_INPUT_FIELDS: [&str; 8] = [
+    "content_html",
+    "fields",
+    "relations",
+    "items",
+    "related_articles",
+    "prev_article",
+    "next_article",
+    "comments",
+];
 
 /// カスタムブロック（`render-blocks`）の HTML に残せる `<iframe>` の配信元。
 /// 宣言したホストの `https://` の `<iframe>` だけがサニタイズで残り、CSP の `frame-src` に足される
@@ -867,6 +929,34 @@ mod tests {
         let plain =
             manifest_with_blocks(r#"[{"name": "a", "label": "A"}]"#, r#""render-blocks""#).unwrap();
         assert!(plain.frame_domains().is_empty());
+    }
+
+    #[test]
+    fn test_render_page_input_capability() {
+        let parse = |render_page_json: &str| {
+            let json = format!(
+                r#"{{"name": "toc", "version": "1.0.0", "entrypoint": "plugin.wasm",
+                    "capabilities": {{"render_page": {}}}}}"#,
+                render_page_json
+            );
+            let manifest = PluginManifest::from_json_with_defaults(&json, &DEFAULTS)
+                .map_err(|e| e.to_string())?;
+            manifest.validate_render_page().map(|_| manifest)
+        };
+        // 宣言したものだけ渡す
+        let some = parse(r#"{"input": ["content_html", "fields"]}"#).unwrap();
+        assert!(some.wants_render_input("content_html"));
+        assert!(some.wants_render_input("fields"));
+        assert!(!some.wants_render_input("items"));
+        // 空の宣言は 1 つも渡さない。`input` を省略すると全部渡す
+        assert!(!parse(r#"{"input": []}"#)
+            .unwrap()
+            .wants_render_input("content_html"));
+        assert!(parse("{}").unwrap().wants_render_input("items"));
+        // 宣言が無いプラグインは従来どおり全部
+        assert!(PluginManifest::default().wants_render_input("content_html"));
+        // 書けない名前はエラー
+        assert!(parse(r#"{"input": ["content_html", "title"]}"#).is_err());
     }
 
     #[test]

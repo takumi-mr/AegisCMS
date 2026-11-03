@@ -482,17 +482,12 @@ impl Plugin for ShareButtonsPlugin {
 
         // 位置に応じた挿入
         match settings.position {
-            "top" => {
-                ctx.content_html = format!("{}\n{}", buttons_html, ctx.content_html);
-            }
+            "top" => ctx.prepend_content = format!("{}\n", buttons_html),
             "both" => {
-                ctx.content_html =
-                    format!("{}\n{}\n{}", buttons_html, ctx.content_html, buttons_html);
+                ctx.prepend_content = format!("{}\n", buttons_html);
+                ctx.append_content = format!("\n{}", buttons_html);
             }
-            _ => {
-                ctx.content_html.push('\n');
-                ctx.content_html.push_str(&buttons_html);
-            }
+            _ => ctx.append_content = format!("\n{}", buttons_html),
         }
 
         Ok(ctx)
@@ -524,12 +519,14 @@ mod tests {
     fn default_renders_x_line_copy_at_bottom() {
         mock::reset();
         let out = render(page());
-        assert!(out.content_html.contains("<div class=\"osb-container\">"));
-        assert!(out.content_html.contains("osb-x"));
-        assert!(out.content_html.contains("osb-line"));
-        assert!(out.content_html.contains("osb-copy"));
         assert!(out
-            .content_html
+            .composed_html()
+            .contains("<div class=\"osb-container\">"));
+        assert!(out.composed_html().contains("osb-x"));
+        assert!(out.composed_html().contains("osb-line"));
+        assert!(out.composed_html().contains("osb-copy"));
+        assert!(out
+            .composed_html()
             .contains("data-tmpl=\"https://x.com/intent/tweet?url=__URL__&text=__TITLE__\""));
         assert!(out.extra_css.contains(".osb-container"));
         assert!(out.extra_head.contains("osb-btn"));
@@ -541,7 +538,7 @@ mod tests {
         let mut p = page();
         p.content_type = "product".to_string();
         let out = render(p);
-        assert!(!out.content_html.contains("osb-container"));
+        assert!(!out.composed_html().contains("osb-container"));
         assert!(out.extra_css.is_empty());
 
         let mut p_hide = page();
@@ -550,7 +547,7 @@ mod tests {
             serde_json::Value::Bool(true),
         );
         let out_hide = render(p_hide);
-        assert!(!out_hide.content_html.contains("osb-container"));
+        assert!(!out_hide.composed_html().contains("osb-container"));
     }
 
     #[test]
@@ -562,16 +559,16 @@ mod tests {
             "Mastodon|https://mastodon.social/share?text={title}&url={url}|#6364ff\nMisskey|https://misskey-hub.net/share?text={title}&url={url}",
         );
         let out = render(page());
-        assert!(out.content_html.contains("osb-custom-mastodon"));
-        assert!(out.content_html.contains("osb-custom-misskey"));
+        assert!(out.composed_html().contains("osb-custom-mastodon"));
+        assert!(out.composed_html().contains("osb-custom-misskey"));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("style=\"--osb-bg:#6364ff;--osb-fg:#ffffff;\""));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("data-tmpl=\"https://mastodon.social/share?text=__TITLE__&url=__URL__\""));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("data-tmpl=\"https://misskey-hub.net/share?text=__TITLE__&url=__URL__\""));
         mock::reset();
     }
@@ -584,10 +581,10 @@ mod tests {
         mock::set_config("style", "icons");
         let out = render(page());
         assert!(out
-            .content_html
+            .composed_html()
             .starts_with("<div class=\"osb-container\">"));
-        assert!(out.content_html.contains("osb-pill"));
-        assert!(out.content_html.contains("osb-icons-only"));
+        assert!(out.composed_html().contains("osb-pill"));
+        assert!(out.composed_html().contains("osb-icons-only"));
         mock::reset();
     }
 }

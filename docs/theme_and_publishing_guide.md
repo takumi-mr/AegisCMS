@@ -127,6 +127,9 @@ pub struct PageRenderContext {
     pub title: String,                       // 記事/ページタイトル
     pub slug: String,                        // スラッグ
     pub content_html: String,                // 本文 HTML
+    pub prepend_content: String,             // 本文の前に足す HTML (書き込み専用。ホストが最後に 1 回だけ結合)
+    pub append_content: String,              // 本文の後ろに足す HTML (同上)
+    pub content_length: usize,               // 本文のバイト数 (ホストが計算)
     pub author: Option<String>,              // 著者名
     pub published_at: Option<String>,        // 公開日時
     pub fields: HashMap<String, Value>,      // カスタムフィールド
@@ -138,6 +141,8 @@ pub struct PageRenderContext {
     pub pagination: Option<Pagination>,      // トップページのページ送り（index.html のみ）
 }
 ```
+
+本文に HTML を足すだけなら、`content_html` を書き換えず `prepend_content` / `append_content` に足す HTML だけを返すと速くなります。本文を使わない（または一部のフィールドだけ使う）プラグインは、マニフェストの `capabilities.render_page.input` で渡すフィールドを絞れます。どちらも [プラグイン ABI 仕様 5.3.2 / 5.3.3](plugin_abi_specification.md#532-on_render_page-の本文の前後に足すprepend_content--append_content) にあります。
 
 #### Rust プラグイン SDK での実装例
 ```rust

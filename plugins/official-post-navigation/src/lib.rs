@@ -335,23 +335,11 @@ impl Plugin for PostNavigationPlugin {
         push_line(&mut ctx.extra_css, &css(&settings));
 
         match settings.position {
-            Position::Top => {
-                let mut new_html = nav;
-                new_html.push('\n');
-                new_html.push_str(&ctx.content_html);
-                ctx.content_html = new_html;
-            }
-            Position::Bottom => {
-                ctx.content_html.push('\n');
-                ctx.content_html.push_str(&nav);
-            }
+            Position::Top => ctx.prepend_content = format!("{}\n", nav),
+            Position::Bottom => ctx.append_content = format!("\n{}", nav),
             Position::Both => {
-                let mut new_html = nav.clone();
-                new_html.push('\n');
-                new_html.push_str(&ctx.content_html);
-                new_html.push('\n');
-                new_html.push_str(&nav);
-                ctx.content_html = new_html;
+                ctx.prepend_content = format!("{}\n", nav);
+                ctx.append_content = format!("\n{}", nav);
             }
         }
 
@@ -395,7 +383,7 @@ mod tests {
         mock::reset();
         let ctx = page(None, None, "<p>Hello</p>");
         let res = PostNavigationPlugin.on_render_page(ctx).unwrap();
-        assert_eq!(res.content_html, "<p>Hello</p>");
+        assert_eq!(res.composed_html(), "<p>Hello</p>");
         assert!(res.extra_css.is_empty());
     }
 
@@ -407,12 +395,12 @@ mod tests {
         let ctx = page(Some(prev), Some(next), "<p>Current Post Body</p>");
 
         let res = PostNavigationPlugin.on_render_page(ctx).unwrap();
-        assert!(res.content_html.contains("First Post"));
-        assert!(res.content_html.contains("Third Post"));
-        assert!(res.content_html.contains("/articles/first-post"));
-        assert!(res.content_html.contains("/articles/third-post"));
-        assert!(res.content_html.contains("rel=\"prev\""));
-        assert!(res.content_html.contains("rel=\"next\""));
+        assert!(res.composed_html().contains("First Post"));
+        assert!(res.composed_html().contains("Third Post"));
+        assert!(res.composed_html().contains("/articles/first-post"));
+        assert!(res.composed_html().contains("/articles/third-post"));
+        assert!(res.composed_html().contains("rel=\"prev\""));
+        assert!(res.composed_html().contains("rel=\"next\""));
         assert!(res.extra_css.contains(".apn"));
     }
 
@@ -423,8 +411,8 @@ mod tests {
         let ctx = page(Some(prev), None, "<p>Current Post Body</p>");
 
         let res = PostNavigationPlugin.on_render_page(ctx).unwrap();
-        assert!(res.content_html.contains("Older Post"));
-        assert!(res.content_html.contains("apn-empty"));
+        assert!(res.composed_html().contains("Older Post"));
+        assert!(res.composed_html().contains("apn-empty"));
     }
 
     #[test]
@@ -436,7 +424,7 @@ mod tests {
             .insert("hide_post_nav".to_string(), serde_json::json!(true));
 
         let res = PostNavigationPlugin.on_render_page(ctx).unwrap();
-        assert!(!res.content_html.contains("Older Post"));
+        assert!(!res.composed_html().contains("Older Post"));
     }
 
     #[test]
@@ -451,8 +439,8 @@ mod tests {
         let ctx = page(Some(prev), Some(next), "<p>Body</p>");
 
         let res = PostNavigationPlugin.on_render_page(ctx).unwrap();
-        assert!(res.content_html.contains("過去記事"));
-        assert!(res.content_html.contains("最新記事"));
-        assert!(res.content_html.contains("apn-cards"));
+        assert!(res.composed_html().contains("過去記事"));
+        assert!(res.composed_html().contains("最新記事"));
+        assert!(res.composed_html().contains("apn-cards"));
     }
 }

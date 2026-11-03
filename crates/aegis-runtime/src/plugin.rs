@@ -275,6 +275,10 @@ impl PluginSupervisor {
         &self,
         mut ctx: aegis_core::PageRenderContext,
     ) -> Result<aegis_core::PageRenderContext> {
+        // `prepend_content`/`append_content` は各プラグインの書き込み専用の枠。プラグインごとに
+        // 空で渡して返った分を貯め、本文との結合は最後に 1 回だけ行う（本文が往復しない）
+        let mut prepend = String::new();
+        let mut append = String::new();
         for plugin in &self.plugins {
             if plugin
                 .manifest()
@@ -283,9 +287,21 @@ impl PluginSupervisor {
                 .iter()
                 .any(|h| h == "on-render-page")
             {
+                ctx.prepend_content.clear();
+                ctx.append_content.clear();
+                ctx.content_length = ctx.content_html.len();
                 ctx = plugin.on_render_page(ctx).await?;
+                // 後のプラグインの前置きほど外側、後置きほど内側（本文を直接書き換えた場合と同じ順）
+                prepend.insert_str(0, &std::mem::take(&mut ctx.prepend_content));
+                append.push_str(&std::mem::take(&mut ctx.append_content));
             }
         }
+        if !prepend.is_empty() || !append.is_empty() {
+            prepend.push_str(&ctx.content_html);
+            prepend.push_str(&append);
+            ctx.content_html = prepend;
+        }
+        ctx.content_length = ctx.content_html.len();
         Ok(ctx)
     }
 

@@ -192,6 +192,17 @@ pub struct ContentSummary {
     pub relations: HashMap<String, serde_json::Value>,
 }
 
+impl PageRenderContext {
+    /// ホストが `prepend_content`・`content_html`・`append_content` を結合した HTML。
+    /// プラグインのテストで、ホストを通したあとの本文を確かめるために使う
+    pub fn composed_html(&self) -> String {
+        format!(
+            "{}{}{}",
+            self.prepend_content, self.content_html, self.append_content
+        )
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct PageRenderContext {
     pub site_title: String,
@@ -201,6 +212,17 @@ pub struct PageRenderContext {
     pub title: String,
     pub slug: String,
     pub content_html: String,
+    /// 本文の前に足す HTML（書き込み専用。ホストが全プラグインのあとで 1 回だけ本文と結合する）。
+    /// 本文ごと `content_html` を返すより軽いので、HTML を足すだけのプラグインはこちらを使う
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub prepend_content: String,
+    /// 本文の後ろに足す HTML（`prepend_content` と同じ）
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub append_content: String,
+    /// 本文のバイト数。`content_html` を受け取らない（マニフェストの `render_page.input` に
+    /// 含めない）プラグインでも、本文があるかを調べられる
+    #[serde(default)]
+    pub content_length: usize,
     pub author: Option<String>,
     pub published_at: Option<String>,
     pub updated_at: Option<String>,

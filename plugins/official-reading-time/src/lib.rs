@@ -389,23 +389,11 @@ impl Plugin for ReadingTimePlugin {
         push_line(&mut ctx.extra_css, &css(&settings));
 
         match settings.position {
-            Position::Top => {
-                let mut new_html = badge;
-                new_html.push('\n');
-                new_html.push_str(&ctx.content_html);
-                ctx.content_html = new_html;
-            }
-            Position::Bottom => {
-                ctx.content_html.push('\n');
-                ctx.content_html.push_str(&badge);
-            }
+            Position::Top => ctx.prepend_content = format!("{}\n", badge),
+            Position::Bottom => ctx.append_content = format!("\n{}", badge),
             Position::Both => {
-                let mut new_html = badge.clone();
-                new_html.push('\n');
-                new_html.push_str(&ctx.content_html);
-                new_html.push('\n');
-                new_html.push_str(&badge);
-                ctx.content_html = new_html;
+                ctx.prepend_content = format!("{}\n", badge);
+                ctx.append_content = format!("\n{}", badge);
             }
         }
 
@@ -457,8 +445,8 @@ mod tests {
         mock::set_config("display_mode", "both");
         let ctx = page("<p>これはサンプル本文です。テスト用の記事です。</p>");
         let res = ReadingTimePlugin.on_render_page(ctx).unwrap();
-        assert!(res.content_html.contains("art-badge"));
-        assert!(res.content_html.contains("読了目安: 約1分"));
+        assert!(res.composed_html().contains("art-badge"));
+        assert!(res.composed_html().contains("読了目安: 約1分"));
         assert!(res.extra_css.contains(".art-badge"));
     }
 
@@ -469,7 +457,7 @@ mod tests {
         ctx.fields
             .insert("hide_reading_time".to_string(), serde_json::json!(true));
         let res = ReadingTimePlugin.on_render_page(ctx).unwrap();
-        assert!(!res.content_html.contains("art-badge"));
+        assert!(!res.composed_html().contains("art-badge"));
     }
 
     #[test]
@@ -478,6 +466,6 @@ mod tests {
         mock::set_config("format", "{time} min | {chars} characters");
         let ctx = page("<p>Short article for test</p>");
         let res = ReadingTimePlugin.on_render_page(ctx).unwrap();
-        assert!(res.content_html.contains("1 min | 19 characters"));
+        assert!(res.composed_html().contains("1 min | 19 characters"));
     }
 }

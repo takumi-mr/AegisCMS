@@ -174,18 +174,21 @@ async fn test_official_blocks_plugin_renders_its_blocks() {
 async fn test_official_reading_plugins_add_to_the_page() {
     let engine = WasmEngine::new().unwrap();
     let plugins = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+    let body = "<p>Intro</p><h2 id=\"one\">One</h2><p>a</p><h2 id=\"two\">Two</h2>";
     let page = |content_type: &str| PageRenderContext {
         template: "article.html".to_string(),
         content_type: content_type.to_string(),
-        content_html: "<p>Intro</p><h2 id=\"one\">One</h2><p>a</p><h2 id=\"two\">Two</h2>"
-            .to_string(),
+        content_html: body.to_string(),
+        content_length: body.len(),
         ..Default::default()
     };
 
+    // 本文に足す HTML は `append_content` に返り、本文（`content_html`）は変わらない
     let toc = load(&engine, &plugins.join("official-page-toc"));
     let rendered = toc.on_render_page(page("article")).await.unwrap();
-    assert!(rendered.content_html.contains("<a href=\"#one\">One</a>"));
-    assert!(rendered.content_html.contains("<a href=\"#two\">Two</a>"));
+    assert_eq!(rendered.content_html, body);
+    assert!(rendered.append_content.contains("<a href=\"#one\">One</a>"));
+    assert!(rendered.append_content.contains("<a href=\"#two\">Two</a>"));
     assert!(rendered.extra_css.contains(".apt{position:fixed"));
     assert!(rendered.extra_head.starts_with("<script>"));
     let other = toc.on_render_page(page("index")).await.unwrap();
@@ -194,8 +197,8 @@ async fn test_official_reading_plugins_add_to_the_page() {
 
     let top = load(&engine, &plugins.join("official-back-to-top"));
     let rendered = top.on_render_page(page("article")).await.unwrap();
-    assert!(rendered.content_html.ends_with("</a></div>"));
-    assert!(rendered.content_html.contains("href=\"#top\""));
+    assert!(rendered.append_content.ends_with("</a></div>"));
+    assert!(rendered.append_content.contains("href=\"#top\""));
     assert!(rendered.extra_css.contains("a.obt.obt{"));
     let other = top.on_render_page(page("index")).await.unwrap();
     assert_eq!(other.content_html, page("index").content_html);
@@ -203,10 +206,10 @@ async fn test_official_reading_plugins_add_to_the_page() {
 
     let share = load(&engine, &plugins.join("official-share-buttons"));
     let rendered = share.on_render_page(page("article")).await.unwrap();
-    assert!(rendered.content_html.contains("class=\"osb-container\""));
-    assert!(rendered.content_html.contains("osb-btn-x"));
-    assert!(rendered.content_html.contains("osb-btn-line"));
-    assert!(rendered.content_html.contains("osb-btn-copy"));
+    assert!(rendered.append_content.contains("class=\"osb-container\""));
+    assert!(rendered.append_content.contains("osb-btn-x"));
+    assert!(rendered.append_content.contains("osb-btn-line"));
+    assert!(rendered.append_content.contains("osb-btn-copy"));
     assert!(rendered.extra_css.contains(".osb-container"));
     assert!(rendered.extra_head.contains("osb-btn-copy"));
     let other = share.on_render_page(page("index")).await.unwrap();

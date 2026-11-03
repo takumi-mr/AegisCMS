@@ -298,15 +298,11 @@ impl Plugin for AdsPlugin {
         if settings.auto_insert_position != "none" || settings.auto_ads {
             if let Some(unit_html) = build_ad_unit_for_settings(&settings, is_ja, "center") {
                 match settings.auto_insert_position {
-                    "top" => {
-                        ctx.content_html = format!("{}{}", unit_html, ctx.content_html);
-                    }
-                    "bottom" => {
-                        ctx.content_html.push_str(&unit_html);
-                    }
+                    "top" => ctx.prepend_content.push_str(&unit_html),
+                    "bottom" => ctx.append_content.push_str(&unit_html),
                     "both" => {
-                        ctx.content_html =
-                            format!("{}{}{}", unit_html, ctx.content_html, unit_html);
+                        ctx.prepend_content.push_str(&unit_html);
+                        ctx.append_content.push_str(&unit_html);
                     }
                     _ => {}
                 }
@@ -471,12 +467,12 @@ mod tests {
 
         let out = render(page());
         assert!(out
-            .content_html
+            .composed_html()
             .starts_with("<p>Hello AegisCMS Article</p>"));
         assert!(out
-            .content_html
+            .composed_html()
             .contains("<div class=\"oa-ad-container oa-align-center\">"));
-        assert!(out.content_html.contains("data-ad-slot=\"8888888888\""));
+        assert!(out.composed_html().contains("data-ad-slot=\"8888888888\""));
         mock::reset();
     }
 
