@@ -15,6 +15,7 @@ aegis-schema = { path = "../aegis-schema" }
 aegis-runtime = { path = "../aegis-runtime" }
 aegis-theme = { path = "../aegis-theme" }
 aegis-plugin-dev = { path = "../aegis-plugin-dev" }
+aegis-theme-dev = { path = "../aegis-theme-dev" }
 aegis-cache = { path = "../aegis-cache" }
 aegis-storage = { path = "../aegis-storage" }
 aegis-db = { path = "../aegis-db" }

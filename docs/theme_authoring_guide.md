@@ -8,7 +8,22 @@
 
 ---
 
-## 1. ディレクトリ構成
+## 1. テーマのひな形生成 (`task theme:new`)
+
+新しいテーマを作成する際は、`task theme:new` コマンドを使用することで、すぐに動作するテンプレート群（`base.html`, `index.html`, `article.html`, `page.html`, `404.html`）、レスポンシブな `style.css`、プレビュー用 SVG、および `theme.json` を一括生成できます。
+
+```bash
+# 新規テーマのひな形を生成 (themes/my-theme/)
+task theme:new -- my-theme
+
+# 表示名や既存テーマをベースに指定して生成
+task theme:new -- coffee-craft --title "Coffee Craft"
+task theme:new -- custom-trailhead --from trailhead
+```
+
+---
+
+## 2. ディレクトリ構成
 
 テーマは `[paths].themes_dir`（既定は `themes/`）の下に、テーマの ID と同じ名前のディレクトリとして置きます。
 
@@ -34,7 +49,7 @@ themes/my-theme/
 - ただし将来のテーママーケットプレイスでの配布に使う検証（`validate_theme_package`）は、`theme.json` と `templates/base.html` が無いと通りません。
 - `assets/` の中身は `{{ base_path }}/theme/assets/<パス>` で配信されます（画像・フォント・JS も置けます）。
 
-## 2. `theme.json`
+## 3. `theme.json`
 
 ```json
 {
@@ -64,7 +79,7 @@ themes/my-theme/
 
 `theme.json` が無い・JSON として読めない場合は、ディレクトリ名から作った名前（`my-theme` → `My Theme`）と既定の説明で一覧に出ます（読めないときはサーバーのログに警告が出ます）。
 
-## 3. テンプレート
+## 4. テンプレート
 
 テンプレートは [MiniJinja](https://docs.rs/minijinja)（Jinja2 互換）で書きます。`.html` のテンプレートでは変数が自動で HTML エスケープされます。
 
@@ -288,10 +303,10 @@ themes/my-theme/
 ### `theme dev`（DB なしで素早く確かめる）
 
 ```bash
-task dev:theme -- themes/my-theme      # = aegis-server theme dev themes/my-theme（http://127.0.0.1:8090/）
+task dev:theme -- themes/my-theme      # = cargo run -p aegis-theme-dev -- themes/my-theme（http://127.0.0.1:8090/）
 ```
 
-テーマのフォルダーを直接読み、DB・プラグイン・ログインなしでサンプルのデータを描画します。`templates/`・`assets/`・`samples/` のファイルを保存すると、開いているページが自動で読み込み直されます。テンプレートの文法エラーは、ページ上に理由を表示します（直して保存すれば、そのまま戻ります）。エディターは自由に選べます。
+開発サーバーは独立した軽量クレート `aegis-theme-dev` に分離されており、初回でも数秒〜十数秒で高速に起動します。テーマのフォルダーを直接読み、DB・プラグイン・ログインなしでサンプルのデータを描画します。`templates/`・`assets/`・`samples/` のファイルを保存すると、開いているページが自動で読み込み直されます。テンプレートの文法エラーは、ページ上に理由を表示します（直して保存すれば、そのまま戻ります）。エディターは自由に選べます。
 
 - **サンプル**: `templates/` の `base.html` 以外すべてに、既定のデータ（タイトル・本文・一覧の記事 3 件・ページ送り）で `/preview/<名前>`（`index.html` なら `/preview/index`）が用意されます。
 - **データを変える・増やす**: `samples/<名前>.json` に `PageRenderContext` の項目（[3.2 変数](#32-変数)）を書くと、既定のデータの上書きになります（最上位のキー単位）。既定に無い名前なら、ページが増えます。`"template": "article.html"` で使うテンプレートを選べます（省くと `<名前>.html`）。`samples/` はインストール時に使われないので、そのまま置いておけます。
