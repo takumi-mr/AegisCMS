@@ -43,7 +43,10 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.md) に�
 
 1. `main` に変更をマージすると、`Release Please` ワークフローがリリース PR（バージョン更新 + 各 `CHANGELOG.md`）を作る、または更新する。
 2. リリース PR のバージョンと CHANGELOG を確かめてマージする。`Cargo.lock` はワークフローが同じ PR に追従させる。
-3. マージするとタグと GitHub Release が作られる。AssemblyScript SDK は GitHub Packages に自動で公開され、TinyGo SDK はタグ（`sdk/tinygo/vX.Y.Z`）が配布になる。また、本体の公式 Docker イメージ（`ghcr.io/takumi-mr/aegiscms`）が GitHub Container Registry へ自動でビルド＆プッシュされる。
+3. マージするとタグと GitHub Release が作られる。さらに `release-please.yml` の `paths_released` 出力に基づき、リリースされた対象パスの公開ワークフローが自動発火する：
+   - **AssemblyScript SDK** (`sdk/assemblyscript`): GitHub Packages (`@takumi-mr/plugin-sdk`) へ npm パッケージが自動公開される (`release-sdk.yml`)。
+   - **コア** (`.`): GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) へ公式 Docker イメージが自動でビルド＆プッシュされる (`release-docker.yml`)。
+   - **TinyGo SDK** (`sdk/tinygo`): 作成されたタグ (`sdk/tinygo/vX.Y.Z`) 自体が Go モジュールとしての配布となる。
 
 リリース PR にも CI を走らせるため（`GITHUB_TOKEN` で作った PR では CI が動かない）、リポジトリの secret に `RELEASE_PLEASE_TOKEN`（PAT）を登録しています。Fine-grained PAT なら、対象リポジトリに **Contents** と **Pull requests** の Read and write が要ります（足りないと PR のブランチ作成で失敗する）。未登録でも `GITHUB_TOKEN` で動きますが、リリース PR の CI は動きません。
 
