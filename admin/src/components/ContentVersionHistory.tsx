@@ -15,12 +15,15 @@ interface ContentVersionHistoryProps {
   versions: ContentVersionSummary[];
   loading?: boolean;
   onRestore: (revision: number) => void;
+  /** False hides the restore buttons (the content cannot be changed by this user) */
+  canRestore?: boolean;
 }
 
 export const ContentVersionHistory: React.FC<ContentVersionHistoryProps> = ({
   versions,
   loading = false,
   onRestore,
+  canRestore = true,
 }) => {
   const { t } = useTranslation();
 
@@ -41,13 +44,15 @@ export const ContentVersionHistory: React.FC<ContentVersionHistoryProps> = ({
                 {version.created_by && <span>{version.created_by}</span>}
                 {version.change_note && <span>{version.change_note}</span>}
               </div>
-              <Button
-                variant="tool"
-                aria-label={t('editor.restoreVersionAria', { revision: version.revision })}
-                onClick={() => onRestore(version.revision)}
-              >
-                {t('editor.restoreVersion')}
-              </Button>
+              {canRestore && (
+                <Button
+                  variant="tool"
+                  aria-label={t('editor.restoreVersionAria', { revision: version.revision })}
+                  onClick={() => onRestore(version.revision)}
+                >
+                  {t('editor.restoreVersion')}
+                </Button>
+              )}
             </li>
           ))}
         </ol>

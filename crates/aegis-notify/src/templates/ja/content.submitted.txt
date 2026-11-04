@@ -1,0 +1,12 @@
+{{ submitted_by }} さんから{{ content.label }}「{{ content.title }}」のレビューを頼まれました。
+内容を確認して、公開するか、メモを付けて下書きに差し戻してください。
+{% if note %}
+
+メモ:
+{{ note }}
+{% endif %}
+{% if review_url %}
+
+{{ review_url }}
+{% endif %}
+{% include "_footer.txt" %}

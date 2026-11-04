@@ -262,7 +262,7 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | --- | --- | --- | --- |
 | `enabled` | bool | `false` | `true` でアカウント登録を有効化 |
 | `admin_url` | string | `""` | 確認リンクの開き先の Admin Studio の URL（例: `"https://cms.example.com/admin/"`。`#verify-email=<トークン>` を付ける）。空なら `[commerce].public_url` + `/admin/`。リクエストの Host からは作らない |
-| `default_role` | string | `"viewer"` | 登録したユーザーのロール（`editor` / `viewer`） |
+| `default_role` | string | `"viewer"` | 登録したユーザーのロール（`editor` / `contributor` / `viewer`） |
 | `require_approval` | bool | `true` | `true` なら確認後のアカウントを無効の状態で作り、admin が有効にするまでログインできない |
 | `allowed_email_domains` | array of string | `[]` | 登録できるメールアドレスのドメイン（`"example.com"` ならサブドメインも可）。空ならどのドメインでも登録できる |
 | `token_ttl_secs` | integer (u64) | `86400` | 確認リンクの有効期間（秒） |

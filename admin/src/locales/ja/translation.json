@@ -264,10 +264,12 @@
     "roles": {
       "admin": "管理者",
       "editor": "編集者",
+      "contributor": "寄稿者",
       "viewer": "閲覧者"
     },
     "status": {
       "draft": "下書き",
+      "pending": "レビュー待ち",
       "scheduled": "予約公開",
       "published": "公開"
     },
@@ -309,7 +311,8 @@
     "pages": "固定ページ",
     "typeSelector": "コンテンツタイプの切り替え",
     "scheduledFor": "{{date}} に公開予定",
-    "unpublishFor": "{{date}} に非公開予定"
+    "unpublishFor": "{{date}} に非公開予定",
+    "reviewQueue": "レビュー待ちが {{count}} 件あります"
   },
   "editor": {
     "titlePlaceholder": "タイトルを入力...",
@@ -381,7 +384,8 @@
       "profileUnavailable": "プロフィールを読み込めませんでした",
       "publishAtRequired": "予約公開する日時を指定してください",
       "unpublishAtInvalid": "非公開予定日時の形式が正しくありません",
-      "unpublishBeforePublish": "非公開予定日時は公開日時より後に設定してください"
+      "unpublishBeforePublish": "非公開予定日時は公開日時より後に設定してください",
+      "submitted": "レビューを依頼しました"
     },
     "table": "表",
     "toc": "目次",
@@ -389,7 +393,15 @@
     "callout": "注記",
     "separator": "区切り線",
     "details": "折りたたみ",
-    "contactForm": "問い合わせフォーム"
+    "contactForm": "問い合わせフォーム",
+    "review": {
+      "readOnly": "このコンテンツは変更できません。寄稿者が変更できるのは、自分の下書きとレビュー待ちのものだけです。",
+      "waiting": "レビュー待ちです。公開・予約公開にして保存すると承認、下書きに戻して保存すると差し戻しになります（著者にメールで知らせます）。",
+      "noteForReviewer": "レビュー担当へのメモ",
+      "noteForAuthor": "著者へのメモ",
+      "submitPlaceholder": "見てほしい点など（任意）",
+      "decidePlaceholder": "差し戻しの理由など（任意。著者へのメールと版の履歴に残ります）"
+    }
   },
   "header": {
     "badge": "ゼロトラスト・サンドボックス",
@@ -1021,7 +1033,8 @@
   "users": {
     "roleDescriptions": {
       "admin": "ユーザー・テーマ・監査ログを含むすべての操作",
-      "editor": "コンテンツとカテゴリの作成、メディアのアップロード",
+      "editor": "コンテンツの公開・レビューの承認、カテゴリの作成、メディアのアップロード",
+      "contributor": "自分の下書きの作成とレビューの依頼、メディアのアップロード（公開は編集者）",
       "viewer": "コンテンツとメディアの閲覧"
     },
     "forbidden": "ユーザーの管理には admin ロールが必要です。",

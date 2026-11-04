@@ -130,6 +130,23 @@
   max-width: 180px;
 }
 
+/* Review: who may change the item, and the note sent with a review step */
+.reviewNotice {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: 8px;
+  background: rgba(6, 182, 212, 0.08);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.reviewNote {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+}
+
 /* Editor Mode Selector Bar */
 .editorModeBar {
   display: flex;

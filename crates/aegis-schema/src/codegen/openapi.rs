@@ -273,7 +273,7 @@ impl OpenApiGenerator {
             "ContentStatus".to_string(),
             json!({
                 "type": "string",
-                "enum": ["draft", "scheduled", "published", "archived"]
+                "enum": ["draft", "pending", "scheduled", "published", "archived"]
             }),
         );
 
@@ -403,7 +403,8 @@ impl OpenApiGenerator {
                     "author_id": { "type": "string", "nullable": true },
                     "published_at": { "type": "string", "format": "date-time", "nullable": true },
                     "unpublish_at": { "type": "string", "format": "date-time", "nullable": true },
-                    "publish": { "type": "boolean", "default": false, "description": "Update the public snapshot to the saved working version" }
+                    "publish": { "type": "boolean", "default": false, "description": "Update the public snapshot to the saved working version" },
+                    "review_note": { "type": "string", "maxLength": 2000, "nullable": true, "description": "Why the content is sent for review, approved or returned. Kept in the version history, the audit log and the notification, not on the content" }
                 },
                 "required": ["title", "slug"]
             }),

@@ -1,0 +1,14 @@
+Hello {{ display_name or username }},
+
+{{ reviewed_by }} returned your {{ content.label }} "{{ content.title }}" to draft.
+Make the changes and request a review again.
+{% if note %}
+
+Note:
+{{ note }}
+{% endif %}
+{% if edit_url %}
+
+{{ edit_url }}
+{% endif %}
+{% include "_footer.txt" %}

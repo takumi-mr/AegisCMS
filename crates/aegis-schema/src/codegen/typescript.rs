@@ -31,7 +31,7 @@ impl TypeScriptGenerator {
         out.push_str("}\n\n");
 
         out.push_str(
-            "export type ContentStatus = 'draft' | 'scheduled' | 'published' | 'archived';\n\n",
+            "export type ContentStatus = 'draft' | 'pending' | 'scheduled' | 'published' | 'archived';\n\n",
         );
 
         out.push_str("export interface BaseContentItem {\n");

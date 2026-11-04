@@ -12,8 +12,9 @@ use uuid::Uuid;
 
 use crate::audit::AuditContext;
 use crate::auth::authorize::{role_level, RequireRole, ADMIN};
-use crate::auth::{EditorSession, ViewerSession};
+use crate::auth::{ContributorSession, EditorSession, ViewerSession};
 use crate::render;
+use crate::review::{self, ReviewDecision, STATUS_PENDING};
 use crate::state::AppState;
 use aegis_ast::BlockNode;
 use aegis_core::{AegisError, AuditAction, AuditOutcome, PostContext};
@@ -42,6 +43,9 @@ pub struct CreateContentRequest {
     /// 明示的に公開版ポインターを最新の作業版へ切り替える
     #[serde(default)]
     pub publish: bool,
+    /// レビューのメモ（依頼・承認・差し戻しの理由）。保存はせず、版の履歴のメモ・監査ログ・通知に使う
+    #[serde(default)]
+    pub review_note: Option<String>,
     #[serde(flatten)]
     pub fields: HashMap<String, serde_json::Value>,
 }
@@ -547,11 +551,14 @@ async fn content_response(
 
 pub async fn create_content(
     State(state): State<Arc<AppState>>,
-    RequireRole(session): EditorSession,
+    RequireRole(session): ContributorSession,
     Path(content_type): Path<String>,
     audit: AuditContext,
     Json(mut payload): Json<CreateContentRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    // contributor は下書き・レビュー待ちとしてだけ作れる
+    review::ensure_may_set_status(&session, &payload.status)?;
+    let review_note = review::normalize_note(payload.review_note.take())?;
     // 著者は既定でログインユーザー。他人を著者にできるのは admin のみ
     match &payload.author_id {
         None => payload.author_id = Some(session.user_id.clone()),
@@ -603,7 +610,7 @@ pub async fn create_content(
         updated_at: now,
         custom_fields: saved.custom_fields,
     };
-    let version = content_version_snapshot(&record, Some(&session.user_id), None)?;
+    let version = content_version_snapshot(&record, Some(&session.user_id), review_note.clone())?;
     let publication = if record.status == STATUS_PUBLISHED {
         ContentPublicationChange::PublishVersion(0)
     } else {
@@ -614,6 +621,18 @@ pub async fn create_content(
         .insert_content_with_versions(&schema, &record, &[version], publication)
         .await;
     record_store_result(&state, &audit, AuditAction::ContentCreate, &record, result).await?;
+    if let Some(decision) = ReviewDecision::of(None, &record, &session.user_id) {
+        review::record(
+            &state,
+            &audit,
+            &schema,
+            &record,
+            decision,
+            &session,
+            review_note.as_deref(),
+        )
+        .await;
+    }
 
     if record.status == STATUS_PUBLISHED {
         crate::cdn::purge_content(&state, &record.content_type, &record.id, &record.slug, None)
@@ -628,17 +647,20 @@ pub async fn create_content(
     ))
 }
 
-/// `PUT /api/v1/contents/{content_type}/{slug_or_id}` — 保存済みのコンテンツを上書きする（`editor`）。
+/// `PUT /api/v1/contents/{content_type}/{slug_or_id}` — 保存済みのコンテンツを上書きする（`editor`。
+/// `contributor` は自分の下書き・レビュー待ちを、下書き・レビュー待ちとしてだけ。[`review`]）。
 /// 本文は作成と同じで、保存と同じパイプライン（AST 変換・`on-before-save`）を通る。
 /// `author_id` を省略すると今の著者のまま。初めて `published` になったときに `published_at` を付ける
 /// （`scheduled` は `published_at` に予約した日時）
 pub async fn update_content(
     State(state): State<Arc<AppState>>,
-    RequireRole(session): EditorSession,
+    RequireRole(session): ContributorSession,
     Path((content_type, slug_or_id)): Path<(String, String)>,
     audit: AuditContext,
-    Json(payload): Json<CreateContentRequest>,
+    Json(mut payload): Json<CreateContentRequest>,
 ) -> Result<Json<ContentResponse>, ApiError> {
+    review::ensure_may_set_status(&session, &payload.status)?;
+    let review_note = review::normalize_note(payload.review_note.take())?;
     let schema = find_schema(&state, &content_type).await?;
     let current = state
         .db
@@ -656,6 +678,7 @@ pub async fn update_content(
                 format!("Content '{}' not found", slug_or_id),
             )
         })?;
+    review::ensure_may_change(&session, &current)?;
 
     // Seed a baseline for records saved before versioning was enabled.
     let existing_versions = state
@@ -730,10 +753,10 @@ pub async fn update_content(
     versions.push(content_version_snapshot(
         &record,
         Some(&session.user_id),
-        None,
+        review_note.clone(),
     )?);
     let publication = match record.status.as_str() {
-        "draft" | "archived" => ContentPublicationChange::Unpublish,
+        "draft" | "archived" | STATUS_PENDING => ContentPublicationChange::Unpublish,
         STATUS_SCHEDULED if previous_status == STATUS_PUBLISHED && needs_baseline => {
             ContentPublicationChange::EnsureVersion(0)
         }
@@ -761,6 +784,18 @@ pub async fn update_content(
         Err(e) => Err(e),
     };
     record_store_result(&state, &audit, AuditAction::ContentUpdate, &record, result).await?;
+    if let Some(decision) = ReviewDecision::of(Some(&previous_status), &record, &session.user_id) {
+        review::record(
+            &state,
+            &audit,
+            &schema,
+            &record,
+            decision,
+            &session,
+            review_note.as_deref(),
+        )
+        .await;
+    }
 
     // 公開状態に関わる変更（公開中だった、または今回公開になった）があればCDNキャッシュをパージ
     if previous_status == STATUS_PUBLISHED || record.status == STATUS_PUBLISHED {
@@ -856,7 +891,7 @@ pub async fn list_content_versions(
 
 pub async fn restore_content_version(
     State(state): State<Arc<AppState>>,
-    RequireRole(session): EditorSession,
+    RequireRole(session): ContributorSession,
     Path((content_type, slug_or_id, revision)): Path<(String, String, i64)>,
     audit: AuditContext,
 ) -> Result<Json<ContentResponse>, ApiError> {
@@ -867,6 +902,7 @@ pub async fn restore_content_version(
         .await
         .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Content not found"))?;
+    review::ensure_may_change(&session, &current)?;
     let version = state
         .db
         .get_content_version(&content_type, &current.id, revision)
@@ -925,10 +961,11 @@ pub async fn restore_content_version(
     ))
 }
 
-/// `DELETE /api/v1/contents/{content_type}/{slug_or_id}` — コンテンツを削除する（`editor`）
+/// `DELETE /api/v1/contents/{content_type}/{slug_or_id}` — コンテンツを削除する（`editor`。
+/// `contributor` は自分の下書き・レビュー待ちだけ）
 pub async fn delete_content(
     State(state): State<Arc<AppState>>,
-    _session: EditorSession,
+    RequireRole(session): ContributorSession,
     Path((content_type, slug_or_id)): Path<(String, String)>,
     audit: AuditContext,
 ) -> Result<StatusCode, ApiError> {
@@ -950,6 +987,7 @@ pub async fn delete_content(
                 format!("Content '{}' not found", slug_or_id),
             )
         })?;
+    review::ensure_may_change(&session, &current)?;
     let result = state.db.delete_content(&schema, &current.id).await;
     let mut details = json!({
         "content_type": content_type,
@@ -2229,7 +2267,7 @@ mod tests {
         events.into_iter().map(|e| (e.action, e.outcome)).collect()
     }
 
-    fn session(user_id: &str, role: &str) -> EditorSession {
+    fn session<const LEVEL: u8>(user_id: &str, role: &str) -> RequireRole<LEVEL> {
         RequireRole(aegis_auth::SessionData {
             id: format!("ses_{}", user_id),
             user_id: user_id.to_string(),
@@ -2242,7 +2280,7 @@ mod tests {
 
     async fn update(
         state: &Arc<AppState>,
-        actor: EditorSession,
+        actor: ContributorSession,
         slug_or_id: &str,
         payload: serde_json::Value,
     ) -> Result<ContentResponse, StatusCode> {

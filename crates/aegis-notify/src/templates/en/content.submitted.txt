@@ -1,0 +1,12 @@
+{{ submitted_by }} asked you to review the {{ content.label }} "{{ content.title }}".
+Publish it, or return it to draft with a note.
+{% if note %}
+
+Note:
+{{ note }}
+{% endif %}
+{% if review_url %}
+
+{{ review_url }}
+{% endif %}
+{% include "_footer.txt" %}

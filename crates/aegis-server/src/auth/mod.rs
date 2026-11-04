@@ -6,7 +6,7 @@ pub mod hook;
 
 use axum::http::HeaderMap;
 
-pub use authorize::{AdminSession, EditorSession, ViewerSession};
+pub use authorize::{AdminSession, ContributorSession, EditorSession, ViewerSession};
 
 /// `Authorization: Bearer <token>` または `X-Session-Id` ヘッダーからセッション ID を取り出す
 pub fn extract_session_id(headers: &HeaderMap) -> Option<String> {

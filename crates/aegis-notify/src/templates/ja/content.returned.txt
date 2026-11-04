@@ -1,0 +1,14 @@
+{{ display_name or username }} 様
+
+{{ content.label }}「{{ content.title }}」が {{ reviewed_by }} さんから下書きに差し戻されました。
+直してから、もう一度レビューを依頼してください。
+{% if note %}
+
+メモ:
+{{ note }}
+{% endif %}
+{% if edit_url %}
+
+{{ edit_url }}
+{% endif %}
+{% include "_footer.txt" %}

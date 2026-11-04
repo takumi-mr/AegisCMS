@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SessionInfo } from '../types';
-import { canEdit, displayNameOf, isAdmin } from './roles';
+import { canChangeContent, canEdit, canWrite, displayNameOf, isAdmin } from './roles';
 
 const makeSession = (role: string, metadata: Record<string, string> = {}): SessionInfo => ({
   id: 'ses_test',
@@ -22,7 +22,8 @@ describe('roles utility', () => {
       expect(canEdit(makeSession('editor'))).toBe(true);
     });
 
-    it('returns false for viewer role', () => {
+    it('returns false for contributor and viewer roles', () => {
+      expect(canEdit(makeSession('contributor'))).toBe(false);
       expect(canEdit(makeSession('viewer'))).toBe(false);
     });
 
@@ -35,13 +36,52 @@ describe('roles utility', () => {
     });
   });
 
+  describe('canWrite', () => {
+    it('returns true for contributor and up', () => {
+      expect(canWrite(makeSession('contributor'))).toBe(true);
+      expect(canWrite(makeSession('editor'))).toBe(true);
+      expect(canWrite(makeSession('admin'))).toBe(true);
+    });
+
+    it('returns false for viewer, unknown roles and no session', () => {
+      expect(canWrite(makeSession('viewer'))).toBe(false);
+      expect(canWrite(makeSession('guest'))).toBe(false);
+      expect(canWrite(null)).toBe(false);
+    });
+  });
+
+  describe('canChangeContent', () => {
+    const own = (status: string) => ({ author_id: 'user_john', status });
+
+    it('lets editors change any content', () => {
+      expect(
+        canChangeContent(makeSession('editor'), { author_id: 'other', status: 'published' })
+      ).toBe(true);
+    });
+
+    it('lets contributors change only their own drafts and pending items', () => {
+      const contributor = makeSession('contributor');
+      expect(canChangeContent(contributor, null)).toBe(true);
+      expect(canChangeContent(contributor, own('draft'))).toBe(true);
+      expect(canChangeContent(contributor, own('pending'))).toBe(true);
+      expect(canChangeContent(contributor, own('published'))).toBe(false);
+      expect(canChangeContent(contributor, own('scheduled'))).toBe(false);
+      expect(canChangeContent(contributor, { author_id: 'other', status: 'draft' })).toBe(false);
+    });
+
+    it('lets viewers change nothing', () => {
+      expect(canChangeContent(makeSession('viewer'), null)).toBe(false);
+    });
+  });
+
   describe('isAdmin', () => {
     it('returns true for admin role', () => {
       expect(isAdmin(makeSession('admin'))).toBe(true);
     });
 
-    it('returns false for editor and viewer roles', () => {
+    it('returns false for editor, contributor and viewer roles', () => {
       expect(isAdmin(makeSession('editor'))).toBe(false);
+      expect(isAdmin(makeSession('contributor'))).toBe(false);
       expect(isAdmin(makeSession('viewer'))).toBe(false);
     });
 

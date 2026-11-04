@@ -199,7 +199,7 @@ impl RegistrationConfig {
         let role = self.default_role.as_str();
         if !crate::ROLES.contains(&role) || role == "admin" {
             return Err(aegis_core::AegisError::Config(format!(
-                "[auth.registration].default_role = {:?}: use \"editor\" or \"viewer\"",
+                "[auth.registration].default_role = {:?}: use \"editor\", \"contributor\" or \"viewer\"",
                 role
             )));
         }

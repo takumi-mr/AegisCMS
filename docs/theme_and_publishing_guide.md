@@ -27,7 +27,7 @@ AegisCMS は Headless API Gateway、管理画面 Admin Studio、および高速�
 | `GET /uploads/*` | ローカルストレージアセット | アップロード画像・メディア配信 |
 
 ### ゼロ・トラストな公開制御
-- 下書き状態（`status: "draft"`）・予約公開の待ち（`status: "scheduled"`）・アーカイブ状態（`status: "archived"`）のコンテンツは、一般公開エンドポイント（`/`, `/articles/{slug}`, `/{slug}`, `/category/{slug}`, `/feed.xml`, `/products`）では一切表示されず、安全に `404 Not Found` テンプレートが描画されます。
+- 下書き状態（`status: "draft"`）・レビュー待ち（`status: "pending"`）・予約公開の待ち（`status: "scheduled"`）・アーカイブ状態（`status: "archived"`）のコンテンツは、一般公開エンドポイント（`/`, `/articles/{slug}`, `/{slug}`, `/category/{slug}`, `/feed.xml`, `/products`）では一切表示されず、安全に `404 Not Found` テンプレートが描画されます。
 - 記事本文は `HtmlRenderer` による決定論的 HTML 生成の後、Cloudflare 製 `lol-html` ストリーミングリライター（`StreamingHtmlRewriter`）を透過的に通過し、外部リンクの `rel="noopener noreferrer"` 自動付与や画像の `loading="lazy"` / `decoding="async"` 強制適用が担保されます。
 
 ### 予約公開（スケジュール公開）
@@ -54,6 +54,31 @@ AegisCMS は Headless API Gateway、管理画面 Admin Studio、および高速�
 - `unpublish_at` は必ず公開日時（予約公開の `published_at` または現在時刻）より未来の日時を指定する必要があります（過去の日時や公開日時以前を指定した場合は `400 Bad Request`）。下書き（`draft`）に戻した場合は `unpublish_at` は自動クリアされます。
 - **リクエスト時の防御判定**: 公開エンドポイント（`/`, `/articles/{slug}`, `/products` 等）は、スケジューラの定期実行（30 秒間隔）を待たずに、リクエスト時点で `unpublish_at <= now` となったコンテンツを即座に 404 として非公開化します。
 - **スケジューラによるアーカイブ化**: サーバーは 30 秒ごとに期限を迎えた公開コンテンツを検出し、自動で `status = "archived"` に更新します。この非公開化は監査ログ `content.unpublish`（操作者なし）に記録され、通知が有効なら著者に知らせます（`content.unpublished`）。
+
+### レビュー（寄稿者の下書きを承認して公開する）
+
+書く人と公開を決める人を分けたいときは、書く人のロールを `contributor`（寄稿者）にします（[ロール](authentication.md#ロールと-api-の権限)）。寄稿者は自分のコンテンツを下書き（`draft`）とレビュー待ち（`pending`）にしかできず、公開は `editor` 以上が行います。段階を自由に組めるワークフロー（法務 → 編集長 → 公開など）はありません。
+
+| 操作 | 誰が | 保存のしかた | 通知（[通知 2](notifications.md#2-送る通知)） |
+| --- | --- | --- | --- |
+| レビューを頼む | 寄稿者（`editor` 以上も可） | 状態を **レビュー待ち**（`pending`）にして保存 | `editor` 以上の有効なユーザー全員に `content.submitted` |
+| 承認する | `editor` 以上 | レビュー待ちのものを **公開**（`published`）か **予約公開**（`scheduled`）にして保存 | 著者に `content.approved` |
+| 差し戻す | `editor` 以上 | レビュー待ちのものを **下書き**（`draft`）にして保存 | 著者に `content.returned` |
+| 取り下げる | 著者 | 自分のレビュー待ちを下書きにして保存 | なし |
+
+- 状態を変える保存では、メモ（`review_note`。2,000 文字まで）を添えられます。メモはコンテンツには保存せず、版の履歴のメモ・監査ログ・通知に残します。Admin Studio では状態を変えるとメモの欄が出ます。
+
+  ```bash
+  # 編集者が差し戻す（本文は通常の更新と同じ）
+  curl -X PUT http://localhost:8080/api/v1/contents/article/spring-sale \
+    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+    -d '{"title": "春のセール", "slug": "spring-sale", "status": "draft",
+         "review_note": "価格の表記を直してください", "blocks": []}'
+  ```
+- 寄稿者が変更・削除できるのは、自分が著者で、下書きかレビュー待ちのものだけです（版の復元・タグの付け外しも同じ）。公開・予約公開・アーカイブにしようとしたり、公開後のものや他人のものを変えようとすると `403` です。公開後に直したいときは編集者に頼みます。
+- 公開中のものを編集者がレビュー待ちに戻すと、下書きと同じく公開ページから外れます。
+- レビューの出来事は監査ログ `content.review`（`details.decision` が `submitted` / `approved` / `returned` / `withdrawn`）に残ります（[監査ログ](audit.md)）。
+- Admin Studio では、編集者の一覧の上にレビュー待ちの件数が出て、押すとレビュー待ちだけに絞り込みます。通知メールのリンク（`admin_url` + `#review`）も同じ一覧を開きます。
 
 ### 公開スケジュール・カレンダー
 - Admin Studio 上部の「カレンダー」タブ（`GET /api/v1/schedule`）から、月間カレンダーグリッドおよびタイムラインアジェンダ形式で、予約公開予定・非公開予定・公開中コンテンツを確認できます。

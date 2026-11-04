@@ -265,10 +265,12 @@
     "roles": {
       "admin": "admin",
       "editor": "editor",
+      "contributor": "contributor",
       "viewer": "viewer"
     },
     "status": {
       "draft": "Draft",
+      "pending": "Pending review",
       "scheduled": "Scheduled",
       "published": "Published"
     },
@@ -310,7 +312,8 @@
     "pages": "Pages",
     "typeSelector": "Content type selector",
     "scheduledFor": "Scheduled for {{date}}",
-    "unpublishFor": "Unpublish at {{date}}"
+    "unpublishFor": "Unpublish at {{date}}",
+    "reviewQueue": "{{count}} waiting for review"
   },
   "editor": {
     "titlePlaceholder": "Enter post title...",
@@ -384,7 +387,8 @@
       "profileUnavailable": "Your profile could not be loaded",
       "publishAtRequired": "Choose when to publish the scheduled content",
       "unpublishAtInvalid": "Invalid unpublish date",
-      "unpublishBeforePublish": "Unpublish date must be after publication date"
+      "unpublishBeforePublish": "Unpublish date must be after publication date",
+      "submitted": "Sent for review"
     },
     "table": "Table",
     "toc": "Contents",
@@ -392,7 +396,15 @@
     "callout": "Callout",
     "separator": "Separator",
     "details": "Details",
-    "contactForm": "Contact form"
+    "contactForm": "Contact form",
+    "review": {
+      "readOnly": "You cannot change this content. Contributors can change only their own drafts and items waiting for review.",
+      "waiting": "This is waiting for review. Save it as published or scheduled to approve it, or as a draft to return it (the author is emailed).",
+      "noteForReviewer": "Note for the reviewer",
+      "noteForAuthor": "Note for the author",
+      "submitPlaceholder": "What to look at (optional)",
+      "decidePlaceholder": "Why it is returned (optional; sent to the author and kept in the version history)"
+    }
   },
   "header": {
     "badge": "Zero-Trust Sandbox",
@@ -1039,7 +1051,8 @@
   "users": {
     "roleDescriptions": {
       "admin": "Everything, including users, themes and audit logs",
-      "editor": "Create content and categories, upload media",
+      "editor": "Publish content and approve reviews, create categories, upload media",
+      "contributor": "Write their own drafts and request a review, upload media (an editor publishes)",
       "viewer": "Read content and media"
     },
     "forbidden": "Managing users requires the \"admin\" role.",
