@@ -134,79 +134,35 @@ pub fn published_record_from_snapshot(
     Ok(record)
 }
 
-/// Includes pre-pointer published rows while returning records in the same order and page shape.
-pub fn merge_published_content_records(
-    mut published: Vec<ContentRecord>,
-    legacy_working: Vec<ContentRecord>,
-    query: &ContentListQuery,
-) -> ContentPage {
-    let mut ids: std::collections::HashSet<String> =
-        published.iter().map(|record| record.id.clone()).collect();
-    published.extend(
-        legacy_working
-            .into_iter()
-            .filter(|record| record.status == "published" && ids.insert(record.id.clone())),
-    );
-    published.sort_by(|a, b| {
-        b.created_at
-            .cmp(&a.created_at)
-            .then_with(|| b.id.cmp(&a.id))
-    });
-    let total = published.len() as u64;
-    if let (Some(cur_created), Some(cur_id)) = (&query.cursor_created_at, &query.cursor_id) {
-        published.retain(|record| {
-            record.created_at.as_str() < cur_created.as_str()
-                || (record.created_at.as_str() == cur_created.as_str()
-                    && record.id.as_str() < cur_id.as_str())
-        });
+/// 公開中の行を公開の記録なしに書いたとき（`insert_content` / `update_content`）に、その場の内容を
+/// 公開版にする（公開の記録がまだ無い場合だけポインターを張る）。本番の書き込みは
+/// `*_with_versions` で公開の記録を作るので、これを通るのはテストと、版の無いバックアップの復元だけ
+pub async fn ensure_publication<D: DatabaseAdapter + ?Sized>(
+    db: &D,
+    schema: &SchemaDefinition,
+    record: &ContentRecord,
+) -> Result<()> {
+    if record.status != "published" {
+        return Ok(());
     }
-    let offset = usize::try_from(query.offset).unwrap_or(usize::MAX);
-    let records = published
-        .into_iter()
-        .skip(offset)
-        .take(query.limit.map_or(usize::MAX, |limit| {
-            usize::try_from(limit).unwrap_or(usize::MAX)
-        }))
-        .collect();
-    ContentPage { records, total }
-}
-
-/// 公開の記録（`_aegis_content_publications`）を持たない公開中の行（公開の記録ができる前の
-/// データや、`insert_content` / `update_content` で直接書いた行）が、このプロセスから見て
-/// ありうるか。ありうるあいだは、公開版の一覧が作業テーブルも読んで結合する（遅い経路）。
-///
-/// 起動時のマイグレーション（`run_migrations`）が公開の記録の無い公開中の行を全部移すので、
-/// そのあとは偽になり、`insert_content` / `update_content` で公開中の行を書いたときだけ真に戻る。
-/// 本番の書き込み（`*_with_versions`）は必ず公開の記録を作るので、通常は偽のまま
-#[derive(Debug)]
-pub struct LegacyPublishedTracker(std::sync::atomic::AtomicBool);
-
-impl LegacyPublishedTracker {
-    /// マイグレーションが済むまでは「ありうる」
-    pub fn new() -> Self {
-        Self(std::sync::atomic::AtomicBool::new(true))
-    }
-
-    pub fn possible(&self) -> bool {
-        self.0.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn set_possible(&self, possible: bool) {
-        self.0.store(possible, std::sync::atomic::Ordering::Relaxed);
-    }
-
-    /// 公開の記録を作らずに書いた行が公開中なら、遅い経路に戻す
-    pub fn note_write(&self, record: &ContentRecord) {
-        if record.status == "published" {
-            self.set_possible(true);
-        }
-    }
-}
-
-impl Default for LegacyPublishedTracker {
-    fn default() -> Self {
-        Self::new()
-    }
+    let version = ContentVersionRecord {
+        content_type: record.content_type.clone(),
+        content_id: record.id.clone(),
+        revision: 0,
+        snapshot_json: serde_json::to_string(record)
+            .map_err(|e| AegisError::Database(e.to_string()))?,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        created_by: None,
+        change_note: Some("Initial published snapshot".into()),
+    };
+    db.update_content_with_versions(
+        schema,
+        record,
+        &[version],
+        ContentPublicationChange::EnsureVersion(0),
+    )
+    .await?;
+    Ok(())
 }
 
 /// 公開の記録に持つ並べ替え・絞り込み用の列の値（カテゴリ, 並べ替えの時刻）。
@@ -334,6 +290,7 @@ fn published_where(
     content_type: &str,
     status: Option<&str>,
     category: Option<&str>,
+    tag_id: Option<&str>,
     placeholder: &impl Fn(usize) -> String,
     binds: &mut Vec<String>,
 ) -> String {
@@ -347,6 +304,13 @@ fn published_where(
     }
     if let Some(category) = category {
         clause.push_str(&format!(" AND p.category_id = {}", bind(category)));
+    }
+    if let Some(tag_id) = tag_id {
+        clause.push_str(&format!(
+            " AND p.content_id IN (SELECT t.content_id FROM {} t              WHERE t.content_type = p.content_type AND t.tag_id = {})",
+            tags::CONTENT_TAG_TABLE,
+            bind(tag_id)
+        ));
     }
     clause
 }
@@ -375,6 +339,7 @@ pub fn build_published_list(
             content_type,
             query.status.as_deref(),
             category_filter(query),
+            query.tag_id.as_deref(),
             &placeholder,
             &mut binds,
         )
@@ -407,6 +372,7 @@ pub fn build_published_count(
         content_type,
         query.status.as_deref(),
         category_filter(query),
+        query.tag_id.as_deref(),
         &placeholder,
         &mut binds,
     );
@@ -433,6 +399,7 @@ pub fn build_published_neighbors(
             content_type,
             Some("published"),
             query.category_id.as_deref(),
+            None,
             &placeholder,
             &mut binds,
         )
@@ -486,28 +453,6 @@ pub const PUBLICATION_INDEXES: [(&str, &str); 4] = [
         "(content_type, status, category_id, sort_at, content_id)",
     ),
 ];
-
-/// 遅い経路（作業テーブルも読む）で、速い経路と同じく `category_id` の絞り込みを適用する
-/// （結合してから切り出すので、結合の前に絞る）
-pub fn filter_published_by_category(
-    mut published: Vec<ContentRecord>,
-    mut legacy_working: Vec<ContentRecord>,
-    query: &ContentListQuery,
-) -> (Vec<ContentRecord>, Vec<ContentRecord>) {
-    if let Some(category) = category_filter(query) {
-        let matches = |record: &ContentRecord| {
-            record
-                .custom_fields
-                .get("category_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                == category
-        };
-        published.retain(matches);
-        legacy_working.retain(matches);
-    }
-    (published, legacy_working)
-}
 
 /// コンテンツ一覧の条件（`list_contents_page`）
 #[derive(Debug, Clone, Default)]
@@ -634,8 +579,8 @@ pub trait DatabaseAdapter:
 
     /// List published snapshots with the standard content paging rules.
     ///
-    /// 対応する条件は `status`・`limit`/`offset`・キーセット（`cursor_*`）・`filters` のうち
-    /// `category_id` だけ（`search` / `tag_id` など、ほかは無視する）。`limit` を指定したときの
+    /// 対応する条件は `status`・`limit`/`offset`・キーセット（`cursor_*`）・`tag_id`・`filters` のうち
+    /// `category_id` だけ（`search` など、ほかは無視する）。`limit` を指定したときの
     /// `total` は、キーセットを除いた条件に合う公開版の総数
     async fn list_published_contents_page(
         &self,

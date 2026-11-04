@@ -60,27 +60,22 @@ impl RelatedArticlesStrategy for TagCategoryRelatedStrategy {
             return Vec::new();
         }
 
-        // 1. 対象記事のタグからタグごとの一致数を集計
-        let mut tag_match_counts: HashMap<String, usize> = HashMap::new();
-        if let Ok(current_tags) = state
+        // 1. 共通のタグが多い公開記事を、DB で集計して上位だけ受け取る（人気のタグのリンクを全部は読まない）。
+        //    候補は `limit` の 3 倍まで（ID で 1 件ずつ引く）
+        let tag_match_counts: HashMap<String, usize> = state
             .db
-            .list_content_tags(&schema.content_type, &current_record.id)
+            .list_related_by_tags(
+                &schema.content_type,
+                &current_record.id,
+                (limit as u64).saturating_mul(3),
+            )
             .await
-        {
-            for tag in current_tags {
-                if let Ok(links) = state
-                    .db
-                    .list_tagged_contents(&tag.id, Some(&schema.content_type))
-                    .await
-                {
-                    for link in links {
-                        if link.content_id != current_record.id {
-                            *tag_match_counts.entry(link.content_id).or_insert(0) += 1;
-                        }
-                    }
-                }
-            }
-        }
+            .map(|rows| {
+                rows.into_iter()
+                    .map(|(id, shared)| (id, usize::try_from(shared).unwrap_or(usize::MAX)))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         let current_category = current_record
             .custom_fields
@@ -89,7 +84,7 @@ impl RelatedArticlesStrategy for TagCategoryRelatedStrategy {
             .filter(|s| !s.trim().is_empty());
 
         // 2. 候補を、全件を読まずに必要な分だけ引く（公開中のもの。重複は 1 件にまとめる）
-        //    - タグが一致した記事: 一致数の多い順に `limit` の 3 倍まで（ID で 1 件ずつ）
+        //    - タグが一致した記事: 上で受け取った分（ID で 1 件ずつ）
         //    - 同じカテゴリの新しい記事、新しい記事: それぞれ `limit` + 1 件（自分自身を除く分）
         let now = chrono::Utc::now();
         let mut candidates: HashMap<String, ContentRecord> = HashMap::new();

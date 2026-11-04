@@ -104,8 +104,9 @@ impl TagLookup {
     }
 }
 
-/// 公開中のコンテンツ（`listed_types`）を種類ごとに読む
-async fn published_records(state: &AppState) -> Vec<ContentRecord> {
+/// 公開中のコンテンツ（`listed_types`）を種類ごとに読む。`tag_id` があればそのタグが付いたものだけ
+/// （DB が絞る。サイトの全件ではなく、タグの付いた分だけを読む）
+async fn published_records(state: &AppState, tag_id: Option<&str>) -> Vec<ContentRecord> {
     let now = chrono::Utc::now();
     let mut out = Vec::new();
     for content_type in listed_types(state) {
@@ -113,6 +114,7 @@ async fn published_records(state: &AppState) -> Vec<ContentRecord> {
         let Some(schema) = schema else { continue };
         let query = ContentListQuery {
             status: Some("published".to_string()),
+            tag_id: tag_id.map(str::to_string),
             ..Default::default()
         };
         match state.db.list_published_contents_page(&schema, &query).await {
@@ -138,22 +140,7 @@ fn sort_newest_first(records: &mut [ContentRecord]) {
 
 /// タグが付いた公開中のコンテンツ（新しい順）
 async fn tagged_records(state: &AppState, tag: &TagRecord) -> Vec<ContentRecord> {
-    let links = match state.db.list_tagged_contents(&tag.id, None).await {
-        Ok(links) => links,
-        Err(e) => {
-            tracing::error!("Could not read the contents tagged {}: {}", tag.slug, e);
-            return Vec::new();
-        }
-    };
-    let tagged: HashSet<(String, String)> = links
-        .into_iter()
-        .map(|l| (l.content_type, l.content_id))
-        .collect();
-    let mut records: Vec<ContentRecord> = published_records(state)
-        .await
-        .into_iter()
-        .filter(|r| tagged.contains(&(r.content_type.clone(), r.id.clone())))
-        .collect();
+    let mut records = published_records(state, Some(&tag.id)).await;
     sort_newest_first(&mut records);
     records
 }
@@ -163,7 +150,7 @@ pub(crate) async fn tags_in_use(state: &AppState) -> Vec<(TagRecord, usize)> {
     if state.tags.is_none() {
         return Vec::new();
     }
-    let published: HashSet<(String, String)> = published_records(state)
+    let published: HashSet<(String, String)> = published_records(state, None)
         .await
         .into_iter()
         .map(|r| (r.content_type, r.id))
@@ -391,12 +378,6 @@ pub async fn get_tag_feed(
     let Some(tag) = find_tag(&state, &slug).await else {
         return (StatusCode::NOT_FOUND, "Tag not found").into_response();
     };
-    let ids: HashSet<String> = tagged_records(&state, &tag)
-        .await
-        .into_iter()
-        .filter(|r| r.content_type == "article")
-        .map(|r| r.id)
-        .collect();
     let mut cache_tags = CacheTags::new();
     cache_tags.add_url(&format!("/tags/{}/feed.xml", tag.slug));
     cache_tags.add_dependency("tag", &tag.id);
@@ -408,7 +389,7 @@ pub async fn get_tag_feed(
         &title,
         &format!("/tags/{}/feed.xml", tag.slug),
         &format!("/tags/{}", tag.slug),
-        Some(&ArticleFilter::Ids(ids)),
+        Some(&ArticleFilter::Tag(tag.id.clone())),
         cache_tags,
     )
     .await

@@ -15,7 +15,7 @@ use aegis_db::{resolve_relations_for_records, ContentListQuery, ContentPage};
 use aegis_schema::SchemaDefinition;
 use aegis_theme::FrontPage;
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::handlers::content::is_currently_published;
 
@@ -223,8 +223,8 @@ pub struct IndexParams {
 pub(crate) enum ArticleFilter {
     /// この関係フィールドがこの値の記事だけ（カテゴリの記事一覧）
     Field(String, String),
-    /// この ID の記事だけ（タグの記事一覧）
-    Ids(HashSet<String>),
+    /// このタグ（ID）が付いた記事だけ（タグのフィード）
+    Tag(String),
 }
 
 impl ArticleFilter {
@@ -233,7 +233,8 @@ impl ArticleFilter {
             Self::Field(field, value) => {
                 record.custom_fields.get(field).and_then(|v| v.as_str()) == Some(value.as_str())
             }
-            Self::Ids(ids) => ids.contains(&record.id),
+            // タグは SQL で絞る（`list_published_articles`）。ここには来ない
+            Self::Tag(_) => true,
         }
     }
 }
@@ -434,6 +435,17 @@ pub(crate) async fn list_published_articles(
         };
         return state.db.list_published_contents_page(schema, &query).await;
     };
+    // タグの絞り込みは、結びつきのテーブルを引いて DB が行う
+    if let ArticleFilter::Tag(tag_id) = filter {
+        let query = ContentListQuery {
+            status,
+            tag_id: Some(tag_id.clone()),
+            limit: Some(limit),
+            offset,
+            ..Default::default()
+        };
+        return state.db.list_published_contents_page(schema, &query).await;
+    }
     // カテゴリの絞り込みは、公開の記録の列で DB が行う（ページ送りも含めて全件を読まない）
     if let ArticleFilter::Field(field, value) = filter {
         if field == "category_id" {

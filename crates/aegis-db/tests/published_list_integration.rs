@@ -1,7 +1,6 @@
 //! 公開版の一覧（`list_published_contents_page`）と前後（`list_published_neighbors`）の検証。
-//! 並べ替え・絞り込み・ページ送りを SQL で行う経路と、公開の記録の無い行を含む遅い経路が、
-//! 同じ結果を返すこと。SQLite（インメモリ）は常に実行し、PostgreSQL / MySQL はコンテナ稼働時
-//! （無ければスキップ）に実行する。
+//! 並べ替え・絞り込み（カテゴリ・タグ）・ページ送りを SQL で行うこと。SQLite（インメモリ）は常に実行し、
+//! PostgreSQL / MySQL はコンテナ稼働時（無ければスキップ）に実行する。
 
 use std::collections::HashMap;
 use std::env;
@@ -10,7 +9,7 @@ use aegis_core::Result;
 use aegis_db::{
     ContentListQuery, ContentPublicationChange, ContentRecord, ContentVersionRecord,
     DatabaseAdapter, MySqlAdapter, PostgresAdapter, PublishedNeighborQuery, PublishedOrder,
-    SqliteAdapter,
+    SqliteAdapter, TagRecord,
 };
 use aegis_schema::SchemaDefinition;
 use serde_json::json;
@@ -235,7 +234,67 @@ async fn run_published_list_test<A: DatabaseAdapter>(adapter: &A) -> Result<()> 
         strings(&["p1", "p4"])
     );
 
-    // 公開の記録を作らずに書いた公開中の行（以前のデータ）も、一覧と前後に出る
+    // タグの絞り込み: タグの付いた公開中の記事だけ（ページ送りと総数も SQL）
+    for (id, name) in [("t1", "one"), ("t2", "two")] {
+        adapter
+            .insert_tag(&TagRecord {
+                id: id.to_string(),
+                slug: name.to_string(),
+                name: name.to_string(),
+                description: None,
+                created_at: "2026-10-01T00:00:00Z".to_string(),
+                updated_at: "2026-10-01T00:00:00Z".to_string(),
+            })
+            .await?;
+    }
+    let at = "2026-10-01T00:00:00Z";
+    // p1: t1+t2、p2: t1、p3: t1+t2、p5: t2、p6（公開前）: t1+t2
+    for (id, tags) in [
+        ("p1", &["t1", "t2"][..]),
+        ("p2", &["t1"][..]),
+        ("p3", &["t1", "t2"][..]),
+        ("p5", &["t2"][..]),
+        ("p6", &["t1", "t2"][..]),
+    ] {
+        let tags = strings(tags);
+        adapter.set_content_tags("article", id, &tags, at).await?;
+    }
+    let tagged = |tag: &str, limit: u64, offset: u64| ContentListQuery {
+        status: Some("published".into()),
+        tag_id: Some(tag.to_string()),
+        limit: Some(limit),
+        offset,
+        ..Default::default()
+    };
+    assert_eq!(
+        page_ids(adapter, tagged("t1", 2, 0)).await?,
+        (strings(&["p3", "p2"]), 3)
+    );
+    assert_eq!(
+        page_ids(adapter, tagged("t1", 2, 2)).await?,
+        (strings(&["p1"]), 3)
+    );
+    let mut with_category = tagged("t2", 10, 0);
+    with_category.filters = vec![("category_id".into(), Some("cat-1".into()))];
+    assert_eq!(
+        page_ids(adapter, with_category).await?,
+        (strings(&["p5", "p3", "p1"]), 3)
+    );
+    // 共通のタグが多い公開記事（p6 は公開前、自分自身は除く）。同数は ID の順
+    assert_eq!(
+        adapter.list_related_by_tags("article", "p1", 10).await?,
+        vec![
+            ("p3".to_string(), 2),
+            ("p2".to_string(), 1),
+            ("p5".to_string(), 1)
+        ]
+    );
+    assert_eq!(
+        adapter.list_related_by_tags("article", "p1", 2).await?,
+        vec![("p3".to_string(), 2), ("p2".to_string(), 1)]
+    );
+
+    // `insert_content` で公開中の行を書くと、その内容で公開の記録もできる（テストと版の無い復元の用）
     adapter
         .insert_content(
             &schema,
@@ -256,12 +315,6 @@ async fn run_published_list_test<A: DatabaseAdapter>(adapter: &A) -> Result<()> 
         )
         .await?,
         strings(&["p5", "p7"])
-    );
-    // マイグレーションで公開の記録に移ったあとも、同じ結果（速い経路）
-    adapter.run_migrations(&schemas).await?;
-    assert_eq!(
-        page_ids(adapter, published(2, 0)).await?,
-        (strings(&["p7", "p5"]), 6)
     );
     assert_eq!(
         page_ids(adapter, in_category(Some("cat-1"), 5)).await?,
