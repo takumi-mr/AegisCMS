@@ -1,6 +1,6 @@
 {
   "name": "official-post-navigation",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "abi_version": 1,
   "entrypoint": "plugin.wasm",
   "display_name": "Post Navigation (Prev/Next)",
@@ -14,7 +14,13 @@
   ],
   "min_aegis_version": "0.1.0",
   "capabilities": {
-    "render_page": { "input": ["fields", "prev_article", "next_article"] },
+    "render_page": {
+      "input": [
+        "fields",
+        "prev_article",
+        "next_article"
+      ]
+    },
     "hooks": [
       "on-render-page"
     ]
