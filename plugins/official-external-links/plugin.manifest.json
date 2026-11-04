@@ -1,6 +1,6 @@
 {
   "name": "official-external-links",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "entrypoint": "plugin.wasm",
   "display_name": "External Links",
   "description": "Opens external links in a new tab, adds rel=\"noopener nofollow\" and an external-link icon. It runs in the browser, so crawlers that do not run scripts do not see the nofollow. Configure it in [plugins.settings.official-external-links].",
@@ -13,7 +13,11 @@
   "min_aegis_version": "0.1.0",
   "abi_version": 1,
   "capabilities": {
-    "render_page": { "input": ["content_html"] },
+    "render_page": {
+      "input": [
+        "content_html"
+      ]
+    },
     "hooks": [
       "on-render-page"
     ]

@@ -1,6 +1,6 @@
 [package]
 name = "aegis-plugin-reading-time"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["AegisCMS Core Team"]
 description = "Official Wasm plugin that displays estimated reading time and word/character count on articles and pages"

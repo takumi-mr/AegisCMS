@@ -1,6 +1,6 @@
 {
   "name": "official-reading-time",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "abi_version": 1,
   "entrypoint": "plugin.wasm",
   "display_name": "Reading Time & Word Count",
@@ -14,7 +14,12 @@
   ],
   "min_aegis_version": "0.1.0",
   "capabilities": {
-    "render_page": { "input": ["content_html", "fields"] },
+    "render_page": {
+      "input": [
+        "content_html",
+        "fields"
+      ]
+    },
     "hooks": [
       "on-render-page"
     ]
