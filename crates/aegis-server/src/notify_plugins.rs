@@ -251,7 +251,7 @@ mod tests {
             ))
             .unwrap();
             let services: Arc<dyn HostServices> = Arc::new(
-                crate::plugin_host::ServerHostServices::new(
+                crate::plugin_host::ServerHostServices::new_unrestricted(
                     Arc::new(aegis_cache::MemoryCacheBackend::new()),
                     plugins,
                 )

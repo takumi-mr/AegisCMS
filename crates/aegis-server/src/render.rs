@@ -252,6 +252,15 @@ pub fn build_extra_head(
         crate::handlers::feed::feed_link_tag(&site.title, &format!("{}/feed.xml", base_path));
     extra_head.push_str("\n  ");
     extra_head.push_str(&feed_link);
+    // oEmbed の発見用リンク（コンテンツのページだけ。絶対 URL が分かる `canonical_base_url` が要る）
+    if let (Some(title), Some(full_url)) = (title, seo.resolve_full_url(path)) {
+        if !title.trim().is_empty() {
+            extra_head.push_str("\n  ");
+            extra_head.push_str(&crate::handlers::oembed::discovery_link(
+                title, &base_path, &full_url,
+            ));
+        }
+    }
     let seo_tags = seo.generate_head_tags(&head_params);
     if !seo_tags.is_empty() {
         if !extra_head.is_empty() {

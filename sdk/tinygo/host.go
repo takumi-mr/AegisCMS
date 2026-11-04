@@ -187,7 +187,7 @@ func NewHTTPPostJSON(url string, body interface{}) (HTTPRequest, error) {
 }
 
 // HTTPFetch は許可されたドメイン (capabilities.network.allowed_domains) へ HTTP リクエストを送る。
-// リダイレクトは追わない。1 回のフック呼び出しで 8 回まで、本文は送受信とも 1 MiB まで。
+// リダイレクトはホストが 3 回まで、移った先ごとに許可を確かめて追う（ポートは 80・443・8080 のみ、内部の IP アドレスへは通信しない）。1 回のフック呼び出しで 8 回まで、本文は送受信とも 1 MiB まで。
 // 通信の時間もフックの execution_timeout_ms に含まれる。通信の失敗・拒否は err
 func HTTPFetch(request HTTPRequest) (*HTTPResponse, error) {
 	body, err := json.Marshal(request)

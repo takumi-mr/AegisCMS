@@ -1,0 +1,13 @@
+[package]
+name = "aegis-plugin-link-embed"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Core Team"]
+description = "Official Wasm plugin that turns a URL-only paragraph into a link card from the page's OGP / oEmbed data"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }
+serde_json.workspace = true

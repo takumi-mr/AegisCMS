@@ -30,7 +30,7 @@ pub fn feed_link_tag(title: &str, href: &str) -> String {
 }
 
 /// サイトの URL（末尾の `/` なし）: SEO 設定の canonical_base_url、無ければリクエストの Host と `[server].base_path`
-fn public_base_url(state: &AppState, headers: &HeaderMap) -> String {
+pub(crate) fn public_base_url(state: &AppState, headers: &HeaderMap) -> String {
     if let Some(base) = state.seo().canonical_base_url {
         return base.trim_end_matches('/').to_string();
     }

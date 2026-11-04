@@ -1,12 +1,40 @@
 use aegis_core::{AegisError, PluginManifest, Result};
 
+/// サイトの設定（`[plugins.settings.<name>]`）でプラグインに足す、通信を許可するドメインの設定キー。
+/// 値はカンマ区切りの文字列か、文字列の配列（マニフェストの `allowed_domains` に足して使う）
+pub const EXTRA_ALLOWED_DOMAINS_SETTING: &str = "extra_allowed_domains";
+
+/// [`EXTRA_ALLOWED_DOMAINS_SETTING`] の値（カンマ区切り、または JSON の文字列の配列）をドメインの一覧にする
+pub fn parse_extra_domains(value: &str) -> Vec<String> {
+    let value = value.trim();
+    let items: Vec<String> = match serde_json::from_str::<Vec<String>>(value) {
+        Ok(list) => list,
+        Err(_) => value.split(',').map(str::to_string).collect(),
+    };
+    items
+        .into_iter()
+        .map(|d| d.trim().trim_end_matches('.').to_ascii_lowercase())
+        .filter(|d| !d.is_empty())
+        .collect()
+}
+
 pub struct CapabilityGuard<'a> {
     manifest: &'a PluginManifest,
+    /// サイトの設定で足した許可ドメイン
+    extra_domains: Vec<String>,
 }
 
 impl<'a> CapabilityGuard<'a> {
     pub fn new(manifest: &'a PluginManifest) -> Self {
-        Self { manifest }
+        Self {
+            manifest,
+            extra_domains: Vec::new(),
+        }
+    }
+
+    pub fn with_extra_domains(mut self, domains: Vec<String>) -> Self {
+        self.extra_domains = domains;
+        self
     }
 
     /// 指定URLへのHTTPフェッチ権限があるかを検証
@@ -38,6 +66,7 @@ impl<'a> CapabilityGuard<'a> {
         let is_allowed = net_cap
             .allowed_domains
             .iter()
+            .chain(self.extra_domains.iter())
             .map(|domain| domain.trim().trim_end_matches('.').to_ascii_lowercase())
             .any(|domain| host == domain || host.ends_with(&format!(".{}", domain)));
 

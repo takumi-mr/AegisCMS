@@ -987,7 +987,8 @@ async fn test_official_wasm_plugins_in_checkout() {
 
     let cache = Arc::new(aegis_cache::MemoryCacheBackend::new());
     let services: Arc<dyn HostServices> = Arc::new(
-        crate::plugin_host::ServerHostServices::new(cache, config.plugins.clone()).unwrap(),
+        crate::plugin_host::ServerHostServices::new_unrestricted(cache, config.plugins.clone())
+            .unwrap(),
     );
     let plugins_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
     let engine = WasmEngine::new().unwrap();

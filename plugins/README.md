@@ -26,6 +26,7 @@ plugins/
 | [`official-shop-rules`](official-shop-rules/) | `calculate-order`, `on-order-status-changed` | EC の送料（送料無料の条件）・クーポン（利用回数の上限）・税（[EC](../docs/commerce.md#71-公式プラグイン)） |
 | [`official-order-notifier`](official-order-notifier/) | `on-order-status-changed` | 注文の作成・状態の変化を Slack / Webhook に通知（`http::fetch`） |
 | [`official-blocks`](official-blocks/) | `render-blocks` | 本文に置けるボタン・リンクカード・動画（YouTube・Vimeo）のブロック（[本文のブロック](../docs/blocks.md#4-プラグインのブロック)）。カスタムブロックのお手本 |
+| [`official-link-embed`](official-link-embed/) | `transform-content-ast`, `render-blocks` | URL だけの段落を、そのページの OGP / oEmbed から作ったリンクカードにする（保存時にサンドボックス内で取得してブロックに保存。表示時は通信しない）。取得先は `extra_allowed_domains` で足せる（[本文のブロック](../docs/blocks.md#5-ogp--oembed)） |
 | [`official-page-toc`](official-page-toc/) | `on-render-page` | 記事・固定ページの横に、見出しへのリンク（目次）とスクロールの進捗を出す。位置・色・階層などは `[plugins.settings.official-page-toc]` で変えられる |
 | [`official-back-to-top`](official-back-to-top/) | `on-render-page` | 本文の末尾（または画面に固定）に「トップへ戻る」ボタンを出す。形・色・位置などは `[plugins.settings.official-back-to-top]` で変えられる |
 | [`official-share-buttons`](official-share-buttons/) | `on-render-page` | 記事・固定ページの末尾（または上部/両方）に SNS 共有ボタン（X・LINE・URLコピーなど）を出す。表示先やカスタム共有先の設定が可能 |
@@ -36,4 +37,4 @@ plugins/
 | [`official-external-links`](official-external-links/) | `on-render-page` | 本文の外部リンクを新しいタブで開き、`rel="noopener nofollow"` と外部リンクのアイコンを付ける（ブラウザーのスクリプトで動く）。`[plugins.settings.official-external-links]` で変えられる |
 | [`official-ads`](official-ads/) | `on-render-page`, `render-blocks` | Google AdSense および独自広告・バナー配信。`<head>` へのスクリプト注入、カスタムブロック（`official-ads/display`）、動的 CSP 連携、Cookie 同意バナー（`[consent]`）対応 |
 
-`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-page-toc` / `official-back-to-top` / `official-share-buttons` / `official-reading-time` / `official-post-navigation` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`、`official-ads` は `task plugin:build:ads`）で作り直してください。
+`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-link-embed` は `task plugin:build:link-embed`、`official-page-toc` / `official-back-to-top` / `official-share-buttons` / `official-reading-time` / `official-post-navigation` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`、`official-ads` は `task plugin:build:ads`）で作り直してください。

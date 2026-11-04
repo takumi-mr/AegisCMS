@@ -489,6 +489,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/robots.txt", get(handlers::get_robots_txt))
         .route("/sitemap.xml", get(handlers::get_sitemap_xml))
         .route("/feed.xml", get(handlers::get_feed))
+        .route("/oembed", get(handlers::oembed::get_oembed))
         .route("/", get(handlers::render_index))
         .route("/articles", get(handlers::render_articles))
         .route("/articles/{slug}", get(handlers::render_article))
