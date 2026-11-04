@@ -1,0 +1,36 @@
+# aegis-commerce
+
+AegisCMS の EC（電子商取引）・見積もり・注文ライフサイクル・在庫管理・決済連携クレート（`[commerce]`）。
+
+## 概要
+
+`aegis-commerce` は、商品バリアントの管理、カート見積もり、注文確定と状態遷移、在庫の排他制御・引き当て、オンライン決済（Stripe）および手動決済（銀行振込・着払い）の処理を提供する E コマースサブシステムです。
+
+Wasm プラグインによる柔軟な価格・税・割引ルールの計算フック（`calculate_order`）や注文状態変更フック（`on_order_status_changed`）と統合されています。
+
+## 主な責務・提供機能
+
+- **見積もりと価格計算 (`CommerceService::quote`)**:
+  - カート内商品（バリアント）の小計計算。
+  - Wasm プラグイン（`calculate_order`）によるクーポン値引き、配送料計算、軽減税率などの動的インジェクション。
+  - 通貨単位に応じた端数処理・フォーマット。
+- **注文ライフサイクルと在庫管理 (`orders`)**:
+  - 注文の作成 (`pending`)、決済完了 (`paid`)、出荷 (`fulfilled`)、キャンセル (`cancelled`)、返金 (`refunded`) の厳格なステートマシン。
+  - 注文作成時の在庫アトミック減算と、キャンセル時の在庫自動復元。
+- **決済プロバイダ連携 (`payment`)**:
+  - **Stripe (`stripe`)**: Stripe Checkout Session の生成、および Stripe Webhook 署名検証とステータス自動反映。
+  - **Manual**: 銀行振込、請求書払い、代金引換などの手動消込フロー。
+- **顧客・商品レビュー管理 (`customer`, `review`)**:
+  - 顧客プロファイル、注文履歴の参照。
+  - 購入者限定の評価・商品レビュー投稿およびモデレーション。
+
+## モジュール構成
+
+| モジュール | 説明 |
+| :--- | :--- |
+| `lib` | `CommerceService` 実装、見積もり・注文ステートマシン |
+| `payment` | 決済プロバイダ抽象 (`PaymentProvider`) |
+| `stripe` | Stripe API 連携および Webhook 処理 |
+| `customer` | 顧客プロファイル管理 |
+| `review` | 商品レビュー管理 |
+| `config` | EC 設定 (`CommerceConfig`: 通貨、送料、決済キー等) |
