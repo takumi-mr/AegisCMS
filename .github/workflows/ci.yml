@@ -44,10 +44,10 @@ jobs:
         run: cargo fmt --check
 
       - name: Static code analysis (cargo clippy)
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-features -- -D warnings
 
       - name: Run all workspace tests (cargo test)
-        run: cargo test --workspace --all-features --verbose
+        run: cargo test --workspace --all-features
 
       - name: Verify generated code freshness (codegen drift check)
         run: |
@@ -81,7 +81,15 @@ jobs:
       - name: Run unit tests (Vitest)
         run: npm --prefix admin run test:unit
 
+      - name: Cache Playwright browser for Storybook
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('admin/package-lock.json') }}
+
       - name: Install Playwright browser for Storybook tests
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx --prefix admin playwright install --with-deps chromium
 
       - name: Run Storybook component & interaction tests (Vitest)
@@ -175,7 +183,15 @@ jobs:
       - name: Install dependencies
         run: npm --prefix theme-builder ci
 
+      - name: Cache Playwright browser
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-theme-${{ runner.os }}-${{ hashFiles('theme-builder/package-lock.json') }}
+
       - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx --prefix theme-builder playwright install --with-deps chromium
 
       - name: Run E2E tests
@@ -213,7 +229,15 @@ jobs:
       - name: Install dependencies
         run: npm --prefix admin ci
 
+      - name: Cache Playwright browser
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('admin/package-lock.json') }}
+
       - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx --prefix admin playwright install --with-deps chromium
 
       - name: Run E2E tests
@@ -235,10 +259,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check for Docker-relevant changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docker:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/release-docker.yml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'crates/**'
+              - 'admin/**'
+              - 'config/**'
+              - 'schemas/**'
+              - 'plugins/**'
+              - 'themes/**'
+
       - name: Set up Docker Buildx
+        if: steps.filter.outputs.docker == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image
+        if: steps.filter.outputs.docker == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -249,4 +294,4 @@ jobs:
           build-args: |
             CARGO_PROFILE=ci-release
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
