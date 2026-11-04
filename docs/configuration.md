@@ -159,6 +159,7 @@ public_url_prefix = "https://cdn.example.com"
 | `default_max_memory_mb` | integer (u32) | `16` | マニフェストが `max_memory_mb` を省略したプラグインのメモリ上限（MiB） |
 | `default_max_fuel_units` | integer (u64) | `100000000` | マニフェストが `max_fuel_units` を省略したプラグインの Fuel 上限 |
 | `default_timeout_ms` | integer (u64) | `250` | マニフェストが `execution_timeout_ms` を省略したプラグインのタイムアウト（ミリ秒） |
+| `fuel_per_input_byte` | integer (u64) | `150` | フック入力 1 バイトあたりに追加する燃料上限（動的スケール）。`0` で無効（固定上限）。巨大な記事で JSON シリアライズや本文走査が `all fuel consumed` でトラップするのを防ぐ |
 | `instance_pool_size` | integer (u32) | `64` | Wasm インスタンスのプール（Wasmtime のプーリングアロケータ）の枠数 = 同時に実行できるフック呼び出しの数。超えた呼び出しは空きを待つ。`0` で無効（呼び出しごとにメモリを確保・解放する） |
 | `pool_max_memory_mb` | integer (u32) | `64` | プール 1 枠あたりの線形メモリの上限（MiB）。マニフェストの `max_memory_mb` がこれを超えるプラグインは読み込めない（起動しない） |
 | `render_cache_mb` | integer (u32) | `32` | `on-render-page` の結果のキャッシュの予算（MiB）。`0` で無効。出力が渡されたページの内容だけで決まるプラグインの呼び出しを覚えて、同じ入力では Wasm を呼ばない（[architecture.md 10.8](./architecture.md#108-on-render-page-の結果のキャッシュ-aegis-runtimesrcwasmresult_cachers)） |

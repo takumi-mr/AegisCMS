@@ -1524,8 +1524,14 @@ fn create_wasm_engine(
     runtime: &aegis_runtime::RuntimeConfig,
 ) -> anyhow::Result<aegis_runtime::WasmEngine> {
     let cache_mb = runtime.render_cache_mb as usize;
+    let fuel_per_byte = runtime.fuel_per_input_byte;
+    let configure = |engine: aegis_runtime::WasmEngine| {
+        engine
+            .with_render_cache_mb(cache_mb)
+            .with_fuel_per_input_byte(fuel_per_byte)
+    };
     if runtime.instance_pool_size == 0 {
-        return Ok(aegis_runtime::WasmEngine::new()?.with_render_cache_mb(cache_mb));
+        return Ok(configure(aegis_runtime::WasmEngine::new()?));
     }
     let pool = aegis_runtime::InstancePoolConfig {
         size: runtime.instance_pool_size,
@@ -1538,7 +1544,7 @@ fn create_wasm_engine(
                 pool.size,
                 pool.max_memory_mb
             );
-            Ok(engine.with_render_cache_mb(cache_mb))
+            Ok(configure(engine))
         }
         Err(e) => {
             tracing::warn!(
@@ -1546,7 +1552,7 @@ fn create_wasm_engine(
                  Lower [runtime].instance_pool_size or set it to 0 to silence this warning",
                 e
             );
-            Ok(aegis_runtime::WasmEngine::new()?.with_render_cache_mb(cache_mb))
+            Ok(configure(aegis_runtime::WasmEngine::new()?))
         }
     }
 }

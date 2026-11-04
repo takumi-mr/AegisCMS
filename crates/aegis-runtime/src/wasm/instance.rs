@@ -196,7 +196,13 @@ impl WasmPluginInstance {
 
         let _slot = self.engine.acquire_slot().await;
         let (mut store, instance) = self.instantiate_with_state(host_state).await?;
-        let initial_fuel = self.manifest.resource_limits.max_fuel_units;
+        let base_fuel = self.manifest.resource_limits.max_fuel_units;
+        let additional_fuel =
+            (input.len() as u64).saturating_mul(self.engine.fuel_per_input_byte());
+        let initial_fuel = base_fuel.saturating_add(additional_fuel);
+        store
+            .set_fuel(initial_fuel)
+            .map_err(|e| AegisError::ResourceLimitExceeded(e.to_string()))?;
 
         let Ok(func) = instance.get_typed_func::<(i32, i32), i64>(&mut store, export) else {
             let logs = logs_arc.lock().map(|l| l.clone()).unwrap_or_default();

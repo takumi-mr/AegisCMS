@@ -1018,4 +1018,61 @@ mod tests {
         let error = run_order_hook(&plugin).await.unwrap_err().to_string();
         assert!(error.ends_with("configured"), "{}", error);
     }
+
+    #[tokio::test]
+    async fn test_dynamic_fuel_scaling_with_payload_size() {
+        const LOOP_WAT: &str = r#"
+        (module
+            (memory (export "memory") 1)
+            (func (export "allocate") (param i32) (result i32) i32.const 1024)
+            (func (export "on_before_save") (param $ptr i32) (param $len i32) (result i64)
+                (local $i i32)
+                (local.set $i (local.get $len))
+                (block $exit
+                    (loop $loop
+                        (br_if $exit (i32.eqz (local.get $i)))
+                        (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                        (br $loop)
+                    )
+                )
+                (i32.store16 (i32.const 256) (i32.const 0x7D7B))
+                (i64.or (i64.shl (i64.const 256) (i64.const 32)) (i64.const 2))
+            )
+        )
+        "#;
+
+        let wasm = wat::parse_str(LOOP_WAT).unwrap();
+        let mut manifest = make_sample_manifest(vec!["on-before-save".to_string()]);
+        // わずか 1,000 燃料（ループ数千回には全く足りない基本燃料）
+        manifest.resource_limits.max_fuel_units = 1_000;
+
+        // fuel_per_input_byte = 150 のエンジン
+        let engine = WasmEngine::new().unwrap().with_fuel_per_input_byte(150);
+        assert_eq!(engine.fuel_per_input_byte(), 150);
+
+        let plugin = WasmPluginInstance::from_bytes(
+            engine,
+            manifest.clone(),
+            &wasm,
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+        .unwrap();
+
+        // 2,000 バイトのペイロード:
+        // 追加燃料: 2,000 * 150 = 300,000 fuel
+        // 合計燃料: 1,000 + 300,000 = 301,000 fuel
+        // 2,000 回のループ（数千 fuel 消費）が余裕で成功する
+        let input = vec![b'x'; 2000];
+        let res = plugin
+            .call_hook_raw("on-before-save", "on_before_save", &input)
+            .await
+            .unwrap();
+        assert!(res.output.is_some());
+        // 1,000 燃料以上消費して成功したことを確認（追加燃料が効いている証明）
+        assert!(
+            res.fuel_consumed > 1_000,
+            "fuel_consumed ({}) should exceed base fuel limit (1000)",
+            res.fuel_consumed
+        );
+    }
 }

@@ -50,6 +50,9 @@ enable_wasm_plugins = true
 default_max_memory_mb = 16
 default_max_fuel_units = 100000000
 default_timeout_ms = 250
+# Additional fuel units granted per byte of hook input payload (0 = off, fixed limit).
+# Scales fuel dynamically so large pages do not trap with "all fuel consumed".
+fuel_per_input_byte = 150
 # Wasm instance pool: concurrent hook calls (extra calls wait for a free slot); 0 = allocate per call.
 # Each slot reserves ~6 GiB of virtual address space (not RAM). See docs/configuration.md
 instance_pool_size = 64
