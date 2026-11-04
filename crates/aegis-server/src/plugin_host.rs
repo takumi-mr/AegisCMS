@@ -3,7 +3,7 @@
 //! HTTP は `allowed_domains` を確認済みのリクエストだけを送り、設定値は `[plugins.settings.<name>]`
 
 use std::collections::BTreeMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -53,15 +53,34 @@ fn is_public_ip(ip: IpAddr) -> bool {
             if let Some(v4) = v6.to_ipv4_mapped() {
                 return is_public_ip(IpAddr::V4(v4));
             }
-            let first = v6.segments()[0];
+            let seg = v6.segments();
+            let first = seg[0];
+            // IPv4 アドレスを中に持つ形は、中の IPv4 で判断する（内部の IPv4 に届く経路になりうる）
+            let embedded =
+                |a: u16, b: u16| Ipv4Addr::new((a >> 8) as u8, a as u8, (b >> 8) as u8, b as u8);
+            // 64:ff9b::/96（NAT64）の下位 32 ビット
+            if seg[..6] == [0x64, 0xff9b, 0, 0, 0, 0] {
+                return is_public_ip(IpAddr::V4(embedded(seg[6], seg[7])));
+            }
+            // 2002::/16（6to4）の第 2・3 ブロック
+            if first == 0x2002 {
+                return is_public_ip(IpAddr::V4(embedded(seg[1], seg[2])));
+            }
+            // ::/96（IPv4 互換。廃止された形）の下位 32 ビット（`::` と `::1` は下で弾く）
+            if seg[..6] == [0; 6] && (seg[6] != 0 || seg[7] > 1) {
+                return is_public_ip(IpAddr::V4(embedded(seg[6], seg[7])));
+            }
             !(v6.is_loopback()
                 || v6.is_unspecified()
                 || v6.is_multicast()
                 // fc00::/7（ユニークローカル）・fe80::/10（リンクローカル）
                 || (first & 0xfe00) == 0xfc00
                 || (first & 0xffc0) == 0xfe80
-                // 2001:db8::/32（ドキュメント用）
-                || (first == 0x2001 && v6.segments()[1] == 0x0db8))
+                // 2001:db8::/32（ドキュメント用）・2001::/32（Teredo。中の IPv4 を隠せる）
+                || (first == 0x2001 && (seg[1] == 0x0db8 || seg[1] == 0))
+                // 100::/64（廃棄用）・64:ff9b:1::/48（NAT64 のローカル用）
+                || (first == 0x100 && seg[1..4] == [0, 0, 0])
+                || (first == 0x64 && seg[1] == 0xff9b && seg[2] == 1))
         }
     }
 }
@@ -156,7 +175,12 @@ impl ServerHostServices {
             .redirect(reqwest::redirect::Policy::none())
             .user_agent(concat!("AegisCMS-Plugin/", env!("CARGO_PKG_VERSION")));
         if restrict_network {
-            builder = builder.dns_resolver(Arc::new(PublicOnlyResolver));
+            // 環境変数のプロキシ（`HTTP_PROXY` など）は使わない。プロキシ経由だと名前解決がプロキシ側で
+            // 行われ、内部アドレスを除く `PublicOnlyResolver` を通らない。いまのビルドは reqwest の
+            // `system-proxy` 機能が無く環境変数を読まないが、機能が有効になっても迂回できないようにする保険
+            builder = builder
+                .no_proxy()
+                .dns_resolver(Arc::new(PublicOnlyResolver));
         }
         let client = builder
             .build()
@@ -306,6 +330,17 @@ mod tests {
             "::ffff:127.0.0.1",
             "::ffff:10.0.0.1",
             "2001:db8::1",
+            // IPv4 を中に持つ形（NAT64・6to4・IPv4 互換・Teredo）で、内部の IPv4 を指すもの
+            "64:ff9b::7f00:1",
+            "64:ff9b::a00:1",
+            "64:ff9b::a9fe:a9fe",
+            "2002:7f00:1::1",
+            "2002:c0a8:101::",
+            "::7f00:1",
+            "::a00:1",
+            "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+            "100::1",
+            "64:ff9b:1::1",
         ] {
             assert!(!is_public_ip(ip.parse().unwrap()), "{}", ip);
         }
@@ -317,6 +352,10 @@ mod tests {
             "100.128.0.1",
             "2606:4700:4700::1111",
             "::ffff:8.8.8.8",
+            // 公開された IPv4 を中に持つ形
+            "64:ff9b::808:808",
+            "2002:808:808::1",
+            "::808:808",
         ] {
             assert!(is_public_ip(ip.parse().unwrap()), "{}", ip);
         }
