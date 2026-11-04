@@ -116,6 +116,16 @@ pub trait TagStorage: Send + Sync {
         content_type: Option<&str>,
     ) -> Result<Vec<ContentTagRecord>>;
 
+    /// 同じタグが付いた公開中のコンテンツ（同じ種類）を、共通のタグが多い順（同数は ID 順）に
+    /// `limit` 件まで: `(content_id, 共通のタグの数)`。自分自身は含まない。
+    /// 人気のタグ（何千件にも付いているもの）でも、リンクを全部読まずに DB で集計する
+    async fn list_related_by_tags(
+        &self,
+        content_type: &str,
+        content_id: &str,
+        limit: u64,
+    ) -> Result<Vec<(String, u64)>>;
+
     /// Take every tag off a content record (when the record is deleted)
     async fn delete_content_tags(&self, content_type: &str, content_id: &str) -> Result<u64>;
 
@@ -568,6 +578,37 @@ macro_rules! impl_tag_storage {
                 let mut out = Vec::with_capacity(rows.len());
                 for r in &rows {
                     out.push($crate::tags::content_tag_row_from_sqlx!(r));
+                }
+                Ok(out)
+            }
+
+            async fn list_related_by_tags(
+                &self,
+                content_type: &str,
+                content_id: &str,
+                limit: u64,
+            ) -> aegis_core::Result<Vec<(String, u64)>> {
+                let ph = $ph;
+                let sql = format!(
+                    "SELECT l2.content_id AS content_id, COUNT(*) AS shared                      FROM {links} l1                      JOIN {links} l2 ON l2.tag_id = l1.tag_id AND l2.content_type = l1.content_type                      JOIN _aegis_content_publications p ON p.content_type = l2.content_type                      AND p.content_id = l2.content_id AND p.status = 'published'                      WHERE l1.content_type = {t} AND l1.content_id = {i} AND l2.content_id <> l1.content_id                      GROUP BY l2.content_id ORDER BY shared DESC, l2.content_id ASC LIMIT {limit};",
+                    links = $crate::tags::CONTENT_TAG_TABLE,
+                    t = ph(1),
+                    i = ph(2),
+                    limit = limit,
+                );
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let rows = sqlx::query(&sql)
+                    .bind(content_type)
+                    .bind(content_id)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                let mut out = Vec::with_capacity(rows.len());
+                for r in &rows {
+                    let id: String = r.try_get("content_id").map_err(db_err)?;
+                    let shared: i64 = r.try_get("shared").map_err(db_err)?;
+                    out.push((id, shared.max(0) as u64));
                 }
                 Ok(out)
             }
