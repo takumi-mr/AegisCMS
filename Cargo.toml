@@ -26,6 +26,7 @@ members = [
     "crates/aegis-plugin-sdk",
     "crates/aegis-theme",
     "sdk/templates/rust",
+    "sdk/templates/rust-block",
     "plugins/official-code-enhancer",
     "plugins/official-shop-rules",
     "plugins/official-order-notifier",

@@ -69,6 +69,11 @@
           "jsonpath": "$.dependencies.aegis-plugin-sdk.version"
         },
         {
+          "type": "toml",
+          "path": "sdk/templates/rust-block/Cargo.toml",
+          "jsonpath": "$.dependencies.aegis-plugin-sdk.version"
+        },
+        {
           "type": "json",
           "path": "admin/package.json",
           "jsonpath": "$.version"

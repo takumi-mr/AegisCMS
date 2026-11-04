@@ -4,7 +4,7 @@ AegisCMS にインストールした Wasm プラグインを置くディレク�
 
 - 1 プラグイン = 1 ディレクトリ（`plugins/<name>/`）。`<name>` は `plugin.manifest.json` の `name` と同じにします。
 - 置いただけでは読み込まれません。Admin Studio のプラグイン画面で有効にする（再起動不要）か、設定ファイルの `[plugins].enabled` に名前を追加すると有効になります。
-- インストール済みのプラグインと有効・無効は `aegis plugin list` で確認できます。
+- インストール済みのプラグインと有効・無効は `aegis-server plugin list` で確認できます。
 
 ```text
 plugins/
@@ -13,7 +13,10 @@ plugins/
     └── plugin.wasm
 ```
 
-プラグインの作り方は [docs/plugin_sdk_guide.md](../docs/plugin_sdk_guide.md)、テンプレートとサンプルは [`sdk/`](../sdk) にあります。
+プラグインの作り方は [docs/plugin_sdk_guide.md](../docs/plugin_sdk_guide.md)、テンプレートとサンプルは [`sdk/`](../sdk) にあります。本文に置けるブロックを作るなら、[最初のブロックプラグインを作る](../docs/plugin_block_tutorial.md)（テンプレート [`sdk/templates/rust-block`](../sdk/templates/rust-block)）から始めると早いです。
+
+> [!NOTE]
+> このリポジトリの中（`plugins/<name>/`）に Rust のプラグインを新しく作ると、ルートの `Cargo.toml` のワークスペースに含まれていないため、`cargo build` が `current package believes it's in a workspace when it's not` で失敗します。公式プラグインとして取り込むなら、ルートの `[workspace] members` に足します。個人のプラグインなら、プラグインの `Cargo.toml` の末尾に空の `[workspace]` を書いて独立した crate にします（[SDK ガイド 2.1](../docs/plugin_sdk_guide.md#21-テンプレートの準備)）。
 
 ## 公式プラグイン
 

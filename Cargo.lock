@@ -322,6 +322,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-block-template"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+]
+
+[[package]]
 name = "aegis-plugin-blocks"
 version = "0.2.0"
 dependencies = [

@@ -21,7 +21,7 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 
 設定項目の一覧は [設定リファレンス](configuration.md#216-forum--掲示板) を参照してください。
 
-- 表は `_aegis_forum_categories` / `_aegis_forum_threads` / `_aegis_forum_posts`。サーバーの起動時と `aegis migrate` で作成します（`database_url` を指定した場合はその DB に作ります）。
+- 表は `_aegis_forum_categories` / `_aegis_forum_threads` / `_aegis_forum_posts`。サーバーの起動時と `aegis-server migrate` で作成します（`database_url` を指定した場合はその DB に作ります）。
 - **別の DB に分ける場合**: 投稿が集中したときの書き込みのロック（SQLite の `SQLITE_BUSY`）や、PostgreSQL / MySQL の接続数が本体（記事・EC・セッション）に影響しないようにできます。SQLite・PostgreSQL・MySQL のどれでも指定できます。
 
 ---

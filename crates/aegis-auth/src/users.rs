@@ -199,7 +199,7 @@ fn is_active_admin(user: &UserRecord) -> bool {
 }
 
 /// `user` が有効な admin でなくなる（降格・無効化・削除）とき、ほかに有効な admin が残るかを確かめる。
-/// API から全員を締め出せないようにする（CLI の `aegis user role` などは復旧用に確かめない）
+/// API から全員を締め出せないようにする（CLI の `aegis-server user role` などは復旧用に確かめない）
 async fn ensure_other_admin(db: &dyn DatabaseAdapter, user: &UserRecord) -> Result<()> {
     if !is_active_admin(user) {
         return Ok(());

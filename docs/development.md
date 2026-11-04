@@ -280,53 +280,53 @@ Windows の npm 11 で `npm install` すると、他のプラットフォーム�
 
 ```bash
 # 全体ヘルプ
-aegis --help
+aegis-server --help
 
 # サーバー起動 (既定: ポート 8080)
-aegis run [--port <PORT>] [--host <HOST>]
+aegis-server run [--port <PORT>] [--host <HOST>]
 
 # 初期セットアップ (マイグレーション、管理者作成、初期サンプルデータ投入を一括実行)
-aegis init
+aegis-server init
 # 非対話型での実行 (CI / 自動構築環境向け)
-aegis init --site-title "My Site" --admin-user admin --admin-password <PASSWORD> --non-interactive
+aegis-server init --site-title "My Site" --admin-user admin --admin-password <PASSWORD> --non-interactive
 
 # データベーススキーマのマイグレーション実行
-aegis migrate
+aegis-server migrate
 
 # バックアップアーカイブの生成 (DB + アップロードストレージ)
-aegis dump --output backup.zip
+aegis-server dump --output backup.zip
 # DB のみバックアップ (ストレージ除外)
-aegis dump --output db_only.zip --no-storage
+aegis-server dump --output db_only.zip --no-storage
 # ストレージのみバックアップ (DB 除外)
-aegis dump --output storage_only.zip --no-database
+aegis-server dump --output storage_only.zip --no-database
 
 # バックアップの整合性・チェックサム事前検証 (復元は行わない)
-aegis restore --input backup.zip --verify-only
+aegis-server restore --input backup.zip --verify-only
 
 # バックアップアーカイブからの復元
-aegis restore --input backup.zip
+aegis-server restore --input backup.zip
 # 既存レコードと衝突する場合は上書き置換して復元
-aegis restore --input backup.zip --overwrite
+aegis-server restore --input backup.zip --overwrite
 
 # TypeScript 型定義 / OpenAPI 3.1 仕様書の生成
-aegis codegen --target typescript --output admin/src/types/schemas.ts
-aegis codegen --target openapi --output docs/openapi.json
+aegis-server codegen --target typescript --output admin/src/types/schemas.ts
+aegis-server codegen --target openapi --output docs/openapi.json
 
 # ユーザー管理
-aegis user add <username> --role admin [--email <email>]
-aegis user passwd <username>
-aegis user list
-aegis user role <username> <editor|admin|viewer>
-aegis user disable <username>
-aegis user enable <username>
-aegis user link-oidc <username> <sub_claim>
-aegis user link-saml <username> <name_id>
+aegis-server user add <username> --role admin [--email <email>]
+aegis-server user passwd <username>
+aegis-server user list
+aegis-server user role <username> <editor|admin|viewer>
+aegis-server user disable <username>
+aegis-server user enable <username>
+aegis-server user link-oidc <username> <sub_claim>
+aegis-server user link-saml <username> <name_id>
 
 # プラグイン一覧と稼働状況の確認
-aegis plugin list
+aegis-server plugin list
 
 # 通知設定と配信チャネルのテスト
-aegis notify test --to <email> [--staff]
+aegis-server notify test --to <email> [--staff]
 ```
 
 

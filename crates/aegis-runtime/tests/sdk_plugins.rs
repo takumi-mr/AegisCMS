@@ -118,6 +118,35 @@ async fn run_sdk_plugins(engine: &WasmEngine) {
     }
 }
 
+/// ブロックプラグインのテンプレート `sdk/templates/rust-block` のビルド済み `plugin.wasm` で、マニフェストの
+/// `blocks` が検証を通り、`render-blocks` がホストから呼べること
+#[tokio::test]
+async fn test_block_template_renders_its_block() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../sdk/templates/rust-block");
+    let plugin = load(&WasmEngine::new().unwrap(), &dir);
+    plugin.manifest().validate_blocks().unwrap();
+    let name = format!("{}/note", plugin.manifest().name);
+    assert!(plugin.manifest().declares_block(&name));
+
+    let note = |attributes: serde_json::Value| {
+        let mut node = BlockNode::new(&name);
+        node.attributes = attributes;
+        node
+    };
+    let html = plugin
+        .render_blocks(vec![
+            note(serde_json::json!({ "text": "Careful <now>", "tone": "warning" })),
+            note(serde_json::json!({ "text": "" })),
+        ])
+        .await
+        .unwrap();
+    assert_eq!(html.len(), 2);
+    let first = html[0].as_deref().unwrap();
+    assert!(first
+        .contains("<aside class=\"nb-note nb-note--warning\"><p>Careful &lt;now&gt;</p></aside>"));
+    assert_eq!(html[1], None);
+}
+
 /// 公式プラグイン `official-blocks` のビルド済み `plugin.wasm` で、`render-blocks` がホストから
 /// 呼べること（入力 `{"blocks": [...]}` と出力 `{"html": [...]}` の形が SDK と合っていること）
 #[tokio::test]

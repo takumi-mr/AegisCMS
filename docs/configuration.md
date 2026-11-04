@@ -192,7 +192,7 @@ coupons = "WELCOME10:10%"
 - 列挙したプラグインが未インストール・読み込めない（マニフェストの不備、ホストに無い関数のインポートなど）場合、名前の形式が不正・重複している場合は**サーバーが起動しません**。
 - `[runtime].enable_wasm_plugins = false` の場合は読み込みません。
 - Admin Studio（`PUT /api/v1/plugins/{name}/enabled`・`PUT /api/v1/plugins/order`）で有効・無効や順序を変えると、その一覧が DB に保存され、以後は `enabled` より優先されます（[プラグインフックリファレンス 5.1](./plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)）。Admin Studio の「設定ファイルの値に戻す」（`DELETE /api/v1/plugins/order`）で `enabled` に戻ります。
-- 状態は `aegis plugin list` で確認できます（[プラグインフックリファレンス](./plugin_hooks.md#5-インストールと有効化)）。
+- 状態は `aegis-server plugin list` で確認できます（[プラグインフックリファレンス](./plugin_hooks.md#5-インストールと有効化)）。
 
 ### 2.7 `[security]` — HTML 出力のセキュリティ / 最適化
 
@@ -245,7 +245,7 @@ coupons = "WELCOME10:10%"
 | `redirect_url` | string | `""` | IdP に登録したコールバック URL（必須）。`https://<ホスト>/api/v1/auth/oidc/callback` |
 | `scopes` | array of string | `["openid", "profile", "email"]` | 要求するスコープ（`openid` は常に付ける） |
 | `username_claim` | string | `"preferred_username"` | 新規ユーザーのユーザー名にするクレーム（無ければ `email`） |
-| `auto_create_users` | bool | `true` | 未登録のユーザーを初回ログイン時に作成する。`false` なら `aegis user link-oidc` で紐付けたユーザーのみ |
+| `auto_create_users` | bool | `true` | 未登録のユーザーを初回ログイン時に作成する。`false` なら `aegis-server user link-oidc` で紐付けたユーザーのみ |
 | `default_role` | string | `"viewer"` | 新規ユーザーのロール。`role_claim` 使用時はどのグループにも一致しない場合のロール |
 | `role_claim` | string | `""` | ロールを決めるクレーム（例: `groups`）。空ならロールは AegisCMS のユーザーアカウントで決まる |
 | `role_mapping` | table | `{}` | `role_claim` の値 → ロール（`admin` / `editor` / `viewer`）。複数一致した場合は最も強いロール |
@@ -374,7 +374,7 @@ SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Re
 | `username_attribute` | string | `""` | 新規ユーザーのユーザー名にする属性。空なら NameID |
 | `email_attribute` | string | `"email"` | メールアドレスの属性（無ければ、NameID の形式が `emailAddress` のとき NameID） |
 | `display_name_attribute` | string | `"displayName"` | 表示名の属性 |
-| `auto_create_users` | bool | `true` | 未登録のユーザーを初回ログイン時に作成する。`false` なら `aegis user link-saml` で紐付けたユーザーのみ |
+| `auto_create_users` | bool | `true` | 未登録のユーザーを初回ログイン時に作成する。`false` なら `aegis-server user link-saml` で紐付けたユーザーのみ |
 | `default_role` | string | `"viewer"` | 新規ユーザーのロール。`role_attribute` 使用時はどの値にも一致しない場合のロール |
 | `role_attribute` | string | `""` | ロールを決める属性（例: `groups`）。空ならロールは AegisCMS のユーザーアカウントで決まる |
 | `role_mapping` | table | `{}` | `role_attribute` の値 → ロール（`admin` / `editor` / `viewer`）。複数一致した場合は最も強いロール |

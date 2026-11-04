@@ -1,8 +1,8 @@
 [← ドキュメント一覧に戻る](README.md)
 
-# AegisCMS プラグイン開発サーバー (`aegis plugin dev`) & Plugin Builder
+# AegisCMS プラグイン開発サーバー (`aegis-server plugin dev`) & Plugin Builder
 
-`aegis plugin dev`（または `task dev:plugin -- <dir>`）は、AegisCMS の Wasm プラグインをデータベースやログイン不要で、単体で即時テスト・デバッグするための軽量開発サーバーです。
+`aegis-server plugin dev`（または `task dev:plugin -- <dir>`）は、AegisCMS の Wasm プラグインをデータベースやログイン不要で、単体で即時テスト・デバッグするための軽量開発サーバーです。
 
 `theme dev`（Theme Builder）と同様に、プラグインの変更を監視して自動リロードし、Wasm サンドボックス内でのフック実行結果、CPU 命令数（Fuel）、ミリ秒単位の実行時間、プラグインログ（`log_info!` 等）、KVS 変更、送信 HTTP リクエスト、HTML プレビューをリアルタイムに可視化・操作できる Web UI（Plugin Builder）および REST API を提供します。
 
@@ -14,8 +14,8 @@
 # 既存の公式プラグインで開発サーバーを起動 (既定: http://127.0.0.1:8091)
 task dev:plugin -- plugins/official-code-enhancer
 
-# または自動ビルドコマンドを指定して起動 (ソース変更時に自動再コンパイル)
-task dev:plugin -- plugins/official-code-enhancer --build-command "cargo build --target wasm32-wasip1 --release"
+# task を入れていないときは同じ意味のコマンド（初回は aegis-server 全体をビルドするので 5〜7 分かかる）
+cargo run -p aegis-server -- plugin dev plugins/official-code-enhancer
 
 # フロントエンド開発 UI (Plugin Builder) を起動 (http://localhost:5175)
 task dev:plugin-builder
@@ -190,7 +190,16 @@ curl -X POST http://127.0.0.1:8091/__dev/api/preview \
 ### 2.7 ビルドトリガー API (`POST /__dev/api/build`)
 
 プラグインフォルダーのビルドコマンドを実行し、実行結果・出力ログ（stdout/stderr）・所要時間（ms）を返却します。
-ビルドコマンドは `--build-command` オプション、または言語ごとのデフォルトコマンド（`Cargo.toml` があれば `cargo build --target wasm32-wasip1` 等）が使用されます。
+ビルドコマンドは次の順に決まります。
+
+| 優先 | 指定 | 動き |
+| --- | --- | --- |
+| 1 | `--build-command "<コマンド>"` | そのコマンドを実行。**成果物を `entrypoint`（`plugin.wasm`）に置くのはコマンドの役目**（例: `cargo build --target wasm32-unknown-unknown --release && cp ... plugin.wasm`） |
+| 2 | マニフェストの `"dev": { "build_command": "<コマンド>" }` | 同上（プラグインごとに固定したいとき） |
+| 3 | `Cargo.toml`（Rust） | `cargo build --target wasm32-unknown-unknown --release` を実行し、成功したら cdylib の成果物（`target/` の下）を `entrypoint` に**自動でコピー**する。ワークスペースのメンバーでも独立した crate でも動く（`cargo metadata` で成果物を探す）。Fuel を本番と同じ条件で測るため、リリースビルド |
+| 4 | `package.json`（AssemblyScript） | `npm run asbuild`、無ければ `npm run build` |
+
+ソース（`.rs`・`.ts` など）を保存すると、このコマンドが自動で走り、成功するとページが読み込み直されます。開発サーバーが読むのは `entrypoint` のファイルだけなので、3 以外では上のとおり `entrypoint` が更新されるコマンドにしてください（更新されないと、ビルドは成功しても表示は変わりません）。
 
 ```bash
 curl -X POST http://127.0.0.1:8091/__dev/api/build \

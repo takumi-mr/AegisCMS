@@ -562,7 +562,7 @@ async fn run_init_command(
     if let Some(id) = res.sample_page_id {
         println!("  Sample Page: about (id: {})", id);
     }
-    println!("\nYou can now start the server with: aegis run\n");
+    println!("\nYou can now start the server with: aegis-server run\n");
 
     Ok(())
 }
@@ -674,7 +674,9 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
         UserCommand::List => {
             let users = db.list_users().await?;
             if users.is_empty() {
-                println!("No users. Create one with: aegis user add <username> --role admin");
+                println!(
+                    "No users. Create one with: aegis-server user add <username> --role admin"
+                );
             }
             for user in users {
                 println!(
@@ -885,7 +887,7 @@ async fn main() -> anyhow::Result<()> {
             db_adapter.run_migrations(&schemas).await?;
             if db_adapter.list_users().await?.is_empty() {
                 tracing::warn!(
-                    "No user accounts exist, so nobody can log in. Create one with: aegis user add <username> --role admin"
+                    "No user accounts exist, so nobody can log in. Create one with: aegis-server user add <username> --role admin"
                 );
             }
             let auth_provider = Arc::new(aegis_auth::LocalAuthProvider::new(db_adapter.clone()));
