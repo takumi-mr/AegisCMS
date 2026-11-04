@@ -475,7 +475,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 | 項目 | Rust | AssemblyScript | TinyGo |
 |---|---|---|---|
 | **公式 SDK** | `crates/aegis-plugin-sdk` | `sdk/templates/assemblyscript/assembly/sdk` | `sdk/templates/tinygo/sdk` |
-| **公式テンプレート** | `sdk/templates/rust` | `sdk/templates/assemblyscript` | `sdk/templates/tinygo` |
+| **公式テンプレート** | `sdk/templates/rust`（ブロック用: `sdk/templates/rust-block`） | `sdk/templates/assemblyscript` | `sdk/templates/tinygo` |
 | **ビルドコマンド** | `cargo build --target wasm32-unknown-unknown --release` | `npm run asbuild` | `tinygo build -target=wasm-unknown -o plugin.wasm main.go` |
 | **ホストインポート** | `#[link(wasm_import_module = "host")] extern "C"` | `@external("host", "...")` | `//go:wasmimport host ...` |
 | **メモリアロケータ** | `std::alloc::alloc` | `heap.alloc` | `unsafe.Pointer(&buf[0])` / `malloc` |

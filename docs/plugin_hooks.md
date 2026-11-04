@@ -303,6 +303,9 @@ SDK ヘルパー:
 | `block.attribute(key)` | 属性を取得 |
 | `block.set_attribute(key, value)` | 属性を設定 |
 
+> [!NOTE]
+> SDK の `BlockNode.attributes` は `HashMap<String, serde_json::Value>` です（本体側の `aegis-ast` の `BlockNode` は 1 つの `serde_json::Value` で、型が違います）。プラグインのテストでブロックを作るときは `BlockNode::new(name)` に `set_attribute` で足すか、`HashMap::from([("level".to_string(), json!(2))])` のように書きます。`json!({...})` をそのまま `attributes` に入れるとコンパイルエラーになります。
+
 ### 2.3 `UserAuthContext`
 
 | フィールド | 型 | 説明 |
@@ -431,7 +434,7 @@ SDK ヘルパー:
 | `settings` | object[] | | 設定項目の宣言。Admin Studio のプラグイン設定に入力欄として出て、保存時に値を検査する（[3.3](#33-設定項目-settings)） |
 | `resource_limits` | object | | 省略した項目（または全体）はサーバー設定 `[runtime].default_*` で補われる（下記） |
 
-有効にしたプラグインのマニフェストが読めない、`name` とディレクトリ名が違う、`entrypoint` のファイルが無い、ホストに無い関数をインポートしている（[ABI 仕様](plugin_abi_specification.md#3-ホスト-api-インポート仕様-host-モジュール)）場合は、**サーバーが起動しません**。アクセス制限などを実装したプラグインが黙って外れたまま動き続けることを防ぐためです。有効にしていないプラグインの不備は警告ログと `aegis plugin list` に表示されます。
+有効にしたプラグインのマニフェストが読めない、`name` とディレクトリ名が違う、`entrypoint` のファイルが無い、ホストに無い関数をインポートしている（[ABI 仕様](plugin_abi_specification.md#3-ホスト-api-インポート仕様-host-モジュール)）場合は、**サーバーが起動しません**。アクセス制限などを実装したプラグインが黙って外れたまま動き続けることを防ぐためです。有効にしていないプラグインの不備は警告ログと `aegis-server plugin list` に表示されます。
 
 ### 3.1 カスタムブロック (`blocks`)
 
@@ -463,6 +466,15 @@ SDK ヘルパー:
 | `fields[].label` / `placeholder` / `help` | 入力欄の名前・プレースホルダー・説明（`label` と同じく言語ごとにできる） |
 | `fields[].required` | 空のとき、エディタに注意を出す（保存は止めない） |
 | `fields[].default` | 新しく置いたブロックの初期値 |
+
+Admin Studio のフォームが `attributes` に入れる値の型は次のとおりです。API や Markdown から保存されるブロックは任意の JSON を持てるので、プラグインは型の違いにも耐えるようにしてください（`official-blocks` の `attr` や `sdk/templates/rust-block` を参照）。
+
+| `fields[].type` | `attributes` の値 | 備考 |
+| --- | --- | --- |
+| `string` / `text` / `url` / `image` | 文字列 | 入力が空なら、キーごと無い（または空文字列） |
+| `select` | 文字列（`options[].value`） | `required` でなければ、選ばないと空文字列。数字の選択肢（見出しのレベルなど）も `"3"` のような**文字列**で届く |
+| `number` | JSON の数値 | 空にすると、キーごと無くなる。`default` に書いた数値はそのまま入る |
+| `boolean` | `true` / `false` | 一度も操作していないと、キーが無い（`default` があればその値） |
 
 宣言の不備（名前の形式・重複、選択肢の無い `select`、知らない `type`）があると、そのプラグインを有効にしたサーバーは起動しません。
 
@@ -672,7 +684,7 @@ let fee: i64 = config::get_or("shipping_fee", 0); // 読めなければ既定値
 enabled = ["seo-tools", "slack-notifier"]
 ```
 
-- インストール済みのプラグインと状態は `aegis plugin list`（CLI）または `GET /api/v1/plugins`（admin 権限）で確認できます。
+- インストール済みのプラグインと状態は `aegis-server plugin list`（CLI）または `GET /api/v1/plugins`（admin 権限）で確認できます。
 
 ### 7.1 Admin Studio からの有効・無効の切り替え
 

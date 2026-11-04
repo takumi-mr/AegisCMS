@@ -239,7 +239,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - パスワードは Argon2id。存在しないユーザーにもダミーハッシュを検証し、応答時間でユーザーの有無を漏らさない。
 - セッションの `user_id` はユーザー名（変更不可）で、監査ログの actor もユーザー名。改名機能を作る場合はこの前提を見直す。
 - **セッションの即時失効**: ロール変更・無効化・削除・パスワード変更時は、キャッシュに `auth:revoked_user:{username}`（失効日時、TTL はセッション最大 TTL）を書き込む。`SessionService::get_session` はセッション作成日時が失効日時以前の場合に自動でセッションを破棄して `None` を返すため、ユーザー → セッションの全索引を持たずに一括で即時失効できる。失効後に再ログインした新セッション（作成日時 > 失効日時）は自動的に有効となる。
-- 「最後の有効な admin を残す」確認は API（`users::update_user` / `delete_user`）だけで行い、CLI（`aegis user role` / `disable`）は締め出されたときの復旧手段として確かめない。
+- 「最後の有効な admin を残す」確認は API（`users::update_user` / `delete_user`）だけで行い、CLI（`aegis-server user role` / `disable`）は締め出されたときの復旧手段として確かめない。
 - アバターはストレージキー（`avatar_key`）だけを保存し、応答の `avatar_url` は `StorageBackend::public_url` で毎回求める（`base_path` や S3 の公開 URL の変更に追従する）。
 
 ### 6.3 ログイン試行のレート制限 (`aegis_auth::rate_limit::LoginRateLimiter`)
@@ -383,7 +383,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 ### 10.2 インストールと有効化 (`WasmPluginLoader`)
 
 - インストール = `plugins_dir/<name>/plugin.manifest.json`（ディレクトリ名とマニフェストの `name` は一致必須、`is_valid_plugin_name`）。有効化 = `[plugins].enabled`、または Admin Studio で切り替えて DB に保存した一覧（順序 = フックの実行順）。テーマの `themes/<id>/` + `[theme].active` と同じ考え方で、ストアからのインストールもこの形に展開する前提。
-- `load_enabled` は有効なものだけをコンパイルし、失敗したら起動を止める（fail-closed。アクセス制限系のプラグインが黙って外れるのを防ぐ）。無効なものは `discover` でマニフェストだけ読み、不備は警告ログ・`aegis plugin list`・`GET /api/v1/plugins` に出す。
+- `load_enabled` は有効なものだけをコンパイルし、失敗したら起動を止める（fail-closed。アクセス制限系のプラグインが黙って外れるのを防ぐ）。無効なものは `discover` でマニフェストだけ読み、不備は警告ログ・`aegis-server plugin list`・`GET /api/v1/plugins` に出す。
 - **実行時の切り替え**（`aegis-server/src/plugin_registry.rs`、`PUT /api/v1/plugins/{name}/enabled`）: 有効化リストは `[plugins].enabled` を DB の `_aegis_settings`（`plugins.enabled`、JSON 配列）で上書きする（サイト名と同じ置き場所。キャッシュは消えうるので使わない）。保存した値が壊れていれば起動を止める（fail-closed）。切り替えは `PluginRegistry` の `Mutex` で直列化し、`PluginLoader::rebuild` で新しい `PluginSupervisor` を組み立ててから `RwLock` の中身を差し替える（読み込み済みのインスタンスは `Arc` で使い回し、新しく有効にしたものだけを `spawn_blocking` でコンパイル）。順序は「読み込み → DB 保存 → 差し替え」で、どこで失敗しても状態は変わらない。`supervisor` の `Arc` は EC・通知チャネルと共有しているので中身の差し替えだけで全体に効く。プラグインの登録テンプレートも差し替え時に入れ替える。通知チャネルに使っているプラグインは外させない（起動時の `validate_plugin_channels` と同じ条件を保つため。無効化・設定ファイルの値に戻すときとも）。有効化・無効化・並べ替え（`PUT /api/v1/plugins/order`、今有効なものの並べ替えに限る）・設定ファイルの値に戻す（`DELETE`、DB の行を消す）は `handlers/plugin.rs` の `switch_plugins` を共有する。差し替えたあとイベントバスで知らせ、受け取ったサーバー（自分を含む）は `plugin_registry::sync_from_db` で DB の一覧（無ければ自分の `[plugins].enabled`）と比べ、違えば同じ `prepare` → `install` で差し替える。プラグインの設定値（メモリに載せた `plugin_settings`）も同じように知らせ、受け取ったらキャッシュから読み直す。
 - **ZIP パッケージ（`aegis_core::package`）**: プラグインとテーマで共通。`extract_zip_safely`（ZipSlip・サイズ・エントリ数の制限）→ `check_min_aegis_version`（semver）→ `verify_package_signature`（Ed25519、`ring`）。署名の対象は `package`（既定・それ以外は拒否。`signature.json` 以外の全ファイルを相対パスで並べ、`パス:SHA-256\n` を連ねたものの SHA-256）。`require_signatures = true` のときは `trusted_public_keys`（32 バイト hex 1 件以上）が必須で、起動時の設定検証（`validate_signature_policy`）と `verify_package_signature` の両方で空リストを拒否する。検証は一時ディレクトリで済ませてから `plugins/<name>/` に複写するので、失敗しても既存のプラグインは変わらない（置き換えは削除 → 複写で、原子的ではない）。インストールは有効化しない。
 - `WasmPluginInstance::from_bytes` で `Linker::instantiate_pre` してインポートを読み込み時に検査する。`_initialize` があればインスタンス化の直後に呼ぶ（TinyGo `wasm-unknown`）。
@@ -475,7 +475,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 ## 14. 掲示板 (`aegis-forum`)
 
 - **記事・コメントとは別の表**（`_aegis_forum_categories` / `_aegis_forum_threads` / `_aegis_forum_posts`、`aegis_db::ForumStorage`）。スレッドの最終投稿日時・レス数・ロックなど掲示板だけの列と索引が要り、記事の描画の経路（`on-render-page` などのフック）も通さないため。
-- **専用の DB に分けられる（`[forum].database_url`）**: 投稿が集中したときの SQLite の書き込みロックや PostgreSQL / MySQL の接続数が、本体（記事・EC・セッション）に響かないように。分けた場合は `ForumService` にだけ別の `DatabaseAdapter` を渡し、起動時と `aegis migrate` でその DB に表を作る。省略時は本体の DB を共有する。
+- **専用の DB に分けられる（`[forum].database_url`）**: 投稿が集中したときの SQLite の書き込みロックや PostgreSQL / MySQL の接続数が、本体（記事・EC・セッション）に響かないように。分けた場合は `ForumService` にだけ別の `DatabaseAdapter` を渡し、起動時と `aegis-server migrate` でその DB に表を作る。省略時は本体の DB を共有する。
 - **ページ送りはキーセット方式**: スレッドは `(is_pinned DESC, last_post_at DESC, id DESC)`、レスは `post_number > ?`。`OFFSET` だと後ろのページほど遅くなるため。
 - **レス番号はスレッドごとの連番**で、レスの削除は論理削除（`is_deleted`。番号と「>>N」の参照を崩さない）。スレッドの削除は物理削除。`auto_lock_post_count` に達したら自動でロックする。
 - 連投の制限は `CacheBackend` で IP・ユーザーごとに数える。監査ログは `forum.*`。
@@ -502,7 +502,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 - **独立クレートと feature フラグ（`feature = "backup"`）**:
   - `aegis-db`（全システムテーブル・動的コンテンツテーブル）と `aegis-storage`（アップロードファイル群）の上位オーケストレーション層として `crates/aegis-backup` に分離。`aegis-server` ではオプショナルな feature（既定有効）として切り離し可能（`cargo check -p aegis-server --no-default-features` で最小限のフットプリントを維持）。
-  - CLI コマンド `aegis dump`（バックアップ生成）および `aegis restore`（復元・整合性検証）として利用可能。
+  - CLI コマンド `aegis-server dump`（バックアップ生成）および `aegis-server restore`（復元・整合性検証）として利用可能。
 - **異種 DB 間のポータビリティ（ダイアレクト非依存の JSON 表現）**:
   - 特定 DB のバイナリダンプ（`pg_dump` や SQLite ファイルコピー）ではなく、各ドメインモデル（`ContentRecord`, `ContentVersionRecord`, `UserRecord`, `OrderRecord` 等）の構造化 JSON としてエクスポートする。これにより、「開発環境の SQLite から dump したアーカイブを、本番環境の PostgreSQL や MySQL へそのまま restore する」クロス DB マイグレーションを完全サポート。
 - **コンテンツ版履歴と公開ポインターの完全保持**:
@@ -535,7 +535,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 ### 18.2 プラグイン開発環境 (Plugin Dev Server)
 
-- **egis-server plugin dev <dir>**（または 	ask dev:plugin -- <dir>）:
+- **`aegis-server plugin dev <dir>`**（または `task dev:plugin -- <dir>`）:
   - データベース・ログイン・実コンテンツを必要とせず、プラグイン単体（plugin.manifest.json と plugin.wasm）を即時テスト・デバッグするための開発用サーバー（ポート 8091）。
   - Wasmtime 上で各フックを完全なメモリ分離環境で実行し、戻り値、CPU 命令数（Fuel）、ミリ秒単位の実行時間、プラグインが出力したログ（log_info! 等）をリアルタイムに収集して返却（POST /__dev/api/invoke）。
   - モックホストサービス（DevHostServices）により、プラグインが要求する外部 HTTP リクエスト（http_fetch）のモック応答定義と送信履歴キャプチャ、および KVS（kv_get / kv_set）の状態追跡と差分記録を提供。

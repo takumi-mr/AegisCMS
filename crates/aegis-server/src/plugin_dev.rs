@@ -1,4 +1,4 @@
-//! `aegis plugin dev <dir>`: Wasm プラグインの開発・テスト用サーバー。
+//! `aegis-server plugin dev <dir>`: Wasm プラグインの開発・テスト用サーバー。
 //!
 //! データベース・管理者ログイン・外部ネットワークを必要とせず、
 //! プラグイン単体（`plugin.manifest.json` と `plugin.wasm`）を即座に検証・デバッグできます。
@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::watch;
 
-/// `aegis plugin dev` のコマンドライン引数
+/// `aegis-server plugin dev` のコマンドライン引数
 #[derive(clap::Args, Debug, Clone)]
 pub struct DevArgs {
     /// プラグインのディレクトリ（plugin.manifest.json と plugin.wasm を含む）
@@ -180,6 +180,10 @@ pub struct BuildStatus {
     pub last_error: Option<String>,
     pub last_built_at: Option<u64>,
     pub command: Option<String>,
+    /// 自動検出した Rust のビルドコマンドのとき、成功したら成果物を `entrypoint` にコピーする
+    /// （`--build-command` やマニフェストの `dev.build_command` は、コマンド自身が `entrypoint` を作る）
+    #[serde(skip)]
+    pub copy_rust_artifact: bool,
 }
 
 /// 開発サーバーの共有状態
@@ -191,6 +195,79 @@ struct DevState {
     loopback: bool,
     host_services: DevHostServices,
     build_status: Arc<RwLock<BuildStatus>>,
+}
+
+/// Rust プラグインの自動ビルドコマンド。成果物は `copy_rust_artifact` が `entrypoint` にコピーする
+const RUST_BUILD_COMMAND: &str = "cargo build --target wasm32-unknown-unknown --release";
+
+/// マニフェストの `entrypoint`（既定 `plugin.wasm`）の置き場所。ディレクトリの外を指すものは認めない
+fn entrypoint_path(dir: &Path, manifest: &Value) -> Option<PathBuf> {
+    let entrypoint = manifest
+        .get("entrypoint")
+        .and_then(Value::as_str)
+        .unwrap_or("plugin.wasm");
+    let relative = Path::new(entrypoint);
+    let inside = relative
+        .components()
+        .all(|c| matches!(c, std::path::Component::Normal(_)));
+    (inside && relative.components().next().is_some()).then(|| dir.join(relative))
+}
+
+/// `cargo metadata` の結果から、`manifest_path` のパッケージの cdylib の成果物（リリース）の場所を求める
+fn rust_artifact_path(metadata: &Value, manifest_path: &Path) -> Option<PathBuf> {
+    let target_dir = metadata.get("target_directory")?.as_str()?;
+    let package = metadata.get("packages")?.as_array()?.iter().find(|p| {
+        p.get("manifest_path")
+            .and_then(Value::as_str)
+            .map(Path::new)
+            == Some(manifest_path)
+    })?;
+    let lib = package.get("targets")?.as_array()?.iter().find(|t| {
+        t.get("crate_types")
+            .and_then(Value::as_array)
+            .is_some_and(|types| types.iter().any(|ty| ty == "cdylib"))
+    })?;
+    let name = lib.get("name")?.as_str()?.replace('-', "_");
+    Some(
+        Path::new(target_dir)
+            .join("wasm32-unknown-unknown")
+            .join("release")
+            .join(format!("{}.wasm", name)),
+    )
+}
+
+/// ビルドした Rust の成果物（`target/` の下）を `entrypoint` にコピーする。
+/// 開発サーバーが読むのは `entrypoint` だけなので、これが無いと再ビルドしても表示が変わらない
+async fn copy_rust_artifact(dir: &Path) -> Result<(), String> {
+    let manifest: Value = std::fs::read(dir.join("plugin.manifest.json"))
+        .map_err(|e| format!("Cannot read plugin.manifest.json: {}", e))
+        .and_then(|b| serde_json::from_slice(&b).map_err(|e| e.to_string()))?;
+    let entrypoint = entrypoint_path(dir, &manifest).ok_or_else(|| {
+        "The manifest 'entrypoint' must be a path inside the plugin directory".to_string()
+    })?;
+    let output = tokio::process::Command::new("cargo")
+        .args(["metadata", "--format-version", "1", "--no-deps"])
+        .current_dir(dir)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run 'cargo metadata': {}", e))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).into_owned());
+    }
+    let metadata: Value = serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+    let artifact = rust_artifact_path(&metadata, &dir.join("Cargo.toml")).ok_or_else(|| {
+        "Cargo.toml has no cdylib target (set crate-type = [\"cdylib\"] under [lib])".to_string()
+    })?;
+    std::fs::copy(&artifact, &entrypoint)
+        .map(|_| ())
+        .map_err(|e| {
+            format!(
+                "Cannot copy {} to {}: {}",
+                artifact.display(),
+                entrypoint.display(),
+                e
+            )
+        })
 }
 
 /// プラグインディレクトリからビルドコマンドを自動検出
@@ -207,9 +284,9 @@ fn detect_build_command(dir: &Path) -> Option<String> {
             }
         }
     }
-    // 2. Cargo.toml (Rust プラグイン)
+    // 2. Cargo.toml (Rust プラグイン)。リリースビルドにするのは、Fuel（命令数）を本番と同じ条件で測るため
     if dir.join("Cargo.toml").is_file() {
-        return Some("cargo build --target wasm32-unknown-unknown".to_string());
+        return Some(RUST_BUILD_COMMAND.to_string());
     }
     // 3. package.json (AssemblyScript プラグイン)
     if dir.join("package.json").is_file() {
@@ -253,29 +330,26 @@ async fn trigger_build(
         .output()
         .await;
 
+    let mut outcome: Result<(), String> = match output_res {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+            let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+            Err(if !stderr.is_empty() { stderr } else { stdout })
+        }
+        Err(e) => Err(format!("Failed to execute '{}': {}", cmd_str, e)),
+    };
+    // ビルドが通ったら成果物を entrypoint に置く（ロックを握ったまま待たない）
+    let copy = status.read().map(|s| s.copy_rust_artifact).unwrap_or(false);
+    if outcome.is_ok() && copy {
+        outcome = copy_rust_artifact(&dir).await;
+    }
+
     let mut st = status.write().map_err(|e| e.to_string())?;
     st.is_building = false;
     st.last_built_at = Some(current_timestamp_millis());
-
-    match output_res {
-        Ok(output) => {
-            if output.status.success() {
-                st.last_error = None;
-                Ok(())
-            } else {
-                let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-                let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-                let err_msg = if !stderr.is_empty() { stderr } else { stdout };
-                st.last_error = Some(err_msg.clone());
-                Err(err_msg)
-            }
-        }
-        Err(e) => {
-            let err_msg = format!("Failed to execute '{}': {}", cmd_str, e);
-            st.last_error = Some(err_msg.clone());
-            Err(err_msg)
-        }
-    }
+    st.last_error = outcome.as_ref().err().cloned();
+    outcome
 }
 
 /// `plugin dev` サーバーの起動
@@ -297,12 +371,19 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
     let engine = WasmEngine::new()?;
     let host_services = DevHostServices::new();
 
-    let detected_cmd = args.build_command.or_else(|| detect_build_command(&dir));
+    let detected_cmd = args
+        .build_command
+        .clone()
+        .or_else(|| detect_build_command(&dir));
+    // 自動検出した Rust のコマンドのときだけ、成果物を entrypoint にコピーする
+    let copy_rust_artifact =
+        detected_cmd.as_deref() == Some(RUST_BUILD_COMMAND) && args.build_command.is_none();
     let build_status = Arc::new(RwLock::new(BuildStatus {
         is_building: false,
         last_error: None,
         last_built_at: None,
         command: detected_cmd.clone(),
+        copy_rust_artifact,
     }));
 
     let (version_tx, version_rx) = watch::channel(current_timestamp_millis());
@@ -312,21 +393,21 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
     let watch_status = build_status.clone();
     let watch_tx = version_tx.clone();
     tokio::spawn(async move {
-        let mut last_modified = highest_mtime(&watch_dir);
+        let (mut last_any, mut last_source) = scan_mtimes(&watch_dir);
         loop {
             tokio::time::sleep(WATCH_INTERVAL).await;
-            let (current, is_source_changed) = check_mtime_and_sources(&watch_dir);
-            if current > last_modified {
-                last_modified = current;
-
-                // ソースファイルの変更があり、ビルドコマンドが存在する場合は自動ビルドを実行
-                if is_source_changed {
-                    let cmd_to_run = watch_status.read().ok().and_then(|s| s.command.clone());
-                    if let Some(cmd) = cmd_to_run {
-                        let _ = trigger_build(watch_dir.clone(), cmd, watch_status.clone()).await;
-                    }
+            let (any, source) = scan_mtimes(&watch_dir);
+            // ソースファイルが新しくなったときだけビルドする。ビルドが `plugin.wasm` を書き換えても
+            // （ソースより新しくなる）、もう一度ビルドしない
+            if source > last_source {
+                last_source = source;
+                let cmd_to_run = watch_status.read().ok().and_then(|s| s.command.clone());
+                if let Some(cmd) = cmd_to_run {
+                    let _ = trigger_build(watch_dir.clone(), cmd, watch_status.clone()).await;
                 }
-
+            }
+            if any > last_any {
+                last_any = any;
                 let _ = watch_tx.send(current_timestamp_millis());
             }
         }
@@ -385,45 +466,38 @@ fn current_timestamp_millis() -> u64 {
         .as_millis() as u64
 }
 
-fn highest_mtime(dir: &Path) -> u64 {
-    check_mtime_and_sources(dir).0
-}
-
-fn check_mtime_and_sources(dir: &Path) -> (u64, bool) {
-    let mut highest = 0;
-    let mut source_changed = false;
+/// 監視するフォルダーの変更時刻（ミリ秒）。`(どのファイルでも最新, ソースファイルの最新)`。
+/// `target/` と `node_modules/` は見ない
+fn scan_mtimes(dir: &Path) -> (u64, u64) {
+    let mut any = 0;
+    let mut source = 0;
 
     for entry in walkdir::WalkDir::new(dir)
         .max_depth(5)
         .into_iter()
+        .filter_entry(|e| {
+            e.depth() == 0 || !matches!(e.file_name().to_str(), Some("target" | "node_modules"))
+        })
         .filter_map(std::result::Result::ok)
     {
         let path = entry.path();
-        if path
-            .components()
-            .any(|c| c.as_os_str() == "target" || c.as_os_str() == "node_modules")
-        {
+        let Some(modified) = path.metadata().ok().and_then(|m| m.modified().ok()) else {
             continue;
-        }
-
-        if let Ok(metadata) = path.metadata() {
-            if let Ok(modified) = metadata.modified() {
-                let millis = modified
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64;
-                if millis > highest {
-                    highest = millis;
-                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                        if matches!(ext, "rs" | "ts" | "js" | "go" | "wat") {
-                            source_changed = true;
-                        }
-                    }
-                }
-            }
+        };
+        let millis = modified
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        any = any.max(millis);
+        if path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|ext| matches!(ext, "rs" | "ts" | "js" | "go" | "wat"))
+        {
+            source = source.max(millis);
         }
     }
-    (highest, source_changed)
+    (any, source)
 }
 
 fn is_loopback_host(host: &str) -> bool {
@@ -1269,6 +1343,93 @@ async fn api_delete_file(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn test_scan_mtimes_separates_sources_and_ignores_build_output() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::create_dir_all(dir.join("target/release")).unwrap();
+        std::fs::write(dir.join("src/lib.rs"), "// source").unwrap();
+        std::fs::write(dir.join("plugin.wasm"), "wasm").unwrap();
+        let (any, source) = scan_mtimes(dir);
+        assert!(source > 0 && any >= source);
+
+        // A newer plugin.wasm (what a build writes) moves `any` but not `source`
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        std::fs::write(dir.join("plugin.wasm"), "wasm v2").unwrap();
+        let (any2, source2) = scan_mtimes(dir);
+        assert!(any2 > any);
+        assert_eq!(source2, source);
+
+        // Files under target/ are never looked at
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        std::fs::write(dir.join("target/release/out.rs"), "// artifact").unwrap();
+        assert_eq!(scan_mtimes(dir), (any2, source2));
+
+        // A new edit of the source moves both
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        std::fs::write(dir.join("src/lib.rs"), "// edited").unwrap();
+        let (any3, source3) = scan_mtimes(dir);
+        assert!(source3 > source2 && any3 == source3);
+    }
+
+    #[test]
+    fn test_entrypoint_must_stay_inside_the_plugin_directory() {
+        let dir = Path::new("/plugins/demo");
+        let path = |entry: serde_json::Value| {
+            entrypoint_path(dir, &serde_json::json!({ "entrypoint": entry }))
+        };
+        assert_eq!(
+            path(serde_json::json!("plugin.wasm")),
+            Some(dir.join("plugin.wasm"))
+        );
+        assert_eq!(
+            path(serde_json::json!("build/out.wasm")),
+            Some(dir.join("build/out.wasm"))
+        );
+        assert_eq!(path(serde_json::json!("../evil.wasm")), None);
+        assert_eq!(path(serde_json::json!("/etc/evil.wasm")), None);
+        assert_eq!(path(serde_json::json!("")), None);
+        // Without an entrypoint the default applies
+        assert_eq!(
+            entrypoint_path(dir, &serde_json::json!({})),
+            Some(dir.join("plugin.wasm"))
+        );
+    }
+
+    #[test]
+    fn test_rust_artifact_is_found_from_cargo_metadata() {
+        let metadata = serde_json::json!({
+            "target_directory": "/work/target",
+            "packages": [
+                { "manifest_path": "/work/plugins/other/Cargo.toml",
+                  "targets": [{ "name": "other", "crate_types": ["cdylib"] }] },
+                { "manifest_path": "/work/plugins/my-plugin/Cargo.toml",
+                  "targets": [{ "name": "my-plugin", "crate_types": ["cdylib", "rlib"] }] }
+            ]
+        });
+        assert_eq!(
+            rust_artifact_path(&metadata, Path::new("/work/plugins/my-plugin/Cargo.toml")),
+            Some(PathBuf::from(
+                "/work/target/wasm32-unknown-unknown/release/my_plugin.wasm"
+            ))
+        );
+        // No such package, or no cdylib target
+        assert_eq!(
+            rust_artifact_path(&metadata, Path::new("/work/plugins/none/Cargo.toml")),
+            None
+        );
+        let rlib_only = serde_json::json!({
+            "target_directory": "/t",
+            "packages": [{ "manifest_path": "/p/Cargo.toml",
+                           "targets": [{ "name": "p", "crate_types": ["rlib"] }] }]
+        });
+        assert_eq!(
+            rust_artifact_path(&rlib_only, Path::new("/p/Cargo.toml")),
+            None
+        );
+    }
+
     use super::*;
     use axum::body::{to_bytes, Body};
     use axum::http::Request;

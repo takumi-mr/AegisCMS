@@ -23,7 +23,7 @@ pub struct InstalledPlugin {
     pub problem: Option<String>,
 }
 
-/// インストール済み・有効化済みのプラグインの状態（`GET /api/v1/plugins`、`aegis plugin list`）
+/// インストール済み・有効化済みのプラグインの状態（`GET /api/v1/plugins`、`aegis-server plugin list`）
 #[derive(Debug, Clone, Serialize)]
 pub struct PluginInfo {
     /// プラグイン名（インストール先のディレクトリ名、`[plugins].enabled` の値）

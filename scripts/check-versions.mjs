@@ -86,11 +86,13 @@ expect(
   dependencyVersion(read('crates/aegis-plugin-sdk/Cargo.toml'), 'aegis-plugin-macros'),
   core,
 );
-expect(
-  'sdk/templates/rust/Cargo.toml aegis-plugin-sdk',
-  dependencyVersion(read('sdk/templates/rust/Cargo.toml'), 'aegis-plugin-sdk'),
-  core,
-);
+for (const template of ['sdk/templates/rust', 'sdk/templates/rust-block']) {
+  expect(
+    `${template}/Cargo.toml aegis-plugin-sdk`,
+    dependencyVersion(read(`${template}/Cargo.toml`), 'aegis-plugin-sdk'),
+    core,
+  );
+}
 for (const app of ['admin', 'theme-builder', 'plugin-builder']) {
   expect(`${app}/package.json`, readJson(`${app}/package.json`).version, core);
   const lock = readJson(`${app}/package-lock.json`);
@@ -116,6 +118,7 @@ if (hostAbi === undefined) fail('crates/aegis-core/src/package.rs: PLUGIN_ABI_VE
 const manifestFiles = [
   ...Object.keys(versions).filter((p) => p.startsWith('plugins/')),
   'sdk/templates/rust',
+  'sdk/templates/rust-block',
   'sdk/templates/assemblyscript',
   'sdk/templates/tinygo',
   'sdk/examples/assemblyscript-hooks',

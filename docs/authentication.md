@@ -74,7 +74,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 
 ---
 
-## 2. CLI でのユーザー管理 (`aegis user`)
+## 2. CLI でのユーザー管理 (`aegis-server user`)
 
 ```bash
 # 最初の管理者を作成（パスワードは対話入力。端末では非表示・確認つき）
@@ -139,7 +139,7 @@ Admin Studio の「Users」画面（`admin`）と、ヘッダーのアバター�
 | `role`, `disabled` | ✗（`admin` でも自分自身は `400`、それ以外は `403`） | ✓ |
 
 - 本人以外のユーザーへの `viewer` / `editor` のアクセスは `403` で拒否し、`access.denied`（`reason: not_own_account`、`resource_type: user`）を記録します。
-- 最後の有効な `admin` は降格・無効化・削除できません（`400`。全員が締め出されるのを防ぐ）。自分自身も削除できません。CLI（`aegis user role` など）は復旧用のため確かめません。
+- 最後の有効な `admin` は降格・無効化・削除できません（`400`。全員が締め出されるのを防ぐ）。自分自身も削除できません。CLI（`aegis-server user role` など）は復旧用のため確かめません。
 - **アバター画像**: PNG / JPEG / GIF / WebP、2 MB まで。形式はファイルの先頭バイトで判定し（クライアントの Content-Type は使わない）、スクリプトを含められる SVG は受け付けません（`415`）。2 MB を超えると `413`。`[storage]` のバックエンドに `avatars/{ユーザー ID}-{ランダム 8 桁}.{拡張子}` として保存し、差し替えるたびにキーを変えて（キャッシュ対策）以前の画像を削除します。
 - 作成・変更・削除は監査ログの `user.create` / `user.update` / `user.delete` に記録します（[監査ログ](audit.md#2-記録されるイベント)）。パスワードは記録しません。
 - シングルサインオンで作成したユーザーはパスワードを知らないため、Admin Studio の「My profile」ではパスワード変更を表示しません。
@@ -254,9 +254,9 @@ cms-editors = "editor"
 - **初回ログイン**: `auto_create_users = true`（既定）なら、`username_claim`（既定 `preferred_username`、無ければ `email`）をユーザー名にしてユーザーを作成し、紐付けます。パスワードは誰も知らないランダム値なので、そのユーザーはパスワードではログインできません。
 - **同名のユーザーが既にいる場合は紐付けません**（`username_taken`）。IdP 側で同じ名前を名乗るだけで既存のアカウント（ローカルの管理者など）に入れてしまうのを防ぐためです。そのアカウントで SSO を使うには、管理者が `aegis-server user link-oidc <username> <sub>` で紐付けます。
 - `auto_create_users = false` なら、紐付け済みのユーザーだけがログインできます（それ以外は `not_provisioned`）。
-- **ロール**: `role_claim` を設定すると、ログインのたびにそのクレームの値を `role_mapping` で変換し（複数一致なら最も強いロール、一致しなければ `default_role`）、ユーザーアカウントのロールも更新します。`role_claim` が空なら、ロールはユーザーアカウントのもの（`aegis user role` で変更）で、新規ユーザーは `default_role` です。どちらの場合も `on-user-authenticated` プラグインで上書きできます。
+- **ロール**: `role_claim` を設定すると、ログインのたびにそのクレームの値を `role_mapping` で変換し（複数一致なら最も強いロール、一致しなければ `default_role`）、ユーザーアカウントのロールも更新します。`role_claim` が空なら、ロールはユーザーアカウントのもの（`aegis-server user role` で変更）で、新規ユーザーは `default_role` です。どちらの場合も `on-user-authenticated` プラグインで上書きできます。
 - メールアドレス・表示名（`email` / `name` クレーム）はログインのたびにユーザーアカウントへ反映します。
-- 無効化したユーザー（`aegis user disable`）は SSO でもログインできません（`account_disabled`）。
+- 無効化したユーザー（`aegis-server user disable`）は SSO でもログインできません（`account_disabled`）。
 - セッションの `metadata` には `provider: "oidc"`、`issuer`、`sub`、`claims`（ID トークンのクレーム）が入ります。
 - ユーザーの決め方は SAML（8.3）と共通です。
 

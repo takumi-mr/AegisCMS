@@ -1,0 +1,78 @@
+{
+  "name": "aegis-plugin-block-template",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Rust Block Plugin Template",
+  "description": "Official Rust template for a plugin that adds a custom block: a note box with a tone (info / warning).",
+  "author": {
+    "name": "AegisCMS Contributors",
+    "url": "https://github.com/takumi-mr/AegisCMS"
+  },
+  "license": "Apache-2.0",
+  "tags": [
+    "template",
+    "rust",
+    "blocks"
+  ],
+  "min_aegis_version": "0.1.0",
+  "abi_version": 1,
+  "capabilities": {
+    "hooks": [
+      "render-blocks"
+    ]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "blocks": [
+    {
+      "name": "note",
+      "label": {
+        "en": "Note box",
+        "ja": "ノート"
+      },
+      "description": {
+        "en": "A highlighted box for a tip or a warning",
+        "ja": "補足や注意を目立たせる囲み"
+      },
+      "fields": [
+        {
+          "name": "text",
+          "type": "text",
+          "label": {
+            "en": "Text",
+            "ja": "本文"
+          },
+          "required": true
+        },
+        {
+          "name": "tone",
+          "type": "select",
+          "label": {
+            "en": "Tone",
+            "ja": "種類"
+          },
+          "default": "info",
+          "options": [
+            {
+              "value": "info",
+              "label": {
+                "en": "Info",
+                "ja": "補足"
+              }
+            },
+            {
+              "value": "warning",
+              "label": {
+                "en": "Warning",
+                "ja": "注意"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

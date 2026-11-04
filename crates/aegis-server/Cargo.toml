@@ -75,7 +75,7 @@ saml = ["aegis-auth/saml"]
 search = ["dep:aegis-search"]
 # Access analytics ([analytics]): a cookie-less beacon, daily aggregated counts and the Admin Studio dashboard
 analytics = ["dep:aegis-analytics"]
-# Database & upload storage dump and restore (aegis dump / aegis restore)
+# Database & upload storage dump and restore (aegis-server dump / aegis-server restore)
 backup = ["dep:aegis-backup"]
 
 

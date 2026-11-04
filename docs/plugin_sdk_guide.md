@@ -28,7 +28,7 @@ AegisCMS のプラグインシステムは、**Bytecode Alliance 製 WebAssembly
 
 ### 2.1 テンプレートの準備
 
-公式テンプレート [`sdk/templates/rust`](../sdk/templates/rust) をコピーして新しいプラグインを作成できます。
+公式テンプレート [`sdk/templates/rust`](../sdk/templates/rust) をコピーして新しいプラグインを作成できます。本文に置けるブロックを足すプラグインなら、ブロック用のテンプレート [`sdk/templates/rust-block`](../sdk/templates/rust-block) と、手順書 [最初のブロックプラグインを作る](plugin_block_tutorial.md) から始めてください。
 
 `Cargo.toml` の設定:
 
@@ -42,10 +42,17 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.1.0" }
+# このリポジトリの plugins/<name>/ に置くとき（テンプレートと同じ）
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.2.0" }
+# リポジトリの外に置くとき: tag には使う版のタグ（https://github.com/takumi-mr/AegisCMS/releases）を書く
+# aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.2.0" }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 ```
+
+- `#[aegis_plugin]` が使う `serde_json` は SDK が再エクスポートしているので、`Cargo.toml` に書く必要はありません。プラグインのコードで `serde_json::json!` などを直接使うなら、`serde_json = "1.0"` を足すか、`use aegis_plugin_sdk::serde_json;` と書きます。
+- **このリポジトリの中に新しいプラグインを作るときの注意**: ルートの `Cargo.toml` は `plugins/official-*` と `sdk/templates/rust` をワークスペースのメンバーにしています。メンバーでない新しいフォルダーで `cargo build` すると `error: current package believes it's in a workspace when it's not` で失敗します。次のどちらかにしてください。
+  - 公式プラグインとして取り込むなら、ルートの `Cargo.toml` の `[workspace] members` に `"plugins/<name>"` を足す（`cargo test --workspace` / `clippy --workspace` の対象にもなる）。
+  - 個人のプラグインなら、プラグインの `Cargo.toml` の末尾に空の `[workspace]` を書き、独立した crate にする。このときは PR 前の確認（`cargo fmt --check`・`cargo clippy -- -D warnings`・`cargo test`）をプラグインのフォルダーの中で自分で実行する。
 
 ### 2.2 プラグインマニフェスト (`plugin.manifest.json`)
 
@@ -206,14 +213,18 @@ cp target/wasm32-unknown-unknown/release/<plugin_name>.wasm plugin.wasm
 copy target\wasm32-unknown-unknown\release\<plugin_name>.wasm plugin.wasm
 ```
 
-### 4.3 プラグイン開発サーバーでの即時検証 (	ask dev:plugin)
+### 4.3 プラグイン開発サーバーでの即時検証 (`task dev:plugin`)
 
 コンパイル後の plugin.wasm と plugin.manifest.json は、実サーバーや DB を起動することなく、開発サーバーでフックの動作、CPU 命令数（Fuel）、実行時間、ログ、KVS/HTTP の挙動を即時検証できます（詳細は [プラグイン開発サーバー (plugin_dev_server.md)](plugin_dev_server.md) 参照）。
 
-`ash
+```bash
 # プラグイン開発サーバーの起動 (ポート 8091)
 task dev:plugin -- plugins/my-plugin
-`
+# task を入れていないときは、同じ意味のコマンド
+cargo run -p aegis-server -- plugin dev plugins/my-plugin
+```
+
+初回は `aegis-server` 全体（wasmtime・sqlx・axum など）をビルドするため、数分（目安 5〜7 分）かかります。2 回目以降は差分だけです。
 
 ### 4.4 AegisCMS へのデプロイ
 
@@ -234,7 +245,7 @@ plugins/my-plugin/
 enabled = ["my-plugin"]
 ```
 
-`aegis plugin list` でインストール済みのプラグインと有効・無効、読み込めない理由を確認できます。有効にしたプラグインが読み込めない場合はサーバーが起動しません（[プラグインフックリファレンス](plugin_hooks.md#5-インストールと有効化)）。
+`aegis-server plugin list` でインストール済みのプラグインと有効・無効、読み込めない理由を確認できます。有効にしたプラグインが読み込めない場合はサーバーが起動しません（[プラグインフックリファレンス](plugin_hooks.md#5-インストールと有効化)）。
 
 ---
 
@@ -393,14 +404,14 @@ Cargo は GitHub リポジトリを直接指定して依存関係を解決でき
 
 1. **バージョンの Git タグを作成・プッシュ**:
    ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
+   git tag vX.Y.Z   # 例: v0.2.0
+   git push origin vX.Y.Z
    ```
 2. **利用側の設定**:
    利用者は `Cargo.toml` に以下を記述するだけでインストールできます。内部マクロクレート（`aegis-plugin-macros`）も同一リポジトリから Cargo が自動解決します。
    ```toml
    [dependencies]
-   aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.1.0" }
+   aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.2.0" }
    ```
 
 #### 2. AssemblyScript SDK (`GitHub Packages`)
