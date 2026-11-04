@@ -543,6 +543,7 @@ dependencies = [
  "aegis-storage",
  "aegis-tags",
  "aegis-theme",
+ "aegis-theme-dev",
  "anyhow",
  "async-trait",
  "axum",
@@ -614,6 +615,27 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "aegis-theme-dev"
+version = "0.2.0"
+dependencies = [
+ "aegis-core",
+ "aegis-theme",
+ "anyhow",
+ "axum",
+ "clap",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tower",
+ "tower-http 0.7.1",
+ "tracing",
+ "tracing-subscriber",
+ "walkdir",
+ "zip",
 ]
 
 [[package]]

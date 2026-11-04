@@ -1,0 +1,31 @@
+[package]
+name = "aegis-theme-dev"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Lightweight local development server for AegisCMS themes"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-theme = { path = "../aegis-theme" }
+
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http = { workspace = true, features = ["fs"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+walkdir.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+

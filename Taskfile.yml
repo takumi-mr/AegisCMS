@@ -31,7 +31,7 @@ tasks:
   dev:theme:
     desc: 'テーマを開発用サーバー (DB 不要、保存で自動リロード、ポート 8090) で確認。task dev:theme -- themes/trailhead'
     cmds:
-      - cargo run -p aegis-server -- theme dev {{.CLI_ARGS}}
+      - cargo run -p aegis-theme-dev -- {{.CLI_ARGS}}
 
   dev:plugin-builder:
     desc: Plugin Builder (エディター + 実行サンドボックス、ポート 5175) の開発サーバー起動 (別のターミナルで task dev:plugin -- plugins/<プラグイン名> 起動)
@@ -244,6 +244,11 @@ tasks:
     desc: サンプル Wasm プラグイン (sdk/examples/slack-notifier/plugin.wasm) を生成
     cmds:
       - cargo run -p aegis-runtime --bin build_sample_wasm
+
+  theme:new:
+    desc: '新しいテーマのひな形を生成 (例: task theme:new -- my-theme, task theme:new -- my-theme --from trailhead)'
+    cmds:
+      - node scripts/new-theme.mjs {{.CLI_ARGS}}
 
   plugin:new:
     desc: '新しいプラグインのひな形を生成 (例: task plugin:new -- my-plugin, task plugin:new -- my-note --type block)'
