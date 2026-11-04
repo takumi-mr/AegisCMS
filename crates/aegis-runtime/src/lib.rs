@@ -9,8 +9,8 @@ pub use guard::CapabilityGuard;
 pub use plugin::{AegisPlugin, CommentCheck, PluginCspSources, PluginSupervisor};
 pub use services::{HostServices, HttpRequest, HttpResponse, LocalHostServices, PluginServices};
 pub use wasm::{
-    HookInvocationResult, InstalledPlugin, InstancePoolConfig, PluginHostState, PluginInfo,
-    PluginLogEntry, WasmEngine, WasmPluginInstance, WasmPluginLoader,
+    HookInvocationResult, HostUsage, InstalledPlugin, InstancePoolConfig, PluginHostState,
+    PluginInfo, PluginLogEntry, ResultCacheStats, WasmEngine, WasmPluginInstance, WasmPluginLoader,
 };
 
 #[cfg(test)]
@@ -119,6 +119,14 @@ mod tests {
         output: &str,
         render_page_input: Option<Vec<String>>,
     ) -> WasmPluginInstance {
+        constant_render_page_plugin_in(&WasmEngine::new().unwrap(), output, render_page_input)
+    }
+
+    fn constant_render_page_plugin_in(
+        engine: &WasmEngine,
+        output: &str,
+        render_page_input: Option<Vec<String>>,
+    ) -> WasmPluginInstance {
         let escaped = output.replace('\\', "\\\\").replace('"', "\\\"");
         let wat_src = format!(
             r#"
@@ -136,7 +144,7 @@ mod tests {
             input: render_page_input,
         });
         WasmPluginInstance::from_bytes(
-            WasmEngine::new().unwrap(),
+            engine.clone(),
             manifest,
             &wat::parse_str(wat_src).unwrap(),
             Arc::new(Mutex::new(HashMap::new())),
@@ -207,6 +215,136 @@ mod tests {
             ctx.append_content = self.append.to_string();
             Ok(ctx)
         }
+    }
+
+    /// 設定値を差し替えられるホスト（`config_get` が読む）。KV と HTTP は使えない
+    #[derive(Default)]
+    struct SettingsHost(Mutex<HashMap<String, String>>);
+
+    #[async_trait::async_trait]
+    impl HostServices for SettingsHost {
+        async fn kv_get(&self, _key: &str) -> aegis_core::Result<Option<String>> {
+            Ok(None)
+        }
+
+        async fn kv_set(&self, _key: &str, _value: &str) -> aegis_core::Result<()> {
+            Ok(())
+        }
+
+        async fn http_fetch(
+            &self,
+            _plugin: &str,
+            _request: HttpRequest,
+        ) -> aegis_core::Result<HttpResponse> {
+            Ok(HttpResponse::default())
+        }
+
+        fn plugin_setting(&self, _plugin: &str, key: &str) -> Option<String> {
+            self.0.lock().unwrap().get(key).cloned()
+        }
+    }
+
+    /// `host` の関数（`config_get(ptr, len)` か `kv_get(ptr, len)`）を 1 回呼んで、
+    /// 常に同じ JSON を返す `on_render_page`
+    fn host_calling_plugin(
+        import: &str,
+        engine: WasmEngine,
+        host: Arc<dyn HostServices>,
+    ) -> WasmPluginInstance {
+        let wat_src = format!(
+            r#"
+        (module
+            (import "host" "{import}" (func $host (param i32 i32) (result i64)))
+            (memory (export "memory") 1)
+            (data (i32.const 128) "position")
+            (data (i32.const 256) "{{\"append_content\":\"x\"}}")
+            (func (export "allocate") (param $len i32) (result i32) i32.const 4096)
+            (func (export "on_render_page") (param $ptr i32) (param $len i32) (result i64)
+                (drop (call $host (i32.const 128) (i32.const 8)))
+                (i64.or (i64.shl (i64.const 256) (i64.const 32)) (i64.const 22))))
+        "#
+        );
+        let mut manifest = make_sample_manifest(vec!["on-render-page".to_string()]);
+        manifest.capabilities.storage = Some(aegis_core::StorageCapability {
+            kv_namespace: "ns".to_string(),
+        });
+        WasmPluginInstance::from_bytes(engine, manifest, &wat::parse_str(wat_src).unwrap(), host)
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_render_page_result_is_cached_per_input() {
+        let engine = WasmEngine::new().unwrap();
+        let plugin = constant_render_page_plugin_in(
+            &engine,
+            r#"{"append_content":"x"}"#,
+            Some(vec!["content_html".to_string()]),
+        );
+
+        let first = plugin.on_render_page(page_with_body()).await.unwrap();
+        let second = plugin.on_render_page(page_with_body()).await.unwrap();
+        assert_eq!(first.append_content, "x");
+        assert_eq!(second.append_content, "x");
+        // 絞り込みで渡さなかった一覧は、キャッシュから返した結果でも元のまま
+        assert_eq!(second.items.len(), 1);
+        assert_eq!(second.content_html, "<p>Body</p>");
+        let stats = engine.render_cache_stats();
+        assert_eq!((stats.hits, stats.misses, stats.stores), (1, 1, 1));
+
+        // 入力が違えば別の結果
+        let mut other = page_with_body();
+        other.content_html = "<p>Other</p>".to_string();
+        let third = plugin.on_render_page(other).await.unwrap();
+        assert_eq!(third.content_html, "<p>Other</p>");
+        let stats = engine.render_cache_stats();
+        assert_eq!((stats.hits, stats.misses, stats.stores), (1, 2, 2));
+    }
+
+    #[tokio::test]
+    async fn test_render_page_cache_follows_the_settings_the_plugin_read() {
+        let engine = WasmEngine::new().unwrap();
+        let host = Arc::new(SettingsHost::default());
+        let plugin = host_calling_plugin("config_get", engine.clone(), host.clone());
+        let render = || async { plugin.on_render_page(page_with_body()).await.unwrap() };
+
+        render().await;
+        render().await;
+        assert_eq!(engine.render_cache_stats().hits, 1);
+
+        // 読んだ設定値が変わったら使わず、Wasm を呼び直して覚え直す
+        host.0
+            .lock()
+            .unwrap()
+            .insert("position".to_string(), "top".to_string());
+        render().await;
+        let stats = engine.render_cache_stats();
+        assert_eq!((stats.hits, stats.stale, stats.stores), (1, 1, 2));
+        render().await;
+        assert_eq!(engine.render_cache_stats().hits, 2);
+    }
+
+    #[tokio::test]
+    async fn test_render_page_cache_skips_calls_that_touch_the_kv_store() {
+        let engine = WasmEngine::new().unwrap();
+        let plugin =
+            host_calling_plugin("kv_get", engine.clone(), Arc::new(SettingsHost::default()));
+        for _ in 0..3 {
+            let rendered = plugin.on_render_page(page_with_body()).await.unwrap();
+            assert_eq!(rendered.append_content, "x");
+        }
+        // 外部の状態を読んだ出力は入力だけでは決まらないので、覚えない
+        let stats = engine.render_cache_stats();
+        assert_eq!((stats.hits, stats.stores), (0, 0));
+    }
+
+    #[tokio::test]
+    async fn test_render_page_cache_can_be_turned_off() {
+        let engine = WasmEngine::new().unwrap().with_render_cache_mb(0);
+        let plugin = constant_render_page_plugin_in(&engine, r#"{"append_content":"x"}"#, None);
+        for _ in 0..2 {
+            plugin.on_render_page(page_with_body()).await.unwrap();
+        }
+        assert_eq!(engine.render_cache_stats(), ResultCacheStats::default());
     }
 
     #[tokio::test]

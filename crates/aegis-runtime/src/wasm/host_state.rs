@@ -20,6 +20,15 @@ pub struct PluginLogEntry {
     pub timestamp: String,
 }
 
+/// 1 回の呼び出しでプラグインがホストの外の状態に触れたか（結果をキャッシュしてよいかの判定用）
+#[derive(Debug, Default, Clone)]
+pub struct HostUsage {
+    /// `kv_get` / `kv_set` / `http_fetch` を呼んだ。出力が入力だけでは決まらない
+    pub impure: bool,
+    /// `config_get` で読んだ設定値（キー, 値）。同じ値なら同じ出力になる
+    pub config_reads: Vec<(String, Option<String>)>,
+}
+
 /// WasmtimeのStore内に保持されるホスト状態
 pub struct PluginHostState {
     pub manifest: PluginManifest,
@@ -32,6 +41,8 @@ pub struct PluginHostState {
     pub limits: StoreLimits,
     /// ログのリアルタイム収集用コレクタ（開発サーバー・テスト向け）
     pub log_collector: Option<Arc<Mutex<Vec<PluginLogEntry>>>>,
+    /// この呼び出しで触れた外部の状態（呼び出しのあとにホストが読む）
+    pub usage: Arc<Mutex<HostUsage>>,
 }
 
 impl PluginHostState {
@@ -50,12 +61,27 @@ impl PluginHostState {
             last_error: None,
             limits,
             log_collector: None,
+            usage: Arc::new(Mutex::new(HostUsage::default())),
         }
     }
 
     pub fn with_log_collector(mut self, collector: Arc<Mutex<Vec<PluginLogEntry>>>) -> Self {
         self.log_collector = Some(collector);
         self
+    }
+
+    /// 外部の状態に触れたことを記録する（`kv_get` / `kv_set` / `http_fetch`）
+    pub fn mark_impure(&self) {
+        if let Ok(mut usage) = self.usage.lock() {
+            usage.impure = true;
+        }
+    }
+
+    /// `config_get` で読んだ値を記録する
+    pub fn record_config_read(&self, key: &str, value: &Option<String>) {
+        if let Ok(mut usage) = self.usage.lock() {
+            usage.config_reads.push((key.to_string(), value.clone()));
+        }
     }
 
     pub fn guard(&self) -> CapabilityGuard<'_> {

@@ -71,6 +71,8 @@ pub struct RuntimeConfig {
     pub instance_pool_size: u32,
     /// プールの 1 枠あたりの線形メモリの上限（MiB）。`max_memory_mb` がこれを超えるプラグインは読み込めない
     pub pool_max_memory_mb: u32,
+    /// `on-render-page` の結果のキャッシュの予算（MiB）。0 で無効
+    pub render_cache_mb: u32,
 }
 
 impl RuntimeConfig {
@@ -93,6 +95,7 @@ impl Default for RuntimeConfig {
             default_timeout_ms: 250,
             instance_pool_size: 64,
             pool_max_memory_mb: 64,
+            render_cache_mb: 32,
         }
     }
 }

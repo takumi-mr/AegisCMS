@@ -149,7 +149,7 @@ Wasm プラグイン（`sdk/` および `plugins/` 内のモジュール）を�
 task bench:plugins
 ```
 
-`on-render-page` が本文のサイズ（1KB〜1MB）でどう変わるかは、`plugins/` の公式プラグインを対象に次のコマンドで計測します。ホストの JSON 化・Wasm への書き込み・呼び出し・読み出しと、`on_render_page` 全体の所要時間を表示します（`crates/aegis-runtime/examples/plugin_payload_profile.rs`。結果の読み方は [architecture.md 10.7](architecture.md#107-on-render-page-の入力の軽量化-aegis-runtimesrcplugin-rs-wasminstancers)）。
+`on-render-page` が本文のサイズ（1KB〜1MB）でどう変わるかは、`plugins/` の公式プラグインを対象に次のコマンドで計測します。ホストの JSON 化・Wasm への書き込み・呼び出し・読み出しと、`on_render_page` 全体の所要時間（`e2e`。結果のキャッシュなし）、キャッシュを使う場合の所要時間（`cached`）を表示します（`crates/aegis-runtime/examples/plugin_payload_profile.rs`。結果の読み方は [architecture.md 10.7](architecture.md#107-on-render-page-の入力の軽量化-aegis-runtimesrcplugin-rs-wasminstancers)）。
 
 ```bash
 cargo run --release -p aegis-runtime --example plugin_payload_profile

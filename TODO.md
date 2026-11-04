@@ -16,7 +16,7 @@
 ## 技術メモ・申し送り事項
 
 - **`release-please.yml` の `publish-docker`/`publish-assemblyscript-sdk` 自動連携は未検証（手動公開は確認済み）**: GitHub Packages の npm（`@takumi-mr/plugin-sdk`）と GHCR の Docker イメージ（`ghcr.io/takumi-mr/aegiscms`）はいずれも存在し、visibility も `public`（手動変更は不要だった）。ただしどちらも `workflow_dispatch` による手動実行で公開したもので、`release-please.yml` の `needs.release-please.outputs.paths_released` を使った自動呼び出し（`sdk/assemblyscript` 変更時に `release-sdk.yml`、`.`（コア）変更時に `release-docker.yml`）は、release-please が実際にリリースを作成した実行で一度も `paths_released` に対象パスが含まれず、確認した全実行でスキップされたまま。現在 open の release PR（`chore: release main`、v0.3.0 相当）をマージすれば `.` が対象になるため `publish-docker` の自動発火を確認できる。`sdk/assemblyscript` 側は、同パスへの変更を含むリリースが作られるまで検証不可。
-- **巨大な本文で `on-render-page` が燃料切れ（`all fuel consumed`）になり、プラグインの出力が黙って消える**: 既定の `max_fuel_units`（1 億）で、本文 1MB のページだと公式プラグイン 9 個中 8 個が trap する（`cargo run --release -p aegis-runtime --example plugin_payload_profile`）。`official-reading-time` は 256KB でも trap する（`extract_text` / `analyze_text` が重い）。呼び出し側（`render::render_page` など）は `if let Ok` でフックのエラーを捨てるため、目次・共有ボタン・広告などが警告なしに出なくなる。未解決の判断は、(1) 燃料の既定値や本文サイズ比例の扱い、(2) 失敗をログ・管理画面に出すか、(3) `official-reading-time` の文字数の数え方の改善。
+- **巨大な本文で `on-render-page` が燃料切れ（`all fuel consumed`）になり、プラグインの出力が黙って消える**: 公式プラグインのマニフェストの `max_fuel_units` は 2,000 万（`official-page-toc` は 5,000 万、`official-code-enhancer` は 1 億）。本文を JSON で受けて返すだけで約 52 燃料/バイトかかるため、何もしないプラグインでも本文約 380KB で尽き、`official-reading-time` は固有の処理を約 2.5 分の 1 にしたあとでも約 106 燃料/バイトで本文約 190KB が限度（`plugin_payload_profile` の `error: wasm trap` で確認できる）。呼び出し側（`render::render_page` など）は `if let Ok` でフックのエラーを捨てるため、目次・共有ボタン・広告などが警告なしに出なくなる。結果のキャッシュは成功した呼び出しだけ覚えるので、この場合は効かない。未解決の判断は、(1) 燃料の上限を本文サイズに比例させるか、マニフェストの値を上げるか、(2) 失敗をログ・管理画面に出すか。
 - 公式プラグインの `plugin.wasm` はリポジトリにコミット済みで、バージョンを上げても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースを変えたリリースでは各自 `task` で再生成してから出す。
 
 ---
@@ -29,4 +29,5 @@
 - [ ] **テンプレートからの動的コンテンツ取得関数（検討）**: `latest("article", 5, category="news")` などの MiniJinja グローバル関数または事前取得宣言機構。
 
 ### 🚀 性能最適化
-- [ ] **`on-render-page` の本文を読むプラグインのコスト削減（検討）**: 枠と入力の絞り込み（[architecture.md 10.7](docs/architecture.md#107-on-render-page-の入力の軽量化-aegis-runtimesrcplugin-rs-wasminstancers)）で、追記だけのプラグインは本文を往復しなくなった。残るのは本文を読むプラグイン（目次・読了時間・外部リンクなど）で、本文に比例して約 10µs/KB かかる。候補は、公開時のプリレンダー（保存先・無効化の条件の整理が先）、SDK が変更したキーだけ返す仕組み、読み取り系のゲスト実装の改善。
+- [ ] **`on-render-page` の結果キャッシュの利用状況を見えるようにする**: `WasmEngine::render_cache_stats()`（ヒット・ミス・設定変更で使えなかった回数・保存数）はあるが、サーバーの外からは見えない。ヒット率が低いサイト（記事ごとに 1 回しか見られない長い裾野）ではサーバー内のキャッシュが効かず、CDN に任せるほうが合うので、判断の材料として `/metrics` などに出す（[architecture.md 10.8](docs/architecture.md#108-on-render-page-の結果のキャッシュ-aegis-runtimesrcwasmresult_cachers)）。
+- [ ] **SDK が変更したキーだけ返す仕組み（検討）**: 本文を読むプラグインは、SDK の `PageRenderContext` が本文を含めて全体を返すため、返送側の JSON の書き出しが本文に比例して残る（キャッシュに当たらない最初の 1 回）。ホストは返したキーだけ上書きする（[5.3.1](docs/plugin_abi_specification.md#531-オブジェクトを返すフックの部分更新)）ので、SDK 側で変えたキーだけ返せば足りる。`content_html` を空で返したときの扱い（従来は「本文を消す」）の互換が論点。

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use sha2::Digest;
 use wasmtime::{Instance, InstancePre, Module, Store, TypedFunc};
 
 use aegis_ast::BlockNode;
@@ -9,7 +10,8 @@ use aegis_core::{
 };
 
 use super::engine::WasmEngine;
-pub use super::host_state::{PluginHostState, PluginLogEntry};
+pub use super::host_state::{HostUsage, PluginHostState, PluginLogEntry};
+use super::result_cache::{CachedResult, ResultCache};
 use std::sync::{Arc, Mutex};
 
 /// Hook execution metrics and output
@@ -34,6 +36,8 @@ pub struct WasmPluginInstance {
     /// インポートをホスト API に解決済みのモジュール（呼び出しごとのインスタンス化に使う）
     instance_pre: InstancePre<PluginHostState>,
     services: PluginServices,
+    /// Wasm バイナリの SHA-256（結果のキャッシュのキーに入れる。差し替えたら別のプラグインとして扱う）
+    wasm_digest: [u8; 32],
 }
 
 impl WasmPluginInstance {
@@ -63,6 +67,7 @@ impl WasmPluginInstance {
             module,
             instance_pre,
             services: services.into(),
+            wasm_digest: sha2::Sha256::digest(wasm_bytes).into(),
         })
     }
 
@@ -173,9 +178,20 @@ impl WasmPluginInstance {
         export: &str,
         input: &[u8],
     ) -> Result<HookInvocationResult> {
+        Ok(self.call_hook_traced(hook, export, input).await?.0)
+    }
+
+    /// `call_hook_raw` と、その呼び出しでプラグインが触れたホストの外の状態
+    async fn call_hook_traced(
+        &self,
+        hook: &str,
+        export: &str,
+        input: &[u8],
+    ) -> Result<(HookInvocationResult, HostUsage)> {
         let logs_arc = Arc::new(Mutex::new(Vec::new()));
         let host_state = PluginHostState::new(self.manifest.clone(), self.services.clone())
             .with_log_collector(logs_arc.clone());
+        let usage_arc = host_state.usage.clone();
         host_state.guard().check_hook(hook)?;
 
         let _slot = self.engine.acquire_slot().await;
@@ -184,12 +200,13 @@ impl WasmPluginInstance {
 
         let Ok(func) = instance.get_typed_func::<(i32, i32), i64>(&mut store, export) else {
             let logs = logs_arc.lock().map(|l| l.clone()).unwrap_or_default();
-            return Ok(HookInvocationResult {
+            let result = HookInvocationResult {
                 output: None,
                 fuel_consumed: 0,
                 duration_ms: 0.0,
                 logs,
-            });
+            };
+            return Ok((result, HostUsage::default()));
         };
 
         let (ptr, len) = Self::write_to_guest(&mut store, &instance, input).await?;
@@ -214,13 +231,15 @@ impl WasmPluginInstance {
         };
 
         let logs = logs_arc.lock().map(|l| l.clone()).unwrap_or_default();
+        let usage = usage_arc.lock().map(|u| u.clone()).unwrap_or_default();
 
-        Ok(HookInvocationResult {
+        let result = HookInvocationResult {
             output,
             fuel_consumed,
             duration_ms: duration.as_secs_f64() * 1000.0,
             logs,
-        })
+        };
+        Ok((result, usage))
     }
 
     /// Calls `export` with `input` as JSON in a fresh instance, under the manifest's timeout.
@@ -244,6 +263,22 @@ fn parse_object_output<T: serde::Serialize + serde::de::DeserializeOwned>(
     out_bytes: &[u8],
     refusable: bool,
 ) -> Result<T> {
+    let changes = parse_changes(plugin, type_name, out_bytes, refusable)?;
+    apply_changes(type_name, to_value(type_name, input)?, changes)
+}
+
+fn to_value<T: serde::Serialize>(type_name: &str, value: &T) -> Result<serde_json::Value> {
+    serde_json::to_value(value)
+        .map_err(|e| AegisError::Serialization(format!("Invalid {} returned: {}", type_name, e)))
+}
+
+/// The top-level keys a hook returned (see `parse_object_output`)
+fn parse_changes(
+    plugin: &str,
+    type_name: &str,
+    out_bytes: &[u8],
+    refusable: bool,
+) -> Result<serde_json::Map<String, serde_json::Value>> {
     let invalid = |e: serde_json::Error| {
         AegisError::Serialization(format!("Invalid {} returned: {}", type_name, e))
     };
@@ -266,11 +301,20 @@ fn parse_object_output<T: serde::Serialize + serde::de::DeserializeOwned>(
             type_name
         )));
     };
-    let mut merged = serde_json::to_value(input).map_err(invalid)?;
-    if let Some(fields) = merged.as_object_mut() {
+    Ok(changes)
+}
+
+/// Applies `changes` over `base` (the input as JSON) key by key
+fn apply_changes<T: serde::de::DeserializeOwned>(
+    type_name: &str,
+    mut base: serde_json::Value,
+    changes: serde_json::Map<String, serde_json::Value>,
+) -> Result<T> {
+    if let Some(fields) = base.as_object_mut() {
         fields.extend(changes);
     }
-    serde_json::from_value(merged).map_err(invalid)
+    serde_json::from_value(base)
+        .map_err(|e| AegisError::Serialization(format!("Invalid {} returned: {}", type_name, e)))
 }
 
 /// `render-blocks` の結果 `{"html": [string | null, ...]}`（`{"error": ...}` は失敗）
@@ -311,30 +355,32 @@ struct HeldRenderFields {
 }
 
 impl HeldRenderFields {
-    fn take(manifest: &PluginManifest, ctx: &mut PageRenderContext) -> Self {
+    /// `keep(フィールド名)` が偽の重いフィールドを `ctx` から預かる。
+    /// 預かったものがある `ctx` にもう一度 `take` したときは、あとに預かったものを先に `restore` する
+    fn take(ctx: &mut PageRenderContext, keep: impl Fn(&str) -> bool) -> Self {
         let mut held = Self::default();
-        if !manifest.wants_render_input("content_html") {
+        if !keep("content_html") {
             held.content_html = Some(std::mem::take(&mut ctx.content_html));
         }
-        if !manifest.wants_render_input("fields") {
+        if !keep("fields") {
             held.fields = Some(std::mem::take(&mut ctx.fields));
         }
-        if !manifest.wants_render_input("relations") {
+        if !keep("relations") {
             held.relations = Some(std::mem::take(&mut ctx.relations));
         }
-        if !manifest.wants_render_input("items") {
+        if !keep("items") {
             held.items = Some(std::mem::take(&mut ctx.items));
         }
-        if !manifest.wants_render_input("related_articles") {
+        if !keep("related_articles") {
             held.related_articles = Some(std::mem::take(&mut ctx.related_articles));
         }
-        if !manifest.wants_render_input("prev_article") {
+        if !keep("prev_article") {
             held.prev_article = Some(ctx.prev_article.take());
         }
-        if !manifest.wants_render_input("next_article") {
+        if !keep("next_article") {
             held.next_article = Some(ctx.next_article.take());
         }
-        if !manifest.wants_render_input("comments") {
+        if !keep("comments") {
             held.comments = Some(ctx.comments.take());
         }
         held
@@ -416,17 +462,50 @@ impl AegisPlugin for WasmPluginInstance {
     }
 
     async fn on_render_page(&self, mut ctx: PageRenderContext) -> Result<PageRenderContext> {
+        const TYPE: &str = "PageRenderContext";
         // 宣言していない重いフィールドは、渡さず（空にして）あとで元に戻す
-        let held = HeldRenderFields::take(&self.manifest, &mut ctx);
-        let mut ctx = match self
-            .call_hook("on-render-page", "on_render_page", &to_json(&ctx)?)
-            .await?
-        {
-            Some(out) => {
-                parse_object_output(&self.manifest.name, "PageRenderContext", &ctx, &out, false)?
-            }
-            None => ctx,
+        let held = HeldRenderFields::take(&mut ctx, |f| self.manifest.wants_render_input(f));
+        let input = to_json(&ctx)?;
+
+        // 出力が入力の JSON だけで決まる呼び出しは、結果を覚えて次から Wasm を呼ばない
+        // （result_cache.rs）。覚えた結果は入力から変わったキーだけ
+        let cache = self.engine.render_cache();
+        let key = cache.enabled().then(|| {
+            ResultCache::key(
+                &self.manifest.name,
+                &self.manifest.version,
+                &self.wasm_digest,
+                &input,
+            )
+        });
+        let setting = |k: &str| self.services.0.plugin_setting(&self.manifest.name, k);
+        if let Some(hit) = key.as_ref().and_then(|key| cache.get(key, setting)) {
+            // 変わるキーの重いフィールドだけを残して JSON との往復を小さくする
+            let kept = HeldRenderFields::take(&mut ctx, |f| hit.changes.contains_key(f));
+            let base = to_value(TYPE, &ctx)?;
+            let mut ctx = apply_changes::<PageRenderContext>(TYPE, base, hit.changes.clone())?;
+            kept.restore(&mut ctx);
+            held.restore(&mut ctx);
+            return Ok(ctx);
+        }
+
+        let (res, usage) = self
+            .call_hook_traced("on-render-page", "on_render_page", &input)
+            .await?;
+        let changes = match res.output {
+            Some(out) => parse_changes(&self.manifest.name, TYPE, &out, false)?,
+            None => serde_json::Map::new(),
         };
+        let base = to_value(TYPE, &ctx)?;
+        if let Some(key) = key.filter(|_| !usage.impure) {
+            let delta = changes
+                .iter()
+                .filter(|(k, v)| base.get(k.as_str()) != Some(*v))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            cache.insert(key, CachedResult::new(delta, usage.config_reads));
+        }
+        let mut ctx = apply_changes::<PageRenderContext>(TYPE, base, changes)?;
         held.restore(&mut ctx);
         Ok(ctx)
     }
