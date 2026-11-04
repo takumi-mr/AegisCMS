@@ -40,6 +40,53 @@ pub(crate) fn extract_excerpt(blocks: &[BlockNode], max_chars: usize) -> String 
     String::new()
 }
 
+/// `current` の前（`newer = false`）または後の公開中の記事を 1 件。`category` があればその
+/// カテゴリの中から。公開期限が過ぎたのに状態がまだ更新されていないものは飛ばして、次の隣を探す
+async fn nearest_published(
+    state: &AppState,
+    schema: &SchemaDefinition,
+    current: &aegis_db::ContentRecord,
+    order: aegis_db::PublishedOrder,
+    newer: bool,
+    category: Option<&str>,
+) -> Option<aegis_db::ContentRecord> {
+    const BATCH: u64 = 8;
+    const MAX_ROUNDS: usize = 4;
+    let mut key = order.key_of(current).to_string();
+    let mut id = current.id.clone();
+    for _ in 0..MAX_ROUNDS {
+        let batch = state
+            .db
+            .list_published_neighbors(
+                schema,
+                &aegis_db::PublishedNeighborQuery {
+                    order,
+                    newer,
+                    key: key.clone(),
+                    id: id.clone(),
+                    category_id: category.map(str::to_string),
+                    limit: BATCH,
+                },
+            )
+            .await
+            .ok()?;
+        let now = chrono::Utc::now();
+        if let Some(found) = batch
+            .iter()
+            .find(|r| is_currently_published(&r.status, r.unpublish_at.as_deref(), now))
+        {
+            return Some(found.clone());
+        }
+        let last = batch.last()?;
+        if (batch.len() as u64) < BATCH {
+            return None;
+        }
+        key = order.key_of(last).to_string();
+        id = last.id.clone();
+    }
+    None
+}
+
 /// 前後の記事（前の記事・次の記事）の探索
 pub(crate) async fn find_adjacent_articles(
     state: &AppState,
@@ -87,93 +134,40 @@ pub(crate) async fn find_adjacent_articles(
         .setting("official-post-navigation", "order_by")
         .unwrap_or_else(|| "published_at".to_string());
 
-    let query = aegis_db::ContentListQuery {
-        limit: Some(500),
-        ..Default::default()
+    let order = if order_by == "created_at" {
+        aegis_db::PublishedOrder::CreatedAt
+    } else {
+        aegis_db::PublishedOrder::PublishedAt
     };
-    let published_records = match state.db.list_published_contents_page(schema, &query).await {
-        Ok(page) => page.records,
-        Err(_) => return (None, None),
-    };
-
-    let now = chrono::Utc::now();
-    let valid_records: Vec<&aegis_db::ContentRecord> = published_records
-        .iter()
-        .filter(|r| is_currently_published(&r.status, r.unpublish_at.as_deref(), now))
-        .collect();
-
-    let order_by_created = order_by == "created_at";
-    fn get_time(r: &aegis_db::ContentRecord, order_by_created: bool) -> &str {
-        if order_by_created {
-            &r.created_at
-        } else {
-            r.published_at.as_deref().unwrap_or(&r.created_at)
-        }
-    }
-
-    let current_time = get_time(current_record, order_by_created);
-    let current_key = (current_time, current_record.id.as_str());
-
     let current_category = current_record
         .custom_fields
         .get("category_id")
         .and_then(|v| v.as_str())
         .filter(|s| !s.trim().is_empty());
 
-    let find_in_slice = |records: &[&aegis_db::ContentRecord]| -> (
-        Option<aegis_db::ContentRecord>,
-        Option<aegis_db::ContentRecord>,
-    ) {
-        let mut prev: Option<&aegis_db::ContentRecord> = None;
-        let mut next: Option<&aegis_db::ContentRecord> = None;
-
-        for r in records {
-            if r.id == current_record.id {
-                continue;
-            }
-            let key = (get_time(r, order_by_created), r.id.as_str());
-            if key < current_key
-                && (prev.is_none()
-                    || (
-                        get_time(prev.unwrap(), order_by_created),
-                        prev.unwrap().id.as_str(),
-                    ) < key)
-            {
-                prev = Some(r);
-            } else if key > current_key
-                && (next.is_none()
-                    || (
-                        get_time(next.unwrap(), order_by_created),
-                        next.unwrap().id.as_str(),
-                    ) > key)
-            {
-                next = Some(r);
-            }
-        }
-        (prev.cloned(), next.cloned())
+    // 前後の記事は DB の索引で隣だけを引く（全件を読まない）
+    let nearest = |newer: bool, category: Option<String>| async move {
+        nearest_published(
+            state,
+            schema,
+            current_record,
+            order,
+            newer,
+            category.as_deref(),
+        )
+        .await
     };
-
     let (prev_record, next_record) = if is_category_mode && current_category.is_some() {
-        let cat_records: Vec<&aegis_db::ContentRecord> = valid_records
-            .iter()
-            .copied()
-            .filter(|r| {
-                r.custom_fields
-                    .get("category_id")
-                    .and_then(|v| v.as_str())
-                    .filter(|s| !s.trim().is_empty())
-                    == current_category
-            })
-            .collect();
-        let (p, n) = find_in_slice(&cat_records);
+        let category = current_category.map(str::to_string);
+        let (p, n) = tokio::join!(nearest(false, category.clone()), nearest(true, category));
         if fallback_to_all && (p.is_none() || n.is_none()) {
-            let (all_p, all_n) = find_in_slice(&valid_records);
+            let (all_p, all_n) = tokio::join!(nearest(false, None), nearest(true, None));
             (p.or(all_p), n.or(all_n))
         } else {
             (p, n)
         }
     } else {
-        find_in_slice(&valid_records)
+        tokio::join!(nearest(false, None), nearest(true, None))
     };
 
     let to_summary = |r: aegis_db::ContentRecord| -> ContentSummary {
@@ -440,7 +434,20 @@ pub(crate) async fn list_published_articles(
         };
         return state.db.list_published_contents_page(schema, &query).await;
     };
-    // 公開版の一覧は DB からまとめて読んでから並べ替えるので、絞り込みもその後で行う
+    // カテゴリの絞り込みは、公開の記録の列で DB が行う（ページ送りも含めて全件を読まない）
+    if let ArticleFilter::Field(field, value) = filter {
+        if field == "category_id" {
+            let query = ContentListQuery {
+                status,
+                filters: vec![(field.clone(), Some(value.clone()))],
+                limit: Some(limit),
+                offset,
+                ..Default::default()
+            };
+            return state.db.list_published_contents_page(schema, &query).await;
+        }
+    }
+    // それ以外の絞り込みは、公開版を全件読んでから行う
     let query = ContentListQuery {
         status,
         ..ContentListQuery::default()
@@ -1730,5 +1737,89 @@ mod tests {
         assert!(prev_1.is_none());
         // post-3 は同じ tech カテゴリなので next に選ばれる（post-2 は news なのでスキップ）
         assert_eq!(next_1.as_ref().map(|n| n.slug.as_str()), Some("post-3"));
+    }
+
+    /// 公開の記録に移したあと（速い経路）は、前後の記事が先頭 500 件の外でも正しく、
+    /// カテゴリの一覧も SQL で絞り込める
+    #[tokio::test]
+    async fn test_adjacent_articles_and_category_list_do_not_read_every_article() {
+        let state = front_page_state("posts").await;
+        let schema = state.schemas.read().await["article"].clone();
+        let total: u32 = 520;
+        for n in 1..=total {
+            let category = if n % 2 == 0 { "even" } else { "odd" };
+            state
+                .db
+                .insert_content(
+                    &schema,
+                    &ContentRecord {
+                        id: format!("id-{n}"),
+                        content_type: "article".to_string(),
+                        title: format!("Post {n}"),
+                        slug: format!("post-{n}"),
+                        status: "published".to_string(),
+                        blocks_json: "[]".to_string(),
+                        author_id: None,
+                        published_at: Some(format!("2026-10-22T{:02}:{:02}:00Z", n / 60, n % 60)),
+                        unpublish_at: None,
+                        created_at: format!("2026-10-22T{:02}:{:02}:00Z", n / 60, n % 60),
+                        updated_at: format!("2026-10-22T{:02}:{:02}:00Z", n / 60, n % 60),
+                        custom_fields: HashMap::from([(
+                            "category_id".to_string(),
+                            serde_json::json!(category),
+                        )]),
+                    },
+                )
+                .await
+                .unwrap();
+        }
+        // 公開の記録の無い行を公開の記録へ移す（速い経路になる）
+        let schemas = state.schemas.read().await.clone();
+        state.db.run_migrations(&schemas).await.unwrap();
+
+        // 最も古い記事: 前は無く、次は同じカテゴリ（odd）の次の記事
+        let first = state
+            .db
+            .get_content(&schema, "id-1")
+            .await
+            .unwrap()
+            .unwrap();
+        let (prev, next) = find_adjacent_articles(&state, &schema, &first).await;
+        assert!(prev.is_none());
+        assert_eq!(next.map(|n| n.slug), Some("post-3".to_string()));
+        // 先頭 500 件の外（古い側）の記事の前後が正しい
+        let tenth = state
+            .db
+            .get_content(&schema, "id-10")
+            .await
+            .unwrap()
+            .unwrap();
+        let (prev, next) = find_adjacent_articles(&state, &schema, &tenth).await;
+        assert_eq!(prev.map(|p| p.slug), Some("post-8".to_string()));
+        assert_eq!(next.map(|n| n.slug), Some("post-12".to_string()));
+        // 最も新しい記事: 次は無い
+        let last = state
+            .db
+            .get_content(&schema, &format!("id-{total}"))
+            .await
+            .unwrap()
+            .unwrap();
+        let (prev, next) = find_adjacent_articles(&state, &schema, &last).await;
+        assert_eq!(prev.map(|p| p.slug), Some("post-518".to_string()));
+        assert!(next.is_none());
+
+        // カテゴリの記事一覧（新しい順のページ）と総数
+        let filter = ArticleFilter::Field("category_id".to_string(), "odd".to_string());
+        let page = list_published_articles(&state, &schema, Some(&filter), 3, 1)
+            .await
+            .unwrap();
+        assert_eq!(page.total, 260);
+        assert_eq!(
+            page.records
+                .iter()
+                .map(|r| r.slug.as_str())
+                .collect::<Vec<_>>(),
+            ["post-517", "post-515", "post-513"]
+        );
     }
 }

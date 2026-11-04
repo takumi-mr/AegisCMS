@@ -171,6 +171,344 @@ pub fn merge_published_content_records(
     ContentPage { records, total }
 }
 
+/// 公開の記録（`_aegis_content_publications`）を持たない公開中の行（公開の記録ができる前の
+/// データや、`insert_content` / `update_content` で直接書いた行）が、このプロセスから見て
+/// ありうるか。ありうるあいだは、公開版の一覧が作業テーブルも読んで結合する（遅い経路）。
+///
+/// 起動時のマイグレーション（`run_migrations`）が公開の記録の無い公開中の行を全部移すので、
+/// そのあとは偽になり、`insert_content` / `update_content` で公開中の行を書いたときだけ真に戻る。
+/// 本番の書き込み（`*_with_versions`）は必ず公開の記録を作るので、通常は偽のまま
+#[derive(Debug)]
+pub struct LegacyPublishedTracker(std::sync::atomic::AtomicBool);
+
+impl LegacyPublishedTracker {
+    /// マイグレーションが済むまでは「ありうる」
+    pub fn new() -> Self {
+        Self(std::sync::atomic::AtomicBool::new(true))
+    }
+
+    pub fn possible(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn set_possible(&self, possible: bool) {
+        self.0.store(possible, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// 公開の記録を作らずに書いた行が公開中なら、遅い経路に戻す
+    pub fn note_write(&self, record: &ContentRecord) {
+        if record.status == "published" {
+            self.set_possible(true);
+        }
+    }
+}
+
+impl Default for LegacyPublishedTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// 公開の記録に持つ並べ替え・絞り込み用の列の値（カテゴリ, 並べ替えの時刻）。
+/// カテゴリが無い行は空文字（`NULL` は「まだ入れていない」の意味で、起動時に埋める）。
+/// 並べ替えの時刻は公開日時、無ければ作成日時
+pub fn publication_columns(record: &ContentRecord) -> (String, String) {
+    let category = record
+        .custom_fields
+        .get("category_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let sort_at = record
+        .published_at
+        .clone()
+        .unwrap_or_else(|| record.created_at.clone());
+    (category, sort_at)
+}
+
+/// 公開版の並べ替えの基準
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PublishedOrder {
+    /// 作成日時
+    CreatedAt,
+    /// 公開日時（無ければ作成日時）
+    PublishedAt,
+}
+
+impl PublishedOrder {
+    /// レコードの並べ替えのキー
+    pub fn key_of<'a>(&self, record: &'a ContentRecord) -> &'a str {
+        match self {
+            Self::CreatedAt => &record.created_at,
+            Self::PublishedAt => record.published_at.as_deref().unwrap_or(&record.created_at),
+        }
+    }
+
+    fn column(&self) -> &'static str {
+        match self {
+            Self::CreatedAt => "p.created_at",
+            Self::PublishedAt => "p.sort_at",
+        }
+    }
+}
+
+/// 公開版の前後の問い合わせ（`list_published_neighbors`）
+#[derive(Debug, Clone)]
+pub struct PublishedNeighborQuery {
+    pub order: PublishedOrder,
+    /// `false`: 基準より前（古い側）を近い順、`true`: 基準より後（新しい側）を近い順
+    pub newer: bool,
+    /// 基準の並べ替えのキーと ID。基準自身は含まない
+    pub key: String,
+    pub id: String,
+    /// この `category_id` の記事だけ
+    pub category_id: Option<String>,
+    pub limit: u64,
+}
+
+/// 公開版の前後を全件の一覧から探す（公開の記録に載らない行があるときと、既定の実装）
+pub async fn published_neighbors_from_list<D: DatabaseAdapter + ?Sized>(
+    db: &D,
+    schema: &SchemaDefinition,
+    query: &PublishedNeighborQuery,
+) -> Result<Vec<ContentRecord>> {
+    let all = db
+        .list_published_contents_page(
+            schema,
+            &ContentListQuery {
+                status: Some("published".into()),
+                ..Default::default()
+            },
+        )
+        .await?;
+    let mut found: Vec<ContentRecord> = all
+        .records
+        .into_iter()
+        .filter(|r| {
+            let rank = (query.order.key_of(r), r.id.as_str());
+            let base = (query.key.as_str(), query.id.as_str());
+            let on_side = if query.newer {
+                rank > base
+            } else {
+                rank < base
+            };
+            on_side
+                && query.category_id.as_deref().is_none_or(|category| {
+                    r.custom_fields
+                        .get("category_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        == category
+                })
+        })
+        .collect();
+    found.sort_by(|a, b| {
+        let (ka, kb) = (
+            (query.order.key_of(a), &a.id),
+            (query.order.key_of(b), &b.id),
+        );
+        if query.newer {
+            ka.cmp(&kb)
+        } else {
+            kb.cmp(&ka)
+        }
+    });
+    found.truncate(usize::try_from(query.limit).unwrap_or(usize::MAX));
+    Ok(found)
+}
+
+const PUBLISHED_SELECT: &str =
+    "SELECT v.snapshot_json, p.status, p.published_at, p.unpublish_at, p.updated_at \
+     FROM _aegis_content_publications p \
+     JOIN _aegis_content_versions v ON v.content_type = p.content_type \
+     AND v.content_id = p.content_id AND v.revision = p.revision";
+
+/// 公開版の SQL（バインドする値は文字列だけ。`placeholder(n)` は n 番目の値の記号）。
+/// MySQL の `?` は出てくる順に値を渡すので、値は SQL に出てくる順に並べる
+pub struct PublishedSql {
+    pub sql: String,
+    pub binds: Vec<String>,
+}
+
+fn published_where(
+    content_type: &str,
+    status: Option<&str>,
+    category: Option<&str>,
+    placeholder: &impl Fn(usize) -> String,
+    binds: &mut Vec<String>,
+) -> String {
+    let mut bind = |value: &str| {
+        binds.push(value.to_string());
+        placeholder(binds.len())
+    };
+    let mut clause = format!("WHERE p.content_type = {}", bind(content_type));
+    if let Some(status) = status {
+        clause.push_str(&format!(" AND p.status = {}", bind(status)));
+    }
+    if let Some(category) = category {
+        clause.push_str(&format!(" AND p.category_id = {}", bind(category)));
+    }
+    clause
+}
+
+/// 絞り込みの `category_id`（値が無いものは空文字 = カテゴリ無し）
+fn category_filter(query: &ContentListQuery) -> Option<&str> {
+    query
+        .filters
+        .iter()
+        .find(|(field, _)| field == "category_id")
+        .map(|(_, value)| value.as_deref().unwrap_or_default())
+}
+
+/// 公開版の一覧のページ（`list_published_contents_page`）。公開の記録だけを読み、並べ替え・
+/// 絞り込み（状態・`category_id`）・キーセット・`offset`・`limit` を SQL で行う
+pub fn build_published_list(
+    content_type: &str,
+    query: &ContentListQuery,
+    placeholder: impl Fn(usize) -> String,
+) -> PublishedSql {
+    let mut binds = Vec::new();
+    let mut sql = format!(
+        "{} {}",
+        PUBLISHED_SELECT,
+        published_where(
+            content_type,
+            query.status.as_deref(),
+            category_filter(query),
+            &placeholder,
+            &mut binds,
+        )
+    );
+    if let (Some(created_at), Some(id)) = (&query.cursor_created_at, &query.cursor_id) {
+        let mut bind = |value: &str| {
+            binds.push(value.to_string());
+            placeholder(binds.len())
+        };
+        let (a, b, c) = (bind(created_at), bind(created_at), bind(id));
+        sql.push_str(&format!(
+            " AND (p.created_at < {a} OR (p.created_at = {b} AND p.content_id < {c}))"
+        ));
+    }
+    sql.push_str(" ORDER BY p.created_at DESC, p.content_id DESC");
+    if let Some(limit) = query.limit {
+        sql.push_str(&format!(" LIMIT {} OFFSET {}", limit, query.offset));
+    }
+    PublishedSql { sql, binds }
+}
+
+/// 公開版の総数（`build_published_list` と同じ状態・`category_id` の条件。キーセットは含めない）
+pub fn build_published_count(
+    content_type: &str,
+    query: &ContentListQuery,
+    placeholder: impl Fn(usize) -> String,
+) -> PublishedSql {
+    let mut binds = Vec::new();
+    let clause = published_where(
+        content_type,
+        query.status.as_deref(),
+        category_filter(query),
+        &placeholder,
+        &mut binds,
+    );
+    PublishedSql {
+        sql: format!(
+            "SELECT COUNT(*) FROM _aegis_content_publications p {}",
+            clause
+        ),
+        binds,
+    }
+}
+
+/// 公開版の前後（`list_published_neighbors`）。公開中（`status = 'published'`）だけ
+pub fn build_published_neighbors(
+    content_type: &str,
+    query: &PublishedNeighborQuery,
+    placeholder: impl Fn(usize) -> String,
+) -> PublishedSql {
+    let mut binds = Vec::new();
+    let mut sql = format!(
+        "{} {}",
+        PUBLISHED_SELECT,
+        published_where(
+            content_type,
+            Some("published"),
+            query.category_id.as_deref(),
+            &placeholder,
+            &mut binds,
+        )
+    );
+    let mut bind = |value: &str| {
+        binds.push(value.to_string());
+        placeholder(binds.len())
+    };
+    let column = query.order.column();
+    let (cmp, direction) = if query.newer {
+        (">", "ASC")
+    } else {
+        ("<", "DESC")
+    };
+    let (a, b, c) = (bind(&query.key), bind(&query.key), bind(&query.id));
+    sql.push_str(&format!(
+        " AND ({column} {cmp} {a} OR ({column} = {b} AND p.content_id {cmp} {c})) \
+         ORDER BY {column} {direction}, p.content_id {direction} LIMIT {}",
+        query.limit
+    ));
+    PublishedSql { sql, binds }
+}
+
+/// 公開の記録に後から足した列（`category_id`, `sort_at`）を、まだ入れていない行について埋めるための
+/// 値（スナップショットから作る）
+pub fn publication_columns_from_snapshot(snapshot_json: &str) -> Result<(String, String)> {
+    let record: ContentRecord = serde_json::from_str(snapshot_json)
+        .map_err(|e| AegisError::Database(format!("Invalid published snapshot: {}", e)))?;
+    Ok(publication_columns(&record))
+}
+
+/// 公開版の一覧の索引（並べ替え・状態・カテゴリ）
+/// 並べ替えの基準（作成日時 / 公開日時）× カテゴリの有無の 4 通りに 1 つずつ。
+/// カテゴリ内の前後は「そのカテゴリで、基準より前に 1 件も無い」ことも多く、
+/// 索引が無いと全件を端まで読んで初めて「無い」と分かる
+pub const PUBLICATION_INDEXES: [(&str, &str); 4] = [
+    (
+        "idx_content_publications_list",
+        "(content_type, status, created_at, content_id)",
+    ),
+    (
+        "idx_content_publications_category",
+        "(content_type, status, category_id, created_at, content_id)",
+    ),
+    (
+        "idx_content_publications_sort",
+        "(content_type, status, sort_at, content_id)",
+    ),
+    (
+        "idx_content_publications_category_sort",
+        "(content_type, status, category_id, sort_at, content_id)",
+    ),
+];
+
+/// 遅い経路（作業テーブルも読む）で、速い経路と同じく `category_id` の絞り込みを適用する
+/// （結合してから切り出すので、結合の前に絞る）
+pub fn filter_published_by_category(
+    mut published: Vec<ContentRecord>,
+    mut legacy_working: Vec<ContentRecord>,
+    query: &ContentListQuery,
+) -> (Vec<ContentRecord>, Vec<ContentRecord>) {
+    if let Some(category) = category_filter(query) {
+        let matches = |record: &ContentRecord| {
+            record
+                .custom_fields
+                .get("category_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                == category
+        };
+        published.retain(matches);
+        legacy_working.retain(matches);
+    }
+    (published, legacy_working)
+}
+
 /// コンテンツ一覧の条件（`list_contents_page`）
 #[derive(Debug, Clone, Default)]
 pub struct ContentListQuery {
@@ -295,11 +633,26 @@ pub trait DatabaseAdapter:
     ) -> Result<Option<ContentRecord>>;
 
     /// List published snapshots with the standard content paging rules.
+    ///
+    /// 対応する条件は `status`・`limit`/`offset`・キーセット（`cursor_*`）・`filters` のうち
+    /// `category_id` だけ（`search` / `tag_id` など、ほかは無視する）。`limit` を指定したときの
+    /// `total` は、キーセットを除いた条件に合う公開版の総数
     async fn list_published_contents_page(
         &self,
         schema: &SchemaDefinition,
         query: &ContentListQuery,
     ) -> Result<ContentPage>;
+
+    /// 公開中の記事のうち、基準（並べ替えのキーと ID）の前または後を近い順に `limit` 件。
+    /// 記事ページの前後の記事のように、全件を読まずに隣だけが要る場面で使う。
+    /// 既定の実装は全件の一覧から探す（対応するバックエンドは索引で引く）
+    async fn list_published_neighbors(
+        &self,
+        schema: &SchemaDefinition,
+        query: &PublishedNeighborQuery,
+    ) -> Result<Vec<ContentRecord>> {
+        published_neighbors_from_list(self, schema, query).await
+    }
 
     /// Publish a scheduled record (`status = 'scheduled'` → `'published'`, setting `updated_at`).
     /// Only matches while the record is still scheduled for `published_at`, so a record the
@@ -1471,5 +1824,86 @@ mod tests {
             CustomFieldValue::from_json(&title, None).unwrap(),
             CustomFieldValue::Text(None)
         );
+    }
+
+    fn list_query() -> ContentListQuery {
+        ContentListQuery {
+            status: Some("published".into()),
+            filters: vec![("category_id".into(), Some("cat-1".into()))],
+            limit: Some(10),
+            offset: 20,
+            cursor_created_at: Some("2026-10-04T00:00:00Z".into()),
+            cursor_id: Some("p4".into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn published_list_sql_binds_in_the_order_the_placeholders_appear() {
+        let dollar = build_published_list("article", &list_query(), |i| format!("${}", i));
+        assert!(dollar.sql.contains(
+            "WHERE p.content_type = $1 AND p.status = $2 AND p.category_id = $3 AND (p.created_at < $4 OR (p.created_at = $5 AND p.content_id < $6)) ORDER BY p.created_at DESC, p.content_id DESC LIMIT 10 OFFSET 20"
+        ));
+        let expected = [
+            "article",
+            "published",
+            "cat-1",
+            "2026-10-04T00:00:00Z",
+            "2026-10-04T00:00:00Z",
+            "p4",
+        ];
+        assert_eq!(dollar.binds, expected);
+        // MySQL の `?` は出てくる順に値を渡す。値の並びは同じでよい
+        let question = build_published_list("article", &list_query(), |_| "?".to_string());
+        assert_eq!(question.binds, expected);
+        assert_eq!(question.sql.matches('?').count(), expected.len());
+
+        // 総数はキーセットを含めず、結合もしない
+        let count = build_published_count("article", &list_query(), |i| format!("${}", i));
+        assert_eq!(
+            count.sql,
+            "SELECT COUNT(*) FROM _aegis_content_publications p WHERE p.content_type = $1 AND p.status = $2 AND p.category_id = $3"
+        );
+        assert_eq!(count.binds, ["article", "published", "cat-1"]);
+
+        // `limit` なしは LIMIT / OFFSET を付けない。カテゴリ無し（値 None）は空文字で絞る
+        let all = build_published_list(
+            "article",
+            &ContentListQuery {
+                filters: vec![("category_id".into(), None)],
+                offset: 5,
+                ..Default::default()
+            },
+            |i| format!("?{}", i),
+        );
+        assert!(!all.sql.contains("LIMIT"));
+        assert_eq!(all.binds, ["article", ""]);
+    }
+
+    #[test]
+    fn published_neighbors_sql_compares_the_sort_key_then_the_id() {
+        let query = |order, newer| PublishedNeighborQuery {
+            order,
+            newer,
+            key: "K".into(),
+            id: "I".into(),
+            category_id: Some("cat".into()),
+            limit: 3,
+        };
+        let older =
+            build_published_neighbors("article", &query(PublishedOrder::PublishedAt, false), |i| {
+                format!("${}", i)
+            });
+        assert!(older.sql.contains(
+            "WHERE p.content_type = $1 AND p.status = $2 AND p.category_id = $3 AND (p.sort_at < $4 OR (p.sort_at = $5 AND p.content_id < $6)) ORDER BY p.sort_at DESC, p.content_id DESC LIMIT 3"
+        ));
+        assert_eq!(older.binds, ["article", "published", "cat", "K", "K", "I"]);
+        let newer =
+            build_published_neighbors("article", &query(PublishedOrder::CreatedAt, true), |_| {
+                "?".to_string()
+            });
+        assert!(newer.sql.contains(
+            "AND (p.created_at > ? OR (p.created_at = ? AND p.content_id > ?)) ORDER BY p.created_at ASC, p.content_id ASC LIMIT 3"
+        ));
     }
 }
