@@ -195,6 +195,18 @@ describe('markdown utilities', () => {
       });
     });
 
+    it('keeps a line of badges as a paragraph, not an image block', () => {
+      const badges =
+        '[![CI](https://img.shields.io/a.svg)](https://github.com/o/r) [![npm](https://img.shields.io/b.svg)](https://npmjs.com/x)';
+      const blocks = markdownToBlocks(badges);
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].name).toBe('core/paragraph');
+      expect(blocks[0].text).toBe(badges);
+      // 画像が 2 つ並ぶ行も 1 つの画像にしない
+      const two = '![a](/a.png) ![b](/b.png)';
+      expect(markdownToBlocks(two)[0].name).toBe('core/paragraph');
+    });
+
     it('parses unordered and ordered lists', () => {
       const md = '- First\n- Second\n- Third\n\n1. Numbered One\n2. Numbered Two';
       const blocks = markdownToBlocks(md);

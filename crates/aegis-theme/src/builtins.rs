@@ -428,6 +428,12 @@ pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
 :where(.aegis-details-body)>:first-child{margin-top:0}\
 :where(.aegis-details-body)>:last-child{margin-bottom:0}\
 :where(.aegis-details)+:where(.aegis-details){margin-top:-.5rem}\
+:where(.aegis-linkcard){margin:1rem 0}\
+:where(.aegis-linkcard)>a{display:flex;flex-direction:column;gap:.15rem;padding:.7rem 1rem;border:1px solid rgba(127,127,127,.3);border-radius:10px;color:inherit;text-decoration:none;overflow:hidden}\
+:where(.aegis-linkcard)>a:hover{border-color:rgba(127,127,127,.7)}\
+:where(.aegis-linkcard-site){font-weight:600}\
+:where(.aegis-linkcard-path){opacity:.65;font-size:.85em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
+:where(p) img{max-width:100%;vertical-align:middle}\
 :where(.aegis-quote){margin:1.5rem 0}\
 :where(.aegis-quote) figcaption{opacity:.7;font-size:.9em;margin-top:.25rem}\
 :where(.aegis-contact-form){display:flex;flex-direction:column;gap:1rem;margin:1.5rem 0;max-width:40rem}\

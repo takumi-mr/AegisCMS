@@ -187,6 +187,30 @@ const seedExtras = async () => {
   db.close();
 };
 
+/** バッジとリンクカード（URL だけの段落）の表示サンプルの記事（docs/blocks.md の 2） */
+const seedLinkSample = async () => {
+  const auth = await adminHeaders();
+  const p = (text) => ({ name: 'core/paragraph', text });
+  await call('POST', '/api/v1/contents/article', auth, {
+    title: 'バッジとリンクカードのサンプル',
+    slug: 'link-sample',
+    status: 'published',
+    blocks: [
+      { name: 'core/heading', attributes: { level: 2 }, text: 'バッジ' },
+      p(
+        '[![CI](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/takumi-mr/aegiscms/actions) ' +
+          '[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](https://github.com/takumi-mr/aegiscms) ' +
+          '[![Rust](https://img.shields.io/badge/rust-stable-orange)](https://www.rust-lang.org/)'
+      ),
+      { name: 'core/heading', attributes: { level: 2 }, text: 'URL だけの段落はリンクカード' },
+      p('https://x.com/aegiscms/status/1234567890'),
+      p('https://qiita.com/takumi/items/0123456789abcdef'),
+      p('https://github.com/takumi-mr/aegiscms'),
+      p('文章の中の https://example.com/ や [リンク](https://example.com/) は、これまでどおりのリンクです。'),
+    ],
+  });
+};
+
 /** エディタで記事「ハンドドリップのいれ方」を開く */
 const openArticle = async (page) => {
   await tab('エディタ')(page);
@@ -245,6 +269,7 @@ enabled = true
     after: async () => {
       await placeShopOrders();
       await seedExtras();
+      await seedLinkSample();
     },
     shots: [
       { file: 'commerce-products.png', admin: tab('商品') },
@@ -259,6 +284,7 @@ enabled = true
         },
       },
       { file: 'comments-public.png', public: '/how-to-brew-pour-over', scrollTo: '#comments' },
+      { file: 'blocks-links-badges.png', public: '/link-sample', clip: { x: 520, y: 150, width: 880, height: 700 } },
       { file: 'contact-inbox.png', admin: tab('問い合わせ') },
       { file: 'contact-form.png', public: '/contact' },
       { file: 'analytics-dashboard.png', admin: tab('アクセス解析') },
@@ -388,7 +414,8 @@ const captureSite = async (name, site) => {
           await publicPage.locator(shot.scrollTo).first().scrollIntoViewIfNeeded();
           await publicPage.evaluate(() => window.scrollBy(0, -120));
         }
-        await publicPage.screenshot({ path: join(imagesDir, shot.file) });
+        // `clip` があれば、画面のその範囲だけを撮る
+        await publicPage.screenshot({ path: join(imagesDir, shot.file), clip: shot.clip });
         await publicPage.close();
       } else {
         // 前の画面のモーダルなどを残さないよう、毎回開き直す（再読み込みするとエディタから始まる）

@@ -2,9 +2,11 @@
 //!
 //! 段落・リスト・見出し・表のセル・引用・注記のテキストで使える書式:
 //! `**太字**`、`*斜体*`、`~~取り消し線~~`、`` `コード` ``、`[リンク](URL)`、`\*`（記号をそのまま出す）。
-//! それ以外（HTML タグ・`_斜体_`・画像・自動リンクなど）は文字のまま出力する。
+//! 画像 `![代替テキスト](URL)` も使える（`[![alt](バッジの画像)](リンク)` でバッジになる）。
+//! それ以外（HTML タグ・`_斜体_`・自動リンクなど）は文字のまま出力する。
 //! リンクの URL は `http(s):`・`mailto:`・`tel:` とスキームの無い相対 URL だけを受け付け、
-//! それ以外（`javascript:` など）のリンクはテキストだけを出す。
+//! それ以外（`javascript:` など）のリンクはテキストだけを出す。画像の URL は
+//! `http(s):` と相対 URL だけで、それ以外は代替テキストだけを出す。
 
 use crate::renderer::escape_html;
 
@@ -17,6 +19,11 @@ enum Inline {
     Del(Vec<Inline>),
     /// `href` が `None` なら安全でない URL（テキストだけを出す）
     Link(Vec<Inline>, Option<String>),
+    /// `src` が `None` なら安全でない URL（代替テキストだけを出す）
+    Image {
+        alt: String,
+        src: Option<String>,
+    },
 }
 
 /// インライン書式を HTML にする（テキストはエスケープする）
@@ -55,6 +62,17 @@ fn write_html(nodes: &[Inline], out: &mut String) {
                 out.push_str("</a>");
             }
             Inline::Link(inner, None) => write_html(inner, out),
+            Inline::Image {
+                alt,
+                src: Some(src),
+            } => {
+                out.push_str("<img src=\"");
+                out.push_str(&escape_html(src));
+                out.push_str("\" alt=\"");
+                out.push_str(&escape_html(alt));
+                out.push_str("\" loading=\"lazy\" decoding=\"async\">");
+            }
+            Inline::Image { alt, src: None } => out.push_str(&escape_html(alt)),
         }
     }
 }
@@ -77,8 +95,16 @@ fn write_plain(nodes: &[Inline], out: &mut String) {
                 write_plain(inner, out)
             }
             Inline::Link(inner, _) => write_plain(inner, out),
+            Inline::Image { alt, .. } => out.push_str(alt),
         }
     }
+}
+
+/// 画像の URL として受け付けるか（http(s) とスキームの無い相対 URL。`mailto:` などは除く）
+fn safe_src(url: &str) -> Option<String> {
+    let href = safe_href(url)?;
+    let before_path = href.split(['/', '?', '#']).next().unwrap_or("");
+    (!before_path.contains(':') || href.to_ascii_lowercase().starts_with("http")).then_some(href)
 }
 
 /// リンクの URL として受け付けるか（スキームの無い相対 URL と http(s) / mailto / tel）
@@ -260,6 +286,23 @@ fn parse(chars: &[char]) -> Vec<Inline> {
                     }
                 }
             }
+            '!' if chars.get(i + 1) == Some(&'[') => {
+                if let Some(close) = find_bracket(chars, i + 1) {
+                    if chars.get(close + 1) == Some(&'(') {
+                        if let Some(paren) = find_paren(chars, close + 1) {
+                            let mut alt = String::new();
+                            write_plain(&parse(&chars[i + 2..close]), &mut alt);
+                            let url: String = chars[close + 2..paren].iter().collect();
+                            nodes.push(Inline::Image {
+                                alt,
+                                src: safe_src(&url),
+                            });
+                            i = paren + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
             '[' => {
                 if let Some(close) = find_bracket(chars, i) {
                     if chars.get(close + 1) == Some(&'(') {
@@ -367,6 +410,53 @@ mod tests {
             );
         }
         assert_eq!(render_inline("[x](\" onmouseover=\"a)"), "x");
+    }
+
+    #[test]
+    fn test_images_and_badges() {
+        assert_eq!(
+            render_inline("![logo](/uploads/a.png)"),
+            "<img src=\"/uploads/a.png\" alt=\"logo\" loading=\"lazy\" decoding=\"async\">"
+        );
+        assert_eq!(
+            render_inline(
+                "[![CI](https://img.shields.io/github/actions/workflow/status/o/r/ci.yml?a=1&b=2)](https://github.com/o/r/actions)"
+            ),
+            "<a href=\"https://github.com/o/r/actions\"><img src=\"https://img.shields.io/github/actions/workflow/status/o/r/ci.yml?a=1&amp;b=2\" alt=\"CI\" loading=\"lazy\" decoding=\"async\"></a>"
+        );
+        // 続けて並べたバッジ
+        let row =
+            render_inline("[![a](https://x.test/a.svg)](/a) [![b](https://x.test/b.svg)](/b)");
+        assert_eq!(row.matches("<a href=").count(), 2);
+        assert_eq!(row.matches("<img ").count(), 2);
+        // 代替テキストの書式は外し、エスケープする
+        assert_eq!(
+            render_inline("![**a** \"b\"](/x.png)"),
+            "<img src=\"/x.png\" alt=\"a &quot;b&quot;\" loading=\"lazy\" decoding=\"async\">"
+        );
+        // `!` だけ・閉じの無いものはそのまま
+        assert_eq!(render_inline("wow! [x]"), "wow! [x]");
+        assert_eq!(render_inline("![alt]"), "![alt]");
+    }
+
+    #[test]
+    fn test_unsafe_images_keep_only_the_alt_text() {
+        for url in [
+            "javascript:alert(1)",
+            "data:image/svg+xml,x",
+            "mailto:a@example.com",
+            "x\" onerror=\"a",
+        ] {
+            assert_eq!(render_inline(&format!("![pic]({})", url)), "pic", "{}", url);
+        }
+    }
+
+    #[test]
+    fn test_plain_text_of_images() {
+        assert_eq!(
+            plain_text("[![build](https://x.test/b.svg)](/ci) ok"),
+            "build ok"
+        );
     }
 
     #[test]
