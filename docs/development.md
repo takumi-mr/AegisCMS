@@ -171,15 +171,28 @@ task bench:dbs
 
 #### 実測ベンチマーク結果（Windows 11 / AMD Ryzen 7 / Docker Desktop、並行度 50）
 
+##### 1. 監査ログ DB 書き込み除外（推奨運用構成: `[audit] sinks = []` または `sinks = ["log"]`）
+
+監査ログを DB に同期書き込みせず、標準出力/ログ転送に逃がした場合の純粋な Web / DB パフォーマンスです。
+
 | エンドポイント / ワークロード | SQLite (WAL) | PostgreSQL 16 (Docker) | MySQL 8.0 (Docker) | 特性と分析 |
 | :--- | :--- | :--- | :--- | :--- |
-| **公開トップページ** (`GET /`)<br>*(参照中心・キャッシュ・テンプレート描画)* | **2,733 req/s**<br>(p50: 17.8ms / p99: 32.0ms) | **494 req/s**<br>(p50: 94.8ms / p99: 180.9ms) | **486 req/s**<br>(p50: 96.5ms / p99: 170.4ms) | SQLite はインプロセス・ゼロコピーアクセスのため約 5.5 倍高速。外部 RDBMS は TCP ループバックと接続プール（既定 10）によるオーバーヘッドが支配的。 |
-| **未認証アクセス** (`GET /api/v1/contents/article`)<br>*(401 Unauthorized + 監査ログ同期 INSERT)* | **2,014 req/s**<br>(p50: 16.4ms / p99: 89.8ms) | **992 req/s**<br>(p50: 45.2ms / p99: 138.7ms) | **230 req/s**<br>(p50: 178.7ms / p99: 675.1ms) | SQLite は `synchronous = NORMAL` により高速。PostgreSQL も MVCC/WAL が優秀。MySQL は InnoDB トランザクションコミットの fsync とプール枯渇で急激にスループットが低下。 |
-| **セッションログイン** (`POST /api/v1/auth/session`)<br>*(Argon2id 検証 + セッション発行 + 監査ログ)* | **119 req/s**<br>(p50: 405.0ms / p99: 509.9ms) | **106 req/s**<br>(p50: 454.4ms / p99: 588.6ms) | **78 req/s**<br>(p50: 610.7ms / p99: 846.5ms) | Argon2id の計算コスト（メモリ 64MB / 反復 3 回）がボトルネックとなり、DB 間の差は比較的小さい。 |
+| **公開トップページ** (`GET /`)<br>*(参照中心・キャッシュ・テンプレート描画)* | **1,178 req/s**<br>(p50: 41.0ms / p99: 63.1ms) | **510 req/s**<br>(p50: 94.8ms / p99: 174.0ms) | **514 req/s**<br>(p50: 92.0ms / p99: 148.2ms) | SQLite はインプロセス・ゼロコピーアクセスのため約 2.3 倍高速。外部 RDBMS は TCP ループバックと接続プール（既定 10）によるオーバーヘッドが支配的。 |
+| **未認証アクセス** (`GET /api/v1/contents/article`)<br>*(401 Unauthorized / 監査ログ DB 書込なし)* | **1,744 req/s**<br>(p50: 28.1ms / p99: 43.4ms) | **2,025 req/s**<br>(p50: 24.1ms / p99: 37.4ms) | **2,047 req/s**<br>(p50: 23.8ms / p99: 32.2ms) | 監査ログの DB 同期 INSERT を除外すると、MySQL の 401 応答は 230 req/s から約 2,050 req/s（約 8.9 倍）へ急上昇し、3 つのエンジンとも極めて高速な HTTP 拒否応答性能（1,700〜2,050 req/s）に揃う。 |
+| **コンテンツ一覧 API** (`GET /api/v1/contents/article`)<br>*(認証済 200 OK: DB クエリ + リレーション解決)* | **1,590 req/s**<br>(p50: 30.6ms / p99: 46.1ms) | **887 req/s**<br>(p50: 53.2ms / p99: 85.9ms) | **809 req/s**<br>(p50: 58.3ms / p99: 128.4ms) | 純粋な DB 読み込み API では、MySQL / PostgreSQL ともに 800〜890 req/s を安定して発揮。SQLite は 1,590 req/s と約 1.8〜2.0 倍高速。 |
+| **セッションログイン** (`POST /api/v1/auth/session`)<br>*(Argon2id 検証 + セッション発行)* | **106 req/s**<br>(p50: 185.3ms / p99: 243.5ms) | **102 req/s**<br>(p50: 192.7ms / p99: 256.6ms) | **99 req/s**<br>(p50: 197.3ms / p99: 253.1ms) | Argon2id の計算コスト（メモリ 64MB / 反復 3 回）がボトルネックとなり、全 DB エンジンで約 100 req/s（p50 約 190ms）と均等。 |
+
+##### 2. 参考: 監査ログ同期 INSERT 有効時（`[audit] sinks = ["database"]`）
+
+未認証アクセス（401）ごとに `_aegis_audit_logs` への同期 INSERT が発生する構成での測定値です。
+
+| エンドポイント / ワークロード | SQLite (WAL) | PostgreSQL 16 (Docker) | MySQL 8.0 (Docker) | 特性と分析 |
+| :--- | :--- | :--- | :--- | :--- |
+| **未認証アクセス (401 + 監査ログ同期 INSERT)** | **2,014 req/s**<br>(p50: 16.4ms / p99: 89.8ms) | **992 req/s**<br>(p50: 45.2ms / p99: 138.7ms) | **230 req/s**<br>(p50: 178.7ms / p99: 675.1ms) | SQLite は `synchronous = NORMAL` により高速。PostgreSQL も MVCC/WAL が優秀。MySQL は InnoDB トランザクションコミットの fsync とプール枯渇で急激にスループットが低下。 |
 
 #### 設計上の考察と示唆
-1. **読み込み性能**: SQLite はプロセス内メモリ・ローカルファイル直結のため圧倒的な性能（2,700+ req/s）を誇ります。外部 DB ではコネクションプールのチューニング（`max_connections` の拡大など）を行わない限り、接続待ちによるレイテンシが増加します。
-2. **監査ログの同期 INSERT**: `database` シンクを有効にした場合、SQLite では WAL モードにより 2,000 req/s を維持できますが、MySQL では同期トランザクション書き込みの待ち時間によりスループットが約 1/9 まで制限されます。外部 RDBMS（特に MySQL）を主系 DB として高トラフィック運用する場合は、監査ログを `database` ではなく `log` シンク（ファイル/stdout 出力 + Fluentd/Logstash 転送）に逃がしてください（[audit.md 1.1](audit.md#11-出力先の選び方)）。非同期バッチ INSERT は導入しない方針です。
+1. **読み込み性能**: SQLite はプロセス内メモリ・ローカルファイル直結のため圧倒的な性能（1,100〜1,500+ req/s）を誇ります。外部 DB ではコネクションプールのチューニング（`max_connections` の拡大など）を行わない限り、接続待ちによるレイテンシが増加しますが、それでも純粋な API 参照では 800 req/s 超を安定して維持できます。
+2. **監査ログの同期 INSERT によるボトルネックの解消**: `database` シンクを有効にした場合、MySQL では同期トランザクション書き込みの待ち時間により 401 応答が 230 req/s まで制限されていました。しかし監査ログ DB 書き込みを除外し、推奨設定である `log` シンク（または DB 書き込み除外）に逃がすことで、MySQL でも 401 応答は約 1,965 req/s、コンテンツ一覧取得 API は約 858 req/s と本来の高速なパフォーマンスを発揮します。高トラフィック運用では監査ログを `database` ではなく `log` シンク（ファイル/stdout 出力 + Fluentd/Logstash 転送）に設定することが改めて実証されました（[audit.md 1.1](audit.md#11-出力先の選び方)）。
  
 ---
 
