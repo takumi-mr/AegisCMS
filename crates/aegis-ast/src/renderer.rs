@@ -191,6 +191,62 @@ fn attr_str<'a>(node: &'a BlockNode, key: &str) -> Option<&'a str> {
         .filter(|s| !s.is_empty())
 }
 
+/// 段落が URL だけ（`https://…` 1 つ）のときの、リンクカードの HTML。
+/// サイトごとのコードは持たず、ホストから機械的に決めた値を属性に出すだけにして、
+/// X・Qiita・GitHub などの見た目はテーマの CSS が `data-provider`（`x`・`qiita`・`github`）や
+/// `data-host`（`x.com`）で分ける。外部への通信はしない
+fn bare_url_card(text: &str) -> Option<String> {
+    let url = text.trim();
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
+    if rest.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return None;
+    }
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let (host, tail) = rest.split_at(end);
+    let host = host.to_ascii_lowercase();
+    let valid_host = !host.is_empty()
+        && host
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-');
+    if !valid_host || host.starts_with('.') || host.ends_with('.') {
+        return None;
+    }
+    let site = host.strip_prefix("www.").unwrap_or(&host);
+    // 末尾のドメイン（`.com`・`.dev`）の 1 つ前のラベル（`qiita.com` → `qiita`）
+    let labels: Vec<&str> = site.split('.').collect();
+    let provider = if labels.len() >= 2 {
+        labels[labels.len() - 2]
+    } else {
+        labels[0]
+    };
+    // 表示するパスは、クエリとフラグメントを除いて 80 文字まで
+    let path = tail.split(['?', '#']).next().unwrap_or("");
+    let path = if path == "/" { "" } else { path };
+    let shown: String = if path.chars().count() > 80 {
+        path.chars().take(80).chain("…".chars()).collect()
+    } else {
+        path.to_string()
+    };
+    let path_html = if shown.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<span class=\"aegis-linkcard-path\">{}</span>",
+            escape_html(&shown)
+        )
+    };
+    Some(format!(
+        "<p class=\"aegis-linkcard\" data-provider=\"{}\"><a href=\"{}\" data-host=\"{}\"><span class=\"aegis-linkcard-site\">{}</span>{}</a></p>\n",
+        escape_html(provider),
+        escape_html(url),
+        escape_html(site),
+        escape_html(site),
+        path_html
+    ))
+}
+
 /// 空行で区切ったテキストを段落（インライン書式つき）にする
 fn render_paragraphs(text: &str) -> String {
     let normalized = text.replace("\r\n", "\n");
@@ -393,6 +449,9 @@ impl HtmlRenderer {
     pub fn render_node(node: &BlockNode) -> String {
         match node.name.as_str() {
             "core/paragraph" => {
+                if let Some(card) = node.text.as_deref().and_then(bare_url_card) {
+                    return card;
+                }
                 let inner = node.text.as_deref().map(render_inline).unwrap_or_default();
                 format!("<p>{}</p>\n", inner)
             }
@@ -600,6 +659,47 @@ mod tests {
         let mut node = BlockNode::new("core/image");
         node.attributes = serde_json::json!({ "src": src, "alt": "A \"quoted\" alt" });
         node
+    }
+
+    fn paragraph(text: &str) -> String {
+        let mut node = BlockNode::new("core/paragraph");
+        node.text = Some(text.to_string());
+        HtmlRenderer::render_nodes(&[node])
+    }
+
+    #[test]
+    fn test_a_paragraph_of_only_a_url_becomes_a_link_card() {
+        assert_eq!(
+            paragraph("https://x.com/aegiscms/status/123?s=20"),
+            "<p class=\"aegis-linkcard\" data-provider=\"x\"><a href=\"https://x.com/aegiscms/status/123?s=20\" data-host=\"x.com\"><span class=\"aegis-linkcard-site\">x.com</span><span class=\"aegis-linkcard-path\">/aegiscms/status/123</span></a></p>\n"
+        );
+        let qiita = paragraph(" https://www.qiita.com/user/items/abc ");
+        assert!(qiita.contains("data-provider=\"qiita\""), "{qiita}");
+        assert!(qiita.contains("data-host=\"qiita.com\""), "{qiita}");
+        // ルートだけの URL はパスを出さない
+        assert!(!paragraph("https://github.com/").contains("aegis-linkcard-path"));
+        assert!(!paragraph("https://localhost").contains("aegis-linkcard-path"));
+        // 長いパスは切る
+        let long = paragraph(&format!("https://zenn.dev/{}", "a".repeat(200)));
+        assert!(long.contains('…'), "{long}");
+    }
+
+    #[test]
+    fn test_other_paragraphs_are_not_link_cards() {
+        for text in [
+            "see https://x.com/a",
+            "https://x.com/a and more",
+            "https://x.com/a\nhttps://x.com/b",
+            "[docs](https://x.com/a)",
+            "ftp://x.com/a",
+            "https://",
+            "https://user@evil.example/a",
+            "https://exa\"mple.com/a",
+            "http://ex ample.com",
+        ] {
+            assert!(!paragraph(text).contains("aegis-linkcard"), "{text}");
+        }
+        assert_eq!(paragraph("plain"), "<p>plain</p>\n");
     }
 
     #[test]

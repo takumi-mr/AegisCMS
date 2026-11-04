@@ -98,12 +98,17 @@ Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>`
 | `~~取り消し線~~` | `<del>` |
 | `` `コード` `` | `<code>`（中の記号はそのまま） |
 | `[テキスト](URL)` | `<a href="URL">` |
+| `![代替テキスト](URL)` | `<img loading="lazy">`（行に画像だけを書くと `core/image` ブロックになる） |
+| `[![CI](バッジの画像URL)](リンク先)` | `<a><img></a>`（GitHub・shields.io などのバッジ。画像のホストは限定しない） |
 | `\*` | 記号をそのまま出す |
 
 - `*` の直後・閉じの `*` の直前が空白だと書式になりません（`2 * 3 * 4` はそのまま）。閉じの無い記号もそのまま出ます。
 - `_斜体_` は使えません（`snake_case` の識別子を壊さないため）。
 - HTML のタグは書けません。すべて文字としてエスケープします（HTML が必要なときは `core/html`）。
 - リンクの URL は `http:`・`https:`・`mailto:`・`tel:` とスキームの無い相対 URL（`/docs`、`#install` など）だけです。それ以外（`javascript:`・`data:` など）や空白を含む URL のリンクは、テキストだけを出します。外部リンクの `rel` などは、これまでどおり `[security]` の設定で後から付きます。
+- 画像の URL は `http:`・`https:` と相対 URL だけです。それ以外（`data:`・`javascript:` など）は代替テキストだけを出します。
+- **URL だけの段落はリンクカードになります**。段落が `https://…` 1 つだけ（前後に文字や他のリンクが無い）のとき、`<p class="aegis-linkcard" data-provider="qiita"><a href data-host="qiita.com">` に、サイト名（ホスト）とパスを出します。外部への通信はしません。サイトごとのコードは無く、`data-provider`（ホストの末尾のドメインの 1 つ前のラベル。`x`・`qiita`・`github`・`zenn`）と `data-host` を CSS で選んで見た目を変えます（`.aegis-linkcard[data-provider="x"] { … }`）。対応サイトを足すのにサーバーやプラグインの更新は要りません。文章の中のリンクや `[テキスト](URL)` だけの段落は、これまでどおりのリンクです。
+  ![バッジと、URL だけの段落のリンクカード](images/blocks-links-badges.png)
 - 抜粋（一覧の `excerpt`、フィードの `<summary>`）と目次には、記号を除いたテキストを使います。
 
 ## 3. 見た目
@@ -119,6 +124,7 @@ Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>`
 | `.aegis-quote` | 出典のある引用の `<figure>`（出典は `figcaption`） |
 | `.aegis-callout`、`.aegis-callout-{note,tip,important,warning,caution}`、`.aegis-callout-title` | 注記と種類・見出し |
 | `.aegis-details`、`.aegis-details-body` | 折りたたみと、その本文 |
+| `.aegis-linkcard`（`data-provider`）、`.aegis-linkcard-site`、`.aegis-linkcard-path` | URL だけの段落のリンクカードと、サイト名・パス |
 | `.aegis-contact-form`、`.aegis-contact-field`、`.aegis-contact-error`、`.aegis-contact-required`、`.aegis-contact-submit` | 問い合わせフォームと項目・誤り・必須の印・送信ボタン |
 
 ```css

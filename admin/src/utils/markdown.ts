@@ -454,7 +454,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
     }
 
     // 4. Image: ![alt](src)
-    const imageMatch = line.match(/^!\[(.*?)\]\((.*?)\)$/);
+    const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)\s]*)\)$/);
     if (imageMatch) {
       const alt = imageMatch[1].trim();
       const src = imageMatch[2].trim();
@@ -514,7 +514,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
         paragraphLines.length > 0 &&
         (curLine.match(/^```/) ||
           curLine.match(/^(#{1,6})\s+/) ||
-          curLine.match(/^!\[(.*?)\]\((.*?)\)$/) ||
+          curLine.match(/^!\[([^\]]*)\]\(([^)\s]*)\)$/) ||
           curLine.match(/^[-*+]\s+/) ||
           curLine.match(/^(\d+)\.\s+/) ||
           curLine.match(/^\s*>/) ||
