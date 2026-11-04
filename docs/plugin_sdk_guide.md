@@ -26,9 +26,23 @@ AegisCMS のプラグインシステムは、**Bytecode Alliance 製 WebAssembly
 
 公式 SDK [`aegis-plugin-sdk`](../crates/aegis-plugin-sdk) を利用することで、低レイヤーのポインタ操作やメモリ管理を意識することなく、型安全にプラグインを開発できます。
 
-### 2.1 テンプレートの準備
+### 2.1 テンプレートの準備とひな形生成 (`task plugin:new`)
 
-公式テンプレート [`sdk/templates/rust`](../sdk/templates/rust) をコピーして新しいプラグインを作成できます。本文に置けるブロックを足すプラグインなら、ブロック用のテンプレート [`sdk/templates/rust-block`](../sdk/templates/rust-block) と、手順書 [最初のブロックプラグインを作る](plugin_block_tutorial.md) から始めてください。
+新しいプラグインを作成する際は、`task plugin:new` コマンドを使用することで、名前の置換や独立クレート設定（`[workspace]`）を自動で行うひな形を瞬時に生成できます。
+
+```bash
+# 通常の Rust プラグインを作成
+task plugin:new -- my-plugin
+
+# 本文ブロックプラグインを作成 (sdk/templates/rust-block ベース)
+task plugin:new -- my-note --type block
+
+# AssemblyScript または TinyGo のプラグインを作成
+task plugin:new -- my-as-plugin --lang as
+task plugin:new -- my-go-plugin --lang tinygo
+```
+
+手動でコピーする場合は、公式テンプレート [`sdk/templates/rust`](../sdk/templates/rust) をコピーして新しいプラグインを作成できます。本文に置けるブロックを足すプラグインなら、ブロック用のテンプレート [`sdk/templates/rust-block`](../sdk/templates/rust-block) と、手順書 [最初のブロックプラグインを作る](plugin_block_tutorial.md) から始めてください。
 
 `Cargo.toml` の設定:
 
@@ -224,7 +238,12 @@ task dev:plugin -- plugins/my-plugin
 cargo run -p aegis-server -- plugin dev plugins/my-plugin
 ```
 
-初回は `aegis-server` 全体（wasmtime・sqlx・axum など）をビルドするため、数分（目安 5〜7 分）かかります。2 回目以降は差分だけです。
+開発サーバーは独立クレート `aegis-plugin-dev` に分離されているため、初回でも数秒〜数十秒で高速に起動します。
+
+```bash
+# コアサーバー全体を経由しない直接起動コマンド
+cargo run -p aegis-plugin-dev -- plugins/my-plugin
+```
 
 ### 4.4 AegisCMS へのデプロイ
 
@@ -366,6 +385,112 @@ func main() {}
 ターゲットは `wasm-unknown`（TinyGo 0.30+）を使ってください。`wasi` ターゲットはホストが提供しない WASI の関数をインポートするため読み込めません。`wasm-unknown` のモジュールがエクスポートする `_initialize`（ランタイムとグローバル変数の初期化）は、ホストがフックより先に呼び出します。
 
 詳細は [`sdk/templates/tinygo/README.md`](../sdk/templates/tinygo/README.md) を参照してください。
+
+---
+
+### 5.3 言語別フック & ホスト API 対応状況一覧
+
+AegisCMS の公式 SDK は、Rust だけでなく AssemblyScript および TinyGo においても全ライフサイクルフックとホスト API を型安全に利用できます。
+
+| フック名 | 契機・用途 | Rust (`aegis-plugin-sdk`) | AssemblyScript (`@takumi-mr/plugin-sdk`) | TinyGo (`sdk/tinygo`) |
+|---|---|---|---|---|
+| `on-before-save` | 記事保存前検証・タイトル加工 | `Plugin::on_before_save` | `parsePostContext`, `serializePostContext` | `RunHook`, `PostContext` |
+| `transform-content-ast` | 記事 AST の構文走査・変換 | `Plugin::transform_content_ast` | `readHookJson`, `writeJson` | `RunHook`, `[]BlockNode` |
+| `on-render-page` | 公開 HTML への CSS/JS/広告/目次注入 | `Plugin::on_render_page` | `parsePageRenderContext`, `serializePageRenderContext` | `RunHook`, `PageRenderContext` |
+| `calculate-order` | カート・注文金額計算（送料・割引） | `Plugin::calculate_order` | `OrderContext`, `writeOrderResult` | `RunHook`, `OrderContext`, `OrderAdjustment` |
+| `on-order-status-changed` | 注文状態変更通知（Webhook連携など） | `Plugin::on_order_status_changed` | `OrderStatusChange`, `writeOk` | `RunNotificationHook`, `OrderStatusChange` |
+| `send-notification` | 通知配信（Slack/メール/外部連携） | `Plugin::send_notification` | `NotificationMessage`, `writeDelivery`, `writeDeliveryError` | `RunDeliveryHook`, `NotificationMessage`, `Delivery` |
+| `on-content-published` | 記事公開通知（外部配信・SNS） | `Plugin::on_content_published` | `PublishedContent`, `writeOk` | `RunNotificationHook`, `PublishedContent` |
+| `check-comment` | コメント投稿前のスパム検査 | `Plugin::check_comment` | `CommentSubmission`, `CommentVerdict`, `writeVerdict` | `RunCheckCommentHook`, `CommentSubmission`, `CommentVerdict` |
+| `render-blocks` | カスタムブロックの HTML 描画 | `Plugin::render_blocks` | `readBlocks`, `writeBlocksHtml`, `BlockNode` | `RunRenderBlocksHook`, `BlockNode`, `HTML` |
+
+#### ホスト API 対応一覧
+
+| ホスト API | 用途 | Rust | AssemblyScript | TinyGo |
+|---|---|---|---|---|
+| ログ出力 (`host.log`) | サンドボックスからのデバッグログ | `log_info!`, `log_warn!`, `log_error!` | `log.info`, `log.warn`, `log.error` | `LogInfo`, `LogWarn`, `LogError` |
+| 設定値取得 (`config_get`) | `[plugins.settings.<plugin>]` の読み取り | `config_get`, `config_get_or` | `config.get`, `config.getOr` | `ConfigGet`, `ConfigGetOr` |
+| KVS (`kv_get`, `kv_set`) | 永続キーバリューストア | `kv_get`, `kv_set` | `kv.get`, `kv.set` | `KVGet`, `KVSet` |
+| HTTP 通信 (`http_fetch`) | 許可ドメインへの外部リクエスト | `http_fetch`, `http_post_json` | `http.fetch`, `HttpRequest.postJson` | `HTTPFetch`, `NewHTTPPostJSON` |
+
+---
+
+### 5.4 カスタムブロック（`render-blocks`）の実装
+
+Admin Studio や公開サイトでカスタムブロックを描画するフックです。複数ブロックがまとめて渡されるため、入力ブロックと同じ順序・同じ長さの HTML 配列を返します（描画しないブロックは `null` / `nil`）。
+
+#### AssemblyScript 実装例 (`assembly/index.ts`)
+
+```typescript
+import {
+  allocate as sdkAllocate,
+  readBlocks,
+  writeBlocksHtml,
+  writeError,
+  BlockNode,
+} from "@takumi-mr/plugin-sdk/assembly/index";
+
+export function allocate(len: i32): i32 {
+  return sdkAllocate(len);
+}
+
+export function render_blocks(ptr: i32, len: i32): i64 {
+  const blocks = readBlocks(ptr, len);
+  if (blocks === null) return writeError("Invalid render-blocks payload");
+
+  const htmlList = new Array<string | null>(blocks.length);
+  for (let i = 0; i < blocks.length; ++i) {
+    const block = blocks[i];
+    if (block.name === "my-plugin/note") {
+      const text = block.attributes.get("text").asString();
+      htmlList[i] = `<aside class="my-note"><p>${text}</p></aside>`;
+    } else {
+      htmlList[i] = null;
+    }
+  }
+  return writeBlocksHtml(htmlList);
+}
+```
+
+#### TinyGo 実装例 (`main.go`)
+
+```go
+package main
+
+import (
+	"strings"
+	"github.com/takumi-mr/AegisCMS/sdk/tinygo"
+)
+
+//export allocate
+func allocate(size int32) uintptr {
+	return sdk.Allocate(size)
+}
+
+//export render_blocks
+func render_blocks(ptr int32, length int32) int64 {
+	return sdk.RunRenderBlocksHook(ptr, length, func(blocks []sdk.BlockNode) ([]*string, error) {
+		results := make([]*string, len(blocks))
+		for i, block := range blocks {
+			if block.Name == "my-plugin/note" {
+				text, _ := block.Attributes["text"].(string)
+				html := "<aside class=\"my-note\"><p>" + strings.TrimSpace(text) + "</p></aside>"
+				results[i] = sdk.HTML(html)
+			} else {
+				results[i] = nil
+			}
+		}
+		return results, nil
+	})
+}
+
+func main() {}
+```
+
+> [!TIP]
+> 全フック（コマース、通知、コメント、ブロック）の実装を含むサンプルコードは、以下を参照してください。
+> - AssemblyScript: [`sdk/examples/assemblyscript-hooks`](../sdk/examples/assemblyscript-hooks)
+> - TinyGo: [`sdk/tinygo/examples/hooks`](../sdk/tinygo/examples/hooks)
 
 ---
 

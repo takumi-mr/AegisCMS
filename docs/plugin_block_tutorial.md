@@ -8,14 +8,14 @@
 
 | 手順 | 所要 | 使うもの |
 | --- | --- | --- |
-| 1. 準備と、テンプレートのコピー | 2 分 | Rust・`wasm32-unknown-unknown` |
+| 1. 準備とひな形の生成 | 1 分 | Rust・`wasm32-unknown-unknown` |
 | 2. ブロックを書く | 5 分 | エディター |
 | 3. テストして、ビルドする | 初回 1 分 | `cargo` |
-| 4. 開発サーバーで確かめる | 初回 5〜7 分 | `aegis-server plugin dev` |
+| 4. 開発サーバーで確かめる | 数秒〜1 分 | `aegis-server plugin dev` |
 | 5. 実サーバーの記事に置く | 3 分 | `aegis-server`・`curl` |
 
 > [!NOTE]
-> 手順 4 の初回は、`aegis-server` 全体（wasmtime・sqlx・axum など）のビルドで 5〜7 分かかります。手順 3 まで進めてから、ビルドを走らせたまま手順 2 を直す、という進め方もできます。
+> 開発サーバーは独立クレート `aegis-plugin-dev` に分離されているため、初回でも数秒〜数十秒で高速に起動します。
 
 ---
 
@@ -25,12 +25,13 @@
 rustup target add wasm32-unknown-unknown
 ```
 
-リポジトリのルートで、ブロック用のテンプレート [`sdk/templates/rust-block`](../sdk/templates/rust-block) を `plugins/my-note/` にコピーします。**フォルダー名はマニフェストの `name` と同じにします。**
+リポジトリのルートで、`task plugin:new` コマンドを実行してブロック用のひな形を生成します。名前置換、相対パス調整、独立クレート化（`[workspace]`）が自動で行われます。
 
 ```bash
-cp -r sdk/templates/rust-block plugins/my-note
-rm -rf plugins/my-note/plugin.wasm
+task plugin:new -- my-note --type block
 ```
+
+（手動でコピーする場合は、`cp -r sdk/templates/rust-block plugins/my-note` の後、`Cargo.toml` の名前とパス、末尾の `[workspace]`、および `plugin.manifest.json` の `name` を修正します。）
 
 コピーしたものに 3 か所、手を入れます。
 
