@@ -290,7 +290,18 @@ impl PluginSupervisor {
                 ctx.prepend_content.clear();
                 ctx.append_content.clear();
                 ctx.content_length = ctx.content_html.len();
-                ctx = plugin.on_render_page(ctx).await?;
+                match plugin.on_render_page(ctx).await {
+                    Ok(updated) => ctx = updated,
+                    Err(e) => {
+                        tracing::warn!(
+                            target: "aegis::plugin",
+                            "Plugin '{}' failed on-render-page: {}",
+                            plugin.manifest().name,
+                            e
+                        );
+                        return Err(e);
+                    }
+                }
                 // 後のプラグインの前置きほど外側、後置きほど内側（本文を直接書き換えた場合と同じ順）
                 prepend.insert_str(0, &std::mem::take(&mut ctx.prepend_content));
                 append.push_str(&std::mem::take(&mut ctx.append_content));

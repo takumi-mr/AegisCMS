@@ -66,6 +66,8 @@ pub struct RuntimeConfig {
     pub default_max_memory_mb: u32,
     pub default_max_fuel_units: u64,
     pub default_timeout_ms: u64,
+    /// 入力 1 バイトあたりに追加する燃料（動的スケール。0 で無効化）
+    pub fuel_per_input_byte: u64,
     /// プーリングアロケータの枠数（= 同時に実行できるフック呼び出しの数。超えた分は空きを待つ）。
     /// 0 で無効（呼び出しごとにメモリを確保・解放する）
     pub instance_pool_size: u32,
@@ -93,6 +95,7 @@ impl Default for RuntimeConfig {
             default_max_memory_mb: 16,
             default_max_fuel_units: 100_000_000,
             default_timeout_ms: 250,
+            fuel_per_input_byte: 150,
             instance_pool_size: 64,
             pool_max_memory_mb: 64,
             render_cache_mb: 32,

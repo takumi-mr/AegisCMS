@@ -117,10 +117,13 @@ pub struct WasmEngine {
     pool: Option<Arc<InstancePool>>,
     /// `on-render-page` の結果のキャッシュ（全プラグインで共有）
     render_cache: Arc<ResultCache>,
+    fuel_per_input_byte: u64,
 }
 
 /// `[runtime].render_cache_mb` の既定値
 pub const DEFAULT_RENDER_CACHE_MB: usize = 32;
+/// `[runtime].fuel_per_input_byte` の既定値
+pub const DEFAULT_FUEL_PER_INPUT_BYTE: u64 = 150;
 
 impl WasmEngine {
     /// 呼び出しのたびに線形メモリ・スタックを確保して解放するエンジン（テストやツール向け）
@@ -359,6 +362,7 @@ impl WasmEngine {
                 })
             }),
             render_cache: Arc::new(ResultCache::new(DEFAULT_RENDER_CACHE_MB << 20)),
+            fuel_per_input_byte: DEFAULT_FUEL_PER_INPUT_BYTE,
         })
     }
 
@@ -370,6 +374,17 @@ impl WasmEngine {
 
     pub(crate) fn render_cache(&self) -> &ResultCache {
         &self.render_cache
+    }
+
+    /// 入力 1 バイトあたりに追加する燃料（動的スケール、0 で無効）を変える
+    pub fn with_fuel_per_input_byte(mut self, fuel_per_input_byte: u64) -> Self {
+        self.fuel_per_input_byte = fuel_per_input_byte;
+        self
+    }
+
+    /// 入力 1 バイトあたりに追加する燃料
+    pub fn fuel_per_input_byte(&self) -> u64 {
+        self.fuel_per_input_byte
     }
 
     /// `on-render-page` の結果のキャッシュの利用状況

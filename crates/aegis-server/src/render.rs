@@ -336,8 +336,17 @@ pub async fn render_page(
 
     {
         let supervisor = state.supervisor.read().await;
-        if let Ok(hooked_ctx) = supervisor.apply_render_page(ctx.clone()).await {
-            ctx = hooked_ctx;
+        match supervisor.apply_render_page(ctx.clone()).await {
+            Ok(hooked_ctx) => {
+                ctx = hooked_ctx;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    target: "aegis::render",
+                    "apply_render_page failed: {}. Continuing with original context.",
+                    e
+                );
+            }
         }
     }
 

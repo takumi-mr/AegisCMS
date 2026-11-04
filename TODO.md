@@ -16,7 +16,6 @@
 ## 技術メモ・申し送り事項
 
 - **`release-please.yml` の `publish-docker`/`publish-assemblyscript-sdk` 自動連携は未検証（手動公開は確認済み）**: GitHub Packages の npm（`@takumi-mr/plugin-sdk`）と GHCR の Docker イメージ（`ghcr.io/takumi-mr/aegiscms`）はいずれも存在し、visibility も `public`（手動変更は不要だった）。ただしどちらも `workflow_dispatch` による手動実行で公開したもので、`release-please.yml` の `needs.release-please.outputs.paths_released` を使った自動呼び出し（`sdk/assemblyscript` 変更時に `release-sdk.yml`、`.`（コア）変更時に `release-docker.yml`）は、release-please が実際にリリースを作成した実行で一度も `paths_released` に対象パスが含まれず、確認した全実行でスキップされたまま。現在 open の release PR（`chore: release main`、v0.3.0 相当）をマージすれば `.` が対象になるため `publish-docker` の自動発火を確認できる。`sdk/assemblyscript` 側は、同パスへの変更を含むリリースが作られるまで検証不可。
-- **巨大な本文で `on-render-page` が燃料切れ（`all fuel consumed`）になり、プラグインの出力が黙って消える**: 公式プラグインのマニフェストの `max_fuel_units` は 2,000 万（`official-page-toc` は 5,000 万、`official-code-enhancer` は 1 億）。本文を JSON で受けて返すだけで約 52 燃料/バイトかかるため、何もしないプラグインでも本文約 380KB で尽き、`official-reading-time` は固有の処理を約 2.5 分の 1 にしたあとでも約 106 燃料/バイトで本文約 190KB が限度（`plugin_payload_profile` の `error: wasm trap` で確認できる）。呼び出し側（`render::render_page` など）は `if let Ok` でフックのエラーを捨てるため、目次・共有ボタン・広告などが警告なしに出なくなる。結果のキャッシュは成功した呼び出しだけ覚えるので、この場合は効かない。未解決の判断は、(1) 燃料の上限を本文サイズに比例させるか、マニフェストの値を上げるか、(2) 失敗をログ・管理画面に出すか。
 - 公式プラグインの `plugin.wasm` はリポジトリにコミット済みで、バージョンを上げても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースを変えたリリースでは各自 `task` で再生成してから出す。
 
 ---
