@@ -16,7 +16,7 @@ import { RoleLabel } from './ui/RoleLabel';
 import styles from './UserManager.module.css';
 import formStyles from './UserForms.module.css';
 
-const ROLES: UserRole[] = ['admin', 'editor', 'viewer'];
+const ROLES: UserRole[] = ['admin', 'editor', 'contributor', 'viewer'];
 
 const ROLE_BADGE: Record<string, string | undefined> = {
   admin: styles.roleAdmin,

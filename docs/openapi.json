@@ -143,6 +143,7 @@
       "ContentStatus": {
         "enum": [
           "draft",
+          "pending",
           "scheduled",
           "published",
           "archived"
@@ -236,6 +237,12 @@
           },
           "published_at": {
             "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "review_note": {
+            "description": "Why the content is sent for review, approved or returned. Kept in the version history, the audit log and the notification, not on the content",
+            "maxLength": 2000,
             "nullable": true,
             "type": "string"
           },

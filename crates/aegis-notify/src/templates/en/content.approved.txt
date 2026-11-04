@@ -1,0 +1,18 @@
+Hello {{ display_name or username }},
+
+{{ reviewed_by }} approved your {{ content.label }} "{{ content.title }}".
+{% if content.status == "scheduled" %}
+It will be published at {{ content.published_at }}.
+{% else %}
+It is now published on {{ site_name }}.
+{% endif %}
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+{% if note %}
+
+Note:
+{{ note }}
+{% endif %}
+{% include "_footer.txt" %}

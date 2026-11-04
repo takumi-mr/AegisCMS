@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-const ROLES = ['admin', 'editor', 'viewer'] as const;
+const ROLES = ['admin', 'editor', 'contributor', 'viewer'] as const;
 type Role = (typeof ROLES)[number];
 const isRole = (role: string): role is Role => (ROLES as readonly string[]).includes(role);
 

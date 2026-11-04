@@ -19,6 +19,10 @@ pub enum AuditAction {
     /// Scheduled content unpublished (archived) by the server when its `unpublish_at` arrived
     #[serde(rename = "content.unpublish")]
     ContentUnpublish,
+    /// Content moved through review: submitted, approved, returned for changes or withdrawn
+    /// (`details.decision`)
+    #[serde(rename = "content.review")]
+    ContentReview,
     #[serde(rename = "session.create")]
     SessionCreate,
     #[serde(rename = "session.delete")]
@@ -205,12 +209,13 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 74] = [
+    pub const ALL: [AuditAction; 75] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
         Self::ContentPublish,
         Self::ContentUnpublish,
+        Self::ContentReview,
         Self::SessionCreate,
         Self::SessionDelete,
         Self::StorageUpload,
@@ -289,6 +294,7 @@ impl AuditAction {
             Self::ContentDelete => "content.delete",
             Self::ContentPublish => "content.publish",
             Self::ContentUnpublish => "content.unpublish",
+            Self::ContentReview => "content.review",
             Self::SessionCreate => "session.create",
             Self::SessionDelete => "session.delete",
             Self::StorageUpload => "storage.upload",

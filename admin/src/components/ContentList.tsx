@@ -1,5 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, FileText, Layers, Clock, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Plus,
+  FileText,
+  Layers,
+  Clock,
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentSummary, Tag } from '../types';
 import { categoryColor, categoryIdOf } from '../utils/category';
@@ -20,6 +30,7 @@ const STATUS_BADGE: Record<string, string | undefined> = {
   published: styles.published,
   scheduled: styles.scheduled,
   draft: styles.draft,
+  pending: styles.pending,
 };
 
 /** Wait this long after the last key press before searching */
@@ -45,6 +56,8 @@ interface ContentListProps {
   onNew: () => void;
   contentType: string;
   onContentTypeChange?: (type: 'article' | 'page') => void;
+  /** Items of this type waiting for review (shown to editors; hidden when 0 or unknown) */
+  pendingCount?: number;
 }
 
 export const ContentList: React.FC<ContentListProps> = ({
@@ -63,6 +76,7 @@ export const ContentList: React.FC<ContentListProps> = ({
   onNew,
   contentType,
   onContentTypeChange,
+  pendingCount = 0,
 }) => {
   const { t } = useTranslation();
   const isArticles = contentType === 'article';
@@ -161,6 +175,17 @@ export const ContentList: React.FC<ContentListProps> = ({
           <span>{t('contentList.new')}</span>
         </Button>
       </div>
+
+      {pendingCount > 0 && filters.status !== 'pending' && (
+        <button
+          type="button"
+          className={styles.reviewQueue}
+          onClick={() => onFiltersChange({ ...filters, status: 'pending' })}
+        >
+          <ClipboardCheck size={14} aria-hidden="true" />
+          <span>{t('contentList.reviewQueue', { count: pendingCount })}</span>
+        </button>
+      )}
 
       <div className={styles.search} role="search">
         <Search size={14} className={styles.searchIcon} aria-hidden="true" />

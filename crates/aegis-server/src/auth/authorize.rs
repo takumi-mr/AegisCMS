@@ -8,7 +8,7 @@ use std::sync::Arc;
 use super::extract_session_id;
 use crate::audit::AuditContext;
 use crate::state::AppState;
-pub use aegis_auth::{role_level, ADMIN, EDITOR, VIEWER};
+pub use aegis_auth::{role_level, ADMIN, CONTRIBUTOR, EDITOR, VIEWER};
 use aegis_auth::{role_name, session_fingerprint, SessionData};
 use aegis_core::{AuditAction, AuditOutcome};
 
@@ -20,7 +20,10 @@ pub struct RequireRole<const MIN_LEVEL: u8>(pub SessionData);
 
 /// 読み取り系 API（`viewer` 以上）
 pub type ViewerSession = RequireRole<VIEWER>;
-/// コンテンツ作成・アップロード（`editor` 以上）
+/// 自分のコンテンツの下書き・レビュー依頼・アップロード（`contributor` 以上）。
+/// 他人のコンテンツや公開に関わる操作は、ハンドラーが `editor` 以上かを確かめる
+pub type ContributorSession = RequireRole<CONTRIBUTOR>;
+/// コンテンツの公開・管理（`editor` 以上）
 pub type EditorSession = RequireRole<EDITOR>;
 /// 管理系 API（`admin`）
 pub type AdminSession = RequireRole<ADMIN>;
@@ -152,7 +155,8 @@ mod tests {
     #[test]
     fn test_role_levels_are_ordered() {
         assert!(role_level("admin") > role_level("editor"));
-        assert!(role_level("editor") > role_level("viewer"));
+        assert!(role_level("editor") > role_level("contributor"));
+        assert!(role_level("contributor") > role_level("viewer"));
         assert_eq!(role_level("viewer"), VIEWER);
         assert_eq!(role_level("superuser"), 0);
         assert_eq!(role_level("Admin"), 0);
@@ -193,6 +197,7 @@ mod tests {
         };
         let viewer = session("viewer").await;
         let editor = session("editor").await;
+        let contributor = session("contributor").await;
         let unknown = session("superuser").await;
 
         assert_eq!(
@@ -213,6 +218,15 @@ mod tests {
             extract::<VIEWER>(&state, Some(&unknown)).await.unwrap_err(),
             StatusCode::FORBIDDEN
         );
+        assert!(extract::<CONTRIBUTOR>(&state, Some(&contributor))
+            .await
+            .is_ok());
+        assert_eq!(
+            extract::<EDITOR>(&state, Some(&contributor))
+                .await
+                .unwrap_err(),
+            StatusCode::FORBIDDEN
+        );
         let RequireRole(granted) = extract::<EDITOR>(&state, Some(&editor)).await.unwrap();
         assert_eq!(granted.role, "editor");
         assert!(extract::<VIEWER>(&state, Some(&editor)).await.is_ok());
@@ -230,7 +244,7 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(events.len(), 5);
+        assert_eq!(events.len(), 6);
         assert!(events
             .iter()
             .all(|e| e.action == AuditAction::AccessDenied && e.outcome == AuditOutcome::Denied));
@@ -264,6 +278,7 @@ mod tests {
                 row("invalid_session", "viewer", None),
                 row("insufficient_role", "editor", Some("viewer")),
                 row("insufficient_role", "viewer", Some("superuser")),
+                row("insufficient_role", "editor", Some("contributor")),
                 row("insufficient_role", "admin", Some("editor")),
             ]
         );

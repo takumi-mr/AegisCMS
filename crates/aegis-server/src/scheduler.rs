@@ -321,7 +321,7 @@ mod tests {
     use axum::Json;
     use serde_json::Value;
 
-    fn editor() -> crate::auth::EditorSession {
+    fn editor<const LEVEL: u8>() -> RequireRole<LEVEL> {
         RequireRole(aegis_auth::SessionData {
             id: "ses_editor".to_string(),
             user_id: "editor1".to_string(),

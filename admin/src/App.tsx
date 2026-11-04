@@ -65,7 +65,7 @@ import type {
 } from './types';
 import { defaultAttributes, localize } from './utils/pluginBlocks';
 import { categoryIdOf } from './utils/category';
-import { canEdit, isAdmin } from './utils/roles';
+import { CONTRIBUTOR_STATUSES, canChangeContent, canEdit, canWrite, isAdmin } from './utils/roles';
 import { cx } from './utils/cx';
 import { toDateTimeLocal } from './utils/format';
 import {
@@ -79,7 +79,22 @@ import { Field, FieldRow } from './components/ui/Field';
 import styles from './App.module.css';
 
 /** Content states the editor offers (`archived` and others open as a draft) */
-type EditorStatus = 'draft' | 'scheduled' | 'published';
+type EditorStatus = 'draft' | 'pending' | 'scheduled' | 'published';
+
+const EDITOR_STATUSES: EditorStatus[] = ['draft', 'pending', 'scheduled', 'published'];
+
+/** The stored state of the opened item: who may change it, and which review step a save is */
+interface StoredContent {
+  author_id?: string | null;
+  status: string;
+}
+
+/** `#review` (the link in review requests) opens the list of items waiting for review */
+const takeInitialFilters = (): ContentListFilters => {
+  if (window.location.hash !== '#review') return NO_FILTERS;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  return { ...NO_FILTERS, status: 'pending' };
+};
 
 /** Messages shown above the login form */
 type LoginNotice = 'unreachable' | 'expired' | 'signedOut';
@@ -146,11 +161,17 @@ export const App: React.FC = () => {
   const [contents, setContents] = useState<ContentSummary[]>([]);
   const [contentsTotal, setContentsTotal] = useState(0);
   const [contentsLoading, setContentsLoading] = useState(false);
-  const [listFilters, setListFilters] = useState<ContentListFilters>(NO_FILTERS);
+  const [listFilters, setListFilters] = useState<ContentListFilters>(takeInitialFilters);
+  // Items waiting for review (the list offers them to editors)
+  const [pendingCount, setPendingCount] = useState(0);
   const [listPage, setListPage] = useState(1);
   const listRequest = useRef(0);
   const selectRequest = useRef(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // What the server has for the opened item (null for a new one)
+  const [storedItem, setStoredItem] = useState<StoredContent | null>(null);
+  // Sent with the save that requests, approves or returns a review; not stored on the content
+  const [reviewNote, setReviewNote] = useState<string>('');
   const [contentVersions, setContentVersions] = useState<ContentVersionSummary[]>([]);
   const [loadingContentVersions, setLoadingContentVersions] = useState(false);
   const contentVersionRequest = useRef(0);
@@ -253,10 +274,21 @@ export const App: React.FC = () => {
       setContents(result.items);
       setContentsTotal(result.total);
       setListPage(page);
+      if (canEdit(session ?? null)) void loadPendingCount(type);
     } catch (err) {
       if (requestId === listRequest.current) console.warn('Could not load contents:', err);
     } finally {
       if (requestId === listRequest.current) setContentsLoading(false);
+    }
+  };
+
+  /** How many items of the type wait for review (only editors can approve them) */
+  const loadPendingCount = async (type: 'article' | 'page'): Promise<void> => {
+    try {
+      const pending = await aegisApi.listContentSummaries(type, { status: 'pending', limit: 1 });
+      setPendingCount(pending.total);
+    } catch (err) {
+      console.warn('Could not count the items waiting for review:', err);
     }
   };
 
@@ -316,6 +348,8 @@ export const App: React.FC = () => {
   const sessionUser = session?.user_id;
   useEffect(() => {
     if (!sessionId) return;
+    // Contributors cannot publish: new content starts as a draft
+    if (!canEdit(session ?? null)) setStatus('draft');
     loadContents();
     loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -513,6 +547,8 @@ export const App: React.FC = () => {
 
   const handleSelectContent = (item: ContentItem) => {
     setSelectedId(item.id);
+    setStoredItem({ author_id: item.author_id, status: item.status });
+    setReviewNote('');
     setCommentsOpen(item.comments_open !== false);
     setContentVersions([]);
     const requestId = ++contentVersionRequest.current;
@@ -528,7 +564,9 @@ export const App: React.FC = () => {
       });
     setTitle(item.title);
     setSlug(item.slug);
-    setStatus(item.status === 'published' || item.status === 'scheduled' ? item.status : 'draft');
+    setStatus(
+      (EDITOR_STATUSES as string[]).includes(item.status) ? (item.status as EditorStatus) : 'draft'
+    );
     setPublishAt(
       item.status === 'scheduled' && item.published_at ? toDateTimeLocal(item.published_at) : ''
     );
@@ -562,6 +600,8 @@ export const App: React.FC = () => {
     selectRequest.current += 1;
     contentVersionRequest.current += 1;
     setSelectedId(null);
+    setStoredItem(null);
+    setReviewNote('');
     setCommentsOpen(true);
     setContentVersions([]);
     setLoadingContentVersions(false);
@@ -589,6 +629,8 @@ export const App: React.FC = () => {
     setContentTags([]);
     setContentType(type);
     setSelectedId(null);
+    setStoredItem(null);
+    setReviewNote('');
     setCommentsOpen(true);
     setTitle(
       type === 'article' ? t('editor.defaults.untitled') : t('editor.defaults.untitledPage')
@@ -731,6 +773,7 @@ export const App: React.FC = () => {
         slug,
         status,
         publish,
+        ...(reviewNote.trim() ? { review_note: reviewNote.trim() } : {}),
         // The server publishes scheduled content at this time (a past time publishes it now)
         ...(scheduledAt ? { published_at: scheduledAt.toISOString() } : {}),
         ...(unpublishDate ? { unpublish_at: unpublishDate.toISOString() } : { unpublish_at: null }),
@@ -745,7 +788,12 @@ export const App: React.FC = () => {
         ? await aegisApi.updateContent(contentType, selectedId, payload)
         : await aegisApi.createContent(contentType, payload);
 
-      showToast(t('editor.toasts.saved', { id: saved.id.slice(0, 8) }));
+      const submitted = saved.status === 'pending' && storedItem?.status !== 'pending';
+      showToast(
+        submitted
+          ? t('editor.toasts.submitted')
+          : t('editor.toasts.saved', { id: saved.id.slice(0, 8) })
+      );
       if (tagsEnabled) {
         // The tags are saved with the content (they have their own endpoint)
         try {
@@ -820,6 +868,19 @@ export const App: React.FC = () => {
   }
 
   const editable = canEdit(session);
+  // Contributors write their own drafts; editors change anything
+  const writable = canWrite(session);
+  const mayChange = canChangeContent(session, selectedId ? storedItem : null);
+  const statusOptions: EditorStatus[] = editable ? EDITOR_STATUSES : [...CONTRIBUTOR_STATUSES];
+  // The save is a review step: a request (to pending), or a decision on an item waiting for review
+  const reviewStep =
+    storedItem?.status === 'pending'
+      ? status !== 'pending'
+        ? 'decide'
+        : null
+      : status === 'pending'
+        ? 'submit'
+        : null;
   const showShop = editable && shopEnabled;
   const showComments = editable && commentsEnabled;
   const showForum = editable && forumEnabled;
@@ -836,7 +897,7 @@ export const App: React.FC = () => {
         onPublish={() => handleSave(true)}
         isSaving={isSaving}
         session={session}
-        canSave={editable}
+        canSave={mayChange}
         canPublish={editable && Boolean(selectedId) && status === 'published'}
         showShop={showShop}
         showComments={showComments}
@@ -945,6 +1006,7 @@ export const App: React.FC = () => {
                 onNew={handleNew}
                 contentType={contentType}
                 onContentTypeChange={handleContentTypeChange}
+                pendingCount={editable ? pendingCount : 0}
               />
             </div>
 
@@ -991,11 +1053,19 @@ export const App: React.FC = () => {
                     <Field label={t('editor.status')} className={styles.statusField}>
                       <select
                         value={status}
+                        disabled={!mayChange}
                         onChange={(e) => setStatus(e.target.value as EditorStatus)}
                       >
-                        <option value="draft">{t('common.status.draft')}</option>
-                        <option value="scheduled">{t('common.status.scheduled')}</option>
-                        <option value="published">{t('common.status.published')}</option>
+                        {statusOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {t(`common.status.${option}`)}
+                          </option>
+                        ))}
+                        {!statusOptions.includes(status) && (
+                          <option value={status} disabled>
+                            {t(`common.status.${status}`)}
+                          </option>
+                        )}
                       </select>
                     </Field>
 
@@ -1021,6 +1091,39 @@ export const App: React.FC = () => {
                       </Field>
                     )}
                   </FieldRow>
+
+                  {selectedId && writable && !mayChange && (
+                    <p className={styles.reviewNotice} role="note">
+                      {t('editor.review.readOnly')}
+                    </p>
+                  )}
+                  {editable && storedItem?.status === 'pending' && (
+                    <p className={styles.reviewNotice} role="note">
+                      {t('editor.review.waiting')}
+                    </p>
+                  )}
+                  {mayChange && reviewStep && (
+                    <Field
+                      label={
+                        reviewStep === 'submit'
+                          ? t('editor.review.noteForReviewer')
+                          : t('editor.review.noteForAuthor')
+                      }
+                    >
+                      <textarea
+                        className={styles.reviewNote}
+                        value={reviewNote}
+                        maxLength={2000}
+                        rows={2}
+                        placeholder={
+                          reviewStep === 'submit'
+                            ? t('editor.review.submitPlaceholder')
+                            : t('editor.review.decidePlaceholder')
+                        }
+                        onChange={(e) => setReviewNote(e.target.value)}
+                      />
+                    </Field>
+                  )}
 
                   {contentType === 'article' ? (
                     <FieldRow>
@@ -1136,6 +1239,7 @@ export const App: React.FC = () => {
                   <ContentVersionHistory
                     versions={contentVersions}
                     loading={loadingContentVersions}
+                    canRestore={mayChange}
                     onRestore={async (revision) => {
                       if (!window.confirm(t('editor.restoreVersionConfirm', { revision }))) return;
                       try {
@@ -1345,7 +1449,7 @@ export const App: React.FC = () => {
                           onMoveUp={() => moveBlock(idx, 'up')}
                           onMoveDown={() => moveBlock(idx, 'down')}
                           onDelete={() => deleteBlock(idx)}
-                          canUpload={editable}
+                          canUpload={writable}
                           blockDefinitions={blockDefinitions}
                           contactForms={contactForms}
                         />

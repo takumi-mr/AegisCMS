@@ -62,6 +62,7 @@ export type AuditAction =
   | 'content.delete'
   | 'content.publish'
   | 'content.unpublish'
+  | 'content.review'
   | 'session.create'
   | 'session.delete'
   | 'storage.upload'
@@ -201,7 +202,7 @@ export interface ObjectReference {
   title: string;
 }
 
-export type UserRole = 'admin' | 'editor' | 'viewer';
+export type UserRole = 'admin' | 'editor' | 'contributor' | 'viewer';
 
 /** User account returned by the user management API (`/api/v1/users`) */
 export interface UserAccount {

@@ -82,6 +82,12 @@ builtin_templates!(
     "content.published.txt",
     "content.unpublished.subject",
     "content.unpublished.txt",
+    "content.submitted.subject",
+    "content.submitted.txt",
+    "content.approved.subject",
+    "content.approved.txt",
+    "content.returned.subject",
+    "content.returned.txt",
     "_comment_summary.txt",
     "comment.posted.subject",
     "comment.posted.txt",
@@ -759,6 +765,68 @@ mod tests {
             .render("account.registered", &person, &registered)
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn renders_the_review_templates_in_each_locale() {
+        let person = Recipient::person("hanako@example.com", "Hanako");
+        let mut data = json!({
+            "site_name": "Aegis Coffee",
+            "site_url": "https://shop.example.com",
+            "username": "hanako",
+            "display_name": "Hanako",
+            "content": { "label": "Articles", "title": "Spring Sale", "slug": "spring-sale",
+                         "status": "published", "published_at": "2099-03-01T00:00:00Z" },
+            "submitted_by": "Taro",
+            "reviewed_by": "Jiro",
+            "note": "Please check the prices",
+            "review_url": "https://shop.example.com/admin/#review",
+            "edit_url": "https://shop.example.com/admin/",
+            "content_url": "https://shop.example.com/spring-sale",
+        });
+        for locale in LOCALES {
+            for kind in ["content.submitted", "content.approved", "content.returned"] {
+                let rendered = Templates::new(locale, None)
+                    .render(kind, &person, &data)
+                    .unwrap()
+                    .unwrap();
+                assert!(
+                    rendered.subject.contains("Spring Sale"),
+                    "{}",
+                    rendered.subject
+                );
+                assert!(
+                    rendered.body.contains("Please check the prices"),
+                    "{}",
+                    rendered.body
+                );
+                assert!(!rendered.body.contains("\n\n\n"), "{}", rendered.body);
+            }
+        }
+        let submitted = Templates::new("en", None)
+            .render("content.submitted", &person, &data)
+            .unwrap()
+            .unwrap();
+        assert!(submitted.body.contains("Taro asked you to review"));
+        assert!(submitted.body.contains("/admin/#review"));
+
+        // A scheduled approval says when; without a note the note section is left out
+        data["content"]["status"] = json!("scheduled");
+        data["note"] = json!(null);
+        data["content_url"] = json!("");
+        let approved = Templates::new("ja", None)
+            .render("content.approved", &person, &data)
+            .unwrap()
+            .unwrap();
+        assert!(
+            approved
+                .body
+                .contains("2099-03-01T00:00:00Z に公開されます"),
+            "{}",
+            approved.body
+        );
+        assert!(!approved.body.contains("メモ"), "{}", approved.body);
+        assert!(!approved.body.contains("\n\n\n"), "{}", approved.body);
     }
 
     #[test]

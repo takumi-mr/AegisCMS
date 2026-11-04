@@ -1,0 +1,1 @@
+Approved: {{ content.title }} - {{ site_name }}

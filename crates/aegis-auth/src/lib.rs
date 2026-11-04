@@ -54,27 +54,32 @@ pub fn saml_subject(idp_entity_id: &str, name_id: &str) -> String {
 }
 
 /// システムロール（権限の強い順）
-pub const ROLES: [&str; 3] = ["admin", "editor", "viewer"];
+pub const ROLES: [&str; 4] = ["admin", "editor", "contributor", "viewer"];
 
-/// ロールの強さ（`admin` ⊃ `editor` ⊃ `viewer`）。`ROLES` 以外のロールは権限なし
+/// ロールの強さ（`admin` ⊃ `editor` ⊃ `contributor` ⊃ `viewer`）。`ROLES` 以外のロールは権限なし。
+/// 値はセッションや DB に保存しない（保存するのはロールの名前）ので、間にロールを足してよい
 pub fn role_level(role: &str) -> u8 {
     match role {
         "admin" => ADMIN,
         "editor" => EDITOR,
+        "contributor" => CONTRIBUTOR,
         "viewer" => VIEWER,
         _ => 0,
     }
 }
 
 pub const VIEWER: u8 = 1;
-pub const EDITOR: u8 = 2;
-pub const ADMIN: u8 = 3;
+/// 自分のコンテンツを書いてレビューに出せるが、公開はできない
+pub const CONTRIBUTOR: u8 = 2;
+pub const EDITOR: u8 = 3;
+pub const ADMIN: u8 = 4;
 
 /// `role_level` の逆（`VIEWER` 未満は `viewer`）
 pub fn role_name(level: u8) -> &'static str {
     match level {
         ADMIN => "admin",
         EDITOR => "editor",
+        CONTRIBUTOR => "contributor",
         _ => "viewer",
     }
 }

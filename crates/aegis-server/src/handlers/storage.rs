@@ -10,7 +10,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::audit::AuditContext;
-use crate::auth::{EditorSession, ViewerSession};
+use crate::auth::{ContributorSession, EditorSession, ViewerSession};
 use crate::state::AppState;
 use aegis_core::{AuditAction, AuditOutcome, StorageObject};
 
@@ -136,9 +136,10 @@ pub async fn list_objects(
     })))
 }
 
+/// `POST /api/v1/storage/upload` — ファイルを置く（`contributor` 以上。記事の画像を自分で入れられるように）
 pub async fn upload_file(
     State(state): State<Arc<AppState>>,
-    _session: EditorSession,
+    _session: ContributorSession,
     audit: AuditContext,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {

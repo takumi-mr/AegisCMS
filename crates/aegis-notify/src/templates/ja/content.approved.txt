@@ -1,0 +1,18 @@
+{{ display_name or username }} 様
+
+{{ content.label }}「{{ content.title }}」が {{ reviewed_by }} さんに承認されました。
+{% if content.status == "scheduled" %}
+{{ content.published_at }} に公開されます。
+{% else %}
+{{ site_name }} で公開しました。
+{% endif %}
+{% if content_url %}
+
+{{ content_url }}
+{% endif %}
+{% if note %}
+
+メモ:
+{{ note }}
+{% endif %}
+{% include "_footer.txt" %}

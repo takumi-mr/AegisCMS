@@ -1,4 +1,5 @@
-//! タグの API（管理）。一覧は `viewer` 以上、作成・更新・削除とコンテンツへの付け外しは `editor` 以上。
+//! タグの API（管理）。一覧は `viewer` 以上、作成・更新・削除とコンテンツへの付け外しは `editor` 以上
+//! （`contributor` は自分の下書き・レビュー待ちのコンテンツに、既存のタグを付け外しできる）。
 //! タグはどの種類のコンテンツにも付けられる（`/api/v1/contents/{type}/{slug}/tags`）
 
 use axum::{
@@ -11,7 +12,8 @@ use serde_json::json;
 use std::sync::Arc;
 
 use crate::audit::AuditContext;
-use crate::auth::{EditorSession, ViewerSession};
+use crate::auth::authorize::RequireRole;
+use crate::auth::{ContributorSession, EditorSession, ViewerSession};
 use crate::cdn::CacheTags;
 use crate::state::AppState;
 use aegis_core::{AuditAction, AuditOutcome};
@@ -300,6 +302,16 @@ async fn find_content(
     content_type: &str,
     slug_or_id: &str,
 ) -> Result<(String, String), ApiError> {
+    find_record(state, content_type, slug_or_id)
+        .await
+        .map(|record| (record.id, record.slug))
+}
+
+async fn find_record(
+    state: &AppState,
+    content_type: &str,
+    slug_or_id: &str,
+) -> Result<aegis_db::ContentRecord, ApiError> {
     let schema = state
         .schemas
         .read()
@@ -326,7 +338,7 @@ async fn find_content(
                 format!("Content '{}' not found", slug_or_id),
             )
         })?;
-    Ok((record.id, record.slug))
+    Ok(record)
 }
 
 /// `GET /api/v1/contents/{content_type}/{slug}/tags` — そのコンテンツのタグ（名前の昇順。`viewer`）
@@ -354,16 +366,19 @@ pub struct ContentTagsRequest {
     pub tag_ids: Vec<String>,
 }
 
-/// `PUT /api/v1/contents/{content_type}/{slug}/tags` — そのコンテンツのタグを置き換える（`editor`）
+/// `PUT /api/v1/contents/{content_type}/{slug}/tags` — そのコンテンツのタグを置き換える（`editor`。
+/// `contributor` は自分の下書き・レビュー待ちだけ）
 pub async fn set_content_tags(
     State(state): State<Arc<AppState>>,
-    _session: EditorSession,
+    RequireRole(session): ContributorSession,
     Path((content_type, slug_or_id)): Path<(String, String)>,
     audit: AuditContext,
     Json(payload): Json<ContentTagsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let service = tags(&state)?;
-    let (id, slug) = find_content(&state, &content_type, &slug_or_id).await?;
+    let record = find_record(&state, &content_type, &slug_or_id).await?;
+    crate::review::ensure_may_change(&session, &record)?;
+    let (id, slug) = (record.id, record.slug);
     let before = service
         .content_tags(&content_type, &id)
         .await

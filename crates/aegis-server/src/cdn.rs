@@ -180,7 +180,7 @@ mod tests {
     use super::*;
     use crate::audit::AuditContext;
     use crate::auth::authorize::RequireRole;
-    use crate::auth::{AdminSession, EditorSession};
+    use crate::auth::AdminSession;
     use crate::config::AegisConfig;
     use crate::handlers::content::{
         create_content, delete_content, update_content, CreateContentRequest, STATUS_SCHEDULED,
@@ -206,7 +206,7 @@ mod tests {
         purger.take_batches().into_iter().flatten().collect()
     }
 
-    fn editor() -> EditorSession {
+    fn editor<const LEVEL: u8>() -> RequireRole<LEVEL> {
         RequireRole(SessionData {
             id: "ses_editor".to_string(),
             user_id: "editor1".to_string(),
@@ -253,6 +253,7 @@ mod tests {
                 published_at: None,
                 unpublish_at: None,
                 publish: true,
+                review_note: None,
                 fields: HashMap::new(),
             }),
         )
@@ -299,6 +300,7 @@ mod tests {
                 published_at: None,
                 unpublish_at: None,
                 publish: true,
+                review_note: None,
                 fields: HashMap::new(),
             }),
         )
@@ -379,6 +381,7 @@ mod tests {
                 published_at: None,
                 unpublish_at: None,
                 publish: true,
+                review_note: None,
                 fields: HashMap::new(),
             }),
         )
@@ -406,6 +409,7 @@ mod tests {
                 published_at: None,
                 unpublish_at: None,
                 publish: true,
+                review_note: None,
                 fields: HashMap::new(),
             }),
         )
@@ -455,6 +459,7 @@ mod tests {
                 published_at: Some(future_pub),
                 unpublish_at: Some(future_unpub),
                 publish: false,
+                review_note: None,
                 fields: HashMap::new(),
             }),
         )

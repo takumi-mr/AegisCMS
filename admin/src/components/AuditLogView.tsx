@@ -33,6 +33,7 @@ const ACTIONS: AuditAction[] = [
   'content.update',
   'content.delete',
   'content.publish',
+  'content.review',
   'session.create',
   'session.delete',
   'storage.upload',

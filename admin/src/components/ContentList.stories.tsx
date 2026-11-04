@@ -308,6 +308,45 @@ export const Filters: Story = {
   },
 };
 
+/** Editors see how many items wait for review; the button narrows the list to them */
+export const ReviewQueue: Story = {
+  args: {
+    contents: [
+      ...mockArticles,
+      summary({
+        id: 'art-3',
+        title: 'Guest Post: Wasm at the Edge',
+        slug: 'wasm-at-the-edge',
+        status: 'pending',
+        author_id: 'alice',
+      }),
+    ],
+    contentType: 'article',
+    pendingCount: 1,
+  },
+  render: (args) => <StatefulContentList {...args} />,
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    // The item shows its state
+    const card = canvas.getByRole('button', { name: /Wasm at the Edge/ });
+    await expect(within(card).getByText(/^(pending review|レビュー待ち)$/i)).toBeInTheDocument();
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: /waiting for review|レビュー待ちが/i })
+    );
+    await expect(args.onFiltersChange).toHaveBeenLastCalledWith({
+      ...NO_FILTERS,
+      status: 'pending',
+    });
+    // Hidden once the list shows only those items
+    await waitFor(() =>
+      expect(
+        canvas.queryByRole('button', { name: /waiting for review|レビュー待ちが/i })
+      ).toBeNull()
+    );
+  },
+};
+
 export const Pagination: Story = {
   args: {
     contents: mockArticles,

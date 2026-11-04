@@ -31,6 +31,7 @@ mod plugin_registry;
 mod redirects;
 mod related;
 mod render;
+mod review;
 mod scheduler;
 #[cfg(feature = "search")]
 mod search;
