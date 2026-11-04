@@ -8,7 +8,8 @@
 //! 段階は host_ser（ホストの JSON 化）→ write → call → read → host_merge（返却 JSON の
 //! デシリアライズと差分マージ）。段階の列はコンテキスト全体を渡した場合（`render_page.input` の
 //! 絞り込みなし）の値で、`e2e` だけが `WasmPluginInstance::on_render_page` の実測値（絞り込みと
-//! 差分マージを含む）。絞り込みの効果は `e2e` で見る。
+//! 差分マージを含む。結果のキャッシュは切っている）。絞り込みの効果は `e2e` で見る。
+//! `cached` は結果のキャッシュを使う場合（同じ入力の 2 回目以降）の `on_render_page` の所要時間。
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -126,8 +127,8 @@ async fn main() -> Res<()> {
     }
 
     println!(
-        "{:<26} {:>7} {:>9} {:>8} {:>10} {:>8} | {:>10} {:>10}",
-        "plugin", "size", "out", "host_ser", "write", "call", "read", "e2e"
+        "{:<26} {:>7} {:>9} {:>8} {:>10} {:>8} | {:>10} {:>10} {:>8}",
+        "plugin", "size", "out", "host_ser", "write", "call", "read", "e2e", "cached"
     );
     for dir in dirs {
         let manifest = PluginManifest::from_json_with_defaults(
@@ -147,16 +148,21 @@ async fn main() -> Res<()> {
         if module.get_export("on_render_page").is_none() {
             continue;
         }
-        let plugin = WasmPluginInstance::from_bytes(
-            engine.clone(),
-            manifest.clone(),
-            &wasm,
-            Arc::new(Mutex::new(HashMap::new())),
-        )?;
+        let new_plugin = |engine: WasmEngine| {
+            WasmPluginInstance::from_bytes(
+                engine,
+                manifest.clone(),
+                &wasm,
+                Arc::new(Mutex::new(HashMap::new())),
+            )
+        };
+        let plugin = new_plugin(engine.clone().with_render_cache_mb(0))?;
+        let cached_plugin = new_plugin(engine.clone())?;
         for kb in SIZES_KB {
             let ctx = page(kb);
             let mut samples: Vec<Vec<Duration>> = vec![Vec::new(); 4];
             let mut e2e = Vec::new();
+            let mut cached = Vec::new();
             let mut out_len = 0;
             let mut failed = None;
             for i in 0..WARMUP + ITERATIONS {
@@ -182,6 +188,14 @@ async fn main() -> Res<()> {
                 if i >= WARMUP {
                     e2e.push(start.elapsed());
                 }
+                let start = Instant::now();
+                if let Err(e) = cached_plugin.on_render_page(ctx.clone()).await {
+                    failed = Some(e.to_string());
+                    break;
+                }
+                if i >= WARMUP {
+                    cached.push(start.elapsed());
+                }
             }
             let name = manifest.name.trim_start_matches("official-");
             if let Some(e) = failed {
@@ -190,7 +204,7 @@ async fn main() -> Res<()> {
             }
             let m: Vec<f64> = samples.iter_mut().map(|s| median(s)).collect();
             println!(
-                "{:<26} {:>5}KB {:>8}KB {:>8.0} {:>10.0} {:>8.0} | {:>10.0} {:>10.0}",
+                "{:<26} {:>5}KB {:>8}KB {:>8.0} {:>10.0} {:>8.0} | {:>10.0} {:>10.0} {:>8.0}",
                 name,
                 kb,
                 out_len / 1024,
@@ -198,7 +212,8 @@ async fn main() -> Res<()> {
                 m[1],
                 m[2],
                 m[3],
-                median(&mut e2e)
+                median(&mut e2e),
+                median(&mut cached)
             );
         }
     }

@@ -85,6 +85,9 @@ default_timeout_ms = 250
 instance_pool_size = 64
 # Linear memory per pool slot (MiB); plugins with a larger resource_limits.max_memory_mb do not load
 pool_max_memory_mb = 64
+# Budget (MiB) for caching on-render-page results of plugins whose output depends only on the page
+# they were given; 0 = off. See docs/configuration.md
+render_cache_mb = 32
 
 [plugins]
 # Plugins to load, by name (installed as <plugins_dir>/<name>/ with a plugin.manifest.json).

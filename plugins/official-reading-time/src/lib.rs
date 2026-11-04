@@ -134,53 +134,72 @@ impl Settings {
     }
 }
 
-/// HTML タグを除去し、平文テキストを抽出する（script, style タグとその中身は除外）
-pub fn extract_text(html: &str) -> String {
-    let mut clean_html = String::with_capacity(html.len());
-    let mut cur = html;
-    loop {
-        let lower = cur.to_ascii_lowercase();
-        let script_pos = lower.find("<script");
-        let style_pos = lower.find("<style");
-        let target = match (script_pos, style_pos) {
-            (Some(sc), Some(st)) => {
-                if sc < st {
-                    Some((sc, "</script>"))
+/// `needle`（ASCII の小文字）が `hay` の先頭に、大文字小文字を区別せず一致するか
+fn starts_with_ci(hay: &[u8], needle: &[u8]) -> bool {
+    hay.len() >= needle.len() && hay[..needle.len()].eq_ignore_ascii_case(needle)
+}
+
+/// `hay` の中の `needle`（ASCII の小文字）の最初の位置（大文字小文字を区別しない）
+fn find_ci(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    (0..hay.len().checked_sub(needle.len())? + 1)
+        .find(|&i| hay[i] == needle[0] && starts_with_ci(&hay[i..], needle))
+}
+
+/// HTML の平文の部分を、途切れた区間（タグ・`<script>`・`<style>` の外）ごとに `run` へ渡す。
+/// 本文を 1 回だけ走査し、コピーも確保もしない（Wasm の燃料は命令数に比例するため）。
+///
+/// - `<script` / `<style` から対応する閉じタグまでは、タグの内側にいるかどうかに関わらず捨てる
+///   （閉じタグが無ければそこで打ち切る）
+/// - `<` から `>` まではタグとして捨てる。タグの外の `>` も捨てる
+fn for_each_text_run<'a>(html: &'a str, mut run: impl FnMut(&'a str)) {
+    let bytes = html.as_bytes();
+    let (mut in_tag, mut start, mut i) = (false, 0, 0);
+    while i < bytes.len() {
+        match bytes[i] {
+            b'<' => {
+                if !in_tag {
+                    run(&html[start..i]);
+                }
+                let rest = &bytes[i + 1..];
+                let block: Option<&[u8]> = if starts_with_ci(rest, b"script") {
+                    Some(b"</script>")
+                } else if starts_with_ci(rest, b"style") {
+                    Some(b"</style>")
                 } else {
-                    Some((st, "</style>"))
+                    None
+                };
+                match block {
+                    Some(close) => match find_ci(&bytes[i..], close) {
+                        Some(end) => {
+                            i += end + close.len();
+                            start = i;
+                            continue;
+                        }
+                        None => return,
+                    },
+                    None => in_tag = true,
                 }
             }
-            (Some(sc), None) => Some((sc, "</script>")),
-            (None, Some(st)) => Some((st, "</style>")),
-            (None, None) => None,
-        };
-
-        if let Some((start, close_tag)) = target {
-            clean_html.push_str(&cur[..start]);
-            let after_start = &cur[start..];
-            let after_lower = &lower[start..];
-            if let Some(close_idx) = after_lower.find(close_tag) {
-                cur = &after_start[close_idx + close_tag.len()..];
-            } else {
-                break;
+            b'>' => {
+                if !in_tag {
+                    run(&html[start..i]);
+                }
+                in_tag = false;
+                start = i + 1;
             }
-        } else {
-            clean_html.push_str(cur);
-            break;
+            _ => {}
         }
+        i += 1;
     }
+    if !in_tag {
+        run(&html[start..]);
+    }
+}
 
-    let mut out = String::with_capacity(clean_html.len());
-    let mut in_tag = false;
-    for c in clean_html.chars() {
-        if c == '<' {
-            in_tag = true;
-        } else if c == '>' {
-            in_tag = false;
-        } else if !in_tag {
-            out.push(c);
-        }
-    }
+/// HTML タグを除去し、平文テキストを抽出する（script, style タグとその中身は除外）
+pub fn extract_text(html: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    for_each_text_run(html, |text| out.push_str(text));
     out
 }
 
@@ -205,47 +224,108 @@ pub struct TextStats {
     pub total_chars: usize,
 }
 
+/// 文字数・単語数を、テキストを区間に分けて渡されても同じ結果になるように数える
+#[derive(Default)]
+struct Analyzer {
+    stats: TextStats,
+    in_word: bool,
+}
+
+/// ASCII 文字の種類（`Analyzer::feed` が 1 バイトずつ表で引く）
+const SYMBOL: u8 = 0;
+const SPACE: u8 = 1;
+const ALNUM: u8 = 2;
+
+const fn ascii_classes() -> [u8; 128] {
+    let mut table = [SYMBOL; 128];
+    let mut i = 0;
+    while i < 128 {
+        let b = i as u8;
+        // `char::is_whitespace` / `is_alphanumeric` の ASCII の範囲と同じ
+        if matches!(b, b' ' | 0x09 | 0x0A | 0x0B | 0x0C | 0x0D) {
+            table[i] = SPACE;
+        } else if b.is_ascii_alphanumeric() {
+            table[i] = ALNUM;
+        }
+        i += 1;
+    }
+    table
+}
+
+static ASCII_CLASS: [u8; 128] = ascii_classes();
+
+impl Analyzer {
+    fn feed(&mut self, text: &str) {
+        let bytes = text.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            let b = bytes[i];
+            if b < 0x80 {
+                match ASCII_CLASS[b as usize] {
+                    SPACE => self.end_word(),
+                    ALNUM => {
+                        self.stats.total_chars += 1;
+                        self.in_word = true;
+                    }
+                    _ => {
+                        self.stats.total_chars += 1;
+                        self.end_word();
+                    }
+                }
+                i += 1;
+            } else if let Some(c) = text[i..].chars().next() {
+                self.feed_char(c);
+                i += c.len_utf8();
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn end_word(&mut self) {
+        if self.in_word {
+            self.stats.words += 1;
+            self.in_word = false;
+        }
+    }
+
+    fn feed_char(&mut self, c: char) {
+        if c.is_whitespace() {
+            self.end_word();
+            return;
+        }
+        self.stats.total_chars += 1;
+        if is_cjk(c) {
+            self.end_word();
+            self.stats.cjk_chars += 1;
+        } else if !c.is_alphanumeric() {
+            // 記号等で単語が途切れる
+            self.end_word();
+        } else {
+            self.in_word = true;
+        }
+    }
+
+    fn finish(mut self) -> TextStats {
+        if self.in_word {
+            self.stats.words += 1;
+        }
+        self.stats
+    }
+}
+
 /// プレーンテキストから CJK 文字数、欧文単語数、総文字数を集計
 pub fn analyze_text(text: &str) -> TextStats {
-    let mut cjk_chars = 0;
-    let mut words = 0;
-    let mut total_chars = 0;
-    let mut in_word = false;
+    let mut analyzer = Analyzer::default();
+    analyzer.feed(text);
+    analyzer.finish()
+}
 
-    for c in text.chars() {
-        if c.is_whitespace() {
-            if in_word {
-                words += 1;
-                in_word = false;
-            }
-            continue;
-        }
-
-        total_chars += 1;
-
-        if is_cjk(c) {
-            if in_word {
-                words += 1;
-                in_word = false;
-            }
-            cjk_chars += 1;
-        } else if c.is_alphanumeric() {
-            in_word = true;
-        } else if in_word {
-            // 記号等で単語が途切れる
-            words += 1;
-            in_word = false;
-        }
-    }
-    if in_word {
-        words += 1;
-    }
-
-    TextStats {
-        cjk_chars,
-        words,
-        total_chars,
-    }
+/// HTML の平文の部分の統計（`analyze_text(&extract_text(html))` と同じ結果を、平文を作らずに 1 回の走査で出す）
+pub fn analyze_html(html: &str) -> TextStats {
+    let mut analyzer = Analyzer::default();
+    for_each_text_run(html, |text| analyzer.feed(text));
+    analyzer.finish()
 }
 
 /// 読了時間（分）の算出
@@ -413,6 +493,115 @@ mod tests {
             content_type: "article".to_string(),
             content_html: html.to_string(),
             ..Default::default()
+        }
+    }
+
+    /// HTML タグを除去し、平文テキストを抽出する（script, style タグとその中身は除外）
+    fn extract_text_reference(html: &str) -> String {
+        let mut clean_html = String::with_capacity(html.len());
+        let mut cur = html;
+        loop {
+            let lower = cur.to_ascii_lowercase();
+            let script_pos = lower.find("<script");
+            let style_pos = lower.find("<style");
+            let target = match (script_pos, style_pos) {
+                (Some(sc), Some(st)) => {
+                    if sc < st {
+                        Some((sc, "</script>"))
+                    } else {
+                        Some((st, "</style>"))
+                    }
+                }
+                (Some(sc), None) => Some((sc, "</script>")),
+                (None, Some(st)) => Some((st, "</style>")),
+                (None, None) => None,
+            };
+
+            if let Some((start, close_tag)) = target {
+                clean_html.push_str(&cur[..start]);
+                let after_start = &cur[start..];
+                let after_lower = &lower[start..];
+                if let Some(close_idx) = after_lower.find(close_tag) {
+                    cur = &after_start[close_idx + close_tag.len()..];
+                } else {
+                    break;
+                }
+            } else {
+                clean_html.push_str(cur);
+                break;
+            }
+        }
+
+        let mut out = String::with_capacity(clean_html.len());
+        let mut in_tag = false;
+        for c in clean_html.chars() {
+            if c == '<' {
+                in_tag = true;
+            } else if c == '>' {
+                in_tag = false;
+            } else if !in_tag {
+                out.push(c);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn ascii_table_matches_the_char_classes() {
+        for b in 0u8..128 {
+            let text = format!("a{}b", b as char);
+            let (mut fast, mut slow) = (Analyzer::default(), Analyzer::default());
+            fast.feed(&text);
+            text.chars().for_each(|c| slow.feed_char(c));
+            assert_eq!(fast.finish(), slow.finish(), "{b:#x}");
+        }
+    }
+
+    #[test]
+    fn single_pass_matches_the_reference_on_awkward_html() {
+        let pieces = [
+            "<",
+            ">",
+            "</",
+            "<script",
+            "</script>",
+            "<SCRIPT>",
+            "</SCRIPT>",
+            "<style",
+            "</style>",
+            "<Style type=x>",
+            "<p>",
+            "</p>",
+            "<a href=\"x>y\">",
+            "text",
+            " ",
+            "
+",
+            "日本語",
+            "a-b",
+            "x&amp;y",
+            "<<",
+            ">>",
+            "<scripts>",
+            "<!-- c -->",
+            "é",
+            "<script>var a='<b>';</script>",
+        ];
+        let mut seed = 0x2545_F491_4F6C_DD1Du64;
+        for _ in 0..4000 {
+            let mut html = String::new();
+            for _ in 0..(seed % 14) {
+                seed = seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                html.push_str(pieces[(seed >> 33) as usize % pieces.len()]);
+            }
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let reference = extract_text_reference(&html);
+            assert_eq!(extract_text(&html), reference, "{html:?}");
+            assert_eq!(analyze_html(&html), analyze_text(&reference), "{html:?}");
         }
     }
 

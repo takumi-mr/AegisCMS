@@ -1,4 +1,5 @@
 use super::host_state::PluginHostState;
+use super::result_cache::{ResultCache, ResultCacheStats};
 use aegis_core::{AegisError, PluginManifest, Result};
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -114,7 +115,12 @@ pub struct WasmEngine {
     engine: Engine,
     linker: Arc<Linker<PluginHostState>>,
     pool: Option<Arc<InstancePool>>,
+    /// `on-render-page` の結果のキャッシュ（全プラグインで共有）
+    render_cache: Arc<ResultCache>,
 }
+
+/// `[runtime].render_cache_mb` の既定値
+pub const DEFAULT_RENDER_CACHE_MB: usize = 32;
 
 impl WasmEngine {
     /// 呼び出しのたびに線形メモリ・スタックを確保して解放するエンジン（テストやツール向け）
@@ -234,6 +240,7 @@ impl WasmEngine {
                 |mut caller: Caller<'_, PluginHostState>,
                  (k_ptr, k_len, v_ptr, v_len): (i32, i32, i32, i32)| {
                     Box::new(async move {
+                        caller.data().mark_impure();
                         let (Some(key), Some(value)) = (
                             read_guest_string(&mut caller, k_ptr, k_len),
                             read_guest_string(&mut caller, v_ptr, v_len),
@@ -268,6 +275,7 @@ impl WasmEngine {
                 "kv_get",
                 |mut caller: Caller<'_, PluginHostState>, (k_ptr, k_len): (i32, i32)| {
                     Box::new(async move {
+                        caller.data().mark_impure();
                         let Some(key) = read_guest_string(&mut caller, k_ptr, k_len) else {
                             return -2i64;
                         };
@@ -301,6 +309,7 @@ impl WasmEngine {
                 "http_fetch",
                 |mut caller: Caller<'_, PluginHostState>, (ptr, len): (i32, i32)| {
                     Box::new(async move {
+                        caller.data().mark_impure();
                         let body = match http_fetch(&mut caller, ptr, len).await {
                             Ok(response) => serde_json::to_vec(&response),
                             Err(message) => {
@@ -327,7 +336,9 @@ impl WasmEngine {
                         };
                         let value = {
                             let state = caller.data();
-                            state.services.0.plugin_setting(&state.manifest.name, &key)
+                            let value = state.services.0.plugin_setting(&state.manifest.name, &key);
+                            state.record_config_read(&key, &value);
+                            value
                         };
                         match value {
                             Some(value) => write_guest(&mut caller, value.as_bytes()).await,
@@ -347,7 +358,23 @@ impl WasmEngine {
                     slots: Arc::new(Semaphore::new(config.size as usize)),
                 })
             }),
+            render_cache: Arc::new(ResultCache::new(DEFAULT_RENDER_CACHE_MB << 20)),
         })
+    }
+
+    /// `on-render-page` の結果のキャッシュの予算（MiB）を変える。0 で無効
+    pub fn with_render_cache_mb(mut self, mb: usize) -> Self {
+        self.render_cache = Arc::new(ResultCache::new(mb << 20));
+        self
+    }
+
+    pub(crate) fn render_cache(&self) -> &ResultCache {
+        &self.render_cache
+    }
+
+    /// `on-render-page` の結果のキャッシュの利用状況
+    pub fn render_cache_stats(&self) -> ResultCacheStats {
+        self.render_cache.stats()
     }
 
     /// プーリングアロケータの設定（`with_instance_pool` で作った場合）
