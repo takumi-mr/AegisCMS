@@ -26,7 +26,7 @@ tasks:
   dev:plugin:
     desc: 'プラグイン開発用サーバー (DB 不要、保存で自動リロード、ポート 8091)。task dev:plugin -- plugins/official-code-enhancer'
     cmds:
-      - cargo run -p aegis-server -- plugin dev {{.CLI_ARGS}}
+      - cargo run -p aegis-plugin-dev -- {{.CLI_ARGS}}
 
   dev:theme:
     desc: 'テーマを開発用サーバー (DB 不要、保存で自動リロード、ポート 8090) で確認。task dev:theme -- themes/trailhead'
@@ -244,6 +244,11 @@ tasks:
     desc: サンプル Wasm プラグイン (sdk/examples/slack-notifier/plugin.wasm) を生成
     cmds:
       - cargo run -p aegis-runtime --bin build_sample_wasm
+
+  plugin:new:
+    desc: '新しいプラグインのひな形を生成 (例: task plugin:new -- my-plugin, task plugin:new -- my-note --type block)'
+    cmds:
+      - node scripts/new-plugin.mjs {{.CLI_ARGS}}
 
   plugin:build:
     desc: Rust プラグインテンプレートを Wasm にビルドし sdk/templates/rust/plugin.wasm を更新 (要 rustup target add wasm32-unknown-unknown)

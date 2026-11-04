@@ -139,4 +139,28 @@ describe('plugin-builder api', () => {
       body: JSON.stringify({ hook: 'on-render-page', output: { items: [] } }),
     });
   });
+
+  it('generatePreview supports render-blocks hook output preview', async () => {
+    const mockResponse = {
+      html: '<div class="rendered-blocks"><div class="block-item"><aside class="my-note">Note</aside></div></div>',
+    };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockResponse,
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const blockOutput = { html: ['<aside class="my-note">Note</aside>'] };
+    const html = await generatePreview('render-blocks', blockOutput);
+    expect(html).toContain('rendered-blocks');
+    expect(html).toContain('my-note');
+    expect(mockFetch).toHaveBeenCalledWith('/__dev/api/preview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-aegis-dev': '1',
+      },
+      body: JSON.stringify({ hook: 'render-blocks', output: blockOutput }),
+    });
+  });
 });

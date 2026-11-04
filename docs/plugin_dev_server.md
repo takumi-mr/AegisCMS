@@ -14,8 +14,8 @@
 # 既存の公式プラグインで開発サーバーを起動 (既定: http://127.0.0.1:8091)
 task dev:plugin -- plugins/official-code-enhancer
 
-# task を入れていないときは同じ意味のコマンド（初回は aegis-server 全体をビルドするので 5〜7 分かかる）
-cargo run -p aegis-server -- plugin dev plugins/official-code-enhancer
+# task を入れていないときは同じ意味のコマンド（独立クレート aegis-plugin-dev により初回でも数秒〜数十秒で起動）
+cargo run -p aegis-plugin-dev -- plugins/official-code-enhancer
 
 # フロントエンド開発 UI (Plugin Builder) を起動 (http://localhost:5175)
 task dev:plugin-builder

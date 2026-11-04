@@ -9,7 +9,7 @@
 
 ## 直近の着手タスク
 
-1. **プラグイン例の Plugin Builder 上での動作確認**: `sdk/examples/assemblyscript-hooks` と `sdk/tinygo/examples/hooks` は実ホストの統合テスト（`sdk_hook_examples.rs`）で検証済み。Plugin Builder の画面上でも `task dev:plugin` で動かして確認する。
+（現在対応中のタスクはありません。未着手タスクから選択してください）
 
 ---
 
@@ -24,7 +24,6 @@
 ## 未着手タスク (Backlog)
 
 ### 🔌 プラグイン・将来構想
-- [ ] **プラグイン開発の入口の残り課題（新規参入者の試作で出たもの。Rust のブロックは手順書とテンプレートで解消済み）**: (1) `task plugin:new NAME` のようなひな形の生成（独立 crate 化・`path` の深さ・名前の置換を自動にする）、(2) 開発サーバーだけを軽くビルドできる仕組み（今は `aegis-server` 全体で初回 5〜7 分。ビルド済みバイナリの配布か、別 crate への分離）、(3) AssemblyScript / TinyGo の SDK が `render-blocks` などどのフックに対応しているかの一覧（ガイドは `on_before_save` の例だけ）、(4) Plugin Builder・Admin Studio でのブロック挿入は未検証。
 - [ ] **公開中のコンテンツの変更のレビュー（検討。要望が出てから）**: レビュー（[architecture.md 3.4a](docs/architecture.md#34a-コンテンツのレビュー-aegis-serversrcreviewrs)）は公開前の 1 段だけで、寄稿者は公開後の自分の記事を直せない（編集者に頼む）。公開版のポインター（`publish: false` の保存）を使えば、公開版を残したまま変更をレビューに出せる余地がある。段階を自由に組めるワークフローは作らない方針。
 - [ ] **テンプレートからの動的コンテンツ取得関数（検討）**: `latest("article", 5, category="news")` などの MiniJinja グローバル関数または事前取得宣言機構。
 
