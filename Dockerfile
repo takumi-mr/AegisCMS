@@ -22,6 +22,7 @@ RUN npm run build
 # ベースイメージはバージョンを固定する（`latest` は Rust のリリースごとに変わり、
 # レイヤーキャッシュが無効になるうえ、実行環境 (bookworm) と OS がずれるため）
 FROM rust:1.99.1-slim-bookworm AS chef
+ENV CARGO_INCREMENTAL=0
 WORKDIR /build
 
 # ビルドツール（OpenSSLやビルド補助）と cargo-chef の準備
@@ -45,7 +46,9 @@ FROM chef AS rust-builder
 # ビルドプロファイル。CI のビルド検証では LTO を省いた ci-release を渡して時間を短縮する
 ARG CARGO_PROFILE=release
 COPY --from=planner /build/recipe.json recipe.json
-RUN cargo chef cook --profile ${CARGO_PROFILE} -p aegis-server --recipe-path recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo chef cook --profile ${CARGO_PROFILE} -p aegis-server --recipe-path recipe.json
 
 # 2-3. ソースコードをコピーして本番用最適化リリースビルド（ワークスペースのクレートのみ再コンパイル）
 COPY Cargo.toml Cargo.lock ./
@@ -55,7 +58,9 @@ COPY config/ ./config/
 COPY schemas/ ./schemas/
 COPY sdk/ ./sdk/
 COPY plugins/ ./plugins/
-RUN cargo build --profile ${CARGO_PROFILE} -p aegis-server \
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo build --profile ${CARGO_PROFILE} -p aegis-server \
     && cp target/${CARGO_PROFILE}/aegis-server /build/aegis-server
 
 # ==========================================
