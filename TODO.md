@@ -27,8 +27,7 @@
 - [ ] **テンプレートからの動的コンテンツ取得関数（検討）**: `latest("article", 5, category="news")` などの MiniJinja グローバル関数または事前取得宣言機構。
 
 ### 🚀 性能最適化
-- [ ] **公開版の一覧の残り課題（記事数に比例する処理）**: 記事ページ・トップ・カテゴリの一覧は、公開の記録の列と索引で記事数に依らなくなった（[architecture.md 2.2](docs/architecture.md#22-databaseadapter)・[12](docs/architecture.md#12-性能の記録)）。残るのは次のとおり。
-  - **PostgreSQL / MySQL の実機検証**: 新しい SQL（`build_published_list` など）と列・索引の追加は、SQLite では結合テストと実測で確かめたが、Docker のエンジンが動かない環境だったため実機では未検証。`task docker:dbs:up` のあとに `cargo test -p aegis-db --test published_list_integration` を流す（コンテナが無いと PostgreSQL / MySQL の分はスキップされる）。MySQL の索引はキー長が 3,072 バイト以内（utf8mb4 で最大 2,680）に収まる設計。
+- [ ] **公開版の一覧の残り課題（記事数に比例する処理）**: 記事ページ・トップ・カテゴリの一覧は、公開の記録の列と索引で記事数に依らなくなった（[architecture.md 2.2](docs/architecture.md#22-databaseadapter)・[12](docs/architecture.md#12-性能の記録)）。PostgreSQL / MySQL も実機で結合テストを確認済み（`published_list_integration`）。残るのは次のとおり。
   - **まだ全件を読む経路**: タグの記事一覧（`tags_public.rs`）、サイトマップ、フィード（カテゴリ別を含む。`ArticleFilter::Ids` や `category_id` 以外の絞り込み）、サイト内検索、壊れたリンクの検査。サイトマップ・検索・検査は性質上全件が要るが、フィードとタグの一覧は件数を切れる（ID の集合での絞り込みを SQL にする）。
   - **人気のタグ**: 関連記事の `TagCategoryRelatedStrategy` は、記事のタグごとに、そのタグの全リンク（ID だけ）を読む。1 つのタグが何千件もの記事に付いていると、その分が毎回かかる。上位だけを数える SQL にする。
   - **起動時のマイグレーション**: 公開の記録の無い公開中の行を探すのに、全件を読んで 1 件ずつ `COUNT(*)` している（`run_migrations`）。`NOT EXISTS` の 1 回にする。記事 1 万件で数秒。
