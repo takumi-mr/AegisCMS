@@ -5,6 +5,10 @@ pub mod types;
 
 pub use aegis_plugin_macros::aegis_plugin;
 pub use host::{config, http, kv, log, net};
+/// `#[aegis_plugin]` と `register_plugin!` が展開するコードが使う `serde_json`。プラグイン側の
+/// `Cargo.toml` に `serde_json` を書かなくても展開できるように再エクスポートする
+/// （プラグインのコードで `serde_json` を直接使うなら、これまでどおり依存に足してよい）
+pub use serde_json;
 pub use types::{
     BlockNode, CommentSubmission, CommentVerdict, Delivery, NotificationMessage, OrderAdjustment,
     OrderContext, OrderLine, OrderStatusChange, Plugin, PluginError, PostContext, PublishedContent,
@@ -25,20 +29,21 @@ macro_rules! register_plugin {
         pub extern "C" fn on_before_save(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = $crate::abi::read_bytes_from_host(ptr, len);
-                let post: $crate::types::PostContext = match ::serde_json::from_slice(&in_bytes) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        $crate::log_error!("Failed to deserialize PostContext: {}", e);
-                        return $crate::abi::write_error_to_host(&::std::format!(
-                            "Invalid PostContext: {}",
-                            e
-                        ));
-                    }
-                };
+                let post: $crate::types::PostContext =
+                    match $crate::serde_json::from_slice(&in_bytes) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            $crate::log_error!("Failed to deserialize PostContext: {}", e);
+                            return $crate::abi::write_error_to_host(&::std::format!(
+                                "Invalid PostContext: {}",
+                                e
+                            ));
+                        }
+                    };
 
                 let mut plugin = <$plugin_type as ::std::default::Default>::default();
                 match <$plugin_type as $crate::types::Plugin>::on_before_save(&mut plugin, post) {
-                    Ok(updated_post) => match ::serde_json::to_vec(&updated_post) {
+                    Ok(updated_post) => match $crate::serde_json::to_vec(&updated_post) {
                         Ok(out_bytes) => $crate::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             $crate::log_error!("Failed to serialize updated PostContext: {}", e);
@@ -60,24 +65,24 @@ macro_rules! register_plugin {
         pub extern "C" fn on_user_authenticated(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = $crate::abi::read_bytes_from_host(ptr, len);
-                let ctx: $crate::types::UserAuthContext = match ::serde_json::from_slice(&in_bytes)
-                {
-                    Ok(p) => p,
-                    Err(e) => {
-                        $crate::log_error!("Failed to deserialize UserAuthContext: {}", e);
-                        return $crate::abi::write_error_to_host(&::std::format!(
-                            "Invalid UserAuthContext: {}",
-                            e
-                        ));
-                    }
-                };
+                let ctx: $crate::types::UserAuthContext =
+                    match $crate::serde_json::from_slice(&in_bytes) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            $crate::log_error!("Failed to deserialize UserAuthContext: {}", e);
+                            return $crate::abi::write_error_to_host(&::std::format!(
+                                "Invalid UserAuthContext: {}",
+                                e
+                            ));
+                        }
+                    };
 
                 let mut plugin = <$plugin_type as ::std::default::Default>::default();
                 match <$plugin_type as $crate::types::Plugin>::on_user_authenticated(
                     &mut plugin,
                     ctx,
                 ) {
-                    Ok(updated_ctx) => match ::serde_json::to_vec(&updated_ctx) {
+                    Ok(updated_ctx) => match $crate::serde_json::to_vec(&updated_ctx) {
                         Ok(out_bytes) => $crate::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             $crate::log_error!(
@@ -103,7 +108,7 @@ macro_rules! register_plugin {
             unsafe {
                 let in_bytes = $crate::abi::read_bytes_from_host(ptr, len);
                 let blocks: ::std::vec::Vec<$crate::types::BlockNode> =
-                    match ::serde_json::from_slice(&in_bytes) {
+                    match $crate::serde_json::from_slice(&in_bytes) {
                         Ok(b) => b,
                         Err(e) => {
                             $crate::log_error!("Failed to deserialize BlockNode list: {}", e);
@@ -116,7 +121,7 @@ macro_rules! register_plugin {
                     &mut plugin,
                     blocks,
                 ) {
-                    Ok(updated_blocks) => match ::serde_json::to_vec(&updated_blocks) {
+                    Ok(updated_blocks) => match $crate::serde_json::to_vec(&updated_blocks) {
                         Ok(out_bytes) => $crate::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             $crate::log_error!("Failed to serialize updated BlockNode list: {}", e);
@@ -229,7 +234,7 @@ macro_rules! register_plugin {
             unsafe {
                 let in_bytes = $crate::abi::read_bytes_from_host(ptr, len);
                 let ctx: $crate::types::PageRenderContext =
-                    match ::serde_json::from_slice(&in_bytes) {
+                    match $crate::serde_json::from_slice(&in_bytes) {
                         Ok(c) => c,
                         Err(e) => {
                             $crate::log_error!("Failed to deserialize PageRenderContext: {}", e);
@@ -239,7 +244,7 @@ macro_rules! register_plugin {
 
                 let mut plugin = <$plugin_type as ::std::default::Default>::default();
                 match <$plugin_type as $crate::types::Plugin>::on_render_page(&mut plugin, ctx) {
-                    Ok(updated_ctx) => match ::serde_json::to_vec(&updated_ctx) {
+                    Ok(updated_ctx) => match $crate::serde_json::to_vec(&updated_ctx) {
                         Ok(out_bytes) => $crate::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             $crate::log_error!(

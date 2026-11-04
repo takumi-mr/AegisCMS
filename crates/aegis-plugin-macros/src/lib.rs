@@ -58,7 +58,7 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         pub extern "C" fn on_before_save(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = ::aegis_plugin_sdk::abi::read_bytes_from_host(ptr, len);
-                let post: ::aegis_plugin_sdk::types::PostContext = match ::serde_json::from_slice(&in_bytes) {
+                let post: ::aegis_plugin_sdk::types::PostContext = match ::aegis_plugin_sdk::serde_json::from_slice(&in_bytes) {
                     Ok(p) => p,
                     Err(e) => {
                         ::aegis_plugin_sdk::log_error!("Failed to deserialize PostContext: {}", e);
@@ -68,7 +68,7 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 let mut plugin = <#ident_type as ::std::default::Default>::default();
                 match <#ident_type as ::aegis_plugin_sdk::types::Plugin>::on_before_save(&mut plugin, post) {
-                    Ok(updated_post) => match ::serde_json::to_vec(&updated_post) {
+                    Ok(updated_post) => match ::aegis_plugin_sdk::serde_json::to_vec(&updated_post) {
                         Ok(out_bytes) => ::aegis_plugin_sdk::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             ::aegis_plugin_sdk::log_error!("Failed to serialize updated PostContext: {}", e);
@@ -87,7 +87,7 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         pub extern "C" fn on_user_authenticated(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = ::aegis_plugin_sdk::abi::read_bytes_from_host(ptr, len);
-                let ctx: ::aegis_plugin_sdk::types::UserAuthContext = match ::serde_json::from_slice(&in_bytes) {
+                let ctx: ::aegis_plugin_sdk::types::UserAuthContext = match ::aegis_plugin_sdk::serde_json::from_slice(&in_bytes) {
                     Ok(p) => p,
                     Err(e) => {
                         ::aegis_plugin_sdk::log_error!("Failed to deserialize UserAuthContext: {}", e);
@@ -97,7 +97,7 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 let mut plugin = <#ident_type as ::std::default::Default>::default();
                 match <#ident_type as ::aegis_plugin_sdk::types::Plugin>::on_user_authenticated(&mut plugin, ctx) {
-                    Ok(updated_ctx) => match ::serde_json::to_vec(&updated_ctx) {
+                    Ok(updated_ctx) => match ::aegis_plugin_sdk::serde_json::to_vec(&updated_ctx) {
                         Ok(out_bytes) => ::aegis_plugin_sdk::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             ::aegis_plugin_sdk::log_error!("Failed to serialize updated UserAuthContext: {}", e);
@@ -116,7 +116,7 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         pub extern "C" fn transform_content_ast(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = ::aegis_plugin_sdk::abi::read_bytes_from_host(ptr, len);
-                let blocks: ::std::vec::Vec<::aegis_plugin_sdk::types::BlockNode> = match ::serde_json::from_slice(&in_bytes) {
+                let blocks: ::std::vec::Vec<::aegis_plugin_sdk::types::BlockNode> = match ::aegis_plugin_sdk::serde_json::from_slice(&in_bytes) {
                     Ok(b) => b,
                     Err(e) => {
                         ::aegis_plugin_sdk::log_error!("Failed to deserialize BlockNode list: {}", e);
@@ -126,7 +126,7 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 let mut plugin = <#ident_type as ::std::default::Default>::default();
                 match <#ident_type as ::aegis_plugin_sdk::types::Plugin>::transform_content_ast(&mut plugin, blocks) {
-                    Ok(updated_blocks) => match ::serde_json::to_vec(&updated_blocks) {
+                    Ok(updated_blocks) => match ::aegis_plugin_sdk::serde_json::to_vec(&updated_blocks) {
                         Ok(out_bytes) => ::aegis_plugin_sdk::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             ::aegis_plugin_sdk::log_error!("Failed to serialize updated BlockNode list: {}", e);
@@ -205,7 +205,7 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         pub extern "C" fn on_render_page(ptr: i32, len: i32) -> i64 {
             unsafe {
                 let in_bytes = ::aegis_plugin_sdk::abi::read_bytes_from_host(ptr, len);
-                let ctx: ::aegis_plugin_sdk::types::PageRenderContext = match ::serde_json::from_slice(&in_bytes) {
+                let ctx: ::aegis_plugin_sdk::types::PageRenderContext = match ::aegis_plugin_sdk::serde_json::from_slice(&in_bytes) {
                     Ok(c) => c,
                     Err(e) => {
                         ::aegis_plugin_sdk::log_error!("Failed to deserialize PageRenderContext: {}", e);
@@ -215,7 +215,7 @@ pub fn aegis_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 let mut plugin = <#ident_type as ::std::default::Default>::default();
                 match <#ident_type as ::aegis_plugin_sdk::types::Plugin>::on_render_page(&mut plugin, ctx) {
-                    Ok(updated_ctx) => match ::serde_json::to_vec(&updated_ctx) {
+                    Ok(updated_ctx) => match ::aegis_plugin_sdk::serde_json::to_vec(&updated_ctx) {
                         Ok(out_bytes) => ::aegis_plugin_sdk::abi::write_bytes_to_host(out_bytes),
                         Err(e) => {
                             ::aegis_plugin_sdk::log_error!("Failed to serialize updated PageRenderContext: {}", e);

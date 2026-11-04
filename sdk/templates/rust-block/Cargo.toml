@@ -1,0 +1,13 @@
+[package]
+name = "aegis-plugin-block-template"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Plugin Developer"]
+description = "Official Rust WebAssembly template for a plugin that adds a custom block (render-blocks)"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# serde_json は SDK が再エクスポートしているので、ここに書かなくてよい（aegis_plugin_sdk::serde_json）
+aegis-plugin-sdk = { path = "../../../crates/aegis-plugin-sdk", version = "0.2.0" }

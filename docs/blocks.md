@@ -147,3 +147,15 @@ Markdown では 1 行で書き、属性は JSON のオブジェクトです（�
 ```
 
 JSON として読めない行は、そのまま段落になります。
+
+API からは、`blocks` の要素に `name` と `attributes` を書きます（`<プラグイン名>/<ブロック名>`。HTML は書かず、プラグインが表示のたびに作ります）。
+
+```bash
+curl -X POST http://localhost:8080/api/v1/contents/article \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"title": "例", "slug": "example", "status": "draft",
+       "blocks": [{"name": "official-blocks/button",
+                   "attributes": {"label": "はじめる", "url": "/docs/start", "style": "primary"}}]}'
+```
+
+作り方は [最初のブロックプラグインを作る](plugin_block_tutorial.md) にまとめています。

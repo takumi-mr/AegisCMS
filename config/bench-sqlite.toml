@@ -128,7 +128,7 @@ issuer_url = ""
 client_id = ""
 client_secret = ""
 redirect_url = "http://127.0.0.1:8080/api/v1/auth/oidc/callback"
-# Create unknown users on their first login (false: only users linked with `aegis user link-oidc`)
+# Create unknown users on their first login (false: only users linked with `aegis-server user link-oidc`)
 auto_create_users = true
 default_role = "viewer"
 # Claim that decides the role on every login, e.g. "groups" (empty: the account's role applies)
@@ -156,7 +156,7 @@ name_id_format = ""
 username_attribute = ""
 email_attribute = "email"
 display_name_attribute = "displayName"
-# Create unknown users on their first login (false: only users linked with `aegis user link-saml`)
+# Create unknown users on their first login (false: only users linked with `aegis-server user link-saml`)
 auto_create_users = true
 default_role = "viewer"
 # Attribute that decides the role on every login, e.g. "groups" (empty: the account's role applies)
