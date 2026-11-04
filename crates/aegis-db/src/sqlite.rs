@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use std::sync::Arc;
 
 use crate::sqlx_compat as sqlx;
 use aegis_core::{AegisError, AuditEvent, AuditQuery, Result};
@@ -18,9 +19,9 @@ use super::{
     build_settings_table, build_user_delete, build_user_insert, build_user_select,
     build_user_update, custom_columns, is_standard_column, user_row_from_sqlx, ContentListQuery,
     ContentPage, ContentPublicationChange, ContentRecord, ContentVersionRecord, DatabaseAdapter,
-    ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE, USER_AVATAR_COLUMN,
-    USER_BACKUP_CODES_COLUMN, USER_PENDING_APPROVAL_COLUMN, USER_TABLE, USER_TOTP_ENABLED_COLUMN,
-    USER_TOTP_SECRET_COLUMN,
+    LegacyPublishedTracker, PublishedNeighborQuery, ResolvedRelation, UserRecord, AUDIT_INDEXES,
+    AUDIT_TABLE, PUBLICATION_INDEXES, USER_AVATAR_COLUMN, USER_BACKUP_CODES_COLUMN,
+    USER_PENDING_APPROVAL_COLUMN, USER_TABLE, USER_TOTP_ENABLED_COLUMN, USER_TOTP_SECRET_COLUMN,
 };
 
 async fn apply_publication_change(
@@ -62,9 +63,11 @@ async fn apply_publication_change(
         .get(index)
         .ok_or_else(|| AegisError::Database("Publication revision index is out of range".into()))?;
     let record = super::record_from_content_version(version)?;
-    sqlx::query("INSERT INTO _aegis_content_publications (content_type, content_id, revision, slug, title, status, published_at, unpublish_at, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) ON CONFLICT(content_type, content_id) DO UPDATE SET revision = excluded.revision, slug = excluded.slug, title = excluded.title, status = excluded.status, published_at = excluded.published_at, unpublish_at = excluded.unpublish_at, created_at = excluded.created_at, updated_at = excluded.updated_at")
+    let (category_id, sort_at) = super::publication_columns(&record);
+    sqlx::query("INSERT INTO _aegis_content_publications (content_type, content_id, revision, slug, title, status, published_at, unpublish_at, created_at, updated_at, category_id, sort_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT(content_type, content_id) DO UPDATE SET revision = excluded.revision, slug = excluded.slug, title = excluded.title, status = excluded.status, published_at = excluded.published_at, unpublish_at = excluded.unpublish_at, created_at = excluded.created_at, updated_at = excluded.updated_at, category_id = excluded.category_id, sort_at = excluded.sort_at")
         .bind(&version.content_type).bind(&version.content_id).bind(revision).bind(&record.slug).bind(&record.title)
         .bind(&record.status).bind(&record.published_at).bind(&record.unpublish_at).bind(&record.created_at).bind(&record.updated_at)
+        .bind(&category_id).bind(&sort_at)
         .execute(connection).await.map_err(|e| AegisError::Database(e.to_string()))?;
     Ok(())
 }
@@ -144,6 +147,8 @@ fn record_from_row(schema: &SchemaDefinition, r: &SqliteRow) -> ContentRecord {
 #[derive(Debug, Clone)]
 pub struct SqliteAdapter {
     pool: Pool<Sqlite>,
+    /// 公開の記録の無い公開中の行がありうるか（`LegacyPublishedTracker`）。複製どうしで共有する
+    legacy: Arc<LegacyPublishedTracker>,
 }
 
 impl SqliteAdapter {
@@ -161,12 +166,137 @@ impl SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
 
-        Ok(Self { pool })
+        Ok(Self::new(pool))
     }
 
     #[allow(dead_code)]
     pub fn new(pool: Pool<Sqlite>) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            legacy: Arc::new(LegacyPublishedTracker::new()),
+        }
+    }
+
+    /// 公開の記録に後から足した列（`category_id`, `sort_at`）と索引を、以前のバージョンで作った
+    /// テーブルにも用意し、まだ値を入れていない行をスナップショットから埋める
+    async fn upgrade_publications(&self) -> Result<()> {
+        let columns: HashSet<String> =
+            sqlx::query("PRAGMA table_info(_aegis_content_publications);")
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?
+                .into_iter()
+                .map(|r| r.get::<String, _>("name"))
+                .collect();
+        for column in ["category_id", "sort_at"] {
+            if !columns.contains(column) {
+                sqlx::query(&format!(
+                    "ALTER TABLE _aegis_content_publications ADD COLUMN {} TEXT;",
+                    column
+                ))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))?;
+            }
+        }
+        for (name, columns) in PUBLICATION_INDEXES {
+            sqlx::query(&format!(
+                "CREATE INDEX IF NOT EXISTS {} ON _aegis_content_publications {};",
+                name, columns
+            ))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        let pending = sqlx::query("SELECT p.content_type, p.content_id, v.snapshot_json FROM _aegis_content_publications p JOIN _aegis_content_versions v ON v.content_type = p.content_type AND v.content_id = p.content_id AND v.revision = p.revision WHERE p.category_id IS NULL OR p.sort_at IS NULL")
+            .fetch_all(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        for row in &pending {
+            let (category_id, sort_at) =
+                super::publication_columns_from_snapshot(&row.get::<String, _>("snapshot_json"))?;
+            sqlx::query("UPDATE _aegis_content_publications SET category_id = ?1, sort_at = ?2 WHERE content_type = ?3 AND content_id = ?4")
+                .bind(category_id).bind(sort_at)
+                .bind(row.get::<String, _>("content_type")).bind(row.get::<String, _>("content_id"))
+                .execute(&mut *tx).await.map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+        tx.commit()
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))
+    }
+
+    fn published_records(rows: &[SqliteRow]) -> Result<Vec<ContentRecord>> {
+        rows.iter()
+            .map(|row| {
+                super::published_record_from_snapshot(
+                    &row.get::<String, _>("snapshot_json"),
+                    row.get("status"),
+                    row.get("published_at"),
+                    row.get("unpublish_at"),
+                    row.get("updated_at"),
+                )
+            })
+            .collect()
+    }
+
+    /// 公開の記録の無い公開中の行（作業テーブルだけにある行）も含めて、全件を読んで結合する遅い経路
+    async fn list_published_with_legacy(
+        &self,
+        schema: &SchemaDefinition,
+        query: &ContentListQuery,
+    ) -> Result<ContentPage> {
+        let status = query.status.as_deref();
+        let select = if status.is_some() {
+            "SELECT v.snapshot_json, p.status, p.published_at, p.unpublish_at, p.updated_at FROM _aegis_content_publications p JOIN _aegis_content_versions v ON v.content_type = p.content_type AND v.content_id = p.content_id AND v.revision = p.revision WHERE p.content_type = ?1 AND p.status = ?2 ORDER BY p.created_at DESC, p.content_id DESC"
+        } else {
+            "SELECT v.snapshot_json, p.status, p.published_at, p.unpublish_at, p.updated_at FROM _aegis_content_publications p JOIN _aegis_content_versions v ON v.content_type = p.content_type AND v.content_id = p.content_id AND v.revision = p.revision WHERE p.content_type = ?1 ORDER BY p.created_at DESC, p.content_id DESC"
+        };
+        let mut rows_query = sqlx::query(select).bind(&schema.content_type);
+        if let Some(status) = status {
+            rows_query = rows_query.bind(status);
+        }
+        let rows = rows_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        let records = rows
+            .iter()
+            .map(|row| {
+                super::published_record_from_snapshot(
+                    &row.get::<String, _>("snapshot_json"),
+                    row.get("status"),
+                    row.get("published_at"),
+                    row.get("unpublish_at"),
+                    row.get("updated_at"),
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let legacy_working = if status.is_none() || status == Some("published") {
+            self.list_contents_page(
+                schema,
+                &ContentListQuery {
+                    status: Some("published".into()),
+                    ..ContentListQuery::default()
+                },
+            )
+            .await?
+            .records
+        } else {
+            Vec::new()
+        };
+        let (records, legacy_working) =
+            super::filter_published_by_category(records, legacy_working, query);
+        Ok(super::merge_published_content_records(
+            records,
+            legacy_working,
+            query,
+        ))
     }
 }
 
@@ -197,8 +327,9 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn init(&self) -> Result<()> {
         sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_versions (content_type TEXT NOT NULL, content_id TEXT NOT NULL, revision INTEGER NOT NULL, snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL, created_by TEXT, change_note TEXT, PRIMARY KEY(content_type, content_id, revision));")
             .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
-        sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_publications (content_type TEXT NOT NULL, content_id TEXT NOT NULL, revision INTEGER NOT NULL, slug TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, published_at TEXT, unpublish_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(content_type, content_id), UNIQUE(content_type, slug));")
+        sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_publications (content_type TEXT NOT NULL, content_id TEXT NOT NULL, revision INTEGER NOT NULL, slug TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, published_at TEXT, unpublish_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, category_id TEXT, sort_at TEXT, PRIMARY KEY(content_type, content_id), UNIQUE(content_type, slug));")
             .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
+        self.upgrade_publications().await?;
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS _aegis_migrations (
@@ -696,6 +827,8 @@ impl DatabaseAdapter for SqliteAdapter {
             }
         }
 
+        // 公開の記録の無い公開中の行は、上で全部移した
+        self.legacy.set_possible(false);
         Ok(())
     }
 
@@ -704,6 +837,7 @@ impl DatabaseAdapter for SqliteAdapter {
         schema: &SchemaDefinition,
         record: &ContentRecord,
     ) -> Result<()> {
+        self.legacy.note_write(record);
         let table = schema.table_name();
         let mut columns = vec![
             "id".to_string(),
@@ -831,6 +965,7 @@ impl DatabaseAdapter for SqliteAdapter {
         schema: &SchemaDefinition,
         record: &ContentRecord,
     ) -> Result<bool> {
+        self.legacy.note_write(record);
         let sql = build_content_update(&schema.table_name(), &custom_columns(schema), |i| {
             format!("?{}", i)
         });
@@ -986,50 +1121,55 @@ impl DatabaseAdapter for SqliteAdapter {
         schema: &SchemaDefinition,
         query: &ContentListQuery,
     ) -> Result<ContentPage> {
-        let status = query.status.as_deref();
-        let select = if status.is_some() {
-            "SELECT v.snapshot_json, p.status, p.published_at, p.unpublish_at, p.updated_at FROM _aegis_content_publications p JOIN _aegis_content_versions v ON v.content_type = p.content_type AND v.content_id = p.content_id AND v.revision = p.revision WHERE p.content_type = ?1 AND p.status = ?2 ORDER BY p.created_at DESC, p.content_id DESC"
-        } else {
-            "SELECT v.snapshot_json, p.status, p.published_at, p.unpublish_at, p.updated_at FROM _aegis_content_publications p JOIN _aegis_content_versions v ON v.content_type = p.content_type AND v.content_id = p.content_id AND v.revision = p.revision WHERE p.content_type = ?1 ORDER BY p.created_at DESC, p.content_id DESC"
-        };
-        let mut rows_query = sqlx::query(select).bind(&schema.content_type);
-        if let Some(status) = status {
-            rows_query = rows_query.bind(status);
+        if self.legacy.possible() {
+            return self.list_published_with_legacy(schema, query).await;
+        }
+        let list = super::build_published_list(&schema.content_type, query, |i| format!("?{}", i));
+        let mut rows_query = sqlx::query(&list.sql);
+        for value in &list.binds {
+            rows_query = rows_query.bind(value);
         }
         let rows = rows_query
             .fetch_all(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
-        let records = rows
-            .iter()
-            .map(|row| {
-                super::published_record_from_snapshot(
-                    &row.get::<String, _>("snapshot_json"),
-                    row.get("status"),
-                    row.get("published_at"),
-                    row.get("unpublish_at"),
-                    row.get("updated_at"),
-                )
-            })
-            .collect::<Result<Vec<_>>>()?;
-        let legacy_working = if status.is_none() || status == Some("published") {
-            self.list_contents_page(
-                schema,
-                &ContentListQuery {
-                    status: Some("published".into()),
-                    ..ContentListQuery::default()
-                },
-            )
-            .await?
-            .records
+        let records = Self::published_records(&rows)?;
+        let total = if query.limit.is_some() {
+            let count =
+                super::build_published_count(&schema.content_type, query, |i| format!("?{}", i));
+            let mut count_query = sqlx::query_scalar::<_, i64>(&count.sql);
+            for value in &count.binds {
+                count_query = count_query.bind(value);
+            }
+            count_query
+                .fetch_one(&self.pool)
+                .await
+                .map_err(|e| AegisError::Database(e.to_string()))? as u64
         } else {
-            Vec::new()
+            records.len() as u64
         };
-        Ok(super::merge_published_content_records(
-            records,
-            legacy_working,
-            query,
-        ))
+        Ok(ContentPage { records, total })
+    }
+
+    async fn list_published_neighbors(
+        &self,
+        schema: &SchemaDefinition,
+        query: &PublishedNeighborQuery,
+    ) -> Result<Vec<ContentRecord>> {
+        if self.legacy.possible() {
+            return super::published_neighbors_from_list(self, schema, query).await;
+        }
+        let neighbors =
+            super::build_published_neighbors(&schema.content_type, query, |i| format!("?{}", i));
+        let mut rows_query = sqlx::query(&neighbors.sql);
+        for value in &neighbors.binds {
+            rows_query = rows_query.bind(value);
+        }
+        let rows = rows_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+        Self::published_records(&rows)
     }
 
     async fn publish_scheduled_content(

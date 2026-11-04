@@ -12,6 +12,7 @@ use aegis_db::{ContentListQuery, ContentRecord};
 use aegis_schema::SchemaDefinition;
 use async_trait::async_trait;
 
+use crate::handlers::content::is_currently_published;
 use crate::handlers::public::extract_excerpt;
 use crate::handlers::tags_public::TagLookup;
 use crate::render;
@@ -81,21 +82,56 @@ impl RelatedArticlesStrategy for TagCategoryRelatedStrategy {
             }
         }
 
-        // 2. 公開中の記事一覧を取得
-        let query = ContentListQuery {
-            limit: Some(100),
-            ..Default::default()
-        };
-        let published_records = match state.db.list_published_contents_page(schema, &query).await {
-            Ok(page) => page.records,
-            Err(_) => Vec::new(),
-        };
-
         let current_category = current_record
             .custom_fields
             .get("category_id")
             .and_then(|v| v.as_str())
             .filter(|s| !s.trim().is_empty());
+
+        // 2. 候補を、全件を読まずに必要な分だけ引く（公開中のもの。重複は 1 件にまとめる）
+        //    - タグが一致した記事: 一致数の多い順に `limit` の 3 倍まで（ID で 1 件ずつ）
+        //    - 同じカテゴリの新しい記事、新しい記事: それぞれ `limit` + 1 件（自分自身を除く分）
+        let now = chrono::Utc::now();
+        let mut candidates: HashMap<String, ContentRecord> = HashMap::new();
+        let mut keep = |record: ContentRecord| {
+            if record.id != current_record.id
+                && is_currently_published(&record.status, record.unpublish_at.as_deref(), now)
+            {
+                candidates.entry(record.id.clone()).or_insert(record);
+            }
+        };
+
+        let mut tagged: Vec<(&String, &usize)> = tag_match_counts.iter().collect();
+        tagged.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
+        for (id, _) in tagged.into_iter().take(limit.saturating_mul(3)) {
+            if let Ok(Some(record)) = state.db.get_published_content(schema, id).await {
+                keep(record);
+            }
+        }
+
+        let recent = |filters: Vec<(String, Option<String>)>| ContentListQuery {
+            status: Some("published".to_string()),
+            filters,
+            limit: Some(limit as u64 + 1),
+            ..Default::default()
+        };
+        if let Some(category) = current_category {
+            let query = recent(vec![(
+                "category_id".to_string(),
+                Some(category.to_string()),
+            )]);
+            if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
+                page.records.into_iter().for_each(&mut keep);
+            }
+        }
+        if let Ok(page) = state
+            .db
+            .list_published_contents_page(schema, &recent(Vec::new()))
+            .await
+        {
+            page.records.into_iter().for_each(&mut keep);
+        }
+        let published_records: Vec<ContentRecord> = candidates.into_values().collect();
 
         // 候補記事を優先度で分類
         // グループ 0: タグ一致あり (tag_count 降順)
