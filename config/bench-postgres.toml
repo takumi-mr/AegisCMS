@@ -1,6 +1,6 @@
 [server]
 host = "127.0.0.1"
-port = 8080
+port = 8088
 # Path to serve under behind a reverse proxy, e.g. "/cms" for https://example.com/cms/ (empty: the root).
 # See docs/configuration.md "リバースプロキシ配下での運用"
 base_path = ""
@@ -97,9 +97,9 @@ enforce_image_lazy_loading = true
 enforce_image_async_decoding = true
 
 [audit]
-enabled = true
+enabled = false
 # Sinks: "database" (audit_logs table + GET /api/v1/audit-logs) | "log" (JSON lines on the aegis::audit target) | "prometheus" (GET /metrics)
-sinks = ["database"]
+sinks = []
 # Use the first X-Forwarded-For address as the client IP for audit logs and login rate limits
 # (enable only behind a trusted reverse proxy)
 trust_forwarded_for = false

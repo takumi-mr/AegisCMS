@@ -64,8 +64,9 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **データベース別パフォーマンス特性（実測ベンチマーク比較）**:
   - 同一リリースバイナリ（Release / LTO 有効）を用いて、SQLite（WAL）、PostgreSQL 16（Docker）、MySQL 8.0（Docker）の主要エンドポイント（並行 50）を比較（詳細は [docs/development.md](development.md#63-データベース別パフォーマンス比較-task-benchdbs--scriptscompare-dbsmjs) 参照）。
   - **読み込み（公開トップページ）**: SQLite (WAL) が約 2,730 req/s（p50: 17.8ms）に対し、PostgreSQL / MySQL はコネクションプール（既定 10）と TCP ラウンドトリップにより約 490 req/s（p50: 95ms）。
-  - **同期 INSERT（未認証 401 による監査ログ記録）**: SQLite (WAL) は約 2,010 req/s、PostgreSQL は約 990 req/s を維持する一方、MySQL は InnoDB のトランザクション同期コミットとプール待ちにより約 230 req/s（p50: 178ms, p99: 675ms）まで低下。
-  - **示唆**: SQLite 単体では WAL モードにより同期 INSERT でも十分なスループットが出ているが、外部 RDBMS（特に MySQL）ではリクエスト中の同期 INSERT が明確なボトルネックとなる。そのため、高スループットな外部 DB 運用では、監査ログを `database` ではなく `log` 出力先（標準出力 + 外部収集）に逃がす（[audit.md 1.1](audit.md#11-出力先の選び方)）。
+  - **監査ログ DB 書き込み除外（純粋パフォーマンス）**: 監査ログの DB 同期 INSERT を除外した推奨構成（`sinks = ["log"]` 等）では、未認証 401 は 3 つのエンジンとも約 1,600〜1,960 req/s（p50 約 25ms）に揃い、MySQL の 401 応答は 230 → 1,965 req/s（約 8.5 倍）へ改善。純粋なコンテンツ一覧 API（DB クエリ + リレーション解決）でも外部 DB は約 820〜860 req/s、SQLite は約 1,560 req/s を発揮。
+  - **同期 INSERT（未認証 401 による監査ログ記録）**: `database` シンクを有効にした場合、SQLite (WAL) は約 2,010 req/s、PostgreSQL は約 990 req/s を維持する一方、MySQL は InnoDB のトランザクション同期コミットとプール待ちにより約 230 req/s（p50: 178ms, p99: 675ms）まで低下。
+  - **示唆**: SQLite 単体では WAL モードにより同期 INSERT でも十分なスループットが出ているが、外部 RDBMS（特に MySQL）ではリクエスト中の同期 INSERT が明確なボトルネックとなる。そのため、高スループットな外部 DB 運用では、監査ログを `database` ではなく `log` 出力先（標準出力 + 外部収集）に逃がすことで本来の性能が引き出される（[audit.md 1.1](audit.md#11-出力先の選び方)）。
 
 ### 2.3 スキーマからのコード生成とシステム標準カラム
 
