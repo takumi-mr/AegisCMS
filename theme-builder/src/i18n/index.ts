@@ -63,4 +63,3 @@ i18n.on('languageChanged', (language) => {
 export const currentLanguage = (): Language => (isLanguage(i18n.language) ? i18n.language : 'ja');
 
 export default i18n;
-
