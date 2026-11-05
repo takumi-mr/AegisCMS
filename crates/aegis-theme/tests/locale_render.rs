@@ -195,6 +195,15 @@ fn contexts() -> Vec<PageRenderContext> {
         fields: product(json!(0)),
         ..base("product.html")
     });
+    // レビュー欄（`reviews_enabled` のときだけ読み込まれる）
+    let mut with_reviews = PageRenderContext {
+        fields: product(json!(3)),
+        ..base("product.html")
+    };
+    with_reviews
+        .theme_vars
+        .insert("reviews_enabled".to_string(), "true".to_string());
+    out.push(with_reviews);
     // ショップを使わず、外部の購入ページへ案内する商品
     let mut external = PageRenderContext {
         fields: product(json!(3)),
