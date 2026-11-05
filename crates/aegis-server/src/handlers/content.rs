@@ -1656,6 +1656,7 @@ mod tests {
                     max_length: Some(100),
                     target: None,
                     indexed_paths: vec![],
+                    public: true,
                 },
                 FieldDefinition {
                     name: "slug".to_string(),
@@ -1667,6 +1668,7 @@ mod tests {
                     max_length: None,
                     target: None,
                     indexed_paths: vec![],
+                    public: true,
                 },
             ],
         };
@@ -1686,6 +1688,7 @@ mod tests {
                     max_length: Some(255),
                     target: None,
                     indexed_paths: vec![],
+                    public: true,
                 },
                 FieldDefinition {
                     name: "category_id".to_string(),
@@ -1697,6 +1700,7 @@ mod tests {
                     max_length: None,
                     target: Some("category.id".to_string()),
                     indexed_paths: vec![],
+                    public: true,
                 },
             ],
         };

@@ -292,6 +292,9 @@
           "nullable": {
             "type": "boolean"
           },
+          "public": {
+            "type": "boolean"
+          },
           "required": {
             "type": "boolean"
           },

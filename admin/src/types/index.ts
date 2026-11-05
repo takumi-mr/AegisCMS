@@ -11,6 +11,8 @@ export interface FieldDefinition {
   max_length?: number;
   target?: string;
   indexed_paths: string[];
+  /** Whether the public delivery API returns the field (default: true) */
+  public: boolean;
 }
 
 export interface SchemaDefinition {

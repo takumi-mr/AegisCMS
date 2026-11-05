@@ -31,6 +31,13 @@ pub struct FieldDefinition {
     pub target: Option<String>,
     #[serde(default)]
     pub indexed_paths: Vec<String>,
+    /// 公開の配信 API（ヘッドレス）に出すか。既定は出す。内部向けのフィールドにだけ `false` を書く
+    #[serde(default = "default_public")]
+    pub public: bool,
+}
+
+fn default_public() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -82,6 +89,7 @@ impl FieldDefinition {
             max_length: None,
             target: Some("category.id".to_string()),
             indexed_paths: Vec::new(),
+            public: true,
         }
     }
 }

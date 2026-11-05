@@ -101,4 +101,21 @@ mod tests {
         assert_eq!(names, vec!["category_id", "excerpt"]);
         assert_eq!(schema.fields[0].field_type, FieldType::Relation);
     }
+
+    #[test]
+    fn fields_are_public_unless_marked_private() {
+        let yaml = "content_type: article\nlabel: A\nfields:\n  - name: excerpt\n    type: string\n  - name: internal_note\n    type: string\n    public: false\n";
+        let schema = SchemaLoader::load_from_str(yaml).unwrap();
+        let public_of = |name: &str| {
+            schema
+                .fields
+                .iter()
+                .find(|f| f.name == name)
+                .map(|f| f.public)
+        };
+        assert_eq!(public_of("excerpt"), Some(true));
+        assert_eq!(public_of("internal_note"), Some(false));
+        // 組み込みの category_id は常に公開する
+        assert_eq!(public_of("category_id"), Some(true));
+    }
 }
