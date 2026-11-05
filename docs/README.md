@@ -45,7 +45,7 @@ AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラ�
 |---|---|---|
 | [メディア & ストレージ管理 (`media.md`)](media.md) | アップロード処理、画像最適化、ファイルサイズ制限、ストレージ操作 API | 運用者・開発者 |
 | [サイト内検索 (`search.md`)](search.md) | tantivy を用いた全文検索、インデックス構築・自動更新、検索 API / 画面表示 | 運用者・開発者 |
-| [ヘッドレス配信 API（設計） (`headless.md`)](headless.md) | 認証なしで公開済みコンテンツだけを JSON で返す読み取り API の設計案（未実装）。スキーマ駆動の応答、クレート構成、安全性、決めること | コア開発者 |
+| [ヘッドレス配信 API（設計） (`headless.md`)](headless.md) | 認証なしで公開済みコンテンツだけを JSON で返す読み取り API の設計（未実装）。スキーマ駆動の応答、クレート構成、安全性、決めたこと | コア開発者 |
 | [アクセス解析 (`analytics.md`)](analytics.md) | Cookie を使用しないプライバシー配慮型軽量アクセス解析、統計収集と Admin Studio 表示 | 運用者 |
 | [問い合わせフォーム (`contact.md`)](contact.md) | 設定ファイルによるフォーム動的生成、ボット対策、通知連携、Admin Studio 受信箱 | 運用者・制作者 |
 | [Cookie の同意バナー (`consent.md`)](consent.md) | 同意が要る広告・解析・埋め込みを、同意があるまで実行しないバナー、`data-aegis-consent` の書き方、JavaScript の API | 運用者・制作者 |
