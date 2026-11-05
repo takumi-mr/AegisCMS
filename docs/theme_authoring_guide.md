@@ -105,7 +105,7 @@ themes/my-theme/
 | `/forum` 以下 | `forum_index.html` / `forum_category.html` / `forum_thread.html` | [掲示板](forum.md#2-公開サイト) |
 | 見つからない・非公開 | `404.html` | `title`（`Page Not Found`）、`content_html`（理由の一文） |
 | `/products` | `products.html` | `title`、`items`、`pagination`、`theme_vars` |
-| `/products/{slug}` | `product.html` | `title`、`content_html`、`fields`（`price` / `stock` など）、`relations`、`theme_vars` |
+| `/products/{slug}` | `product.html` | `title`、`content_html`、`fields`（`price` / `stock` など）、`relations`、`theme_vars`（`reviews_*` を含む。レビュー欄は [顧客アカウント 4.4](customers.md#44-商品ページのレビュー)） |
 | `/cart` | `cart.html` | `theme_vars` |
 | `/orders/{id}` | `order.html` | `slug`（注文 ID）、`theme_vars` |
 | `/account`・`/account/login`・`/account/register` | `account.html` | `slug`（`home` / `login` / `register`）、`theme_vars`（`account_*`。[顧客アカウント 4.3](customers.md#43-テーマ)） |

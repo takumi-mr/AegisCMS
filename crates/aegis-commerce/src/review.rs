@@ -84,8 +84,9 @@ impl From<ReviewRecord> for PublicReview {
     }
 }
 
-/// JSON-LD の AggregateRating 構造
+/// JSON-LD の AggregateRating 構造（schema.org のプロパティ名: `ratingValue`・`reviewCount`・`bestRating`・`worstRating`）
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct JsonLdAggregateRating {
     #[serde(rename = "@type")]
     pub schema_type: String,

@@ -748,6 +748,7 @@ impl ThemeEngine {
                     "order.html" => Ok(Some(ORDER_TEMPLATE.to_string())),
                     "account.html" => Ok(Some(ACCOUNT_TEMPLATE.to_string())),
                     "comments.html" => Ok(Some(COMMENTS_TEMPLATE.to_string())),
+                    "reviews.html" => Ok(Some(REVIEWS_TEMPLATE.to_string())),
                     "forum_common.html" => Ok(Some(FORUM_COMMON_TEMPLATE.to_string())),
                     "forum_index.html" => Ok(Some(FORUM_INDEX_TEMPLATE.to_string())),
                     "forum_category.html" => Ok(Some(FORUM_CATEGORY_TEMPLATE.to_string())),
