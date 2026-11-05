@@ -26,4 +26,3 @@
 
 ### 🚀 性能最適化
 - [ ] **`on-render-page` の結果キャッシュの利用状況を見えるようにする**: `WasmEngine::render_cache_stats()`（ヒット・ミス・設定変更で使えなかった回数・保存数）はあるが、サーバーの外からは見えない。ヒット率が低いサイト（記事ごとに 1 回しか見られない長い裾野）ではサーバー内のキャッシュが効かず、CDN に任せるほうが合うので、判断の材料として `/metrics` などに出す（[architecture.md 10.8](docs/architecture.md#108-on-render-page-の結果のキャッシュ-aegis-runtimesrcwasmresult_cachers)）。
-- [ ] **SDK が変更したキーだけ返す仕組み（検討）**: 本文を読むプラグインは、SDK の `PageRenderContext` が本文を含めて全体を返すため、返送側の JSON の書き出しが本文に比例して残る（キャッシュに当たらない最初の 1 回）。ホストは返したキーだけ上書きする（[5.3.1](docs/plugin_abi_specification.md#531-オブジェクトを返すフックの部分更新)）ので、SDK 側で変えたキーだけ返せば足りる。`content_html` を空で返したときの扱い（従来は「本文を消す」）の互換が論点。
