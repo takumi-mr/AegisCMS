@@ -8,19 +8,18 @@ mod tests {
     use aegis_core::AegisError;
     use aegis_db::{create_database_adapter, DatabaseAdapter, DatabaseConfig};
 
-    use crate::customer::{
-        CustomerLoginRequest, CustomerRegisterRequest, CustomerService,
-        CustomerUpdateProfileRequest,
+    use crate::member::{
+        MemberLoginRequest, MemberRegisterRequest, MemberService, MemberUpdateProfileRequest,
     };
 
-    async fn setup_service() -> (CustomerService, Arc<dyn DatabaseAdapter>) {
+    async fn setup_service() -> (MemberService, Arc<dyn DatabaseAdapter>) {
         let config = DatabaseConfig {
             url: "sqlite::memory:".to_string(),
             ..DatabaseConfig::default()
         };
         let db = create_database_adapter(&config).await.unwrap();
         db.init().await.unwrap();
-        let service = CustomerService::new(
+        let service = MemberService::new(
             db.clone(),
             Arc::new(aegis_cache::MemoryCacheBackend::new()),
             Arc::new(AuditService::with_sinks(vec![])),
@@ -28,8 +27,8 @@ mod tests {
         (service, db)
     }
 
-    fn register_request(email: &str) -> CustomerRegisterRequest {
-        CustomerRegisterRequest {
+    fn register_request(email: &str) -> MemberRegisterRequest {
+        MemberRegisterRequest {
             email: email.to_string(),
             password: "password123".to_string(),
             name: "Hanako".to_string(),
@@ -38,10 +37,10 @@ mod tests {
         }
     }
 
-    async fn log_in(service: &CustomerService, email: &str, password: &str) -> String {
+    async fn log_in(service: &MemberService, email: &str, password: &str) -> String {
         let (session, _) = service
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: email.to_string(),
                     password: password.to_string(),
                 },
@@ -66,7 +65,7 @@ mod tests {
             .request_password_reset("Reset@Example.com", None)
             .await
             .unwrap()
-            .expect("a customer with that email");
+            .expect("a member with that email");
         assert_eq!(requested.email, "reset@example.com");
         assert_eq!(requested.token.len(), 64);
 
@@ -85,7 +84,7 @@ mod tests {
         log_in(&service, "reset@example.com", "brand-new-password").await;
         let old = service
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: "reset@example.com".to_string(),
                     password: "password123".to_string(),
                 },
@@ -125,9 +124,9 @@ mod tests {
             Err(AegisError::Validation(_))
         ));
 
-        // 停止中の顧客には送らない
+        // 停止中の会員には送らない
         let id = db
-            .get_customer_by_email("known@example.com")
+            .get_member_by_email("known@example.com")
             .await
             .unwrap()
             .unwrap()
@@ -206,7 +205,7 @@ mod tests {
         service
             .update_profile(
                 &registered.id,
-                CustomerUpdateProfileRequest {
+                MemberUpdateProfileRequest {
                     name: None,
                     phone: None,
                     shipping_address: None,
@@ -243,7 +242,7 @@ mod tests {
         let after = log_in(&service, "sess@example.com", "reset-password-1").await;
         assert!(service.verify_session(&after).await.unwrap().is_some());
 
-        // 停止中の顧客に、セッションを作り直さない
+        // 停止中の会員に、セッションを作り直さない
         service
             .admin_set_status(&registered.id, "suspended")
             .await

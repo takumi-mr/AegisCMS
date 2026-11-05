@@ -306,17 +306,18 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | `api_base` | string | `"https://api.stripe.com"` | API の URL（テスト用） |
 | `async_payment_due_hours` | integer | `72` | コンビニ払いなど後払いの支払い期限（その間は在庫を確保したまま） |
 
-#### `[commerce.customers]`
+### 2.12a `[members]` — 会員アカウント
 
-購入者のアカウント（会員登録・ログイン・注文履歴。[顧客アカウント](./customers.md)）。`[commerce].enabled = true` のときに使われます。管理アカウントとは別です。
+訪問者のアカウント（会員登録・ログイン。ショップの注文履歴・レビュー、掲示板で共通。[会員アカウント](./members.md)）。管理アカウントとは別です。以前の `[commerce.customers]` はここに移りました（古い書き方が残っていると、起動時にエラーになります）。
 
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
-| `enabled` | bool | `true` | `false` で顧客の API（`/api/v1/customers/...`）を無効にする（404）。ゲスト購入とレビューは使える |
-| `registration` | string | `"open"` | `"open"` は誰でも登録できる。`"closed"` は新規の登録だけを止める（403。登録済みの顧客はログインできる） |
+| `enabled` | bool | `false` | `true` で会員アカウントを使う。`false` なら会員の API と画面は 404（ゲスト購入は使える） |
+| `registration` | string | `"open"` | `"open"` は誰でも登録できる。`"closed"` は新規の登録だけを止める（403。登録済みの会員はログインできる） |
 | `session_days` | integer | `30` | ログインの有効期間（日。1〜365） |
-| `require_email_verification` | bool | `false` | `true` で、会員登録のあと、確認メールのリンクを開くまでログインできない。確認メールを送れること（`[notifications]` が有効で、`[commerce].public_url` がある）が要り、満たさないと**起動時にエラー**になる（誰もログインできなくなるため）。登録の応答は、アドレスが登録済みかどうかによらず同じ |
-| `password_reset` | bool | `true` | パスワードの再設定（メールのリンク）を使う。`[notifications]` が有効で、`[commerce].public_url` が設定されているときだけ動く（メールのリンクは `Host` ヘッダーではなく、この URL から作る）。使えないときは API とページが 404 で、ログイン画面に「忘れたとき」のリンクは出ない |
+| `require_email_verification` | bool | `false` | `true` で、会員登録のあと、確認メールのリンクを開くまでログインできない。確認メールを送れること（`[notifications]` が有効で、`public_url` がある）が要る。満たさないと起動しない |
+| `password_reset` | bool | `true` | パスワードの再設定（メールのリンク）を使う。`[notifications]` が有効で、`public_url` が設定されているときだけ動く（メールのリンクは `Host` ヘッダーではなく `public_url` から作る） |
+| `public_url` | string | `""` | 会員のメール（再設定・確認）のリンクの元になるサイトの URL（例 `https://example.com`）。注文確認のリンクの `[commerce].public_url` とは別 |
 
 ### 2.13 `[notifications]` — 通知（メール）
 

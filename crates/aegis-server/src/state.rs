@@ -64,8 +64,8 @@ pub struct AppState {
     pub saml: Option<SamlLogin>,
     /// EC（`[commerce]`）。無効なら `None`
     pub commerce: Option<Arc<aegis_commerce::CommerceService>>,
-    /// 顧客アカウント（EC 顧客・`_aegis_users` とは別管理）。無効なら `None`
-    pub customers: Option<Arc<aegis_commerce::CustomerService>>,
+    /// 会員アカウント（EC 顧客・`_aegis_users` とは別管理）。無効なら `None`
+    pub members: Option<Arc<aegis_commerce::MemberService>>,
     /// 商品レビュー。無効なら `None`
     pub reviews: Option<Arc<aegis_commerce::ReviewService>>,
     /// 読者のコメント（`[comments]`）。無効なら `None`
@@ -190,7 +190,7 @@ impl AppState {
             oidc: None,
             saml: None,
             commerce: None,
-            customers: None,
+            members: None,
             reviews: None,
             comments: None,
             tags: None,
@@ -303,9 +303,9 @@ impl AppState {
         self
     }
 
-    /// 顧客アカウントサービスを有効にする
-    pub fn with_customers(mut self, customers: aegis_commerce::CustomerService) -> Self {
-        self.customers = Some(Arc::new(customers));
+    /// 会員アカウントサービスを有効にする
+    pub fn with_members(mut self, members: aegis_commerce::MemberService) -> Self {
+        self.members = Some(Arc::new(members));
         self
     }
 

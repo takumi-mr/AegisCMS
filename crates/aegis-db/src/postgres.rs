@@ -198,7 +198,7 @@ super::notifications::impl_notification_queue_storage!(
     "Postgres"
 );
 super::forum::impl_forum_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
-super::customers::impl_customer_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::members::impl_member_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::reviews::impl_review_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 
 #[async_trait]
@@ -313,13 +313,13 @@ impl DatabaseAdapter for PostgresAdapter {
         }
 
         // 顧客
-        let (customer_table, customer_indexes) =
-            super::customers::build_customer_table("TEXT", "VARCHAR(255)", false);
-        sqlx::query(&customer_table)
+        let (member_table, member_indexes) =
+            super::members::build_member_table("TEXT", "VARCHAR(255)", false);
+        sqlx::query(&member_table)
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in customer_indexes {
+        for index in member_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

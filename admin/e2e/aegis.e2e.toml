@@ -44,6 +44,11 @@ currency = "jpy"
 provider = "manual"
 public_url = "http://127.0.0.1:18080"
 
+# 会員アカウント（account.spec.ts など）。メールの確認は account-verify.spec.ts が API を差し替えて検証する
+[members]
+enabled = true
+public_url = "http://127.0.0.1:18080"
+
 # 招待・通知の E2E 検証用（log チャンネルなので外部 SMTP 不要。notifications.spec.ts も使う）
 [notifications]
 enabled = true

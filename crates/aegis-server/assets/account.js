@@ -1,10 +1,10 @@
 /*
- * Customer account pages: log in, sign up and "my page" (profile, order history, reviews).
+ * Member account pages: log in, sign up and "my page" (profile, order history, reviews).
  * Served at /shop/account.js and loaded by account.html with
- *   <script src="..." data-api="{base}/api/v1/customers" data-account-url="{base}/account"
+ *   <script src="..." data-api="{base}/api/v1/members" data-account-url="{base}/account"
  *           data-login-url="..." data-register-url="..." data-min-password="8" defer></script>
  * The session lives in an HttpOnly cookie that the server sets at login: this script never sees the token.
- * Every request is JSON to the customers API; the page is built with textContent only (no HTML from data).
+ * Every request is JSON to the members API; the page is built with textContent only (no HTML from data).
  * The texts come from window.AEGIS_CART_I18N ({ locale, messages }) in the language of [theme].locale.
  * Error messages from the API are shown as they are (English).
  */
@@ -16,7 +16,7 @@
   if (!root) return;
 
   var config = {
-    api: (script && script.dataset.api) || '/api/v1/customers',
+    api: (script && script.dataset.api) || '/api/v1/members',
     accountUrl: (script && script.dataset.accountUrl) || '/account',
     loginUrl: (script && script.dataset.loginUrl) || '/account/login',
     registerUrl: (script && script.dataset.registerUrl) || '',
@@ -422,13 +422,13 @@
     ]);
   }
 
-  function profileSection(customer) {
+  function profileSection(member) {
     var panel = h('div', {}, []);
     var profile = form(
       [
-        field(msg('acct_name'), input('name', 'text', { required: true, value: customer.name || '', autocomplete: 'name' })),
-        field(msg('acct_email'), input('email', 'email', { value: customer.email, disabled: true })),
-        field(msg('acct_phone'), input('phone', 'tel', { value: customer.phone || '', autocomplete: 'tel' })),
+        field(msg('acct_name'), input('name', 'text', { required: true, value: member.name || '', autocomplete: 'name' })),
+        field(msg('acct_email'), input('email', 'email', { value: member.email, disabled: true })),
+        field(msg('acct_phone'), input('phone', 'tel', { value: member.phone || '', autocomplete: 'tel' })),
       ],
       msg('acct_save'),
       function (data, status) {
@@ -482,7 +482,7 @@
     show([h('p', { class: 'aegis-muted' }, [msg('acct_loading')])]);
     Promise.all([api('GET', '/me'), api('GET', '/orders'), api('GET', '/reviews')])
       .then(function (results) {
-        var customer = results[0];
+        var member = results[0];
         var orders = results[1].orders || [];
         var reviews = results[2].reviews || [];
         var logout = h('button', { type: 'button', class: 'aegis-button aegis-secondary' }, [msg('acct_logout')]);
@@ -496,7 +496,7 @@
         });
 
         show([
-          h('div', { class: 'aegis-order-head' }, [h('p', {}, [msg('acct_welcome', { name: customer.name })]), logout]),
+          h('div', { class: 'aegis-order-head' }, [h('p', {}, [msg('acct_welcome', { name: member.name })]), logout]),
           h('section', {}, [
             h('h2', {}, [msg('acct_orders')]),
             orders.length
@@ -509,7 +509,7 @@
               ? h('ul', { class: 'aegis-account-list' }, reviews.map(reviewRow))
               : h('p', { class: 'aegis-muted' }, [msg('acct_no_reviews')]),
           ]),
-          profileSection(customer),
+          profileSection(member),
           deleteSection(),
         ]);
       })

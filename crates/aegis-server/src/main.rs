@@ -834,6 +834,7 @@ async fn main() -> anyhow::Result<()> {
             config.plugins.validate()?;
             config.theme.validate()?;
             config.commerce.validate()?;
+            config.members.validate()?;
             config.comments.validate()?;
             config.tags.validate()?;
             if config.consent.enabled {
@@ -1178,18 +1179,6 @@ async fn main() -> anyhow::Result<()> {
                     config.commerce.provider
                 );
 
-                // 確認メールを送れないのに確認を必須にすると、誰もログインできない。起動時に止める
-                config
-                    .commerce
-                    .customers
-                    .check_mail(app_state.notifier.is_some(), &config.commerce.public_url)?;
-                // [commerce.customers]。使わない設定なら顧客の API は 404（ゲスト購入とレビューは使える）
-                let customers = aegis_commerce::CustomerService::from_config(
-                    &config.commerce.customers,
-                    app_state.db.clone(),
-                    app_state.cache.clone(),
-                    app_state.audit.clone(),
-                );
                 let reviews = aegis_commerce::ReviewService::new(
                     app_state.db.clone(),
                     app_state.audit.clone(),
@@ -1197,13 +1186,26 @@ async fn main() -> anyhow::Result<()> {
                     config.comments.moderation.clone(),
                 );
 
-                let app_state = app_state.with_commerce(commerce).with_reviews(reviews);
-                match customers {
-                    Some(customers) => app_state.with_customers(customers),
-                    None => app_state,
-                }
+                app_state.with_commerce(commerce).with_reviews(reviews)
             } else {
                 app_state
+            };
+            // 6.7b 会員アカウント（[members]。ショップ・掲示板が共通で使う。ショップが無効でも動く）
+            let app_state = {
+                // 確認メールを送れないのに確認を必須にすると、誰もログインできない。起動時に止める
+                config.members.check_mail(app_state.notifier.is_some())?;
+                match aegis_commerce::MemberService::from_config(
+                    &config.members,
+                    app_state.db.clone(),
+                    app_state.cache.clone(),
+                    app_state.audit.clone(),
+                ) {
+                    Some(members) => {
+                        tracing::info!("Member accounts enabled");
+                        app_state.with_members(members)
+                    }
+                    None => app_state,
+                }
             };
             // 6.8 コメント（[comments]）。通知と Admin Studio の URL を使うのでその後に設定する
             let app_state = if config.comments.enabled {

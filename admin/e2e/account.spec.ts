@@ -2,13 +2,13 @@ import { expect, test } from '@playwright/test';
 
 const SERVER = 'http://127.0.0.1:18080';
 
-// The customer account pages of the shop (/account): sign up, my page, log out and log in again.
+// The member account pages of the shop (/account): sign up, my page, log out and log in again.
 // The page is built by /shop/account.js; the login lives in an HttpOnly cookie
-test.describe('Customer account pages', () => {
+test.describe('Member account pages', () => {
   test('signs up, sees the empty order history, logs out and logs in again', async ({ page }) => {
     const suffix = Date.now();
-    const email = `customer-${suffix}@example.com`;
-    const password = 'customer-password-123';
+    const email = `member-${suffix}@example.com`;
+    const password = 'member-password-123';
 
     // Not logged in: my page sends the visitor to the login page
     await page.goto(`${SERVER}/account`);
@@ -31,13 +31,13 @@ test.describe('Customer account pages', () => {
     await expect(page.getByText('You have not written a review yet.')).toBeVisible();
 
     // The token never reaches the page's scripts: the cookie is HttpOnly
-    expect(await page.evaluate(() => document.cookie)).not.toContain('_customer=');
+    expect(await page.evaluate(() => document.cookie)).not.toContain('_member=');
     const cookies = await page.context().cookies(SERVER);
-    const session = cookies.find((cookie) => cookie.name.endsWith('_customer'));
+    const session = cookies.find((cookie) => cookie.name.endsWith('_member'));
     expect(session?.httpOnly).toBe(true);
     expect(session?.sameSite).toBe('Lax');
 
-    // The login and sign-up pages send a logged-in customer to my page
+    // The login and sign-up pages send a logged-in member to my page
     await page.goto(`${SERVER}/account/login`);
     await expect(page).toHaveURL(`${SERVER}/account`);
 
@@ -74,7 +74,7 @@ test.describe('Customer account pages', () => {
       await page.goto(`${SERVER}/account/register`);
       await page.getByLabel('Name').fill('Someone');
       await page.getByLabel('Email').fill(email);
-      await page.getByLabel(/^Password/).fill('customer-password-123');
+      await page.getByLabel(/^Password/).fill('member-password-123');
       await page.getByRole('button', { name: 'Sign up' }).click();
     };
     await register();

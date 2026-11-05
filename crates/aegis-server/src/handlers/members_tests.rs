@@ -1,4 +1,4 @@
-//! 顧客アカウント・商品レビューの HTTP 統合テスト（ルーター経由）
+//! 会員アカウント・商品レビューの HTTP 統合テスト（ルーター経由）
 
 use std::sync::Arc;
 
@@ -40,6 +40,7 @@ async fn setup_app() -> TestContext {
 
 async fn setup_app_with(configure: impl FnOnce(&mut AegisConfig)) -> TestContext {
     let mut config = AegisConfig::default();
+    config.members.enabled = true;
     configure(&mut config);
     config.commerce.enabled = true;
     config.commerce.product_type = "product".to_string();
@@ -56,9 +57,9 @@ async fn setup_app_with(configure: impl FnOnce(&mut AegisConfig)) -> TestContext
     let commerce =
         aegis_commerce::CommerceService::new(config.commerce.clone(), state.commerce_deps())
             .unwrap();
-    // サーバーと同じく、設定（[commerce.customers]）から作る
-    let customers = aegis_commerce::CustomerService::from_config(
-        &config.commerce.customers,
+    // サーバーと同じく、設定（[members]）から作る
+    let members = aegis_commerce::MemberService::from_config(
+        &config.members,
         state.db.clone(),
         state.cache.clone(),
         state.audit.clone(),
@@ -71,8 +72,8 @@ async fn setup_app_with(configure: impl FnOnce(&mut AegisConfig)) -> TestContext
     );
 
     let state = state.with_commerce(commerce).with_reviews(reviews);
-    let state = Arc::new(match customers {
-        Some(customers) => state.with_customers(customers),
+    let state = Arc::new(match members {
+        Some(members) => state.with_members(members),
         None => state,
     });
 
@@ -102,7 +103,7 @@ async fn json_response(res: axum::response::Response) -> Value {
 }
 
 #[tokio::test]
-async fn test_customer_lifecycle_and_reviews_e2e() {
+async fn test_member_lifecycle_and_reviews_e2e() {
     let ctx = setup_app().await;
 
     // 商品コンテンツを挿入
@@ -131,14 +132,14 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
         .await
         .unwrap();
 
-    // 1. 顧客アカウント登録 (POST /api/v1/customers/register)
+    // 1. 会員アカウント登録 (POST /api/v1/members/register)
     let register_req = Request::builder()
         .method("POST")
-        .uri("/api/v1/customers/register")
+        .uri("/api/v1/members/register")
         .header("content-type", "application/json")
         .body(Body::from(
             json!({
-                "email": "customer@example.com",
+                "email": "member@example.com",
                 "password": "SecretPassword123",
                 "name": "Taro Yamada",
                 "phone": "090-1111-2222"
@@ -150,16 +151,16 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     let res = ctx.app.clone().oneshot(register_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let body = json_response(res).await;
-    let customer_id = body["customer"]["id"].as_str().unwrap().to_string();
+    let member_id = body["member"]["id"].as_str().unwrap().to_string();
 
-    // 2. 顧客ログイン (POST /api/v1/customers/login)
+    // 2. 会員ログイン (POST /api/v1/members/login)
     let login_req = Request::builder()
         .method("POST")
-        .uri("/api/v1/customers/login")
+        .uri("/api/v1/members/login")
         .header("content-type", "application/json")
         .body(Body::from(
             json!({
-                "email": "customer@example.com",
+                "email": "member@example.com",
                 "password": "SecretPassword123"
             })
             .to_string(),
@@ -169,28 +170,28 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     let res = ctx.app.clone().oneshot(login_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body = json_response(res).await;
-    let customer_token = body["token"].as_str().unwrap().to_string();
-    assert!(customer_token.starts_with("cses_"));
+    let member_token = body["token"].as_str().unwrap().to_string();
+    assert!(member_token.starts_with("mses_"));
 
-    // 3. 顧客プロフィール取得 (GET /api/v1/customers/me)
+    // 3. 会員プロフィール取得 (GET /api/v1/members/me)
     let me_req = Request::builder()
         .method("GET")
-        .uri("/api/v1/customers/me")
-        .header("authorization", format!("Bearer {}", customer_token))
+        .uri("/api/v1/members/me")
+        .header("authorization", format!("Bearer {}", member_token))
         .body(Body::empty())
         .unwrap();
 
     let res = ctx.app.clone().oneshot(me_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let me = json_response(res).await;
-    assert_eq!(me["email"], "customer@example.com");
+    assert_eq!(me["email"], "member@example.com");
     assert_eq!(me["name"], "Taro Yamada");
 
-    // 4. カートチェックアウト (POST /api/v1/shop/checkout) — 顧客トークンで注文作成
+    // 4. カートチェックアウト (POST /api/v1/shop/checkout) — 会員トークンで注文作成
     let checkout_req = Request::builder()
         .method("POST")
         .uri("/api/v1/shop/checkout")
-        .header("authorization", format!("Bearer {}", customer_token))
+        .header("authorization", format!("Bearer {}", member_token))
         .header("content-type", "application/json")
         .body(Body::from(
             json!({
@@ -217,11 +218,11 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     let order_body = json_response(res).await;
     let order_id = order_body["order"]["id"].as_str().unwrap().to_string();
 
-    // 5. 顧客の注文履歴 (GET /api/v1/customers/orders)
+    // 5. 会員の注文履歴 (GET /api/v1/members/orders)
     let orders_req = Request::builder()
         .method("GET")
-        .uri("/api/v1/customers/orders")
-        .header("authorization", format!("Bearer {}", customer_token))
+        .uri("/api/v1/members/orders")
+        .header("authorization", format!("Bearer {}", member_token))
         .body(Body::empty())
         .unwrap();
 
@@ -249,7 +250,7 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     let review_req = Request::builder()
         .method("POST")
         .uri("/api/v1/products/prod_kb_01/reviews")
-        .header("authorization", format!("Bearer {}", customer_token))
+        .header("authorization", format!("Bearer {}", member_token))
         .header("content-type", "application/json")
         .body(Body::from(
             json!({
@@ -277,7 +278,7 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     let dup_review_req = Request::builder()
         .method("POST")
         .uri("/api/v1/products/prod_kb_01/reviews")
-        .header("authorization", format!("Bearer {}", customer_token))
+        .header("authorization", format!("Bearer {}", member_token))
         .header("content-type", "application/json")
         .body(Body::from(
             json!({
@@ -297,7 +298,7 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     let unpurchased_review_req = Request::builder()
         .method("POST")
         .uri("/api/v1/products/prod_unpurchased/reviews")
-        .header("authorization", format!("Bearer {}", customer_token))
+        .header("authorization", format!("Bearer {}", member_token))
         .header("content-type", "application/json")
         .body(Body::from(
             json!({
@@ -336,35 +337,33 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     assert_eq!(pub_reviews["json_ld"]["ratingValue"], 5.0);
     assert_eq!(pub_reviews["json_ld"]["reviewCount"], 1);
 
-    // 10. 管理者: 顧客一覧・詳細取得 (GET /api/v1/admin/customers)
-    let admin_customers_req = Request::builder()
+    // 10. 管理者: 会員一覧・詳細取得 (GET /api/v1/admin/members)
+    let admin_members_req = Request::builder()
         .method("GET")
-        .uri("/api/v1/admin/customers")
+        .uri("/api/v1/admin/members")
         .header("authorization", format!("Bearer {}", ctx.admin_token))
         .body(Body::empty())
         .unwrap();
 
-    let res = ctx.app.clone().oneshot(admin_customers_req).await.unwrap();
+    let res = ctx.app.clone().oneshot(admin_members_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let admin_cust_body = json_response(res).await;
     assert_eq!(admin_cust_body["total"], 1);
-    assert_eq!(admin_cust_body["customers"][0]["id"], customer_id);
-    assert!(admin_cust_body["customers"][0]
-        .get("password_hash")
-        .is_none());
+    assert_eq!(admin_cust_body["members"][0]["id"], member_id);
+    assert!(admin_cust_body["members"][0].get("password_hash").is_none());
 
     // 詳細: 注文は一覧に要る項目だけ（トークンのハッシュなどを載せない）
     let detail_req = Request::builder()
         .method("GET")
-        .uri(format!("/api/v1/admin/customers/{}", customer_id))
+        .uri(format!("/api/v1/admin/members/{}", member_id))
         .header("authorization", format!("Bearer {}", ctx.admin_token))
         .body(Body::empty())
         .unwrap();
     let res = ctx.app.clone().oneshot(detail_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let detail = json_response(res).await;
-    assert_eq!(detail["customer"]["id"], customer_id);
-    assert!(detail["customer"].get("password_hash").is_none());
+    assert_eq!(detail["member"]["id"], member_id);
+    assert!(detail["member"].get("password_hash").is_none());
     for order in detail["orders"].as_array().unwrap() {
         let mut keys: Vec<&String> = order.as_object().unwrap().keys().collect();
         keys.sort();
@@ -431,14 +430,14 @@ async fn post_json(ctx: &TestContext, path: &str, body: Value) -> axum::response
 }
 
 fn registration(email: &str) -> Value {
-    json!({ "email": email, "password": "password123", "name": "Test Customer" })
+    json!({ "email": email, "password": "password123", "name": "Test Member" })
 }
 
-/// `[commerce.customers].enabled = false`: 顧客の API は 404（レビューなど、ほかの EC の機能は動く）
+/// `[members].enabled = false`: 会員の API は 404（レビューなど、ほかの EC の機能は動く）
 #[tokio::test]
-async fn test_customer_api_is_off_when_disabled() {
-    let ctx = setup_app_with(|config| config.commerce.customers.enabled = false).await;
-    for path in ["/api/v1/customers/register", "/api/v1/customers/login"] {
+async fn test_member_api_is_off_when_disabled() {
+    let ctx = setup_app_with(|config| config.members.enabled = false).await;
+    for path in ["/api/v1/members/register", "/api/v1/members/login"] {
         let res = post_json(&ctx, path, registration("off@example.com")).await;
         assert_eq!(res.status(), StatusCode::NOT_FOUND, "{path}");
         let body = json_response(res).await;
@@ -446,26 +445,26 @@ async fn test_customer_api_is_off_when_disabled() {
     }
 }
 
-/// `registration = "closed"`: 新規の登録は 403。登録済みの顧客はログインできる
+/// `registration = "closed"`: 新規の登録は 403。登録済みの会員はログインできる
 #[tokio::test]
 async fn test_closed_registration_over_http() {
     // 開いた設定では登録できる
     let open = setup_app().await;
     let res = post_json(
         &open,
-        "/api/v1/customers/register",
+        "/api/v1/members/register",
         registration("a@example.com"),
     )
     .await;
     assert_eq!(res.status(), StatusCode::CREATED);
 
     let closed = setup_app_with(|config| {
-        config.commerce.customers.registration = aegis_commerce::CustomerRegistration::Closed;
+        config.members.registration = aegis_commerce::MemberRegistration::Closed;
     })
     .await;
     let res = post_json(
         &closed,
-        "/api/v1/customers/register",
+        "/api/v1/members/register",
         registration("b@example.com"),
     )
     .await;

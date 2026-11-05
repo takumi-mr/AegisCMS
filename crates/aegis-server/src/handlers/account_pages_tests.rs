@@ -1,4 +1,4 @@
-//! 顧客アカウントのページ（`/account`、ログインの Cookie、`/shop/account.js`）の結合テスト（ルーター経由）
+//! 会員アカウントのページ（`/account`、ログインの Cookie、`/shop/account.js`）の結合テスト（ルーター経由）
 
 use std::sync::Arc;
 
@@ -64,6 +64,7 @@ impl Reply {
 async fn site_with(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     let mut config = AegisConfig::default();
     config.commerce.enabled = true;
+    config.members.enabled = true;
     config.commerce.product_type = "product".to_string();
     configure(&mut config);
 
@@ -76,15 +77,15 @@ async fn site_with(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     let commerce =
         aegis_commerce::CommerceService::new(config.commerce.clone(), state.commerce_deps())
             .unwrap();
-    let customers = aegis_commerce::CustomerService::from_config(
-        &config.commerce.customers,
+    let members = aegis_commerce::MemberService::from_config(
+        &config.members,
         state.db.clone(),
         state.cache.clone(),
         state.audit.clone(),
     );
     let state = state.with_commerce(commerce);
-    let state: Arc<AppState> = Arc::new(match customers {
-        Some(customers) => state.with_customers(customers),
+    let state: Arc<AppState> = Arc::new(match members {
+        Some(members) => state.with_members(members),
         None => state,
     });
     let admin_token = state
@@ -142,7 +143,7 @@ impl Site {
     async fn sign_up(&self, email: &str) -> (String, String) {
         let registered = self
             .post(
-                "/api/v1/customers/register",
+                "/api/v1/members/register",
                 json!({ "email": email, "password": "password123", "name": "Hanako" }),
                 &[],
             )
@@ -155,7 +156,7 @@ impl Site {
         );
         let login = self
             .post(
-                "/api/v1/customers/login",
+                "/api/v1/members/login",
                 json!({ "email": email, "password": "password123" }),
                 &[],
             )
@@ -175,32 +176,32 @@ impl Site {
 async fn test_login_sets_an_httponly_cookie_and_still_returns_the_token() {
     let site = site().await;
     site.post(
-        "/api/v1/customers/register",
+        "/api/v1/members/register",
         json!({ "email": "a@example.com", "password": "password123", "name": "A" }),
         &[],
     )
     .await;
     let login = site
         .post(
-            "/api/v1/customers/login",
+            "/api/v1/members/login",
             json!({ "email": "a@example.com", "password": "password123" }),
             &[],
         )
         .await;
     let cookie = login.set_cookie();
-    assert!(cookie.starts_with("cms_customer=cses_"), "{cookie}");
+    assert!(cookie.starts_with("cms_member=mses_"), "{cookie}");
     for attribute in ["HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=2592000"] {
         assert!(cookie.contains(attribute), "{attribute} in {cookie}");
     }
     assert!(!cookie.contains("Secure"), "plain HTTP: {cookie}");
     // API のクライアント向けに、本文のトークンも従来どおり返す
     let body: Value = serde_json::from_str(&login.body).unwrap();
-    assert!(body["token"].as_str().unwrap().starts_with("cses_"));
+    assert!(body["token"].as_str().unwrap().starts_with("mses_"));
 
     // HTTPS（リバースプロキシの背後）なら Secure
     let behind_proxy = site
         .post(
-            "/api/v1/customers/login",
+            "/api/v1/members/login",
             json!({ "email": "a@example.com", "password": "password123" }),
             &[("x-forwarded-proto", "https")],
         )
@@ -213,39 +214,35 @@ async fn test_the_cookie_and_the_bearer_token_both_authenticate() {
     let site = site().await;
     let (cookie, token) = site.sign_up("b@example.com").await;
 
-    let by_cookie = site.get("/api/v1/customers/me", Some(&cookie), None).await;
+    let by_cookie = site.get("/api/v1/members/me", Some(&cookie), None).await;
     assert_eq!(by_cookie.status, StatusCode::OK, "{}", by_cookie.body);
-    let by_bearer = site.get("/api/v1/customers/me", None, Some(&token)).await;
+    let by_bearer = site.get("/api/v1/members/me", None, Some(&token)).await;
     assert_eq!(by_bearer.status, StatusCode::OK);
 
-    let anonymous = site.get("/api/v1/customers/me", None, None).await;
+    let anonymous = site.get("/api/v1/members/me", None, None).await;
     assert_eq!(anonymous.status, StatusCode::UNAUTHORIZED);
     // 作り物の Cookie は通らない
     let forged = site
-        .get(
-            "/api/v1/customers/me",
-            Some("cms_customer=cses_forged"),
-            None,
-        )
+        .get("/api/v1/members/me", Some("cms_member=mses_forged"), None)
         .await;
     assert_eq!(forged.status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
-async fn test_customer_and_admin_sessions_do_not_mix() {
+async fn test_member_and_admin_sessions_do_not_mix() {
     let site = site().await;
     let (cookie, token) = site.sign_up("c@example.com").await;
 
-    // 顧客のトークンでも Cookie でも、管理の API は通らない
+    // 会員のトークンでも Cookie でも、管理の API は通らない
     for (cookie, bearer) in [(Some(cookie.as_str()), None), (None, Some(token.as_str()))] {
-        let admin_api = site.get("/api/v1/admin/customers", cookie, bearer).await;
+        let admin_api = site.get("/api/v1/admin/members", cookie, bearer).await;
         assert_eq!(admin_api.status, StatusCode::UNAUTHORIZED);
     }
-    // 管理者のトークンでは、顧客の API は通らない
-    let as_customer = site
-        .get("/api/v1/customers/me", None, Some(&site.admin_token))
+    // 管理者のトークンでは、会員の API は通らない
+    let as_member = site
+        .get("/api/v1/members/me", None, Some(&site.admin_token))
         .await;
-    assert_eq!(as_customer.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(as_member.status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -255,7 +252,7 @@ async fn test_logout_clears_the_cookie_and_ends_the_session() {
 
     let logout = site
         .send(
-            Request::post("/api/v1/customers/logout")
+            Request::post("/api/v1/members/logout")
                 .header("cookie", &cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -263,11 +260,11 @@ async fn test_logout_clears_the_cookie_and_ends_the_session() {
         .await;
     assert_eq!(logout.status, StatusCode::NO_CONTENT);
     let cleared = logout.set_cookie();
-    assert!(cleared.starts_with("cms_customer=;"), "{cleared}");
+    assert!(cleared.starts_with("cms_member=;"), "{cleared}");
     assert!(cleared.contains("Max-Age=0"), "{cleared}");
 
     // ログアウトしたセッションは、残っている Cookie でも通らない
-    let after = site.get("/api/v1/customers/me", Some(&cookie), None).await;
+    let after = site.get("/api/v1/members/me", Some(&cookie), None).await;
     assert_eq!(after.status, StatusCode::UNAUTHORIZED);
 }
 
@@ -307,9 +304,7 @@ async fn test_account_pages_follow_the_login_state() {
     }
 
     // 古い・作り物の Cookie はログインしていない扱い
-    let forged = site
-        .get("/account", Some("cms_customer=cses_x"), None)
-        .await;
+    let forged = site.get("/account", Some("cms_member=mses_x"), None).await;
     assert_eq!(forged.location(), "/account/login");
 }
 
@@ -343,13 +338,13 @@ async fn test_account_script_carries_the_texts_of_the_site_language() {
     );
     assert!(script.body.contains("ログインする"));
     // トークンに触れない（Cookie は HttpOnly）
-    assert!(!script.body.contains("localStorage.setItem('aegis_customer"));
+    assert!(!script.body.contains("localStorage.setItem('aegis_member"));
 }
 
 #[tokio::test]
 async fn test_closed_registration_and_disabled_accounts_hide_the_pages() {
     let closed = site_with(|config| {
-        config.commerce.customers.registration = aegis_commerce::CustomerRegistration::Closed;
+        config.members.registration = aegis_commerce::MemberRegistration::Closed;
     })
     .await;
     assert_eq!(
@@ -364,7 +359,7 @@ async fn test_closed_registration_and_disabled_accounts_hide_the_pages() {
     let login = closed.get("/account/login", None, None).await;
     assert!(login.body.contains("data-register-url=\"\""));
 
-    let disabled = site_with(|config| config.commerce.customers.enabled = false).await;
+    let disabled = site_with(|config| config.members.enabled = false).await;
     for path in [
         "/account",
         "/account/login",
@@ -386,7 +381,7 @@ async fn test_closed_registration_and_disabled_accounts_hide_the_pages() {
 fn delete_request(cookie: Option<&str>, password: &str) -> Request<Body> {
     let mut request = Request::builder()
         .method("DELETE")
-        .uri("/api/v1/customers/me")
+        .uri("/api/v1/members/me")
         .header("content-type", "application/json");
     if let Some(cookie) = cookie {
         request = request.header("cookie", cookie);
@@ -397,7 +392,7 @@ fn delete_request(cookie: Option<&str>, password: &str) -> Request<Body> {
 }
 
 #[tokio::test]
-async fn test_a_customer_can_delete_their_account() {
+async fn test_a_member_can_delete_their_account() {
     let site = site().await;
     let (cookie, _) = site.sign_up("bye@example.com").await;
 
@@ -410,7 +405,7 @@ async fn test_a_customer_can_delete_their_account() {
         .await;
     assert_eq!(wrong.status, StatusCode::UNAUTHORIZED);
     assert_eq!(
-        site.get("/api/v1/customers/me", Some(&cookie), None)
+        site.get("/api/v1/members/me", Some(&cookie), None)
             .await
             .status,
         StatusCode::OK
@@ -422,10 +417,10 @@ async fn test_a_customer_can_delete_their_account() {
     assert_eq!(deleted.status, StatusCode::NO_CONTENT);
     // Cookie も消える。そのセッションは、もう通らない
     let cleared = deleted.set_cookie();
-    assert!(cleared.starts_with("cms_customer=;"), "{cleared}");
+    assert!(cleared.starts_with("cms_member=;"), "{cleared}");
     assert!(cleared.contains("Max-Age=0"), "{cleared}");
     assert_eq!(
-        site.get("/api/v1/customers/me", Some(&cookie), None)
+        site.get("/api/v1/members/me", Some(&cookie), None)
             .await
             .status,
         StatusCode::UNAUTHORIZED
@@ -433,7 +428,7 @@ async fn test_a_customer_can_delete_their_account() {
     // ログインもできない。同じアドレスで、あらためて登録はできる
     let login = site
         .post(
-            "/api/v1/customers/login",
+            "/api/v1/members/login",
             json!({ "email": "bye@example.com", "password": "password123" }),
             &[],
         )
@@ -441,7 +436,7 @@ async fn test_a_customer_can_delete_their_account() {
     assert_eq!(login.status, StatusCode::UNAUTHORIZED);
     let again = site
         .post(
-            "/api/v1/customers/register",
+            "/api/v1/members/register",
             json!({ "email": "bye@example.com", "password": "password456", "name": "New" }),
             &[],
         )

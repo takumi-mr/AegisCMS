@@ -465,7 +465,7 @@ export interface ShippingAddress {
 /** Order as staff see it (`GET /api/v1/orders`) */
 export interface Order {
   id: string;
-  /** Number shown to the customer */
+  /** Number shown to the member */
   number: string;
   status: OrderStatus;
   currency: string;
@@ -616,7 +616,7 @@ export interface UpdateHeaderSettings {
 /** A notification kind with built-in sample values (`GET /api/v1/notifications`) */
 export interface NotificationKindInfo {
   kind: string;
-  /** Has a template for a specific person (customer, author…) */
+  /** Has a template for a specific person (member, author…) */
   person: boolean;
   /** Has a template for the staff (its own or the shared one) */
   staff: boolean;
@@ -718,8 +718,8 @@ export interface AdminReview {
   id: string;
   product_id: string;
   order_id: string;
-  customer_id: string | null;
-  /** Empty for a customer who deleted the account (the review stays, anonymous) */
+  member_id: string | null;
+  /** Empty for a member who deleted the account (the review stays, anonymous) */
   author_name: string;
   author_email: string;
   /** 1..=5 */
@@ -741,28 +741,28 @@ export interface ReviewPage {
   total: number;
 }
 
-/** A shop customer account (`[commerce.customers]`); never carries the password hash */
-export type CustomerStatus = 'active' | 'suspended' | 'unverified';
+/** A shop member account (`[members]`); never carries the password hash */
+export type MemberStatus = 'active' | 'suspended' | 'unverified';
 
-export interface AdminCustomer {
+export interface AdminMember {
   id: string;
   email: string;
   name: string;
   phone: string | null;
-  status: CustomerStatus;
+  status: MemberStatus;
   shipping_address: ShippingAddress | null;
   created_at: string;
   updated_at: string;
   last_login_at: string | null;
 }
 
-export interface CustomerPage {
-  customers: AdminCustomer[];
+export interface MemberPage {
+  members: AdminMember[];
   total: number;
 }
 
-/** An order as the customer detail lists it (a summary of the stored order) */
-export interface CustomerOrderSummary {
+/** An order as the member detail lists it (a summary of the stored order) */
+export interface MemberOrderSummary {
   id: string;
   number: string;
   status: OrderStatus;
@@ -771,15 +771,15 @@ export interface CustomerOrderSummary {
   created_at: string;
 }
 
-export interface CustomerDetail {
-  customer: AdminCustomer;
-  orders: CustomerOrderSummary[];
+export interface MemberDetail {
+  member: AdminMember;
+  orders: MemberOrderSummary[];
 }
 
 export interface ShopConfig {
   enabled: boolean;
-  /** `[commerce.customers].enabled`: the Customers screen is shown */
-  customers_enabled?: boolean;
+  /** `[members].enabled`: the Members screen is shown */
+  members_enabled?: boolean;
   /** `[commerce.reviews].enabled`: the Reviews screen is shown */
   reviews_enabled?: boolean;
   /** ISO 4217 code in lower case; amounts are in its minor unit */

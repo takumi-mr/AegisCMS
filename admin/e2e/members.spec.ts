@@ -5,17 +5,17 @@ import { openView, signIn } from './helpers';
 
 const SERVER = 'http://127.0.0.1:18080';
 
-// The Customers screen: a customer who signed up and paid an order appears with the order, and an editor can
-// suspend the account (the customer cannot log in any more) and reactivate it.
-test.describe('Customers screen', () => {
-  test('shows a customer with the order and suspends and reactivates the account', async ({
+// The Members screen: a member who signed up and paid an order appears with the order, and an editor can
+// suspend the account (the member cannot log in any more) and reactivate it.
+test.describe('Members screen', () => {
+  test('shows a member with the order and suspends and reactivates the account', async ({
     page,
     playwright,
   }) => {
     const suffix = Date.now();
     const email = `admin-view-${suffix}@example.com`;
-    const password = 'customer-password-123';
-    const slug = `customer-mug-${suffix}`;
+    const password = 'member-password-123';
+    const slug = `member-mug-${suffix}`;
 
     const admin = await playwright.request.newContext();
     const login = await admin.post(`${SERVER}/api/v1/auth/session`, {
@@ -26,7 +26,7 @@ test.describe('Customers screen', () => {
     const product = await admin.post(`${SERVER}/api/v1/contents/product`, {
       headers: auth,
       data: {
-        title: `Customer Mug ${suffix}`,
+        title: `Member Mug ${suffix}`,
         slug,
         status: 'published',
         blocks: [],
@@ -35,13 +35,13 @@ test.describe('Customers screen', () => {
     });
     expect(product.ok(), await product.text()).toBeTruthy();
 
-    // The customer signs up, logs in (the cookie) and buys the mug
+    // The member signs up, logs in (the cookie) and buys the mug
     const shopper = await playwright.request.newContext();
-    const registered = await shopper.post(`${SERVER}/api/v1/customers/register`, {
+    const registered = await shopper.post(`${SERVER}/api/v1/members/register`, {
       data: { email, password, name: 'Admin View Hanako' },
     });
     expect(registered.ok(), await registered.text()).toBeTruthy();
-    const loggedIn = await shopper.post(`${SERVER}/api/v1/customers/login`, {
+    const loggedIn = await shopper.post(`${SERVER}/api/v1/members/login`, {
       data: { email, password },
     });
     expect(loggedIn.ok(), await loggedIn.text()).toBeTruthy();
@@ -57,8 +57,8 @@ test.describe('Customers screen', () => {
     expect(paid.ok(), await paid.text()).toBeTruthy();
 
     await signIn(page);
-    await openView(page, 'Customers');
-    await expect(page.getByRole('heading', { name: 'Customers', level: 1 })).toBeVisible();
+    await openView(page, 'Members');
+    await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible();
     const row = page.getByRole('row').filter({ hasText: email });
     await expect(row).toContainText('Admin View Hanako');
     await expect(row).toContainText('Active');
@@ -68,21 +68,21 @@ test.describe('Customers screen', () => {
     await expect(modal.getByText(order.number)).toBeVisible();
     await expect(modal.getByText('Paid in total')).toBeVisible();
 
-    // Suspend: the dialog asks first; the customer cannot log in until the account is active again
+    // Suspend: the dialog asks first; the member cannot log in until the account is active again
     page.once('dialog', (dialog) => dialog.accept());
     await modal.getByRole('button', { name: 'Suspend' }).click();
-    await expect(page.getByText('The customer is suspended')).toBeVisible();
+    await expect(page.getByText('The member is suspended')).toBeVisible();
     await expect(modal.getByRole('button', { name: 'Reactivate' })).toBeVisible();
     const refused = await playwright.request
       .newContext()
-      .then((ctx) => ctx.post(`${SERVER}/api/v1/customers/login`, { data: { email, password } }));
+      .then((ctx) => ctx.post(`${SERVER}/api/v1/members/login`, { data: { email, password } }));
     expect(refused.ok()).toBe(false);
 
     await modal.getByRole('button', { name: 'Reactivate' }).click();
-    await expect(page.getByText('The customer is active again')).toBeVisible();
+    await expect(page.getByText('The member is active again')).toBeVisible();
     const accepted = await playwright.request
       .newContext()
-      .then((ctx) => ctx.post(`${SERVER}/api/v1/customers/login`, { data: { email, password } }));
+      .then((ctx) => ctx.post(`${SERVER}/api/v1/members/login`, { data: { email, password } }));
     expect(accepted.ok()).toBe(true);
   });
 });

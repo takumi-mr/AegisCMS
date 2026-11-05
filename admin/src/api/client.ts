@@ -7,9 +7,9 @@ import type {
   AuthProviders,
   BrokenLinksStatusResponse,
   CommentBulkAction,
-  CustomerDetail,
-  CustomerPage,
-  CustomerStatus,
+  MemberDetail,
+  MemberPage,
+  MemberStatus,
   CommentPage,
   CommentSettings,
   CommentStatus,
@@ -1001,24 +1001,21 @@ export const aegisApi = {
     return request(`/orders?${toQuery(query)}`, {}, i18n.t('api.ordersFailed'));
   },
 
-  /** Customer accounts, newest first (404 when customer accounts are disabled) */
-  async listCustomers(query: { limit?: number; offset?: number }): Promise<CustomerPage> {
-    return request(`/admin/customers?${toQuery(query)}`, {}, i18n.t('api.customersFailed'));
+  /** Member accounts, newest first (404 when member accounts are disabled) */
+  async listMembers(query: { limit?: number; offset?: number }): Promise<MemberPage> {
+    return request(`/admin/members?${toQuery(query)}`, {}, i18n.t('api.membersFailed'));
   },
 
-  async getCustomer(id: string): Promise<CustomerDetail> {
-    return request(`/admin/customers/${encodeURIComponent(id)}`, {}, i18n.t('api.customerFailed'));
+  async getMember(id: string): Promise<MemberDetail> {
+    return request(`/admin/members/${encodeURIComponent(id)}`, {}, i18n.t('api.memberFailed'));
   },
 
-  /** Suspends (ends the sessions at once) or reactivates a customer */
-  async setCustomerStatus(
-    id: string,
-    status: Exclude<CustomerStatus, 'unverified'>
-  ): Promise<void> {
+  /** Suspends (ends the sessions at once) or reactivates a member */
+  async setMemberStatus(id: string, status: Exclude<MemberStatus, 'unverified'>): Promise<void> {
     return requestNoContent(
-      `/admin/customers/${encodeURIComponent(id)}`,
+      `/admin/members/${encodeURIComponent(id)}`,
       { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },
-      i18n.t('api.setCustomerStatusFailed')
+      i18n.t('api.setMemberStatusFailed')
     );
   },
 

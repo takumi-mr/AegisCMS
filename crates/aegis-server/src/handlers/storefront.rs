@@ -19,7 +19,7 @@ use aegis_db::{resolve_relations_for_records, ContentListQuery};
 
 /// カート・注文確認ページのスクリプト（`/shop/cart.js`）
 const CART_SCRIPT: &str = include_str!("../../assets/cart.js");
-/// 顧客アカウントのページのスクリプト（`/shop/account.js`）
+/// 会員アカウントのページのスクリプト（`/shop/account.js`）
 const ACCOUNT_SCRIPT: &str = include_str!("../../assets/account.js");
 /// 商品ページのレビュー欄のスクリプト（`/shop/reviews.js`）
 const REVIEWS_SCRIPT: &str = include_str!("../../assets/reviews.js");
@@ -94,15 +94,12 @@ fn product_json_ld(name: &str, rating: &aegis_commerce::JsonLdAggregateRating) -
     format!("<script type=\"application/ld+json\">{}</script>", json)
 }
 
-/// テンプレートの `theme_vars` に渡す顧客アカウントの情報。使わない設定のときは `account_enabled` が `false`
+/// テンプレートの `theme_vars` に渡す会員アカウントの情報。使わない設定のときは `account_enabled` が `false`
 fn account_vars(state: &AppState, base_path: &str) -> HashMap<String, String> {
-    let customers = state.customers.as_ref();
-    let registration_open = customers.is_some_and(|c| c.registration_open());
+    let members = state.members.as_ref();
+    let registration_open = members.is_some_and(|c| c.registration_open());
     HashMap::from([
-        (
-            "account_enabled".to_string(),
-            customers.is_some().to_string(),
-        ),
+        ("account_enabled".to_string(), members.is_some().to_string()),
         ("account_url".to_string(), format!("{}/account", base_path)),
         (
             "account_login_url".to_string(),
@@ -120,7 +117,7 @@ fn account_vars(state: &AppState, base_path: &str) -> HashMap<String, String> {
         // パスワードの再設定を使えない設定では空（ログイン画面は「忘れたとき」のリンクを出さない）
         (
             "account_forgot_url".to_string(),
-            if crate::handlers::customers::password_reset_available(state) {
+            if crate::handlers::members::password_reset_available(state) {
                 format!("{}/account/forgot", base_path)
             } else {
                 String::new()
@@ -132,7 +129,7 @@ fn account_vars(state: &AppState, base_path: &str) -> HashMap<String, String> {
         ),
         (
             "account_api".to_string(),
-            format!("{}/api/v1/customers", base_path),
+            format!("{}/api/v1/members", base_path),
         ),
         (
             "account_min_password".to_string(),
@@ -456,10 +453,10 @@ pub async fn cart_script(State(state): State<Arc<AppState>>) -> Response {
         .into_response()
 }
 
-/// `GET /shop/account.js` — 顧客アカウントのページ（ログイン・会員登録・マイページ）のスクリプト
+/// `GET /shop/account.js` — 会員アカウントのページ（ログイン・会員登録・マイページ）のスクリプト
 pub async fn account_script(State(state): State<Arc<AppState>>) -> Response {
-    if state.customers.is_none() {
-        return render_not_found(&state, "Customer accounts are not enabled.").await;
+    if state.members.is_none() {
+        return render_not_found(&state, "Member accounts are not enabled.").await;
     }
     (
         StatusCode::OK,
@@ -546,22 +543,22 @@ pub async fn render_account_verify(
 const PRIVATE: (header::HeaderName, &str) = (header::CACHE_CONTROL, "private, no-store");
 
 async fn render_account(state: &AppState, headers: &HeaderMap, view: &str) -> Response {
-    let Some(customers) = state.customers.as_ref() else {
-        return render_not_found(state, "Customer accounts are not enabled.").await;
+    let Some(members) = state.members.as_ref() else {
+        return render_not_found(state, "Member accounts are not enabled.").await;
     };
-    if view == "register" && !customers.registration_open() {
+    if view == "register" && !members.registration_open() {
         return render_not_found(state, "Registration is closed.").await;
     }
-    if view == "verify" && !crate::handlers::customers::verification_available(state) {
+    if view == "verify" && !crate::handlers::members::verification_available(state) {
         return render_not_found(state, "Email confirmation is not available.").await;
     }
     if matches!(view, "forgot" | "reset")
-        && !crate::handlers::customers::password_reset_available(state)
+        && !crate::handlers::members::password_reset_available(state)
     {
         return render_not_found(state, "Password reset is not enabled.").await;
     }
-    let logged_in = match crate::handlers::customers::session_token(state, headers) {
-        Some(token) => matches!(customers.verify_session(&token).await, Ok(Some(_))),
+    let logged_in = match crate::handlers::members::session_token(state, headers) {
+        Some(token) => matches!(members.verify_session(&token).await, Ok(Some(_))),
         None => false,
     };
     let base_path = state

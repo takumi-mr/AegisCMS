@@ -33,7 +33,7 @@ import { ProductManager } from './components/ProductManager';
 import { CommentManager } from './components/CommentManager';
 import { ContactInbox } from './components/ContactInbox';
 import { ForumManager } from './components/ForumManager';
-import { CustomerManager } from './components/CustomerManager';
+import { MemberManager } from './components/MemberManager';
 import { ReviewManager } from './components/ReviewManager';
 import { OrderManager } from './components/OrderManager';
 import { ScheduleCalendar } from './components/ScheduleCalendar';
@@ -148,8 +148,8 @@ export const App: React.FC = () => {
   const [view, setView] = useState<AppView>(takeInitialView);
   // Hidden until the server says the shop is on ([commerce].enabled)
   const [shopEnabled, setShopEnabled] = useState<boolean>(false);
-  // ...and the customer accounts ([commerce.customers].enabled) for the Customers screen
-  const [customersEnabled, setCustomersEnabled] = useState<boolean>(false);
+  // ...and the member accounts ([members].enabled) for the Members screen
+  const [membersEnabled, setMembersEnabled] = useState<boolean>(false);
   const [reviewsEnabled, setReviewsEnabled] = useState<boolean>(false);
   /** Custom blocks of the enabled plugins, offered in the block toolbar */
   const [blockDefinitions, setBlockDefinitions] = useState<PluginBlockDefinition[]>([]);
@@ -418,7 +418,7 @@ export const App: React.FC = () => {
       .then((config) => {
         if (cancelled) return;
         setShopEnabled(config.enabled);
-        setCustomersEnabled(config.enabled && config.customers_enabled === true);
+        setMembersEnabled(config.enabled && config.members_enabled === true);
         setReviewsEnabled(config.enabled && config.reviews_enabled === true);
       })
       .catch((err) => console.warn('Could not load the shop settings:', err));
@@ -957,7 +957,7 @@ export const App: React.FC = () => {
         ? 'submit'
         : null;
   const showShop = editable && shopEnabled;
-  const showCustomers = editable && customersEnabled;
+  const showMembers = editable && membersEnabled;
   const showReviews = editable && reviewsEnabled;
   const showComments = editable && commentsEnabled;
   const showForum = editable && forumEnabled;
@@ -977,7 +977,7 @@ export const App: React.FC = () => {
         canSave={mayChange}
         canPublish={editable && Boolean(selectedId) && status === 'published'}
         showShop={showShop}
-        showCustomers={showCustomers}
+        showMembers={showMembers}
         showReviews={showReviews}
         showComments={showComments}
         showForum={showForum}
@@ -998,8 +998,8 @@ export const App: React.FC = () => {
         <ProductManager categories={categories} tagsEnabled={tagsEnabled} onShowToast={showToast} />
       ) : view === 'orders' && showShop ? (
         <OrderManager onShowToast={showToast} />
-      ) : view === 'customers' && showCustomers ? (
-        <CustomerManager onShowToast={showToast} />
+      ) : view === 'members' && showMembers ? (
+        <MemberManager onShowToast={showToast} />
       ) : view === 'reviews' && showReviews ? (
         <ReviewManager onShowToast={showToast} />
       ) : view === 'comments' && showComments ? (

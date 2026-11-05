@@ -6,7 +6,7 @@ use std::sync::Arc;
 use aegis_core::{guess_content_type, AegisError, Result, StorageBackend};
 use aegis_db::{
     CommentRecord, ContactMessageRecord, ContentPublicationChange, ContentTagRecord,
-    CustomerRecord, DatabaseAdapter, ForumCategoryRecord, ForumPostRecord, ForumReportRecord,
+    DatabaseAdapter, ForumCategoryRecord, ForumPostRecord, ForumReportRecord, MemberRecord,
     OrderRecord, ProductVariantRecord, ReviewRecord, TagRecord, UserIdentityRecord, UserRecord,
 };
 use aegis_schema::SchemaDefinition;
@@ -264,21 +264,28 @@ async fn restore_database_section<R: Read + Seek>(
         summary.tables_restored += 1;
     }
 
-    // 4. Customers (_aegis_customers)
-    if has_path("database/customers.json") {
-        let customers: Vec<CustomerRecord> = read_json_entry(archive, "database/customers.json")?;
-        for customer in &customers {
-            if db.get_customer_by_id(&customer.id).await?.is_some() {
+    // 4. Members (_aegis_members)。古いバックアップでは `database/customers.json`（顧客アカウント）
+    let members_path = if has_path("database/members.json") {
+        Some("database/members.json")
+    } else if has_path("database/customers.json") {
+        Some("database/customers.json")
+    } else {
+        None
+    };
+    if let Some(members_path) = members_path {
+        let members: Vec<MemberRecord> = read_json_entry(archive, members_path)?;
+        for member in &members {
+            if db.get_member_by_id(&member.id).await?.is_some() {
                 if options.overwrite {
-                    db.delete_customer(&customer.id).await?;
+                    db.delete_member(&member.id).await?;
                 } else {
                     return Err(AegisError::Validation(format!(
-                        "Customer '{}' already exists (use overwrite option to replace)",
-                        customer.id
+                        "Member '{}' already exists (use overwrite option to replace)",
+                        member.id
                     )));
                 }
             }
-            db.insert_customer(customer).await?;
+            db.insert_member(member).await?;
             summary.records_restored += 1;
         }
         summary.tables_restored += 1;

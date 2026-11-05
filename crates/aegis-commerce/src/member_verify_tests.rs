@@ -8,18 +8,18 @@ mod tests {
     use aegis_core::AegisError;
     use aegis_db::{create_database_adapter, DatabaseAdapter, DatabaseConfig};
 
-    use crate::customer::{
-        CustomerLoginRequest, CustomerRegisterRequest, CustomerService, EMAIL_NOT_VERIFIED_MESSAGE,
+    use crate::member::{
+        MemberLoginRequest, MemberRegisterRequest, MemberService, EMAIL_NOT_VERIFIED_MESSAGE,
     };
 
-    async fn setup_service() -> (CustomerService, Arc<dyn DatabaseAdapter>) {
+    async fn setup_service() -> (MemberService, Arc<dyn DatabaseAdapter>) {
         let config = DatabaseConfig {
             url: "sqlite::memory:".to_string(),
             ..DatabaseConfig::default()
         };
         let db = create_database_adapter(&config).await.unwrap();
         db.init().await.unwrap();
-        let service = CustomerService::new(
+        let service = MemberService::new(
             db.clone(),
             Arc::new(aegis_cache::MemoryCacheBackend::new()),
             Arc::new(AuditService::with_sinks(vec![])),
@@ -28,8 +28,8 @@ mod tests {
         (service, db)
     }
 
-    fn register_request(email: &str, password: &str) -> CustomerRegisterRequest {
-        CustomerRegisterRequest {
+    fn register_request(email: &str, password: &str) -> MemberRegisterRequest {
+        MemberRegisterRequest {
             email: email.to_string(),
             password: password.to_string(),
             name: "Hanako".to_string(),
@@ -38,18 +38,18 @@ mod tests {
         }
     }
 
-    fn login_request(email: &str, password: &str) -> CustomerLoginRequest {
-        CustomerLoginRequest {
+    fn login_request(email: &str, password: &str) -> MemberLoginRequest {
+        MemberLoginRequest {
             email: email.to_string(),
             password: password.to_string(),
         }
     }
 
-    /// 確認が要るとき、登録した顧客は確認が済むまでログインできない。確認すると入れる。リンクは 1 回だけ
+    /// 確認が要るとき、登録した会員は確認が済むまでログインできない。確認すると入れる。リンクは 1 回だけ
     #[tokio::test]
     async fn test_a_registration_waits_for_the_confirmation() {
         let (service, db) = setup_service().await;
-        // 確認を飛ばして有効な顧客を作る道は無い
+        // 確認を飛ばして有効な会員を作る道は無い
         assert!(service
             .register(register_request("a@example.com", "password123"), None, None)
             .await
@@ -63,7 +63,7 @@ mod tests {
         assert_eq!(verification.email, "a@example.com");
         assert_eq!(verification.token.len(), 64);
         let stored = db
-            .get_customer_by_email("a@example.com")
+            .get_member_by_email("a@example.com")
             .await
             .unwrap()
             .unwrap();
@@ -173,7 +173,7 @@ mod tests {
 
         // 停止中のアドレスも同じ
         let id = db
-            .get_customer_by_email("victim@example.com")
+            .get_member_by_email("victim@example.com")
             .await
             .unwrap()
             .unwrap()
@@ -268,18 +268,18 @@ mod tests {
             .register_pending(register_request("r@example.com", "password123"), None, None)
             .await
             .unwrap();
-        // 確認待ちの顧客も、再設定を申し込める（パスワードを忘れて、確認のメールも見失った場合）
+        // 確認待ちの会員も、再設定を申し込める（パスワードを忘れて、確認のメールも見失った場合）
         let reset = service
             .request_password_reset("r@example.com", None)
             .await
             .unwrap()
-            .expect("an unconfirmed customer may reset the password");
+            .expect("an unconfirmed member may reset the password");
         service
             .complete_password_reset(&reset.token, "a-new-password-1", None, None)
             .await
             .unwrap();
         assert_eq!(
-            db.get_customer_by_email("r@example.com")
+            db.get_member_by_email("r@example.com")
                 .await
                 .unwrap()
                 .unwrap()

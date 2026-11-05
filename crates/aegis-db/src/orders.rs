@@ -44,11 +44,11 @@ pub trait OrderStorage: Send + Sync {
     /// 返金（部分・全額）を記録し、ステータス変更・在庫戻しを同一トランザクションで実行する
     async fn record_order_refund(&self, refund: &OrderRefundUpdate) -> Result<bool>;
 
-    /// 特定の顧客アカウントに紐づく注文一覧（作成日の新しい順）
-    async fn list_customer_orders(&self, customer_id: &str) -> Result<Vec<OrderRecord>>;
-    /// 顧客のアカウントを消すとき、その顧客の注文から顧客との紐づき（`customer_id`）だけを外す。
+    /// 特定の会員アカウントに紐づく注文一覧（作成日の新しい順）
+    async fn list_member_orders(&self, member_id: &str) -> Result<Vec<OrderRecord>>;
+    /// 会員のアカウントを消すとき、その会員の注文から会員との紐づき（`member_id`）だけを外す。
     /// 注文の記録（明細・金額・注文時のメールアドレス・氏名・配送先）は会計のために残す。外した件数を返す
-    async fn detach_customer_orders(&self, customer_id: &str) -> Result<u64>;
+    async fn detach_member_orders(&self, member_id: &str) -> Result<u64>;
 }
 
 /// 注文テーブル名（コンテンツテーブル `content_*` と衝突しないシステムテーブル）
@@ -94,8 +94,9 @@ pub struct OrderRecord {
     pub refunded_amount: i64,
     /// `Vec<OrderRefundRecord>` の JSON
     pub refunds_json: String,
-    /// 顧客アカウントID（会員購入の場合。ゲスト時は None）
-    pub customer_id: Option<String>,
+    /// 会員アカウントID（会員購入の場合。ゲスト時は None）。古いバックアップの名前（`customer_id`）も読む
+    #[serde(alias = "customer_id")]
+    pub member_id: Option<String>,
 }
 
 /// INSERT / SELECT で使う注文テーブルのカラム（順序固定）
@@ -124,7 +125,7 @@ pub const ORDER_COLUMNS: [&str; 25] = [
     "transaction_id",
     "refunded_amount",
     "refunds_json",
-    "customer_id",
+    "member_id",
 ];
 
 /// 注文の作成時に確保する在庫（variant_id があればバリエーションテーブル、無ければ商品テーブル `table` の `id` の `stock` を `quantity` 減らす）
@@ -213,7 +214,7 @@ pub fn build_order_table(
         ("idx_aegis_orders_payment_ref", "payment_ref"),
         ("idx_aegis_orders_expires", "status, expires_at"),
         ("idx_aegis_orders_transaction", "transaction_id"),
-        ("idx_aegis_orders_customer", "customer_id"),
+        ("idx_aegis_orders_member", "member_id"),
     ];
     let inline = if inline_indexes {
         indexes
@@ -249,7 +250,7 @@ pub fn build_order_table(
          transaction_id {key}, \
          refunded_amount {bigint} NOT NULL DEFAULT 0, \
          refunds_json {text} NOT NULL, \
-         customer_id {key}{inline});",
+         member_id {key}{inline});",
         table = ORDER_TABLE,
         key = key,
         text = text,
@@ -441,8 +442,8 @@ macro_rules! order_row_from_sqlx {
                 .map_err(get)
                 .unwrap_or_else(|_| "[]".to_string()),
             // NULL は `None`。`String` として読むと空文字になり、ゲスト購入の注文が `Some("")` になってしまう
-            customer_id: row
-                .try_get::<Option<String>, _>("customer_id")
+            member_id: row
+                .try_get::<Option<String>, _>("member_id")
                 .ok()
                 .flatten()
                 .filter(|id| !id.is_empty()),
@@ -480,7 +481,7 @@ macro_rules! bind_order_insert {
             .bind(&o.transaction_id)
             .bind(o.refunded_amount)
             .bind(&o.refunds_json)
-            .bind(&o.customer_id)
+            .bind(&o.member_id)
     }};
 }
 pub(crate) use bind_order_insert;
@@ -722,18 +723,18 @@ macro_rules! impl_order_storage {
                 Ok(orders)
             }
 
-            async fn list_customer_orders(
+            async fn list_member_orders(
                 &self,
-                customer_id: &str,
+                member_id: &str,
             ) -> aegis_core::Result<Vec<$crate::OrderRecord>> {
                 let ph = $ph;
                 let sql = $crate::orders::build_order_select(
-                    Some(&format!("customer_id = {}", ph(1))),
+                    Some(&format!("member_id = {}", ph(1))),
                     None,
                 );
                 let db_err = |e: sqlx::Error| aegis_core::AegisError::Database(e.to_string());
                 let rows = sqlx::query(&sql)
-                    .bind(customer_id)
+                    .bind(member_id)
                     .fetch_all(&self.pool)
                     .await
                     .map_err(db_err)?;
@@ -744,18 +745,18 @@ macro_rules! impl_order_storage {
                 Ok(orders)
             }
 
-            async fn detach_customer_orders(
+            async fn detach_member_orders(
                 &self,
-                customer_id: &str,
+                member_id: &str,
             ) -> aegis_core::Result<u64> {
                 let ph = $ph;
                 let sql = format!(
-                    "UPDATE {} SET customer_id = NULL WHERE customer_id = {};",
+                    "UPDATE {} SET member_id = NULL WHERE member_id = {};",
                     $crate::orders::ORDER_TABLE,
                     ph(1)
                 );
                 let res = sqlx::query(&sql)
-                    .bind(customer_id)
+                    .bind(member_id)
                     .execute(&self.pool)
                     .await
                     .map_err(|e| aegis_core::AegisError::Database(e.to_string()))?;

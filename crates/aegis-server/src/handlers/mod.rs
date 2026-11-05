@@ -4,13 +4,13 @@ pub mod broken_links;
 pub mod comments;
 pub mod contact;
 pub mod content;
-pub mod customers;
 pub mod feed;
 pub mod forum;
 pub mod headers;
 pub mod health;
 pub mod honeypot;
 pub mod invitation;
+pub mod members;
 pub mod newsletter;
 pub mod notices;
 pub mod notifications;
@@ -52,19 +52,19 @@ pub use content::{
     list_content_versions, list_schedule, list_variants, restore_content_version, update_content,
     upsert_variant,
 };
-pub use customers::{
-    admin_get_customer, admin_list_customers, admin_set_customer_status,
-    complete_password_reset as customer_complete_password_reset, delete_me, get_me, get_my_order,
-    list_my_orders, list_my_reviews, login as customer_login, logout as customer_logout,
-    register as customer_register, request_password_reset as customer_request_password_reset,
-    resend_verification as customer_resend_verification, update_me,
-    verify_email as customer_verify_email,
-};
 pub use feed::{get_category_feed, get_feed};
 pub use headers::{get_headers_settings, update_headers_settings};
 pub use health::health_check;
 pub use honeypot::honeypot_trap;
 pub use invitation::{accept_invitation, create_invitation, get_invitation_info};
+pub use members::{
+    admin_get_member, admin_list_members, admin_set_member_status,
+    complete_password_reset as member_complete_password_reset, delete_me, get_me, get_my_order,
+    list_my_orders, list_my_reviews, login as member_login, logout as member_logout,
+    register as member_register, request_password_reset as member_request_password_reset,
+    resend_verification as member_resend_verification, update_me,
+    verify_email as member_verify_email,
+};
 pub use notifications::{
     delete_queued_notification, get_notification_status, get_notification_template,
     list_notification_queue, list_notification_templates, preview_notification,
@@ -123,11 +123,11 @@ mod account_pages_tests;
 #[cfg(test)]
 mod content_write_tests;
 #[cfg(test)]
-mod customers_tests;
-#[cfg(test)]
 mod email_verification_tests;
 #[cfg(test)]
 mod forum_tests;
+#[cfg(test)]
+mod members_tests;
 #[cfg(test)]
 mod oembed_tests;
 #[cfg(test)]

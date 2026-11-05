@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi, ApiError } from '../api/client';
 import i18n from '../i18n';
-import type { AdminCustomer, CustomerDetail, CustomerPage, CustomerStatus } from '../types';
+import type { AdminMember, MemberDetail, MemberPage, MemberStatus } from '../types';
 import { cx } from '../utils/cx';
 import { formatDateTime } from '../utils/format';
 import { formatMoney } from '../utils/money';
@@ -13,7 +13,7 @@ import styles from './Shop.module.css';
 
 const PAGE_SIZE = 25;
 
-const STATUS_BADGE: Record<CustomerStatus, string | undefined> = {
+const STATUS_BADGE: Record<MemberStatus, string | undefined> = {
   active: styles.good,
   suspended: styles.bad,
   unverified: styles.warn,
@@ -33,23 +33,23 @@ const formatDate = (iso: string | null): string => (iso ? formatDateTime(iso) : 
 const messageOf = (err: unknown, fallback: string): string =>
   err instanceof Error ? err.message : fallback;
 
-interface CustomerManagerProps {
+interface MemberManagerProps {
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
-/** The shop's customer accounts for editors: who signed up, their orders, and suspending an account */
-export const CustomerManager: React.FC<CustomerManagerProps> = ({ onShowToast }) => {
+/** The shop's member accounts for editors: who signed up, their orders, and suspending an account */
+export const MemberManager: React.FC<MemberManagerProps> = ({ onShowToast }) => {
   const { t } = useTranslation();
   const [offset, setOffset] = useState<number>(0);
   const [reloadCount, setReloadCount] = useState<number>(0);
-  const [page, setPage] = useState<CustomerPage | null>(null);
+  const [page, setPage] = useState<MemberPage | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<AdminCustomer | null>(null);
+  const [selected, setSelected] = useState<AdminMember | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     aegisApi
-      .listCustomers({ limit: PAGE_SIZE, offset })
+      .listMembers({ limit: PAGE_SIZE, offset })
       .then((loaded) => {
         if (cancelled) return;
         setPage(loaded);
@@ -59,8 +59,8 @@ export const CustomerManager: React.FC<CustomerManagerProps> = ({ onShowToast })
         if (cancelled) return;
         setError(
           err instanceof ApiError && err.status === 404
-            ? i18n.t('customers.disabled')
-            : messageOf(err, i18n.t('customers.loadFailed'))
+            ? i18n.t('members.disabled')
+            : messageOf(err, i18n.t('members.loadFailed'))
         );
       });
     return () => {
@@ -76,7 +76,7 @@ export const CustomerManager: React.FC<CustomerManagerProps> = ({ onShowToast })
         <div className={styles.heading}>
           <div className={styles.title}>
             <Users size={22} />
-            <h1>{t('customers.title')}</h1>
+            <h1>{t('members.title')}</h1>
             {page && <span className={styles.count}>{page.total}</span>}
           </div>
           <div className={styles.headingActions}>
@@ -94,38 +94,38 @@ export const CustomerManager: React.FC<CustomerManagerProps> = ({ onShowToast })
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>{t('customers.columns.customer')}</th>
-                  <th>{t('customers.columns.status')}</th>
-                  <th>{t('customers.columns.registered')}</th>
-                  <th>{t('customers.columns.lastLogin')}</th>
+                  <th>{t('members.columns.member')}</th>
+                  <th>{t('members.columns.status')}</th>
+                  <th>{t('members.columns.registered')}</th>
+                  <th>{t('members.columns.lastLogin')}</th>
                 </tr>
               </thead>
               <tbody>
-                {page.customers.map((customer) => (
+                {page.members.map((member) => (
                   <tr
-                    key={customer.id}
+                    key={member.id}
                     className={styles.clickable}
-                    onClick={() => setSelected(customer)}
+                    onClick={() => setSelected(member)}
                   >
                     <td>
                       <div className={styles.productNames}>
-                        <span>{customer.name || '—'}</span>
-                        <span className={styles.muted}>{customer.email}</span>
+                        <span>{member.name || '—'}</span>
+                        <span className={styles.muted}>{member.email}</span>
                       </div>
                     </td>
                     <td>
-                      <span className={cx(styles.badge, STATUS_BADGE[customer.status])}>
-                        {t(`customers.status.${customer.status}`)}
+                      <span className={cx(styles.badge, STATUS_BADGE[member.status])}>
+                        {t(`members.status.${member.status}`)}
                       </span>
                     </td>
-                    <td className={styles.muted}>{formatDate(customer.created_at)}</td>
-                    <td className={styles.muted}>{formatDate(customer.last_login_at)}</td>
+                    <td className={styles.muted}>{formatDate(member.created_at)}</td>
+                    <td className={styles.muted}>{formatDate(member.last_login_at)}</td>
                   </tr>
                 ))}
-                {page.customers.length === 0 && (
+                {page.members.length === 0 && (
                   <tr>
                     <td colSpan={4} className={styles.empty}>
-                      {t('customers.empty')}
+                      {t('members.empty')}
                     </td>
                   </tr>
                 )}
@@ -142,10 +142,10 @@ export const CustomerManager: React.FC<CustomerManagerProps> = ({ onShowToast })
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
             >
               <ChevronLeft size={14} />
-              <span>{t('customers.newer')}</span>
+              <span>{t('members.newer')}</span>
             </Button>
             <span>
-              {t('customers.range', {
+              {t('members.range', {
                 from: offset + 1,
                 to: Math.min(offset + PAGE_SIZE, page.total),
                 total: page.total,
@@ -156,7 +156,7 @@ export const CustomerManager: React.FC<CustomerManagerProps> = ({ onShowToast })
               disabled={offset + PAGE_SIZE >= page.total}
               onClick={() => setOffset(offset + PAGE_SIZE)}
             >
-              <span>{t('customers.older')}</span>
+              <span>{t('members.older')}</span>
               <ChevronRight size={14} />
             </Button>
           </div>
@@ -164,8 +164,8 @@ export const CustomerManager: React.FC<CustomerManagerProps> = ({ onShowToast })
       </div>
 
       {selected && (
-        <CustomerModal
-          customer={selected}
+        <MemberModal
+          member={selected}
           onClose={() => setSelected(null)}
           onChanged={(message) => {
             onShowToast(message);
@@ -178,46 +178,46 @@ export const CustomerManager: React.FC<CustomerManagerProps> = ({ onShowToast })
   );
 };
 
-interface CustomerModalProps {
-  customer: AdminCustomer;
+interface MemberModalProps {
+  member: AdminMember;
   onClose: () => void;
   onChanged: (message: string) => void;
   onError: (message: string) => void;
 }
 
-/** One customer: registration details, the orders, and suspend / reactivate */
-const CustomerModal: React.FC<CustomerModalProps> = ({
-  customer: listed,
+/** One member: registration details, the orders, and suspend / reactivate */
+const MemberModal: React.FC<MemberModalProps> = ({
+  member: listed,
   onClose,
   onChanged,
   onError,
 }) => {
   const { t } = useTranslation();
-  const [detail, setDetail] = useState<CustomerDetail | null>(null);
+  const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<boolean>(false);
   // The status the dialog shows after a change (the list behind it reloads separately)
-  const [status, setStatus] = useState<CustomerStatus>(listed.status);
+  const [status, setStatus] = useState<MemberStatus>(listed.status);
 
   useEffect(() => {
     let cancelled = false;
     aegisApi
-      .getCustomer(listed.id)
+      .getMember(listed.id)
       .then((loaded) => {
         if (cancelled) return;
         setDetail(loaded);
-        setStatus(loaded.customer.status);
+        setStatus(loaded.member.status);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setLoadError(messageOf(err, i18n.t('customers.loadFailed')));
+        if (!cancelled) setLoadError(messageOf(err, i18n.t('members.loadFailed')));
       });
     return () => {
       cancelled = true;
     };
   }, [listed.id]);
 
-  const customer = detail?.customer ?? listed;
-  const address = customer.shipping_address;
+  const member = detail?.member ?? listed;
+  const address = member.shipping_address;
   const addressText = address
     ? [
         address.name,
@@ -232,14 +232,14 @@ const CustomerModal: React.FC<CustomerModalProps> = ({
     : '';
 
   const change = async (next: 'active' | 'suspended') => {
-    if (next === 'suspended' && !window.confirm(t('customers.confirmSuspend'))) return;
+    if (next === 'suspended' && !window.confirm(t('members.confirmSuspend'))) return;
     setBusy(true);
     try {
-      await aegisApi.setCustomerStatus(customer.id, next);
+      await aegisApi.setMemberStatus(member.id, next);
       setStatus(next);
-      onChanged(t(next === 'suspended' ? 'customers.suspended' : 'customers.reactivated'));
+      onChanged(t(next === 'suspended' ? 'members.suspended' : 'members.reactivated'));
     } catch (err) {
-      onError(messageOf(err, t('api.setCustomerStatusFailed')));
+      onError(messageOf(err, t('api.setMemberStatusFailed')));
     } finally {
       setBusy(false);
     }
@@ -254,56 +254,49 @@ const CustomerModal: React.FC<CustomerModalProps> = ({
   }
 
   return (
-    <Modal
-      title={customer.name || customer.email}
-      icon={<Users size={18} />}
-      onClose={onClose}
-      flush
-    >
+    <Modal title={member.name || member.email} icon={<Users size={18} />} onClose={onClose} flush>
       <div className={styles.detail}>
         <div className={styles.actionsBar}>
           <span className={cx(styles.badge, STATUS_BADGE[status])}>
-            {t(`customers.status.${status}`)}
+            {t(`members.status.${status}`)}
           </span>
           <span className={styles.muted}>
-            {t('customers.registeredAt', { date: formatDate(customer.created_at) })}
+            {t('members.registeredAt', { date: formatDate(member.created_at) })}
           </span>
           {status === 'active' && (
             <Button variant="tool" danger disabled={busy} onClick={() => change('suspended')}>
-              {t('customers.suspend')}
+              {t('members.suspend')}
             </Button>
           )}
           {status === 'suspended' && (
             <Button variant="tool" disabled={busy} onClick={() => change('active')}>
-              {t('customers.reactivate')}
+              {t('members.reactivate')}
             </Button>
           )}
         </div>
 
-        {status === 'unverified' && (
-          <div className={styles.notice}>{t('customers.unverified')}</div>
-        )}
+        {status === 'unverified' && <div className={styles.notice}>{t('members.unverified')}</div>}
 
         <div className={styles.detailGrid}>
           <div className={styles.box}>
-            <div className={styles.boxTitle}>{t('customers.contact')}</div>
-            {customer.name || '—'}
+            <div className={styles.boxTitle}>{t('members.contact')}</div>
+            {member.name || '—'}
             {'\n'}
-            <a href={`mailto:${customer.email}`}>{customer.email}</a>
-            {customer.phone ? `\n${customer.phone}` : ''}
+            <a href={`mailto:${member.email}`}>{member.email}</a>
+            {member.phone ? `\n${member.phone}` : ''}
           </div>
           <div className={styles.box}>
-            <div className={styles.boxTitle}>{t('customers.shipTo')}</div>
-            {addressText || <span className={styles.muted}>{t('customers.noAddress')}</span>}
+            <div className={styles.boxTitle}>{t('members.shipTo')}</div>
+            {addressText || <span className={styles.muted}>{t('members.noAddress')}</span>}
           </div>
         </div>
 
         <div className={styles.box} style={{ whiteSpace: 'normal' }}>
-          <div className={styles.boxTitle}>{t('customers.orders')}</div>
+          <div className={styles.boxTitle}>{t('members.orders')}</div>
           {loadError && <div className={cx(styles.notice, styles.error)}>{loadError}</div>}
           {!detail && !loadError && <div className={styles.muted}>{t('common.loading')}</div>}
           {detail && detail.orders.length === 0 && (
-            <div className={styles.muted}>{t('customers.noOrders')}</div>
+            <div className={styles.muted}>{t('members.noOrders')}</div>
           )}
           {detail?.orders.map((order) => (
             <div key={order.id} className={styles.sumRow}>
@@ -321,7 +314,7 @@ const CustomerModal: React.FC<CustomerModalProps> = ({
           ))}
           {[...spent].map(([currency, amount]) => (
             <div key={currency} className={cx(styles.sumRow, styles.sumTotal)}>
-              <span>{t('customers.spent')}</span>
+              <span>{t('members.spent')}</span>
               <span>{formatMoney(amount, currency)}</span>
             </div>
           ))}

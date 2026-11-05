@@ -1,15 +1,15 @@
-//! 顧客テーブル（`_aegis_customers`）とストレージ。
-//! AegisCMS の管理ユーザー（`_aegis_users`）とは完全に別管理の、EC 顧客アカウント。
+//! 会員テーブル（`_aegis_members`）とストレージ。
+//! AegisCMS の管理ユーザー（`_aegis_users`）とは完全に別管理の、EC 会員アカウント。
 
 use aegis_core::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-/// 顧客テーブル名
-pub const CUSTOMER_TABLE: &str = "_aegis_customers";
+/// 会員テーブル名
+pub const MEMBER_TABLE: &str = "_aegis_members";
 
-/// INSERT / SELECT で使う顧客テーブルのカラム（順序固定）
-pub const CUSTOMER_COLUMNS: [&str; 10] = [
+/// INSERT / SELECT で使う会員テーブルのカラム（順序固定）
+pub const MEMBER_COLUMNS: [&str; 10] = [
     "id",
     "email",
     "password_hash",
@@ -22,9 +22,9 @@ pub const CUSTOMER_COLUMNS: [&str; 10] = [
     "last_login_at",
 ];
 
-/// 顧客（`_aegis_customers` の 1 行）
+/// 会員（`_aegis_members` の 1 行）
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct CustomerRecord {
+pub struct MemberRecord {
     pub id: String,
     /// メールアドレス（小文字正規化済み、一意）
     pub email: String,
@@ -40,11 +40,11 @@ pub struct CustomerRecord {
     pub last_login_at: Option<String>,
 }
 
-/// 顧客テーブルの CREATE 文とインデックス定義
-pub fn build_customer_table(text: &str, key: &str, inline_indexes: bool) -> (String, Vec<String>) {
+/// 会員テーブルの CREATE 文とインデックス定義
+pub fn build_member_table(text: &str, key: &str, inline_indexes: bool) -> (String, Vec<String>) {
     let indexes = [
-        ("idx_aegis_customers_email", "email"),
-        ("idx_aegis_customers_created", "created_at"),
+        ("idx_aegis_members_email", "email"),
+        ("idx_aegis_members_created", "created_at"),
     ];
     let inline = if inline_indexes {
         indexes
@@ -66,7 +66,7 @@ pub fn build_customer_table(text: &str, key: &str, inline_indexes: bool) -> (Str
          created_at {key} NOT NULL, \
          updated_at {key} NOT NULL, \
          last_login_at {key}{inline});",
-        table = CUSTOMER_TABLE,
+        table = MEMBER_TABLE,
         key = key,
         text = text,
         inline = inline,
@@ -79,7 +79,7 @@ pub fn build_customer_table(text: &str, key: &str, inline_indexes: bool) -> (Str
             .map(|(name, columns)| {
                 format!(
                     "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
-                    name, CUSTOMER_TABLE, columns
+                    name, MEMBER_TABLE, columns
                 )
             })
             .collect()
@@ -87,23 +87,23 @@ pub fn build_customer_table(text: &str, key: &str, inline_indexes: bool) -> (Str
     (table, separate)
 }
 
-/// 顧客の INSERT 文
-pub fn build_customer_insert(placeholder: impl Fn(usize) -> String) -> String {
-    let placeholders: Vec<String> = (1..=CUSTOMER_COLUMNS.len()).map(placeholder).collect();
+/// 会員の INSERT 文
+pub fn build_member_insert(placeholder: impl Fn(usize) -> String) -> String {
+    let placeholders: Vec<String> = (1..=MEMBER_COLUMNS.len()).map(placeholder).collect();
     format!(
         "INSERT INTO {} ({}) VALUES ({});",
-        CUSTOMER_TABLE,
-        CUSTOMER_COLUMNS.join(", "),
+        MEMBER_TABLE,
+        MEMBER_COLUMNS.join(", "),
         placeholders.join(", ")
     )
 }
 
-/// sqlx の行を `CustomerRecord` に変換する
-macro_rules! customer_row_from_sqlx {
+/// sqlx の行を `MemberRecord` に変換する
+macro_rules! member_row_from_sqlx {
     ($row:expr) => {{
         let row = $row;
         let get = |e: sqlx::Error| aegis_core::AegisError::Database(e.to_string());
-        $crate::customers::CustomerRecord {
+        $crate::members::MemberRecord {
             id: row.try_get("id").map_err(get)?,
             email: row.try_get("email").map_err(get)?,
             password_hash: row.try_get("password_hash").map_err(get)?,
@@ -117,33 +117,33 @@ macro_rules! customer_row_from_sqlx {
         }
     }};
 }
-pub(crate) use customer_row_from_sqlx;
+pub(crate) use member_row_from_sqlx;
 
-/// 顧客の保存（`DatabaseAdapter` のスーパートレイト）
+/// 会員の保存（`DatabaseAdapter` のスーパートレイト）
 #[async_trait]
-pub trait CustomerStorage: Send + Sync {
-    async fn insert_customer(&self, customer: &CustomerRecord) -> Result<()>;
-    async fn get_customer_by_id(&self, id: &str) -> Result<Option<CustomerRecord>>;
-    async fn get_customer_by_email(&self, email: &str) -> Result<Option<CustomerRecord>>;
-    async fn update_customer(&self, customer: &CustomerRecord) -> Result<()>;
-    async fn update_customer_last_login(&self, id: &str, last_login_at: &str) -> Result<()>;
-    async fn list_customers(&self, limit: u64, offset: u64) -> Result<(Vec<CustomerRecord>, u64)>;
-    async fn set_customer_status(&self, id: &str, status: &str, updated_at: &str) -> Result<()>;
-    async fn delete_customer(&self, id: &str) -> Result<bool>;
+pub trait MemberStorage: Send + Sync {
+    async fn insert_member(&self, member: &MemberRecord) -> Result<()>;
+    async fn get_member_by_id(&self, id: &str) -> Result<Option<MemberRecord>>;
+    async fn get_member_by_email(&self, email: &str) -> Result<Option<MemberRecord>>;
+    async fn update_member(&self, member: &MemberRecord) -> Result<()>;
+    async fn update_member_last_login(&self, id: &str, last_login_at: &str) -> Result<()>;
+    async fn list_members(&self, limit: u64, offset: u64) -> Result<(Vec<MemberRecord>, u64)>;
+    async fn set_member_status(&self, id: &str, status: &str, updated_at: &str) -> Result<()>;
+    async fn delete_member(&self, id: &str) -> Result<bool>;
 }
 
-/// `CustomerStorage` の実装マクロ
-macro_rules! impl_customer_storage {
+/// `MemberStorage` の実装マクロ
+macro_rules! impl_member_storage {
     ($adapter:ty, $ph:expr, $label:literal) => {
         #[async_trait::async_trait]
-        impl $crate::customers::CustomerStorage for $adapter {
-            async fn insert_customer(
+        impl $crate::members::MemberStorage for $adapter {
+            async fn insert_member(
                 &self,
-                c: &$crate::customers::CustomerRecord,
+                c: &$crate::members::MemberRecord,
             ) -> aegis_core::Result<()> {
                 let db_err =
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
-                sqlx::query(&$crate::customers::build_customer_insert($ph))
+                sqlx::query(&$crate::members::build_member_insert($ph))
                     .bind(&c.id)
                     .bind(&c.email)
                     .bind(&c.password_hash)
@@ -160,15 +160,15 @@ macro_rules! impl_customer_storage {
                 Ok(())
             }
 
-            async fn get_customer_by_id(
+            async fn get_member_by_id(
                 &self,
                 id: &str,
-            ) -> aegis_core::Result<Option<$crate::customers::CustomerRecord>> {
+            ) -> aegis_core::Result<Option<$crate::members::MemberRecord>> {
                 let ph = $ph;
                 let sql = format!(
                     "SELECT {} FROM {} WHERE id = {};",
-                    $crate::customers::CUSTOMER_COLUMNS.join(", "),
-                    $crate::customers::CUSTOMER_TABLE,
+                    $crate::members::MEMBER_COLUMNS.join(", "),
+                    $crate::members::MEMBER_TABLE,
                     ph(1)
                 );
                 let db_err =
@@ -179,20 +179,20 @@ macro_rules! impl_customer_storage {
                     .await
                     .map_err(db_err)?;
                 match row {
-                    Some(r) => Ok(Some($crate::customers::customer_row_from_sqlx!(&r))),
+                    Some(r) => Ok(Some($crate::members::member_row_from_sqlx!(&r))),
                     None => Ok(None),
                 }
             }
 
-            async fn get_customer_by_email(
+            async fn get_member_by_email(
                 &self,
                 email: &str,
-            ) -> aegis_core::Result<Option<$crate::customers::CustomerRecord>> {
+            ) -> aegis_core::Result<Option<$crate::members::MemberRecord>> {
                 let ph = $ph;
                 let sql = format!(
                     "SELECT {} FROM {} WHERE email = {};",
-                    $crate::customers::CUSTOMER_COLUMNS.join(", "),
-                    $crate::customers::CUSTOMER_TABLE,
+                    $crate::members::MEMBER_COLUMNS.join(", "),
+                    $crate::members::MEMBER_TABLE,
                     ph(1)
                 );
                 let db_err =
@@ -203,20 +203,20 @@ macro_rules! impl_customer_storage {
                     .await
                     .map_err(db_err)?;
                 match row {
-                    Some(r) => Ok(Some($crate::customers::customer_row_from_sqlx!(&r))),
+                    Some(r) => Ok(Some($crate::members::member_row_from_sqlx!(&r))),
                     None => Ok(None),
                 }
             }
 
-            async fn update_customer(
+            async fn update_member(
                 &self,
-                c: &$crate::customers::CustomerRecord,
+                c: &$crate::members::MemberRecord,
             ) -> aegis_core::Result<()> {
                 let ph = $ph;
                 let sql = format!(
                     "UPDATE {} SET email = {}, password_hash = {}, name = {}, phone = {}, status = {}, \
                      shipping_address_json = {}, updated_at = {}, last_login_at = {} WHERE id = {};",
-                    $crate::customers::CUSTOMER_TABLE,
+                    $crate::members::MEMBER_TABLE,
                     ph(1), ph(2), ph(3), ph(4), ph(5), ph(6), ph(7), ph(8), ph(9)
                 );
                 let db_err =
@@ -237,7 +237,7 @@ macro_rules! impl_customer_storage {
                 Ok(())
             }
 
-            async fn update_customer_last_login(
+            async fn update_member_last_login(
                 &self,
                 id: &str,
                 last_login_at: &str,
@@ -245,7 +245,7 @@ macro_rules! impl_customer_storage {
                 let ph = $ph;
                 let sql = format!(
                     "UPDATE {} SET last_login_at = {} WHERE id = {};",
-                    $crate::customers::CUSTOMER_TABLE,
+                    $crate::members::MEMBER_TABLE,
                     ph(1), ph(2)
                 );
                 let db_err =
@@ -259,17 +259,17 @@ macro_rules! impl_customer_storage {
                 Ok(())
             }
 
-            async fn list_customers(
+            async fn list_members(
                 &self,
                 limit: u64,
                 offset: u64,
-            ) -> aegis_core::Result<(Vec<$crate::customers::CustomerRecord>, u64)> {
+            ) -> aegis_core::Result<(Vec<$crate::members::MemberRecord>, u64)> {
                 let ph = $ph;
-                let count_sql = format!("SELECT COUNT(*) FROM {};", $crate::customers::CUSTOMER_TABLE);
+                let count_sql = format!("SELECT COUNT(*) FROM {};", $crate::members::MEMBER_TABLE);
                 let select_sql = format!(
                     "SELECT {} FROM {} ORDER BY created_at DESC LIMIT {} OFFSET {};",
-                    $crate::customers::CUSTOMER_COLUMNS.join(", "),
-                    $crate::customers::CUSTOMER_TABLE,
+                    $crate::members::MEMBER_COLUMNS.join(", "),
+                    $crate::members::MEMBER_TABLE,
                     ph(1), ph(2)
                 );
                 let db_err =
@@ -290,13 +290,13 @@ macro_rules! impl_customer_storage {
 
                 let mut records = Vec::with_capacity(rows.len());
                 for r in &rows {
-                    records.push($crate::customers::customer_row_from_sqlx!(r));
+                    records.push($crate::members::member_row_from_sqlx!(r));
                 }
 
                 Ok((records, total))
             }
 
-            async fn set_customer_status(
+            async fn set_member_status(
                 &self,
                 id: &str,
                 status: &str,
@@ -305,7 +305,7 @@ macro_rules! impl_customer_storage {
                 let ph = $ph;
                 let sql = format!(
                     "UPDATE {} SET status = {}, updated_at = {} WHERE id = {};",
-                    $crate::customers::CUSTOMER_TABLE,
+                    $crate::members::MEMBER_TABLE,
                     ph(1), ph(2), ph(3)
                 );
                 let db_err =
@@ -320,11 +320,11 @@ macro_rules! impl_customer_storage {
                 Ok(())
             }
 
-            async fn delete_customer(&self, id: &str) -> aegis_core::Result<bool> {
+            async fn delete_member(&self, id: &str) -> aegis_core::Result<bool> {
                 let ph = $ph;
                 let sql = format!(
                     "DELETE FROM {} WHERE id = {};",
-                    $crate::customers::CUSTOMER_TABLE,
+                    $crate::members::MEMBER_TABLE,
                     ph(1)
                 );
                 let db_err =
@@ -339,24 +339,24 @@ macro_rules! impl_customer_storage {
         }
     };
 }
-pub(crate) use impl_customer_storage;
+pub(crate) use impl_member_storage;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_customer_sql() {
+    fn test_member_sql() {
         let ph = |i: usize| format!("${}", i);
-        let insert = build_customer_insert(ph);
-        assert!(insert.starts_with("INSERT INTO _aegis_customers ("));
+        let insert = build_member_insert(ph);
+        assert!(insert.starts_with("INSERT INTO _aegis_members ("));
         assert!(insert.contains("$10)"));
 
-        let (mysql, indexes) = build_customer_table("TEXT", "VARCHAR(255)", true);
-        assert!(mysql.contains(", INDEX idx_aegis_customers_email (email)"));
+        let (mysql, indexes) = build_member_table("TEXT", "VARCHAR(255)", true);
+        assert!(mysql.contains(", INDEX idx_aegis_members_email (email)"));
         assert!(indexes.is_empty());
 
-        let (_, indexes) = build_customer_table("TEXT", "TEXT", false);
+        let (_, indexes) = build_member_table("TEXT", "TEXT", false);
         assert_eq!(indexes.len(), 2);
     }
 }

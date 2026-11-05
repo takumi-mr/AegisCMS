@@ -56,6 +56,9 @@ pub struct AegisConfig {
     pub theme: ThemeConfig,
     #[serde(default)]
     pub commerce: CommerceConfig,
+    /// 会員アカウント（`[members]`。ショップ・掲示板が共通で使う）
+    #[serde(default)]
+    pub members: aegis_commerce::MembersConfig,
     #[serde(default)]
     pub notifications: NotificationsConfig,
     #[serde(default)]
@@ -88,6 +91,22 @@ impl AegisConfig {
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path.as_ref())
             .map_err(|e| AegisError::Config(format!("Failed to read config file: {}", e)))?;
+        // `[commerce.customers]` は `[members]` に移した（互換は残さない）。黙って無視すると、
+        // 会員アカウントが突然使えなくなるので、起動時に断る
+        let raw: toml::Value = toml::from_str(&content)
+            .map_err(|e| AegisError::Config(format!("Failed to parse config file: {}", e)))?;
+        if raw
+            .get("commerce")
+            .and_then(|commerce| commerce.get("customers"))
+            .is_some()
+        {
+            return Err(AegisError::Config(
+                "[commerce.customers] was renamed to [members] (and it moved out of [commerce]): \
+                 move the settings there, set enabled = true, and add public_url if you send \
+                 password reset or confirmation emails (see docs/members.md)"
+                    .to_string(),
+            ));
+        }
         let config: AegisConfig = toml::from_str(&content)
             .map_err(|e| AegisError::Config(format!("Failed to parse config file: {}", e)))?;
         Ok(config)
@@ -303,6 +322,42 @@ mod tests {
     use super::*;
     use aegis_audit::AuditSinkKind;
     use aegis_cache::CdnProviderKind;
+
+    /// `[commerce.customers]` は `[members]` に移った。黙って無視せず、移行を案内して断る
+    #[test]
+    fn test_legacy_customers_section_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("aegis.toml");
+
+        std::fs::write(
+            &path,
+            "[commerce]
+enabled = true
+[commerce.customers]
+enabled = true
+",
+        )
+        .unwrap();
+        let err = AegisConfig::load_from_file(&path).unwrap_err().to_string();
+        assert!(
+            err.contains("[commerce.customers]") && err.contains("[members]"),
+            "{err}"
+        );
+
+        std::fs::write(
+            &path,
+            "[commerce]
+enabled = true
+[members]
+enabled = true
+",
+        )
+        .unwrap();
+        let config = AegisConfig::load_from_file(&path).unwrap();
+        assert!(config.members.enabled);
+        // 書かなければ使わない
+        assert!(!AegisConfig::default().members.enabled);
+    }
 
     #[test]
     fn test_plugin_settings() {

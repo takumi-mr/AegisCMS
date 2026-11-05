@@ -14,8 +14,8 @@ pub const SAMPLE_KINDS: &[&str] = &[
     "account.verify",
     "account.registered",
     "account.password_reset",
-    "customer.password_reset",
-    "customer.verify",
+    "member.password_reset",
+    "member.verify",
     "account.approved",
     "account.invite",
     "content.published",
@@ -41,7 +41,7 @@ pub const SAMPLE_KINDS: &[&str] = &[
 /// 知らない種類は空のオブジェクト
 pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
     let ja = locale == "ja";
-    let customer = if ja { "山田 花子" } else { "Hanako Yamada" };
+    let member = if ja { "山田 花子" } else { "Hanako Yamada" };
     let url = |path: &str| {
         if site_url.is_empty() {
             String::new()
@@ -67,7 +67,7 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
             "adjustments": [{ "label": if ja { "送料" } else { "Shipping" }, "amount": if ja { 600 } else { 500 }, "kind": "shipping" }],
             "subtotal": if ja { 4200 } else { 4800 },
             "total": if ja { 4800 } else { 5300 },
-            "customer_name": customer,
+            "customer_name": member,
             "customer_email": "hanako@example.com",
             "shipping_address": {
                 "name": "",
@@ -115,23 +115,23 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
             json!({ "order": order("cancelled", ""), "reason": "admin", "was_paid": true })
         }
         "account.verify" => json!({
-            "username": "hanako", "display_name": customer,
+            "username": "hanako", "display_name": member,
             "verify_url": url("/admin/#verify=sample"), "expires_hours": 24,
         }),
         "account.registered" => json!({
-            "username": "hanako", "display_name": customer, "email": "hanako@example.com",
+            "username": "hanako", "display_name": member, "email": "hanako@example.com",
             "role": "editor", "pending_approval": true,
         }),
         "account.password_reset" => json!({
-            "username": "hanako", "display_name": customer,
+            "username": "hanako", "display_name": member,
             "reset_url": url("/admin/#reset=sample"), "expires_hours": 1,
         }),
-        "customer.password_reset" => json!({
-            "name": customer,
+        "member.password_reset" => json!({
+            "name": member,
             "reset_url": url("/account/reset?token=sample"), "expires_hours": 1,
         }),
-        "customer.verify" => json!({
-            "name": customer,
+        "member.verify" => json!({
+            "name": member,
             "verify_url": url("/account/verify?token=sample"), "expires_hours": 48,
         }),
         "newsletter.confirm" => json!({
@@ -148,21 +148,21 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
             "unsubscribe_url": url("/newsletter/unsubscribe?token=sample"),
         }),
         "account.approved" => json!({
-            "username": "hanako", "display_name": customer, "login_url": admin,
+            "username": "hanako", "display_name": member, "login_url": admin,
         }),
         "account.invite" => json!({
-            "email": "hanako@example.com", "display_name": customer, "role": "editor",
+            "email": "hanako@example.com", "display_name": member, "role": "editor",
             "invite_url": url("/admin/#invite=sample"), "expires_days": 7,
         }),
         "content.published" | "content.unpublished" => json!({
             "content": content,
             "at": "2026-10-25T09:00:00Z",
             "content_url": if kind == "content.published" { json!(url("/autumn-blend")) } else { json!("") },
-            "username": "hanako", "display_name": customer,
+            "username": "hanako", "display_name": member,
         }),
         "content.submitted" => json!({
             "content": content,
-            "submitted_by": customer,
+            "submitted_by": member,
             "note": if ja { "価格の表記を確認してください。" } else { "Please check the prices." },
             "review_url": if admin.is_empty() { String::new() } else { format!("{}#review", admin) },
         }),
@@ -172,21 +172,21 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
             "note": if ja { "見出しを短くしました。" } else { "I shortened the headline." },
             "content_url": if kind == "content.approved" { json!(url("/autumn-blend")) } else { json!("") },
             "edit_url": admin,
-            "username": "hanako", "display_name": customer,
+            "username": "hanako", "display_name": member,
         }),
         "comment.posted" | "comment.pending" => json!({
             "content": content,
             "comment": comment,
             "content_url": url("/autumn-blend#comment-sample"),
             "moderation_url": if admin.is_empty() { String::new() } else { format!("{}#comments", admin) },
-            "username": "hanako", "display_name": customer,
+            "username": "hanako", "display_name": member,
         }),
         "comment.replied" => json!({
             "name": comment["author_name"],
             "content": content,
             "comment": comment,
             "reply": {
-                "author_name": customer,
+                "author_name": member,
                 "body": if ja { "ありがとうございます！来週入荷予定です。" } else { "Thank you! It will be back next week." },
                 "staff": true,
             },
@@ -252,11 +252,11 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
             },
             "message": {
                 "id": "sample-message",
-                "name": customer,
+                "name": member,
                 "email": "hanako@example.com",
                 "subject": if ja { "法人向けプランについて" } else { "About the business plan" },
                 "fields": [
-                    { "name": "name", "label": if ja { "お名前" } else { "Name" }, "value": customer },
+                    { "name": "name", "label": if ja { "お名前" } else { "Name" }, "value": member },
                     { "name": "email", "label": if ja { "メールアドレス" } else { "Email" }, "value": "hanako@example.com" },
                     { "name": "subject", "label": if ja { "件名" } else { "Subject" },
                       "value": if ja { "法人向けプランについて" } else { "About the business plan" } },

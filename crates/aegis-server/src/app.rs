@@ -337,36 +337,36 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/orders/{id}/refund",
             post(handlers::refund_order),
         )
-        // --- 顧客アカウント（EC 顧客・AegisCMS スタッフとは別管理） ---
-        .route("/api/v1/customers/register", post(handlers::customer_register))
-        .route("/api/v1/customers/login", post(handlers::customer_login))
-        .route("/api/v1/customers/logout", post(handlers::customer_logout))
+        // --- 会員アカウント（AegisCMS スタッフとは別管理） ---
+        .route("/api/v1/members/register", post(handlers::member_register))
+        .route("/api/v1/members/login", post(handlers::member_login))
+        .route("/api/v1/members/logout", post(handlers::member_logout))
         .route(
-            "/api/v1/customers/password-reset",
-            post(handlers::customer_request_password_reset),
+            "/api/v1/members/password-reset",
+            post(handlers::member_request_password_reset),
         )
         .route(
-            "/api/v1/customers/password-reset/complete",
-            post(handlers::customer_complete_password_reset),
+            "/api/v1/members/password-reset/complete",
+            post(handlers::member_complete_password_reset),
         )
-        .route("/api/v1/customers/verify", post(handlers::customer_verify_email))
+        .route("/api/v1/members/verify", post(handlers::member_verify_email))
         .route(
-            "/api/v1/customers/verify/resend",
-            post(handlers::customer_resend_verification),
+            "/api/v1/members/verify/resend",
+            post(handlers::member_resend_verification),
         )
         .route(
-            "/api/v1/customers/me",
+            "/api/v1/members/me",
             get(handlers::get_me)
                 .put(handlers::update_me)
                 .delete(handlers::delete_me),
         )
-        .route("/api/v1/customers/orders", get(handlers::list_my_orders))
-        .route("/api/v1/customers/orders/{id}", get(handlers::get_my_order))
-        .route("/api/v1/customers/reviews", get(handlers::list_my_reviews))
-        .route("/api/v1/admin/customers", get(handlers::admin_list_customers))
+        .route("/api/v1/members/orders", get(handlers::list_my_orders))
+        .route("/api/v1/members/orders/{id}", get(handlers::get_my_order))
+        .route("/api/v1/members/reviews", get(handlers::list_my_reviews))
+        .route("/api/v1/admin/members", get(handlers::admin_list_members))
         .route(
-            "/api/v1/admin/customers/{id}",
-            get(handlers::admin_get_customer).patch(handlers::admin_set_customer_status),
+            "/api/v1/admin/members/{id}",
+            get(handlers::admin_get_member).patch(handlers::admin_set_member_status),
         )
         // --- 商品レビュー（購入者限定・ステマ規制配慮・モデレーション） ---
         .route(

@@ -171,8 +171,8 @@ pub async fn shop_config(State(state): State<Arc<AppState>>) -> Json<serde_json:
     let commerce = &state.config.commerce;
     Json(json!({
         "enabled": state.commerce.is_some(),
-        // 管理画面の「顧客」「レビュー」の画面を出すかどうか
-        "customers_enabled": state.customers.is_some(),
+        // 管理画面の「会員」「レビュー」の画面を出すかどうか
+        "members_enabled": state.members.is_some(),
         "reviews_enabled": state.reviews.is_some(),
         "currency": commerce.currency,
         "supported_currencies": commerce.effective_supported_currencies(),
@@ -210,12 +210,12 @@ pub async fn checkout(
     let commerce = commerce(&state)?;
     let site = site_url(&state, &headers);
 
-    // ログイン中の顧客アカウントがあれば自動紐付け
-    if request.customer_id.is_none() {
+    // ログイン中の会員アカウントがあれば自動紐付け
+    if request.member_id.is_none() {
         if let Ok(session) =
-            crate::handlers::customers::resolve_customer_session(&state, &headers).await
+            crate::handlers::members::resolve_member_session(&state, &headers).await
         {
-            request.customer_id = Some(session.customer_id);
+            request.member_id = Some(session.member_id);
             if request.email.trim().is_empty() {
                 request.email = session.email;
             }

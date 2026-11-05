@@ -33,7 +33,7 @@ mod tests {
     async fn create_dummy_order(
         db: &Arc<dyn DatabaseAdapter>,
         order_id: &str,
-        customer_id: Option<&str>,
+        member_id: Option<&str>,
         customer_email: &str,
         product_id: &str,
         status: OrderStatus,
@@ -61,13 +61,13 @@ mod tests {
             lines_json: serde_json::to_string(&lines).unwrap(),
             adjustments_json: "[]".to_string(),
             customer_email: customer_email.to_string(),
-            customer_name: "Customer Name".to_string(),
+            customer_name: "Member Name".to_string(),
             payment_provider: "stripe".to_string(),
             access_token_hash: hash_token(access_token),
             created_at: "2026-10-25T10:00:00Z".to_string(),
             updated_at: "2026-10-25T10:00:00Z".to_string(),
             paid_at: Some("2026-10-25T10:05:00Z".to_string()),
-            customer_id: customer_id.map(str::to_string),
+            member_id: member_id.map(str::to_string),
             ..Default::default()
         };
 
@@ -78,7 +78,7 @@ mod tests {
     async fn test_verified_purchase_and_single_review_per_order() {
         let (service, db) = setup_review_service().await;
 
-        let customer_id = "cust_123";
+        let member_id = "cust_123";
         let product_id = "prod_keyboard";
         let order_id = "ord_001";
         let token = "tok_secret_123";
@@ -87,7 +87,7 @@ mod tests {
         create_dummy_order(
             &db,
             order_id,
-            Some(customer_id),
+            Some(member_id),
             "user@example.com",
             product_id,
             OrderStatus::Paid,
@@ -104,8 +104,8 @@ mod tests {
             author_name: None,
             access_token: None,
         };
-        let author = ReviewAuthor::Customer {
-            customer_id: customer_id.to_string(),
+        let author = ReviewAuthor::Member {
+            member_id: member_id.to_string(),
             email: "user@example.com".to_string(),
             name: "Alice".to_string(),
         };
@@ -133,7 +133,7 @@ mod tests {
     async fn test_unverified_purchase_rejection() {
         let (service, db) = setup_review_service().await;
 
-        let customer_id = "cust_hacker";
+        let member_id = "cust_hacker";
         let product_id = "prod_laptop";
         let order_id = "ord_unpaid";
         let token = "tok_abc";
@@ -142,7 +142,7 @@ mod tests {
         create_dummy_order(
             &db,
             order_id,
-            Some(customer_id),
+            Some(member_id),
             "hacker@example.com",
             product_id,
             OrderStatus::PendingPayment,
@@ -158,8 +158,8 @@ mod tests {
             author_name: None,
             access_token: None,
         };
-        let author = ReviewAuthor::Customer {
-            customer_id: customer_id.to_string(),
+        let author = ReviewAuthor::Member {
+            member_id: member_id.to_string(),
             email: "hacker@example.com".to_string(),
             name: "Hacker".to_string(),
         };
@@ -260,8 +260,8 @@ mod tests {
             author_name: None,
             access_token: None,
         };
-        let author = ReviewAuthor::Customer {
-            customer_id: "cust_spk".to_string(),
+        let author = ReviewAuthor::Member {
+            member_id: "cust_spk".to_string(),
             email: "spk@example.com".to_string(),
             name: "Reviewer".to_string(),
         };
@@ -332,8 +332,8 @@ mod tests {
                 author_name: None,
                 access_token: None,
             };
-            let author = ReviewAuthor::Customer {
-                customer_id: format!("cust_{}", i),
+            let author = ReviewAuthor::Member {
+                member_id: format!("cust_{}", i),
                 email: format!("user{}@example.com", i),
                 name: format!("User {}", i),
             };
