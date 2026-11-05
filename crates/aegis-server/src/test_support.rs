@@ -123,6 +123,14 @@ pub async fn test_app_state_with_db(
     )
 }
 
+/// 実機の PostgreSQL（共有の `aegis_test`）を使うテストの排他ロック。
+/// どのテストも同じテーブルを `DROP` して作り直すので、並列に動くと互いのテーブルを壊し、
+/// `CREATE INDEX` が `pg_class_relname_nsp_index` の重複で落ちる。使う間は握っておく
+pub static POSTGRES_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// 実機の MySQL を使うテストの排他ロック（理由は [`POSTGRES_TEST_LOCK`] と同じ）
+pub static MYSQL_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// テスト用の共通の CAPTCHA 設定（Turnstile。`verify_url` は手元の siteverify）
 pub fn shared_captcha(
     verify_url: String,

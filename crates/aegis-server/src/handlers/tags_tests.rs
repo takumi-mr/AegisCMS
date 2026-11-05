@@ -827,6 +827,7 @@ fn is_port_reachable(host_port: &str) -> bool {
 
 #[tokio::test]
 async fn test_postgres_list_contents_filter_by_tag() {
+    let _db_lock = crate::test_support::POSTGRES_TEST_LOCK.lock().await;
     let custom_url = std::env::var("POSTGRES_URL").ok();
     if custom_url.is_none() && !is_port_reachable("127.0.0.1:5432") {
         eprintln!("Skipping PostgreSQL test: 127.0.0.1:5432 is not reachable");
@@ -848,6 +849,7 @@ async fn test_postgres_list_contents_filter_by_tag() {
 
 #[tokio::test]
 async fn test_mysql_list_contents_filter_by_tag() {
+    let _db_lock = crate::test_support::MYSQL_TEST_LOCK.lock().await;
     let custom_url = std::env::var("MYSQL_URL").ok();
     if custom_url.is_none() && !is_port_reachable("127.0.0.1:3306") {
         eprintln!("Skipping MySQL test: 127.0.0.1:3306 is not reachable");
