@@ -1,0 +1,26 @@
+[package]
+name = "aegis-headless"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Headless delivery API for AegisCMS: published content as schema-shaped JSON, read-only"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-ast = { path = "../aegis-ast" }
+aegis-core = { path = "../aegis-core" }
+aegis-db = { path = "../aegis-db" }
+aegis-schema = { path = "../aegis-schema" }
+async-trait.workspace = true
+base64.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
