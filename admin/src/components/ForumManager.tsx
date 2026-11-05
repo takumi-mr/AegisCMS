@@ -40,12 +40,50 @@ interface ForumManagerProps {
   /** Admins may create, edit and delete categories; editors moderate threads and posts */
   isAdmin: boolean;
   onShowToast: (message: string, type?: 'success' | 'error') => void;
+  /** Opens a member's detail (given when member accounts are on and the user may see them) */
+  onOpenMember?: (memberId: string) => void;
 }
 
 type TabMode = 'threads' | 'reports' | 'categories' | 'settings';
 
-export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast }) => {
+export const ForumManager: React.FC<ForumManagerProps> = ({
+  isAdmin,
+  onShowToast,
+  onOpenMember,
+}) => {
   const { t } = useTranslation();
+
+  /** The author's name; a member also gets a badge and a link to the member's detail */
+  const renderAuthor = (post: Pick<ForumPost, 'author_id' | 'author_kind' | 'author_name'>) => {
+    if (post.author_kind === 'member' && post.author_id) {
+      const memberId = post.author_id;
+      return (
+        <>
+          {post.author_name}
+          <span className={styles.badgeMember}>{t('forum.member')}</span>
+          {onOpenMember && (
+            <button
+              type="button"
+              className={styles.memberLink}
+              onClick={() => onOpenMember(memberId)}
+            >
+              {t('forum.openMember')}
+            </button>
+          )}
+        </>
+      );
+    }
+    if (post.author_kind === 'staff') {
+      return (
+        <>
+          {post.author_name}
+          <span className={styles.badgeStaff}>{t('forum.staff')}</span>
+        </>
+      );
+    }
+    // No account: a visitor, or a member who left (their name is erased)
+    return post.author_name || <span style={{ opacity: 0.6 }}>{t('forum.formerUser')}</span>;
+  };
   const [activeTab, setActiveTab] = useState<TabMode>('threads');
   const [categories, setCategories] = useState<ForumCategory[]>([]);
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>('all');
@@ -586,7 +624,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
                           </div>
                         </td>
                         <td className={styles.nowrapCell}>{getCategoryName(thread.category_id)}</td>
-                        <td className={styles.nowrapCell}>{thread.author_name}</td>
+                        <td className={styles.nowrapCell}>{renderAuthor(thread)}</td>
                         <td className={styles.nowrapCell}>{renderStatusBadge(thread.status)}</td>
                         <td className={styles.nowrapCell}>{thread.post_count}</td>
                         <td className={styles.nowrapCell}>{formatDateTime(thread.last_post_at)}</td>
@@ -913,7 +951,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
                 <div key={post.id} className={styles.postItem}>
                   <div className={styles.postHeader}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <strong>#{post.post_number}</strong> by <strong>{post.author_name}</strong>
+                      <strong>#{post.post_number}</strong> by <strong>{renderAuthor(post)}</strong>
                       {renderStatusBadge(post.status)}
                       {post.ip && <span style={{ opacity: 0.6 }}>(IP: {post.ip})</span>}
                     </div>

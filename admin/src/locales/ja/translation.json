@@ -748,7 +748,10 @@
     "noAddress": "保存していません",
     "orders": "注文",
     "noOrders": "まだ注文はありません。",
-    "spent": "支払い済みの合計"
+    "spent": "支払い済みの合計",
+    "forum": "掲示板",
+    "forumThreads": "立てたスレッド",
+    "forumPosts": "投稿（スレッドの1つ目を含む）"
   },
   "reviews": {
     "title": "レビュー",
@@ -1675,7 +1678,11 @@
       "categoryCreated": "カテゴリを作成しました",
       "categoryUpdated": "カテゴリを更新しました",
       "categoryDeleted": "カテゴリを削除しました"
-    }
+    },
+    "member": "会員",
+    "staff": "スタッフ",
+    "openMember": "会員を開く",
+    "formerUser": "退会したユーザー"
   },
   "analytics": {
     "title": "アクセス解析",

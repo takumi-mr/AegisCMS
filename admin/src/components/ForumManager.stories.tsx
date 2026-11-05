@@ -33,6 +33,7 @@ const mockThreads: ForumThread[] = [
     category_id: 'cat-1',
     title: 'Welcome to the AegisCMS Community!',
     author_id: 'admin',
+    author_kind: 'staff',
     author_name: 'Admin',
     is_pinned: true,
     is_locked: true,
@@ -46,6 +47,7 @@ const mockThreads: ForumThread[] = [
     category_id: 'cat-2',
     title: 'How to write custom Wasm plugins in Rust',
     author_id: 'user-1',
+    author_kind: 'member',
     author_name: 'Alice',
     is_pinned: false,
     is_locked: false,
@@ -62,6 +64,7 @@ const mockPosts: ForumPost[] = [
     thread_id: 'th-1',
     post_number: 1,
     author_id: 'admin',
+    author_kind: 'staff',
     author_name: 'Admin',
     body: 'Welcome to the forum! Please adhere to our guidelines.',
     reply_to_post_id: null,
@@ -77,6 +80,7 @@ const mockPosts: ForumPost[] = [
     thread_id: 'th-1',
     post_number: 2,
     author_id: 'user-2',
+    author_kind: 'member',
     author_name: 'Bob',
     body: 'Excited to be here! Looking forward to testing out AegisCMS.',
     reply_to_post_id: null,
@@ -299,5 +303,25 @@ export const ViewPostsModal: Story = {
         body.getByText(/Excited to be here! Looking forward to testing out AegisCMS./i)
       ).toBeInTheDocument();
     });
+  },
+};
+
+export const MemberAuthorsLinkToTheMember: Story = {
+  args: { onOpenMember: fn() },
+  beforeEach: () => {
+    return forumApi();
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    await waitFor(() => {
+      expect(canvas.getByText('How to write custom Wasm plugins in Rust')).toBeInTheDocument();
+    });
+
+    // The staff author gets a "Staff" badge; the member author a "Member" badge and a link
+    expect(canvas.getAllByText('Staff')).toHaveLength(1);
+    expect(canvas.getAllByText('Member')).toHaveLength(1);
+    await userEvent.click(canvas.getByRole('button', { name: 'Open member' }));
+    expect(args.onOpenMember).toHaveBeenCalledWith('user-1');
   },
 };

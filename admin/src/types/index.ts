@@ -776,6 +776,8 @@ export interface MemberOrderSummary {
 export interface MemberDetail {
   member: AdminMember;
   orders: MemberOrderSummary[];
+  /** Forum activity; null when the forum is off. Threads are counted again in posts (the opening post) */
+  forum: { threads: number; posts: number } | null;
 }
 
 export interface ShopConfig {
@@ -1071,11 +1073,15 @@ export interface UpdateForumCategoryPayload {
   visibility: ForumCategoryVisibility;
 }
 
+/** Who wrote a forum post: a CMS account or a member account (nobody for a visitor, or a member who left) */
+export type ForumAuthorKind = 'staff' | 'member';
+
 export interface ForumThread {
   id: string;
   category_id: string;
   title: string;
   author_id: string | null;
+  author_kind?: ForumAuthorKind | null;
   author_name: string;
   is_pinned: boolean;
   is_locked: boolean;
@@ -1091,6 +1097,7 @@ export interface ForumPost {
   thread_id: string;
   post_number: number;
   author_id: string | null;
+  author_kind?: ForumAuthorKind | null;
   author_name: string;
   body: string;
   reply_to_post_id: string | null;

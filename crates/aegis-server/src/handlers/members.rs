@@ -744,9 +744,22 @@ pub async fn admin_get_member(
         })
         .collect();
 
+    // 掲示板が有効なら、その会員の投稿数も返す（無効なら null）
+    let forum = match state.forum.as_ref() {
+        Some(forum) => {
+            let (threads, posts) = forum
+                .member_post_counts(&member_id)
+                .await
+                .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            Some(json!({ "threads": threads, "posts": posts }))
+        }
+        None => None,
+    };
+
     Ok(Json(json!({
         "member": member,
         "orders": orders,
+        "forum": forum,
     })))
 }
 

@@ -146,6 +146,8 @@ export const App: React.FC = () => {
   const [resetToken] = useState<string | null>(takeResetToken);
   const [inviteToken] = useState<string | null>(takeInviteToken);
   const [view, setView] = useState<AppView>(takeInitialView);
+  // A member the forum asked to open in the Members view
+  const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   // Hidden until the server says the shop is on ([commerce].enabled)
   const [shopEnabled, setShopEnabled] = useState<boolean>(false);
   // ...and the member accounts ([members].enabled) for the Members screen
@@ -999,13 +1001,28 @@ export const App: React.FC = () => {
       ) : view === 'orders' && showShop ? (
         <OrderManager onShowToast={showToast} />
       ) : view === 'members' && showMembers ? (
-        <MemberManager onShowToast={showToast} />
+        <MemberManager
+          onShowToast={showToast}
+          openMemberId={openMemberId}
+          onOpened={() => setOpenMemberId(null)}
+        />
       ) : view === 'reviews' && showReviews ? (
         <ReviewManager onShowToast={showToast} />
       ) : view === 'comments' && showComments ? (
         <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
       ) : view === 'forum' && showForum ? (
-        <ForumManager isAdmin={isAdmin(session)} onShowToast={showToast} />
+        <ForumManager
+          isAdmin={isAdmin(session)}
+          onShowToast={showToast}
+          onOpenMember={
+            showMembers
+              ? (memberId) => {
+                  setOpenMemberId(memberId);
+                  setView('members');
+                }
+              : undefined
+          }
+        />
       ) : view === 'contact' && showContact ? (
         <ContactInbox onShowToast={showToast} />
       ) : view === 'analytics' && analyticsEnabled ? (
