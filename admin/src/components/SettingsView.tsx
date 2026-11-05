@@ -15,6 +15,7 @@ import {
   Mail,
   Megaphone,
   Unlink,
+  Scale,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount, ContentSummary } from '../types';
@@ -35,6 +36,7 @@ import { TagManager } from './TagManager';
 import { ThemeManager } from './ThemeManager';
 import { UserManager } from './UserManager';
 import { BrokenLinksManager } from './BrokenLinksManager';
+import { LicenseManager } from './LicenseManager';
 import styles from './SettingsView.module.css';
 
 export type SettingsSection =
@@ -52,7 +54,8 @@ export type SettingsSection =
   | 'categories'
   | 'tags'
   | 'users'
-  | 'audit';
+  | 'audit'
+  | 'licenses';
 
 const SECTIONS: Array<{
   id: SettingsSection;
@@ -75,6 +78,7 @@ const SECTIONS: Array<{
   { id: 'tags', icon: <TagIcon size={16} /> },
   { id: 'users', icon: <Users size={16} />, visible: isAdmin },
   { id: 'audit', icon: <ScrollText size={16} />, visible: isAdmin },
+  { id: 'licenses', icon: <Scale size={16} /> },
 ];
 
 interface SettingsViewProps {
@@ -127,7 +131,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       <div className={styles.content}>
         {current === 'site' && <SiteManager onShowToast={onShowToast} />}
-        {current === 'system' && <SystemManager onShowToast={onShowToast} />}
+        {current === 'system' && (
+          <SystemManager
+            onShowToast={onShowToast}
+            onNavigateLicenses={() => onSectionChange('licenses')}
+          />
+        )}
         {current === 'seo' && <SeoManager onShowToast={onShowToast} />}
         {current === 'headers' && <HeaderManager onShowToast={onShowToast} />}
         {current === 'redirects' && <RedirectManager onShowToast={onShowToast} />}
@@ -149,6 +158,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <UserManager session={session} onSelfUpdated={onSelfUpdated} onShowToast={onShowToast} />
         )}
         {current === 'audit' && <AuditLogView />}
+        {current === 'licenses' && <LicenseManager />}
       </div>
     </div>
   );

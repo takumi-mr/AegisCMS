@@ -1243,7 +1243,8 @@
       "redirects": "リダイレクト",
       "newsletter": "ニュースレター",
       "notices": "お知らせ",
-      "broken-links": "リンク切れチェック"
+      "broken-links": "リンク切れチェック",
+      "licenses": "ライセンス"
     }
   },
   "plugins": {
@@ -2018,5 +2019,20 @@
     "loadFailed": "リンク切れレポートの読み込みに失敗しました。",
     "scanFailed": "リンク切れ検査の開始に失敗しました。",
     "filterPlaceholder": "URLまたはタイトルで絞り込み..."
+  },
+  "licenses": {
+    "title": "ライセンス情報",
+    "description": "AegisCMS 本体および使用しているオープンソースソフトウェアのライセンス情報です。",
+    "aegisLicenseTitle": "AegisCMS ライセンス",
+    "aegisLicenseBody": "AegisCMS は MIT ライセンスの下で公開されているオープンソースソフトウェアです。",
+    "searchPlaceholder": "パッケージ名やライセンスで検索...",
+    "filterAll": "すべて",
+    "filterRust": "バックエンド (Rust)",
+    "filterNpm": "フロントエンド (npm)",
+    "repository": "リポジトリ",
+    "packageCount": "{{count}} 件のライブラリ",
+    "noResults": "一致するライブラリが見つかりませんでした。",
+    "viewLicenses": "ライセンス一覧を表示",
+    "systemSectionNote": "使用しているオープンソースソフトウェアおよびライブラリのライセンス一覧を確認できます。"
   }
 }
