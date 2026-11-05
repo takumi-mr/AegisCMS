@@ -218,6 +218,15 @@ payment_due_hours = 72
 secret_key = ""
 webhook_secret = ""
 
+# Customer accounts for shop buyers (docs/customers.md), separate from the CMS accounts.
+# Used while [commerce] is enabled
+[commerce.customers]
+enabled = true
+# "open": anyone can sign up. "closed": no new sign-ups (existing customers can still log in)
+registration = "open"
+# How long a login lasts, in days
+session_days = 30
+
 # Notifications (docs/notifications.md): order emails to customers and staff, sent through an
 # external SMTP server. channels = ["log"] prints them to the server log instead (no SMTP needed).
 # Check the settings with: aegis-server notify test --to you@example.com

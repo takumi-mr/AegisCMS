@@ -21,7 +21,10 @@ use aegis_core::{
 };
 use aegis_schema::{FieldType, SchemaDefinition};
 use chrono::{SecondsFormat, Utc};
-pub use config::{CommerceConfig, ManualPaymentConfig, PaymentProviderKind, StripeConfig};
+pub use config::{
+    CommerceConfig, CustomerRegistration, CustomersConfig, ManualPaymentConfig,
+    PaymentProviderKind, StripeConfig,
+};
 pub use customer::{
     CustomerLoginRequest, CustomerRegisterRequest, CustomerResponse, CustomerService,
     CustomerSessionData, CustomerUpdateProfileRequest, CUSTOMER_SESSION_PREFIX,

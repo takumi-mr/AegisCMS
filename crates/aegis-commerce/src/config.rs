@@ -26,6 +26,45 @@ impl PaymentProviderKind {
     }
 }
 
+/// 新規の会員登録の受付（`[commerce.customers].registration`）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CustomerRegistration {
+    /// 誰でも登録できる
+    #[default]
+    Open,
+    /// 新規の登録だけを止める（登録済みの顧客は、ログインして使える）
+    Closed,
+}
+
+/// 顧客アカウント（`[commerce.customers]`。docs/customers.md）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomersConfig {
+    /// 顧客アカウント（会員登録・ログイン・注文履歴）を使う。`false` なら顧客の API は 404（ゲスト購入とレビューは使える）
+    pub enabled: bool,
+    pub registration: CustomerRegistration,
+    /// ログインの有効期間（日）
+    pub session_days: u64,
+}
+
+impl Default for CustomersConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            registration: CustomerRegistration::Open,
+            session_days: 30,
+        }
+    }
+}
+
+impl CustomersConfig {
+    /// ログインの有効期間（秒）
+    pub fn session_ttl_secs(&self) -> u64 {
+        self.session_days.saturating_mul(24 * 3600)
+    }
+}
+
 /// EC（カート・注文・在庫・決済）。商品は `product_type` のスキーマのコンテンツ
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -58,6 +97,7 @@ pub struct CommerceConfig {
     pub low_stock_threshold: Option<u32>,
     pub manual: ManualPaymentConfig,
     pub stripe: StripeConfig,
+    pub customers: CustomersConfig,
 }
 
 impl Default for CommerceConfig {
@@ -77,6 +117,7 @@ impl Default for CommerceConfig {
             low_stock_threshold: Some(5),
             manual: ManualPaymentConfig::default(),
             stripe: StripeConfig::default(),
+            customers: CustomersConfig::default(),
         }
     }
 }
@@ -151,6 +192,11 @@ impl CommerceConfig {
             return Err(AegisError::Config(
                 "[commerce].reservation_minutes, max_quantity_per_item and max_items must be at least 1"
                     .to_string(),
+            ));
+        }
+        if self.customers.enabled && !(1..=365).contains(&self.customers.session_days) {
+            return Err(AegisError::Config(
+                "[commerce.customers].session_days must be between 1 and 365".to_string(),
             ));
         }
         if self.provider == PaymentProviderKind::Stripe {
@@ -239,6 +285,56 @@ impl StripeConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn customers_section_defaults_parses_and_validates() {
+        // 書かなければ従来どおり（有効・登録は開いている・30 日）
+        let config: CommerceConfig = toml::from_str("enabled = true").unwrap();
+        assert!(config.customers.enabled);
+        assert_eq!(config.customers.registration, CustomerRegistration::Open);
+        assert_eq!(config.customers.session_days, 30);
+        config.validate().unwrap();
+
+        let config: CommerceConfig = toml::from_str(
+            "enabled = true
+[customers]
+registration = \"closed\"
+session_days = 7
+",
+        )
+        .unwrap();
+        assert_eq!(config.customers.registration, CustomerRegistration::Closed);
+        assert_eq!(config.customers.session_ttl_secs(), 7 * 24 * 3600);
+        config.validate().unwrap();
+
+        // 範囲外の日数は設定の誤りとして拒否する（使わない設定なら見ない）
+        for days in [0, 366] {
+            let bad: CommerceConfig = toml::from_str(&format!(
+                "enabled = true
+[customers]
+session_days = {days}
+"
+            ))
+            .unwrap();
+            assert!(bad.validate().is_err(), "{days}");
+        }
+        let unused: CommerceConfig = toml::from_str(
+            "enabled = true
+[customers]
+enabled = false
+session_days = 0
+",
+        )
+        .unwrap();
+        unused.validate().unwrap();
+
+        // 知らない値は拒否する
+        assert!(toml::from_str::<CommerceConfig>(
+            "[customers]
+registration = \"invite\""
+        )
+        .is_err());
+    }
+
     use super::*;
 
     #[test]

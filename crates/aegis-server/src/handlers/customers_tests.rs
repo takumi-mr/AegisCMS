@@ -35,7 +35,12 @@ struct TestContext {
 }
 
 async fn setup_app() -> TestContext {
+    setup_app_with(|_| {}).await
+}
+
+async fn setup_app_with(configure: impl FnOnce(&mut AegisConfig)) -> TestContext {
     let mut config = AegisConfig::default();
+    configure(&mut config);
     config.commerce.enabled = true;
     config.commerce.product_type = "product".to_string();
     config.comments.moderation.require_approval = false; // 自動承認
@@ -51,7 +56,9 @@ async fn setup_app() -> TestContext {
     let commerce =
         aegis_commerce::CommerceService::new(config.commerce.clone(), state.commerce_deps())
             .unwrap();
-    let customers = aegis_commerce::CustomerService::new(
+    // サーバーと同じく、設定（[commerce.customers]）から作る
+    let customers = aegis_commerce::CustomerService::from_config(
+        &config.commerce.customers,
         state.db.clone(),
         state.cache.clone(),
         state.audit.clone(),
@@ -63,12 +70,11 @@ async fn setup_app() -> TestContext {
         config.comments.moderation.clone(),
     );
 
-    let state = Arc::new(
-        state
-            .with_commerce(commerce)
-            .with_customers(customers)
-            .with_reviews(reviews),
-    );
+    let state = state.with_commerce(commerce).with_reviews(reviews);
+    let state = Arc::new(match customers {
+        Some(customers) => state.with_customers(customers),
+        None => state,
+    });
 
     let db = state.db.clone();
 
@@ -379,4 +385,64 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     assert_eq!(res.status(), StatusCode::OK);
     let pub_reviews2 = json_response(res).await;
     assert!(pub_reviews2["reviews"][0]["reply"].is_string());
+}
+
+async fn post_json(ctx: &TestContext, path: &str, body: Value) -> axum::response::Response {
+    ctx.app
+        .clone()
+        .oneshot(
+            Request::post(path)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+fn registration(email: &str) -> Value {
+    json!({ "email": email, "password": "password123", "name": "Test Customer" })
+}
+
+/// `[commerce.customers].enabled = false`: 顧客の API は 404（レビューなど、ほかの EC の機能は動く）
+#[tokio::test]
+async fn test_customer_api_is_off_when_disabled() {
+    let ctx = setup_app_with(|config| config.commerce.customers.enabled = false).await;
+    for path in ["/api/v1/customers/register", "/api/v1/customers/login"] {
+        let res = post_json(&ctx, path, registration("off@example.com")).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND, "{path}");
+        let body = json_response(res).await;
+        assert!(body["error"].as_str().unwrap().contains("not enabled"));
+    }
+}
+
+/// `registration = "closed"`: 新規の登録は 403。登録済みの顧客はログインできる
+#[tokio::test]
+async fn test_closed_registration_over_http() {
+    // 開いた設定では登録できる
+    let open = setup_app().await;
+    let res = post_json(
+        &open,
+        "/api/v1/customers/register",
+        registration("a@example.com"),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    let closed = setup_app_with(|config| {
+        config.commerce.customers.registration = aegis_commerce::CustomerRegistration::Closed;
+    })
+    .await;
+    let res = post_json(
+        &closed,
+        "/api/v1/customers/register",
+        registration("b@example.com"),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+    let body = json_response(res).await;
+    assert!(body["error"]
+        .as_str()
+        .unwrap()
+        .contains("registration is closed"));
 }
