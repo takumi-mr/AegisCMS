@@ -10,11 +10,12 @@ use sqlx::{PgConnection, Pool, Postgres, Row};
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
     build_audit_select, build_content_list, build_content_update, build_identity_insert,
-    build_identity_select, build_identity_table, build_relation_lookup, build_scheduled_publish,
-    build_scheduled_unpublish, build_setting_delete, build_setting_upsert, build_settings_select,
-    build_settings_table, build_user_delete, build_user_insert, build_user_select,
-    build_user_update, custom_columns, is_standard_column, user_row_from_sqlx, ContentListQuery,
-    ContentPage, ContentPublicationChange, ContentRecord, ContentVersionRecord, CustomFieldValue,
+    build_identity_select, build_identity_table, build_published_relation_lookup,
+    build_relation_lookup, build_scheduled_publish, build_scheduled_unpublish,
+    build_setting_delete, build_setting_upsert, build_settings_select, build_settings_table,
+    build_user_delete, build_user_insert, build_user_select, build_user_update, custom_columns,
+    is_standard_column, user_row_from_sqlx, ContentListQuery, ContentPage,
+    ContentPublicationChange, ContentRecord, ContentVersionRecord, CustomFieldValue,
     DatabaseAdapter, PublishedNeighborQuery, ResolvedRelation, UserRecord, AUDIT_INDEXES,
     AUDIT_TABLE, PUBLICATION_INDEXES, USER_AVATAR_COLUMN, USER_BACKUP_CODES_COLUMN,
     USER_PENDING_APPROVAL_COLUMN, USER_TABLE, USER_TOTP_ENABLED_COLUMN, USER_TOTP_SECRET_COLUMN,
@@ -1257,6 +1258,45 @@ impl DatabaseAdapter for PostgresAdapter {
             |i| format!("${}", i),
         );
         let mut lookup = sqlx::query(&query);
+        for id in ref_ids {
+            lookup = lookup.bind(id);
+        }
+        let rows = lookup
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AegisError::Database(e.to_string()))?;
+
+        Ok(rows
+            .iter()
+            .map(|r| {
+                (
+                    r.get("ref_key"),
+                    ResolvedRelation {
+                        id: r.get("id"),
+                        content_type: r.get("content_type"),
+                        title: r.get("title"),
+                        slug: r.get("slug"),
+                    },
+                )
+            })
+            .collect())
+    }
+
+    async fn resolve_published_relations(
+        &self,
+        target_schema: &SchemaDefinition,
+        target_field: &str,
+        ref_ids: &[String],
+    ) -> Result<HashMap<String, ResolvedRelation>> {
+        if ref_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let Some(query) =
+            build_published_relation_lookup(target_field, ref_ids.len(), |i| format!("${}", i))
+        else {
+            return Ok(HashMap::new());
+        };
+        let mut lookup = sqlx::query(&query).bind(&target_schema.content_type);
         for id in ref_ids {
             lookup = lookup.bind(id);
         }

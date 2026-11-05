@@ -656,6 +656,17 @@ pub trait DatabaseAdapter:
         ref_ids: &[String],
     ) -> Result<HashMap<String, ResolvedRelation>>;
 
+    /// 公開版の記録（`_aegis_content_publications`）から、公開中のものだけを `target_field` の値で引く。
+    /// コンテンツ本体のテーブルは編集中の内容（未公開のタイトルや下書き）を持つので使わない。
+    /// 公開の配信 API が、公開済みの記事から参照される先を返すために使う。
+    /// `target_field` は `id` と `slug` に対応する（ほかは何も返さない）。参照先が公開中でなければ結果に入らない
+    async fn resolve_published_relations(
+        &self,
+        target_schema: &SchemaDefinition,
+        target_field: &str,
+        ref_ids: &[String],
+    ) -> Result<HashMap<String, ResolvedRelation>>;
+
     /// Persist an audit event into the audit log table
     async fn insert_audit_event(&self, event: &AuditEvent) -> Result<()>;
 
@@ -1392,6 +1403,28 @@ pub fn build_relation_lookup(
     )
 }
 
+/// 公開版の記録から、公開中のものを `id` または `slug` で引く SELECT（`resolve_published_relations`）。
+/// 1 つ目のバインドは `content_type`、続けて参照の値。`target_field` が `id` / `slug` 以外なら `None`
+pub fn build_published_relation_lookup(
+    target_field: &str,
+    count: usize,
+    placeholder: impl Fn(usize) -> String,
+) -> Option<String> {
+    let column = match target_field {
+        "id" => "content_id",
+        "slug" => "slug",
+        _ => return None,
+    };
+    let placeholders: Vec<String> = (2..count + 2).map(&placeholder).collect();
+    Some(format!(
+        "SELECT content_id AS id, content_type, title, slug, {} AS ref_key FROM _aegis_content_publications WHERE content_type = {} AND status = 'published' AND {} IN ({});",
+        column,
+        placeholder(1),
+        column,
+        placeholders.join(", ")
+    ))
+}
+
 /// 検索条件から SELECT 文とバインド値を組み立てる。値はすべてバインドし、LIMIT / OFFSET のみ数値を埋め込む
 pub fn build_audit_select(
     query: &AuditQuery,
@@ -1695,6 +1728,14 @@ mod tests {
         assert_eq!(
             build_relation_lookup("content_category", "id", 3, |_| "?".into()),
             "SELECT id, content_type, title, slug, id AS ref_key FROM content_category WHERE id IN (?, ?, ?);"
+        );
+        assert_eq!(
+            build_published_relation_lookup("slug", 2, |i| format!("${}", i)).unwrap(),
+            "SELECT content_id AS id, content_type, title, slug, slug AS ref_key FROM _aegis_content_publications WHERE content_type = $1 AND status = 'published' AND slug IN ($2, $3);"
+        );
+        // id / slug 以外は引かない（列名を SQL に埋め込まない）
+        assert!(
+            build_published_relation_lookup("title; DROP TABLE x", 1, |_| "?".into()).is_none()
         );
     }
 

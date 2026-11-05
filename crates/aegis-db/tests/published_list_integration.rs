@@ -320,6 +320,30 @@ async fn run_published_list_test<A: DatabaseAdapter>(adapter: &A) -> Result<()> 
         page_ids(adapter, in_category(Some("cat-1"), 5)).await?,
         (strings(&["p7", "p5", "p3", "p1"]), 4)
     );
+
+    // 公開の配信 API 用: 参照先は公開版の記録から、公開中のものだけを引く
+    // （p6 は予約中、"missing" は存在しない。どちらも結果に入らない）
+    let by_id = adapter
+        .resolve_published_relations(&schema, "id", &strings(&["p1", "p6", "missing"]))
+        .await?;
+    assert_eq!(by_id.len(), 1);
+    assert_eq!(by_id["p1"].title, "Title p1");
+    assert_eq!(by_id["p1"].slug, "slug-p1");
+    assert_eq!(by_id["p1"].content_type, "article");
+    let by_slug = adapter
+        .resolve_published_relations(&schema, "slug", &strings(&["slug-p2", "slug-p6"]))
+        .await?;
+    assert_eq!(by_slug.len(), 1);
+    assert_eq!(by_slug["slug-p2"].id, "p2");
+    // `id` と `slug` 以外の列では引かない。参照が空のときも問い合わせない
+    assert!(adapter
+        .resolve_published_relations(&schema, "title", &strings(&["Title p1"]))
+        .await?
+        .is_empty());
+    assert!(adapter
+        .resolve_published_relations(&schema, "id", &[])
+        .await?
+        .is_empty());
     Ok(())
 }
 
