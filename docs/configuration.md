@@ -437,7 +437,7 @@ SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Re
 | `title_min_length` / `title_max_length` | integer | `2` / `200` | スレッドのタイトルの文字数（最大 1,000） |
 | `body_min_length` / `body_max_length` | integer | `1` / `10000` | 本文の文字数（最大 100,000） |
 | `rate_limit_secs` | integer | `5` | 同じ IP・ユーザーの投稿の間隔（秒。`[cache]` で数える） |
-| `allow_anonymous` | bool | `true` | ログインしていない人の投稿を許可する |
+| `posting` | string | `"anyone"` | 投稿できる人。`"anyone"` はだれでも（会員は公開名で、匿名は名前を入れて）、`"members"` は会員とスタッフだけ（`[members].enabled = true` が要る）。前の `allow_anonymous` は廃止（残っていると起動しない）。カテゴリの公開範囲は [掲示板 4.0](./forum.md) |
 | `auto_lock_post_count` | integer | `1000` | この数のレスでスレッドを自動でロック（0 で無制限） |
 | `default_page_size` | integer | `50` | 1 ページの件数（1〜200） |
 

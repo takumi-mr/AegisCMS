@@ -326,6 +326,7 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("forum.label", "Forum navigation", "フォーラムのナビゲーション"),
     ("forum.name", "Forum", "フォーラム"),
     ("forum.title", "Community Forum", "コミュニティフォーラム"),
+    ("forum.former_user", "Former user", "退会したユーザー"),
     (
         "forum.tagline",
         "Join discussions, ask questions, and share knowledge with fellow members.",
@@ -398,6 +399,17 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ),
     ("forum.your_name", "Your Name / Handle", "お名前 / ハンドルネーム"),
     ("forum.anonymous", "Anonymous", "匿名"),
+    (
+        "forum.member_hint",
+        "Members post under their public name instead.",
+        "会員の方は、ログインすると公開名で投稿できます。",
+    ),
+    (
+        "forum.members_only",
+        "Only members can post.",
+        "投稿できるのは会員だけです。",
+    ),
+    ("forum.login", "Log in", "ログイン"),
     ("forum.message_body", "Message Body", "本文"),
     (
         "forum.message_hint",

@@ -1256,8 +1256,9 @@ pub const REQUIRED_COLUMNS: &[(&str, &[&str])] = &[
         ],
     ),
     (members::MEMBER_TABLE, &["nickname"]),
-    (forum::FORUM_THREAD_TABLE, &["status"]),
-    (forum::FORUM_POST_TABLE, &["status"]),
+    (forum::FORUM_CATEGORY_TABLE, &["visibility"]),
+    (forum::FORUM_THREAD_TABLE, &["status", "author_kind"]),
+    (forum::FORUM_POST_TABLE, &["status", "author_kind"]),
     ("_aegis_content_publications", &["category_id", "sort_at"]),
 ];
 

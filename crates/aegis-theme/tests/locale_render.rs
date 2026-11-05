@@ -242,6 +242,20 @@ fn contexts() -> Vec<PageRenderContext> {
         fields: object(json!({ "category": category, "threads": [] })),
         ..base("forum_category.html")
     });
+    // 会員のログインを案内するフォーム（投稿できるのは会員だけのとき・だれでも書けるとき）
+    for members_only in ["true", "false"] {
+        let mut ctx = PageRenderContext {
+            fields: object(json!({ "category": category, "threads": [] })),
+            ..base("forum_category.html")
+        };
+        ctx.theme_vars
+            .insert("forum_members".to_string(), "true".to_string());
+        ctx.theme_vars
+            .insert("forum_members_only".to_string(), members_only.to_string());
+        ctx.theme_vars
+            .insert("forum_login_url".to_string(), "/account/login".to_string());
+        out.push(ctx);
+    }
     for locked in [false, true] {
         let mut locked_thread = thread.clone();
         locked_thread["is_locked"] = json!(locked);
@@ -315,6 +329,8 @@ fn plain_texts() -> Vec<(&'static str, &'static str, &'static str)> {
             !key.starts_with("js.")
                 && !key.starts_with("maintenance.")
                 && !key.starts_with("theme.")
+                // サーバーのコードが画面に出す文言（テンプレートには現れない）
+                && *key != "forum.former_user"
                 && en != ja
                 && !en.contains(['{', '<'])
         })

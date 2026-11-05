@@ -1611,6 +1611,13 @@
     "categorySlug": "Slug",
     "categoryDescription": "Description",
     "categoryPosition": "Display Order (Position)",
+    "categoryVisibility": "Who can read and post",
+    "categoryVisibilityHint": "Members need member accounts ([members]). Staff means people signed in to Admin Studio.",
+    "visibility": {
+      "public": "Everyone",
+      "members": "Members and staff",
+      "staff": "Staff only"
+    },
     "modalCreateCategory": "Create Forum Category",
     "modalEditCategory": "Edit Forum Category",
     "postsModalTitle": "Posts in \"{{title}}\"",
@@ -1669,7 +1676,8 @@
       "categoryName": "Name",
       "slug": "Slug",
       "description": "Description",
-      "position": "Order"
+      "position": "Order",
+      "visibility": "Visible to"
     },
     "toasts": {
       "threadPinned": "Thread pinned to top",

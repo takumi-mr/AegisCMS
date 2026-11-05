@@ -310,7 +310,7 @@ async function main() {
       continue;
     }
     const data = check(
-      await api('POST', '/api/v1/forum/categories', { ...c, position, is_private: false }, 'owner'),
+      await api('POST', '/api/v1/forum/categories', { ...c, position, visibility: 'public' }, 'owner'),
       201,
       `カテゴリ ${c.slug} の作成`,
     );

@@ -52,7 +52,7 @@ async fn setup_forum_app(
                 name: "General Discussion".to_string(),
                 description: "Talk about anything".to_string(),
                 position: 0,
-                is_private: false,
+                visibility: aegis_forum::CategoryVisibility::Public,
             },
             None,
         )
@@ -80,7 +80,7 @@ async fn test_forum_dedicated_database_isolation() {
             title: "First Isolated Thread".to_string(),
             body: "This is stored in dedicated database".to_string(),
             author_name: "Explorer".to_string(),
-            author_id: None,
+            author: None,
             ip: Some("127.0.0.1".to_string()),
             user_agent: None,
         })
@@ -320,7 +320,7 @@ async fn test_forum_rate_limiting() {
                 name: "RateLimit Test".to_string(),
                 description: "Testing rate limits".to_string(),
                 position: 0,
-                is_private: false,
+                visibility: aegis_forum::CategoryVisibility::Public,
             },
             None,
         )
@@ -576,7 +576,7 @@ async fn test_forum_captcha_applies_to_guests_only() {
                 name: "General Discussion".to_string(),
                 description: String::new(),
                 position: 0,
-                is_private: false,
+                visibility: aegis_forum::CategoryVisibility::Public,
             },
             None,
         )

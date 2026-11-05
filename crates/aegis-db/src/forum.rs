@@ -21,16 +21,17 @@ pub const CATEGORY_COLUMNS: [&str; 8] = [
     "name",
     "description",
     "position",
-    "is_private",
+    "visibility",
     "created_at",
     "updated_at",
 ];
 
-pub const THREAD_COLUMNS: [&str; 12] = [
+pub const THREAD_COLUMNS: [&str; 13] = [
     "id",
     "category_id",
     "title",
     "author_id",
+    "author_kind",
     "author_name",
     "status",
     "is_pinned",
@@ -41,11 +42,12 @@ pub const THREAD_COLUMNS: [&str; 12] = [
     "updated_at",
 ];
 
-pub const POST_COLUMNS: [&str; 14] = [
+pub const POST_COLUMNS: [&str; 15] = [
     "id",
     "thread_id",
     "post_number",
     "author_id",
+    "author_kind",
     "author_name",
     "body",
     "status",
@@ -72,6 +74,10 @@ pub const REPORT_COLUMNS: [&str; 11] = [
     "updated_at",
 ];
 
+fn default_visibility() -> String {
+    "public".to_string()
+}
+
 fn default_approved_status() -> String {
     "approved".to_string()
 }
@@ -84,7 +90,9 @@ pub struct ForumCategoryRecord {
     pub name: String,
     pub description: String,
     pub position: i64,
-    pub is_private: bool,
+    /// 誰が読み書きできるか: `public`（だれでも）/ `members`（会員とスタッフ）/ `staff`（スタッフだけ）
+    #[serde(default = "default_visibility")]
+    pub visibility: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -96,6 +104,9 @@ pub struct ForumThreadRecord {
     pub category_id: String,
     pub title: String,
     pub author_id: Option<String>,
+    /// 投稿者の種類: `staff`（CMS のアカウント）/ `member`（会員）。匿名は `None`
+    #[serde(default)]
+    pub author_kind: Option<String>,
     pub author_name: String,
     #[serde(default = "default_approved_status")]
     pub status: String,
@@ -114,6 +125,9 @@ pub struct ForumPostRecord {
     pub thread_id: String,
     pub post_number: u64,
     pub author_id: Option<String>,
+    /// 投稿者の種類: `staff` / `member`。匿名は `None`
+    #[serde(default)]
+    pub author_kind: Option<String>,
     pub author_name: String,
     pub body: String,
     #[serde(default = "default_approved_status")]
@@ -198,8 +212,11 @@ pub trait ForumStorage: Send + Sync {
     async fn has_approved_forum_post(
         &self,
         author_name: &str,
-        author_id: Option<&str>,
+        author: Option<(&str, &str)>,
     ) -> Result<bool>;
+    /// 会員が退会するとき、その会員のスレッドとレスを匿名にする（投稿は残す）。
+    /// 会員との紐づき・投稿者名・IP・User-Agent を消す。匿名にした件数（スレッド + レス）を返す
+    async fn anonymize_member_forum_posts(&self, member_id: &str) -> Result<u64>;
 
     // 通報操作
     async fn insert_report(&self, report: &ForumReportRecord) -> Result<()>;
@@ -245,7 +262,7 @@ pub fn build_forum_tables(
          name {text} NOT NULL, \
          description {text} NOT NULL, \
          position {bigint} NOT NULL DEFAULT 0, \
-         is_private {bigint} NOT NULL DEFAULT 0, \
+         visibility {key} NOT NULL DEFAULT 'public', \
          created_at {key} NOT NULL, \
          updated_at {key} NOT NULL{inline});",
         table = FORUM_CATEGORY_TABLE,
@@ -285,6 +302,7 @@ pub fn build_forum_tables(
          category_id {key} NOT NULL, \
          title {text} NOT NULL, \
          author_id {key}, \
+         author_kind {key}, \
          author_name {text} NOT NULL, \
          status {key} NOT NULL DEFAULT 'approved', \
          is_pinned {bigint} NOT NULL DEFAULT 0, \
@@ -327,6 +345,7 @@ pub fn build_forum_tables(
          thread_id {key} NOT NULL, \
          post_number {bigint} NOT NULL, \
          author_id {key}, \
+         author_kind {key}, \
          author_name {text} NOT NULL, \
          body {text} NOT NULL, \
          status {key} NOT NULL DEFAULT 'approved', \
@@ -405,7 +424,7 @@ macro_rules! forum_cat_row_from_sqlx {
             name: row.try_get("name").map_err(get)?,
             description: row.try_get("description").map_err(get)?,
             position: row.try_get::<i64, _>("position").map_err(get)?,
-            is_private: row.try_get::<i64, _>("is_private").map_err(get)? != 0,
+            visibility: row.try_get("visibility").map_err(get)?,
             created_at: row.try_get("created_at").map_err(get)?,
             updated_at: row.try_get("updated_at").map_err(get)?,
         }
@@ -421,6 +440,7 @@ macro_rules! forum_th_row_from_sqlx {
             category_id: row.try_get("category_id").map_err(get)?,
             title: row.try_get("title").map_err(get)?,
             author_id: row.try_get("author_id").map_err(get)?,
+            author_kind: row.try_get("author_kind").map_err(get)?,
             author_name: row.try_get("author_name").map_err(get)?,
             status: row.try_get("status").map_err(get)?,
             is_pinned: row.try_get::<i64, _>("is_pinned").map_err(get)? != 0,
@@ -442,6 +462,7 @@ macro_rules! forum_post_row_from_sqlx {
             thread_id: row.try_get("thread_id").map_err(get)?,
             post_number: row.try_get::<i64, _>("post_number").map_err(get)? as u64,
             author_id: row.try_get("author_id").map_err(get)?,
+            author_kind: row.try_get("author_kind").map_err(get)?,
             author_name: row.try_get("author_name").map_err(get)?,
             body: row.try_get("body").map_err(get)?,
             status: row.try_get("status").map_err(get)?,
@@ -508,7 +529,7 @@ macro_rules! impl_forum_storage {
                     .bind(&cat.name)
                     .bind(&cat.description)
                     .bind(cat.position)
-                    .bind(i64::from(cat.is_private))
+                    .bind(&cat.visibility)
                     .bind(&cat.created_at)
                     .bind(&cat.updated_at)
                     .execute(&self.pool)
@@ -594,7 +615,7 @@ macro_rules! impl_forum_storage {
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
                 let ph = $ph;
                 let sql = format!(
-                    "UPDATE {} SET slug = {}, name = {}, description = {}, position = {}, is_private = {}, updated_at = {} WHERE id = {};",
+                    "UPDATE {} SET slug = {}, name = {}, description = {}, position = {}, visibility = {}, updated_at = {} WHERE id = {};",
                     $crate::forum::FORUM_CATEGORY_TABLE,
                     ph(1), ph(2), ph(3), ph(4), ph(5), ph(6), ph(7)
                 );
@@ -603,7 +624,7 @@ macro_rules! impl_forum_storage {
                     .bind(&cat.name)
                     .bind(&cat.description)
                     .bind(cat.position)
-                    .bind(i64::from(cat.is_private))
+                    .bind(&cat.visibility)
                     .bind(&cat.updated_at)
                     .bind(&cat.id)
                     .execute(&self.pool)
@@ -638,7 +659,7 @@ macro_rules! impl_forum_storage {
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
                 let ph = $ph;
 
-                let th_placeholders: Vec<String> = (1..=12).map(&ph).collect();
+                let th_placeholders: Vec<String> = (1..=13).map(&ph).collect();
                 let th_sql = format!(
                     "INSERT INTO {} ({}) VALUES ({});",
                     $crate::forum::FORUM_THREAD_TABLE,
@@ -646,7 +667,7 @@ macro_rules! impl_forum_storage {
                     th_placeholders.join(", ")
                 );
 
-                let post_placeholders: Vec<String> = (1..=14).map(&ph).collect();
+                let post_placeholders: Vec<String> = (1..=15).map(&ph).collect();
                 let post_sql = format!(
                     "INSERT INTO {} ({}) VALUES ({});",
                     $crate::forum::FORUM_POST_TABLE,
@@ -672,6 +693,7 @@ macro_rules! impl_forum_storage {
                     .bind(&thread.category_id)
                     .bind(&thread.title)
                     .bind(&thread.author_id)
+                    .bind(&thread.author_kind)
                     .bind(&thread.author_name)
                     .bind(th_status)
                     .bind(i64::from(thread.is_pinned))
@@ -689,6 +711,7 @@ macro_rules! impl_forum_storage {
                     .bind(&first_post.thread_id)
                     .bind(first_post.post_number as i64)
                     .bind(&first_post.author_id)
+                    .bind(&first_post.author_kind)
                     .bind(&first_post.author_name)
                     .bind(&first_post.body)
                     .bind(post_status)
@@ -968,7 +991,7 @@ macro_rules! impl_forum_storage {
                     post.status.as_str()
                 };
 
-                let post_placeholders: Vec<String> = (1..=14).map(&ph).collect();
+                let post_placeholders: Vec<String> = (1..=15).map(&ph).collect();
                 let insert_sql = format!(
                     "INSERT INTO {} ({}) VALUES ({});",
                     $crate::forum::FORUM_POST_TABLE,
@@ -981,6 +1004,7 @@ macro_rules! impl_forum_storage {
                     .bind(&post.thread_id)
                     .bind(post.post_number as i64)
                     .bind(&post.author_id)
+                    .bind(&post.author_kind)
                     .bind(&post.author_name)
                     .bind(&post.body)
                     .bind(post_status)
@@ -1116,25 +1140,29 @@ macro_rules! impl_forum_storage {
             async fn has_approved_forum_post(
                 &self,
                 author_name: &str,
-                author_id: Option<&str>,
+                author: Option<(&str, &str)>,
             ) -> aegis_core::Result<bool> {
                 let db_err =
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
                 let ph = $ph;
-                let count: i64 = if let Some(aid) = author_id {
+                let count: i64 = if let Some((kind, id)) = author {
                     let sql = format!(
-                        "SELECT COUNT(*) FROM {} WHERE status = 'approved' AND is_deleted = 0 AND author_id = {};",
+                        "SELECT COUNT(*) FROM {} WHERE status = 'approved' AND is_deleted = 0 \
+                         AND author_kind = {} AND author_id = {};",
                         $crate::forum::FORUM_POST_TABLE,
-                        ph(1)
+                        ph(1),
+                        ph(2)
                     );
                     sqlx::query_scalar(&sql)
-                        .bind(aid)
+                        .bind(kind)
+                        .bind(id)
                         .fetch_one(&self.pool)
                         .await
                         .map_err(db_err)?
                 } else {
                     let sql = format!(
-                        "SELECT COUNT(*) FROM {} WHERE status = 'approved' AND is_deleted = 0 AND author_name = {};",
+                        "SELECT COUNT(*) FROM {} WHERE status = 'approved' AND is_deleted = 0 \
+                         AND author_id IS NULL AND author_name = {};",
                         $crate::forum::FORUM_POST_TABLE,
                         ph(1)
                     );
@@ -1145,6 +1173,38 @@ macro_rules! impl_forum_storage {
                         .map_err(db_err)?
                 };
                 Ok(count > 0)
+            }
+
+            async fn anonymize_member_forum_posts(
+                &self,
+                member_id: &str,
+            ) -> aegis_core::Result<u64> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let threads = format!(
+                    "UPDATE {} SET author_id = NULL, author_kind = NULL, author_name = '' \
+                     WHERE author_kind = 'member' AND author_id = {};",
+                    $crate::forum::FORUM_THREAD_TABLE,
+                    ph(1)
+                );
+                let posts = format!(
+                    "UPDATE {} SET author_id = NULL, author_kind = NULL, author_name = '', \
+                     ip = NULL, user_agent = NULL \
+                     WHERE author_kind = 'member' AND author_id = {};",
+                    $crate::forum::FORUM_POST_TABLE,
+                    ph(1)
+                );
+                let mut total = 0;
+                for sql in [threads, posts] {
+                    total += sqlx::query(&sql)
+                        .bind(member_id)
+                        .execute(&self.pool)
+                        .await
+                        .map_err(db_err)?
+                        .rows_affected();
+                }
+                Ok(total)
             }
 
             async fn insert_report(

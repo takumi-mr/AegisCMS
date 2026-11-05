@@ -1262,13 +1262,22 @@ async fn main() -> anyhow::Result<()> {
                     app_state.db.clone()
                 };
 
+                // 会員だけが投稿できる設定で会員アカウントが無いと、スタッフ以外は誰も書けない。起動時に止める
+                if config.forum.posting == aegis_forum::ForumPosting::Members
+                    && !config.members.enabled
+                {
+                    return Err(aegis_core::AegisError::Config(
+                        "[forum].posting = \"members\" needs [members].enabled = true".to_string(),
+                    )
+                    .into());
+                }
                 let forum_deps = app_state.forum_deps(forum_db);
                 let forum_service =
                     aegis_forum::ForumService::new(config.forum.clone(), forum_deps)?;
                 tracing::info!(
-                    "Forum enabled (rate limit: {}s, anonymous: {}, auto-lock: {})",
+                    "Forum enabled (rate limit: {}s, posting: {:?}, auto-lock: {})",
                     config.forum.rate_limit_secs,
-                    config.forum.allow_anonymous,
+                    config.forum.posting,
                     config.forum.auto_lock_post_count
                 );
                 app_state.with_forum(forum_service)

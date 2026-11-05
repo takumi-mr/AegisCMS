@@ -125,6 +125,8 @@ mod content_write_tests;
 #[cfg(test)]
 mod email_verification_tests;
 #[cfg(test)]
+mod forum_members_tests;
+#[cfg(test)]
 mod forum_tests;
 #[cfg(test)]
 mod members_tests;

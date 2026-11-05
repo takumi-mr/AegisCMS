@@ -81,7 +81,7 @@ async fn test_category_lifecycle() {
                 name: "General Discussion".to_string(),
                 description: "Talk about anything".to_string(),
                 position: 1,
-                is_private: false,
+                visibility: CategoryVisibility::Public,
             },
             Some("admin"),
         )
@@ -100,7 +100,7 @@ async fn test_category_lifecycle() {
                 name: "Another".to_string(),
                 description: "".to_string(),
                 position: 2,
-                is_private: false,
+                visibility: CategoryVisibility::Public,
             },
             None,
         )
@@ -122,19 +122,19 @@ async fn test_category_lifecycle() {
                 name: "General Chat".to_string(),
                 description: "Updated desc".to_string(),
                 position: 10,
-                is_private: true,
+                visibility: CategoryVisibility::Staff,
             },
             Some("admin"),
         )
         .await
         .unwrap();
     assert_eq!(updated.slug, "general-chat");
-    assert!(updated.is_private);
+    assert_eq!(updated.visibility, "staff");
 
     // 一覧
-    let public_list = f.service.list_categories(false).await.unwrap();
+    let public_list = f.service.list_categories(Viewer::Anonymous).await.unwrap();
     assert!(public_list.is_empty());
-    let all_list = f.service.list_categories(true).await.unwrap();
+    let all_list = f.service.list_categories(Viewer::Staff).await.unwrap();
     assert_eq!(all_list.len(), 1);
 
     // 削除
@@ -161,7 +161,7 @@ async fn test_thread_and_post_flow() {
                 name: "Technology".to_string(),
                 description: "Tech discussions".to_string(),
                 position: 0,
-                is_private: false,
+                visibility: CategoryVisibility::Public,
             },
             None,
         )
@@ -176,7 +176,7 @@ async fn test_thread_and_post_flow() {
             title: "Rust 2026 Edition Discussion".to_string(),
             body: "What features are you most excited about?".to_string(),
             author_name: "Ferris".to_string(),
-            author_id: Some("user1".to_string()),
+            author: Some(Author::staff("user1")),
             ip: Some("127.0.0.1".to_string()),
             user_agent: None,
         })
@@ -198,7 +198,7 @@ async fn test_thread_and_post_flow() {
             reply_to_post_id: Some(post1.id.clone()),
             reply_to_number: Some(1),
             author_name: "CrabFan".to_string(),
-            author_id: Some("user2".to_string()),
+            author: Some(Author::staff("user2")),
             ip: Some("127.0.0.2".to_string()),
             user_agent: None,
         })
@@ -273,7 +273,7 @@ async fn test_thread_pin_and_lock() {
                 name: "Announcements".to_string(),
                 description: "".to_string(),
                 position: 0,
-                is_private: false,
+                visibility: CategoryVisibility::Public,
             },
             None,
         )
@@ -287,7 +287,7 @@ async fn test_thread_pin_and_lock() {
             title: "Rules and Guidelines".to_string(),
             body: "Please be nice.".to_string(),
             author_name: "Admin".to_string(),
-            author_id: Some("admin1".to_string()),
+            author: Some(Author::staff("admin1")),
             ip: None,
             user_agent: None,
         })
@@ -319,7 +319,7 @@ async fn test_thread_pin_and_lock() {
             reply_to_post_id: None,
             reply_to_number: None,
             author_name: "User".to_string(),
-            author_id: None,
+            author: None,
             ip: None,
             user_agent: None,
         })
@@ -346,7 +346,7 @@ async fn test_auto_lock_on_max_posts() {
                 name: "Fast Thread".to_string(),
                 description: "".to_string(),
                 position: 0,
-                is_private: false,
+                visibility: CategoryVisibility::Public,
             },
             None,
         )
@@ -360,7 +360,7 @@ async fn test_auto_lock_on_max_posts() {
             title: "Short Lived".to_string(),
             body: "Post 1".to_string(),
             author_name: "A".to_string(),
-            author_id: None,
+            author: None,
             ip: None,
             user_agent: None,
         })
@@ -375,7 +375,7 @@ async fn test_auto_lock_on_max_posts() {
             reply_to_post_id: None,
             reply_to_number: None,
             author_name: "B".to_string(),
-            author_id: None,
+            author: None,
             ip: None,
             user_agent: None,
         })
@@ -393,7 +393,7 @@ async fn test_auto_lock_on_max_posts() {
             reply_to_post_id: None,
             reply_to_number: None,
             author_name: "C".to_string(),
-            author_id: None,
+            author: None,
             ip: None,
             user_agent: None,
         })
@@ -421,7 +421,7 @@ async fn test_rate_limiting() {
                 name: "Speed".to_string(),
                 description: "".to_string(),
                 position: 0,
-                is_private: false,
+                visibility: CategoryVisibility::Public,
             },
             None,
         )
@@ -436,7 +436,7 @@ async fn test_rate_limiting() {
             title: "First Thread".to_string(),
             body: "Hello".to_string(),
             author_name: "Spammer".to_string(),
-            author_id: None,
+            author: None,
             ip: Some("192.168.1.100".to_string()),
             user_agent: None,
         })
@@ -452,7 +452,7 @@ async fn test_rate_limiting() {
             reply_to_post_id: None,
             reply_to_number: None,
             author_name: "Spammer".to_string(),
-            author_id: None,
+            author: None,
             ip: Some("192.168.1.100".to_string()),
             user_agent: None,
         })
@@ -465,7 +465,7 @@ async fn test_rate_limiting() {
 #[tokio::test]
 async fn test_anonymous_disallowed() {
     let cfg = ForumConfig {
-        allow_anonymous: false, // 匿名禁止
+        posting: ForumPosting::Members, // 会員とスタッフだけ
         ..Default::default()
     };
     let f = fixture(cfg).await;
@@ -478,7 +478,7 @@ async fn test_anonymous_disallowed() {
                 name: "Members Only".to_string(),
                 description: "".to_string(),
                 position: 0,
-                is_private: false,
+                visibility: CategoryVisibility::Public,
             },
             None,
         )
@@ -492,7 +492,7 @@ async fn test_anonymous_disallowed() {
             title: "Guest Post".to_string(),
             body: "I have no account".to_string(),
             author_name: "Guest".to_string(),
-            author_id: None, // 未ログイン
+            author: None, // 未ログイン
             ip: None,
             user_agent: None,
         })
@@ -522,7 +522,7 @@ async fn test_moderation_approval_ng_words_and_reports() {
                 name: "Moderated".to_string(),
                 description: "".to_string(),
                 position: 0,
-                is_private: false,
+                visibility: CategoryVisibility::Public,
             },
             None,
         )
@@ -537,7 +537,7 @@ async fn test_moderation_approval_ng_words_and_reports() {
             title: "First Thread by Alice".to_string(),
             body: "Hello everyone!".to_string(),
             author_name: "Alice".to_string(),
-            author_id: None,
+            author: None,
             ip: Some("203.0.113.10".to_string()),
             user_agent: None,
         })
@@ -598,7 +598,7 @@ async fn test_moderation_approval_ng_words_and_reports() {
             reply_to_post_id: None,
             reply_to_number: None,
             author_name: "Alice".to_string(),
-            author_id: None,
+            author: None,
             ip: Some("203.0.113.10".to_string()),
             user_agent: None,
         })
@@ -615,7 +615,7 @@ async fn test_moderation_approval_ng_words_and_reports() {
             reply_to_post_id: None,
             reply_to_number: None,
             author_name: "Alice".to_string(),
-            author_id: None,
+            author: None,
             ip: Some("203.0.113.10".to_string()),
             user_agent: None,
         })
@@ -633,7 +633,7 @@ async fn test_moderation_approval_ng_words_and_reports() {
             reply_to_post_id: None,
             reply_to_number: None,
             author_name: "SpamBot".to_string(),
-            author_id: None,
+            author: None,
             ip: Some("203.0.113.99".to_string()),
             user_agent: None,
         })
@@ -672,4 +672,115 @@ async fn test_moderation_approval_ng_words_and_reports() {
         .unwrap();
     assert_eq!(resolved.status, "resolved");
     assert_eq!(resolved.resolved_by.as_deref(), Some("admin"));
+}
+
+/// 公開範囲: 見られる人と書ける人。知らない値は、スタッフだけ
+#[test]
+fn test_viewer_access_by_visibility() {
+    assert!(Viewer::Anonymous.can_access("public"));
+    assert!(!Viewer::Anonymous.can_access("members"));
+    assert!(!Viewer::Anonymous.can_access("staff"));
+    assert!(Viewer::Member.can_access("public"));
+    assert!(Viewer::Member.can_access("members"));
+    assert!(!Viewer::Member.can_access("staff"));
+    assert!(Viewer::Staff.can_access("staff"));
+    assert!(!Viewer::Member.can_access("something-new"));
+    assert!(Viewer::Staff.can_access("something-new"));
+    assert_eq!(Author::viewer(Some(&Author::member("m1"))), Viewer::Member);
+    assert_eq!(Author::viewer(Some(&Author::staff("admin"))), Viewer::Staff);
+    assert_eq!(Author::viewer(None), Viewer::Anonymous);
+}
+
+/// 会員の投稿: 種類と ID を残す。同じ ID でも、スタッフと会員は別の人として数える。
+/// 退会で匿名にしても、投稿は残る
+#[tokio::test]
+async fn test_member_posts_are_kept_apart_from_staff_and_anonymized_on_leaving() {
+    let f = fixture(ForumConfig {
+        rate_limit_secs: 0,
+        ..Default::default()
+    })
+    .await;
+    let cat = f
+        .service
+        .create_category(
+            CreateCategoryRequest {
+                slug: "lounge".to_string(),
+                name: "Lounge".to_string(),
+                description: String::new(),
+                position: 0,
+                visibility: CategoryVisibility::Members,
+            },
+            None,
+        )
+        .await
+        .unwrap();
+
+    let post_as = |author: Option<Author>, name: &str| CreateThreadRequest {
+        category_id: cat.id.clone(),
+        title: "A thread title".to_string(),
+        body: "A body that is long enough".to_string(),
+        author_name: name.to_string(),
+        author,
+        ip: Some("203.0.113.5".to_string()),
+        user_agent: Some("agent".to_string()),
+    };
+
+    // 匿名は会員限定のカテゴリに書けない。会員・スタッフは書ける（種類が記録される）
+    let err = f
+        .service
+        .create_thread(post_as(None, "guest"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ForumError::Forbidden(_)));
+    let (member_thread, member_post) = f
+        .service
+        .create_thread(post_as(Some(Author::member("same-id")), "hana"))
+        .await
+        .unwrap();
+    assert_eq!(member_thread.author_kind.as_deref(), Some("member"));
+    assert_eq!(member_post.author_id.as_deref(), Some("same-id"));
+    let (staff_thread, _) = f
+        .service
+        .create_thread(post_as(Some(Author::staff("same-id")), "admin"))
+        .await
+        .unwrap();
+    assert_eq!(staff_thread.author_kind.as_deref(), Some("staff"));
+
+    // 承認済みの投稿があるかは、種類と ID の組で見る
+    assert!(f
+        .db
+        .has_approved_forum_post("hana", Some(("member", "same-id")))
+        .await
+        .unwrap());
+    assert!(!f
+        .db
+        .has_approved_forum_post("hana", Some(("member", "someone-else")))
+        .await
+        .unwrap());
+
+    // 退会: 会員の分だけ匿名になる。スタッフの同じ ID の投稿は、そのまま
+    assert_eq!(f.service.release_member("same-id").await.unwrap(), 2);
+    let thread = f.service.get_thread(&member_thread.id).await.unwrap();
+    assert_eq!(thread.author_id, None);
+    assert_eq!(thread.author_kind, None);
+    assert_eq!(thread.author_name, "");
+    assert_eq!(thread.title, "A thread title");
+    let posts = f
+        .service
+        .list_posts(&PostListQuery {
+            thread_id: member_thread.id.clone(),
+            after_post_number: 0,
+            status: None,
+            limit: 10,
+        })
+        .await
+        .unwrap();
+    assert_eq!(posts[0].body, "A body that is long enough");
+    assert_eq!(posts[0].ip, None);
+    assert_eq!(posts[0].user_agent, None);
+    let staff = f.service.get_thread(&staff_thread.id).await.unwrap();
+    assert_eq!(staff.author_id.as_deref(), Some("same-id"));
+    assert_eq!(staff.author_name, "admin");
+    // やり直しても同じ（もう匿名にするものは無い）
+    assert_eq!(f.service.release_member("same-id").await.unwrap(), 0);
 }
