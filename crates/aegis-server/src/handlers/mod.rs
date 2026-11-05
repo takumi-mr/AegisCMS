@@ -14,6 +14,7 @@ pub mod invitation;
 pub mod newsletter;
 pub mod notices;
 pub mod notifications;
+pub mod oembed;
 pub mod oidc;
 pub mod openapi;
 pub mod password_reset;
@@ -114,6 +115,8 @@ pub use users::{
 mod customers_tests;
 #[cfg(test)]
 mod forum_tests;
+#[cfg(test)]
+mod oembed_tests;
 #[cfg(test)]
 mod package_install_tests;
 #[cfg(test)]

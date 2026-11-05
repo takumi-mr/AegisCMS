@@ -84,7 +84,17 @@ impl PluginHostState {
         }
     }
 
+    /// マニフェストの許可に、サイトの設定（`extra_allowed_domains`）で足したドメインを加えたガード
     pub fn guard(&self) -> CapabilityGuard<'_> {
-        CapabilityGuard::new(&self.manifest)
+        let extra = self
+            .services
+            .0
+            .plugin_setting(
+                &self.manifest.name,
+                crate::guard::EXTRA_ALLOWED_DOMAINS_SETTING,
+            )
+            .map(|v| crate::guard::parse_extra_domains(&v))
+            .unwrap_or_default();
+        CapabilityGuard::new(&self.manifest).with_extra_domains(extra)
     }
 }

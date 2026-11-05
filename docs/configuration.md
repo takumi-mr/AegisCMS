@@ -191,6 +191,7 @@ shipping_fee = 600
 coupons = "WELCOME10:10%"
 ```
 
+- プラグインが外部へ通信するときの許可ドメイン（`capabilities.network.allowed_domains`）に、サイトの設定でドメインを足せます: `[plugins.settings.<プラグイン名>]` の `extra_allowed_domains = "qiita.com, zenn.dev"`（サブドメインを含む）。通信できるのは公開されたアドレスの `http`（80・8080）と `https`（443）だけで、内部の IP アドレスへは常に通信しません（[プラグインフックリファレンス 5.4](./plugin_hooks.md#54-http-リクエスト-hosthttp_fetch)）。
 - 列挙したプラグインが未インストール・読み込めない（マニフェストの不備、ホストに無い関数のインポートなど）場合、名前の形式が不正・重複している場合は**サーバーが起動しません**。
 - `[runtime].enable_wasm_plugins = false` の場合は読み込みません。
 - Admin Studio（`PUT /api/v1/plugins/{name}/enabled`・`PUT /api/v1/plugins/order`）で有効・無効や順序を変えると、その一覧が DB に保存され、以後は `enabled` より優先されます（[プラグインフックリファレンス 5.1](./plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)）。Admin Studio の「設定ファイルの値に戻す」（`DELETE /api/v1/plugins/order`）で `enabled` に戻ります。

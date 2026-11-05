@@ -95,11 +95,59 @@ async fn http_fetch(
     state.fetch_count += 1;
     let plugin = state.manifest.name.clone();
     let services = state.services.0.clone();
-    services
-        .http_fetch(&plugin, request)
-        .await
-        .map_err(|e| e.to_string())
+
+    // リダイレクトは 1 回ずつ自分で追い、移った先のたびに許可ドメインを確認する
+    // （サービス側は 1 回の通信ごとに、ポートと宛先の IP アドレスを確認する）
+    let mut request = request;
+    for hop in 0..=MAX_REDIRECTS {
+        let response = services
+            .http_fetch(&plugin, request.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+        if !matches!(response.status, 301 | 302 | 303 | 307 | 308) {
+            return Ok(response);
+        }
+        let Some(location) = response.headers.get("location") else {
+            return Ok(response);
+        };
+        if hop == MAX_REDIRECTS {
+            return Err(format!("More than {} redirects", MAX_REDIRECTS));
+        }
+        let next = url::Url::parse(&request.url)
+            .and_then(|base| base.join(location))
+            .map_err(|_| "Invalid redirect location".to_string())?;
+        let same_host = url::Url::parse(&request.url)
+            .ok()
+            .is_some_and(|prev| prev.host_str() == next.host_str());
+        caller
+            .data()
+            .guard()
+            .check_network_access(next.as_str())
+            .map_err(|e| format!("Redirect refused: {}", e))?;
+        // 本文つきの要求は、303（と 301/302 の POST）で GET になる。別のホストへは資格情報を送らない
+        if response.status == 303
+            || (matches!(response.status, 301 | 302)
+                && request.method != "GET"
+                && request.method != "HEAD")
+        {
+            request.method = "GET".to_string();
+            request.body = None;
+        }
+        if !same_host {
+            request.headers.retain(|name, _| {
+                !matches!(
+                    name.to_ascii_lowercase().as_str(),
+                    "authorization" | "cookie" | "proxy-authorization"
+                )
+            });
+        }
+        request.url = next.to_string();
+    }
+    unreachable!("the loop returns on its last hop")
 }
+
+/// 1 回の `host.http_fetch` で追うリダイレクトの回数の上限
+const MAX_REDIRECTS: usize = 3;
 
 /// プール 1 枠あたりのテーブル要素数の上限（Rust / TinyGo / AssemblyScript の関数テーブルに十分な大きさ）
 const POOL_TABLE_ELEMENTS: usize = 20_000;

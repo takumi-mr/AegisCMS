@@ -398,7 +398,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - ランタイムは I/O を持たず、サーバーが `HostServices`（KV・HTTP・設定値。`aegis-server/src/plugin_host.rs`）を実装して渡す。KV は `[cache]` に保存する。
 - **動的プラグイン設定**: プラグインごとの設定値（`config_get`）は、静的設定（`aegis.toml` の `[plugins.settings.<plugin>]`）に加え、Admin API（`PUT /api/v1/plugins/{name}/settings`）からの動的設定に対応している。動的設定はメモリ内の `RwLock<HashMap>` とキャッシュ（`plugin_settings:{name}`）に即座に反映され、静的設定を上書きする。サーバー起動時にもキャッシュから自動復元されるため、再起動後も設定値が保持される。
 - 結果を返すホスト関数（`kv_get` / `http_fetch` / `config_get`）は `func_wrap_async` で、ゲストの `allocate` を呼んで書き込み `ptr << 32 | len` を返す。
-- `http_fetch` は `allowed_domains` だけ・リダイレクトを追わない・1 MiB・1 呼び出し 8 回まで。ドメインの判定は URL パーサーで行う（文字列の後方一致だと `https://evil.com#.allowed.com` を許してしまう）。
+- `http_fetch` の宛先は、マニフェストの `allowed_domains` と、サイトの設定 `[plugins.settings.<name>].extra_allowed_domains` で足したドメインだけ。ドメインの判定は URL パーサーで行う（文字列の後方一致だと `https://evil.com#.allowed.com` を許してしまう）。1 MiB・1 呼び出し 8 回まで。
+  - **SSRF 対策は 2 層**: ランタイム（`engine.rs`）は、リダイレクトを 3 回まで **1 回ずつ自分で追い、移った先のたびに許可ドメインを確認する**（303 と、本文つきの 301/302 は GET に変え、別のホストへは `Authorization` / `Cookie` を送らない）。サービス（`plugin_host.rs`）は **1 回の通信ごとに**、`http` / `https` だけ・ポートは `https` が 443、`http` が 80 か 8080 だけ・IP アドレスで書かれた宛先は公開されたアドレスだけ、を確認し、ホスト名のほうは reqwest の DNS リゾルバー（`PublicOnlyResolver`）が名前解決の結果から内部のアドレス（ループバック・プライベート・リンクローカル＝クラウドのメタデータ・共有アドレス・ユニークローカルなど）を除く。IPv6 は、IPv4 を中に持つ形（IPv4 射影・NAT64 `64:ff9b::/96`・6to4 `2002::/16`・IPv4 互換）は中の IPv4 で判断し、Teredo・廃棄用・NAT64 のローカル用は拒否する。環境変数のプロキシは使わない（`no_proxy()`。プロキシ経由だと名前解決がプロキシ側になりリゾルバーを通らないため。いまのビルドは reqwest の `system-proxy` 機能が無く、環境変数は元々読まれない）。確認と接続で同じ解決結果を使うので DNS リバインディングも通らない。許可ドメインに `localhost` や内部のホストを書いても通信しない。
 
 ### 10.4 インスタンスのプール (`WasmEngine::with_instance_pool`)
 

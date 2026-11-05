@@ -305,6 +305,15 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_blocks.wasm plugins/official-blocks/plugin.wasm
         platforms: [linux, darwin]
 
+  plugin:build:link-embed:
+    desc: 公式リンク埋め込みプラグイン (official-link-embed) を Wasm にビルドし plugins/official-link-embed/plugin.wasm を更新
+    cmds:
+      - cargo build -p aegis-plugin-link-embed --target wasm32-unknown-unknown --release
+      - cmd: cmd /c "copy /y target\wasm32-unknown-unknown\release\aegis_plugin_link_embed.wasm plugins\official-link-embed\plugin.wasm"
+        platforms: [windows]
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_link_embed.wasm plugins/official-link-embed/plugin.wasm
+        platforms: [linux, darwin]
+
   plugin:build:reading:
     desc: 公式の読書補助プラグイン (official-page-toc / official-back-to-top / official-share-buttons / official-reading-time / official-post-navigation) を Wasm にビルドし plugins/*/plugin.wasm を更新
     cmds:

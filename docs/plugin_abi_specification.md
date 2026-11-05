@@ -172,7 +172,8 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
     "headers": { "Content-Type": "application/json" }, "body": "{\"text\":\"hi\"}" }
   ```
 - **戻り値** (i64): 応答 JSON `{"status": 200, "headers": {"content-type": "…"}, "body": "…"}`、または失敗時 `{"error": "<理由>"}` の `(ptr << 32) | len`（書き込めなければ `0`）
-- **制限**: メソッドは GET / POST / PUT / PATCH / DELETE、リダイレクトは追わない、本文は送受信とも 1 MiB、1 回 10 秒、1 回のフック呼び出しで 8 回まで。待ち時間はフックの `execution_timeout_ms` に含まれる
+- **制限**: メソッドは GET / POST / PUT / PATCH / DELETE、本文は送受信とも 1 MiB、1 回 10 秒、1 回のフック呼び出しで 8 回まで。待ち時間はフックの `execution_timeout_ms` に含まれる
+- **宛先の制限**: `http` / `https` だけで、ポートは `https` が 443、`http` が 80 か 8080 だけ。内部の IP アドレス（ループバック・プライベート・リンクローカルなど。ホスト名が解決される先も）へは通信しない。リダイレクトは 3 回までホストが追い、**移った先ごと**に許可ドメインと上の制限を確認する（許可されていない先へ移るときはエラー）
 
 ### 3.7 `host.config_get`
 

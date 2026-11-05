@@ -1,0 +1,131 @@
+{
+  "name": "official-link-embed",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Link Embed (OGP / oEmbed)",
+  "description": "Turns a paragraph that is only a URL into a link card made from the page's OGP / oEmbed data. The data is fetched once, when the content is saved, and stored in the block; the public page makes no requests. Add sites with extra_allowed_domains.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "blocks",
+    "embed",
+    "ogp",
+    "oembed",
+    "content"
+  ],
+  "min_aegis_version": "0.1.0",
+  "abi_version": 1,
+  "capabilities": {
+    "hooks": [
+      "transform-content-ast",
+      "render-blocks"
+    ],
+    "network": {
+      "allowed_domains": [
+        "qiita.com",
+        "zenn.dev",
+        "github.com",
+        "note.com",
+        "x.com",
+        "twitter.com",
+        "publish.twitter.com"
+      ]
+    }
+  },
+  "resource_limits": {
+    "max_memory_mb": 32,
+    "max_fuel_units": 100000000,
+    "execution_timeout_ms": 20000
+  },
+  "settings": [
+    {
+      "key": "extra_allowed_domains",
+      "type": "string",
+      "label": {
+        "en": "Additional sites to fetch",
+        "ja": "取得先に足すサイト"
+      },
+      "description": {
+        "en": "Comma-separated domains (subdomains included) whose pages may be fetched, in addition to the built-in list. Only public http (80, 8080) and https (443) addresses are reachable; internal IP addresses are always refused.",
+        "ja": "組み込みの一覧に足す、取得してよいドメイン（サブドメインを含む。カンマ区切り）。通信できるのは公開されたアドレスの http（80・8080）と https（443）だけで、内部の IP アドレスへは常に通信しません。"
+      },
+      "default": ""
+    },
+    {
+      "key": "oembed_endpoints",
+      "type": "string",
+      "label": {
+        "en": "oEmbed endpoints",
+        "ja": "oEmbed のエンドポイント"
+      },
+      "description": {
+        "en": "For sites whose pages have no OGP: host=endpoint, comma-separated. The endpoint's domain must be allowed too.",
+        "ja": "ページに OGP が無いサイト用の「ホスト=エンドポイント」（カンマ区切り）。エンドポイントのドメインも許可が必要です。"
+      },
+      "default": "x.com=https://publish.twitter.com/oembed,twitter.com=https://publish.twitter.com/oembed"
+    }
+  ],
+  "blocks": [
+    {
+      "name": "embed",
+      "label": {
+        "en": "Link embed",
+        "ja": "リンクの埋め込み"
+      },
+      "description": {
+        "en": "A card for a web page (title, description, image)",
+        "ja": "ウェブページのカード（タイトル・説明・画像）"
+      },
+      "fields": [
+        {
+          "name": "url",
+          "type": "url",
+          "label": {
+            "en": "Link",
+            "ja": "リンク先"
+          },
+          "required": true,
+          "placeholder": "https://",
+          "default": ""
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "ja": "タイトル"
+          },
+          "required": true,
+          "default": ""
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "label": {
+            "en": "Description",
+            "ja": "説明"
+          },
+          "default": ""
+        },
+        {
+          "name": "image",
+          "type": "url",
+          "label": {
+            "en": "Image URL",
+            "ja": "画像の URL"
+          },
+          "default": ""
+        },
+        {
+          "name": "site",
+          "type": "string",
+          "label": {
+            "en": "Site name",
+            "ja": "サイト名"
+          },
+          "default": ""
+        }
+      ]
+    }
+  ]
+}

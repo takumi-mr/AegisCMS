@@ -983,6 +983,136 @@ mod tests {
         assert!(services.requests.lock().unwrap().is_empty());
     }
 
+    /// Answers by URL: `/a` redirects to `/b` (200), `/loop` to itself, `/out` to another domain
+    struct ScriptedServices {
+        requests: Mutex<Vec<HttpRequest>>,
+        extra_domains: Option<&'static str>,
+    }
+
+    #[async_trait::async_trait]
+    impl HostServices for ScriptedServices {
+        async fn kv_get(&self, _key: &str) -> aegis_core::Result<Option<String>> {
+            Ok(None)
+        }
+        async fn kv_set(&self, _key: &str, _value: &str) -> aegis_core::Result<()> {
+            Ok(())
+        }
+        async fn http_fetch(
+            &self,
+            _plugin: &str,
+            request: HttpRequest,
+        ) -> aegis_core::Result<HttpResponse> {
+            self.requests.lock().unwrap().push(request.clone());
+            let redirect = |location: &str| HttpResponse {
+                status: 302,
+                headers: [("location".to_string(), location.to_string())].into(),
+                body: String::new(),
+            };
+            Ok(match request.url.as_str() {
+                "https://example.com/a" => redirect("/b"),
+                "https://example.com/loop" => redirect("/loop"),
+                "https://example.com/out" => redirect("https://evil.org/x"),
+                _ => HttpResponse {
+                    status: 200,
+                    headers: Default::default(),
+                    body: "ok".to_string(),
+                },
+            })
+        }
+        fn plugin_setting(&self, _plugin: &str, key: &str) -> Option<String> {
+            (key == "extra_allowed_domains")
+                .then_some(self.extra_domains)
+                .flatten()
+                .map(str::to_string)
+        }
+    }
+
+    /// Runs a hook that fetches `url` (POST with a body and an `Authorization` header) with the
+    /// manifest allowing `example.com`; returns the hook's result and the requests the host sent
+    async fn fetch_scripted(
+        url: &str,
+        extra_domains: Option<&'static str>,
+    ) -> (aegis_core::Result<()>, Vec<HttpRequest>) {
+        let request = format!(
+            r#"{{"method":"POST","url":"{}","headers":{{"Authorization":"Bearer x"}},"body":"hi"}}"#,
+            url
+        );
+        let wasm = host_api_module(
+            &request,
+            &format!(
+                "(call $http_fetch (i32.const 256) (i32.const {}))",
+                request.len()
+            ),
+        );
+        let services = Arc::new(ScriptedServices {
+            requests: Mutex::new(Vec::new()),
+            extra_domains,
+        });
+        let mut manifest = make_sample_manifest(vec!["on-order-status-changed".to_string()]);
+        manifest.capabilities.network = Some(NetworkCapability {
+            allowed_domains: vec!["example.com".to_string()],
+        });
+        let dyn_services: Arc<dyn HostServices> = services.clone();
+        let plugin = WasmPluginInstance::from_bytes(
+            WasmEngine::new().unwrap(),
+            manifest,
+            &wasm,
+            dyn_services,
+        )
+        .unwrap();
+        let result = run_order_hook(&plugin).await;
+        let requests = services.requests.lock().unwrap().clone();
+        (result, requests)
+    }
+
+    #[tokio::test]
+    async fn test_redirects_are_followed_with_the_allowed_domains_checked_each_time() {
+        // /a -> /b: followed; a 302 turns the POST into a GET without the body
+        let (result, requests) = fetch_scripted("https://example.com/a", None).await;
+        assert!(result.is_ok(), "{:?}", result);
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[1].url, "https://example.com/b");
+        assert_eq!(requests[1].method, "GET");
+        assert_eq!(requests[1].body, None);
+        // The same host keeps its Authorization header
+        assert!(requests[1].headers.contains_key("Authorization"));
+
+        // A redirect to a domain that is not allowed is refused before it is requested
+        let (result, requests) = fetch_scripted("https://example.com/out", None).await;
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("Redirect refused"), "{}", error);
+        assert_eq!(requests.len(), 1);
+
+        // ... unless the site's settings add that domain; then the credentials are dropped
+        let (result, requests) = fetch_scripted("https://example.com/out", Some("evil.org")).await;
+        assert!(result.is_ok(), "{:?}", result);
+        assert_eq!(requests.len(), 2);
+        assert!(!requests[1].headers.contains_key("Authorization"));
+
+        // A redirect loop stops after a few hops
+        let (result, requests) = fetch_scripted("https://example.com/loop", None).await;
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("redirects"), "{}", error);
+        assert_eq!(requests.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_extra_allowed_domains_from_the_site_settings() {
+        // Not in the manifest: refused
+        let (result, requests) = fetch_scripted("https://qiita.com/x", None).await;
+        assert!(result.is_err());
+        assert!(requests.is_empty());
+        // Added in [plugins.settings.<name>] (comma separated, subdomains too)
+        let (result, requests) =
+            fetch_scripted("https://api.qiita.com/x", Some("qiita.com, zenn.dev")).await;
+        assert!(result.is_ok(), "{:?}", result);
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            crate::guard::parse_extra_domains(r#"["A.com", " b.org. "]"#),
+            vec!["a.com".to_string(), "b.org".to_string()]
+        );
+    }
+
     #[tokio::test]
     async fn test_kv_round_trip_and_settings() {
         // kv_set("k", "{\"error\":\"stored\"}") then return kv_get("k")

@@ -165,3 +165,50 @@ curl -X POST http://localhost:8080/api/v1/contents/article \
 ```
 
 作り方は [最初のブロックプラグインを作る](plugin_block_tutorial.md) にまとめています。
+
+## 5. OGP / oEmbed
+
+URL だけの段落のカード（[2](#2-インライン書式)）に、そのページのタイトル・説明・画像を出せます。AegisCMS は oEmbed の**プロバイダー**（配る側）として組み込みで動き、**コンシューマー**（取る側）は公式プラグイン [`official-link-embed`](../plugins/official-link-embed) です。コンシューマーはサンドボックスの中で取得します。
+
+### 5.1 プロバイダー: `GET /oembed`
+
+公開中の記事・固定ページ・商品の URL に、[oEmbed](https://oembed.com/) の JSON（`type: "link"`）を返します。
+
+```bash
+curl 'https://example.com/oembed?url=https%3A%2F%2Fexample.com%2Farticles%2Fhello&format=json'
+```
+
+```json
+{ "version": "1.0", "type": "link", "title": "Hello", "provider_name": "My Site",
+  "provider_url": "https://example.com", "url": "https://example.com/articles/hello",
+  "description": "記事の抜粋", "thumbnail_url": "https://example.com/uploads/cover.png" }
+```
+
+- `description` は oEmbed の拡張項目（記事の `excerpt`）、`thumbnail_url` は `featured_image` / `image` です。HTML（`html`）は返しません。
+- このサイトの URL だけが対象です（ホストとポートが公開 URL と同じもの。公開 URL は [SEO 設定の `canonical_base_url`](configuration.md)、無ければリクエストの Host）。他のサイトの URL・下書き・非公開・存在しないコンテンツは 404、`format` が `json` 以外なら 501 です。
+- `[seo].canonical_base_url` を設定していると、コンテンツのページの `<head>` に発見用のリンク `<link rel="alternate" type="application/json+oembed" href="/oembed?url=…&format=json">` が入ります。ほかのサイトのコンシューマー（この機能を持つ CMS やチャットなど）が、URL から oEmbed を見つけられます。
+
+OGP（`og:title`・`og:description`・`og:image`・`twitter:` カード）は、これまでどおり全ページの `<head>` に出ます。
+
+### 5.2 コンシューマー: `official-link-embed`
+
+有効にすると、本文の**段落が `https://…` の URL 1 つだけ**のとき、保存のときに（エディタのプレビューでも）そのページを取得し、タイトル・説明・画像・サイト名を `official-link-embed/embed` ブロックの属性に保存します。表示のときは通信しません（外部のサイトが落ちていても、遅くても、公開ページには影響しません）。
+
+- 取得の順: ① 設定の `oembed_endpoints` にあるホスト（既定は X。ページに OGP が無いサイト）は oEmbed ② ページの `og:` / `twitter:` / `<title>` ③ タイトルが取れなければ、ページの oEmbed 発見用リンク。oEmbed が返す `html`（第三者の HTML・スクリプト）は使わず、本文のテキストだけを説明にします。
+- 取得できなかった・許可されていない URL の段落はそのままで、組み込みのリンクカード（ホストとパス）で表示されます。
+- 保存したあとは更新しません。最新にしたいときは、ブロックを消して URL を書き直すか、ブロックの入力欄（タイトル・説明・画像）を直します。
+- 1 回の保存で取得するのは 3 つの URL までです（残りは組み込みのカード。保存し直すと続きを取得します）。
+
+**取得先（許可ドメイン）** はコードではなく設定で足します。
+
+```toml
+[plugins.settings.official-link-embed]
+extra_allowed_domains = "speakerdeck.com, example.org"   # 既定の qiita.com・zenn.dev・github.com・note.com・x.com に足す（サブドメインを含む）
+oembed_endpoints = "x.com=https://publish.twitter.com/oembed"  # ページに OGP が無いサイト用（エンドポイントのドメインも許可が必要）
+```
+
+Admin Studio のプラグイン管理画面からも設定でき、サーバーを再起動しなくても反映されます（[`extra_allowed_domains`](configuration.md#plugins--プラグインの有効化)）。
+
+**通信の制限**（すべてのプラグイン共通。[plugin_hooks.md 5.4](plugin_hooks.md#54-http-リクエスト-hosthttp_fetch)）: `http` / `https` だけで、ポートは `https` が 443、`http` が 80 か 8080 だけです。内部の IP アドレス（ループバック・プライベート・リンクローカル＝クラウドのメタデータなど）や、そこに解決されるホスト名へは、許可ドメインに書いても通信しません。リダイレクトは 3 回まで、移った先ごとに許可ドメインと上の制限を確認します。
+
+テーマで見た目を変えるときのクラスは `.oe-card`・`.oe-body`・`.oe-title`・`.oe-description`・`.oe-site`・`.oe-image` です（詳細度 0 の `:where()`）。

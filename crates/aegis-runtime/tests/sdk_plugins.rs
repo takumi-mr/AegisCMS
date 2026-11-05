@@ -338,3 +338,139 @@ async fn test_official_ads_plugin_manifest_and_execution() {
     assert!(html.contains("data-aegis-consent=\"marketing\""));
     assert!(html.contains("data-src=\"https://example.com/ad\""));
 }
+
+/// ページと oEmbed の応答を URL で返す、手元のホスト API。通信した URL を覚える
+struct FakeWeb {
+    requested: Mutex<Vec<String>>,
+    extra_domains: &'static str,
+}
+
+#[async_trait::async_trait]
+impl aegis_runtime::HostServices for FakeWeb {
+    async fn kv_get(&self, _key: &str) -> aegis_core::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn kv_set(&self, _key: &str, _value: &str) -> aegis_core::Result<()> {
+        Ok(())
+    }
+    async fn http_fetch(
+        &self,
+        _plugin: &str,
+        request: aegis_runtime::HttpRequest,
+    ) -> aegis_core::Result<aegis_runtime::HttpResponse> {
+        self.requested.lock().unwrap().push(request.url.clone());
+        let (content_type, body) = if request
+            .url
+            .starts_with("https://publish.twitter.com/oembed")
+        {
+            (
+                "application/json",
+                r#"{"provider_name":"X","author_name":"AegisCMS","html":"<blockquote><p>Hello</p></blockquote>"}"#,
+            )
+        } else if request.url == "https://qiita.com/u/items/1" {
+            (
+                "text/html; charset=utf-8",
+                r#"<html><head><meta property="og:title" content="Qiita &amp; Rust"><meta property="og:image" content="https://cdn.qiita.com/i.png"></head></html>"#,
+            )
+        } else if request.url == "https://blog.example/post" {
+            ("text/html", r#"<head><title>Blog post</title></head>"#)
+        } else {
+            ("text/plain", "not found")
+        };
+        Ok(aegis_runtime::HttpResponse {
+            status: 200,
+            headers: [("content-type".to_string(), content_type.to_string())].into(),
+            body: body.to_string(),
+        })
+    }
+    fn plugin_setting(&self, _plugin: &str, key: &str) -> Option<String> {
+        (key == "extra_allowed_domains" && !self.extra_domains.is_empty())
+            .then(|| self.extra_domains.to_string())
+    }
+}
+
+/// 公式プラグイン `official-link-embed` のビルド済み `plugin.wasm` で、URL だけの段落が OGP / oEmbed の
+/// ブロックになり、許可されていない URL は通信せず、サイトの設定で足したドメインは通信できること
+#[tokio::test]
+async fn test_official_link_embed_plugin_fetches_in_the_sandbox() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/official-link-embed");
+    let manifest = PluginManifest::from_json_with_defaults(
+        &std::fs::read_to_string(dir.join("plugin.manifest.json")).unwrap(),
+        &PluginResourceLimits::default(),
+    )
+    .unwrap();
+    manifest.validate_blocks().unwrap();
+    let wasm = std::fs::read(dir.join("plugin.wasm")).unwrap();
+    let run = |extra_domains: &'static str| {
+        let web = Arc::new(FakeWeb {
+            requested: Mutex::new(Vec::new()),
+            extra_domains,
+        });
+        let services: Arc<dyn aegis_runtime::HostServices> = web.clone();
+        let plugin = WasmPluginInstance::from_bytes(
+            WasmEngine::new().unwrap(),
+            manifest.clone(),
+            &wasm,
+            services,
+        )
+        .unwrap();
+        (plugin, web)
+    };
+    let paragraph = |text: &str| {
+        let mut node = BlockNode::new("core/paragraph");
+        node.text = Some(text.to_string());
+        node
+    };
+    let blocks = || {
+        vec![
+            paragraph("https://qiita.com/u/items/1"),
+            paragraph("https://x.com/aegiscms/status/1"),
+            paragraph("https://blog.example/post"),
+            paragraph("Read https://qiita.com/u/items/1 now"),
+        ]
+    };
+
+    let (plugin, web) = run("");
+    let out = plugin.transform_content_ast(blocks()).await.unwrap();
+    assert_eq!(out[0].name, "official-link-embed/embed");
+    assert_eq!(out[0].attributes["title"], "Qiita & Rust");
+    assert_eq!(out[0].attributes["image"], "https://cdn.qiita.com/i.png");
+    assert_eq!(out[0].attributes["site"], "qiita.com");
+    assert_eq!(out[1].attributes["title"], "AegisCMS / X");
+    assert_eq!(out[1].attributes["description"], "Hello");
+    // 許可されていないドメインと、文章の中の URL はそのまま
+    assert_eq!(out[2].name, "core/paragraph");
+    assert_eq!(out[3].name, "core/paragraph");
+    assert!(
+        web.requested
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|u| !u.contains("blog.example")),
+        "no request to a domain that is not allowed"
+    );
+
+    // サイトの設定で足すと取得できる
+    let (plugin, _) = run("blog.example");
+    let out = plugin.transform_content_ast(blocks()).await.unwrap();
+    assert_eq!(out[2].name, "official-link-embed/embed");
+    assert_eq!(out[2].attributes["title"], "Blog post");
+
+    // 表示のときは通信せず、属性のカードを出す
+    let (plugin, web) = run("");
+    let html = plugin
+        .render_blocks(vec![{
+            let mut node = BlockNode::new("official-link-embed/embed");
+            node.attributes = serde_json::json!({
+                "url": "https://qiita.com/u/items/1", "title": "T", "site": "qiita.com"
+            });
+            node
+        }])
+        .await
+        .unwrap();
+    assert!(html[0]
+        .as_deref()
+        .unwrap()
+        .contains(r#"<a class="oe-card" href="https://qiita.com/u/items/1">"#));
+    assert!(web.requested.lock().unwrap().is_empty());
+}

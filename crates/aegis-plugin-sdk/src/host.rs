@@ -267,7 +267,7 @@ pub mod http {
     }
 
     /// HTTP リクエストを送る。宛先はマニフェストの `capabilities.network.allowed_domains` に
-    /// 含まれていること（リダイレクトは追わない。1 回のフック呼び出しで 8 回まで、本文は 1 MiB まで）。
+    /// 含まれていること（サイトの設定 `extra_allowed_domains` で足したドメインも可。リダイレクトはホストが 3 回まで、移った先ごとに許可を確かめて追う。ポートは 80・443・8080 のみで、内部の IP アドレスへは通信しない。1 回のフック呼び出しで 8 回まで、本文は 1 MiB まで）。
     /// フックの `execution_timeout_ms` に通信の時間も含まれる
     pub fn fetch(request: &Request) -> Result<Response> {
         #[cfg(target_arch = "wasm32")]
