@@ -27,11 +27,11 @@ mod tests {
     use aegis_core::StorageBackend;
     use aegis_db::{
         CommentListQuery, CommentRecord, ContactListQuery, ContactMessageRecord,
-        ContentPublicationChange, ContentRecord, ContentVersionRecord, CustomerRecord,
-        DatabaseAdapter, ForumCategoryRecord, ForumPostRecord, ForumReportRecord,
-        ForumThreadRecord, NewsletterIssueRecord, NewsletterListQuery, NewsletterSubscriberRecord,
-        OrderRecord, PostListQuery, ProductVariantRecord, ReviewListQuery, ReviewRecord,
-        SqliteAdapter, UserRecord,
+        ContentPublicationChange, ContentRecord, ContentVersionRecord, DatabaseAdapter,
+        ForumCategoryRecord, ForumPostRecord, ForumReportRecord, ForumThreadRecord, MemberRecord,
+        NewsletterIssueRecord, NewsletterListQuery, NewsletterSubscriberRecord, OrderRecord,
+        PostListQuery, ProductVariantRecord, ReviewListQuery, ReviewRecord, SqliteAdapter,
+        UserRecord,
     };
     use aegis_schema::SchemaDefinition;
     use aegis_storage::LocalStorageBackend;
@@ -104,8 +104,8 @@ mod tests {
             .await
             .unwrap();
 
-        // 3. Customer
-        let customer = CustomerRecord {
+        // 3. Member
+        let member = MemberRecord {
             id: "cust-1".to_string(),
             email: "bob@example.com".to_string(),
             password_hash: "hash".to_string(),
@@ -117,7 +117,7 @@ mod tests {
             updated_at: "2026-10-29T00:00:00Z".to_string(),
             last_login_at: None,
         };
-        src_db.insert_customer(&customer).await.unwrap();
+        src_db.insert_member(&member).await.unwrap();
 
         // 4. Content with versions (v1 published, v2 working copy)
         let article_schema = &schemas["article"];
@@ -210,7 +210,7 @@ mod tests {
             updated_at: "2026-10-29T01:00:00Z".to_string(),
             paid_at: Some("2026-10-29T01:05:00Z".to_string()),
             expires_at: None,
-            customer_id: Some("cust-1".to_string()),
+            member_id: Some("cust-1".to_string()),
             transaction_id: Some("tx-999".to_string()),
             refunded_amount: 0,
             refunds_json: "[]".to_string(),
@@ -261,7 +261,7 @@ mod tests {
             id: "rev-1".to_string(),
             product_id: "prod-1".to_string(),
             order_id: "ord-1".to_string(),
-            customer_id: Some("cust-1".to_string()),
+            member_id: Some("cust-1".to_string()),
             author_name: "Bob".to_string(),
             author_email: "bob@example.com".to_string(),
             rating: 5,
@@ -652,5 +652,84 @@ mod tests {
         .await;
         assert!(res.is_err());
         assert!(dst_db.list_settings().await.unwrap().is_empty());
+    }
+
+    /// 古いバックアップ（顧客アカウントを `database/customers.json` に持つ）も復元できる
+    #[tokio::test]
+    async fn test_restores_a_backup_that_still_calls_members_customers() {
+        let schemas = test_schemas();
+        let src_db = setup_db(&schemas).await;
+        src_db
+            .insert_member(&MemberRecord {
+                id: "cust-1".to_string(),
+                email: "old@example.com".to_string(),
+                password_hash: "hash".to_string(),
+                name: "Old".to_string(),
+                phone: None,
+                shipping_address_json: None,
+                status: "active".to_string(),
+                created_at: "2026-10-29T00:00:00Z".to_string(),
+                updated_at: "2026-10-29T00:00:00Z".to_string(),
+                last_login_at: None,
+            })
+            .await
+            .unwrap();
+        let src_dir = tempfile::tempdir().unwrap();
+        let src_storage: Arc<dyn StorageBackend> = Arc::new(LocalStorageBackend::new(
+            src_dir.path(),
+            "/uploads".to_string(),
+        ));
+        let mut zip_buf = Vec::new();
+        dump_to_writer(
+            &src_db,
+            &src_storage,
+            &schemas,
+            &DumpOptions::default(),
+            Cursor::new(&mut zip_buf),
+        )
+        .await
+        .unwrap();
+
+        // 前のバージョンの名前に付け替える（ファイル名と、マニフェストに書いたファイル名）
+        let mut orig = zip::ZipArchive::new(Cursor::new(&zip_buf)).unwrap();
+        let mut legacy_buf = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(Cursor::new(&mut legacy_buf));
+            let opts = zip::write::SimpleFileOptions::default();
+            for i in 0..orig.len() {
+                let mut file = orig.by_index(i).unwrap();
+                let name = file.name().unwrap().to_string();
+                let mut data = Vec::new();
+                file.read_to_end(&mut data).unwrap();
+                if name == "manifest.json" {
+                    data = String::from_utf8(data)
+                        .unwrap()
+                        .replace("database/members.json", "database/customers.json")
+                        .into_bytes();
+                }
+                let name = name.replace("database/members.json", "database/customers.json");
+                writer.start_file(&name, opts).unwrap();
+                writer.write_all(&data).unwrap();
+            }
+            writer.finish().unwrap();
+        }
+
+        let dst_db = setup_db(&schemas).await;
+        let dst_dir = tempfile::tempdir().unwrap();
+        let dst_storage: Arc<dyn StorageBackend> = Arc::new(LocalStorageBackend::new(
+            dst_dir.path(),
+            "/uploads".to_string(),
+        ));
+        restore_from_reader(
+            &dst_db,
+            &dst_storage,
+            &schemas,
+            &RestoreOptions::default(),
+            Cursor::new(&legacy_buf),
+        )
+        .await
+        .unwrap();
+        let restored = dst_db.get_member_by_id("cust-1").await.unwrap();
+        assert_eq!(restored.unwrap().email, "old@example.com");
     }
 }

@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 
 const SERVER = 'http://127.0.0.1:18080';
-const API = '**/api/v1/customers';
+const API = '**/api/v1/members';
 
 // The pages for the email confirmation. The shared E2E server does not require the confirmation (the other
-// specs sign up and log in at once), so the answers of the customers API are replaced here: this checks what
+// specs sign up and log in at once), so the answers of the members API are replaced here: this checks what
 // the page does with them. The server side (the flow with real tokens) is covered by the Rust tests.
 test.describe('Email confirmation pages', () => {
   test('sign-up with a confirmation required shows the notice and does not log in', async ({
@@ -26,7 +26,7 @@ test.describe('Email confirmation pages', () => {
     await page.goto(`${SERVER}/account/register`);
     await page.getByLabel('Name').fill('Hanako Waiting');
     await page.getByLabel('Email').fill('waiting@example.com');
-    await page.getByLabel(/^Password/).fill('customer-password-123');
+    await page.getByLabel(/^Password/).fill('member-password-123');
     await page.getByRole('button', { name: 'Sign up' }).click();
 
     await expect(page.getByRole('status')).toContainText('We have sent you an email');
@@ -35,7 +35,7 @@ test.describe('Email confirmation pages', () => {
     await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible();
   });
 
-  test('a customer who has not confirmed can ask for the email again from the login page', async ({
+  test('a member who has not confirmed can ask for the email again from the login page', async ({
     page,
   }) => {
     await page.route(`${API}/login`, (route) =>
@@ -60,7 +60,7 @@ test.describe('Email confirmation pages', () => {
 
     await page.goto(`${SERVER}/account/login`);
     await page.getByLabel('Email').fill('waiting@example.com');
-    await page.getByLabel('Password').fill('customer-password-123');
+    await page.getByLabel('Password').fill('member-password-123');
     await page.getByRole('button', { name: 'Log in' }).click();
 
     await expect(page.getByRole('alert')).toContainText('Please confirm your email address first');

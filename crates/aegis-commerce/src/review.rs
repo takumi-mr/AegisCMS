@@ -23,9 +23,9 @@ pub const REVIEW_SETTINGS_PREFIX: &str = "reviews";
 /// レビュー投稿者
 #[derive(Debug, Clone)]
 pub enum ReviewAuthor {
-    /// ログイン中の顧客
-    Customer {
-        customer_id: String,
+    /// ログイン中の会員
+    Member {
+        member_id: String,
         email: String,
         name: String,
     },
@@ -44,7 +44,7 @@ pub struct ReviewSubmission {
     pub rating: i64,
     pub title: String,
     pub body: String,
-    /// ゲストの場合の投稿者名（顧客ログイン時は顧客の名前を使用）
+    /// ゲストの場合の投稿者名（会員ログイン時は顧客の名前を使用）
     #[serde(default)]
     pub author_name: Option<String>,
     /// ゲストの場合の注文確認アクセストークン
@@ -210,21 +210,21 @@ impl ReviewService {
         }
 
         // 3. 投稿者権限の検証
-        let (customer_id, author_name, author_email) = match author {
-            ReviewAuthor::Customer {
-                customer_id,
+        let (member_id, author_name, author_email) = match author {
+            ReviewAuthor::Member {
+                member_id,
                 email,
                 name,
             } => {
                 // 注文の顧客IDまたはメールアドレスと一致するか確認
-                let matches_id = order.customer_id.as_deref() == Some(&customer_id);
+                let matches_id = order.member_id.as_deref() == Some(&member_id);
                 let matches_email = order.customer_email.eq_ignore_ascii_case(&email);
                 if !matches_id && !matches_email {
                     return Err(AegisError::PermissionDenied(
                         "You can only review products from your own orders".to_string(),
                     ));
                 }
-                (Some(customer_id), name, email)
+                (Some(member_id), name, email)
             }
             ReviewAuthor::GuestWithToken {
                 order_id: _,
@@ -292,7 +292,7 @@ impl ReviewService {
             id: review_id.clone(),
             product_id: product_id.to_string(),
             order_id: order.id.clone(),
-            customer_id: customer_id.clone(),
+            member_id: member_id.clone(),
             author_name: author_name.clone(),
             author_email: author_email.clone(),
             rating: submission.rating,
@@ -314,8 +314,8 @@ impl ReviewService {
         // 6. 監査ログ
         let event = AuditEvent::new(AuditAction::ReviewCreate, AuditOutcome::Success)
             .with_actor(Some(AuditActor {
-                user_id: customer_id.unwrap_or_else(|| "guest".to_string()),
-                role: "customer".to_string(),
+                user_id: member_id.unwrap_or_else(|| "guest".to_string()),
+                role: "member".to_string(),
             }))
             .with_resource("review", Some(review_id.clone()))
             .with_client(ip, user_agent)
@@ -359,7 +359,7 @@ impl ReviewService {
         let query = ReviewListQuery {
             product_id: Some(product_id.to_string()),
             status: Some("approved".to_string()),
-            customer_id: None,
+            member_id: None,
             oldest_first: false,
             limit,
             offset,
@@ -370,12 +370,12 @@ impl ReviewService {
         Ok((reviews, stats))
     }
 
-    /// 顧客自身の投稿レビュー一覧
-    pub async fn list_customer_reviews(&self, customer_id: &str) -> Result<Vec<ReviewRecord>> {
+    /// 会員自身の投稿レビュー一覧
+    pub async fn list_member_reviews(&self, member_id: &str) -> Result<Vec<ReviewRecord>> {
         let query = ReviewListQuery {
             product_id: None,
             status: None,
-            customer_id: Some(customer_id.to_string()),
+            member_id: Some(member_id.to_string()),
             oldest_first: false,
             limit: None,
             offset: 0,

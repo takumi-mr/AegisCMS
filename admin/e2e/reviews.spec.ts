@@ -4,7 +4,7 @@ import { E2E_PASSWORD, E2E_USERNAME } from './credentials.mjs';
 
 const SERVER = 'http://127.0.0.1:18080';
 
-// Product reviews on the product page: a logged-in customer writes one for an order they paid, and a
+// Product reviews on the product page: a logged-in member writes one for an order they paid, and a
 // guest writes one from the link on the order page. A new review waits for approval (the default).
 const adminToken = async (request: APIRequestContext): Promise<string> => {
   const login = await request.post(`${SERVER}/api/v1/auth/session`, {
@@ -28,7 +28,7 @@ const createProduct = async (request: APIRequestContext, token: string, slug: st
   expect(created.ok()).toBeTruthy();
 };
 
-// Places an order through the shop API with the cookies of `request` (a logged-in customer's, if any)
+// Places an order through the shop API with the cookies of `request` (a logged-in member's, if any)
 // and marks it paid as the admin; returns the order and its confirmation token
 const placePaidOrder = async (
   request: APIRequestContext,
@@ -76,7 +76,7 @@ const fillReview = async (page: Page, title: string, body: string) => {
 };
 
 test.describe('Product reviews', () => {
-  test('a logged-in customer reviews a paid order, and the approved review shows with its stars', async ({
+  test('a logged-in member reviews a paid order, and the approved review shows with its stars', async ({
     page,
   }) => {
     const suffix = Date.now();
@@ -93,7 +93,7 @@ test.describe('Product reviews', () => {
     await page.goto(`${SERVER}/account/register`);
     await page.getByLabel('Name').fill('Hanako Reviewer');
     await page.getByLabel('Email').fill(`reviewer-${suffix}@example.com`);
-    await page.getByLabel(/^Password/).fill('customer-password-123');
+    await page.getByLabel(/^Password/).fill('member-password-123');
     await page.getByRole('button', { name: 'Sign up' }).click();
     await expect(page).toHaveURL(`${SERVER}/account`);
 
@@ -132,8 +132,8 @@ test.describe('Product reviews', () => {
 
     // The reviewer leaves: the review stays (and keeps counting), without the name
     await expect(page.getByText(/Hanako Yamada|Hanako Reviewer/)).toHaveCount(1);
-    const deleted = await page.request.delete(`${SERVER}/api/v1/customers/me`, {
-      data: { password: 'customer-password-123' },
+    const deleted = await page.request.delete(`${SERVER}/api/v1/members/me`, {
+      data: { password: 'member-password-123' },
     });
     expect(deleted.status()).toBe(204);
     await page.reload();

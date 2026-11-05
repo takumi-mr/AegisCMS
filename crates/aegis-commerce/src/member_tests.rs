@@ -1,15 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use crate::customer::{
-        CustomerLoginRequest, CustomerRegisterRequest, CustomerService,
-        CustomerUpdateProfileRequest,
+    use crate::member::{
+        MemberLoginRequest, MemberRegisterRequest, MemberService, MemberUpdateProfileRequest,
     };
     use aegis_audit::AuditService;
     use aegis_core::ShippingAddress;
     use aegis_db::{create_database_adapter, DatabaseAdapter, DatabaseConfig};
     use std::sync::Arc;
 
-    async fn setup_service() -> (CustomerService, Arc<dyn DatabaseAdapter>) {
+    async fn setup_service() -> (MemberService, Arc<dyn DatabaseAdapter>) {
         let config = DatabaseConfig {
             url: "sqlite::memory:".to_string(),
             ..DatabaseConfig::default()
@@ -20,15 +19,15 @@ mod tests {
         let cache = Arc::new(aegis_cache::MemoryCacheBackend::new());
         let audit = Arc::new(AuditService::with_sinks(vec![]));
 
-        let service = CustomerService::new(db.clone(), cache, audit);
+        let service = MemberService::new(db.clone(), cache, audit);
         (service, db)
     }
 
     #[tokio::test]
-    async fn test_customer_registration_and_login() {
+    async fn test_member_registration_and_login() {
         let (service, _db) = setup_service().await;
 
-        let reg_req = CustomerRegisterRequest {
+        let reg_req = MemberRegisterRequest {
             email: "alice@example.com".to_string(),
             password: "password123".to_string(),
             name: "Alice Wonderland".to_string(),
@@ -46,19 +45,19 @@ mod tests {
         };
 
         // 1. 登録
-        let customer = service
+        let member = service
             .register(reg_req, Some("127.0.0.1".into()), None)
             .await
             .expect("Registration should succeed");
 
-        assert_eq!(customer.email, "alice@example.com");
-        assert_eq!(customer.name, "Alice Wonderland");
-        assert_eq!(customer.status, "active");
+        assert_eq!(member.email, "alice@example.com");
+        assert_eq!(member.name, "Alice Wonderland");
+        assert_eq!(member.status, "active");
 
         // 重複登録の拒否
         let duplicate_res = service
             .register(
-                CustomerRegisterRequest {
+                MemberRegisterRequest {
                     email: "ALICE@example.com".to_string(), // 大文字小文字同一視
                     password: "anotherpassword".to_string(),
                     name: "Alice Twin".to_string(),
@@ -74,7 +73,7 @@ mod tests {
         // 2. ログイン
         let (session, profile) = service
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: "alice@example.com".to_string(),
                     password: "password123".to_string(),
                 },
@@ -84,8 +83,8 @@ mod tests {
             .await
             .expect("Login should succeed");
 
-        assert_eq!(profile.id, customer.id);
-        assert!(session.token.starts_with("cses_"));
+        assert_eq!(profile.id, member.id);
+        assert!(session.token.starts_with("mses_"));
 
         // 3. セッション検証
         let verified = service
@@ -93,12 +92,12 @@ mod tests {
             .await
             .unwrap()
             .expect("Session should be valid");
-        assert_eq!(verified.customer_id, customer.id);
+        assert_eq!(verified.member_id, member.id);
 
         // 4. 不正パスワードでのログイン失敗
         let bad_login = service
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: "alice@example.com".to_string(),
                     password: "wrongpassword".to_string(),
                 },
@@ -121,9 +120,9 @@ mod tests {
     async fn test_profile_update_and_password_change() {
         let (service, _db) = setup_service().await;
 
-        let customer = service
+        let member = service
             .register(
-                CustomerRegisterRequest {
+                MemberRegisterRequest {
                     email: "bob@example.com".to_string(),
                     password: "oldpassword".to_string(),
                     name: "Bob".to_string(),
@@ -137,7 +136,7 @@ mod tests {
             .unwrap();
 
         // プロフィール更新（名前とパスワード変更）
-        let update_req = CustomerUpdateProfileRequest {
+        let update_req = MemberUpdateProfileRequest {
             name: Some("Bob Builder".to_string()),
             phone: Some("080-9999-8888".to_string()),
             shipping_address: None,
@@ -146,7 +145,7 @@ mod tests {
         };
 
         let updated = service
-            .update_profile(&customer.id, update_req)
+            .update_profile(&member.id, update_req)
             .await
             .expect("Profile update should succeed");
         assert_eq!(updated.name, "Bob Builder");
@@ -155,7 +154,7 @@ mod tests {
         // 旧パスワードでログイン失敗
         let failed_login = service
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: "bob@example.com".to_string(),
                     password: "oldpassword".to_string(),
                 },
@@ -168,7 +167,7 @@ mod tests {
         // 新パスワードでログイン成功
         let success_login = service
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: "bob@example.com".to_string(),
                     password: "newpassword123".to_string(),
                 },
@@ -180,12 +179,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_admin_customer_management() {
+    async fn test_admin_member_management() {
         let (service, _db) = setup_service().await;
 
-        let customer = service
+        let member = service
             .register(
-                CustomerRegisterRequest {
+                MemberRegisterRequest {
                     email: "charlie@example.com".to_string(),
                     password: "password".to_string(),
                     name: "Charlie".to_string(),
@@ -199,23 +198,23 @@ mod tests {
             .unwrap();
 
         // 管理者: 一覧取得
-        let (list, total) = service.admin_list_customers(10, 0).await.unwrap();
+        let (list, total) = service.admin_list_members(10, 0).await.unwrap();
         assert_eq!(total, 1);
-        assert_eq!(list[0].id, customer.id);
+        assert_eq!(list[0].id, member.id);
 
         // 管理者: アカウント停止 (suspend)
         service
-            .admin_set_status(&customer.id, "suspended")
+            .admin_set_status(&member.id, "suspended")
             .await
             .unwrap();
 
-        let detail = service.admin_get_customer(&customer.id).await.unwrap();
+        let detail = service.admin_get_member(&member.id).await.unwrap();
         assert_eq!(detail.status, "suspended");
 
         // 停止中アカウントはログイン不可
         let login_res = service
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: "charlie@example.com".to_string(),
                     password: "password".to_string(),
                 },
@@ -226,8 +225,8 @@ mod tests {
         assert!(login_res.is_err(), "Suspended account cannot log in");
     }
 
-    fn register_request(email: &str) -> CustomerRegisterRequest {
-        CustomerRegisterRequest {
+    fn register_request(email: &str) -> MemberRegisterRequest {
+        MemberRegisterRequest {
             email: email.to_string(),
             password: "password123".to_string(),
             name: "Bob".to_string(),
@@ -236,15 +235,15 @@ mod tests {
         }
     }
 
-    /// 新規の登録を止めても、登録済みの顧客はログインできる
+    /// 新規の登録を止めても、登録済みの会員はログインできる
     #[tokio::test]
-    async fn test_closed_registration_still_lets_existing_customers_log_in() {
+    async fn test_closed_registration_still_lets_existing_members_log_in() {
         let (open, db) = setup_service().await;
         open.register(register_request("bob@example.com"), None, None)
             .await
             .unwrap();
 
-        let closed = CustomerService::new(
+        let closed = MemberService::new(
             db.clone(),
             Arc::new(aegis_cache::MemoryCacheBackend::new()),
             Arc::new(AuditService::with_sinks(vec![])),
@@ -260,14 +259,14 @@ mod tests {
             "{refused}"
         );
         assert!(db
-            .get_customer_by_email("carol@example.com")
+            .get_member_by_email("carol@example.com")
             .await
             .unwrap()
             .is_none());
 
         let login = closed
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: "bob@example.com".to_string(),
                     password: "password123".to_string(),
                 },
@@ -281,10 +280,10 @@ mod tests {
     /// 設定から作る: 使わない設定なら作らない。日数はログインの有効期間になる
     #[tokio::test]
     async fn test_service_from_config() {
-        use crate::config::{CustomerRegistration, CustomersConfig};
+        use crate::config::{MemberRegistration, MembersConfig};
         let (_service, db) = setup_service().await;
-        let build = |config: &CustomersConfig| {
-            CustomerService::from_config(
+        let build = |config: &MembersConfig| {
+            MemberService::from_config(
                 config,
                 db.clone(),
                 Arc::new(aegis_cache::MemoryCacheBackend::new()),
@@ -292,16 +291,17 @@ mod tests {
             )
         };
 
-        let disabled = CustomersConfig {
+        let disabled = MembersConfig {
             enabled: false,
-            ..CustomersConfig::default()
+            ..MembersConfig::default()
         };
         assert!(build(&disabled).is_none());
 
-        let service = build(&CustomersConfig {
-            registration: CustomerRegistration::Closed,
+        let service = build(&MembersConfig {
+            enabled: true,
+            registration: MemberRegistration::Closed,
             session_days: 2,
-            ..CustomersConfig::default()
+            ..MembersConfig::default()
         })
         .expect("enabled");
         assert!(service
@@ -309,10 +309,10 @@ mod tests {
             .await
             .is_err());
 
-        // 既定は従来どおり: 有効で、登録は開いていて、30 日
-        let default = CustomersConfig::default();
-        assert!(default.enabled);
-        assert_eq!(default.registration, CustomerRegistration::Open);
+        // 既定は無効（使うサイトだけが有効にする）。登録は開いていて、30 日
+        let default = MembersConfig::default();
+        assert!(!default.enabled);
+        assert_eq!(default.registration, MemberRegistration::Open);
         assert_eq!(default.session_ttl_secs(), 30 * 24 * 3600);
     }
 }

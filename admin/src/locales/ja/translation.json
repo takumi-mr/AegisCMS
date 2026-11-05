@@ -102,9 +102,9 @@
     "deleteNoticeFailed": "お知らせを削除できませんでした",
     "brokenLinksFailed": "リンク切れレポートの取得に失敗しました",
     "triggerBrokenLinksScanFailed": "リンク切れ検査の開始に失敗しました",
-    "customersFailed": "顧客を取得できませんでした",
-    "customerFailed": "顧客を取得できませんでした",
-    "setCustomerStatusFailed": "顧客の状態を変更できませんでした",
+    "membersFailed": "会員を取得できませんでした",
+    "memberFailed": "会員を取得できませんでした",
+    "setMemberStatusFailed": "会員の状態を変更できませんでした",
     "reviewsFailed": "レビューを取得できませんでした",
     "moderateReviewFailed": "レビューを更新できませんでした",
     "replyReviewFailed": "返信を保存できませんでした"
@@ -422,7 +422,7 @@
       "contact": "問い合わせ",
       "analytics": "アクセス解析",
       "settings": "設定",
-      "customers": "顧客",
+      "members": "会員",
       "reviews": "レビュー"
     },
     "gateway": "コアゲートウェイ: {{state}}",
@@ -716,13 +716,13 @@
     "invalidRefundAmount": "正しい返金額を入力してください（最大: {{amount}}）",
     "cannotRefund": "これ以上返金できる残額がありません"
   },
-  "customers": {
-    "title": "顧客",
-    "disabled": "顧客アカウントは無効です（[commerce.customers].enabled）。",
-    "loadFailed": "顧客を読み込めませんでした",
+  "members": {
+    "title": "会員",
+    "disabled": "会員アカウントは無効です（[members].enabled）。",
+    "loadFailed": "会員を読み込めませんでした",
     "empty": "まだ登録している人はいません。",
     "columns": {
-      "customer": "顧客",
+      "member": "会員",
       "status": "状態",
       "registered": "登録日",
       "lastLogin": "最終ログイン"
@@ -738,10 +738,10 @@
     "registeredAt": "{{date}} に登録",
     "suspend": "停止する",
     "reactivate": "再開する",
-    "confirmSuspend": "この顧客を停止しますか？ その場でログアウトされ、再開するまでログインできません。注文とレビューは残ります。",
-    "suspended": "顧客を停止しました",
-    "reactivated": "顧客を再開しました",
-    "unverified": "この顧客は、まだメールアドレスを確認していません。メールのリンクを開くと、ログインできます。",
+    "confirmSuspend": "この会員を停止しますか？ その場でログアウトされ、再開するまでログインできません。注文とレビューは残ります。",
+    "suspended": "会員を停止しました",
+    "reactivated": "会員を再開しました",
+    "unverified": "この会員は、まだメールアドレスを確認していません。メールのリンクを開くと、ログインできます。",
     "contact": "連絡先",
     "shipTo": "保存している配送先",
     "noAddress": "保存していません",

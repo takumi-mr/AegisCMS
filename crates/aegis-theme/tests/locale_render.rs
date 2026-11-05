@@ -215,7 +215,7 @@ fn contexts() -> Vec<PageRenderContext> {
     out.push(external);
     out.push(base("cart.html"));
     out.push(base("order.html"));
-    // 顧客アカウント（ナビゲーションにリンクが出るのは `account_enabled` のとき）
+    // 会員アカウント（ナビゲーションにリンクが出るのは `account_enabled` のとき）
     let mut account = base("account.html");
     account.slug = "home".to_string();
     account

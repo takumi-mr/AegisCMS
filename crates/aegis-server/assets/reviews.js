@@ -1,9 +1,9 @@
 /*
  * Product reviews on the product page: the average and the approved reviews, and a form to write one.
  * Served at /shop/reviews.js and loaded by reviews.html with
- *   <script src="..." data-api="{base}/api/v1/products" data-customers-api="{base}/api/v1/customers"
+ *   <script src="..." data-api="{base}/api/v1/products" data-members-api="{base}/api/v1/members"
  *           data-product-id="..." data-login-url="..." data-register-url="..." defer></script>
- * Who may write: a logged-in customer (the HttpOnly cookie of the account pages) for one of their paid
+ * Who may write: a logged-in member (the HttpOnly cookie of the account pages) for one of their paid
  * orders with this product, or a guest who opens the link of their order page
  * (?review_order=ID&token=TOKEN), which this script removes from the address bar as soon as it has read it.
  * The server checks the purchase and the one-review-per-order rule; the page is built with textContent only.
@@ -18,7 +18,7 @@
 
   var config = {
     api: script.dataset.api || '/api/v1/products',
-    customersApi: script.dataset.customersApi || '/api/v1/customers',
+    membersApi: script.dataset.membersApi || '/api/v1/members',
     productId: script.dataset.productId || '',
     loginUrl: script.dataset.loginUrl || '',
     registerUrl: script.dataset.registerUrl || '',
@@ -167,7 +167,7 @@
     return h('label', { class: 'aegis-field' }, [h('span', {}, [label]), control]);
   }
 
-  // `orders`: [{ id, label }] the customer may review (empty for a guest, who has one order from the link)
+  // `orders`: [{ id, label }] the member may review (empty for a guest, who has one order from the link)
   function writeForm(orders, asGuest) {
     var ratingSelect = h('select', { name: 'rating', required: true }, [5, 4, 3, 2, 1].map(function (n) {
       return h('option', { value: String(n) }, [stars(n) + ' (' + n + ')']);
@@ -232,8 +232,8 @@
       formBox.appendChild(writeForm([], true));
       return Promise.resolve();
     }
-    // A logged-in customer: the orders that have this product and can be reviewed
-    return request('GET', config.customersApi + '/orders')
+    // A logged-in member: the orders that have this product and can be reviewed
+    return request('GET', config.membersApi + '/orders')
       .then(function (data) {
         var orders = (data.orders || [])
           .filter(function (order) {
@@ -248,7 +248,7 @@
             return { id: order.id, label: (order.number || order.id) + ' (' + formatDate(order.created_at) + ')' };
           });
         // One review per order and product: the ones already written are taken out
-        return request('GET', config.customersApi + '/reviews').then(function (mine) {
+        return request('GET', config.membersApi + '/reviews').then(function (mine) {
           var written = {};
           (mine.reviews || []).forEach(function (review) {
             if (review.product_id === config.productId) written[review.order_id] = true;

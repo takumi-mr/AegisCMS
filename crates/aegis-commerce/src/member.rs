@@ -1,5 +1,5 @@
-//! 顧客アカウント（Customer Account）機能。
-//! AegisCMS の管理アカウント（`_aegis_users`）とは完全に別管理の、EC ストア顧客アカウント。
+//! 会員アカウント（Member Account）機能。
+//! AegisCMS の管理アカウント（`_aegis_users`）とは完全に別管理の、EC ストア会員アカウント。
 
 use std::sync::Arc;
 
@@ -11,26 +11,26 @@ use aegis_core::{
     AegisError, AuditAction, AuditActor, AuditEvent, AuditOutcome, CacheBackend, Result,
     ShippingAddress,
 };
-use aegis_db::{CustomerRecord, DatabaseAdapter, OrderRecord};
+use aegis_db::{DatabaseAdapter, MemberRecord, OrderRecord};
 
-use crate::config::{CustomerRegistration, CustomersConfig};
+use crate::config::{MemberRegistration, MembersConfig};
 use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
-/// 顧客セッションのプレフィックス
-pub const CUSTOMER_SESSION_PREFIX: &str = "customer_session:";
-/// 顧客セッショントークンのプレフィックス
-pub const CUSTOMER_TOKEN_PREFIX: &str = "cses_";
-/// 顧客セッションのデフォルト有効期限（30日）
-pub const DEFAULT_CUSTOMER_SESSION_TTL_SECS: u64 = 30 * 24 * 3600;
-/// 顧客の「ここより前に作ったセッションは無効」の印（マイクロ秒）のキャッシュキーの接頭辞
-const REVOKED_PREFIX: &str = "customer_revoked:";
+/// 会員セッションのプレフィックス
+pub const MEMBER_SESSION_PREFIX: &str = "member_session:";
+/// 会員セッショントークンのプレフィックス
+pub const MEMBER_TOKEN_PREFIX: &str = "mses_";
+/// 会員セッションのデフォルト有効期限（30日）
+pub const DEFAULT_MEMBER_SESSION_TTL_SECS: u64 = 30 * 24 * 3600;
+/// 会員の「ここより前に作ったセッションは無効」の印（マイクロ秒）のキャッシュキーの接頭辞
+const REVOKED_PREFIX: &str = "member_revoked:";
 /// パスワード再設定のトークンのキャッシュキーの接頭辞
-const RESET_PREFIX: &str = "customer_reset:";
+const RESET_PREFIX: &str = "member_reset:";
 /// メールアドレスの確認のトークンのキャッシュキーの接頭辞
-const VERIFY_PREFIX: &str = "customer_verify:";
+const VERIFY_PREFIX: &str = "member_verify:";
 /// 確認リンクの有効期間（秒。48 時間）
 pub const EMAIL_VERIFICATION_TTL_SECS: u64 = 48 * 3600;
 /// ログインを断るときのメッセージ（クライアントは、これで「確認が済んでいない」と見分ける）
@@ -44,7 +44,7 @@ const RESET_MAX_PER_EMAIL_PER_HOUR: u64 = 3;
 
 /// 会員登録リクエスト
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CustomerRegisterRequest {
+pub struct MemberRegisterRequest {
     pub email: String,
     pub password: String,
     pub name: String,
@@ -56,21 +56,21 @@ pub struct CustomerRegisterRequest {
 
 /// ログインリクエスト
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CustomerLoginRequest {
+pub struct MemberLoginRequest {
     pub email: String,
     pub password: String,
 }
 
-/// 顧客セッションデータ
+/// 会員セッションデータ
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct CustomerSessionData {
+pub struct MemberSessionData {
     pub token: String,
-    pub customer_id: String,
+    pub member_id: String,
     pub email: String,
     pub name: String,
     pub created_at: String,
     pub expires_at: String,
-    /// セッションを作った時刻（UNIX 時刻のマイクロ秒）。顧客の「ここより前のセッションは無効」の印と比べて、
+    /// セッションを作った時刻（UNIX 時刻のマイクロ秒）。会員の「ここより前のセッションは無効」の印と比べて、
     /// 失効を判断する。印を置いた直後に作り直したセッションを巻き込まないよう、ミリ秒より細かく持つ
     #[serde(default)]
     pub issued_at_micros: i64,
@@ -78,7 +78,7 @@ pub struct CustomerSessionData {
 
 /// 再設定の申し込みの結果（メールに載せる情報）
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CustomerReset {
+pub struct MemberReset {
     pub token: String,
     pub email: String,
     pub name: String,
@@ -86,7 +86,7 @@ pub struct CustomerReset {
 
 /// 確認メールに載せる情報
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CustomerVerification {
+pub struct MemberVerification {
     pub token: String,
     pub email: String,
     pub name: String,
@@ -95,7 +95,7 @@ pub struct CustomerVerification {
 /// キャッシュに置くトークンのデータ（再設定・メールの確認）
 #[derive(Debug, Serialize, Deserialize)]
 struct PendingToken {
-    customer_id: String,
+    member_id: String,
     email: String,
 }
 
@@ -113,7 +113,7 @@ fn random_token() -> String {
 
 /// プロフィール更新リクエスト
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-pub struct CustomerUpdateProfileRequest {
+pub struct MemberUpdateProfileRequest {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
@@ -126,9 +126,9 @@ pub struct CustomerUpdateProfileRequest {
     pub new_password: Option<String>,
 }
 
-/// API 応答用の顧客情報（パスワードハッシュを含まない）
+/// API 応答用の会員情報（パスワードハッシュを含まない）
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct CustomerResponse {
+pub struct MemberResponse {
     pub id: String,
     pub email: String,
     pub name: String,
@@ -140,8 +140,8 @@ pub struct CustomerResponse {
     pub last_login_at: Option<String>,
 }
 
-impl From<CustomerRecord> for CustomerResponse {
-    fn from(r: CustomerRecord) -> Self {
+impl From<MemberRecord> for MemberResponse {
+    fn from(r: MemberRecord) -> Self {
         let shipping_address = r
             .shipping_address_json
             .as_deref()
@@ -173,7 +173,7 @@ fn normalize_email(email: &str) -> String {
     email.trim().to_lowercase()
 }
 
-pub struct CustomerService {
+pub struct MemberService {
     db: Arc<dyn DatabaseAdapter>,
     cache: Arc<dyn CacheBackend>,
     audit: Arc<AuditService>,
@@ -182,10 +182,10 @@ pub struct CustomerService {
     require_email_verification: bool,
 }
 
-impl CustomerService {
-    /// 設定（`[commerce.customers]`）から作る。顧客アカウントを使わない設定なら `None`
+impl MemberService {
+    /// 設定（`[members]`）から作る。会員アカウントを使わない設定なら `None`
     pub fn from_config(
-        config: &CustomersConfig,
+        config: &MembersConfig,
         db: Arc<dyn DatabaseAdapter>,
         cache: Arc<dyn CacheBackend>,
         audit: Arc<AuditService>,
@@ -193,7 +193,7 @@ impl CustomerService {
         config.enabled.then(|| {
             Self::new(db, cache, audit)
                 .with_ttl(config.session_ttl_secs())
-                .with_registration_open(config.registration == CustomerRegistration::Open)
+                .with_registration_open(config.registration == MemberRegistration::Open)
                 .with_email_verification(config.require_email_verification)
         })
     }
@@ -207,7 +207,7 @@ impl CustomerService {
             db,
             cache,
             audit,
-            session_ttl_secs: DEFAULT_CUSTOMER_SESSION_TTL_SECS,
+            session_ttl_secs: DEFAULT_MEMBER_SESSION_TTL_SECS,
             registration_open: true,
             require_email_verification: false,
         }
@@ -218,7 +218,7 @@ impl CustomerService {
         self
     }
 
-    /// 新規の会員登録を受け付けるか（`false` でも、登録済みの顧客はログインできる）
+    /// 新規の会員登録を受け付けるか（`false` でも、登録済みの会員はログインできる）
     pub fn with_registration_open(mut self, open: bool) -> Self {
         self.registration_open = open;
         self
@@ -248,12 +248,12 @@ impl CustomerService {
     /// 会員登録
     pub async fn register(
         &self,
-        req: CustomerRegisterRequest,
+        req: MemberRegisterRequest,
         ip: Option<String>,
         user_agent: Option<String>,
-    ) -> Result<CustomerResponse> {
+    ) -> Result<MemberResponse> {
         if self.require_email_verification {
-            // 確認を飛ばして有効な顧客を作らせない
+            // 確認を飛ばして有効な会員を作らせない
             return Err(AegisError::Internal(
                 "Email confirmation is required: use register_pending".to_string(),
             ));
@@ -261,21 +261,21 @@ impl CustomerService {
         let email = self.check_registration(&req)?;
 
         // 重複チェック
-        if let Some(_existing) = self.db.get_customer_by_email(&email).await? {
+        if let Some(_existing) = self.db.get_member_by_email(&email).await? {
             return Err(AegisError::Validation(
                 "An account with this email already exists".to_string(),
             ));
         }
-        self.insert_customer(req, email, "active", ip, user_agent)
+        self.insert_member(req, email, "active", ip, user_agent)
             .await
             .map(Into::into)
     }
 
     /// 登録の受付と入力の検査。正規化したメールアドレスを返す
-    fn check_registration(&self, req: &CustomerRegisterRequest) -> Result<String> {
+    fn check_registration(&self, req: &MemberRegisterRequest) -> Result<String> {
         if !self.registration_open {
             return Err(AegisError::PermissionDenied(
-                "Customer registration is closed".to_string(),
+                "Member registration is closed".to_string(),
             ));
         }
         let email = normalize_email(&req.email);
@@ -290,15 +290,15 @@ impl CustomerService {
         Ok(email)
     }
 
-    /// 新しい顧客の行を作る（`status` は `active` か、確認待ちの `unverified`）
-    async fn insert_customer(
+    /// 新しい会員の行を作る（`status` は `active` か、確認待ちの `unverified`）
+    async fn insert_member(
         &self,
-        req: CustomerRegisterRequest,
+        req: MemberRegisterRequest,
         email: String,
         status: &str,
         ip: Option<String>,
         user_agent: Option<String>,
-    ) -> Result<CustomerRecord> {
+    ) -> Result<MemberRecord> {
         let password_hash = hash_password(&req.password)?;
         let id = Uuid::new_v4().to_string();
         let timestamp = now();
@@ -309,7 +309,7 @@ impl CustomerService {
             .transpose()
             .map_err(|e| AegisError::Validation(e.to_string()))?;
 
-        let record = CustomerRecord {
+        let record = MemberRecord {
             id: id.clone(),
             email: email.clone(),
             password_hash,
@@ -322,15 +322,15 @@ impl CustomerService {
             last_login_at: None,
         };
 
-        self.db.insert_customer(&record).await?;
+        self.db.insert_member(&record).await?;
 
         // 監査ログ
-        let event = AuditEvent::new(AuditAction::CustomerRegister, AuditOutcome::Success)
+        let event = AuditEvent::new(AuditAction::MemberRegister, AuditOutcome::Success)
             .with_actor(Some(AuditActor {
                 user_id: id.clone(),
-                role: "customer".to_string(),
+                role: "member".to_string(),
             }))
-            .with_resource("customer", Some(id))
+            .with_resource("member", Some(id))
             .with_client(ip, user_agent)
             .with_details(json!({ "email": email }));
         self.audit.record(event).await;
@@ -338,20 +338,20 @@ impl CustomerService {
         Ok(record)
     }
 
-    /// 確認が要るときの会員登録。顧客は `unverified`（確認が済むまでログインできない）で作る。
-    /// 登録済みのアドレスは、応答で区別できないよう `Ok(None)` を返す。まだ確認していない顧客のアドレスで
+    /// 確認が要るときの会員登録。会員は `unverified`（確認が済むまでログインできない）で作る。
+    /// 登録済みのアドレスは、応答で区別できないよう `Ok(None)` を返す。まだ確認していない会員のアドレスで
     /// 登録し直したときは、名前とパスワードを今の登録のもので置き換えて、確認メールを送り直す
     /// （他人のアドレスで先に登録されても、本人が登録し直せば、本人のものになる）
     pub async fn register_pending(
         &self,
-        req: CustomerRegisterRequest,
+        req: MemberRegisterRequest,
         ip: Option<String>,
         user_agent: Option<String>,
-    ) -> Result<Option<CustomerVerification>> {
+    ) -> Result<Option<MemberVerification>> {
         let email = self.check_registration(&req)?;
-        let customer = match self.db.get_customer_by_email(&email).await? {
+        let member = match self.db.get_member_by_email(&email).await? {
             None => {
-                self.insert_customer(req, email, "unverified", ip, user_agent)
+                self.insert_member(req, email, "unverified", ip, user_agent)
                     .await?
             }
             Some(mut existing) if existing.status == "unverified" => {
@@ -359,24 +359,21 @@ impl CustomerService {
                 existing.name = req.name.trim().to_string();
                 existing.phone = req.phone.map(|p| p.trim().to_string());
                 existing.updated_at = now();
-                self.db.update_customer(&existing).await?;
+                self.db.update_member(&existing).await?;
                 existing
             }
             // 登録済み（有効・停止中）。登録の有無を応答で教えない
             Some(_) => return Ok(None),
         };
-        self.issue_verification(customer).await
+        self.issue_verification(member).await
     }
 
     /// 確認メールの情報を作る。同じ宛先へのメールは 1 時間に 3 通まで（超えた分は送らず `None`）
-    async fn issue_verification(
-        &self,
-        customer: CustomerRecord,
-    ) -> Result<Option<CustomerVerification>> {
+    async fn issue_verification(&self, member: MemberRecord) -> Result<Option<MemberVerification>> {
         let sent = self
             .cache
             .increment(
-                &format!("customer_verify_email:{}", sha256_hex(&customer.email)),
+                &format!("member_verify_email:{}", sha256_hex(&member.email)),
                 Some(3600),
             )
             .await?;
@@ -385,8 +382,8 @@ impl CustomerService {
         }
         let token = random_token();
         let pending = PendingToken {
-            customer_id: customer.id.clone(),
-            email: customer.email.clone(),
+            member_id: member.id.clone(),
+            email: member.email.clone(),
         };
         let value =
             serde_json::to_string(&pending).map_err(|e| AegisError::Internal(e.to_string()))?;
@@ -397,29 +394,29 @@ impl CustomerService {
                 Some(EMAIL_VERIFICATION_TTL_SECS),
             )
             .await?;
-        Ok(Some(CustomerVerification {
+        Ok(Some(MemberVerification {
             token,
-            email: customer.email,
-            name: customer.name,
+            email: member.email,
+            name: member.name,
         }))
     }
 
     /// 退会（自分のアカウントの削除）。パスワードで本人であることを確かめてから、
-    /// 注文は顧客との紐づきだけを外して残し（会計の記録）、レビューは匿名にして残し、顧客の行を消して、
+    /// 注文は会員との紐づきだけを外して残し（会計の記録）、レビューは匿名にして残し、会員の行を消して、
     /// セッションをすべて終わらせる。戻り値は、レビューを匿名にした商品の ID（公開ページのキャッシュを更新するため）。
     /// 監査ログにはメールアドレスを残さない。途中で失敗しても、同じ手順をやり直せる
     pub async fn delete_account(
         &self,
-        customer_id: &str,
+        member_id: &str,
         password: &str,
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> Result<Vec<String>> {
         let record = self
             .db
-            .get_customer_by_id(customer_id)
+            .get_member_by_id(member_id)
             .await?
-            .ok_or_else(|| AegisError::NotFound("Customer not found".to_string()))?;
+            .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
         if !verify_password(password, &record.password_hash)? {
             return Err(AegisError::Authentication(
                 "Password does not match".to_string(),
@@ -431,7 +428,7 @@ impl CustomerService {
             .list_reviews(&aegis_db::ReviewListQuery {
                 product_id: None,
                 status: None,
-                customer_id: Some(customer_id.to_string()),
+                member_id: Some(member_id.to_string()),
                 oldest_first: false,
                 limit: None,
                 offset: 0,
@@ -444,30 +441,30 @@ impl CustomerService {
         product_ids.sort();
         product_ids.dedup();
 
-        self.db.detach_customer_orders(customer_id).await?;
-        self.db.anonymize_customer_reviews(customer_id).await?;
-        self.db.delete_customer(customer_id).await?;
-        // 消した顧客のセッションを、その場で使えなくする
-        self.revoke_sessions(customer_id).await?;
+        self.db.detach_member_orders(member_id).await?;
+        self.db.anonymize_member_reviews(member_id).await?;
+        self.db.delete_member(member_id).await?;
+        // 消した会員のセッションを、その場で使えなくする
+        self.revoke_sessions(member_id).await?;
 
-        let event = AuditEvent::new(AuditAction::CustomerDelete, AuditOutcome::Success)
+        let event = AuditEvent::new(AuditAction::MemberDelete, AuditOutcome::Success)
             .with_actor(Some(AuditActor {
-                user_id: customer_id.to_string(),
-                role: "customer".to_string(),
+                user_id: member_id.to_string(),
+                role: "member".to_string(),
             }))
-            .with_resource("customer", Some(customer_id.to_string()))
+            .with_resource("member", Some(member_id.to_string()))
             .with_client(ip, user_agent);
         self.audit.record(event).await;
         Ok(product_ids)
     }
 
-    /// 確認メールを送り直す。確認待ちの顧客がいるときだけ情報を返す（いない・確認済み・停止中は `None`。
+    /// 確認メールを送り直す。確認待ちの会員がいるときだけ情報を返す（いない・確認済み・停止中は `None`。
     /// 応答では区別しない）。同じ IP からは 1 時間に 5 回まで（登録の有無によらず数える）
     pub async fn resend_verification(
         &self,
         email: &str,
         ip: Option<&str>,
-    ) -> Result<Option<CustomerVerification>> {
+    ) -> Result<Option<MemberVerification>> {
         let email = normalize_email(email);
         if email.is_empty() || !email.contains('@') || email.len() > 254 {
             return Err(AegisError::Validation(
@@ -477,7 +474,7 @@ impl CustomerService {
         if let Some(ip) = ip {
             let count = self
                 .cache
-                .increment(&format!("customer_verify_ip:{}", ip), Some(3600))
+                .increment(&format!("member_verify_ip:{}", ip), Some(3600))
                 .await?;
             if count > RESET_MAX_PER_IP_PER_HOUR {
                 return Err(AegisError::ResourceLimitExceeded(
@@ -485,21 +482,19 @@ impl CustomerService {
                 ));
             }
         }
-        match self.db.get_customer_by_email(&email).await? {
-            Some(customer) if customer.status == "unverified" => {
-                self.issue_verification(customer).await
-            }
+        match self.db.get_member_by_email(&email).await? {
+            Some(member) if member.status == "unverified" => self.issue_verification(member).await,
             _ => Ok(None),
         }
     }
 
-    /// 確認リンクのトークンで、メールアドレスを確認する（顧客は `active` になる）。トークンは 1 回だけ
+    /// 確認リンクのトークンで、メールアドレスを確認する（会員は `active` になる）。トークンは 1 回だけ
     pub async fn verify_email(
         &self,
         token: &str,
         ip: Option<String>,
         user_agent: Option<String>,
-    ) -> Result<CustomerResponse> {
+    ) -> Result<MemberResponse> {
         let invalid = || {
             AegisError::Validation("This confirmation link is invalid or has expired".to_string())
         };
@@ -516,7 +511,7 @@ impl CustomerService {
 
         let mut record = self
             .db
-            .get_customer_by_id(&pending.customer_id)
+            .get_member_by_id(&pending.member_id)
             .await?
             .ok_or_else(invalid)?;
         if !record.email.eq_ignore_ascii_case(&pending.email) {
@@ -526,13 +521,13 @@ impl CustomerService {
             "unverified" => {
                 record.status = "active".to_string();
                 record.updated_at = now();
-                self.db.update_customer(&record).await?;
-                let event = AuditEvent::new(AuditAction::CustomerVerify, AuditOutcome::Success)
+                self.db.update_member(&record).await?;
+                let event = AuditEvent::new(AuditAction::MemberVerify, AuditOutcome::Success)
                     .with_actor(Some(AuditActor {
                         user_id: record.id.clone(),
-                        role: "customer".to_string(),
+                        role: "member".to_string(),
                     }))
-                    .with_resource("customer", Some(record.id.clone()))
+                    .with_resource("member", Some(record.id.clone()))
                     .with_client(ip, user_agent);
                 self.audit.record(event).await;
             }
@@ -546,14 +541,14 @@ impl CustomerService {
     /// ログイン
     pub async fn login(
         &self,
-        req: CustomerLoginRequest,
+        req: MemberLoginRequest,
         ip: Option<String>,
         user_agent: Option<String>,
-    ) -> Result<(CustomerSessionData, CustomerResponse)> {
+    ) -> Result<(MemberSessionData, MemberResponse)> {
         let email = normalize_email(&req.email);
-        let customer = self.db.get_customer_by_email(&email).await?;
+        let member = self.db.get_member_by_email(&email).await?;
 
-        let record = match customer {
+        let record = match member {
             Some(c) => c,
             None => {
                 // タイミング攻撃防御
@@ -577,7 +572,7 @@ impl CustomerService {
         }
         if record.status != "active" {
             return Err(AegisError::PermissionDenied(
-                "This customer account has been suspended".to_string(),
+                "This member account has been suspended".to_string(),
             ));
         }
 
@@ -585,19 +580,19 @@ impl CustomerService {
 
         let login_time = now();
         self.db
-            .update_customer_last_login(&record.id, &login_time)
+            .update_member_last_login(&record.id, &login_time)
             .await?;
 
         let mut updated_record = record;
         updated_record.last_login_at = Some(login_time);
 
         // 監査ログ
-        let event = AuditEvent::new(AuditAction::CustomerLogin, AuditOutcome::Success)
+        let event = AuditEvent::new(AuditAction::MemberLogin, AuditOutcome::Success)
             .with_actor(Some(AuditActor {
                 user_id: updated_record.id.clone(),
-                role: "customer".to_string(),
+                role: "member".to_string(),
             }))
-            .with_resource("customer", Some(updated_record.id.clone()))
+            .with_resource("member", Some(updated_record.id.clone()))
             .with_client(ip, user_agent);
         self.audit.record(event).await;
 
@@ -605,12 +600,12 @@ impl CustomerService {
     }
 
     /// セッションの検証
-    /// 顧客のセッションを作って、キャッシュに置く
-    async fn create_session(&self, record: &CustomerRecord) -> Result<CustomerSessionData> {
-        let token = format!("{}{}", CUSTOMER_TOKEN_PREFIX, Uuid::new_v4().simple());
-        let session = CustomerSessionData {
+    /// 会員のセッションを作って、キャッシュに置く
+    async fn create_session(&self, record: &MemberRecord) -> Result<MemberSessionData> {
+        let token = format!("{}{}", MEMBER_TOKEN_PREFIX, Uuid::new_v4().simple());
+        let session = MemberSessionData {
             token: token.clone(),
-            customer_id: record.id.clone(),
+            member_id: record.id.clone(),
             email: record.email.clone(),
             name: record.name.clone(),
             created_at: now(),
@@ -619,18 +614,18 @@ impl CustomerService {
         };
         let session_json =
             serde_json::to_string(&session).map_err(|e| AegisError::Internal(e.to_string()))?;
-        let cache_key = format!("{}{}", CUSTOMER_SESSION_PREFIX, token);
+        let cache_key = format!("{}{}", MEMBER_SESSION_PREFIX, token);
         self.cache
             .set(&cache_key, &session_json, Some(self.session_ttl_secs))
             .await?;
         Ok(session)
     }
 
-    /// 顧客のセッションをすべて失効させる（停止・パスワードの変更・再設定のとき）。
+    /// 会員のセッションをすべて失効させる（停止・パスワードの変更・再設定のとき）。
     /// セッションごとに消す代わりに、「この時刻より前に作ったセッションは無効」の印を置く
     /// （キャッシュが Redis でも、全サーバーで効く。印は最長のセッションの有効期間だけ残す）
-    pub async fn revoke_sessions(&self, customer_id: &str) -> Result<()> {
-        let key = format!("{}{}", REVOKED_PREFIX, customer_id);
+    pub async fn revoke_sessions(&self, member_id: &str) -> Result<()> {
+        let key = format!("{}{}", REVOKED_PREFIX, member_id);
         let revoked_at = Utc::now().timestamp_micros();
         self.cache
             .set(&key, &revoked_at.to_string(), Some(self.session_ttl_secs))
@@ -638,34 +633,34 @@ impl CustomerService {
         Ok(())
     }
 
-    /// 同じ顧客の新しいセッションを作る（パスワードの変更で全セッションを失効させたあと、
+    /// 同じ会員の新しいセッションを作る（パスワードの変更で全セッションを失効させたあと、
     /// 変更した本人の画面を続けて使えるようにするため）
-    pub async fn reissue_session(&self, customer_id: &str) -> Result<CustomerSessionData> {
+    pub async fn reissue_session(&self, member_id: &str) -> Result<MemberSessionData> {
         let record = self
             .db
-            .get_customer_by_id(customer_id)
+            .get_member_by_id(member_id)
             .await?
-            .ok_or_else(|| AegisError::NotFound("Customer not found".to_string()))?;
+            .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
         if record.status != "active" {
             return Err(AegisError::PermissionDenied(
-                "This customer account has been suspended".to_string(),
+                "This member account has been suspended".to_string(),
             ));
         }
         self.create_session(&record).await
     }
 
-    pub async fn verify_session(&self, token: &str) -> Result<Option<CustomerSessionData>> {
-        if !token.starts_with(CUSTOMER_TOKEN_PREFIX) {
+    pub async fn verify_session(&self, token: &str) -> Result<Option<MemberSessionData>> {
+        if !token.starts_with(MEMBER_TOKEN_PREFIX) {
             return Ok(None);
         }
-        let cache_key = format!("{}{}", CUSTOMER_SESSION_PREFIX, token);
+        let cache_key = format!("{}{}", MEMBER_SESSION_PREFIX, token);
         let Some(json) = self.cache.get(&cache_key).await? else {
             return Ok(None);
         };
-        let session: CustomerSessionData =
+        let session: MemberSessionData =
             serde_json::from_str(&json).map_err(|e| AegisError::Internal(e.to_string()))?;
         // 失効の印より前に作ったセッションは通さない
-        let revoked_key = format!("{}{}", REVOKED_PREFIX, session.customer_id);
+        let revoked_key = format!("{}{}", REVOKED_PREFIX, session.member_id);
         if let Some(revoked_at) = self.cache.get(&revoked_key).await? {
             if revoked_at
                 .parse::<i64>()
@@ -679,32 +674,32 @@ impl CustomerService {
 
     /// ログアウト
     pub async fn logout(&self, token: &str) -> Result<()> {
-        let cache_key = format!("{}{}", CUSTOMER_SESSION_PREFIX, token);
+        let cache_key = format!("{}{}", MEMBER_SESSION_PREFIX, token);
         self.cache.delete(&cache_key).await?;
         Ok(())
     }
 
     /// プロフィール取得
-    pub async fn get_profile(&self, customer_id: &str) -> Result<CustomerResponse> {
+    pub async fn get_profile(&self, member_id: &str) -> Result<MemberResponse> {
         let record = self
             .db
-            .get_customer_by_id(customer_id)
+            .get_member_by_id(member_id)
             .await?
-            .ok_or_else(|| AegisError::NotFound("Customer not found".to_string()))?;
+            .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
         Ok(record.into())
     }
 
     /// プロフィール更新
     pub async fn update_profile(
         &self,
-        customer_id: &str,
-        req: CustomerUpdateProfileRequest,
-    ) -> Result<CustomerResponse> {
+        member_id: &str,
+        req: MemberUpdateProfileRequest,
+    ) -> Result<MemberResponse> {
         let mut record = self
             .db
-            .get_customer_by_id(customer_id)
+            .get_member_by_id(member_id)
             .await?
-            .ok_or_else(|| AegisError::NotFound("Customer not found".to_string()))?;
+            .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
 
         if let Some(name) = req.name {
             if name.trim().is_empty() {
@@ -749,40 +744,40 @@ impl CustomerService {
         }
 
         record.updated_at = now();
-        self.db.update_customer(&record).await?;
+        self.db.update_member(&record).await?;
         // パスワードを変えたら、ほかの端末のセッションも終わらせる（呼び出し元が、本人の分は作り直す）
         if req.new_password.is_some() {
-            self.revoke_sessions(customer_id).await?;
+            self.revoke_sessions(member_id).await?;
         }
 
         // 監査ログ
-        let event = AuditEvent::new(AuditAction::CustomerUpdate, AuditOutcome::Success)
+        let event = AuditEvent::new(AuditAction::MemberUpdate, AuditOutcome::Success)
             .with_actor(Some(AuditActor {
-                user_id: customer_id.to_string(),
-                role: "customer".to_string(),
+                user_id: member_id.to_string(),
+                role: "member".to_string(),
             }))
-            .with_resource("customer", Some(customer_id.to_string()));
+            .with_resource("member", Some(member_id.to_string()));
         self.audit.record(event).await;
 
         Ok(record.into())
     }
 
     /// 注文履歴一覧取得
-    pub async fn list_orders(&self, customer_id: &str) -> Result<Vec<OrderRecord>> {
-        self.db.list_customer_orders(customer_id).await
+    pub async fn list_orders(&self, member_id: &str) -> Result<Vec<OrderRecord>> {
+        self.db.list_member_orders(member_id).await
     }
 
     /// 注文詳細取得（自分の注文であることを検証）
-    pub async fn get_order(&self, customer_id: &str, order_id: &str) -> Result<OrderRecord> {
+    pub async fn get_order(&self, member_id: &str, order_id: &str) -> Result<OrderRecord> {
         let order = self
             .db
             .get_order(order_id)
             .await?
             .ok_or_else(|| AegisError::NotFound("Order not found".to_string()))?;
 
-        // customer_id が一致するか、あるいは顧客のメールアドレスと注文のメールアドレスが一致するか検証
-        if order.customer_id.as_deref() != Some(customer_id) {
-            let profile = self.get_profile(customer_id).await?;
+        // member_id が一致するか、あるいは会員のメールアドレスと注文のメールアドレスが一致するか検証
+        if order.member_id.as_deref() != Some(member_id) {
+            let profile = self.get_profile(member_id).await?;
             if order.customer_email.to_lowercase() != profile.email.to_lowercase() {
                 return Err(AegisError::PermissionDenied(
                     "You do not have access to this order".to_string(),
@@ -795,47 +790,45 @@ impl CustomerService {
 
     // --- 管理者向け操作 ---
 
-    /// 管理者: 顧客一覧
-    pub async fn admin_list_customers(
+    /// 管理者: 会員一覧
+    pub async fn admin_list_members(
         &self,
         limit: u64,
         offset: u64,
-    ) -> Result<(Vec<CustomerResponse>, u64)> {
-        let (records, total) = self.db.list_customers(limit, offset).await?;
-        let responses = records.into_iter().map(CustomerResponse::from).collect();
+    ) -> Result<(Vec<MemberResponse>, u64)> {
+        let (records, total) = self.db.list_members(limit, offset).await?;
+        let responses = records.into_iter().map(MemberResponse::from).collect();
         Ok((responses, total))
     }
 
-    /// 管理者: 顧客詳細取得
-    pub async fn admin_get_customer(&self, customer_id: &str) -> Result<CustomerResponse> {
-        self.get_profile(customer_id).await
+    /// 管理者: 会員詳細取得
+    pub async fn admin_get_member(&self, member_id: &str) -> Result<MemberResponse> {
+        self.get_profile(member_id).await
     }
 
-    /// 管理者: 顧客ステータス変更（active / suspended）
-    pub async fn admin_set_status(&self, customer_id: &str, status: &str) -> Result<()> {
+    /// 管理者: 会員ステータス変更（active / suspended）
+    pub async fn admin_set_status(&self, member_id: &str, status: &str) -> Result<()> {
         if status != "active" && status != "suspended" {
             return Err(AegisError::Validation(
                 "Status must be either 'active' or 'suspended'".to_string(),
             ));
         }
-        self.db
-            .set_customer_status(customer_id, status, &now())
-            .await?;
+        self.db.set_member_status(member_id, status, &now()).await?;
         if status == "suspended" {
-            // 停止した顧客が、ログイン中のセッションでそのまま使い続けられないようにする
-            self.revoke_sessions(customer_id).await?;
+            // 停止した会員が、ログイン中のセッションでそのまま使い続けられないようにする
+            self.revoke_sessions(member_id).await?;
         }
         Ok(())
     }
 
-    /// パスワードの再設定を申し込む。該当する有効な顧客がいれば、メールに載せる情報を返す。
+    /// パスワードの再設定を申し込む。該当する有効な会員がいれば、メールに載せる情報を返す。
     /// いない・停止中・メールの上限を超えた場合は `Ok(None)`（登録の有無を応答で教えない）。
     /// IP ごとの上限を超えたら `ResourceLimitExceeded`（どのメールアドレスでも同じ数え方）
     pub async fn request_password_reset(
         &self,
         email: &str,
         ip: Option<&str>,
-    ) -> Result<Option<CustomerReset>> {
+    ) -> Result<Option<MemberReset>> {
         let email = normalize_email(email);
         if email.len() > 254 || email.chars().any(|c| c.is_whitespace() || c.is_control()) {
             return Err(AegisError::Validation(
@@ -859,7 +852,7 @@ impl CustomerService {
         if let Some(ip) = ip {
             let count = self
                 .cache
-                .increment(&format!("customer_reset_ip:{}", ip), Some(3600))
+                .increment(&format!("member_reset_ip:{}", ip), Some(3600))
                 .await?;
             if count > RESET_MAX_PER_IP_PER_HOUR {
                 return Err(AegisError::ResourceLimitExceeded(
@@ -868,17 +861,17 @@ impl CustomerService {
             }
         }
 
-        let Some(customer) = self.db.get_customer_by_email(&email).await? else {
+        let Some(member) = self.db.get_member_by_email(&email).await? else {
             return Ok(None);
         };
-        if customer.status == "suspended" {
+        if member.status == "suspended" {
             return Ok(None);
         }
         // 同じ宛先へのメールの連打を止める（宛先の数え方は、登録の有無によらない順序で、実在するときだけ）
         let sent = self
             .cache
             .increment(
-                &format!("customer_reset_email:{}", sha256_hex(&email)),
+                &format!("member_reset_email:{}", sha256_hex(&email)),
                 Some(3600),
             )
             .await?;
@@ -888,8 +881,8 @@ impl CustomerService {
 
         let token = random_token();
         let pending = PendingToken {
-            customer_id: customer.id.clone(),
-            email: customer.email.clone(),
+            member_id: member.id.clone(),
+            email: member.email.clone(),
         };
         let value =
             serde_json::to_string(&pending).map_err(|e| AegisError::Internal(e.to_string()))?;
@@ -901,22 +894,22 @@ impl CustomerService {
             )
             .await?;
 
-        Ok(Some(CustomerReset {
+        Ok(Some(MemberReset {
             token,
-            email: customer.email,
-            name: customer.name,
+            email: member.email,
+            name: member.name,
         }))
     }
 
     /// トークンと新しいパスワードでパスワードを再設定する。トークンは 1 回だけ使える。
-    /// 完了したら、その顧客のセッションをすべて失効させる
+    /// 完了したら、その会員のセッションをすべて失効させる
     pub async fn complete_password_reset(
         &self,
         token: &str,
         new_password: &str,
         ip: Option<String>,
         user_agent: Option<String>,
-    ) -> Result<CustomerResponse> {
+    ) -> Result<MemberResponse> {
         let invalid =
             || AegisError::Validation("This reset link is invalid or has expired".to_string());
         let token = token.trim();
@@ -940,10 +933,10 @@ impl CustomerService {
 
         let mut record = self
             .db
-            .get_customer_by_id(&pending.customer_id)
+            .get_member_by_id(&pending.member_id)
             .await?
             .ok_or_else(invalid)?;
-        // 申し込みのあとで、メールアドレスが変わった・停止された顧客には使わせない
+        // 申し込みのあとで、メールアドレスが変わった・停止された会員には使わせない
         if !record.email.eq_ignore_ascii_case(&pending.email) || record.status == "suspended" {
             return Err(invalid());
         }
@@ -957,15 +950,15 @@ impl CustomerService {
             record.status = "active".to_string();
         }
         record.updated_at = now();
-        self.db.update_customer(&record).await?;
+        self.db.update_member(&record).await?;
         self.revoke_sessions(&record.id).await?;
 
-        let event = AuditEvent::new(AuditAction::CustomerPasswordReset, AuditOutcome::Success)
+        let event = AuditEvent::new(AuditAction::MemberPasswordReset, AuditOutcome::Success)
             .with_actor(Some(AuditActor {
                 user_id: record.id.clone(),
-                role: "customer".to_string(),
+                role: "member".to_string(),
             }))
-            .with_resource("customer", Some(record.id.clone()))
+            .with_resource("member", Some(record.id.clone()))
             .with_client(ip, user_agent);
         self.audit.record(event).await;
 

@@ -1161,7 +1161,7 @@ pub const REVIEWS_TEMPLATE: &str = r##"<section class="aegis-reviews" id="review
   <h2>{{ t("reviews.title") }}</h2>
   <div id="aegis-reviews"><p class="aegis-muted">{{ t("reviews.loading") }}</p></div>
   <noscript><p class="aegis-muted">{{ t("reviews.needs_js") }}</p></noscript>
-  <script src="{{ theme_vars.reviews_script }}" data-api="{{ theme_vars.reviews_api }}" data-customers-api="{{ theme_vars.account_api }}" data-product-id="{{ fields.id }}" data-login-url="{{ theme_vars.account_login_url }}" data-register-url="{{ theme_vars.account_register_url }}" defer></script>
+  <script src="{{ theme_vars.reviews_script }}" data-api="{{ theme_vars.reviews_api }}" data-members-api="{{ theme_vars.account_api }}" data-product-id="{{ fields.id }}" data-login-url="{{ theme_vars.account_login_url }}" data-register-url="{{ theme_vars.account_register_url }}" defer></script>
 </section>
 "##;
 
@@ -1177,7 +1177,7 @@ pub const CART_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
-/// 顧客アカウントのページ（`/account`・`/account/login`・`/account/register`）。`slug` が表示（`home` / `login` / `register`）。
+/// 会員アカウントのページ（`/account`・`/account/login`・`/account/register`）。`slug` が表示（`home` / `login` / `register`）。
 /// 中身はスクリプト（`/shop/account.js`）が API から作る。ログインは HttpOnly の Cookie に持つので、スクリプトはトークンに触れない
 pub const ACCOUNT_TEMPLATE: &str = r#"{% extends "base.html" %}
 

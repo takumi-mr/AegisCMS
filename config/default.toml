@@ -218,14 +218,20 @@ payment_due_hours = 72
 secret_key = ""
 webhook_secret = ""
 
-# Customer accounts for shop buyers (docs/customers.md), separate from the CMS accounts.
-# Used while [commerce] is enabled
-[commerce.customers]
-enabled = true
-# "open": anyone can sign up. "closed": no new sign-ups (existing customers can still log in)
+# Member accounts (docs/members.md): visitors sign up to see their orders, write reviews and post
+# in the forum. Separate from the CMS accounts.
+[members]
+enabled = false
+# "open": anyone can sign up. "closed": no new sign-ups (existing members can still log in)
 registration = "open"
 # How long a login lasts, in days
 session_days = 30
+# Password reset by email (needs [notifications] and public_url)
+password_reset = true
+# true: a new member must open the link in a confirmation email before logging in
+require_email_verification = false
+# The site's URL, the base of the links in member emails (for example "https://example.com")
+public_url = ""
 
 # Notifications (docs/notifications.md): order emails to customers and staff, sent through an
 # external SMTP server. channels = ["log"] prints them to the server log instead (no SMTP needed).

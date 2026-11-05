@@ -219,7 +219,7 @@ super::notifications::impl_notification_queue_storage!(
     "SQLite"
 );
 super::forum::impl_forum_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
-super::customers::impl_customer_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::members::impl_member_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::reviews::impl_review_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 
 #[async_trait]
@@ -334,13 +334,13 @@ impl DatabaseAdapter for SqliteAdapter {
         }
 
         // 顧客
-        let (customer_table, customer_indexes) =
-            super::customers::build_customer_table("TEXT", "TEXT", false);
-        sqlx::query(&customer_table)
+        let (member_table, member_indexes) =
+            super::members::build_member_table("TEXT", "TEXT", false);
+        sqlx::query(&member_table)
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in customer_indexes {
+        for index in member_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await

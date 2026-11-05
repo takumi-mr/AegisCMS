@@ -40,7 +40,7 @@ export type AppView =
   | 'schedule'
   | 'products'
   | 'orders'
-  | 'customers'
+  | 'members'
   | 'reviews'
   | 'comments'
   | 'forum'
@@ -63,8 +63,8 @@ interface HeaderProps {
   canPublish?: boolean;
   /** Products / Orders tabs: the shop is enabled (`[commerce].enabled`) and the user can edit */
   showShop: boolean;
-  /** Customers tab: customer accounts are enabled (`[commerce.customers].enabled`) and the user can edit */
-  showCustomers?: boolean;
+  /** Members tab: member accounts are enabled (`[members].enabled`) and the user can edit */
+  showMembers?: boolean;
   /** Reviews tab: product reviews are enabled (`[commerce.reviews].enabled`) and the user can edit */
   showReviews?: boolean;
   /** Comments tab: comments are enabled (`[comments].enabled`) and the user can edit */
@@ -93,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
   canSave,
   canPublish = false,
   showShop,
-  showCustomers = false,
+  showMembers = false,
   showReviews = false,
   showComments,
   showForum,
@@ -142,11 +142,11 @@ export const Header: React.FC<HeaderProps> = ({
           },
         ]
       : []),
-    ...(showCustomers
+    ...(showMembers
       ? [
           {
-            id: 'customers' as const,
-            label: t('header.tabs.customers'),
+            id: 'members' as const,
+            label: t('header.tabs.members'),
             icon: <Users size={15} />,
           },
         ]

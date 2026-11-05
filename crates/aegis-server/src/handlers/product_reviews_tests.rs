@@ -35,6 +35,7 @@ struct Site {
 async fn site_with(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     let mut config = AegisConfig::default();
     config.commerce.enabled = true;
+    config.members.enabled = true;
     config.commerce.product_type = "product".to_string();
     configure(&mut config);
     let state = test_app_state(
@@ -46,8 +47,8 @@ async fn site_with(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     let commerce =
         aegis_commerce::CommerceService::new(config.commerce.clone(), state.commerce_deps())
             .unwrap();
-    let customers = aegis_commerce::CustomerService::from_config(
-        &config.commerce.customers,
+    let members = aegis_commerce::MemberService::from_config(
+        &config.members,
         state.db.clone(),
         state.cache.clone(),
         state.audit.clone(),
@@ -59,8 +60,8 @@ async fn site_with(configure: impl FnOnce(&mut AegisConfig)) -> Site {
         config.comments.moderation.clone(),
     );
     let state = state.with_commerce(commerce).with_reviews(reviews);
-    let state: Arc<AppState> = Arc::new(match customers {
-        Some(customers) => state.with_customers(customers),
+    let state: Arc<AppState> = Arc::new(match members {
+        Some(members) => state.with_members(members),
         None => state,
     });
     Site {
@@ -112,7 +113,7 @@ impl Site {
             id: id.to_string(),
             product_id: product_id.to_string(),
             order_id: format!("order-{id}"),
-            customer_id: None,
+            member_id: None,
             author_name: "Hanako".to_string(),
             author_email: "hanako@example.com".to_string(),
             rating,

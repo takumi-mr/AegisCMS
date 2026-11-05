@@ -4,8 +4,8 @@ pub mod analytics;
 pub mod comments;
 pub mod config;
 pub mod contact;
-pub mod customers;
 pub mod forum;
+pub mod members;
 pub mod mysql;
 pub mod newsletter;
 pub mod notifications;
@@ -31,14 +31,12 @@ pub use config::{DatabaseBackendKind, DatabaseConfig};
 pub use contact::{
     ContactListQuery, ContactMessageRecord, ContactPage, ContactStorage, CONTACT_TABLE,
 };
-pub use customers::{
-    build_customer_table, CustomerRecord, CustomerStorage, CUSTOMER_COLUMNS, CUSTOMER_TABLE,
-};
 pub use forum::{
     ForumCategoryRecord, ForumPostRecord, ForumReportRecord, ForumStorage, ForumThreadRecord,
     PostListQuery, ThreadListQuery, FORUM_CATEGORY_TABLE, FORUM_POST_TABLE, FORUM_REPORT_TABLE,
     FORUM_THREAD_TABLE,
 };
+pub use members::{build_member_table, MemberRecord, MemberStorage, MEMBER_COLUMNS, MEMBER_TABLE};
 pub use mysql::MySqlAdapter;
 pub use newsletter::{
     NewsletterIssueRecord, NewsletterListQuery, NewsletterPage, NewsletterStorage,
@@ -500,7 +498,7 @@ pub trait DatabaseAdapter:
     + TagStorage
     + NotificationQueueStorage
     + ForumStorage
-    + CustomerStorage
+    + MemberStorage
     + ReviewStorage
     + AnalyticsStorage
     + ContactStorage
@@ -1254,7 +1252,7 @@ pub const REQUIRED_COLUMNS: &[(&str, &[&str])] = &[
             "transaction_id",
             "refunded_amount",
             "refunds_json",
-            "customer_id",
+            "member_id",
         ],
     ),
     (forum::FORUM_THREAD_TABLE, &["status"]),

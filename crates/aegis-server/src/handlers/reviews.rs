@@ -16,7 +16,7 @@ use serde_json::json;
 use crate::audit::ClientIp;
 use crate::auth::authorize::RequireRole;
 use crate::auth::EditorSession;
-use crate::handlers::customers::resolve_customer_session;
+use crate::handlers::members::resolve_member_session;
 use crate::state::AppState;
 use aegis_cache::CacheTags;
 use aegis_comments::moderation::PolicyOverrides;
@@ -98,9 +98,9 @@ pub async fn submit_product_review(
         .map(str::to_string);
 
     // 1. 顧客ログインがあるかチェック
-    let author = if let Ok(session) = resolve_customer_session(&state, &headers).await {
-        ReviewAuthor::Customer {
-            customer_id: session.customer_id,
+    let author = if let Ok(session) = resolve_member_session(&state, &headers).await {
+        ReviewAuthor::Member {
+            member_id: session.member_id,
             email: session.email,
             name: session.name,
         }
@@ -114,7 +114,7 @@ pub async fn submit_product_review(
     } else {
         return Err(api_error(
             StatusCode::UNAUTHORIZED,
-            "Sign in with a customer account or provide an order access token to review",
+            "Sign in with a member account or provide an order access token to review",
         ));
     };
 
@@ -182,7 +182,7 @@ pub async fn admin_list_reviews(
     let list_query = ReviewListQuery {
         product_id: query.product_id,
         status: query.status,
-        customer_id: None,
+        member_id: None,
         oldest_first: false,
         limit: Some(query.limit),
         offset: query.offset,

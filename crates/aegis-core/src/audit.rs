@@ -174,18 +174,18 @@ pub enum AuditAction {
     ForumReportCreate,
     #[serde(rename = "forum.report.resolve")]
     ForumReportResolve,
-    #[serde(rename = "customer.register")]
-    CustomerRegister,
-    #[serde(rename = "customer.login")]
-    CustomerLogin,
-    #[serde(rename = "customer.update")]
-    CustomerUpdate,
-    #[serde(rename = "customer.password_reset")]
-    CustomerPasswordReset,
-    #[serde(rename = "customer.verify")]
-    CustomerVerify,
-    #[serde(rename = "customer.delete")]
-    CustomerDelete,
+    #[serde(rename = "member.register")]
+    MemberRegister,
+    #[serde(rename = "member.login")]
+    MemberLogin,
+    #[serde(rename = "member.update")]
+    MemberUpdate,
+    #[serde(rename = "member.password_reset")]
+    MemberPasswordReset,
+    #[serde(rename = "member.verify")]
+    MemberVerify,
+    #[serde(rename = "member.delete")]
+    MemberDelete,
     #[serde(rename = "review.create")]
     ReviewCreate,
     #[serde(rename = "review.moderate")]
@@ -278,12 +278,12 @@ impl AuditAction {
         Self::ForumSettingsUpdate,
         Self::ForumReportCreate,
         Self::ForumReportResolve,
-        Self::CustomerRegister,
-        Self::CustomerLogin,
-        Self::CustomerUpdate,
-        Self::CustomerPasswordReset,
-        Self::CustomerVerify,
-        Self::CustomerDelete,
+        Self::MemberRegister,
+        Self::MemberLogin,
+        Self::MemberUpdate,
+        Self::MemberPasswordReset,
+        Self::MemberVerify,
+        Self::MemberDelete,
         Self::ReviewCreate,
         Self::ReviewModerate,
         Self::ReviewReply,
@@ -360,12 +360,12 @@ impl AuditAction {
             Self::ForumSettingsUpdate => "forum.settings_update",
             Self::ForumReportCreate => "forum.report.create",
             Self::ForumReportResolve => "forum.report.resolve",
-            Self::CustomerRegister => "customer.register",
-            Self::CustomerLogin => "customer.login",
-            Self::CustomerUpdate => "customer.update",
-            Self::CustomerPasswordReset => "customer.password_reset",
-            Self::CustomerVerify => "customer.verify",
-            Self::CustomerDelete => "customer.delete",
+            Self::MemberRegister => "member.register",
+            Self::MemberLogin => "member.login",
+            Self::MemberUpdate => "member.update",
+            Self::MemberPasswordReset => "member.password_reset",
+            Self::MemberVerify => "member.verify",
+            Self::MemberDelete => "member.delete",
             Self::ReviewCreate => "review.create",
             Self::ReviewModerate => "review.moderate",
             Self::ReviewReply => "review.reply",

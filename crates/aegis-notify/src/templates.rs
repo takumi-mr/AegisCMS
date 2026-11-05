@@ -74,10 +74,10 @@ builtin_templates!(
     "account.registered.staff.txt",
     "account.password_reset.subject",
     "account.password_reset.txt",
-    "customer.password_reset.subject",
-    "customer.password_reset.txt",
-    "customer.verify.subject",
-    "customer.verify.txt",
+    "member.password_reset.subject",
+    "member.password_reset.txt",
+    "member.verify.subject",
+    "member.verify.txt",
     "account.approved.subject",
     "account.approved.txt",
     "account.invite.subject",
@@ -519,9 +519,9 @@ mod tests {
 
     #[test]
     fn renders_builtin_order_placed_in_each_locale() {
-        let customer = Recipient::person("hanako@example.com", "Hanako");
+        let member = Recipient::person("hanako@example.com", "Hanako");
         let en = Templates::new("en", None)
-            .render("order.placed", &customer, &order("pending_payment"))
+            .render("order.placed", &member, &order("pending_payment"))
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -545,7 +545,7 @@ mod tests {
         );
 
         let ja = Templates::new("ja", None)
-            .render("order.placed", &customer, &order("paid"))
+            .render("order.placed", &member, &order("paid"))
             .unwrap()
             .unwrap();
         assert!(ja.subject.contains("ご注文ありがとうございます"));
@@ -573,16 +573,14 @@ mod tests {
     #[test]
     fn unknown_kinds_render_nothing_and_unsafe_names_are_rejected() {
         let templates = Templates::new("en", None);
-        let customer = Recipient::person("a@example.com", "");
+        let member = Recipient::person("a@example.com", "");
         assert_eq!(
             templates
-                .render("order.refunded", &customer, &json!({}))
+                .render("order.refunded", &member, &json!({}))
                 .unwrap(),
             None
         );
-        assert!(templates
-            .render("../secrets", &customer, &json!({}))
-            .is_err());
+        assert!(templates.render("../secrets", &member, &json!({})).is_err());
     }
 
     #[test]
@@ -1127,7 +1125,7 @@ https://shop.example.com/spring-sale
             "{% extends \"_layout.html\" %}{% block content %}<h1>{{ order.number }}</h1>{{ body_html }}{% endblock %}"
                 .to_string(),
         )]));
-        let customer = templates
+        let member = templates
             .render(
                 "order.placed",
                 &Recipient::person("hanako@example.com", "Hanako"),
@@ -1137,8 +1135,8 @@ https://shop.example.com/spring-sale
             .unwrap()
             .html
             .unwrap();
-        assert!(customer.contains("<h1>261023-ABC234</h1>"), "{}", customer);
-        assert!(customer.contains("<p style="));
+        assert!(member.contains("<h1>261023-ABC234</h1>"), "{}", member);
+        assert!(member.contains("<p style="));
         // 運営者向けは本文が別（order.placed.staff.txt）なので、顧客向けの HTML を使わない
         let staff = templates
             .render("order.placed", &Recipient::Staff, &order("paid"))
@@ -1160,9 +1158,9 @@ https://shop.example.com/spring-sale
         .unwrap();
         std::fs::write(dir.join("custom.note.txt"), "x").unwrap();
         let templates = Templates::new("en", Some(&dir));
-        let customer = Recipient::person("a@example.com", "");
+        let member = Recipient::person("a@example.com", "");
         let subject = |t: &Templates| {
-            t.render("order.shipped", &customer, &order("shipped"))
+            t.render("order.shipped", &member, &order("shipped"))
                 .unwrap()
                 .unwrap()
                 .subject

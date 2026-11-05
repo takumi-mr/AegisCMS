@@ -1,4 +1,4 @@
-//! 顧客のパスワードの再設定（API とページ）と、セッションの失効の結合テスト（ルーター経由）
+//! 会員のパスワードの再設定（API とページ）と、セッションの失効の結合テスト（ルーター経由）
 
 use std::sync::Arc;
 
@@ -57,8 +57,9 @@ impl Reply {
 async fn site_with(with_mail: bool, configure: impl FnOnce(&mut AegisConfig)) -> Site {
     let mut config = AegisConfig::default();
     config.commerce.enabled = true;
+    config.members.enabled = true;
     config.commerce.product_type = "product".to_string();
-    config.commerce.public_url = PUBLIC_URL.to_string();
+    config.members.public_url = PUBLIC_URL.to_string();
     configure(&mut config);
 
     let mails = Arc::new(RecordingNotifier::default());
@@ -71,8 +72,8 @@ async fn site_with(with_mail: bool, configure: impl FnOnce(&mut AegisConfig)) ->
     let commerce =
         aegis_commerce::CommerceService::new(config.commerce.clone(), state.commerce_deps())
             .unwrap();
-    let customers = aegis_commerce::CustomerService::from_config(
-        &config.commerce.customers,
+    let members = aegis_commerce::MemberService::from_config(
+        &config.members,
         state.db.clone(),
         state.cache.clone(),
         state.audit.clone(),
@@ -81,8 +82,8 @@ async fn site_with(with_mail: bool, configure: impl FnOnce(&mut AegisConfig)) ->
     if with_mail {
         state = state.with_notifier(mails.clone());
     }
-    let state: Arc<AppState> = Arc::new(match customers {
-        Some(customers) => state.with_customers(customers),
+    let state: Arc<AppState> = Arc::new(match members {
+        Some(members) => state.with_members(members),
         None => state,
     });
     let admin_token = state
@@ -141,7 +142,7 @@ impl Site {
     async fn sign_up(&self, email: &str, password: &str) -> String {
         let registered = self
             .post(
-                "/api/v1/customers/register",
+                "/api/v1/members/register",
                 json!({ "email": email, "password": password, "name": "Hanako" }),
             )
             .await;
@@ -157,7 +158,7 @@ impl Site {
     async fn log_in(&self, email: &str, password: &str) -> String {
         let login = self
             .post(
-                "/api/v1/customers/login",
+                "/api/v1/members/login",
                 json!({ "email": email, "password": password }),
             )
             .await;
@@ -165,18 +166,18 @@ impl Site {
         login.set_cookie_pair()
     }
 
-    /// メールに載ったトークン（直近の `customer.password_reset`）
+    /// メールに載ったトークン（直近の `member.password_reset`）
     fn reset_token(&self) -> String {
         let events = self.mails.take();
         let event = events
             .iter()
             .rev()
-            .find(|e| e.kind == "customer.password_reset")
+            .find(|e| e.kind == "member.password_reset")
             .expect("a reset email was sent");
         let url = event.data["reset_url"].as_str().unwrap();
         assert!(
             url.starts_with(&format!("{PUBLIC_URL}/account/reset?token=")),
-            "the link comes from [commerce].public_url: {url}"
+            "the link comes from [members].public_url: {url}"
         );
         url.split("token=").nth(1).unwrap().to_string()
     }
@@ -186,15 +187,12 @@ impl Site {
 async fn test_reset_is_off_without_mail_or_a_public_url() {
     for site in [
         site_with(false, |_| {}).await,
-        site_with(true, |config| config.commerce.public_url = String::new()).await,
-        site_with(true, |config| {
-            config.commerce.customers.password_reset = false
-        })
-        .await,
+        site_with(true, |config| config.members.public_url = String::new()).await,
+        site_with(true, |config| config.members.password_reset = false).await,
     ] {
         let request = site
             .post(
-                "/api/v1/customers/password-reset",
+                "/api/v1/members/password-reset",
                 json!({ "email": "a@example.com" }),
             )
             .await;
@@ -249,14 +247,14 @@ async fn test_reset_by_email_ends_every_session() {
     let site = site_with(true, |_| {}).await;
     let cookie = site.sign_up("hanako@example.com", "password123").await;
     assert_eq!(
-        site.get("/api/v1/customers/me", Some(&cookie)).await.status,
+        site.get("/api/v1/members/me", Some(&cookie)).await.status,
         StatusCode::OK
     );
 
     // 登録のないアドレスも同じ応答で、メールは送らない
     let unknown = site
         .post(
-            "/api/v1/customers/password-reset",
+            "/api/v1/members/password-reset",
             json!({ "email": "nobody@example.com" }),
         )
         .await;
@@ -265,7 +263,7 @@ async fn test_reset_by_email_ends_every_session() {
 
     let known = site
         .post(
-            "/api/v1/customers/password-reset",
+            "/api/v1/members/password-reset",
             json!({ "email": "hanako@example.com" }),
         )
         .await;
@@ -281,7 +279,7 @@ async fn test_reset_by_email_ends_every_session() {
     // 短いパスワードは拒否される
     let short = site
         .post(
-            "/api/v1/customers/password-reset/complete",
+            "/api/v1/members/password-reset/complete",
             json!({ "token": token, "password": "short" }),
         )
         .await;
@@ -289,7 +287,7 @@ async fn test_reset_by_email_ends_every_session() {
 
     let done = site
         .post(
-            "/api/v1/customers/password-reset/complete",
+            "/api/v1/members/password-reset/complete",
             json!({ "token": token, "password": "a-brand-new-password" }),
         )
         .await;
@@ -297,12 +295,12 @@ async fn test_reset_by_email_ends_every_session() {
 
     // 以前のログインは終わっている。古いパスワードでは入れず、新しいパスワードで入れる
     assert_eq!(
-        site.get("/api/v1/customers/me", Some(&cookie)).await.status,
+        site.get("/api/v1/members/me", Some(&cookie)).await.status,
         StatusCode::UNAUTHORIZED
     );
     let old = site
         .post(
-            "/api/v1/customers/login",
+            "/api/v1/members/login",
             json!({ "email": "hanako@example.com", "password": "password123" }),
         )
         .await;
@@ -311,14 +309,14 @@ async fn test_reset_by_email_ends_every_session() {
         .log_in("hanako@example.com", "a-brand-new-password")
         .await;
     assert_eq!(
-        site.get("/api/v1/customers/me", Some(&fresh)).await.status,
+        site.get("/api/v1/members/me", Some(&fresh)).await.status,
         StatusCode::OK
     );
 
     // リンクは 1 回だけ使える
     let again = site
         .post(
-            "/api/v1/customers/password-reset/complete",
+            "/api/v1/members/password-reset/complete",
             json!({ "token": token, "password": "yet-another-password" }),
         )
         .await;
@@ -330,7 +328,7 @@ async fn test_reset_request_validates_and_is_limited_per_ip() {
     let site = site_with(true, |config| config.audit.trust_forwarded_for = true).await;
     let bad = site
         .post(
-            "/api/v1/customers/password-reset",
+            "/api/v1/members/password-reset",
             json!({ "email": "not an email" }),
         )
         .await;
@@ -341,7 +339,7 @@ async fn test_reset_request_validates_and_is_limited_per_ip() {
         async move {
             site.call(
                 "POST",
-                "/api/v1/customers/password-reset",
+                "/api/v1/members/password-reset",
                 json!({ "email": email }),
                 &[("x-forwarded-for", ip)],
             )
@@ -374,7 +372,7 @@ async fn test_changing_the_password_keeps_this_browser_and_ends_the_others() {
     let changed = site
         .call(
             "PUT",
-            "/api/v1/customers/me",
+            "/api/v1/members/me",
             json!({ "current_password": "password123", "new_password": "changed-password-1" }),
             &[("cookie", &this_browser)],
         )
@@ -382,16 +380,16 @@ async fn test_changing_the_password_keeps_this_browser_and_ends_the_others() {
     assert_eq!(changed.status, StatusCode::OK, "{}", changed.body);
     // 変えた本人のブラウザには、新しい Cookie が渡る
     let fresh = changed.set_cookie_pair();
-    assert!(fresh.starts_with("cms_customer=cses_"), "{fresh}");
+    assert!(fresh.starts_with("cms_member=mses_"), "{fresh}");
     assert_ne!(fresh, this_browser);
 
     assert_eq!(
-        site.get("/api/v1/customers/me", Some(&fresh)).await.status,
+        site.get("/api/v1/members/me", Some(&fresh)).await.status,
         StatusCode::OK
     );
     for old in [&this_browser, &other_browser] {
         assert_eq!(
-            site.get("/api/v1/customers/me", Some(old)).await.status,
+            site.get("/api/v1/members/me", Some(old)).await.status,
             StatusCode::UNAUTHORIZED,
             "an old session is over"
         );
@@ -400,7 +398,7 @@ async fn test_changing_the_password_keeps_this_browser_and_ends_the_others() {
     let renamed = site
         .call(
             "PUT",
-            "/api/v1/customers/me",
+            "/api/v1/members/me",
             json!({ "name": "Hanako Renamed" }),
             &[("cookie", &fresh)],
         )
@@ -410,16 +408,16 @@ async fn test_changing_the_password_keeps_this_browser_and_ends_the_others() {
 }
 
 #[tokio::test]
-async fn test_suspending_a_customer_ends_the_session_at_once() {
+async fn test_suspending_a_member_ends_the_session_at_once() {
     let site = site_with(true, |_| {}).await;
     let cookie = site.sign_up("hanako@example.com", "password123").await;
-    let me = site.get("/api/v1/customers/me", Some(&cookie)).await;
+    let me = site.get("/api/v1/members/me", Some(&cookie)).await;
     let id = me.json()["id"].as_str().unwrap().to_string();
 
     let suspended = site
         .call(
             "PATCH",
-            &format!("/api/v1/admin/customers/{id}"),
+            &format!("/api/v1/admin/members/{id}"),
             json!({ "status": "suspended" }),
             &[("authorization", &format!("Bearer {}", site.admin_token))],
         )
@@ -427,13 +425,13 @@ async fn test_suspending_a_customer_ends_the_session_at_once() {
     assert!(suspended.status.is_success(), "{}", suspended.body);
 
     assert_eq!(
-        site.get("/api/v1/customers/me", Some(&cookie)).await.status,
+        site.get("/api/v1/members/me", Some(&cookie)).await.status,
         StatusCode::UNAUTHORIZED
     );
     // 停止中は、再設定のメールも送らない
     let request = site
         .post(
-            "/api/v1/customers/password-reset",
+            "/api/v1/members/password-reset",
             json!({ "email": "hanako@example.com" }),
         )
         .await;

@@ -14,7 +14,7 @@ export const signIn = async (page: Page) => {
 /** Opens a top-level view from the Views navigation tab */
 export const openView = async (
   page: Page,
-  viewName: 'Editor' | 'Calendar' | 'Schedule' | 'Products' | 'Orders' | 'Customers' | 'Settings'
+  viewName: 'Editor' | 'Calendar' | 'Schedule' | 'Products' | 'Orders' | 'Members' | 'Settings'
 ) => {
   const pattern =
     viewName === 'Schedule' || viewName === 'Calendar' ? /Calendar|Schedule/ : viewName;

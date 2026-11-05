@@ -1,5 +1,5 @@
-//! 顧客アカウント（Customer Account）の API。
-//! AegisCMS の管理ユーザー（`_aegis_users`）とは完全に別管理の、EC 顧客アカウント。
+//! 会員アカウント（Member Account）の API。
+//! AegisCMS の管理ユーザー（`_aegis_users`）とは完全に別管理の、EC 会員アカウント。
 
 use std::sync::Arc;
 
@@ -17,9 +17,9 @@ use crate::auth::authorize::RequireRole;
 use crate::auth::EditorSession;
 use crate::state::AppState;
 use aegis_commerce::{
-    CustomerLoginRequest, CustomerRegisterRequest, CustomerResponse, CustomerService,
-    CustomerSessionData, CustomerUpdateProfileRequest, CustomerVerification, CUSTOMER_TOKEN_PREFIX,
-    EMAIL_NOT_VERIFIED_MESSAGE, EMAIL_VERIFICATION_TTL_SECS, PASSWORD_RESET_TTL_SECS,
+    MemberLoginRequest, MemberRegisterRequest, MemberResponse, MemberService, MemberSessionData,
+    MemberUpdateProfileRequest, MemberVerification, EMAIL_NOT_VERIFIED_MESSAGE,
+    EMAIL_VERIFICATION_TTL_SECS, MEMBER_TOKEN_PREFIX, PASSWORD_RESET_TTL_SECS,
 };
 use aegis_core::{AegisError, NotificationEvent, Recipient};
 
@@ -40,11 +40,11 @@ fn map_aegis_error(e: AegisError) -> ApiError {
     (status, Json(json!({ "error": e.to_string() })))
 }
 
-fn customers(state: &AppState) -> Result<Arc<CustomerService>, ApiError> {
+fn members(state: &AppState) -> Result<Arc<MemberService>, ApiError> {
     state
-        .customers
+        .members
         .clone()
-        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Customer accounts are not enabled"))
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Member accounts are not enabled"))
 }
 
 /// Authorization ヘッダーから Bearer トークンを取得
@@ -56,10 +56,10 @@ fn extract_bearer_token(headers: &HeaderMap) -> Option<&str> {
         .map(str::trim)
 }
 
-/// 顧客のセッションを持つ Cookie の名前。`[server]` の名前空間から作る（管理画面のものと混ざらない）
-pub fn customer_cookie_name(state: &AppState) -> String {
+/// 会員のセッションを持つ Cookie の名前。`[server]` の名前空間から作る（管理画面のものと混ざらない）
+pub fn member_cookie_name(state: &AppState) -> String {
     format!(
-        "{}_customer",
+        "{}_member",
         state.config.server.namespace().replace('-', "_")
     )
 }
@@ -77,11 +77,11 @@ fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-/// 顧客のセッションのトークン。API のクライアントは `Authorization: Bearer`、ブラウザは Cookie
+/// 会員のセッションのトークン。API のクライアントは `Authorization: Bearer`、ブラウザは Cookie
 pub fn session_token(state: &AppState, headers: &HeaderMap) -> Option<String> {
     extract_bearer_token(headers)
         .map(str::to_string)
-        .or_else(|| cookie_value(headers, &customer_cookie_name(state)))
+        .or_else(|| cookie_value(headers, &member_cookie_name(state)))
 }
 
 /// HTTPS で配信しているか（Cookie の `Secure` を付けるかの判断。リバースプロキシの背後では `X-Forwarded-Proto`）
@@ -90,7 +90,7 @@ fn is_https(state: &AppState, headers: &HeaderMap) -> bool {
         .get("x-forwarded-proto")
         .and_then(|value| value.to_str().ok())
         .is_some_and(|proto| proto.eq_ignore_ascii_case("https"))
-        || state.config.commerce.public_url.starts_with("https://")
+        || state.config.members.public_url.starts_with("https://")
 }
 
 /// セッションの Cookie（`HttpOnly` なので JavaScript はトークンに触れない。`SameSite=Lax` で他のサイトからの POST には付かない）
@@ -107,7 +107,7 @@ fn session_cookie(
     };
     let cookie = format!(
         "{}={}; Path=/; Max-Age={}; HttpOnly; SameSite=Lax{}",
-        customer_cookie_name(state),
+        member_cookie_name(state),
         value,
         max_age_secs,
         secure
@@ -115,23 +115,23 @@ fn session_cookie(
     HeaderValue::from_str(&cookie).unwrap_or_else(|_| HeaderValue::from_static(""))
 }
 
-/// 顧客セッションを解決する（未ログイン時は 401）
-pub async fn resolve_customer_session(
+/// 会員セッションを解決する（未ログイン時は 401）
+pub async fn resolve_member_session(
     state: &AppState,
     headers: &HeaderMap,
-) -> Result<CustomerSessionData, ApiError> {
+) -> Result<MemberSessionData, ApiError> {
     let token = session_token(state, headers)
-        .ok_or_else(|| api_error(StatusCode::UNAUTHORIZED, "Customer authentication required"))?;
+        .ok_or_else(|| api_error(StatusCode::UNAUTHORIZED, "Member authentication required"))?;
     let token = token.as_str();
 
-    if !token.starts_with(CUSTOMER_TOKEN_PREFIX) {
+    if !token.starts_with(MEMBER_TOKEN_PREFIX) {
         return Err(api_error(
             StatusCode::UNAUTHORIZED,
-            "Invalid customer session token",
+            "Invalid member session token",
         ));
     }
 
-    let service = customers(state)?;
+    let service = members(state)?;
     let session = service
         .verify_session(token)
         .await
@@ -139,21 +139,21 @@ pub async fn resolve_customer_session(
         .ok_or_else(|| {
             api_error(
                 StatusCode::UNAUTHORIZED,
-                "Customer session has expired or is invalid",
+                "Member session has expired or is invalid",
             )
         })?;
 
     Ok(session)
 }
 
-/// `POST /api/v1/customers/register` — 会員登録
+/// `POST /api/v1/members/register` — 会員登録
 pub async fn register(
     State(state): State<Arc<AppState>>,
     ClientIp(client_ip): ClientIp,
     headers: HeaderMap,
-    Json(req): Json<CustomerRegisterRequest>,
+    Json(req): Json<MemberRegisterRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
-    let service = customers(&state)?;
+    let service = members(&state)?;
     let user_agent = headers
         .get("user-agent")
         .and_then(|h| h.to_str().ok())
@@ -166,7 +166,7 @@ pub async fn register(
                 "Email confirmation is not available",
             ));
         }
-        // 確認が済むまで使えない顧客として登録し、確認メールを送る。登録済みのアドレスでも同じ応答にする
+        // 確認が済むまで使えない会員として登録し、確認メールを送る。登録済みのアドレスでも同じ応答にする
         let pending = service
             .register_pending(req, client_ip, user_agent)
             .await
@@ -183,7 +183,7 @@ pub async fn register(
         ));
     }
 
-    let customer = service
+    let member = service
         .register(req, client_ip, user_agent)
         .await
         .map_err(map_aegis_error)?;
@@ -191,33 +191,28 @@ pub async fn register(
     Ok((
         StatusCode::CREATED,
         Json(json!({
-            "customer": customer,
+            "member": member,
         })),
     ))
 }
 
 /// 確認メールを送れる設定か。メールを送れる（`[notifications]`）ことと、リンクの元になる公開 URL が要る
-/// （再設定と同じく、メールのリンクは `Host` ヘッダーではなく `[commerce].public_url` から作る）
+/// （再設定と同じく、メールのリンクは `Host` ヘッダーではなく `[members].public_url` から作る）
 pub(crate) fn verification_available(state: &AppState) -> bool {
-    state.notifier.is_some() && !state.config.commerce.public_url.trim().is_empty()
+    state.notifier.is_some() && !state.config.members.public_url.trim().is_empty()
 }
 
-fn send_verification_email(state: &AppState, verification: &CustomerVerification) {
+fn send_verification_email(state: &AppState, verification: &MemberVerification) {
     let Some(notifier) = state.notifier.as_ref() else {
         return;
     };
     let verify_url = format!(
         "{}/account/verify?token={}",
-        state
-            .config
-            .commerce
-            .public_url
-            .trim()
-            .trim_end_matches('/'),
+        state.config.members.public_url.trim().trim_end_matches('/'),
         verification.token
     );
     notifier.notify(NotificationEvent::new(
-        "customer.verify",
+        "member.verify",
         vec![Recipient::person(
             &verification.email,
             verification.name.clone(),
@@ -235,7 +230,7 @@ pub struct VerifyRequest {
     pub token: String,
 }
 
-/// `POST /api/v1/customers/verify` — 確認メールのリンクのトークンで、メールアドレスを確認する。
+/// `POST /api/v1/members/verify` — 確認メールのリンクのトークンで、メールアドレスを確認する。
 /// 確認が済むと、ログインできる
 pub async fn verify_email(
     State(state): State<Arc<AppState>>,
@@ -243,7 +238,7 @@ pub async fn verify_email(
     headers: HeaderMap,
     Json(req): Json<VerifyRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let service = customers(&state)?;
+    let service = members(&state)?;
     if !verification_available(&state) {
         return Err(api_error(
             StatusCode::NOT_FOUND,
@@ -266,14 +261,14 @@ pub struct ResendRequest {
     pub email: String,
 }
 
-/// `POST /api/v1/customers/verify/resend` — 確認メールを送り直す。
+/// `POST /api/v1/members/verify/resend` — 確認メールを送り直す。
 /// 登録の有無を教えないため、メールアドレスの形が正しければ、いつも `202` を返す
 pub async fn resend_verification(
     State(state): State<Arc<AppState>>,
     ClientIp(client_ip): ClientIp,
     Json(req): Json<ResendRequest>,
 ) -> Result<Response, ApiError> {
-    let service = customers(&state)?;
+    let service = members(&state)?;
     if !verification_available(&state) {
         return Err(api_error(
             StatusCode::NOT_FOUND,
@@ -302,20 +297,20 @@ pub async fn resend_verification(
         .into_response())
 }
 
-/// `POST /api/v1/customers/login` — ログイン
+/// `POST /api/v1/members/login` — ログイン
 pub async fn login(
     State(state): State<Arc<AppState>>,
     ClientIp(client_ip): ClientIp,
     headers: HeaderMap,
-    Json(req): Json<CustomerLoginRequest>,
+    Json(req): Json<MemberLoginRequest>,
 ) -> Result<Response, ApiError> {
-    let service = customers(&state)?;
+    let service = members(&state)?;
     let user_agent = headers
         .get("user-agent")
         .and_then(|h| h.to_str().ok())
         .map(str::to_string);
 
-    let (session, customer) =
+    let (session, member) =
         service
             .login(req, client_ip, user_agent)
             .await
@@ -335,18 +330,18 @@ pub async fn login(
         Json(json!({
             "token": session.token,
             "expires_at": session.expires_at,
-            "customer": customer,
+            "member": member,
         })),
     )
         .into_response())
 }
 
-/// `POST /api/v1/customers/logout` — ログアウト
+/// `POST /api/v1/members/logout` — ログアウト
 pub async fn logout(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let service = customers(&state)?;
+    let service = members(&state)?;
     if let Some(token) = session_token(&state, &headers) {
         let _ = service.logout(&token).await;
     }
@@ -355,31 +350,31 @@ pub async fn logout(
     Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cleared)]).into_response())
 }
 
-/// `GET /api/v1/customers/me` — ログイン顧客情報取得
+/// `GET /api/v1/members/me` — ログイン会員情報取得
 pub async fn get_me(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> Result<Json<CustomerResponse>, ApiError> {
-    let session = resolve_customer_session(&state, &headers).await?;
-    let service = customers(&state)?;
+) -> Result<Json<MemberResponse>, ApiError> {
+    let session = resolve_member_session(&state, &headers).await?;
+    let service = members(&state)?;
     let profile = service
-        .get_profile(&session.customer_id)
+        .get_profile(&session.member_id)
         .await
         .map_err(map_aegis_error)?;
     Ok(Json(profile))
 }
 
-/// `PUT /api/v1/customers/me` — ログイン顧客情報更新
+/// `PUT /api/v1/members/me` — ログイン会員情報更新
 pub async fn update_me(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<CustomerUpdateProfileRequest>,
+    Json(req): Json<MemberUpdateProfileRequest>,
 ) -> Result<Response, ApiError> {
-    let session = resolve_customer_session(&state, &headers).await?;
-    let service = customers(&state)?;
+    let session = resolve_member_session(&state, &headers).await?;
+    let service = members(&state)?;
     let changed_password = req.new_password.is_some();
     let updated = service
-        .update_profile(&session.customer_id, req)
+        .update_profile(&session.member_id, req)
         .await
         .map_err(map_aegis_error)?;
     if !changed_password {
@@ -387,7 +382,7 @@ pub async fn update_me(
     }
     // パスワードを変えると、ほかの端末のセッションは終わる。変えた本人の分は作り直して、続けて使えるようにする
     let fresh = service
-        .reissue_session(&session.customer_id)
+        .reissue_session(&session.member_id)
         .await
         .map_err(map_aegis_error)?;
     let cookie = session_cookie(&state, &headers, &fresh.token, service.session_ttl_secs());
@@ -402,22 +397,22 @@ pub struct DeleteAccountRequest {
     pub password: String,
 }
 
-/// `DELETE /api/v1/customers/me` — 退会。パスワードで本人を確かめる。
-/// 注文は顧客との紐づきだけを外して残し、レビューは匿名にして残す
+/// `DELETE /api/v1/members/me` — 退会。パスワードで本人を確かめる。
+/// 注文は会員との紐づきだけを外して残し、レビューは匿名にして残す
 pub async fn delete_me(
     State(state): State<Arc<AppState>>,
     ClientIp(client_ip): ClientIp,
     headers: HeaderMap,
     Json(req): Json<DeleteAccountRequest>,
 ) -> Result<Response, ApiError> {
-    let session = resolve_customer_session(&state, &headers).await?;
-    let service = customers(&state)?;
+    let session = resolve_member_session(&state, &headers).await?;
+    let service = members(&state)?;
     let user_agent = headers
         .get("user-agent")
         .and_then(|h| h.to_str().ok())
         .map(str::to_string);
     let product_ids = service
-        .delete_account(&session.customer_id, &req.password, client_ip, user_agent)
+        .delete_account(&session.member_id, &req.password, client_ip, user_agent)
         .await
         .map_err(map_aegis_error)?;
 
@@ -449,21 +444,21 @@ pub struct PasswordResetComplete {
 }
 
 /// 再設定を使える設定か。メールを送れる（`[notifications]`）ことと、リンクの元になる公開 URL
-/// （`[commerce].public_url`。`Host` ヘッダーは偽装できるので、メールのリンクには使わない）が要る
+/// （`[members].public_url`。`Host` ヘッダーは偽装できるので、メールのリンクには使わない）が要る
 pub(crate) fn password_reset_available(state: &AppState) -> bool {
-    state.config.commerce.customers.password_reset
+    state.config.members.password_reset
         && state.notifier.is_some()
-        && !state.config.commerce.public_url.trim().is_empty()
+        && !state.config.members.public_url.trim().is_empty()
 }
 
-/// `POST /api/v1/customers/password-reset` — 再設定のメールを申し込む。
+/// `POST /api/v1/members/password-reset` — 再設定のメールを申し込む。
 /// 登録の有無を教えないため、メールアドレスの形が正しければ、いつも `202` を返す
 pub async fn request_password_reset(
     State(state): State<Arc<AppState>>,
     ClientIp(client_ip): ClientIp,
     Json(req): Json<PasswordResetRequest>,
 ) -> Result<Response, ApiError> {
-    let service = customers(&state)?;
+    let service = members(&state)?;
     if !password_reset_available(&state) {
         return Err(api_error(
             StatusCode::NOT_FOUND,
@@ -483,16 +478,11 @@ pub async fn request_password_reset(
     if let (Some(requested), Some(notifier)) = (requested, state.notifier.as_ref()) {
         let reset_url = format!(
             "{}/account/reset?token={}",
-            state
-                .config
-                .commerce
-                .public_url
-                .trim()
-                .trim_end_matches('/'),
+            state.config.members.public_url.trim().trim_end_matches('/'),
             requested.token
         );
         notifier.notify(NotificationEvent::new(
-            "customer.password_reset",
+            "member.password_reset",
             vec![Recipient::person(&requested.email, requested.name.clone())],
             json!({
                 "name": requested.name,
@@ -511,15 +501,15 @@ pub async fn request_password_reset(
         .into_response())
 }
 
-/// `POST /api/v1/customers/password-reset/complete` — メールのリンクのトークンで、新しいパスワードを設定する。
-/// 完了すると、その顧客のセッションはすべて終わる（ログインし直す）
+/// `POST /api/v1/members/password-reset/complete` — メールのリンクのトークンで、新しいパスワードを設定する。
+/// 完了すると、その会員のセッションはすべて終わる（ログインし直す）
 pub async fn complete_password_reset(
     State(state): State<Arc<AppState>>,
     ClientIp(client_ip): ClientIp,
     headers: HeaderMap,
     Json(req): Json<PasswordResetComplete>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let service = customers(&state)?;
+    let service = members(&state)?;
     if !password_reset_available(&state) {
         return Err(api_error(
             StatusCode::NOT_FOUND,
@@ -537,15 +527,15 @@ pub async fn complete_password_reset(
     Ok(Json(json!({ "status": "ok" })))
 }
 
-/// `GET /api/v1/customers/orders` — ログイン顧客の注文履歴一覧
+/// `GET /api/v1/members/orders` — ログイン会員の注文履歴一覧
 pub async fn list_my_orders(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let session = resolve_customer_session(&state, &headers).await?;
-    let service = customers(&state)?;
+    let session = resolve_member_session(&state, &headers).await?;
+    let service = members(&state)?;
     let orders = service
-        .list_orders(&session.customer_id)
+        .list_orders(&session.member_id)
         .await
         .map_err(map_aegis_error)?;
 
@@ -570,16 +560,16 @@ pub async fn list_my_orders(
     Ok(Json(json!({ "orders": views })))
 }
 
-/// `GET /api/v1/customers/orders/{id}` — ログイン顧客の注文詳細
+/// `GET /api/v1/members/orders/{id}` — ログイン会員の注文詳細
 pub async fn get_my_order(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(order_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let session = resolve_customer_session(&state, &headers).await?;
-    let service = customers(&state)?;
+    let session = resolve_member_session(&state, &headers).await?;
+    let service = members(&state)?;
     let order = service
-        .get_order(&session.customer_id, &order_id)
+        .get_order(&session.member_id, &order_id)
         .await
         .map_err(map_aegis_error)?;
 
@@ -608,19 +598,19 @@ pub async fn get_my_order(
     })))
 }
 
-/// `GET /api/v1/customers/reviews` — ログイン顧客が投稿したレビュー一覧
+/// `GET /api/v1/members/reviews` — ログイン会員が投稿したレビュー一覧
 pub async fn list_my_reviews(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let session = resolve_customer_session(&state, &headers).await?;
+    let session = resolve_member_session(&state, &headers).await?;
     let reviews_service = state
         .reviews
         .clone()
         .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Product reviews are not enabled"))?;
 
     let reviews = reviews_service
-        .list_customer_reviews(&session.customer_id)
+        .list_member_reviews(&session.member_id)
         .await
         .map_err(map_aegis_error)?;
 
@@ -630,7 +620,7 @@ pub async fn list_my_reviews(
 // --- 管理者向けエンドポイント ---
 
 #[derive(Debug, Deserialize)]
-pub struct AdminCustomerListQuery {
+pub struct AdminMemberListQuery {
     #[serde(default = "default_limit")]
     pub limit: u64,
     #[serde(default)]
@@ -642,42 +632,42 @@ fn default_limit() -> u64 {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct PatchCustomerStatusRequest {
+pub struct PatchMemberStatusRequest {
     pub status: String,
 }
 
-/// `GET /api/v1/admin/customers` — 管理者: 顧客一覧
-pub async fn admin_list_customers(
+/// `GET /api/v1/admin/members` — 管理者: 会員一覧
+pub async fn admin_list_members(
     RequireRole(_session): EditorSession,
     State(state): State<Arc<AppState>>,
-    Query(query): Query<AdminCustomerListQuery>,
+    Query(query): Query<AdminMemberListQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let service = customers(&state)?;
-    let (customers, total) = service
-        .admin_list_customers(query.limit, query.offset)
+    let service = members(&state)?;
+    let (members, total) = service
+        .admin_list_members(query.limit, query.offset)
         .await
         .map_err(map_aegis_error)?;
 
     Ok(Json(json!({
-        "customers": customers,
+        "members": members,
         "total": total,
     })))
 }
 
-/// `GET /api/v1/admin/customers/{id}` — 管理者: 顧客詳細と注文履歴
-pub async fn admin_get_customer(
+/// `GET /api/v1/admin/members/{id}` — 管理者: 会員詳細と注文履歴
+pub async fn admin_get_member(
     RequireRole(_session): EditorSession,
     State(state): State<Arc<AppState>>,
-    Path(customer_id): Path<String>,
+    Path(member_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let service = customers(&state)?;
-    let customer = service
-        .admin_get_customer(&customer_id)
+    let service = members(&state)?;
+    let member = service
+        .admin_get_member(&member_id)
         .await
         .map_err(map_aegis_error)?;
 
     let orders = service
-        .list_orders(&customer_id)
+        .list_orders(&member_id)
         .await
         .map_err(map_aegis_error)?;
 
@@ -697,21 +687,21 @@ pub async fn admin_get_customer(
         .collect();
 
     Ok(Json(json!({
-        "customer": customer,
+        "member": member,
         "orders": orders,
     })))
 }
 
-/// `PATCH /api/v1/admin/customers/{id}` — 管理者: 顧客ステータス変更（active/suspended）
-pub async fn admin_set_customer_status(
+/// `PATCH /api/v1/admin/members/{id}` — 管理者: 会員ステータス変更（active/suspended）
+pub async fn admin_set_member_status(
     RequireRole(_session): EditorSession,
     State(state): State<Arc<AppState>>,
-    Path(customer_id): Path<String>,
-    Json(req): Json<PatchCustomerStatusRequest>,
+    Path(member_id): Path<String>,
+    Json(req): Json<PatchMemberStatusRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let service = customers(&state)?;
+    let service = members(&state)?;
     service
-        .admin_set_status(&customer_id, &req.status)
+        .admin_set_status(&member_id, &req.status)
         .await
         .map_err(map_aegis_error)?;
     Ok(StatusCode::NO_CONTENT)

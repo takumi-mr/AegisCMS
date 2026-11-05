@@ -195,14 +195,14 @@ async fn dump_database_section<W: Write + Seek>(
         &identities,
     )?;
 
-    // 4. Customers (_aegis_customers)
-    let mut customers = Vec::new();
+    // 4. Members (_aegis_members)
+    let mut members = Vec::new();
     let mut offset = 0;
     let page_size = 500;
     loop {
-        let (batch, total) = db.list_customers(page_size, offset).await?;
+        let (batch, total) = db.list_members(page_size, offset).await?;
         let batch_len = batch.len() as u64;
-        customers.extend(batch);
+        members.extend(batch);
         offset += batch_len;
         if batch_len == 0 || offset >= total {
             break;
@@ -211,10 +211,10 @@ async fn dump_database_section<W: Write + Seek>(
     write_table_json(
         zip,
         tables,
-        aegis_db::CUSTOMER_TABLE,
-        "database/customers.json",
-        customers.len() as u64,
-        &customers,
+        aegis_db::MEMBER_TABLE,
+        "database/members.json",
+        members.len() as u64,
+        &members,
     )?;
 
     // 5. Dynamic content tables + versions + publication pointers

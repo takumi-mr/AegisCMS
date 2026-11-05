@@ -309,7 +309,7 @@ impl Shop {
                     .map(|r| match r {
                         Recipient::Person { email, .. } => {
                             assert_eq!(email, "buyer@example.com");
-                            "customer"
+                            "member"
                         }
                         Recipient::Staff => "staff",
                     })
@@ -435,7 +435,7 @@ async fn test_manual_checkout_reserves_stock_and_follows_the_status_flow() {
     assert_eq!(body["product_id"], "p-mug");
     assert_eq!(shop.stock("mug").await, Some(1));
 
-    // The customer's view needs the token
+    // The member's view needs the token
     let (status, _) = shop
         .call(
             "GET",
@@ -509,7 +509,7 @@ async fn test_manual_checkout_reserves_stock_and_follows_the_status_flow() {
         ]
     );
 
-    // Emails: the order with how to pay (customer and staff), then payment and shipping
+    // Emails: the order with how to pay (member and staff), then payment and shipping
     let mails = shop.mails();
     let kinds: Vec<_> = mails
         .iter()
@@ -518,9 +518,9 @@ async fn test_manual_checkout_reserves_stock_and_follows_the_status_flow() {
     assert_eq!(
         kinds,
         vec![
-            ("order.placed", vec!["customer", "staff"]),
-            ("order.paid", vec!["customer"]),
-            ("order.shipped", vec!["customer"]),
+            ("order.placed", vec!["member", "staff"]),
+            ("order.paid", vec!["member"]),
+            ("order.shipped", vec!["member"]),
         ]
     );
     let placed = &mails[0].2;
@@ -589,7 +589,7 @@ async fn test_cancel_and_expiry_return_stock() {
         .filter(|(kind, _, _)| kind == "order.cancelled")
         .collect();
     assert_eq!(cancelled.len(), 2);
-    assert_eq!(cancelled[0].1, vec!["customer", "staff"]);
+    assert_eq!(cancelled[0].1, vec!["member", "staff"]);
     assert_eq!(cancelled[0].2["reason"], "admin");
     assert_eq!(cancelled[0].2["was_paid"], false);
     assert_eq!(cancelled[1].2["reason"], "expired");
@@ -791,7 +791,7 @@ async fn test_stripe_checkout_and_webhooks() {
     let mails = shop.mails();
     assert_eq!(mails.len(), 1, "{:?}", mails);
     assert_eq!(mails[0].0, "order.placed");
-    assert_eq!(mails[0].1, vec!["customer", "staff"]);
+    assert_eq!(mails[0].1, vec!["member", "staff"]);
     assert_eq!(mails[0].2["order"]["status"], "paid");
     assert!(mails[0].2.get("order_url").is_none());
 
@@ -1052,7 +1052,7 @@ async fn test_official_wasm_plugins_in_checkout() {
         name: "Buyer".to_string(),
         shipping_address: None,
         coupon_code: coupon.map(str::to_string),
-        customer_id: None,
+        member_id: None,
     };
 
     // 8,000 - 10% + 600 shipping (under the 10,000 threshold)
@@ -1071,7 +1071,7 @@ async fn test_official_wasm_plugins_in_checkout() {
     );
     assert_eq!(quote.total, 7800);
     match commerce.quote(&request(Some("NOPE"))).await {
-        // The customer sees the plugin's message without the plugin's name
+        // The member sees the plugin's message without the plugin's name
         Err(CommerceError::Rejected(message)) => {
             assert_eq!(message, "Coupon code \"NOPE\" is not valid")
         }
@@ -1146,8 +1146,8 @@ async fn run_db_order_lifecycle_verification(shop: Shop) {
             "/api/v1/shop/checkout",
             Some(json!({
                 "items": [{"product": "mug", "quantity": 2}],
-                "email": "customer@example.com",
-                "name": "Customer",
+                "email": "member@example.com",
+                "name": "Member",
                 "payment_provider": "manual"
             })),
             None,
@@ -1337,8 +1337,8 @@ async fn test_order_refund_api_e2e() {
             "/api/v1/shop/checkout",
             Some(json!({
                 "items": [{ "product": "mug", "quantity": 2 }],
-                "email": "customer@example.com",
-                "name": "Customer",
+                "email": "member@example.com",
+                "name": "Member",
             })),
             None,
         )
@@ -1376,7 +1376,7 @@ async fn test_order_refund_api_e2e() {
             &format!("/api/v1/orders/{}/refund", order_id),
             Some(json!({
                 "amount": 1000,
-                "reason": "Customer changed mind on 1 item",
+                "reason": "Member changed mind on 1 item",
                 "restock": false,
             })),
             Some(&shop.staff_token),
@@ -1389,7 +1389,7 @@ async fn test_order_refund_api_e2e() {
     let refunds = res["refunds"].as_array().unwrap();
     assert_eq!(refunds.len(), 1);
     assert_eq!(refunds[0]["amount"], 1000);
-    assert_eq!(refunds[0]["reason"], "Customer changed mind on 1 item");
+    assert_eq!(refunds[0]["reason"], "Member changed mind on 1 item");
 
     // 在庫は 1 のまま
     let (status, schema_body) = shop
@@ -1459,8 +1459,8 @@ async fn paid_mug_order(shop: &Shop) -> String {
             "/api/v1/shop/checkout",
             Some(json!({
                 "items": [{ "product": "mug", "quantity": 2 }],
-                "email": "customer@example.com",
-                "name": "Customer",
+                "email": "member@example.com",
+                "name": "Member",
             })),
             None,
         )
@@ -1649,7 +1649,7 @@ async fn test_product_variant_crud_and_checkout_flow() {
                     { "product": "p-shirt", "variant": "var-red-s", "quantity": 2 }
                 ],
                 "email": "buyer-var@example.com",
-                "name": "Variant Customer"
+                "name": "Variant Member"
             })),
             None,
         )
@@ -1734,7 +1734,7 @@ async fn test_multi_currency_quote_and_checkout_flow() {
     let (status, cfg) = shop.call("GET", "/api/v1/shop/config", None, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(cfg["currency"], "jpy");
-    assert_eq!(cfg["customers_enabled"], false);
+    assert_eq!(cfg["members_enabled"], false);
     assert_eq!(cfg["reviews_enabled"], false);
     assert_eq!(cfg["supported_currencies"], json!(["jpy", "usd", "eur"]));
     assert_eq!(cfg["currency_rates"]["usd"], 0.0067);
@@ -1839,8 +1839,8 @@ async fn test_multi_currency_quote_and_checkout_flow() {
             Some(json!({
                 "items": [{ "product": "mug", "quantity": 1 }],
                 "currency": "usd",
-                "email": "customer-usd@example.com",
-                "name": "USD Customer"
+                "email": "member-usd@example.com",
+                "name": "USD Member"
             })),
             None,
         )

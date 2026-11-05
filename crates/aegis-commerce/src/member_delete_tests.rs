@@ -11,16 +11,16 @@ mod tests {
         ReviewRecord,
     };
 
-    use crate::customer::{CustomerLoginRequest, CustomerRegisterRequest, CustomerService};
+    use crate::member::{MemberLoginRequest, MemberRegisterRequest, MemberService};
 
-    async fn setup_service() -> (CustomerService, Arc<dyn DatabaseAdapter>) {
+    async fn setup_service() -> (MemberService, Arc<dyn DatabaseAdapter>) {
         let config = DatabaseConfig {
             url: "sqlite::memory:".to_string(),
             ..DatabaseConfig::default()
         };
         let db = create_database_adapter(&config).await.unwrap();
         db.init().await.unwrap();
-        let service = CustomerService::new(
+        let service = MemberService::new(
             db.clone(),
             Arc::new(aegis_cache::MemoryCacheBackend::new()),
             Arc::new(AuditService::with_sinks(vec![])),
@@ -28,10 +28,10 @@ mod tests {
         (service, db)
     }
 
-    async fn sign_up(service: &CustomerService, email: &str, password: &str) -> String {
+    async fn sign_up(service: &MemberService, email: &str, password: &str) -> String {
         service
             .register(
-                CustomerRegisterRequest {
+                MemberRegisterRequest {
                     email: email.to_string(),
                     password: password.to_string(),
                     name: "Hanako".to_string(),
@@ -46,7 +46,7 @@ mod tests {
             .id
     }
 
-    async fn add_order(db: &Arc<dyn DatabaseAdapter>, id: &str, customer_id: &str, email: &str) {
+    async fn add_order(db: &Arc<dyn DatabaseAdapter>, id: &str, member_id: &str, email: &str) {
         let order = OrderRecord {
             id: id.to_string(),
             number: format!("ORD-{id}"),
@@ -62,7 +62,7 @@ mod tests {
             access_token_hash: "hash".to_string(),
             created_at: "2026-10-25T10:00:00Z".to_string(),
             updated_at: "2026-10-25T10:00:00Z".to_string(),
-            customer_id: Some(customer_id.to_string()),
+            member_id: Some(member_id.to_string()),
             ..Default::default()
         };
         db.create_order(&order, &[]).await.unwrap().unwrap();
@@ -72,14 +72,14 @@ mod tests {
         db: &Arc<dyn DatabaseAdapter>,
         id: &str,
         product_id: &str,
-        customer_id: &str,
+        member_id: &str,
         name: &str,
     ) {
         db.insert_review(&ReviewRecord {
             id: id.to_string(),
             product_id: product_id.to_string(),
             order_id: format!("order-{id}"),
-            customer_id: Some(customer_id.to_string()),
+            member_id: Some(member_id.to_string()),
             author_name: name.to_string(),
             author_email: format!("{name}@example.com"),
             rating: 5,
@@ -103,7 +103,7 @@ mod tests {
         db.get_review(id).await.unwrap().expect("the review stays")
     }
 
-    /// 退会: 本人であることをパスワードで確かめ、顧客とセッションは消し、注文とレビューは残して紐づきを外す
+    /// 退会: 本人であることをパスワードで確かめ、会員とセッションは消し、注文とレビューは残して紐づきを外す
     #[tokio::test]
     async fn test_delete_account_keeps_orders_and_reviews_without_the_person() {
         let (service, db) = setup_service().await;
@@ -118,7 +118,7 @@ mod tests {
 
         let (session, _) = service
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: "me@example.com".to_string(),
                     password: "password123".to_string(),
                 },
@@ -133,13 +133,13 @@ mod tests {
             .delete_account(&me, "wrong-password-1", None, None)
             .await;
         assert!(matches!(wrong, Err(AegisError::Authentication(_))));
-        assert!(db.get_customer_by_id(&me).await.unwrap().is_some());
+        assert!(db.get_member_by_id(&me).await.unwrap().is_some());
         assert!(service
             .verify_session(&session.token)
             .await
             .unwrap()
             .is_some());
-        assert_eq!(db.list_customer_orders(&me).await.unwrap().len(), 1);
+        assert_eq!(db.list_member_orders(&me).await.unwrap().len(), 1);
         assert_eq!(review(&db, "r-me-1").await.author_name, "Hanako");
 
         // 退会: レビューを匿名にした商品の ID（重複なし）を返す
@@ -149,10 +149,10 @@ mod tests {
             .unwrap();
         assert_eq!(products, vec!["beans".to_string(), "mug".to_string()]);
 
-        // 顧客・ログイン・セッションは無い
-        assert!(db.get_customer_by_id(&me).await.unwrap().is_none());
+        // 会員・ログイン・セッションは無い
+        assert!(db.get_member_by_id(&me).await.unwrap().is_none());
         assert!(db
-            .get_customer_by_email("me@example.com")
+            .get_member_by_email("me@example.com")
             .await
             .unwrap()
             .is_none());
@@ -163,7 +163,7 @@ mod tests {
             .is_none());
         assert!(service
             .login(
-                CustomerLoginRequest {
+                MemberLoginRequest {
                     email: "me@example.com".to_string(),
                     password: "password123".to_string(),
                 },
@@ -173,14 +173,14 @@ mod tests {
             .await
             .is_err());
 
-        // 注文は会計の記録として残る。顧客との紐づきだけが外れ、注文時のメール・氏名は残る
-        assert!(db.list_customer_orders(&me).await.unwrap().is_empty());
+        // 注文は会計の記録として残る。会員との紐づきだけが外れ、注文時のメール・氏名は残る
+        assert!(db.list_member_orders(&me).await.unwrap().is_empty());
         let kept = db
             .get_order("o-me")
             .await
             .unwrap()
             .expect("the order stays");
-        assert_eq!(kept.customer_id, None);
+        assert_eq!(kept.member_id, None);
         assert_eq!(kept.customer_email, "me@example.com");
         assert_eq!(kept.customer_name, "Hanako Yamada");
         assert_eq!(kept.total, 1000);
@@ -188,7 +188,7 @@ mod tests {
         // レビューは残り、人に結びつく情報だけが消える
         for id in ["r-me-1", "r-me-2", "r-me-3"] {
             let r = review(&db, id).await;
-            assert_eq!(r.customer_id, None, "{id}");
+            assert_eq!(r.member_id, None, "{id}");
             assert_eq!(r.author_name, "", "{id}");
             assert_eq!(r.author_email, "", "{id}");
             assert_eq!(r.ip, None, "{id}");
@@ -199,10 +199,10 @@ mod tests {
             assert_eq!(r.status, "approved", "{id}");
         }
 
-        // ほかの顧客のものは、そのまま
-        assert_eq!(db.list_customer_orders(&other).await.unwrap().len(), 1);
+        // ほかの会員のものは、そのまま
+        assert_eq!(db.list_member_orders(&other).await.unwrap().len(), 1);
         let untouched = review(&db, "r-other").await;
-        assert_eq!(untouched.customer_id.as_deref(), Some(other.as_str()));
+        assert_eq!(untouched.member_id.as_deref(), Some(other.as_str()));
         assert_eq!(untouched.author_name, "Taro");
         assert_eq!(untouched.ip.as_deref(), Some("203.0.113.1"));
         // 公開の一覧には、匿名にしたレビューもそのまま出る（星の集計も変わらない）
@@ -210,7 +210,7 @@ mod tests {
             .list_reviews(&ReviewListQuery {
                 product_id: Some("beans".to_string()),
                 status: Some("approved".to_string()),
-                customer_id: None,
+                member_id: None,
                 oldest_first: false,
                 limit: None,
                 offset: 0,
@@ -226,9 +226,9 @@ mod tests {
             2
         );
 
-        // 同じメールアドレスで、あらためて登録できる（新しい顧客。過去の注文は結びつかない）
+        // 同じメールアドレスで、あらためて登録できる（新しい会員。過去の注文は結びつかない）
         let again = sign_up(&service, "me@example.com", "password456").await;
         assert_ne!(again, me);
-        assert!(db.list_customer_orders(&again).await.unwrap().is_empty());
+        assert!(db.list_member_orders(&again).await.unwrap().is_empty());
     }
 }

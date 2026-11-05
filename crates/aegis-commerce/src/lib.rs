@@ -6,7 +6,7 @@
 //! 在庫は注文の作成と同じトランザクションで減らし（`stock >= 数量` のときだけ）、取り消し・期限切れで戻す
 
 pub mod config;
-pub mod customer;
+pub mod member;
 pub mod payment;
 pub mod review;
 pub mod stripe;
@@ -22,14 +22,14 @@ use aegis_core::{
 use aegis_schema::{FieldType, SchemaDefinition};
 use chrono::{SecondsFormat, Utc};
 pub use config::{
-    CommerceConfig, CustomerRegistration, CustomersConfig, ManualPaymentConfig,
-    PaymentProviderKind, StripeConfig,
+    CommerceConfig, ManualPaymentConfig, MemberRegistration, MembersConfig, PaymentProviderKind,
+    StripeConfig,
 };
-pub use customer::{
-    CustomerLoginRequest, CustomerRegisterRequest, CustomerResponse, CustomerService,
-    CustomerSessionData, CustomerUpdateProfileRequest, CustomerVerification,
-    CUSTOMER_SESSION_PREFIX, CUSTOMER_TOKEN_PREFIX, EMAIL_NOT_VERIFIED_MESSAGE,
-    EMAIL_VERIFICATION_TTL_SECS, PASSWORD_RESET_TTL_SECS,
+pub use member::{
+    MemberLoginRequest, MemberRegisterRequest, MemberResponse, MemberService, MemberSessionData,
+    MemberUpdateProfileRequest, MemberVerification, EMAIL_NOT_VERIFIED_MESSAGE,
+    EMAIL_VERIFICATION_TTL_SECS, MEMBER_SESSION_PREFIX, MEMBER_TOKEN_PREFIX,
+    PASSWORD_RESET_TTL_SECS,
 };
 pub use review::{
     JsonLdAggregateRating, PublicReview, ReviewAuthor, ReviewService, ReviewSubmission,
@@ -120,7 +120,7 @@ pub struct CartRequest {
     #[serde(default)]
     pub coupon_code: Option<String>,
     #[serde(default)]
-    pub customer_id: Option<String>,
+    pub member_id: Option<String>,
 }
 
 /// 注文の作成結果
@@ -645,7 +645,7 @@ impl CommerceService {
             transaction_id: None,
             refunded_amount: 0,
             refunds_json: "[]".to_string(),
-            customer_id: request.customer_id.clone(),
+            member_id: request.member_id.clone(),
         };
 
         let stored = self
@@ -1383,12 +1383,12 @@ pub fn order_context(order: &OrderRecord) -> OrderContext {
 }
 
 #[cfg(test)]
-mod customer_delete_tests;
+mod member_delete_tests;
 #[cfg(test)]
-mod customer_reset_tests;
+mod member_reset_tests;
 #[cfg(test)]
-mod customer_tests;
+mod member_tests;
 #[cfg(test)]
-mod customer_verify_tests;
+mod member_verify_tests;
 #[cfg(test)]
 mod review_tests;

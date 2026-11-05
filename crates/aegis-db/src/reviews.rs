@@ -14,7 +14,7 @@ pub const REVIEW_COLUMNS: [&str; 17] = [
     "id",
     "product_id",
     "order_id",
-    "customer_id",
+    "member_id",
     "author_name",
     "author_email",
     "rating",
@@ -35,7 +35,7 @@ pub const ALL_REVIEW_COLUMNS: [&str; 18] = [
     "id",
     "product_id",
     "order_id",
-    "customer_id",
+    "member_id",
     "author_name",
     "author_email",
     "rating",
@@ -58,7 +58,9 @@ pub struct ReviewRecord {
     pub id: String,
     pub product_id: String,
     pub order_id: String,
-    pub customer_id: Option<String>,
+    /// 古いバックアップの名前（`customer_id`）も読む
+    #[serde(alias = "customer_id")]
+    pub member_id: Option<String>,
     pub author_name: String,
     /// 投稿者のメールアドレス（非公開）
     pub author_email: String,
@@ -87,7 +89,7 @@ pub struct ReviewRecord {
 pub struct ReviewListQuery {
     pub product_id: Option<String>,
     pub status: Option<String>,
-    pub customer_id: Option<String>,
+    pub member_id: Option<String>,
     pub oldest_first: bool,
     pub limit: Option<u64>,
     pub offset: u64,
@@ -126,7 +128,7 @@ pub fn build_review_table(
         ),
         ("idx_aegis_reviews_order_product", "order_id, product_id"),
         ("idx_aegis_reviews_status", "status, created_at"),
-        ("idx_aegis_reviews_customer", "customer_id"),
+        ("idx_aegis_reviews_member", "member_id"),
     ];
     let inline = if inline_indexes {
         indexes
@@ -141,7 +143,7 @@ pub fn build_review_table(
          id {key} PRIMARY KEY, \
          product_id {key} NOT NULL, \
          order_id {key} NOT NULL, \
-         customer_id {key}, \
+         member_id {key}, \
          author_name {text} NOT NULL, \
          author_email {key} NOT NULL, \
          rating {bigint} NOT NULL, \
@@ -198,7 +200,7 @@ macro_rules! review_row_from_sqlx {
             id: row.try_get("id").map_err(get)?,
             product_id: row.try_get("product_id").map_err(get)?,
             order_id: row.try_get("order_id").map_err(get)?,
-            customer_id: row.try_get("customer_id").map_err(get)?,
+            member_id: row.try_get("member_id").map_err(get)?,
             author_name: row.try_get("author_name").map_err(get)?,
             author_email: row.try_get("author_email").map_err(get)?,
             rating: row.try_get("rating").map_err(get)?,
@@ -245,9 +247,9 @@ pub trait ReviewStorage: Send + Sync {
         updated_at: &str,
     ) -> Result<()>;
     async fn delete_reviews(&self, ids: &[String]) -> Result<u64>;
-    /// 顧客のアカウントを消すとき、その顧客のレビューを匿名にする。レビュー（評価・本文・返信）は残し、
-    /// 顧客との紐づき・投稿者名・メールアドレス・IP・User-Agent を消す。匿名にした件数を返す
-    async fn anonymize_customer_reviews(&self, customer_id: &str) -> Result<u64>;
+    /// 会員のアカウントを消すとき、その会員のレビューを匿名にする。レビュー（評価・本文・返信）は残し、
+    /// 会員との紐づき・投稿者名・メールアドレス・IP・User-Agent を消す。匿名にした件数を返す
+    async fn anonymize_member_reviews(&self, member_id: &str) -> Result<u64>;
     async fn get_product_review_stats(&self, product_id: &str) -> Result<ReviewAggregateStats>;
 }
 
@@ -270,8 +272,8 @@ pub fn build_review_list(
         binds.push(st.clone());
         idx += 1;
     }
-    if let Some(ref cid) = query.customer_id {
-        where_clauses.push(format!("customer_id = {}", placeholder(idx)));
+    if let Some(ref cid) = query.member_id {
+        where_clauses.push(format!("member_id = {}", placeholder(idx)));
         binds.push(cid.clone());
         idx += 1;
     }
@@ -328,7 +330,7 @@ macro_rules! impl_review_storage {
                     .bind(&r.id)
                     .bind(&r.product_id)
                     .bind(&r.order_id)
-                    .bind(&r.customer_id)
+                    .bind(&r.member_id)
                     .bind(&r.author_name)
                     .bind(&r.author_email)
                     .bind(r.rating)
@@ -505,19 +507,19 @@ macro_rules! impl_review_storage {
                 Ok(())
             }
 
-            async fn anonymize_customer_reviews(
+            async fn anonymize_member_reviews(
                 &self,
-                customer_id: &str,
+                member_id: &str,
             ) -> aegis_core::Result<u64> {
                 let ph = $ph;
                 let sql = format!(
-                    "UPDATE {} SET customer_id = NULL, author_name = '', author_email = '', \
-                     ip = NULL, user_agent = NULL WHERE customer_id = {};",
+                    "UPDATE {} SET member_id = NULL, author_name = '', author_email = '', \
+                     ip = NULL, user_agent = NULL WHERE member_id = {};",
                     $crate::reviews::REVIEW_TABLE,
                     ph(1)
                 );
                 let res = sqlx::query(&sql)
-                    .bind(customer_id)
+                    .bind(member_id)
                     .execute(&self.pool)
                     .await
                     .map_err(|e| {
@@ -634,7 +636,7 @@ mod tests {
             &ReviewListQuery {
                 product_id: Some("p1".to_string()),
                 status: Some("approved".to_string()),
-                customer_id: None,
+                member_id: None,
                 oldest_first: false,
                 limit: Some(10),
                 offset: 20,

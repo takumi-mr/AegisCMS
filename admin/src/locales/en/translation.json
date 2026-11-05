@@ -102,9 +102,9 @@
     "deleteNoticeFailed": "Failed to delete the notice",
     "brokenLinksFailed": "Failed to get broken links report",
     "triggerBrokenLinksScanFailed": "Failed to start broken links scan",
-    "customersFailed": "Failed to fetch customers",
-    "customerFailed": "Failed to fetch the customer",
-    "setCustomerStatusFailed": "Failed to change the customer status",
+    "membersFailed": "Failed to fetch members",
+    "memberFailed": "Failed to fetch the member",
+    "setMemberStatusFailed": "Failed to change the member status",
     "reviewsFailed": "Failed to fetch reviews",
     "moderateReviewFailed": "Failed to update the review",
     "replyReviewFailed": "Failed to save the reply"
@@ -425,7 +425,7 @@
       "contact": "Inbox",
       "analytics": "Analytics",
       "settings": "Settings",
-      "customers": "Customers",
+      "members": "Members",
       "reviews": "Reviews"
     },
     "gateway": "Core Gateway: {{state}}",
@@ -676,7 +676,7 @@
     "columns": {
       "order": "Order",
       "placed": "Placed",
-      "customer": "Customer",
+      "customer": "Member",
       "items": "Items",
       "total": "Total",
       "status": "Status"
@@ -692,7 +692,7 @@
     "placedAt": "Placed {{date}}",
     "paidAt": "· Paid {{date}}",
     "heldUntil": "· Stock held until {{date}}",
-    "customer": "Customer",
+    "customer": "Member",
     "shipTo": "Ship to",
     "noAddress": "No address",
     "items": "Items",
@@ -726,13 +726,13 @@
     "invalidRefundAmount": "Please enter a valid refund amount (max: {{amount}})",
     "cannotRefund": "No refundable amount remaining"
   },
-  "customers": {
-    "title": "Customers",
-    "disabled": "Customer accounts are turned off ([commerce.customers].enabled).",
-    "loadFailed": "Failed to load the customers",
+  "members": {
+    "title": "Members",
+    "disabled": "Member accounts are turned off ([members].enabled).",
+    "loadFailed": "Failed to load the members",
     "empty": "Nobody has signed up yet.",
     "columns": {
-      "customer": "Customer",
+      "member": "Member",
       "status": "Status",
       "registered": "Signed up",
       "lastLogin": "Last login"
@@ -748,10 +748,10 @@
     "registeredAt": "Signed up {{date}}",
     "suspend": "Suspend",
     "reactivate": "Reactivate",
-    "confirmSuspend": "Suspend this customer? They are signed out at once and cannot log in until you reactivate the account. Their orders and reviews stay.",
-    "suspended": "The customer is suspended",
-    "reactivated": "The customer is active again",
-    "unverified": "This customer has not confirmed the email address yet. They can log in after they open the link in the email.",
+    "confirmSuspend": "Suspend this member? They are signed out at once and cannot log in until you reactivate the account. Their orders and reviews stay.",
+    "suspended": "The member is suspended",
+    "reactivated": "The member is active again",
+    "unverified": "This member has not confirmed the email address yet. They can log in after they open the link in the email.",
     "contact": "Contact",
     "shipTo": "Saved shipping address",
     "noAddress": "None saved",

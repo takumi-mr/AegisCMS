@@ -45,9 +45,10 @@ impl Reply {
 async fn site(require: bool, with_mail: bool) -> Site {
     let mut config = AegisConfig::default();
     config.commerce.enabled = true;
+    config.members.enabled = true;
     config.commerce.product_type = "product".to_string();
-    config.commerce.public_url = PUBLIC_URL.to_string();
-    config.commerce.customers.require_email_verification = require;
+    config.members.public_url = PUBLIC_URL.to_string();
+    config.members.require_email_verification = require;
 
     let mails = Arc::new(RecordingNotifier::default());
     let state = test_app_state(
@@ -59,8 +60,8 @@ async fn site(require: bool, with_mail: bool) -> Site {
     let commerce =
         aegis_commerce::CommerceService::new(config.commerce.clone(), state.commerce_deps())
             .unwrap();
-    let customers = aegis_commerce::CustomerService::from_config(
-        &config.commerce.customers,
+    let members = aegis_commerce::MemberService::from_config(
+        &config.members,
         state.db.clone(),
         state.cache.clone(),
         state.audit.clone(),
@@ -69,8 +70,8 @@ async fn site(require: bool, with_mail: bool) -> Site {
     if with_mail {
         state = state.with_notifier(mails.clone());
     }
-    let state: Arc<AppState> = Arc::new(match customers {
-        Some(customers) => state.with_customers(customers),
+    let state: Arc<AppState> = Arc::new(match members {
+        Some(members) => state.with_members(members),
         None => state,
     });
     Site {
@@ -109,7 +110,7 @@ impl Site {
 
     async fn register(&self, email: &str, password: &str) -> Reply {
         self.post(
-            "/api/v1/customers/register",
+            "/api/v1/members/register",
             json!({ "email": email, "password": password, "name": "Hanako" }),
         )
         .await
@@ -117,7 +118,7 @@ impl Site {
 
     async fn login(&self, email: &str, password: &str) -> Reply {
         self.post(
-            "/api/v1/customers/login",
+            "/api/v1/members/login",
             json!({ "email": email, "password": password }),
         )
         .await
@@ -129,12 +130,12 @@ impl Site {
         let event = events
             .iter()
             .rev()
-            .find(|e| e.kind == "customer.verify")
+            .find(|e| e.kind == "member.verify")
             .expect("a confirmation email was sent");
         let url = event.data["verify_url"].as_str().unwrap();
         assert!(
             url.starts_with(&format!("{PUBLIC_URL}/account/verify?token=")),
-            "the link comes from [commerce].public_url: {url}"
+            "the link comes from [members].public_url: {url}"
         );
         url.split("token=").nth(1).unwrap().to_string()
     }
@@ -152,8 +153,8 @@ async fn test_register_confirm_and_log_in() {
         registered.body
     );
     assert_eq!(registered.json()["status"], "verification_sent");
-    // 登録しても、ログインはまだ（応答にトークンも顧客の情報もない）
-    assert!(registered.json().get("customer").is_none());
+    // 登録しても、ログインはまだ（応答にトークンも会員の情報もない）
+    assert!(registered.json().get("member").is_none());
     let token = site.verify_token();
 
     // 確認が済むまで、パスワードが合っていても入れない。コードで、ページが案内を出せる
@@ -166,7 +167,7 @@ async fn test_register_confirm_and_log_in() {
     assert!(wrong.json().get("code").is_none());
 
     let confirmed = site
-        .post("/api/v1/customers/verify", json!({ "token": token }))
+        .post("/api/v1/members/verify", json!({ "token": token }))
         .await;
     assert_eq!(confirmed.status, StatusCode::OK, "{}", confirmed.body);
     assert_eq!(confirmed.json()["status"], "verified");
@@ -177,7 +178,7 @@ async fn test_register_confirm_and_log_in() {
 
     // リンクは 1 回だけ
     let again = site
-        .post("/api/v1/customers/verify", json!({ "token": token }))
+        .post("/api/v1/members/verify", json!({ "token": token }))
         .await;
     assert_eq!(again.status, StatusCode::BAD_REQUEST);
 }
@@ -187,7 +188,7 @@ async fn test_register_does_not_say_whether_the_address_is_taken() {
     let site = site(true, true).await;
     let first = site.register("taken@example.com", "password123").await;
     let token = site.verify_token();
-    site.post("/api/v1/customers/verify", json!({ "token": token }))
+    site.post("/api/v1/members/verify", json!({ "token": token }))
         .await;
 
     // 有効になったアドレスでの登録は、同じ応答で、メールも送らない
@@ -212,7 +213,7 @@ async fn test_resend_always_answers_the_same() {
 
     let waiting = site
         .post(
-            "/api/v1/customers/verify/resend",
+            "/api/v1/members/verify/resend",
             json!({ "email": "waiting@example.com" }),
         )
         .await;
@@ -222,7 +223,7 @@ async fn test_resend_always_answers_the_same() {
 
     let unknown = site
         .post(
-            "/api/v1/customers/verify/resend",
+            "/api/v1/members/verify/resend",
             json!({ "email": "nobody@example.com" }),
         )
         .await;
@@ -236,7 +237,7 @@ async fn test_resend_always_answers_the_same() {
 
     let bad = site
         .post(
-            "/api/v1/customers/verify/resend",
+            "/api/v1/members/verify/resend",
             json!({ "email": "not an email" }),
         )
         .await;
@@ -248,7 +249,7 @@ async fn test_without_the_requirement_registration_works_as_before() {
     let site = site(false, true).await;
     let registered = site.register("plain@example.com", "password123").await;
     assert_eq!(registered.status, StatusCode::CREATED);
-    assert_eq!(registered.json()["customer"]["status"], "active");
+    assert_eq!(registered.json()["member"]["status"], "active");
     assert_eq!(
         site.login("plain@example.com", "password123").await.status,
         StatusCode::OK
@@ -270,7 +271,7 @@ async fn test_confirmation_is_off_without_mail_and_the_pages_follow() {
         );
     }
     let verify = no_mail
-        .post("/api/v1/customers/verify", json!({ "token": "x" }))
+        .post("/api/v1/members/verify", json!({ "token": "x" }))
         .await;
     assert_eq!(verify.status, StatusCode::NOT_FOUND);
 

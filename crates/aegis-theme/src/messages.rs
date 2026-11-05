@@ -222,7 +222,7 @@ const MESSAGES: &[(&str, &str, &str)] = &[
         "Loading your order…",
         "注文を読み込んでいます…",
     ),
-    // --- 顧客アカウント ---
+    // --- 会員アカウント ---
     ("js.acct_delete_title", "Delete your account", "退会する"),
     ("js.acct_delete_intro", "Your account and your sign-in will be deleted. Your past orders stay in the shop as records, without a link to this account, and your reviews stay without your name. This cannot be undone.", "アカウントとログインの情報を削除します。過去の注文は、このアカウントとの紐づきを外して、ショップの記録として残ります。投稿したレビューは、お名前を消して残ります。元に戻すことはできません。"),
     ("js.acct_delete_button", "Delete my account", "退会する"),
