@@ -207,6 +207,7 @@ mod tests {
                 &registered.id,
                 MemberUpdateProfileRequest {
                     name: None,
+                    nickname: None,
                     phone: None,
                     shipping_address: None,
                     current_password: Some("password123".to_string()),

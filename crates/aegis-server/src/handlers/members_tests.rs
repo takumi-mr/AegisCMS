@@ -186,6 +186,35 @@ async fn test_member_lifecycle_and_reviews_e2e() {
     let me = json_response(res).await;
     assert_eq!(me["email"], "member@example.com");
     assert_eq!(me["name"], "Taro Yamada");
+    assert!(me["nickname"].is_null());
+
+    // 3b. 公開名を決める (PUT /api/v1/members/me)。本名は変わらない。長すぎる名前は 400
+    let put_me = |body: Value| {
+        Request::builder()
+            .method("PUT")
+            .uri("/api/v1/members/me")
+            .header("authorization", format!("Bearer {}", member_token))
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    };
+    let res = ctx
+        .app
+        .clone()
+        .oneshot(put_me(json!({ "nickname": "x".repeat(31) })))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    let res = ctx
+        .app
+        .clone()
+        .oneshot(put_me(json!({ "nickname": "taro" })))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let updated = json_response(res).await;
+    assert_eq!(updated["nickname"], "taro");
+    assert_eq!(updated["name"], "Taro Yamada");
 
     // 4. カートチェックアウト (POST /api/v1/shop/checkout) — 会員トークンで注文作成
     let checkout_req = Request::builder()
@@ -330,6 +359,8 @@ async fn test_member_lifecycle_and_reviews_e2e() {
     assert_eq!(res.status(), StatusCode::OK);
     let pub_reviews = json_response(res).await;
     assert_eq!(pub_reviews["reviews"].as_array().unwrap().len(), 1);
+    // 公開の場には、本名ではなく公開名が出る
+    assert_eq!(pub_reviews["reviews"][0]["author_name"], "taro");
     assert_eq!(pub_reviews["stats"]["review_count"], 1);
     assert_eq!(pub_reviews["stats"]["average_rating"], 5.0);
     assert_eq!(pub_reviews["json_ld"]["@type"], "AggregateRating");

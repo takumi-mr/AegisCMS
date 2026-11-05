@@ -155,6 +155,26 @@ test.describe('Member account pages', () => {
     await expect(page).toHaveURL(`${SERVER}/account`);
   });
 
+  test('saves a public name and keeps the real name', async ({ page }) => {
+    await page.goto(`${SERVER}/account/register`);
+    await page.getByLabel('Name').fill('Hanako Nickname');
+    await page.getByLabel('Email').fill(`nick-${Date.now()}@example.com`);
+    await page.getByLabel(/^Password/).fill('nickname-password-123');
+    await page.getByRole('button', { name: 'Sign up' }).click();
+    await expect(page).toHaveURL(`${SERVER}/account`);
+
+    const nickname = page.getByLabel(/^Public name/);
+    await expect(nickname).toHaveValue('');
+    await nickname.fill('hana');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByText('Saved ✓')).toBeVisible();
+
+    // After a reload: the public name is kept, and the real name is still the one in the greeting
+    await page.reload();
+    await expect(page.getByLabel(/^Public name/)).toHaveValue('hana');
+    await expect(page.getByText('Hello, Hanako Nickname')).toBeVisible();
+  });
+
   test('deletes the account after a confirmation, and the same address can sign up again', async ({
     page,
   }) => {

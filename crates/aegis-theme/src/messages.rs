@@ -259,6 +259,16 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("js.acct_password", "Password", "パスワード"),
     ("js.acct_password_hint", "at least {n} characters", "{n} 文字以上"),
     ("js.acct_name", "Name", "お名前"),
+    (
+        "js.acct_nickname",
+        "Public name (optional)",
+        "公開名（任意）",
+    ),
+    (
+        "js.acct_nickname_hint",
+        "Shown with your reviews instead of your name.",
+        "レビューなどに、お名前の代わりに表示されます。",
+    ),
     ("js.acct_phone", "Phone (optional)", "電話番号（任意）"),
     ("js.acct_login", "Log in", "ログインする"),
     ("js.acct_register", "Sign up", "会員登録する"),

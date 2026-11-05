@@ -264,6 +264,7 @@ Admin Studio の「ショップ」に 2 つの画面を足します（API は実
 
 ```sql
 ALTER TABLE _aegis_customers RENAME TO _aegis_members;
+ALTER TABLE _aegis_members ADD COLUMN nickname VARCHAR(255);    -- 公開名（§13）。SQLite は TEXT
 ALTER TABLE _aegis_orders RENAME COLUMN customer_id TO member_id;
 ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 -- 索引の名前（idx_aegis_customers_*、idx_aegis_orders_customer、idx_aegis_reviews_customer）は
@@ -313,13 +314,14 @@ posting = "anyone"      # "anyone"（今の allow_anonymous = true）| "members"
 
 ---
 
-## 13. 公開名 `nickname`（設計・未実装）
+## 13. 公開名 `nickname`（実装済み）
 
-会員の `name` は配送先にも使う本名で、そのまま掲示板に出すと本名が出てしまいます。
+会員の `name` は配送先にも使う本名で、そのまま掲示板に出すと本名が出てしまいます。そこで、公開の場に出す名前を別に持ちます。
 
-- 会員に **`nickname`（公開名）** を足す。掲示板では**公開名が必須**（未設定なら、最初の投稿の前に決めてもらう）。
-- レビューは今までどおり `name` を出す。`nickname` を持っていれば、新しいレビューは `nickname` を使う。
-- マイページで編集できる。
+- 会員に **`nickname`（公開名）** の列を足した（未設定なら `null`）。`PUT /api/v1/members/me` の `nickname` で設定する（空文字で消す）。1〜30 文字で、改行などの制御文字は使えない（`400`）。**同じ公開名は重複できる**（なりすまし対策は、掲示板の側で考える）。
+- 公開の場には、**公開名があればそれ、なければ `name`** を出す（`MemberResponse::public_name()`）。いまはレビューの投稿者名が使う。投稿のときの値のコピーを保存するので、あとから公開名を変えても、過去のレビューは変わらない。掲示板では**公開名を必須**にする（未設定なら、最初の投稿の前に決めてもらう。§12）。
+- **画面**: マイページの登録情報に「公開名（任意）」の欄。管理画面の会員の詳細にも出る。
+- 古い DB は `ALTER TABLE _aegis_members ADD COLUMN nickname VARCHAR(255);`（型は他の短い文字列の列に合わせる）。起動時の列の確認が、列が無い DB を断る。
 
 ---
 
@@ -328,6 +330,6 @@ posting = "anyone"      # "anyone"（今の allow_anonymous = true）| "members"
 1. 設計書。**済**
 2. **切り出しと改名**（振る舞いは変えない）。**済**（§11）。`[members]`・API・表・列・Cookie・通知・監査ログ・管理画面・バックアップ・テスト・docs。
 3. **`aegis-members` クレートへの切り出し**。**済**（ショップのクレートは会員に依存しない）。
-4. **公開名（`nickname`）**（§13）。
+4. **公開名（`nickname`）**（§13）。**済**
 5. **掲示板を会員に対応**（§12）: `author_kind`、`posting`、`visibility`、会員の投稿、CSRF、画面のログイン導線、退会時の匿名化、テスト。古い DB の移行 SQL を §11.2 に足す。
 6. **管理画面**: 会員の詳細に掲示板の投稿を出す、掲示板の管理画面に会員の印を出す。

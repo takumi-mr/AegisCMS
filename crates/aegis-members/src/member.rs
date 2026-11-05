@@ -118,6 +118,9 @@ fn random_token() -> String {
 pub struct MemberUpdateProfileRequest {
     #[serde(default)]
     pub name: Option<String>,
+    /// 公開名。空文字で消す（消すと、公開の場には `name` が出る）
+    #[serde(default)]
+    pub nickname: Option<String>,
     #[serde(default)]
     pub phone: Option<String>,
     #[serde(default)]
@@ -134,12 +137,47 @@ pub struct MemberResponse {
     pub id: String,
     pub email: String,
     pub name: String,
+    /// 公開名（未設定なら `None`）
+    pub nickname: Option<String>,
     pub phone: Option<String>,
     pub status: String,
     pub shipping_address: Option<ShippingAddress>,
     pub created_at: String,
     pub updated_at: String,
     pub last_login_at: Option<String>,
+}
+
+impl MemberResponse {
+    /// 公開の場（レビュー・掲示板）に出す名前。公開名があればそれ、なければ `name`
+    pub fn public_name(&self) -> &str {
+        match self.nickname.as_deref() {
+            Some(nickname) if !nickname.trim().is_empty() => nickname,
+            _ => &self.name,
+        }
+    }
+}
+
+/// 公開名の最大文字数
+pub const NICKNAME_MAX_CHARS: usize = 30;
+
+/// 公開名を検査して整える（空なら `None` = 消す）。改行などの制御文字は使えない
+fn normalize_nickname(value: &str) -> Result<Option<String>> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if value.chars().count() > NICKNAME_MAX_CHARS {
+        return Err(AegisError::Validation(format!(
+            "Nickname must be at most {} characters",
+            NICKNAME_MAX_CHARS
+        )));
+    }
+    if value.chars().any(char::is_control) {
+        return Err(AegisError::Validation(
+            "Nickname cannot contain control characters".to_string(),
+        ));
+    }
+    Ok(Some(value.to_string()))
 }
 
 impl From<MemberRecord> for MemberResponse {
@@ -152,6 +190,7 @@ impl From<MemberRecord> for MemberResponse {
             id: r.id,
             email: r.email,
             name: r.name,
+            nickname: r.nickname,
             phone: r.phone,
             status: r.status,
             shipping_address,
@@ -316,6 +355,7 @@ impl MemberService {
             email: email.clone(),
             password_hash,
             name: req.name.trim().to_string(),
+            nickname: None,
             phone: req.phone.map(|p| p.trim().to_string()),
             status: status.to_string(),
             shipping_address_json: shipping_json,
@@ -691,6 +731,10 @@ impl MemberService {
                 return Err(AegisError::Validation("Name cannot be empty".to_string()));
             }
             record.name = name.trim().to_string();
+        }
+
+        if let Some(nickname) = req.nickname {
+            record.nickname = normalize_nickname(&nickname)?;
         }
 
         if let Some(phone) = req.phone {

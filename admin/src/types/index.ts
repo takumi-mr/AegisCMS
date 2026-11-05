@@ -748,6 +748,8 @@ export interface AdminMember {
   id: string;
   email: string;
   name: string;
+  /** Public name (shown with reviews and forum posts); null until the member sets one */
+  nickname: string | null;
   phone: string | null;
   status: MemberStatus;
   shipping_address: ShippingAddress | null;

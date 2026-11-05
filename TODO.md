@@ -9,7 +9,7 @@
 
 ## 直近の着手タスク
 
-- [ ] **会員アカウント（掲示板への組み込み）**（設計は [docs/members.md](docs/members.md) の 14 の順）: ①設計書・②`[members]` への切り出しと改名・③`aegis-members` クレートへの移動は完了 → ④公開名（`nickname`）→ ⑤掲示板を会員に対応（`author_kind`・`posting`・`visibility`・CSRF・退会時の匿名化）→ ⑥管理画面（会員の詳細に投稿、掲示板に会員の印）。
+- [ ] **会員アカウント（掲示板への組み込み）**（設計は [docs/members.md](docs/members.md) の 14 の順）: ①設計書・②`[members]` への切り出しと改名・③`aegis-members` クレートへの移動・④公開名（`nickname`）は完了 → ⑤掲示板を会員に対応（`author_kind`・`posting`・`visibility`・CSRF・退会時の匿名化）→ ⑥管理画面（会員の詳細に投稿、掲示板に会員の印）。
 
 ---
 

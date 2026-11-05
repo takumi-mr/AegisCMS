@@ -753,6 +753,7 @@
     "reactivated": "The member is active again",
     "unverified": "This member has not confirmed the email address yet. They can log in after they open the link in the email.",
     "contact": "Contact",
+    "nickname": "Public name: {{name}}",
     "shipTo": "Saved shipping address",
     "noAddress": "None saved",
     "orders": "Orders",

@@ -23,6 +23,87 @@ mod tests {
         (service, db)
     }
 
+    /// 公開名: 設定・変更・消去ができ、公開の場には公開名（なければ本名）が出る。長すぎる名前・改行は断る
+    #[tokio::test]
+    async fn test_nickname_is_the_public_name() {
+        let (service, db) = setup_service().await;
+        let member = service
+            .register(
+                MemberRegisterRequest {
+                    email: "nick@example.com".to_string(),
+                    password: "password123".to_string(),
+                    name: "Hanako Yamada".to_string(),
+                    phone: None,
+                    shipping_address: None,
+                },
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        // 未設定: 本名が出る
+        assert_eq!(member.nickname, None);
+        assert_eq!(member.public_name(), "Hanako Yamada");
+
+        let set = |nickname: &str| MemberUpdateProfileRequest {
+            nickname: Some(nickname.to_string()),
+            ..Default::default()
+        };
+        let updated = service
+            .update_profile(&member.id, set("  hana  "))
+            .await
+            .unwrap();
+        assert_eq!(updated.nickname.as_deref(), Some("hana"));
+        assert_eq!(updated.public_name(), "hana");
+        // 本名は変わらない
+        assert_eq!(updated.name, "Hanako Yamada");
+        assert_eq!(
+            db.get_member_by_id(&member.id)
+                .await
+                .unwrap()
+                .unwrap()
+                .nickname
+                .as_deref(),
+            Some("hana")
+        );
+
+        // ほかの項目だけを更新しても、公開名は残る
+        let renamed = service
+            .update_profile(
+                &member.id,
+                MemberUpdateProfileRequest {
+                    phone: Some("090-0000-0000".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(renamed.nickname.as_deref(), Some("hana"));
+
+        // 長すぎる名前・制御文字は断る（変わらない）
+        assert!(service
+            .update_profile(&member.id, set(&"a".repeat(31)))
+            .await
+            .is_err());
+        assert!(service
+            .update_profile(
+                &member.id,
+                set("line
+break")
+            )
+            .await
+            .is_err());
+        assert!(service
+            .update_profile(&member.id, set(&"あ".repeat(30)))
+            .await
+            .is_ok());
+
+        // 空にすると消える
+        let cleared = service.update_profile(&member.id, set("  ")).await.unwrap();
+        assert_eq!(cleared.nickname, None);
+        assert_eq!(cleared.public_name(), "Hanako Yamada");
+    }
+
     #[tokio::test]
     async fn test_member_registration_and_login() {
         let (service, _db) = setup_service().await;
@@ -138,6 +219,7 @@ mod tests {
         // プロフィール更新（名前とパスワード変更）
         let update_req = MemberUpdateProfileRequest {
             name: Some("Bob Builder".to_string()),
+            nickname: None,
             phone: Some("080-9999-8888".to_string()),
             shipping_address: None,
             current_password: Some("oldpassword".to_string()),
