@@ -21,6 +21,8 @@ mod consent;
 mod deploy;
 mod handlers;
 mod headers;
+#[cfg(feature = "headless")]
+mod headless;
 mod inject;
 mod namespace;
 mod notices;

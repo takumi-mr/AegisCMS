@@ -79,6 +79,9 @@ pub struct AegisConfig {
     #[cfg(feature = "analytics")]
     #[serde(default)]
     pub analytics: aegis_analytics::AnalyticsConfig,
+    #[cfg(feature = "headless")]
+    #[serde(default)]
+    pub headless: crate::headless::HeadlessConfig,
 }
 
 impl AegisConfig {

@@ -565,6 +565,20 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             .route("/api/v1/search", get(crate::search::search_api));
     }
 
+    // ヘッドレス配信 API（[headless]、feature `headless`）。公開済みだけを返す読み取り専用。無効なら 404 を返す
+    #[cfg(feature = "headless")]
+    {
+        app = app
+            .route(
+                "/api/v1/public/contents/{content_type}",
+                get(crate::headless::list_contents),
+            )
+            .route(
+                "/api/v1/public/contents/{content_type}/{slug}",
+                get(crate::headless::get_content),
+            );
+    }
+
     // アクセス解析（[analytics]、feature `analytics`）。無効なら 404 を返す
     #[cfg(feature = "analytics")]
     {
