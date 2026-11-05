@@ -423,14 +423,6 @@ pub fn build_published_neighbors(
     PublishedSql { sql, binds }
 }
 
-/// 公開の記録に後から足した列（`category_id`, `sort_at`）を、まだ入れていない行について埋めるための
-/// 値（スナップショットから作る）
-pub fn publication_columns_from_snapshot(snapshot_json: &str) -> Result<(String, String)> {
-    let record: ContentRecord = serde_json::from_str(snapshot_json)
-        .map_err(|e| AegisError::Database(format!("Invalid published snapshot: {}", e)))?;
-    Ok(publication_columns(&record))
-}
-
 /// 公開版の一覧の索引（並べ替え・状態・カテゴリ）
 /// 並べ替えの基準（作成日時 / 公開日時）× カテゴリの有無の 4 通りに 1 つずつ。
 /// カテゴリ内の前後は「そのカテゴリで、基準より前に 1 件も無い」ことも多く、
@@ -1241,6 +1233,50 @@ pub async fn resolve_relations_for_records(
         }
     }
     resolved
+}
+
+/// 以前の版では無かった列。この列が無い（古い版で作った）DB は、読み書きのたびに SQL が失敗するので、
+/// 起動時に確かめて、移行の手順を示すエラーで止める。古い DB を起動時に書き換えることはしない
+pub const REQUIRED_COLUMNS: &[(&str, &[&str])] = &[
+    (
+        USER_TABLE,
+        &[
+            USER_AVATAR_COLUMN,
+            USER_PENDING_APPROVAL_COLUMN,
+            USER_TOTP_SECRET_COLUMN,
+            USER_TOTP_ENABLED_COLUMN,
+            USER_BACKUP_CODES_COLUMN,
+        ],
+    ),
+    (
+        orders::ORDER_TABLE,
+        &[
+            "transaction_id",
+            "refunded_amount",
+            "refunds_json",
+            "customer_id",
+        ],
+    ),
+    (forum::FORUM_THREAD_TABLE, &["status"]),
+    (forum::FORUM_POST_TABLE, &["status"]),
+    ("_aegis_content_publications", &["category_id", "sort_at"]),
+];
+
+/// 列がすべてあるかを確かめる SELECT（行は読まない。どの DB でも同じ文で、列が無ければ失敗する）
+pub fn build_column_probe(table: &str, columns: &[&str]) -> String {
+    format!("SELECT {} FROM {} LIMIT 0;", columns.join(", "), table)
+}
+
+/// 古い版で作った DB に、必要な列が無いときのエラー
+pub fn outdated_database_error(table: &str, columns: &[&str], cause: &str) -> AegisError {
+    AegisError::Database(format!(
+        "The database was created by an older AegisCMS: table `{table}` lacks one of the columns ({}). \
+         The system tables are no longer upgraded in place (v0.3.x was the last version that did). \
+         Start v0.3.x once so that it upgrades the database, export the data with it \
+         (`task dump`), then restore it into a new database with this version (`task restore`). \
+         (database error: {cause})",
+        columns.join(", ")
+    ))
 }
 
 /// コンテンツ一覧の生成 SQL とバインド値

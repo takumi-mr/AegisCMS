@@ -355,58 +355,6 @@ async fn test_published_list_sqlite() {
         .expect("SQLite published list test failed");
 }
 
-/// 公開の記録に列を足す前のテーブルから、起動時に列と値が入ること
-#[tokio::test]
-async fn test_published_columns_are_filled_for_existing_rows_sqlite() {
-    let pool = sqlx::sqlite::SqlitePoolOptions::new()
-        .max_connections(1)
-        .connect("sqlite::memory:")
-        .await
-        .unwrap();
-    let adapter = SqliteAdapter::new(pool.clone());
-    adapter.init().await.unwrap();
-    let schemas = HashMap::from([("article".to_string(), article_schema())]);
-    adapter.run_migrations(&schemas).await.unwrap();
-    publish(
-        &adapter,
-        &record("p1", 1, "published", Some("cat-1"), Some(3)),
-    )
-    .await
-    .unwrap();
-    publish(&adapter, &record("p2", 2, "published", None, None))
-        .await
-        .unwrap();
-
-    // 以前のバージョンのように、列の値が入っていない状態にする
-    sqlx::query("UPDATE _aegis_content_publications SET category_id = NULL, sort_at = NULL")
-        .execute(&pool)
-        .await
-        .unwrap();
-    adapter.init().await.unwrap();
-
-    let rows: Vec<(String, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT content_id, category_id, sort_at FROM _aegis_content_publications ORDER BY content_id",
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap();
-    assert_eq!(
-        rows,
-        vec![
-            (
-                "p1".to_string(),
-                Some("cat-1".to_string()),
-                Some("2026-11-03T00:00:00Z".to_string())
-            ),
-            (
-                "p2".to_string(),
-                Some(String::new()),
-                Some("2026-10-02T00:00:00Z".to_string())
-            ),
-        ]
-    );
-}
-
 fn is_port_reachable(host_port: &str) -> bool {
     let Ok(addr) = host_port.parse() else {
         return false;

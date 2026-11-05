@@ -77,6 +77,27 @@ fields:
         assert_eq!(relations[1].1.field, "id");
     }
 
+    /// `CREATE TABLE` と、後から足す `ALTER TABLE ADD COLUMN` は同じ列の型を使う
+    #[test]
+    fn test_column_type_is_what_create_table_uses() {
+        let yaml = "content_type: item\nlabel: Item\nfields:\n  - name: a_string\n    type: string\n  - name: a_text\n    type: text\n  - name: an_int\n    type: integer\n  - name: a_flag\n    type: boolean\n  - name: a_time\n    type: timestamp\n  - name: a_ref\n    type: relation\n    target: item.id\n  - name: a_json\n    type: jsonb\n";
+        let schema = SchemaLoader::load_from_str(yaml).unwrap();
+        for dialect in [SqlDialect::Sqlite, SqlDialect::Postgres, SqlDialect::MySql] {
+            let (create, _) = SchemaMigration::generate_create_table(&schema, dialect);
+            for field in schema.fields.iter().filter(|f| f.name != "category_id") {
+                let expected = format!(
+                    "{} {}",
+                    field.name,
+                    SchemaMigration::column_type(field.field_type, dialect)
+                );
+                assert!(
+                    create.contains(&expected),
+                    "{dialect:?}: {expected} in {create}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn test_required_fields_get_type_appropriate_defaults() {
         let yaml = r#"
