@@ -225,4 +225,94 @@ mod tests {
             .await;
         assert!(login_res.is_err(), "Suspended account cannot log in");
     }
+
+    fn register_request(email: &str) -> CustomerRegisterRequest {
+        CustomerRegisterRequest {
+            email: email.to_string(),
+            password: "password123".to_string(),
+            name: "Bob".to_string(),
+            phone: None,
+            shipping_address: None,
+        }
+    }
+
+    /// 新規の登録を止めても、登録済みの顧客はログインできる
+    #[tokio::test]
+    async fn test_closed_registration_still_lets_existing_customers_log_in() {
+        let (open, db) = setup_service().await;
+        open.register(register_request("bob@example.com"), None, None)
+            .await
+            .unwrap();
+
+        let closed = CustomerService::new(
+            db.clone(),
+            Arc::new(aegis_cache::MemoryCacheBackend::new()),
+            Arc::new(AuditService::with_sinks(vec![])),
+        )
+        .with_registration_open(false);
+
+        let refused = closed
+            .register(register_request("carol@example.com"), None, None)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(refused, aegis_core::AegisError::PermissionDenied(_)),
+            "{refused}"
+        );
+        assert!(db
+            .get_customer_by_email("carol@example.com")
+            .await
+            .unwrap()
+            .is_none());
+
+        let login = closed
+            .login(
+                CustomerLoginRequest {
+                    email: "bob@example.com".to_string(),
+                    password: "password123".to_string(),
+                },
+                None,
+                None,
+            )
+            .await;
+        assert!(login.is_ok());
+    }
+
+    /// 設定から作る: 使わない設定なら作らない。日数はログインの有効期間になる
+    #[tokio::test]
+    async fn test_service_from_config() {
+        use crate::config::{CustomerRegistration, CustomersConfig};
+        let (_service, db) = setup_service().await;
+        let build = |config: &CustomersConfig| {
+            CustomerService::from_config(
+                config,
+                db.clone(),
+                Arc::new(aegis_cache::MemoryCacheBackend::new()),
+                Arc::new(AuditService::with_sinks(vec![])),
+            )
+        };
+
+        let disabled = CustomersConfig {
+            enabled: false,
+            ..CustomersConfig::default()
+        };
+        assert!(build(&disabled).is_none());
+
+        let service = build(&CustomersConfig {
+            registration: CustomerRegistration::Closed,
+            session_days: 2,
+            ..CustomersConfig::default()
+        })
+        .expect("enabled");
+        assert!(service
+            .register(register_request("dave@example.com"), None, None)
+            .await
+            .is_err());
+
+        // 既定は従来どおり: 有効で、登録は開いていて、30 日
+        let default = CustomersConfig::default();
+        assert!(default.enabled);
+        assert_eq!(default.registration, CustomerRegistration::Open);
+        assert_eq!(default.session_ttl_secs(), 30 * 24 * 3600);
+    }
 }

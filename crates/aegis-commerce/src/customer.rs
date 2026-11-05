@@ -12,6 +12,8 @@ use aegis_core::{
     ShippingAddress,
 };
 use aegis_db::{CustomerRecord, DatabaseAdapter, OrderRecord};
+
+use crate::config::{CustomerRegistration, CustomersConfig};
 use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -121,9 +123,24 @@ pub struct CustomerService {
     cache: Arc<dyn CacheBackend>,
     audit: Arc<AuditService>,
     session_ttl_secs: u64,
+    registration_open: bool,
 }
 
 impl CustomerService {
+    /// 設定（`[commerce.customers]`）から作る。顧客アカウントを使わない設定なら `None`
+    pub fn from_config(
+        config: &CustomersConfig,
+        db: Arc<dyn DatabaseAdapter>,
+        cache: Arc<dyn CacheBackend>,
+        audit: Arc<AuditService>,
+    ) -> Option<Self> {
+        config.enabled.then(|| {
+            Self::new(db, cache, audit)
+                .with_ttl(config.session_ttl_secs())
+                .with_registration_open(config.registration == CustomerRegistration::Open)
+        })
+    }
+
     pub fn new(
         db: Arc<dyn DatabaseAdapter>,
         cache: Arc<dyn CacheBackend>,
@@ -134,11 +151,18 @@ impl CustomerService {
             cache,
             audit,
             session_ttl_secs: DEFAULT_CUSTOMER_SESSION_TTL_SECS,
+            registration_open: true,
         }
     }
 
     pub fn with_ttl(mut self, ttl: u64) -> Self {
         self.session_ttl_secs = ttl;
+        self
+    }
+
+    /// 新規の会員登録を受け付けるか（`false` でも、登録済みの顧客はログインできる）
+    pub fn with_registration_open(mut self, open: bool) -> Self {
+        self.registration_open = open;
         self
     }
 
@@ -149,6 +173,11 @@ impl CustomerService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> Result<CustomerResponse> {
+        if !self.registration_open {
+            return Err(AegisError::PermissionDenied(
+                "Customer registration is closed".to_string(),
+            ));
+        }
         let email = normalize_email(&req.email);
         if email.is_empty() || !email.contains('@') {
             return Err(AegisError::Validation(

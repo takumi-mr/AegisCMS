@@ -306,6 +306,16 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | `api_base` | string | `"https://api.stripe.com"` | API の URL（テスト用） |
 | `async_payment_due_hours` | integer | `72` | コンビニ払いなど後払いの支払い期限（その間は在庫を確保したまま） |
 
+#### `[commerce.customers]`
+
+購入者のアカウント（会員登録・ログイン・注文履歴。[顧客アカウント](./customers.md)）。`[commerce].enabled = true` のときに使われます。管理アカウントとは別です。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `true` | `false` で顧客の API（`/api/v1/customers/...`）を無効にする（404）。ゲスト購入とレビューは使える |
+| `registration` | string | `"open"` | `"open"` は誰でも登録できる。`"closed"` は新規の登録だけを止める（403。登録済みの顧客はログインできる） |
+| `session_days` | integer | `30` | ログインの有効期間（日。1〜365） |
+
 ### 2.13 `[notifications]` — 通知（メール）
 
 注文の受付・入金確認・発送・取り消しを顧客と運営者に知らせます（[通知ドキュメント](./notifications.md)）。`enabled = true` で設定が不正な場合（`email` チャネルで `smtp_host` / `from` が無い、アドレスの形式が不正など）はサーバーが起動しません。

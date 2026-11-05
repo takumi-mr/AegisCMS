@@ -53,11 +53,13 @@
 [commerce.customers]
 enabled = true                      # 顧客アカウントを使う（既定 true。今までどおり）
 registration = "open"               # "open" | "closed"（closed は新規登録だけを止める。既存の顧客はログインできる）
-require_email_verification = false  # true は、メールの確認リンクを開くまでログインできない（要 [notifications] のメール）
-session_days = 30                   # ログインの有効期間
+session_days = 30                   # ログインの有効期間（1〜365）
+# require_email_verification = false  # 実装予定（§5）: true は、メールの確認リンクを開くまでログインできない（要 [notifications] のメール）
 ```
 
-- `enabled = false` なら、顧客の API と画面は 404 です。
+`enabled` / `registration` / `session_days` は実装済みです（[設定リファレンス](configuration.md#commercecustomers)）。`registration = "closed"` の新規登録は `403` です。
+
+- `enabled = false` なら、顧客の API と画面は 404 です（ゲスト購入とレビューは使えます）。
 - `require_email_verification = true` で `[notifications]` のメールが使えないときは、確認メールを送れず誰もログインできなくなるので、**起動時にエラー**にします。
 
 ---

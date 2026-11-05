@@ -1178,7 +1178,9 @@ async fn main() -> anyhow::Result<()> {
                     config.commerce.provider
                 );
 
-                let customers = aegis_commerce::CustomerService::new(
+                // [commerce.customers]。使わない設定なら顧客の API は 404（ゲスト購入とレビューは使える）
+                let customers = aegis_commerce::CustomerService::from_config(
+                    &config.commerce.customers,
                     app_state.db.clone(),
                     app_state.cache.clone(),
                     app_state.audit.clone(),
@@ -1190,10 +1192,11 @@ async fn main() -> anyhow::Result<()> {
                     config.comments.moderation.clone(),
                 );
 
-                app_state
-                    .with_commerce(commerce)
-                    .with_customers(customers)
-                    .with_reviews(reviews)
+                let app_state = app_state.with_commerce(commerce).with_reviews(reviews);
+                match customers {
+                    Some(customers) => app_state.with_customers(customers),
+                    None => app_state,
+                }
             } else {
                 app_state
             };
