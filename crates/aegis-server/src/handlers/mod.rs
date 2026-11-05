@@ -96,7 +96,10 @@ pub use shop::{
 pub use site::{get_site_settings, update_site_settings};
 pub use sso::list_auth_providers;
 pub use storage::{delete_object, list_objects, upload_file};
-pub use storefront::{cart_script, render_cart, render_order, render_product, render_products};
+pub use storefront::{
+    account_script, cart_script, render_account_home, render_account_login,
+    render_account_register, render_cart, render_order, render_product, render_products,
+};
 pub use tags::{
     create_tag, delete_tag, get_content_tags, list_tags, set_content_tags as set_content_tag_list,
     update_tag,
@@ -111,6 +114,8 @@ pub use users::{
     reset_user_2fa, setup_2fa, update_user, upload_avatar,
 };
 
+#[cfg(test)]
+mod account_pages_tests;
 #[cfg(test)]
 mod content_write_tests;
 #[cfg(test)]

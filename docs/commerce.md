@@ -113,6 +113,7 @@ currency_rates = { usd = 0.0067, eur = 0.0062 }   # 基軸通貨 1 単位あた�
 | `/products/{slug}` | `product.html` | 商品ページ（数量・カートに追加） |
 | `/cart` | `cart.html` | カート・クーポン・購入手続き |
 | `/orders/{id}?token=...` | `order.html` | 注文確認（顧客用。URL のトークンが必要） |
+| `/account`・`/account/login`・`/account/register` | `account.html` | 顧客アカウント: マイページ（注文履歴・レビュー・登録情報）・ログイン・会員登録（[顧客アカウント](customers.md)） |
 
 ![サンプルショップ「朝凪珈琲」の商品一覧ページ](images/commerce-storefront.png)
 
