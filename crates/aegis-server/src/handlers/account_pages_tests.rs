@@ -382,3 +382,69 @@ async fn test_closed_registration_and_disabled_accounts_hide_the_pages() {
     assert_eq!(cart.status, StatusCode::OK);
     assert!(!cart.body.contains("-account-link"));
 }
+
+fn delete_request(cookie: Option<&str>, password: &str) -> Request<Body> {
+    let mut request = Request::builder()
+        .method("DELETE")
+        .uri("/api/v1/customers/me")
+        .header("content-type", "application/json");
+    if let Some(cookie) = cookie {
+        request = request.header("cookie", cookie);
+    }
+    request
+        .body(Body::from(json!({ "password": password }).to_string()))
+        .unwrap()
+}
+
+#[tokio::test]
+async fn test_a_customer_can_delete_their_account() {
+    let site = site().await;
+    let (cookie, _) = site.sign_up("bye@example.com").await;
+
+    // ログインしていないと、消せない
+    let anonymous = site.send(delete_request(None, "password123")).await;
+    assert_eq!(anonymous.status, StatusCode::UNAUTHORIZED);
+    // パスワードが違うと、消さない（アカウントもセッションもそのまま）
+    let wrong = site
+        .send(delete_request(Some(&cookie), "wrong-password-1"))
+        .await;
+    assert_eq!(wrong.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        site.get("/api/v1/customers/me", Some(&cookie), None)
+            .await
+            .status,
+        StatusCode::OK
+    );
+
+    let deleted = site
+        .send(delete_request(Some(&cookie), "password123"))
+        .await;
+    assert_eq!(deleted.status, StatusCode::NO_CONTENT);
+    // Cookie も消える。そのセッションは、もう通らない
+    let cleared = deleted.set_cookie();
+    assert!(cleared.starts_with("cms_customer=;"), "{cleared}");
+    assert!(cleared.contains("Max-Age=0"), "{cleared}");
+    assert_eq!(
+        site.get("/api/v1/customers/me", Some(&cookie), None)
+            .await
+            .status,
+        StatusCode::UNAUTHORIZED
+    );
+    // ログインもできない。同じアドレスで、あらためて登録はできる
+    let login = site
+        .post(
+            "/api/v1/customers/login",
+            json!({ "email": "bye@example.com", "password": "password123" }),
+            &[],
+        )
+        .await;
+    assert_eq!(login.status, StatusCode::UNAUTHORIZED);
+    let again = site
+        .post(
+            "/api/v1/customers/register",
+            json!({ "email": "bye@example.com", "password": "password456", "name": "New" }),
+            &[],
+        )
+        .await;
+    assert_eq!(again.status, StatusCode::CREATED);
+}

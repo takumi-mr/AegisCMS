@@ -113,7 +113,8 @@
   function reviewItem(review) {
     var head = [h('strong', { class: 'aegis-review-stars', 'aria-label': msg('rev_stars', { n: review.rating }) }, [stars(review.rating)])];
     if (review.title) head.push(h('strong', {}, [review.title]));
-    var meta = [review.author_name, formatDate(review.created_at)];
+    // 退会した顧客のレビューは、名前が空（匿名にして残してある）
+    var meta = [review.author_name || msg('rev_deleted_author'), formatDate(review.created_at)];
     var children = [
       h('div', { class: 'aegis-review-head' }, head),
       h('p', { class: 'aegis-review-body' }, [review.body]),

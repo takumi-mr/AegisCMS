@@ -356,7 +356,9 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         )
         .route(
             "/api/v1/customers/me",
-            get(handlers::get_me).put(handlers::update_me),
+            get(handlers::get_me)
+                .put(handlers::update_me)
+                .delete(handlers::delete_me),
         )
         .route("/api/v1/customers/orders", get(handlers::list_my_orders))
         .route("/api/v1/customers/orders/{id}", get(handlers::get_my_order))

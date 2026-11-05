@@ -1383,6 +1383,8 @@ pub fn order_context(order: &OrderRecord) -> OrderContext {
 }
 
 #[cfg(test)]
+mod customer_delete_tests;
+#[cfg(test)]
 mod customer_reset_tests;
 #[cfg(test)]
 mod customer_tests;
