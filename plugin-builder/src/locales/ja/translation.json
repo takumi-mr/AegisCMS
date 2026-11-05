@@ -1,0 +1,85 @@
+{
+  "common": {
+    "language": "言語",
+    "close": "閉じる",
+    "clear": "クリア",
+    "error": "エラー"
+  },
+  "header": {
+    "title": "プラグインビルダー",
+    "liveSync": "ライブ同期中",
+    "offline": "オフライン",
+    "viewBuildOutput": "クリックしてビルド出力を表示",
+    "builtSuccess": "ビルド完了 ({{duration}}ms)",
+    "buildFailed": "ビルド失敗",
+    "buildOutput": "ビルド出力",
+    "noHooks": "宣言されたフックがありません",
+    "rebuild": "再ビルド",
+    "building": "ビルド中...",
+    "rebuildTitle": "ビルドコマンドを実行 (Wasmを再コンパイル)",
+    "hookLabel": "フック:",
+    "resetFixture": "初期化",
+    "resetFixtureTitle": "標準の入力データに初期化",
+    "run": "実行 (Ctrl+Enter)",
+    "running": "実行中...",
+    "runTitle": "Wasm サンドボックスでフックを実行 (Ctrl+Enter)"
+  },
+  "editor": {
+    "tabPayload": "ペイロード（入力）",
+    "tabConfig": "設定（Config）",
+    "tabKv": "初期 KV ストア",
+    "tabMockHttp": "モック HTTP ルール",
+    "inputFixture": "入力データ (JSON)",
+    "formatJson": "JSONを整形"
+  },
+  "output": {
+    "title": "出力",
+    "tabOutput": "出力",
+    "tabPreview": "HTMLプレビュー",
+    "tabLogs": "ログ ({{count}})",
+    "tabKv": "KV変更 ({{count}})",
+    "tabHttp": "HTTP ({{count}})",
+    "renderedHtml": "描画HTML",
+    "rawOutput": "Raw出力",
+    "transformedAst": "変換後AST",
+    "json": "JSON",
+    "noOutput": "出力はありません"
+  },
+  "logs": {
+    "title": "ログ",
+    "clear": "クリア",
+    "empty": "この実行でのログ出力はありません。プラグイン内で log_info!, log_warn!, log_error! マクロを使用してください。"
+  },
+  "metrics": {
+    "ready": "実行待機中。Run または Ctrl+Enter を押してください。",
+    "success": "成功",
+    "failed": "失敗",
+    "fuelUnit": "fuel",
+    "fuel": "消費 Fuel",
+    "memory": "割り当てメモリ",
+    "duration": "実行時間",
+    "status": "終了ステータス",
+    "normal": "正常終了"
+  },
+  "preview": {
+    "title": "プレビュー（ライブ描画）",
+    "sandboxedNotice": "サンドボックス iframe 内で描画中",
+    "noPreview": "プレビューはありません",
+    "noPreviewHelp": "フロントエンド系フック（on-render-page, render-blocks, transform-content-ast など）を実行するとライブ HTML 描画が表示されます。",
+    "device": "デバイス:",
+    "desktop": "デスクトップ",
+    "tablet": "タブレット",
+    "mobile": "モバイル",
+    "rendering": "描画中...",
+    "reload": "再読み込み",
+    "reloadTitle": "プレビューを再読み込み",
+    "newTab": "別タブ ↗",
+    "newTabTitle": "新しいウィンドウで開く",
+    "iframeTitle": "プラグイン HTML プレビュー"
+  },
+  "app": {
+    "executionFailed": "実行に失敗しました: {{error}}",
+    "buildFailed": "ビルドに失敗しました: {{error}}",
+    "resetConfirm": "入力データをデフォルトに戻しますか？"
+  }
+}

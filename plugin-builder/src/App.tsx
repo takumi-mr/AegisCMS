@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Header } from './components/Header.tsx';
 import { CodeEditor } from './components/CodeEditor.tsx';
 import { MetricsBar } from './components/MetricsBar.tsx';
@@ -14,6 +15,7 @@ import {
 import type { PluginInfo, InvokeResponse, MockHttpRule, BuildResponse } from './types.ts';
 
 export function App() {
+  const { t } = useTranslation();
   const [pluginInfo, setPluginInfo] = useState<PluginInfo | null>(null);
   const [fixtures, setFixtures] = useState<Record<string, unknown>>({});
   const [selectedHook, setSelectedHook] = useState<string>('');
@@ -213,10 +215,10 @@ export function App() {
   }, [selectedHook, payloadText, configText, kvText, mockHttpText, loading]);
 
   const inputTabs = [
-    { id: 'payload', label: 'Payload (Input)' },
-    { id: 'config', label: 'Settings (Config)' },
-    { id: 'kv', label: 'Initial KV Store' },
-    { id: 'mock_http', label: 'Mock HTTP Rules' },
+    { id: 'payload', label: t('editor.tabPayload') },
+    { id: 'config', label: t('editor.tabConfig') },
+    { id: 'kv', label: t('editor.tabKv') },
+    { id: 'mock_http', label: t('editor.tabMockHttp') },
   ] as const;
 
   return (

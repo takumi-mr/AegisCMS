@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Play, RotateCcw, Box, CheckCircle2, AlertCircle, Hammer, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { PluginInfo, BuildResponse } from '../types.ts';
+import { LanguageSelect } from './LanguageSelect.tsx';
 
 interface HeaderProps {
   pluginInfo: PluginInfo | null;
@@ -27,6 +29,7 @@ export function Header({
   connected,
   buildStatus,
 }: HeaderProps) {
+  const { t } = useTranslation();
   const [showBuildOutput, setShowBuildOutput] = useState(false);
   const hooks = pluginInfo?.manifest.capabilities.hooks ?? [];
 
@@ -53,7 +56,7 @@ export function Header({
           }}
         >
           <Box size={18} color="#0969da" />
-          <span>{pluginInfo ? pluginInfo.manifest.name : 'Plugin Builder'}</span>
+          <span>{pluginInfo ? pluginInfo.manifest.name : t('header.title')}</span>
           {pluginInfo && (
             <span
               style={{
@@ -80,14 +83,14 @@ export function Header({
           }}
         >
           {connected ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-          <span>{connected ? 'Live Sync' : 'Offline'}</span>
+          <span>{connected ? t('header.liveSync') : t('header.offline')}</span>
         </div>
 
         {buildStatus && (
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowBuildOutput((v) => !v)}
-              title="Click to view build output"
+              title={t('header.viewBuildOutput')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -102,7 +105,9 @@ export function Header({
                 fontWeight: 500,
               }}
             >
-              {buildStatus.success ? 'Built (' + buildStatus.duration_ms + 'ms)' : 'Build Failed'}
+              {buildStatus.success
+                ? t('header.builtSuccess', { duration: buildStatus.duration_ms })
+                : t('header.buildFailed')}
             </button>
             {showBuildOutput && (
               <div
@@ -133,9 +138,10 @@ export function Header({
                     fontWeight: 600,
                   }}
                 >
-                  <span>Build Output</span>
+                  <span>{t('header.buildOutput')}</span>
                   <button
                     onClick={() => setShowBuildOutput(false)}
+                    aria-label={t('common.close')}
                     style={{
                       background: 'none',
                       border: 'none',
@@ -160,7 +166,7 @@ export function Header({
         <button
           onClick={onBuild}
           disabled={building || !connected}
-          title="Run build command (recompile Wasm)"
+          title={t('header.rebuildTitle')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -176,12 +182,14 @@ export function Header({
           }}
         >
           {building ? <Loader2 size={13} className="spin" /> : <Hammer size={13} />}
-          <span>{building ? 'Building...' : 'Rebuild'}</span>
+          <span>{building ? t('header.building') : t('header.rebuild')}</span>
         </button>
 
         <div style={{ width: '1px', height: '18px', backgroundColor: '#d0d7de' }} />
 
-        <label style={{ fontSize: '12px', fontWeight: 500, color: '#57606a' }}>Hook:</label>
+        <label style={{ fontSize: '12px', fontWeight: 500, color: '#57606a' }}>
+          {t('header.hookLabel')}
+        </label>
         <select
           value={selectedHook}
           onChange={(e) => onSelectHook(e.target.value)}
@@ -203,7 +211,7 @@ export function Header({
 
         <button
           onClick={onResetFixture}
-          title="Reset input to standard fixture"
+          title={t('header.resetFixtureTitle')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -217,13 +225,13 @@ export function Header({
           }}
         >
           <RotateCcw size={13} />
-          <span>Fixture</span>
+          <span>{t('header.resetFixture')}</span>
         </button>
 
         <button
           onClick={onExecute}
           disabled={loading || !connected}
-          title="Execute hook in Wasm sandbox (Ctrl+Enter)"
+          title={t('header.runTitle')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -239,8 +247,12 @@ export function Header({
           }}
         >
           <Play size={14} fill="#ffffff" />
-          <span>{loading ? 'Running...' : 'Run (Ctrl+Enter)'}</span>
+          <span>{loading ? t('header.running') : t('header.run')}</span>
         </button>
+
+        <div style={{ width: '1px', height: '18px', backgroundColor: '#d0d7de' }} />
+
+        <LanguageSelect />
       </div>
     </header>
   );

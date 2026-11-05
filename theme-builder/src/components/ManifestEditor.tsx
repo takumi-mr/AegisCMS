@@ -1,5 +1,6 @@
 import { useMemo, type KeyboardEvent } from 'react';
 import { AlertCircle, Code, Info, Sparkles, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   parseManifestJson,
   serializeManifestJson,
@@ -21,6 +22,7 @@ export function ManifestEditor({
   onSave,
   onSwitchToJson,
 }: ManifestEditorProps) {
+  const { t } = useTranslation();
   const parsed = useMemo(() => parseManifestJson(value), [value]);
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -35,14 +37,11 @@ export function ManifestEditor({
       <div className="manifest-error" onKeyDown={handleKeyDown}>
         <div className="manifest-error-card">
           <AlertCircle size={24} className="error-icon" />
-          <h3>theme.json の構文エラー</h3>
+          <h3>{t('manifest.errorTitle')}</h3>
           <p>{parsed.error}</p>
-          <p className="hint">
-            JSON の構文が不正なため、フォームを表示できません。直接 JSON
-            を編集して修正してください。
-          </p>
+          <p className="hint">{t('manifest.errorHint')}</p>
           <button type="button" className="primary" onClick={onSwitchToJson}>
-            <Code size={14} /> JSON エディタで開く
+            <Code size={14} /> {t('manifest.openInJson')}
           </button>
         </div>
       </div>
@@ -64,12 +63,12 @@ export function ManifestEditor({
         <section className="manifest-section">
           <div className="section-header">
             <Info size={16} />
-            <h2>基本情報</h2>
+            <h2>{t('manifest.basicInfo')}</h2>
           </div>
           <div className="form-grid">
             <div className="form-field">
               <label htmlFor="manifest-id">
-                テーマ ID <span className="req">*</span>
+                {t('manifest.themeId')} <span className="req">*</span>
               </label>
               <input
                 id="manifest-id"
@@ -79,14 +78,12 @@ export function ManifestEditor({
                 onChange={(e) => update({ id: e.target.value })}
                 spellCheck={false}
               />
-              <span className="field-hint">
-                ディレクトリ名と一致する識別子（kebab-case、例: cyber-neon）
-              </span>
+              <span className="field-hint">{t('manifest.themeIdHint')}</span>
             </div>
 
             <div className="form-field">
               <label htmlFor="manifest-name">
-                テーマ名 <span className="req">*</span>
+                {t('manifest.themeName')} <span className="req">*</span>
               </label>
               <input
                 id="manifest-name"
@@ -95,11 +92,11 @@ export function ManifestEditor({
                 placeholder="My Theme"
                 onChange={(e) => update({ name: e.target.value })}
               />
-              <span className="field-hint">管理画面のテーマ一覧などに表示される名称</span>
+              <span className="field-hint">{t('manifest.themeNameHint')}</span>
             </div>
 
             <div className="form-field">
-              <label htmlFor="manifest-version">バージョン</label>
+              <label htmlFor="manifest-version">{t('manifest.version')}</label>
               <input
                 id="manifest-version"
                 value={data.version}
@@ -108,17 +105,17 @@ export function ManifestEditor({
                 onChange={(e) => update({ version: e.target.value })}
                 spellCheck={false}
               />
-              <span className="field-hint">セマンティックバージョニング（例: 1.0.0）</span>
+              <span className="field-hint">{t('manifest.versionHint')}</span>
             </div>
 
             <div className="form-field full">
-              <label htmlFor="manifest-desc">説明文</label>
+              <label htmlFor="manifest-desc">{t('manifest.description')}</label>
               <textarea
                 id="manifest-desc"
                 rows={3}
                 value={data.description}
                 disabled={readOnly}
-                placeholder="テーマの特徴やコンセプトを簡潔に記述します。"
+                placeholder={t('manifest.descriptionPlaceholder')}
                 onChange={(e) => update({ description: e.target.value })}
               />
             </div>
@@ -129,11 +126,11 @@ export function ManifestEditor({
         <section className="manifest-section">
           <div className="section-header">
             <User size={16} />
-            <h2>作者情報</h2>
+            <h2>{t('manifest.authorInfo')}</h2>
           </div>
           <div className="form-grid">
             <div className="form-field">
-              <label htmlFor="manifest-author-name">作者・チーム名</label>
+              <label htmlFor="manifest-author-name">{t('manifest.authorName')}</label>
               <input
                 id="manifest-author-name"
                 value={data.authorName}
@@ -144,7 +141,7 @@ export function ManifestEditor({
             </div>
 
             <div className="form-field">
-              <label htmlFor="manifest-author-email">メールアドレス</label>
+              <label htmlFor="manifest-author-email">{t('manifest.authorEmail')}</label>
               <input
                 id="manifest-author-email"
                 type="email"
@@ -157,7 +154,7 @@ export function ManifestEditor({
             </div>
 
             <div className="form-field full">
-              <label htmlFor="manifest-author-url">Web サイト / プロフィール URL</label>
+              <label htmlFor="manifest-author-url">{t('manifest.authorUrl')}</label>
               <input
                 id="manifest-author-url"
                 type="url"
@@ -175,11 +172,11 @@ export function ManifestEditor({
         <section className="manifest-section">
           <div className="section-header">
             <Sparkles size={16} />
-            <h2>配布・メタデータ</h2>
+            <h2>{t('manifest.distributionMeta')}</h2>
           </div>
           <div className="form-grid">
             <div className="form-field">
-              <label htmlFor="manifest-license">ライセンス</label>
+              <label htmlFor="manifest-license">{t('manifest.license')}</label>
               <input
                 id="manifest-license"
                 value={data.license}
@@ -191,7 +188,7 @@ export function ManifestEditor({
             </div>
 
             <div className="form-field">
-              <label htmlFor="manifest-preview">プレビュー画像ファイル</label>
+              <label htmlFor="manifest-preview">{t('manifest.previewImage')}</label>
               <input
                 id="manifest-preview"
                 value={data.previewImage}
@@ -200,13 +197,11 @@ export function ManifestEditor({
                 onChange={(e) => update({ previewImage: e.target.value })}
                 spellCheck={false}
               />
-              <span className="field-hint">
-                テーマ直下の画像ファイル名（preview.svg / .png / .webp）
-              </span>
+              <span className="field-hint">{t('manifest.previewImageHint')}</span>
             </div>
 
             <div className="form-field full">
-              <label htmlFor="manifest-tags">タグ (カンマ区切り)</label>
+              <label htmlFor="manifest-tags">{t('manifest.tags')}</label>
               <input
                 id="manifest-tags"
                 value={data.tags}
@@ -214,11 +209,11 @@ export function ManifestEditor({
                 placeholder="dark, minimal, blog, official"
                 onChange={(e) => update({ tags: e.target.value })}
               />
-              <span className="field-hint">テーマを分類するためのキーワード</span>
+              <span className="field-hint">{t('manifest.tagsHint')}</span>
             </div>
 
             <div className="form-field">
-              <label htmlFor="manifest-homepage">公式サイト / デモ URL</label>
+              <label htmlFor="manifest-homepage">{t('manifest.homepage')}</label>
               <input
                 id="manifest-homepage"
                 type="url"
@@ -231,7 +226,7 @@ export function ManifestEditor({
             </div>
 
             <div className="form-field">
-              <label htmlFor="manifest-repo">ソースコードリポジトリ URL</label>
+              <label htmlFor="manifest-repo">{t('manifest.repository')}</label>
               <input
                 id="manifest-repo"
                 type="url"
@@ -244,7 +239,7 @@ export function ManifestEditor({
             </div>
 
             <div className="form-field">
-              <label htmlFor="manifest-min-version">対応最小 AegisCMS バージョン</label>
+              <label htmlFor="manifest-min-version">{t('manifest.minAegisVersion')}</label>
               <input
                 id="manifest-min-version"
                 value={data.minAegisVersion}

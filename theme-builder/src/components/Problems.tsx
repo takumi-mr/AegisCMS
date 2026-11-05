@@ -1,4 +1,5 @@
 import { CircleAlert, CircleCheck, ListChecks } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { describeDiagnostic } from '../previewDoc.ts';
 import type { CheckResult, Diagnostic } from '../types.ts';
 
@@ -21,10 +22,12 @@ export function Problems({
   onCheck,
   onJump,
 }: ProblemsProps) {
+  const { t } = useTranslation();
   const failures = check?.results.filter((r) => !r.ok) ?? [];
   const clean = !current && sampleErrors.length === 0;
+
   return (
-    <section className="problems" aria-label="問題">
+    <section className="problems" aria-label={t('problems.title')}>
       <div className="problems-head">
         <h2>
           {clean ? (
@@ -32,10 +35,10 @@ export function Problems({
           ) : (
             <CircleAlert size={14} className="bad" />
           )}
-          問題
+          {t('problems.title')}
         </h2>
         <button type="button" onClick={onCheck} disabled={checking}>
-          <ListChecks size={14} /> {checking ? '確認中…' : 'すべてのサンプルを確認'}
+          <ListChecks size={14} /> {checking ? t('problems.checking') : t('problems.checkAll')}
         </button>
       </div>
       <ul>
@@ -57,17 +60,15 @@ export function Problems({
               type="button"
               className="problem"
               onClick={() => r.error && onJump(r.error)}
-              title={`サンプル ${r.name}`}
+              title={t('problems.sampleTitle', { name: r.name })}
             >
               [{r.name}] {r.error ? describeDiagnostic(r.error) : r.template}
             </button>
           </li>
         ))}
-        {clean && !check && <li className="muted">問題はありません</li>}
+        {clean && !check && <li className="muted">{t('problems.noProblems')}</li>}
         {check && failures.length === 0 && check.ok && (
-          <li className="muted">
-            全 {check.results.length} サンプルが描画できました（保存済みのファイル）
-          </li>
+          <li className="muted">{t('problems.allPassed', { count: check.results.length })}</li>
         )}
       </ul>
     </section>

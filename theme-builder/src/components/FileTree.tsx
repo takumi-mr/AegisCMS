@@ -1,14 +1,15 @@
 import { useState, type FormEvent } from 'react';
 import { Check, FilePlus, Pencil, Trash2, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { isDirty, type BufferState } from '../buffers.ts';
 import { isValidNewFilePath } from '../newFile.ts';
-import type { FileKind, ThemeFile } from '../types.ts';
+import type { ThemeFile } from '../types.ts';
 
-const GROUPS: { kind: FileKind; label: string }[] = [
-  { kind: 'manifest', label: 'テーマ' },
-  { kind: 'template', label: 'テンプレート' },
-  { kind: 'sample', label: 'サンプルデータ' },
-  { kind: 'asset', label: 'アセット' },
+const GROUPS = [
+  { kind: 'manifest' as const, key: 'files.theme' as const },
+  { kind: 'template' as const, key: 'files.template' as const },
+  { kind: 'sample' as const, key: 'files.sample' as const },
+  { kind: 'asset' as const, key: 'files.asset' as const },
 ];
 
 export interface FileTreeProps {
@@ -30,6 +31,7 @@ export function FileTree({
   onRename,
   onDelete,
 }: FileTreeProps) {
+  const { t } = useTranslation();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('templates/');
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
@@ -59,13 +61,13 @@ export function FileTree({
   };
 
   return (
-    <nav className="files" aria-label="ファイル">
-      {GROUPS.map(({ kind, label }) => {
+    <nav className="files" aria-label={t('files.title')}>
+      {GROUPS.map(({ kind, key }) => {
         const group = files.filter((f) => f.kind === kind);
         if (group.length === 0) return null;
         return (
           <section key={kind}>
-            <h2>{label}</h2>
+            <h2>{t(key)}</h2>
             <ul>
               {group.map((file) => {
                 const buffer = buffers.buffers[file.path];
@@ -82,23 +84,23 @@ export function FileTree({
                           onKeyDown={(e) => {
                             if (e.key === 'Escape') setRenamingPath(null);
                           }}
-                          aria-label="改名後のパス"
+                          aria-label={t('files.newPathAria')}
                           spellCheck={false}
                         />
                         <div className="rename-actions">
                           <button
                             type="submit"
                             disabled={!isRenameValid}
-                            title="改名を確定"
-                            aria-label="改名を確定"
+                            title={t('files.confirmRename')}
+                            aria-label={t('files.confirmRename')}
                           >
                             <Check size={12} />
                           </button>
                           <button
                             type="button"
                             onClick={() => setRenamingPath(null)}
-                            title="キャンセル"
-                            aria-label="キャンセル"
+                            title={t('common.cancel')}
+                            aria-label={t('common.cancel')}
                           >
                             <X size={12} />
                           </button>
@@ -114,7 +116,7 @@ export function FileTree({
                       type="button"
                       className={buffers.active === file.path ? 'file active' : 'file'}
                       disabled={!file.editable}
-                      title={file.editable ? file.path : `${file.path}（編集できない形式）`}
+                      title={file.editable ? file.path : `${file.path}${t('files.nonEditable')}`}
                       onClick={() => onOpen(file.path)}
                     >
                       <span className="file-name">
@@ -122,15 +124,17 @@ export function FileTree({
                           ? file.path
                           : file.path.slice(file.path.indexOf('/') + 1)}
                       </span>
-                      {buffer && isDirty(buffer) && <span className="dot" aria-label="未保存" />}
+                      {buffer && isDirty(buffer) && (
+                        <span className="dot" aria-label={t('app.unsaved')} />
+                      )}
                     </button>
                     {writable && kind !== 'manifest' && (
                       <div className="file-actions">
                         <button
                           type="button"
                           className="action-btn"
-                          title="改名"
-                          aria-label={`${file.path} を改名`}
+                          title={t('files.rename')}
+                          aria-label={`${file.path} ${t('files.rename')}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             setRenamingPath(file.path);
@@ -142,11 +146,11 @@ export function FileTree({
                         <button
                           type="button"
                           className="action-btn danger"
-                          title="削除"
-                          aria-label={`${file.path} を削除`}
+                          title={t('files.delete')}
+                          aria-label={`${file.path} ${t('files.delete')}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(`${file.path} を削除しますか？`)) {
+                            if (window.confirm(t('files.deleteConfirm', { path: file.path }))) {
                               onDelete(file.path);
                             }
                           }}
@@ -169,22 +173,22 @@ export function FileTree({
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              aria-label="新しいファイルのパス"
+              aria-label={t('files.newFileAria')}
               spellCheck={false}
             />
             <div className="row">
               <button type="submit" disabled={!valid}>
-                作成
+                {t('common.create')}
               </button>
               <button type="button" onClick={() => setCreating(false)}>
-                やめる
+                {t('common.cancel')}
               </button>
             </div>
-            <p className="hint">templates/・samples/・assets/ の下に作れます</p>
+            <p className="hint">{t('files.newFileHint')}</p>
           </form>
         ) : (
           <button type="button" className="add" onClick={() => setCreating(true)}>
-            <FilePlus size={14} /> 新しいファイル
+            <FilePlus size={14} /> {t('files.newFile')}
           </button>
         ))}
     </nav>

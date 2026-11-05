@@ -1,0 +1,85 @@
+{
+  "common": {
+    "language": "Language",
+    "close": "Close",
+    "clear": "Clear",
+    "error": "Error"
+  },
+  "header": {
+    "title": "Plugin Builder",
+    "liveSync": "Live Sync",
+    "offline": "Offline",
+    "viewBuildOutput": "Click to view build output",
+    "builtSuccess": "Built ({{duration}}ms)",
+    "buildFailed": "Build Failed",
+    "buildOutput": "Build Output",
+    "noHooks": "No hooks declared",
+    "rebuild": "Rebuild",
+    "building": "Building...",
+    "rebuildTitle": "Run build command (recompile Wasm)",
+    "hookLabel": "Hook:",
+    "resetFixture": "Fixture",
+    "resetFixtureTitle": "Reset input to standard fixture",
+    "run": "Run (Ctrl+Enter)",
+    "running": "Running...",
+    "runTitle": "Execute hook in Wasm sandbox (Ctrl+Enter)"
+  },
+  "editor": {
+    "tabPayload": "Payload (Input)",
+    "tabConfig": "Settings (Config)",
+    "tabKv": "Initial KV Store",
+    "tabMockHttp": "Mock HTTP Rules",
+    "inputFixture": "Input Fixture (JSON)",
+    "formatJson": "Format JSON"
+  },
+  "output": {
+    "title": "Output",
+    "tabOutput": "Output",
+    "tabPreview": "HTML Preview",
+    "tabLogs": "Logs ({{count}})",
+    "tabKv": "KV Changes ({{count}})",
+    "tabHttp": "HTTP ({{count}})",
+    "renderedHtml": "Rendered HTML",
+    "rawOutput": "Raw Output",
+    "transformedAst": "Transformed AST",
+    "json": "JSON",
+    "noOutput": "No output returned"
+  },
+  "logs": {
+    "title": "Logs",
+    "clear": "clear",
+    "empty": "No logs captured for this invocation. Use log_info!, log_warn!, or log_error! in your plugin."
+  },
+  "metrics": {
+    "ready": "Ready to execute. Press Run or Ctrl+Enter.",
+    "success": "Success",
+    "failed": "Failed",
+    "fuelUnit": "fuel",
+    "fuel": "Fuel Consumed",
+    "memory": "Memory Allocated",
+    "duration": "Execution Time",
+    "status": "Exit Status",
+    "normal": "Normal exit"
+  },
+  "preview": {
+    "title": "Preview (live render)",
+    "sandboxedNotice": "Rendered in sandboxed iframe",
+    "noPreview": "No preview available",
+    "noPreviewHelp": "Execute a frontend hook (such as on-render-page, render-blocks, or transform-content-ast) to see a live HTML render.",
+    "device": "Device:",
+    "desktop": "Desktop",
+    "tablet": "Tablet",
+    "mobile": "Mobile",
+    "rendering": "Rendering...",
+    "reload": "Reload",
+    "reloadTitle": "Reload preview",
+    "newTab": "New Tab ↗",
+    "newTabTitle": "Open in new window",
+    "iframeTitle": "Plugin HTML Preview"
+  },
+  "app": {
+    "executionFailed": "Execution failed: {{error}}",
+    "buildFailed": "Build failed: {{error}}",
+    "resetConfirm": "Reset fixtures to default?"
+  }
+}

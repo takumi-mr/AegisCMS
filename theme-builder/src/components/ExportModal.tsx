@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../api.ts';
 import type { PackageValidationResult } from '../types.ts';
 
@@ -20,6 +21,7 @@ export interface ExportModalProps {
 }
 
 export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps) {
+  const { t } = useTranslation();
   const [validation, setValidation] = useState<PackageValidationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [signing, setSigning] = useState(false);
@@ -102,14 +104,19 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
       <div
         className="modal-card export-modal"
         onClick={(e) => e.stopPropagation()}
-        aria-label="ZIP パッケージ書き出しと署名"
+        aria-label={t('export.title')}
       >
         <div className="modal-header">
           <div className="modal-title">
             <Package size={18} />
-            <h2>ZIP パッケージ書き出しと署名</h2>
+            <h2>{t('export.title')}</h2>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="閉じる">
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onClose}
+            aria-label={t('common.close')}
+          >
             <X size={16} />
           </button>
         </div>
@@ -118,7 +125,7 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
           {hasDirtyFiles && (
             <div className="notice warning" role="alert">
               <AlertCircle size={15} />
-              <span>未保存の変更があります。パッケージに反映するには保存してください。</span>
+              <span>{t('export.unsavedWarning')}</span>
             </div>
           )}
 
@@ -132,8 +139,8 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
           {/* 1. パッケージ検証ステータス */}
           <section className="export-section">
             <div className="section-title">
-              <h3>パッケージ適合性検証</h3>
-              {loading && <span className="loading-hint">検証中…</span>}
+              <h3>{t('export.validationTitle')}</h3>
+              {loading && <span className="loading-hint">{t('export.validating')}</span>}
             </div>
 
             {validation && (
@@ -142,8 +149,8 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
                   <li className={manifest ? 'pass' : 'fail'}>
                     {manifest ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
                     <span>
-                      theme.json:{' '}
-                      {manifest ? `${manifest.name} (${manifest.id})` : '見つかりません'}
+                      {t('export.themeJson')}{' '}
+                      {manifest ? `${manifest.name} (${manifest.id})` : t('export.notFound')}
                     </span>
                   </li>
                   <li
@@ -156,13 +163,13 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
                     ) : (
                       <AlertCircle size={16} />
                     )}
-                    <span>templates/base.html (必須テンプレート)</span>
+                    <span>{t('export.requiredTemplate')}</span>
                   </li>
                   <li className={validation.signed ? 'pass' : 'info'}>
                     {validation.signed ? <ShieldCheck size={16} /> : <Key size={16} />}
                     <span>
-                      デジタル署名 (signature.json):{' '}
-                      {validation.signed ? '有効な署名あり' : '未署名（オプショナル）'}
+                      {t('export.digitalSignature')}{' '}
+                      {validation.signed ? t('export.signedValid') : t('export.unsigned')}
                     </span>
                   </li>
                 </ul>
@@ -183,16 +190,16 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
           {/* 2. デジタル署名 */}
           <section className="export-section">
             <div className="section-title">
-              <h3>パッケージ署名 (Ed25519)</h3>
-              {validation?.signed && <span className="badge success">署名済み</span>}
+              <h3>{t('export.signatureTitle')}</h3>
+              {validation?.signed && (
+                <span className="badge success">{t('export.signedBadge')}</span>
+              )}
             </div>
-            <p className="section-desc">
-              テーマの全ファイル（signature.json を除く）のハッシュから Ed25519 署名を生成します。
-            </p>
+            <p className="section-desc">{t('export.signatureDesc')}</p>
 
             {validation?.public_key && (
               <div className="pubkey-box">
-                <span className="label">公開鍵 (Public Key):</span>
+                <span className="label">{t('export.publicKey')}</span>
                 <code className="pubkey">{validation.public_key}</code>
               </div>
             )}
@@ -201,22 +208,19 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
               <div className="generated-key-alert">
                 <div className="alert-header">
                   <Key size={15} />
-                  <strong>新規生成された秘密鍵 (Private Key)</strong>
+                  <strong>{t('export.newPrivateKey')}</strong>
                   <button
                     type="button"
                     className="copy-btn"
                     onClick={handleCopyPrivKey}
-                    title="秘密鍵をコピー"
+                    title={t('export.copyKeyTitle')}
                   >
                     {copiedKey ? <Check size={13} /> : <Copy size={13} />}
-                    <span>{copiedKey ? 'コピー完了' : 'コピー'}</span>
+                    <span>{copiedKey ? t('export.copied') : t('export.copy')}</span>
                   </button>
                 </div>
                 <code className="privkey">{generatedPrivKey}</code>
-                <p className="key-warning">
-                  ⚠️
-                  この秘密鍵は再表示されません。テーマの更新・再配布時の署名用として安全に保管してください。
-                </p>
+                <p className="key-warning">{t('export.keyWarning')}</p>
               </div>
             )}
 
@@ -228,7 +232,9 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
                 onClick={() => handleSign(true)}
               >
                 <Key size={14} />
-                <span>{validation?.signed ? '新しい鍵ペアで再署名' : '鍵ペアを生成して署名'}</span>
+                <span>
+                  {validation?.signed ? t('export.reSignNewPair') : t('export.signNewPair')}
+                </span>
               </button>
 
               <button
@@ -236,19 +242,17 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
                 className="btn text"
                 onClick={() => setShowKeyInput(!showKeyInput)}
               >
-                {showKeyInput ? '秘密鍵入力を隠す' : '既存の秘密鍵を指定して署名…'}
+                {showKeyInput ? t('export.hideKeyInput') : t('export.showKeyInput')}
               </button>
             </div>
 
             {showKeyInput && (
               <div className="custom-key-form">
-                <label htmlFor="privkey-input">
-                  Ed25519 秘密鍵 (HEX 32バイト seed または PKCS#8):
-                </label>
+                <label htmlFor="privkey-input">{t('export.privateKeyLabel')}</label>
                 <input
                   id="privkey-input"
                   type="password"
-                  placeholder="64 文字の HEX 文字列"
+                  placeholder={t('export.privateKeyPlaceholder')}
                   value={customKey}
                   onChange={(e) => setCustomKey(e.target.value)}
                   spellCheck={false}
@@ -259,7 +263,7 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
                   disabled={signing || !customKey.trim()}
                   onClick={() => handleSign(false)}
                 >
-                  <span>指定した鍵で署名</span>
+                  <span>{t('export.signWithKey')}</span>
                 </button>
               </div>
             )}
@@ -268,12 +272,9 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
           {/* 3. ZIP パッケージのダウンロード */}
           <section className="export-section">
             <div className="section-title">
-              <h3>ZIP アーカイブの書き出し</h3>
+              <h3>{t('export.zipExportTitle')}</h3>
             </div>
-            <p className="section-desc">
-              テーマ構成ファイル（theme.json、templates/、assets/、signature.json 等）をまとめた ZIP
-              を生成します。
-            </p>
+            <p className="section-desc">{t('export.zipExportDesc')}</p>
 
             <div className="export-action-box">
               <a
@@ -283,7 +284,7 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
                 role="button"
               >
                 <Download size={16} />
-                <span>ZIP パッケージをダウンロード ({filename})</span>
+                <span>{t('export.downloadZip', { filename })}</span>
               </a>
             </div>
           </section>
@@ -291,7 +292,7 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
 
         <div className="modal-footer">
           <button type="button" className="btn secondary" onClick={onClose}>
-            閉じる
+            {t('common.close')}
           </button>
         </div>
       </div>

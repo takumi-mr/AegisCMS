@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface PreviewIframeProps {
   html: string | null;
@@ -6,6 +7,7 @@ interface PreviewIframeProps {
 }
 
 export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = false }) => {
+  const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [deviceMode, setDeviceMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
@@ -50,10 +52,9 @@ export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = fa
           <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
           <circle cx="12" cy="12" r="3" />
         </svg>
-        <p style={{ margin: 0, fontWeight: 500 }}>No preview available</p>
+        <p style={{ margin: 0, fontWeight: 500 }}>{t('preview.noPreview')}</p>
         <p style={{ margin: '8px 0 0', fontSize: '13px', maxWidth: '360px' }}>
-          Execute a frontend hook (such as <code>on-render-page</code>, <code>render-blocks</code>,
-          or <code>transform-content-ast</code>) to see a live HTML render.
+          {t('preview.noPreviewHelp')}
         </p>
       </div>
     );
@@ -81,7 +82,9 @@ export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = fa
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ color: 'var(--text-muted, #aaa)', fontWeight: 500 }}>Device:</span>
+          <span style={{ color: 'var(--text-muted, #aaa)', fontWeight: 500 }}>
+            {t('preview.device')}
+          </span>
           <div
             style={{
               display: 'flex',
@@ -101,19 +104,20 @@ export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = fa
                   padding: '3px 8px',
                   cursor: 'pointer',
                   fontSize: '11px',
-                  textTransform: 'capitalize',
                 }}
               >
-                {mode}
+                {t(`preview.${mode}`)}
               </button>
             ))}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {loading && <span style={{ color: '#aaa', fontSize: '11px' }}>Rendering...</span>}
+          {loading && (
+            <span style={{ color: '#aaa', fontSize: '11px' }}>{t('preview.rendering')}</span>
+          )}
           <button
             onClick={handleReload}
-            title="Reload preview"
+            title={t('preview.reloadTitle')}
             style={{
               background: '#2a2a35',
               border: '1px solid #444',
@@ -124,11 +128,11 @@ export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = fa
               fontSize: '11px',
             }}
           >
-            Reload
+            {t('preview.reload')}
           </button>
           <button
             onClick={handleOpenNewTab}
-            title="Open in new window"
+            title={t('preview.newTabTitle')}
             style={{
               background: '#2a2a35',
               border: '1px solid #444',
@@ -139,7 +143,7 @@ export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = fa
               fontSize: '11px',
             }}
           >
-            New Tab ↗
+            {t('preview.newTab')}
           </button>
         </div>
       </div>
@@ -158,7 +162,7 @@ export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = fa
           ref={iframeRef}
           srcDoc={html}
           sandbox="allow-scripts allow-forms allow-popups allow-modals"
-          title="Plugin HTML Preview"
+          title={t('preview.iframeTitle')}
           style={{
             width: widthStyle,
             height: '100%',

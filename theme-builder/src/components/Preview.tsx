@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Crosshair, Monitor, Smartphone, Tablet } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { BlockInfo, SampleInfo } from '../types.ts';
 import { VIEWPORTS, type ViewportId } from '../viewports.ts';
 
@@ -44,6 +45,7 @@ export function Preview({
   onToggleInspect,
   onViewport,
 }: PreviewProps) {
+  const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const width = VIEWPORTS.find((v) => v.id === viewport)?.width ?? null;
 
@@ -57,10 +59,10 @@ export function Preview({
   }, [inspecting]);
 
   return (
-    <section className="preview" aria-label="プレビュー">
+    <section className="preview" aria-label={t('preview.title')}>
       <div className="toolbar">
         <label>
-          ページ
+          {t('preview.page')}
           <select value={sample} onChange={(e) => onSample(e.target.value)}>
             {samples.map((s) => (
               <option key={s.name} value={s.name}>
@@ -71,13 +73,13 @@ export function Preview({
         </label>
         {blocks.length > 0 && (
           <label>
-            ブロック
+            {t('preview.block')}
             <select
               value={selectedBlock ?? ''}
               onChange={(e) => onBlock(e.target.value ? e.target.value : null)}
-              aria-label="ブロック選択"
+              aria-label={t('preview.blockSelectAria')}
             >
-              <option value="">（ページ全体）</option>
+              <option value="">{t('preview.wholePage')}</option>
               {blocks.map((b) => (
                 <option key={b.name} value={b.name}>
                   {b.name}（{b.template}:{b.line}）
@@ -90,14 +92,14 @@ export function Preview({
           type="button"
           className={`inspect-toggle ${inspecting ? 'active' : ''}`}
           onClick={onToggleInspect}
-          title="要素をクリックして該当行へジャンプ (Alt+クリックでも可)"
-          aria-label="要素クリックで該当行へジャンプ"
+          title={t('preview.jumpTitle')}
+          aria-label={t('preview.jumpAria')}
           aria-pressed={inspecting}
         >
           <Crosshair size={14} />
-          <span>ジャンプ</span>
+          <span>{t('preview.jump')}</span>
         </button>
-        <div className="segmented" role="group" aria-label="画面の幅">
+        <div className="segmented" role="group" aria-label={t('preview.viewportWidth')}>
           {VIEWPORTS.map(({ id, label }) => {
             const Icon = ICONS[id];
             return (
@@ -116,16 +118,16 @@ export function Preview({
           })}
         </div>
         <span className="status" role="status">
-          {pending ? '描画中…' : failed ? 'エラー（直前の表示）' : ''}
+          {pending ? t('preview.rendering') : failed ? t('preview.staleError') : ''}
         </span>
       </div>
       <div className="stage">
         {doc === null ? (
-          <p className="empty">プレビューを準備しています…</p>
+          <p className="empty">{t('preview.preparing')}</p>
         ) : (
           <iframe
             ref={iframeRef}
-            title="プレビュー"
+            title={t('preview.iframeTitle')}
             // No allow-same-origin: the page runs with an opaque origin, apart from this app
             sandbox="allow-scripts allow-forms allow-popups"
             srcDoc={doc}

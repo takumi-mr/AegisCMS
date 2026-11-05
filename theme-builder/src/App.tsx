@@ -8,6 +8,8 @@ import { FileTree } from './components/FileTree.tsx';
 import { Preview } from './components/Preview.tsx';
 import { Problems } from './components/Problems.tsx';
 import { ExportModal } from './components/ExportModal.tsx';
+import { LanguageSelect } from './components/LanguageSelect.tsx';
+import { useTranslation } from 'react-i18next';
 import { useLatest } from './useLatest.ts';
 import { buildPreviewDoc, diagnosticPath, renderRequest, unsavedCss } from './previewDoc.ts';
 import type { ViewportId } from './viewports.ts';
@@ -29,6 +31,7 @@ interface RenderState {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function App() {
+  const { t } = useTranslation();
   const [info, setInfo] = useState<ThemeInfo | null>(null);
   const [fileList, setFileList] = useState<FileList>({ files: [], writable: false });
   const [buffers, dispatch] = useReducer(bufferReducer, emptyBuffers);
@@ -355,7 +358,7 @@ export function App() {
     <div className="app">
       <header>
         <h1>
-          Theme Builder
+          {t('app.title')}
           {info?.manifest && (
             <span className="theme-name">
               {info.manifest.name} <small>v{info.manifest.version}</small>
@@ -365,22 +368,22 @@ export function App() {
         <div className="header-actions">
           {offline && (
             <span className="badge bad" role="alert">
-              <WifiOff size={14} /> 開発サーバーにつながりません
+              <WifiOff size={14} /> {t('app.offline')}
             </span>
           )}
           {readOnly && fileList.files.length > 0 && (
-            <span className="badge" title="ループバック以外で待ち受けているため、保存できません">
-              読み取り専用
+            <span className="badge" title={t('app.readOnlyTitle')}>
+              {t('app.readOnly')}
             </span>
           )}
           <button
             type="button"
             className="secondary"
             onClick={() => setExportModalOpen(true)}
-            title="テーマの ZIP アーカイブ書き出しと Ed25519 署名"
-            aria-label="パッケージ書き出し"
+            title={t('app.exportPackageTitle')}
+            aria-label={t('app.exportPackage')}
           >
-            <Package size={14} /> パッケージ書き出し
+            <Package size={14} /> {t('app.exportPackage')}
           </button>
           <button
             type="button"
@@ -388,15 +391,17 @@ export function App() {
             onClick={saveAll}
             disabled={dirtyCount === 0 || readOnly}
           >
-            <Save size={14} /> すべて保存{dirtyCount > 0 ? `（${dirtyCount}）` : ''}
+            <Save size={14} />{' '}
+            {dirtyCount > 0 ? t('app.saveAllCount', { count: dirtyCount }) : t('app.saveAll')}
           </button>
+          <LanguageSelect />
         </div>
       </header>
 
       {notice && (
         <div className="notice" role="alert">
           <CircleAlert size={14} /> {notice}
-          <button type="button" aria-label="閉じる" onClick={() => setNotice(null)}>
+          <button type="button" aria-label={t('common.close')} onClick={() => setNotice(null)}>
             <X size={14} />
           </button>
         </div>
@@ -413,7 +418,7 @@ export function App() {
           onDelete={deleteFile}
         />
 
-        <section className="editing" aria-label="エディター">
+        <section className="editing" aria-label={t('app.editorAriaLabel')}>
           <div className="editor-tab-bar">
             <div className="tabs" role="tablist">
               {buffers.open.map((path) => {
@@ -427,12 +432,14 @@ export function App() {
                       onClick={() => dispatch({ type: 'activate', path })}
                     >
                       {path.split('/').pop()}
-                      {buffer && isDirty(buffer) && <span className="dot" aria-label="未保存" />}
+                      {buffer && isDirty(buffer) && (
+                        <span className="dot" aria-label={t('app.unsaved')} />
+                      )}
                     </button>
                     <button
                       type="button"
                       className="close"
-                      aria-label={`${path} を閉じる`}
+                      aria-label={t('app.closeFile', { path })}
                       onClick={() => dispatch({ type: 'close', path })}
                     >
                       <X size={12} />
@@ -442,14 +449,14 @@ export function App() {
               })}
             </div>
             {activeBuffer?.path === 'theme.json' && (
-              <div className="manifest-mode-toggle" role="group" aria-label="表示モード">
+              <div className="manifest-mode-toggle" role="group" aria-label={t('app.displayMode')}>
                 <button
                   type="button"
                   className={manifestMode === 'form' ? 'active' : ''}
                   onClick={() => setManifestMode('form')}
                   aria-pressed={manifestMode === 'form'}
                 >
-                  <SlidersHorizontal size={13} /> フォーム
+                  <SlidersHorizontal size={13} /> {t('app.modeForm')}
                 </button>
                 <button
                   type="button"
@@ -457,7 +464,7 @@ export function App() {
                   onClick={() => setManifestMode('json')}
                   aria-pressed={manifestMode === 'json'}
                 >
-                  <Code size={13} /> JSON
+                  <Code size={13} /> {t('app.modeJson')}
                 </button>
               </div>
             )}
@@ -465,9 +472,9 @@ export function App() {
 
           {activeBuffer?.conflict && (
             <div className="notice" role="alert">
-              <CircleAlert size={14} /> 編集中に、ディスク上のファイルが変わりました。
+              <CircleAlert size={14} /> {t('app.fileConflict')}
               <button type="button" onClick={() => reloadFromDisk(activeBuffer.path)}>
-                ディスクの内容を読み込む（編集は捨てる）
+                {t('app.reloadDisk')}
               </button>
             </div>
           )}
@@ -495,7 +502,7 @@ export function App() {
               />
             )
           ) : (
-            <p className="empty">左のファイルを選んでください</p>
+            <p className="empty">{t('app.selectFilePrompt')}</p>
           )}
 
           <Problems
