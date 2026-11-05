@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { PluginLogEntry } from '../types.ts';
 
 interface LogsViewerProps {
@@ -5,11 +6,12 @@ interface LogsViewerProps {
 }
 
 export function LogsViewer({ logs }: LogsViewerProps) {
+  const { t } = useTranslation();
+
   if (logs.length === 0) {
     return (
       <div style={{ padding: '16px', color: '#6e7781', fontSize: '13px', fontStyle: 'italic' }}>
-        No logs captured for this invocation. Use log_info!, log_warn!, or log_error! in your
-        plugin.
+        {t('logs.empty')}
       </div>
     );
   }

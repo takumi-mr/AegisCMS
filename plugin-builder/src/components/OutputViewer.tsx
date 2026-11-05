@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CodeEditor } from './CodeEditor.tsx';
 import { LogsViewer } from './LogsViewer.tsx';
 import { PreviewIframe } from './PreviewIframe.tsx';
@@ -17,6 +18,7 @@ export function OutputViewer({
   previewHtml,
   previewLoading = false,
 }: OutputViewerProps) {
+  const { t } = useTranslation();
   const [userTab, setUserTab] = useState<'output' | 'preview' | 'logs' | 'kv' | 'http' | null>(
     null,
   );
@@ -36,20 +38,27 @@ export function OutputViewer({
   const activeTab = userTab ?? 'output';
 
   const tabs = [
-    { id: 'output' as const, label: 'Output' },
-    { id: 'preview' as const, label: 'HTML Preview' },
-    { id: 'logs' as const, label: `Logs (${response?.logs.length ?? 0})` },
+    { id: 'output' as const, label: t('output.tabOutput') },
+    { id: 'preview' as const, label: t('output.tabPreview') },
+    {
+      id: 'logs' as const,
+      label: t('output.tabLogs', { count: response?.logs.length ?? 0 }),
+    },
     {
       id: 'kv' as const,
-      label: `KV Changes (${response ? Object.keys(response.kv_mutations).length : 0})`,
+      label: t('output.tabKv', { count: response ? Object.keys(response.kv_mutations).length : 0 }),
     },
-    { id: 'http' as const, label: `HTTP (${response?.http_requests.length ?? 0})` },
+    {
+      id: 'http' as const,
+      label: t('output.tabHttp', { count: response?.http_requests.length ?? 0 }),
+    },
   ];
 
   const outputString =
     response?.output !== undefined && response?.output !== null
       ? JSON.stringify(response.output, null, 2)
-      : (response?.raw_output ?? (response?.error ? `Error: ${response.error}` : ''));
+      : (response?.raw_output ??
+        (response?.error ? `${t('common.error')}: ${response.error}` : ''));
 
   const kvString = response?.kv_mutations ? JSON.stringify(response.kv_mutations, null, 2) : '{}';
 

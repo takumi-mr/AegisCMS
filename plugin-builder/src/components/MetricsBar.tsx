@@ -1,4 +1,5 @@
 import { Zap, Clock, Check, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { InvokeResponse } from '../types.ts';
 
 interface MetricsBarProps {
@@ -7,6 +8,8 @@ interface MetricsBarProps {
 }
 
 export function MetricsBar({ response, maxFuel = 100_000_000 }: MetricsBarProps) {
+  const { t } = useTranslation();
+
   if (!response) {
     return (
       <div
@@ -18,7 +21,7 @@ export function MetricsBar({ response, maxFuel = 100_000_000 }: MetricsBarProps)
           backgroundColor: '#f6f8fa',
         }}
       >
-        Ready to execute. Press Run or Ctrl+Enter.
+        {t('metrics.ready')}
       </div>
     );
   }
@@ -47,7 +50,7 @@ export function MetricsBar({ response, maxFuel = 100_000_000 }: MetricsBarProps)
         }}
       >
         {response.success ? <Check size={14} /> : <X size={14} />}
-        <span>{response.success ? 'Success' : 'Failed'}</span>
+        <span>{response.success ? t('metrics.success') : t('metrics.failed')}</span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#24292f' }}>
@@ -57,7 +60,9 @@ export function MetricsBar({ response, maxFuel = 100_000_000 }: MetricsBarProps)
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#24292f' }}>
         <Zap size={13} color="#9a6700" />
-        <span>{response.fuel_consumed.toLocaleString()} fuel</span>
+        <span>
+          {response.fuel_consumed.toLocaleString()} {t('metrics.fuelUnit')}
+        </span>
         <div
           style={{
             width: '60px',
