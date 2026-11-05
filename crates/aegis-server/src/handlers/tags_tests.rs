@@ -839,7 +839,7 @@ async fn test_postgres_list_contents_filter_by_tag() {
         eprintln!("Skipping PostgreSQL test: failed to connect");
         return;
     };
-    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, content_page, _aegis_content_tags, _aegis_tags, _aegis_migrations, _aegis_audit CASCADE;")
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, content_page, _aegis_content_tags, _aegis_tags, _aegis_audit CASCADE;")
         .execute(adapter.pool())
         .await;
     let _ = adapter.init().await;
@@ -861,7 +861,7 @@ async fn test_mysql_list_contents_filter_by_tag() {
         eprintln!("Skipping MySQL test: failed to connect");
         return;
     };
-    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, content_page, _aegis_content_tags, _aegis_tags, _aegis_migrations, _aegis_audit;")
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, content_page, _aegis_content_tags, _aegis_tags, _aegis_audit;")
         .execute(adapter.pool())
         .await;
     let _ = adapter.init().await;

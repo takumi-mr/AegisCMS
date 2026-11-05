@@ -9,7 +9,7 @@ pub use definition::{
     STANDARD_COLUMNS,
 };
 pub use loader::SchemaLoader;
-pub use migration::{SchemaMigration, SqlDialect, SqliteMigration};
+pub use migration::{SchemaMigration, SqlDialect};
 
 #[cfg(test)]
 mod tests {
@@ -47,7 +47,7 @@ fields:
         assert_eq!(schema.fields.len(), 6);
 
         // 1. SQLite DDL
-        let sqls = SqliteMigration::generate_schema_migration_sql(&schema);
+        let sqls = SchemaMigration::generate_schema_migration_sql(&schema, SqlDialect::Sqlite);
         assert!(!sqls.is_empty());
         let create_table = &sqls[0];
         assert!(create_table.contains("CREATE TABLE IF NOT EXISTS content_article"));

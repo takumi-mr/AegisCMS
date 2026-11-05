@@ -260,19 +260,6 @@ impl DatabaseAdapter for MySqlAdapter {
         sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_publications (content_type VARCHAR(255) NOT NULL, content_id VARCHAR(64) NOT NULL, revision BIGINT NOT NULL, slug VARCHAR(255) NOT NULL, title VARCHAR(255) NOT NULL, status VARCHAR(32) NOT NULL, published_at VARCHAR(64), unpublish_at VARCHAR(64), created_at VARCHAR(64) NOT NULL, updated_at VARCHAR(64) NOT NULL, category_id VARCHAR(255), sort_at VARCHAR(64), PRIMARY KEY(content_type, content_id), UNIQUE KEY uq_aegis_content_publication_slug (content_type, slug));")
             .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
         self.upgrade_publications().await?;
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS _aegis_migrations (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                content_type VARCHAR(255) NOT NULL UNIQUE,
-                migrated_at VARCHAR(64) NOT NULL
-            );
-            "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AegisError::Database(e.to_string()))?;
-
         // 監査ログテーブル
         let audit_table_sql = format!(
             r#"
@@ -755,20 +742,6 @@ impl DatabaseAdapter for MySqlAdapter {
                     }
                 }
             }
-
-            let now = chrono::Utc::now().to_rfc3339();
-            sqlx::query(
-                r#"
-                INSERT INTO _aegis_migrations (content_type, migrated_at)
-                VALUES (?, ?)
-                ON DUPLICATE KEY UPDATE migrated_at = VALUES(migrated_at);
-                "#,
-            )
-            .bind(content_type)
-            .bind(now)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
         }
         Ok(())
     }
