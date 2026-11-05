@@ -22,7 +22,101 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
-pub use config::ForumConfig;
+pub use config::{ForumConfig, ForumPosting};
+
+/// 投稿者の種類
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthorKind {
+    /// CMS のアカウント（`_aegis_users`）
+    Staff,
+    /// 会員アカウント（`[members]`）
+    Member,
+}
+
+impl AuthorKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Staff => "staff",
+            Self::Member => "member",
+        }
+    }
+}
+
+/// ログインして投稿する人（匿名は `None`）。種類と ID の組で、同じ ID の別の種類とは区別する
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Author {
+    pub kind: AuthorKind,
+    pub id: String,
+}
+
+impl Author {
+    pub fn staff(id: impl Into<String>) -> Self {
+        Self {
+            kind: AuthorKind::Staff,
+            id: id.into(),
+        }
+    }
+
+    pub fn member(id: impl Into<String>) -> Self {
+        Self {
+            kind: AuthorKind::Member,
+            id: id.into(),
+        }
+    }
+
+    /// 閲覧・投稿の権限としての見え方
+    pub fn viewer(author: Option<&Author>) -> Viewer {
+        match author.map(|a| a.kind) {
+            Some(AuthorKind::Staff) => Viewer::Staff,
+            Some(AuthorKind::Member) => Viewer::Member,
+            None => Viewer::Anonymous,
+        }
+    }
+}
+
+/// カテゴリを見る・書く人の立場
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Viewer {
+    Anonymous,
+    Member,
+    Staff,
+}
+
+impl Viewer {
+    /// `visibility`（`public` / `members` / `staff`）のカテゴリを読み書きできるか。
+    /// 知らない値は、いちばん厳しく扱う（スタッフだけ）
+    pub fn can_access(&self, visibility: &str) -> bool {
+        match visibility {
+            "public" => true,
+            "members" => matches!(self, Viewer::Member | Viewer::Staff),
+            _ => matches!(self, Viewer::Staff),
+        }
+    }
+}
+
+/// カテゴリの公開範囲
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CategoryVisibility {
+    /// だれでも読める（書けるのは `posting` に従う）
+    #[default]
+    Public,
+    /// 会員とスタッフだけが読み書きできる
+    Members,
+    /// スタッフだけが読み書きできる
+    Staff,
+}
+
+impl CategoryVisibility {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Members => "members",
+            Self::Staff => "staff",
+        }
+    }
+}
 
 /// レートリミットのキャッシュキー接頭辞
 const RATE_LIMIT_PREFIX: &str = "forum:ratelimit:";
@@ -59,6 +153,14 @@ impl From<AegisError> for ForumError {
 
 pub type ForumResult<T> = std::result::Result<T, ForumError>;
 
+/// 連投制限の相手: ログインしている人は種類と ID、匿名は IP
+fn rate_identifier(author: Option<&Author>, ip: Option<&str>) -> String {
+    match author {
+        Some(a) => format!("{}:{}", a.kind.as_str(), a.id),
+        None => ip.unwrap_or("unknown").to_string(),
+    }
+}
+
 fn now() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true)
 }
@@ -93,7 +195,8 @@ pub struct CreateCategoryRequest {
     pub name: String,
     pub description: String,
     pub position: i64,
-    pub is_private: bool,
+    #[serde(default)]
+    pub visibility: CategoryVisibility,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,7 +205,8 @@ pub struct UpdateCategoryRequest {
     pub name: String,
     pub description: String,
     pub position: i64,
-    pub is_private: bool,
+    #[serde(default)]
+    pub visibility: CategoryVisibility,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,7 +215,9 @@ pub struct CreateThreadRequest {
     pub title: String,
     pub body: String,
     pub author_name: String,
-    pub author_id: Option<String>,
+    /// ログインして投稿する人（匿名は `None`）。リクエストの本文からは読まない（サーバーが決める）
+    #[serde(default, skip_deserializing)]
+    pub author: Option<Author>,
     pub ip: Option<String>,
     pub user_agent: Option<String>,
 }
@@ -123,7 +229,9 @@ pub struct CreatePostRequest {
     pub reply_to_post_id: Option<String>,
     pub reply_to_number: Option<u64>,
     pub author_name: String,
-    pub author_id: Option<String>,
+    /// ログインして投稿する人（匿名は `None`）。リクエストの本文からは読まない（サーバーが決める）
+    #[serde(default, skip_deserializing)]
+    pub author: Option<Author>,
     pub ip: Option<String>,
     pub user_agent: Option<String>,
 }
@@ -174,9 +282,35 @@ impl ForumService {
         user_agent: Option<String>,
         details: serde_json::Value,
     ) {
-        let actor = actor_id.map(|user_id| AuditActor {
+        self.record_audit_as(
+            action,
+            outcome,
+            actor_id.map(|id| (id, "user")),
+            resource_type,
+            resource_id,
+            ip,
+            user_agent,
+            details,
+        )
+        .await;
+    }
+
+    /// 投稿者の種類（`staff` / `member`）を役割として残す監査ログ
+    #[allow(clippy::too_many_arguments)]
+    async fn record_audit_as(
+        &self,
+        action: AuditAction,
+        outcome: AuditOutcome,
+        actor: Option<(String, &str)>,
+        resource_type: &str,
+        resource_id: Option<String>,
+        ip: Option<String>,
+        user_agent: Option<String>,
+        details: serde_json::Value,
+    ) {
+        let actor = actor.map(|(user_id, role)| AuditActor {
             user_id,
-            role: "user".to_string(),
+            role: role.to_string(),
         });
         let mut event = AuditEvent::new(action, outcome)
             .with_actor(actor)
@@ -288,7 +422,7 @@ impl ForumService {
         &self,
         texts: &[&str],
         author_name: &str,
-        author_id: Option<&str>,
+        author: Option<&Author>,
     ) -> ForumResult<(ModerationStatus, Option<String>)> {
         if let Some((status, reason)) = self.config.moderation.screen(texts) {
             return Ok((status, Some(reason)));
@@ -297,7 +431,10 @@ impl ForumService {
         let known = if policy.require_approval && policy.auto_approve_known {
             self.deps
                 .db
-                .has_approved_forum_post(author_name, author_id)
+                .has_approved_forum_post(
+                    author_name,
+                    author.map(|a| (a.kind.as_str(), a.id.as_str())),
+                )
                 .await?
         } else {
             false
@@ -408,7 +545,7 @@ impl ForumService {
             name,
             description: req.description.trim().to_string(),
             position: req.position,
-            is_private: req.is_private,
+            visibility: req.visibility.as_str().to_string(),
             created_at: timestamp.clone(),
             updated_at: timestamp,
         };
@@ -446,16 +583,52 @@ impl ForumService {
             .ok_or_else(|| ForumError::NotFound(format!("Category with slug '{}' not found", slug)))
     }
 
-    pub async fn list_categories(
-        &self,
-        include_private: bool,
-    ) -> ForumResult<Vec<ForumCategoryRecord>> {
+    /// `viewer` が見られるカテゴリ（公開範囲 `visibility` で絞る）
+    pub async fn list_categories(&self, viewer: Viewer) -> ForumResult<Vec<ForumCategoryRecord>> {
         let all = self.deps.db.list_categories().await?;
-        if include_private {
-            Ok(all)
+        Ok(all
+            .into_iter()
+            .filter(|c| viewer.can_access(&c.visibility))
+            .collect())
+    }
+
+    /// `viewer` がカテゴリを読み書きできるかを確かめる。できなければ「無い」ものとして扱う
+    /// （非公開のカテゴリがあることを教えない）
+    pub fn check_category_visible(
+        &self,
+        viewer: Viewer,
+        category: &ForumCategoryRecord,
+    ) -> ForumResult<()> {
+        if viewer.can_access(&category.visibility) {
+            Ok(())
         } else {
-            Ok(all.into_iter().filter(|c| !c.is_private).collect())
+            Err(ForumError::NotFound("Category not found".into()))
         }
+    }
+
+    /// 投稿の権限を確かめる: `posting = "members"` ならログインが要り、カテゴリの公開範囲にも従う
+    fn check_can_post(
+        &self,
+        author: Option<&Author>,
+        category: &ForumCategoryRecord,
+    ) -> ForumResult<()> {
+        if self.config.posting == ForumPosting::Members && author.is_none() {
+            return Err(ForumError::Forbidden(
+                "Posting is limited to members. You must log in.".into(),
+            ));
+        }
+        if !Author::viewer(author).can_access(&category.visibility) {
+            return Err(ForumError::Forbidden(
+                "You cannot post to this category".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// 退会する会員のスレッドとレスを匿名にする（投稿は残す）。匿名にした件数を返す。
+    /// 会員の行を消す前に呼ぶ。途中で失敗しても、同じ手順をやり直せる
+    pub async fn release_member(&self, member_id: &str) -> ForumResult<u64> {
+        Ok(self.deps.db.anonymize_member_forum_posts(member_id).await?)
     }
 
     pub async fn update_category(
@@ -489,7 +662,7 @@ impl ForumService {
         current.name = name;
         current.description = req.description.trim().to_string();
         current.position = req.position;
-        current.is_private = req.is_private;
+        current.visibility = req.visibility.as_str().to_string();
         current.updated_at = now();
 
         self.deps.db.update_category(&current).await?;
@@ -541,9 +714,9 @@ impl ForumService {
     ) -> ForumResult<(ForumThreadRecord, ForumPostRecord)> {
         self.check_enabled()?;
 
-        if !self.config.allow_anonymous && req.author_id.is_none() {
+        if self.config.posting == ForumPosting::Members && req.author.is_none() {
             return Err(ForumError::Forbidden(
-                "Anonymous posting is disabled. You must log in.".into(),
+                "Posting is limited to members. You must log in.".into(),
             ));
         }
 
@@ -583,27 +756,19 @@ impl ForumService {
             moderation::normalize_name(&req.author_name).map_err(ForumError::Invalid)?
         };
 
-        // レートリミットチェック
-        let rate_id = req
-            .author_id
-            .as_deref()
-            .or(req.ip.as_deref())
-            .unwrap_or("unknown");
-        self.check_rate_limit(rate_id, req.ip.as_deref()).await?;
+        // レートリミットチェック（種類と ID の組で数える。同じ ID の別の種類とは別）
+        let rate_id = rate_identifier(req.author.as_ref(), req.ip.as_deref());
+        self.check_rate_limit(&rate_id, req.ip.as_deref()).await?;
 
-        // カテゴリ確認
+        // カテゴリ確認（公開範囲）
         let cat = self.get_category(&req.category_id).await?;
-        if cat.is_private && req.author_id.is_none() {
-            return Err(ForumError::Forbidden(
-                "Cannot post to private category".into(),
-            ));
-        }
+        self.check_can_post(req.author.as_ref(), &cat)?;
 
         let (mod_status, mod_reason) = self
             .evaluate_moderation(
                 &[&title, &body, &author_name],
                 &author_name,
-                req.author_id.as_deref(),
+                req.author.as_ref(),
             )
             .await?;
         let status_str = mod_status.as_str().to_string();
@@ -616,7 +781,8 @@ impl ForumService {
             id: thread_id.clone(),
             category_id: req.category_id,
             title: title.clone(),
-            author_id: req.author_id.clone(),
+            author_id: req.author.as_ref().map(|a| a.id.clone()),
+            author_kind: req.author.as_ref().map(|a| a.kind.as_str().to_string()),
             author_name: author_name.clone(),
             is_pinned: false,
             is_locked: false,
@@ -631,7 +797,8 @@ impl ForumService {
             id: post_id,
             thread_id: thread_id.clone(),
             post_number: 1,
-            author_id: req.author_id.clone(),
+            author_id: req.author.as_ref().map(|a| a.id.clone()),
+            author_kind: req.author.as_ref().map(|a| a.kind.as_str().to_string()),
             author_name,
             body,
             reply_to_post_id: None,
@@ -645,12 +812,12 @@ impl ForumService {
         };
 
         self.deps.db.insert_thread(&thread, &first_post).await?;
-        self.record_rate_limit(rate_id).await?;
+        self.record_rate_limit(&rate_id).await?;
 
-        self.record_audit(
+        self.record_audit_as(
             AuditAction::ForumThreadCreate,
             AuditOutcome::Success,
-            req.author_id,
+            req.author.map(|a| (a.id, a.kind.as_str())),
             "forum_thread",
             Some(thread_id),
             req.ip,
@@ -802,9 +969,9 @@ impl ForumService {
     pub async fn create_post(&self, req: CreatePostRequest) -> ForumResult<ForumPostRecord> {
         self.check_enabled()?;
 
-        if !self.config.allow_anonymous && req.author_id.is_none() {
+        if self.config.posting == ForumPosting::Members && req.author.is_none() {
             return Err(ForumError::Forbidden(
-                "Anonymous posting is disabled. You must log in.".into(),
+                "Posting is limited to members. You must log in.".into(),
             ));
         }
 
@@ -829,27 +996,20 @@ impl ForumService {
             moderation::normalize_name(&req.author_name).map_err(ForumError::Invalid)?
         };
 
-        // レートリミットチェック
-        let rate_id = req
-            .author_id
-            .as_deref()
-            .or(req.ip.as_deref())
-            .unwrap_or("unknown");
-        self.check_rate_limit(rate_id, req.ip.as_deref()).await?;
+        // レートリミットチェック（種類と ID の組で数える）
+        let rate_id = rate_identifier(req.author.as_ref(), req.ip.as_deref());
+        self.check_rate_limit(&rate_id, req.ip.as_deref()).await?;
 
-        // スレッドチェック（存在＆ロック状態）
+        // スレッドチェック（存在＆ロック状態）と、カテゴリの公開範囲
         let thread = self.get_thread(&req.thread_id).await?;
+        let cat = self.get_category(&thread.category_id).await?;
+        self.check_can_post(req.author.as_ref(), &cat)?;
         if thread.is_locked {
             return Err(ForumError::Locked);
         }
-        let cat = self.get_category(&thread.category_id).await?;
 
         let (mod_status, mod_reason) = self
-            .evaluate_moderation(
-                &[&body, &author_name],
-                &author_name,
-                req.author_id.as_deref(),
-            )
+            .evaluate_moderation(&[&body, &author_name], &author_name, req.author.as_ref())
             .await?;
         let status_str = mod_status.as_str().to_string();
 
@@ -860,7 +1020,8 @@ impl ForumService {
             id: post_id.clone(),
             thread_id: req.thread_id.clone(),
             post_number: 0,
-            author_id: req.author_id.clone(),
+            author_id: req.author.as_ref().map(|a| a.id.clone()),
+            author_kind: req.author.as_ref().map(|a| a.kind.as_str().to_string()),
             author_name,
             body,
             reply_to_post_id: req.reply_to_post_id,
@@ -874,7 +1035,7 @@ impl ForumService {
         };
 
         let new_num = self.deps.db.insert_post(&mut post).await?;
-        self.record_rate_limit(rate_id).await?;
+        self.record_rate_limit(&rate_id).await?;
 
         // 自動ロック判定（上限レス数に達した場合）
         if self.config.auto_lock_post_count > 0 && new_num >= self.config.auto_lock_post_count {
@@ -885,10 +1046,10 @@ impl ForumService {
                 .await;
         }
 
-        self.record_audit(
+        self.record_audit_as(
             AuditAction::ForumPostCreate,
             AuditOutcome::Success,
-            req.author_id,
+            req.author.map(|a| (a.id, a.kind.as_str())),
             "forum_post",
             Some(post_id),
             req.ip,

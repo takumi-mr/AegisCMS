@@ -280,37 +280,29 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 
 ---
 
-## 12. 掲示板への組み込み（設計・未実装）
+## 12. 掲示板への組み込み（実装済み）
 
-今の掲示板は `author_id` に **CMS ユーザー（スタッフ）の ID** を入れ、匿名は `author_id` が空で名前が自由入力です。
+掲示板は、スタッフ（CMS のアカウント）に加えて、会員のアカウントで投稿できます。仕様は [掲示板 4.0](forum.md)。ここには、会員の側の決めごとを書きます。
 
-### 12.1 投稿者の持ち方
-
-- スレッドとレスに **`author_kind`（`staff` / `member`。匿名は空）** を足す。`author_id` の接頭辞では区別しない（ユーザー名が会員の ID と同じになりうるため）。
-- `author_name` は投稿時の表示名のコピーのまま（会員は公開名。§13）。投稿者が後から名前を変えても、過去の投稿は変わらない。
+- 投稿者の種類 **`author_kind`（`staff` / `member`。匿名は空）** を、スレッドとレスに持つ。`author_id` の接頭辞では区別しない（ユーザー名が会員の ID と同じになりうるため）。
+- `author_name` は投稿時の表示名のコピー（会員は公開名。§13）。投稿者が後から名前を変えても、過去の投稿は変わらない。
 - 掲示板の表は別の DB に置ける（`[forum].database_url`）ので、`author_id` は会員の表への外部キーにしない（今のスタッフも同じ）。
-- 承認の判定（承認済みの投稿がある人は自動承認）は、`(author_kind, author_id)` で見る。匿名は今までどおり名前で見る。
+- `[forum].posting`（`"anyone"` / `"members"`）と、カテゴリごとの公開範囲 `visibility`（`public` / `members` / `staff`）。見られない人には、カテゴリもスレッドも「無い」。
+- 会員が自分の投稿を**編集・削除**することは、まだできない（モデレーションの履歴を保つ。スタッフは今までどおり）。要望が出たら別に設計する。
+- 退会しても、掲示板の投稿は**残して匿名にする**（スレッドが途切れないように）。`author_id` と `author_kind` を空にし、`author_name` を空にして（画面には「退会したユーザー」）、投稿の IP と User-Agent を消す。退会の手順は §11.3（本人の確認 → ショップの後始末 → 掲示板の後始末 → 会員の行の削除）。掲示板が無効のとき（`[forum].enabled = false`）は、後始末を行わない。
+- **古い DB の移行**（§11.2 の SQL に加えて）: カテゴリの `is_private` を `visibility` にし、投稿に `author_kind` を足す。
 
-### 12.2 投稿できる人
+  ```sql
+  ALTER TABLE _aegis_forum_categories ADD COLUMN visibility VARCHAR(255) NOT NULL DEFAULT 'public';
+  UPDATE _aegis_forum_categories SET visibility = 'staff' WHERE is_private = 1;
+  ALTER TABLE _aegis_forum_categories DROP COLUMN is_private;      -- SQLite 3.35 以降。それ以前は、バックアップから復元する
+  ALTER TABLE _aegis_forum_threads ADD COLUMN author_kind VARCHAR(255);
+  ALTER TABLE _aegis_forum_posts ADD COLUMN author_kind VARCHAR(255);
+  UPDATE _aegis_forum_threads SET author_kind = 'staff' WHERE author_id IS NOT NULL;
+  UPDATE _aegis_forum_posts SET author_kind = 'staff' WHERE author_id IS NOT NULL;
+  ```
 
-```toml
-[forum]
-posting = "anyone"      # "anyone"（今の allow_anonymous = true）| "members"（会員とスタッフだけが投稿できる）
-```
-
-- `[forum].allow_anonymous` は廃止し、`posting` に置き換える。`posting = "members"` は `[members].enabled = true` が要り、無ければ**起動しない**。
-- 非公開のカテゴリ（`is_private`）は、今は「ログインしていれば投稿できる」ですが、スタッフしかログインできなかったので実質スタッフ専用でした。会員が入ると意味が変わるので、**カテゴリごとに公開範囲（`visibility`: `public` / `members` / `staff`）を持たせる**。`is_private = true` は `staff` に読み替える。
-- 会員が自分の投稿を**編集・削除**できるかは、まず**できない**とする（モデレーションの履歴を保つ。スタッフは今までどおり）。
-
-### 12.3 画面
-
-- フォームの投稿は Cookie で認証する。フォームは JSON ではないので、会員の API（JSON だけを受ける）にある CSRF の防ぎ方が使えない。**投稿は `Origin` / `Referer` を確かめ、フォームにも CSRF トークンを入れる**（`SameSite=Lax` だけに頼らない）。
-- 投稿者の表示: 会員にバッジは付けない。スタッフには今までの印を出す。管理画面の掲示板では、会員の投稿に「会員」と出し、会員の詳細へのリンクを付ける。
-- 掲示板のページに、ログイン・登録・ログアウトのリンクを出す（`posting = "members"` のときは、フォームの代わりにログインを促す）。
-
-### 12.4 退会
-
-会員が退会しても、掲示板の投稿は**残して匿名にする**（スレッドが途切れないように）。`author_id` と `author_kind` を空にし、`author_name` は「退会したユーザー」に置き換える。レビューや注文と同じ方針で、途中で失敗しても同じ手順をやり直せる。退会は、注文の紐づきを外す・レビューを匿名にする・掲示板の投稿を匿名にする、のうち**有効な機能の分**だけを行う。
+  または、前のバージョンで `task dump` を取り、新しい DB に `task restore` する（`is_private` と `author_kind` の無いバックアップは、上と同じ規則で読み替える）。
 
 ---
 
@@ -331,5 +323,5 @@ posting = "anyone"      # "anyone"（今の allow_anonymous = true）| "members"
 2. **切り出しと改名**（振る舞いは変えない）。**済**（§11）。`[members]`・API・表・列・Cookie・通知・監査ログ・管理画面・バックアップ・テスト・docs。
 3. **`aegis-members` クレートへの切り出し**。**済**（ショップのクレートは会員に依存しない）。
 4. **公開名（`nickname`）**（§13）。**済**
-5. **掲示板を会員に対応**（§12）: `author_kind`、`posting`、`visibility`、会員の投稿、CSRF、画面のログイン導線、退会時の匿名化、テスト。古い DB の移行 SQL を §11.2 に足す。
+5. **掲示板を会員に対応**（§12）: `author_kind`、`posting`、`visibility`、会員の投稿、フォームの CSRF 対策、画面のログイン導線、退会時の匿名化、テスト。**済**
 6. **管理画面**: 会員の詳細に掲示板の投稿を出す、掲示板の管理画面に会員の印を出す。

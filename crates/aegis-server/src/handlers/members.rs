@@ -116,6 +116,46 @@ fn session_cookie(
 }
 
 /// 会員セッションを解決する（未ログイン時は 401）
+/// リクエストがこのサイトのページから送られたものか（`Origin`、無ければ `Referer` の
+/// ホストが、このサイトのホストと同じか）。Cookie で認証する HTML のフォーム（掲示板の投稿など）が、
+/// 他のサイトから送られるのを断るのに使う。どちらのヘッダーも無いときは、断る
+pub fn request_comes_from_this_site(state: &AppState, headers: &HeaderMap) -> bool {
+    let Some(origin) = headers
+        .get(header::ORIGIN)
+        .or_else(|| headers.get(header::REFERER))
+        .and_then(|v| v.to_str().ok())
+    else {
+        return false;
+    };
+    let Some(origin_host) = host_of(origin) else {
+        return false;
+    };
+
+    // このサイトのホスト: `Host`（プロキシ越しなら `X-Forwarded-Host`）と、設定した `public_url`
+    let mut allowed: Vec<String> = Vec::new();
+    for name in ["host", "x-forwarded-host"] {
+        if let Some(value) = headers.get(name).and_then(|v| v.to_str().ok()) {
+            allowed.push(value.trim().to_ascii_lowercase());
+        }
+    }
+    if let Some(host) = host_of(&state.config.members.public_url) {
+        allowed.push(host);
+    }
+    allowed.contains(&origin_host)
+}
+
+/// URL のホスト（ポートつき。小文字）。`null` や URL でない値は `None`
+fn host_of(url: &str) -> Option<String> {
+    let rest = url.trim().split_once("://")?.1;
+    let host = rest.split(['/', '?', '#']).next()?;
+    let host = host.rsplit('@').next()?;
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_ascii_lowercase())
+    }
+}
+
 pub async fn resolve_member_session(
     state: &AppState,
     headers: &HeaderMap,
@@ -420,6 +460,18 @@ pub async fn delete_me(
     let product_ids = aegis_commerce::member_data::release_member(&*state.db, &session.member_id)
         .await
         .map_err(map_aegis_error)?;
+    // 2b. 掲示板の投稿も、残して匿名にする（スレッドが途切れないように）
+    if let Some(forum) = state.forum.as_ref() {
+        let anonymized = forum
+            .release_member(&session.member_id)
+            .await
+            .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        if anonymized > 0 {
+            let mut tags = aegis_cache::CacheTags::new();
+            tags.add_dependency("collection", "forum");
+            crate::cdn::purge_tags(&state, &tags).await;
+        }
+    }
     // 3. 会員の行とセッションを消す
     service
         .delete_account(&session.member_id, client_ip, user_agent)

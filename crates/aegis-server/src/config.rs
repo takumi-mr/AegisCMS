@@ -107,6 +107,18 @@ impl AegisConfig {
                     .to_string(),
             ));
         }
+        // `[forum].allow_anonymous` は `posting` に置き換えた。黙って無視すると、会員だけにしていた
+        // 掲示板が突然だれでも書ける状態になるので、起動時に断る
+        if raw
+            .get("forum")
+            .and_then(|forum| forum.get("allow_anonymous"))
+            .is_some()
+        {
+            return Err(AegisError::Config(
+                "[forum].allow_anonymous was replaced by [forum].posting: use posting = \"anyone\"                  (was allow_anonymous = true) or posting = \"members\" (was false; members need                  [members].enabled = true). See docs/forum.md"
+                    .to_string(),
+            ));
+        }
         let config: AegisConfig = toml::from_str(&content)
             .map_err(|e| AegisError::Config(format!("Failed to parse config file: {}", e)))?;
         Ok(config)
@@ -357,6 +369,42 @@ enabled = true
         assert!(config.members.enabled);
         // 書かなければ使わない
         assert!(!AegisConfig::default().members.enabled);
+    }
+
+    /// `[forum].allow_anonymous` は `posting` に置き換えた。黙って無視せず、断る
+    #[test]
+    fn test_legacy_forum_allow_anonymous_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("aegis.toml");
+
+        std::fs::write(
+            &path,
+            "[forum]
+enabled = true
+allow_anonymous = false
+",
+        )
+        .unwrap();
+        let err = AegisConfig::load_from_file(&path).unwrap_err().to_string();
+        assert!(
+            err.contains("allow_anonymous") && err.contains("posting"),
+            "{err}"
+        );
+
+        std::fs::write(
+            &path,
+            "[forum]
+enabled = true
+posting = \"members\"
+",
+        )
+        .unwrap();
+        let config = AegisConfig::load_from_file(&path).unwrap();
+        assert_eq!(config.forum.posting, aegis_forum::ForumPosting::Members);
+        assert_eq!(
+            AegisConfig::default().forum.posting,
+            aegis_forum::ForumPosting::Anyone
+        );
     }
 
     #[test]

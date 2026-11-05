@@ -456,8 +456,27 @@ async fn restore_database_section<R: Read + Seek>(
 
     // 10. Forum categories, threads + posts, reports
     if has_path("database/forum_categories.json") {
-        let categories: Vec<ForumCategoryRecord> =
+        // 古いバックアップでは、公開範囲は `is_private`（真偽値）だった。非公開だったカテゴリは
+        // 公開にしてしまわないよう、スタッフだけが読み書きできる `staff` にする
+        let raw: Vec<serde_json::Value> =
             read_json_entry(archive, "database/forum_categories.json")?;
+        let mut categories: Vec<ForumCategoryRecord> = Vec::with_capacity(raw.len());
+        for mut value in raw {
+            if let Some(object) = value.as_object_mut() {
+                let legacy_private = object.remove("is_private").and_then(|v| v.as_bool());
+                if !object.contains_key("visibility") {
+                    let visibility = if legacy_private == Some(true) {
+                        "staff"
+                    } else {
+                        "public"
+                    };
+                    object.insert("visibility".to_string(), visibility.into());
+                }
+            }
+            categories.push(serde_json::from_value(value).map_err(|e| {
+                AegisError::Validation(format!("Invalid forum category in the backup: {}", e))
+            })?);
+        }
         for cat in &categories {
             if db.get_category(&cat.id).await?.is_some() {
                 if options.overwrite {
@@ -476,8 +495,20 @@ async fn restore_database_section<R: Read + Seek>(
     }
 
     if has_path("database/forum_threads.json") {
-        let thread_bundles: Vec<ForumThreadBundle> =
+        let mut thread_bundles: Vec<ForumThreadBundle> =
             read_json_entry(archive, "database/forum_threads.json")?;
+        // 古いバックアップには投稿者の種類が無い。ログインして投稿した人（`author_id` がある）は、
+        // そのころはスタッフ（CMS のアカウント）だけだった
+        for bundle in &mut thread_bundles {
+            if bundle.thread.author_kind.is_none() && bundle.thread.author_id.is_some() {
+                bundle.thread.author_kind = Some("staff".to_string());
+            }
+            for post in &mut bundle.posts {
+                if post.author_kind.is_none() && post.author_id.is_some() {
+                    post.author_kind = Some("staff".to_string());
+                }
+            }
+        }
         for bundle in &thread_bundles {
             if db.get_thread(&bundle.thread.id).await?.is_some() {
                 if options.overwrite {
@@ -507,6 +538,7 @@ async fn restore_database_section<R: Read + Seek>(
                     thread_id: bundle.thread.id.clone(),
                     post_number: 1,
                     author_id: bundle.thread.author_id.clone(),
+                    author_kind: bundle.thread.author_kind.clone(),
                     author_name: bundle.thread.author_name.clone(),
                     body: String::new(),
                     status: bundle.thread.status.clone(),

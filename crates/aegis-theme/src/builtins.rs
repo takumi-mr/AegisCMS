@@ -1388,6 +1388,9 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
         <label for="thread-title">{{ t("forum.thread_title") }}</label>
         <input type="text" id="thread-title" name="title" required minlength="2" maxlength="200" placeholder="{{ t("forum.thread_title_hint") }}">
       </div>
+      {% if theme_vars.forum_members == "true" %}
+      <p class="aegis-forum-note">{% if theme_vars.forum_members_only == "true" %}{{ t("forum.members_only") }}{% else %}{{ t("forum.member_hint") }}{% endif %} <a href="{{ theme_vars.forum_login_url }}">{{ t("forum.login") }}</a></p>
+      {% endif %}
       <div class="aegis-forum-form-group">
         <label for="thread-author">{{ t("forum.your_name") }}</label>
         <input type="text" id="thread-author" name="author_name" placeholder="{{ t("forum.anonymous") }}" maxlength="50">
@@ -1497,6 +1500,9 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
   <section class="aegis-forum-form" id="reply-form">
     <h3>{{ t("forum.post_reply") }}</h3>
     <form method="POST" action="{{ theme_vars.forum_url }}/{{ fields.category.slug }}/{{ fields.thread.id }}/posts">
+      {% if theme_vars.forum_members == "true" %}
+      <p class="aegis-forum-note">{% if theme_vars.forum_members_only == "true" %}{{ t("forum.members_only") }}{% else %}{{ t("forum.member_hint") }}{% endif %} <a href="{{ theme_vars.forum_login_url }}">{{ t("forum.login") }}</a></p>
+      {% endif %}
       <div class="aegis-forum-form-group">
         <label for="post-author">{{ t("forum.your_name") }}</label>
         <input type="text" id="post-author" name="author_name" placeholder="{{ t("forum.anonymous") }}" maxlength="50">

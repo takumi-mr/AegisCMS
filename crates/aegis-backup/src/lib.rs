@@ -330,7 +330,7 @@ mod tests {
             name: "General".to_string(),
             description: "General talk".to_string(),
             position: 1,
-            is_private: false,
+            visibility: "public".to_string(),
             created_at: "2026-10-29T01:00:00Z".to_string(),
             updated_at: "2026-10-29T01:00:00Z".to_string(),
         };
@@ -341,6 +341,7 @@ mod tests {
             category_id: "fcat-1".to_string(),
             title: "Welcome thread".to_string(),
             author_id: Some("u-1".to_string()),
+            author_kind: Some("staff".to_string()),
             author_name: "Alice".to_string(),
             status: "approved".to_string(),
             is_pinned: true,
@@ -355,6 +356,7 @@ mod tests {
             thread_id: "fth-1".to_string(),
             post_number: 1,
             author_id: Some("u-1".to_string()),
+            author_kind: Some("staff".to_string()),
             author_name: "Alice".to_string(),
             body: "First post".to_string(),
             status: "approved".to_string(),
@@ -373,6 +375,7 @@ mod tests {
             thread_id: "fth-1".to_string(),
             post_number: 2,
             author_id: None,
+            author_kind: None,
             author_name: "Guest".to_string(),
             body: "Second post".to_string(),
             status: "approved".to_string(),
@@ -733,5 +736,158 @@ mod tests {
         .unwrap();
         let restored = dst_db.get_member_by_id("cust-1").await.unwrap();
         assert_eq!(restored.unwrap().email, "old@example.com");
+    }
+
+    /// 古いバックアップ（カテゴリは `is_private`、投稿者の種類が無い）も復元できる。
+    /// 非公開だったカテゴリは、公開にならない
+    #[tokio::test]
+    async fn test_restores_a_backup_from_before_members_joined_the_forum() {
+        let schemas = test_schemas();
+        let src_db = setup_db(&schemas).await;
+        src_db
+            .insert_category(&ForumCategoryRecord {
+                id: "fcat-old".to_string(),
+                slug: "private-room".to_string(),
+                name: "Private".to_string(),
+                description: String::new(),
+                position: 0,
+                visibility: "staff".to_string(),
+                created_at: "2026-10-29T01:00:00Z".to_string(),
+                updated_at: "2026-10-29T01:00:00Z".to_string(),
+            })
+            .await
+            .unwrap();
+        let thread = ForumThreadRecord {
+            id: "fthread-old".to_string(),
+            category_id: "fcat-old".to_string(),
+            title: "Old thread".to_string(),
+            author_id: Some("u-1".to_string()),
+            author_kind: Some("staff".to_string()),
+            author_name: "Admin".to_string(),
+            status: "approved".to_string(),
+            post_count: 1,
+            last_post_at: "2026-10-29T02:00:00Z".to_string(),
+            created_at: "2026-10-29T02:00:00Z".to_string(),
+            updated_at: "2026-10-29T02:00:00Z".to_string(),
+            ..Default::default()
+        };
+        let post = ForumPostRecord {
+            id: "fpost-old".to_string(),
+            thread_id: "fthread-old".to_string(),
+            post_number: 1,
+            author_id: Some("u-1".to_string()),
+            author_kind: Some("staff".to_string()),
+            author_name: "Admin".to_string(),
+            body: "Hello".to_string(),
+            status: "approved".to_string(),
+            created_at: "2026-10-29T02:00:00Z".to_string(),
+            updated_at: "2026-10-29T02:00:00Z".to_string(),
+            ..Default::default()
+        };
+        src_db.insert_thread(&thread, &post).await.unwrap();
+
+        let src_dir = tempfile::tempdir().unwrap();
+        let src_storage: Arc<dyn StorageBackend> = Arc::new(LocalStorageBackend::new(
+            src_dir.path(),
+            "/uploads".to_string(),
+        ));
+        let mut zip_buf = Vec::new();
+        dump_to_writer(
+            &src_db,
+            &src_storage,
+            &schemas,
+            &DumpOptions::default(),
+            Cursor::new(&mut zip_buf),
+        )
+        .await
+        .unwrap();
+
+        // 前のバージョンの形に書き換える（カテゴリは `is_private`、投稿者の種類は無し）。
+        // マニフェストのチェックサムも付け直す
+        fn strip_author_kind(value: &mut serde_json::Value) {
+            match value {
+                serde_json::Value::Object(map) => {
+                    map.remove("author_kind");
+                    map.values_mut().for_each(strip_author_kind);
+                }
+                serde_json::Value::Array(items) => items.iter_mut().for_each(strip_author_kind),
+                _ => {}
+            }
+        }
+        let mut orig = zip::ZipArchive::new(Cursor::new(&zip_buf)).unwrap();
+        let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+        for i in 0..orig.len() {
+            let mut file = orig.by_index(i).unwrap();
+            let name = file.name().unwrap().to_string();
+            let mut data = Vec::new();
+            file.read_to_end(&mut data).unwrap();
+            files.push((name, data));
+        }
+        let mut new_hashes: Vec<(String, String)> = Vec::new();
+        for (name, data) in &mut files {
+            if name == "database/forum_categories.json" {
+                let mut value: serde_json::Value = serde_json::from_slice(data).unwrap();
+                for cat in value.as_array_mut().unwrap() {
+                    let map = cat.as_object_mut().unwrap();
+                    map.remove("visibility");
+                    map.insert("is_private".to_string(), serde_json::json!(true));
+                }
+                *data = serde_json::to_vec(&value).unwrap();
+            } else if name == "database/forum_threads.json" {
+                let mut value: serde_json::Value = serde_json::from_slice(data).unwrap();
+                strip_author_kind(&mut value);
+                *data = serde_json::to_vec(&value).unwrap();
+            } else {
+                continue;
+            }
+            new_hashes.push((name.clone(), crate::manifest::sha256_hex(data)));
+        }
+        for (name, data) in &mut files {
+            if name == "manifest.json" {
+                let mut manifest: crate::manifest::BackupManifest =
+                    serde_json::from_slice(data).unwrap();
+                for table in &mut manifest.database.tables {
+                    if let Some((_, hash)) = new_hashes.iter().find(|(n, _)| *n == table.path) {
+                        table.sha256 = hash.clone();
+                    }
+                }
+                *data = serde_json::to_vec(&manifest).unwrap();
+            }
+        }
+        let mut legacy_buf = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(Cursor::new(&mut legacy_buf));
+            let opts = zip::write::SimpleFileOptions::default();
+            for (name, data) in &files {
+                writer.start_file(name, opts).unwrap();
+                writer.write_all(data).unwrap();
+            }
+            writer.finish().unwrap();
+        }
+
+        let dst_db = setup_db(&schemas).await;
+        let dst_dir = tempfile::tempdir().unwrap();
+        let dst_storage: Arc<dyn StorageBackend> = Arc::new(LocalStorageBackend::new(
+            dst_dir.path(),
+            "/uploads".to_string(),
+        ));
+        restore_from_reader(
+            &dst_db,
+            &dst_storage,
+            &schemas,
+            &RestoreOptions::default(),
+            Cursor::new(&legacy_buf),
+        )
+        .await
+        .unwrap();
+
+        let category = dst_db.get_category("fcat-old").await.unwrap().unwrap();
+        assert_eq!(
+            category.visibility, "staff",
+            "a private category stays closed"
+        );
+        let restored = dst_db.get_thread("fthread-old").await.unwrap().unwrap();
+        assert_eq!(restored.author_id.as_deref(), Some("u-1"));
+        assert_eq!(restored.author_kind.as_deref(), Some("staff"));
     }
 }

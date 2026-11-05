@@ -1041,13 +1041,16 @@ export type CommentBulkAction = CommentStatus | 'delete';
 // Forum (掲示板モデレーション)
 // =========================================================================
 
+/** Who can read and post in a category: everyone, signed-in members (and staff), or staff only */
+export type ForumCategoryVisibility = 'public' | 'members' | 'staff';
+
 export interface ForumCategory {
   id: string;
   slug: string;
   name: string;
   description: string;
   position: number;
-  is_private: boolean;
+  visibility: ForumCategoryVisibility;
   created_at: string;
   updated_at: string;
 }
@@ -1057,7 +1060,7 @@ export interface CreateForumCategoryPayload {
   name: string;
   description: string;
   position: number;
-  is_private: boolean;
+  visibility: ForumCategoryVisibility;
 }
 
 export interface UpdateForumCategoryPayload {
@@ -1065,7 +1068,7 @@ export interface UpdateForumCategoryPayload {
   name: string;
   description: string;
   position: number;
-  is_private: boolean;
+  visibility: ForumCategoryVisibility;
 }
 
 export interface ForumThread {

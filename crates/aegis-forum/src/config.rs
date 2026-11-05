@@ -20,6 +20,17 @@ fn default_forum_moderation() -> ModerationConfig {
     }
 }
 
+/// 誰が投稿できるか（`[forum].posting`）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ForumPosting {
+    /// だれでも（会員は会員として、ログインしていない人は名前を入れて匿名で）
+    #[default]
+    Anyone,
+    /// 会員とスタッフだけ（ログインしていない人はログインを求められる）。`[members].enabled = true` が要る
+    Members,
+}
+
 fn default_true() -> bool {
     true
 }
@@ -39,8 +50,8 @@ pub struct ForumConfig {
     pub body_max_length: usize,
     /// 連続投稿制限（秒）。同じ IP またはユーザーからの投稿間隔
     pub rate_limit_secs: u64,
-    /// 匿名（未ログイン）投稿を許可するか
-    pub allow_anonymous: bool,
+    /// 誰が投稿できるか（`posting`）。スタッフ（CMS のアカウント）はいつでも投稿できる
+    pub posting: ForumPosting,
     /// 指定レス数に達したら自動でスレッドをロックするか（0 は無制限、例: 1000）
     pub auto_lock_post_count: u64,
     /// 1ページあたりの既定の表示件数
@@ -65,7 +76,7 @@ impl Default for ForumConfig {
             body_min_length: 1,
             body_max_length: 10_000,
             rate_limit_secs: 5,
-            allow_anonymous: true,
+            posting: ForumPosting::Anyone,
             auto_lock_post_count: 1000,
             default_page_size: 50,
             database_url: None,

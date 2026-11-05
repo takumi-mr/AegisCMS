@@ -32,7 +32,7 @@ posts_per_page = 12
 [forum]
 enabled = true
 database_url = "sqlite://examples/hiking-forum/forum.db?mode=rwc"
-allow_anonymous = true
+posting = "anyone"
 # 同じ IP・ユーザーの投稿の間隔（秒）。seed.mjs は 429 が返ると待ってから投稿し直す
 rate_limit_secs = 3
 auto_lock_post_count = 1000

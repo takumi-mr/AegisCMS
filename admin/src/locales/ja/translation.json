@@ -1593,6 +1593,13 @@
     "categorySlug": "スラッグ",
     "categoryDescription": "説明",
     "categoryPosition": "並び順",
+    "categoryVisibility": "読み書きできる人",
+    "categoryVisibilityHint": "会員は会員アカウント（[members]）が要ります。スタッフは、Admin Studio にログインしている人です。",
+    "visibility": {
+      "public": "だれでも",
+      "members": "会員とスタッフ",
+      "staff": "スタッフだけ"
+    },
     "modalCreateCategory": "フォーラムカテゴリの作成",
     "modalEditCategory": "フォーラムカテゴリの編集",
     "postsModalTitle": "スレッド「{{title}}」の投稿一覧",
@@ -1651,7 +1658,8 @@
       "categoryName": "カテゴリ名",
       "slug": "スラッグ",
       "description": "説明",
-      "position": "並び順"
+      "position": "並び順",
+      "visibility": "見られる人"
     },
     "toasts": {
       "threadPinned": "スレッドを上部にピン留めしました",

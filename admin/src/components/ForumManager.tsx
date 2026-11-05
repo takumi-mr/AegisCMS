@@ -78,7 +78,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
     name: '',
     description: '',
     position: 0,
-    is_private: false,
+    visibility: 'public',
   });
   const [isSubmittingCategory, setIsSubmittingCategory] = useState<boolean>(false);
 
@@ -321,7 +321,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
       name: '',
       description: '',
       position: categories.length + 1,
-      is_private: false,
+      visibility: 'public',
     });
     setCategoryModal({ mode: 'create' });
   };
@@ -333,7 +333,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
       name: cat.name,
       description: cat.description,
       position: cat.position,
-      is_private: cat.is_private,
+      visibility: cat.visibility,
     });
     setCategoryModal({ mode: 'edit', category: cat });
   };
@@ -778,6 +778,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
                   <th>{t('forum.table.categoryName')}</th>
                   <th>{t('forum.table.slug')}</th>
                   <th>{t('forum.table.description')}</th>
+                  <th>{t('forum.table.visibility')}</th>
                   <th>{t('forum.table.position')}</th>
                   {isAdmin && <th style={{ textAlign: 'right' }}>{t('forum.table.actions')}</th>}
                 </tr>
@@ -786,7 +787,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
                 {categories.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={isAdmin ? 5 : 4}
+                      colSpan={isAdmin ? 6 : 5}
                       style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}
                     >
                       {t('forum.noCategories')}
@@ -802,6 +803,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
                       <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                         {cat.description || '-'}
                       </td>
+                      <td>{t(`forum.visibility.${cat.visibility}`)}</td>
                       <td>{cat.position}</td>
                       {isAdmin && (
                         <td>
@@ -1009,6 +1011,28 @@ export const ForumManager: React.FC<ForumManagerProps> = ({ isAdmin, onShowToast
                 onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
                 placeholder="Describe what this category is for..."
               />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label htmlFor="cat-visibility">{t('forum.categoryVisibility')}</label>
+              <select
+                id="cat-visibility"
+                className={styles.formInput}
+                value={categoryForm.visibility}
+                onChange={(e) =>
+                  setCategoryForm({
+                    ...categoryForm,
+                    visibility: e.target.value as CreateForumCategoryPayload['visibility'],
+                  })
+                }
+              >
+                {(['public', 'members', 'staff'] as const).map((value) => (
+                  <option key={value} value={value}>
+                    {t(`forum.visibility.${value}`)}
+                  </option>
+                ))}
+              </select>
+              <small>{t('forum.categoryVisibilityHint')}</small>
             </div>
 
             <div className={styles.formGroup}>

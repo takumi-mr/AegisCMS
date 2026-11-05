@@ -24,8 +24,8 @@ use aegis_comments::PolicyOverrides;
 use aegis_core::{ModerationStatus, PageRenderContext, Pagination};
 use aegis_db::{PostListQuery, ThreadListQuery};
 use aegis_forum::{
-    CreateCategoryRequest, CreatePostRequest, CreateReportRequest, CreateThreadRequest, ForumError,
-    ForumService, UpdateCategoryRequest,
+    Author, CreateCategoryRequest, CreatePostRequest, CreateReportRequest, CreateThreadRequest,
+    ForumError, ForumService, UpdateCategoryRequest, Viewer,
 };
 
 type ApiError = (StatusCode, Json<serde_json::Value>);
@@ -75,6 +75,22 @@ fn forum_vars(state: &AppState) -> HashMap<String, String> {
         (
             "forum_api".to_string(),
             format!("{}/api/v1/forum", base_path),
+        ),
+        // 会員でログインして投稿するためのリンク（会員アカウントを使うときだけ。ページはキャッシュされるので、
+        // ログインしているかどうかには依存しない）
+        (
+            "forum_members".to_string(),
+            state.members.is_some().to_string(),
+        ),
+        (
+            "forum_login_url".to_string(),
+            format!("{}/account/login", base_path),
+        ),
+        (
+            "forum_members_only".to_string(),
+            (state.members.is_some()
+                && state.config.forum.posting == aegis_forum::ForumPosting::Members)
+                .to_string(),
         ),
     ])
 }
@@ -128,6 +144,15 @@ fn escape_html(text: &str) -> String {
         }
     }
     out
+}
+
+/// 画面に出す投稿者名。退会した会員の投稿は名前が空なので、`[theme].locale` の言語の文言にする
+fn shown_name(state: &AppState, name: String) -> String {
+    if name.is_empty() {
+        aegis_theme::messages::translate(&state.config.theme.locale, "forum.former_user", &[])
+    } else {
+        name
+    }
 }
 
 fn author_initial(name: &str) -> String {
@@ -189,7 +214,10 @@ pub struct PostView {
 // =========================================================================
 
 /// `GET /forum` — フォーラムトップ（カテゴリ一覧 & 最近アクティブなスレッド）
-pub async fn render_forum_index(State(state): State<Arc<AppState>>) -> Response {
+pub async fn render_forum_index(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
     let forum = match &state.forum {
         Some(f) => f.clone(),
         None => return render_not_found(&state, "Forum is currently disabled.").await,
@@ -198,7 +226,10 @@ pub async fn render_forum_index(State(state): State<Arc<AppState>>) -> Response 
         return render_not_found(&state, "Forum is currently disabled.").await;
     }
 
-    let categories_res = forum.list_categories(false).await;
+    // 見る人に応じたカテゴリ。会員・スタッフ限定のカテゴリが入るときは、その人専用のページになるので
+    // 共有のキャッシュに載せない。ログインしていなければ、公開のカテゴリだけ（今までどおりキャッシュする）
+    let viewer = resolve_viewer(&state, &headers).await;
+    let categories_res = forum.list_categories(viewer).await;
     let categories = match categories_res {
         Ok(cats) => cats,
         Err(_) => return render_not_found(&state, "Unable to load categories.").await,
@@ -234,7 +265,7 @@ pub async fn render_forum_index(State(state): State<Arc<AppState>>) -> Response 
                 category_slug: cat.slug.clone(),
                 category_name: cat.name.clone(),
                 title: t.title,
-                author_name: t.author_name,
+                author_name: shown_name(&state, t.author_name),
                 post_count: t.post_count,
                 created_at: t.created_at,
                 last_post_at: t.last_post_at,
@@ -268,12 +299,16 @@ pub async fn render_forum_index(State(state): State<Arc<AppState>>) -> Response 
     tags.add_tag("site-global");
     tags.add_dependency("collection", "forum");
     let resp = render_forum_page(&state, ctx).await;
+    if categories.iter().any(|c| c.visibility != "public") {
+        return no_store(resp);
+    }
     crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 /// `GET /forum/:category_slug` — カテゴリ別スレッド一覧
 pub async fn render_forum_category(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(category_slug): Path<String>,
     Query(params): Query<ForumPageParams>,
 ) -> Response {
@@ -289,6 +324,14 @@ pub async fn render_forum_category(
         Ok(c) => c,
         Err(_) => return render_not_found(&state, "Category not found.").await,
     };
+    // 会員・スタッフ限定のカテゴリは、見られる人にだけ見せる（無いものとして扱う）
+    let personal = cat.visibility != "public";
+    if personal {
+        let viewer = resolve_viewer(&state, &headers).await;
+        if forum.check_category_visible(viewer, &cat).is_err() {
+            return render_not_found(&state, "Category not found.").await;
+        }
+    }
 
     let per_page = forum.config().default_page_size.clamp(1, 100);
     let page = params.page.unwrap_or(1).max(1);
@@ -313,7 +356,7 @@ pub async fn render_forum_category(
             category_slug: cat.slug.clone(),
             category_name: cat.name.clone(),
             title: t.title,
-            author_name: t.author_name,
+            author_name: shown_name(&state, t.author_name),
             post_count: t.post_count,
             created_at: t.created_at,
             last_post_at: t.last_post_at,
@@ -380,12 +423,16 @@ pub async fn render_forum_category(
     tags.add_dependency("collection", "forum");
     tags.add_dependency("forum-category", &cat.slug);
     let resp = render_forum_page(&state, ctx).await;
+    if personal {
+        return no_store(resp);
+    }
     crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
 /// `GET /forum/:category_slug/:thread_id` — スレッド詳細 & レス一覧
 pub async fn render_forum_thread(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path((category_slug, thread_id)): Path<(String, String)>,
     Query(params): Query<ForumPageParams>,
 ) -> Response {
@@ -401,6 +448,13 @@ pub async fn render_forum_thread(
         Ok(c) => c,
         Err(_) => return render_not_found(&state, "Category not found.").await,
     };
+    let personal = cat.visibility != "public";
+    if personal {
+        let viewer = resolve_viewer(&state, &headers).await;
+        if forum.check_category_visible(viewer, &cat).is_err() {
+            return render_not_found(&state, "Category not found.").await;
+        }
+    }
 
     let thread = match forum.get_thread(&thread_id).await {
         Ok(t) if t.status == "approved" => t,
@@ -431,9 +485,9 @@ pub async fn render_forum_thread(
         .map(|p| PostView {
             id: p.id,
             post_number: p.post_number,
-            author_name: p.author_name.clone(),
-            author_initial: author_initial(&p.author_name),
-            is_author_staff: p.author_id.is_some(),
+            author_name: shown_name(&state, p.author_name.clone()),
+            author_initial: author_initial(&shown_name(&state, p.author_name.clone())),
+            is_author_staff: p.author_kind.as_deref() == Some("staff"),
             body_html: body_to_html(&p.body),
             created_at: p.created_at,
             reply_to_number: p.reply_to_number,
@@ -481,7 +535,7 @@ pub async fn render_forum_thread(
         category_slug: cat.slug.clone(),
         category_name: cat.name.clone(),
         title: thread.title.clone(),
-        author_name: thread.author_name.clone(),
+        author_name: shown_name(&state, thread.author_name.clone()),
         post_count: thread.post_count,
         created_at: thread.created_at.clone(),
         last_post_at: thread.last_post_at.clone(),
@@ -533,6 +587,9 @@ pub async fn render_forum_thread(
     tags.add_dependency("forum-category", &cat.slug);
     tags.add_dependency("forum-thread", &thread.id);
     let resp = render_forum_page(&state, ctx).await;
+    if personal {
+        return no_store(resp);
+    }
     crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
@@ -564,16 +621,16 @@ pub struct CreatePostForm {
     pub extra: HashMap<String, String>,
 }
 
-/// 掲示板の CAPTCHA。ログインしている投稿者（`author_id` がある）は対象外。
+/// 掲示板の CAPTCHA。ログインしている投稿者（スタッフ・会員）は対象外。
 /// 通らなければ、投稿者に見せる英語の文言を返す
 async fn check_forum_captcha(
     state: &AppState,
-    author_id: &Option<String>,
+    author: &Option<Author>,
     token: Option<&str>,
     ip: Option<&str>,
 ) -> Result<(), CaptchaError> {
     match &state.captcha.forum {
-        Some(captcha) if author_id.is_none() => captcha.verify(token, ip).await,
+        Some(captcha) if author.is_none() => captcha.verify(token, ip).await,
         _ => Ok(()),
     }
 }
@@ -669,13 +726,19 @@ pub async fn handle_create_thread_form(
         .normalized_base_path()
         .unwrap_or_default();
 
-    let (author_id, mut author_name) = resolve_author(&state, &headers, form.author_name).await;
+    // 他のサイトからの送信を断る（会員の Cookie で認証するため）
+    let poster = match resolve_poster(&state, &headers, form.author_name, true).await {
+        Ok(poster) => poster,
+        Err(failure) => return poster_form_error(failure, &base_path),
+    };
+    let mut author_name = poster.name;
+    let author = poster.author;
     if author_name.trim().is_empty() {
         author_name = "Anonymous".to_string();
     }
     if let Err(failure) = check_forum_captcha(
         &state,
-        &author_id,
+        &author,
         form_captcha_token(&state, &form.extra),
         client_ip.as_deref(),
     )
@@ -694,7 +757,7 @@ pub async fn handle_create_thread_form(
         title: form.title,
         body: form.body,
         author_name,
-        author_id,
+        author,
         ip: client_ip,
         user_agent,
     };
@@ -750,13 +813,18 @@ pub async fn handle_create_post_form(
         .normalized_base_path()
         .unwrap_or_default();
 
-    let (author_id, mut author_name) = resolve_author(&state, &headers, form.author_name).await;
+    let poster = match resolve_poster(&state, &headers, form.author_name, true).await {
+        Ok(poster) => poster,
+        Err(failure) => return poster_form_error(failure, &base_path),
+    };
+    let mut author_name = poster.name;
+    let author = poster.author;
     if author_name.trim().is_empty() {
         author_name = "Anonymous".to_string();
     }
     if let Err(failure) = check_forum_captcha(
         &state,
-        &author_id,
+        &author,
         form_captcha_token(&state, &form.extra),
         client_ip.as_deref(),
     )
@@ -780,7 +848,7 @@ pub async fn handle_create_post_form(
         reply_to_post_id: None,
         reply_to_number: form.reply_to_number.trim().parse().ok(),
         author_name,
-        author_id,
+        author,
         ip: client_ip,
         user_agent,
     };
@@ -843,7 +911,7 @@ pub async fn handle_create_report_form(
         .normalized_base_path()
         .unwrap_or_default();
 
-    let (reporter_id, _) = resolve_author(&state, &headers, String::new()).await;
+    let reporter_id = resolve_reporter_id(&state, &headers).await;
     let req = CreateReportRequest {
         target_type: form.target_type,
         target_id: form.target_id,
@@ -874,26 +942,167 @@ pub async fn handle_create_report_form(
     }
 }
 
-async fn resolve_author(
+/// 投稿者を決められなかった理由
+enum PosterError {
+    /// 会員に公開名がまだ無い（掲示板に出す名前は、本名ではなく公開名）
+    NicknameRequired,
+    /// フォームが他のサイトから送られた（会員の Cookie で認証しているときは断る）
+    CrossSite,
+}
+
+/// 投稿する人。ログインしていなければ `author` は `None`（匿名）
+struct Poster {
+    author: Option<Author>,
+    name: String,
+}
+
+/// CMS のアカウントでログインしているか（そのユーザー ID）
+async fn staff_user_id(state: &AppState, headers: &HeaderMap) -> Option<String> {
+    let session_id = extract_session_id(headers)?;
+    let session = state.sessions.get_session(&session_id).await.ok()??;
+    Some(session.user_id)
+}
+
+/// 会員アカウントでログインしているか
+async fn member_session(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Option<aegis_members::MemberSessionData> {
+    state.members.as_ref()?;
+    crate::handlers::members::resolve_member_session(state, headers)
+        .await
+        .ok()
+}
+
+/// 見る人の立場: CMS のアカウント → スタッフ、会員 → 会員、どちらでもなければ匿名
+async fn resolve_viewer(state: &AppState, headers: &HeaderMap) -> Viewer {
+    if staff_user_id(state, headers).await.is_some() {
+        return Viewer::Staff;
+    }
+    if member_session(state, headers).await.is_some() {
+        return Viewer::Member;
+    }
+    Viewer::Anonymous
+}
+
+/// 投稿する人を決める。CMS のアカウント（スタッフ。名前は指定できる）、会員（名前は公開名。
+/// 指定は無視する）、どちらでもなければ匿名（指定の名前）。
+/// `form` が真（HTML のフォーム）で、会員が Cookie で認証しているときは、他のサイトから送られた
+/// リクエストを断る（`Origin` / `Referer` を確かめる）
+async fn resolve_poster(
     state: &AppState,
     headers: &HeaderMap,
     specified_name: String,
-) -> (Option<String>, String) {
-    if let Some(session_id) = extract_session_id(headers) {
-        if let Ok(Some(session)) = state.sessions.get_session(&session_id).await {
-            let name = if specified_name.trim().is_empty() {
-                if let Ok(Some(user)) = state.db.get_user_by_username(&session.user_id).await {
-                    user.display_name.unwrap_or(session.user_id.clone())
-                } else {
-                    session.user_id.clone()
-                }
+    form: bool,
+) -> Result<Poster, PosterError> {
+    if let Some(user_id) = staff_user_id(state, headers).await {
+        let name = if specified_name.trim().is_empty() {
+            if let Ok(Some(user)) = state.db.get_user_by_username(&user_id).await {
+                user.display_name.unwrap_or(user_id.clone())
             } else {
-                specified_name
-            };
-            return (Some(session.user_id), name);
-        }
+                user_id.clone()
+            }
+        } else {
+            specified_name
+        };
+        return Ok(Poster {
+            author: Some(Author::staff(user_id)),
+            name,
+        });
     }
-    (None, specified_name)
+
+    if let Some(session) = member_session(state, headers).await {
+        let cookie_only = !headers.contains_key(header::AUTHORIZATION);
+        if form
+            && cookie_only
+            && !crate::handlers::members::request_comes_from_this_site(state, headers)
+        {
+            return Err(PosterError::CrossSite);
+        }
+        let profile = match state.members.as_ref() {
+            Some(members) => members.get_profile(&session.member_id).await.ok(),
+            None => None,
+        };
+        let nickname = profile
+            .as_ref()
+            .and_then(|p| p.nickname.as_deref())
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+            .map(str::to_string);
+        let Some(name) = nickname else {
+            return Err(PosterError::NicknameRequired);
+        };
+        return Ok(Poster {
+            author: Some(Author::member(session.member_id)),
+            name,
+        });
+    }
+
+    Ok(Poster {
+        author: None,
+        name: specified_name,
+    })
+}
+
+/// 通報した人の ID（スタッフはユーザー ID、会員は `member:` + ID、匿名は `None`）
+async fn resolve_reporter_id(state: &AppState, headers: &HeaderMap) -> Option<String> {
+    if let Some(user_id) = staff_user_id(state, headers).await {
+        return Some(user_id);
+    }
+    member_session(state, headers)
+        .await
+        .map(|session| format!("member:{}", session.member_id))
+}
+
+/// 投稿者を決められなかった API の応答
+fn poster_api_error(failure: PosterError) -> ApiError {
+    match failure {
+        PosterError::NicknameRequired => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": "Set a public name in your account before posting",
+                "code": "nickname_required",
+            })),
+        ),
+        PosterError::CrossSite => (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Cross-site requests are not allowed", "code": "cross_site" })),
+        ),
+    }
+}
+
+/// 投稿者を決められなかったフォームの応答（英語。戻るリンクつき）
+fn poster_form_error(failure: PosterError, base_path: &str) -> Response {
+    let (status, message) = match failure {
+        PosterError::NicknameRequired => (
+            StatusCode::BAD_REQUEST,
+            format!(
+                "Set a public name in <a href=\"{}/account\">your account</a> before posting.",
+                base_path
+            ),
+        ),
+        PosterError::CrossSite => (
+            StatusCode::FORBIDDEN,
+            "This request did not come from this site.".to_string(),
+        ),
+    };
+    (
+        status,
+        Html(format!(
+            "<h1>Error</h1><p>{}</p><p><a href=\"{}/forum\">Go back</a></p>",
+            message, base_path
+        )),
+    )
+        .into_response()
+}
+
+/// その人専用の応答（共有のキャッシュに載せない）
+fn no_store(mut response: Response) -> Response {
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("private, no-store"),
+    );
+    response
 }
 
 async fn is_editor_authenticated(state: &AppState, headers: &HeaderMap) -> bool {
@@ -915,9 +1124,9 @@ pub async fn api_list_categories(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
-    let include_private = is_editor_authenticated(&state, &headers).await;
+    let viewer = resolve_viewer(&state, &headers).await;
     let categories = forum
-        .list_categories(include_private)
+        .list_categories(viewer)
         .await
         .map_err(forum_error_to_api)?;
     Ok(Json(json!({ "categories": categories })))
@@ -943,12 +1152,17 @@ pub async fn api_create_category(
 /// `GET /api/v1/forum/categories/:slug`
 pub async fn api_get_category(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(slug): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
     let cat = forum
         .get_category_by_slug(&slug)
         .await
+        .map_err(forum_error_to_api)?;
+    let viewer = resolve_viewer(&state, &headers).await;
+    forum
+        .check_category_visible(viewer, &cat)
         .map_err(forum_error_to_api)?;
     Ok(Json(json!({ "category": cat })))
 }
@@ -1061,6 +1275,10 @@ pub async fn api_list_threads(
         .get_category_by_slug(&slug)
         .await
         .map_err(forum_error_to_api)?;
+    let viewer = resolve_viewer(&state, &headers).await;
+    forum
+        .check_category_visible(viewer, &cat)
+        .map_err(forum_error_to_api)?;
 
     let limit = query
         .limit
@@ -1098,17 +1316,19 @@ pub async fn api_create_thread(
         ));
     }
     let forum = get_forum(&state)?;
-    let (author_id, author_name) = resolve_author(&state, &headers, req.author_name).await;
+    let poster = resolve_poster(&state, &headers, req.author_name, false)
+        .await
+        .map_err(poster_api_error)?;
     check_forum_captcha(
         &state,
-        &author_id,
+        &poster.author,
         captcha_token.as_deref(),
         client_ip.as_deref(),
     )
     .await
     .map_err(captcha_api_error)?;
-    req.author_id = author_id;
-    req.author_name = author_name;
+    req.author = poster.author;
+    req.author_name = poster.name;
     req.ip = client_ip;
     req.user_agent = headers
         .get(header::USER_AGENT)
@@ -1127,6 +1347,26 @@ pub async fn api_create_thread(
     ))
 }
 
+/// スレッドのカテゴリを見られる人か（会員・スタッフ限定のカテゴリのスレッドは、無いものとして扱う）
+async fn check_thread_visible(
+    state: &AppState,
+    forum: &ForumService,
+    headers: &HeaderMap,
+    category_id: &str,
+) -> Result<(), ApiError> {
+    let category = forum
+        .get_category(category_id)
+        .await
+        .map_err(forum_error_to_api)?;
+    if category.visibility == "public" {
+        return Ok(());
+    }
+    let viewer = resolve_viewer(state, headers).await;
+    forum
+        .check_category_visible(viewer, &category)
+        .map_err(|_| api_error(StatusCode::NOT_FOUND, "Thread not found"))
+}
+
 /// `GET /api/v1/forum/threads/:id`
 pub async fn api_get_thread(
     State(state): State<Arc<AppState>>,
@@ -1138,6 +1378,7 @@ pub async fn api_get_thread(
     if thread.status != "approved" && !is_editor_authenticated(&state, &headers).await {
         return Err(api_error(StatusCode::NOT_FOUND, "Thread not found"));
     }
+    check_thread_visible(&state, &forum, &headers, &thread.category_id).await?;
     Ok(Json(json!({ "thread": thread })))
 }
 
@@ -1156,6 +1397,8 @@ pub async fn api_list_posts(
     Query(query): Query<PostListApiQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
+    let thread = forum.get_thread(&id).await.map_err(forum_error_to_api)?;
+    check_thread_visible(&state, &forum, &headers, &thread.category_id).await?;
     let limit = query
         .limit
         .unwrap_or(forum.config().default_page_size)
@@ -1168,7 +1411,14 @@ pub async fn api_list_posts(
         status,
         limit,
     };
-    let posts = forum.list_posts(&q).await.map_err(forum_error_to_api)?;
+    let mut posts = forum.list_posts(&q).await.map_err(forum_error_to_api)?;
+    if !is_editor {
+        // 投稿者の IP・User-Agent は、運営者だけに見せる
+        for post in &mut posts {
+            post.ip = None;
+            post.user_agent = None;
+        }
+    }
     Ok(Json(json!({ "posts": posts, "limit": limit })))
 }
 
@@ -1189,17 +1439,19 @@ pub async fn api_create_post(
         ));
     }
     let forum = get_forum(&state)?;
-    let (author_id, author_name) = resolve_author(&state, &headers, req.author_name).await;
+    let poster = resolve_poster(&state, &headers, req.author_name, false)
+        .await
+        .map_err(poster_api_error)?;
     check_forum_captcha(
         &state,
-        &author_id,
+        &poster.author,
         captcha_token.as_deref(),
         client_ip.as_deref(),
     )
     .await
     .map_err(captcha_api_error)?;
-    req.author_id = author_id;
-    req.author_name = author_name;
+    req.author = poster.author;
+    req.author_name = poster.name;
     req.ip = client_ip;
     req.user_agent = headers
         .get(header::USER_AGENT)
@@ -1381,7 +1633,7 @@ pub async fn api_create_report(
     Json(body): Json<ReportReqBody>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let forum = get_forum(&state)?;
-    let (reporter_id, _) = resolve_author(&state, &headers, String::new()).await;
+    let reporter_id = resolve_reporter_id(&state, &headers).await;
     let report = forum
         .report(CreateReportRequest {
             target_type: body.target_type,
