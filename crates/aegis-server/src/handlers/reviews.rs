@@ -123,6 +123,7 @@ pub async fn submit_product_review(
         .await
         .map_err(map_aegis_error)?;
 
+    let status = record.status.clone();
     if record.status == "approved" {
         let mut tags = CacheTags::new();
         tags.add_dependency("reviews", &product_id);
@@ -134,6 +135,8 @@ pub async fn submit_product_review(
         StatusCode::CREATED,
         Json(json!({
             "review": PublicReview::from(record),
+            // `approved`（公開された）か `pending`（承認待ち）か。投稿者に伝える文を決めるのに使う
+            "status": status,
         })),
     ))
 }

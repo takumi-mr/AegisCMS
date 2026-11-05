@@ -101,7 +101,7 @@ pub use storage::{delete_object, list_objects, upload_file};
 pub use storefront::{
     account_script, cart_script, render_account_forgot, render_account_home, render_account_login,
     render_account_register, render_account_reset, render_cart, render_order, render_product,
-    render_products,
+    render_products, reviews_script,
 };
 pub use tags::{
     create_tag, delete_tag, get_content_tags, list_tags, set_content_tags as set_content_tag_list,
@@ -131,5 +131,7 @@ mod oembed_tests;
 mod package_install_tests;
 #[cfg(test)]
 mod password_reset_pages_tests;
+#[cfg(test)]
+mod product_reviews_tests;
 #[cfg(test)]
 mod tags_tests;

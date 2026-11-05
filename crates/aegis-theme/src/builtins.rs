@@ -1135,9 +1135,34 @@ pub const PRODUCT_TEMPLATE: &str = r##"{% extends "base.html" %}
   </section>
   {% endif %}
 
+  {% if theme_vars.reviews_enabled == "true" %}{% include "reviews.html" %}{% endif %}
   {% if comments %}{% include "comments.html" %}{% endif %}
 </section>
 {% endblock %}
+"##;
+
+/// 商品ページのレビュー欄（`product.html` が `reviews_enabled` のときに読み込む）。中身はスクリプト（`/shop/reviews.js`）が API から作る。
+/// 色はテーマの文字色を基準にした半透明で指定する
+pub const REVIEWS_TEMPLATE: &str = r##"<section class="aegis-reviews" id="reviews">
+<style>
+  .aegis-reviews { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(127,127,127,0.25); }
+  .aegis-reviews h2 { font-size: 1.35rem; margin-bottom: 1rem; }
+  .aegis-reviews h3 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
+  .aegis-reviews-ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.9rem; margin: 1rem 0; }
+  .aegis-review { padding: 0.9rem 1rem; border-radius: 12px; background: rgba(127,127,127,0.07); border: 1px solid rgba(127,127,127,0.18); }
+  .aegis-review-head { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: baseline; margin-bottom: 0.35rem; }
+  .aegis-review-stars { color: #f59e0b; letter-spacing: 0.05em; }
+  .aegis-review-body { white-space: pre-line; overflow-wrap: anywhere; margin: 0.25rem 0 0.5rem; }
+  .aegis-review-badge { margin-left: 0.5rem; padding: 0.05rem 0.5rem; border-radius: 999px; background: rgba(16,185,129,0.15); color: #10b981; font-size: 0.75rem; font-weight: 600; }
+  .aegis-review-reply { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-left: 3px solid var(--accent, #6366f1); background: rgba(127,127,127,0.06); border-radius: 0 8px 8px 0; }
+  .aegis-review-summary { font-size: 1.05rem; }
+  .aegis-reviews-form select, .aegis-reviews-form input, .aegis-reviews-form textarea { padding: 0.55rem 0.7rem; border-radius: 10px; border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit; font: inherit; }
+</style>
+  <h2>{{ t("reviews.title") }}</h2>
+  <div id="aegis-reviews"><p class="aegis-muted">{{ t("reviews.loading") }}</p></div>
+  <noscript><p class="aegis-muted">{{ t("reviews.needs_js") }}</p></noscript>
+  <script src="{{ theme_vars.reviews_script }}" data-api="{{ theme_vars.reviews_api }}" data-customers-api="{{ theme_vars.account_api }}" data-product-id="{{ fields.id }}" data-login-url="{{ theme_vars.account_login_url }}" data-register-url="{{ theme_vars.account_register_url }}" defer></script>
+</section>
 "##;
 
 pub const CART_TEMPLATE: &str = r#"{% extends "base.html" %}

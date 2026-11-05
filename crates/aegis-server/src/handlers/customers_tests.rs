@@ -266,6 +266,11 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     assert_eq!(res.status(), StatusCode::CREATED);
     let rev_body = json_response(res).await;
     assert_eq!(rev_body["review"]["rating"], 5);
+    // 公開されたか承認待ちかを、応答で伝える（レビュー欄の「ありがとうございます」の文を決める）
+    assert!(matches!(
+        rev_body["status"].as_str(),
+        Some("approved" | "pending")
+    ));
     let review_id = rev_body["review"]["id"].as_str().unwrap().to_string();
 
     // 7. 同一注文・同一商品への二重投稿の拒否 (1注文1件制約)
@@ -327,8 +332,9 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     assert_eq!(pub_reviews["stats"]["review_count"], 1);
     assert_eq!(pub_reviews["stats"]["average_rating"], 5.0);
     assert_eq!(pub_reviews["json_ld"]["@type"], "AggregateRating");
-    assert_eq!(pub_reviews["json_ld"]["rating_value"], 5.0);
-    assert_eq!(pub_reviews["json_ld"]["review_count"], 1);
+    // schema.org のプロパティ名（camelCase）
+    assert_eq!(pub_reviews["json_ld"]["ratingValue"], 5.0);
+    assert_eq!(pub_reviews["json_ld"]["reviewCount"], 1);
 
     // 10. 管理者: 顧客一覧・詳細取得 (GET /api/v1/admin/customers)
     let admin_customers_req = Request::builder()

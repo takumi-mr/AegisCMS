@@ -21,6 +21,8 @@ use aegis_db::{resolve_relations_for_records, ContentListQuery};
 const CART_SCRIPT: &str = include_str!("../../assets/cart.js");
 /// 顧客アカウントのページのスクリプト（`/shop/account.js`）
 const ACCOUNT_SCRIPT: &str = include_str!("../../assets/account.js");
+/// 商品ページのレビュー欄のスクリプト（`/shop/reviews.js`）
+const REVIEWS_SCRIPT: &str = include_str!("../../assets/reviews.js");
 
 /// テンプレートの `theme_vars` に渡すショップの情報
 fn shop_vars(state: &AppState) -> HashMap<String, String> {
@@ -55,7 +57,41 @@ fn shop_vars(state: &AppState) -> HashMap<String, String> {
     ])
     .into_iter()
     .chain(account_vars(state, &base_path))
+    .chain(review_vars(state, &base_path))
     .collect()
+}
+
+/// テンプレートの `theme_vars` に渡す商品レビューの情報。使わないときは `reviews_enabled` が `false`
+fn review_vars(state: &AppState, base_path: &str) -> HashMap<String, String> {
+    HashMap::from([
+        (
+            "reviews_enabled".to_string(),
+            state.reviews.is_some().to_string(),
+        ),
+        (
+            "reviews_script".to_string(),
+            format!("{}/shop/reviews.js", base_path),
+        ),
+        (
+            "reviews_api".to_string(),
+            format!("{}/api/v1/products", base_path),
+        ),
+    ])
+}
+
+/// 商品の構造化データ（JSON-LD）。承認済みのレビューがあるときだけ、平均と件数を載せる（検索結果の星表示に使われる）。
+/// `<script>` の中に置くので、`<` はエスケープして `</script>` で閉じられないようにする
+fn product_json_ld(name: &str, rating: &aegis_commerce::JsonLdAggregateRating) -> String {
+    let data = serde_json::json!({
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": name,
+        "aggregateRating": rating,
+    });
+    let json = serde_json::to_string(&data)
+        .unwrap_or_default()
+        .replace('<', "\\u003c");
+    format!("<script type=\"application/ld+json\">{}</script>", json)
 }
 
 /// テンプレートの `theme_vars` に渡す顧客アカウントの情報。使わない設定のときは `account_enabled` が `false`
@@ -312,7 +348,7 @@ pub async fn render_product(
         .get("image")
         .or_else(|| record.custom_fields.get("featured_image"))
         .and_then(|v| v.as_str());
-    let extra_head = render::build_extra_head(
+    let mut extra_head = render::build_extra_head(
         &state,
         Some(&record.title),
         Some(&excerpt),
@@ -320,6 +356,14 @@ pub async fn render_product(
         Some(&path),
         false,
     );
+    if let Some(reviews) = state.reviews.as_ref() {
+        // 承認済みのレビューの平均と件数（1 件だけ読む。一覧はスクリプトが API から取る）
+        if let Ok((_, stats)) = reviews.list_public_reviews(&record.id, Some(1), 0).await {
+            if let Some(rating) = aegis_commerce::JsonLdAggregateRating::from_stats(&stats) {
+                extra_head.push_str(&product_json_ld(&record.title, &rating));
+            }
+        }
+    }
 
     let comments =
         crate::handlers::comments::page_section(&state, &schema.content_type, &record.id).await;
@@ -427,6 +471,25 @@ pub async fn account_script(State(state): State<Arc<AppState>>) -> Response {
             (header::CACHE_CONTROL, "public, max-age=300"),
         ],
         script_with_messages(&state.config.theme.locale, ACCOUNT_SCRIPT),
+    )
+        .into_response()
+}
+
+/// `GET /shop/reviews.js` — 商品ページのレビュー欄（一覧・投稿）のスクリプト
+pub async fn reviews_script(State(state): State<Arc<AppState>>) -> Response {
+    if state.reviews.is_none() {
+        return render_not_found(&state, "Product reviews are not enabled.").await;
+    }
+    (
+        StatusCode::OK,
+        [
+            (
+                header::CONTENT_TYPE,
+                "application/javascript; charset=utf-8",
+            ),
+            (header::CACHE_CONTROL, "public, max-age=300"),
+        ],
+        script_with_messages(&state.config.theme.locale, REVIEWS_SCRIPT),
     )
         .into_response()
 }

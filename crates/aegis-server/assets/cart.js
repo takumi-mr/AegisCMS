@@ -411,8 +411,21 @@
         root.appendChild(el('div', { className: 'aegis-instructions' }, [el('strong', { text: msg('how_to_pay') }), el('p', { text: order.payment_instructions })]));
       }
       var lines = el('div', { className: 'aegis-summary' });
+      // A paid order can review its products: the link carries the order and its token to the product page
+      var reviewable = /^(paid|processing|shipped|delivered|completed)$/.test(order.status) && config.shopEnabled;
       order.lines.forEach(function (line) {
-        lines.appendChild(el('div', { className: 'aegis-sum-row' }, [el('span', { text: line.title + ' × ' + line.quantity }), el('span', { text: formatMoney(line.line_total, order.currency) })]));
+        var name = el('span', { text: line.title + ' × ' + line.quantity });
+        if (reviewable && line.slug) {
+          name.appendChild(document.createTextNode(' '));
+          name.appendChild(
+            el('a', {
+              className: 'aegis-link',
+              href: config.productsUrl + '/' + encodeURIComponent(line.slug) + '?review_order=' + encodeURIComponent(id) + '&token=' + encodeURIComponent(token) + '#reviews',
+              text: msg('write_review'),
+            })
+          );
+        }
+        lines.appendChild(el('div', { className: 'aegis-sum-row' }, [name, el('span', { text: formatMoney(line.line_total, order.currency) })]));
       });
       order.adjustments.forEach(function (adjustment) {
         lines.appendChild(el('div', { className: 'aegis-sum-row' }, [el('span', { text: adjustment.label }), el('span', { text: formatMoney(adjustment.amount, order.currency) })]));
