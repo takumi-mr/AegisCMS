@@ -29,8 +29,3 @@ fields:
   - name: buy_url
     type: string
     nullable: true
-  - name: category_id
-    type: relation
-    target: category.id
-    nullable: true
-    index: true

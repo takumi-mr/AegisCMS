@@ -124,6 +124,11 @@
           },
           {
             "properties": {
+              "category_id": {
+                "description": "Foreign key relation to category.id",
+                "nullable": true,
+                "type": "string"
+              },
               "color": {
                 "nullable": true,
                 "type": "string"
@@ -322,6 +327,11 @@
           },
           {
             "properties": {
+              "category_id": {
+                "description": "Foreign key relation to category.id",
+                "nullable": true,
+                "type": "string"
+              },
               "custom_meta": {
                 "additionalProperties": true,
                 "type": "object"

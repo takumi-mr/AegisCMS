@@ -66,7 +66,35 @@ impl RelationTarget {
     }
 }
 
+/// 全コンテンツ型が持つ組み込みのカテゴリ参照フィールド名
+pub const CATEGORY_FIELD: &str = "category_id";
+
+impl FieldDefinition {
+    /// 組み込みの `category_id`（カテゴリへのリレーション。未選択を許し、一覧の絞り込み用に索引を持つ）
+    pub fn builtin_category() -> Self {
+        Self {
+            name: CATEGORY_FIELD.to_string(),
+            field_type: FieldType::Relation,
+            required: false,
+            nullable: true,
+            unique: false,
+            index: true,
+            max_length: None,
+            target: Some("category.id".to_string()),
+            indexed_paths: Vec::new(),
+        }
+    }
+}
+
 impl SchemaDefinition {
+    /// 組み込みフィールド（`category_id`）を先頭に差し込む。
+    /// YAML に同名の定義があっても組み込みの定義で置き換える（型ごとに食い違わせない）
+    pub fn with_builtin_fields(mut self) -> Self {
+        self.fields.retain(|f| f.name != CATEGORY_FIELD);
+        self.fields.insert(0, FieldDefinition::builtin_category());
+        self
+    }
+
     pub fn table_name(&self) -> String {
         format!("content_{}", self.content_type.replace('-', "_"))
     }
