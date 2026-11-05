@@ -1734,6 +1734,8 @@ async fn test_multi_currency_quote_and_checkout_flow() {
     let (status, cfg) = shop.call("GET", "/api/v1/shop/config", None, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(cfg["currency"], "jpy");
+    assert_eq!(cfg["customers_enabled"], false);
+    assert_eq!(cfg["reviews_enabled"], false);
     assert_eq!(cfg["supported_currencies"], json!(["jpy", "usd", "eur"]));
     assert_eq!(cfg["currency_rates"]["usd"], 0.0067);
 

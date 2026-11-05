@@ -171,6 +171,9 @@ pub async fn shop_config(State(state): State<Arc<AppState>>) -> Json<serde_json:
     let commerce = &state.config.commerce;
     Json(json!({
         "enabled": state.commerce.is_some(),
+        // 管理画面の「顧客」「レビュー」の画面を出すかどうか
+        "customers_enabled": state.customers.is_some(),
+        "reviews_enabled": state.reviews.is_some(),
         "currency": commerce.currency,
         "supported_currencies": commerce.effective_supported_currencies(),
         "currency_rates": commerce.currency_rates,

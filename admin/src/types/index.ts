@@ -709,8 +709,47 @@ export interface UpdateSeoSettingsPayload {
 }
 
 /** Public shop settings (`GET /api/v1/shop/config`) */
+/** A shop customer account (`[commerce.customers]`); never carries the password hash */
+export type CustomerStatus = 'active' | 'suspended' | 'unverified';
+
+export interface AdminCustomer {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  status: CustomerStatus;
+  shipping_address: ShippingAddress | null;
+  created_at: string;
+  updated_at: string;
+  last_login_at: string | null;
+}
+
+export interface CustomerPage {
+  customers: AdminCustomer[];
+  total: number;
+}
+
+/** An order as the customer detail lists it (a summary of the stored order) */
+export interface CustomerOrderSummary {
+  id: string;
+  number: string;
+  status: OrderStatus;
+  currency: string;
+  total: number;
+  created_at: string;
+}
+
+export interface CustomerDetail {
+  customer: AdminCustomer;
+  orders: CustomerOrderSummary[];
+}
+
 export interface ShopConfig {
   enabled: boolean;
+  /** `[commerce.customers].enabled`: the Customers screen is shown */
+  customers_enabled?: boolean;
+  /** `[commerce.reviews].enabled`: the Reviews screen is shown */
+  reviews_enabled?: boolean;
   /** ISO 4217 code in lower case; amounts are in its minor unit */
   currency: string;
   /** Content type of products (`product`) */

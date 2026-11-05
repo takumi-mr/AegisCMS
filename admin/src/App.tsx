@@ -33,6 +33,7 @@ import { ProductManager } from './components/ProductManager';
 import { CommentManager } from './components/CommentManager';
 import { ContactInbox } from './components/ContactInbox';
 import { ForumManager } from './components/ForumManager';
+import { CustomerManager } from './components/CustomerManager';
 import { OrderManager } from './components/OrderManager';
 import { ScheduleCalendar } from './components/ScheduleCalendar';
 import { ProfileModal } from './components/ProfileModal';
@@ -146,6 +147,8 @@ export const App: React.FC = () => {
   const [view, setView] = useState<AppView>(takeInitialView);
   // Hidden until the server says the shop is on ([commerce].enabled)
   const [shopEnabled, setShopEnabled] = useState<boolean>(false);
+  // ...and the customer accounts ([commerce.customers].enabled) for the Customers screen
+  const [customersEnabled, setCustomersEnabled] = useState<boolean>(false);
   /** Custom blocks of the enabled plugins, offered in the block toolbar */
   const [blockDefinitions, setBlockDefinitions] = useState<PluginBlockDefinition[]>([]);
   // Hidden until the server says comments are on ([comments].enabled)
@@ -411,7 +414,9 @@ export const App: React.FC = () => {
     aegisApi
       .getShopConfig()
       .then((config) => {
-        if (!cancelled) setShopEnabled(config.enabled);
+        if (cancelled) return;
+        setShopEnabled(config.enabled);
+        setCustomersEnabled(config.enabled && config.customers_enabled === true);
       })
       .catch((err) => console.warn('Could not load the shop settings:', err));
     return () => {
@@ -949,6 +954,7 @@ export const App: React.FC = () => {
         ? 'submit'
         : null;
   const showShop = editable && shopEnabled;
+  const showCustomers = editable && customersEnabled;
   const showComments = editable && commentsEnabled;
   const showForum = editable && forumEnabled;
   const showContact = editable && contactForms.length > 0;
@@ -967,6 +973,7 @@ export const App: React.FC = () => {
         canSave={mayChange}
         canPublish={editable && Boolean(selectedId) && status === 'published'}
         showShop={showShop}
+        showCustomers={showCustomers}
         showComments={showComments}
         showForum={showForum}
         showContact={showContact}
@@ -986,6 +993,8 @@ export const App: React.FC = () => {
         <ProductManager categories={categories} tagsEnabled={tagsEnabled} onShowToast={showToast} />
       ) : view === 'orders' && showShop ? (
         <OrderManager onShowToast={showToast} />
+      ) : view === 'customers' && showCustomers ? (
+        <CustomerManager onShowToast={showToast} />
       ) : view === 'comments' && showComments ? (
         <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
       ) : view === 'forum' && showForum ? (
