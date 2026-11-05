@@ -212,6 +212,8 @@ task docker:dbs:down
 ```
 
 - **自動スキップ機能**: コンテナが起動していない通常開発時（`task test` や `task check`）は、TCP ポートプローブ（タイムアウト 150ms）により実機テストが即座にスキップされ、全体のテスト実行速度を損ないません。
+- **CI では実行しない**: CI は PostgreSQL / MySQL を起動しないので、実機テストはすべてスキップされる。実機での確認はローカルの品質チェック（`task docker:dbs:up` のうえで `task test`）で行う。
+- **テストは共有の DB を直列に使う**: 実機テストは同じ `aegis_test` のテーブルを作り直すので、同じ DB を使うテストが並列に動くと互いのテーブルを壊す。aegis-server のテストは `test_support::POSTGRES_TEST_LOCK` / `MYSQL_TEST_LOCK` を握って 1 つずつ動かす。実機の DB を使うテストを足すときは、同じロックを取る。
 - **検証項目**:
   - `_aegis_orders` テーブルおよびインデックスの初期化
   - 注文作成時のアトミックな在庫減算（`stock >= quantity`）
