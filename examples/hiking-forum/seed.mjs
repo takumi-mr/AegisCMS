@@ -255,13 +255,34 @@ async function login(username) {
   tokens[username] = (await res.json()).id;
 }
 
+// カスタムフィールドは `fields` に入れる（標準の項目はトップレベル）
+const STANDARD_KEYS = new Set([
+  'title',
+  'slug',
+  'status',
+  'blocks',
+  'author_id',
+  'published_at',
+  'unpublish_at',
+  'publish',
+  'review_note',
+]);
+function toWriteBody(record) {
+  const body = { fields: {} };
+  for (const [key, value] of Object.entries(record)) {
+    if (STANDARD_KEYS.has(key)) body[key] = value;
+    else body.fields[key] = value;
+  }
+  return body;
+}
+
 async function createContent(type, record) {
   const path = `/api/v1/contents/${type}/${encodeURIComponent(record.slug)}`;
   if ((await api('GET', path, undefined, 'owner')).status === 200) {
     console.log(`  skip   ${type}/${record.slug}（作成済み）`);
     return;
   }
-  const { status, data } = await api('POST', `/api/v1/contents/${type}`, record, 'owner');
+  const { status, data } = await api('POST', `/api/v1/contents/${type}`, toWriteBody(record), 'owner');
   if (status !== 201 && status !== 200) {
     throw new Error(`${type}/${record.slug} を作成できませんでした (${status}): ${JSON.stringify(data)}`);
   }

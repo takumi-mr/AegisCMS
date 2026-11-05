@@ -17,6 +17,14 @@ export interface BlockNode {
 
 export type ContentStatus = 'draft' | 'pending' | 'scheduled' | 'published' | 'archived';
 
+/** Published content a relation field points to (`relations` of a response) */
+export interface ResolvedRelation {
+  id: string;
+  content_type: string;
+  title: string;
+  slug: string;
+}
+
 export interface BaseContentItem {
   id: string;
   content_type: string;
@@ -30,6 +38,10 @@ export interface BaseContentItem {
   unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
+  comments_open?: boolean;
+  /** The schema's custom fields (a type's own interface has the exact shape) */
+  fields?: Record<string, any>;
+  relations?: Record<string, ResolvedRelation>;
 }
 
 // ============================================================================
@@ -41,6 +53,12 @@ export interface BaseContentItem {
  * 技術ブログ記事やドキュメント向けのスキーマ
  * Schema: `article`
  */
+export interface ArticleFields {
+  category_id?: string | null;
+  excerpt?: string;
+  custom_meta?: Record<string, any>;
+}
+
 export interface ArticleContent {
   id: string;
   content_type: 'article';
@@ -54,9 +72,9 @@ export interface ArticleContent {
   unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
-  category_id?: string | null;
-  excerpt?: string;
-  custom_meta?: Record<string, any>;
+  comments_open?: boolean;
+  fields?: ArticleFields;
+  relations?: Record<string, ResolvedRelation>;
 }
 
 export interface CreateArticlePayload {
@@ -67,9 +85,9 @@ export interface CreateArticlePayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  category_id?: string | null;
-  excerpt?: string;
-  custom_meta?: Record<string, any>;
+  publish?: boolean;
+  review_note?: string;
+  fields?: Partial<ArticleFields>;
 }
 
 export interface UpdateArticlePayload {
@@ -80,9 +98,9 @@ export interface UpdateArticlePayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  category_id?: string | null;
-  excerpt?: string;
-  custom_meta?: Record<string, any>;
+  publish?: boolean;
+  review_note?: string;
+  fields?: Partial<ArticleFields>;
 }
 
 /**
@@ -90,6 +108,12 @@ export interface UpdateArticlePayload {
  * 記事やコンテンツを分類するためのカテゴリ定義
  * Schema: `category`
  */
+export interface CategoryFields {
+  category_id?: string | null;
+  description?: string | null;
+  color?: string | null;
+}
+
 export interface CategoryContent {
   id: string;
   content_type: 'category';
@@ -103,9 +127,9 @@ export interface CategoryContent {
   unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
-  category_id?: string | null;
-  description?: string | null;
-  color?: string | null;
+  comments_open?: boolean;
+  fields?: CategoryFields;
+  relations?: Record<string, ResolvedRelation>;
 }
 
 export interface CreateCategoryPayload {
@@ -116,9 +140,9 @@ export interface CreateCategoryPayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  category_id?: string | null;
-  description?: string | null;
-  color?: string | null;
+  publish?: boolean;
+  review_note?: string;
+  fields?: Partial<CategoryFields>;
 }
 
 export interface UpdateCategoryPayload {
@@ -129,9 +153,9 @@ export interface UpdateCategoryPayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  category_id?: string | null;
-  description?: string | null;
-  color?: string | null;
+  publish?: boolean;
+  review_note?: string;
+  fields?: Partial<CategoryFields>;
 }
 
 /**
@@ -139,6 +163,12 @@ export interface UpdateCategoryPayload {
  * 会社概要、利用規約、プライバシーポリシー等の静的・固定ページ
  * Schema: `page`
  */
+export interface PageFields {
+  category_id?: string | null;
+  layout?: string | null;
+  custom_meta?: Record<string, any>;
+}
+
 export interface PageContent {
   id: string;
   content_type: 'page';
@@ -152,9 +182,9 @@ export interface PageContent {
   unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
-  category_id?: string | null;
-  layout?: string | null;
-  custom_meta?: Record<string, any>;
+  comments_open?: boolean;
+  fields?: PageFields;
+  relations?: Record<string, ResolvedRelation>;
 }
 
 export interface CreatePagePayload {
@@ -165,9 +195,9 @@ export interface CreatePagePayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  category_id?: string | null;
-  layout?: string | null;
-  custom_meta?: Record<string, any>;
+  publish?: boolean;
+  review_note?: string;
+  fields?: Partial<PageFields>;
 }
 
 export interface UpdatePagePayload {
@@ -178,9 +208,9 @@ export interface UpdatePagePayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  category_id?: string | null;
-  layout?: string | null;
-  custom_meta?: Record<string, any>;
+  publish?: boolean;
+  review_note?: string;
+  fields?: Partial<PageFields>;
 }
 
 /**
@@ -188,6 +218,17 @@ export interface UpdatePagePayload {
  * EC の商品カタログ。価格・在庫は [commerce] の注文処理で使う（docs/commerce.md）
  * Schema: `product`
  */
+export interface ProductFields {
+  category_id?: string | null;
+  price: number;
+  compare_at_price?: number | null;
+  stock?: number | null;
+  sku?: string | null;
+  image_url?: string | null;
+  excerpt?: string | null;
+  buy_url?: string | null;
+}
+
 export interface ProductContent {
   id: string;
   content_type: 'product';
@@ -201,14 +242,9 @@ export interface ProductContent {
   unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
-  category_id?: string | null;
-  price: number;
-  compare_at_price?: number | null;
-  stock?: number | null;
-  sku?: string | null;
-  image_url?: string | null;
-  excerpt?: string | null;
-  buy_url?: string | null;
+  comments_open?: boolean;
+  fields?: ProductFields;
+  relations?: Record<string, ResolvedRelation>;
 }
 
 export interface CreateProductPayload {
@@ -219,14 +255,9 @@ export interface CreateProductPayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  category_id?: string | null;
-  price?: number;
-  compare_at_price?: number | null;
-  stock?: number | null;
-  sku?: string | null;
-  image_url?: string | null;
-  excerpt?: string | null;
-  buy_url?: string | null;
+  publish?: boolean;
+  review_note?: string;
+  fields?: Partial<ProductFields>;
 }
 
 export interface UpdateProductPayload {
@@ -237,14 +268,9 @@ export interface UpdateProductPayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  category_id?: string | null;
-  price?: number;
-  compare_at_price?: number | null;
-  stock?: number | null;
-  sku?: string | null;
-  image_url?: string | null;
-  excerpt?: string | null;
-  buy_url?: string | null;
+  publish?: boolean;
+  review_note?: string;
+  fields?: Partial<ProductFields>;
 }
 
 // ============================================================================

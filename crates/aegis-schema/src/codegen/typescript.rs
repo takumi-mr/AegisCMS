@@ -34,6 +34,16 @@ impl TypeScriptGenerator {
             "export type ContentStatus = 'draft' | 'pending' | 'scheduled' | 'published' | 'archived';\n\n",
         );
 
+        out.push_str(
+            "/** Published content a relation field points to (`relations` of a response) */\n",
+        );
+        out.push_str("export interface ResolvedRelation {\n");
+        out.push_str("  id: string;\n");
+        out.push_str("  content_type: string;\n");
+        out.push_str("  title: string;\n");
+        out.push_str("  slug: string;\n");
+        out.push_str("}\n\n");
+
         out.push_str("export interface BaseContentItem {\n");
         out.push_str("  id: string;\n");
         out.push_str("  content_type: string;\n");
@@ -47,6 +57,12 @@ impl TypeScriptGenerator {
         out.push_str("  unpublish_at?: string | null;\n");
         out.push_str("  created_at: string;\n");
         out.push_str("  updated_at: string;\n");
+        out.push_str("  comments_open?: boolean;\n");
+        out.push_str(
+            "  /** The schema's custom fields (a type's own interface has the exact shape) */\n",
+        );
+        out.push_str("  fields?: Record<string, any>;\n");
+        out.push_str("  relations?: Record<string, ResolvedRelation>;\n");
         out.push_str("}\n\n");
 
         // 2. Schema-specific Content Types
@@ -70,6 +86,16 @@ impl TypeScriptGenerator {
             out.push_str(&format!(" * Schema: `{}`\n", schema.content_type));
             out.push_str(" */\n");
 
+            // Custom fields (what `fields` holds in a response and in a write request)
+            out.push_str(&format!("export interface {}Fields {{\n", pascal));
+            for field in &schema.fields {
+                if crate::definition::is_standard_column(&field.name) {
+                    continue;
+                }
+                out.push_str(&Self::format_ts_property(field));
+            }
+            out.push_str("}\n\n");
+
             // Content Interface
             out.push_str(&format!("export interface {}Content {{\n", pascal));
             out.push_str("  id: string;\n");
@@ -84,14 +110,9 @@ impl TypeScriptGenerator {
             out.push_str("  unpublish_at?: string | null;\n");
             out.push_str("  created_at: string;\n");
             out.push_str("  updated_at: string;\n");
-
-            // Emit schema-specific fields (skip system standard fields)
-            for field in &schema.fields {
-                if crate::definition::is_standard_column(&field.name) {
-                    continue;
-                }
-                out.push_str(&Self::format_ts_property(field, false));
-            }
+            out.push_str("  comments_open?: boolean;\n");
+            out.push_str(&format!("  fields?: {}Fields;\n", pascal));
+            out.push_str("  relations?: Record<string, ResolvedRelation>;\n");
             out.push_str("}\n\n");
 
             // Create Payload Interface
@@ -103,16 +124,12 @@ impl TypeScriptGenerator {
             out.push_str("  author_id?: string | null;\n");
             out.push_str("  published_at?: string | null;\n");
             out.push_str("  unpublish_at?: string | null;\n");
-
-            for field in &schema.fields {
-                if crate::definition::is_standard_column(&field.name) {
-                    continue;
-                }
-                out.push_str(&Self::format_ts_property(field, true));
-            }
+            out.push_str("  publish?: boolean;\n");
+            out.push_str("  review_note?: string;\n");
+            out.push_str(&format!("  fields?: Partial<{}Fields>;\n", pascal));
             out.push_str("}\n\n");
 
-            // Update Payload Interface (all schema fields optional)
+            // Update Payload Interface (every part optional)
             out.push_str(&format!("export interface Update{}Payload {{\n", pascal));
             out.push_str("  title?: string;\n");
             out.push_str("  slug?: string;\n");
@@ -121,13 +138,9 @@ impl TypeScriptGenerator {
             out.push_str("  author_id?: string | null;\n");
             out.push_str("  published_at?: string | null;\n");
             out.push_str("  unpublish_at?: string | null;\n");
-
-            for field in &schema.fields {
-                if crate::definition::is_standard_column(&field.name) {
-                    continue;
-                }
-                out.push_str(&Self::format_ts_optional_property(field));
-            }
+            out.push_str("  publish?: boolean;\n");
+            out.push_str("  review_note?: string;\n");
+            out.push_str(&format!("  fields?: Partial<{}Fields>;\n", pascal));
             out.push_str("}\n\n");
         }
 
@@ -199,19 +212,14 @@ impl TypeScriptGenerator {
         }
     }
 
-    fn format_ts_property(field: &FieldDefinition, is_create_payload: bool) -> String {
+    /// A custom field as a property of the type's `Fields` interface
+    fn format_ts_property(field: &FieldDefinition) -> String {
         let ts_type = Self::field_type_to_ts(&field.field_type);
-        let optional = !field.required || field.nullable || is_create_payload;
+        let optional = !field.required || field.nullable;
         let opt_mark = if optional { "?" } else { "" };
         let null_mark = if field.nullable { " | null" } else { "" };
 
         format!("  {}{}: {}{};\n", field.name, opt_mark, ts_type, null_mark)
-    }
-
-    fn format_ts_optional_property(field: &FieldDefinition) -> String {
-        let ts_type = Self::field_type_to_ts(&field.field_type);
-        let null_mark = if field.nullable { " | null" } else { "" };
-        format!("  {}?: {}{};\n", field.name, ts_type, null_mark)
     }
 }
 
@@ -275,5 +283,22 @@ mod tests {
         assert!(ts.contains("export type ContentType = 'article';"));
         assert!(ts.contains("excerpt?: string | null;"));
         assert!(ts.contains("custom_meta?: Record<string, any>;"));
+        // カスタムフィールドは `fields` の中（応答も書き込みも）。トップレベルには出さない
+        assert!(ts.contains("export interface ArticleFields {"));
+        assert!(ts.contains("  fields?: ArticleFields;\n"));
+        assert!(ts.contains("  fields?: Partial<ArticleFields>;\n"));
+        assert!(ts.contains("export interface ResolvedRelation {"));
+        let content = ts
+            .split("export interface ArticleContent {")
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .unwrap();
+        assert!(!content.contains("excerpt"), "{content}");
+        let payload = ts
+            .split("export interface CreateArticlePayload {")
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .unwrap();
+        assert!(!payload.contains("excerpt"), "{payload}");
     }
 }

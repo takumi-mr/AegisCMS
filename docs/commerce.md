@@ -66,7 +66,7 @@ Admin Studio の **Products** タブ（`editor` 以上）で作成・編集・�
 
 - 注文できるのは `published` の商品だけです。
 - 商品を削除しても、過去の注文には注文時の商品名・単価が残ります。
-- API では `POST /api/v1/contents/product`（作成）、`PUT` / `DELETE /api/v1/contents/product/{id または slug}`（更新・削除）です（[コンテンツ API](authentication.md#ロールと-api-の権限)）。`PUT` は全体の置き換えで、省略したフィールドは空になります（`stock` を省略すると在庫を数えない商品になる）。
+- API では `POST /api/v1/contents/product`（作成）、`PUT` / `DELETE /api/v1/contents/product/{id または slug}`（更新・削除）です（[コンテンツ API](authentication.md#ロールと-api-の権限)）。価格や在庫などの商品のフィールドは `fields` に入れます（`{"title": "...", "slug": "...", "fields": {"price": 1780, "stock": 24}}`）。`PUT` は全体の置き換えで、省略したフィールドは空になります（`stock` を省略すると在庫を数えない商品になる）。
 - 注文で在庫は随時減るため、在庫を変えずに商品を保存するときは最新の `stock` を送ってください。Admin Studio は在庫の欄を編集していなければ、保存の直前に最新の在庫を読み直して送ります。
 
 ### 2.1 バリエーション（サイズ・色など）

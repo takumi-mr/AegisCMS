@@ -314,13 +314,34 @@ async function exists(type, slug) {
   return status === 200;
 }
 
+// カスタムフィールドは `fields` に入れる（標準の項目はトップレベル）
+const STANDARD_KEYS = new Set([
+  'title',
+  'slug',
+  'status',
+  'blocks',
+  'author_id',
+  'published_at',
+  'unpublish_at',
+  'publish',
+  'review_note',
+]);
+function toWriteBody(record) {
+  const body = { fields: {} };
+  for (const [key, value] of Object.entries(record)) {
+    if (STANDARD_KEYS.has(key)) body[key] = value;
+    else body.fields[key] = value;
+  }
+  return body;
+}
+
 async function create(type, record) {
   if (await exists(type, record.slug)) {
     console.log(`  skip   ${type}/${record.slug}（作成済み）`);
     const { data } = await api('GET', `/api/v1/contents/${type}/${encodeURIComponent(record.slug)}`);
     return data;
   }
-  const { status, data } = await api('POST', `/api/v1/contents/${type}`, record);
+  const { status, data } = await api('POST', `/api/v1/contents/${type}`, toWriteBody(record));
   if (status !== 201 && status !== 200) {
     throw new Error(`${type}/${record.slug} を作成できませんでした (${status}): ${JSON.stringify(data)}`);
   }

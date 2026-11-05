@@ -341,6 +341,21 @@ impl OpenApiGenerator {
         );
 
         component_schemas.insert(
+            "ResolvedRelation".to_string(),
+            json!({
+                "type": "object",
+                "description": "Content a relation field points to",
+                "properties": {
+                    "id": { "type": "string" },
+                    "content_type": { "type": "string" },
+                    "title": { "type": "string" },
+                    "slug": { "type": "string" }
+                },
+                "required": ["id", "content_type", "title", "slug"]
+            }),
+        );
+
+        component_schemas.insert(
             "BaseContentItem".to_string(),
             json!({
                 "type": "object",
@@ -359,7 +374,14 @@ impl OpenApiGenerator {
                     "published_at": { "type": "string", "format": "date-time", "nullable": true },
                     "unpublish_at": { "type": "string", "format": "date-time", "nullable": true },
                     "created_at": { "type": "string", "format": "date-time" },
-                    "updated_at": { "type": "string", "format": "date-time" }
+                    "updated_at": { "type": "string", "format": "date-time" },
+                    "comments_open": { "type": "boolean", "description": "Whether the content accepts comments (only with comments enabled)" },
+                    "fields": { "type": "object", "description": "The schema's custom fields (a type's own `{Type}Content` has the exact shape)", "additionalProperties": true },
+                    "relations": {
+                        "type": "object",
+                        "description": "Resolved relations by field name",
+                        "additionalProperties": { "$ref": "#/components/schemas/ResolvedRelation" }
+                    }
                 },
                 "required": ["id", "content_type", "title", "slug", "status", "blocks", "rendered_html", "created_at", "updated_at"]
             }),
@@ -383,7 +405,11 @@ impl OpenApiGenerator {
                     "created_at": { "type": "string", "format": "date-time" },
                     "updated_at": { "type": "string", "format": "date-time" },
                     "fields": { "type": "object", "description": "The schema's custom fields", "additionalProperties": true },
-                    "relations": { "type": "object", "description": "Resolved relations by field name", "additionalProperties": true }
+                    "relations": {
+                        "type": "object",
+                        "description": "Resolved relations by field name",
+                        "additionalProperties": { "$ref": "#/components/schemas/ResolvedRelation" }
+                    }
                 },
                 "required": ["id", "content_type", "title", "slug", "status", "excerpt", "created_at", "updated_at"]
             }),
@@ -405,9 +431,15 @@ impl OpenApiGenerator {
                     "published_at": { "type": "string", "format": "date-time", "nullable": true },
                     "unpublish_at": { "type": "string", "format": "date-time", "nullable": true },
                     "publish": { "type": "boolean", "default": false, "description": "Update the public snapshot to the saved working version" },
-                    "review_note": { "type": "string", "maxLength": 2000, "nullable": true, "description": "Why the content is sent for review, approved or returned. Kept in the version history, the audit log and the notification, not on the content" }
+                    "review_note": { "type": "string", "maxLength": 2000, "nullable": true, "description": "Why the content is sent for review, approved or returned. Kept in the version history, the audit log and the notification, not on the content" },
+                    "fields": {
+                        "type": "object",
+                        "description": "The schema's custom fields, e.g. `{\"excerpt\": \"...\"}` (the same shape as `fields` of a response). A field the schema does not have is not saved",
+                        "additionalProperties": true
+                    }
                 },
-                "required": ["title", "slug"]
+                "required": ["title", "slug"],
+                "additionalProperties": false
             }),
         );
 
@@ -430,6 +462,15 @@ impl OpenApiGenerator {
             }
 
             component_schemas.insert(
+                format!("{}Fields", pascal),
+                json!({
+                    "type": "object",
+                    "description": format!("Custom fields of {} (`fields` of a response and of a write request)", schema.label),
+                    "properties": props,
+                    "required": required_fields
+                }),
+            );
+            component_schemas.insert(
                 format!("{}Content", pascal),
                 json!({
                     "type": "object",
@@ -438,8 +479,9 @@ impl OpenApiGenerator {
                         { "$ref": "#/components/schemas/BaseContentItem" },
                         {
                             "type": "object",
-                            "properties": props,
-                            "required": required_fields
+                            "properties": {
+                                "fields": { "$ref": format!("#/components/schemas/{}Fields", pascal) }
+                            }
                         }
                     ]
                 }),
@@ -573,6 +615,15 @@ mod tests {
         }
         assert!(val["components"]["schemas"]["ContentSummary"].is_object());
         assert!(val["components"]["schemas"]["ArticleContent"].is_object());
+        // カスタムフィールドは `fields` の中。書き込みもトップレベルには置けない
+        assert!(val["components"]["schemas"]["ArticleFields"].is_object());
+        assert!(val["components"]["schemas"]["ResolvedRelation"].is_object());
+        let create = &val["components"]["schemas"]["CreateContentPayload"];
+        assert!(create["properties"]["fields"].is_object());
+        assert_eq!(create["additionalProperties"], false);
+        assert!(
+            val["components"]["schemas"]["BaseContentItem"]["properties"]["fields"].is_object()
+        );
         assert!(val["components"]["schemas"]["BlockNode"].is_object());
 
         let json_str = OpenApiGenerator::generate_json(&[]);

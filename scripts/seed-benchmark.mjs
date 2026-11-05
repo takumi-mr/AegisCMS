@@ -165,7 +165,29 @@ async function main() {
   }
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
-  async function create(contentType, body) {
+  // カスタムフィールドは `fields` に入れる（標準の項目はトップレベル）
+  const STANDARD_KEYS = new Set([
+    'title',
+    'slug',
+    'status',
+    'blocks',
+    'author_id',
+    'published_at',
+    'unpublish_at',
+    'publish',
+    'review_note',
+  ]);
+  function toWriteBody(record) {
+    const body = { fields: {} };
+    for (const [key, value] of Object.entries(record)) {
+      if (STANDARD_KEYS.has(key)) body[key] = value;
+      else body.fields[key] = value;
+    }
+    return body;
+  }
+
+  async function create(contentType, record) {
+    const body = toWriteBody(record);
     const res = await fetch(`${opts.url}/api/v1/contents/${contentType}`, {
       method: 'POST',
       headers,

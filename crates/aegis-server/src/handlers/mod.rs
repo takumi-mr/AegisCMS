@@ -112,6 +112,8 @@ pub use users::{
 };
 
 #[cfg(test)]
+mod content_write_tests;
+#[cfg(test)]
 mod customers_tests;
 #[cfg(test)]
 mod forum_tests;

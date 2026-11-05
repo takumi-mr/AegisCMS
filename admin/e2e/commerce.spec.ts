@@ -57,8 +57,7 @@ test.describe('Commerce (Products & Orders)', () => {
           slug: `bulk-${suffix}-${n}`,
           status: n % 2 === 0 ? 'published' : 'draft',
           blocks: [],
-          price: 100 * n,
-          ...(n === PAGE_SIZE + 1 ? { sku } : {}),
+          fields: { price: 100 * n, ...(n === PAGE_SIZE + 1 ? { sku } : {}) },
         },
       });
       expect(created.ok()).toBeTruthy();

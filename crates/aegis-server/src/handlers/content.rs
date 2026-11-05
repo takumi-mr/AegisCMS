@@ -25,6 +25,7 @@ use aegis_db::{
 use aegis_schema::{FieldType, SchemaDefinition};
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateContentRequest {
     pub title: String,
     pub slug: String,
@@ -46,7 +47,10 @@ pub struct CreateContentRequest {
     /// レビューのメモ（依頼・承認・差し戻しの理由）。保存はせず、版の履歴のメモ・監査ログ・通知に使う
     #[serde(default)]
     pub review_note: Option<String>,
-    #[serde(flatten)]
+    /// スキーマのカスタムフィールド（`{"excerpt": "..."}`）。応答の `fields` と同じ形。
+    /// スキーマに無いフィールドは保存しない。トップレベルに書いた未知のキーは 400 にする
+    /// （以前の、カスタムフィールドをトップレベルに書く形を黙って捨てないため）
+    #[serde(default)]
     pub fields: HashMap<String, serde_json::Value>,
 }
 
