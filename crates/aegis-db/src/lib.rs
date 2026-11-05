@@ -1069,21 +1069,8 @@ pub fn custom_columns(schema: &SchemaDefinition) -> Vec<String> {
         .collect()
 }
 
-pub fn is_standard_column(name: &str) -> bool {
-    matches!(
-        name,
-        "id" | "content_type"
-            | "title"
-            | "slug"
-            | "status"
-            | "blocks_json"
-            | "author_id"
-            | "published_at"
-            | "unpublish_at"
-            | "created_at"
-            | "updated_at"
-    )
-}
+/// 全コンテンツ共通の標準カラム・プロパティか（定義は `aegis-schema` の `STANDARD_COLUMNS` が正）
+pub use aegis_schema::is_standard_column;
 
 /// 列型（`SchemaMigration` の型対応）に合わせてバインドするカスタムフィールド値（PostgreSQL / MySQL）
 #[derive(Debug, Clone, PartialEq)]
@@ -1556,6 +1543,24 @@ mod tests {
             "type": serde_json::to_value(field_type).unwrap(),
         }))
         .unwrap()
+    }
+
+    /// 標準カラムの一覧は `aegis-schema` の 1 つだけ。`blocks` / `rendered_html` という名前の
+    /// フィールドは、テーブルの列にも INSERT / UPDATE の列にもならない
+    #[test]
+    fn test_custom_columns_skip_every_standard_name() {
+        let schema: SchemaDefinition = serde_json::from_value(json!({
+            "content_type": "article",
+            "label": "A",
+            "fields": [
+                { "name": "blocks", "type": "text" },
+                { "name": "rendered_html", "type": "text" },
+                { "name": "title", "type": "string" },
+                { "name": "excerpt", "type": "string" }
+            ]
+        }))
+        .unwrap();
+        assert_eq!(custom_columns(&schema), vec!["excerpt".to_string()]);
     }
 
     #[test]

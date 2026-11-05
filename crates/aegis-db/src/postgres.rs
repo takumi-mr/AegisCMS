@@ -239,19 +239,6 @@ impl DatabaseAdapter for PostgresAdapter {
         sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_publications (content_type TEXT NOT NULL, content_id TEXT NOT NULL, revision BIGINT NOT NULL, slug TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, published_at TEXT, unpublish_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, category_id TEXT, sort_at TEXT, PRIMARY KEY(content_type, content_id), UNIQUE(content_type, slug));")
             .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
         self.upgrade_publications().await?;
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS _aegis_migrations (
-                id SERIAL PRIMARY KEY,
-                content_type VARCHAR(255) NOT NULL UNIQUE,
-                migrated_at VARCHAR(64) NOT NULL
-            );
-            "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AegisError::Database(e.to_string()))?;
-
         // 監査ログテーブル
         let audit_table_sql = format!(
             r#"
@@ -656,20 +643,6 @@ impl DatabaseAdapter for PostgresAdapter {
                         ))
                     })?;
             }
-
-            let now = chrono::Utc::now().to_rfc3339();
-            sqlx::query(
-                r#"
-                INSERT INTO _aegis_migrations (content_type, migrated_at)
-                VALUES ($1, $2)
-                ON CONFLICT(content_type) DO UPDATE SET migrated_at = EXCLUDED.migrated_at;
-                "#,
-            )
-            .bind(content_type)
-            .bind(now)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
         }
         Ok(())
     }

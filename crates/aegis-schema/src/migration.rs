@@ -186,15 +186,3 @@ impl SchemaMigration {
         stmts
     }
 }
-
-pub struct SqliteMigration;
-
-impl SqliteMigration {
-    pub fn generate_create_table(schema: &SchemaDefinition) -> (String, Vec<String>) {
-        SchemaMigration::generate_create_table(schema, SqlDialect::Sqlite)
-    }
-
-    pub fn generate_schema_migration_sql(schema: &SchemaDefinition) -> Vec<String> {
-        SchemaMigration::generate_schema_migration_sql(schema, SqlDialect::Sqlite)
-    }
-}

@@ -657,7 +657,7 @@ async fn test_postgres_order_storage_real_db() {
             return;
         }
     };
-    let _ = sqlx::query("DROP TABLE IF EXISTS content_product, content_article, _aegis_orders, _aegis_migrations, _aegis_users, _aegis_user_links, _aegis_settings, _aegis_audit CASCADE;")
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_product, content_article, _aegis_orders, _aegis_users, _aegis_user_links, _aegis_settings, _aegis_audit CASCADE;")
         .execute(adapter.pool())
         .await;
     run_order_and_stock_lifecycle_test(&adapter)
@@ -684,7 +684,7 @@ async fn test_mysql_order_storage_real_db() {
             return;
         }
     };
-    let _ = sqlx::query("DROP TABLE IF EXISTS content_product, content_article, _aegis_orders, _aegis_migrations, _aegis_users, _aegis_user_links, _aegis_settings, _aegis_audit;")
+    let _ = sqlx::query("DROP TABLE IF EXISTS content_product, content_article, _aegis_orders, _aegis_users, _aegis_user_links, _aegis_settings, _aegis_audit;")
         .execute(adapter.pool())
         .await;
     run_order_and_stock_lifecycle_test(&adapter)
