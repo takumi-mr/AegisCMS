@@ -58,7 +58,7 @@ pub struct AegisConfig {
     pub commerce: CommerceConfig,
     /// 会員アカウント（`[members]`。ショップ・掲示板が共通で使う）
     #[serde(default)]
-    pub members: aegis_commerce::MembersConfig,
+    pub members: aegis_members::MembersConfig,
     #[serde(default)]
     pub notifications: NotificationsConfig,
     #[serde(default)]

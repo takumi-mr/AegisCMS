@@ -1,0 +1,28 @@
+[package]
+name = "aegis-members"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Member accounts for AegisCMS: sign-up, login sessions, password reset, email confirmation, suspension and deletion"
+
+[lints]
+workspace = true
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+aegis-db = { path = "../aegis-db" }
+aegis-audit = { path = "../aegis-audit" }
+aegis-auth = { path = "../aegis-auth" }
+chrono.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+uuid.workspace = true
+
+[dev-dependencies]
+aegis-cache = { path = "../aegis-cache" }
+tokio = { workspace = true, features = ["macros", "rt"] }
+toml.workspace = true

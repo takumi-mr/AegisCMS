@@ -77,7 +77,7 @@ async fn site_with(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     let commerce =
         aegis_commerce::CommerceService::new(config.commerce.clone(), state.commerce_deps())
             .unwrap();
-    let members = aegis_commerce::MemberService::from_config(
+    let members = aegis_members::MemberService::from_config(
         &config.members,
         state.db.clone(),
         state.cache.clone(),
@@ -344,7 +344,7 @@ async fn test_account_script_carries_the_texts_of_the_site_language() {
 #[tokio::test]
 async fn test_closed_registration_and_disabled_accounts_hide_the_pages() {
     let closed = site_with(|config| {
-        config.members.registration = aegis_commerce::MemberRegistration::Closed;
+        config.members.registration = aegis_members::MemberRegistration::Closed;
     })
     .await;
     assert_eq!(

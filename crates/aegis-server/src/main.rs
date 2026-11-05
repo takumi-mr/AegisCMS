@@ -1194,7 +1194,7 @@ async fn main() -> anyhow::Result<()> {
             let app_state = {
                 // 確認メールを送れないのに確認を必須にすると、誰もログインできない。起動時に止める
                 config.members.check_mail(app_state.notifier.is_some())?;
-                match aegis_commerce::MemberService::from_config(
+                match aegis_members::MemberService::from_config(
                     &config.members,
                     app_state.db.clone(),
                     app_state.cache.clone(),

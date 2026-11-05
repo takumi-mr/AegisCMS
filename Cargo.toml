@@ -11,6 +11,7 @@ members = [
     "crates/aegis-audit",
     "crates/aegis-auth",
     "crates/aegis-notify",
+    "crates/aegis-members",
     "crates/aegis-commerce",
     "crates/aegis-comments",
     "crates/aegis-tags",

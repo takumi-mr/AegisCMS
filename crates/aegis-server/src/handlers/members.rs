@@ -16,12 +16,12 @@ use crate::audit::ClientIp;
 use crate::auth::authorize::RequireRole;
 use crate::auth::EditorSession;
 use crate::state::AppState;
-use aegis_commerce::{
+use aegis_core::{AegisError, NotificationEvent, Recipient};
+use aegis_members::{
     MemberLoginRequest, MemberRegisterRequest, MemberResponse, MemberService, MemberSessionData,
     MemberUpdateProfileRequest, MemberVerification, EMAIL_NOT_VERIFIED_MESSAGE,
     EMAIL_VERIFICATION_TTL_SECS, MEMBER_TOKEN_PREFIX, PASSWORD_RESET_TTL_SECS,
 };
-use aegis_core::{AegisError, NotificationEvent, Recipient};
 
 type ApiError = (StatusCode, Json<serde_json::Value>);
 
@@ -411,8 +411,18 @@ pub async fn delete_me(
         .get("user-agent")
         .and_then(|h| h.to_str().ok())
         .map(str::to_string);
-    let product_ids = service
-        .delete_account(&session.member_id, &req.password, client_ip, user_agent)
+    // 1. 本人の確認（違えば、何も変えない）
+    service
+        .confirm_password(&session.member_id, &req.password)
+        .await
+        .map_err(map_aegis_error)?;
+    // 2. 機能ごとのデータの後始末（注文の紐づきを外す・レビューを匿名にする）。会員の行を消す前に行う
+    let product_ids = aegis_commerce::member_data::release_member(&*state.db, &session.member_id)
+        .await
+        .map_err(map_aegis_error)?;
+    // 3. 会員の行とセッションを消す
+    service
+        .delete_account(&session.member_id, client_ip, user_agent)
         .await
         .map_err(map_aegis_error)?;
 
@@ -533,9 +543,7 @@ pub async fn list_my_orders(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let session = resolve_member_session(&state, &headers).await?;
-    let service = members(&state)?;
-    let orders = service
-        .list_orders(&session.member_id)
+    let orders = aegis_commerce::member_data::list_member_orders(&*state.db, &session.member_id)
         .await
         .map_err(map_aegis_error)?;
 
@@ -567,11 +575,10 @@ pub async fn get_my_order(
     Path(order_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let session = resolve_member_session(&state, &headers).await?;
-    let service = members(&state)?;
-    let order = service
-        .get_order(&session.member_id, &order_id)
-        .await
-        .map_err(map_aegis_error)?;
+    let order =
+        aegis_commerce::member_data::get_member_order(&*state.db, &session.member_id, &order_id)
+            .await
+            .map_err(map_aegis_error)?;
 
     let lines: Vec<serde_json::Value> = serde_json::from_str(&order.lines_json).unwrap_or_default();
     let adjustments: Vec<serde_json::Value> =
@@ -666,8 +673,7 @@ pub async fn admin_get_member(
         .await
         .map_err(map_aegis_error)?;
 
-    let orders = service
-        .list_orders(&member_id)
+    let orders = aegis_commerce::member_data::list_member_orders(&*state.db, &member_id)
         .await
         .map_err(map_aegis_error)?;
 

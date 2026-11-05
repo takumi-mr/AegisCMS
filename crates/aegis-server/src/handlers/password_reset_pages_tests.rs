@@ -72,7 +72,7 @@ async fn site_with(with_mail: bool, configure: impl FnOnce(&mut AegisConfig)) ->
     let commerce =
         aegis_commerce::CommerceService::new(config.commerce.clone(), state.commerce_deps())
             .unwrap();
-    let members = aegis_commerce::MemberService::from_config(
+    let members = aegis_members::MemberService::from_config(
         &config.members,
         state.db.clone(),
         state.cache.clone(),

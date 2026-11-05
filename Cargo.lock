@@ -172,6 +172,7 @@ dependencies = [
  "aegis-comments",
  "aegis-core",
  "aegis-db",
+ "aegis-members",
  "aegis-runtime",
  "aegis-schema",
  "async-trait",
@@ -283,6 +284,25 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "aegis-members"
+version = "0.3.0"
+dependencies = [
+ "aegis-audit",
+ "aegis-auth",
+ "aegis-cache",
+ "aegis-core",
+ "aegis-db",
+ "chrono",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "toml",
+ "uuid",
 ]
 
 [[package]]
@@ -562,6 +582,7 @@ dependencies = [
  "aegis-db",
  "aegis-forum",
  "aegis-headless",
+ "aegis-members",
  "aegis-newsletter",
  "aegis-notify",
  "aegis-plugin-dev",
