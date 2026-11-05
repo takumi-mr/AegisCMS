@@ -223,6 +223,12 @@ const MESSAGES: &[(&str, &str, &str)] = &[
         "注文を読み込んでいます…",
     ),
     // --- 顧客アカウント ---
+    ("js.acct_delete_title", "Delete your account", "退会する"),
+    ("js.acct_delete_intro", "Your account and your sign-in will be deleted. Your past orders stay in the shop as records, without a link to this account, and your reviews stay without your name. This cannot be undone.", "アカウントとログインの情報を削除します。過去の注文は、このアカウントとの紐づきを外して、ショップの記録として残ります。投稿したレビューは、お名前を消して残ります。元に戻すことはできません。"),
+    ("js.acct_delete_button", "Delete my account", "退会する"),
+    ("js.acct_delete_confirm", "Delete your account? This cannot be undone.", "退会しますか？ この操作は元に戻せません。"),
+    ("js.acct_delete_password", "Password (to confirm it is you)", "パスワード（本人の確認）"),
+    ("js.rev_deleted_author", "Former customer", "退会したお客様"),
     ("js.acct_verify_sent", "We have sent you an email. Open the link in it to confirm your address; then you can log in. The link is valid for 48 hours.", "確認のメールをお送りしました。メールのリンクを開いてアドレスを確認すると、ログインできます。リンクの有効期限は 48 時間です。"),
     ("js.acct_not_verified", "Please confirm your email address first. We sent you an email with a link.", "先にメールアドレスの確認が必要です。リンクを書いたメールをお送りしています。"),
     ("js.acct_resend", "Send the confirmation email again", "確認メールを送り直す"),

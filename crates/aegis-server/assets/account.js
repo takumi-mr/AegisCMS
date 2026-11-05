@@ -460,6 +460,24 @@
     return h('section', {}, [h('h2', {}, [msg('acct_profile')]), panel]);
   }
 
+  // 退会: パスワードで本人を確かめ、確認のダイアログを通ったときだけ送る
+  function deleteSection() {
+    return h('section', {}, [
+      h('h2', {}, [msg('acct_delete_title')]),
+      h('p', { class: 'aegis-muted' }, [msg('acct_delete_intro')]),
+      form(
+        [field(msg('acct_delete_password'), input('password', 'password', { required: true, autocomplete: 'current-password' }))],
+        msg('acct_delete_button'),
+        function (data) {
+          if (!window.confirm(msg('acct_delete_confirm'))) return null;
+          return api('DELETE', '/me', { password: data.password }).then(function () {
+            window.location.href = config.loginUrl;
+          });
+        }
+      ),
+    ]);
+  }
+
   function homeView() {
     show([h('p', { class: 'aegis-muted' }, [msg('acct_loading')])]);
     Promise.all([api('GET', '/me'), api('GET', '/orders'), api('GET', '/reviews')])
@@ -492,6 +510,7 @@
               : h('p', { class: 'aegis-muted' }, [msg('acct_no_reviews')]),
           ]),
           profileSection(customer),
+          deleteSection(),
         ]);
       })
       .catch(function (error) {

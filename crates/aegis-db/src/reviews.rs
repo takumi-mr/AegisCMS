@@ -245,6 +245,9 @@ pub trait ReviewStorage: Send + Sync {
         updated_at: &str,
     ) -> Result<()>;
     async fn delete_reviews(&self, ids: &[String]) -> Result<u64>;
+    /// 顧客のアカウントを消すとき、その顧客のレビューを匿名にする。レビュー（評価・本文・返信）は残し、
+    /// 顧客との紐づき・投稿者名・メールアドレス・IP・User-Agent を消す。匿名にした件数を返す
+    async fn anonymize_customer_reviews(&self, customer_id: &str) -> Result<u64>;
     async fn get_product_review_stats(&self, product_id: &str) -> Result<ReviewAggregateStats>;
 }
 
@@ -500,6 +503,27 @@ macro_rules! impl_review_storage {
                     .await
                     .map_err(db_err)?;
                 Ok(())
+            }
+
+            async fn anonymize_customer_reviews(
+                &self,
+                customer_id: &str,
+            ) -> aegis_core::Result<u64> {
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET customer_id = NULL, author_name = '', author_email = '', \
+                     ip = NULL, user_agent = NULL WHERE customer_id = {};",
+                    $crate::reviews::REVIEW_TABLE,
+                    ph(1)
+                );
+                let res = sqlx::query(&sql)
+                    .bind(customer_id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(|e| {
+                        aegis_core::AegisError::Database(format!("{}: {}", $label, e))
+                    })?;
+                Ok(res.rows_affected())
             }
 
             async fn delete_reviews(&self, ids: &[String]) -> aegis_core::Result<u64> {

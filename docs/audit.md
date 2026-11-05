@@ -89,6 +89,7 @@ purge_interval_secs = 3600
 | `notification.send` | 通知の配信（チャネルごと。一時的な失敗は再試行した後の結果。Admin Studio・CLI のテスト送信を含む） | `success` / `failure` | `notification` / 通知の種類（`order.placed` など） | `channel`, `recipient`（`person` / `staff`。アドレスは残さない）, `subject`, `attempts`, `error`, `order_number` |
 | `customer.password_reset` | 購入者のパスワードの再設定の完了（メールのリンクから。完了すると、その顧客のセッションはすべて終わる） | `success` | `customer` / 顧客 ID | — |
 | `customer.verify` | 購入者のメールアドレスの確認の完了（メールのリンクから。確認が済むとログインできる） | `success` | `customer` / 顧客 ID | — |
+| `customer.delete` | 購入者の退会（自分のアカウントの削除。パスワードで本人を確かめる）。注文は顧客との紐づきを外して、レビューは匿名にして残す | `success` | `customer` / 顧客 ID | —（メールアドレスは記録しない） |
 | `comment.create` | Admin Studio からのコメントへの返信（`POST /api/v1/comments/{id}/replies`。[コメント](comments.md)） | `success` / `failure` | `comment` / 返信のコメント ID | `parent_id`, `content_type`, `content_id`, `error` |
 | `comment.moderate` | コメントの状態の変更（承認・承認待ち・スパム・ゴミ箱。1 件・まとめて） | `success` / `failure` | `comment` / コメント ID（1 件のとき） | `ids`, `status`, `count`（変えた件数）, `error` |
 | `comment.update` | コメントの本文の編集（`PATCH /api/v1/comments/{id}` の `body`） | `success` / `failure` | `comment` / コメント ID | `content_type`, `content_id`, `length`（`from` / `to`。文字数。本文は残さない）, `error` |

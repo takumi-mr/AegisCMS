@@ -9,7 +9,7 @@ use std::env;
 use aegis_core::Result;
 use aegis_db::{
     ContentRecord, DatabaseAdapter, MySqlAdapter, OrderListQuery, OrderRecord, OrderStorage,
-    OrderTransition, OutOfStock, PostgresAdapter, SqliteAdapter, StockReservation,
+    OrderTransition, OutOfStock, PostgresAdapter, ReviewRecord, SqliteAdapter, StockReservation,
 };
 use aegis_schema::SchemaDefinition;
 use serde_json::json;
@@ -600,6 +600,92 @@ where
         .await?;
     assert_eq!(deleted_count, 1);
     assert!(adapter.list_product_variants("p-coffee").await?.is_empty());
+
+    // 退会: 顧客の注文は紐づきだけを外して残し、レビューは匿名にして残す（ほかの顧客のものは変えない）
+    let customer_order = |id: &str, customer: &str| OrderRecord {
+        id: id.to_string(),
+        number: format!("ORD-{id}"),
+        status: "paid".to_string(),
+        currency: "JPY".to_string(),
+        subtotal: 100,
+        total: 100,
+        lines_json: "[]".to_string(),
+        adjustments_json: "[]".to_string(),
+        customer_email: format!("{customer}@example.com"),
+        customer_name: customer.to_string(),
+        payment_provider: "manual".to_string(),
+        access_token_hash: format!("hash-{id}"),
+        created_at: "2026-10-25T10:00:00Z".to_string(),
+        updated_at: "2026-10-25T10:00:00Z".to_string(),
+        customer_id: Some(customer.to_string()),
+        ..Default::default()
+    };
+    adapter
+        .create_order(&customer_order("o-gone", "cust-gone"), &[])
+        .await?
+        .unwrap();
+    adapter
+        .create_order(&customer_order("o-stays", "cust-stays"), &[])
+        .await?
+        .unwrap();
+    assert_eq!(adapter.detach_customer_orders("cust-gone").await?, 1);
+    let detached = adapter.get_order("o-gone").await?.expect("the order stays");
+    assert_eq!(detached.customer_id, None);
+    assert_eq!(detached.customer_email, "cust-gone@example.com");
+    assert!(adapter.list_customer_orders("cust-gone").await?.is_empty());
+    let linked = adapter.get_order("o-stays").await?.unwrap();
+    assert_eq!(linked.customer_id.as_deref(), Some("cust-stays"));
+    // 紐づきの無い注文（ゲスト購入）は、空文字ではなく `None` で読める
+    assert_eq!(
+        adapter.get_order("o-gone").await?.unwrap().customer_id,
+        None
+    );
+
+    let review = |id: &str, customer: &str| ReviewRecord {
+        id: id.to_string(),
+        product_id: "p-coffee".to_string(),
+        order_id: format!("order-{id}"),
+        customer_id: Some(customer.to_string()),
+        author_name: customer.to_string(),
+        author_email: format!("{customer}@example.com"),
+        rating: 4,
+        title: "Good".to_string(),
+        body: "Nice".to_string(),
+        status: "approved".to_string(),
+        verified_purchase: 1,
+        reply: Some("Thanks".to_string()),
+        replied_at: None,
+        rejection_reason: None,
+        ip: Some("203.0.113.9".to_string()),
+        user_agent: Some("agent".to_string()),
+        created_at: "2026-10-26T00:00:00Z".to_string(),
+        updated_at: "2026-10-26T00:00:00Z".to_string(),
+    };
+    adapter
+        .delete_reviews(&["r-gone".to_string(), "r-stays".to_string()])
+        .await?;
+    adapter
+        .insert_review(&review("r-gone", "cust-gone"))
+        .await?;
+    adapter
+        .insert_review(&review("r-stays", "cust-stays"))
+        .await?;
+    assert_eq!(adapter.anonymize_customer_reviews("cust-gone").await?, 1);
+    let anonymous = adapter
+        .get_review("r-gone")
+        .await?
+        .expect("the review stays");
+    assert_eq!(anonymous.customer_id, None);
+    assert_eq!(anonymous.author_name, "");
+    assert_eq!(anonymous.author_email, "");
+    assert_eq!(anonymous.ip, None);
+    assert_eq!(anonymous.user_agent, None);
+    assert_eq!(anonymous.body, "Nice");
+    assert_eq!(anonymous.reply.as_deref(), Some("Thanks"));
+    let other = adapter.get_review("r-stays").await?.unwrap();
+    assert_eq!(other.customer_id.as_deref(), Some("cust-stays"));
+    assert_eq!(other.author_name, "cust-stays");
+    assert_eq!(other.ip.as_deref(), Some("203.0.113.9"));
 
     Ok(())
 }

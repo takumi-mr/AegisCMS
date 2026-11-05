@@ -404,6 +404,63 @@ impl CustomerService {
         }))
     }
 
+    /// 退会（自分のアカウントの削除）。パスワードで本人であることを確かめてから、
+    /// 注文は顧客との紐づきだけを外して残し（会計の記録）、レビューは匿名にして残し、顧客の行を消して、
+    /// セッションをすべて終わらせる。戻り値は、レビューを匿名にした商品の ID（公開ページのキャッシュを更新するため）。
+    /// 監査ログにはメールアドレスを残さない。途中で失敗しても、同じ手順をやり直せる
+    pub async fn delete_account(
+        &self,
+        customer_id: &str,
+        password: &str,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> Result<Vec<String>> {
+        let record = self
+            .db
+            .get_customer_by_id(customer_id)
+            .await?
+            .ok_or_else(|| AegisError::NotFound("Customer not found".to_string()))?;
+        if !verify_password(password, &record.password_hash)? {
+            return Err(AegisError::Authentication(
+                "Password does not match".to_string(),
+            ));
+        }
+
+        let mut product_ids: Vec<String> = self
+            .db
+            .list_reviews(&aegis_db::ReviewListQuery {
+                product_id: None,
+                status: None,
+                customer_id: Some(customer_id.to_string()),
+                oldest_first: false,
+                limit: None,
+                offset: 0,
+            })
+            .await?
+            .reviews
+            .into_iter()
+            .map(|review| review.product_id)
+            .collect();
+        product_ids.sort();
+        product_ids.dedup();
+
+        self.db.detach_customer_orders(customer_id).await?;
+        self.db.anonymize_customer_reviews(customer_id).await?;
+        self.db.delete_customer(customer_id).await?;
+        // 消した顧客のセッションを、その場で使えなくする
+        self.revoke_sessions(customer_id).await?;
+
+        let event = AuditEvent::new(AuditAction::CustomerDelete, AuditOutcome::Success)
+            .with_actor(Some(AuditActor {
+                user_id: customer_id.to_string(),
+                role: "customer".to_string(),
+            }))
+            .with_resource("customer", Some(customer_id.to_string()))
+            .with_client(ip, user_agent);
+        self.audit.record(event).await;
+        Ok(product_ids)
+    }
+
     /// 確認メールを送り直す。確認待ちの顧客がいるときだけ情報を返す（いない・確認済み・停止中は `None`。
     /// 応答では区別しない）。同じ IP からは 1 時間に 5 回まで（登録の有無によらず数える）
     pub async fn resend_verification(

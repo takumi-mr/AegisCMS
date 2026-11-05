@@ -154,4 +154,58 @@ test.describe('Customer account pages', () => {
     await page.getByRole('button', { name: 'Log in' }).click();
     await expect(page).toHaveURL(`${SERVER}/account`);
   });
+
+  test('deletes the account after a confirmation, and the same address can sign up again', async ({
+    page,
+  }) => {
+    const email = `leaver-${Date.now()}@example.com`;
+    const password = 'leaver-password-123';
+    const signUp = async () => {
+      await page.goto(`${SERVER}/account/register`);
+      await page.getByLabel('Name').fill('Hanako Leaver');
+      await page.getByLabel('Email').fill(email);
+      await page.getByLabel(/^Password/).fill(password);
+      await page.getByRole('button', { name: 'Sign up' }).click();
+      await expect(page).toHaveURL(`${SERVER}/account`);
+    };
+    await signUp();
+
+    // The dialog is refused first: nothing is deleted
+    const dialogs: string[] = [];
+    let accept = false;
+    page.on('dialog', async (dialog) => {
+      dialogs.push(dialog.message());
+      if (accept) await dialog.accept();
+      else await dialog.dismiss();
+    });
+    await expect(page.getByRole('heading', { name: 'Delete your account' })).toBeVisible();
+    const deleteForm = page.locator('form').filter({ hasText: 'Password (to confirm it is you)' });
+    await deleteForm.getByLabel('Password (to confirm it is you)').fill(password);
+    await deleteForm.getByRole('button', { name: 'Delete my account' }).click();
+    await expect.poll(() => dialogs.length).toBe(1);
+    await page.reload();
+    await expect(page.getByText('Hello, Hanako Leaver')).toBeVisible();
+
+    // A wrong password is refused by the server
+    accept = true;
+    await deleteForm.getByLabel('Password (to confirm it is you)').fill('not-the-password-1');
+    await deleteForm.getByRole('button', { name: 'Delete my account' }).click();
+    await expect(deleteForm.getByRole('alert')).toBeVisible();
+    await page.reload();
+    await expect(page.getByText('Hello, Hanako Leaver')).toBeVisible();
+
+    // The right one, after the confirmation: back at the login page, and the login no longer works
+    await deleteForm.getByLabel('Password (to confirm it is you)').fill(password);
+    await deleteForm.getByRole('button', { name: 'Delete my account' }).click();
+    await expect(page).toHaveURL(`${SERVER}/account/login`);
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Password').fill(password);
+    await page.getByRole('button', { name: 'Log in' }).click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await page.goto(`${SERVER}/account`);
+    await expect(page).toHaveURL(`${SERVER}/account/login`);
+
+    // The address is free again
+    await signUp();
+  });
 });

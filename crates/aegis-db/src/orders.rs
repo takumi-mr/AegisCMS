@@ -46,6 +46,9 @@ pub trait OrderStorage: Send + Sync {
 
     /// 特定の顧客アカウントに紐づく注文一覧（作成日の新しい順）
     async fn list_customer_orders(&self, customer_id: &str) -> Result<Vec<OrderRecord>>;
+    /// 顧客のアカウントを消すとき、その顧客の注文から顧客との紐づき（`customer_id`）だけを外す。
+    /// 注文の記録（明細・金額・注文時のメールアドレス・氏名・配送先）は会計のために残す。外した件数を返す
+    async fn detach_customer_orders(&self, customer_id: &str) -> Result<u64>;
 }
 
 /// 注文テーブル名（コンテンツテーブル `content_*` と衝突しないシステムテーブル）
@@ -437,7 +440,12 @@ macro_rules! order_row_from_sqlx {
                 .try_get("refunds_json")
                 .map_err(get)
                 .unwrap_or_else(|_| "[]".to_string()),
-            customer_id: row.try_get("customer_id").ok(),
+            // NULL は `None`。`String` として読むと空文字になり、ゲスト購入の注文が `Some("")` になってしまう
+            customer_id: row
+                .try_get::<Option<String>, _>("customer_id")
+                .ok()
+                .flatten()
+                .filter(|id| !id.is_empty()),
         }
     }};
 }
@@ -734,6 +742,24 @@ macro_rules! impl_order_storage {
                     orders.push($crate::orders::order_row_from_sqlx!(row));
                 }
                 Ok(orders)
+            }
+
+            async fn detach_customer_orders(
+                &self,
+                customer_id: &str,
+            ) -> aegis_core::Result<u64> {
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET customer_id = NULL WHERE customer_id = {};",
+                    $crate::orders::ORDER_TABLE,
+                    ph(1)
+                );
+                let res = sqlx::query(&sql)
+                    .bind(customer_id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(|e| aegis_core::AegisError::Database(e.to_string()))?;
+                Ok(res.rows_affected())
             }
         }
     };
