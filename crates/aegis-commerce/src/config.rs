@@ -49,6 +49,9 @@ pub struct CustomersConfig {
     /// パスワードの再設定（メールで送るリンク）を使う。`[notifications]` が有効で、
     /// `[commerce].public_url` が設定されているときだけ動く（リンクは Host ヘッダーではなく、この設定から作る）
     pub password_reset: bool,
+    /// 会員登録のあと、メールの確認リンクを開くまでログインさせない。確認メールを送れること
+    /// （`[notifications]` が有効で、`[commerce].public_url` がある）が要る
+    pub require_email_verification: bool,
 }
 
 impl Default for CustomersConfig {
@@ -58,11 +61,35 @@ impl Default for CustomersConfig {
             registration: CustomerRegistration::Open,
             session_days: 30,
             password_reset: true,
+            require_email_verification: false,
         }
     }
 }
 
 impl CustomersConfig {
+    /// メールを使う設定と、メールを送れる状態の食い違いを調べる。確認を必須にしているのに確認メールを
+    /// 送れないと、誰もログインできなくなるので、起動時にエラーにする
+    pub fn check_mail(&self, mail_available: bool, public_url: &str) -> Result<()> {
+        if !(self.enabled && self.require_email_verification) {
+            return Ok(());
+        }
+        if !mail_available {
+            return Err(AegisError::Config(
+                "[commerce.customers].require_email_verification = true needs [notifications] enabled \
+                 (the confirmation email cannot be sent otherwise)"
+                    .to_string(),
+            ));
+        }
+        if public_url.trim().is_empty() {
+            return Err(AegisError::Config(
+                "[commerce.customers].require_email_verification = true needs [commerce].public_url \
+                 (the link in the confirmation email is built from it)"
+                    .to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     /// ログインの有効期間（秒）
     pub fn session_ttl_secs(&self) -> u64 {
         self.session_days.saturating_mul(24 * 3600)
@@ -289,6 +316,30 @@ impl StripeConfig {
 
 #[cfg(test)]
 mod tests {
+    /// 確認を必須にしているのにメールを送れない設定は、起動時に断る（誰もログインできなくなるため）
+    #[test]
+    fn email_verification_needs_mail_and_a_public_url() {
+        let off = CustomersConfig::default();
+        assert!(!off.require_email_verification);
+        off.check_mail(false, "").unwrap();
+
+        let on = CustomersConfig {
+            require_email_verification: true,
+            ..CustomersConfig::default()
+        };
+        on.check_mail(true, "https://shop.example.com").unwrap();
+        assert!(on.check_mail(false, "https://shop.example.com").is_err());
+        assert!(on.check_mail(true, "  ").is_err());
+
+        // 顧客アカウントを使わない設定なら、見ない
+        let unused = CustomersConfig {
+            enabled: false,
+            require_email_verification: true,
+            ..CustomersConfig::default()
+        };
+        unused.check_mail(false, "").unwrap();
+    }
+
     #[test]
     fn customers_section_defaults_parses_and_validates() {
         // 書かなければ従来どおり（有効・登録は開いている・30 日）

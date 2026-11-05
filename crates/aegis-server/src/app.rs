@@ -349,6 +349,11 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/customers/password-reset/complete",
             post(handlers::customer_complete_password_reset),
         )
+        .route("/api/v1/customers/verify", post(handlers::customer_verify_email))
+        .route(
+            "/api/v1/customers/verify/resend",
+            post(handlers::customer_resend_verification),
+        )
         .route(
             "/api/v1/customers/me",
             get(handlers::get_me).put(handlers::update_me),
@@ -518,6 +523,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/account/register", get(handlers::render_account_register))
         .route("/account/forgot", get(handlers::render_account_forgot))
         .route("/account/reset", get(handlers::render_account_reset))
+        .route("/account/verify", get(handlers::render_account_verify))
         .route("/forum", get(handlers::forum::render_forum_index))
         .route(
             "/forum/{category_slug}",

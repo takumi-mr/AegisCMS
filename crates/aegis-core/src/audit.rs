@@ -182,6 +182,8 @@ pub enum AuditAction {
     CustomerUpdate,
     #[serde(rename = "customer.password_reset")]
     CustomerPasswordReset,
+    #[serde(rename = "customer.verify")]
+    CustomerVerify,
     #[serde(rename = "review.create")]
     ReviewCreate,
     #[serde(rename = "review.moderate")]
@@ -211,7 +213,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 76] = [
+    pub const ALL: [AuditAction; 77] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -278,6 +280,7 @@ impl AuditAction {
         Self::CustomerLogin,
         Self::CustomerUpdate,
         Self::CustomerPasswordReset,
+        Self::CustomerVerify,
         Self::ReviewCreate,
         Self::ReviewModerate,
         Self::ReviewReply,
@@ -358,6 +361,7 @@ impl AuditAction {
             Self::CustomerLogin => "customer.login",
             Self::CustomerUpdate => "customer.update",
             Self::CustomerPasswordReset => "customer.password_reset",
+            Self::CustomerVerify => "customer.verify",
             Self::ReviewCreate => "review.create",
             Self::ReviewModerate => "review.moderate",
             Self::ReviewReply => "review.reply",

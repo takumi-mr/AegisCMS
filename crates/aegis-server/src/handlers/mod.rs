@@ -57,7 +57,8 @@ pub use customers::{
     complete_password_reset as customer_complete_password_reset, get_me, get_my_order,
     list_my_orders, list_my_reviews, login as customer_login, logout as customer_logout,
     register as customer_register, request_password_reset as customer_request_password_reset,
-    update_me,
+    resend_verification as customer_resend_verification, update_me,
+    verify_email as customer_verify_email,
 };
 pub use feed::{get_category_feed, get_feed};
 pub use headers::{get_headers_settings, update_headers_settings};
@@ -100,8 +101,8 @@ pub use sso::list_auth_providers;
 pub use storage::{delete_object, list_objects, upload_file};
 pub use storefront::{
     account_script, cart_script, render_account_forgot, render_account_home, render_account_login,
-    render_account_register, render_account_reset, render_cart, render_order, render_product,
-    render_products, reviews_script,
+    render_account_register, render_account_reset, render_account_verify, render_cart,
+    render_order, render_product, render_products, reviews_script,
 };
 pub use tags::{
     create_tag, delete_tag, get_content_tags, list_tags, set_content_tags as set_content_tag_list,
@@ -123,6 +124,8 @@ mod account_pages_tests;
 mod content_write_tests;
 #[cfg(test)]
 mod customers_tests;
+#[cfg(test)]
+mod email_verification_tests;
 #[cfg(test)]
 mod forum_tests;
 #[cfg(test)]

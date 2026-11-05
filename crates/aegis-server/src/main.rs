@@ -1178,6 +1178,11 @@ async fn main() -> anyhow::Result<()> {
                     config.commerce.provider
                 );
 
+                // 確認メールを送れないのに確認を必須にすると、誰もログインできない。起動時に止める
+                config
+                    .commerce
+                    .customers
+                    .check_mail(app_state.notifier.is_some(), &config.commerce.public_url)?;
                 // [commerce.customers]。使わない設定なら顧客の API は 404（ゲスト購入とレビューは使える）
                 let customers = aegis_commerce::CustomerService::from_config(
                     &config.commerce.customers,
