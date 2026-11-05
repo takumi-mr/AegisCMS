@@ -1,4 +1,6 @@
 use crate::definition::SchemaDefinition;
+#[cfg(test)]
+use crate::definition::{FieldDefinition, FieldType};
 use aegis_core::{AegisError, Result};
 use std::path::Path;
 
@@ -6,7 +8,8 @@ pub struct SchemaLoader;
 
 impl SchemaLoader {
     pub fn load_from_str(yaml_content: &str) -> Result<SchemaDefinition> {
-        serde_yaml::from_str(yaml_content)
+        serde_yaml::from_str::<SchemaDefinition>(yaml_content)
+            .map(SchemaDefinition::with_builtin_fields)
             .map_err(|e| AegisError::Schema(format!("Failed to parse schema YAML: {}", e)))
     }
 
@@ -83,5 +86,19 @@ mod tests {
             content_types,
             vec!["article", "category", "page", "product"]
         );
+    }
+
+    #[test]
+    fn category_id_is_added_to_every_schema_and_overrides_yaml() {
+        let plain = SchemaLoader::load_from_str("content_type: page\nlabel: Page\n").unwrap();
+        assert_eq!(plain.fields.len(), 1);
+        assert_eq!(plain.fields[0], FieldDefinition::builtin_category());
+
+        // YAML に書かれていても重複せず、組み込みの定義に揃う
+        let yaml = "content_type: article\nlabel: A\nfields:\n  - name: category_id\n    type: string\n  - name: excerpt\n    type: string\n";
+        let schema = SchemaLoader::load_from_str(yaml).unwrap();
+        let names: Vec<&str> = schema.fields.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["category_id", "excerpt"]);
+        assert_eq!(schema.fields[0].field_type, FieldType::Relation);
     }
 }

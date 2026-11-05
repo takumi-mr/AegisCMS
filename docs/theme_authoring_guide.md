@@ -121,7 +121,7 @@ themes/my-theme/
 
 ### 3.1.2 カテゴリの記事一覧とフィード
 
-- `/category/{slug}` は、記事のスキーマの `target: category.<フィールド>` の関係フィールド（同梱のスキーマでは `category_id`）がそのカテゴリを指す記事を並べます。テーマに `category.html` が無ければ組み込みのテンプレートを使います。カテゴリへのリンクは `{{ base_path }}/category/{{ item.relations.category_id.slug }}` のように書けます。
+- `/category/{slug}` は、記事のスキーマの `target: category.<フィールド>` の関係フィールド（`category_id` は全コンテンツ型に組み込みで、YAML に書かなくても使えます）がそのカテゴリを指す記事を並べます。テーマに `category.html` が無ければ組み込みのテンプレートを使います。カテゴリへのリンクは `{{ base_path }}/category/{{ item.relations.category_id.slug }}` のように書けます。
 - Atom フィードは `/feed.xml`（新しい記事）と `/category/{slug}/feed.xml`（カテゴリの記事）。どちらも最新 20 件で、本文の HTML も含みます。自動検出用の `<link rel="alternate" type="application/atom+xml">` はサーバーが `extra_head` に入れるので、テーマで出力する必要はありません（カテゴリのページにはカテゴリのフィードも入ります）。
 - フィードの URL は Admin Studio の **Settings › SEO** の canonical URL を基準にします。未設定ならリクエストの Host（とリバースプロキシの `X-Forwarded-Proto`）から作ります。
 

@@ -43,7 +43,8 @@ fields:
 
         let schema = SchemaLoader::load_from_str(yaml).expect("YAML parsing should succeed");
         assert_eq!(schema.content_type, "article");
-        assert_eq!(schema.fields.len(), 5);
+        // YAML の 5 つ + 組み込みの category_id
+        assert_eq!(schema.fields.len(), 6);
 
         // 1. SQLite DDL
         let sqls = SqliteMigration::generate_schema_migration_sql(&schema);
@@ -69,10 +70,11 @@ fields:
 
         // リレーション定義の解決確認
         let relations = schema.relation_fields();
-        assert_eq!(relations.len(), 1);
-        assert_eq!(relations[0].0.name, "tech_category");
-        assert_eq!(relations[0].1.content_type, "category");
-        assert_eq!(relations[0].1.field, "id");
+        assert_eq!(relations.len(), 2);
+        assert_eq!(relations[0].0.name, "category_id");
+        assert_eq!(relations[1].0.name, "tech_category");
+        assert_eq!(relations[1].1.content_type, "category");
+        assert_eq!(relations[1].1.field, "id");
     }
 
     #[test]

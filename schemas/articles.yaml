@@ -6,12 +6,6 @@ fields:
     type: string
     required: false
     max_length: 500
-  - name: category_id
-    type: relation
-    target: category.id
-    required: false
-    nullable: true
-    index: true
   - name: custom_meta
     type: jsonb
     indexed_paths:

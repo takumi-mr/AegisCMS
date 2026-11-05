@@ -54,8 +54,8 @@ export interface ArticleContent {
   unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
-  excerpt?: string;
   category_id?: string | null;
+  excerpt?: string;
   custom_meta?: Record<string, any>;
 }
 
@@ -67,8 +67,8 @@ export interface CreateArticlePayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  excerpt?: string;
   category_id?: string | null;
+  excerpt?: string;
   custom_meta?: Record<string, any>;
 }
 
@@ -80,8 +80,8 @@ export interface UpdateArticlePayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
-  excerpt?: string;
   category_id?: string | null;
+  excerpt?: string;
   custom_meta?: Record<string, any>;
 }
 
@@ -103,6 +103,7 @@ export interface CategoryContent {
   unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
+  category_id?: string | null;
   description?: string | null;
   color?: string | null;
 }
@@ -115,6 +116,7 @@ export interface CreateCategoryPayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
+  category_id?: string | null;
   description?: string | null;
   color?: string | null;
 }
@@ -127,6 +129,7 @@ export interface UpdateCategoryPayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
+  category_id?: string | null;
   description?: string | null;
   color?: string | null;
 }
@@ -149,6 +152,7 @@ export interface PageContent {
   unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
+  category_id?: string | null;
   layout?: string | null;
   custom_meta?: Record<string, any>;
 }
@@ -161,6 +165,7 @@ export interface CreatePagePayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
+  category_id?: string | null;
   layout?: string | null;
   custom_meta?: Record<string, any>;
 }
@@ -173,6 +178,7 @@ export interface UpdatePagePayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
+  category_id?: string | null;
   layout?: string | null;
   custom_meta?: Record<string, any>;
 }
@@ -195,6 +201,7 @@ export interface ProductContent {
   unpublish_at?: string | null;
   created_at: string;
   updated_at: string;
+  category_id?: string | null;
   price: number;
   compare_at_price?: number | null;
   stock?: number | null;
@@ -202,7 +209,6 @@ export interface ProductContent {
   image_url?: string | null;
   excerpt?: string | null;
   buy_url?: string | null;
-  category_id?: string | null;
 }
 
 export interface CreateProductPayload {
@@ -213,6 +219,7 @@ export interface CreateProductPayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
+  category_id?: string | null;
   price?: number;
   compare_at_price?: number | null;
   stock?: number | null;
@@ -220,7 +227,6 @@ export interface CreateProductPayload {
   image_url?: string | null;
   excerpt?: string | null;
   buy_url?: string | null;
-  category_id?: string | null;
 }
 
 export interface UpdateProductPayload {
@@ -231,6 +237,7 @@ export interface UpdateProductPayload {
   author_id?: string | null;
   published_at?: string | null;
   unpublish_at?: string | null;
+  category_id?: string | null;
   price?: number;
   compare_at_price?: number | null;
   stock?: number | null;
@@ -238,7 +245,6 @@ export interface UpdateProductPayload {
   image_url?: string | null;
   excerpt?: string | null;
   buy_url?: string | null;
-  category_id?: string | null;
 }
 
 // ============================================================================
