@@ -621,6 +621,8 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
   const [extraDefs, setExtraDefs] = useState<FieldDefinition[]>([]);
   const [extraValues, setExtraValues] = useState<ExtraValues>({});
   const [extraError, setExtraError] = useState<ExtraFieldError | null>(null);
+  // Saving replaces every field, so it waits until the extra fields are loaded (or failed to load)
+  const [extraSettled, setExtraSettled] = useState<boolean>(false);
   useEffect(() => {
     let cancelled = false;
     aegisApi
@@ -634,7 +636,10 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
         setExtraDefs(defs);
         setExtraValues(toExtraValues(defs, product?.fields));
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setExtraSettled(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -1173,7 +1178,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
             </div>
             <div>
               <Button onClick={onClose}>{t('common.cancel')}</Button>
-              <Button type="submit" variant="primary" disabled={isSaving}>
+              <Button type="submit" variant="primary" disabled={isSaving || !extraSettled}>
                 <span>
                   {isSaving
                     ? t('common.saving')

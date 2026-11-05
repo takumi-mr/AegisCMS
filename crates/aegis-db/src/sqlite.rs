@@ -1514,6 +1514,68 @@ mod tests {
         adapter
     }
 
+    /// `category_id` を組み込みにする前に作った `content_page`（`category_id` の列が無い）が、
+    /// 起動時の移行で列と索引を足され、既存の行を残したまま使えること
+    #[tokio::test]
+    async fn test_migration_adds_builtin_category_id_to_existing_table() {
+        let adapter = memory_adapter().await;
+        sqlx::query(
+            "CREATE TABLE content_page (id TEXT PRIMARY KEY, content_type TEXT NOT NULL,              title TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'draft',              blocks_json TEXT NOT NULL DEFAULT '[]', author_id TEXT, published_at TEXT,              unpublish_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, layout TEXT);",
+        )
+        .execute(&adapter.pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO content_page (id, content_type, title, slug, created_at, updated_at, layout)              VALUES ('p1', 'page', 'About', 'about', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'blank');",
+        )
+        .execute(&adapter.pool)
+        .await
+        .unwrap();
+
+        let schema = aegis_schema::SchemaLoader::load_from_str(
+            "content_type: page
+label: Page
+fields:
+  - name: layout
+    type: string
+    nullable: true
+",
+        )
+        .unwrap();
+        let schemas = HashMap::from([("page".to_string(), schema.clone())]);
+        adapter.run_migrations(&schemas).await.unwrap();
+        // 2 回目も同じ結果になる（起動のたびに走る）
+        adapter.run_migrations(&schemas).await.unwrap();
+
+        let columns: Vec<String> = sqlx::query("PRAGMA table_info(content_page);")
+            .fetch_all(&adapter.pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|r| r.get::<String, _>("name"))
+            .collect();
+        assert!(columns.contains(&"category_id".to_string()));
+        let indexes: Vec<String> = sqlx::query("PRAGMA index_list(content_page);")
+            .fetch_all(&adapter.pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|r| r.get::<String, _>("name"))
+            .collect();
+        assert!(indexes.contains(&"idx_content_page_category_id".to_string()));
+
+        let record = adapter
+            .get_content(&schema, "about")
+            .await
+            .unwrap()
+            .expect("the existing row is kept");
+        assert_eq!(record.custom_fields["layout"], "blank");
+        assert!(record
+            .custom_fields
+            .get("category_id")
+            .is_none_or(|v| v.is_null()));
+    }
+
     #[tokio::test]
     async fn test_file_database_uses_wal() {
         let path = std::env::temp_dir().join(format!("aegis-wal-{}.db", std::process::id()));
