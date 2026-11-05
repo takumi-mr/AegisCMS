@@ -114,7 +114,7 @@
 ```
 
 - 一覧の要素は要約（`blocks` なし）、単体は `blocks` を含めます（編集用 API の `view=summary` と同じ分け方）。
-- **返さない標準の項目**: `author_id`（内部のユーザー ID）、`status`、`unpublish_at`、`comments_open`、`rendered_html`（§6 の決めること 2）。
+- **返さない標準の項目**: `author_id`（内部のユーザー ID）、`status`、`unpublish_at`、`comments_open`、`rendered_html`（§6 の 2）。
 - `fields` の値は、編集用 API と同じ形です（jsonb はオブジェクト、リレーションは `relations` に解決済み）。
 
 ---
@@ -196,4 +196,4 @@ cache_max_age = 60                      # Cache-Control の max-age（秒）
 1. スキーマに `public` を足す（`aegis-schema`。codegen を含む）。
 2. クレート `aegis-headless`（ロジックとテスト）。
 3. サーバーに組み込む（feature `headless`・設定・ルート・キャッシュ・OpenAPI）。
-4. ドキュメントを本文に書き換える（この文書の「設計案」を外す）。
+4. ドキュメントを本文に書き換える（この文書の「未実装」の注記を外す）。
