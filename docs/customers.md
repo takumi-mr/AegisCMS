@@ -5,7 +5,7 @@
 ショップ（[EC](commerce.md)）の購入者が作るアカウントです。**CMS の管理アカウント（`_aegis_users`）とは完全に別**で、テーブルも、セッションも、権限も共有しません。購入者は、注文履歴の確認、商品レビューの投稿、配送先の保存に使います。
 
 > [!NOTE]
-> **設計と現状**。API は実装済みです（§1）。購入者向けの画面、パスワードの再設定とメールの確認、退会、管理画面の顧客・レビュー管理は未実装で、この文書が実装の前に範囲と形を決めます。実装のたびに、この文書を実装に合わせて直します。
+> **設計と現状**。API、設定（§3）、購入者向けの画面（ログイン・会員登録・マイページ。§4）は実装済みです。商品ページのレビュー欄、パスワードの再設定とメールの確認、退会、管理画面の顧客・レビュー管理は未実装で、この文書が実装の前に範囲と形を決めます。実装のたびに、この文書を実装に合わせて直します。
 
 ---
 
@@ -79,17 +79,21 @@ session_days = 30                   # ログインの有効期間（1〜365）
 
 ### 4.2 ログインの持ち方
 
-画面（ブラウザ）では、ログインすると **HttpOnly の Cookie** にセッションを持たせます。JavaScript はトークンに触れません（XSS で盗まれにくい）。API のクライアントは、今までどおり `Authorization: Bearer` を使います。顧客の API は、どちらの形でも受け付けます。
+画面（ブラウザ）では、ログインすると **HttpOnly の Cookie** にセッションを持たせます。JavaScript はトークンに触れません（XSS で盗まれにくい）。API のクライアントは、今までどおり `Authorization: Bearer` を使います。顧客の API は、どちらの形でも受け付けます（`Authorization` があればそちらを使う）。ログインの応答の本文には、従来どおりトークンも入ります。
 
-- Cookie: `HttpOnly`、`SameSite=Lax`、HTTPS では `Secure`、有効期間はセッションと同じ。名前は、他の公開用の識別子と同じく、サーバーの名前空間（`[server]` の設定）から作る。
+- Cookie: 名前は `{名前空間}_customer`（既定は `cms_customer`。`[server]` の名前空間から作るので、管理画面のものと混ざらない）。`HttpOnly`、`SameSite=Lax`、`Path=/`、`Max-Age` はログインの有効期間（`session_days`）、HTTPS のとき（`X-Forwarded-Proto: https` または `[commerce].public_url` が `https://`）は `Secure`。ログアウトで `Max-Age=0` にして消す。
 - **CSRF**: 状態を変える API は JSON（`Content-Type: application/json`）だけを受け付けます（今のまま）。`SameSite=Lax` で他のサイトからの POST には Cookie が付かず、CORS は認証情報つきの要求を許さない（今のまま）ので、他のサイトから操作できません。
-- マイページは、Cookie のセッションで**サーバー側で描画**します（注文履歴は最初の応答に入る）。ログイン・登録・更新などの操作は、`/shop/account.js`（`/shop/cart.js` と同じ作りの小さなスクリプト）が API を呼んで、結果を画面に出します。
+- ログイン中に注文すると、注文が顧客に紐づきます（Cookie でも Bearer でも同じ）。
+- 顧客のトークン（`cses_...`）は管理画面の API では通らず、管理者のトークンは顧客の API で通らない。
+
+マイページは、ほかのショップのページ（カート・注文確認）と同じ作りです。サーバーはログインの状態だけを見て（未ログインなら `/account/login` へ、ログイン済みなら `/account` へ転送）、**骨組みのページ**を返します。中身は、スクリプト（`/shop/account.js`）が API を呼んで作ります（注文履歴は最初の応答には入らない）。どの応答も `Cache-Control: private, no-store` で、共有のキャッシュに載りません。
 
 ### 4.3 テーマ
 
-- 組み込みのテンプレート `account.html` を用意します（テーマに `account.html` がなければ、これを使う。テーマの 3 層のフォールバックの仕組みに乗せる）。同梱のテーマは、何も変えなくても動きます。
-- テーマ制作者は `account.html` を上書きできます。変数は、`fields.view`（`home` / `login` / `register` / `forgot` / `reset` / `verify`）、`fields.customer`（未ログインなら `null`）、`fields.orders`、`fields.reviews`、`fields.token`（再設定・確認のリンクのトークン）、`fields.message`（結果の文）。スクリプトが使う部分は `data-aegis-account-*` の属性で示す。
-- ヘッダーのナビゲーションにログイン／マイページへのリンクを出す変数 `shop.account_url` を足す。
+- 組み込みのテンプレート `account.html` を用意しています（テーマに `account.html` がなければ、これを使う）。同梱のテーマは、何も変えなくても動きます。
+- テーマ制作者は `account.html` を上書きできます。`slug` が表示（`home` / `login` / `register`）、`theme_vars` に次が入ります: `account_enabled`（`"true"` / `"false"`）、`account_url`、`account_login_url`、`account_register_url`（登録を止めているときは空）、`account_script`、`account_api`、`account_min_password`。
+- 組み込みの `account.html` は、`<div id="aegis-account" data-view="{{ slug }}">` をスクリプトが埋める作りです。上書きするときは、この要素と、`account_*` を `data-*` に渡すスクリプトの読み込みを残してください（スクリプトの文言は `[theme].locale` の言語）。見た目は、`.aegis-account-*` と `.aegis-field`・`.aegis-button` などのクラスで変えられます。
+- ショップのナビゲーション（`shop_common.html`）に、顧客アカウントを使うときだけ「アカウント」のリンクが出ます。
 
 ### 4.4 商品ページのレビュー
 
@@ -160,8 +164,8 @@ Admin Studio の「ショップ」に 2 つの画面を足します（API は実
 
 ## 10. 実装の分け方（案）
 
-1. 設定 `[commerce.customers]`（`enabled`・`registration`・`session_days`）と、このドキュメント、`commerce.md` の誤り（「顧客アカウントはありません」）の修正。
-2. Cookie のセッションと、購入者向けの画面（`/account`、`account.js`、`account.html`）、商品ページのレビュー欄。
+1. 設定 `[commerce.customers]`（`enabled`・`registration`・`session_days`）と、このドキュメント、`commerce.md` の誤りの修正。**済**
+2. Cookie のセッションと、購入者向けの画面（`/account`、`account.js`、`account.html`）。**済**。商品ページのレビュー欄（§4.4）は、続けて行う。
 3. パスワードの再設定、メールの確認（`require_email_verification`）、通知のテンプレート。
 4. 退会。
 5. 管理画面の顧客・レビュー。

@@ -206,6 +206,13 @@ fn contexts() -> Vec<PageRenderContext> {
     out.push(external);
     out.push(base("cart.html"));
     out.push(base("order.html"));
+    // 顧客アカウント（ナビゲーションにリンクが出るのは `account_enabled` のとき）
+    let mut account = base("account.html");
+    account.slug = "home".to_string();
+    account
+        .theme_vars
+        .insert("account_enabled".to_string(), "true".to_string());
+    out.push(account);
     // 掲示板
     out.push(PageRenderContext {
         fields: object(json!({ "categories": [category], "recent_threads": [thread] })),

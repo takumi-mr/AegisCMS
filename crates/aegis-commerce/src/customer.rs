@@ -166,6 +166,16 @@ impl CustomerService {
         self
     }
 
+    /// ログインの有効期間（秒）。ブラウザの Cookie の `Max-Age` にも使う
+    pub fn session_ttl_secs(&self) -> u64 {
+        self.session_ttl_secs
+    }
+
+    /// 新規の会員登録を受け付けているか
+    pub fn registration_open(&self) -> bool {
+        self.registration_open
+    }
+
     /// 会員登録
     pub async fn register(
         &self,

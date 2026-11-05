@@ -503,6 +503,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/cart", get(handlers::render_cart))
         .route("/orders/{id}", get(handlers::render_order))
         .route("/shop/cart.js", get(handlers::cart_script))
+        .route("/shop/account.js", get(handlers::account_script))
+        .route("/account", get(handlers::render_account_home))
+        .route("/account/login", get(handlers::render_account_login))
+        .route("/account/register", get(handlers::render_account_register))
         .route("/forum", get(handlers::forum::render_forum_index))
         .route(
             "/forum/{category_slug}",

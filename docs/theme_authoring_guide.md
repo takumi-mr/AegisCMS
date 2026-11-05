@@ -108,6 +108,7 @@ themes/my-theme/
 | `/products/{slug}` | `product.html` | `title`、`content_html`、`fields`（`price` / `stock` など）、`relations`、`theme_vars` |
 | `/cart` | `cart.html` | `theme_vars` |
 | `/orders/{id}` | `order.html` | `slug`（注文 ID）、`theme_vars` |
+| `/account`・`/account/login`・`/account/register` | `account.html` | `slug`（`home` / `login` / `register`）、`theme_vars`（`account_*`。[顧客アカウント 4.3](customers.md#43-テーマ)） |
 
 ### 3.1.1 トップページ（`[theme].front_page`）
 

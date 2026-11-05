@@ -890,9 +890,17 @@ pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
   .aegis-status-cancelled { background: rgba(244,63,94,0.15); color: #f43f5e; }
   .aegis-instructions, .aegis-address { margin: 1rem 0; padding: 1rem 1.25rem; border-radius: 14px; border: 1px solid rgba(127,127,127,0.25); }
   .aegis-instructions p, .aegis-address p { white-space: pre-line; margin-top: 0.4rem; }
+  .aegis-account-form { display: flex; flex-direction: column; gap: 0.9rem; max-width: 420px; margin: 1rem 0; }
+  .aegis-account-form button { align-self: flex-start; }
+  .aegis-account-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; margin: 0.75rem 0 2rem; }
+  .aegis-account-order, .aegis-account-review { padding: 0.9rem 1.1rem; border-radius: 14px; border: 1px solid rgba(127,127,127,0.25); display: flex; flex-direction: column; gap: 0.4rem; }
+  .aegis-account-order-lines { display: flex; flex-direction: column; gap: 0.3rem; padding-top: 0.5rem; }
+  .aegis-account-ok { color: #10b981; margin: 0.75rem 0; }
+  .aegis-shop h2 { font-size: 1.3rem; margin: 1.5rem 0 0.75rem; }
 </style>
 <nav class="aegis-shop-nav" aria-label="{{ t("shop.label") }}">
   <a href="{{ theme_vars.products_url }}">{{ t("shop.all_products") }}</a>
+  {% if theme_vars.account_enabled == "true" %}<a href="{{ theme_vars.account_url }}" class="aegis-account-link">{{ t("account.link") }}</a>{% endif %}
   <a href="{{ theme_vars.cart_url }}" class="aegis-cart-link">{{ t("shop.cart") }} <span class="aegis-badge" data-aegis-cart-count hidden>0</span></a>
 </nav>
 <script src="{{ theme_vars.cart_script }}" data-api="{{ theme_vars.shop_api }}" data-currency="{{ theme_vars.currency }}" data-cart-url="{{ theme_vars.cart_url }}" data-products-url="{{ theme_vars.products_url }}" data-shop-enabled="{{ theme_vars.shop_enabled }}" defer></script>"#;
@@ -1140,6 +1148,21 @@ pub const CART_TEMPLATE: &str = r#"{% extends "base.html" %}
   <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ title }}</h1>
   <div id="aegis-cart"><p class="aegis-muted">{{ t("shop.cart_loading") }}</p></div>
   <noscript><p class="aegis-error">{{ t("shop.cart_needs_js") }}</p></noscript>
+</section>
+{% endblock %}
+"#;
+
+/// 顧客アカウントのページ（`/account`・`/account/login`・`/account/register`）。`slug` が表示（`home` / `login` / `register`）。
+/// 中身はスクリプト（`/shop/account.js`）が API から作る。ログインは HttpOnly の Cookie に持つので、スクリプトはトークンに触れない
+pub const ACCOUNT_TEMPLATE: &str = r#"{% extends "base.html" %}
+
+{% block content %}
+<section class="aegis-shop" style="max-width: 720px;">
+  {% include "shop_common.html" %}
+  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ t("account.title") }}</h1>
+  <div id="aegis-account" data-view="{{ slug }}"><p class="aegis-muted">{{ t("account.loading") }}</p></div>
+  <noscript><p class="aegis-muted">{{ t("account.needs_js") }}</p></noscript>
+  <script src="{{ theme_vars.account_script }}" data-api="{{ theme_vars.account_api }}" data-account-url="{{ theme_vars.account_url }}" data-login-url="{{ theme_vars.account_login_url }}" data-register-url="{{ theme_vars.account_register_url }}" data-min-password="{{ theme_vars.account_min_password }}" defer></script>
 </section>
 {% endblock %}
 "#;

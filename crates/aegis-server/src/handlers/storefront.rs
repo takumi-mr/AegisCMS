@@ -3,8 +3,8 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
-    response::{IntoResponse, Response},
+    http::{header, HeaderMap, StatusCode},
+    response::{IntoResponse, Redirect, Response},
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,6 +19,8 @@ use aegis_db::{resolve_relations_for_records, ContentListQuery};
 
 /// カート・注文確認ページのスクリプト（`/shop/cart.js`）
 const CART_SCRIPT: &str = include_str!("../../assets/cart.js");
+/// 顧客アカウントのページのスクリプト（`/shop/account.js`）
+const ACCOUNT_SCRIPT: &str = include_str!("../../assets/account.js");
 
 /// テンプレートの `theme_vars` に渡すショップの情報
 fn shop_vars(state: &AppState) -> HashMap<String, String> {
@@ -49,6 +51,47 @@ fn shop_vars(state: &AppState) -> HashMap<String, String> {
         (
             "cart_script".to_string(),
             format!("{}/shop/cart.js", base_path),
+        ),
+    ])
+    .into_iter()
+    .chain(account_vars(state, &base_path))
+    .collect()
+}
+
+/// テンプレートの `theme_vars` に渡す顧客アカウントの情報。使わない設定のときは `account_enabled` が `false`
+fn account_vars(state: &AppState, base_path: &str) -> HashMap<String, String> {
+    let customers = state.customers.as_ref();
+    let registration_open = customers.is_some_and(|c| c.registration_open());
+    HashMap::from([
+        (
+            "account_enabled".to_string(),
+            customers.is_some().to_string(),
+        ),
+        ("account_url".to_string(), format!("{}/account", base_path)),
+        (
+            "account_login_url".to_string(),
+            format!("{}/account/login", base_path),
+        ),
+        // 登録を止めているときは空（テンプレートはリンクを出さない）
+        (
+            "account_register_url".to_string(),
+            if registration_open {
+                format!("{}/account/register", base_path)
+            } else {
+                String::new()
+            },
+        ),
+        (
+            "account_script".to_string(),
+            format!("{}/shop/account.js", base_path),
+        ),
+        (
+            "account_api".to_string(),
+            format!("{}/api/v1/customers", base_path),
+        ),
+        (
+            "account_min_password".to_string(),
+            aegis_auth::password::MIN_PASSWORD_LEN.to_string(),
         ),
     ])
 }
@@ -355,18 +398,103 @@ pub async fn cart_script(State(state): State<Arc<AppState>>) -> Response {
             ),
             (header::CACHE_CONTROL, "public, max-age=300"),
         ],
-        cart_script_with_messages(&state.config.theme.locale),
+        script_with_messages(&state.config.theme.locale, CART_SCRIPT),
     )
         .into_response()
 }
 
+/// `GET /shop/account.js` — 顧客アカウントのページ（ログイン・会員登録・マイページ）のスクリプト
+pub async fn account_script(State(state): State<Arc<AppState>>) -> Response {
+    if state.customers.is_none() {
+        return render_not_found(&state, "Customer accounts are not enabled.").await;
+    }
+    (
+        StatusCode::OK,
+        [
+            (
+                header::CONTENT_TYPE,
+                "application/javascript; charset=utf-8",
+            ),
+            (header::CACHE_CONTROL, "public, max-age=300"),
+        ],
+        script_with_messages(&state.config.theme.locale, ACCOUNT_SCRIPT),
+    )
+        .into_response()
+}
+
+/// `GET /account` — マイページ。ログインしていなければログイン画面へ
+pub async fn render_account_home(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
+    render_account(&state, &headers, "home").await
+}
+
+/// `GET /account/login` — ログイン。ログイン済みならマイページへ
+pub async fn render_account_login(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
+    render_account(&state, &headers, "login").await
+}
+
+/// `GET /account/register` — 会員登録（登録を止めているときは 404）。ログイン済みならマイページへ
+pub async fn render_account_register(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
+    render_account(&state, &headers, "register").await
+}
+
+/// ログインの状態で表示が変わるので、どの応答も共有のキャッシュに載せない
+const PRIVATE: (header::HeaderName, &str) = (header::CACHE_CONTROL, "private, no-store");
+
+async fn render_account(state: &AppState, headers: &HeaderMap, view: &str) -> Response {
+    let Some(customers) = state.customers.as_ref() else {
+        return render_not_found(state, "Customer accounts are not enabled.").await;
+    };
+    if view == "register" && !customers.registration_open() {
+        return render_not_found(state, "Registration is closed.").await;
+    }
+    let logged_in = match crate::handlers::customers::session_token(state, headers) {
+        Some(token) => matches!(customers.verify_session(&token).await, Ok(Some(_))),
+        None => false,
+    };
+    let base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+    let redirect_to = match (view, logged_in) {
+        ("home", false) => Some(format!("{}/account/login", base_path)),
+        ("login" | "register", true) => Some(format!("{}/account", base_path)),
+        _ => None,
+    };
+    if let Some(location) = redirect_to {
+        return ([PRIVATE], Redirect::to(&location)).into_response();
+    }
+
+    let ctx = PageRenderContext {
+        template: "account.html".to_string(),
+        content_type: "account".to_string(),
+        title: "Account".to_string(),
+        slug: view.to_string(),
+        ..Default::default()
+    };
+    let mut response = render_shop_page(state, ctx).await;
+    response
+        .headers_mut()
+        .insert(PRIVATE.0, header::HeaderValue::from_static(PRIVATE.1));
+    response
+}
+
 /// カートのスクリプトの前に、`[theme].locale` の言語の文言（`window.AEGIS_CART_I18N`）を置く
-fn cart_script_with_messages(locale: &str) -> String {
+fn script_with_messages(locale: &str, script: &str) -> String {
     let messages: serde_json::Map<String, serde_json::Value> =
         aegis_theme::messages::bundle(locale, "js.")
             .into_iter()
             .map(|(name, text)| (name.to_string(), serde_json::Value::from(text)))
             .collect();
     let i18n = serde_json::json!({ "locale": locale, "messages": messages });
-    format!("window.AEGIS_CART_I18N = {};\n{}", i18n, CART_SCRIPT)
+    format!("window.AEGIS_CART_I18N = {};\n{}", i18n, script)
 }
