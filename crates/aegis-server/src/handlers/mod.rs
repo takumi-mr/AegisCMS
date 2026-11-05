@@ -54,7 +54,7 @@ pub use content::{
 };
 pub use customers::{
     admin_get_customer, admin_list_customers, admin_set_customer_status,
-    complete_password_reset as customer_complete_password_reset, get_me, get_my_order,
+    complete_password_reset as customer_complete_password_reset, delete_me, get_me, get_my_order,
     list_my_orders, list_my_reviews, login as customer_login, logout as customer_logout,
     register as customer_register, request_password_reset as customer_request_password_reset,
     resend_verification as customer_resend_verification, update_me,

@@ -397,6 +397,44 @@ pub async fn update_me(
     Ok(([(header::SET_COOKIE, cookie)], Json(body)).into_response())
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DeleteAccountRequest {
+    pub password: String,
+}
+
+/// `DELETE /api/v1/customers/me` — 退会。パスワードで本人を確かめる。
+/// 注文は顧客との紐づきだけを外して残し、レビューは匿名にして残す
+pub async fn delete_me(
+    State(state): State<Arc<AppState>>,
+    ClientIp(client_ip): ClientIp,
+    headers: HeaderMap,
+    Json(req): Json<DeleteAccountRequest>,
+) -> Result<Response, ApiError> {
+    let session = resolve_customer_session(&state, &headers).await?;
+    let service = customers(&state)?;
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|h| h.to_str().ok())
+        .map(str::to_string);
+    let product_ids = service
+        .delete_account(&session.customer_id, &req.password, client_ip, user_agent)
+        .await
+        .map_err(map_aegis_error)?;
+
+    // 公開の商品ページに出ていた投稿者名が変わるので、そのキャッシュを更新する
+    if !product_ids.is_empty() {
+        let mut tags = aegis_cache::CacheTags::new();
+        for product_id in &product_ids {
+            tags.add_dependency("reviews", product_id);
+            tags.add_dependency(&state.config.commerce.product_type, product_id);
+        }
+        crate::cdn::purge_tags(&state, &tags).await;
+    }
+    // Cookie も消す
+    let cleared = session_cookie(&state, &headers, "", 0);
+    Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cleared)]).into_response())
+}
+
 // --- パスワードの再設定（ログイン不要） ---
 
 #[derive(Debug, Deserialize)]

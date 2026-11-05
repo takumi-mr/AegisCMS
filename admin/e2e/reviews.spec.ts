@@ -129,6 +129,18 @@ test.describe('Product reviews', () => {
       .locator('script[type="application/ld+json"]')
       .evaluateAll((nodes) => nodes.map((node) => JSON.parse(node.textContent ?? '{}')));
     expect(ld[0].aggregateRating).toMatchObject({ ratingValue: 4, reviewCount: 1 });
+
+    // The reviewer leaves: the review stays (and keeps counting), without the name
+    await expect(page.getByText(/Hanako Yamada|Hanako Reviewer/)).toHaveCount(1);
+    const deleted = await page.request.delete(`${SERVER}/api/v1/customers/me`, {
+      data: { password: 'customer-password-123' },
+    });
+    expect(deleted.status()).toBe(204);
+    await page.reload();
+    await expect(page.getByText('Lovely mug')).toBeVisible();
+    await expect(page.getByText(/Former customer/)).toBeVisible();
+    await expect(page.getByText(/Hanako Yamada|Hanako Reviewer/)).toHaveCount(0);
+    await expect(page.getByText('4.0 / 5 (reviews: 1)')).toBeVisible();
   });
 
   test('a guest reviews from the link on the order page, and the token leaves the address bar', async ({
