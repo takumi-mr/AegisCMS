@@ -25,6 +25,16 @@ pub const CUSTOMER_SESSION_PREFIX: &str = "customer_session:";
 pub const CUSTOMER_TOKEN_PREFIX: &str = "cses_";
 /// 顧客セッションのデフォルト有効期限（30日）
 pub const DEFAULT_CUSTOMER_SESSION_TTL_SECS: u64 = 30 * 24 * 3600;
+/// 顧客の「ここより前に作ったセッションは無効」の印（マイクロ秒）のキャッシュキーの接頭辞
+const REVOKED_PREFIX: &str = "customer_revoked:";
+/// パスワード再設定のトークンのキャッシュキーの接頭辞
+const RESET_PREFIX: &str = "customer_reset:";
+/// 再設定リンクの有効期間（秒）
+pub const PASSWORD_RESET_TTL_SECS: u64 = 3600;
+/// 同じ IP からの再設定の申し込みの上限（1 時間あたり）
+const RESET_MAX_PER_IP_PER_HOUR: u64 = 5;
+/// 同じメールアドレスへ送る再設定メールの上限（1 時間あたり。メールの連打を防ぐ）
+const RESET_MAX_PER_EMAIL_PER_HOUR: u64 = 3;
 
 /// 会員登録リクエスト
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -54,6 +64,37 @@ pub struct CustomerSessionData {
     pub name: String,
     pub created_at: String,
     pub expires_at: String,
+    /// セッションを作った時刻（UNIX 時刻のマイクロ秒）。顧客の「ここより前のセッションは無効」の印と比べて、
+    /// 失効を判断する。印を置いた直後に作り直したセッションを巻き込まないよう、ミリ秒より細かく持つ
+    #[serde(default)]
+    pub issued_at_micros: i64,
+}
+
+/// 再設定の申し込みの結果（メールに載せる情報）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CustomerReset {
+    pub token: String,
+    pub email: String,
+    pub name: String,
+}
+
+/// キャッシュに置く再設定データ
+#[derive(Debug, Serialize, Deserialize)]
+struct PendingReset {
+    customer_id: String,
+    email: String,
+}
+
+fn sha256_hex(value: &str) -> String {
+    use sha2::{Digest, Sha256};
+    hex::encode(Sha256::digest(value.as_bytes()))
+}
+
+fn random_token() -> String {
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend_from_slice(Uuid::new_v4().as_bytes());
+    bytes.extend_from_slice(Uuid::new_v4().as_bytes());
+    hex::encode(bytes)
 }
 
 /// プロフィール更新リクエスト
@@ -277,25 +318,7 @@ impl CustomerService {
             ));
         }
 
-        let token = format!("{}{}", CUSTOMER_TOKEN_PREFIX, Uuid::new_v4().simple());
-        let created_at = now();
-        let expires_at = future_timestamp(self.session_ttl_secs);
-
-        let session = CustomerSessionData {
-            token: token.clone(),
-            customer_id: record.id.clone(),
-            email: record.email.clone(),
-            name: record.name.clone(),
-            created_at,
-            expires_at,
-        };
-
-        let session_json =
-            serde_json::to_string(&session).map_err(|e| AegisError::Internal(e.to_string()))?;
-        let cache_key = format!("{}{}", CUSTOMER_SESSION_PREFIX, token);
-        self.cache
-            .set(&cache_key, &session_json, Some(self.session_ttl_secs))
-            .await?;
+        let session = self.create_session(&record).await?;
 
         let login_time = now();
         self.db
@@ -319,20 +342,76 @@ impl CustomerService {
     }
 
     /// セッションの検証
+    /// 顧客のセッションを作って、キャッシュに置く
+    async fn create_session(&self, record: &CustomerRecord) -> Result<CustomerSessionData> {
+        let token = format!("{}{}", CUSTOMER_TOKEN_PREFIX, Uuid::new_v4().simple());
+        let session = CustomerSessionData {
+            token: token.clone(),
+            customer_id: record.id.clone(),
+            email: record.email.clone(),
+            name: record.name.clone(),
+            created_at: now(),
+            expires_at: future_timestamp(self.session_ttl_secs),
+            issued_at_micros: Utc::now().timestamp_micros(),
+        };
+        let session_json =
+            serde_json::to_string(&session).map_err(|e| AegisError::Internal(e.to_string()))?;
+        let cache_key = format!("{}{}", CUSTOMER_SESSION_PREFIX, token);
+        self.cache
+            .set(&cache_key, &session_json, Some(self.session_ttl_secs))
+            .await?;
+        Ok(session)
+    }
+
+    /// 顧客のセッションをすべて失効させる（停止・パスワードの変更・再設定のとき）。
+    /// セッションごとに消す代わりに、「この時刻より前に作ったセッションは無効」の印を置く
+    /// （キャッシュが Redis でも、全サーバーで効く。印は最長のセッションの有効期間だけ残す）
+    pub async fn revoke_sessions(&self, customer_id: &str) -> Result<()> {
+        let key = format!("{}{}", REVOKED_PREFIX, customer_id);
+        let revoked_at = Utc::now().timestamp_micros();
+        self.cache
+            .set(&key, &revoked_at.to_string(), Some(self.session_ttl_secs))
+            .await?;
+        Ok(())
+    }
+
+    /// 同じ顧客の新しいセッションを作る（パスワードの変更で全セッションを失効させたあと、
+    /// 変更した本人の画面を続けて使えるようにするため）
+    pub async fn reissue_session(&self, customer_id: &str) -> Result<CustomerSessionData> {
+        let record = self
+            .db
+            .get_customer_by_id(customer_id)
+            .await?
+            .ok_or_else(|| AegisError::NotFound("Customer not found".to_string()))?;
+        if record.status != "active" {
+            return Err(AegisError::PermissionDenied(
+                "This customer account has been suspended".to_string(),
+            ));
+        }
+        self.create_session(&record).await
+    }
+
     pub async fn verify_session(&self, token: &str) -> Result<Option<CustomerSessionData>> {
         if !token.starts_with(CUSTOMER_TOKEN_PREFIX) {
             return Ok(None);
         }
         let cache_key = format!("{}{}", CUSTOMER_SESSION_PREFIX, token);
-        let cached = self.cache.get(&cache_key).await?;
-        match cached {
-            Some(json) => {
-                let session: CustomerSessionData =
-                    serde_json::from_str(&json).map_err(|e| AegisError::Internal(e.to_string()))?;
-                Ok(Some(session))
+        let Some(json) = self.cache.get(&cache_key).await? else {
+            return Ok(None);
+        };
+        let session: CustomerSessionData =
+            serde_json::from_str(&json).map_err(|e| AegisError::Internal(e.to_string()))?;
+        // 失効の印より前に作ったセッションは通さない
+        let revoked_key = format!("{}{}", REVOKED_PREFIX, session.customer_id);
+        if let Some(revoked_at) = self.cache.get(&revoked_key).await? {
+            if revoked_at
+                .parse::<i64>()
+                .is_ok_and(|revoked_at| session.issued_at_micros < revoked_at)
+            {
+                return Ok(None);
             }
-            None => Ok(None),
         }
+        Ok(Some(session))
     }
 
     /// ログアウト
@@ -408,6 +487,10 @@ impl CustomerService {
 
         record.updated_at = now();
         self.db.update_customer(&record).await?;
+        // パスワードを変えたら、ほかの端末のセッションも終わらせる（呼び出し元が、本人の分は作り直す）
+        if req.new_password.is_some() {
+            self.revoke_sessions(customer_id).await?;
+        }
 
         // 監査ログ
         let event = AuditEvent::new(AuditAction::CustomerUpdate, AuditOutcome::Success)
@@ -475,6 +558,150 @@ impl CustomerService {
         self.db
             .set_customer_status(customer_id, status, &now())
             .await?;
+        if status == "suspended" {
+            // 停止した顧客が、ログイン中のセッションでそのまま使い続けられないようにする
+            self.revoke_sessions(customer_id).await?;
+        }
         Ok(())
+    }
+
+    /// パスワードの再設定を申し込む。該当する有効な顧客がいれば、メールに載せる情報を返す。
+    /// いない・停止中・メールの上限を超えた場合は `Ok(None)`（登録の有無を応答で教えない）。
+    /// IP ごとの上限を超えたら `ResourceLimitExceeded`（どのメールアドレスでも同じ数え方）
+    pub async fn request_password_reset(
+        &self,
+        email: &str,
+        ip: Option<&str>,
+    ) -> Result<Option<CustomerReset>> {
+        let email = normalize_email(email);
+        if email.len() > 254 || email.chars().any(|c| c.is_whitespace() || c.is_control()) {
+            return Err(AegisError::Validation(
+                "A valid email address is required".to_string(),
+            ));
+        }
+        match email.split_once('@') {
+            Some((local, domain))
+                if !local.is_empty()
+                    && !domain.contains('@')
+                    && domain.contains('.')
+                    && !domain.starts_with('.')
+                    && !domain.ends_with('.') => {}
+            _ => {
+                return Err(AegisError::Validation(
+                    "A valid email address is required".to_string(),
+                ))
+            }
+        }
+
+        if let Some(ip) = ip {
+            let count = self
+                .cache
+                .increment(&format!("customer_reset_ip:{}", ip), Some(3600))
+                .await?;
+            if count > RESET_MAX_PER_IP_PER_HOUR {
+                return Err(AegisError::ResourceLimitExceeded(
+                    "Too many password reset requests".to_string(),
+                ));
+            }
+        }
+
+        let Some(customer) = self.db.get_customer_by_email(&email).await? else {
+            return Ok(None);
+        };
+        if customer.status == "suspended" {
+            return Ok(None);
+        }
+        // 同じ宛先へのメールの連打を止める（宛先の数え方は、登録の有無によらない順序で、実在するときだけ）
+        let sent = self
+            .cache
+            .increment(
+                &format!("customer_reset_email:{}", sha256_hex(&email)),
+                Some(3600),
+            )
+            .await?;
+        if sent > RESET_MAX_PER_EMAIL_PER_HOUR {
+            return Ok(None);
+        }
+
+        let token = random_token();
+        let pending = PendingReset {
+            customer_id: customer.id.clone(),
+            email: customer.email.clone(),
+        };
+        let value =
+            serde_json::to_string(&pending).map_err(|e| AegisError::Internal(e.to_string()))?;
+        self.cache
+            .set(
+                &format!("{}{}", RESET_PREFIX, sha256_hex(&token)),
+                &value,
+                Some(PASSWORD_RESET_TTL_SECS),
+            )
+            .await?;
+
+        Ok(Some(CustomerReset {
+            token,
+            email: customer.email,
+            name: customer.name,
+        }))
+    }
+
+    /// トークンと新しいパスワードでパスワードを再設定する。トークンは 1 回だけ使える。
+    /// 完了したら、その顧客のセッションをすべて失効させる
+    pub async fn complete_password_reset(
+        &self,
+        token: &str,
+        new_password: &str,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> Result<CustomerResponse> {
+        let invalid =
+            || AegisError::Validation("This reset link is invalid or has expired".to_string());
+        let token = token.trim();
+        if token.is_empty() {
+            return Err(invalid());
+        }
+        if new_password.chars().count() < MIN_PASSWORD_LEN {
+            return Err(AegisError::Validation(format!(
+                "Password must be at least {} characters",
+                MIN_PASSWORD_LEN
+            )));
+        }
+
+        let key = format!("{}{}", RESET_PREFIX, sha256_hex(token));
+        let Some(value) = self.cache.get(&key).await? else {
+            return Err(invalid());
+        };
+        // 使えるのは 1 回だけ。失敗しても使えないようにする
+        self.cache.delete(&key).await?;
+        let pending: PendingReset = serde_json::from_str(&value).map_err(|_| invalid())?;
+
+        let mut record = self
+            .db
+            .get_customer_by_id(&pending.customer_id)
+            .await?
+            .ok_or_else(invalid)?;
+        // 申し込みのあとで、メールアドレスが変わった・停止された顧客には使わせない
+        if !record.email.eq_ignore_ascii_case(&pending.email) || record.status == "suspended" {
+            return Err(invalid());
+        }
+
+        let password = new_password.to_string();
+        record.password_hash = tokio::task::spawn_blocking(move || hash_password(&password))
+            .await
+            .map_err(|e| AegisError::Internal(format!("Password hashing task failed: {}", e)))??;
+        record.updated_at = now();
+        self.db.update_customer(&record).await?;
+        self.revoke_sessions(&record.id).await?;
+
+        let event = AuditEvent::new(AuditAction::CustomerPasswordReset, AuditOutcome::Success)
+            .with_actor(Some(AuditActor {
+                user_id: record.id.clone(),
+                role: "customer".to_string(),
+            }))
+            .with_resource("customer", Some(record.id.clone()))
+            .with_client(ip, user_agent);
+        self.audit.record(event).await;
+
+        Ok(record.into())
     }
 }

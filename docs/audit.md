@@ -87,6 +87,7 @@ purge_interval_secs = 3600
 | `order.create` | `POST /api/v1/shop/checkout`（[EC](commerce.md)） | `success` | `order` / 注文 ID | `number`, `total`, `currency`, `items`, `provider` |
 | `order.update` | 注文の状態の変化（管理者の操作、決済の Webhook、期限切れ）、決済の問題 | `success` / `failure`（金額の不一致 `amount_mismatch`、取り消し後の入金 `paid_after_cancel`） | `order` / 注文 ID | `number`, `from`, `to`, `source`（`admin` / `payment_webhook` / `payment_expired` / `payment_failed` / `expired` / `payment_start_failed`）, `restocked`, `note`, `problem`, `event_id` |
 | `notification.send` | 通知の配信（チャネルごと。一時的な失敗は再試行した後の結果。Admin Studio・CLI のテスト送信を含む） | `success` / `failure` | `notification` / 通知の種類（`order.placed` など） | `channel`, `recipient`（`person` / `staff`。アドレスは残さない）, `subject`, `attempts`, `error`, `order_number` |
+| `customer.password_reset` | 購入者のパスワードの再設定の完了（メールのリンクから。完了すると、その顧客のセッションはすべて終わる） | `success` | `customer` / 顧客 ID | — |
 | `comment.create` | Admin Studio からのコメントへの返信（`POST /api/v1/comments/{id}/replies`。[コメント](comments.md)） | `success` / `failure` | `comment` / 返信のコメント ID | `parent_id`, `content_type`, `content_id`, `error` |
 | `comment.moderate` | コメントの状態の変更（承認・承認待ち・スパム・ゴミ箱。1 件・まとめて） | `success` / `failure` | `comment` / コメント ID（1 件のとき） | `ids`, `status`, `count`（変えた件数）, `error` |
 | `comment.update` | コメントの本文の編集（`PATCH /api/v1/comments/{id}` の `body`） | `success` / `failure` | `comment` / コメント ID | `content_type`, `content_id`, `length`（`from` / `to`。文字数。本文は残さない）, `error` |

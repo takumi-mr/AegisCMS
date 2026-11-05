@@ -74,6 +74,8 @@ builtin_templates!(
     "account.registered.staff.txt",
     "account.password_reset.subject",
     "account.password_reset.txt",
+    "customer.password_reset.subject",
+    "customer.password_reset.txt",
     "account.approved.subject",
     "account.approved.txt",
     "account.invite.subject",

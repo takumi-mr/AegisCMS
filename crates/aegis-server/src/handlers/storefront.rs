@@ -117,6 +117,15 @@ fn account_vars(state: &AppState, base_path: &str) -> HashMap<String, String> {
                 String::new()
             },
         ),
+        // パスワードの再設定を使えない設定では空（ログイン画面は「忘れたとき」のリンクを出さない）
+        (
+            "account_forgot_url".to_string(),
+            if crate::handlers::customers::password_reset_available(state) {
+                format!("{}/account/forgot", base_path)
+            } else {
+                String::new()
+            },
+        ),
         (
             "account_script".to_string(),
             format!("{}/shop/account.js", base_path),
@@ -509,6 +518,22 @@ pub async fn render_account_register(
     render_account(&state, &headers, "register").await
 }
 
+/// `GET /account/forgot` — パスワードを忘れたとき（再設定のメールの申し込み）。再設定を使えない設定では 404
+pub async fn render_account_forgot(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
+    render_account(&state, &headers, "forgot").await
+}
+
+/// `GET /account/reset?token=...` — メールのリンクから、新しいパスワードを設定する。再設定を使えない設定では 404
+pub async fn render_account_reset(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
+    render_account(&state, &headers, "reset").await
+}
+
 /// ログインの状態で表示が変わるので、どの応答も共有のキャッシュに載せない
 const PRIVATE: (header::HeaderName, &str) = (header::CACHE_CONTROL, "private, no-store");
 
@@ -518,6 +543,11 @@ async fn render_account(state: &AppState, headers: &HeaderMap, view: &str) -> Re
     };
     if view == "register" && !customers.registration_open() {
         return render_not_found(state, "Registration is closed.").await;
+    }
+    if matches!(view, "forgot" | "reset")
+        && !crate::handlers::customers::password_reset_available(state)
+    {
+        return render_not_found(state, "Password reset is not enabled.").await;
     }
     let logged_in = match crate::handlers::customers::session_token(state, headers) {
         Some(token) => matches!(customers.verify_session(&token).await, Ok(Some(_))),

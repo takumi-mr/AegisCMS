@@ -28,7 +28,7 @@ pub use config::{
 pub use customer::{
     CustomerLoginRequest, CustomerRegisterRequest, CustomerResponse, CustomerService,
     CustomerSessionData, CustomerUpdateProfileRequest, CUSTOMER_SESSION_PREFIX,
-    CUSTOMER_TOKEN_PREFIX,
+    CUSTOMER_TOKEN_PREFIX, PASSWORD_RESET_TTL_SECS,
 };
 pub use review::{
     JsonLdAggregateRating, PublicReview, ReviewAuthor, ReviewService, ReviewSubmission,
@@ -1381,6 +1381,8 @@ pub fn order_context(order: &OrderRecord) -> OrderContext {
     }
 }
 
+#[cfg(test)]
+mod customer_reset_tests;
 #[cfg(test)]
 mod customer_tests;
 #[cfg(test)]
