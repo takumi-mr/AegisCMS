@@ -312,6 +312,23 @@ enabled = true
     user: 'owner',
     shots: [
       { file: 'forum-admin.png', admin: tab('フォーラム') },
+      {
+        file: 'forum-categories-admin.png',
+        admin: async (page) => {
+          await tab('フォーラム')(page);
+          await page.getByRole('button', { name: 'カテゴリ管理' }).click();
+          await page.waitForLoadState('networkidle');
+        },
+      },
+      { file: 'members-admin.png', admin: tab('会員') },
+      {
+        file: 'members-detail.png',
+        admin: async (page) => {
+          await tab('会員')(page);
+          await page.getByText('高橋 健').first().click();
+          await page.getByText('立てたスレッド').waitFor();
+        },
+      },
       { file: 'forum-public.png', public: '/forum' },
       {
         file: 'forum-thread.png',

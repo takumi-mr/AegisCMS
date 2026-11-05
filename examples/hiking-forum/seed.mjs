@@ -20,24 +20,34 @@ const USERS = ['owner', 'moderator'];
 // データ
 // ---------------------------------------------------------------------------
 
+// 会員（[members]）。登録してログインし、公開名（nickname）を決めてから投稿する。email は架空のもの
+const members = [
+  { nickname: 'ゆる登山', name: '山田 花子', email: 'yuru@example.com' },
+  { nickname: 'かもしか', name: '鈴木 太郎', email: 'kamoshika@example.com' },
+  { nickname: 'そらまめ', name: '佐藤 美咲', email: 'soramame@example.com' },
+  { nickname: 'ライチョウ', name: '高橋 健', email: 'raicho@example.com' },
+];
+
 const categories = [
   { slug: 'announcements', name: 'お知らせ', description: '運営からのお知らせとオフ会の案内です。' },
   { slug: 'beginners', name: 'はじめての山', description: '山選び・持ち物・歩き方など、はじめての方の質問はこちらへ。' },
   { slug: 'gear', name: '道具・装備', description: '靴・雨具・ザックなど、道具の選び方と使い心地。' },
   { slug: 'trip-reports', name: '山行記録', description: '歩いた山の様子や、登山道・山小屋の最新の状況。' },
+  { slug: 'lounge', name: '会員ラウンジ', description: '会員とスタッフだけが読み書きできます。山行の相談や同行者の募集に。', visibility: 'members' },
 ];
 
-// as: 'owner' / 'moderator' はログインして投稿する（Staff の印が付く）。省略すると未ログインで、author を名前にする
-// （author を空にすると Anonymous）。reply_to はレス番号への返信。
+// as: 'owner' / 'moderator' はログインして投稿する（Staff の印が付く）。member は会員としてログインして投稿する
+// （名前は会員の公開名になる）。どちらも省略すると未ログインで、author を名前にする（author を空にすると Anonymous）。
+// reply_to はレス番号への返信。
 // 一覧は最終投稿の新しい順なので、上に出したいスレッドを後に書く
 const threads = [
   {
     category: 'trip-reports',
     title: '夏の北アルプス 情報交換（受付終了）',
-    author: 'ライチョウ',
+    member: 'ライチョウ',
     body: 'この夏に北アルプスを歩いた方、山小屋や登山道の様子を教えてください。\n\n私は 8 月に立山から剱御前まで歩きました。雷鳥沢のキャンプ場は週末は満員でした。',
     replies: [
-      { author: 'ゆる登山', body: '7 月末に燕岳に行きました。合戦尾根は朝 5 時の時点で駐車場がほぼ満車でした。' },
+      { member: 'ゆる登山', body: '7 月末に燕岳に行きました。合戦尾根は朝 5 時の時点で駐車場がほぼ満車でした。' },
       { as: 'moderator', body: 'シーズンが終わったので、このスレッドはロックしました。情報ありがとうございました。秋の山行は「山行記録」に新しいスレッドを立ててください。' },
     ],
     lock: true,
@@ -45,12 +55,12 @@ const threads = [
   {
     category: 'gear',
     title: '雨具はどれくらいのものを買えばいいですか',
-    author: 'そらまめ',
+    member: 'そらまめ',
     body: '雨の日は山に行かないつもりなので、コンビニのレインコートでもいいかなと思っています。やはり登山用のものを買うべきでしょうか？',
     replies: [
-      { author: 'かもしか', body: '晴れの予報でも山の上では急に降ります。濡れると夏でも体が冷えるので、上下に分かれた登山用のレインウェアをおすすめします。' },
-      { author: 'ゆる登山', body: '防水透湿素材（ゴアテックスなど）のものだと、歩いていても中が蒸れにくいです。風の強い日は防寒着にもなります。', reply_to: 1 },
-      { author: 'そらまめ', body: 'ありがとうございます。上下セットのものを買って、晴れの日もザックに入れておくようにします。' },
+      { member: 'かもしか', body: '晴れの予報でも山の上では急に降ります。濡れると夏でも体が冷えるので、上下に分かれた登山用のレインウェアをおすすめします。' },
+      { member: 'ゆる登山', body: '防水透湿素材（ゴアテックスなど）のものだと、歩いていても中が蒸れにくいです。風の強い日は防寒着にもなります。', reply_to: 1 },
+      { member: 'そらまめ', body: 'ありがとうございます。上下セットのものを買って、晴れの日もザックに入れておくようにします。' },
     ],
   },
   {
@@ -59,31 +69,41 @@ const threads = [
     author: 'ハイカー見習い',
     body: '日帰りの低山が中心です。軽いトレランシューズでも大丈夫でしょうか。',
     replies: [
-      { author: 'かもしか', body: '整備された低山ならトレランシューズで歩いている人も多いです。岩場や重い荷物のときは、足首まであるミッドカットの登山靴のほうが安心です。' },
+      { member: 'かもしか', body: '整備された低山ならトレランシューズで歩いている人も多いです。岩場や重い荷物のときは、足首まであるミッドカットの登山靴のほうが安心です。' },
       { author: '', body: '最初の一足は、お店で実際に履いてみるのが一番です。夕方の足がむくんだ時間に、登山用の厚い靴下で試してください。' },
     ],
   },
   {
     category: 'trip-reports',
     title: '10 月の燕岳、紅葉がきれいでした',
-    author: 'ライチョウ',
+    member: 'ライチョウ',
     body: '先週末、中房温泉から燕岳を往復しました。合戦小屋のあたりはちょうど紅葉の見ごろでした。\n\n山頂付近は朝の気温が氷点下で、登山道の一部が凍っていました。軽アイゼンを持って行ってよかったです。',
     replies: [
-      { author: 'ゆる登山', body: '写真で見るより実際の色はもっときれいなんでしょうね。燕山荘は混んでいましたか？' },
-      { author: 'ライチョウ', body: '土曜日は満室でした。早めに予約しておくのがおすすめです。', reply_to: 2 },
+      { member: 'ゆる登山', body: '写真で見るより実際の色はもっときれいなんでしょうね。燕山荘は混んでいましたか？' },
+      { member: 'ライチョウ', body: '土曜日は満室でした。早めに予約しておくのがおすすめです。', reply_to: 2 },
       { as: 'moderator', body: '情報ありがとうございます。これからの時期は凍結が増えるので、皆さんも軽アイゼンや手袋の準備をお願いします。' },
     ],
   },
   {
     category: 'beginners',
     title: 'はじめての山におすすめの山はありますか？',
-    author: 'そらまめ',
+    member: 'そらまめ',
     body: '来月、友人と 2 人で初めて山に登ろうと思っています。東京から日帰りで行ける、初心者向けの山を教えてください。\n\n体力にはあまり自信がありません。',
     replies: [
-      { author: 'かもしか', body: '高尾山はいかがでしょう。コースがいくつもあって、帰りはケーブルカーも使えます。' },
-      { author: 'ゆる登山', body: '高尾山なら 6 号路（沢沿いの道）が涼しくておすすめです。混雑を避けるなら朝早めの出発がいいですよ。', reply_to: 1 },
+      { member: 'かもしか', body: '高尾山はいかがでしょう。コースがいくつもあって、帰りはケーブルカーも使えます。' },
+      { member: 'ゆる登山', body: '高尾山なら 6 号路（沢沿いの道）が涼しくておすすめです。混雑を避けるなら朝早めの出発がいいですよ。', reply_to: 1 },
       { as: 'moderator', body: 'はじめての山なら、登山届（登山計画書）を出しておくと安心です。歩く道と下山の予定時刻を家族にも伝えておいてください。' },
-      { author: 'そらまめ', body: 'ありがとうございます！高尾山の 6 号路で計画してみます。登山届も出しておきます。' },
+      { member: 'そらまめ', body: 'ありがとうございます！高尾山の 6 号路で計画してみます。登山届も出しておきます。' },
+    ],
+  },
+  {
+    category: 'lounge',
+    title: '来月の山行、同行者を探しています',
+    member: 'かもしか',
+    body: '来月の第 2 週末に、奥多摩の三頭山を歩く予定です。ゆっくりめのペースで、一緒に歩ける方はいませんか？\n\n公共交通機関で行くので、集合は武蔵五日市駅の予定です。',
+    replies: [
+      { member: 'ゆる登山', body: '参加したいです！三頭山は初めてなので、コースを教えてください。' },
+      { member: 'かもしか', body: 'ありがとうございます。都民の森から入って、ムシカリ峠経由で山頂を目指す予定です。詳しくはここで相談しましょう。', reply_to: 2 },
     ],
   },
   {
@@ -93,7 +113,7 @@ const threads = [
     body: '11 月 23 日（祝）に高尾山でオフ会を開きます。はじめての方も歓迎です。\n\n集合: 京王線 高尾山口駅 9:00\nコース: 稲荷山コース → 山頂 → 6 号路（約 4 時間）\n\n参加される方はこのスレッドに書き込んでください。',
     replies: [
       { author: 'ハイカー見習い', body: '参加します！はじめてのオフ会なので楽しみです。' },
-      { author: 'そらまめ', body: '友人と 2 人で参加します。よろしくお願いします。' },
+      { member: 'そらまめ', body: '友人と 2 人で参加します。よろしくお願いします。' },
     ],
     pin: true,
   },
@@ -208,6 +228,9 @@ function list(items, ordered) {
 
 const tokens = {};
 
+// 投稿するユーザーのトークンの置き場。会員は `member:公開名`
+const actor = (x) => x.as ?? (x.member ? `member:${x.member}` : undefined);
+
 // as: ログインして呼ぶユーザー（省略すると未ログイン）
 async function api(method, path, body, as) {
   const headers = {};
@@ -255,6 +278,19 @@ async function login(username) {
   tokens[username] = (await res.json()).id;
 }
 
+// 会員を登録して（作成済みなら登録を飛ばして）ログインし、公開名を決める
+async function loginMember({ nickname, name, email }) {
+  const credentials = { email, password: PASSWORD };
+  let res = await api('POST', '/api/v1/members/login', credentials);
+  if (res.status !== 200) {
+    check(await api('POST', '/api/v1/members/register', { ...credentials, name }), 201, `会員 ${email} の登録`);
+    res = await api('POST', '/api/v1/members/login', credentials);
+  }
+  const { token } = check(res, 200, `会員 ${email} のログイン`);
+  tokens[`member:${nickname}`] = token;
+  check(await api('PUT', '/api/v1/members/me', { nickname }, `member:${nickname}`), 200, `${nickname} の公開名`);
+}
+
 // カスタムフィールドは `fields` に入れる（標準の項目はトップレベル）
 const STANDARD_KEYS = new Set([
   'title',
@@ -300,17 +336,27 @@ async function main() {
     throw new Error('掲示板が有効になっていません。-c examples/hiking-forum/aegis.toml で起動してください');
   }
 
+  console.log('会員');
+  const enabled = await api('POST', '/api/v1/members/login', { email: members[0].email, password: PASSWORD });
+  if (enabled.status === 404) {
+    throw new Error('会員アカウントが有効になっていません。-c examples/hiking-forum/aegis.toml で起動してください');
+  }
+  for (const m of members) {
+    await loginMember(m);
+    console.log(`  ${m.nickname}（${m.email}）`);
+  }
+
   console.log('掲示板のカテゴリ');
   const categoryIds = {};
   for (const [position, c] of categories.entries()) {
-    const found = await api('GET', `/api/v1/forum/categories/${c.slug}`);
+    const found = await api('GET', `/api/v1/forum/categories/${c.slug}`, undefined, 'owner');
     if (found.status === 200) {
       console.log(`  skip   ${c.slug}（作成済み）`);
       categoryIds[c.slug] = found.data.category.id;
       continue;
     }
     const data = check(
-      await api('POST', '/api/v1/forum/categories', { ...c, position, visibility: 'public' }, 'owner'),
+      await api('POST', '/api/v1/forum/categories', { ...c, position, visibility: c.visibility ?? 'public' }, 'owner'),
       201,
       `カテゴリ ${c.slug} の作成`,
     );
@@ -320,7 +366,7 @@ async function main() {
 
   console.log('スレッドとレス（連投の制限で待ちながら投稿するので、1 分ほどかかります）');
   for (const t of threads) {
-    const { data: listed } = await api('GET', `/api/v1/forum/categories/${t.category}/threads?limit=100`);
+    const { data: listed } = await api('GET', `/api/v1/forum/categories/${t.category}/threads?limit=100`, undefined, 'owner');
     if (listed.threads.some((x) => x.title === t.title)) {
       console.log(`  skip   ${t.title}（作成済み）`);
       continue;
@@ -329,7 +375,7 @@ async function main() {
       await post(
         '/api/v1/forum/threads',
         { category_id: categoryIds[t.category], title: t.title, body: t.body, author_name: t.author ?? '' },
-        t.as,
+        actor(t),
       ),
       201,
       `スレッド「${t.title}」の作成`,
@@ -342,7 +388,7 @@ async function main() {
         await post(
           '/api/v1/forum/posts',
           { thread_id: threadId, body: r.body, author_name: r.author ?? '', reply_to_number: r.reply_to ?? null },
-          r.as,
+          actor(r),
         ),
         201,
         `「${t.title}」へのレス`,

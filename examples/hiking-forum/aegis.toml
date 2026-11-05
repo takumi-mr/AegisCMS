@@ -28,6 +28,11 @@ site_title = "やまびこ"
 site_description = "山歩きが好きな人のための掲示板です。はじめての山の相談から、道具の話、歩いた山の記録まで、気軽に書き込んでください。"
 posts_per_page = 12
 
+# 会員アカウント（docs/members.md）。掲示板に会員として書き込める。メールを使わないので、確認メールは要らない
+[members]
+enabled = true
+registration = "open"
+
 # 掲示板（docs/forum.md）。スレッドとレスは本体（site.db）とは別の forum.db に置く
 [forum]
 enabled = true

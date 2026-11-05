@@ -38,6 +38,8 @@ interface MemberManagerProps {
   /** A member to open at once (the link from the forum); `onOpened` is called once it is taken */
   openMemberId?: string | null;
   onOpened?: () => void;
+  /** The shop is on: the member detail lists the orders (member accounts also work without a shop) */
+  showOrders?: boolean;
 }
 
 /** The shop's member accounts for editors: who signed up, their orders, and suspending an account */
@@ -45,6 +47,7 @@ export const MemberManager: React.FC<MemberManagerProps> = ({
   onShowToast,
   openMemberId,
   onOpened,
+  showOrders = true,
 }) => {
   const { t } = useTranslation();
   const [offset, setOffset] = useState<number>(0);
@@ -195,6 +198,7 @@ export const MemberManager: React.FC<MemberManagerProps> = ({
       {selected && (
         <MemberModal
           member={selected}
+          showOrders={showOrders}
           onClose={() => setSelected(null)}
           onChanged={(message) => {
             onShowToast(message);
@@ -209,6 +213,7 @@ export const MemberManager: React.FC<MemberManagerProps> = ({
 
 interface MemberModalProps {
   member: AdminMember;
+  showOrders: boolean;
   onClose: () => void;
   onChanged: (message: string) => void;
   onError: (message: string) => void;
@@ -217,6 +222,7 @@ interface MemberModalProps {
 /** One member: registration details, the orders, and suspend / reactivate */
 const MemberModal: React.FC<MemberModalProps> = ({
   member: listed,
+  showOrders,
   onClose,
   onChanged,
   onError,
@@ -335,34 +341,36 @@ const MemberModal: React.FC<MemberModalProps> = ({
           </div>
         )}
 
-        <div className={styles.box} style={{ whiteSpace: 'normal' }}>
-          <div className={styles.boxTitle}>{t('members.orders')}</div>
-          {loadError && <div className={cx(styles.notice, styles.error)}>{loadError}</div>}
-          {!detail && !loadError && <div className={styles.muted}>{t('common.loading')}</div>}
-          {detail && detail.orders.length === 0 && (
-            <div className={styles.muted}>{t('members.noOrders')}</div>
-          )}
-          {detail?.orders.map((order) => (
-            <div key={order.id} className={styles.sumRow}>
-              <span>
-                <span className={styles.mono}>{order.number}</span>{' '}
-                <span className={styles.muted}>{formatDate(order.created_at)}</span>
-              </span>
-              <span>
-                <span className={cx(styles.badge, ORDER_BADGE[order.status])}>
-                  {t(`orders.status.${order.status}`)}
-                </span>{' '}
-                {formatMoney(order.total, order.currency)}
-              </span>
-            </div>
-          ))}
-          {[...spent].map(([currency, amount]) => (
-            <div key={currency} className={cx(styles.sumRow, styles.sumTotal)}>
-              <span>{t('members.spent')}</span>
-              <span>{formatMoney(amount, currency)}</span>
-            </div>
-          ))}
-        </div>
+        {showOrders && (
+          <div className={styles.box} style={{ whiteSpace: 'normal' }}>
+            <div className={styles.boxTitle}>{t('members.orders')}</div>
+            {loadError && <div className={cx(styles.notice, styles.error)}>{loadError}</div>}
+            {!detail && !loadError && <div className={styles.muted}>{t('common.loading')}</div>}
+            {detail && detail.orders.length === 0 && (
+              <div className={styles.muted}>{t('members.noOrders')}</div>
+            )}
+            {detail?.orders.map((order) => (
+              <div key={order.id} className={styles.sumRow}>
+                <span>
+                  <span className={styles.mono}>{order.number}</span>{' '}
+                  <span className={styles.muted}>{formatDate(order.created_at)}</span>
+                </span>
+                <span>
+                  <span className={cx(styles.badge, ORDER_BADGE[order.status])}>
+                    {t(`orders.status.${order.status}`)}
+                  </span>{' '}
+                  {formatMoney(order.total, order.currency)}
+                </span>
+              </div>
+            ))}
+            {[...spent].map(([currency, amount]) => (
+              <div key={currency} className={cx(styles.sumRow, styles.sumTotal)}>
+                <span>{t('members.spent')}</span>
+                <span>{formatMoney(amount, currency)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Modal>
   );
