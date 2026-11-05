@@ -758,7 +758,10 @@
     "noAddress": "None saved",
     "orders": "Orders",
     "noOrders": "No orders yet.",
-    "spent": "Paid in total"
+    "spent": "Paid in total",
+    "forum": "Forum",
+    "forumThreads": "Threads started",
+    "forumPosts": "Posts (including thread openers)"
   },
   "reviews": {
     "title": "Reviews",
@@ -1693,7 +1696,11 @@
       "categoryCreated": "Category created",
       "categoryUpdated": "Category updated",
       "categoryDeleted": "Category deleted"
-    }
+    },
+    "member": "Member",
+    "staff": "Staff",
+    "openMember": "Open member",
+    "formerUser": "Former user"
   },
   "analytics": {
     "title": "Analytics",

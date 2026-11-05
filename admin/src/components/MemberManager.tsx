@@ -35,16 +35,45 @@ const messageOf = (err: unknown, fallback: string): string =>
 
 interface MemberManagerProps {
   onShowToast: (message: string, type?: 'success' | 'error') => void;
+  /** A member to open at once (the link from the forum); `onOpened` is called once it is taken */
+  openMemberId?: string | null;
+  onOpened?: () => void;
 }
 
 /** The shop's member accounts for editors: who signed up, their orders, and suspending an account */
-export const MemberManager: React.FC<MemberManagerProps> = ({ onShowToast }) => {
+export const MemberManager: React.FC<MemberManagerProps> = ({
+  onShowToast,
+  openMemberId,
+  onOpened,
+}) => {
   const { t } = useTranslation();
   const [offset, setOffset] = useState<number>(0);
   const [reloadCount, setReloadCount] = useState<number>(0);
   const [page, setPage] = useState<MemberPage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<AdminMember | null>(null);
+
+  // Opened from elsewhere (the forum): look the member up, then show the same dialog as a list click
+  useEffect(() => {
+    if (!openMemberId) return;
+    let cancelled = false;
+    aegisApi
+      .getMember(openMemberId)
+      .then((loaded) => {
+        if (!cancelled) setSelected(loaded.member);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) onShowToast(messageOf(err, i18n.t('members.loadFailed')), 'error');
+      })
+      .finally(() => {
+        if (!cancelled) onOpened?.();
+      });
+    return () => {
+      cancelled = true;
+    };
+    // onShowToast / onOpened change on every render of the parent; only the id starts a lookup
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openMemberId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -291,6 +320,20 @@ const MemberModal: React.FC<MemberModalProps> = ({
             {addressText || <span className={styles.muted}>{t('members.noAddress')}</span>}
           </div>
         </div>
+
+        {detail?.forum && (
+          <div className={styles.box} style={{ whiteSpace: 'normal' }}>
+            <div className={styles.boxTitle}>{t('members.forum')}</div>
+            <div className={styles.sumRow}>
+              <span>{t('members.forumThreads')}</span>
+              <span>{detail.forum.threads}</span>
+            </div>
+            <div className={styles.sumRow}>
+              <span>{t('members.forumPosts')}</span>
+              <span>{detail.forum.posts}</span>
+            </div>
+          </div>
+        )}
 
         <div className={styles.box} style={{ whiteSpace: 'normal' }}>
           <div className={styles.boxTitle}>{t('members.orders')}</div>

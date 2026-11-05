@@ -217,6 +217,8 @@ pub trait ForumStorage: Send + Sync {
     /// 会員が退会するとき、その会員のスレッドとレスを匿名にする（投稿は残す）。
     /// 会員との紐づき・投稿者名・IP・User-Agent を消す。匿名にした件数（スレッド + レス）を返す
     async fn anonymize_member_forum_posts(&self, member_id: &str) -> Result<u64>;
+    /// 会員のスレッド数とレス数（スレッドの1つ目の投稿を含む）。管理画面の会員の詳細に出す
+    async fn count_member_forum_posts(&self, member_id: &str) -> Result<(u64, u64)>;
 
     // 通報操作
     async fn insert_report(&self, report: &ForumReportRecord) -> Result<()>;
@@ -1205,6 +1207,33 @@ macro_rules! impl_forum_storage {
                         .rows_affected();
                 }
                 Ok(total)
+            }
+
+            async fn count_member_forum_posts(
+                &self,
+                member_id: &str,
+            ) -> aegis_core::Result<(u64, u64)> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let mut counts = [0u64; 2];
+                for (slot, table) in counts.iter_mut().zip([
+                    $crate::forum::FORUM_THREAD_TABLE,
+                    $crate::forum::FORUM_POST_TABLE,
+                ]) {
+                    let sql = format!(
+                        "SELECT COUNT(*) FROM {} WHERE author_kind = 'member' AND author_id = {};",
+                        table,
+                        ph(1)
+                    );
+                    let count: i64 = sqlx::query_scalar(&sql)
+                        .bind(member_id)
+                        .fetch_one(&self.pool)
+                        .await
+                        .map_err(db_err)?;
+                    *slot = count.max(0) as u64;
+                }
+                Ok((counts[0], counts[1]))
             }
 
             async fn insert_report(

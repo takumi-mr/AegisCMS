@@ -758,6 +758,16 @@ async fn test_member_posts_are_kept_apart_from_staff_and_anonymized_on_leaving()
         .await
         .unwrap());
 
+    // 管理画面の件数は、種類と ID の組で数える（同じ ID のスタッフの分は入らない）
+    assert_eq!(
+        f.service.member_post_counts("same-id").await.unwrap(),
+        (1, 1)
+    );
+    assert_eq!(
+        f.service.member_post_counts("nobody").await.unwrap(),
+        (0, 0)
+    );
+
     // 退会: 会員の分だけ匿名になる。スタッフの同じ ID の投稿は、そのまま
     assert_eq!(f.service.release_member("same-id").await.unwrap(), 2);
     let thread = f.service.get_thread(&member_thread.id).await.unwrap();
@@ -783,4 +793,8 @@ async fn test_member_posts_are_kept_apart_from_staff_and_anonymized_on_leaving()
     assert_eq!(staff.author_name, "admin");
     // やり直しても同じ（もう匿名にするものは無い）
     assert_eq!(f.service.release_member("same-id").await.unwrap(), 0);
+    assert_eq!(
+        f.service.member_post_counts("same-id").await.unwrap(),
+        (0, 0)
+    );
 }

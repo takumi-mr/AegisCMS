@@ -631,6 +631,11 @@ impl ForumService {
         Ok(self.deps.db.anonymize_member_forum_posts(member_id).await?)
     }
 
+    /// 会員のスレッド数とレス数（管理画面の会員の詳細用）
+    pub async fn member_post_counts(&self, member_id: &str) -> ForumResult<(u64, u64)> {
+        Ok(self.deps.db.count_member_forum_posts(member_id).await?)
+    }
+
     pub async fn update_category(
         &self,
         id: &str,

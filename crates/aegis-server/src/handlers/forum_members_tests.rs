@@ -556,3 +556,59 @@ async fn test_deleting_the_account_anonymizes_the_forum_posts() {
     assert_eq!(other.author_id.as_deref(), Some(other_id.as_str()));
     assert_eq!(other.author_name, "taro");
 }
+
+/// 管理画面の会員の詳細に、掲示板の投稿数が付く（同じ ID のスタッフの分は入らない）
+#[tokio::test]
+async fn test_the_member_detail_in_the_admin_counts_forum_posts() {
+    let site = site(ForumPosting::Anyone).await;
+    let (member_id, token) = site.member("hana@example.com", Some("hana")).await;
+    let admin = site
+        .state
+        .sessions
+        .create_session("admin", "admin", Default::default(), None)
+        .await
+        .unwrap();
+
+    let (_, created) = site
+        .api(
+            "POST",
+            "/api/v1/forum/threads",
+            Some(&token),
+            Some(thread_body(&site.public_cat)),
+        )
+        .await;
+    let thread_id = created["thread"]["id"].as_str().unwrap().to_string();
+    let (status, _) = site
+        .api(
+            "POST",
+            "/api/v1/forum/posts",
+            Some(&token),
+            Some(json!({ "thread_id": thread_id, "body": "A second post by the member", "author_name": "" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, detail) = site
+        .api(
+            "GET",
+            &format!("/api/v1/admin/members/{member_id}"),
+            Some(&admin.id),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    // スレッド 1 件、レス 2 件（スレッドの 1 つ目の投稿を含む）
+    assert_eq!(detail["forum"], json!({ "threads": 1, "posts": 2 }));
+
+    // 掲示板の API が返すスレッドとレスは、会員の ID を持つ（管理画面が会員の詳細へリンクする元）
+    let (_, thread) = site
+        .api(
+            "GET",
+            &format!("/api/v1/forum/threads/{thread_id}"),
+            Some(&admin.id),
+            None,
+        )
+        .await;
+    assert_eq!(thread["thread"]["author_kind"], "member");
+    assert_eq!(thread["thread"]["author_id"], member_id);
+}
