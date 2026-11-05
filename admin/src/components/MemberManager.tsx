@@ -283,6 +283,7 @@ const MemberModal: React.FC<MemberModalProps> = ({
             {member.name || '—'}
             {'\n'}
             <a href={`mailto:${member.email}`}>{member.email}</a>
+            {member.nickname ? `\n${t('members.nickname', { name: member.nickname })}` : ''}
             {member.phone ? `\n${member.phone}` : ''}
           </div>
           <div className={styles.box}>

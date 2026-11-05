@@ -428,11 +428,15 @@
       [
         field(msg('acct_name'), input('name', 'text', { required: true, value: member.name || '', autocomplete: 'name' })),
         field(msg('acct_email'), input('email', 'email', { value: member.email, disabled: true })),
+        field(
+          msg('acct_nickname') + ' (' + msg('acct_nickname_hint') + ')',
+          input('nickname', 'text', { value: member.nickname || '', maxlength: '30', autocomplete: 'nickname' })
+        ),
         field(msg('acct_phone'), input('phone', 'tel', { value: member.phone || '', autocomplete: 'tel' })),
       ],
       msg('acct_save'),
       function (data, status) {
-        return api('PUT', '/me', { name: data.name, phone: data.phone || null }).then(function () {
+        return api('PUT', '/me', { name: data.name, nickname: data.nickname || '', phone: data.phone || null }).then(function () {
           status.textContent = '';
           status.appendChild(notice(msg('acct_saved'), 'ok'));
         });

@@ -99,10 +99,19 @@ pub async fn submit_product_review(
 
     // 1. 顧客ログインがあるかチェック
     let author = if let Ok(session) = resolve_member_session(&state, &headers).await {
+        // 公開の場に出る名前は、公開名（あれば）。ログイン時のコピー（session.name）は使わない
+        let name = match state.members.as_ref() {
+            Some(members) => members
+                .get_profile(&session.member_id)
+                .await
+                .map(|profile| profile.public_name().to_string())
+                .unwrap_or_else(|_| session.name.clone()),
+            None => session.name.clone(),
+        };
         ReviewAuthor::Member {
             member_id: session.member_id,
             email: session.email,
-            name: session.name,
+            name,
         }
     } else if let Some(access_token) = &submission.access_token {
         // 2. ゲスト購入（注文トークンによる検証）

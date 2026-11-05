@@ -11,7 +11,7 @@ pub use config::{MemberRegistration, MembersConfig};
 pub use member::{
     MemberLoginRequest, MemberRegisterRequest, MemberResponse, MemberService, MemberSessionData,
     MemberUpdateProfileRequest, MemberVerification, EMAIL_NOT_VERIFIED_MESSAGE,
-    EMAIL_VERIFICATION_TTL_SECS, MEMBER_SESSION_PREFIX, MEMBER_TOKEN_PREFIX,
+    EMAIL_VERIFICATION_TTL_SECS, MEMBER_SESSION_PREFIX, MEMBER_TOKEN_PREFIX, NICKNAME_MAX_CHARS,
     PASSWORD_RESET_TTL_SECS,
 };
 
