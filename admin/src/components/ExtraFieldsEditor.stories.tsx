@@ -17,6 +17,7 @@ const def = (
   unique: false,
   index: false,
   indexed_paths: [],
+  public: true,
   ...extra,
 });
 

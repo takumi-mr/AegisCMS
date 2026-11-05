@@ -316,7 +316,8 @@ impl OpenApiGenerator {
                     "indexed_paths": {
                         "type": "array",
                         "items": { "type": "string" }
-                    }
+                    },
+                    "public": { "type": "boolean" }
                 },
                 "required": ["name", "type"]
             }),
@@ -534,6 +535,7 @@ mod tests {
                     max_length: Some(255),
                     target: None,
                     indexed_paths: vec![],
+                    public: true,
                 },
                 FieldDefinition {
                     name: "published_at".to_string(),
@@ -545,6 +547,7 @@ mod tests {
                     max_length: None,
                     target: None,
                     indexed_paths: vec![],
+                    public: true,
                 },
             ],
         };

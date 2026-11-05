@@ -926,6 +926,7 @@ mod tests {
                 max_length: Some(255),
                 target: None,
                 indexed_paths: vec![],
+                public: true,
             }],
         };
 
@@ -943,6 +944,7 @@ mod tests {
                 max_length: Some(100),
                 target: None,
                 indexed_paths: vec![],
+                public: true,
             }],
         };
 
