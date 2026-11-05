@@ -8,25 +8,34 @@
           },
           {
             "properties": {
-              "category_id": {
-                "description": "Foreign key relation to category.id",
-                "nullable": true,
-                "type": "string"
-              },
-              "custom_meta": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "excerpt": {
-                "maxLength": 500,
-                "type": "string"
+              "fields": {
+                "$ref": "#/components/schemas/ArticleFields"
               }
             },
-            "required": [],
             "type": "object"
           }
         ],
         "description": "Content model for 技術記事",
+        "type": "object"
+      },
+      "ArticleFields": {
+        "description": "Custom fields of 技術記事 (`fields` of a response and of a write request)",
+        "properties": {
+          "category_id": {
+            "description": "Foreign key relation to category.id",
+            "nullable": true,
+            "type": "string"
+          },
+          "custom_meta": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "excerpt": {
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
+        "required": [],
         "type": "object"
       },
       "BaseContentItem": {
@@ -41,12 +50,21 @@
             },
             "type": "array"
           },
+          "comments_open": {
+            "description": "Whether the content accepts comments (only with comments enabled)",
+            "type": "boolean"
+          },
           "content_type": {
             "type": "string"
           },
           "created_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "fields": {
+            "additionalProperties": true,
+            "description": "The schema's custom fields (a type's own `{Type}Content` has the exact shape)",
+            "type": "object"
           },
           "id": {
             "format": "uuid",
@@ -56,6 +74,13 @@
             "format": "date-time",
             "nullable": true,
             "type": "string"
+          },
+          "relations": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ResolvedRelation"
+            },
+            "description": "Resolved relations by field name",
+            "type": "object"
           },
           "rendered_html": {
             "type": "string"
@@ -124,25 +149,34 @@
           },
           {
             "properties": {
-              "category_id": {
-                "description": "Foreign key relation to category.id",
-                "nullable": true,
-                "type": "string"
-              },
-              "color": {
-                "nullable": true,
-                "type": "string"
-              },
-              "description": {
-                "nullable": true,
-                "type": "string"
+              "fields": {
+                "$ref": "#/components/schemas/CategoryFields"
               }
             },
-            "required": [],
             "type": "object"
           }
         ],
         "description": "Content model for カテゴリ",
+        "type": "object"
+      },
+      "CategoryFields": {
+        "description": "Custom fields of カテゴリ (`fields` of a response and of a write request)",
+        "properties": {
+          "category_id": {
+            "description": "Foreign key relation to category.id",
+            "nullable": true,
+            "type": "string"
+          },
+          "color": {
+            "nullable": true,
+            "type": "string"
+          },
+          "description": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [],
         "type": "object"
       },
       "ContentStatus": {
@@ -188,7 +222,9 @@
             "type": "string"
           },
           "relations": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ResolvedRelation"
+            },
             "description": "Resolved relations by field name",
             "type": "object"
           },
@@ -224,6 +260,7 @@
         "type": "object"
       },
       "CreateContentPayload": {
+        "additionalProperties": false,
         "properties": {
           "author_id": {
             "nullable": true,
@@ -234,6 +271,11 @@
               "$ref": "#/components/schemas/BlockNode"
             },
             "type": "array"
+          },
+          "fields": {
+            "additionalProperties": true,
+            "description": "The schema's custom fields, e.g. `{\"excerpt\": \"...\"}` (the same shape as `fields` of a response). A field the schema does not have is not saved",
+            "type": "object"
           },
           "publish": {
             "default": false,
@@ -330,25 +372,34 @@
           },
           {
             "properties": {
-              "category_id": {
-                "description": "Foreign key relation to category.id",
-                "nullable": true,
-                "type": "string"
-              },
-              "custom_meta": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "layout": {
-                "nullable": true,
-                "type": "string"
+              "fields": {
+                "$ref": "#/components/schemas/PageFields"
               }
             },
-            "required": [],
             "type": "object"
           }
         ],
         "description": "Content model for 固定ページ",
+        "type": "object"
+      },
+      "PageFields": {
+        "description": "Custom fields of 固定ページ (`fields` of a response and of a write request)",
+        "properties": {
+          "category_id": {
+            "description": "Foreign key relation to category.id",
+            "nullable": true,
+            "type": "string"
+          },
+          "custom_meta": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "layout": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [],
         "type": "object"
       },
       "ProductContent": {
@@ -358,47 +409,80 @@
           },
           {
             "properties": {
-              "buy_url": {
-                "nullable": true,
-                "type": "string"
-              },
-              "category_id": {
-                "description": "Foreign key relation to category.id",
-                "nullable": true,
-                "type": "string"
-              },
-              "compare_at_price": {
-                "nullable": true,
-                "type": "integer"
-              },
-              "excerpt": {
-                "maxLength": 500,
-                "nullable": true,
-                "type": "string"
-              },
-              "image_url": {
-                "nullable": true,
-                "type": "string"
-              },
-              "price": {
-                "type": "integer"
-              },
-              "sku": {
-                "nullable": true,
-                "type": "string"
-              },
-              "stock": {
-                "nullable": true,
-                "type": "integer"
+              "fields": {
+                "$ref": "#/components/schemas/ProductFields"
               }
             },
-            "required": [
-              "price"
-            ],
             "type": "object"
           }
         ],
         "description": "Content model for 商品",
+        "type": "object"
+      },
+      "ProductFields": {
+        "description": "Custom fields of 商品 (`fields` of a response and of a write request)",
+        "properties": {
+          "buy_url": {
+            "nullable": true,
+            "type": "string"
+          },
+          "category_id": {
+            "description": "Foreign key relation to category.id",
+            "nullable": true,
+            "type": "string"
+          },
+          "compare_at_price": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "excerpt": {
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "image_url": {
+            "nullable": true,
+            "type": "string"
+          },
+          "price": {
+            "type": "integer"
+          },
+          "sku": {
+            "nullable": true,
+            "type": "string"
+          },
+          "stock": {
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "price"
+        ],
+        "type": "object"
+      },
+      "ResolvedRelation": {
+        "description": "Content a relation field points to",
+        "properties": {
+          "content_type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "content_type",
+          "title",
+          "slug"
+        ],
         "type": "object"
       },
       "SchemaDefinition": {

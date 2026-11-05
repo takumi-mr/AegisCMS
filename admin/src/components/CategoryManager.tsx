@@ -57,8 +57,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
         title: title.trim(),
         slug: slug.trim(),
         status: 'published',
-        description: description.trim() || null,
-        color,
+        fields: { description: description.trim() || null, color },
       });
       setTitle('');
       setSlug('');

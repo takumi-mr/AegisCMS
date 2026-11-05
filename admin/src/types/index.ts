@@ -22,23 +22,11 @@ export interface SchemaDefinition {
   fields: FieldDefinition[];
 }
 
-/** Related item resolved by the server for a `relation` field (`relations` in API responses) */
-export interface ResolvedRelation {
-  id: string;
-  content_type: string;
-  title: string;
-  slug: string;
-}
-
 /**
  * Content item as returned by the content API.
  * Schema-specific custom fields are returned under `fields` and resolved relations under `relations`.
  */
-export type ContentItem = import('./schemas').BaseContentItem & {
-  comments_open?: boolean;
-  fields?: Record<string, unknown>;
-  relations?: Record<string, ResolvedRelation>;
-};
+export type ContentItem = import('./schemas').BaseContentItem;
 /**
  * A content item in a list (`GET /contents/{type}?view=summary`): no blocks and no rendered HTML,
  * with a short `excerpt`. A full `ContentItem` is also a valid summary.

@@ -832,7 +832,6 @@ export const App: React.FC = () => {
     setIsSaving(true);
     try {
       const payload = {
-        ...extra.fields,
         title,
         slug,
         status,
@@ -843,9 +842,13 @@ export const App: React.FC = () => {
         ...(unpublishDate ? { unpublish_at: unpublishDate.toISOString() } : { unpublish_at: null }),
         blocks,
         // author_id is omitted: new content records the logged-in user, updates keep the author
-        // Omit the relation entirely when no category is selected
-        ...(contentType === 'article' && categoryId ? { category_id: categoryId } : {}),
-        ...(contentType === 'page' ? { layout } : {}),
+        // The schema's custom fields go under `fields`. The category relation is left out
+        // entirely when no category is selected
+        fields: {
+          ...extra.fields,
+          ...(contentType === 'article' && categoryId ? { category_id: categoryId } : {}),
+          ...(contentType === 'page' ? { layout } : {}),
+        },
       };
       // Content opened from the list is updated in place; otherwise a new item is created
       const saved = selectedId

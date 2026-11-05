@@ -804,22 +804,24 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
     }
     setExtraError(null);
     const payload: Record<string, unknown> = {
-      ...extra.fields,
       title: title.trim(),
       slug: slug.trim(),
       status,
       ...(scheduledAt ? { published_at: scheduledAt.toISOString() } : {}),
       ...(unpublishDate ? { unpublish_at: unpublishDate.toISOString() } : { unpublish_at: null }),
       blocks: markdownToBlocks(description),
-      price: priceValue,
-      compare_at_price: compareValue,
-      // Empty stock = not counted (unlimited)
-      stock: savedStock,
-      ...(sku.trim() ? { sku: sku.trim() } : {}),
-      ...(imageUrl.trim() ? { image_url: imageUrl.trim() } : {}),
-      ...(excerpt.trim() ? { excerpt: excerpt.trim() } : {}),
-      ...(buyUrl.trim() ? { buy_url: buyUrl.trim() } : {}),
-      ...(categoryId ? { category_id: categoryId } : {}),
+      fields: {
+        ...extra.fields,
+        price: priceValue,
+        compare_at_price: compareValue,
+        // Empty stock = not counted (unlimited)
+        stock: savedStock,
+        ...(sku.trim() ? { sku: sku.trim() } : {}),
+        ...(imageUrl.trim() ? { image_url: imageUrl.trim() } : {}),
+        ...(excerpt.trim() ? { excerpt: excerpt.trim() } : {}),
+        ...(buyUrl.trim() ? { buy_url: buyUrl.trim() } : {}),
+        ...(categoryId ? { category_id: categoryId } : {}),
+      },
     };
     setIsSaving(true);
     setError(null);

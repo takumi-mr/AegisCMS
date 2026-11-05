@@ -24,7 +24,7 @@ const createArticles = async (page: Page, prefix: string, count: number, summary
         slug: `${prefix.toLowerCase().replace(/\s+/g, '-')}-${n}`,
         status: 'draft',
         blocks: [{ name: 'core/paragraph', attributes: {}, text: `Body of item ${n}` }],
-        ...(last ? { excerpt: `A summary about ${summaryWord}` } : {}),
+        ...(last ? { fields: { excerpt: `A summary about ${summaryWord}` } } : {}),
       },
     });
     expect(created.ok()).toBeTruthy();
