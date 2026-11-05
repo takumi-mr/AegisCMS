@@ -28,6 +28,8 @@ use aegis_schema::SchemaDefinition;
 pub const STATUS_DRAFT: &str = "draft";
 /// レビュー待ち。`editor` 以上が公開・予約公開（承認）するか、下書きに戻す（差し戻し）
 pub const STATUS_PENDING: &str = "pending";
+/// 公開中
+const STATUS_PUBLISHED: &str = "published";
 
 /// レビューのメモ（`review_note`）の最大文字数
 pub const MAX_REVIEW_NOTE_CHARS: usize = 2000;
@@ -70,6 +72,27 @@ pub fn ensure_may_change(session: &SessionData, current: &ContentRecord) -> Resu
     if !is_contributor_status(&current.status) {
         return Err(forbidden(
             "Contributors cannot change content that is published, scheduled or archived; ask an editor",
+        ));
+    }
+    Ok(())
+}
+
+/// このセッションが `PUT` で保存してよいか。[`ensure_may_change`] に加えて、`contributor` は自分の公開中のコンテンツ
+/// の変更を `pending`（レビュー待ち）として出せる。公開版は残り、承認されるまで訪問者には変更が見えない
+pub fn ensure_may_update(
+    session: &SessionData,
+    current: &ContentRecord,
+    requested_status: &str,
+) -> Result<(), ApiError> {
+    if can_publish(session) || current.status != STATUS_PUBLISHED {
+        return ensure_may_change(session, current);
+    }
+    if current.author_id.as_deref() != Some(session.user_id.as_str()) {
+        return Err(forbidden("Contributors can only change their own content"));
+    }
+    if requested_status != STATUS_PENDING {
+        return Err(forbidden(
+            "Contributors can only submit changes to published content for review ('pending')",
         ));
     }
     Ok(())
@@ -364,6 +387,25 @@ mod tests {
     }
 
     #[test]
+    fn contributors_submit_changes_to_their_published_content_as_pending_only() {
+        let contributor = session("alice", "contributor");
+        let own = record("published", "alice");
+        assert!(ensure_may_update(&contributor, &own, "pending").is_ok());
+        for status in ["draft", "published", "scheduled", "archived"] {
+            assert_eq!(
+                ensure_may_update(&contributor, &own, status).unwrap_err().0,
+                StatusCode::FORBIDDEN
+            );
+        }
+        // Someone else's content, and other states, follow ensure_may_change
+        assert!(ensure_may_update(&contributor, &record("published", "bob"), "pending").is_err());
+        assert!(ensure_may_update(&contributor, &record("scheduled", "alice"), "pending").is_err());
+        assert!(ensure_may_update(&contributor, &record("draft", "alice"), "draft").is_ok());
+        let editor = session("bob", "editor");
+        assert!(ensure_may_update(&editor, &own, "published").is_ok());
+    }
+
+    #[test]
     fn decisions_follow_status_changes() {
         let of = |prev: Option<&str>, status: &str, actor: &str| {
             ReviewDecision::of(prev, &record(status, "alice"), actor)
@@ -560,6 +602,137 @@ mod tests {
         const ALICE: (&str, &str) = ("alice", "contributor");
         const BOB: (&str, &str) = ("bob", "editor");
 
+        async fn live(state: &Arc<AppState>, id: &str) -> Option<aegis_db::ContentRecord> {
+            let schema = state.schemas.read().await.get("article").unwrap().clone();
+            state.db.get_published_content(&schema, id).await.unwrap()
+        }
+
+        #[tokio::test]
+        async fn changes_to_published_content_are_reviewed_while_the_live_version_stays() {
+            let (state, notifier) = setup().await;
+            let created = create(
+                &state,
+                ALICE,
+                json!({ "title": "Spring Sale", "slug": "spring", "status": "pending" }),
+            )
+            .await
+            .unwrap();
+            update(
+                &state,
+                BOB,
+                "spring",
+                json!({ "title": "Spring Sale", "slug": "spring", "status": "published" }),
+            )
+            .await
+            .unwrap();
+            let first_published_at = live(&state, &created.id)
+                .await
+                .unwrap()
+                .published_at
+                .unwrap();
+            notifier.take();
+
+            // The author cannot unpublish, publish, or delete published content; only submit a change
+            for status in ["draft", "published"] {
+                assert_eq!(
+                    update(
+                        &state,
+                        ALICE,
+                        "spring",
+                        json!({ "title": "X", "slug": "spring", "status": status }),
+                    )
+                    .await
+                    .unwrap_err(),
+                    StatusCode::FORBIDDEN
+                );
+            }
+            assert_eq!(
+                delete(&state, ALICE, "spring").await.unwrap_err(),
+                StatusCode::FORBIDDEN
+            );
+
+            // A change goes to review; visitors still see the published version
+            let changed = update(
+                &state,
+                ALICE,
+                "spring",
+                json!({ "title": "Spring Sale 2", "slug": "spring-2", "status": "pending",
+                        "review_note": "New title" }),
+            )
+            .await
+            .unwrap();
+            assert_eq!(changed.status, "pending");
+            assert_eq!(
+                changed.published_at.as_deref(),
+                Some(first_published_at.as_str())
+            );
+            let shown = live(&state, &created.id).await.unwrap();
+            assert_eq!(
+                (shown.title.as_str(), shown.slug.as_str()),
+                ("Spring Sale", "spring")
+            );
+            let events = notifier.take();
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0].kind, "content.submitted");
+
+            // Returning it keeps the live version too
+            update(
+                &state,
+                BOB,
+                "spring-2",
+                json!({ "title": "Spring Sale 2", "slug": "spring-2", "status": "draft",
+                        "review_note": "Not yet" }),
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                live(&state, &created.id).await.unwrap().title,
+                "Spring Sale"
+            );
+
+            // Submit again and approve: the new version goes live and the first publication date stays
+            update(
+                &state,
+                ALICE,
+                "spring-2",
+                json!({ "title": "Spring Sale 2", "slug": "spring-2", "status": "pending" }),
+            )
+            .await
+            .unwrap();
+            let approved = update(
+                &state,
+                BOB,
+                "spring-2",
+                json!({ "title": "Spring Sale 2", "slug": "spring-2", "status": "published" }),
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                approved.published_at.as_deref(),
+                Some(first_published_at.as_str())
+            );
+            let shown = live(&state, &created.id).await.unwrap();
+            assert_eq!(
+                (shown.title.as_str(), shown.slug.as_str()),
+                ("Spring Sale 2", "spring-2")
+            );
+            assert_eq!(
+                review_decisions(&state)
+                    .await
+                    .into_iter()
+                    .map(|(d, _)| d)
+                    .collect::<Vec<_>>(),
+                [
+                    "submitted",
+                    "approved",
+                    "submitted",
+                    "returned",
+                    "submitted",
+                    "approved"
+                ]
+            );
+        }
+
         #[tokio::test]
         async fn contributors_submit_and_editors_approve_or_return() {
             let (state, notifier) = setup().await;
@@ -646,9 +819,10 @@ mod tests {
             assert_eq!(emails(&events[0]), ["alice@example.com"]);
             assert_eq!(events[0].data["content_url"], "https://example.com/spring");
 
-            // Once published, the contributor can neither change nor delete it
+            // Once published, the contributor can only submit a change for review (see the next test), not
+            // unpublish or delete it
             assert_eq!(
-                update(&state, ALICE, "spring", article("pending", None))
+                update(&state, ALICE, "spring", article("draft", None))
                     .await
                     .unwrap_err(),
                 StatusCode::FORBIDDEN
@@ -751,7 +925,7 @@ mod tests {
             )
             .await
             .unwrap();
-            // An editor sending a published item back to review takes it offline, like a draft
+            // Sending a published item back to review keeps the live version (the change is under review)
             let back = update(
                 &state,
                 BOB,
@@ -761,12 +935,18 @@ mod tests {
             .await
             .unwrap();
             assert_eq!(back.status, "pending");
-            assert_eq!(back.published_at, None);
-            assert!(!crate::handlers::content::is_currently_published(
-                &back.status,
-                back.unpublish_at.as_deref(),
-                chrono::Utc::now()
-            ));
+            assert_eq!(live(&state, &back.id).await.unwrap().title, "Live");
+            // Archiving takes it offline
+            let archived = update(
+                &state,
+                BOB,
+                "live",
+                json!({ "title": "Live", "slug": "live", "status": "archived" }),
+            )
+            .await
+            .unwrap();
+            assert_eq!(archived.published_at, None);
+            assert!(live(&state, &archived.id).await.is_none());
         }
     }
 }

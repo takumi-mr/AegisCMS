@@ -564,8 +564,13 @@ export const App: React.FC = () => {
       });
     setTitle(item.title);
     setSlug(item.slug);
+    // A contributor changes a published item by submitting the change for review (the live version stays)
     setStatus(
-      (EDITOR_STATUSES as string[]).includes(item.status) ? (item.status as EditorStatus) : 'draft'
+      !canEdit(session ?? null) && item.status === 'published'
+        ? 'pending'
+        : (EDITOR_STATUSES as string[]).includes(item.status)
+          ? (item.status as EditorStatus)
+          : 'draft'
     );
     setPublishAt(
       item.status === 'scheduled' && item.published_at ? toDateTimeLocal(item.published_at) : ''

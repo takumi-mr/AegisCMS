@@ -59,12 +59,15 @@ describe('roles utility', () => {
       ).toBe(true);
     });
 
-    it('lets contributors change only their own drafts and pending items', () => {
+    it('lets contributors change only their own drafts, pending and published items', () => {
       const contributor = makeSession('contributor');
       expect(canChangeContent(contributor, null)).toBe(true);
       expect(canChangeContent(contributor, own('draft'))).toBe(true);
       expect(canChangeContent(contributor, own('pending'))).toBe(true);
-      expect(canChangeContent(contributor, own('published'))).toBe(false);
+      expect(canChangeContent(contributor, own('published'))).toBe(true);
+      expect(canChangeContent(contributor, { author_id: 'other', status: 'published' })).toBe(
+        false
+      );
       expect(canChangeContent(contributor, own('scheduled'))).toBe(false);
       expect(canChangeContent(contributor, { author_id: 'other', status: 'draft' })).toBe(false);
     });

@@ -100,7 +100,8 @@ fn resolve_publication(
 
     let published = |requested_unpub: Option<&str>| -> Result<(String, Option<String>, Option<String>), ApiError> {
         let first = current
-            .filter(|c| c.status == STATUS_PUBLISHED)
+            // `pending` / `draft` over a live version keep the first publication date (a change under review)
+            .filter(|c| matches!(c.status.as_str(), STATUS_PUBLISHED | STATUS_PENDING | "draft"))
             .and_then(|c| c.published_at.clone());
         let pub_str = first.unwrap_or_else(|| now.to_rfc3339());
         let pub_dt = chrono::DateTime::parse_from_rfc3339(&pub_str)
@@ -678,7 +679,7 @@ pub async fn update_content(
                 format!("Content '{}' not found", slug_or_id),
             )
         })?;
-    review::ensure_may_change(&session, &current)?;
+    review::ensure_may_update(&session, &current, &payload.status)?;
 
     // Seed a baseline for records saved before versioning was enabled.
     let existing_versions = state
@@ -736,6 +737,15 @@ pub async fn update_content(
     let previous_slug = current.slug.clone();
     // The URL visitors use now: the published version's slug, which only changes when a new version is published
     let live_before = crate::handlers::redirects::live_slug(&state, &schema, &current.id).await;
+    // A change under review (`pending`), or one returned / withdrawn (`draft`), on content that has a live version:
+    // the live version stays, and the working copy keeps its publication dates for when it is approved
+    let keeps_live = live_before.is_some()
+        && (status == STATUS_PENDING || (status == "draft" && previous_status == STATUS_PENDING));
+    let (published_at, unpublish_at) = if keeps_live {
+        (current.published_at.clone(), current.unpublish_at.clone())
+    } else {
+        (published_at, unpublish_at)
+    };
     let record = ContentRecord {
         id: current.id,
         content_type,
@@ -756,6 +766,7 @@ pub async fn update_content(
         review_note.clone(),
     )?);
     let publication = match record.status.as_str() {
+        _ if keeps_live => ContentPublicationChange::Keep,
         "draft" | "archived" | STATUS_PENDING => ContentPublicationChange::Unpublish,
         STATUS_SCHEDULED if previous_status == STATUS_PUBLISHED && needs_baseline => {
             ContentPublicationChange::EnsureVersion(0)

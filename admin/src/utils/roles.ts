@@ -20,7 +20,8 @@ export const CONTRIBUTOR_STATUSES = ['draft', 'pending'] as const;
 
 /**
  * Whether the session may change a stored item: editors change anything, contributors only
- * their own drafts and items waiting for review (the server checks the same)
+ * their own drafts, items waiting for review and published items (a change to a published item is
+ * saved as `pending`; the live version stays until an editor approves). The server checks the same
  */
 export const canChangeContent = (
   session: SessionInfo | null,
@@ -31,7 +32,8 @@ export const canChangeContent = (
   if (!item) return true;
   return (
     item.author_id === session.user_id &&
-    (CONTRIBUTOR_STATUSES as readonly string[]).includes(item.status)
+    (item.status === 'published' ||
+      (CONTRIBUTOR_STATUSES as readonly string[]).includes(item.status))
   );
 };
 
