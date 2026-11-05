@@ -54,7 +54,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
 | `GET /api/v1/storage/objects` | `viewer` |
 | `POST /api/v1/preview`（エディタのプレビュー。保存しない） | `viewer` |
-| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug または id}`, `POST .../versions/{revision}/restore`, `PUT .../tags` | `contributor`（自分の `draft` / `pending` だけ。状態は `draft` / `pending` にしかできない）。公開に関わる変更と他人のコンテンツは `editor` |
+| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug または id}`, `POST .../versions/{revision}/restore`, `PUT .../tags` | `contributor`（自分の `draft` / `pending`。公開中のものは変更を `pending` として出すだけで、削除・版の復元・タグの付け外しはできない。状態は `draft` / `pending` にしかできない）。公開に関わる変更と他人のコンテンツは `editor` |
 | `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `POST /api/v1/orders/{id}/status`（[EC](commerce.md#62-管理editor-以上)） | `editor` |
 | `POST /api/v1/storage/upload`（[メディア](media.md)） | `contributor` |
 | `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md)） | `editor` |

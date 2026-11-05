@@ -135,9 +135,9 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 使い方は [theme_and_publishing_guide.md](theme_and_publishing_guide.md#レビュー寄稿者の下書きを承認して公開する)。
 
-- **最小の 1 段だけ**: 状態 `pending` とロール `contributor` を足し、「書く人」と「公開を決める人」を分けるだけにした。段階を自由に組めるワークフロー（多段の承認、種類ごとの流れ、公開中の記事の変更を別に下書きして承認する仕組み）は持たない。要るようになったら `on-before-save` などのフックで外に出す。
+- **最小の 1 段だけ**: 状態 `pending` とロール `contributor` を足し、「書く人」と「公開を決める人」を分けるだけにした。段階を自由に組めるワークフロー（多段の承認、種類ごとの流れ）は持たない。要るようになったら `on-before-save` などのフックで外に出す。
 - **専用の API を足さない**: 依頼・承認・差し戻しは、通常の保存（`POST` / `PUT /api/v1/contents/...`）の状態の変わり目として `ReviewDecision::of(前の状態, 保存した記録, 操作した人)` で判定する（`→ pending` = 依頼、`pending → published / scheduled` = 承認、`pending → draft` = 著者なら取り下げ・他人なら差し戻し）。公開・CDN のパージ・リダイレクト・版の履歴は既存の保存の処理をそのまま通る。理由のメモ（`review_note`）は列を足さず、版の履歴の `change_note`・監査ログ `content.review`・通知に入れる。
-- **`pending` は公開版を外す**: 保存の `ContentPublicationChange` は `draft` / `archived` と同じ `Unpublish`。公開側は `status == "published"` だけを見るので、ほかの変更は要らない。
+- **`pending` は公開版を外す。ただし公開版があれば残す**: 公開版が無いコンテンツの `pending` は `draft` / `archived` と同じ `Unpublish`。公開側は公開版のポインター（`_aegis_content_publications`）の `status == "published"` だけを見るので、ほかの変更は要らない。公開版があるコンテンツ（`live_slug` が `Some`）の `pending` と、`pending` からの差し戻し・取り下げ（`draft`）は `Keep` で、公開版を残したまま作業中の行だけが `pending` になる（= 公開中のものの変更のレビュー。列を足さない）。作業中の行は公開日時・`unpublish_at` を保ち、承認（`pending → published`）の `PublishVersion` で新しい版へ切り替わる。`contributor` は `review::ensure_may_update` で、自分の `published` のものを `pending` としてだけ保存できる。
 - **権限はハンドラーで確かめる**: `contributor` は `ContributorSession`（`RequireRole<CONTRIBUTOR>`）で作成・更新・削除・版の復元・タグの付け外し・アップロードの入口を通り、`review::ensure_may_set_status`（`draft` / `pending` だけ）と `review::ensure_may_change`（自分が著者で、今の状態が `draft` / `pending`）で絞る。ロールの値（`role_level`）はセッションや DB に保存しないので、`VIEWER` と `EDITOR` の間に足しても既存のセッションに影響しない（保存するのは名前）。
 - **依頼の宛先はユーザーのロールで決める**: `content.submitted` は `[notifications.email].staff_recipients`（運営者）ではなく、`editor` 以上の有効なユーザーのメールアドレスへ送る（承認できる人に届けるため。ショップの運営者の宛先とは別）。承認・差し戻しは著者へ（著者が操作した本人なら送らない）。
 
