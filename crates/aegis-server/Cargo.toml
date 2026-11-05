@@ -32,6 +32,7 @@ aegis-newsletter = { path = "../aegis-newsletter" }
 aegis-search = { path = "../aegis-search", optional = true }
 aegis-analytics = { path = "../aegis-analytics", optional = true }
 aegis-backup = { path = "../aegis-backup", optional = true }
+aegis-headless = { path = "../aegis-headless", optional = true }
 
 
 tokio.workspace = true
@@ -68,13 +69,15 @@ tempfile.workspace = true
 wat.workspace = true
 
 [features]
-default = ["oidc", "saml", "search", "analytics", "backup"]
+default = ["oidc", "saml", "search", "analytics", "backup", "headless"]
 # OpenID Connect login ([auth.oidc]): ID token signature verification via JWKS
 oidc = ["aegis-auth/oidc"]
 # SAML 2.0 login ([auth.saml]): XML signature verification in pure Rust
 saml = ["aegis-auth/saml"]
 # Site search ([search]): a full-text index of published content (tantivy, CJK bigrams), /search and GET /api/v1/search
 search = ["dep:aegis-search"]
+# Headless delivery API ([headless]): published content as schema-shaped JSON, GET /api/v1/public/contents (disabled by default)
+headless = ["dep:aegis-headless"]
 # Access analytics ([analytics]): a cookie-less beacon, daily aggregated counts and the Admin Studio dashboard
 analytics = ["dep:aegis-analytics"]
 # Database & upload storage dump and restore (aegis-server dump / aegis-server restore)

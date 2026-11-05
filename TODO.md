@@ -9,7 +9,7 @@
 
 ## 直近の着手タスク
 
-- [ ] **ヘッドレス配信 API の実装**（設計は [docs/headless.md](docs/headless.md)。§8 の順に PR を分ける。スキーマの `public` とクレートは完了）: ①サーバーに組み込む（README のクレート一覧にも追記。クレート `aegis-headless` と、公開版だけを引く `resolve_published_relations` は実装済み）（feature `headless`・`[headless]` 設定・ルート・キャッシュ・OpenAPI）→ ②ドキュメントを実装に合わせる（設計の注記を外し、このタスクを消す）。
+- [ ] **ヘッドレス配信 API の実装**（設計は [docs/headless.md](docs/headless.md)）: スキーマの `public`・クレート・サーバーへの組み込み（一覧・1 件・設定・キャッシュ・レート制限）は完了。残りは ①公開用の OpenAPI（`GET /api/v1/public/openapi.json`。公開する型・フィールドだけの定義。設計 §4.3）→ ②ドキュメントを実装に合わせて仕上げる（設計の注記を外し、このタスクを消す）。
 
 ---
 

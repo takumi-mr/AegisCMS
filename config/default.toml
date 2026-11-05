@@ -260,6 +260,17 @@ enabled = true
 index_dir = "data/search"
 content_types = ["article", "page"]
 
+[headless]
+# Headless delivery API: GET /api/v1/public/contents/{type}[/{slug}] returns published content as JSON
+# without a login (docs/headless.md). Off by default; types not listed here answer 404
+enabled = false
+content_types = ["article", "page"]
+max_page_size = 100
+# Cache-Control max-age in seconds
+cache_max_age = 60
+# Requests per IP per minute (0 = no limit)
+rate_limit_per_minute = 600
+
 [analytics]
 # Cookie-less access analytics: a small beacon on public pages and daily counts in the database,
 # shown in Admin Studio's Analytics tab (docs/analytics.md). No IP addresses are stored

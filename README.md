@@ -112,6 +112,7 @@ crates/
 ├── aegis-contact    # 問い合わせフォーム: 設定で決めるフォーム・スパム対策・受信箱・通知
 ├── aegis-newsletter # ニュースレター: ダブルオプトインの申し込み・解除リンク・公開中の記事の一斉配信
 ├── aegis-search     # サイト内検索: tantivy の索引（日本語は 2 文字ずつ）（feature `search`）
+├── aegis-headless   # ヘッドレス配信 API: 公開済みコンテンツをスキーマが決める形の JSON で返す（feature `headless`）
 ├── aegis-analytics  # アクセス解析: Cookie なしのビーコンと日ごとの集計（feature `analytics`）
 ├── aegis-backup     # バックアップ・リストア: DB とストレージの一括 ZIP エクスポート/インポート（feature `backup`）
 └── aegis-server     # Axum HTTP 層（ルーティング・ハンドラ・認可）、CLI、Admin SPA 配信
@@ -140,6 +141,7 @@ crates/
 | [aegis-newsletter](crates/aegis-newsletter)                   | ニュースレター                                           | `NewsletterService` (申し込み・確認・解除・配信・履歴), `config` (`NewsletterConfig`), `messages` (en / ja)                                                             |
 | [aegis-contact](crates/aegis-contact)                         | 問い合わせフォーム                                       | `ContactService` (送信・スパム対策・受信箱・通知・保存期間), `form` (入力の検査・フォームの HTML), `config` (`ContactConfig`)                                            |
 | [aegis-search](crates/aegis-search)                           | サイト内検索（feature `search`）                         | `SearchIndex` (tantivy の索引・検索), `tokenizer` (CJK の 2 文字分割), `snippet` (`<mark>` 付きの抜粋), `text` (ブロックの文字の取り出し)                                 |
+| [aegis-headless](crates/aegis-headless)                       | ヘッドレス配信 API（feature `headless`）                 | `list` / `get` (公開済みだけ・公開期間・カーソル・`ETag`), `PublishedSource` (公開版の読み取りだけのトレイト), `view` (スキーマに従う整形) |
 | [aegis-analytics](crates/aegis-analytics)                     | アクセス解析（feature `analytics`）                      | `AnalyticsService` (数える・まとめて書く・集計), `agent` (クローラー・端末・参照元), `beacon_script`, `config` (`AnalyticsConfig`)                                       |
 | [aegis-backup](crates/aegis-backup)                           | バックアップ・リストア（feature `backup`）               | `dump` / `restore` (DB + ストレージの一括入出力), `manifest` (SHA-256 チェックサム事前検証), ZIP パッケージ                                                            |
 | [aegis-server](crates/aegis-server)                           | HTTP 層・CLI・SPA配信                                    | `handlers` (REST API・公開ページ), `auth` (認可・フック), `audit` (`AuditContext` 抽出), `state` (`AppState`), `config` (`AegisConfig`), `main` (CLI)                     |
@@ -203,6 +205,7 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-contact`**: 問い合わせフォーム `ContactService`（項目は設定ファイルの `[[contact.forms]]`。ボット除けの見えない欄・任意の CAPTCHA（共通の `[captcha]`）・IP ごとの送信数・スパムの語とリンク数・運営者への通知と自動返信・Admin Studio の受信箱・保存期間）。`/contact` と本文のブロック `core/contact-form` で表示します（[docs/contact.md](docs/contact.md)）。
 - **`aegis-newsletter`**: ニュースレター `NewsletterService`（`/newsletter` の申し込み → 確認メールのリンクで購読が始まるダブルオプトイン・メールごとの停止リンク・公開中の記事を購読者に 1 通ずつ送る配信と履歴。送信は `aegis-notify` の送信待ちを使い、CAPTCHA は任意）。Admin Studio の Settings › Newsletter から管理します（[docs/newsletter.md](docs/newsletter.md)）。
 - **`aegis-search`**: 公開中のコンテンツの全文検索（tantivy。日本語は辞書なしで 2 文字ずつに分けて索引）。サーバーの feature `search`（既定で有効）で組み込み、`/search` と `GET /api/v1/search` を出します（[docs/search.md](docs/search.md)）。
+- **`aegis-headless`**: 認証なしで公開済みのコンテンツだけを JSON で返す読み取り専用の API（`GET /api/v1/public/contents/{type}`）。返すフィールドはスキーマ（`public`）が決め、DB は公開版の読み取りだけを持つトレイト越しに読むので、下書きや編集中の内容は返せない。サーバーの feature `headless`（既定で組み込み、設定 `[headless]` は既定で無効）。詳細は [docs/headless.md](docs/headless.md)。
 - **`aegis-analytics`**: Cookie を使わないアクセス解析（日ごとに変わるハッシュで訪問者を見分け、DB には日ごとの集計だけを残す）。サーバーの feature `analytics` で組み込み、Admin Studio の Analytics タブで見られます（[docs/analytics.md](docs/analytics.md)）。
 
 #### 6. `crates/aegis-server` (HTTP Gateway & Admin SPA 配信)

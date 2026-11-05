@@ -568,6 +568,18 @@ secret = "env:TURNSTILE_SECRET"
 | `timeout_secs` | integer | `5` | 検証サービスの応答を待つ秒数（1〜30） |
 | `verify_url`・`script_url`・`widget_class`・`response_field` | string | 提供元の既定値 | `custom` では必須。ほかの提供元では書くと既定値を置き換える |
 
+### 2.25 `[headless]` — ヘッドレス配信 API
+
+認証なしで、公開済みのコンテンツだけを JSON で返す読み取り専用の API（`GET /api/v1/public/contents/{type}`・`.../{type}/{slug}`。[ヘッドレス配信 API の設計](./headless.md)）。サーバーの Cargo の feature `headless`（既定で組み込み）で組み込みます。**既定は無効**で、無効のときは 404 を返します。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で配信 API を有効化 |
+| `content_types` | string[] | `["article", "page"]` | 配信する型。ここに無い型は存在しないものとして 404 を返す（商品など内部向けの値を持つ型は、明示しない限り出ない） |
+| `max_page_size` | integer | `100` | 一覧の 1 ページの件数の上限（`limit` はこの値に丸める） |
+| `cache_max_age` | integer | `60` | 応答の `Cache-Control: public, max-age=...`（秒）。`[cdn].cache_control` より優先する（キャッシュ全体を無効にしている場合は `no-store`） |
+| `rate_limit_per_minute` | integer | `600` | IP ごとの 1 分あたりの上限（超えると 429）。0 で制限しない。`[audit].trust_forwarded_for` が無効だと、リバースプロキシの背後では全員が同じ IP になるので注意 |
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
@@ -786,6 +798,13 @@ max_per_ip_per_hour = 10
 enabled = true
 index_dir = "data/search"
 content_types = ["article", "page"]
+
+[headless]
+enabled = false
+content_types = ["article", "page"]
+max_page_size = 100
+cache_max_age = 60
+rate_limit_per_minute = 600
 
 [analytics]
 enabled = false

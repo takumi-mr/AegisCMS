@@ -110,6 +110,16 @@ pub fn content_invalidation_tags(
         tags.add_url("/products");
         tags.add_url(&format!("/products/{}", slug));
     }
+    #[cfg(feature = "headless")]
+    if state.config.headless.enabled {
+        tags.add_url(&format!("{}/{}", crate::headless::LIST_PATH, content_type));
+        tags.add_url(&format!(
+            "{}/{}/{}",
+            crate::headless::LIST_PATH,
+            content_type,
+            slug
+        ));
+    }
 
     if let Some(old) = old_slug.filter(|s| !s.is_empty() && *s != slug) {
         tags.add_dependency(content_type, old);
@@ -119,6 +129,15 @@ pub fn content_invalidation_tags(
         }
         if content_type == state.config.commerce.product_type {
             tags.add_url(&format!("/products/{}", old));
+        }
+        #[cfg(feature = "headless")]
+        if state.config.headless.enabled {
+            tags.add_url(&format!(
+                "{}/{}/{}",
+                crate::headless::LIST_PATH,
+                content_type,
+                old
+            ));
         }
     }
 
