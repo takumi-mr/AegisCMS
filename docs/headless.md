@@ -58,7 +58,7 @@
 |---|---|---|
 | 1 件 | `get_published_content(schema, slug_or_id)` | |
 | 一覧 | `list_published_contents_page(schema, &ContentListQuery)` | `status`・`limit`/`offset`・キーセット（`cursor_*`）・`tag_id`・`category_id` の絞り込みが対応。公開の記録の列と索引で SQL に任せているので、記事数に依らない |
-| リレーションの解決 | `resolve_relations_for_records` | 値が空のフィールドは問い合わせない |
+| リレーションの解決 | `resolve_published_relations` | 公開版の記録（`_aegis_content_publications`）から**公開中のものだけ**を `id` / `slug` で引く。編集用の `resolve_relations` はコンテンツ本体のテーブルを引き、未公開のタイトルや下書きも返すので使わない。値が空のフィールドは問い合わせない |
 | キャッシュの消去 | `cdn::content_invalidation_tags`・`purge_content` | 公開ページと同じタグを付ければ、更新時に同じ仕組みで消える |
 
 公開版の一覧は、追加の問い合わせを増やさない範囲だけを使います。**追加フィールドでの絞り込みや部分一致は対応しません**（先に検討して見送った項目と同じ理由です）。
