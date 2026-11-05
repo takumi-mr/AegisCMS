@@ -19,6 +19,7 @@ import { aegisApi, SERVER_URL, serverAssetUrl } from '../api/client';
 import i18n from '../i18n';
 import type {
   ContentItem,
+  FieldDefinition,
   ProductVariant,
   ShopConfig,
   StorageMeta,
@@ -32,6 +33,14 @@ import { cx } from '../utils/cx';
 import { toDateTimeLocal } from '../utils/format';
 import { blocksToMarkdown, markdownToBlocks } from '../utils/markdown';
 import { formatMoney } from '../utils/money';
+import {
+  extraFieldDefs,
+  fromExtraValues,
+  toExtraValues,
+  type ExtraFieldError,
+  type ExtraValues,
+} from '../utils/extraFields';
+import { ExtraFieldsEditor } from './ExtraFieldsEditor';
 import { ImageUploader } from './ImageUploader';
 import { MediaLibrary } from './MediaLibrary';
 import { Button } from './ui/Button';
@@ -608,6 +617,30 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
     return value === null ? '' : String(value);
   };
   const [tags, setTags] = useState<Tag[]>([]);
+  // Schema fields without a dedicated input here (the product schema may have more than the shop's)
+  const [extraDefs, setExtraDefs] = useState<FieldDefinition[]>([]);
+  const [extraValues, setExtraValues] = useState<ExtraValues>({});
+  const [extraError, setExtraError] = useState<ExtraFieldError | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    aegisApi
+      .getSchemas()
+      .then((schemas) => {
+        if (cancelled) return;
+        const defs = extraFieldDefs(
+          schemas.find((s) => s.content_type === productType),
+          productType
+        );
+        setExtraDefs(defs);
+        setExtraValues(toExtraValues(defs, product?.fields));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // The values are read once, when the form opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productType]);
   const [title, setTitle] = useState<string>(product?.title ?? '');
   const [slug, setSlug] = useState<string>(product?.slug ?? '');
   const [slugEdited, setSlugEdited] = useState<boolean>(Boolean(product));
@@ -758,7 +791,15 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
         return;
       }
     }
+    const extra = fromExtraValues(extraDefs, extraValues);
+    if ('error' in extra) {
+      setExtraError(extra.error);
+      setError(t(`extraFields.errors.${extra.error.code}`, { field: extra.error.field }));
+      return;
+    }
+    setExtraError(null);
     const payload: Record<string, unknown> = {
+      ...extra.fields,
       title: title.trim(),
       slug: slug.trim(),
       status,
@@ -1005,6 +1046,12 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
                 aria-label={t('products.aria.buyUrl')}
               />
             </Field>
+            <ExtraFieldsEditor
+              defs={extraDefs}
+              values={extraValues}
+              error={extraError}
+              onChange={(name, value) => setExtraValues((prev) => ({ ...prev, [name]: value }))}
+            />
             {product && commentsOpen !== undefined && (
               <Button
                 type="button"

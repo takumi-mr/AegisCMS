@@ -39,6 +39,7 @@ import { ProfileModal } from './components/ProfileModal';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { SettingsView, type SettingsSection } from './components/SettingsView';
 import { TagPicker } from './components/TagPicker';
+import { ExtraFieldsEditor } from './components/ExtraFieldsEditor';
 import { ContentList } from './components/ContentList';
 import { NO_FILTERS, type ContentListFilters } from './utils/contentFilters';
 import {
@@ -58,6 +59,7 @@ import type {
   ContactForm,
   ContentItem,
   ContentSummary,
+  SchemaDefinition,
   PluginBlockDefinition,
   SessionInfo,
   Tag,
@@ -65,6 +67,13 @@ import type {
 } from './types';
 import { defaultAttributes, localize } from './utils/pluginBlocks';
 import { categoryIdOf } from './utils/category';
+import {
+  extraFieldDefs,
+  fromExtraValues,
+  toExtraValues,
+  type ExtraFieldError,
+  type ExtraValues,
+} from './utils/extraFields';
 import { CONTRIBUTOR_STATUSES, canChangeContent, canEdit, canWrite, isAdmin } from './utils/roles';
 import { cx } from './utils/cx';
 import { toDateTimeLocal } from './utils/format';
@@ -87,6 +96,8 @@ const EDITOR_STATUSES: EditorStatus[] = ['draft', 'pending', 'scheduled', 'publi
 interface StoredContent {
   author_id?: string | null;
   status: string;
+  /** The stored `fields`, to fill the generic form of a schema that arrives after the item */
+  fields?: Record<string, unknown>;
 }
 
 /** `#review` (the link in review requests) opens the list of items waiting for review */
@@ -177,6 +188,14 @@ export const App: React.FC = () => {
   const contentVersionRequest = useRef(0);
   const [categories, setCategories] = useState<ContentSummary[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
+  // Schema fields without a dedicated input are edited by the generic form (values as form text)
+  const [schemas, setSchemas] = useState<SchemaDefinition[]>([]);
+  const [extraValues, setExtraValues] = useState<ExtraValues>({});
+  const [extraError, setExtraError] = useState<ExtraFieldError | null>(null);
+  const extraDefs = extraFieldDefs(
+    schemas.find((s) => s.content_type === contentType),
+    contentType
+  );
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('themes');
   const [mobilePane, setMobilePane] = useState<'list' | 'editor' | 'preview'>('editor');
 
@@ -237,6 +256,14 @@ export const App: React.FC = () => {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const loadSchemas = async () => {
+    try {
+      setSchemas(await aegisApi.getSchemas());
+    } catch (err) {
+      console.warn('Could not load schemas:', err);
+    }
+  };
+
   const loadCategories = async () => {
     try {
       setCategories(await aegisApi.getAllContentSummaries('category'));
@@ -244,6 +271,14 @@ export const App: React.FC = () => {
       console.warn('Could not load categories:', err);
     }
   };
+
+  // The schemas can arrive after an item is opened: fill the generic form once they are here
+  useEffect(() => {
+    if (selectedId && storedItem?.fields) {
+      setExtraValues(toExtraValues(extraDefs, storedItem.fields));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schemas]);
 
   /** Loads one page of the list (the current type, filters and page unless given) */
   const loadContents = async (
@@ -352,6 +387,7 @@ export const App: React.FC = () => {
     if (!canEdit(session ?? null)) setStatus('draft');
     loadContents();
     loadCategories();
+    loadSchemas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
@@ -547,7 +583,7 @@ export const App: React.FC = () => {
 
   const handleSelectContent = (item: ContentItem) => {
     setSelectedId(item.id);
-    setStoredItem({ author_id: item.author_id, status: item.status });
+    setStoredItem({ author_id: item.author_id, status: item.status, fields: item.fields });
     setReviewNote('');
     setCommentsOpen(item.comments_open !== false);
     setContentVersions([]);
@@ -583,6 +619,16 @@ export const App: React.FC = () => {
     loadContentTags(item.content_type, item.id);
     const rawLayout = item.fields?.layout ?? (item as unknown as { layout?: string }).layout;
     setLayout(rawLayout === 'blank' ? 'blank' : 'default');
+    setExtraValues(
+      toExtraValues(
+        extraFieldDefs(
+          schemas.find((s) => s.content_type === item.content_type),
+          item.content_type
+        ),
+        item.fields
+      )
+    );
+    setExtraError(null);
     setMobilePane('editor');
   };
 
@@ -619,6 +665,8 @@ export const App: React.FC = () => {
     setUnpublishAt('');
     setCategoryId('');
     setLayout('default');
+    setExtraValues({});
+    setExtraError(null);
     const newBlocks: BlockNode[] = [
       { name: 'core/heading', attributes: { level: 2 }, text: t('editor.defaults.newHeading') },
       { name: 'core/paragraph', attributes: {}, text: '' },
@@ -646,6 +694,8 @@ export const App: React.FC = () => {
     setUnpublishAt('');
     setCategoryId('');
     setLayout('default');
+    setExtraValues({});
+    setExtraError(null);
     const newBlocks: BlockNode[] = [
       { name: 'core/heading', attributes: { level: 2 }, text: t('editor.defaults.newHeading') },
       { name: 'core/paragraph', attributes: {}, text: '' },
@@ -771,9 +821,18 @@ export const App: React.FC = () => {
       }
     }
 
+    const extra = fromExtraValues(extraDefs, extraValues);
+    if ('error' in extra) {
+      setExtraError(extra.error);
+      showToast(t(`extraFields.errors.${extra.error.code}`, { field: extra.error.field }), 'error');
+      return;
+    }
+    setExtraError(null);
+
     setIsSaving(true);
     try {
       const payload = {
+        ...extra.fields,
         title,
         slug,
         status,
@@ -1225,6 +1284,16 @@ export const App: React.FC = () => {
                       )}
                     </FieldRow>
                   )}
+
+                  <ExtraFieldsEditor
+                    defs={extraDefs}
+                    values={extraValues}
+                    error={extraError}
+                    disabled={!editable}
+                    onChange={(name, value) =>
+                      setExtraValues((prev) => ({ ...prev, [name]: value }))
+                    }
+                  />
 
                   {tagsEnabled && (
                     <FieldRow>

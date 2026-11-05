@@ -104,7 +104,7 @@ test.describe('Content Editor', () => {
 
     // Switch to Markdown mode
     await page.getByRole('tab', { name: 'Markdown' }).click();
-    const markdownTextarea = page.locator('textarea');
+    const markdownTextarea = page.locator('textarea:not([id^="extra-field-"])');
     await expect(markdownTextarea).toBeVisible();
 
     await markdownTextarea.fill('## Headline via Markdown\n\nParagraph text written in markdown.');
