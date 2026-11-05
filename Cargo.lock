@@ -267,6 +267,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-headless"
+version = "0.3.0"
+dependencies = [
+ "aegis-ast",
+ "aegis-core",
+ "aegis-db",
+ "aegis-schema",
+ "async-trait",
+ "base64 0.23.1",
+ "chrono",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
 name = "aegis-newsletter"
 version = "0.3.0"
 dependencies = [

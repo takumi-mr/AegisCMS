@@ -16,6 +16,7 @@ members = [
     "crates/aegis-tags",
     "crates/aegis-forum",
     "crates/aegis-search",
+    "crates/aegis-headless",
     "crates/aegis-analytics",
     "crates/aegis-captcha",
     "crates/aegis-contact",
