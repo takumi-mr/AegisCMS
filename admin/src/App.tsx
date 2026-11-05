@@ -420,7 +420,8 @@ export const App: React.FC = () => {
       .then((config) => {
         if (cancelled) return;
         setShopEnabled(config.enabled);
-        setMembersEnabled(config.enabled && config.members_enabled === true);
+        // Member accounts do not need the shop (the forum uses them too)
+        setMembersEnabled(config.members_enabled === true);
         setReviewsEnabled(config.enabled && config.reviews_enabled === true);
       })
       .catch((err) => console.warn('Could not load the shop settings:', err));
@@ -1004,6 +1005,7 @@ export const App: React.FC = () => {
         <MemberManager
           onShowToast={showToast}
           openMemberId={openMemberId}
+          showOrders={showShop}
           onOpened={() => setOpenMemberId(null)}
         />
       ) : view === 'reviews' && showReviews ? (
