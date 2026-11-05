@@ -30,4 +30,5 @@ type Story = StoryObj<typeof meta>;
 export const SiteSettings: Story = {};
 export const Categories: Story = { args: { section: 'categories' } };
 export const Tags: Story = { args: { section: 'tags' } };
+export const Licenses: Story = { args: { section: 'licenses' } };
 export const ViewerSettings: Story = { args: { session: { ...session, role: 'viewer' } } };

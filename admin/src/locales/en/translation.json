@@ -1261,7 +1261,8 @@
       "redirects": "Redirects",
       "newsletter": "Newsletter",
       "notices": "Notices",
-      "broken-links": "Broken Links"
+      "broken-links": "Broken Links",
+      "licenses": "Licenses"
     }
   },
   "plugins": {
@@ -2037,5 +2038,20 @@
     "loadFailed": "Failed to load broken link report.",
     "scanFailed": "Failed to start link scan.",
     "filterPlaceholder": "Search by URL or title..."
+  },
+  "licenses": {
+    "title": "License Information",
+    "description": "License information for AegisCMS and open-source third-party software.",
+    "aegisLicenseTitle": "AegisCMS License",
+    "aegisLicenseBody": "AegisCMS is open-source software released under the MIT License.",
+    "searchPlaceholder": "Search by package name or license...",
+    "filterAll": "All",
+    "filterRust": "Backend (Rust)",
+    "filterNpm": "Frontend (npm)",
+    "repository": "Repository",
+    "packageCount": "{{count}} libraries",
+    "noResults": "No matching libraries found.",
+    "viewLicenses": "View Licenses",
+    "systemSectionNote": "View open-source software and library licenses used by AegisCMS."
   }
 }

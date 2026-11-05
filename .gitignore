@@ -14,7 +14,7 @@
 *.db-wal
 *.sqlite
 data/
-
+!admin/src/data/
 # Node / Admin Studio
 node_modules/
 dist/

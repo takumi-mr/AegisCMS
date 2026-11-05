@@ -160,6 +160,11 @@ tasks:
     cmds:
       - node scripts/check-versions.mjs
 
+  licenses:generate:
+    desc: 依存クレートおよび npm パッケージのサードパーティライセンス一覧を再生成 (scripts/generate-licenses.mjs)
+    cmds:
+      - node scripts/generate-licenses.mjs
+
   check:
     desc: PR・コミット前の全検証チェックを一括実行 (fmt, prettier, clippy, oxlint, test, test:admin, test:storybook, admin:build, theme-builder)
     cmds:

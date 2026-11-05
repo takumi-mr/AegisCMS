@@ -9,6 +9,7 @@ import {
   SlidersHorizontal,
   Wrench,
   Zap,
+  Scale,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi } from '../api/client';
@@ -19,9 +20,13 @@ import styles from './SystemManager.module.css';
 
 interface SystemManagerProps {
   onShowToast: (message: string, type?: 'success' | 'error') => void;
+  onNavigateLicenses?: () => void;
 }
 
-export const SystemManager: React.FC<SystemManagerProps> = ({ onShowToast }) => {
+export const SystemManager: React.FC<SystemManagerProps> = ({
+  onShowToast,
+  onNavigateLicenses,
+}) => {
   const { t } = useTranslation();
   const [data, setData] = useState<SystemSettingsResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -554,6 +559,20 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onShowToast }) => 
               </div>
             </div>
           </div>
+
+          {onNavigateLicenses && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <Scale size={18} />
+                <h3>{t('licenses.title')}</h3>
+              </div>
+              <p className={styles.sectionDescription}>{t('licenses.systemSectionNote')}</p>
+              <Button type="button" variant="secondary" onClick={onNavigateLicenses}>
+                <Scale size={14} />
+                <span>{t('licenses.viewLicenses')}</span>
+              </Button>
+            </div>
+          )}
 
           <div className={styles.footer}>
             <Button type="submit" variant="primary" disabled={isSaving}>
