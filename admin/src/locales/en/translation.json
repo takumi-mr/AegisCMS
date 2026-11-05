@@ -104,7 +104,10 @@
     "triggerBrokenLinksScanFailed": "Failed to start broken links scan",
     "customersFailed": "Failed to fetch customers",
     "customerFailed": "Failed to fetch the customer",
-    "setCustomerStatusFailed": "Failed to change the customer status"
+    "setCustomerStatusFailed": "Failed to change the customer status",
+    "reviewsFailed": "Failed to fetch reviews",
+    "moderateReviewFailed": "Failed to update the review",
+    "replyReviewFailed": "Failed to save the reply"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -422,7 +425,8 @@
       "contact": "Inbox",
       "analytics": "Analytics",
       "settings": "Settings",
-      "customers": "Customers"
+      "customers": "Customers",
+      "reviews": "Reviews"
     },
     "gateway": "Core Gateway: {{state}}",
     "gatewayWithVersion": "Core Gateway: {{state}} (v{{version}})",
@@ -754,6 +758,66 @@
     "orders": "Orders",
     "noOrders": "No orders yet.",
     "spent": "Paid in total"
+  },
+  "reviews": {
+    "title": "Reviews",
+    "disabled": "Product reviews are turned off ([commerce.reviews].enabled).",
+    "loadFailed": "Failed to load the reviews",
+    "statusFilter": "Review status",
+    "all": "All",
+    "empty": "No reviews yet.",
+    "emptyStatus": "No reviews with the status \"{{status}}\".",
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "spam": "Spam",
+      "trash": "Rejected"
+    },
+    "columns": {
+      "rating": "Rating",
+      "author": "Author",
+      "review": "Review",
+      "product": "Product",
+      "status": "Status"
+    },
+    "selectAll": "Select all reviews on this page",
+    "selectOne": "Select the review by {{name}}",
+    "selected": "{{count}} selected",
+    "bulkActions": "Actions for the selected reviews",
+    "anonymous": "Former customer",
+    "verified": "Verified purchase",
+    "reply": "Reply from the shop",
+    "reason": "Reason: {{reason}}",
+    "actions": {
+      "approve": "Approve",
+      "pending": "Hold",
+      "spam": "Spam",
+      "trash": "Reject",
+      "delete": "Delete",
+      "reply": "Reply"
+    },
+    "done": {
+      "approve": "Approved {{count}} review(s)",
+      "pending": "Put {{count}} review(s) on hold",
+      "spam": "Marked {{count}} review(s) as spam",
+      "trash": "Rejected {{count}} review(s)",
+      "delete": "Deleted {{count}} review(s)"
+    },
+    "confirmDelete": "Delete {{count}} review(s) for good? This cannot be undone.",
+    "rejectTitle": "Reject {{count}} review(s)",
+    "spamTitle": "Mark {{count}} review(s) as spam",
+    "reasonLabel": "Reason (optional)",
+    "reasonHint": "Kept with the review for your records. The author does not see it.",
+    "replyTitle": "Reply to {{name}}",
+    "replyLabel": "Reply from the shop",
+    "replyPlaceholder": "Thank the customer or answer the question. The reply is shown under the review.",
+    "replySave": "Save the reply",
+    "replyRemove": "Remove the reply",
+    "replySaved": "Saved the reply",
+    "replyRemoved": "Removed the reply",
+    "newer": "Newer",
+    "older": "Older",
+    "range": "{{from}}–{{to}} of {{total}}"
   },
   "comments": {
     "title": "Comments",

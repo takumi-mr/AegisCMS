@@ -34,6 +34,7 @@ import { CommentManager } from './components/CommentManager';
 import { ContactInbox } from './components/ContactInbox';
 import { ForumManager } from './components/ForumManager';
 import { CustomerManager } from './components/CustomerManager';
+import { ReviewManager } from './components/ReviewManager';
 import { OrderManager } from './components/OrderManager';
 import { ScheduleCalendar } from './components/ScheduleCalendar';
 import { ProfileModal } from './components/ProfileModal';
@@ -149,6 +150,7 @@ export const App: React.FC = () => {
   const [shopEnabled, setShopEnabled] = useState<boolean>(false);
   // ...and the customer accounts ([commerce.customers].enabled) for the Customers screen
   const [customersEnabled, setCustomersEnabled] = useState<boolean>(false);
+  const [reviewsEnabled, setReviewsEnabled] = useState<boolean>(false);
   /** Custom blocks of the enabled plugins, offered in the block toolbar */
   const [blockDefinitions, setBlockDefinitions] = useState<PluginBlockDefinition[]>([]);
   // Hidden until the server says comments are on ([comments].enabled)
@@ -417,6 +419,7 @@ export const App: React.FC = () => {
         if (cancelled) return;
         setShopEnabled(config.enabled);
         setCustomersEnabled(config.enabled && config.customers_enabled === true);
+        setReviewsEnabled(config.enabled && config.reviews_enabled === true);
       })
       .catch((err) => console.warn('Could not load the shop settings:', err));
     return () => {
@@ -955,6 +958,7 @@ export const App: React.FC = () => {
         : null;
   const showShop = editable && shopEnabled;
   const showCustomers = editable && customersEnabled;
+  const showReviews = editable && reviewsEnabled;
   const showComments = editable && commentsEnabled;
   const showForum = editable && forumEnabled;
   const showContact = editable && contactForms.length > 0;
@@ -974,6 +978,7 @@ export const App: React.FC = () => {
         canPublish={editable && Boolean(selectedId) && status === 'published'}
         showShop={showShop}
         showCustomers={showCustomers}
+        showReviews={showReviews}
         showComments={showComments}
         showForum={showForum}
         showContact={showContact}
@@ -995,6 +1000,8 @@ export const App: React.FC = () => {
         <OrderManager onShowToast={showToast} />
       ) : view === 'customers' && showCustomers ? (
         <CustomerManager onShowToast={showToast} />
+      ) : view === 'reviews' && showReviews ? (
+        <ReviewManager onShowToast={showToast} />
       ) : view === 'comments' && showComments ? (
         <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
       ) : view === 'forum' && showForum ? (
