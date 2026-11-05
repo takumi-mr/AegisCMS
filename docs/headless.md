@@ -1,13 +1,38 @@
 [← ドキュメント一覧に戻る](README.md)
 
-# ヘッドレス配信 API（設計）
+# ヘッドレス配信 API
 
-> [!NOTE]
-> **設計**。公開する範囲と応答の形を決めた文書です。クレート `aegis-headless` とサーバーへの組み込み（一覧・1 件・`?include=html`・設定・キャッシュ・レート制限）は実装済みで、公開用の OpenAPI（§4.3）は未実装です。
-
-認証なしで、**公開済みのコンテンツだけ**を JSON で返す読み取り専用の API を足します。AegisCMS のテーマで描画する代わりに、別のサイト（Next.js・Astro など）やアプリがコンテンツを取りに来られるようにするためです。
+認証なしで、**公開済みのコンテンツだけ**を JSON で返す読み取り専用の API です。AegisCMS のテーマで描画する代わりに、別のサイト（Next.js・Astro など）やアプリがコンテンツを取りに来られるようにします。
 
 返すデータの形は**スキーマ（`schemas/*.yaml`）で決まります**。スキーマを書くと、編集画面・編集用 API・型・OpenAPI が揃うのと同じ流れで、配信用 API も揃います。
+
+## 使い方
+
+既定は無効です。設定ファイルの `[headless]` で有効にします（設定の一覧は [設定リファレンス 2.25](configuration.md#225-headless--ヘッドレス配信-api)）。
+
+```toml
+[headless]
+enabled = true
+content_types = ["article", "page"]   # 配信する型（既定）
+```
+
+```bash
+# 公開済みの一覧（新しい順。続きは next_cursor を cursor に渡す）
+curl "http://localhost:8080/api/v1/public/contents/article?limit=10"
+# 1 件（本文のブロックつき。?include=html で描画済みの HTML も）
+curl "http://localhost:8080/api/v1/public/contents/article/hello-world?include=html"
+# 配信する型・フィールドだけの OpenAPI
+curl "http://localhost:8080/api/v1/public/openapi.json"
+```
+
+内部向けのフィールドは、スキーマで `public: false` と書くと出なくなります。
+
+```yaml
+fields:
+  - name: internal_note
+    type: string
+    public: false
+```
 
 ---
 
@@ -67,7 +92,7 @@
 
 ## 3. エンドポイント
 
-すべて `GET`、認証なしです。パスは仮です。
+すべて `GET`、認証なしです。
 
 | パス | 内容 |
 |---|---|
@@ -127,7 +152,7 @@
 
 ### 4.2 どのフィールドを返すか
 
-フィールドに公開の可否を持たせます（案）。
+フィールドに公開の可否を持たせます。
 
 ```yaml
 fields:
@@ -188,14 +213,5 @@ cache_max_age = 60                      # Cache-Control の max-age（秒）
 - **返さない項目**: `author_id`・`status`・`public: false` のフィールドが応答にない。
 - **入力**: `limit` の上限、改ざんしたカーソルが `400`。
 - **キャッシュ**: `ETag` と `If-None-Match` の `304`、更新後に `ETag` が変わる。
-- **性能**: 公開版の一覧と同じ水準（記事数に依らない）を、既存の計測と同じ方法で確かめる。
+- **性能**: 配信 API は新しい問い合わせを足さず、公開版の一覧（公開の記録の列と索引）をそのまま使うので、記事数に依らない作りです。配信 API としての計測はしていません。
 - 実機の PostgreSQL / MySQL を使う確認は、ローカルの品質チェックで行う（[開発ガイド 7](development.md#7-データベース実機検証-postgresql--mysql)）。
-
----
-
-## 8. 実装の分け方（案）
-
-1. スキーマに `public` を足す（`aegis-schema`。codegen を含む）。
-2. クレート `aegis-headless`（ロジックとテスト）。
-3. サーバーに組み込む（feature `headless`・設定・ルート・キャッシュ・OpenAPI）。
-4. ドキュメントを本文に書き換える（この文書の「未実装」の注記を外す）。

@@ -13,6 +13,8 @@ pub mod view;
 
 pub use error::HeadlessError;
 pub use params::{CategoryFilter, Cursor, ListParams, ListQuery, DEFAULT_PAGE_SIZE};
-pub use service::{get, list, Delivered, HeadlessConfig, ListResponse};
+pub mod openapi;
+pub use openapi::public_openapi;
+pub use service::{etag, get, list, Delivered, HeadlessConfig, ListResponse};
 pub use source::PublishedSource;
 pub use view::project;
