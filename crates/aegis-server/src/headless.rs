@@ -261,5 +261,21 @@ pub async fn get_content(
     cached_json(&state, &headers, &etag, &tags, body)
 }
 
+/// `GET /api/v1/public/openapi.json` — 配信する型と公開してよいフィールドだけの OpenAPI（ログイン不要）
+pub async fn openapi_spec(
+    State(state): State<Arc<AppState>>,
+    client_ip: ClientIp,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(blocked) = gate(&state, &client_ip).await {
+        return blocked;
+    }
+    let schemas = state.schemas.read().await;
+    let spec = aegis_headless::public_openapi(&schemas, &state.config.headless.delivery());
+    drop(schemas);
+    let etag = aegis_headless::etag([spec.to_string()]);
+    cached_json(&state, &headers, &etag, &CacheTags::new(), spec)
+}
+
 #[cfg(test)]
 mod tests;

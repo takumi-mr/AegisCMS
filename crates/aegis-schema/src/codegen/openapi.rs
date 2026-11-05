@@ -467,7 +467,8 @@ impl OpenApiGenerator {
             .unwrap_or_else(|_| "{}".to_string())
     }
 
-    fn field_to_openapi_property(field: &FieldDefinition) -> Value {
+    /// A schema field as an OpenAPI property (also used by the public delivery API spec)
+    pub fn field_to_openapi_property(field: &FieldDefinition) -> Value {
         let mut obj = Map::new();
 
         match &field.field_type {

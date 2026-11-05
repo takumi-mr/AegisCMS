@@ -90,6 +90,8 @@ async fn test_disabled_by_default() {
     assert!(body.contains("not enabled"));
     let (status, _, _) = site.get("/api/v1/public/contents/article/x").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _, _) = site.get("/api/v1/public/openapi.json").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -209,4 +211,34 @@ async fn test_rate_limit_per_ip() {
     assert!(headers.get("retry-after").is_some());
     // ほかのアドレスは影響を受けない
     assert_eq!(site.send(from("203.0.113.2")).await.0, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_public_openapi_lists_only_what_is_served() {
+    let site = site(|_| {}).await;
+    let spec = site.get_json("/api/v1/public/openapi.json").await;
+    assert_eq!(spec["openapi"], "3.1.0");
+    let paths = spec["paths"].as_object().unwrap();
+    assert!(paths.contains_key("/api/v1/public/contents/article"));
+    assert!(paths.contains_key("/api/v1/public/contents/page/{slug}"));
+    assert!(
+        !paths.keys().any(|path| path.contains("category")),
+        "category is not served"
+    );
+    // 編集用の API の仕様ではない
+    assert!(!paths
+        .keys()
+        .any(|path| path.starts_with("/api/v1/contents")));
+
+    let (_, headers, _) = site.get("/api/v1/public/openapi.json").await;
+    let etag = headers.get("etag").unwrap().to_str().unwrap().to_string();
+    let (status, _, _) = site
+        .send(
+            Request::get("/api/v1/public/openapi.json")
+                .header("if-none-match", etag)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
 }

@@ -116,7 +116,7 @@ async fn resolve_relations<S: PublishedSource + ?Sized>(
     Ok(resolved)
 }
 
-fn etag(parts: impl IntoIterator<Item = String>) -> String {
+pub fn etag(parts: impl IntoIterator<Item = String>) -> String {
     let mut hasher = Sha256::new();
     for part in parts {
         hasher.update(part.as_bytes());

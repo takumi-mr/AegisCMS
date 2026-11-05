@@ -570,6 +570,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
     {
         app = app
             .route(
+                "/api/v1/public/openapi.json",
+                get(crate::headless::openapi_spec),
+            )
+            .route(
                 "/api/v1/public/contents/{content_type}",
                 get(crate::headless::list_contents),
             )
