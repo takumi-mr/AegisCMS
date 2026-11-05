@@ -315,6 +315,7 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | `enabled` | bool | `true` | `false` で顧客の API（`/api/v1/customers/...`）を無効にする（404）。ゲスト購入とレビューは使える |
 | `registration` | string | `"open"` | `"open"` は誰でも登録できる。`"closed"` は新規の登録だけを止める（403。登録済みの顧客はログインできる） |
 | `session_days` | integer | `30` | ログインの有効期間（日。1〜365） |
+| `password_reset` | bool | `true` | パスワードの再設定（メールのリンク）を使う。`[notifications]` が有効で、`[commerce].public_url` が設定されているときだけ動く（メールのリンクは `Host` ヘッダーではなく、この URL から作る）。使えないときは API とページが 404 で、ログイン画面に「忘れたとき」のリンクは出ない |
 
 ### 2.13 `[notifications]` — 通知（メール）
 

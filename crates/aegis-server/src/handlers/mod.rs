@@ -53,9 +53,11 @@ pub use content::{
     upsert_variant,
 };
 pub use customers::{
-    admin_get_customer, admin_list_customers, admin_set_customer_status, get_me, get_my_order,
+    admin_get_customer, admin_list_customers, admin_set_customer_status,
+    complete_password_reset as customer_complete_password_reset, get_me, get_my_order,
     list_my_orders, list_my_reviews, login as customer_login, logout as customer_logout,
-    register as customer_register, update_me,
+    register as customer_register, request_password_reset as customer_request_password_reset,
+    update_me,
 };
 pub use feed::{get_category_feed, get_feed};
 pub use headers::{get_headers_settings, update_headers_settings};
@@ -97,8 +99,9 @@ pub use site::{get_site_settings, update_site_settings};
 pub use sso::list_auth_providers;
 pub use storage::{delete_object, list_objects, upload_file};
 pub use storefront::{
-    account_script, cart_script, render_account_home, render_account_login,
-    render_account_register, render_cart, render_order, render_product, render_products,
+    account_script, cart_script, render_account_forgot, render_account_home, render_account_login,
+    render_account_register, render_account_reset, render_cart, render_order, render_product,
+    render_products,
 };
 pub use tags::{
     create_tag, delete_tag, get_content_tags, list_tags, set_content_tags as set_content_tag_list,
@@ -126,5 +129,7 @@ mod forum_tests;
 mod oembed_tests;
 #[cfg(test)]
 mod package_install_tests;
+#[cfg(test)]
+mod password_reset_pages_tests;
 #[cfg(test)]
 mod tags_tests;

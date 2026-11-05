@@ -46,6 +46,9 @@ pub struct CustomersConfig {
     pub registration: CustomerRegistration,
     /// ログインの有効期間（日）
     pub session_days: u64,
+    /// パスワードの再設定（メールで送るリンク）を使う。`[notifications]` が有効で、
+    /// `[commerce].public_url` が設定されているときだけ動く（リンクは Host ヘッダーではなく、この設定から作る）
+    pub password_reset: bool,
 }
 
 impl Default for CustomersConfig {
@@ -54,6 +57,7 @@ impl Default for CustomersConfig {
             enabled: true,
             registration: CustomerRegistration::Open,
             session_days: 30,
+            password_reset: true,
         }
     }
 }

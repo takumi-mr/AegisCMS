@@ -1162,7 +1162,7 @@ pub const ACCOUNT_TEMPLATE: &str = r#"{% extends "base.html" %}
   <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ t("account.title") }}</h1>
   <div id="aegis-account" data-view="{{ slug }}"><p class="aegis-muted">{{ t("account.loading") }}</p></div>
   <noscript><p class="aegis-muted">{{ t("account.needs_js") }}</p></noscript>
-  <script src="{{ theme_vars.account_script }}" data-api="{{ theme_vars.account_api }}" data-account-url="{{ theme_vars.account_url }}" data-login-url="{{ theme_vars.account_login_url }}" data-register-url="{{ theme_vars.account_register_url }}" data-min-password="{{ theme_vars.account_min_password }}" defer></script>
+  <script src="{{ theme_vars.account_script }}" data-api="{{ theme_vars.account_api }}" data-account-url="{{ theme_vars.account_url }}" data-login-url="{{ theme_vars.account_login_url }}" data-register-url="{{ theme_vars.account_register_url }}" data-forgot-url="{{ theme_vars.account_forgot_url }}" data-min-password="{{ theme_vars.account_min_password }}" defer></script>
 </section>
 {% endblock %}
 "#;

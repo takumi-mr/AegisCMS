@@ -19,8 +19,9 @@ use crate::state::AppState;
 use aegis_commerce::{
     CustomerLoginRequest, CustomerRegisterRequest, CustomerResponse, CustomerService,
     CustomerSessionData, CustomerUpdateProfileRequest, CUSTOMER_TOKEN_PREFIX,
+    PASSWORD_RESET_TTL_SECS,
 };
-use aegis_core::AegisError;
+use aegis_core::{AegisError, NotificationEvent, Recipient};
 
 type ApiError = (StatusCode, Json<serde_json::Value>);
 
@@ -235,14 +236,129 @@ pub async fn update_me(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<CustomerUpdateProfileRequest>,
-) -> Result<Json<CustomerResponse>, ApiError> {
+) -> Result<Response, ApiError> {
     let session = resolve_customer_session(&state, &headers).await?;
     let service = customers(&state)?;
+    let changed_password = req.new_password.is_some();
     let updated = service
         .update_profile(&session.customer_id, req)
         .await
         .map_err(map_aegis_error)?;
-    Ok(Json(updated))
+    if !changed_password {
+        return Ok(Json(updated).into_response());
+    }
+    // パスワードを変えると、ほかの端末のセッションは終わる。変えた本人の分は作り直して、続けて使えるようにする
+    let fresh = service
+        .reissue_session(&session.customer_id)
+        .await
+        .map_err(map_aegis_error)?;
+    let cookie = session_cookie(&state, &headers, &fresh.token, service.session_ttl_secs());
+    let mut body = serde_json::to_value(&updated).unwrap_or_default();
+    body["token"] = json!(fresh.token);
+    body["expires_at"] = json!(fresh.expires_at);
+    Ok(([(header::SET_COOKIE, cookie)], Json(body)).into_response())
+}
+
+// --- パスワードの再設定（ログイン不要） ---
+
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetRequest {
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetComplete {
+    pub token: String,
+    pub password: String,
+}
+
+/// 再設定を使える設定か。メールを送れる（`[notifications]`）ことと、リンクの元になる公開 URL
+/// （`[commerce].public_url`。`Host` ヘッダーは偽装できるので、メールのリンクには使わない）が要る
+pub(crate) fn password_reset_available(state: &AppState) -> bool {
+    state.config.commerce.customers.password_reset
+        && state.notifier.is_some()
+        && !state.config.commerce.public_url.trim().is_empty()
+}
+
+/// `POST /api/v1/customers/password-reset` — 再設定のメールを申し込む。
+/// 登録の有無を教えないため、メールアドレスの形が正しければ、いつも `202` を返す
+pub async fn request_password_reset(
+    State(state): State<Arc<AppState>>,
+    ClientIp(client_ip): ClientIp,
+    Json(req): Json<PasswordResetRequest>,
+) -> Result<Response, ApiError> {
+    let service = customers(&state)?;
+    if !password_reset_available(&state) {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "Password reset is not enabled",
+        ));
+    }
+    let requested = service
+        .request_password_reset(&req.email, client_ip.as_deref())
+        .await
+        .map_err(|e| match e {
+            AegisError::ResourceLimitExceeded(message) => {
+                api_error(StatusCode::TOO_MANY_REQUESTS, message)
+            }
+            other => map_aegis_error(other),
+        })?;
+
+    if let (Some(requested), Some(notifier)) = (requested, state.notifier.as_ref()) {
+        let reset_url = format!(
+            "{}/account/reset?token={}",
+            state
+                .config
+                .commerce
+                .public_url
+                .trim()
+                .trim_end_matches('/'),
+            requested.token
+        );
+        notifier.notify(NotificationEvent::new(
+            "customer.password_reset",
+            vec![Recipient::person(&requested.email, requested.name.clone())],
+            json!({
+                "name": requested.name,
+                "reset_url": reset_url,
+                "expires_hours": PASSWORD_RESET_TTL_SECS.div_ceil(3600),
+            }),
+        ));
+    }
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({
+            "status": "pending_reset",
+            "expires_in_secs": PASSWORD_RESET_TTL_SECS,
+        })),
+    )
+        .into_response())
+}
+
+/// `POST /api/v1/customers/password-reset/complete` — メールのリンクのトークンで、新しいパスワードを設定する。
+/// 完了すると、その顧客のセッションはすべて終わる（ログインし直す）
+pub async fn complete_password_reset(
+    State(state): State<Arc<AppState>>,
+    ClientIp(client_ip): ClientIp,
+    headers: HeaderMap,
+    Json(req): Json<PasswordResetComplete>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let service = customers(&state)?;
+    if !password_reset_available(&state) {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "Password reset is not enabled",
+        ));
+    }
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|h| h.to_str().ok())
+        .map(str::to_string);
+    service
+        .complete_password_reset(&req.token, &req.password, client_ip, user_agent)
+        .await
+        .map_err(map_aegis_error)?;
+    Ok(Json(json!({ "status": "ok" })))
 }
 
 /// `GET /api/v1/customers/orders` — ログイン顧客の注文履歴一覧

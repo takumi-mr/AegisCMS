@@ -20,6 +20,7 @@
     accountUrl: (script && script.dataset.accountUrl) || '/account',
     loginUrl: (script && script.dataset.loginUrl) || '/account/login',
     registerUrl: (script && script.dataset.registerUrl) || '',
+    forgotUrl: (script && script.dataset.forgotUrl) || '',
     minPassword: parseInt((script && script.dataset.minPassword) || '8', 10) || 8,
     view: root.dataset.view || 'home',
   };
@@ -131,7 +132,11 @@
         if (element.name) data[element.name] = element.value;
       });
       button.disabled = true;
-      Promise.resolve(onSubmit(data, status))
+      // A check that throws before the request (a short password) is shown like an API error
+      Promise.resolve()
+        .then(function () {
+          return onSubmit(data, status);
+        })
         .catch(function (error) {
           status.textContent = '';
           status.appendChild(notice(error.message, 'error'));
@@ -175,10 +180,71 @@
         }
       ),
     ];
+    if (config.forgotUrl) {
+      children.push(h('p', { class: 'aegis-muted' }, [link(config.forgotUrl, msg('acct_forgot_link'))]));
+    }
     if (config.registerUrl) {
       children.push(h('p', { class: 'aegis-muted' }, [msg('acct_no_account') + ' ', link(config.registerUrl, msg('acct_register'))]));
     }
     show(children);
+  }
+
+  // The reset requests answer the same whether or not the address has an account
+  function forgotView() {
+    show([
+      h('h2', {}, [msg('acct_forgot_title')]),
+      h('p', { class: 'aegis-muted' }, [msg('acct_forgot_intro')]),
+      form(
+        [field(msg('acct_email'), input('email', 'email', { required: true, autocomplete: 'email' }))],
+        msg('acct_send_link'),
+        function (data, status) {
+          return api('POST', '/password-reset', { email: data.email }).then(function () {
+            status.textContent = '';
+            status.appendChild(notice(msg('acct_forgot_sent'), 'ok'));
+          });
+        }
+      ),
+      h('p', { class: 'aegis-muted' }, [link(config.loginUrl, msg('acct_login'))]),
+    ]);
+  }
+
+  // The link of the email carries the token: take it out of the address bar once it is read
+  function resetView() {
+    var params = new URLSearchParams(window.location.search);
+    var token = params.get('token') || '';
+    if (token) {
+      params.delete('token');
+      try {
+        var query = params.toString();
+        window.history.replaceState(null, '', window.location.pathname + (query ? '?' + query : ''));
+      } catch (e) {}
+    }
+    if (!token) {
+      show([
+        notice(msg('acct_reset_bad_link'), 'error'),
+        h('p', {}, [config.forgotUrl ? link(config.forgotUrl, msg('acct_request_new')) : '']),
+      ]);
+      return;
+    }
+    show([
+      h('h2', {}, [msg('acct_reset_title')]),
+      form(
+        [
+          field(
+            msg('acct_new_password') + ' (' + msg('acct_password_hint', { n: config.minPassword }) + ')',
+            input('password', 'password', { required: true, minlength: String(config.minPassword), autocomplete: 'new-password' })
+          ),
+          field(msg('acct_confirm_password'), input('again', 'password', { required: true, autocomplete: 'new-password' })),
+        ],
+        msg('acct_reset_submit'),
+        function (data) {
+          if (data.password !== data.again) throw new Error(msg('acct_password_mismatch'));
+          return api('POST', '/password-reset/complete', { token: token, password: data.password }).then(function () {
+            show([notice(msg('acct_reset_done'), 'ok'), h('p', {}, [link(config.loginUrl, msg('acct_login'))])]);
+          });
+        }
+      ),
+    ]);
   }
 
   function registerView() {
@@ -370,5 +436,7 @@
 
   if (config.view === 'login') loginView();
   else if (config.view === 'register') registerView();
+  else if (config.view === 'forgot') forgotView();
+  else if (config.view === 'reset') resetView();
   else homeView();
 })();
