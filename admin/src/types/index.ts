@@ -709,6 +709,38 @@ export interface UpdateSeoSettingsPayload {
 }
 
 /** Public shop settings (`GET /api/v1/shop/config`) */
+/** A product review; `pending` waits for approval, `spam` / `trash` are not shown */
+export type ReviewStatus = 'pending' | 'approved' | 'spam' | 'trash';
+
+export type ReviewBulkAction = 'approve' | 'pending' | 'spam' | 'trash' | 'delete';
+
+export interface AdminReview {
+  id: string;
+  product_id: string;
+  order_id: string;
+  customer_id: string | null;
+  /** Empty for a customer who deleted the account (the review stays, anonymous) */
+  author_name: string;
+  author_email: string;
+  /** 1..=5 */
+  rating: number;
+  title: string;
+  body: string;
+  status: ReviewStatus;
+  /** 1 when the author paid an order with the product */
+  verified_purchase: number;
+  reply: string | null;
+  replied_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReviewPage {
+  reviews: AdminReview[];
+  total: number;
+}
+
 /** A shop customer account (`[commerce.customers]`); never carries the password hash */
 export type CustomerStatus = 'active' | 'suspended' | 'unverified';
 

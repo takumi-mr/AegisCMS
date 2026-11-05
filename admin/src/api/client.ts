@@ -48,6 +48,9 @@ import type {
   OrderPage,
   OrderStatus,
   PluginBlockDefinition,
+  ReviewBulkAction,
+  ReviewPage,
+  ReviewStatus,
   PluginInfo,
   PluginOrder,
   PreviewRequest,
@@ -1016,6 +1019,47 @@ export const aegisApi = {
       `/admin/customers/${encodeURIComponent(id)}`,
       { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },
       i18n.t('api.setCustomerStatusFailed')
+    );
+  },
+
+  /** Product reviews, newest first (404 when reviews are disabled) */
+  async listReviews(query: {
+    status?: ReviewStatus | '';
+    limit?: number;
+    offset?: number;
+  }): Promise<ReviewPage> {
+    return request(`/admin/reviews?${toQuery(query)}`, {}, i18n.t('api.reviewsFailed'));
+  },
+
+  async bulkReviews(
+    ids: string[],
+    action: ReviewBulkAction,
+    reason?: string
+  ): Promise<{ count: number }> {
+    return request(
+      '/admin/reviews/bulk',
+      {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ ids, action, rejection_reason: reason || null }),
+      },
+      i18n.t('api.moderateReviewFailed')
+    );
+  },
+
+  async setReviewReply(id: string, reply: string): Promise<void> {
+    return requestNoContent(
+      `/admin/reviews/${encodeURIComponent(id)}/reply`,
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ reply }) },
+      i18n.t('api.replyReviewFailed')
+    );
+  },
+
+  async deleteReviewReply(id: string): Promise<void> {
+    return requestNoContent(
+      `/admin/reviews/${encodeURIComponent(id)}/reply`,
+      { method: 'DELETE' },
+      i18n.t('api.replyReviewFailed')
     );
   },
 

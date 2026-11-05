@@ -9,6 +9,7 @@ import {
   Settings,
   Package,
   Users,
+  Star,
   ShoppingBag,
   MessageSquare,
   Calendar,
@@ -40,6 +41,7 @@ export type AppView =
   | 'products'
   | 'orders'
   | 'customers'
+  | 'reviews'
   | 'comments'
   | 'forum'
   | 'contact'
@@ -63,6 +65,8 @@ interface HeaderProps {
   showShop: boolean;
   /** Customers tab: customer accounts are enabled (`[commerce.customers].enabled`) and the user can edit */
   showCustomers?: boolean;
+  /** Reviews tab: product reviews are enabled (`[commerce.reviews].enabled`) and the user can edit */
+  showReviews?: boolean;
   /** Comments tab: comments are enabled (`[comments].enabled`) and the user can edit */
   showComments: boolean;
   /** Forum tab: forum is enabled (`[forum].enabled`) and the user can edit */
@@ -90,6 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
   canPublish = false,
   showShop,
   showCustomers = false,
+  showReviews = false,
   showComments,
   showForum,
   showContact = false,
@@ -143,6 +148,15 @@ export const Header: React.FC<HeaderProps> = ({
             id: 'customers' as const,
             label: t('header.tabs.customers'),
             icon: <Users size={15} />,
+          },
+        ]
+      : []),
+    ...(showReviews
+      ? [
+          {
+            id: 'reviews' as const,
+            label: t('header.tabs.reviews'),
+            icon: <Star size={15} />,
           },
         ]
       : []),
