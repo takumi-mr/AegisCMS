@@ -58,7 +58,7 @@ async fn setup_app_with(configure: impl FnOnce(&mut AegisConfig)) -> TestContext
         aegis_commerce::CommerceService::new(config.commerce.clone(), state.commerce_deps())
             .unwrap();
     // サーバーと同じく、設定（[members]）から作る
-    let members = aegis_commerce::MemberService::from_config(
+    let members = aegis_members::MemberService::from_config(
         &config.members,
         state.db.clone(),
         state.cache.clone(),
@@ -459,7 +459,7 @@ async fn test_closed_registration_over_http() {
     assert_eq!(res.status(), StatusCode::CREATED);
 
     let closed = setup_app_with(|config| {
-        config.members.registration = aegis_commerce::MemberRegistration::Closed;
+        config.members.registration = aegis_members::MemberRegistration::Closed;
     })
     .await;
     let res = post_json(

@@ -1,4 +1,4 @@
-//! 退会（アカウントの削除）のテスト
+//! 退会のときのショップのデータの後始末（`member_data`）のテスト。会員の行を消すのは `aegis-members`
 
 #[cfg(test)]
 mod tests {
@@ -11,7 +11,9 @@ mod tests {
         ReviewRecord,
     };
 
-    use crate::member::{MemberLoginRequest, MemberRegisterRequest, MemberService};
+    use aegis_members::{MemberLoginRequest, MemberRegisterRequest, MemberService};
+
+    use crate::member_data::{get_member_order, release_member};
 
     async fn setup_service() -> (MemberService, Arc<dyn DatabaseAdapter>) {
         let config = DatabaseConfig {
@@ -128,10 +130,8 @@ mod tests {
             .await
             .unwrap();
 
-        // パスワードが違うと、何も変わらない
-        let wrong = service
-            .delete_account(&me, "wrong-password-1", None, None)
-            .await;
+        // パスワードが違うと、何も変わらない（本人の確認が先。後始末も会員の削除もしない）
+        let wrong = service.confirm_password(&me, "wrong-password-1").await;
         assert!(matches!(wrong, Err(AegisError::Authentication(_))));
         assert!(db.get_member_by_id(&me).await.unwrap().is_some());
         assert!(service
@@ -143,11 +143,10 @@ mod tests {
         assert_eq!(review(&db, "r-me-1").await.author_name, "Hanako");
 
         // 退会: レビューを匿名にした商品の ID（重複なし）を返す
-        let products = service
-            .delete_account(&me, "password123", None, None)
-            .await
-            .unwrap();
+        service.confirm_password(&me, "password123").await.unwrap();
+        let products = release_member(&*db, &me).await.unwrap();
         assert_eq!(products, vec!["beans".to_string(), "mug".to_string()]);
+        service.delete_account(&me, None, None).await.unwrap();
 
         // 会員・ログイン・セッションは無い
         assert!(db.get_member_by_id(&me).await.unwrap().is_none());
@@ -225,6 +224,13 @@ mod tests {
                 .review_count,
             2
         );
+
+        // 他人の注文は見えない（会員の ID もメールアドレスも違う）
+        assert!(matches!(
+            get_member_order(&*db, &other, "o-me").await,
+            Err(AegisError::PermissionDenied(_))
+        ));
+        assert!(get_member_order(&*db, &other, "o-other").await.is_ok());
 
         // 同じメールアドレスで、あらためて登録できる（新しい会員。過去の注文は結びつかない）
         let again = sign_up(&service, "me@example.com", "password456").await;

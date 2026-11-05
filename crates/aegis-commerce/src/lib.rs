@@ -6,7 +6,7 @@
 //! 在庫は注文の作成と同じトランザクションで減らし（`stock >= 数量` のときだけ）、取り消し・期限切れで戻す
 
 pub mod config;
-pub mod member;
+pub mod member_data;
 pub mod payment;
 pub mod review;
 pub mod stripe;
@@ -21,16 +21,7 @@ use aegis_core::{
 };
 use aegis_schema::{FieldType, SchemaDefinition};
 use chrono::{SecondsFormat, Utc};
-pub use config::{
-    CommerceConfig, ManualPaymentConfig, MemberRegistration, MembersConfig, PaymentProviderKind,
-    StripeConfig,
-};
-pub use member::{
-    MemberLoginRequest, MemberRegisterRequest, MemberResponse, MemberService, MemberSessionData,
-    MemberUpdateProfileRequest, MemberVerification, EMAIL_NOT_VERIFIED_MESSAGE,
-    EMAIL_VERIFICATION_TTL_SECS, MEMBER_SESSION_PREFIX, MEMBER_TOKEN_PREFIX,
-    PASSWORD_RESET_TTL_SECS,
-};
+pub use config::{CommerceConfig, ManualPaymentConfig, PaymentProviderKind, StripeConfig};
 pub use review::{
     JsonLdAggregateRating, PublicReview, ReviewAuthor, ReviewService, ReviewSubmission,
     REVIEW_SETTINGS_PREFIX,
@@ -1384,11 +1375,5 @@ pub fn order_context(order: &OrderRecord) -> OrderContext {
 
 #[cfg(test)]
 mod member_delete_tests;
-#[cfg(test)]
-mod member_reset_tests;
-#[cfg(test)]
-mod member_tests;
-#[cfg(test)]
-mod member_verify_tests;
 #[cfg(test)]
 mod review_tests;

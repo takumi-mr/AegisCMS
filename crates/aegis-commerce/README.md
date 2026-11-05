@@ -20,8 +20,8 @@ Wasm プラグインによる柔軟な価格・税・割引ルールの計算フ
 - **決済プロバイダ連携 (`payment`)**:
   - **Stripe (`stripe`)**: Stripe Checkout Session の生成、および Stripe Webhook 署名検証とステータス自動反映。
   - **Manual**: 銀行振込、請求書払い、代金引換などの手動消込フロー。
-- **顧客・商品レビュー管理 (`customer`, `review`)**:
-  - 顧客プロファイル、注文履歴の参照。
+- **会員の注文履歴・商品レビュー管理 (`member_data`, `review`)**:
+  - 会員の注文履歴の参照、退会のときの後始末（注文の紐づきを外す・レビューを匿名にする）。会員アカウント自体は `aegis-members`。
   - 購入者限定の評価・商品レビュー投稿およびモデレーション。
 
 ## モジュール構成
@@ -31,6 +31,6 @@ Wasm プラグインによる柔軟な価格・税・割引ルールの計算フ
 | `lib` | `CommerceService` 実装、見積もり・注文ステートマシン |
 | `payment` | 決済プロバイダ抽象 (`PaymentProvider`) |
 | `stripe` | Stripe API 連携および Webhook 処理 |
-| `customer` | 顧客プロファイル管理 |
+| `member_data` | 会員の注文履歴・退会時の後始末（会員のクレートは注文を知らないので、こちらが結びつける） |
 | `review` | 商品レビュー管理 |
 | `config` | EC 設定 (`CommerceConfig`: 通貨、送料、決済キー等) |

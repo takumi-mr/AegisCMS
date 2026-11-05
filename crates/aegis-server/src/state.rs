@@ -65,7 +65,7 @@ pub struct AppState {
     /// EC（`[commerce]`）。無効なら `None`
     pub commerce: Option<Arc<aegis_commerce::CommerceService>>,
     /// 会員アカウント（EC 顧客・`_aegis_users` とは別管理）。無効なら `None`
-    pub members: Option<Arc<aegis_commerce::MemberService>>,
+    pub members: Option<Arc<aegis_members::MemberService>>,
     /// 商品レビュー。無効なら `None`
     pub reviews: Option<Arc<aegis_commerce::ReviewService>>,
     /// 読者のコメント（`[comments]`）。無効なら `None`
@@ -304,7 +304,7 @@ impl AppState {
     }
 
     /// 会員アカウントサービスを有効にする
-    pub fn with_members(mut self, members: aegis_commerce::MemberService) -> Self {
+    pub fn with_members(mut self, members: aegis_members::MemberService) -> Self {
         self.members = Some(Arc::new(members));
         self
     }

@@ -1,5 +1,7 @@
 //! 会員アカウント（Member Account）機能。
-//! AegisCMS の管理アカウント（`_aegis_users`）とは完全に別管理の、EC ストア会員アカウント。
+//! AegisCMS の管理アカウント（`_aegis_users`）とは完全に別管理の、訪問者の会員アカウント。
+//! ショップ・掲示板などが共通で使う。注文やレビューなど、機能ごとのデータは扱わない
+//! （退会のときの後始末は、呼び出す側が `delete_account` の前に行う）。
 
 use std::sync::Arc;
 
@@ -11,7 +13,7 @@ use aegis_core::{
     AegisError, AuditAction, AuditActor, AuditEvent, AuditOutcome, CacheBackend, Result,
     ShippingAddress,
 };
-use aegis_db::{DatabaseAdapter, MemberRecord, OrderRecord};
+use aegis_db::{DatabaseAdapter, MemberRecord};
 
 use crate::config::{MemberRegistration, MembersConfig};
 use chrono::{SecondsFormat, Utc};
@@ -401,17 +403,8 @@ impl MemberService {
         }))
     }
 
-    /// 退会（自分のアカウントの削除）。パスワードで本人であることを確かめてから、
-    /// 注文は会員との紐づきだけを外して残し（会計の記録）、レビューは匿名にして残し、会員の行を消して、
-    /// セッションをすべて終わらせる。戻り値は、レビューを匿名にした商品の ID（公開ページのキャッシュを更新するため）。
-    /// 監査ログにはメールアドレスを残さない。途中で失敗しても、同じ手順をやり直せる
-    pub async fn delete_account(
-        &self,
-        member_id: &str,
-        password: &str,
-        ip: Option<String>,
-        user_agent: Option<String>,
-    ) -> Result<Vec<String>> {
+    /// 退会の前に、パスワードで本人であることを確かめる。違えば `Authentication`（何も変えない）
+    pub async fn confirm_password(&self, member_id: &str, password: &str) -> Result<()> {
         let record = self
             .db
             .get_member_by_id(member_id)
@@ -422,27 +415,19 @@ impl MemberService {
                 "Password does not match".to_string(),
             ));
         }
+        Ok(())
+    }
 
-        let mut product_ids: Vec<String> = self
-            .db
-            .list_reviews(&aegis_db::ReviewListQuery {
-                product_id: None,
-                status: None,
-                member_id: Some(member_id.to_string()),
-                oldest_first: false,
-                limit: None,
-                offset: 0,
-            })
-            .await?
-            .reviews
-            .into_iter()
-            .map(|review| review.product_id)
-            .collect();
-        product_ids.sort();
-        product_ids.dedup();
-
-        self.db.detach_member_orders(member_id).await?;
-        self.db.anonymize_member_reviews(member_id).await?;
+    /// 退会（自分のアカウントの削除）。会員の行を消して、セッションをすべて終わらせる。
+    /// 注文・レビュー・投稿など、機能ごとのデータの後始末（会員との紐づきを外す・匿名にする）は、
+    /// 呼び出す側が、この前に行う（本人の確認も `confirm_password` で先に済ませる）。
+    /// 監査ログにはメールアドレスを残さない。途中で失敗しても、同じ手順をやり直せる
+    pub async fn delete_account(
+        &self,
+        member_id: &str,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> Result<()> {
         self.db.delete_member(member_id).await?;
         // 消した会員のセッションを、その場で使えなくする
         self.revoke_sessions(member_id).await?;
@@ -455,7 +440,7 @@ impl MemberService {
             .with_resource("member", Some(member_id.to_string()))
             .with_client(ip, user_agent);
         self.audit.record(event).await;
-        Ok(product_ids)
+        Ok(())
     }
 
     /// 確認メールを送り直す。確認待ちの会員がいるときだけ情報を返す（いない・確認済み・停止中は `None`。
@@ -760,32 +745,6 @@ impl MemberService {
         self.audit.record(event).await;
 
         Ok(record.into())
-    }
-
-    /// 注文履歴一覧取得
-    pub async fn list_orders(&self, member_id: &str) -> Result<Vec<OrderRecord>> {
-        self.db.list_member_orders(member_id).await
-    }
-
-    /// 注文詳細取得（自分の注文であることを検証）
-    pub async fn get_order(&self, member_id: &str, order_id: &str) -> Result<OrderRecord> {
-        let order = self
-            .db
-            .get_order(order_id)
-            .await?
-            .ok_or_else(|| AegisError::NotFound("Order not found".to_string()))?;
-
-        // member_id が一致するか、あるいは会員のメールアドレスと注文のメールアドレスが一致するか検証
-        if order.member_id.as_deref() != Some(member_id) {
-            let profile = self.get_profile(member_id).await?;
-            if order.customer_email.to_lowercase() != profile.email.to_lowercase() {
-                return Err(AegisError::PermissionDenied(
-                    "You do not have access to this order".to_string(),
-                ));
-            }
-        }
-
-        Ok(order)
     }
 
     // --- 管理者向け操作 ---
