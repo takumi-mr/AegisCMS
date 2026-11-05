@@ -87,35 +87,7 @@ impl SchemaMigration {
                 continue;
             }
 
-            let sql_type = match (field.field_type, dialect) {
-                (FieldType::String, SqlDialect::Sqlite) => "TEXT",
-                (FieldType::String, SqlDialect::Postgres) => "VARCHAR(255)",
-                (FieldType::String, SqlDialect::MySql) => "VARCHAR(255)",
-
-                (FieldType::Text, SqlDialect::Sqlite) => "TEXT",
-                (FieldType::Text, SqlDialect::Postgres) => "TEXT",
-                (FieldType::Text, SqlDialect::MySql) => "LONGTEXT",
-
-                (FieldType::Integer, SqlDialect::Sqlite) => "INTEGER",
-                (FieldType::Integer, SqlDialect::Postgres) => "BIGINT",
-                (FieldType::Integer, SqlDialect::MySql) => "BIGINT",
-
-                (FieldType::Boolean, SqlDialect::Sqlite) => "INTEGER",
-                (FieldType::Boolean, SqlDialect::Postgres) => "BOOLEAN",
-                (FieldType::Boolean, SqlDialect::MySql) => "BOOLEAN",
-
-                (FieldType::Timestamp, SqlDialect::Sqlite) => "TEXT",
-                (FieldType::Timestamp, SqlDialect::Postgres) => "VARCHAR(64)",
-                (FieldType::Timestamp, SqlDialect::MySql) => "VARCHAR(64)",
-
-                (FieldType::Relation, SqlDialect::Sqlite) => "TEXT",
-                (FieldType::Relation, SqlDialect::Postgres) => "VARCHAR(64)",
-                (FieldType::Relation, SqlDialect::MySql) => "VARCHAR(64)",
-
-                (FieldType::Jsonb, SqlDialect::Sqlite) => "TEXT",
-                (FieldType::Jsonb, SqlDialect::Postgres) => "JSONB",
-                (FieldType::Jsonb, SqlDialect::MySql) => "JSON",
-            };
+            let sql_type = Self::column_type(field.field_type, dialect);
 
             let mut def = format!("{} {}", field.name, sql_type);
             if field.required && !field.nullable {
@@ -155,6 +127,40 @@ impl SchemaMigration {
         );
 
         (create_table_sql, indices)
+    }
+
+    /// フィールドの型に対応する列の型。`CREATE TABLE` も、後から足す `ALTER TABLE ADD COLUMN` も
+    /// これを使う（片方だけ型が違う、ということが起きない）
+    pub fn column_type(field_type: FieldType, dialect: SqlDialect) -> &'static str {
+        match (field_type, dialect) {
+            (FieldType::String, SqlDialect::Sqlite) => "TEXT",
+            (FieldType::String, SqlDialect::Postgres) => "VARCHAR(255)",
+            (FieldType::String, SqlDialect::MySql) => "VARCHAR(255)",
+
+            (FieldType::Text, SqlDialect::Sqlite) => "TEXT",
+            (FieldType::Text, SqlDialect::Postgres) => "TEXT",
+            (FieldType::Text, SqlDialect::MySql) => "LONGTEXT",
+
+            (FieldType::Integer, SqlDialect::Sqlite) => "INTEGER",
+            (FieldType::Integer, SqlDialect::Postgres) => "BIGINT",
+            (FieldType::Integer, SqlDialect::MySql) => "BIGINT",
+
+            (FieldType::Boolean, SqlDialect::Sqlite) => "INTEGER",
+            (FieldType::Boolean, SqlDialect::Postgres) => "BOOLEAN",
+            (FieldType::Boolean, SqlDialect::MySql) => "BOOLEAN",
+
+            (FieldType::Timestamp, SqlDialect::Sqlite) => "TEXT",
+            (FieldType::Timestamp, SqlDialect::Postgres) => "VARCHAR(64)",
+            (FieldType::Timestamp, SqlDialect::MySql) => "VARCHAR(64)",
+
+            (FieldType::Relation, SqlDialect::Sqlite) => "TEXT",
+            (FieldType::Relation, SqlDialect::Postgres) => "VARCHAR(64)",
+            (FieldType::Relation, SqlDialect::MySql) => "VARCHAR(64)",
+
+            (FieldType::Jsonb, SqlDialect::Sqlite) => "TEXT",
+            (FieldType::Jsonb, SqlDialect::Postgres) => "JSONB",
+            (FieldType::Jsonb, SqlDialect::MySql) => "JSON",
+        }
     }
 
     /// `NOT NULL` 列に付与する、列型に合った既定値リテラル（付与できない型は `None`）

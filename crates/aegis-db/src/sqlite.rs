@@ -12,16 +12,15 @@ use sqlx::{Pool, Row, Sqlite, SqliteConnection};
 
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
-    build_audit_select, build_content_list, build_content_update, build_identity_insert,
-    build_identity_select, build_identity_table, build_published_relation_lookup,
-    build_relation_lookup, build_scheduled_publish, build_scheduled_unpublish,
-    build_setting_delete, build_setting_upsert, build_settings_select, build_settings_table,
-    build_user_delete, build_user_insert, build_user_select, build_user_update, custom_columns,
-    is_standard_column, user_row_from_sqlx, ContentListQuery, ContentPage,
-    ContentPublicationChange, ContentRecord, ContentVersionRecord, DatabaseAdapter,
-    PublishedNeighborQuery, ResolvedRelation, UserRecord, AUDIT_INDEXES, AUDIT_TABLE,
-    PUBLICATION_INDEXES, USER_AVATAR_COLUMN, USER_BACKUP_CODES_COLUMN,
-    USER_PENDING_APPROVAL_COLUMN, USER_TABLE, USER_TOTP_ENABLED_COLUMN, USER_TOTP_SECRET_COLUMN,
+    build_audit_select, build_column_probe, build_content_list, build_content_update,
+    build_identity_insert, build_identity_select, build_identity_table,
+    build_published_relation_lookup, build_relation_lookup, build_scheduled_publish,
+    build_scheduled_unpublish, build_setting_delete, build_setting_upsert, build_settings_select,
+    build_settings_table, build_user_delete, build_user_insert, build_user_select,
+    build_user_update, custom_columns, is_standard_column, outdated_database_error,
+    user_row_from_sqlx, ContentListQuery, ContentPage, ContentPublicationChange, ContentRecord,
+    ContentVersionRecord, DatabaseAdapter, PublishedNeighborQuery, ResolvedRelation, UserRecord,
+    AUDIT_INDEXES, AUDIT_TABLE, PUBLICATION_INDEXES, REQUIRED_COLUMNS, USER_TABLE,
 };
 
 async fn apply_publication_change(
@@ -172,28 +171,8 @@ impl SqliteAdapter {
         Self { pool }
     }
 
-    /// 公開の記録に後から足した列（`category_id`, `sort_at`）と索引を、以前のバージョンで作った
-    /// テーブルにも用意し、まだ値を入れていない行をスナップショットから埋める
-    async fn upgrade_publications(&self) -> Result<()> {
-        let columns: HashSet<String> =
-            sqlx::query("PRAGMA table_info(_aegis_content_publications);")
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?
-                .into_iter()
-                .map(|r| r.get::<String, _>("name"))
-                .collect();
-        for column in ["category_id", "sort_at"] {
-            if !columns.contains(column) {
-                sqlx::query(&format!(
-                    "ALTER TABLE _aegis_content_publications ADD COLUMN {} TEXT;",
-                    column
-                ))
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-            }
-        }
+    /// 公開の記録の一覧用の索引を用意する
+    async fn create_publication_indexes(&self) -> Result<()> {
         for (name, columns) in PUBLICATION_INDEXES {
             sqlx::query(&format!(
                 "CREATE INDEX IF NOT EXISTS {} ON _aegis_content_publications {};",
@@ -203,27 +182,7 @@ impl SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
         }
-        let pending = sqlx::query("SELECT p.content_type, p.content_id, v.snapshot_json FROM _aegis_content_publications p JOIN _aegis_content_versions v ON v.content_type = p.content_type AND v.content_id = p.content_id AND v.revision = p.revision WHERE p.category_id IS NULL OR p.sort_at IS NULL")
-            .fetch_all(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
-        if pending.is_empty() {
-            return Ok(());
-        }
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for row in &pending {
-            let (category_id, sort_at) =
-                super::publication_columns_from_snapshot(&row.get::<String, _>("snapshot_json"))?;
-            sqlx::query("UPDATE _aegis_content_publications SET category_id = ?1, sort_at = ?2 WHERE content_type = ?3 AND content_id = ?4")
-                .bind(category_id).bind(sort_at)
-                .bind(row.get::<String, _>("content_type")).bind(row.get::<String, _>("content_id"))
-                .execute(&mut *tx).await.map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        tx.commit()
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))
+        Ok(())
     }
 
     fn published_records(rows: &[SqliteRow]) -> Result<Vec<ContentRecord>> {
@@ -270,7 +229,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
         sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_publications (content_type TEXT NOT NULL, content_id TEXT NOT NULL, revision INTEGER NOT NULL, slug TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, published_at TEXT, unpublish_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, category_id TEXT, sort_at TEXT, PRIMARY KEY(content_type, content_id), UNIQUE(content_type, slug));")
             .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
-        self.upgrade_publications().await?;
+        self.create_publication_indexes().await?;
         // 監査ログテーブル
         let audit_table_sql = format!(
             r#"
@@ -333,61 +292,6 @@ impl DatabaseAdapter for SqliteAdapter {
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
 
-        // 以前のバージョンで作成したテーブルに後から追加したカラムを足す
-        let user_columns: HashSet<String> =
-            sqlx::query(&format!("PRAGMA table_info({});", USER_TABLE))
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?
-                .into_iter()
-                .map(|r| r.get::<String, _>("name"))
-                .collect();
-        if !user_columns.contains(USER_AVATAR_COLUMN) {
-            sqlx::query(&format!(
-                "ALTER TABLE {} ADD COLUMN {} TEXT;",
-                USER_TABLE, USER_AVATAR_COLUMN
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        if !user_columns.contains(USER_PENDING_APPROVAL_COLUMN) {
-            sqlx::query(&format!(
-                "ALTER TABLE {} ADD COLUMN {} INTEGER NOT NULL DEFAULT 0;",
-                USER_TABLE, USER_PENDING_APPROVAL_COLUMN
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        if !user_columns.contains(USER_TOTP_SECRET_COLUMN) {
-            sqlx::query(&format!(
-                "ALTER TABLE {} ADD COLUMN {} TEXT;",
-                USER_TABLE, USER_TOTP_SECRET_COLUMN
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        if !user_columns.contains(USER_TOTP_ENABLED_COLUMN) {
-            sqlx::query(&format!(
-                "ALTER TABLE {} ADD COLUMN {} INTEGER NOT NULL DEFAULT 0;",
-                USER_TABLE, USER_TOTP_ENABLED_COLUMN
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        if !user_columns.contains(USER_BACKUP_CODES_COLUMN) {
-            sqlx::query(&format!(
-                "ALTER TABLE {} ADD COLUMN {} TEXT;",
-                USER_TABLE, USER_BACKUP_CODES_COLUMN
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
         // 外部 IdP のアイデンティティとユーザーの対応表
         sqlx::query(&build_identity_table("TEXT"))
             .execute(&self.pool)
@@ -407,54 +311,6 @@ impl DatabaseAdapter for SqliteAdapter {
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        // 以前のバージョンで作成した注文テーブルに後から追加したカラムを足す
-        let order_columns: HashSet<String> = sqlx::query(&format!(
-            "PRAGMA table_info({});",
-            super::orders::ORDER_TABLE
-        ))
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| AegisError::Database(e.to_string()))?
-        .into_iter()
-        .map(|r| r.get::<String, _>("name"))
-        .collect();
-        if !order_columns.contains("transaction_id") {
-            sqlx::query(&format!(
-                "ALTER TABLE {} ADD COLUMN transaction_id TEXT;",
-                super::orders::ORDER_TABLE
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        if !order_columns.contains("refunded_amount") {
-            sqlx::query(&format!(
-                "ALTER TABLE {} ADD COLUMN refunded_amount INTEGER NOT NULL DEFAULT 0;",
-                super::orders::ORDER_TABLE
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        if !order_columns.contains("refunds_json") {
-            sqlx::query(&format!(
-                "ALTER TABLE {} ADD COLUMN refunds_json TEXT NOT NULL DEFAULT '[]';",
-                super::orders::ORDER_TABLE
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        if !order_columns.contains("customer_id") {
-            sqlx::query(&format!(
-                "ALTER TABLE {} ADD COLUMN customer_id TEXT;",
-                super::orders::ORDER_TABLE
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
 
         for index in order_indexes {
             sqlx::query(&index)
@@ -589,32 +445,19 @@ impl DatabaseAdapter for SqliteAdapter {
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;
         }
-        for table_name in [
-            super::forum::FORUM_THREAD_TABLE,
-            super::forum::FORUM_POST_TABLE,
-        ] {
-            let cols: HashSet<String> = sqlx::query(&format!("PRAGMA table_info({});", table_name))
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?
-                .into_iter()
-                .map(|r| r.get::<String, _>("name"))
-                .collect();
-            if !cols.contains("status") {
-                sqlx::query(&format!(
-                    "ALTER TABLE {} ADD COLUMN status TEXT NOT NULL DEFAULT 'approved';",
-                    table_name
-                ))
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-            }
-        }
         for index in forum_indexes {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await
                 .map_err(|e| AegisError::Database(e.to_string()))?;
+        }
+
+        // 古い版で作ったDBなら、足りない列を黙って足さずに、移行の手順を示して止める
+        for (table, columns) in REQUIRED_COLUMNS {
+            sqlx::query(&build_column_probe(table, columns))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| outdated_database_error(table, columns, &e.to_string()))?;
         }
 
         Ok(())
@@ -641,6 +484,12 @@ impl DatabaseAdapter for SqliteAdapter {
                     ))
                 })?;
 
+            // 古い版で作ったテーブルには `unpublish_at` が無い。足さずに、移行の手順を示して止める
+            sqlx::query(&build_column_probe(&table, &["unpublish_at"]))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| outdated_database_error(&table, &["unpublish_at"], &e.to_string()))?;
+
             // 2. 既存カラム一覧を取得し、未追加カラムを ALTER TABLE で追加
             let rows = sqlx::query(&format!("PRAGMA table_info({});", table))
                 .fetch_all(&self.pool)
@@ -652,26 +501,10 @@ impl DatabaseAdapter for SqliteAdapter {
                 .map(|r| r.get::<String, _>("name"))
                 .collect();
 
-            if !existing_columns.contains("unpublish_at") {
-                let alter_sql = format!("ALTER TABLE {} ADD COLUMN unpublish_at TEXT;", table);
-                tracing::info!("Adding missing unpublish_at column (SQLite): {}", alter_sql);
-                sqlx::query(&alter_sql)
-                    .execute(&self.pool)
-                    .await
-                    .map_err(|e| {
-                        AegisError::Database(format!(
-                            "Alter table failed: {} - SQL: {}",
-                            e, alter_sql
-                        ))
-                    })?;
-            }
-
             for field in &schema.fields {
                 if !existing_columns.contains(&field.name) {
-                    let sql_type = match field.field_type {
-                        FieldType::Integer | FieldType::Boolean => "INTEGER",
-                        _ => "TEXT",
-                    };
+                    let sql_type =
+                        SchemaMigration::column_type(field.field_type, SqlDialect::Sqlite);
                     let alter_sql = format!(
                         "ALTER TABLE {} ADD COLUMN {} {};",
                         table, field.name, sql_type
@@ -1589,6 +1422,70 @@ fields:
             .is_none_or(|v| v.is_null()));
     }
 
+    /// 古い版で作ったシステムテーブル（後から足した列が無い）は、黙って書き換えずに、
+    /// 移行の手順を示すエラーで起動を止める
+    #[tokio::test]
+    async fn test_init_refuses_a_database_from_an_older_version() {
+        let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
+        sqlx::query(
+            "CREATE TABLE _aegis_users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, \
+             email TEXT, display_name TEXT, role TEXT NOT NULL, password_hash TEXT NOT NULL, \
+             disabled INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);",
+        )
+        .execute(&adapter.pool)
+        .await
+        .unwrap();
+
+        let message = adapter.init().await.unwrap_err().to_string();
+        assert!(message.contains("older AegisCMS"), "{message}");
+        assert!(message.contains("_aegis_users"), "{message}");
+        assert!(
+            message.contains("v0.3.x")
+                && message.contains("task dump")
+                && message.contains("task restore"),
+            "{message}"
+        );
+        // 列を足して書き換えることはしない
+        let columns: Vec<String> = sqlx::query("PRAGMA table_info(_aegis_users);")
+            .fetch_all(&adapter.pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|r| r.get::<String, _>("name"))
+            .collect();
+        assert!(!columns.contains(&"avatar_key".to_string()));
+
+        // 新しく作ったDBは通る
+        memory_adapter().await;
+    }
+
+    /// コンテンツのテーブルも同じ: 古い版の `unpublish_at` の無いテーブルは足さずに止める
+    #[tokio::test]
+    async fn test_migrations_refuse_a_content_table_without_unpublish_at() {
+        let adapter = memory_adapter().await;
+        sqlx::query(
+            "CREATE TABLE content_page (id TEXT PRIMARY KEY, content_type TEXT NOT NULL, \
+             title TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'draft', \
+             blocks_json TEXT NOT NULL DEFAULT '[]', author_id TEXT, published_at TEXT, \
+             created_at TEXT NOT NULL, updated_at TEXT NOT NULL);",
+        )
+        .execute(&adapter.pool)
+        .await
+        .unwrap();
+        let schema =
+            aegis_schema::SchemaLoader::load_from_str("content_type: page\nlabel: Page\n").unwrap();
+        let schemas = HashMap::from([("page".to_string(), schema)]);
+        let message = adapter
+            .run_migrations(&schemas)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            message.contains("older AegisCMS") && message.contains("unpublish_at"),
+            "{message}"
+        );
+    }
+
     #[tokio::test]
     async fn test_file_database_uses_wal() {
         let path = std::env::temp_dir().join(format!("aegis-wal-{}.db", std::process::id()));
@@ -1629,26 +1526,16 @@ fields:
     }
 
     #[tokio::test]
-    async fn test_init_adds_the_avatar_column_to_an_existing_user_table() {
-        let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
-        // ユーザーテーブルに avatar_key が無かったバージョンの DB
+    async fn test_user_optional_and_2fa_columns_round_trip() {
+        let adapter = memory_adapter().await;
+        // 任意の列（avatar_key・pending_approval・2FA）を省いて書いた行
         sqlx::query(
-            "CREATE TABLE _aegis_users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, \
-             email TEXT, display_name TEXT, role TEXT NOT NULL, password_hash TEXT NOT NULL, \
-             disabled INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, \
-             updated_at TEXT NOT NULL);",
-        )
-        .execute(&adapter.pool)
-        .await
-        .unwrap();
-        sqlx::query(
-            "INSERT INTO _aegis_users VALUES ('u1', 'old', NULL, NULL, 'admin', 'x', 0, 't', 't');",
+            "INSERT INTO _aegis_users (id, username, role, password_hash, created_at, updated_at)              VALUES ('u1', 'old', 'admin', 'x', 't', 't');",
         )
         .execute(&adapter.pool)
         .await
         .unwrap();
 
-        adapter.init().await.unwrap();
         // 2 回目の起動でも失敗しない
         adapter.init().await.unwrap();
         let user = adapter.get_user_by_username("old").await.unwrap().unwrap();
