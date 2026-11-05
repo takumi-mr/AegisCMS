@@ -15,6 +15,7 @@ pub const SAMPLE_KINDS: &[&str] = &[
     "account.registered",
     "account.password_reset",
     "customer.password_reset",
+    "customer.verify",
     "account.approved",
     "account.invite",
     "content.published",
@@ -128,6 +129,10 @@ pub fn sample_data(kind: &str, locale: &str, site_url: &str) -> Value {
         "customer.password_reset" => json!({
             "name": customer,
             "reset_url": url("/account/reset?token=sample"), "expires_hours": 1,
+        }),
+        "customer.verify" => json!({
+            "name": customer,
+            "verify_url": url("/account/verify?token=sample"), "expires_hours": 48,
         }),
         "newsletter.confirm" => json!({
             "confirm_url": url("/newsletter/confirm?token=sample"), "expires_hours": 48,

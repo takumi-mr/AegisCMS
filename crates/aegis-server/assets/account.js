@@ -96,6 +96,7 @@
           if (!res.ok) {
             var error = new Error((data && data.error) || msg('request_failed'));
             error.status = res.status;
+            error.code = data && data.code;
             throw error;
           }
           return data;
@@ -173,10 +174,31 @@
           ),
         ],
         msg('acct_login'),
-        function (data) {
-          return api('POST', '/login', { email: data.email, password: data.password }).then(function () {
-            window.location.href = config.accountUrl;
-          });
+        function (data, status) {
+          return api('POST', '/login', { email: data.email, password: data.password })
+            .then(function () {
+              window.location.href = config.accountUrl;
+            })
+            .catch(function (error) {
+              if (error.code !== 'email_not_verified') throw error;
+              // The password was right but the address is not confirmed yet: offer the email again
+              status.textContent = '';
+              status.appendChild(notice(msg('acct_not_verified'), 'error'));
+              var again = h('button', { type: 'button', class: 'aegis-link' }, [msg('acct_resend')]);
+              again.addEventListener('click', function () {
+                again.disabled = true;
+                api('POST', '/verify/resend', { email: data.email })
+                  .then(function () {
+                    status.textContent = '';
+                    status.appendChild(notice(msg('acct_resend_sent'), 'ok'));
+                  })
+                  .catch(function (resendError) {
+                    again.disabled = false;
+                    status.appendChild(notice(resendError.message, 'error'));
+                  });
+              });
+              status.appendChild(again);
+            });
         }
       ),
     ];
@@ -206,6 +228,50 @@
       ),
       h('p', { class: 'aegis-muted' }, [link(config.loginUrl, msg('acct_login'))]),
     ]);
+  }
+
+  // Ask for the confirmation email again (answers the same whether or not the address is waiting)
+  function resendForm() {
+    return form(
+      [field(msg('acct_email'), input('email', 'email', { required: true, autocomplete: 'email' }))],
+      msg('acct_resend'),
+      function (data, status) {
+        return api('POST', '/verify/resend', { email: data.email }).then(function () {
+          status.textContent = '';
+          status.appendChild(notice(msg('acct_resend_sent'), 'ok'));
+        });
+      }
+    );
+  }
+
+  // The link of the confirmation email carries the token: read it, take it out of the address bar, use it once
+  function verifyView() {
+    var params = new URLSearchParams(window.location.search);
+    var token = params.get('token') || '';
+    if (token) {
+      params.delete('token');
+      try {
+        var query = params.toString();
+        window.history.replaceState(null, '', window.location.pathname + (query ? '?' + query : ''));
+      } catch (e) {}
+    }
+    var failed = function () {
+      show([h('h2', {}, [msg('acct_verify_title')]), notice(msg('acct_verify_bad_link'), 'error'), resendForm()]);
+    };
+    if (!token) {
+      failed();
+      return;
+    }
+    show([h('h2', {}, [msg('acct_verify_title')]), h('p', { class: 'aegis-muted' }, [msg('acct_verifying')])]);
+    api('POST', '/verify', { token: token })
+      .then(function () {
+        show([
+          h('h2', {}, [msg('acct_verify_title')]),
+          notice(msg('acct_verify_done'), 'ok'),
+          h('p', {}, [link(config.loginUrl, msg('acct_login'))]),
+        ]);
+      })
+      .catch(failed);
   }
 
   // The link of the email carries the token: take it out of the address bar once it is read
@@ -268,13 +334,16 @@
           if (data.password.length < config.minPassword) {
             throw new Error(msg('acct_password_hint', { n: config.minPassword }));
           }
-          return api('POST', '/register', { email: data.email, password: data.password, name: data.name })
-            .then(function () {
-              return api('POST', '/login', { email: data.email, password: data.password });
-            })
-            .then(function () {
+          return api('POST', '/register', { email: data.email, password: data.password, name: data.name }).then(function (result) {
+            if (result && result.status === 'verification_sent') {
+              // The address has to be confirmed first: no login yet
+              show([notice(msg('acct_verify_sent'), 'ok'), h('p', {}, [link(config.loginUrl, msg('acct_login'))])]);
+              return null;
+            }
+            return api('POST', '/login', { email: data.email, password: data.password }).then(function () {
               window.location.href = config.accountUrl;
             });
+          });
         }
       ),
       h('p', { class: 'aegis-muted' }, [msg('acct_have_account') + ' ', link(config.loginUrl, msg('acct_login'))]),
@@ -438,5 +507,6 @@
   else if (config.view === 'register') registerView();
   else if (config.view === 'forgot') forgotView();
   else if (config.view === 'reset') resetView();
+  else if (config.view === 'verify') verifyView();
   else homeView();
 })();

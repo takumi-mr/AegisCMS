@@ -1,0 +1,11 @@
+Hello {{ name }},
+
+We received your sign-up on {{ site_name }}.
+Open the link below to confirm your email address. Once it is confirmed, you can log in:
+
+{{ verify_url }}
+
+The link expires in {{ expires_hours }} hours. After that, you can ask for a new one on the login page.
+
+If you did not sign up, you can ignore this email. The account stays unusable.
+{% include "_footer.txt" %}

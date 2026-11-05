@@ -534,6 +534,14 @@ pub async fn render_account_reset(
     render_account(&state, &headers, "reset").await
 }
 
+/// `GET /account/verify?token=...` — 確認メールのリンクから、メールアドレスを確認する。確認メールを送れない設定では 404
+pub async fn render_account_verify(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
+    render_account(&state, &headers, "verify").await
+}
+
 /// ログインの状態で表示が変わるので、どの応答も共有のキャッシュに載せない
 const PRIVATE: (header::HeaderName, &str) = (header::CACHE_CONTROL, "private, no-store");
 
@@ -543,6 +551,9 @@ async fn render_account(state: &AppState, headers: &HeaderMap, view: &str) -> Re
     };
     if view == "register" && !customers.registration_open() {
         return render_not_found(state, "Registration is closed.").await;
+    }
+    if view == "verify" && !crate::handlers::customers::verification_available(state) {
+        return render_not_found(state, "Email confirmation is not available.").await;
     }
     if matches!(view, "forgot" | "reset")
         && !crate::handlers::customers::password_reset_available(state)

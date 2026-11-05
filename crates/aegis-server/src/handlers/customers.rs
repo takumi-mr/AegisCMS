@@ -18,8 +18,8 @@ use crate::auth::EditorSession;
 use crate::state::AppState;
 use aegis_commerce::{
     CustomerLoginRequest, CustomerRegisterRequest, CustomerResponse, CustomerService,
-    CustomerSessionData, CustomerUpdateProfileRequest, CUSTOMER_TOKEN_PREFIX,
-    PASSWORD_RESET_TTL_SECS,
+    CustomerSessionData, CustomerUpdateProfileRequest, CustomerVerification, CUSTOMER_TOKEN_PREFIX,
+    EMAIL_NOT_VERIFIED_MESSAGE, EMAIL_VERIFICATION_TTL_SECS, PASSWORD_RESET_TTL_SECS,
 };
 use aegis_core::{AegisError, NotificationEvent, Recipient};
 
@@ -159,6 +159,30 @@ pub async fn register(
         .and_then(|h| h.to_str().ok())
         .map(str::to_string);
 
+    if service.requires_email_verification() {
+        if !verification_available(&state) {
+            return Err(api_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Email confirmation is not available",
+            ));
+        }
+        // 確認が済むまで使えない顧客として登録し、確認メールを送る。登録済みのアドレスでも同じ応答にする
+        let pending = service
+            .register_pending(req, client_ip, user_agent)
+            .await
+            .map_err(map_aegis_error)?;
+        if let Some(verification) = pending {
+            send_verification_email(&state, &verification);
+        }
+        return Ok((
+            StatusCode::ACCEPTED,
+            Json(json!({
+                "status": "verification_sent",
+                "expires_in_secs": EMAIL_VERIFICATION_TTL_SECS,
+            })),
+        ));
+    }
+
     let customer = service
         .register(req, client_ip, user_agent)
         .await
@@ -170,6 +194,112 @@ pub async fn register(
             "customer": customer,
         })),
     ))
+}
+
+/// 確認メールを送れる設定か。メールを送れる（`[notifications]`）ことと、リンクの元になる公開 URL が要る
+/// （再設定と同じく、メールのリンクは `Host` ヘッダーではなく `[commerce].public_url` から作る）
+pub(crate) fn verification_available(state: &AppState) -> bool {
+    state.notifier.is_some() && !state.config.commerce.public_url.trim().is_empty()
+}
+
+fn send_verification_email(state: &AppState, verification: &CustomerVerification) {
+    let Some(notifier) = state.notifier.as_ref() else {
+        return;
+    };
+    let verify_url = format!(
+        "{}/account/verify?token={}",
+        state
+            .config
+            .commerce
+            .public_url
+            .trim()
+            .trim_end_matches('/'),
+        verification.token
+    );
+    notifier.notify(NotificationEvent::new(
+        "customer.verify",
+        vec![Recipient::person(
+            &verification.email,
+            verification.name.clone(),
+        )],
+        json!({
+            "name": verification.name,
+            "verify_url": verify_url,
+            "expires_hours": EMAIL_VERIFICATION_TTL_SECS.div_ceil(3600),
+        }),
+    ));
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyRequest {
+    pub token: String,
+}
+
+/// `POST /api/v1/customers/verify` — 確認メールのリンクのトークンで、メールアドレスを確認する。
+/// 確認が済むと、ログインできる
+pub async fn verify_email(
+    State(state): State<Arc<AppState>>,
+    ClientIp(client_ip): ClientIp,
+    headers: HeaderMap,
+    Json(req): Json<VerifyRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let service = customers(&state)?;
+    if !verification_available(&state) {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "Email confirmation is not available",
+        ));
+    }
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|h| h.to_str().ok())
+        .map(str::to_string);
+    service
+        .verify_email(&req.token, client_ip, user_agent)
+        .await
+        .map_err(map_aegis_error)?;
+    Ok(Json(json!({ "status": "verified" })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResendRequest {
+    pub email: String,
+}
+
+/// `POST /api/v1/customers/verify/resend` — 確認メールを送り直す。
+/// 登録の有無を教えないため、メールアドレスの形が正しければ、いつも `202` を返す
+pub async fn resend_verification(
+    State(state): State<Arc<AppState>>,
+    ClientIp(client_ip): ClientIp,
+    Json(req): Json<ResendRequest>,
+) -> Result<Response, ApiError> {
+    let service = customers(&state)?;
+    if !verification_available(&state) {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "Email confirmation is not available",
+        ));
+    }
+    let pending = service
+        .resend_verification(&req.email, client_ip.as_deref())
+        .await
+        .map_err(|e| match e {
+            AegisError::ResourceLimitExceeded(message) => {
+                api_error(StatusCode::TOO_MANY_REQUESTS, message)
+            }
+            other => map_aegis_error(other),
+        })?;
+    if let Some(verification) = pending {
+        send_verification_email(&state, &verification);
+    }
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({
+            "status": "verification_sent",
+            "expires_in_secs": EMAIL_VERIFICATION_TTL_SECS,
+        })),
+    )
+        .into_response())
 }
 
 /// `POST /api/v1/customers/login` — ログイン
@@ -185,10 +315,18 @@ pub async fn login(
         .and_then(|h| h.to_str().ok())
         .map(str::to_string);
 
-    let (session, customer) = service
-        .login(req, client_ip, user_agent)
-        .await
-        .map_err(map_aegis_error)?;
+    let (session, customer) =
+        service
+            .login(req, client_ip, user_agent)
+            .await
+            .map_err(|e| match e {
+                // パスワードが合っていて、確認だけが済んでいない。ページが「確認メールを送り直す」を出せるよう、コードを付ける
+                AegisError::PermissionDenied(message) if message == EMAIL_NOT_VERIFIED_MESSAGE => (
+                    StatusCode::FORBIDDEN,
+                    Json(json!({ "error": message, "code": "email_not_verified" })),
+                ),
+                other => map_aegis_error(other),
+            })?;
 
     // ブラウザには Cookie でも渡す（JavaScript から触れない）。API のクライアントは従来どおり本文のトークンを使う
     let cookie = session_cookie(&state, &headers, &session.token, service.session_ttl_secs());
