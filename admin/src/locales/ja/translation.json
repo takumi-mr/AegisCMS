@@ -815,6 +815,15 @@
     "pageFrame": "テーマ適用ページのプレビュー",
     "pageEmpty": "サーバーで描画すると、テーマを適用したページがここに表示されます。"
   },
+  "extraFields": {
+    "relationPlaceholder": "関連コンテンツの ID",
+    "errors": {
+      "required": "{{field}} は必須です",
+      "integer": "{{field}} は整数で入力してください",
+      "timestamp": "{{field}} は日時として正しくありません",
+      "json": "{{field}} は正しい JSON ではありません"
+    }
+  },
   "products": {
     "loadFailed": "商品を読み込めませんでした",
     "created": "「{{title}}」を作成しました",
