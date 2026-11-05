@@ -7,6 +7,9 @@ import type {
   AuthProviders,
   BrokenLinksStatusResponse,
   CommentBulkAction,
+  CustomerDetail,
+  CustomerPage,
+  CustomerStatus,
   CommentPage,
   CommentSettings,
   CommentStatus,
@@ -993,6 +996,27 @@ export const aegisApi = {
     offset?: number;
   }): Promise<OrderPage> {
     return request(`/orders?${toQuery(query)}`, {}, i18n.t('api.ordersFailed'));
+  },
+
+  /** Customer accounts, newest first (404 when customer accounts are disabled) */
+  async listCustomers(query: { limit?: number; offset?: number }): Promise<CustomerPage> {
+    return request(`/admin/customers?${toQuery(query)}`, {}, i18n.t('api.customersFailed'));
+  },
+
+  async getCustomer(id: string): Promise<CustomerDetail> {
+    return request(`/admin/customers/${encodeURIComponent(id)}`, {}, i18n.t('api.customerFailed'));
+  },
+
+  /** Suspends (ends the sessions at once) or reactivates a customer */
+  async setCustomerStatus(
+    id: string,
+    status: Exclude<CustomerStatus, 'unverified'>
+  ): Promise<void> {
+    return requestNoContent(
+      `/admin/customers/${encodeURIComponent(id)}`,
+      { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },
+      i18n.t('api.setCustomerStatusFailed')
+    );
   },
 
   async getSalesReport(start: string, end: string): Promise<SalesReport> {

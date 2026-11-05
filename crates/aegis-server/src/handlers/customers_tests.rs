@@ -349,6 +349,30 @@ async fn test_customer_lifecycle_and_reviews_e2e() {
     let admin_cust_body = json_response(res).await;
     assert_eq!(admin_cust_body["total"], 1);
     assert_eq!(admin_cust_body["customers"][0]["id"], customer_id);
+    assert!(admin_cust_body["customers"][0]
+        .get("password_hash")
+        .is_none());
+
+    // 詳細: 注文は一覧に要る項目だけ（トークンのハッシュなどを載せない）
+    let detail_req = Request::builder()
+        .method("GET")
+        .uri(format!("/api/v1/admin/customers/{}", customer_id))
+        .header("authorization", format!("Bearer {}", ctx.admin_token))
+        .body(Body::empty())
+        .unwrap();
+    let res = ctx.app.clone().oneshot(detail_req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let detail = json_response(res).await;
+    assert_eq!(detail["customer"]["id"], customer_id);
+    assert!(detail["customer"].get("password_hash").is_none());
+    for order in detail["orders"].as_array().unwrap() {
+        let mut keys: Vec<&String> = order.as_object().unwrap().keys().collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            ["created_at", "currency", "id", "number", "status", "total"]
+        );
+    }
 
     // 11. 管理者: レビュー一覧取得・返信・ステマ規制配慮非承認
     let admin_rev_req = Request::builder()

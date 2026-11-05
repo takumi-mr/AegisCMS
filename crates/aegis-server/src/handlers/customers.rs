@@ -643,6 +643,21 @@ pub async fn admin_get_customer(
         .await
         .map_err(map_aegis_error)?;
 
+    // 注文は一覧に要る項目だけを返す（注文確認ページのトークンのハッシュなどは載せない）
+    let orders: Vec<serde_json::Value> = orders
+        .iter()
+        .map(|order| {
+            json!({
+                "id": order.id,
+                "number": order.number,
+                "status": order.status,
+                "currency": order.currency,
+                "total": order.total,
+                "created_at": order.created_at,
+            })
+        })
+        .collect();
+
     Ok(Json(json!({
         "customer": customer,
         "orders": orders,

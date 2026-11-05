@@ -101,7 +101,10 @@
     "updateNoticeFailed": "お知らせを変更できませんでした",
     "deleteNoticeFailed": "お知らせを削除できませんでした",
     "brokenLinksFailed": "リンク切れレポートの取得に失敗しました",
-    "triggerBrokenLinksScanFailed": "リンク切れ検査の開始に失敗しました"
+    "triggerBrokenLinksScanFailed": "リンク切れ検査の開始に失敗しました",
+    "customersFailed": "顧客を取得できませんでした",
+    "customerFailed": "顧客を取得できませんでした",
+    "setCustomerStatusFailed": "顧客の状態を変更できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -415,7 +418,8 @@
       "forum": "フォーラム",
       "contact": "問い合わせ",
       "analytics": "アクセス解析",
-      "settings": "設定"
+      "settings": "設定",
+      "customers": "顧客"
     },
     "gateway": "コアゲートウェイ: {{state}}",
     "gatewayWithVersion": "コアゲートウェイ: {{state}} (v{{version}})",
@@ -707,6 +711,39 @@
     "fullRefund": "全額返金",
     "invalidRefundAmount": "正しい返金額を入力してください（最大: {{amount}}）",
     "cannotRefund": "これ以上返金できる残額がありません"
+  },
+  "customers": {
+    "title": "顧客",
+    "disabled": "顧客アカウントは無効です（[commerce.customers].enabled）。",
+    "loadFailed": "顧客を読み込めませんでした",
+    "empty": "まだ登録している人はいません。",
+    "columns": {
+      "customer": "顧客",
+      "status": "状態",
+      "registered": "登録日",
+      "lastLogin": "最終ログイン"
+    },
+    "status": {
+      "active": "有効",
+      "suspended": "停止中",
+      "unverified": "メール未確認"
+    },
+    "newer": "新しい",
+    "older": "古い",
+    "range": "{{total}} 件中 {{from}}〜{{to}} 件",
+    "registeredAt": "{{date}} に登録",
+    "suspend": "停止する",
+    "reactivate": "再開する",
+    "confirmSuspend": "この顧客を停止しますか？ その場でログアウトされ、再開するまでログインできません。注文とレビューは残ります。",
+    "suspended": "顧客を停止しました",
+    "reactivated": "顧客を再開しました",
+    "unverified": "この顧客は、まだメールアドレスを確認していません。メールのリンクを開くと、ログインできます。",
+    "contact": "連絡先",
+    "shipTo": "保存している配送先",
+    "noAddress": "保存していません",
+    "orders": "注文",
+    "noOrders": "まだ注文はありません。",
+    "spent": "支払い済みの合計"
   },
   "comments": {
     "title": "コメント",

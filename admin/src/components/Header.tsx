@@ -8,6 +8,7 @@ import {
   LogOut,
   Settings,
   Package,
+  Users,
   ShoppingBag,
   MessageSquare,
   Calendar,
@@ -38,6 +39,7 @@ export type AppView =
   | 'schedule'
   | 'products'
   | 'orders'
+  | 'customers'
   | 'comments'
   | 'forum'
   | 'contact'
@@ -59,6 +61,8 @@ interface HeaderProps {
   canPublish?: boolean;
   /** Products / Orders tabs: the shop is enabled (`[commerce].enabled`) and the user can edit */
   showShop: boolean;
+  /** Customers tab: customer accounts are enabled (`[commerce.customers].enabled`) and the user can edit */
+  showCustomers?: boolean;
   /** Comments tab: comments are enabled (`[comments].enabled`) and the user can edit */
   showComments: boolean;
   /** Forum tab: forum is enabled (`[forum].enabled`) and the user can edit */
@@ -85,6 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
   canSave,
   canPublish = false,
   showShop,
+  showCustomers = false,
   showComments,
   showForum,
   showContact = false,
@@ -129,6 +134,15 @@ export const Header: React.FC<HeaderProps> = ({
             id: 'orders' as const,
             label: t('header.tabs.orders'),
             icon: <ShoppingBag size={15} />,
+          },
+        ]
+      : []),
+    ...(showCustomers
+      ? [
+          {
+            id: 'customers' as const,
+            label: t('header.tabs.customers'),
+            icon: <Users size={15} />,
           },
         ]
       : []),
