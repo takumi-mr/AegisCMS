@@ -612,3 +612,65 @@ async fn test_the_member_detail_in_the_admin_counts_forum_posts() {
     assert_eq!(thread["thread"]["author_kind"], "member");
     assert_eq!(thread["thread"]["author_id"], member_id);
 }
+
+/// 会員のアバターは、表示のたびに今の値を引く: 設定すれば過去の投稿にも出て、変えれば追従し、外せば頭文字に戻る
+#[tokio::test]
+async fn test_forum_posts_show_the_current_member_avatar() {
+    let site = site(ForumPosting::Anyone).await;
+    let (member_id, token) = site.member("hana@example.com", Some("hana")).await;
+    let (_, body) = site
+        .api(
+            "POST",
+            "/api/v1/forum/threads",
+            Some(&token),
+            Some(thread_body(&site.public_cat)),
+        )
+        .await;
+    let thread_id = body["thread"]["id"].as_str().unwrap().to_string();
+    let page = format!("/forum/general/{thread_id}");
+    let get = || {
+        Request::builder()
+            .uri(page.clone())
+            .body(Body::empty())
+            .unwrap()
+    };
+
+    let (status, _, html) = site.send(get()).await;
+    let html = html.replace("&#x2f;", "/");
+    assert_eq!(status, StatusCode::OK);
+    assert!(html.contains("forum-avatar"), "{html}");
+    assert!(!html.contains("/uploads/avatars/"), "{html}");
+
+    site.members
+        .set_avatar(
+            &member_id,
+            Some(format!("avatars/{member_id}-aaaaaaaa.png")),
+        )
+        .await
+        .unwrap();
+    let (_, _, html) = site.send(get()).await;
+    let html = html.replace("&#x2f;", "/");
+    assert!(
+        html.contains(&format!("/uploads/avatars/{member_id}-aaaaaaaa.png")),
+        "{html}"
+    );
+
+    site.members
+        .set_avatar(
+            &member_id,
+            Some(format!("avatars/{member_id}-bbbbbbbb.png")),
+        )
+        .await
+        .unwrap();
+    let (_, _, html) = site.send(get()).await;
+    let html = html.replace("&#x2f;", "/");
+    assert!(
+        html.contains("-bbbbbbbb.png") && !html.contains("-aaaaaaaa.png"),
+        "{html}"
+    );
+
+    site.members.set_avatar(&member_id, None).await.unwrap();
+    let (_, _, html) = site.send(get()).await;
+    let html = html.replace("&#x2f;", "/");
+    assert!(!html.contains("/uploads/avatars/"), "{html}");
+}

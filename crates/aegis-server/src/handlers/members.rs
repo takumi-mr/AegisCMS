@@ -401,7 +401,7 @@ pub async fn get_me(
         .get_profile(&session.member_id)
         .await
         .map_err(map_aegis_error)?;
-    Ok(Json(profile))
+    Ok(Json(with_avatar_url(&state, profile)))
 }
 
 /// `PUT /api/v1/members/me` — ログイン会員情報更新
@@ -417,6 +417,7 @@ pub async fn update_me(
         .update_profile(&session.member_id, req)
         .await
         .map_err(map_aegis_error)?;
+    let updated = with_avatar_url(&state, updated);
     if !changed_password {
         return Ok(Json(updated).into_response());
     }
@@ -430,6 +431,124 @@ pub async fn update_me(
     body["token"] = json!(fresh.token);
     body["expires_at"] = json!(fresh.expires_at);
     Ok(([(header::SET_COOKIE, cookie)], Json(body)).into_response())
+}
+
+/// 応答に、アバター画像の公開 URL（ストレージの設定に従う）を埋める
+fn with_avatar_url(state: &AppState, mut member: MemberResponse) -> MemberResponse {
+    member.avatar_url = member
+        .avatar_key
+        .as_deref()
+        .map(|key| state.storage.public_url(key));
+    member
+}
+
+/// 会員 ID から、アバター画像の公開 URL を引く（画像がある会員だけ入る）。掲示板・レビューの表示用。
+/// 表示のたびに今の値を引くので、画像を変えれば過去の投稿にも反映される。重複は除いて、1 回の問い合わせでまとめて引く
+pub(crate) async fn avatar_urls(
+    state: &AppState,
+    member_ids: Vec<String>,
+) -> std::collections::HashMap<String, String> {
+    let Some(service) = state.members.as_ref() else {
+        return Default::default();
+    };
+    match service.avatar_keys(&member_ids).await {
+        Ok(keys) => keys
+            .into_iter()
+            .map(|(id, key)| (id, state.storage.public_url(&key)))
+            .collect(),
+        Err(e) => {
+            tracing::warn!("Failed to load member avatars: {}", e);
+            Default::default()
+        }
+    }
+}
+
+/// 掲示板のページには投稿者のアバターが出るので、画像を変えたら掲示板のキャッシュを更新する
+async fn purge_forum_pages(state: &AppState) {
+    if state.forum.is_some() {
+        let mut tags = aegis_cache::CacheTags::new();
+        tags.add_dependency("collection", "forum");
+        crate::cdn::purge_tags(state, &tags).await;
+    }
+}
+
+/// Cookie だけで認証した multipart の変更は、他のサイトのフォームから送れてしまうので、
+/// このサイトからのものに限る（`Authorization` ヘッダーで認証したものは対象外）
+fn require_same_site_for_cookie(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {
+    if !headers.contains_key(header::AUTHORIZATION) && !request_comes_from_this_site(state, headers)
+    {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "Cross-site requests are not allowed",
+        ));
+    }
+    Ok(())
+}
+
+/// `PUT /api/v1/members/me/avatar` — アバター画像（multipart の `file`。PNG / JPEG / GIF / WebP、
+/// 2 MB まで）を設定する
+pub async fn upload_my_avatar(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    multipart: axum::extract::Multipart,
+) -> Result<Json<MemberResponse>, ApiError> {
+    let session = resolve_member_session(&state, &headers).await?;
+    require_same_site_for_cookie(&state, &headers)?;
+    let service = members(&state)?;
+    let (data, content_type, extension) = super::users::read_avatar_image(multipart).await?;
+
+    // 画像を差し替えるたびにキーを変え、ブラウザ・CDN のキャッシュに古い画像が残らないようにする
+    let suffix = uuid::Uuid::new_v4().simple().to_string();
+    let key = format!(
+        "{}{}-{}.{}",
+        super::users::AVATAR_PREFIX,
+        session.member_id,
+        &suffix[..8],
+        extension
+    );
+    state
+        .storage
+        .put(&key, &data, content_type)
+        .await
+        .map_err(|e| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Storage put error: {}", e),
+            )
+        })?;
+    let (member, previous) = match service
+        .set_avatar(&session.member_id, Some(key.clone()))
+        .await
+    {
+        Ok(result) => result,
+        Err(e) => {
+            super::users::remove_avatar_object(&state, &key).await;
+            return Err(map_aegis_error(e));
+        }
+    };
+    if let Some(previous) = previous.filter(|p| *p != key) {
+        super::users::remove_avatar_object(&state, &previous).await;
+    }
+    purge_forum_pages(&state).await;
+    Ok(Json(with_avatar_url(&state, member)))
+}
+
+/// `DELETE /api/v1/members/me/avatar` — アバター画像を外す
+pub async fn delete_my_avatar(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<MemberResponse>, ApiError> {
+    let session = resolve_member_session(&state, &headers).await?;
+    let service = members(&state)?;
+    let (member, previous) = service
+        .set_avatar(&session.member_id, None)
+        .await
+        .map_err(map_aegis_error)?;
+    if let Some(previous) = previous {
+        super::users::remove_avatar_object(&state, &previous).await;
+    }
+    purge_forum_pages(&state).await;
+    Ok(Json(with_avatar_url(&state, member)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -451,6 +570,11 @@ pub async fn delete_me(
         .get("user-agent")
         .and_then(|h| h.to_str().ok())
         .map(str::to_string);
+    let avatar_key = service
+        .get_profile(&session.member_id)
+        .await
+        .ok()
+        .and_then(|profile| profile.avatar_key);
     // 1. 本人の確認（違えば、何も変えない）
     service
         .confirm_password(&session.member_id, &req.password)
@@ -477,6 +601,9 @@ pub async fn delete_me(
         .delete_account(&session.member_id, client_ip, user_agent)
         .await
         .map_err(map_aegis_error)?;
+    if let Some(key) = avatar_key {
+        super::users::remove_avatar_object(&state, &key).await;
+    }
 
     // 公開の商品ページに出ていた投稿者名が変わるので、そのキャッシュを更新する
     if !product_ids.is_empty() {
@@ -706,6 +833,10 @@ pub async fn admin_list_members(
         .admin_list_members(query.limit, query.offset)
         .await
         .map_err(map_aegis_error)?;
+    let members: Vec<MemberResponse> = members
+        .into_iter()
+        .map(|member| with_avatar_url(&state, member))
+        .collect();
 
     Ok(Json(json!({
         "members": members,
@@ -724,6 +855,7 @@ pub async fn admin_get_member(
         .admin_get_member(&member_id)
         .await
         .map_err(map_aegis_error)?;
+    let member = with_avatar_url(&state, member);
 
     let orders = aegis_commerce::member_data::list_member_orders(&*state.db, &member_id)
         .await

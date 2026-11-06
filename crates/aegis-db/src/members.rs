@@ -9,12 +9,13 @@ use serde::{Deserialize, Serialize};
 pub const MEMBER_TABLE: &str = "_aegis_members";
 
 /// INSERT / SELECT で使う会員テーブルのカラム（順序固定）
-pub const MEMBER_COLUMNS: [&str; 11] = [
+pub const MEMBER_COLUMNS: [&str; 12] = [
     "id",
     "email",
     "password_hash",
     "name",
     "nickname",
+    "avatar_key",
     "phone",
     "status",
     "shipping_address_json",
@@ -35,6 +36,9 @@ pub struct MemberRecord {
     /// 未設定なら `None`（古いバックアップにも無い）
     #[serde(default)]
     pub nickname: Option<String>,
+    /// アバター画像のストレージキー（`avatars/...`）。未設定なら `None`（古いバックアップにも無い）
+    #[serde(default)]
+    pub avatar_key: Option<String>,
     pub phone: Option<String>,
     /// `active` / `suspended`
     pub status: String,
@@ -44,6 +48,9 @@ pub struct MemberRecord {
     pub updated_at: String,
     pub last_login_at: Option<String>,
 }
+
+/// `list_member_avatar_keys` が 1 回の SELECT で引く ID の数（バインド変数の上限に収める）
+pub const AVATAR_KEYS_CHUNK: usize = 500;
 
 /// 会員テーブルの CREATE 文とインデックス定義
 pub fn build_member_table(text: &str, key: &str, inline_indexes: bool) -> (String, Vec<String>) {
@@ -66,6 +73,7 @@ pub fn build_member_table(text: &str, key: &str, inline_indexes: bool) -> (Strin
          password_hash {text} NOT NULL, \
          name {text} NOT NULL, \
          nickname {key}, \
+         avatar_key {key}, \
          phone {key}, \
          status {key} NOT NULL, \
          shipping_address_json {text}, \
@@ -115,6 +123,7 @@ macro_rules! member_row_from_sqlx {
             password_hash: row.try_get("password_hash").map_err(get)?,
             name: row.try_get("name").map_err(get)?,
             nickname: row.try_get("nickname").map_err(get)?,
+            avatar_key: row.try_get("avatar_key").map_err(get)?,
             phone: row.try_get("phone").map_err(get)?,
             status: row.try_get("status").map_err(get)?,
             shipping_address_json: row.try_get("shipping_address_json").map_err(get)?,
@@ -137,6 +146,8 @@ pub trait MemberStorage: Send + Sync {
     async fn list_members(&self, limit: u64, offset: u64) -> Result<(Vec<MemberRecord>, u64)>;
     async fn set_member_status(&self, id: &str, status: &str, updated_at: &str) -> Result<()>;
     async fn delete_member(&self, id: &str) -> Result<bool>;
+    /// 会員 ID の一覧から、アバター画像のある会員の（ID, `avatar_key`）をまとめて引く。掲示板・レビューの表示用
+    async fn list_member_avatar_keys(&self, ids: &[String]) -> Result<Vec<(String, String)>>;
 }
 
 /// `MemberStorage` の実装マクロ
@@ -156,6 +167,7 @@ macro_rules! impl_member_storage {
                     .bind(&c.password_hash)
                     .bind(&c.name)
                     .bind(&c.nickname)
+                    .bind(&c.avatar_key)
                     .bind(&c.phone)
                     .bind(&c.status)
                     .bind(&c.shipping_address_json)
@@ -222,11 +234,11 @@ macro_rules! impl_member_storage {
             ) -> aegis_core::Result<()> {
                 let ph = $ph;
                 let sql = format!(
-                    "UPDATE {} SET email = {}, password_hash = {}, name = {}, nickname = {}, phone = {}, \
+                    "UPDATE {} SET email = {}, password_hash = {}, name = {}, nickname = {}, avatar_key = {}, phone = {}, \
                      status = {}, shipping_address_json = {}, updated_at = {}, last_login_at = {} \
                      WHERE id = {};",
                     $crate::members::MEMBER_TABLE,
-                    ph(1), ph(2), ph(3), ph(4), ph(5), ph(6), ph(7), ph(8), ph(9), ph(10)
+                    ph(1), ph(2), ph(3), ph(4), ph(5), ph(6), ph(7), ph(8), ph(9), ph(10), ph(11)
                 );
                 let db_err =
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
@@ -235,6 +247,7 @@ macro_rules! impl_member_storage {
                     .bind(&c.password_hash)
                     .bind(&c.name)
                     .bind(&c.nickname)
+                    .bind(&c.avatar_key)
                     .bind(&c.phone)
                     .bind(&c.status)
                     .bind(&c.shipping_address_json)
@@ -306,6 +319,38 @@ macro_rules! impl_member_storage {
                 Ok((records, total))
             }
 
+            async fn list_member_avatar_keys(
+                &self,
+                ids: &[String],
+            ) -> aegis_core::Result<Vec<(String, String)>> {
+                use sqlx::Row;
+                let ph = $ph;
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let mut found = Vec::new();
+                // バインド変数の上限に収まるよう、まとめて引く数を区切る
+                for chunk in ids.chunks($crate::members::AVATAR_KEYS_CHUNK) {
+                    let placeholders: Vec<String> = (1..=chunk.len()).map(&ph).collect();
+                    let sql = format!(
+                        "SELECT id, avatar_key FROM {} WHERE avatar_key IS NOT NULL AND id IN ({});",
+                        $crate::members::MEMBER_TABLE,
+                        placeholders.join(", ")
+                    );
+                    let mut query = sqlx::query(&sql);
+                    for id in chunk {
+                        query = query.bind(id);
+                    }
+                    let rows = query.fetch_all(&self.pool).await.map_err(db_err)?;
+                    for row in &rows {
+                        found.push((
+                            row.try_get("id").map_err(db_err)?,
+                            row.try_get("avatar_key").map_err(db_err)?,
+                        ));
+                    }
+                }
+                Ok(found)
+            }
+
             async fn set_member_status(
                 &self,
                 id: &str,
@@ -360,7 +405,7 @@ mod tests {
         let ph = |i: usize| format!("${}", i);
         let insert = build_member_insert(ph);
         assert!(insert.starts_with("INSERT INTO _aegis_members ("));
-        assert!(insert.contains("$11)"));
+        assert!(insert.contains("$12)"));
 
         let (mysql, indexes) = build_member_table("TEXT", "VARCHAR(255)", true);
         assert!(mysql.contains(", INDEX idx_aegis_members_email (email)"));

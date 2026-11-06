@@ -1255,7 +1255,7 @@ pub const REQUIRED_COLUMNS: &[(&str, &[&str])] = &[
             "member_id",
         ],
     ),
-    (members::MEMBER_TABLE, &["nickname"]),
+    (members::MEMBER_TABLE, &["nickname", "avatar_key"]),
     (forum::FORUM_CATEGORY_TABLE, &["visibility"]),
     (forum::FORUM_THREAD_TABLE, &["status", "author_kind"]),
     (forum::FORUM_POST_TABLE, &["status", "author_kind"]),

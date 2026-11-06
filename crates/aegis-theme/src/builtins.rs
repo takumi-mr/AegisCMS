@@ -1451,7 +1451,7 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
     <article class="aegis-forum-post" id="post-{{ p.post_number }}">
       <div class="aegis-forum-post-head">
         <div class="aegis-forum-post-author">
-          <div class="aegis-forum-avatar">{{ p.author_initial }}</div>
+          {% if p.avatar_url %}<img class="aegis-forum-avatar" src="{{ p.avatar_url }}" alt="" width="28" height="28" style="object-fit: cover;">{% else %}<div class="aegis-forum-avatar">{{ p.author_initial }}</div>{% endif %}
           <span>{{ p.author_name }}</span>
           {% if p.is_author_staff %}
           <span class="aegis-forum-badge" style="background: var(--accent, #6366f1); color: #fff;">{{ t("staff") }}</span>

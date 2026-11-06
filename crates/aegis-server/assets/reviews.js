@@ -115,6 +115,11 @@
     if (review.title) head.push(h('strong', {}, [review.title]));
     // 退会した顧客のレビューは、名前が空（匿名にして残してある）
     var meta = [review.author_name || msg('rev_deleted_author'), formatDate(review.created_at)];
+    if (review.avatar_url) {
+      head.unshift(
+        h('img', { class: 'aegis-review-avatar', src: review.avatar_url, alt: '', width: '28', height: '28', style: 'border-radius:50%;object-fit:cover' })
+      );
+    }
     var children = [
       h('div', { class: 'aegis-review-head' }, head),
       h('p', { class: 'aegis-review-body' }, [review.body]),

@@ -58,6 +58,12 @@ pub struct PublicReview {
     pub id: String,
     pub product_id: String,
     pub author_name: String,
+    /// 投稿した会員（応答には載せない。アバターの URL を引くのに使う）
+    #[serde(default, skip_serializing)]
+    pub member_id: Option<String>,
+    /// 投稿した会員のアバター画像の公開 URL（無ければ `None`）。呼び出し側が埋める
+    #[serde(default)]
+    pub avatar_url: Option<String>,
     pub rating: i64,
     pub title: String,
     pub body: String,
@@ -73,6 +79,8 @@ impl From<ReviewRecord> for PublicReview {
             id: r.id,
             product_id: r.product_id,
             author_name: r.author_name,
+            member_id: r.member_id,
+            avatar_url: None,
             rating: r.rating,
             title: r.title,
             body: r.body,

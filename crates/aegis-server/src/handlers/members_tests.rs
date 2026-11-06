@@ -445,6 +445,25 @@ async fn test_member_lifecycle_and_reviews_e2e() {
     assert_eq!(res.status(), StatusCode::OK);
     let pub_reviews2 = json_response(res).await;
     assert!(pub_reviews2["reviews"][0]["reply"].is_string());
+
+    // 会員がアバターを設定すると、過去のレビューにも出る（表示のたびに今の値を引く）。会員 ID は応答に載せない
+    assert!(pub_reviews2["reviews"][0]["avatar_url"].is_null());
+    assert!(pub_reviews2["reviews"][0].get("member_id").is_none());
+    let (status, _) = put_avatar(&ctx, &member_token, b"\x89PNG\r\n\x1a\n-pixels").await;
+    assert_eq!(status, StatusCode::OK);
+    let res = ctx
+        .app
+        .clone()
+        .oneshot(
+            Request::get("/api/v1/products/prod_kb_01/reviews")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let with_avatar = json_response(res).await;
+    let url = with_avatar["reviews"][0]["avatar_url"].as_str().unwrap();
+    assert!(url.contains(&member_id), "{url}");
 }
 
 async fn post_json(ctx: &TestContext, path: &str, body: Value) -> axum::response::Response {
@@ -505,4 +524,123 @@ async fn test_closed_registration_over_http() {
         .as_str()
         .unwrap()
         .contains("registration is closed"));
+}
+
+async fn put_avatar(ctx: &TestContext, token: &str, file: &[u8]) -> (StatusCode, Value) {
+    let boundary = "aegis-test-boundary";
+    let mut body = format!(
+        "--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"me.png\"\r\n\
+         Content-Type: image/png\r\n\r\n",
+        b = boundary
+    )
+    .into_bytes();
+    body.extend_from_slice(file);
+    body.extend_from_slice(format!("\r\n--{}--\r\n", boundary).as_bytes());
+    let res = ctx
+        .app
+        .clone()
+        .oneshot(
+            Request::put("/api/v1/members/me/avatar")
+                .header("authorization", format!("Bearer {}", token))
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={}", boundary),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = res.status();
+    (status, json_response(res).await)
+}
+
+/// 会員は自分のアバター画像を設定・差し替え・外せる。管理画面の会員詳細にも URL が出る
+#[tokio::test]
+async fn test_member_avatar_over_http() {
+    let ctx = setup_app().await;
+    let res = post_json(
+        &ctx,
+        "/api/v1/members/register",
+        registration("avatar@example.com"),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let member_id = json_response(res).await["member"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let res = post_json(
+        &ctx,
+        "/api/v1/members/login",
+        json!({ "email": "avatar@example.com", "password": "password123" }),
+    )
+    .await;
+    let token = json_response(res).await["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let png = b"\x89PNG\r\n\x1a\n-not-really-pixels";
+
+    let (status, first) = put_avatar(&ctx, &token, png).await;
+    assert_eq!(status, StatusCode::OK, "{first}");
+    let first_url = first["avatar_url"].as_str().unwrap().to_string();
+    assert!(first_url.starts_with("/uploads/avatars/"), "{first_url}");
+    assert!(first_url.contains(&member_id));
+    assert!(first.get("avatar_key").is_none());
+
+    let res = ctx
+        .app
+        .clone()
+        .oneshot(
+            Request::get("/api/v1/members/me")
+                .header("authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(json_response(res).await["avatar_url"], first_url);
+
+    // 差し替えるとキーが変わる。SVG は受け付けない
+    let (_, second) = put_avatar(&ctx, &token, png).await;
+    assert_ne!(second["avatar_url"].as_str().unwrap(), first_url);
+    let (status, _) = put_avatar(&ctx, &token, b"<svg/>").await;
+    assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+
+    // 管理画面の会員詳細にも出る
+    let res = ctx
+        .app
+        .clone()
+        .oneshot(
+            Request::get(format!("/api/v1/admin/members/{member_id}"))
+                .header("authorization", format!("Bearer {}", ctx.admin_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        json_response(res).await["member"]["avatar_url"],
+        second["avatar_url"]
+    );
+
+    let res = ctx
+        .app
+        .clone()
+        .oneshot(
+            Request::delete("/api/v1/members/me/avatar")
+                .header("authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert!(json_response(res).await["avatar_url"].is_null());
+
+    // ログインしていなければ 401
+    let (status, _) = put_avatar(&ctx, "mses_invalid", png).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }

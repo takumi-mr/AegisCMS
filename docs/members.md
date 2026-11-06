@@ -19,6 +19,7 @@
 | `POST /api/v1/members/login` | ログイン。`{ "token": "mses_...", "expires_at": ..., "member": {...} }` を返す |
 | `POST /api/v1/members/logout` | ログアウト |
 | `GET` / `PUT /api/v1/members/me` | 自分の情報の取得・更新（パスワード変更は現在のパスワードが要る） |
+| `PUT` / `DELETE /api/v1/members/me/avatar` | プロフィール画像の設定・解除（§13a） |
 | `GET /api/v1/members/orders`・`/orders/{id}` | 自分の注文履歴（ログイン中に注文すると、注文が会員に紐づく） |
 | `GET /api/v1/members/reviews` | 自分のレビュー |
 | `GET` / `POST /api/v1/products/{product_id}/reviews` | 商品のレビュー（公開済みの一覧・投稿） |
@@ -321,6 +322,16 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 - 公開の場には、**公開名があればそれ、なければ `name`** を出す（`MemberResponse::public_name()`）。いまはレビューの投稿者名が使う。投稿のときの値のコピーを保存するので、あとから公開名を変えても、過去のレビューは変わらない。掲示板では**公開名を必須**にする（未設定なら、最初の投稿の前に決めてもらう。§12）。
 - **画面**: マイページの登録情報に「公開名（任意）」の欄。管理画面の会員の詳細にも出る。
 - 古い DB は `ALTER TABLE _aegis_members ADD COLUMN nickname VARCHAR(255);`（型は他の短い文字列の列に合わせる）。起動時の列の確認が、列が無い DB を断る。
+
+## 13a. アバター画像（プロフィール画像）
+
+- 会員に **`avatar_key`**（ストレージのキー `avatars/{会員 ID}-{ランダム 8 桁}.{拡張子}`）の列を足した（未設定なら `null`）。管理ユーザーのアバター（[authentication.md](authentication.md#3-ユーザー管理-api)）と同じ保存先・同じ検査で、PNG / JPEG / GIF / WebP、2 MB まで。形式はファイルの先頭バイトで判定し、SVG は `415`、2 MB 超は `413`。差し替えるたびにキーを変え、以前の画像を削除する。
+- `PUT /api/v1/members/me/avatar`（multipart の `file`）で設定、`DELETE /api/v1/members/me/avatar` で外す。応答は会員情報で、`avatar_url`（公開 URL。未設定なら `null`）を含む。`avatar_key` は応答に載せない。`GET /api/v1/members/me` と管理画面の会員 API（`/api/v1/admin/members*`）にも `avatar_url` が出る。
+- Cookie だけで認証した multipart は他のサイトのフォームから送れてしまうので、`Origin` / `Referer` がこのサイトのものに限る（違えば `403`。`Authorization` ヘッダーで認証した場合は対象外）。
+- 退会（`DELETE /api/v1/members/me`）では画像のファイルも消す。ストレージ API で、会員が使っている画像を消そうとすると `409`（参照元は `content_type: "member"`）。`?force=true` なら消して、会員の `avatar_key` を外す。
+- **掲示板・レビューへの出し方**: 投稿の行にコピーを持たず、表示のたびに投稿者（会員 ID）から**今の** `avatar_key` を引く（重複を除いて、1 回の `SELECT ... WHERE id IN (...)` でまとめて引く。500 件ごとに区切る）。画像を変えれば過去の投稿にも反映され、古いファイルを消してもリンクが切れない。退会した会員の投稿は匿名なので画像も出ない。画像を変えたら掲示板のキャッシュ（`collection:forum` タグ）をパージする。レビューの公開 API は `avatar_url` を返し、`member_id` は返さない。
+- **画面**: マイページの登録情報に「プロフィール画像」（選ぶとすぐ保存、「画像を外す」ボタン）。管理画面の会員の詳細、掲示板の投稿者（画像が無ければ頭文字の丸）、商品レビューの投稿者にも出る。
+- 古い DB は `ALTER TABLE _aegis_members ADD COLUMN avatar_key VARCHAR(255);`。起動時の列の確認が、列が無い DB を断る。
 
 ---
 
