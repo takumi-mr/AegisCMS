@@ -12,15 +12,15 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@codemirror/commands": "^6.8.1",
+    "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-json": "^6.0.2",
-    "@codemirror/language": "^6.11.0",
-    "@codemirror/lint": "^6.8.5",
-    "@codemirror/state": "^6.5.2",
-    "@codemirror/view": "^6.36.8",
-    "@lezer/highlight": "^1.2.1",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
     "i18next": "^26.7.2",
-    "lucide-react": "^1.63.0",
+    "lucide-react": "^1.70.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-i18next": "^17.1.13"
@@ -29,11 +29,11 @@
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "oxlint": "^1.90.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "oxlint": "^1.91.0",
     "prettier": "3.9.10",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4",
-    "vitest": "5.0.5"
+    "vite": "^8.3.6",
+    "vitest": "5.1.0"
   }
 }

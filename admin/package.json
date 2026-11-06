@@ -19,27 +19,27 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "i18next": "^26.5.11",
-    "lucide-react": "^1.63.0",
+    "i18next": "^26.7.2",
+    "lucide-react": "^1.70.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-i18next": "^17.1.9"
+    "react-i18next": "^17.1.13"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.1",
-    "@storybook/addon-vitest": "10.6.5",
-    "@storybook/react-vite": "10.6.5",
+    "@playwright/test": "1.65.0",
+    "@storybook/addon-vitest": "10.6.6",
+    "@storybook/react-vite": "10.6.6",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "@vitest/browser": "5.0.5",
-    "@vitest/browser-playwright": "5.0.5",
-    "oxlint": "^1.90.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "@vitest/browser": "5.1.0",
+    "@vitest/browser-playwright": "5.1.0",
+    "oxlint": "^1.91.0",
     "prettier": "3.9.10",
-    "storybook": "10.6.5",
+    "storybook": "10.6.6",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4",
-    "vitest": "5.0.5"
+    "vite": "^8.3.6",
+    "vitest": "5.1.0"
   }
 }
