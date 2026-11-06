@@ -70,6 +70,11 @@ impl PluginLoader {
         }
     }
 
+    /// `on-render-page` の結果のキャッシュの利用状況（エンジンを共有する全プラグインの合計）
+    pub fn render_cache_stats(&self) -> aegis_runtime::ResultCacheStats {
+        self.engine.render_cache_stats()
+    }
+
     /// 起動時: `enabled` をその順に読み込む（インストール済みで無効なものはログに出す）
     pub fn load(&self, enabled: &[String]) -> Result<PluginSupervisor> {
         let mut supervisor = PluginSupervisor::new();
