@@ -92,12 +92,18 @@ pub async fn list_audit_logs(
 /// `GET /metrics` — Prometheus 形式のメトリクス（`prometheus` 出力先が有効な場合のみ）
 pub async fn get_metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     match state.audit.metrics() {
-        Some(metrics) => (
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, PROMETHEUS_CONTENT_TYPE)],
-            metrics.render(),
-        )
-            .into_response(),
+        Some(metrics) => {
+            let mut body = metrics.render();
+            if let Some(loader) = state.plugin_registry.loader() {
+                body.push_str(&render_cache_metrics(&loader.render_cache_stats()));
+            }
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, PROMETHEUS_CONTENT_TYPE)],
+                body,
+            )
+                .into_response()
+        }
         None => api_error(
             StatusCode::NOT_FOUND,
             "Metrics endpoint requires the 'prometheus' audit sink to be enabled",
@@ -106,10 +112,58 @@ pub async fn get_metrics(State(state): State<Arc<AppState>>) -> impl IntoRespons
     }
 }
 
+/// `on-render-page` の結果のキャッシュの利用状況を Prometheus 形式にする。
+/// ヒット率 = `hits / (hits + misses)`。低い（記事ごとに 1 回しか見られない）サイトでは CDN に任せるほうが合う
+fn render_cache_metrics(stats: &aegis_runtime::ResultCacheStats) -> String {
+    let mut out = String::new();
+    for (name, help, value) in [
+        (
+            "aegis_render_cache_hits_total",
+            "Total on-render-page calls served from the result cache.",
+            stats.hits,
+        ),
+        (
+            "aegis_render_cache_misses_total",
+            "Total on-render-page calls that were not in the result cache (includes stale).",
+            stats.misses,
+        ),
+        (
+            "aegis_render_cache_stale_total",
+            "Total cached on-render-page results that could not be used because a plugin setting changed.",
+            stats.stale,
+        ),
+        (
+            "aegis_render_cache_stores_total",
+            "Total on-render-page results stored in the result cache.",
+            stats.stores,
+        ),
+    ] {
+        out.push_str(&format!(
+            "# HELP {name} {help}\n# TYPE {name} counter\n{name} {value}\n"
+        ));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use aegis_core::{AuditAction, AuditOutcome};
+
+    #[test]
+    fn test_render_cache_metrics_format() {
+        let out = render_cache_metrics(&aegis_runtime::ResultCacheStats {
+            hits: 3,
+            misses: 5,
+            stale: 1,
+            stores: 4,
+        });
+        assert!(out.contains("# TYPE aegis_render_cache_hits_total counter\n"));
+        assert!(out.contains("\naegis_render_cache_hits_total 3\n"));
+        assert!(out.contains("\naegis_render_cache_misses_total 5\n"));
+        assert!(out.contains("\naegis_render_cache_stale_total 1\n"));
+        assert!(out.contains("\naegis_render_cache_stores_total 4\n"));
+    }
 
     #[test]
     fn test_params_are_validated_and_normalized() {

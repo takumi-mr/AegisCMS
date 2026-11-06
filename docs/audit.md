@@ -239,6 +239,7 @@ aegis_audit_events_total{action="plugin.error",outcome="failure"} 0
 ...
 ```
 
+- Wasm プラグインが有効なら、`on-render-page` の結果のキャッシュ（[architecture.md 10.8](architecture.md#108-on-render-page-の結果のキャッシュ-aegis-runtimesrcwasmresult_cachers)）のカウンタ `aegis_render_cache_{hits,misses,stale,stores}_total` も同じ出力に含まれます。ヒット率は `hits / (hits + misses)`（`stale` は設定変更で使えなかった回数で `misses` にも数えます）。低いまま（記事ごとに 1 回しか見られない長い裾野のサイトなど）なら、サーバー内のキャッシュより CDN に任せるほうが合います。
 - カウンタはプロセス内メモリに保持され、再起動で 0 に戻ります（Prometheus の `rate()` / `increase()` はこれを考慮します）。
 - 複数インスタンス構成では、各インスタンスをスクレイプして集約してください。
 - `/metrics` は認証なしで公開されます。必要に応じてネットワーク / リバースプロキシで公開範囲を制限してください。
