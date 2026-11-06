@@ -268,7 +268,14 @@ pub struct ObjectReference {
     pub title: String,
 }
 
-/// Saved contents whose blocks or custom fields contain `url`, or users whose `avatar_key`
+/// `avatars/{会員 ID}-{8 桁}.{拡張子}` から会員 ID（UUID の 36 文字）を取り出す
+fn member_id_of_avatar_key(key: &str) -> Option<&str> {
+    let rest = key.strip_prefix("avatars/")?;
+    let id = rest.get(..36)?;
+    (rest.get(36..37) == Some("-")).then_some(id)
+}
+
+/// Saved contents whose blocks or custom fields contain `url`, or users and members whose `avatar_key`
 /// matches `key`.
 async fn find_references(
     state: &AppState,
@@ -304,6 +311,20 @@ async fn find_references(
                 slug: user.username.clone(),
                 title: user.display_name.unwrap_or(user.username),
             });
+        }
+    }
+
+    // 会員のアバターとして使用されているか確認（キーは `avatars/{会員 ID}-...`）
+    if let Some(member_id) = member_id_of_avatar_key(key) {
+        if let Some(member) = state.db.get_member_by_id(member_id).await? {
+            if member.avatar_key.as_deref() == Some(key) {
+                references.push(ObjectReference {
+                    content_type: "member".to_string(),
+                    id: member.id,
+                    slug: member.email,
+                    title: member.nickname.unwrap_or(member.name),
+                });
+            }
         }
     }
 
@@ -386,6 +407,21 @@ pub async fn delete_object(
         if r.content_type == "user" {
             if let Err(e) = aegis_auth::users::set_avatar(state.db.as_ref(), &r.slug, None).await {
                 tracing::warn!("Failed to clear avatar_key for user '{}': {}", r.slug, e);
+            }
+        }
+    }
+    // 会員も同様（`slug` は会員のメールアドレスなので、ID で引き直す）
+    for r in &references {
+        if r.content_type == "member" {
+            match state.db.get_member_by_id(&r.id).await {
+                Ok(Some(mut member)) => {
+                    member.avatar_key = None;
+                    if let Err(e) = state.db.update_member(&member).await {
+                        tracing::warn!("Failed to clear avatar_key for member '{}': {}", r.id, e);
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => tracing::warn!("Failed to load member '{}': {}", r.id, e),
             }
         }
     }

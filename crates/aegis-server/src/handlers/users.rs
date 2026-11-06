@@ -486,7 +486,7 @@ fn detect_image(data: &[u8]) -> Option<(&'static str, &'static str)> {
 }
 
 /// 以前のアバター画像を削除する（失敗しても API は成功させ、ログにだけ残す）
-async fn remove_avatar_object(state: &AppState, key: &str) {
+pub(crate) async fn remove_avatar_object(state: &AppState, key: &str) {
     if !key.starts_with(AVATAR_PREFIX) {
         return;
     }
@@ -495,28 +495,11 @@ async fn remove_avatar_object(state: &AppState, key: &str) {
     }
 }
 
-/// `PUT /api/v1/users/{username}/avatar` — アバター画像（multipart の `file`。PNG / JPEG / GIF /
-/// WebP、2 MB まで）を設定する（本人か admin）
-pub async fn upload_avatar(
-    State(state): State<Arc<AppState>>,
-    RequireRole(session): ViewerSession,
-    audit: AuditContext,
-    Path(username): Path<String>,
+/// multipart の `file` から、アバター画像を読んで形式を確かめる（2 MB まで。PNG / JPEG / GIF / WebP）。
+/// 返すのは（中身, Content-Type, 拡張子）
+pub(crate) async fn read_avatar_image(
     mut multipart: Multipart,
-) -> Result<Json<UserView>, ApiError> {
-    require_self_or_admin(&state, &audit, &session, &username).await?;
-    let user = state
-        .db
-        .get_user_by_username(&username)
-        .await
-        .map_err(from_aegis)?
-        .ok_or_else(|| {
-            api_error(
-                StatusCode::NOT_FOUND,
-                format!("User '{}' does not exist", username),
-            )
-        })?;
-
+) -> Result<(Vec<u8>, &'static str, &'static str), ApiError> {
     let mut data: Option<Vec<u8>> = None;
     while let Ok(Some(field)) = multipart.next_field().await {
         if field.name() != Some("file") {
@@ -550,6 +533,32 @@ pub async fn upload_avatar(
             "Avatar must be a PNG, JPEG, GIF or WebP image",
         )
     })?;
+    Ok((data, content_type, extension))
+}
+
+/// `PUT /api/v1/users/{username}/avatar` — アバター画像（multipart の `file`。PNG / JPEG / GIF /
+/// WebP、2 MB まで）を設定する（本人か admin）
+pub async fn upload_avatar(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): ViewerSession,
+    audit: AuditContext,
+    Path(username): Path<String>,
+    multipart: Multipart,
+) -> Result<Json<UserView>, ApiError> {
+    require_self_or_admin(&state, &audit, &session, &username).await?;
+    let user = state
+        .db
+        .get_user_by_username(&username)
+        .await
+        .map_err(from_aegis)?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                format!("User '{}' does not exist", username),
+            )
+        })?;
+
+    let (data, content_type, extension) = read_avatar_image(multipart).await?;
 
     // 画像を差し替えるたびにキーを変え、ブラウザ・CDN のキャッシュに古い画像が残らないようにする
     let suffix = Uuid::new_v4().simple().to_string();

@@ -23,6 +23,52 @@ mod tests {
         (service, db)
     }
 
+    /// アバターのキーは、会員 ID の一覧からまとめて引ける（画像のある会員だけ。重複・空は問題ない）
+    #[tokio::test]
+    async fn test_avatar_keys_are_loaded_in_one_query() {
+        let (service, _db) = setup_service().await;
+        let mut ids = Vec::new();
+        for email in ["a@example.com", "b@example.com", "c@example.com"] {
+            let member = service
+                .register(
+                    MemberRegisterRequest {
+                        email: email.to_string(),
+                        password: "password123".to_string(),
+                        name: "Member".to_string(),
+                        phone: None,
+                        shipping_address: None,
+                    },
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+            ids.push(member.id);
+        }
+        assert!(service.avatar_keys(&[]).await.unwrap().is_empty());
+
+        service
+            .set_avatar(&ids[0], Some("avatars/a.png".to_string()))
+            .await
+            .unwrap();
+        service
+            .set_avatar(&ids[1], Some("avatars/b.png".to_string()))
+            .await
+            .unwrap();
+        let mut asked = ids.clone();
+        asked.push(ids[0].clone());
+        asked.push("no-such-member".to_string());
+        let keys = service.avatar_keys(&asked).await.unwrap();
+        assert_eq!(keys.len(), 2);
+        assert_eq!(keys[&ids[0]], "avatars/a.png");
+        assert_eq!(keys[&ids[1]], "avatars/b.png");
+
+        // 外した会員は入らない。返した前の値は呼び出し側が古い画像を消すのに使う
+        let (_, previous) = service.set_avatar(&ids[0], None).await.unwrap();
+        assert_eq!(previous.as_deref(), Some("avatars/a.png"));
+        assert_eq!(service.avatar_keys(&ids).await.unwrap().len(), 1);
+    }
+
     /// 公開名: 設定・変更・消去ができ、公開の場には公開名（なければ本名）が出る。長すぎる名前・改行は断る
     #[tokio::test]
     async fn test_nickname_is_the_public_name() {

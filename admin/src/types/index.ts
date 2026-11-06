@@ -750,6 +750,8 @@ export interface AdminMember {
   name: string;
   /** Public name (shown with reviews and forum posts); null until the member sets one */
   nickname: string | null;
+  /** Public URL of the profile picture; null until the member sets one */
+  avatar_url: string | null;
   phone: string | null;
   status: MemberStatus;
   shipping_address: ShippingAddress | null;

@@ -203,6 +203,9 @@ pub struct PostView {
     pub post_number: u64,
     pub author_name: String,
     pub author_initial: String,
+    /// 投稿者（会員）のアバター画像の公開 URL。無ければ頭文字の丸を出す
+    #[serde(default)]
+    pub avatar_url: Option<String>,
     pub is_author_staff: bool,
     pub body_html: String,
     pub created_at: String,
@@ -478,11 +481,31 @@ pub async fn render_forum_thread(
 
     let total = posts_raw.len() as u64;
     let offset = ((page - 1) * per_page) as usize;
-    let paged_posts: Vec<_> = posts_raw
+    let page_posts: Vec<_> = posts_raw
         .into_iter()
         .skip(offset)
         .take(per_page as usize)
+        .collect();
+    // 会員のアバターは、表示のたびに今の値を引く（画像を変えれば過去の投稿にも反映される）
+    let avatars = crate::handlers::members::avatar_urls(
+        &state,
+        page_posts
+            .iter()
+            .filter(|p| p.author_kind.as_deref() == Some("member"))
+            .filter_map(|p| p.author_id.clone())
+            .collect(),
+    )
+    .await;
+    let paged_posts: Vec<_> = page_posts
+        .into_iter()
         .map(|p| PostView {
+            avatar_url: if p.author_kind.as_deref() == Some("member") {
+                p.author_id
+                    .as_deref()
+                    .and_then(|id| avatars.get(id).cloned())
+            } else {
+                None
+            },
             id: p.id,
             post_number: p.post_number,
             author_name: shown_name(&state, p.author_name.clone()),

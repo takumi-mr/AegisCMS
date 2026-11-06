@@ -269,6 +269,13 @@ const MESSAGES: &[(&str, &str, &str)] = &[
         "Shown with your reviews instead of your name.",
         "レビューなどに、お名前の代わりに表示されます。",
     ),
+    ("js.acct_avatar", "Profile picture", "プロフィール画像"),
+    (
+        "js.acct_avatar_hint",
+        "PNG, JPEG, GIF or WebP, up to 2 MB.",
+        "PNG・JPEG・GIF・WebP、2MB までです。",
+    ),
+    ("js.acct_avatar_remove", "Remove picture", "画像を外す"),
     ("js.acct_phone", "Phone (optional)", "電話番号（任意）"),
     ("js.acct_login", "Log in", "ログインする"),
     ("js.acct_register", "Sign up", "会員登録する"),

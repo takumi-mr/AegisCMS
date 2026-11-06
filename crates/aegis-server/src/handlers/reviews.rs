@@ -69,10 +69,22 @@ pub async fn list_product_reviews(
     Query(query): Query<PublicReviewListQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let service = reviews(&state)?;
-    let (items, stats) = service
+    let (mut items, stats) = service
         .list_public_reviews(&product_id, Some(query.limit), query.offset)
         .await
         .map_err(map_aegis_error)?;
+    // 会員のアバターは、表示のたびに今の値を引く
+    let avatars = crate::handlers::members::avatar_urls(
+        &state,
+        items.iter().filter_map(|r| r.member_id.clone()).collect(),
+    )
+    .await;
+    for review in &mut items {
+        review.avatar_url = review
+            .member_id
+            .as_deref()
+            .and_then(|id| avatars.get(id).cloned());
+    }
 
     let json_ld = JsonLdAggregateRating::from_stats(&stats);
 

@@ -360,6 +360,13 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 .put(handlers::update_me)
                 .delete(handlers::delete_me),
         )
+        .route(
+            "/api/v1/members/me/avatar",
+            // multipart のヘッダー分の余裕を持たせる（画像そのものの上限はハンドラーで確かめる）
+            put(handlers::upload_my_avatar)
+                .delete(handlers::delete_my_avatar)
+                .layer(DefaultBodyLimit::max(handlers::users::MAX_AVATAR_BYTES + 64 * 1024)),
+        )
         .route("/api/v1/members/orders", get(handlers::list_my_orders))
         .route("/api/v1/members/orders/{id}", get(handlers::get_my_order))
         .route("/api/v1/members/reviews", get(handlers::list_my_reviews))

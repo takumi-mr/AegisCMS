@@ -139,6 +139,12 @@ pub struct MemberResponse {
     pub name: String,
     /// 公開名（未設定なら `None`）
     pub nickname: Option<String>,
+    /// アバター画像のストレージキー（API の応答には載せない。公開 URL は `avatar_url`）
+    #[serde(default, skip_serializing)]
+    pub avatar_key: Option<String>,
+    /// アバター画像の公開 URL（未設定なら `None`）。ストレージの設定を知る呼び出し側が `avatar_key` から埋める
+    #[serde(default)]
+    pub avatar_url: Option<String>,
     pub phone: Option<String>,
     pub status: String,
     pub shipping_address: Option<ShippingAddress>,
@@ -191,6 +197,8 @@ impl From<MemberRecord> for MemberResponse {
             email: r.email,
             name: r.name,
             nickname: r.nickname,
+            avatar_key: r.avatar_key,
+            avatar_url: None,
             phone: r.phone,
             status: r.status,
             shipping_address,
@@ -356,6 +364,7 @@ impl MemberService {
             password_hash,
             name: req.name.trim().to_string(),
             nickname: None,
+            avatar_key: None,
             phone: req.phone.map(|p| p.trim().to_string()),
             status: status.to_string(),
             shipping_address_json: shipping_json,
@@ -712,6 +721,42 @@ impl MemberService {
             .await?
             .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
         Ok(record.into())
+    }
+
+    /// 会員 ID の一覧から、アバター画像のある会員の（ID → `avatar_key`）をまとめて引く（1 回の問い合わせ）
+    pub async fn avatar_keys(
+        &self,
+        member_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, String>> {
+        let mut ids: Vec<String> = member_ids.to_vec();
+        ids.sort();
+        ids.dedup();
+        if ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        Ok(self
+            .db
+            .list_member_avatar_keys(&ids)
+            .await?
+            .into_iter()
+            .collect())
+    }
+
+    /// アバター画像のキーを設定する（`None` で外す）。以前のキーを返す（呼び出し側が古い画像を消す）
+    pub async fn set_avatar(
+        &self,
+        member_id: &str,
+        avatar_key: Option<String>,
+    ) -> Result<(MemberResponse, Option<String>)> {
+        let mut record = self
+            .db
+            .get_member_by_id(member_id)
+            .await?
+            .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
+        let previous = std::mem::replace(&mut record.avatar_key, avatar_key);
+        record.updated_at = now();
+        self.db.update_member(&record).await?;
+        Ok((record.into(), previous))
     }
 
     /// プロフィール更新

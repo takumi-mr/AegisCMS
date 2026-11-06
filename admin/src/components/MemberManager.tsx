@@ -7,6 +7,7 @@ import type { AdminMember, MemberDetail, MemberPage, MemberStatus } from '../typ
 import { cx } from '../utils/cx';
 import { formatDateTime } from '../utils/format';
 import { formatMoney } from '../utils/money';
+import { Avatar } from './ui/Avatar';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import styles from './Shop.module.css';
@@ -315,6 +316,12 @@ const MemberModal: React.FC<MemberModalProps> = ({
         <div className={styles.detailGrid}>
           <div className={styles.box}>
             <div className={styles.boxTitle}>{t('members.contact')}</div>
+            <Avatar
+              url={member.avatar_url}
+              name={member.nickname || member.name || member.email}
+              size={40}
+            />
+            {'\n'}
             {member.name || '—'}
             {'\n'}
             <a href={`mailto:${member.email}`}>{member.email}</a>

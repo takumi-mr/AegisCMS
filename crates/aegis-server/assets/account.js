@@ -422,6 +422,66 @@
     ]);
   }
 
+  // Profile picture: a file input that uploads on change, and a button that removes it.
+  // The upload is multipart (the browser sets the Content-Type), so it does not go through api().
+  function avatarSection(member) {
+    var status = h('div', { 'aria-live': 'polite' });
+    var picture = h('div', { class: 'aegis-account-avatar' });
+    var remove = h('button', { type: 'button', class: 'aegis-button' }, [msg('acct_avatar_remove')]);
+    var fileInput = h('input', { type: 'file', name: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp' });
+
+    function show(url) {
+      picture.textContent = '';
+      if (url) {
+        picture.appendChild(h('img', { src: url, alt: '', width: '96', height: '96', style: 'border-radius:50%;object-fit:cover' }));
+      }
+      remove.hidden = !url;
+    }
+    function done(data) {
+      show(data && data.avatar_url);
+      status.textContent = '';
+      status.appendChild(notice(msg('acct_saved'), 'ok'));
+    }
+    function fail(error) {
+      status.textContent = '';
+      status.appendChild(notice(error.message, 'error'));
+    }
+    fileInput.addEventListener('change', function () {
+      var file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      var body = new FormData();
+      body.append('file', file);
+      fetch(config.api + '/me/avatar', { method: 'PUT', body: body, credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (res) {
+          return res
+            .json()
+            .catch(function () {
+              return {};
+            })
+            .then(function (data) {
+              if (!res.ok) throw new Error((data && data.error) || msg('request_failed'));
+              return data;
+            });
+        })
+        .then(done, fail)
+        .then(function () {
+          fileInput.value = '';
+        });
+    });
+    remove.addEventListener('click', function () {
+      api('DELETE', '/me/avatar').then(done, fail);
+    });
+    show(member.avatar_url);
+    return h('div', { class: 'aegis-account-form' }, [
+      h('strong', {}, [msg('acct_avatar')]),
+      picture,
+      fileInput,
+      h('span', { class: 'aegis-muted' }, [msg('acct_avatar_hint')]),
+      remove,
+      status,
+    ]);
+  }
+
   function profileSection(member) {
     var panel = h('div', {}, []);
     var profile = form(
@@ -458,6 +518,7 @@
         });
       }
     );
+    panel.appendChild(avatarSection(member));
     panel.appendChild(profile);
     panel.appendChild(h('h3', {}, [msg('acct_change_password')]));
     panel.appendChild(password);
