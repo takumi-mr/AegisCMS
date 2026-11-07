@@ -248,6 +248,7 @@ task docker:dbs:down
   - 無制限在庫（`stock IS NULL`）商品の取り扱い
   - 注文キャンセル時の在庫返却（`restock`）
   - 注文確認ページ・スタッフ用注文一覧/詳細 API・状態変更 API の E2E 動作
+  - バックアップ → 復元の、DB の種類をまたぐ往復（`aegis-backup` の `cross_db_roundtrip`。SQLite → PostgreSQL → MySQL → SQLite と渡し、日本語・絵文字・長文・真偽値・数値のカスタムフィールド・コメント・タグ・掲示板・アップロードしたファイルが同じ値で戻ること。PostgreSQL・MySQL の片方だけでも動く）
   - Redis の Pub/Sub によるサーバー間のイベントバス（2 台分の接続で送受信、購読を切ったあとの再接続と `Resync`。`REDIS_URL` で接続先を変えられます）
 
 ### 7.1 システムテーブルの定義を変えるとき
