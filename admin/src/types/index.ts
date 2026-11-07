@@ -346,7 +346,7 @@ export interface PreviewRequest {
 export type LocalizedText = string | Record<string, string>;
 
 export type PluginBlockFieldType =
-  'string' | 'text' | 'url' | 'number' | 'boolean' | 'select' | 'image';
+  'string' | 'text' | 'url' | 'number' | 'boolean' | 'select' | 'image' | 'list';
 
 /** An input of a plugin's custom block; its value goes to `attributes[name]` */
 export interface PluginBlockField {
@@ -358,6 +358,10 @@ export interface PluginBlockField {
   options?: { value: string; label: LocalizedText }[];
   placeholder?: LocalizedText;
   help?: LocalizedText;
+  /** `list` only: the inputs of one item. The value is an array of objects keyed by these names */
+  fields?: PluginBlockField[];
+  /** `list` only: the most items (1 to 100; 100 when omitted) */
+  max_items?: number;
 }
 
 /** A custom block an enabled plugin provides (`GET /api/v1/blocks`) */
