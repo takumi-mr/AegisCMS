@@ -399,6 +399,11 @@ tasks:
     cmds:
       - node scripts/compare-dbs.mjs
 
+  bench:forum:
+    desc: 掲示板（[forum]）の負荷ベンチマーク。並行数を段階的に上げて、公開ページと投稿が耐えられる req/s を計測 (要 cargo build --release -p aegis-server)
+    cmds:
+      - node scripts/benchmark-forum.mjs {{.CLI_ARGS}}
+
   plugin:build:tinygo:
     desc: TinyGo プラグインテンプレートを Wasm にビルドし sdk/templates/tinygo/plugin.wasm を生成 (要 TinyGo 0.31+)
     cmds:

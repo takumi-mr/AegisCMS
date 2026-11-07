@@ -167,6 +167,8 @@ pub struct ThreadListQuery {
     pub before_last_post_at: Option<String>,
     pub before_id: Option<String>,
     pub limit: u64,
+    /// 先頭から読み飛ばす件数（ページ番号ベースのページ分割用。0 なら読み飛ばさない）
+    pub offset: u64,
 }
 
 /// 投稿一覧取得条件（キーセットページネーション対応）
@@ -178,6 +180,8 @@ pub struct PostListQuery {
     /// キーセット: 指定した post_number より後のレスを取得（0なら最初から）
     pub after_post_number: u64,
     pub limit: u64,
+    /// 先頭から読み飛ばす件数（ページ番号ベースのページ分割用。0 なら読み飛ばさない）
+    pub offset: u64,
 }
 
 #[async_trait]
@@ -198,6 +202,8 @@ pub trait ForumStorage: Send + Sync {
     ) -> Result<()>;
     async fn get_thread(&self, id: &str) -> Result<Option<ForumThreadRecord>>;
     async fn list_threads(&self, query: &ThreadListQuery) -> Result<Vec<ForumThreadRecord>>;
+    /// 条件に合うスレッドの総数（`limit` `offset` とカーソルは見ない。ページ数の計算用）
+    async fn count_threads(&self, query: &ThreadListQuery) -> Result<u64>;
     async fn set_thread_pinned(&self, id: &str, pinned: bool, updated_at: &str) -> Result<bool>;
     async fn set_thread_locked(&self, id: &str, locked: bool, updated_at: &str) -> Result<bool>;
     async fn set_thread_status(&self, id: &str, status: &str, updated_at: &str) -> Result<bool>;
@@ -207,6 +213,8 @@ pub trait ForumStorage: Send + Sync {
     async fn insert_post(&self, post: &mut ForumPostRecord) -> Result<u64>;
     async fn get_post(&self, id: &str) -> Result<Option<ForumPostRecord>>;
     async fn list_posts(&self, query: &PostListQuery) -> Result<Vec<ForumPostRecord>>;
+    /// 条件に合うレスの総数（`limit` `offset` と `after_post_number` は見ない。ページ数の計算用）
+    async fn count_posts(&self, query: &PostListQuery) -> Result<u64>;
     async fn set_post_status(&self, id: &str, status: &str, updated_at: &str) -> Result<bool>;
     async fn delete_post(&self, id: &str, updated_at: &str) -> Result<bool>;
     async fn has_approved_forum_post(
@@ -797,6 +805,11 @@ macro_rules! impl_forum_storage {
                 } else {
                     " LIMIT 50".to_string()
                 };
+                let limit_clause = if query.offset > 0 {
+                    format!("{} OFFSET {}", limit_clause, query.offset)
+                } else {
+                    limit_clause
+                };
 
                 let sql = format!(
                     "SELECT {} FROM {}{} ORDER BY is_pinned DESC, last_post_at DESC, id DESC{};",
@@ -816,6 +829,41 @@ macro_rules! impl_forum_storage {
                     threads.push($crate::forum::forum_th_row_from_sqlx!(r));
                 }
                 Ok(threads)
+            }
+
+            async fn count_threads(
+                &self,
+                query: &$crate::forum::ThreadListQuery,
+            ) -> aegis_core::Result<u64> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let mut conds = Vec::new();
+                let mut binds = Vec::new();
+                if let Some(cat_id) = &query.category_id {
+                    binds.push(cat_id.clone());
+                    conds.push(format!("category_id = {}", ph(binds.len())));
+                }
+                if let Some(status) = &query.status {
+                    binds.push(status.clone());
+                    conds.push(format!("status = {}", ph(binds.len())));
+                }
+                let where_clause = if conds.is_empty() {
+                    String::new()
+                } else {
+                    format!(" WHERE {}", conds.join(" AND "))
+                };
+                let sql = format!(
+                    "SELECT COUNT(*) FROM {}{};",
+                    $crate::forum::FORUM_THREAD_TABLE,
+                    where_clause
+                );
+                let mut q = sqlx::query_scalar::<_, i64>(&sql);
+                for b in &binds {
+                    q = q.bind(b);
+                }
+                let count = q.fetch_one(&self.pool).await.map_err(db_err)?;
+                Ok(count.max(0) as u64)
             }
 
             async fn set_thread_pinned(
@@ -1075,6 +1123,11 @@ macro_rules! impl_forum_storage {
                 } else {
                     " LIMIT 100".to_string()
                 };
+                let limit_clause = if query.offset > 0 {
+                    format!("{} OFFSET {}", limit_clause, query.offset)
+                } else {
+                    limit_clause
+                };
 
                 let sql = format!(
                     "SELECT {} FROM {}{} ORDER BY post_number ASC{};",
@@ -1094,6 +1147,32 @@ macro_rules! impl_forum_storage {
                     posts.push($crate::forum::forum_post_row_from_sqlx!(r));
                 }
                 Ok(posts)
+            }
+
+            async fn count_posts(
+                &self,
+                query: &$crate::forum::PostListQuery,
+            ) -> aegis_core::Result<u64> {
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let ph = $ph;
+                let mut conds = vec![format!("thread_id = {}", ph(1))];
+                let mut binds = vec![query.thread_id.clone()];
+                if let Some(status) = &query.status {
+                    binds.push(status.clone());
+                    conds.push(format!("status = {}", ph(binds.len())));
+                }
+                let sql = format!(
+                    "SELECT COUNT(*) FROM {} WHERE {};",
+                    $crate::forum::FORUM_POST_TABLE,
+                    conds.join(" AND ")
+                );
+                let mut q = sqlx::query_scalar::<_, i64>(&sql);
+                for b in &binds {
+                    q = q.bind(b);
+                }
+                let count = q.fetch_one(&self.pool).await.map_err(db_err)?;
+                Ok(count.max(0) as u64)
             }
 
             async fn set_post_status(

@@ -861,6 +861,11 @@ impl ForumService {
         Ok(threads)
     }
 
+    /// 条件に合うスレッドの総数（ページ数の計算用）
+    pub async fn count_threads(&self, query: &ThreadListQuery) -> ForumResult<u64> {
+        Ok(self.deps.db.count_threads(query).await?)
+    }
+
     pub async fn set_thread_pinned(
         &self,
         id: &str,
@@ -1091,6 +1096,11 @@ impl ForumService {
         Ok(posts)
     }
 
+    /// 条件に合うレスの総数（ページ数の計算用）
+    pub async fn count_posts(&self, query: &PostListQuery) -> ForumResult<u64> {
+        Ok(self.deps.db.count_posts(query).await?)
+    }
+
     pub async fn moderate_post(
         &self,
         id: &str,
@@ -1190,6 +1200,7 @@ impl ForumService {
                         after_post_number: 0,
                         status: None,
                         limit: 1,
+                        offset: 0,
                     })
                     .await?;
                 let body = posts

@@ -551,6 +551,7 @@ mod tests {
                 status: None,
                 after_post_number: 0,
                 limit: 10,
+                offset: 0,
             })
             .await
             .unwrap();

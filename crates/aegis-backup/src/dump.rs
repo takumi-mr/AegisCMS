@@ -401,6 +401,7 @@ async fn dump_database_section<W: Write + Seek>(
             before_last_post_at: None,
             before_id: None,
             limit: 100_000,
+            offset: 0,
         })
         .await?;
     threads.sort_by(|a, b| {
@@ -420,6 +421,7 @@ async fn dump_database_section<W: Write + Seek>(
                     status: None,
                     after_post_number,
                     limit: 500,
+                    offset: 0,
                 })
                 .await?;
             let Some(last) = batch.last() else {

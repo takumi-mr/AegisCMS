@@ -248,9 +248,10 @@ pub async fn render_forum_index(
             before_last_post_at: None,
             before_id: None,
             limit: 5,
+            offset: 0,
         };
         let threads = forum.list_threads(&q).await.unwrap_or_default();
-        let thread_count = threads.len() as u64;
+        let thread_count = forum.count_threads(&q).await.unwrap_or_default();
         let post_count: u64 = threads.iter().map(|t| t.post_count).sum();
 
         cat_views.push(CategoryView {
@@ -339,21 +340,20 @@ pub async fn render_forum_category(
     let per_page = forum.config().default_page_size.clamp(1, 100);
     let page = params.page.unwrap_or(1).max(1);
 
-    let q = ThreadListQuery {
+    let mut q = ThreadListQuery {
         category_id: Some(cat.id.clone()),
         status: Some("approved".to_string()),
         before_last_post_at: None,
         before_id: None,
-        limit: per_page * page,
+        limit: per_page,
+        offset: (page - 1) * per_page,
     };
     let threads_raw = forum.list_threads(&q).await.unwrap_or_default();
-
-    let total = threads_raw.len() as u64;
-    let offset = ((page - 1) * per_page) as usize;
+    q.limit = 0;
+    q.offset = 0;
+    let total = forum.count_threads(&q).await.unwrap_or_default();
     let paged_threads: Vec<_> = threads_raw
         .into_iter()
-        .skip(offset)
-        .take(per_page as usize)
         .map(|t| ThreadView {
             id: t.id,
             category_slug: cat.slug.clone(),
@@ -471,21 +471,17 @@ pub async fn render_forum_thread(
     let per_page = forum.config().default_page_size.clamp(1, 100);
     let page = params.page.unwrap_or(1).max(1);
 
-    let q = PostListQuery {
+    let mut q = PostListQuery {
         thread_id: thread_id.clone(),
         after_post_number: 0,
         status: Some("approved".to_string()),
-        limit: per_page * page,
+        limit: per_page,
+        offset: (page - 1) * per_page,
     };
-    let posts_raw = forum.list_posts(&q).await.unwrap_or_default();
-
-    let total = posts_raw.len() as u64;
-    let offset = ((page - 1) * per_page) as usize;
-    let page_posts: Vec<_> = posts_raw
-        .into_iter()
-        .skip(offset)
-        .take(per_page as usize)
-        .collect();
+    let page_posts = forum.list_posts(&q).await.unwrap_or_default();
+    q.limit = 0;
+    q.offset = 0;
+    let total = forum.count_posts(&q).await.unwrap_or_default();
     // 会員のアバターは、表示のたびに今の値を引く（画像を変えれば過去の投稿にも反映される）
     let avatars = crate::handlers::members::avatar_urls(
         &state,
@@ -1280,6 +1276,7 @@ pub async fn api_list_all_threads(
         before_last_post_at: query.cursor_last_post_at,
         before_id: query.cursor_id,
         limit,
+        offset: 0,
     };
 
     let threads = forum.list_threads(&q).await.map_err(forum_error_to_api)?;
@@ -1316,6 +1313,7 @@ pub async fn api_list_threads(
         before_last_post_at: query.cursor_last_post_at,
         before_id: query.cursor_id,
         limit,
+        offset: 0,
     };
 
     let threads = forum.list_threads(&q).await.map_err(forum_error_to_api)?;
@@ -1433,6 +1431,7 @@ pub async fn api_list_posts(
         after_post_number: query.cursor_post_number.unwrap_or(0),
         status,
         limit,
+        offset: 0,
     };
     let mut posts = forum.list_posts(&q).await.map_err(forum_error_to_api)?;
     if !is_editor {
