@@ -375,6 +375,10 @@ async fn test_published_list_postgres() {
         eprintln!("Skipping PostgreSQL test: failed to connect");
         return;
     };
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
+    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
+        .execute(adapter.pool())
+        .await;
     let _ = sqlx::query("DROP TABLE IF EXISTS content_article, _aegis_content_tags, _aegis_tags, _aegis_content_publications, _aegis_content_versions CASCADE;")
         .execute(adapter.pool())
         .await;
@@ -398,6 +402,10 @@ async fn test_published_list_mysql() {
         eprintln!("Skipping MySQL test: failed to connect");
         return;
     };
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
+    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
+        .execute(adapter.pool())
+        .await;
     let _ = sqlx::query("DROP TABLE IF EXISTS content_article, _aegis_content_tags, _aegis_tags, _aegis_content_publications, _aegis_content_versions;")
         .execute(adapter.pool())
         .await;

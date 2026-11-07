@@ -114,6 +114,10 @@ async fn test_postgres_analytics_storage_real_db() {
         eprintln!("Skipping PostgreSQL test: failed to connect");
         return;
     };
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
+    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
+        .execute(adapter.pool())
+        .await;
     let _ = sqlx::query("DROP TABLE IF EXISTS _aegis_analytics;")
         .execute(adapter.pool())
         .await;
@@ -137,6 +141,10 @@ async fn test_mysql_analytics_storage_real_db() {
         eprintln!("Skipping MySQL test: failed to connect");
         return;
     };
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
+    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
+        .execute(adapter.pool())
+        .await;
     let _ = sqlx::query("DROP TABLE IF EXISTS _aegis_analytics;")
         .execute(adapter.pool())
         .await;

@@ -124,71 +124,6 @@ pub trait CommentStorage: Send + Sync {
     async fn set_comment_notify_replies(&self, id: &str, notify: bool) -> Result<bool>;
 }
 
-/// コメントテーブルの CREATE 文と索引。`text` は長い文字列、`key` は索引を張る文字列（MySQL は
-/// `VARCHAR(255)`）、`bigint` は 0 / 1 の値の型。`inline_indexes` なら索引を CREATE TABLE に含める（MySQL）
-pub fn build_comment_table(
-    text: &str,
-    key: &str,
-    bigint: &str,
-    inline_indexes: bool,
-) -> (String, Vec<String>) {
-    // MySQL（utf8mb4）の索引は 3072 バイトまで: VARCHAR(255) の列は 3 つまで
-    let indexes = [
-        (
-            "idx_aegis_comments_content",
-            "content_id, status, created_at",
-        ),
-        ("idx_aegis_comments_status", "status, created_at"),
-        ("idx_aegis_comments_author", "author_email, status"),
-        ("idx_aegis_comments_parent", "parent_id"),
-    ];
-    let inline = if inline_indexes {
-        indexes
-            .iter()
-            .map(|(name, columns)| format!(", INDEX {} ({})", name, columns))
-            .collect::<String>()
-    } else {
-        String::new()
-    };
-    let table = format!(
-        "CREATE TABLE IF NOT EXISTS {table} (\
-         id {key} PRIMARY KEY, \
-         content_type {key} NOT NULL, \
-         content_id {key} NOT NULL, \
-         parent_id {key}, \
-         author_name {text} NOT NULL, \
-         author_email {key} NOT NULL, \
-         author_user_id {key}, \
-         body {text} NOT NULL, \
-         status {key} NOT NULL, \
-         ip {key}, \
-         user_agent {text}, \
-         notify_replies {bigint} NOT NULL DEFAULT 0, \
-         notify_token {key}, \
-         created_at {key} NOT NULL, \
-         updated_at {key} NOT NULL{inline});",
-        table = COMMENT_TABLE,
-        key = key,
-        text = text,
-        bigint = bigint,
-        inline = inline,
-    );
-    let separate = if inline_indexes {
-        Vec::new()
-    } else {
-        indexes
-            .iter()
-            .map(|(name, columns)| {
-                format!(
-                    "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
-                    name, COMMENT_TABLE, columns
-                )
-            })
-            .collect()
-    };
-    (table, separate)
-}
-
 /// コメントの INSERT 文。バインド順は `COMMENT_COLUMNS` の順
 pub fn build_comment_insert(placeholder: impl Fn(usize) -> String) -> String {
     let placeholders: Vec<String> = (1..=COMMENT_COLUMNS.len()).map(placeholder).collect();
@@ -643,15 +578,5 @@ mod tests {
         );
         assert!(build_comment_duplicate_check(false, |_| "?".to_string())
             .ends_with("AND status <> 'trash' AND author_email = ?;"));
-    }
-
-    #[test]
-    fn test_comment_table_indexes() {
-        let (table, indexes) = build_comment_table("TEXT", "TEXT", "INTEGER", false);
-        assert!(table.starts_with("CREATE TABLE IF NOT EXISTS _aegis_comments ("));
-        assert_eq!(indexes.len(), 4);
-        let (table, indexes) = build_comment_table("TEXT", "VARCHAR(255)", "BIGINT", true);
-        assert!(table.contains(", INDEX idx_aegis_comments_status (status, created_at)"));
-        assert!(indexes.is_empty());
     }
 }

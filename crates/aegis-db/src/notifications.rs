@@ -115,65 +115,6 @@ pub trait NotificationQueueStorage: Send + Sync {
     async fn delete_failed_notifications_before(&self, cutoff: &str) -> Result<u64>;
 }
 
-/// 送信待ちのテーブルの CREATE 文と索引。`text` は長い文字列（本文の JSON。MySQL は `LONGTEXT`）、
-/// `key` は索引を張る文字列（MySQL は `VARCHAR(255)`）、`bigint` は整数の型。
-/// `inline_indexes` なら索引を CREATE TABLE に含める（MySQL）
-pub fn build_notification_queue_table(
-    text: &str,
-    key: &str,
-    bigint: &str,
-    inline_indexes: bool,
-) -> (String, Vec<String>) {
-    let indexes = [
-        (
-            "idx_aegis_notification_queue_due",
-            "status, next_attempt_at",
-        ),
-        ("idx_aegis_notification_queue_created", "created_at"),
-    ];
-    let inline = if inline_indexes {
-        indexes
-            .iter()
-            .map(|(name, columns)| format!(", INDEX {} ({})", name, columns))
-            .collect::<String>()
-    } else {
-        String::new()
-    };
-    let table = format!(
-        "CREATE TABLE IF NOT EXISTS {table} (\
-         id {key} PRIMARY KEY, \
-         kind {key} NOT NULL, \
-         channel {key} NOT NULL, \
-         message {text} NOT NULL, \
-         status {key} NOT NULL, \
-         attempts {bigint} NOT NULL DEFAULT 0, \
-         next_attempt_at {key} NOT NULL, \
-         locked_until {key}, \
-         last_error {text}, \
-         created_at {key} NOT NULL, \
-         updated_at {key} NOT NULL{inline});",
-        table = NOTIFICATION_QUEUE_TABLE,
-        key = key,
-        text = text,
-        bigint = bigint,
-        inline = inline,
-    );
-    let separate = if inline_indexes {
-        Vec::new()
-    } else {
-        indexes
-            .iter()
-            .map(|(name, columns)| {
-                format!(
-                    "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
-                    name, NOTIFICATION_QUEUE_TABLE, columns
-                )
-            })
-            .collect()
-    };
-    (table, separate)
-}
-
 /// INSERT 文。バインド順は `NOTIFICATION_QUEUE_COLUMNS` の順
 pub fn build_notification_insert(placeholder: impl Fn(usize) -> String) -> String {
     let placeholders: Vec<String> = (1..=NOTIFICATION_QUEUE_COLUMNS.len())
@@ -564,19 +505,5 @@ mod tests {
             "SELECT COUNT(*) FROM _aegis_notification_queue WHERE status = $1;"
         );
         assert_eq!(binds, vec!["failed"]);
-    }
-
-    #[test]
-    fn test_notification_queue_table() {
-        let (table, indexes) = build_notification_queue_table("TEXT", "TEXT", "INTEGER", false);
-        assert!(table.starts_with("CREATE TABLE IF NOT EXISTS _aegis_notification_queue ("));
-        assert_eq!(indexes.len(), 2);
-        let (table, indexes) =
-            build_notification_queue_table("LONGTEXT", "VARCHAR(255)", "BIGINT", true);
-        assert!(table.contains("message LONGTEXT NOT NULL"));
-        assert!(
-            table.contains(", INDEX idx_aegis_notification_queue_due (status, next_attempt_at)")
-        );
-        assert!(indexes.is_empty());
     }
 }

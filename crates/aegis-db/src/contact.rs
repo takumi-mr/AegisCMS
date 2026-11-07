@@ -93,55 +93,6 @@ pub trait ContactStorage: Send + Sync {
     async fn delete_contact_messages_before(&self, created_at: &str) -> Result<u64>;
 }
 
-/// テーブルの CREATE 文と索引。`text` は長い文字列、`key` は索引を張る文字列（MySQL は `VARCHAR(255)`）。
-/// `inline_indexes` なら索引を CREATE TABLE に含める（MySQL）
-pub fn build_contact_table(text: &str, key: &str, inline_indexes: bool) -> (String, Vec<String>) {
-    let indexes = [
-        ("idx_aegis_contact_status", "status, created_at"),
-        ("idx_aegis_contact_created", "created_at"),
-    ];
-    let inline = if inline_indexes {
-        indexes
-            .iter()
-            .map(|(name, columns)| format!(", INDEX {} ({})", name, columns))
-            .collect::<String>()
-    } else {
-        String::new()
-    };
-    let table = format!(
-        "CREATE TABLE IF NOT EXISTS {table} (\
-         id {key} PRIMARY KEY, \
-         form {key} NOT NULL, \
-         name {text} NOT NULL, \
-         email {key} NOT NULL, \
-         subject {text} NOT NULL, \
-         fields_json {text} NOT NULL, \
-         status {key} NOT NULL, \
-         ip {key}, \
-         user_agent {text}, \
-         created_at {key} NOT NULL, \
-         updated_at {key} NOT NULL{inline});",
-        table = CONTACT_TABLE,
-        key = key,
-        text = text,
-        inline = inline,
-    );
-    let separate = if inline_indexes {
-        Vec::new()
-    } else {
-        indexes
-            .iter()
-            .map(|(name, columns)| {
-                format!(
-                    "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
-                    name, CONTACT_TABLE, columns
-                )
-            })
-            .collect()
-    };
-    (table, separate)
-}
-
 /// INSERT 文。バインド順は `CONTACT_COLUMNS` の順
 pub fn build_contact_insert(placeholder: impl Fn(usize) -> String) -> String {
     let placeholders: Vec<String> = (1..=CONTACT_COLUMNS.len()).map(placeholder).collect();

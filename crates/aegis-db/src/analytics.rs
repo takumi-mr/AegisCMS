@@ -59,38 +59,6 @@ pub trait AnalyticsStorage: Send + Sync {
     async fn delete_analytics_before(&self, day: &str) -> Result<u64>;
 }
 
-/// 集計テーブルの CREATE 文と索引。`key` は索引を張る文字列（MySQL は `VARCHAR(255)`）。
-/// `inline_indexes` なら索引を CREATE TABLE に含める（MySQL）
-pub fn build_analytics_table(key: &str, inline_indexes: bool) -> (String, Vec<String>) {
-    let index = ("idx_aegis_analytics_dimension", "dimension, day");
-    let inline = if inline_indexes {
-        format!(", INDEX {} ({})", index.0, index.1)
-    } else {
-        String::new()
-    };
-    let table = format!(
-        "CREATE TABLE IF NOT EXISTS {table} (\
-         day VARCHAR(10) NOT NULL, \
-         dimension VARCHAR(16) NOT NULL, \
-         value {key} NOT NULL, \
-         pageviews BIGINT NOT NULL DEFAULT 0, \
-         visitors BIGINT NOT NULL DEFAULT 0, \
-         PRIMARY KEY (day, dimension, value){inline});",
-        table = ANALYTICS_TABLE,
-        key = key,
-        inline = inline,
-    );
-    let separate = if inline_indexes {
-        Vec::new()
-    } else {
-        vec![format!(
-            "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
-            index.0, ANALYTICS_TABLE, index.1
-        )]
-    };
-    (table, separate)
-}
-
 /// 加算の INSERT 文。`upsert` は重なったときの句（方言ごと。[`UPSERT_ON_CONFLICT`] / [`UPSERT_MYSQL`]）
 pub fn build_analytics_upsert(placeholder: impl Fn(usize) -> String, upsert: &str) -> String {
     format!(
