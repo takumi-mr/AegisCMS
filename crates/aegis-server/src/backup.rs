@@ -144,6 +144,15 @@ pub async fn run_restore(config: &AegisConfig, args: RestoreArgs) -> anyhow::Res
         summary.storage_files_restored,
         summary.storage_bytes_restored
     );
+    for warning in &summary.warnings {
+        eprintln!("Warning: {}", warning);
+    }
+    if !summary.warnings.is_empty() {
+        eprintln!(
+            "{} item(s) of the backup were dropped because they do not match the current schemas.",
+            summary.warnings.len()
+        );
+    }
     Ok(())
 }
 

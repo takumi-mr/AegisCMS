@@ -893,4 +893,168 @@ mod tests {
         assert_eq!(restored.author_id.as_deref(), Some("u-1"));
         assert_eq!(restored.author_kind.as_deref(), Some("staff"));
     }
+
+    /// スキーマが変わっていて合わないカスタムフィールドは、復元を止めずに警告を出して落とす
+    #[tokio::test]
+    async fn test_restore_drops_custom_fields_that_do_not_match_the_schema() {
+        let schema = |fields: serde_json::Value| -> HashMap<String, SchemaDefinition> {
+            let article: SchemaDefinition = serde_json::from_value(json!({
+                "content_type": "article", "label": "Article", "fields": fields
+            }))
+            .unwrap();
+            let event: SchemaDefinition = serde_json::from_value(json!({
+                "content_type": "event", "label": "Event",
+                "fields": [{ "name": "venue", "type": "string", "required": false }]
+            }))
+            .unwrap();
+            HashMap::from([
+                ("article".to_string(), article),
+                ("event".to_string(), event),
+            ])
+        };
+        // 古いスキーマ: `legacy_note`、数値の `rating` がある
+        let old = schema(json!([
+            { "name": "excerpt", "type": "string", "required": false },
+            { "name": "legacy_note", "type": "string", "required": false },
+            { "name": "rating", "type": "integer", "required": false }
+        ]));
+        let src_db = setup_db(&old).await;
+        let record = |id: &str, fields: Vec<(&str, serde_json::Value)>| ContentRecord {
+            id: id.to_string(),
+            content_type: "article".to_string(),
+            title: id.to_string(),
+            slug: id.to_string(),
+            status: "draft".to_string(),
+            blocks_json: "[]".to_string(),
+            author_id: None,
+            published_at: None,
+            unpublish_at: None,
+            created_at: "2026-10-29T01:00:00Z".to_string(),
+            updated_at: "2026-10-29T01:00:00Z".to_string(),
+            custom_fields: fields
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+        };
+        for r in [
+            record(
+                "a-1",
+                vec![
+                    ("excerpt", json!("kept")),
+                    ("legacy_note", json!("old")),
+                    ("rating", json!(5)),
+                ],
+            ),
+            record(
+                "a-2",
+                vec![
+                    ("excerpt", json!("kept too")),
+                    ("legacy_note", json!("old too")),
+                ],
+            ),
+        ] {
+            src_db.insert_content(&old["article"], &r).await.unwrap();
+        }
+        let mut event = record("e-1", vec![("venue", json!("Hall"))]);
+        event.content_type = "event".to_string();
+        src_db.insert_content(&old["event"], &event).await.unwrap();
+
+        let src_dir = tempfile::tempdir().unwrap();
+        let src_storage: Arc<dyn StorageBackend> = Arc::new(LocalStorageBackend::new(
+            src_dir.path(),
+            "/uploads".to_string(),
+        ));
+        let mut zip_buf = Vec::new();
+        dump_to_writer(
+            &src_db,
+            &src_storage,
+            &old,
+            &DumpOptions::default(),
+            Cursor::new(&mut zip_buf),
+        )
+        .await
+        .unwrap();
+
+        // 新しいスキーマ: `legacy_note` が無く、`rating` が真偽値になり、`event` が無い
+        let new = {
+            let mut m = schema(json!([
+                { "name": "excerpt", "type": "string", "required": false },
+                { "name": "rating", "type": "boolean", "required": false }
+            ]));
+            m.remove("event");
+            m
+        };
+        let dst_db = setup_db(&new).await;
+        let dst_dir = tempfile::tempdir().unwrap();
+        let dst_storage: Arc<dyn StorageBackend> = Arc::new(LocalStorageBackend::new(
+            dst_dir.path(),
+            "/uploads".to_string(),
+        ));
+        let summary = restore_from_reader(
+            &dst_db,
+            &dst_storage,
+            &new,
+            &RestoreOptions::default(),
+            Cursor::new(&zip_buf),
+        )
+        .await
+        .unwrap();
+
+        // 復元は成功し、合う項目はそのまま入る
+        let restored = dst_db
+            .get_content(&new["article"], "a-1")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored.custom_fields.get("excerpt"), Some(&json!("kept")));
+        assert!(!restored.custom_fields.contains_key("legacy_note"));
+        assert!(dst_db
+            .get_content(&new["article"], "a-2")
+            .await
+            .unwrap()
+            .is_some());
+
+        // 警告は、フィールドごと・理由ごとに 1 件（レコードごとではない）
+        let mut warnings = summary.warnings.clone();
+        warnings.sort();
+        assert_eq!(warnings.len(), 3, "{:?}", warnings);
+        assert!(
+            warnings[0].contains("Content type 'article': field 'legacy_note'")
+                && warnings[0].contains("is not a field of the current schema")
+                && warnings[0].contains("2 record(s)"),
+            "{}",
+            warnings[0]
+        );
+        assert!(
+            warnings[1].contains("field 'rating'")
+                && warnings[1].contains("does not fit the type")
+                && warnings[1].contains("1 record(s)"),
+            "{}",
+            warnings[1]
+        );
+        assert!(
+            warnings[2].contains("Content type 'event' is not in the current schemas")
+                && warnings[2].contains("skipped 1 record(s)"),
+            "{}",
+            warnings[2]
+        );
+    }
+
+    #[test]
+    fn test_value_fits_the_field_type() {
+        use aegis_schema::FieldType::*;
+        let fits = |t, v: serde_json::Value| restore::value_fits_for_test(t, &v);
+        assert!(fits(Integer, json!(3)) && fits(Integer, json!("3")) && fits(Integer, json!(null)));
+        assert!(
+            !fits(Integer, json!("x")) && !fits(Integer, json!(1.5)) && !fits(Integer, json!([1]))
+        );
+        assert!(
+            fits(Boolean, json!(true)) && fits(Boolean, json!(0)) && fits(Boolean, json!("false"))
+        );
+        assert!(!fits(Boolean, json!(5)) && !fits(Boolean, json!("yes")));
+        assert!(
+            fits(String, json!("a")) && fits(String, json!(3)) && !fits(String, json!({"a": 1}))
+        );
+        assert!(fits(Jsonb, json!({"a": [1]})) && fits(Relation, json!("id")));
+    }
 }

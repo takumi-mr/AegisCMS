@@ -9,7 +9,7 @@ use aegis_db::{
     DatabaseAdapter, ForumCategoryRecord, ForumPostRecord, ForumReportRecord, MemberRecord,
     OrderRecord, ProductVariantRecord, ReviewRecord, TagRecord, UserIdentityRecord, UserRecord,
 };
-use aegis_schema::SchemaDefinition;
+use aegis_schema::{is_standard_column, FieldType, SchemaDefinition};
 use serde::de::DeserializeOwned;
 
 use crate::dump::{ContentBundle, ForumThreadBundle};
@@ -48,6 +48,9 @@ pub struct RestoreSummary {
     pub records_restored: u64,
     pub storage_files_restored: usize,
     pub storage_bytes_restored: u64,
+    /// Data that could not be restored as it was and was dropped instead (the restore still
+    /// succeeds). E.g. a custom field of a content type that the current schema no longer has
+    pub warnings: Vec<String>,
 }
 
 /// Inspect and verify the integrity of a backup archive on disk without modifying the database or storage.
@@ -302,7 +305,14 @@ async fn restore_database_section<R: Read + Seek>(
         if !has_path(&path) {
             continue;
         }
-        let bundles: Vec<ContentBundle> = read_json_entry(archive, &path)?;
+        let mut bundles: Vec<ContentBundle> = read_json_entry(archive, &path)?;
+        let mut dropped = DroppedFields::default();
+        for bundle in &mut bundles {
+            dropped.sanitize(schema, &mut bundle.record);
+        }
+        summary
+            .warnings
+            .extend(dropped.into_warnings(&schema.content_type));
         for bundle in &bundles {
             if db.get_content(schema, &bundle.record.id).await?.is_some() {
                 if options.overwrite {
@@ -335,6 +345,31 @@ async fn restore_database_section<R: Read + Seek>(
             summary.records_restored += 1;
         }
         summary.tables_restored += 1;
+    }
+
+    // Content types in the backup that the current schemas do not define are not restored
+    let known_types: Vec<&str> = schemas.values().map(|s| s.content_type.as_str()).collect();
+    let mut unknown_types: Vec<&str> = manifest
+        .database
+        .tables
+        .iter()
+        .filter_map(|t| {
+            t.path
+                .strip_prefix("database/contents/")
+                .and_then(|p| p.strip_suffix(".json"))
+        })
+        .filter(|content_type| !known_types.contains(content_type))
+        .collect();
+    unknown_types.sort_unstable();
+    for content_type in unknown_types {
+        let path = format!("database/contents/{}.json", content_type);
+        let count = read_json_entry::<_, Vec<serde_json::Value>>(archive, &path)
+            .map(|records| records.len())
+            .unwrap_or(0);
+        summary.warnings.push(format!(
+            "Content type '{}' is not in the current schemas: skipped {} record(s)",
+            content_type, count
+        ));
     }
 
     // 6. Product variants (_aegis_product_variants)
@@ -667,6 +702,74 @@ async fn restore_storage_section<R: Read + Seek>(
         summary.storage_bytes_restored += bytes.len() as u64;
     }
     Ok(())
+}
+
+/// Custom fields of content records that the current schema cannot take, counted per field
+/// (one warning per field, not per record)
+#[derive(Default)]
+struct DroppedFields {
+    /// (field name, reason) -> number of records
+    counts: BTreeMap<(String, &'static str), u64>,
+}
+
+const NOT_IN_SCHEMA: &str = "is not a field of the current schema";
+const WRONG_TYPE: &str = "has a value that does not fit the type of the field";
+
+impl DroppedFields {
+    /// Removes the custom fields of `record` that are not in `schema`, or whose value does not
+    /// fit the field's type. The record then restores with those fields empty
+    fn sanitize(&mut self, schema: &SchemaDefinition, record: &mut aegis_db::ContentRecord) {
+        let names: Vec<String> = record.custom_fields.keys().cloned().collect();
+        for name in names {
+            let field = schema
+                .fields
+                .iter()
+                .find(|f| f.name == name && !is_standard_column(&f.name));
+            let reason = match field {
+                None => NOT_IN_SCHEMA,
+                Some(f) if !value_fits(f.field_type, &record.custom_fields[&name]) => WRONG_TYPE,
+                Some(_) => continue,
+            };
+            record.custom_fields.remove(&name);
+            *self.counts.entry((name, reason)).or_default() += 1;
+        }
+    }
+
+    fn into_warnings(self, content_type: &str) -> Vec<String> {
+        self.counts
+            .into_iter()
+            .map(|((name, reason), records)| {
+                format!(
+                    "Content type '{}': field '{}' {}; dropped it from {} record(s)",
+                    content_type, name, reason, records
+                )
+            })
+            .collect()
+    }
+}
+
+/// Whether a JSON value from a backup can be stored in a field of `field_type`
+fn value_fits(field_type: FieldType, value: &serde_json::Value) -> bool {
+    use serde_json::Value;
+    match (field_type, value) {
+        (_, Value::Null) | (FieldType::Jsonb, _) => true,
+        (FieldType::Integer, Value::Number(n)) => n.is_i64() || n.is_u64(),
+        (FieldType::Integer, Value::String(text)) => text.trim().parse::<i64>().is_ok(),
+        (FieldType::Boolean, Value::Bool(_)) => true,
+        (FieldType::Boolean, Value::Number(n)) => matches!(n.as_i64(), Some(0 | 1)),
+        (FieldType::Boolean, Value::String(text)) => {
+            matches!(text.as_str(), "true" | "false" | "0" | "1")
+        }
+        (FieldType::Integer | FieldType::Boolean, _) => false,
+        (FieldType::String | FieldType::Text | FieldType::Timestamp, Value::Array(_))
+        | (FieldType::String | FieldType::Text | FieldType::Timestamp, Value::Object(_)) => false,
+        _ => true,
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn value_fits_for_test(field_type: FieldType, value: &serde_json::Value) -> bool {
+    value_fits(field_type, value)
 }
 
 fn read_json_entry<R: Read + Seek, T: DeserializeOwned>(
