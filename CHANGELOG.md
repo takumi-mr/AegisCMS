@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.0](https://github.com/takumi-mr/AegisCMS/compare/v0.4.0...v0.5.0) (2026-11-07)
+
+
+### Features
+
+* **core:** add a repeating list field to plugin blocks ([#270](https://github.com/takumi-mr/AegisCMS/issues/270)) ([45734fe](https://github.com/takumi-mr/AegisCMS/commit/45734fe00b5e13e7f15ce7cfb5b2b40d386d5b57))
+* **core:** create and update the system tables with sqlx migrations ([#274](https://github.com/takumi-mr/AegisCMS/issues/274)) ([3741219](https://github.com/takumi-mr/AegisCMS/commit/3741219a4f650caa2fc2dc044b4eda64ec043091))
+* **core:** drop custom fields that do not match the schema on restore, with a warning ([#273](https://github.com/takumi-mr/AegisCMS/issues/273)) ([0c93538](https://github.com/takumi-mr/AegisCMS/commit/0c935385658d5f993ecd51c8e19130d75b9cdbf0))
+* **members:** let members set a profile picture and show it in the forum and reviews ([#263](https://github.com/takumi-mr/AegisCMS/issues/263)) ([12c81b7](https://github.com/takumi-mr/AegisCMS/commit/12c81b7f5a391ca61e11de62b217322f66e0c442))
+* **plugin:** add audio, file download and map blocks to official-blocks ([#268](https://github.com/takumi-mr/AegisCMS/issues/268)) ([7e9a3c5](https://github.com/takumi-mr/AegisCMS/commit/7e9a3c5c293ca4bf479aa8bf9ad622d5c2c461cd))
+* **plugin:** add gallery, faq, steps and image-with-text blocks to official-blocks ([#269](https://github.com/takumi-mr/AegisCMS/issues/269)) ([38e26cc](https://github.com/takumi-mr/AegisCMS/commit/38e26ccf6c5f324ff4787d5cb09d7a2bfe1c9153))
+* **plugin:** use list fields for gallery, faq and steps, and add a columns block ([#271](https://github.com/takumi-mr/AegisCMS/issues/271)) ([61cd309](https://github.com/takumi-mr/AegisCMS/commit/61cd30929c75d113bae071765216a9121755b8e3))
+* **server:** expose the on-render-page result cache stats in /metrics ([#261](https://github.com/takumi-mr/AegisCMS/issues/261)) ([65b148d](https://github.com/takumi-mr/AegisCMS/commit/65b148df830809fc56cecebe40ab4f7818e4c8c5))
+
+
+### Bug Fixes
+
+* **admin:** name the list item controls by item number ([#272](https://github.com/takumi-mr/AegisCMS/issues/272)) ([02efea9](https://github.com/takumi-mr/AegisCMS/commit/02efea9eb422f40116240c01eef8718284b3a6c4))
+* **core:** return boolean custom fields as true/false on SQLite too ([#277](https://github.com/takumi-mr/AegisCMS/issues/277)) ([a42697b](https://github.com/takumi-mr/AegisCMS/commit/a42697b785fc9ec055e5854ee098ac739765721a))
+* **server:** page the forum threads and posts in the database, and add a forum benchmark ([#266](https://github.com/takumi-mr/AegisCMS/issues/266)) ([25f54b0](https://github.com/takumi-mr/AegisCMS/commit/25f54b08db9fa13d6b3c04ee4c1a258982af55b1))
+
 ## [0.4.0](https://github.com/takumi-mr/AegisCMS/compare/v0.3.0...v0.4.0) (2026-11-05)
 
 

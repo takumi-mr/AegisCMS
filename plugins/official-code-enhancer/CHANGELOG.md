@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-code-enhancer-v0.3.0...plugin-official-code-enhancer-v0.4.0) (2026-11-07)
+
+
+### Features
+
+* **plugin:** choose the code theme in the code enhancer's plugin settings ([#267](https://github.com/takumi-mr/AegisCMS/issues/267)) ([309fea7](https://github.com/takumi-mr/AegisCMS/commit/309fea77322ef34bac792eb44c944944781f83d7))
+
 ## [0.3.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-code-enhancer-v0.2.0...plugin-official-code-enhancer-v0.3.0) (2026-11-04)
 
 
