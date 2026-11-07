@@ -1362,7 +1362,8 @@
     "installSuccess": "プラグイン「{{name}}」を正常にインストールしました",
     "installFailed": "プラグインのインストールに失敗しました",
     "installing": "インストール中...",
-    "frameDomains": "埋め込み（iframe）: {{domains}}"
+    "frameDomains": "埋め込み（iframe）: {{domains}}",
+    "cspDomains": "CSP {{directive}} に追加: {{domains}}"
   },
   "site": {
     "title": "サイト",

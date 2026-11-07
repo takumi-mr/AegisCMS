@@ -1380,7 +1380,8 @@
     "installSuccess": "Successfully installed plugin \"{{name}}\"",
     "installFailed": "Failed to install plugin package",
     "installing": "Installing...",
-    "frameDomains": "Embeds (iframe): {{domains}}"
+    "frameDomains": "Embeds (iframe): {{domains}}",
+    "cspDomains": "CSP {{directive}}: {{domains}}"
   },
   "site": {
     "title": "Site",

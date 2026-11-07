@@ -36,11 +36,13 @@ const PLUGINS: PluginInfo[] = [
     is_installed: true,
     manifest: manifest({
       name: 'official-code-enhancer',
-      description: 'Syntax highlighting, external themes and Mermaid diagrams.',
+      description: 'Syntax highlighting and external code themes.',
       capabilities: {
         hooks: ['transform-content-ast', 'on-render-page'],
-        network: { allowed_domains: ['cdn.jsdelivr.net', 'unpkg.com'] },
-        storage: { kv_namespace: 'aegis_code_enhancer' },
+        csp: {
+          script_domains: ['cdn.jsdelivr.net'],
+          style_domains: ['cdn.jsdelivr.net', 'unpkg.com'],
+        },
       },
     }),
   },
@@ -253,6 +255,11 @@ export const EnablePlugin: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const card = await canvas.findByRole('article', { name: 'official-code-enhancer' });
+    // The hosts the plugin adds to the Content-Security-Policy are on its card
+    await expect(within(card).getByText('CSP script-src: cdn.jsdelivr.net')).toBeVisible();
+    await expect(
+      within(card).getByText('CSP style-src: cdn.jsdelivr.net, unpkg.com')
+    ).toBeVisible();
     await userEvent.click(within(card).getByRole('button', { name: 'Enable' }));
     await expect(await within(card).findByText('Enabled', { exact: true })).toBeVisible();
     await expect(args.onShowToast).toHaveBeenCalledWith(

@@ -5,7 +5,7 @@ import { openPlugins, pluginCard, signIn } from './helpers';
 // The server starts with no plugin enabled ([plugins].enabled = [] in aegis.e2e.toml) and the
 // official plugins of the repository's plugins/ installed. Cards are labelled by display name
 const SHOP_RULES = 'Shop Rules (Shipping, Coupons & Tax)';
-const CODE_ENHANCER = 'official-code-enhancer';
+const CODE_ENHANCER = 'Code Highlighter';
 
 test.beforeEach(async ({ page }) => {
   await signIn(page);
@@ -20,7 +20,7 @@ test('lists the installed plugins with their hooks', async ({ page }) => {
 
   const enhancer = pluginCard(page, CODE_ENHANCER);
   await expect(enhancer.getByText('transform-content-ast', { exact: true })).toBeVisible();
-  await expect(enhancer.getByText(/cdn\.jsdelivr\.net/)).toBeVisible();
+  await expect(enhancer.getByText('CSP script-src: cdn.jsdelivr.net')).toBeVisible();
 });
 
 test('enables and disables a plugin without a restart', async ({ page }) => {
