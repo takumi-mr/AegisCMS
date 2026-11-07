@@ -1,3 +1,12 @@
+//! 公式プラグイン `official-code-enhancer`: コードのシンタックスハイライト・外部テーマ・コピーボタン・
+//! インラインコードの整形（`transform-content-ast` / `on-render-page`）。
+//!
+//! - ハイライトは Prism.js（CDN の `cdn.jsdelivr.net`）。言語は autoloader が、必要になったときに読み込む
+//! - Mermaid の図は別のプラグイン `official-mermaid`。`language-mermaid` のブロックは、ここでは何もしない
+//! - 本文に `<pre` も `` ` `` も無いページには、何も足さない（スクリプトも CSS も入れない）
+//! - テーマは、記事のフィールド › テーマ変数（`theme_vars`）› プラグインの設定（Admin Studio の
+//!   Settings › Plugins）› 既定（`dracula`）の順で決める
+
 pub mod themes;
 
 use aegis_plugin_sdk::prelude::*;
@@ -5,6 +14,130 @@ use std::fmt::Write as _;
 
 #[derive(Default)]
 pub struct CodeEnhancerPlugin;
+
+/// Prism（`data-manual` で自動実行を止める。Mermaid のブロックを Prism に渡さないため、
+/// ハイライトは `renderAll` が対象を選んで行う）、コピーボタン、インラインコードの整形
+const CLIENT_SCRIPT: &str = r#"<!-- Code Enhancer Client Bundle -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" data-manual></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+<script>
+  (function() {
+    window.AegisCodeEnhancer = {
+      setThemeUrl: function(url) {
+        var link = document.getElementById('aegis-external-code-theme');
+        if (!link) {
+          link = document.createElement('link');
+          link.id = 'aegis-external-code-theme';
+          link.rel = 'stylesheet';
+          document.head.appendChild(link);
+        }
+        link.href = url;
+      },
+      renderAll: function() {
+        formatInlineCode();
+        setupCodeCopyButtons();
+        highlightCode();
+      }
+    };
+
+    function isDiagram(code) {
+      return !!code && /(^|\s)language-(mermaid|diagram)(\s|$)/.test(code.className);
+    }
+
+    // 1. Safe inline code formatting from `inline code` in paragraphs and lists
+    function formatInlineCode() {
+      var containers = document.querySelectorAll('.prose p, .prose li, .prose blockquote');
+      containers.forEach(function(container) {
+        var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+        var textNodes = [];
+        var node;
+        while ((node = walker.nextNode())) {
+          if (node.parentElement && !['CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(node.parentElement.tagName)) {
+            if (node.nodeValue && node.nodeValue.indexOf('`') !== -1) {
+              textNodes.push(node);
+            }
+          }
+        }
+        textNodes.forEach(function(tNode) {
+          var text = tNode.nodeValue;
+          var regex = /`([^`\n]+)`/g;
+          if (!regex.test(text)) return;
+          var frag = document.createDocumentFragment();
+          var lastIdx = 0;
+          var match;
+          regex.lastIndex = 0;
+          while ((match = regex.exec(text)) !== null) {
+            if (match.index > lastIdx) {
+              frag.appendChild(document.createTextNode(text.substring(lastIdx, match.index)));
+            }
+            var codeEl = document.createElement('code');
+            codeEl.className = 'inline-code-enhanced';
+            codeEl.textContent = match[1];
+            frag.appendChild(codeEl);
+            lastIdx = match.index + match[0].length;
+          }
+          if (lastIdx < text.length) {
+            frag.appendChild(document.createTextNode(text.substring(lastIdx)));
+          }
+          tNode.replaceWith(frag);
+        });
+      });
+    }
+
+    // 2. Add copy button to code blocks
+    function setupCodeCopyButtons() {
+      var preBlocks = document.querySelectorAll('.prose pre');
+      preBlocks.forEach(function(pre) {
+        var code = pre.querySelector('code');
+        if (isDiagram(code)) return;
+        if (pre.parentElement && pre.parentElement.classList.contains('code-block-wrapper')) return;
+
+        var wrapper = document.createElement('div');
+        wrapper.className = 'code-block-wrapper';
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.appendChild(pre);
+
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'code-copy-btn';
+        copyBtn.setAttribute('type', 'button');
+        copyBtn.setAttribute('aria-label', 'Copy code to clipboard');
+        copyBtn.textContent = 'Copy';
+
+        copyBtn.addEventListener('click', async function() {
+          var textToCopy = (code || pre).textContent || '';
+          try {
+            await navigator.clipboard.writeText(textToCopy);
+            copyBtn.textContent = 'Copied!';
+            copyBtn.classList.add('copied');
+            setTimeout(function() {
+              copyBtn.textContent = 'Copy';
+              copyBtn.classList.remove('copied');
+            }, 2000);
+          } catch (err) {
+            console.error('Failed to copy code: ', err);
+          }
+        });
+
+        wrapper.appendChild(copyBtn);
+      });
+    }
+
+    // 3. Syntax highlighting (everything but diagrams, which official-mermaid draws)
+    function highlightCode() {
+      if (!window.Prism) return;
+      document.querySelectorAll('pre code').forEach(function(code) {
+        if (!isDiagram(code)) window.Prism.highlightElement(code);
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { window.AegisCodeEnhancer.renderAll(); });
+    } else {
+      window.AegisCodeEnhancer.renderAll();
+    }
+  })();
+</script>
+"#;
 
 impl CodeEnhancerPlugin {
     /// Resolves a code-theme option. Priority: article field > theme_vars >
@@ -38,165 +171,15 @@ impl CodeEnhancerPlugin {
         self.resolve_option(ctx, "code_theme_css")
     }
 
-    /// Generates the client-side JavaScript bundle for Mermaid rendering,
-    /// safe inline-code formatting, and the copy-to-clipboard button.
-    fn generate_client_script(&self, mermaid_theme: &str) -> String {
-        format!(
-            r#"<!-- Code & Diagram Enhancer Client Bundle -->
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-  (function() {{
-    if (window.mermaid) {{
-      try {{
-        window.mermaid.initialize({{
-          startOnLoad: false,
-          theme: '{mermaid_theme}',
-          securityLevel: 'loose'
-        }});
-      }} catch (e) {{
-        console.warn('Mermaid init error:', e);
-      }}
-    }}
-
-    window.AegisCodeEnhancer = {{
-      theme: '{mermaid_theme}',
-      setThemeUrl: function(url) {{
-        var link = document.getElementById('aegis-external-code-theme');
-        if (!link) {{
-          link = document.createElement('link');
-          link.id = 'aegis-external-code-theme';
-          link.rel = 'stylesheet';
-          document.head.appendChild(link);
-        }}
-        link.href = url;
-      }},
-      renderAll: function() {{
-        formatInlineCode();
-        setupCodeCopyButtons();
-        renderMermaidDiagrams();
-        if (window.Prism) {{
-          window.Prism.highlightAll();
-        }}
-      }}
-    }};
-
-    // 1. Safe inline code formatting from `inline code` in paragraphs and lists
-    function formatInlineCode() {{
-      var containers = document.querySelectorAll('.prose p, .prose li, .prose blockquote');
-      containers.forEach(function(container) {{
-        var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
-        var textNodes = [];
-        var node;
-        while ((node = walker.nextNode())) {{
-          if (node.parentElement && !['CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(node.parentElement.tagName)) {{
-            if (node.nodeValue && node.nodeValue.indexOf('`') !== -1) {{
-              textNodes.push(node);
-            }}
-          }}
-        }}
-        textNodes.forEach(function(tNode) {{
-          var text = tNode.nodeValue;
-          var regex = /`([^`\n]+)`/g;
-          if (!regex.test(text)) return;
-          var frag = document.createDocumentFragment();
-          var lastIdx = 0;
-          var match;
-          regex.lastIndex = 0;
-          while ((match = regex.exec(text)) !== null) {{
-            if (match.index > lastIdx) {{
-              frag.appendChild(document.createTextNode(text.substring(lastIdx, match.index)));
-            }}
-            var codeEl = document.createElement('code');
-            codeEl.className = 'inline-code-enhanced';
-            codeEl.textContent = match[1];
-            frag.appendChild(codeEl);
-            lastIdx = match.index + match[0].length;
-          }}
-          if (lastIdx < text.length) {{
-            frag.appendChild(document.createTextNode(text.substring(lastIdx)));
-          }}
-          tNode.replaceWith(frag);
-        }});
-      }});
-    }}
-
-    // 2. Add copy button to code blocks
-    function setupCodeCopyButtons() {{
-      var preBlocks = document.querySelectorAll('.prose pre');
-      preBlocks.forEach(function(pre) {{
-        var code = pre.querySelector('code');
-        if (code && code.classList.contains('language-mermaid')) return;
-        if (pre.parentElement && pre.parentElement.classList.contains('code-block-wrapper')) return;
-
-        var wrapper = document.createElement('div');
-        wrapper.className = 'code-block-wrapper';
-        pre.parentNode.insertBefore(wrapper, pre);
-        wrapper.appendChild(pre);
-
-        var copyBtn = document.createElement('button');
-        copyBtn.className = 'code-copy-btn';
-        copyBtn.setAttribute('type', 'button');
-        copyBtn.setAttribute('aria-label', 'Copy code to clipboard');
-        copyBtn.textContent = 'Copy';
-
-        copyBtn.addEventListener('click', async function() {{
-          var textToCopy = (code || pre).textContent || '';
-          try {{
-            await navigator.clipboard.writeText(textToCopy);
-            copyBtn.textContent = 'Copied!';
-            copyBtn.classList.add('copied');
-            setTimeout(function() {{
-              copyBtn.textContent = 'Copy';
-              copyBtn.classList.remove('copied');
-            }}, 2000);
-          }} catch (err) {{
-            console.error('Failed to copy code: ', err);
-          }}
-        }});
-
-        wrapper.appendChild(copyBtn);
-      }});
-    }}
-
-    // 3. Render Mermaid diagrams
-    async function renderMermaidDiagrams() {{
-      if (!window.mermaid) return;
-      var mermaidCodes = document.querySelectorAll('pre code.language-mermaid, pre.mermaid, div.mermaid');
-      for (var i = 0; i < mermaidCodes.length; i++) {{
-        var el = mermaidCodes[i];
-        var container = el.closest('pre') || el;
-        var graphDef = (el.textContent || '').trim();
-        if (!graphDef) continue;
-        var diagramId = 'mermaid-diag-' + i + '-' + Math.floor(Math.random() * 10000);
-        try {{
-          var res = await window.mermaid.render(diagramId, graphDef);
-          var card = document.createElement('div');
-          card.className = 'mermaid-diagram-container';
-          card.innerHTML = res.svg;
-          container.replaceWith(card);
-        }} catch (err) {{
-          console.warn('Mermaid rendering failed for block:', err);
-        }}
-      }}
-    }}
-
-    if (document.readyState === 'loading') {{
-      document.addEventListener('DOMContentLoaded', function() {{ window.AegisCodeEnhancer.renderAll(); }});
-    }} else {{
-      window.AegisCodeEnhancer.renderAll();
-    }}
-  }})();
-</script>
-"#
-        )
+    /// 本文にコードブロック（`<pre`）か、整形する `` `inline code` `` が無ければ、何も足さない
+    fn has_code(&self, ctx: &PageRenderContext) -> bool {
+        ctx.content_html.contains("<pre") || ctx.content_html.contains('`')
     }
 }
 
 #[aegis_plugin]
 impl Plugin for CodeEnhancerPlugin {
-    /// Detects mermaid and code blocks and attaches metadata attributes.
+    /// Marks code blocks (diagram blocks are left alone: `official-mermaid` draws them).
     fn transform_content_ast(&mut self, mut blocks: Vec<BlockNode>) -> Result<Vec<BlockNode>> {
         for block in &mut blocks {
             if block.name == "core/code" {
@@ -206,10 +189,7 @@ impl Plugin for CodeEnhancerPlugin {
                     .unwrap_or("")
                     .to_lowercase();
 
-                if lang == "mermaid" || lang == "diagram" {
-                    block.set_attribute("data-diagram-type", serde_json::json!("mermaid"));
-                    log_info!("Found Mermaid diagram block in AST.");
-                } else {
+                if lang != "mermaid" && lang != "diagram" {
                     block.set_attribute("data-enhanced-code", serde_json::json!(true));
                 }
             }
@@ -219,13 +199,12 @@ impl Plugin for CodeEnhancerPlugin {
 
     /// Injects theme styles, external CSS links, and the client-side enhancer bundle.
     fn on_render_page(&mut self, mut ctx: PageRenderContext) -> Result<PageRenderContext> {
+        if !self.has_code(&ctx) {
+            return Ok(ctx);
+        }
         let theme_name = self.resolve_theme_name(&ctx);
         let theme_def = themes::get_theme(&theme_name);
-        log_info!(
-            "Applying code enhancer with theme: '{}' (mermaid: '{}')",
-            theme_def.name,
-            theme_def.mermaid_theme
-        );
+        log_info!("Applying code enhancer with theme: '{}'", theme_def.name);
 
         // 1. Assemble extra_css
         let mut combined_css = String::new();
@@ -261,7 +240,7 @@ impl Plugin for CodeEnhancerPlugin {
         }
 
         // Client bundle script
-        head_snippet.push_str(&self.generate_client_script(theme_def.mermaid_theme));
+        head_snippet.push_str(CLIENT_SCRIPT);
 
         if ctx.extra_head.is_empty() {
             ctx.extra_head = head_snippet;
@@ -279,31 +258,18 @@ mod tests {
     use super::*;
     use aegis_plugin_sdk::host::mock;
 
-    #[test]
-    fn test_plugin_settings_are_the_fallback() {
-        mock::reset();
-        mock::set_config("code_theme", "nord");
-        mock::set_config("code_theme_css", ".x { color: red; }");
-        let mut plugin = CodeEnhancerPlugin;
-
-        // Plugin setting applies when nothing else is given
-        let updated = plugin
-            .on_render_page(PageRenderContext::default())
-            .expect("Hook should succeed");
-        assert!(updated.extra_css.contains("Nord"));
-        assert!(updated.extra_css.contains(".x { color: red; }"));
-
-        // An article field wins over the plugin setting
-        let mut ctx = PageRenderContext::default();
-        ctx.fields
-            .insert("code_theme".to_string(), serde_json::json!("github-light"));
-        let updated = plugin.on_render_page(ctx).expect("Hook should succeed");
-        assert!(updated.extra_css.contains("GitHub Light Theme"));
-        mock::reset();
+    fn page(content_html: &str) -> PageRenderContext {
+        PageRenderContext {
+            title: "Sample Post".to_string(),
+            content_html: content_html.to_string(),
+            ..Default::default()
+        }
     }
 
+    const WITH_CODE: &str = "<p>Hi</p><pre><code class=\"language-rust\">fn main() {}</code></pre>";
+
     #[test]
-    fn test_transform_mermaid_block() {
+    fn test_transform_marks_code_but_not_diagrams() {
         let mut plugin = CodeEnhancerPlugin;
         let blocks = vec![
             BlockNode::code("mermaid", "graph TD;\n  A-->B;"),
@@ -314,10 +280,8 @@ mod tests {
             .transform_content_ast(blocks)
             .expect("Hook should succeed");
         assert_eq!(result.len(), 2);
-        assert_eq!(
-            result[0].attribute("data-diagram-type"),
-            Some(&serde_json::json!("mermaid"))
-        );
+        assert_eq!(result[0].attribute("data-enhanced-code"), None);
+        assert_eq!(result[0].attribute("data-diagram-type"), None);
         assert_eq!(
             result[1].attribute("data-enhanced-code"),
             Some(&serde_json::json!(true))
@@ -326,43 +290,92 @@ mod tests {
 
     #[test]
     fn test_on_render_page_injects_theme_and_bundle() {
+        mock::reset();
         let mut plugin = CodeEnhancerPlugin;
-        let ctx = PageRenderContext {
-            title: "Sample Post".to_string(),
-            ..Default::default()
-        };
-
-        let updated = plugin.on_render_page(ctx).expect("Hook should succeed");
+        let updated = plugin
+            .on_render_page(page(WITH_CODE))
+            .expect("Hook should succeed");
 
         // Checks CSS injection
         assert!(updated.extra_css.contains("inline-code-enhanced"));
         assert!(updated.extra_css.contains("Dracula Theme"));
 
-        // Checks Script injection
-        assert!(updated.extra_head.contains("mermaid.initialize"));
+        // Checks Script injection: Prism only, started by the bundle (data-manual)
         assert!(updated.extra_head.contains("AegisCodeEnhancer"));
+        assert!(updated
+            .extra_head
+            .contains(r#"prism.min.js" data-manual></script>"#));
+        assert!(updated.extra_head.contains("prism-autoloader.min.js"));
+        // Mermaid is official-mermaid's job
+        assert!(!updated.extra_head.to_lowercase().contains("mermaid.min.js"));
+        assert!(!updated.extra_head.contains("mermaid.initialize"));
+        assert!(!updated.extra_css.contains("mermaid-diagram-container"));
+        // Diagrams are skipped by the highlighter and the copy button
+        assert!(updated.extra_head.contains("language-(mermaid|diagram)"));
+    }
+
+    /// 本文にコードも `inline code` も無いページには、何も足さない
+    #[test]
+    fn test_pages_without_code_are_left_alone() {
+        mock::reset();
+        let mut plugin = CodeEnhancerPlugin;
+        for html in ["", "<p>No code here.</p><h2>Title</h2>"] {
+            let updated = plugin.on_render_page(page(html)).unwrap();
+            assert!(
+                updated.extra_css.is_empty() && updated.extra_head.is_empty(),
+                "{html:?}"
+            );
+        }
+        // `inline code` を書いただけのページには入れる（スクリプトが <code> に整形する）
+        let updated = plugin
+            .on_render_page(page("<p>Use `cargo test` here.</p>"))
+            .unwrap();
+        assert!(updated.extra_head.contains("AegisCodeEnhancer"));
+        assert!(!updated.extra_css.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_settings_are_the_fallback() {
+        mock::reset();
+        mock::set_config("code_theme", "nord");
+        mock::set_config("code_theme_css", ".x { color: red; }");
+        let mut plugin = CodeEnhancerPlugin;
+
+        // Plugin setting applies when nothing else is given
+        let updated = plugin
+            .on_render_page(page(WITH_CODE))
+            .expect("Hook should succeed");
+        assert!(updated.extra_css.contains("Nord"));
+        assert!(updated.extra_css.contains(".x { color: red; }"));
+
+        // An article field wins over the plugin setting
+        let mut ctx = page(WITH_CODE);
+        ctx.fields
+            .insert("code_theme".to_string(), serde_json::json!("github-light"));
+        let updated = plugin.on_render_page(ctx).expect("Hook should succeed");
+        assert!(updated.extra_css.contains("GitHub Light Theme"));
+        mock::reset();
     }
 
     #[test]
     fn test_custom_theme_selection_and_external_url() {
+        mock::reset();
         let mut plugin = CodeEnhancerPlugin;
-        let mut ctx = PageRenderContext::default();
+        let mut ctx = page(WITH_CODE);
         ctx.fields
             .insert("code_theme".to_string(), serde_json::json!("github-light"));
         ctx.fields.insert(
             "code_theme_url".to_string(),
-            serde_json::json!("https://example.com/custom-prism.css"),
+            serde_json::json!("https://example.com/custom-prism.css?a=1&b=\"2\""),
         );
 
         let updated = plugin.on_render_page(ctx).expect("Hook should succeed");
 
         // Selected GitHub Light
         assert!(updated.extra_css.contains("GitHub Light Theme"));
-        // Injected external stylesheet link
+        // Injected external stylesheet link (the URL is escaped for the attribute)
         assert!(updated
             .extra_head
-            .contains(r#"href="https://example.com/custom-prism.css""#));
-        // Mermaid theme set to default for light theme
-        assert!(updated.extra_head.contains("theme: 'default'"));
+            .contains(r#"href="https://example.com/custom-prism.css?a=1&amp;b=&quot;2&quot;""#));
     }
 }

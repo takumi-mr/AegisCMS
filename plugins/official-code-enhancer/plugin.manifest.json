@@ -1,9 +1,18 @@
 {
   "name": "official-code-enhancer",
   "version": "0.4.0",
-  "abi_version": 1,
   "entrypoint": "plugin.wasm",
-  "description": "Official code syntax highlighter, external theme loader, and Mermaid diagram renderer",
+  "display_name": "Code Highlighter",
+  "description": "Syntax highlighting (Prism.js), external code themes, copy buttons and inline code styling. Diagrams are drawn by official-mermaid. Configure the theme in Settings > Plugins.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "code",
+    "highlight",
+    "reading"
+  ],
+  "min_aegis_version": "0.1.0",
+  "abi_version": 1,
   "capabilities": {
     "render_page": {
       "input": [
@@ -11,20 +20,20 @@
         "fields"
       ]
     },
-    "network": {
-      "allowed_domains": [
+    "hooks": [
+      "transform-content-ast",
+      "on-render-page"
+    ],
+    "csp": {
+      "script_domains": [
+        "cdn.jsdelivr.net"
+      ],
+      "style_domains": [
         "cdn.jsdelivr.net",
         "cdnjs.cloudflare.com",
         "unpkg.com"
       ]
-    },
-    "storage": {
-      "kv_namespace": "aegis_code_enhancer"
-    },
-    "hooks": [
-      "transform-content-ast",
-      "on-render-page"
-    ]
+    }
   },
   "resource_limits": {
     "max_memory_mb": 16,

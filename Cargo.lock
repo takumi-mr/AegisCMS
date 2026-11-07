@@ -450,6 +450,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-mermaid"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "aegis-plugin-order-notifier"
 version = "0.2.0"
 dependencies = [

@@ -287,6 +287,15 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_code_enhancer.wasm plugins/official-code-enhancer/plugin.wasm
         platforms: [linux, darwin]
 
+  plugin:build:mermaid:
+    desc: 公式 Mermaid プラグインを Wasm にビルドし plugins/official-mermaid/plugin.wasm を生成
+    cmds:
+      - cargo build -p aegis-plugin-mermaid --target wasm32-unknown-unknown --release
+      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_mermaid.wasm plugins\\official-mermaid\\plugin.wasm"
+        platforms: [windows]
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_mermaid.wasm plugins/official-mermaid/plugin.wasm
+        platforms: [linux, darwin]
+
   plugin:build:shop:
     desc: 公式 EC プラグイン (official-shop-rules / official-order-notifier) を Wasm にビルドし plugins/*/plugin.wasm を更新
     cmds:

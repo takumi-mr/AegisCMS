@@ -1,0 +1,14 @@
+[package]
+name = "aegis-plugin-mermaid"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Core Team"]
+description = "Official Wasm plugin that draws Mermaid diagrams from ```mermaid code blocks"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }
+serde.workspace = true
+serde_json.workspace = true

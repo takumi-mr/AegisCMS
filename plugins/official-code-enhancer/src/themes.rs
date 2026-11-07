@@ -1,8 +1,8 @@
-//! Code and Diagram theme configurations for the Code Enhancer.
+//! Code theme configurations for the Code Enhancer.
 
-/// Base CSS for enhanced inline code, copy buttons, and diagram containers.
+/// Base CSS for enhanced inline code and copy buttons.
 pub const BASE_ENHANCER_CSS: &str = r#"
-/* Code & Diagram Enhancer Base Styles */
+/* Code Enhancer Base Styles */
 .prose code.inline-code-enhanced,
 .prose p > code,
 .prose li > code {
@@ -64,44 +64,17 @@ pub const BASE_ENHANCER_CSS: &str = r#"
   color: #34d399;
   border-color: rgba(16, 185, 129, 0.4);
 }
-
-/* Mermaid diagram container */
-.mermaid-diagram-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem 1.5rem;
-  margin: 1.75rem 0;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.25);
-  overflow-x: auto;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.mermaid-diagram-container:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: 0 12px 32px -4px rgba(99, 102, 241, 0.1);
-}
-
-.mermaid-diagram-container svg {
-  max-width: 100%;
-  height: auto;
-}
 "#;
 
 pub struct ThemeDefinition {
     pub name: &'static str,
     pub display_name: &'static str,
-    pub mermaid_theme: &'static str,
     pub css: &'static str,
 }
 
 pub const THEME_DRACULA: ThemeDefinition = ThemeDefinition {
     name: "dracula",
     display_name: "Dracula",
-    mermaid_theme: "dark",
     css: r#"
 /* Dracula Theme */
 .prose code.inline-code-enhanced,
@@ -134,7 +107,6 @@ pub const THEME_DRACULA: ThemeDefinition = ThemeDefinition {
 pub const THEME_GITHUB_DARK: ThemeDefinition = ThemeDefinition {
     name: "github-dark",
     display_name: "GitHub Dark",
-    mermaid_theme: "dark",
     css: r#"
 /* GitHub Dark Theme */
 .prose code.inline-code-enhanced,
@@ -167,7 +139,6 @@ pub const THEME_GITHUB_DARK: ThemeDefinition = ThemeDefinition {
 pub const THEME_ONE_DARK: ThemeDefinition = ThemeDefinition {
     name: "one-dark",
     display_name: "One Dark Pro",
-    mermaid_theme: "dark",
     css: r#"
 /* One Dark Pro Theme */
 .prose code.inline-code-enhanced,
@@ -200,7 +171,6 @@ pub const THEME_ONE_DARK: ThemeDefinition = ThemeDefinition {
 pub const THEME_NORD: ThemeDefinition = ThemeDefinition {
     name: "nord",
     display_name: "Nord Arctic",
-    mermaid_theme: "dark",
     css: r#"
 /* Nord Theme */
 .prose code.inline-code-enhanced,
@@ -233,7 +203,6 @@ pub const THEME_NORD: ThemeDefinition = ThemeDefinition {
 pub const THEME_GITHUB_LIGHT: ThemeDefinition = ThemeDefinition {
     name: "github-light",
     display_name: "GitHub Light",
-    mermaid_theme: "default",
     css: r#"
 /* GitHub Light Theme */
 .prose code.inline-code-enhanced,
@@ -266,7 +235,6 @@ pub const THEME_GITHUB_LIGHT: ThemeDefinition = ThemeDefinition {
 pub const THEME_MONOKAI: ThemeDefinition = ThemeDefinition {
     name: "monokai",
     display_name: "Monokai Pro",
-    mermaid_theme: "dark",
     css: r#"
 /* Monokai Theme */
 .prose code.inline-code-enhanced,

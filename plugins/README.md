@@ -22,7 +22,8 @@ plugins/
 
 | プラグイン | フック | 内容 |
 | --- | --- | --- |
-| [`official-code-enhancer`](official-code-enhancer/) | `transform-content-ast`, `on-render-page` | コードのシンタックスハイライト・Mermaid 図・コピー ボタン |
+| [`official-code-enhancer`](official-code-enhancer/) | `transform-content-ast`, `on-render-page` | コードのシンタックスハイライト（Prism.js）・外部テーマ・コピーボタン・インラインコードの整形。テーマは Admin Studio の Settings › Plugins で選ぶ。コードの無いページには何も足さない |
+| [`official-mermaid`](official-mermaid/) | `on-render-page` | ` ```mermaid ` のコードブロックを Mermaid の図にする。図のあるページだけ Mermaid を読み込む。テーマ・セキュリティレベル・スクリプトの URL は Admin Studio の Settings › Plugins で変える |
 | [`official-shop-rules`](official-shop-rules/) | `calculate-order`, `on-order-status-changed` | EC の送料（送料無料の条件）・クーポン（利用回数の上限）・税（[EC](../docs/commerce.md#71-公式プラグイン)） |
 | [`official-order-notifier`](official-order-notifier/) | `on-order-status-changed` | 注文の作成・状態の変化を Slack / Webhook に通知（`http::fetch`） |
 | [`official-blocks`](official-blocks/) | `render-blocks` | 本文に置けるボタン・リンクカード・動画（YouTube・Vimeo）のブロック（[本文のブロック](../docs/blocks.md#4-プラグインのブロック)）。カスタムブロックのお手本 |
@@ -37,4 +38,4 @@ plugins/
 | [`official-external-links`](official-external-links/) | `on-render-page` | 本文の外部リンクを新しいタブで開き、`rel="noopener nofollow"` と外部リンクのアイコンを付ける（ブラウザーのスクリプトで動く）。`[plugins.settings.official-external-links]` で変えられる |
 | [`official-ads`](official-ads/) | `on-render-page`, `render-blocks` | Google AdSense および独自広告・バナー配信。`<head>` へのスクリプト注入、カスタムブロック（`official-ads/display`）、動的 CSP 連携、Cookie 同意バナー（`[consent]`）対応 |
 
-`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-link-embed` は `task plugin:build:link-embed`、`official-page-toc` / `official-back-to-top` / `official-share-buttons` / `official-reading-time` / `official-post-navigation` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`、`official-ads` は `task plugin:build:ads`）で作り直してください。
+`plugin.wasm` はビルド済みのものを同梱しています。ソースを変えたら `task plugin:build:shop`（`official-blocks` は `task plugin:build:blocks`、`official-link-embed` は `task plugin:build:link-embed`、`official-mermaid` は `task plugin:build:mermaid`、`official-page-toc` / `official-back-to-top` / `official-share-buttons` / `official-reading-time` / `official-post-navigation` は `task plugin:build:reading`、`official-code-lines` / `official-lightbox` / `official-external-links` は `task plugin:build:content`、`official-ads` は `task plugin:build:ads`）で作り直してください。
