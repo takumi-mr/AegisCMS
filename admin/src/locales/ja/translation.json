@@ -222,9 +222,9 @@
       "required": "必須の項目です",
       "addItem": "項目を追加",
       "item": "項目 {{n}}",
-      "moveUp": "上へ移動",
-      "moveDown": "下へ移動",
-      "removeItem": "この項目を削除",
+      "moveUp": "項目 {{n}} を上へ移動",
+      "moveDown": "項目 {{n}} を下へ移動",
+      "removeItem": "項目 {{n}} を削除",
       "itemCount": "{{count}} / {{max}} 項目"
     },
     "detailsSummary": "見出し（質問など）",

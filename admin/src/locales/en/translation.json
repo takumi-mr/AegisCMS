@@ -223,9 +223,9 @@
       "required": "Required",
       "addItem": "Add item",
       "item": "Item {{n}}",
-      "moveUp": "Move up",
-      "moveDown": "Move down",
-      "removeItem": "Remove this item",
+      "moveUp": "Move item {{n}} up",
+      "moveDown": "Move item {{n}} down",
+      "removeItem": "Remove item {{n}}",
       "itemCount": "{{count}} / {{max}} items"
     },
     "detailsSummary": "Summary (e.g. a question)",

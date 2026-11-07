@@ -178,13 +178,13 @@ export const ListField: Story = {
     await expect(args.onChange).toHaveBeenCalled();
 
     // move the first item down: the order changes
-    await userEvent.click(canvas.getAllByRole('button', { name: /Move down/i })[0]);
+    await userEvent.click(canvas.getAllByRole('button', { name: /Move item \d+ down/i })[0]);
     await expect(canvas.getAllByRole('textbox', { name: /Question/i })[0]).toHaveValue(
       'How do I start?'
     );
 
     // remove the first item
-    await userEvent.click(canvas.getAllByRole('button', { name: /Remove this item/i })[0]);
+    await userEvent.click(canvas.getAllByRole('button', { name: /Remove item \d+/i })[0]);
     await expect(canvas.queryByText('Item 3')).not.toBeInTheDocument();
     await expect(add).toBeEnabled();
   },

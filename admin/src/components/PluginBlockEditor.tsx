@@ -73,8 +73,8 @@ const FieldControl: React.FC<FieldControlProps> = ({ field, id, value, onChange,
                     <button
                       type="button"
                       className={styles.iconButton}
-                      aria-label={t('blocks.plugin.moveUp')}
-                      title={t('blocks.plugin.moveUp')}
+                      aria-label={t('blocks.plugin.moveUp', { n: index + 1 })}
+                      title={t('blocks.plugin.moveUp', { n: index + 1 })}
                       disabled={index === 0}
                       onClick={() => move(index, index - 1)}
                     >
@@ -83,8 +83,8 @@ const FieldControl: React.FC<FieldControlProps> = ({ field, id, value, onChange,
                     <button
                       type="button"
                       className={styles.iconButton}
-                      aria-label={t('blocks.plugin.moveDown')}
-                      title={t('blocks.plugin.moveDown')}
+                      aria-label={t('blocks.plugin.moveDown', { n: index + 1 })}
+                      title={t('blocks.plugin.moveDown', { n: index + 1 })}
                       disabled={index === items.length - 1}
                       onClick={() => move(index, index + 1)}
                     >
@@ -93,8 +93,8 @@ const FieldControl: React.FC<FieldControlProps> = ({ field, id, value, onChange,
                     <button
                       type="button"
                       className={styles.iconButton}
-                      aria-label={t('blocks.plugin.removeItem')}
-                      title={t('blocks.plugin.removeItem')}
+                      aria-label={t('blocks.plugin.removeItem', { n: index + 1 })}
+                      title={t('blocks.plugin.removeItem', { n: index + 1 })}
                       onClick={() => setItems(items.filter((_, i) => i !== index))}
                     >
                       <Trash2 size={14} />
