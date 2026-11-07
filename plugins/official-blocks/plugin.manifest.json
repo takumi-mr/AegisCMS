@@ -2,8 +2,8 @@
   "name": "official-blocks",
   "version": "0.2.0",
   "entrypoint": "plugin.wasm",
-  "display_name": "Content Blocks (Buttons, Cards, Media & Maps)",
-  "description": "Adds button, link card, video (YouTube / Vimeo), audio, file download and map (OpenStreetMap) blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",
+  "display_name": "Content Blocks (Buttons, Cards, Media, Maps & Layouts)",
+  "description": "Adds button, link card, video, audio, file download, map, image gallery, FAQ, steps and image-with-text blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",
   "author": "AegisCMS Core Team",
   "license": "MIT OR Apache-2.0",
   "tags": [
@@ -12,7 +12,9 @@
     "content",
     "video",
     "audio",
-    "map"
+    "map",
+    "gallery",
+    "faq"
   ],
   "min_aegis_version": "0.1.0",
   "abi_version": 1,
@@ -397,6 +399,201 @@
             "en": "Shown under the map and read aloud for the frame.",
             "ja": "地図の下に出し、フレームの読み上げにも使います。"
           }
+        }
+      ]
+    },
+    {
+      "name": "gallery",
+      "label": {
+        "en": "Image gallery",
+        "ja": "画像ギャラリー"
+      },
+      "description": {
+        "en": "Several images in a grid",
+        "ja": "複数の画像をグリッドで並べる"
+      },
+      "fields": [
+        {
+          "name": "images",
+          "type": "text",
+          "label": {
+            "en": "Images",
+            "ja": "画像"
+          },
+          "required": true,
+          "default": "",
+          "placeholder": "/uploads/a.jpg | Caption\n/uploads/b.jpg",
+          "help": {
+            "en": "One image per line: a URL, or a URL then | and a caption (up to 24). Copy URLs from the media library.",
+            "ja": "1 行に 1 枚。URL か、URL の後に | と説明（24 枚まで）。URL はメディアライブラリからコピーできます。"
+          }
+        },
+        {
+          "name": "columns",
+          "type": "select",
+          "label": {
+            "en": "Columns",
+            "ja": "列の数"
+          },
+          "default": "3",
+          "options": [
+            {
+              "value": "2",
+              "label": {
+                "en": "2",
+                "ja": "2"
+              }
+            },
+            {
+              "value": "3",
+              "label": {
+                "en": "3",
+                "ja": "3"
+              }
+            },
+            {
+              "value": "4",
+              "label": {
+                "en": "4",
+                "ja": "4"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "faq",
+      "label": {
+        "en": "FAQ",
+        "ja": "よくある質問"
+      },
+      "description": {
+        "en": "Questions that open to show the answer",
+        "ja": "質問をクリックして答えを開く"
+      },
+      "fields": [
+        {
+          "name": "items",
+          "type": "text",
+          "label": {
+            "en": "Questions and answers",
+            "ja": "質問と答え"
+          },
+          "required": true,
+          "default": "",
+          "placeholder": "Is it free?\nYes, it is.\n\nHow do I start?\nDownload it.",
+          "help": {
+            "en": "Separate each pair with a blank line. The first line is the question; the lines after it are the answer.",
+            "ja": "質問と答えの組は空行で区切ります。1 行目が質問、その下の行が答えです。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "steps",
+      "label": {
+        "en": "Steps",
+        "ja": "手順"
+      },
+      "description": {
+        "en": "A numbered list of steps with a title and a description",
+        "ja": "番号つきの手順（見出しと説明）"
+      },
+      "fields": [
+        {
+          "name": "items",
+          "type": "text",
+          "label": {
+            "en": "Steps",
+            "ja": "手順"
+          },
+          "required": true,
+          "default": "",
+          "placeholder": "Install\nDownload the binary.\n\nStart\nRun it.",
+          "help": {
+            "en": "Separate each step with a blank line. The first line is the title; the lines after it are the description.",
+            "ja": "手順は空行で区切ります。1 行目が見出し、その下の行が説明です。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "media-text",
+      "label": {
+        "en": "Image with text",
+        "ja": "画像と文章"
+      },
+      "description": {
+        "en": "An image beside a title and text; stacks on narrow screens",
+        "ja": "画像と文章を横に並べる（狭い画面では縦に積む）"
+      },
+      "fields": [
+        {
+          "name": "image",
+          "type": "image",
+          "label": {
+            "en": "Image",
+            "ja": "画像"
+          },
+          "required": true,
+          "default": ""
+        },
+        {
+          "name": "alt",
+          "type": "string",
+          "label": {
+            "en": "Image description (alt)",
+            "ja": "画像の説明（alt）"
+          },
+          "default": ""
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "ja": "見出し"
+          },
+          "default": ""
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "label": {
+            "en": "Text",
+            "ja": "文章"
+          },
+          "default": "",
+          "help": {
+            "en": "Plain text. A blank line starts a new paragraph.",
+            "ja": "プレーンテキスト。空行で段落を分けます。"
+          }
+        },
+        {
+          "name": "side",
+          "type": "select",
+          "label": {
+            "en": "Image position",
+            "ja": "画像の位置"
+          },
+          "default": "left",
+          "options": [
+            {
+              "value": "left",
+              "label": {
+                "en": "Left",
+                "ja": "左"
+              }
+            },
+            {
+              "value": "right",
+              "label": {
+                "en": "Right",
+                "ja": "右"
+              }
+            }
+          ]
         }
       ]
     }

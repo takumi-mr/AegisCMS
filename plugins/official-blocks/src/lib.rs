@@ -11,6 +11,12 @@
 //! - `official-blocks/file`: `url`・`title`・`description`・`size`（表示用の文字列）。ダウンロード用のリンク
 //! - `official-blocks/map`: `latitude`・`longitude`・`zoom`・`title`。OpenStreetMap の埋め込み
 //!   （`www.openstreetmap.org`、マニフェストの `capabilities.embed.frame_domains`）。住所からの検索はしない
+//! - `official-blocks/gallery`: `images`（1 行に 1 枚。`URL` か `URL | 説明`、24 枚まで）・`columns`（2〜4）
+//! - `official-blocks/faq`: `items`（空行で区切った「質問 + 答え」。1 行目が質問、残りが答え）。
+//!   `<details>` で開閉し、schema.org の FAQPage を microdata で付ける（`<script>` の JSON-LD はサニタイズで消える）
+//! - `official-blocks/steps`: `items`（faq と同じ書き方。1 行目が見出し、残りが説明）。番号つきの手順
+//! - `official-blocks/media-text`: `image`・`alt`・`title`・`text`・`side`（左 / 右）。画像と文章を並べる。
+//!   狭い画面では縦に積む
 //!
 //! 見た目は最初のブロックの前に 1 回だけ入れる `<style>`。配置・余白は `:where()` で詳細度 0
 //! （テーマの CSS が優先）。リンクの色と下線だけは、テーマの本文のリンクの指定（`.prose a` など）に
@@ -57,6 +63,31 @@ const STYLES: &str = "<style>\
 :where(.ob-map-frame){width:100%;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:rgba(127,127,127,.1)}\
 :where(.ob-map-frame) iframe{display:block;width:100%;height:100%;border:0}\
 :where(.ob-map) figcaption{font-size:.85em;opacity:.75;margin-top:.4rem}\
+:where(.ob-gallery){display:grid;gap:.6rem;margin:1.5rem 0;grid-template-columns:repeat(var(--ob-cols,3),minmax(0,1fr))}\
+:where(.ob-gallery-2){--ob-cols:2}:where(.ob-gallery-4){--ob-cols:4}\
+@media(max-width:640px){:where(.ob-gallery){--ob-cols:2}}\
+:where(.ob-gallery) figure{margin:0}\
+:where(.ob-gallery) img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;background:rgba(127,127,127,.1)}\
+:where(.ob-gallery) figcaption{font-size:.8em;opacity:.75;margin-top:.3rem}\
+:where(.ob-faq){margin:1.5rem 0;border-top:1px solid rgba(127,127,127,.3)}\
+:where(.ob-faq) details{border-bottom:1px solid rgba(127,127,127,.3);padding:.75rem .25rem}\
+:where(.ob-faq) summary{cursor:pointer;font-weight:600}\
+:where(.ob-faq-answer){margin-top:.6rem;opacity:.9}\
+:where(.ob-faq-answer) p{margin:.4rem 0}\
+:where(.ob-steps){list-style:none;counter-reset:ob-step;margin:1.5rem 0;padding:0}\
+:where(.ob-steps) li{counter-increment:ob-step;position:relative;margin:0;padding:0 0 1.25rem 3rem}\
+:where(.ob-steps) li::before{content:counter(ob-step);position:absolute;left:0;top:-.1rem;width:2.1rem;height:2.1rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;background:var(--accent,#6366f1);color:var(--accent-contrast,#fff)}\
+:where(.ob-steps) li::after{content:'';position:absolute;left:1.05rem;top:2.2rem;bottom:.15rem;width:2px;background:rgba(127,127,127,.3)}\
+:where(.ob-steps) li:last-child::after{display:none}\
+:where(.ob-step-title){display:block;font-weight:700}\
+:where(.ob-step-body){display:block;opacity:.85;margin-top:.2rem}\
+:where(.ob-media-text){display:flex;flex-wrap:wrap;gap:1.25rem;align-items:center;margin:1.5rem 0}\
+:where(.ob-media-text-media){flex:1 1 240px;min-width:0}\
+:where(.ob-media-text-media) img{display:block;width:100%;border-radius:10px}\
+:where(.ob-media-text-body){flex:2 1 280px;min-width:0}\
+:where(.ob-media-text-title){display:block;font-weight:700;font-size:1.15em;margin-bottom:.3rem}\
+:where(.ob-media-text-body) p{margin:.4rem 0}\
+@media(min-width:641px){:where(.ob-media-text-right) .ob-media-text-media{order:2}}\
 </style>";
 
 fn escape(text: &str) -> String {
@@ -414,6 +445,159 @@ fn render_map(block: &BlockNode) -> Option<String> {
     ))
 }
 
+/// 空行で区切った項目に分ける。各項目は「1 行目（見出し）」と「残りの行（本文）」
+fn entries(text: &str) -> Vec<(String, Vec<String>)> {
+    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+    let mut out = Vec::new();
+    let mut current: Vec<&str> = Vec::new();
+    for line in normalized.split('\n').chain(std::iter::once("")) {
+        if line.trim().is_empty() {
+            if let Some((head, rest)) = current.split_first() {
+                out.push((
+                    head.trim().to_string(),
+                    rest.iter().map(|l| l.trim().to_string()).collect(),
+                ));
+            }
+            current.clear();
+        } else {
+            current.push(line);
+        }
+    }
+    out
+}
+
+/// 本文の行を段落にする（HTML はエスケープする）
+fn paragraphs(lines: &[String]) -> String {
+    lines
+        .iter()
+        .map(|l| format!("<p>{}</p>", escape(l)))
+        .collect()
+}
+
+/// ギャラリーに置ける画像の最大枚数
+const MAX_GALLERY_IMAGES: usize = 24;
+
+fn render_gallery(block: &BlockNode) -> Option<String> {
+    let text = block
+        .attributes
+        .get("images")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let mut figures = String::new();
+    let mut count = 0;
+    for line in text.lines() {
+        let (src, caption) = match line.split_once('|') {
+            Some((src, caption)) => (src.trim(), caption.trim()),
+            None => (line.trim(), ""),
+        };
+        let Some(src) = safe_url(src) else { continue };
+        count += 1;
+        if count > MAX_GALLERY_IMAGES {
+            break;
+        }
+        let caption_html = if caption.is_empty() {
+            String::new()
+        } else {
+            format!("<figcaption>{}</figcaption>", escape(caption))
+        };
+        figures.push_str(&format!(
+            r#"<figure><img src="{}" alt="{}" loading="lazy">{caption_html}</figure>"#,
+            escape(src),
+            escape(caption)
+        ));
+    }
+    if figures.is_empty() {
+        return None;
+    }
+    let columns = match attr(block, "columns") {
+        "2" => "2",
+        "4" => "4",
+        _ => "3",
+    };
+    Some(format!(
+        r#"<div class="ob-gallery ob-gallery-{columns}">{figures}</div>"#
+    ))
+}
+
+fn render_faq(block: &BlockNode) -> Option<String> {
+    let text = block.attributes.get("items").and_then(|v| v.as_str())?;
+    let items: String = entries(text)
+        .into_iter()
+        .filter(|(_, answer)| !answer.is_empty())
+        .map(|(question, answer)| {
+            format!(
+                r#"<details itemscope itemprop="mainEntity" itemtype="https://schema.org/Question"><summary itemprop="name">{}</summary><div class="ob-faq-answer" itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer"><div itemprop="text">{}</div></div></details>"#,
+                escape(&question),
+                paragraphs(&answer)
+            )
+        })
+        .collect();
+    (!items.is_empty()).then(|| {
+        format!(
+            r#"<div class="ob-faq" itemscope itemtype="https://schema.org/FAQPage">{items}</div>"#
+        )
+    })
+}
+
+fn render_steps(block: &BlockNode) -> Option<String> {
+    let text = block.attributes.get("items").and_then(|v| v.as_str())?;
+    let items: String = entries(text)
+        .into_iter()
+        .map(|(title, body)| {
+            let body = if body.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    r#"<span class="ob-step-body">{}</span>"#,
+                    escape(&body.join(" "))
+                )
+            };
+            format!(
+                r#"<li><span class="ob-step-title">{}</span>{body}</li>"#,
+                escape(&title)
+            )
+        })
+        .collect();
+    (!items.is_empty()).then(|| format!(r#"<ol class="ob-steps">{items}</ol>"#))
+}
+
+fn render_media_text(block: &BlockNode) -> Option<String> {
+    let image = safe_url(attr(block, "image"))?;
+    let title = attr(block, "title");
+    let body = block
+        .attributes
+        .get("text")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let lines: Vec<String> = body
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    if title.is_empty() && lines.is_empty() {
+        return None;
+    }
+    let title_html = if title.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<span class="ob-media-text-title">{}</span>"#,
+            escape(title)
+        )
+    };
+    let side = if attr(block, "side") == "right" {
+        " ob-media-text-right"
+    } else {
+        ""
+    };
+    Some(format!(
+        r#"<div class="ob-media-text{side}"><div class="ob-media-text-media"><img src="{}" alt="{}" loading="lazy"></div><div class="ob-media-text-body">{title_html}{}</div></div>"#,
+        escape(image),
+        escape(attr(block, "alt")),
+        paragraphs(&lines)
+    ))
+}
+
 impl Plugin for BlocksPlugin {
     fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
         let mut styled = false;
@@ -427,6 +611,10 @@ impl Plugin for BlocksPlugin {
                     "official-blocks/audio" => render_audio(block),
                     "official-blocks/file" => render_file(block),
                     "official-blocks/map" => render_map(block),
+                    "official-blocks/gallery" => render_gallery(block),
+                    "official-blocks/faq" => render_faq(block),
+                    "official-blocks/steps" => render_steps(block),
+                    "official-blocks/media-text" => render_media_text(block),
                     _ => None,
                 }?;
                 // スタイルは最初に表示するブロックにだけ付ける
@@ -572,6 +760,119 @@ mod tests {
         // 範囲は地図の限界を超えない
         let (_, s, _, n) = map_bbox(84.9, 0.0, 1);
         assert!(s >= -85.0 && n <= 85.0);
+    }
+
+    #[test]
+    fn splits_entries_on_blank_lines() {
+        let got = entries("Q1\r\nA1 line1\r\nA1 line2\r\n\r\n\r\n  Q2  \nA2\n\n");
+        assert_eq!(
+            got,
+            vec![
+                (
+                    "Q1".to_string(),
+                    vec!["A1 line1".to_string(), "A1 line2".to_string()]
+                ),
+                ("Q2".to_string(), vec!["A2".to_string()]),
+            ]
+        );
+        assert!(entries(" \n\n").is_empty());
+    }
+
+    #[test]
+    fn renders_galleries_from_one_image_per_line() {
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                block(
+                    "gallery",
+                    &[
+                        (
+                            "images",
+                            "/a.jpg | Front <door>\nhttps://example.com/b.jpg\njavascript:alert(1)\n\n/c.jpg",
+                        ),
+                        ("columns", "4"),
+                    ],
+                ),
+                block("gallery", &[("images", "javascript:alert(1)\nnot a url")]),
+                block("gallery", &[]),
+            ])
+            .unwrap();
+        let g = html[0].as_deref().unwrap();
+        assert!(g.contains(r#"class="ob-gallery ob-gallery-4""#));
+        assert_eq!(g.matches("<figure>").count(), 3);
+        assert!(g.contains(
+            r#"<img src="/a.jpg" alt="Front &lt;door&gt;" loading="lazy"><figcaption>Front &lt;door&gt;</figcaption>"#
+        ));
+        assert!(!g.contains("javascript"));
+        assert_eq!(&html[1..], &[None, None]);
+
+        let many = (0..40)
+            .map(|i| format!("/{i}.jpg"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let capped = BlocksPlugin
+            .render_blocks(vec![block("gallery", &[("images", many.as_str())])])
+            .unwrap();
+        assert_eq!(
+            capped[0].as_deref().unwrap().matches("<figure>").count(),
+            24
+        );
+    }
+
+    #[test]
+    fn renders_faq_and_steps() {
+        let faq = "Is it <free>?\nYes.\nReally.\n\nNo answer here\n\nWhere?\nHere.";
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                block("faq", &[("items", faq)]),
+                block("faq", &[("items", "only a question")]),
+                block(
+                    "steps",
+                    &[("items", "Install\nDownload it.\nRun it.\n\nStart")],
+                ),
+                block("steps", &[("items", "")]),
+            ])
+            .unwrap();
+        let faq = html[0].as_deref().unwrap();
+        assert!(faq.contains(r#"itemtype="https://schema.org/FAQPage""#));
+        assert_eq!(faq.matches("<details").count(), 2);
+        assert!(faq.contains(r#"<summary itemprop="name">Is it &lt;free&gt;?</summary>"#));
+        assert!(faq.contains("<p>Yes.</p><p>Really.</p>"));
+        assert!(!faq.contains("No answer here"));
+        assert_eq!(html[1], None);
+        let steps = html[2].as_deref().unwrap();
+        assert!(steps.contains(r#"<li><span class="ob-step-title">Install</span><span class="ob-step-body">Download it. Run it.</span></li>"#));
+        assert!(steps.contains(r#"<li><span class="ob-step-title">Start</span></li>"#));
+        assert_eq!(html[3], None);
+    }
+
+    #[test]
+    fn renders_media_text_on_either_side() {
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                block(
+                    "media-text",
+                    &[
+                        ("image", "/uploads/a.jpg"),
+                        ("alt", "A \"cup\""),
+                        ("title", "Fresh"),
+                        ("text", "Line one\n\nLine <two>"),
+                        ("side", "right"),
+                    ],
+                ),
+                block("media-text", &[("image", "/a.jpg"), ("title", "T")]),
+                block("media-text", &[("image", "/a.jpg")]),
+                block("media-text", &[("image", "javascript:x"), ("title", "T")]),
+            ])
+            .unwrap();
+        let right = html[0].as_deref().unwrap();
+        assert!(right.contains(r#"class="ob-media-text ob-media-text-right""#));
+        assert!(right.contains(r#"alt="A &quot;cup&quot;""#));
+        assert!(right.contains("<p>Line one</p><p>Line &lt;two&gt;</p>"));
+        assert!(html[1]
+            .as_deref()
+            .unwrap()
+            .contains(r#"class="ob-media-text">"#));
+        assert_eq!(&html[2..], &[None, None]);
     }
 
     #[test]

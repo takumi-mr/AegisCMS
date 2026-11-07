@@ -134,7 +134,7 @@ Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>`
 
 ## 4. プラグインのブロック
 
-Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・動画（`official-blocks/video`。YouTube・Vimeo）・音声（`official-blocks/audio`）・ファイルのダウンロード（`official-blocks/file`）・地図（`official-blocks/map`。OpenStreetMap）が例です。
+Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・動画（`official-blocks/video`。YouTube・Vimeo）・音声（`official-blocks/audio`）・ファイルのダウンロード（`official-blocks/file`）・地図（`official-blocks/map`。OpenStreetMap）・画像ギャラリー（`official-blocks/gallery`）・FAQ（`official-blocks/faq`）・手順（`official-blocks/steps`）・画像と文章（`official-blocks/media-text`）が例です。
 
 - 有効なプラグインのブロックは、Admin Studio のブロックの追加ボタンに並びます（`GET /api/v1/blocks`）。編集画面には、プラグインのマニフェストで宣言した入力欄のフォームが出ます。
 - 保存するのはブロック名と属性だけで、HTML は**表示のたびに**プラグインが作ります。プラグインを更新すると、保存し直さなくても表示が変わります。
@@ -156,6 +156,14 @@ Markdown では 1 行で書き、属性は JSON のオブジェクトです（�
 ::: official-blocks/file {"url": "/uploads/guide.pdf", "title": "導入ガイド", "size": "PDF・2.4 MB"}
 
 ::: official-blocks/map {"latitude": 35.6812, "longitude": 139.7671, "zoom": 16, "title": "東京駅"}
+
+::: official-blocks/gallery {"images": "/uploads/a.jpg | 外観\n/uploads/b.jpg | 店内", "columns": "2"}
+
+::: official-blocks/faq {"items": "無料ですか？\nはい、無料です。\n\nどう始めますか？\nバイナリをダウンロードして起動します。"}
+
+::: official-blocks/steps {"items": "入れる\nバイナリをダウンロードします。\n\n起動する\nサーバーを起動します。"}
+
+::: official-blocks/media-text {"image": "/uploads/a.jpg", "alt": "焙煎機", "title": "毎週焙煎", "text": "届くのは焙煎したての豆です。", "side": "right"}
 ```
 
 JSON として読めない行は、そのまま段落になります。
