@@ -134,7 +134,7 @@ Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>`
 
 ## 4. プラグインのブロック
 
-Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・動画（`official-blocks/video`。YouTube・Vimeo）が例です。
+Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・動画（`official-blocks/video`。YouTube・Vimeo）・音声（`official-blocks/audio`）・ファイルのダウンロード（`official-blocks/file`）・地図（`official-blocks/map`。OpenStreetMap）が例です。
 
 - 有効なプラグインのブロックは、Admin Studio のブロックの追加ボタンに並びます（`GET /api/v1/blocks`）。編集画面には、プラグインのマニフェストで宣言した入力欄のフォームが出ます。
 - 保存するのはブロック名と属性だけで、HTML は**表示のたびに**プラグインが作ります。プラグインを更新すると、保存し直さなくても表示が変わります。
@@ -150,6 +150,12 @@ Markdown では 1 行で書き、属性は JSON のオブジェクトです（�
 ::: official-blocks/link-card {"url": "https://github.com/takumi-mr/aegiscms", "title": "AegisCMS"}
 
 ::: official-blocks/video {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "aspect": "16x9"}
+
+::: official-blocks/audio {"url": "/uploads/episode-1.mp3", "title": "第 1 回"}
+
+::: official-blocks/file {"url": "/uploads/guide.pdf", "title": "導入ガイド", "size": "PDF・2.4 MB"}
+
+::: official-blocks/map {"latitude": 35.6812, "longitude": 139.7671, "zoom": 16, "title": "東京駅"}
 ```
 
 JSON として読めない行は、そのまま段落になります。

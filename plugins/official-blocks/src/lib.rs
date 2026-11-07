@@ -7,6 +7,11 @@
 //!   プレーヤーの URL はこのプラグインが動画の ID から組み立て（`www.youtube-nocookie.com`・
 //!   `player.vimeo.com`、マニフェストの `capabilities.embed.frame_domains`）、利用者の HTML は使わない
 //!
+//! - `official-blocks/audio`: `url`・`title`。ブラウザ標準のプレーヤー（読み込みは再生するまで待つ）
+//! - `official-blocks/file`: `url`・`title`・`description`・`size`（表示用の文字列）。ダウンロード用のリンク
+//! - `official-blocks/map`: `latitude`・`longitude`・`zoom`・`title`。OpenStreetMap の埋め込み
+//!   （`www.openstreetmap.org`、マニフェストの `capabilities.embed.frame_domains`）。住所からの検索はしない
+//!
 //! 見た目は最初のブロックの前に 1 回だけ入れる `<style>`。配置・余白は `:where()` で詳細度 0
 //! （テーマの CSS が優先）。リンクの色と下線だけは、テーマの本文のリンクの指定（`.prose a` など）に
 //! 負けないようクラス 2 つの詳細度にする（負けると塗りつぶしのボタンの文字が背景と同じ色になる）。
@@ -38,6 +43,20 @@ const STYLES: &str = "<style>\
 :where(.ob-video-4x3){aspect-ratio:4/3}\
 :where(.ob-video-9x16){aspect-ratio:9/16;max-width:360px;margin-left:auto;margin-right:auto}\
 :where(.ob-video) iframe{display:block;width:100%;height:100%;border:0}\
+:where(.ob-audio){margin:1.5rem 0}\
+:where(.ob-audio) figcaption{font-size:.9em;opacity:.75;margin-bottom:.4rem}\
+:where(.ob-audio) audio{display:block;width:100%}\
+:where(.ob-file){display:flex;gap:.9rem;align-items:center;margin:1.5rem 0;padding:.8rem 1rem;border:1px solid rgba(127,127,127,.3);border-radius:10px}\
+.aegis-plugin-block .ob-file{color:inherit;text-decoration:none}\
+:where(.ob-file):hover{border-color:var(--accent,#6366f1)}\
+:where(.ob-file-icon){flex:0 0 auto;font-size:1.4em;color:var(--accent,#6366f1)}\
+:where(.ob-file-body){flex:1;min-width:0}\
+:where(.ob-file-title){display:block;font-weight:700;overflow-wrap:anywhere}\
+:where(.ob-file-meta){display:block;opacity:.7;font-size:.85em}\
+:where(.ob-map){margin:1.5rem 0}\
+:where(.ob-map-frame){width:100%;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:rgba(127,127,127,.1)}\
+:where(.ob-map-frame) iframe{display:block;width:100%;height:100%;border:0}\
+:where(.ob-map) figcaption{font-size:.85em;opacity:.75;margin-top:.4rem}\
 </style>";
 
 fn escape(text: &str) -> String {
@@ -301,6 +320,100 @@ fn render_video(block: &BlockNode) -> Option<String> {
     ))
 }
 
+/// 数値の入力欄の値（数値でも、文字列で保存されていても読む）
+fn number(block: &BlockNode, name: &str) -> Option<f64> {
+    let value = block.attributes.get(name)?;
+    let n = match value {
+        serde_json::Value::Number(n) => n.as_f64()?,
+        serde_json::Value::String(s) => s.trim().parse().ok()?,
+        _ => return None,
+    };
+    n.is_finite().then_some(n)
+}
+
+fn render_audio(block: &BlockNode) -> Option<String> {
+    let url = safe_url(attr(block, "url"))?;
+    let title = attr(block, "title");
+    let caption = if title.is_empty() {
+        String::new()
+    } else {
+        format!("<figcaption>{}</figcaption>", escape(title))
+    };
+    let label = if title.is_empty() {
+        String::new()
+    } else {
+        format!(r#" aria-label="{}""#, escape(title))
+    };
+    Some(format!(
+        r#"<figure class="ob-audio">{caption}<audio controls preload="none"{label} src="{}"></audio></figure>"#,
+        escape(url)
+    ))
+}
+
+fn render_file(block: &BlockNode) -> Option<String> {
+    let url = safe_url(attr(block, "url"))?;
+    let title = attr(block, "title");
+    if title.is_empty() {
+        return None;
+    }
+    let meta: Vec<&str> = [attr(block, "description"), attr(block, "size")]
+        .into_iter()
+        .filter(|v| !v.is_empty())
+        .collect();
+    let meta = if meta.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<span class="ob-file-meta">{}</span>"#,
+            escape(&meta.join(" · "))
+        )
+    };
+    Some(format!(
+        r#"<a class="ob-file" href="{}" download><span class="ob-file-icon" aria-hidden="true">&#x2B07;</span><span class="ob-file-body"><span class="ob-file-title">{}</span>{meta}</span></a>"#,
+        escape(url),
+        escape(title)
+    ))
+}
+
+/// 地図の中心から、埋め込み（OpenStreetMap）に渡す表示範囲 `(左, 下, 右, 上)` を求める。
+/// `zoom` が大きいほど狭い範囲になる（幅は約 2 タイル、高さは幅の 6 割に緯度の補正をかけたもの）
+fn map_bbox(lat: f64, lon: f64, zoom: u32) -> (f64, f64, f64, f64) {
+    let lon_span = 360.0 / f64::from(1u32 << zoom) * 2.0;
+    let lat_span = lon_span * 0.6 * lat.to_radians().cos();
+    (
+        (lon - lon_span / 2.0).max(-180.0),
+        (lat - lat_span / 2.0).max(-85.0),
+        (lon + lon_span / 2.0).min(180.0),
+        (lat + lat_span / 2.0).min(85.0),
+    )
+}
+
+fn render_map(block: &BlockNode) -> Option<String> {
+    let lat = number(block, "latitude").filter(|v| (-85.0..=85.0).contains(v))?;
+    let lon = number(block, "longitude").filter(|v| (-180.0..=180.0).contains(v))?;
+    let zoom = number(block, "zoom")
+        .map(|z| z.round().clamp(1.0, 19.0) as u32)
+        .unwrap_or(15);
+    let (west, south, east, north) = map_bbox(lat, lon, zoom);
+    let title = match attr(block, "title") {
+        "" => "Map",
+        title => title,
+    };
+    let embed = format!(
+        "https://www.openstreetmap.org/export/embed.html?bbox={west:.5},{south:.5},{east:.5},{north:.5}&layer=mapnik&marker={lat:.5},{lon:.5}"
+    );
+    let large = format!(
+        "https://www.openstreetmap.org/?mlat={lat:.5}&mlon={lon:.5}#map={zoom}/{lat:.5}/{lon:.5}"
+    );
+    Some(format!(
+        r#"<figure class="ob-map"><div class="ob-map-frame"><iframe src="{}" title="{}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div><figcaption><a href="{}" rel="noopener" target="_blank">{}</a> &copy; OpenStreetMap</figcaption></figure>"#,
+        escape(&embed),
+        escape(title),
+        escape(&large),
+        escape(title)
+    ))
+}
+
 impl Plugin for BlocksPlugin {
     fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
         let mut styled = false;
@@ -311,6 +424,9 @@ impl Plugin for BlocksPlugin {
                     "official-blocks/button" => render_button(block),
                     "official-blocks/link-card" => render_link_card(block),
                     "official-blocks/video" => render_video(block),
+                    "official-blocks/audio" => render_audio(block),
+                    "official-blocks/file" => render_file(block),
+                    "official-blocks/map" => render_map(block),
                     _ => None,
                 }?;
                 // スタイルは最初に表示するブロックにだけ付ける
@@ -377,6 +493,85 @@ mod tests {
         assert!(card.contains("Read &quot;this&quot;"));
         assert!(card.contains(r#"<span class="ob-card-site">example.com</span>"#));
         assert!(card.contains(r#"<img src="/uploads/a.png" alt="">"#));
+    }
+
+    fn json_block(name: &str, attrs: &[(&str, serde_json::Value)]) -> BlockNode {
+        BlockNode {
+            name: format!("official-blocks/{}", name),
+            attributes: attrs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect::<HashMap<_, _>>(),
+            text: None,
+            children: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn renders_audio_and_file_blocks() {
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                block("audio", &[("url", "/uploads/a.mp3"), ("title", "Ep <1>")]),
+                block("audio", &[("url", "javascript:alert(1)")]),
+                block(
+                    "file",
+                    &[
+                        ("url", "/uploads/guide.pdf"),
+                        ("title", "Guide"),
+                        ("description", "Setup"),
+                        ("size", "2.4 MB"),
+                    ],
+                ),
+                block("file", &[("url", "/uploads/x.zip"), ("title", "")]),
+            ])
+            .unwrap();
+        let audio = html[0].as_deref().unwrap();
+        assert!(audio.contains("<figcaption>Ep &lt;1&gt;</figcaption>"));
+        assert!(audio.contains(
+            r#"<audio controls preload="none" aria-label="Ep &lt;1&gt;" src="/uploads/a.mp3">"#
+        ));
+        assert_eq!(html[1], None);
+        let file = html[2].as_deref().unwrap();
+        assert!(file.contains(r#"href="/uploads/guide.pdf" download"#));
+        assert!(file.contains("Setup · 2.4 MB"));
+        assert_eq!(html[3], None);
+    }
+
+    #[test]
+    fn renders_maps_with_a_bounding_box_around_the_marker() {
+        use serde_json::json;
+        let map = |lat: serde_json::Value, lon: serde_json::Value, zoom: serde_json::Value| {
+            json_block(
+                "map",
+                &[
+                    ("latitude", lat),
+                    ("longitude", lon),
+                    ("zoom", zoom),
+                    ("title", json!("Tokyo & co")),
+                ],
+            )
+        };
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                map(json!(35.68), json!("139.76"), json!(15)),
+                map(json!(95.0), json!(0), json!(15)),
+                map(json!(0), json!(200), json!(15)),
+                json_block("map", &[]),
+            ])
+            .unwrap();
+        let ok = html[0].as_deref().unwrap();
+        assert!(ok.contains("https://www.openstreetmap.org/export/embed.html?bbox=139."));
+        assert!(ok.contains("&amp;marker=35.68000,139.76000"));
+        assert!(ok.contains("title=\"Tokyo &amp; co\""));
+        assert!(ok.contains("#map=15/35.68000/139.76000"));
+        assert_eq!(&html[1..], &[None, None, None]);
+        // 拡大するほど範囲は狭い
+        let (w1, _, e1, _) = map_bbox(35.0, 139.0, 10);
+        let (w2, _, e2, _) = map_bbox(35.0, 139.0, 16);
+        assert!(e1 - w1 > e2 - w2);
+        // 範囲は地図の限界を超えない
+        let (_, s, _, n) = map_bbox(84.9, 0.0, 1);
+        assert!(s >= -85.0 && n <= 85.0);
     }
 
     #[test]

@@ -2,15 +2,17 @@
   "name": "official-blocks",
   "version": "0.2.0",
   "entrypoint": "plugin.wasm",
-  "display_name": "Content Blocks (Buttons, Link Cards & Videos)",
-  "description": "Adds button, link card and video (YouTube / Vimeo) blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",
+  "display_name": "Content Blocks (Buttons, Cards, Media & Maps)",
+  "description": "Adds button, link card, video (YouTube / Vimeo), audio, file download and map (OpenStreetMap) blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",
   "author": "AegisCMS Core Team",
   "license": "MIT OR Apache-2.0",
   "tags": [
     "blocks",
     "editor",
     "content",
-    "video"
+    "video",
+    "audio",
+    "map"
   ],
   "min_aegis_version": "0.1.0",
   "abi_version": 1,
@@ -21,7 +23,8 @@
     "embed": {
       "frame_domains": [
         "www.youtube-nocookie.com",
-        "player.vimeo.com"
+        "player.vimeo.com",
+        "www.openstreetmap.org"
       ]
     }
   },
@@ -233,6 +236,167 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "audio",
+      "label": {
+        "en": "Audio",
+        "ja": "音声"
+      },
+      "description": {
+        "en": "An audio player for a podcast or narration",
+        "ja": "ポッドキャストやナレーション用の音声プレーヤー"
+      },
+      "fields": [
+        {
+          "name": "url",
+          "type": "url",
+          "label": {
+            "en": "Audio URL",
+            "ja": "音声の URL"
+          },
+          "required": true,
+          "default": "",
+          "placeholder": "https://",
+          "help": {
+            "en": "A link to an MP3, M4A, OGG or WAV file.",
+            "ja": "MP3・M4A・OGG・WAV などのファイルの URL。"
+          }
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "ja": "タイトル"
+          },
+          "default": ""
+        }
+      ]
+    },
+    {
+      "name": "file",
+      "label": {
+        "en": "File download",
+        "ja": "ファイルのダウンロード"
+      },
+      "description": {
+        "en": "A download link with a title, description and size",
+        "ja": "タイトル・説明・サイズつきのダウンロードリンク"
+      },
+      "fields": [
+        {
+          "name": "url",
+          "type": "url",
+          "label": {
+            "en": "File URL",
+            "ja": "ファイルの URL"
+          },
+          "required": true,
+          "default": "",
+          "placeholder": "https://"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "ja": "タイトル"
+          },
+          "required": true,
+          "default": ""
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "label": {
+            "en": "Description",
+            "ja": "説明"
+          },
+          "default": ""
+        },
+        {
+          "name": "size",
+          "type": "string",
+          "label": {
+            "en": "Size",
+            "ja": "サイズ"
+          },
+          "default": "",
+          "placeholder": "2.4 MB",
+          "help": {
+            "en": "Shown as written (for example PDF, 2.4 MB).",
+            "ja": "書いたとおりに表示します（例: PDF・2.4 MB）。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "map",
+      "label": {
+        "en": "Map",
+        "ja": "地図"
+      },
+      "description": {
+        "en": "An OpenStreetMap map with a marker",
+        "ja": "マーカーつきの OpenStreetMap の地図"
+      },
+      "fields": [
+        {
+          "name": "latitude",
+          "type": "number",
+          "label": {
+            "en": "Latitude",
+            "ja": "緯度"
+          },
+          "required": true,
+          "placeholder": "35.6812",
+          "help": {
+            "en": "-85 to 85. Right-click a place on openstreetmap.org to copy its coordinates.",
+            "ja": "-85〜85。openstreetmap.org で場所を右クリックすると座標をコピーできます。"
+          }
+        },
+        {
+          "name": "longitude",
+          "type": "number",
+          "label": {
+            "en": "Longitude",
+            "ja": "経度"
+          },
+          "required": true,
+          "placeholder": "139.7671",
+          "help": {
+            "en": "-180 to 180.",
+            "ja": "-180〜180。"
+          }
+        },
+        {
+          "name": "zoom",
+          "type": "number",
+          "label": {
+            "en": "Zoom",
+            "ja": "拡大率"
+          },
+          "default": 15,
+          "help": {
+            "en": "1 (the world) to 19 (a building). Empty uses 15.",
+            "ja": "1（世界）〜19（建物）。空欄なら 15。"
+          }
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "label": {
+            "en": "Place name",
+            "ja": "場所の名前"
+          },
+          "default": "",
+          "help": {
+            "en": "Shown under the map and read aloud for the frame.",
+            "ja": "地図の下に出し、フレームの読み上げにも使います。"
+          }
         }
       ]
     }
