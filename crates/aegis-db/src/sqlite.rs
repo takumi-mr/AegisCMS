@@ -13,14 +13,13 @@ use sqlx::{Pool, Row, Sqlite, SqliteConnection};
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
     build_audit_select, build_column_probe, build_content_list, build_content_update,
-    build_identity_insert, build_identity_select, build_identity_table,
-    build_published_relation_lookup, build_relation_lookup, build_scheduled_publish,
-    build_scheduled_unpublish, build_setting_delete, build_setting_upsert, build_settings_select,
-    build_settings_table, build_user_delete, build_user_insert, build_user_select,
-    build_user_update, custom_columns, is_standard_column, outdated_database_error,
-    user_row_from_sqlx, ContentListQuery, ContentPage, ContentPublicationChange, ContentRecord,
-    ContentVersionRecord, DatabaseAdapter, PublishedNeighborQuery, ResolvedRelation, UserRecord,
-    AUDIT_INDEXES, AUDIT_TABLE, PUBLICATION_INDEXES, REQUIRED_COLUMNS, USER_TABLE,
+    build_identity_insert, build_identity_select, build_published_relation_lookup,
+    build_relation_lookup, build_scheduled_publish, build_scheduled_unpublish,
+    build_setting_delete, build_setting_upsert, build_settings_select, build_user_delete,
+    build_user_insert, build_user_select, build_user_update, custom_columns, is_standard_column,
+    outdated_database_error, user_row_from_sqlx, ContentListQuery, ContentPage,
+    ContentPublicationChange, ContentRecord, ContentVersionRecord, DatabaseAdapter,
+    PublishedNeighborQuery, ResolvedRelation, UserRecord, REQUIRED_COLUMNS,
 };
 
 async fn apply_publication_change(
@@ -143,6 +142,9 @@ fn record_from_row(schema: &SchemaDefinition, r: &SqliteRow) -> ContentRecord {
     }
 }
 
+/// システムテーブルの手順（`migrations/sqlite/NNNN_*.sql`）。コンパイル時にバイナリへ埋め込む
+pub(crate) static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("migrations/sqlite");
+
 #[derive(Debug, Clone)]
 pub struct SqliteAdapter {
     pool: Pool<Sqlite>,
@@ -172,19 +174,6 @@ impl SqliteAdapter {
     }
 
     /// 公開の記録の一覧用の索引を用意する
-    async fn create_publication_indexes(&self) -> Result<()> {
-        for (name, columns) in PUBLICATION_INDEXES {
-            sqlx::query(&format!(
-                "CREATE INDEX IF NOT EXISTS {} ON _aegis_content_publications {};",
-                name, columns
-            ))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        Ok(())
-    }
-
     fn published_records(rows: &[SqliteRow]) -> Result<Vec<ContentRecord>> {
         rows.iter()
             .map(|row| {
@@ -225,234 +214,15 @@ super::reviews::impl_review_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLi
 #[async_trait]
 impl DatabaseAdapter for SqliteAdapter {
     async fn init(&self) -> Result<()> {
-        sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_versions (content_type TEXT NOT NULL, content_id TEXT NOT NULL, revision INTEGER NOT NULL, snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL, created_by TEXT, change_note TEXT, PRIMARY KEY(content_type, content_id, revision));")
-            .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
-        sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_publications (content_type TEXT NOT NULL, content_id TEXT NOT NULL, revision INTEGER NOT NULL, slug TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, published_at TEXT, unpublish_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, category_id TEXT, sort_at TEXT, PRIMARY KEY(content_type, content_id), UNIQUE(content_type, slug));")
-            .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
-        self.create_publication_indexes().await?;
-        // 監査ログテーブル
-        let audit_table_sql = format!(
-            r#"
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                occurred_at TEXT NOT NULL,
-                action TEXT NOT NULL,
-                outcome TEXT NOT NULL,
-                actor_id TEXT,
-                actor_role TEXT,
-                resource_type TEXT,
-                resource_id TEXT,
-                ip TEXT,
-                user_agent TEXT,
-                details_json TEXT NOT NULL DEFAULT '{{}}'
-            );
-            "#,
-            AUDIT_TABLE
-        );
-        sqlx::query(&audit_table_sql)
-            .execute(&self.pool)
+        // システムテーブルは `migrations/sqlite/` の手順で作る・更新する（適用済みの手順は
+        // `_sqlx_migrations` に残る）。手順は番号順に、まだ適用していないものだけを流す
+        MIGRATOR
+            .run(&self.pool)
             .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
+            .map_err(|e| super::migration_error(&e))?;
 
-        for (index_name, columns) in AUDIT_INDEXES {
-            let sql = format!(
-                "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
-                index_name, AUDIT_TABLE, columns
-            );
-            sqlx::query(&sql)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // ローカル認証のユーザーテーブル
-        let user_table_sql = format!(
-            r#"
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
-                email TEXT,
-                display_name TEXT,
-                role TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
-                disabled INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                avatar_key TEXT,
-                pending_approval INTEGER NOT NULL DEFAULT 0,
-                totp_secret TEXT,
-                totp_enabled INTEGER NOT NULL DEFAULT 0,
-                backup_codes TEXT
-            );
-            "#,
-            USER_TABLE
-        );
-        sqlx::query(&user_table_sql)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        // 外部 IdP のアイデンティティとユーザーの対応表
-        sqlx::query(&build_identity_table("TEXT"))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        // Admin Studio から変更したサイト全体の設定
-        sqlx::query(&build_settings_table("TEXT", "TEXT"))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        // EC の注文
-        let (order_table, order_indexes) =
-            super::orders::build_order_table("TEXT", "TEXT", "INTEGER", false);
-        sqlx::query(&order_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        for index in order_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 商品バリエーション
-        let (variant_table, variant_indexes) =
-            super::variants::build_product_variant_table("TEXT", "TEXT", "INTEGER", false);
-        sqlx::query(&variant_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in variant_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 顧客
-        let (member_table, member_indexes) =
-            super::members::build_member_table("TEXT", "TEXT", false);
-        sqlx::query(&member_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in member_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 商品レビュー
-        let (review_table, review_indexes) =
-            super::reviews::build_review_table("TEXT", "TEXT", "INTEGER", false);
-        sqlx::query(&review_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in review_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // アクセス解析の集計
-        let (analytics_table, analytics_indexes) =
-            super::analytics::build_analytics_table("TEXT", false);
-        sqlx::query(&analytics_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in analytics_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 問い合わせ
-        let (contact_table, contact_indexes) =
-            super::contact::build_contact_table("TEXT", "TEXT", false);
-        sqlx::query(&contact_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in contact_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // ニュースレター
-        let (newsletter_tables, newsletter_indexes) =
-            super::newsletter::build_newsletter_tables("TEXT", "TEXT", "INTEGER", false);
-        for statement in newsletter_tables.iter().chain(newsletter_indexes.iter()) {
-            sqlx::query(statement)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // コメント
-        let (comment_table, comment_indexes) =
-            super::comments::build_comment_table("TEXT", "TEXT", "INTEGER", false);
-        sqlx::query(&comment_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in comment_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // タグ
-        let (tag_tables, tag_indexes) = super::tags::build_tag_tables("TEXT", "TEXT", false);
-        for statement in tag_tables.iter().chain(tag_indexes.iter()) {
-            sqlx::query(statement)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 通知の送信待ち
-        let (queue_table, queue_indexes) =
-            super::notifications::build_notification_queue_table("TEXT", "TEXT", "INTEGER", false);
-        sqlx::query(&queue_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in queue_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 掲示板
-        let (forum_tables, forum_indexes) =
-            super::forum::build_forum_tables("TEXT", "TEXT", "INTEGER", false);
-        for table in forum_tables {
-            sqlx::query(&table)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        for index in forum_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 古い版で作ったDBなら、足りない列を黙って足さずに、移行の手順を示して止める
+        // v0.4 より前の版で作った DB は、`0001_baseline` が「作成済み」として何もしないので、
+        // 足りない列を黙って足さずに、移行の手順を示して止める
         for (table, columns) in REQUIRED_COLUMNS {
             sqlx::query(&build_column_probe(table, columns))
                 .execute(&self.pool)
@@ -1420,6 +1190,91 @@ fields:
             .custom_fields
             .get("category_id")
             .is_none_or(|v| v.is_null()));
+    }
+
+    async fn applied_migrations(adapter: &SqliteAdapter) -> Vec<(i64, bool)> {
+        sqlx::query("SELECT version, success FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(&adapter.pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|r| (r.get::<i64, _>("version"), r.get::<bool, _>("success")))
+            .collect()
+    }
+
+    /// 新しい DB は手順を流して `_sqlx_migrations` に残し、2 回目の `init` は何もしない
+    #[tokio::test]
+    async fn test_init_applies_the_migrations_once() {
+        let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
+        adapter.init().await.unwrap();
+        assert_eq!(applied_migrations(&adapter).await, vec![(1, true)]);
+        adapter.set_setting("site.title", "kept").await.unwrap();
+
+        adapter.init().await.unwrap();
+        assert_eq!(applied_migrations(&adapter).await, vec![(1, true)]);
+        assert_eq!(
+            adapter.list_settings().await.unwrap().get("site.title"),
+            Some(&"kept".to_string())
+        );
+    }
+
+    /// v0.4 が作った DB（システムテーブルはあるが `_sqlx_migrations` が無い）は、データを
+    /// そのままに、`0001_baseline` を適用済みとして採用する
+    #[tokio::test]
+    async fn test_init_adopts_a_database_created_before_the_migrations() {
+        let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
+        adapter.init().await.unwrap();
+        adapter.set_setting("site.title", "kept").await.unwrap();
+        // v0.4 の DB: 手順の記録だけが無い
+        sqlx::query("DROP TABLE _sqlx_migrations;")
+            .execute(&adapter.pool)
+            .await
+            .unwrap();
+
+        adapter.init().await.unwrap();
+        assert_eq!(applied_migrations(&adapter).await, vec![(1, true)]);
+        assert_eq!(
+            adapter.list_settings().await.unwrap().get("site.title"),
+            Some(&"kept".to_string())
+        );
+    }
+
+    /// 新しい版が適用した手順を、古い版が知らないとき（新しい版で更新した DB を古い版で開く）は、
+    /// 黙って動かさずに止める
+    #[tokio::test]
+    async fn test_init_refuses_a_database_updated_by_a_newer_version() {
+        let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
+        adapter.init().await.unwrap();
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time) \
+             VALUES (9999, 'from a newer version', 1, x'00', 0);",
+        )
+        .execute(&adapter.pool)
+        .await
+        .unwrap();
+
+        let message = adapter.init().await.unwrap_err().to_string();
+        assert!(
+            message.contains("9999") && message.contains("newer version"),
+            "{message}"
+        );
+    }
+
+    /// 適用済みの手順のファイルを後から書き換えたら（チェックサムが違う）、止める
+    #[tokio::test]
+    async fn test_init_refuses_a_migration_changed_after_it_was_applied() {
+        let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
+        adapter.init().await.unwrap();
+        sqlx::query("UPDATE _sqlx_migrations SET checksum = x'00' WHERE version = 1;")
+            .execute(&adapter.pool)
+            .await
+            .unwrap();
+
+        let message = adapter.init().await.unwrap_err().to_string();
+        assert!(
+            message.contains("changed after it was applied") && message.contains('1'),
+            "{message}"
+        );
     }
 
     /// 古い版で作ったシステムテーブル（後から足した列が無い）は、黙って書き換えずに、

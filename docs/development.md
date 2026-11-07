@@ -250,6 +250,15 @@ task docker:dbs:down
   - 注文確認ページ・スタッフ用注文一覧/詳細 API・状態変更 API の E2E 動作
   - Redis の Pub/Sub によるサーバー間のイベントバス（2 台分の接続で送受信、購読を切ったあとの再接続と `Resync`。`REDIS_URL` で接続先を変えられます）
 
+### 7.1 システムテーブルの定義を変えるとき
+
+システムテーブル（`_aegis_*`）の定義は、`crates/aegis-db/migrations/` の SQL ファイルで変えます（方針は [versioning.md の 6](versioning.md#6-テーブル定義の更新方針)）。
+
+1. `sqlite/`・`postgres/`・`mysql/` のそれぞれに、同じ番号・同じ名前の新しい手順（`NNNN_説明.sql`。前の番号の次）を足す。**公開した手順のファイルは書き換えない**。
+2. 方言の違いに注意する（型、`AUTOINCREMENT` 相当、索引の書き方。MySQL は `CREATE INDEX IF NOT EXISTS` が無く、DDL を途中で戻せない）。
+3. `cargo test -p aegis-db` で、3 つの方言の手順がそろっていることを確かめる。そのうえで **`task docker:dbs:up` → `task test:dbs` で、PostgreSQL・MySQL の実機でも流す**（CI は実機を起動しないので、実機の確認はここでしかできない）。
+4. 統合テストで、表を `DROP` して `init` で作り直すときは、先に `DROP TABLE IF EXISTS _sqlx_migrations;` も実行する（適用済みの記録が残っていると、`init` は消した表を作り直さない）。
+
 ---
 
 ## 8. Admin Studio のテストと Storybook

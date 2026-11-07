@@ -1,0 +1,3 @@
+# sqlx records a checksum of the bytes of each migration file, so the line endings must be the same on
+# every platform (a CRLF checkout on Windows would not match a database migrated by a Linux build).
+crates/aegis-db/migrations/**/*.sql text eol=lf

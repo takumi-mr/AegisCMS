@@ -52,55 +52,6 @@ pub struct MemberRecord {
 /// `list_member_avatar_keys` が 1 回の SELECT で引く ID の数（バインド変数の上限に収める）
 pub const AVATAR_KEYS_CHUNK: usize = 500;
 
-/// 会員テーブルの CREATE 文とインデックス定義
-pub fn build_member_table(text: &str, key: &str, inline_indexes: bool) -> (String, Vec<String>) {
-    let indexes = [
-        ("idx_aegis_members_email", "email"),
-        ("idx_aegis_members_created", "created_at"),
-    ];
-    let inline = if inline_indexes {
-        indexes
-            .iter()
-            .map(|(name, columns)| format!(", INDEX {} ({})", name, columns))
-            .collect::<String>()
-    } else {
-        String::new()
-    };
-    let table = format!(
-        "CREATE TABLE IF NOT EXISTS {table} (\
-         id {key} PRIMARY KEY, \
-         email {key} NOT NULL UNIQUE, \
-         password_hash {text} NOT NULL, \
-         name {text} NOT NULL, \
-         nickname {key}, \
-         avatar_key {key}, \
-         phone {key}, \
-         status {key} NOT NULL, \
-         shipping_address_json {text}, \
-         created_at {key} NOT NULL, \
-         updated_at {key} NOT NULL, \
-         last_login_at {key}{inline});",
-        table = MEMBER_TABLE,
-        key = key,
-        text = text,
-        inline = inline,
-    );
-    let separate = if inline_indexes {
-        Vec::new()
-    } else {
-        indexes
-            .iter()
-            .map(|(name, columns)| {
-                format!(
-                    "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
-                    name, MEMBER_TABLE, columns
-                )
-            })
-            .collect()
-    };
-    (table, separate)
-}
-
 /// 会員の INSERT 文
 pub fn build_member_insert(placeholder: impl Fn(usize) -> String) -> String {
     let placeholders: Vec<String> = (1..=MEMBER_COLUMNS.len()).map(placeholder).collect();
@@ -395,23 +346,3 @@ macro_rules! impl_member_storage {
     };
 }
 pub(crate) use impl_member_storage;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_member_sql() {
-        let ph = |i: usize| format!("${}", i);
-        let insert = build_member_insert(ph);
-        assert!(insert.starts_with("INSERT INTO _aegis_members ("));
-        assert!(insert.contains("$12)"));
-
-        let (mysql, indexes) = build_member_table("TEXT", "VARCHAR(255)", true);
-        assert!(mysql.contains(", INDEX idx_aegis_members_email (email)"));
-        assert!(indexes.is_empty());
-
-        let (_, indexes) = build_member_table("TEXT", "TEXT", false);
-        assert_eq!(indexes.len(), 2);
-    }
-}

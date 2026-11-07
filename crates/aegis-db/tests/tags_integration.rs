@@ -222,6 +222,10 @@ async fn test_postgres_tag_storage_real_db() {
         eprintln!("Skipping PostgreSQL test: failed to connect");
         return;
     };
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
+    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
+        .execute(adapter.pool())
+        .await;
     for sql in [
         "DROP TABLE IF EXISTS _aegis_content_tags;",
         "DROP TABLE IF EXISTS _aegis_tags;",
@@ -248,6 +252,10 @@ async fn test_mysql_tag_storage_real_db() {
         eprintln!("Skipping MySQL test: failed to connect");
         return;
     };
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
+    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
+        .execute(adapter.pool())
+        .await;
     for sql in [
         "DROP TABLE IF EXISTS _aegis_content_tags;",
         "DROP TABLE IF EXISTS _aegis_tags;",

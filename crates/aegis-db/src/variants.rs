@@ -140,65 +140,6 @@ pub trait ProductVariantStorage: Send + Sync {
     }
 }
 
-/// テーブル定義 SQL。MySQL は inline_indexes = true、SQLite / PostgreSQL は false
-pub fn build_product_variant_table(
-    text: &str,
-    varchar: &str,
-    bigint: &str,
-    inline_indexes: bool,
-) -> (String, Vec<String>) {
-    let indexes = [
-        ("idx_product_variants_product_id", "product_id"),
-        ("idx_product_variants_sku", "sku"),
-    ];
-
-    let inline = if inline_indexes {
-        format!(
-            ",\n    KEY {} ({}),\n    UNIQUE KEY {} ({})",
-            indexes[0].0, indexes[0].1, indexes[1].0, indexes[1].1
-        )
-    } else {
-        String::new()
-    };
-
-    let table = format!(
-        "CREATE TABLE IF NOT EXISTS {table} (\n\
-         \x20   id {varchar} PRIMARY KEY,\n\
-         \x20   product_id {varchar} NOT NULL,\n\
-         \x20   sku {varchar},\n\
-         \x20   title {varchar} NOT NULL,\n\
-         \x20   price_override {bigint},\n\
-         \x20   stock {bigint},\n\
-         \x20   attributes_json {text} NOT NULL,\n\
-         \x20   position INTEGER NOT NULL DEFAULT 0,\n\
-         \x20   created_at {varchar} NOT NULL,\n\
-         \x20   updated_at {varchar} NOT NULL{inline}\n\
-         );",
-        table = PRODUCT_VARIANT_TABLE,
-        varchar = varchar,
-        text = text,
-        bigint = bigint,
-        inline = inline,
-    );
-
-    let separate = if inline_indexes {
-        Vec::new()
-    } else {
-        vec![
-            format!(
-                "CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON {} (product_id);",
-                PRODUCT_VARIANT_TABLE
-            ),
-            format!(
-                "CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON {} (sku);",
-                PRODUCT_VARIANT_TABLE
-            ),
-        ]
-    };
-
-    (table, separate)
-}
-
 /// バリエーションの INSERT 文
 pub fn build_variant_insert(placeholder: impl Fn(usize) -> String) -> String {
     let placeholders: Vec<String> = (1..=PRODUCT_VARIANT_COLUMNS.len())

@@ -36,7 +36,7 @@ pub use forum::{
     PostListQuery, ThreadListQuery, FORUM_CATEGORY_TABLE, FORUM_POST_TABLE, FORUM_REPORT_TABLE,
     FORUM_THREAD_TABLE,
 };
-pub use members::{build_member_table, MemberRecord, MemberStorage, MEMBER_COLUMNS, MEMBER_TABLE};
+pub use members::{MemberRecord, MemberStorage, MEMBER_COLUMNS, MEMBER_TABLE};
 pub use mysql::MySqlAdapter;
 pub use newsletter::{
     NewsletterIssueRecord, NewsletterListQuery, NewsletterPage, NewsletterStorage,
@@ -52,8 +52,8 @@ pub use orders::{
 };
 pub use postgres::PostgresAdapter;
 pub use reviews::{
-    build_review_table, ReviewAggregateStats, ReviewListQuery, ReviewPage, ReviewRecord,
-    ReviewStorage, REVIEW_COLUMNS, REVIEW_TABLE,
+    ReviewAggregateStats, ReviewListQuery, ReviewPage, ReviewRecord, ReviewStorage, REVIEW_COLUMNS,
+    REVIEW_TABLE,
 };
 pub use sqlite::SqliteAdapter;
 pub use tags::{
@@ -835,21 +835,6 @@ pub fn build_user_select(where_clause: Option<&str>) -> String {
 /// ローカルユーザーと同名の IdP ユーザーがそのアカウントに入れないよう、紐付けはここでだけ行う
 pub const IDENTITY_TABLE: &str = "_aegis_user_identities";
 
-/// 対応表の CREATE 文。`text` は文字列カラムの型（SQLite は `TEXT`、PostgreSQL / MySQL は
-/// 主キーに使えるよう `VARCHAR(255)`）
-pub fn build_identity_table(text: &str) -> String {
-    format!(
-        "CREATE TABLE IF NOT EXISTS {} (\
-         provider {text} NOT NULL, \
-         subject {text} NOT NULL, \
-         username {text} NOT NULL, \
-         created_at {text} NOT NULL, \
-         PRIMARY KEY (provider, subject));",
-        IDENTITY_TABLE,
-        text = text
-    )
-}
-
 /// 対応表の INSERT 文。バインド順は provider, subject, username, created_at
 pub fn build_identity_insert(placeholder: impl Fn(usize) -> String) -> String {
     format!(
@@ -883,20 +868,6 @@ pub fn build_identity_list() -> String {
 /// Admin Studio から変更したサイト全体の設定（`name` → `value`）。設定ファイルの値より優先する。
 /// MySQL の予約語 `key` を避けて `name` / `value` にする
 pub const SETTINGS_TABLE: &str = "_aegis_settings";
-
-/// 設定テーブルの CREATE 文。`key_type` は `name` の型（SQLite は `TEXT`、PostgreSQL / MySQL は
-/// 主キーに使えるよう `VARCHAR(255)`）、`text` は値の型
-pub fn build_settings_table(key_type: &str, text: &str) -> String {
-    format!(
-        "CREATE TABLE IF NOT EXISTS {} (\
-         name {key_type} PRIMARY KEY, \
-         value {text} NOT NULL, \
-         updated_at {key_type} NOT NULL);",
-        SETTINGS_TABLE,
-        key_type = key_type,
-        text = text
-    )
-}
 
 /// 設定の INSERT 文（同じ名前があれば上書き）。バインド順は name, value, updated_at。
 /// `mysql` なら `ON DUPLICATE KEY UPDATE`、それ以外（SQLite / PostgreSQL）は `ON CONFLICT`
@@ -1231,6 +1202,21 @@ pub async fn resolve_relations_for_records(
         }
     }
     resolved
+}
+
+/// 手順（マイグレーション）の適用に失敗したときのエラー。DB が今のバイナリより新しい手順まで
+/// 適用済みのとき（新しい版で更新した DB を古い版で開いたとき）は、そのことを伝える
+pub(crate) fn migration_error(error: &sqlx::migrate::MigrateError) -> AegisError {
+    use sqlx::migrate::MigrateError;
+    match error {
+        MigrateError::VersionMissing(version) => AegisError::Database(format!(
+            "The database has migration {version} applied, but this version of AegisCMS does not know it.              The database was updated by a newer version; start that version, or restore a backup taken before the update."
+        )),
+        MigrateError::VersionMismatch(version) => AegisError::Database(format!(
+            "Migration {version} was changed after it was applied (its checksum differs).              Released migration files must never be edited; add a new migration instead."
+        )),
+        other => AegisError::Database(format!("Database migration failed: {other}")),
+    }
 }
 
 /// 以前の版では無かった列。この列が無い（古い版で作った）DB は、読み書きのたびに SQL が失敗するので、
@@ -1932,5 +1918,44 @@ mod tests {
         assert!(newer.sql.contains(
             "AND (p.created_at > ? OR (p.created_at = ? AND p.content_id > ?)) ORDER BY p.created_at ASC, p.content_id ASC LIMIT 3"
         ));
+    }
+}
+
+#[cfg(test)]
+mod migration_files_tests {
+    /// 手順は 3 つの DB で同じ番号・同じ名前にそろえる（1 つの DB にだけ足し忘れると、
+    /// その DB を使うサイトだけ、新しい手順が適用されずに動かなくなる）
+    #[test]
+    fn every_dialect_has_the_same_migrations() {
+        let list = |migrator: &sqlx::migrate::Migrator| -> Vec<(i64, String)> {
+            migrator
+                .iter()
+                .map(|m| (m.version, m.description.to_string()))
+                .collect()
+        };
+        let sqlite = list(&crate::sqlite::MIGRATOR);
+        assert!(!sqlite.is_empty());
+        assert_eq!(sqlite, list(&crate::postgres::MIGRATOR), "postgres");
+        assert_eq!(sqlite, list(&crate::mysql::MIGRATOR), "mysql");
+        // 改行は LF だけ（sqlx は改行を直さずにチェックサムを取るので、Windows で CRLF で取り出した
+        // ファイルをビルドすると、Linux でビルドしたバイナリが適用した DB と、チェックサムが合わなくなる。
+        // `.gitattributes` で LF に固定している）
+        for migrator in [
+            &crate::sqlite::MIGRATOR,
+            &crate::postgres::MIGRATOR,
+            &crate::mysql::MIGRATOR,
+        ] {
+            for migration in migrator.iter() {
+                assert!(
+                    !migration.sql.as_str().contains('\r'),
+                    "migration {} has CR characters",
+                    migration.version
+                );
+            }
+        }
+        // 番号は 1 から連番（欠番や重複があると、適用の順序が分からなくなる）
+        for (i, (version, _)) in sqlite.iter().enumerate() {
+            assert_eq!(*version, i as i64 + 1, "{sqlite:?}");
+        }
     }
 }

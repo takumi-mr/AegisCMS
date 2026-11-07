@@ -10,14 +10,13 @@ use sqlx::{MySql, MySqlConnection, Pool, Row};
 use super::{
     audit_insert_values, audit_row_from_sqlx, build_audit_delete_before, build_audit_insert,
     build_audit_select, build_column_probe, build_content_list, build_content_update,
-    build_identity_insert, build_identity_select, build_identity_table,
-    build_published_relation_lookup, build_relation_lookup, build_scheduled_publish,
-    build_scheduled_unpublish, build_setting_delete, build_setting_upsert, build_settings_select,
-    build_settings_table, build_user_delete, build_user_insert, build_user_select,
-    build_user_update, custom_columns, is_standard_column, outdated_database_error,
-    user_row_from_sqlx, ContentListQuery, ContentPage, ContentPublicationChange, ContentRecord,
-    ContentVersionRecord, CustomFieldValue, DatabaseAdapter, PublishedNeighborQuery,
-    ResolvedRelation, UserRecord, AUDIT_TABLE, PUBLICATION_INDEXES, REQUIRED_COLUMNS, USER_TABLE,
+    build_identity_insert, build_identity_select, build_published_relation_lookup,
+    build_relation_lookup, build_scheduled_publish, build_scheduled_unpublish,
+    build_setting_delete, build_setting_upsert, build_settings_select, build_user_delete,
+    build_user_insert, build_user_select, build_user_update, custom_columns, is_standard_column,
+    outdated_database_error, user_row_from_sqlx, ContentListQuery, ContentPage,
+    ContentPublicationChange, ContentRecord, ContentVersionRecord, CustomFieldValue,
+    DatabaseAdapter, PublishedNeighborQuery, ResolvedRelation, UserRecord, REQUIRED_COLUMNS,
 };
 
 async fn apply_publication_change(
@@ -68,6 +67,9 @@ async fn apply_publication_change(
     Ok(())
 }
 
+/// システムテーブルの手順（`migrations/mysql/NNNN_*.sql`）。コンパイル時にバイナリへ埋め込む
+pub(crate) static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("migrations/mysql");
+
 #[derive(Debug, Clone)]
 pub struct MySqlAdapter {
     pool: Pool<MySql>,
@@ -90,23 +92,6 @@ impl MySqlAdapter {
     }
 
     /// 公開の記録の一覧用の索引を用意する
-    async fn create_publication_indexes(&self) -> Result<()> {
-        for (name, columns) in PUBLICATION_INDEXES {
-            if let Err(e) = sqlx::query(&format!(
-                "CREATE INDEX {} ON _aegis_content_publications {};",
-                name, columns
-            ))
-            .execute(&self.pool)
-            .await
-            {
-                if !is_duplicate_key_name(&e) {
-                    return Err(AegisError::Database(e.to_string()));
-                }
-            }
-        }
-        Ok(())
-    }
-
     pub fn pool(&self) -> &Pool<MySql> {
         &self.pool
     }
@@ -211,231 +196,15 @@ super::reviews::impl_review_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL")
 #[async_trait]
 impl DatabaseAdapter for MySqlAdapter {
     async fn init(&self) -> Result<()> {
-        sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_versions (content_type VARCHAR(255) NOT NULL, content_id VARCHAR(64) NOT NULL, revision BIGINT NOT NULL, snapshot_json LONGTEXT NOT NULL, created_at VARCHAR(64) NOT NULL, created_by VARCHAR(255), change_note TEXT, PRIMARY KEY(content_type, content_id, revision));")
-            .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
-        sqlx::query("CREATE TABLE IF NOT EXISTS _aegis_content_publications (content_type VARCHAR(255) NOT NULL, content_id VARCHAR(64) NOT NULL, revision BIGINT NOT NULL, slug VARCHAR(255) NOT NULL, title VARCHAR(255) NOT NULL, status VARCHAR(32) NOT NULL, published_at VARCHAR(64), unpublish_at VARCHAR(64), created_at VARCHAR(64) NOT NULL, updated_at VARCHAR(64) NOT NULL, category_id VARCHAR(255), sort_at VARCHAR(64), PRIMARY KEY(content_type, content_id), UNIQUE KEY uq_aegis_content_publication_slug (content_type, slug));")
-            .execute(&self.pool).await.map_err(|e| AegisError::Database(e.to_string()))?;
-        self.create_publication_indexes().await?;
-        // 監査ログテーブル
-        let audit_table_sql = format!(
-            r#"
-            CREATE TABLE IF NOT EXISTS {} (
-                id VARCHAR(64) PRIMARY KEY,
-                occurred_at VARCHAR(32) NOT NULL,
-                action VARCHAR(64) NOT NULL,
-                outcome VARCHAR(16) NOT NULL,
-                actor_id VARCHAR(255),
-                actor_role VARCHAR(64),
-                resource_type VARCHAR(64),
-                resource_id VARCHAR(255),
-                ip VARCHAR(64),
-                user_agent TEXT,
-                details_json TEXT NOT NULL,
-                INDEX idx_aegis_audit_logs_occurred_at (occurred_at),
-                INDEX idx_aegis_audit_logs_action (action, occurred_at),
-                INDEX idx_aegis_audit_logs_actor (actor_id, occurred_at),
-                INDEX idx_aegis_audit_logs_resource (resource_type, resource_id)
-            );
-            "#,
-            AUDIT_TABLE
-        );
-        sqlx::query(&audit_table_sql)
-            .execute(&self.pool)
+        // システムテーブルは `migrations/mysql/` の手順で作る・更新する（適用済みの手順は
+        // `_sqlx_migrations` に残る）。手順は番号順に、まだ適用していないものだけを流す
+        MIGRATOR
+            .run(&self.pool)
             .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
+            .map_err(|e| super::migration_error(&e))?;
 
-        // ローカル認証のユーザーテーブル
-        let user_table_sql = format!(
-            r#"
-            CREATE TABLE IF NOT EXISTS {} (
-                id VARCHAR(64) PRIMARY KEY,
-                username VARCHAR(255) NOT NULL UNIQUE,
-                email VARCHAR(255),
-                display_name VARCHAR(255),
-                role VARCHAR(64) NOT NULL,
-                password_hash TEXT NOT NULL,
-                disabled BIGINT NOT NULL DEFAULT 0,
-                created_at VARCHAR(64) NOT NULL,
-                updated_at VARCHAR(64) NOT NULL,
-                avatar_key VARCHAR(512),
-                pending_approval BIGINT NOT NULL DEFAULT 0,
-                totp_secret VARCHAR(255),
-                totp_enabled BIGINT NOT NULL DEFAULT 0,
-                backup_codes TEXT
-            );
-            "#,
-            USER_TABLE
-        );
-        sqlx::query(&user_table_sql)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        // 外部 IdP のアイデンティティとユーザーの対応表
-        sqlx::query(&build_identity_table("VARCHAR(255)"))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        // Admin Studio から変更したサイト全体の設定
-        sqlx::query(&build_settings_table("VARCHAR(255)", "TEXT"))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        // EC の注文
-        let (order_table, order_indexes) =
-            super::orders::build_order_table("TEXT", "VARCHAR(255)", "BIGINT", true);
-        sqlx::query(&order_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-
-        for index in order_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 商品バリエーション
-        let (variant_table, variant_indexes) =
-            super::variants::build_product_variant_table("TEXT", "VARCHAR(255)", "BIGINT", true);
-        sqlx::query(&variant_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in variant_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 顧客
-        let (member_table, member_indexes) =
-            super::members::build_member_table("TEXT", "VARCHAR(255)", true);
-        sqlx::query(&member_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in member_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 商品レビュー
-        let (review_table, review_indexes) =
-            super::reviews::build_review_table("TEXT", "VARCHAR(255)", "BIGINT", true);
-        sqlx::query(&review_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in review_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // アクセス解析の集計
-        let (analytics_table, analytics_indexes) =
-            super::analytics::build_analytics_table("VARCHAR(255)", true);
-        sqlx::query(&analytics_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in analytics_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 問い合わせ
-        let (contact_table, contact_indexes) =
-            super::contact::build_contact_table("TEXT", "VARCHAR(255)", true);
-        sqlx::query(&contact_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in contact_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // ニュースレター
-        let (newsletter_tables, newsletter_indexes) =
-            super::newsletter::build_newsletter_tables("TEXT", "VARCHAR(255)", "BIGINT", true);
-        for statement in newsletter_tables.iter().chain(newsletter_indexes.iter()) {
-            sqlx::query(statement)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // コメント
-        let (comment_table, comment_indexes) =
-            super::comments::build_comment_table("TEXT", "VARCHAR(255)", "BIGINT", true);
-        sqlx::query(&comment_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in comment_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // タグ
-        let (tag_tables, tag_indexes) = super::tags::build_tag_tables("TEXT", "VARCHAR(255)", true);
-        for statement in tag_tables.iter().chain(tag_indexes.iter()) {
-            sqlx::query(statement)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 通知の送信待ち
-        let (queue_table, queue_indexes) = super::notifications::build_notification_queue_table(
-            "LONGTEXT",
-            "VARCHAR(255)",
-            "BIGINT",
-            true,
-        );
-        sqlx::query(&queue_table)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AegisError::Database(e.to_string()))?;
-        for index in queue_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 掲示板
-        let (forum_tables, forum_indexes) =
-            super::forum::build_forum_tables("TEXT", "VARCHAR(255)", "BIGINT", true);
-        for table in forum_tables {
-            sqlx::query(&table)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-        for index in forum_indexes {
-            sqlx::query(&index)
-                .execute(&self.pool)
-                .await
-                .map_err(|e| AegisError::Database(e.to_string()))?;
-        }
-
-        // 古い版で作ったDBなら、足りない列を黙って足さずに、移行の手順を示して止める
+        // v0.4 より前の版で作った DB は、`0001_baseline` が「作成済み」として何もしないので、
+        // 足りない列を黙って足さずに、移行の手順を示して止める
         for (table, columns) in REQUIRED_COLUMNS {
             sqlx::query(&build_column_probe(table, columns))
                 .execute(&self.pool)

@@ -136,52 +136,6 @@ pub trait TagStorage: Send + Sync {
     async fn insert_content_tag(&self, link: &ContentTagRecord) -> Result<()>;
 }
 
-/// タグのテーブルの CREATE 文と索引。`text` は長い文字列、`key` は索引を張る文字列（MySQL は
-/// `VARCHAR(255)`）。`inline_indexes` なら索引を CREATE TABLE に含める（MySQL）
-pub fn build_tag_tables(text: &str, key: &str, inline_indexes: bool) -> (Vec<String>, Vec<String>) {
-    // MySQL（utf8mb4）の索引は 3072 バイトまで: 結びつきの主キーは VARCHAR(255) が 3 つで 3060 バイト
-    let link_index = ("idx_aegis_content_tags_tag", "tag_id, content_type");
-    let inline = if inline_indexes {
-        format!(", INDEX {} ({})", link_index.0, link_index.1)
-    } else {
-        String::new()
-    };
-    let tables = vec![
-        format!(
-            "CREATE TABLE IF NOT EXISTS {table} (\
-             id {key} PRIMARY KEY, \
-             slug {key} NOT NULL UNIQUE, \
-             name {key} NOT NULL, \
-             description {text}, \
-             created_at {key} NOT NULL, \
-             updated_at {key} NOT NULL);",
-            table = TAG_TABLE,
-            key = key,
-            text = text,
-        ),
-        format!(
-            "CREATE TABLE IF NOT EXISTS {table} (\
-             content_type {key} NOT NULL, \
-             content_id {key} NOT NULL, \
-             tag_id {key} NOT NULL, \
-             created_at {key} NOT NULL, \
-             PRIMARY KEY (content_type, content_id, tag_id){inline});",
-            table = CONTENT_TAG_TABLE,
-            key = key,
-            inline = inline,
-        ),
-    ];
-    let separate = if inline_indexes {
-        Vec::new()
-    } else {
-        vec![format!(
-            "CREATE INDEX IF NOT EXISTS {} ON {} ({});",
-            link_index.0, CONTENT_TAG_TABLE, link_index.1
-        )]
-    };
-    (tables, separate)
-}
-
 /// 一覧の SELECT と COUNT、両方に共通のバインド値（検索語のパターン。名前と slug の 2 つ）。
 /// 付いているコンテンツの数は `use_count` 列。LIMIT / OFFSET のみ数値を埋め込む
 pub fn build_tag_list(
