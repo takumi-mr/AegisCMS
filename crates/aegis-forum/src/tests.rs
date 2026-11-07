@@ -221,6 +221,7 @@ async fn test_thread_and_post_flow() {
             after_post_number: 0,
             status: None,
             limit: 10,
+            offset: 0,
         })
         .await
         .unwrap();
@@ -236,6 +237,7 @@ async fn test_thread_and_post_flow() {
             after_post_number: 1,
             status: None,
             limit: 10,
+            offset: 0,
         })
         .await
         .unwrap();
@@ -561,6 +563,7 @@ async fn test_moderation_approval_ng_words_and_reports() {
             before_last_post_at: None,
             before_id: None,
             limit: 10,
+            offset: 0,
         })
         .await
         .unwrap();
@@ -584,6 +587,7 @@ async fn test_moderation_approval_ng_words_and_reports() {
             before_last_post_at: None,
             before_id: None,
             limit: 10,
+            offset: 0,
         })
         .await
         .unwrap();
@@ -782,6 +786,7 @@ async fn test_member_posts_are_kept_apart_from_staff_and_anonymized_on_leaving()
             after_post_number: 0,
             status: None,
             limit: 10,
+            offset: 0,
         })
         .await
         .unwrap();

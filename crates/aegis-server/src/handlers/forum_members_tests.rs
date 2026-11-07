@@ -443,6 +443,7 @@ async fn test_form_posts_with_the_member_cookie_must_come_from_this_site() {
             before_last_post_at: None,
             before_id: None,
             limit: 10,
+            offset: 0,
         })
         .await
         .unwrap();
@@ -466,6 +467,7 @@ async fn test_form_posts_with_the_member_cookie_must_come_from_this_site() {
             before_last_post_at: None,
             before_id: None,
             limit: 10,
+            offset: 0,
         })
         .await
         .unwrap();
@@ -524,6 +526,7 @@ async fn test_deleting_the_account_anonymizes_the_forum_posts() {
             after_post_number: 0,
             status: None,
             limit: 10,
+            offset: 0,
         })
         .await
         .unwrap();
@@ -673,4 +676,93 @@ async fn test_forum_posts_show_the_current_member_avatar() {
     let (_, _, html) = site.send(get()).await;
     let html = html.replace("&#x2f;", "/");
     assert!(!html.contains("/uploads/avatars/"), "{html}");
+}
+
+/// スレッドのページ分割: 1 ページ目に「次へ」が出て、2 ページ目にはその続きのレスだけが出る
+/// （総数を「読めた行数」で数えていたころは、1 ページ目に次のページへのリンクが出なかった）
+#[tokio::test]
+async fn test_thread_pages_link_to_each_other() {
+    let site = site(ForumPosting::Anyone).await;
+    let (_, token) = site.member("hana@example.com", Some("hana")).await;
+    let (_, body) = site
+        .api(
+            "POST",
+            "/api/v1/forum/threads",
+            Some(&token),
+            Some(thread_body(&site.public_cat)),
+        )
+        .await;
+    let thread_id = body["thread"]["id"].as_str().unwrap().to_string();
+    // 1 つ目の投稿と合わせて 51 レス（1 ページは 50 件なので 2 ページ目に 1 件）
+    for n in 0..50 {
+        let (status, _) = site
+            .api(
+                "POST",
+                "/api/v1/forum/posts",
+                Some(&token),
+                Some(json!({ "thread_id": thread_id, "body": format!("reply {n}"), "author_name": "x" })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+
+    let get = |page: u32| {
+        Request::builder()
+            .uri(format!("/forum/general/{thread_id}?page={page}"))
+            .body(Body::empty())
+            .unwrap()
+    };
+    let (status, _, first) = site.send(get(1)).await;
+    let first = first.replace("&#x2f;", "/");
+    assert_eq!(status, StatusCode::OK);
+    assert!(first.contains(r#"id="post-50""#), "{first}");
+    assert!(!first.contains(r#"id="post-51""#), "{first}");
+    assert!(first.contains("page=2"), "{first}");
+    assert!(!first.contains("page=0"), "{first}");
+
+    let (_, _, second) = site.send(get(2)).await;
+    let second = second.replace("&#x2f;", "/");
+    assert!(second.contains(r#"id="post-51""#), "{second}");
+    assert!(!second.contains(r#"id="post-50""#), "{second}");
+    assert!(second.contains("page=1"), "{second}");
+    assert!(!second.contains("page=3"), "{second}");
+}
+
+/// カテゴリのスレッド一覧のページ分割と、掲示板トップのスレッド数（5 件で頭打ちにならない）
+#[tokio::test]
+async fn test_category_pages_link_to_each_other() {
+    let site = site(ForumPosting::Anyone).await;
+    let (_, token) = site.member("hana@example.com", Some("hana")).await;
+    for n in 0..51 {
+        let (status, _) = site
+            .api(
+                "POST",
+                "/api/v1/forum/threads",
+                Some(&token),
+                Some(json!({
+                    "category_id": site.public_cat,
+                    "title": format!("Thread {n}"),
+                    "body": "hello",
+                    "author_name": "x"
+                })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+
+    let get = |uri: &str| Request::builder().uri(uri).body(Body::empty()).unwrap();
+    let (status, _, first) = site.send(get("/forum/general")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(first.contains("page=2"), "{first}");
+
+    let (_, _, second) = site.send(get("/forum/general?page=2")).await;
+    assert!(second.contains("page=1"), "{second}");
+    assert!(!second.contains("page=3"), "{second}");
+    // 2 ページ目は最後の 1 件だけ
+    assert!(second.contains("Thread 0</span>"), "{second}");
+    assert!(!second.contains("Thread 50</span>"), "{second}");
+
+    // 掲示板トップのスレッド数は、表示する 5 件ではなくカテゴリ全体の数
+    let (_, _, index) = site.send(get("/forum")).await;
+    assert!(index.contains("51"), "{index}");
 }
