@@ -125,6 +125,71 @@ export const WithoutUploadPermission: Story = {
   },
 };
 
+const listDefinition: PluginBlockDefinition = {
+  name: 'official-blocks/faq',
+  plugin: 'official-blocks',
+  plugin_display_name: 'Official Blocks',
+  label: 'FAQ',
+  fields: [
+    {
+      name: 'items',
+      type: 'list',
+      label: 'Questions',
+      required: true,
+      max_items: 3,
+      fields: [
+        { name: 'question', type: 'string', label: 'Question', required: true },
+        { name: 'answer', type: 'text', label: 'Answer' },
+      ],
+    },
+  ],
+};
+
+export const ListField: Story = {
+  args: {
+    definition: listDefinition,
+    block: {
+      name: 'official-blocks/faq',
+      attributes: {
+        items: [
+          { question: 'Is it free?', answer: 'Yes.' },
+          { question: 'How do I start?', answer: 'Download it.' },
+        ],
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Item 1')).toBeInTheDocument();
+    await expect(canvas.getByText('Item 2')).toBeInTheDocument();
+    await expect(canvas.getByText('2 / 3 items')).toBeInTheDocument();
+
+    // add an item: the limit (3) then disables the button
+    const add = canvas.getByRole('button', { name: /Add item/i });
+    await userEvent.click(add);
+    await expect(canvas.getByText('Item 3')).toBeInTheDocument();
+    await expect(add).toBeDisabled();
+    // the new item has nothing typed in yet, so its question is flagged
+    await expect(canvas.getAllByText('Required').length).toBeGreaterThan(0);
+
+    // type into the third item
+    const questions = canvas.getAllByRole('textbox', { name: /Question/i });
+    await userEvent.type(questions[2], 'Third?');
+    await expect(args.onChange).toHaveBeenCalled();
+
+    // move the first item down: the order changes
+    await userEvent.click(canvas.getAllByRole('button', { name: /Move down/i })[0]);
+    await expect(canvas.getAllByRole('textbox', { name: /Question/i })[0]).toHaveValue(
+      'How do I start?'
+    );
+
+    // remove the first item
+    await userEvent.click(canvas.getAllByRole('button', { name: /Remove this item/i })[0]);
+    await expect(canvas.queryByText('Item 3')).not.toBeInTheDocument();
+    await expect(add).toBeEnabled();
+  },
+};
+
 export const Interactions: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
