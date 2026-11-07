@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Content Blocks (Buttons, Cards, Media, Maps & Layouts)",
-  "description": "Adds button, link card, video, audio, file download, map, image gallery, FAQ, steps and image-with-text blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",
+  "description": "Adds button, link card, video, audio, file download, map, image gallery, FAQ, steps, columns and image-with-text blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",
   "author": "AegisCMS Core Team",
   "license": "MIT OR Apache-2.0",
   "tags": [
@@ -14,7 +14,8 @@
     "audio",
     "map",
     "gallery",
-    "faq"
+    "faq",
+    "columns"
   ],
   "min_aegis_version": "0.1.0",
   "abi_version": 1,
@@ -415,18 +416,38 @@
       "fields": [
         {
           "name": "images",
-          "type": "text",
+          "type": "list",
           "label": {
             "en": "Images",
             "ja": "画像"
           },
           "required": true,
-          "default": "",
-          "placeholder": "/uploads/a.jpg | Caption\n/uploads/b.jpg",
+          "max_items": 24,
           "help": {
-            "en": "One image per line: a URL, or a URL then | and a caption (up to 24). Copy URLs from the media library.",
-            "ja": "1 行に 1 枚。URL か、URL の後に | と説明（24 枚まで）。URL はメディアライブラリからコピーできます。"
-          }
+            "en": "Up to 24 images. The caption is also the alt text.",
+            "ja": "24 枚まで。説明は alt にも使います。"
+          },
+          "fields": [
+            {
+              "name": "image",
+              "type": "image",
+              "label": {
+                "en": "Image",
+                "ja": "画像"
+              },
+              "required": true,
+              "default": ""
+            },
+            {
+              "name": "caption",
+              "type": "string",
+              "label": {
+                "en": "Caption",
+                "ja": "説明"
+              },
+              "default": ""
+            }
+          ]
         },
         {
           "name": "columns",
@@ -475,18 +496,38 @@
       "fields": [
         {
           "name": "items",
-          "type": "text",
+          "type": "list",
           "label": {
             "en": "Questions and answers",
             "ja": "質問と答え"
           },
           "required": true,
-          "default": "",
-          "placeholder": "Is it free?\nYes, it is.\n\nHow do I start?\nDownload it.",
-          "help": {
-            "en": "Separate each pair with a blank line. The first line is the question; the lines after it are the answer.",
-            "ja": "質問と答えの組は空行で区切ります。1 行目が質問、その下の行が答えです。"
-          }
+          "max_items": 50,
+          "fields": [
+            {
+              "name": "question",
+              "type": "string",
+              "label": {
+                "en": "Question",
+                "ja": "質問"
+              },
+              "required": true,
+              "default": ""
+            },
+            {
+              "name": "answer",
+              "type": "text",
+              "label": {
+                "en": "Answer",
+                "ja": "答え"
+              },
+              "default": "",
+              "help": {
+                "en": "Plain text. Each line becomes a paragraph.",
+                "ja": "プレーンテキスト。1 行が 1 段落になります。"
+              }
+            }
+          ]
         }
       ]
     },
@@ -503,18 +544,34 @@
       "fields": [
         {
           "name": "items",
-          "type": "text",
+          "type": "list",
           "label": {
             "en": "Steps",
             "ja": "手順"
           },
           "required": true,
-          "default": "",
-          "placeholder": "Install\nDownload the binary.\n\nStart\nRun it.",
-          "help": {
-            "en": "Separate each step with a blank line. The first line is the title; the lines after it are the description.",
-            "ja": "手順は空行で区切ります。1 行目が見出し、その下の行が説明です。"
-          }
+          "max_items": 30,
+          "fields": [
+            {
+              "name": "title",
+              "type": "string",
+              "label": {
+                "en": "Title",
+                "ja": "見出し"
+              },
+              "required": true,
+              "default": ""
+            },
+            {
+              "name": "description",
+              "type": "text",
+              "label": {
+                "en": "Description",
+                "ja": "説明"
+              },
+              "default": ""
+            }
+          ]
         }
       ]
     },
@@ -591,6 +648,62 @@
               "label": {
                 "en": "Right",
                 "ja": "右"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "columns",
+      "label": {
+        "en": "Columns",
+        "ja": "カラム"
+      },
+      "description": {
+        "en": "Two to four columns with an image, a title and text; stack on narrow screens",
+        "ja": "画像・見出し・文章の列を 2〜4 つ並べる（狭い画面では縦に積む）"
+      },
+      "fields": [
+        {
+          "name": "items",
+          "type": "list",
+          "label": {
+            "en": "Columns",
+            "ja": "カラム"
+          },
+          "required": true,
+          "max_items": 4,
+          "fields": [
+            {
+              "name": "image",
+              "type": "image",
+              "label": {
+                "en": "Image",
+                "ja": "画像"
+              },
+              "default": ""
+            },
+            {
+              "name": "title",
+              "type": "string",
+              "label": {
+                "en": "Title",
+                "ja": "見出し"
+              },
+              "default": ""
+            },
+            {
+              "name": "text",
+              "type": "text",
+              "label": {
+                "en": "Text",
+                "ja": "文章"
+              },
+              "default": "",
+              "help": {
+                "en": "Plain text. Each line becomes a paragraph.",
+                "ja": "プレーンテキスト。1 行が 1 段落になります。"
               }
             }
           ]

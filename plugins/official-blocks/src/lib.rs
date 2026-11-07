@@ -11,10 +11,14 @@
 //! - `official-blocks/file`: `url`・`title`・`description`・`size`（表示用の文字列）。ダウンロード用のリンク
 //! - `official-blocks/map`: `latitude`・`longitude`・`zoom`・`title`。OpenStreetMap の埋め込み
 //!   （`www.openstreetmap.org`、マニフェストの `capabilities.embed.frame_domains`）。住所からの検索はしない
-//! - `official-blocks/gallery`: `images`（1 行に 1 枚。`URL` か `URL | 説明`、24 枚まで）・`columns`（2〜4）
-//! - `official-blocks/faq`: `items`（空行で区切った「質問 + 答え」。1 行目が質問、残りが答え）。
-//!   `<details>` で開閉し、schema.org の FAQPage を microdata で付ける（`<script>` の JSON-LD はサニタイズで消える）
-//! - `official-blocks/steps`: `items`（faq と同じ書き方。1 行目が見出し、残りが説明）。番号つきの手順
+//! - `official-blocks/gallery`: `images`（`list`: `image`・`caption`。24 枚まで）・`columns`（2〜4）
+//! - `official-blocks/faq`: `items`（`list`: `question`・`answer`）。`<details>` で開閉し、schema.org の
+//!   FAQPage を microdata で付ける（`<script>` の JSON-LD はサニタイズで消える）
+//! - `official-blocks/steps`: `items`（`list`: `title`・`description`）。番号つきの手順
+//! - `official-blocks/columns`: `items`（`list`: `image`・`title`・`text`。4 列まで）。同じ幅の列を並べ、
+//!   狭い画面では縦に積む
+//!
+//! gallery・faq・steps は、複数行の文字列で保存した古い形（1 行に 1 枚 / 空行で区切った項目）も読む
 //! - `official-blocks/media-text`: `image`・`alt`・`title`・`text`・`side`（左 / 右）。画像と文章を並べる。
 //!   狭い画面では縦に積む
 //!
@@ -81,6 +85,11 @@ const STYLES: &str = "<style>\
 :where(.ob-steps) li:last-child::after{display:none}\
 :where(.ob-step-title){display:block;font-weight:700}\
 :where(.ob-step-body){display:block;opacity:.85;margin-top:.2rem}\
+:where(.ob-columns){display:grid;gap:1.5rem;margin:1.5rem 0;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}\
+:where(.ob-column){min-width:0}\
+:where(.ob-column) img{display:block;width:100%;border-radius:10px;margin-bottom:.6rem}\
+:where(.ob-column-title){display:block;font-weight:700;font-size:1.05em;margin-bottom:.25rem}\
+:where(.ob-column) p{margin:.4rem 0}\
 :where(.ob-media-text){display:flex;flex-wrap:wrap;gap:1.25rem;align-items:center;margin:1.5rem 0}\
 :where(.ob-media-text-media){flex:1 1 240px;min-width:0}\
 :where(.ob-media-text-media) img{display:block;width:100%;border-radius:10px}\
@@ -474,23 +483,87 @@ fn paragraphs(lines: &[String]) -> String {
         .collect()
 }
 
+/// `list` の入力欄の値（項目はオブジェクト。オブジェクト以外の要素は捨てる）
+fn list_of<'a>(
+    block: &'a BlockNode,
+    name: &str,
+) -> Vec<&'a serde_json::Map<String, serde_json::Value>> {
+    block
+        .attributes
+        .get(name)
+        .and_then(|v| v.as_array())
+        .map(|items| items.iter().filter_map(|i| i.as_object()).collect())
+        .unwrap_or_default()
+}
+
+/// 項目の文字列の値（前後の空白は除く）
+fn item_str<'a>(item: &'a serde_json::Map<String, serde_json::Value>, key: &str) -> &'a str {
+    item.get(key)
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .unwrap_or("")
+}
+
+/// 複数行の文字列を、空でない行にする
+fn text_lines(text: &str) -> Vec<String> {
+    text.lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect()
+}
+
+/// 「見出し + 本文の行」の項目の並び。`list`（`head_key`・`body_key`）の値か、古い形（空行で区切った文字列）
+fn head_body_items(
+    block: &BlockNode,
+    head_key: &str,
+    body_key: &str,
+) -> Vec<(String, Vec<String>)> {
+    match block.attributes.get("items") {
+        Some(serde_json::Value::Array(_)) => list_of(block, "items")
+            .into_iter()
+            .map(|item| {
+                (
+                    item_str(item, head_key).to_string(),
+                    text_lines(item_str(item, body_key)),
+                )
+            })
+            .collect(),
+        Some(serde_json::Value::String(text)) => entries(text),
+        _ => Vec::new(),
+    }
+}
+
 /// ギャラリーに置ける画像の最大枚数
 const MAX_GALLERY_IMAGES: usize = 24;
 
+/// ギャラリーの `(画像の URL, 説明)`。`list`（`image`・`caption`）の値か、古い形（1 行に `URL | 説明`）
+fn gallery_items(block: &BlockNode) -> Vec<(String, String)> {
+    match block.attributes.get("images") {
+        Some(serde_json::Value::Array(_)) => list_of(block, "images")
+            .into_iter()
+            .map(|item| {
+                (
+                    item_str(item, "image").to_string(),
+                    item_str(item, "caption").to_string(),
+                )
+            })
+            .collect(),
+        Some(serde_json::Value::String(text)) => text
+            .lines()
+            .map(|line| match line.split_once('|') {
+                Some((src, caption)) => (src.trim().to_string(), caption.trim().to_string()),
+                None => (line.trim().to_string(), String::new()),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 fn render_gallery(block: &BlockNode) -> Option<String> {
-    let text = block
-        .attributes
-        .get("images")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
     let mut figures = String::new();
     let mut count = 0;
-    for line in text.lines() {
-        let (src, caption) = match line.split_once('|') {
-            Some((src, caption)) => (src.trim(), caption.trim()),
-            None => (line.trim(), ""),
-        };
-        let Some(src) = safe_url(src) else { continue };
+    for (src, caption) in gallery_items(block) {
+        let Some(src) = safe_url(&src) else { continue };
         count += 1;
         if count > MAX_GALLERY_IMAGES {
             break;
@@ -498,12 +571,12 @@ fn render_gallery(block: &BlockNode) -> Option<String> {
         let caption_html = if caption.is_empty() {
             String::new()
         } else {
-            format!("<figcaption>{}</figcaption>", escape(caption))
+            format!("<figcaption>{}</figcaption>", escape(&caption))
         };
         figures.push_str(&format!(
             r#"<figure><img src="{}" alt="{}" loading="lazy">{caption_html}</figure>"#,
             escape(src),
-            escape(caption)
+            escape(&caption)
         ));
     }
     if figures.is_empty() {
@@ -520,10 +593,9 @@ fn render_gallery(block: &BlockNode) -> Option<String> {
 }
 
 fn render_faq(block: &BlockNode) -> Option<String> {
-    let text = block.attributes.get("items").and_then(|v| v.as_str())?;
-    let items: String = entries(text)
+    let items: String = head_body_items(block, "question", "answer")
         .into_iter()
-        .filter(|(_, answer)| !answer.is_empty())
+        .filter(|(question, answer)| !question.is_empty() && !answer.is_empty())
         .map(|(question, answer)| {
             format!(
                 r#"<details itemscope itemprop="mainEntity" itemtype="https://schema.org/Question"><summary itemprop="name">{}</summary><div class="ob-faq-answer" itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer"><div itemprop="text">{}</div></div></details>"#,
@@ -540,9 +612,9 @@ fn render_faq(block: &BlockNode) -> Option<String> {
 }
 
 fn render_steps(block: &BlockNode) -> Option<String> {
-    let text = block.attributes.get("items").and_then(|v| v.as_str())?;
-    let items: String = entries(text)
+    let items: String = head_body_items(block, "title", "description")
         .into_iter()
+        .filter(|(title, _)| !title.is_empty())
         .map(|(title, body)| {
             let body = if body.is_empty() {
                 String::new()
@@ -561,6 +633,43 @@ fn render_steps(block: &BlockNode) -> Option<String> {
     (!items.is_empty()).then(|| format!(r#"<ol class="ob-steps">{items}</ol>"#))
 }
 
+/// カラムの最大数
+const MAX_COLUMNS: usize = 4;
+
+fn render_columns(block: &BlockNode) -> Option<String> {
+    let columns: String = list_of(block, "items")
+        .into_iter()
+        .take(MAX_COLUMNS)
+        .filter_map(|item| {
+            let title = item_str(item, "title");
+            let lines = text_lines(item_str(item, "text"));
+            let image = safe_url(item_str(item, "image"));
+            if title.is_empty() && lines.is_empty() && image.is_none() {
+                return None;
+            }
+            let image = image
+                .map(|src| {
+                    format!(
+                        r#"<img src="{}" alt="{}" loading="lazy">"#,
+                        escape(src),
+                        escape(title)
+                    )
+                })
+                .unwrap_or_default();
+            let title = if title.is_empty() {
+                String::new()
+            } else {
+                format!(r#"<span class="ob-column-title">{}</span>"#, escape(title))
+            };
+            Some(format!(
+                r#"<div class="ob-column">{image}{title}{}</div>"#,
+                paragraphs(&lines)
+            ))
+        })
+        .collect();
+    (!columns.is_empty()).then(|| format!(r#"<div class="ob-columns">{columns}</div>"#))
+}
+
 fn render_media_text(block: &BlockNode) -> Option<String> {
     let image = safe_url(attr(block, "image"))?;
     let title = attr(block, "title");
@@ -569,11 +678,7 @@ fn render_media_text(block: &BlockNode) -> Option<String> {
         .get("text")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let lines: Vec<String> = body
-        .lines()
-        .map(|l| l.trim().to_string())
-        .filter(|l| !l.is_empty())
-        .collect();
+    let lines = text_lines(body);
     if title.is_empty() && lines.is_empty() {
         return None;
     }
@@ -614,6 +719,7 @@ impl Plugin for BlocksPlugin {
                     "official-blocks/gallery" => render_gallery(block),
                     "official-blocks/faq" => render_faq(block),
                     "official-blocks/steps" => render_steps(block),
+                    "official-blocks/columns" => render_columns(block),
                     "official-blocks/media-text" => render_media_text(block),
                     _ => None,
                 }?;
@@ -873,6 +979,102 @@ mod tests {
             .unwrap()
             .contains(r#"class="ob-media-text">"#));
         assert_eq!(&html[2..], &[None, None]);
+    }
+
+    #[test]
+    fn renders_list_fields_like_the_text_form() {
+        use serde_json::json;
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                json_block(
+                    "gallery",
+                    &[
+                        (
+                            "images",
+                            json!([
+                                {"image": "/a.jpg", "caption": "Front <door>"},
+                                {"image": "javascript:alert(1)", "caption": "x"},
+                                {"image": "", "caption": "none"},
+                                "not an object",
+                                {"image": "/b.jpg"}
+                            ]),
+                        ),
+                        ("columns", json!("2")),
+                    ],
+                ),
+                json_block(
+                    "faq",
+                    &[(
+                        "items",
+                        json!([
+                            {"question": "Is it <free>?", "answer": "Yes.\nReally."},
+                            {"question": "No answer", "answer": " "},
+                            {"question": "", "answer": "Orphan"}
+                        ]),
+                    )],
+                ),
+                json_block(
+                    "steps",
+                    &[(
+                        "items",
+                        json!([
+                            {"title": "Install", "description": "Download it.\nRun it."},
+                            {"title": "Start"},
+                            {"description": "no title"}
+                        ]),
+                    )],
+                ),
+                json_block("gallery", &[("images", json!([]))]),
+            ])
+            .unwrap();
+        let g = html[0].as_deref().unwrap();
+        assert!(g.contains(r#"class="ob-gallery ob-gallery-2""#));
+        assert_eq!(g.matches("<figure>").count(), 2);
+        assert!(g.contains(r#"alt="Front &lt;door&gt;""#));
+        assert!(!g.contains("javascript"));
+        let faq = html[1].as_deref().unwrap();
+        assert_eq!(faq.matches("<details").count(), 1);
+        assert!(faq.contains("<p>Yes.</p><p>Really.</p>"));
+        assert!(!faq.contains("Orphan") && !faq.contains("No answer"));
+        let steps = html[2].as_deref().unwrap();
+        assert_eq!(steps.matches("<li>").count(), 2);
+        assert!(steps.contains("Download it. Run it."));
+        assert_eq!(html[3], None);
+    }
+
+    #[test]
+    fn renders_columns() {
+        use serde_json::json;
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                json_block(
+                    "columns",
+                    &[(
+                        "items",
+                        json!([
+                            {"image": "/a.jpg", "title": "Fast <1>", "text": "One\n\nTwo"},
+                            {"title": "Safe"},
+                            {"image": "javascript:x"},
+                            {"text": "Only text"},
+                            {"title": "Fifth is dropped"},
+                            {"title": "Sixth"}
+                        ]),
+                    )],
+                ),
+                json_block(
+                    "columns",
+                    &[("items", json!([{}, {"image": "javascript:x"}]))],
+                ),
+                json_block("columns", &[]),
+            ])
+            .unwrap();
+        let c = html[0].as_deref().unwrap();
+        // 4 列まで。中身の無い項目は列にしない（先頭 4 項目のうち 3 つ）
+        assert_eq!(c.matches(r#"class="ob-column""#).count(), 3);
+        assert!(c.contains(r#"<img src="/a.jpg" alt="Fast &lt;1&gt;" loading="lazy">"#));
+        assert!(c.contains("<p>One</p><p>Two</p>"));
+        assert!(!c.contains("Fifth") && !c.contains("javascript"));
+        assert_eq!(&html[1..], &[None, None]);
     }
 
     #[test]
