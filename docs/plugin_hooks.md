@@ -429,6 +429,7 @@ SDK ヘルパー:
 | `capabilities.network.allowed_domains` | string[] | | `net::is_allowed` で許可するドメイン。完全一致またはサブドメイン一致 |
 | `capabilities.storage.kv_namespace` | string | | KVS のネームスペース。未宣言の場合 `kv::set` は権限エラー |
 | `capabilities.hooks` | string[] | | 有効にするフック名（[1. フック一覧](#1-フック一覧)） |
+| `capabilities.csp.script_domains` / `style_domains` / `connect_domains` / `frame_domains` / `img_domains` | string[] | | 外部のスクリプト・CSS・通信先・フレーム・画像のホスト。有効にしている間、サーバーが CSP の `script-src` / `style-src` / `connect-src` / `frame-src` / `img-src` に足す。**CDN などから `<script>` を読み込むプラグインは、そのホストを宣言する**（宣言が無いと、既定の CSP が遮断する）。ホスト名だけ（スキームなし）。Admin Studio のプラグインの一覧の「機能・権限」に表示される |
 | `capabilities.embed.frame_domains` | string[] | | カスタムブロックに埋め込める `<iframe>` の配信元のホスト（[3.2](#32-外部のページの埋め込み-capabilitiesembed)） |
 | `blocks` | object[] | | 本文に置けるカスタムブロックの宣言（[3.1](#31-カスタムブロック-blocks)） |
 | `settings` | object[] | | 設定項目の宣言。Admin Studio のプラグイン設定に入力欄として出て、保存時に値を検査する（[3.3](#33-設定項目-settings)） |

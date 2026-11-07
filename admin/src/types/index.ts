@@ -806,6 +806,14 @@ export interface PluginCapabilities {
   hooks: string[];
   /** Hosts whose `<iframe>`s the plugin's blocks may embed (also added to the CSP `frame-src`) */
   embed?: { frame_domains: string[] } | null;
+  /** Hosts the plugin adds to the Content-Security-Policy, by directive (`script_domains` → `script-src`) */
+  csp?: {
+    script_domains?: string[];
+    style_domains?: string[];
+    connect_domains?: string[];
+    frame_domains?: string[];
+    img_domains?: string[];
+  } | null;
 }
 
 export interface PluginResourceLimits {

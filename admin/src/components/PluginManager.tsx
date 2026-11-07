@@ -39,6 +39,25 @@ import { cx } from '../utils/cx';
 import { PluginSettingField } from './PluginSettingField';
 import styles from './PluginManager.module.css';
 
+const CSP_DIRECTIVES = [
+  ['script_domains', 'script-src'],
+  ['style_domains', 'style-src'],
+  ['connect_domains', 'connect-src'],
+  ['frame_domains', 'frame-src'],
+  ['img_domains', 'img-src'],
+] as const;
+
+/** The hosts a plugin adds to each CSP directive (directives it leaves empty are left out) */
+function cspDirectives(
+  csp: NonNullable<PluginInfo['manifest']>['capabilities']['csp']
+): { directive: string; domains: string[] }[] {
+  if (!csp) return [];
+  return CSP_DIRECTIVES.flatMap(([key, directive]) => {
+    const domains = csp[key] ?? [];
+    return domains.length > 0 ? [{ directive, domains }] : [];
+  });
+}
+
 interface PluginManagerProps {
   session: SessionInfo;
   onShowToast: (message: string, type?: 'success' | 'error') => void;
@@ -548,6 +567,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                   const hooks = m?.capabilities.hooks ?? [];
                   const allowedDomains = m?.capabilities.network?.allowed_domains ?? [];
                   const frameDomains = m?.capabilities.embed?.frame_domains ?? [];
+                  const cspDomains = cspDirectives(m?.capabilities.csp);
                   const limits = m?.resource_limits;
                   const isToggling = togglingName === plugin.name;
                   // A broken plugin can still be disabled, but not enabled
@@ -657,6 +677,17 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                                 </span>
                               </div>
                             )}
+                            {cspDomains.map(({ directive, domains }) => (
+                              <div key={directive} className={styles.capItem}>
+                                <ShieldCheck size={13} className={styles.capItemIcon} />
+                                <span className={styles.capText} title={domains.join(', ')}>
+                                  {t('plugins.cspDomains', {
+                                    directive,
+                                    domains: domains.join(', '),
+                                  })}
+                                </span>
+                              </div>
+                            ))}
                             {limits && (
                               <div className={styles.capItem}>
                                 <Cpu size={13} className={styles.capItemIcon} />

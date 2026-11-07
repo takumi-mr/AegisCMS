@@ -313,6 +313,58 @@ async fn test_official_content_plugins_add_to_the_page() {
     }
 }
 
+/// 公式プラグイン `official-code-enhancer`（ハイライト）と `official-mermaid`（図）のビルド済み `plugin.wasm` で、
+/// マニフェスト（CSP・設定）の検査と、本文に対象があるページにだけ足すこと（ハイライトは Mermaid を持たず、
+/// 図は Mermaid のプラグインだけが扱う）を確かめる
+#[tokio::test]
+async fn test_official_code_and_diagram_plugins_load_only_when_needed() {
+    let engine = WasmEngine::new().unwrap();
+    let plugins = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+    let page = |html: &str| PageRenderContext {
+        template: "article.html".to_string(),
+        content_type: "article".to_string(),
+        content_html: html.to_string(),
+        ..Default::default()
+    };
+    let code = "<pre><code class=\"language-rust\">fn a() {}</code></pre>";
+    let diagram = "<pre><code class=\"language-mermaid\">graph TD; A--&gt;B;</code></pre>";
+
+    let highlight = load(&engine, &plugins.join("official-code-enhancer"));
+    let manifest = highlight.manifest();
+    manifest.validate_csp().unwrap();
+    manifest.validate_settings().unwrap();
+    assert_eq!(manifest.csp_script_domains(), ["cdn.jsdelivr.net"]);
+    assert!(manifest.capabilities.network.is_none() && manifest.capabilities.storage.is_none());
+    let out = highlight.on_render_page(page(code)).await.unwrap();
+    assert_eq!(out.content_html, code);
+    assert!(out.extra_head.contains("prism.min.js"));
+    assert!(!out.extra_head.to_lowercase().contains("mermaid.min.js"));
+    let plain = highlight
+        .on_render_page(page("<p>No code</p>"))
+        .await
+        .unwrap();
+    assert!(plain.extra_css.is_empty() && plain.extra_head.is_empty());
+
+    let mermaid = load(&engine, &plugins.join("official-mermaid"));
+    let manifest = mermaid.manifest();
+    manifest.validate_csp().unwrap();
+    manifest.validate_settings().unwrap();
+    assert_eq!(manifest.csp_script_domains(), ["cdn.jsdelivr.net"]);
+    let out = mermaid.on_render_page(page(diagram)).await.unwrap();
+    assert_eq!(out.content_html, diagram);
+    assert!(out
+        .extra_head
+        .contains("mermaid@10.9.3/dist/mermaid.min.js"));
+    assert!(out.extra_css.contains(".omd-diagram"));
+    for html in [code, "<p>No diagram</p>"] {
+        let other = mermaid.on_render_page(page(html)).await.unwrap();
+        assert!(
+            other.extra_css.is_empty() && other.extra_head.is_empty(),
+            "{html}"
+        );
+    }
+}
+
 /// 公式プラグイン `official-ads` のビルド済み `plugin.wasm` で、マニフェスト、`render-blocks`、
 /// `on-render-page`、動的 CSP 設定および Cookie 同意連携が正しく動作することを確認する
 #[tokio::test]
