@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-code-enhancer-v0.4.0...plugin-official-code-enhancer-v0.5.0) (2026-11-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plugin:** Mermaid diagrams moved to official-mermaid. A site that lists only official-code-enhancer in [plugins].enabled must add official-mermaid to keep its diagrams. config/default.toml enables both.
+
+### Features
+
+* **plugin:** split Mermaid out of official-code-enhancer into official-mermaid ([#279](https://github.com/takumi-mr/AegisCMS/issues/279)) ([7104a19](https://github.com/takumi-mr/AegisCMS/commit/7104a1931ad546e407d3b004546df3dca26e4edc))
+
 ## [0.4.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-code-enhancer-v0.3.0...plugin-official-code-enhancer-v0.4.0) (2026-11-07)
 
 

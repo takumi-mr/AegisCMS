@@ -1,6 +1,6 @@
 [package]
 name = "aegis-plugin-code-enhancer"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 authors = ["AegisCMS Core Team"]
 description = "Official Wasm plugin for syntax highlighting, external code themes and copy buttons"

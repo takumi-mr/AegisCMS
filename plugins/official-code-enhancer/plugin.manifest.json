@@ -1,6 +1,6 @@
 {
   "name": "official-code-enhancer",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Code Highlighter",
   "description": "Syntax highlighting (Prism.js), external code themes, copy buttons and inline code styling. Diagrams are drawn by official-mermaid. Configure the theme in Settings > Plugins.",
