@@ -7,56 +7,35 @@ use std::fmt::Write as _;
 pub struct CodeEnhancerPlugin;
 
 impl CodeEnhancerPlugin {
-    /// Resolves the active theme name from post fields or theme_vars.
+    /// Resolves a code-theme option. Priority: article field > theme_vars >
+    /// plugin setting (Admin Studio: Settings > Plugins) > `None`.
+    fn resolve_option(&self, ctx: &PageRenderContext, key: &str) -> Option<String> {
+        let non_empty = |s: &str| {
+            let s = s.trim();
+            (!s.is_empty()).then(|| s.to_string())
+        };
+        ctx.fields
+            .get(key)
+            .and_then(|v| v.as_str())
+            .and_then(non_empty)
+            .or_else(|| ctx.theme_vars.get(key).and_then(|v| non_empty(v)))
+            .or_else(|| config::get(key).and_then(|v| non_empty(&v)))
+    }
+
+    /// Resolves the active theme name.
     fn resolve_theme_name(&self, ctx: &PageRenderContext) -> String {
-        // 1. Article-specific field override
-        if let Some(val) = ctx.fields.get("code_theme").and_then(|v| v.as_str()) {
-            if !val.trim().is_empty() {
-                return val.trim().to_string();
-            }
-        }
-        // 2. Global theme_vars override
-        if let Some(val) = ctx.theme_vars.get("code_theme") {
-            if !val.trim().is_empty() {
-                return val.trim().to_string();
-            }
-        }
-        // 3. Default theme
-        "dracula".to_string()
+        self.resolve_option(ctx, "code_theme")
+            .unwrap_or_else(|| "dracula".to_string())
     }
 
     /// Resolves external CSS stylesheet URL if configured.
     fn resolve_external_url(&self, ctx: &PageRenderContext) -> Option<String> {
-        // 1. Article-specific field
-        if let Some(val) = ctx.fields.get("code_theme_url").and_then(|v| v.as_str()) {
-            if !val.trim().is_empty() {
-                return Some(val.trim().to_string());
-            }
-        }
-        // 2. Theme vars
-        if let Some(val) = ctx.theme_vars.get("code_theme_url") {
-            if !val.trim().is_empty() {
-                return Some(val.trim().to_string());
-            }
-        }
-        None
+        self.resolve_option(ctx, "code_theme_url")
     }
 
     /// Resolves raw custom CSS string if configured.
     fn resolve_custom_css(&self, ctx: &PageRenderContext) -> Option<String> {
-        // 1. Article-specific field
-        if let Some(val) = ctx.fields.get("code_theme_css").and_then(|v| v.as_str()) {
-            if !val.trim().is_empty() {
-                return Some(val.trim().to_string());
-            }
-        }
-        // 2. Theme vars
-        if let Some(val) = ctx.theme_vars.get("code_theme_css") {
-            if !val.trim().is_empty() {
-                return Some(val.trim().to_string());
-            }
-        }
-        None
+        self.resolve_option(ctx, "code_theme_css")
     }
 
     /// Generates the client-side JavaScript bundle for Mermaid rendering,
@@ -275,6 +254,9 @@ impl Plugin for CodeEnhancerPlugin {
                 head_snippet,
                 r#"<link id="aegis-external-code-theme" rel="stylesheet" href="{}">"#,
                 ext_url
+                    .replace('&', "&amp;")
+                    .replace('"', "&quot;")
+                    .replace('<', "&lt;")
             );
         }
 
@@ -295,6 +277,30 @@ impl Plugin for CodeEnhancerPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aegis_plugin_sdk::host::mock;
+
+    #[test]
+    fn test_plugin_settings_are_the_fallback() {
+        mock::reset();
+        mock::set_config("code_theme", "nord");
+        mock::set_config("code_theme_css", ".x { color: red; }");
+        let mut plugin = CodeEnhancerPlugin;
+
+        // Plugin setting applies when nothing else is given
+        let updated = plugin
+            .on_render_page(PageRenderContext::default())
+            .expect("Hook should succeed");
+        assert!(updated.extra_css.contains("Nord"));
+        assert!(updated.extra_css.contains(".x { color: red; }"));
+
+        // An article field wins over the plugin setting
+        let mut ctx = PageRenderContext::default();
+        ctx.fields
+            .insert("code_theme".to_string(), serde_json::json!("github-light"));
+        let updated = plugin.on_render_page(ctx).expect("Hook should succeed");
+        assert!(updated.extra_css.contains("GitHub Light Theme"));
+        mock::reset();
+    }
 
     #[test]
     fn test_transform_mermaid_block() {

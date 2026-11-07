@@ -30,5 +30,89 @@
     "max_memory_mb": 16,
     "max_fuel_units": 100000000,
     "execution_timeout_ms": 250
-  }
+  },
+  "settings": [
+    {
+      "key": "code_theme",
+      "type": "select",
+      "label": {
+        "en": "Code theme",
+        "ja": "コードのテーマ"
+      },
+      "description": {
+        "en": "Color theme for code blocks and diagrams. An article's `code_theme` field or the site theme's variable takes priority.",
+        "ja": "コードブロックと図の配色。記事の `code_theme` フィールドやサイトテーマの変数があれば、そちらが優先される。"
+      },
+      "default": "dracula",
+      "options": [
+        {
+          "value": "dracula",
+          "label": {
+            "en": "Dracula",
+            "ja": "Dracula"
+          }
+        },
+        {
+          "value": "github-dark",
+          "label": {
+            "en": "GitHub Dark",
+            "ja": "GitHub Dark"
+          }
+        },
+        {
+          "value": "one-dark",
+          "label": {
+            "en": "One Dark Pro",
+            "ja": "One Dark Pro"
+          }
+        },
+        {
+          "value": "nord",
+          "label": {
+            "en": "Nord Arctic",
+            "ja": "Nord Arctic"
+          }
+        },
+        {
+          "value": "github-light",
+          "label": {
+            "en": "GitHub Light",
+            "ja": "GitHub Light"
+          }
+        },
+        {
+          "value": "monokai",
+          "label": {
+            "en": "Monokai Pro",
+            "ja": "Monokai Pro"
+          }
+        }
+      ]
+    },
+    {
+      "key": "code_theme_url",
+      "type": "url",
+      "label": {
+        "en": "External theme stylesheet URL",
+        "ja": "外部テーマの CSS の URL"
+      },
+      "description": {
+        "en": "Load any Prism.js / Highlight.js theme CSS from a CDN.",
+        "ja": "Prism.js や Highlight.js のテーマ CSS を CDN から読み込む。"
+      },
+      "placeholder": "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+    },
+    {
+      "key": "code_theme_css",
+      "type": "text",
+      "label": {
+        "en": "Custom CSS",
+        "ja": "カスタム CSS"
+      },
+      "description": {
+        "en": "Extra CSS applied after the theme, to fine-tune colors.",
+        "ja": "テーマのあとに足す CSS。色の微調整に使う。"
+      }
+    }
+  ]
 }
