@@ -1,6 +1,6 @@
 {
   "name": "official-code-enhancer",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "abi_version": 1,
   "entrypoint": "plugin.wasm",
   "description": "Official code syntax highlighter, external theme loader, and Mermaid diagram renderer",
