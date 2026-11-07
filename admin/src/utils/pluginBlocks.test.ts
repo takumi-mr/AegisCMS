@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { BlockNode, PluginBlockDefinition } from '../types';
 import {
   defaultAttributes,
+  defaultValues,
+  isBlankItem,
   isPluginBlockName,
+  listItems,
   localize,
+  missingRequired,
   missingRequiredFields,
 } from './pluginBlocks';
 
@@ -29,6 +33,26 @@ const richDefinition: PluginBlockDefinition = {
     { name: 'full_width', type: 'boolean', label: 'Full Width', default: true },
     { name: 'columns', type: 'number', label: 'Columns', default: 3 },
     { name: 'theme', type: 'select', label: 'Theme', default: 'dark', options: [] },
+  ],
+};
+
+const faqDefinition: PluginBlockDefinition = {
+  name: 'official-blocks/faq',
+  plugin: 'official-blocks',
+  plugin_display_name: 'Official Blocks',
+  label: 'FAQ',
+  fields: [
+    {
+      name: 'items',
+      type: 'list',
+      label: 'Items',
+      required: true,
+      fields: [
+        { name: 'question', type: 'string', label: 'Question', required: true },
+        { name: 'answer', type: 'text', label: 'Answer' },
+        { name: 'tone', type: 'select', label: 'Tone', default: 'plain', options: [] },
+      ],
+    },
   ],
 };
 
@@ -58,6 +82,38 @@ describe('plugin blocks', () => {
     expect(
       missingRequiredFields(definition, { name: 'cards/card', attributes: { title: 'A' } })
     ).toEqual([]);
+  });
+
+  it('handles list fields', () => {
+    const list = faqDefinition.fields[0];
+    const subFields = list.fields ?? [];
+    const block = (items: unknown): BlockNode => ({
+      name: 'official-blocks/faq',
+      attributes: items === undefined ? {} : { items },
+    });
+
+    // a new item starts from the defaults of its inputs
+    expect(defaultValues(subFields)).toEqual({ tone: 'plain' });
+
+    // a required list needs one item with something typed in
+    expect(missingRequiredFields(faqDefinition, block(undefined))).toEqual(['items']);
+    expect(missingRequiredFields(faqDefinition, block([]))).toEqual(['items']);
+    expect(
+      missingRequiredFields(faqDefinition, block([{ question: ' ', answer: '', tone: 'plain' }]))
+    ).toEqual(['items']);
+    expect(missingRequiredFields(faqDefinition, block([{ question: 'Q' }]))).toEqual([]);
+
+    // a required input of an item is reported against that item
+    expect(missingRequired(subFields, { answer: 'A' })).toEqual(['question']);
+    expect(missingRequired(subFields, { question: 'Q' })).toEqual([]);
+
+    // a select or a switch alone does not make an item non-empty
+    expect(isBlankItem(subFields, { tone: 'plain' })).toBe(true);
+    expect(isBlankItem(subFields, { answer: 'A' })).toBe(false);
+
+    // anything that is not an object is dropped
+    expect(listItems([{ a: 1 }, null, 'x', [1], 3])).toEqual([{ a: 1 }]);
+    expect(listItems('not a list')).toEqual([]);
   });
 
   it('correctly simulates block insertion into content editor blocks list', () => {

@@ -100,7 +100,16 @@ pub struct BlockField {
     /// 入力欄の下に出す説明
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub help: Option<LocalizedText>,
+    /// `list` の 1 項目の入力欄（`list` のときだけ。`list` の中に `list` は置けない）
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<BlockField>,
+    /// `list` の項目数の上限（1〜100。省略すると 100）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_items: Option<usize>,
 }
+
+/// `list` の項目数の上限（宣言できる `max_items` の最大でもある）
+pub const MAX_LIST_ITEMS: usize = 100;
 
 /// 入力欄の種類
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -116,6 +125,8 @@ pub enum BlockFieldType {
     Select,
     /// 画像の URL（アップロード・メディアライブラリから選べる）
     Image,
+    /// 項目を増やせる繰り返し。`fields` の入力欄を 1 項目として、値は項目（オブジェクト）の配列
+    List,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -295,6 +306,65 @@ pub fn is_safe_css_color(value: &str) -> bool {
 }
 
 /// ブロックの属性名に使える形式か（英字で始まり、英数字と `_` のみ、64 文字以内）
+/// ブロック（または `list` の 1 項目）の入力欄の宣言を確かめる
+fn validate_block_fields(
+    block: &str,
+    fields: &[BlockField],
+    nested: bool,
+) -> std::result::Result<(), String> {
+    let mut names = std::collections::HashSet::new();
+    for field in fields {
+        if !is_valid_field_name(&field.name) {
+            return Err(format!(
+                "field {:?} of block {:?} is invalid (a letter, then letters, digits or '_')",
+                field.name, block
+            ));
+        }
+        if !names.insert(field.name.as_str()) {
+            return Err(format!(
+                "field {:?} of block {:?} is declared twice",
+                field.name, block
+            ));
+        }
+        if field.field_type == BlockFieldType::Select && field.options.is_empty() {
+            return Err(format!(
+                "select field {:?} of block {:?} has no options",
+                field.name, block
+            ));
+        }
+        if field.field_type == BlockFieldType::List {
+            if nested {
+                return Err(format!(
+                    "list field {:?} of block {:?} cannot be inside another list",
+                    field.name, block
+                ));
+            }
+            if field.fields.is_empty() {
+                return Err(format!(
+                    "list field {:?} of block {:?} has no `fields`",
+                    field.name, block
+                ));
+            }
+            if field
+                .max_items
+                .is_some_and(|n| n == 0 || n > MAX_LIST_ITEMS)
+            {
+                return Err(format!(
+                    "max_items of list field {:?} of block {:?} must be 1 to {}",
+                    field.name, block, MAX_LIST_ITEMS
+                ));
+            }
+            validate_block_fields(block, &field.fields, true)?;
+        } else if !field.fields.is_empty() || field.max_items.is_some() {
+            return Err(format!(
+                "field {:?} of block {:?}: `fields` and `max_items` are only for `list`",
+                field.name, block
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn is_valid_field_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     !bytes.is_empty()
@@ -371,27 +441,7 @@ impl PluginManifest {
             if block.label.is_empty() {
                 return Err(format!("block {:?} has no label", block.name));
             }
-            let mut fields = std::collections::HashSet::new();
-            for field in &block.fields {
-                if !is_valid_field_name(&field.name) {
-                    return Err(format!(
-                        "field {:?} of block {:?} is invalid (a letter, then letters, digits or '_')",
-                        field.name, block.name
-                    ));
-                }
-                if !fields.insert(field.name.as_str()) {
-                    return Err(format!(
-                        "field {:?} of block {:?} is declared twice",
-                        field.name, block.name
-                    ));
-                }
-                if field.field_type == BlockFieldType::Select && field.options.is_empty() {
-                    return Err(format!(
-                        "select field {:?} of block {:?} has no options",
-                        field.name, block.name
-                    ));
-                }
-            }
+            validate_block_fields(&block.name, &block.fields, false)?;
         }
         Ok(())
     }
@@ -867,6 +917,74 @@ mod tests {
 
         // ブロックの無いプラグインは今までどおり
         assert!(manifest_with_blocks("[]", "").is_ok());
+    }
+
+    #[test]
+    fn test_list_fields() {
+        let ok = manifest_with_blocks(
+            r#"[{"name": "faq", "label": "FAQ", "fields": [
+                 {"name": "items", "type": "list", "label": "Items", "max_items": 20,
+                  "fields": [
+                    {"name": "q", "type": "string", "label": "Q", "required": true},
+                    {"name": "a", "type": "text", "label": "A"}
+                 ]}]}]"#,
+            r#""render-blocks""#,
+        )
+        .unwrap();
+        let list = &ok.blocks[0].fields[0];
+        assert_eq!(list.field_type, BlockFieldType::List);
+        assert_eq!(list.fields.len(), 2);
+        assert_eq!(list.max_items, Some(20));
+        // 項目の入力欄は API にもそのまま出る（空なら出さない）
+        let json = serde_json::to_string(&ok.blocks[0]).unwrap();
+        assert!(json.contains(r#""max_items":20"#));
+        assert!(!serde_json::to_string(&BlockField {
+            fields: vec![],
+            max_items: None,
+            ..list.clone()
+        })
+        .unwrap()
+        .contains("max_items"));
+
+        let bad = |field: &str| {
+            manifest_with_blocks(
+                &format!(r#"[{{"name": "a", "label": "A", "fields": [{}]}}]"#, field),
+                r#""render-blocks""#,
+            )
+            .unwrap_err()
+        };
+        let sub = r#"{"name": "q", "type": "string", "label": "Q"}"#;
+        assert!(bad(r#"{"name": "i", "type": "list", "label": "I"}"#).contains("no `fields`"));
+        assert!(bad(&format!(
+            r#"{{"name": "i", "type": "list", "label": "I", "fields": [{{"name": "j", "type": "list", "label": "J", "fields": [{}]}}]}}"#,
+            sub
+        ))
+        .contains("inside another list"));
+        assert!(bad(&format!(
+            r#"{{"name": "i", "type": "list", "label": "I", "max_items": 0, "fields": [{}]}}"#,
+            sub
+        ))
+        .contains("max_items"));
+        assert!(bad(&format!(
+            r#"{{"name": "i", "type": "list", "label": "I", "max_items": 101, "fields": [{}]}}"#,
+            sub
+        ))
+        .contains("max_items"));
+        assert!(bad(&format!(
+            r#"{{"name": "i", "type": "list", "label": "I", "fields": [{}, {}]}}"#,
+            sub, sub
+        ))
+        .contains("twice"));
+        assert!(bad(&format!(
+            r#"{{"name": "i", "type": "list", "label": "I", "fields": [{{"name": "s", "type": "select", "label": "S"}}]}}"#
+        ))
+        .contains("no options"));
+        // `fields` は list 以外には置けない
+        assert!(bad(&format!(
+            r#"{{"name": "i", "type": "string", "label": "I", "fields": [{}]}}"#,
+            sub
+        ))
+        .contains("only for `list`"));
     }
 
     #[test]

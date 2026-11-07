@@ -220,7 +220,13 @@
     "plugin": {
       "from": "Block of the plugin \"{{plugin}}\"",
       "unavailable": "The plugin of this block ({{plugin}}) is disabled or no longer has this block. The block is kept as it is but not shown on the site.",
-      "required": "Required"
+      "required": "Required",
+      "addItem": "Add item",
+      "item": "Item {{n}}",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "removeItem": "Remove this item",
+      "itemCount": "{{count}} / {{max}} items"
     },
     "detailsSummary": "Summary (e.g. a question)",
     "detailsOpen": "Open by default",

@@ -462,10 +462,12 @@ SDK ヘルパー:
 | `name` | ブロック名（プラグイン名と同じ形式）。本文には `<プラグイン名>/<name>` で保存する |
 | `label` / `description` | Admin Studio に出す名前・説明。文字列か、言語ごとの `{"en": ..., "ja": ...}`（Admin Studio の言語 → 英語 → 最初のものの順に使う） |
 | `fields[].name` | 属性名（英字で始まり、英数字と `_`）。値は `attributes.<name>` |
-| `fields[].type` | `string`（1 行）/ `text`（複数行）/ `url` / `number` / `boolean` / `select`（`options` が必要）/ `image`（URL。アップロード・メディアライブラリから選べる） |
+| `fields[].type` | `string`（1 行）/ `text`（複数行）/ `url` / `number` / `boolean` / `select`（`options` が必要）/ `image`（URL。アップロード・メディアライブラリから選べる）/ `list`（項目を増やせる繰り返し。下記） |
 | `fields[].label` / `placeholder` / `help` | 入力欄の名前・プレースホルダー・説明（`label` と同じく言語ごとにできる） |
 | `fields[].required` | 空のとき、エディタに注意を出す（保存は止めない） |
 | `fields[].default` | 新しく置いたブロックの初期値 |
+| `fields[].fields` | `list` の 1 項目の入力欄（上の `fields[]` と同じ形。`list` の中に `list` は置けない）。`list` だけに書ける |
+| `fields[].max_items` | `list` の項目数の上限（1〜100。省略すると 100）。`list` だけに書ける |
 
 Admin Studio のフォームが `attributes` に入れる値の型は次のとおりです。API や Markdown から保存されるブロックは任意の JSON を持てるので、プラグインは型の違いにも耐えるようにしてください（`official-blocks` の `attr` や `sdk/templates/rust-block` を参照）。
 
@@ -475,8 +477,21 @@ Admin Studio のフォームが `attributes` に入れる値の型は次のと�
 | `select` | 文字列（`options[].value`） | `required` でなければ、選ばないと空文字列。数字の選択肢（見出しのレベルなど）も `"3"` のような**文字列**で届く |
 | `number` | JSON の数値 | 空にすると、キーごと無くなる。`default` に書いた数値はそのまま入る |
 | `boolean` | `true` / `false` | 一度も操作していないと、キーが無い（`default` があればその値） |
+| `list` | オブジェクトの配列（`fields[].fields` の `name` をキーにした値）。項目が無いときは空配列か、キーごと無い | 項目の追加・削除・並べ替えができる。`required` は「何か入力した項目が 1 つ以上ある」こと。項目の中の `required` はその項目に注意を出す。`select` と `boolean` だけの項目は「空」として数える。項目の値の型は上の行と同じ |
 
-宣言の不備（名前の形式・重複、選択肢の無い `select`、知らない `type`）があると、そのプラグインを有効にしたサーバーは起動しません。
+宣言の不備（名前の形式・重複、選択肢の無い `select`、`fields` の無い `list`・入れ子の `list`、範囲外の `max_items`、知らない `type`）があると、そのプラグインを有効にしたサーバーは起動しません。
+
+`list` は、FAQ・ギャラリー・手順のように同じ形の項目を並べるブロック向けです。
+
+```json
+{ "name": "items", "type": "list", "label": "Questions", "required": true, "max_items": 30,
+  "fields": [
+    { "name": "question", "type": "string", "label": "Question", "required": true },
+    { "name": "answer", "type": "text", "label": "Answer" }
+  ] }
+```
+
+保存される属性は `{"items": [{"question": "...", "answer": "..."}, ...]}` です。プラグインは配列の要素がオブジェクトでないこと、キーが無いことを想定して読んでください（API や Markdown から任意の JSON を保存できます）。
 
 ### 3.2 外部のページの埋め込み (`capabilities.embed`)
 
