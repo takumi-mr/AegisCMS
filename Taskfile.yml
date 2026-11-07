@@ -534,6 +534,7 @@ tasks:
       - cargo test -p aegis-db --test orders_integration -- --nocapture
       - cargo test -p aegis-db --test comments_integration -- --nocapture
       - cargo test -p aegis-db --test notification_queue_integration -- --nocapture
+      - cargo test -p aegis-backup --test cross_db_roundtrip -- --nocapture
       - cargo test -p aegis-server -- test_postgres_order_and_stock_e2e --nocapture
       - cargo test -p aegis-server -- test_mysql_order_and_stock_e2e --nocapture
       - cargo test -p aegis-cache -- test_redis_bus_reaches_other_servers --nocapture
