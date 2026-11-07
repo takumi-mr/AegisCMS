@@ -278,12 +278,11 @@ async fn verify(
         Some(&json!(42)),
         "{at}: integer field"
     );
-    // 真偽値のカスタムフィールドは、PostgreSQL・MySQL では `true`、SQLite では `1` で読める
-    // （読み出しの表現が DB ごとに違う。ここでは、真偽として同じであることを確かめる）
-    let featured = article.custom_fields.get("featured");
-    assert!(
-        featured == Some(&json!(true)) || featured == Some(&json!(1)),
-        "{at}: boolean field = {featured:?}"
+    // 真偽値は、どの DB でも `true` で読める（SQLite も `1` ではなく `true`）
+    assert_eq!(
+        article.custom_fields.get("featured"),
+        Some(&json!(true)),
+        "{at}: boolean field"
     );
 
     let tag = db.get_tag("tag-1").await.unwrap().expect(at);
