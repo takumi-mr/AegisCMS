@@ -177,8 +177,25 @@ async fn test_official_blocks_plugin_renders_its_blocks() {
     assert_eq!(html.len(), 2);
     assert_eq!(
         plugin.manifest().frame_domains(),
-        ["www.youtube-nocookie.com", "player.vimeo.com"]
+        [
+            "www.youtube-nocookie.com",
+            "player.vimeo.com",
+            "www.openstreetmap.org"
+        ]
     );
+    // 地図は宣言したホストの iframe として、サニタイズ後も残る
+    let map = plugin
+        .render_blocks(vec![block(
+            "official-blocks/map",
+            serde_json::json!({ "latitude": 35.68, "longitude": 139.76 }),
+        )])
+        .await
+        .unwrap();
+    let map = aegis_ast::renderer::sanitize_html_fragment_with_frames(
+        map[0].as_deref().unwrap(),
+        plugin.manifest().frame_domains(),
+    );
+    assert!(map.contains("<iframe src=\"https://www.openstreetmap.org/export/embed.html?bbox="));
     let video = plugin
         .render_blocks(vec![block(
             "official-blocks/video",
