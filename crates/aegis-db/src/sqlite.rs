@@ -94,10 +94,35 @@ fn custom_fields_from_row(
                 .map(serde_json::Value::from),
         };
         if let Some(value) = value {
+            let value = if field.field_type == FieldType::Boolean {
+                boolean_value(value)
+            } else {
+                value
+            };
             custom_fields.insert(field.name.clone(), value);
         }
     }
     custom_fields
+}
+
+/// 真偽値のフィールドの値。SQLite は `1` / `0` で保存するので、PostgreSQL・MySQL（`true` / `false`）と
+/// 同じ形で返す。スキーマ（TypeScript・OpenAPI の `boolean`）が約束している形に合わせるため。
+/// 真偽値として読めない値は、そのまま返す
+fn boolean_value(value: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match &value {
+        Value::Number(n) => match n.as_i64() {
+            Some(1) => Value::Bool(true),
+            Some(0) => Value::Bool(false),
+            _ => value,
+        },
+        Value::String(text) => match text.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" => Value::Bool(true),
+            "0" | "false" => Value::Bool(false),
+            _ => value,
+        },
+        _ => value,
+    }
 }
 
 /// カスタム列に保存する値（スキーマのカスタムフィールドの順）。SQLite は文字列で保存する（真偽値は
@@ -1505,6 +1530,76 @@ fields:
             filled.custom_fields["custom_meta"],
             serde_json::json!({ "seo": true })
         );
+    }
+
+    /// 真偽値のカスタムフィールドは、PostgreSQL・MySQL と同じ `true` / `false` で返す
+    /// （SQLite は `1` / `0` で保存するが、スキーマは `boolean` を約束している）。数値は数値のまま
+    #[tokio::test]
+    async fn test_boolean_custom_fields_are_read_as_booleans() {
+        let adapter = memory_adapter().await;
+        let event: SchemaDefinition = serde_json::from_value(serde_json::json!({
+            "content_type": "event",
+            "label": "Events",
+            "fields": [
+                { "name": "featured", "type": "boolean" },
+                { "name": "capacity", "type": "integer" }
+            ]
+        }))
+        .unwrap();
+        let schemas = HashMap::from([("event".to_string(), event.clone())]);
+        adapter.run_migrations(&schemas).await.unwrap();
+        for (n, fields) in [
+            (1, serde_json::json!({ "featured": true, "capacity": 1 })),
+            (2, serde_json::json!({ "featured": false, "capacity": 0 })),
+            (3, serde_json::json!({})),
+            // 入力が `1` / `"true"` でも、保存して読めば真偽値
+            (4, serde_json::json!({ "featured": 1 })),
+            (5, serde_json::json!({ "featured": "true" })),
+        ] {
+            adapter
+                .insert_content(&event, &record("event", n, "published", fields))
+                .await
+                .unwrap();
+        }
+
+        let get = |id: &str| {
+            let adapter = adapter.clone();
+            let event = event.clone();
+            let id = id.to_string();
+            async move {
+                adapter
+                    .get_content(&event, &id)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .custom_fields
+            }
+        };
+        let one = get("event-1").await;
+        assert_eq!(one["featured"], serde_json::json!(true), "{one:?}");
+        assert_eq!(
+            one["capacity"],
+            serde_json::json!(1),
+            "an integer stays a number"
+        );
+        let two = get("event-2").await;
+        assert_eq!(two["featured"], serde_json::json!(false), "{two:?}");
+        assert_eq!(two["capacity"], serde_json::json!(0));
+        assert!(
+            !get("event-3").await.contains_key("featured"),
+            "no value stays absent"
+        );
+        assert_eq!(get("event-4").await["featured"], serde_json::json!(true));
+        assert_eq!(get("event-5").await["featured"], serde_json::json!(true));
+
+        // 一覧も同じ
+        let listed = adapter.list_contents(&event).await.unwrap();
+        let featured: HashMap<&str, Option<&serde_json::Value>> = listed
+            .iter()
+            .map(|r| (r.id.as_str(), r.custom_fields.get("featured")))
+            .collect();
+        assert_eq!(featured["event-1"], Some(&serde_json::json!(true)));
+        assert_eq!(featured["event-2"], Some(&serde_json::json!(false)));
     }
 
     #[tokio::test]
