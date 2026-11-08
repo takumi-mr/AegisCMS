@@ -392,6 +392,32 @@ mod tests {
         assert!(html.contains("loading=\"lazy\""), "{}", html);
         assert!(html.contains("decoding=\"async\""), "{}", html);
     }
+
+    #[test]
+    fn test_render_blocks_html_keeps_footnote_links_internal() {
+        let blocks = vec![
+            block("core/paragraph", "Claim[^1]", serde_json::json!({})),
+            block(
+                "core/footnote",
+                "Source.",
+                serde_json::json!({ "label": "1" }),
+            ),
+        ];
+        let html = render_blocks_html(&SecurityConfig::default(), &blocks);
+        assert!(
+            html.contains("<sup class=\"aegis-fnref\"><a href=\"#fn-1-"),
+            "{}",
+            html
+        );
+        assert!(
+            html.contains("<section class=\"aegis-footnotes\""),
+            "{}",
+            html
+        );
+        // ページ内のリンクなので、外部リンク用の rel などは付かない
+        assert!(!html.contains("noopener"), "{}", html);
+    }
+
     /// Declares `cards/card` and `cards/broken`; renders each block as its `title` attribute
     /// (with a script and an event attribute to strip), fails when asked for `cards/broken`
     struct CardPlugin {

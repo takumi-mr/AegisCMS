@@ -235,6 +235,8 @@
     "detailsSummary": "Summary (e.g. a question)",
     "detailsOpen": "Open by default",
     "detailsPlaceholder": "Text shown when opened (the answer or details)...",
+    "footnoteLabel": "Label (used as [^label] in the text)",
+    "footnotePlaceholder": "Footnote text...",
     "contactForm": "Form",
     "contactFormFields": "Fields: {{fields}} (change them in [[contact.forms]] of the configuration file)",
     "contactFormDisabled": "Contact forms are not enabled ([contact].enabled); this block shows nothing.",
@@ -412,6 +414,7 @@
     "callout": "Callout",
     "separator": "Separator",
     "details": "Details",
+    "footnote": "Footnote",
     "contactForm": "Contact form",
     "review": {
       "readOnly": "You cannot change this content. Contributors can change only their own drafts and items waiting for review.",
@@ -631,6 +634,7 @@
       "separator_block": "Separator",
       "callout": "Callout",
       "details": "Details",
+      "footnote": "Footnote",
       "contactForm": "Contact form"
     },
     "inlineCode": "Inline code (`code`)",

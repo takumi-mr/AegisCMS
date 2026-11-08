@@ -1,4 +1,5 @@
 pub mod config;
+pub(crate) mod footnote;
 pub mod inline;
 pub mod node;
 pub mod renderer;

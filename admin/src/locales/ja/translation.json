@@ -234,6 +234,8 @@
     "detailsSummary": "見出し（質問など）",
     "detailsOpen": "最初から開く",
     "detailsPlaceholder": "開いたときに表示する本文（答え・詳細）...",
+    "footnoteLabel": "ラベル（本文では [^ラベル] と書く）",
+    "footnotePlaceholder": "脚注の文章...",
     "contactForm": "フォーム",
     "contactFormFields": "項目: {{fields}}（設定ファイルの [[contact.forms]] で変えられます）",
     "contactFormDisabled": "問い合わせフォームが無効です（[contact].enabled）。このブロックは何も表示しません。",
@@ -409,6 +411,7 @@
     "callout": "注記",
     "separator": "区切り線",
     "details": "折りたたみ",
+    "footnote": "脚注",
     "contactForm": "問い合わせフォーム",
     "review": {
       "readOnly": "このコンテンツは変更できません。寄稿者が変更できるのは、自分の下書きとレビュー待ちのものだけです。",
@@ -622,6 +625,7 @@
       "separator_block": "区切り線",
       "callout": "注記",
       "details": "折りたたみ",
+      "footnote": "脚注",
       "contactForm": "問い合わせフォーム"
     },
     "inlineCode": "インラインコード（`コード`）",

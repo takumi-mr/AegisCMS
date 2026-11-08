@@ -6,6 +6,9 @@ import { isPluginBlockName } from './pluginBlocks';
 export const CALLOUT_VARIANTS = ['note', 'tip', 'important', 'warning', 'caution'] as const;
 export type CalloutVariant = (typeof CALLOUT_VARIANTS)[number];
 
+/** A footnote definition line, `[^label]: text` (label: letters, digits, `_`, `-`; as in the renderer) */
+const FOOTNOTE_DEFINITION = /^\[\^([A-Za-z0-9_-]{1,40})\]:\s*(.*)$/;
+
 /** Deepest heading level a `core/toc` lists by default (H2 and H3) */
 export const TOC_DEFAULT_MAX_LEVEL = 3;
 
@@ -214,6 +217,13 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
         }
         break;
       }
+      case 'core/footnote': {
+        // [^label]: text
+        const label = String(block.attributes?.label ?? '').trim();
+        const text = (block.text ?? '').trim().replace(/\s*\n+\s*/g, ' ');
+        if (label && text) parts.push(`[^${label}]: ${text}`);
+        break;
+      }
       case 'core/callout': {
         const variant = CALLOUT_VARIANTS.includes(block.attributes?.variant)
           ? (block.attributes.variant as CalloutVariant)
@@ -396,6 +406,18 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
       }
     }
 
+    // Footnote definition (`[^label]: text`; one line. GitHub's multi-paragraph form is not supported)
+    const footnoteMatch = line.match(FOOTNOTE_DEFINITION);
+    if (footnoteMatch) {
+      blocks.push({
+        name: 'core/footnote',
+        attributes: { label: footnoteMatch[1] },
+        text: footnoteMatch[2].trim(),
+      });
+      i++;
+      continue;
+    }
+
     // Details (:::details Summary ... :::, `:::details+` starts open)
     const detailsMatch = line.match(/^:::\s*details(\+)?(?:\s+(.*))?$/i);
     if (detailsMatch) {
@@ -532,6 +554,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
           curLine.match(/^(\d+)\.\s+/) ||
           curLine.match(/^\s*>/) ||
           curLine.match(/^:::/) ||
+          FOOTNOTE_DEFINITION.test(curLine) ||
           curLine.trim().match(TOC_LINE) ||
           CONTACT_LINE.test(curLine.trim()) ||
           SEPARATOR_LINE.test(curLine) ||
@@ -589,6 +612,7 @@ const SUMMARY_KEYS = {
   'core/separator': 'markdown.summary.separator_block',
   'core/callout': 'markdown.summary.callout',
   'core/details': 'markdown.summary.details',
+  'core/footnote': 'markdown.summary.footnote',
   'core/contact-form': 'markdown.summary.contactForm',
 } as const;
 

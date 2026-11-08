@@ -8,6 +8,7 @@
 //! それ以外（`javascript:` など）のリンクはテキストだけを出す。画像の URL は
 //! `http(s):` と相対 URL だけで、それ以外は代替テキストだけを出す。
 
+use crate::footnote;
 use crate::renderer::escape_html;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,6 +25,8 @@ enum Inline {
         alt: String,
         src: Option<String>,
     },
+    /// 脚注の参照 `[^label]`（ラベルは `footnote::is_valid_label` を満たす）
+    FootnoteRef(String),
 }
 
 /// インライン書式を HTML にする（テキストはエスケープする）
@@ -73,6 +76,15 @@ fn write_html(nodes: &[Inline], out: &mut String) {
                 out.push_str("\" loading=\"lazy\" decoding=\"async\">");
             }
             Inline::Image { alt, src: None } => out.push_str(&escape_html(alt)),
+            // 定義が無い・文脈が無いときは文字のまま
+            Inline::FootnoteRef(label) => match footnote::reference(label) {
+                Some(html) => out.push_str(&html),
+                None => {
+                    out.push_str("[^");
+                    out.push_str(label);
+                    out.push(']');
+                }
+            },
         }
     }
 }
@@ -96,6 +108,8 @@ fn write_plain(nodes: &[Inline], out: &mut String) {
             }
             Inline::Link(inner, _) => write_plain(inner, out),
             Inline::Image { alt, .. } => out.push_str(alt),
+            // 見出しの id・目次・抜粋・検索では脚注の参照を取り除く
+            Inline::FootnoteRef(_) => {}
         }
     }
 }
@@ -238,6 +252,16 @@ fn find_paren(chars: &[char], open: usize) -> Option<usize> {
     None
 }
 
+/// `i` から始まる脚注の参照 `[^label]` のラベルと、閉じの直後の位置
+fn footnote_ref(chars: &[char], i: usize) -> Option<(String, usize)> {
+    if chars.get(i + 1) != Some(&'^') {
+        return None;
+    }
+    let close = chars[i + 2..].iter().position(|&c| c == ']')? + i + 2;
+    let label: String = chars[i + 2..close].iter().collect();
+    footnote::is_valid_label(&label).then_some((label, close + 1))
+}
+
 fn parse(chars: &[char]) -> Vec<Inline> {
     let mut nodes = Vec::new();
     let mut i = 0;
@@ -304,6 +328,11 @@ fn parse(chars: &[char]) -> Vec<Inline> {
                 }
             }
             '[' => {
+                if let Some((label, end)) = footnote_ref(chars, i) {
+                    nodes.push(Inline::FootnoteRef(label));
+                    i = end;
+                    continue;
+                }
                 if let Some(close) = find_bracket(chars, i) {
                     if chars.get(close + 1) == Some(&'(') {
                         if let Some(paren) = find_paren(chars, close + 1) {
@@ -370,6 +399,16 @@ mod tests {
             render_inline("**a `*` b**"),
             "<strong>a <code>*</code> b</strong>"
         );
+    }
+
+    #[test]
+    fn test_footnote_references_are_literal_without_a_document_and_stripped_from_plain_text() {
+        assert_eq!(render_inline("a[^1] b"), "a[^1] b");
+        assert_eq!(plain_text("a[^1] b[^note]"), "a b");
+        // ラベルに使えない文字・空のラベルは参照にならない
+        assert_eq!(plain_text("a[^x y] [^]"), "a[^x y] [^]");
+        // エスケープすれば文字のまま
+        assert_eq!(plain_text(r"a\[^1]"), "a[^1]");
     }
 
     #[test]

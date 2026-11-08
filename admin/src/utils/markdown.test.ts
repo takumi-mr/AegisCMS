@@ -243,6 +243,30 @@ describe('markdown utilities', () => {
       expect(blocksToMarkdown(blocks)).toBe('- [ ] todo\n- [x] done\n- plain\n\n1. [x] first');
     });
 
+    it('round-trips footnote definitions and keeps them out of paragraphs', () => {
+      const md = 'Text[^1] and[^note].\n[^1]: First.\n[^note]: **Second** note.\n\nAfter.';
+      const blocks = markdownToBlocks(md);
+
+      expect(blocks.map((b) => b.name)).toEqual([
+        'core/paragraph',
+        'core/footnote',
+        'core/footnote',
+        'core/paragraph',
+      ]);
+      expect(blocks[0].text).toBe('Text[^1] and[^note].');
+      expect(blocks[1]).toEqual({
+        name: 'core/footnote',
+        attributes: { label: '1' },
+        text: 'First.',
+      });
+      expect(blocks[2].attributes?.label).toBe('note');
+      expect(blocksToMarkdown(blocks)).toBe(
+        'Text[^1] and[^note].\n\n[^1]: First.\n\n[^note]: **Second** note.\n\nAfter.'
+      );
+      // An invalid label stays a paragraph
+      expect(markdownToBlocks('[^a b]: x')[0].name).toBe('core/paragraph');
+    });
+
     it('normalizes CRLF line endings', () => {
       const md = '# Title\r\n\r\nParagraph text.\r\n\r\n- Item 1\r\n- Item 2';
       const blocks = markdownToBlocks(md);
