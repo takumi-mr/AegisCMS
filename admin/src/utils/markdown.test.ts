@@ -228,6 +228,21 @@ describe('markdown utilities', () => {
       ]);
     });
 
+    it('round-trips GFM task lists', () => {
+      const md = '- [ ] todo\n- [x] done\n- plain\n\n1. [X] first';
+      const blocks = markdownToBlocks(md);
+
+      expect(blocks[0].children).toEqual([
+        { name: 'core/list-item', attributes: { checked: false }, text: 'todo' },
+        { name: 'core/list-item', attributes: { checked: true }, text: 'done' },
+        { name: 'core/list-item', attributes: {}, text: 'plain' },
+      ]);
+      expect(blocks[1].children).toEqual([
+        { name: 'core/list-item', attributes: { checked: true }, text: 'first' },
+      ]);
+      expect(blocksToMarkdown(blocks)).toBe('- [ ] todo\n- [x] done\n- plain\n\n1. [x] first');
+    });
+
     it('normalizes CRLF line endings', () => {
       const md = '# Title\r\n\r\nParagraph text.\r\n\r\n- Item 1\r\n- Item 2';
       const blocks = markdownToBlocks(md);

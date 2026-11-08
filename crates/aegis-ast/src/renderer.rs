@@ -182,6 +182,12 @@ fn render_sandboxed_html(raw: &str) -> String {
 /// 注記（`core/callout`）の種類。GitHub のアラートと同じ
 pub const CALLOUT_VARIANTS: [&str; 5] = ["note", "tip", "important", "warning", "caution"];
 
+/// タスクリストの項目（`core/list-item` の `checked` 属性が真偽値）なら、チェック済みかどうか。
+/// 属性が無ければ通常の項目で `None`
+fn task_state(item: &BlockNode) -> Option<bool> {
+    item.attributes.get("checked").and_then(|v| v.as_bool())
+}
+
 /// 空でない文字列の属性
 fn attr_str<'a>(node: &'a BlockNode, key: &str) -> Option<&'a str> {
     node.attributes
@@ -529,11 +535,24 @@ impl HtmlRenderer {
                 for child in &node.children {
                     children_html.push_str(&Self::render_node(child));
                 }
-                format!("<{tag}>\n{children_html}</{tag}>\n")
+                // GFM のタスクリストと同じクラス名（`contains-task-list` / `task-list-item`）
+                let class = if node.children.iter().any(|c| task_state(c).is_some()) {
+                    " class=\"contains-task-list\""
+                } else {
+                    ""
+                };
+                format!("<{tag}{class}>\n{children_html}</{tag}>\n")
             }
             "core/list-item" => {
                 let inner = node.text.as_deref().map(render_inline).unwrap_or_default();
-                format!("<li>{}</li>\n", inner)
+                match task_state(node) {
+                    Some(checked) => format!(
+                        "<li class=\"task-list-item\"><input type=\"checkbox\" disabled{}> {}</li>\n",
+                        if checked { " checked" } else { "" },
+                        inner
+                    ),
+                    None => format!("<li>{}</li>\n", inner),
+                }
             }
             "core/table" => render_table(node),
             // 文書の中にない目次（render_node を直接呼んだとき）は見出しが無いので出さない
@@ -808,6 +827,36 @@ mod tests {
         );
         assert!(html.contains("<h2 id=\"use-cargo\">Use <code>cargo</code></h2>"));
         assert!(html.contains("<li>see <a href=\"/docs\">docs</a></li>"));
+    }
+
+    #[test]
+    fn test_task_list() {
+        let item = |text: &str, checked: Option<bool>| {
+            let mut item = BlockNode::new("core/list-item");
+            item.text = Some(text.to_string());
+            match checked {
+                Some(c) => item.with_attr("checked", c),
+                None => item,
+            }
+        };
+        let list = BlockNode::new("core/list")
+            .with_child(item("done **x**", Some(true)))
+            .with_child(item("todo", Some(false)));
+        let html = HtmlRenderer::render_nodes(&[list]);
+        assert!(
+            html.starts_with("<ul class=\"contains-task-list\">"),
+            "{html}"
+        );
+        assert!(html.contains(
+            "<li class=\"task-list-item\"><input type=\"checkbox\" disabled checked> done <strong>x</strong></li>"
+        ));
+        assert!(html
+            .contains("<li class=\"task-list-item\"><input type=\"checkbox\" disabled> todo</li>"));
+
+        // `checked` の無い項目だけの一覧は今までどおり
+        let plain =
+            HtmlRenderer::render_nodes(&[BlockNode::new("core/list").with_child(item("a", None))]);
+        assert_eq!(plain, "<ul>\n<li>a</li>\n</ul>\n");
     }
 
     #[test]

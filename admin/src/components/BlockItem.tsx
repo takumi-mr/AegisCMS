@@ -23,7 +23,12 @@ import { useTranslation } from 'react-i18next';
 import type { BlockNode, ContactForm, PluginBlockDefinition } from '../types';
 import { cx } from '../utils/cx';
 import { altFromKey } from '../utils/media';
-import { CALLOUT_VARIANTS, TOC_DEFAULT_MAX_LEVEL } from '../utils/markdown';
+import {
+  CALLOUT_VARIANTS,
+  TOC_DEFAULT_MAX_LEVEL,
+  listItemToText,
+  textToListItem,
+} from '../utils/markdown';
 import { ImageUploader } from './ImageUploader';
 import { MediaLibrary } from './MediaLibrary';
 import { TableBlockEditor } from './TableBlockEditor';
@@ -343,16 +348,11 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           <textarea
             className={styles.textarea}
             placeholder={t('blocks.listPlaceholder')}
-            value={(block.children || []).map((c) => c.text || '').join('\n')}
+            value={(block.children || []).map(listItemToText).join('\n')}
             onChange={(e) => {
-              const lines = e.target.value.split('\n');
               onChange({
                 ...block,
-                children: lines.map((line) => ({
-                  name: 'core/list-item',
-                  attributes: {},
-                  text: line,
-                })),
+                children: e.target.value.split('\n').map(textToListItem),
               });
             }}
           />

@@ -11,6 +11,23 @@ export const TOC_DEFAULT_MAX_LEVEL = 3;
 
 type Align = 'left' | 'center' | 'right' | null;
 
+/** A `core/list-item` as the text after its list marker: `[ ] todo` / `[x] done` for a GFM task item */
+export function listItemToText(item: BlockNode): string {
+  const checked = item.attributes?.checked;
+  const task = typeof checked === 'boolean' ? (checked ? '[x] ' : '[ ] ') : '';
+  return `${task}${item.text ?? ''}`;
+}
+
+/** The inverse of `listItemToText` (`[ ]` / `[x]` / `[X]` at the start makes a task item) */
+export function textToListItem(text: string): BlockNode {
+  const task = text.match(/^\[([ xX])\](?:\s+(.*))?$/);
+  return {
+    name: 'core/list-item',
+    attributes: task ? { checked: task[1] !== ' ' } : {},
+    text: task ? (task[2] ?? '') : text,
+  };
+}
+
 /** Rows of a `core/table` block (always strings) */
 export function tableRows(block: BlockNode): string[][] {
   const rows = Array.isArray(block.attributes?.rows) ? block.attributes.rows : [];
@@ -214,7 +231,7 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
         if (items.length > 0) {
           const listLines = items.map((child, i) => {
             const prefix = ordered ? `${i + 1}. ` : '- ';
-            return `${prefix}${(child.text ?? '').trim()}`;
+            return `${prefix}${listItemToText(child).trim()}`;
           });
           parts.push(listLines.join('\n'));
         }
@@ -484,11 +501,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
         if (!itemMatch) {
           break;
         }
-        items.push({
-          name: 'core/list-item',
-          attributes: {},
-          text: itemMatch[1].trim(),
-        });
+        items.push(textToListItem(itemMatch[1].trim()));
         i++;
       }
 
