@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, userEvent, within } from 'storybook/test';
 import { Preview } from './Preview';
 
 const meta = {
@@ -20,4 +21,24 @@ type Story = StoryObj<typeof meta>;
 export const Article: Story = {};
 export const BlankPage: Story = {
   args: { contentType: 'page', layout: 'blank', title: 'Landing page' },
+};
+
+export const Fullscreen: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = canvas.getByRole('button', { name: 'Full screen' });
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(toggle);
+    await expect(canvas.getByRole('button', { name: 'Exit full screen' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await userEvent.keyboard('{Escape}');
+    await expect(canvas.getByRole('button', { name: 'Full screen' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    );
+    // No themed page has been rendered yet, so there is nothing to open in a new window
+    await expect(canvas.getByRole('button', { name: 'Open in a new window' })).toBeDisabled();
+  },
 };
