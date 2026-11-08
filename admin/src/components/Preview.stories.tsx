@@ -39,6 +39,6 @@ export const Fullscreen: Story = {
       'false'
     );
     // No themed page has been rendered yet, so there is nothing to open in a new window
-    await expect(canvas.getByRole('button', { name: 'Open in a new window' })).toBeDisabled();
+    await expect(canvas.getByRole('button', { name: 'Open in a separate window' })).toBeDisabled();
   },
 };
