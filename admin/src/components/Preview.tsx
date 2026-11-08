@@ -1,10 +1,19 @@
 import React, { useEffect, useId, useState } from 'react';
-import { Eye, Code, LayoutTemplate, ShieldAlert } from 'lucide-react';
+import {
+  Eye,
+  Code,
+  LayoutTemplate,
+  Maximize2,
+  Minimize2,
+  ExternalLink,
+  ShieldAlert,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { aegisApi, SERVER_URL } from '../api/client';
 import i18n from '../i18n';
 import type { BlockNode, PreviewRequest } from '../types';
 import { cx } from '../utils/cx';
+import { openPreviewWindow } from '../utils/previewWindow';
 import styles from './Preview.module.css';
 
 /** Wait for a pause in typing before asking the server to render */
@@ -67,6 +76,7 @@ export const Preview: React.FC<PreviewProps> = ({
   const { t } = useTranslation();
   const [tab, setTab] = useState<PreviewTab>('html');
   const [result, setResult] = useState<PreviewResult | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const idPrefix = useId();
 
   // A result is current when it was rendered from the content shown now
@@ -118,6 +128,16 @@ export const Preview: React.FC<PreviewProps> = ({
     };
   }, [requestKey]);
 
+  // Esc leaves the full-screen view
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [fullscreen]);
+
   const status = result?.error
     ? t('preview.failed', { error: result.error })
     : isRendering
@@ -136,23 +156,50 @@ export const Preview: React.FC<PreviewProps> = ({
   );
 
   return (
-    <aside className={styles.column}>
-      <div className={styles.tabs} role="tablist" aria-label={t('preview.aria')}>
-        {TABS.map(({ id, icon }) => (
+    <aside className={cx(styles.column, fullscreen && styles.fullscreen)}>
+      <div className={styles.bar}>
+        <div className={styles.tabs} role="tablist" aria-label={t('preview.aria')}>
+          {TABS.map(({ id, icon }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`${idPrefix}-tab-${id}`}
+              aria-selected={tab === id}
+              aria-controls={`${idPrefix}-panel`}
+              className={cx(styles.tab, tab === id && styles.active)}
+              onClick={() => setTab(id)}
+            >
+              {icon}
+              {t(`preview.tabs.${id}`)}
+            </button>
+          ))}
+        </div>
+        <div className={styles.actions}>
           <button
-            key={id}
             type="button"
-            role="tab"
-            id={`${idPrefix}-tab-${id}`}
-            aria-selected={tab === id}
-            aria-controls={`${idPrefix}-panel`}
-            className={cx(styles.tab, tab === id && styles.active)}
-            onClick={() => setTab(id)}
+            className={styles.action}
+            title={t('preview.openWindow')}
+            aria-label={t('preview.openWindow')}
+            disabled={!result?.pageHtml}
+            onClick={() =>
+              result?.pageHtml &&
+              openPreviewWindow(withBase(result.pageHtml), title || t('preview.untitled'))
+            }
           >
-            {icon}
-            {t(`preview.tabs.${id}`)}
+            <ExternalLink size={14} />
           </button>
-        ))}
+          <button
+            type="button"
+            className={styles.action}
+            title={fullscreen ? t('preview.exitFullscreen') : t('preview.fullscreen')}
+            aria-label={fullscreen ? t('preview.exitFullscreen') : t('preview.fullscreen')}
+            aria-pressed={fullscreen}
+            onClick={() => setFullscreen((on) => !on)}
+          >
+            {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+        </div>
       </div>
 
       <div

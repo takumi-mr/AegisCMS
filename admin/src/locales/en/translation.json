@@ -950,7 +950,10 @@
     "untitled": "Untitled Article",
     "empty": "Add blocks from the toolbar to see live deterministic output.",
     "pageFrame": "Themed page preview",
-    "pageEmpty": "The themed page appears here once the server has rendered it."
+    "pageEmpty": "The themed page appears here once the server has rendered it.",
+    "openWindow": "Open in a separate window",
+    "fullscreen": "Full screen",
+    "exitFullscreen": "Exit full screen"
   },
   "extraFields": {
     "relationPlaceholder": "ID of the related content",
