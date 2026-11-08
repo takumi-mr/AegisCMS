@@ -497,8 +497,29 @@ fn embed_block(url: &str, meta: &Meta) -> BlockNode {
         ("description".to_string(), json!(meta.description)),
         ("image".to_string(), json!(meta.image)),
         ("site".to_string(), json!(meta.site)),
+        // 取得したときの URL。`url` を書き換えたら、次の保存で取り直す目印
+        ("fetched_url".to_string(), json!(url)),
     ]);
     block
+}
+
+/// 取り直す埋め込みブロックの URL: 「再取得」で `refresh` が付いたもの、または取得したあとに
+/// `url` を書き換えたもの（`fetched_url` が無い昔のブロックは対象にしない）
+fn stale_embed_url(block: &BlockNode) -> Option<String> {
+    if block.name != BLOCK {
+        return None;
+    }
+    let url = attr(block, "url");
+    if !is_http_url(url) || host_of(url).is_none() {
+        return None;
+    }
+    let refresh = block.attributes.get("refresh") == Some(&json!(true));
+    let edited = block
+        .attributes
+        .get("fetched_url")
+        .and_then(Value::as_str)
+        .is_some_and(|fetched| fetched != url);
+    (refresh || edited).then(|| url.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -574,20 +595,32 @@ impl Plugin for LinkEmbedPlugin {
             if fetched >= MAX_EMBEDS_PER_CALL {
                 break;
             }
-            if block.name != "core/paragraph" {
+            let refetch = stale_embed_url(block);
+            if refetch.is_none() && block.name != "core/paragraph" {
                 continue;
             }
-            let Some(url) = block.text.as_deref().and_then(bare_url).map(str::to_string) else {
+            let Some(url) = refetch
+                .clone()
+                .or_else(|| block.text.as_deref().and_then(bare_url).map(str::to_string))
+            else {
                 continue;
             };
             // 許可されていない URL は通信せず、そのまま（組み込みのリンクカードで表示される）
             if !net::is_allowed(&url) {
+                if refetch.is_some() {
+                    // 取り直せないので、古い内容のまま。次の保存でまた試さないよう目印を外す
+                    block.attributes.remove("refresh");
+                }
                 continue;
             }
             fetched += 1;
             match fetch_meta(&url, &endpoints, &get_via_host, &|u| net::is_allowed(u)) {
                 Some(meta) => *block = embed_block(&url, &meta),
-                None => log_info!("link-embed: no metadata for {}", url),
+                None => {
+                    log_info!("link-embed: no metadata for {}", url);
+                    // 取れなかったときは、これまでの内容を残す
+                    block.attributes.remove("refresh");
+                }
             }
         }
         Ok(blocks)
@@ -771,6 +804,45 @@ mod tests {
             .transform_content_ast(blocks.clone())
             .unwrap();
         assert_eq!(out, blocks);
+    }
+
+    #[test]
+    fn refetches_only_refreshed_or_edited_embeds() {
+        let meta = Meta {
+            title: "T".to_string(),
+            ..Meta::default()
+        };
+        let fresh = embed_block("https://qiita.com/a", &meta);
+        assert_eq!(stale_embed_url(&fresh), None);
+
+        let mut refreshed = fresh.clone();
+        refreshed.attributes.insert("refresh".into(), json!(true));
+        assert_eq!(
+            stale_embed_url(&refreshed).as_deref(),
+            Some("https://qiita.com/a")
+        );
+
+        let mut edited = fresh.clone();
+        edited
+            .attributes
+            .insert("url".into(), json!("https://qiita.com/b"));
+        assert_eq!(
+            stale_embed_url(&edited).as_deref(),
+            Some("https://qiita.com/b")
+        );
+
+        // 昔のブロック（`fetched_url` が無い）と、他のブロックは対象にしない
+        let mut old = fresh.clone();
+        old.attributes.remove("fetched_url");
+        assert_eq!(stale_embed_url(&old), None);
+        assert_eq!(stale_embed_url(&BlockNode::paragraph("x")), None);
+
+        // 取れなかったとき（ネイティブのテストでは空の 200）は、内容を残して `refresh` を外す
+        let out = LinkEmbedPlugin
+            .transform_content_ast(vec![refreshed])
+            .unwrap();
+        assert_eq!(out[0].attributes.get("refresh"), None);
+        assert_eq!(attr(&out[0], "title"), "T");
     }
 
     #[test]

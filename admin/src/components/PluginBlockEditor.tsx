@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowDown, ArrowUp, Images, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Images, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { aegisApi } from '../api/client';
 import type { BlockNode, PluginBlockDefinition, PluginBlockField } from '../types';
 import { altFromKey } from '../utils/media';
 import {
@@ -256,6 +257,9 @@ export const PluginBlockEditor: React.FC<PluginBlockEditorProps> = ({
   const missing = missingRequiredFields(definition, block);
   const description = localize(definition.description, i18n.language);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
   const setValue = (name: string, value: unknown) => {
     const attributes = { ...block.attributes };
     if (value === undefined) {
@@ -264,6 +268,31 @@ export const PluginBlockEditor: React.FC<PluginBlockEditorProps> = ({
       attributes[name] = value;
     }
     onChange({ ...block, attributes });
+  };
+
+  // Runs the block through the plugin's transform-content-ast hook once more (nothing is saved)
+  const refresh = async () => {
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      const result = await aegisApi.previewContent({
+        content_type: 'article',
+        title: '',
+        slug: '',
+        fields: {},
+        blocks: [{ ...block, attributes: { ...block.attributes, refresh: true } }],
+      });
+      const refreshed = result.blocks.find((b) => b.name === block.name);
+      if (refreshed) {
+        const attributes = { ...refreshed.attributes };
+        delete attributes.refresh;
+        onChange({ ...block, attributes });
+      }
+    } catch (err) {
+      setRefreshError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   return (
@@ -283,6 +312,22 @@ export const PluginBlockEditor: React.FC<PluginBlockEditorProps> = ({
           canUpload={canUpload}
         />
       ))}
+      {definition.refreshable && (
+        <div className={styles.field}>
+          <div className={styles.itemsFooter}>
+            <Button disabled={refreshing} onClick={() => void refresh()}>
+              <RefreshCw size={14} />
+              <span>{refreshing ? t('blocks.plugin.refreshing') : t('blocks.plugin.refresh')}</span>
+            </Button>
+            <span className={styles.help}>{t('blocks.plugin.refreshHelp')}</span>
+          </div>
+          {refreshError && (
+            <span className={styles.warning} role="alert">
+              {t('blocks.plugin.refreshFailed', { error: refreshError })}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };

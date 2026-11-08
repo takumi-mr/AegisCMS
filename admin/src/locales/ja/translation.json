@@ -225,7 +225,11 @@
       "moveUp": "項目 {{n}} を上へ移動",
       "moveDown": "項目 {{n}} を下へ移動",
       "removeItem": "項目 {{n}} を削除",
-      "itemCount": "{{count}} / {{max}} 項目"
+      "itemCount": "{{count}} / {{max}} 項目",
+      "refresh": "再取得",
+      "refreshing": "取得中...",
+      "refreshFailed": "再取得できませんでした: {{error}}",
+      "refreshHelp": "リンク先のページから最新の内容を取り直します（保存したときに反映されます）。"
     },
     "detailsSummary": "見出し（質問など）",
     "detailsOpen": "最初から開く",

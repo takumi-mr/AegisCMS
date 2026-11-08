@@ -373,6 +373,8 @@ export interface PluginBlockDefinition {
   label: LocalizedText;
   description?: LocalizedText;
   fields: PluginBlockField[];
+  /** Shows a "refresh" button that runs the block through the plugin again with `refresh: true` */
+  refreshable?: boolean;
 }
 
 /** Returned by `POST /api/v1/preview` */
