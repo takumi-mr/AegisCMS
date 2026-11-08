@@ -18,7 +18,7 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 |---|---|---|---|
 | `core/heading` | `level`（1〜6、既定 2）、`id`（保存時に自動で付く） | `## 見出し` | `<h2 id="...">` |
 | `core/paragraph` | | 空行で区切った文章 | `<p>` |
-| `core/list` | `ordered`（真偽値）。項目は子の `core/list-item` の `text` | `- 項目` / `1. 項目` | `<ul>` / `<ol>` |
+| `core/list` | `ordered`（真偽値）。項目は子の `core/list-item` の `text`。タスクリストの項目は `attributes.checked`（真偽値） | `- 項目` / `1. 項目` / `- [ ] 未完了` / `- [x] 完了` | `<ul>` / `<ol>`（タスクがあれば `class="contains-task-list"`、項目は `<li class="task-list-item"><input type="checkbox" disabled>`。GFM と同じ読み取り専用のチェックボックス） |
 | `core/code` | `language`、`filename`（任意。120 文字まで） | ` ```rust ` 〜 ` ``` `（ファイル名は ` ```rust title="src/main.rs" `） | `<pre data-filename="src/main.rs"><code class="language-rust">`（`data-filename` はファイル名があるときだけ。表示は[公式プラグイン `official-code-lines`](../plugins/official-code-lines)かテーマの CSS） |
 | `core/image` | `src`、`alt` | `![alt](src)` | `<figure><img>` |
 | `core/table` | `rows`（文字列の配列の配列）、`header`（1 行目を見出し行にする。既定 `true`）、`align`（列ごとの `"left"` / `"center"` / `"right"` / `null`） | GFM の表（下記） | `<div class="aegis-table"><table>` |
