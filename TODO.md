@@ -24,10 +24,6 @@
 
 ### 🔌 プラグイン・将来構想
 GitHub の範囲を超えるブロックはすべてプラグインで作る（[architecture.md 3.1a](docs/architecture.md#31a-core-ブロックの範囲github-でできることが上限)）。上から順に着手する。
-- [ ] `official-blocks/timeline`
-- [ ] `official-blocks/chat`（吹き出し。アバターの画像参照の扱いを先に決める）
-- [ ] `official-blocks/tabs`（`<details name>` 方式を検討。キーボード操作・印刷時の表示を確認）
-- [ ] `official-blocks/stats`、`official-blocks/definition-list`
 - [ ] （保留）脚注 `[^1]`: GitHub 対応の記法なので core の対象だが、文書全体の状態管理が要り重い。要望が出てから
 - [ ] （保留）`rating`: 構造化データ（JSON-LD の `Review`）の設計とセットで検討
 - [ ] **リンク埋め込みの定期更新（検討。要望が出てから）**: `official-link-embed` は「再取得」ボタンと URL の書き換えでだけ取り直す（Wasm に時計が無く、KV に有効期限も無いため、期限切れの自動判定はできない）。ホスト側の定期ジョブが要るかは、要望を見て決める。

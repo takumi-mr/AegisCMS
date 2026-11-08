@@ -23,6 +23,12 @@
 //!   狭い画面では縦に積む
 //! - `official-blocks/figure`: `image`・`alt`・`caption`。画像と、その下のキャプション（`<figcaption>`）。
 //!   core の画像（GitHub の記法の範囲）にはキャプションが無いため、このプラグインで足す
+//! - `official-blocks/timeline`: `items`（`list`: `date`・`title`・`description`。50 件まで）。縦線でつなぐ年表
+//! - `official-blocks/chat`: `items`（`list`: `name`・`avatar`・`side`・`text`。50 件まで）。吹き出しの会話
+//! - `official-blocks/tabs`: `items`（`list`: `label`・`content`・`format`（文章 / コード）。8 つまで）。
+//!   ラジオボタンと CSS だけで切り替える（JavaScript なし）。印刷では全部のタブを順に出す
+//! - `official-blocks/stats`: `items`（`list`: `value`・`unit`・`label`。6 つまで）。大きな数字を並べる
+//! - `official-blocks/definition-list`: `items`（`list`: `term`・`description`。100 件まで）。`<dl>`
 //!
 //! 見た目は最初のブロックの前に 1 回だけ入れる `<style>`。配置・余白は `:where()` で詳細度 0
 //! （テーマの CSS が優先）。リンクの色と下線だけは、テーマの本文のリンクの指定（`.prose a` など）に
@@ -102,6 +108,64 @@ const STYLES: &str = "<style>\
 :where(.ob-figure){margin:1.5rem 0}\
 :where(.ob-figure) img{display:block;max-width:100%;height:auto;margin:0 auto;border-radius:8px}\
 :where(.ob-figure) figcaption{font-size:.85em;opacity:.75;margin-top:.5rem;text-align:center}\
+:where(.ob-timeline){list-style:none;margin:1.5rem 0;padding:0 0 0 1.5rem;border-left:2px solid rgba(127,127,127,.3)}\
+:where(.ob-timeline) li{position:relative;margin:0;padding:0 0 1.25rem}\
+:where(.ob-timeline) li::before{content:'';position:absolute;left:calc(-1.5rem - 6px);top:.35rem;width:10px;height:10px;border-radius:50%;background:var(--accent,#6366f1)}\
+:where(.ob-tl-date){display:block;font-size:.85em;font-weight:600;color:var(--accent,#6366f1)}\
+:where(.ob-tl-title){display:block;font-weight:700}\
+:where(.ob-tl-body){display:block;opacity:.85;margin-top:.2rem}\
+:where(.ob-chat){margin:1.5rem 0;display:flex;flex-direction:column;gap:1rem}\
+:where(.ob-chat-item){display:flex;gap:.75rem;align-items:flex-start}\
+:where(.ob-chat-right){flex-direction:row-reverse}\
+:where(.ob-chat-who){flex:0 0 4.5rem;text-align:center;font-size:.75em;overflow-wrap:anywhere}\
+:where(.ob-chat-who) img{display:block;width:3rem;height:3rem;margin:0 auto .2rem;border-radius:50%;object-fit:cover}\
+:where(.ob-chat-bubble){position:relative;max-width:min(32rem,calc(100% - 5.25rem));padding:.7rem 1rem;border-radius:14px;background:rgba(127,127,127,.14)}\
+:where(.ob-chat-bubble) p{margin:.3rem 0}\
+:where(.ob-chat-right) .ob-chat-bubble{background:color-mix(in srgb,var(--accent,#6366f1) 18%,transparent)}\
+:where(.ob-tabs){position:relative;margin:1.5rem 0}\
+:where(.ob-tabs)>input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}\
+:where(.ob-tabs-bar){display:flex;flex-wrap:wrap;gap:.25rem;border-bottom:1px solid rgba(127,127,127,.3)}\
+:where(.ob-tabs-bar) label{cursor:pointer;padding:.5rem .9rem;border-bottom:3px solid transparent;margin-bottom:-1px;opacity:.7}\
+:where(.ob-tab-panel){display:none;padding:.9rem .25rem}\
+:where(.ob-tab-panel) p{margin:.4rem 0}\
+:where(.ob-tab-panel) pre{margin:0;overflow-x:auto}\
+:where(.ob-tab-title){display:none;font-weight:700;margin:0}\
+:where(.ob-tabs)>input:nth-of-type(1):checked~.ob-tabs-bar label:nth-child(1){border-bottom-color:var(--accent,#6366f1);font-weight:700;opacity:1}\
+:where(.ob-tabs)>input:nth-of-type(1):checked~.ob-tabs-panels .ob-tab-panel:nth-child(1){display:block}\
+:where(.ob-tabs)>input:nth-of-type(1):focus-visible~.ob-tabs-bar label:nth-child(1){outline:2px solid var(--accent,#6366f1)}\
+:where(.ob-tabs)>input:nth-of-type(2):checked~.ob-tabs-bar label:nth-child(2){border-bottom-color:var(--accent,#6366f1);font-weight:700;opacity:1}\
+:where(.ob-tabs)>input:nth-of-type(2):checked~.ob-tabs-panels .ob-tab-panel:nth-child(2){display:block}\
+:where(.ob-tabs)>input:nth-of-type(2):focus-visible~.ob-tabs-bar label:nth-child(2){outline:2px solid var(--accent,#6366f1)}\
+:where(.ob-tabs)>input:nth-of-type(3):checked~.ob-tabs-bar label:nth-child(3){border-bottom-color:var(--accent,#6366f1);font-weight:700;opacity:1}\
+:where(.ob-tabs)>input:nth-of-type(3):checked~.ob-tabs-panels .ob-tab-panel:nth-child(3){display:block}\
+:where(.ob-tabs)>input:nth-of-type(3):focus-visible~.ob-tabs-bar label:nth-child(3){outline:2px solid var(--accent,#6366f1)}\
+:where(.ob-tabs)>input:nth-of-type(4):checked~.ob-tabs-bar label:nth-child(4){border-bottom-color:var(--accent,#6366f1);font-weight:700;opacity:1}\
+:where(.ob-tabs)>input:nth-of-type(4):checked~.ob-tabs-panels .ob-tab-panel:nth-child(4){display:block}\
+:where(.ob-tabs)>input:nth-of-type(4):focus-visible~.ob-tabs-bar label:nth-child(4){outline:2px solid var(--accent,#6366f1)}\
+:where(.ob-tabs)>input:nth-of-type(5):checked~.ob-tabs-bar label:nth-child(5){border-bottom-color:var(--accent,#6366f1);font-weight:700;opacity:1}\
+:where(.ob-tabs)>input:nth-of-type(5):checked~.ob-tabs-panels .ob-tab-panel:nth-child(5){display:block}\
+:where(.ob-tabs)>input:nth-of-type(5):focus-visible~.ob-tabs-bar label:nth-child(5){outline:2px solid var(--accent,#6366f1)}\
+:where(.ob-tabs)>input:nth-of-type(6):checked~.ob-tabs-bar label:nth-child(6){border-bottom-color:var(--accent,#6366f1);font-weight:700;opacity:1}\
+:where(.ob-tabs)>input:nth-of-type(6):checked~.ob-tabs-panels .ob-tab-panel:nth-child(6){display:block}\
+:where(.ob-tabs)>input:nth-of-type(6):focus-visible~.ob-tabs-bar label:nth-child(6){outline:2px solid var(--accent,#6366f1)}\
+:where(.ob-tabs)>input:nth-of-type(7):checked~.ob-tabs-bar label:nth-child(7){border-bottom-color:var(--accent,#6366f1);font-weight:700;opacity:1}\
+:where(.ob-tabs)>input:nth-of-type(7):checked~.ob-tabs-panels .ob-tab-panel:nth-child(7){display:block}\
+:where(.ob-tabs)>input:nth-of-type(7):focus-visible~.ob-tabs-bar label:nth-child(7){outline:2px solid var(--accent,#6366f1)}\
+:where(.ob-tabs)>input:nth-of-type(8):checked~.ob-tabs-bar label:nth-child(8){border-bottom-color:var(--accent,#6366f1);font-weight:700;opacity:1}\
+:where(.ob-tabs)>input:nth-of-type(8):checked~.ob-tabs-panels .ob-tab-panel:nth-child(8){display:block}\
+:where(.ob-tabs)>input:nth-of-type(8):focus-visible~.ob-tabs-bar label:nth-child(8){outline:2px solid var(--accent,#6366f1)}\
+@media print{.ob-tabs .ob-tab-panel{display:block}.ob-tabs .ob-tabs-bar{display:none}.ob-tabs .ob-tab-title{display:block}}\
+:where(.ob-stats){display:grid;gap:1rem;margin:1.5rem 0;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}\
+:where(.ob-stat){padding:1rem;border:1px solid rgba(127,127,127,.3);border-radius:10px;text-align:center}\
+:where(.ob-stat-value){display:block;font-size:2em;font-weight:800;line-height:1.2;color:var(--accent,#6366f1)}\
+:where(.ob-stat-unit){font-size:.5em;font-weight:600;margin-left:.15em}\
+:where(.ob-stat-label){display:block;opacity:.75;font-size:.9em;margin-top:.2rem}\
+:where(.ob-dl){margin:1.5rem 0;border-top:1px solid rgba(127,127,127,.3)}\
+:where(.ob-dl-row){display:grid;grid-template-columns:minmax(0,1fr);gap:.2rem;padding:.7rem .25rem;border-bottom:1px solid rgba(127,127,127,.3)}\
+:where(.ob-dl) dt{font-weight:700;overflow-wrap:anywhere}\
+:where(.ob-dl) dd{margin:0;opacity:.9}\
+:where(.ob-dl) dd p{margin:.2rem 0}\
+@media(min-width:641px){:where(.ob-dl-row){grid-template-columns:minmax(8rem,30%) minmax(0,1fr);gap:1rem}}\
 </style>";
 
 fn escape(text: &str) -> String {
@@ -723,12 +787,188 @@ fn render_figure(block: &BlockNode) -> Option<String> {
     ))
 }
 
+/// タイムラインの最大項目数
+const MAX_TIMELINE: usize = 50;
+
+fn render_timeline(block: &BlockNode) -> Option<String> {
+    let items: String = list_of(block, "items")
+        .into_iter()
+        .filter(|item| !item_str(item, "date").is_empty() || !item_str(item, "title").is_empty())
+        .take(MAX_TIMELINE)
+        .map(|item| {
+            let part = |class: &str, text: &str| {
+                if text.is_empty() {
+                    String::new()
+                } else {
+                    format!(r#"<span class="{class}">{}</span>"#, escape(text))
+                }
+            };
+            let body = text_lines(item_str(item, "description")).join(" ");
+            format!(
+                "<li>{}{}{}</li>",
+                part("ob-tl-date", item_str(item, "date")),
+                part("ob-tl-title", item_str(item, "title")),
+                part("ob-tl-body", &body)
+            )
+        })
+        .collect();
+    (!items.is_empty()).then(|| format!(r#"<ol class="ob-timeline">{items}</ol>"#))
+}
+
+/// 会話の最大項目数
+const MAX_CHAT: usize = 50;
+
+fn render_chat(block: &BlockNode) -> Option<String> {
+    let items: String = list_of(block, "items")
+        .into_iter()
+        .filter_map(|item| {
+            let lines = text_lines(item_str(item, "text"));
+            if lines.is_empty() {
+                return None;
+            }
+            let name = item_str(item, "name");
+            let avatar = safe_url(item_str(item, "avatar"))
+                .map(|src| format!(r#"<img src="{}" alt="" loading="lazy">"#, escape(src)))
+                .unwrap_or_default();
+            let who = if avatar.is_empty() && name.is_empty() {
+                String::new()
+            } else {
+                format!(r#"<div class="ob-chat-who">{avatar}{}</div>"#, escape(name))
+            };
+            let side = if item_str(item, "side") == "right" {
+                " ob-chat-right"
+            } else {
+                ""
+            };
+            Some(format!(
+                r#"<div class="ob-chat-item{side}">{who}<div class="ob-chat-bubble">{}</div></div>"#,
+                paragraphs(&lines)
+            ))
+        })
+        .take(MAX_CHAT)
+        .collect();
+    (!items.is_empty()).then(|| format!(r#"<div class="ob-chat">{items}</div>"#))
+}
+
+/// タブの最大数（CSS が対応する数。`STYLES` の `nth-of-type` と合わせる）
+const MAX_TABS: usize = 8;
+
+/// 別のブロックと id が重ならないようにするための簡易ハッシュ（FNV-1a）
+fn fnv(text: &str) -> u32 {
+    text.bytes().fold(0x811c_9dc5u32, |h, b| {
+        (h ^ u32::from(b)).wrapping_mul(0x0100_0193)
+    })
+}
+
+/// タブ。ラジオボタンと CSS だけで切り替える（JavaScript なし。矢印キーはラジオボタンの標準の操作）。
+/// `index` は同じ呼び出しの中のブロックの位置（id を重ならなくする）
+fn render_tabs(block: &BlockNode, index: usize) -> Option<String> {
+    let tabs: Vec<(&str, String)> = list_of(block, "items")
+        .into_iter()
+        .filter_map(|item| {
+            let label = item_str(item, "label");
+            let content = item_str(item, "content");
+            if label.is_empty() || content.is_empty() {
+                return None;
+            }
+            let body = if item_str(item, "format") == "code" {
+                format!("<pre><code>{}</code></pre>", escape(content))
+            } else {
+                paragraphs(&text_lines(content))
+            };
+            Some((label, body))
+        })
+        .take(MAX_TABS)
+        .collect();
+    if tabs.is_empty() {
+        return None;
+    }
+    let seed: String = tabs
+        .iter()
+        .map(|(l, b)| format!("{l}\u{1}{b}\u{2}"))
+        .collect();
+    let group = format!("ob-tabs-{index}-{:08x}", fnv(&seed));
+    let (mut inputs, mut labels, mut panels) = (String::new(), String::new(), String::new());
+    for (i, (label, body)) in tabs.iter().enumerate() {
+        let checked = if i == 0 { " checked" } else { "" };
+        inputs.push_str(&format!(
+            r#"<input type="radio" name="{group}" id="{group}-{i}" aria-label="{}"{checked}>"#,
+            escape(label)
+        ));
+        labels.push_str(&format!(
+            r#"<label for="{group}-{i}">{}</label>"#,
+            escape(label)
+        ));
+        panels.push_str(&format!(
+            r#"<div class="ob-tab-panel"><p class="ob-tab-title">{}</p>{body}</div>"#,
+            escape(label)
+        ));
+    }
+    Some(format!(
+        r#"<div class="ob-tabs">{inputs}<div class="ob-tabs-bar">{labels}</div><div class="ob-tabs-panels">{panels}</div></div>"#
+    ))
+}
+
+/// 数値の最大数
+const MAX_STATS: usize = 6;
+
+fn render_stats(block: &BlockNode) -> Option<String> {
+    let items: String = list_of(block, "items")
+        .into_iter()
+        .filter(|item| !item_str(item, "value").is_empty())
+        .take(MAX_STATS)
+        .map(|item| {
+            let unit = item_str(item, "unit");
+            let unit = if unit.is_empty() {
+                String::new()
+            } else {
+                format!(r#"<span class="ob-stat-unit">{}</span>"#, escape(unit))
+            };
+            let label = item_str(item, "label");
+            let label = if label.is_empty() {
+                String::new()
+            } else {
+                format!(r#"<span class="ob-stat-label">{}</span>"#, escape(label))
+            };
+            format!(
+                r#"<div class="ob-stat"><span class="ob-stat-value">{}{unit}</span>{label}</div>"#,
+                escape(item_str(item, "value"))
+            )
+        })
+        .collect();
+    (!items.is_empty()).then(|| format!(r#"<div class="ob-stats">{items}</div>"#))
+}
+
+/// 定義リストの最大項目数
+const MAX_DEFINITIONS: usize = 100;
+
+fn render_definition_list(block: &BlockNode) -> Option<String> {
+    let items: String = list_of(block, "items")
+        .into_iter()
+        .filter_map(|item| {
+            let term = item_str(item, "term");
+            let lines = text_lines(item_str(item, "description"));
+            if term.is_empty() || lines.is_empty() {
+                return None;
+            }
+            Some(format!(
+                r#"<div class="ob-dl-row"><dt>{}</dt><dd>{}</dd></div>"#,
+                escape(term),
+                paragraphs(&lines)
+            ))
+        })
+        .take(MAX_DEFINITIONS)
+        .collect();
+    (!items.is_empty()).then(|| format!(r#"<dl class="ob-dl">{items}</dl>"#))
+}
+
 impl Plugin for BlocksPlugin {
     fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
         let mut styled = false;
         Ok(blocks
             .iter()
-            .map(|block| {
+            .enumerate()
+            .map(|(index, block)| {
                 let html = match block.name.as_str() {
                     "official-blocks/button" => render_button(block),
                     "official-blocks/link-card" => render_link_card(block),
@@ -742,6 +982,11 @@ impl Plugin for BlocksPlugin {
                     "official-blocks/columns" => render_columns(block),
                     "official-blocks/media-text" => render_media_text(block),
                     "official-blocks/figure" => render_figure(block),
+                    "official-blocks/timeline" => render_timeline(block),
+                    "official-blocks/chat" => render_chat(block),
+                    "official-blocks/tabs" => render_tabs(block, index),
+                    "official-blocks/stats" => render_stats(block),
+                    "official-blocks/definition-list" => render_definition_list(block),
                     _ => None,
                 }?;
                 // スタイルは最初に表示するブロックにだけ付ける
@@ -1000,6 +1245,158 @@ mod tests {
             .unwrap()
             .contains(r#"class="ob-media-text">"#));
         assert_eq!(&html[2..], &[None, None]);
+    }
+
+    fn items_block(name: &str, items: serde_json::Value) -> BlockNode {
+        json_block(name, &[("items", items)])
+    }
+
+    #[test]
+    fn renders_a_timeline_and_skips_empty_items() {
+        use serde_json::json;
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                items_block(
+                    "timeline",
+                    json!([
+                        {"date": "2025-04", "title": "v1.0 <out>", "description": "First\nrelease"},
+                        {"date": "2025-10"},
+                        {"description": "no date or title"},
+                        "not an object"
+                    ]),
+                ),
+                items_block("timeline", json!([])),
+            ])
+            .unwrap();
+        let timeline = html[0].as_deref().unwrap();
+        assert!(timeline.contains(r#"<li><span class="ob-tl-date">2025-04</span><span class="ob-tl-title">v1.0 &lt;out&gt;</span><span class="ob-tl-body">First release</span></li>"#));
+        assert!(timeline.contains(r#"<li><span class="ob-tl-date">2025-10</span></li>"#));
+        assert_eq!(timeline.matches("<li>").count(), 2);
+        assert_eq!(html[1], None);
+    }
+
+    #[test]
+    fn renders_a_chat_on_either_side() {
+        use serde_json::json;
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                items_block(
+                    "chat",
+                    json!([
+                        {"name": "Ann", "avatar": "/a.png", "side": "left", "text": "Hi <b>\n\nThere"},
+                        {"name": "Bob", "avatar": "javascript:x", "side": "right", "text": "Yo"},
+                        {"name": "Nobody", "text": ""},
+                        {"text": "Anonymous"}
+                    ]),
+                ),
+                items_block("chat", json!([{"name": "x", "text": ""}])),
+            ])
+            .unwrap();
+        let chat = html[0].as_deref().unwrap();
+        assert!(chat.contains(r#"<div class="ob-chat-item"><div class="ob-chat-who"><img src="/a.png" alt="" loading="lazy">Ann</div><div class="ob-chat-bubble"><p>Hi &lt;b&gt;</p><p>There</p></div></div>"#));
+        assert!(chat.contains(
+            r#"<div class="ob-chat-item ob-chat-right"><div class="ob-chat-who">Bob</div>"#
+        ));
+        assert!(!chat.contains("javascript"));
+        assert!(chat
+            .contains(r#"<div class="ob-chat-item"><div class="ob-chat-bubble"><p>Anonymous</p>"#));
+        assert_eq!(chat.matches(r#"<div class="ob-chat-item"#).count(), 3);
+        assert_eq!(html[1], None);
+    }
+
+    #[test]
+    fn renders_tabs_with_unique_radio_groups() {
+        use serde_json::json;
+        let tabs = |label: &str| {
+            items_block(
+                "tabs",
+                json!([
+                    {"label": label, "content": "npm i <x>", "format": "code"},
+                    {"label": "pnpm", "content": "Line one\nLine two"},
+                    {"label": "", "content": "dropped"},
+                    {"label": "empty", "content": ""}
+                ]),
+            )
+        };
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                tabs("npm"),
+                tabs("npm"),
+                items_block("tabs", json!([])),
+            ])
+            .unwrap();
+        let first = html[0].as_deref().unwrap();
+        assert_eq!(first.matches(r#"type="radio""#).count(), 2);
+        assert_eq!(first.matches(" checked>").count(), 1);
+        assert!(first.contains("<pre><code>npm i &lt;x&gt;</code></pre>"));
+        assert!(first.contains("<p>Line one</p><p>Line two</p>"));
+        assert!(first.contains(r#"<label for="#));
+        // 同じ内容のブロックでも、ラジオボタンの name は重ならない
+        let name = |h: &str| {
+            h.split(r#"name=""#)
+                .nth(1)
+                .unwrap()
+                .split('"')
+                .next()
+                .unwrap()
+                .to_string()
+        };
+        assert_ne!(name(first), name(html[1].as_deref().unwrap()));
+        assert_eq!(html[2], None);
+    }
+
+    #[test]
+    fn caps_the_number_of_tabs() {
+        use serde_json::json;
+        let items: Vec<_> = (0..12)
+            .map(|i| json!({"label": format!("T{i}"), "content": "x"}))
+            .collect();
+        let html = BlocksPlugin
+            .render_blocks(vec![items_block("tabs", json!(items))])
+            .unwrap();
+        assert_eq!(
+            html[0]
+                .as_deref()
+                .unwrap()
+                .matches(r#"type="radio""#)
+                .count(),
+            MAX_TABS
+        );
+    }
+
+    #[test]
+    fn renders_stats_and_a_definition_list() {
+        use serde_json::json;
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                items_block(
+                    "stats",
+                    json!([
+                        {"value": "99.9", "unit": "%", "label": "Uptime <SLA>"},
+                        {"value": "15+"},
+                        {"unit": "x", "label": "no value"}
+                    ]),
+                ),
+                items_block(
+                    "definition-list",
+                    json!([
+                        {"term": "CPU <x>", "description": "Fast\n\nQuiet"},
+                        {"term": "No description"},
+                        {"description": "No term"}
+                    ]),
+                ),
+                items_block("stats", json!([{"label": "x"}])),
+            ])
+            .unwrap();
+        let stats = html[0].as_deref().unwrap();
+        assert!(stats.contains(r#"<div class="ob-stat"><span class="ob-stat-value">99.9<span class="ob-stat-unit">%</span></span><span class="ob-stat-label">Uptime &lt;SLA&gt;</span></div>"#));
+        assert!(
+            stats.contains(r#"<div class="ob-stat"><span class="ob-stat-value">15+</span></div>"#)
+        );
+        assert_eq!(stats.matches(r#"class="ob-stat""#).count(), 2);
+        let dl = html[1].as_deref().unwrap();
+        assert!(dl.contains(r#"<dl class="ob-dl"><div class="ob-dl-row"><dt>CPU &lt;x&gt;</dt><dd><p>Fast</p><p>Quiet</p></dd></div></dl>"#));
+        assert_eq!(html[2], None);
     }
 
     #[test]
