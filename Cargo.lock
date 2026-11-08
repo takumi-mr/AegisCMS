@@ -476,6 +476,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-plantuml"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "miniz_oxide 0.8.9",
+]
+
+[[package]]
 name = "aegis-plugin-post-navigation"
 version = "0.2.1"
 dependencies = [

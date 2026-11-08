@@ -1,0 +1,80 @@
+{
+  "name": "official-plantuml",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "PlantUML Diagrams",
+  "description": "Draws PlantUML diagrams from ```plantuml code blocks as images from a PlantUML server. Adds no script to the page. Configure it in Settings > Plugins.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "diagram",
+    "plantuml",
+    "content"
+  ],
+  "min_aegis_version": "0.1.0",
+  "abi_version": 1,
+  "capabilities": {
+    "render_page": {
+      "input": [
+        "content_html"
+      ]
+    },
+    "hooks": [
+      "on-render-page"
+    ],
+    "csp": {
+      "img_domains": [
+        "www.plantuml.com"
+      ]
+    }
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "settings": [
+    {
+      "key": "server_url",
+      "type": "url",
+      "label": {
+        "en": "PlantUML server URL",
+        "ja": "PlantUML サーバーの URL"
+      },
+      "description": {
+        "en": "The diagram source is sent to this server. Use your own PlantUML server for diagrams that must not leave your site. A host other than www.plantuml.com must be allowed by the site's Content-Security-Policy (img-src).",
+        "ja": "図のソースは、このサーバーに送られる。外に出したくない図は、自分の PlantUML サーバーを使う。www.plantuml.com 以外のホストは、サイトの CSP（img-src）で許可が要る。"
+      },
+      "placeholder": "https://www.plantuml.com/plantuml"
+    },
+    {
+      "key": "format",
+      "type": "select",
+      "label": {
+        "en": "Image format",
+        "ja": "画像の形式"
+      },
+      "description": {
+        "en": "SVG stays sharp at any size. PNG suits servers or readers that have trouble with SVG.",
+        "ja": "SVG は拡大しても粗くならない。PNG は、SVG がうまく出ないときに使う。"
+      },
+      "default": "svg",
+      "options": [
+        {
+          "value": "svg",
+          "label": {
+            "en": "SVG (recommended)",
+            "ja": "SVG（おすすめ）"
+          }
+        },
+        {
+          "value": "png",
+          "label": {
+            "en": "PNG",
+            "ja": "PNG"
+          }
+        }
+      ]
+    }
+  ]
+}

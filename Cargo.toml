@@ -33,6 +33,7 @@ members = [
     "sdk/templates/rust-block",
     "plugins/official-code-enhancer",
     "plugins/official-mermaid",
+    "plugins/official-plantuml",
     "plugins/official-shop-rules",
     "plugins/official-order-notifier",
     "plugins/official-blocks",

@@ -210,6 +210,22 @@
         }
       ]
     },
+    "plugins/official-plantuml": {
+      "release-type": "simple",
+      "component": "plugin-official-plantuml",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
     "plugins/official-code-lines": {
       "release-type": "simple",
       "component": "plugin-official-code-lines",

@@ -76,6 +76,7 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | `task plugin:build:as-hooks` | `sdk/examples/assemblyscript-hooks/plugin.wasm`（注文・通知・コメント・ブロックのフックの例） | Node.js（`npm install`） |
 | `task plugin:build:code-enhancer` | `plugins/official-code-enhancer/plugin.wasm` | 同上（Rust） |
 | `task plugin:build:mermaid` | `plugins/official-mermaid/plugin.wasm` | 同上（Rust） |
+| `task plugin:build:plantuml` | `plugins/official-plantuml/plugin.wasm` | 同上（Rust） |
 | `task plugin:build:shop` | `plugins/official-shop-rules` / `official-order-notifier` | 同上（Rust） |
 | `task build:wasm` | `sdk/examples/slack-notifier/plugin.wasm`（手書きの WAT から） | — |
 

@@ -296,6 +296,15 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_mermaid.wasm plugins/official-mermaid/plugin.wasm
         platforms: [linux, darwin]
 
+  plugin:build:plantuml:
+    desc: 公式 PlantUML プラグインを Wasm にビルドし plugins/official-plantuml/plugin.wasm を生成
+    cmds:
+      - cargo build -p aegis-plugin-plantuml --target wasm32-unknown-unknown --release
+      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_plantuml.wasm plugins\\official-plantuml\\plugin.wasm"
+        platforms: [windows]
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_plantuml.wasm plugins/official-plantuml/plugin.wasm
+        platforms: [linux, darwin]
+
   plugin:build:shop:
     desc: 公式 EC プラグイン (official-shop-rules / official-order-notifier) を Wasm にビルドし plugins/*/plugin.wasm を更新
     cmds:
