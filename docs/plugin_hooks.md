@@ -469,6 +469,7 @@ SDK ヘルパー:
 | `fields[].default` | 新しく置いたブロックの初期値 |
 | `fields[].fields` | `list` の 1 項目の入力欄（上の `fields[]` と同じ形。`list` の中に `list` は置けない）。`list` だけに書ける |
 | `fields[].max_items` | `list` の項目数の上限（1〜100。省略すると 100）。`list` だけに書ける |
+| `refreshable` | `true` にすると、ブロックのフォームに「再取得」ボタンが出る。押すとブロックに `refresh: true` の属性を付けて `transform-content-ast` を通し（保存はしない）、返ってきた属性でフォームを更新する。プラグインは属性を作り直したら `refresh` を外す（`official-link-embed` を参照） |
 
 Admin Studio のフォームが `attributes` に入れる値の型は次のとおりです。API や Markdown から保存されるブロックは任意の JSON を持てるので、プラグインは型の違いにも耐えるようにしてください（`official-blocks` の `attr` や `sdk/templates/rust-block` を参照）。
 

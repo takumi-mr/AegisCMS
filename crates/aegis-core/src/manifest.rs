@@ -77,6 +77,11 @@ pub struct BlockDefinition {
     /// 編集画面の入力欄。値はブロックの `attributes` に `name` をキーにして入る
     #[serde(default)]
     pub fields: Vec<BlockField>,
+    /// `true` なら、Admin Studio の属性のフォームに「再取得」ボタンを出す。押すと、ブロックに
+    /// `refresh: true` の属性を付けて `transform-content-ast` を通し、プラグインが属性を作り直す
+    /// （プラグインは作り直したら `refresh` を外す）
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub refreshable: bool,
 }
 
 /// カスタムブロックの入力欄
