@@ -1,6 +1,6 @@
 # official-blocks
 
-本文に置けるボタン・リンクカード・動画・音声・ファイル・地図・画像ギャラリー・FAQ・手順・カラム・画像と文章のブロックを足す公式プラグインです。プラグインでカスタムブロックを作るときのお手本でもあります（[`render-blocks` フック](../../docs/plugin_hooks.md#110-render-blocks)、動画は[外部のページの埋め込み](../../docs/plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)）。
+本文に置けるボタン・リンクカード・動画・音声・ファイル・地図・画像ギャラリー・FAQ・手順・カラム・画像と文章・キャプションつきの画像のブロックを足す公式プラグインです。プラグインでカスタムブロックを作るときのお手本でもあります（[`render-blocks` フック](../../docs/plugin_hooks.md#110-render-blocks)、動画は[外部のページの埋め込み](../../docs/plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)）。
 
 | ブロック | 入力欄 | 表示 |
 | --- | --- | --- |
@@ -15,6 +15,7 @@
 | `official-blocks/steps` | 見出しと説明（必須。項目を増やせる） | 番号と線でつないだ手順 |
 | `official-blocks/columns` | 画像・見出し・文章（必須。項目を増やせる。4 列まで） | 等分の列（狭い画面では縦に積む） |
 | `official-blocks/media-text` | 画像（必須）・画像の説明・見出し・文章・画像の位置（左 / 右） | 画像と文章の横並び（狭い画面では縦に積む） |
+| `official-blocks/figure` | 画像（必須）・画像の説明（alt）・キャプション | 画像と、その下のキャプション（`<figcaption>`） |
 
 ## 動画
 
