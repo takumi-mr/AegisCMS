@@ -226,7 +226,11 @@
       "moveUp": "Move item {{n}} up",
       "moveDown": "Move item {{n}} down",
       "removeItem": "Remove item {{n}}",
-      "itemCount": "{{count}} / {{max}} items"
+      "itemCount": "{{count}} / {{max}} items",
+      "refresh": "Refresh",
+      "refreshing": "Fetching...",
+      "refreshFailed": "Could not refresh: {{error}}",
+      "refreshHelp": "Fetches the latest content from the linked page again (applied when you save)."
     },
     "detailsSummary": "Summary (e.g. a question)",
     "detailsOpen": "Open by default",

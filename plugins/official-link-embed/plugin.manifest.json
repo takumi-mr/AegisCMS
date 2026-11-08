@@ -68,6 +68,7 @@
   "blocks": [
     {
       "name": "embed",
+      "refreshable": true,
       "label": {
         "en": "Link embed",
         "ja": "リンクの埋め込み"
