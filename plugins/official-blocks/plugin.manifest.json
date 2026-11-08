@@ -750,6 +750,311 @@
           "default": ""
         }
       ]
+    },
+    {
+      "name": "timeline",
+      "label": {
+        "en": "Timeline",
+        "ja": "タイムライン"
+      },
+      "description": {
+        "en": "Dated events joined by a vertical line",
+        "ja": "日付と出来事を縦線でつなぐ（沿革・ロードマップ）"
+      },
+      "fields": [
+        {
+          "name": "items",
+          "type": "list",
+          "label": {
+            "en": "Events",
+            "ja": "出来事"
+          },
+          "required": true,
+          "max_items": 50,
+          "fields": [
+            {
+              "name": "date",
+              "type": "string",
+              "label": {
+                "en": "Date / label",
+                "ja": "日付・ラベル"
+              },
+              "default": "",
+              "placeholder": "2025-04"
+            },
+            {
+              "name": "title",
+              "type": "string",
+              "label": {
+                "en": "Title",
+                "ja": "見出し"
+              },
+              "default": ""
+            },
+            {
+              "name": "description",
+              "type": "text",
+              "label": {
+                "en": "Description",
+                "ja": "説明"
+              },
+              "default": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "chat",
+      "label": {
+        "en": "Chat bubbles",
+        "ja": "吹き出し"
+      },
+      "description": {
+        "en": "A conversation with avatars and speech bubbles",
+        "ja": "アイコンと名前つきの吹き出しの会話"
+      },
+      "fields": [
+        {
+          "name": "items",
+          "type": "list",
+          "label": {
+            "en": "Messages",
+            "ja": "セリフ"
+          },
+          "required": true,
+          "max_items": 50,
+          "fields": [
+            {
+              "name": "name",
+              "type": "string",
+              "label": {
+                "en": "Name",
+                "ja": "名前"
+              },
+              "default": ""
+            },
+            {
+              "name": "avatar",
+              "type": "image",
+              "label": {
+                "en": "Avatar",
+                "ja": "アイコン"
+              },
+              "default": ""
+            },
+            {
+              "name": "side",
+              "type": "select",
+              "label": {
+                "en": "Side",
+                "ja": "位置"
+              },
+              "default": "left",
+              "options": [
+                {
+                  "value": "left",
+                  "label": {
+                    "en": "Left",
+                    "ja": "左"
+                  }
+                },
+                {
+                  "value": "right",
+                  "label": {
+                    "en": "Right",
+                    "ja": "右"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "text",
+              "label": {
+                "en": "Message",
+                "ja": "セリフ"
+              },
+              "required": true,
+              "default": "",
+              "help": {
+                "en": "Plain text. A blank line starts a new paragraph.",
+                "ja": "プレーンテキスト。空行で段落を分けます。"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tabs",
+      "label": {
+        "en": "Tabs",
+        "ja": "タブ"
+      },
+      "description": {
+        "en": "Switchable tabs (no JavaScript); all tabs are shown when printed",
+        "ja": "切り替えるタブ（JavaScript なし。印刷では全部のタブを出す）"
+      },
+      "fields": [
+        {
+          "name": "items",
+          "type": "list",
+          "label": {
+            "en": "Tabs",
+            "ja": "タブ"
+          },
+          "required": true,
+          "max_items": 8,
+          "fields": [
+            {
+              "name": "label",
+              "type": "string",
+              "label": {
+                "en": "Tab name",
+                "ja": "タブの名前"
+              },
+              "required": true,
+              "default": ""
+            },
+            {
+              "name": "content",
+              "type": "text",
+              "label": {
+                "en": "Content",
+                "ja": "内容"
+              },
+              "required": true,
+              "default": ""
+            },
+            {
+              "name": "format",
+              "type": "select",
+              "label": {
+                "en": "Format",
+                "ja": "表示の形式"
+              },
+              "default": "text",
+              "options": [
+                {
+                  "value": "text",
+                  "label": {
+                    "en": "Text",
+                    "ja": "文章"
+                  }
+                },
+                {
+                  "value": "code",
+                  "label": {
+                    "en": "Code",
+                    "ja": "コード"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "stats",
+      "label": {
+        "en": "Stats",
+        "ja": "数値"
+      },
+      "description": {
+        "en": "Big numbers with a unit and a label, side by side",
+        "ja": "大きな数字・単位・ラベルを横に並べる"
+      },
+      "fields": [
+        {
+          "name": "items",
+          "type": "list",
+          "label": {
+            "en": "Numbers",
+            "ja": "数値"
+          },
+          "required": true,
+          "max_items": 6,
+          "fields": [
+            {
+              "name": "value",
+              "type": "string",
+              "label": {
+                "en": "Value",
+                "ja": "数字"
+              },
+              "required": true,
+              "default": "",
+              "placeholder": "99.9"
+            },
+            {
+              "name": "unit",
+              "type": "string",
+              "label": {
+                "en": "Unit",
+                "ja": "単位"
+              },
+              "default": "",
+              "placeholder": "%"
+            },
+            {
+              "name": "label",
+              "type": "string",
+              "label": {
+                "en": "Label",
+                "ja": "ラベル"
+              },
+              "default": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "definition-list",
+      "label": {
+        "en": "Definition list",
+        "ja": "定義リスト"
+      },
+      "description": {
+        "en": "Terms with descriptions (specs, glossary)",
+        "ja": "用語と説明の一覧（仕様・用語集）"
+      },
+      "fields": [
+        {
+          "name": "items",
+          "type": "list",
+          "label": {
+            "en": "Terms",
+            "ja": "項目"
+          },
+          "required": true,
+          "max_items": 100,
+          "fields": [
+            {
+              "name": "term",
+              "type": "string",
+              "label": {
+                "en": "Term",
+                "ja": "用語・項目"
+              },
+              "required": true,
+              "default": ""
+            },
+            {
+              "name": "description",
+              "type": "text",
+              "label": {
+                "en": "Description",
+                "ja": "説明"
+              },
+              "required": true,
+              "default": ""
+            }
+          ]
+        }
+      ]
     }
   ]
 }
