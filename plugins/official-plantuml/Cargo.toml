@@ -1,0 +1,13 @@
+[package]
+name = "aegis-plugin-plantuml"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Core Team"]
+description = "Official Wasm plugin that draws PlantUML diagrams from ```plantuml code blocks"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }

@@ -7,6 +7,7 @@
   "plugins/official-blocks": "0.3.0",
   "plugins/official-code-enhancer": "0.4.0",
   "plugins/official-mermaid": "0.1.0",
+  "plugins/official-plantuml": "0.1.0",
   "plugins/official-code-lines": "0.2.1",
   "plugins/official-external-links": "0.2.1",
   "plugins/official-link-embed": "0.2.0",

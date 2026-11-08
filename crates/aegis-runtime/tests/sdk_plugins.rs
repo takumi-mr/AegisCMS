@@ -365,6 +365,58 @@ async fn test_official_code_and_diagram_plugins_load_only_when_needed() {
     }
 }
 
+/// 公式プラグイン `official-plantuml` のビルド済み `plugin.wasm` で、マニフェスト（CSP・設定）の検査と、
+/// ` ```plantuml ` のブロックだけを PlantUML サーバーの画像に置き換える（スクリプトは足さない）ことを確かめる
+#[tokio::test]
+async fn test_official_plantuml_replaces_only_plantuml_blocks() {
+    let engine = WasmEngine::new().unwrap();
+    let plugins = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+    let page = |html: &str| PageRenderContext {
+        template: "article.html".to_string(),
+        content_type: "article".to_string(),
+        content_html: html.to_string(),
+        ..Default::default()
+    };
+    let plantuml = load(&engine, &plugins.join("official-plantuml"));
+    let manifest = plantuml.manifest();
+    manifest.validate_csp().unwrap();
+    manifest.validate_settings().unwrap();
+    assert_eq!(manifest.csp_img_domains(), ["www.plantuml.com"]);
+    assert!(manifest.csp_script_domains().is_empty());
+    assert!(manifest.capabilities.network.is_none() && manifest.capabilities.storage.is_none());
+
+    // 大きめの図（シーケンス図 200 行）でも、燃料・時間の上限に収まる
+    let mut source = String::from("@startuml\n");
+    for i in 0..200 {
+        source.push_str(&format!(
+            "Alice -&gt; Bob : message {i}\nBob --&gt; Alice : reply {i}\n"
+        ));
+    }
+    source.push_str("@enduml");
+    let code = "<pre><code class=\"language-rust\">fn a() {}</code></pre>";
+    for diagram in [
+        "<pre><code class=\"language-plantuml\">Alice -&gt; Bob : hello</code></pre>".to_string(),
+        format!("<pre><code class=\"language-plantuml\">{source}</code></pre>"),
+    ] {
+        let out = plantuml
+            .on_render_page(page(&format!("{code}{diagram}")))
+            .await
+            .unwrap();
+        assert!(out.content_html.starts_with(code));
+        assert!(out.content_html.contains(
+            "<figure class=\"opu-diagram\"><img src=\"https://www.plantuml.com/plantuml/svg/"
+        ));
+        assert!(!out.content_html.contains("language-plantuml"));
+        assert!(out.extra_css.contains(".opu-diagram"));
+        assert!(out.extra_head.is_empty());
+    }
+    for html in [code, "<p>No diagram</p>"] {
+        let other = plantuml.on_render_page(page(html)).await.unwrap();
+        assert_eq!(other.content_html, html);
+        assert!(other.extra_css.is_empty() && other.extra_head.is_empty());
+    }
+}
+
 /// 公式プラグイン `official-ads` のビルド済み `plugin.wasm` で、マニフェスト、`render-blocks`、
 /// `on-render-page`、動的 CSP 設定および Cookie 同意連携が正しく動作することを確認する
 #[tokio::test]
