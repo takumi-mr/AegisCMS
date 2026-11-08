@@ -22,6 +22,7 @@ import {
   Info,
   Puzzle,
   ListCollapse,
+  Asterisk,
   MessageSquare,
   MessageSquareOff,
   Mail,
@@ -1507,6 +1508,13 @@ export const App: React.FC = () => {
                       >
                         <ListCollapse size={14} />
                         <span>{t('editor.details')}</span>
+                      </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() => addBlock('core/footnote', '', { label: '' })}
+                      >
+                        <Asterisk size={14} />
+                        <span>{t('editor.footnote')}</span>
                       </Button>
                       <Button variant="tool" onClick={() => addBlock('core/separator', '')}>
                         <Minus size={14} />

@@ -18,6 +18,7 @@ import {
   Puzzle,
   ListCollapse,
   Mail,
+  Asterisk,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BlockNode, ContactForm, PluginBlockDefinition } from '../types';
@@ -94,6 +95,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         return <Info size={14} />;
       case 'core/details':
         return <ListCollapse size={14} />;
+      case 'core/footnote':
+        return <Asterisk size={14} />;
       case 'core/contact-form':
         return <Mail size={14} />;
       default:
@@ -467,6 +470,33 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           <textarea
             className={styles.textarea}
             placeholder={t('blocks.detailsPlaceholder')}
+            value={block.text || ''}
+            onChange={(e) => onChange({ ...block, text: e.target.value })}
+          />
+        </div>
+      )}
+
+      {block.name === 'core/footnote' && (
+        <div className={styles.stack}>
+          <input
+            type="text"
+            className={styles.urlInput}
+            aria-label={t('blocks.footnoteLabel')}
+            placeholder={t('blocks.footnoteLabel')}
+            value={String(block.attributes?.label ?? '')}
+            onChange={(e) =>
+              onChange({
+                ...block,
+                attributes: {
+                  ...block.attributes,
+                  label: e.target.value.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40),
+                },
+              })
+            }
+          />
+          <textarea
+            className={styles.textarea}
+            placeholder={t('blocks.footnotePlaceholder')}
             value={block.text || ''}
             onChange={(e) => onChange({ ...block, text: e.target.value })}
           />

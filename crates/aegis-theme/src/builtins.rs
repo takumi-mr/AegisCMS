@@ -414,6 +414,11 @@ pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
 :where(.aegis-toc-title){font-weight:700;margin:0 0 .5rem}\
 :where(.aegis-toc) ol{margin:0;padding-left:1.25rem}\
 :where(.aegis-toc) ol ol{margin-top:.25rem}\
+:where(.aegis-fnref){font-size:.75em;line-height:0}\
+:where(.aegis-footnotes){margin-top:2rem;padding-top:.75rem;border-top:1px solid rgba(127,127,127,.3);font-size:.9em}\
+:where(.aegis-footnotes) ol{margin:0;padding-left:1.5rem}\
+:where(.aegis-footnotes) p{margin:.25rem 0}\
+:where(.aegis-fn-backref){text-decoration:none;margin-left:.15em}\
 :where(.aegis-callout){--aegis-callout:#3b82f6;border-left:4px solid var(--aegis-callout);background:rgba(127,127,127,.08);background:color-mix(in srgb,var(--aegis-callout) 10%,transparent);border-radius:0 8px 8px 0;padding:.75rem 1rem;margin:1.5rem 0}\
 :where(.aegis-callout)>:first-child{margin-top:0}\
 :where(.aegis-callout)>:last-child{margin-bottom:0}\

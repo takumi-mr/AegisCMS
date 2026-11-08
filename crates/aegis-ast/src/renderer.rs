@@ -436,6 +436,18 @@ impl HtmlRenderer {
         nodes: &[BlockNode],
         prerendered: &std::collections::HashMap<usize, String>,
     ) -> String {
+        // 脚注の定義（`core/footnote`）があれば、番号付けの文脈を描画の間だけ有効にする
+        let definitions = nodes
+            .iter()
+            .filter(|n| n.name == "core/footnote")
+            .map(|n| {
+                (
+                    attr_str(n, "label").unwrap_or_default().to_string(),
+                    n.text.clone().unwrap_or_default(),
+                )
+            })
+            .collect();
+        let footnotes = crate::footnote::begin(definitions);
         let mut html = String::new();
         for (i, node) in nodes.iter().enumerate() {
             if let Some(done) = prerendered.get(&i) {
@@ -448,6 +460,10 @@ impl HtmlRenderer {
             } else {
                 html.push_str(&Self::render_node(node));
             }
+        }
+        // 注釈は文書の末尾にまとめる（参照の順に番号を振り終えてから）
+        if footnotes.is_some() {
+            html.push_str(&crate::footnote::section());
         }
         html
     }
@@ -557,6 +573,8 @@ impl HtmlRenderer {
             "core/table" => render_table(node),
             // 文書の中にない目次（render_node を直接呼んだとき）は見出しが無いので出さない
             "core/toc" => render_toc(node, &[]),
+            // 定義は文書の末尾にまとめて出す（`render_nodes_with`）
+            "core/footnote" => String::new(),
             "core/quote" => {
                 let body = render_paragraphs(node.text.as_deref().unwrap_or_default());
                 if body.is_empty() {
@@ -857,6 +875,96 @@ mod tests {
         let plain =
             HtmlRenderer::render_nodes(&[BlockNode::new("core/list").with_child(item("a", None))]);
         assert_eq!(plain, "<ul>\n<li>a</li>\n</ul>\n");
+    }
+
+    fn footnote(label: &str, text: &str) -> BlockNode {
+        let mut node = BlockNode::new("core/footnote").with_attr("label", label);
+        node.text = Some(text.to_string());
+        node
+    }
+
+    #[test]
+    fn test_footnotes_follow_githubs_numbering() {
+        let html = HtmlRenderer::render_nodes(&[
+            BlockNode::paragraph("Text[^b] and again[^a] and[^b] and[^nope]."),
+            footnote("a", "Note **A**."),
+            footnote("b", "Note B."),
+            footnote("c", "Unreferenced."),
+            BlockNode::paragraph("After."),
+        ]);
+        // 番号は最初に参照された順（b → 1、a → 2）。同じ脚注は同じ番号
+        let refs: Vec<&str> = html
+            .match_indices("role=\"doc-noteref\">")
+            .map(|(i, m)| &html[i + m.len()..i + m.len() + 1])
+            .collect();
+        assert_eq!(refs, ["1", "2", "1"], "{html}");
+        // 定義の無い参照は文字のまま、参照されない定義は出さない
+        assert!(html.contains("and[^nope]."));
+        assert!(!html.contains("Unreferenced"));
+        // 定義の位置には何も出さず、注釈は末尾に番号順
+        assert!(html.contains(
+            "<p>After.</p>
+<section class=\"aegis-footnotes\" role=\"doc-endnotes\">"
+        ));
+        let b = html.find("Note B.").unwrap();
+        let a = html.find("Note <strong>A</strong>.").unwrap();
+        assert!(b < a);
+        // 2 回参照した b には戻りリンクが 2 つ（`↩` と `↩²`）
+        assert_eq!(html.matches("doc-backlink").count(), 3);
+        assert!(html.contains("↩<sup>2</sup>"));
+        // ref の id は 2 回目から番号が付き、戻りリンクと対応する
+        assert!(html.contains("id=\"fnref-b-"));
+        assert!(html.contains("id=\"fnref-b-2-"));
+    }
+
+    #[test]
+    fn test_footnote_ids_depend_on_the_definitions() {
+        let doc = |text: &str| {
+            HtmlRenderer::render_nodes(&[BlockNode::paragraph("x[^1]"), footnote("1", text)])
+        };
+        let id = |html: &str| {
+            let start = html.find("<li id=\"").unwrap() + 8;
+            html[start..start + html[start..].find('"').unwrap()].to_string()
+        };
+        assert_eq!(id(&doc("same")), id(&doc("same")));
+        assert_ne!(id(&doc("one")), id(&doc("two")));
+        assert!(id(&doc("one")).starts_with("fn-1-"));
+    }
+
+    #[test]
+    fn test_footnotes_inside_footnotes_and_without_definitions() {
+        let html = HtmlRenderer::render_nodes(&[
+            BlockNode::paragraph("a[^1]"),
+            footnote("1", "see also[^2]"),
+            footnote("2", "Second"),
+        ]);
+        assert!(
+            html.contains("see also<sup class=\"aegis-fnref\">"),
+            "{html}"
+        );
+        assert!(html.contains("Second"));
+        // 後の注釈から前の脚注を参照しても、前の脚注の戻りリンクが増える
+        let back = HtmlRenderer::render_nodes(&[
+            BlockNode::paragraph("a[^1] b[^2]"),
+            footnote("1", "First"),
+            footnote("2", "Second, see[^1]"),
+        ]);
+        assert_eq!(back.matches("doc-backlink").count(), 3, "{back}");
+        // 定義の無い文書や 1 つのブロックだけの描画では、参照は文字のまま
+        assert_eq!(
+            HtmlRenderer::render_nodes(&[BlockNode::paragraph("a[^1]")]),
+            "<p>a[^1]</p>
+"
+        );
+        assert_eq!(HtmlRenderer::render_node(&footnote("1", "x")), "");
+        // 不正なラベルの定義は無視する
+        let bad =
+            HtmlRenderer::render_nodes(&[BlockNode::paragraph("a[^x y]"), footnote("x y", "no")]);
+        assert_eq!(
+            bad,
+            "<p>a[^x y]</p>
+"
+        );
     }
 
     #[test]
