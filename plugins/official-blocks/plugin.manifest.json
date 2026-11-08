@@ -709,6 +709,47 @@
           ]
         }
       ]
+    },
+    {
+      "name": "figure",
+      "label": {
+        "en": "Image with caption",
+        "ja": "キャプションつきの画像"
+      },
+      "description": {
+        "en": "An image with a caption (figcaption) below it",
+        "ja": "画像と、その下のキャプション（図番・出典・説明）"
+      },
+      "fields": [
+        {
+          "name": "image",
+          "type": "image",
+          "label": {
+            "en": "Image",
+            "ja": "画像"
+          },
+          "required": true,
+          "default": ""
+        },
+        {
+          "name": "alt",
+          "type": "string",
+          "label": {
+            "en": "Image description (alt)",
+            "ja": "画像の説明（alt）"
+          },
+          "default": ""
+        },
+        {
+          "name": "caption",
+          "type": "string",
+          "label": {
+            "en": "Caption",
+            "ja": "キャプション"
+          },
+          "default": ""
+        }
+      ]
     }
   ]
 }
