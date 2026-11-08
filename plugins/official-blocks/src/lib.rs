@@ -29,6 +29,8 @@
 //!   ラジオボタンと CSS だけで切り替える（JavaScript なし）。印刷では全部のタブを順に出す
 //! - `official-blocks/stats`: `items`（`list`: `value`・`unit`・`label`。6 つまで）。大きな数字を並べる
 //! - `official-blocks/definition-list`: `items`（`list`: `term`・`description`。100 件まで）。`<dl>`
+//! - `official-blocks/rating`: `name`・`item_type`・`rating`（1〜5、0.5 刻み）・`summary`・`author`・
+//!   `scores`（`list`: `label`・`score`。10 件まで）。星の評価で、schema.org の Review を microdata で付ける
 //!
 //! 見た目は最初のブロックの前に 1 回だけ入れる `<style>`。配置・余白は `:where()` で詳細度 0
 //! （テーマの CSS が優先）。リンクの色と下線だけは、テーマの本文のリンクの指定（`.prose a` など）に
@@ -165,6 +167,32 @@ const STYLES: &str = "<style>\
 :where(.ob-dl) dt{font-weight:700;overflow-wrap:anywhere}\
 :where(.ob-dl) dd{margin:0;opacity:.9}\
 :where(.ob-dl) dd p{margin:.2rem 0}\
+:where(.ob-rating){margin:1.5rem 0;padding:1rem 1.25rem;border:1px solid rgba(127,127,127,.3);border-radius:10px}\
+:where(.ob-rating-head){display:flex;flex-wrap:wrap;gap:.4rem 1rem;align-items:center;justify-content:space-between}\
+:where(.ob-rating-name){font-weight:700;font-size:1.1em;overflow-wrap:anywhere}\
+:where(.ob-rating-score){display:inline-flex;align-items:center;gap:.5rem}\
+:where(.ob-stars){position:relative;display:inline-block;white-space:nowrap;line-height:1;color:rgba(127,127,127,.35)}\
+:where(.ob-stars)::before{content:'★★★★★'}\
+:where(.ob-stars-fill){position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:#f5a623}\
+:where(.ob-r0) .ob-stars-fill{width:0%}\
+:where(.ob-r1) .ob-stars-fill{width:10%}\
+:where(.ob-r2) .ob-stars-fill{width:20%}\
+:where(.ob-r3) .ob-stars-fill{width:30%}\
+:where(.ob-r4) .ob-stars-fill{width:40%}\
+:where(.ob-r5) .ob-stars-fill{width:50%}\
+:where(.ob-r6) .ob-stars-fill{width:60%}\
+:where(.ob-r7) .ob-stars-fill{width:70%}\
+:where(.ob-r8) .ob-stars-fill{width:80%}\
+:where(.ob-r9) .ob-stars-fill{width:90%}\
+:where(.ob-r10) .ob-stars-fill{width:100%}\
+:where(.ob-rating-number){font-weight:700}\
+:where(.ob-rating-body){margin-top:.6rem}\
+:where(.ob-rating-body) p{margin:.4rem 0}\
+:where(.ob-rating-author){margin:.4rem 0 0;opacity:.7;font-size:.9em}\
+:where(.ob-rating-scores){list-style:none;margin:.8rem 0 0;padding:0;display:grid;gap:.35rem}\
+:where(.ob-rating-scores) li{display:flex;align-items:center;gap:.6rem}\
+:where(.ob-rating-label){flex:1 1 auto;min-width:0;overflow-wrap:anywhere}\
+:where(.ob-rating-value){font-variant-numeric:tabular-nums;opacity:.8;min-width:2em;text-align:right}\
 @media(min-width:641px){:where(.ob-dl-row){grid-template-columns:minmax(8rem,30%) minmax(0,1fr);gap:1rem}}\
 </style>";
 
@@ -962,6 +990,84 @@ fn render_definition_list(block: &BlockNode) -> Option<String> {
     (!items.is_empty()).then(|| format!(r#"<dl class="ob-dl">{items}</dl>"#))
 }
 
+/// 項目別スコアの最大数
+const MAX_RATING_SCORES: usize = 10;
+
+/// 範囲内の数を 0.5 刻みに丸める。範囲外・数値でないときは `None`
+fn half_step(value: Option<f64>, min: f64) -> Option<f64> {
+    let v = value?;
+    (min..=5.0).contains(&v).then(|| (v * 2.0).round() / 2.0)
+}
+
+/// 星（0.5 刻み）。読み上げには「4.5 / 5」を使い、星の文字は CSS で出す
+fn stars(score: f64) -> String {
+    format!(
+        r#"<span class="ob-stars ob-r{}" role="img" aria-label="{score} / 5"><span class="ob-stars-fill">★★★★★</span></span>"#,
+        (score * 2.0) as u32
+    )
+}
+
+/// 評価（レビュー）。星と、schema.org の Review の microdata（`<script>` の JSON-LD はサニタイズで消える）
+fn render_rating(block: &BlockNode) -> Option<String> {
+    let name = attr(block, "name");
+    if name.is_empty() {
+        return None;
+    }
+    let score = half_step(number(block, "rating"), 1.0)?;
+    let item_type = match attr(block, "item_type") {
+        t @ ("Product" | "SoftwareApplication" | "Book" | "Movie") => t,
+        _ => "Thing",
+    };
+    let body = text_lines(attr(block, "summary"));
+    let body = if body.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<div class="ob-rating-body" itemprop="reviewBody">{}</div>"#,
+            paragraphs(&body)
+        )
+    };
+    let author = attr(block, "author");
+    let author = if author.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<p class="ob-rating-author">— <span itemprop="author" itemscope itemtype="https://schema.org/Person"><span itemprop="name">{}</span></span></p>"#,
+            escape(author)
+        )
+    };
+    let scores: String = list_of(block, "scores")
+        .into_iter()
+        .filter_map(|item| {
+            let label = item_str(item, "label");
+            let value = item.get("score").and_then(|v| match v {
+                serde_json::Value::Number(n) => n.as_f64(),
+                serde_json::Value::String(s) => s.trim().parse().ok(),
+                _ => None,
+            });
+            let value = half_step(value, 0.0)?;
+            (!label.is_empty()).then(|| {
+                format!(
+                    r#"<li><span class="ob-rating-label">{}</span>{}<span class="ob-rating-value">{value}</span></li>"#,
+                    escape(label),
+                    stars(value)
+                )
+            })
+        })
+        .take(MAX_RATING_SCORES)
+        .collect();
+    let scores = if scores.is_empty() {
+        String::new()
+    } else {
+        format!(r#"<ul class="ob-rating-scores">{scores}</ul>"#)
+    };
+    Some(format!(
+        r#"<div class="ob-rating" itemscope itemtype="https://schema.org/Review"><div class="ob-rating-head"><span class="ob-rating-name" itemprop="itemReviewed" itemscope itemtype="https://schema.org/{item_type}"><span itemprop="name">{}</span></span><span class="ob-rating-score" itemprop="reviewRating" itemscope itemtype="https://schema.org/Rating">{}<span class="ob-rating-number"><span itemprop="ratingValue">{score}</span> / <span itemprop="bestRating">5</span></span></span></div>{body}{author}{scores}</div>"#,
+        escape(name),
+        stars(score)
+    ))
+}
+
 impl Plugin for BlocksPlugin {
     fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
         let mut styled = false;
@@ -987,6 +1093,7 @@ impl Plugin for BlocksPlugin {
                     "official-blocks/tabs" => render_tabs(block, index),
                     "official-blocks/stats" => render_stats(block),
                     "official-blocks/definition-list" => render_definition_list(block),
+                    "official-blocks/rating" => render_rating(block),
                     _ => None,
                 }?;
                 // スタイルは最初に表示するブロックにだけ付ける
@@ -1397,6 +1504,66 @@ mod tests {
         let dl = html[1].as_deref().unwrap();
         assert!(dl.contains(r#"<dl class="ob-dl"><div class="ob-dl-row"><dt>CPU &lt;x&gt;</dt><dd><p>Fast</p><p>Quiet</p></dd></div></dl>"#));
         assert_eq!(html[2], None);
+    }
+
+    #[test]
+    fn renders_a_rating_with_review_microdata() {
+        use serde_json::json;
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                json_block(
+                    "rating",
+                    &[
+                        ("name", json!("Widget <Pro>")),
+                        ("item_type", json!("Product")),
+                        ("rating", json!(4.3)),
+                        ("summary", json!("Solid.\n\nWould buy")),
+                        ("author", json!("Ann")),
+                        (
+                            "scores",
+                            json!([
+                                {"label": "Battery", "score": 5},
+                                {"label": "Price", "score": "3.5"},
+                                {"label": "", "score": 4},
+                                {"label": "Out of range", "score": 9}
+                            ]),
+                        ),
+                    ],
+                ),
+                json_block("rating", &[("name", json!("X")), ("rating", json!(0))]),
+                json_block("rating", &[("name", json!("X")), ("rating", json!("n/a"))]),
+                json_block("rating", &[("name", json!("")), ("rating", json!(4))]),
+                json_block(
+                    "rating",
+                    &[
+                        ("name", json!("Y")),
+                        ("rating", json!(5)),
+                        ("item_type", json!("Evil\"Type")),
+                    ],
+                ),
+            ])
+            .unwrap();
+        let rating = html[0].as_deref().unwrap();
+        assert!(rating.contains(r#"itemtype="https://schema.org/Review""#));
+        assert!(rating.contains(r#"itemtype="https://schema.org/Product"><span itemprop="name">Widget &lt;Pro&gt;</span>"#));
+        // 4.3 は 0.5 刻みに丸めて 4.5
+        assert!(rating.contains(
+            r#"<span itemprop="ratingValue">4.5</span> / <span itemprop="bestRating">5</span>"#
+        ));
+        assert!(rating.contains(r#"class="ob-stars ob-r9" role="img" aria-label="4.5 / 5""#));
+        assert!(rating.contains(r#"itemprop="reviewBody"><p>Solid.</p><p>Would buy</p>"#));
+        assert!(rating.contains(r#"itemprop="author" itemscope itemtype="https://schema.org/Person"><span itemprop="name">Ann</span>"#));
+        // 項目別スコア: 範囲外・名前の無い項目は出さない
+        assert_eq!(
+            rating
+                .matches(r#"<li><span class="ob-rating-label">"#)
+                .count(),
+            2
+        );
+        assert!(rating.contains(r#"class="ob-rating-value">3.5</span>"#));
+        assert_eq!(&html[1..4], &[None, None, None]);
+        // 知らない種類は Thing
+        assert!(html[4].as_deref().unwrap().contains(r#"schema.org/Thing""#));
     }
 
     #[test]

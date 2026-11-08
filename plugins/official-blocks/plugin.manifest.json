@@ -1055,6 +1055,150 @@
           ]
         }
       ]
+    },
+    {
+      "name": "rating",
+      "label": {
+        "en": "Rating",
+        "ja": "評価（レビュー）"
+      },
+      "description": {
+        "en": "A star rating with a summary and scores per item (schema.org Review markup)",
+        "ja": "星の評価・要約・項目別スコア（schema.org の Review の構造化データつき）"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "label": {
+            "en": "Reviewed item",
+            "ja": "評価の対象の名前"
+          },
+          "required": true,
+          "default": ""
+        },
+        {
+          "name": "item_type",
+          "type": "select",
+          "label": {
+            "en": "Type of item",
+            "ja": "対象の種類"
+          },
+          "default": "Thing",
+          "options": [
+            {
+              "value": "Thing",
+              "label": {
+                "en": "Other",
+                "ja": "その他"
+              }
+            },
+            {
+              "value": "Product",
+              "label": {
+                "en": "Product",
+                "ja": "商品"
+              }
+            },
+            {
+              "value": "SoftwareApplication",
+              "label": {
+                "en": "Software",
+                "ja": "ソフトウェア"
+              }
+            },
+            {
+              "value": "Book",
+              "label": {
+                "en": "Book",
+                "ja": "本"
+              }
+            },
+            {
+              "value": "Movie",
+              "label": {
+                "en": "Movie",
+                "ja": "映画"
+              }
+            }
+          ],
+          "help": {
+            "en": "Used for the structured data (schema.org).",
+            "ja": "構造化データ（schema.org）の種類に使います。"
+          }
+        },
+        {
+          "name": "rating",
+          "type": "number",
+          "label": {
+            "en": "Rating (1 to 5)",
+            "ja": "評価（1〜5）"
+          },
+          "required": true,
+          "default": "",
+          "help": {
+            "en": "Rounded to the nearest 0.5.",
+            "ja": "0.5 刻みに丸めます。"
+          }
+        },
+        {
+          "name": "summary",
+          "type": "text",
+          "label": {
+            "en": "Summary",
+            "ja": "要約"
+          },
+          "default": "",
+          "help": {
+            "en": "Plain text. A blank line starts a new paragraph.",
+            "ja": "プレーンテキスト。空行で段落を分けます。"
+          }
+        },
+        {
+          "name": "author",
+          "type": "string",
+          "label": {
+            "en": "Reviewer",
+            "ja": "評価した人"
+          },
+          "default": "",
+          "help": {
+            "en": "Search engines need the reviewer for rich results.",
+            "ja": "検索結果のリッチ表示には、評価した人が必要です。"
+          }
+        },
+        {
+          "name": "scores",
+          "type": "list",
+          "label": {
+            "en": "Scores per item",
+            "ja": "項目別スコア"
+          },
+          "max_items": 10,
+          "fields": [
+            {
+              "name": "label",
+              "type": "string",
+              "label": {
+                "en": "Item",
+                "ja": "項目"
+              },
+              "required": true,
+              "default": ""
+            },
+            {
+              "name": "score",
+              "type": "number",
+              "label": {
+                "en": "Score (0 to 5)",
+                "ja": "スコア（0〜5）"
+              },
+              "required": true,
+              "default": ""
+            }
+          ]
+        }
+      ]
     }
   ]
 }
