@@ -21,6 +21,8 @@
 //! gallery・faq・steps は、複数行の文字列で保存した古い形（1 行に 1 枚 / 空行で区切った項目）も読む
 //! - `official-blocks/media-text`: `image`・`alt`・`title`・`text`・`side`（左 / 右）。画像と文章を並べる。
 //!   狭い画面では縦に積む
+//! - `official-blocks/figure`: `image`・`alt`・`caption`。画像と、その下のキャプション（`<figcaption>`）。
+//!   core の画像（GitHub の記法の範囲）にはキャプションが無いため、このプラグインで足す
 //!
 //! 見た目は最初のブロックの前に 1 回だけ入れる `<style>`。配置・余白は `:where()` で詳細度 0
 //! （テーマの CSS が優先）。リンクの色と下線だけは、テーマの本文のリンクの指定（`.prose a` など）に
@@ -97,6 +99,9 @@ const STYLES: &str = "<style>\
 :where(.ob-media-text-title){display:block;font-weight:700;font-size:1.15em;margin-bottom:.3rem}\
 :where(.ob-media-text-body) p{margin:.4rem 0}\
 @media(min-width:641px){:where(.ob-media-text-right) .ob-media-text-media{order:2}}\
+:where(.ob-figure){margin:1.5rem 0}\
+:where(.ob-figure) img{display:block;max-width:100%;height:auto;margin:0 auto;border-radius:8px}\
+:where(.ob-figure) figcaption{font-size:.85em;opacity:.75;margin-top:.5rem;text-align:center}\
 </style>";
 
 fn escape(text: &str) -> String {
@@ -703,6 +708,21 @@ fn render_media_text(block: &BlockNode) -> Option<String> {
     ))
 }
 
+fn render_figure(block: &BlockNode) -> Option<String> {
+    let image = safe_url(attr(block, "image"))?;
+    let caption = attr(block, "caption");
+    let caption_html = if caption.is_empty() {
+        String::new()
+    } else {
+        format!("<figcaption>{}</figcaption>", escape(caption))
+    };
+    Some(format!(
+        r#"<figure class="ob-figure"><img src="{}" alt="{}" loading="lazy">{caption_html}</figure>"#,
+        escape(image),
+        escape(attr(block, "alt"))
+    ))
+}
+
 impl Plugin for BlocksPlugin {
     fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
         let mut styled = false;
@@ -721,6 +741,7 @@ impl Plugin for BlocksPlugin {
                     "official-blocks/steps" => render_steps(block),
                     "official-blocks/columns" => render_columns(block),
                     "official-blocks/media-text" => render_media_text(block),
+                    "official-blocks/figure" => render_figure(block),
                     _ => None,
                 }?;
                 // スタイルは最初に表示するブロックにだけ付ける
@@ -978,6 +999,32 @@ mod tests {
             .as_deref()
             .unwrap()
             .contains(r#"class="ob-media-text">"#));
+        assert_eq!(&html[2..], &[None, None]);
+    }
+
+    #[test]
+    fn renders_a_figure_with_an_optional_caption() {
+        let html = BlocksPlugin
+            .render_blocks(vec![
+                block(
+                    "figure",
+                    &[
+                        ("image", "/uploads/a.jpg"),
+                        ("alt", "A \"cup\""),
+                        ("caption", "Fig. 1 <cup>"),
+                    ],
+                ),
+                block("figure", &[("image", "/a.jpg")]),
+                block("figure", &[("image", "javascript:x"), ("caption", "C")]),
+                block("figure", &[("caption", "no image")]),
+            ])
+            .unwrap();
+        let first = html[0].as_deref().unwrap();
+        assert!(first.ends_with(r#"<figure class="ob-figure"><img src="/uploads/a.jpg" alt="A &quot;cup&quot;" loading="lazy"><figcaption>Fig. 1 &lt;cup&gt;</figcaption></figure>"#));
+        assert_eq!(
+            html[1].as_deref().unwrap(),
+            r#"<figure class="ob-figure"><img src="/a.jpg" alt="" loading="lazy"></figure>"#
+        );
         assert_eq!(&html[2..], &[None, None]);
     }
 

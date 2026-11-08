@@ -24,7 +24,6 @@
 
 ### 🔌 プラグイン・将来構想
 GitHub の範囲を超えるブロックはすべてプラグインで作る（[architecture.md 3.1a](docs/architecture.md#31a-core-ブロックの範囲github-でできることが上限)）。上から順に着手する。
-- [ ] `official-blocks/figure`（画像＋キャプション）
 - [ ] `official-blocks/timeline`
 - [ ] `official-blocks/chat`（吹き出し。アバターの画像参照の扱いを先に決める）
 - [ ] `official-blocks/tabs`（`<details name>` 方式を検討。キーボード操作・印刷時の表示を確認）
