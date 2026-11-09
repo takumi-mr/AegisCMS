@@ -1,0 +1,15 @@
+[package]
+name = "aegis-plugin-clarity"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Core Team"]
+description = "Official Wasm plugin that adds Microsoft Clarity (heatmaps and session recordings) behind the cookie consent"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }
+
+[dev-dependencies]
+serde_json.workspace = true

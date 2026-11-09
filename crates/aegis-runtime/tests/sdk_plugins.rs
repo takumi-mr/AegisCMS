@@ -595,3 +595,120 @@ async fn test_official_link_embed_plugin_fetches_in_the_sandbox() {
         .contains(r#"<a class="oe-card" href="https://qiita.com/u/items/1">"#));
     assert!(web.requested.lock().unwrap().is_empty());
 }
+
+/// 設定（`plugin_setting`）だけを返す、手元のホスト API
+struct SettingsOnly(HashMap<String, String>);
+
+#[async_trait::async_trait]
+impl aegis_runtime::HostServices for SettingsOnly {
+    async fn kv_get(&self, _key: &str) -> aegis_core::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn kv_set(&self, _key: &str, _value: &str) -> aegis_core::Result<()> {
+        Ok(())
+    }
+    async fn http_fetch(
+        &self,
+        _plugin: &str,
+        _request: aegis_runtime::HttpRequest,
+    ) -> aegis_core::Result<aegis_runtime::HttpResponse> {
+        Ok(aegis_runtime::HttpResponse::default())
+    }
+    fn plugin_setting(&self, _plugin: &str, key: &str) -> Option<String> {
+        self.0.get(key).cloned()
+    }
+}
+
+/// 公式プラグイン `official-clarity` のビルド済み `plugin.wasm` で、Clarity の起動コードが同意を待つ形で
+/// `<head>` に入り、録画してはいけないページには入らないこと。CSP の宣言も確かめる
+#[tokio::test]
+async fn test_official_clarity_plugin_adds_the_tag_behind_consent() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/official-clarity");
+    let manifest = PluginManifest::from_json_with_defaults(
+        &std::fs::read_to_string(dir.join("plugin.manifest.json")).unwrap(),
+        &PluginResourceLimits::default(),
+    )
+    .unwrap();
+    manifest.validate_csp().unwrap();
+    manifest.validate_render_page().unwrap();
+    // Clarity の公式の案内: タグは www.clarity.ms、送信先は a〜z.clarity.ms と c.bing.com
+    assert!(manifest
+        .csp_script_domains()
+        .contains(&"www.clarity.ms".to_string()));
+    for host in [
+        "www.clarity.ms",
+        "a.clarity.ms",
+        "z.clarity.ms",
+        "c.bing.com",
+    ] {
+        assert!(
+            manifest.csp_connect_domains().contains(&host.to_string()),
+            "{host}"
+        );
+    }
+
+    let wasm = std::fs::read(dir.join("plugin.wasm")).unwrap();
+    let plugin = |settings: &[(&str, &str)]| {
+        let map: HashMap<String, String> = settings
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        let services: Arc<dyn aegis_runtime::HostServices> = Arc::new(SettingsOnly(map));
+        WasmPluginInstance::from_bytes(
+            WasmEngine::new().unwrap(),
+            manifest.clone(),
+            &wasm,
+            services,
+        )
+        .unwrap()
+    };
+    let page = |template: &str| PageRenderContext {
+        template: template.to_string(),
+        content_type: "article".to_string(),
+        ..Default::default()
+    };
+
+    // プロジェクト ID が無ければ何も足さない
+    let off = plugin(&[])
+        .on_render_page(page("article.html"))
+        .await
+        .unwrap();
+    assert!(off.extra_head.is_empty());
+
+    let on = plugin(&[("project_id", "abc123xyz9")]);
+    let head = on
+        .on_render_page(page("article.html"))
+        .await
+        .unwrap()
+        .extra_head;
+    assert!(head.contains(r#"type="text/plain""#), "{head}");
+    assert!(head.contains(r#"data-aegis-consent="analytics""#), "{head}");
+    assert!(head.contains("https://www.clarity.ms/tag/"), "{head}");
+    assert!(head.contains(r#""abc123xyz9""#), "{head}");
+    // 会員・買い物のページと、会員レベルを求めるページには足さない
+    for template in [
+        "account.html",
+        "cart.html",
+        "order.html",
+        "forum_thread.html",
+    ] {
+        assert!(
+            on.on_render_page(page(template))
+                .await
+                .unwrap()
+                .extra_head
+                .is_empty(),
+            "{template}"
+        );
+    }
+    let mut restricted = page("article.html");
+    restricted
+        .fields
+        .insert("access".to_string(), serde_json::json!("paid"));
+    assert!(on
+        .on_render_page(restricted)
+        .await
+        .unwrap()
+        .extra_head
+        .is_empty());
+}

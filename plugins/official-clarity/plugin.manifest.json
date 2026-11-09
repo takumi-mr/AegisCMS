@@ -1,0 +1,126 @@
+{
+  "name": "official-clarity",
+  "version": "0.1.0",
+  "abi_version": 1,
+  "entrypoint": "plugin.wasm",
+  "display_name": "Microsoft Clarity",
+  "description": "Adds Microsoft Clarity (heatmaps and session recordings) to the public pages: waits for cookie consent, skips private pages and members-only content, and adds the Clarity hosts to the CSP.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": [
+    "analytics",
+    "heatmap",
+    "clarity"
+  ],
+  "min_aegis_version": "0.1.0",
+  "capabilities": {
+    "render_page": {
+      "input": [
+        "fields"
+      ]
+    },
+    "hooks": [
+      "on-render-page"
+    ],
+    "csp": {
+      "script_domains": [
+        "www.clarity.ms",
+        "scripts.clarity.ms"
+      ],
+      "connect_domains": [
+        "www.clarity.ms",
+        "scripts.clarity.ms",
+        "c.bing.com",
+        "a.clarity.ms",
+        "b.clarity.ms",
+        "c.clarity.ms",
+        "d.clarity.ms",
+        "e.clarity.ms",
+        "f.clarity.ms",
+        "g.clarity.ms",
+        "h.clarity.ms",
+        "i.clarity.ms",
+        "j.clarity.ms",
+        "k.clarity.ms",
+        "l.clarity.ms",
+        "m.clarity.ms",
+        "n.clarity.ms",
+        "o.clarity.ms",
+        "p.clarity.ms",
+        "q.clarity.ms",
+        "r.clarity.ms",
+        "s.clarity.ms",
+        "t.clarity.ms",
+        "u.clarity.ms",
+        "v.clarity.ms",
+        "w.clarity.ms",
+        "x.clarity.ms",
+        "y.clarity.ms",
+        "z.clarity.ms"
+      ],
+      "img_domains": [
+        "c.bing.com",
+        "c.clarity.ms"
+      ]
+    }
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "settings": [
+    {
+      "key": "project_id",
+      "type": "string",
+      "label": {
+        "en": "Clarity project ID",
+        "ja": "Clarity のプロジェクト ID"
+      },
+      "description": {
+        "en": "The project ID of your Microsoft Clarity project (Settings > Overview, about 10 letters and digits). Empty turns the plugin off.",
+        "ja": "Microsoft Clarity のプロジェクト ID（Clarity の Settings > Overview。英数字 10 文字ほど）。空ならプラグインは何も出しません。"
+      },
+      "default": ""
+    },
+    {
+      "key": "require_consent",
+      "type": "boolean",
+      "label": {
+        "en": "Wait for cookie consent",
+        "ja": "Cookie の同意を待つ"
+      },
+      "description": {
+        "en": "Load Clarity only after the visitor agrees in the cookie banner ([consent] must be enabled, or Clarity never runs). Turn off only if you do not need consent.",
+        "ja": "Cookie の同意バナーで訪問者が同意してから Clarity を読み込みます（`[consent]` を有効にしていないと、Clarity は動きません）。同意が要らない場合だけ無効にしてください。"
+      },
+      "default": true
+    },
+    {
+      "key": "consent_category",
+      "type": "string",
+      "label": {
+        "en": "Consent category",
+        "ja": "同意の区分"
+      },
+      "description": {
+        "en": "The cookie category Clarity waits for (default: analytics).",
+        "ja": "Clarity が待つ Cookie の区分（既定: analytics）。"
+      },
+      "default": "analytics"
+    },
+    {
+      "key": "exclude_restricted",
+      "type": "boolean",
+      "label": {
+        "en": "Skip members-only content",
+        "ja": "会員限定の内容を記録しない"
+      },
+      "description": {
+        "en": "Do not add Clarity to pages that need a member level (the full text would end up in the recordings). Recommended.",
+        "ja": "会員レベルが要る記事・ページには Clarity を付けません（全文が録画に入るのを防ぎます）。推奨。"
+      },
+      "default": true
+    }
+  ]
+}

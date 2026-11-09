@@ -17,5 +17,6 @@
   "plugins/official-share-buttons": "0.2.1",
   "plugins/official-shop-rules": "0.2.0",
   "plugins/official-post-navigation": "0.2.1",
-  "plugins/official-reading-time": "0.2.1"
+  "plugins/official-reading-time": "0.2.1",
+  "plugins/official-clarity": "0.1.0"
 }
