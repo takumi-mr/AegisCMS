@@ -318,6 +318,7 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | `require_email_verification` | bool | `false` | `true` で、会員登録のあと、確認メールのリンクを開くまでログインできない。確認メールを送れること（`[notifications]` が有効で、`public_url` がある）が要る。満たさないと起動しない |
 | `password_reset` | bool | `true` | パスワードの再設定（メールのリンク）を使う。`[notifications]` が有効で、`public_url` が設定されているときだけ動く（メールのリンクは `Host` ヘッダーではなく `public_url` から作る） |
 | `public_url` | string | `""` | 会員のメール（再設定・確認）のリンクの元になるサイトの URL（例 `https://example.com`）。注文確認のリンクの `[commerce].public_url` とは別 |
+| `levels` | string 配列 | `["free", "paid"]` | 会員の権限レベル（低 → 高）。先頭が新規会員のレベル。高いレベルは低いレベルの内容も見られる。1〜32 文字の英小文字・数字・`-`・`_`、重複なし、`public` は使えない（起動時に検査）。記事・ページの `access` で必要なレベルを指定する（[members.md 15](./members.md#15-閲覧の制限会員レベル)） |
 
 ### 2.13 `[notifications]` — 通知（メール）
 

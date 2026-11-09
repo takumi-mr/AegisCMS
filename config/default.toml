@@ -232,6 +232,9 @@ password_reset = true
 require_email_verification = false
 # The site's URL, the base of the links in member emails (for example "https://example.com")
 public_url = ""
+# Access levels, lowest first. The first is the level of a new member; a higher level also sees
+# what a lower level sees. An article or page names the level it needs (docs/members.md 15)
+levels = ["free", "paid"]
 
 # Notifications (docs/notifications.md): order emails to customers and staff, sent through an
 # external SMTP server. channels = ["log"] prints them to the server log instead (no SMTP needed).

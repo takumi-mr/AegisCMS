@@ -32,6 +32,9 @@ pub struct MembersConfig {
     /// 会員のメール（再設定・確認）のリンクの元になるサイトの URL（例 `https://example.com`）。
     /// 注文確認のリンクに使う `[commerce].public_url` とは別に持つ
     pub public_url: String,
+    /// 会員の権限レベル（低 → 高の順）。先頭が新規会員の既定。高いレベルは低いレベルの内容も見られる。
+    /// 記事・ページの `access` で必要なレベルを指定する（docs/members.md 15）
+    pub levels: Vec<String>,
 }
 
 impl Default for MembersConfig {
@@ -43,6 +46,7 @@ impl Default for MembersConfig {
             password_reset: true,
             require_email_verification: false,
             public_url: String::new(),
+            levels: vec!["free".to_string(), "paid".to_string()],
         }
     }
 }
@@ -78,7 +82,39 @@ impl MembersConfig {
                 "[members].session_days must be between 1 and 365".to_string(),
             ));
         }
+        self.validate_levels()
+    }
+
+    /// `levels` の誤りを断る。1 件以上・重複なし・英小文字と数字と `-` `_` の 1〜32 文字（`public` は予約）。
+    /// 使わない設定でも、記事の `access` の判定に使うので、有効でなくても見る
+    pub fn validate_levels(&self) -> Result<()> {
+        let bad = |msg: &str| Err(AegisError::Config(format!("[members].levels {msg}")));
+        if self.levels.is_empty() {
+            return bad("must have at least one level");
+        }
+        for (i, level) in self.levels.iter().enumerate() {
+            let valid = (1..=32).contains(&level.len())
+                && level
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
+            if !valid {
+                return bad(&format!(
+                    "has an invalid level '{level}' (use 1-32 characters of a-z, 0-9, - and _)"
+                ));
+            }
+            if level == "public" {
+                return bad("cannot use 'public' (it means everyone)");
+            }
+            if self.levels[..i].contains(level) {
+                return bad(&format!("has the level '{level}' twice"));
+            }
+        }
         Ok(())
+    }
+
+    /// 新規会員のレベル（`levels` の先頭）
+    pub fn default_level(&self) -> &str {
+        self.levels.first().map(String::as_str).unwrap_or("free")
     }
 
     /// ログインの有効期間（秒）
@@ -90,6 +126,29 @@ impl MembersConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn levels_are_validated() {
+        let with = |levels: &[&str]| MembersConfig {
+            levels: levels.iter().map(|l| l.to_string()).collect(),
+            ..MembersConfig::default()
+        };
+        with(&["free", "paid"]).validate_levels().unwrap();
+        assert_eq!(with(&["basic", "pro"]).default_level(), "basic");
+        for bad in [
+            &[][..],
+            &["free", "free"],
+            &["Free"],
+            &["public"],
+            &[""],
+            &["has space"],
+            &["a-very-long-level-name-that-goes-over-the-limit"],
+        ] {
+            assert!(with(bad).validate_levels().is_err(), "{bad:?}");
+        }
+        // 使わない設定でも、レベルの誤りは起動時に断る
+        assert!(with(&[]).validate().is_err());
+    }
 
     /// 確認を必須にしているのにメールを送れない設定は、起動時に断る（誰もログインできなくなるため）
     #[test]

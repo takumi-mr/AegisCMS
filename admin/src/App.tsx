@@ -1007,6 +1007,7 @@ export const App: React.FC = () => {
           onShowToast={showToast}
           openMemberId={openMemberId}
           showOrders={showShop}
+          canGrantLevel={isAdmin(session)}
           onOpened={() => setOpenMemberId(null)}
         />
       ) : view === 'reviews' && showReviews ? (

@@ -1019,6 +1019,15 @@ export const aegisApi = {
     );
   },
 
+  /** Grants an access level to a member (admin only; one of `[members].levels`) */
+  async setMemberLevel(id: string, level: string): Promise<void> {
+    return requestNoContent(
+      `/admin/members/${encodeURIComponent(id)}/level`,
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify({ level }) },
+      i18n.t('api.setMemberLevelFailed')
+    );
+  },
+
   /** Product reviews, newest first (404 when reviews are disabled) */
   async listReviews(query: {
     status?: ReviewStatus | '';

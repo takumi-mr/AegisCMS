@@ -147,6 +147,8 @@ pub struct MemberResponse {
     pub avatar_url: Option<String>,
     pub phone: Option<String>,
     pub status: String,
+    /// 権限レベル（`[members].levels` のどれか）
+    pub level: String,
     pub shipping_address: Option<ShippingAddress>,
     pub created_at: String,
     pub updated_at: String,
@@ -201,6 +203,7 @@ impl From<MemberRecord> for MemberResponse {
             avatar_url: None,
             phone: r.phone,
             status: r.status,
+            level: r.level,
             shipping_address,
             created_at: r.created_at,
             updated_at: r.updated_at,
@@ -229,6 +232,8 @@ pub struct MemberService {
     session_ttl_secs: u64,
     registration_open: bool,
     require_email_verification: bool,
+    /// `[members].levels`（低 → 高）。先頭が新規会員のレベル
+    levels: Vec<String>,
 }
 
 impl MemberService {
@@ -244,6 +249,7 @@ impl MemberService {
                 .with_ttl(config.session_ttl_secs())
                 .with_registration_open(config.registration == MemberRegistration::Open)
                 .with_email_verification(config.require_email_verification)
+                .with_levels(config.levels.clone())
         })
     }
 
@@ -259,6 +265,7 @@ impl MemberService {
             session_ttl_secs: DEFAULT_MEMBER_SESSION_TTL_SECS,
             registration_open: true,
             require_email_verification: false,
+            levels: MembersConfig::default().levels,
         }
     }
 
@@ -268,6 +275,19 @@ impl MemberService {
     }
 
     /// 新規の会員登録を受け付けるか（`false` でも、登録済みの会員はログインできる）
+    /// 権限レベルの一覧（低 → 高）。空なら変えない
+    pub fn with_levels(mut self, levels: Vec<String>) -> Self {
+        if !levels.is_empty() {
+            self.levels = levels;
+        }
+        self
+    }
+
+    /// 権限レベルの一覧（低 → 高）
+    pub fn levels(&self) -> &[String] {
+        &self.levels
+    }
+
     pub fn with_registration_open(mut self, open: bool) -> Self {
         self.registration_open = open;
         self
@@ -367,6 +387,7 @@ impl MemberService {
             avatar_key: None,
             phone: req.phone.map(|p| p.trim().to_string()),
             status: status.to_string(),
+            level: self.levels[0].clone(),
             shipping_address_json: shipping_json,
             created_at: timestamp.clone(),
             updated_at: timestamp,
@@ -866,6 +887,40 @@ impl MemberService {
             // 停止した会員が、ログイン中のセッションでそのまま使い続けられないようにする
             self.revoke_sessions(member_id).await?;
         }
+        Ok(())
+    }
+
+    /// 管理者: 会員の権限レベルを変える。`[members].levels` にあるレベルだけ（`Validation`）。
+    /// 変えても、会員のセッションはそのまま使える（レベルは閲覧のたびに引くため、すぐ反映される）
+    pub async fn admin_set_level(
+        &self,
+        member_id: &str,
+        level: &str,
+        actor_id: &str,
+    ) -> Result<()> {
+        if !self.levels.iter().any(|l| l == level) {
+            return Err(AegisError::Validation(format!(
+                "Level must be one of: {}",
+                self.levels.join(", ")
+            )));
+        }
+        let mut record = self
+            .db
+            .get_member_by_id(member_id)
+            .await?
+            .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
+        let previous = std::mem::replace(&mut record.level, level.to_string());
+        record.updated_at = now();
+        self.db.update_member(&record).await?;
+
+        let event = AuditEvent::new(AuditAction::MemberUpdate, AuditOutcome::Success)
+            .with_actor(Some(AuditActor {
+                user_id: actor_id.to_string(),
+                role: "admin".to_string(),
+            }))
+            .with_resource("member", Some(member_id.to_string()))
+            .with_details(json!({ "level": { "from": previous, "to": level } }));
+        self.audit.record(event).await;
         Ok(())
     }
 

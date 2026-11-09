@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub const MEMBER_TABLE: &str = "_aegis_members";
 
 /// INSERT / SELECT で使う会員テーブルのカラム（順序固定）
-pub const MEMBER_COLUMNS: [&str; 12] = [
+pub const MEMBER_COLUMNS: [&str; 13] = [
     "id",
     "email",
     "password_hash",
@@ -18,11 +18,17 @@ pub const MEMBER_COLUMNS: [&str; 12] = [
     "avatar_key",
     "phone",
     "status",
+    "level",
     "shipping_address_json",
     "created_at",
     "updated_at",
     "last_login_at",
 ];
+
+/// 権限レベルの既定値（古いバックアップの会員、レベルを決めていない会員）
+pub fn default_level() -> String {
+    "free".to_string()
+}
 
 /// 会員（`_aegis_members` の 1 行）
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -42,6 +48,10 @@ pub struct MemberRecord {
     pub phone: Option<String>,
     /// `active` / `suspended`
     pub status: String,
+    /// 権限レベル（`[members].levels` のどれか。有料メンバー限定の閲覧制御。docs/members.md 15）。
+    /// 古いバックアップには無いので `free`
+    #[serde(default = "default_level")]
+    pub level: String,
     /// 既定の配送先住所 (`ShippingAddress` の JSON)
     pub shipping_address_json: Option<String>,
     pub created_at: String,
@@ -77,6 +87,7 @@ macro_rules! member_row_from_sqlx {
             avatar_key: row.try_get("avatar_key").map_err(get)?,
             phone: row.try_get("phone").map_err(get)?,
             status: row.try_get("status").map_err(get)?,
+            level: row.try_get("level").map_err(get)?,
             shipping_address_json: row.try_get("shipping_address_json").map_err(get)?,
             created_at: row.try_get("created_at").map_err(get)?,
             updated_at: row.try_get("updated_at").map_err(get)?,
@@ -121,6 +132,7 @@ macro_rules! impl_member_storage {
                     .bind(&c.avatar_key)
                     .bind(&c.phone)
                     .bind(&c.status)
+                    .bind(&c.level)
                     .bind(&c.shipping_address_json)
                     .bind(&c.created_at)
                     .bind(&c.updated_at)
@@ -186,10 +198,10 @@ macro_rules! impl_member_storage {
                 let ph = $ph;
                 let sql = format!(
                     "UPDATE {} SET email = {}, password_hash = {}, name = {}, nickname = {}, avatar_key = {}, phone = {}, \
-                     status = {}, shipping_address_json = {}, updated_at = {}, last_login_at = {} \
+                     status = {}, level = {}, shipping_address_json = {}, updated_at = {}, last_login_at = {} \
                      WHERE id = {};",
                     $crate::members::MEMBER_TABLE,
-                    ph(1), ph(2), ph(3), ph(4), ph(5), ph(6), ph(7), ph(8), ph(9), ph(10), ph(11)
+                    ph(1), ph(2), ph(3), ph(4), ph(5), ph(6), ph(7), ph(8), ph(9), ph(10), ph(11), ph(12)
                 );
                 let db_err =
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
@@ -201,6 +213,7 @@ macro_rules! impl_member_storage {
                     .bind(&c.avatar_key)
                     .bind(&c.phone)
                     .bind(&c.status)
+                    .bind(&c.level)
                     .bind(&c.shipping_address_json)
                     .bind(&c.updated_at)
                     .bind(&c.last_login_at)

@@ -41,6 +41,8 @@ interface MemberManagerProps {
   onOpened?: () => void;
   /** The shop is on: the member detail lists the orders (member accounts also work without a shop) */
   showOrders?: boolean;
+  /** The signed-in user is an admin: the access level can be changed (editors can only see it) */
+  canGrantLevel?: boolean;
 }
 
 /** The shop's member accounts for editors: who signed up, their orders, and suspending an account */
@@ -49,6 +51,7 @@ export const MemberManager: React.FC<MemberManagerProps> = ({
   openMemberId,
   onOpened,
   showOrders = true,
+  canGrantLevel = false,
 }) => {
   const { t } = useTranslation();
   const [offset, setOffset] = useState<number>(0);
@@ -129,6 +132,7 @@ export const MemberManager: React.FC<MemberManagerProps> = ({
                 <tr>
                   <th>{t('members.columns.member')}</th>
                   <th>{t('members.columns.status')}</th>
+                  <th>{t('members.columns.level')}</th>
                   <th>{t('members.columns.registered')}</th>
                   <th>{t('members.columns.lastLogin')}</th>
                 </tr>
@@ -151,13 +155,14 @@ export const MemberManager: React.FC<MemberManagerProps> = ({
                         {t(`members.status.${member.status}`)}
                       </span>
                     </td>
+                    <td className={styles.muted}>{member.level}</td>
                     <td className={styles.muted}>{formatDate(member.created_at)}</td>
                     <td className={styles.muted}>{formatDate(member.last_login_at)}</td>
                   </tr>
                 ))}
                 {page.members.length === 0 && (
                   <tr>
-                    <td colSpan={4} className={styles.empty}>
+                    <td colSpan={5} className={styles.empty}>
                       {t('members.empty')}
                     </td>
                   </tr>
@@ -200,6 +205,7 @@ export const MemberManager: React.FC<MemberManagerProps> = ({
         <MemberModal
           member={selected}
           showOrders={showOrders}
+          canGrantLevel={canGrantLevel}
           onClose={() => setSelected(null)}
           onChanged={(message) => {
             onShowToast(message);
@@ -215,6 +221,7 @@ export const MemberManager: React.FC<MemberManagerProps> = ({
 interface MemberModalProps {
   member: AdminMember;
   showOrders: boolean;
+  canGrantLevel?: boolean;
   onClose: () => void;
   onChanged: (message: string) => void;
   onError: (message: string) => void;
@@ -224,6 +231,7 @@ interface MemberModalProps {
 const MemberModal: React.FC<MemberModalProps> = ({
   member: listed,
   showOrders,
+  canGrantLevel,
   onClose,
   onChanged,
   onError,
@@ -234,6 +242,7 @@ const MemberModal: React.FC<MemberModalProps> = ({
   const [busy, setBusy] = useState<boolean>(false);
   // The status the dialog shows after a change (the list behind it reloads separately)
   const [status, setStatus] = useState<MemberStatus>(listed.status);
+  const [level, setLevel] = useState<string>(listed.level);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,6 +252,7 @@ const MemberModal: React.FC<MemberModalProps> = ({
         if (cancelled) return;
         setDetail(loaded);
         setStatus(loaded.member.status);
+        setLevel(loaded.member.level);
       })
       .catch((err: unknown) => {
         if (!cancelled) setLoadError(messageOf(err, i18n.t('members.loadFailed')));
@@ -281,6 +291,19 @@ const MemberModal: React.FC<MemberModalProps> = ({
     }
   };
 
+  const changeLevel = async (next: string) => {
+    setBusy(true);
+    try {
+      await aegisApi.setMemberLevel(member.id, next);
+      setLevel(next);
+      onChanged(t('members.levelChanged', { level: next }));
+    } catch (err) {
+      onError(messageOf(err, t('api.setMemberLevelFailed')));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Spent per currency: an order that is unpaid, cancelled or refunded is not spending
   const spent = new Map<string, number>();
   for (const order of detail?.orders ?? []) {
@@ -308,6 +331,29 @@ const MemberModal: React.FC<MemberModalProps> = ({
             <Button variant="tool" disabled={busy} onClick={() => change('active')}>
               {t('members.reactivate')}
             </Button>
+          )}
+        </div>
+
+        <div className={styles.actionsBar}>
+          <label htmlFor="member-level">{t('members.level')}</label>
+          {canGrantLevel && detail ? (
+            <select
+              id="member-level"
+              className={styles.statusFilter}
+              value={level}
+              disabled={busy}
+              onChange={(e) => void changeLevel(e.target.value)}
+            >
+              {/* A level removed from [members].levels stays visible until it is changed */}
+              {!detail.levels.includes(level) && <option value={level}>{level}</option>}
+              {detail.levels.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className={styles.badge}>{level}</span>
           )}
         </div>
 

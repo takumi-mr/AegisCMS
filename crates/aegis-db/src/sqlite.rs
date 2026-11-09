@@ -1232,11 +1232,17 @@ fields:
     async fn test_init_applies_the_migrations_once() {
         let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
         adapter.init().await.unwrap();
-        assert_eq!(applied_migrations(&adapter).await, vec![(1, true)]);
+        assert_eq!(
+            applied_migrations(&adapter).await,
+            vec![(1, true), (2, true)]
+        );
         adapter.set_setting("site.title", "kept").await.unwrap();
 
         adapter.init().await.unwrap();
-        assert_eq!(applied_migrations(&adapter).await, vec![(1, true)]);
+        assert_eq!(
+            applied_migrations(&adapter).await,
+            vec![(1, true), (2, true)]
+        );
         assert_eq!(
             adapter.list_settings().await.unwrap().get("site.title"),
             Some(&"kept".to_string())
@@ -1250,14 +1256,22 @@ fields:
         let adapter = SqliteAdapter::connect("sqlite::memory:", 1).await.unwrap();
         adapter.init().await.unwrap();
         adapter.set_setting("site.title", "kept").await.unwrap();
-        // v0.4 の DB: 手順の記録だけが無い
+        // v0.4 の DB: 手順の記録が無く、0002 で足した列も無い
         sqlx::query("DROP TABLE _sqlx_migrations;")
+            .execute(&adapter.pool)
+            .await
+            .unwrap();
+        sqlx::query("ALTER TABLE _aegis_members DROP COLUMN level;")
             .execute(&adapter.pool)
             .await
             .unwrap();
 
         adapter.init().await.unwrap();
-        assert_eq!(applied_migrations(&adapter).await, vec![(1, true)]);
+        // 0001 は採用し、0002 は流して、列を足す
+        assert_eq!(
+            applied_migrations(&adapter).await,
+            vec![(1, true), (2, true)]
+        );
         assert_eq!(
             adapter.list_settings().await.unwrap().get("site.title"),
             Some(&"kept".to_string())

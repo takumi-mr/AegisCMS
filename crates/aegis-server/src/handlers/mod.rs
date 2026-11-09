@@ -58,7 +58,7 @@ pub use health::health_check;
 pub use honeypot::honeypot_trap;
 pub use invitation::{accept_invitation, create_invitation, get_invitation_info};
 pub use members::{
-    admin_get_member, admin_list_members, admin_set_member_status,
+    admin_get_member, admin_list_members, admin_set_member_level, admin_set_member_status,
     complete_password_reset as member_complete_password_reset, delete_me, delete_my_avatar, get_me,
     get_my_order, list_my_orders, list_my_reviews, login as member_login, logout as member_logout,
     register as member_register, request_password_reset as member_request_password_reset,

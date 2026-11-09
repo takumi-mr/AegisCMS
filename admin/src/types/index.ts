@@ -760,6 +760,8 @@ export interface AdminMember {
   avatar_url: string | null;
   phone: string | null;
   status: MemberStatus;
+  /** Access level (one of `[members].levels`); gates members-only content */
+  level: string;
   shipping_address: ShippingAddress | null;
   created_at: string;
   updated_at: string;
@@ -783,6 +785,8 @@ export interface MemberOrderSummary {
 
 export interface MemberDetail {
   member: AdminMember;
+  /** The levels that can be granted, lowest first (`[members].levels`) */
+  levels: string[];
   orders: MemberOrderSummary[];
   /** Forum activity; null when the forum is off. Threads are counted again in posts (the opening post) */
   forum: { threads: number; posts: number } | null;

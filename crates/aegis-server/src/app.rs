@@ -375,6 +375,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/admin/members/{id}",
             get(handlers::admin_get_member).patch(handlers::admin_set_member_status),
         )
+        .route(
+            "/api/v1/admin/members/{id}/level",
+            put(handlers::admin_set_member_level),
+        )
         // --- 商品レビュー（購入者限定・ステマ規制配慮・モデレーション） ---
         .route(
             "/api/v1/products/{product_id}/reviews",
