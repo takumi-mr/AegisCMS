@@ -294,6 +294,16 @@ themes/my-theme/
 - 組み込みのコメント欄は、色をテーマの文字色を基準にした半透明と `--accent` で指定しているので、多くのテーマはそのまま使えます。見た目は CSS で `.aegis-comments`、`.aegis-comment`、`.aegis-comment-form` などを上書きします。
 - 自分で書く場合は、テーマの `templates/comments.html` に置きます（組み込みの `COMMENTS_TEMPLATE` を写して始める）。一覧は `comments["items"]`（`.items` は辞書のメソッド名と重なる）、各コメントの本文は `{{ c.body_html | safe }}`（エスケープ済み）、返信の字下げは `c.depth` です。フォームは `comments.post_url` に JSON で送ります。ハニーポットの欄（`website`）を残してください。
 
+## 6a. スクリプトの書き方（インラインを書かない）
+
+将来、公開ページの CSP は Strict（`script-src` に `'unsafe-inline'` が無い）になります（[csp.md](csp.md)）。そのとき、テンプレートに直接書いた **`<script>…</script>`（`src` の無いもの）と `onclick` などの `on*` 属性は動きません**。今のうちから、次のように書いてください。
+
+- **スクリプトは `themes/{名前}/assets/*.js` に置いて、`<script src="{{ base_path }}/theme/assets/x.js" defer></script>` で読む**（自分のオリジンのファイルなので、CSP で止まりません）。
+- **`on*` 属性は使わず、スクリプトの側で `addEventListener` を使う**（例: `<button data-scroll-top>` を、外部のスクリプトで結ぶ。ただのページ内リンク `<a href="#">` で足りることもあります）。
+- 値をスクリプトに渡すときは、`data-*` 属性か `<script type="application/json">`（データのブロック。実行されないので CSP に当たりません）を使います。
+- **同梱のテーマと組み込みのテンプレートは、すでにインラインのコードを出しません**（`aegis-theme` のテストが、全テンプレートを描画して確かめています）。組み込みのコメント欄・初期セットアップ画面・アクセス解析のビーコンは、`/_aegis/…js` の外部ファイルです。
+- プラグインのスクリプトは、プラグイン側が構造化して足します（[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）。テーマが気にすることはありません。
+
 ## 7. 開発の流れ
 
 1. `themes/` に既存のテーマ（`roastery` など）をコピーし、ディレクトリ名と `theme.json` の `id` を変える。

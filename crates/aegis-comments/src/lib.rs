@@ -437,6 +437,7 @@ impl CommentService {
             // CAPTCHA は共通の設定（`[captcha]`）なので、サーバーのハンドラーが足す
             captcha_html: String::new(),
             captcha_field: String::new(),
+            script_url: String::new(),
         })
     }
 

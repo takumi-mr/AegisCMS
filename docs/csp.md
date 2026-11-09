@@ -94,7 +94,7 @@ pub enum ScriptSource {
 ## 5. テーマとテンプレート
 
 - **組み込みのテンプレート**: インラインのスクリプトと `onclick` をやめる。コメント欄のフォームのスクリプトは外部ファイル（`/_aegis/comments.js` のように、`consent.js` と同じ配信）にし、セットアップ画面も外部ファイルにする。`onclick="window.scrollTo..."` は、外部のスクリプトでイベントを結ぶ。
-- **第三者のテーマ**: `<script>` のインラインと `on*` 属性は、Strict のときに動かなくなる（破壊的変更）。直し方は 2 つ。
+- **第三者のテーマ**: `<script>` のインラインと `on*` 属性は、Strict のときに動かなくなる（破壊的変更）。直し方は 2 つ（2 つ目は 4 で足す）。
   - スクリプトを `themes/{名前}/assets/*.js` にして、`<script src>` で読む（`'self'`）。
   - どうしてもインラインにするものは、テンプレート関数 `{{ inline_script("コード") }}` で出す。ホストがタグを作り、ハッシュを登録する。
 
@@ -120,7 +120,7 @@ pub enum ScriptSource {
 1. **設計書**（このページ）。
 2. **ABI v2**（**済**）: `InjectedScript`・`capabilities.inline_scripts`、ホストの検査（`aegis_runtime::scripts`。lol-html で `<script>` と `on*` 属性を取り除く・タグを作る）、SDK（Rust・AssemblyScript・TinyGo）、公式プラグイン（`page-toc`・`back-to-top`・`share-buttons`・`lightbox`・`external-links`・`code-lines`・`code-enhancer`・`mermaid`・`ads`・`clarity`）の移行、プラグイン開発サーバーのプレビュー、[plugin_abi_specification.md](plugin_abi_specification.md)・[plugin_hooks.md](plugin_hooks.md)・[versioning.md](versioning.md) の更新。CSP はまだ変えない。
    - 移行で変わったこと: `official-mermaid` の `script_url` は、このサイトのパスか `cdn.jsdelivr.net` の `https://` だけ（ほかのホストはホストが捨てる）。`official-ads` の `custom_head_code` の `<script>` は使えなくなった（`<meta>`・`<link>` などは使える。スクリプトの安全な足し方は未決）。`official-code-enhancer` の Prism は、`<script data-manual>` の代わりに `window.Prism.manual = true` を先に実行する。
-3. **組み込みテンプレートの外部化**: コメント欄・`onclick`・セットアップ画面。テーマの作り方（[theme_authoring_guide.md](theme_authoring_guide.md)）に、インラインを書かない方針と `inline_script()` を追記。
+3. **組み込みテンプレートの外部化**（**済**）: コメント欄のスクリプト（`/_aegis/comments.js`。URL は `CommentSection.script_url`）、初期セットアップ画面（`/_aegis/setup.js`）、アクセス解析のビーコン（`/_aegis/analytics.js`。受け口は `data-endpoint`）を外部ファイルにし、記事の「トップへ戻る」の `onclick` はページ内リンク（`<a href='#'>`。滑らかなスクロールは CSS の `scroll-behavior`）にした。組み込みのテンプレートと同梱のテーマ 5 つが、インラインのコードを出さないことを `aegis-theme` のテスト（全テンプレートを描画して `<script>`（`src` なし）と `on*` を探す）と、E2E（`script-src 'self'` だけの CSP でコメントを投稿する）で確かめる。テーマの作り方（[theme_authoring_guide.md の 6a](theme_authoring_guide.md#6a-スクリプトの書き方インラインを書かない)）に、インラインを書かない方針を追記した。`inline_script()`（§5）は、ハッシュの登録の仕組みと一緒に 4 で足す。
 4. **ハッシュの収集と CSP**: 出すときに計算したハッシュを応答の CSP に足す。`[security].strict_csp`（`off` / `report-only` / `on`）。`admin/e2e/csp.spec.ts` を `on` でも流す。
 5. **既定を `on` に**（移行の期間のあと）。テーマ・プラグインの移行ガイド。
 

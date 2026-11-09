@@ -95,10 +95,20 @@ async fn test_beacon_is_on_public_pages_only_when_enabled() {
     let (_, html) = site
         .send(Request::get("/articles").body(Body::empty()).unwrap())
         .await;
-    assert!(html.contains(r#"<script id="cms-analytics">"#));
-    assert!(html.contains(r#"u="/cms/api/v1/analytics/event""#));
+    // インラインのスクリプトではなく、外部ファイル（CSP の `unsafe-inline` が要らない）
+    assert!(html.contains(r#"<script id="cms-analytics" src="/cms/_cms/analytics.js?v="#));
+    assert!(html.contains(r#"data-endpoint="/cms/api/v1/analytics/event""#));
     // Cookie は使わない
     assert!(!html.contains("document.cookie"));
+    let (status, script) = site
+        .send(
+            Request::get("/_cms/analytics.js")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(script.contains("sendBeacon") && !script.contains("cookie"));
 
     let disabled = self::site(|config| config.analytics.enabled = false).await;
     let (_, html) = disabled

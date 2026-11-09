@@ -29,7 +29,7 @@ flush_interval_secs = 30    # 集計を DB に書く間隔（秒）
 exclude_paths = []          # 数えないパス（前方一致。例: ["/preview"]）
 ```
 
-有効にすると、テーマで描くすべての公開ページの `<head>`（`extra_head`）にビーコンが入ります。テーマ側の作業はありません。
+有効にすると、テーマで描くすべての公開ページの `<head>`（`extra_head`）にビーコンが入ります。テーマ側の作業はありません。ビーコンは、インラインのスクリプトではなく外部ファイル（`/_aegis/analytics.js`。受け口の URL は `<script>` の `data-endpoint`）なので、CSP の `script-src` に `'unsafe-inline'` が要りません。
 
 ## 2. 何を数えるか
 

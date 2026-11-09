@@ -82,6 +82,16 @@ fn post_url(state: &AppState, content_type: &str, id: &str) -> String {
 
 /// コメントに CAPTCHA をかけているとき（`[captcha]` の `targets` に `comments`）、ウィジェットを足す
 fn with_captcha(state: &AppState, mut section: CommentSection) -> CommentSection {
+    let base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+    section.script_url = format!(
+        "{}/_aegis/comments.js?v={}",
+        base_path,
+        env!("CARGO_PKG_VERSION")
+    );
     if let Some(captcha) = &state.captcha.comments {
         section.captcha_html = captcha.widget_html();
         section.captcha_field = captcha.response_field().to_string();

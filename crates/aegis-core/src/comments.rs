@@ -108,6 +108,10 @@ pub struct CommentSection {
     /// CAPTCHA のトークンが入るフォームの欄の名前（`captcha_html` があるときだけ）
     #[serde(default)]
     pub captcha_field: String,
+    /// 組み込みのコメント欄のフォームのスクリプト（`/_aegis/comments.js`、ベースパス込み）。サーバーが足す。
+    /// テンプレートにインラインで書かず外部ファイルにして、CSP の `unsafe-inline` を要らなくする
+    #[serde(default)]
+    pub script_url: String,
 }
 
 /// 公開ページに出すコメント（メールアドレス・IP アドレスは含めない）

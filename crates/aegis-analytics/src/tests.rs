@@ -201,13 +201,23 @@ async fn test_retention_deletes_old_days() {
 }
 
 #[test]
-fn test_beacon_script_escapes_the_endpoint() {
-    let script = beacon_script("/cms/api/v1/analytics/event");
-    assert!(script.contains(r#"u="/cms/api/v1/analytics/event""#));
-    assert!(script.contains("doNotTrack"));
-    assert!(script.contains("globalPrivacyControl"));
-    let hostile = beacon_script("</script><script>alert(1)");
+fn test_beacon_tag_loads_a_file_and_escapes_its_attributes() {
+    let tag = beacon_script("/cms/api/v1/analytics/event", "/_aegis/analytics.js?v=1");
+    assert_eq!(
+        tag,
+        r#"<script id="aegis-analytics" src="/_aegis/analytics.js?v=1" data-endpoint="/cms/api/v1/analytics/event" defer></script>"#
+    );
+    // タグの中にコードは無い（インラインのスクリプトではない）
+    assert!(!tag.contains("doNotTrack"));
+    let hostile = beacon_script(r#""></script><script>alert(1)"#, r#""><b>"#);
+    // 属性の値は、タグを閉じても、新しいタグを始めてもいない
     assert_eq!(hostile.matches("</script>").count(), 1);
+    assert_eq!(hostile.matches("<script").count(), 1);
+    assert!(!hostile.contains("<b>"));
+    // スクリプトの本体: 追跡を断るブラウザーでは送らず、Cookie は使わない
+    assert!(BEACON_JS.contains("doNotTrack"));
+    assert!(BEACON_JS.contains("globalPrivacyControl"));
+    assert!(!BEACON_JS.contains("cookie"));
 }
 
 #[tokio::test]

@@ -41,18 +41,34 @@ pub const MAX_RANGE_DAYS: i64 = 366;
 
 /// 公開ページの `<head>` に入れるビーコン。`endpoint` は受け口の URL（`/api/v1/analytics/event` に
 /// `[server].base_path` を付けたもの）
-pub fn beacon_script(endpoint: &str) -> String {
-    // `</script>` で閉じられないよう、JSON の文字列にしてから `<` を逃がす
-    let endpoint = serde_json::to_string(endpoint)
-        .unwrap_or_else(|_| "\"\"".to_string())
-        .replace('<', "\\u003c");
+///
+/// インラインのスクリプトではなく、外部ファイル（`script_url`。中身は [`BEACON_JS`]）を読むタグを返す。
+/// CSP の `script-src` に `'unsafe-inline'` が要らない（docs/csp.md の 5）。受け口の URL は `data-endpoint` に入れる
+pub fn beacon_script(endpoint: &str, script_url: &str) -> String {
     format!(
-        "<script id=\"aegis-analytics\">(function(){{var n=navigator,w=window;\
-         if(n.doNotTrack===\"1\"||w.doNotTrack===\"1\"||n.globalPrivacyControl||n.webdriver)return;\
-         var d=JSON.stringify({{p:location.pathname,r:document.referrer}}),u={endpoint};\
-         if(n.sendBeacon){{n.sendBeacon(u,new Blob([d],{{type:\"text/plain\"}}))}}\
-         else{{fetch(u,{{method:\"POST\",body:d,keepalive:true}})}}}})();</script>"
+        "<script id=\"aegis-analytics\" src=\"{}\" data-endpoint=\"{}\" defer></script>",
+        escape_attribute(script_url),
+        escape_attribute(endpoint)
     )
+}
+
+/// ビーコンのスクリプト（`script_url` の先で配信する）。Cookie は使わない。追跡を断っているブラウザーと
+/// 自動操作のブラウザーでは何も送らない
+pub const BEACON_JS: &str = "(function(){var s=document.getElementById(\"aegis-analytics\");if(!s)return;\
+var n=navigator,w=window;\
+if(n.doNotTrack===\"1\"||w.doNotTrack===\"1\"||n.globalPrivacyControl||n.webdriver)return;\
+var d=JSON.stringify({p:location.pathname,r:document.referrer}),u=s.getAttribute(\"data-endpoint\");\
+if(!u)return;\
+if(n.sendBeacon){n.sendBeacon(u,new Blob([d],{type:\"text/plain\"}))}\
+else{fetch(u,{method:\"POST\",body:d,keepalive:true})}})();\n";
+
+/// 属性の値に入れる文字列のエスケープ
+fn escape_attribute(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// ビーコンで届いた 1 回のページ表示
