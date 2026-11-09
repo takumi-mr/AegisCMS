@@ -9,6 +9,7 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    html { scroll-behavior: smooth; }
     :root {
       --bg-primary: #0a0e17;
       --bg-secondary: #111827;
@@ -733,9 +734,9 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
     <a href="{{ base_path }}/" style="color: #818cf8; font-size: 0.9rem; text-decoration: none; font-weight: 600;">
       &larr; {{ t("article.back") }}
     </a>
-    <button onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); padding: 0.4rem 0.85rem; border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; transition: all 0.2s ease;">
+    <a href='#' style="background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); padding: 0.4rem 0.85rem; border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; text-decoration: none; transition: all 0.2s ease;">
       {{ t("article.scroll_top") }} &uarr;
-    </button>
+    </a>
   </footer>
 </article>
 {% endblock %}
@@ -969,76 +970,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
     <button type="submit">{{ t("comments.submit") }}</button>
     <p class="aegis-comment-status" role="status" aria-live="polite"></p>
   </form>
-  <script>
-  (function () {
-    var form = document.currentScript.previousElementSibling;
-    var status = form.querySelector(".aegis-comment-status");
-    var replying = form.querySelector("[data-replying]");
-    var KEY = "aegis-comment-author";
-    function show(text, kind) { status.textContent = text; status.dataset.kind = kind || ""; }
-    function replyTo(id, name) {
-      form.elements.parent_id.value = id || "";
-      replying.hidden = !id;
-      form.querySelector("[data-replying-name]").textContent = name || "";
-    }
-    try {
-      var saved = JSON.parse(localStorage.getItem(KEY) || "{}");
-      if (saved.name) form.elements.name.value = saved.name;
-      if (saved.email) form.elements.email.value = saved.email;
-    } catch (e) {}
-    document.querySelectorAll(".aegis-comment-reply").forEach(function (button) {
-      button.addEventListener("click", function () {
-        replyTo(button.dataset.replyTo, button.dataset.replyName);
-        form.scrollIntoView({ behavior: "smooth", block: "start" });
-        form.elements.body.focus({ preventScroll: true });
-      });
-    });
-    form.querySelector("[data-cancel-reply]").addEventListener("click", function () { replyTo(); });
-    form.addEventListener("submit", function (event) {
-      event.preventDefault();
-      if (!form.reportValidity()) return;
-      var f = form.elements;
-      var submit = form.querySelector("button[type=submit]");
-      submit.disabled = true;
-      show(form.dataset.msgSending);
-      fetch(form.dataset.postUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: f.name.value, email: f.email.value, body: f.body.value,
-          parent_id: f.parent_id.value || null, notify_replies: f.notify_replies.checked,
-          website: f.website.value, captcha_token: captchaToken()
-        })
-      }).then(function (res) {
-        return res.json().catch(function () { return {}; }).then(function (data) {
-          if (!res.ok) throw new Error(data.error || form.dataset.msgFailed);
-          try { localStorage.setItem(KEY, JSON.stringify({ name: f.name.value, email: f.email.value })); } catch (e) {}
-          if (data.status === "approved" && data.comment) {
-            location.hash = "comment-" + data.comment.id;
-            location.reload();
-            return;
-          }
-          f.body.value = "";
-          replyTo();
-          show(form.dataset.msgPending);
-        });
-      }).catch(function (e) { show(e.message, "error"); })
-        .finally(function () { submit.disabled = false; resetCaptcha(); });
-    });
-    // CAPTCHA のトークンは 1 回しか使えない。送信のたびにウィジェットを作り直す
-    function captchaToken() {
-      var field = form.dataset.captchaField;
-      var input = field && form.querySelector('[name="' + field + '"]');
-      return input ? input.value : null;
-    }
-    function resetCaptcha() {
-      if (!form.dataset.captchaField) return;
-      [window.turnstile, window.hcaptcha, window.grecaptcha].forEach(function (api) {
-        try { if (api && api.reset) api.reset(); } catch (e) {}
-      });
-    }
-  })();
-  </script>
+  {% if comments.script_url %}<script src="{{ comments.script_url | safe }}" defer></script>{% endif %}
   {% else %}
   <p class="aegis-comments-note">{{ t("comments.closed") }}</p>
   {% endif %}

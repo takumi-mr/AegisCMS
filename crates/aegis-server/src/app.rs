@@ -586,6 +586,14 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 get(handlers::site_assets::consent_style),
             )
             .route(
+                &format!("{assets}/comments.js"),
+                get(handlers::site_assets::comments_script),
+            )
+            .route(
+                &format!("{assets}/setup.js"),
+                get(handlers::site_assets::setup_script),
+            )
+            .route(
                 &format!("{assets}/notices.js"),
                 get(handlers::site_assets::notices_script),
             )
@@ -625,6 +633,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
     #[cfg(feature = "analytics")]
     {
         app = app
+            .route(
+                &format!("/_{}/analytics.js", config.server.namespace()),
+                get(crate::analytics::beacon_script_file),
+            )
             .route(
                 "/api/v1/analytics/event",
                 axum::routing::post(crate::analytics::track_event),

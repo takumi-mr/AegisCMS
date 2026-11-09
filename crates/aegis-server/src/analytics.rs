@@ -30,7 +30,35 @@ pub fn head_html(state: &AppState) -> String {
         .server
         .normalized_base_path()
         .unwrap_or_default();
-    aegis_analytics::beacon_script(&format!("{}/api/v1/analytics/event", base_path))
+    aegis_analytics::beacon_script(
+        &format!("{}/api/v1/analytics/event", base_path),
+        &format!(
+            "{}/_aegis/analytics.js?v={}",
+            base_path,
+            env!("CARGO_PKG_VERSION")
+        ),
+    )
+}
+
+/// `GET /_aegis/analytics.js` — ビーコンのスクリプト（`[analytics]` が有効なときだけ。無効なら 404）
+pub async fn beacon_script_file(State(state): State<Arc<AppState>>) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if state.analytics.is_none() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    (
+        StatusCode::OK,
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "application/javascript; charset=utf-8",
+            ),
+            (axum::http::header::CACHE_CONTROL, "public, max-age=3600"),
+            (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        ],
+        aegis_analytics::BEACON_JS,
+    )
+        .into_response()
 }
 
 #[derive(Debug, Deserialize)]

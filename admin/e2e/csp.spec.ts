@@ -167,3 +167,51 @@ test('the themed-page preview behaves like the public site: its inline scripts r
   });
   expect(popupStorage).toBe('blocked');
 });
+
+test("the built-in comment form works without any inline script (script-src 'self' only)", async ({
+  page,
+}) => {
+  const errors = await recordViolations(page);
+  const login = await page.request.post(`${SERVER}/api/v1/auth/session`, {
+    data: { username: E2E_USERNAME, password: E2E_PASSWORD },
+  });
+  expect(login.ok()).toBeTruthy();
+  const { id: token } = await login.json();
+  const auth = { Authorization: `Bearer ${token}` };
+  const slug = `csp-strict-${Date.now()}`;
+  const created = await page.request.post(`${SERVER}/api/v1/contents/article`, {
+    headers: auth,
+    data: { title: `Strict ${slug}`, slug, status: 'published', blocks: [] },
+  });
+  expect(created.ok()).toBeTruthy();
+
+  // The strictest policy the site can ask for: scripts only from its own origin
+  const strict =
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
+  const set = await page.request.put(`${SERVER}/api/v1/headers`, {
+    headers: auth,
+    data: { content_security_policy: strict },
+  });
+  expect(set.ok()).toBeTruthy();
+  try {
+    await page.goto(`${SERVER}/articles/${slug}`);
+    const form = page.locator('form.cms-comment-form');
+    await form.getByLabel('Name', { exact: true }).fill('Strict');
+    await form.getByLabel('Email (not published)').fill('strict@example.com');
+    await form.getByLabel('Comment', { exact: true }).fill('Posted under a strict CSP');
+    await form.getByRole('button', { name: 'Post comment' }).click();
+    // The form script ran (it is an external file now): it sends the comment and shows the result
+    await expect(
+      page.getByText('Thank you! Your comment will appear once it has been approved.')
+    ).toBeVisible();
+    expect(scriptViolations(await violations(page))).toEqual([]);
+    expect(errors).toEqual([]);
+
+    // The setup page's script is external too (the page itself is for a new site, so only the file)
+    const setupJs = await page.request.get(`${SERVER}/_cms/setup.js`);
+    expect(setupJs.ok()).toBeTruthy();
+  } finally {
+    // Back to the defaults
+    await page.request.put(`${SERVER}/api/v1/headers`, { headers: auth, data: {} });
+  }
+});

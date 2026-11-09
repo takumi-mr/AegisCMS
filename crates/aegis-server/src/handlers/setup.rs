@@ -300,47 +300,7 @@ pub async fn setup_page(State(state): State<Arc<AppState>>) -> Response {
     </form>
   </div>
 
-  <script>
-    const form = document.getElementById('setup-form');
-    const errBox = document.getElementById('error');
-    const btn = document.getElementById('submit-btn');
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      errBox.style.display = 'none';
-      btn.disabled = true;
-      btn.innerText = 'Installing...';
-
-      const payload = {
-        site_title: document.getElementById('site_title').value.trim(),
-        admin_username: document.getElementById('admin_username').value.trim(),
-        admin_password: document.getElementById('admin_password').value,
-        admin_email: document.getElementById('admin_email').value.trim() || null,
-        create_sample_data: document.getElementById('sample_data').checked,
-      };
-
-      try {
-        const res = await fetch('/api/v1/setup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Setup failed');
-        }
-        btn.innerText = 'Success! Redirecting...';
-        setTimeout(() => {
-          window.location.href = '/admin/';
-        }, 1200);
-      } catch (err) {
-        errBox.innerText = err.message;
-        errBox.style.display = 'block';
-        btn.disabled = false;
-        btn.innerText = 'Complete Installation';
-      }
-    });
-  </script>
+  <script src="/_aegis/setup.js" defer></script>
 </body>
 </html>"#;
 
@@ -421,6 +381,16 @@ fields:
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
+        // The page has no inline script (CSP `script-src` needs no `'unsafe-inline'`); the script is a file
+        let page = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let page = String::from_utf8_lossy(&page);
+        assert!(
+            page.contains(r#"<script src="/_cms/setup.js" defer></script>"#),
+            "{page}"
+        );
+        assert!(!page.contains("<script>"), "{page}");
 
         // 3. Validation error: password too short
         let invalid_req = serde_json::json!({

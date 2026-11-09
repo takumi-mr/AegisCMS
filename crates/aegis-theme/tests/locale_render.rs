@@ -52,6 +52,7 @@ fn comments(open: bool) -> Option<CommentSection> {
         post_url: "/api/v1/contents/article/a/comments".to_string(),
         max_depth: 2,
         max_length: 2000,
+        script_url: "/_aegis/comments.js?v=1".to_string(),
         ..Default::default()
     })
 }
@@ -465,6 +466,101 @@ fn test_every_key_used_by_a_template_exists() {
         assert!(exists, "t(\"{}\") has no message", key);
     }
     assert!(found > 100, "found only {} keys", found);
+}
+
+/// 実行されるインラインのコード（`src` の無い `<script>`、`on*` 属性）。データのブロック
+/// （`application/json`・`application/ld+json`）と、同意を待つ `text/plain` は実行されないので数えない
+fn inline_code(html: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    // `<script>` のタグ
+    let mut rest = html;
+    while let Some(start) = rest.find("<script") {
+        let tag_end = rest[start..]
+            .find('>')
+            .map_or(rest.len(), |e| start + e + 1);
+        let tag = &rest[start..tag_end];
+        let data = ["application/json", "application/ld+json", "text/plain"]
+            .iter()
+            .any(|t| tag.contains(&format!("type=\"{t}\"")));
+        if !tag.contains(" src=") && !data {
+            found.push(tag.to_string());
+        }
+        rest = &rest[tag_end..];
+    }
+    // `on*` 属性（`<script>`・`<style>` の中身を除いたマークアップだけを見る）
+    let markup = markup(html);
+    let bytes = markup.as_bytes();
+    let mut i = 0;
+    while i + 3 < bytes.len() {
+        if bytes[i].is_ascii_whitespace() && bytes[i + 1] == b'o' && bytes[i + 2] == b'n' {
+            let name_end = (i + 3..bytes.len())
+                .find(|&j| !bytes[j].is_ascii_lowercase())
+                .unwrap_or(bytes.len());
+            if name_end > i + 3 && bytes.get(name_end) == Some(&b'=') {
+                found.push(markup[i + 1..name_end].to_string());
+            }
+        }
+        i += 1;
+    }
+    found
+}
+
+/// コメント欄のスクリプトの URL は、`/` をエスケープしない（`&#x2f;` にすると、配信パスの `/_aegis/` が
+/// 設定した名前空間に置き換わらず、読み込めない）
+#[test]
+fn test_the_comment_script_url_is_not_escaped() {
+    let ctx = contexts()
+        .into_iter()
+        .find(|c| c.comments.as_ref().is_some_and(|s| s.open))
+        .expect("a context with an open comment section");
+    let html = engine("en").render(&ctx.template, &ctx).unwrap();
+    assert!(
+        html.contains(r#"<script src="/_aegis/comments.js?v=1" defer></script>"#),
+        "{html}"
+    );
+}
+
+/// 組み込みのテンプレートと同梱テーマは、インラインのスクリプトも `on*` 属性も出さない（CSP の
+/// `script-src` から `'unsafe-inline'` を外せる。docs/csp.md の 5）
+#[test]
+fn test_built_in_templates_and_bundled_themes_have_no_inline_code() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let mut engines = vec![("built-in".to_string(), engine("en"))];
+    for theme_id in [
+        "cyber-neon",
+        "emerald-luxury",
+        "minimal-editorial",
+        "roastery",
+        "trailhead",
+    ] {
+        engines.push((
+            theme_id.to_string(),
+            ThemeEngine::new(&root.join("themes"), theme_id).with_locale("en"),
+        ));
+    }
+    for (name, engine) in engines {
+        for ctx in contexts() {
+            let Ok(html) = engine.render(&ctx.template, &ctx) else {
+                continue;
+            };
+            let inline = inline_code(&html);
+            assert!(
+                inline.is_empty(),
+                "{name}/{}: inline code {inline:?}",
+                ctx.template
+            );
+        }
+    }
+    // 検査自体が働く: 実行されるインラインのコードは見つけ、データのブロックと外部のスクリプトは数えない
+    let sample = r#"<script>a()</script><script src="/x.js"></script><script type="application/ld+json">{}</script><script type="text/plain" data-x="1">y()</script><button onclick="z()">b</button><p data-on="1"> only on the page</p>"#;
+    let found = inline_code(sample);
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(found.iter().any(|f| f == "<script>"));
+    assert!(found.iter().any(|f| f == "onclick"));
 }
 
 #[test]
