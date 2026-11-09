@@ -22,35 +22,6 @@ use aegis_schema::SchemaDefinition;
 use aegis_storage::LocalStorageBackend;
 use serde_json::json;
 
-/// バックアップに入るシステムテーブルと、このテストのコンテンツの表（作り直す前に消す）
-const TABLES: &[&str] = &[
-    "content_article",
-    "_aegis_content_versions",
-    "_aegis_content_publications",
-    "_aegis_content_tags",
-    "_aegis_tags",
-    "_aegis_comments",
-    "_aegis_forum_reports",
-    "_aegis_forum_posts",
-    "_aegis_forum_threads",
-    "_aegis_forum_categories",
-    "_aegis_newsletter_issues",
-    "_aegis_newsletter_subscribers",
-    "_aegis_contact_messages",
-    "_aegis_reviews",
-    "_aegis_product_variants",
-    "_aegis_orders",
-    "_aegis_members",
-    "_aegis_user_identities",
-    "_aegis_users",
-    "_aegis_settings",
-    "_aegis_analytics",
-    "_aegis_audit_logs",
-    "_aegis_notification_queue",
-    // 適用済みの手順の記録も消す（残っていると、`init` は消した表を作り直さない）
-    "_sqlx_migrations",
-];
-
 const TS: &str = "2026-11-08T00:00:00Z";
 /// 5 文字 × 1500 回。日本語と絵文字（4 バイト）を含む長い文字列
 fn long_text() -> String {
@@ -102,13 +73,9 @@ async fn postgres() -> Option<Arc<dyn DatabaseAdapter>> {
         eprintln!("Skipping PostgreSQL: failed to connect");
         return None;
     };
-    for table in TABLES {
-        let _ = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "DROP TABLE IF EXISTS {table} CASCADE;"
-        )))
-        .execute(adapter.pool())
-        .await;
-    }
+    aegis_db::test_support::cleanup_postgres(&adapter)
+        .await
+        .ok()?;
     Some(Arc::new(adapter))
 }
 
@@ -124,13 +91,7 @@ async fn mysql() -> Option<Arc<dyn DatabaseAdapter>> {
         eprintln!("Skipping MySQL: failed to connect");
         return None;
     };
-    for table in TABLES {
-        let _ = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "DROP TABLE IF EXISTS {table};"
-        )))
-        .execute(adapter.pool())
-        .await;
-    }
+    aegis_db::test_support::cleanup_mysql(&adapter).await.ok()?;
     Some(Arc::new(adapter))
 }
 

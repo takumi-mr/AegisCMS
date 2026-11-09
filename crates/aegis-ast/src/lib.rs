@@ -13,6 +13,20 @@ pub use renderer::{extract_links, HtmlRenderer};
 pub use rewriter::{HtmlRewriterConfig, RewriterError, StreamingHtmlRewriter};
 pub use transform::{AstPipeline, AstTransformer, HeadingIdTransformer};
 
+/// 「ここから先は会員向け」の区切りのブロック名（Markdown では `<!-- paywall -->`。docs/members.md 15.3）
+pub const PAYWALL_BLOCK: &str = "core/paywall";
+
+/// 閲覧を制限した記事・ページで、だれにでも見せてよい本文。**最初の最上位の区切り（`core/paywall`）
+/// より前のブロック**。区切りが無ければ、本文は全部隠す（空）。入れ子の中の区切りは数えない
+/// （数えると、区切りの前後を取り違えて隠すべき本文を出しかねない）。
+/// 制限した本文をページ以外（フィード・検索・一覧・API）に出すときは、必ずこれを通す。
+pub fn public_blocks(blocks: &[BlockNode]) -> Vec<BlockNode> {
+    match blocks.iter().position(|b| b.name == PAYWALL_BLOCK) {
+        Some(at) => blocks[..at].to_vec(),
+        None => Vec::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,19 +104,5 @@ mod tests {
             html.contains("<p>AegisCMS uses WebAssembly sandboxing for zero-trust extensions.</p>")
         );
         assert!(html.contains("<pre><code class=\"language-rust\">fn main() { println!(&quot;Hello Aegis&quot;); }</code></pre>"));
-    }
-}
-
-/// 「ここから先は会員向け」の区切りのブロック名（Markdown では `<!-- paywall -->`。docs/members.md 15.3）
-pub const PAYWALL_BLOCK: &str = "core/paywall";
-
-/// 閲覧を制限した記事・ページで、だれにでも見せてよい本文。**最初の最上位の区切り（`core/paywall`）
-/// より前のブロック**。区切りが無ければ、本文は全部隠す（空）。入れ子の中の区切りは数えない
-/// （数えると、区切りの前後を取り違えて隠すべき本文を出しかねない）。
-/// 制限した本文をページ以外（フィード・検索・一覧・API）に出すときは、必ずこれを通す。
-pub fn public_blocks(blocks: &[BlockNode]) -> Vec<BlockNode> {
-    match blocks.iter().position(|b| b.name == PAYWALL_BLOCK) {
-        Some(at) => blocks[..at].to_vec(),
-        None => Vec::new(),
     }
 }

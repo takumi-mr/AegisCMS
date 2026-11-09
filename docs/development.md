@@ -260,7 +260,7 @@ task docker:dbs:down
 1. `sqlite/`・`postgres/`・`mysql/` のそれぞれに、同じ番号・同じ名前の新しい手順（`NNNN_説明.sql`。前の番号の次）を足す。**公開した手順のファイルは書き換えない**。
 2. 方言の違いに注意する（型、`AUTOINCREMENT` 相当、索引の書き方。MySQL は `CREATE INDEX IF NOT EXISTS` が無く、DDL を途中で戻せない）。
 3. `cargo test -p aegis-db` で、3 つの方言の手順がそろっていることを確かめる。そのうえで **`task docker:dbs:up` → `task test:dbs` で、PostgreSQL・MySQL の実機でも流す**（CI は実機を起動しないので、実機の確認はここでしかできない）。
-4. 統合テストで、表を `DROP` して `init` で作り直すときは、先に `DROP TABLE IF EXISTS _sqlx_migrations;` も実行する（適用済みの記録が残っていると、`init` は消した表を作り直さない）。
+4. 統合テストで実機 DB を初期化して `init` で作り直すときは、`aegis_db::test_support::cleanup_postgres` / `cleanup_mysql` を実行する（`_sqlx_migrations` だけでなくマイグレーション管理下の全システムテーブルを一括で消すことで、マイグレーション 2 以降を再実行した際に列の重複エラーになるのを防ぐ）。
 
 ---
 

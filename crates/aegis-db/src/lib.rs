@@ -17,6 +17,7 @@ pub mod reviews;
 pub mod sqlite;
 pub mod sqlx_compat;
 pub mod tags;
+pub mod test_support;
 pub mod variants;
 
 use aegis_core::{AegisError, AuditActor, AuditEvent, AuditQuery, Result};
