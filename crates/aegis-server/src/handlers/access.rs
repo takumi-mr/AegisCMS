@@ -132,23 +132,41 @@ pub async fn gate(
     fields: &HashMap<String, serde_json::Value>,
     path: &str,
 ) -> Gate {
-    let required = fields.get(ACCESS_FIELD).and_then(|v| v.as_str());
-    if aegis_members::is_public(required) {
+    // 制限のないページでは、閲覧者（セッションの検索）を引かない
+    if !aegis_db::is_restricted(fields) {
         return Gate::Open;
     }
-    let required = required.map(str::trim).unwrap_or_default();
-
     let level = member_level(state, headers).await;
     let viewer = match level.as_deref() {
         Some(level) => Viewer::Member { level },
         None => Viewer::Guest,
     };
+    decide(state, fields, viewer, path)
+}
+
+/// 閲覧者が決まっているときの判定（公開ページは Cookie から引いた閲覧者、管理画面のプレビューは選んだ閲覧者）
+pub fn decide(
+    state: &AppState,
+    fields: &HashMap<String, serde_json::Value>,
+    viewer: Viewer<'_>,
+    path: &str,
+) -> Gate {
+    let required = fields.get(ACCESS_FIELD).and_then(|v| v.as_str());
+    if aegis_members::is_public(required) {
+        return Gate::Open;
+    }
+    let required = required.map(str::trim).unwrap_or_default();
     let levels = &state.config.members.levels;
     if aegis_members::may_view(levels, Some(required), viewer) {
         return Gate::Allowed;
     }
     Gate::Denied {
-        notice_html: notice(state, required, level.is_some(), path),
+        notice_html: notice(
+            state,
+            required,
+            matches!(viewer, Viewer::Member { .. }),
+            path,
+        ),
     }
 }
 

@@ -1645,6 +1645,8 @@ export const App: React.FC = () => {
                   slug={slug}
                   categoryId={categoryId}
                   layout={contentType === 'page' ? layout : undefined}
+                  access={access}
+                  memberLevels={membersEnabled ? memberLevels : []}
                   blocks={blocks}
                 />
               </div>

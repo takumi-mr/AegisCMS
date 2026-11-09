@@ -339,6 +339,8 @@ export interface PreviewRequest {
   slug: string;
   /** Custom fields, e.g. `category_id` */
   fields: Record<string, unknown>;
+  /** Who to preview as: `staff` (default, the full text), `guest` or `member:<level>` */
+  viewer?: string;
   blocks: BlockNode[];
 }
 

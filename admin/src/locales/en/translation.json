@@ -954,6 +954,12 @@
       "page": "Themed Page",
       "ast": "Block AST (JSON)"
     },
+    "viewer": {
+      "label": "Preview as",
+      "staff": "Staff (full text)",
+      "guest": "Guest",
+      "member": "Member: {{level}}"
+    },
     "aria": "Preview",
     "failed": "⚠ Preview failed: {{error}}",
     "rendering": "Rendering on the server...",
