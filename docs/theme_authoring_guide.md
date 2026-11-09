@@ -339,6 +339,13 @@ task dev:theme -- themes/my-theme      # = cargo run -p aegis-theme-dev -- theme
 - **データを変える・増やす**: `samples/<名前>.json` に `PageRenderContext` の項目（[3.2 変数](#32-変数)）を書くと、既定のデータの上書きになります（最上位のキー単位）。既定に無い名前なら、ページが増えます。`"template": "article.html"` で使うテンプレートを選べます（省くと `<名前>.html`）。`samples/` はインストール時に使われないので、そのまま置いておけます。
 - **CSP（Strict）**: プレビューのページには、公開サイトの既定の CSP（[csp.md](csp.md)）が付きます。直接書いたインラインの `<script>`・`<style>`・`on*` 属性など、公開したら動かなくなるものは、ページの右下に理由と直し方つきで出ます（`theme.json` の `csp` で宣言したホストは許されます）。強制しないなら `--csp report-only`、付けないなら `--csp off`。
 - **アセット**: `/theme/assets/...` と `/themes/<id>/assets/...` で配信します。
+- **宣言的クエリ（`queries`）のサンプル**: テンプレートが `queries.<name>`（[queries.md](queries.md)）を読むときは、`samples/queries.json` に**クエリ名 → 結果の配列**を書きます。ページのサンプルではなく、全ページの `queries` になります（保存すると次の描画に反映。Theme Builder では保存していない編集中の内容でも描画できます）。無い名前は未定義になり、`queries.x[0]` のような読み方は描画のエラーになります。結果は配列でなければならず（集計は行の配列、`select` を省いた一覧は `items` と同じ形）、違うとエラーに出ます。サイトの定義から雛形を作るには:
+
+  ```bash
+  cargo run -p aegis-theme-dev -- themes/my-theme --init-queries --queries-dir ../site/queries --schemas-dir ../site/schemas
+  ```
+
+  クエリは実行せず、定義の形に合う決まった値（集計は 3 行、一覧は最大 3 件）を `samples/queries.json` に書いて終わります（サーバーは起動しません）。すでにあるクエリの結果は残し、足りない名前だけを足します（`--force` で作り直し）。値に意味は無いので、空の結果・長い文字列・0 など、確かめたい場面に合わせて手で直してください。実際のクエリは、`theme dev` では発行しません（DB を使わないため）。
 - **公開サイトとの違い**: プラグインの `on-render-page`、コメント欄・ショップ・フォーラムのデータ、`[theme]` の設定（`theme_vars`・`custom_css`）は反映されません。必要なら `samples/*.json` に書いてください。最終確認は、実際のサイトで行います。
 - **待ち受けと表示言語**: 既定は `127.0.0.1:8090`（`--host`・`--port`）。表示言語は `--locale <LOCALE>`（`-l`、既定 `en`。例: `-l ja`）で指定できます。テンプレートは任意のコードを実行できる開発用の機能なので、公開するネットワークには出さないでください。
 - **エラーの場所**: 失敗したときは、どのテンプレートの何行目かが分かります（`{% include %}`・`{% extends %}` の先で起きたときは、その先のファイルと行）。

@@ -702,6 +702,7 @@ name = "aegis-theme-dev"
 version = "0.5.0"
 dependencies = [
  "aegis-core",
+ "aegis-schema",
  "aegis-theme",
  "anyhow",
  "axum",

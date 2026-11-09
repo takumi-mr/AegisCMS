@@ -9,7 +9,7 @@
 
 ## 直近の着手タスク
 
-- [ ] **宣言的クエリの残り**（本体および全言語プラグイン SDK の `PageRenderContext.queries` は実装済み。仕様は [queries.md](docs/queries.md)、設計判断は [architecture.md 25](docs/architecture.md#25-宣言的クエリ-aegis-schemasrcqueryrs-aegis-dbsrcpublished_columnsrs-aegis-serversrcqueriesrs)）: ① `theme dev` / Theme Builder では `queries` が空（サンプルデータの用意は未決）。② Admin Studio でクエリの一覧・結果のプレビューを出すか（要望を見て決める）。型をまたぐ結合は対応しない方針（[queries.md 10](docs/queries.md#10-型をまたぐ結合をしない方針と代わりの方法)）。
+- [ ] **宣言的クエリの残り**（本体、全言語プラグイン SDK の `PageRenderContext.queries`、`theme dev` / Theme Builder のサンプル（`samples/queries.json`）は実装済み。仕様は [queries.md](docs/queries.md)、設計判断は [architecture.md 25](docs/architecture.md#25-宣言的クエリ-aegis-schemasrcqueryrs-aegis-dbsrcpublished_columnsrs-aegis-serversrcqueriesrs)）: ① Admin Studio でクエリの一覧・結果のプレビューを出すか（要望を見て決める）。型をまたぐ結合は対応しない方針（[queries.md 10](docs/queries.md#10-型をまたぐ結合をしない方針と代わりの方法)）。
 
 ---
 

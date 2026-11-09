@@ -131,6 +131,7 @@ where:
 
 - **テーマ**: テンプレートのグローバル変数 `queries` から `queries.<name>` で読む。結果はページに依存しないので `PageRenderContext` には載せず、サーバーが持つ最新の一式を読む（環境の作り直しは要らない）。名前の無いクエリは未定義になり、未定義への添字アクセス（`queries.x[0]`）は描画のエラーになる。
 - **プラグイン**: `on_render_page` の入力の `queries` に入る。マニフェストの `capabilities.render_page.queries` に書いた名前の結果だけが渡り（書かなければ空）、読み取り専用（返した値は反映されず、次のプラグインにも見えない）。プラグインは結果の JSON を読むだけで、DB にもクエリ定義にも触れない。`render_page.input` とは独立。全言語の SDK（Rust / AssemblyScript / TinyGo）の `PageRenderContext` に `queries` がある。
+- **`theme dev` / Theme Builder**: クエリは実行せず（DB を使わないため）、テーマの `samples/queries.json`（クエリ名 → 結果の配列）を `queries` に入れる。`--init-queries` で、サイトの定義とスキーマから雛形を作れる（[theme_authoring_guide.md](theme_authoring_guide.md#theme-devdb-なしで素早く確かめる)）。実際のクエリを発行する方式（サイトの DB やサーバーへの接続）は採らない: 本番に近いデータが手元の画面に出ること、設定が増えること、空・0 件・長い文字列などの確認を作れないことのため。
 - 結果の形: 集計は行の配列（キーは `group_by` の出力名と `select` の `as`）。`select` を省略した一覧は、テーマの一覧（`items`）の要素と同じ形（本文は含めない）。
 - 結果の中の文字列は、利用者が入力した値である。テンプレートでは `safe` を付けない（[theme_authoring_guide.md 3.3](theme_authoring_guide.md)）。
 
@@ -202,8 +203,6 @@ select:
 ## 8. 未解決の設計判断
 
 - Admin Studio にクエリの一覧と、結果のプレビューを出すか。
-- `theme dev` / Theme Builder で、クエリの結果をどう用意するか（サンプルデータか、実サーバーへの接続か）。今は `queries` が空。
-- AssemblyScript / TinyGo のプラグインテンプレートに `queries` を足すか。
 
 ## 9. 使うときの注意
 
