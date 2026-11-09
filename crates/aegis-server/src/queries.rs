@@ -144,19 +144,29 @@ impl QueryService {
         &self.definitions
     }
 
+    /// 使う列の計画（クエリごとの和集合を、コンテンツの種類ごとにまとめたもの）
+    fn plan(
+        &self,
+        schemas: &HashMap<String, SchemaDefinition>,
+    ) -> aegis_db::published_columns::PublishedColumnsPlan {
+        let schema_list: Vec<SchemaDefinition> = schemas.values().cloned().collect();
+        aegis_db::published_columns::PublishedColumnsPlan::build(
+            &self.definitions,
+            &schema_list,
+            self.config.tz(),
+        )
+    }
+
     /// 起動時: 公開側の列を用意し（定義が変わった副表は作り直す）、全クエリを計算する
     pub async fn prepare(&self, state: &AppState) -> Result<()> {
         if self.definitions.is_empty() {
             return Ok(());
         }
         let schemas = state.schemas.read().await.clone();
-        let schema_list: Vec<SchemaDefinition> = schemas.values().cloned().collect();
-        let plan = aegis_db::published_columns::PublishedColumnsPlan::build(
-            &self.definitions,
-            &schema_list,
-            self.config.tz(),
-        );
-        state.db.configure_published_columns(plan).await?;
+        state
+            .db
+            .configure_published_columns(self.plan(&schemas))
+            .await?;
         self.refresh(state, None).await;
         Ok(())
     }
@@ -238,6 +248,40 @@ impl QueryService {
                 ))
             })?
     }
+}
+
+/// コマンド（`task migrate`・`task restore`）から、公開側の列だけを用意する（結果の計算はしない）。
+/// `rebuild` なら定義が同じでもすべて作り直す。クエリの定義の誤りはエラーにする（何も変えない）。
+/// 戻り値は用意した副表の数
+pub async fn prepare_columns(
+    db: &dyn DatabaseAdapter,
+    config: &QueriesConfig,
+    dir: &Path,
+    schemas: &HashMap<String, SchemaDefinition>,
+    rebuild: bool,
+) -> Result<usize> {
+    let service = QueryService::load(config, dir, schemas)?;
+    prepare_columns_of(&service, db, schemas, rebuild).await
+}
+
+/// `prepare_columns` の、読み込み済みのサービスを使う版（復元の前に検証して、後で使う）
+pub async fn prepare_columns_of(
+    service: &QueryService,
+    db: &dyn DatabaseAdapter,
+    schemas: &HashMap<String, SchemaDefinition>,
+    rebuild: bool,
+) -> Result<usize> {
+    if service.definitions.is_empty() {
+        return Ok(0);
+    }
+    let plan = service.plan(schemas);
+    let tables = plan.tables.len();
+    if rebuild {
+        db.rebuild_published_columns(plan).await?;
+    } else {
+        db.configure_published_columns(plan).await?;
+    }
+    Ok(tables)
 }
 
 /// リレーション列の `group_by` の値を、参照先の `{id, title, slug}` にする（`IN (...)` で 1 回にまとめて解決）

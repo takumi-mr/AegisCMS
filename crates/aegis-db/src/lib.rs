@@ -545,6 +545,15 @@ pub trait DatabaseAdapter:
         Ok(())
     }
 
+    /// `configure_published_columns` と同じだが、定義が同じでも副表をすべて作り直す。
+    /// 副表は公開の記録から導ける派生データなので、`task restore` のあとのリセットに使う
+    async fn rebuild_published_columns(
+        &self,
+        plan: published_columns::PublishedColumnsPlan,
+    ) -> Result<()> {
+        self.configure_published_columns(plan).await
+    }
+
     /// 検証済みの宣言的クエリを実行する（`max_limit` は行数の上限）。
     /// 集計は行の JSON、`select` 省略は公開版のレコードを返す
     async fn run_query(

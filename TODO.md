@@ -9,7 +9,7 @@
 
 ## 直近の着手タスク
 
-- [ ] **宣言的クエリの残り**（本体は実装済み。仕様は [queries.md](docs/queries.md)、設計判断は [architecture.md 25](docs/architecture.md#25-宣言的クエリ-aegis-schemasrcqueryrs-aegis-dbsrcpublished_columnsrs-aegis-serversrcqueriesrs)）: ① `task restore` で DB を差し替えたあと、副表（`_aegis_published_<type>`）が古いままになりうる（定義が同じだと作り直さない）。復元後に作り直す手段が要る。② `task migrate` は副表を用意しない（`run` の起動時だけ）。③ `theme dev` / Theme Builder では `queries` が空（サンプルデータの用意は未決）。④ AssemblyScript / TinyGo のプラグインテンプレートの `PageRenderContext` に `queries` が無い（Rust SDK は対応済み）。⑤ Admin Studio でクエリの一覧・結果のプレビューを出すか、型をまたぐ結合は要望を見て決める。
+- [ ] **宣言的クエリの残り**（本体は実装済み。仕様は [queries.md](docs/queries.md)、設計判断は [architecture.md 25](docs/architecture.md#25-宣言的クエリ-aegis-schemasrcqueryrs-aegis-dbsrcpublished_columnsrs-aegis-serversrcqueriesrs)）: ① `theme dev` / Theme Builder では `queries` が空（サンプルデータの用意は未決）。② AssemblyScript / TinyGo のプラグインテンプレートの `PageRenderContext` に `queries` が無い（Rust SDK は対応済み）。③ Admin Studio でクエリの一覧・結果のプレビューを出すか、型をまたぐ結合は要望を見て決める。
 
 ---
 
