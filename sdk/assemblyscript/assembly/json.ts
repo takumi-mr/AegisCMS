@@ -3,6 +3,7 @@
  */
 
 import { PostContext, BlockNode, PageRenderContext, InjectedScript } from "./types";
+import { parseJsonAt } from "./jsonvalue";
 
 /**
  * 1 文字ずつ `+=` で連結すると入力の大きさの二乗になる。区間ごとに `substring` して `join` しても
@@ -212,8 +213,17 @@ export function parsePageRenderContext(json: string): PageRenderContext {
   ctx.content_type = findStringField(json, "content_type");
   ctx.title = findStringField(json, "title");
   ctx.slug = findStringField(json, "slug");
+  ctx.content_length = findIntField(json, "content_length") as i32;
   ctx.extra_css = findStringField(json, "extra_css");
   ctx.extra_head = findStringField(json, "extra_head");
+  const queriesPattern = "\"queries\":";
+  const queriesIdx = json.lastIndexOf(queriesPattern);
+  if (queriesIdx != -1) {
+    const parsed = parseJsonAt(json, queriesIdx + queriesPattern.length);
+    if (parsed !== null && parsed!.isObject()) {
+      ctx.queries = parsed!;
+    }
+  }
   return ctx;
 }
 

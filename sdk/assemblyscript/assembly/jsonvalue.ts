@@ -363,3 +363,13 @@ export function parseJson(text: string): JsonValue | null {
   if (parser.pos != text.length) return null;
   return value;
 }
+
+/** `text` の `startPos` から始まる 1 つの JSON 値を読む（後ろに続く文字は無視する）。不正なら null */
+export function parseJsonAt(text: string, startPos: i32): JsonValue | null {
+  if (startPos < 0 || startPos >= text.length) return null;
+  const parser = new JsonParser(text);
+  parser.pos = startPos;
+  const value = parser.parseValue(0);
+  if (parser.failed) return null;
+  return value;
+}

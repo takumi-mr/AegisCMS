@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "entrypoint": "plugin.wasm",
   "display_name": "TinyGo Hooks (example)",
-  "description": "TinyGo example that implements calculate-order, on-order-status-changed, send-notification, on-content-published, check-comment and render-blocks.",
+  "description": "TinyGo example that implements calculate-order, on-order-status-changed, send-notification, on-content-published, check-comment, render-blocks and on-render-page.",
   "author": {
     "name": "AegisCMS Contributors",
     "url": "https://github.com/takumi-mr/AegisCMS"
@@ -14,7 +14,7 @@
     "tinygo"
   ],
   "min_aegis_version": "0.1.0",
-  "abi_version": 1,
+  "abi_version": 2,
   "capabilities": {
     "network": {
       "allowed_domains": [
@@ -24,13 +24,25 @@
     "storage": {
       "kv_namespace": "example_tinygo_hooks_state"
     },
+    "inline_scripts": true,
+    "csp": {
+      "script_domains": [
+        "cdn.example.com"
+      ]
+    },
+    "render_page": {
+      "queries": [
+        "featured_count"
+      ]
+    },
     "hooks": [
       "calculate-order",
       "on-order-status-changed",
       "send-notification",
       "on-content-published",
       "check-comment",
-      "render-blocks"
+      "render-blocks",
+      "on-render-page"
     ]
   },
   "blocks": [

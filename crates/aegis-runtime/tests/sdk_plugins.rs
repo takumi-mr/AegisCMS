@@ -78,6 +78,7 @@ async fn run_sdk_plugins(engine: &WasmEngine) {
     for dir in dirs {
         let plugin = load(engine, &dir);
         let name = dir.display().to_string();
+        assert_eq!(plugin.manifest().abi_version, Some(2), "{}", name);
         let hooks = plugin.manifest().capabilities.hooks.clone();
         let blocks = vec![
             BlockNode::heading(2, "Intro"),
@@ -114,6 +115,12 @@ async fn run_sdk_plugins(engine: &WasmEngine) {
                 "{}",
                 name
             );
+            // 再保存・プレビューで同じブロックに再適用しても重複して増えない（冪等）
+            let twice = plugin
+                .transform_content_ast(transformed.clone())
+                .await
+                .unwrap_or_else(|e| panic!("{}: transform_content_ast (2nd): {}", name, e));
+            assert_eq!(twice.len(), transformed.len(), "{}", name);
         }
 
         if hooks.iter().any(|h| h == "on-render-page") {
@@ -127,6 +134,7 @@ async fn run_sdk_plugins(engine: &WasmEngine) {
                 .await
                 .unwrap_or_else(|e| panic!("{}: on_render_page: {}", name, e));
             assert_eq!(rendered.template, "article.html", "{}", name);
+            assert!(!rendered.extra_css.is_empty(), "{}", name);
         }
     }
 }

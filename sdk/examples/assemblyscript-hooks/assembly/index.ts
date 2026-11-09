@@ -8,6 +8,8 @@
 
 import {
   allocate as sdkAllocate,
+  readString,
+  writeString,
   writeError,
   log,
   kv,
@@ -23,6 +25,9 @@ import {
   writeDeliveryError,
   writeVerdict,
   writeBlocksHtml,
+  parsePageRenderContext,
+  serializePageRenderContext,
+  InjectedScript,
   Delivery,
   OrderContext,
   OrderAdjustment,
@@ -138,6 +143,30 @@ export function render_blocks(ptr: i32, len: i32): i64 {
     }
   }
   return writeBlocksHtml(html);
+}
+
+// --- on-render-page: 本文の前後の枠・CSS・構造化したスクリプトの注入 (ABI 2) ---
+export function on_render_page(ptr: i32, len: i32): i64 {
+  const ctx = parsePageRenderContext(readString(ptr, len));
+  ctx.extra_css += ".callout { border-left: 3px solid #2563eb; }";
+  if (ctx.content_length > 0) {
+    ctx.prepend_content = "<div class=\"example-banner\">Reading</div>";
+    ctx.append_content = "<footer class=\"example-footer\">End</footer>";
+  }
+  const featured = ctx.queries.get("featured_count");
+  if (featured.isArray() && featured.length > 0) {
+    const n = featured.at(0).get("n").asInt();
+    ctx.extra_head += "<meta name=\"featured-count\" content=\"" + n.toString() + "\">";
+  }
+  ctx.scripts.push(InjectedScript.inline("window.__aegisExample = 1;"));
+  ctx.scripts.push(
+    InjectedScript.external("https://cdn.example.com/analytics.js")
+      .asyncLoad()
+      .deferred()
+      .withCrossorigin()
+      .withConsent("analytics"),
+  );
+  return writeString(serializePageRenderContext(ctx));
 }
 
 function escapeHtml(text: string): string {
