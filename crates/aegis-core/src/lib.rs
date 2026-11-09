@@ -11,6 +11,7 @@ pub mod error;
 pub mod manifest;
 pub mod notify;
 pub mod package;
+pub mod scripts;
 pub mod storage;
 
 pub use access::is_public_access;
@@ -47,4 +48,5 @@ pub use package::{
     generate_ed25519_keypair, parse_ed25519_keypair, sign_package_dir, validate_signature_policy,
     verify_package_signature, PackageSignature, ZipExtractOptions, PLUGIN_ABI_VERSION, VERSION,
 };
+pub use scripts::{InjectedScript, ScriptSource, MAX_INLINE_SCRIPT_BYTES};
 pub use storage::{guess_content_type, StorageBackend, StorageMeta, StorageObject};

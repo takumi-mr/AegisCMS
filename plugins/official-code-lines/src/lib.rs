@@ -173,13 +173,9 @@ impl Plugin for CodeLinesPlugin {
             "minLines": settings.min_lines,
         });
         push_line(&mut ctx.extra_css, &css(&settings));
-        push_line(
-            &mut ctx.extra_head,
-            &format!(
-                "<script>{}</script>",
-                SCRIPT.replace("__CONFIG__", &script_json(&config))
-            ),
-        );
+        ctx.scripts.push(InjectedScript::inline(
+            SCRIPT.replace("__CONFIG__", &script_json(&config)),
+        ));
         Ok(ctx)
     }
 }
@@ -211,11 +207,11 @@ mod tests {
         assert_eq!(out.content_html, page().content_html);
         assert!(out.extra_css.contains("pre.ocl-numbered{"));
         assert!(out.extra_css.contains("color:var(--text-muted,#8b949e)"));
-        assert!(out.extra_head.starts_with("<script>"));
-        assert!(out.extra_head.contains(
+        assert!(out.head_html().starts_with("<script>"));
+        assert!(out.head_html().contains(
             "{\"filename\":true,\"minLines\":2,\"numbers\":true,\"selector\":\".prose\"}"
         ));
-        assert!(!out.extra_head.contains("__CONFIG__"));
+        assert!(!out.head_html().contains("__CONFIG__"));
     }
 
     #[test]
@@ -241,7 +237,7 @@ mod tests {
         mock::set_config("show_filename", "false");
         assert_eq!(render(page()), page());
         mock::set_config("show_filename", "true");
-        assert!(render(page()).extra_head.contains("\"numbers\":false"));
+        assert!(render(page()).head_html().contains("\"numbers\":false"));
         mock::reset();
     }
 
@@ -252,16 +248,16 @@ mod tests {
         mock::set_config("number_color", "red;} body{display:none");
         mock::set_config("selector", "main\u{7}.x");
         let out = render(page());
-        assert!(out.extra_head.contains("\"minLines\":2"));
-        assert!(out.extra_head.contains("\"selector\":\".prose\""));
+        assert!(out.head_html().contains("\"minLines\":2"));
+        assert!(out.head_html().contains("\"selector\":\".prose\""));
         assert!(!out.extra_css.contains("display:none"));
         mock::reset();
         mock::set_config("min_lines", "10");
         mock::set_config("number_color", "#888");
         mock::set_config("selector", "article .body");
         let out = render(page());
-        assert!(out.extra_head.contains("\"minLines\":10"));
-        assert!(out.extra_head.contains("\"selector\":\"article .body\""));
+        assert!(out.head_html().contains("\"minLines\":10"));
+        assert!(out.head_html().contains("\"selector\":\"article .body\""));
         assert!(out.extra_css.contains("color:#888"));
         mock::reset();
     }
@@ -271,9 +267,9 @@ mod tests {
         mock::reset();
         mock::set_config("selector", "</script><script>alert(1)</script>");
         let out = render(page());
-        assert!(!out.extra_head.contains("</script><script>"));
-        assert!(out.extra_head.contains("\\u003c/script\\u003e"));
-        assert_eq!(out.extra_head.matches("</script>").count(), 1);
+        assert!(!out.head_html().contains("</script><script>"));
+        assert!(out.head_html().contains("\\u003c/script\\u003e"));
+        assert_eq!(out.head_html().matches("</script>").count(), 1);
         mock::reset();
     }
 }

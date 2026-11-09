@@ -1,6 +1,7 @@
 pub mod config;
 pub mod guard;
 pub mod plugin;
+pub mod scripts;
 pub mod services;
 pub mod wasm;
 
@@ -37,6 +38,7 @@ mod tests {
                 storage: None,
                 hooks,
                 render_page: None,
+                inline_scripts: false,
             },
             resource_limits: PluginResourceLimits {
                 max_memory_mb: 16,
@@ -217,6 +219,36 @@ mod tests {
         }
     }
 
+    /// `extra_head` などに生の `<script>` を書き、構造化した注入（`scripts`）でもスクリプトを足す
+    struct ScriptPlugin {
+        manifest: PluginManifest,
+    }
+
+    #[async_trait::async_trait]
+    impl AegisPlugin for ScriptPlugin {
+        fn manifest(&self) -> &PluginManifest {
+            &self.manifest
+        }
+
+        async fn on_render_page(
+            &self,
+            mut ctx: aegis_core::PageRenderContext,
+        ) -> aegis_core::Result<aegis_core::PageRenderContext> {
+            // 前のプラグインがホストの注入で足したタグを、このプラグインが `scripts` を空で受け取る
+            assert!(ctx.scripts.is_empty());
+            ctx.extra_head.push_str(
+                "<meta name=\"m\"><script>raw()</script><link rel=\"x\" href=\"/y\" onload=\"evil()\">",
+            );
+            ctx.append_content = "<b onclick=\"evil2()\">t</b><script>raw2()</script>".to_string();
+            ctx.scripts = vec![
+                aegis_core::InjectedScript::inline("ok();"),
+                aegis_core::InjectedScript::external("https://cdn.example.com/a.js").async_load(),
+                aegis_core::InjectedScript::external("https://evil.example/b.js"),
+            ];
+            Ok(ctx)
+        }
+    }
+
     /// 設定値を差し替えられるホスト（`config_get` が読む）。KV と HTTP は使えない
     #[derive(Default)]
     struct SettingsHost(Mutex<HashMap<String, String>>);
@@ -376,6 +408,59 @@ mod tests {
             let seen = plugin.seen.lock().unwrap();
             assert_eq!(*seen, vec![(11, String::new(), String::new())]);
         }
+    }
+
+    /// プラグインのスクリプトは構造化した注入だけで足せる: HTML の断片の `<script>` と `on*` は取り除かれ、
+    /// 宣言した範囲の注入だけが、`extra_head` の後ろにホストが作ったタグとして入る。
+    #[tokio::test]
+    async fn test_apply_render_page_only_lets_declared_scripts_through() {
+        let mut manifest = make_sample_manifest(vec!["on-render-page".to_string()]);
+        manifest.capabilities.inline_scripts = true;
+        manifest.capabilities.csp = Some(aegis_core::manifest::CspCapability {
+            script_domains: vec!["cdn.example.com".to_string()],
+            ..Default::default()
+        });
+        let mut supervisor = PluginSupervisor::new();
+        supervisor.register(Arc::new(ScriptPlugin {
+            manifest: manifest.clone(),
+        }));
+        let mut second = manifest;
+        second.name = "second".to_string();
+        supervisor.register(Arc::new(ScriptPlugin { manifest: second }));
+
+        let rendered = supervisor
+            .apply_render_page(page_with_body())
+            .await
+            .unwrap();
+
+        let head = &rendered.extra_head;
+        assert!(
+            !head.contains("raw()") && !head.contains("evil()"),
+            "{head}"
+        );
+        assert!(
+            head.contains(r#"<meta name="m">"#) && head.contains(r#"<link rel="x" href="/y">"#),
+            "{head}"
+        );
+        // 2 つのプラグインの注入が、どちらも（後のプラグインの取り除きに巻き込まれず）残る
+        assert_eq!(head.matches("<script>ok();</script>").count(), 2, "{head}");
+        assert_eq!(
+            head.matches(r#"<script src="https://cdn.example.com/a.js" async></script>"#)
+                .count(),
+            2,
+            "{head}"
+        );
+        assert!(!head.contains("evil.example"), "{head}");
+        // 本文に足した HTML の `<script>` と `on*` も取り除かれる
+        assert!(
+            rendered.content_html.contains("<b>t</b>"),
+            "{}",
+            rendered.content_html
+        );
+        assert!(
+            !rendered.content_html.contains("raw2") && !rendered.content_html.contains("evil2")
+        );
+        assert!(rendered.scripts.is_empty());
     }
 
     #[tokio::test]

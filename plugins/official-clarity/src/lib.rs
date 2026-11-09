@@ -26,9 +26,6 @@ const PRIVATE_TEMPLATES: &[&str] = &[
     "forum_thread.html",
 ];
 
-/// 二重に入れないための印（`<script>` の属性）
-const MARKER: &str = "data-official-clarity";
-
 fn setting(key: &str) -> Option<String> {
     config::get(key)
         .map(|v| v.trim().to_string())
@@ -76,17 +73,16 @@ fn snippet(project_id: &str) -> String {
     )
 }
 
-/// `<head>` に入れる HTML。プロジェクト ID が無い・正しくないときは `None`
-fn head_tag(project_id: &str, consent: Option<&str>) -> Option<String> {
+/// `<head>` に足すスクリプト。プロジェクト ID が無い・正しくないときは `None`。
+/// タグはホストが作る（同意が要る設定のときは、同意のあとに実行する形で出す）
+fn head_script(project_id: &str, consent: Option<&str>) -> Option<InjectedScript> {
     if !valid_project_id(project_id) {
         return None;
     }
-    let code = snippet(project_id);
+    let script = InjectedScript::inline(snippet(project_id));
     Some(match consent {
-        Some(category) => format!(
-            "<script type=\"text/plain\" data-aegis-consent=\"{category}\" {MARKER}>{code}</script>\n"
-        ),
-        None => format!("<script {MARKER}>{code}</script>\n"),
+        Some(category) => script.with_consent(category),
+        None => script,
     })
 }
 
@@ -97,17 +93,13 @@ impl Plugin for ClarityPlugin {
         };
         if PRIVATE_TEMPLATES.contains(&ctx.template.as_str())
             || (setting_bool("exclude_restricted", true) && is_restricted(&ctx))
-            || ctx.extra_head.contains(MARKER)
         {
             return Ok(ctx);
         }
         let consent = setting_bool("require_consent", true)
             .then(|| consent_category(setting("consent_category")));
-        if let Some(tag) = head_tag(&project_id, consent.as_deref()) {
-            if !ctx.extra_head.is_empty() && !ctx.extra_head.ends_with('\n') {
-                ctx.extra_head.push('\n');
-            }
-            ctx.extra_head.push_str(&tag);
+        if let Some(script) = head_script(&project_id, consent.as_deref()) {
+            ctx.scripts.push(script);
         }
         Ok(ctx)
     }
@@ -135,7 +127,7 @@ mod tests {
     #[test]
     fn nothing_is_added_without_a_project_id_or_with_a_bad_one() {
         mock::reset();
-        assert!(render(page("article.html")).extra_head.is_empty());
+        assert!(render(page("article.html")).head_html().is_empty());
         for bad in [
             "abc\"><script>x</script>",
             "a b",
@@ -143,7 +135,7 @@ mod tests {
             &"a".repeat(33),
         ] {
             mock::set_config("project_id", bad);
-            assert!(render(page("article.html")).extra_head.is_empty(), "{bad}");
+            assert!(render(page("article.html")).head_html().is_empty(), "{bad}");
         }
         mock::reset();
     }
@@ -152,7 +144,7 @@ mod tests {
     fn the_tag_waits_for_consent_by_default() {
         mock::reset();
         mock::set_config("project_id", "abc123xyz9");
-        let head = render(page("article.html")).extra_head;
+        let head = render(page("article.html")).head_html();
         assert!(head.contains("type=\"text/plain\""), "{head}");
         assert!(head.contains("data-aegis-consent=\"analytics\""), "{head}");
         assert!(head.contains("https://www.clarity.ms/tag/"), "{head}");
@@ -167,18 +159,18 @@ mod tests {
         mock::reset();
         mock::set_config("project_id", "abc123xyz9");
         mock::set_config("require_consent", "false");
-        let head = render(page("article.html")).extra_head;
+        let head = render(page("article.html")).head_html();
         assert!(!head.contains("text/plain") && !head.contains("data-aegis-consent"));
-        assert!(head.starts_with("<script data-official-clarity>"), "{head}");
+        assert!(head.starts_with("<script>"), "{head}");
 
         mock::set_config("require_consent", "true");
         mock::set_config("consent_category", "marketing");
         assert!(render(page("article.html"))
-            .extra_head
+            .head_html()
             .contains("data-aegis-consent=\"marketing\""));
         // 区分に使えない文字は、既定の analytics に戻す（属性を壊せない）
         mock::set_config("consent_category", "x\" onload=\"y");
-        let head = render(page("article.html")).extra_head;
+        let head = render(page("article.html")).head_html();
         assert!(head.contains("data-aegis-consent=\"analytics\""), "{head}");
         assert!(!head.contains("onload"), "{head}");
         mock::reset();
@@ -189,9 +181,9 @@ mod tests {
         mock::reset();
         mock::set_config("project_id", "abc123xyz9");
         for template in PRIVATE_TEMPLATES {
-            assert!(render(page(template)).extra_head.is_empty(), "{template}");
+            assert!(render(page(template)).head_html().is_empty(), "{template}");
         }
-        assert!(!render(page("page.html")).extra_head.is_empty());
+        assert!(!render(page("page.html")).head_html().is_empty());
         mock::reset();
     }
 
@@ -205,30 +197,36 @@ mod tests {
                 .insert("access".to_string(), serde_json::json!("paid"));
             ctx
         };
-        assert!(render(restricted()).extra_head.is_empty());
+        assert!(render(restricted()).head_html().is_empty());
         // 「だれでも」の値は制限ではない
         for open in ["", "public"] {
             let mut ctx = page("article.html");
             ctx.fields
                 .insert("access".to_string(), serde_json::json!(open));
-            assert!(!render(ctx).extra_head.is_empty(), "{open:?}");
+            assert!(!render(ctx).head_html().is_empty(), "{open:?}");
         }
         mock::set_config("exclude_restricted", "false");
-        assert!(!render(restricted()).extra_head.is_empty());
+        assert!(!render(restricted()).head_html().is_empty());
         mock::reset();
     }
 
     #[test]
-    fn the_tag_is_added_once_and_keeps_the_other_head_content() {
+    fn the_script_is_structured_and_the_other_head_content_is_kept() {
         mock::reset();
         mock::set_config("project_id", "abc123xyz9");
         let mut ctx = page("article.html");
         ctx.extra_head = "<meta name=\"x\" content=\"y\">".to_string();
-        let once = render(ctx);
-        assert!(once.extra_head.starts_with("<meta name=\"x\""));
-        assert_eq!(once.extra_head.matches("data-official-clarity").count(), 1);
-        let twice = render(once.clone());
-        assert_eq!(twice.extra_head, once.extra_head);
+        let out = render(ctx);
+        // 手を付けない。足すのは、構造化したスクリプト 1 つだけ（タグはホストが作る）
+        assert_eq!(out.extra_head, "<meta name=\"x\" content=\"y\">");
+        assert_eq!(out.scripts.len(), 1);
+        assert!(out.head_html().starts_with("<meta name=\"x\""));
+        assert_eq!(
+            out.scripts[0].consent.as_deref(),
+            Some("analytics"),
+            "{:?}",
+            out.scripts
+        );
         mock::reset();
     }
 }

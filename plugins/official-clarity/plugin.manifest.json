@@ -1,7 +1,7 @@
 {
   "name": "official-clarity",
   "version": "0.1.0",
-  "abi_version": 1,
+  "abi_version": 2,
   "entrypoint": "plugin.wasm",
   "display_name": "Microsoft Clarity",
   "description": "Adds Microsoft Clarity (heatmaps and session recordings) to the public pages: waits for cookie consent, skips private pages and members-only content, and adds the Clarity hosts to the CSP.",
@@ -62,7 +62,8 @@
         "c.bing.com",
         "c.clarity.ms"
       ]
-    }
+    },
+    "inline_scripts": true
   },
   "resource_limits": {
     "max_memory_mb": 16,

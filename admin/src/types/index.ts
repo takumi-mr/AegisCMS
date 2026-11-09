@@ -828,6 +828,8 @@ export interface PluginCapabilities {
     frame_domains?: string[];
     img_domains?: string[];
   } | null;
+  /** The plugin adds inline scripts to the page (`PageRenderContext.scripts`); the host drops them without this */
+  inline_scripts?: boolean;
 }
 
 export interface PluginResourceLimits {

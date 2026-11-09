@@ -119,6 +119,7 @@ pub(crate) mod tests {
                 capabilities: PluginCapabilities {
                     csp: None,
                     render_page: None,
+                    inline_scripts: false,
                     embed: None,
                     network: None,
                     storage: None,

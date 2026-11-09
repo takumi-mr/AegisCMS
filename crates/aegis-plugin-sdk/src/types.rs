@@ -193,6 +193,44 @@ pub struct ContentSummary {
 }
 
 impl PageRenderContext {
+    /// ホストが `<head>` に出す HTML（`extra_head` の後ろに、`scripts` のタグ）。プラグインのテストで、
+    /// ホストを通したあとの `<head>` を確かめるために使う。ホストの検査（`script_domains` や
+    /// `inline_scripts` の宣言との照合、本文のエスケープ）は含まない
+    pub fn head_html(&self) -> String {
+        let mut html = self.extra_head.clone();
+        for script in &self.scripts {
+            if !html.is_empty() && !html.ends_with('\n') {
+                html.push('\n');
+            }
+            let consent = script
+                .consent
+                .as_ref()
+                .map(|c| format!(" type=\"text/plain\" data-aegis-consent=\"{c}\""))
+                .unwrap_or_default();
+            match &script.source {
+                ScriptSource::External {
+                    url,
+                    async_load,
+                    defer,
+                    crossorigin,
+                } => html.push_str(&format!(
+                    "<script{consent} src=\"{url}\"{}{}{}></script>",
+                    if *async_load { " async" } else { "" },
+                    if *defer { " defer" } else { "" },
+                    if *crossorigin {
+                        " crossorigin=\"anonymous\""
+                    } else {
+                        ""
+                    },
+                )),
+                ScriptSource::Inline { code } => {
+                    html.push_str(&format!("<script{consent}>{code}</script>"))
+                }
+            }
+        }
+        html
+    }
+
     /// ホストが `prepend_content`・`content_html`・`append_content` を結合した HTML。
     /// プラグインのテストで、ホストを通したあとの本文を確かめるために使う
     pub fn composed_html(&self) -> String {
@@ -245,8 +283,97 @@ pub struct PageRenderContext {
     pub extra_css: String,
     #[serde(default)]
     pub extra_head: String,
+    /// `<head>` に足すスクリプト（書き込み専用。ホストが検査して `<script>` のタグにする）。
+    /// **スクリプトは、ここでだけ足せる**: `extra_head`・`prepend_content`・`append_content` の中の
+    /// `<script>` と `on*` 属性は、ホストが取り除く（docs/csp.md の 4）
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scripts: Vec<InjectedScript>,
     #[serde(default)]
     pub theme_vars: HashMap<String, String>,
+}
+
+/// `<head>` に足すスクリプト 1 つ。ホストが、マニフェストの宣言と照合して検査し、タグを作る
+/// （属性はホストが決める。プラグインは `onload` などを書けない）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InjectedScript {
+    #[serde(flatten)]
+    pub source: ScriptSource,
+    /// 同意の区分（`analytics` など）。あれば、ホストが同意のあとに実行する形で出す
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub consent: Option<String>,
+}
+
+/// スクリプトの中身
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ScriptSource {
+    /// `<script src="https://..." async defer>`。URL のホストは、マニフェストの
+    /// `capabilities.csp.script_domains` にあるものだけ
+    External {
+        url: String,
+        #[serde(default)]
+        async_load: bool,
+        #[serde(default)]
+        defer: bool,
+        /// `crossorigin="anonymous"` を付ける（広告のスクリプトなど、提供元が求めるものだけ）
+        #[serde(default)]
+        crossorigin: bool,
+    },
+    /// `<script>コード</script>`。マニフェストに `capabilities.inline_scripts: true` の宣言が要る
+    Inline { code: String },
+}
+
+impl InjectedScript {
+    /// インラインのスクリプト（マニフェストの `capabilities.inline_scripts: true` が要る）
+    pub fn inline(code: impl Into<String>) -> Self {
+        Self {
+            source: ScriptSource::Inline { code: code.into() },
+            consent: None,
+        }
+    }
+
+    /// 外部のスクリプト（ホストは `capabilities.csp.script_domains` にある `https://` の URL だけ通す）
+    pub fn external(url: impl Into<String>) -> Self {
+        Self {
+            source: ScriptSource::External {
+                url: url.into(),
+                async_load: false,
+                defer: false,
+                crossorigin: false,
+            },
+            consent: None,
+        }
+    }
+
+    /// 同意の区分を付ける（同意があるまで実行しない）
+    pub fn with_consent(mut self, category: impl Into<String>) -> Self {
+        self.consent = Some(category.into());
+        self
+    }
+
+    /// `async` にする（外部のスクリプトだけ）
+    pub fn async_load(mut self) -> Self {
+        if let ScriptSource::External { async_load, .. } = &mut self.source {
+            *async_load = true;
+        }
+        self
+    }
+
+    /// `crossorigin="anonymous"` を付ける（外部のスクリプトだけ。CORS を許すサーバーのものに限る）
+    pub fn crossorigin(mut self) -> Self {
+        if let ScriptSource::External { crossorigin, .. } = &mut self.source {
+            *crossorigin = true;
+        }
+        self
+    }
+
+    /// `defer` にする（外部のスクリプトだけ）
+    pub fn deferred(mut self) -> Self {
+        if let ScriptSource::External { defer, .. } = &mut self.source {
+            *defer = true;
+        }
+        self
+    }
 }
 
 /// 注文の 1 行（商品 × 数量）。価格はホストが商品から決める（プラグインが変えても無視される）

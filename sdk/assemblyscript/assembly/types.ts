@@ -79,4 +79,41 @@ export class PageRenderContext {
   prepend_content: string = "";
   /** 本文の後ろに足す HTML（書き込み専用） */
   append_content: string = "";
+  /**
+   * `<head>` に足すスクリプト（書き込み専用。ホストが検査して `<script>` のタグにする）。
+   * スクリプトは、ここでだけ足せる: `extra_head`・`prepend_content`・`append_content` の中の
+   * `<script>` と `on*` 属性は、ホストが取り除く（docs/csp.md の 4）
+   */
+  scripts: InjectedScript[] = [];
+}
+
+/**
+ * `<head>` に足すスクリプト 1 つ。ホストがマニフェストの宣言と照合して検査し、タグを作る
+ * （属性はホストが決める）。
+ * - 外部（`external`）: URL は、このサイトのパスか、`capabilities.csp.script_domains` にある `https://` の URL
+ * - インライン（`inline`）: マニフェストに `capabilities.inline_scripts: true` が要る
+ * `consent` に区分（`analytics` など）を入れると、ホストが同意のあとに実行する形で出す
+ */
+export class InjectedScript {
+  kind: string = "inline";
+  url: string = "";
+  code: string = "";
+  async_load: bool = false;
+  defer: bool = false;
+  crossorigin: bool = false;
+  consent: string = "";
+
+  static inline(code: string): InjectedScript {
+    const script = new InjectedScript();
+    script.kind = "inline";
+    script.code = code;
+    return script;
+  }
+
+  static external(url: string): InjectedScript {
+    const script = new InjectedScript();
+    script.kind = "external";
+    script.url = url;
+    return script;
+  }
 }

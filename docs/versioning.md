@@ -22,7 +22,9 @@ AegisCMS は [Semantic Versioning 2.0.0](https://semver.org/lang/ja/) に従い�
 - **`min_aegis_version`**: 動かせる本体の最小バージョン（SemVer）。本体がこれより古いと読み込まない。
 - **`abi_version`**: プラグインが前提にする **プラグイン ABI のバージョン**（整数）。ホスト API・フックの入出力に互換性のない変更を入れたときだけ、`aegis_core::PLUGIN_ABI_VERSION` を上げます。ホストが対応する範囲（1 以上、`PLUGIN_ABI_VERSION` 以下）を超えると読み込まない。省略したプラグインは検査しない。
 
-ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.md) にあります。互換性を壊さない追加（新しいフック・ホスト API の追加）では ABI のバージョンを上げません。その追加を使うプラグインは `min_aegis_version` を上げて宣言します。
+ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.md) にあります。**ABI 2**: `on-render-page` のスクリプトを、HTML の文字列ではなく構造化した `scripts` でだけ足せるようにした（`extra_head`・`prepend_content`・`append_content` の中の `<script>` と `on*` 属性は、ホストが取り除く）。`scripts` を使うプラグインは `abi_version: 2` と書く。ABI 1 のプラグインも読み込めるが、`<script>` は動かなくなる。経緯は [csp.md](csp.md)。
+
+互換性を壊さない追加（新しいフック・ホスト API の追加）では ABI のバージョンを上げません。その追加を使うプラグインは `min_aegis_version` を上げて宣言します。
 
 サーバーは、管理者のセッションの `GET /api/v1/health` に `version`（本体）と `plugin_abi_version` を返します（公開側には返しません）。Admin Studio のヘッダーのゲートウェイ表示に出るツールチップで本体のバージョンを確認できます。
 

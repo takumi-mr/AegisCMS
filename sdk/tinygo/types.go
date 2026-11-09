@@ -61,7 +61,38 @@ type PageRenderContext struct {
 	AppendContent  string            `json:"append_content,omitempty"`
 	ExtraCSS       string            `json:"extra_css"`
 	ExtraHead      string            `json:"extra_head"`
-	ThemeVars      map[string]string `json:"theme_vars,omitempty"`
+	// Scripts は <head> に足すスクリプト (書き込み専用。ホストが検査して <script> のタグにする)。
+	// スクリプトはここでだけ足せる: ExtraHead / PrependContent / AppendContent の中の <script> と on* 属性は、
+	// ホストが取り除く (docs/csp.md の 4)
+	Scripts   []InjectedScript  `json:"scripts,omitempty"`
+	ThemeVars map[string]string `json:"theme_vars,omitempty"`
+}
+
+// InjectedScript は <head> に足すスクリプト 1 つ。ホストがマニフェストの宣言と照合して検査し、
+// タグを作る (属性はホストが決める)
+//
+//   - Kind "external": URL は、このサイトのパスか、capabilities.csp.script_domains にある https:// の URL
+//   - Kind "inline": Code を <script> に入れる。マニフェストに capabilities.inline_scripts: true が要る
+//
+// Consent に区分 ("analytics" など) を入れると、ホストが同意のあとに実行する形で出す
+type InjectedScript struct {
+	Kind        string  `json:"kind"`
+	URL         string  `json:"url,omitempty"`
+	AsyncLoad   bool    `json:"async_load,omitempty"`
+	Defer       bool    `json:"defer,omitempty"`
+	Crossorigin bool    `json:"crossorigin,omitempty"`
+	Code        string  `json:"code,omitempty"`
+	Consent     *string `json:"consent,omitempty"`
+}
+
+// InlineScript はインラインのスクリプト (マニフェストの capabilities.inline_scripts: true が要る)
+func InlineScript(code string) InjectedScript {
+	return InjectedScript{Kind: "inline", Code: code}
+}
+
+// ExternalScript は外部のスクリプト (このサイトのパスか、script_domains にある https:// の URL)
+func ExternalScript(url string) InjectedScript {
+	return InjectedScript{Kind: "external", URL: url}
 }
 
 // ErrorEnvelope はフック拒否時にホストへ返却するエラー構造体

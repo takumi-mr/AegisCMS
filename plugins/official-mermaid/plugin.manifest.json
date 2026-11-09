@@ -12,7 +12,7 @@
     "content"
   ],
   "min_aegis_version": "0.1.0",
-  "abi_version": 1,
+  "abi_version": 2,
   "capabilities": {
     "render_page": {
       "input": [
@@ -26,7 +26,8 @@
       "script_domains": [
         "cdn.jsdelivr.net"
       ]
-    }
+    },
+    "inline_scripts": true
   },
   "resource_limits": {
     "max_memory_mb": 16,
@@ -135,8 +136,8 @@
         "ja": "Mermaid のスクリプトの URL"
       },
       "description": {
-        "en": "Use a path on your own site (starting with /) to self-host Mermaid. A URL on another host must be allowed by the site's Content-Security-Policy.",
-        "ja": "自分のサイトに置くときは、/ で始まるパスにする。別のホストの URL は、サイトの CSP で許可が要る。"
+        "en": "Use a path on your own site (starting with /) to self-host Mermaid, or an https://cdn.jsdelivr.net URL. The host drops a script from any other host.",
+        "ja": "自分のサイトに置くときは、/ で始まるパスにする。ほかは https://cdn.jsdelivr.net の URL だけ（別のホストのスクリプトは、ホストが捨てる）。"
       },
       "placeholder": "https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js"
     }

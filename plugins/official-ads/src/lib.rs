@@ -114,39 +114,32 @@ fn is_valid_client_id(client_id: &str) -> bool {
             .all(|c| c.is_ascii_digit())
 }
 
-fn build_header_tags(settings: &Settings) -> String {
-    let mut tags = String::new();
-
-    // 1. Google AdSense スクリプトタグ（client_id 設定時、または auto_ads 有効時）
-    if !settings.client_id.is_empty() && is_valid_client_id(&settings.client_id) {
-        let escaped_client = escape_html(&settings.client_id);
-        let src = format!(
-            "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={}",
-            escaped_client
-        );
-        if settings.require_consent {
-            let cat = escape_html(&settings.consent_category);
-            tags.push_str(&format!(
-                "<script type=\"text/plain\" data-aegis-consent=\"{}\" async src=\"{}\" crossorigin=\"anonymous\"></script>\n",
-                cat, src
-            ));
-        } else {
-            tags.push_str(&format!(
-                "<script async src=\"{}\" crossorigin=\"anonymous\"></script>\n",
-                src
-            ));
-        }
+/// Google AdSense のスクリプト（client_id 設定時）。URL のホストは、マニフェストの `script_domains` にある。
+/// タグはホストが作る（同意が要る設定のときは、同意のあとに実行する形で出す）
+fn adsense_script(settings: &Settings) -> Option<InjectedScript> {
+    if settings.client_id.is_empty() || !is_valid_client_id(&settings.client_id) {
+        return None;
     }
+    let src = format!(
+        "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={}",
+        settings.client_id.trim()
+    );
+    let script = InjectedScript::external(src).async_load().crossorigin();
+    Some(if settings.require_consent {
+        script.with_consent(settings.consent_category.clone())
+    } else {
+        script
+    })
+}
 
-    // 2. カスタムヘッダーコード
-    if !settings.custom_head_code.is_empty() {
-        tags.push_str(&settings.custom_head_code);
-        if !tags.ends_with('\n') {
-            tags.push('\n');
-        }
+/// `custom_head_code`（管理者が書く `<head>` に足す HTML）。`<script>` と `on*` 属性は、ホストが取り除く
+/// （スクリプトは構造化した注入でだけ足せる。docs/csp.md）。`<meta>`・`<link>`・`<style>` は使える
+fn custom_head_html(settings: &Settings) -> String {
+    let mut html = settings.custom_head_code.clone();
+    if !html.is_empty() && !html.ends_with('\n') {
+        html.push('\n');
     }
-
-    tags
+    html
 }
 
 fn build_adsense_block_html(
@@ -278,12 +271,15 @@ impl Plugin for AdsPlugin {
             .unwrap_or(true);
 
         // 1. ヘッダー注入 (<head>)
-        let head_tags = build_header_tags(&settings);
-        if !head_tags.is_empty() && !ctx.extra_head.contains("pagead2.googlesyndication.com") {
+        let head_html = custom_head_html(&settings);
+        if !head_html.is_empty() {
             if !ctx.extra_head.is_empty() && !ctx.extra_head.ends_with('\n') {
                 ctx.extra_head.push('\n');
             }
-            ctx.extra_head.push_str(&head_tags);
+            ctx.extra_head.push_str(&head_html);
+        }
+        if let Some(script) = adsense_script(&settings) {
+            ctx.scripts.push(script);
         }
 
         // 2. CSS スタイルの注入
@@ -420,10 +416,10 @@ mod tests {
         mock::set_config("consent_category", "marketing");
 
         let out = render(page());
-        assert!(out.extra_head.contains("type=\"text/plain\""));
-        assert!(out.extra_head.contains("data-aegis-consent=\"marketing\""));
+        assert!(out.head_html().contains("type=\"text/plain\""));
+        assert!(out.head_html().contains("data-aegis-consent=\"marketing\""));
         assert!(out
-            .extra_head
+            .head_html()
             .contains("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1234567890123456"));
         assert!(out.extra_css.contains(".oa-ad-container"));
         mock::reset();
@@ -436,11 +432,17 @@ mod tests {
         mock::set_config("require_consent", "false");
 
         let out = render(page());
-        assert!(!out.extra_head.contains("type=\"text/plain\""));
-        assert!(!out.extra_head.contains("data-aegis-consent"));
-        assert!(out
-            .extra_head
-            .contains("<script async src=\"https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9999999999999999\" crossorigin=\"anonymous\"></script>"));
+        assert!(!out.head_html().contains("type=\"text/plain\""));
+        assert!(!out.head_html().contains("data-aegis-consent"));
+        // タグはホストが作る。プラグインは、URL と、async・crossorigin の頼みだけを返す
+        assert_eq!(
+            out.scripts,
+            vec![InjectedScript::external(
+                "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9999999999999999"
+            )
+            .async_load()
+            .crossorigin()]
+        );
         mock::reset();
     }
 
@@ -453,7 +455,7 @@ mod tests {
             .insert("hide_ads".to_string(), serde_json::json!(true));
 
         let out = render(p);
-        assert!(out.extra_head.is_empty());
+        assert!(out.head_html().is_empty());
         assert!(out.extra_css.is_empty());
         mock::reset();
     }

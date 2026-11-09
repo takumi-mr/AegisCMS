@@ -65,22 +65,15 @@ fn setting_script_url() -> String {
     setting("script_url")
         .filter(|url| {
             let lower = url.to_ascii_lowercase();
-            let allowed = lower.starts_with("https://")
-                || lower.starts_with("http://")
-                || (url.starts_with('/') && !url.starts_with("//"));
+            // ホストが通すのは、このサイトのパスと、マニフェストで宣言したホスト（`cdn.jsdelivr.net`）だけ
+            let allowed =
+                lower.starts_with("https://") || (url.starts_with('/') && !url.starts_with("//"));
             allowed && !url.chars().any(|c| c.is_control() || c.is_whitespace())
         })
         .unwrap_or_else(|| DEFAULT_SCRIPT_URL.to_string())
 }
 
 // --- 出力 ---
-
-fn escape_attr(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('"', "&quot;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
 
 /// `<script>` の中に置ける JSON（`<` `>` `&` と行の区切りをエスケープする）
 fn script_json(value: &serde_json::Value) -> String {
@@ -115,20 +108,11 @@ impl Plugin for MermaidPlugin {
             "security": setting_choice("security_level", SECURITY_LEVELS, "strict"),
         });
         push_line(&mut ctx.extra_css, CSS);
-        push_line(
-            &mut ctx.extra_head,
-            &format!(
-                "<script src=\"{}\"></script>",
-                escape_attr(&setting_script_url())
-            ),
-        );
-        push_line(
-            &mut ctx.extra_head,
-            &format!(
-                "<script>{}</script>",
-                SCRIPT.replace("__CONFIG__", &script_json(&config))
-            ),
-        );
+        ctx.scripts
+            .push(InjectedScript::external(setting_script_url()));
+        ctx.scripts.push(InjectedScript::inline(
+            SCRIPT.replace("__CONFIG__", &script_json(&config)),
+        ));
         Ok(ctx)
     }
 }
@@ -163,7 +147,7 @@ mod tests {
             let out = plugin.on_render_page(page(html)).unwrap();
             assert_eq!(out.content_html, html);
             assert!(
-                out.extra_css.is_empty() && out.extra_head.is_empty(),
+                out.extra_css.is_empty() && out.head_html().is_empty(),
                 "{html:?}"
             );
         }
@@ -175,12 +159,12 @@ mod tests {
         let out = MermaidPlugin.on_render_page(page(DIAGRAM)).unwrap();
         assert!(out.extra_css.contains(".omd-diagram"));
         assert!(out
-            .extra_head
+            .head_html()
             .contains(&format!("<script src=\"{}\"></script>", DEFAULT_SCRIPT_URL)));
-        assert!(out.extra_head.contains("mermaid.render"));
+        assert!(out.head_html().contains("mermaid.render"));
         // 既定は auto と strict
         assert!(out
-            .extra_head
+            .head_html()
             .contains(r#"{"security":"strict","theme":"auto"}"#));
         // 本文は変えない
         assert_eq!(out.content_html, DIAGRAM);
@@ -188,7 +172,7 @@ mod tests {
         let by_class = MermaidPlugin
             .on_render_page(page("<div class=\"mermaid\">graph TD; A-->B;</div>"))
             .unwrap();
-        assert!(by_class.extra_head.contains("mermaid.render"));
+        assert!(by_class.head_html().contains("mermaid.render"));
     }
 
     #[test]
@@ -199,12 +183,12 @@ mod tests {
         mock::set_config("script_url", "/assets/mermaid.min.js");
         let out = MermaidPlugin.on_render_page(page(DIAGRAM)).unwrap();
         assert!(out
-            .extra_head
+            .head_html()
             .contains(r#"{"security":"sandbox","theme":"forest"}"#));
         assert!(out
-            .extra_head
+            .head_html()
             .contains("<script src=\"/assets/mermaid.min.js\"></script>"));
-        assert!(!out.extra_head.contains("cdn.jsdelivr.net"));
+        assert!(!out.head_html().contains("cdn.jsdelivr.net"));
         mock::reset();
     }
 
@@ -216,10 +200,10 @@ mod tests {
         mock::set_config("script_url", "javascript:alert(1)");
         let out = MermaidPlugin.on_render_page(page(DIAGRAM)).unwrap();
         assert!(out
-            .extra_head
+            .head_html()
             .contains(r#"{"security":"strict","theme":"auto"}"#));
-        assert!(out.extra_head.contains(DEFAULT_SCRIPT_URL));
-        assert!(!out.extra_head.contains("alert(1)"));
+        assert!(out.head_html().contains(DEFAULT_SCRIPT_URL));
+        assert!(!out.head_html().contains("alert(1)"));
 
         for bad in [
             "//evil.example/m.js",
@@ -229,12 +213,15 @@ mod tests {
         ] {
             mock::set_config("script_url", bad);
             let out = MermaidPlugin.on_render_page(page(DIAGRAM)).unwrap();
-            assert!(out.extra_head.contains(DEFAULT_SCRIPT_URL), "{bad}");
+            assert!(out.head_html().contains(DEFAULT_SCRIPT_URL), "{bad}");
         }
-        // 属性に入れる前にエスケープする
+        // 渡すのは URL そのもの（属性へのエスケープはホストがする。`https` は宣言したホストだけ通る）
         mock::set_config("script_url", "https://a.example/m.js?x=1&y=2");
         let out = MermaidPlugin.on_render_page(page(DIAGRAM)).unwrap();
-        assert!(out.extra_head.contains("m.js?x=1&amp;y=2\""));
+        assert_eq!(
+            out.scripts[0],
+            InjectedScript::external("https://a.example/m.js?x=1&y=2")
+        );
         mock::reset();
     }
 
@@ -246,6 +233,6 @@ mod tests {
         ctx.extra_head = "<meta name=\"x\">".to_string();
         let out = MermaidPlugin.on_render_page(ctx).unwrap();
         assert!(out.extra_css.starts_with("a{}\n"));
-        assert!(out.extra_head.starts_with("<meta name=\"x\">\n"));
+        assert!(out.head_html().starts_with("<meta name=\"x\">\n"));
     }
 }

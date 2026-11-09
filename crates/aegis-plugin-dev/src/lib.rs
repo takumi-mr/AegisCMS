@@ -1042,13 +1042,27 @@ struct PreviewResponse {
 }
 
 /// `POST /__dev/api/preview`
-async fn api_generate_preview(Json(payload): Json<PreviewRequest>) -> Json<PreviewResponse> {
-    let html = render_preview_document(&payload.hook, &payload.output);
+async fn api_generate_preview(
+    State(state): State<DevState>,
+    Json(payload): Json<PreviewRequest>,
+) -> Json<PreviewResponse> {
+    // スクリプトの検査は、本物のホストと同じ（マニフェストの宣言と照合する）
+    let manifest = std::fs::read(state.dir.join("plugin.manifest.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<PluginManifest>(&bytes).ok());
+    let html = render_preview_document(&payload.hook, &payload.output, manifest.as_ref());
     Json(PreviewResponse { html })
 }
 
-/// フック実行結果から完全なプレビュー HTML を生成
-fn render_preview_document(hook: &str, output: &Value) -> String {
+/// フック実行結果から完全なプレビュー HTML を生成。`on-render-page` のスクリプトは、本物のホストと同じに
+/// 検査する（`manifest` が無ければ、宣言のない扱い）: HTML の断片の `<script>` と `on*` 属性は取り除き、
+/// `scripts`（構造化した注入）は `capabilities.csp.script_domains` / `inline_scripts` と照合してタグにする。
+/// 捨てたものは、プレビューの先頭に理由を出す
+fn render_preview_document(
+    hook: &str,
+    output: &Value,
+    manifest: Option<&PluginManifest>,
+) -> String {
     let mut title = "Plugin Live Preview".to_string();
     let mut extra_head = String::new();
     let mut extra_css = String::new();
@@ -1062,7 +1076,31 @@ fn render_preview_document(hook: &str, output: &Value) -> String {
                     title = t.to_string();
                 }
                 if let Some(h) = obj.get("extra_head").and_then(|v| v.as_str()) {
-                    extra_head.push_str(h);
+                    extra_head.push_str(&aegis_runtime::scripts::strip_scripts(h));
+                }
+                let scripts: Vec<aegis_core::InjectedScript> = obj
+                    .get("scripts")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .unwrap_or_default();
+                if !scripts.is_empty() {
+                    let default_manifest = PluginManifest::default();
+                    let injected = aegis_runtime::scripts::render_script_tags(
+                        manifest.unwrap_or(&default_manifest),
+                        &scripts,
+                    );
+                    if !extra_head.is_empty() && !extra_head.ends_with('\n') {
+                        extra_head.push('\n');
+                    }
+                    extra_head.push_str(&injected.html);
+                    for reason in &injected.rejected {
+                        body_content.push_str(&format!(
+                            "<p class=\"empty-notice\">A script was dropped: {}</p>",
+                            reason
+                                .replace('&', "&amp;")
+                                .replace('<', "&lt;")
+                                .replace('>', "&gt;")
+                        ));
+                    }
                 }
                 if let Some(c) = obj.get("extra_css").and_then(|v| v.as_str()) {
                     extra_css.push_str(c);
@@ -1073,9 +1111,13 @@ fn render_preview_document(hook: &str, output: &Value) -> String {
                 // The hook returns the page context: its body is `content_html`, with what the
                 // plugin put in the `prepend_content`/`append_content` slots around it
                 let text = |key: &str| obj.get(key).and_then(|v| v.as_str()).unwrap_or_default();
-                body_content.push_str(text("prepend_content"));
+                body_content.push_str(&aegis_runtime::scripts::strip_scripts(text(
+                    "prepend_content",
+                )));
                 body_content.push_str(text("content_html"));
-                body_content.push_str(text("append_content"));
+                body_content.push_str(&aegis_runtime::scripts::strip_scripts(text(
+                    "append_content",
+                )));
                 if let Some(items) = obj.get("items").and_then(|v| v.as_array()) {
                     for item in items {
                         if let Some(html) = item.get("html").and_then(|v| v.as_str()) {
@@ -1569,19 +1611,55 @@ mod tests {
         let blocks = render_preview_document(
             "render-blocks",
             &json!({ "html": ["<a class=\"cta\">Go</a>", null] }),
+            None,
         );
         assert!(blocks.contains("<a class=\"cta\">Go</a>"));
         assert!(!blocks.contains("No content generated"));
         let page = render_preview_document(
             "on-render-page",
             &json!({ "content_html": "<p>Body</p>", "extra_css": "p{color:red}", "site_title": "Site" }),
+            None,
         );
         assert!(page.contains("<p>Body</p>") && page.contains("p{color:red}"));
         let ast = render_preview_document(
             "transform-content-ast",
             &json!([{ "name": "core/paragraph", "attributes": {}, "text": "Hi" }]),
+            None,
         );
         assert!(ast.contains("<p>Hi</p>"));
+    }
+
+    /// The scripts of `on-render-page` are checked like the host does: a raw `<script>` is dropped, and a
+    /// structured one needs the manifest's declaration (the reason is shown)
+    #[test]
+    fn test_preview_checks_the_scripts_like_the_host() {
+        let output = json!({
+            "extra_head": "<meta name=\"m\"><script>raw()</script>",
+            "scripts": [
+                { "kind": "inline", "code": "inline_ok();" },
+                { "kind": "external", "url": "https://evil.example/x.js" }
+            ]
+        });
+        let undeclared = render_preview_document("on-render-page", &output, None);
+        assert!(
+            !undeclared.contains("raw()") && !undeclared.contains("inline_ok()"),
+            "{undeclared}"
+        );
+        assert!(undeclared.contains("A script was dropped"), "{undeclared}");
+        assert!(undeclared.contains(r#"<meta name="m">"#));
+
+        let mut manifest = PluginManifest::default();
+        manifest.capabilities.inline_scripts = true;
+        let declared = render_preview_document("on-render-page", &output, Some(&manifest));
+        assert!(
+            declared.contains("<script>inline_ok();</script>"),
+            "{declared}"
+        );
+        assert!(
+            !declared.contains("evil.example/x.js\"></script>"),
+            "{declared}"
+        );
+        assert!(!declared.contains("raw()"));
     }
 
     /// The fixtures are what the host really passes: each one has to load into the hook's input type

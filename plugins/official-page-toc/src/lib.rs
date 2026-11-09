@@ -379,13 +379,9 @@ impl Plugin for PageTocPlugin {
         }
 
         push_line(&mut ctx.extra_css, &css(&settings, headings.is_empty()));
-        push_line(
-            &mut ctx.extra_head,
-            &format!(
-                "<script>{}</script>",
-                SCRIPT.replace("__OFFSET__", &settings.top_offset.to_string())
-            ),
-        );
+        ctx.scripts.push(InjectedScript::inline(
+            SCRIPT.replace("__OFFSET__", &settings.top_offset.to_string()),
+        ));
         ctx.append_content = format!("\n{}", nav_html(&settings, &headings));
         Ok(ctx)
     }
@@ -473,9 +469,9 @@ mod tests {
         assert!(out.extra_css.contains("top:96px;right:1rem;width:220px"));
         assert!(out.extra_css.contains("var(--accent,#6366f1)"));
         assert!(out.extra_css.contains("@media (max-width:1199px)"));
-        assert!(out.extra_head.starts_with("<script>"));
-        assert!(out.extra_head.contains("off=96+8"));
-        assert!(!out.extra_head.contains("__OFFSET__"));
+        assert!(out.head_html().starts_with("<script>"));
+        assert!(out.head_html().contains("off=96+8"));
+        assert!(!out.head_html().contains("__OFFSET__"));
     }
 
     #[test]
@@ -486,7 +482,7 @@ mod tests {
         ctx.extra_head = "<meta name=\"x\">".to_string();
         let out = render(ctx);
         assert!(out.extra_css.starts_with("a{}\n.apt{"));
-        assert!(out.extra_head.starts_with("<meta name=\"x\">\n<script>"));
+        assert!(out.head_html().starts_with("<meta name=\"x\">\n<script>"));
     }
 
     #[test]
@@ -532,7 +528,7 @@ mod tests {
         assert!(out.extra_css.contains("background:#ff0066"));
         assert!(out.extra_css.contains("@media (max-width:899px)"));
         assert!(!out.extra_css.contains("scroll-behavior"));
-        assert!(out.extra_head.contains("off=64+8"));
+        assert!(out.head_html().contains("off=64+8"));
         mock::reset();
     }
 

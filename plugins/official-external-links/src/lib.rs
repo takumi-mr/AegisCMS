@@ -155,13 +155,9 @@ impl Plugin for ExternalLinksPlugin {
             "t": { "newTab": new_tab_text },
         });
         push_line(&mut ctx.extra_css, &css(&settings));
-        push_line(
-            &mut ctx.extra_head,
-            &format!(
-                "<script>{}</script>",
-                SCRIPT.replace("__CONFIG__", &script_json(&config))
-            ),
-        );
+        ctx.scripts.push(InjectedScript::inline(
+            SCRIPT.replace("__CONFIG__", &script_json(&config)),
+        ));
         Ok(ctx)
     }
 }
@@ -192,12 +188,12 @@ mod tests {
         assert_eq!(out.content_html, page().content_html);
         assert!(out.extra_css.contains("a.oel-external::after"));
         assert!(out.extra_css.contains(".oel-sr{"));
-        assert!(out.extra_head.starts_with("<script>"));
-        assert!(out.extra_head.contains("\"newTab\":true"));
-        assert!(out.extra_head.contains("\"nofollow\":true"));
-        assert!(out.extra_head.contains("\"internal\":[]"));
-        assert!(out.extra_head.contains("opens in a new tab"));
-        assert!(!out.extra_head.contains("__CONFIG__"));
+        assert!(out.head_html().starts_with("<script>"));
+        assert!(out.head_html().contains("\"newTab\":true"));
+        assert!(out.head_html().contains("\"nofollow\":true"));
+        assert!(out.head_html().contains("\"internal\":[]"));
+        assert!(out.head_html().contains("opens in a new tab"));
+        assert!(!out.head_html().contains("__CONFIG__"));
     }
 
     #[test]
@@ -218,7 +214,7 @@ mod tests {
         mock::set_config("icon", "false");
         let out = render(page());
         assert!(!out.extra_css.contains("oel-external"));
-        assert!(out.extra_head.contains("\"icon\":false"));
+        assert!(out.head_html().contains("\"icon\":false"));
         mock::set_config("new_tab", "false");
         mock::set_config("nofollow", "false");
         // nothing left to do
@@ -235,7 +231,7 @@ mod tests {
         );
         let out = render(page());
         assert!(out
-            .extra_head
+            .head_html()
             .contains("\"internal\":[\"example.com\",\"cdn.example.net\"]"));
         mock::reset();
     }
@@ -244,7 +240,7 @@ mod tests {
     fn the_text_follows_the_locale() {
         mock::reset();
         mock::set_config("locale", "ja");
-        assert!(render(page()).extra_head.contains("新しいタブで開きます"));
+        assert!(render(page()).head_html().contains("新しいタブで開きます"));
         mock::reset();
     }
 
@@ -253,7 +249,7 @@ mod tests {
         mock::reset();
         mock::set_config("selector", "</script><script>alert(1)</script>");
         let out = render(page());
-        assert_eq!(out.extra_head.matches("</script>").count(), 1);
+        assert_eq!(out.head_html().matches("</script>").count(), 1);
         mock::reset();
     }
 }

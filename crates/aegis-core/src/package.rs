@@ -11,7 +11,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// ホストが話せるプラグイン ABI のバージョン（`docs/plugin_abi_specification.md`）。
 /// ホスト API・フックの入出力に互換性のない変更を入れたときだけ上げる（SemVer の MAJOR に相当）
-pub const PLUGIN_ABI_VERSION: u32 = 1;
+pub const PLUGIN_ABI_VERSION: u32 = 2;
 
 /// マニフェストの `abi_version` をホストが扱えるか確かめる。
 /// プラグインがホストより新しい ABI を要求する場合と、0 の場合は拒否する

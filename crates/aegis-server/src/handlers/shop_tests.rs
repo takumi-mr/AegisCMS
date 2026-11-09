@@ -124,6 +124,7 @@ async fn shop_with_db(db: Arc<dyn aegis_db::DatabaseAdapter>, config: AegisConfi
             capabilities: PluginCapabilities {
                 csp: None,
                 render_page: None,
+                inline_scripts: false,
                 embed: None,
                 network: None,
                 storage: None,

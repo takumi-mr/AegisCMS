@@ -681,6 +681,10 @@ pub struct PluginCapabilities {
     /// `on-render-page` に渡すコンテキストの絞り込み。無ければ従来どおり全フィールドを渡す
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub render_page: Option<RenderPageCapability>,
+    /// インラインのスクリプト（`PageRenderContext.scripts` の `inline`）を公開ページに足す。宣言が無いと、
+    /// ホストはインラインのスクリプトを捨てる（最小権限。docs/csp.md の 4）
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inline_scripts: bool,
 }
 
 /// `on-render-page` の入力の宣言。Wasm への書き込み・JSON の読み書きは渡す量に比例するので、

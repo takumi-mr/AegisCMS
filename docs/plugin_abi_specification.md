@@ -404,6 +404,24 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - 渡さなかったフィールドは、プラグインが書き換えて返しても**反映されません**（ホストが元の値に戻します）。本文を足すには前述の枠を使います。
 - 書けない名前を宣言したプラグインは読み込めません。
 
+### 5.3.3a `on_render_page` でスクリプトを足す（`scripts`。ABI 2）
+
+**スクリプトは、構造化した `scripts` でだけ足せます**。`extra_head`・`prepend_content`・`append_content`（と、書き換えた `content_html`）の中の `<script>` と `on*` 属性（`onclick`・`onload` など）は、**ホストが取り除きます**（`<meta>`・`<link>`・`<style>` などは今までどおり）。設計は [csp.md の 4](csp.md#4-プラグインの-abi破壊的変更)。
+
+```json
+"scripts": [
+  { "kind": "external", "url": "https://cdn.example.com/lib.js", "async_load": true, "crossorigin": false },
+  { "kind": "inline", "code": "window.x = 1;", "consent": "analytics" }
+]
+```
+
+- **書き込み専用**: プラグインには常に空で渡されます。ホストが検査して `<script>` のタグにし、全プラグインのあとで `extra_head` の後ろに足します。**属性はホストが決めます**（`onload` などを書けない）。順序は、返した順（プラグインの順）です。
+- **`external`**: `url` は、このサイトのパス（`/assets/x.js`）か、ホストがマニフェストの `capabilities.csp.script_domains` にある `https://` の URL（ユーザー情報・ポート・引用符・空白を含むものは不可）。`async_load`・`defer`・`crossorigin`（`crossorigin="anonymous"`）は任意。
+- **`inline`**: マニフェストに **`capabilities.inline_scripts: true`** の宣言が要ります（宣言がなければ捨てます）。本文は 64 KB まで、NUL を含まないこと。`</script` と `<!--` は、ホストが JavaScript の意味を変えない形にします。
+- **`consent`**: 同意の区分（`[a-z0-9_-]` の 1〜32 文字）。あれば、ホストが `type="text/plain" data-aegis-consent="区分"` の形で出し、同意のあとにバナーのスクリプトが実行します（[consent.md](consent.md)）。プラグインが HTML を組み立てる必要はありません。
+- **違反したスクリプトは捨てます**（ページは壊しません）。理由は警告ログに残ります。`aegis-plugin-dev` のプレビューは、捨てた理由を表示します。
+- ABI 1 のプラグインは今までどおり読み込めますが、`extra_head` に書いた `<script>` は取り除かれます（`scripts` に移す）。
+
 ### 5.3.4 `on_render_page` の結果のキャッシュ
 
 `kv_get` / `kv_set` / `http_fetch` を呼ばず、`config_get` で読んだ設定値が変わっていない呼び出しは、出力が入力の JSON だけで決まるので、ホストが結果を覚えて同じ入力では Wasm を呼びません（宣言は要りません。ホストが呼び出しごとに確かめます）。プラグイン側で必要な対応はありませんが、次の点に注意してください。
@@ -471,9 +489,10 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - **`name`**: プラグインの識別子（英小文字・数字・`-`・`_`）。インストール先は `plugins/<name>/` で、`[plugins].enabled` に書くと有効になる。
 - **`display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository`**: ストア・一覧表示用のメタデータ（任意）。
 - **`min_aegis_version`**: 動かせる AegisCMS 本体の最小バージョン（SemVer。任意）。本体がこれより古いと読み込まない。
-- **`abi_version`**: プラグインが前提にするこの ABI のバージョン（整数。現在は `1`。任意だが公式プラグイン・テンプレートは必ず書く）。ホストが対応するバージョンより新しい値、または `0` だと読み込まない。互換性を壊す変更を入れたときだけホストが上げる（[versioning.md](versioning.md#2-プラグインの互換性)）。
+- **`abi_version`**: プラグインが前提にするこの ABI のバージョン（整数。現在は `2`。任意だが公式プラグイン・テンプレートは必ず書く。`2` は、`on-render-page` で `scripts`（構造化したスクリプトの注入。[5.3.3a](#533a-on_render_page-でスクリプトを足すscriptsabi-2)）を使うプラグイン。`1` のプラグインも読み込めるが、`extra_head` などに書いた `<script>` は取り除かれる）。ホストが対応するバージョンより新しい値、または `0` だと読み込まない。互換性を壊す変更を入れたときだけホストが上げる（[versioning.md](versioning.md#2-プラグインの互換性)）。
 - **`resource_limits`**: メモリ上限（MB単位）、Fuel 上限、タイムアウト（ミリ秒単位）。
 - **`capabilities.embed.frame_domains`**: カスタムブロックの HTML に残せる `<iframe>` の配信元のホスト（CSP の `frame-src` にも足される）。形式は [plugin_hooks.md 3.2](plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)。
+- **`capabilities.inline_scripts`**: `on-render-page` の `scripts` でインラインのスクリプトを足す宣言（真偽値。既定 `false`）。形式は [5.3.3a](#533a-on_render_page-でスクリプトを足すscriptsabi-2)。外部のスクリプトのホストは `capabilities.csp.script_domains`。
 - **`capabilities.render_page.input`**: `on-render-page` に渡す重いフィールドの絞り込み。形式は [5.3.3](#533-on_render_page-に渡すフィールドの絞り込みcapabilitiesrender_pageinput)。
 - **`blocks`**: 本文に置けるカスタムブロックの宣言（名前・表示名・入力欄）。`render-blocks` フックが必要。形式は [plugin_hooks.md 3.1](plugin_hooks.md#31-カスタムブロック-blocks)。
 

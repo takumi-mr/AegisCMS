@@ -11,7 +11,7 @@
     "seo"
   ],
   "min_aegis_version": "0.1.0",
-  "abi_version": 1,
+  "abi_version": 2,
   "capabilities": {
     "render_page": {
       "input": [
@@ -20,7 +20,8 @@
     },
     "hooks": [
       "on-render-page"
-    ]
+    ],
+    "inline_scripts": true
   },
   "resource_limits": {
     "max_memory_mb": 16,
