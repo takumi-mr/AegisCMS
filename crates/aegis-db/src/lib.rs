@@ -13,6 +13,7 @@ pub mod orders;
 pub mod postgres;
 pub mod published_columns;
 pub mod published_exec;
+pub mod purchases;
 pub mod reviews;
 pub mod sqlite;
 pub mod sqlx_compat;
@@ -54,6 +55,10 @@ pub use orders::{
     OutOfStock, SalesReportRow, StockReservation,
 };
 pub use postgres::PostgresAdapter;
+pub use purchases::{
+    PurchaseRecord, PurchaseStorage, PURCHASE_CANCELLED, PURCHASE_COLUMNS, PURCHASE_PAID,
+    PURCHASE_PENDING, PURCHASE_REFUNDED, PURCHASE_TABLE,
+};
 pub use reviews::{
     ReviewAggregateStats, ReviewListQuery, ReviewPage, ReviewRecord, ReviewStorage, REVIEW_COLUMNS,
     REVIEW_TABLE,
@@ -102,6 +107,18 @@ pub fn access_of(fields: &HashMap<String, serde_json::Value>) -> Option<&str> {
 pub fn is_restricted(fields: &HashMap<String, serde_json::Value>) -> bool {
     !aegis_core::is_public_access(access_of(fields))
 }
+
+/// 記事・ページの `purchase_price`（単独で買うときの価格。通貨の最小単位）。未設定・0 以下は
+/// 単独では売らない（`None`。docs/members.md 16）
+pub fn purchase_price_of(fields: &HashMap<String, serde_json::Value>) -> Option<i64> {
+    fields
+        .get(aegis_schema::PURCHASE_PRICE_FIELD)
+        .and_then(|v| v.as_i64())
+        .filter(|price| *price > 0)
+}
+
+/// `purchase_price` の上限（Stripe が受け付ける最大の金額。通貨の最小単位で 8 桁）
+pub const MAX_PURCHASE_PRICE: i64 = 99_999_999;
 
 impl ContentRecord {
     /// 閲覧を制限している記事・ページか。制限している本文は、フィード・検索・一覧・API に全文を出さない
@@ -523,6 +540,7 @@ pub trait DatabaseAdapter:
     + NotificationQueueStorage
     + ForumStorage
     + MemberStorage
+    + PurchaseStorage
     + ReviewStorage
     + AnalyticsStorage
     + ContactStorage
