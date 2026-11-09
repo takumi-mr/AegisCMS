@@ -155,5 +155,35 @@ func render_blocks(ptr int32, length int32) int64 {
 	})
 }
 
+// on-render-page: 本文の前後の枠・CSS・構造化したスクリプトの注入 (ABI 2)
+//
+//export on_render_page
+func on_render_page(ptr int32, length int32) int64 {
+	return sdk.RunHook(ptr, length, "PageRenderContext", func(ctx *sdk.PageRenderContext) error {
+		ctx.ExtraCSS += ".callout { border-left: 3px solid #2563eb; }"
+		if ctx.ContentLength > 0 {
+			ctx.PrependContent = "<div class=\"example-banner\">Reading</div>"
+			ctx.AppendContent = "<footer class=\"example-footer\">End</footer>"
+		}
+		if rows, ok := ctx.Queries["featured_count"].([]interface{}); ok && len(rows) > 0 {
+			if row, ok := rows[0].(map[string]interface{}); ok {
+				if n, ok := row["n"].(float64); ok {
+					ctx.ExtraHead += `<meta name="featured-count" content="` + strconv.FormatInt(int64(n), 10) + `">`
+				}
+			}
+		}
+		ctx.Scripts = append(
+			ctx.Scripts,
+			sdk.InlineScript("window.__aegisExample = 1;"),
+			sdk.ExternalScript("https://cdn.example.com/analytics.js").
+				Async().
+				Deferred().
+				WithCrossorigin().
+				WithConsent("analytics"),
+		)
+		return nil
+	})
+}
+
 // main は TinyGo Wasm ターゲットで必要とされる空のエントリポイントです
 func main() {}

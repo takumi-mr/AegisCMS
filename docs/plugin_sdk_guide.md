@@ -75,6 +75,7 @@ serde = { version = "1.0", features = ["derive"] }
   "name": "my-aegis-plugin",
   "version": "0.1.0",
   "entrypoint": "plugin.wasm",
+  "abi_version": 2,
   "capabilities": {
     "network": {
       "allowed_domains": ["api.slack.com", "hooks.slack.com"]
@@ -396,7 +397,7 @@ AegisCMS の公式 SDK は、Rust だけでなく AssemblyScript および TinyG
 |---|---|---|---|---|
 | `on-before-save` | 記事保存前検証・タイトル加工 | `Plugin::on_before_save` | `parsePostContext`, `serializePostContext` | `RunHook`, `PostContext` |
 | `transform-content-ast` | 記事 AST の構文走査・変換 | `Plugin::transform_content_ast` | `readHookJson`, `writeJson` | `RunHook`, `[]BlockNode` |
-| `on-render-page` | 公開 HTML への CSS/JS/広告/目次注入 | `Plugin::on_render_page` | `parsePageRenderContext`, `serializePageRenderContext` | `RunHook`, `PageRenderContext` |
+| `on-render-page` | 公開 HTML への CSS/JS/広告/目次注入 | `Plugin::on_render_page`, `InjectedScript` | `parsePageRenderContext`, `serializePageRenderContext`, `InjectedScript` | `RunHook`, `PageRenderContext`, `InlineScript`, `ExternalScript` |
 | `calculate-order` | カート・注文金額計算（送料・割引） | `Plugin::calculate_order` | `OrderContext`, `writeOrderResult` | `RunHook`, `OrderContext`, `OrderAdjustment` |
 | `on-order-status-changed` | 注文状態変更通知（Webhook連携など） | `Plugin::on_order_status_changed` | `OrderStatusChange`, `writeOk` | `RunNotificationHook`, `OrderStatusChange` |
 | `send-notification` | 通知配信（Slack/メール/外部連携） | `Plugin::send_notification` | `NotificationMessage`, `writeDelivery`, `writeDeliveryError` | `RunDeliveryHook`, `NotificationMessage`, `Delivery` |
@@ -488,9 +489,66 @@ func main() {}
 ```
 
 > [!TIP]
-> 全フック（コマース、通知、コメント、ブロック）の実装を含むサンプルコードは、以下を参照してください。
+> 全フック（コマース、通知、コメント、ブロック、ページ描画）の実装を含むサンプルコードは、以下を参照してください。
 > - AssemblyScript: [`sdk/examples/assemblyscript-hooks`](../sdk/examples/assemblyscript-hooks)
 > - TinyGo: [`sdk/tinygo/examples/hooks`](../sdk/tinygo/examples/hooks)
+
+---
+
+### 5.5 ページ描画（`on-render-page`）と構造化したスクリプト注入 (ABI 2)
+
+公開ページの `<head>` に `<script>` を足すときは、`extra_head` や `append_content` に生の `<script>` タグを書かず（ホストが除去します）、`scripts`（`InjectedScript`）に追加します。外部スクリプトのホストはマニフェストの `capabilities.csp.script_domains`、インラインスクリプトは `capabilities.inline_scripts: true` で宣言します（詳細は [CSP 設計書の 4](csp.md#4-プラグインの-abi破壊的変更)）。
+
+#### AssemblyScript 実装例 (`assembly/index.ts`)
+
+```typescript
+import {
+  readString,
+  writeString,
+  parsePageRenderContext,
+  serializePageRenderContext,
+  InjectedScript,
+} from "@takumi-mr/plugin-sdk/assembly/index";
+
+export function on_render_page(ptr: i32, len: i32): i64 {
+  const ctx = parsePageRenderContext(readString(ptr, len));
+  ctx.extra_css += ".my-banner { padding: 8px; }";
+  if (ctx.content_length > 0) {
+    ctx.append_content = "<aside class=\"my-banner\">Thank you for reading</aside>";
+  }
+  ctx.scripts.push(InjectedScript.inline("window.__myPlugin = true;"));
+  ctx.scripts.push(
+    InjectedScript.external("https://cdn.example.com/widget.js")
+      .asyncLoad()
+      .deferred()
+      .withConsent("analytics"),
+  );
+  return writeString(serializePageRenderContext(ctx));
+}
+```
+
+#### TinyGo 実装例 (`main.go`)
+
+```go
+//export on_render_page
+func on_render_page(ptr int32, length int32) int64 {
+	return sdk.RunHook(ptr, length, "PageRenderContext", func(ctx *sdk.PageRenderContext) error {
+		ctx.ExtraCSS += ".my-banner { padding: 8px; }"
+		if ctx.ContentLength > 0 {
+			ctx.AppendContent = "<aside class=\"my-banner\">Thank you for reading</aside>"
+		}
+		ctx.Scripts = append(
+			ctx.Scripts,
+			sdk.InlineScript("window.__myPlugin = true;"),
+			sdk.ExternalScript("https://cdn.example.com/widget.js").
+				Async().
+				Deferred().
+				WithConsent("analytics"),
+		)
+		return nil
+	})
+}
+```
 
 ---
 

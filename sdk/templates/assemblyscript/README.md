@@ -60,6 +60,7 @@ sdk/templates/assemblyscript/
   "name": "my-as-plugin",
   "version": "1.0.0",
   "entrypoint": "plugin.wasm",
+  "abi_version": 2,
   "capabilities": {
     "network": { "allowed_domains": ["api.example.com"] },
     "storage": { "kv_namespace": "my_as_state" },
@@ -72,6 +73,9 @@ sdk/templates/assemblyscript/
   }
 }
 ```
+
+> [!NOTE]
+> `on-render-page` で `<script>` を注入する場合は、`extra_head` や `append_content` に生の `<script>` タグを書かず（ホストが除去します）、`ctx.scripts.push(InjectedScript.external(...) / .inline(...))` を使用してください。外部スクリプトは `capabilities.csp.script_domains`、インラインスクリプトは `capabilities.inline_scripts: true` の宣言が必要です。
 
 ### 利用可能なライフサイクルフック
 

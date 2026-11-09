@@ -228,7 +228,7 @@ fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>
 
 - **呼ばれるとき**: 公開ページ（記事・固定ページ・商品）・フィード・コンテンツ API の `rendered_html`・エディタのプレビューで、**表示のたび**に呼ばれます。1 回の描画につきプラグインごとに 1 回、そのプラグインのブロックが文書の順にまとめて渡されます（トップレベルのブロックのみ）。
 - **出力**: 入力と同じ数・同じ順の HTML。`None`（や足りない分）のブロックは何も表示しません。入力が足りない・おかしいブロックは `None` にしてください。
-- **HTML はサニタイズされます**: `<script>`・`<iframe>` などと `on*` 属性・`javascript:` などの URL を取り除いたうえで（`<iframe>` は `capabilities.embed.frame_domains` で宣言したホストのものだけ残せます。[3.2](#32-外部のページの埋め込み-capabilitiesembed)）、`<div class="aegis-plugin-block" data-block="<名前>">` に包んで出力します（カスタム HTML ブロックの標準モードと同じ）。`<style>` と `style` 属性は残ります。スクリプトが必要な場合は `on-render-page` で `extra_head` に足してください（`official-code-enhancer` と同じ方法）。
+- **HTML はサニタイズされます**: `<script>`・`<iframe>` などと `on*` 属性・`javascript:` などの URL を取り除いたうえで（`<iframe>` は `capabilities.embed.frame_domains` で宣言したホストのものだけ残せます。[3.2](#32-外部のページの埋め込み-capabilitiesembed)）、`<div class="aegis-plugin-block" data-block="<名前>">` に包んで出力します（カスタム HTML ブロックの標準モードと同じ）。Strict CSP（既定）では `style` 属性とインライン `<style>` はブラウザに遮断されるため、見た目はクラス名と `on-render-page` の `extra_css`（`/assets/plugins.css` に配信）で指定してください。スクリプトが必要な場合は `on-render-page` の `scripts`（構造化した注入。[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）で足してください。
 - **見た目**: まとめて渡されるので、`<style>` は最初のブロックに 1 回だけ付けられます。`:where()` で詳細度を 0 にするとテーマの CSS で上書きしやすくなりますが、リンクの色・下線はテーマの本文のリンクの指定（`.prose a` など）に負けるので、クラス 2 つ程度の詳細度にしてください（`official-blocks` を参照）。
 - **失敗**: トラップ・タイムアウト・不正な JSON などのとき、そのプラグインのブロックは何も表示せず、警告ログを残します（ページの表示は続けます）。プレビューでは `warnings` に表示します。
 - **プラグインが無効なとき**: ブロックはそのまま保存され、Admin Studio には「プラグインが無効」と表示されます。公開ページには表示されません（中身の無いカスタム要素になります）。

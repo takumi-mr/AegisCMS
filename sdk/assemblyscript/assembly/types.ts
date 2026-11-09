@@ -73,6 +73,8 @@ export class PageRenderContext {
   content_type: string = "";
   title: string = "";
   slug: string = "";
+  /** 本文（枠を除く）のバイト数。`content_html` を受け取らないプラグインでも本文があるかを調べられる */
+  content_length: i32 = 0;
   extra_css: string = "";
   extra_head: string = "";
   /** 本文の前に足す HTML（書き込み専用。ホストが全プラグインのあとで本文と結合する） */
@@ -85,6 +87,44 @@ export class PageRenderContext {
    * `<script>` と `on*` 属性は、ホストが取り除く（docs/csp.md の 4）
    */
   scripts: InjectedScript[] = [];
+  /**
+   * 宣言的クエリの結果（クエリ名 → 結果の JSON。docs/queries.md）。
+   * マニフェストの `capabilities.render_page.queries` に書いた名前の分だけ渡る（読み取り専用）
+   */
+  queries: JsonValue = JsonValue.object();
+
+  /**
+   * ホストが `<head>` に出す HTML（`extra_head` の後ろに `scripts` のタグ）。
+   * プラグインのテストで、ホストを通したあとの `<head>` を確かめるために使う
+   */
+  headHtml(): string {
+    let html = this.extra_head;
+    for (let i = 0; i < this.scripts.length; ++i) {
+      const script = this.scripts[i];
+      if (html.length > 0 && !html.endsWith("\n")) {
+        html += "\n";
+      }
+      const consent =
+        script.consent.length > 0
+          ? " type=\"text/plain\" data-aegis-consent=\"" + script.consent + "\""
+          : "";
+      if (script.kind == "external") {
+        html +=
+          "<script"
+          + consent
+          + " src=\""
+          + script.url
+          + "\""
+          + (script.async_load ? " async" : "")
+          + (script.defer ? " defer" : "")
+          + (script.crossorigin ? " crossorigin=\"anonymous\"" : "")
+          + "></script>";
+      } else {
+        html += "<script" + consent + ">" + script.code + "</script>";
+      }
+    }
+    return html;
+  }
 }
 
 /**
@@ -115,5 +155,29 @@ export class InjectedScript {
     script.kind = "external";
     script.url = url;
     return script;
+  }
+
+  /** 同意の区分を付ける（同意があるまで実行しない） */
+  withConsent(category: string): InjectedScript {
+    this.consent = category;
+    return this;
+  }
+
+  /** `async` にする（外部のスクリプトだけ） */
+  asyncLoad(): InjectedScript {
+    if (this.kind == "external") this.async_load = true;
+    return this;
+  }
+
+  /** `defer` にする（外部のスクリプトだけ） */
+  deferred(): InjectedScript {
+    if (this.kind == "external") this.defer = true;
+    return this;
+  }
+
+  /** `crossorigin="anonymous"` を付ける（外部のスクリプトだけ。CORS を許すサーバーのものに限る） */
+  withCrossorigin(): InjectedScript {
+    if (this.kind == "external") this.crossorigin = true;
+    return this;
   }
 }

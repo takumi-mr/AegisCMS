@@ -45,6 +45,8 @@ func on_before_save(ptr int32, length int32) int64 {
 	return sdk.WriteJSON(&post)
 }
 
+const signature = "Transformed by TinyGo Plugin"
+
 //export transform_content_ast
 func transform_content_ast(ptr int32, length int32) int64 {
 	inBytes := sdk.ReadBytes(uintptr(ptr), length)
@@ -57,8 +59,15 @@ func transform_content_ast(ptr int32, length int32) int64 {
 
 	sdk.LogInfo("[TinyGo] transform_content_ast called")
 
+	// 保存のたびに呼ばれるため、追加済みなら何もしない (0 を返すと「変更なし」)
+	for _, b := range blocks {
+		if b.Text != nil && *b.Text == signature {
+			return 0
+		}
+	}
+
 	// サンプル: 末尾にプラグイン段落を追加
-	blocks = append(blocks, sdk.NewParagraph("Transformed by TinyGo Plugin"))
+	blocks = append(blocks, sdk.NewParagraph(signature))
 
 	return sdk.WriteJSON(&blocks)
 }
@@ -75,7 +84,7 @@ func on_render_page(ptr int32, length int32) int64 {
 
 	sdk.LogInfo("[TinyGo] on_render_page called for: " + ctx.SiteTitle)
 
-	// テーマ修飾
+	// テーマ修飾 (スクリプトを足すときは ctx.Scripts に sdk.ExternalScript(...) / sdk.InlineScript(...) を追加する)
 	ctx.ExtraCSS += "\n/* Injected by TinyGo Plugin */\n.tinygo-badge { color: #00add8; font-weight: bold; }"
 
 	return sdk.WriteJSON(&ctx)
