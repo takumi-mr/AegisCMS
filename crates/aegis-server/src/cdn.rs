@@ -281,9 +281,13 @@ mod tests {
 
         assert!(purger.purged_tags().is_empty());
 
-        let resp = render_index(State(state.clone()), Query(IndexParams { page: None }))
-            .await
-            .into_response();
+        let resp = render_index(
+            State(state.clone()),
+            Query(IndexParams { page: None }),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(resp.headers().get("cache-tag").is_none());
         assert!(resp.headers().get("surrogate-key").is_none());
@@ -334,9 +338,13 @@ mod tests {
         assert!(created_tags.contains(&"url-sitemap.xml".to_string()));
 
         // 2. 公開ページへのリクエストで Cache-Tag / Surrogate-Key / Cache-Control が注入される
-        let index_resp = render_index(State(state.clone()), Query(IndexParams { page: None }))
-            .await
-            .into_response();
+        let index_resp = render_index(
+            State(state.clone()),
+            Query(IndexParams { page: None }),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(index_resp.status(), StatusCode::OK);
         let index_cache_tag = index_resp
             .headers()
@@ -365,9 +373,13 @@ mod tests {
             "public, max-age=0, s-maxage=86400, stale-while-revalidate=60"
         );
 
-        let article_resp = render_article(State(state.clone()), Path("first-post".to_string()))
-            .await
-            .into_response();
+        let article_resp = render_article(
+            State(state.clone()),
+            Path("first-post".to_string()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(article_resp.status(), StatusCode::OK);
         let article_cache_tag = article_resp
             .headers()
@@ -379,9 +391,13 @@ mod tests {
         assert!(article_cache_tag.contains("article-first-post"));
 
         // 404 のレスポンスには Cache-Tag を付与しない
-        let missing_resp = render_article(State(state.clone()), Path("does-not-exist".to_string()))
-            .await
-            .into_response();
+        let missing_resp = render_article(
+            State(state.clone()),
+            Path("does-not-exist".to_string()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(missing_resp.status(), StatusCode::NOT_FOUND);
         assert!(missing_resp.headers().get("cache-tag").is_none());
 
@@ -436,9 +452,13 @@ mod tests {
         .unwrap();
         let _ = take_tags(&purger);
 
-        let page_resp = render_page_or_slug(State(state.clone()), Path("about".to_string()))
-            .await
-            .into_response();
+        let page_resp = render_page_or_slug(
+            State(state.clone()),
+            Path("about".to_string()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(page_resp.status(), StatusCode::OK);
         let page_cache_tag = page_resp
             .headers()

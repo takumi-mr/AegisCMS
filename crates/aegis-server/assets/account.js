@@ -28,6 +28,23 @@
 
   // ---------- helpers ----------
 
+  // Where to go after logging in: a path on this site in ?next= (the members-only notice sets it).
+  // Anything else (another site, a protocol-relative URL, a backslash) is ignored.
+  function nextUrl() {
+    var next = new URLSearchParams(window.location.search).get('next') || '';
+    return /^\/(?![\/\\])[^\r\n]*$/.test(next) ? next : '';
+  }
+
+  function afterLogin() {
+    return nextUrl() || config.accountUrl;
+  }
+
+  // Keeps ?next= when moving between the login and sign-up pages
+  function withNext(url) {
+    var next = nextUrl();
+    return next ? url + (url.indexOf('?') < 0 ? '?' : '&') + 'next=' + encodeURIComponent(next) : url;
+  }
+
   function msg(key, params) {
     var text = I18N.messages[key];
     if (text === undefined) return key;
@@ -177,7 +194,7 @@
         function (data, status) {
           return api('POST', '/login', { email: data.email, password: data.password })
             .then(function () {
-              window.location.href = config.accountUrl;
+              window.location.href = afterLogin();
             })
             .catch(function (error) {
               if (error.code !== 'email_not_verified') throw error;
@@ -206,7 +223,7 @@
       children.push(h('p', { class: 'aegis-muted' }, [link(config.forgotUrl, msg('acct_forgot_link'))]));
     }
     if (config.registerUrl) {
-      children.push(h('p', { class: 'aegis-muted' }, [msg('acct_no_account') + ' ', link(config.registerUrl, msg('acct_register'))]));
+      children.push(h('p', { class: 'aegis-muted' }, [msg('acct_no_account') + ' ', link(withNext(config.registerUrl), msg('acct_register'))]));
     }
     show(children);
   }
@@ -337,16 +354,16 @@
           return api('POST', '/register', { email: data.email, password: data.password, name: data.name }).then(function (result) {
             if (result && result.status === 'verification_sent') {
               // The address has to be confirmed first: no login yet
-              show([notice(msg('acct_verify_sent'), 'ok'), h('p', {}, [link(config.loginUrl, msg('acct_login'))])]);
+              show([notice(msg('acct_verify_sent'), 'ok'), h('p', {}, [link(withNext(config.loginUrl), msg('acct_login'))])]);
               return null;
             }
             return api('POST', '/login', { email: data.email, password: data.password }).then(function () {
-              window.location.href = config.accountUrl;
+              window.location.href = afterLogin();
             });
           });
         }
       ),
-      h('p', { class: 'aegis-muted' }, [msg('acct_have_account') + ' ', link(config.loginUrl, msg('acct_login'))]),
+      h('p', { class: 'aegis-muted' }, [msg('acct_have_account') + ' ', link(withNext(config.loginUrl), msg('acct_login'))]),
     ]);
   }
 

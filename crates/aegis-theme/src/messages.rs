@@ -249,6 +249,20 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("js.acct_reset_done", "Your password has been changed. Please log in with the new one.", "パスワードを変更しました。新しいパスワードでログインしてください。"),
     ("js.acct_reset_bad_link", "This link is invalid or has expired.", "このリンクは無効か、期限が切れています。"),
     ("js.acct_request_new", "Request a new link", "新しいリンクを申し込む"),
+    // --- 会員限定の記事・ページの案内（閲覧の制限。docs/members.md 15） ---
+    (
+        "access.members_only",
+        "This content is for members. Log in to read it.",
+        "この内容は会員向けです。ログインすると読めます。",
+    ),
+    (
+        "access.needs_level",
+        "This content is for {level} members.",
+        "この内容は {level} の会員向けです。",
+    ),
+    ("access.login", "Log in", "ログイン"),
+    ("access.register", "Sign up", "会員登録"),
+    ("access.upgrade", "See how to upgrade", "アップグレードの案内を見る"),
     ("account.title", "Account", "アカウント"),
     ("account.link", "Account", "アカウント"),
     ("account.loading", "Loading…", "読み込んでいます…"),

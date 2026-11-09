@@ -414,6 +414,8 @@ pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
 :where(.aegis-toc-title){font-weight:700;margin:0 0 .5rem}\
 :where(.aegis-toc) ol{margin:0;padding-left:1.25rem}\
 :where(.aegis-toc) ol ol{margin-top:.25rem}\
+:where(.aegis-access-notice){border:1px solid rgba(127,127,127,.3);border-radius:8px;padding:1rem 1.25rem;margin:1.5rem 0}\
+:where(.aegis-access-notice) p{margin:.25rem 0}\
 :where(.aegis-fnref){font-size:.75em;line-height:0}\
 :where(.aegis-footnotes){margin-top:2rem;padding-top:.75rem;border-top:1px solid rgba(127,127,127,.3);font-size:.9em}\
 :where(.aegis-footnotes) ol{margin:0;padding-left:1.5rem}\

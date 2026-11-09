@@ -35,6 +35,9 @@ pub struct MembersConfig {
     /// 会員の権限レベル（低 → 高の順）。先頭が新規会員の既定。高いレベルは低いレベルの内容も見られる。
     /// 記事・ページの `access` で必要なレベルを指定する（docs/members.md 15）
     pub levels: Vec<String>,
+    /// 権限レベルが足りない会員に出す「アップグレード」の案内の URL（サイト内のパス `/...` か `https://...`）。
+    /// 空なら案内のリンクを出さない
+    pub upgrade_url: String,
 }
 
 impl Default for MembersConfig {
@@ -47,6 +50,7 @@ impl Default for MembersConfig {
             require_email_verification: false,
             public_url: String::new(),
             levels: vec!["free".to_string(), "paid".to_string()],
+            upgrade_url: String::new(),
         }
     }
 }
@@ -82,7 +86,16 @@ impl MembersConfig {
                 "[members].session_days must be between 1 and 365".to_string(),
             ));
         }
-        self.validate_levels()
+        self.validate_levels()?;
+        let url = self.upgrade_url.trim();
+        let local = url.starts_with('/') && !url.starts_with("//") && !url.contains('\\');
+        if !(url.is_empty() || local || url.starts_with("https://")) {
+            return Err(AegisError::Config(
+                "[members].upgrade_url must be empty, a path starting with / or an https:// URL"
+                    .to_string(),
+            ));
+        }
+        Ok(())
     }
 
     /// `levels` の誤りを断る。1 件以上・重複なし・英小文字と数字と `-` `_` の 1〜32 文字（`public` は予約）。
@@ -148,6 +161,26 @@ mod tests {
         }
         // 使わない設定でも、レベルの誤りは起動時に断る
         assert!(with(&[]).validate().is_err());
+    }
+
+    #[test]
+    fn upgrade_url_is_a_local_path_or_https() {
+        let with = |url: &str| MembersConfig {
+            upgrade_url: url.to_string(),
+            ..MembersConfig::default()
+        };
+        for ok in ["", "/plans", "https://example.com/plans"] {
+            with(ok).validate().unwrap();
+        }
+        for bad in [
+            "//evil.example",
+            "http://example.com",
+            "javascript:alert(1)",
+            "plans",
+            "/\\evil",
+        ] {
+            assert!(with(bad).validate().is_err(), "{bad}");
+        }
     }
 
     /// 確認を必須にしているのにメールを送れない設定は、起動時に断る（誰もログインできなくなるため）
