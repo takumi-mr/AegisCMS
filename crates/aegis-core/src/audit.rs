@@ -117,6 +117,12 @@ pub enum AuditAction {
     /// EC order status changed (payment, shipping, cancellation, expiry) or a payment problem
     #[serde(rename = "order.update")]
     OrderUpdate,
+    /// Member started the purchase of a content item (a payment page was created)
+    #[serde(rename = "purchase.create")]
+    PurchaseCreate,
+    /// Member purchase changed (paid, refunded, cancelled) or a payment problem
+    #[serde(rename = "purchase.update")]
+    PurchaseUpdate,
     /// Notification delivered (or given up after retries) through a channel such as email
     #[serde(rename = "notification.send")]
     NotificationSend,
@@ -215,7 +221,7 @@ pub enum AuditAction {
 }
 
 impl AuditAction {
-    pub const ALL: [AuditAction; 78] = [
+    pub const ALL: [AuditAction; 80] = [
         Self::ContentCreate,
         Self::ContentUpdate,
         Self::ContentDelete,
@@ -255,6 +261,8 @@ impl AuditAction {
         Self::UserRegister,
         Self::OrderCreate,
         Self::OrderUpdate,
+        Self::PurchaseCreate,
+        Self::PurchaseUpdate,
         Self::NotificationSend,
         Self::UserPasswordReset,
         Self::UserInvite,
@@ -337,6 +345,8 @@ impl AuditAction {
             Self::UserRegister => "user.register",
             Self::OrderCreate => "order.create",
             Self::OrderUpdate => "order.update",
+            Self::PurchaseCreate => "purchase.create",
+            Self::PurchaseUpdate => "purchase.update",
             Self::NotificationSend => "notification.send",
             Self::UserPasswordReset => "user.password_reset",
             Self::UserInvite => "user.invite",

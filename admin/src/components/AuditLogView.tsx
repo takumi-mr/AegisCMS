@@ -54,6 +54,8 @@ const ACTIONS: AuditAction[] = [
   'user.register',
   'order.create',
   'order.update',
+  'purchase.create',
+  'purchase.update',
   'notification.send',
   'comment.create',
   'comment.moderate',

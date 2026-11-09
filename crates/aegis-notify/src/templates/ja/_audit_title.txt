@@ -15,6 +15,8 @@
   "audit.purge": "監査ログの削除",
   "order.create": "注文",
   "order.update": "注文の更新",
+  "purchase.create": "購入の開始",
+  "purchase.update": "購入の更新",
 } %}
 {% set outcomes = { "success": "成功", "failure": "失敗", "denied": "拒否" } %}
 {% if title %}
