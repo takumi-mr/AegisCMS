@@ -57,7 +57,31 @@ caused by: {cause}"
 }
 
 /// テンプレートのグローバル変数の元になる設定
+/// 宣言的クエリの結果（クエリ名 → 結果）の入れ物。サーバーが最新の一式を差し替え、テンプレートは
+/// グローバル変数 `queries` として読む（docs/queries.md）。環境を作り直さなくても差し替えが見える
+pub type QueriesHandle = Arc<RwLock<Arc<serde_json::Map<String, serde_json::Value>>>>;
+
+/// 空の入れ物
+pub fn new_queries_handle() -> QueriesHandle {
+    Arc::new(RwLock::new(Arc::new(serde_json::Map::new())))
+}
+
+/// テンプレートの `queries.<name>`。名前の無いクエリは未定義になる
+#[derive(Debug)]
+struct QueriesObject(QueriesHandle);
+
+impl minijinja::value::Object for QueriesObject {
+    fn get_value(self: &Arc<Self>, key: &minijinja::Value) -> Option<minijinja::Value> {
+        let name = key.as_str()?;
+        let snapshot = self.0.read().ok()?.clone();
+        snapshot
+            .get(name)
+            .map(|v| minijinja::Value::from(minijinja::value::Serde(v)))
+    }
+}
+
 struct Globals {
+    queries: QueriesHandle,
     base_path: String,
     admin_url: Option<String>,
     show_powered_by: bool,
@@ -65,6 +89,8 @@ struct Globals {
 }
 
 struct ThemeEngineInner {
+    /// 宣言的クエリの結果（グローバル変数 `queries`）
+    queries: QueriesHandle,
     active_theme: String,
     /// アクティブなテーマが `theme.json` の `csp` で宣言した、CSP に足すホスト（切り替えるときに読み直す）
     active_csp: crate::manifest::ThemeCsp,
@@ -103,6 +129,7 @@ impl ThemeEngine {
         Self {
             themes_dir: themes_dir.to_path_buf(),
             inner: Arc::new(RwLock::new(ThemeEngineInner {
+                queries: new_queries_handle(),
                 active_csp: load_theme_csp(themes_dir, &active),
                 active_theme: active,
                 theme_templates_dir,
@@ -123,6 +150,17 @@ impl ThemeEngine {
         {
             let mut inner = self.inner.write().unwrap();
             inner.base_path = base_path.to_string();
+            inner.environment = None;
+        }
+        self
+    }
+
+    /// 宣言的クエリの結果の入れ物（グローバル変数 `queries`。テンプレートでは `queries.<name>`）。
+    /// 指定しなければ空で、どの名前も未定義になる
+    pub fn with_queries(self, queries: QueriesHandle) -> Self {
+        {
+            let mut inner = self.inner.write().unwrap();
+            inner.queries = queries;
             inner.environment = None;
         }
         self
@@ -617,6 +655,7 @@ impl ThemeEngine {
             inner.dynamic_templates.clone(),
             inner.theme_templates_dir.clone(),
             Globals {
+                queries: inner.queries.clone(),
                 base_path: inner.base_path.clone(),
                 admin_url: inner.admin_url.clone(),
                 show_powered_by: inner.show_powered_by,
@@ -637,6 +676,7 @@ impl ThemeEngine {
         globals: Globals,
     ) -> Environment<'static> {
         let Globals {
+            queries,
             base_path,
             admin_url,
             show_powered_by,
@@ -698,6 +738,10 @@ impl ThemeEngine {
         // `[server].base_path` の正規化済みの値（URL で安全な文字のみ）なので自動エスケープ（`/` → `&#x2f;`）しない
         // `base_path` と `[server].admin_path` の検証済みの値から作る URL（URL で安全な文字のみ）
         let admin_url = admin_url.unwrap_or_else(|| format!("{}/admin/", base_path));
+        env.add_global(
+            "queries",
+            minijinja::Value::from_object(QueriesObject(queries)),
+        );
         env.add_global("base_path", minijinja::Value::from_safe_string(base_path));
         env.add_global("admin_url", minijinja::Value::from_safe_string(admin_url));
         env.add_global("show_powered_by", show_powered_by);
@@ -1334,6 +1378,7 @@ mod tests {
             HashMap::new(),
             None,
             Globals {
+                queries: new_queries_handle(),
                 base_path: String::new(),
                 admin_url: None,
                 show_powered_by: true,
@@ -1532,5 +1577,30 @@ b
         assert!(engine.validate_theme_package(&theme).is_err());
         assert!(engine.active_csp().is_empty());
         std::fs::remove_dir_all(&temp).ok();
+    }
+    #[test]
+    fn test_queries_global_reads_the_latest_results_without_rebuilding() {
+        let handle = new_queries_handle();
+        let engine =
+            ThemeEngine::new(Path::new("themes-none"), "none").with_queries(handle.clone());
+        engine.register_template(
+            "q.html",
+            "{% for r in queries.by_brand %}{{ r.brand }}={{ r.n }};{% endfor %}|{{ queries.missing is undefined }}|{{ queries.case_count[0].n if queries.case_count else '' }}",
+        );
+        let ctx = PageRenderContext::default();
+        // 結果が無い間は、どの名前も未定義（描画は失敗しない）
+        assert_eq!(engine.render("q.html", &ctx).unwrap().trim(), "|True|");
+        // 入れ物を差し替えると、環境を作り直さなくても次の描画に見える
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "by_brand".into(),
+            serde_json::json!([{"brand": "A", "n": 2}, {"brand": "B", "n": 1}]),
+        );
+        map.insert("case_count".into(), serde_json::json!([{"n": 87}]));
+        *handle.write().unwrap() = Arc::new(map);
+        assert_eq!(
+            engine.render("q.html", &ctx).unwrap().trim(),
+            "A=2;B=1;|True|87"
+        );
     }
 }

@@ -31,6 +31,9 @@ mod notify_plugins;
 mod plugin_dev;
 mod plugin_host;
 mod plugin_registry;
+mod queries;
+#[cfg(test)]
+mod queries_tests;
 mod redirects;
 mod related;
 mod render;
@@ -946,9 +949,17 @@ async fn main() -> anyhow::Result<()> {
                 plugin_settings.clone(),
             )?;
 
+            // 5.4 宣言的クエリの定義を読む（誤りがあれば起動を止める）
+            let query_service = Arc::new(queries::QueryService::load(
+                &config.queries,
+                &config.paths.queries_dir,
+                &schemas,
+            )?);
+
             // 5.5 テーマエンジンの初期化 & プラグイン登録テンプレートの同期
             let theme_engine = Arc::new(
                 aegis_theme::ThemeEngine::new(&config.paths.themes_dir, &config.theme.active)
+                    .with_queries(query_service.handle())
                     .with_base_path(&base_path)
                     .with_admin_url(&public_admin_url(&config, &base_path, &admin_path))
                     .with_template_reload(config.theme.reload_templates)
@@ -1012,6 +1023,7 @@ async fn main() -> anyhow::Result<()> {
                 theme_engine,
             );
             app_state.plugin_settings = plugin_settings;
+            app_state.queries = query_service.clone();
             app_state.bus = bus;
             app_state.plugin_registry = Arc::new(plugin_registry::PluginRegistry::new(
                 plugin_loader,
@@ -1041,6 +1053,8 @@ async fn main() -> anyhow::Result<()> {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 system::SystemOverrides::load(app_state.db.as_ref()).await;
+            // 宣言的クエリ: 公開側の列を用意し（定義が変わった副表は作り直す）、全クエリの結果を用意する
+            app_state.queries.prepare(&app_state).await?;
             let app_state = app_state.with_captcha(captchas);
             let app_state = match oidc {
                 Some(oidc) => app_state.with_oidc(oidc),

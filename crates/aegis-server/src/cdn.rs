@@ -168,6 +168,8 @@ pub async fn purge_content(
     slug: &str,
     old_slug: Option<&str>,
 ) {
+    // 宣言的クエリの結果も、この種類のコンテンツの変更で計算し直す（CDN の設定には依らない）
+    crate::queries::content_changed(state, content_type).await;
     let tags = content_invalidation_tags(state, content_type, id, slug, old_slug);
     purge_tags(state, &tags).await;
 }

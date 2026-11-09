@@ -65,6 +65,9 @@ pub struct AegisConfig {
     pub comments: CommentsConfig,
     #[serde(default)]
     pub tags: TagsConfig,
+    /// 宣言的クエリ（`[queries]`。定義は `queries/*.yaml`。docs/queries.md）
+    #[serde(default)]
+    pub queries: crate::queries::QueriesConfig,
     #[serde(default)]
     pub forum: ForumConfig,
     #[serde(default)]
@@ -317,6 +320,13 @@ pub struct PathsConfig {
     pub admin_dist_dir: PathBuf,
     #[serde(default = "default_themes_dir")]
     pub themes_dir: PathBuf,
+    /// 宣言的クエリの定義（`queries/*.yaml`）を置くディレクトリ
+    #[serde(default = "default_queries_dir")]
+    pub queries_dir: PathBuf,
+}
+
+fn default_queries_dir() -> PathBuf {
+    PathBuf::from("queries")
 }
 
 fn default_themes_dir() -> PathBuf {
@@ -330,6 +340,7 @@ impl Default for PathsConfig {
             plugins_dir: PathBuf::from("plugins"),
             admin_dist_dir: PathBuf::from("admin/dist"),
             themes_dir: default_themes_dir(),
+            queries_dir: default_queries_dir(),
         }
     }
 }

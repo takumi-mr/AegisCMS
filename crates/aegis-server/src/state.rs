@@ -36,6 +36,8 @@ pub struct AppState {
     /// ログイン失敗回数の制限（`[auth.login_rate_limit]`）
     pub login_limiter: Arc<LoginRateLimiter>,
     pub schemas: Arc<RwLock<HashMap<String, SchemaDefinition>>>,
+    /// 宣言的クエリ（`queries/*.yaml`。結果はテーマのグローバル変数 `queries`）
+    pub queries: Arc<crate::queries::QueryService>,
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
     /// 有効なプラグインの一覧と、Admin Studio からの切り替え（`supervisor` を差し替える）
     pub plugin_registry: Arc<PluginRegistry>,
@@ -170,6 +172,7 @@ impl AppState {
             auth_provider,
             login_limiter,
             schemas: Arc::new(RwLock::new(schemas)),
+            queries: Arc::new(crate::queries::QueryService::empty(Default::default())),
             supervisor: Arc::new(RwLock::new(supervisor)),
             plugin_registry,
             audit,

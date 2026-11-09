@@ -59,6 +59,7 @@ pub async fn handle(state: &AppState, message: BusMessage) {
                 *state.notices.write().await =
                     crate::notices::NoticeList::load(state.db.as_ref()).await;
             }
+            crate::queries::TOPIC_QUERIES => crate::queries::handle_event(state, &payload).await,
             TOPIC_REDIRECTS => {
                 *state.redirects.write().await =
                     crate::redirects::RedirectTable::load(state.db.as_ref()).await;
