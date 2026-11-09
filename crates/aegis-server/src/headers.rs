@@ -227,6 +227,53 @@ impl HeaderOverrides {
     }
 }
 
+/// Strict CSP（`[security].strict_csp`）の値を作る。`csp` の `script-src` から `'unsafe-inline'`・`'unsafe-eval'` を外し、
+/// 信頼できる出どころが出したインラインのスクリプトのハッシュ（`hashes`。`sha256-<base64>`）を足す。
+/// `script-src` が無ければ（`default-src` が効いている）、`'self'` とハッシュだけの `script-src` を足す。
+/// 許可するホスト（プラグインのもの）は残す。`'strict-dynamic'` は使わない（ブラウザーがホストの指定を
+/// 無視してしまい、マニフェストで宣言した `script_domains` の強制が無くなるため。docs/csp.md の 3.1）
+pub fn strict_script_csp(csp: &str, hashes: &[String]) -> String {
+    let hash_tokens: Vec<String> = hashes.iter().map(|h| format!("'{h}'")).collect();
+    let mut found = false;
+    let mut directives: Vec<String> = csp
+        .split(';')
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(|directive| {
+            let mut parts = directive.split_whitespace();
+            if parts.next() != Some("script-src") {
+                return directive.to_string();
+            }
+            found = true;
+            let mut kept: Vec<&str> = parts
+                .filter(|t| !matches!(*t, "'unsafe-inline'" | "'unsafe-eval'"))
+                .collect();
+            if !kept.contains(&"'self'") {
+                kept.insert(0, "'self'");
+            }
+            let mut out = String::from("script-src");
+            for token in kept
+                .iter()
+                .map(|t| t.to_string())
+                .chain(hash_tokens.iter().cloned())
+            {
+                out.push(' ');
+                out.push_str(&token);
+            }
+            out
+        })
+        .collect();
+    if !found {
+        let mut out = String::from("script-src 'self'");
+        for token in &hash_tokens {
+            out.push(' ');
+            out.push_str(token);
+        }
+        directives.push(out);
+    }
+    format!("{};", directives.join("; "))
+}
+
 /// 有効なプラグインが要求する CSP (Content Security Policy) のドメインをディレクティブごとに足す
 pub fn with_plugin_csp_sources(csp: &str, plugin_csp: &aegis_runtime::PluginCspSources) -> String {
     let mut csp = csp.to_string();
@@ -614,6 +661,41 @@ mod tests {
             part_of("connect-src").contains("https://ep2.adtrafficquality.google"),
             "{}",
             csp
+        );
+    }
+}
+
+#[cfg(test)]
+mod strict_csp_tests {
+    use super::strict_script_csp;
+
+    #[test]
+    fn unsafe_inline_and_eval_are_dropped_and_the_hashes_are_added() {
+        let csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.example.com; style-src 'self' 'unsafe-inline'; object-src 'none';";
+        let out = strict_script_csp(csp, &["sha256-AAA=".to_string(), "sha256-BBB=".to_string()]);
+        assert_eq!(
+            out,
+            "default-src 'self'; script-src 'self' https://cdn.example.com 'sha256-AAA=' 'sha256-BBB='; style-src 'self' 'unsafe-inline'; object-src 'none';"
+        );
+        // 許可したホストは残り、`strict-dynamic` は入らない（ブラウザーが `'self'` とホストを無視するため）
+        assert!(!out.contains("strict-dynamic"));
+        // style の `unsafe-inline` は、この設計の対象外
+        assert!(out.contains("style-src 'self' 'unsafe-inline'"));
+    }
+
+    #[test]
+    fn a_missing_script_src_gets_one_and_self_is_kept() {
+        assert_eq!(
+            strict_script_csp("default-src 'self'; img-src data:;", &[]),
+            "default-src 'self'; img-src data:; script-src 'self';"
+        );
+        // `'self'` が無ければ足す
+        assert_eq!(
+            strict_script_csp(
+                "script-src https://a.example 'unsafe-inline';",
+                &["sha256-X=".into()]
+            ),
+            "script-src 'self' https://a.example 'sha256-X=';"
         );
     }
 }

@@ -41,6 +41,11 @@ pub struct PreviewRequest {
 /// テーマ適用ページを置いておく時間（秒）。エディターの 1 つのプレビューにつき 1 件だけを上書きする
 const FRAME_TTL_SECS: u64 = 3600;
 
+/// ページのインラインのスクリプトのハッシュ（Strict CSP のとき、配信するときに CSP に足す）の置き場所
+fn frame_hashes_key(key: &str) -> String {
+    format!("preview-frame-hashes:{key}")
+}
+
 fn frame_cache_key(key: &str) -> String {
     format!("preview-frame:{key}")
 }
@@ -197,6 +202,17 @@ pub async fn preview_content(
             .cache
             .set(&frame_cache_key(key), page, Some(FRAME_TTL_SECS))
             .await;
+        // Strict CSP（`[security].strict_csp`）のとき、このページを描くときに集めたインラインのスクリプトの
+        // ハッシュも置く（配信するときに CSP に足さないと、プレビューのスクリプトが止まる）
+        let hashes = aegis_core::csp::recorded_script_hashes();
+        let _ = state
+            .cache
+            .set(
+                &frame_hashes_key(key),
+                &serde_json::to_string(&hashes).unwrap_or_default(),
+                Some(FRAME_TTL_SECS),
+            )
+            .await;
         match stored {
             // `v` は、同じ URL でも読み直させるための値
             Ok(()) => {
@@ -231,6 +247,20 @@ pub async fn preview_frame(
     } else {
         None
     };
+    if page.is_some() {
+        // 置いたときに集めたハッシュを、この応答の CSP に足す（`app::security_headers_middleware` が使う）
+        let hashes: Vec<String> = state
+            .cache
+            .get(&frame_hashes_key(&key))
+            .await
+            .ok()
+            .flatten()
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default();
+        for hash in &hashes {
+            aegis_core::csp::record_script_hash(hash);
+        }
+    }
     match page {
         Some(html) => (
             [

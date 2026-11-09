@@ -20,6 +20,9 @@ ring.workspace = true
 hex.workspace = true
 sha2.workspace = true
 zip.workspace = true
+base64.workspace = true
+# 公開ページのインラインのスクリプトのハッシュを、リクエストの間だけ集める（`csp`）
+tokio = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 tokio.workspace = true

@@ -204,6 +204,7 @@ coupons = "WELCOME10:10%"
 
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
+| `strict_csp` | string | `"off"` | 公開ページの Content-Security-Policy。`"off"` は今までどおり（`script-src 'self' 'unsafe-inline'`）。`"report-only"` は、今の CSP に加えて Strict の CSP を `Content-Security-Policy-Report-Only` で出し、止まるものをブラウザーのコンソールで確かめられる。`"on"` は Strict を強制する（`'unsafe-inline'` を外し、プラグインとテンプレートが出したインラインのスクリプトは本文のハッシュで許す）。管理画面の「設定 › ヘッダー」で CSP を上書きしているときは、その値が優先。詳しくは [csp.md](./csp.md) |
 | `enforce_external_link_rel` | bool | `true` | 外部リンクの `<a>` に `rel="noopener noreferrer"` を付与（既存の `rel` とマージ） |
 | `open_external_links_in_new_tab` | bool | `false` | `target` 未指定の外部リンクに `target="_blank"` を付与 |
 | `internal_domains` | string[] | `[]` | 内部扱いするドメイン（サブドメインも一致、大文字・小文字は区別しない）。これらへのリンクは上記の対象外 |

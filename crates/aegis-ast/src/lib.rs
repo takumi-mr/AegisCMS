@@ -6,7 +6,7 @@ pub mod renderer;
 pub mod rewriter;
 pub mod transform;
 
-pub use config::SecurityConfig;
+pub use config::{SecurityConfig, StrictCsp};
 pub use inline::{plain_text, render_inline};
 pub use node::BlockNode;
 pub use renderer::{extract_links, HtmlRenderer};

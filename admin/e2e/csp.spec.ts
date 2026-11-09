@@ -118,7 +118,7 @@ test('public pages run under the default CSP without eval or blocked scripts', a
   }
 });
 
-test('the themed-page preview behaves like the public site: its inline scripts run', async ({
+test('the themed-page preview runs under the public CSP, isolated from Admin Studio', async ({
   page,
 }) => {
   await signIn(page);
@@ -128,8 +128,9 @@ test('the themed-page preview behaves like the public site: its inline scripts r
   const frame = page.frameLocator('iframe[title="Themed page preview"]');
   await expect(frame.locator('article, main').first()).toBeVisible({ timeout: 15_000 });
 
-  // Theme and plugin scripts (Mermaid, Prism, the page TOC, ...) are inline `<script>`s. The preview
-  // frame must run them like a public page does, even though Admin Studio itself may not
+  // The preview frame follows the public site's CSP, not Admin Studio's (a `srcdoc` frame would
+  // inherit Admin Studio's). The E2E server runs the public site under the strict CSP, so a script
+  // nobody hashed (this probe) is blocked, as on a public page; the host-hashed ones run (below)
   const frameHandle = await page.locator('iframe[title="Themed page preview"]').elementHandle();
   const inner = await frameHandle!.contentFrame();
   const ran = await inner!.evaluate(() => {
@@ -138,9 +139,9 @@ test('the themed-page preview behaves like the public site: its inline scripts r
     document.head.appendChild(script);
     return (window as unknown as { __previewScript?: number }).__previewScript === 1;
   });
-  expect(ran).toBe(true);
+  expect(ran).toBe(false);
 
-  // ...but it cannot reach the admin's session (an opaque origin: `sandbox` without same-origin)
+  // ...and it cannot reach the admin's session (an opaque origin: `sandbox` without same-origin)
   const storage = await inner!.evaluate(() => {
     try {
       return sessionStorage.length >= 0 ? 'readable' : 'empty';
@@ -213,5 +214,101 @@ test("the built-in comment form works without any inline script (script-src 'sel
   } finally {
     // Back to the defaults
     await page.request.put(`${SERVER}/api/v1/headers`, { headers: auth, data: {} });
+  }
+});
+
+test("under the strict CSP, a plugin's inline script runs because the host hashed it", async ({
+  page,
+}) => {
+  const errors = await recordViolations(page);
+  const login = await page.request.post(`${SERVER}/api/v1/auth/session`, {
+    data: { username: E2E_USERNAME, password: E2E_PASSWORD },
+  });
+  expect(login.ok()).toBeTruthy();
+  const { id: token } = await login.json();
+  const auth = { Authorization: `Bearer ${token}` };
+  const slug = `csp-plugin-${Date.now()}`;
+  const created = await page.request.post(`${SERVER}/api/v1/contents/article`, {
+    headers: auth,
+    data: {
+      title: `Plugin ${slug}`,
+      slug,
+      status: 'published',
+      blocks: [
+        {
+          name: 'core/paragraph',
+          attributes: {},
+          text: 'See [an external page](https://example.org/).',
+        },
+      ],
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+
+  const enable = (enabled: boolean) =>
+    page.request.put(`${SERVER}/api/v1/plugins/official-external-links/enabled`, {
+      headers: auth,
+      data: { enabled },
+    });
+  expect((await enable(true)).ok()).toBeTruthy();
+  try {
+    const response = await page.goto(`${SERVER}/articles/${slug}`);
+    const csp = response!.headers()['content-security-policy'];
+    const scriptSrc = csp.split(';').find((d) => d.trim().startsWith('script-src')) ?? '';
+    // No `unsafe-inline`: the plugin's inline script is allowed by its hash only
+    expect(scriptSrc).not.toContain('unsafe-inline');
+    expect(scriptSrc).toContain("'sha256-");
+    // The script ran: it marks the external link (it adds this class)
+    await expect(page.locator('a[href="https://example.org/"].oel-external')).toBeVisible();
+    expect(scriptViolations(await violations(page))).toEqual([]);
+    expect(errors).toEqual([]);
+  } finally {
+    await enable(false);
+  }
+});
+
+test('a plugin script in the themed-page preview runs by its hash, as on the public site', async ({
+  page,
+}) => {
+  const login = await page.request.post(`${SERVER}/api/v1/auth/session`, {
+    data: { username: E2E_USERNAME, password: E2E_PASSWORD },
+  });
+  expect(login.ok()).toBeTruthy();
+  const { id: token } = await login.json();
+  const auth = { Authorization: `Bearer ${token}` };
+  const enable = (enabled: boolean) =>
+    page.request.put(`${SERVER}/api/v1/plugins/official-external-links/enabled`, {
+      headers: auth,
+      data: { enabled },
+    });
+  expect((await enable(true)).ok()).toBeTruthy();
+  try {
+    const key = 'abcdef0123456789abcdef0123456789';
+    const preview = await page.request.post(`${SERVER}/api/v1/preview`, {
+      headers: auth,
+      data: {
+        content_type: 'article',
+        title: 'Hashed preview',
+        slug: 'hashed-preview',
+        fields: {},
+        frame_key: key,
+        blocks: [
+          { name: 'core/paragraph', attributes: {}, text: 'See [a page](https://example.org/).' },
+        ],
+      },
+    });
+    expect(preview.ok()).toBeTruthy();
+    const { page_url: pageUrl } = await preview.json();
+    expect(pageUrl).toContain(`/preview/frame/${key}`);
+
+    const response = await page.goto(`${SERVER}/api/v1${pageUrl}`);
+    const csp = response!.headers()['content-security-policy'];
+    // The public site's policy plus the sandbox; the hash was stored with the page
+    expect(csp).toContain('sandbox allow-scripts');
+    expect(csp).toContain("'sha256-");
+    expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
+    await expect(page.locator('a[href="https://example.org/"].oel-external')).toBeVisible();
+  } finally {
+    await enable(false);
   }
 });

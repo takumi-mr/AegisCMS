@@ -41,6 +41,8 @@ mod seo;
 mod setup;
 mod site;
 mod state;
+#[cfg(test)]
+mod strict_csp_tests;
 mod system;
 #[cfg(test)]
 mod test_support;

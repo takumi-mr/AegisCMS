@@ -337,6 +337,9 @@ impl PluginSupervisor {
                     );
                 }
                 script_tags.push_str(&injected.html);
+                for body in &injected.inline_bodies {
+                    aegis_core::csp::record_inline_script(body);
+                }
                 // 後のプラグインの前置きほど外側、後置きほど内側（本文を直接書き換えた場合と同じ順）
                 prepend.insert_str(0, &std::mem::take(&mut ctx.prepend_content));
                 append.push_str(&std::mem::take(&mut ctx.append_content));

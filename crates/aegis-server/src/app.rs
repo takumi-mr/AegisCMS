@@ -889,7 +889,19 @@ async fn security_headers_middleware(
     next: axum::middleware::Next,
 ) -> axum::response::Response {
     let path = request.uri().path().to_string();
-    let mut response = next.run(request).await;
+    // Strict CSP（`[security].strict_csp`）のために、このリクエストで信頼できる出どころが出したインラインの
+    // スクリプトのハッシュを集める。応答の本文は名前空間の置き換えを受けるので、ハッシュも置き換えたあとの本文で取る
+    let strict = state.config.security.strict_csp;
+    let (mut response, script_hashes) = if strict == aegis_ast::StrictCsp::Off {
+        (next.run(request).await, Vec::new())
+    } else {
+        let ns = state.config.server.namespace();
+        aegis_core::csp::collect_script_hashes(
+            move |body| crate::namespace::rewrite(body, &ns).into_owned(),
+            next.run(request),
+        )
+        .await
+    };
     let headers_config = state.headers();
     // 有効なプラグインのカスタムブロックが埋め込む iframe の配信元を CSP の frame-src に足す
     let frame_hosts = state.supervisor.read().await.frame_domains();
@@ -929,6 +941,30 @@ async fn security_headers_middleware(
             &captcha_hosts,
             &plugin_csp,
         );
+    }
+
+    // 公開ページの Strict CSP: `unsafe-inline` を外し、インラインのスクリプトはハッシュで許す。
+    // 管理者が CSP を上書きしているときは、その値が優先
+    if !is_admin_ui
+        && strict != aegis_ast::StrictCsp::Off
+        && headers_config.content_security_policy.is_none()
+    {
+        let current = response
+            .headers()
+            .get(axum::http::header::CONTENT_SECURITY_POLICY)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        if let Some(current) = current {
+            let strict_csp = crate::headers::strict_script_csp(&current, &script_hashes);
+            if let Ok(value) = axum::http::HeaderValue::from_str(&strict_csp) {
+                let name = if strict == aegis_ast::StrictCsp::On {
+                    axum::http::header::CONTENT_SECURITY_POLICY
+                } else {
+                    axum::http::HeaderName::from_static("content-security-policy-report-only")
+                };
+                response.headers_mut().insert(name, value);
+            }
+        }
     }
 
     // 管理画面のプレビューのページ: 公開ページと同じ CSP で、不透明なオリジンの中で動かす（管理画面の
