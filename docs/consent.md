@@ -95,7 +95,7 @@ description = "YouTube などの動画を表示します。"
 - 属性(`src`・`async`・`data-*` など)は、実行するときに引き継ぎます。インラインのスクリプトはそのまま実行します。
 - **許可を取り消したとき**(設定を開き直して、許可していた区分をオフにしたとき)は、すでに動いたスクリプトを止められないので、ページを読み込み直します。
 - 公式プラグインの例: [`official-ads`](../plugins/official-ads/)（広告。区分 `marketing`）と [`official-clarity`](../plugins/official-clarity/)（ヒートマップ・画面録画。区分 `analytics`）は、この形で出します。
-- プラグインから出すときも同じです。`on-render-page` で `extra_head` や `content_html` に、上の形の HTML を足します。同意の仕組みをプラグインが知る必要はありません。
+- プラグインから出すときは、`on-render-page` の **`scripts`（構造化した注入）の `consent` に区分を入れる**だけです。ホストが上の形のタグを作ります（プラグインが HTML を組み立てる必要はなく、`extra_head` などに書いた `<script>` はホストが取り除きます。[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）。同意の仕組みをプラグインが知る必要はありません。
 
 ### 2.1 JavaScript から
 

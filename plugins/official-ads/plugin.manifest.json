@@ -14,7 +14,7 @@
     "blocks"
   ],
   "min_aegis_version": "0.1.0",
-  "abi_version": 1,
+  "abi_version": 2,
   "capabilities": {
     "render_page": {
       "input": [
@@ -293,8 +293,8 @@
         "ja": "カスタムヘッダータグ"
       },
       "description": {
-        "en": "Custom tracking or ad network script tags to inject into <head>.",
-        "ja": "<head> に追加で注入する任意の広告スクリプトやタグ。"
+        "en": "Extra tags to inject into <head> (meta, link, style). <script> tags and on* attributes are removed by the host: scripts can only be added by the plugin through its declared script hosts.",
+        "ja": "<head> に追加で注入するタグ（meta・link・style など）。<script> と on* 属性は、ホストが取り除く（スクリプトは、プラグインが宣言したホストのものだけ足せる）。"
       },
       "default": ""
     },
@@ -326,4 +326,3 @@
     }
   ]
 }
-

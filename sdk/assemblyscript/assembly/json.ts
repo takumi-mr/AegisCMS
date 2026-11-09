@@ -2,7 +2,7 @@
  * AegisCMS AssemblyScript Plugin SDK - Lightweight JSON Serialization & Deserialization
  */
 
-import { PostContext, BlockNode, PageRenderContext } from "./types";
+import { PostContext, BlockNode, PageRenderContext, InjectedScript } from "./types";
 
 /**
  * 1 文字ずつ `+=` で連結すると入力の大きさの二乗になる。区間ごとに `substring` して `join` しても
@@ -229,6 +229,28 @@ export function serializePageRenderContext(ctx: PageRenderContext): string {
     + "\"extra_css\":\"" + escapeJson(ctx.extra_css) + "\","
     + "\"extra_head\":\"" + escapeJson(ctx.extra_head) + "\","
     + "\"prepend_content\":\"" + escapeJson(ctx.prepend_content) + "\","
-    + "\"append_content\":\"" + escapeJson(ctx.append_content) + "\""
+    + "\"append_content\":\"" + escapeJson(ctx.append_content) + "\","
+    + "\"scripts\":" + serializeScripts(ctx.scripts)
     + "}";
+}
+
+/** `PageRenderContext.scripts`（構造化した注入）の JSON。ホストが検査して `<script>` のタグにする */
+export function serializeScripts(scripts: InjectedScript[]): string {
+  let out = "[";
+  for (let i = 0; i < scripts.length; i++) {
+    const s = scripts[i];
+    if (i > 0) out += ",";
+    out += "{\"kind\":\"" + escapeJson(s.kind) + "\"";
+    if (s.kind == "external") {
+      out += ",\"url\":\"" + escapeJson(s.url) + "\"";
+      if (s.async_load) out += ",\"async_load\":true";
+      if (s.defer) out += ",\"defer\":true";
+      if (s.crossorigin) out += ",\"crossorigin\":true";
+    } else {
+      out += ",\"code\":\"" + escapeJson(s.code) + "\"";
+    }
+    if (s.consent.length > 0) out += ",\"consent\":\"" + escapeJson(s.consent) + "\"";
+    out += "}";
+  }
+  return out + "]";
 }

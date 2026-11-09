@@ -55,3 +55,9 @@ content_types = "article"                    # 広告を配信するコンテン
   - `custom_html`: `<a href="https://example.com"><img src="https://example.com/banner.png" alt="広告"></a>`
   - `custom_html` が指定された場合は、AdSense よりも優先して表示されます。Cookie 同意バナー連携が有効な場合は、iframe や script に自動で同意属性が付与されます。
 
+
+---
+
+## `custom_head_code` で使えるタグ
+
+`custom_head_code`（管理画面の「カスタムヘッダータグ」）に書いた HTML は、`<head>` にそのまま入りますが、**`<script>` と `on*` 属性（`onload` など）はホストが取り除きます**。スクリプトは、プラグインが宣言したホストのものだけ、プラグイン自身が足せます（AdSense のスクリプトは `client_id` から足されます）。`<meta>`・`<link>`・`<style>` は使えます。経緯は [CSP の方針](../../docs/csp.md)。

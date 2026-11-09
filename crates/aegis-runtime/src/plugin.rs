@@ -1,4 +1,5 @@
 use crate::guard::CapabilityGuard;
+use crate::scripts;
 use aegis_ast::BlockNode;
 use aegis_core::{
     AegisError, BlockDefinition, CommentSubmission, CommentVerdict, Delivered, NotificationMessage,
@@ -9,6 +10,14 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use std::collections::HashMap;
+
+/// 本文が変わったかを見るための安い指紋（長さとハッシュ）。プラグインに渡す前後の比較に使う
+fn content_fingerprint(html: &str) -> (usize, u64) {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    html.hash(&mut hasher);
+    (html.len(), hasher.finish())
+}
 
 #[async_trait]
 pub trait AegisPlugin: Send + Sync {
@@ -279,6 +288,9 @@ impl PluginSupervisor {
         // 空で渡して返った分を貯め、本文との結合は最後に 1 回だけ行う（本文が往復しない）
         let mut prepend = String::new();
         let mut append = String::new();
+        // プラグインが構造化した注入（`scripts`）で足したスクリプトの、検査後のタグ。`extra_head` の
+        // 後ろに最後にまとめて足す（次のプラグインの `<script>` の取り除きに巻き込まれないため）
+        let mut script_tags = String::new();
         for plugin in &self.plugins {
             if plugin
                 .manifest()
@@ -289,7 +301,9 @@ impl PluginSupervisor {
             {
                 ctx.prepend_content.clear();
                 ctx.append_content.clear();
+                ctx.scripts.clear();
                 ctx.content_length = ctx.content_html.len();
+                let content_before = content_fingerprint(&ctx.content_html);
                 match plugin.on_render_page(ctx).await {
                     Ok(updated) => ctx = updated,
                     Err(e) => {
@@ -302,10 +316,37 @@ impl PluginSupervisor {
                         return Err(e);
                     }
                 }
+                let name = plugin.manifest().name.clone();
+                // スクリプトは、構造化した注入でだけ足せる。HTML の断片の中の `<script>` と `on*` 属性は取り除く
+                ctx.extra_head = scripts::strip_scripts(&ctx.extra_head);
+                ctx.prepend_content = scripts::strip_scripts(&ctx.prepend_content);
+                ctx.append_content = scripts::strip_scripts(&ctx.append_content);
+                if content_fingerprint(&ctx.content_html) != content_before {
+                    ctx.content_html = scripts::strip_scripts(&ctx.content_html);
+                }
+                let injected = scripts::render_script_tags(
+                    plugin.manifest(),
+                    &std::mem::take(&mut ctx.scripts),
+                );
+                for reason in &injected.rejected {
+                    tracing::warn!(
+                        target: "aegis::plugin",
+                        "Plugin '{}' on-render-page: a script was dropped: {}",
+                        name,
+                        reason
+                    );
+                }
+                script_tags.push_str(&injected.html);
                 // 後のプラグインの前置きほど外側、後置きほど内側（本文を直接書き換えた場合と同じ順）
                 prepend.insert_str(0, &std::mem::take(&mut ctx.prepend_content));
                 append.push_str(&std::mem::take(&mut ctx.append_content));
             }
+        }
+        if !script_tags.is_empty() {
+            if !ctx.extra_head.is_empty() && !ctx.extra_head.ends_with('\n') {
+                ctx.extra_head.push('\n');
+            }
+            ctx.extra_head.push_str(&script_tags);
         }
         if !prepend.is_empty() || !append.is_empty() {
             prepend.push_str(&ctx.content_html);

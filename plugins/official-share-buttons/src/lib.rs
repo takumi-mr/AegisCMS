@@ -472,13 +472,7 @@ impl Plugin for ShareButtonsPlugin {
             ctx.extra_css.push_str(css());
         }
 
-        let script_tag = format!("<script>{}</script>", SCRIPT);
-        if !ctx.extra_head.contains("osb-btn") {
-            if !ctx.extra_head.is_empty() {
-                ctx.extra_head.push('\n');
-            }
-            ctx.extra_head.push_str(&script_tag);
-        }
+        ctx.scripts.push(InjectedScript::inline(SCRIPT));
 
         // 位置に応じた挿入
         match settings.position {
@@ -529,7 +523,7 @@ mod tests {
             .composed_html()
             .contains("data-tmpl=\"https://x.com/intent/tweet?url=__URL__&text=__TITLE__\""));
         assert!(out.extra_css.contains(".osb-container"));
-        assert!(out.extra_head.contains("osb-btn"));
+        assert!(out.head_html().contains("osb-btn"));
     }
 
     #[test]

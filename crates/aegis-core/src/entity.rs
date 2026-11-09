@@ -104,6 +104,11 @@ pub struct PageRenderContext {
     pub extra_css: String,
     #[serde(default)]
     pub extra_head: String,
+    /// `<head>` に足すスクリプト（構造化した注入。docs/csp.md の 4）。`on-render-page` プラグインの書き込み専用で、
+    /// プラグインには常に空で渡される。ホストが検査して `<script>` のタグにし、全プラグインのあとで
+    /// `extra_head` の後ろに足す。`extra_head` などの HTML の中の `<script>` は、ホストが取り除く
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scripts: Vec<crate::InjectedScript>,
     #[serde(default)]
     pub theme_vars: std::collections::HashMap<String, String>,
     /// 一覧ページ（`index.html`）のページ送り。それ以外のページでは `None`

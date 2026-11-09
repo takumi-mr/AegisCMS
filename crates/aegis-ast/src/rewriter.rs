@@ -311,3 +311,69 @@ mod tests {
         assert!(elapsed.as_millis() < 100);
     }
 }
+
+/// プラグインが返した HTML の断片（`extra_head`・`prepend_content`・`append_content`）から、実行されるものを
+/// 取り除く: `<script>`（中身ごと）と、すべての要素の `on*` 属性（`onload`・`onclick` など）。
+/// スクリプトは、構造化した注入（`PageRenderContext.scripts`）でだけ足せる（docs/csp.md の 4）。
+/// `<link>`・`<meta>`・`<style>` や、ふつうのマークアップは変えない。
+pub fn remove_scripts(html: &str) -> Result<String, RewriterError> {
+    let mut output = Vec::with_capacity(html.len());
+    let settings = Settings::new()
+        .append_element_content_handler(element!("script", |el| {
+            el.remove();
+            Ok(())
+        }))
+        .append_element_content_handler(element!("*", |el| {
+            let handlers: Vec<String> = el
+                .attributes()
+                .iter()
+                .map(|a| a.name())
+                .filter(|name| name.len() > 2 && name.starts_with("on"))
+                .collect();
+            for name in handlers {
+                el.remove_attribute(&name);
+            }
+            Ok(())
+        }));
+    let mut rewriter = HtmlRewriter::new(settings, |chunk: &[u8]| output.extend_from_slice(chunk));
+    rewriter
+        .write(html.as_bytes())
+        .map_err(|e| RewriterError::Engine(e.to_string()))?;
+    rewriter
+        .end()
+        .map_err(|e| RewriterError::Engine(e.to_string()))?;
+    Ok(String::from_utf8(output)?)
+}
+
+#[cfg(test)]
+mod remove_scripts_tests {
+    use super::remove_scripts;
+
+    #[test]
+    fn scripts_and_event_attributes_are_removed_and_the_markup_is_kept() {
+        let html = r#"<meta name="a" content="b"><script>alert(1)</script><link rel="stylesheet" href="/x.css" onload="evil()"><style>p{}</style><SCRIPT src="https://e.example/x.js"></SCRIPT><div onClick="x()" data-on="1" class="c">hi</div>"#;
+        let out = remove_scripts(html).unwrap();
+        assert!(!out.to_lowercase().contains("<script"), "{out}");
+        assert!(
+            !out.contains("alert") && !out.contains("evil") && !out.contains("x()"),
+            "{out}"
+        );
+        assert!(out.contains(r#"<meta name="a" content="b">"#), "{out}");
+        assert!(
+            out.contains(r#"<link rel="stylesheet" href="/x.css">"#),
+            "{out}"
+        );
+        assert!(out.contains("<style>p{}</style>"), "{out}");
+        // `on` で始まらない属性（data-on）と、普通の属性は残る
+        assert!(
+            out.contains(r#"<div data-on="1" class="c">hi</div>"#),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn plain_text_and_empty_input_pass_through() {
+        assert_eq!(remove_scripts("").unwrap(), "");
+        assert_eq!(remove_scripts("<p>one</p>").unwrap(), "<p>one</p>");
+    }
+}

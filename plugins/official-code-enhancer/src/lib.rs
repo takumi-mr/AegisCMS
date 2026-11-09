@@ -15,12 +15,17 @@ use std::fmt::Write as _;
 #[derive(Default)]
 pub struct CodeEnhancerPlugin;
 
-/// Prism（`data-manual` で自動実行を止める。Mermaid のブロックを Prism に渡さないため、
-/// ハイライトは `renderAll` が対象を選んで行う）、コピーボタン、インラインコードの整形
-const CLIENT_SCRIPT: &str = r#"<!-- Code Enhancer Client Bundle -->
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" data-manual></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
-<script>
+/// Prism の本体とオートローダー（`cdn.jsdelivr.net`。マニフェストの `script_domains`）
+const PRISM_URL: &str = "https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js";
+const PRISM_AUTOLOADER_URL: &str =
+    "https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js";
+
+/// Prism より先に実行して、自動のハイライトを止める（Mermaid のブロックを Prism に渡さないため、
+/// ハイライトは `renderAll` が対象を選んで行う）。`<script data-manual>` と同じ（Prism の設定）
+const PRISM_MANUAL: &str = "window.Prism = window.Prism || {}; window.Prism.manual = true;";
+
+/// コピーボタン、インラインコードの整形、Prism の呼び出し
+const CLIENT_SCRIPT: &str = r#"
   (function() {
     window.AegisCodeEnhancer = {
       setThemeUrl: function(url) {
@@ -136,7 +141,6 @@ const CLIENT_SCRIPT: &str = r#"<!-- Code Enhancer Client Bundle -->
       window.AegisCodeEnhancer.renderAll();
     }
   })();
-</script>
 "#;
 
 impl CodeEnhancerPlugin {
@@ -239,15 +243,20 @@ impl Plugin for CodeEnhancerPlugin {
             );
         }
 
-        // Client bundle script
-        head_snippet.push_str(CLIENT_SCRIPT);
-
         if ctx.extra_head.is_empty() {
             ctx.extra_head = head_snippet;
         } else {
             ctx.extra_head.push('\n');
             ctx.extra_head.push_str(&head_snippet);
         }
+
+        // Client bundle: Prism (loaded from the CDN, run by hand), then the enhancer. The host
+        // checks the CDN host against the manifest's `script_domains` and builds the tags
+        ctx.scripts.push(InjectedScript::inline(PRISM_MANUAL));
+        ctx.scripts.push(InjectedScript::external(PRISM_URL));
+        ctx.scripts
+            .push(InjectedScript::external(PRISM_AUTOLOADER_URL));
+        ctx.scripts.push(InjectedScript::inline(CLIENT_SCRIPT));
 
         Ok(ctx)
     }
@@ -300,18 +309,30 @@ mod tests {
         assert!(updated.extra_css.contains("inline-code-enhanced"));
         assert!(updated.extra_css.contains("Dracula Theme"));
 
-        // Checks Script injection: Prism only, started by the bundle (data-manual)
-        assert!(updated.extra_head.contains("AegisCodeEnhancer"));
-        assert!(updated
-            .extra_head
-            .contains(r#"prism.min.js" data-manual></script>"#));
-        assert!(updated.extra_head.contains("prism-autoloader.min.js"));
+        // Checks Script injection: Prism only, started by the bundle. The manual flag runs before
+        // Prism loads (it replaces `<script data-manual>`)
+        assert!(updated.head_html().contains("AegisCodeEnhancer"));
+        assert_eq!(
+            updated.scripts[0],
+            InjectedScript::inline(
+                "window.Prism = window.Prism || {}; window.Prism.manual = true;"
+            )
+        );
+        assert_eq!(updated.scripts[1], InjectedScript::external(PRISM_URL));
+        assert_eq!(
+            updated.scripts[2],
+            InjectedScript::external(PRISM_AUTOLOADER_URL)
+        );
+        assert!(updated.head_html().contains("prism-autoloader.min.js"));
         // Mermaid is official-mermaid's job
-        assert!(!updated.extra_head.to_lowercase().contains("mermaid.min.js"));
-        assert!(!updated.extra_head.contains("mermaid.initialize"));
+        assert!(!updated
+            .head_html()
+            .to_lowercase()
+            .contains("mermaid.min.js"));
+        assert!(!updated.head_html().contains("mermaid.initialize"));
         assert!(!updated.extra_css.contains("mermaid-diagram-container"));
         // Diagrams are skipped by the highlighter and the copy button
-        assert!(updated.extra_head.contains("language-(mermaid|diagram)"));
+        assert!(updated.head_html().contains("language-(mermaid|diagram)"));
     }
 
     /// 本文にコードも `inline code` も無いページには、何も足さない
@@ -322,7 +343,7 @@ mod tests {
         for html in ["", "<p>No code here.</p><h2>Title</h2>"] {
             let updated = plugin.on_render_page(page(html)).unwrap();
             assert!(
-                updated.extra_css.is_empty() && updated.extra_head.is_empty(),
+                updated.extra_css.is_empty() && updated.head_html().is_empty(),
                 "{html:?}"
             );
         }
@@ -330,7 +351,7 @@ mod tests {
         let updated = plugin
             .on_render_page(page("<p>Use `cargo test` here.</p>"))
             .unwrap();
-        assert!(updated.extra_head.contains("AegisCodeEnhancer"));
+        assert!(updated.head_html().contains("AegisCodeEnhancer"));
         assert!(!updated.extra_css.is_empty());
     }
 
@@ -375,7 +396,7 @@ mod tests {
         assert!(updated.extra_css.contains("GitHub Light Theme"));
         // Injected external stylesheet link (the URL is escaped for the attribute)
         assert!(updated
-            .extra_head
+            .head_html()
             .contains(r#"href="https://example.com/custom-prism.css?a=1&amp;b=&quot;2&quot;""#));
     }
 }

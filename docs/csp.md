@@ -5,7 +5,7 @@
 公開サイトと Admin Studio の CSP の、現状と、公開ページを Strict CSP（インラインのスクリプトを許さない）にする設計です。
 
 > [!NOTE]
-> §1〜§2 は実装済みです。**§3 以降は設計だけで、未実装**です（実装の分け方は §7）。
+> §1〜§2 は実装済みです。§4 のうち、**ABI v2（構造化した注入、ホストの検査、`<script>` の取り除き）は実装済み**です。CSP そのもの（ハッシュ、`strict_csp`）は **未実装**です（実装の分け方は §7）。
 
 ---
 
@@ -67,21 +67,19 @@ script-src 'self' 'sha256-<ページごとのインラインのスクリプト�
 // aegis-core
 pub struct InjectedScript {
     pub source: ScriptSource,
-    /// `head`（既定）か `body_end`
-    pub position: ScriptPosition,
     /// 同意の区分（`analytics` など）。あれば、ホストが `type="text/plain" data-aegis-consent="..."` の形で出す
     pub consent: Option<String>,
 }
 
 pub enum ScriptSource {
     /// `<script src="https://..." async defer>`
-    External { url: String, async_load: bool, defer: bool },
+    External { url: String, async_load: bool, defer: bool, crossorigin: bool },
     /// `<script>コード</script>`
     Inline { code: String },
 }
 ```
 
-- `PageRenderContext` に `scripts: Vec<InjectedScript>` を足す（`on-render-page` が返す）。ABI のバージョンを上げる（`abi_version` 2）。
+- `PageRenderContext` に `scripts: Vec<InjectedScript>` を足す（`on-render-page` が返す。位置は `<head>` だけ）。ABI のバージョンを上げる（`abi_version` 2）。外部のスクリプトの URL は、このサイトのパスも宣言なしで通す（`/assets/x.js`）。
 - **`extra_head` / `append_content` / `prepend_content` の中の `<script>` は、ホストが取り除く**（lol-html で解析して落とす。`on*` 属性も落とす）。`<link>`・`<meta>`・`<style>` などは今までどおり。
 - **ホストの検査**（`on-render-page` の結果に対して、タグを作る前）:
   - `External`: `https://` の URL で、ホストがマニフェストの `capabilities.csp.script_domains` にある。属性は、ホストが決めた `src`・`async`・`defer` だけ（`onload` などを書けない。URL は属性として正しくエスケープする）
@@ -120,7 +118,8 @@ pub enum ScriptSource {
 ## 7. 実装の分け方
 
 1. **設計書**（このページ）。
-2. **ABI v2**: `InjectedScript`・`capabilities.inline_scripts`、ホストの検査（lol-html で `<script>` を取り除く・タグを作る）、SDK（Rust・AssemblyScript・TinyGo）とテンプレート・公式プラグイン全部の移行、[plugin_abi_specification.md](plugin_abi_specification.md)・[plugin_hooks.md](plugin_hooks.md)・[versioning.md](versioning.md) の更新。CSP はまだ変えない。
+2. **ABI v2**（**済**）: `InjectedScript`・`capabilities.inline_scripts`、ホストの検査（`aegis_runtime::scripts`。lol-html で `<script>` と `on*` 属性を取り除く・タグを作る）、SDK（Rust・AssemblyScript・TinyGo）、公式プラグイン（`page-toc`・`back-to-top`・`share-buttons`・`lightbox`・`external-links`・`code-lines`・`code-enhancer`・`mermaid`・`ads`・`clarity`）の移行、プラグイン開発サーバーのプレビュー、[plugin_abi_specification.md](plugin_abi_specification.md)・[plugin_hooks.md](plugin_hooks.md)・[versioning.md](versioning.md) の更新。CSP はまだ変えない。
+   - 移行で変わったこと: `official-mermaid` の `script_url` は、このサイトのパスか `cdn.jsdelivr.net` の `https://` だけ（ほかのホストはホストが捨てる）。`official-ads` の `custom_head_code` の `<script>` は使えなくなった（`<meta>`・`<link>` などは使える。スクリプトの安全な足し方は未決）。`official-code-enhancer` の Prism は、`<script data-manual>` の代わりに `window.Prism.manual = true` を先に実行する。
 3. **組み込みテンプレートの外部化**: コメント欄・`onclick`・セットアップ画面。テーマの作り方（[theme_authoring_guide.md](theme_authoring_guide.md)）に、インラインを書かない方針と `inline_script()` を追記。
 4. **ハッシュの収集と CSP**: 出すときに計算したハッシュを応答の CSP に足す。`[security].strict_csp`（`off` / `report-only` / `on`）。`admin/e2e/csp.spec.ts` を `on` でも流す。
 5. **既定を `on` に**（移行の期間のあと）。テーマ・プラグインの移行ガイド。

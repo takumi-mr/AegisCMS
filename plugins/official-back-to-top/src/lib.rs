@@ -234,15 +234,11 @@ impl Plugin for BackToTopPlugin {
         }
         push_line(&mut ctx.extra_css, &css(&settings));
         if settings.fixed {
-            push_line(
-                &mut ctx.extra_head,
-                &format!(
-                    "<script>{}</script>",
-                    SCRIPT
-                        .replace("__SHOW__", &settings.show_after.to_string())
-                        .replace("__SMOOTH__", &settings.smooth_scroll.to_string())
-                ),
-            );
+            ctx.scripts.push(InjectedScript::inline(
+                SCRIPT
+                    .replace("__SHOW__", &settings.show_after.to_string())
+                    .replace("__SMOOTH__", &settings.smooth_scroll.to_string()),
+            ));
         }
         ctx.append_content = format!("\n{}", button_html(&settings));
         Ok(ctx)
@@ -280,7 +276,7 @@ mod tests {
             "<a class=\"obt obt-inline obt-right obt-circle\" href=\"#top\" aria-label=\"Back to top\">"
         ));
         assert!(!out.composed_html().contains("<span>"));
-        assert!(out.extra_head.is_empty());
+        assert!(out.head_html().is_empty());
         assert!(out
             .extra_css
             .contains("min-width:44px;height:44px;background:var(--accent,#6366f1)"));
@@ -303,9 +299,9 @@ mod tests {
         assert!(out.composed_html().contains("<span>トップへ戻る</span>"));
         assert!(!out.composed_html().contains("obt-row"));
         assert!(out.extra_css.contains("a.obt-fixed.obt-left{left:32px}"));
-        assert!(out.extra_head.contains(">800)"));
-        assert!(out.extra_head.contains("'auto':'smooth'"));
-        assert!(!out.extra_head.contains("__"));
+        assert!(out.head_html().contains(">800)"));
+        assert!(out.head_html().contains("'auto':'smooth'"));
+        assert!(!out.head_html().contains("__"));
         mock::reset();
     }
 

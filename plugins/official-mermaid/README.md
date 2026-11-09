@@ -25,7 +25,7 @@ Admin Studio の **Settings › Plugins** のこのプラグインの設定画�
 | --- | --- | --- |
 | `theme` | 図のテーマ。`auto`（ページの背景の明るさで、暗ければ `dark`、明るければ `default`）、`default`、`dark`、`neutral`、`forest` | `auto` |
 | `security_level` | `strict`（図の中の HTML・クリック処理を許さない）、`antiscript`、`loose`、`sandbox`。信頼できる人が書く図のときだけ緩める | `strict` |
-| `script_url` | Mermaid のスクリプトの URL。`http(s)://` か `/` で始まるパス。自分のサイトに置くときは `/assets/mermaid.min.js` のようにする（`'self'` なので CSP の許可は要らない）。別のホストの URL は、サイトの CSP（`[security]`・他のプラグインの宣言）で許可が要る | `https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js` |
+| `script_url` | Mermaid のスクリプトの URL。`/` で始まるパス（自分のサイトに置くときは `/assets/mermaid.min.js` のようにする）か、`https://cdn.jsdelivr.net/...`。**ほかのホストの URL は、ホストが捨てる**（スクリプトは、マニフェストで宣言したホストのものだけ足せる。[csp.md](../../docs/csp.md)） | `https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js` |
 
 不正な値（知らないテーマ・`javascript:` の URL など）は、既定の値になります。
 

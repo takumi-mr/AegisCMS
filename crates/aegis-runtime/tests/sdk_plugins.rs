@@ -25,7 +25,7 @@ fn sdk_plugin_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-fn load(engine: &WasmEngine, dir: &Path) -> WasmPluginInstance {
+fn load(engine: &WasmEngine, dir: &Path) -> Arc<WasmPluginInstance> {
     let manifest = PluginManifest::from_json_with_defaults(
         &std::fs::read_to_string(dir.join("plugin.manifest.json")).unwrap(),
         &PluginResourceLimits::default(),
@@ -33,13 +33,26 @@ fn load(engine: &WasmEngine, dir: &Path) -> WasmPluginInstance {
     .unwrap();
     let wasm = std::fs::read(dir.join(&manifest.entrypoint))
         .unwrap_or_else(|e| panic!("{}: plugin.wasm is not built: {}", dir.display(), e));
-    WasmPluginInstance::from_bytes(
-        engine.clone(),
-        manifest,
-        &wasm,
-        Arc::new(Mutex::new(HashMap::new())),
+    Arc::new(
+        WasmPluginInstance::from_bytes(
+            engine.clone(),
+            manifest,
+            &wasm,
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+        .unwrap_or_else(|e| panic!("{}: {}", dir.display(), e)),
     )
-    .unwrap_or_else(|e| panic!("{}: {}", dir.display(), e))
+}
+
+/// `on-render-page` を、ホストを通して呼ぶ。プラグインが `scripts` で足したスクリプトは、ホストが検査して
+/// `<script>` のタグにし、`extra_head` に入れる（プラグインの出力そのものは `extra_head` に入らない）
+async fn host_render(
+    plugin: &Arc<WasmPluginInstance>,
+    ctx: PageRenderContext,
+) -> PageRenderContext {
+    let mut supervisor = aegis_runtime::PluginSupervisor::new();
+    supervisor.register(plugin.clone());
+    supervisor.apply_render_page(ctx).await.unwrap()
 }
 
 #[tokio::test]
@@ -229,17 +242,31 @@ async fn test_official_reading_plugins_add_to_the_page() {
         ..Default::default()
     };
 
-    // 本文に足す HTML は `append_content` に返り、本文（`content_html`）は変わらない
+    // 本文に足す HTML は `append_content` に返り、本文（`content_html`）は変わらない。スクリプトは
+    // `scripts`（構造化した注入）で返り、ホストを通すと `extra_head` の `<script>` になる
     let toc = load(&engine, &plugins.join("official-page-toc"));
     let rendered = toc.on_render_page(page("article")).await.unwrap();
     assert_eq!(rendered.content_html, body);
     assert!(rendered.append_content.contains("<a href=\"#one\">One</a>"));
     assert!(rendered.append_content.contains("<a href=\"#two\">Two</a>"));
     assert!(rendered.extra_css.contains(".apt{position:fixed"));
-    assert!(rendered.extra_head.starts_with("<script>"));
+    assert!(rendered.extra_head.is_empty());
+    assert!(matches!(
+        rendered.scripts.as_slice(),
+        [aegis_core::InjectedScript {
+            source: aegis_core::ScriptSource::Inline { .. },
+            ..
+        }]
+    ));
+    let hosted = host_render(&toc, page("article")).await;
+    assert!(
+        hosted.extra_head.starts_with("<script>"),
+        "{}",
+        hosted.extra_head
+    );
     let other = toc.on_render_page(page("index")).await.unwrap();
     assert_eq!(other.content_html, page("index").content_html);
-    assert!(other.extra_css.is_empty() && other.extra_head.is_empty());
+    assert!(other.extra_css.is_empty() && other.extra_head.is_empty() && other.scripts.is_empty());
 
     let top = load(&engine, &plugins.join("official-back-to-top"));
     let rendered = top.on_render_page(page("article")).await.unwrap();
@@ -248,7 +275,7 @@ async fn test_official_reading_plugins_add_to_the_page() {
     assert!(rendered.extra_css.contains("a.obt.obt{"));
     let other = top.on_render_page(page("index")).await.unwrap();
     assert_eq!(other.content_html, page("index").content_html);
-    assert!(other.extra_css.is_empty() && other.extra_head.is_empty());
+    assert!(other.extra_css.is_empty() && other.extra_head.is_empty() && other.scripts.is_empty());
 
     let share = load(&engine, &plugins.join("official-share-buttons"));
     let rendered = share.on_render_page(page("article")).await.unwrap();
@@ -257,10 +284,27 @@ async fn test_official_reading_plugins_add_to_the_page() {
     assert!(rendered.append_content.contains("osb-btn-line"));
     assert!(rendered.append_content.contains("osb-btn-copy"));
     assert!(rendered.extra_css.contains(".osb-container"));
-    assert!(rendered.extra_head.contains("osb-btn-copy"));
+    assert!(rendered.head_script_text().contains("osb-btn-copy"));
     let other = share.on_render_page(page("index")).await.unwrap();
     assert_eq!(other.content_html, page("index").content_html);
-    assert!(other.extra_css.is_empty() && other.extra_head.is_empty());
+    assert!(other.extra_css.is_empty() && other.extra_head.is_empty() && other.scripts.is_empty());
+}
+
+trait HeadScriptText {
+    /// 構造化した注入のうち、インラインのスクリプトの本文を全部つなげたもの
+    fn head_script_text(&self) -> String;
+}
+
+impl HeadScriptText for PageRenderContext {
+    fn head_script_text(&self) -> String {
+        self.scripts
+            .iter()
+            .filter_map(|s| match &s.source {
+                aegis_core::ScriptSource::Inline { code } => Some(code.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
 }
 
 /// 公式プラグイン `official-code-lines` / `official-lightbox` / `official-external-links` のビルド済み `plugin.wasm` で、
@@ -295,7 +339,7 @@ async fn test_official_content_plugins_add_to_the_page() {
     ];
     for (name, html, css) in cases {
         let plugin = load(&engine, &plugins.join(name));
-        let rendered = plugin.on_render_page(page(html)).await.unwrap();
+        let rendered = host_render(&plugin, page(html)).await;
         assert_eq!(rendered.content_html, html, "{name} changed the content");
         assert!(
             rendered.extra_css.contains(css),
@@ -304,7 +348,7 @@ async fn test_official_content_plugins_add_to_the_page() {
         );
         assert!(rendered.extra_head.starts_with("<script>"), "{name}");
         let plain = page("<p>Nothing to do</p>");
-        let other = plugin.on_render_page(plain.clone()).await.unwrap();
+        let other = host_render(&plugin, plain.clone()).await;
         assert_eq!(other.content_html, plain.content_html, "{name}");
         assert!(
             other.extra_css.is_empty() && other.extra_head.is_empty(),
@@ -335,14 +379,11 @@ async fn test_official_code_and_diagram_plugins_load_only_when_needed() {
     manifest.validate_settings().unwrap();
     assert_eq!(manifest.csp_script_domains(), ["cdn.jsdelivr.net"]);
     assert!(manifest.capabilities.network.is_none() && manifest.capabilities.storage.is_none());
-    let out = highlight.on_render_page(page(code)).await.unwrap();
+    let out = host_render(&highlight, page(code)).await;
     assert_eq!(out.content_html, code);
     assert!(out.extra_head.contains("prism.min.js"));
     assert!(!out.extra_head.to_lowercase().contains("mermaid.min.js"));
-    let plain = highlight
-        .on_render_page(page("<p>No code</p>"))
-        .await
-        .unwrap();
+    let plain = host_render(&highlight, page("<p>No code</p>")).await;
     assert!(plain.extra_css.is_empty() && plain.extra_head.is_empty());
 
     let mermaid = load(&engine, &plugins.join("official-mermaid"));
@@ -350,14 +391,14 @@ async fn test_official_code_and_diagram_plugins_load_only_when_needed() {
     manifest.validate_csp().unwrap();
     manifest.validate_settings().unwrap();
     assert_eq!(manifest.csp_script_domains(), ["cdn.jsdelivr.net"]);
-    let out = mermaid.on_render_page(page(diagram)).await.unwrap();
+    let out = host_render(&mermaid, page(diagram)).await;
     assert_eq!(out.content_html, diagram);
     assert!(out
         .extra_head
         .contains("mermaid@10.9.3/dist/mermaid.min.js"));
     assert!(out.extra_css.contains(".omd-diagram"));
     for html in [code, "<p>No diagram</p>"] {
-        let other = mermaid.on_render_page(page(html)).await.unwrap();
+        let other = host_render(&mermaid, page(html)).await;
         assert!(
             other.extra_css.is_empty() && other.extra_head.is_empty(),
             "{html}"
@@ -398,10 +439,7 @@ async fn test_official_plantuml_replaces_only_plantuml_blocks() {
         "<pre><code class=\"language-plantuml\">Alice -&gt; Bob : hello</code></pre>".to_string(),
         format!("<pre><code class=\"language-plantuml\">{source}</code></pre>"),
     ] {
-        let out = plantuml
-            .on_render_page(page(&format!("{code}{diagram}")))
-            .await
-            .unwrap();
+        let out = host_render(&plantuml, page(&format!("{code}{diagram}"))).await;
         assert!(out.content_html.starts_with(code));
         assert!(out.content_html.contains(
             "<figure class=\"opu-diagram\"><img src=\"https://www.plantuml.com/plantuml/svg/"
@@ -411,7 +449,7 @@ async fn test_official_plantuml_replaces_only_plantuml_blocks() {
         assert!(out.extra_head.is_empty());
     }
     for html in [code, "<p>No diagram</p>"] {
-        let other = plantuml.on_render_page(page(html)).await.unwrap();
+        let other = host_render(&plantuml, page(html)).await;
         assert_eq!(other.content_html, html);
         assert!(other.extra_css.is_empty() && other.extra_head.is_empty());
     }
@@ -654,13 +692,15 @@ async fn test_official_clarity_plugin_adds_the_tag_behind_consent() {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
         let services: Arc<dyn aegis_runtime::HostServices> = Arc::new(SettingsOnly(map));
-        WasmPluginInstance::from_bytes(
-            WasmEngine::new().unwrap(),
-            manifest.clone(),
-            &wasm,
-            services,
+        Arc::new(
+            WasmPluginInstance::from_bytes(
+                WasmEngine::new().unwrap(),
+                manifest.clone(),
+                &wasm,
+                services,
+            )
+            .unwrap(),
         )
-        .unwrap()
     };
     let page = |template: &str| PageRenderContext {
         template: template.to_string(),
@@ -669,18 +709,11 @@ async fn test_official_clarity_plugin_adds_the_tag_behind_consent() {
     };
 
     // プロジェクト ID が無ければ何も足さない
-    let off = plugin(&[])
-        .on_render_page(page("article.html"))
-        .await
-        .unwrap();
+    let off = host_render(&plugin(&[]), page("article.html")).await;
     assert!(off.extra_head.is_empty());
 
     let on = plugin(&[("project_id", "abc123xyz9")]);
-    let head = on
-        .on_render_page(page("article.html"))
-        .await
-        .unwrap()
-        .extra_head;
+    let head = host_render(&on, page("article.html")).await.extra_head;
     assert!(head.contains(r#"type="text/plain""#), "{head}");
     assert!(head.contains(r#"data-aegis-consent="analytics""#), "{head}");
     assert!(head.contains("https://www.clarity.ms/tag/"), "{head}");
@@ -693,11 +726,7 @@ async fn test_official_clarity_plugin_adds_the_tag_behind_consent() {
         "forum_thread.html",
     ] {
         assert!(
-            on.on_render_page(page(template))
-                .await
-                .unwrap()
-                .extra_head
-                .is_empty(),
+            host_render(&on, page(template)).await.extra_head.is_empty(),
             "{template}"
         );
     }
@@ -705,10 +734,5 @@ async fn test_official_clarity_plugin_adds_the_tag_behind_consent() {
     restricted
         .fields
         .insert("access".to_string(), serde_json::json!("paid"));
-    assert!(on
-        .on_render_page(restricted)
-        .await
-        .unwrap()
-        .extra_head
-        .is_empty());
+    assert!(host_render(&on, restricted).await.extra_head.is_empty());
 }

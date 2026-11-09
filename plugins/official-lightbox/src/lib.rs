@@ -207,13 +207,9 @@ impl Plugin for LightboxPlugin {
             "t": settings.texts(),
         });
         push_line(&mut ctx.extra_css, &css(&settings));
-        push_line(
-            &mut ctx.extra_head,
-            &format!(
-                "<script>{}</script>",
-                SCRIPT.replace("__CONFIG__", &script_json(&config))
-            ),
-        );
+        ctx.scripts.push(InjectedScript::inline(
+            SCRIPT.replace("__CONFIG__", &script_json(&config)),
+        ));
         Ok(ctx)
     }
 }
@@ -245,11 +241,11 @@ mod tests {
         assert!(out.extra_css.contains("dialog.olb{"));
         assert!(out.extra_css.contains("background:rgba(0,0,0,.88)"));
         assert!(out.extra_css.contains("olb-fade"));
-        assert!(out.extra_head.starts_with("<script>"));
-        assert!(out.extra_head.contains("\"min\":120"));
-        assert!(out.extra_head.contains("\"selector\":\".prose\""));
-        assert!(out.extra_head.contains("\"close\":\"Close\""));
-        assert!(!out.extra_head.contains("__CONFIG__"));
+        assert!(out.head_html().starts_with("<script>"));
+        assert!(out.head_html().contains("\"min\":120"));
+        assert!(out.head_html().contains("\"selector\":\".prose\""));
+        assert!(out.head_html().contains("\"close\":\"Close\""));
+        assert!(!out.head_html().contains("__CONFIG__"));
     }
 
     #[test]
@@ -269,8 +265,8 @@ mod tests {
         mock::reset();
         mock::set_config("locale", "ja");
         let out = render(page());
-        assert!(out.extra_head.contains("\"close\":\"閉じる\""));
-        assert!(out.extra_head.contains("\"next\":\"次の画像\""));
+        assert!(out.head_html().contains("\"close\":\"閉じる\""));
+        assert!(out.head_html().contains("\"next\":\"次の画像\""));
         mock::reset();
     }
 
@@ -284,8 +280,8 @@ mod tests {
         let out = render(page());
         assert!(!out.extra_css.contains("olb-fade"));
         assert!(out.extra_css.contains("background:#000;"));
-        assert!(out.extra_head.contains("\"caption\":false"));
-        assert!(out.extra_head.contains("\"min\":300"));
+        assert!(out.head_html().contains("\"caption\":false"));
+        assert!(out.head_html().contains("\"min\":300"));
         mock::reset();
     }
 
@@ -298,8 +294,8 @@ mod tests {
         let out = render(page());
         assert!(!out.extra_css.contains("body{display:none"));
         assert!(out.extra_css.contains("background:rgba(0,0,0,.88)"));
-        assert!(out.extra_head.contains("\"min\":120"));
-        assert!(out.extra_head.contains("\"selector\":\".prose\""));
+        assert!(out.head_html().contains("\"min\":120"));
+        assert!(out.head_html().contains("\"selector\":\".prose\""));
         mock::reset();
     }
 
@@ -308,7 +304,7 @@ mod tests {
         mock::reset();
         mock::set_config("selector", "</script><script>alert(1)</script>");
         let out = render(page());
-        assert_eq!(out.extra_head.matches("</script>").count(), 1);
+        assert_eq!(out.head_html().matches("</script>").count(), 1);
         mock::reset();
     }
 }
