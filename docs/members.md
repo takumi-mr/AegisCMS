@@ -24,6 +24,7 @@
 | `GET /api/v1/members/reviews` | 自分のレビュー |
 | `GET` / `POST /api/v1/products/{product_id}/reviews` | 商品のレビュー（公開済みの一覧・投稿） |
 | `GET /api/v1/admin/members`・`/{id}`、`PATCH` | 会員の一覧・詳細・状態（`active` / `suspended`）の変更（`editor` 以上） |
+| `PUT /api/v1/admin/members/{id}/level` | 会員の権限レベルの変更（`admin` のみ。§15） |
 | `/api/v1/admin/reviews`・`/settings`・`/bulk`・`/{id}`・`/{id}/reply` | レビューの管理（承認・一括・返信・設定） |
 
 - 認証は `Authorization: Bearer mses_...`（API のクライアント向け）。セッションはキャッシュに置き、既定で 30 日。
@@ -346,7 +347,7 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 
 ---
 
-## 15. 閲覧の制限（会員レベル）（設計。未実装）
+## 15. 閲覧の制限（会員レベル）
 
 有料メンバー限定のページや、「ここから先は有料」の記事を作る仕組みです。**閲覧の制御**（このページ）と**レベルを付ける手段**（決済・商品購入との連動）は切り離し、先に前者を作ります。
 
@@ -394,7 +395,7 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 
 ### 15.7 実装の分け方
 
-1. **判定の核**: `[members].levels`、会員の `level`（列・API・管理画面での付与）、記事・ページの `access`、閲覧者の種類の判定（Cookie / Bearer から）。
+1. **判定の核**（会員側は**済**）: `[members].levels`、会員の `level`（列 `_aegis_members.level`・API の応答・`PUT /api/v1/admin/members/{id}/level`・管理画面の会員の詳細で付与）、判定の関数 `aegis_members::may_view`（`Viewer` と必要なレベルから見られるかを返す。設定にないレベルは見せない）。記事・ページの `access` の欄と、閲覧者の種類の判定（Cookie / Bearer から）は 2 で、公開ページに効かせるときに足す。
 2. **公開ページ**: 記事・ページを閲覧者で切る（全体の制限）、案内の表示、キャッシュの扱い（15.5）、テスト。
 3. **「ここから先」**: 区切りのブロック（core・Markdown との往復・エディター）、本文の切り出し。
 4. **漏れ口を塞ぐ**: フィード・検索・関連記事・ヘッドレス API・構造化データ（15.4）、回帰テスト（制限した本文が、どの面にも出ない）。

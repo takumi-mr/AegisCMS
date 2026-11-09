@@ -104,6 +104,7 @@
     "triggerBrokenLinksScanFailed": "Failed to start broken links scan",
     "membersFailed": "Failed to fetch members",
     "memberFailed": "Failed to fetch the member",
+    "setMemberLevelFailed": "Failed to change the access level",
     "setMemberStatusFailed": "Failed to change the member status",
     "reviewsFailed": "Failed to fetch reviews",
     "moderateReviewFailed": "Failed to update the review",
@@ -747,6 +748,7 @@
     "empty": "Nobody has signed up yet.",
     "columns": {
       "member": "Member",
+      "level": "Level",
       "status": "Status",
       "registered": "Signed up",
       "lastLogin": "Last login"
@@ -759,6 +761,8 @@
     "newer": "Newer",
     "older": "Older",
     "range": "{{from}}–{{to}} of {{total}}",
+    "level": "Access level",
+    "levelChanged": "Access level changed to {{level}}",
     "registeredAt": "Signed up {{date}}",
     "suspend": "Suspend",
     "reactivate": "Reactivate",

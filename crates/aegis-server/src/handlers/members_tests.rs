@@ -644,3 +644,74 @@ async fn test_member_avatar_over_http() {
     let (status, _) = put_avatar(&ctx, "mses_invalid", png).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
+
+async fn put_level(ctx: &TestContext, member_id: &str, level: &str) -> StatusCode {
+    ctx.app
+        .clone()
+        .oneshot(
+            Request::put(format!("/api/v1/admin/members/{member_id}/level"))
+                .header("authorization", format!("Bearer {}", ctx.admin_token))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({ "level": level }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .status()
+}
+
+#[tokio::test]
+async fn test_member_level_is_granted_by_an_admin_over_http() {
+    let ctx = setup_app_with(|c| c.members.levels = vec!["free".into(), "gold".into()]).await;
+    let res = post_json(
+        &ctx,
+        "/api/v1/members/register",
+        registration("level@example.com"),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let body = json_response(res).await;
+    let member_id = body["member"]["id"].as_str().unwrap().to_string();
+    assert_eq!(body["member"]["level"], "free");
+
+    // 設定にないレベルは 400。会員のトークンでは通らない
+    assert_eq!(
+        put_level(&ctx, &member_id, "paid").await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        put_level(&ctx, "nobody", "gold").await,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        put_level(&ctx, &member_id, "gold").await,
+        StatusCode::NO_CONTENT
+    );
+
+    let res = post_json(
+        &ctx,
+        "/api/v1/members/login",
+        json!({ "email": "level@example.com", "password": "password123" }),
+    )
+    .await;
+    let login = json_response(res).await;
+    assert_eq!(login["member"]["level"], "gold");
+    let token = login["token"].as_str().unwrap();
+    let res = ctx
+        .app
+        .clone()
+        .oneshot(
+            Request::put(format!("/api/v1/admin/members/{member_id}/level"))
+                .header("authorization", format!("Bearer {token}"))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({ "level": "free" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        res.status() == StatusCode::UNAUTHORIZED || res.status() == StatusCode::FORBIDDEN,
+        "{}",
+        res.status()
+    );
+}

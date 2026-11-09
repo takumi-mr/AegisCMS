@@ -14,7 +14,7 @@ use serde_json::json;
 
 use crate::audit::ClientIp;
 use crate::auth::authorize::RequireRole;
-use crate::auth::EditorSession;
+use crate::auth::{AdminSession, EditorSession};
 use crate::state::AppState;
 use aegis_core::{AegisError, NotificationEvent, Recipient};
 use aegis_members::{
@@ -822,6 +822,27 @@ pub struct PatchMemberStatusRequest {
     pub status: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SetMemberLevelRequest {
+    pub level: String,
+}
+
+/// `PUT /api/v1/admin/members/{id}/level` — 管理者: 会員の権限レベルを変える（有料メンバー限定の閲覧制御。
+/// docs/members.md 15）。有料の付与にあたるので、`admin` だけ
+pub async fn admin_set_member_level(
+    RequireRole(session): AdminSession,
+    State(state): State<Arc<AppState>>,
+    Path(member_id): Path<String>,
+    Json(req): Json<SetMemberLevelRequest>,
+) -> Result<StatusCode, ApiError> {
+    let service = members(&state)?;
+    service
+        .admin_set_level(&member_id, req.level.trim(), &session.user_id)
+        .await
+        .map_err(map_aegis_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// `GET /api/v1/admin/members` — 管理者: 会員一覧
 pub async fn admin_list_members(
     RequireRole(_session): EditorSession,
@@ -890,6 +911,8 @@ pub async fn admin_get_member(
 
     Ok(Json(json!({
         "member": member,
+        // 付与できるレベル（低 → 高）。管理画面の選択肢
+        "levels": service.levels(),
         "orders": orders,
         "forum": forum,
     })))

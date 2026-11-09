@@ -23,6 +23,40 @@ mod tests {
         (service, db)
     }
 
+    /// 新規会員は最も低いレベルで始まり、管理者が設定にあるレベルへ変えられる（設定に無いレベルは断る）
+    #[tokio::test]
+    async fn test_member_level_starts_low_and_is_granted_by_an_admin() {
+        let (service, _db) = setup_service().await;
+        let service = service.with_levels(vec!["free".into(), "gold".into()]);
+        let member = service
+            .register(
+                MemberRegisterRequest {
+                    email: "lv@example.com".to_string(),
+                    password: "password123".to_string(),
+                    name: "Member".to_string(),
+                    phone: None,
+                    shipping_address: None,
+                },
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(member.level, "free");
+        assert_eq!(service.get_profile(&member.id).await.unwrap().level, "free");
+
+        let err = service.admin_set_level(&member.id, "paid", "admin-1").await;
+        assert!(matches!(err, Err(aegis_core::AegisError::Validation(_))));
+        let missing = service.admin_set_level("nobody", "gold", "admin-1").await;
+        assert!(matches!(missing, Err(aegis_core::AegisError::NotFound(_))));
+
+        service
+            .admin_set_level(&member.id, "gold", "admin-1")
+            .await
+            .unwrap();
+        assert_eq!(service.get_profile(&member.id).await.unwrap().level, "gold");
+    }
+
     /// アバターのキーは、会員 ID の一覧からまとめて引ける（画像のある会員だけ。重複・空は問題ない）
     #[tokio::test]
     async fn test_avatar_keys_are_loaded_in_one_query() {

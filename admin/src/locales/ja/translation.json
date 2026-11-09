@@ -104,6 +104,7 @@
     "triggerBrokenLinksScanFailed": "リンク切れ検査の開始に失敗しました",
     "membersFailed": "会員を取得できませんでした",
     "memberFailed": "会員を取得できませんでした",
+    "setMemberLevelFailed": "閲覧レベルを変えられませんでした",
     "setMemberStatusFailed": "会員の状態を変更できませんでした",
     "reviewsFailed": "レビューを取得できませんでした",
     "moderateReviewFailed": "レビューを更新できませんでした",
@@ -737,6 +738,7 @@
     "empty": "まだ登録している人はいません。",
     "columns": {
       "member": "会員",
+      "level": "レベル",
       "status": "状態",
       "registered": "登録日",
       "lastLogin": "最終ログイン"
@@ -749,6 +751,8 @@
     "newer": "新しい",
     "older": "古い",
     "range": "{{total}} 件中 {{from}}〜{{to}} 件",
+    "level": "閲覧レベル",
+    "levelChanged": "閲覧レベルを {{level}} に変えました",
     "registeredAt": "{{date}} に登録",
     "suspend": "停止する",
     "reactivate": "再開する",
