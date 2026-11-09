@@ -2,6 +2,7 @@ pub mod codegen;
 pub mod definition;
 pub mod loader;
 pub mod migration;
+pub mod query;
 
 pub use codegen::{OpenApiGenerator, TypeScriptGenerator};
 pub use definition::{
@@ -10,6 +11,7 @@ pub use definition::{
 };
 pub use loader::SchemaLoader;
 pub use migration::{SchemaMigration, SqlDialect};
+pub use query::{load_queries, QueryDefinition, QueryLimits, QueryMode};
 
 #[cfg(test)]
 mod tests {

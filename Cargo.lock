@@ -568,6 +568,7 @@ name = "aegis-schema"
 version = "0.5.0"
 dependencies = [
  "aegis-core",
+ "chrono",
  "serde",
  "serde_json",
  "serde_yaml",
