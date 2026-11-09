@@ -9,7 +9,8 @@
 
 ## 直近の着手タスク
 
-- [ ] **宣言的クエリ（集計・条件つき一覧）の実装**: 設計は [queries.md](docs/queries.md)。順序: ① `aegis-schema` に定義のパーサーと起動時検証 → ② 各 DB アダプタで実行（バインド変数、公開版・`access` 空の条件を必ず付与）→ ③ テーマの文脈と `on_render_page` への注入 → ④ キャッシュと型単位の無効化 → ⑤ `architecture.md` への設計判断の追記。設計の未解決点は queries.md の 8。
+- [ ] **宣言的クエリ（集計・条件つき一覧）の実装**: 設計は [queries.md](docs/queries.md)。①（`aegis-schema` の定義・検証）と②（`aegis-db` の副表と実行。3 DB で実機確認済み）は済。残り: ③ サーバー（`[queries]` 設定、起動時の読み込みと `configure_published_columns`、`timezone`、リレーション列の `group_by` で参照先の title / slug を付ける、テーマの文脈と `on_render_page` への注入）→ ④ キャッシュと型単位の無効化 → ⑤ `architecture.md` への設計判断の追記・`configuration.md` への `[queries]`・ユーザー向けの使い方（`ne` は NULL を含まない、作業版の編集は公開版を更新するまで出ない）。設計の未解決点は queries.md の 8。
+  - 申し送り: `timezone` は未実装（副表の日時は UTC 固定。`chrono-tz` の追加が要る）。`task restore` で DB を差し替えたあとは副表が古いままになりうる（定義が同じだと作り直さない）ので、復元後に副表を作り直す手段が要る。共有の MySQL コンテナを使い回すと、既存の統合テストが migration 2（`level` 列の重複）で落ちる（コンテナを作り直せば通る）。`cargo clippy --workspace --all-targets` は `aegis-core` / `aegis-ast` の既存コードで警告が出る。
 
 ---
 
