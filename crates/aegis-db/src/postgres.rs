@@ -24,14 +24,22 @@ async fn apply_publication_change(
     versions: &[ContentVersionRecord],
     revisions: &[i64],
     change: ContentPublicationChange,
+    plan: &crate::published_columns::PublishedColumnsPlan,
 ) -> Result<()> {
     let index = match change {
         ContentPublicationChange::Keep => return Ok(()),
         ContentPublicationChange::Unpublish => {
             if let Some(version) = versions.first() {
                 sqlx::query("DELETE FROM _aegis_content_publications WHERE content_type = $1 AND content_id = $2")
-                    .bind(&version.content_type).bind(&version.content_id).execute(connection).await
+                    .bind(&version.content_type).bind(&version.content_id).execute(&mut *connection).await
                     .map_err(|e| AegisError::Database(e.to_string()))?;
+                PostgresAdapter::delete_published_row(
+                    connection,
+                    plan,
+                    &version.content_type,
+                    &version.content_id,
+                )
+                .await?;
             }
             return Ok(());
         }
@@ -63,7 +71,8 @@ async fn apply_publication_change(
         .bind(&version.content_type).bind(&version.content_id).bind(revision).bind(&record.slug).bind(&record.title)
         .bind(&record.status).bind(&record.published_at).bind(&record.unpublish_at).bind(&record.created_at).bind(&record.updated_at)
         .bind(&category_id).bind(&sort_at)
-        .execute(connection).await.map_err(|e| AegisError::Database(e.to_string()))?;
+        .execute(&mut *connection).await.map_err(|e| AegisError::Database(e.to_string()))?;
+    PostgresAdapter::write_published_row(connection, plan, &record).await?;
     Ok(())
 }
 
@@ -73,6 +82,7 @@ pub(crate) static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("migrations
 #[derive(Debug, Clone)]
 pub struct PostgresAdapter {
     pool: Pool<Postgres>,
+    published: crate::published_exec::SharedPlan,
 }
 
 impl PostgresAdapter {
@@ -88,7 +98,10 @@ impl PostgresAdapter {
 
     #[allow(dead_code)]
     pub fn new(pool: Pool<Postgres>) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            published: crate::published_exec::new_shared_plan(),
+        }
     }
 
     /// 公開の記録の一覧用の索引を用意する
@@ -189,6 +202,14 @@ super::forum::impl_forum_storage!(PostgresAdapter, |i| format!("${}", i), "Postg
 super::members::impl_member_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::reviews::impl_review_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 
+crate::published_exec::impl_published_columns!(
+    PostgresAdapter,
+    SqlDialect::Postgres,
+    PgConnection,
+    |b: bool| b,
+    bool
+);
+
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
     async fn init(&self) -> Result<()> {
@@ -287,6 +308,22 @@ impl DatabaseAdapter for PostgresAdapter {
             }
         }
         Ok(())
+    }
+
+    async fn configure_published_columns(
+        &self,
+        plan: crate::published_columns::PublishedColumnsPlan,
+    ) -> Result<()> {
+        self.configure_published(plan).await
+    }
+
+    async fn run_query(
+        &self,
+        query: &aegis_schema::QueryDefinition,
+        schema: &SchemaDefinition,
+        max_limit: usize,
+    ) -> Result<crate::published_exec::QueryRows> {
+        self.run_published_query(query, schema, max_limit).await
     }
 
     async fn insert_content(
@@ -441,7 +478,14 @@ impl DatabaseAdapter for PostgresAdapter {
                 .map_err(|e| AegisError::Database(e.to_string()))?;
             revisions.push(revision);
         }
-        apply_publication_change(&mut tx, versions, &revisions, publication).await?;
+        apply_publication_change(
+            &mut tx,
+            versions,
+            &revisions,
+            publication,
+            &crate::published_exec::current_plan(&self.published),
+        )
+        .await?;
         tx.commit()
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -548,7 +592,14 @@ impl DatabaseAdapter for PostgresAdapter {
                 .map_err(|e| AegisError::Database(e.to_string()))?;
             revisions.push(revision);
         }
-        apply_publication_change(&mut tx, versions, &revisions, publication).await?;
+        apply_publication_change(
+            &mut tx,
+            versions,
+            &revisions,
+            publication,
+            &crate::published_exec::current_plan(&self.published),
+        )
+        .await?;
         tx.commit()
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -733,6 +784,7 @@ impl DatabaseAdapter for PostgresAdapter {
             &[version],
             &[revision],
             ContentPublicationChange::PublishVersion(0),
+            &crate::published_exec::current_plan(&self.published),
         )
         .await?;
         tx.commit()
@@ -775,6 +827,13 @@ impl DatabaseAdapter for PostgresAdapter {
         .execute(&mut *tx)
         .await
         .map_err(|e| AegisError::Database(e.to_string()))?;
+        PostgresAdapter::delete_published_row(
+            &mut tx,
+            &crate::published_exec::current_plan(&self.published),
+            &schema.content_type,
+            id,
+        )
+        .await?;
         tx.commit()
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -801,6 +860,13 @@ impl DatabaseAdapter for PostgresAdapter {
         .execute(&mut *tx)
         .await
         .map_err(db_err)?;
+        PostgresAdapter::delete_published_row(
+            &mut tx,
+            &crate::published_exec::current_plan(&self.published),
+            &schema.content_type,
+            id,
+        )
+        .await?;
         tx.commit().await.map_err(db_err)?;
         Ok(result.rows_affected() > 0)
     }

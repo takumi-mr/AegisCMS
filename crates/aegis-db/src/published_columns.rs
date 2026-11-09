@@ -26,10 +26,29 @@ pub fn published_table_name(content_type: &str) -> String {
 /// 副表の定義の控え（`signature`）を持つ表
 pub const PUBLISHED_META_TABLE: &str = "_aegis_published_meta";
 
+/// NULL の型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NullKind {
+    Text,
+    Int,
+    Bool,
+}
+
+impl NullKind {
+    pub fn of(field_type: FieldType) -> Self {
+        match field_type {
+            FieldType::Integer => NullKind::Int,
+            FieldType::Boolean => NullKind::Bool,
+            _ => NullKind::Text,
+        }
+    }
+}
+
 /// バインドする値
 #[derive(Debug, Clone, PartialEq)]
 pub enum PubValue {
-    Null,
+    /// 型つきの NULL（PostgreSQL は、型の違う NULL を列に入れられない）
+    Null(NullKind),
     Text(String),
     Int(i64),
     Bool(bool),
@@ -214,25 +233,24 @@ fn column_value(col: &PublishedColumn, record: &ContentRecord) -> PubValue {
         "updated_at" => Some(Value::String(record.updated_at.clone())),
         other => record.custom_fields.get(other).cloned(),
     };
+    let null = PubValue::Null(NullKind::of(col.field_type));
     let Some(value) = json else {
-        return PubValue::Null;
+        return null;
     };
     match (col.field_type, value) {
-        (_, Value::Null) => PubValue::Null,
+        (_, Value::Null) => null,
         (FieldType::String | FieldType::Relation, Value::String(s)) => PubValue::Text(s),
-        (FieldType::Integer, Value::Number(n)) => n.as_i64().map_or(PubValue::Null, PubValue::Int),
-        (FieldType::Integer, Value::String(s)) => {
-            s.trim().parse().map_or(PubValue::Null, PubValue::Int)
-        }
+        (FieldType::Integer, Value::Number(n)) => n.as_i64().map_or(null, PubValue::Int),
+        (FieldType::Integer, Value::String(s)) => s.trim().parse().map_or(null, PubValue::Int),
         (FieldType::Boolean, Value::Bool(b)) => PubValue::Bool(b),
         (FieldType::Boolean, Value::Number(n)) => PubValue::Bool(n.as_i64().unwrap_or(0) != 0),
         (FieldType::Boolean, Value::String(s)) => {
             PubValue::Bool(matches!(s.as_str(), "1" | "true"))
         }
         (FieldType::Timestamp, Value::String(s)) => {
-            normalize_timestamp(&s).map_or(PubValue::Null, PubValue::Text)
+            normalize_timestamp(&s).map_or(null, PubValue::Text)
         }
-        _ => PubValue::Null,
+        _ => null,
     }
 }
 
@@ -311,14 +329,13 @@ fn agg_expr(dialect: SqlDialect, func: AggFn, col: Option<&str>) -> (String, Out
 /// 値を列の型に合わせてバインド値にする（検証済みの定義が前提）
 fn bind_value(ty: FieldType, v: &serde_yaml::Value) -> PubValue {
     use serde_yaml::Value as Y;
+    let null = PubValue::Null(NullKind::of(ty));
     match (ty, v) {
-        (FieldType::Integer, Y::Number(n)) => n.as_i64().map_or(PubValue::Null, PubValue::Int),
+        (FieldType::Integer, Y::Number(n)) => n.as_i64().map_or(null, PubValue::Int),
         (FieldType::Boolean, Y::Bool(b)) => PubValue::Bool(*b),
-        (FieldType::Timestamp, Y::String(s)) => {
-            normalize_timestamp(s).map_or(PubValue::Null, PubValue::Text)
-        }
+        (FieldType::Timestamp, Y::String(s)) => normalize_timestamp(s).map_or(null, PubValue::Text),
         (_, Y::String(s)) => PubValue::Text(s.clone()),
-        _ => PubValue::Null,
+        _ => null,
     }
 }
 
@@ -457,28 +474,38 @@ pub fn build_query(
                 }
                 outs.push((s.as_name.clone(), expr, kind));
             }
-            let select: Vec<String> = outs.iter().map(|(_, e, _)| text_cast(dialect, e)).collect();
+            // 内側で型どおりに集計し（`GROUP BY` と同じ式を選ぶ）、外側で文字列にして並べ替える。
+            // MySQL（ONLY_FULL_GROUP_BY）は、`CAST` で包んだ式を `GROUP BY` の式と同じとは見なさないため
+            let inner_select: Vec<String> = outs
+                .iter()
+                .enumerate()
+                .map(|(i, (_, expr, _))| format!("{expr} AS c{i}"))
+                .collect();
+            let mut inner = format!(
+                "SELECT {} {join} WHERE {}",
+                inner_select.join(", "),
+                wheres.join(" AND ")
+            );
+            if !group_exprs.is_empty() {
+                inner.push_str(&format!(" GROUP BY {}", group_exprs.join(", ")));
+            }
+            let outer_select: Vec<String> = (0..outs.len())
+                .map(|i| text_cast(dialect, &format!("t.c{i}")))
+                .collect();
             let mut order = Vec::new();
             for o in &def.order_by {
-                if let Some((_, expr, _)) = outs.iter().find(|(n, _, _)| *n == o.field) {
+                if let Some(i) = outs.iter().position(|(n, _, _)| *n == o.field) {
                     order.push(format!(
-                        "({expr}) IS NULL ASC, {expr} {}",
+                        "(t.c{i}) IS NULL ASC, t.c{i} {}",
                         dir_sql(o.direction())
                     ));
                 }
             }
             // 同順位は、区切りの値の昇順で決める
-            for g in &group_exprs {
-                order.push(format!("{g} ASC"));
+            for i in 0..group_exprs.len() {
+                order.push(format!("t.c{i} ASC"));
             }
-            let mut sql = format!(
-                "SELECT {} {join} WHERE {}",
-                select.join(", "),
-                wheres.join(" AND ")
-            );
-            if !group_exprs.is_empty() {
-                sql.push_str(&format!(" GROUP BY {}", group_exprs.join(", ")));
-            }
+            let mut sql = format!("SELECT {} FROM ({inner}) t", outer_select.join(", "));
             if !order.is_empty() {
                 sql.push_str(&format!(" ORDER BY {}", order.join(", ")));
             }
@@ -655,7 +682,10 @@ mod tests {
             ]
         );
         let missing = record(&[], Some("public"));
-        assert_eq!(t.values_for(&missing).unwrap()[0], PubValue::Null);
+        assert_eq!(
+            t.values_for(&missing).unwrap()[0],
+            PubValue::Null(NullKind::Bool)
+        );
         assert!(t.values_for(&record(&[], Some("gold"))).is_none());
     }
 
@@ -673,11 +703,14 @@ mod tests {
         .unwrap();
         assert_eq!(
             built.sql,
-            "SELECT CAST(SUBSTR(s.published_at, 1, 7) AS TEXT), CAST(COUNT(*) AS TEXT), CAST(CAST(SUM(s.price) AS BIGINT) AS TEXT) \
-             FROM _aegis_published_product s JOIN _aegis_content_publications p ON p.content_id = s.content_id \
-             WHERE p.content_type = $1 AND p.status = 'published' AND s.brand IN ($2, $3) AND s.price >= $4 \
-             GROUP BY SUBSTR(s.published_at, 1, 7) \
-             ORDER BY (SUBSTR(s.published_at, 1, 7)) IS NULL ASC, SUBSTR(s.published_at, 1, 7) DESC, SUBSTR(s.published_at, 1, 7) ASC LIMIT 12"
+            concat!(
+                "SELECT CAST(t.c0 AS TEXT), CAST(t.c1 AS TEXT), CAST(t.c2 AS TEXT) FROM (",
+                "SELECT SUBSTR(s.published_at, 1, 7) AS c0, COUNT(*) AS c1, CAST(SUM(s.price) AS BIGINT) AS c2 ",
+                "FROM _aegis_published_product s JOIN _aegis_content_publications p ON p.content_id = s.content_id ",
+                "WHERE p.content_type = $1 AND p.status = 'published' AND s.brand IN ($2, $3) AND s.price >= $4 ",
+                "GROUP BY SUBSTR(s.published_at, 1, 7)) t ",
+                "ORDER BY (t.c0) IS NULL ASC, t.c0 DESC, t.c0 ASC LIMIT 12"
+            )
         );
         assert_eq!(
             built.binds,

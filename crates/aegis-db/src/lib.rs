@@ -12,6 +12,7 @@ pub mod notifications;
 pub mod orders;
 pub mod postgres;
 pub mod published_columns;
+pub mod published_exec;
 pub mod reviews;
 pub mod sqlite;
 pub mod sqlx_compat;
@@ -533,6 +534,29 @@ pub trait DatabaseAdapter:
 
     /// Apply schema migrations dynamically across dialects
     async fn run_migrations(&self, schemas: &HashMap<String, SchemaDefinition>) -> Result<()>;
+
+    /// 宣言的クエリが読む公開側の列（型ごとの副表）を用意する。定義が変わった副表は作り直して、
+    /// 公開中のスナップショットから埋める。以後の公開・取り下げ・削除は、同じトランザクションで副表を更新する。
+    /// 既定は何もしない（副表を持たない実装）
+    async fn configure_published_columns(
+        &self,
+        _plan: published_columns::PublishedColumnsPlan,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    /// 検証済みの宣言的クエリを実行する（`max_limit` は行数の上限）。
+    /// 集計は行の JSON、`select` 省略は公開版のレコードを返す
+    async fn run_query(
+        &self,
+        _query: &aegis_schema::QueryDefinition,
+        _schema: &SchemaDefinition,
+        _max_limit: usize,
+    ) -> Result<published_exec::QueryRows> {
+        Err(AegisError::Database(
+            "This database adapter does not support declarative queries".into(),
+        ))
+    }
 
     /// Insert a content record
     async fn insert_content(&self, schema: &SchemaDefinition, record: &ContentRecord)
