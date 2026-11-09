@@ -112,6 +112,9 @@ export const SERVER_URL = resolveServerUrl();
 
 const API_BASE = `${SERVER_URL}/api/v1`;
 
+/** The address of a preview page the server returned (`page_url`, relative to the API) */
+export const previewFrameUrl = (pageUrl: string): string => `${API_BASE}${pageUrl}`;
+
 /**
  * Absolute URL of a server path such as an avatar (`/uploads/avatars/...`, which already
  * includes `[server].base_path`), so it also loads when Admin Studio runs on another origin

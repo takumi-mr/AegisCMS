@@ -79,7 +79,7 @@ pub use plugin::{
     get_plugin_order, get_plugin_settings, install_plugin, list_blocks, list_plugins,
     reset_plugin_order, set_plugin_enabled, set_plugin_order, update_plugin_settings,
 };
-pub use preview::preview_content;
+pub use preview::{preview_content, preview_frame};
 pub use public::{
     render_article, render_articles, render_category, render_index, render_page_or_slug,
 };

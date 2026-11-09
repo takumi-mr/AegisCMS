@@ -20,6 +20,12 @@ pub const CUSTOM_HEADERS_SETTING: &str = "headers.custom_headers";
 /// デフォルトの防御ヘッダー値
 pub const DEFAULT_CONTENT_SECURITY_POLICY: &str =
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
+/// Admin Studio（`/admin/`）の既定の CSP。公開ページと同じだが、スクリプトは自分のオリジンのファイルだけ
+/// （`'unsafe-inline'` なし）。Admin Studio のビルドはインラインのスクリプトを使わない。公開ページの本文や
+/// プレビューの HTML が万一サニタイズをすり抜けても、管理者のセッションの中でスクリプトが動かない
+/// （`admin/e2e/csp.spec.ts`）。管理者が CSP を上書きしているときは、その値をそのまま使う
+pub const ADMIN_CONTENT_SECURITY_POLICY: &str =
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
 pub const DEFAULT_X_FRAME_OPTIONS: &str = "SAMEORIGIN";
 pub const DEFAULT_X_CONTENT_TYPE_OPTIONS: &str = "nosniff";
 pub const DEFAULT_REFERRER_POLICY: &str = "strict-origin-when-cross-origin";
@@ -159,6 +165,21 @@ impl HeaderOverrides {
             self.cross_origin_opener_policy.as_deref(),
             DEFAULT_CROSS_ORIGIN_OPENER_POLICY,
         )
+    }
+
+    /// Admin Studio の応答用。CSP を上書きしていなければ、[`ADMIN_CONTENT_SECURITY_POLICY`] を使う
+    pub fn apply_to_admin_headers_with_sources(
+        &self,
+        headers: &mut HeaderMap,
+        frame_hosts: &[String],
+        captcha_hosts: &[String],
+        plugin_csp: &aegis_runtime::PluginCspSources,
+    ) {
+        let mut admin = self.clone();
+        if admin.content_security_policy.is_none() {
+            admin.content_security_policy = Some(ADMIN_CONTENT_SECURITY_POLICY.to_string());
+        }
+        admin.apply_to_headers_with_sources(headers, frame_hosts, captcha_hosts, plugin_csp);
     }
 
     /// レスポンスの HeaderMap に防御ヘッダーおよびカスタムヘッダーを注入する。CSP の `frame-src` には
