@@ -292,3 +292,57 @@ async fn test_strict_csp_is_on_by_default() {
     let config: AegisConfig = toml::from_str("[security]\nstrict_csp = \"off\"").unwrap();
     assert_eq!(config.security.strict_csp, StrictCsp::Off);
 }
+
+/// ページの `<style>` 要素の本文
+fn style_elements(html: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut rest = html;
+    while let Some(start) = rest.find("<style") {
+        let tag_end = start + rest[start..].find('>').unwrap() + 1;
+        let close = tag_end + rest[tag_end..].find("</style>").unwrap();
+        found.push(rest[tag_end..close].to_string());
+        rest = &rest[close + "</style>".len()..];
+    }
+    found
+}
+
+#[tokio::test]
+async fn test_strict_csp_allows_exactly_the_style_elements_the_host_emitted() {
+    let site = site(|c| c.security.strict_csp = StrictCsp::On).await;
+    let (status, headers, html) = site.get("/articles/hello").await;
+    assert_eq!(status, StatusCode::OK);
+    let csp = header(&headers, "content-security-policy");
+    let style_src = csp
+        .split(';')
+        .map(str::trim)
+        .find(|d| d.starts_with("style-src "))
+        .unwrap();
+
+    // `<style>` 側に `unsafe-inline` は無い（`style=""` 属性だけ `style-src-attr` で許す）
+    assert!(!style_src.contains("unsafe-inline"), "{csp}");
+    assert!(csp.contains("style-src-attr 'unsafe-inline'"), "{csp}");
+
+    // ページの `<style>` は、どれもハッシュが CSP にある（組み込みのテンプレート・ブロックのスタイル）
+    let styles = style_elements(&html);
+    assert!(styles.len() >= 2, "{html}");
+    for body in &styles {
+        let hash = aegis_core::csp::script_hash(body);
+        assert!(
+            style_src.contains(&format!("'{hash}'")),
+            "{}: {csp}",
+            &body[..body.len().min(60)]
+        );
+    }
+    // 名前空間の置き換えのあとの本文で、ハッシュを取っている
+    assert!(styles.iter().all(|b| !b.contains("aegis-")), "{styles:?}");
+    // 記録したものだけ（余分に許可していない）
+    assert_eq!(
+        style_src.matches("'sha256-").count(),
+        styles
+            .iter()
+            .map(|b| aegis_core::csp::script_hash(b))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        "{csp}"
+    );
+}

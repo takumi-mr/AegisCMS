@@ -304,6 +304,8 @@ pub async fn setup_page(State(state): State<Arc<AppState>>) -> Response {
 </body>
 </html>"#;
 
+    // Strict CSP: このページの `<style>` のハッシュを CSP に足す
+    aegis_core::csp::record_styles_in(html);
     Html(html).into_response()
 }
 

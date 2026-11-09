@@ -21,6 +21,21 @@ struct Collector {
     /// ブラウザーが実行する本文と、ハッシュを取る本文を一致させる
     normalize: Box<dyn Fn(&str) -> String + Send + Sync>,
     hashes: Mutex<BTreeSet<String>>,
+    /// インラインのスタイル（`<style>` の本文）のハッシュ
+    style_hashes: Mutex<BTreeSet<String>>,
+    /// `normalize` を掛ける前の本文のハッシュ（スクリプト・スタイル）。名前空間の置き換えを受けない応答
+    /// （プレビューのページなど）に使う
+    raw_hashes: Mutex<BTreeSet<String>>,
+    raw_style_hashes: Mutex<BTreeSet<String>>,
+}
+
+/// リクエストの間に集めたハッシュ（`sha256-<base64>`。引用符なし）
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CollectedHashes {
+    /// インラインのスクリプト（`script-src` に足す）
+    pub scripts: Vec<String>,
+    /// インラインのスタイルの `<style>`（`style-src` に足す）
+    pub styles: Vec<String>,
 }
 
 tokio::task_local! {
@@ -38,23 +53,187 @@ pub fn script_hash(body: &str) -> String {
 
 /// `fut` の間だけ受け口を作り、`fut` が記録したハッシュ（重複なし・順序は文字列順）を返す。
 /// `normalize` は、記録する本文に施す変換（応答の本文を書き換える処理と同じものを渡す）
+pub async fn collect_hashes<F: Future>(
+    normalize: impl Fn(&str) -> String + Send + Sync + 'static,
+    fut: F,
+) -> (F::Output, CollectedHashes) {
+    let collector = Arc::new(Collector {
+        normalize: Box::new(normalize),
+        hashes: Mutex::new(BTreeSet::new()),
+        style_hashes: Mutex::new(BTreeSet::new()),
+        raw_hashes: Mutex::new(BTreeSet::new()),
+        raw_style_hashes: Mutex::new(BTreeSet::new()),
+    });
+    let output = COLLECTOR.scope(collector.clone(), fut).await;
+    let list = |set: &Mutex<BTreeSet<String>>| -> Vec<String> {
+        set.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .cloned()
+            .collect()
+    };
+    let collected = CollectedHashes {
+        scripts: list(&collector.hashes),
+        styles: list(&collector.style_hashes),
+    };
+    (output, collected)
+}
+
+/// [`collect_hashes`] のうち、スクリプトのハッシュだけ返すもの
 pub async fn collect_script_hashes<F: Future>(
     normalize: impl Fn(&str) -> String + Send + Sync + 'static,
     fut: F,
 ) -> (F::Output, Vec<String>) {
-    let collector = Arc::new(Collector {
-        normalize: Box::new(normalize),
-        hashes: Mutex::new(BTreeSet::new()),
+    let (output, collected) = collect_hashes(normalize, fut).await;
+    (output, collected.scripts)
+}
+
+/// インラインのスタイル（`<style>` の中身そのもの）を記録する。受け口が無ければ何もしない
+pub fn record_inline_style(body: &str) {
+    let _ = COLLECTOR.try_with(|collector| {
+        let text = (collector.normalize)(body);
+        collector
+            .style_hashes
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(script_hash(&text));
+        collector
+            .raw_style_hashes
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(script_hash(body));
     });
-    let output = COLLECTOR.scope(collector.clone(), fut).await;
-    let hashes = collector
-        .hashes
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .iter()
-        .cloned()
-        .collect();
-    (output, hashes)
+}
+
+/// [`record_inline_style`] で記録したスタイルの、置き換えを掛けない本文のハッシュ
+pub fn recorded_raw_style_hashes() -> Vec<String> {
+    COLLECTOR
+        .try_with(|collector| {
+            collector
+                .raw_style_hashes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .iter()
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// [`record_inline_script`] で記録したスクリプトの、置き換えを掛けない本文のハッシュ
+pub fn recorded_raw_script_hashes() -> Vec<String> {
+    COLLECTOR
+        .try_with(|collector| {
+            collector
+                .raw_hashes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .iter()
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// 取っておいたスタイルのハッシュをそのまま記録する
+pub fn record_style_hash(hash: &str) {
+    let _ = COLLECTOR.try_with(|collector| {
+        collector
+            .style_hashes
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(hash.to_string());
+    });
+}
+
+/// いま（このリクエストで）記録したスタイルのハッシュ
+pub fn recorded_style_hashes() -> Vec<String> {
+    COLLECTOR
+        .try_with(|collector| {
+            collector
+                .style_hashes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .iter()
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `html` の中の `<tag …>本文</tag>` を、（属性の文字列, 本文）で列挙する（`<tags>` のような別のタグは含めない）
+fn elements<'a>(html: &'a str, tag: &str) -> Vec<(&'a str, &'a str)> {
+    let lower = html.to_ascii_lowercase();
+    let open_tag = format!("<{tag}");
+    let close_tag = format!("</{tag}");
+    let mut found = Vec::new();
+    let mut from = 0;
+    while let Some(open) = lower[from..].find(&open_tag) {
+        let after = from + open + open_tag.len();
+        match lower.as_bytes().get(after) {
+            Some(b'>') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r') => {}
+            _ => {
+                from = after;
+                continue;
+            }
+        }
+        let Some(tag_end) = lower[after..].find('>') else {
+            break;
+        };
+        let body_start = after + tag_end + 1;
+        let Some(close) = lower[body_start..].find(&close_tag) else {
+            break;
+        };
+        found.push((
+            &html[after..after + tag_end],
+            &html[body_start..body_start + close],
+        ));
+        from = body_start + close;
+    }
+    found
+}
+
+/// 信頼できる出どころの HTML の断片（プラグインのブロックや `extra_head`）の中の `<style>` 要素を全部記録する。
+/// ユーザーが書いた本文には使わない
+pub fn record_styles_in(html: &str) {
+    for (_, body) in elements(html, "style") {
+        record_inline_style(body);
+    }
+}
+
+/// 信頼できる出どころの HTML の断片の中の、`src` の無い `<script>` を全部記録する
+/// （管理者が書いた `core/html` のサンドボックスの中身など。外部のスクリプトの `src` はホストの許可で決まる）
+pub fn record_inline_scripts_in(html: &str) {
+    for (attrs, body) in elements(html, "script") {
+        if !attrs.to_ascii_lowercase().contains("src") {
+            record_inline_script(body);
+        }
+    }
+}
+
+/// インラインのスタイルの本文を、`<style>` の中に置ける形にする（`</style` を CSS の escape にする）
+pub fn escape_inline_style(css: &str) -> String {
+    let lower = css.to_ascii_lowercase();
+    let mut out = String::with_capacity(css.len());
+    let mut i = 0;
+    while i < css.len() {
+        if lower[i..].starts_with("</style") {
+            out.push_str("<\\/style");
+            i += "</style".len();
+        } else {
+            let ch = css[i..].chars().next().map_or(1, char::len_utf8);
+            out.push_str(&css[i..i + ch]);
+            i += ch;
+        }
+    }
+    out
+}
+
+/// インラインのスタイルの `<style>` を作り、ハッシュを記録する（テンプレートの `inline_style()` など）
+pub fn inline_style_tag(css: &str) -> String {
+    let body = escape_inline_style(css);
+    record_inline_style(&body);
+    format!("<style>{body}</style>")
 }
 
 /// インラインのスクリプトの本文（`<script>` の中身そのもの）を記録する。受け口が無ければ何もしない
@@ -66,6 +245,11 @@ pub fn record_inline_script(body: &str) {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(script_hash(&text));
+        collector
+            .raw_hashes
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(script_hash(body));
     });
 }
 
@@ -162,6 +346,33 @@ mod tests {
         let ((), second) = collect_script_hashes(|b| b.to_string(), async {}).await;
         assert!(second.is_empty());
         assert!(recorded_script_hashes().is_empty());
+    }
+
+    #[tokio::test]
+    async fn styles_are_collected_apart_from_scripts() {
+        let ((), got) = collect_hashes(|b| b.replace("aegis", "cms"), async {
+            record_inline_script("a();");
+            inline_style_tag(".aegis-x{color:red}");
+            record_styles_in(
+                "<p>x</p><style>.a{}</style><STYLE>.b{}</STYLE><style media=\"print\">.c{}</style><styles>.d{}</styles>",
+            );
+        })
+        .await;
+        assert_eq!(got.scripts, vec![script_hash("a();")]);
+        let mut want = vec![
+            script_hash(".cms-x{color:red}"),
+            script_hash(".a{}"),
+            script_hash(".b{}"),
+            script_hash(".c{}"),
+        ];
+        want.sort();
+        assert_eq!(got.styles, want);
+    }
+
+    #[test]
+    fn the_style_tag_cannot_be_closed_early() {
+        let tag = inline_style_tag("a{}</style><script>x()</script>");
+        assert_eq!(tag.matches("</style>").count(), 1, "{tag}");
     }
 
     #[test]

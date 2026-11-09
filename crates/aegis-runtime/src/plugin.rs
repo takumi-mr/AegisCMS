@@ -340,6 +340,10 @@ impl PluginSupervisor {
                 for body in &injected.inline_bodies {
                     aegis_core::csp::record_inline_script(body);
                 }
+                // Strict CSP: プラグインが足した `<style>`（本文は含めない。ユーザーの書いたものを巻き込まない）
+                aegis_core::csp::record_styles_in(&ctx.extra_head);
+                aegis_core::csp::record_styles_in(&ctx.prepend_content);
+                aegis_core::csp::record_styles_in(&ctx.append_content);
                 // 後のプラグインの前置きほど外側、後置きほど内側（本文を直接書き換えた場合と同じ順）
                 prepend.insert_str(0, &std::mem::take(&mut ctx.prepend_content));
                 append.push_str(&std::mem::take(&mut ctx.append_content));

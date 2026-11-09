@@ -83,6 +83,14 @@ pub(crate) async fn store_frame(
     html: &str,
     hashes: &[String],
 ) -> Result<String, String> {
+    // ページの `<style>` は、ページを置くときに全部ハッシュする（プレビューは不透明なオリジンの中で、
+    // 管理者が自分で見るだけ）。配信するときに CSP の `style-src` に足す
+    // （`/api/` の応答は名前空間の置き換えを受けないので、置き換えを掛けない本文のハッシュを置く）
+    aegis_core::csp::record_styles_in(html);
+    let stored = aegis_core::csp::CollectedHashes {
+        scripts: hashes.to_vec(),
+        styles: aegis_core::csp::recorded_raw_style_hashes(),
+    };
     state
         .cache
         .set(&frame_cache_key(key), html, Some(FRAME_TTL_SECS))
@@ -92,7 +100,7 @@ pub(crate) async fn store_frame(
         .cache
         .set(
             &frame_hashes_key(key),
-            &serde_json::to_string(hashes).unwrap_or_default(),
+            &serde_json::json!({ "scripts": stored.scripts, "styles": stored.styles }).to_string(),
             Some(FRAME_TTL_SECS),
         )
         .await;
@@ -254,7 +262,7 @@ pub async fn preview_content(
     if let (Some(key), Some(page)) = (payload.frame_key.as_deref(), page_html.as_deref()) {
         // Strict CSP（`[security].strict_csp`）のとき、このページを描くときに集めたインラインのスクリプトの
         // ハッシュも置く（配信するときに CSP に足さないと、プレビューのスクリプトが止まる）
-        let hashes = aegis_core::csp::recorded_script_hashes();
+        let hashes = aegis_core::csp::recorded_raw_script_hashes();
         match store_frame(&state, key, page, &hashes).await {
             Ok(url) => page_url = json!(url),
             Err(e) => warnings.push(format!("The themed page could not be stored: {e}")),
@@ -293,7 +301,7 @@ pub async fn preview_frame(
     };
     if page.is_some() {
         // 置いたときに集めたハッシュを、この応答の CSP に足す（`app::security_headers_middleware` が使う）
-        let hashes: Vec<String> = state
+        let stored: serde_json::Value = state
             .cache
             .get(&frame_hashes_key(&key))
             .await
@@ -301,8 +309,21 @@ pub async fn preview_frame(
             .flatten()
             .and_then(|json| serde_json::from_str(&json).ok())
             .unwrap_or_default();
-        for hash in &hashes {
-            aegis_core::csp::record_script_hash(hash);
+        let list = |name: &str| -> Vec<String> {
+            stored[name]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        for hash in list("scripts") {
+            aegis_core::csp::record_script_hash(&hash);
+        }
+        for hash in list("styles") {
+            aegis_core::csp::record_style_hash(&hash);
         }
     }
     match page {
@@ -654,9 +675,10 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
         let csp = res.headers()["content-security-policy"].to_str().unwrap();
         assert!(csp.contains("sandbox allow-scripts"), "{csp}");
-        // 公開ページと同じ（スクリプトは Strict、スタイルのインラインは許す）。管理画面の CSP ではない
+        // 公開ページと同じ（スクリプトもスタイルの `<style>` も Strict。`style=` 属性だけ許す）。管理画面の CSP ではない
         assert!(csp.contains("script-src 'self';"), "{csp}");
-        assert!(csp.contains("style-src 'self' 'unsafe-inline'"), "{csp}");
+        assert!(!csp.contains("style-src 'self' 'unsafe-inline'"), "{csp}");
+        assert!(csp.contains("style-src-attr 'unsafe-inline'"), "{csp}");
         assert!(csp.contains("frame-ancestors *"), "{csp}");
         assert!(!res.headers().contains_key("x-frame-options"));
         assert_eq!(res.headers()["cache-control"], "no-store");

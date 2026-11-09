@@ -810,6 +810,8 @@ async fn maintenance_middleware(
         locale, title, suffix, title, message
     );
 
+    // Strict CSP: このページの `<style>` のハッシュを CSP に足す
+    aegis_core::csp::record_styles_in(&html);
     let mut response = axum::response::Html(html).into_response();
     *response.status_mut() = StatusCode::SERVICE_UNAVAILABLE;
     response.headers_mut().insert(
@@ -896,11 +898,14 @@ async fn security_headers_middleware(
     // Strict CSP（`[security].strict_csp`）のために、このリクエストで信頼できる出どころが出したインラインの
     // スクリプトのハッシュを集める。応答の本文は名前空間の置き換えを受けるので、ハッシュも置き換えたあとの本文で取る
     let strict = state.config.security.strict_csp;
-    let (mut response, script_hashes) = if strict == aegis_ast::StrictCsp::Off {
-        (next.run(request).await, Vec::new())
+    let (mut response, hashes) = if strict == aegis_ast::StrictCsp::Off {
+        (
+            next.run(request).await,
+            aegis_core::csp::CollectedHashes::default(),
+        )
     } else {
         let ns = state.config.server.namespace();
-        aegis_core::csp::collect_script_hashes(
+        aegis_core::csp::collect_hashes(
             move |body| crate::namespace::rewrite(body, &ns).into_owned(),
             next.run(request),
         )
@@ -979,7 +984,7 @@ async fn security_headers_middleware(
             .and_then(|v| v.to_str().ok())
             .map(str::to_string);
         if let Some(current) = current {
-            let strict_csp = crate::headers::strict_script_csp(&current, &script_hashes);
+            let strict_csp = crate::headers::strict_csp(&current, &hashes);
             if let Ok(value) = axum::http::HeaderValue::from_str(&strict_csp) {
                 let name = if strict == aegis_ast::StrictCsp::On {
                     axum::http::header::CONTENT_SECURITY_POLICY

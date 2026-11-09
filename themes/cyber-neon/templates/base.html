@@ -7,7 +7,7 @@
   <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
   <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
   {% if extra_css %}
-  <style>{{ extra_css | safe }}</style>
+  {{ extra_css | inline_style }}
   {% endif %}
   {{ extra_head | safe }}
 </head>

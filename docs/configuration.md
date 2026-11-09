@@ -204,7 +204,7 @@ coupons = "WELCOME10:10%"
 
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
-| `strict_csp` | string | `"on"` | 公開ページの Content-Security-Policy。`"on"`（既定）は Strict を強制する（`'unsafe-inline'` を外し、プラグインとテンプレートが出したインラインのスクリプトは本文のハッシュで許す）。`"report-only"` は、前の CSP（`script-src 'self' 'unsafe-inline'`）のまま、Strict の CSP を `Content-Security-Policy-Report-Only` でも出し、止まるものをブラウザーのコンソールで確かめられる。`"off"` は前の CSP に戻す。**テーマ自身のインラインの `<script>` と `on*` 属性は、`on` では動かない**（[テーマの書き方](./theme_authoring_guide.md#6a-スクリプトの書き方インラインを書かない)）。管理画面の「設定 › ヘッダー」で CSP を上書きしているときは、その値が優先。詳しくは [csp.md](./csp.md) |
+| `strict_csp` | string | `"on"` | 公開ページの Content-Security-Policy。`"on"`（既定）は Strict を強制する（`script-src` と `style-src` から `'unsafe-inline'` を外し、プラグインとテンプレートが出したインラインのスクリプトと `<style>` は本文のハッシュで許す。`style=""` 属性だけ当面許す）。`"report-only"` は、前の CSP（`script-src 'self' 'unsafe-inline'`）のまま、Strict の CSP を `Content-Security-Policy-Report-Only` でも出し、止まるものをブラウザーのコンソールで確かめられる。`"off"` は前の CSP に戻す。**テーマ自身のインラインの `<script>`・`<style>`・`on*` 属性は、`on` では動かない**（[テーマの書き方](./theme_authoring_guide.md#6a-スクリプトの書き方インラインを書かない)）。管理画面の「設定 › ヘッダー」で CSP を上書きしているときは、その値が優先。詳しくは [csp.md](./csp.md) |
 | `enforce_external_link_rel` | bool | `true` | 外部リンクの `<a>` に `rel="noopener noreferrer"` を付与（既存の `rel` とマージ） |
 | `open_external_links_in_new_tab` | bool | `false` | `target` 未指定の外部リンクに `target="_blank"` を付与 |
 | `internal_domains` | string[] | `[]` | 内部扱いするドメイン（サブドメインも一致、大文字・小文字は区別しない）。これらへのリンクは上記の対象外 |

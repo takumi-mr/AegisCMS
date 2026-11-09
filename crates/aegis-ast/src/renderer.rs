@@ -158,9 +158,13 @@ fn render_sandboxed_html(raw: &str) -> String {
         </script></body></html>"
     );
 
+    // Strict CSP: `srcdoc` の文書は親の CSP を引き継ぐので、中のインラインの `<style>` と `<script>`
+    // （この関数が足したものと、サンドボックスにするために管理者が書いたもの）のハッシュを CSP に足す
+    aegis_core::csp::record_styles_in(&srcdoc_document);
+    aegis_core::csp::record_inline_scripts_in(&srcdoc_document);
     let escaped_srcdoc = escape_html(&srcdoc_document);
     // Parent-side listener is idempotent (guarded by window.__aegisSandboxInit)
-    format!(
+    let html = format!(
         "<iframe class=\"aegis-html-sandbox\" sandbox=\"allow-scripts allow-forms allow-popups\" referrerpolicy=\"no-referrer\" loading=\"lazy\" style=\"width:100%;border:0;display:block;min-height:48px;\" srcdoc=\"{escaped_srcdoc}\"></iframe>\
         <script>(function(){{\
             if(window.__aegisSandboxInit)return;\
@@ -176,7 +180,9 @@ fn render_sandboxed_html(raw: &str) -> String {
                 }};\
             }});\
         }})();</script>\n"
-    )
+    );
+    aegis_core::csp::record_inline_scripts_in(&html);
+    html
 }
 
 /// 注記（`core/callout`）の種類。GitHub のアラートと同じ

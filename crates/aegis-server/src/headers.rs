@@ -276,6 +276,65 @@ pub fn strict_script_csp(csp: &str, hashes: &[String]) -> String {
     format!("{};", directives.join("; "))
 }
 
+/// 公開ページの Strict CSP の全体: [`strict_script_csp`] と [`strict_style_csp`]
+pub fn strict_csp(csp: &str, hashes: &aegis_core::csp::CollectedHashes) -> String {
+    strict_style_csp(&strict_script_csp(csp, &hashes.scripts), &hashes.styles)
+}
+
+/// Strict CSP のスタイル側。`style-src` から `'unsafe-inline'` を外し、信頼できる出どころの `<style>` の
+/// ハッシュ（`hashes`）を足す（`style-src` が無ければ `'self'` とハッシュだけの `style-src` を足す）。
+/// `style=""` 属性は、組み込みのテンプレートやプラグインがまだ使っているので、当面 `style-src-attr 'unsafe-inline'`
+/// で許す（`style-src-attr` が既にあればそのまま。docs/csp.md の 3.2）
+pub fn strict_style_csp(csp: &str, hashes: &[String]) -> String {
+    let hash_tokens: Vec<String> = hashes.iter().map(|h| format!("'{h}'")).collect();
+    let mut found = false;
+    let mut has_attr = false;
+    let mut directives: Vec<String> = csp
+        .split(';')
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(|directive| {
+            let mut parts = directive.split_whitespace();
+            match parts.next() {
+                Some("style-src-attr") => {
+                    has_attr = true;
+                    directive.to_string()
+                }
+                Some("style-src") => {
+                    found = true;
+                    let mut kept: Vec<&str> = parts.filter(|t| *t != "'unsafe-inline'").collect();
+                    if !kept.contains(&"'self'") {
+                        kept.insert(0, "'self'");
+                    }
+                    let mut out = String::from("style-src");
+                    for token in kept
+                        .iter()
+                        .map(|t| t.to_string())
+                        .chain(hash_tokens.iter().cloned())
+                    {
+                        out.push(' ');
+                        out.push_str(&token);
+                    }
+                    out
+                }
+                _ => directive.to_string(),
+            }
+        })
+        .collect();
+    if !found {
+        let mut out = String::from("style-src 'self'");
+        for token in &hash_tokens {
+            out.push(' ');
+            out.push_str(token);
+        }
+        directives.push(out);
+    }
+    if !has_attr {
+        directives.push("style-src-attr 'unsafe-inline'".to_string());
+    }
+    format!("{};", directives.join("; "))
+}
+
 /// 有効なプラグインが要求する CSP (Content Security Policy) のドメインをディレクティブごとに足す
 pub fn with_plugin_csp_sources(csp: &str, plugin_csp: &aegis_runtime::PluginCspSources) -> String {
     let mut csp = csp.to_string();
@@ -677,7 +736,7 @@ mod tests {
 
 #[cfg(test)]
 mod strict_csp_tests {
-    use super::strict_script_csp;
+    use super::{strict_csp, strict_script_csp, strict_style_csp};
 
     #[test]
     fn unsafe_inline_and_eval_are_dropped_and_the_hashes_are_added() {
@@ -707,5 +766,35 @@ mod strict_csp_tests {
             ),
             "script-src 'self' https://a.example 'sha256-X=';"
         );
+    }
+
+    #[test]
+    fn styles_lose_unsafe_inline_and_get_hashes_while_attributes_stay_allowed() {
+        let csp = "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src data:;";
+        let out = strict_style_csp(csp, &["sha256-S=".to_string()]);
+        assert_eq!(
+            out,
+            "default-src 'self'; style-src 'self' https://fonts.googleapis.com 'sha256-S='; img-src data:; style-src-attr 'unsafe-inline';"
+        );
+        // `style-src` が無ければ足す。`style-src-attr` を決めてあれば触らない
+        assert_eq!(
+            strict_style_csp("default-src 'self'; style-src-attr 'none';", &[]),
+            "default-src 'self'; style-src-attr 'none'; style-src 'self';"
+        );
+    }
+
+    #[test]
+    fn the_whole_strict_policy_covers_scripts_and_styles() {
+        let hashes = aegis_core::csp::CollectedHashes {
+            scripts: vec!["sha256-J=".into()],
+            styles: vec!["sha256-S=".into()],
+        };
+        let out = strict_csp(
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
+            &hashes,
+        );
+        assert!(out.contains("script-src 'self' 'sha256-J='"), "{out}");
+        assert!(out.contains("style-src 'self' 'sha256-S='"), "{out}");
+        assert!(!out.contains("style-src 'self' 'unsafe-inline'"), "{out}");
     }
 }

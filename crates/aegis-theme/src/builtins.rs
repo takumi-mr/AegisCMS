@@ -5,7 +5,7 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
   <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
-  <style>
+  {% filter inline_style %}
     /* Fonts served by this site (/_aegis/fonts/): no request to a font CDN, so nothing for the CSP to block.
        Only the Latin subset; other scripts use the system font (Japanese text falls back to the system font) */
     @font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 400 800; font-display: swap; src: url('{{ base_path }}/_aegis/fonts/plus-jakarta-sans-latin.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
@@ -280,7 +280,7 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
     {% if extra_css %}
     {{ extra_css | safe }}
     {% endif %}
-  </style>
+  {% endfilter %}
   {% if extra_head %}
   {{ extra_head | safe }}
   {% endif %}
@@ -618,7 +618,7 @@ pub const CONSENT_TEMPLATE: &str = r#"<div class="aegis-consent aegis-consent-la
 pub const SEARCH_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<style>:where(.aegis-search) mark{background:rgba(250,204,21,.3);color:inherit;border-radius:2px;padding:0 .1em}</style>
+{% filter inline_style %}:where(.aegis-search) mark{background:rgba(250,204,21,.3);color:inherit;border-radius:2px;padding:0 .1em}{% endfilter %}
 <section class="aegis-search" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
   <h1 style="margin: 0 0 1rem;">{{ title }}</h1>
   <form class="aegis-search-form" role="search" action="{{ base_path }}/search" method="get" style="display: flex; gap: 0.5rem; margin: 0 0 1.5rem;">
@@ -796,7 +796,7 @@ pub const BLANK_TEMPLATE: &str = r#"<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
   <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
-  <style>
+  {% filter inline_style %}
     * {
       box-sizing: border-box;
       margin: 0;
@@ -810,7 +810,7 @@ pub const BLANK_TEMPLATE: &str = r#"<!DOCTYPE html>
     {% if extra_css %}
     {{ extra_css | safe }}
     {% endif %}
-  </style>
+  {% endfilter %}
   {% if extra_head %}
   {{ extra_head | safe }}
   {% endif %}
@@ -841,7 +841,7 @@ pub const NOT_FOUND_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 /// ショップのページ共通のスタイル・ナビゲーション・カートのスクリプト（各ショップテンプレートに含める）。
 /// どのテーマの `base.html` の中でも読めるよう、色はテーマの文字色を基準にした半透明で指定する
-pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
+pub const SHOP_COMMON_TEMPLATE: &str = r#"{% filter inline_style %}
   .aegis-shop { max-width: 1100px; margin: 0 auto; }
   .aegis-shop a { color: inherit; }
   .aegis-shop-nav { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 2rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(127,127,127,0.25); font-size: 0.9rem; }
@@ -906,7 +906,7 @@ pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
   .aegis-account-order-lines { display: flex; flex-direction: column; gap: 0.3rem; padding-top: 0.5rem; }
   .aegis-account-ok { color: #10b981; margin: 0.75rem 0; }
   .aegis-shop h2 { font-size: 1.3rem; margin: 1.5rem 0 0.75rem; }
-</style>
+{% endfilter %}
 <nav class="aegis-shop-nav" aria-label="{{ t("shop.label") }}">
   <a href="{{ theme_vars.products_url }}">{{ t("shop.all_products") }}</a>
   {% if theme_vars.account_enabled == "true" %}<a href="{{ theme_vars.account_url }}" class="aegis-account-link">{{ t("account.link") }}</a>{% endif %}
@@ -918,7 +918,7 @@ pub const SHOP_COMMON_TEMPLATE: &str = r#"<style>
 /// `{% if comments %}{% include "comments.html" %}{% endif %}` で読み込む。どのテーマの中でも読めるよう、
 /// 色はテーマの文字色を基準にした半透明で指定する。投稿はスクリプトで JSON を送る
 pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comments">
-<style>
+{% filter inline_style %}
   .aegis-comments { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(127,127,127,0.25); }
   .aegis-comments h2 { font-size: 1.35rem; margin-bottom: 1.25rem; }
   .aegis-comments h3 { font-size: 1.1rem; margin-bottom: 0.75rem; }
@@ -941,7 +941,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
   .aegis-comment-status:empty { display: none; }
   .aegis-comment-status[data-kind=error] { color: #f43f5e; }
   .aegis-comments-note { opacity: 0.65; font-size: 0.85rem; }
-</style>
+{% endfilter %}
   <h2>{{ t("comments.count", n=comments.count) }}</h2>
   {% for c in comments["items"] %}
   <article class="aegis-comment" id="comment-{{ c.id }}" style="--depth: {{ c.depth }}">
@@ -1084,7 +1084,7 @@ pub const PRODUCT_TEMPLATE: &str = r##"{% extends "base.html" %}
 /// 商品ページのレビュー欄（`product.html` が `reviews_enabled` のときに読み込む）。中身はスクリプト（`/shop/reviews.js`）が API から作る。
 /// 色はテーマの文字色を基準にした半透明で指定する
 pub const REVIEWS_TEMPLATE: &str = r##"<section class="aegis-reviews" id="reviews">
-<style>
+{% filter inline_style %}
   .aegis-reviews { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(127,127,127,0.25); }
   .aegis-reviews h2 { font-size: 1.35rem; margin-bottom: 1rem; }
   .aegis-reviews h3 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
@@ -1097,7 +1097,7 @@ pub const REVIEWS_TEMPLATE: &str = r##"<section class="aegis-reviews" id="review
   .aegis-review-reply { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-left: 3px solid var(--accent, #6366f1); background: rgba(127,127,127,0.06); border-radius: 0 8px 8px 0; }
   .aegis-review-summary { font-size: 1.05rem; }
   .aegis-reviews-form select, .aegis-reviews-form input, .aegis-reviews-form textarea { padding: 0.55rem 0.7rem; border-radius: 10px; border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit; font: inherit; }
-</style>
+{% endfilter %}
   <h2>{{ t("reviews.title") }}</h2>
   <div id="aegis-reviews"><p class="aegis-muted">{{ t("reviews.loading") }}</p></div>
   <noscript><p class="aegis-muted">{{ t("reviews.needs_js") }}</p></noscript>
@@ -1144,7 +1144,7 @@ pub const ORDER_TEMPLATE: &str = r#"{% extends "base.html" %}
 "#;
 
 /// フォーラム共通スタイル・ナビゲーション
-pub const FORUM_COMMON_TEMPLATE: &str = r##"<style>
+pub const FORUM_COMMON_TEMPLATE: &str = r##"{% filter inline_style %}
   .aegis-forum { max-width: 1040px; margin: 0 auto; padding: 1rem 0 3rem; }
   .aegis-forum a:not(.aegis-forum-btn) { color: inherit; text-decoration: none; }
   .aegis-forum a:not(.aegis-forum-btn):hover { color: var(--accent, #6366f1); }
@@ -1197,7 +1197,7 @@ pub const FORUM_COMMON_TEMPLATE: &str = r##"<style>
   .aegis-forum-report-form { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center; }
   .aegis-forum-report-form input[type=text] { flex: 1; min-width: 180px; padding: 0.4rem 0.65rem; border-radius: 8px; border: 1px solid rgba(127,127,127,0.3); background: rgba(127,127,127,0.06); color: inherit; font: inherit; font-size: 0.82rem; }
   .aegis-forum-empty { padding: 3rem 1rem; text-align: center; opacity: 0.6; font-size: 0.95rem; }
-</style>
+{% endfilter %}
 "##;
 
 /// フォーラムトップ画面（カテゴリ一覧 & 最近のスレッド）
