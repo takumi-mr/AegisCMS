@@ -210,7 +210,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - クレートは新設せず既存の `aegis-cache`（`aegis_cache::cdn`）に抽象トレイト `CdnPurger`・`CacheTags`・各プロバイダ実装（`NoopCdnPurger`, `LogCdnPurger`, `CloudflareCdnPurger`, `FastlyCdnPurger`, `WebhookCdnPurger`, `RecordingCdnPurger`）を置き、Axum の `Response` / `AppState` と結合するヘルパーを `aegis-server/src/cdn.rs` に分離した。
   - `[cdn].enabled = false`（既定）のときはヘッダー生成もパージ通信も一切行わず、CDN を使わない構成でオーバーヘッド 0 となる。
 - **マルチ CDN 対応のデュアルヘッダー出力 (`CacheTags`)**:
-  - `CacheTags::write_headers` は、1 つのタグ集合から **`Cache-Tag`**（カンマ区切り: Cloudflare, BunnyCDN, Netlify 等）と **`Surrogate-Key`**（スペース区切り: Fastly, Varnish, Google Cloud CDN 等）の両ヘッダーを同時に注入する（`200 OK` の公開レスポンスのみ。404 等には付与しない）。
+  - `CacheTags::write_headers` は、1 つのタグ集合から **`Cache-Tag`**（カンマ区切り: Cloudflare, BunnyCDN, Netlify 等）と **`Surrogate-Key`**（スペース区切り: Fastly, Varnish, Google Cloud CDN 等）を注入する。`[cdn].provider` が `cloudflare` なら `Cache-Tag` だけ、`fastly` なら `Surrogate-Key` だけ、それ以外（`none`・`log`・`webhook`）は、前にある CDN・キャッシュが分からないので両方（`write_headers_for`。`200 OK` の公開レスポンスのみ。404 等には付与しない）。
   - タグ文字列の正規化（`sanitize_tag`）: URL パス（`add_url`）はクエリ文字列を除き `/` を `-` に変換（`/` は `url-index`、`/articles/hello` は `url-articles-hello`）。日本語スラッグ等の非 ASCII 文字やスペース・カンマが含まれる場合は `:x<hex>` で安全にエスケープし、`HeaderValue` の生成失敗やタグ区切り文字の衝突を防ぐ。
 - **付与されるタグ体系と自動パージのトリガー**:
   - トップ・一覧（`/`）：`url-index`, `url-articles`, `site-global`, `collection-article`, 表示中の各記事の `article-{id}`, `article-{slug}`, および参照先リレーションの `{rel_type}-{id}` / `{rel_type}-{slug}`。

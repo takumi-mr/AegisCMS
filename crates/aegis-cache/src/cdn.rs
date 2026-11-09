@@ -110,16 +110,28 @@ impl CacheTags {
         (!self.tags.is_empty()).then(|| self.tags.join(" "))
     }
 
-    /// Axum / `http` の `HeaderMap` に `Cache-Tag` および `Surrogate-Key` ヘッダーを注入する
+    /// Axum / `http` の `HeaderMap` に `Cache-Tag` および `Surrogate-Key` ヘッダーを両方注入する
+    /// （[`CdnProviderKind::None`] と同じ）
     pub fn write_headers(&self, headers: &mut HeaderMap) {
-        if let Some(cache_tag) = self.cache_tag_header_value() {
-            if let Ok(value) = HeaderValue::from_str(&cache_tag) {
-                headers.insert("Cache-Tag", value);
+        self.write_headers_for(CdnProviderKind::None, headers);
+    }
+
+    /// `provider` が使うヘッダーだけを注入する。Cloudflare は `Cache-Tag`、Fastly は `Surrogate-Key`。
+    /// それ以外（`none`・`log`・`webhook`）は、どの CDN・キャッシュが前にあるか分からないので両方出す。
+    /// 同じタグを 2 つの形式で出すと、一覧ページでヘッダーが約 3 KB になる（nginx の既定のバッファは 4 KB）
+    pub fn write_headers_for(&self, provider: CdnProviderKind, headers: &mut HeaderMap) {
+        if provider != CdnProviderKind::Fastly {
+            if let Some(cache_tag) = self.cache_tag_header_value() {
+                if let Ok(value) = HeaderValue::from_str(&cache_tag) {
+                    headers.insert("Cache-Tag", value);
+                }
             }
         }
-        if let Some(surrogate_key) = self.surrogate_key_header_value() {
-            if let Ok(value) = HeaderValue::from_str(&surrogate_key) {
-                headers.insert("Surrogate-Key", value);
+        if provider != CdnProviderKind::Cloudflare {
+            if let Some(surrogate_key) = self.surrogate_key_header_value() {
+                if let Ok(value) = HeaderValue::from_str(&surrogate_key) {
+                    headers.insert("Surrogate-Key", value);
+                }
             }
         }
     }
@@ -851,6 +863,27 @@ mod tests {
             headers.get("Surrogate-Key").unwrap().to_str().unwrap(),
             "url-index url-articles-hello-world article-art-123 article-hello-world"
         );
+    }
+
+    #[test]
+    fn test_headers_follow_the_provider() {
+        let mut tags = CacheTags::new();
+        tags.add_url("/articles");
+        tags.add_dependency("article", "a1");
+        let headers_for = |provider| {
+            let mut h = HeaderMap::new();
+            tags.write_headers_for(provider, &mut h);
+            (h.contains_key("Cache-Tag"), h.contains_key("Surrogate-Key"))
+        };
+        assert_eq!(headers_for(CdnProviderKind::Cloudflare), (true, false));
+        assert_eq!(headers_for(CdnProviderKind::Fastly), (false, true));
+        for generic in [
+            CdnProviderKind::None,
+            CdnProviderKind::Log,
+            CdnProviderKind::Webhook,
+        ] {
+            assert_eq!(headers_for(generic), (true, true), "{generic:?}");
+        }
     }
 
     #[test]
