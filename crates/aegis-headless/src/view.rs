@@ -70,6 +70,12 @@ pub fn project(
     with_blocks: bool,
 ) -> Value {
     let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
+    // 閲覧を制限した記事は、本文（`blocks`）も、本文から作る要約も出さない（認証なしで、共有キャッシュに載る API）
+    let blocks = if record.is_restricted() {
+        aegis_ast::public_blocks(&blocks)
+    } else {
+        blocks
+    };
 
     let mut out = Map::new();
     out.insert("id".into(), json!(record.id));

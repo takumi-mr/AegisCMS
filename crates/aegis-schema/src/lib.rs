@@ -5,7 +5,7 @@ pub mod migration;
 
 pub use codegen::{OpenApiGenerator, TypeScriptGenerator};
 pub use definition::{
-    is_standard_column, FieldDefinition, FieldType, RelationTarget, SchemaDefinition,
+    is_standard_column, FieldDefinition, FieldType, RelationTarget, SchemaDefinition, ACCESS_FIELD,
     STANDARD_COLUMNS,
 };
 pub use loader::SchemaLoader;
@@ -43,8 +43,8 @@ fields:
 
         let schema = SchemaLoader::load_from_str(yaml).expect("YAML parsing should succeed");
         assert_eq!(schema.content_type, "article");
-        // YAML の 5 つ + 組み込みの category_id
-        assert_eq!(schema.fields.len(), 6);
+        // YAML の 5 つ + 組み込みの category_id・access
+        assert_eq!(schema.fields.len(), 7);
 
         // 1. SQLite DDL
         let sqls = SchemaMigration::generate_schema_migration_sql(&schema, SqlDialect::Sqlite);

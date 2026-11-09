@@ -153,7 +153,9 @@ fn to_document(state: &AppState, record: &ContentRecord, tags: Vec<String>) -> S
         body.push_str(excerpt.trim());
         body.push('\n');
     }
-    body.push_str(&aegis_search::blocks_text(&blocks));
+    // 制限した記事は、隠す本文を索引に入れない（隠した部分の語で当たらないように）
+    let shared = crate::handlers::access::shared_blocks(&record.custom_fields, blocks);
+    body.push_str(&aegis_search::blocks_text(&shared));
     SearchDocument {
         content_type: record.content_type.clone(),
         id: record.id.clone(),

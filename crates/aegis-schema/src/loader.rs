@@ -89,17 +89,20 @@ mod tests {
     }
 
     #[test]
-    fn category_id_is_added_to_every_schema_and_overrides_yaml() {
+    fn builtin_fields_are_added_to_every_schema_and_override_yaml() {
         let plain = SchemaLoader::load_from_str("content_type: page\nlabel: Page\n").unwrap();
-        assert_eq!(plain.fields.len(), 1);
+        assert_eq!(plain.fields.len(), 2);
         assert_eq!(plain.fields[0], FieldDefinition::builtin_category());
+        assert_eq!(plain.fields[1], FieldDefinition::builtin_access());
 
         // YAML に書かれていても重複せず、組み込みの定義に揃う
-        let yaml = "content_type: article\nlabel: A\nfields:\n  - name: category_id\n    type: string\n  - name: excerpt\n    type: string\n";
+        let yaml = "content_type: article\nlabel: A\nfields:\n  - name: category_id\n    type: string\n  - name: access\n    type: integer\n  - name: excerpt\n    type: string\n";
         let schema = SchemaLoader::load_from_str(yaml).unwrap();
         let names: Vec<&str> = schema.fields.iter().map(|f| f.name.as_str()).collect();
-        assert_eq!(names, vec!["category_id", "excerpt"]);
+        assert_eq!(names, vec!["category_id", "access", "excerpt"]);
         assert_eq!(schema.fields[0].field_type, FieldType::Relation);
+        // 閲覧の制限が YAML の書き違いで外れない（型を変えられない）
+        assert_eq!(schema.fields[1].field_type, FieldType::String);
     }
 
     #[test]
@@ -117,5 +120,6 @@ mod tests {
         assert_eq!(public_of("internal_note"), Some(false));
         // 組み込みの category_id は常に公開する
         assert_eq!(public_of("category_id"), Some(true));
+        assert_eq!(public_of("access"), Some(true));
     }
 }

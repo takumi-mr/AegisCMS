@@ -86,6 +86,27 @@ pub struct ContentRecord {
     pub custom_fields: HashMap<String, serde_json::Value>,
 }
 
+/// 記事・ページの `access`（必要な会員レベル）。未設定・空は `None`（docs/members.md 15）
+pub fn access_of(fields: &HashMap<String, serde_json::Value>) -> Option<&str> {
+    fields
+        .get(aegis_schema::ACCESS_FIELD)
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+}
+
+/// 閲覧を制限している（`access` がレベルを求めている）か。`public` は制限なし
+pub fn is_restricted(fields: &HashMap<String, serde_json::Value>) -> bool {
+    !aegis_core::is_public_access(access_of(fields))
+}
+
+impl ContentRecord {
+    /// 閲覧を制限している記事・ページか。制限している本文は、フィード・検索・一覧・API に全文を出さない
+    pub fn is_restricted(&self) -> bool {
+        is_restricted(&self.custom_fields)
+    }
+}
+
 /// Immutable editorial snapshot of a content record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentVersionRecord {

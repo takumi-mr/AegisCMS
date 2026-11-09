@@ -135,8 +135,14 @@ pub async fn page_section(
 pub async fn list_public_comments(
     State(state): State<Arc<AppState>>,
     Path((content_type, slug)): Path<(String, String)>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<CommentSection>, ApiError> {
     let service = comments(&state)?;
+    if let Some(denied) =
+        crate::handlers::access::deny_comments(&state, &headers, &content_type, &slug).await
+    {
+        return Err(denied);
+    }
     if !state.system().comments_enabled {
         return Err((
             StatusCode::FORBIDDEN,
@@ -169,6 +175,11 @@ pub async fn submit_comment(
     Json(request): Json<CommentRequest>,
 ) -> Result<(StatusCode, Json<SubmitResponse>), ApiError> {
     let service = comments(&state)?;
+    if let Some(denied) =
+        crate::handlers::access::deny_comments(&state, &headers, &content_type, &slug).await
+    {
+        return Err(denied);
+    }
     if !state.system().comments_enabled {
         return Err((
             StatusCode::FORBIDDEN,

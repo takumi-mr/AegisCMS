@@ -16,8 +16,7 @@ use serde_json::json;
 use crate::cdn::CacheTags;
 use crate::handlers::content::is_currently_published;
 use crate::handlers::public::{
-    extract_excerpt, public_content_path, render_not_found, themed_response, ArticleFilter,
-    IndexParams,
+    public_content_path, render_not_found, themed_response, ArticleFilter, IndexParams,
 };
 use crate::render;
 use crate::state::AppState;
@@ -205,7 +204,7 @@ fn summary_of(state: &AppState, base: &str, record: ContentRecord) -> ContentSum
         content_type: record.content_type,
         title: record.title,
         slug: record.slug,
-        excerpt: extract_excerpt(&blocks, 140),
+        excerpt: crate::handlers::access::summary_excerpt(&fields, &blocks, 140),
         author_id: record.author_id,
         published_at: record.published_at,
         created_at: record.created_at,

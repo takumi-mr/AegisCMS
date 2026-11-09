@@ -16,7 +16,7 @@ pub enum Viewer<'a> {
 
 /// 必要なレベルの指定。`public`・空・未設定は「誰でも」
 pub fn is_public(required: Option<&str>) -> bool {
-    matches!(required.map(str::trim), None | Some("") | Some("public"))
+    aegis_core::is_public_access(required)
 }
 
 /// `required`（記事・ページの `access`）を満たす閲覧者か。

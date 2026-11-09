@@ -176,6 +176,9 @@ export const App: React.FC = () => {
   const [coreVersion, setCoreVersion] = useState<string | undefined>(undefined);
   const [contentType, setContentType] = useState<'article' | 'page'>('article');
   const [layout, setLayout] = useState<'default' | 'blank'>('default');
+  // Who can read the article: '' is everyone, otherwise a member level (`[members].levels`)
+  const [access, setAccess] = useState<string>('');
+  const [memberLevels, setMemberLevels] = useState<string[]>([]);
   // The list shows one page of summaries; the server searches, filters and pages it
   const [contents, setContents] = useState<ContentSummary[]>([]);
   const [contentsTotal, setContentsTotal] = useState(0);
@@ -423,6 +426,7 @@ export const App: React.FC = () => {
         setShopEnabled(config.enabled);
         // Member accounts do not need the shop (the forum uses them too)
         setMembersEnabled(config.members_enabled === true);
+        setMemberLevels(config.member_levels ?? []);
         setReviewsEnabled(config.enabled && config.reviews_enabled === true);
       })
       .catch((err) => console.warn('Could not load the shop settings:', err));
@@ -631,6 +635,8 @@ export const App: React.FC = () => {
     loadContentTags(item.content_type, item.id);
     const rawLayout = item.fields?.layout ?? (item as unknown as { layout?: string }).layout;
     setLayout(rawLayout === 'blank' ? 'blank' : 'default');
+    const rawAccess = item.fields?.access;
+    setAccess(typeof rawAccess === 'string' && rawAccess !== 'public' ? rawAccess : '');
     setExtraValues(
       toExtraValues(
         extraFieldDefs(
@@ -677,6 +683,7 @@ export const App: React.FC = () => {
     setUnpublishAt('');
     setCategoryId('');
     setLayout('default');
+    setAccess('');
     setExtraValues({});
     setExtraError(null);
     const newBlocks: BlockNode[] = [
@@ -706,6 +713,7 @@ export const App: React.FC = () => {
     setUnpublishAt('');
     setCategoryId('');
     setLayout('default');
+    setAccess('');
     setExtraValues({});
     setExtraError(null);
     const newBlocks: BlockNode[] = [
@@ -860,6 +868,8 @@ export const App: React.FC = () => {
           ...extra.fields,
           ...(contentType === 'article' && categoryId ? { category_id: categoryId } : {}),
           ...(contentType === 'page' ? { layout } : {}),
+          // Cleared (null) when everyone can read it
+          access: access || null,
         },
       };
       // Content opened from the list is updated in place; otherwise a new item is created
@@ -1227,6 +1237,29 @@ export const App: React.FC = () => {
                         onChange={(e) => setReviewNote(e.target.value)}
                       />
                     </Field>
+                  )}
+
+                  {membersEnabled && (
+                    <FieldRow>
+                      <Field label={t('editor.access')}>
+                        <select
+                          value={access}
+                          onChange={(e) => setAccess(e.target.value)}
+                          aria-label={t('editor.accessAria')}
+                        >
+                          <option value="">{t('editor.accessPublic')}</option>
+                          {memberLevels.map((level) => (
+                            <option key={level} value={level}>
+                              {t('editor.accessLevel', { level })}
+                            </option>
+                          ))}
+                          {/* A level removed from [members].levels stays visible until it is changed */}
+                          {access && !memberLevels.includes(access) && (
+                            <option value={access}>{access}</option>
+                          )}
+                        </select>
+                      </Field>
+                    </FieldRow>
                   )}
 
                   {contentType === 'article' ? (

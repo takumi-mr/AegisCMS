@@ -796,6 +796,8 @@ export interface ShopConfig {
   enabled: boolean;
   /** `[members].enabled`: the Members screen is shown */
   members_enabled?: boolean;
+  /** `[members].levels`, lowest first: the choices of an article's "who can read it" */
+  member_levels?: string[];
   /** `[commerce.reviews].enabled`: the Reviews screen is shown */
   reviews_enabled?: boolean;
   /** ISO 4217 code in lower case; amounts are in its minor unit */

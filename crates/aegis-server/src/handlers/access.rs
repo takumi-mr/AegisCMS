@@ -10,8 +10,89 @@ use std::collections::HashMap;
 use crate::state::AppState;
 use aegis_members::Viewer;
 
-/// 記事・ページのカスタムフィールド名（必要なレベル。未設定・`public` は誰でも）
-pub const ACCESS_FIELD: &str = "access";
+pub use aegis_schema::ACCESS_FIELD;
+
+/// 閲覧者によらず出す本文（フィード・検索・一覧・API 用）。制限していれば、だれにでも見せてよい部分だけ
+pub fn shared_blocks(
+    fields: &HashMap<String, serde_json::Value>,
+    blocks: Vec<aegis_ast::BlockNode>,
+) -> Vec<aegis_ast::BlockNode> {
+    if aegis_db::is_restricted(fields) {
+        aegis_ast::public_blocks(&blocks)
+    } else {
+        blocks
+    }
+}
+
+/// 一覧・フィード・関連記事の要約。制限していれば、書き手が書いた `excerpt` を優先し、無ければ
+/// だれにでも見せてよい部分から作る（本文の先頭を載せない）
+pub fn summary_excerpt(
+    fields: &HashMap<String, serde_json::Value>,
+    blocks: &[aegis_ast::BlockNode],
+    max_chars: usize,
+) -> String {
+    use crate::handlers::public::extract_excerpt;
+    if !aegis_db::is_restricted(fields) {
+        return extract_excerpt(blocks, max_chars);
+    }
+    let written = fields
+        .get("excerpt")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    match written {
+        Some(text) => text.chars().take(max_chars).collect(),
+        None => extract_excerpt(&aegis_ast::public_blocks(blocks), max_chars),
+    }
+}
+
+/// 見せない閲覧者に出す本文: だれにでも見せてよい部分（今は無し）と、そのあとの案内
+pub async fn teaser_with_notice(
+    state: &AppState,
+    fields: &HashMap<String, serde_json::Value>,
+    blocks_json: &str,
+    notice_html: &str,
+) -> String {
+    let blocks: Vec<aegis_ast::BlockNode> = serde_json::from_str(blocks_json).unwrap_or_default();
+    let teaser = shared_blocks(fields, blocks);
+    let teaser_html = if teaser.is_empty() {
+        String::new()
+    } else {
+        crate::render::render_content_html(state, &teaser).await
+    };
+    format!("{teaser_html}{notice_html}")
+}
+
+/// 公開済みの記事・ページに付くコメントの API 用。制限した記事のコメントを、見られない閲覧者に出さない。
+/// 見られないなら `403`（記事が無い・コメントの対象でないときは `None` を返し、元の処理に任せる）
+pub async fn deny_comments(
+    state: &AppState,
+    headers: &HeaderMap,
+    content_type: &str,
+    slug: &str,
+) -> Option<(axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+    let schema = state.schemas.read().await.get(content_type).cloned()?;
+    let record = state
+        .db
+        .get_published_content(&schema, slug)
+        .await
+        .ok()
+        .flatten()?;
+    if !record.is_restricted() {
+        return None;
+    }
+    let path = crate::handlers::public::public_content_path(state, content_type, slug);
+    match gate(state, headers, &record.custom_fields, &path).await {
+        Gate::Denied { .. } => Some((
+            axum::http::StatusCode::FORBIDDEN,
+            axum::Json(serde_json::json!({
+                "error": "This content is restricted",
+                "code": "access_restricted"
+            })),
+        )),
+        _ => None,
+    }
+}
 
 /// 制限の判定の結果
 pub enum Gate {
