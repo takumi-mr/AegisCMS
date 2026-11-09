@@ -173,6 +173,8 @@ pub async fn shop_config(State(state): State<Arc<AppState>>) -> Json<serde_json:
         "enabled": state.commerce.is_some(),
         // 管理画面の「会員」「レビュー」の画面を出すかどうか
         "members_enabled": state.members.is_some(),
+        // 記事・ページの「閲覧できる会員」の選択肢（低 → 高。docs/members.md 15）
+        "member_levels": state.config.members.levels,
         "reviews_enabled": state.reviews.is_some(),
         "currency": commerce.currency,
         "supported_currencies": commerce.effective_supported_currencies(),

@@ -17,7 +17,7 @@ use crate::config::AegisConfig;
 use crate::state::AppState;
 use crate::test_support::test_app_state;
 
-const SECRET: &str = "Only paying members read this sentence.";
+const SECRET: &str = "Only paying members read this sentence about zxqunique.";
 
 fn schema(content_type: &str) -> SchemaDefinition {
     serde_json::from_value(json!({
@@ -56,13 +56,25 @@ async fn site_with(configure: impl FnOnce(&mut AegisConfig)) -> Site {
     let mut config = AegisConfig::default();
     config.members.enabled = true;
     config.members.levels = vec!["free".into(), "paid".into()];
+    // 本文が出る面を全部有効にして、制限した本文がどこにも出ないことを確かめる
+    config.search.enabled = true;
+    config.search.index_dir = String::new();
+    config.headless.enabled = true;
+    config.comments.enabled = true;
     configure(&mut config);
-    let state = test_app_state(
+    let mut state = test_app_state(
         config.clone(),
         PluginSupervisor::new(),
         vec![schema("article"), schema("page")],
     )
     .await;
+    state.search = Some(Arc::new(
+        crate::search::SiteSearch::from_config(&state.config.search).unwrap(),
+    ));
+    let comments =
+        aegis_comments::CommentService::new(state.config.comments.clone(), state.comment_deps())
+            .unwrap();
+    let state = state.with_comments(comments);
     let members = aegis_members::MemberService::from_config(
         &config.members,
         state.db.clone(),
@@ -321,4 +333,118 @@ async fn test_without_member_accounts_restricted_content_stays_hidden() {
     assert_notice_only(&reply);
     // 会員アカウントが無いので、ログインのリンクは出さない
     assert!(!reply.body.contains("/account/login"));
+}
+
+/// 制限した本文（`SECRET`）が、本文を出す面のどこにも出ない（案内・要約・フィード・検索・API）
+#[tokio::test]
+async fn test_restricted_body_does_not_leak_through_any_surface() {
+    let site = site_with(|_| {}).await;
+    site.publish("article", "secret", Some("paid")).await;
+    site.publish("article", "open", None).await;
+    crate::search::rebuild(&site.state).await;
+
+    // 一覧・フィード・タグ・関連記事: 要約は書き手の `excerpt`。本文の先頭は出ない
+    for path in ["/", "/articles", "/feed.xml"] {
+        let reply = site.get(path, None).await;
+        assert_eq!(reply.status, StatusCode::OK, "{path}");
+        assert!(
+            reply.body.contains("Title of secret"),
+            "{path}: the title is listed"
+        );
+        assert!(
+            reply.body.contains("A public teaser."),
+            "{path}: the written excerpt is shown"
+        );
+        // 制限していない記事の本文は、従来どおり出る（フィードは全文）
+        if path == "/feed.xml" {
+            assert!(reply.body.contains("Title of open"));
+        }
+    }
+    let feed = site.get("/feed.xml", None).await;
+    // フィードに、制限した記事の本文は 1 件分（open）だけ。secret の本文は出ない
+    assert_eq!(
+        feed.body.matches("zxqunique").count(),
+        1,
+        "only the open article's body is in the feed"
+    );
+    let index = site.get("/articles", None).await;
+    assert_eq!(
+        index.body.matches("zxqunique").count(),
+        1,
+        "only the open article's excerpt is listed"
+    );
+
+    // 検索: 隠した本文の語では当たらない。タイトルは当たる
+    let search = site.get("/api/v1/search?q=zxqunique", None).await;
+    assert_eq!(search.status, StatusCode::OK);
+    let found: serde_json::Value = serde_json::from_str(&search.body).unwrap();
+    let slugs: Vec<&str> = found["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|r| r["slug"].as_str())
+        .collect();
+    assert_eq!(slugs, vec!["open"], "{found}");
+    let by_title = site.get("/api/v1/search?q=secret", None).await;
+    assert!(by_title.body.contains("Title of secret"));
+
+    // ヘッドレス API: `blocks` も `html` も出ない。`access` は出る（鍵の印用）
+    let item = site
+        .get("/api/v1/public/contents/article/secret?include=html", None)
+        .await;
+    assert_eq!(item.status, StatusCode::OK, "{}", item.body);
+    assert!(!item.body.contains("zxqunique"), "{}", item.body);
+    let item: serde_json::Value = serde_json::from_str(&item.body).unwrap();
+    assert_eq!(item["blocks"], json!([]));
+    assert_eq!(item["fields"]["access"], "paid");
+    assert_eq!(item["excerpt"], "A public teaser.");
+    let open = site.get("/api/v1/public/contents/article/open", None).await;
+    assert!(open.body.contains("zxqunique"));
+    let list = site.get("/api/v1/public/contents/article", None).await;
+    assert!(!list.body.contains("Only paying members"));
+}
+
+#[tokio::test]
+async fn test_a_restricted_page_marks_itself_as_not_free_for_search_engines() {
+    let site = site_with(|_| {}).await;
+    site.publish("article", "secret", Some("paid")).await;
+    site.publish("article", "open", None).await;
+    let denied = site.get("/articles/secret", None).await;
+    assert!(denied.body.contains(r#""isAccessibleForFree":false"#));
+    assert!(denied.body.contains(r#""@type":"Article""#));
+    // 読める会員のページにも印は付く（同じ記事。クローラーには会員向けと伝わる）
+    let paid = site.member("paid@example.com", "paid").await;
+    assert!(site
+        .get("/articles/secret", Some(&paid))
+        .await
+        .body
+        .contains("isAccessibleForFree"));
+    assert!(!site
+        .get("/articles/open", None)
+        .await
+        .body
+        .contains("isAccessibleForFree"));
+}
+
+#[tokio::test]
+async fn test_comments_of_a_restricted_article_need_the_same_access() {
+    let site = site_with(|_| {}).await;
+    site.publish("article", "secret", Some("paid")).await;
+    site.publish("article", "open", None).await;
+    let guest = site
+        .get("/api/v1/contents/article/secret/comments", None)
+        .await;
+    assert_eq!(guest.status, StatusCode::FORBIDDEN, "{}", guest.body);
+    assert!(guest.body.contains("access_restricted"));
+    let paid = site.member("paid@example.com", "paid").await;
+    let allowed = site
+        .get("/api/v1/contents/article/secret/comments", Some(&paid))
+        .await;
+    assert_eq!(allowed.status, StatusCode::OK, "{}", allowed.body);
+    assert_eq!(
+        site.get("/api/v1/contents/article/open/comments", None)
+            .await
+            .status,
+        StatusCode::OK
+    );
 }

@@ -13,7 +13,6 @@ use aegis_schema::SchemaDefinition;
 use async_trait::async_trait;
 
 use crate::handlers::content::is_currently_published;
-use crate::handlers::public::extract_excerpt;
 use crate::handlers::tags_public::TagLookup;
 use crate::render;
 use crate::state::AppState;
@@ -212,7 +211,7 @@ pub async fn convert_records_to_summaries(
             content_type: r.content_type,
             title: r.title,
             slug: r.slug,
-            excerpt: extract_excerpt(&blocks, 140),
+            excerpt: crate::handlers::access::summary_excerpt(&fields, &blocks, 140),
             author_id: r.author_id,
             published_at: r.published_at,
             created_at: r.created_at,

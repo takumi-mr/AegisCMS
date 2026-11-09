@@ -1,5 +1,6 @@
 //! Core types, traits, and utilities for AegisCMS.
 
+pub mod access;
 pub mod audit;
 pub mod auth;
 pub mod cache;
@@ -12,6 +13,7 @@ pub mod notify;
 pub mod package;
 pub mod storage;
 
+pub use access::is_public_access;
 pub use audit::{
     format_audit_timestamp, normalize_audit_timestamp, AuditAction, AuditActor, AuditEvent,
     AuditOutcome, AuditQuery, AuditSink,

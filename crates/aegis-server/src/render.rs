@@ -210,6 +210,20 @@ pub fn relation_summary(rel: &aegis_db::ResolvedRelation) -> serde_json::Value {
 
 /// Extra `<head>` tags for any page: the base styles of the content blocks, the favicon, the link
 /// to the site's Atom feed and the SEO / OGP tags
+/// 閲覧を制限したページの構造化データ（JSON-LD。`<` はエスケープして、タイトルで `</script>` を閉じられないようにする）
+fn restricted_json_ld(title: &str, is_article: bool) -> String {
+    let data = serde_json::json!({
+        "@context": "https://schema.org",
+        "@type": if is_article { "Article" } else { "WebPage" },
+        "headline": title,
+        "isAccessibleForFree": false,
+    });
+    let json = serde_json::to_string(&data)
+        .unwrap_or_default()
+        .replace('<', "\\u003c");
+    format!("<script type=\"application/ld+json\">{json}</script>")
+}
+
 pub fn build_extra_head(
     state: &AppState,
     title: Option<&str>,
@@ -315,7 +329,7 @@ pub async fn render_page(
         .or_else(|| page.fields.get("image"))
         .and_then(|v| v.as_str());
 
-    let extra_head = build_extra_head(
+    let mut extra_head = build_extra_head(
         state,
         Some(&page.title),
         excerpt,
@@ -323,6 +337,11 @@ pub async fn render_page(
         Some(&path),
         is_article,
     );
+    // 閲覧を制限したページは、有料（会員向け）の印を検索エンジンに伝える。本文はゲストにも出していない
+    // ので、本文を隠して見せる「クローキング」ではない（schema.org の `isAccessibleForFree`）
+    if aegis_db::is_restricted(&page.fields) {
+        extra_head.push_str(&restricted_json_ld(&page.title, is_article));
+    }
 
     let mut ctx = PageRenderContext {
         template: page.template,

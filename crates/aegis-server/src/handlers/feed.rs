@@ -8,9 +8,7 @@ use axum::{
 use std::sync::Arc;
 
 use crate::handlers::content::is_currently_published;
-use crate::handlers::public::{
-    extract_excerpt, find_category, list_published_articles, ArticleFilter,
-};
+use crate::handlers::public::{find_category, list_published_articles, ArticleFilter};
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::renderer::escape_html;
@@ -156,8 +154,12 @@ pub(crate) async fn build_feed(
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(str::to_string)
-            .unwrap_or_else(|| extract_excerpt(&blocks, 200));
-        let content_html = render::render_content_html(state, &blocks).await;
+            .unwrap_or_else(|| {
+                crate::handlers::access::summary_excerpt(&record.custom_fields, &blocks, 200)
+            });
+        // 制限した記事は、本文を載せない（読めるのは、だれにでも見せてよい部分まで）
+        let shared = crate::handlers::access::shared_blocks(&record.custom_fields, blocks);
+        let content_html = render::render_content_html(state, &shared).await;
 
         entries.push_str("  <entry>\n");
         entries.push_str(&format!(

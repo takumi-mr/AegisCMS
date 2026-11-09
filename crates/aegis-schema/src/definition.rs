@@ -76,7 +76,28 @@ impl RelationTarget {
 /// 全コンテンツ型が持つ組み込みのカテゴリ参照フィールド名
 pub const CATEGORY_FIELD: &str = "category_id";
 
+/// 全コンテンツ型が持つ組み込みの閲覧制限フィールド名（必要な会員レベル。docs/members.md 15）
+pub const ACCESS_FIELD: &str = "access";
+
 impl FieldDefinition {
+    /// 組み込みの `access`（必要な会員レベル。未設定・`public` は誰でも）。
+    /// 閲覧の制限が YAML の書き忘れで外れないよう、全コンテンツ型に必ず持たせる。
+    /// 値は公開してよい（ヘッドレス API で、クライアントが鍵の印を出すのに使う）
+    pub fn builtin_access() -> Self {
+        Self {
+            name: ACCESS_FIELD.to_string(),
+            field_type: FieldType::String,
+            required: false,
+            nullable: true,
+            unique: false,
+            index: false,
+            max_length: Some(32),
+            target: None,
+            indexed_paths: Vec::new(),
+            public: true,
+        }
+    }
+
     /// 組み込みの `category_id`（カテゴリへのリレーション。未選択を許し、一覧の絞り込み用に索引を持つ）
     pub fn builtin_category() -> Self {
         Self {
@@ -95,10 +116,12 @@ impl FieldDefinition {
 }
 
 impl SchemaDefinition {
-    /// 組み込みフィールド（`category_id`）を先頭に差し込む。
+    /// 組み込みフィールド（`category_id`・`access`）を先頭に差し込む。
     /// YAML に同名の定義があっても組み込みの定義で置き換える（型ごとに食い違わせない）
     pub fn with_builtin_fields(mut self) -> Self {
-        self.fields.retain(|f| f.name != CATEGORY_FIELD);
+        self.fields
+            .retain(|f| f.name != CATEGORY_FIELD && f.name != ACCESS_FIELD);
+        self.fields.insert(0, FieldDefinition::builtin_access());
         self.fields.insert(0, FieldDefinition::builtin_category());
         self
     }

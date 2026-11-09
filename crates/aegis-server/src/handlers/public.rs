@@ -173,7 +173,7 @@ pub(crate) async fn find_adjacent_articles(
 
     let to_summary = |r: aegis_db::ContentRecord| -> ContentSummary {
         let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
-        let excerpt = extract_excerpt(&blocks, 140);
+        let excerpt = access::summary_excerpt(&r.custom_fields, &blocks, 140);
         ContentSummary {
             id: r.id,
             content_type: r.content_type,
@@ -529,7 +529,7 @@ async fn render_article_list(state: &AppState, view: ArticleListView) -> Respons
                         content_type: r.content_type,
                         title: r.title,
                         slug: r.slug,
-                        excerpt: extract_excerpt(&blocks, 140),
+                        excerpt: access::summary_excerpt(&fields, &blocks, 140),
                         author_id: r.author_id,
                         published_at: r.published_at,
                         created_at: r.created_at,
@@ -641,7 +641,15 @@ pub async fn render_article(
 
     // AST から HTML 変換 & ストリーミングリライター適用
     let content_html = match &gate {
-        Gate::Denied { notice_html } => notice_html.clone(),
+        Gate::Denied { notice_html } => {
+            access::teaser_with_notice(
+                &state,
+                &record.custom_fields,
+                &record.blocks_json,
+                notice_html,
+            )
+            .await
+        }
         _ => {
             let blocks: Vec<BlockNode> =
                 serde_json::from_str(&record.blocks_json).unwrap_or_default();
@@ -757,7 +765,15 @@ async fn render_fixed_page(
 
     let gate = access::gate(state, headers, &record.custom_fields, path).await;
     let content_html = match &gate {
-        Gate::Denied { notice_html } => notice_html.clone(),
+        Gate::Denied { notice_html } => {
+            access::teaser_with_notice(
+                state,
+                &record.custom_fields,
+                &record.blocks_json,
+                notice_html,
+            )
+            .await
+        }
         _ => {
             let blocks: Vec<BlockNode> =
                 serde_json::from_str(&record.blocks_json).unwrap_or_default();
@@ -851,7 +867,15 @@ pub async fn render_page_or_slug(
                 )
                 .await;
                 let content_html = match &gate {
-                    Gate::Denied { notice_html } => notice_html.clone(),
+                    Gate::Denied { notice_html } => {
+                        access::teaser_with_notice(
+                            &state,
+                            &record.custom_fields,
+                            &record.blocks_json,
+                            notice_html,
+                        )
+                        .await
+                    }
                     _ => {
                         let blocks: Vec<BlockNode> =
                             serde_json::from_str(&record.blocks_json).unwrap_or_default();

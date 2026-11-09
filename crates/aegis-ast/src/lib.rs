@@ -41,3 +41,10 @@ mod tests {
         assert!(html.contains("<pre><code class=\"language-rust\">fn main() { println!(&quot;Hello Aegis&quot;); }</code></pre>"));
     }
 }
+
+/// 閲覧を制限した記事・ページで、だれにでも見せてよい本文。今は無し（本文は全部隠す）。
+/// 「ここから先」の区切り（docs/members.md 15.3）を入れたら、区切りより前のブロックを返す。
+/// 制限した本文をページ以外（フィード・検索・一覧・API）に出すときは、必ずこれを通す。
+pub fn public_blocks(_blocks: &[BlockNode]) -> Vec<BlockNode> {
+    Vec::new()
+}

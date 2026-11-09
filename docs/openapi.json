@@ -21,6 +21,11 @@
       "ArticleFields": {
         "description": "Custom fields of 技術記事 (`fields` of a response and of a write request)",
         "properties": {
+          "access": {
+            "maxLength": 32,
+            "nullable": true,
+            "type": "string"
+          },
           "category_id": {
             "description": "Foreign key relation to category.id",
             "nullable": true,
@@ -162,6 +167,11 @@
       "CategoryFields": {
         "description": "Custom fields of カテゴリ (`fields` of a response and of a write request)",
         "properties": {
+          "access": {
+            "maxLength": 32,
+            "nullable": true,
+            "type": "string"
+          },
           "category_id": {
             "description": "Foreign key relation to category.id",
             "nullable": true,
@@ -385,6 +395,11 @@
       "PageFields": {
         "description": "Custom fields of 固定ページ (`fields` of a response and of a write request)",
         "properties": {
+          "access": {
+            "maxLength": 32,
+            "nullable": true,
+            "type": "string"
+          },
           "category_id": {
             "description": "Foreign key relation to category.id",
             "nullable": true,
@@ -422,6 +437,11 @@
       "ProductFields": {
         "description": "Custom fields of 商品 (`fields` of a response and of a write request)",
         "properties": {
+          "access": {
+            "maxLength": 32,
+            "nullable": true,
+            "type": "string"
+          },
           "buy_url": {
             "nullable": true,
             "type": "string"

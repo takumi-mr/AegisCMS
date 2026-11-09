@@ -23,10 +23,11 @@ const STANDARD_FIELDS = new Set([
  * `category_id` is built into every type and has its own selector where categories apply.
  */
 const DEDICATED_FIELDS: Record<string, string[]> = {
-  article: ['category_id'],
-  page: ['category_id', 'layout'],
+  article: ['category_id', 'access'],
+  page: ['category_id', 'layout', 'access'],
   product: [
     'category_id',
+    'access',
     'price',
     'compare_at_price',
     'stock',
@@ -43,7 +44,7 @@ export const extraFieldDefs = (
   contentType: string
 ): FieldDefinition[] => {
   if (!schema) return [];
-  const dedicated = new Set(DEDICATED_FIELDS[contentType] ?? ['category_id']);
+  const dedicated = new Set(DEDICATED_FIELDS[contentType] ?? ['category_id', 'access']);
   return schema.fields.filter((f) => !STANDARD_FIELDS.has(f.name) && !dedicated.has(f.name));
 };
 
