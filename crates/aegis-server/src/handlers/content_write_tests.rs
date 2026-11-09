@@ -150,3 +150,79 @@ async fn test_the_old_flat_form_is_refused_instead_of_dropped() {
         "nothing was created: {listed}"
     );
 }
+
+/// `access` は、公開（`public`・空・`null`）か `[members].levels` のレベルだけ。設定にない値は、
+/// だれも読めなくなるので、保存時に 400 で断る（作成も更新も）
+#[tokio::test]
+async fn test_access_must_be_public_or_a_configured_member_level() {
+    let site = site().await;
+    let create = |slug: &str, access: Value| {
+        json!({
+            "title": "T", "slug": slug, "status": "draft", "blocks": [],
+            "fields": { "access": access }
+        })
+    };
+    for (i, ok) in [
+        json!("free"),
+        json!("paid"),
+        json!("public"),
+        json!(""),
+        Value::Null,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (status, body) = site
+            .send(
+                "POST",
+                "/api/v1/contents/article",
+                Some(create(&format!("ok-{i}"), ok.clone())),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "{ok}: {body}");
+    }
+    for (i, bad) in [json!("gold"), json!("Paid"), json!(5)]
+        .into_iter()
+        .enumerate()
+    {
+        let (status, body) = site
+            .send(
+                "POST",
+                "/api/v1/contents/article",
+                Some(create(&format!("bad-{i}"), bad.clone())),
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}: {body}");
+    }
+    // 理由が分かる（選べるレベルを伝える）
+    let (_, body) = site
+        .send(
+            "POST",
+            "/api/v1/contents/article",
+            Some(create("typo", json!("gold"))),
+        )
+        .await;
+    assert_eq!(body["code"], "unknown_access_level");
+    assert!(
+        body["error"].as_str().unwrap().contains("free, paid"),
+        "{body}"
+    );
+
+    // 更新も同じ
+    let (status, _) = site
+        .send(
+            "PUT",
+            "/api/v1/contents/article/ok-0",
+            Some(create("ok-0", json!("gold"))),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = site
+        .send(
+            "PUT",
+            "/api/v1/contents/article/ok-0",
+            Some(create("ok-0", json!("paid"))),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+}

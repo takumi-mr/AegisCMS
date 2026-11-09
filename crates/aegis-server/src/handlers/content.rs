@@ -323,6 +323,40 @@ fn api_error(status: StatusCode, message: impl Into<String>) -> ApiError {
     (status, Json(json!({ "error": message.into() })))
 }
 
+/// `fields.access`（閲覧に必要な会員レベル）は、`public`・空・`null` か、`[members].levels` にあるものだけ。
+/// 設定にない値（タイポなど）を保存すると、だれも読めなくなるので、保存時に断る
+fn ensure_known_access(
+    state: &AppState,
+    fields: &HashMap<String, serde_json::Value>,
+) -> Result<(), ApiError> {
+    let Some(value) = fields.get(aegis_schema::ACCESS_FIELD) else {
+        return Ok(());
+    };
+    if value.is_null() {
+        return Ok(());
+    }
+    let Some(level) = value.as_str() else {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "access must be a string",
+        ));
+    };
+    let levels = &state.config.members.levels;
+    if aegis_core::is_public_access(Some(level)) || levels.iter().any(|l| l == level.trim()) {
+        return Ok(());
+    }
+    Err((
+        StatusCode::BAD_REQUEST,
+        Json(json!({
+            "error": format!(
+                "access must be public or one of the member levels: {}",
+                levels.join(", ")
+            ),
+            "code": "unknown_access_level"
+        })),
+    ))
+}
+
 async fn find_schema(state: &AppState, content_type: &str) -> Result<SchemaDefinition, ApiError> {
     state
         .schemas
@@ -577,6 +611,7 @@ pub async fn create_content(
     }
 
     let schema = find_schema(&state, &content_type).await?;
+    ensure_known_access(&state, &payload.fields)?;
     let id = Uuid::new_v4().to_string();
     let now_at = chrono::Utc::now();
     let now = now_at.to_rfc3339();
@@ -667,6 +702,7 @@ pub async fn update_content(
     review::ensure_may_set_status(&session, &payload.status)?;
     let review_note = review::normalize_note(payload.review_note.take())?;
     let schema = find_schema(&state, &content_type).await?;
+    ensure_known_access(&state, &payload.fields)?;
     let current = state
         .db
         .get_content(&schema, &slug_or_id)
