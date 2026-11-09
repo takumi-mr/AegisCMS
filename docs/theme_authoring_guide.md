@@ -305,6 +305,10 @@ themes/my-theme/
 - **同梱のテーマと組み込みのテンプレートは、すでにインラインのコードを出しません**（`aegis-theme` のテストが、全テンプレートを描画して確かめています）。組み込みのコメント欄・初期セットアップ画面・アクセス解析のビーコンは、`/_aegis/…js` の外部ファイルです。
 - プラグインのスクリプトは、プラグイン側が構造化して足します（[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）。テーマが気にすることはありません。
 
+### 6a-2. `<style>` の書き方
+
+`style-src` からも `'unsafe-inline'` が無い（Strict）ので、テンプレートに直接書いた `<style>…</style>` は止まります。**`{% filter inline_style %}…{% endfilter %}`** で包むか（`{{ inline_style("CSS") }}` でもよい）、`assets/*.css` を `<link>` で読んでください。ホストがタグを作り、本文のハッシュを CSP に登録します。`style=""` 属性は、当面そのまま使えます（[csp.md の 6.1](csp.md#61-スタイルstyle-はハッシュstyle-属性は当面許す)）。
+
 ## 6b. フォント（外部のスタイルシートは CSP に止められる）
 
 公開ページの CSP は、`fonts.googleapis.com` のような外部のスタイルシートを許しません。次のどちらかにします（詳しくは [csp.md の 8](csp.md#8-テーマのフォント外部のスタイルthemejson-の-csp)）。

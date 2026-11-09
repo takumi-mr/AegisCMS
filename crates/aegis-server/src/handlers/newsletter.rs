@@ -117,6 +117,8 @@ async fn render_page(
     content_html: String,
     status: StatusCode,
 ) -> Response {
+    // Strict CSP: 申し込みのページの `<style>` のハッシュを CSP に足す
+    aegis_core::csp::record_styles_in(STYLE);
     let mut ctx = PageRenderContext {
         template: "page.html".to_string(),
         content_type: "page".to_string(),

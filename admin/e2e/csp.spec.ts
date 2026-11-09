@@ -402,3 +402,80 @@ test("the body HTML preview keeps a plugin block's own <style>, in a sandboxed f
     await enable(false);
   }
 });
+
+test("public pages run under the default CSP: no <style> element is blocked and style-src has no 'unsafe-inline'", async ({
+  page,
+}) => {
+  await recordViolations(page);
+  const login = await page.request.post(`${SERVER}/api/v1/auth/session`, {
+    data: { username: E2E_USERNAME, password: E2E_PASSWORD },
+  });
+  const { id: token } = await login.json();
+  const auth = { Authorization: `Bearer ${token}` };
+  const slug = `csp-style-${Date.now()}`;
+  const created = await page.request.post(`${SERVER}/api/v1/contents/article`, {
+    headers: auth,
+    data: {
+      title: `Style ${slug}`,
+      slug,
+      status: 'published',
+      blocks: [
+        { name: 'core/heading', attributes: { level: 2 }, text: 'One' },
+        { name: 'core/callout', attributes: { kind: 'note' }, text: 'A callout' },
+      ],
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+
+  for (const path of ['/', `/articles/${slug}`, '/articles', '/search?q=style', '/nope-404']) {
+    const response = await page.goto(`${SERVER}${path}`, { waitUntil: 'networkidle' });
+    const csp = response!.headers()['content-security-policy'];
+    const styleSrc = csp.split(';').find((d) => d.trim().startsWith('style-src ')) ?? '';
+    expect(styleSrc, path).not.toContain('unsafe-inline');
+    expect(styleSrc, path).toContain("'sha256-");
+    // The `style=""` attributes are still allowed for now (style-src-attr)
+    expect(csp, path).toContain("style-src-attr 'unsafe-inline'");
+    await page.waitForTimeout(200);
+    const blocked = (await violations(page)).filter((v) => v.directive.startsWith('style-src'));
+    expect(blocked, path).toEqual([]);
+  }
+});
+
+test('a core/html block in sandbox mode still runs its script and syncs its height under the strict CSP', async ({
+  page,
+}) => {
+  const errors = await recordViolations(page);
+  const login = await page.request.post(`${SERVER}/api/v1/auth/session`, {
+    data: { username: E2E_USERNAME, password: E2E_PASSWORD },
+  });
+  const { id: token } = await login.json();
+  const auth = { Authorization: `Bearer ${token}` };
+  const slug = `csp-sandbox-${Date.now()}`;
+  const created = await page.request.post(`${SERVER}/api/v1/contents/article`, {
+    headers: auth,
+    data: {
+      title: `Sandbox ${slug}`,
+      slug,
+      status: 'published',
+      blocks: [
+        {
+          name: 'core/html',
+          attributes: { mode: 'sandbox' },
+          text: '<div id="w" style="height:300px">widget</div><script>document.getElementById("w").textContent="script ran";</script>',
+        },
+      ],
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+
+  await page.goto(`${SERVER}/articles/${slug}`, { waitUntil: 'networkidle' });
+  const frame = page.frameLocator('iframe.cms-html-sandbox');
+  // The widget's own inline script ran inside the opaque-origin frame (its hash is in the CSP)
+  await expect(frame.locator('#w')).toHaveText('script ran');
+  // The frame's height followed its content (the host's resize script ran too)
+  await expect
+    .poll(() => page.locator('iframe.cms-html-sandbox').evaluate((e) => e.style.height))
+    .toBe('300px');
+  expect(await violations(page)).toEqual([]);
+  expect(errors).toEqual([]);
+});

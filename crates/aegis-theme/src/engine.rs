@@ -747,6 +747,16 @@ impl ThemeEngine {
             },
         );
 
+        // インラインのスタイルを出す（`{{ inline_style("CSS") }}`）。Strict CSP では、`<style>` は、ここで出して
+        // 本文のハッシュを登録したものだけが効く（`style=""` 属性は別。docs/csp.md の 3.2）
+        // `{% filter inline_style %}CSS{% endfilter %}` の形でも書ける（長い CSS はこちらが読みやすい）
+        env.add_function("inline_style", |css: &str| {
+            minijinja::Value::from_safe_string(aegis_core::csp::inline_style_tag(css))
+        });
+        env.add_filter("inline_style", |css: &str| {
+            minijinja::Value::from_safe_string(aegis_core::csp::inline_style_tag(css))
+        });
+
         env.set_loader(
             move |name: &str| -> std::result::Result<Option<String>, minijinja::Error> {
                 // 1. 動的オーバーライド (プラグイン・インメモリ登録)

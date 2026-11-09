@@ -158,6 +158,8 @@ fn plugin_block_html(name: &str, html: Option<String>, frame_domains: &[String])
         html
     );
     let clean = aegis_ast::renderer::sanitize_html_fragment_with_frames(&wrapped, frame_domains);
+    // Strict CSP: プラグインが出したブロックの `<style>` は、ホストが信頼してハッシュを CSP に足す
+    aegis_core::csp::record_styles_in(&clean);
     format!("{}\n", clean)
 }
 
@@ -243,6 +245,8 @@ pub fn build_extra_head(
         path,
         is_article,
     };
+    // Strict CSP: 組み込みのブロックのスタイルと、管理者が書いたヘッダーの `<style>` のハッシュを CSP に足す
+    aegis_core::csp::record_styles_in(aegis_theme::BLOCK_STYLES);
     let mut extra_head = String::from(aegis_theme::BLOCK_STYLES);
     #[cfg(feature = "analytics")]
     {
@@ -253,6 +257,7 @@ pub fn build_extra_head(
         }
     }
     let site_head = site.head_html();
+    aegis_core::csp::record_styles_in(&site_head);
     if !site_head.is_empty() {
         extra_head.push_str("\n  ");
         extra_head.push_str(&site_head);
