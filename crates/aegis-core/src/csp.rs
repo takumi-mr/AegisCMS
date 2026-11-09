@@ -314,7 +314,31 @@ pub fn inline_script_tag(code: &str, consent: Option<&str>) -> String {
 }
 
 /// 公開ページの既定の CSP（`headers::DEFAULT_CONTENT_SECURITY_POLICY`。`theme dev` も同じ値を使う）
-pub const DEFAULT_PUBLIC_CSP: &str = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
+pub const DEFAULT_PUBLIC_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
+
+/// 前の動き（`[security].strict_csp` が `off` / `report-only` のとき強制する CSP）: `script-src` と `style-src` に
+/// `'unsafe-inline'` を足す。既定の CSP の定数には `'unsafe-inline'` を持たせない
+pub fn with_legacy_inline(csp: &str) -> String {
+    let mut directives: Vec<String> = csp
+        .split(';')
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(|d| {
+            let name = d.split_whitespace().next().unwrap_or_default();
+            if matches!(name, "script-src" | "style-src") && !d.contains("'unsafe-inline'") {
+                format!("{d} 'unsafe-inline'")
+            } else {
+                d.to_string()
+            }
+        })
+        .collect();
+    for name in ["script-src", "style-src"] {
+        if !directives.iter().any(|d| d.starts_with(name)) {
+            directives.push(format!("{name} 'self' 'unsafe-inline'"));
+        }
+    }
+    format!("{};", directives.join("; "))
+}
 
 /// Strict CSP（`[security].strict_csp`）の値を作る。`csp` の `script-src` から `'unsafe-inline'`・`'unsafe-eval'` を外し、
 /// 信頼できる出どころが出したインラインのスクリプトのハッシュ（`hashes`。`sha256-<base64>`）を足す。
@@ -532,6 +556,26 @@ mod tests {
         ];
         want.sort();
         assert_eq!(got.styles, want);
+    }
+
+    #[test]
+    fn the_default_policy_has_no_unsafe_inline_and_the_legacy_one_adds_it() {
+        assert!(!DEFAULT_PUBLIC_CSP.contains("unsafe-inline"));
+        let legacy = with_legacy_inline(DEFAULT_PUBLIC_CSP);
+        assert!(
+            legacy.contains("script-src 'self' 'unsafe-inline';"),
+            "{legacy}"
+        );
+        assert!(
+            legacy.contains("style-src 'self' 'unsafe-inline';"),
+            "{legacy}"
+        );
+        assert_eq!(
+            with_legacy_inline("default-src 'self';")
+                .matches("'unsafe-inline'")
+                .count(),
+            2
+        );
     }
 
     #[test]

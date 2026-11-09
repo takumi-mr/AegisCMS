@@ -18,7 +18,7 @@
 | テーマ適用ページのプレビュー | 公開ページと同じ | `GET /api/v1/preview/frame/{key}` が、`sandbox allow-scripts` を足して返す。Strict のときは、ページを置いたときに集めたハッシュも CSP に足す |
 | 公開ページ（`[security].strict_csp = "on"`。**既定**） | `'self'` + ページのインラインのスクリプトのハッシュ + 宣言したホスト | `'unsafe-inline'`・`'unsafe-eval'` なし（§6）。`style-src` は `'self'` + ページの `<style>` のハッシュ（`unsafe-inline` なし。`style=""` 属性も止まる。§6.1） |
 
-- 既定の値は `headers::DEFAULT_CONTENT_SECURITY_POLICY`・`ADMIN_CONTENT_SECURITY_POLICY`。管理者が「設定 › ヘッダー」で CSP を上書きしているときは、その値をそのまま使う。
+- 既定の値は `headers::DEFAULT_CONTENT_SECURITY_POLICY`（`aegis_core::csp::DEFAULT_PUBLIC_CSP`。**`'unsafe-inline'` を持たない**）・`ADMIN_CONTENT_SECURITY_POLICY`。`strict_csp` が `off` / `report-only` のときだけ、`aegis_core::csp::with_legacy_inline` が `script-src` と `style-src` に `'unsafe-inline'` を足して強制する（前の動き）。管理者が「設定 › ヘッダー」で CSP を上書きしているときは、その値をそのまま使う。
 - `admin/e2e/csp.spec.ts` が、Admin Studio と公開ページの主な画面を既定の CSP で動かし、止められたスクリプトとスクリプトのエラーを検出する。
 - 詳しい経緯は [architecture.md の「デフォルト防御ヘッダー値」](architecture.md)。
 

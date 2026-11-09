@@ -234,7 +234,8 @@ async fn test_strict_csp_off_keeps_unsafe_inline_and_never_overrides_an_admin_cs
     let site_off = site(|c| c.security.strict_csp = StrictCsp::Off).await;
     let (_, headers, _) = site_off.get("/articles/hello").await;
     let csp = header(&headers, "content-security-policy");
-    assert!(csp.contains("script-src 'self' 'unsafe-inline'"), "{csp}");
+    assert!(script_src(csp).contains("'unsafe-inline'"), "{csp}");
+    assert!(csp.contains("style-src 'self' 'unsafe-inline'"), "{csp}");
     assert!(!csp.contains("sha256-"));
     assert!(header(&headers, "content-security-policy-report-only").is_empty());
 
