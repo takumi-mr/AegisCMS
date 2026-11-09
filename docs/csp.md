@@ -5,7 +5,7 @@
 公開サイトと Admin Studio の CSP の、現状と、公開ページを Strict CSP（インラインのスクリプトを許さない）にする設計です。
 
 > [!NOTE]
-> すべて実装済みです（実装の分け方は §7）。**既定は `strict_csp = "on"`（破壊的変更）**。前の動きに戻すには `"off"`。
+> すべて実装済みです（実装の分け方は §7。フォントは §8）。**既定は `strict_csp = "on"`（破壊的変更）**。前の動きに戻すには `"off"`。
 
 ---
 
@@ -141,3 +141,29 @@ pub enum ScriptSource {
 - 決めた: ハッシュ方式（共有キャッシュと両立するため）、`strict-dynamic` を使わない、プラグインに nonce・ハッシュを見せない、ABI の破壊的変更を許す。
 - 決めた（4 で）: `inline_script()` は、テンプレート関数が `aegis_core::csp::inline_script_tag` を呼んでタグを作り、本文のハッシュをリクエストの受け口に記録する。`report-only` の報告の受け口は持たない（ブラウザーのコンソールで確かめる）。
 - 決めた（5 で）: 既定を `on` にする（移行の期間は置かず、破壊的変更として出す）。`aegis-server theme dev`（テーマの開発サーバー）は、まだ CSP を付けないので、テーマの作者は、本物のサーバーを `report-only` で動かして確かめる（TODO）。
+
+---
+
+## 8. テーマのフォント・外部のスタイル（`theme.json` の `csp`）
+
+公開ページの CSP の `style-src` は `'self' 'unsafe-inline'`、`font-src` は `'self' data: https:` です。そのため、**外部のスタイルシート（Google Fonts の `fonts.googleapis.com` など）は、CSP に止められます**（以前は、組み込みの default テーマも同梱の 4 つのテーマも、Google Fonts を読んでいて、止められて代わりの書体になっていました）。直し方は 2 つです。
+
+- **フォントを自分で配信する**（組み込みの default テーマの方式）: woff2 を自分のサイトに置き、`@font-face` で読む。外部に何も頼らないので、CSP に足すものがなく、訪問者の IP アドレスも外に出ない。組み込みの `base.html` は、Plus Jakarta Sans と JetBrains Mono の **Latin のサブセット**を、`/_aegis/fonts/<ファイル>`（バイナリに埋め込み。ライセンスは SIL OFL 1.1。[`crates/aegis-server/assets/fonts/README.md`](../crates/aegis-server/assets/fonts/README.md)）から配信する。日本語など、ほかの文字は、システムのフォントに倒れる。
+- **外部のホストを `theme.json` で宣言する**（日本語のウェブフォントのように、自分で配信できないとき）: テーマの `theme.json` に `csp` を書くと、そのテーマが有効な間、サーバーが公開ページの CSP に足す。
+
+```json
+{
+  "id": "roastery",
+  "csp": {
+    "style_domains": ["fonts.googleapis.com"],
+    "font_domains": ["fonts.gstatic.com"]
+  }
+}
+```
+
+  - 書けるのは `style_domains`（`style-src`）・`font_domains`（`font-src`）・`img_domains`（`img-src`）。**スクリプトのホストは宣言できない**（テーマのスクリプトは、自分のファイルか `inline_script()`）。
+  - ホスト名だけ（ワイルドカード・スキーム・ポート・パスは不可）、一覧ごとに 10 個まで。誤りのあるテーマは導入できず、動いているテーマの誤りは無視する（警告を出す）。
+  - 管理画面の「テーマ」のカードに、「ほかのサイトから読み込む: …（訪問者の IP アドレスが送られます）」と出る。外部のフォントの CDN には、訪問者の IP アドレスが届くので、プライバシーポリシーに書く。
+  - 同梱のテーマのうち、Google Fonts を読む `emerald-luxury`・`minimal-editorial`・`roastery`・`trailhead` が宣言している（`cyber-neon` は読まない）。
+
+管理者が管理画面で CSP を上書きしているときも、宣言したホストは足される（プラグインの `capabilities.csp` と同じ）。

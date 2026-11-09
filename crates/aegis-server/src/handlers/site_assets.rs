@@ -43,6 +43,31 @@ pub async fn consent_style(State(state): State<Arc<AppState>>) -> Response {
     asset("text/css; charset=utf-8", crate::consent::style())
 }
 
+/// `GET /_aegis/fonts/{file}` — 組み込みの default テーマのフォント（Latin のサブセットの woff2）。
+/// 外部のフォントの CDN に頼らない（CSP に止められず、訪問者の IP を送らない）。ライセンスは SIL OFL 1.1
+/// （`assets/fonts/OFL-*.txt`）。知らない名前は 404
+pub async fn font_file(axum::extract::Path(file): axum::extract::Path<String>) -> Response {
+    let bytes: &'static [u8] = match file.as_str() {
+        "plus-jakarta-sans-latin.woff2" => {
+            include_bytes!("../../assets/fonts/plus-jakarta-sans-latin.woff2")
+        }
+        "jetbrains-mono-latin.woff2" => {
+            include_bytes!("../../assets/fonts/jetbrains-mono-latin.woff2")
+        }
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "font/woff2"),
+            (header::CACHE_CONTROL, "public, max-age=604800"),
+            (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        ],
+        bytes,
+    )
+        .into_response()
+}
+
 /// `GET /_aegis/comments.js` — 組み込みのコメント欄の投稿フォームのスクリプト
 pub async fn comments_script() -> Response {
     asset(
@@ -114,5 +139,101 @@ mod tests {
             let text = String::from_utf8_lossy(&body);
             assert!(text.contains(&needle), "{path}");
         }
+    }
+
+    /// 組み込みの default テーマは、フォントを自分で配信する（外部のフォントの CDN に頼らない）
+    #[tokio::test]
+    async fn test_the_default_theme_serves_its_fonts_itself() {
+        let config = AegisConfig::default();
+        let ns = config.server.namespace();
+        let state = std::sync::Arc::new(
+            test_app_state(config.clone(), PluginSupervisor::new(), Vec::new()).await,
+        );
+        let app = crate::app::router(&config, state);
+        let get = |path: String| {
+            let app = app.clone();
+            async move {
+                app.oneshot(Request::get(path).body(Body::empty()).unwrap())
+                    .await
+                    .unwrap()
+            }
+        };
+
+        // ページは、Google Fonts を読まず、自分のフォントを読む。CSP に外部のフォントのホストは要らない
+        let res = get("/".to_string()).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        let csp = res.headers()["content-security-policy"]
+            .to_str()
+            .unwrap()
+            .to_string();
+        let html = String::from_utf8_lossy(
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .to_string();
+        assert!(!html.contains("fonts.googleapis.com") && !html.contains("fonts.gstatic.com"));
+        assert!(
+            !csp.contains("googleapis") && !csp.contains("gstatic"),
+            "{csp}"
+        );
+        for file in [
+            "plus-jakarta-sans-latin.woff2",
+            "jetbrains-mono-latin.woff2",
+        ] {
+            assert!(html.contains(&format!("/_{ns}/fonts/{file}")), "{file}");
+            let res = get(format!("/_{ns}/fonts/{file}")).await;
+            assert_eq!(res.status(), StatusCode::OK, "{file}");
+            assert_eq!(res.headers()["content-type"], "font/woff2");
+            let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            assert_eq!(&body[..4], b"wOF2", "{file} is a woff2 file");
+        }
+        // 知らない名前（パスの横断を含む）は 404
+        for bad in [
+            "nope.woff2",
+            "..%2Fcomments.js",
+            "plus-jakarta-sans-latin.woff",
+        ] {
+            assert_eq!(
+                get(format!("/_{ns}/fonts/{bad}")).await.status(),
+                StatusCode::NOT_FOUND,
+                "{bad}"
+            );
+        }
+    }
+
+    /// テーマが `theme.json` の `csp` で宣言したホスト（Google Fonts など）が、公開ページの CSP の
+    /// `style-src` / `font-src` に入る。スクリプトには入らない
+    #[tokio::test]
+    async fn test_the_active_themes_declared_hosts_reach_the_csp() {
+        let config = AegisConfig::default();
+        let mut state = test_app_state(config.clone(), PluginSupervisor::new(), Vec::new()).await;
+        let themes = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../themes");
+        state.theme = std::sync::Arc::new(aegis_theme::ThemeEngine::new(&themes, "roastery"));
+        let app = crate::app::router(&config, std::sync::Arc::new(state));
+        let res = app
+            .oneshot(Request::get("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let csp = res.headers()["content-security-policy"].to_str().unwrap();
+        let directive = |name: &str| {
+            csp.split(';')
+                .map(str::trim)
+                .find(|d| d.starts_with(name))
+                .unwrap_or_default()
+                .to_string()
+        };
+        assert!(
+            directive("style-src").contains("https://fonts.googleapis.com"),
+            "{csp}"
+        );
+        assert!(
+            directive("font-src").contains("https://fonts.gstatic.com"),
+            "{csp}"
+        );
+        assert!(!directive("script-src").contains("googleapis"), "{csp}");
+        assert!(!directive("script-src").contains("gstatic"), "{csp}");
     }
 }

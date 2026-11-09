@@ -23,6 +23,10 @@ test.describe('Theme Manager', () => {
     const horizonCard = page.locator('div[class*="card"]').filter({ has: horizonHeading }).first();
     await expect(horizonCard.getByText('Currently Active')).toBeVisible();
 
+    // A theme that loads fonts from another site says so (its theme.json asks the CSP for those
+    // hosts); the default theme serves its own fonts and says nothing
+    await expect(horizonCard.getByText(/Loads from other sites/)).toHaveCount(0);
+
     // Switch to Nordic Minimal Editorial
     const editorialCard = page
       .locator('div[class*="card"]')
@@ -37,6 +41,9 @@ test.describe('Theme Manager', () => {
       page.getByText('Activated "Nordic Minimal Editorial" successfully!')
     ).toBeVisible();
     await expect(editorialCard.getByText('Currently Active')).toBeVisible();
+    await expect(
+      editorialCard.getByText(/Loads from other sites: .*fonts\.googleapis\.com/)
+    ).toBeVisible();
 
     // Reload page to verify persistence
     await page.reload();

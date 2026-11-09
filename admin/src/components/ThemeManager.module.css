@@ -222,6 +222,12 @@
   border-radius: 9999px;
 }
 
+.externalHosts {
+  margin: 0 0 0.8rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 .metaRow {
   display: flex;
   align-items: center;

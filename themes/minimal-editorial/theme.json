@@ -11,5 +11,9 @@
   "preview_image": "preview.svg",
   "tags": ["light", "minimal", "editorial", "journal", "typography"],
   "homepage": "https://aegiscms.dev/themes/minimal-editorial",
-  "min_aegis_version": "0.1.0"
+  "min_aegis_version": "0.1.0",
+  "csp": {
+    "style_domains": ["fonts.googleapis.com"],
+    "font_domains": ["fonts.gstatic.com"]
+  }
 }

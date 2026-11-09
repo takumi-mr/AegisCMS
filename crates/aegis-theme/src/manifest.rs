@@ -56,6 +56,54 @@ pub struct ThemeManifest {
     /// 対応する最小 AegisCMS バージョン
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_aegis_version: Option<String>,
+    /// テーマが外部のスタイル・フォント・画像を読むときに、CSP に足してほしいホスト（docs/csp.md の 8）。
+    /// 有効にしている間、サーバーが公開ページの CSP に足す。スクリプトのホストは宣言できない
+    /// （テーマのスクリプトは自分のファイルか `inline_script()`）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub csp: Option<ThemeCsp>,
+}
+
+/// テーマが宣言する CSP のホスト（`theme.json` の `csp`）。ホスト名だけ（ワイルドカード・ポート・スキーム・パスは不可）
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ThemeCsp {
+    /// `style-src` に足すホスト（例: `fonts.googleapis.com`。`<link rel="stylesheet">`・`@import`）
+    #[serde(default)]
+    pub style_domains: Vec<String>,
+    /// `font-src` に足すホスト（例: `fonts.gstatic.com`）
+    #[serde(default)]
+    pub font_domains: Vec<String>,
+    /// `img-src` に足すホスト
+    #[serde(default)]
+    pub img_domains: Vec<String>,
+}
+
+impl ThemeCsp {
+    /// 宣言したホストが、すべてホスト名として正しいか（一覧ごとに 10 個まで）
+    pub fn validate(&self) -> Result<(), String> {
+        for (field, domains) in [
+            ("style_domains", &self.style_domains),
+            ("font_domains", &self.font_domains),
+            ("img_domains", &self.img_domains),
+        ] {
+            if domains.len() > 10 {
+                return Err(format!("csp.{field}: at most 10 hosts"));
+            }
+            if let Some(bad) = domains
+                .iter()
+                .find(|d| !aegis_core::manifest::is_valid_csp_domain(d))
+            {
+                return Err(format!(
+                    "csp.{field}: {bad:?} is not a host name (e.g. \"fonts.googleapis.com\")"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// 宣言が空か
+    pub fn is_empty(&self) -> bool {
+        self.style_domains.is_empty() && self.font_domains.is_empty() && self.img_domains.is_empty()
+    }
 }
 
 fn default_version() -> String {
@@ -89,6 +137,7 @@ impl ThemeManifest {
             homepage: None,
             repository: None,
             min_aegis_version: None,
+            csp: None,
         }
     }
 

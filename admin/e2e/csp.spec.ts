@@ -107,15 +107,26 @@ test('public pages run under the default CSP without eval or blocked scripts', a
   await page.goto(`${SERVER}/articles/${slug}`);
   await expect(page.locator('form.cms-comment-form')).toBeVisible();
 
-  expect(scriptViolations(seen)).toEqual([]);
+  // Nothing the policy blocks: not a script, and (since the default theme serves its own fonts)
+  // not a style sheet, a font or an image either
+  expect(seen).toEqual([]);
   expect(errors).toEqual([]);
-  // Style / font / image violations are worth knowing about, but are not this test's concern
-  if (seen.length > 0) {
-    test.info().annotations.push({
-      type: 'other CSP violations',
-      description: JSON.stringify(seen.slice(0, 10)),
-    });
-  }
+
+  // The default theme's fonts come from this site, and they load
+  const fontRequests: string[] = [];
+  page.on(
+    'response',
+    (r) => r.url().includes('/fonts/') && fontRequests.push(`${r.status()} ${r.url()}`)
+  );
+  await page.goto(`${SERVER}/`);
+  const loaded = await page.evaluate(
+    async () => (await document.fonts.load('16px "Plus Jakarta Sans"', 'A')).length
+  );
+  expect(loaded).toBeGreaterThan(0);
+  expect(fontRequests.some((r) => r.startsWith('200 ') && r.includes('plus-jakarta-sans'))).toBe(
+    true
+  );
+  expect(fontRequests.every((r) => r.startsWith('200 ') || r.startsWith('304 '))).toBe(true);
 });
 
 test('the themed-page preview runs under the public CSP, isolated from Admin Studio', async ({
