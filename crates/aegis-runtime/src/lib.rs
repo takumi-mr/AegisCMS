@@ -144,6 +144,7 @@ mod tests {
         let mut manifest = make_sample_manifest(vec!["on-render-page".to_string()]);
         manifest.capabilities.render_page = Some(aegis_core::RenderPageCapability {
             input: render_page_input,
+            ..Default::default()
         });
         WasmPluginInstance::from_bytes(
             engine.clone(),
@@ -215,6 +216,31 @@ mod tests {
             ));
             ctx.prepend_content = self.prepend.to_string();
             ctx.append_content = self.append.to_string();
+            Ok(ctx)
+        }
+    }
+
+    /// `on_render_page` で、受け取った宣言的クエリの名前を記録し、結果を書き換えようとする
+    struct QueriesPlugin {
+        manifest: PluginManifest,
+        seen: Mutex<Vec<Vec<String>>>,
+    }
+
+    #[async_trait::async_trait]
+    impl AegisPlugin for QueriesPlugin {
+        fn manifest(&self) -> &PluginManifest {
+            &self.manifest
+        }
+
+        async fn on_render_page(
+            &self,
+            mut ctx: aegis_core::PageRenderContext,
+        ) -> aegis_core::Result<aegis_core::PageRenderContext> {
+            let mut names: Vec<String> = ctx.queries.keys().cloned().collect();
+            names.sort();
+            self.seen.lock().unwrap().push(names);
+            ctx.queries
+                .insert("tampered".to_string(), serde_json::json!(true));
             Ok(ctx)
         }
     }
@@ -408,6 +434,57 @@ mod tests {
             let seen = plugin.seen.lock().unwrap();
             assert_eq!(*seen, vec![(11, String::new(), String::new())]);
         }
+    }
+
+    /// 宣言的クエリの結果は、プラグインが `render_page.queries` に書いた名前の分だけ渡り、読み取り専用
+    #[tokio::test]
+    async fn test_apply_render_page_passes_only_the_declared_queries() {
+        let queries = aegis_core::new_queries_snapshot();
+        let mut all = serde_json::Map::new();
+        all.insert(
+            "by_brand".into(),
+            serde_json::json!([{"brand": "A", "n": 2}]),
+        );
+        all.insert("case_count".into(), serde_json::json!([{"n": 87}]));
+        all.insert("secret".into(), serde_json::json!([{"n": 1}]));
+        *queries.write().unwrap() = Arc::new(all);
+
+        let plugin = |name: &str, wanted: &[&str]| {
+            let mut manifest = make_sample_manifest(vec!["on-render-page".to_string()]);
+            manifest.name = name.to_string();
+            manifest.capabilities.render_page = Some(aegis_core::RenderPageCapability {
+                queries: wanted.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            });
+            Arc::new(QueriesPlugin {
+                manifest,
+                seen: Mutex::new(Vec::new()),
+            })
+        };
+        let (a, b, none) = (
+            plugin("a", &["by_brand", "case_count", "missing"]),
+            plugin("b", &["case_count"]),
+            plugin("none", &[]),
+        );
+        let mut supervisor = PluginSupervisor::new();
+        supervisor.set_queries(queries);
+        for p in [&a, &b, &none] {
+            supervisor.register(p.clone());
+        }
+        let rendered = supervisor
+            .apply_render_page(page_with_body())
+            .await
+            .unwrap();
+
+        // 宣言した名前の、存在するものだけ。宣言のないプラグインには何も渡らない。
+        // 前のプラグインが足した（書き換えた）値は、次のプラグインに見えない
+        assert_eq!(
+            *a.seen.lock().unwrap(),
+            vec![vec!["by_brand", "case_count"]]
+        );
+        assert_eq!(*b.seen.lock().unwrap(), vec![vec!["case_count"]]);
+        assert_eq!(*none.seen.lock().unwrap(), vec![Vec::<String>::new()]);
+        assert!(rendered.queries.is_empty(), "{:?}", rendered.queries);
     }
 
     /// プラグインのスクリプトは構造化した注入だけで足せる: HTML の断片の `<script>` と `on*` は取り除かれ、

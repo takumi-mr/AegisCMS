@@ -143,6 +143,8 @@ pub struct PluginCspSources {
 
 pub struct PluginSupervisor {
     plugins: Vec<Arc<dyn AegisPlugin>>,
+    /// 宣言的クエリの結果。`on-render-page` のプラグインに、宣言した名前の分だけ渡す
+    queries: Option<aegis_core::QueriesSnapshot>,
 }
 
 impl Default for PluginSupervisor {
@@ -155,7 +157,13 @@ impl PluginSupervisor {
     pub fn new() -> Self {
         Self {
             plugins: Vec::new(),
+            queries: None,
         }
+    }
+
+    /// 宣言的クエリの結果の入れ物を渡す（`apply_render_page` が、プラグインごとに宣言した名前の分だけ渡す）
+    pub fn set_queries(&mut self, queries: aegis_core::QueriesSnapshot) {
+        self.queries = Some(queries);
     }
 
     pub fn register(&mut self, plugin: Arc<dyn AegisPlugin>) {
@@ -280,6 +288,25 @@ impl PluginSupervisor {
         Ok(blocks)
     }
 
+    /// プラグインが `capabilities.render_page.queries` に書いた名前の、クエリの結果
+    fn queries_for(
+        &self,
+        manifest: &aegis_core::PluginManifest,
+    ) -> serde_json::Map<String, serde_json::Value> {
+        let wanted = manifest.render_page_queries();
+        let Some(shared) = self.queries.as_ref().filter(|_| !wanted.is_empty()) else {
+            return serde_json::Map::new();
+        };
+        let snapshot = shared
+            .read()
+            .map(|g| g.clone())
+            .unwrap_or_else(|e| e.into_inner().clone());
+        wanted
+            .iter()
+            .filter_map(|name| snapshot.get(name).map(|v| (name.clone(), v.clone())))
+            .collect()
+    }
+
     pub async fn apply_render_page(
         &self,
         mut ctx: aegis_core::PageRenderContext,
@@ -302,6 +329,7 @@ impl PluginSupervisor {
                 ctx.prepend_content.clear();
                 ctx.append_content.clear();
                 ctx.scripts.clear();
+                ctx.queries = self.queries_for(plugin.manifest());
                 ctx.content_length = ctx.content_html.len();
                 let content_before = content_fingerprint(&ctx.content_html);
                 match plugin.on_render_page(ctx).await {
@@ -317,6 +345,8 @@ impl PluginSupervisor {
                     }
                 }
                 let name = plugin.manifest().name.clone();
+                // クエリの結果は読み取り専用。次のプラグインには渡さず、返ってきた分も捨てる
+                ctx.queries.clear();
                 // スクリプトは、構造化した注入でだけ足せる。HTML の断片の中の `<script>` と `on*` 属性は取り除く
                 ctx.extra_head = scripts::strip_scripts(&ctx.extra_head);
                 ctx.prepend_content = scripts::strip_scripts(&ctx.prepend_content);

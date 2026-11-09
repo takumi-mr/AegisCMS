@@ -540,8 +540,32 @@ impl PluginManifest {
         Ok(())
     }
 
-    /// `render_page.input` を確かめる: 書けるフィールド名だけであること
+    /// `on-render-page` で受け取る宣言的クエリの名前（`capabilities.render_page.queries`）
+    pub fn render_page_queries(&self) -> &[String] {
+        self.capabilities
+            .render_page
+            .as_ref()
+            .map(|r| r.queries.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// `render_page.input` を確かめる: 書けるフィールド名だけであること。
+    /// `render_page.queries` の名前はクエリ名の形（英小文字・数字・`_`）で、多すぎないこと
     pub fn validate_render_page(&self) -> std::result::Result<(), String> {
+        let queries = self.render_page_queries();
+        if queries.len() > 32 {
+            return Err("capabilities.render_page.queries: at most 32 names".to_string());
+        }
+        if let Some(bad) = queries.iter().find(|n| {
+            let mut chars = n.chars();
+            !(matches!(chars.next(), Some('a'..='z'))
+                && n.len() <= 64
+                && chars.all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_')))
+        }) {
+            return Err(format!(
+                "capabilities.render_page.queries: {bad:?} is not a query name (lowercase letters, digits and '_')"
+            ));
+        }
         let Some(input) = self
             .capabilities
             .render_page
@@ -696,6 +720,10 @@ pub struct RenderPageCapability {
     /// 省略すると全部を渡す。`[]` は 1 つも要らない
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input: Option<Vec<String>>,
+    /// 受け取りたい宣言的クエリの名前（`queries/<name>.yaml`。docs/queries.md）。書いた名前の結果だけが
+    /// `PageRenderContext.queries` に入り、書かなければ空。読み取り専用（返した値は反映されない）
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub queries: Vec<String>,
 }
 
 /// `render_page.input` に書ける重いフィールド名（`PageRenderContext` のフィールド）
@@ -1056,6 +1084,38 @@ mod tests {
         let plain =
             manifest_with_blocks(r#"[{"name": "a", "label": "A"}]"#, r#""render-blocks""#).unwrap();
         assert!(plain.frame_domains().is_empty());
+    }
+
+    #[test]
+    fn test_render_page_queries_capability() {
+        let parse = |render_page_json: &str| {
+            let json = format!(
+                r#"{{"name": "stats", "version": "1.0.0", "entrypoint": "plugin.wasm",
+                    "capabilities": {{"render_page": {}}}}}"#,
+                render_page_json
+            );
+            let manifest = PluginManifest::from_json_with_defaults(&json, &DEFAULTS)
+                .map_err(|e| e.to_string())?;
+            manifest.validate_render_page().map(|_| manifest)
+        };
+        // 宣言しなければ空
+        assert!(parse("{}").unwrap().render_page_queries().is_empty());
+        let ok = parse(r#"{"queries": ["by_brand", "case_count"]}"#).unwrap();
+        assert_eq!(ok.render_page_queries(), ["by_brand", "case_count"]);
+        // `input` とは独立（重いフィールドの絞り込みに影響しない）
+        assert!(ok.wants_render_input("content_html"));
+        for bad in [r#"["Bad-Name"]"#, r#"["1abc"]"#, r#"[""]"#, r#"["a b"]"#] {
+            let err = parse(&format!(r#"{{"queries": {bad}}}"#)).unwrap_err();
+            assert!(err.contains("is not a query name"), "{bad}: {err}");
+        }
+        let many = format!(
+            r#"{{"queries": [{}]}}"#,
+            (0..33)
+                .map(|i| format!("\"q{i}\""))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        assert!(parse(&many).unwrap_err().contains("at most 32"));
     }
 
     #[test]

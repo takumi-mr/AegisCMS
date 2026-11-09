@@ -671,3 +671,13 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - **閉じた記録は版つきでブラウザーに**: `localStorage` の `{id: rev}`。`rev` は更新時刻なので、編集すると再び出る。サーバーは訪問者を識別しない。スクリプトの属性の対応は Rust のテスト（組み込みのテンプレートとスクリプトが同じ名前を使う）とブラウザーのテスト（`admin/src/consent/Notices.stories.tsx`）で守る。
 - **メッセージは HTML にしない**: 1 行のテキストとして出力時にエスケープし、リンクは `/` 始まりか `http(s)://` に限る（`javascript:` と `//host` を断る）。
 
+## 25. 宣言的クエリ (`aegis-schema/src/query.rs`, `aegis-db/src/published_columns.rs`, `aegis-server/src/queries.rs`)
+
+仕様と使い方は [queries.md](queries.md)。ここには、設計判断とその理由だけを置く。
+
+- **読む版は「公開側の列」（副表 `_aegis_published_<type>`）**: 公開ページは公開ポインターのスナップショットを読む。作業版の列を集計すると公開後の編集中の値が出て、スナップショットの JSON を SQL で展開すると DB ごとに手段と索引が違う。そこで、クエリが使う列だけを公開操作と同じトランザクションで写す。公開の記録 `_aegis_content_publications` は全種類で共有の固定の列なので、型ごとの列は副表に持つ。
+- **定義が変わったら作り直す（`ADD COLUMN` はしない）**: 副表の列・型・索引・タイムゾーンから `signature` を作り、`_aegis_published_meta` に控える。起動時に控えと違えば `DROP` → `CREATE` → 公開中のスナップショットから埋め直す。「列だけ足す」手順より状態が少なく、誤りようが少ない。副表は派生データなので作り直して失うものが無い。システム表（連番のマイグレーション）ではなく `content_<type>` と同じ「スキーマに基づく起動時の作成」の側に置く。
+- **SQL は DB に依らない形にした**: 日時は設定のタイムゾーンの現地時刻の文字列にして持ち、`bucket` は `SUBSTR`、条件の値も同じ変換をする。集計は内側で型どおりに計算し、外側で文字列にして読む（MySQL の `ONLY_FULL_GROUP_BY` は `CAST` で包んだ式を `GROUP BY` の式と同じとは見なさない）。`NULL` は型つきでバインドする（PostgreSQL は型の違う `NULL` を列に入れられない）。並べ替えは NULL を最後にそろえ、同順位は一意なキーで決める。**この 2 点は実機の PostgreSQL / MySQL で初めて見つかった**ので、SQL を変えたら 3 つの DB で `aegis-db/tests/declarative_queries_integration.rs` を流す。
+- **結果は「ページに依存しない 1 つの一式」としてメモリに持つ**: 条件が固定値だけなので、結果は閲覧者にもページにも依存しない。`[cache]` に置くとページ表示のたびに読み書きが要るので、サーバーのメモリ上の一式（`QueriesSnapshot`）を変更の知らせ（イベントバス）で差し替える。テーマはグローバル変数 `queries`（動的なオブジェクト）で読むので、環境を作り直さず、`PageRenderContext` にも載せない（そうすると約 75 か所の構造体リテラルに触る）。再計算は `cdn::purge_content`（コンテンツの変更が必ず通る場所）から知らせる。
+- **プラグインへは宣言した名前の分だけ**: `PluginSupervisor::apply_render_page` が、プラグインごとに `capabilities.render_page.queries` の名前だけを `ctx.queries` に入れ、呼び出しのあとで空に戻す。プラグインは読むだけで、書き換えは反映されず次のプラグインにも見えない。
+- **既知の制約**: `task restore` で DB を差し替えたあとは、副表の定義が同じだと作り直されない。`task migrate` は副表を用意しない（`run` の起動時だけ）。`theme dev` では `queries` が空。

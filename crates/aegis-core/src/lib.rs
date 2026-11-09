@@ -31,7 +31,10 @@ pub use commerce::{
     ShippingAddress,
 };
 
-pub use entity::{ContentSummary, PageRenderContext, Pagination, PostContext, PublishedContent};
+pub use entity::{
+    new_queries_snapshot, ContentSummary, PageRenderContext, Pagination, PostContext,
+    PublishedContent, QueriesSnapshot,
+};
 
 pub use error::{AegisError, Result};
 pub use manifest::{

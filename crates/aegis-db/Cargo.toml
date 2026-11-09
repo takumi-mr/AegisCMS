@@ -14,8 +14,10 @@ aegis-core = { path = "../aegis-core" }
 aegis-schema = { path = "../aegis-schema" }
 async-trait.workspace = true
 chrono.workspace = true
+chrono-tz.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml.workspace = true
 sqlx.workspace = true
 tracing.workspace = true
 uuid.workspace = true
