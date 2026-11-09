@@ -42,3 +42,24 @@ export const Fullscreen: Story = {
     await expect(canvas.getByRole('button', { name: 'Open in a separate window' })).toBeDisabled();
   },
 };
+
+export const PreviewAsAReader: Story = {
+  args: { access: 'paid', memberLevels: ['free', 'paid'] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const select = canvas.getByRole('combobox', { name: 'Preview as' });
+    await expect(select).toHaveValue('staff');
+    await userEvent.selectOptions(select, 'guest');
+    await expect(select).toHaveValue('guest');
+    await userEvent.selectOptions(select, 'member:paid');
+    await expect(select).toHaveValue('member:paid');
+  },
+};
+
+/** Content everyone can read looks the same to every reader, so there is nothing to choose */
+export const PublicContentHasNoReaderChoice: Story = {
+  args: { access: '', memberLevels: ['free', 'paid'] },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByRole('combobox', { name: 'Preview as' })).toBeNull();
+  },
+};

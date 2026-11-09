@@ -936,6 +936,12 @@
       "page": "テーマ適用ページ",
       "ast": "ブロック AST（JSON）"
     },
+    "viewer": {
+      "label": "見る人",
+      "staff": "スタッフ（全文）",
+      "guest": "ゲスト",
+      "member": "会員: {{level}}"
+    },
     "aria": "プレビュー",
     "failed": "⚠ プレビューに失敗しました: {{error}}",
     "rendering": "サーバーで描画中...",

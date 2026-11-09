@@ -23,6 +23,10 @@ pub struct PreviewRequest {
     /// Custom fields, e.g. `category_id` (relations are resolved like on the public page)
     #[serde(default)]
     pub fields: HashMap<String, serde_json::Value>,
+    /// だれとして見るか: `staff`（既定。全文）・`guest`・`member:<レベル>`。`fields.access` のあるページで、
+    /// その閲覧者に見える姿（本文の途中までと案内）を確かめる。本物の会員になりすますのではなく、種類だけを選ぶ
+    #[serde(default)]
+    pub viewer: Option<String>,
 }
 
 fn default_content_type() -> String {
@@ -54,6 +58,31 @@ pub async fn preview_content(
             )
         })?;
 
+    // だれとして見るか（公開ページと同じ判定 `access::decide` を通す）
+    let levels = &state.config.members.levels;
+    let viewer = match payload.viewer.as_deref() {
+        None | Some("") | Some("staff") => aegis_members::Viewer::Staff,
+        Some("guest") => aegis_members::Viewer::Guest,
+        Some(other) => match other
+            .strip_prefix("member:")
+            .and_then(|level| levels.iter().find(|l| l.as_str() == level))
+        {
+            Some(level) => aegis_members::Viewer::Member { level },
+            None => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "error": "viewer must be staff, guest or member:<level>",
+                        "code": "invalid_viewer"
+                    })),
+                ))
+            }
+        },
+    };
+    let public_path =
+        crate::handlers::public::public_content_path(&state, &payload.content_type, &payload.slug);
+    let gate = crate::handlers::access::decide(&state, &payload.fields, viewer, &public_path);
+
     let transformed = render::transform_blocks(&state, payload.blocks).await;
     if let Some(e) = &transformed.plugin_error {
         // Previews run on every edit, so a failing hook is logged but not audited
@@ -62,7 +91,17 @@ pub async fn preview_content(
             e
         );
     }
-    let rendered = render::render_content(&state, &transformed.blocks).await;
+    // 見られない閲覧者には、本文の代わりに「見せてよい部分と案内」を出す（公開ページと同じ）
+    let rendered = match &gate {
+        crate::handlers::access::Gate::Denied { notice_html } => {
+            let teaser =
+                crate::handlers::access::shared_blocks(&payload.fields, transformed.blocks.clone());
+            let mut rendered = render::render_content(&state, &teaser).await;
+            rendered.html.push_str(notice_html);
+            rendered
+        }
+        _ => render::render_content(&state, &transformed.blocks).await,
+    };
     let html = rendered.html;
     let mut warnings: Vec<String> = transformed
         .plugin_error
@@ -291,5 +330,72 @@ mod tests {
         // ブランクレイアウトなので site-header や site-footer を含まない
         assert!(!page_html.contains("site-header"));
         assert!(!page_html.contains("site-footer"));
+    }
+
+    /// 閲覧者を選んで見る: 区切りより前と案内（ゲスト・足りない会員）、全文（読める会員・スタッフ）
+    #[tokio::test]
+    async fn test_preview_as_a_viewer_applies_the_members_only_access() {
+        let state = test_state(PluginSupervisor::new()).await;
+        let request_as = |who: Option<&str>| {
+            let mut req: PreviewRequest = serde_json::from_value(json!({
+                "title": "Members article",
+                "slug": "members-article",
+                "fields": { "access": "paid" },
+                "viewer": who,
+                "blocks": [
+                    { "name": "core/paragraph", "text": "Free teaser zxqteaser." },
+                    { "name": "core/paywall" },
+                    { "name": "core/paragraph", "text": "Paid tail zxqtail." }
+                ]
+            }))
+            .unwrap();
+            req.viewer = who.map(str::to_string);
+            req
+        };
+        let preview = |who: Option<&'static str>| {
+            let state = state.clone();
+            let req = request_as(who);
+            async move {
+                preview_content(State(state), viewer(), Json(req))
+                    .await
+                    .map(|Json(body)| body)
+            }
+        };
+
+        // 既定（スタッフ）は全文
+        for viewer in [None, Some("staff")] {
+            let body = preview(viewer).await.unwrap();
+            let html = body["html"].as_str().unwrap();
+            assert!(
+                html.contains("zxqteaser") && html.contains("zxqtail"),
+                "{html}"
+            );
+            assert!(!html.contains("cms-access-notice"));
+        }
+        // ゲストと足りない会員は、区切りの前と案内だけ。ページ全体も同じ
+        for (viewer, notice) in [
+            (Some("guest"), "This content is for members"),
+            (Some("member:free"), "paid"),
+        ] {
+            let body = preview(viewer).await.unwrap();
+            for key in ["html", "page_html"] {
+                let html = body[key].as_str().unwrap();
+                assert!(html.contains("zxqteaser"), "{viewer:?} {key}");
+                assert!(!html.contains("zxqtail"), "{viewer:?} {key}: {html}");
+                assert!(html.contains("aegis-access-notice"), "{viewer:?} {key}");
+            }
+            assert!(
+                body["html"].as_str().unwrap().contains(notice),
+                "{viewer:?}"
+            );
+        }
+        // 読める会員は全文
+        let body = preview(Some("member:paid")).await.unwrap();
+        assert!(body["html"].as_str().unwrap().contains("zxqtail"));
+        // 知らない閲覧者・設定にないレベルは 400
+        for bad in ["admin", "member:gold", "member:", "Guest"] {
+            let err = preview(Some(bad)).await.unwrap_err();
+            assert_eq!(err.0, StatusCode::BAD_REQUEST, "{bad}");
+        }
     }
 }

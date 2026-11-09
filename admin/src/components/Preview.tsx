@@ -35,6 +35,10 @@ interface PreviewProps {
   categoryId: string;
   /** Page layout: 'default' or 'blank' */
   layout?: string;
+  /** Who can read the content: '' is everyone, otherwise a member level */
+  access?: string;
+  /** `[members].levels` (empty when member accounts are off): the choices of "preview as" */
+  memberLevels?: string[];
   blocks: BlockNode[];
 }
 
@@ -71,12 +75,20 @@ export const Preview: React.FC<PreviewProps> = ({
   slug,
   categoryId,
   layout,
+  access = '',
+  memberLevels = [],
   blocks,
 }) => {
   const { t } = useTranslation();
   const [tab, setTab] = useState<PreviewTab>('html');
   const [result, setResult] = useState<PreviewResult | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  // Who the content is shown to: 'staff' is the full text; 'guest' and 'member:<level>' show what
+  // that kind of reader gets (the part before the members-only break, and a notice)
+  const [viewer, setViewer] = useState('staff');
+  // Only content with an access level looks different to different readers
+  const canChooseViewer = access !== '' && memberLevels.length > 0;
+  const effectiveViewer = canChooseViewer ? viewer : 'staff';
   const idPrefix = useId();
 
   // A result is current when it was rendered from the content shown now
@@ -87,7 +99,9 @@ export const Preview: React.FC<PreviewProps> = ({
     fields: {
       ...(categoryId ? { category_id: categoryId } : {}),
       ...(layout ? { layout } : {}),
+      ...(access ? { access } : {}),
     },
+    ...(effectiveViewer !== 'staff' ? { viewer: effectiveViewer } : {}),
     blocks,
   };
   const requestKey = JSON.stringify(request);
@@ -201,6 +215,25 @@ export const Preview: React.FC<PreviewProps> = ({
           </button>
         </div>
       </div>
+
+      {canChooseViewer && (
+        <div className={styles.viewerRow}>
+          <label htmlFor={`${idPrefix}-viewer`}>{t('preview.viewer.label')}</label>
+          <select
+            id={`${idPrefix}-viewer`}
+            value={effectiveViewer}
+            onChange={(e) => setViewer(e.target.value)}
+          >
+            <option value="staff">{t('preview.viewer.staff')}</option>
+            <option value="guest">{t('preview.viewer.guest')}</option>
+            {memberLevels.map((level) => (
+              <option key={level} value={`member:${level}`}>
+                {t('preview.viewer.member', { level })}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div
         id={`${idPrefix}-panel`}
