@@ -66,6 +66,8 @@ struct Globals {
 
 struct ThemeEngineInner {
     active_theme: String,
+    /// アクティブなテーマが `theme.json` の `csp` で宣言した、CSP に足すホスト（切り替えるときに読み直す）
+    active_csp: crate::manifest::ThemeCsp,
     theme_templates_dir: Option<PathBuf>,
     dynamic_templates: HashMap<String, String>,
     base_path: String,
@@ -101,6 +103,7 @@ impl ThemeEngine {
         Self {
             themes_dir: themes_dir.to_path_buf(),
             inner: Arc::new(RwLock::new(ThemeEngineInner {
+                active_csp: load_theme_csp(themes_dir, &active),
                 active_theme: active,
                 theme_templates_dir,
                 dynamic_templates: HashMap::new(),
@@ -185,6 +188,12 @@ impl ThemeEngine {
         self.inner.read().unwrap().active_theme.clone()
     }
 
+    /// アクティブなテーマが `theme.json` の `csp` で宣言したホスト（公開ページの CSP に足す。
+    /// 読み直さずに、切り替えたときに覚えた値を返す）
+    pub fn active_csp(&self) -> crate::manifest::ThemeCsp {
+        self.inner.read().unwrap().active_csp.clone()
+    }
+
     /// 現在の言語（`en` / `ja` など）を取得
     pub fn locale(&self) -> String {
         self.inner.read().unwrap().locale.clone()
@@ -214,8 +223,10 @@ impl ThemeEngine {
             None
         };
 
+        let active_csp = load_theme_csp(&self.themes_dir, target_id);
         let mut inner = self.inner.write().unwrap();
         inner.active_theme = target_id.to_string();
+        inner.active_csp = active_csp;
         inner.theme_templates_dir = theme_templates_dir;
         inner.environment = None;
 
@@ -285,6 +296,7 @@ impl ThemeEngine {
                 homepage: Some("https://github.com/takumi-mr/AegisCMS".to_string()),
                 repository: None,
                 min_aegis_version: None,
+                csp: None,
             };
 
             themes.push(ThemeInfo {
@@ -421,6 +433,12 @@ impl ThemeEngine {
         // min_aegis_version の検証
         if let Some(ref min_ver) = manifest.min_aegis_version {
             aegis_core::check_min_aegis_version(min_ver)?;
+        }
+
+        // CSP のホストの宣言（ホスト名だけ）
+        if let Some(csp) = &manifest.csp {
+            csp.validate()
+                .map_err(|e| AegisError::Theme(format!("theme.json: {e}")))?;
         }
 
         // 署名検証
@@ -835,6 +853,25 @@ fn extract_block_names(line: &str) -> Vec<String> {
         cursor = &after[end + 2..];
     }
     blocks
+}
+
+/// テーマの `theme.json` の `csp`（無い・誤りなら空。誤りは警告を出す）
+fn load_theme_csp(themes_dir: &Path, theme_id: &str) -> crate::manifest::ThemeCsp {
+    let Some(csp) = ThemeManifest::load_from_dir(&themes_dir.join(theme_id)).and_then(|m| m.csp)
+    else {
+        return crate::manifest::ThemeCsp::default();
+    };
+    match csp.validate() {
+        Ok(()) => csp,
+        Err(e) => {
+            tracing::warn!(
+                "Theme '{}': theme.json is ignored for the CSP: {}",
+                theme_id,
+                e
+            );
+            crate::manifest::ThemeCsp::default()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1392,5 +1429,78 @@ b
             "{{ inline_script(\"a()\", consent=\"x\\\" onload=\\\"y\") }}",
         );
         assert!(engine.render("bad.html", &ctx).is_err());
+    }
+
+    /// `theme.json` の `csp`（スタイル・フォント・画像のホスト）: アクティブなテーマのものが返り、切り替えで変わる。
+    /// 同梱のテーマのうち、Google Fonts を読むものは宣言している
+    #[test]
+    fn test_the_active_theme_declares_its_csp_hosts() {
+        let themes = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../themes");
+        let engine = ThemeEngine::new(&themes, "roastery");
+        let csp = engine.active_csp();
+        assert_eq!(csp.style_domains, ["fonts.googleapis.com"]);
+        assert_eq!(csp.font_domains, ["fonts.gstatic.com"]);
+        assert!(csp.img_domains.is_empty());
+        // 宣言の無いテーマ（default は、フォントを自分で配信する）は空
+        engine.set_active_theme("default").unwrap();
+        assert!(engine.active_csp().is_empty());
+        engine.set_active_theme("trailhead").unwrap();
+        assert!(!engine.active_csp().is_empty());
+    }
+
+    /// 宣言できるのはホスト名だけ（ワイルドカード・スキーム・パス・ポートは不可）。誤りのあるテーマは導入できず、
+    /// 動いているテーマの宣言が誤っているときは、無視する（CSP に何も足さない）
+    #[test]
+    fn test_theme_csp_hosts_are_validated() {
+        use crate::manifest::ThemeCsp;
+        let ok = ThemeCsp {
+            style_domains: vec!["fonts.googleapis.com".into()],
+            font_domains: vec!["fonts.gstatic.com".into()],
+            img_domains: vec![],
+        };
+        ok.validate().unwrap();
+        for bad in [
+            "*.googleapis.com",
+            "https://fonts.googleapis.com",
+            "fonts.googleapis.com/css",
+            "fonts.googleapis.com:443",
+            "localhost",
+            "a b.com",
+        ] {
+            let csp = ThemeCsp {
+                style_domains: vec![bad.into()],
+                ..Default::default()
+            };
+            assert!(csp.validate().is_err(), "{bad}");
+        }
+        let many = ThemeCsp {
+            img_domains: (0..11).map(|i| format!("h{i}.example.com")).collect(),
+            ..Default::default()
+        };
+        assert!(many.validate().is_err());
+
+        let temp = std::env::temp_dir().join(format!(
+            "aegis_theme_csp_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let theme = temp.join("bad-theme");
+        std::fs::create_dir_all(theme.join("templates")).unwrap();
+        std::fs::write(
+            theme.join("templates").join("base.html"),
+            "<html>{% block content %}{% endblock %}</html>",
+        )
+        .unwrap();
+        std::fs::write(
+            theme.join("theme.json"),
+            r#"{"id":"bad-theme","name":"Bad","csp":{"style_domains":["*.evil.com"]}}"#,
+        )
+        .unwrap();
+        let engine = ThemeEngine::new(&temp, "bad-theme");
+        assert!(engine.validate_theme_package(&theme).is_err());
+        assert!(engine.active_csp().is_empty());
+        std::fs::remove_dir_all(&temp).ok();
     }
 }

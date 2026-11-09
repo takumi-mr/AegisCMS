@@ -1145,6 +1145,7 @@
     "marketplace": "テーママーケットプレイス",
     "ecosystem": "エコシステム",
     "activeBadge": "使用中のテーマ",
+    "externalHosts": "ほかのサイトから読み込む: {{hosts}}（訪問者の IP アドレスが送られます）",
     "currentlyActive": "使用中",
     "activateTitle": "このテーマを公開サイトに適用します",
     "activateNeedsAdmin": "テーマの切り替えには admin ロールが必要です",

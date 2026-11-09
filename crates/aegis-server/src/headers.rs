@@ -341,6 +341,14 @@ pub fn with_captcha_sources(csp: &str, hosts: &[String]) -> String {
     csp
 }
 
+/// アクティブなテーマが `theme.json` の `csp` で宣言したホスト（スタイル・フォント・画像。例: Google Fonts）を、
+/// CSP の `style-src` / `font-src` / `img-src` に足す。スクリプトのホストは宣言できない（docs/csp.md の 8）
+pub fn with_theme_csp_sources(csp: &str, theme: &aegis_theme::ThemeCsp) -> String {
+    let csp = with_directive_sources(csp, "style-src", &["default-src"], &theme.style_domains);
+    let csp = with_directive_sources(&csp, "font-src", &["default-src"], &theme.font_domains);
+    with_directive_sources(&csp, "img-src", &["default-src"], &theme.img_domains)
+}
+
 /// `directive` に効いている値（無ければ `fallbacks` の最初に見つかったもの）に、`https://<host>` を足す。
 /// `directive` が無いときは、足した値で `directive` を加える。値に `*` か `'none'` を含む（制限していない・
 /// 管理者が明示的に拒否している）とき、どれも無い（制限していない）ときは、そのまま

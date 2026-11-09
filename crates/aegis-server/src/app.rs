@@ -586,6 +586,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 get(handlers::site_assets::consent_style),
             )
             .route(
+                &format!("{assets}/fonts/{{file}}"),
+                get(handlers::site_assets::font_file),
+            )
+            .route(
                 &format!("{assets}/comments.js"),
                 get(handlers::site_assets::comments_script),
             )
@@ -941,6 +945,26 @@ async fn security_headers_middleware(
             &captcha_hosts,
             &plugin_csp,
         );
+    }
+
+    // アクティブなテーマが `theme.json` で宣言した、外部のスタイル・フォント・画像のホスト（Google Fonts など）
+    if !is_admin_ui {
+        let theme_csp = state.theme.active_csp();
+        if !theme_csp.is_empty() {
+            let current = response
+                .headers()
+                .get(axum::http::header::CONTENT_SECURITY_POLICY)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string);
+            if let Some(current) = current {
+                let merged = crate::headers::with_theme_csp_sources(&current, &theme_csp);
+                if let Ok(value) = axum::http::HeaderValue::from_str(&merged) {
+                    response
+                        .headers_mut()
+                        .insert(axum::http::header::CONTENT_SECURITY_POLICY, value);
+                }
+            }
+        }
     }
 
     // 公開ページの Strict CSP: `unsafe-inline` を外し、インラインのスクリプトはハッシュで許す。

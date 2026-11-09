@@ -129,6 +129,16 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
     return author?.name || t('themes.defaultAuthor');
   };
 
+  // Other sites the theme loads fonts, styles or images from (it asks for them in theme.json): the
+  // visitor's IP address goes there, so it is shown on the card
+  const externalHosts = (theme: ThemeInfo): string[] => [
+    ...new Set([
+      ...(theme.csp?.style_domains ?? []),
+      ...(theme.csp?.font_domains ?? []),
+      ...(theme.csp?.img_domains ?? []),
+    ]),
+  ];
+
   const authorUrl = (author: ThemeInfo['author']): string | undefined => {
     if (typeof author === 'object' && author?.url) return author.url;
     return undefined;
@@ -265,6 +275,12 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                           <span>{theme.license || 'MIT'}</span>
                         </div>
                       </div>
+
+                      {externalHosts(theme).length > 0 && (
+                        <p className={styles.externalHosts}>
+                          {t('themes.externalHosts', { hosts: externalHosts(theme).join(', ') })}
+                        </p>
+                      )}
 
                       <div className={styles.cardActions}>
                         {isCurrent ? (

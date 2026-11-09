@@ -1163,6 +1163,7 @@
     "marketplace": "Theme Marketplace",
     "ecosystem": "Ecosystem",
     "activeBadge": "Active Theme",
+    "externalHosts": "Loads from other sites: {{hosts}} (the visitor's IP address is sent there)",
     "currentlyActive": "Currently Active",
     "activateTitle": "Activate this theme for the public site",
     "activateNeedsAdmin": "Admin role is required to switch theme",

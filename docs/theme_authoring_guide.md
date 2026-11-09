@@ -305,6 +305,15 @@ themes/my-theme/
 - **同梱のテーマと組み込みのテンプレートは、すでにインラインのコードを出しません**（`aegis-theme` のテストが、全テンプレートを描画して確かめています）。組み込みのコメント欄・初期セットアップ画面・アクセス解析のビーコンは、`/_aegis/…js` の外部ファイルです。
 - プラグインのスクリプトは、プラグイン側が構造化して足します（[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）。テーマが気にすることはありません。
 
+## 6b. フォント（外部のスタイルシートは CSP に止められる）
+
+公開ページの CSP は、`fonts.googleapis.com` のような外部のスタイルシートを許しません。次のどちらかにします（詳しくは [csp.md の 8](csp.md#8-テーマのフォント外部のスタイルthemejson-の-csp)）。
+
+- **フォントをテーマに入れる**: woff2 を `themes/{名前}/assets/fonts/` に置き、`style.css` の `@font-face` で読む（`url('../assets/fonts/x.woff2')` ではなく、`{{ base_path }}/theme/assets/fonts/x.woff2` のテンプレート側で出すか、`style.css` の相対パス）。外部に頼らないので、CSP も訪問者の IP も気にしなくてよい。
+- **`theme.json` に `csp` を書く**: `"csp": { "style_domains": ["fonts.googleapis.com"], "font_domains": ["fonts.gstatic.com"] }`。日本語のウェブフォントなど、自分で配信しにくいとき。管理画面のテーマのカードに、外部のホストが出る。
+
+組み込みの default テーマは、Plus Jakarta Sans と JetBrains Mono の Latin のサブセットを自分で配信しています（日本語は、システムのフォント）。
+
 ## 7. 開発の流れ
 
 1. `themes/` に既存のテーマ（`roastery` など）をコピーし、ディレクトリ名と `theme.json` の `id` を変える。

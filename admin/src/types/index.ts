@@ -419,6 +419,12 @@ export interface ThemeManifest {
   homepage?: string;
   repository?: string;
   min_aegis_version?: string;
+  /** Hosts the theme loads styles, fonts or images from (added to the public pages' CSP) */
+  csp?: {
+    style_domains?: string[];
+    font_domains?: string[];
+    img_domains?: string[];
+  } | null;
 }
 
 export interface ThemeInfo extends ThemeManifest {
