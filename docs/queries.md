@@ -203,7 +203,6 @@ select:
 ## 8. 未解決の設計判断
 
 - Admin Studio にクエリの一覧と、結果のプレビューを出すか。
-- AssemblyScript / TinyGo のプラグインテンプレートに `queries` を足すか。
 
 ## 9. 使うときの注意
 
