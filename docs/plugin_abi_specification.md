@@ -404,6 +404,18 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - 渡さなかったフィールドは、プラグインが書き換えて返しても**反映されません**（ホストが元の値に戻します）。本文を足すには前述の枠を使います。
 - 書けない名前を宣言したプラグインは読み込めません。
 
+#### 宣言的クエリの結果（`capabilities.render_page.queries`）
+
+`queries/<name>.yaml` で宣言した集計・一覧（[queries.md](queries.md)）の結果を受け取るには、マニフェストに**名前**を書きます。
+
+```json
+"render_page": { "queries": ["by_brand", "case_count"] }
+```
+
+- 書いた名前の結果だけが `PageRenderContext.queries`（名前 → 結果）に入ります。書かなければ空です。`input` とは独立です。
+- **読み取り専用**: 返した値は反映されず、次のプラグインにも見えません。プラグインは DB にもクエリの定義にも触れません。
+- 名前は英小文字・数字・`_`（先頭は英小文字）、32 個まで。存在しない名前は黙って空になります。結果が変わると入力の JSON が変わるので、`on-render-page` の結果のキャッシュ（architecture.md の 10.8）も自然に追従します。
+
 ### 5.3.3a `on_render_page` でスクリプトを足す（`scripts`。ABI 2）
 
 **スクリプトは、構造化した `scripts` でだけ足せます**。`extra_head`・`prepend_content`・`append_content`（と、書き換えた `content_html`）の中の `<script>` と `on*` 属性（`onclick`・`onload` など）は、**ホストが取り除きます**（`<meta>`・`<link>`・`<style>` などは今までどおり）。設計は [csp.md の 4](csp.md#4-プラグインの-abi破壊的変更)。

@@ -149,6 +149,7 @@ public_url_prefix = "https://cdn.example.com"
 | キー | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `schemas_dir` | path | `"schemas"` | 宣言的スキーマ (`*.yaml`) の読み込み元 |
+| `queries_dir` | path | `"queries"` | 宣言的クエリの定義（`*.yaml`）の読み込み元（[queries.md](queries.md)） |
 | `plugins_dir` | path | `"plugins"` | Wasm プラグインのインストール先（`<plugins_dir>/<name>/` に 1 プラグイン）。読み込むのは有効化リスト（`[plugins].enabled`、または Admin Studio で切り替えた一覧）にあるものだけ |
 | `admin_dist_dir` | path | `"admin/dist"` | Admin Studio ビルド成果物。存在すれば `/` で SPA として配信 |
 
@@ -596,6 +597,20 @@ secret = "env:TURNSTILE_SECRET"
 | `max_page_size` | integer | `100` | 一覧の 1 ページの件数の上限（`limit` はこの値に丸める） |
 | `cache_max_age` | integer | `60` | 応答の `Cache-Control: public, max-age=...`（秒）。`[cdn].cache_control` より優先する（キャッシュ全体を無効にしている場合は `no-store`） |
 | `rate_limit_per_minute` | integer | `600` | IP ごとの 1 分あたりの上限（超えると 429）。0 で制限しない。`[audit].trust_forwarded_for` が無効だと、リバースプロキシの背後では全員が同じ IP になるので注意 |
+
+### 2.26 `[queries]` — 宣言的クエリ
+
+条件つきの集計・一覧を YAML（`[paths].queries_dir` の `*.yaml`）で宣言し、結果をテーマの `queries` とプラグインに渡す。定義の書き方・動き・注意は [queries.md](queries.md)。
+
+| キー | 既定 | 内容 |
+| --- | --- | --- |
+| `max_limit` | `100` | クエリの `limit` の最大値（行数。1〜1000） |
+| `timeout_ms` | `2000` | 1 回の実行のタイムアウト（ミリ秒。100〜60000）。超えたクエリは前の結果を残す |
+| `max_concurrency` | `8` | 同時に実行できるクエリの数（1〜64） |
+| `max_in_items` | `100` | `in` のリストの最大の長さ（1〜1000） |
+| `timezone` | `"UTC"` | 日付の区切り（`bucket`）と日時の条件に使うタイムゾーン（IANA 名。例: `"Asia/Tokyo"`）。変えると、起動時に公開側の列を作り直す |
+
+誤った定義やこの設定の誤りは、起動時にエラーにして止める。
 
 ## 3. 完全な設定例
 

@@ -153,6 +153,8 @@ themes/my-theme/
 
 一覧（`items` の各要素）: `title`、`slug`、`excerpt`（本文の先頭 140 文字）、`published_at`、`created_at`、`content_type`、`fields`（カスタムフィールド）、`relations`（解決済みのリレーション。例: `item.relations.category_id.title`）。
 
+宣言的クエリの結果（グローバル変数 `queries`）: `queries/<name>.yaml` で宣言した集計・一覧を、ページに依らず `{% for r in queries.by_brand %}{{ r.brand }}: {{ r.n }}{% endfor %}` のように読めます（どのページでも使えます）。定義の書き方は [queries.md](queries.md)。結果の文字列は利用者が入力した値なので、`safe` は付けないでください。
+
 ページ送り（`pagination`）: `page`、`per_page`、`total_items`、`total_pages`、`prev_url` / `next_url`（`base_path` 込み。無ければ空）。
 
 ### 3.3 フィルター

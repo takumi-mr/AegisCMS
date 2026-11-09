@@ -79,6 +79,15 @@ schemas_dir = "schemas"
 plugins_dir = "plugins"
 admin_dist_dir = "admin/dist"
 themes_dir = "themes"
+queries_dir = "queries"
+
+# 宣言的クエリ（queries/*.yaml。docs/queries.md）
+[queries]
+max_limit = 100
+timeout_ms = 2000
+max_concurrency = 8
+max_in_items = 100
+timezone = "UTC"
 
 [runtime]
 enable_wasm_plugins = true
