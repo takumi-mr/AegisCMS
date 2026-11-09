@@ -966,6 +966,7 @@
     "rendered": "✓ Rendered by the server (same HTML as the published page)",
     "untitled": "Untitled Article",
     "empty": "Add blocks from the toolbar to see live deterministic output.",
+    "bodyFrame": "Rendered HTML output",
     "pageFrame": "Themed page preview",
     "pageEmpty": "The themed page appears here once the server has rendered it.",
     "openWindow": "Open in a separate window",

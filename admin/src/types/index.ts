@@ -343,6 +343,8 @@ export interface PreviewRequest {
   viewer?: string;
   /** 32 lowercase hex digits naming where the server keeps the themed page (see `page_url`) */
   frame_key?: string;
+  /** Same, for the body HTML (see `body_url`); a different name from `frame_key` */
+  body_frame_key?: string;
   blocks: BlockNode[];
 }
 
@@ -389,6 +391,8 @@ export interface PreviewResult {
   page_html: string | null;
   /** Where the server serves the themed page (relative to the API), when `frame_key` was sent */
   page_url: string | null;
+  /** Where the server serves the body HTML as a small document, when `body_frame_key` was sent */
+  body_url: string | null;
   /** Blocks after the heading-id pipeline and plugin `transform-content-ast` hooks */
   blocks: BlockNode[];
   /** E.g. a plugin hook that failed (the preview then shows the built-in pipeline's result) */
@@ -700,6 +704,8 @@ export interface NotificationPreview {
   subject: string;
   body: string;
   html: string | null;
+  /** Where the server serves `html` (relative to the API), when `frame_key` was sent */
+  html_url: string | null;
 }
 
 export interface NotificationTestDelivery {

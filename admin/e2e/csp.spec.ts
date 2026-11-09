@@ -312,3 +312,82 @@ test('a plugin script in the themed-page preview runs by its hash, as on the pub
     await enable(false);
   }
 });
+
+test("Admin Studio needs no inline style: its screens and previews run under style-src 'self'", async ({
+  page,
+}) => {
+  await recordViolations(page);
+  await signIn(page);
+  const seen: Violation[] = [];
+  const collect = async () => seen.push(...(await violations(page)));
+
+  // The editor with the three preview tabs
+  await page.getByRole('button', { name: 'New' }).click();
+  await page.getByPlaceholder('Enter post title...').fill('Style check');
+  for (const tab of ['Live HTML Output', 'Themed Page', 'Block AST (JSON)']) {
+    await page.getByRole('tab', { name: tab }).click();
+    await page.waitForTimeout(800);
+    await collect();
+  }
+  // Settings (notifications has the HTML mail preview), plugins, themes
+  const nav = page.getByRole('navigation', { name: 'Settings sections' });
+  await openView(page, 'Settings');
+  for (const name of await nav.getByRole('button').allInnerTexts()) {
+    await nav.getByRole('button', { name: name.trim(), exact: true }).click();
+    await page.waitForLoadState('networkidle');
+    await collect();
+  }
+  // Nothing of Admin Studio's own page was blocked (the frames are separate documents)
+  expect(seen.filter((v) => v.directive.startsWith('style-src'))).toEqual([]);
+});
+
+test("the body HTML preview keeps a plugin block's own <style>, in a sandboxed frame", async ({
+  page,
+}) => {
+  const login = await page.request.post(`${SERVER}/api/v1/auth/session`, {
+    data: { username: E2E_USERNAME, password: E2E_PASSWORD },
+  });
+  expect(login.ok()).toBeTruthy();
+  const { id: token } = await login.json();
+  const auth = { Authorization: `Bearer ${token}` };
+  const enable = (enabled: boolean) =>
+    page.request.put(`${SERVER}/api/v1/plugins/official-blocks/enabled`, {
+      headers: auth,
+      data: { enabled },
+    });
+  expect((await enable(true)).ok()).toBeTruthy();
+  try {
+    const key = '0123456789abcdef0123456789abcdef';
+    const preview = await page.request.post(`${SERVER}/api/v1/preview`, {
+      headers: auth,
+      data: {
+        content_type: 'article',
+        title: 'Body preview',
+        slug: 'body-preview',
+        fields: {},
+        body_frame_key: key,
+        blocks: [
+          { name: 'core/paragraph', attributes: {}, text: 'Body text' },
+          {
+            name: 'official-blocks/button',
+            attributes: { label: 'Go', url: 'https://example.org/', style: 'primary' },
+          },
+        ],
+      },
+    });
+    expect(preview.ok()).toBeTruthy();
+    const { body_url: bodyUrl } = await preview.json();
+    expect(bodyUrl).toContain(`/preview/frame/${key}`);
+
+    // The block's <style> works there (the public site's CSP allows it), and it is isolated
+    const response = await page.goto(`${SERVER}/api/v1${bodyUrl}`);
+    expect(response!.headers()['content-security-policy']).toContain('sandbox allow-scripts');
+    await expect(page.getByText('Body text')).toBeVisible();
+    const display = await page
+      .locator('a.ob-button')
+      .evaluate((el) => getComputedStyle(el).display);
+    expect(display).toBe('inline-block');
+  } finally {
+    await enable(false);
+  }
+});

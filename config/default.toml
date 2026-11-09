@@ -99,11 +99,13 @@ render_cache_mb = 32
 enabled = ["official-code-enhancer", "official-mermaid", "official-plantuml"]
 
 [security]
-# Content-Security-Policy of the public pages: "off" (today: scripts may be inline), "report-only" (also send a
-# strict policy as Content-Security-Policy-Report-Only, to see in the browser console what it would block) or
-# "on" (inline scripts only by hash). Plugins' and templates' inline scripts are hashed by the host (docs/csp.md).
-# An admin-set CSP (Settings > Headers) overrides this
-strict_csp = "off"
+# Content-Security-Policy of the public pages: "on" (default: inline scripts only by hash; plugins' and
+# templates' inline scripts are hashed by the host), "report-only" (keep the old policy and also send the strict
+# one as Content-Security-Policy-Report-Only, to see in the browser console what it would block) or "off" (the old
+# policy: inline scripts allowed). A theme's own inline <script> and on* attributes stop working under "on":
+# serve scripts as files or use {{ inline_script("...") }} (docs/theme_authoring_guide.md). An admin-set CSP
+# (Settings > Headers) overrides this
+strict_csp = "on"
 enforce_external_link_rel = true
 open_external_links_in_new_tab = false
 internal_domains = []

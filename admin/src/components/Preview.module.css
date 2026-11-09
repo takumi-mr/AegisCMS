@@ -173,50 +173,20 @@
   color: var(--text-rose);
 }
 
-/* Rendered article HTML (from the server) */
-.htmlOutput {
-  color: var(--text-primary);
+/* Body HTML (from the server): shown in a sandboxed frame */
+.htmlFrame {
+  display: block;
+  width: 100%;
+  min-height: 60vh;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
   transition: opacity var(--transition-fast);
 }
 
 /* Older HTML stays visible, dimmed, until the server answers for the latest edit */
-.htmlOutput.stale {
+.htmlFrame.stale {
   opacity: 0.6;
-}
-
-.htmlOutput h1,
-.htmlOutput h2,
-.htmlOutput h3,
-.htmlOutput h4 {
-  font-family: var(--font-heading);
-  margin-top: 1.2em;
-  margin-bottom: 0.6em;
-  color: var(--text-primary);
-}
-
-.htmlOutput p {
-  margin-bottom: 1em;
-  line-height: 1.7;
-}
-
-.htmlOutput pre {
-  background: var(--inset-strong);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 14px;
-  margin: 1em 0;
-  overflow-x: auto;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-}
-
-.htmlOutput figure {
-  margin: 1.2em 0;
-}
-
-.htmlOutput img {
-  max-width: 100%;
-  border-radius: var(--radius-md);
 }
 
 .empty {

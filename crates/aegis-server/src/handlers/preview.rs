@@ -36,6 +36,11 @@ pub struct PreviewRequest {
     /// 描画したページをサーバーに置き、`page_url` で返す（`GET /api/v1/preview/frame/{key}`）
     #[serde(default)]
     pub frame_key: Option<String>,
+    /// 本文の HTML（`html`）を置く場所の名前（`frame_key` と同じ形。別の名前にする）。あれば、本文を
+    /// 最小限のスタイルをつけた文書にしてサーバーに置き、`body_url` で返す。エディターの「HTML 出力」の
+    /// タブは、これを `iframe` で読む（本文の HTML を Admin Studio の画面の中に直接入れない）
+    #[serde(default)]
+    pub body_frame_key: Option<String>,
 }
 
 /// テーマ適用ページを置いておく時間（秒）。エディターの 1 つのプレビューにつき 1 件だけを上書きする
@@ -50,8 +55,56 @@ fn frame_cache_key(key: &str) -> String {
     format!("preview-frame:{key}")
 }
 
+/// 本文だけの HTML を、`iframe` に読ませる文書にする。ページの CSS は無いので、読みやすい最小限のスタイル
+/// （システムのフォント・見出し・コード・画像・表・引用）を付ける。配色は、ブラウザーの明暗に従う
+const BODY_DOCUMENT_CSS: &str = "html{color-scheme:light dark}\
+body{font:16px/1.7 system-ui,-apple-system,'Segoe UI',sans-serif;margin:0;padding:24px;overflow-wrap:anywhere}\
+h1,h2,h3,h4{line-height:1.3;margin:1.4em 0 .6em}p{margin:0 0 1em}\
+pre{padding:14px;border:1px solid rgba(127,127,127,.35);border-radius:8px;overflow-x:auto;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace}\
+code{font-family:ui-monospace,Menlo,Consolas,monospace}img{max-width:100%;height:auto;border-radius:8px}figure{margin:1.2em 0}\
+blockquote{margin:1em 0;padding:.2em 1em;border-left:3px solid rgba(127,127,127,.5)}\
+table{border-collapse:collapse}th,td{border:1px solid rgba(127,127,127,.35);padding:.4em .7em}\
+a{color:#6366f1}hr{border:none;border-top:1px solid rgba(127,127,127,.35)}";
+
+/// 本文の HTML を、`iframe` に読ませる文書にする
+fn body_document(html: &str) -> String {
+    format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><style>{BODY_DOCUMENT_CSS}</style></head><body>{html}</body></html>"
+    )
+}
+
+/// ページを置き、読み込み先（API からの相対のパス）を返す。`iframe` を `srcdoc` にすると、Admin Studio の CSP
+/// （スクリプトもスタイルも自分のオリジンだけ）を引き継ぎ、テーマ・プラグイン・メールのインラインの
+/// スクリプトやスタイルが働かない。別の URL（公開ページと同じ CSP）から読めば、公開ページと同じに働く。
+/// `hashes` は、Strict CSP（`[security].strict_csp`）のとき、配信するときに CSP に足すインラインのスクリプトのハッシュ
+pub(crate) async fn store_frame(
+    state: &AppState,
+    key: &str,
+    html: &str,
+    hashes: &[String],
+) -> Result<String, String> {
+    state
+        .cache
+        .set(&frame_cache_key(key), html, Some(FRAME_TTL_SECS))
+        .await
+        .map_err(|e| e.to_string())?;
+    let _ = state
+        .cache
+        .set(
+            &frame_hashes_key(key),
+            &serde_json::to_string(hashes).unwrap_or_default(),
+            Some(FRAME_TTL_SECS),
+        )
+        .await;
+    // `v` は、同じ URL でも読み直させるための値
+    Ok(format!(
+        "/preview/frame/{key}?v={}",
+        chrono::Utc::now().timestamp_millis()
+    ))
+}
+
 /// 32 桁の小文字の 16 進か（推測できない名前。形を決めておき、キャッシュのキーを勝手に作らせない）
-fn is_frame_key(key: &str) -> bool {
+pub(crate) fn is_frame_key(key: &str) -> bool {
     key.len() == 32
         && key
             .bytes()
@@ -111,10 +164,13 @@ pub async fn preview_content(
     let public_path =
         crate::handlers::public::public_content_path(&state, &payload.content_type, &payload.slug);
     let gate = crate::handlers::access::decide(&state, &payload.fields, viewer, &public_path);
-    if payload
-        .frame_key
-        .as_deref()
-        .is_some_and(|k| !is_frame_key(k))
+    if [
+        payload.frame_key.as_deref(),
+        payload.body_frame_key.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|k| !is_frame_key(k))
     {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -193,35 +249,22 @@ pub async fn preview_content(
         }
     };
 
-    // ページを置き、読み込み先を返す。iframe を `srcdoc` にすると、Admin Studio の CSP（スクリプトは
-    // 自分のオリジンだけ）を引き継ぎ、テーマ・プラグインのインラインのスクリプトが動かない。別の URL
-    // （公開ページと同じ CSP）から読み込めば、公開ページと同じに動く
+    // ページと本文を置き、読み込み先を返す（`store_frame`）
     let mut page_url = serde_json::Value::Null;
     if let (Some(key), Some(page)) = (payload.frame_key.as_deref(), page_html.as_deref()) {
-        let stored = state
-            .cache
-            .set(&frame_cache_key(key), page, Some(FRAME_TTL_SECS))
-            .await;
         // Strict CSP（`[security].strict_csp`）のとき、このページを描くときに集めたインラインのスクリプトの
         // ハッシュも置く（配信するときに CSP に足さないと、プレビューのスクリプトが止まる）
         let hashes = aegis_core::csp::recorded_script_hashes();
-        let _ = state
-            .cache
-            .set(
-                &frame_hashes_key(key),
-                &serde_json::to_string(&hashes).unwrap_or_default(),
-                Some(FRAME_TTL_SECS),
-            )
-            .await;
-        match stored {
-            // `v` は、同じ URL でも読み直させるための値
-            Ok(()) => {
-                page_url = json!(format!(
-                    "/preview/frame/{key}?v={}",
-                    chrono::Utc::now().timestamp_millis()
-                ))
-            }
+        match store_frame(&state, key, page, &hashes).await {
+            Ok(url) => page_url = json!(url),
             Err(e) => warnings.push(format!("The themed page could not be stored: {e}")),
+        }
+    }
+    let mut body_url = serde_json::Value::Null;
+    if let Some(key) = payload.body_frame_key.as_deref() {
+        match store_frame(&state, key, &body_document(&html), &[]).await {
+            Ok(url) => body_url = json!(url),
+            Err(e) => warnings.push(format!("The body could not be stored: {e}")),
         }
     }
 
@@ -229,6 +272,7 @@ pub async fn preview_content(
         "html": html,
         "page_html": page_html,
         "page_url": page_url,
+        "body_url": body_url,
         "blocks": transformed.blocks,
         "warnings": warnings,
     })))
@@ -610,8 +654,9 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
         let csp = res.headers()["content-security-policy"].to_str().unwrap();
         assert!(csp.contains("sandbox allow-scripts"), "{csp}");
-        // 公開ページと同じ（インラインのスクリプトが動く）。管理画面の CSP ではない
-        assert!(csp.contains("script-src 'self' 'unsafe-inline'"), "{csp}");
+        // 公開ページと同じ（スクリプトは Strict、スタイルのインラインは許す）。管理画面の CSP ではない
+        assert!(csp.contains("script-src 'self';"), "{csp}");
+        assert!(csp.contains("style-src 'self' 'unsafe-inline'"), "{csp}");
         assert!(csp.contains("frame-ancestors *"), "{csp}");
         assert!(!res.headers().contains_key("x-frame-options"));
         assert_eq!(res.headers()["cache-control"], "no-store");
@@ -623,6 +668,47 @@ mod tests {
             .unwrap();
         let csp = admin.headers()["content-security-policy"].to_str().unwrap();
         assert!(csp.contains("script-src 'self';"), "{csp}");
-        assert!(!csp.contains("script-src 'self' 'unsafe-inline'"), "{csp}");
+        // 管理画面は、スタイルのインラインも許さない（プレビューの HTML は別の文書）
+        assert!(csp.contains("style-src 'self';"), "{csp}");
+    }
+
+    /// `body_frame_key` があれば、本文の HTML を最小限のスタイルつきの文書にして置き、`body_url` で返す。
+    /// 本文は Admin Studio の画面に直接入れない
+    #[tokio::test]
+    async fn test_preview_keeps_the_body_as_a_small_document_for_the_iframe() {
+        let state = test_state(PluginSupervisor::new()).await;
+        let mut req = request();
+        req.body_frame_key = Some(KEY.to_string());
+        let Json(body) = preview_content(State(state.clone()), viewer(), Json(req))
+            .await
+            .unwrap();
+        let url = body["body_url"].as_str().unwrap();
+        assert!(
+            url.starts_with(&format!("/preview/frame/{KEY}?v=")),
+            "{url}"
+        );
+        let stored = state
+            .cache
+            .get(&frame_cache_key(KEY))
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(stored.starts_with("<!doctype html>"), "{stored}");
+        assert!(stored.contains(body["html"].as_str().unwrap()));
+        assert!(
+            stored.contains("<style>"),
+            "the document has its own small stylesheet"
+        );
+        // 名前が無ければ置かない。形の違う名前は 400
+        let Json(none) = preview_content(State(state.clone()), viewer(), Json(request()))
+            .await
+            .unwrap();
+        assert!(none["body_url"].is_null());
+        let mut bad = request();
+        bad.body_frame_key = Some("nope".to_string());
+        let err = preview_content(State(state), viewer(), Json(bad))
+            .await
+            .unwrap_err();
+        assert_eq!(err.0, StatusCode::BAD_REQUEST);
     }
 }

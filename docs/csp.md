@@ -5,7 +5,7 @@
 公開サイトと Admin Studio の CSP の、現状と、公開ページを Strict CSP（インラインのスクリプトを許さない）にする設計です。
 
 > [!NOTE]
-> §1〜§6 は実装済みです（実装の分け方は §7）。既定は `strict_csp = "off"` で、今までどおりです。
+> すべて実装済みです（実装の分け方は §7）。**既定は `strict_csp = "on"`（破壊的変更）**。前の動きに戻すには `"off"`。
 
 ---
 
@@ -14,9 +14,9 @@
 | 対象 | `script-src` | 備考 |
 |---|---|---|
 | 公開ページ・API | `'self' 'unsafe-inline'` | `'unsafe-eval'` は入れていない（`eval` を使う機能が無いため）。プラグインが宣言したホスト（`capabilities.csp.script_domains` など）と、CAPTCHA のホストが足される |
-| Admin Studio（`/admin/`） | `'self'` | `unsafe-inline` なし。管理画面のビルドはインラインのスクリプトを使わない |
+| Admin Studio（`/admin/`） | `'self'` | `unsafe-inline` なし。`style-src` も `'self'` だけ（§1.1） |
 | テーマ適用ページのプレビュー | 公開ページと同じ | `GET /api/v1/preview/frame/{key}` が、`sandbox allow-scripts` を足して返す。Strict のときは、ページを置いたときに集めたハッシュも CSP に足す |
-| 公開ページ（`[security].strict_csp = "on"`） | `'self'` + ページのインラインのスクリプトのハッシュ + 宣言したホスト | `'unsafe-inline'`・`'unsafe-eval'` なし（§6） |
+| 公開ページ（`[security].strict_csp = "on"`。**既定**） | `'self'` + ページのインラインのスクリプトのハッシュ + 宣言したホスト | `'unsafe-inline'`・`'unsafe-eval'` なし（§6）。`style-src` は `'self' 'unsafe-inline'` |
 
 - 既定の値は `headers::DEFAULT_CONTENT_SECURITY_POLICY`・`ADMIN_CONTENT_SECURITY_POLICY`。管理者が「設定 › ヘッダー」で CSP を上書きしているときは、その値をそのまま使う。
 - `admin/e2e/csp.spec.ts` が、Admin Studio と公開ページの主な画面を既定の CSP で動かし、止められたスクリプトとスクリプトのエラーを検出する。
@@ -24,7 +24,16 @@
 
 ---
 
-## 2. 公開ページに `unsafe-inline` が残っている理由
+### 1.1 Admin Studio の `style-src`
+
+Admin Studio は、スタイルのインライン（`<style>` 要素・`style` 属性）を使いません。React の `style` は CSSOM（`element.style`）で設定するので、`style-src` に当たりません。そこで、`style-src` も `'self'` だけにしました。
+
+- **HTML を表示する 3 か所は、画面の中に直接入れず、サーバーが置いた別の文書（`iframe`）で見せる**: 本文の HTML（「HTML 出力」のタブ。プラグインのブロックは自分の `<style>` を持つ）、テーマ適用ページ、通知のメールのプレビュー（メールはインラインのスタイルが前提）。`srcdoc` や直接の挿入は、Admin Studio の CSP を引き継いで、これらのスタイルを止めてしまうため。
+- サーバーが `GET /api/v1/preview/frame/{key}` で返す（`POST /api/v1/preview` の `frame_key`・`body_frame_key`、`POST /api/v1/notifications/preview` の `frame_key`）。公開ページと同じ CSP に `sandbox allow-scripts` を足すので、中身のスクリプトも管理画面のセッションに届かない。本文の文書には、読みやすい最小限のスタイルを付ける。
+- 副産物: 本文の HTML を、管理画面のオリジンの DOM に入れなくなった（`dangerouslySetInnerHTML` をやめた）。
+- Admin Studio が読み込んでいた Google Fonts（`fonts.googleapis.com`）は、もともと CSP に止められて読めていなかったので、`index.html` から外した（フォントは、システムのフォントに倒れる）。
+
+## 2. 公開ページに `unsafe-inline` が残っていた理由（§6 で外した）
 
 インラインの `<script>` や `onclick` を、HTML に直接出すものがあるため。
 
@@ -103,16 +112,18 @@ pub enum ScriptSource {
 
 ## 6. 切り替え（`[security].strict_csp`）
 
-テーマ・プラグインの移行が済むまでは、既定では切り替えない。
+**既定は `"on"`**（破壊的変更）。
 
 | 値 | 動き |
 |---|---|
-| `"off"`（既定） | 今のまま（`script-src 'self' 'unsafe-inline'`）。ただし §4 の検査と、`<script>` の取り除きは常に効く（ABI v2 の約束） |
-| `"report-only"` | 今の CSP に加えて、Strict の CSP を `Content-Security-Policy-Report-Only` で出す。ブラウザーのコンソールで、止まるものを確かめられる |
-| `"on"` | Strict の CSP を強制する（`'unsafe-inline'` を外す） |
+| `"on"`（既定） | Strict の CSP を強制する（`'unsafe-inline'` を外し、信頼できる出どころのインラインのスクリプトはハッシュで許す） |
+| `"report-only"` | 前の CSP（`script-src 'self' 'unsafe-inline'`）のまま、Strict の CSP を `Content-Security-Policy-Report-Only` でも出す。ブラウザーのコンソールで、止まるものを確かめられる。移行の確認用 |
+| `"off"` | 前の CSP に戻す。ただし §4 の検査と、`<script>` の取り除きは常に効く（ABI v2 の約束） |
+
+**`on` で動かなくなるもの**: テーマ自身の、直接書いたインラインの `<script>`・`on*` 属性（外部ファイルか `{{ inline_script() }}` にする。[テーマの書き方 6a](theme_authoring_guide.md#6a-スクリプトの書き方インラインを書かない)）、HTML の断片に直接書いた `<script>`（`core/html` の通常のモードなどはもともとサニタイズで除かれる）、`'unsafe-inline'` が要る外部サービスの貼り付けコード（AdSense・解析・CAPTCHA のうち、インラインの起動コードを持つもの。公式プラグイン `official-ads`・`official-clarity` は、構造化した注入で対応済み）。
 
 - 管理者が CSP を上書きしているときは、その値が優先で、`strict_csp` は効かない。
-- `style-src 'unsafe-inline'` は、この設計の対象外（`style` 属性が組み込みテンプレートに多い。別の見直し）。
+- 公開ページの `style-src 'unsafe-inline'` は、この設計の対象外（`style` 属性が組み込みテンプレートに多い。別の見直し）。Admin Studio は §1.1。
 
 ---
 
@@ -123,10 +134,10 @@ pub enum ScriptSource {
    - 移行で変わったこと: `official-mermaid` の `script_url` は、このサイトのパスか `cdn.jsdelivr.net` の `https://` だけ（ほかのホストはホストが捨てる）。`official-ads` の `custom_head_code` の `<script>` は使えなくなった（`<meta>`・`<link>` などは使える。スクリプトの安全な足し方は未決）。`official-code-enhancer` の Prism は、`<script data-manual>` の代わりに `window.Prism.manual = true` を先に実行する。
 3. **組み込みテンプレートの外部化**（**済**）: コメント欄のスクリプト（`/_aegis/comments.js`。URL は `CommentSection.script_url`）、初期セットアップ画面（`/_aegis/setup.js`）、アクセス解析のビーコン（`/_aegis/analytics.js`。受け口は `data-endpoint`）を外部ファイルにし、記事の「トップへ戻る」の `onclick` はページ内リンク（`<a href='#'>`。滑らかなスクロールは CSS の `scroll-behavior`）にした。組み込みのテンプレートと同梱のテーマ 5 つが、インラインのコードを出さないことを `aegis-theme` のテスト（全テンプレートを描画して `<script>`（`src` なし）と `on*` を探す）と、E2E（`script-src 'self'` だけの CSP でコメントを投稿する）で確かめる。テーマの作り方（[theme_authoring_guide.md の 6a](theme_authoring_guide.md#6a-スクリプトの書き方インラインを書かない)）に、インラインを書かない方針を追記した。`inline_script()`（§5）は、ハッシュの登録の仕組みと一緒に 4 で足す。
 4. **ハッシュの収集と CSP**（**済**）: 信頼できる出どころ（プラグインの `scripts` のインライン、テンプレートの `inline_script()`）が出すときに、本文の SHA-256 を `aegis_core::csp::record_inline_script` で記録する。記録の受け口は、`security_headers_middleware` がリクエストごとに作る（`tokio::task_local`。受け口の外では何もしない）。応答の本文は名前空間（`aegis-` → `cms-`）の置き換えを受けるので、**ハッシュも置き換えたあとの本文で取る**（受け口に、同じ置き換えを渡す）。`headers::strict_script_csp` が、`script-src` から `'unsafe-inline'`・`'unsafe-eval'` を外してハッシュを足す（宣言したホストは残し、`strict-dynamic` は使わない）。`[security].strict_csp` は `off`（既定）/ `report-only`（今の CSP に加えて `Content-Security-Policy-Report-Only`）/ `on`。管理者が CSP を上書きしているときは、その値が優先。Admin Studio（`/admin/`）は、もともと `unsafe-inline` が無い。`admin/e2e/aegis.e2e.toml` は `on` で、全 E2E が Strict の下で動く。
-5. **既定を `on` に**（移行の期間のあと）。テーマ・プラグインの移行ガイド。現状の既定は `off`。
+5. **既定を `on` に**（**済**。破壊的変更）。`[security].strict_csp` の既定を `"on"` にした。前の動きは `"off"`、確かめるだけなら `"report-only"`。あわせて Admin Studio の `style-src` を `'self'` だけにした（§1.1）。
 
 ### 7.1 決めたこと・決めていないこと
 
 - 決めた: ハッシュ方式（共有キャッシュと両立するため）、`strict-dynamic` を使わない、プラグインに nonce・ハッシュを見せない、ABI の破壊的変更を許す。
 - 決めた（4 で）: `inline_script()` は、テンプレート関数が `aegis_core::csp::inline_script_tag` を呼んでタグを作り、本文のハッシュをリクエストの受け口に記録する。`report-only` の報告の受け口は持たない（ブラウザーのコンソールで確かめる）。
-- 未決: `strict_csp` の既定を `on` にする時期。
+- 決めた（5 で）: 既定を `on` にする（移行の期間は置かず、破壊的変更として出す）。`aegis-server theme dev`（テーマの開発サーバー）は、まだ CSP を付けないので、テーマの作者は、本物のサーバーを `report-only` で動かして確かめる（TODO）。
