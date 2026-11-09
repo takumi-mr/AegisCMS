@@ -40,14 +40,32 @@ pub struct DevArgs {
     /// Language code for rendering (e.g. "en" or "ja")
     #[arg(short = 'l', long, default_value = "en")]
     pub locale: String,
+    /// CSP applied to the preview pages: "on" enforces the public site's default (strict) policy so that
+    /// blocked inline scripts/styles show up as you edit; "report-only" only reports; "off" sends none
+    #[arg(long, value_enum, default_value_t = CspMode::On)]
+    pub csp: CspMode,
+}
+
+/// プレビューのページに付ける CSP
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CspMode {
+    /// 公開サイトの既定（Strict）を強制する。止まったものは画面に出る
+    On,
+    /// 強制せず、`Content-Security-Policy-Report-Only` で報告だけする（画面には出る）
+    ReportOnly,
+    /// 付けない
+    Off,
 }
 
 /// 開いているページの再読み込みを待つ長さ（これを過ぎたら同じ版を返し、ページ側がつなぎ直す）
 const LONG_POLL: Duration = Duration::from_secs(25);
 const WATCH_INTERVAL: Duration = Duration::from_millis(300);
 
-/// ページに差し込む自動再読み込みのスクリプト
-const RELOAD_SCRIPT: &str = "<script>(async()=>{let v='';for(;;){try{const r=await fetch('/__dev/version'+(v===''?'':'?since='+v));const j=await r.json();if(v!==''&&String(j.version)!==v){location.reload();return}v=String(j.version)}catch(e){await new Promise(r=>setTimeout(r,1000))}}})()</script>";
+/// ページに差し込む自動再読み込みのスクリプト（本文。Strict CSP のためにハッシュを登録して出す）
+const RELOAD_JS: &str = "(async()=>{let v='';for(;;){try{const r=await fetch('/__dev/version'+(v===''?'':'?since='+v));const j=await r.json();if(v!==''&&String(j.version)!==v){location.reload();return}v=String(j.version)}catch(e){await new Promise(r=>setTimeout(r,1000))}}})()";
+
+/// CSP に止められたものを、ページの上に出すスクリプト（本文）。公開サイトで何が動かなくなるかに、書いている最中に気づける
+const CSP_OVERLAY_JS: &str = include_str!("../assets/csp-overlay.js");
 
 #[derive(Clone)]
 struct DevState {
@@ -56,6 +74,8 @@ struct DevState {
     version: watch::Receiver<u64>,
     /// ループバックで待ち受けているか。そうでなければファイルの書き込み API は使えない
     loopback: bool,
+    /// プレビューのページに付ける CSP
+    csp: CspMode,
 }
 
 /// 書き込み API に付けるヘッダー。ほかのサイトのページは勝手に付けられない（CORS の事前確認が要る）ので、
@@ -113,6 +133,7 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
         engine,
         version: rx,
         loopback: addr.ip().is_loopback(),
+        csp: args.csp,
     };
     if !state.loopback {
         tracing::warn!("Not listening on loopback: editing files through the API is disabled");
@@ -157,6 +178,7 @@ fn router(state: DevState) -> Router {
         // 公開サイトと同じ URL（テンプレートが `/theme/assets/...` や `/themes/<id>/assets/...` で参照する）
         .nest_service("/theme/assets", assets.clone())
         .nest_service(&format!("/themes/{}/assets", theme_id), assets)
+        .layer(middleware::from_fn_with_state(state.clone(), csp_middleware))
         .layer(middleware::from_fn_with_state(state.clone(), guard))
         .with_state(state)
 }
@@ -474,6 +496,15 @@ fn escape(s: &str) -> String {
 /// 断片のテンプレート（`</body>` の前に差し込む同意バナー）は、プレビューのために文書で包み、組み込みの CSS を付ける
 /// （テーマが自分の CSS で作るなら、`<style>` を足しても上書きできる）。ほかのテンプレートはそのまま
 fn as_document(template: &str, html: String) -> String {
+    let doc = as_document_inner(template, html);
+    // Strict CSP: 足した `<style>` は、組み込みのもの（テーマの書いた `<style>` は `inline_style` で出す）
+    if matches!(template, "notices.html" | "consent.html") {
+        aegis_core::csp::record_styles_in(&doc);
+    }
+    doc
+}
+
+fn as_document_inner(template: &str, html: String) -> String {
     if template == "notices.html" {
         // お知らせバナーはページの上に出る。閉じるボタンは、スクリプトが動くサイトでだけ出る
         return format!(
@@ -492,12 +523,49 @@ fn as_document(template: &str, html: String) -> String {
     )
 }
 
+/// 自動再読み込みと、CSP に止められたものの表示を差し込む（どちらもインラインのスクリプトなので、ハッシュを登録する）。
+/// 表示のスクリプトは先頭に置く（あとのスクリプトやスタイルが止められる前に、見張りを始める）
 fn with_reload(mut html: String) -> String {
+    let reload = aegis_core::csp::inline_script_tag(RELOAD_JS, None);
     match html.rfind("</body>") {
-        Some(at) => html.insert_str(at, RELOAD_SCRIPT),
-        None => html.push_str(RELOAD_SCRIPT),
+        Some(at) => html.insert_str(at, &reload),
+        None => html.push_str(&reload),
+    }
+    let overlay = aegis_core::csp::inline_script_tag(CSP_OVERLAY_JS, None);
+    match html.find("<head>") {
+        Some(at) => html.insert_str(at + "<head>".len(), &overlay),
+        None => html.insert_str(0, &overlay),
     }
     html
+}
+
+/// プレビューのページ（HTML）に、公開サイトの既定の CSP（Strict）を付ける。ページを描くときに登録された
+/// インラインのスクリプト・スタイルのハッシュだけが許される。テーマが `theme.json` の `csp` で宣言したホストは足す
+async fn csp_middleware(State(state): State<DevState>, req: Request, next: Next) -> Response {
+    if state.csp == CspMode::Off || req.uri().path().starts_with("/__dev/") {
+        return next.run(req).await;
+    }
+    let (mut response, hashes) =
+        aegis_core::csp::collect_hashes(|body| body.to_string(), next.run(req)).await;
+    let is_html = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.starts_with("text/html"));
+    if is_html {
+        let base = aegis_core::csp::DEFAULT_PUBLIC_CSP;
+        let base = state.engine.active_csp().merge_into(base);
+        let csp = aegis_core::csp::strict_csp(&base, &hashes);
+        let name = if state.csp == CspMode::On {
+            header::CONTENT_SECURITY_POLICY
+        } else {
+            header::HeaderName::from_static("content-security-policy-report-only")
+        };
+        if let Ok(value) = header::HeaderValue::from_str(&csp) {
+            response.headers_mut().insert(name, value);
+        }
+    }
+    response
 }
 
 fn error_page(title: &str, detail: &str) -> Html<String> {
@@ -1239,6 +1307,7 @@ mod tests {
             engine,
             version: rx,
             loopback: true,
+            csp: CspMode::On,
         };
         (router(state), tx)
     }
@@ -1273,6 +1342,7 @@ mod tests {
             engine,
             version: rx,
             loopback: true,
+            csp: CspMode::On,
         };
         let app = router(state);
         let (status, html) = get_text(&app, "/preview/index").await;
@@ -1677,6 +1747,7 @@ mod tests {
             engine,
             version: rx,
             loopback: false,
+            csp: CspMode::On,
         });
         let (status, _) = send(
             &app,
@@ -1862,5 +1933,73 @@ mod tests {
         assert!(entry_names.contains(&"theme.json".to_string()));
         assert!(entry_names.contains(&"signature.json".to_string()));
         assert!(entry_names.contains(&"templates/base.html".to_string()));
+    }
+
+    /// `/preview/{sample}` の応答のヘッダー（CSP）と本文
+    async fn preview_with_csp(tmp: &tempfile::TempDir, mode: CspMode) -> (Option<String>, String) {
+        let dir = tmp.path().join("mytheme").canonicalize().unwrap();
+        let engine = ThemeEngine::new(dir.parent().unwrap(), "mytheme").with_template_reload(true);
+        let (_tx, rx) = watch::channel(0u64);
+        let app = router(DevState {
+            dir,
+            engine,
+            version: rx,
+            loopback: true,
+            csp: mode,
+        });
+        let res = app
+            .oneshot(
+                Request::get("/preview/index")
+                    .header("host", "localhost:8090")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let name = if mode == CspMode::ReportOnly {
+            "content-security-policy-report-only"
+        } else {
+            "content-security-policy"
+        };
+        let csp = res
+            .headers()
+            .get(name)
+            .map(|v| v.to_str().unwrap().to_string());
+        let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        (csp, String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    #[tokio::test]
+    async fn test_preview_runs_under_the_strict_csp_and_hashes_only_what_the_theme_emitted() {
+        let tmp = theme_dir();
+        let theme = tmp.path().join("mytheme");
+        std::fs::write(
+            theme.join("templates/index.html"),
+            r#"{% extends "base.html" %}{% block content %}<script>raw()</script>{{ inline_script("ok()") }}<style>.raw{}</style>{% filter inline_style %}.ok{}{% endfilter %}{% endblock %}"#,
+        )
+        .unwrap();
+        let (csp, html) = preview_with_csp(&tmp, CspMode::On).await;
+        let csp = csp.expect("a CSP header");
+        assert!(!csp.contains("'unsafe-inline'") || csp.contains("style-src-attr 'unsafe-inline'"));
+        assert!(!csp.contains("script-src 'self' 'unsafe-inline'"), "{csp}");
+        let hash = |body: &str| format!("'{}'", aegis_core::csp::script_hash(body));
+        // テーマが `inline_script` / `inline_style` で出したものと、開発サーバー自身のスクリプトは許される
+        for ok in ["ok()", RELOAD_JS, CSP_OVERLAY_JS] {
+            assert!(csp.contains(&hash(ok)), "{ok}: {csp}");
+        }
+        assert!(csp.contains(&hash(".ok{}")), "{csp}");
+        // 直接書いた `<script>` と `<style>` は、ハッシュが無いので止まる（画面に出る）
+        assert!(!csp.contains(&hash("raw()")), "{csp}");
+        assert!(!csp.contains(&hash(".raw{}")), "{csp}");
+        assert!(html.contains("<script>raw()</script>"), "{html}");
+    }
+
+    #[tokio::test]
+    async fn test_preview_csp_can_be_report_only_or_off() {
+        let tmp = theme_dir();
+        let (csp, _) = preview_with_csp(&tmp, CspMode::ReportOnly).await;
+        assert!(csp.is_some());
+        let (csp, _) = preview_with_csp(&tmp, CspMode::Off).await;
+        assert!(csp.is_none());
     }
 }
