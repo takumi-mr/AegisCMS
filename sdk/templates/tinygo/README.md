@@ -59,6 +59,7 @@ sdk/templates/tinygo/
   "name": "my-tinygo-plugin",
   "version": "1.0.0",
   "entrypoint": "plugin.wasm",
+  "abi_version": 2,
   "capabilities": {
     "network": { "allowed_domains": ["api.example.com"] },
     "storage": { "kv_namespace": "my_tinygo_state" },
@@ -71,6 +72,9 @@ sdk/templates/tinygo/
   }
 }
 ```
+
+> [!NOTE]
+> `on-render-page` で `<script>` を注入する場合は、`ExtraHead` や `AppendContent` に生の `<script>` タグを書かず（ホストが除去します）、`ctx.Scripts` に `sdk.ExternalScript(...)` / `sdk.InlineScript(...)` を追加してください。外部スクリプトは `capabilities.csp.script_domains`、インラインスクリプトは `capabilities.inline_scripts: true` の宣言が必要です。
 
 ### 利用可能なライフサイクルフック
 

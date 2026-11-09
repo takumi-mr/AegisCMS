@@ -1,5 +1,7 @@
 package sdk
 
+import "strings"
+
 // PostContext は保存直前にプラグインへ渡されるコンテンツコンテキスト
 type PostContext struct {
 	ID          string `json:"id"`
@@ -57,15 +59,65 @@ type PageRenderContext struct {
 	Slug            string `json:"slug"`
 	ContentHTML     string `json:"content_html"`
 	// PrependContent / AppendContent は本文の前後に足す HTML (書き込み専用。ホストが全プラグインのあとで本文と結合する)
-	PrependContent string            `json:"prepend_content,omitempty"`
-	AppendContent  string            `json:"append_content,omitempty"`
-	ExtraCSS       string            `json:"extra_css"`
-	ExtraHead      string            `json:"extra_head"`
+	PrependContent string `json:"prepend_content,omitempty"`
+	AppendContent  string `json:"append_content,omitempty"`
+	// ContentLength は本文 (枠を除く) のバイト数。content_html を受け取らないプラグインでも本文があるかを調べられる
+	ContentLength int    `json:"content_length,omitempty"`
+	ExtraCSS      string `json:"extra_css"`
+	ExtraHead     string `json:"extra_head"`
 	// Scripts は <head> に足すスクリプト (書き込み専用。ホストが検査して <script> のタグにする)。
 	// スクリプトはここでだけ足せる: ExtraHead / PrependContent / AppendContent の中の <script> と on* 属性は、
 	// ホストが取り除く (docs/csp.md の 4)
 	Scripts   []InjectedScript  `json:"scripts,omitempty"`
 	ThemeVars map[string]string `json:"theme_vars,omitempty"`
+	// Queries は宣言的クエリの結果 (クエリ名 → 結果。docs/queries.md)。
+	// マニフェストの capabilities.render_page.queries に書いた名前の分だけ渡る (読み取り専用)
+	Queries map[string]interface{} `json:"queries,omitempty"`
+}
+
+// HeadHTML はホストが <head> に出す HTML (ExtraHead の後ろに Scripts のタグ) を返す。
+// プラグインのテストで、ホストを通したあとの <head> を確かめるために使う
+func (c *PageRenderContext) HeadHTML() string {
+	var b strings.Builder
+	b.WriteString(c.ExtraHead)
+	for _, script := range c.Scripts {
+		if b.Len() > 0 && !strings.HasSuffix(b.String(), "\n") {
+			b.WriteByte('\n')
+		}
+		consent := ""
+		if script.Consent != nil && *script.Consent != "" {
+			consent = ` type="text/plain" data-aegis-consent="` + *script.Consent + `"`
+		}
+		if script.Kind == "external" {
+			b.WriteString("<script")
+			b.WriteString(consent)
+			b.WriteString(` src="`)
+			b.WriteString(script.URL)
+			b.WriteByte('"')
+			if script.AsyncLoad {
+				b.WriteString(" async")
+			}
+			if script.Defer {
+				b.WriteString(" defer")
+			}
+			if script.Crossorigin {
+				b.WriteString(` crossorigin="anonymous"`)
+			}
+			b.WriteString("></script>")
+		} else {
+			b.WriteString("<script")
+			b.WriteString(consent)
+			b.WriteByte('>')
+			b.WriteString(script.Code)
+			b.WriteString("</script>")
+		}
+	}
+	return b.String()
+}
+
+// ComposedHTML はホストが PrependContent・ContentHTML・AppendContent を結合した HTML を返す
+func (c *PageRenderContext) ComposedHTML() string {
+	return c.PrependContent + c.ContentHTML + c.AppendContent
 }
 
 // InjectedScript は <head> に足すスクリプト 1 つ。ホストがマニフェストの宣言と照合して検査し、
@@ -93,6 +145,36 @@ func InlineScript(code string) InjectedScript {
 // ExternalScript は外部のスクリプト (このサイトのパスか、script_domains にある https:// の URL)
 func ExternalScript(url string) InjectedScript {
 	return InjectedScript{Kind: "external", URL: url}
+}
+
+// WithConsent は同意の区分を付ける (同意があるまで実行しない)
+func (s InjectedScript) WithConsent(category string) InjectedScript {
+	s.Consent = &category
+	return s
+}
+
+// Async は async にする (外部のスクリプトだけ)
+func (s InjectedScript) Async() InjectedScript {
+	if s.Kind == "external" {
+		s.AsyncLoad = true
+	}
+	return s
+}
+
+// Deferred は defer にする (外部のスクリプトだけ)
+func (s InjectedScript) Deferred() InjectedScript {
+	if s.Kind == "external" {
+		s.Defer = true
+	}
+	return s
+}
+
+// WithCrossorigin は crossorigin="anonymous" を付ける (外部のスクリプトだけ。CORS を許すサーバーのものに限る)
+func (s InjectedScript) WithCrossorigin() InjectedScript {
+	if s.Kind == "external" {
+		s.Crossorigin = true
+	}
+	return s
 }
 
 // ErrorEnvelope はフック拒否時にホストへ返却するエラー構造体

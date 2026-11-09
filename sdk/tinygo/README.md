@@ -81,6 +81,18 @@ Place `plugin.wasm` alongside `plugin.manifest.json` into `plugins/<name>/` in y
 - `on_render_page(ptr int32, length int32) int64`
 - `calculate_order`, `on_order_status_changed`, `send_notification`, `on_content_published`, `check_comment`, `render_blocks` (all `(ptr int32, length int32) int64`)
 
+### `on_render_page` and Structured Script Injection (ABI 2)
+
+Use `sdk.RunHook(ptr, length, "PageRenderContext", func(ctx *sdk.PageRenderContext) error { ... })`:
+
+- **HTML around the article body**: Set `ctx.PrependContent` / `ctx.AppendContent` instead of round-tripping `ctx.ContentHTML`. Check `ctx.ContentLength > 0` to see whether the page has body content even when `content_html` is omitted via `capabilities.render_page.input`.
+- **Declarative queries (`ctx.Queries`)**: Read query results declared in `capabilities.render_page.queries` via `ctx.Queries["<query_name>"]` (`map[string]interface{}`).
+- **Scripts (`ctx.Scripts`)**: Raw `<script>` tags and `on*` attributes in `ExtraHead`, `PrependContent`, and `AppendContent` are stripped by the host. Append `sdk.InjectedScript` entries to `ctx.Scripts` instead:
+  - `sdk.InlineScript("window.init = 1;")` (requires `"inline_scripts": true` in `capabilities`)
+  - `sdk.ExternalScript("https://cdn.example.com/lib.js").Async().Deferred().WithCrossorigin().WithConsent("analytics")` (requires `"cdn.example.com"` in `capabilities.csp.script_domains`)
+
+### Commerce, Notification, Comment & Block Hooks
+
 The hooks above after `on_render_page` are declared in the manifest's `capabilities.hooks` in kebab-case (`calculate-order`, ...). Each has a runner that reads the input, calls your function and writes the result in the ABI format:
 
 | Hook | Runner | Your function |

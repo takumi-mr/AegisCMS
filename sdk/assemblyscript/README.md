@@ -111,6 +111,18 @@ This compiles your code into `plugin.wasm` ready to be loaded by AegisCMS.
 - `on_render_page(ptr: i32, len: i32): i64`
 - `calculate_order`, `on_order_status_changed`, `send_notification`, `on_content_published`, `check_comment`, `render_blocks` (all `(ptr: i32, len: i32): i64`)
 
+### `on_render_page` and Structured Script Injection (ABI 2)
+
+Read the context with `parsePageRenderContext(readString(ptr, len))` and return `writeString(serializePageRenderContext(ctx))`.
+
+- **HTML around the article body**: Write to `ctx.prepend_content` / `ctx.append_content` instead of round-tripping `content_html`. Check `ctx.content_length > 0` to see whether the page has body content even when `content_html` is omitted via `capabilities.render_page.input`.
+- **Declarative queries (`ctx.queries`)**: Read query results declared in `capabilities.render_page.queries` via `ctx.queries.get("<query_name>")` (`JsonValue`).
+- **Scripts (`ctx.scripts`)**: Raw `<script>` tags and `on*` attributes in `extra_head`, `prepend_content`, and `append_content` are stripped by the host. Push `InjectedScript` entries to `ctx.scripts` instead:
+  - `InjectedScript.inline("window.init = 1;")` (requires `"inline_scripts": true` in `capabilities`)
+  - `InjectedScript.external("https://cdn.example.com/lib.js").asyncLoad().deferred().withCrossorigin().withConsent("analytics")` (requires `"cdn.example.com"` in `capabilities.csp.script_domains`)
+
+### Commerce, Notification, Comment & Block Hooks
+
 The hooks after `on_render_page` are declared in the manifest's `capabilities.hooks` in kebab-case (`calculate-order`, ...). Their inputs are nested JSON, so read them with `readHookJson(ptr, len)` (returns `null` for invalid JSON) and the typed `fromJson` of each class:
 
 | Hook | Read | Write |

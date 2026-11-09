@@ -8,11 +8,13 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use aegis_core::{
-    AegisError, CommentSubmission, CommentVerdict, Delivered, NotificationMessage, OrderContext,
-    OrderStatusChange, PluginManifest, PluginResourceLimits, PublishedContent, Recipient,
+    AegisError, CommentSubmission, CommentVerdict, Delivered, InjectedScript, NotificationMessage,
+    OrderContext, OrderStatusChange, PageRenderContext, PluginManifest, PluginResourceLimits,
+    PublishedContent, Recipient, ScriptSource,
 };
 use aegis_runtime::{
-    AegisPlugin, HostServices, HttpRequest, HttpResponse, WasmEngine, WasmPluginInstance,
+    AegisPlugin, HostServices, HttpRequest, HttpResponse, PluginSupervisor, WasmEngine,
+    WasmPluginInstance,
 };
 use serde_json::json;
 
@@ -77,17 +79,21 @@ fn sdk_path(relative: &str) -> PathBuf {
         .join(relative)
 }
 
-fn load(dir: &Path, services: Arc<FakeServices>) -> WasmPluginInstance {
+fn load(dir: &Path, services: Arc<FakeServices>) -> Arc<WasmPluginInstance> {
     let manifest = PluginManifest::from_json_with_defaults(
         &std::fs::read_to_string(dir.join("plugin.manifest.json")).unwrap(),
         &PluginResourceLimits::default(),
     )
     .unwrap();
+    assert_eq!(manifest.abi_version, Some(2), "{}", dir.display());
+    manifest.validate_csp().unwrap();
     let wasm = std::fs::read(dir.join(&manifest.entrypoint))
         .unwrap_or_else(|e| panic!("{}: plugin.wasm is not built: {}", dir.display(), e));
     let services: Arc<dyn HostServices> = services;
-    WasmPluginInstance::from_bytes(WasmEngine::new().unwrap(), manifest, &wasm, services)
-        .unwrap_or_else(|e| panic!("{}: {}", dir.display(), e))
+    Arc::new(
+        WasmPluginInstance::from_bytes(WasmEngine::new().unwrap(), manifest, &wasm, services)
+            .unwrap_or_else(|e| panic!("{}: {}", dir.display(), e)),
+    )
 }
 
 fn order(subtotal: i64, coupon: Option<&str>) -> OrderContext {
@@ -310,6 +316,104 @@ async fn check_hooks(dir: PathBuf, plugin_name: &str, kv_namespace: &str, calcul
         ],
         "{}",
         name
+    );
+
+    // on-render-page (ABI 2): content_length が 0 のときは枠を足さず、CSS と構造化した scripts を返す
+    let empty_page = plugin
+        .on_render_page(PageRenderContext {
+            template: "index.html".to_string(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(
+        empty_page.prepend_content.is_empty() && empty_page.append_content.is_empty(),
+        "{}",
+        name
+    );
+    assert!(
+        empty_page
+            .extra_css
+            .contains(".callout { border-left: 3px solid #2563eb; }"),
+        "{}",
+        name
+    );
+    assert_eq!(
+        empty_page.scripts,
+        vec![
+            InjectedScript {
+                source: ScriptSource::Inline {
+                    code: "window.__aegisExample = 1;".to_string(),
+                },
+                consent: None,
+            },
+            InjectedScript {
+                source: ScriptSource::External {
+                    url: "https://cdn.example.com/analytics.js".to_string(),
+                    async_load: true,
+                    defer: true,
+                    crossorigin: true,
+                },
+                consent: Some("analytics".to_string()),
+            },
+        ],
+        "{}",
+        name
+    );
+
+    // ホスト (PluginSupervisor) を通すと、prepend_content / append_content が本文の前後に結合され、
+    // capabilities.render_page.queries で宣言した宣言的クエリ結果が渡り、
+    // scripts が検査されて extra_head の <script> タグになる
+    let mut supervisor = PluginSupervisor::new();
+    let queries = aegis_core::new_queries_snapshot();
+    {
+        let mut map = serde_json::Map::new();
+        map.insert("featured_count".to_string(), json!([{ "n": 7 }]));
+        map.insert("unrequested".to_string(), json!([{ "n": 99 }]));
+        *queries.write().unwrap() = Arc::new(map);
+    }
+    supervisor.set_queries(queries);
+    supervisor.register(plugin.clone());
+    let body = "<p>Article body</p>";
+    let rendered = supervisor
+        .apply_render_page(PageRenderContext {
+            template: "article.html".to_string(),
+            content_type: "article".to_string(),
+            content_html: body.to_string(),
+            content_length: body.len(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        rendered.content_html,
+        "<div class=\"example-banner\">Reading</div><p>Article body</p><footer class=\"example-footer\">End</footer>",
+        "{}",
+        name
+    );
+    assert!(
+        rendered
+            .extra_head
+            .contains("<meta name=\"featured-count\" content=\"7\">"),
+        "{}: {}",
+        name,
+        rendered.extra_head
+    );
+    assert!(
+        rendered
+            .extra_head
+            .contains("<script>window.__aegisExample = 1;</script>"),
+        "{}: {}",
+        name,
+        rendered.extra_head
+    );
+    assert!(
+        rendered.extra_head.contains(
+            "<script type=\"text/plain\" data-aegis-consent=\"analytics\" src=\"https://cdn.example.com/analytics.js\" async defer crossorigin=\"anonymous\"></script>"
+        ),
+        "{}: {}",
+        name,
+        rendered.extra_head
     );
 }
 
