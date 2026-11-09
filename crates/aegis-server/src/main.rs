@@ -748,6 +748,20 @@ async fn main() -> anyhow::Result<()> {
 
             let db_adapter = aegis_db::create_database_adapter(&config.database).await?;
             db_adapter.run_migrations(&schemas).await?;
+            // 宣言的クエリが読む公開側の列（副表）も用意する。定義が同じなら何もしない
+            let prepared = queries::prepare_columns(
+                db_adapter.as_ref(),
+                &config.queries,
+                &config.paths.queries_dir,
+                &schemas,
+                false,
+            )
+            .await?;
+            if prepared > 0 {
+                tracing::info!(
+                    "Published columns for declarative queries are ready ({prepared} tables)"
+                );
+            }
             if config.forum.enabled {
                 if let Some(ref forum_url) = config.forum.database_url {
                     let trimmed = forum_url.trim();

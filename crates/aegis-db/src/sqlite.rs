@@ -358,7 +358,14 @@ impl DatabaseAdapter for SqliteAdapter {
         &self,
         plan: crate::published_columns::PublishedColumnsPlan,
     ) -> Result<()> {
-        self.configure_published(plan).await
+        self.configure_published(plan, false).await
+    }
+
+    async fn rebuild_published_columns(
+        &self,
+        plan: crate::published_columns::PublishedColumnsPlan,
+    ) -> Result<()> {
+        self.configure_published(plan, true).await
     }
 
     async fn run_query(

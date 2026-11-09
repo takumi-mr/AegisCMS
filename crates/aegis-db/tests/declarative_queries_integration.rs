@@ -292,6 +292,45 @@ select: [{ fn: count, as: n }]
         json!([{"month": "2026-01", "n": 1}, {"month": "2026-02", "n": 2}])
     );
     assert_eq!(rows(adapter, &no_discount).await?, json!([{"n": 2}]));
+
+    // 副表に書かれないまま公開の記録だけが変わったとき（`task restore` など）は、定義が同じだと古いまま。
+    // 強制の作り直しで、公開の記録に合わせてリセットされる
+    let final_plan = PublishedColumnsPlan::build(
+        &[
+            by_brand.clone(),
+            by_month.clone(),
+            cheap_sale.clone(),
+            no_discount.clone(),
+            with_discount.clone(),
+            since_feb.clone(),
+        ],
+        std::slice::from_ref(&schema),
+        Tz::Asia__Tokyo,
+    );
+    adapter
+        .configure_published_columns(PublishedColumnsPlan::default())
+        .await?;
+    publish_new(
+        adapter,
+        &product("z1", "A", 10, true, "2026-03-10T00:00:00Z", &[]),
+    )
+    .await?;
+    adapter
+        .configure_published_columns(final_plan.clone())
+        .await?;
+    assert_eq!(
+        rows(adapter, &by_month).await?,
+        json!([{"month": "2026-01", "n": 1}, {"month": "2026-02", "n": 2}])
+    );
+    adapter.rebuild_published_columns(final_plan).await?;
+    assert_eq!(
+        rows(adapter, &by_month).await?,
+        json!([
+            {"month": "2026-01", "n": 1},
+            {"month": "2026-02", "n": 2},
+            {"month": "2026-03", "n": 1}
+        ])
+    );
     Ok(())
 }
 

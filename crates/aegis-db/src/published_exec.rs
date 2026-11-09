@@ -89,10 +89,12 @@ macro_rules! impl_published_columns {
                 Ok(())
             }
 
-            /// 計画を取り込み、定義が変わった（または無い）副表を作り直して、公開中のスナップショットから埋める
+            /// 計画を取り込み、定義が変わった（または無い）副表を作り直して、公開中のスナップショットから埋める。
+            /// `force` なら、定義が同じでもすべて作り直す（`task restore` のあと）
             pub(crate) async fn configure_published(
                 &self,
                 plan: $crate::published_columns::PublishedColumnsPlan,
+                force: bool,
             ) -> aegis_core::Result<()> {
                 use $crate::sqlx_compat::Row;
                 let db_err = |e: $crate::sqlx_compat::Error| {
@@ -117,7 +119,7 @@ macro_rules! impl_published_columns {
                     .await
                     .map_err(db_err)?
                     .map(|r| r.get::<String, _>(0));
-                    if stored.as_deref() == Some(signature.as_str()) {
+                    if !force && stored.as_deref() == Some(signature.as_str()) {
                         continue;
                     }
                     tracing::info!("Rebuilding published columns table {}", table.table);
