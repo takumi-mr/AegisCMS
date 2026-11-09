@@ -11,6 +11,7 @@ workspace = true
 
 [dependencies]
 aegis-core = { path = "../aegis-core" }
+aegis-schema = { path = "../aegis-schema" }
 aegis-theme = { path = "../aegis-theme" }
 
 tokio.workspace = true

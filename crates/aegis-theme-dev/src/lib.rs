@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use aegis_core::PageRenderContext;
-use aegis_theme::{ThemeEngine, ThemeManifest};
+use aegis_theme::{QueriesHandle, ThemeEngine, ThemeManifest};
 use anyhow::{bail, Context};
 use axum::extract::{Path as UrlPath, Query, Request, State};
 use axum::http::{header, Method, StatusCode};
@@ -44,6 +44,20 @@ pub struct DevArgs {
     /// blocked inline scripts/styles show up as you edit; "report-only" only reports; "off" sends none
     #[arg(long, value_enum, default_value_t = CspMode::On)]
     pub csp: CspMode,
+    /// Write a starting `samples/queries.json` from a site's declarative queries, then exit
+    /// (the preview server is not started). Needs --queries-dir and --schemas-dir
+    #[arg(long, requires_all = ["queries_dir", "schemas_dir"])]
+    pub init_queries: bool,
+    /// The site's `queries/` directory (with --init-queries)
+    #[arg(long)]
+    pub queries_dir: Option<PathBuf>,
+    /// The site's `schemas/` directory (with --init-queries)
+    #[arg(long)]
+    pub schemas_dir: Option<PathBuf>,
+    /// With --init-queries: replace the entries that already exist in samples/queries.json
+    /// (by default only the missing queries are added)
+    #[arg(long, requires = "init_queries")]
+    pub force: bool,
 }
 
 /// プレビューのページに付ける CSP
@@ -79,6 +93,30 @@ struct DevState {
     loopback: bool,
     /// プレビューのページに付ける CSP
     csp: CspMode,
+    /// 宣言的クエリのサンプルの結果（`samples/queries.json`。共有のエンジンのグローバル変数 `queries`）
+    queries: QueriesHandle,
+}
+
+impl DevState {
+    /// `queries` の入れ物を作り、`engine` のグローバル変数 `queries` につなぐ（テスト用）
+    #[cfg(test)]
+    fn new(
+        dir: PathBuf,
+        engine: ThemeEngine,
+        version: watch::Receiver<u64>,
+        loopback: bool,
+        csp: CspMode,
+    ) -> Self {
+        let queries = aegis_theme::new_queries_handle();
+        Self {
+            dir,
+            engine: engine.with_queries(queries.clone()),
+            version,
+            loopback,
+            csp,
+            queries,
+        }
+    }
 }
 
 /// 書き込み API に付けるヘッダー。ほかのサイトのページは勝手に付けられない（CORS の事前確認が要る）ので、
@@ -122,9 +160,20 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
         tracing::warn!("{} has no theme.json (needed to install it)", dir.display());
     }
 
+    if args.init_queries {
+        let (Some(queries_dir), Some(schemas_dir)) = (&args.queries_dir, &args.schemas_dir) else {
+            bail!("--init-queries needs --queries-dir and --schemas-dir");
+        };
+        let message = init_queries_sample(&dir, queries_dir, schemas_dir, args.force)?;
+        println!("{}", message.replace(r"\\?\", ""));
+        return Ok(());
+    }
+
+    let queries = aegis_theme::new_queries_handle();
     let engine = ThemeEngine::new(themes_dir, theme_id)
         .with_template_reload(true)
-        .with_locale(&args.locale);
+        .with_locale(&args.locale)
+        .with_queries(queries.clone());
     let (tx, rx) = watch::channel(0u64);
     tokio::spawn(watch_files(dir.clone(), tx));
 
@@ -137,6 +186,7 @@ pub async fn run(args: DevArgs) -> anyhow::Result<()> {
         version: rx,
         loopback: addr.ip().is_loopback(),
         csp: args.csp,
+        queries,
     };
     if !state.loopback {
         tracing::warn!("Not listening on loopback: editing files through the API is disabled");
@@ -405,6 +455,136 @@ fn build_context(template: &str, overlay: Value) -> Result<PageRenderContext, St
     serde_json::from_value(merged).map_err(|e| e.to_string())
 }
 
+/// 宣言的クエリのサンプルの結果（`samples/queries.json`）。ページのサンプルではなく、予約された名前
+const QUERIES_SAMPLE: &str = "queries";
+
+/// `samples/queries.json`（クエリ名 → 結果の配列）を読む。ファイルが無ければ空。
+/// `overrides` に `queries` があれば、ファイルの代わりに使う（保存していない編集中の内容）。
+/// 形の誤りは、描画を止めずにエラーの一覧で返す（読めた分は使う）
+fn load_queries_sample(
+    dir: &Path,
+    overrides: &HashMap<String, String>,
+) -> (serde_json::Map<String, Value>, Vec<String>) {
+    let path = dir.join("samples").join(format!("{QUERIES_SAMPLE}.json"));
+    let text = match overrides.get(QUERIES_SAMPLE) {
+        Some(text) => text.clone(),
+        None => match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return (serde_json::Map::new(), Vec::new())
+            }
+            Err(e) => {
+                return (
+                    serde_json::Map::new(),
+                    vec![format!("samples/queries.json: {e}")],
+                )
+            }
+        },
+    };
+    let fail = |message: String| {
+        (
+            serde_json::Map::new(),
+            vec![format!("samples/queries.json: {message}")],
+        )
+    };
+    let value: Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(e) => return fail(e.to_string()),
+    };
+    let Value::Object(map) = value else {
+        return fail("must be an object (query name -> result)".to_string());
+    };
+    let mut errors = Vec::new();
+    let mut result = serde_json::Map::new();
+    for (name, value) in map {
+        // 本物の結果は、集計も一覧も配列。形の取り違えを早く知らせる
+        if value.is_array() {
+            result.insert(name, value);
+        } else {
+            errors.push(format!(
+                "samples/queries.json: '{name}' must be an array (a query result is a list of rows)"
+            ));
+        }
+    }
+    (result, errors)
+}
+
+/// サンプルの一覧と、共有のエンジンの `queries` を、今のファイルの内容にそろえる。
+/// エラーは、読めなかった `samples/*.json` のエラーに足して返す
+fn load_all(state: &DevState) -> (Vec<Sample>, Vec<String>) {
+    let (samples, mut errors) = load_samples(&state.dir);
+    let (queries, query_errors) = load_queries_sample(&state.dir, &HashMap::new());
+    *state
+        .queries
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = std::sync::Arc::new(queries);
+    errors.extend(query_errors);
+    (samples, errors)
+}
+
+/// `--init-queries`: サイトのクエリの定義とスキーマから、`samples/queries.json` の雛形を書く。
+/// すでにあるクエリの結果は残し、足りない名前だけを足す（`force` なら作り直す）。実行はしない
+fn init_queries_sample(
+    theme_dir: &Path,
+    queries_dir: &Path,
+    schemas_dir: &Path,
+    force: bool,
+) -> anyhow::Result<String> {
+    let schemas = aegis_schema::SchemaLoader::load_dir(schemas_dir)
+        .with_context(|| format!("Could not read the schemas in {}", schemas_dir.display()))?;
+    // 上限はサイトの設定で変わるので、ここでは検証を緩くする（形が読めればよい）
+    let limits = aegis_schema::QueryLimits {
+        max_limit: 1000,
+        max_in_items: 1000,
+    };
+    let queries = aegis_schema::load_queries(queries_dir, &schemas, &limits)
+        .with_context(|| format!("Could not read the queries in {}", queries_dir.display()))?;
+    if queries.is_empty() {
+        bail!("No queries found in {}", queries_dir.display());
+    }
+
+    let path = theme_dir
+        .join("samples")
+        .join(format!("{QUERIES_SAMPLE}.json"));
+    let mut map = match std::fs::read_to_string(&path) {
+        Ok(text) if !force => match serde_json::from_str::<Value>(&text)? {
+            Value::Object(map) => map,
+            _ => bail!("{} is not a JSON object", path.display()),
+        },
+        _ => serde_json::Map::new(),
+    };
+    let mut added = Vec::new();
+    for query in &queries {
+        if map.contains_key(&query.name) {
+            continue;
+        }
+        let Some(schema) = schemas.iter().find(|s| s.content_type == query.from) else {
+            continue;
+        };
+        map.insert(query.name.clone(), query.sample_result(schema));
+        added.push(query.name.clone());
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut text = serde_json::to_string_pretty(&Value::Object(map))?;
+    text.push('\n');
+    std::fs::write(&path, text)?;
+    Ok(if added.is_empty() {
+        format!(
+            "{} already has every query (use --force to rebuild it)",
+            path.display()
+        )
+    } else {
+        format!(
+            "Wrote {} ({} added: {})",
+            path.display(),
+            added.len(),
+            added.join(", ")
+        )
+    })
+}
+
 /// 描画できるサンプルの一覧と、読めなかった `samples/*.json` のエラー。
 /// 既定は `templates/` の `base.html` 以外すべて。`samples/<name>.json` があれば上書きし、
 /// 無い名前のものは追加する（`template` を省くと `<name>.html`）。保存のたびに読み直す
@@ -439,9 +619,10 @@ fn load_samples_with(
         .flatten()
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|ext| ext == "json"))
+        .filter(|p| p.file_stem().and_then(|s| s.to_str()) != Some(QUERIES_SAMPLE))
         .collect();
     // 新しく作って、まだ保存していないサンプルも対象にする
-    for name in overrides.keys() {
+    for name in overrides.keys().filter(|n| n.as_str() != QUERIES_SAMPLE) {
         let path = dir.join("samples").join(format!("{name}.json"));
         if !files.contains(&path) {
             files.push(path);
@@ -584,7 +765,7 @@ fn error_page(title: &str, detail: &str) -> Html<String> {
 
 /// `GET /` — サンプルの一覧
 async fn index_page(State(state): State<DevState>) -> Html<String> {
-    let (samples, errors) = load_samples(&state.dir);
+    let (samples, errors) = load_all(&state);
     let name = ThemeManifest::load_from_dir(&state.dir)
         .map(|m| m.name)
         .unwrap_or_else(|| "(no theme.json)".to_string());
@@ -611,7 +792,7 @@ async fn index_page(State(state): State<DevState>) -> Html<String> {
 
 /// `GET /preview/{name}` — サンプルをテーマのテンプレートで描画する。失敗したときもページに理由を出す
 async fn preview_page(State(state): State<DevState>, UrlPath(name): UrlPath<String>) -> Response {
-    let (samples, _) = load_samples(&state.dir);
+    let (samples, _) = load_all(&state);
     let Some(sample) = samples.into_iter().find(|s| s.name == name) else {
         return (
             StatusCode::NOT_FOUND,
@@ -645,7 +826,7 @@ async fn preview_page(State(state): State<DevState>, UrlPath(name): UrlPath<Stri
 
 /// `GET /__dev/api/theme` — マニフェスト・テンプレート・サンプルの一覧
 async fn api_theme(State(state): State<DevState>) -> Json<Value> {
-    let (samples, errors) = load_samples(&state.dir);
+    let (samples, errors) = load_all(&state);
     let samples: Vec<SampleInfo> = samples
         .into_iter()
         .map(|s| SampleInfo {
@@ -679,7 +860,7 @@ async fn api_sample(
 
 /// `GET /__dev/api/check` — すべてのサンプルを描画して、失敗したものを返す
 async fn api_check(State(state): State<DevState>) -> Json<Value> {
-    let (samples, load_errors) = load_samples(&state.dir);
+    let (samples, load_errors) = load_all(&state);
     let results: Vec<Value> = samples
         .iter()
         .map(|s| {
@@ -1060,7 +1241,9 @@ fn annotate_template_source(source: &str, template_name: &str) -> String {
 
 /// `POST /__dev/api/render` — 保存していない編集中の内容を反映して描画する。何も書き込まない
 async fn api_render(State(state): State<DevState>, Json(req): Json<RenderRequest>) -> Json<Value> {
-    let (samples, sample_errors) = load_samples_with(&state.dir, &req.samples);
+    let (samples, mut sample_errors) = load_samples_with(&state.dir, &req.samples);
+    let (queries, query_errors) = load_queries_sample(&state.dir, &req.samples);
+    sample_errors.extend(query_errors);
     let Some(sample) = samples.into_iter().find(|s| s.name == req.sample) else {
         return Json(json!({
             "ok": false,
@@ -1073,9 +1256,15 @@ async fn api_render(State(state): State<DevState>, Json(req): Json<RenderRequest
         }));
     };
     // 共有のエンジンには触らず、上書きを入れた別のエンジンで描画する
+    // `queries` も、共有の状態を触らずに、この描画だけの入れ物に入れる
+    let queries_handle = aegis_theme::new_queries_handle();
+    *queries_handle
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = std::sync::Arc::new(queries);
     let engine = ThemeEngine::new(state.engine.themes_dir(), &state.engine.active_theme())
         .with_locale(&state.engine.locale())
-        .with_template_reload(true);
+        .with_template_reload(true)
+        .with_queries(queries_handle);
 
     let templates_dir = state.dir.join("templates");
     if let Ok(entries) = std::fs::read_dir(&templates_dir) {
@@ -1309,13 +1498,7 @@ mod tests {
         let dir = tmp.path().join("mytheme").canonicalize().unwrap();
         let engine = ThemeEngine::new(dir.parent().unwrap(), "mytheme").with_template_reload(true);
         let (tx, rx) = watch::channel(0u64);
-        let state = DevState {
-            dir,
-            engine,
-            version: rx,
-            loopback: true,
-            csp: CspMode::On,
-        };
+        let state = DevState::new(dir, engine, rx, true, CspMode::On);
         (router(state), tx)
     }
 
@@ -1344,13 +1527,7 @@ mod tests {
             .with_locale("ja");
         let (_tx, rx) = watch::channel(0u64);
         assert_eq!(engine.locale(), "ja");
-        let state = DevState {
-            dir,
-            engine,
-            version: rx,
-            loopback: true,
-            csp: CspMode::On,
-        };
+        let state = DevState::new(dir, engine, rx, true, CspMode::On);
         let app = router(state);
         let (status, html) = get_text(&app, "/preview/index").await;
         assert_eq!(status, StatusCode::OK);
@@ -1749,13 +1926,7 @@ mod tests {
         let dir = tmp.path().join("mytheme").canonicalize().unwrap();
         let engine = ThemeEngine::new(dir.parent().unwrap(), "mytheme");
         let (_tx, rx) = watch::channel(0u64);
-        let app = router(DevState {
-            dir,
-            engine,
-            version: rx,
-            loopback: false,
-            csp: CspMode::On,
-        });
+        let app = router(DevState::new(dir, engine, rx, false, CspMode::On));
         let (status, _) = send(
             &app,
             "PUT",
@@ -1947,13 +2118,7 @@ mod tests {
         let dir = tmp.path().join("mytheme").canonicalize().unwrap();
         let engine = ThemeEngine::new(dir.parent().unwrap(), "mytheme").with_template_reload(true);
         let (_tx, rx) = watch::channel(0u64);
-        let app = router(DevState {
-            dir,
-            engine,
-            version: rx,
-            loopback: true,
-            csp: mode,
-        });
+        let app = router(DevState::new(dir, engine, rx, true, mode));
         let res = app
             .oneshot(
                 Request::get("/preview/index")
@@ -2008,5 +2173,192 @@ mod tests {
         assert!(csp.is_some());
         let (csp, _) = preview_with_csp(&tmp, CspMode::Off).await;
         assert!(csp.is_none());
+    }
+    /// 宣言的クエリのサンプル（`samples/queries.json`）: 全ページの `queries` に出て、保存で読み直され、
+    /// ページのサンプルの一覧には出ない。誤りは描画を止めずに知らせる
+    #[tokio::test]
+    async fn test_queries_sample_feeds_the_queries_global() {
+        let tmp = theme_dir();
+        let theme = tmp.path().join("mytheme");
+        std::fs::write(
+            theme.join("templates/index.html"),
+            r#"{% extends "base.html" %}{% block content %}{% for r in queries.by_brand %}{{ r.brand }}={{ r.n }};{% endfor %}|{{ queries.missing is undefined }}{% endblock %}"#,
+        )
+        .unwrap();
+        let (app, _) = app(&tmp);
+
+        // ファイルが無い間は、どの名前も未定義（描画は失敗しない）
+        let (status, html) = get_text(&app, "/preview/index").await;
+        assert_eq!(status, StatusCode::OK, "{html}");
+        assert!(html.contains("|True"), "{html}");
+
+        std::fs::create_dir_all(theme.join("samples")).unwrap();
+        std::fs::write(
+            theme.join("samples/queries.json"),
+            r#"{"by_brand": [{"brand": "A", "n": 2}, {"brand": "B", "n": 1}]}"#,
+        )
+        .unwrap();
+        let (_, html) = get_text(&app, "/preview/index").await;
+        assert!(html.contains("A=2;B=1;|True"), "{html}");
+
+        // 保存し直すと次の描画に反映される
+        std::fs::write(
+            theme.join("samples/queries.json"),
+            r#"{"by_brand": [{"brand": "C", "n": 9}]}"#,
+        )
+        .unwrap();
+        let (_, html) = get_text(&app, "/preview/index").await;
+        assert!(
+            html.contains("C=9;|True") && !html.contains("A=2"),
+            "{html}"
+        );
+
+        // ページのサンプルの一覧には出ない（予約された名前）
+        let (_, text) = get_text(&app, "/__dev/api/theme").await;
+        let theme_json: Value = serde_json::from_str(&text).unwrap();
+        let names: Vec<&str> = theme_json["samples"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["name"].as_str().unwrap())
+            .collect();
+        assert!(!names.contains(&"queries"), "{names:?}");
+        assert_eq!(theme_json["sample_errors"], json!([]));
+
+        // 形の誤り: 結果が配列でない・JSON が壊れている。描画は止めず、エラーに出る
+        std::fs::write(
+            theme.join("samples/queries.json"),
+            r#"{"ok": [{"n": 1}], "bad": {"n": 1}}"#,
+        )
+        .unwrap();
+        let (_, text) = get_text(&app, "/__dev/api/theme").await;
+        let theme_json: Value = serde_json::from_str(&text).unwrap();
+        let errors = theme_json["sample_errors"].as_array().unwrap();
+        assert!(
+            errors.len() == 1
+                && errors[0]
+                    .as_str()
+                    .unwrap()
+                    .contains("'bad' must be an array"),
+            "{errors:?}"
+        );
+        std::fs::write(theme.join("samples/queries.json"), "{ not json").unwrap();
+        let (status, _) = get_text(&app, "/preview/index").await;
+        assert_eq!(status, StatusCode::OK);
+        let (_, text) = get_text(&app, "/__dev/api/theme").await;
+        let theme_json: Value = serde_json::from_str(&text).unwrap();
+        assert!(theme_json["sample_errors"][0]
+            .as_str()
+            .unwrap()
+            .starts_with("samples/queries.json:"));
+    }
+
+    /// Theme Builder の保存していない編集中の `queries.json` でも描画できる（共有の状態は変わらない）
+    #[tokio::test]
+    async fn test_render_uses_unsaved_queries_sample() {
+        let tmp = theme_dir();
+        let theme = tmp.path().join("mytheme");
+        std::fs::write(
+            theme.join("templates/index.html"),
+            r#"{% extends "base.html" %}{% block content %}{% for r in queries.by_brand %}{{ r.brand }}={{ r.n }};{% endfor %}{% endblock %}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(theme.join("samples")).unwrap();
+        std::fs::write(
+            theme.join("samples/queries.json"),
+            r#"{"by_brand": [{"brand": "Saved", "n": 1}]}"#,
+        )
+        .unwrap();
+        let (app, _) = app(&tmp);
+
+        let (_, text) = send(
+            &app,
+            "POST",
+            "/__dev/api/render",
+            &[DEV],
+            Some(json!({
+                "sample": "index",
+                "templates": {},
+                "samples": { "queries": r#"{"by_brand": [{"brand": "Unsaved", "n": 7}]}"# },
+            })),
+        )
+        .await;
+        let body: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(body["ok"], true, "{body}");
+        assert!(
+            body["html"].as_str().unwrap().contains("Unsaved=7;"),
+            "{body}"
+        );
+
+        // 共有のプレビューは、保存されたファイルのまま
+        let (_, html) = get_text(&app, "/preview/index").await;
+        assert!(
+            html.contains("Saved=1;") && !html.contains("Unsaved"),
+            "{html}"
+        );
+    }
+
+    /// `--init-queries`: サイトのクエリの定義から雛形を書く。あるものは残し、足りないものだけを足す
+    #[test]
+    fn test_init_queries_writes_a_starting_sample() {
+        let tmp = tempfile::tempdir().unwrap();
+        let theme = tmp.path().join("theme");
+        let schemas = tmp.path().join("schemas");
+        let queries = tmp.path().join("queries");
+        for d in [&theme, &schemas, &queries] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(
+            schemas.join("product.yaml"),
+            "content_type: product\nlabel: Product\nfields:\n  - name: price\n    type: integer\n    required: true\n  - name: brand\n    type: string\n",
+        )
+        .unwrap();
+        std::fs::write(
+            queries.join("by_brand.yaml"),
+            "name: by_brand\nfrom: product\ngroup_by: [{ field: brand }]\nselect:\n  - { fn: count, as: n }\n  - { fn: sum, field: price, as: total }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            queries.join("latest.yaml"),
+            "name: latest\nfrom: product\nlimit: 2\n",
+        )
+        .unwrap();
+
+        let msg = init_queries_sample(&theme, &queries, &schemas, false).unwrap();
+        assert!(msg.contains("2 added: by_brand, latest"), "{msg}");
+        let file = theme.join("samples/queries.json");
+        let written: Value =
+            serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(
+            written["by_brand"][0],
+            json!({"brand": "brand 1", "n": 30, "total": 3000})
+        );
+        assert_eq!(written["latest"].as_array().unwrap().len(), 2);
+
+        // 手で直した結果は残り、足りない名前だけが足される
+        let mut edited = written;
+        edited["by_brand"] = json!([{"brand": "Mine", "n": 1, "total": 2}]);
+        edited.as_object_mut().unwrap().remove("latest");
+        std::fs::write(&file, edited.to_string()).unwrap();
+        let msg = init_queries_sample(&theme, &queries, &schemas, false).unwrap();
+        assert!(msg.contains("1 added: latest"), "{msg}");
+        let merged: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(merged["by_brand"][0]["brand"], "Mine");
+        assert!(merged.get("latest").is_some());
+
+        // すべてあるときは何も変えず、`force` なら作り直す
+        let msg = init_queries_sample(&theme, &queries, &schemas, false).unwrap();
+        assert!(msg.contains("already has every query"), "{msg}");
+        init_queries_sample(&theme, &queries, &schemas, true).unwrap();
+        let rebuilt: Value =
+            serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(rebuilt["by_brand"][0]["brand"], "brand 1");
+
+        // クエリが無い、または定義に誤りがあれば、何も書かずにエラー
+        let empty = tmp.path().join("none");
+        std::fs::create_dir_all(&empty).unwrap();
+        assert!(init_queries_sample(&theme, &empty, &schemas, false).is_err());
+        std::fs::write(queries.join("bad.yaml"), "name: bad\nfrom: nothing\n").unwrap();
+        assert!(init_queries_sample(&theme, &queries, &schemas, true).is_err());
     }
 }

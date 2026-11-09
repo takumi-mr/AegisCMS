@@ -476,6 +476,91 @@ fn check_value(q: &str, field: &str, op: &str, ty: FieldType, v: &Value) -> Resu
     }
 }
 
+impl QueryDefinition {
+    /// テーマ開発用のサンプルの結果。クエリは実行せず、結果の形（出力の型）に合う決まった値を作る。
+    /// 集計は最大 3 行（`group_by` が無ければ 1 行）、一覧は `limit` と 3 の小さいほうの件数。
+    /// 値に意味は無い。テーマの見た目と、テンプレートが読むキーの確認に使う。`schema` は `from` の型
+    pub fn sample_result(&self, schema: &SchemaDefinition) -> serde_json::Value {
+        use serde_json::{json, Map, Value};
+        let column = |name: &str| resolve_column(schema, name).map(|c| c.field_type);
+        match self.mode() {
+            QueryMode::List => {
+                let count = self.limit.unwrap_or(3).min(3);
+                let items = (1..=count).map(|i| {
+                    let mut fields = Map::new();
+                    for f in &schema.fields {
+                        let value = match f.field_type {
+                            FieldType::String => json!(format!("{} {i}", f.name)),
+                            FieldType::Text => json!(format!("{} {i}: sample text", f.name)),
+                            FieldType::Integer => json!(i * 100),
+                            FieldType::Boolean => json!(i % 2 == 1),
+                            FieldType::Timestamp => json!(format!("2026-01-{i:02}T00:00:00Z")),
+                            // 参照先は分からないので載せない（テーマは `relations` で読む）
+                            FieldType::Relation | FieldType::Jsonb => continue,
+                        };
+                        if f.name != crate::ACCESS_FIELD {
+                            fields.insert(f.name.clone(), value);
+                        }
+                    }
+                    fields.insert("url".into(), json!(format!("/{}/sample-{i}", self.from)));
+                    json!({
+                        "id": format!("sample-{i}"),
+                        "content_type": self.from,
+                        "title": format!("Sample {} {i}", schema.label),
+                        "slug": format!("sample-{i}"),
+                        "excerpt": "Sample excerpt text for the preview.",
+                        "published_at": format!("2026-01-{i:02}T00:00:00Z"),
+                        "created_at": format!("2026-01-{i:02}T00:00:00Z"),
+                        "fields": fields,
+                        "relations": {},
+                    })
+                });
+                Value::Array(items.collect())
+            }
+            QueryMode::Aggregate => {
+                let rows = if self.group_by.is_empty() { 1 } else { 3 };
+                let result = (1..=rows).map(|i| {
+                    let mut row = Map::new();
+                    for g in &self.group_by {
+                        let value = match (column(&g.field), g.bucket) {
+                            (_, Some(Bucket::Month)) => json!(format!("2026-{i:02}")),
+                            (_, Some(Bucket::Day)) => json!(format!("2026-01-{i:02}")),
+                            (_, Some(Bucket::Year)) => json!((2025 + i).to_string()),
+                            (Some(FieldType::Integer), None) => json!(i * 10),
+                            (Some(FieldType::Boolean), None) => json!(i % 2 == 1),
+                            // 参照先は `{id, title, slug}` に展開される
+                            (Some(FieldType::Relation), None) => json!({
+                                "id": format!("sample-{i}"),
+                                "title": format!("Sample {} {i}", g.field),
+                                "slug": format!("sample-{i}"),
+                            }),
+                            _ => json!(format!("{} {i}", g.field)),
+                        };
+                        row.insert(g.output_name().to_string(), value);
+                    }
+                    // 先頭の行ほど大きい（`order_by: desc` の結果に見える）
+                    let rank = (4 - i) as i64;
+                    for s in &self.select {
+                        let value = match (s.func, s.field.as_deref().and_then(column)) {
+                            (AggFn::Count, _) => json!(rank * 10),
+                            (AggFn::Sum, _) => json!(rank * 1000),
+                            (AggFn::Avg, _) => json!(rank as f64 * 500.5),
+                            (_, Some(FieldType::Integer)) => json!(rank * 100),
+                            (_, Some(FieldType::Timestamp)) => {
+                                json!(format!("2026-0{rank}-01T00:00:00"))
+                            }
+                            _ => json!(format!("{} {rank}", s.as_name)),
+                        };
+                        row.insert(s.as_name.clone(), value);
+                    }
+                    Value::Object(row)
+                });
+                Value::Array(result.collect())
+            }
+        }
+    }
+}
+
 /// `queries/` の YAML をすべて読み、スキーマと突き合わせて検証する。
 /// ファイル名（拡張子を除く）と `name` は一致させる。1 つでも誤りがあればエラー（起動を止める）
 pub fn load_queries<P: AsRef<Path>>(
@@ -715,5 +800,79 @@ mod tests {
         assert!(load_queries(missing, &schemas(), &QueryLimits::default())
             .unwrap()
             .is_empty());
+    }
+    #[test]
+    fn sample_results_follow_the_shape_of_real_results() {
+        let schema = &schemas()[0];
+        let sample = |yaml: &str| QueryDefinition::parse(yaml).unwrap().sample_result(schema);
+
+        // 集計: group_by の値と select の `as` がキー。先頭の行ほど大きい
+        assert_eq!(
+            sample(
+                "name: m
+from: product
+group_by: [{ field: published_at, bucket: month }]
+select:
+  - { fn: count, as: n }
+  - { fn: sum, field: price, as: total }
+"
+            ),
+            serde_json::json!([
+                {"month": "2026-01", "n": 30, "total": 3000},
+                {"month": "2026-02", "n": 20, "total": 2000},
+                {"month": "2026-03", "n": 10, "total": 1000}
+            ])
+        );
+        // group_by が無ければ 1 行。avg は小数、min / max は列の型に従う
+        assert_eq!(
+            sample(
+                "name: r
+from: product
+select:
+  - { fn: min, field: price, as: lowest }
+  - { fn: avg, field: price, as: mean }
+"
+            ),
+            serde_json::json!([{"lowest": 300, "mean": 1501.5}])
+        );
+        // リレーション列は {id, title, slug}
+        let by_category = sample(
+            "name: c
+from: product
+group_by: [{ field: category_id }]
+select: [{ fn: count, as: n }]
+",
+        );
+        assert_eq!(by_category[0]["category_id"]["slug"], "sample-1");
+        assert_eq!(by_category.as_array().unwrap().len(), 3);
+
+        // 一覧: テーマの `items` と同じキー。本文は含めない。limit と 3 の小さいほう
+        let list = sample(
+            "name: l
+from: product
+where: { on_sale: { eq: true } }
+limit: 2
+",
+        );
+        let items = list.as_array().unwrap();
+        assert_eq!(items.len(), 2);
+        for key in [
+            "id",
+            "content_type",
+            "title",
+            "slug",
+            "excerpt",
+            "published_at",
+            "created_at",
+            "fields",
+            "relations",
+        ] {
+            assert!(items[0].get(key).is_some(), "{key}");
+        }
+        assert_eq!(items[0]["fields"]["price"], 100);
+        assert_eq!(items[0]["fields"]["on_sale"], true);
+        assert_eq!(items[0]["fields"]["url"], "/product/sample-1");
+        assert!(items[0]["fields"].get("access").is_none());
+        assert!(items[0].get("content_html").is_none());
     }
 }
