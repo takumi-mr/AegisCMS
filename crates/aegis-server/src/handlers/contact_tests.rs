@@ -721,9 +721,7 @@ async fn test_captcha_widget_csp_and_html_form_verification() {
         .contains(r#"class="cf-turnstile" data-sitekey="site-key""#));
     let csp = page.headers["content-security-policy"].to_str().unwrap();
     assert!(
-        csp.contains(
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com"
-        ),
+        csp.contains("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com"),
         "{}",
         csp
     );
