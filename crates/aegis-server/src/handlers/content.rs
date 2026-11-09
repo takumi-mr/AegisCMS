@@ -357,6 +357,32 @@ fn ensure_known_access(
     ))
 }
 
+/// `fields.purchase_price`（単独購入の価格）は、`null` か 0 以上の整数（0 は単独では売らない）で、
+/// Stripe が受け付ける上限以下。範囲外は保存時に断る（決済のときに初めて失敗するのを防ぐ）
+fn ensure_valid_purchase_price(
+    fields: &HashMap<String, serde_json::Value>,
+) -> Result<(), ApiError> {
+    let Some(value) = fields.get(aegis_schema::PURCHASE_PRICE_FIELD) else {
+        return Ok(());
+    };
+    if value.is_null() {
+        return Ok(());
+    }
+    match value.as_i64() {
+        Some(price) if (0..=aegis_db::MAX_PURCHASE_PRICE).contains(&price) => Ok(()),
+        _ => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": format!(
+                    "purchase_price must be an integer between 0 and {} (the smallest currency unit)",
+                    aegis_db::MAX_PURCHASE_PRICE
+                ),
+                "code": "invalid_purchase_price"
+            })),
+        )),
+    }
+}
+
 async fn find_schema(state: &AppState, content_type: &str) -> Result<SchemaDefinition, ApiError> {
     state
         .schemas
@@ -612,6 +638,7 @@ pub async fn create_content(
 
     let schema = find_schema(&state, &content_type).await?;
     ensure_known_access(&state, &payload.fields)?;
+    ensure_valid_purchase_price(&payload.fields)?;
     let id = Uuid::new_v4().to_string();
     let now_at = chrono::Utc::now();
     let now = now_at.to_rfc3339();
@@ -703,6 +730,7 @@ pub async fn update_content(
     let review_note = review::normalize_note(payload.review_note.take())?;
     let schema = find_schema(&state, &content_type).await?;
     ensure_known_access(&state, &payload.fields)?;
+    ensure_valid_purchase_price(&payload.fields)?;
     let current = state
         .db
         .get_content(&schema, &slug_or_id)

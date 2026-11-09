@@ -226,3 +226,42 @@ async fn test_access_must_be_public_or_a_configured_member_level() {
         .await;
     assert_eq!(status, StatusCode::OK);
 }
+
+/// `purchase_price`（単独購入の価格）は、`null` か 0 以上の整数で、Stripe の上限以下。範囲外は保存時に 400
+#[tokio::test]
+async fn test_purchase_price_must_be_a_non_negative_integer_within_the_limit() {
+    let site = site().await;
+    let create = |slug: &str, price: Value| {
+        json!({
+            "title": "T", "slug": slug, "status": "draft", "blocks": [],
+            "fields": { "purchase_price": price }
+        })
+    };
+    for (i, ok) in [json!(500), json!(0), json!(99_999_999), Value::Null]
+        .into_iter()
+        .enumerate()
+    {
+        let (status, body) = site
+            .send(
+                "POST",
+                "/api/v1/contents/article",
+                Some(create(&format!("price-ok-{i}"), ok.clone())),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "{ok}: {body}");
+    }
+    for (i, bad) in [json!(-1), json!(100_000_000), json!(1.5), json!("500")]
+        .into_iter()
+        .enumerate()
+    {
+        let (status, body) = site
+            .send(
+                "POST",
+                "/api/v1/contents/article",
+                Some(create(&format!("price-bad-{i}"), bad.clone())),
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}: {body}");
+        assert_eq!(body["code"], "invalid_purchase_price");
+    }
+}

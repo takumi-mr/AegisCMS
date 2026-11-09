@@ -180,6 +180,10 @@ export const App: React.FC = () => {
   // Who can read the article: '' is everyone, otherwise a member level (`[members].levels`)
   const [access, setAccess] = useState<string>('');
   const [memberLevels, setMemberLevels] = useState<string[]>([]);
+  // The price to buy the article alone (smallest currency unit; '' is not sold alone)
+  const [purchasePrice, setPurchasePrice] = useState<string>('');
+  const [purchaseEnabled, setPurchaseEnabled] = useState<boolean>(false);
+  const [purchaseCurrency, setPurchaseCurrency] = useState<string>('');
   // The list shows one page of summaries; the server searches, filters and pages it
   const [contents, setContents] = useState<ContentSummary[]>([]);
   const [contentsTotal, setContentsTotal] = useState(0);
@@ -428,6 +432,8 @@ export const App: React.FC = () => {
         // Member accounts do not need the shop (the forum uses them too)
         setMembersEnabled(config.members_enabled === true);
         setMemberLevels(config.member_levels ?? []);
+        setPurchaseEnabled(config.members_enabled === true && config.purchase_enabled === true);
+        setPurchaseCurrency((config.purchase_currency ?? '').toUpperCase());
         setReviewsEnabled(config.enabled && config.reviews_enabled === true);
       })
       .catch((err) => console.warn('Could not load the shop settings:', err));
@@ -638,6 +644,8 @@ export const App: React.FC = () => {
     setLayout(rawLayout === 'blank' ? 'blank' : 'default');
     const rawAccess = item.fields?.access;
     setAccess(typeof rawAccess === 'string' && rawAccess !== 'public' ? rawAccess : '');
+    const rawPrice = item.fields?.purchase_price;
+    setPurchasePrice(typeof rawPrice === 'number' && rawPrice > 0 ? String(rawPrice) : '');
     setExtraValues(
       toExtraValues(
         extraFieldDefs(
@@ -685,6 +693,7 @@ export const App: React.FC = () => {
     setCategoryId('');
     setLayout('default');
     setAccess('');
+    setPurchasePrice('');
     setExtraValues({});
     setExtraError(null);
     const newBlocks: BlockNode[] = [
@@ -715,6 +724,7 @@ export const App: React.FC = () => {
     setCategoryId('');
     setLayout('default');
     setAccess('');
+    setPurchasePrice('');
     setExtraValues({});
     setExtraError(null);
     const newBlocks: BlockNode[] = [
@@ -871,6 +881,15 @@ export const App: React.FC = () => {
           ...(contentType === 'page' ? { layout } : {}),
           // Cleared (null) when everyone can read it
           access: access || null,
+          // Only a restricted article can be bought; cleared (null) otherwise
+          ...(purchaseEnabled
+            ? {
+                purchase_price:
+                  access && /^[0-9]+$/.test(purchasePrice) && Number(purchasePrice) > 0
+                    ? Number(purchasePrice)
+                    : null,
+              }
+            : {}),
         },
       };
       // Content opened from the list is updated in place; otherwise a new item is created
@@ -1259,6 +1278,24 @@ export const App: React.FC = () => {
                             <option value={access}>{access}</option>
                           )}
                         </select>
+                      </Field>
+                    </FieldRow>
+                  )}
+
+                  {purchaseEnabled && access && (
+                    <FieldRow>
+                      <Field label={t('editor.purchasePrice', { currency: purchaseCurrency })}>
+                        <input
+                          type="number"
+                          min={1}
+                          max={99999999}
+                          step={1}
+                          inputMode="numeric"
+                          value={purchasePrice}
+                          onChange={(e) => setPurchasePrice(e.target.value)}
+                          aria-label={t('editor.purchasePriceAria')}
+                          title={t('editor.purchasePriceHint')}
+                        />
                       </Field>
                     </FieldRow>
                   )}

@@ -38,6 +38,102 @@ pub struct MembersConfig {
     /// 権限レベルが足りない会員に出す「アップグレード」の案内の URL（サイト内のパス `/...` か `https://...`）。
     /// 空なら案内のリンクを出さない
     pub upgrade_url: String,
+    /// 購入（記事の単独購入・サブスク。docs/members.md 16）
+    pub purchase: PurchaseConfig,
+}
+
+/// 購入（`[members.purchase]`。docs/members.md 16.2）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PurchaseConfig {
+    /// 購入を使う。会員アカウント（`[members].enabled`）と `[members].public_url` が要る
+    pub enabled: bool,
+    /// 記事の単独購入に使う通貨（ISO 4217 の小文字）。`purchase_price` はこの通貨の最小単位
+    pub currency: String,
+    pub stripe: PurchaseStripeConfig,
+}
+
+impl Default for PurchaseConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            currency: "jpy".to_string(),
+            stripe: PurchaseStripeConfig::default(),
+        }
+    }
+}
+
+/// 購入に使う Stripe（`[members.purchase.stripe]`）。キーは環境変数でも渡せる。
+/// Webhook のエンドポイントはショップとは別（`/api/v1/members/webhooks/stripe`）なので、署名シークレットも別
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PurchaseStripeConfig {
+    /// シークレットキー。空なら環境変数 `AEGIS_STRIPE_SECRET_KEY`
+    pub secret_key: String,
+    /// Webhook の署名シークレット（`whsec_...`）。空なら環境変数 `AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET`
+    pub webhook_secret: String,
+    /// API の URL（テスト用のモックサーバーに向けるときだけ変える）
+    pub api_base: String,
+}
+
+impl Default for PurchaseStripeConfig {
+    fn default() -> Self {
+        Self {
+            secret_key: String::new(),
+            webhook_secret: String::new(),
+            api_base: "https://api.stripe.com".to_string(),
+        }
+    }
+}
+
+fn value_or_env(value: &str, env: &str) -> String {
+    let value = value.trim();
+    if value.is_empty() {
+        std::env::var(env).unwrap_or_default().trim().to_string()
+    } else {
+        value.to_string()
+    }
+}
+
+impl PurchaseStripeConfig {
+    pub fn secret_key(&self) -> String {
+        value_or_env(&self.secret_key, "AEGIS_STRIPE_SECRET_KEY")
+    }
+
+    pub fn webhook_secret(&self) -> String {
+        value_or_env(&self.webhook_secret, "AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET")
+    }
+}
+
+impl PurchaseConfig {
+    /// 設定の誤りを起動時に断る。`members_enabled` / `public_url` は `[members]` の値
+    pub fn validate(&self, members_enabled: bool, public_url: &str) -> Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        let bad = |msg: &str| Err(AegisError::Config(format!("[members.purchase] {msg}")));
+        if !members_enabled {
+            return bad("needs [members].enabled = true (a purchase belongs to a member)");
+        }
+        let url = public_url.trim();
+        if !(url.starts_with("https://") || url.starts_with("http://")) {
+            return bad(
+                "needs [members].public_url (the return URL of the payment page is built from it)",
+            );
+        }
+        if !(self.currency.len() == 3 && self.currency.chars().all(|c| c.is_ascii_lowercase())) {
+            return bad(&format!(
+                "currency must be a lowercase ISO 4217 code such as \"jpy\" (got {:?})",
+                self.currency
+            ));
+        }
+        if self.stripe.secret_key().is_empty() || self.stripe.webhook_secret().is_empty() {
+            return bad(
+                "needs [members.purchase.stripe].secret_key and webhook_secret                  (or AEGIS_STRIPE_SECRET_KEY / AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET)",
+            );
+        }
+        Ok(())
+    }
 }
 
 impl Default for MembersConfig {
@@ -51,6 +147,7 @@ impl Default for MembersConfig {
             public_url: String::new(),
             levels: vec!["free".to_string(), "paid".to_string()],
             upgrade_url: String::new(),
+            purchase: PurchaseConfig::default(),
         }
     }
 }
@@ -87,6 +184,7 @@ impl MembersConfig {
             ));
         }
         self.validate_levels()?;
+        self.purchase.validate(self.enabled, &self.public_url)?;
         let url = self.upgrade_url.trim();
         let local = url.starts_with('/') && !url.starts_with("//") && !url.contains('\\');
         if !(url.is_empty() || local || url.starts_with("https://")) {
@@ -161,6 +259,47 @@ mod tests {
         }
         // 使わない設定でも、レベルの誤りは起動時に断る
         assert!(with(&[]).validate().is_err());
+    }
+
+    #[test]
+    fn purchase_config_is_validated_only_when_enabled() {
+        let base = || MembersConfig {
+            enabled: true,
+            public_url: "https://example.com".to_string(),
+            purchase: PurchaseConfig {
+                enabled: true,
+                currency: "jpy".to_string(),
+                stripe: PurchaseStripeConfig {
+                    secret_key: "sk_test_x".to_string(),
+                    webhook_secret: "whsec_x".to_string(),
+                    ..PurchaseStripeConfig::default()
+                },
+            },
+            ..MembersConfig::default()
+        };
+        base().validate().unwrap();
+
+        let mut no_members = base();
+        no_members.enabled = false;
+        assert!(no_members.validate().is_err());
+        let mut no_url = base();
+        no_url.public_url = String::new();
+        assert!(no_url.validate().is_err());
+        let mut bad_currency = base();
+        bad_currency.purchase.currency = "JPY".to_string();
+        assert!(bad_currency.validate().is_err());
+        let mut no_secret = base();
+        no_secret.purchase.stripe.webhook_secret = String::new();
+        // 環境変数にも無いときだけ誤り
+        if std::env::var("AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET").is_err() {
+            assert!(no_secret.validate().is_err());
+        }
+
+        // 使わない設定なら見ない
+        let mut off = base();
+        off.purchase.enabled = false;
+        off.purchase.currency = "??".to_string();
+        off.validate().unwrap();
     }
 
     #[test]

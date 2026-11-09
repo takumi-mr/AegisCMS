@@ -7,7 +7,7 @@ pub mod query;
 pub use codegen::{OpenApiGenerator, TypeScriptGenerator};
 pub use definition::{
     is_standard_column, FieldDefinition, FieldType, RelationTarget, SchemaDefinition, ACCESS_FIELD,
-    STANDARD_COLUMNS,
+    PURCHASE_PRICE_FIELD, STANDARD_COLUMNS,
 };
 pub use loader::SchemaLoader;
 pub use migration::{SchemaMigration, SqlDialect};
@@ -45,8 +45,8 @@ fields:
 
         let schema = SchemaLoader::load_from_str(yaml).expect("YAML parsing should succeed");
         assert_eq!(schema.content_type, "article");
-        // YAML の 5 つ + 組み込みの category_id・access
-        assert_eq!(schema.fields.len(), 7);
+        // YAML の 5 つ + 組み込みの category_id・access・purchase_price
+        assert_eq!(schema.fields.len(), 8);
 
         // 1. SQLite DDL
         let sqls = SchemaMigration::generate_schema_migration_sql(&schema, SqlDialect::Sqlite);

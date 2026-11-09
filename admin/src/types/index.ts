@@ -78,6 +78,8 @@ export type AuditAction =
   | 'user.register'
   | 'order.create'
   | 'order.update'
+  | 'purchase.create'
+  | 'purchase.update'
   | 'notification.send'
   | 'plugin.settings_update'
   | 'plugin.enable'
@@ -816,6 +818,10 @@ export interface ShopConfig {
   members_enabled?: boolean;
   /** `[members].levels`, lowest first: the choices of an article's "who can read it" */
   member_levels?: string[];
+  /** `[members.purchase].enabled`: an article can have a price to buy it alone */
+  purchase_enabled?: boolean;
+  /** `[members.purchase].currency`: the currency of `purchase_price` (lower case, minor unit) */
+  purchase_currency?: string;
   /** `[commerce.reviews].enabled`: the Reviews screen is shown */
   reviews_enabled?: boolean;
   /** ISO 4217 code in lower case; amounts are in its minor unit */

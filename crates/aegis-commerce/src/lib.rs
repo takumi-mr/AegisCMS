@@ -29,6 +29,7 @@ pub use review::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
+pub use stripe::{verify_webhook_event, CheckoutSession, StripeClient};
 use uuid::Uuid;
 
 use aegis_audit::{AuditOrigin, AuditService};

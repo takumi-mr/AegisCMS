@@ -217,6 +217,27 @@ async fn dump_database_section<W: Write + Seek>(
         &members,
     )?;
 
+    // 4b. Purchases (_aegis_purchases)。会計の記録なので会員と同じく入れる
+    let mut purchases = Vec::new();
+    let mut offset = 0;
+    loop {
+        let (batch, total) = db.list_purchases(page_size, offset).await?;
+        let batch_len = batch.len() as u64;
+        purchases.extend(batch);
+        offset += batch_len;
+        if batch_len == 0 || offset >= total {
+            break;
+        }
+    }
+    write_table_json(
+        zip,
+        tables,
+        aegis_db::PURCHASE_TABLE,
+        "database/purchases.json",
+        purchases.len() as u64,
+        &purchases,
+    )?;
+
     // 5. Dynamic content tables + versions + publication pointers
     let mut schema_names: Vec<String> = schemas.keys().cloned().collect();
     schema_names.sort();

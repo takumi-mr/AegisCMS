@@ -121,6 +121,21 @@ mod tests {
             last_login_at: None,
         };
         src_db.insert_member(&member).await.unwrap();
+        let purchase = aegis_db::PurchaseRecord {
+            id: "pur-1".to_string(),
+            member_id: Some("cust-1".to_string()),
+            content_type: "article".to_string(),
+            content_id: "art-1".to_string(),
+            amount: 500,
+            currency: "jpy".to_string(),
+            status: "paid".to_string(),
+            provider_ref: "cs_test_1".to_string(),
+            transaction_id: Some("pi_test_1".to_string()),
+            created_at: "2026-10-29T00:30:00Z".to_string(),
+            paid_at: Some("2026-10-29T00:31:00Z".to_string()),
+            updated_at: "2026-10-29T00:31:00Z".to_string(),
+        };
+        src_db.insert_purchase(&purchase).await.unwrap();
 
         // 4. Content with versions (v1 published, v2 working copy)
         let article_schema = &schemas["article"];
@@ -508,6 +523,18 @@ mod tests {
             variant
         );
         assert_eq!(dst_db.get_order("ord-1").await.unwrap().unwrap(), order);
+        assert_eq!(
+            dst_db
+                .get_purchase_by_ref("cs_test_1")
+                .await
+                .unwrap()
+                .unwrap(),
+            purchase
+        );
+        assert!(dst_db
+            .has_paid_purchase("cust-1", "article", "art-1")
+            .await
+            .unwrap());
         assert_eq!(
             dst_db
                 .list_comments(&CommentListQuery::default())

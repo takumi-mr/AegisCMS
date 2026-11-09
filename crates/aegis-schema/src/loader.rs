@@ -91,18 +91,23 @@ mod tests {
     #[test]
     fn builtin_fields_are_added_to_every_schema_and_override_yaml() {
         let plain = SchemaLoader::load_from_str("content_type: page\nlabel: Page\n").unwrap();
-        assert_eq!(plain.fields.len(), 2);
+        assert_eq!(plain.fields.len(), 3);
         assert_eq!(plain.fields[0], FieldDefinition::builtin_category());
         assert_eq!(plain.fields[1], FieldDefinition::builtin_access());
+        assert_eq!(plain.fields[2], FieldDefinition::builtin_purchase_price());
 
         // YAML に書かれていても重複せず、組み込みの定義に揃う
         let yaml = "content_type: article\nlabel: A\nfields:\n  - name: category_id\n    type: string\n  - name: access\n    type: integer\n  - name: excerpt\n    type: string\n";
         let schema = SchemaLoader::load_from_str(yaml).unwrap();
         let names: Vec<&str> = schema.fields.iter().map(|f| f.name.as_str()).collect();
-        assert_eq!(names, vec!["category_id", "access", "excerpt"]);
+        assert_eq!(
+            names,
+            vec!["category_id", "access", "purchase_price", "excerpt"]
+        );
         assert_eq!(schema.fields[0].field_type, FieldType::Relation);
         // 閲覧の制限が YAML の書き違いで外れない（型を変えられない）
         assert_eq!(schema.fields[1].field_type, FieldType::String);
+        assert_eq!(schema.fields[2].field_type, FieldType::Integer);
     }
 
     #[test]

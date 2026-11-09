@@ -175,6 +175,9 @@ pub async fn shop_config(State(state): State<Arc<AppState>>) -> Json<serde_json:
         "members_enabled": state.members.is_some(),
         // 記事・ページの「閲覧できる会員」の選択肢（低 → 高。docs/members.md 15）
         "member_levels": state.config.members.levels,
+        // 記事・ページの「単独購入の価格」の入力を出すか、その通貨（docs/members.md 16）
+        "purchase_enabled": crate::handlers::access::purchase_enabled(&state),
+        "purchase_currency": state.config.members.purchase.currency,
         "reviews_enabled": state.reviews.is_some(),
         "currency": commerce.currency,
         "supported_currencies": commerce.effective_supported_currencies(),

@@ -498,7 +498,7 @@ impl QueryDefinition {
                             // 参照先は分からないので載せない（テーマは `relations` で読む）
                             FieldType::Relation | FieldType::Jsonb => continue,
                         };
-                        if f.name != crate::ACCESS_FIELD {
+                        if f.name != crate::ACCESS_FIELD && f.name != crate::PURCHASE_PRICE_FIELD {
                             fields.insert(f.name.clone(), value);
                         }
                     }

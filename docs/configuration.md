@@ -53,7 +53,8 @@ AegisCMS コアサーバー (`aegis-server`) の設定ファイル (`config/*.to
 | `port` | integer (u16) | `8080` | リッスンするポート |
 | `base_path` | string | `""` | サブパス配下で公開する場合のパス（例: `"/cms"`）。空ならルート `/` で公開。使える文字は英数字と `- . _ ~`（不正な値はサーバーが起動しない）。[4.2](#42-サブパスで公開する) を参照 |
 | `admin_path` | string | `"/admin"` | Admin Studio を配信するパス。1 階層だけで、使える文字は `base_path` と同じ。公開サイト・API のパス（`/api`、`/uploads`、`/theme`、`/articles` など）とは重ねられない（不正な値はサーバーが起動しない）。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
-| `namespace` | string | `"cms"` | 公開ページに出る識別子（CSS のクラス名・`id`・`data-*` 属性・Cookie と localStorage のキー・JS のグローバル名・`/_<namespace>/` の配信パス）の接頭辞。英小文字で始まり、英小文字と数字だけの 16 文字以内（不正な値はサーバーが起動しない）。`admin_path` と `/_<namespace>` を同じにはできない。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
+| `namespace` | string | `"cms"` | 公開ページに出る識別子（CSS のクラス名・`id`・`data-*` 属性・Cookie と localStorage のキー・JS のグローバル名・`/_<namespace>/` の配信パス）の接頭辞。英小文字で始まり、英小文字と数字だけの 16 文字以内（不正な値はサーバーが起動しない）。`admin_path` と `/_<namespace>` を同じにはできない。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
+
 | `cors_origins` | string の配列 | `[]` | 別のオリジンから認証つきの API を呼ぶことを許すオリジン（例: `["https://admin.example.com"]`）。既定（空）は、公開の読み取りだけ全オリジン（`*`）で、認証が要る API・書き込みは同一オリジンだけ。`"*"` で前の動き（全オリジンに全メソッド）。不正な値はサーバーが起動しない。[4.3.1](#431-corsserver-cors_origins) を参照 |
 
 ### 2.2 `[database]` — データベース
@@ -323,6 +324,20 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | `public_url` | string | `""` | 会員のメール（再設定・確認）のリンクの元になるサイトの URL（例 `https://example.com`）。注文確認のリンクの `[commerce].public_url` とは別 |
 | `levels` | string 配列 | `["free", "paid"]` | 会員の権限レベル（低 → 高）。先頭が新規会員のレベル。高いレベルは低いレベルの内容も見られる。1〜32 文字の英小文字・数字・`-`・`_`、重複なし、`public` は使えない（起動時に検査）。記事・ページの `access` で必要なレベルを指定する（[members.md 15](./members.md#15-閲覧の制限会員レベル)） |
 | `upgrade_url` | string | `""` | レベルが足りない会員に出す「アップグレードの案内」のリンク先。`/` で始まるサイト内のパスか `https://` の URL（それ以外は起動時に断る）。空ならリンクを出さない |
+
+#### `[members.purchase]` — 記事の購入
+
+記事・ページの単独購入に使う設定です（[会員 16](./members.md#16-購入記事の単独購入サブスク)）。Stripe Checkout で決済します。使うには `[members].enabled = true` と `[members].public_url`（決済後の戻り先の元になります）が要ります。
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | `true` で購入を使う。`false` なら購入の API と画面は 404、案内に購入のリンクを出さない |
+| `currency` | string | `"jpy"` | 記事の購入に使う通貨（ISO 4217 の英小文字 3 文字）。記事の `purchase_price` はこの通貨の最小単位 |
+| `stripe.secret_key` | string | `""` | Stripe のシークレットキー。空なら環境変数 `AEGIS_STRIPE_SECRET_KEY` |
+| `stripe.webhook_secret` | string | `""` | Webhook の署名シークレット（`whsec_...`）。空なら環境変数 `AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET`。ショップの Webhook とはエンドポイントが別なので、シークレットも別 |
+| `stripe.api_base` | string | `"https://api.stripe.com"` | テスト用のモックサーバーに向けるときだけ変える |
+
+`enabled = true` で、会員アカウントが無効・`public_url` が無い・通貨が不正・キーが無い、のいずれかなら起動時にエラーです。Stripe には Webhook のエンドポイント `https://example.com/api/v1/members/webhooks/stripe` を作り、`checkout.session.completed`・`checkout.session.async_payment_succeeded`・`checkout.session.async_payment_failed`・`checkout.session.expired`・`charge.refunded` を選びます。
 
 ### 2.13 `[notifications]` — 通知（メール）
 

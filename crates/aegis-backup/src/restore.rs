@@ -294,6 +294,27 @@ async fn restore_database_section<R: Read + Seek>(
         summary.tables_restored += 1;
     }
 
+    // 4b. Purchases (_aegis_purchases)。古いバックアップには無い
+    if has_path("database/purchases.json") {
+        let purchases: Vec<aegis_db::PurchaseRecord> =
+            read_json_entry(archive, "database/purchases.json")?;
+        for purchase in &purchases {
+            if let Some(existing) = db.get_purchase_by_ref(&purchase.provider_ref).await? {
+                if options.overwrite {
+                    db.delete_purchase(&existing.id).await?;
+                } else {
+                    return Err(AegisError::Validation(format!(
+                        "Purchase '{}' already exists (use overwrite option to replace)",
+                        purchase.id
+                    )));
+                }
+            }
+            db.insert_purchase(purchase).await?;
+            summary.records_restored += 1;
+        }
+        summary.tables_restored += 1;
+    }
+
     // 5. Dynamic content tables + versions + publication pointers
     let mut schema_names: Vec<String> = schemas.keys().cloned().collect();
     schema_names.sort();
