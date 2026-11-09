@@ -296,7 +296,7 @@ themes/my-theme/
 
 ## 6a. スクリプトの書き方（インラインを書かない）
 
-将来、公開ページの CSP は Strict（`script-src` に `'unsafe-inline'` が無い）になります（[csp.md](csp.md)）。そのとき、テンプレートに直接書いた **`<script>…</script>`（`src` の無いもの）と `onclick` などの `on*` 属性は動きません**。今のうちから、次のように書いてください。
+公開ページの CSP は、**既定で Strict**（`script-src` に `'unsafe-inline'` が無い。`[security].strict_csp = "on"`。[csp.md](csp.md)）です。テンプレートに直接書いた **`<script>…</script>`（`src` の無いもの）と `onclick` などの `on*` 属性は動きません**。次のように書いてください（前の動きに戻すには `[security].strict_csp = "off"`）。
 
 - **スクリプトは `themes/{名前}/assets/*.js` に置いて、`<script src="{{ base_path }}/theme/assets/x.js" defer></script>` で読む**（自分のオリジンのファイルなので、CSP で止まりません）。
 - **`on*` 属性は使わず、スクリプトの側で `addEventListener` を使う**（例: `<button data-scroll-top>` を、外部のスクリプトで結ぶ。ただのページ内リンク `<a href="#">` で足りることもあります）。

@@ -13,6 +13,7 @@ import { aegisApi, previewFrameUrl } from '../api/client';
 import i18n from '../i18n';
 import type { BlockNode, PreviewRequest } from '../types';
 import { cx } from '../utils/cx';
+import { newFrameKey } from '../utils/frameKey';
 import styles from './Preview.module.css';
 
 /** Wait for a pause in typing before asking the server to render */
@@ -47,24 +48,11 @@ interface PreviewResult {
   html: string;
   /** Where the server keeps the themed page (an iframe and a new window load it) */
   pageUrl: string | null;
+  /** Where the server keeps the body HTML (the "HTML output" tab loads it in an iframe) */
+  bodyUrl: string | null;
   warnings: string[];
   error: string | null;
 }
-
-/**
- * A random name for where the server keeps this preview's themed page (32 hex digits). The server
- * serves the page at that URL, with the public site's CSP and `sandbox allow-scripts`.
- *
- * The page is loaded from a URL, not put into the iframe's `srcdoc`: a `srcdoc` document inherits
- * Admin Studio's CSP (scripts from its own origin only), which would stop the theme's and plugins'
- * inline scripts. Loaded from the URL, the page runs as it does on the public site, but with an
- * opaque origin (sandbox without `allow-same-origin`), so it cannot read the admin's session token
- * or call the API as the signed-in user.
- */
-const newFrameKey = (): string =>
-  Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
-    b.toString(16).padStart(2, '0')
-  ).join('');
 
 /**
  * Live preview rendered by the server (`POST /api/v1/preview`) with the same pipeline as saving
@@ -93,6 +81,7 @@ export const Preview: React.FC<PreviewProps> = ({
   const effectiveViewer = canChooseViewer ? viewer : 'staff';
   const idPrefix = useId();
   const [frameKey] = useState(newFrameKey);
+  const [bodyFrameKey] = useState(newFrameKey);
 
   // A result is current when it was rendered from the content shown now
   const request: PreviewRequest = {
@@ -106,6 +95,7 @@ export const Preview: React.FC<PreviewProps> = ({
     },
     ...(effectiveViewer !== 'staff' ? { viewer: effectiveViewer } : {}),
     frame_key: frameKey,
+    body_frame_key: bodyFrameKey,
     blocks,
   };
   const requestKey = JSON.stringify(request);
@@ -119,12 +109,14 @@ export const Preview: React.FC<PreviewProps> = ({
         .then((preview) => ({
           html: preview.html,
           pageUrl: preview.page_url ? previewFrameUrl(preview.page_url) : null,
+          bodyUrl: preview.body_url ? previewFrameUrl(preview.body_url) : null,
           warnings: preview.warnings,
           error: null,
         }))
         .catch((err: unknown) => ({
           html: null,
           pageUrl: null,
+          bodyUrl: null,
           warnings: [],
           error: err instanceof Error ? err.message : i18n.t('api.previewFailed'),
         }))
@@ -135,6 +127,7 @@ export const Preview: React.FC<PreviewProps> = ({
             key: requestKey,
             html: outcome.html ?? prev?.html ?? '',
             pageUrl: outcome.error ? (prev?.pageUrl ?? null) : outcome.pageUrl,
+            bodyUrl: outcome.error ? (prev?.bodyUrl ?? null) : outcome.bodyUrl,
             warnings: outcome.warnings,
             error: outcome.error,
           }));
@@ -251,10 +244,17 @@ export const Preview: React.FC<PreviewProps> = ({
               {statusLines}
             </div>
 
-            <div
-              className={cx(styles.htmlOutput, isRendering && styles.stale)}
-              dangerouslySetInnerHTML={{ __html: result?.html ?? '' }}
-            />
+            {/* The body HTML is shown in a sandboxed frame loaded from the server, not put into
+                Admin Studio's own page: Admin Studio's CSP allows no inline style or script, and the
+                HTML (plugin blocks bring their own <style>) needs the public site's CSP */}
+            {result?.bodyUrl && (
+              <iframe
+                className={cx(styles.htmlFrame, isRendering && styles.stale)}
+                title={t('preview.bodyFrame')}
+                sandbox=""
+                src={result.bodyUrl}
+              />
+            )}
 
             {blocks.length === 0 && (
               <div className={styles.empty}>

@@ -228,6 +228,35 @@ async fn test_edit_preview_send_and_reset_a_template() {
         .as_str()
         .unwrap()
         .contains("<!DOCTYPE html>"));
+    // 名前を渡さなければ、置かない
+    assert!(preview["html_url"].is_null());
+
+    // `frame_key` があれば、HTML のメールをサーバーに置き、`iframe` が読む URL を返す
+    // （メールのインラインのスタイルが、Admin Studio の CSP に止められない）
+    let key = "0123456789abcdef0123456789abcdef";
+    let (status, framed) = site
+        .call(
+            "POST",
+            "/api/v1/notifications/preview",
+            Some(json!({ "kind": "test", "frame_key": key })),
+            &site.admin,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{}", framed);
+    let url = framed["html_url"].as_str().unwrap();
+    assert!(
+        url.starts_with(&format!("/preview/frame/{key}?v=")),
+        "{url}"
+    );
+    let (status, _) = site
+        .call(
+            "POST",
+            "/api/v1/notifications/preview",
+            Some(json!({ "kind": "test", "frame_key": "not-a-key" })),
+            &site.admin,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 
     // 文法の誤り・名前の誤りは保存しない
     let (status, body) = site

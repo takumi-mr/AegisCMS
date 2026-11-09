@@ -8,19 +8,19 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "kebab-case")]
 pub enum StrictCsp {
     /// 今までどおり（`script-src 'self' 'unsafe-inline'`）
-    #[default]
     Off,
     /// 今の CSP に加えて、Strict の CSP を `Content-Security-Policy-Report-Only` で出す（止まるものを、
     /// ブラウザーのコンソールで確かめられる）
     ReportOnly,
-    /// Strict の CSP を強制する（`'unsafe-inline'` を外し、ページのインラインのスクリプトはハッシュで許す）
+    /// Strict の CSP を強制する（`'unsafe-inline'` を外し、ページのインラインのスクリプトはハッシュで許す）。既定
+    #[default]
     On,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SecurityConfig {
-    /// 公開ページの Strict CSP（`off` / `report-only` / `on`）。管理者が CSP を上書きしているときは効かない
+    /// 公開ページの Strict CSP（`on`（既定）/ `report-only` / `off`）。管理者が CSP を上書きしているときは効かない
     pub strict_csp: StrictCsp,
     pub enforce_external_link_rel: bool,
     pub open_external_links_in_new_tab: bool,
@@ -32,7 +32,7 @@ pub struct SecurityConfig {
 impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
-            strict_csp: StrictCsp::Off,
+            strict_csp: StrictCsp::default(),
             enforce_external_link_rel: true,
             open_external_links_in_new_tab: false,
             internal_domains: Vec::new(),

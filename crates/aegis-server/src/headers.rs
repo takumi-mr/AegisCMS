@@ -20,12 +20,14 @@ pub const CUSTOM_HEADERS_SETTING: &str = "headers.custom_headers";
 /// デフォルトの防御ヘッダー値
 pub const DEFAULT_CONTENT_SECURITY_POLICY: &str =
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
-/// Admin Studio（`/admin/`）の既定の CSP。公開ページと同じだが、スクリプトは自分のオリジンのファイルだけ
-/// （`'unsafe-inline'` なし）。Admin Studio のビルドはインラインのスクリプトを使わない。公開ページの本文や
-/// プレビューの HTML が万一サニタイズをすり抜けても、管理者のセッションの中でスクリプトが動かない
+/// Admin Studio（`/admin/`）の既定の CSP。公開ページと同じだが、スクリプトもスタイルも自分のオリジンの
+/// ファイルだけ（`'unsafe-inline'` なし）。Admin Studio のビルドはインラインのスクリプトもスタイルも使わない
+/// （React の `style` は CSSOM で設定するので、`style-src` に当たらない）。公開ページの本文やプレビューの
+/// HTML が万一サニタイズをすり抜けても、管理者のセッションの中でスクリプトは動かない。プレビューの
+/// HTML（本文・テーマ適用ページ・メール）は、公開ページと同じ CSP の別の文書（`iframe`）で見せる
 /// （`admin/e2e/csp.spec.ts`）。管理者が CSP を上書きしているときは、その値をそのまま使う
 pub const ADMIN_CONTENT_SECURITY_POLICY: &str =
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
 pub const DEFAULT_X_FRAME_OPTIONS: &str = "SAMEORIGIN";
 pub const DEFAULT_X_CONTENT_TYPE_OPTIONS: &str = "nosniff";
 pub const DEFAULT_REFERRER_POLICY: &str = "strict-origin-when-cross-origin";

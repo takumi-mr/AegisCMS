@@ -229,9 +229,9 @@ async fn test_strict_csp_report_only_keeps_the_current_policy() {
 }
 
 #[tokio::test]
-async fn test_strict_csp_is_off_by_default_and_never_overrides_an_admin_csp() {
-    // 既定は今までどおり
-    let site_off = site(|_| {}).await;
+async fn test_strict_csp_off_keeps_unsafe_inline_and_never_overrides_an_admin_csp() {
+    // `off` は今までどおり
+    let site_off = site(|c| c.security.strict_csp = StrictCsp::Off).await;
     let (_, headers, _) = site_off.get("/articles/hello").await;
     let csp = header(&headers, "content-security-policy");
     assert!(csp.contains("script-src 'self' 'unsafe-inline'"), "{csp}");
@@ -261,7 +261,34 @@ async fn test_admin_studio_keeps_its_own_strict_policy() {
     let site = site(|c| c.security.strict_csp = StrictCsp::On).await;
     let (_, headers, _) = site.get("/admin/").await;
     let csp = header(&headers, "content-security-policy");
-    // 公開ページの Strict CSP とは別に、もともと `unsafe-inline` が無い。ハッシュも足さない
+    // 公開ページの Strict CSP とは別に、もともとスクリプトにもスタイルにも `unsafe-inline` が無い。ハッシュも足さない
     assert!(!script_src(csp).contains("unsafe-inline"), "{csp}");
+    let style_src = csp
+        .split(';')
+        .map(str::trim)
+        .find(|d| d.starts_with("style-src"))
+        .unwrap();
+    assert_eq!(style_src, "style-src 'self'", "{csp}");
     assert!(!csp.contains("sha256-"), "{csp}");
+}
+
+/// 何も設定しなければ Strict（`on`）。`[security].strict_csp = "off"` で、今までどおりに戻せる
+#[tokio::test]
+async fn test_strict_csp_is_on_by_default() {
+    assert_eq!(AegisConfig::default().security.strict_csp, StrictCsp::On);
+    let site = site(|_| {}).await;
+    let (_, headers, html) = site.get("/articles/hello").await;
+    let csp = header(&headers, "content-security-policy");
+    assert!(!script_src(csp).contains("unsafe-inline"), "{csp}");
+    for body in executable_inline_scripts(&html) {
+        assert!(
+            script_src(csp).contains(&aegis_core::csp::script_hash(&body)),
+            "{body}: {csp}"
+        );
+    }
+    // 設定ファイルの書き方
+    let config: AegisConfig = toml::from_str("[security]\nstrict_csp = \"report-only\"").unwrap();
+    assert_eq!(config.security.strict_csp, StrictCsp::ReportOnly);
+    let config: AegisConfig = toml::from_str("[security]\nstrict_csp = \"off\"").unwrap();
+    assert_eq!(config.security.strict_csp, StrictCsp::Off);
 }

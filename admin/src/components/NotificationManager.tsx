@@ -13,7 +13,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { aegisApi } from '../api/client';
+import { aegisApi, previewFrameUrl } from '../api/client';
+import { newFrameKey } from '../utils/frameKey';
 import type {
   NotificationPreview,
   NotificationQueueItem,
@@ -398,6 +399,8 @@ const TemplateCard: React.FC<{
   // A notification kind or a shared part (`_footer.txt`, `_layout.html`…)
   const [target, setTarget] = useState('order.placed');
   const [wantStaff, setStaff] = useState(false);
+  // Where the server keeps the HTML mail for the preview frame (one name per editor)
+  const [frameKey] = useState(newFrameKey);
   const [editors, setEditors] = useState<Record<string, EditorState>>({});
   const [preview, setPreview] = useState<NotificationPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -457,6 +460,7 @@ const TemplateCard: React.FC<{
           kind: previewKind,
           staff: previewStaff,
           templates: JSON.parse(dirtyKey) as Record<string, string>,
+          frame_key: frameKey,
         })
         .then((result) => {
           if (cancelled) return;
@@ -472,7 +476,7 @@ const TemplateCard: React.FC<{
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [previewKind, previewStaff, dirtyKey, t]);
+  }, [previewKind, previewStaff, dirtyKey, frameKey, t]);
 
   const save = async (name: string) => {
     const state = editors[name];
@@ -658,12 +662,12 @@ const TemplateCard: React.FC<{
           {preview && (
             <>
               <div className={styles.previewSubject}>{preview.subject}</div>
-              {view === 'html' && preview.html ? (
+              {view === 'html' && preview.html_url ? (
                 <iframe
                   className={styles.previewFrame}
                   title={t('notifications.templates.previewFrame')}
                   sandbox=""
-                  srcDoc={preview.html}
+                  src={preview.html_url ? previewFrameUrl(preview.html_url) : undefined}
                 />
               ) : (
                 <pre className={styles.previewText}>{preview.body}</pre>

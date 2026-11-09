@@ -519,6 +519,11 @@ pub struct PreviewRequest {
     /// 保存前の編集中のテンプレート（名前 → 中身）
     #[serde(default)]
     pub templates: HashMap<String, String>,
+    /// HTML のメールを置く場所の名前（32 桁の小文字の 16 進。エディターが作って使い回す）。あれば、
+    /// `html_url` で返し、エディターはこれを `iframe` で読む（メールのインラインのスタイルが、Admin Studio の
+    /// CSP に止められない。[`crate::handlers::preview`] と同じ仕組み）
+    #[serde(default)]
+    pub frame_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -526,6 +531,8 @@ pub struct PreviewResponse {
     pub subject: String,
     pub body: String,
     pub html: Option<String>,
+    /// `html` を置いた場所（API からの相対のパス）。`frame_key` を送ったときだけ
+    pub html_url: Option<String>,
 }
 
 /// `POST /api/v1/notifications/preview` — 見本の値で件名・本文を作る（`admin`）
@@ -550,11 +557,28 @@ pub async fn preview_notification(
         Recipient::person("hanako@example.com", "")
     };
     match service.preview(&payload.kind, &recipient, payload.templates) {
-        Ok(Some(rendered)) => Ok(Json(PreviewResponse {
-            subject: rendered.subject,
-            body: rendered.body,
-            html: rendered.html,
-        })),
+        Ok(Some(rendered)) => {
+            let html_url = match (payload.frame_key.as_deref(), rendered.html.as_deref()) {
+                (Some(key), Some(html)) => {
+                    if !crate::handlers::preview::is_frame_key(key) {
+                        return Err(api_error(
+                            StatusCode::BAD_REQUEST,
+                            "frame_key must be 32 lowercase hex digits",
+                        ));
+                    }
+                    crate::handlers::preview::store_frame(&state, key, html, &[])
+                        .await
+                        .ok()
+                }
+                _ => None,
+            };
+            Ok(Json(PreviewResponse {
+                subject: rendered.subject,
+                body: rendered.body,
+                html: rendered.html,
+                html_url,
+            }))
+        }
         Ok(None) => Err(api_error(
             StatusCode::NOT_FOUND,
             format!(

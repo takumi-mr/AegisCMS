@@ -1527,6 +1527,8 @@ export const aegisApi = {
     kind: string;
     staff: boolean;
     templates: Record<string, string>;
+    /** 32 hex digits: where the server keeps the HTML mail for the preview frame (`html_url`) */
+    frame_key?: string;
   }): Promise<NotificationPreview> {
     return request(
       '/notifications/preview',
