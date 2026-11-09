@@ -246,6 +246,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             delete(handlers::delete_object),
         )
         .route("/api/v1/preview", post(handlers::preview_content))
+        .route(
+            "/api/v1/preview/frame/{key}",
+            get(handlers::preview_frame),
+        )
         .route("/api/v1/blocks", get(handlers::list_blocks))
         .route(
             "/api/v1/auth/session",
@@ -892,12 +896,45 @@ async fn security_headers_middleware(
         }
     }
     let plugin_csp = state.supervisor.read().await.csp_sources();
-    headers_config.apply_to_headers_with_sources(
-        response.headers_mut(),
-        &frame_hosts,
-        &captcha_hosts,
-        &plugin_csp,
-    );
+    // Admin Studio の画面（静的ファイル）だけ、スクリプトを自分のオリジンに限る
+    let admin_path = state
+        .config
+        .server
+        .normalized_admin_path()
+        .unwrap_or_else(|_| "/admin".to_string());
+    let is_admin_ui = path == admin_path || path.starts_with(&format!("{admin_path}/"));
+    if is_admin_ui {
+        headers_config.apply_to_admin_headers_with_sources(
+            response.headers_mut(),
+            &frame_hosts,
+            &captcha_hosts,
+            &plugin_csp,
+        );
+    } else {
+        headers_config.apply_to_headers_with_sources(
+            response.headers_mut(),
+            &frame_hosts,
+            &captcha_hosts,
+            &plugin_csp,
+        );
+    }
+
+    // 管理画面のプレビューのページ: 公開ページと同じ CSP で、不透明なオリジンの中で動かす（管理画面の
+    // セッションに触れない）。中身は公開ページと同じなので、どのオリジンの iframe にも入れてよい
+    // （開発用の Vite のサーバーなど）
+    if path.starts_with("/api/v1/preview/frame/") {
+        let headers = response.headers_mut();
+        headers.remove(axum::http::header::X_FRAME_OPTIONS);
+        let csp = headers
+            .get(axum::http::header::CONTENT_SECURITY_POLICY)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .replace("frame-ancestors 'self'", "frame-ancestors *");
+        let csp = format!("{} sandbox allow-scripts;", csp.trim_end());
+        if let Ok(value) = axum::http::HeaderValue::from_str(csp.trim()) {
+            headers.insert(axum::http::header::CONTENT_SECURITY_POLICY, value);
+        }
+    }
 
     // SVG ドキュメントとして直接開かれた場合の XSS 防止: スクリプト実行を完全遮断
     let is_svg = path.ends_with(".svg")

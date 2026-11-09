@@ -9,11 +9,10 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { aegisApi, SERVER_URL } from '../api/client';
+import { aegisApi, previewFrameUrl } from '../api/client';
 import i18n from '../i18n';
 import type { BlockNode, PreviewRequest } from '../types';
 import { cx } from '../utils/cx';
-import { openPreviewWindow } from '../utils/previewWindow';
 import styles from './Preview.module.css';
 
 /** Wait for a pause in typing before asking the server to render */
@@ -46,23 +45,26 @@ interface PreviewResult {
   /** The request (serialized) this result was rendered from */
   key: string;
   html: string;
-  pageHtml: string | null;
+  /** Where the server keeps the themed page (an iframe and a new window load it) */
+  pageUrl: string | null;
   warnings: string[];
   error: string | null;
 }
 
 /**
- * The themed page is shown in an iframe sandboxed to scripts only: theme and plugin scripts
- * (Mermaid, Prism) run, but without `allow-same-origin` the document gets an opaque origin and
- * cannot read the admin's storage (the session token) or call the API as the signed-in user.
- * `<base>` makes root-relative theme assets and uploads load from the AegisCMS server.
+ * A random name for where the server keeps this preview's themed page (32 hex digits). The server
+ * serves the page at that URL, with the public site's CSP and `sandbox allow-scripts`.
+ *
+ * The page is loaded from a URL, not put into the iframe's `srcdoc`: a `srcdoc` document inherits
+ * Admin Studio's CSP (scripts from its own origin only), which would stop the theme's and plugins'
+ * inline scripts. Loaded from the URL, the page runs as it does on the public site, but with an
+ * opaque origin (sandbox without `allow-same-origin`), so it cannot read the admin's session token
+ * or call the API as the signed-in user.
  */
-const withBase = (pageHtml: string): string => {
-  const base = `<base href="${SERVER_URL}/">`;
-  return /<head[^>]*>/i.test(pageHtml)
-    ? pageHtml.replace(/<head[^>]*>/i, (head) => `${head}${base}`)
-    : `${base}${pageHtml}`;
-};
+const newFrameKey = (): string =>
+  Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
+    b.toString(16).padStart(2, '0')
+  ).join('');
 
 /**
  * Live preview rendered by the server (`POST /api/v1/preview`) with the same pipeline as saving
@@ -90,6 +92,7 @@ export const Preview: React.FC<PreviewProps> = ({
   const canChooseViewer = access !== '' && memberLevels.length > 0;
   const effectiveViewer = canChooseViewer ? viewer : 'staff';
   const idPrefix = useId();
+  const [frameKey] = useState(newFrameKey);
 
   // A result is current when it was rendered from the content shown now
   const request: PreviewRequest = {
@@ -102,6 +105,7 @@ export const Preview: React.FC<PreviewProps> = ({
       ...(access ? { access } : {}),
     },
     ...(effectiveViewer !== 'staff' ? { viewer: effectiveViewer } : {}),
+    frame_key: frameKey,
     blocks,
   };
   const requestKey = JSON.stringify(request);
@@ -114,13 +118,13 @@ export const Preview: React.FC<PreviewProps> = ({
         .previewContent(JSON.parse(requestKey) as PreviewRequest)
         .then((preview) => ({
           html: preview.html,
-          pageHtml: preview.page_html,
+          pageUrl: preview.page_url ? previewFrameUrl(preview.page_url) : null,
           warnings: preview.warnings,
           error: null,
         }))
         .catch((err: unknown) => ({
           html: null,
-          pageHtml: null,
+          pageUrl: null,
           warnings: [],
           error: err instanceof Error ? err.message : i18n.t('api.previewFailed'),
         }))
@@ -130,7 +134,7 @@ export const Preview: React.FC<PreviewProps> = ({
           setResult((prev) => ({
             key: requestKey,
             html: outcome.html ?? prev?.html ?? '',
-            pageHtml: outcome.error ? (prev?.pageHtml ?? null) : outcome.pageHtml,
+            pageUrl: outcome.error ? (prev?.pageUrl ?? null) : outcome.pageUrl,
             warnings: outcome.warnings,
             error: outcome.error,
           }));
@@ -195,11 +199,10 @@ export const Preview: React.FC<PreviewProps> = ({
             className={styles.action}
             title={t('preview.openWindow')}
             aria-label={t('preview.openWindow')}
-            disabled={!result?.pageHtml}
-            onClick={() =>
-              result?.pageHtml &&
-              openPreviewWindow(withBase(result.pageHtml), title || t('preview.untitled'))
-            }
+            disabled={!result?.pageUrl}
+            // The server sends the page with `sandbox allow-scripts`, so a window of its own is
+            // as isolated from Admin Studio as the iframe is
+            onClick={() => result?.pageUrl && window.open(result.pageUrl, '_blank', 'noopener')}
           >
             <ExternalLink size={14} />
           </button>
@@ -265,12 +268,12 @@ export const Preview: React.FC<PreviewProps> = ({
         {tab === 'page' && (
           <>
             <div className={styles.pageStatus}>{statusLines}</div>
-            {result?.pageHtml ? (
+            {result?.pageUrl ? (
               <iframe
                 className={cx(styles.pageFrame, isRendering && styles.stale)}
                 title={t('preview.pageFrame')}
                 sandbox="allow-scripts"
-                srcDoc={withBase(result.pageHtml)}
+                src={result.pageUrl}
               />
             ) : (
               <div className={styles.empty}>

@@ -117,3 +117,53 @@ test('public pages run under the default CSP without eval or blocked scripts', a
     });
   }
 });
+
+test('the themed-page preview behaves like the public site: its inline scripts run', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.getByRole('button', { name: 'New' }).click();
+  await page.getByPlaceholder('Enter post title...').fill('Preview frame');
+  await page.getByRole('tab', { name: 'Themed Page' }).click();
+  const frame = page.frameLocator('iframe[title="Themed page preview"]');
+  await expect(frame.locator('article, main').first()).toBeVisible({ timeout: 15_000 });
+
+  // Theme and plugin scripts (Mermaid, Prism, the page TOC, ...) are inline `<script>`s. The preview
+  // frame must run them like a public page does, even though Admin Studio itself may not
+  const frameHandle = await page.locator('iframe[title="Themed page preview"]').elementHandle();
+  const inner = await frameHandle!.contentFrame();
+  const ran = await inner!.evaluate(() => {
+    const script = document.createElement('script');
+    script.textContent = 'window.__previewScript = 1';
+    document.head.appendChild(script);
+    return (window as unknown as { __previewScript?: number }).__previewScript === 1;
+  });
+  expect(ran).toBe(true);
+
+  // ...but it cannot reach the admin's session (an opaque origin: `sandbox` without same-origin)
+  const storage = await inner!.evaluate(() => {
+    try {
+      return sessionStorage.length >= 0 ? 'readable' : 'empty';
+    } catch {
+      return 'blocked';
+    }
+  });
+  expect(storage).toBe('blocked');
+
+  // The "open in a separate window" button opens the same page, just as isolated
+  const [popup] = await Promise.all([
+    page.waitForEvent('popup'),
+    page.getByRole('button', { name: 'Open in a separate window' }).click(),
+  ]);
+  await popup.waitForLoadState('domcontentloaded');
+  expect(popup.url()).toContain('/api/v1/preview/frame/');
+  await expect(popup.locator('article, main').first()).toBeVisible();
+  const popupStorage = await popup.evaluate(() => {
+    try {
+      return sessionStorage.length >= 0 ? 'readable' : 'empty';
+    } catch {
+      return 'blocked';
+    }
+  });
+  expect(popupStorage).toBe('blocked');
+});

@@ -341,6 +341,8 @@ export interface PreviewRequest {
   fields: Record<string, unknown>;
   /** Who to preview as: `staff` (default, the full text), `guest` or `member:<level>` */
   viewer?: string;
+  /** 32 lowercase hex digits naming where the server keeps the themed page (see `page_url`) */
+  frame_key?: string;
   blocks: BlockNode[];
 }
 
@@ -385,6 +387,8 @@ export interface PreviewResult {
   html: string;
   /** The whole themed page (null when the template failed; see `warnings`) */
   page_html: string | null;
+  /** Where the server serves the themed page (relative to the API), when `frame_key` was sent */
+  page_url: string | null;
   /** Blocks after the heading-id pipeline and plugin `transform-content-ast` hooks */
   blocks: BlockNode[];
   /** E.g. a plugin hook that failed (the preview then shows the built-in pipeline's result) */
