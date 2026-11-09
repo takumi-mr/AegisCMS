@@ -453,7 +453,7 @@ SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Re
 | --- | --- | --- | --- |
 | `enabled` | bool | `false` | `true` で `Cache-Tag` / `Surrogate-Key` ヘッダー付与とパージを有効化 |
 | `provider` | `"none"` \| `"log"` \| `"cloudflare"` \| `"fastly"` \| `"webhook"` | `"none"` | パージ先の CDN プロバイダ。`"none"` はレスポンスヘッダーの送出のみ行い外部 API は呼ばない。`"log"` はパージ対象タグを構造化ログ（`aegis::cdn`）に出力 |
-| `emit_headers` | bool | `true` | `200 OK` の公開ページ応答に `Cache-Tag` と `Surrogate-Key` を付与する |
+| `emit_headers` | bool | `true` | `200 OK` の公開ページ応答にタグのヘッダーを付与する。`provider = "cloudflare"` は `Cache-Tag` だけ、`"fastly"` は `Surrogate-Key` だけ、`"none"` / `"log"` / `"webhook"` は両方（同じタグが 2 つの形式で出るので、一覧ページでヘッダーが約 3 KB になる。nginx を前に置くときは `proxy_buffer_size 16k;` など。[benchmark.md](benchmark.md)）。タグ（と API パージ）を使わないなら `false` |
 | `cache_control` | string | `"public, max-age=0, s-maxage=86400, stale-while-revalidate=60"` | 公開ページ応答に `Cache-Control` が未設定の場合に付与する値（空文字列なら付与しない） |
 | `timeout_ms` | integer (u64) | `5000` | CDN パージ API 呼び出しの HTTP タイムアウト（ミリ秒、100〜60000） |
 

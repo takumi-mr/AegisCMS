@@ -31,7 +31,7 @@ pub fn apply_cache_tags(state: &AppState, mut response: Response, tags: &CacheTa
 
     let headers = response.headers_mut();
     if state.config.cdn.emit_headers && !tags.is_empty() {
-        tags.write_headers(headers);
+        tags.write_headers_for(state.config.cdn.provider, headers);
     }
 
     let cc = state.config.cdn.cache_control.trim();
