@@ -45,6 +45,7 @@ members = [
     "plugins/official-external-links",
     "plugins/official-share-buttons",
     "plugins/official-reading-time",
+    "plugins/official-clarity",
     "plugins/official-post-navigation",
     "plugins/official-ads",
 ]
