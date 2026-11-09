@@ -139,13 +139,10 @@ async fn test_postgres_contact_storage_real_db() {
         eprintln!("Skipping PostgreSQL test: failed to connect");
         return;
     };
-    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = sqlx::query("DROP TABLE IF EXISTS _aegis_contact_messages;")
-        .execute(adapter.pool())
-        .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_postgres(&adapter)
+        .await
+        .expect("cleanup postgres");
     run_contact_storage_test(&adapter)
         .await
         .expect("PostgreSQL contact storage test failed");
@@ -166,13 +163,10 @@ async fn test_mysql_contact_storage_real_db() {
         eprintln!("Skipping MySQL test: failed to connect");
         return;
     };
-    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = sqlx::query("DROP TABLE IF EXISTS _aegis_contact_messages;")
-        .execute(adapter.pool())
-        .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_mysql(&adapter)
+        .await
+        .expect("cleanup mysql");
     run_contact_storage_test(&adapter)
         .await
         .expect("MySQL contact storage test failed");

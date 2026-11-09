@@ -349,8 +349,6 @@ fn is_port_reachable(host_port: &str) -> bool {
     std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(150)).is_ok()
 }
 
-const CLEANUP: &str = "DROP TABLE IF EXISTS content_product, _aegis_published_product, _aegis_published_meta, _aegis_content_tags, _aegis_tags, _aegis_content_publications, _aegis_content_versions";
-
 #[tokio::test]
 async fn test_declarative_queries_postgres() {
     let custom_url = env::var("POSTGRES_URL").ok();
@@ -364,12 +362,10 @@ async fn test_declarative_queries_postgres() {
         eprintln!("Skipping PostgreSQL test: failed to connect");
         return;
     };
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = aegis_db::sqlx_compat::query(&format!("{CLEANUP} CASCADE;"))
-        .execute(adapter.pool())
-        .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_postgres(&adapter)
+        .await
+        .expect("cleanup postgres");
     run_declarative_queries_test(&adapter)
         .await
         .expect("PostgreSQL declarative queries test failed");
@@ -390,12 +386,10 @@ async fn test_declarative_queries_mysql() {
         eprintln!("Skipping MySQL test: failed to connect");
         return;
     };
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = aegis_db::sqlx_compat::query(&format!("{CLEANUP};"))
-        .execute(adapter.pool())
-        .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_mysql(&adapter)
+        .await
+        .expect("cleanup mysql");
     run_declarative_queries_test(&adapter)
         .await
         .expect("MySQL declarative queries test failed");

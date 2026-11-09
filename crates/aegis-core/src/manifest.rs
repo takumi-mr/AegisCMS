@@ -1012,9 +1012,9 @@ mod tests {
             sub, sub
         ))
         .contains("twice"));
-        assert!(bad(&format!(
-            r#"{{"name": "i", "type": "list", "label": "I", "fields": [{{"name": "s", "type": "select", "label": "S"}}]}}"#
-        ))
+        assert!(bad(
+            r#"{"name": "i", "type": "list", "label": "I", "fields": [{"name": "s", "type": "select", "label": "S"}]}"#
+        )
         .contains("no options"));
         // `fields` は list 以外には置けない
         assert!(bad(&format!(

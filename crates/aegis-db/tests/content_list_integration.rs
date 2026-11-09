@@ -384,15 +384,10 @@ async fn test_content_list_query_postgres() {
         eprintln!("Skipping PostgreSQL test: failed to connect");
         return;
     };
-    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = sqlx::query(
-        "DROP TABLE IF EXISTS content_article, _aegis_content_tags, _aegis_tags CASCADE;",
-    )
-    .execute(adapter.pool())
-    .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_postgres(&adapter)
+        .await
+        .expect("cleanup postgres");
     run_list_query_test(&adapter)
         .await
         .expect("PostgreSQL content list test failed");
@@ -413,13 +408,10 @@ async fn test_content_list_query_mysql() {
         eprintln!("Skipping MySQL test: failed to connect");
         return;
     };
-    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = sqlx::query("DROP TABLE IF EXISTS content_article, _aegis_content_tags, _aegis_tags;")
-        .execute(adapter.pool())
-        .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_mysql(&adapter)
+        .await
+        .expect("cleanup mysql");
     run_list_query_test(&adapter)
         .await
         .expect("MySQL content list test failed");

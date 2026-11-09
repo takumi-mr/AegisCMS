@@ -210,13 +210,10 @@ async fn test_postgres_notification_queue_real_db() {
         eprintln!("Skipping PostgreSQL test: failed to connect");
         return;
     };
-    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = sqlx::query("DROP TABLE IF EXISTS _aegis_notification_queue;")
-        .execute(adapter.pool())
-        .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_postgres(&adapter)
+        .await
+        .expect("cleanup postgres");
     run_notification_queue_test(&adapter)
         .await
         .expect("PostgreSQL notification queue test failed");
@@ -237,13 +234,10 @@ async fn test_mysql_notification_queue_real_db() {
         eprintln!("Skipping MySQL test: failed to connect");
         return;
     };
-    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = sqlx::query("DROP TABLE IF EXISTS _aegis_notification_queue;")
-        .execute(adapter.pool())
-        .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_mysql(&adapter)
+        .await
+        .expect("cleanup mysql");
     run_notification_queue_test(&adapter)
         .await
         .expect("MySQL notification queue test failed");

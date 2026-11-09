@@ -740,13 +740,10 @@ async fn test_postgres_order_storage_real_db() {
             return;
         }
     };
-    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = sqlx::query("DROP TABLE IF EXISTS content_product, content_article, _aegis_orders, _aegis_users, _aegis_user_links, _aegis_settings, _aegis_audit CASCADE;")
-        .execute(adapter.pool())
-        .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_postgres(&adapter)
+        .await
+        .expect("cleanup postgres");
     run_order_and_stock_lifecycle_test(&adapter)
         .await
         .expect("PostgreSQL order & stock integration test failed");
@@ -771,13 +768,10 @@ async fn test_mysql_order_storage_real_db() {
             return;
         }
     };
-    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録も消す
-    let _ = sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations;")
-        .execute(adapter.pool())
-        .await;
-    let _ = sqlx::query("DROP TABLE IF EXISTS content_product, content_article, _aegis_orders, _aegis_users, _aegis_user_links, _aegis_settings, _aegis_audit;")
-        .execute(adapter.pool())
-        .await;
+    // 消したテーブルを `init` が作り直せるように、適用済みの手順の記録と全テーブルを消す
+    aegis_db::test_support::cleanup_mysql(&adapter)
+        .await
+        .expect("cleanup mysql");
     run_order_and_stock_lifecycle_test(&adapter)
         .await
         .expect("MySQL order & stock integration test failed");
