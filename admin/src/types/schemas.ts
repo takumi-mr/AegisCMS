@@ -56,6 +56,7 @@ export interface BaseContentItem {
 export interface ArticleFields {
   category_id?: string | null;
   access?: string | null;
+  purchase_price?: number | null;
   excerpt?: string;
   custom_meta?: Record<string, any>;
 }
@@ -112,6 +113,7 @@ export interface UpdateArticlePayload {
 export interface CategoryFields {
   category_id?: string | null;
   access?: string | null;
+  purchase_price?: number | null;
   description?: string | null;
   color?: string | null;
 }
@@ -168,6 +170,7 @@ export interface UpdateCategoryPayload {
 export interface PageFields {
   category_id?: string | null;
   access?: string | null;
+  purchase_price?: number | null;
   layout?: string | null;
   custom_meta?: Record<string, any>;
 }
@@ -224,6 +227,7 @@ export interface UpdatePagePayload {
 export interface ProductFields {
   category_id?: string | null;
   access?: string | null;
+  purchase_price?: number | null;
   price: number;
   compare_at_price?: number | null;
   stock?: number | null;

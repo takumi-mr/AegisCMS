@@ -38,6 +38,10 @@
           "excerpt": {
             "maxLength": 500,
             "type": "string"
+          },
+          "purchase_price": {
+            "nullable": true,
+            "type": "integer"
           }
         },
         "required": [],
@@ -184,6 +188,10 @@
           "description": {
             "nullable": true,
             "type": "string"
+          },
+          "purchase_price": {
+            "nullable": true,
+            "type": "integer"
           }
         },
         "required": [],
@@ -412,6 +420,10 @@
           "layout": {
             "nullable": true,
             "type": "string"
+          },
+          "purchase_price": {
+            "nullable": true,
+            "type": "integer"
           }
         },
         "required": [],
@@ -465,6 +477,10 @@
             "type": "string"
           },
           "price": {
+            "type": "integer"
+          },
+          "purchase_price": {
+            "nullable": true,
             "type": "integer"
           },
           "sku": {
