@@ -19,6 +19,7 @@ import {
   ListCollapse,
   Mail,
   Asterisk,
+  Lock,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BlockNode, ContactForm, PluginBlockDefinition } from '../types';
@@ -95,6 +96,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         return <Info size={14} />;
       case 'core/details':
         return <ListCollapse size={14} />;
+      case 'core/paywall':
+        return <Lock size={14} />;
       case 'core/footnote':
         return <Asterisk size={14} />;
       case 'core/contact-form':
@@ -439,6 +442,12 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       )}
 
       {block.name === 'core/separator' && <hr className={styles.separator} />}
+
+      {block.name === 'core/paywall' && (
+        <div className={styles.paywall} role="separator">
+          {t('blocks.paywallHint')}
+        </div>
+      )}
 
       {block.name === 'core/details' && (
         <div className={styles.stack}>

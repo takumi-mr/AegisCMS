@@ -28,6 +28,7 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 | `core/separator` | | `---`（`***`・`___` も可） | `<hr>` |
 | `core/details` | `summary`（見出し）、`open`（最初から開く。既定 `false`） | `:::details 見出し` 〜 `:::`（開いた状態は `:::details+`） | `<details class="aegis-details"><summary>` |
 | `core/footnote` | `label`（英数字・`_`・`-`、40 文字まで）。注釈の文章は `text` | 本文に `[^1]`、定義は `[^1]: 注釈`（1 行） | 文書の末尾の `<section class="aegis-footnotes">`（本文の参照は `<sup class="aegis-fnref">`） |
+| `core/paywall` | なし | `<!-- paywall -->`（HTML のコメント。GitHub では何も表示されない） | 「ここから先は会員向け」の区切り。記事・ページに `access` があるときだけ効き、これより後ろは必要なレベルのない閲覧者の HTML・フィード・検索・API に出ない。読める閲覧者には何も出さない（[members.md 15.3](members.md#153-本文のここから先)） |
 | `core/contact-form` | `form`（`[[contact.forms]]` の名前。既定 `default`） | `[CONTACT]`、`[CONTACT form="sales"]` | [問い合わせフォーム](contact.md#2-フォームを置く)（`[contact].enabled` のときだけ） |
 | `core/html` | `mode`（`sanitized` / `sandbox`） | ` ```html ` / ` ```html:sandbox ` | [カスタム HTML](theme_authoring_guide.md#31-どの-url-でどのテンプレートが使われるか) |
 

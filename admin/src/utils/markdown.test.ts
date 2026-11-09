@@ -267,6 +267,26 @@ describe('markdown utilities', () => {
       expect(markdownToBlocks('[^a b]: x')[0].name).toBe('core/paragraph');
     });
 
+    it('round-trips the members-only break as an HTML comment', () => {
+      const md = 'Free part.\n<!-- paywall -->\nPaid part.\n\n<!--paywall-->\n\nMore.';
+      const blocks = markdownToBlocks(md);
+
+      expect(blocks.map((b) => b.name)).toEqual([
+        'core/paragraph',
+        'core/paywall',
+        'core/paragraph',
+        'core/paywall',
+        'core/paragraph',
+      ]);
+      expect(blocks[0].text).toBe('Free part.');
+      expect(blocks[2].text).toBe('Paid part.');
+      expect(blocksToMarkdown(blocks)).toBe(
+        'Free part.\n\n<!-- paywall -->\n\nPaid part.\n\n<!-- paywall -->\n\nMore.'
+      );
+      // Any other comment is not a break
+      expect(markdownToBlocks('<!-- note -->')[0].name).toBe('core/paragraph');
+    });
+
     it('normalizes CRLF line endings', () => {
       const md = '# Title\r\n\r\nParagraph text.\r\n\r\n- Item 1\r\n- Item 2';
       const blocks = markdownToBlocks(md);

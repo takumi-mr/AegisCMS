@@ -236,6 +236,7 @@
     "detailsSummary": "Summary (e.g. a question)",
     "detailsOpen": "Open by default",
     "detailsPlaceholder": "Text shown when opened (the answer or details)...",
+    "paywallHint": "Everything below this line is for members only (set Who can read it to use it)",
     "footnoteLabel": "Label (used as [^label] in the text)",
     "footnotePlaceholder": "Footnote text...",
     "contactForm": "Form",
@@ -417,6 +418,7 @@
     "toc": "Contents",
     "quote": "Quote",
     "callout": "Callout",
+    "paywall": "Members-only break",
     "separator": "Separator",
     "details": "Details",
     "footnote": "Footnote",
@@ -639,6 +641,7 @@
       "separator_block": "Separator",
       "callout": "Callout",
       "details": "Details",
+      "paywall": "Members-only break",
       "footnote": "Footnote",
       "contactForm": "Contact form"
     },
