@@ -335,6 +335,7 @@ task dev:theme -- themes/my-theme      # = cargo run -p aegis-theme-dev -- theme
 
 - **サンプル**: `templates/` の `base.html` 以外すべてに、既定のデータ（タイトル・本文・一覧の記事 3 件・ページ送り）で `/preview/<名前>`（`index.html` なら `/preview/index`）が用意されます。
 - **データを変える・増やす**: `samples/<名前>.json` に `PageRenderContext` の項目（[3.2 変数](#32-変数)）を書くと、既定のデータの上書きになります（最上位のキー単位）。既定に無い名前なら、ページが増えます。`"template": "article.html"` で使うテンプレートを選べます（省くと `<名前>.html`）。`samples/` はインストール時に使われないので、そのまま置いておけます。
+- **CSP（Strict）**: プレビューのページには、公開サイトの既定の CSP（[csp.md](csp.md)）が付きます。直接書いたインラインの `<script>`・`<style>`・`on*` 属性など、公開したら動かなくなるものは、ページの右下に理由と直し方つきで出ます（`theme.json` の `csp` で宣言したホストは許されます）。強制しないなら `--csp report-only`、付けないなら `--csp off`。
 - **アセット**: `/theme/assets/...` と `/themes/<id>/assets/...` で配信します。
 - **公開サイトとの違い**: プラグインの `on-render-page`、コメント欄・ショップ・フォーラムのデータ、`[theme]` の設定（`theme_vars`・`custom_css`）は反映されません。必要なら `samples/*.json` に書いてください。最終確認は、実際のサイトで行います。
 - **待ち受けと表示言語**: 既定は `127.0.0.1:8090`（`--host`・`--port`）。表示言語は `--locale <LOCALE>`（`-l`、既定 `en`。例: `-l ja`）で指定できます。テンプレートは任意のコードを実行できる開発用の機能なので、公開するネットワークには出さないでください。

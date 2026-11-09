@@ -4,6 +4,8 @@
 
 use std::collections::HashMap;
 
+pub use aegis_core::csp::strict_csp;
+use aegis_core::csp::with_directive_sources;
 use aegis_db::DatabaseAdapter;
 use axum::http::{header::HeaderName, HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
@@ -18,8 +20,7 @@ pub const COOP_SETTING: &str = "headers.cross_origin_opener_policy";
 pub const CUSTOM_HEADERS_SETTING: &str = "headers.custom_headers";
 
 /// デフォルトの防御ヘッダー値
-pub const DEFAULT_CONTENT_SECURITY_POLICY: &str =
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
+pub const DEFAULT_CONTENT_SECURITY_POLICY: &str = aegis_core::csp::DEFAULT_PUBLIC_CSP;
 /// Admin Studio（`/admin/`）の既定の CSP。公開ページと同じだが、スクリプトもスタイルも自分のオリジンの
 /// ファイルだけ（`'unsafe-inline'` なし）。Admin Studio のビルドはインラインのスクリプトもスタイルも使わない
 /// （React の `style` は CSSOM で設定するので、`style-src` に当たらない）。公開ページの本文やプレビューの
@@ -229,112 +230,6 @@ impl HeaderOverrides {
     }
 }
 
-/// Strict CSP（`[security].strict_csp`）の値を作る。`csp` の `script-src` から `'unsafe-inline'`・`'unsafe-eval'` を外し、
-/// 信頼できる出どころが出したインラインのスクリプトのハッシュ（`hashes`。`sha256-<base64>`）を足す。
-/// `script-src` が無ければ（`default-src` が効いている）、`'self'` とハッシュだけの `script-src` を足す。
-/// 許可するホスト（プラグインのもの）は残す。`'strict-dynamic'` は使わない（ブラウザーがホストの指定を
-/// 無視してしまい、マニフェストで宣言した `script_domains` の強制が無くなるため。docs/csp.md の 3.1）
-pub fn strict_script_csp(csp: &str, hashes: &[String]) -> String {
-    let hash_tokens: Vec<String> = hashes.iter().map(|h| format!("'{h}'")).collect();
-    let mut found = false;
-    let mut directives: Vec<String> = csp
-        .split(';')
-        .map(str::trim)
-        .filter(|d| !d.is_empty())
-        .map(|directive| {
-            let mut parts = directive.split_whitespace();
-            if parts.next() != Some("script-src") {
-                return directive.to_string();
-            }
-            found = true;
-            let mut kept: Vec<&str> = parts
-                .filter(|t| !matches!(*t, "'unsafe-inline'" | "'unsafe-eval'"))
-                .collect();
-            if !kept.contains(&"'self'") {
-                kept.insert(0, "'self'");
-            }
-            let mut out = String::from("script-src");
-            for token in kept
-                .iter()
-                .map(|t| t.to_string())
-                .chain(hash_tokens.iter().cloned())
-            {
-                out.push(' ');
-                out.push_str(&token);
-            }
-            out
-        })
-        .collect();
-    if !found {
-        let mut out = String::from("script-src 'self'");
-        for token in &hash_tokens {
-            out.push(' ');
-            out.push_str(token);
-        }
-        directives.push(out);
-    }
-    format!("{};", directives.join("; "))
-}
-
-/// 公開ページの Strict CSP の全体: [`strict_script_csp`] と [`strict_style_csp`]
-pub fn strict_csp(csp: &str, hashes: &aegis_core::csp::CollectedHashes) -> String {
-    strict_style_csp(&strict_script_csp(csp, &hashes.scripts), &hashes.styles)
-}
-
-/// Strict CSP のスタイル側。`style-src` から `'unsafe-inline'` を外し、信頼できる出どころの `<style>` の
-/// ハッシュ（`hashes`）を足す（`style-src` が無ければ `'self'` とハッシュだけの `style-src` を足す）。
-/// `style=""` 属性は、組み込みのテンプレートやプラグインがまだ使っているので、当面 `style-src-attr 'unsafe-inline'`
-/// で許す（`style-src-attr` が既にあればそのまま。docs/csp.md の 3.2）
-pub fn strict_style_csp(csp: &str, hashes: &[String]) -> String {
-    let hash_tokens: Vec<String> = hashes.iter().map(|h| format!("'{h}'")).collect();
-    let mut found = false;
-    let mut has_attr = false;
-    let mut directives: Vec<String> = csp
-        .split(';')
-        .map(str::trim)
-        .filter(|d| !d.is_empty())
-        .map(|directive| {
-            let mut parts = directive.split_whitespace();
-            match parts.next() {
-                Some("style-src-attr") => {
-                    has_attr = true;
-                    directive.to_string()
-                }
-                Some("style-src") => {
-                    found = true;
-                    let mut kept: Vec<&str> = parts.filter(|t| *t != "'unsafe-inline'").collect();
-                    if !kept.contains(&"'self'") {
-                        kept.insert(0, "'self'");
-                    }
-                    let mut out = String::from("style-src");
-                    for token in kept
-                        .iter()
-                        .map(|t| t.to_string())
-                        .chain(hash_tokens.iter().cloned())
-                    {
-                        out.push(' ');
-                        out.push_str(&token);
-                    }
-                    out
-                }
-                _ => directive.to_string(),
-            }
-        })
-        .collect();
-    if !found {
-        let mut out = String::from("style-src 'self'");
-        for token in &hash_tokens {
-            out.push(' ');
-            out.push_str(token);
-        }
-        directives.push(out);
-    }
-    if !has_attr {
-        directives.push("style-src-attr 'unsafe-inline'".to_string());
-    }
-    format!("{};", directives.join("; "))
-}
-
 /// 有効なプラグインが要求する CSP (Content Security Policy) のドメインをディレクティブごとに足す
 pub fn with_plugin_csp_sources(csp: &str, plugin_csp: &aegis_runtime::PluginCspSources) -> String {
     let mut csp = csp.to_string();
@@ -403,73 +298,7 @@ pub fn with_captcha_sources(csp: &str, hosts: &[String]) -> String {
 /// アクティブなテーマが `theme.json` の `csp` で宣言したホスト（スタイル・フォント・画像。例: Google Fonts）を、
 /// CSP の `style-src` / `font-src` / `img-src` に足す。スクリプトのホストは宣言できない（docs/csp.md の 8）
 pub fn with_theme_csp_sources(csp: &str, theme: &aegis_theme::ThemeCsp) -> String {
-    let csp = with_directive_sources(csp, "style-src", &["default-src"], &theme.style_domains);
-    let csp = with_directive_sources(&csp, "font-src", &["default-src"], &theme.font_domains);
-    with_directive_sources(&csp, "img-src", &["default-src"], &theme.img_domains)
-}
-
-/// `directive` に効いている値（無ければ `fallbacks` の最初に見つかったもの）に、`https://<host>` を足す。
-/// `directive` が無いときは、足した値で `directive` を加える。値に `*` か `'none'` を含む（制限していない・
-/// 管理者が明示的に拒否している）とき、どれも無い（制限していない）ときは、そのまま
-fn with_directive_sources(
-    csp: &str,
-    directive: &str,
-    fallbacks: &[&str],
-    hosts: &[String],
-) -> String {
-    if hosts.is_empty() {
-        return csp.to_string();
-    }
-    let directives: Vec<&str> = csp
-        .split(';')
-        .map(str::trim)
-        .filter(|d| !d.is_empty())
-        .collect();
-    let find = |name: &str| {
-        directives.iter().position(|d| {
-            d.split_whitespace()
-                .next()
-                .is_some_and(|n| n.eq_ignore_ascii_case(name))
-        })
-    };
-    let sources_of = |i: usize| -> Vec<String> {
-        directives[i]
-            .split_whitespace()
-            .skip(1)
-            .map(str::to_string)
-            .collect()
-    };
-    let add_hosts = |mut sources: Vec<String>| -> Option<Vec<String>> {
-        if sources
-            .iter()
-            .any(|s| s == "*" || s.eq_ignore_ascii_case("'none'"))
-        {
-            return None;
-        }
-        for host in hosts {
-            let source = format!("https://{}", host);
-            if !sources.iter().any(|s| s.eq_ignore_ascii_case(&source)) {
-                sources.push(source);
-            }
-        }
-        Some(sources)
-    };
-
-    let mut out: Vec<String> = directives.iter().map(|d| d.to_string()).collect();
-    if let Some(i) = find(directive) {
-        match add_hosts(sources_of(i)) {
-            Some(sources) => out[i] = format!("{} {}", directive, sources.join(" ")),
-            None => return csp.to_string(),
-        }
-    } else if let Some(i) = fallbacks.iter().find_map(|name| find(name)) {
-        match add_hosts(sources_of(i)) {
-            Some(sources) => out.push(format!("{} {}", directive, sources.join(" "))),
-            None => return csp.to_string(),
-        }
-    } else {
-        return csp.to_string();
-    }
-    format!("{};", out.join("; "))
+    theme.merge_into(csp)
 }
 
 fn insert_if_valid(headers: &mut HeaderMap, name: &str, val: &str) {
@@ -736,7 +565,7 @@ mod tests {
 
 #[cfg(test)]
 mod strict_csp_tests {
-    use super::{strict_csp, strict_script_csp, strict_style_csp};
+    use aegis_core::csp::{strict_csp, strict_script_csp, strict_style_csp};
 
     #[test]
     fn unsafe_inline_and_eval_are_dropped_and_the_hashes_are_added() {

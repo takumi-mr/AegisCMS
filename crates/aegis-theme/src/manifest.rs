@@ -78,6 +78,14 @@ pub struct ThemeCsp {
 }
 
 impl ThemeCsp {
+    /// 宣言したホスト（スタイル・フォント・画像）を、CSP の `style-src` / `font-src` / `img-src` に足す
+    pub fn merge_into(&self, csp: &str) -> String {
+        use aegis_core::csp::with_directive_sources as add;
+        let csp = add(csp, "style-src", &["default-src"], &self.style_domains);
+        let csp = add(&csp, "font-src", &["default-src"], &self.font_domains);
+        add(&csp, "img-src", &["default-src"], &self.img_domains)
+    }
+
     /// 宣言したホストが、すべてホスト名として正しいか（一覧ごとに 10 個まで）
     pub fn validate(&self) -> Result<(), String> {
         for (field, domains) in [
