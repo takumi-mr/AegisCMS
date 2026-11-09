@@ -79,6 +79,10 @@ pub const CATEGORY_FIELD: &str = "category_id";
 /// 全コンテンツ型が持つ組み込みの閲覧制限フィールド名（必要な会員レベル。docs/members.md 15）
 pub const ACCESS_FIELD: &str = "access";
 
+/// 全コンテンツ型が持つ組み込みの単独購入の価格フィールド名（通貨の最小単位。docs/members.md 16）。
+/// 商品（ショップ）の `price` とは別の名前にして、商品型の定義を上書きしない
+pub const PURCHASE_PRICE_FIELD: &str = "purchase_price";
+
 impl FieldDefinition {
     /// 組み込みの `access`（必要な会員レベル。未設定・`public` は誰でも）。
     /// 閲覧の制限が YAML の書き忘れで外れないよう、全コンテンツ型に必ず持たせる。
@@ -92,6 +96,23 @@ impl FieldDefinition {
             unique: false,
             index: false,
             max_length: Some(32),
+            target: None,
+            indexed_paths: Vec::new(),
+            public: true,
+        }
+    }
+
+    /// 組み込みの `purchase_price`（記事・ページを単独で買うときの価格。通貨の最小単位。未設定は単独では売らない）。
+    /// `access` と同じく全コンテンツ型に持たせる。値は公開してよい（購入ボタンの金額を出すのに使う）
+    pub fn builtin_purchase_price() -> Self {
+        Self {
+            name: PURCHASE_PRICE_FIELD.to_string(),
+            field_type: FieldType::Integer,
+            required: false,
+            nullable: true,
+            unique: false,
+            index: false,
+            max_length: None,
             target: None,
             indexed_paths: Vec::new(),
             public: true,
@@ -116,11 +137,14 @@ impl FieldDefinition {
 }
 
 impl SchemaDefinition {
-    /// 組み込みフィールド（`category_id`・`access`）を先頭に差し込む。
+    /// 組み込みフィールド（`category_id`・`access`・`purchase_price`）を先頭に差し込む。
     /// YAML に同名の定義があっても組み込みの定義で置き換える（型ごとに食い違わせない）
     pub fn with_builtin_fields(mut self) -> Self {
+        self.fields.retain(|f| {
+            f.name != CATEGORY_FIELD && f.name != ACCESS_FIELD && f.name != PURCHASE_PRICE_FIELD
+        });
         self.fields
-            .retain(|f| f.name != CATEGORY_FIELD && f.name != ACCESS_FIELD);
+            .insert(0, FieldDefinition::builtin_purchase_price());
         self.fields.insert(0, FieldDefinition::builtin_access());
         self.fields.insert(0, FieldDefinition::builtin_category());
         self

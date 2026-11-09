@@ -337,7 +337,8 @@ mod tests {
         let text = spec.to_string();
         assert!(!text.contains("internal_note"));
         assert!(!text.contains("author_id"));
-        assert!(!text.contains("price"));
+        // 商品の `price` は出ない（組み込みの `purchase_price` は公開フィールド）
+        assert!(!text.contains("\"price\""));
 
         let article_fields =
             &spec["components"]["schemas"]["Article"]["properties"]["fields"]["properties"];
