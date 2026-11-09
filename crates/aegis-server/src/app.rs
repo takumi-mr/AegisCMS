@@ -974,24 +974,48 @@ async fn security_headers_middleware(
 
     // 公開ページの Strict CSP: `unsafe-inline` を外し、インラインのスクリプトはハッシュで許す。
     // 管理者が CSP を上書きしているときは、その値が優先
-    if !is_admin_ui
-        && strict != aegis_ast::StrictCsp::Off
-        && headers_config.content_security_policy.is_none()
-    {
+    // （既定の CSP の定数に `unsafe-inline` は無い。`off` / `report-only` のときだけ、前の動きとして足す）
+    if !is_admin_ui && headers_config.content_security_policy.is_none() {
         let current = response
             .headers()
             .get(axum::http::header::CONTENT_SECURITY_POLICY)
             .and_then(|v| v.to_str().ok())
             .map(str::to_string);
         if let Some(current) = current {
-            let strict_csp = crate::headers::strict_csp(&current, &hashes);
-            if let Ok(value) = axum::http::HeaderValue::from_str(&strict_csp) {
-                let name = if strict == aegis_ast::StrictCsp::On {
-                    axum::http::header::CONTENT_SECURITY_POLICY
-                } else {
-                    axum::http::HeaderName::from_static("content-security-policy-report-only")
-                };
-                response.headers_mut().insert(name, value);
+            let set = |response: &mut axum::response::Response, name, csp: &str| {
+                if let Ok(value) = axum::http::HeaderValue::from_str(csp) {
+                    response.headers_mut().insert(name, value);
+                }
+            };
+            let enforce = axum::http::header::CONTENT_SECURITY_POLICY;
+            let report = axum::http::HeaderName::from_static("content-security-policy-report-only");
+            match strict {
+                aegis_ast::StrictCsp::On => {
+                    set(
+                        &mut response,
+                        enforce,
+                        &crate::headers::strict_csp(&current, &hashes),
+                    );
+                }
+                aegis_ast::StrictCsp::ReportOnly => {
+                    set(
+                        &mut response,
+                        report,
+                        &crate::headers::strict_csp(&current, &hashes),
+                    );
+                    set(
+                        &mut response,
+                        enforce,
+                        &aegis_core::csp::with_legacy_inline(&current),
+                    );
+                }
+                aegis_ast::StrictCsp::Off => {
+                    set(
+                        &mut response,
+                        enforce,
+                        &aegis_core::csp::with_legacy_inline(&current),
+                    );
+                }
             }
         }
     }
