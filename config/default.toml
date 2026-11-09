@@ -235,6 +235,9 @@ public_url = ""
 # Access levels, lowest first. The first is the level of a new member; a higher level also sees
 # what a lower level sees. An article or page names the level it needs (docs/members.md 15)
 levels = ["free", "paid"]
+# Where a member below the needed level is sent to upgrade: a path ("/plans") or an https:// URL.
+# Empty shows no link
+upgrade_url = ""
 
 # Notifications (docs/notifications.md): order emails to customers and staff, sent through an
 # external SMTP server. channels = ["log"] prints them to the server log instead (no SMTP needed).

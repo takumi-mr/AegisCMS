@@ -1,3 +1,4 @@
+pub mod access;
 pub mod audit;
 pub mod auth;
 pub mod broken_links;
@@ -118,6 +119,8 @@ pub use users::{
     reset_user_2fa, setup_2fa, update_user, upload_avatar,
 };
 
+#[cfg(test)]
+mod access_tests;
 #[cfg(test)]
 mod account_pages_tests;
 #[cfg(test)]

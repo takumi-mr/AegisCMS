@@ -1,10 +1,11 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Response},
 };
 use std::sync::Arc;
 
+use crate::handlers::access::{self, Gate};
 use crate::handlers::comments;
 use crate::handlers::tags_public::TagLookup;
 use crate::render;
@@ -296,6 +297,7 @@ impl ArticleListView {
 pub async fn render_index(
     State(state): State<Arc<AppState>>,
     Query(params): Query<IndexParams>,
+    headers: HeaderMap,
 ) -> Response {
     match state.config.theme.front_page() {
         FrontPage::Posts => {
@@ -311,7 +313,7 @@ pub async fn render_index(
             };
             render_article_list(&state, view).await
         }
-        FrontPage::Page(slug) => match render_fixed_page(&state, &slug, "/").await {
+        FrontPage::Page(slug) => match render_fixed_page(&state, &headers, &slug, "/").await {
             Some(resp) => resp,
             None => {
                 tracing::warn!(
@@ -602,6 +604,7 @@ async fn render_article_list(state: &AppState, view: ArticleListView) -> Respons
 pub async fn render_article(
     State(state): State<Arc<AppState>>,
     Path(slug): Path<String>,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
     let schema = {
         let schemas = state.schemas.read().await;
@@ -627,9 +630,24 @@ pub async fn render_article(
         _ => return render_not_found(&state, "The requested article is not published.").await,
     };
 
+    // 閲覧の制限（会員レベル）。見せない閲覧者には、本文を描画せず案内を出す
+    let gate = access::gate(
+        &state,
+        &headers,
+        &record.custom_fields,
+        &format!("/articles/{}", record.slug),
+    )
+    .await;
+
     // AST から HTML 変換 & ストリーミングリライター適用
-    let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
-    let content_html = render::render_content_html(&state, &blocks).await;
+    let content_html = match &gate {
+        Gate::Denied { notice_html } => notice_html.clone(),
+        _ => {
+            let blocks: Vec<BlockNode> =
+                serde_json::from_str(&record.blocks_json).unwrap_or_default();
+            render::render_content_html(&state, &blocks).await
+        }
+    };
 
     let mut tags = crate::cdn::CacheTags::new();
     tags.add_url(&format!("/articles/{}", record.slug));
@@ -640,7 +658,7 @@ pub async fn render_article(
     crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
     let related_limit = state.config.theme.related_posts_limit;
-    let related_articles = if related_limit > 0 {
+    let related_articles = if related_limit > 0 && !gate.is_denied() {
         state
             .related_strategy
             .find_related(&state, &schema, &record, related_limit)
@@ -653,7 +671,11 @@ pub async fn render_article(
         tags.add_dependency("article", &rel.slug);
     }
 
-    let (prev_article, next_article) = find_adjacent_articles(&state, &schema, &record).await;
+    let (prev_article, next_article) = if gate.is_denied() {
+        (None, None)
+    } else {
+        find_adjacent_articles(&state, &schema, &record).await
+    };
     if let Some(ref prev) = prev_article {
         tags.add_dependency("article", &prev.id);
         tags.add_dependency("article", &prev.slug);
@@ -663,7 +685,11 @@ pub async fn render_article(
         tags.add_dependency("article", &next.slug);
     }
 
-    let comments = comments::page_section(&state, "article", &record.id).await;
+    let comments = if gate.is_denied() {
+        None
+    } else {
+        comments::page_section(&state, "article", &record.id).await
+    };
     let mut fields = record.custom_fields;
     TagLookup::load(&state, "article", std::slice::from_ref(&record.id))
         .await
@@ -686,6 +712,9 @@ pub async fn render_article(
         next_article,
     };
     let resp = themed_response(render::render_page(&state, &schema, page).await);
+    if gate.is_restricted() {
+        return access::make_private(resp);
+    }
     crate::cdn::apply_cache_tags(&state, resp, &tags)
 }
 
@@ -706,7 +735,12 @@ pub(crate) fn themed_response(result: Result<String, String>) -> Response {
 
 /// 公開中の固定ページ（`page`）を描画する。無い・非公開なら `None`。
 /// `path` はそのページを出している URL のパス（`/{slug}`、トップページなら `/`）
-async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<Response> {
+async fn render_fixed_page(
+    state: &AppState,
+    headers: &HeaderMap,
+    slug: &str,
+    path: &str,
+) -> Option<Response> {
     let schema = {
         let schemas = state.schemas.read().await;
         schemas.get("page").cloned()
@@ -721,10 +755,21 @@ async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<R
             is_currently_published(&r.status, r.unpublish_at.as_deref(), chrono::Utc::now())
         })?;
 
-    let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
-    let content_html = render::render_content_html(state, &blocks).await;
+    let gate = access::gate(state, headers, &record.custom_fields, path).await;
+    let content_html = match &gate {
+        Gate::Denied { notice_html } => notice_html.clone(),
+        _ => {
+            let blocks: Vec<BlockNode> =
+                serde_json::from_str(&record.blocks_json).unwrap_or_default();
+            render::render_content_html(state, &blocks).await
+        }
+    };
 
-    let comments = comments::page_section(state, "page", &record.id).await;
+    let comments = if gate.is_denied() {
+        None
+    } else {
+        comments::page_section(state, "page", &record.id).await
+    };
     let template = match record.custom_fields.get("layout").and_then(|v| v.as_str()) {
         Some("blank") => "blank.html".to_string(),
         Some(custom) if !custom.trim().is_empty() && custom != "default" => {
@@ -767,6 +812,9 @@ async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<R
         next_article: None,
     };
     let resp = themed_response(render::render_page(state, &schema, page).await);
+    if gate.is_restricted() {
+        return Some(access::make_private(resp));
+    }
     Some(crate::cdn::apply_cache_tags(state, resp, &tags))
 }
 
@@ -774,13 +822,14 @@ async fn render_fixed_page(state: &AppState, slug: &str, path: &str) -> Option<R
 pub async fn render_page_or_slug(
     State(state): State<Arc<AppState>>,
     Path(slug): Path<String>,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
     // 1. 固定ページ。トップページに出しているページは、canonical などの URL を `/` にする
     let path = match state.config.theme.front_page() {
         FrontPage::Page(front) if front == slug => "/".to_string(),
         _ => format!("/{}", slug),
     };
-    if let Some(resp) = render_fixed_page(&state, &slug, &path).await {
+    if let Some(resp) = render_fixed_page(&state, &headers, &slug, &path).await {
         return resp;
     }
 
@@ -794,9 +843,21 @@ pub async fn render_page_or_slug(
     if let Some(schema) = article_schema {
         if let Ok(Some(record)) = state.db.get_published_content(&schema, &slug).await {
             if is_currently_published(&record.status, record.unpublish_at.as_deref(), now) {
-                let blocks: Vec<BlockNode> =
-                    serde_json::from_str(&record.blocks_json).unwrap_or_default();
-                let content_html = render::render_content_html(&state, &blocks).await;
+                let gate = access::gate(
+                    &state,
+                    &headers,
+                    &record.custom_fields,
+                    &format!("/{}", record.slug),
+                )
+                .await;
+                let content_html = match &gate {
+                    Gate::Denied { notice_html } => notice_html.clone(),
+                    _ => {
+                        let blocks: Vec<BlockNode> =
+                            serde_json::from_str(&record.blocks_json).unwrap_or_default();
+                        render::render_content_html(&state, &blocks).await
+                    }
+                };
 
                 let mut tags = crate::cdn::CacheTags::new();
                 tags.add_url(&format!("/{}", record.slug));
@@ -807,8 +868,11 @@ pub async fn render_page_or_slug(
                 tags.add_dependency("comments", &record.id);
                 crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
-                let (prev_article, next_article) =
-                    find_adjacent_articles(&state, &schema, &record).await;
+                let (prev_article, next_article) = if gate.is_denied() {
+                    (None, None)
+                } else {
+                    find_adjacent_articles(&state, &schema, &record).await
+                };
                 if let Some(ref prev) = prev_article {
                     tags.add_dependency("article", &prev.id);
                     tags.add_dependency("article", &prev.slug);
@@ -818,9 +882,13 @@ pub async fn render_page_or_slug(
                     tags.add_dependency("article", &next.slug);
                 }
 
-                let comments = comments::page_section(&state, "article", &record.id).await;
+                let comments = if gate.is_denied() {
+                    None
+                } else {
+                    comments::page_section(&state, "article", &record.id).await
+                };
                 let related_limit = state.config.theme.related_posts_limit;
-                let related_articles = if related_limit > 0 {
+                let related_articles = if related_limit > 0 && !gate.is_denied() {
                     state
                         .related_strategy
                         .find_related(&state, &schema, &record, related_limit)
@@ -850,6 +918,9 @@ pub async fn render_page_or_slug(
                     next_article,
                 };
                 let resp = themed_response(render::render_page(&state, &schema, page).await);
+                if gate.is_restricted() {
+                    return access::make_private(resp);
+                }
                 return crate::cdn::apply_cache_tags(&state, resp, &tags);
             }
         }
@@ -1024,7 +1095,12 @@ mod tests {
         let page = |n: Option<u64>| {
             let state = state.clone();
             async move {
-                let resp = render_index(State(state), Query(IndexParams { page: n })).await;
+                let resp = render_index(
+                    State(state),
+                    Query(IndexParams { page: n }),
+                    HeaderMap::new(),
+                )
+                .await;
                 let status = resp.status();
                 let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
                     .await
@@ -1064,9 +1140,13 @@ mod tests {
         let state = create_test_state(PluginSupervisor::new()).await;
 
         // 1. 記事がない状態のトップページ
-        let resp = render_index(State(state.clone()), Query(IndexParams::default()))
-            .await
-            .into_response();
+        let resp = render_index(
+            State(state.clone()),
+            Query(IndexParams::default()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let body_bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -1122,9 +1202,13 @@ mod tests {
             .unwrap();
 
         // 3. 再度トップページを取得
-        let resp = render_index(State(state.clone()), Query(IndexParams::default()))
-            .await
-            .into_response();
+        let resp = render_index(
+            State(state.clone()),
+            Query(IndexParams::default()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let body_bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -1187,9 +1271,13 @@ mod tests {
             .unwrap();
 
         // 1. 公開記事の取得 -> 200 OK
-        let resp = render_article(State(state.clone()), Path("deep-dive".to_string()))
-            .await
-            .into_response();
+        let resp = render_article(
+            State(state.clone()),
+            Path("deep-dive".to_string()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -1199,9 +1287,13 @@ mod tests {
         assert!(html.contains("Detailed explanation of sandboxed Wasm plugins."));
 
         // 2. 下書き記事の取得 -> 404 NOT_FOUND
-        let resp = render_article(State(state.clone()), Path("unpublished-idea".to_string()))
-            .await
-            .into_response();
+        let resp = render_article(
+            State(state.clone()),
+            Path("unpublished-idea".to_string()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         let bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -1210,9 +1302,13 @@ mod tests {
         assert!(html.contains("Page Not Found"));
 
         // 3. 存在しないスラッグ -> 404 NOT_FOUND
-        let resp = render_article(State(state.clone()), Path("non-existent".to_string()))
-            .await
-            .into_response();
+        let resp = render_article(
+            State(state.clone()),
+            Path("non-existent".to_string()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
@@ -1269,9 +1365,13 @@ mod tests {
         state.db.insert_content(&schema, &record).await.unwrap();
 
         // 1. トップページでプラグインの on-render-page によるタイトル書き換えとCSS注入を検証
-        let resp = render_index(State(state.clone()), Query(IndexParams::default()))
-            .await
-            .into_response();
+        let resp = render_index(
+            State(state.clone()),
+            Query(IndexParams::default()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -1281,9 +1381,13 @@ mod tests {
         assert!(html.contains("--accent: #00ffcc"));
 
         // 2. 記事ページで動的オーバーライドされたテンプレートが適用されていることを検証
-        let resp = render_article(State(state.clone()), Path("neon-horizon".to_string()))
-            .await
-            .into_response();
+        let resp = render_article(
+            State(state.clone()),
+            Path("neon-horizon".to_string()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -1348,9 +1452,13 @@ mod tests {
             .unwrap();
 
         // Standard page は site-header や page-detail を含む
-        let resp = render_page_or_slug(State(state.clone()), Path("about".to_string()))
-            .await
-            .into_response();
+        let resp = render_page_or_slug(
+            State(state.clone()),
+            Path("about".to_string()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -1362,9 +1470,13 @@ mod tests {
         assert!(html.contains("site-header"));
 
         // Blank LP は site-header や site-footer を含まず、フル幅で出力される
-        let resp = render_page_or_slug(State(state.clone()), Path("lp".to_string()))
-            .await
-            .into_response();
+        let resp = render_page_or_slug(
+            State(state.clone()),
+            Path("lp".to_string()),
+            HeaderMap::new(),
+        )
+        .await
+        .into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
@@ -1471,8 +1583,15 @@ mod tests {
         );
 
         // トップはテーマの front.html。最新の記事と、続きのページ（/articles?page=2）を渡す
-        let (status, front) =
-            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        let (status, front) = body_of(
+            render_index(
+                State(state.clone()),
+                Query(IndexParams::default()),
+                HeaderMap::new(),
+            )
+            .await,
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         assert!(front.contains("FRONT[post-3 post-2 ]"), "{}", front);
         assert!(front.contains("next=/articles?page=2"), "{}", front);
@@ -1488,8 +1607,15 @@ mod tests {
 
         // テーマに front.html が無ければ記事一覧と同じ表示
         state.theme.unregister_template("front.html");
-        let (status, fallback) =
-            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        let (status, fallback) = body_of(
+            render_index(
+                State(state.clone()),
+                Query(IndexParams::default()),
+                HeaderMap::new(),
+            )
+            .await,
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         assert!(fallback.contains("/articles/post-3"), "{}", fallback);
     }
@@ -1500,8 +1626,15 @@ mod tests {
         insert_published(&state, "article", "post-1", 1, &[], HashMap::new()).await;
 
         // ページが無いうちは記事一覧
-        let (status, html) =
-            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        let (status, html) = body_of(
+            render_index(
+                State(state.clone()),
+                Query(IndexParams::default()),
+                HeaderMap::new(),
+            )
+            .await,
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         assert!(html.contains("/articles/post-1"), "{}", html);
 
@@ -1514,8 +1647,15 @@ mod tests {
             HashMap::new(),
         )
         .await;
-        let (status, html) =
-            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        let (status, html) = body_of(
+            render_index(
+                State(state.clone()),
+                Query(IndexParams::default()),
+                HeaderMap::new(),
+            )
+            .await,
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         assert!(html.contains("Welcome to the home page."), "{}", html);
         assert!(!html.contains("/articles/post-1"));
@@ -1663,8 +1803,15 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         // 各ページの <head> にフィードの自動検出用のリンクが入る
-        let (_, html) =
-            body_of(render_index(State(state.clone()), Query(IndexParams::default())).await).await;
+        let (_, html) = body_of(
+            render_index(
+                State(state.clone()),
+                Query(IndexParams::default()),
+                HeaderMap::new(),
+            )
+            .await,
+        )
+        .await;
         assert!(
             html.contains(r#"type="application/atom+xml""#) && html.contains(r#"href="/feed.xml""#),
             "{}",
@@ -1679,9 +1826,13 @@ mod tests {
         insert_published(&state, "article", "second-post", 2, &[], HashMap::new()).await;
 
         let (status, html) = body_of(
-            render_article(State(state.clone()), Path("first-post".to_string()))
-                .await
-                .into_response(),
+            render_article(
+                State(state.clone()),
+                Path("first-post".to_string()),
+                HeaderMap::new(),
+            )
+            .await
+            .into_response(),
         )
         .await;
         assert_eq!(status, StatusCode::OK);
@@ -1710,9 +1861,13 @@ mod tests {
         insert_published(&state, "article", "second-post", 2, &[], HashMap::new()).await;
 
         let (status, html) = body_of(
-            render_article(State(state.clone()), Path("first-post".to_string()))
-                .await
-                .into_response(),
+            render_article(
+                State(state.clone()),
+                Path("first-post".to_string()),
+                HeaderMap::new(),
+            )
+            .await
+            .into_response(),
         )
         .await;
         assert_eq!(status, StatusCode::OK);

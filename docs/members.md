@@ -385,9 +385,9 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 
 ### 15.5 キャッシュ
 
-- ゲストと、ログインのない要求には、切った版を共有キャッシュに載せてよい。
-- 会員（Cookie あり）の要求は、キャッシュのキーにレベルを含めるか、`private, no-store` にする。前者は効率が良いが、CDN の設定（`Vary: Cookie` を避けたい）と相性が悪い。**まず `private, no-store`**（レベルが要る記事のときだけ）にして、重ければ後から詰める。
-- 記事の `access` を変えたら、その記事のキャッシュタグをパージする。会員のレベルを変えても、会員の応答は `private` なので影響しない。
+- **`access` のある記事・ページは、ゲストの応答も含めて、いつも `Cache-Control: private, no-store`**（`Cache-Tag` も付けない）。ゲスト向けの案内を共有キャッシュ・CDN が覚えると、同じ URL に来た会員（Cookie を見ない CDN）にも案内が返ってしまうため。`Vary: Cookie` で分ける方法もあるが、CDN の設定と相性が悪いので、まずはこちらにする。
+- `access` が無い（または `public` の）記事・ページは、これまでどおり共有キャッシュに載せる。
+- 保存すると、これまでどおり記事・ページのキャッシュタグがパージされるので、`access` を足した・外した直後に古い応答が残らない。
 
 ### 15.6 プレビューとの関係
 
@@ -396,7 +396,8 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 ### 15.7 実装の分け方
 
 1. **判定の核**（会員側は**済**）: `[members].levels`、会員の `level`（列 `_aegis_members.level`・API の応答・`PUT /api/v1/admin/members/{id}/level`・管理画面の会員の詳細で付与）、判定の関数 `aegis_members::may_view`（`Viewer` と必要なレベルから見られるかを返す。設定にないレベルは見せない）。記事・ページの `access` の欄と、閲覧者の種類の判定（Cookie / Bearer から）は 2 で、公開ページに効かせるときに足す。
-2. **公開ページ**: 記事・ページを閲覧者で切る（全体の制限）、案内の表示、キャッシュの扱い（15.5）、テスト。
+2. **公開ページ**（**済**）: 記事・ページを閲覧者で切る（全体の制限）、案内の表示、キャッシュの扱い（15.5）、テスト。`crates/aegis-server/src/handlers/access.rs` の `gate` が、`fields["access"]` と閲覧者（会員の Cookie / Bearer）から `Open`（制限なし）・`Allowed`・`Denied` を返す。`Denied` は本文を**描画せず**（HTML に出さない）、案内（`<div class="aegis-access-notice">`）を本文の代わりに出し、コメント欄・関連記事・前後の記事も出さない。ゲストにはログインと会員登録（`/account/login?next=<この記事のパス>`。ログイン後にこの記事へ戻る。`next` はサイト内のパスだけ受け付ける）、レベルが足りない会員には必要なレベルと、`[members].upgrade_url` があればそのリンクを出す。会員アカウントが無効なサイトでは、ログインのリンクを出さない。
+   - **`access` の欄は、同梱のスキーマ（`schemas/*.yaml`）にまだ無い**。記事・ページのスキーマに `- name: access` / `type: string` / `nullable: true` を足すと効く。**4 が済むまでは足さない**（フィード・検索・API には、制限した本文がそのまま出る）。
 3. **「ここから先」**: 区切りのブロック（core・Markdown との往復・エディター）、本文の切り出し。
 4. **漏れ口を塞ぐ**: フィード・検索・関連記事・ヘッドレス API・構造化データ（15.4）、回帰テスト（制限した本文が、どの面にも出ない）。
 5. **プレビューの閲覧者切り替え**（15.6）。

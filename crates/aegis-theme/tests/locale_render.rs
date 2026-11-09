@@ -329,6 +329,8 @@ fn plain_texts() -> Vec<(&'static str, &'static str, &'static str)> {
             !key.starts_with("js.")
                 && !key.starts_with("maintenance.")
                 && !key.starts_with("theme.")
+                // 閲覧の制限の案内（サーバーのコードが本文の代わりに出す。テンプレートには現れない）
+                && !key.starts_with("access.")
                 // サーバーのコードが画面に出す文言（テンプレートには現れない）
                 && *key != "forum.former_user"
                 && en != ja
