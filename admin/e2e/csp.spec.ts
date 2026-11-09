@@ -433,8 +433,8 @@ test("public pages run under the default CSP: no <style> element is blocked and 
     const styleSrc = csp.split(';').find((d) => d.trim().startsWith('style-src ')) ?? '';
     expect(styleSrc, path).not.toContain('unsafe-inline');
     expect(styleSrc, path).toContain("'sha256-");
-    // The `style=""` attributes are still allowed for now (style-src-attr)
-    expect(csp, path).toContain("style-src-attr 'unsafe-inline'");
+    // No `style=""` attribute is allowed either
+    expect(csp, path).not.toContain('style-src-attr');
     await page.waitForTimeout(200);
     const blocked = (await violations(page)).filter((v) => v.directive.startsWith('style-src'));
     expect(blocked, path).toEqual([]);
@@ -461,7 +461,7 @@ test('a core/html block in sandbox mode still runs its script and syncs its heig
         {
           name: 'core/html',
           attributes: { mode: 'sandbox' },
-          text: '<div id="w" style="height:300px">widget</div><script>document.getElementById("w").textContent="script ran";</script>',
+          text: '<style>#w{height:300px}</style><div id="w">widget</div><script>document.getElementById("w").textContent="script ran";</script>',
         },
       ],
     },

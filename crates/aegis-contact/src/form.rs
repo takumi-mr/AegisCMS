@@ -303,7 +303,7 @@ pub fn form_html_with_captcha(
     }
     // ボット除け: 人には見えない欄。値が入っていたら保存しない
     html.push_str(&format!(
-        "<div class=\"aegis-contact-trap\" aria-hidden=\"true\" style=\"position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden\">\
+        "<div class=\"aegis-contact-trap\" aria-hidden=\"true\">\
          <label>Leave this empty <input type=\"text\" name=\"{}\" tabindex=\"-1\" autocomplete=\"off\"></label></div>\n",
         HONEYPOT_FIELD
     ));

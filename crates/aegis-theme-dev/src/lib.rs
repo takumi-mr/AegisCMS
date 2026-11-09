@@ -61,6 +61,9 @@ pub enum CspMode {
 const LONG_POLL: Duration = Duration::from_secs(25);
 const WATCH_INTERVAL: Duration = Duration::from_millis(300);
 
+/// 開発サーバー自身のページ（一覧・エラー・お知らせ／同意バナーの枠）のスタイル。`style` 属性は Strict CSP で止まるので、クラスにする
+const DEV_CSS: &str = ".dev-doc{margin:0;font-family:system-ui}.dev-tall{min-height:100vh}.dev-note{opacity:.55;margin:1rem}.dev-page{font-family:system-ui;margin:2rem}.dev-narrow{max-width:40rem}.dev-error{color:#b00020}.dev-pre{white-space:pre-wrap;background:#fdecea;padding:1rem;border-radius:6px}";
+
 /// ページに差し込む自動再読み込みのスクリプト（本文。Strict CSP のためにハッシュを登録して出す）
 const RELOAD_JS: &str = "(async()=>{let v='';for(;;){try{const r=await fetch('/__dev/version'+(v===''?'':'?since='+v));const j=await r.json();if(v!==''&&String(j.version)!==v){location.reload();return}v=String(j.version)}catch(e){await new Promise(r=>setTimeout(r,1000))}}})()";
 
@@ -508,8 +511,9 @@ fn as_document_inner(template: &str, html: String) -> String {
     if template == "notices.html" {
         // お知らせバナーはページの上に出る。閉じるボタンは、スクリプトが動くサイトでだけ出る
         return format!(
-            "<!doctype html><html><head><meta charset=\"utf-8\"><style>{css}</style></head><body style=\"margin:0;font-family:system-ui\">{html}<p style=\"opacity:.55;margin:1rem\">(the page below the notices)</p></body></html>",
+            "<!doctype html><html><head><meta charset=\"utf-8\"><style>{css}{dev}</style></head><body class=\"dev-doc\">{html}<p class=\"dev-note\">(the page below the notices)</p></body></html>",
             css = include_str!("../assets/notices.css"),
+            dev = DEV_CSS,
             html = html
         );
     }
@@ -517,8 +521,9 @@ fn as_document_inner(template: &str, html: String) -> String {
         return html;
     }
     format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><style>{css}</style></head><body style=\"min-height:100vh;margin:0;font-family:system-ui\"><p style=\"opacity:.55;margin:1rem\">(the page behind the banner)</p>{html}</body></html>",
+        "<!doctype html><html><head><meta charset=\"utf-8\"><style>{css}{dev}</style></head><body class=\"dev-doc dev-tall\"><p class=\"dev-note\">(the page behind the banner)</p>{html}</body></html>",
         css = include_str!("../assets/consent.css"),
+        dev = DEV_CSS,
         html = html
     )
 }
@@ -570,7 +575,8 @@ async fn csp_middleware(State(state): State<DevState>, req: Request, next: Next)
 
 fn error_page(title: &str, detail: &str) -> Html<String> {
     Html(with_reload(format!(
-        "<!doctype html><meta charset=\"utf-8\"><title>{t}</title><body style=\"font-family:system-ui;margin:2rem\"><h1 style=\"color:#b00020\">{t}</h1><pre style=\"white-space:pre-wrap;background:#fdecea;padding:1rem;border-radius:6px\">{d}</pre></body>",
+        "<!doctype html><meta charset=\"utf-8\"><title>{t}</title>{style}<body class=\"dev-page\"><h1 class=\"dev-error\">{t}</h1><pre class=\"dev-pre\">{d}</pre></body>",
+        style = aegis_core::csp::inline_style_tag(DEV_CSS),
         t = escape(title),
         d = escape(detail)
     )))
@@ -583,7 +589,8 @@ async fn index_page(State(state): State<DevState>) -> Html<String> {
         .map(|m| m.name)
         .unwrap_or_else(|| "(no theme.json)".to_string());
     let mut body = format!(
-        "<!doctype html><meta charset=\"utf-8\"><title>Theme dev: {n}</title><body style=\"font-family:system-ui;margin:2rem;max-width:40rem\"><h1>{n}</h1><p>Pick a page to preview. It reloads when you save a file.</p><ul>",
+        "<!doctype html><meta charset=\"utf-8\"><title>Theme dev: {n}</title>{style}<body class=\"dev-page dev-narrow\"><h1>{n}</h1><p>Pick a page to preview. It reloads when you save a file.</p><ul>",
+        style = aegis_core::csp::inline_style_tag(DEV_CSS),
         n = escape(&name)
     );
     for s in &samples {
@@ -596,7 +603,7 @@ async fn index_page(State(state): State<DevState>) -> Html<String> {
     }
     body.push_str("</ul>");
     for e in &errors {
-        body.push_str(&format!("<p style=\"color:#b00020\">{}</p>", escape(e)));
+        body.push_str(&format!("<p class=\"dev-error\">{}</p>", escape(e)));
     }
     body.push_str("</body>");
     Html(with_reload(body))

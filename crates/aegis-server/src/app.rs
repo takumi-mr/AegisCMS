@@ -1007,7 +1007,12 @@ async fn security_headers_middleware(
             .and_then(|v| v.to_str().ok())
             .unwrap_or_default()
             .replace("frame-ancestors 'self'", "frame-ancestors *");
-        let csp = format!("{} sandbox allow-scripts;", csp.trim_end());
+        let mut csp = format!("{} sandbox allow-scripts;", csp.trim_end());
+        // メールのプレビューは `style` 属性で作る（HTML メールの作り方）。属性だけ許す
+        let attr = headers.remove("x-preview-style-attr");
+        if attr.is_some_and(|v| v == "1") {
+            csp.push_str(" style-src-attr 'unsafe-inline';");
+        }
         if let Ok(value) = axum::http::HeaderValue::from_str(csp.trim()) {
             headers.insert(axum::http::header::CONTENT_SECURITY_POLICY, value);
         }

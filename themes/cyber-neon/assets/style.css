@@ -322,3 +322,18 @@ footer.cyber-footer {
     gap: 0.5rem 1rem;
   }
 }
+
+/* Classes that replace the inline style="" attributes of the templates (the public CSP forbids them) */
+.ts-1{text-align: center !important;padding: 6rem 1rem !important}
+.ts-2{font-size: 1.2rem !important;margin-bottom: 1rem !important}
+.ts-3{font-size: 4rem !important;color: var(--cyber-magenta) !important;text-shadow: var(--cyber-magenta-glow) !important}
+.ts-4{margin: 1.5rem auto !important;max-width: 500px !important}
+.ts-5{font-size: 1.1rem !important;margin-top: 2rem !important}
+.ts-6{margin-bottom: 0.8rem !important}
+.ts-7{margin-top: 4rem !important;padding-top: 2rem !important;border-top: 1px solid var(--cyber-border) !important}
+.ts-8{list-style: none !important;display: flex !important;flex-wrap: wrap !important;gap: 0.5rem !important;padding: 0 !important;margin: 2rem 0 0 !important}
+.ts-9{display: inline-block !important;padding: 0.15rem 0.7rem !important;border: 1px solid currentColor !important;border-radius: 999px !important;font-size: 0.8rem !important;color: inherit !important;text-decoration: none !important;opacity: 0.75 !important}
+.ts-10{color: var(--cyber-cyan) !important}
+.ts-11{grid-column: 1 / -1 !important;padding: 4rem !important;text-align: center !important;border: 1px dashed var(--cyber-border) !important}
+.ts-12{color: var(--cyber-muted) !important;font-family: var(--font-cyber) !important}
+.ts-13{display: flex !important;align-items: center !important;justify-content: space-between !important;gap: 1rem !important;margin-top: 2.5rem !important}

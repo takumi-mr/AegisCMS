@@ -41,6 +41,7 @@ const STYLE: &str = "<style>\
 :where(.aegis-newsletter-form){display:flex;flex-direction:column;gap:.75rem;margin:1.5rem 0;max-width:30rem}\
 :where(.aegis-newsletter-form) input[type=email]{font:inherit;color:inherit;background:transparent;border:1px solid rgba(127,127,127,.45);border-radius:6px;padding:.55rem .7rem;width:100%;box-sizing:border-box}\
 :where(.aegis-newsletter-submit){align-self:flex-start;font:inherit;font-weight:600;padding:.6rem 1.4rem;border-radius:6px;border:1px solid rgba(127,127,127,.45);background:rgba(127,127,127,.12);color:inherit;cursor:pointer}\
+:where(.aegis-newsletter-notice,.aegis-newsletter-sent) p{margin:0}\
 :where(.aegis-newsletter-notice){border-left:3px solid #ef4444;padding:.5rem .9rem;margin:1rem 0}\
 :where(.aegis-newsletter-sent){border-left:3px solid #10b981;padding:.75rem 1rem;margin:1.5rem 0}\
 </style>";
@@ -152,7 +153,7 @@ async fn render_page(
 
 fn notice(class: &str, text: &str) -> String {
     format!(
-        "<div class=\"aegis-newsletter-{}\" role=\"{}\"><p style=\"margin:0\">{}</p></div>",
+        "<div class=\"aegis-newsletter-{}\" role=\"{}\"><p>{}</p></div>",
         class,
         if class == "sent" { "status" } else { "alert" },
         aegis_ast::renderer::escape_html(text)

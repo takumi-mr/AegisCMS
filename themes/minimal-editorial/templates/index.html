@@ -23,13 +23,13 @@
     </div>
   </article>
   {% else %}
-  <div style="grid-column: 1 / -1; padding: 4rem; text-align: center; color: var(--ed-muted); font-style: italic;">
+  <div class="ts-9">
     {{ t("theme.editorial.empty") }}
   </div>
   {% endfor %}
 </section>
 {% if pagination and pagination.total_pages > 1 %}
-<nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem;">
+<nav class="pagination ts-10" aria-label="{{ t("pagination.label") }}">
   {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="ed-card-link">&larr; {{ t("theme.editorial.pagination_newer") }}</a>{% else %}<span></span>{% endif %}
   <span>{{ t("pagination.page", page=pagination.page, total=pagination.total_pages) }}</span>
   {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="ed-card-link">{{ t("theme.editorial.pagination_older") }} &rarr;</a>{% else %}<span></span>{% endif %}

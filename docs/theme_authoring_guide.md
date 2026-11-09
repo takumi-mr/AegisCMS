@@ -307,7 +307,7 @@ themes/my-theme/
 
 ### 6a-2. `<style>` の書き方
 
-`style-src` からも `'unsafe-inline'` が無い（Strict）ので、テンプレートに直接書いた `<style>…</style>` は止まります。**`{% filter inline_style %}…{% endfilter %}`** で包むか（`{{ inline_style("CSS") }}` でもよい）、`assets/*.css` を `<link>` で読んでください。ホストがタグを作り、本文のハッシュを CSP に登録します。`style=""` 属性は、当面そのまま使えます（[csp.md の 6.1](csp.md#61-スタイルstyle-はハッシュstyle-属性は当面許す)）。
+`style-src` からも `'unsafe-inline'` が無い（Strict）ので、テンプレートに直接書いた `<style>…</style>` は止まります。**`{% filter inline_style %}…{% endfilter %}`** で包むか（`{{ inline_style("CSS") }}` でもよい）、`assets/*.css` を `<link>` で読んでください。ホストがタグを作り、本文のハッシュを CSP に登録します。**`style="…"` 属性も止まります**（CSP の `style-src` が属性にも効く）。クラスにして、`<style>`（`inline_style`）かスタイルシートに書いてください。値が動的なときは、値ごとのクラスを用意するか、`data-*` 属性と CSS の `attr()`／クラスの切り替えにします。同梱のテーマは `assets/style.css` のクラス（`ts-<番号>`）に置き換え済みです（[csp.md の 6.1](csp.md#61-スタイルstyle-はハッシュstyle-属性は使わない)）。
 
 ## 6b. フォント（外部のスタイルシートは CSP に止められる）
 
