@@ -174,6 +174,10 @@ pub struct ServerConfig {
     /// 公開ページに出る識別子（CSS のクラス名・`id`・`data-*` 属性・Cookie と localStorage のキー・JS のグローバル名・
     /// `/_<namespace>/` の配信パス）の接頭辞（既定: `cms`）。読み出しは `namespace` を使う
     pub namespace: String,
+    /// 別のオリジンから認証つきの API を呼ぶことを許すオリジン（例: `["https://admin.example.com"]`）。
+    /// 既定（空）は、公開の読み取り（`/api/` の外・`/api/v1/public/`・`/api/v1/search`）だけ全オリジン、
+    /// それ以外は同一オリジンだけ。`"*"` で全オリジンに全メソッド（前の動き）。docs/configuration.md の 4.3
+    pub cors_origins: Vec<String>,
 }
 
 impl Default for ServerConfig {
@@ -184,6 +188,7 @@ impl Default for ServerConfig {
             base_path: String::new(),
             admin_path: DEFAULT_ADMIN_PATH.to_string(),
             namespace: DEFAULT_NAMESPACE.to_string(),
+            cors_origins: Vec::new(),
         }
     }
 }

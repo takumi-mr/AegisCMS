@@ -7,6 +7,11 @@ base_path = ""
 # Prefix of the names the public pages use (CSS classes, ids, data-* attributes, cookie / localStorage keys,
 # JS globals and the /_<namespace>/ asset path). Lowercase letters and digits, up to 16. See docs/configuration.md 4.6
 # namespace = "cms"
+# Origins that may call the authenticated API from another site (e.g. Admin Studio served from another domain,
+# or a headless client with a token). Public reads (public pages, /uploads/, /api/v1/public/, /api/v1/search)
+# are open to every origin; everything else is same-origin only. "*" restores the old open policy.
+# See docs/configuration.md 4.3.1
+# cors_origins = ["https://admin.example.com"]
 
 [database]
 # Backend: "sqlite" | "postgres" | "mysql" (auto-inferred from url if omitted)

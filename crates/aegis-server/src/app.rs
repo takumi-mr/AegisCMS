@@ -10,7 +10,6 @@ use axum::{
     Router,
 };
 use tower::ServiceBuilder;
-use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
@@ -21,10 +20,10 @@ use aegis_storage::StorageBackendKind;
 
 /// API・公開サイト・静的ファイルのルーター（パスはすべてルート `/` 起点）
 pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let cors = axum::middleware::from_fn_with_state(
+        Arc::new(crate::cors::CorsPolicy::new(&config.server.cors_origins)),
+        crate::cors::cors_middleware,
+    );
 
     let mut app = Router::new()
         .route("/health", get(handlers::health_check))
