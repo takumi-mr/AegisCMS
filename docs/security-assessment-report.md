@@ -11,9 +11,25 @@
 | 攻撃元 | Windows ネイティブ（PowerShell / curl）および Docker 内部ネットワーク上の OWASP ZAP (2.17.0) コンテナ |
 | 想定対象 | Docker 内の AegisCMS（`127.0.0.1:18080`、内部名 `target:8080`）およびローカル開発プロセス |
 | 評価環境 | Windows 11 / Docker Desktop (WSL2 engine) |
-| 記録日 | 2026-10-26 (初版), 2026-11-02 (改訂: Windows ネイティブ検査、未認証 Web/API スキャン、ログイン済み Authenticated スキャン実施) |
+| 記録日 | 2026-10-26 (初版), 2026-11-02 (改訂: Windows ネイティブ検査、未認証 Web/API スキャン、ログイン済み Authenticated スキャン実施), 2026-11-09 (再検査: Strict CSP 導入後の未認証・認証済みスキャンを再実施) |
 
 ---
+
+## 2026-11-09 再検査（Strict CSP 導入後）
+
+公開ページの CSP を Strict（`script-src` / `style-src` に `'unsafe-inline'`・`'unsafe-eval'` なし。インラインのスクリプトと `<style>` は本文のハッシュで許し、`style=""` 属性は使わない）にした後（[csp.md](csp.md)）、Docker の使い捨て環境（OWASP ZAP stable、未認証プロファイルと管理者セッション注入の認証済みプロファイル）で再検査しました。
+
+| プロファイル | High | Medium | Low | Info | 前回（11-02）の Medium |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 未認証（Low 強度） | 0 | 2 | 0 | 1 | 6 |
+| 認証済み（Medium 強度） | 0 | 2 | 1 | 1 | 6 |
+
+- **解消**: CSP の `unsafe-inline`・`unsafe-eval` に関する警告、SRI 属性の警告（4 件）。公開ページと API の CSP から `'unsafe-inline'` が消え、Admin Studio も `script-src 'self'` / `style-src 'self'` のまま。
+- **残り（Medium 2）**: ① CSP: Wildcard Directive — `img-src` と `font-src` の `https:`（本文の外部画像・外部フォントを許すための設計。`/`・`/admin/`・`/api`・`/setup` で検出）。② Cross-Domain Misconfiguration — `Access-Control-Allow-Origin: *`（F-02。認証は Cookie ではなくトークンで、`Allow-Credentials` は返さない）。
+- **残り（Low 1、認証済みのみ）**: Private IP Disclosure（監査ログのアクセス元 IP。P-05）。
+- **High・SQL インジェクション・コマンドインジェクション・認証回避・権限昇格: 0 件**。
+- **この検査の限界**: ZAP の走査は、今回 45 URL（未認証 43）で、11-02 の 86 URL より少ない。シードの一部（`/api/v1/roles`・`/audit/logs`・`/backup/list`・`/forum/topics`・`/contact/forms` など）が現在のルートと合わず 404 で、クロールの起点が減っている（`docker/pentest/*.yaml` の見直しが必要）。また、会員制の閲覧制限・プレビューのフレーム・プラグインの出力など、**ZAP が自動では確かめにくい論理・設計面は、このスキャンでは見ていない**（これらは単体・統合・E2E のテストで確認している）。
+- 未認証プロファイルは、初期セットアップ前のインスタンスに対して実行した（認証済みはセットアップ後）。
 
 ## 実施状況と最新サマリー（2026-11-02 改訂）
 
@@ -65,6 +81,7 @@
 | P-03 | Web インストーラー多重初期化防止 | 未初期化時の `/api/v1/setup` による管理者登録成功後、再度の初期化呼び出しは `403 Forbidden` (`ALREADY_INITIALIZED`) で遮断。`/setup` は `/admin/` へリダイレクトされることを確認。 | 期待どおり |
 | P-04 | RBAC 権限昇格防止 | `viewer` によるコンテンツ作成・更新、ユーザー管理、監査ログの呼び出しは 403。`editor` によるユーザー管理、監査ログの呼び出しも 403 で遮断。 | 期待どおり |
 | P-05 | 監査ログのプライベート IP 露出 | `/api/v1/audit-logs`（admin限定）の監査レコードにログイン元クライアント IP（`172.20.0.3`）が含まれ、ZAP により Private IP Disclosure (Low) として検出。監査証跡としての正規機能であるが、内部コンテナネットワーク情報の露出に該当。 | 仕様・低リスク |
+| F-05 | CSP の `unsafe-inline`・`unsafe-eval`（ZAP の Medium 警告） | 公開ページ・API・Admin Studio のいずれの CSP にも `'unsafe-inline'`・`'unsafe-eval'` を含まない（Strict CSP。インラインはハッシュ、`style` 属性は不使用）。2026-11-09 の再検査で当該警告と SRI 警告が消えたことを確認。残るのは `img-src` / `font-src` の `https:` のみ | 対応完了 |
 | N-01 | nmap サービス確認 | `127.0.0.1:18080` のみ開放、nginx ingress による `server_tokens off` で詳細バージョン非開示を確認。 | 完了 |
 | N-02 | metrics エンドポイント | `/metrics` はデフォルト設定で 404（Prometheus sink 未有効化時）。不必要なメトリクス露出なし。 | 完了 |
 
@@ -106,7 +123,7 @@
    - 本番環境では環境変数（`AEGIS_ADMIN_PASSWORD` 等）または CLI（`aegis-server init`）による事前初期化を行うか、セットアップ完了までリバースプロキシで `/setup` および `/api/v1/setup` へのアクセスを内部ネットワークに限定することを推奨します。
 2. **CORS 設定の環境別チューニング（F-02 関連）**:
    - 現状は開発および Admin Studio 分離配信の利便性のため `*` 許可となっていますが、本番環境では許可オリジンを設定ファイルで明示的に指定できるようにすることが望まれます。
-3. **CSP の本番向け厳格化（中長期検討）**:
-   - 現在の CSP は Vite/Admin Studio の開発・運用互換性のため `unsafe-inline` / `unsafe-eval` を許容しています。Admin Studio の「設定 › ヘッダー」画面から CSP をカスタマイズすることで ZAP の CSP 警告 4 件は即座に解消可能です。Nonce ベースまたはビルド時ハッシュによる CSP への移行を検討することで、より強固な XSS 多重防御が実現できます。
+3. **CSP の厳格化（2026-11-09 時点で実施済み）**:
+   - `unsafe-eval` の除去、Admin Studio の `script-src` / `style-src` の `'self'` 化、公開ページのハッシュ方式の Strict CSP（`strict_csp = "on"` が既定）、`style=""` 属性の廃止まで完了。残るのは `img-src` / `font-src` の `https:`（外部画像・フォントを許す設計）。外部画像を使わない運用なら、「設定 › ヘッダー」で CSP を絞れます。
 4. **内部 IP の監査ログ表示方針（P-05 関連）**:
    - リバースプロキシ配下での運用時、X-Forwarded-For などのヘッダーの信頼性設定と合わせて、内部ネットワークのアドレスが外部へ漏洩しないよう考慮することが推奨されます。
