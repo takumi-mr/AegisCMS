@@ -26,6 +26,8 @@
 | `GET /api/v1/admin/members`・`/{id}`、`PATCH` | 会員の一覧・詳細・状態（`active` / `suspended`）の変更（`editor` 以上） |
 | `PUT /api/v1/admin/members/{id}/level` | 会員の権限レベルの変更（`admin` のみ。§15） |
 | `/api/v1/admin/reviews`・`/settings`・`/bulk`・`/{id}`・`/{id}/reply` | レビューの管理（承認・一括・返信・設定） |
+| `POST` / `GET /api/v1/members/purchases` | 記事の購入を始める・自分の購入の一覧（`[members.purchase].enabled` のとき。§16） |
+| `POST /api/v1/members/webhooks/stripe` | 購入の入金・返金の通知（Stripe の署名つき。§16） |
 
 - 認証は `Authorization: Bearer mses_...`（API のクライアント向け）。セッションはキャッシュに置き、既定で 30 日。
 - パスワードは Argon2id。登録済みのメールでの登録は `409`。
@@ -267,7 +269,7 @@ Admin Studio の「ショップ」に 2 つの画面を足します（API は実
 | キャッシュのキー | `customer_session:` など → `member_session:` など |
 | 監査ログ `customer.*`、通知テンプレート `customer.*` | `member.*`（過去の監査ログの行はそのまま読める。通知テンプレートを上書きしているサイトは、ファイル名を `member.password_reset.txt` などに直す） |
 | 管理 API の `shop/config` | `customers_enabled` → `members_enabled` |
-| バックアップ（`task dump`） | 会員は `database/members.json`。**古いバックアップ（`database/customers.json`、注文・レビューの `customer_id`）も復元できる** |
+| バックアップ（`task dump`） | 会員は `database/members.json`、購入は `database/purchases.json`（古いバックアップには無い）。**古いバックアップ（`database/customers.json`、注文・レビューの `customer_id`）も復元できる** |
 
 古い DB の移行は、列と表の名前を直す SQL を実行します（自動では直しません。システム表を途中まで更新しない方針は今までと同じ）。
 
@@ -411,4 +413,102 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 3. **「ここから先」**（**済**）: 区切りのブロック `core/paywall`（Markdown は `<!-- paywall -->`。往復テスト・エディター）、本文の切り出し（15.3）。
 4. **漏れ口を塞ぐ**（**済**）: 15.4 の表の面を、すべて同じ約束にそろえた。本文を閲覧者によらず出す面（フィード・検索・一覧・関連記事・タグ・ヘッドレス API）は `aegis_ast::public_blocks`（だれにでも見せてよい部分。いまは無し。3 で区切りより前を返す）と `handlers::access::summary_excerpt`（書き手の `excerpt` を優先）を通す。制限した記事のコメントの API は、本文と同じ判定（見られないなら `403`・`access_restricted`）。制限したページの `<head>` に `isAccessibleForFree: false` の JSON-LD を出す。回帰テスト（`access_tests.rs`）は、制限した本文がどの面にも出ないこと、制限していない記事は従来どおりなことを確かめる。管理画面の記事・ページの編集に「閲覧できる人」の選択を足した（会員アカウントが有効なときだけ。選択肢は `GET /api/v1/shop/config` の `member_levels`）。
 5. **プレビューの閲覧者切り替え**（**済**。15.6）。
-6. **付与の入口**（別の話）: 商品購入との連動、外部決済。
+6. **付与の入口**: 購入（記事の単独購入・サブスク）。§16。
+
+---
+
+## 16. 購入（記事の単独購入・サブスク）
+
+会員に閲覧の権利を付ける**入口**です。閲覧を決める判定（§15 の `decide`）は変えず、「権利がある」と判定される条件を 2 つ足します。
+
+- **記事単独購入**: その記事だけを一度の支払いで読めるようにする。
+- **サブスク**: 自動更新の支払いで、会員レベル（`[members].levels`）を得る。支払いの単位（月・年・N か月など）は設定で決める。
+
+### 16.1 決めたこと
+
+- 決済は **Stripe Checkout**（カード情報は AegisCMS を通らない）。ほかの決済サービスは、需要が出てから抽象を切る。
+- 買えるのは**会員だけ**。ゲストが買うと、権利を結びつける先がない（メールアドレスだけの購入は、ほかの端末で読めない・取り戻せない）。ゲストには、ログイン・登録のあとで購入へ進む案内を出す。
+- **ショップ（`[commerce]`）の注文とは独立**。購入は注文・在庫・カートを使わず、`[commerce].enabled = false` でも動く。会計の画面（Orders）にも出ない。
+- **金額はサーバーが決める**。購入を始めるリクエストは記事（型とスラッグ）やプランの ID だけを送り、金額・通貨は送らない。入金の通知（Webhook）で、金額と通貨が購入の記録と一致するときだけ権利を付ける。
+- **会員の `level` は書き換えない**。手動で付けたレベルと、サブスクで得たレベルの**高いほう**を、判定のときに使う。サブスクが切れても、手動のレベルは残る。
+- 権利が効くのは、記事・ページに **`access` があるとき**だけ（`access` が無ければ、もともと全員が読める）。`purchase_price` だけを入れても何も起きない。
+
+### 16.2 設定
+
+```toml
+[members.purchase]
+enabled = false          # 購入を使う（要 [members].enabled と [members].public_url）
+currency = "jpy"         # 記事の購入に使う通貨（ISO 4217 の小文字）。金額は最小単位の整数
+
+[members.purchase.stripe]
+secret_key = ""          # 空なら環境変数 AEGIS_STRIPE_SECRET_KEY
+webhook_secret = ""      # 空なら環境変数 AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET
+# api_base = "https://api.stripe.com"   # テスト用のモックだけ変える
+
+# サブスクのプラン（第 3 段）。interval × interval_count が支払いの単位
+[[members.purchase.plans]]
+id = "monthly"
+label = "Monthly"
+level = "paid"           # 契約中に得るレベル（[members].levels のどれか）
+amount = 800
+interval = "month"       # "day" | "week" | "month" | "year"
+interval_count = 1       # 3 で「3 か月ごと」
+```
+
+- ショップの Webhook（`/api/v1/shop/webhooks/stripe`）とは**別のエンドポイント**（`/api/v1/members/webhooks/stripe`）を Stripe に登録する。Stripe はエンドポイントごとに署名シークレットを発行するので、環境変数も分ける（キー本体 `AEGIS_STRIPE_SECRET_KEY` は同じアカウントなので共有してよい）。
+- 起動時の検査: `enabled` なのに会員アカウントが無効、`public_url` が空、キーが無い、通貨が不正、プランの `level` が `levels` に無い・`id` の重複・`amount` が 0 以下・`interval_count` が 1〜（Stripe の上限: 日 365 / 週 52 / 月 12 / 年 1）の外、はエラーにする。
+- 記事の戻り先 URL は `[members].public_url` から作る（Host ヘッダーを信用しない）。
+
+### 16.3 モデル
+
+記事・ページに組み込みのフィールド **`purchase_price`**（整数・最小単位・未設定は単独では売らない・公開）を足す。`access` と同じく全コンテンツ型に差し込む。商品の `price`（ショップ）とは別の名前にして、商品型の定義を上書きしない。
+
+購入の記録 `_aegis_purchases`（第 2 段）:
+
+| 列 | 内容 |
+|---|---|
+| `id` | 購入の ID |
+| `member_id` | 会員 ID（退会で `NULL`。会計の記録として行は残す） |
+| `content_type` / `content_id` | 買った記事・ページ |
+| `amount` / `currency` | 始めた時点の金額（Webhook で照合する） |
+| `status` | `pending`（決済ページを作った）/ `paid` / `refunded` / `cancelled`（期限切れ・失敗） |
+| `provider_ref` | Checkout Session の ID（一意） |
+| `transaction_id` | Payment Intent の ID（返金の突き合わせ） |
+| `created_at` / `paid_at` / `updated_at` | |
+
+サブスクの記録 `_aegis_subscriptions`（第 3 段）: `member_id`・`plan_id`・`level`・`status`（`active` / `past_due` / `cancelled`）・Stripe の customer / subscription ID・`current_period_end`・`cancel_at_period_end`。**有効なレベル = `member.level` と、契約中のプランの `level` の高いほう**。契約中とは `active`、または `current_period_end` が過ぎていない `past_due` / 解約予約。
+
+### 16.4 記事単独購入の流れ
+
+1. 会員が、案内の「購入」リンク（`GET /account/purchase?content_type=..&slug=..`）または `POST /api/v1/members/purchases`（`{ "content_type", "slug" }`。API のクライアント向け）で始める。リンクにしているのは、既定の CSP の `form-action 'self'` が、フォームの送信先から外部の決済ページへのリダイレクトを止めるため。GET で決済ページを作るだけで入金されなければ何も起きず、Cookie は `SameSite=Lax`。ログインしていなければ、ログインのあとにここへ戻る。公開済み・`access` あり・`purchase_price` が 1 以上・まだ買っていない、を確かめる（外れたら `404` / `409`）。
+2. `pending` の行を作り、Checkout Session（`mode=payment`、`price_data` はサーバーの金額、`client_reference_id` = 購入の ID）を作って、決済ページの URL を返す。戻り先は記事のパス（成功・中止とも）。
+3. Webhook（署名と時刻を検証。ショップと同じ方式）:
+   - `checkout.session.completed`（`payment_status = paid`）・`async_payment_succeeded`: 購入の ID・Session の ID・**金額と通貨が一致**するときだけ `pending` → `paid`（条件付き UPDATE。再送で二重に動かない）。不一致は `paid` にせず、監査ログに残す。
+   - `expired` / `async_payment_failed`: `pending` → `cancelled`。
+   - `charge.refunded`: 全額の返金で `paid` → `refunded`（権利を外す）。一部返金は権利を残す。
+4. 同じ記事を二重に払った（2 つの決済ページを開いた）場合は、どちらも `paid` にし、監査ログに `duplicate_payment` を残す（返金は管理者が判断する）。
+5. Webhook は数秒遅れうる。戻ってすぐの記事に案内が残ることがあるので、購入のリンクのそばに「お支払いの確認まで数秒かかることがある」旨を添える。再読み込みで読める。
+
+### 16.5 判定への組み込み
+
+`decide` は、(1) スタッフ、(2) レベル（手動 + サブスク）が足りる、(3) その記事を `paid` で買っている、のどれかで `Allowed`。それ以外は `Denied` で、案内に次を出す。
+
+- ゲスト: ログイン・登録（購入のあとで戻る先つき）。
+- レベルが足りない会員: `purchase_price` があり購入が有効なら「この記事を購入（金額）」、プランがあれば「プランを見る」、`upgrade_url` があればそのリンク。
+
+共有キャッシュには載せない（`access` のある記事は、もともと常に `private, no-store`。§15.5）。フィード・検索・一覧・API・コメント API は、いまのとおり同じ判定を通すので、購入で漏れ口は増えない（購入した会員が読める面は、公開ページとコメント API だけ）。
+
+### 16.6 安全性
+
+- 金額・通貨は設定と記事の値だけから作る。リクエストの値を使わない。
+- Webhook は署名（HMAC-SHA256、時刻の許容 5 分）を検証してから読む。記録に無い購入の ID は何もせず `200`（Stripe の再送を止める）。
+- 退会: `member_id` を外して会計の記録として残す（権利は外れる）。サブスクは Stripe 側の契約も解約する（第 3 段）。
+- 監査ログに `purchase.create`（決済ページの作成）・`purchase.update`（`paid` / `refunded` / `cancelled` / 問題）を残す（[audit.md](audit.md)）。
+
+### 16.7 実装の分け方
+
+1. 設計書。**済**
+2. **記事単独購入**（**済**）: 設定 `[members.purchase]`、`purchase_price`、`_aegis_purchases`（3 つの DB のマイグレーション・バックアップ・退会）、購入の開始、Webhook、判定と案内、監査ログ、記事の編集画面の価格の入力、テスト。コードは `crates/aegis-server/src/handlers/purchase.rs`（購入と Webhook）・`access.rs`（判定と案内）、`crates/aegis-db/src/purchases.rs`（保存）、`crates/aegis-commerce/src/stripe.rs` の `StripeClient` / `verify_webhook_event`（ショップと共有する Stripe の部品。`aegis-commerce` は `aegis-members` に依存するので、会員側のクレートからは使えず、サーバーが呼ぶ）。
+3. **サブスク**: プランの設定、`_aegis_subscriptions`、`mode=subscription` の Checkout、Webhook（`customer.subscription.updated` / `deleted`、`invoice.paid` / `invoice.payment_failed`）、有効なレベル、解約・カード変更は Stripe の Customer Portal へ誘導（`POST /api/v1/members/billing-portal`）。
+4. **管理画面**: 会員の詳細に購入・契約の一覧、手動の付与と取り消し、返金。
+5. **会員の画面**: マイページに購入した記事と契約、プランの選択ページ。

@@ -76,6 +76,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 - **システム標準カラムの分離**: `id`, `content_type`, `title`, `slug`, `status`, `blocks`, `blocks_json`, `author_id`, `published_at`, `unpublish_at`, `created_at`, `updated_at` は全コンテンツ共通の基本属性であり、DB テーブル作成時および各種ハンドラで最初から提供される。そのため `schemas/*.yaml` にこれらを記述する必要はなく、カスタムフィールド（`excerpt`, `price`, `layout` 等）のみを記述する。
   - **`access` も組み込みのフィールド**: 閲覧に必要な会員レベル（`string`・`nullable`・最大 32 文字・公開）。`category_id` と同じく `with_builtin_fields` が全コンテンツ型に差し込む（YAML に書く必要はなく、書いても置き換わる）。意味は [members.md の 15](members.md#15-閲覧の制限会員レベル)。
+  - **`purchase_price` も組み込みのフィールド**: 記事・ページを単独で買うときの価格（`integer`・`nullable`・通貨の最小単位・公開）。同じく全コンテンツ型に差し込む。名前を `price` にしないのは、商品型（ショップ）の必須の `price` を組み込みの定義で上書きしないため。保存時に 0〜99,999,999 の整数か `null` だけを受け付ける（`invalid_purchase_price`）。意味は [members.md の 16](members.md#16-購入記事の単独購入サブスク)。
   - **`category_id` は組み込みのフィールド**: カテゴリへのリレーション（`target: category.id`、`nullable`、索引つき）は、`SchemaLoader` が全コンテンツ型に自動で差し込む（`SchemaDefinition::with_builtin_fields`）。YAML に書く必要はなく、書いても組み込みの定義に置き換わる。API の形は従来どおり `fields.category_id`（標準カラムの一覧 `STANDARD_COLUMNS` には入れない。入れると `fields` から外れる）。公開版の一覧の絞り込み列（上記）がこの名前を前提にするため、型ごとに変えられない。既存の DB はカラムが無い型にだけ起動時に `ADD COLUMN` される。
 - **コード生成 (`task codegen`)**: `schemas/*.yaml` から TypeScript 型（`admin/src/types/schemas.ts`）と OpenAPI 3.1（`docs/openapi.json`）を生成する。生成器はシステム標準カラムを自動的に付与し、YAML 側の `fields` に重複定義があっても自動でスキップする。稼働中は `GET /api/v1/openapi.json`（`viewer` 以上）でも最新仕様を配信する。
 
