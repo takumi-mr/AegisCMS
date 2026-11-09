@@ -15,21 +15,26 @@
 
 ---
 
-## 2026-11-09 再検査（Strict CSP 導入後）
+## 2026-11-09 再検査（Strict CSP 導入後・シードと対象機能を見直し）
 
 公開ページの CSP を Strict（`script-src` / `style-src` に `'unsafe-inline'`・`'unsafe-eval'` なし。インラインのスクリプトと `<style>` は本文のハッシュで許し、`style=""` 属性は使わない）にした後（[csp.md](csp.md)）、Docker の使い捨て環境（OWASP ZAP stable、未認証プロファイルと管理者セッション注入の認証済みプロファイル）で再検査しました。
 
-| プロファイル | High | Medium | Low | Info | 前回（11-02）の Medium |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 未認証（Low 強度） | 0 | 2 | 0 | 1 | 6 |
-| 認証済み（Medium 強度） | 0 | 2 | 1 | 1 | 6 |
+**検査範囲の見直し**: 前回の検査（11-02）は、シード URL の一部が現在のルートと合わず（`/api/v1/roles`・`/backup/list`・`/forum/topics` など）、さらに Docker 用の設定でフォーラム・ショップ・問い合わせ・メルマガ・コメント・会員・解析が無効だったため、それらの画面と API に届いていませんでした。そこで、①シードを現行のルートに合わせて約 60 URL にし、`requestor` ジョブで事前にサイトツリーへ載せ、②ペンテスト専用の設定 [docker/pentest/pentest.toml](../docker/pentest/pentest.toml)（外部通信なしで上記機能と公式プラグイン 6 つを有効化）を `docker-compose.pentest.yml` に重ねました。両プロファイルとも、初期セットアップ済み（サンプル記事あり）の状態で実行しています。
+
+| プロファイル | 走査した URL | High | Medium | Low | Info | 前回（11-02）の Medium |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 未認証（Low 強度） | 77 | 0 | 3 | 0 | 2 | 6 |
+| 認証済み（Medium 強度） | 79 | 0 | 3 | 1 | 2 | 6 |
 
 - **解消**: CSP の `unsafe-inline`・`unsafe-eval` に関する警告、SRI 属性の警告（4 件）。公開ページと API の CSP から `'unsafe-inline'` が消え、Admin Studio も `script-src 'self'` / `style-src 'self'` のまま。
-- **残り（Medium 2）**: ① CSP: Wildcard Directive — `img-src` と `font-src` の `https:`（本文の外部画像・外部フォントを許すための設計。`/`・`/admin/`・`/api`・`/setup` で検出）。② Cross-Domain Misconfiguration — `Access-Control-Allow-Origin: *`（F-02。認証は Cookie ではなくトークンで、`Allow-Credentials` は返さない）。
-- **残り（Low 1、認証済みのみ）**: Private IP Disclosure（監査ログのアクセス元 IP。P-05）。
+- **Medium 3 件の内訳**:
+  1. **CSP: Wildcard Directive** — `img-src` と `font-src` の `https:`。本文の外部画像・外部フォントを許すための設計。
+  2. **Cross-Domain Misconfiguration** — `Access-Control-Allow-Origin: *`（F-02）。認証は Cookie ではなくトークンで、`Allow-Credentials` は返さない。
+  3. **Absence of Anti-CSRF Tokens（新規に検出）** — `/contact`（`POST /contact/default`）と `/newsletter` の公開フォーム。検査範囲を広げたため初めて届いた。どちらも**匿名の送信フォーム**で、ログインセッションや Cookie に依存せず、乗っ取れる権限がない（最悪でも迷惑な送信）。迷惑な送信は、ハニーポット・IP 単位の送信数の制限・任意の CAPTCHA で抑えている。**リスクは低く、現状は許容**（トークンの導入は、フォームが権限のある操作をするようになったときに再検討）。
+- **Low 1 件（認証済みのみ）**: Private IP Disclosure（監査ログのアクセス元 IP。P-05）。
+- **Info 2 件**: Modern Web Application（SPA）、User Controllable HTML Element Attribute（`/search?q=` の入力値が `<input value>` に入る。ZAP は注意喚起のみで、値は HTML エスケープされている）。
 - **High・SQL インジェクション・コマンドインジェクション・認証回避・権限昇格: 0 件**。
-- **この検査の限界**: ZAP の走査は、今回 45 URL（未認証 43）で、11-02 の 86 URL より少ない。シードの一部（`/api/v1/roles`・`/audit/logs`・`/backup/list`・`/forum/topics`・`/contact/forms` など）が現在のルートと合わず 404 で、クロールの起点が減っている（`docker/pentest/*.yaml` の見直しが必要）。また、会員制の閲覧制限・プレビューのフレーム・プラグインの出力など、**ZAP が自動では確かめにくい論理・設計面は、このスキャンでは見ていない**（これらは単体・統合・E2E のテストで確認している）。
-- 未認証プロファイルは、初期セットアップ前のインスタンスに対して実行した（認証済みはセットアップ後）。
+- **この検査の限界**: 会員制の閲覧制限・プレビューのフレーム・プラグインの出力など、**ZAP が自動では確かめにくい論理・設計面は、このスキャンでは見ていない**（単体・統合・E2E のテストで確認している）。シードのうち数件（`/api/v1/public/*`・`/api/v1/auth/registration`・`/api/v1/members/me`・`/api/v1/orders/report`）は、GET では 200 を返さない（404/405/401/400）。OpenAPI の定義（`docker/pentest/openapi.json`）は 5 パスのみで、全 API は網羅していない。
 
 ## 実施状況と最新サマリー（2026-11-02 改訂）
 
@@ -82,6 +87,7 @@
 | P-04 | RBAC 権限昇格防止 | `viewer` によるコンテンツ作成・更新、ユーザー管理、監査ログの呼び出しは 403。`editor` によるユーザー管理、監査ログの呼び出しも 403 で遮断。 | 期待どおり |
 | P-05 | 監査ログのプライベート IP 露出 | `/api/v1/audit-logs`（admin限定）の監査レコードにログイン元クライアント IP（`172.20.0.3`）が含まれ、ZAP により Private IP Disclosure (Low) として検出。監査証跡としての正規機能であるが、内部コンテナネットワーク情報の露出に該当。 | 仕様・低リスク |
 | F-05 | CSP の `unsafe-inline`・`unsafe-eval`（ZAP の Medium 警告） | 公開ページ・API・Admin Studio のいずれの CSP にも `'unsafe-inline'`・`'unsafe-eval'` を含まない（Strict CSP。インラインはハッシュ、`style` 属性は不使用）。2026-11-09 の再検査で当該警告と SRI 警告が消えたことを確認。残るのは `img-src` / `font-src` の `https:` のみ | 対応完了 |
+| P-06 | 匿名フォームの CSRF トークン欠如（ZAP 10202） | `/contact`・`/newsletter` は匿名の送信フォームで、セッション・Cookie に依存しない。ハニーポット・送信数の制限・CAPTCHA（任意）で濫用を抑制。 | 低リスク・許容 |
 | N-01 | nmap サービス確認 | `127.0.0.1:18080` のみ開放、nginx ingress による `server_tokens off` で詳細バージョン非開示を確認。 | 完了 |
 | N-02 | metrics エンドポイント | `/metrics` はデフォルト設定で 404（Prometheus sink 未有効化時）。不必要なメトリクス露出なし。 | 完了 |
 
