@@ -6,6 +6,8 @@
 
 use aegis_core::{InjectedScript, PluginManifest, ScriptSource, MAX_INLINE_SCRIPT_BYTES};
 
+use aegis_core::csp::escape_inline_script as escape_inline;
+
 /// 検査して作ったタグと、捨てたスクリプト（理由つき）
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct ScriptTags {
@@ -13,6 +15,8 @@ pub struct ScriptTags {
     pub html: String,
     /// 検査で捨てたもの（ログ・監査用の短い説明）
     pub rejected: Vec<String>,
+    /// 出したインラインのスクリプトの本文（`<script>` の中身そのもの。ハッシュを取るための記録）
+    pub inline_bodies: Vec<String>,
 }
 
 /// プラグインが返した HTML の断片から、`<script>` と `on*` 属性を取り除く。
@@ -66,26 +70,6 @@ fn escape_attribute(value: &str) -> String {
         .replace('"', "&quot;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
-}
-
-/// インラインのスクリプトの本文を、`<script>` の中に置ける形にする。`</script` と `<!--` は、
-/// タグや HTML のコメントとして読まれるので、JavaScript の文字列として同じ意味になる形にする
-fn escape_inline(code: &str) -> String {
-    let mut out = String::with_capacity(code.len());
-    let lower = code.to_ascii_lowercase();
-    let (bytes, lower_bytes) = (code.as_bytes(), lower.as_bytes());
-    let mut i = 0;
-    while i < bytes.len() {
-        if lower_bytes[i..].starts_with(b"</script") || lower_bytes[i..].starts_with(b"<!--") {
-            out.push_str("<\\");
-            i += 1;
-        } else {
-            let ch_len = code[i..].chars().next().map_or(1, char::len_utf8);
-            out.push_str(&code[i..i + ch_len]);
-            i += ch_len;
-        }
-    }
-    out
 }
 
 /// 検査して、`<head>` に足すタグを作る。
@@ -160,10 +144,11 @@ pub fn render_script_tags(manifest: &PluginManifest, scripts: &[InjectedScript])
                     ));
                     continue;
                 }
-                tags.html.push_str(&format!(
-                    "<script{consent}>{}</script>\n",
-                    escape_inline(code)
-                ));
+                let body = escape_inline(code);
+                tags.html
+                    .push_str(&format!("<script{consent}>{body}</script>\n"));
+                // 出したとおりの本文を、`script-src` のハッシュにする（`[security].strict_csp`）
+                tags.inline_bodies.push(body);
             }
         }
     }

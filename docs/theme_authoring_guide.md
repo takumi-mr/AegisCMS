@@ -300,6 +300,7 @@ themes/my-theme/
 
 - **スクリプトは `themes/{名前}/assets/*.js` に置いて、`<script src="{{ base_path }}/theme/assets/x.js" defer></script>` で読む**（自分のオリジンのファイルなので、CSP で止まりません）。
 - **`on*` 属性は使わず、スクリプトの側で `addEventListener` を使う**（例: `<button data-scroll-top>` を、外部のスクリプトで結ぶ。ただのページ内リンク `<a href="#">` で足りることもあります）。
+- **どうしてもインラインにするときは、`{{ inline_script("コード") }}`** で出します（`{{ inline_script("コード", consent="analytics") }}` なら、同意のあとに実行する形）。ホストがタグを作り、本文のハッシュを CSP に登録します（`[security].strict_csp` が `on` のときも動く）。`<script>` を直接書いたものは、ハッシュが無いので動きません。`</script` と `<!--` は自動で無害にします。
 - 値をスクリプトに渡すときは、`data-*` 属性か `<script type="application/json">`（データのブロック。実行されないので CSP に当たりません）を使います。
 - **同梱のテーマと組み込みのテンプレートは、すでにインラインのコードを出しません**（`aegis-theme` のテストが、全テンプレートを描画して確かめています）。組み込みのコメント欄・初期セットアップ画面・アクセス解析のビーコンは、`/_aegis/…js` の外部ファイルです。
 - プラグインのスクリプトは、プラグイン側が構造化して足します（[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）。テーマが気にすることはありません。

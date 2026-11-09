@@ -701,6 +701,34 @@ impl ThemeEngine {
             },
         );
 
+        // インラインのスクリプトを出す（`{{ inline_script("コード") }}`）。Strict CSP（`[security].strict_csp`）では、
+        // インラインのスクリプトは、ここで出して本文のハッシュを登録したものだけが動く。`consent` に同意の区分を
+        // 入れると、同意のあとに実行する形で出す。コードは、`</script` と `<!--` を無害にして入れる
+        env.add_function(
+            "inline_script",
+            |code: &str,
+             kwargs: minijinja::value::Kwargs|
+             -> std::result::Result<minijinja::Value, minijinja::Error> {
+                let consent: Option<String> = kwargs.get("consent")?;
+                kwargs.assert_all_used()?;
+                if let Some(category) = &consent {
+                    let valid = (1..=32).contains(&category.len())
+                        && category.bytes().all(|b| {
+                            b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_'
+                        });
+                    if !valid {
+                        return Err(minijinja::Error::new(
+                            minijinja::ErrorKind::InvalidOperation,
+                            "inline_script: consent must be 1-32 characters of a-z, 0-9, - and _",
+                        ));
+                    }
+                }
+                Ok(minijinja::Value::from_safe_string(
+                    aegis_core::csp::inline_script_tag(code, consent.as_deref()),
+                ))
+            },
+        );
+
         env.set_loader(
             move |name: &str| -> std::result::Result<Option<String>, minijinja::Error> {
                 // 1. 動的オーバーライド (プラグイン・インメモリ登録)
@@ -1328,5 +1356,41 @@ b
             .render_block_diagnosed("child.html", "content", &ctx)
             .unwrap();
         assert_eq!(rendered_content, "<h1>Child Content: Hello World</h1>");
+    }
+
+    /// `{{ inline_script("コード") }}`: インラインのスクリプトのタグを出し、本文のハッシュを登録する
+    /// （Strict CSP の `script-src` に入る。`[security].strict_csp`）
+    #[tokio::test]
+    async fn test_inline_script_emits_the_tag_and_registers_its_hash() {
+        let engine = ThemeEngine::new(Path::new("non_existent_dir"), "default");
+        engine.register_template(
+            "scripts.html",
+            "{{ inline_script(\"var a = 1;\") }}|{{ inline_script(\"track();\", consent=\"analytics\") }}|{{ inline_script(\"x='</script><script>evil()'\") }}",
+        );
+        let ctx = PageRenderContext::default();
+        let (html, hashes) =
+            aegis_core::csp::collect_script_hashes(|body| body.to_string(), async {
+                engine.render("scripts.html", &ctx).unwrap()
+            })
+            .await;
+        let parts: Vec<&str> = html.split('|').collect();
+        assert_eq!(parts[0], "<script>var a = 1;</script>");
+        assert_eq!(
+            parts[1],
+            r#"<script type="text/plain" data-aegis-consent="analytics">track();</script>"#
+        );
+        // `</script` は無害にする（タグを閉じて、別のスクリプトを始められない）
+        assert_eq!(parts[2].matches("</script>").count(), 1, "{}", parts[2]);
+        // 出したとおりの本文のハッシュが、3 つとも登録される
+        assert_eq!(hashes.len(), 3, "{hashes:?}");
+        assert!(hashes.contains(&aegis_core::csp::script_hash("var a = 1;")));
+        assert!(hashes.contains(&aegis_core::csp::script_hash("track();")));
+
+        // 不正な同意の区分は、描画のエラー（属性を壊せない）
+        engine.register_template(
+            "bad.html",
+            "{{ inline_script(\"a()\", consent=\"x\\\" onload=\\\"y\") }}",
+        );
+        assert!(engine.render("bad.html", &ctx).is_err());
     }
 }

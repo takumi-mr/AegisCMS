@@ -26,6 +26,10 @@ themes_dir = "themes"
 [plugins]
 enabled = []
 
+# 公開ページの Strict CSP（インラインのスクリプトはハッシュで許す）。E2E は全部これで動かす
+[security]
+strict_csp = "on"
+
 [runtime]
 # テストを並列で動かさないので小さくてよい（プールのアドレス空間を CI で確保しすぎない）
 instance_pool_size = 4

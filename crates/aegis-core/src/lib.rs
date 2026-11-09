@@ -6,6 +6,7 @@ pub mod auth;
 pub mod cache;
 pub mod comments;
 pub mod commerce;
+pub mod csp;
 pub mod entity;
 pub mod error;
 pub mod manifest;
