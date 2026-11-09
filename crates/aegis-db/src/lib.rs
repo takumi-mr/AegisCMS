@@ -11,6 +11,7 @@ pub mod newsletter;
 pub mod notifications;
 pub mod orders;
 pub mod postgres;
+pub mod published_columns;
 pub mod reviews;
 pub mod sqlite;
 pub mod sqlx_compat;
