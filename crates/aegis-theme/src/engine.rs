@@ -59,11 +59,11 @@ caused by: {cause}"
 /// テンプレートのグローバル変数の元になる設定
 /// 宣言的クエリの結果（クエリ名 → 結果）の入れ物。サーバーが最新の一式を差し替え、テンプレートは
 /// グローバル変数 `queries` として読む（docs/queries.md）。環境を作り直さなくても差し替えが見える
-pub type QueriesHandle = Arc<RwLock<Arc<serde_json::Map<String, serde_json::Value>>>>;
+pub type QueriesHandle = aegis_core::QueriesSnapshot;
 
 /// 空の入れ物
 pub fn new_queries_handle() -> QueriesHandle {
-    Arc::new(RwLock::new(Arc::new(serde_json::Map::new())))
+    aegis_core::new_queries_snapshot()
 }
 
 /// テンプレートの `queries.<name>`。名前の無いクエリは未定義になる

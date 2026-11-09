@@ -178,7 +178,8 @@ pub async fn prepare(
 }
 
 /// 組み立てた supervisor に差し替える（プラグインが登録するテンプレートも入れ替える）
-pub async fn install(state: &AppState, supervisor: PluginSupervisor) {
+pub async fn install(state: &AppState, mut supervisor: PluginSupervisor) {
+    supervisor.set_queries(state.queries.handle());
     let templates = supervisor.collect_plugin_templates();
     let mut current = state.supervisor.write().await;
     for old in current.collect_plugin_templates().keys() {

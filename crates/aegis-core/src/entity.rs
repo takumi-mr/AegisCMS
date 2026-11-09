@@ -61,6 +61,18 @@ pub struct ContentSummary {
     pub relations: std::collections::HashMap<String, serde_json::Value>,
 }
 
+/// 宣言的クエリの結果（クエリ名 → 結果）の共有の入れ物。サーバーが最新の一式に差し替え、
+/// テーマ（グローバル変数 `queries`）と `on-render-page` のプラグインが読む（docs/queries.md）
+pub type QueriesSnapshot =
+    std::sync::Arc<std::sync::RwLock<std::sync::Arc<serde_json::Map<String, serde_json::Value>>>>;
+
+/// 空の入れ物
+pub fn new_queries_snapshot() -> QueriesSnapshot {
+    std::sync::Arc::new(std::sync::RwLock::new(std::sync::Arc::new(
+        serde_json::Map::new(),
+    )))
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PageRenderContext {
     pub site_title: String,
@@ -117,6 +129,10 @@ pub struct PageRenderContext {
     /// コメント欄（`[comments].content_types` の種類の公開ページ）。それ以外では `None`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comments: Option<crate::CommentSection>,
+    /// 宣言的クエリの結果（クエリ名 → 結果。docs/queries.md）。`on-render-page` のプラグインには、
+    /// マニフェストの `capabilities.render_page.queries` に書いた名前の分だけ渡る（読み取り専用）
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub queries: serde_json::Map<String, serde_json::Value>,
 }
 
 /// 一覧ページのページ送り情報（テンプレートの `pagination`）

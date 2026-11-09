@@ -1024,6 +1024,11 @@ async fn main() -> anyhow::Result<()> {
             );
             app_state.plugin_settings = plugin_settings;
             app_state.queries = query_service.clone();
+            app_state
+                .supervisor
+                .write()
+                .await
+                .set_queries(query_service.handle());
             app_state.bus = bus;
             app_state.plugin_registry = Arc::new(plugin_registry::PluginRegistry::new(
                 plugin_loader,

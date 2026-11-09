@@ -9,8 +9,8 @@
 
 ## 直近の着手タスク
 
-- [ ] **宣言的クエリ（集計・条件つき一覧）の実装**: 設計は [queries.md](docs/queries.md)。①（`aegis-schema` の定義・検証）と②（`aegis-db` の副表と実行。3 DB で実機確認済み）は済。残り: ③ サーバー（`[queries]` 設定、起動時の読み込みと `configure_published_columns`、`timezone`、リレーション列の `group_by` で参照先の title / slug を付ける、テーマの文脈と `on_render_page` への注入）→ ④ キャッシュと型単位の無効化 → ⑤ `architecture.md` への設計判断の追記・`configuration.md` への `[queries]`・ユーザー向けの使い方（`ne` は NULL を含まない、作業版の編集は公開版を更新するまで出ない）。設計の未解決点は queries.md の 8。
-  - 申し送り: `timezone` は未実装（副表の日時は UTC 固定。`chrono-tz` の追加が要る）。`task restore` で DB を差し替えたあとは副表が古いままになりうる（定義が同じだと作り直さない）ので、復元後に副表を作り直す手段が要る。共有の MySQL コンテナを使い回すと、既存の統合テストが migration 2（`level` 列の重複）で落ちる（コンテナを作り直せば通る）。`cargo clippy --workspace --all-targets` は `aegis-core` / `aegis-ast` の既存コードで警告が出る。
+- [ ] **宣言的クエリ（集計・条件つき一覧）の実装**: 設計は [queries.md](docs/queries.md)。済: ① `aegis-schema`（定義・検証）、② `aegis-db`（副表と実行。3 DB で実機確認）、③ サーバー（`[queries]`・`paths.queries_dir`、起動時に全クエリを計算し、コンテンツの変更で該当の型のクエリだけ計算し直す（イベントバス経由で全サーバー）、テーマのグローバル `queries`、プラグインは `capabilities.render_page.queries` に書いた名前の分だけ読み取り専用で受け取る）。残り: ④ `timezone`（今は UTC のみ。`chrono-tz` の追加が要る）→ ⑤ `docs/queries.md` を実装に合わせて直す（結果は `[cache]` ではなくサーバーのメモリ上の一式を、変更の知らせで差し替える方式に変わった）・`architecture.md` に設計判断・`configuration.md` に `[queries]`・使い方（`ne` は NULL を含まない、作業版の編集は公開版を更新するまで出ない）・`config/default.toml` への記載。
+  - 申し送り: `task restore` で DB を差し替えたあとは副表が古いままになりうる（定義が同じだと作り直さない）ので、復元後に副表を作り直す手段が要る。`task migrate`（`Commands::Migrate`）は副表を用意しない（`run` の起動時だけ）。`theme dev` / Theme Builder は `queries` が空（サンプルデータの用意は未決）。AssemblyScript / TinyGo のプラグインテンプレートの `PageRenderContext` に `queries` が無い（Rust SDK は対応済み）。共有の MySQL コンテナを使い回すと、既存の統合テストが migration 2（`level` 列の重複）で落ちる（コンテナを作り直せば通る）。`cargo clippy -p aegis-core --all-targets` は既存のテストコードで警告が出る（`aegis-ast` も）。
 
 ---
 

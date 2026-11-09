@@ -290,6 +290,10 @@ pub struct PageRenderContext {
     pub scripts: Vec<InjectedScript>,
     #[serde(default)]
     pub theme_vars: HashMap<String, String>,
+    /// 宣言的クエリの結果（クエリ名 → 結果）。マニフェストの `capabilities.render_page.queries` に
+    /// 書いた名前の分だけ入る（読み取り専用。返しても反映されない）
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub queries: serde_json::Map<String, serde_json::Value>,
 }
 
 /// `<head>` に足すスクリプト 1 つ。ホストが、マニフェストの宣言と照合して検査し、タグを作る
