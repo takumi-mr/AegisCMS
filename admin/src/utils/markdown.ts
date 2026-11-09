@@ -7,6 +7,11 @@ export const CALLOUT_VARIANTS = ['note', 'tip', 'important', 'warning', 'caution
 export type CalloutVariant = (typeof CALLOUT_VARIANTS)[number];
 
 /** A footnote definition line, `[^label]: text` (label: letters, digits, `_`, `-`; as in the renderer) */
+/**
+ * The members-only break (`core/paywall`): an HTML comment, which GitHub renders as nothing, so a
+ * document with it still reads fine there. Only the part before it is public (docs/members.md 15.3)
+ */
+const PAYWALL_LINE = /^<!--\s*paywall\s*-->$/;
 const FOOTNOTE_DEFINITION = /^\[\^([A-Za-z0-9_-]{1,40})\]:\s*(.*)$/;
 
 /** Deepest heading level a `core/toc` lists by default (H2 and H3) */
@@ -203,6 +208,10 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
         }
         break;
       }
+      case 'core/paywall': {
+        parts.push('<!-- paywall -->');
+        break;
+      }
       case 'core/separator': {
         parts.push('---');
         break;
@@ -348,6 +357,13 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
         ? Math.max(2, Math.min(6, Number(maxLevel[1])))
         : TOC_DEFAULT_MAX_LEVEL;
       blocks.push({ name: 'core/toc', attributes });
+      i++;
+      continue;
+    }
+
+    // Members-only break: <!-- paywall -->
+    if (PAYWALL_LINE.test(line.trim())) {
+      blocks.push({ name: 'core/paywall', attributes: {} });
       i++;
       continue;
     }
@@ -555,6 +571,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
           curLine.match(/^\s*>/) ||
           curLine.match(/^:::/) ||
           FOOTNOTE_DEFINITION.test(curLine) ||
+          PAYWALL_LINE.test(curLine.trim()) ||
           curLine.trim().match(TOC_LINE) ||
           CONTACT_LINE.test(curLine.trim()) ||
           SEPARATOR_LINE.test(curLine) ||
@@ -610,6 +627,7 @@ const SUMMARY_KEYS = {
   'core/toc': 'markdown.summary.toc',
   'core/quote': 'markdown.summary.quote',
   'core/separator': 'markdown.summary.separator_block',
+  'core/paywall': 'markdown.summary.paywall',
   'core/callout': 'markdown.summary.callout',
   'core/details': 'markdown.summary.details',
   'core/footnote': 'markdown.summary.footnote',

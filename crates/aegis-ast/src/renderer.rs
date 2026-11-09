@@ -575,6 +575,8 @@ impl HtmlRenderer {
             "core/toc" => render_toc(node, &[]),
             // 定義は文書の末尾にまとめて出す（`render_nodes_with`）
             "core/footnote" => String::new(),
+            // 「ここから先は会員向け」の区切り。読める閲覧者には何も出さない（区切りの扱いは `public_blocks`）
+            "core/paywall" => String::new(),
             "core/quote" => {
                 let body = render_paragraphs(node.text.as_deref().unwrap_or_default());
                 if body.is_empty() {

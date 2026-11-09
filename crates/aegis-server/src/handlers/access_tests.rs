@@ -113,6 +113,24 @@ impl Site {
     }
 
     async fn publish(&self, content_type: &str, slug: &str, access: Option<&str>) {
+        self.publish_blocks(
+            content_type,
+            slug,
+            access,
+            Some("A public teaser."),
+            vec![BlockNode::paragraph(SECRET)],
+        )
+        .await;
+    }
+
+    async fn publish_blocks(
+        &self,
+        content_type: &str,
+        slug: &str,
+        access: Option<&str>,
+        excerpt: Option<&str>,
+        blocks: Vec<BlockNode>,
+    ) {
         let schema = self
             .state
             .schemas
@@ -122,7 +140,9 @@ impl Site {
             .cloned()
             .unwrap();
         let mut custom_fields = HashMap::new();
-        custom_fields.insert("excerpt".to_string(), json!("A public teaser."));
+        if let Some(excerpt) = excerpt {
+            custom_fields.insert("excerpt".to_string(), json!(excerpt));
+        }
         if let Some(access) = access {
             custom_fields.insert("access".to_string(), json!(access));
         }
@@ -132,7 +152,7 @@ impl Site {
             title: format!("Title of {slug}"),
             slug: slug.to_string(),
             status: "published".to_string(),
-            blocks_json: serde_json::to_string(&[BlockNode::paragraph(SECRET)]).unwrap(),
+            blocks_json: serde_json::to_string(&blocks).unwrap(),
             author_id: None,
             published_at: Some("2026-10-22T00:00:00Z".to_string()),
             unpublish_at: None,
@@ -447,4 +467,100 @@ async fn test_comments_of_a_restricted_article_need_the_same_access() {
             .status,
         StatusCode::OK
     );
+}
+
+/// 「ここから先」の区切り: 区切りより前はだれにでも見え、後ろは読める会員だけ。どの面でも同じ
+#[tokio::test]
+async fn test_the_paywall_shows_the_text_before_it_and_hides_the_rest_everywhere() {
+    let site = site_with(|_| {}).await;
+    site.publish_blocks(
+        "article",
+        "teased",
+        Some("paid"),
+        None,
+        vec![
+            BlockNode::paragraph("Teaser zxqteaser is free to read."),
+            BlockNode::new("core/paywall"),
+            BlockNode::paragraph("Tail zxqtail is for paying members."),
+        ],
+    )
+    .await;
+    crate::search::rebuild(&site.state).await;
+
+    // ゲスト: 区切りの前と案内（その後ろに続く）。後ろの本文は HTML にない
+    let guest = site.get("/articles/teased", None).await;
+    assert_eq!(guest.status, StatusCode::OK);
+    assert!(guest.body.contains("zxqteaser"));
+    assert!(!guest.body.contains("zxqtail"));
+    let teaser_at = guest.body.find("zxqteaser").unwrap();
+    let notice_at = guest
+        .body
+        .find(r#"<div class="cms-access-notice""#)
+        .unwrap();
+    assert!(teaser_at < notice_at, "the notice follows the teaser");
+    assert_eq!(guest.cache_control(), "private, no-store");
+
+    // 足りないレベルの会員も同じ
+    let free = site.member("free@example.com", "free").await;
+    let denied = site.get("/articles/teased", Some(&free)).await;
+    assert!(denied.body.contains("zxqteaser") && !denied.body.contains("zxqtail"));
+
+    // 読める会員: 全文。区切りは何も出さない
+    let paid = site.member("paid@example.com", "paid").await;
+    let full = site.get("/articles/teased", Some(&paid)).await;
+    assert!(full.body.contains("zxqteaser") && full.body.contains("zxqtail"));
+    assert!(!full.body.contains("paywall"));
+    assert!(!full.body.contains(r#"<div class="cms-access-notice""#));
+
+    // 一覧・フィードの要約は、区切りの前から作る（`excerpt` を書かなくてよい）
+    let index = site.get("/articles", None).await;
+    assert!(index.body.contains("zxqteaser"));
+    assert!(!index.body.contains("zxqtail"));
+    let feed = site.get("/feed.xml", None).await;
+    assert!(feed.body.contains("zxqteaser"));
+    assert!(!feed.body.contains("zxqtail"));
+
+    // 検索: 区切りの前の語では当たり、後ろの語では当たらない
+    let hits = |body: &str| {
+        let found: serde_json::Value = serde_json::from_str(body).unwrap();
+        found["total"].as_u64().unwrap()
+    };
+    assert_eq!(
+        hits(&site.get("/api/v1/search?q=zxqteaser", None).await.body),
+        1
+    );
+    assert_eq!(
+        hits(&site.get("/api/v1/search?q=zxqtail", None).await.body),
+        0
+    );
+
+    // ヘッドレス API: 区切りの前のブロックだけ
+    let item = site
+        .get("/api/v1/public/contents/article/teased?include=html", None)
+        .await;
+    assert!(item.body.contains("zxqteaser") && !item.body.contains("zxqtail"));
+    let item: serde_json::Value = serde_json::from_str(&item.body).unwrap();
+    assert_eq!(item["blocks"].as_array().unwrap().len(), 1);
+}
+
+/// 区切りだけでは制限にならない（`access` が無ければ、区切りは何も出さず全文が見える）
+#[tokio::test]
+async fn test_a_paywall_without_access_changes_nothing() {
+    let site = site_with(|_| {}).await;
+    site.publish_blocks(
+        "article",
+        "open",
+        None,
+        None,
+        vec![
+            BlockNode::paragraph("Head zxqhead."),
+            BlockNode::new("core/paywall"),
+            BlockNode::paragraph("Tail zxqtail."),
+        ],
+    )
+    .await;
+    let reply = site.get("/articles/open", None).await;
+    assert!(reply.body.contains("zxqhead") && reply.body.contains("zxqtail"));
+    assert!(!reply.body.contains(r#"<div class="cms-access-notice""#));
+    assert_ne!(reply.cache_control(), "private, no-store");
 }

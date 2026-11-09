@@ -23,6 +23,7 @@ import {
   Puzzle,
   ListCollapse,
   Asterisk,
+  Lock,
   MessageSquare,
   MessageSquareOff,
   Mail,
@@ -1550,6 +1551,12 @@ export const App: React.FC = () => {
                         <Asterisk size={14} />
                         <span>{t('editor.footnote')}</span>
                       </Button>
+                      {membersEnabled && (
+                        <Button variant="tool" onClick={() => addBlock('core/paywall', '')}>
+                          <Lock size={14} />
+                          <span>{t('editor.paywall')}</span>
+                        </Button>
+                      )}
                       <Button variant="tool" onClick={() => addBlock('core/separator', '')}>
                         <Minus size={14} />
                         <span>{t('editor.separator')}</span>

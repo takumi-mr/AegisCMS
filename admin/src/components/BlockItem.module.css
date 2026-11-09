@@ -165,6 +165,22 @@
   font-style: italic;
 }
 
+.paywall {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.paywall::before,
+.paywall::after {
+  content: '';
+  flex: 1;
+  border-top: 1px dashed var(--accent-indigo);
+}
+
 .separator {
   border: none;
   border-top: 1px dashed var(--border-medium);

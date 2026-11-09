@@ -235,6 +235,7 @@
     "detailsSummary": "見出し（質問など）",
     "detailsOpen": "最初から開く",
     "detailsPlaceholder": "開いたときに表示する本文（答え・詳細）...",
+    "paywallHint": "この線より下は会員だけが読めます（「閲覧できる人」を設定すると効きます）",
     "footnoteLabel": "ラベル（本文では [^ラベル] と書く）",
     "footnotePlaceholder": "脚注の文章...",
     "contactForm": "フォーム",
@@ -414,6 +415,7 @@
     "toc": "目次",
     "quote": "引用",
     "callout": "注記",
+    "paywall": "会員向けの区切り",
     "separator": "区切り線",
     "details": "折りたたみ",
     "footnote": "脚注",
@@ -630,6 +632,7 @@
       "separator_block": "区切り線",
       "callout": "注記",
       "details": "折りたたみ",
+      "paywall": "会員向けの区切り",
       "footnote": "脚注",
       "contactForm": "問い合わせフォーム"
     },
