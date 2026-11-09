@@ -53,7 +53,8 @@ AegisCMS コアサーバー (`aegis-server`) の設定ファイル (`config/*.to
 | `port` | integer (u16) | `8080` | リッスンするポート |
 | `base_path` | string | `""` | サブパス配下で公開する場合のパス（例: `"/cms"`）。空ならルート `/` で公開。使える文字は英数字と `- . _ ~`（不正な値はサーバーが起動しない）。[4.2](#42-サブパスで公開する) を参照 |
 | `admin_path` | string | `"/admin"` | Admin Studio を配信するパス。1 階層だけで、使える文字は `base_path` と同じ。公開サイト・API のパス（`/api`、`/uploads`、`/theme`、`/articles` など）とは重ねられない（不正な値はサーバーが起動しない）。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
-| `namespace` | string | `"cms"` | 公開ページに出る識別子（CSS のクラス名・`id`・`data-*` 属性・Cookie と localStorage のキー・JS のグローバル名・`/_<namespace>/` の配信パス）の接頭辞。英小文字で始まり、英小文字と数字だけの 16 文字以内（不正な値はサーバーが起動しない）。`admin_path` と `/_<namespace>` を同じにはできない。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
+| `namespace` | string | `"cms"` | 公開ページに出る識別子（CSS のクラス名・`id`・`data-*` 属性・Cookie と localStorage のキー・JS のグローバル名・`/_<namespace>/` の配信パス）の接頭辞。英小文字で始まり、英小文字と数字だけの 16 文字以内（不正な値はサーバーが起動しない）。`admin_path` と `/_<namespace>` を同じにはできない。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
+| `cors_origins` | string の配列 | `[]` | 別のオリジンから認証つきの API を呼ぶことを許すオリジン（例: `["https://admin.example.com"]`）。既定（空）は、公開の読み取りだけ全オリジン（`*`）で、認証が要る API・書き込みは同一オリジンだけ。`"*"` で前の動き（全オリジンに全メソッド）。不正な値はサーバーが起動しない。[4.3.1](#431-corsserver-cors_origins) を参照 |
 
 ### 2.2 `[database]` — データベース
 
@@ -904,7 +905,18 @@ base_path = "/cms"
 
 本番ビルドは、自分を配信したサーバー（`{サーバー}/admin/assets/*.js` から逆算したオリジンとベースパス）の `/api/v1` に接続するため、ドメインやベースパスごとのビルドは不要です。
 
-Admin Studio だけを別の場所で配信する場合（例: `admin.example.com` から `example.com/cms` の API を使う）は、ビルド時に `VITE_AEGIS_SERVER_URL=https://example.com/cms` を指定してください（Docker では `docker build --build-arg VITE_AEGIS_SERVER_URL=...`）。API は Bearer トークンで認証し CORS を全オリジンに許可しているため、サーバー側の追加設定は不要です。プレビューのテーマアセット・アップロード画像や SSO のログイン URL もこの URL を使います。
+Admin Studio だけを別の場所で配信する場合（例: `admin.example.com` から `example.com/cms` の API を使う）は、ビルド時に `VITE_AEGIS_SERVER_URL=https://example.com/cms` を指定してください（Docker では `docker build --build-arg VITE_AEGIS_SERVER_URL=...`）。API は Bearer トークンで認証しますが、**認証が要る API は既定で同一オリジンだけ**（CORS を返さない）なので、Admin Studio のオリジンを `[server].cors_origins = ["https://admin.example.com"]` に書いてください（4.3.1）。プレビューのテーマアセット・アップロード画像や SSO のログイン URL もこの URL を使います。
+
+#### 4.3.1 CORS（`[server].cors_origins`）
+
+| 対象 | 既定（`cors_origins = []`） | オリジンを書いたとき |
+| --- | --- | --- |
+| 公開の読み取り（`GET` / `HEAD`。公開ページ・`/uploads/`・テーマの静的ファイルなど `/api/` の外と、`/api/v1/public/`・`/api/v1/search`・`/api/v1/health`） | 全オリジンに `Access-Control-Allow-Origin: *` | 同じ |
+| 認証が要る API・書き込み（`POST` / `PUT` / `PATCH` / `DELETE`） | CORS なし（同一オリジンだけ。ほかのオリジンのブラウザーは応答を読めない） | 書いたオリジンにだけ、そのオリジンの値を返し（`Vary: Origin`）、メソッドとプリフライトが求めたヘッダーを許す |
+
+- 値は `https://admin.example.com` のようなオリジン（スキーム・ホスト・任意のポート。パスなし）。`"*"` を書くと前の動き（全オリジンに全メソッド）に戻る。不正な値だと起動しない。
+- `Access-Control-Allow-Credentials` は返さない（認証は Cookie ではなく Bearer トークン）。
+- 別のドメインで配信する Admin Studio、ヘッドレスのクライアントが認証つきの API を呼ぶときに、そのオリジンを足す。
 
 ### 4.4 あわせて確認する設定
 

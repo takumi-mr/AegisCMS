@@ -18,6 +18,7 @@ mod cdn;
 mod cluster;
 mod config;
 mod consent;
+mod cors;
 mod deploy;
 mod handlers;
 mod headers;
@@ -811,6 +812,7 @@ async fn main() -> anyhow::Result<()> {
             let base_path = config.server.normalized_base_path()?;
             let admin_path = config.server.normalized_admin_path()?;
             let namespace = config.server.normalized_namespace()?;
+            cors::normalize_origins(&config.server.cors_origins)?;
             if admin_path == format!("/_{}", namespace) {
                 anyhow::bail!(
                     "[server].admin_path {:?} is the asset path of [server].namespace: choose another name",
