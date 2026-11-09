@@ -23,14 +23,13 @@
 
 | プロファイル | 走査した URL | High | Medium | Low | Info | 前回（11-02）の Medium |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 未認証（Low 強度） | 77 | 0 | 3 | 0 | 2 | 6 |
-| 認証済み（Medium 強度） | 79 | 0 | 3 | 1 | 2 | 6 |
+| 未認証（Low 強度） | 77 | 0 | 2 | 0 | 2 | 6 |
+| 認証済み（Medium 強度） | 79 | 0 | 2 | 1 | 2 | 6 |
 
 - **解消**: CSP の `unsafe-inline`・`unsafe-eval` に関する警告、SRI 属性の警告（4 件）。公開ページと API の CSP から `'unsafe-inline'` が消え、Admin Studio も `script-src 'self'` / `style-src 'self'` のまま。
-- **Medium 3 件の内訳**:
+- **Medium 2 件の内訳**（CORS の指摘は、CORS の絞り込み（[#312](https://github.com/takumi-mr/AegisCMS/pull/312)）のあとの再実施で消えた）:
   1. **CSP: Wildcard Directive** — `img-src` と `font-src` の `https:`。本文の外部画像・外部フォントを許すための設計。
-  2. **Cross-Domain Misconfiguration** — `Access-Control-Allow-Origin: *`（F-02）。認証は Cookie ではなくトークンで、`Allow-Credentials` は返さない。
-  3. **Absence of Anti-CSRF Tokens（新規に検出）** — `/contact`（`POST /contact/default`）と `/newsletter` の公開フォーム。検査範囲を広げたため初めて届いた。どちらも**匿名の送信フォーム**で、ログインセッションや Cookie に依存せず、乗っ取れる権限がない（最悪でも迷惑な送信）。迷惑な送信は、ハニーポット・IP 単位の送信数の制限・任意の CAPTCHA で抑えている。**リスクは低く、現状は許容**（トークンの導入は、フォームが権限のある操作をするようになったときに再検討）。
+  2. **Absence of Anti-CSRF Tokens（新規に検出）** — `/contact`（`POST /contact/default`）と `/newsletter` の公開フォーム。検査範囲を広げたため初めて届いた。どちらも**匿名の送信フォーム**で、ログインセッションや Cookie に依存せず、乗っ取れる権限がない（最悪でも迷惑な送信）。迷惑な送信は、ハニーポット・IP 単位の送信数の制限・任意の CAPTCHA で抑えている。**リスクは低く、現状は許容**（トークンの導入は、フォームが権限のある操作をするようになったときに再検討）。
 - **Low 1 件（認証済みのみ）**: Private IP Disclosure（監査ログのアクセス元 IP。P-05）。
 - **Info 2 件**: Modern Web Application（SPA）、User Controllable HTML Element Attribute（`/search?q=` の入力値が `<input value>` に入る。ZAP は注意喚起のみで、値は HTML エスケープされている）。
 - **High・SQL インジェクション・コマンドインジェクション・認証回避・権限昇格: 0 件**。
@@ -78,7 +77,7 @@
 | ID | 項目 | 根拠・影響の可能性 | 状態 |
 | --- | --- | --- | --- |
 | F-01 | 公開ページの stored XSS | 既定の lol_html サニタイズと sandbox モードでの不透明オリジン iframe 隔離 | 対応完了 |
-| F-02 | CORS が全オリジン・全メソッド・全ヘッダーを許可 | `Origin: https://attacker.invalid` の応答で `Access-Control-Allow-Origin: *`、OPTIONSで `Access-Control-Allow-Methods: *` と `Access-Control-Allow-Headers: *` を確認。`Access-Control-Allow-Credentials` は返らないためクッキー認証の横取りはないが、公開APIの過剰許可設定に該当。**深刻度: Low** | 既知・設計通り |
+| F-02 | CORS が全オリジン・全メソッド・全ヘッダーを許可（2026-11-09 に対応: 公開の読み取りだけ `*`、認証が要る API・書き込みは `[server].cors_origins` に書いたオリジンだけ。ZAP の Cross-Domain Misconfiguration は解消） | `Origin: https://attacker.invalid` の応答で `Access-Control-Allow-Origin: *`、OPTIONSで `Access-Control-Allow-Methods: *` と `Access-Control-Allow-Headers: *` を確認。`Access-Control-Allow-Credentials` は返らないためクッキー認証の横取りはないが、公開APIの過剰許可設定に該当。**深刻度: Low** | 対応完了（2026-11-09） |
 | F-03 | ブラウザー向け防御ヘッダー不足 | 公開トップページおよび管理画面、API の応答でデフォルトの防御ヘッダー（`CSP`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`、`Cross-Origin-Opener-Policy: same-origin`）を付与するミドルウェアを導入。ZAP Baseline での警告（10020, 10021）は完全に解消。 | 対応完了 |
 | F-04 | ストレージ API のパストラバーサル・任意ファイル操作 | `upload_dir` 外への絶対パス・相対パストラバーサル指定を拒否する共通バリデーション `validate_storage_key` を導入。Windows ネイティブおよび Linux Docker コンテナの双方で再検証を実施し、攻撃ペイロードがすべて 400 で遮断されることを確認。 | 対応完了 |
 | P-01 | 未認証アクセス境界 | 全保護 API（スキーマ、コンテンツ、ストレージ、ユーザー、ロール、プラグイン、テーマ、監査ログ、バックアップ等）は 401。公開 health およびセットアップ status のみ 200。OpenAPI 仕様（`/api/v1/openapi.json`）も `viewer` セッションが必須であり未認証では 401 であることを確認。 | 期待どおり |
@@ -127,8 +126,8 @@
 1. **初期セットアップ（Web インストーラー）の公開前実施の推奨**:
    - 未初期化状態のインスタンスをパブリックネットワーク上に公開した場合、正規管理者が初期化する前に第三者が `/setup` を実行して管理者アカウントを作成してしまうリスクがあります。
    - 本番環境では環境変数（`AEGIS_ADMIN_PASSWORD` 等）または CLI（`aegis-server init`）による事前初期化を行うか、セットアップ完了までリバースプロキシで `/setup` および `/api/v1/setup` へのアクセスを内部ネットワークに限定することを推奨します。
-2. **CORS 設定の環境別チューニング（F-02 関連）**:
-   - 現状は開発および Admin Studio 分離配信の利便性のため `*` 許可となっていますが、本番環境では許可オリジンを設定ファイルで明示的に指定できるようにすることが望まれます。
+2. **CORS 設定（F-02 関連。2026-11-09 に実施済み）**:
+   - 既定は、公開の読み取りだけ全オリジン、認証が要る API・書き込みは同一オリジンのみ。別ドメインの Admin Studio やヘッドレスのクライアントは `[server].cors_origins` で許可します（[configuration.md の 4.3.1](configuration.md)）。
 3. **CSP の厳格化（2026-11-09 時点で実施済み）**:
    - `unsafe-eval` の除去、Admin Studio の `script-src` / `style-src` の `'self'` 化、公開ページのハッシュ方式の Strict CSP（`strict_csp = "on"` が既定）、`style=""` 属性の廃止まで完了。残るのは `img-src` / `font-src` の `https:`（外部画像・フォントを許す設計）。外部画像を使わない運用なら、「設定 › ヘッダー」で CSP を絞れます。
 4. **内部 IP の監査ログ表示方針（P-05 関連）**:
