@@ -596,6 +596,12 @@ pub async fn delete_me(
             crate::cdn::purge_tags(&state, &tags).await;
         }
     }
+    // 2c. 購入の記録は、会員との紐づきだけを外して残す（会計の記録。権利は外れる）
+    state
+        .db
+        .detach_member_purchases(&session.member_id)
+        .await
+        .map_err(map_aegis_error)?;
     // 3. 会員の行とセッションを消す
     service
         .delete_account(&session.member_id, client_ip, user_agent)

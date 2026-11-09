@@ -373,6 +373,15 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/api/v1/members/orders", get(handlers::list_my_orders))
         .route("/api/v1/members/orders/{id}", get(handlers::get_my_order))
         .route("/api/v1/members/reviews", get(handlers::list_my_reviews))
+        // --- 購入（記事の単独購入。docs/members.md 16） ---
+        .route(
+            "/api/v1/members/purchases",
+            get(handlers::list_my_purchases).post(handlers::create_purchase),
+        )
+        .route(
+            "/api/v1/members/webhooks/stripe",
+            post(handlers::member_purchase_webhook),
+        )
         .route("/api/v1/admin/members", get(handlers::admin_list_members))
         .route(
             "/api/v1/admin/members/{id}",
@@ -535,6 +544,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/shop/account.js", get(handlers::account_script))
         .route("/shop/reviews.js", get(handlers::reviews_script))
         .route("/account", get(handlers::render_account_home))
+        .route("/account/purchase", get(handlers::start_purchase_page))
         .route("/account/login", get(handlers::render_account_login))
         .route("/account/register", get(handlers::render_account_register))
         .route("/account/forgot", get(handlers::render_account_forgot))

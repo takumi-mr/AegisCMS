@@ -636,6 +636,11 @@ pub async fn render_article(
         &headers,
         &record.custom_fields,
         &format!("/articles/{}", record.slug),
+        access::ContentRef {
+            content_type: &record.content_type,
+            id: &record.id,
+            slug: &record.slug,
+        },
     )
     .await;
 
@@ -763,7 +768,18 @@ async fn render_fixed_page(
             is_currently_published(&r.status, r.unpublish_at.as_deref(), chrono::Utc::now())
         })?;
 
-    let gate = access::gate(state, headers, &record.custom_fields, path).await;
+    let gate = access::gate(
+        state,
+        headers,
+        &record.custom_fields,
+        path,
+        access::ContentRef {
+            content_type: &record.content_type,
+            id: &record.id,
+            slug: &record.slug,
+        },
+    )
+    .await;
     let content_html = match &gate {
         Gate::Denied { notice_html } => {
             access::teaser_with_notice(
@@ -864,6 +880,11 @@ pub async fn render_page_or_slug(
                     &headers,
                     &record.custom_fields,
                     &format!("/{}", record.slug),
+                    access::ContentRef {
+                        content_type: &record.content_type,
+                        id: &record.id,
+                        slug: &record.slug,
+                    },
                 )
                 .await;
                 let content_html = match &gate {

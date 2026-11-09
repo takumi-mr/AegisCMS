@@ -260,6 +260,17 @@ const MESSAGES: &[(&str, &str, &str)] = &[
         "This content is for {level} members.",
         "この内容は {level} の会員向けです。",
     ),
+    (
+        "access.purchasable",
+        "This content can be bought for {price}. Log in to continue.",
+        "この内容は {price} で購入できます。ログインして進んでください。",
+    ),
+    ("access.buy", "Buy for {price}", "{price} で購入する"),
+    (
+        "access.buy_note",
+        "You can read it as soon as the payment is confirmed (this can take a few seconds).",
+        "お支払いが確認できると読めます（数秒かかることがあります）。",
+    ),
     ("access.login", "Log in", "ログイン"),
     ("access.register", "Sign up", "会員登録"),
     ("access.upgrade", "See how to upgrade", "アップグレードの案内を見る"),

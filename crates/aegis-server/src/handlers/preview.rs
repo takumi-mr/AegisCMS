@@ -177,7 +177,17 @@ pub async fn preview_content(
     };
     let public_path =
         crate::handlers::public::public_content_path(&state, &payload.content_type, &payload.slug);
-    let gate = crate::handlers::access::decide(&state, &payload.fields, viewer, &public_path);
+    let gate = crate::handlers::access::decide(
+        &state,
+        &payload.fields,
+        viewer,
+        &public_path,
+        Some(crate::handlers::access::ContentRef {
+            content_type: &payload.content_type,
+            id: "",
+            slug: &payload.slug,
+        }),
+    );
     if [
         payload.frame_key.as_deref(),
         payload.body_frame_key.as_deref(),

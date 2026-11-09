@@ -82,7 +82,12 @@ pub async fn deny_comments(
         return None;
     }
     let path = crate::handlers::public::public_content_path(state, content_type, slug);
-    match gate(state, headers, &record.custom_fields, &path).await {
+    let content = ContentRef {
+        content_type: &record.content_type,
+        id: &record.id,
+        slug: &record.slug,
+    };
+    match gate(state, headers, &record.custom_fields, &path, content).await {
         Gate::Denied { .. } => Some((
             axum::http::StatusCode::FORBIDDEN,
             axum::Json(serde_json::json!({
@@ -115,41 +120,86 @@ impl Gate {
     }
 }
 
-/// ログイン中の有効な会員のレベル。未ログイン・停止中・会員アカウントが無効なら `None`
-async fn member_level(state: &AppState, headers: &HeaderMap) -> Option<String> {
+/// 判定の対象の記事・ページ。購入の権利を調べ、購入の案内を作るのに使う
+#[derive(Debug, Clone, Copy)]
+pub struct ContentRef<'a> {
+    pub content_type: &'a str,
+    pub id: &'a str,
+    pub slug: &'a str,
+}
+
+/// ログイン中の有効な会員（ID とレベル）。未ログイン・停止中・会員アカウントが無効なら `None`
+async fn member_session(state: &AppState, headers: &HeaderMap) -> Option<(String, String)> {
     let service = state.members.as_ref()?;
     let token = crate::handlers::members::session_token(state, headers)?;
     let session = service.verify_session(&token).await.ok()??;
     let member = service.get_profile(&session.member_id).await.ok()?;
-    (member.status == "active").then_some(member.level)
+    (member.status == "active").then_some((member.id, member.level))
+}
+
+/// 購入が使えるか（会員アカウントと `[members.purchase]` がどちらも有効）
+pub fn purchase_enabled(state: &AppState) -> bool {
+    state.members.is_some() && state.config.members.purchase.enabled
 }
 
 /// `fields["access"]` を見て、この閲覧者に本文を見せてよいかを決める。
-/// `path` は案内のログインのリンクが、ログイン後に戻る先（サイト内のパス）
+/// `path` は案内のログインのリンクが、ログイン後に戻る先（サイト内のパス）。
+/// レベルが足りなくても、その記事を買っている会員には見せる（docs/members.md 16.5）
 pub async fn gate(
     state: &AppState,
     headers: &HeaderMap,
     fields: &HashMap<String, serde_json::Value>,
     path: &str,
+    content: ContentRef<'_>,
 ) -> Gate {
     // 制限のないページでは、閲覧者（セッションの検索）を引かない
     if !aegis_db::is_restricted(fields) {
         return Gate::Open;
     }
-    let level = member_level(state, headers).await;
-    let viewer = match level.as_deref() {
-        Some(level) => Viewer::Member { level },
+    let member = member_session(state, headers).await;
+    let viewer = match member.as_ref() {
+        Some((_, level)) => Viewer::Member { level },
         None => Viewer::Guest,
     };
-    decide(state, fields, viewer, path)
+    let mut owned = false;
+    if let Some((member_id, _)) = &member {
+        // 買っているかは、レベルで読めないときだけ調べる（DB の読み取りを減らす）。
+        // 調べられなかったら、持っていないものとして扱う（見せない側に倒す）
+        let required = aegis_db::access_of(fields);
+        let levels = &state.config.members.levels;
+        if purchase_enabled(state)
+            && aegis_db::purchase_price_of(fields).is_some()
+            && !aegis_members::may_view(levels, required, viewer)
+        {
+            owned = state
+                .db
+                .has_paid_purchase(member_id, content.content_type, content.id)
+                .await
+                .unwrap_or(false);
+        }
+    }
+    decide_with(state, fields, viewer, path, Some(content), owned)
 }
 
-/// 閲覧者が決まっているときの判定（公開ページは Cookie から引いた閲覧者、管理画面のプレビューは選んだ閲覧者）
+/// 閲覧者が決まっているときの判定（公開ページは Cookie から引いた閲覧者、管理画面のプレビューは選んだ閲覧者）。
+/// 購入の権利は調べない（プレビューは「購入していない会員」の姿を出す）
 pub fn decide(
     state: &AppState,
     fields: &HashMap<String, serde_json::Value>,
     viewer: Viewer<'_>,
     path: &str,
+    content: Option<ContentRef<'_>>,
+) -> Gate {
+    decide_with(state, fields, viewer, path, content, false)
+}
+
+fn decide_with(
+    state: &AppState,
+    fields: &HashMap<String, serde_json::Value>,
+    viewer: Viewer<'_>,
+    path: &str,
+    content: Option<ContentRef<'_>>,
+    owned: bool,
 ) -> Gate {
     let required = fields.get(ACCESS_FIELD).and_then(|v| v.as_str());
     if aegis_members::is_public(required) {
@@ -157,30 +207,76 @@ pub fn decide(
     }
     let required = required.map(str::trim).unwrap_or_default();
     let levels = &state.config.members.levels;
-    if aegis_members::may_view(levels, Some(required), viewer) {
+    if owned || aegis_members::may_view(levels, Some(required), viewer) {
         return Gate::Allowed;
     }
+    let offer = content.and_then(|content| purchase_offer(state, fields, content));
     Gate::Denied {
         notice_html: notice(
             state,
             required,
             matches!(viewer, Viewer::Member { .. }),
             path,
+            offer.as_ref(),
         ),
     }
 }
 
+/// 案内に出す購入の申し出（金額は設定した通貨で整形する）
+struct PurchaseOffer {
+    price_text: String,
+    buy_path: String,
+}
+
+fn purchase_offer(
+    state: &AppState,
+    fields: &HashMap<String, serde_json::Value>,
+    content: ContentRef<'_>,
+) -> Option<PurchaseOffer> {
+    if !purchase_enabled(state) {
+        return None;
+    }
+    let price = aegis_db::purchase_price_of(fields)?;
+    Some(PurchaseOffer {
+        price_text: aegis_core::format_money(price, &state.config.members.purchase.currency),
+        buy_path: format!(
+            "/account/purchase?content_type={}&slug={}",
+            urlencode(content.content_type),
+            urlencode(content.slug)
+        ),
+    })
+}
+
 /// 本文の代わりに出す案内。ゲストにはログインと会員登録、レベルが足りない会員には必要なレベルと、
-/// 設定していれば `[members].upgrade_url` のリンクを出す
-fn notice(state: &AppState, required: &str, logged_in: bool, path: &str) -> String {
+/// 設定していれば `[members].upgrade_url` のリンク、買える記事なら購入のリンクを出す
+fn notice(
+    state: &AppState,
+    required: &str,
+    logged_in: bool,
+    path: &str,
+    offer: Option<&PurchaseOffer>,
+) -> String {
     let locale = &state.config.theme.locale;
     let t = |key: &str| aegis_theme::messages::translate(locale, key, &[]);
     let escape = aegis_ast::renderer::escape_html;
     let members = &state.config.members;
 
     let mut links = Vec::new();
+    let mut extra = String::new();
     let message = if logged_in {
         let params = [("level".to_string(), required.to_string())];
+        if let Some(offer) = offer {
+            let params = [("price".to_string(), offer.price_text.clone())];
+            links.push(format!(
+                r#"<a class="aegis-access-buy" href="{}">{}</a>"#,
+                escape(&offer.buy_path),
+                aegis_theme::messages::translate(locale, "access.buy", &params)
+            ));
+            extra = format!(
+                r#"<p class="aegis-access-note">{}</p>"#,
+                t("access.buy_note")
+            );
+        }
         if !members.upgrade_url.trim().is_empty() {
             links.push(format!(
                 r#"<a href="{}">{}</a>"#,
@@ -204,7 +300,13 @@ fn notice(state: &AppState, required: &str, logged_in: bool, path: &str) -> Stri
                 ));
             }
         }
-        t("access.members_only")
+        match offer {
+            Some(offer) => {
+                let params = [("price".to_string(), offer.price_text.clone())];
+                aegis_theme::messages::translate(locale, "access.purchasable", &params)
+            }
+            None => t("access.members_only"),
+        }
     };
 
     let links = if links.is_empty() {
@@ -212,7 +314,7 @@ fn notice(state: &AppState, required: &str, logged_in: bool, path: &str) -> Stri
     } else {
         format!(r#"<p class="aegis-access-links">{}</p>"#, links.join(" · "))
     };
-    format!(r#"<div class="aegis-access-notice" role="note"><p>{message}</p>{links}</div>"#)
+    format!(r#"<div class="aegis-access-notice" role="note"><p>{message}</p>{links}{extra}</div>"#)
 }
 
 /// URL のクエリに入れる文字列のパーセントエンコード

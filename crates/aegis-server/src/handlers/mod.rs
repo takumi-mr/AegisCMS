@@ -22,6 +22,7 @@ pub mod password_reset;
 pub mod plugin;
 pub mod preview;
 pub mod public;
+pub mod purchase;
 pub mod redirects;
 pub mod registration;
 pub mod reviews;
@@ -83,6 +84,10 @@ pub use preview::{preview_content, preview_frame};
 pub use public::{
     render_article, render_articles, render_category, render_index, render_page_or_slug,
 };
+pub use purchase::{
+    create_purchase, list_my_purchases, start_purchase_page,
+    stripe_webhook as member_purchase_webhook,
+};
 pub use registration::{register, verify_registration};
 pub use reviews::{
     admin_bulk_reviews, admin_delete_reply, admin_get_review, admin_get_review_settings,
@@ -141,5 +146,7 @@ mod package_install_tests;
 mod password_reset_pages_tests;
 #[cfg(test)]
 mod product_reviews_tests;
+#[cfg(test)]
+mod purchase_tests;
 #[cfg(test)]
 mod tags_tests;

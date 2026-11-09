@@ -244,6 +244,87 @@ impl PaymentProvider for StripePaymentProvider {
     }
 }
 
+/// Stripe の API を呼ぶ最小のクライアント。注文（`StripePaymentProvider`）以外の決済
+/// （会員の購入。docs/members.md 16）が、Checkout Session を作るのに使う
+pub struct StripeClient {
+    secret_key: String,
+    api_base: String,
+    client: reqwest::Client,
+}
+
+/// 作った Checkout Session
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckoutSession {
+    pub id: String,
+    /// 顧客を移動させる決済ページ
+    pub url: String,
+}
+
+impl StripeClient {
+    pub fn new(secret_key: &str, api_base: &str) -> Result<Self> {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .map_err(|e| AegisError::Config(format!("Failed to build the HTTP client: {}", e)))?;
+        Ok(Self {
+            secret_key: secret_key.to_string(),
+            api_base: api_base.trim_end_matches('/').to_string(),
+            client,
+        })
+    }
+
+    /// Checkout Session を作る。`idempotency_key` が同じなら、Stripe は同じ結果を返す
+    pub async fn create_checkout_session(
+        &self,
+        form: &[(String, String)],
+        idempotency_key: &str,
+    ) -> Result<CheckoutSession> {
+        let response = self
+            .client
+            .post(format!("{}/v1/checkout/sessions", self.api_base))
+            .bearer_auth(&self.secret_key)
+            .header("Idempotency-Key", idempotency_key)
+            .form(form)
+            .send()
+            .await
+            .map_err(|e| AegisError::Internal(format!("Stripe request failed: {}", e)))?;
+        let status = response.status();
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| AegisError::Internal(format!("Stripe request failed: {}", e)))?;
+        let body: Value = serde_json::from_slice(&bytes)
+            .map_err(|e| AegisError::Internal(format!("Invalid Stripe response: {}", e)))?;
+        if !status.is_success() {
+            let message = body["error"]["message"].as_str().unwrap_or("unknown error");
+            return Err(AegisError::Internal(format!(
+                "Stripe returned {}: {}",
+                status, message
+            )));
+        }
+        let (Some(id), Some(url)) = (body["id"].as_str(), body["url"].as_str()) else {
+            return Err(AegisError::Internal(
+                "Stripe response has no session id or url".to_string(),
+            ));
+        };
+        Ok(CheckoutSession {
+            id: id.to_string(),
+            url: url.to_string(),
+        })
+    }
+}
+
+/// Webhook の署名と時刻を確かめて、イベントの JSON を返す（ショップと会員の購入が共有する）
+pub fn verify_webhook_event(secret: &str, headers: &HeaderMap, body: &[u8]) -> Result<Value> {
+    let signature = headers
+        .get("stripe-signature")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AegisError::Authentication("Missing Stripe-Signature".to_string()))?;
+    verify_signature(secret, signature, body, chrono::Utc::now().timestamp())?;
+    serde_json::from_slice(body)
+        .map_err(|e| AegisError::Validation(format!("Invalid Stripe event: {}", e)))
+}
+
 /// `Stripe-Signature: t=<unix>,v1=<hex>[,v1=...]` を確かめる（`{t}.{body}` の HMAC-SHA256）
 fn verify_signature(secret: &str, header: &str, body: &[u8], now: i64) -> Result<()> {
     let invalid =
