@@ -9,6 +9,8 @@
 - 防御側: `docker-compose.pentest.yml` で起動する AegisCMS コンテナ
 - 攻撃側: Kali Linux などの WSL ディストリビューション
 - 接続先: `http://127.0.0.1:18080`
+- 設定: `docker/pentest/pentest.toml`（`config/docker.toml` に重ねる）。会員・ショップ・フォーラム・問い合わせ・メルマガ・コメント・解析と公式プラグイン 6 つを有効にし、ZAP がそれらに届くようにしてある（外部通信なし）
+- ZAP のプラン（`zap-active.yaml` / `zap-authenticated.yaml`）は、`requestor` ジョブで、公開ページと API のシード URL へ先に GET を送ってからクロールする。ルートを足したら、シードも足すこと（404 のままだと検査されない）。認証済みのプランの `Authorization` は、実行のたびに取り直したセッション ID に置き換える（リポジトリの値は無効）
 - DB とアップロード領域: 512 MiB の tmpfs。停止時に消去
 - Docker ネットワーク: AegisCMS は内部ネットワークのみ。loopback ポートを公開する nginx ingress が内部ネットワークと標準 bridge の両方に接続し、対象自体には外向き経路を与えない
 - コンテナ: 非 root、read-only root filesystem、全 Linux capabilities を削除、CPU/メモリ/PID 上限あり
