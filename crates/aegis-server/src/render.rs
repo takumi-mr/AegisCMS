@@ -245,12 +245,9 @@ pub fn build_extra_head(
         path,
         is_article,
     };
-    // Strict CSP: 組み込みのブロックのスタイルと、管理者が書いたヘッダーの `<style>` のハッシュを CSP に足す
-    aegis_core::csp::record_styles_in(aegis_theme::BLOCK_STYLES);
-    aegis_core::csp::record_styles_in(aegis_theme::UTILITY_STYLES);
-    let mut extra_head = String::from(aegis_theme::BLOCK_STYLES);
-    extra_head.push('\n');
-    extra_head.push_str(aegis_theme::UTILITY_STYLES);
+    // 組み込みのブロックのスタイルは、プラグインに渡さないよう、テーマの描画の最後に足す（`ThemeEngine::render`）。
+    // 管理者が書いたヘッダーの `<style>` のハッシュは、Strict CSP のために CSP に足す
+    let mut extra_head = String::new();
     #[cfg(feature = "analytics")]
     {
         let beacon = crate::analytics::head_html(state);
