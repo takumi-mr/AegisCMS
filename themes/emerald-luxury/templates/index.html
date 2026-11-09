@@ -23,13 +23,13 @@
     </div>
   </article>
   {% else %}
-  <div style="grid-column: 1 / -1; padding: 5rem; text-align: center; color: var(--lux-muted);">
+  <div class="ts-8">
     {{ t("theme.lux.empty") }}
   </div>
   {% endfor %}
 </section>
 {% if pagination and pagination.total_pages > 1 %}
-<nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem;">
+<nav class="pagination ts-9" aria-label="{{ t("pagination.label") }}">
   {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="lux-card-link">&larr; {{ t("theme.lux.pagination_newer") }}</a>{% else %}<span></span>{% endif %}
   <span>{{ t("pagination.page", page=pagination.page, total=pagination.total_pages) }}</span>
   {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="lux-card-link">{{ t("theme.lux.pagination_older") }} &rarr;</a>{% else %}<span></span>{% endif %}

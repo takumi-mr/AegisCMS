@@ -156,6 +156,7 @@ pub async fn setup_page(State(state): State<Arc<AppState>>) -> Response {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AegisCMS - Initial Setup</title>
   <style>
+    .no-margin { margin-bottom: 0; }
     :root {
       --bg: #0f172a;
       --card-bg: #1e293b;
@@ -294,7 +295,7 @@ pub async fn setup_page(State(state): State<Arc<AppState>>) -> Response {
       </div>
       <div class="checkbox-field">
         <input type="checkbox" id="sample_data" checked>
-        <label for="sample_data" style="margin-bottom: 0;">Create sample content (welcome article & about page)</label>
+        <label for="sample_data" class="no-margin">Create sample content (welcome article & about page)</label>
       </div>
       <button type="submit" id="submit-btn">Complete Installation</button>
     </form>

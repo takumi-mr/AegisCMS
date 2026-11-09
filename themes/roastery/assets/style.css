@@ -461,3 +461,7 @@ code {
     display: none;
   }
 }
+
+/* Classes that replace the inline style="" attributes of the templates (the public CSP forbids them) */
+.ts-1{list-style: none !important;display: flex !important;flex-wrap: wrap !important;gap: 0.5rem !important;padding: 0 !important;margin: 2rem 0 0 !important}
+.ts-2{display: inline-block !important;padding: 0.15rem 0.7rem !important;border: 1px solid currentColor !important;border-radius: 999px !important;font-size: 0.8rem !important;color: inherit !important;text-decoration: none !important;opacity: 0.75 !important}

@@ -513,7 +513,7 @@ async fn test_public_tag_pages_list_published_content_of_every_type() {
     let (status, html) = site.text("/tags/rust-lang").await;
     assert_eq!(status, StatusCode::OK, "{}", html);
     assert!(
-        html.contains("<h1 style=\"margin: 0 0 0.75rem;\">Rust Lang</h1>"),
+        html.contains("Rust Lang</h1>") && html.contains("<h1 class=\"cms-s"),
         "{}",
         html
     );

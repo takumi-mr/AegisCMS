@@ -566,7 +566,7 @@ pub async fn preview_notification(
                             "frame_key must be 32 lowercase hex digits",
                         ));
                     }
-                    crate::handlers::preview::store_frame(&state, key, html, &[])
+                    crate::handlers::preview::store_frame(&state, key, html, &[], true)
                         .await
                         .ok()
                 }

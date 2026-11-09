@@ -326,57 +326,57 @@ pub const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
 pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<section class="hero-section" style="margin-bottom: 3.5rem; text-align: center; padding: 2.5rem 1rem;">
+<section class="hero-section aegis-s1">
   {% if show_powered_by %}
-  <div style="display: inline-block; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.25); color: #a5b4fc; padding: 0.35rem 0.85rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; margin-bottom: 1.25rem;">
+  <div class="aegis-s2">
     {{ t("index.badge") }}
   </div>
   {% endif %}
-  <h1 style="font-size: 2.85rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 1rem; background: linear-gradient(135deg, #ffffff 30%, #9ca3af 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+  <h1 class="aegis-s3">
     {{ site_title }}
   </h1>
-  <p style="font-size: 1.15rem; color: var(--text-muted); max-width: 620px; margin: 0 auto; line-height: 1.6;">
+  <p class="aegis-s4">
     {{ site_description }}
   </p>
 </section>
 
 <section class="articles-section">
-  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
-    <h2 style="font-size: 1.35rem; font-weight: 700; color: #ffffff;">{{ t("index.latest") }}</h2>
-    <span style="font-size: 0.85rem; color: var(--text-dim);">{{ t("index.posts", n=(pagination.total_items if pagination else items | length)) }}</span>
+  <div class="aegis-s5">
+    <h2 class="aegis-s6">{{ t("index.latest") }}</h2>
+    <span class="aegis-s7">{{ t("index.posts", n=(pagination.total_items if pagination else items | length)) }}</span>
   </div>
 
   {% if items and items | length > 0 %}
-  <div class="cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 1.75rem;">
+  <div class="cards-grid aegis-s8">
     {% for item in items %}
-    <article class="article-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.25s ease; position: relative; overflow: hidden; backdrop-filter: blur(8px);">
+    <article class="article-card aegis-s9">
       <div>
-        <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.85rem;">
-          <span style="background: rgba(99, 102, 241, 0.15); color: #818cf8; font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.55rem; border-radius: var(--radius-sm); text-transform: uppercase;">
+        <div class="aegis-s10">
+          <span class="aegis-s11">
             {{ item.content_type }}
           </span>
           {% if item.published_at %}
-          <time style="font-size: 0.8rem; color: var(--text-dim);" datetime="{{ item.published_at }}">
+          <time class="aegis-s12" datetime="{{ item.published_at }}">
             {{ item.published_at | truncate(10, True, "") }}
           </time>
           {% endif %}
         </div>
-        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.65rem; line-height: 1.4;">
-          <a href="{{ base_path }}/articles/{{ item.slug }}" style="color: #ffffff; text-decoration: none; transition: color 0.15s ease;">
+        <h3 class="aegis-s13">
+          <a class="aegis-s14" href="{{ base_path }}/articles/{{ item.slug }}">
             {{ item.title }}
           </a>
         </h3>
         {% if item.excerpt %}
-        <p style="font-size: 0.92rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 1.25rem;">
+        <p class="aegis-s15">
           {{ item.excerpt }}
         </p>
         {% endif %}
       </div>
-      <div style="padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
-        <span style="font-size: 0.8rem; color: var(--text-dim);">
+      <div class="aegis-s16">
+        <span class="aegis-s12">
           {% if item.author_id %}{{ t("author.by", name=item.author_id) }}{% else %}{{ t("author.team") }}{% endif %}
         </span>
-        <a href="{{ base_path }}/articles/{{ item.slug }}" style="font-size: 0.85rem; font-weight: 600; color: #818cf8; text-decoration: none; display: flex; align-items: center; gap: 0.25rem;">
+        <a class="aegis-s17" href="{{ base_path }}/articles/{{ item.slug }}">
           {{ t("read_story") }} &rarr;
         </a>
       </div>
@@ -384,17 +384,17 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
     {% endfor %}
   </div>
   {% else %}
-  <div style="text-align: center; padding: 4rem 1.5rem; background: var(--bg-card); border: 1px dashed var(--border-color); border-radius: var(--radius-lg);">
-    <div style="width: 48px; height: 48px; background: rgba(255, 255, 255, 0.05); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto; color: var(--text-dim);">
+  <div class="aegis-s18">
+    <div class="aegis-s19">
       &bull;
     </div>
-    <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; color: #ffffff;">{{ t("empty.title") }}</h3>
-    {% if admin_url %}<p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">{{ t("empty.hint") }}</p>{% endif %}
-    {% if admin_url %}<a href="{{ admin_url }}" class="admin-pill" style="display: inline-block; padding: 0.5rem 1.25rem;">{{ t("empty.launch") }}</a>{% endif %}
+    <h3 class="aegis-s20">{{ t("empty.title") }}</h3>
+    {% if admin_url %}<p class="aegis-s21">{{ t("empty.hint") }}</p>{% endif %}
+    {% if admin_url %}<a href="{{ admin_url }}" class="admin-pill aegis-s22">{{ t("empty.launch") }}</a>{% endif %}
   </div>
   {% endif %}
 {% if pagination and pagination.total_pages > 1 %}
-<nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem; color: var(--text-dim); font-size: 0.85rem;">
+<nav class="pagination aegis-s23" aria-label="{{ t("pagination.label") }}">
   {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev" class="admin-pill">&larr; {{ t("pagination.newer_stories") }}</a>{% else %}<span></span>{% endif %}
   <span>{{ t("pagination.page", page=pagination.page, total=pagination.total_pages) }}</span>
   {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next" class="admin-pill">{{ t("pagination.older_stories") }} &rarr;</a>{% else %}<span></span>{% endif %}
@@ -458,6 +458,9 @@ pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
 :where(.aegis-contact-submit){align-self:flex-start;font:inherit;font-weight:600;padding:.6rem 1.4rem;border-radius:6px;border:1px solid rgba(127,127,127,.45);background:rgba(127,127,127,.12);color:inherit;cursor:pointer}\
 :where(.aegis-contact-notice){border-left:3px solid #ef4444;padding:.5rem .9rem;margin:1rem 0}\
 :where(.aegis-contact-sent){border-left:3px solid #10b981;padding:.75rem 1rem;margin:1.5rem 0}\
+.aegis-ta-left{text-align:left}.aegis-ta-center{text-align:center}.aegis-ta-right{text-align:right}\
+.aegis-contact-trap,.aegis-newsletter-trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}\
+:where(iframe.aegis-html-sandbox){width:100%;border:0;display:block;min-height:48px}\
 </style>";
 
 /// `[theme].front_page = "template"` のトップページ。テーマに `front.html` が無ければ記事一覧と同じ表示にする
@@ -467,29 +470,29 @@ pub const FRONT_TEMPLATE: &str = r#"{% extends "index.html" %}"#;
 pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<section class="aegis-archive" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
-  <p class="aegis-archive-label" style="font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin: 0 0 0.4rem;">{{ t("category.label") }}</p>
-  <h1 style="margin: 0 0 0.75rem;">{{ title }}</h1>
-  {% if fields.description %}<p class="aegis-archive-description" style="opacity: 0.75; margin: 0 0 2rem;">{{ fields.description }}</p>{% endif %}
-  <ul class="aegis-archive-list" style="list-style: none; padding: 0; margin: 0;">
+<section class="aegis-archive aegis-s24">
+  <p class="aegis-archive-label aegis-s25">{{ t("category.label") }}</p>
+  <h1 class="aegis-s26">{{ title }}</h1>
+  {% if fields.description %}<p class="aegis-archive-description aegis-s27">{{ fields.description }}</p>{% endif %}
+  <ul class="aegis-archive-list aegis-s28">
     {% for item in items %}
-    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
-      {% if item.published_at %}<time datetime="{{ item.published_at }}" style="font-size: 0.85rem; opacity: 0.65;">{{ item.published_at | date_short }}</time>{% endif %}
-      <h2 style="font-size: 1.15rem; margin: 0.2rem 0 0.3rem;"><a href="{{ base_path }}/articles/{{ item.slug }}" style="color: inherit;">{{ item.title }}</a></h2>
-      {% if item.excerpt %}<p style="opacity: 0.75; margin: 0;">{{ item.excerpt }}</p>{% endif %}
+    <li class="aegis-s29">
+      {% if item.published_at %}<time class="aegis-s30" datetime="{{ item.published_at }}">{{ item.published_at | date_short }}</time>{% endif %}
+      <h2 class="aegis-s31"><a class="aegis-s32" href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a></h2>
+      {% if item.excerpt %}<p class="aegis-s33">{{ item.excerpt }}</p>{% endif %}
     </li>
     {% else %}
-    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">{{ t("category.empty") }}</li>
+    <li class="aegis-s34">{{ t("category.empty") }}</li>
     {% endfor %}
   </ul>
   {% if pagination and pagination.total_pages > 1 %}
-  <nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+  <nav class="pagination aegis-s35" aria-label="{{ t("pagination.label") }}">
     {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; {{ t("pagination.newer") }}</a>{% else %}<span></span>{% endif %}
-    <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    <span class="aegis-s36">{{ pagination.page }} / {{ pagination.total_pages }}</span>
     {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">{{ t("pagination.older") }} &rarr;</a>{% else %}<span></span>{% endif %}
   </nav>
   {% endif %}
-  <p style="margin-top: 2rem; font-size: 0.85rem;"><a href="{{ base_path }}/category/{{ slug }}/feed.xml">{{ t("category.feed") }}</a></p>
+  <p class="aegis-s37"><a href="{{ base_path }}/category/{{ slug }}/feed.xml">{{ t("category.feed") }}</a></p>
 </section>
 {% endblock %}
 "#;
@@ -499,29 +502,29 @@ pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
 pub const TAG_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<section class="aegis-archive" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
-  <p class="aegis-archive-label" style="font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin: 0 0 0.4rem;">{{ t("tag.label") }}</p>
-  <h1 style="margin: 0 0 0.75rem;">{{ title }}</h1>
-  {% if fields.description %}<p class="aegis-archive-description" style="opacity: 0.75; margin: 0 0 2rem;">{{ fields.description }}</p>{% endif %}
-  <ul class="aegis-archive-list" style="list-style: none; padding: 0; margin: 0;">
+<section class="aegis-archive aegis-s24">
+  <p class="aegis-archive-label aegis-s25">{{ t("tag.label") }}</p>
+  <h1 class="aegis-s26">{{ title }}</h1>
+  {% if fields.description %}<p class="aegis-archive-description aegis-s27">{{ fields.description }}</p>{% endif %}
+  <ul class="aegis-archive-list aegis-s28">
     {% for item in items %}
-    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
-      {% if item.published_at %}<time datetime="{{ item.published_at }}" style="font-size: 0.85rem; opacity: 0.65;">{{ item.published_at | date_short }}</time>{% endif %}
-      <h2 style="font-size: 1.15rem; margin: 0.2rem 0 0.3rem;"><a href="{{ item.fields.url }}" style="color: inherit;">{{ item.title }}</a></h2>
-      {% if item.excerpt %}<p style="opacity: 0.75; margin: 0;">{{ item.excerpt }}</p>{% endif %}
+    <li class="aegis-s29">
+      {% if item.published_at %}<time class="aegis-s30" datetime="{{ item.published_at }}">{{ item.published_at | date_short }}</time>{% endif %}
+      <h2 class="aegis-s31"><a class="aegis-s32" href="{{ item.fields.url }}">{{ item.title }}</a></h2>
+      {% if item.excerpt %}<p class="aegis-s33">{{ item.excerpt }}</p>{% endif %}
     </li>
     {% else %}
-    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">{{ t("tag.empty") }}</li>
+    <li class="aegis-s34">{{ t("tag.empty") }}</li>
     {% endfor %}
   </ul>
   {% if pagination and pagination.total_pages > 1 %}
-  <nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+  <nav class="pagination aegis-s35" aria-label="{{ t("pagination.label") }}">
     {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; {{ t("pagination.newer") }}</a>{% else %}<span></span>{% endif %}
-    <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    <span class="aegis-s36">{{ pagination.page }} / {{ pagination.total_pages }}</span>
     {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">{{ t("pagination.older") }} &rarr;</a>{% else %}<span></span>{% endif %}
   </nav>
   {% endif %}
-  <p style="margin-top: 2rem; font-size: 0.85rem;"><a href="{{ base_path }}/tags/{{ slug }}/feed.xml">{{ t("tag.feed") }}</a></p>
+  <p class="aegis-s37"><a href="{{ base_path }}/tags/{{ slug }}/feed.xml">{{ t("tag.feed") }}</a></p>
 </section>
 {% endblock %}
 "#;
@@ -531,17 +534,17 @@ pub const TAG_TEMPLATE: &str = r#"{% extends "base.html" %}
 pub const TAGS_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<section class="aegis-archive" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
-  <h1 style="margin: 0 0 1.5rem;">{{ t("tags.title") }}</h1>
-  <ul class="aegis-tag-list" style="list-style: none; padding: 0; margin: 0;">
+<section class="aegis-archive aegis-s24">
+  <h1 class="aegis-s38">{{ t("tags.title") }}</h1>
+  <ul class="aegis-tag-list aegis-s28">
     {% for item in items %}
-    <li style="padding: 0.75rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
-      <a href="{{ item.fields.url }}" style="color: inherit; font-weight: 600;">{{ item.title }}</a>
-      <span style="opacity: 0.65; font-size: 0.85rem;"> &middot; {{ t("tags.count", n=item.fields.count) }}</span>
-      {% if item.fields.description %}<p style="opacity: 0.75; margin: 0.25rem 0 0;">{{ item.fields.description }}</p>{% endif %}
+    <li class="aegis-s39">
+      <a class="aegis-s40" href="{{ item.fields.url }}">{{ item.title }}</a>
+      <span class="aegis-s41"> &middot; {{ t("tags.count", n=item.fields.count) }}</span>
+      {% if item.fields.description %}<p class="aegis-s42">{{ item.fields.description }}</p>{% endif %}
     </li>
     {% else %}
-    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">{{ t("tags.empty") }}</li>
+    <li class="aegis-s34">{{ t("tags.empty") }}</li>
     {% endfor %}
   </ul>
 </section>
@@ -554,10 +557,10 @@ pub const TAGS_TEMPLATE: &str = r#"{% extends "base.html" %}
 pub const CONTACT_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<section class="aegis-contact-page" style="max-width: 720px; margin: 0 auto; padding: 1rem 0 3rem;">
-  <h1 style="margin: 0 0 1rem;">{{ title }}</h1>
+<section class="aegis-contact-page aegis-s43">
+  <h1 class="aegis-s44">{{ title }}</h1>
   {% if fields.sent %}
-  <div class="aegis-contact-sent" role="status"><p style="margin: 0;">{{ fields.form.success_message }}</p></div>
+  <div class="aegis-contact-sent" role="status"><p class="aegis-s45">{{ fields.form.success_message }}</p></div>
   {% else %}
   {% if fields.notice %}<p class="aegis-contact-notice" role="alert">{{ fields.notice }}</p>{% endif %}
   <div class="aegis-contact">{{ fields.form_html | safe }}</div>
@@ -619,35 +622,35 @@ pub const SEARCH_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
 {% filter inline_style %}:where(.aegis-search) mark{background:rgba(250,204,21,.3);color:inherit;border-radius:2px;padding:0 .1em}{% endfilter %}
-<section class="aegis-search" style="max-width: 820px; margin: 0 auto; padding: 1rem 0 3rem;">
-  <h1 style="margin: 0 0 1rem;">{{ title }}</h1>
-  <form class="aegis-search-form" role="search" action="{{ base_path }}/search" method="get" style="display: flex; gap: 0.5rem; margin: 0 0 1.5rem;">
-    <input type="search" name="q" value="{{ fields.query }}" aria-label="{{ t("search.label") }}" placeholder="{{ t("search.label") }}" maxlength="200" style="flex: 1; min-width: 0; padding: 0.55rem 0.75rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit;">
+<section class="aegis-search aegis-s24">
+  <h1 class="aegis-s44">{{ title }}</h1>
+  <form class="aegis-search-form aegis-s46" role="search" action="{{ base_path }}/search" method="get">
+    <input class="aegis-s47" type="search" name="q" value="{{ fields.query }}" aria-label="{{ t("search.label") }}" placeholder="{{ t("search.label") }}" maxlength="200">
     {% if fields.category %}<input type="hidden" name="category" value="{{ fields.category }}">{% endif %}
     {% if fields.tag %}<input type="hidden" name="tag" value="{{ fields.tag }}">{% endif %}
-    <select name="sort" aria-label="{{ t("search.sort") }}" style="padding: 0.55rem 0.5rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit;">
+    <select class="aegis-s48" name="sort" aria-label="{{ t("search.sort") }}">
       <option value="relevance"{% if fields.sort != "newest" %} selected{% endif %}>{{ t("search.sort_relevance") }}</option>
       <option value="newest"{% if fields.sort == "newest" %} selected{% endif %}>{{ t("search.sort_newest") }}</option>
     </select>
-    <button type="submit" style="padding: 0.55rem 1rem; font: inherit; border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; background: transparent; color: inherit; cursor: pointer;">{{ t("search.label") }}</button>
+    <button class="aegis-s49" type="submit">{{ t("search.label") }}</button>
   </form>
   {% if fields.query %}
-  <p class="aegis-search-count" style="opacity: 0.7; margin: 0 0 0.5rem; font-size: 0.9rem;">{{ t("search.results", n=pagination.total_items) }}</p>
-  <ul class="aegis-search-results" style="list-style: none; padding: 0; margin: 0;">
+  <p class="aegis-search-count aegis-s50">{{ t("search.results", n=pagination.total_items) }}</p>
+  <ul class="aegis-search-results aegis-s28">
     {% for item in items %}
-    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25);">
-      <h2 style="font-size: 1.15rem; margin: 0 0 0.3rem;"><a href="{{ item.fields.url }}" style="color: inherit;">{{ item.title }}</a></h2>
-      {% if item.fields.snippet_html %}<p class="aegis-search-snippet" style="opacity: 0.8; margin: 0;">{{ item.fields.snippet_html | safe }}</p>{% endif %}
-      {% if item.published_at %}<time datetime="{{ item.published_at }}" style="font-size: 0.8rem; opacity: 0.6;">{{ item.published_at | date_short }}</time>{% endif %}
+    <li class="aegis-s29">
+      <h2 class="aegis-s51"><a class="aegis-s32" href="{{ item.fields.url }}">{{ item.title }}</a></h2>
+      {% if item.fields.snippet_html %}<p class="aegis-search-snippet aegis-s52">{{ item.fields.snippet_html | safe }}</p>{% endif %}
+      {% if item.published_at %}<time class="aegis-s53" datetime="{{ item.published_at }}">{{ item.published_at | date_short }}</time>{% endif %}
     </li>
     {% else %}
-    <li style="padding: 1rem 0; border-top: 1px solid rgba(127, 127, 127, 0.25); opacity: 0.7;">{{ t("search.empty") }}</li>
+    <li class="aegis-s34">{{ t("search.empty") }}</li>
     {% endfor %}
   </ul>
   {% if pagination and pagination.total_pages > 1 %}
-  <nav class="pagination" aria-label="{{ t("pagination.label") }}" style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: 0.9rem;">
+  <nav class="pagination aegis-s35" aria-label="{{ t("pagination.label") }}">
     {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" rel="prev">&larr; {{ t("pagination.previous") }}</a>{% else %}<span></span>{% endif %}
-    <span style="opacity: 0.65;">{{ pagination.page }} / {{ pagination.total_pages }}</span>
+    <span class="aegis-s36">{{ pagination.page }} / {{ pagination.total_pages }}</span>
     {% if pagination.next_url %}<a href="{{ pagination.next_url }}" rel="next">{{ t("pagination.next") }} &rarr;</a>{% else %}<span></span>{% endif %}
   </nav>
   {% endif %}
@@ -659,43 +662,43 @@ pub const SEARCH_TEMPLATE: &str = r#"{% extends "base.html" %}
 pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<article class="article-detail" style="max-width: 820px; margin: 0 auto;">
-  <nav class="breadcrumb" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1.75rem;">
-    <a href="{{ base_path }}/" style="color: var(--text-dim); text-decoration: none;">{{ t("nav.home") }}</a>
+<article class="article-detail aegis-s54">
+  <nav class="breadcrumb aegis-s55">
+    <a class="aegis-s56" href="{{ base_path }}/">{{ t("nav.home") }}</a>
     <span>/</span>
-    <span style="text-transform: capitalize;">{{ content_type }}</span>
+    <span class="aegis-s57">{{ content_type }}</span>
     <span>/</span>
-    <span style="color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ title }}</span>
+    <span class="aegis-s58">{{ title }}</span>
   </nav>
 
-  <header class="article-header" style="margin-bottom: 2.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.75rem;">
-    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-      <span style="background: rgba(99, 102, 241, 0.15); color: #818cf8; font-size: 0.78rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: var(--radius-sm); text-transform: uppercase;">
+  <header class="article-header aegis-s59">
+    <div class="aegis-s60">
+      <span class="aegis-s61">
         {{ content_type }}
       </span>
       {% if published_at %}
-      <time style="font-size: 0.85rem; color: var(--text-dim);" datetime="{{ published_at }}">
+      <time class="aegis-s7" datetime="{{ published_at }}">
         {{ t("article.published_on", date=(published_at | date_short)) }}
       </time>
       {% endif %}
     </div>
 
-    <h1 style="font-size: 2.65rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.25; color: #ffffff; margin-bottom: 1.25rem;">
+    <h1 class="aegis-s62">
       {{ title }}
     </h1>
 
-    <div style="display: flex; align-items: center; gap: 1rem;">
-      <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: #ffffff;">
+    <div class="aegis-s63">
+      <div class="aegis-s64">
         {% if author %}{{ author | truncate(1, True, "") | upper }}{% else %}A{% endif %}
       </div>
       <div>
-        <div style="font-size: 0.9rem; font-weight: 600; color: #ffffff;">
+        <div class="aegis-s65">
           {% if author %}{{ author }}{% else %}{{ t("author.default") }}{% endif %}
         </div>
-        <div style="font-size: 0.78rem; color: var(--text-dim);">{{ t("author.verified") }}</div>
+        <div class="aegis-s66">{{ t("author.verified") }}</div>
       </div>
     </div>
-    {% if fields.tags %}<ul class="aegis-tags" aria-label="{{ t("tags.aria") }}" style="list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0; margin: 1rem 0 0;">{% for tag in fields.tags %}<li><a href="{{ tag.url }}" rel="tag" style="display: inline-block; padding: 0.15rem 0.6rem; border: 1px solid rgba(127, 127, 127, 0.4); border-radius: 999px; font-size: 0.8rem; color: inherit; text-decoration: none;">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
+    {% if fields.tags %}<ul class="aegis-tags aegis-s67" aria-label="{{ t("tags.aria") }}">{% for tag in fields.tags %}<li><a class="aegis-s68" href="{{ tag.url }}" rel="tag">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
   </header>
 
   <div class="prose">
@@ -703,23 +706,23 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
   </div>
 
   {% if related_articles and related_articles | length > 0 %}
-  <section class="related-articles" style="margin-top: 3.5rem; padding-top: 2.5rem; border-top: 1px solid var(--border-color);">
-    <h2 style="font-size: 1.4rem; font-weight: 700; color: #ffffff; margin-bottom: 1.25rem;">
+  <section class="related-articles aegis-s69">
+    <h2 class="aegis-s70">
       {{ t("article.related") }}
     </h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;">
+    <div class="aegis-s71">
       {% for item in related_articles %}
-      <a href="{{ base_path }}/articles/{{ item.slug }}" style="display: flex; flex-direction: column; padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: border-color 0.2s, transform 0.2s;">
-        <h3 style="font-size: 1.05rem; font-weight: 600; color: #ffffff; margin-bottom: 0.5rem; line-height: 1.4;">
+      <a class="aegis-s72" href="{{ base_path }}/articles/{{ item.slug }}">
+        <h3 class="aegis-s73">
           {{ item.title }}
         </h3>
         {% if item.excerpt %}
-        <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.75rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+        <p class="aegis-s74">
           {{ item.excerpt }}
         </p>
         {% endif %}
         {% if item.published_at %}
-        <time style="font-size: 0.75rem; color: var(--text-dim); margin-top: auto;" datetime="{{ item.published_at }}">
+        <time class="aegis-s75" datetime="{{ item.published_at }}">
           {{ item.published_at | date_short }}
         </time>
         {% endif %}
@@ -731,11 +734,11 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 
   {% if comments %}{% include "comments.html" %}{% endif %}
 
-  <footer class="article-footer" style="margin-top: 3.5rem; padding-top: 2rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
-    <a href="{{ base_path }}/" style="color: #818cf8; font-size: 0.9rem; text-decoration: none; font-weight: 600;">
+  <footer class="article-footer aegis-s76">
+    <a class="aegis-s77" href="{{ base_path }}/">
       &larr; {{ t("article.back") }}
     </a>
-    <a href='#' style="background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); padding: 0.4rem 0.85rem; border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; text-decoration: none; transition: all 0.2s ease;">
+    <a class="aegis-s78" href='#'>
       {{ t("article.scroll_top") }} &uarr;
     </a>
   </footer>
@@ -746,35 +749,35 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
 pub const PAGE_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<article class="page-detail" style="max-width: 820px; margin: 0 auto;">
-  <header style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.25rem;">
-    <h1 style="font-size: 2.5rem; font-weight: 800; letter-spacing: -0.02em; color: #ffffff;">
+<article class="page-detail aegis-s54">
+  <header class="aegis-s79">
+    <h1 class="aegis-s80">
       {{ title }}
     </h1>
   </header>
 
-  {% if fields.tags %}<ul class="aegis-tags" aria-label="{{ t("tags.aria") }}" style="list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0; margin: 0 0 1.5rem;">{% for tag in fields.tags %}<li><a href="{{ tag.url }}" rel="tag" style="display: inline-block; padding: 0.15rem 0.6rem; border: 1px solid rgba(127, 127, 127, 0.4); border-radius: 999px; font-size: 0.8rem; color: inherit; text-decoration: none;">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
+  {% if fields.tags %}<ul class="aegis-tags aegis-s81" aria-label="{{ t("tags.aria") }}">{% for tag in fields.tags %}<li><a class="aegis-s68" href="{{ tag.url }}" rel="tag">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
   <div class="prose">
     {{ content_html | safe }}
   </div>
   {% if related_articles and related_articles | length > 0 %}
-  <section class="related-articles" style="margin-top: 3.5rem; padding-top: 2.5rem; border-top: 1px solid var(--border-color);">
-    <h2 style="font-size: 1.4rem; font-weight: 700; color: #ffffff; margin-bottom: 1.25rem;">
+  <section class="related-articles aegis-s69">
+    <h2 class="aegis-s70">
       {{ t("article.related") }}
     </h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;">
+    <div class="aegis-s71">
       {% for item in related_articles %}
-      <a href="{{ base_path }}/articles/{{ item.slug }}" style="display: flex; flex-direction: column; padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: border-color 0.2s, transform 0.2s;">
-        <h3 style="font-size: 1.05rem; font-weight: 600; color: #ffffff; margin-bottom: 0.5rem; line-height: 1.4;">
+      <a class="aegis-s72" href="{{ base_path }}/articles/{{ item.slug }}">
+        <h3 class="aegis-s73">
           {{ item.title }}
         </h3>
         {% if item.excerpt %}
-        <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.75rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+        <p class="aegis-s74">
           {{ item.excerpt }}
         </p>
         {% endif %}
         {% if item.published_at %}
-        <time style="font-size: 0.75rem; color: var(--text-dim); margin-top: auto;" datetime="{{ item.published_at }}">
+        <time class="aegis-s75" datetime="{{ item.published_at }}">
           {{ item.published_at | date_short }}
         </time>
         {% endif %}
@@ -824,15 +827,15 @@ pub const BLANK_TEMPLATE: &str = r#"<!DOCTYPE html>
 pub const NOT_FOUND_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<div style="text-align: center; padding: 5rem 1rem;">
-  <div style="font-size: 5rem; font-weight: 900; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 1rem; line-height: 1;">
+<div class="aegis-s82">
+  <div class="aegis-s83">
     404
   </div>
-  <h2 style="font-size: 1.75rem; font-weight: 700; color: #ffffff; margin-bottom: 0.75rem;">{{ t("notfound.title") }}</h2>
-  <p style="font-size: 1rem; color: var(--text-muted); max-width: 480px; margin: 0 auto 2rem auto;">
+  <h2 class="aegis-s84">{{ t("notfound.title") }}</h2>
+  <p class="aegis-s85">
     {{ t("notfound.message") }}
   </p>
-  <a href="{{ base_path }}/" style="background: var(--accent-gradient); color: #ffffff; text-decoration: none; padding: 0.65rem 1.5rem; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.95rem; display: inline-block;">
+  <a class="aegis-s86" href="{{ base_path }}/">
     {{ t("notfound.home") }}
   </a>
 </div>
@@ -922,7 +925,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
   .aegis-comments { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(127,127,127,0.25); }
   .aegis-comments h2 { font-size: 1.35rem; margin-bottom: 1.25rem; }
   .aegis-comments h3 { font-size: 1.1rem; margin-bottom: 0.75rem; }
-  .aegis-comment { margin: 0 0 1rem calc(min(var(--depth, 0), 4) * 1.5rem); padding: 0.9rem 1rem; border-radius: 12px; background: rgba(127,127,127,0.07); border: 1px solid rgba(127,127,127,0.18); }
+  .aegis-comment { margin: 0 0 1rem 0; padding: 0.9rem 1rem; border-radius: 12px; background: rgba(127,127,127,0.07); border: 1px solid rgba(127,127,127,0.18); }
   .aegis-comment:target { border-color: var(--accent, #6366f1); }
   .aegis-comment-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 0.9rem; }
   .aegis-comment-avatar { width: 28px; height: 28px; border-radius: 50%; align-self: center; object-fit: cover; }
@@ -944,7 +947,7 @@ pub const COMMENTS_TEMPLATE: &str = r##"<section class="aegis-comments" id="comm
 {% endfilter %}
   <h2>{{ t("comments.count", n=comments.count) }}</h2>
   {% for c in comments["items"] %}
-  <article class="aegis-comment" id="comment-{{ c.id }}" style="--depth: {{ c.depth }}">
+  <article class="aegis-comment aegis-depth-{{ c.depth if c.depth < 4 else 4 }}" id="comment-{{ c.id }}">
     <header class="aegis-comment-head">
       {% if c.avatar_url %}<img class="aegis-comment-avatar" src="{{ c.avatar_url }}" alt="" width="28" height="28" loading="lazy" referrerpolicy="no-referrer">{% endif %}
       <strong>{{ c.author_name }}</strong>
@@ -982,7 +985,7 @@ pub const PRODUCTS_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% block content %}
 <section class="aegis-shop">
   {% include "shop_common.html" %}
-  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ title }}</h1>
+  <h1 class="aegis-s87">{{ title }}</h1>
   {% if items and items | length > 0 %}
   <div class="aegis-grid">
     {% for item in items %}
@@ -991,7 +994,7 @@ pub const PRODUCTS_TEMPLATE: &str = r#"{% extends "base.html" %}
       <div class="aegis-card-body">
         <span class="aegis-card-title">{{ item.title }}</span>
         {% if item.fields.excerpt %}<span class="aegis-muted">{{ item.fields.excerpt | truncate(80) }}</span>{% elif item.excerpt %}<span class="aegis-muted">{{ item.excerpt | truncate(80) }}</span>{% endif %}
-        <span style="margin-top: auto;">
+        <span class="aegis-s88">
           <span class="aegis-price">{{ item.fields.price | money(theme_vars.currency) }}</span>
           {% if item.fields.compare_at_price %}<span class="aegis-compare">{{ item.fields.compare_at_price | money(theme_vars.currency) }}</span>{% endif %}
         </span>
@@ -1004,7 +1007,7 @@ pub const PRODUCTS_TEMPLATE: &str = r#"{% extends "base.html" %}
   <div class="aegis-empty"><p>{{ t("shop.no_products") }}</p></div>
   {% endif %}
   {% if pagination and pagination.total_pages > 1 %}
-  <nav aria-label="{{ t("pagination.label") }}" style="display: flex; justify-content: space-between; margin-top: 2rem;">
+  <nav class="aegis-s89" aria-label="{{ t("pagination.label") }}">
     {% if pagination.prev_url %}<a href="{{ pagination.prev_url }}" class="aegis-button aegis-secondary">&larr; {{ t("pagination.previous") }}</a>{% else %}<span></span>{% endif %}
     <span class="aegis-muted">{{ t("pagination.page", page=pagination.page, total=pagination.total_pages) }}</span>
     {% if pagination.next_url %}<a href="{{ pagination.next_url }}" class="aegis-button aegis-secondary">{{ t("pagination.next") }} &rarr;</a>{% else %}<span></span>{% endif %}
@@ -1027,7 +1030,7 @@ pub const PRODUCT_TEMPLATE: &str = r##"{% extends "base.html" %}
       {% if relations.category_id %}<div class="aegis-muted">{{ relations.category_id.title }}</div>{% endif %}
       <h1>{{ title }}</h1>
       <div>
-        <span class="aegis-price" style="font-size: 1.5rem;">{{ fields.price | money(theme_vars.currency) }}</span>
+        <span class="aegis-price aegis-s90">{{ fields.price | money(theme_vars.currency) }}</span>
         {% if fields.compare_at_price %}<span class="aegis-compare">{{ fields.compare_at_price | money(theme_vars.currency) }}</span>{% endif %}
       </div>
       {% if fields.sku %}<div class="aegis-muted">{{ t("shop.sku", sku=fields.sku) }}</div>{% endif %}
@@ -1044,28 +1047,28 @@ pub const PRODUCT_TEMPLATE: &str = r##"{% extends "base.html" %}
         {% endif %}
         {% if not sold_out and fields.stock is defined and fields.stock is not none and fields.stock | int <= 5 %}<span class="aegis-muted">{{ t("shop.only_left", n=fields.stock) }}</span>{% endif %}
       </div>
-      {% if fields.excerpt %}<p style="margin-bottom: 1rem;">{{ fields.excerpt }}</p>{% endif %}
+      {% if fields.excerpt %}<p class="aegis-s91">{{ fields.excerpt }}</p>{% endif %}
       <div class="prose">{{ content_html | safe }}</div>
     </div>
   </article>
   {% if related_articles and related_articles | length > 0 %}
-  <section class="related-articles" style="margin-top: 3.5rem; padding-top: 2.5rem; border-top: 1px solid var(--border-color);">
-    <h2 style="font-size: 1.4rem; font-weight: 700; color: #ffffff; margin-bottom: 1.25rem;">
+  <section class="related-articles aegis-s69">
+    <h2 class="aegis-s70">
       {{ t("article.related") }}
     </h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;">
+    <div class="aegis-s71">
       {% for item in related_articles %}
-      <a href="{{ base_path }}/articles/{{ item.slug }}" style="display: flex; flex-direction: column; padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: border-color 0.2s, transform 0.2s;">
-        <h3 style="font-size: 1.05rem; font-weight: 600; color: #ffffff; margin-bottom: 0.5rem; line-height: 1.4;">
+      <a class="aegis-s72" href="{{ base_path }}/articles/{{ item.slug }}">
+        <h3 class="aegis-s73">
           {{ item.title }}
         </h3>
         {% if item.excerpt %}
-        <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.75rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+        <p class="aegis-s74">
           {{ item.excerpt }}
         </p>
         {% endif %}
         {% if item.published_at %}
-        <time style="font-size: 0.75rem; color: var(--text-dim); margin-top: auto;" datetime="{{ item.published_at }}">
+        <time class="aegis-s75" datetime="{{ item.published_at }}">
           {{ item.published_at | date_short }}
         </time>
         {% endif %}
@@ -1110,7 +1113,7 @@ pub const CART_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% block content %}
 <section class="aegis-shop">
   {% include "shop_common.html" %}
-  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ title }}</h1>
+  <h1 class="aegis-s87">{{ title }}</h1>
   <div id="aegis-cart"><p class="aegis-muted">{{ t("shop.cart_loading") }}</p></div>
   <noscript><p class="aegis-error">{{ t("shop.cart_needs_js") }}</p></noscript>
 </section>
@@ -1122,9 +1125,9 @@ pub const CART_TEMPLATE: &str = r#"{% extends "base.html" %}
 pub const ACCOUNT_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<section class="aegis-shop" style="max-width: 720px;">
+<section class="aegis-shop aegis-s92">
   {% include "shop_common.html" %}
-  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ t("account.title") }}</h1>
+  <h1 class="aegis-s87">{{ t("account.title") }}</h1>
   <div id="aegis-account" data-view="{{ slug }}"><p class="aegis-muted">{{ t("account.loading") }}</p></div>
   <noscript><p class="aegis-muted">{{ t("account.needs_js") }}</p></noscript>
   <script src="{{ theme_vars.account_script }}" data-api="{{ theme_vars.account_api }}" data-account-url="{{ theme_vars.account_url }}" data-login-url="{{ theme_vars.account_login_url }}" data-register-url="{{ theme_vars.account_register_url }}" data-forgot-url="{{ theme_vars.account_forgot_url }}" data-min-password="{{ theme_vars.account_min_password }}" defer></script>
@@ -1135,9 +1138,9 @@ pub const ACCOUNT_TEMPLATE: &str = r#"{% extends "base.html" %}
 pub const ORDER_TEMPLATE: &str = r#"{% extends "base.html" %}
 
 {% block content %}
-<section class="aegis-shop" style="max-width: 720px;">
+<section class="aegis-shop aegis-s92">
   {% include "shop_common.html" %}
-  <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">{{ t("shop.order_thanks") }}</h1>
+  <h1 class="aegis-s87">{{ t("shop.order_thanks") }}</h1>
   <div id="aegis-order" data-order-id="{{ slug }}"><p class="aegis-muted">{{ t("shop.order_loading") }}</p></div>
 </section>
 {% endblock %}
@@ -1212,16 +1215,16 @@ pub const FORUM_INDEX_TEMPLATE: &str = r##"{% extends "base.html" %}
     </div>
   </nav>
 
-  <h1 style="font-size: 2.2rem; margin: 0 0 0.5rem; font-weight: 800; letter-spacing: -0.02em;">{{ t("forum.title") }}</h1>
-  <p style="opacity: 0.7; margin: 0 0 2.5rem; font-size: 1.05rem;">{{ t("forum.tagline") }}</p>
+  <h1 class="aegis-s93">{{ t("forum.title") }}</h1>
+  <p class="aegis-s94">{{ t("forum.tagline") }}</p>
 
-  <h2 style="font-size: 1.35rem; font-weight: 700; margin: 0 0 1.25rem;">{{ t("forum.categories") }}</h2>
+  <h2 class="aegis-s95">{{ t("forum.categories") }}</h2>
   <div class="aegis-forum-grid">
     {% for cat in fields.categories %}
     <a href="{{ theme_vars.forum_url }}/{{ cat.slug }}" class="aegis-forum-card">
       <div class="aegis-forum-cat-title">
         <span>{{ cat.name }}</span>
-        <span style="opacity: 0.5; font-size: 0.9rem;">&rarr;</span>
+        <span class="aegis-s96">&rarr;</span>
       </div>
       <p class="aegis-forum-cat-desc">{{ cat.description }}</p>
       <div class="aegis-forum-cat-stats">
@@ -1235,7 +1238,7 @@ pub const FORUM_INDEX_TEMPLATE: &str = r##"{% extends "base.html" %}
   </div>
 
   {% if fields.recent_threads | length > 0 %}
-  <h2 style="font-size: 1.35rem; font-weight: 700; margin: 2rem 0 1.25rem;">{{ t("forum.recent") }}</h2>
+  <h2 class="aegis-s97">{{ t("forum.recent") }}</h2>
   <div class="aegis-forum-threads">
     {% for thread in fields.recent_threads %}
     <a href="{{ theme_vars.forum_url }}/{{ thread.category_slug }}/{{ thread.id }}" class="aegis-forum-thread-item">
@@ -1277,9 +1280,9 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
     <a href="#new-thread" class="aegis-forum-btn">{{ t("forum.new_thread") }}</a>
   </nav>
 
-  <h1 style="font-size: 2rem; margin: 0 0 0.5rem; font-weight: 800;">{{ fields.category.name }}</h1>
+  <h1 class="aegis-s98">{{ fields.category.name }}</h1>
   {% if fields.category.description %}
-  <p style="opacity: 0.7; margin: 0 0 2rem; font-size: 1rem;">{{ fields.category.description }}</p>
+  <p class="aegis-s99">{{ fields.category.description }}</p>
   {% endif %}
   {% if fields.pending_notice %}
   <div class="aegis-forum-banner-notice" role="status">{{ t("forum.thread_pending") }}</div>
@@ -1311,7 +1314,7 @@ pub const FORUM_CATEGORY_TEMPLATE: &str = r##"{% extends "base.html" %}
   </div>
 
   {% if pagination %}
-  <div style="display: flex; justify-content: center; gap: 0.5rem; margin: 2rem 0;">
+  <div class="aegis-s100">
     {% if pagination.prev_url %}
     <a href="{{ pagination.prev_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">&larr; {{ t("pagination.previous") }}</a>
     {% endif %}
@@ -1359,20 +1362,20 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
       <span>&gt;</span>
       <a href="{{ theme_vars.forum_url }}/{{ fields.category.slug }}">{{ fields.category.name }}</a>
       <span>&gt;</span>
-      <strong style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ fields.thread.title }}</strong>
+      <strong class="aegis-s101">{{ fields.thread.title }}</strong>
     </div>
     {% if not fields.thread.is_locked %}
     <a href="#reply-form" class="aegis-forum-btn">{{ t("reply") }}</a>
     {% endif %}
   </nav>
 
-  <header style="margin-bottom: 2rem;">
-    <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+  <header class="aegis-s102">
+    <div class="aegis-s103">
       {% if fields.thread.is_pinned %}<span class="aegis-forum-badge aegis-forum-badge-pinned">{{ t("forum.pinned") }}</span>{% endif %}
       {% if fields.thread.is_locked %}<span class="aegis-forum-badge aegis-forum-badge-locked">{{ t("forum.locked") }}</span>{% endif %}
-      <h1 style="font-size: 1.85rem; margin: 0; font-weight: 800; line-height: 1.3;">{{ fields.thread.title }}</h1>
+      <h1 class="aegis-s104">{{ fields.thread.title }}</h1>
     </div>
-    <div style="font-size: 0.85rem; opacity: 0.65; display: flex; gap: 1rem; flex-wrap: wrap;">
+    <div class="aegis-s105">
       <span>{{ t("forum.started_by", name=fields.thread.author_name) }}</span>
       <span>{{ t("forum.posts", n=fields.thread.post_count) }}</span>
       <span>{{ t("forum.created") }} <time datetime="{{ fields.thread.created_at }}">{{ fields.thread.created_at | date_short }}</time></span>
@@ -1391,15 +1394,15 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
     <article class="aegis-forum-post" id="post-{{ p.post_number }}">
       <div class="aegis-forum-post-head">
         <div class="aegis-forum-post-author">
-          {% if p.avatar_url %}<img class="aegis-forum-avatar" src="{{ p.avatar_url }}" alt="" width="28" height="28" style="object-fit: cover;">{% else %}<div class="aegis-forum-avatar">{{ p.author_initial }}</div>{% endif %}
+          {% if p.avatar_url %}<img class="aegis-forum-avatar aegis-s106" src="{{ p.avatar_url }}" alt="" width="28" height="28">{% else %}<div class="aegis-forum-avatar">{{ p.author_initial }}</div>{% endif %}
           <span>{{ p.author_name }}</span>
           {% if p.is_author_staff %}
-          <span class="aegis-forum-badge" style="background: var(--accent, #6366f1); color: #fff;">{{ t("staff") }}</span>
+          <span class="aegis-forum-badge aegis-s107">{{ t("staff") }}</span>
           {% endif %}
         </div>
         <div class="aegis-forum-post-meta">
           <time datetime="{{ p.created_at }}">{{ p.created_at | datetime_short }}</time>
-          <a href="#post-{{ p.post_number }}" style="font-weight: 700; opacity: 0.8;">#{{ p.post_number }}</a>
+          <a class="aegis-s108" href="#post-{{ p.post_number }}">#{{ p.post_number }}</a>
         </div>
       </div>
       {% if p.reply_to_number %}
@@ -1414,7 +1417,7 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
           <input type="hidden" name="target_type" value="post">
           <input type="hidden" name="target_id" value="{{ p.id }}">
           <input type="text" name="reason" required maxlength="500" placeholder="{{ t("forum.report_reason") }}">
-          <button type="submit" class="aegis-forum-btn aegis-forum-btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">{{ t("forum.report") }}</button>
+          <button type="submit" class="aegis-forum-btn aegis-forum-btn-secondary aegis-s109">{{ t("forum.report") }}</button>
         </form>
       </details>
     </article>
@@ -1422,7 +1425,7 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
   </div>
 
   {% if pagination %}
-  <div style="display: flex; justify-content: center; gap: 0.5rem; margin: 2rem 0;">
+  <div class="aegis-s100">
     {% if pagination.prev_url %}
     <a href="{{ pagination.prev_url }}" class="aegis-forum-btn aegis-forum-btn-secondary">&larr; {{ t("pagination.previous") }}</a>
     {% endif %}
@@ -1459,3 +1462,7 @@ pub const FORUM_THREAD_TEMPLATE: &str = r##"{% extends "base.html" %}
 </section>
 {% endblock %}
 "##;
+
+/// 組み込みのテンプレートが `style=""` の代わりに使うクラス（Strict CSP では `style` 属性を使わない。docs/csp.md 6.2）。
+/// 元の `style` 属性と同じく、ほかのスタイルより優先する（`!important`）。`render.rs` が `extra_head` に入れる
+pub const UTILITY_STYLES: &str = "<style id=\"aegis-utility-styles\">.aegis-s1{margin-bottom: 3.5rem !important;text-align: center !important;padding: 2.5rem 1rem !important}\n.aegis-s2{display: inline-block !important;background: rgba(99, 102, 241, 0.1) !important;border: 1px solid rgba(99, 102, 241, 0.25) !important;color: #a5b4fc !important;padding: 0.35rem 0.85rem !important;border-radius: 9999px !important;font-size: 0.8rem !important;font-weight: 600 !important;margin-bottom: 1.25rem !important}\n.aegis-s3{font-size: 2.85rem !important;font-weight: 800 !important;letter-spacing: -0.03em !important;margin-bottom: 1rem !important;background: linear-gradient(135deg, #ffffff 30%, #9ca3af 100%) !important;-webkit-background-clip: text !important;-webkit-text-fill-color: transparent !important}\n.aegis-s4{font-size: 1.15rem !important;color: var(--text-muted) !important;max-width: 620px !important;margin: 0 auto !important;line-height: 1.6 !important}\n.aegis-s5{display: flex !important;align-items: center !important;justify-content: space-between !important;margin-bottom: 1.75rem !important;border-bottom: 1px solid var(--border-color) !important;padding-bottom: 0.75rem !important}\n.aegis-s6{font-size: 1.35rem !important;font-weight: 700 !important;color: #ffffff !important}\n.aegis-s7{font-size: 0.85rem !important;color: var(--text-dim) !important}\n.aegis-s8{display: grid !important;grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)) !important;gap: 1.75rem !important}\n.aegis-s9{background: var(--bg-card) !important;border: 1px solid var(--border-color) !important;border-radius: var(--radius-md) !important;padding: 1.5rem !important;display: flex !important;flex-direction: column !important;justify-content: space-between !important;transition: all 0.25s ease !important;position: relative !important;overflow: hidden !important;backdrop-filter: blur(8px) !important}\n.aegis-s10{display: flex !important;align-items: center !important;gap: 0.6rem !important;margin-bottom: 0.85rem !important}\n.aegis-s11{background: rgba(99, 102, 241, 0.15) !important;color: #818cf8 !important;font-size: 0.75rem !important;font-weight: 600 !important;padding: 0.2rem 0.55rem !important;border-radius: var(--radius-sm) !important;text-transform: uppercase !important}\n.aegis-s12{font-size: 0.8rem !important;color: var(--text-dim) !important}\n.aegis-s13{font-size: 1.25rem !important;font-weight: 700 !important;margin-bottom: 0.65rem !important;line-height: 1.4 !important}\n.aegis-s14{color: #ffffff !important;text-decoration: none !important;transition: color 0.15s ease !important}\n.aegis-s15{font-size: 0.92rem !important;color: var(--text-muted) !important;line-height: 1.6 !important;margin-bottom: 1.25rem !important}\n.aegis-s16{padding-top: 1rem !important;border-top: 1px solid var(--border-color) !important;display: flex !important;align-items: center !important;justify-content: space-between !important}\n.aegis-s17{font-size: 0.85rem !important;font-weight: 600 !important;color: #818cf8 !important;text-decoration: none !important;display: flex !important;align-items: center !important;gap: 0.25rem !important}\n.aegis-s18{text-align: center !important;padding: 4rem 1.5rem !important;background: var(--bg-card) !important;border: 1px dashed var(--border-color) !important;border-radius: var(--radius-lg) !important}\n.aegis-s19{width: 48px !important;height: 48px !important;background: rgba(255, 255, 255, 0.05) !important;border-radius: 50% !important;display: flex !important;align-items: center !important;justify-content: center !important;margin: 0 auto 1rem auto !important;color: var(--text-dim) !important}\n.aegis-s20{font-size: 1.2rem !important;font-weight: 600 !important;margin-bottom: 0.5rem !important;color: #ffffff !important}\n.aegis-s21{font-size: 0.9rem !important;color: var(--text-muted) !important;margin-bottom: 1.5rem !important}\n.aegis-s22{display: inline-block !important;padding: 0.5rem 1.25rem !important}\n.aegis-s23{display: flex !important;align-items: center !important;justify-content: space-between !important;gap: 1rem !important;margin-top: 2.5rem !important;color: var(--text-dim) !important;font-size: 0.85rem !important}\n.aegis-s24{max-width: 820px !important;margin: 0 auto !important;padding: 1rem 0 3rem !important}\n.aegis-s25{font-size: 0.8rem !important;letter-spacing: 0.08em !important;text-transform: uppercase !important;opacity: 0.65 !important;margin: 0 0 0.4rem !important}\n.aegis-s26{margin: 0 0 0.75rem !important}\n.aegis-s27{opacity: 0.75 !important;margin: 0 0 2rem !important}\n.aegis-s28{list-style: none !important;padding: 0 !important;margin: 0 !important}\n.aegis-s29{padding: 1rem 0 !important;border-top: 1px solid rgba(127, 127, 127, 0.25) !important}\n.aegis-s30{font-size: 0.85rem !important;opacity: 0.65 !important}\n.aegis-s31{font-size: 1.15rem !important;margin: 0.2rem 0 0.3rem !important}\n.aegis-s32{color: inherit !important}\n.aegis-s33{opacity: 0.75 !important;margin: 0 !important}\n.aegis-s34{padding: 1rem 0 !important;border-top: 1px solid rgba(127, 127, 127, 0.25) !important;opacity: 0.7 !important}\n.aegis-s35{display: flex !important;justify-content: space-between !important;gap: 1rem !important;margin-top: 2rem !important;font-size: 0.9rem !important}\n.aegis-s36{opacity: 0.65 !important}\n.aegis-s37{margin-top: 2rem !important;font-size: 0.85rem !important}\n.aegis-s38{margin: 0 0 1.5rem !important}\n.aegis-s39{padding: 0.75rem 0 !important;border-top: 1px solid rgba(127, 127, 127, 0.25) !important}\n.aegis-s40{color: inherit !important;font-weight: 600 !important}\n.aegis-s41{opacity: 0.65 !important;font-size: 0.85rem !important}\n.aegis-s42{opacity: 0.75 !important;margin: 0.25rem 0 0 !important}\n.aegis-s43{max-width: 720px !important;margin: 0 auto !important;padding: 1rem 0 3rem !important}\n.aegis-s44{margin: 0 0 1rem !important}\n.aegis-s45{margin: 0 !important}\n.aegis-s46{display: flex !important;gap: 0.5rem !important;margin: 0 0 1.5rem !important}\n.aegis-s47{flex: 1 !important;min-width: 0 !important;padding: 0.55rem 0.75rem !important;font: inherit !important;border: 1px solid rgba(127, 127, 127, 0.45) !important;border-radius: 6px !important;background: transparent !important;color: inherit !important}\n.aegis-s48{padding: 0.55rem 0.5rem !important;font: inherit !important;border: 1px solid rgba(127, 127, 127, 0.45) !important;border-radius: 6px !important;background: transparent !important;color: inherit !important}\n.aegis-s49{padding: 0.55rem 1rem !important;font: inherit !important;border: 1px solid rgba(127, 127, 127, 0.45) !important;border-radius: 6px !important;background: transparent !important;color: inherit !important;cursor: pointer !important}\n.aegis-s50{opacity: 0.7 !important;margin: 0 0 0.5rem !important;font-size: 0.9rem !important}\n.aegis-s51{font-size: 1.15rem !important;margin: 0 0 0.3rem !important}\n.aegis-s52{opacity: 0.8 !important;margin: 0 !important}\n.aegis-s53{font-size: 0.8rem !important;opacity: 0.6 !important}\n.aegis-s54{max-width: 820px !important;margin: 0 auto !important}\n.aegis-s55{display: flex !important;align-items: center !important;gap: 0.5rem !important;font-size: 0.85rem !important;color: var(--text-dim) !important;margin-bottom: 1.75rem !important}\n.aegis-s56{color: var(--text-dim) !important;text-decoration: none !important}\n.aegis-s57{text-transform: capitalize !important}\n.aegis-s58{color: var(--text-muted) !important;overflow: hidden !important;text-overflow: ellipsis !important;white-space: nowrap !important}\n.aegis-s59{margin-bottom: 2.5rem !important;border-bottom: 1px solid var(--border-color) !important;padding-bottom: 1.75rem !important}\n.aegis-s60{display: flex !important;align-items: center !important;gap: 0.75rem !important;margin-bottom: 1rem !important}\n.aegis-s61{background: rgba(99, 102, 241, 0.15) !important;color: #818cf8 !important;font-size: 0.78rem !important;font-weight: 600 !important;padding: 0.25rem 0.65rem !important;border-radius: var(--radius-sm) !important;text-transform: uppercase !important}\n.aegis-s62{font-size: 2.65rem !important;font-weight: 800 !important;letter-spacing: -0.03em !important;line-height: 1.25 !important;color: #ffffff !important;margin-bottom: 1.25rem !important}\n.aegis-s63{display: flex !important;align-items: center !important;gap: 1rem !important}\n.aegis-s64{width: 36px !important;height: 36px !important;border-radius: 50% !important;background: var(--accent-gradient) !important;display: flex !important;align-items: center !important;justify-content: center !important;font-weight: 700 !important;font-size: 0.85rem !important;color: #ffffff !important}\n.aegis-s65{font-size: 0.9rem !important;font-weight: 600 !important;color: #ffffff !important}\n.aegis-s66{font-size: 0.78rem !important;color: var(--text-dim) !important}\n.aegis-s67{list-style: none !important;display: flex !important;flex-wrap: wrap !important;gap: 0.4rem !important;padding: 0 !important;margin: 1rem 0 0 !important}\n.aegis-s68{display: inline-block !important;padding: 0.15rem 0.6rem !important;border: 1px solid rgba(127, 127, 127, 0.4) !important;border-radius: 999px !important;font-size: 0.8rem !important;color: inherit !important;text-decoration: none !important}\n.aegis-s69{margin-top: 3.5rem !important;padding-top: 2.5rem !important;border-top: 1px solid var(--border-color) !important}\n.aegis-s70{font-size: 1.4rem !important;font-weight: 700 !important;color: #ffffff !important;margin-bottom: 1.25rem !important}\n.aegis-s71{display: grid !important;grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;gap: 1rem !important}\n.aegis-s72{display: flex !important;flex-direction: column !important;padding: 1.25rem !important;background: var(--bg-card) !important;border: 1px solid var(--border-color) !important;border-radius: var(--radius-md) !important;text-decoration: none !important;color: inherit !important;transition: border-color 0.2s, transform 0.2s !important}\n.aegis-s73{font-size: 1.05rem !important;font-weight: 600 !important;color: #ffffff !important;margin-bottom: 0.5rem !important;line-height: 1.4 !important}\n.aegis-s74{font-size: 0.85rem !important;color: var(--text-muted) !important;line-height: 1.5 !important;margin-bottom: 0.75rem !important;display: -webkit-box !important;-webkit-line-clamp: 2 !important;-webkit-box-orient: vertical !important;overflow: hidden !important}\n.aegis-s75{font-size: 0.75rem !important;color: var(--text-dim) !important;margin-top: auto !important}\n.aegis-s76{margin-top: 3.5rem !important;padding-top: 2rem !important;border-top: 1px solid var(--border-color) !important;display: flex !important;align-items: center !important;justify-content: space-between !important}\n.aegis-s77{color: #818cf8 !important;font-size: 0.9rem !important;text-decoration: none !important;font-weight: 600 !important}\n.aegis-s78{background: transparent !important;border: 1px solid var(--border-color) !important;color: var(--text-muted) !important;padding: 0.4rem 0.85rem !important;border-radius: var(--radius-sm) !important;font-size: 0.8rem !important;cursor: pointer !important;text-decoration: none !important;transition: all 0.2s ease !important}\n.aegis-s79{margin-bottom: 2rem !important;border-bottom: 1px solid var(--border-color) !important;padding-bottom: 1.25rem !important}\n.aegis-s80{font-size: 2.5rem !important;font-weight: 800 !important;letter-spacing: -0.02em !important;color: #ffffff !important}\n.aegis-s81{list-style: none !important;display: flex !important;flex-wrap: wrap !important;gap: 0.4rem !important;padding: 0 !important;margin: 0 0 1.5rem !important}\n.aegis-s82{text-align: center !important;padding: 5rem 1rem !important}\n.aegis-s83{font-size: 5rem !important;font-weight: 900 !important;background: var(--accent-gradient) !important;-webkit-background-clip: text !important;-webkit-text-fill-color: transparent !important;margin-bottom: 1rem !important;line-height: 1 !important}\n.aegis-s84{font-size: 1.75rem !important;font-weight: 700 !important;color: #ffffff !important;margin-bottom: 0.75rem !important}\n.aegis-s85{font-size: 1rem !important;color: var(--text-muted) !important;max-width: 480px !important;margin: 0 auto 2rem auto !important}\n.aegis-s86{background: var(--accent-gradient) !important;color: #ffffff !important;text-decoration: none !important;padding: 0.65rem 1.5rem !important;border-radius: var(--radius-sm) !important;font-weight: 600 !important;font-size: 0.95rem !important;display: inline-block !important}\n.aegis-s87{font-size: 2rem !important;margin-bottom: 1.5rem !important}\n.aegis-s88{margin-top: auto !important}\n.aegis-s89{display: flex !important;justify-content: space-between !important;margin-top: 2rem !important}\n.aegis-s90{font-size: 1.5rem !important}\n.aegis-s91{margin-bottom: 1rem !important}\n.aegis-s92{max-width: 720px !important}\n.aegis-s93{font-size: 2.2rem !important;margin: 0 0 0.5rem !important;font-weight: 800 !important;letter-spacing: -0.02em !important}\n.aegis-s94{opacity: 0.7 !important;margin: 0 0 2.5rem !important;font-size: 1.05rem !important}\n.aegis-s95{font-size: 1.35rem !important;font-weight: 700 !important;margin: 0 0 1.25rem !important}\n.aegis-s96{opacity: 0.5 !important;font-size: 0.9rem !important}\n.aegis-s97{font-size: 1.35rem !important;font-weight: 700 !important;margin: 2rem 0 1.25rem !important}\n.aegis-s98{font-size: 2rem !important;margin: 0 0 0.5rem !important;font-weight: 800 !important}\n.aegis-s99{opacity: 0.7 !important;margin: 0 0 2rem !important;font-size: 1rem !important}\n.aegis-s100{display: flex !important;justify-content: center !important;gap: 0.5rem !important;margin: 2rem 0 !important}\n.aegis-s101{max-width: 300px !important;white-space: nowrap !important;overflow: hidden !important;text-overflow: ellipsis !important}\n.aegis-s102{margin-bottom: 2rem !important}\n.aegis-s103{display: flex !important;align-items: center !important;gap: 0.6rem !important;margin-bottom: 0.5rem !important;flex-wrap: wrap !important}\n.aegis-s104{font-size: 1.85rem !important;margin: 0 !important;font-weight: 800 !important;line-height: 1.3 !important}\n.aegis-s105{font-size: 0.85rem !important;opacity: 0.65 !important;display: flex !important;gap: 1rem !important;flex-wrap: wrap !important}\n.aegis-s106{object-fit: cover !important}\n.aegis-s107{background: var(--accent, #6366f1) !important;color: #fff !important}\n.aegis-s108{font-weight: 700 !important;opacity: 0.8 !important}\n.aegis-s109{padding: 0.4rem 0.8rem !important;font-size: 0.8rem !important}\n.aegis-depth-1{margin-left:1.5rem !important}\n.aegis-depth-2{margin-left:3rem !important}\n.aegis-depth-3{margin-left:4.5rem !important}\n.aegis-depth-4{margin-left:6rem !important}</style>";

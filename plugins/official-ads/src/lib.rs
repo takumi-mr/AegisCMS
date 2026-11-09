@@ -160,7 +160,7 @@ fn build_adsense_block_html(
     };
 
     html.push_str(&format!(
-        "<ins class=\"adsbygoogle\" style=\"display:block\" data-ad-client=\"{}\" data-ad-slot=\"{}\" data-ad-format=\"{}\" data-full-width-responsive=\"true\"></ins>\n",
+        "<ins class=\"adsbygoogle\" data-ad-client=\"{}\" data-ad-slot=\"{}\" data-ad-format=\"{}\" data-full-width-responsive=\"true\"></ins>\n",
         escaped_client, escaped_slot, escaped_format
     ));
 

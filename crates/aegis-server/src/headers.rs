@@ -598,17 +598,17 @@ mod strict_csp_tests {
     }
 
     #[test]
-    fn styles_lose_unsafe_inline_and_get_hashes_while_attributes_stay_allowed() {
+    fn styles_lose_unsafe_inline_and_get_hashes() {
         let csp = "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src data:;";
         let out = strict_style_csp(csp, &["sha256-S=".to_string()]);
         assert_eq!(
             out,
-            "default-src 'self'; style-src 'self' https://fonts.googleapis.com 'sha256-S='; img-src data:; style-src-attr 'unsafe-inline';"
+            "default-src 'self'; style-src 'self' https://fonts.googleapis.com 'sha256-S='; img-src data:;"
         );
-        // `style-src` が無ければ足す。`style-src-attr` を決めてあれば触らない
+        // `style-src` が無ければ足す
         assert_eq!(
-            strict_style_csp("default-src 'self'; style-src-attr 'none';", &[]),
-            "default-src 'self'; style-src-attr 'none'; style-src 'self';"
+            strict_style_csp("default-src 'self';", &[]),
+            "default-src 'self'; style-src 'self';"
         );
     }
 

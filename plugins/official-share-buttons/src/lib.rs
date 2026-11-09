@@ -253,7 +253,14 @@ impl ShareItem {
             .replace("{title}", "__TITLE__");
 
         Some(Self {
-            id: format!("custom-{}", name.to_ascii_lowercase()),
+            // クラス名になるので、英数字とハイフンだけにする
+            id: format!(
+                "custom-{}",
+                name.to_ascii_lowercase()
+                    .chars()
+                    .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+                    .collect::<String>()
+            ),
             label_ja: name.to_string(),
             label_en: name.to_string(),
             bg_color,
@@ -389,8 +396,8 @@ fn render_buttons_html(settings: &Settings, is_ja: bool) -> String {
 
         if item.is_copy {
             html.push_str(&format!(
-                "    <button type=\"button\" class=\"osb-btn osb-btn-copy osb-{}\" style=\"--osb-bg:{};--osb-fg:{};\" data-copied=\"{}\" title=\"{}\" aria-label=\"{}\">\n",
-                item.id, item.bg_color, item.fg_color, copied_tip, label, label
+                "    <button type=\"button\" class=\"osb-btn osb-btn-copy osb-{}\" data-copied=\"{}\" title=\"{}\" aria-label=\"{}\">\n",
+                item.id, copied_tip, label, label
             ));
             html.push_str(&format!(
                 "      <span class=\"osb-ico\">{}</span>\n",
@@ -405,8 +412,8 @@ fn render_buttons_html(settings: &Settings, is_ja: bool) -> String {
             html.push_str("    </button>\n");
         } else {
             html.push_str(&format!(
-                "    <a class=\"osb-btn osb-btn-{} osb-{}\" style=\"--osb-bg:{};--osb-fg:{};\" href=\"#\" data-tmpl=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"{}\" aria-label=\"{}\">\n",
-                item.id, item.id, item.bg_color, item.fg_color, item.url_template, label, label
+                "    <a class=\"osb-btn osb-btn-{} osb-{}\" href=\"#\" data-tmpl=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"{}\" aria-label=\"{}\">\n",
+                item.id, item.id, item.url_template, label, label
             ));
             html.push_str(&format!(
                 "      <span class=\"osb-ico\">{}</span>\n",
@@ -470,6 +477,14 @@ impl Plugin for ShareButtonsPlugin {
                 ctx.extra_css.push('\n');
             }
             ctx.extra_css.push_str(css());
+            // ボタンごとの色（`style` 属性は Strict CSP で使えないので、サービスごとのクラスで指定する）
+            for item in &settings.items {
+                ctx.extra_css.push_str(&format!(
+                    "
+.osb-{}{{--osb-bg:{};--osb-fg:{};}}",
+                    item.id, item.bg_color, item.fg_color
+                ));
+            }
         }
 
         ctx.scripts.push(InjectedScript::inline(SCRIPT));
@@ -555,9 +570,11 @@ mod tests {
         let out = render(page());
         assert!(out.composed_html().contains("osb-custom-mastodon"));
         assert!(out.composed_html().contains("osb-custom-misskey"));
+        // 色は `style` 属性ではなく、サービスごとのクラスで指定する
+        assert!(!out.composed_html().contains("style="));
         assert!(out
-            .composed_html()
-            .contains("style=\"--osb-bg:#6364ff;--osb-fg:#ffffff;\""));
+            .extra_css
+            .contains(".osb-custom-mastodon{--osb-bg:#6364ff;--osb-fg:#ffffff;}"));
         assert!(out
             .composed_html()
             .contains("data-tmpl=\"https://mastodon.social/share?text=__TITLE__&url=__URL__\""));

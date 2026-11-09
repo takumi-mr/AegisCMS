@@ -247,7 +247,10 @@ pub fn build_extra_head(
     };
     // Strict CSP: 組み込みのブロックのスタイルと、管理者が書いたヘッダーの `<style>` のハッシュを CSP に足す
     aegis_core::csp::record_styles_in(aegis_theme::BLOCK_STYLES);
+    aegis_core::csp::record_styles_in(aegis_theme::UTILITY_STYLES);
     let mut extra_head = String::from(aegis_theme::BLOCK_STYLES);
+    extra_head.push('\n');
+    extra_head.push_str(aegis_theme::UTILITY_STYLES);
     #[cfg(feature = "analytics")]
     {
         let beacon = crate::analytics::head_html(state);

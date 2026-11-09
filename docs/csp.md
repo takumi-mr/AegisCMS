@@ -16,7 +16,7 @@
 | 公開ページ・API | `'self' 'unsafe-inline'` | `'unsafe-eval'` は入れていない（`eval` を使う機能が無いため）。プラグインが宣言したホスト（`capabilities.csp.script_domains` など）と、CAPTCHA のホストが足される |
 | Admin Studio（`/admin/`） | `'self'` | `unsafe-inline` なし。`style-src` も `'self'` だけ（§1.1） |
 | テーマ適用ページのプレビュー | 公開ページと同じ | `GET /api/v1/preview/frame/{key}` が、`sandbox allow-scripts` を足して返す。Strict のときは、ページを置いたときに集めたハッシュも CSP に足す |
-| 公開ページ（`[security].strict_csp = "on"`。**既定**） | `'self'` + ページのインラインのスクリプトのハッシュ + 宣言したホスト | `'unsafe-inline'`・`'unsafe-eval'` なし（§6）。`style-src` は `'self'` + ページの `<style>` のハッシュ（`unsafe-inline` なし。`style=""` 属性だけ `style-src-attr 'unsafe-inline'` で許す。§6.1） |
+| 公開ページ（`[security].strict_csp = "on"`。**既定**） | `'self'` + ページのインラインのスクリプトのハッシュ + 宣言したホスト | `'unsafe-inline'`・`'unsafe-eval'` なし（§6）。`style-src` は `'self'` + ページの `<style>` のハッシュ（`unsafe-inline` なし。`style=""` 属性も止まる。§6.1） |
 
 - 既定の値は `headers::DEFAULT_CONTENT_SECURITY_POLICY`・`ADMIN_CONTENT_SECURITY_POLICY`。管理者が「設定 › ヘッダー」で CSP を上書きしているときは、その値をそのまま使う。
 - `admin/e2e/csp.spec.ts` が、Admin Studio と公開ページの主な画面を既定の CSP で動かし、止められたスクリプトとスクリプトのエラーを検出する。
@@ -125,18 +125,18 @@ pub enum ScriptSource {
 - 管理者が CSP を上書きしているときは、その値が優先で、`strict_csp` は効かない。
 - 公開ページの `style-src` も同じ仕組みで Strict になる（§6.1）。Admin Studio は §1.1。
 
-### 6.1 スタイル（`<style>` はハッシュ、`style=""` 属性は当面許す）
+### 6.1 スタイル（`<style>` はハッシュ、`style=""` 属性は使わない）
 
 `strict_csp = "on"` では、`style-src` からも `'unsafe-inline'` を外し、**信頼できる出どころが出した `<style>` 要素の本文のハッシュ**を足します（スクリプトと同じ仕組み。`aegis_core::csp::record_inline_style` / `record_styles_in`。名前空間の置き換えのあとの本文で取る）。ハッシュを登録するのは次の出どころだけです。
 
 - 組み込みのテンプレート: `{% filter inline_style %}…{% endfilter %}`（または `{{ inline_style("CSS") }}`）で出したもの。**テーマも同じ書き方で `<style>` を書ける**（直接書いた `<style>` は止まる）。`extra_css`（プラグインの CSS・サイトのカスタム CSS）もこの中に入る。
 - 組み込みのブロックのスタイル（`BLOCK_STYLES`）、管理者が書いたヘッダーの `<style>`（`custom_head_code`）、組み込みのページ（初期セットアップ・メンテナンス・メルマガの申し込み）。
 - プラグインが `on-render-page`（`extra_head`・`prepend_content`・`append_content`）と `render-blocks` で返した `<style>`（ホストが信頼してハッシュを登録する。プラグインのコードはインストールした管理者が信頼したもの）。**ユーザーが書いた本文の `<style>`（`core/html` の通常のモード）は、ハッシュを登録しないので止まる**。
-- `core/html` の**サンドボックスのモード**（`<iframe srcdoc>`）は、親の CSP を引き継ぐので、中のインラインの `<style>` と `<script>`（管理者が書いたものと、高さを同期する組み込みのもの）のハッシュも登録する。外部のホストのスクリプトは、親の CSP が許すものだけ。
+- `core/html` の**サンドボックスのモード**（`<iframe srcdoc>`）は、親の CSP を引き継ぐので、中のインラインの `<style>` と `<script>`（管理者が書いたものと、高さを同期する組み込みのもの）のハッシュも登録する。外部のホストのスクリプトは、親の CSP が許すものだけ。中の `style="…"` 属性も止まる（`<style>` に書く）。
 
-**`style=""` 属性は、当面 `style-src-attr 'unsafe-inline'` で許します**（組み込みのテンプレートに約 160 か所あり、テーマ・プラグインも使うため）。`<style>` 要素の差し込みは止まり、属性は止まらない、という段階です。属性もなくす（クラスに置き換える）のは次の段階（TODO）。`style-src-attr` を CSP に書いてあれば（上書き）、その値のままにします。
+**`style=""` 属性は使えません**（`style-src` が属性にも効く）。組み込みのテンプレート（約 160 か所）・レンダラー（表の `text-align`・サンドボックスの `iframe`）・問い合わせとメルマガのハニーポット・公式プラグイン（`official-share-buttons` はサービスごとの色を `extra_css` のクラスで、`official-ads` は既存の CSS で）は、クラスに置き換えました。組み込みテンプレートのクラスは `aegis-s<番号>`（`aegis_theme::UTILITY_STYLES`。元の `style` 属性と同じく優先するよう `!important`）、同梱のテーマは各テーマの `assets/style.css` の `ts-<番号>` です。動的な値（コメントの字下げ `--depth`）は `aegis-depth-0`〜`4` のクラスにしました。HTML メールは `style` 属性で作るもの（メール本体は CSP と関係しない）なので、管理画面のメールのプレビュー（`/api/v1/preview/frame/…`）だけ、`style-src-attr 'unsafe-inline'` を足します。
 
-**動かなくなるもの**: テーマが直接書いた `<style>`（`inline_style` に包む。または `assets/*.css` を `<link>` で読む）、ユーザーが `core/html` の通常のモードで書いた `<style>`（サンドボックスのモードか、テーマの CSS に）。前の動きは `strict_csp = "off"`、確かめるだけなら `"report-only"`。
+**動かなくなるもの**: テーマ・プラグインが書いた `style="…"` 属性（クラスと `<style>` / `extra_css` に）、テーマが直接書いた `<style>`（`inline_style` に包む。または `assets/*.css` を `<link>` で読む）、ユーザーが `core/html` の通常のモードで書いた `<style>`（サンドボックスのモードか、テーマの CSS に）。前の動きは `strict_csp = "off"`、確かめるだけなら `"report-only"`。
 
 ---
 
@@ -147,7 +147,7 @@ pub enum ScriptSource {
    - 移行で変わったこと: `official-mermaid` の `script_url` は、このサイトのパスか `cdn.jsdelivr.net` の `https://` だけ（ほかのホストはホストが捨てる）。`official-ads` の `custom_head_code` の `<script>` は使えなくなった（`<meta>`・`<link>` などは使える。スクリプトの安全な足し方は未決）。`official-code-enhancer` の Prism は、`<script data-manual>` の代わりに `window.Prism.manual = true` を先に実行する。
 3. **組み込みテンプレートの外部化**（**済**）: コメント欄のスクリプト（`/_aegis/comments.js`。URL は `CommentSection.script_url`）、初期セットアップ画面（`/_aegis/setup.js`）、アクセス解析のビーコン（`/_aegis/analytics.js`。受け口は `data-endpoint`）を外部ファイルにし、記事の「トップへ戻る」の `onclick` はページ内リンク（`<a href='#'>`。滑らかなスクロールは CSS の `scroll-behavior`）にした。組み込みのテンプレートと同梱のテーマ 5 つが、インラインのコードを出さないことを `aegis-theme` のテスト（全テンプレートを描画して `<script>`（`src` なし）と `on*` を探す）と、E2E（`script-src 'self'` だけの CSP でコメントを投稿する）で確かめる。テーマの作り方（[theme_authoring_guide.md の 6a](theme_authoring_guide.md#6a-スクリプトの書き方インラインを書かない)）に、インラインを書かない方針を追記した。`inline_script()`（§5）は、ハッシュの登録の仕組みと一緒に 4 で足す。
 4. **ハッシュの収集と CSP**（**済**）: 信頼できる出どころ（プラグインの `scripts` のインライン、テンプレートの `inline_script()`）が出すときに、本文の SHA-256 を `aegis_core::csp::record_inline_script` で記録する。記録の受け口は、`security_headers_middleware` がリクエストごとに作る（`tokio::task_local`。受け口の外では何もしない）。応答の本文は名前空間（`aegis-` → `cms-`）の置き換えを受けるので、**ハッシュも置き換えたあとの本文で取る**（受け口に、同じ置き換えを渡す）。`headers::strict_script_csp` が、`script-src` から `'unsafe-inline'`・`'unsafe-eval'` を外してハッシュを足す（宣言したホストは残し、`strict-dynamic` は使わない）。`[security].strict_csp` は `off`（既定）/ `report-only`（今の CSP に加えて `Content-Security-Policy-Report-Only`）/ `on`。管理者が CSP を上書きしているときは、その値が優先。Admin Studio（`/admin/`）は、もともと `unsafe-inline` が無い。`admin/e2e/aegis.e2e.toml` は `on` で、全 E2E が Strict の下で動く。
-6. **公開ページの `style-src` から `'unsafe-inline'` を外す**（**済**。破壊的変更。§6.1）。`<style>` はハッシュ、`style=""` 属性は `style-src-attr 'unsafe-inline'` で許す。`core/html` のサンドボックス（`srcdoc`）は、これまでの Strict でもスクリプトが止まっていた（親の CSP を引き継ぐため）ので、中身のハッシュを登録して直した。
+6. **公開ページの `style-src` から `'unsafe-inline'` を外す**（**済**。破壊的変更。§6.1）。`<style>` はハッシュ、`style=""` 属性は使わない（クラスに置き換えた）。`core/html` のサンドボックス（`srcdoc`）は、これまでの Strict でもスクリプトが止まっていた（親の CSP を引き継ぐため）ので、中身のハッシュを登録して直した。
 5. **既定を `on` に**（**済**。破壊的変更）。`[security].strict_csp` の既定を `"on"` にした。前の動きは `"off"`、確かめるだけなら `"report-only"`。あわせて Admin Studio の `style-src` を `'self'` だけにした（§1.1）。
 
 ### 7.1 決めたこと・決めていないこと

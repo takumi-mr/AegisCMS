@@ -318,9 +318,11 @@ async fn test_strict_csp_allows_exactly_the_style_elements_the_host_emitted() {
         .find(|d| d.starts_with("style-src "))
         .unwrap();
 
-    // `<style>` 側に `unsafe-inline` は無い（`style=""` 属性だけ `style-src-attr` で許す）
+    // `unsafe-inline` は無い（`style=""` 属性も止まる）
     assert!(!style_src.contains("unsafe-inline"), "{csp}");
-    assert!(csp.contains("style-src-attr 'unsafe-inline'"), "{csp}");
+    assert!(!csp.contains("style-src-attr"), "{csp}");
+    // ページに `style=` 属性は無い（組み込みのテンプレート・ブロックはクラスを使う）
+    assert!(!html.contains(" style=\""), "{html}");
 
     // ページの `<style>` は、どれもハッシュが CSP にある（組み込みのテンプレート・ブロックのスタイル）
     let styles = style_elements(&html);

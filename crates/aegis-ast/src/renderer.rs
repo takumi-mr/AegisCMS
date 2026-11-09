@@ -165,7 +165,7 @@ fn render_sandboxed_html(raw: &str) -> String {
     let escaped_srcdoc = escape_html(&srcdoc_document);
     // Parent-side listener is idempotent (guarded by window.__aegisSandboxInit)
     let html = format!(
-        "<iframe class=\"aegis-html-sandbox\" sandbox=\"allow-scripts allow-forms allow-popups\" referrerpolicy=\"no-referrer\" loading=\"lazy\" style=\"width:100%;border:0;display:block;min-height:48px;\" srcdoc=\"{escaped_srcdoc}\"></iframe>\
+        "<iframe class=\"aegis-html-sandbox\" sandbox=\"allow-scripts allow-forms allow-popups\" referrerpolicy=\"no-referrer\" loading=\"lazy\" srcdoc=\"{escaped_srcdoc}\"></iframe>\
         <script>(function(){{\
             if(window.__aegisSandboxInit)return;\
             window.__aegisSandboxInit=true;\
@@ -322,7 +322,7 @@ fn render_table(node: &BlockNode) -> String {
         for (i, a) in align.iter().enumerate() {
             let cell = row.get(i).map(String::as_str).unwrap_or("");
             let style = a
-                .map(|a| format!(" style=\"text-align: {}\"", a))
+                .map(|a| format!(" class=\"aegis-ta-{}\"", a))
                 .unwrap_or_default();
             html.push_str(&format!("<{tag}{style}>{}</{tag}>", render_inline(cell)));
         }
@@ -985,7 +985,7 @@ mod tests {
             .with_attr("align", serde_json::json!([null, "right"]));
         assert_eq!(
             HtmlRenderer::render_nodes(std::slice::from_ref(&table)),
-            "<div class=\"aegis-table\"><table>\n<thead>\n<tr><th>Name</th><th style=\"text-align: right\">Price</th></tr>\n</thead>\n<tbody>\n<tr><td><strong>Beans</strong></td><td style=\"text-align: right\">1,200</td></tr>\n<tr><td>Short</td><td style=\"text-align: right\"></td></tr>\n</tbody>\n</table></div>\n"
+            "<div class=\"aegis-table\"><table>\n<thead>\n<tr><th>Name</th><th class=\"aegis-ta-right\">Price</th></tr>\n</thead>\n<tbody>\n<tr><td><strong>Beans</strong></td><td class=\"aegis-ta-right\">1,200</td></tr>\n<tr><td>Short</td><td class=\"aegis-ta-right\"></td></tr>\n</tbody>\n</table></div>\n"
         );
 
         let no_header = table

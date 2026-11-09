@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div style="text-align: center; padding: 6rem 1rem;">
-  <p class="ed-issue-tag" style="margin-bottom: 1rem;">{{ t("notfound.title") }}</p>
-  <h1 class="ed-hero-title" style="font-size: 3.5rem;">404 &mdash; {{ t("theme.editorial.404_title") }}</h1>
-  <p class="ed-hero-desc" style="margin: 1.5rem auto;">{{ t("theme.editorial.404_desc") }}</p>
-  <a href="{{ base_path }}/" class="ed-card-link" style="display: inline-block; margin-top: 2rem; font-size: 1rem;">&larr; {{ t("theme.editorial.404_action") }}</a>
+<div class="ts-1">
+  <p class="ed-issue-tag ts-2">{{ t("notfound.title") }}</p>
+  <h1 class="ed-hero-title ts-3">404 &mdash; {{ t("theme.editorial.404_title") }}</h1>
+  <p class="ed-hero-desc ts-4">{{ t("theme.editorial.404_desc") }}</p>
+  <a href="{{ base_path }}/" class="ed-card-link ts-5">&larr; {{ t("theme.editorial.404_action") }}</a>
 </div>
 {% endblock %}

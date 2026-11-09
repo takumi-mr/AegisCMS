@@ -370,12 +370,11 @@ pub fn strict_csp(csp: &str, hashes: &CollectedHashes) -> String {
 
 /// Strict CSP のスタイル側。`style-src` から `'unsafe-inline'` を外し、信頼できる出どころの `<style>` の
 /// ハッシュ（`hashes`）を足す（`style-src` が無ければ `'self'` とハッシュだけの `style-src` を足す）。
-/// `style=""` 属性は、組み込みのテンプレートやプラグインがまだ使っているので、当面 `style-src-attr 'unsafe-inline'`
-/// で許す（`style-src-attr` が既にあればそのまま。docs/csp.md の 3.2）
+/// `style=""` 属性は許さない（`style-src` が `style-src-attr` にも効く。組み込みのテンプレートとプラグインは
+/// クラスを使う。docs/csp.md の 6.1）
 pub fn strict_style_csp(csp: &str, hashes: &[String]) -> String {
     let hash_tokens: Vec<String> = hashes.iter().map(|h| format!("'{h}'")).collect();
     let mut found = false;
-    let mut has_attr = false;
     let mut directives: Vec<String> = csp
         .split(';')
         .map(str::trim)
@@ -383,10 +382,6 @@ pub fn strict_style_csp(csp: &str, hashes: &[String]) -> String {
         .map(|directive| {
             let mut parts = directive.split_whitespace();
             match parts.next() {
-                Some("style-src-attr") => {
-                    has_attr = true;
-                    directive.to_string()
-                }
                 Some("style-src") => {
                     found = true;
                     let mut kept: Vec<&str> = parts.filter(|t| *t != "'unsafe-inline'").collect();
@@ -415,9 +410,6 @@ pub fn strict_style_csp(csp: &str, hashes: &[String]) -> String {
             out.push_str(token);
         }
         directives.push(out);
-    }
-    if !has_attr {
-        directives.push("style-src-attr 'unsafe-inline'".to_string());
     }
     format!("{};", directives.join("; "))
 }

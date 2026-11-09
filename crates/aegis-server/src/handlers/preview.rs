@@ -82,6 +82,7 @@ pub(crate) async fn store_frame(
     key: &str,
     html: &str,
     hashes: &[String],
+    allow_style_attr: bool,
 ) -> Result<String, String> {
     // ページの `<style>` は、ページを置くときに全部ハッシュする（プレビューは不透明なオリジンの中で、
     // 管理者が自分で見るだけ）。配信するときに CSP の `style-src` に足す
@@ -100,7 +101,12 @@ pub(crate) async fn store_frame(
         .cache
         .set(
             &frame_hashes_key(key),
-            &serde_json::json!({ "scripts": stored.scripts, "styles": stored.styles }).to_string(),
+            &serde_json::json!({
+                "scripts": stored.scripts,
+                "styles": stored.styles,
+                "style_attr": allow_style_attr,
+            })
+            .to_string(),
             Some(FRAME_TTL_SECS),
         )
         .await;
@@ -263,14 +269,14 @@ pub async fn preview_content(
         // Strict CSP（`[security].strict_csp`）のとき、このページを描くときに集めたインラインのスクリプトの
         // ハッシュも置く（配信するときに CSP に足さないと、プレビューのスクリプトが止まる）
         let hashes = aegis_core::csp::recorded_raw_script_hashes();
-        match store_frame(&state, key, page, &hashes).await {
+        match store_frame(&state, key, page, &hashes, false).await {
             Ok(url) => page_url = json!(url),
             Err(e) => warnings.push(format!("The themed page could not be stored: {e}")),
         }
     }
     let mut body_url = serde_json::Value::Null;
     if let Some(key) = payload.body_frame_key.as_deref() {
-        match store_frame(&state, key, &body_document(&html), &[]).await {
+        match store_frame(&state, key, &body_document(&html), &[], false).await {
             Ok(url) => body_url = json!(url),
             Err(e) => warnings.push(format!("The body could not be stored: {e}")),
         }
@@ -299,6 +305,7 @@ pub async fn preview_frame(
     } else {
         None
     };
+    let mut style_attr = false;
     if page.is_some() {
         // 置いたときに集めたハッシュを、この応答の CSP に足す（`app::security_headers_middleware` が使う）
         let stored: serde_json::Value = state
@@ -325,10 +332,16 @@ pub async fn preview_frame(
         for hash in list("styles") {
             aegis_core::csp::record_style_hash(&hash);
         }
+        style_attr = stored["style_attr"].as_bool().unwrap_or(false);
     }
     match page {
         Some(html) => (
             [
+                // メールのプレビューは、`style` 属性で作るもの。`app::security_headers_middleware` が見て外す
+                (
+                    header::HeaderName::from_static("x-preview-style-attr"),
+                    HeaderValue::from_static(if style_attr { "1" } else { "0" }),
+                ),
                 (
                     header::CONTENT_TYPE,
                     HeaderValue::from_static("text/html; charset=utf-8"),
@@ -675,10 +688,10 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
         let csp = res.headers()["content-security-policy"].to_str().unwrap();
         assert!(csp.contains("sandbox allow-scripts"), "{csp}");
-        // 公開ページと同じ（スクリプトもスタイルの `<style>` も Strict。`style=` 属性だけ許す）。管理画面の CSP ではない
+        // 公開ページと同じ（スクリプトもスタイルも Strict）。管理画面の CSP ではない
         assert!(csp.contains("script-src 'self';"), "{csp}");
         assert!(!csp.contains("style-src 'self' 'unsafe-inline'"), "{csp}");
-        assert!(csp.contains("style-src-attr 'unsafe-inline'"), "{csp}");
+        assert!(!csp.contains("style-src-attr"), "{csp}");
         assert!(csp.contains("frame-ancestors *"), "{csp}");
         assert!(!res.headers().contains_key("x-frame-options"));
         assert_eq!(res.headers()["cache-control"], "no-store");
