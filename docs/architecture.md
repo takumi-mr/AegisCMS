@@ -180,7 +180,8 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
   - 管理者（`admin`）は Admin Studio の「設定 › ヘッダー」画面から、防御ヘッダー（CSP、X-Frame-Options、nosniff 等）のカスタマイズや任意のカスタム HTTP ヘッダーの動的追加・編集・削除が行える。
 - **デフォルト防御ヘッダー値**:
   - 有効なプラグインの `capabilities.embed.frame_domains` は、ミドルウェアがレスポンスごとに CSP の `frame-src` に足す（`headers::with_frame_sources`。管理者の CSP の値は書き換えず、効いている `frame-src` / `child-src` / `default-src` から作る）。プラグインの有効・無効を切り替えると次のレスポンスから変わる。
-  - `Content-Security-Policy`: SPA（Vite/React）やテーマのインラインスクリプト・フォント・メディアを壊さない安全なディレクティブ (`default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';`)。
+  - `Content-Security-Policy`: SPA（Vite/React）やテーマのインラインスクリプト・フォント・メディアを壊さない安全なディレクティブ (`default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';`)。
+    - **`'unsafe-eval'` は入れていない**（`eval`・`new Function` を使う機能が無いため）。Admin Studio のビルドは `eval` もインラインのスクリプトも使わない。`'unsafe-inline'`（スクリプト・スタイル）が残るのは、公式プラグイン・組み込みのコメント欄・テーマが `<script>` や `onclick` を HTML に直接出すため。外すには、出す側が nonce を付ける変更（テーマとプラグインに影響する破壊的変更）が要る。`eval` を要求する外部サービスを使うサイトは、管理画面の「設定 › ヘッダー」で CSP に `'unsafe-eval'` を足す。`admin/e2e/csp.spec.ts` が、Admin Studio と公開ページの主な画面を既定の CSP で動かし、スクリプトが止められていないことを検査する。
   - `X-Frame-Options: SAMEORIGIN`（クリックジャッキング保護）
   - `X-Content-Type-Options: nosniff`（MIME スニッフィング防止）
   - `Referrer-Policy: strict-origin-when-cross-origin`（リファラー漏洩防止）

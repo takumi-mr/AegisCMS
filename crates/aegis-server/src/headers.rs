@@ -19,7 +19,7 @@ pub const CUSTOM_HEADERS_SETTING: &str = "headers.custom_headers";
 
 /// デフォルトの防御ヘッダー値
 pub const DEFAULT_CONTENT_SECURITY_POLICY: &str =
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';";
 pub const DEFAULT_X_FRAME_OPTIONS: &str = "SAMEORIGIN";
 pub const DEFAULT_X_CONTENT_TYPE_OPTIONS: &str = "nosniff";
 pub const DEFAULT_REFERRER_POLICY: &str = "strict-origin-when-cross-origin";
