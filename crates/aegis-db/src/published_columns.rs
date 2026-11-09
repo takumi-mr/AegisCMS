@@ -8,13 +8,15 @@
 //! 結果の変換）だけを持つ。実行は各アダプタが行う。
 //!
 //! - 副表に入るのは、公開中で `access` が空（誰でも読める）のコンテンツだけ
-//! - 日時は UTC の `YYYY-MM-DDTHH:MM:SS` に揃えて持つ（文字列の比較と `SUBSTR` で並べ替え・日付の区切りができる）
+//! - 日時は設定のタイムゾーン（`[queries].timezone`）の現地時刻 `YYYY-MM-DDTHH:MM:SS` に揃えて持つ
+//!   （文字列の比較と `SUBSTR` で並べ替え・日付の区切りができる。タイムゾーンを変えたら作り直す）
 //! - 副表の列や中身が今の定義と合わなければ、起動時に作り直す（`signature`）
 
 use crate::ContentRecord;
 use aegis_core::{AegisError, Result};
 use aegis_schema::query::{resolve_column, AggFn, Bucket, Condition, Direction, QueryMode};
 use aegis_schema::{FieldType, QueryDefinition, SchemaDefinition, SchemaMigration, SqlDialect};
+use chrono_tz::Tz;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -67,6 +69,8 @@ pub struct PublishedTable {
     pub content_type: String,
     pub table: String,
     pub columns: Vec<PublishedColumn>,
+    /// 日時の列を持つときの現地時刻のタイムゾーン
+    pub timezone: Tz,
 }
 
 /// 全クエリが使う列から求めた、型ごとの副表の計画
@@ -76,8 +80,8 @@ pub struct PublishedColumnsPlan {
 }
 
 impl PublishedColumnsPlan {
-    /// 検証済みのクエリから、使う列の和集合を型ごとに求める
-    pub fn build(queries: &[QueryDefinition], schemas: &[SchemaDefinition]) -> Self {
+    /// 検証済みのクエリから、使う列の和集合を型ごとに求める。`timezone` は日時の現地時刻の基準
+    pub fn build(queries: &[QueryDefinition], schemas: &[SchemaDefinition], timezone: Tz) -> Self {
         let mut tables: BTreeMap<String, PublishedTable> = BTreeMap::new();
         for q in queries {
             let Some(schema) = schemas.iter().find(|s| s.content_type == q.from) else {
@@ -89,6 +93,7 @@ impl PublishedColumnsPlan {
                     content_type: q.from.clone(),
                     table: published_table_name(&q.from),
                     columns: Vec::new(),
+                    timezone,
                 });
             for name in q.used_columns() {
                 if table.columns.iter().any(|c| c.name == name) {
@@ -128,7 +133,7 @@ pub fn placeholder(dialect: SqlDialect, n: usize) -> String {
 impl PublishedTable {
     /// 定義の控え。列の名前と型・索引が変わったら値が変わる（変わったら作り直す）
     pub fn signature(&self) -> String {
-        let mut s = String::from("v1");
+        let mut s = format!("v1@{}", self.timezone.name());
         for c in &self.columns {
             s.push_str(&format!(
                 "|{}:{:?}:{}",
@@ -209,22 +214,22 @@ impl PublishedTable {
         Some(
             self.columns
                 .iter()
-                .map(|c| column_value(c, record))
+                .map(|c| column_value(c, record, self.timezone))
                 .collect(),
         )
     }
 }
 
-/// 日時を UTC の `YYYY-MM-DDTHH:MM:SS` にそろえる（RFC 3339 として読めなければ `None`）
-pub fn normalize_timestamp(text: &str) -> Option<String> {
+/// 日時を `timezone` の現地時刻 `YYYY-MM-DDTHH:MM:SS` にそろえる（RFC 3339 として読めなければ `None`）
+pub fn normalize_timestamp(text: &str, timezone: Tz) -> Option<String> {
     chrono::DateTime::parse_from_rfc3339(text).ok().map(|t| {
-        t.with_timezone(&chrono::Utc)
+        t.with_timezone(&timezone)
             .format("%Y-%m-%dT%H:%M:%S")
             .to_string()
     })
 }
 
-fn column_value(col: &PublishedColumn, record: &ContentRecord) -> PubValue {
+fn column_value(col: &PublishedColumn, record: &ContentRecord, timezone: Tz) -> PubValue {
     let json: Option<Value> = match col.name.as_str() {
         "title" => Some(Value::String(record.title.clone())),
         "slug" => Some(Value::String(record.slug.clone())),
@@ -248,7 +253,7 @@ fn column_value(col: &PublishedColumn, record: &ContentRecord) -> PubValue {
             PubValue::Bool(matches!(s.as_str(), "1" | "true"))
         }
         (FieldType::Timestamp, Value::String(s)) => {
-            normalize_timestamp(&s).map_or(null, PubValue::Text)
+            normalize_timestamp(&s, timezone).map_or(null, PubValue::Text)
         }
         _ => null,
     }
@@ -327,19 +332,22 @@ fn agg_expr(dialect: SqlDialect, func: AggFn, col: Option<&str>) -> (String, Out
 }
 
 /// 値を列の型に合わせてバインド値にする（検証済みの定義が前提）
-fn bind_value(ty: FieldType, v: &serde_yaml::Value) -> PubValue {
+fn bind_value(ty: FieldType, v: &serde_yaml::Value, timezone: Tz) -> PubValue {
     use serde_yaml::Value as Y;
     let null = PubValue::Null(NullKind::of(ty));
     match (ty, v) {
         (FieldType::Integer, Y::Number(n)) => n.as_i64().map_or(null, PubValue::Int),
         (FieldType::Boolean, Y::Bool(b)) => PubValue::Bool(*b),
-        (FieldType::Timestamp, Y::String(s)) => normalize_timestamp(s).map_or(null, PubValue::Text),
+        (FieldType::Timestamp, Y::String(s)) => {
+            normalize_timestamp(s, timezone).map_or(null, PubValue::Text)
+        }
         (_, Y::String(s)) => PubValue::Text(s.clone()),
         _ => null,
     }
 }
 
 struct SqlBuilder {
+    timezone: Tz,
     dialect: SqlDialect,
     binds: Vec<PubValue>,
 }
@@ -351,6 +359,7 @@ impl SqlBuilder {
     }
 
     fn condition(&mut self, col: &str, ty: FieldType, c: &Condition, out: &mut Vec<String>) {
+        let tz = self.timezone;
         let ops: [(&str, &Option<serde_yaml::Value>); 6] = [
             ("=", &c.eq),
             ("<>", &c.ne),
@@ -361,12 +370,15 @@ impl SqlBuilder {
         ];
         for (op, value) in ops {
             if let Some(v) = value {
-                let ph = self.bind(bind_value(ty, v));
+                let ph = self.bind(bind_value(ty, v, tz));
                 out.push(format!("{col} {op} {ph}"));
             }
         }
         if let Some(list) = &c.in_list {
-            let phs: Vec<String> = list.iter().map(|v| self.bind(bind_value(ty, v))).collect();
+            let phs: Vec<String> = list
+                .iter()
+                .map(|v| self.bind(bind_value(ty, v, tz)))
+                .collect();
             out.push(format!("{col} IN ({})", phs.join(", ")));
         }
         if let Some(serde_yaml::Value::Bool(b)) = &c.is_null {
@@ -399,6 +411,7 @@ pub fn build_query(
             })
     };
     let mut b = SqlBuilder {
+        timezone: table.timezone,
         dialect,
         binds: Vec::new(),
     };
@@ -578,14 +591,14 @@ mod tests {
     }
 
     fn plan(q: &QueryDefinition) -> PublishedColumnsPlan {
-        PublishedColumnsPlan::build(std::slice::from_ref(q), &[schema()])
+        PublishedColumnsPlan::build(std::slice::from_ref(q), &[schema()], Tz::UTC)
     }
 
     #[test]
     fn plan_has_only_the_columns_the_queries_use() {
         let q1 = query("name: a\nfrom: product\nwhere: { on_sale: { eq: true } }\nselect: [{ fn: sum, field: price, as: t }]\n");
         let q2 = query("name: b\nfrom: product\ngroup_by: [{ field: brand }]\nselect: [{ fn: count, as: n }]\n");
-        let plan = PublishedColumnsPlan::build(&[q1, q2], &[schema()]);
+        let plan = PublishedColumnsPlan::build(&[q1, q2], &[schema()], Tz::UTC);
         let table = plan.get("product").unwrap();
         let names: Vec<&str> = table.columns.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(names, vec!["brand", "on_sale", "price"]);
@@ -800,13 +813,22 @@ mod tests {
     #[test]
     fn timestamps_are_normalized_to_utc() {
         assert_eq!(
-            normalize_timestamp("2026-03-05T09:00:00+09:00").as_deref(),
+            normalize_timestamp("2026-03-05T09:00:00+09:00", Tz::UTC).as_deref(),
             Some("2026-03-05T00:00:00")
         );
         assert_eq!(
-            normalize_timestamp("2026-03-05T09:00:00.123Z").as_deref(),
+            normalize_timestamp("2026-03-05T09:00:00.123Z", Tz::UTC).as_deref(),
             Some("2026-03-05T09:00:00")
         );
-        assert_eq!(normalize_timestamp("yesterday"), None);
+        assert_eq!(normalize_timestamp("yesterday", Tz::UTC), None);
+        // 現地時刻にそろう（日付をまたぐ）
+        assert_eq!(
+            normalize_timestamp("2026-01-31T20:00:00Z", Tz::Asia__Tokyo).as_deref(),
+            Some("2026-02-01T05:00:00")
+        );
+        assert_eq!(
+            normalize_timestamp("2026-03-05T09:00:00+09:00", Tz::America__New_York).as_deref(),
+            Some("2026-03-04T19:00:00")
+        );
     }
 }

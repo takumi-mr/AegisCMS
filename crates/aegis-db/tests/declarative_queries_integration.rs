@@ -14,6 +14,7 @@ use aegis_db::{
     PostgresAdapter, SqliteAdapter,
 };
 use aegis_schema::{QueryDefinition, QueryLimits, SchemaDefinition, SchemaLoader};
+use chrono_tz::Tz;
 use serde_json::{json, Value};
 
 fn product_schema() -> SchemaDefinition {
@@ -148,6 +149,7 @@ async fn run_declarative_queries_test<A: DatabaseAdapter>(adapter: &A) -> Result
     let plan1 = PublishedColumnsPlan::build(
         &[by_brand.clone(), by_month.clone(), cheap_sale.clone()],
         std::slice::from_ref(&schema),
+        Tz::UTC,
     );
     adapter.configure_published_columns(plan1).await?;
 
@@ -203,6 +205,7 @@ async fn run_declarative_queries_test<A: DatabaseAdapter>(adapter: &A) -> Result
             with_discount.clone(),
         ],
         std::slice::from_ref(&schema),
+        Tz::UTC,
     );
     adapter.configure_published_columns(plan2).await?;
     assert_eq!(rows(adapter, &no_discount).await?, json!([{"n": 3}]));
@@ -210,6 +213,69 @@ async fn run_declarative_queries_test<A: DatabaseAdapter>(adapter: &A) -> Result
         rows(adapter, &with_discount).await?,
         json!([{"n": 1, "lowest": 400}])
     );
+
+    // タイムゾーンを変えると作り直され、日付の区切りが現地時間になる。
+    // UTC では 1/31 20:00 の公開が、東京では 2/1 05:00（翌月）
+    let t1 = product("t1", "A", 700, true, "2026-01-31T20:00:00Z", &[]);
+    publish_new(adapter, &t1).await?;
+    adapter
+        .configure_published_columns(PublishedColumnsPlan::build(
+            &[
+                by_brand.clone(),
+                by_month.clone(),
+                cheap_sale.clone(),
+                no_discount.clone(),
+                with_discount.clone(),
+            ],
+            std::slice::from_ref(&schema),
+            Tz::UTC,
+        ))
+        .await?;
+    // 追加は「定義が同じ」なので作り直されず、公開操作の書き込みで入っている
+    assert_eq!(
+        rows(adapter, &by_month).await?,
+        json!([{"month": "2026-01", "n": 3}, {"month": "2026-02", "n": 2}])
+    );
+    adapter
+        .configure_published_columns(PublishedColumnsPlan::build(
+            &[
+                by_brand.clone(),
+                by_month.clone(),
+                cheap_sale.clone(),
+                no_discount.clone(),
+                with_discount.clone(),
+            ],
+            std::slice::from_ref(&schema),
+            Tz::Asia__Tokyo,
+        ))
+        .await?;
+    assert_eq!(
+        rows(adapter, &by_month).await?,
+        json!([{"month": "2026-01", "n": 2}, {"month": "2026-02", "n": 3}])
+    );
+    // 条件の日時も現地時刻で比べる（東京の 2/1 0:00 以降 = UTC の 1/31 15:00 以降）
+    let since_feb = query(
+        "name: since_feb
+from: product
+where: { published_at: { gte: \"2026-02-01T00:00:00+09:00\" } }
+select: [{ fn: count, as: n }]
+",
+    );
+    adapter
+        .configure_published_columns(PublishedColumnsPlan::build(
+            &[
+                by_brand.clone(),
+                by_month.clone(),
+                cheap_sale.clone(),
+                no_discount.clone(),
+                with_discount.clone(),
+                since_feb.clone(),
+            ],
+            std::slice::from_ref(&schema),
+            Tz::Asia__Tokyo,
+        ))
+        .await?;
+    assert_eq!(rows(adapter, &since_feb).await?, json!([{"n": 3}]));
 
     // 取り下げ・削除で副表からも消える
     adapter
@@ -223,9 +289,9 @@ async fn run_declarative_queries_test<A: DatabaseAdapter>(adapter: &A) -> Result
     assert!(adapter.delete_content(&schema, "b2").await?);
     assert_eq!(
         rows(adapter, &by_month).await?,
-        json!([{"month": "2026-01", "n": 1}, {"month": "2026-02", "n": 1}])
+        json!([{"month": "2026-01", "n": 1}, {"month": "2026-02", "n": 2}])
     );
-    assert_eq!(rows(adapter, &no_discount).await?, json!([{"n": 1}]));
+    assert_eq!(rows(adapter, &no_discount).await?, json!([{"n": 2}]));
     Ok(())
 }
 

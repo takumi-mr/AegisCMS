@@ -36,7 +36,7 @@ pub struct QueriesConfig {
     pub max_concurrency: usize,
     /// `in` のリストの最大の長さ
     pub max_in_items: usize,
-    /// 日付の `bucket` で区切るタイムゾーン（IANA 名）。今は `UTC` だけ
+    /// 日付の `bucket` と日時の条件で使うタイムゾーン（IANA 名。例: `Asia/Tokyo`）。変えると副表を作り直す
     pub timezone: String,
 }
 
@@ -71,13 +71,18 @@ impl QueriesConfig {
         if !(1..=1000).contains(&self.max_in_items) {
             return bad("max_in_items", "between 1 and 1000");
         }
-        if self.timezone != "UTC" {
+        if self.timezone.parse::<chrono_tz::Tz>().is_err() {
             return Err(AegisError::Config(format!(
-                "[queries].timezone {:?} is not supported yet: only \"UTC\"",
+                "[queries].timezone {:?} is not an IANA time zone name (e.g. \"UTC\", \"Asia/Tokyo\")",
                 self.timezone
             )));
         }
         Ok(())
+    }
+
+    /// 設定のタイムゾーン（検証済みでなければ UTC）
+    pub fn tz(&self) -> chrono_tz::Tz {
+        self.timezone.parse().unwrap_or(chrono_tz::Tz::UTC)
     }
 
     pub fn limits(&self) -> QueryLimits {
@@ -149,6 +154,7 @@ impl QueryService {
         let plan = aegis_db::published_columns::PublishedColumnsPlan::build(
             &self.definitions,
             &schema_list,
+            self.config.tz(),
         );
         state.db.configure_published_columns(plan).await?;
         self.refresh(state, None).await;
@@ -410,13 +416,19 @@ mod tests {
                 ..Default::default()
             },
             QueriesConfig {
-                timezone: "Asia/Tokyo".into(),
+                timezone: "Mars/Base".into(),
                 ..Default::default()
             },
         ];
         for c in cases {
             assert!(c.validate().is_err(), "{c:?}");
         }
+        let tokyo = QueriesConfig {
+            timezone: "Asia/Tokyo".into(),
+            ..Default::default()
+        };
+        assert!(tokyo.validate().is_ok());
+        assert_eq!(tokyo.tz(), chrono_tz::Tz::Asia__Tokyo);
         let limits = QueriesConfig {
             max_limit: 50,
             max_in_items: 7,
