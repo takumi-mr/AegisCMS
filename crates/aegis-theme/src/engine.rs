@@ -479,7 +479,7 @@ impl ThemeEngine {
             ))
         })?;
 
-        Ok(rendered)
+        Ok(with_static_styles(rendered))
     }
 
     /// `render` と同じ描画で、失敗したときにテンプレート名と行番号を返す（テーマ開発用）
@@ -863,6 +863,26 @@ fn extract_block_names(line: &str) -> Vec<String> {
         cursor = &after[end + 2..];
     }
     blocks
+}
+
+/// 組み込みの静的なスタイル（ブロックの見た目・`style` 属性の代わりのクラス）を `</head>` の前に足す。
+/// `extra_head` に入れると、`on-render-page` のプラグインごとに渡して `<script>` の取り除きを掛けることになり、
+/// 毎ページ何 KB も無駄に走査するので、プラグインが触れない描画の最後に足す。Strict CSP のためにハッシュも登録する
+fn with_static_styles(mut html: String) -> String {
+    let Some(at) = html.find("</head>") else {
+        return html;
+    };
+    aegis_core::csp::record_styles_in(crate::builtins::BLOCK_STYLES);
+    aegis_core::csp::record_styles_in(crate::builtins::UTILITY_STYLES);
+    let mut block = String::with_capacity(
+        crate::builtins::BLOCK_STYLES.len() + crate::builtins::UTILITY_STYLES.len() + 4,
+    );
+    block.push_str(crate::builtins::BLOCK_STYLES);
+    block.push('\n');
+    block.push_str(crate::builtins::UTILITY_STYLES);
+    block.push('\n');
+    html.insert_str(at, &block);
+    html
 }
 
 /// テーマの `theme.json` の `csp`（無い・誤りなら空。誤りは警告を出す）
