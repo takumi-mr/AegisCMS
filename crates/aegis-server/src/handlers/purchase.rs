@@ -20,6 +20,8 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 
 use crate::audit::AuditContext;
+use crate::auth::authorize::RequireRole;
+use crate::auth::AdminSession;
 use crate::handlers::access::purchase_enabled;
 use crate::handlers::content::is_currently_published;
 use crate::handlers::members::resolve_member_session;
@@ -28,19 +30,20 @@ use aegis_commerce::{verify_webhook_event, StripeClient};
 use aegis_core::{AuditAction, AuditOutcome};
 use aegis_db::{
     PurchaseRecord, PURCHASE_CANCELLED, PURCHASE_PAID, PURCHASE_PENDING, PURCHASE_REFUNDED,
+    PURCHASE_REVOKED,
 };
 use aegis_members::Viewer;
 
 type ApiError = (StatusCode, Json<Value>);
 
-fn api_error(status: StatusCode, message: impl Into<String>, code: &str) -> ApiError {
+pub(crate) fn api_error(status: StatusCode, message: impl Into<String>, code: &str) -> ApiError {
     (
         status,
         Json(json!({ "error": message.into(), "code": code })),
     )
 }
 
-fn internal(e: impl std::fmt::Display) -> ApiError {
+pub(crate) fn internal(e: impl std::fmt::Display) -> ApiError {
     tracing::error!("Purchase error: {}", e);
     api_error(
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -50,7 +53,7 @@ fn internal(e: impl std::fmt::Display) -> ApiError {
 }
 
 /// 購入が無効なサイトでは、API も画面も 404
-fn ensure_enabled(state: &AppState) -> Result<(), ApiError> {
+pub(crate) fn ensure_enabled(state: &AppState) -> Result<(), ApiError> {
     if purchase_enabled(state) {
         Ok(())
     } else {
@@ -60,6 +63,12 @@ fn ensure_enabled(state: &AppState) -> Result<(), ApiError> {
             "purchase_disabled",
         ))
     }
+}
+
+/// Stripe のクライアント（`[members.purchase.stripe]` のキー）
+pub(crate) fn stripe_client(state: &AppState) -> Result<StripeClient, ApiError> {
+    let config = &state.config.members.purchase.stripe;
+    StripeClient::new(&config.secret_key(), &config.api_base).map_err(internal)
 }
 
 /// 購入を始めるリクエスト
@@ -211,9 +220,7 @@ async fn start_purchase(
         &success_url,
         &cancel_url,
     );
-    let client = StripeClient::new(&config.stripe.secret_key(), &config.stripe.api_base)
-        .map_err(internal)?;
-    let checkout = client
+    let checkout = stripe_client(state)?
         .create_checkout_session(&form, &format!("aegis-purchase-{purchase_id}"))
         .await
         .map_err(|e| {
@@ -313,7 +320,7 @@ pub async fn start_purchase_page(
 }
 
 /// クエリの値のパーセントエンコード
-fn encode_component(value: &str) -> String {
+pub(crate) fn encode_component(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for byte in value.bytes() {
         match byte {
@@ -326,22 +333,11 @@ fn encode_component(value: &str) -> String {
     out
 }
 
-/// `GET /api/v1/members/purchases` — ログイン会員の購入（新しい順）
-pub async fn list_my_purchases(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<Value>, ApiError> {
-    ensure_enabled(&state)?;
-    let session = resolve_member_session(&state, &headers).await?;
-    let purchases = state
-        .db
-        .list_member_purchases(&session.member_id)
-        .await
-        .map_err(internal)?;
+/// 購入の一覧の表示用（記事が消えていても、購入の記録は返す。タイトルと URL だけ空になる）
+pub async fn purchase_views(state: &AppState, purchases: Vec<PurchaseRecord>) -> Vec<Value> {
     let schemas = state.schemas.read().await.clone();
     let mut out = Vec::with_capacity(purchases.len());
     for purchase in purchases {
-        // 記事が消えていても、購入の記録は返す（タイトルと URL だけ空になる）
         let content = match schemas.get(&purchase.content_type) {
             Some(schema) => state
                 .db
@@ -355,7 +351,7 @@ pub async fn list_my_purchases(
             Some(c) => (
                 Some(c.title.clone()),
                 Some(crate::handlers::public::public_content_path(
-                    &state,
+                    state,
                     &c.content_type,
                     &c.slug,
                 )),
@@ -373,9 +369,30 @@ pub async fn list_my_purchases(
             "status": purchase.status,
             "created_at": purchase.created_at,
             "paid_at": purchase.paid_at,
+            "manual": purchase.provider_ref.starts_with(MANUAL_REF_PREFIX),
         }));
     }
-    Ok(Json(json!({ "purchases": out })))
+    out
+}
+
+/// 管理者が手で付けた権利の `provider_ref` の接頭辞（Stripe の決済ではない）
+pub const MANUAL_REF_PREFIX: &str = "manual:";
+
+/// `GET /api/v1/members/purchases` — ログイン会員の購入（新しい順）
+pub async fn list_my_purchases(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    ensure_enabled(&state)?;
+    let session = resolve_member_session(&state, &headers).await?;
+    let purchases = state
+        .db
+        .list_member_purchases(&session.member_id)
+        .await
+        .map_err(internal)?;
+    Ok(Json(
+        json!({ "purchases": purchase_views(&state, purchases).await }),
+    ))
 }
 
 /// `POST /api/v1/members/webhooks/stripe` — Stripe からの通知（署名を確かめる）
@@ -426,6 +443,11 @@ async fn apply_event(
     let object = &event["data"]["object"];
     let event_id = event["id"].as_str().unwrap_or_default();
 
+    // サブスクの通知は、そちらで扱う
+    if crate::handlers::subscription::apply_event(state, audit, event).await? {
+        return Ok(());
+    }
+
     match event_type {
         "checkout.session.completed" | "checkout.session.async_payment_succeeded" => {
             let Some(purchase) = purchase_of_session(state, object).await? else {
@@ -439,7 +461,8 @@ async fn apply_event(
             if event_type == "checkout.session.completed" && !paid {
                 return Ok(());
             }
-            mark_paid(state, audit, &purchase, object, event_id).await
+            mark_paid(state, audit, &purchase, object, event_id).await?;
+            Ok(())
         }
         "checkout.session.expired" | "checkout.session.async_payment_failed" => {
             let Some(purchase) = purchase_of_session(state, object).await? else {
@@ -455,7 +478,8 @@ async fn apply_event(
                 event_id,
                 None,
             )
-            .await
+            .await?;
+            Ok(())
         }
         "charge.refunded" => {
             // 全額の返金だけ権利を外す（一部返金は残す）
@@ -483,7 +507,8 @@ async fn apply_event(
                 event_id,
                 None,
             )
-            .await
+            .await?;
+            Ok(())
         }
         _ => Ok(()),
     }
@@ -511,7 +536,7 @@ async fn mark_paid(
     purchase: &PurchaseRecord,
     session: &Value,
     event_id: &str,
-) -> Result<(), ApiError> {
+) -> Result<bool, ApiError> {
     let amount = session["amount_total"].as_i64().unwrap_or(-1);
     let currency = session["currency"]
         .as_str()
@@ -533,7 +558,7 @@ async fn mark_paid(
             }),
         )
         .await;
-        return Ok(());
+        return Ok(false);
     }
 
     // 同じ会員が同じ記事を二重に払った（2 つの決済ページを開いた）か
@@ -561,7 +586,7 @@ async fn mark_paid(
 
 /// 購入の状態を変える（条件付きの更新。再送で二重に動かない）。変えたときだけ監査ログに残す
 #[allow(clippy::too_many_arguments)]
-async fn transition(
+pub async fn transition(
     state: &AppState,
     audit: &AuditContext,
     purchase: &PurchaseRecord,
@@ -570,11 +595,17 @@ async fn transition(
     transaction_id: Option<&str>,
     event_id: &str,
     problem: Option<&str>,
-) -> Result<(), ApiError> {
+) -> Result<bool, ApiError> {
     let from: &[&str] = match to {
         PURCHASE_PAID | PURCHASE_CANCELLED => &[PURCHASE_PENDING],
-        PURCHASE_REFUNDED => &[PURCHASE_PAID],
+        PURCHASE_REFUNDED | PURCHASE_REVOKED => &[PURCHASE_PAID],
         _ => &[],
+    };
+    // 管理者の操作は `event_id` が空で、監査ログの操作主体（`audit`）が残る
+    let source = if event_id.is_empty() {
+        "admin"
+    } else {
+        "payment_webhook"
     };
     let now = chrono::Utc::now().to_rfc3339();
     let changed = state
@@ -586,7 +617,7 @@ async fn transition(
         let mut details = json!({
             "from": purchase.status,
             "to": to,
-            "source": "payment_webhook",
+            "source": source,
             "event_id": event_id,
         });
         if let Some(problem) = problem {
@@ -594,7 +625,7 @@ async fn transition(
         }
         record_update(state, audit, purchase, AuditOutcome::Success, details).await;
     }
-    Ok(())
+    Ok(changed)
 }
 
 async fn record_update(
@@ -613,6 +644,230 @@ async fn record_update(
                 .with_details(details),
         )
         .await;
+}
+
+// --- 管理者向け（会員の詳細から。docs/members.md 16.7） ---
+
+#[derive(Debug, Deserialize)]
+pub struct GrantPurchaseRequest {
+    pub content_type: String,
+    pub slug: String,
+}
+
+/// `POST /api/v1/admin/members/{id}/purchases` — 管理者: 会員に記事の閲覧の権利を無料で付ける
+/// （購入と同じ扱いの記録。金額は 0、決済は無い）。有料の付与にあたるので、`admin` だけ
+pub async fn admin_grant_purchase(
+    RequireRole(session): AdminSession,
+    State(state): State<Arc<AppState>>,
+    audit: AuditContext,
+    axum::extract::Path(member_id): axum::extract::Path<String>,
+    Json(request): Json<GrantPurchaseRequest>,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    ensure_enabled(&state)?;
+    let not_found = |what: &str| {
+        api_error(
+            StatusCode::NOT_FOUND,
+            format!("{what} not found"),
+            "not_found",
+        )
+    };
+    state
+        .db
+        .get_member_by_id(&member_id)
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| not_found("Member"))?;
+    let schema = state
+        .schemas
+        .read()
+        .await
+        .get(&request.content_type)
+        .cloned()
+        .ok_or_else(|| not_found("Content"))?;
+    let record = state
+        .db
+        .get_published_content(&schema, &request.slug)
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| not_found("Content"))?;
+    if !record.is_restricted() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "This content is not restricted, so there is nothing to grant",
+            "not_restricted",
+        ));
+    }
+    if state
+        .db
+        .has_paid_purchase(&member_id, &record.content_type, &record.id)
+        .await
+        .map_err(internal)?
+    {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "The member already has access through a purchase",
+            "already_purchased",
+        ));
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    let purchase = PurchaseRecord {
+        id: uuid::Uuid::new_v4().to_string(),
+        member_id: Some(member_id.clone()),
+        content_type: record.content_type.clone(),
+        content_id: record.id.clone(),
+        amount: 0,
+        currency: state.config.members.purchase.currency.clone(),
+        status: PURCHASE_PAID.to_string(),
+        provider_ref: format!("{MANUAL_REF_PREFIX}{}", uuid::Uuid::new_v4()),
+        transaction_id: None,
+        created_at: now.clone(),
+        paid_at: Some(now.clone()),
+        updated_at: now,
+    };
+    state
+        .db
+        .insert_purchase(&purchase)
+        .await
+        .map_err(internal)?;
+    state
+        .audit
+        .record(
+            audit
+                .event(AuditAction::PurchaseCreate, AuditOutcome::Success)
+                .with_resource("purchase", Some(purchase.id.clone()))
+                .with_details(json!({
+                    "member_id": member_id,
+                    "content_type": purchase.content_type,
+                    "content_id": purchase.content_id,
+                    "manual": true,
+                    "granted_by": session.user_id,
+                })),
+        )
+        .await;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "purchase_id": purchase.id })),
+    ))
+}
+
+async fn purchase_by_id(state: &AppState, id: &str) -> Result<PurchaseRecord, ApiError> {
+    state
+        .db
+        .get_purchase(id)
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Purchase not found", "not_found"))
+}
+
+/// `POST /api/v1/admin/purchases/{id}/revoke` — 管理者: 購入の権利を取り消す（返金はしない）
+pub async fn admin_revoke_purchase(
+    RequireRole(_session): AdminSession,
+    State(state): State<Arc<AppState>>,
+    audit: AuditContext,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<StatusCode, ApiError> {
+    ensure_enabled(&state)?;
+    let purchase = purchase_by_id(&state, &id).await?;
+    let changed = transition(
+        &state,
+        &audit,
+        &purchase,
+        PURCHASE_REVOKED,
+        None,
+        None,
+        "",
+        None,
+    )
+    .await?;
+    if changed {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(api_error(
+            StatusCode::CONFLICT,
+            "Only a paid purchase can be revoked",
+            "not_paid",
+        ))
+    }
+}
+
+/// `POST /api/v1/admin/purchases/{id}/refund` — 管理者: 全額を返金して、権利を外す（Stripe の返金 API）
+pub async fn admin_refund_purchase(
+    RequireRole(_session): AdminSession,
+    State(state): State<Arc<AppState>>,
+    audit: AuditContext,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<StatusCode, ApiError> {
+    ensure_enabled(&state)?;
+    let purchase = purchase_by_id(&state, &id).await?;
+    if purchase.status != PURCHASE_PAID {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "Only a paid purchase can be refunded",
+            "not_paid",
+        ));
+    }
+    let Some(payment_intent) = purchase
+        .transaction_id
+        .as_deref()
+        .filter(|_| purchase.amount > 0)
+    else {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "This purchase has no payment to refund (use revoke)",
+            "nothing_to_refund",
+        ));
+    };
+    let form = vec![
+        ("payment_intent".to_string(), payment_intent.to_string()),
+        ("amount".to_string(), purchase.amount.to_string()),
+        ("metadata[purchase_id]".to_string(), purchase.id.clone()),
+    ];
+    stripe_client(&state)?
+        .post_form(
+            "/v1/refunds",
+            &form,
+            &format!("aegis-purchase-refund-{}", purchase.id),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Stripe refund failed: {}", e);
+            api_error(
+                StatusCode::BAD_GATEWAY,
+                "The payment service could not refund",
+                "refund_failed",
+            )
+        })?;
+    // Stripe の返金の通知（`charge.refunded`）も同じ遷移をするが、条件付きなので二重には動かない
+    transition(
+        &state,
+        &audit,
+        &purchase,
+        PURCHASE_REFUNDED,
+        None,
+        None,
+        "",
+        None,
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/v1/admin/subscriptions/{id}/cancel` — 管理者: 契約を即時に解約する
+pub async fn admin_cancel_subscription(
+    RequireRole(_session): AdminSession,
+    State(state): State<Arc<AppState>>,
+    audit: AuditContext,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<StatusCode, ApiError> {
+    ensure_enabled(&state)?;
+    let subscription = state
+        .db
+        .get_subscription(&id)
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Subscription not found", "not_found"))?;
+    crate::handlers::subscription::cancel_now(&state, &audit, &subscription, "admin").await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[cfg(test)]

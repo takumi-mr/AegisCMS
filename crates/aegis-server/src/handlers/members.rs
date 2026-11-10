@@ -560,6 +560,7 @@ pub struct DeleteAccountRequest {
 /// 注文は会員との紐づきだけを外して残し、レビューは匿名にして残す
 pub async fn delete_me(
     State(state): State<Arc<AppState>>,
+    audit: crate::audit::AuditContext,
     ClientIp(client_ip): ClientIp,
     headers: HeaderMap,
     Json(req): Json<DeleteAccountRequest>,
@@ -596,6 +597,14 @@ pub async fn delete_me(
             crate::cdn::purge_tags(&state, &tags).await;
         }
     }
+    // 2c-0. 契約中のサブスクは、課金が続かないように解約する（解約できなければ、退会を止める）
+    crate::handlers::subscription::cancel_member_subscriptions(&state, &audit, &session.member_id)
+        .await?;
+    state
+        .db
+        .detach_member_subscriptions(&session.member_id)
+        .await
+        .map_err(map_aegis_error)?;
     // 2c. 購入の記録は、会員との紐づきだけを外して残す（会計の記録。権利は外れる）
     state
         .db
@@ -921,6 +930,28 @@ pub async fn admin_get_member(
         "levels": service.levels(),
         "orders": orders,
         "forum": forum,
+        // 購入・サブスク（購入が無効なら空）
+        "purchases": if state.config.members.purchase.enabled {
+            let purchases = state
+                .db
+                .list_member_purchases(&member_id)
+                .await
+                .map_err(map_aegis_error)?;
+            crate::handlers::purchase::purchase_views(&state, purchases).await
+        } else {
+            Vec::new()
+        },
+        "subscriptions": if state.config.members.purchase.enabled {
+            let subscriptions = state
+                .db
+                .list_member_subscriptions(&member_id)
+                .await
+                .map_err(map_aegis_error)?;
+            crate::handlers::subscription::views(&state, &subscriptions)
+        } else {
+            Vec::new()
+        },
+        "purchase_enabled": state.config.members.purchase.enabled,
     })))
 }
 

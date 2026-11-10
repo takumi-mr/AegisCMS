@@ -134,7 +134,16 @@ async fn member_session(state: &AppState, headers: &HeaderMap) -> Option<(String
     let token = crate::handlers::members::session_token(state, headers)?;
     let session = service.verify_session(&token).await.ok()??;
     let member = service.get_profile(&session.member_id).await.ok()?;
-    (member.status == "active").then_some((member.id, member.level))
+    if member.status != "active" {
+        return None;
+    }
+    // 手動で付けたレベルと、契約中のプランのレベルの高いほう
+    let granted = crate::handlers::subscription::granted_levels(state, &member.id).await;
+    let granted: Vec<&str> = granted.iter().map(String::as_str).collect();
+    let level =
+        aegis_members::effective_level(&state.config.members.levels, &member.level, &granted)
+            .to_string();
+    Some((member.id, level))
 }
 
 /// 購入が使えるか（会員アカウントと `[members.purchase]` がどちらも有効）
@@ -282,6 +291,11 @@ fn notice(
                 r#"<a href="{}">{}</a>"#,
                 escape(members.upgrade_url.trim()),
                 t("access.upgrade")
+            ));
+        } else if purchase_enabled(state) && !members.purchase.plans.is_empty() {
+            links.push(format!(
+                r##"<a href="/account#aegis-membership">{}</a>"##,
+                t("access.plans")
             ));
         }
         aegis_theme::messages::translate(locale, "access.needs_level", &params)
