@@ -108,7 +108,11 @@
     "setMemberStatusFailed": "会員の状態を変更できませんでした",
     "reviewsFailed": "レビューを取得できませんでした",
     "moderateReviewFailed": "レビューを更新できませんでした",
-    "replyReviewFailed": "返信を保存できませんでした"
+    "replyReviewFailed": "返信を保存できませんでした",
+    "grantPurchaseFailed": "権利を付けられませんでした",
+    "revokePurchaseFailed": "権利を取り消せませんでした",
+    "refundPurchaseFailed": "返金できませんでした",
+    "cancelSubscriptionFailed": "契約を解約できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -779,7 +783,40 @@
     "spent": "支払い済みの合計",
     "forum": "掲示板",
     "forumThreads": "立てたスレッド",
-    "forumPosts": "投稿（スレッドの1つ目を含む）"
+    "forumPosts": "投稿（スレッドの1つ目を含む）",
+    "subscriptions": "サブスク",
+    "noSubscriptions": "契約はありません。",
+    "subscriptionRenews": "{{date}} に更新",
+    "subscriptionEnds": "{{date}} に終了",
+    "subscriptionStatus": {
+      "active": "契約中",
+      "past_due": "支払い失敗",
+      "cancelled": "解約済み"
+    },
+    "cancelSubscription": "解約",
+    "confirmCancelSubscription": "この契約をいま解約しますか？ 会員はすぐにレベルを失い、返金はされません。",
+    "subscriptionCancelled": "契約を解約しました",
+    "purchases": "購入した記事",
+    "noPurchases": "購入はありません。",
+    "grantedByAdmin": "管理者が付与",
+    "purchaseStatus": {
+      "pending": "未払い",
+      "paid": "支払い済み",
+      "refunded": "返金済み",
+      "cancelled": "未完了",
+      "revoked": "取り消し"
+    },
+    "revoke": "取り消し",
+    "purchaseRevoked": "権利を取り消しました",
+    "refund": "返金",
+    "confirmRefund": "この購入を全額返金しますか？ 会員は読めなくなります。",
+    "purchaseRefunded": "返金しました",
+    "purchaseGranted": "権利を付けました",
+    "grantType": "種類",
+    "grantArticle": "記事",
+    "grantPage": "ページ",
+    "grantSlug": "権利を付ける記事のスラッグ",
+    "grant": "権利を付ける"
   },
   "reviews": {
     "title": "レビュー",
