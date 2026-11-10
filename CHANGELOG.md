@@ -1,5 +1,71 @@
 # Changelog
 
+## [0.6.0](https://github.com/takumi-mr/AegisCMS/compare/v0.5.0...v0.6.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cache:** with provider = "cloudflare" the Surrogate-Key header is no longer sent, and with "fastly" Cache-Tag is not. Use provider = "none" (or "webhook") to keep both.
+* **server:** a browser app on another origin (Admin Studio served from a different domain, a headless client with a token) must be listed in [server].cors_origins, or set it to ["*"].
+* **server:** style="" attributes in theme templates, plugin output, and core/html blocks (including inside the sandbox iframe) no longer apply. Use a class with inline_style / a stylesheet / extra_css, or strict_csp = "off" / "report-only".
+* **server:** a <style> written directly in a theme template, or by a user in a core/html block (normal mode), no longer applies. Wrap it in inline_style, load a stylesheet, or use strict_csp = "off" / "report-only".
+* **server:** public pages no longer allow inline scripts unless a trusted source (a plugin's scripts or {{ inline_script() }}) emitted them. A theme's own inline <script> and on* attributes stop working. Serve scripts as files, use inline_script(), or set [security].strict_csp = "off" (or "report-only" to check).
+* **plugin:** PLUGIN_ABI_VERSION is 2. A <script> written into extra_head, prepend_content or append_content is removed; use PageRenderContext.scripts. official-mermaid script_url is limited to a path on the site or cdn.jsdelivr.net, and a <script> in official-ads custom_head_code no longer works.
+* **plugin:** Mermaid diagrams moved to official-mermaid. A site that lists only official-code-enhancer in [plugins].enabled must add official-mermaid to keep its diagrams. config/default.toml enables both.
+
+### Features
+
+* **admin:** add full-screen and new-window views to the editor preview ([#289](https://github.com/takumi-mr/AegisCMS/issues/289)) ([b8289b1](https://github.com/takumi-mr/AegisCMS/commit/b8289b1b40f41df15101712d9d85e6da31e38da2))
+* **admin:** preview an article as a guest or a member of a level ([#295](https://github.com/takumi-mr/AegisCMS/issues/295)) ([4340720](https://github.com/takumi-mr/AegisCMS/commit/43407209bb17ad109f2da60288e568ccb63e8dd0))
+* **auth:** add reviewer role for editorial workflows ([#328](https://github.com/takumi-mr/AegisCMS/issues/328)) ([ab25fea](https://github.com/takumi-mr/AegisCMS/commit/ab25fea527fadac8a1a07b8f598943834aaf7272))
+* **cache:** send only the tag header the CDN provider uses ([#316](https://github.com/takumi-mr/AegisCMS/issues/316)) ([fb54738](https://github.com/takumi-mr/AegisCMS/commit/fb54738f79044d4d7ffd741255839aa0537cf920))
+* **core:** add GFM task lists and document that core stays within GitHub's syntax ([#283](https://github.com/takumi-mr/AegisCMS/issues/283)) ([d8b6af9](https://github.com/takumi-mr/AegisCMS/commit/d8b6af91e5bb8d2279dfaa6709c63fa79dfe67b3))
+* **core:** add GitHub-style footnotes ([^1] and [^1]: text) ([#287](https://github.com/takumi-mr/AegisCMS/issues/287)) ([03cc93a](https://github.com/takumi-mr/AegisCMS/commit/03cc93a9af4f587ea6f1281180c1126d8d130a27))
+* **core:** add member access levels (levels, a member level, may_view and a grant API) ([#291](https://github.com/takumi-mr/AegisCMS/issues/291)) ([d46b805](https://github.com/takumi-mr/AegisCMS/commit/d46b805057b06730b90bfee955a9c8aefbf58e71))
+* **core:** add the members-only break (core/paywall, &lt;!-- paywall --&gt;) ([#294](https://github.com/takumi-mr/AegisCMS/issues/294)) ([20c8d88](https://github.com/takumi-mr/AegisCMS/commit/20c8d881a948e85bd280e016556d37f8760a0ed5))
+* **plugin:** add official-blocks/figure for an image with a caption ([#284](https://github.com/takumi-mr/AegisCMS/issues/284)) ([ee867ad](https://github.com/takumi-mr/AegisCMS/commit/ee867adcf3134a0d6eb93a7f8fa419bc38564b07))
+* **plugin:** add official-blocks/rating with schema.org Review microdata ([#288](https://github.com/takumi-mr/AegisCMS/issues/288)) ([15ceef9](https://github.com/takumi-mr/AegisCMS/commit/15ceef9b4617e4d1b8d322f360eb2f5f5535654c))
+* **plugin:** add official-clarity for Microsoft Clarity heatmaps and recordings ([#297](https://github.com/takumi-mr/AegisCMS/issues/297)) ([246fe7b](https://github.com/takumi-mr/AegisCMS/commit/246fe7b3430067d3f8c04c62db4f181f374ae2df))
+* **plugin:** add official-plantuml to draw PlantUML diagrams ([#281](https://github.com/takumi-mr/AegisCMS/issues/281)) ([174a72e](https://github.com/takumi-mr/AegisCMS/commit/174a72e38df03012ef93246b10a27b0b5fa41e4d))
+* **plugin:** add structured script injection (ABI 2) and drop raw scripts from plugin HTML ([#301](https://github.com/takumi-mr/AegisCMS/issues/301)) ([0a19398](https://github.com/takumi-mr/AegisCMS/commit/0a19398e52b62eed21d0a141a7c10af41058b7ae))
+* **plugin:** add timeline, chat, tabs, stats and definition-list to official-blocks ([#286](https://github.com/takumi-mr/AegisCMS/issues/286)) ([09b8864](https://github.com/takumi-mr/AegisCMS/commit/09b8864402bcd5af760dcb8370e92feabae8afe7))
+* **plugin:** align AssemblyScript and TinyGo SDKs, templates and examples with ABI 2 ([#322](https://github.com/takumi-mr/AegisCMS/issues/322)) ([5c22976](https://github.com/takumi-mr/AegisCMS/commit/5c229768c852f8ec03e5fb4e327ad35a9d20d14f))
+* **plugin:** refetch link embeds from a Refresh button or when the URL is edited ([#282](https://github.com/takumi-mr/AegisCMS/issues/282)) ([ec6d15d](https://github.com/takumi-mr/AegisCMS/commit/ec6d15defe5db27fab7eb25f6d6bd68e5b6f48dd))
+* **plugin:** split Mermaid out of official-code-enhancer into official-mermaid ([#279](https://github.com/takumi-mr/AegisCMS/issues/279)) ([7104a19](https://github.com/takumi-mr/AegisCMS/commit/7104a1931ad546e407d3b004546df3dca26e4edc))
+* **server:** add a strict CSP for the public pages ([security].strict_csp) ([#303](https://github.com/takumi-mr/AegisCMS/issues/303)) ([c8bfe7e](https://github.com/takumi-mr/AegisCMS/commit/c8bfe7ee64bb9e013d5561e25c6ef428e954a16f))
+* **server:** declarative queries for aggregates and filtered lists ([#319](https://github.com/takumi-mr/AegisCMS/issues/319)) ([4a996e5](https://github.com/takumi-mr/AegisCMS/commit/4a996e568c07446c3fb6360050959e8bd4f3474b))
+* **server:** drop 'unsafe-inline' from style-src on the public pages ([#306](https://github.com/takumi-mr/AegisCMS/issues/306)) ([a47af20](https://github.com/takumi-mr/AegisCMS/commit/a47af20b856f901cee45ee4e8455ef02dd0291b4))
+* **server:** gate articles and pages by member level on the public site ([#292](https://github.com/takumi-mr/AegisCMS/issues/292)) ([292dd21](https://github.com/takumi-mr/AegisCMS/commit/292dd215062c9be9f8b50fb543186ee5d6bf7ff6))
+* **server:** keep restricted article bodies out of feeds, search, lists and APIs ([#293](https://github.com/takumi-mr/AegisCMS/issues/293)) ([a596e04](https://github.com/takumi-mr/AegisCMS/commit/a596e0481c642854d6cf338f71153b3f4dd6331f))
+* **server:** make the strict CSP the default and drop inline styles from Admin Studio ([#304](https://github.com/takumi-mr/AegisCMS/issues/304)) ([acca517](https://github.com/takumi-mr/AegisCMS/commit/acca517f936d5c5f6fcb9785f412c6d83fe14aea))
+* **server:** prepare query columns on migrate and reset them after restore ([#320](https://github.com/takumi-mr/AegisCMS/issues/320)) ([3a39e41](https://github.com/takumi-mr/AegisCMS/commit/3a39e41c48f4dcb07f616f94ed39666042e4490b))
+* **server:** restrict CORS to public reads unless an origin is listed ([#312](https://github.com/takumi-mr/AegisCMS/issues/312)) ([11b02fc](https://github.com/takumi-mr/AegisCMS/commit/11b02fc5c890ca77e04a19d68eaa779cf0c884aa))
+* **server:** sell single articles with Stripe Checkout ([#325](https://github.com/takumi-mr/AegisCMS/issues/325)) ([55fdc7f](https://github.com/takumi-mr/AegisCMS/commit/55fdc7f177aecd045ffbc98aa62532e87fc89538))
+* **server:** serve Admin Studio with script-src 'self' and load the preview page from a URL ([#299](https://github.com/takumi-mr/AegisCMS/issues/299)) ([c1367ea](https://github.com/takumi-mr/AegisCMS/commit/c1367ea3dc593ce8136ab72ddda99a79438c92f1))
+* **server:** serve the built-in scripts as files so no template needs 'unsafe-inline' ([#302](https://github.com/takumi-mr/AegisCMS/issues/302)) ([e6ed595](https://github.com/takumi-mr/AegisCMS/commit/e6ed595c7a0dfa03dbc97b4460d8d0d85f4eed31))
+* **server:** stop allowing style="" attributes on the public pages ([#308](https://github.com/takumi-mr/AegisCMS/issues/308)) ([93c7d35](https://github.com/takumi-mr/AegisCMS/commit/93c7d3570849ba3fb28d684614fbeabffc933bf2))
+* **server:** subscriptions, admin purchase tools and the account page ([#326](https://github.com/takumi-mr/AegisCMS/issues/326)) ([890a00b](https://github.com/takumi-mr/AegisCMS/commit/890a00bd5e9ff2e298974f03b9cb03a8bdb24b69))
+* **theme-builder:** preview declarative queries with samples/queries.json ([#323](https://github.com/takumi-mr/AegisCMS/issues/323)) ([8e3f285](https://github.com/takumi-mr/AegisCMS/commit/8e3f285202ba8c06e188861ec7215525f53e8bb7))
+* **theme-builder:** run the theme dev server's previews under the strict CSP ([#307](https://github.com/takumi-mr/AegisCMS/issues/307)) ([a375910](https://github.com/takumi-mr/AegisCMS/commit/a375910f8698f1460f820231d0bbedbf9c08b941))
+* **theme:** serve the default theme's fonts itself and let a theme declare its CSP hosts ([#305](https://github.com/takumi-mr/AegisCMS/issues/305)) ([5546b7b](https://github.com/takumi-mr/AegisCMS/commit/5546b7bc9a43707fd724a1e10aaef6284b5171f1))
+
+
+### Bug Fixes
+
+* **db:** ensure idempotent test cleanup across migrations and resolve clippy warnings ([#324](https://github.com/takumi-mr/AegisCMS/issues/324)) ([6324463](https://github.com/takumi-mr/AegisCMS/commit/6324463c5ada3d8a141b5c9f1e28b1d12f88d363))
+* **server:** drop 'unsafe-eval' from the default Content-Security-Policy ([#298](https://github.com/takumi-mr/AegisCMS/issues/298)) ([17600e6](https://github.com/takumi-mr/AegisCMS/commit/17600e6af189c2058dfa267e1bb8c52397b25b4a))
+* **server:** reject an access level that is not in [members].levels when saving content ([#296](https://github.com/takumi-mr/AegisCMS/issues/296)) ([8b9cde9](https://github.com/takumi-mr/AegisCMS/commit/8b9cde9053e450c6c4327868b9d5ecd7949f3206))
+
+
+### Performance
+
+* **server:** cut the cost of the strict CSP on page rendering ([#314](https://github.com/takumi-mr/AegisCMS/issues/314)) ([2bb7912](https://github.com/takumi-mr/AegisCMS/commit/2bb7912316c39c506a14f398eeee8949f1d9354c))
+
+
+### Refactoring
+
+* **server:** keep 'unsafe-inline' out of the default CSP constant ([#309](https://github.com/takumi-mr/AegisCMS/issues/309)) ([79f6b6f](https://github.com/takumi-mr/AegisCMS/commit/79f6b6f50ace4ef9a4f9886e7f0c7535794f4682))
+
 ## [0.5.0](https://github.com/takumi-mr/AegisCMS/compare/v0.4.0...v0.5.0) (2026-11-07)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "official-blocks",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Content Blocks (Buttons, Cards, Media, Maps & Layouts)",
   "description": "Adds button, link card, video, audio, file download, map, image gallery, FAQ, steps, columns and image-with-text blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",

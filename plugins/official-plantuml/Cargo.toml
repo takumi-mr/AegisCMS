@@ -1,6 +1,6 @@
 [package]
 name = "aegis-plugin-plantuml"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["AegisCMS Core Team"]
 description = "Official Wasm plugin that draws PlantUML diagrams from ```plantuml code blocks"

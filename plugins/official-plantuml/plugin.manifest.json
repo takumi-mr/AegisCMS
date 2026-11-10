@@ -1,6 +1,6 @@
 {
   "name": "official-plantuml",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entrypoint": "plugin.wasm",
   "display_name": "PlantUML Diagrams",
   "description": "Draws PlantUML diagrams from ```plantuml code blocks as images from a PlantUML server. Adds no script to the page. Configure it in Settings > Plugins.",

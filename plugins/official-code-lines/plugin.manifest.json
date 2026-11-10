@@ -1,6 +1,6 @@
 {
   "name": "official-code-lines",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Code Line Numbers & File Names",
   "description": "Adds line numbers and a file name header to code blocks. Set a block's file name in the editor or with ```rust title=\"main.rs\" in Markdown. Configure it in [plugins.settings.official-code-lines].",

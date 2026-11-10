@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-link-embed-v0.2.0...plugin-official-link-embed-v0.3.0) (2026-11-10)
+
+
+### Features
+
+* **plugin:** refetch link embeds from a Refresh button or when the URL is edited ([#282](https://github.com/takumi-mr/AegisCMS/issues/282)) ([ec6d15d](https://github.com/takumi-mr/AegisCMS/commit/ec6d15defe5db27fab7eb25f6d6bd68e5b6f48dd))
+
 ## [0.2.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-link-embed-v0.1.0...plugin-official-link-embed-v0.2.0) (2026-11-05)
 
 
