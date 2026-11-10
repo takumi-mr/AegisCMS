@@ -17,6 +17,7 @@ pub mod purchases;
 pub mod reviews;
 pub mod sqlite;
 pub mod sqlx_compat;
+pub mod subscriptions;
 pub mod tags;
 pub mod test_support;
 pub mod variants;
@@ -57,13 +58,17 @@ pub use orders::{
 pub use postgres::PostgresAdapter;
 pub use purchases::{
     PurchaseRecord, PurchaseStorage, PURCHASE_CANCELLED, PURCHASE_COLUMNS, PURCHASE_PAID,
-    PURCHASE_PENDING, PURCHASE_REFUNDED, PURCHASE_TABLE,
+    PURCHASE_PENDING, PURCHASE_REFUNDED, PURCHASE_REVOKED, PURCHASE_TABLE,
 };
 pub use reviews::{
     ReviewAggregateStats, ReviewListQuery, ReviewPage, ReviewRecord, ReviewStorage, REVIEW_COLUMNS,
     REVIEW_TABLE,
 };
 pub use sqlite::SqliteAdapter;
+pub use subscriptions::{
+    SubscriptionRecord, SubscriptionStorage, SUBSCRIPTION_ACTIVE, SUBSCRIPTION_CANCELLED,
+    SUBSCRIPTION_COLUMNS, SUBSCRIPTION_PAST_DUE, SUBSCRIPTION_TABLE,
+};
 pub use tags::{
     ContentTagRecord, TagListQuery, TagPage, TagRecord, TagStorage, TagWithUsage,
     CONTENT_TAG_TABLE, TAG_TABLE,
@@ -541,6 +546,7 @@ pub trait DatabaseAdapter:
     + ForumStorage
     + MemberStorage
     + PurchaseStorage
+    + SubscriptionStorage
     + ReviewStorage
     + AnalyticsStorage
     + ContactStorage

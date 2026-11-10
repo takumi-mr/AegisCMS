@@ -17,6 +17,8 @@ pub const PURCHASE_PAID: &str = "paid";
 pub const PURCHASE_REFUNDED: &str = "refunded";
 /// 購入の状態: 決済ページの期限切れ・支払いの失敗
 pub const PURCHASE_CANCELLED: &str = "cancelled";
+/// 購入の状態: 管理者が権利を取り消した（返金はしていない）
+pub const PURCHASE_REVOKED: &str = "revoked";
 
 /// INSERT / SELECT で使う購入テーブルのカラム（順序固定）
 pub const PURCHASE_COLUMNS: [&str; 12] = [
@@ -94,6 +96,7 @@ pub(crate) use purchase_row_from_sqlx;
 #[async_trait]
 pub trait PurchaseStorage: Send + Sync {
     async fn insert_purchase(&self, purchase: &PurchaseRecord) -> Result<()>;
+    async fn get_purchase(&self, id: &str) -> Result<Option<PurchaseRecord>>;
     async fn get_purchase_by_ref(&self, provider_ref: &str) -> Result<Option<PurchaseRecord>>;
     async fn get_purchase_by_transaction(
         &self,
@@ -155,6 +158,31 @@ macro_rules! impl_purchase_storage {
                     .await
                     .map_err(db_err)?;
                 Ok(())
+            }
+
+            async fn get_purchase(
+                &self,
+                id: &str,
+            ) -> aegis_core::Result<Option<$crate::purchases::PurchaseRecord>> {
+                use sqlx::Row;
+                let ph = $ph;
+                let sql = format!(
+                    "SELECT {} FROM {} WHERE id = {};",
+                    $crate::purchases::PURCHASE_COLUMNS.join(", "),
+                    $crate::purchases::PURCHASE_TABLE,
+                    ph(1)
+                );
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let row = sqlx::query(&sql)
+                    .bind(id)
+                    .fetch_optional(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                match row {
+                    Some(r) => Ok(Some($crate::purchases::purchase_row_from_sqlx!(&r))),
+                    None => Ok(None),
+                }
             }
 
             async fn get_purchase_by_ref(

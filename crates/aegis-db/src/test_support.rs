@@ -26,6 +26,7 @@ pub const CLEANUP_TABLES: &[&str] = &[
     "_aegis_reviews",
     "_aegis_product_variants",
     "_aegis_orders",
+    "_aegis_subscriptions",
     "_aegis_purchases",
     "_aegis_members",
     "_aegis_user_identities",
@@ -50,7 +51,7 @@ _aegis_content_tags, _aegis_tags, _aegis_comments, \
 _aegis_forum_reports, _aegis_forum_posts, _aegis_forum_threads, _aegis_forum_categories, \
 _aegis_newsletter_issues, _aegis_newsletter_subscribers, \
 _aegis_contact_messages, _aegis_reviews, _aegis_product_variants, \
-_aegis_orders, _aegis_purchases, _aegis_members, _aegis_user_identities, \
+_aegis_orders, _aegis_subscriptions, _aegis_purchases, _aegis_members, _aegis_user_identities, \
 _aegis_users, _aegis_settings, _aegis_analytics, _aegis_audit_logs, \
 _aegis_notification_queue, _aegis_audit, _aegis_user_links, \
 _sqlx_migrations CASCADE;";
@@ -64,7 +65,7 @@ _aegis_content_tags, _aegis_tags, _aegis_comments, \
 _aegis_forum_reports, _aegis_forum_posts, _aegis_forum_threads, _aegis_forum_categories, \
 _aegis_newsletter_issues, _aegis_newsletter_subscribers, \
 _aegis_contact_messages, _aegis_reviews, _aegis_product_variants, \
-_aegis_orders, _aegis_purchases, _aegis_members, _aegis_user_identities, \
+_aegis_orders, _aegis_subscriptions, _aegis_purchases, _aegis_members, _aegis_user_identities, \
 _aegis_users, _aegis_settings, _aegis_analytics, _aegis_audit_logs, \
 _aegis_notification_queue, _aegis_audit, _aegis_user_links, \
 _sqlx_migrations;";
