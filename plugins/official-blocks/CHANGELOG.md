@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-blocks-v0.3.0...plugin-official-blocks-v0.4.0) (2026-11-10)
+
+
+### Features
+
+* **plugin:** add official-blocks/figure for an image with a caption ([#284](https://github.com/takumi-mr/AegisCMS/issues/284)) ([ee867ad](https://github.com/takumi-mr/AegisCMS/commit/ee867adcf3134a0d6eb93a7f8fa419bc38564b07))
+* **plugin:** add official-blocks/rating with schema.org Review microdata ([#288](https://github.com/takumi-mr/AegisCMS/issues/288)) ([15ceef9](https://github.com/takumi-mr/AegisCMS/commit/15ceef9b4617e4d1b8d322f360eb2f5f5535654c))
+* **plugin:** add timeline, chat, tabs, stats and definition-list to official-blocks ([#286](https://github.com/takumi-mr/AegisCMS/issues/286)) ([09b8864](https://github.com/takumi-mr/AegisCMS/commit/09b8864402bcd5af760dcb8370e92feabae8afe7))
+
 ## [0.3.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-blocks-v0.2.0...plugin-official-blocks-v0.3.0) (2026-11-07)
 
 

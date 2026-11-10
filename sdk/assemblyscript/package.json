@@ -1,6 +1,6 @@
 {
   "name": "@takumi-mr/plugin-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Official AssemblyScript SDK for AegisCMS WebAssembly (Wasm) plugins",
   "main": "assembly/index.ts",
   "ascMain": "assembly/index.ts",

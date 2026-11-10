@@ -1,6 +1,6 @@
 {
   "name": "official-mermaid",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Mermaid Diagrams",
   "description": "Draws Mermaid diagrams from ```mermaid code blocks. Mermaid is loaded only on pages that have a diagram. Configure it in Settings > Plugins.",

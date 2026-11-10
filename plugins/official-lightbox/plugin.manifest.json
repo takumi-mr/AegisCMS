@@ -1,6 +1,6 @@
 {
   "name": "official-lightbox",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Image Lightbox",
   "description": "Opens the images in articles and pages in a full-screen viewer when clicked, with previous / next, keyboard control and captions. Configure it in [plugins.settings.official-lightbox].",

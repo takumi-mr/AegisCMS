@@ -1,6 +1,6 @@
 {
   "name": "official-ads",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Ad & Banner Delivery",
   "description": "Delivers Google AdSense and custom display/banner ads with on-render-page header injection, custom content blocks, dynamic CSP integration, and Cookie consent banner support.",

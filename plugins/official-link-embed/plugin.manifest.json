@@ -1,6 +1,6 @@
 {
   "name": "official-link-embed",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Link Embed (OGP / oEmbed)",
   "description": "Turns a paragraph that is only a URL into a link card made from the page's OGP / oEmbed data. The data is fetched once, when the content is saved, and stored in the block; the public page makes no requests. Add sites with extra_allowed_domains.",
