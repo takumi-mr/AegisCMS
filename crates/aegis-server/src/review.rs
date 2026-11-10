@@ -17,7 +17,7 @@ use axum::Json;
 use serde_json::json;
 
 use crate::audit::AuditContext;
-use crate::auth::authorize::{role_level, EDITOR};
+use crate::auth::authorize::{role_level, EDITOR, REVIEWER};
 use crate::state::AppState;
 use aegis_auth::SessionData;
 use aegis_core::{AuditAction, AuditOutcome, NotificationEvent, Recipient};
@@ -45,14 +45,39 @@ pub fn can_publish(session: &SessionData) -> bool {
     role_level(&session.role) >= EDITOR
 }
 
+/// レビュー専任者（`reviewer`）
+pub fn is_reviewer(session: &SessionData) -> bool {
+    session.role == "reviewer"
+}
+
 /// `contributor` が保存できる状態（`draft` / `pending`）
 pub fn is_contributor_status(status: &str) -> bool {
     matches!(status, STATUS_DRAFT | STATUS_PENDING)
 }
 
-/// このセッションが `status` で保存してよいか。`contributor` は `draft` / `pending` だけ
+/// `reviewer` が保存できる状態（`published` / `scheduled` / `draft` / `pending`）
+pub fn is_reviewer_allowed_status(status: &str) -> bool {
+    matches!(
+        status,
+        STATUS_PUBLISHED | "scheduled" | STATUS_DRAFT | STATUS_PENDING
+    )
+}
+
+/// このセッションが `status` で保存してよいか。`contributor` は `draft` / `pending` だけ、
+/// `reviewer` は `pending` のコンテンツに対して `published` / `scheduled` / `draft` / `pending` を指定可能
 pub fn ensure_may_set_status(session: &SessionData, status: &str) -> Result<(), ApiError> {
-    if can_publish(session) || is_contributor_status(status) {
+    if can_publish(session) {
+        return Ok(());
+    }
+    if is_reviewer(session) {
+        if is_reviewer_allowed_status(status) {
+            return Ok(());
+        }
+        return Err(forbidden(
+            "Reviewers can only save content as 'published', 'scheduled', 'draft', or 'pending'",
+        ));
+    }
+    if is_contributor_status(status) {
         return Ok(());
     }
     Err(forbidden(
@@ -61,10 +86,18 @@ pub fn ensure_may_set_status(session: &SessionData, status: &str) -> Result<(), 
 }
 
 /// このセッションが保存済みのコンテンツを変更・削除してよいか。`contributor` は自分のコンテンツで、
-/// 公開前（`draft` / `pending`）のものだけ
+/// 公開前（`draft` / `pending`）のものだけ。`reviewer` は `pending`（レビュー待ち）のものだけ
 pub fn ensure_may_change(session: &SessionData, current: &ContentRecord) -> Result<(), ApiError> {
     if can_publish(session) {
         return Ok(());
+    }
+    if is_reviewer(session) {
+        if current.status == STATUS_PENDING {
+            return Ok(());
+        }
+        return Err(forbidden(
+            "Reviewers can only change content in 'pending' status",
+        ));
     }
     if current.author_id.as_deref() != Some(session.user_id.as_str()) {
         return Err(forbidden("Contributors can only change their own content"));
@@ -84,7 +117,23 @@ pub fn ensure_may_update(
     current: &ContentRecord,
     requested_status: &str,
 ) -> Result<(), ApiError> {
-    if can_publish(session) || current.status != STATUS_PUBLISHED {
+    if can_publish(session) {
+        return Ok(());
+    }
+    if is_reviewer(session) {
+        if current.status != STATUS_PENDING {
+            return Err(forbidden(
+                "Reviewers can only change content in 'pending' status",
+            ));
+        }
+        if !is_reviewer_allowed_status(requested_status) {
+            return Err(forbidden(
+                "Reviewers can only save content as 'published', 'scheduled', 'draft', or 'pending'",
+            ));
+        }
+        return Ok(());
+    }
+    if current.status != STATUS_PUBLISHED {
         return ensure_may_change(session, current);
     }
     if current.author_id.as_deref() != Some(session.user_id.as_str()) {
@@ -230,7 +279,7 @@ fn actor_name(actor: &SessionData) -> String {
         .unwrap_or_else(|| actor.user_id.clone())
 }
 
-/// レビューを頼まれたことを `editor` 以上の有効なユーザー（メールアドレスのある人。頼んだ本人を除く）に知らせる
+/// レビューを頼まれたことを `reviewer` 以上の有効なユーザー（メールアドレスのある人。頼んだ本人を除く）に知らせる
 async fn notify_reviewers(
     state: &AppState,
     schema: &SchemaDefinition,
@@ -251,7 +300,7 @@ async fn notify_reviewers(
     let recipients: Vec<Recipient> = users
         .into_iter()
         .filter(|u| !u.disabled && u.username != actor.user_id)
-        .filter(|u| role_level(&u.role) >= EDITOR)
+        .filter(|u| role_level(&u.role) >= REVIEWER)
         .filter_map(|u| {
             let name = u.display_name.clone().unwrap_or_else(|| u.username.clone());
             u.email.map(|email| Recipient::person(email, name))
@@ -372,6 +421,57 @@ mod tests {
         }
         let editor = session("bob", "editor");
         assert!(ensure_may_set_status(&editor, "published").is_ok());
+    }
+
+    #[test]
+    fn reviewers_save_only_allowed_statuses() {
+        let reviewer = session("carol", "reviewer");
+        for status in ["draft", "pending", "published", "scheduled"] {
+            assert!(ensure_may_set_status(&reviewer, status).is_ok());
+        }
+        for status in ["archived", "other"] {
+            assert_eq!(
+                ensure_may_set_status(&reviewer, status).unwrap_err().0,
+                StatusCode::FORBIDDEN
+            );
+        }
+    }
+
+    #[test]
+    fn reviewers_change_only_pending_content() {
+        let reviewer = session("carol", "reviewer");
+        assert!(ensure_may_change(&reviewer, &record("pending", "alice")).is_ok());
+        for status in ["draft", "published", "scheduled", "archived"] {
+            assert_eq!(
+                ensure_may_change(&reviewer, &record(status, "alice"))
+                    .unwrap_err()
+                    .0,
+                StatusCode::FORBIDDEN
+            );
+        }
+    }
+
+    #[test]
+    fn reviewers_update_pending_content_only() {
+        let reviewer = session("carol", "reviewer");
+        let pending = record("pending", "alice");
+        for status in ["draft", "pending", "published", "scheduled"] {
+            assert!(ensure_may_update(&reviewer, &pending, status).is_ok());
+        }
+        assert_eq!(
+            ensure_may_update(&reviewer, &pending, "archived")
+                .unwrap_err()
+                .0,
+            StatusCode::FORBIDDEN
+        );
+        for status in ["draft", "published", "scheduled"] {
+            assert_eq!(
+                ensure_may_update(&reviewer, &record(status, "alice"), "published")
+                    .unwrap_err()
+                    .0,
+                StatusCode::FORBIDDEN
+            );
+        }
     }
 
     #[test]

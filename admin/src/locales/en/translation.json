@@ -289,6 +289,7 @@
     "roles": {
       "admin": "admin",
       "editor": "editor",
+      "reviewer": "reviewer",
       "contributor": "contributor",
       "viewer": "viewer"
     },
@@ -1242,6 +1243,7 @@
     "roleDescriptions": {
       "admin": "Everything, including users, themes and audit logs",
       "editor": "Publish content and approve reviews, create categories, upload media",
+      "reviewer": "Proofread, approve and return content submitted for review (cannot create or delete)",
       "contributor": "Write their own drafts and request a review, upload media (an editor publishes)",
       "viewer": "Read content and media"
     },

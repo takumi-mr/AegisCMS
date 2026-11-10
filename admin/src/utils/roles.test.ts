@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SessionInfo } from '../types';
-import { canChangeContent, canEdit, canWrite, displayNameOf, isAdmin } from './roles';
+import { canChangeContent, canEdit, canReview, canWrite, displayNameOf, isAdmin } from './roles';
 
 const makeSession = (role: string, metadata: Record<string, string> = {}): SessionInfo => ({
   id: 'ses_test',
@@ -22,7 +22,8 @@ describe('roles utility', () => {
       expect(canEdit(makeSession('editor'))).toBe(true);
     });
 
-    it('returns false for contributor and viewer roles', () => {
+    it('returns false for reviewer, contributor and viewer roles', () => {
+      expect(canEdit(makeSession('reviewer'))).toBe(false);
       expect(canEdit(makeSession('contributor'))).toBe(false);
       expect(canEdit(makeSession('viewer'))).toBe(false);
     });
@@ -36,9 +37,25 @@ describe('roles utility', () => {
     });
   });
 
+  describe('canReview', () => {
+    it('returns true for reviewer and up', () => {
+      expect(canReview(makeSession('reviewer'))).toBe(true);
+      expect(canReview(makeSession('editor'))).toBe(true);
+      expect(canReview(makeSession('admin'))).toBe(true);
+    });
+
+    it('returns false for contributor, viewer, unknown roles and no session', () => {
+      expect(canReview(makeSession('contributor'))).toBe(false);
+      expect(canReview(makeSession('viewer'))).toBe(false);
+      expect(canReview(makeSession('guest'))).toBe(false);
+      expect(canReview(null)).toBe(false);
+    });
+  });
+
   describe('canWrite', () => {
     it('returns true for contributor and up', () => {
       expect(canWrite(makeSession('contributor'))).toBe(true);
+      expect(canWrite(makeSession('reviewer'))).toBe(true);
       expect(canWrite(makeSession('editor'))).toBe(true);
       expect(canWrite(makeSession('admin'))).toBe(true);
     });
@@ -72,6 +89,15 @@ describe('roles utility', () => {
       expect(canChangeContent(contributor, { author_id: 'other', status: 'draft' })).toBe(false);
     });
 
+    it('lets reviewers change only pending content and forbids creating new content', () => {
+      const reviewer = makeSession('reviewer');
+      expect(canChangeContent(reviewer, null)).toBe(false);
+      expect(canChangeContent(reviewer, { author_id: 'other', status: 'pending' })).toBe(true);
+      expect(canChangeContent(reviewer, { author_id: 'other', status: 'draft' })).toBe(false);
+      expect(canChangeContent(reviewer, { author_id: 'other', status: 'published' })).toBe(false);
+      expect(canChangeContent(reviewer, { author_id: 'other', status: 'scheduled' })).toBe(false);
+    });
+
     it('lets viewers change nothing', () => {
       expect(canChangeContent(makeSession('viewer'), null)).toBe(false);
     });
@@ -82,8 +108,9 @@ describe('roles utility', () => {
       expect(isAdmin(makeSession('admin'))).toBe(true);
     });
 
-    it('returns false for editor, contributor and viewer roles', () => {
+    it('returns false for editor, reviewer, contributor and viewer roles', () => {
       expect(isAdmin(makeSession('editor'))).toBe(false);
+      expect(isAdmin(makeSession('reviewer'))).toBe(false);
       expect(isAdmin(makeSession('contributor'))).toBe(false);
       expect(isAdmin(makeSession('viewer'))).toBe(false);
     });

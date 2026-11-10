@@ -35,11 +35,26 @@ async fn site() -> Site {
 }
 
 impl Site {
-    async fn send(&self, method: &str, path: &str, body: Option<Value>) -> (StatusCode, Value) {
+    async fn new_session(&self, user: &str, role: &str) -> String {
+        self.state
+            .sessions
+            .create_session(user, role, Default::default(), None)
+            .await
+            .unwrap()
+            .id
+    }
+
+    async fn send_as(
+        &self,
+        session_id: &str,
+        method: &str,
+        path: &str,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
         let mut request = Request::builder()
             .method(method)
             .uri(path)
-            .header("authorization", format!("Bearer {}", self.editor));
+            .header("authorization", format!("Bearer {}", session_id));
         let body = match body {
             Some(value) => {
                 request = request.header("content-type", "application/json");
@@ -58,6 +73,10 @@ impl Site {
         let value = serde_json::from_slice(&bytes)
             .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).to_string()));
         (status, value)
+    }
+
+    async fn send(&self, method: &str, path: &str, body: Option<Value>) -> (StatusCode, Value) {
+        self.send_as(&self.editor, method, path, body).await
     }
 }
 
@@ -264,4 +283,100 @@ async fn test_purchase_price_must_be_a_non_negative_integer_within_the_limit() {
         assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}: {body}");
         assert_eq!(body["code"], "invalid_purchase_price");
     }
+}
+
+/// `reviewer` ロールの認可テスト:
+/// - 新規作成（POST）は 403 Forbidden
+/// - `pending` 記事の校正・承認（published）・差し戻し（draft）は許可
+/// - `pending` 以外の記事更新は 403 Forbidden
+/// - 削除（DELETE）は 403 Forbidden
+#[tokio::test]
+async fn test_reviewer_role_permissions() {
+    let site = site().await;
+    let contributor = site.new_session("contributor1", "contributor").await;
+    let reviewer = site.new_session("reviewer1", "reviewer").await;
+
+    // 1. reviewer による新規作成は 403 Forbidden
+    let (status, body) = site
+        .send_as(
+            &reviewer,
+            "POST",
+            "/api/v1/contents/article",
+            Some(json!({
+                "title": "Reviewer Article",
+                "slug": "reviewer-article",
+                "status": "pending",
+                "blocks": []
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(body["error"], "Reviewers cannot create new content");
+
+    // 2. contributor が下書きを作成し、pending でレビュー依頼
+    let (status, created) = site
+        .send_as(
+            &contributor,
+            "POST",
+            "/api/v1/contents/article",
+            Some(json!({
+                "title": "Contributor Draft",
+                "slug": "contributor-draft",
+                "status": "pending",
+                "blocks": []
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    let content_id = created["id"].as_str().unwrap();
+
+    // 3. reviewer による校正（タイトル修正）と承認（published）
+    let (status, updated) = site
+        .send_as(
+            &reviewer,
+            "PUT",
+            &format!("/api/v1/contents/article/{}", content_id),
+            Some(json!({
+                "title": "Contributor Article (Proofread)",
+                "slug": "contributor-draft",
+                "status": "published",
+                "blocks": []
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["title"], "Contributor Article (Proofread)");
+    assert_eq!(updated["status"], "published");
+
+    // 4. published になった記事を reviewer が直接更新しようとすると 403 Forbidden
+    let (status, body) = site
+        .send_as(
+            &reviewer,
+            "PUT",
+            &format!("/api/v1/contents/article/{}", content_id),
+            Some(json!({
+                "title": "Tampered",
+                "slug": "contributor-draft",
+                "status": "published",
+                "blocks": []
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(
+        body["error"],
+        "Reviewers can only change content in 'pending' status"
+    );
+
+    // 5. reviewer による削除は 403 Forbidden
+    let (status, body) = site
+        .send_as(
+            &reviewer,
+            "DELETE",
+            &format!("/api/v1/contents/article/{}", content_id),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(body["error"], "Reviewers cannot delete content");
 }
