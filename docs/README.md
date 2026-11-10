@@ -47,6 +47,7 @@ AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラ�
 | [メディア & ストレージ管理 (`media.md`)](media.md) | アップロード処理、画像最適化、ファイルサイズ制限、ストレージ操作 API | 運用者・開発者 |
 | [サイト内検索 (`search.md`)](search.md) | tantivy を用いた全文検索、インデックス構築・自動更新、検索 API / 画面表示 | 運用者・開発者 |
 | [会員アカウント (`members.md`)](members.md) | 訪問者のアカウント（管理アカウントとは別）。ショップ（注文履歴・レビュー）と掲示板で共通。API、購入者向けの画面、パスワードの再設定とメールの確認、退会、管理画面、設定、顧客アカウントからの移行 | 運用者・テーマ制作者・開発者 |
+| [記事・コンテンツ投稿 API (`content-api.md`)](content-api.md) | 外部ツール・CI/CD・スクリプトから記事を自動投稿・下書き保存・更新・管理する REST API ガイド | 開発者・運用者 |
 | [ヘッドレス配信 API (`headless.md`)](headless.md) | 認証なしで公開済みコンテンツだけを JSON で返す読み取り API。使い方、スキーマ駆動の応答、クレート構成、安全性、キャッシュ | コア開発者 |
 | [アクセス解析 (`analytics.md`)](analytics.md) | Cookie を使用しないプライバシー配慮型軽量アクセス解析、統計収集と Admin Studio 表示 | 運用者 |
 | [問い合わせフォーム (`contact.md`)](contact.md) | 設定ファイルによるフォーム動的生成、ボット対策、通知連携、Admin Studio 受信箱 | 運用者・制作者 |
@@ -70,6 +71,7 @@ AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラ�
 1. [設定ファイルリファレンス (`configuration.md`)](configuration.md) - 基本設定および管理画面からの動的設定（`system.*`）
 2. [認証 & ユーザー管理 (`authentication.md`)](authentication.md) - ユーザー登録、ロール権限、SSO 連携
 3. [監査ログ (`audit.md`)](audit.md) / [アクセス解析 (`analytics.md`)](analytics.md) - 運用監視とアクセス統計
+4. [記事・コンテンツ投稿 API (`content-api.md`)](content-api.md) - 外部ツールやスクリプトからの自動投稿・更新フロー
 
 ### 🎨 Webデザイナー / テーマ制作者
 1. [テーマ作成ガイド (`theme_authoring_guide.md`)](theme_authoring_guide.md) - テーマ構成と `theme dev` / Theme Builder による高速開発
