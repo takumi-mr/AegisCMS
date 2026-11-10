@@ -108,7 +108,11 @@
     "setMemberStatusFailed": "Failed to change the member status",
     "reviewsFailed": "Failed to fetch reviews",
     "moderateReviewFailed": "Failed to update the review",
-    "replyReviewFailed": "Failed to save the reply"
+    "replyReviewFailed": "Failed to save the reply",
+    "grantPurchaseFailed": "Failed to grant access",
+    "revokePurchaseFailed": "Failed to revoke access",
+    "refundPurchaseFailed": "Failed to refund the purchase",
+    "cancelSubscriptionFailed": "Failed to cancel the subscription"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -789,7 +793,40 @@
     "spent": "Paid in total",
     "forum": "Forum",
     "forumThreads": "Threads started",
-    "forumPosts": "Posts (including thread openers)"
+    "forumPosts": "Posts (including thread openers)",
+    "subscriptions": "Subscriptions",
+    "noSubscriptions": "No subscription.",
+    "subscriptionRenews": "renews {{date}}",
+    "subscriptionEnds": "ends {{date}}",
+    "subscriptionStatus": {
+      "active": "Active",
+      "past_due": "Payment failed",
+      "cancelled": "Cancelled"
+    },
+    "cancelSubscription": "Cancel",
+    "confirmCancelSubscription": "Cancel this subscription now? The member loses the level at once and is not refunded.",
+    "subscriptionCancelled": "Subscription cancelled",
+    "purchases": "Purchased articles",
+    "noPurchases": "No purchase.",
+    "grantedByAdmin": "granted by an admin",
+    "purchaseStatus": {
+      "pending": "Unpaid",
+      "paid": "Paid",
+      "refunded": "Refunded",
+      "cancelled": "Not completed",
+      "revoked": "Revoked"
+    },
+    "revoke": "Revoke",
+    "purchaseRevoked": "Access revoked",
+    "refund": "Refund",
+    "confirmRefund": "Refund this purchase in full? The member loses access.",
+    "purchaseRefunded": "Refunded",
+    "purchaseGranted": "Access granted",
+    "grantType": "Content type",
+    "grantArticle": "Article",
+    "grantPage": "Page",
+    "grantSlug": "Slug to grant access to",
+    "grant": "Grant access"
   },
   "reviews": {
     "title": "Reviews",

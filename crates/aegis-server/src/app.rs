@@ -378,6 +378,31 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/members/purchases",
             get(handlers::list_my_purchases).post(handlers::create_purchase),
         )
+        .route("/api/v1/members/plans", get(handlers::list_plans))
+        .route(
+            "/api/v1/members/subscriptions",
+            get(handlers::list_my_subscriptions).post(handlers::create_subscription),
+        )
+        .route(
+            "/api/v1/members/billing-portal",
+            post(handlers::billing_portal),
+        )
+        .route(
+            "/api/v1/admin/members/{id}/purchases",
+            post(handlers::admin_grant_purchase),
+        )
+        .route(
+            "/api/v1/admin/purchases/{id}/revoke",
+            post(handlers::admin_revoke_purchase),
+        )
+        .route(
+            "/api/v1/admin/purchases/{id}/refund",
+            post(handlers::admin_refund_purchase),
+        )
+        .route(
+            "/api/v1/admin/subscriptions/{id}/cancel",
+            post(handlers::admin_cancel_subscription),
+        )
         .route(
             "/api/v1/members/webhooks/stripe",
             post(handlers::member_purchase_webhook),
@@ -545,6 +570,8 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/shop/reviews.js", get(handlers::reviews_script))
         .route("/account", get(handlers::render_account_home))
         .route("/account/purchase", get(handlers::start_purchase_page))
+        .route("/account/subscribe", get(handlers::subscribe_page))
+        .route("/account/billing", get(handlers::billing_page))
         .route("/account/login", get(handlers::render_account_login))
         .route("/account/register", get(handlers::render_account_register))
         .route("/account/forgot", get(handlers::render_account_forgot))

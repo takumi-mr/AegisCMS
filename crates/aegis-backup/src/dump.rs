@@ -238,6 +238,27 @@ async fn dump_database_section<W: Write + Seek>(
         &purchases,
     )?;
 
+    // 4c. Subscriptions (_aegis_subscriptions)
+    let mut subscriptions = Vec::new();
+    let mut offset = 0;
+    loop {
+        let (batch, total) = db.list_subscriptions(page_size, offset).await?;
+        let batch_len = batch.len() as u64;
+        subscriptions.extend(batch);
+        offset += batch_len;
+        if batch_len == 0 || offset >= total {
+            break;
+        }
+    }
+    write_table_json(
+        zip,
+        tables,
+        aegis_db::SUBSCRIPTION_TABLE,
+        "database/subscriptions.json",
+        subscriptions.len() as u64,
+        &subscriptions,
+    )?;
+
     // 5. Dynamic content tables + versions + publication pointers
     let mut schema_names: Vec<String> = schemas.keys().cloned().collect();
     schema_names.sort();

@@ -1031,6 +1031,46 @@ export const aegisApi = {
     );
   },
 
+  /** Gives a member access to one restricted article or page without a payment (admin only) */
+  async grantMemberPurchase(id: string, contentType: string, slug: string): Promise<void> {
+    await request<{ purchase_id: string }>(
+      `/admin/members/${encodeURIComponent(id)}/purchases`,
+      {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ content_type: contentType, slug }),
+      },
+      i18n.t('api.grantPurchaseFailed')
+    );
+  },
+
+  /** Takes a purchase's access away without refunding (admin only) */
+  async revokePurchase(id: string): Promise<void> {
+    return requestNoContent(
+      `/admin/purchases/${encodeURIComponent(id)}/revoke`,
+      { method: 'POST' },
+      i18n.t('api.revokePurchaseFailed')
+    );
+  },
+
+  /** Refunds a purchase in full through the payment service and takes its access away (admin only) */
+  async refundPurchase(id: string): Promise<void> {
+    return requestNoContent(
+      `/admin/purchases/${encodeURIComponent(id)}/refund`,
+      { method: 'POST' },
+      i18n.t('api.refundPurchaseFailed')
+    );
+  },
+
+  /** Cancels a member's subscription at once (admin only) */
+  async cancelSubscription(id: string): Promise<void> {
+    return requestNoContent(
+      `/admin/subscriptions/${encodeURIComponent(id)}/cancel`,
+      { method: 'POST' },
+      i18n.t('api.cancelSubscriptionFailed')
+    );
+  },
+
   /** Product reviews, newest first (404 when reviews are disabled) */
   async listReviews(query: {
     status?: ReviewStatus | '';

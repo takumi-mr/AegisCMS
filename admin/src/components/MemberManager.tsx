@@ -243,6 +243,10 @@ const MemberModal: React.FC<MemberModalProps> = ({
   // The status the dialog shows after a change (the list behind it reloads separately)
   const [status, setStatus] = useState<MemberStatus>(listed.status);
   const [level, setLevel] = useState<string>(listed.level);
+  // Bumped after a purchase or subscription changes, to load the detail again
+  const [reloadCount, setReloadCount] = useState<number>(0);
+  const [grantType, setGrantType] = useState<string>('article');
+  const [grantSlug, setGrantSlug] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -260,7 +264,7 @@ const MemberModal: React.FC<MemberModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [listed.id]);
+  }, [listed.id, reloadCount]);
 
   const member = detail?.member ?? listed;
   const address = member.shipping_address;
@@ -299,6 +303,20 @@ const MemberModal: React.FC<MemberModalProps> = ({
       onChanged(t('members.levelChanged', { level: next }));
     } catch (err) {
       onError(messageOf(err, t('api.setMemberLevelFailed')));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Runs a purchase action, then loads the detail again
+  const act = async (run: () => Promise<void>, done: string, failed: string) => {
+    setBusy(true);
+    try {
+      await run();
+      setReloadCount((n) => n + 1);
+      onChanged(done);
+    } catch (err) {
+      onError(messageOf(err, failed));
     } finally {
       setBusy(false);
     }
@@ -391,6 +409,172 @@ const MemberModal: React.FC<MemberModalProps> = ({
               <span>{t('members.forumPosts')}</span>
               <span>{detail.forum.posts}</span>
             </div>
+          </div>
+        )}
+
+        {detail?.purchase_enabled && (
+          <div className={styles.box} style={{ whiteSpace: 'normal' }}>
+            <div className={styles.boxTitle}>{t('members.subscriptions')}</div>
+            {(detail.subscriptions ?? []).length === 0 && (
+              <div className={styles.muted}>{t('members.noSubscriptions')}</div>
+            )}
+            {(detail.subscriptions ?? []).map((sub) => (
+              <div key={sub.id} className={styles.sumRow}>
+                <span>
+                  {sub.plan_label ?? sub.plan_id}{' '}
+                  <span className={styles.muted}>({sub.level})</span>{' '}
+                  <span className={styles.muted}>
+                    {t(
+                      sub.cancel_at_period_end
+                        ? 'members.subscriptionEnds'
+                        : 'members.subscriptionRenews',
+                      { date: formatDate(sub.current_period_end) }
+                    )}
+                  </span>
+                </span>
+                <span>
+                  <span
+                    className={cx(
+                      styles.badge,
+                      sub.status === 'active'
+                        ? styles.good
+                        : sub.status === 'past_due'
+                          ? styles.warn
+                          : styles.bad
+                    )}
+                  >
+                    {t(`members.subscriptionStatus.${sub.status}`)}
+                  </span>
+                  {canGrantLevel && sub.status !== 'cancelled' && (
+                    <>
+                      {' '}
+                      <Button
+                        variant="tool"
+                        danger
+                        disabled={busy}
+                        onClick={() => {
+                          if (!window.confirm(t('members.confirmCancelSubscription'))) return;
+                          void act(
+                            () => aegisApi.cancelSubscription(sub.id),
+                            t('members.subscriptionCancelled'),
+                            t('api.cancelSubscriptionFailed')
+                          );
+                        }}
+                      >
+                        {t('members.cancelSubscription')}
+                      </Button>
+                    </>
+                  )}
+                </span>
+              </div>
+            ))}
+
+            <div className={styles.boxTitle} style={{ marginTop: 12 }}>
+              {t('members.purchases')}
+            </div>
+            {(detail.purchases ?? []).length === 0 && (
+              <div className={styles.muted}>{t('members.noPurchases')}</div>
+            )}
+            {(detail.purchases ?? []).map((purchase) => (
+              <div key={purchase.id} className={styles.sumRow}>
+                <span>
+                  {purchase.title ?? purchase.content_id}{' '}
+                  <span className={styles.muted}>
+                    {purchase.manual
+                      ? t('members.grantedByAdmin')
+                      : formatMoney(purchase.amount, purchase.currency)}{' '}
+                    {formatDate(purchase.created_at)}
+                  </span>
+                </span>
+                <span>
+                  <span
+                    className={cx(
+                      styles.badge,
+                      purchase.status === 'paid'
+                        ? styles.good
+                        : purchase.status === 'pending'
+                          ? styles.warn
+                          : styles.bad
+                    )}
+                  >
+                    {t(`members.purchaseStatus.${purchase.status}`)}
+                  </span>
+                  {canGrantLevel && purchase.status === 'paid' && (
+                    <>
+                      {' '}
+                      <Button
+                        variant="tool"
+                        disabled={busy}
+                        onClick={() =>
+                          void act(
+                            () => aegisApi.revokePurchase(purchase.id),
+                            t('members.purchaseRevoked'),
+                            t('api.revokePurchaseFailed')
+                          )
+                        }
+                      >
+                        {t('members.revoke')}
+                      </Button>
+                      {!purchase.manual && purchase.amount > 0 && (
+                        <>
+                          {' '}
+                          <Button
+                            variant="tool"
+                            danger
+                            disabled={busy}
+                            onClick={() => {
+                              if (!window.confirm(t('members.confirmRefund'))) return;
+                              void act(
+                                () => aegisApi.refundPurchase(purchase.id),
+                                t('members.purchaseRefunded'),
+                                t('api.refundPurchaseFailed')
+                              );
+                            }}
+                          >
+                            {t('members.refund')}
+                          </Button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </span>
+              </div>
+            ))}
+
+            {canGrantLevel && (
+              <form
+                className={styles.actionsBar}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const slug = grantSlug.trim();
+                  if (!slug) return;
+                  void act(
+                    () => aegisApi.grantMemberPurchase(member.id, grantType, slug),
+                    t('members.purchaseGranted'),
+                    t('api.grantPurchaseFailed')
+                  ).then(() => setGrantSlug(''));
+                }}
+              >
+                <select
+                  value={grantType}
+                  onChange={(e) => setGrantType(e.target.value)}
+                  aria-label={t('members.grantType')}
+                >
+                  <option value="article">{t('members.grantArticle')}</option>
+                  <option value="page">{t('members.grantPage')}</option>
+                </select>
+                <input
+                  type="text"
+                  value={grantSlug}
+                  placeholder={t('members.grantSlug')}
+                  aria-label={t('members.grantSlug')}
+                  onChange={(e) => setGrantSlug(e.target.value)}
+                />
+                <Button variant="tool" type="submit" disabled={busy || !grantSlug.trim()}>
+                  {t('members.grant')}
+                </Button>
+              </form>
+            )}
           </div>
         )}
 

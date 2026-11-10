@@ -8,8 +8,11 @@ pub mod access;
 pub mod config;
 pub mod member;
 
-pub use access::{is_public, may_view, Viewer};
-pub use config::{MemberRegistration, MembersConfig, PurchaseConfig, PurchaseStripeConfig};
+pub use access::{effective_level, is_public, may_view, Viewer};
+pub use config::{
+    MemberRegistration, MembersConfig, PlanConfig, PlanInterval, PurchaseConfig,
+    PurchaseStripeConfig,
+};
 pub use member::{
     MemberLoginRequest, MemberRegisterRequest, MemberResponse, MemberService, MemberSessionData,
     MemberUpdateProfileRequest, MemberVerification, EMAIL_NOT_VERIFIED_MESSAGE,

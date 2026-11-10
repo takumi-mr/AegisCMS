@@ -803,8 +803,43 @@ export interface MemberOrderSummary {
   created_at: string;
 }
 
+/** A member's purchase of one article or page (`[members.purchase]`) */
+export interface MemberPurchase {
+  id: string;
+  content_type: string;
+  content_id: string;
+  /** Null when the content is gone */
+  title: string | null;
+  url: string | null;
+  /** Smallest currency unit; 0 for a grant by an admin */
+  amount: number;
+  currency: string;
+  status: 'pending' | 'paid' | 'refunded' | 'cancelled' | 'revoked';
+  created_at: string;
+  paid_at: string | null;
+  /** Granted by an admin, not paid */
+  manual: boolean;
+}
+
+export interface MemberSubscription {
+  id: string;
+  plan_id: string;
+  plan_label: string | null;
+  level: string;
+  status: 'active' | 'past_due' | 'cancelled';
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  /** Gives the level now */
+  active: boolean;
+  created_at: string;
+}
+
 export interface MemberDetail {
   member: AdminMember;
+  /** `[members.purchase].enabled`: purchases and subscriptions are listed */
+  purchase_enabled?: boolean;
+  purchases?: MemberPurchase[];
+  subscriptions?: MemberSubscription[];
   /** The levels that can be granted, lowest first (`[members].levels`) */
   levels: string[];
   orders: MemberOrderSummary[];

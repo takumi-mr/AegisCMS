@@ -40,8 +40,39 @@ pub fn may_view(levels: &[String], required: Option<&str>, viewer: Viewer<'_>) -
     }
 }
 
+/// 会員の有効なレベル: 手動で付けたレベル（`base`）と、契約中のプランのレベル（`granted`）の高いほう
+/// （docs/members.md 16.3）。`levels` に無いレベルは無視する（設定から消したプランで、制限が外れないように）。
+/// `base` が設定に無いときは、そのまま返す（`may_view` が見せない側に倒す）
+pub fn effective_level<'a>(levels: &[String], base: &'a str, granted: &[&'a str]) -> &'a str {
+    let rank = |name: &str| levels.iter().position(|l| l == name);
+    let mut best = base;
+    let mut best_rank = rank(base);
+    for &level in granted {
+        if let Some(r) = rank(level) {
+            if best_rank.is_none_or(|b| r > b) {
+                best = level;
+                best_rank = Some(r);
+            }
+        }
+    }
+    best
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn effective_level_is_the_higher_of_manual_and_granted() {
+        let l = levels();
+        assert_eq!(effective_level(&l, "free", &[]), "free");
+        assert_eq!(effective_level(&l, "free", &["paid"]), "paid");
+        assert_eq!(effective_level(&l, "vip", &["paid"]), "vip");
+        assert_eq!(effective_level(&l, "free", &["paid", "vip"]), "vip");
+        // 設定にないレベルは無視する
+        assert_eq!(effective_level(&l, "free", &["gold"]), "free");
+        assert_eq!(effective_level(&l, "gold", &["paid"]), "paid");
+        assert_eq!(effective_level(&l, "gold", &[]), "gold");
+    }
+
     use super::*;
 
     fn levels() -> Vec<String> {

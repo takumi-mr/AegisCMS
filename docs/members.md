@@ -27,6 +27,8 @@
 | `PUT /api/v1/admin/members/{id}/level` | 会員の権限レベルの変更（`admin` のみ。§15） |
 | `/api/v1/admin/reviews`・`/settings`・`/bulk`・`/{id}`・`/{id}/reply` | レビューの管理（承認・一括・返信・設定） |
 | `POST` / `GET /api/v1/members/purchases` | 記事の購入を始める・自分の購入の一覧（`[members.purchase].enabled` のとき。§16） |
+| `GET /api/v1/members/plans`、`POST` / `GET /api/v1/members/subscriptions`、`POST /api/v1/members/billing-portal` | プランの一覧、契約を始める・自分の契約、解約・カード変更の画面（Stripe の Customer Portal）の URL（§16） |
+| `POST /api/v1/admin/members/{id}/purchases`、`POST /api/v1/admin/purchases/{id}/revoke` / `refund`、`POST /api/v1/admin/subscriptions/{id}/cancel` | 無料の付与、権利の取り消し、返金、契約の解約（`admin` のみ。§16） |
 | `POST /api/v1/members/webhooks/stripe` | 購入の入金・返金の通知（Stripe の署名つき。§16） |
 
 - 認証は `Authorization: Bearer mses_...`（API のクライアント向け）。セッションはキャッシュに置き、既定で 30 日。
@@ -445,7 +447,7 @@ secret_key = ""          # 空なら環境変数 AEGIS_STRIPE_SECRET_KEY
 webhook_secret = ""      # 空なら環境変数 AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET
 # api_base = "https://api.stripe.com"   # テスト用のモックだけ変える
 
-# サブスクのプラン（第 3 段）。interval × interval_count が支払いの単位
+# サブスクのプラン。interval × interval_count が支払いの単位
 [[members.purchase.plans]]
 id = "monthly"
 label = "Monthly"
@@ -476,7 +478,7 @@ interval_count = 1       # 3 で「3 か月ごと」
 | `transaction_id` | Payment Intent の ID（返金の突き合わせ） |
 | `created_at` / `paid_at` / `updated_at` | |
 
-サブスクの記録 `_aegis_subscriptions`（第 3 段）: `member_id`・`plan_id`・`level`・`status`（`active` / `past_due` / `cancelled`）・Stripe の customer / subscription ID・`current_period_end`・`cancel_at_period_end`。**有効なレベル = `member.level` と、契約中のプランの `level` の高いほう**。契約中とは `active`、または `current_period_end` が過ぎていない `past_due` / 解約予約。
+サブスクの記録 `_aegis_subscriptions`: `member_id`・`plan_id`・`level`・`status`（`active` / `past_due` / `cancelled`）・Stripe の customer / subscription ID・`current_period_end`・`cancel_at_period_end`。**有効なレベル = `member.level` と、契約中のプランの `level` の高いほう**。契約中とは、状態が `active` / `past_due` で、`current_period_end` を過ぎていない（Webhook の遅れに備えて 3 日の猶予がある）こと。`level` は契約した時点のプランのレベルを写し、プランを設定から消しても契約中は変わらない。レベルが `[members].levels` から消えたときは無視する（制限が外れない）。
 
 ### 16.4 記事単独購入の流れ
 
@@ -502,13 +504,14 @@ interval_count = 1       # 3 で「3 か月ごと」
 
 - 金額・通貨は設定と記事の値だけから作る。リクエストの値を使わない。
 - Webhook は署名（HMAC-SHA256、時刻の許容 5 分）を検証してから読む。記録に無い購入の ID は何もせず `200`（Stripe の再送を止める）。
-- 退会: `member_id` を外して会計の記録として残す（権利は外れる）。サブスクは Stripe 側の契約も解約する（第 3 段）。
-- 監査ログに `purchase.create`（決済ページの作成）・`purchase.update`（`paid` / `refunded` / `cancelled` / 問題）を残す（[audit.md](audit.md)）。
+- 退会: `member_id` を外して会計の記録として残す（権利は外れる）。契約中のサブスクは、先に Stripe で解約する（課金が続かないように。解約できなければ退会を断る `502`）。契約の記録は `member_id` を外して残す。
+- 監査ログに `purchase.create`（決済ページの作成。契約の開始は `resource_type = subscription`）・`purchase.update`（`paid` / `refunded` / `cancelled` / `revoked`・契約の状態の変化・問題）を残す（[audit.md](audit.md)）。
+- サブスクの開始は、Webhook の金額・通貨がプランと合い、会員が存在するときだけ記録する。期間の終わりと状態は、通知の内容でなく Stripe に聞き直す（通知の順序は保証されない）。
 
 ### 16.7 実装の分け方
 
 1. 設計書。**済**
 2. **記事単独購入**（**済**）: 設定 `[members.purchase]`、`purchase_price`、`_aegis_purchases`（3 つの DB のマイグレーション・バックアップ・退会）、購入の開始、Webhook、判定と案内、監査ログ、記事の編集画面の価格の入力、テスト。コードは `crates/aegis-server/src/handlers/purchase.rs`（購入と Webhook）・`access.rs`（判定と案内）、`crates/aegis-db/src/purchases.rs`（保存）、`crates/aegis-commerce/src/stripe.rs` の `StripeClient` / `verify_webhook_event`（ショップと共有する Stripe の部品。`aegis-commerce` は `aegis-members` に依存するので、会員側のクレートからは使えず、サーバーが呼ぶ）。
-3. **サブスク**: プランの設定、`_aegis_subscriptions`、`mode=subscription` の Checkout、Webhook（`customer.subscription.updated` / `deleted`、`invoice.paid` / `invoice.payment_failed`）、有効なレベル、解約・カード変更は Stripe の Customer Portal へ誘導（`POST /api/v1/members/billing-portal`）。
-4. **管理画面**: 会員の詳細に購入・契約の一覧、手動の付与と取り消し、返金。
-5. **会員の画面**: マイページに購入した記事と契約、プランの選択ページ。
+3. **サブスク**（**済**）: プラン `[[members.purchase.plans]]`、`_aegis_subscriptions`（マイグレーション・バックアップ・退会）、`mode=subscription` の Checkout（`POST /api/v1/members/subscriptions`・リンク `GET /account/subscribe?plan=..`）、Webhook（`checkout.session.completed` で開始、`customer.subscription.updated` / `deleted` で更新・解約。更新の支払いの失敗は `updated` の `past_due` で分かるので、`invoice.*` は受けない）、有効なレベル（`access.rs` の `member_session` が手動のレベルと契約のレベルの高いほうを使う）、解約・カード変更は Stripe の Customer Portal へ（`POST /api/v1/members/billing-portal`・リンク `GET /account/billing`。Stripe のダッシュボードでポータルを有効にしておく）。コードは `handlers/subscription.rs`、`aegis-db/src/subscriptions.rs`。
+4. **管理画面**（**済**）: 会員の詳細に購入・契約の一覧、無料の付与（`POST /api/v1/admin/members/{id}/purchases`）、権利の取り消し（`.../purchases/{id}/revoke`）、全額の返金（`.../purchases/{id}/refund`。Stripe の返金 API）、契約の即時解約（`.../subscriptions/{id}/cancel`）。いずれも `admin` だけ。会員の詳細の API（`GET /api/v1/admin/members/{id}`）が `purchases` / `subscriptions` を返す。
+5. **会員の画面**（**済**）: マイページ（`/account`）に「メンバーシップ」（プランの一覧と契約・解約へのリンク）と「購入した記事」。レベルが足りない会員への案内は、`upgrade_url` が無くプランがあれば、プランへのリンクを出す。

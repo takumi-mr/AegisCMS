@@ -51,6 +51,70 @@ pub struct PurchaseConfig {
     /// 記事の単独購入に使う通貨（ISO 4217 の小文字）。`purchase_price` はこの通貨の最小単位
     pub currency: String,
     pub stripe: PurchaseStripeConfig,
+    /// サブスクのプラン（`[[members.purchase.plans]]`）。通貨は `currency`
+    pub plans: Vec<PlanConfig>,
+}
+
+/// 支払いの間隔の単位（Stripe の `recurring[interval]`）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PlanInterval {
+    Day,
+    Week,
+    Month,
+    Year,
+}
+
+impl PlanInterval {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Day => "day",
+            Self::Week => "week",
+            Self::Month => "month",
+            Self::Year => "year",
+        }
+    }
+
+    /// `interval_count` の上限（Stripe は最長 1 年まで）
+    pub fn max_count(&self) -> u32 {
+        match self {
+            Self::Day => 365,
+            Self::Week => 52,
+            Self::Month => 12,
+            Self::Year => 1,
+        }
+    }
+}
+
+/// サブスクのプラン。`interval` × `interval_count` が支払いの単位（例: `month` × 3 は 3 か月ごと）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanConfig {
+    /// プランの ID（英小文字・数字・`-`・`_` の 1〜32 文字、重複なし）
+    pub id: String,
+    /// 表示名（決済ページ・案内に出る）。空なら `id`
+    #[serde(default)]
+    pub label: String,
+    /// 契約中に得るレベル（`[members].levels` のどれか）
+    pub level: String,
+    /// 1 回の支払いの金額（`currency` の最小単位）
+    pub amount: i64,
+    pub interval: PlanInterval,
+    #[serde(default = "default_interval_count")]
+    pub interval_count: u32,
+}
+
+fn default_interval_count() -> u32 {
+    1
+}
+
+impl PlanConfig {
+    pub fn display_label(&self) -> &str {
+        if self.label.trim().is_empty() {
+            &self.id
+        } else {
+            self.label.trim()
+        }
+    }
 }
 
 impl Default for PurchaseConfig {
@@ -59,6 +123,7 @@ impl Default for PurchaseConfig {
             enabled: false,
             currency: "jpy".to_string(),
             stripe: PurchaseStripeConfig::default(),
+            plans: Vec::new(),
         }
     }
 }
@@ -107,7 +172,12 @@ impl PurchaseStripeConfig {
 
 impl PurchaseConfig {
     /// 設定の誤りを起動時に断る。`members_enabled` / `public_url` は `[members]` の値
-    pub fn validate(&self, members_enabled: bool, public_url: &str) -> Result<()> {
+    pub fn validate(
+        &self,
+        members_enabled: bool,
+        public_url: &str,
+        levels: &[String],
+    ) -> Result<()> {
         if !self.enabled {
             return Ok(());
         }
@@ -132,7 +202,54 @@ impl PurchaseConfig {
                 "needs [members.purchase.stripe].secret_key and webhook_secret                  (or AEGIS_STRIPE_SECRET_KEY / AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET)",
             );
         }
+        for (i, plan) in self.plans.iter().enumerate() {
+            let id_ok = (1..=32).contains(&plan.id.len())
+                && plan
+                    .id
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
+            if !id_ok {
+                return bad(&format!(
+                    "plan '{}' has an invalid id (use 1-32 characters of a-z, 0-9, - and _)",
+                    plan.id
+                ));
+            }
+            if self.plans[..i].iter().any(|p| p.id == plan.id) {
+                return bad(&format!("has the plan '{}' twice", plan.id));
+            }
+            if plan.label.chars().count() > 100 {
+                return bad(&format!(
+                    "plan '{}' has a label over 100 characters",
+                    plan.id
+                ));
+            }
+            if !levels.contains(&plan.level) {
+                return bad(&format!(
+                    "plan '{}' gives the level '{}' which is not in [members].levels",
+                    plan.id, plan.level
+                ));
+            }
+            if !(1..=99_999_999).contains(&plan.amount) {
+                return bad(&format!(
+                    "plan '{}' needs an amount between 1 and 99999999",
+                    plan.id
+                ));
+            }
+            if !(1..=plan.interval.max_count()).contains(&plan.interval_count) {
+                return bad(&format!(
+                    "plan '{}' needs interval_count between 1 and {} for a {} interval",
+                    plan.id,
+                    plan.interval.max_count(),
+                    plan.interval.as_str()
+                ));
+            }
+        }
         Ok(())
+    }
+
+    /// プランを ID で探す
+    pub fn plan(&self, id: &str) -> Option<&PlanConfig> {
+        self.plans.iter().find(|p| p.id == id)
     }
 }
 
@@ -184,7 +301,8 @@ impl MembersConfig {
             ));
         }
         self.validate_levels()?;
-        self.purchase.validate(self.enabled, &self.public_url)?;
+        self.purchase
+            .validate(self.enabled, &self.public_url, &self.levels)?;
         let url = self.upgrade_url.trim();
         let local = url.starts_with('/') && !url.starts_with("//") && !url.contains('\\');
         if !(url.is_empty() || local || url.starts_with("https://")) {
@@ -274,6 +392,7 @@ mod tests {
                     webhook_secret: "whsec_x".to_string(),
                     ..PurchaseStripeConfig::default()
                 },
+                plans: Vec::new(),
             },
             ..MembersConfig::default()
         };
@@ -294,6 +413,54 @@ mod tests {
         if std::env::var("AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET").is_err() {
             assert!(no_secret.validate().is_err());
         }
+
+        // サブスクのプラン
+        let plan =
+            |id: &str, level: &str, amount: i64, interval: PlanInterval, count: u32| PlanConfig {
+                id: id.to_string(),
+                label: String::new(),
+                level: level.to_string(),
+                amount,
+                interval,
+                interval_count: count,
+            };
+        let with = |plans: Vec<PlanConfig>| {
+            let mut config = base();
+            config.purchase.plans = plans;
+            config
+        };
+        with(vec![
+            plan("monthly", "paid", 800, PlanInterval::Month, 1),
+            plan("quarterly", "paid", 2200, PlanInterval::Month, 3),
+            plan("yearly", "paid", 8000, PlanInterval::Year, 1),
+        ])
+        .validate()
+        .unwrap();
+        for bad in [
+            vec![plan("Bad Id", "paid", 800, PlanInterval::Month, 1)],
+            vec![plan("a", "gold", 800, PlanInterval::Month, 1)],
+            vec![plan("a", "paid", 0, PlanInterval::Month, 1)],
+            vec![plan("a", "paid", 800, PlanInterval::Month, 0)],
+            vec![plan("a", "paid", 800, PlanInterval::Month, 13)],
+            vec![plan("a", "paid", 800, PlanInterval::Year, 2)],
+            vec![
+                plan("a", "paid", 800, PlanInterval::Month, 1),
+                plan("a", "paid", 900, PlanInterval::Month, 1),
+            ],
+        ] {
+            assert!(with(bad).validate().is_err());
+        }
+        let toml_plans: MembersConfig = toml::from_str(
+            "[purchase]
+[[purchase.plans]]
+id = \"monthly\"
+level = \"paid\"
+amount = 800
+interval = \"month\"
+",
+        )
+        .unwrap();
+        assert_eq!(toml_plans.purchase.plans[0].interval_count, 1);
 
         // 使わない設定なら見ない
         let mut off = base();

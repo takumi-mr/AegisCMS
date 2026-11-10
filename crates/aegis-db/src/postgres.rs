@@ -201,6 +201,11 @@ super::notifications::impl_notification_queue_storage!(
 super::forum::impl_forum_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::members::impl_member_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::purchases::impl_purchase_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
+super::subscriptions::impl_subscription_storage!(
+    PostgresAdapter,
+    |i| format!("${}", i),
+    "Postgres"
+);
 super::reviews::impl_review_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 
 crate::published_exec::impl_published_columns!(

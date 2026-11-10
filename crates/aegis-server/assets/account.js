@@ -169,7 +169,7 @@
   function show(children) {
     while (root.firstChild) root.removeChild(root.firstChild);
     children.forEach(function (child) {
-      root.appendChild(child);
+      if (child) root.appendChild(child);
     });
   }
 
@@ -560,13 +560,92 @@
     ]);
   }
 
+  // 支払いの単位（例: 「¥800 / 月」「¥2,200 / 3 か月ごと」）
+  function intervalText(plan) {
+    var price = formatMoney(plan.amount, plan.currency);
+    if (plan.interval_count > 1) {
+      return msg('acct_interval_n_' + plan.interval, { price: price, n: plan.interval_count });
+    }
+    return msg('acct_interval_' + plan.interval, { price: price });
+  }
+
+  // 会員の契約とプラン（購入が無効なサイトでは、API が 404 なので出さない）
+  function membershipSection(plans, mine) {
+    var subs = (mine && mine.subscriptions) || [];
+    var current = subs.filter(function (s) {
+      return s.active;
+    })[0];
+    var children = [h('h2', { id: 'aegis-membership' }, [msg('acct_membership')])];
+    if (current) {
+      var date = formatDate(current.current_period_end);
+      var label = current.plan_label || current.plan_id;
+      var key = current.status === 'past_due' ? 'acct_sub_past_due' : current.cancel_at_period_end ? 'acct_sub_ends' : 'acct_sub_active';
+      children.push(h('p', {}, [msg(key, { plan: label, date: date })]));
+      children.push(link(config.accountUrl + '/billing', msg('acct_manage_billing')));
+    } else if (plans.length) {
+      children.push(h('p', { class: 'aegis-muted' }, [msg('acct_no_subscription')]));
+      children.push(
+        h(
+          'ul',
+          { class: 'aegis-account-list' },
+          plans.map(function (plan) {
+            return h('li', {}, [
+              h('strong', {}, [plan.label + ' ']),
+              h('span', {}, [intervalText(plan) + ' ']),
+              link(config.accountUrl + '/subscribe?plan=' + encodeURIComponent(plan.id), msg('acct_subscribe')),
+            ]);
+          })
+        )
+      );
+    } else {
+      return null;
+    }
+    if (mine && mine.level) children.push(h('p', { class: 'aegis-muted' }, [msg('acct_membership_level', { level: mine.level })]));
+    return h('section', {}, children);
+  }
+
+  function purchasesSection(purchases) {
+    var paid = purchases.filter(function (p) {
+      return p.status === 'paid';
+    });
+    return h('section', {}, [
+      h('h2', {}, [msg('acct_purchases')]),
+      paid.length
+        ? h(
+            'ul',
+            { class: 'aegis-account-list' },
+            paid.map(function (p) {
+              var title = p.title || p.content_id;
+              return h('li', {}, [p.url ? link(p.url, title) : h('span', {}, [title]), h('span', { class: 'aegis-muted' }, [' ' + formatDate(p.paid_at)])]);
+            })
+          )
+        : h('p', { class: 'aegis-muted' }, [msg('acct_no_purchases')]),
+    ]);
+  }
+
   function homeView() {
     show([h('p', { class: 'aegis-muted' }, [msg('acct_loading')])]);
-    Promise.all([api('GET', '/me'), api('GET', '/orders'), api('GET', '/reviews')])
+    var optional = function (path) {
+      return api('GET', path).catch(function (error) {
+        if (error.status === 401) throw error;
+        return null;
+      });
+    };
+    Promise.all([
+      api('GET', '/me'),
+      api('GET', '/orders'),
+      api('GET', '/reviews'),
+      optional('/plans'),
+      optional('/subscriptions'),
+      optional('/purchases'),
+    ])
       .then(function (results) {
         var member = results[0];
         var orders = results[1].orders || [];
         var reviews = results[2].reviews || [];
+        var plans = (results[3] && results[3].plans) || [];
+        var membership = results[3] ? membershipSection(plans, results[4]) : null;
+        var purchases = results[5] ? purchasesSection(results[5].purchases || []) : null;
         var logout = h('button', { type: 'button', class: 'aegis-button aegis-secondary' }, [msg('acct_logout')]);
         logout.addEventListener('click', function () {
           logout.disabled = true;
@@ -579,6 +658,8 @@
 
         show([
           h('div', { class: 'aegis-order-head' }, [h('p', {}, [msg('acct_welcome', { name: member.name })]), logout]),
+          membership,
+          purchases,
           h('section', {}, [
             h('h2', {}, [msg('acct_orders')]),
             orders.length

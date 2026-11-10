@@ -36,6 +36,7 @@ pub mod site_assets;
 pub mod sso;
 pub mod storage;
 pub mod storefront;
+pub mod subscription;
 pub mod tags;
 pub mod tags_public;
 pub mod theme;
@@ -85,6 +86,7 @@ pub use public::{
     render_article, render_articles, render_category, render_index, render_page_or_slug,
 };
 pub use purchase::{
+    admin_cancel_subscription, admin_grant_purchase, admin_refund_purchase, admin_revoke_purchase,
     create_purchase, list_my_purchases, start_purchase_page,
     stripe_webhook as member_purchase_webhook,
 };
@@ -109,6 +111,10 @@ pub use storefront::{
     account_script, cart_script, render_account_forgot, render_account_home, render_account_login,
     render_account_register, render_account_reset, render_account_verify, render_cart,
     render_order, render_product, render_products, reviews_script,
+};
+pub use subscription::{
+    billing_page, billing_portal, create_subscription, list_my_subscriptions, list_plans,
+    subscribe_page,
 };
 pub use tags::{
     create_tag, delete_tag, get_content_tags, list_tags, set_content_tags as set_content_tag_list,

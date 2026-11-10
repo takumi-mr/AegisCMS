@@ -136,6 +136,20 @@ mod tests {
             updated_at: "2026-10-29T00:31:00Z".to_string(),
         };
         src_db.insert_purchase(&purchase).await.unwrap();
+        let subscription = aegis_db::SubscriptionRecord {
+            id: "sub-1".to_string(),
+            member_id: Some("cust-1".to_string()),
+            plan_id: "monthly".to_string(),
+            level: "paid".to_string(),
+            status: "active".to_string(),
+            stripe_customer_id: "cus_1".to_string(),
+            stripe_subscription_id: "sub_stripe_1".to_string(),
+            current_period_end: "2026-12-10T00:00:00Z".to_string(),
+            cancel_at_period_end: true,
+            created_at: "2026-10-29T00:40:00Z".to_string(),
+            updated_at: "2026-10-29T00:40:00Z".to_string(),
+        };
+        src_db.insert_subscription(&subscription).await.unwrap();
 
         // 4. Content with versions (v1 published, v2 working copy)
         let article_schema = &schemas["article"];
@@ -530,6 +544,14 @@ mod tests {
                 .unwrap()
                 .unwrap(),
             purchase
+        );
+        assert_eq!(
+            dst_db
+                .get_subscription_by_stripe_id("sub_stripe_1")
+                .await
+                .unwrap()
+                .unwrap(),
+            subscription
         );
         assert!(dst_db
             .has_paid_purchase("cust-1", "article", "art-1")

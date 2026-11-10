@@ -273,21 +273,8 @@ impl StripeClient {
         })
     }
 
-    /// Checkout Session を作る。`idempotency_key` が同じなら、Stripe は同じ結果を返す
-    pub async fn create_checkout_session(
-        &self,
-        form: &[(String, String)],
-        idempotency_key: &str,
-    ) -> Result<CheckoutSession> {
-        let response = self
-            .client
-            .post(format!("{}/v1/checkout/sessions", self.api_base))
-            .bearer_auth(&self.secret_key)
-            .header("Idempotency-Key", idempotency_key)
-            .form(form)
-            .send()
-            .await
-            .map_err(|e| AegisError::Internal(format!("Stripe request failed: {}", e)))?;
+    /// 応答を読み、Stripe のエラーは `Internal` にする
+    async fn read(&self, response: reqwest::Response) -> Result<Value> {
         let status = response.status();
         let bytes = response
             .bytes()
@@ -302,6 +289,65 @@ impl StripeClient {
                 status, message
             )));
         }
+        Ok(body)
+    }
+
+    fn failed(e: reqwest::Error) -> AegisError {
+        AegisError::Internal(format!("Stripe request failed: {}", e))
+    }
+
+    /// `POST {path}`（フォーム）。`idempotency_key` が同じなら、Stripe は同じ結果を返す
+    pub async fn post_form(
+        &self,
+        path: &str,
+        form: &[(String, String)],
+        idempotency_key: &str,
+    ) -> Result<Value> {
+        let response = self
+            .client
+            .post(format!("{}{}", self.api_base, path))
+            .bearer_auth(&self.secret_key)
+            .header("Idempotency-Key", idempotency_key)
+            .form(form)
+            .send()
+            .await
+            .map_err(Self::failed)?;
+        self.read(response).await
+    }
+
+    /// `GET {path}`
+    pub async fn get(&self, path: &str) -> Result<Value> {
+        let response = self
+            .client
+            .get(format!("{}{}", self.api_base, path))
+            .bearer_auth(&self.secret_key)
+            .send()
+            .await
+            .map_err(Self::failed)?;
+        self.read(response).await
+    }
+
+    /// `DELETE {path}`（契約の即時解約など）
+    pub async fn delete(&self, path: &str) -> Result<Value> {
+        let response = self
+            .client
+            .delete(format!("{}{}", self.api_base, path))
+            .bearer_auth(&self.secret_key)
+            .send()
+            .await
+            .map_err(Self::failed)?;
+        self.read(response).await
+    }
+
+    /// Checkout Session を作る
+    pub async fn create_checkout_session(
+        &self,
+        form: &[(String, String)],
+        idempotency_key: &str,
+    ) -> Result<CheckoutSession> {
+        let body = self
+            .post_form("/v1/checkout/sessions", form, idempotency_key)
+            .await?;
         let (Some(id), Some(url)) = (body["id"].as_str(), body["url"].as_str()) else {
             return Err(AegisError::Internal(
                 "Stripe response has no session id or url".to_string(),

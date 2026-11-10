@@ -35,34 +35,91 @@ fn schema(content_type: &str) -> SchemaDefinition {
 }
 
 /// Stripe API のモック（Checkout Session の作成だけ）。受け取ったフォームを記録する
-async fn mock_stripe() -> (String, Arc<Mutex<Vec<String>>>) {
+async fn mock_stripe() -> (String, Arc<Mutex<Vec<String>>>, Arc<Mutex<Vec<String>>>) {
     let forms = Arc::new(Mutex::new(Vec::new()));
     let recorded = forms.clone();
-    let app = axum::Router::new().route(
-        "/v1/checkout/sessions",
-        axum::routing::post(move |headers: axum::http::HeaderMap, body: String| {
-            let recorded = recorded.clone();
-            async move {
-                assert_eq!(headers["authorization"], "Bearer sk_test_mock");
-                let mut forms = recorded.lock().unwrap();
-                forms.push(body);
-                let id = format!("cs_test_{}", forms.len());
-                axum::Json(
-                    json!({ "id": id, "url": format!("https://checkout.stripe.test/{}", id) }),
-                )
-            }
-        }),
-    );
+    // Checkout 以外の呼び出し（`METHOD /path body`）
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let (cancelled, refunded, portal) = (calls.clone(), calls.clone(), calls.clone());
+    let app = axum::Router::new()
+        .route(
+            "/v1/subscriptions/{id}",
+            axum::routing::get(
+                |axum::extract::Path(id): axum::extract::Path<String>| async move {
+                    axum::Json(json!({
+                        "id": id,
+                        "status": "active",
+                        "current_period_end": chrono::Utc::now().timestamp() + 30 * 86_400,
+                        "cancel_at_period_end": false
+                    }))
+                },
+            )
+            .delete(
+                move |axum::extract::Path(id): axum::extract::Path<String>| {
+                    let cancelled = cancelled.clone();
+                    async move {
+                        cancelled
+                            .lock()
+                            .unwrap()
+                            .push(format!("DELETE /v1/subscriptions/{id}"));
+                        axum::Json(json!({ "id": id, "status": "canceled" }))
+                    }
+                },
+            ),
+        )
+        .route(
+            "/v1/refunds",
+            axum::routing::post(move |body: String| {
+                let refunded = refunded.clone();
+                async move {
+                    refunded
+                        .lock()
+                        .unwrap()
+                        .push(format!("POST /v1/refunds {body}"));
+                    axum::Json(json!({ "id": "re_1" }))
+                }
+            }),
+        )
+        .route(
+            "/v1/billing_portal/sessions",
+            axum::routing::post(move |body: String| {
+                let portal = portal.clone();
+                async move {
+                    portal
+                        .lock()
+                        .unwrap()
+                        .push(format!("POST /v1/billing_portal/sessions {body}"));
+                    axum::Json(json!({ "url": "https://billing.stripe.test/p" }))
+                }
+            }),
+        )
+        .route(
+            "/v1/checkout/sessions",
+            axum::routing::post(move |headers: axum::http::HeaderMap, body: String| {
+                let recorded = recorded.clone();
+                async move {
+                    assert_eq!(headers["authorization"], "Bearer sk_test_mock");
+                    let mut forms = recorded.lock().unwrap();
+                    forms.push(body);
+                    let id = format!("cs_test_{}", forms.len());
+                    axum::Json(
+                        json!({ "id": id, "url": format!("https://checkout.stripe.test/{}", id) }),
+                    )
+                }
+            }),
+        );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    (format!("http://{}", address), forms)
+    (format!("http://{}", address), forms, calls)
 }
 
 struct Site {
     app: axum::Router,
     state: Arc<AppState>,
     forms: Arc<Mutex<Vec<String>>>,
+    calls: Arc<Mutex<Vec<String>>>,
+    admin_token: String,
 }
 
 struct Reply {
@@ -78,7 +135,7 @@ impl Reply {
 }
 
 async fn site(purchase: bool) -> Site {
-    let (api_base, forms) = mock_stripe().await;
+    let (api_base, forms, calls) = mock_stripe().await;
     let mut config = AegisConfig::default();
     config.members.enabled = true;
     config.members.levels = vec!["free".into(), "paid".into()];
@@ -88,6 +145,24 @@ async fn site(purchase: bool) -> Site {
     config.members.purchase.stripe.secret_key = "sk_test_mock".to_string();
     config.members.purchase.stripe.webhook_secret = WEBHOOK_SECRET.to_string();
     config.members.purchase.stripe.api_base = api_base;
+    config.members.purchase.plans = vec![
+        aegis_members::PlanConfig {
+            id: "monthly".to_string(),
+            label: "Monthly".to_string(),
+            level: "paid".to_string(),
+            amount: 800,
+            interval: aegis_members::PlanInterval::Month,
+            interval_count: 1,
+        },
+        aegis_members::PlanConfig {
+            id: "quarterly".to_string(),
+            label: String::new(),
+            level: "paid".to_string(),
+            amount: 2200,
+            interval: aegis_members::PlanInterval::Month,
+            interval_count: 3,
+        },
+    ];
     let state = test_app_state(
         config.clone(),
         PluginSupervisor::new(),
@@ -101,10 +176,17 @@ async fn site(purchase: bool) -> Site {
         state.audit.clone(),
     );
     let state = Arc::new(state.with_members(members.unwrap()));
+    let admin = state
+        .sessions
+        .create_session("boss", "admin", Default::default(), None)
+        .await
+        .unwrap();
     Site {
         app: router(&config, state.clone()),
         state,
         forms,
+        calls,
+        admin_token: admin.id,
     }
 }
 
@@ -638,4 +720,519 @@ async fn test_leaving_detaches_the_purchases_and_drops_the_access() {
         .has_paid_purchase(&member.id, "article", "article-secret")
         .await
         .unwrap());
+}
+
+// --- サブスク（docs/members.md 16） ---
+
+fn subscription_checkout_event(member_id: &str, plan: &str, amount: i64, stripe_id: &str) -> Value {
+    json!({
+        "id": "evt_sub_checkout",
+        "type": "checkout.session.completed",
+        "data": { "object": {
+            "id": "cs_sub_1",
+            "mode": "subscription",
+            "client_reference_id": member_id,
+            "metadata": { "member_id": member_id, "plan_id": plan },
+            "subscription": stripe_id,
+            "customer": "cus_1",
+            "payment_status": "paid",
+            "amount_total": amount,
+            "currency": "jpy"
+        }}
+    })
+}
+
+fn subscription_event(kind: &str, stripe_id: &str, status: &str, cancel_at_end: bool) -> Value {
+    json!({
+        "id": format!("evt_{kind}"),
+        "type": kind,
+        "data": { "object": {
+            "id": stripe_id,
+            "status": status,
+            "customer": "cus_1",
+            "cancel_at_period_end": cancel_at_end,
+            "current_period_end": chrono::Utc::now().timestamp() + 60 * 86_400
+        }}
+    })
+}
+
+impl Site {
+    async fn member_id(&self, email: &str) -> String {
+        self.state
+            .db
+            .get_member_by_email(email)
+            .await
+            .unwrap()
+            .unwrap()
+            .id
+    }
+
+    /// 会員を作り、契約の開始の通知まで済ませる
+    async fn subscribed_member(&self, email: &str, stripe_id: &str) -> String {
+        let token = self.member(email, "free").await;
+        let id = self.member_id(email).await;
+        let reply = self
+            .webhook(
+                subscription_checkout_event(&id, "monthly", 800, stripe_id),
+                WEBHOOK_SECRET,
+            )
+            .await;
+        assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+        token
+    }
+
+    async fn admin_post(&self, path: &str, body: Value) -> Reply {
+        self.post_json(path, body, Some(&self.admin_token)).await
+    }
+}
+
+#[tokio::test]
+async fn test_plans_are_listed_and_a_subscription_starts_at_the_plan_price() {
+    let site = site(true).await;
+    let plans = site.get("/api/v1/members/plans", None).await;
+    assert_eq!(plans.status, StatusCode::OK);
+    let plans = plans.json();
+    assert_eq!(plans["plans"][0]["id"], "monthly");
+    assert_eq!(plans["plans"][0]["amount"], 800);
+    assert_eq!(
+        plans["plans"][1]["label"], "quarterly",
+        "the id when no label"
+    );
+    assert_eq!(plans["plans"][1]["interval_count"], 3);
+
+    let token = site.member("a@example.com", "free").await;
+    async fn start(site: &Site, plan: &str, bearer: Option<&str>) -> Reply {
+        site.post_json(
+            "/api/v1/members/subscriptions",
+            json!({ "plan_id": plan }),
+            bearer,
+        )
+        .await
+    }
+    assert_eq!(
+        start(&site, "monthly", None).await.status,
+        StatusCode::UNAUTHORIZED
+    );
+    let unknown = start(&site, "nope", Some(&token)).await;
+    assert_eq!(unknown.status, StatusCode::NOT_FOUND);
+    assert_eq!(unknown.json()["code"], "unknown_plan");
+
+    let reply = start(&site, "quarterly", Some(&token)).await;
+    assert_eq!(reply.status, StatusCode::CREATED, "{}", reply.body);
+    assert_eq!(
+        reply.json()["redirect_url"],
+        "https://checkout.stripe.test/cs_test_1"
+    );
+    let form = site.forms.lock().unwrap()[0].clone();
+    for expected in [
+        "mode=subscription",
+        "line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=2200",
+        "line_items%5B0%5D%5Bprice_data%5D%5Brecurring%5D%5Binterval%5D=month",
+        "line_items%5B0%5D%5Bprice_data%5D%5Brecurring%5D%5Binterval_count%5D=3",
+        "metadata%5Bplan_id%5D=quarterly",
+        "success_url=https%3A%2F%2Fexample.com%2Faccount%3Fsubscribed%3D1",
+    ] {
+        assert!(form.contains(expected), "{expected} in {form}");
+    }
+
+    // 契約の通知が来る前は、レベルは上がらない
+    let mine = site
+        .get("/api/v1/members/subscriptions", Some(&token))
+        .await
+        .json();
+    assert_eq!(mine["level"], "free");
+    assert!(mine["subscriptions"].as_array().unwrap().is_empty());
+
+    // ブラウザのリンクは、ログインのあとに戻り、ログイン済みなら決済ページへ
+    let guest = site.get("/account/subscribe?plan=monthly", None).await;
+    assert_eq!(guest.status, StatusCode::SEE_OTHER);
+    assert!(guest.location.unwrap().starts_with("/account/login?next="));
+    let member = site
+        .get("/account/subscribe?plan=monthly", Some(&token))
+        .await;
+    assert_eq!(member.status, StatusCode::SEE_OTHER);
+    assert_eq!(
+        member.location.as_deref(),
+        Some("https://checkout.stripe.test/cs_test_2")
+    );
+}
+
+#[tokio::test]
+async fn test_a_subscription_grants_the_level_until_it_ends() {
+    let site = site(true).await;
+    site.publish("secret", Some("paid"), None).await;
+    let other = site.member("other@example.com", "free").await;
+    let token = site.member("a@example.com", "free").await;
+    let id = site.member_id("a@example.com").await;
+    assert!(!site
+        .get("/articles/secret", Some(&token))
+        .await
+        .body
+        .contains(SECRET));
+
+    // 金額がプランと合わない・知らないプラン・知らない会員では、契約にならない
+    for event in [
+        subscription_checkout_event(&id, "monthly", 1, "sub_1"),
+        subscription_checkout_event(&id, "gold", 800, "sub_1"),
+        subscription_checkout_event("nobody", "monthly", 800, "sub_1"),
+    ] {
+        assert_eq!(
+            site.webhook(event, WEBHOOK_SECRET).await.status,
+            StatusCode::OK
+        );
+    }
+    assert!(site
+        .state
+        .db
+        .get_subscription_by_stripe_id("sub_1")
+        .await
+        .unwrap()
+        .is_none());
+    // 偽の署名
+    let forged = site
+        .webhook(
+            subscription_checkout_event(&id, "monthly", 800, "sub_1"),
+            "whsec_forged",
+        )
+        .await;
+    assert_eq!(forged.status, StatusCode::BAD_REQUEST);
+
+    // 開始（再送されても 1 件）
+    for _ in 0..2 {
+        site.webhook(
+            subscription_checkout_event(&id, "monthly", 800, "sub_1"),
+            WEBHOOK_SECRET,
+        )
+        .await;
+    }
+    let subs = site.state.db.list_member_subscriptions(&id).await.unwrap();
+    assert_eq!(subs.len(), 1);
+    assert_eq!(
+        (subs[0].status.as_str(), subs[0].level.as_str()),
+        ("active", "paid")
+    );
+    assert_eq!(subs[0].stripe_customer_id, "cus_1");
+
+    assert!(site
+        .get("/articles/secret", Some(&token))
+        .await
+        .body
+        .contains(SECRET));
+    assert!(!site
+        .get("/articles/secret", Some(&other))
+        .await
+        .body
+        .contains(SECRET));
+    let mine = site
+        .get("/api/v1/members/subscriptions", Some(&token))
+        .await
+        .json();
+    assert_eq!(mine["level"], "paid");
+    assert_eq!(mine["subscriptions"][0]["plan_label"], "Monthly");
+    assert_eq!(mine["subscriptions"][0]["active"], true);
+
+    // もう一度は契約できない
+    let again = site
+        .post_json(
+            "/api/v1/members/subscriptions",
+            json!({ "plan_id": "monthly" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(again.status, StatusCode::CONFLICT);
+    assert_eq!(again.json()["code"], "already_subscribed");
+
+    // 解約の予約と、支払いの失敗では、期間の終わりまで読める
+    site.webhook(
+        subscription_event("customer.subscription.updated", "sub_1", "active", true),
+        WEBHOOK_SECRET,
+    )
+    .await;
+    assert!(
+        site.state
+            .db
+            .get_subscription_by_stripe_id("sub_1")
+            .await
+            .unwrap()
+            .unwrap()
+            .cancel_at_period_end
+    );
+    site.webhook(
+        subscription_event("customer.subscription.updated", "sub_1", "past_due", true),
+        WEBHOOK_SECRET,
+    )
+    .await;
+    assert_eq!(
+        site.state
+            .db
+            .get_subscription_by_stripe_id("sub_1")
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "past_due"
+    );
+    assert!(site
+        .get("/articles/secret", Some(&token))
+        .await
+        .body
+        .contains(SECRET));
+
+    // 解約されたら読めない
+    site.webhook(
+        subscription_event("customer.subscription.deleted", "sub_1", "canceled", false),
+        WEBHOOK_SECRET,
+    )
+    .await;
+    assert_eq!(
+        site.state
+            .db
+            .get_subscription_by_stripe_id("sub_1")
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "cancelled"
+    );
+    assert!(!site
+        .get("/articles/secret", Some(&token))
+        .await
+        .body
+        .contains(SECRET));
+    // 知らない契約の通知は何もしない
+    let unknown = site
+        .webhook(
+            subscription_event("customer.subscription.deleted", "sub_x", "canceled", false),
+            WEBHOOK_SECRET,
+        )
+        .await;
+    assert_eq!(unknown.status, StatusCode::OK);
+    // 解約のあとは、また契約できる（同じ Stripe の顧客に結びつく）
+    let restart = site
+        .post_json(
+            "/api/v1/members/subscriptions",
+            json!({ "plan_id": "monthly" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(restart.status, StatusCode::CREATED);
+    let form = site.forms.lock().unwrap().last().unwrap().clone();
+    assert!(form.contains("customer=cus_1"), "{form}");
+    assert!(!form.contains("customer_email"));
+}
+
+#[tokio::test]
+async fn test_the_billing_portal_needs_a_subscription() {
+    let site = site(true).await;
+    let token = site.member("a@example.com", "free").await;
+    let none = site
+        .post_json("/api/v1/members/billing-portal", json!({}), Some(&token))
+        .await;
+    assert_eq!(none.status, StatusCode::NOT_FOUND);
+    assert_eq!(none.json()["code"], "no_subscription");
+
+    let subscriber = site.subscribed_member("sub@example.com", "sub_2").await;
+    let portal = site
+        .post_json(
+            "/api/v1/members/billing-portal",
+            json!({}),
+            Some(&subscriber),
+        )
+        .await;
+    assert_eq!(portal.status, StatusCode::OK, "{}", portal.body);
+    assert_eq!(portal.json()["url"], "https://billing.stripe.test/p");
+    assert!(site
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|c| c.contains("customer=cus_1")));
+    let link = site.get("/account/billing", Some(&subscriber)).await;
+    assert_eq!(
+        link.location.as_deref(),
+        Some("https://billing.stripe.test/p")
+    );
+}
+
+#[tokio::test]
+async fn test_leaving_cancels_the_subscription_first() {
+    let site = site(true).await;
+    let token = site.subscribed_member("a@example.com", "sub_3").await;
+    let id = site.member_id("a@example.com").await;
+    let leave = || {
+        site.send(
+            Request::delete("/api/v1/members/me")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::from(json!({ "password": "password123" }).to_string()))
+                .unwrap(),
+        )
+    };
+    let reply = leave().await;
+    assert_eq!(reply.status, StatusCode::NO_CONTENT, "{}", reply.body);
+    assert!(site
+        .calls
+        .lock()
+        .unwrap()
+        .contains(&"DELETE /v1/subscriptions/sub_3".to_string()));
+    let kept = site
+        .state
+        .db
+        .get_subscription_by_stripe_id("sub_3")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!((kept.status.as_str(), kept.member_id), ("cancelled", None));
+    assert!(site
+        .state
+        .db
+        .list_member_subscriptions(&id)
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn test_admins_grant_revoke_refund_and_cancel() {
+    let site = site(true).await;
+    site.publish("secret", Some("paid"), Some(500)).await;
+    let token = site.member("a@example.com", "free").await;
+    let id = site.member_id("a@example.com").await;
+    let grant_path = format!("/api/v1/admin/members/{id}/purchases");
+    let grant = || async {
+        site.admin_post(
+            &grant_path,
+            json!({ "content_type": "article", "slug": "secret" }),
+        )
+        .await
+    };
+
+    // 会員のトークンでは操作できない
+    let denied = site
+        .post_json(
+            &format!("/api/v1/admin/members/{id}/purchases"),
+            json!({ "content_type": "article", "slug": "secret" }),
+            Some(&token),
+        )
+        .await;
+    assert!(denied.status.is_client_error());
+
+    // 無料で付ける → 読める。二重には付けない
+    let granted = grant().await;
+    assert_eq!(granted.status, StatusCode::CREATED, "{}", granted.body);
+    let purchase_id = granted.json()["purchase_id"].as_str().unwrap().to_string();
+    assert!(site
+        .get("/articles/secret", Some(&token))
+        .await
+        .body
+        .contains(SECRET));
+    assert_eq!(grant().await.status, StatusCode::CONFLICT);
+    let detail = site
+        .get(
+            &format!("/api/v1/admin/members/{id}"),
+            Some(&site.admin_token),
+        )
+        .await
+        .json();
+    assert_eq!(detail["purchases"][0]["manual"], true);
+    assert_eq!(detail["purchases"][0]["amount"], 0);
+
+    // 決済のない権利は、返金できず、取り消せる
+    let refund_manual = site
+        .admin_post(
+            &format!("/api/v1/admin/purchases/{purchase_id}/refund"),
+            json!({}),
+        )
+        .await;
+    assert_eq!(refund_manual.status, StatusCode::CONFLICT);
+    let revoke = site
+        .admin_post(
+            &format!("/api/v1/admin/purchases/{purchase_id}/revoke"),
+            json!({}),
+        )
+        .await;
+    assert_eq!(revoke.status, StatusCode::NO_CONTENT);
+    assert!(!site
+        .get("/articles/secret", Some(&token))
+        .await
+        .body
+        .contains(SECRET));
+    let twice = site
+        .admin_post(
+            &format!("/api/v1/admin/purchases/{purchase_id}/revoke"),
+            json!({}),
+        )
+        .await;
+    assert_eq!(twice.status, StatusCode::CONFLICT);
+
+    // 払った購入は、Stripe で返金して外す
+    site.buy("secret", &token).await;
+    site.webhook(
+        session_event("checkout.session.completed", "cs_test_1", 500),
+        WEBHOOK_SECRET,
+    )
+    .await;
+    let paid = site.purchase("cs_test_1").await;
+    assert!(site
+        .get("/articles/secret", Some(&token))
+        .await
+        .body
+        .contains(SECRET));
+    let refund = site
+        .admin_post(
+            &format!("/api/v1/admin/purchases/{}/refund", paid.id),
+            json!({}),
+        )
+        .await;
+    assert_eq!(refund.status, StatusCode::NO_CONTENT, "{}", refund.body);
+    let call = site
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|c| c.contains("/v1/refunds"))
+        .cloned()
+        .unwrap();
+    assert!(
+        call.contains("payment_intent=pi_test_1") && call.contains("amount=500"),
+        "{call}"
+    );
+    assert_eq!(site.purchase("cs_test_1").await.status, "refunded");
+    assert!(!site
+        .get("/articles/secret", Some(&token))
+        .await
+        .body
+        .contains(SECRET));
+
+    // 契約の解約
+    let subscriber = site.subscribed_member("sub@example.com", "sub_9").await;
+    let sub = site
+        .state
+        .db
+        .get_subscription_by_stripe_id("sub_9")
+        .await
+        .unwrap()
+        .unwrap();
+    let cancel = site
+        .admin_post(
+            &format!("/api/v1/admin/subscriptions/{}/cancel", sub.id),
+            json!({}),
+        )
+        .await;
+    assert_eq!(cancel.status, StatusCode::NO_CONTENT, "{}", cancel.body);
+    assert_eq!(
+        site.state
+            .db
+            .get_subscription(&sub.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "cancelled"
+    );
+    let mine = site
+        .get("/api/v1/members/subscriptions", Some(&subscriber))
+        .await
+        .json();
+    assert_eq!(mine["level"], "free");
 }

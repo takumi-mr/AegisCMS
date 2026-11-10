@@ -315,6 +315,30 @@ async fn restore_database_section<R: Read + Seek>(
         summary.tables_restored += 1;
     }
 
+    // 4c. Subscriptions (_aegis_subscriptions)。古いバックアップには無い
+    if has_path("database/subscriptions.json") {
+        let subscriptions: Vec<aegis_db::SubscriptionRecord> =
+            read_json_entry(archive, "database/subscriptions.json")?;
+        for subscription in &subscriptions {
+            if let Some(existing) = db
+                .get_subscription_by_stripe_id(&subscription.stripe_subscription_id)
+                .await?
+            {
+                if options.overwrite {
+                    db.delete_subscription(&existing.id).await?;
+                } else {
+                    return Err(AegisError::Validation(format!(
+                        "Subscription '{}' already exists (use overwrite option to replace)",
+                        subscription.id
+                    )));
+                }
+            }
+            db.insert_subscription(subscription).await?;
+            summary.records_restored += 1;
+        }
+        summary.tables_restored += 1;
+    }
+
     // 5. Dynamic content tables + versions + publication pointers
     let mut schema_names: Vec<String> = schemas.keys().cloned().collect();
     schema_names.sort();
