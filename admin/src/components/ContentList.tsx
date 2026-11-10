@@ -54,6 +54,8 @@ interface ContentListProps {
   selectedId: string | null;
   onSelect: (content: ContentSummary) => void;
   onNew: () => void;
+  /** Whether the user may create new content (false for reviewers / viewers) */
+  canCreate?: boolean;
   contentType: string;
   onContentTypeChange?: (type: 'article' | 'page') => void;
   /** Items of this type waiting for review (shown to editors; hidden when 0 or unknown) */
@@ -74,6 +76,7 @@ export const ContentList: React.FC<ContentListProps> = ({
   selectedId,
   onSelect,
   onNew,
+  canCreate = true,
   contentType,
   onContentTypeChange,
   pendingCount = 0,
@@ -170,10 +173,12 @@ export const ContentList: React.FC<ContentListProps> = ({
             count: total,
           })}
         </span>
-        <Button variant="tool" onClick={onNew} title={t('contentList.newTitle')}>
-          <Plus size={14} />
-          <span>{t('contentList.new')}</span>
-        </Button>
+        {canCreate && (
+          <Button variant="tool" onClick={onNew} title={t('contentList.newTitle')}>
+            <Plus size={14} />
+            <span>{t('contentList.new')}</span>
+          </Button>
+        )}
       </div>
 
       {pendingCount > 0 && filters.status !== 'pending' && (

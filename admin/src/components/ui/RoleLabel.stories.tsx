@@ -10,4 +10,6 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Admin: Story = { args: { role: 'admin' } };
 export const Editor: Story = { args: { role: 'editor' } };
+export const Reviewer: Story = { args: { role: 'reviewer' } };
+export const Contributor: Story = { args: { role: 'contributor' } };
 export const Viewer: Story = { args: { role: 'viewer' } };

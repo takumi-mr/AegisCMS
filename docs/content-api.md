@@ -48,12 +48,18 @@ Authorization: Bearer sess_01HZX...
 
 | 操作 | 必要なロール | 備考 |
 |---|---|---|
-| 下書き (`draft`) / レビュー待ち (`pending`) の作成 | `contributor` 以上 | 自身が著者となるコンテンツのみ |
-| 公開 (`published`) / 予約公開 (`scheduled`) での作成 | `editor` 以上 | 即時公開または日時指定公開 |
-| 既存コンテンツの更新・公開 | `editor` 以上 | `contributor` は自身の `draft` / `pending` のみ編集可能 |
+| 下書き (`draft`) / レビュー待ち (`pending`) の作成 | `contributor` | 自身が著者となるコンテンツのみ（※`reviewer` は新規作成不可） |
+| 公開 (`published`) / 予約公開 (`scheduled`) での新規作成 | `editor` 以上 | 即時公開または日時指定公開 |
+| レビュー待ち (`pending`) 記事の校正・承認・差し戻し | `reviewer` 以上 | `reviewer` は `pending` の手直し、承認 (`published`/`scheduled`)、差し戻し (`draft`) のみ可能 |
+| 既存コンテンツの自由な変更・直接公開 | `editor` 以上 | `contributor` は自身の `draft` / `pending` のみ編集可能 |
 | 他のユーザーを著者 (`author_id`) に指定 | `admin` のみ | 省略時はログインユーザーが著者になる |
-| コンテンツの削除 | `editor` 以上 | - |
-| タグの紐付け (`PUT .../tags`) | `contributor` 以上 | `contributor` は自身の `draft` / `pending` のみ |
+| コンテンツの削除 | `editor` 以上 | `reviewer` および `contributor` は削除不可 |
+| タグの紐付け (`PUT .../tags`) | `contributor` 以上 | `reviewer` は `pending` 記事のタグ付けを調整可能 |
+
+> [!TIP]
+> **LLMマルチエージェント自動投稿のベストプラクティス**
+> - **執筆エージェント**: `contributor` ロールのアカウントを使用し、`status: "pending"` で記事を提出します（勝手に公開されない安全なサンドボックス）。
+> - **校閲・監査エージェント**: `reviewer` ロールのアカウントを使用し、提出された `pending` 記事の内容を検査・校正し、問題なければ `status: "published"` で承認、修正が必要なら `status: "draft"` に `review_note` を添えて差し戻します。`reviewer` には新規作成権限や削除権限がないため、万が一の誤動作やプロンプトインジェクションでも既存サイトが破壊されません。
 
 ---
 

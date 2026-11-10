@@ -78,7 +78,15 @@ import {
   type ExtraFieldError,
   type ExtraValues,
 } from './utils/extraFields';
-import { CONTRIBUTOR_STATUSES, canChangeContent, canEdit, canWrite, isAdmin } from './utils/roles';
+import {
+  CONTRIBUTOR_STATUSES,
+  REVIEWER_STATUSES,
+  canChangeContent,
+  canEdit,
+  canReview,
+  canWrite,
+  isAdmin,
+} from './utils/roles';
 import { cx } from './utils/cx';
 import { toDateTimeLocal } from './utils/format';
 import {
@@ -325,7 +333,7 @@ export const App: React.FC = () => {
       setContents(result.items);
       setContentsTotal(result.total);
       setListPage(page);
-      if (canEdit(session ?? null)) void loadPendingCount(type);
+      if (canReview(session ?? null)) void loadPendingCount(type);
     } catch (err) {
       if (requestId === listRequest.current) console.warn('Could not load contents:', err);
     } finally {
@@ -980,7 +988,12 @@ export const App: React.FC = () => {
   // Contributors write their own drafts; editors change anything
   const writable = canWrite(session);
   const mayChange = canChangeContent(session, selectedId ? storedItem : null);
-  const statusOptions: EditorStatus[] = editable ? EDITOR_STATUSES : [...CONTRIBUTOR_STATUSES];
+  const canReviewItem = canReview(session) && storedItem?.status === 'pending';
+  const statusOptions: EditorStatus[] = editable
+    ? EDITOR_STATUSES
+    : canReviewItem
+      ? [...REVIEWER_STATUSES]
+      : [...CONTRIBUTOR_STATUSES];
   // The save is a review step: a request (to pending), or a decision on an item waiting for review
   const reviewStep =
     storedItem?.status === 'pending'
@@ -1138,9 +1151,10 @@ export const App: React.FC = () => {
                 selectedId={selectedId}
                 onSelect={handleSelectSummary}
                 onNew={handleNew}
+                canCreate={canWrite(session) && session?.role !== 'reviewer'}
                 contentType={contentType}
                 onContentTypeChange={handleContentTypeChange}
-                pendingCount={editable ? pendingCount : 0}
+                pendingCount={canReview(session) ? pendingCount : 0}
               />
             </div>
 

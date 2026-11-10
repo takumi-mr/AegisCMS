@@ -8,7 +8,7 @@ use std::sync::Arc;
 use super::extract_session_id;
 use crate::audit::AuditContext;
 use crate::state::AppState;
-pub use aegis_auth::{role_level, ADMIN, CONTRIBUTOR, EDITOR, VIEWER};
+pub use aegis_auth::{role_level, ADMIN, CONTRIBUTOR, EDITOR, REVIEWER, VIEWER};
 use aegis_auth::{role_name, session_fingerprint, SessionData};
 use aegis_core::{AuditAction, AuditOutcome};
 
@@ -23,6 +23,9 @@ pub type ViewerSession = RequireRole<VIEWER>;
 /// 自分のコンテンツの下書き・レビュー依頼・アップロード（`contributor` 以上）。
 /// 他人のコンテンツや公開に関わる操作は、ハンドラーが `editor` 以上かを確かめる
 pub type ContributorSession = RequireRole<CONTRIBUTOR>;
+/// レビュー待ちコンテンツの校正・承認・差し戻し（`reviewer` 以上）
+#[allow(dead_code)]
+pub type ReviewerSession = RequireRole<REVIEWER>;
 /// コンテンツの公開・管理（`editor` 以上）
 pub type EditorSession = RequireRole<EDITOR>;
 /// 管理系 API（`admin`）
@@ -155,7 +158,8 @@ mod tests {
     #[test]
     fn test_role_levels_are_ordered() {
         assert!(role_level("admin") > role_level("editor"));
-        assert!(role_level("editor") > role_level("contributor"));
+        assert!(role_level("editor") > role_level("reviewer"));
+        assert!(role_level("reviewer") > role_level("contributor"));
         assert!(role_level("contributor") > role_level("viewer"));
         assert_eq!(role_level("viewer"), VIEWER);
         assert_eq!(role_level("superuser"), 0);

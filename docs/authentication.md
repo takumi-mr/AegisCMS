@@ -19,7 +19,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `id` | UUID |
 | `username` | ログイン名（一意。英数字と `.` `_` `-` `@`、1〜64 文字）。セッションの `user_id`・監査ログの actor になる |
 | `email` / `display_name` | 任意。セッションの `metadata` に入る |
-| `role` | `admin` / `editor` / `contributor` / `viewer` |
+| `role` | `admin` / `editor` / `reviewer` / `contributor` / `viewer` |
 | `password_hash` | Argon2id（既定パラメータ）の PHC 文字列。平文は保存しない |
 | `disabled` | `1` ならログイン不可 |
 | `avatar_key` | アバター画像のストレージキー（`avatars/...`）。未設定なら NULL。既存の DB には起動時に列を追加 |
@@ -31,13 +31,14 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 
 ### ロールと API の権限
 
-ロールは `admin` ⊃ `editor` ⊃ `contributor` ⊃ `viewer` の包含関係です（上位ロールは下位ロールの操作をすべて行える）。
+ロールの基本強度は `admin` ⊃ `editor` ⊃ `reviewer` ⊃ `contributor` ⊃ `viewer` です（上位ロールは下位ロールの操作をカバーしますが、`reviewer` はレビュー業務に特化した最小権限ロールとして新規作成や削除が制限されています）。
 
 | ロール | できること |
 | --- | --- |
 | `admin` | すべて（ユーザー・テーマ・設定・監査ログを含む） |
 | `editor` | コンテンツの公開・予約公開・アーカイブ、他人のコンテンツの変更、レビューの承認・差し戻し、カテゴリ・タグ・ショップ・コメントなどの管理 |
-| `contributor`（寄稿者） | 自分のコンテンツの下書き（`draft`）とレビューの依頼（`pending`）、メディアのアップロード。公開は `editor` 以上が行う（[レビュー](theme_and_publishing_guide.md#レビュー寄稿者の下書きを承認して公開する)） |
+| `reviewer`（校閲者） | レビュー待ち（`pending`）コンテンツの校正（本文・タイトルの手直し）・承認（`published` / `scheduled`）・差し戻し（`draft`）、校正用メディアのアップロード。自発的な新規作成（POST）や削除（DELETE）、公開済みコンテンツの直接変更は不可（LLMマルチエージェント校正や外部校閲者向け最小権限） |
+| `contributor`（寄稿者） | 自分のコンテンツの下書き（`draft`）とレビューの依頼（`pending`）、メディアのアップロード。公開は `editor` / `reviewer` が行う（[レビュー](theme_and_publishing_guide.md#レビュー寄稿者の下書きを承認して公開する)） |
 | `viewer` | 閲覧（下書きを含む） |
 
 | API | 必要なロール |
@@ -54,9 +55,9 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
 | `GET /api/v1/storage/objects` | `viewer` |
 | `POST /api/v1/preview`（エディタのプレビュー。保存しない。読者の種類 `viewer` を選んで見られるが、本物の会員のセッションは使わない） | `viewer` |
-| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug または id}`, `POST .../versions/{revision}/restore`, `PUT .../tags`（[記事・コンテンツ投稿 API](content-api.md)） | `contributor`（自分の `draft` / `pending`。公開中のものは変更を `pending` として出すだけで、削除・版の復元・タグの付け外しはできない。状態は `draft` / `pending` にしかできない）。公開に関わる変更と他人のコンテンツは `editor` |
+| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug または id}`, `POST .../versions/{revision}/restore`, `PUT .../tags`（[記事・コンテンツ投稿 API](content-api.md)） | `contributor`（自分の `draft` / `pending`。公開中のものは変更を `pending` として出すだけで、削除・版の復元・タグの付け外しはできない。状態は `draft` / `pending` にしかできない）。`reviewer` は `pending` の校正・承認（`published`/`scheduled`）・差し戻し（`draft`）・タグ調整のみ可能（新規作成・削除・復元は不可）。他人のコンテンツの自由な変更や直接公開・削除は `editor` |
 | `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `POST /api/v1/orders/{id}/status`（[EC](commerce.md#62-管理editor-以上)） | `editor` |
-| `POST /api/v1/storage/upload`（[メディア](media.md)） | `contributor` |
+| `POST /api/v1/storage/upload`（[メディア](media.md)） | `contributor`（`reviewer` 以上も含む） |
 | `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md)） | `editor` |
 | `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`, `POST /api/v1/users/me/2fa/*`（[ユーザー管理 API](#3-ユーザー管理-api)・[二段階認証](#12-二段階認証-2fa--totp)） | 本人（`viewer` 以上）か `admin` |
 | `POST /api/v1/users/{username}/2fa/reset`（[二段階認証のリセット](#123-管理者による解除--復旧)） | `admin` |

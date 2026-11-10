@@ -194,7 +194,7 @@ export interface ObjectReference {
   title: string;
 }
 
-export type UserRole = 'admin' | 'editor' | 'contributor' | 'viewer';
+export type UserRole = 'admin' | 'editor' | 'reviewer' | 'contributor' | 'viewer';
 
 /** User account returned by the user management API (`/api/v1/users`) */
 export interface UserAccount {

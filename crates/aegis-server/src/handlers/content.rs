@@ -621,6 +621,12 @@ pub async fn create_content(
     audit: AuditContext,
     Json(mut payload): Json<CreateContentRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    if session.role == "reviewer" {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "Reviewers cannot create new content",
+        ));
+    }
     // contributor は下書き・レビュー待ちとしてだけ作れる
     review::ensure_may_set_status(&session, &payload.status)?;
     let review_note = review::normalize_note(payload.review_note.take())?;
@@ -767,6 +773,14 @@ pub async fn update_content(
 
     let author_id = match &payload.author_id {
         None => current.author_id.clone(),
+        Some(author)
+            if session.role == "reviewer" && Some(author) != current.author_id.as_ref() =>
+        {
+            return Err(api_error(
+                StatusCode::FORBIDDEN,
+                "Reviewers cannot change the author",
+            ));
+        }
         Some(author)
             if Some(author) != current.author_id.as_ref()
                 && author != &session.user_id
@@ -974,6 +988,12 @@ pub async fn restore_content_version(
     Path((content_type, slug_or_id, revision)): Path<(String, String, i64)>,
     audit: AuditContext,
 ) -> Result<Json<ContentResponse>, ApiError> {
+    if session.role == "reviewer" {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "Reviewers cannot restore content versions",
+        ));
+    }
     let schema = find_schema(&state, &content_type).await?;
     let current = state
         .db
@@ -1048,6 +1068,12 @@ pub async fn delete_content(
     Path((content_type, slug_or_id)): Path<(String, String)>,
     audit: AuditContext,
 ) -> Result<StatusCode, ApiError> {
+    if session.role == "reviewer" {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "Reviewers cannot delete content",
+        ));
+    }
     let schema = find_schema(&state, &content_type).await?;
     let db_error = |e: AegisError| {
         api_error(
