@@ -337,7 +337,39 @@ Admin Studio のログイン画面からのアカウント登録（メールア�
 | `stripe.webhook_secret` | string | `""` | Webhook の署名シークレット（`whsec_...`）。空なら環境変数 `AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET`。ショップの Webhook とはエンドポイントが別なので、シークレットも別 |
 | `stripe.api_base` | string | `"https://api.stripe.com"` | テスト用のモックサーバーに向けるときだけ変える |
 
-`enabled = true` で、会員アカウントが無効・`public_url` が無い・通貨が不正・キーが無い、のいずれかなら起動時にエラーです。Stripe には Webhook のエンドポイント `https://example.com/api/v1/members/webhooks/stripe` を作り、`checkout.session.completed`・`checkout.session.async_payment_succeeded`・`checkout.session.async_payment_failed`・`checkout.session.expired`・`charge.refunded` を選びます。
+`enabled = true` で、会員アカウントが無効・`public_url` が無い・通貨が不正・キーが無い、のいずれかなら起動時にエラーです。
+
+##### `[[members.purchase.plans]]` — サブスクのプラン
+
+自動更新のサブスクです（[会員 16](./members.md#16-購入記事の単独購入サブスク)）。プランを 1 つ以上書くと、マイページに契約の案内が出ます。支払いの単位は `interval` × `interval_count` で決まります。金額の通貨は `[members.purchase].currency` です。
+
+```toml
+[[members.purchase.plans]]
+id = "monthly"
+label = "Monthly"
+level = "paid"
+amount = 800
+interval = "month"
+interval_count = 1
+
+[[members.purchase.plans]]
+id = "quarterly"       # 3 か月ごと
+level = "paid"
+amount = 2200
+interval = "month"
+interval_count = 3
+```
+
+| キー | 型 | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| `id` | string | 必須 | プランの ID（英小文字・数字・`-`・`_` の 1〜32 文字、重複なし） |
+| `label` | string | `id` | 決済ページとマイページに出る名前（100 文字まで） |
+| `level` | string | 必須 | 契約中に得るレベル（`[members].levels` のどれか） |
+| `amount` | integer | 必須 | 1 回の支払い（通貨の最小単位。1〜99,999,999） |
+| `interval` | string | 必須 | `"day"` / `"week"` / `"month"` / `"year"` |
+| `interval_count` | integer | `1` | `interval` を何回分で 1 回払うか。上限は日 365・週 52・月 12・年 1（Stripe の上限） |
+
+不正なプラン（ID の重複・知らないレベル・範囲外の値）は起動時にエラーです。Stripe の Webhook には、上のイベントに加えて `customer.subscription.updated`・`customer.subscription.deleted` を選びます。解約・カード変更に使う Customer Portal は、Stripe のダッシュボードで有効にしてください。Stripe には Webhook のエンドポイント `https://example.com/api/v1/members/webhooks/stripe` を作り、`checkout.session.completed`・`checkout.session.async_payment_succeeded`・`checkout.session.async_payment_failed`・`checkout.session.expired`・`charge.refunded`（サブスクを使うなら `customer.subscription.updated`・`customer.subscription.deleted` も）を選びます。
 
 ### 2.13 `[notifications]` — 通知（メール）
 
