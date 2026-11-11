@@ -221,6 +221,24 @@ export interface TotpSetupResult {
   qr_code_base64: string;
 }
 
+/** An API token as listed (the token itself is only returned when it is created) */
+export interface ApiToken {
+  id: string;
+  name: string;
+  /** The start of the token, to tell tokens apart */
+  prefix: string;
+  /** The highest role the token may use */
+  role: 'viewer' | 'contributor' | 'reviewer' | 'editor';
+  created_at: string;
+  expires_at: string | null;
+  last_used_at: string | null;
+}
+
+export interface CreatedApiToken extends ApiToken {
+  /** The token itself. Only returned once, when it is created */
+  token: string;
+}
+
 export interface Enable2faResult {
   enabled: boolean;
   backup_codes: string[];

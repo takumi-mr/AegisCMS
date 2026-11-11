@@ -18,7 +18,7 @@ AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラ�
 ### 2. 🔐 セキュリティ・認証・監査
 | ドキュメント | 概要 | 対象 |
 |---|---|---|
-| [認証 & ユーザー管理 (`authentication.md`)](authentication.md) | ローカル認証（Argon2id）、セッション管理、OpenID Connect、SAML 2.0、アカウント登録・招待フロー | 運用者・コア開発者 |
+| [認証 & ユーザー管理 (`authentication.md`)](authentication.md) | ローカル認証（Argon2id）、セッション管理、OpenID Connect、SAML 2.0、アカウント登録・招待フロー、API トークン（LLM・CI 向け） | 運用者・コア開発者 |
 | [監査ログリファレンス (`audit.md`)](audit.md) | 操作監査ログの出力先（DB/ログ/Prometheus）、イベント種別一覧、保持期間、Admin Studio での閲覧 | 運用者・監査者 |
 | [セキュリティ評価レポート (`security-assessment-report.md`)](security-assessment-report.md) | 内部検査、OWASP ZAP スキャン結果、脆弱性対策状況とステータス | セキュリティ担当 |
 | [ペネトレーションテスト手順 (`penetration-testing.md`)](penetration-testing.md) | Docker Compose を用いた安全なローカル検証環境の構築と脆弱性スキャン手順 | セキュリティ担当 |

@@ -1,6 +1,7 @@
 //! ログイン・ユーザー・セッション（`[auth]`）: パスワード（Argon2id）、ローカル / OpenID Connect /
 //! SAML 2.0 の認証プロバイダ、ユーザー管理、アカウント登録、セッション、ログイン試行の制限、ロール
 
+pub mod api_tokens;
 pub mod config;
 pub mod invitation;
 pub mod local;

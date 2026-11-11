@@ -276,6 +276,7 @@ pub async fn delete_user(db: &dyn DatabaseAdapter, username: &str) -> Result<Use
     let user = find_user(db, username).await?;
     ensure_other_admin(db, &user).await?;
     db.delete_user(&user).await?;
+    db.delete_user_api_tokens(&user.username).await?;
     Ok(user)
 }
 

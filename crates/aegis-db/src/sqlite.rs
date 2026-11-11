@@ -249,6 +249,7 @@ super::forum::impl_forum_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite"
 super::members::impl_member_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::purchases::impl_purchase_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::subscriptions::impl_subscription_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
+super::api_tokens::impl_api_token_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 super::reviews::impl_review_storage!(SqliteAdapter, |i| format!("?{}", i), "SQLite");
 
 crate::published_exec::impl_published_columns!(
@@ -1309,14 +1310,14 @@ fields:
         adapter.init().await.unwrap();
         assert_eq!(
             applied_migrations(&adapter).await,
-            vec![(1, true), (2, true), (3, true), (4, true)]
+            vec![(1, true), (2, true), (3, true), (4, true), (5, true)]
         );
         adapter.set_setting("site.title", "kept").await.unwrap();
 
         adapter.init().await.unwrap();
         assert_eq!(
             applied_migrations(&adapter).await,
-            vec![(1, true), (2, true), (3, true), (4, true)]
+            vec![(1, true), (2, true), (3, true), (4, true), (5, true)]
         );
         assert_eq!(
             adapter.list_settings().await.unwrap().get("site.title"),
@@ -1345,7 +1346,7 @@ fields:
         // 0001 は採用し、0002 以降は流す（0002 は列を足す）
         assert_eq!(
             applied_migrations(&adapter).await,
-            vec![(1, true), (2, true), (3, true), (4, true)]
+            vec![(1, true), (2, true), (3, true), (4, true), (5, true)]
         );
         assert_eq!(
             adapter.list_settings().await.unwrap().get("site.title"),

@@ -310,6 +310,9 @@ pub async fn update_user(
     Json(payload): Json<UpdateUserRequest>,
 ) -> Result<Json<UserView>, ApiError> {
     require_self_or_admin(&state, &audit, &session, &username).await?;
+    if payload.password.is_some() {
+        super::api_tokens::require_login_session(&session)?;
+    }
     let is_self = session.user_id == username;
     if (payload.role.is_some() || payload.disabled.is_some()) && !is_admin(&session) {
         return Err(api_error(
@@ -653,6 +656,7 @@ pub async fn setup_2fa(
     State(_state): State<Arc<AppState>>,
     RequireRole(session): ViewerSession,
 ) -> Result<Json<aegis_auth::TotpSetup>, ApiError> {
+    super::api_tokens::require_login_session(&session)?;
     let setup =
         aegis_auth::generate_totp_setup(&session.user_id, "AegisCMS").map_err(from_aegis)?;
     Ok(Json(setup))
@@ -665,6 +669,7 @@ pub async fn enable_2fa(
     audit: AuditContext,
     Json(payload): Json<Enable2faRequest>,
 ) -> Result<Json<Enable2faResponse>, ApiError> {
+    super::api_tokens::require_login_session(&session)?;
     let secret = payload.secret.trim();
     let code = payload.code.trim();
 
@@ -703,6 +708,7 @@ pub async fn disable_2fa(
     audit: AuditContext,
     Json(payload): Json<Disable2faRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    super::api_tokens::require_login_session(&session)?;
     let user = state
         .db
         .get_user_by_username(&session.user_id)

@@ -227,6 +227,26 @@ enum UserCommand {
     List,
     /// Disable two-factor authentication (2FA) for a user
     Disable2fa { username: String },
+    /// Issue an API token for a user (printed once; only its hash is stored)
+    TokenCreate {
+        username: String,
+        /// A label for what the token is used for (e.g. claude-code)
+        #[arg(short, long)]
+        name: String,
+        /// The highest role the token may use: viewer, contributor or editor
+        #[arg(short, long, default_value = "editor")]
+        role: String,
+        /// Days until the token expires
+        #[arg(short, long, default_value_t = 90)]
+        days: u32,
+        /// Never expires (overrides --days)
+        #[arg(long)]
+        no_expiry: bool,
+    },
+    /// List a user's API tokens
+    TokenList { username: String },
+    /// Revoke an API token by its id (from `token-list`)
+    TokenRevoke { username: String, id: String },
     /// Link an existing user to an OpenID Connect account ([auth.oidc].issuer_url + the IdP's `sub`)
     LinkOidc {
         username: String,
@@ -679,6 +699,55 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
                 .await?;
             println!("Linked '{}' to SAML subject {}", username, subject);
         }
+        UserCommand::TokenCreate {
+            username,
+            name,
+            role,
+            days,
+            no_expiry,
+        } => {
+            let issued = aegis_auth::api_tokens::issue_api_token(
+                db,
+                aegis_auth::api_tokens::NewApiToken {
+                    username: username.clone(),
+                    name,
+                    role,
+                    expires_in_days: (!no_expiry).then_some(days),
+                },
+            )
+            .await?;
+            println!(
+                "Created API token '{}' for '{}' (role cap: {}, expires: {})",
+                issued.record.name,
+                username,
+                issued.record.role,
+                issued.record.expires_at.as_deref().unwrap_or("never")
+            );
+            println!("Copy it now; it cannot be shown again:");
+            println!("{}", issued.token);
+        }
+        UserCommand::TokenList { username } => {
+            for t in db.list_api_tokens(&username).await? {
+                println!(
+                    "{}  {:<16} {:<12} {:<12} expires: {}  last used: {}",
+                    t.id,
+                    t.token_prefix,
+                    t.role,
+                    t.name,
+                    t.expires_at.as_deref().unwrap_or("never"),
+                    t.last_used_at.as_deref().unwrap_or("-")
+                );
+            }
+        }
+        UserCommand::TokenRevoke { username, id } => {
+            anyhow::ensure!(
+                db.delete_api_token(&username, &id).await?,
+                "No API token '{}' for '{}'",
+                id,
+                username
+            );
+            println!("Revoked the API token {}", id);
+        }
         UserCommand::List => {
             let users = db.list_users().await?;
             if users.is_empty() {
@@ -925,10 +994,10 @@ async fn main() -> anyhow::Result<()> {
 
             // 4. キャッシュ & セッションサービス初期化 (ステートレス対応)
             let cache = aegis_cache::create_cache_backend(&config.cache).await?;
-            let sessions = Arc::new(aegis_auth::SessionService::new(
-                cache.clone(),
-                config.cache.default_ttl_secs,
-            ));
+            let sessions = Arc::new(
+                aegis_auth::SessionService::new(cache.clone(), config.cache.default_ttl_secs)
+                    .with_api_tokens(db_adapter.clone()),
+            );
             let login_limiter = Arc::new(aegis_auth::LoginRateLimiter::new(
                 cache.clone(),
                 config.auth.login_rate_limit.clone(),

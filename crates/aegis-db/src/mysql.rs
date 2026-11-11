@@ -206,6 +206,7 @@ super::forum::impl_forum_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::members::impl_member_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::purchases::impl_purchase_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::subscriptions::impl_subscription_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
+super::api_tokens::impl_api_token_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 super::reviews::impl_review_storage!(MySqlAdapter, |_| "?".to_string(), "MySQL");
 
 crate::published_exec::impl_published_columns!(
