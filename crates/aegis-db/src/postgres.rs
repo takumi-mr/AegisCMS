@@ -206,6 +206,7 @@ super::subscriptions::impl_subscription_storage!(
     |i| format!("${}", i),
     "Postgres"
 );
+super::api_tokens::impl_api_token_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 super::reviews::impl_review_storage!(PostgresAdapter, |i| format!("${}", i), "Postgres");
 
 crate::published_exec::impl_published_columns!(

@@ -80,6 +80,8 @@ import type {
   UpdateForumCategoryPayload,
   UpdateHeaderSettings,
   UpdateSeoSettingsPayload,
+  ApiToken,
+  CreatedApiToken,
   Enable2faResult,
   LoginResponse,
   TotpSetupResult,
@@ -1300,6 +1302,37 @@ export const aegisApi = {
         body: JSON.stringify(payload),
       },
       'Failed to disable 2FA'
+    );
+  },
+
+  /** The current user's API tokens (newest first) */
+  async listApiTokens(): Promise<ApiToken[]> {
+    const res = await request<{ tokens: ApiToken[] }>(
+      '/users/me/tokens',
+      {},
+      'Failed to load API tokens'
+    );
+    return res.tokens;
+  },
+
+  /** Issues an API token. The token itself is only in this response */
+  async createApiToken(payload: {
+    name: string;
+    role: ApiToken['role'];
+    expires_in_days: number | null;
+  }): Promise<CreatedApiToken> {
+    return request(
+      '/users/me/tokens',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      'Failed to create the API token'
+    );
+  },
+
+  async revokeApiToken(id: string): Promise<void> {
+    return requestNoContent(
+      `/users/me/tokens/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      'Failed to revoke the API token'
     );
   },
 

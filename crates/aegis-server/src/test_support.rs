@@ -109,7 +109,7 @@ pub async fn test_app_state_with_db(
         db.clone(),
         Arc::new(LocalStorageBackend::new("target/test_uploads", "/uploads")),
         cache.clone(),
-        Arc::new(SessionService::new(cache, 3600)),
+        Arc::new(SessionService::new(cache, 3600).with_api_tokens(db.clone())),
         Arc::new(LocalAuthProvider::new(db)),
         login_limiter,
         schemas,

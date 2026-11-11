@@ -1,0 +1,2 @@
+-- API トークン（docs/authentication.md 13）。平文は保存せず、SHA-256 のハッシュだけを持つ。`role` はトークンに許すロールの上限
+CREATE TABLE IF NOT EXISTS _aegis_api_tokens (id VARCHAR(255) PRIMARY KEY, username VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, token_hash VARCHAR(255) NOT NULL UNIQUE, token_prefix VARCHAR(255) NOT NULL, role VARCHAR(255) NOT NULL, created_at VARCHAR(255) NOT NULL, expires_at VARCHAR(255), last_used_at VARCHAR(255), INDEX idx_aegis_api_tokens_user (username));

@@ -60,6 +60,7 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 | `POST /api/v1/storage/upload`（[メディア](media.md)） | `contributor`（`reviewer` 以上も含む） |
 | `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md)） | `editor` |
 | `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`, `POST /api/v1/users/me/2fa/*`（[ユーザー管理 API](#3-ユーザー管理-api)・[二段階認証](#12-二段階認証-2fa--totp)） | 本人（`viewer` 以上）か `admin` |
+| `GET` / `POST /api/v1/users/me/tokens`, `DELETE /api/v1/users/me/tokens/{id}`（[API トークン](#13-api-トークン)） | 本人（`viewer` 以上）。API トークンでは呼べない |
 | `POST /api/v1/users/{username}/2fa/reset`（[二段階認証のリセット](#123-管理者による解除--復旧)） | `admin` |
 | `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}` | `admin` |
 | `POST /api/v1/auth/invitations`（[招待リンク](#10-ユーザー招待リンク)） | `admin` |
@@ -586,3 +587,72 @@ AegisCMS では、パスワード認証に加えて **TOTP (Time-based One-Time 
    aegis-server user disable-2fa <username>
    ```
    解除と同時に対象ユーザーの既存セッションは即時失効され、次回からパスワードのみでログイン可能になります。
+
+---
+
+## 13. API トークン
+
+AI エージェント（LLM）・スクリプト・CI に、ユーザー名とパスワードの代わりに渡す長命の Bearer トークンです。パスワードを平文で渡さずに済み、漏れても失効すれば済みます。
+
+```bash
+curl -s http://127.0.0.1:8080/api/v1/contents/article \
+  -H 'Authorization: Bearer aegis_pat_...'
+```
+
+`aegis_pat_` で始まる値は、通常のセッション（`ses_...`）と同じヘッダー（`Authorization: Bearer` または `X-Session-Id`）に付けるだけで使えます。API ごとの必要なロールは [1](#ロールと-api-の権限) の表のとおりです。
+
+### 13.1 権限
+
+- **ロールの上限**: 発行時に `viewer` / `contributor` / `reviewer` / `editor` から選びます。持ち主のロールより高いロールは選べません。**`admin` は選べません**（ユーザー管理・設定・監査ログなど `admin` の API は、トークンでは使えません）。
+- **持ち主のいまのロールとの低いほう**: 発行後に持ち主が降格されると、トークンの権限もすぐ下がります。持ち主を無効化・削除するとトークンは使えなくなります（削除ではトークンも消えます）。
+- **人間のセッションに限る操作**: トークンでは、トークンの発行・一覧・失効（`/api/v1/users/me/tokens`）、パスワードの変更、二段階認証の設定・解除ができません（`403`）。漏れたトークンで別のトークンを増やしたり、アカウントを乗っ取ったりできないようにするためです。
+- **有効期限**: 発行時に日数（1〜3650）で決めます（既定 90 日）。無期限にもできます。期限切れは `401` です。
+- 1 ユーザーにつき 20 本まで。
+
+### 13.2 保存と記録
+
+- トークンは 244 ビットの乱数で、**平文は発行時の応答に 1 度だけ**入ります。DB（`_aegis_api_tokens`）には SHA-256 のハッシュと、一覧で見分けるための先頭部分（`aegis_pat_` + 4 文字）だけを保存します。サーバーのログ・監査ログ・バックアップにも平文は残りません。
+- **バックアップに含めません**。復元した環境では、トークンを発行し直してください。
+- 最終使用日時は、1 分に 1 回までの間隔で記録します。
+- 発行と失効は監査ログの `user.update`（`details.action` が `api_token.create` / `api_token.revoke`）に記録します。トークンの値は記録しません。
+- 検証に失敗したトークンは、他のセッションと同じく `access.denied`（`invalid_session`）に指紋だけを記録します。
+- `GET /api/v1/auth/session` では、トークンで認証したセッションは `metadata.provider = "api_token"` で見分けられます（`id` は `pat_<トークン ID>` で、トークン自体は返しません）。
+
+### 13.3 API（ログイン中のユーザー自身。トークンでは呼べない）
+
+| API | 内容 |
+| --- | --- |
+| `GET /api/v1/users/me/tokens` | 自分のトークンの一覧（`{"tokens": [...]}`、新しい順）。ハッシュ・トークン本体は含まない |
+| `POST /api/v1/users/me/tokens` | 発行。本文は `name`（必須、64 文字まで）、`role`（`viewer` / `contributor` / `reviewer` / `editor`。既定 `viewer`）、`expires_in_days`（既定 90、`null` は無期限）。`201` で、一覧の項目に `token`（本体）を加えて返す |
+| `DELETE /api/v1/users/me/tokens/{id}` | 失効（他人のトークンは `404`）。`204`。直ちに使えなくなる |
+
+```json
+{
+  "id": "5b0f6a62-...",
+  "name": "claude-code",
+  "prefix": "aegis_pat_3f9a",
+  "role": "editor",
+  "created_at": "2026-11-12T00:00:00Z",
+  "expires_at": "2027-02-10T00:00:00Z",
+  "last_used_at": null,
+  "token": "aegis_pat_3f9a..."
+}
+```
+
+### 13.4 Admin Studio と CLI
+
+- **Admin Studio**: ヘッダーのアバターから **My profile** を開くと、**API トークン** 欄で発行・一覧・失効できます。発行直後に 1 度だけ本体を表示します。
+- **CLI**（サーバー端末での発行。ログインせずに渡したいとき）:
+
+```bash
+aegis-server user token-create alice --name claude-code --role editor --days 90
+aegis-server user token-create alice --name ci --role viewer --no-expiry
+aegis-server user token-list alice
+aegis-server user token-revoke alice <トークン ID>
+```
+
+### 13.5 LLM に渡すときの注意
+
+- 渡すロールは必要最小限にします（読むだけなら `viewer`）。コンテンツを書かせる場合は `contributor`（下書きとレビュー依頼まで）、校正・承認させる場合は `reviewer` が安全です。
+- 用途ごとに別のトークンを発行し、名前に用途を書いておくと、漏れたときに該当のものだけ失効できます。
+- トークンはプロンプトや会話ログに残る前提で扱います。有効期限を短めにし、使い終わったら失効してください。

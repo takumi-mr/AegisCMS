@@ -1,6 +1,7 @@
 //! データベース（`[database]`: SQLite / PostgreSQL / MySQL）。コンテンツ・監査ログ・ユーザー・注文・コメント・通知の送信待ちの保存
 
 pub mod analytics;
+pub mod api_tokens;
 pub mod comments;
 pub mod config;
 pub mod contact;
@@ -31,6 +32,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub use analytics::{AnalyticsCount, AnalyticsStorage, AnalyticsTotal, ANALYTICS_TABLE};
+pub use api_tokens::{ApiTokenRecord, ApiTokenStorage, API_TOKEN_COLUMNS, API_TOKEN_TABLE};
 pub use comments::{CommentListQuery, CommentPage, CommentRecord, CommentStorage, COMMENT_TABLE};
 pub use config::{DatabaseBackendKind, DatabaseConfig};
 pub use contact::{
@@ -547,6 +549,7 @@ pub trait DatabaseAdapter:
     + MemberStorage
     + PurchaseStorage
     + SubscriptionStorage
+    + ApiTokenStorage
     + ReviewStorage
     + AnalyticsStorage
     + ContactStorage

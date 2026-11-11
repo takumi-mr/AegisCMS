@@ -1,4 +1,5 @@
 use aegis_core::{CacheBackend, Result};
+use aegis_db::DatabaseAdapter;
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -20,6 +21,8 @@ pub struct SessionData {
 pub struct SessionService {
     cache: Arc<dyn CacheBackend>,
     default_ttl_secs: u64,
+    /// API トークン（`aegis_pat_...`）の検索先。無ければ API トークンは使えない
+    api_tokens: Option<Arc<dyn DatabaseAdapter>>,
 }
 
 impl SessionService {
@@ -27,7 +30,14 @@ impl SessionService {
         Self {
             cache,
             default_ttl_secs,
+            api_tokens: None,
         }
+    }
+
+    /// API トークンを `get_session` で受け付ける（トークンは DB に保存してある）
+    pub fn with_api_tokens(mut self, db: Arc<dyn DatabaseAdapter>) -> Self {
+        self.api_tokens = Some(db);
+        self
     }
 
     fn session_key(session_id: &str) -> String {
@@ -95,6 +105,12 @@ impl SessionService {
     }
 
     pub async fn get_session(&self, session_id: &str) -> Result<Option<SessionData>> {
+        if crate::api_tokens::is_api_token(session_id) {
+            return match &self.api_tokens {
+                Some(db) => crate::api_tokens::resolve_api_token(db.as_ref(), session_id).await,
+                None => Ok(None),
+            };
+        }
         let key = Self::session_key(session_id);
         if let Some(json_str) = self.cache.get(&key).await? {
             let session: SessionData = serde_json::from_str(&json_str)?;

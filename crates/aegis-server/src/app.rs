@@ -309,6 +309,14 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
                 .delete(handlers::delete_avatar)
                 .layer(DefaultBodyLimit::max(handlers::users::MAX_AVATAR_BYTES + 64 * 1024)),
         )
+        .route(
+            "/api/v1/users/me/tokens",
+            get(handlers::list_api_tokens).post(handlers::create_api_token),
+        )
+        .route(
+            "/api/v1/users/me/tokens/{id}",
+            delete(handlers::revoke_api_token),
+        )
         .route("/api/v1/users/me/2fa/setup", post(handlers::setup_2fa))
         .route("/api/v1/users/me/2fa/enable", post(handlers::enable_2fa))
         .route("/api/v1/users/me/2fa/disable", post(handlers::disable_2fa))

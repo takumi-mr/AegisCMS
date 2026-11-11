@@ -5,6 +5,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useRoleName } from '../i18n/roles';
 import { aegisApi } from '../api/client';
 import type { UserAccount } from '../types';
+import { ApiTokenManager } from './ApiTokenManager';
 import { AvatarPicker } from './AvatarPicker';
 import { Button } from './ui/Button';
 import { Field } from './ui/Field';
@@ -416,6 +417,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </form>
           )}
         </div>
+
+        <ApiTokenManager maxRole={user.role} onShowToast={onShowToast} />
       </div>
     </Modal>
   );
