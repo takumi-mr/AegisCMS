@@ -46,7 +46,6 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "package-name": "aegiscms",
       "include-component-in-tag": false,
       "exclude-paths": [
         "plugins",
