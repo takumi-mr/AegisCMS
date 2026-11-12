@@ -274,7 +274,11 @@
 }
 
 .dirtyBadge {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.78rem;
   color: var(--accent-amber);
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }

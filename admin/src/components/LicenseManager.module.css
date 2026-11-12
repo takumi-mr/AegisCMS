@@ -85,6 +85,8 @@
   background: rgb(var(--overlay-rgb) / 0.08);
   color: var(--text-indigo-soft);
   border: 1px solid var(--border-medium);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badgeSuccess {

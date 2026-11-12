@@ -88,6 +88,8 @@
   padding: 0.1rem 0.5rem;
   border-radius: 9999px;
   font-size: 0.75rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .grid {
@@ -169,6 +171,8 @@
   gap: 0.35rem;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
   z-index: 2;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cardBody {
@@ -348,6 +352,8 @@
   border-radius: 9999px;
   font-size: 0.8rem;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .marketFilters {

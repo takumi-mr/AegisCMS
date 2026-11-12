@@ -352,9 +352,14 @@ export const Header: React.FC<HeaderProps> = ({
               <div className={styles.mobileHealth} title={gatewayTitle}>
                 <span className={cx(styles.statusDot, isOnline && styles.online)} />
                 <span>
-                  {t('header.gateway', {
-                    state: isOnline ? t('header.connected') : t('header.offline'),
-                  })}
+                  {coreVersion
+                    ? t('header.gatewayWithVersion', {
+                        state: isOnline ? t('header.connected') : t('header.offline'),
+                        version: coreVersion,
+                      })
+                    : t('header.gateway', {
+                        state: isOnline ? t('header.connected') : t('header.offline'),
+                      })}
                 </span>
               </div>
               <div className={styles.mobileLang}>

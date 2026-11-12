@@ -88,6 +88,8 @@
   padding: 0.1rem 0.5rem;
   border-radius: 9999px;
   font-size: 0.75rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .filterBar {
@@ -251,6 +253,7 @@
 .idRow {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.2rem;
 }
@@ -269,6 +272,8 @@
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badgeEnabled {
