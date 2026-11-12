@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn } from 'storybook/test';
 import type { UserAccount } from '../types';
+import { mockApi, type MockHandler } from '../../.storybook/mockApi';
 import { ProfileModal } from './ProfileModal';
+
+const handler: MockHandler = (req) =>
+  req.path === '/users/me/tokens' ? { tokens: [] } : undefined;
 
 const user: UserAccount = {
   id: 'usr_01',
@@ -15,6 +19,7 @@ const user: UserAccount = {
   updated_at: '2026-10-01T00:00:00Z',
 };
 const meta = {
+  beforeEach: () => mockApi(handler),
   title: 'Users/ProfileModal',
   component: ProfileModal,
   args: { user, canChangePassword: true, onUpdated: fn(), onShowToast: fn(), onClose: fn() },

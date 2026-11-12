@@ -1,7 +1,25 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn } from 'storybook/test';
-import type { SessionInfo } from '../types';
+import type { SessionInfo, ThemeInfo } from '../types';
+import { mockApi, type MockHandler } from '../../.storybook/mockApi';
 import { ThemeManager } from './ThemeManager';
+
+const theme = (id: string, name: string, active: boolean): ThemeInfo => ({
+  id,
+  name,
+  version: '1.0.0',
+  description: `${name} theme`,
+  author: { name: 'Aegis Community' },
+  tags: ['blog'],
+  is_active: active,
+  has_templates: true,
+  has_assets: true,
+});
+
+const handler: MockHandler = (req) =>
+  req.path === '/themes'
+    ? [theme('default', 'Default', true), theme('minimal', 'Minimal', false)]
+    : undefined;
 
 const session: SessionInfo = {
   id: 'ses_story',
@@ -12,6 +30,7 @@ const session: SessionInfo = {
   metadata: {},
 };
 const meta = {
+  beforeEach: () => mockApi(handler),
   title: 'Settings/ThemeManager',
   component: ThemeManager,
   args: { session, onShowToast: fn() },
