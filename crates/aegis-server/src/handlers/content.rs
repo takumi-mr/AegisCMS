@@ -982,6 +982,59 @@ pub async fn list_content_versions(
     ))
 }
 
+/// 1 つの版の内容（Preview と差分の表示用。復元はしない）
+#[derive(Serialize)]
+pub struct ContentVersionDetail {
+    pub revision: i64,
+    pub created_at: String,
+    pub created_by: Option<String>,
+    pub change_note: Option<String>,
+    pub title: String,
+    pub slug: String,
+    pub blocks: Vec<BlockNode>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub fields: HashMap<String, serde_json::Value>,
+}
+
+/// `GET /api/v1/contents/{content_type}/{slug_or_id}/versions/{revision}` — 保存した版の内容を返す
+/// （版の一覧と同じ権限。状態・公開日時などは現在値のままなので返さない）
+pub async fn get_content_version(
+    State(state): State<Arc<AppState>>,
+    _session: ViewerSession,
+    Path((content_type, slug_or_id, revision)): Path<(String, String, i64)>,
+) -> Result<Json<ContentVersionDetail>, ApiError> {
+    let schema = find_schema(&state, &content_type).await?;
+    let current = state
+        .db
+        .get_content(&schema, &slug_or_id)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Content not found"))?;
+    let version = state
+        .db
+        .get_content_version(&content_type, &current.id, revision)
+        .await
+        .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Content version not found"))?;
+    let record: ContentRecord = serde_json::from_str(&version.snapshot_json).map_err(|e| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Invalid stored content version: {}", e),
+        )
+    })?;
+    let blocks: Vec<BlockNode> = serde_json::from_str(&record.blocks_json).unwrap_or_default();
+    Ok(Json(ContentVersionDetail {
+        revision: version.revision,
+        created_at: version.created_at,
+        created_by: version.created_by,
+        change_note: version.change_note,
+        title: record.title,
+        slug: record.slug,
+        blocks,
+        fields: record.custom_fields,
+    }))
+}
+
 pub async fn restore_content_version(
     State(state): State<Arc<AppState>>,
     RequireRole(session): ContributorSession,
@@ -2580,3 +2633,7 @@ mod tests {
         assert_eq!(with(|_| {}).unwrap().title, "T");
     }
 }
+
+#[cfg(test)]
+#[path = "content_versions_tests.rs"]
+mod version_tests;

@@ -22,6 +22,18 @@ export interface SchemaDefinition {
   fields: FieldDefinition[];
 }
 
+/** The stored content of one saved version (`GET .../versions/{revision}`) */
+export interface ContentVersionDetail {
+  revision: number;
+  created_at: string;
+  created_by?: string | null;
+  change_note?: string | null;
+  title: string;
+  slug: string;
+  blocks: BlockNode[];
+  fields?: Record<string, unknown>;
+}
+
 /**
  * Content item as returned by the content API.
  * Schema-specific custom fields are returned under `fields` and resolved relations under `relations`.

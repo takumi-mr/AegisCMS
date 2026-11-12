@@ -329,6 +329,12 @@ curl -X POST "http://localhost:8080/api/v1/storage/upload" \
 > [!NOTE]
 > 記事を更新するたびに新しいリビジョン（バージョン）が自動的に保存されます。管理画面から過去のリビジョンへの復元が可能です。
 
+### 7.1a 版の内容の取得 (`GET /api/v1/contents/{content_type}/{slug_or_id}/versions/{revision}`)
+
+保存済みの 1 つの版の内容（`title`・`slug`・`blocks`・`fields`、版の `revision`・`created_at`・`created_by`・`change_note`）を返します。何も変更しません。版の一覧（`.../versions`）と同じく、ログインしていれば取得できます。`status`・公開日時・著者は、復元しても戻らない（現在の値のまま）ので返しません。存在しない版は 404 です。
+
+管理画面は、版履歴の「確認」でこれを呼び、その版のプレビューと、いまエディターにある内容との差分（タイトル・スラッグ・カスタムフィールド・本文の Markdown の行単位）を表示します。
+
 ### 7.2 記事の削除 (`DELETE /api/v1/contents/{content_type}/{slug_or_id}`)
 
 指定した記事を削除します（`editor` 以上の権限が必要です）。

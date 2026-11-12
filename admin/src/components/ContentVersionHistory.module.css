@@ -47,6 +47,12 @@
   min-width: 0;
 }
 
+.actions {
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+}
+
 .details time,
 .details span {
   color: var(--text-muted);

@@ -112,7 +112,8 @@
     "grantPurchaseFailed": "Failed to grant access",
     "revokePurchaseFailed": "Failed to revoke access",
     "refundPurchaseFailed": "Failed to refund the purchase",
-    "cancelSubscriptionFailed": "Failed to cancel the subscription"
+    "cancelSubscriptionFailed": "Failed to cancel the subscription",
+    "contentVersionFailed": "Failed to load the content version"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -438,6 +439,21 @@
       "noteForAuthor": "Note for the author",
       "submitPlaceholder": "What to look at (optional)",
       "decidePlaceholder": "Why it is returned (optional; sent to the author and kept in the version history)"
+    },
+    "previewVersion": "Preview",
+    "previewVersionAria": "Preview version {{revision}}",
+    "versionPreviewTitle": "Version {{revision}}",
+    "versionPreviewAria": "Version view",
+    "versionTabs": {
+      "preview": "Preview",
+      "diff": "Changes"
+    },
+    "diff": {
+      "legend": "Shows what differs between this version and the content in the editor now (red: only in this version, green: only in the editor).",
+      "none": "This version is identical to the content in the editor.",
+      "title": "Title",
+      "slug": "Slug",
+      "body": "Body (Markdown)"
     }
   },
   "header": {

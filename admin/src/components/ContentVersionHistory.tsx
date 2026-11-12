@@ -14,6 +14,8 @@ export interface ContentVersionSummary {
 interface ContentVersionHistoryProps {
   versions: ContentVersionSummary[];
   loading?: boolean;
+  /** Opens the version's Preview and its diff against the editor */
+  onPreview?: (revision: number) => void;
   onRestore: (revision: number) => void;
   /** False hides the restore buttons (the content cannot be changed by this user) */
   canRestore?: boolean;
@@ -22,6 +24,7 @@ interface ContentVersionHistoryProps {
 export const ContentVersionHistory: React.FC<ContentVersionHistoryProps> = ({
   versions,
   loading = false,
+  onPreview,
   onRestore,
   canRestore = true,
 }) => {
@@ -44,15 +47,26 @@ export const ContentVersionHistory: React.FC<ContentVersionHistoryProps> = ({
                 {version.created_by && <span>{version.created_by}</span>}
                 {version.change_note && <span>{version.change_note}</span>}
               </div>
-              {canRestore && (
-                <Button
-                  variant="tool"
-                  aria-label={t('editor.restoreVersionAria', { revision: version.revision })}
-                  onClick={() => onRestore(version.revision)}
-                >
-                  {t('editor.restoreVersion')}
-                </Button>
-              )}
+              <div className={styles.actions}>
+                {onPreview && (
+                  <Button
+                    variant="tool"
+                    aria-label={t('editor.previewVersionAria', { revision: version.revision })}
+                    onClick={() => onPreview(version.revision)}
+                  >
+                    {t('editor.previewVersion')}
+                  </Button>
+                )}
+                {canRestore && (
+                  <Button
+                    variant="tool"
+                    aria-label={t('editor.restoreVersionAria', { revision: version.revision })}
+                    onClick={() => onRestore(version.revision)}
+                  >
+                    {t('editor.restoreVersion')}
+                  </Button>
+                )}
+              </div>
             </li>
           ))}
         </ol>

@@ -7,6 +7,7 @@ import type {
   AuthProviders,
   BrokenLinksStatusResponse,
   CommentBulkAction,
+  ContentVersionDetail,
   MemberDetail,
   MemberPage,
   MemberStatus,
@@ -526,6 +527,19 @@ export const aegisApi = {
       `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(idOrSlug)}/versions`,
       {},
       i18n.t('api.contentVersionsFailed')
+    );
+  },
+
+  /** The stored content of one version (what "Preview" and "Diff" show; nothing is restored) */
+  async getContentVersion(
+    contentType: string,
+    idOrSlug: string,
+    revision: number
+  ): Promise<ContentVersionDetail> {
+    return request(
+      `/contents/${encodeURIComponent(contentType)}/${encodeURIComponent(idOrSlug)}/versions/${revision}`,
+      {},
+      i18n.t('api.contentVersionFailed')
     );
   },
 

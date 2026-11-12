@@ -53,7 +53,7 @@ pub use comments::{
     update_comment, update_comment_settings,
 };
 pub use content::{
-    create_content, delete_content, delete_variant, get_content, list_content,
+    create_content, delete_content, delete_variant, get_content, get_content_version, list_content,
     list_content_versions, list_schedule, list_variants, restore_content_version, update_content,
     upsert_variant,
 };
