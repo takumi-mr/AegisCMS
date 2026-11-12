@@ -49,6 +49,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             get(handlers::list_content_versions),
         )
         .route(
+            "/api/v1/contents/{content_type}/{slug}/versions/{revision}",
+            get(handlers::get_content_version),
+        )
+        .route(
             "/api/v1/contents/{content_type}/{slug}/versions/{revision}/restore",
             post(handlers::restore_content_version),
         )

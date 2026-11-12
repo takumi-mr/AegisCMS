@@ -40,6 +40,8 @@ interface PreviewProps {
   /** `[members].levels` (empty when member accounts are off): the choices of "preview as" */
   memberLevels?: string[];
   blocks: BlockNode[];
+  /** Fill the width of the parent instead of the fixed editor column width (e.g. in a dialog) */
+  fluid?: boolean;
 }
 
 interface PreviewResult {
@@ -68,6 +70,7 @@ export const Preview: React.FC<PreviewProps> = ({
   access = '',
   memberLevels = [],
   blocks,
+  fluid = false,
 }) => {
   const { t } = useTranslation();
   const [tab, setTab] = useState<PreviewTab>('html');
@@ -167,7 +170,7 @@ export const Preview: React.FC<PreviewProps> = ({
   );
 
   return (
-    <aside className={cx(styles.column, fullscreen && styles.fullscreen)}>
+    <aside className={cx(styles.column, fluid && styles.fluid, fullscreen && styles.fullscreen)}>
       <div className={styles.bar}>
         <div className={styles.tabs} role="tablist" aria-label={t('preview.aria')}>
           {TABS.map(({ id, icon }) => (

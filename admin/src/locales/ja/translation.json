@@ -112,7 +112,8 @@
     "grantPurchaseFailed": "権利を付けられませんでした",
     "revokePurchaseFailed": "権利を取り消せませんでした",
     "refundPurchaseFailed": "返金できませんでした",
-    "cancelSubscriptionFailed": "契約を解約できませんでした"
+    "cancelSubscriptionFailed": "契約を解約できませんでした",
+    "contentVersionFailed": "コンテンツの版を取得できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -435,6 +436,21 @@
       "noteForAuthor": "著者へのメモ",
       "submitPlaceholder": "見てほしい点など（任意）",
       "decidePlaceholder": "差し戻しの理由など（任意。著者へのメールと版の履歴に残ります）"
+    },
+    "previewVersion": "確認",
+    "previewVersionAria": "版 {{revision}} を確認",
+    "versionPreviewTitle": "版 {{revision}}",
+    "versionPreviewAria": "版の表示",
+    "versionTabs": {
+      "preview": "プレビュー",
+      "diff": "差分"
+    },
+    "diff": {
+      "legend": "この版と、いまエディターにある内容との違いを表示します（赤: この版にだけある、緑: エディターにだけある）。",
+      "none": "この版は、エディターの内容と同じです。",
+      "title": "タイトル",
+      "slug": "スラッグ",
+      "body": "本文（Markdown）"
     }
   },
   "header": {

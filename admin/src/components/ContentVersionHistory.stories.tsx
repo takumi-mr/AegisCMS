@@ -17,6 +17,7 @@ const meta = {
       { revision: 1, created_at: '2026-10-24T09:00:00Z', created_by: 'admin' },
     ],
     onRestore: fn(),
+    onPreview: fn(),
   },
 } satisfies Meta<typeof ContentVersionHistory>;
 
@@ -30,6 +31,8 @@ export const Populated: Story = {
     await expect(canvas.getByText(/Version 3|版 3/)).toBeVisible();
     await userEvent.click(canvas.getByRole('button', { name: /restore version 2|版 2 を復元/i }));
     await expect(args.onRestore).toHaveBeenCalledWith(2);
+    await userEvent.click(canvas.getByRole('button', { name: /preview version 3|版 3 を確認/i }));
+    await expect(args.onPreview).toHaveBeenCalledWith(3);
   },
 };
 

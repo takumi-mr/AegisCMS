@@ -54,6 +54,7 @@ import { BlockItem } from './components/BlockItem';
 import { Preview } from './components/Preview';
 import { MarkdownEditor } from './components/MarkdownEditor';
 import { PasteMarkdownModal } from './components/PasteMarkdownModal';
+import { ContentVersionPreviewModal } from './components/ContentVersionPreviewModal';
 import { aegisApi, setUnauthorizedHandler } from './api/client';
 import { setSessionToken } from './api/session';
 import { isSsoSession, takeLoginRedirect } from './utils/loginRedirect';
@@ -62,6 +63,7 @@ import type {
   BlockNode,
   ContactForm,
   ContentItem,
+  ContentVersionDetail,
   ContentSummary,
   SchemaDefinition,
   PluginBlockDefinition,
@@ -271,6 +273,8 @@ export const App: React.FC = () => {
     ])
   );
   const [isPasteModalOpen, setIsPasteModalOpen] = useState<boolean>(false);
+  // The saved version opened for Preview and diff (the content it belongs to is the selected one)
+  const [viewedVersion, setViewedVersion] = useState<ContentVersionDetail | null>(null);
 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -611,6 +615,39 @@ export const App: React.FC = () => {
           showToast(t('tags.loadFailedForContent'), 'error');
         }
       });
+  };
+
+  const handlePreviewVersion = async (revision: number) => {
+    if (!selectedId) return;
+    try {
+      setViewedVersion(await aegisApi.getContentVersion(contentType, selectedId, revision));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : t('api.contentVersionFailed'), 'error');
+    }
+  };
+
+  const handleRestoreVersion = async (revision: number) => {
+    if (!selectedId) return;
+    if (!window.confirm(t('editor.restoreVersionConfirm', { revision }))) return;
+    try {
+      const restored = await aegisApi.restoreContentVersion(contentType, selectedId, revision);
+      setViewedVersion(null);
+      handleSelectContent(restored);
+      showToast(t('editor.versionRestored'));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : t('editor.versionRestoreFailed'), 'error');
+    }
+  };
+
+  /** The custom fields as the editor holds them now, in the shape of a version's `fields` (the other side of its diff) */
+  const currentFieldsForDiff = (): Record<string, unknown> => {
+    const extra = fromExtraValues(extraDefs, extraValues);
+    return {
+      ...('error' in extra ? {} : extra.fields),
+      ...(contentType === 'article' ? { category_id: categoryId || null } : {}),
+      ...(contentType === 'page' ? { layout } : {}),
+      access: access || null,
+    };
   };
 
   const handleSelectContent = (item: ContentItem) => {
@@ -1440,23 +1477,8 @@ export const App: React.FC = () => {
                     versions={contentVersions}
                     loading={loadingContentVersions}
                     canRestore={mayChange}
-                    onRestore={async (revision) => {
-                      if (!window.confirm(t('editor.restoreVersionConfirm', { revision }))) return;
-                      try {
-                        const restored = await aegisApi.restoreContentVersion(
-                          contentType,
-                          selectedId,
-                          revision
-                        );
-                        handleSelectContent(restored);
-                        showToast(t('editor.versionRestored'));
-                      } catch (error) {
-                        showToast(
-                          error instanceof Error ? error.message : t('editor.versionRestoreFailed'),
-                          'error'
-                        );
-                      }
-                    }}
+                    onPreview={handlePreviewVersion}
+                    onRestore={handleRestoreVersion}
                   />
                 )}
 
@@ -1714,6 +1736,18 @@ export const App: React.FC = () => {
           onUpdated={setProfile}
           onShowToast={showToast}
           onClose={() => setIsProfileOpen(false)}
+        />
+      )}
+
+      {viewedVersion && selectedId && (
+        <ContentVersionPreviewModal
+          contentType={contentType}
+          version={viewedVersion}
+          current={{ title, slug, blocks, fields: currentFieldsForDiff() }}
+          memberLevels={membersEnabled ? memberLevels : []}
+          canRestore={mayChange}
+          onRestore={handleRestoreVersion}
+          onClose={() => setViewedVersion(null)}
         />
       )}
 
