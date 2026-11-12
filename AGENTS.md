@@ -115,6 +115,7 @@ Conventional Commits 形式に準拠します。
   - `plugin-builder`: `plugin-builder/` (Plugin Builder: プラグイン開発用のエディター + 実行サンドボックス)
   - `theme-builder`: `theme-builder/` (Theme Builder: テーマ開発用のエディター + ライブプレビュー)、`crates/aegis-server/src/theme_dev.rs` (開発サーバー `aegis-server theme dev`)
   - `plugin`: `sdk/` (Wasm プラグインのテンプレート・サンプル)、`crates/aegis-plugin-sdk`
+- **コミットメッセージ・PR の本文に生の HTML（`<script>` / `<style>` など）を書かない**: release-please がリリース PR の本文を HTML として読むため、タグと GitHub Release が作られなくなります。バッククォートで囲んでも防げないので、「script 要素」のように言葉で書きます（`commit-lint.yml` で検査。[docs/versioning.md の 3](docs/versioning.md#3-コミットメッセージとバージョンの上がり方)）。
 - **破壊的変更**は `feat(scope)!:` のように `!` を付けるか、本文に `BREAKING CHANGE:` を書きます。バージョン・タグ・CHANGELOG はこの規約から release-please が自動で決めます（[docs/versioning.md](docs/versioning.md)）。
 - **記述例**:
   - `feat(ast): integrate lol-html streaming rewriter for security attributes`

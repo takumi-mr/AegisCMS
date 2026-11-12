@@ -39,6 +39,11 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.md) に�
 | `feat!:` や本文の `BREAKING CHANGE:` | 1.0 前はマイナー、1.0 以降はメジャー |
 | `docs` / `style` / `test` / `chore` | 上がらない（CHANGELOG にも出ない） |
 
+> [!WARNING]
+> **コミットメッセージ・PR のタイトルと本文に、生の HTML（特に `<script>` と `<style>`）を書かないでください。** リリース PR の本文はコミットメッセージから作られ、release-please はそれを HTML として読みます。`<script>` が 2 つ以上あるなどで読み取りが崩れると、リリース PR をマージしても**タグも GitHub Release も作られず**、`autorelease: pending` のまま残ります。以降のリリース PR も「untagged, merged release PRs outstanding」で作られなくなります（ワークフローは success と表示されるので気づきにくい）。バッククォートで囲んでも防げません。「script 要素」のように言葉で書いてください。`破壊的変更`の説明（`BREAKING CHANGE:`）で特に起きやすいです。PR では `scripts/check-release-notes-html.mjs`（`commit-lint.yml`）が検査します。
+>
+> すでにリリース PR をマージして止まった場合は、そのリリース PR の本文の `<` を `&amp;lt;` に直して（`<script` → `&amp;lt;script`）、main 上の Release Please のワークフローを再実行します（`&lt;` では、release-please が本文を読み直すときに元に戻ってしまい直りません）。
+
 コミットがどの対象に数えられるかは、**変更したファイルのパス**で決まります（スコープではありません）。`plugins/official-ads/` の変更はそのプラグインだけを、`sdk/assemblyscript/` の変更はその SDK だけを、それ以外（`plugins/`・`sdk/` の外）はコアを上げます。
 
 ## 4. リリースの流れ
