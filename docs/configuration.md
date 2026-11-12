@@ -222,7 +222,8 @@ coupons = "WELCOME10:10%"
 | --- | --- | --- | --- |
 | `enabled` | bool | `true` | `false` で監査ログの記録を無効化 |
 | `sinks` | (`"database"` \| `"log"` \| `"prometheus"`)[] | `["database"]` | 出力先（複数指定可）。`database`: DB テーブル + 参照 API / `log`: 構造化ログ / `prometheus`: `/metrics` のカウンタ |
-| `trust_forwarded_for` | bool | `false` | `true` で `X-Forwarded-For` の先頭アドレスをクライアント IP として扱う（監査ログの記録と、`[auth.login_rate_limit]` の IP 単位の制限に使用）。信頼できるリバースプロキシ配下でのみ有効化 |
+| `forwarded_for_hops` | integer (u32) | `1` | `trust_forwarded_for = true` のとき、`X-Forwarded-For` に追記する信頼できるプロキシの段数。右端から数えてこの段数目のアドレスをクライアント IP とする（先頭は偽装できるため使わない） |
+| `trust_forwarded_for` | bool | `false` | `true` で `X-Forwarded-For`（右端から `forwarded_for_hops` 段目）をクライアント IP として扱う（監査ログの記録と、`[auth.login_rate_limit]` の IP 単位の制限に使用）。信頼できるリバースプロキシ配下でのみ有効化 |
 | `retention_days` | integer (u32) | `0` | `database` 出力先の監査ログを保持する日数。これより古いログを定期的に削除（`0` で無期限） |
 | `purge_interval_secs` | integer (u64) | `3600` | 保持期間切れのログを削除する間隔（秒、最小 60）。起動直後にも 1 回実行 |
 

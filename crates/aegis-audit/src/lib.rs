@@ -28,6 +28,7 @@ use aegis_db::DatabaseAdapter;
 pub struct AuditService {
     enabled: bool,
     trust_forwarded_for: bool,
+    forwarded_for_hops: u32,
     sinks: Vec<Arc<dyn AuditSink>>,
     /// `database` 出力先が有効な場合の検索用アダプター
     reader: Option<Arc<dyn DatabaseAdapter>>,
@@ -43,6 +44,7 @@ impl AuditService {
         let mut service = Self {
             enabled: config.enabled,
             trust_forwarded_for: config.trust_forwarded_for,
+            forwarded_for_hops: config.forwarded_for_hops.max(1),
             sinks: Vec::new(),
             reader: None,
             metrics: None,
@@ -85,6 +87,7 @@ impl AuditService {
         Self {
             enabled: true,
             trust_forwarded_for: false,
+            forwarded_for_hops: 1,
             sinks,
             reader: None,
             metrics: None,
@@ -114,6 +117,11 @@ impl AuditService {
 
     pub fn trust_forwarded_for(&self) -> bool {
         self.trust_forwarded_for
+    }
+
+    /// `X-Forwarded-For` を追記する信頼できるプロキシの段数（1 以上）
+    pub fn forwarded_for_hops(&self) -> u32 {
+        self.forwarded_for_hops
     }
 
     pub fn reader(&self) -> Option<&Arc<dyn DatabaseAdapter>> {

@@ -119,11 +119,11 @@ purge_interval_secs = 3600
 
 | フィールド | 内容 |
 | --- | --- |
-| `ip` | 接続元 IP。`trust_forwarded_for = true` の場合は `X-Forwarded-For` の先頭アドレスを優先 |
+| `ip` | 接続元 IP。`trust_forwarded_for = true` の場合は `X-Forwarded-For` を右端から `forwarded_for_hops` 段（既定 1）除いたアドレスを優先 |
 | `user_agent` | `User-Agent` ヘッダー（最大 512 文字） |
 
 > [!WARNING]
-> `X-Forwarded-For` はクライアントが自由に設定できるため、`trust_forwarded_for` は ALB / nginx などの信頼できるリバースプロキシ配下でのみ有効にしてください。
+> `X-Forwarded-For` の左側（先頭）はクライアントが自由に書けるため使いません。プロキシが右に追記したアドレスを、右端から `forwarded_for_hops` 段目（既定 1 = 右端）として採用します。CDN → ロードバランサーのように 2 段で追記するなら `forwarded_for_hops = 2` にしてください。ヘッダーが段数より短い、またはアドレスとして読めないときは接続元アドレスを使います。`trust_forwarded_for` は信頼できるリバースプロキシ配下でのみ有効にしてください。
 
 ---
 

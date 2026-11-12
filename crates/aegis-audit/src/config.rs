@@ -19,9 +19,13 @@ pub enum AuditSinkKind {
 pub struct AuditConfig {
     pub enabled: bool,
     pub sinks: Vec<AuditSinkKind>,
-    /// `X-Forwarded-For` の先頭アドレスをクライアント IP として扱う（監査ログとログインのレート制限に使用。
+    /// `X-Forwarded-For` から信頼できるプロキシの段数（`forwarded_for_hops`）を除いたアドレスをクライアント IP として扱う（監査ログとログインのレート制限に使用。
     /// 信頼できるリバースプロキシ配下でのみ有効化）
     pub trust_forwarded_for: bool,
+    /// `trust_forwarded_for` のとき、`X-Forwarded-For` を追記する信頼できるプロキシの段数。
+    /// 右端から数えてこの段数目のアドレスをクライアント IP とする（既定 1 = 右端。
+    /// 先頭はクライアントが自由に書けるため使わない）
+    pub forwarded_for_hops: u32,
     /// `database` 出力先に保存した監査ログの保持日数。これより古いログは定期的に削除する（0 で無期限）
     pub retention_days: u32,
     /// 保持期間切れのログを削除する間隔（秒）
@@ -34,6 +38,7 @@ impl Default for AuditConfig {
             enabled: true,
             sinks: vec![AuditSinkKind::Database],
             trust_forwarded_for: false,
+            forwarded_for_hops: 1,
             retention_days: 0,
             purge_interval_secs: 3600,
         }

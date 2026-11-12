@@ -92,6 +92,8 @@ aegis-server user disable editor1       # ログイン不可にする（既存�
 aegis-server user enable editor1
 aegis-server user disable-2fa editor1   # 二段階認証を緊急解除（セッションは即時失効）
 aegis-server user list
+aegis-server user unlock editor1         # ログインのロック（失敗の連続）を解除。要 [cache].backend = "redis"
+aegis-server user unlock-ip 203.0.113.7  # IP 単位のロックを解除
 aegis-server user link-oidc alice 248289761001   # 既存ユーザーを IdP のアカウント（sub）に紐付ける
 ```
 
@@ -211,7 +213,7 @@ Admin Studio（`/admin`）はログイン画面からこの API でログイン�
   - ログインに成功するとそのユーザー名の失敗回数はリセットされます。IP の失敗回数は、有効なアカウントを 1 つ持つ攻撃者が計数を消せないようリセットしません。
   - 失敗回数は `[cache]` のバックエンドに保存します（キー `login:fail:*` / `login:lock:*`）。`memory` ではプロセスごと・再起動で消えるため、複数インスタンスで運用する場合は `redis` を使ってください。
   - リバースプロキシ配下では全リクエストがプロキシの IP になるため、`[audit].trust_forwarded_for = true` にしてください（有効にすると `X-Forwarded-For` を偽装できるため、信頼できるプロキシ配下でのみ）。
-  - ユーザー名単位のロックは、第三者がわざと失敗してそのユーザーを一時的にログインできなくすることにも使えます。運用で問題になる場合は `max_failures_per_user` を大きくし、IP 単位の制限を主に使ってください。ロックを手動で解除するにはキャッシュの `login:lock:*` キーを削除します（`memory` ではサーバーの再起動）。
+  - ユーザー名単位のロックは、第三者がわざと失敗してそのユーザーを一時的にログインできなくすることにも使えます。運用で問題になる場合は `max_failures_per_user` を大きくし、IP 単位の制限を主に使ってください。ロックの解除は CLI だけです（`aegis-server user unlock <ユーザー名>` / `user unlock-ip <IP>`。失敗回数も 0 に戻ります）。API や Admin Studio からは解除できません。ロックはサーバーのキャッシュにあるため、CLI からは `redis` のときだけ解除できます（`memory` ではサーバーの再起動）。
 
 ---
 
