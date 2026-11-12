@@ -1,7 +1,45 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn } from 'storybook/test';
-import type { SessionInfo } from '../types';
+import type { SessionInfo, SiteSettings as SiteSettingsData, ThemeInfo } from '../types';
+import { mockApi, type MockHandler } from '../../.storybook/mockApi';
 import { SettingsView } from './SettingsView';
+
+const handler: MockHandler = (req) => {
+  if (req.path === '/site') {
+    return {
+      title: null,
+      favicon: null,
+      defaults: { title: 'My Aegis Site', favicon: null },
+    } satisfies SiteSettingsData;
+  }
+  if (req.path === '/tags') {
+    const tags = [
+      { id: 't1', slug: 'news', name: 'News', description: null, usage: 4 },
+      { id: 't2', slug: 'guides', name: 'Guides', description: 'How-to articles', usage: 2 },
+    ].map((t) => ({
+      ...t,
+      created_at: '2026-10-01T00:00:00Z',
+      updated_at: '2026-10-01T00:00:00Z',
+    }));
+    return { tags, total: tags.length };
+  }
+  if (req.path === '/themes') {
+    return [
+      {
+        id: 'default',
+        name: 'Default',
+        version: '1.0.0',
+        description: 'The built-in theme',
+        author: 'Aegis',
+        tags: [],
+        is_active: true,
+        has_templates: true,
+        has_assets: true,
+      },
+    ] satisfies ThemeInfo[];
+  }
+  return undefined;
+};
 
 const session: SessionInfo = {
   id: 'ses_story',
@@ -12,6 +50,7 @@ const session: SessionInfo = {
   metadata: {},
 };
 const meta = {
+  beforeEach: () => mockApi(handler),
   title: 'Settings/SettingsView',
   component: SettingsView,
   args: {
