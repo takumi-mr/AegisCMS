@@ -1,10 +1,28 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
+import { mockApi } from '../../.storybook/mockApi';
+import type { BlockNode } from '../types';
 import { ContentVersionPreviewModal } from './ContentVersionPreviewModal';
+
+/** The preview endpoint's answer. Its body and themed page are served as documents to iframes, which a story's fetch mock cannot answer, so only the status and the block tree show */
+const previewApi = () =>
+  mockApi(({ method, path, body }) =>
+    method === 'POST' && path === '/preview'
+      ? {
+          html: '',
+          page_html: null,
+          page_url: null,
+          body_url: null,
+          blocks: (body as { blocks: BlockNode[] }).blocks,
+          warnings: [],
+        }
+      : undefined
+  );
 
 const meta = {
   title: 'Content/ContentVersionPreviewModal',
   component: ContentVersionPreviewModal,
+  beforeEach: previewApi,
   args: {
     contentType: 'article',
     version: {
