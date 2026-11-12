@@ -1,0 +1,32 @@
+name: Commit Message Lint
+
+# PR のタイトル・本文・コミットメッセージに、release-please のリリース PR を壊す生の HTML
+# （<script> / <style> など）が入っていないかを検査する。docs の変更だけの PR でも動かすため、
+# CI（ci.yml）とは別にし、パスの絞り込みをしない。詳しくは docs/versioning.md の 3。
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  release-notes-html:
+    name: No risky HTML in release notes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the PR title, body and commit messages
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git log "$BASE_SHA..$HEAD_SHA" --format=%B | node scripts/check-release-notes-html.mjs
