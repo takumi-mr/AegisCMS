@@ -18,4 +18,4 @@ workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-aegis-plugin-macros = { path = "../aegis-plugin-macros", version = "0.7.0" }
+aegis-plugin-macros = { path = "../aegis-plugin-macros", version = "0.8.0" }

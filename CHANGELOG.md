@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/takumi-mr/AegisCMS/compare/v0.7.0...v0.8.0) (2026-11-12)
+
+
+### Features
+
+* **admin:** display core version in header and attach auth token to health check ([#335](https://github.com/takumi-mr/AegisCMS/issues/335)) ([204d269](https://github.com/takumi-mr/AegisCMS/commit/204d269152cf19b2e43aa1d3e49563de470759b6))
+
+
+### Bug Fixes
+
+* **admin:** resolve badge layout breaking on mobile screens ([#337](https://github.com/takumi-mr/AegisCMS/issues/337)) ([48c4385](https://github.com/takumi-mr/AegisCMS/commit/48c4385a6fdd02cae0793f7de090e8a0aa6bf8e7))
+* **core:** let release-please tag a root-only release PR ([#334](https://github.com/takumi-mr/AegisCMS/issues/334)) ([32ebbab](https://github.com/takumi-mr/AegisCMS/commit/32ebbab4956e58d98ed2550624625c5d57622887))
+
 ## [0.7.0](https://github.com/takumi-mr/AegisCMS/compare/v0.6.0...v0.7.0) (2026-11-12)
 
 
