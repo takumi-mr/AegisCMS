@@ -24,12 +24,16 @@ const SECURITY_LEVELS: &[&str] = &["strict", "loose", "antiscript", "sandbox"];
 /// 色は、背景に対して薄い透明度だけを使う（ページが明るくても暗くても馴染む）
 const CSS: &str = ".omd-diagram{display:flex;justify-content:center;align-items:center;margin:1.75rem 0;padding:1.5rem;\
 border:1px solid rgba(127,127,127,.3);border-radius:12px;background:rgba(127,127,127,.08);overflow-x:auto}\
-.omd-diagram svg{max-width:100%;height:auto}";
+.omd-diagram svg{max-width:100%;height:auto}.omd-diagram,.omd-diagram svg{letter-spacing:normal;word-spacing:normal;text-transform:none;text-indent:0;text-align:start;line-height:normal;white-space:normal}";
 
 const SCRIPT: &str = r#"(function(){var C=__CONFIG__;
-function dark(){var els=[document.body,document.documentElement];
-for(var i=0;i<els.length;i++){var m=getComputedStyle(els[i]).backgroundColor.match(/[\d.]+/g);
-if(m&&m.length>=3&&!(m.length>=4&&parseFloat(m[3])===0)){return(0.299*m[0]+0.587*m[1]+0.114*m[2])<128}}
+function lum(c){var m=c.match(/[\d.]+/g);
+if(m&&m.length>=3&&!(m.length>=4&&parseFloat(m[3])===0)){return 0.299*m[0]+0.587*m[1]+0.114*m[2]}return null}
+function dark(){var start=document.querySelector('pre code.language-mermaid, pre.mermaid, div.mermaid')||document.body;
+var box=start.closest('pre')||start;start=box.parentElement||document.body;
+var els=[],e=start;while(e){els.push(e);e=e.parentElement}
+for(var i=0;i<els.length;i++){var l=lum(getComputedStyle(els[i]).backgroundColor);if(l!==null)return l<128}
+var t=lum(getComputedStyle(start).color);if(t!==null)return t>=128;
 return !!(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)}
 function theme(){return C.theme==='auto'?(dark()?'dark':'default'):C.theme}
 function run(){if(!window.mermaid)return;
@@ -38,9 +42,9 @@ var nodes=document.querySelectorAll('pre code.language-mermaid, pre.mermaid, div
 Array.prototype.forEach.call(nodes,function(el,i){var box=el.closest('pre')||el;
 var def=(el.textContent||'').trim();if(!def||box.getAttribute('data-omd'))return;box.setAttribute('data-omd','1');
 var id='omd-'+i+'-'+Math.floor(Math.random()*1e6);
-window.mermaid.render(id,def).then(function(res){var card=document.createElement('div');card.className='omd-diagram';
-card.innerHTML=res.svg;box.replaceWith(card)}).catch(function(e){
-var stray=document.getElementById('d'+id);if(stray&&stray.parentNode)stray.parentNode.removeChild(stray);
+var card=document.createElement('div');card.className='omd-diagram';card.style.cssText='position:absolute;visibility:hidden;left:0;right:0';box.parentNode.insertBefore(card,box);
+window.mermaid.render(id,def,card).then(function(res){card.style.cssText='';card.innerHTML=res.svg;box.remove()}).catch(function(e){
+card.remove();var stray=document.getElementById('d'+id);if(stray&&stray.parentNode)stray.parentNode.removeChild(stray);
 console.warn('Mermaid rendering failed:',e)})})}
 document.readyState==='loading'?document.addEventListener('DOMContentLoaded',run):run()})();"#;
 
