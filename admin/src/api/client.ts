@@ -253,7 +253,10 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 export const aegisApi = {
   async checkHealth(): Promise<{ status: string; system?: string; version?: string }> {
-    const res = await fetch(`${API_BASE}/health`);
+    const token = getSessionToken();
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/health`, { headers });
     if (!res.ok) throw new ApiError(res.status, i18n.t('api.healthFailed'));
     return res.json();
   },
