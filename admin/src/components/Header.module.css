@@ -40,6 +40,18 @@
   border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
+.versionBadge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: rgb(var(--overlay-rgb) / 0.05);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  letter-spacing: 0.02em;
+}
+
 .tabs {
   display: flex;
   gap: 4px;

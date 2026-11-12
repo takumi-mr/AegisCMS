@@ -387,6 +387,9 @@ export const App: React.FC = () => {
   }, []);
 
   // 2. Server health indicator
+  const sessionId = session?.id;
+  const sessionUser = session?.user_id;
+
   useEffect(() => {
     const checkServer = async () => {
       try {
@@ -400,11 +403,9 @@ export const App: React.FC = () => {
     checkServer();
     const timer = setInterval(checkServer, 15000);
     return () => clearInterval(timer);
-  }, []);
+  }, [sessionId]);
 
   // 3. Load data whenever a user logs in
-  const sessionId = session?.id;
-  const sessionUser = session?.user_id;
   useEffect(() => {
     if (!sessionId) return;
     // Contributors cannot publish: new content starts as a draft

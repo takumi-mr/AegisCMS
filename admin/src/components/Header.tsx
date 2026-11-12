@@ -222,6 +222,7 @@ export const Header: React.FC<HeaderProps> = ({
           <span>AegisCMS</span>
         </div>
         <span className={styles.badge}>{t('header.badge')}</span>
+        {coreVersion && <span className={styles.versionBadge}>v{coreVersion}</span>}
         <nav className={styles.tabs} aria-label={t('header.views')}>
           {navItems.map((item) => (
             <button
@@ -240,9 +241,14 @@ export const Header: React.FC<HeaderProps> = ({
         <div className={styles.health} title={gatewayTitle}>
           <span className={cx(styles.statusDot, isOnline && styles.online)} />
           <span className={styles.healthLabel}>
-            {t('header.gateway', {
-              state: isOnline ? t('header.connected') : t('header.offline'),
-            })}
+            {coreVersion
+              ? t('header.gatewayWithVersion', {
+                  state: isOnline ? t('header.connected') : t('header.offline'),
+                  version: coreVersion,
+                })
+              : t('header.gateway', {
+                  state: isOnline ? t('header.connected') : t('header.offline'),
+                })}
           </span>
         </div>
 
