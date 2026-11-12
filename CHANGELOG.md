@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/takumi-mr/AegisCMS/compare/v0.6.0...v0.7.0) (2026-11-12)
+
+
+### Features
+
+* **server:** add API tokens so agents need not hold the password ([#329](https://github.com/takumi-mr/AegisCMS/issues/329)) ([61c6532](https://github.com/takumi-mr/AegisCMS/commit/61c65322097cbf1cf2d803cba7455493c86b2be8))
+
+
+### Bug Fixes
+
+* **server:** stop spoofed X-Forwarded-For from locking other IPs; add CLI unlock ([#330](https://github.com/takumi-mr/AegisCMS/issues/330)) ([a792a02](https://github.com/takumi-mr/AegisCMS/commit/a792a02a1568540aeebdc4be617a11aaf8fe3371))
+
 ## [0.6.0](https://github.com/takumi-mr/AegisCMS/compare/v0.5.0...v0.6.0) (2026-11-10)
 
 
