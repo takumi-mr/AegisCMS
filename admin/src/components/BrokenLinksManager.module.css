@@ -232,6 +232,8 @@
   border: 1px solid var(--border-subtle);
   background: rgb(var(--overlay-rgb) / 0.03);
   color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .contentBadge {
@@ -244,6 +246,8 @@
   background: rgb(var(--overlay-rgb) / 0.05);
   color: var(--text-secondary);
   font-family: var(--font-mono);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .contentTitle {
@@ -267,6 +271,8 @@
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .statusError {

@@ -131,6 +131,8 @@
 }
 
 .you {
+  display: inline-flex;
+  align-items: center;
   padding: 1px 6px;
   border-radius: var(--radius-full);
   background: rgba(16, 185, 129, 0.15);
@@ -138,6 +140,8 @@
   font-size: 0.65rem;
   font-weight: 600;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .muted {
@@ -145,12 +149,16 @@
 }
 
 .roleBadge {
+  display: inline-flex;
+  align-items: center;
   padding: 2px 8px;
   border-radius: var(--radius-full);
   background: rgb(var(--overlay-rgb) / 0.06);
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .roleBadge.roleAdmin {

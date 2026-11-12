@@ -253,12 +253,16 @@
 }
 
 .totalBadge {
+  display: inline-flex;
+  align-items: center;
   padding: 1px 8px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   font-size: 0.75rem;
   text-transform: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .hint {
@@ -292,12 +296,15 @@
 }
 
 .badge {
+  display: inline-flex;
+  align-items: center;
   padding: 1px 8px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   font-size: 0.72rem;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badge_active {

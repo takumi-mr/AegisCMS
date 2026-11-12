@@ -44,6 +44,8 @@
 }
 
 .countBadge {
+  display: inline-flex;
+  align-items: center;
   padding: 2px 10px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border-subtle);
@@ -51,6 +53,8 @@
   color: var(--text-secondary);
   font-size: 0.8rem;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .toolbar {
@@ -357,6 +361,8 @@
 }
 
 .cardTypeBadge {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.72rem;
   padding: 2px 8px;
   border-radius: var(--radius-full);
@@ -365,6 +371,8 @@
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cardSlug {

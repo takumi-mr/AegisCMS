@@ -50,6 +50,8 @@
   color: var(--text-muted);
   border: 1px solid var(--border-subtle);
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tabs {
@@ -153,6 +155,9 @@
 }
 
 .roleBadge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
   padding: 2px 8px;
   border-radius: var(--radius-full);
   background: rgb(var(--overlay-rgb) / 0.06);
@@ -329,6 +334,7 @@
 .mobileUserDetails {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
   min-width: 0;
 }
@@ -404,6 +410,10 @@
 }
 
 @media (max-width: 600px) {
+  .versionBadge {
+    display: none;
+  }
+
   .saveButtonLabel {
     display: none;
   }

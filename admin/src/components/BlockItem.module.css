@@ -38,6 +38,8 @@
   background: rgba(6, 182, 212, 0.1);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .controls {

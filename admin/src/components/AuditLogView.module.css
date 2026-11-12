@@ -134,11 +134,15 @@
 }
 
 .outcome {
+  display: inline-flex;
+  align-items: center;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: capitalize;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .outcome.success {
