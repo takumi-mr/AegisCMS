@@ -227,6 +227,10 @@ enum UserCommand {
     List,
     /// Disable two-factor authentication (2FA) for a user
     Disable2fa { username: String },
+    /// Clear a login lockout (and the failure count) for a username
+    Unlock { username: String },
+    /// Clear a login lockout (and the failure count) for a client IP address
+    UnlockIp { ip: String },
     /// Issue an API token for a user (printed once; only its hash is stored)
     TokenCreate {
         username: String,
@@ -612,6 +616,22 @@ fn read_new_password() -> anyhow::Result<String> {
     Ok(line.trim_end_matches(['\r', '\n']).to_string())
 }
 
+/// ログインのロックを解除する CLI 用のリミッター。ロックはサーバーのキャッシュにあるので、
+/// サーバーと共有できる `redis` でなければ解除できない（`memory` はプロセスごとで別物）
+async fn login_limiter_for_cli(
+    config: &AegisConfig,
+) -> anyhow::Result<aegis_auth::LoginRateLimiter> {
+    anyhow::ensure!(
+        config.cache.backend != aegis_cache::CacheBackendKind::Memory,
+        "Login lockouts live in the server's cache. With [cache].backend = \"memory\" the CLI cannot reach them; restart the server to clear them, or use the redis backend"
+    );
+    let cache = aegis_cache::create_cache_backend(&config.cache).await?;
+    Ok(aegis_auth::LoginRateLimiter::new(
+        cache,
+        config.auth.login_rate_limit.clone(),
+    ))
+}
+
 async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::Result<()> {
     let db = aegis_db::create_database_adapter(&config.database).await?;
     let db = db.as_ref();
@@ -698,6 +718,27 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
             aegis_auth::users::link_identity(db, &username, aegis_auth::SAML_PROVIDER, &subject)
                 .await?;
             println!("Linked '{}' to SAML subject {}", username, subject);
+        }
+        UserCommand::Unlock { username } => {
+            let limiter = login_limiter_for_cli(config).await?;
+            if limiter.unlock_username(username.trim()).await? {
+                println!("Unlocked login for '{}'", username.trim());
+            } else {
+                println!(
+                    "'{}' was not locked (its failure count was reset)",
+                    username.trim()
+                );
+            }
+        }
+        UserCommand::UnlockIp { ip } => {
+            ip.parse::<std::net::IpAddr>()
+                .map_err(|_| anyhow::anyhow!("'{}' is not an IP address", ip))?;
+            let limiter = login_limiter_for_cli(config).await?;
+            if limiter.unlock_ip(&ip).await? {
+                println!("Unlocked login for {}", ip);
+            } else {
+                println!("{} was not locked (its failure count was reset)", ip);
+            }
         }
         UserCommand::TokenCreate {
             username,

@@ -130,9 +130,11 @@ enforce_image_async_decoding = true
 enabled = true
 # Sinks: "database" (audit_logs table + GET /api/v1/audit-logs) | "log" (JSON lines on the aegis::audit target) | "prometheus" (GET /metrics)
 sinks = ["database"]
-# Use the first X-Forwarded-For address as the client IP for audit logs and login rate limits
+# Use the X-Forwarded-For address added by your own proxy (counted from the right) as the client IP for audit logs and login rate limits
 # (enable only behind a trusted reverse proxy)
 trust_forwarded_for = false
+# Number of trusted proxies that append to X-Forwarded-For (the leftmost entries are client-controlled and ignored)
+forwarded_for_hops = 1
 # Days to keep audit events in the database sink; older events are purged periodically (0 = keep forever)
 retention_days = 0
 # How often to purge expired audit events, in seconds (minimum 60)

@@ -86,7 +86,9 @@ impl LoginRateLimiter {
     pub async fn check(&self, username: &str, ip: Option<&str>) -> Result<Option<LoginLockout>> {
         let now = Utc::now().timestamp();
         let mut lockout: Option<LoginLockout> = None;
-        for (scope, id, _) in self.scopes(username, ip) {
+        // 回数の上限は実行時に変わる（Admin Studio の上書き）ので、ここでは上限の値に関わらず、
+        // 置かれているロックのキーをすべて見る（上限が 0 でも、ハニーポットなどが置いたロックは効く）
+        for (scope, id, _) in self.scopes_with_max_ip(username, ip, 1) {
             let Some(value) = self.cache.get(&Self::lock_key(scope, &id)).await? else {
                 continue;
             };
@@ -164,6 +166,28 @@ impl LoginRateLimiter {
         Ok(())
     }
 
+    /// ユーザー名のロックと失敗回数を消す。消したロックがあれば `true`
+    pub async fn unlock_username(&self, username: &str) -> Result<bool> {
+        let mut had_lock = false;
+        for (scope, id, _) in self.scopes_with_max_ip(username, None, 1) {
+            had_lock |= self.cache.get(&Self::lock_key(scope, &id)).await?.is_some();
+            self.cache.delete(&Self::lock_key(scope, &id)).await?;
+            self.cache.delete(&Self::fail_key(scope, &id)).await?;
+        }
+        Ok(had_lock)
+    }
+
+    /// IP のロックと失敗回数を消す。消したロックがあれば `true`
+    pub async fn unlock_ip(&self, ip: &str) -> Result<bool> {
+        let lock = Self::lock_key(LockScope::Ip, ip);
+        let had_lock = self.cache.get(&lock).await?.is_some();
+        self.cache.delete(&lock).await?;
+        self.cache
+            .delete(&Self::fail_key(LockScope::Ip, ip))
+            .await?;
+        Ok(had_lock)
+    }
+
     /// クライアント IP を即座にロックする（ハニーポットや悪意ある走査検知用）。
     /// ロック期間（秒）を返す。
     pub async fn lock_ip(&self, ip: &str, duration_secs: Option<u64>) -> Result<u64> {
@@ -187,6 +211,60 @@ impl LoginRateLimiter {
 mod tests {
     use super::*;
     use aegis_cache::MemoryCacheBackend;
+
+    #[tokio::test]
+    async fn test_check_sees_locks_even_when_the_configured_ip_max_is_zero() {
+        // 設定ファイルは IP の上限なし（0）。Admin Studio の上書きやハニーポットが置いたロックは効く
+        let limiter = limiter(config(5, 0));
+        assert_eq!(limiter.check("bob", Some("192.0.2.9")).await.unwrap(), None);
+        limiter
+            .record_failure_with_max_ip("bob", Some("192.0.2.9"), 1)
+            .await
+            .unwrap();
+        let lock = limiter.check("carol", Some("192.0.2.9")).await.unwrap();
+        assert_eq!(lock.map(|l| l.scope), Some(LockScope::Ip));
+        // 別の IP・別のユーザーは巻き込まない
+        assert_eq!(
+            limiter.check("carol", Some("192.0.2.10")).await.unwrap(),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn test_unlock_clears_only_the_target() {
+        let limiter = limiter(config(2, 100));
+        for _ in 0..2 {
+            limiter
+                .record_failure("alice", Some("192.0.2.1"))
+                .await
+                .unwrap();
+        }
+        limiter
+            .record_failure("bob", Some("192.0.2.1"))
+            .await
+            .unwrap();
+        assert!(limiter.check("alice", None).await.unwrap().is_some());
+
+        // 他のユーザーのロックは外れない
+        assert!(!limiter.unlock_username("carol").await.unwrap());
+        assert!(limiter.check("alice", None).await.unwrap().is_some());
+
+        assert!(limiter.unlock_username("ALICE").await.unwrap());
+        assert_eq!(limiter.check("alice", None).await.unwrap(), None);
+        // 失敗回数も 0 に戻る（あと 1 回失敗してもロックされない）
+        assert_eq!(limiter.record_failure("alice", None).await.unwrap(), None);
+
+        limiter.lock_ip("192.0.2.5", Some(60)).await.unwrap();
+        limiter.lock_ip("192.0.2.6", Some(60)).await.unwrap();
+        assert!(limiter.unlock_ip("192.0.2.5").await.unwrap());
+        assert_eq!(limiter.check("x", Some("192.0.2.5")).await.unwrap(), None);
+        assert!(limiter
+            .check("x", Some("192.0.2.6"))
+            .await
+            .unwrap()
+            .is_some());
+        assert!(!limiter.unlock_ip("192.0.2.5").await.unwrap());
+    }
 
     fn limiter(config: LoginRateLimitConfig) -> LoginRateLimiter {
         LoginRateLimiter::new(Arc::new(MemoryCacheBackend::new()), config)
