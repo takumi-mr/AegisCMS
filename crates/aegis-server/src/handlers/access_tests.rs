@@ -564,3 +564,35 @@ async fn test_a_paywall_without_access_changes_nothing() {
     assert!(!reply.body.contains(r#"<div class="cms-access-notice""#));
     assert_ne!(reply.cache_control(), "private, no-store");
 }
+
+#[tokio::test]
+async fn test_rendered_html_in_the_feed_and_the_api_follows_the_namespace() {
+    let site = site_with(|config| config.server.namespace = "x7".to_string()).await;
+    let mut callout = BlockNode::new("core/callout").with_attr("variant", "warning");
+    callout.text = Some("Run `aegis-server user list`.".to_string());
+    site.publish_blocks("article", "note", None, None, vec![callout.clone()])
+        .await;
+
+    // Atom feed: the body HTML (escaped inside the XML) uses the renamed classes
+    let feed = site.get("/feed.xml", None).await;
+    assert_eq!(feed.status, StatusCode::OK);
+    assert!(feed.body.contains("x7-callout"), "{}", feed.body);
+    assert!(!feed.body.contains("aegis-callout"), "{}", feed.body);
+
+    // Headless API: only the `html` string is renamed; `blocks` (the stored data) is untouched
+    let item = site
+        .get("/api/v1/public/contents/article/note?include=html", None)
+        .await;
+    assert_eq!(item.status, StatusCode::OK, "{}", item.body);
+    let item: serde_json::Value = serde_json::from_str(&item.body).unwrap();
+    let html = item["html"].as_str().unwrap();
+    assert!(
+        html.contains("class=\"x7-callout x7-callout-warning\""),
+        "{html}"
+    );
+    assert!(!html.contains("aegis-callout"), "{html}");
+    assert_eq!(
+        item["blocks"][0]["text"], "Run `aegis-server user list`.",
+        "{item}"
+    );
+}

@@ -251,7 +251,7 @@ pub async fn get_content(
         // 描画はプラグイン（Wasm）を呼ぶので、頼まれたときだけ行う。ETag も別にする
         let blocks: Vec<BlockNode> =
             serde_json::from_value(body["blocks"].clone()).unwrap_or_default();
-        body["html"] = json!(crate::render::render_content_html(&state, &blocks).await);
+        body["html"] = json!(crate::render::render_content_html_for_api(&state, &blocks).await);
         etag = etag.replacen('"', "\"html-", 1);
     }
 

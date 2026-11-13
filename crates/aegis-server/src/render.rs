@@ -146,6 +146,16 @@ pub async fn render_content_html(state: &AppState, blocks: &[BlockNode]) -> Stri
     render_content(state, blocks).await.html
 }
 
+/// `render_content_html` for output that does not pass through the namespace middleware: JSON
+/// fields (`rendered_html`, headless `html`) and Atom feeds. The identifiers in the HTML
+/// (`aegis-table`, `aegis-callout`, ...) are renamed to `[server].namespace` so they match the
+/// theme CSS, which is renamed the same way. Only this HTML string is rewritten, never the
+/// surrounding JSON/XML, so stored data such as `blocks` stays untouched
+pub async fn render_content_html_for_api(state: &AppState, blocks: &[BlockNode]) -> String {
+    let html = render_content_html(state, blocks).await;
+    crate::namespace::rewrite(&html, &state.config.server.namespace()).into_owned()
+}
+
 /// A plugin's HTML for one block, sanitized (keeping `<iframe>`s from `frame_domains`) and
 /// wrapped in `div.aegis-plugin-block` (nothing for no HTML)
 fn plugin_block_html(name: &str, html: Option<String>, frame_domains: &[String]) -> String {
