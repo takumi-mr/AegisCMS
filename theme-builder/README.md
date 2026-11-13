@@ -11,7 +11,7 @@ npm --prefix theme-builder ci       # first time only
 task dev:theme-builder              # http://localhost:5174/
 ```
 
-For usage, the API, and how it is protected, see [docs/theme_authoring_guide.md](../docs/theme_authoring_guide.md#theme-builderエディター--ライブプレビュー); for the design, see [docs/architecture.md](../docs/architecture.md#181-theme-builder-theme-builder) (both are in Japanese).
+For usage, the API, and how it is protected, see [docs/theme_authoring_guide.md](../docs/theme_authoring_guide.md#theme-builder-editor--live-preview); for the design, see [docs/architecture.md](../docs/architecture.md#181-theme-builder-theme-builder).
 
 | Command                                 | Description                                              |
 | --------------------------------------- | -------------------------------------------------------- |

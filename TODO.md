@@ -2,14 +2,14 @@
 
 > [!NOTE]
 > 作業の再開時はここを読む。各作業の完了時に更新する。
-> 完了したタスクは残さない。仕様は `docs/*.md`・`admin/README.md`、設計判断・注意点は [docs/architecture.md](docs/architecture.md)、開発手順は [docs/development.md](docs/development.md) に書いてから消す。
+> 完了したタスクは残さない。仕様は `docs/*.md`・`admin/README.md`、設計判断・注意点は [docs/architecture.ja.md](docs/architecture.ja.md)、開発手順は [docs/development.ja.md](docs/development.ja.md) に書いてから消す。
 > **技術メモ・申し送り事項は変更ログ（CHANGELOG）を書く場所ではない**。単純な実装ログや変更履歴は記載せず、未解決の設計課題や既知の注意点のみを記録する。経緯は Git のコミットログや PR で追う。
 
 ---
 
 ## 直近の着手タスク
 
-- [ ] **宣言的クエリの残り**（本体、全言語プラグイン SDK の `PageRenderContext.queries`、`theme dev` / Theme Builder のサンプル（`samples/queries.json`）は実装済み。仕様は [queries.md](docs/queries.md)、設計判断は [architecture.md 25](docs/architecture.md#25-宣言的クエリ-aegis-schemasrcqueryrs-aegis-dbsrcpublished_columnsrs-aegis-serversrcqueriesrs)）: ① Admin Studio でクエリの一覧・結果のプレビューを出すか（要望を見て決める）。型をまたぐ結合は対応しない方針（[queries.md 10](docs/queries.md#10-型をまたぐ結合をしない方針と代わりの方法)）。
+- [ ] **宣言的クエリの残り**（本体、全言語プラグイン SDK の `PageRenderContext.queries`、`theme dev` / Theme Builder のサンプル（`samples/queries.json`）は実装済み。仕様は [queries.md](docs/queries.ja.md)、設計判断は [architecture.md 25](docs/architecture.ja.md#25-宣言的クエリ-aegis-schemasrcqueryrs-aegis-dbsrcpublished_columnsrs-aegis-serversrcqueriesrs)）: ① Admin Studio でクエリの一覧・結果のプレビューを出すか（要望を見て決める）。型をまたぐ結合は対応しない方針（[queries.md 10](docs/queries.ja.md#10-型をまたぐ結合をしない方針と代わりの方法)）。
 
 ---
 
@@ -23,7 +23,7 @@
 ## 未着手タスク (Backlog)
 
 ### 🔌 プラグイン・将来構想
-GitHub の範囲を超えるブロックはすべてプラグインで作る（[architecture.md 3.1a](docs/architecture.md#31a-core-ブロックの範囲github-でできることが上限)）。上から順に着手する。
-- [ ] **会員の購入・サブスクの実機確認**: 設計は [members.md 16](docs/members.md#16-購入記事の単独購入サブスク)。実装（記事の単独購入・サブスク・管理画面・マイページ）は済で、Stripe はモックでしか確かめていない。Stripe のテストモードで、決済ページ・Webhook（`checkout.session.completed` / `customer.subscription.*` / `charge.refunded`）・Customer Portal・返金を一度通す。新しい API バージョンで契約の期間の終わりが `items` に移っている点（`current_period_end`）は両対応にしてあるが、実物の応答では未確認。
+GitHub の範囲を超えるブロックはすべてプラグインで作る（[architecture.md 3.1a](docs/architecture.ja.md#31a-core-ブロックの範囲github-でできることが上限)）。上から順に着手する。
+- [ ] **会員の購入・サブスクの実機確認**: 設計は [members.md 16](docs/members.ja.md#16-購入記事の単独購入サブスク)。実装（記事の単独購入・サブスク・管理画面・マイページ）は済で、Stripe はモックでしか確かめていない。Stripe のテストモードで、決済ページ・Webhook（`checkout.session.completed` / `customer.subscription.*` / `charge.refunded`）・Customer Portal・返金を一度通す。新しい API バージョンで契約の期間の終わりが `items` に移っている点（`current_period_end`）は両対応にしてあるが、実物の応答では未確認。
 - [ ] **official-clarity の実機確認**: 単体テストと Wasm の実行で、起動コードが同意を待つ形で入り、録画しないページに入らないことは確かめた。実際の Clarity での動作（CSP のホストで読み込み・送信がブロックされないか、`scripts.clarity.ms` が要るか）は、プロジェクト ID を入れたサイトで確かめていない。
 - [ ] **リンク埋め込みの定期更新（検討。要望が出てから）**: `official-link-embed` は「再取得」ボタンと URL の書き換えでだけ取り直す（Wasm に時計が無く、KV に有効期限も無いため、期限切れの自動判定はできない）。ホスト側の定期ジョブが要るかは、要望を見て決める。

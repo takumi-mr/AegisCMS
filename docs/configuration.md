@@ -1,115 +1,116 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# AegisCMS 設定リファレンス (Configuration Reference)
+**English** | [日本語](configuration.ja.md)
 
-AegisCMS コアサーバー (`aegis-server`) の設定ファイル (`config/*.toml`) で指定できる項目の一覧です。
-設定値の定義元は [`crates/aegis-server/src/config.rs`](../crates/aegis-server/src/config.rs) の `AegisConfig` です。各セクションの型はそれを使うクレートの `config` モジュールにあります（例: `[database]` は `aegis-db`、`[storage]` は `aegis-storage`、`[commerce]` は `aegis-commerce`）。
+# AegisCMS Configuration Reference
+
+A list of the items that can be specified in the AegisCMS core server (`aegis-server`) config files (`config/*.toml`).
+The definition source of the settings is `AegisConfig` in [`crates/aegis-server/src/config.rs`](../crates/aegis-server/src/config.rs). The type of each section is in the `config` module of the crate that uses it (for example, `[database]` is in `aegis-db`, `[storage]` in `aegis-storage`, and `[commerce]` in `aegis-commerce`).
 
 ---
 
-## 1. 設定ファイルの読み込み
+## 1. Loading the Config File
 
-### 1.1 読み込むファイルの決定
+### 1.1 Deciding Which File to Load
 
-| 優先度 | 指定方法 | 例 |
+| Priority | How to specify | Example |
 | --- | --- | --- |
-| 1 | CLI 引数 `-c` / `--config` | `aegis-server --config config/prod.toml run` |
-| 2 | 環境変数 `AEGIS_CONFIG` | `AEGIS_CONFIG=/app/config/docker.toml` |
-| 3 | 既定値 | `config/default.toml` |
+| 1 | The CLI argument `-c` / `--config` | `aegis-server --config config/prod.toml run` |
+| 2 | The environment variable `AEGIS_CONFIG` | `AEGIS_CONFIG=/app/config/docker.toml` |
+| 3 | The default | `config/default.toml` |
 
-同梱の設定ファイル:
+Bundled config files:
 
-- [`config/default.toml`](../config/default.toml): ローカル開発用
-- [`config/docker.toml`](../config/docker.toml): コンテナ用 (`Dockerfile` が `AEGIS_CONFIG` に設定)
+- [`config/default.toml`](../config/default.toml): for local development
+- [`config/docker.toml`](../config/docker.toml): for containers (the `Dockerfile` sets it in `AEGIS_CONFIG`)
 
-### 1.2 CLI / 環境変数によるオーバーライド
+### 1.2 Overriding with the CLI / Environment Variables
 
-`run` サブコマンドに限り、以下で `[server]` の値を上書きできます。
+Only for the `run` subcommand, the values of `[server]` can be overridden with the following.
 
-| CLI 引数 | 環境変数 | 上書き対象 |
+| CLI argument | Environment variable | What it overrides |
 | --- | --- | --- |
 | `-p`, `--port <PORT>` | `PORT` | `server.port` |
 | `-H`, `--host <HOST>` | `HOST` | `server.host` |
 
-ログレベルは標準の `RUST_LOG` 環境変数で制御します（未指定時: `info,aegis_server=debug,tower_http=debug`）。
+The log level is controlled with the standard `RUST_LOG` environment variable (when unspecified: `info,aegis_server=debug,tower_http=debug`).
 
-### 1.3 パース時の注意事項
+### 1.3 Notes on Parsing
 
-- **すべてのセクション・項目は省略可能**です。省略した項目には下表の既定値が使われます。
-  - 例: `[server]` に `port = 9000` だけを書いた場合、`host` は既定値の `"127.0.0.1"` になります。
-- **ファイルが存在しない場合**は警告ログ (`Config file ... not found`) を出して、組み込みの既定値で起動します。
-- **ファイルの読み込みやパースに失敗した場合**（型の誤り、未知の `backend` 値など）は、エラーメッセージを表示して起動を中止します（終了コード 1）。
-- バックエンド種別（`backend`）は TOML 上では下表に記載した値のみ受け付けます（大文字・小文字も区別）。`"r2"` や `"minio"` などの別名は使えません。
+- **Every section and item is optional.** Omitted items use the defaults in the tables below.
+  - Example: if you write only `port = 9000` in `[server]`, `host` becomes the default `"127.0.0.1"`.
+- **If the file does not exist**, a warning log (`Config file ... not found`) is written and it starts with the built-in defaults.
+- **If reading or parsing the file fails** (a wrong type, an unknown `backend` value, etc.), an error message is shown and startup is aborted (exit code 1).
+- Backend kinds (`backend`) in TOML accept only the values listed in the tables below (case-sensitive too). Aliases such as `"r2"` and `"minio"` cannot be used.
 
 ---
 
-## 2. 設定項目一覧
+## 2. Settings List
 
-### 2.1 `[server]` — HTTP サーバー
+### 2.1 `[server]` — HTTP Server
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `host` | string | `"127.0.0.1"` | リッスンするアドレス。コンテナでは `"0.0.0.0"` を指定 |
-| `port` | integer (u16) | `8080` | リッスンするポート |
-| `base_path` | string | `""` | サブパス配下で公開する場合のパス（例: `"/cms"`）。空ならルート `/` で公開。使える文字は英数字と `- . _ ~`（不正な値はサーバーが起動しない）。[4.2](#42-サブパスで公開する) を参照 |
-| `admin_path` | string | `"/admin"` | Admin Studio を配信するパス。1 階層だけで、使える文字は `base_path` と同じ。公開サイト・API のパス（`/api`、`/uploads`、`/theme`、`/articles` など）とは重ねられない（不正な値はサーバーが起動しない）。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
-| `namespace` | string | `"cms"` | 公開ページに出る識別子（CSS のクラス名・`id`・`data-*` 属性・Cookie と localStorage のキー・JS のグローバル名・`/_<namespace>/` の配信パス）の接頭辞。英小文字で始まり、英小文字と数字だけの 16 文字以内（不正な値はサーバーが起動しない）。`admin_path` と `/_<namespace>` を同じにはできない。[4.6](#46-使っている-cms-を特定されにくくする) を参照 |
+| `host` | string | `"127.0.0.1"` | The address to listen on. In containers specify `"0.0.0.0"` |
+| `port` | integer (u16) | `8080` | The port to listen on |
+| `base_path` | string | `""` | The path when publishing under a subpath (e.g. `"/cms"`). If empty, published at the root `/`. Usable characters are alphanumerics and `- . _ ~` (an invalid value stops the server from starting). See [4.2](#42-publishing-under-a-subpath) |
+| `admin_path` | string | `"/admin"` | The path where Admin Studio is served. One level only, with the same usable characters as `base_path`. It cannot overlap the paths of the public site and API (`/api`, `/uploads`, `/theme`, `/articles`, etc.) (an invalid value stops the server from starting). See [4.6](#46-making-it-harder-to-identify-the-cms-in-use) |
+| `namespace` | string | `"cms"` | The prefix of identifiers that appear on public pages (CSS class names, `id`s, `data-*` attributes, cookie and localStorage keys, JS global names, and the `/_<namespace>/` serving path). It starts with a lowercase letter and is only lowercase letters and digits, within 16 characters (an invalid value stops the server from starting). `admin_path` and `/_<namespace>` cannot be the same. See [4.6](#46-making-it-harder-to-identify-the-cms-in-use) |
+| `cors_origins` | array of strings | `[]` | Origins that are allowed to call authenticated APIs from another origin (e.g. `["https://admin.example.com"]`). The default (empty) is: only public reads are open to all origins (`*`), and APIs requiring authentication and writes are same-origin only. `"*"` gives the earlier behavior (all methods to all origins). An invalid value stops the server from starting. See [4.3.1](#431-cors-servercors_origins) |
 
-| `cors_origins` | string の配列 | `[]` | 別のオリジンから認証つきの API を呼ぶことを許すオリジン（例: `["https://admin.example.com"]`）。既定（空）は、公開の読み取りだけ全オリジン（`*`）で、認証が要る API・書き込みは同一オリジンだけ。`"*"` で前の動き（全オリジンに全メソッド）。不正な値はサーバーが起動しない。[4.3.1](#431-corsserver-cors_origins) を参照 |
+### 2.2 `[database]` — Database
 
-### 2.2 `[database]` — データベース
-
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `backend` | `"sqlite"` \| `"postgres"` \| `"mysql"` | `"sqlite"` | 使用する RDBMS |
-| `url` | string | `"sqlite://aegis.db?mode=rwc"` | 接続 URL |
-| `max_connections` | integer (u32) | `10` | 接続プールの最大接続数 |
+| `backend` | `"sqlite"` \| `"postgres"` \| `"mysql"` | `"sqlite"` | The RDBMS to use |
+| `url` | string | `"sqlite://aegis.db?mode=rwc"` | The connection URL |
+| `max_connections` | integer (u32) | `10` | The maximum connections of the connection pool |
 
-`backend` が `"sqlite"`（既定値）の場合は、`url` のスキームから実際のバックエンドが推論されます。
+When `backend` is `"sqlite"` (the default), the actual backend is inferred from the `url` scheme.
 
-SQLite のファイルは WAL モード（`journal_mode = WAL`、`synchronous = NORMAL`）で開きます。読み込みが書き込みを待たず、コミットごとのディスク同期も減ります（監査ログのようにリクエストのたびに書く処理が詰まりにくい）。DB ファイルの横に `<名前>-wal` / `<名前>-shm` ができるので、バックアップやボリュームでは 3 つをまとめて扱ってください。WAL は NFS などのネットワークファイルシステムでは使えないため、DB はローカルのディスク（コンテナならボリューム）に置きます。
+SQLite files are opened in WAL mode (`journal_mode = WAL`, `synchronous = NORMAL`). Reads do not wait for writes, and disk syncs per commit are also reduced (processing that writes on every request, like the audit log, is less likely to jam). `<name>-wal` / `<name>-shm` are created beside the DB file, so handle all 3 together in backups and volumes. WAL cannot be used on network file systems such as NFS, so place the DB on a local disk (a volume for containers).
 
-| `url` のスキーム | 推論されるバックエンド |
+| `url` scheme | Inferred backend |
 | --- | --- |
 | `postgres://`, `postgresql://` | PostgreSQL |
 | `mysql://`, `mariadb://` | MySQL |
-| それ以外 | SQLite |
+| Anything else | SQLite |
 
 ```toml
 [database]
-url = "postgres://user:password@localhost:5432/aegis"  # backend を省略しても postgres になる
+url = "postgres://user:password@localhost:5432/aegis"  # it becomes postgres even if backend is omitted
 max_connections = 10
 ```
 
-### 2.3 `[storage]` — アセットストレージ
+### 2.3 `[storage]` — Asset Storage
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `backend` | `"local"` \| `"s3"` | `"local"` | アップロードファイルの保存先 |
-| `max_upload_mb` | integer (u64) | `10` | アップロード 1 回あたりの最大サイズ（MB）。超過すると `413 Payload Too Large`。リバースプロキシを置く場合はその上限（nginx の `client_max_body_size` など）も合わせる |
+| `backend` | `"local"` \| `"s3"` | `"local"` | Where uploaded files are stored |
+| `max_upload_mb` | integer (u64) | `10` | The maximum size per upload (MB). Exceeding it gives `413 Payload Too Large`. When putting a reverse proxy in front, match its limit too (such as nginx's `client_max_body_size`) |
 
-#### `[storage.local]` — ローカルディスク
+#### `[storage.local]` — Local Disk
 
-`backend = "local"` のとき使用されます。サーバー起動時に `upload_dir` が作成され、`public_url_prefix` のパスで静的配信されます。
+Used when `backend = "local"`. At server startup `upload_dir` is created, and files are served statically at the `public_url_prefix` path.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `upload_dir` | path | `"data/uploads"` | 保存先ディレクトリ |
-| `public_url_prefix` | string | `"/uploads"` | 配信 URL のプレフィックス（ルーティングにも使用） |
+| `upload_dir` | path | `"data/uploads"` | The storage directory |
+| `public_url_prefix` | string | `"/uploads"` | The prefix of serving URLs (also used for routing) |
 
-#### `[storage.s3]` — S3 互換オブジェクトストレージ
+#### `[storage.s3]` — S3-Compatible Object Storage
 
-`backend = "s3"` のとき使用されます。AWS S3 / Cloudflare R2 / MinIO / Wasabi などに対応しています。
+Used when `backend = "s3"`. Supports AWS S3 / Cloudflare R2 / MinIO / Wasabi, and others.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `bucket` | string | `"aegis-bucket"` | バケット名 |
-| `region` | string | `"auto"` | リージョン（SigV4 署名に使用。R2 は `"auto"`） |
-| `endpoint` | string | なし | カスタムエンドポイント。R2 / MinIO では必須。未指定時は `https://{bucket}.s3.{region}.amazonaws.com` |
-| `access_key_id` | string | `""` | アクセスキー ID |
-| `secret_access_key` | string | `""` | シークレットアクセスキー |
-| `force_path_style` | bool | `false` | `true` でパススタイル URL (`{endpoint}/{bucket}/{key}`) を使用。MinIO では `true` |
-| `public_url_prefix` | string | なし | 公開 URL のプレフィックス（CDN / カスタムドメイン）。未指定時はエンドポイント URL を返す |
+| `bucket` | string | `"aegis-bucket"` | Bucket name |
+| `region` | string | `"auto"` | Region (used for SigV4 signing. `"auto"` for R2) |
+| `endpoint` | string | None | A custom endpoint. Required for R2 / MinIO. When unspecified, `https://{bucket}.s3.{region}.amazonaws.com` |
+| `access_key_id` | string | `""` | Access key ID |
+| `secret_access_key` | string | `""` | Secret access key |
+| `force_path_style` | bool | `false` | `true` uses path-style URLs (`{endpoint}/{bucket}/{key}`). `true` for MinIO |
+| `public_url_prefix` | string | None | The prefix of public URLs (CDN / custom domain). When unspecified, the endpoint URL is returned |
 
 ```toml
 [storage]
@@ -125,65 +126,65 @@ force_path_style = false
 public_url_prefix = "https://cdn.example.com"
 ```
 
-### 2.4 `[cache]` — キャッシュ & セッション
+### 2.4 `[cache]` — Cache & Sessions
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `backend` | `"memory"` \| `"redis"` | `"memory"` | `memory`: プロセス内 TTL キャッシュ（1 台構成専用） / `redis`: 複数インスタンスでセッション・変更の知らせを共有 |
-| `default_ttl_secs` | integer (u64) | `3600` | キャッシュ・セッションの既定 TTL（秒）。ログイン時に指定する `ttl_secs` の上限も兼ねる |
+| `backend` | `"memory"` \| `"redis"` | `"memory"` | `memory`: an in-process TTL cache (for single-server setups only) / `redis`: shares sessions and change notices across multiple instances |
+| `default_ttl_secs` | integer (u64) | `3600` | The default TTL (seconds) for cache and sessions. Also serves as the upper limit of `ttl_secs` specified at login |
 
-- キャッシュと同じバックエンドで、Admin Studio での変更（プラグインの切り替え・並べ替え・設定値）をサーバー間で知らせます（[プラグインフックリファレンス 5.3](./plugin_hooks.md#53-複数台での反映)）。`redis` では Pub/Sub のチャネル `aegis:events` を使います。
-- **`memory` は 1 台構成専用です。** 起動時に DB（`_aegis_settings` の `server.memory_cache_instance`）に印を書き、10 秒ごとに書き直します。同じ DB で `memory` のサーバーがすでに動いていると、2 台目は起動しません（`Another AegisCMS server with [cache].backend = "memory" is running on this database`）。複数台で動かすときは `redis` にしてください。
-  - 普通に止めた（Ctrl+C・SIGTERM）サーバーは印を消すので、すぐに再起動できます。強制終了した直後（30 秒以内）の再起動は、前のサーバーが止まっていることを確かめるため 20 秒ほど待ってから起動します。
+- With the same backend as the cache, changes in Admin Studio (toggling, reordering, and settings values of plugins) are announced between servers ([Plugin hooks reference 7.3](./plugin_hooks.md#73-reflection-across-multiple-servers)). With `redis`, the Pub/Sub channel `aegis:events` is used.
+- **`memory` is for single-server setups only.** At startup it writes a mark to the DB (`server.memory_cache_instance` in `_aegis_settings`) and rewrites it every 10 seconds. If a `memory` server is already running on the same DB, the second one does not start (`Another AegisCMS server with [cache].backend = "memory" is running on this database`). When running multiple servers, use `redis`.
+  - A server that was stopped normally (Ctrl+C, SIGTERM) removes the mark, so it can be restarted immediately. Restarting right after a forced kill (within 30 seconds) waits about 20 seconds before starting, to confirm the previous server has stopped.
 
 #### `[cache.redis]`
 
-`backend = "redis"` のとき使用されます。
+Used when `backend = "redis"`.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `url` | string | `"redis://127.0.0.1:6379"` | Redis 接続 URL |
-| `timeout_ms` | integer (u64) | `2000` | Redis への接続 1 回あたりのタイムアウト、および各コマンドの応答タイムアウト（ミリ秒）。接続に失敗した場合は最大 2 回まで再試行し（待機は最大 1 秒）、それでも失敗すれば起動エラー・コマンドエラーになる |
+| `url` | string | `"redis://127.0.0.1:6379"` | The Redis connection URL |
+| `timeout_ms` | integer (u64) | `2000` | The timeout per connection to Redis and each command's response timeout (milliseconds). If connecting fails, it retries up to 2 times (waiting at most 1 second), and if it still fails it becomes a startup error or a command error |
 
-### 2.5 `[paths]` — ディレクトリ
+### 2.5 `[paths]` — Directories
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `schemas_dir` | path | `"schemas"` | 宣言的スキーマ (`*.yaml`) の読み込み元 |
-| `queries_dir` | path | `"queries"` | 宣言的クエリの定義（`*.yaml`）の読み込み元（[queries.md](queries.md)） |
-| `plugins_dir` | path | `"plugins"` | Wasm プラグインのインストール先（`<plugins_dir>/<name>/` に 1 プラグイン）。読み込むのは有効化リスト（`[plugins].enabled`、または Admin Studio で切り替えた一覧）にあるものだけ |
-| `admin_dist_dir` | path | `"admin/dist"` | Admin Studio ビルド成果物。存在すれば `/` で SPA として配信 |
+| `schemas_dir` | path | `"schemas"` | Where declarative schemas (`*.yaml`) are loaded from |
+| `queries_dir` | path | `"queries"` | Where declarative query definitions (`*.yaml`) are loaded from ([queries.md](queries.md)) |
+| `plugins_dir` | path | `"plugins"` | Where Wasm plugins are installed (one plugin in `<plugins_dir>/<name>/`). Only those in the enabled list (`[plugins].enabled`, or the list toggled in Admin Studio) are loaded |
+| `admin_dist_dir` | path | `"admin/dist"` | Admin Studio build output. If it exists, it is served as the SPA at `/` |
 
-### 2.6 `[runtime]` — Wasm プラグインランタイム
+### 2.6 `[runtime]` — Wasm Plugin Runtime
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enable_wasm_plugins` | bool | `true` | `false` でプラグインの読み込みを無効化 |
-| `default_max_memory_mb` | integer (u32) | `16` | マニフェストが `max_memory_mb` を省略したプラグインのメモリ上限（MiB） |
-| `default_max_fuel_units` | integer (u64) | `100000000` | マニフェストが `max_fuel_units` を省略したプラグインの Fuel 上限 |
-| `default_timeout_ms` | integer (u64) | `250` | マニフェストが `execution_timeout_ms` を省略したプラグインのタイムアウト（ミリ秒） |
-| `fuel_per_input_byte` | integer (u64) | `150` | フック入力 1 バイトあたりに追加する燃料上限（動的スケール）。`0` で無効（固定上限）。巨大な記事で JSON シリアライズや本文走査が `all fuel consumed` でトラップするのを防ぐ |
-| `instance_pool_size` | integer (u32) | `64` | Wasm インスタンスのプール（Wasmtime のプーリングアロケータ）の枠数 = 同時に実行できるフック呼び出しの数。超えた呼び出しは空きを待つ。`0` で無効（呼び出しごとにメモリを確保・解放する） |
-| `pool_max_memory_mb` | integer (u32) | `64` | プール 1 枠あたりの線形メモリの上限（MiB）。マニフェストの `max_memory_mb` がこれを超えるプラグインは読み込めない（起動しない） |
-| `render_cache_mb` | integer (u32) | `32` | `on-render-page` の結果のキャッシュの予算（MiB）。`0` で無効。出力が渡されたページの内容だけで決まるプラグインの呼び出しを覚えて、同じ入力では Wasm を呼ばない（[architecture.md 10.8](./architecture.md#108-on-render-page-の結果のキャッシュ-aegis-runtimesrcwasmresult_cachers)） |
+| `enable_wasm_plugins` | bool | `true` | `false` disables loading plugins |
+| `default_max_memory_mb` | integer (u32) | `16` | The memory limit (MiB) for plugins whose manifest omits `max_memory_mb` |
+| `default_max_fuel_units` | integer (u64) | `100000000` | The fuel limit for plugins whose manifest omits `max_fuel_units` |
+| `default_timeout_ms` | integer (u64) | `250` | The timeout (milliseconds) for plugins whose manifest omits `execution_timeout_ms` |
+| `fuel_per_input_byte` | integer (u64) | `150` | The fuel limit added per byte of hook input (dynamic scaling). `0` disables (fixed limit). Prevents JSON serialization and body scanning of huge articles from trapping with `all fuel consumed` |
+| `instance_pool_size` | integer (u32) | `64` | The number of slots in the Wasm instance pool (Wasmtime's pooling allocator) = the number of hook calls that can run simultaneously. Calls beyond it wait for a free slot. `0` disables (memory is allocated and freed on each call) |
+| `pool_max_memory_mb` | integer (u32) | `64` | The linear memory limit per pool slot (MiB). A plugin whose manifest `max_memory_mb` exceeds this cannot be loaded (the server does not start) |
+| `render_cache_mb` | integer (u32) | `32` | The budget (MiB) of the `on-render-page` result cache. `0` disables. It remembers calls of plugins whose output is decided only by the page content passed in, and does not call Wasm for the same input ([architecture.md 10.8](./architecture.md#108-caching-the-result-of-on-render-page-aegis-runtimesrcwasmresult_cachers)) |
 
 > [!NOTE]
-> `default_*` は既定値であり上限ではありません。プラグインの `plugin.manifest.json` の `resource_limits` に値があればそちらが優先され、省略した項目（または `resource_limits` 全体）だけがこの設定で補われます（[プラグインフックリファレンス](./plugin_hooks.md#4-リソース制限-resource_limits) を参照）。読み込んだプラグインごとの実際の値は起動時の `INFO` ログに出力されます。
+> `default_*` are defaults, not limits. If the plugin's `plugin.manifest.json` `resource_limits` has a value, that takes precedence, and only omitted items (or all of `resource_limits`) are filled in by these settings (see the [Plugin hooks reference](./plugin_hooks.md#4-resource-limits-resource_limits)). The actual values per loaded plugin are output to the `INFO` log at startup.
 
 > [!NOTE]
-> **インスタンスのプール**: フックは今までどおり呼び出しごとに新しいインスタンスで実行します（前の呼び出しの状態は残りません。返却された枠は Wasmtime がゼロに戻します）。プールは線形メモリ・テーブル・非同期スタックの確保を起動時に済ませておき、呼び出しごとの `mmap` / `munmap` を無くすためのものです。同時実行時のカーネル内の競合が無くなり、`official-code-enhancer` を有効にした記事ページは約 1.7 倍速くなりました。
-> 枠ごとに約 6 GiB の**仮想**アドレス空間を予約します（64 枠で約 390 GiB。境界チェックを省いた高速なコードにするため。実メモリは使った分だけ）。`ulimit -v` などで仮想メモリを制限している環境では予約に失敗し、警告を出して従来の方式で動きます。枠数を減らすか `0` にしてください。
+> **Instance pool**: hooks still run in a new instance on every call (state from the previous call does not remain; Wasmtime zeroes a returned slot). The pool does the allocation of linear memory, tables, and async stacks at startup, to eliminate `mmap` / `munmap` on each call. In-kernel contention under concurrent execution disappears, and article pages with `official-code-enhancer` enabled became about 1.7 times faster.
+> About 6 GiB of **virtual** address space is reserved per slot (about 390 GiB for 64 slots; this is to make fast code that omits bounds checks, and real memory is used only as much as needed). In environments that limit virtual memory with `ulimit -v` or the like, the reservation fails, a warning is shown, and it runs the conventional way. Reduce the slot count or set `0`.
 
-#### `[plugins]` — プラグインの有効化
+#### `[plugins]` — Enabling Plugins
 
-`plugins_dir` にインストールしたプラグインのうち、読み込むものを指定します（テーマの `[theme].active` と同じく、インストールと有効化を分けています）。
+Of the plugins installed in `plugins_dir`, specifies which to load (like the theme's `[theme].active`, installation and enabling are separate).
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | array of string | `[]` | 有効にするプラグイン名（マニフェストの `name` = `plugins_dir` 直下のディレクトリ名）。フックはこの順に実行される |
-| `settings.<name>` | table | なし | プラグインごとの設定値。プラグインは `host.config_get`（SDK の `config::get`）で読む。文字列の値 `env:NAME` は環境変数 `NAME` の値になる（API キーなどを設定ファイルに書かないため） |
-| `require_signatures` | bool | `false` | ZIP でのインストール時に署名（`signature.json`）を必須にする（[パッケージのインストール](./plugin_hooks.md#54-zip-パッケージからのインストールと署名)） |
-| `trusted_public_keys` | string[] | `[]` | 受け入れる Ed25519 公開鍵（32 バイトの hex）。`require_signatures = true` のときは 1 件以上必須（空だと起動しない）。`require_signatures = false` で空なら署名が正しければどの鍵でも受け入れる |
+| `enabled` | array of string | `[]` | The plugin names to enable (the manifest's `name` = the directory name directly under `plugins_dir`). Hooks run in this order |
+| `settings.<name>` | table | None | Per-plugin settings values. Plugins read them with `host.config_get` (the SDK's `config::get`). A string value `env:NAME` becomes the value of the environment variable `NAME` (so API keys and the like are not written in the config file) |
+| `require_signatures` | bool | `false` | Require a signature (`signature.json`) for ZIP installs ([Installing packages](./plugin_hooks.md#74-installing-from-a-zip-package-and-signatures)) |
+| `trusted_public_keys` | string[] | `[]` | The Ed25519 public keys to accept (32-byte hex). With `require_signatures = true`, at least 1 is required (if empty, it does not start). With `require_signatures = false` and empty, any key is accepted if the signature is valid |
 
 ```toml
 [plugins]
@@ -194,155 +195,155 @@ shipping_fee = 600
 coupons = "WELCOME10:10%"
 ```
 
-- プラグインが外部へ通信するときの許可ドメイン（`capabilities.network.allowed_domains`）に、サイトの設定でドメインを足せます: `[plugins.settings.<プラグイン名>]` の `extra_allowed_domains = "qiita.com, zenn.dev"`（サブドメインを含む）。通信できるのは公開されたアドレスの `http`（80・8080）と `https`（443）だけで、内部の IP アドレスへは常に通信しません（[プラグインフックリファレンス 5.4](./plugin_hooks.md#54-http-リクエスト-hosthttp_fetch)）。
-- 列挙したプラグインが未インストール・読み込めない（マニフェストの不備、ホストに無い関数のインポートなど）場合、名前の形式が不正・重複している場合は**サーバーが起動しません**。
-- `[runtime].enable_wasm_plugins = false` の場合は読み込みません。
-- Admin Studio（`PUT /api/v1/plugins/{name}/enabled`・`PUT /api/v1/plugins/order`）で有効・無効や順序を変えると、その一覧が DB に保存され、以後は `enabled` より優先されます（[プラグインフックリファレンス 5.1](./plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)）。Admin Studio の「設定ファイルの値に戻す」（`DELETE /api/v1/plugins/order`）で `enabled` に戻ります。
-- 状態は `aegis-server plugin list` で確認できます（[プラグインフックリファレンス](./plugin_hooks.md#5-インストールと有効化)）。
+- You can add domains in the site's settings to the allowed domains (`capabilities.network.allowed_domains`) for when a plugin communicates externally: `extra_allowed_domains = "qiita.com, zenn.dev"` in `[plugins.settings.<plugin name>]` (including subdomains). Communication is only to public addresses over `http` (80, 8080) and `https` (443), and it never connects to internal IP addresses ([Plugin hooks reference 5.4](./plugin_hooks.md#54-http-requests-hosthttp_fetch)).
+- If a listed plugin is not installed or cannot be loaded (a manifest defect, importing a function the host lacks, etc.), or a name is malformed or duplicated, **the server does not start**.
+- With `[runtime].enable_wasm_plugins = false`, they are not loaded.
+- When you change enabling or order in Admin Studio (`PUT /api/v1/plugins/{name}/enabled`, `PUT /api/v1/plugins/order`), that list is saved in the DB and from then on takes precedence over `enabled` ([Plugin hooks reference 7.1](./plugin_hooks.md#71-toggling-on-and-off-from-admin-studio)). Admin Studio's "Return to config file values" (`DELETE /api/v1/plugins/order`) returns to `enabled`.
+- The status can be checked with `aegis-server plugin list` ([Plugin hooks reference](./plugin_hooks.md#7-installation-and-enabling)).
 
-### 2.7 `[security]` — HTML 出力のセキュリティ / 最適化
+### 2.7 `[security]` — HTML Output Security / Optimization
 
-コンテンツ作成時に、レンダリング済み HTML へストリーミングリライター (`lol-html`) で適用されます。
-「外部リンク」は `http://` / `https://` / `//` で始まる絶対 URL のうち、`internal_domains` に一致しないものです（相対パス、`#`, `mailto:`, `tel:` などは対象外）。
+At content creation, these are applied to the rendered HTML by the streaming rewriter (`lol-html`).
+An "external link" is an absolute URL starting with `http://` / `https://` / `//` that does not match `internal_domains` (relative paths, `#`, `mailto:`, `tel:`, etc. are not covered).
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `strict_csp` | string | `"on"` | 公開ページの Content-Security-Policy。`"on"`（既定）は Strict を強制する（`script-src` と `style-src` から `'unsafe-inline'` を外し、プラグインとテンプレートが出したインラインのスクリプトと `<style>` は本文のハッシュで許す。`style=""` 属性も止まる）。`"report-only"` は、前の CSP（`script-src 'self' 'unsafe-inline'`）のまま、Strict の CSP を `Content-Security-Policy-Report-Only` でも出し、止まるものをブラウザーのコンソールで確かめられる。`"off"` は前の CSP に戻す。**テーマ自身のインラインの `<script>`・`<style>`・`style=""`・`on*` 属性は、`on` では動かない**（[テーマの書き方](./theme_authoring_guide.md#6a-スクリプトの書き方インラインを書かない)）。管理画面の「設定 › ヘッダー」で CSP を上書きしているときは、その値が優先。詳しくは [csp.md](./csp.md) |
-| `enforce_external_link_rel` | bool | `true` | 外部リンクの `<a>` に `rel="noopener noreferrer"` を付与（既存の `rel` とマージ） |
-| `open_external_links_in_new_tab` | bool | `false` | `target` 未指定の外部リンクに `target="_blank"` を付与 |
-| `internal_domains` | string[] | `[]` | 内部扱いするドメイン（サブドメインも一致、大文字・小文字は区別しない）。これらへのリンクは上記の対象外 |
-| `enforce_image_lazy_loading` | bool | `true` | `loading` 未指定の `<img>` に `loading="lazy"` を付与 |
-| `enforce_image_async_decoding` | bool | `true` | `decoding` 未指定の `<img>` に `decoding="async"` を付与 |
+| `strict_csp` | string | `"on"` | The public pages' Content-Security-Policy. `"on"` (default) enforces Strict (removes `'unsafe-inline'` from `script-src` and `style-src`, and allows inline scripts and `<style>` that plugins and templates output by body hash; `style=""` attributes are stopped too). `"report-only"` keeps the previous CSP (`script-src 'self' 'unsafe-inline'`) and also outputs the Strict CSP as `Content-Security-Policy-Report-Only`, so you can check what would be blocked in the browser console. `"off"` returns to the previous CSP. **A theme's own inline `<script>`, `<style>`, `style=""`, and `on*` attributes do not run with `on`** ([How to write themes](./theme_authoring_guide.md#6a-how-to-write-scripts-do-not-write-inline)). When the CSP is overridden in the admin screen's "Settings › Headers", that value takes priority. For details see [csp.md](./csp.md) |
+| `enforce_external_link_rel` | bool | `true` | Add `rel="noopener noreferrer"` to external links' `<a>` (merged with any existing `rel`) |
+| `open_external_links_in_new_tab` | bool | `false` | Add `target="_blank"` to external links with no `target` |
+| `internal_domains` | string[] | `[]` | Domains to treat as internal (subdomains match too; case-insensitive). Links to these are excluded from the above |
+| `enforce_image_lazy_loading` | bool | `true` | Add `loading="lazy"` to `<img>` with no `loading` |
+| `enforce_image_async_decoding` | bool | `true` | Add `decoding="async"` to `<img>` with no `decoding` |
 
-### 2.8 `[audit]` — 監査ログ
+### 2.8 `[audit]` — Audit Log
 
-操作の監査イベントを記録します。記録対象・出力形式・参照 API の詳細は [監査ログリファレンス](./audit.md) を参照してください。
+Records audit events of operations. For the recorded targets, output formats, and the query API, see the [Audit log reference](./audit.md).
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `true` | `false` で監査ログの記録を無効化 |
-| `sinks` | (`"database"` \| `"log"` \| `"prometheus"`)[] | `["database"]` | 出力先（複数指定可）。`database`: DB テーブル + 参照 API / `log`: 構造化ログ / `prometheus`: `/metrics` のカウンタ |
-| `forwarded_for_hops` | integer (u32) | `1` | `trust_forwarded_for = true` のとき、`X-Forwarded-For` に追記する信頼できるプロキシの段数。右端から数えてこの段数目のアドレスをクライアント IP とする（先頭は偽装できるため使わない） |
-| `trust_forwarded_for` | bool | `false` | `true` で `X-Forwarded-For`（右端から `forwarded_for_hops` 段目）をクライアント IP として扱う（監査ログの記録と、`[auth.login_rate_limit]` の IP 単位の制限に使用）。信頼できるリバースプロキシ配下でのみ有効化 |
-| `retention_days` | integer (u32) | `0` | `database` 出力先の監査ログを保持する日数。これより古いログを定期的に削除（`0` で無期限） |
-| `purge_interval_secs` | integer (u64) | `3600` | 保持期間切れのログを削除する間隔（秒、最小 60）。起動直後にも 1 回実行 |
+| `enabled` | bool | `true` | `false` disables recording audit logs |
+| `sinks` | (`"database"` \| `"log"` \| `"prometheus"`)[] | `["database"]` | Destinations (multiple allowed). `database`: a DB table + query API / `log`: structured logs / `prometheus`: counters at `/metrics` |
+| `forwarded_for_hops` | integer (u32) | `1` | When `trust_forwarded_for = true`, the number of trusted proxies that append to `X-Forwarded-For`. The address this many entries from the right end is the client IP (the first is not used because it can be spoofed) |
+| `trust_forwarded_for` | bool | `false` | `true` treats `X-Forwarded-For` (the `forwarded_for_hops`-th from the right end) as the client IP (used for audit log records and the per-IP limit of `[auth.login_rate_limit]`). Enable only behind a trusted reverse proxy |
+| `retention_days` | integer (u32) | `0` | Days to keep the `database` destination's audit logs. Older logs are deleted periodically (`0` is unlimited) |
+| `purge_interval_secs` | integer (u64) | `3600` | The interval for deleting logs past retention (seconds, minimum 60). Also runs once right after startup |
 
-### 2.9 `[auth.login_rate_limit]` — ログイン試行のレート制限
+### 2.9 `[auth.login_rate_limit]` — Rate Limiting of Login Attempts
 
-`POST /api/v1/auth/session` の認証失敗をユーザー名・クライアント IP 単位で数え、上限に達すると一定時間 `429 Too Many Requests` で拒否します（詳細は [認証ドキュメント](./authentication.md#5-セキュリティ上の挙動)）。失敗回数は `[cache]` のバックエンドに保存するため、複数インスタンスで制限を共有するには `backend = "redis"` にしてください。
+Authentication failures of `POST /api/v1/auth/session` are counted per username and client IP, and on reaching the limit are refused with `429 Too Many Requests` for a set time (for details see the [Authentication document](./authentication.md#5-security-behavior)). Failure counts are stored in the `[cache]` backend, so to share the limit across multiple instances, set `backend = "redis"`.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `true` | `false` でレート制限を無効化 |
-| `max_failures_per_user` | integer (u64) | `5` | 同じユーザー名（大文字・小文字を区別しない）で `window_secs` 内に失敗できる回数。到達でそのユーザー名をロック（`0` で無制限） |
-| `max_failures_per_ip` | integer (u64) | `20` | 同じクライアント IP から `window_secs` 内に失敗できる回数。到達でその IP をロック（`0` で無制限） |
-| `window_secs` | integer (u64) | `900` | 失敗回数を数える期間（秒）。最初の失敗から数え、過ぎると 0 に戻る |
-| `lockout_secs` | integer (u64) | `900` | ロックの継続時間（秒）。ロック中は正しいパスワードでもログインできない |
+| `enabled` | bool | `true` | `false` disables the rate limit |
+| `max_failures_per_user` | integer (u64) | `5` | The number of failures allowed within `window_secs` with the same username (case-insensitive). On reaching it, that username is locked (`0` is unlimited) |
+| `max_failures_per_ip` | integer (u64) | `20` | The number of failures allowed within `window_secs` from the same client IP. On reaching it, that IP is locked (`0` is unlimited) |
+| `window_secs` | integer (u64) | `900` | The period over which failures are counted (seconds). Counted from the first failure, and returns to 0 once it passes |
+| `lockout_secs` | integer (u64) | `900` | The duration of the lock (seconds). While locked, login is impossible even with the correct password |
 
-### 2.10 `[auth.oidc]` — シングルサインオン (OpenID Connect)
+### 2.10 `[auth.oidc]` — Single Sign-On (OpenID Connect)
 
-外部 IdP によるログイン（認可コードフロー + PKCE）。使い方は [認証ドキュメント](./authentication.md#6-シングルサインオン-openid-connect) を参照してください。`enabled = true` で必須項目が欠けている、またはロール名が不正な場合はサーバーが起動しません。
+Login with an external IdP (authorization code flow + PKCE). For usage, see the [Authentication document](./authentication.md#6-single-sign-on-openid-connect). With `enabled = true`, if a required item is missing or a role name is invalid, the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で SSO を有効化 |
-| `display_name` | string | `"SSO"` | ログイン画面のボタン名（`Sign in with ...`） |
-| `issuer_url` | string | `""` | IdP の Issuer（必須）。`{issuer_url}/.well-known/openid-configuration` からエンドポイントを取得する |
-| `client_id` | string | `""` | クライアント ID（必須） |
-| `client_secret` | string | `""` | クライアントシークレット |
-| `redirect_url` | string | `""` | IdP に登録したコールバック URL（必須）。`https://<ホスト>/api/v1/auth/oidc/callback` |
-| `scopes` | array of string | `["openid", "profile", "email"]` | 要求するスコープ（`openid` は常に付ける） |
-| `username_claim` | string | `"preferred_username"` | 新規ユーザーのユーザー名にするクレーム（無ければ `email`） |
-| `auto_create_users` | bool | `true` | 未登録のユーザーを初回ログイン時に作成する。`false` なら `aegis-server user link-oidc` で紐付けたユーザーのみ |
-| `default_role` | string | `"viewer"` | 新規ユーザーのロール。`role_claim` 使用時はどのグループにも一致しない場合のロール |
-| `role_claim` | string | `""` | ロールを決めるクレーム（例: `groups`）。空ならロールは AegisCMS のユーザーアカウントで決まる |
-| `role_mapping` | table | `{}` | `role_claim` の値 → ロール（`admin` / `editor` / `viewer`）。複数一致した場合は最も強いロール |
-| `post_login_redirect` | string | `"/admin/"` | ログイン後に戻る Admin Studio の URL（`#session=` / `#login_error=` を付ける）。`/` で始まる場合は `[server].base_path` が付く。Admin Studio を別オリジン（開発サーバーなど）で動かす場合は絶対 URL |
+| `enabled` | bool | `false` | `true` enables SSO |
+| `display_name` | string | `"SSO"` | The login screen's button name (`Sign in with ...`) |
+| `issuer_url` | string | `""` | The IdP's Issuer (required). Endpoints are fetched from `{issuer_url}/.well-known/openid-configuration` |
+| `client_id` | string | `""` | The client ID (required) |
+| `client_secret` | string | `""` | The client secret |
+| `redirect_url` | string | `""` | The callback URL registered with the IdP (required). `https://<host>/api/v1/auth/oidc/callback` |
+| `scopes` | array of string | `["openid", "profile", "email"]` | The scopes to request (`openid` is always included) |
+| `username_claim` | string | `"preferred_username"` | The claim to use as a new user's username (`email` if absent) |
+| `auto_create_users` | bool | `true` | Create unregistered users at first login. With `false`, only users linked with `aegis-server user link-oidc` |
+| `default_role` | string | `"viewer"` | A new user's role. When using `role_claim`, the role when no group matches |
+| `role_claim` | string | `""` | The claim that decides the role (e.g. `groups`). If empty, the role is decided by the AegisCMS user account |
+| `role_mapping` | table | `{}` | `role_claim` value → role (`admin` / `editor` / `viewer`). If several match, the strongest role |
+| `post_login_redirect` | string | `"/admin/"` | The Admin Studio URL to return to after login (`#session=` / `#login_error=` is appended). If it starts with `/`, `[server].base_path` is prepended. When running Admin Studio on a different origin (such as a dev server), an absolute URL |
 
 > [!NOTE]
-> `client_secret` は設定ファイルに平文で書くため、ファイルの権限を制限してください。
+> `client_secret` is written in plain text in the config file, so restrict the file's permissions.
 
-### 2.11 `[auth.registration]` — アカウント登録
+### 2.11 `[auth.registration]` — Account Registration
 
-Admin Studio のログイン画面からのアカウント登録（メールアドレスの確認つき）。使い方は [認証ドキュメント](./authentication.md#7-アカウント登録) を参照してください。`enabled = true` のとき、通知（`[notifications]`）が無効、確認リンクの開き先が決まらない、`default_role` が `admin` または不明なロールの場合はサーバーが起動しません。
+Account registration from Admin Studio's login screen (with email address confirmation). For usage, see the [Authentication document](./authentication.md#7-account-registration). With `enabled = true`, the server does not start if notifications (`[notifications]`) are disabled, the destination of the confirmation link cannot be determined, or `default_role` is `admin` or an unknown role.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` でアカウント登録を有効化 |
-| `admin_url` | string | `""` | 確認リンクの開き先の Admin Studio の URL（例: `"https://cms.example.com/admin/"`。`#verify-email=<トークン>` を付ける）。空なら `[commerce].public_url` + `/admin/`。リクエストの Host からは作らない |
-| `default_role` | string | `"viewer"` | 登録したユーザーのロール（`editor` / `contributor` / `viewer`） |
-| `require_approval` | bool | `true` | `true` なら確認後のアカウントを無効の状態で作り、admin が有効にするまでログインできない |
-| `allowed_email_domains` | array of string | `[]` | 登録できるメールアドレスのドメイン（`"example.com"` ならサブドメインも可）。空ならどのドメインでも登録できる |
-| `token_ttl_secs` | integer (u64) | `86400` | 確認リンクの有効期間（秒） |
-| `max_per_ip_per_hour` | integer (u64) | `5` | 同じクライアント IP から 1 時間に受け付ける申し込みの数（`0` で無制限） |
+| `enabled` | bool | `false` | `true` enables account registration |
+| `admin_url` | string | `""` | The Admin Studio URL where the confirmation link opens (e.g. `"https://cms.example.com/admin/"`; `#verify-email=<token>` is appended). If empty, `[commerce].public_url` + `/admin/`. It is not built from the request's Host |
+| `default_role` | string | `"viewer"` | The registered user's role (`editor` / `contributor` / `viewer`) |
+| `require_approval` | bool | `true` | With `true`, the account after confirmation is created disabled and cannot log in until an admin enables it |
+| `allowed_email_domains` | array of string | `[]` | Email address domains that may register (`"example.com"` allows subdomains too). If empty, any domain may register |
+| `token_ttl_secs` | integer (u64) | `86400` | The validity of the confirmation link (seconds) |
+| `max_per_ip_per_hour` | integer (u64) | `5` | The number of applications accepted per hour from the same client IP (`0` is unlimited) |
 
-### 2.12 `[commerce]` — EC
+### 2.12 `[commerce]` — E-Commerce
 
-カート・注文・在庫・決済（[EC ドキュメント](./commerce.md)）。`enabled = true` で設定が不正な場合（通貨コードの形式、Stripe のキーが無いなど）や商品スキーマに `price`（integer）が無い場合はサーバーが起動しません。
+Cart, orders, inventory, and payment ([E-commerce document](./commerce.md)). With `enabled = true`, if the settings are invalid (the currency code format, no Stripe key, etc.) or the product schema lacks `price` (integer), the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` でカート・注文を有効化（無効でも商品一覧・商品ページは表示される） |
-| `product_type` | string | `"product"` | 商品のコンテンツタイプ |
-| `currency` | string | `"jpy"` | ISO 4217 の通貨コード（小文字）。金額はすべてこの通貨の最小単位の整数 |
-| `supported_currencies` | string[] | `[]` | 顧客が選べる通貨（小文字 3 文字）。空なら `currency` だけ。`currency` は常に含まれる（[複数通貨](./commerce.md#22-複数通貨)） |
-| `currency_rates` | table | `{}` | `currency` の 1 単位に対する各通貨のレート（例: `{ usd = 0.0067 }`）。正の数のみ |
-| `public_url` | string | `""` | 公開サイトの URL（決済後の戻り先。サブパス運用なら `base_path` 込み）。空ならリクエストの Host（`trust_forwarded_for` なら `X-Forwarded-Host` / `-Proto`）から |
-| `provider` | string | `"manual"` | `manual`（銀行振込・代引きなど。管理者が入金を確認）または `stripe` |
-| `reservation_minutes` | integer | `60` | Stripe の決済ページの有効期限 = 在庫を確保しておく時間（Stripe では 30〜1440） |
-| `max_quantity_per_item` | integer | `99` | 1 商品あたりの最大数量 |
-| `max_items` | integer | `50` | 1 注文の最大商品数 |
-| `max_orders_per_ip_per_hour` | integer | `20` | 同じ IP からの 1 時間あたりの注文数（0 で無制限。`[cache]` で数える） |
-| `low_stock_threshold` | integer または `null` | `5` | 在庫が閾値に達したときスタッフ通知。`null` で無効 |
+| `enabled` | bool | `false` | `true` enables the cart and orders (the product list and product pages are shown even when disabled) |
+| `product_type` | string | `"product"` | The product's content type |
+| `currency` | string | `"jpy"` | The ISO 4217 currency code (lowercase). All amounts are integers in this currency's smallest unit |
+| `supported_currencies` | string[] | `[]` | Currencies customers can choose (3 lowercase letters). If empty, only `currency`. `currency` is always included ([Multiple currencies](./commerce.md#22-multiple-currencies)) |
+| `currency_rates` | table | `{}` | The rate of each currency per 1 unit of `currency` (e.g. `{ usd = 0.0067 }`). Positive numbers only |
+| `public_url` | string | `""` | The public site's URL (the return destination after payment; includes `base_path` for subpath operation). If empty, from the request's Host (`X-Forwarded-Host` / `-Proto` if `trust_forwarded_for`) |
+| `provider` | string | `"manual"` | `manual` (bank transfer, cash on delivery, etc.; an administrator confirms payment) or `stripe` |
+| `reservation_minutes` | integer | `60` | The expiry of Stripe's payment page = how long inventory is held (30–1440 for Stripe) |
+| `max_quantity_per_item` | integer | `99` | The maximum quantity per product |
+| `max_items` | integer | `50` | The maximum number of products per order |
+| `max_orders_per_ip_per_hour` | integer | `20` | Orders per hour from the same IP (0 is unlimited; counted in `[cache]`) |
+| `low_stock_threshold` | integer or `null` | `5` | Notify staff when inventory reaches the threshold. `null` disables |
 
 #### `[commerce.manual]`
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `instructions` | string | 案内文 | 注文確認ページに表示する支払い方法の案内（振込先など） |
-| `payment_due_hours` | integer | `72` | 未払いの注文を取り消して在庫を戻すまでの時間 |
+| `instructions` | string | A guidance text | Payment instructions (such as the transfer destination) shown on the order confirmation page |
+| `payment_due_hours` | integer | `72` | Time until unpaid orders are cancelled and inventory restored |
 
 #### `[commerce.stripe]`
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `secret_key` | string | `""` | シークレットキー。空なら環境変数 `AEGIS_STRIPE_SECRET_KEY` |
-| `webhook_secret` | string | `""` | Webhook の署名シークレット（`whsec_...`）。空なら環境変数 `AEGIS_STRIPE_WEBHOOK_SECRET` |
-| `api_base` | string | `"https://api.stripe.com"` | API の URL（テスト用） |
-| `async_payment_due_hours` | integer | `72` | コンビニ払いなど後払いの支払い期限（その間は在庫を確保したまま） |
+| `secret_key` | string | `""` | The secret key. If empty, the environment variable `AEGIS_STRIPE_SECRET_KEY` |
+| `webhook_secret` | string | `""` | The webhook's signing secret (`whsec_...`). If empty, the environment variable `AEGIS_STRIPE_WEBHOOK_SECRET` |
+| `api_base` | string | `"https://api.stripe.com"` | The API URL (for testing) |
+| `async_payment_due_hours` | integer | `72` | The payment deadline for deferred payments such as convenience-store payment (inventory stays reserved during that time) |
 
-### 2.12a `[members]` — 会員アカウント
+### 2.12a `[members]` — Member Accounts
 
-訪問者のアカウント（会員登録・ログイン。ショップの注文履歴・レビュー、掲示板で共通。[会員アカウント](./members.md)）。管理アカウントとは別です。以前の `[commerce.customers]` はここに移りました（古い書き方が残っていると、起動時にエラーになります）。
+Visitor accounts (member sign-up and login; shared by the shop's order history and reviews and the forum; [Member accounts](./members.md)). They are separate from admin accounts. The former `[commerce.customers]` moved here (if the old form remains, startup fails with an error).
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で会員アカウントを使う。`false` なら会員の API と画面は 404（ゲスト購入は使える） |
-| `registration` | string | `"open"` | `"open"` は誰でも登録できる。`"closed"` は新規の登録だけを止める（403。登録済みの会員はログインできる） |
-| `session_days` | integer | `30` | ログインの有効期間（日。1〜365） |
-| `require_email_verification` | bool | `false` | `true` で、会員登録のあと、確認メールのリンクを開くまでログインできない。確認メールを送れること（`[notifications]` が有効で、`public_url` がある）が要る。満たさないと起動しない |
-| `password_reset` | bool | `true` | パスワードの再設定（メールのリンク）を使う。`[notifications]` が有効で、`public_url` が設定されているときだけ動く（メールのリンクは `Host` ヘッダーではなく `public_url` から作る） |
-| `public_url` | string | `""` | 会員のメール（再設定・確認）のリンクの元になるサイトの URL（例 `https://example.com`）。注文確認のリンクの `[commerce].public_url` とは別 |
-| `levels` | string 配列 | `["free", "paid"]` | 会員の権限レベル（低 → 高）。先頭が新規会員のレベル。高いレベルは低いレベルの内容も見られる。1〜32 文字の英小文字・数字・`-`・`_`、重複なし、`public` は使えない（起動時に検査）。記事・ページの `access` で必要なレベルを指定する（[members.md 15](./members.md#15-閲覧の制限会員レベル)） |
-| `upgrade_url` | string | `""` | レベルが足りない会員に出す「アップグレードの案内」のリンク先。`/` で始まるサイト内のパスか `https://` の URL（それ以外は起動時に断る）。空ならリンクを出さない |
+| `enabled` | bool | `false` | `true` uses member accounts. With `false`, the member API and screens are 404 (guest purchases can be used) |
+| `registration` | string | `"open"` | `"open"` lets anyone register. `"closed"` stops only new registrations (403; registered members can log in) |
+| `session_days` | integer | `30` | The login validity (days; 1–365) |
+| `require_email_verification` | bool | `false` | With `true`, after sign-up you cannot log in until you open the confirmation email's link. It requires that confirmation emails can be sent (`[notifications]` is enabled and there is a `public_url`). If not satisfied, it does not start |
+| `password_reset` | bool | `true` | Use password reset (email link). It works only when `[notifications]` is enabled and `public_url` is set (email links are built from `public_url`, not the `Host` header) |
+| `public_url` | string | `""` | The site URL that is the base of member emails' (reset, confirmation) links (e.g. `https://example.com`). Separate from `[commerce].public_url` for order confirmation links |
+| `levels` | array of strings | `["free", "paid"]` | Members' permission levels (low → high). The first is a new member's level. A higher level can also view the content of lower levels. 1–32 characters of lowercase letters, digits, `-`, `_`, no duplicates, and `public` cannot be used (checked at startup). The required level is specified with the article/page `access` ([members.md 15](./members.md#15-viewing-restrictions-member-levels)) |
+| `upgrade_url` | string | `""` | The link target of the "upgrade notice" shown to members of an insufficient level. A path within the site starting with `/`, or an `https://` URL (anything else is refused at startup). If empty, no link is shown |
 
-#### `[members.purchase]` — 記事の購入
+#### `[members.purchase]` — Article Purchases
 
-記事・ページの単独購入に使う設定です（[会員 16](./members.md#16-購入記事の単独購入サブスク)）。Stripe Checkout で決済します。使うには `[members].enabled = true` と `[members].public_url`（決済後の戻り先の元になります）が要ります。
+Settings used for single purchases of articles and pages ([Members 16](./members.md#16-purchases-single-article-purchases-and-subscriptions)). Payment is by Stripe Checkout. To use it, `[members].enabled = true` and `[members].public_url` (the base of the post-payment return destination) are required.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で購入を使う。`false` なら購入の API と画面は 404、案内に購入のリンクを出さない |
-| `currency` | string | `"jpy"` | 記事の購入に使う通貨（ISO 4217 の英小文字 3 文字）。記事の `purchase_price` はこの通貨の最小単位 |
-| `stripe.secret_key` | string | `""` | Stripe のシークレットキー。空なら環境変数 `AEGIS_STRIPE_SECRET_KEY` |
-| `stripe.webhook_secret` | string | `""` | Webhook の署名シークレット（`whsec_...`）。空なら環境変数 `AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET`。ショップの Webhook とはエンドポイントが別なので、シークレットも別 |
-| `stripe.api_base` | string | `"https://api.stripe.com"` | テスト用のモックサーバーに向けるときだけ変える |
+| `enabled` | bool | `false` | `true` uses purchases. With `false`, the purchase API and screens are 404 and the notice shows no purchase link |
+| `currency` | string | `"jpy"` | The currency used for article purchases (3 lowercase letters of ISO 4217). The article's `purchase_price` is in this currency's smallest unit |
+| `stripe.secret_key` | string | `""` | Stripe's secret key. If empty, the environment variable `AEGIS_STRIPE_SECRET_KEY` |
+| `stripe.webhook_secret` | string | `""` | The webhook's signing secret (`whsec_...`). If empty, the environment variable `AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET`. The endpoint is separate from the shop's webhook, so the secret is separate too |
+| `stripe.api_base` | string | `"https://api.stripe.com"` | Change only when pointing at a mock server for testing |
 
-`enabled = true` で、会員アカウントが無効・`public_url` が無い・通貨が不正・キーが無い、のいずれかなら起動時にエラーです。
+With `enabled = true`, it is a startup error if member accounts are disabled, there is no `public_url`, the currency is invalid, or there is no key.
 
-##### `[[members.purchase.plans]]` — サブスクのプラン
+##### `[[members.purchase.plans]]` — Subscription Plans
 
-自動更新のサブスクです（[会員 16](./members.md#16-購入記事の単独購入サブスク)）。プランを 1 つ以上書くと、マイページに契約の案内が出ます。支払いの単位は `interval` × `interval_count` で決まります。金額の通貨は `[members.purchase].currency` です。
+Auto-renewing subscriptions ([Members 16](./members.md#16-purchases-single-article-purchases-and-subscriptions)). Writing one or more plans shows a subscription notice on My Page. The unit of payment is decided by `interval` × `interval_count`. The currency of the amount is `[members.purchase].currency`.
 
 ```toml
 [[members.purchase.plans]]
@@ -354,315 +355,315 @@ interval = "month"
 interval_count = 1
 
 [[members.purchase.plans]]
-id = "quarterly"       # 3 か月ごと
+id = "quarterly"       # every 3 months
 level = "paid"
 amount = 2200
 interval = "month"
 interval_count = 3
 ```
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `id` | string | 必須 | プランの ID（英小文字・数字・`-`・`_` の 1〜32 文字、重複なし） |
-| `label` | string | `id` | 決済ページとマイページに出る名前（100 文字まで） |
-| `level` | string | 必須 | 契約中に得るレベル（`[members].levels` のどれか） |
-| `amount` | integer | 必須 | 1 回の支払い（通貨の最小単位。1〜99,999,999） |
-| `interval` | string | 必須 | `"day"` / `"week"` / `"month"` / `"year"` |
-| `interval_count` | integer | `1` | `interval` を何回分で 1 回払うか。上限は日 365・週 52・月 12・年 1（Stripe の上限） |
+| `id` | string | Required | The plan's ID (1–32 characters of lowercase letters, digits, `-`, `_`; no duplicates) |
+| `label` | string | `id` | The name shown on the payment page and My Page (up to 100 characters) |
+| `level` | string | Required | The level gained while subscribed (one of `[members].levels`) |
+| `amount` | integer | Required | One payment (in the currency's smallest unit; 1–99,999,999) |
+| `interval` | string | Required | `"day"` / `"week"` / `"month"` / `"year"` |
+| `interval_count` | integer | `1` | How many `interval`s make one payment. The limits are day 365, week 52, month 12, year 1 (Stripe's limits) |
 
-不正なプラン（ID の重複・知らないレベル・範囲外の値）は起動時にエラーです。Stripe の Webhook には、上のイベントに加えて `customer.subscription.updated`・`customer.subscription.deleted` を選びます。解約・カード変更に使う Customer Portal は、Stripe のダッシュボードで有効にしてください。Stripe には Webhook のエンドポイント `https://example.com/api/v1/members/webhooks/stripe` を作り、`checkout.session.completed`・`checkout.session.async_payment_succeeded`・`checkout.session.async_payment_failed`・`checkout.session.expired`・`charge.refunded`（サブスクを使うなら `customer.subscription.updated`・`customer.subscription.deleted` も）を選びます。
+Invalid plans (a duplicate ID, an unknown level, an out-of-range value) are a startup error. For Stripe's webhook, in addition to the above events, choose `customer.subscription.updated` and `customer.subscription.deleted`. Enable the Customer Portal used for cancelling and changing cards in the Stripe dashboard. In Stripe, create the webhook endpoint `https://example.com/api/v1/members/webhooks/stripe` and choose `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, and `charge.refunded` (plus `customer.subscription.updated` and `customer.subscription.deleted` if using subscriptions).
 
-### 2.13 `[notifications]` — 通知（メール）
+### 2.13 `[notifications]` — Notifications (Email)
 
-注文の受付・入金確認・発送・取り消しを顧客と運営者に知らせます（[通知ドキュメント](./notifications.md)）。`enabled = true` で設定が不正な場合（`email` チャネルで `smtp_host` / `from` が無い、アドレスの形式が不正など）はサーバーが起動しません。
+Notifies customers and operators of order receipt, payment confirmation, shipping, and cancellation ([Notifications document](./notifications.md)). With `enabled = true`, if the settings are invalid (no `smtp_host` / `from` for the `email` channel, an invalid address format, etc.), the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で通知を送る |
-| `channels` | string[] | `["email"]` | 配信チャネル。`email`（SMTP）/ `log`（サーバーのログ。動作確認用）/ `plugin:<名前>`（`send-notification` フックを持つ Wasm プラグイン。`[plugins].enabled` にあること） |
-| `locale` | string | `"en"` | 組み込みテンプレートの言語（`en` / `ja`） |
-| `templates_dir` | string | なし | テンプレートの置き場所（`<種類>.subject` / `<種類>.txt` / `<種類>.html`）。無いファイルは組み込みを使う。Admin Studio で編集したものはこれより優先する |
-| `disabled_events` | string[] | `[]` | 送らない通知の種類（`order.shipped` など） |
-| `max_attempts` | integer | `3` | 一時的な失敗（SMTP の 4xx・接続失敗）の試行回数（1〜10。間隔は 2 秒・8 秒・32 秒…） |
-| `html` | bool | `true` | HTML の本文も作る（メールはプレーンテキストと HTML の両方を送る。[通知 3.1](./notifications.md#31-html-メール)） |
+| `enabled` | bool | `false` | `true` sends notifications |
+| `channels` | string[] | `["email"]` | Delivery channels. `email` (SMTP) / `log` (the server log; for checking operation) / `plugin:<name>` (a Wasm plugin that has the `send-notification` hook; it must be in `[plugins].enabled`) |
+| `locale` | string | `"en"` | The language of the built-in templates (`en` / `ja`) |
+| `templates_dir` | string | None | Where templates are placed (`<kind>.subject` / `<kind>.txt` / `<kind>.html`). Missing files use the built-in ones. Ones edited in Admin Studio take precedence over this |
+| `disabled_events` | string[] | `[]` | Notification kinds not to send (such as `order.shipped`) |
+| `max_attempts` | integer | `3` | The number of attempts for transient failures (SMTP 4xx, connection failures) (1–10; intervals of 2 seconds, 8 seconds, 32 seconds, ...) |
+| `html` | bool | `true` | Also build an HTML body (email is sent as both plain text and HTML; [Notifications 3.1](./notifications.md#31-html-email)) |
 
 #### `[notifications.queue]`
 
-送信待ち（[通知 4](./notifications.md#4-配信と信頼性)）。
+The outbox ([Notifications 4](./notifications.md#4-delivery-and-reliability)).
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `persistent` | bool | `true` | 送信待ちを DB（`_aegis_notification_queue`）に保存する。再起動しても失われず、複数台では 1 台だけが送る。`false` ならメモリ上（再起動で失われる） |
-| `poll_interval_secs` | integer | `10` | 再試行の時刻を迎えた通知を確かめる間隔（秒、1〜3600）。新しい通知は待たずに送る |
-| `retention_days` | integer | `7` | 送れなかった通知を残す日数（Admin Studio から再送できる期間）。0 なら消さない |
+| `persistent` | bool | `true` | Store the outbox in the DB (`_aegis_notification_queue`). It is not lost on restart, and with multiple servers only one sends. With `false`, in memory (lost on restart) |
+| `poll_interval_secs` | integer | `10` | The interval (seconds, 1–3600) at which to check notifications whose retry time has come. New notifications are sent without waiting |
+| `retention_days` | integer | `7` | Days to keep notifications that could not be sent (the period they can be resent from Admin Studio). 0 never deletes |
 
 #### `[notifications.email]`
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `smtp_host` | string | `""` | SMTP サーバー（必須） |
-| `smtp_port` | integer | `0` | ポート。0 なら `tls` に応じて 587 / 465 / 25 |
-| `tls` | string | `"starttls"` | `starttls`（STARTTLS 必須）/ `tls`（最初から TLS）/ `none`（暗号化しない。ローカルのリレー用） |
-| `username` | string | `""` | SMTP 認証のユーザー名（空なら認証しない） |
-| `password` | string | `""` | SMTP 認証のパスワード。空なら環境変数 `AEGIS_SMTP_PASSWORD` |
-| `from` | string | `""` | 差出人（`"Shop <shop@example.com>"`。必須） |
-| `reply_to` | string | `""` | 返信先（空なら差出人） |
-| `staff_recipients` | string[] | `[]` | 運営者向けの通知（新しい注文・取り消し）の宛先。空なら運営者には送らない |
-| `timeout_secs` | integer | `15` | 接続・送信のタイムアウト（秒） |
+| `smtp_host` | string | `""` | The SMTP server (required) |
+| `smtp_port` | integer | `0` | The port. If 0, 587 / 465 / 25 depending on `tls` |
+| `tls` | string | `"starttls"` | `starttls` (STARTTLS required) / `tls` (TLS from the start) / `none` (no encryption; for a local relay) |
+| `username` | string | `""` | The SMTP authentication username (no authentication if empty) |
+| `password` | string | `""` | The SMTP authentication password. If empty, the environment variable `AEGIS_SMTP_PASSWORD` |
+| `from` | string | `""` | The sender (`"Shop <shop@example.com>"`; required) |
+| `reply_to` | string | `""` | The reply-to (the sender if empty) |
+| `staff_recipients` | string[] | `[]` | The recipients of notifications for operators (new orders, cancellations). If empty, nothing is sent to operators |
+| `timeout_secs` | integer | `15` | The timeout for connecting and sending (seconds) |
 
 #### `[[notifications.audit.rules]]`
 
-監査イベント（管理者のログイン・ログインのロックなど）を通知する条件（[通知ドキュメント 2.1](./notifications.md#21-監査イベントの通知)）。`[audit].enabled = false` のままルールを書くとサーバーが起動しません。
+Conditions for notifying audit events (administrator logins, login lockouts, etc.) ([Notifications document 2.1](./notifications.md#21-notifying-audit-events)). Writing rules while `[audit].enabled = false` keeps the server from starting.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `action` | string | （必須） | 監査ログの操作（`session.create` など。`notification.send` は不可） |
-| `outcomes` | string[] | `[]` | `success` / `failure` / `denied`（空ならすべて） |
-| `roles` | string[] | `[]` | 操作者のロール（空ならすべて） |
-| `details` | table | `{}` | `details` の値（`"*"` はキーがあれば何でも） |
-| `title` | string | `""` | 件名・本文の見出し |
-| `recipients` | string[] | `[]` | 宛先（空なら `staff_recipients`） |
-| `max_per_hour` | integer | `20` | 1 時間あたりの上限（0 で無制限） |
+| `action` | string | (required) | The audit log operation (such as `session.create`; `notification.send` is not allowed) |
+| `outcomes` | string[] | `[]` | `success` / `failure` / `denied` (all if empty) |
+| `roles` | string[] | `[]` | The actor's role (all if empty) |
+| `details` | table | `{}` | Values of `details` (`"*"` means anything as long as the key exists) |
+| `title` | string | `""` | The heading of the subject and body |
+| `recipients` | string[] | `[]` | Recipients (`staff_recipients` if empty) |
+| `max_per_hour` | integer | `20` | The upper limit per hour (0 is unlimited) |
 
 ---
 
-### 2.14 `[auth.saml]` — シングルサインオン (SAML 2.0)
+### 2.14 `[auth.saml]` — Single Sign-On (SAML 2.0)
 
-SAML 2.0 の IdP によるログイン（SP-initiated。AuthnRequest は HTTP-Redirect、応答は HTTP-POST）。使い方は [認証ドキュメント](./authentication.md#8-シングルサインオン-saml-20) を参照してください。`enabled = true` で必須項目が欠けている、証明書を読めない、またはロール名が不正な場合はサーバーが起動しません。
+Login with a SAML 2.0 IdP (SP-initiated; the AuthnRequest by HTTP-Redirect and the response by HTTP-POST). For usage, see the [Authentication document](./authentication.md#8-single-sign-on-saml-20). With `enabled = true`, if a required item is missing, a certificate cannot be read, or a role name is invalid, the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で SAML ログインを有効化 |
-| `display_name` | string | `"SSO"` | ログイン画面のボタン名（`Sign in with ...`） |
-| `entity_id` | string | `""` | AegisCMS（SP）の Entity ID（必須）。AuthnRequest の Issuer、アサーションの Audience。慣例でメタデータの URL（`https://<ホスト>/api/v1/auth/saml/metadata`） |
-| `acs_url` | string | `""` | Assertion Consumer Service の URL（必須）。`https://<ホスト>/api/v1/auth/saml/acs` |
-| `idp_entity_id` | string | `""` | IdP の Entity ID（必須）。応答・アサーションの Issuer と一致しなければ拒否 |
-| `idp_sso_url` | string | `""` | IdP の Single Sign-On サービスの URL（必須。HTTP-Redirect バインディング） |
-| `idp_certificates` | array of string | `[]` | IdP の署名用証明書（必須）。PEM（`-----BEGIN CERTIFICATE-----`）、PEM の公開鍵、または IdP のメタデータの `<X509Certificate>` の Base64。鍵の切り替え中は新旧を並べる。RSA 2048 ビット以上 |
-| `name_id_format` | string | `""` | AuthnRequest で求める NameID の形式（例: `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`）。空なら IdP に任せる。`transient` は使えない |
-| `username_attribute` | string | `""` | 新規ユーザーのユーザー名にする属性。空なら NameID |
-| `email_attribute` | string | `"email"` | メールアドレスの属性（無ければ、NameID の形式が `emailAddress` のとき NameID） |
-| `display_name_attribute` | string | `"displayName"` | 表示名の属性 |
-| `auto_create_users` | bool | `true` | 未登録のユーザーを初回ログイン時に作成する。`false` なら `aegis-server user link-saml` で紐付けたユーザーのみ |
-| `default_role` | string | `"viewer"` | 新規ユーザーのロール。`role_attribute` 使用時はどの値にも一致しない場合のロール |
-| `role_attribute` | string | `""` | ロールを決める属性（例: `groups`）。空ならロールは AegisCMS のユーザーアカウントで決まる |
-| `role_mapping` | table | `{}` | `role_attribute` の値 → ロール（`admin` / `editor` / `viewer`）。複数一致した場合は最も強いロール |
-| `post_login_redirect` | string | `"/admin/"` | ログイン後に戻る Admin Studio の URL（`[auth.oidc]` と同じ） |
+| `enabled` | bool | `false` | `true` enables SAML login |
+| `display_name` | string | `"SSO"` | The login screen's button name (`Sign in with ...`) |
+| `entity_id` | string | `""` | AegisCMS's (the SP's) Entity ID (required). The AuthnRequest's Issuer and the assertion's Audience. By convention the metadata URL (`https://<host>/api/v1/auth/saml/metadata`) |
+| `acs_url` | string | `""` | The Assertion Consumer Service URL (required). `https://<host>/api/v1/auth/saml/acs` |
+| `idp_entity_id` | string | `""` | The IdP's Entity ID (required). Refused if it does not match the Issuer of the response and assertion |
+| `idp_sso_url` | string | `""` | The URL of the IdP's Single Sign-On service (required; HTTP-Redirect binding) |
+| `idp_certificates` | array of string | `[]` | The IdP's signing certificates (required). PEM (`-----BEGIN CERTIFICATE-----`), a PEM public key, or the Base64 of `<X509Certificate>` in the IdP's metadata. Line up old and new during a key rotation. RSA 2048 bits or more |
+| `name_id_format` | string | `""` | The NameID format requested in the AuthnRequest (e.g. `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`). If empty, left to the IdP. `transient` cannot be used |
+| `username_attribute` | string | `""` | The attribute to use as a new user's username. If empty, the NameID |
+| `email_attribute` | string | `"email"` | The email address attribute (if absent, the NameID when its format is `emailAddress`) |
+| `display_name_attribute` | string | `"displayName"` | The display name attribute |
+| `auto_create_users` | bool | `true` | Create unregistered users at first login. With `false`, only users linked with `aegis-server user link-saml` |
+| `default_role` | string | `"viewer"` | A new user's role. When using `role_attribute`, the role when no value matches |
+| `role_attribute` | string | `""` | The attribute that decides the role (e.g. `groups`). If empty, the role is decided by the AegisCMS user account |
+| `role_mapping` | table | `{}` | `role_attribute` value → role (`admin` / `editor` / `viewer`). If several match, the strongest role |
+| `post_login_redirect` | string | `"/admin/"` | The Admin Studio URL to return to after login (same as `[auth.oidc]`) |
 
-属性は `Name` で探し、一致するものが無ければ `FriendlyName` で探します（Entra ID の `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` のような URI 形式の名前もそのまま書けます）。
+Attributes are looked up by `Name`, and if none match, by `FriendlyName` (URI-form names such as Entra ID's `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` can be written as they are).
 
-### 2.15 `[comments]` — コメント
+### 2.15 `[comments]` — Comments
 
-公開ページへの読者のコメント（[コメントのドキュメント](./comments.md)）。`enabled = true` で値が不正な場合（`content_types` が空、`max_length` が範囲外など）や `content_types` のスキーマが無い場合はサーバーが起動しません。
+Reader comments on public pages ([Comments document](./comments.md)). With `enabled = true`, if values are invalid (empty `content_types`, `max_length` out of range, etc.) or the schema for `content_types` is missing, the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` でコメントを受け付ける |
-| `content_types` | string[] | `["article"]` | コメントを受け付けるコンテンツの種類 |
-| `max_depth` | integer | `3` | 返信できる深さ（0 で返信なし。最大 10） |
-| `max_length` | integer | `5000` | 本文の最大文字数（最大 100,000） |
-| `close_after_days` | integer | `0` | 公開からこの日数を過ぎたら新しいコメントを受け付けない（0 で閉じない） |
-| `notify_author` | bool | `true` | コメントが付いたこと（承認待ちを含む）をコンテンツの著者に知らせる（`comment.posted` / `comment.pending`） |
-| `notify_staff` | bool | `true` | 承認待ちのコメントを運営者に知らせる（`comment.pending`） |
-| `avatars` | string | `"none"` | 投稿者のアバター画像。`none`（出さない）/ `gravatar`（[コメント 3.1](./comments.md#31-アバター)） |
-| `avatar_default` | string | `"identicon"` | Gravatar に画像が無い人の画像（`mp` / `identicon` / `monsterid` / `wavatar` / `retro` / `robohash` / `blank` / `404`） |
-| `reject_duplicates` | bool | `true` | 同じコンテンツに、同じ人（メールアドレスか IP アドレスが同じ）が同じ本文を投稿したら断る（`409`） |
+| `enabled` | bool | `false` | `true` accepts comments |
+| `content_types` | string[] | `["article"]` | The content kinds that accept comments |
+| `max_depth` | integer | `3` | The depth replies can go (0 for no replies; up to 10) |
+| `max_length` | integer | `5000` | The maximum number of characters in the body (up to 100,000) |
+| `close_after_days` | integer | `0` | Do not accept new comments after this many days from publication (0 never closes) |
+| `notify_author` | bool | `true` | Notify the content's author that a comment was posted (including awaiting approval) (`comment.posted` / `comment.pending`) |
+| `notify_staff` | bool | `true` | Notify operators of comments awaiting approval (`comment.pending`) |
+| `avatars` | string | `"none"` | The poster's avatar image. `none` (not shown) / `gravatar` ([Comments 3.1](./comments.md#31-avatars)) |
+| `avatar_default` | string | `"identicon"` | The image for people with no image on Gravatar (`mp` / `identicon` / `monsterid` / `wavatar` / `retro` / `robohash` / `blank` / `404`) |
+| `reject_duplicates` | bool | `true` | Refuse (`409`) when the same person (same email address or IP address) posts the same body on the same content |
 
 #### `[comments.moderation]`
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `require_approval` | bool | `true` | 承認してから公開する。Admin Studio から切り替えられる（そちらが優先） |
-| `auto_approve_known` | bool | `true` | 承認制のとき、同じ名前とメールアドレスの承認済みコメントがある人は承認を待たずに公開する。Admin Studio から切り替えられる |
-| `max_links` | integer | `2` | 本文のリンクがこれより多いと承認待ち |
-| `hold_words` | string[] | `[]` | 含むと承認待ちにする語（大文字・小文字を区別しない） |
-| `spam_words` | string[] | `[]` | 含むとスパムにする語 |
-| `max_per_ip_per_hour` | integer | `10` | 同じ IP からの 1 時間あたりの投稿数（0 で無制限。`[cache]` で数える） |
+| `require_approval` | bool | `true` | Publish after approval. Can be switched from Admin Studio (that takes precedence) |
+| `auto_approve_known` | bool | `true` | With the approval workflow, people with an approved comment under the same name and email address are published without waiting for approval. Can be switched from Admin Studio |
+| `max_links` | integer | `2` | More links in the body than this awaits approval |
+| `hold_words` | string[] | `[]` | Words that put a comment awaiting approval (case-insensitive) |
+| `spam_words` | string[] | `[]` | Words that make a comment spam |
+| `max_per_ip_per_hour` | integer | `10` | Posts per hour from the same IP (0 is unlimited; counted in `[cache]`) |
 
-### 2.16 `[forum]` — 掲示板
+### 2.16 `[forum]` — Forum
 
-カテゴリ・スレッド・レスの掲示板（[掲示板のドキュメント](./forum.md)）。`enabled = true` で値が不正な場合（最小・最大の文字数の矛盾、`default_page_size` が範囲外など）はサーバーが起動しません。
+A forum of categories, threads, and replies ([Forum document](./forum.md)). With `enabled = true`, if values are invalid (contradictory minimum and maximum character counts, `default_page_size` out of range, etc.), the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で `/forum` と API を有効化 |
-| `database_url` | string | なし | 掲示板専用の DB（例: `sqlite:data/forum.db?mode=rwc`）。省略時は `[database].url` を共有 |
-| `title_min_length` / `title_max_length` | integer | `2` / `200` | スレッドのタイトルの文字数（最大 1,000） |
-| `body_min_length` / `body_max_length` | integer | `1` / `10000` | 本文の文字数（最大 100,000） |
-| `rate_limit_secs` | integer | `5` | 同じ IP・ユーザーの投稿の間隔（秒。`[cache]` で数える） |
-| `posting` | string | `"anyone"` | 投稿できる人。`"anyone"` はだれでも（会員は公開名で、匿名は名前を入れて）、`"members"` は会員とスタッフだけ（`[members].enabled = true` が要る）。前の `allow_anonymous` は廃止（残っていると起動しない）。カテゴリの公開範囲は [掲示板 4.0](./forum.md) |
-| `auto_lock_post_count` | integer | `1000` | この数のレスでスレッドを自動でロック（0 で無制限） |
-| `default_page_size` | integer | `50` | 1 ページの件数（1〜200） |
+| `enabled` | bool | `false` | `true` enables `/forum` and the API |
+| `database_url` | string | None | A DB dedicated to the forum (e.g. `sqlite:data/forum.db?mode=rwc`). If omitted, shares `[database].url` |
+| `title_min_length` / `title_max_length` | integer | `2` / `200` | The thread title's character count (up to 1,000) |
+| `body_min_length` / `body_max_length` | integer | `1` / `10000` | The body's character count (up to 100,000) |
+| `rate_limit_secs` | integer | `5` | The interval between posts from the same IP/user (seconds; counted in `[cache]`) |
+| `posting` | string | `"anyone"` | Who can post. `"anyone"` is everyone (members under their public name, anonymous people by entering a name), `"members"` is only members and staff (requires `[members].enabled = true`). The former `allow_anonymous` is removed (if it remains, it does not start). For category visibility see [Forum 4.0](./forum.md) |
+| `auto_lock_post_count` | integer | `1000` | Automatically lock a thread at this many replies (0 is unlimited) |
+| `default_page_size` | integer | `50` | Items per page (1–200) |
 
-### 2.17 `[cdn]` — On-demand Cache-Tag Purge (CDN エッジキャッシュ連携)
+### 2.17 `[cdn]` — On-demand Cache-Tag Purge (CDN Edge Cache Integration)
 
-バックエンド側で HTML ページキャッシュを持たず、公開ページの HTTP レスポンスに `Cache-Tag`（カンマ区切り: Cloudflare / BunnyCDN / Netlify 等）および `Surrogate-Key`（スペース区切り: Fastly / Varnish / Google Cloud CDN 等）ヘッダーを付与し、コンテンツの公開・更新・削除・予約公開/非公開やサイト設定変更時にタグ指定で CDN キャッシュをパージします。CDN を使わない環境では `enabled = false`（既定）のままにすることでオーバーヘッド 0 で動作します。
+Without holding an HTML page cache on the backend, it adds `Cache-Tag` (comma-separated: Cloudflare / BunnyCDN / Netlify, etc.) and `Surrogate-Key` (space-separated: Fastly / Varnish / Google Cloud CDN, etc.) headers to public pages' HTTP responses, and purges the CDN cache by tag when content is published, updated, deleted, scheduled published/unpublished, or site settings change. In environments without a CDN, leaving `enabled = false` (the default) runs with zero overhead.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で `Cache-Tag` / `Surrogate-Key` ヘッダー付与とパージを有効化 |
-| `provider` | `"none"` \| `"log"` \| `"cloudflare"` \| `"fastly"` \| `"webhook"` | `"none"` | パージ先の CDN プロバイダ。`"none"` はレスポンスヘッダーの送出のみ行い外部 API は呼ばない。`"log"` はパージ対象タグを構造化ログ（`aegis::cdn`）に出力 |
-| `emit_headers` | bool | `true` | `200 OK` の公開ページ応答にタグのヘッダーを付与する。`provider = "cloudflare"` は `Cache-Tag` だけ、`"fastly"` は `Surrogate-Key` だけ、`"none"` / `"log"` / `"webhook"` は両方（同じタグが 2 つの形式で出るので、一覧ページでヘッダーが約 3 KB になる。nginx を前に置くときは `proxy_buffer_size 16k;` など。[benchmark.md](benchmark.md)）。タグ（と API パージ）を使わないなら `false` |
-| `cache_control` | string | `"public, max-age=0, s-maxage=86400, stale-while-revalidate=60"` | 公開ページ応答に `Cache-Control` が未設定の場合に付与する値（空文字列なら付与しない） |
-| `timeout_ms` | integer (u64) | `5000` | CDN パージ API 呼び出しの HTTP タイムアウト（ミリ秒、100〜60000） |
+| `enabled` | bool | `false` | `true` enables adding the `Cache-Tag` / `Surrogate-Key` headers and purging |
+| `provider` | `"none"` \| `"log"` \| `"cloudflare"` \| `"fastly"` \| `"webhook"` | `"none"` | The CDN provider to purge. `"none"` only sends response headers and calls no external API. `"log"` outputs the tags to purge to the structured log (`aegis::cdn`) |
+| `emit_headers` | bool | `true` | Add the tag headers to `200 OK` public page responses. `provider = "cloudflare"` adds `Cache-Tag` only, `"fastly"` adds `Surrogate-Key` only, and `"none"` / `"log"` / `"webhook"` add both (the same tags appear in 2 forms, so on list pages the headers are about 3 KB. When putting nginx in front, use `proxy_buffer_size 16k;` and the like; [benchmark.md](benchmark.md)). Use `false` if you use neither the tags nor API purging |
+| `cache_control` | string | `"public, max-age=0, s-maxage=86400, stale-while-revalidate=60"` | The value to add when a public page response has no `Cache-Control` (nothing is added for an empty string) |
+| `timeout_ms` | integer (u64) | `5000` | The HTTP timeout of CDN purge API calls (milliseconds, 100–60000) |
 
 #### `[cdn.cloudflare]` (`provider = "cloudflare"`)
 
-Cloudflare の `POST /zones/{zone_id}/purge_cache`（`{"tags": [...]}`）を呼び出します（30 タグずつ自動分割）。
+Calls Cloudflare's `POST /zones/{zone_id}/purge_cache` (`{"tags": [...]}`) (split automatically 30 tags at a time).
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `zone_id` | string | `""` | Cloudflare Zone ID（必須） |
-| `api_token` | string | `""` | Cache Purge 権限を持つ API トークン。`"env:VAR_NAME"` または環境変数 `AEGIS_CLOUDFLARE_API_TOKEN` でも指定可 |
-| `api_base` | string | `"https://api.cloudflare.com/client/v4"` | Cloudflare API ベース URL |
+| `zone_id` | string | `""` | Cloudflare Zone ID (required) |
+| `api_token` | string | `""` | An API token with Cache Purge permission. Can also be specified as `"env:VAR_NAME"` or with the environment variable `AEGIS_CLOUDFLARE_API_TOKEN` |
+| `api_base` | string | `"https://api.cloudflare.com/client/v4"` | The Cloudflare API base URL |
 
 #### `[cdn.fastly]` (`provider = "fastly"`)
 
-Fastly の `POST /service/{service_id}/purge`（`Surrogate-Key` ヘッダー、256 キーずつ自動分割）を呼び出します。
+Calls Fastly's `POST /service/{service_id}/purge` (the `Surrogate-Key` header, split automatically 256 keys at a time).
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `service_id` | string | `""` | Fastly Service ID（必須） |
-| `api_token` | string | `""` | Fastly API トークン（`Fastly-Key`）。`"env:VAR_NAME"` または環境変数 `AEGIS_FASTLY_API_TOKEN` でも指定可 |
-| `soft_purge` | bool | `true` | `true` で `Fastly-Soft-Purge: 1` を付与（即削除せず stale 化してバックグラウンド再検証を行う） |
-| `api_base` | string | `"https://api.fastly.com"` | Fastly API ベース URL |
+| `service_id` | string | `""` | Fastly Service ID (required) |
+| `api_token` | string | `""` | Fastly API token (`Fastly-Key`). Can also be specified as `"env:VAR_NAME"` or with the environment variable `AEGIS_FASTLY_API_TOKEN` |
+| `soft_purge` | bool | `true` | `true` adds `Fastly-Soft-Purge: 1` (marks as stale rather than deleting immediately, and revalidates in the background) |
+| `api_base` | string | `"https://api.fastly.com"` | The Fastly API base URL |
 
 #### `[cdn.webhook]` (`provider = "webhook"`)
 
-Varnish、Nginx、BunnyCDN、AWS CloudFront 用の Lambda / Cloudflare Workers アダプター、または独自リバースプロキシに対し、`{"action": "purge_tags" | "purge_all", "tags": [...], "surrogate_key": "..."}` の JSON ペイロードを HTTP リクエストで送信します。
+Sends a JSON payload of `{"action": "purge_tags" | "purge_all", "tags": [...], "surrogate_key": "..."}` as an HTTP request to Varnish, Nginx, BunnyCDN, an AWS CloudFront Lambda / Cloudflare Workers adapter, or your own reverse proxy.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `url` | string | `""` | 送信先エンドポイント URL（`http://` または `https://`、必須） |
-| `method` | string | `"POST"` | HTTP メソッド（`"POST"`, `"PURGE"`, `"DELETE"` など） |
-| `bearer_token` | string | `""` | `Authorization: Bearer <token>` に付与するトークン。`"env:VAR_NAME"` または環境変数 `AEGIS_CDN_WEBHOOK_TOKEN` でも指定可 |
-| `headers` | table | `{}` | 追加で付与する任意のカスタム HTTP ヘッダー |
+| `url` | string | `""` | The destination endpoint URL (`http://` or `https://`; required) |
+| `method` | string | `"POST"` | The HTTP method (`"POST"`, `"PURGE"`, `"DELETE"`, etc.) |
+| `bearer_token` | string | `""` | The token to put in `Authorization: Bearer <token>`. Can also be specified as `"env:VAR_NAME"` or with the environment variable `AEGIS_CDN_WEBHOOK_TOKEN` |
+| `headers` | table | `{}` | Arbitrary custom HTTP headers to add |
 
-### 2.18 `[search]` — サイト内検索
+### 2.18 `[search]` — Site Search
 
-公開中のコンテンツの全文検索（[サイト内検索のドキュメント](./search.md)）。サーバーの Cargo の feature `search`（既定で有効）で組み込みます。
+Full-text search of published content ([Site search document](./search.md)). It is built in with the server's Cargo feature `search` (enabled by default).
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `true` | `true` で `/search` と `GET /api/v1/search` を有効化 |
-| `index_dir` | string | `"data/search"` | 索引を置くディレクトリ（空ならメモリの中だけ。起動のたびに作り直す） |
-| `content_types` | string[] | `["article", "page"]` | 検索の対象にするコンテンツの種類 |
+| `enabled` | bool | `true` | `true` enables `/search` and `GET /api/v1/search` |
+| `index_dir` | string | `"data/search"` | The directory for the index (in memory only if empty; recreated at every startup) |
+| `content_types` | string[] | `["article", "page"]` | The content kinds to search |
 
-### 2.19 `[analytics]` — アクセス解析
+### 2.19 `[analytics]` — Analytics
 
-Cookie を使わないアクセス解析（[アクセス解析のドキュメント](./analytics.md)）。サーバーの Cargo の feature `analytics`（既定で組み込み）で組み込みます。`exclude_paths` が `/` で始まらない場合はサーバーが起動しません。
+Cookie-less analytics ([Analytics document](./analytics.md)). It is built in with the server's Cargo feature `analytics` (built in by default). If `exclude_paths` does not start with `/`, the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で公開ページにビーコンを入れて集計し、Admin Studio に Analytics タブを出す |
-| `retention_days` | integer | `400` | 集計を残す日数（0 で消さない） |
-| `flush_interval_secs` | integer | `30` | メモリで溜めた集計を DB に書く間隔（秒） |
-| `exclude_paths` | string[] | `[]` | 数えないパス（前方一致。`"/preview"` なら `/preview` と `/preview/...`） |
+| `enabled` | bool | `false` | `true` puts the beacon into public pages, aggregates, and shows the Analytics tab in Admin Studio |
+| `retention_days` | integer | `400` | Days to keep aggregates (0 never deletes) |
+| `flush_interval_secs` | integer | `30` | The interval for writing aggregates accumulated in memory to the DB (seconds) |
+| `exclude_paths` | string[] | `[]` | Paths not to count (prefix match. `"/preview"` covers `/preview` and `/preview/...`) |
 
-### 2.20 `[contact]` — 問い合わせフォーム
+### 2.20 `[contact]` — Contact Form
 
-公開サイトの問い合わせフォームと Admin Studio の受信箱（[問い合わせフォームのドキュメント](./contact.md)）。`enabled = true` で値が不正な場合（フォーム・項目の名前の重なり、`select` に選択肢が無い、`auto_reply` なのに必須のメールアドレスの項目が無いなど）はサーバーが起動しません。
+The public site's contact form and Admin Studio's inbox ([Contact form document](./contact.md)). With `enabled = true`, if values are invalid (duplicate form or field names, a `select` with no options, an `auto_reply` with no required email address field, etc.), the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で `/contact`・API・受信箱を有効化 |
-| `retention_days` | integer | `365` | 届いた問い合わせを残す日数（0 で消さない） |
-| `max_per_ip_per_hour` | integer | `5` | 同じ IP からの 1 時間あたりの送信数（0 で無制限。`[cache]` で数える） |
-| `max_links` | integer | `3` | 入力のリンクがこれより多いとスパム |
-| `spam_words` | string[] | `[]` | 含むとスパムにする語 |
-| `notify_staff` | bool | `true` | 届いたことを運営者に知らせる（`contact.received`） |
-| `locale` | string | `"en"` | 組み込みの文言（入力の誤り・既定の見出しや項目名）の言語。`en` / `ja` |
-| `forms` | table[] | `default` フォーム 1 つ | `[[contact.forms]]`（`name`・`title`・`description`・`submit_label`・`success_message`・`auto_reply`・`subject_field`・`fields`）。項目は `[[contact.forms.fields]]`（[contact.md 1.1](./contact.md#11-項目)） |
+| `enabled` | bool | `false` | `true` enables `/contact`, the API, and the inbox |
+| `retention_days` | integer | `365` | Days to keep received inquiries (0 never deletes) |
+| `max_per_ip_per_hour` | integer | `5` | Submissions per hour from the same IP (0 is unlimited; counted in `[cache]`) |
+| `max_links` | integer | `3` | More links in the input than this is spam |
+| `spam_words` | string[] | `[]` | Words that make a submission spam |
+| `notify_staff` | bool | `true` | Notify operators that one arrived (`contact.received`) |
+| `locale` | string | `"en"` | The language of built-in text (input errors, default headings and field names). `en` / `ja` |
+| `forms` | table[] | One `default` form | `[[contact.forms]]` (`name`, `title`, `description`, `submit_label`, `success_message`, `auto_reply`, `subject_field`, `fields`). Fields are `[[contact.forms.fields]]` ([contact.md 1.1](./contact.md#11-fields)) |
 
-### 2.21 `[tags]` — タグ
+### 2.21 `[tags]` — Tags
 
-記事・固定ページ・商品など、どの種類のコンテンツにも付けられるタグ（[タグのドキュメント](./tags.md)）。既定で有効です。`max_per_content` が範囲外だとサーバーが起動しません。
+Tags that can be attached to any kind of content, such as articles, static pages, and products ([Tags document](./tags.md)). Enabled by default. If `max_per_content` is out of range, the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `true` | `false` でタグの API・Admin Studio の画面を使わない（`404`）。付けたタグは DB に残る |
-| `max_per_content` | integer | `20` | 1 つのコンテンツに付けられるタグの数（1〜100） |
+| `enabled` | bool | `true` | `false` stops using the tag API and Admin Studio's screens (`404`). Attached tags remain in the DB |
+| `max_per_content` | integer | `20` | The number of tags that can be attached to one content item (1–100) |
 
-### 2.22 `[newsletter]` — ニュースレター
+### 2.22 `[newsletter]` — Newsletter
 
-メールアドレスの申し込み（確認メールのダブルオプトイン）と、公開中の記事の一斉配信（[ニュースレターのドキュメント](./newsletter.md)）。メールは `[notifications]` で送るので、`[notifications].enabled = true` と SMTP の設定が先に要ります。`enabled = true` のとき、`[commerce].public_url` が空だったり値が不正だったりするとサーバーが起動しません。
+Email address sign-up (double opt-in with a confirmation email) and bulk delivery of published articles ([Newsletter document](./newsletter.md)). Emails are sent through `[notifications]`, so `[notifications].enabled = true` and the SMTP settings are needed first. With `enabled = true`, if `[commerce].public_url` is empty or invalid, the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で `/newsletter`・API・Admin Studio の画面を有効化 |
-| `max_per_ip_per_hour` | integer | `10` | 同じ IP からの 1 時間あたりの申し込みの数（0 で無制限。`[cache]` で数える） |
-| `confirm_ttl_hours` | integer | `48` | 確認リンクの有効期限（時間。1〜336） |
-| `locale` | string | `"en"` | 申し込み・確認・停止のページの文言の言語。`en` / `ja` |
+| `enabled` | bool | `false` | `true` enables `/newsletter`, the API, and Admin Studio's screen |
+| `max_per_ip_per_hour` | integer | `10` | Sign-ups per hour from the same IP (0 is unlimited; counted in `[cache]`) |
+| `confirm_ttl_hours` | integer | `48` | Validity of the confirmation link (hours; 1–336) |
+| `locale` | string | `"en"` | The language of the text on the sign-up, confirmation, and unsubscribe pages. `en` / `ja` |
 
-### 2.23 `[consent]` — Cookie の同意バナー
+### 2.23 `[consent]` — Cookie Consent Banner
 
-同意が要る広告・アクセス解析・外部の埋め込みを、同意があるまで実行しないための同意バナー（[Cookie の同意バナーのドキュメント](./consent.md)）。バナーの HTML と文言はテーマの `consent.html`（無ければ組み込み）で、文言の言語は `[theme].locale`。`enabled = true` で値が不正なときはサーバーが起動しません。
+A consent banner for not running ads, analytics, and external embeds that require consent until consent is given ([Cookie consent banner document](./consent.md)). The banner's HTML and wording are the theme's `consent.html` (or the built-in one), and the wording's language is `[theme].locale`. With `enabled = true`, if values are invalid, the server does not start.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で公開ページにバナーを出す |
-| `layout` | string | `"banner"` | バナーの形。`banner`（画面の端の帯）/ `box`（隅のカード）/ `modal`（中央） |
-| `position` | string | 形の既定 | 位置。`banner`: `bottom` / `top`、`box`: `bottom-right` / `bottom-left` / `top-right` / `top-left`、`modal`: `center` |
-| `backdrop` | bool | `modal` だけ `true` | 背景を暗くしてページを操作できなくする |
-| `delay_ms` | integer | `0` | 表示を遅らせる時間（0〜10000） |
-| `cookie_days` | integer | `180` | 選択を残す日数（1〜395） |
-| `policy_url` | string | `""` | プライバシーポリシーの URL（`/` で始まるパスか `http(s)://`） |
-| `message` | string | `""` | 説明文（600 文字まで）。空ならテーマの既定の文 |
-| `reopen_button` | bool | `true` | 選択したあとの設定ボタンを出す |
-| `revision` | integer | `1` | 増やすと、全員にもう一度聞く |
-| `categories` | table[] | `analytics` と `marketing` | `[[consent.categories]]`（`id`・`label`・`description`。10 個まで） |
+| `enabled` | bool | `false` | `true` shows the banner on public pages |
+| `layout` | string | `"banner"` | The banner's shape. `banner` (a strip at the screen edge) / `box` (a card in a corner) / `modal` (center) |
+| `position` | string | The shape's default | Position. `banner`: `bottom` / `top`; `box`: `bottom-right` / `bottom-left` / `top-right` / `top-left`; `modal`: `center` |
+| `backdrop` | bool | `true` for `modal` only | Dim the background and make the page non-interactive |
+| `delay_ms` | integer | `0` | Time to delay the display (0–10000) |
+| `cookie_days` | integer | `180` | Days to keep the choice (1–395) |
+| `policy_url` | string | `""` | The privacy policy URL (a path starting with `/` or `http(s)://`) |
+| `message` | string | `""` | The description (up to 600 characters). If empty, the theme's default text |
+| `reopen_button` | bool | `true` | Show a settings button after a choice is made |
+| `revision` | integer | `1` | Increasing it asks everyone again |
+| `categories` | table[] | `analytics` and `marketing` | `[[consent.categories]]` (`id`, `label`, `description`; up to 10) |
 
-### 2.24 `[captcha]` — 共通の CAPTCHA
+### 2.24 `[captcha]` — Shared CAPTCHA
 
-Cloudflare Turnstile・hCaptcha・reCAPTCHA などの CAPTCHA を、`targets` に挙げた送信先にまとめてかけます（[問い合わせフォーム 1.2](./contact.md#12-captcha任意)）。キーを 1 か所に書き、どこにかけるかを `targets` で切り替えます。`targets` が空・重複、またはキーが不正なときはサーバーが起動しません。
+Applies a CAPTCHA such as Cloudflare Turnstile, hCaptcha, or reCAPTCHA together to the destinations listed in `targets` ([Contact form 1.2](./contact.md#12-captcha-optional)). Write the keys in one place and switch where it applies with `targets`. If `targets` is empty or duplicated, or the keys are invalid, the server does not start.
 
 ```toml
 [captcha]
-targets = ["contact", "newsletter", "comments", "forum"]   # かける送信先
+targets = ["contact", "newsletter", "comments", "forum"]   # the destinations to apply it to
 provider = "turnstile"
 site_key = "0x4AAAA..."
 secret = "env:TURNSTILE_SECRET"
 ```
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `targets` | string[] | （必須） | `contact`（問い合わせ）/ `newsletter`（ニュースレターの申し込み）/ `comments`（コメント）/ `forum`（掲示板のスレッド作成・レス）。その機能が無効なら何もしない |
-| `provider` | string | （必須） | `turnstile` / `hcaptcha` / `recaptcha` / `custom` |
-| `site_key` | string | （必須） | サイトキー（公開してよい） |
-| `secret` | string | （必須） | シークレットキー。`"env:VAR_NAME"` で環境変数から読める |
-| `fail_open` | bool | `false` | 検証サービスに届かないときに通す（既定は断る） |
-| `timeout_secs` | integer | `5` | 検証サービスの応答を待つ秒数（1〜30） |
-| `verify_url`・`script_url`・`widget_class`・`response_field` | string | 提供元の既定値 | `custom` では必須。ほかの提供元では書くと既定値を置き換える |
+| `targets` | string[] | (required) | `contact` (contact), `newsletter` (newsletter sign-up), `comments` (comments), `forum` (forum thread creation and replies). Does nothing if that feature is disabled |
+| `provider` | string | (required) | `turnstile` / `hcaptcha` / `recaptcha` / `custom` |
+| `site_key` | string | (required) | The site key (may be public) |
+| `secret` | string | (required) | The secret key. Can be read from an environment variable with `"env:VAR_NAME"` |
+| `fail_open` | bool | `false` | Let requests through when the verification service cannot be reached (the default is to refuse) |
+| `timeout_secs` | integer | `5` | Seconds to wait for the verification service's response (1–30) |
+| `verify_url`, `script_url`, `widget_class`, `response_field` | string | The provider's defaults | Required for `custom`. For other providers, writing them replaces the defaults |
 
-### 2.25 `[headless]` — ヘッドレス配信 API
+### 2.25 `[headless]` — Headless Delivery API
 
-認証なしで、公開済みのコンテンツだけを JSON で返す読み取り専用の API（`GET /api/v1/public/contents/{type}`・`.../{type}/{slug}`。[ヘッドレス配信 API の設計](./headless.md)）。サーバーの Cargo の feature `headless`（既定で組み込み）で組み込みます。**既定は無効**で、無効のときは 404 を返します。
+A read-only API that returns only published content as JSON without authentication (`GET /api/v1/public/contents/{type}`, `.../{type}/{slug}`; [Headless delivery API design](./headless.md)). It is built in with the server's Cargo feature `headless` (built in by default). **It is disabled by default**, and returns 404 when disabled.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で配信 API を有効化 |
-| `content_types` | string[] | `["article", "page"]` | 配信する型。ここに無い型は存在しないものとして 404 を返す（商品など内部向けの値を持つ型は、明示しない限り出ない） |
-| `max_page_size` | integer | `100` | 一覧の 1 ページの件数の上限（`limit` はこの値に丸める） |
-| `cache_max_age` | integer | `60` | 応答の `Cache-Control: public, max-age=...`（秒）。`[cdn].cache_control` より優先する（キャッシュ全体を無効にしている場合は `no-store`） |
-| `rate_limit_per_minute` | integer | `600` | IP ごとの 1 分あたりの上限（超えると 429）。0 で制限しない。`[audit].trust_forwarded_for` が無効だと、リバースプロキシの背後では全員が同じ IP になるので注意 |
+| `enabled` | bool | `false` | `true` enables the delivery API |
+| `content_types` | string[] | `["article", "page"]` | The kinds to deliver. Kinds not here return 404 as if nonexistent (kinds with internal values, such as products, are not returned unless explicitly specified) |
+| `max_page_size` | integer | `100` | The upper limit of items per list page (`limit` is clamped to this value) |
+| `cache_max_age` | integer | `60` | The response's `Cache-Control: public, max-age=...` (seconds). Takes precedence over `[cdn].cache_control` (`no-store` if caching is disabled overall) |
+| `rate_limit_per_minute` | integer | `600` | The per-IP limit per minute (429 when exceeded). 0 means no limit. Note that if `[audit].trust_forwarded_for` is disabled, everyone behind a reverse proxy is the same IP |
 
-### 2.26 `[queries]` — 宣言的クエリ
+### 2.26 `[queries]` — Declarative Queries
 
-条件つきの集計・一覧を YAML（`[paths].queries_dir` の `*.yaml`）で宣言し、結果をテーマの `queries` とプラグインに渡す。定義の書き方・動き・注意は [queries.md](queries.md)。
+Aggregations and conditional lists are declared in YAML (`*.yaml` in `[paths].queries_dir`), and the results are passed to the theme's `queries` and to plugins. For how to write definitions, behavior, and notes, see [queries.md](queries.md).
 
-| キー | 既定 | 内容 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `max_limit` | `100` | クエリの `limit` の最大値（行数。1〜1000） |
-| `timeout_ms` | `2000` | 1 回の実行のタイムアウト（ミリ秒。100〜60000）。超えたクエリは前の結果を残す |
-| `max_concurrency` | `8` | 同時に実行できるクエリの数（1〜64） |
-| `max_in_items` | `100` | `in` のリストの最大の長さ（1〜1000） |
-| `timezone` | `"UTC"` | 日付の区切り（`bucket`）と日時の条件に使うタイムゾーン（IANA 名。例: `"Asia/Tokyo"`）。変えると、起動時に公開側の列を作り直す |
+| `max_limit` | `100` | The maximum of a query's `limit` (rows; 1–1000) |
+| `timeout_ms` | `2000` | The timeout of one execution (milliseconds; 100–60000). A query that exceeds it keeps its previous result |
+| `max_concurrency` | `8` | The number of queries that can run at the same time (1–64) |
+| `max_in_items` | `100` | The maximum length of an `in` list (1–1000) |
+| `timezone` | `"UTC"` | The time zone used for date splits (`bucket`) and datetime conditions (an IANA name, e.g. `"Asia/Tokyo"`). Changing it recreates the public-side columns at startup |
 
-誤った定義やこの設定の誤りは、起動時にエラーにして止める。
+Wrong definitions and mistakes in these settings are a startup error that stops the server.
 
-## 3. 完全な設定例
+## 3. A Complete Example
 
-すべての項目を明示した、そのままパース可能な設定例です。
+A parseable-as-is example with every item written out.
 
 ```toml
 [server]
@@ -794,7 +795,7 @@ max_orders_per_ip_per_hour = 20
 low_stock_threshold = 5
 
 [commerce.manual]
-instructions = "ご注文ありがとうございます。お支払い方法はメールでご案内します。"
+instructions = "Thank you for your order. We will email you the payment instructions."
 payment_due_hours = 72
 
 [commerce.stripe]
@@ -937,81 +938,81 @@ required = true
 
 ---
 
-## 4. リバースプロキシ配下での運用
+## 4. Operating Behind a Reverse Proxy
 
-nginx / Caddy / ALB などのリバースプロキシの後ろで、サブドメイン（`cms.example.com`）のルートにも、サブパス（`example.com/cms/`）にも公開できます。公開サイト（`/`）、Admin Studio（`/admin/`）、API（`/api/v1`）、アップロード（`/uploads`）、テーマアセット（`/theme/assets`）は同じオリジン・同じパスの配下で動きます。
+Behind a reverse proxy such as nginx / Caddy / ALB, you can publish at the root of a subdomain (`cms.example.com`) or under a subpath (`example.com/cms/`). The public site (`/`), Admin Studio (`/admin/`), the API (`/api/v1`), uploads (`/uploads`), and theme assets (`/theme/assets`) work under the same origin and the same path.
 
-### 4.1 サブドメインで公開する
+### 4.1 Publishing on a Subdomain
 
-例: `https://cms.example.com/`
+Example: `https://cms.example.com/`
 
-`[server]` の設定は不要です。プロキシから AegisCMS にそのまま転送してください（下の nginx の例）。
+No `[server]` settings are needed. Just forward from the proxy to AegisCMS as is (see the nginx example below).
 
-### 4.2 サブパスで公開する
+### 4.2 Publishing Under a Subpath
 
-例: `https://example.com/cms/`
+Example: `https://example.com/cms/`
 
-`[server].base_path` に公開するパスを指定します。
+Specify the path to publish at in `[server].base_path`.
 
 ```toml
 [server]
 base_path = "/cms"
 ```
 
-- サーバーが生成する URL（テーマのリンク、アップロードしたファイルの URL、`/admin` のリダイレクト、SSO ログイン後の戻り先）にベースパスが付きます。
-- プロキシはパスを**そのまま**（`/cms/...` のまま）転送してください。ベースパスを取り除いて転送する設定でも動きますが、ベースパスと同じ名前のスラッグ（`/cms/cms`）が開けなくなります。ベースパスの無いリクエスト（`/api/v1/health` など）もそのまま受け付けるため、コンテナのヘルスチェックは変更不要です。
-- 独自テーマのテンプレートでは、リンクにグローバル変数 `base_path` を付けてください（`<a href="{{ base_path }}/articles/{{ item.slug }}">`。[テーマガイド](./theme_and_publishing_guide.md#テンプレートで使えるグローバル変数)）。
-- 本文に手で書いたルート起点のリンク（`/about` など）は書き換えません。`/cms/about` のようにベースパスを含めて書いてください。
-- アップロードしたファイルの URL はベースパス込みで本文に保存されます。**後から `base_path` を変えると、保存済みのコンテンツ内の画像・リンクは古いパスのまま**になるため、運用開始前に決めてください。
+- The base path is prepended to URLs the server generates (theme links, URLs of uploaded files, the `/admin` redirect, and the return destination after SSO login).
+- Have the proxy forward the path **as is** (keeping `/cms/...`). It also works if you configure it to strip the base path before forwarding, but then a slug with the same name as the base path (`/cms/cms`) can no longer be opened. Requests without the base path (such as `/api/v1/health`) are also accepted as they are, so container health checks need no change.
+- In your own theme's templates, prefix links with the global variable `base_path` (`<a href="{{ base_path }}/articles/{{ item.slug }}">`; [Theme guide](./theme_and_publishing_guide.md#global-variables-available-in-templates)).
+- Root-relative links written by hand in the body (such as `/about`) are not rewritten. Write them including the base path, like `/cms/about`.
+- URLs of uploaded files are stored in the body with the base path included. **If you change `base_path` later, images and links in already saved content keep the old path**, so decide before going live.
 
-### 4.3 Admin Studio の接続先
+### 4.3 Admin Studio's Connection Target
 
-本番ビルドは、自分を配信したサーバー（`{サーバー}/admin/assets/*.js` から逆算したオリジンとベースパス）の `/api/v1` に接続するため、ドメインやベースパスごとのビルドは不要です。
+The production build connects to the `/api/v1` of the server that served it (the origin and base path derived from `{server}/admin/assets/*.js`), so no build per domain or base path is needed.
 
-Admin Studio だけを別の場所で配信する場合（例: `admin.example.com` から `example.com/cms` の API を使う）は、ビルド時に `VITE_AEGIS_SERVER_URL=https://example.com/cms` を指定してください（Docker では `docker build --build-arg VITE_AEGIS_SERVER_URL=...`）。API は Bearer トークンで認証しますが、**認証が要る API は既定で同一オリジンだけ**（CORS を返さない）なので、Admin Studio のオリジンを `[server].cors_origins = ["https://admin.example.com"]` に書いてください（4.3.1）。プレビューのテーマアセット・アップロード画像や SSO のログイン URL もこの URL を使います。
+When serving Admin Studio alone from a different place (for example, using the API of `example.com/cms` from `admin.example.com`), specify `VITE_AEGIS_SERVER_URL=https://example.com/cms` at build time (in Docker, `docker build --build-arg VITE_AEGIS_SERVER_URL=...`). The API authenticates with a Bearer token, but **APIs requiring authentication are same-origin only by default** (no CORS is returned), so write Admin Studio's origin in `[server].cors_origins = ["https://admin.example.com"]` (4.3.1). The preview's theme assets and uploaded images, and the SSO login URL, use this URL too.
 
-#### 4.3.1 CORS（`[server].cors_origins`）
+#### 4.3.1 CORS (`[server].cors_origins`)
 
-| 対象 | 既定（`cors_origins = []`） | オリジンを書いたとき |
+| Target | Default (`cors_origins = []`) | When origins are written |
 | --- | --- | --- |
-| 公開の読み取り（`GET` / `HEAD`。公開ページ・`/uploads/`・テーマの静的ファイルなど `/api/` の外と、`/api/v1/public/`・`/api/v1/search`・`/api/v1/health`） | 全オリジンに `Access-Control-Allow-Origin: *` | 同じ |
-| 認証が要る API・書き込み（`POST` / `PUT` / `PATCH` / `DELETE`） | CORS なし（同一オリジンだけ。ほかのオリジンのブラウザーは応答を読めない） | 書いたオリジンにだけ、そのオリジンの値を返し（`Vary: Origin`）、メソッドとプリフライトが求めたヘッダーを許す |
+| Public reads (`GET` / `HEAD`. Public pages, `/uploads/`, theme static files and others outside `/api/`, and `/api/v1/public/`, `/api/v1/search`, `/api/v1/health`) | `Access-Control-Allow-Origin: *` to all origins | The same |
+| APIs requiring authentication and writes (`POST` / `PUT` / `PATCH` / `DELETE`) | No CORS (same-origin only; browsers of other origins cannot read the response) | Returns that origin's value only to the origins written (`Vary: Origin`), and allows the methods and the headers the preflight asked for |
 
-- 値は `https://admin.example.com` のようなオリジン（スキーム・ホスト・任意のポート。パスなし）。`"*"` を書くと前の動き（全オリジンに全メソッド）に戻る。不正な値だと起動しない。
-- `Access-Control-Allow-Credentials` は返さない（認証は Cookie ではなく Bearer トークン）。
-- 別のドメインで配信する Admin Studio、ヘッドレスのクライアントが認証つきの API を呼ぶときに、そのオリジンを足す。
+- The value is an origin such as `https://admin.example.com` (scheme, host, and an optional port; no path). Writing `"*"` returns to the earlier behavior (all methods to all origins). An invalid value stops startup.
+- `Access-Control-Allow-Credentials` is not returned (authentication is by Bearer token, not cookies).
+- When Admin Studio served from a different domain or a headless client calls authenticated APIs, add that origin.
 
-### 4.4 あわせて確認する設定
+### 4.4 Other Settings to Check
 
-| 設定 | 内容 |
+| Setting | Description |
 | --- | --- |
-| `[audit].trust_forwarded_for = true` | 監査ログ・ログインのレート制限のクライアント IP を `X-Forwarded-For` から取る。無効のままだと全員がプロキシの IP として数えられ、IP 単位のロックが全ユーザーに効く |
-| `[auth.oidc].redirect_url` | 公開 URL（`https://cms.example.com/api/v1/auth/oidc/callback`、サブパスなら `https://example.com/cms/api/v1/auth/oidc/callback`）にする。既定の `127.0.0.1` のままでは IdP から戻れない |
-| `[auth.saml].entity_id` / `acs_url` | 公開 URL にする（`https://cms.example.com/api/v1/auth/saml/acs`、サブパスなら `https://example.com/cms/api/v1/auth/saml/acs`）。応答の `Destination`・`Recipient` と一致しないと拒否される |
-| `[auth.oidc].post_login_redirect` / `[auth.saml].post_login_redirect` | `/` で始まる値（既定の `/admin/`）にはベースパスが自動で付く。Admin Studio を別の場所に置く場合は絶対 URL（`https://admin.example.com/admin/`） |
-| `[security].internal_domains` | 本文中の自サイトへの絶対 URL を外部リンク扱い（`rel="noopener ..."` 付与）にしないよう、`["example.com"]` のように指定（サブドメインも含めて内部扱い） |
-| `[storage].max_upload_mb` | プロキシ側の上限（nginx の `client_max_body_size` など）も同じ値以上にする |
+| `[audit].trust_forwarded_for = true` | Takes the client IP for audit logs and login rate limiting from `X-Forwarded-For`. If left disabled, everyone is counted as the proxy's IP, and the per-IP lock applies to all users |
+| `[auth.oidc].redirect_url` | Make it the public URL (`https://cms.example.com/api/v1/auth/oidc/callback`, or `https://example.com/cms/api/v1/auth/oidc/callback` for a subpath). The default `127.0.0.1` cannot be returned to from the IdP |
+| `[auth.saml].entity_id` / `acs_url` | Make them public URLs (`https://cms.example.com/api/v1/auth/saml/acs`, or `https://example.com/cms/api/v1/auth/saml/acs` for a subpath). They are refused if they do not match the response's `Destination` and `Recipient` |
+| `[auth.oidc].post_login_redirect` / `[auth.saml].post_login_redirect` | Values starting with `/` (the default `/admin/`) automatically get the base path prepended. If Admin Studio is placed elsewhere, an absolute URL (`https://admin.example.com/admin/`) |
+| `[security].internal_domains` | So absolute URLs to your own site in the body are not treated as external links (given `rel="noopener ..."`), specify something like `["example.com"]` (subdomains included as internal) |
+| `[storage].max_upload_mb` | Make the proxy-side limit (such as nginx's `client_max_body_size`) the same value or more |
 
-nginx の例（サブドメイン）:
+nginx example (subdomain):
 
 ```nginx
 server {
     listen 443 ssl;
     server_name cms.example.com;
 
-    client_max_body_size 10m;  # [storage].max_upload_mb に合わせる
+    client_max_body_size 10m;  # match [storage].max_upload_mb
 
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
-        # AegisCMS は先頭のアドレスを使うため、クライアントが送った値は引き継がない
+        # AegisCMS uses the first address, so do not carry over what the client sent
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
 
-nginx の例（サブパス、`base_path = "/cms"`）:
+nginx example (subpath, `base_path = "/cms"`):
 
 ```nginx
 server {
@@ -1020,7 +1021,7 @@ server {
 
     client_max_body_size 10m;
 
-    # proxy_pass に URI（末尾の / など）を付けないことで、/cms/... のまま転送する
+    # By not adding a URI (such as a trailing /) to proxy_pass, /cms/... is forwarded as is
     location /cms/ {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1034,70 +1035,69 @@ server {
 ```
 
 > [!NOTE]
-> `X-Forwarded-For` はクライアントが自由に設定できます。`trust_forwarded_for` を有効にする場合は、AegisCMS に直接アクセスできないようにし（`[server].host = "127.0.0.1"` やファイアウォール）、上の例のようにプロキシ側で受け取った `X-Forwarded-For` を上書きしてください（`$proxy_add_x_forwarded_for` は受け取った値の後ろに追記するため、先頭を偽装できます）。プロキシを多段にする場合は、最も外側のプロキシで上書きしてください。
+> `X-Forwarded-For` can be set freely by clients. When enabling `trust_forwarded_for`, make AegisCMS unreachable directly (`[server].host = "127.0.0.1"` or a firewall), and overwrite the `X-Forwarded-For` received on the proxy side as in the examples above (`$proxy_add_x_forwarded_for` appends after the received value, so the first entry can be spoofed). With multiple proxy stages, overwrite at the outermost proxy.
 
-### 4.5 Caddy でまとめて公開する（`deploy/`）
+### 4.5 Publishing Together with Caddy (`deploy/`)
 
-[`deploy/`](../deploy) に、AegisCMS と Caddy（Let's Encrypt の証明書を自動で取得・更新）を Docker Compose で起動する構成があります。`deploy/sites.toml` にドメインとサイトの設定を書き、`./deploy.sh up` で起動します。サイトごとに AegisCMS のコンテナを分けるので、`[[sites]]` を足すだけで複数のサイト（ドメイン）を同じサーバーで公開できます。各サイトの `aegis.toml` は `aegis-server deploy generate` が `config/docker.toml` を土台に生成し、`[audit].trust_forwarded_for = true` を設定します。手順は [deploy/README.md](../deploy/README.ja.md)。
+[`deploy/`](../deploy) has a setup that starts AegisCMS and Caddy (which obtains and renews Let's Encrypt certificates automatically) with Docker Compose. Write the domains and site settings in `deploy/sites.toml` and start with `./deploy.sh up`. Each site gets its own AegisCMS container, so just adding a `[[sites]]` lets you publish multiple sites (domains) on the same server. Each site's `aegis.toml` is generated by `aegis-server deploy generate` on top of `config/docker.toml`, with `[audit].trust_forwarded_for = true` set. For the steps, see [deploy/README.md](../deploy/README.md).
 
 ---
 
-### 4.6 使っている CMS を特定されにくくする
+### 4.6 Making It Harder to Identify the CMS in Use
 
-攻撃者の自動スキャンは、製品名・バージョン・決まった URL から CMS を判定して既知の脆弱性を試します。次の設定で手がかりを減らせます（隠すだけなので、アップデート・二段階認証・管理画面への経路の制限の代わりにはなりません）。
+Attackers' automatic scans identify the CMS from the product name, version, and fixed URLs and try known vulnerabilities. The following settings reduce the clues (it only hides things, so it does not replace updates, two-factor authentication, or restricting the route to the admin screen).
 
-| 設定 | 効果 |
+| Setting | Effect |
 | --- | --- |
-| `[server].admin_path = "/<推測されにくい名前>"` | Admin Studio を別のパスで配信する。既定の `/admin` は Admin Studio ではなくなる（公開サイトの 404）。同じ名前のスラッグの固定ページは開けなくなる |
-| `[server].namespace = "<好きな名前>"` | 公開ページの HTML・CSS・JS に出る識別子の接頭辞（`aegis-consent` → `<名前>-consent`、`/_aegis/consent.js` → `/_<名前>/consent.js`、`window.AegisConsent` → `window.<名前>Consent` など）を変える。既定は `cms`（`aegis` を指定すると元の名前のまま）。HTML・CSS・JS の応答が返る直前に置き換えるので、テンプレートや自作テーマは `aegis-` と書いたままでよい |
-| `[theme].show_powered_by = false` | 組み込みテンプレートと同梱テーマのフッターから「Powered by AegisCMS」などの表記を消す |
-| `[theme].show_admin_link` | 公開ページ（組み込みテンプレートと同梱テーマのヘッダー・フッター）に Admin Studio へのリンクを出すか。**未指定なら、`admin_path` が既定の `/admin` のときだけ出す**（パスを変えたのは隠すためなので、変えたらリンクも出さない）。`true` で変えたパスへのリンクを出し、`false` でパスが既定でも出さない |
+| `[server].admin_path = "/<a hard-to-guess name>"` | Serves Admin Studio at a different path. The default `/admin` stops being Admin Studio (a 404 on the public site). A static page whose slug has the same name can no longer be opened |
+| `[server].namespace = "<any name>"` | Changes the prefix of identifiers that appear in public pages' HTML, CSS, and JS (`aegis-consent` → `<name>-consent`, `/_aegis/consent.js` → `/_<name>/consent.js`, `window.AegisConsent` → `window.<name>Consent`, etc.). The default is `cms` (specifying `aegis` keeps the original names). The replacement is done right before HTML, CSS, and JS responses are returned, so templates and your own themes can keep writing `aegis-` |
+| `[theme].show_powered_by = false` | Removes notices such as "Powered by AegisCMS" from the footers of the built-in templates and bundled themes |
+| `[theme].show_admin_link` | Whether to show a link to Admin Studio on public pages (the headers and footers of the built-in templates and bundled themes). **If unspecified, it is shown only when `admin_path` is the default `/admin`** (changing the path was to hide it, so once changed the link is not shown either). `true` shows a link to the changed path, and `false` does not show it even when the path is the default |
 
-- `namespace` の置き換え対象は、`text/html`・`text/css`・JavaScript の応答（`/api/`・Admin Studio・アップロードは除く）の `aegis-`・`aegis_`・`aegis:`・`/_aegis/`・`AegisConsent` のような名前・`AEGIS_` で始まる定数名です。記事の本文に同じ形の文字列（例: コード例の `aegis-server`）があると、それも置き換わります。URL の一部（`/aegis-…`）と製品名の `AegisCMS` は置き換えません。変えると保存済みの Cookie・localStorage（同意の選択、カート）は引き継がれず、テーマの CSS を `aegis-` 以外の名前に直書きしている場合は合わせて直してください。
-- 変えたパスを `robots.txt` に書かないでください（`Disallow` に書くとパスが公開されます）。既定の `robots.txt` の `Disallow: /admin/` はそのままで構いません。
-- `[auth.oidc]` / `[auth.saml]` の `post_login_redirect` が既定（`/admin/`）のままなら、新しいパスに自動で合わせます。`[auth.registration].admin_url` を書いている場合は新しいパスに直してください。
-- `admin_path` を変えたら、ブックマークや IdP に登録した戻り先 URL も更新してください。
-- `GET /api/v1/health` は製品名とバージョンを `admin` のセッションにだけ返します。あわせてリバースプロキシで `/health`・`/api/v1/health`・`/metrics` を外部から遮断し（`deploy/` の Caddy 構成では既定で遮断。[deploy/README.md](../deploy/README.ja.md#5-運用)）、Admin Studio のパスを IP 制限や VPN で守るとより効果的です。
+- What `namespace` replaces, in `text/html`, `text/css`, and JavaScript responses (excluding `/api/`, Admin Studio, and uploads), is `aegis-`, `aegis_`, `aegis:`, `/_aegis/`, names like `AegisConsent`, and constant names starting with `AEGIS_`. If the body of an article has a string of the same form (for example, `aegis-server` in a code example), it is replaced too. Parts of URLs (`/aegis-…`) and the product name `AegisCMS` are not replaced. When you change it, saved cookies and localStorage (consent choices, the cart) are not carried over, and if you hard-coded names other than `aegis-` in the theme's CSS, fix them to match.
+- Do not write the changed path in `robots.txt` (writing it in `Disallow` makes the path public). The default `robots.txt`'s `Disallow: /admin/` can stay as is.
+- If `post_login_redirect` of `[auth.oidc]` / `[auth.saml]` is left at the default (`/admin/`), it follows the new path automatically. If you wrote `[auth.registration].admin_url`, fix it to the new path.
+- When you change `admin_path`, also update bookmarks and the return URLs registered with the IdP.
+- `GET /api/v1/health` returns the product name and version only to an `admin` session. In addition, block `/health`, `/api/v1/health`, and `/metrics` from outside at the reverse proxy (blocked by default in the `deploy/` Caddy setup; [deploy/README.md](../deploy/README.md#5-operations)), and protecting Admin Studio's path with IP restrictions or a VPN is more effective.
 
-## 5. 管理画面から設定する動的サイト・SEO設定
+## 5. Dynamic Site & SEO Settings from the Admin Screen
 
-サーバーの再起動を伴わずに即時反映できるよう、サイトの基本情報および検索エンジン・Bot制御はデータベースの `_aegis_settings` テーブルに保存され、Admin Studio の「設定」画面からリアルタイムに変更できます。
+So they can take effect immediately without restarting the server, the site's basic information and search engine / bot control are stored in the database's `_aegis_settings` table and can be changed in real time from Admin Studio's "Settings" screen.
 
-### 5.1 一般設定 (`site.*`)
+### 5.1 General Settings (`site.*`)
 
-| 項目名 | DB キー | 説明 |
+| Item | DB key | Description |
 | --- | --- | --- |
-| サイト名 | `site.title` | 公開サイトおよび管理画面のタイトル表示 |
-| ファビコン | `site.favicon` | `<link rel="icon">` で読み込むアイコン画像 URL（メディアライブラリから選択またはアップロード） |
+| Site name | `site.title` | Title display of the public site and the admin screen |
+| Favicon | `site.favicon` | The icon image URL loaded with `<link rel="icon">` (chosen from the media library or uploaded) |
 
-### 5.2 SEO & Bot 対策設定 (`seo.*`)
+### 5.2 SEO & Bot Settings (`seo.*`)
 
-| 項目名 | DB キー | 型 / 値の形式 | 既定値 | 説明 |
+| Item | DB key | Type / value form | Default | Description |
 | --- | --- | --- | --- | --- |
-| インデックス全体除外 | `seo.noindex_all` | `"true"` | `"false"` | 有効時、サイト全体の `<head>` に `noindex, nofollow` を強制注入（開発環境や非公開環境向け） |
-| Canonical Base URL | `seo.canonical_base_url` | URL 文字列 | `""` | サイトの正規ドメイン（例: `https://example.com`）。設定時、全ページに `<link rel="canonical">` を出力 |
-| デフォルト Meta 説明文 | `seo.meta_description` | 文字列（最大 500 文字） | `""` | ページ個別の要約がない場合にフォールバック出力される `<meta name="description">` |
-| デフォルト Meta キーワード | `seo.meta_keywords` | 文字列（カンマ区切り） | `""` | `<meta name="keywords">` の出力 |
-| デフォルト OGP 画像 | `seo.og_image` | 画像 URL | `""` | SNS シェア時のデフォルトアイキャッチ画像（メディアライブラリから選択可能） |
-| Twitter Card 種別 | `seo.twitter_card` | `"summary"` \| `"summary_large_image"` | `"summary_large_image"` | Twitter / X 共有時のカード表示形式 |
-| カスタム robots.txt | `seo.robots_txt` | テキスト（最大 64 KB） | 空（自動生成） | クローラー巡回制御。空の場合は安全なデフォルトルールおよび動的 Sitemap 参照を出力 |
+| Exclude whole site from indexing | `seo.noindex_all` | `"true"` | `"false"` | When enabled, `noindex, nofollow` is forcibly injected into the whole site's `<head>` (for development and private environments) |
+| Canonical Base URL | `seo.canonical_base_url` | URL string | `""` | The site's canonical domain (e.g. `https://example.com`). When set, `<link rel="canonical">` is output on all pages |
+| Default Meta description | `seo.meta_description` | String (up to 500 characters) | `""` | The `<meta name="description">` output as a fallback when a page has no individual summary |
+| Default Meta keywords | `seo.meta_keywords` | String (comma-separated) | `""` | Output of `<meta name="keywords">` |
+| Default OGP image | `seo.og_image` | Image URL | `""` | The default eye-catch image when sharing on SNS (can be chosen from the media library) |
+| Twitter Card type | `seo.twitter_card` | `"summary"` \| `"summary_large_image"` | `"summary_large_image"` | The card display format when sharing on Twitter / X |
+| Custom robots.txt | `seo.robots_txt` | Text (up to 64 KB) | Empty (auto-generated) | Crawler control. If empty, safe default rules and a dynamic Sitemap reference are output |
 
 > [!TIP]
-> Admin Studio の SEO 設定画面では「標準設定」「開発環境（全ブロック）」「生成AIクローラー拒否」のワンクリックプリセットが用意されており、安全かつ迅速に `robots.txt` を構成できます。
+> Admin Studio's SEO settings screen has one-click presets "Standard", "Development (block all)", and "Reject generative AI crawlers", so you can configure `robots.txt` safely and quickly.
 
-### 5.3 システム運用設定 (`system.*`)
+### 5.3 System Operation Settings (`system.*`)
 
-サーバープロセスの再起動を行わずに、Admin Studio の「設定 › システム」から即時反映できます。設定値はデータベースの `_aegis_settings` に保存され、設定ファイル（TOML）の初期値をオーバーライドします。
+These take effect immediately from Admin Studio's "Settings › System" without restarting the server process. Values are stored in the database's `_aegis_settings` and override the initial values in the config file (TOML).
 
-| 項目名 | DB キー | 型 / 値の形式 | 既定値 | 説明 |
+| Item | DB key | Type / value form | Default | Description |
 | --- | --- | --- | --- | --- |
-| メンテナンスモード | `system.maintenance_mode` | `"true"` \| `"false"` | `"false"` | 有効時、一般リクエストに対し `503 Service Unavailable` とメンテナンス画面を返却。管理画面や管理者は通常通りアクセス可能 |
-| メンテナンスメッセージ | `system.maintenance_message` | 文字列（最大 1000 文字） | `"Site is currently under maintenance..."` | メンテナンス画面に表示する案内メッセージ |
-| 最大アップロードサイズ | `system.max_upload_mb` | 整数 (1〜1024) | `[storage].max_upload_mb` | アセットアップロード時の最大ファイルサイズ（MB） |
-| キャッシュ有効化 | `system.cache_enabled` | `"true"` \| `"false"` | `[cdn].enabled` | 公開ページのレスポンスキャッシュの有効/無効 |
-| キャッシュ TTL | `system.cache_ttl_secs` | 整数（秒） | `[cache].default_ttl_secs` | 公開ページの `Cache-Control: max-age={ttl}` の秒数 |
-| 新規ユーザー登録受付 | `system.registration_enabled` | `"true"` \| `"false"` | `[auth.registration].enabled` | Admin Studio ログイン画面からの自己アカウント新規登録受付の可否 |
-| ログイン試行制限回数 | `system.max_login_attempts` | 整数 (0 で無制限) | `[auth.login_rate_limit].max_failures_per_ip` | 同一 IP アドレスからの最大ログイン失敗許容回数 |
-| コメント投稿受付 | `system.comments_enabled` | `"true"` \| `"false"` | `[comments].enabled` | 公開サイトからの新規コメント投稿受付の一時停止/再開 |
-| 掲示板投稿受付 | `system.forum_enabled` | `"true"` \| `"false"` | `[forum].enabled` | フォーラムへの新規スレッド・返信投稿受付の一時停止/再開 |
-
+| Maintenance mode | `system.maintenance_mode` | `"true"` \| `"false"` | `"false"` | When enabled, ordinary requests get `503 Service Unavailable` and a maintenance screen. The admin screen and administrators can access as usual |
+| Maintenance message | `system.maintenance_message` | String (up to 1000 characters) | `"Site is currently under maintenance..."` | The notice shown on the maintenance screen |
+| Maximum upload size | `system.max_upload_mb` | Integer (1–1024) | `[storage].max_upload_mb` | The maximum file size (MB) when uploading assets |
+| Enable caching | `system.cache_enabled` | `"true"` \| `"false"` | `[cdn].enabled` | Enable or disable response caching of public pages |
+| Cache TTL | `system.cache_ttl_secs` | Integer (seconds) | `[cache].default_ttl_secs` | The seconds of public pages' `Cache-Control: max-age={ttl}` |
+| Accept new user registration | `system.registration_enabled` | `"true"` \| `"false"` | `[auth.registration].enabled` | Whether to accept self-service new account registration from Admin Studio's login screen |
+| Login attempt limit | `system.max_login_attempts` | Integer (0 is unlimited) | `[auth.login_rate_limit].max_failures_per_ip` | The maximum allowed login failures from the same IP address |
+| Accept comment posts | `system.comments_enabled` | `"true"` \| `"false"` | `[comments].enabled` | Temporarily stop / resume accepting new comment posts from the public site |
+| Accept forum posts | `system.forum_enabled` | `"true"` \| `"false"` | `[forum].enabled` | Temporarily stop / resume accepting new thread and reply posts in the forum |

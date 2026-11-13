@@ -1,31 +1,33 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# ヘッドレス配信 API
+**English** | [日本語](headless.ja.md)
 
-認証なしで、**公開済みのコンテンツだけ**を JSON で返す読み取り専用の API です。AegisCMS のテーマで描画する代わりに、別のサイト（Next.js・Astro など）やアプリがコンテンツを取りに来られるようにします。
+# Headless Delivery API
 
-返すデータの形は**スキーマ（`schemas/*.yaml`）で決まります**。スキーマを書くと、編集画面・編集用 API・型・OpenAPI が揃うのと同じ流れで、配信用 API も揃います。
+A read-only API that returns **only published content** as JSON, without authentication. Instead of rendering with an AegisCMS theme, it lets other sites (Next.js, Astro, etc.) and apps fetch the content.
 
-## 使い方
+The shape of the returned data is **decided by the schema (`schemas/*.yaml`)**. Writing a schema produces the delivery API in the same flow that produces the editing screen, the editing API, types, and OpenAPI.
 
-既定は無効です。設定ファイルの `[headless]` で有効にします（設定の一覧は [設定リファレンス 2.25](configuration.md#225-headless--ヘッドレス配信-api)）。
+## Usage
+
+It is disabled by default. Enable it with `[headless]` in the config file (for the list of settings, see [Configuration reference 2.25](configuration.md#225-headless--headless-delivery-api)).
 
 ```toml
 [headless]
 enabled = true
-content_types = ["article", "page"]   # 配信する型（既定）
+content_types = ["article", "page"]   # kinds to deliver (default)
 ```
 
 ```bash
-# 公開済みの一覧（新しい順。続きは next_cursor を cursor に渡す）
+# A list of published content (newest first; pass next_cursor as cursor for the rest)
 curl "http://localhost:8080/api/v1/public/contents/article?limit=10"
-# 1 件（本文のブロックつき。?include=html で描画済みの HTML も）
+# One item (with the body blocks; ?include=html also gives the rendered HTML)
 curl "http://localhost:8080/api/v1/public/contents/article/hello-world?include=html"
-# 配信する型・フィールドだけの OpenAPI
+# OpenAPI for only the delivered kinds and fields
 curl "http://localhost:8080/api/v1/public/openapi.json"
 ```
 
-内部向けのフィールドは、スキーマで `public: false` と書くと出なくなります。
+Fields meant for internal use stop being returned if you write `public: false` in the schema.
 
 ```yaml
 fields:
@@ -36,92 +38,92 @@ fields:
 
 ---
 
-## 1. 位置づけと範囲
+## 1. Positioning and Scope
 
-- AegisCMS の主軸は、テーマで描画する従来型のまま変えません。ヘッドレス配信は、使う人だけが有効にする追加の入口です（既定は無効）。
-- 汎用のバックエンドではありません。**読み取りだけ**で、エンドユーザーが任意のデータを書き込む API・行ごとの権限・リアルタイムは作りません。コメント・問い合わせ・注文など、書き込みを伴う機能は今までどおり各機能の入口を使います。
-- 編集用の `/api/v1/contents/...`（Bearer トークンが必要。下書きも返す。[記事・コンテンツ投稿 API](content-api.md)）とは別の入口にします。理由は、公開用に流用すると、下書きを返さないことが実装の書き方に依存してしまうためです。
+- AegisCMS's main axis stays the traditional one of rendering with themes. Headless delivery is an additional entry point that only people who use it enable (disabled by default).
+- It is not a general-purpose backend. It is **read-only**; it does not provide an API where end users write arbitrary data, per-row permissions, or realtime. Features that involve writing, such as comments, contact, and orders, use each feature's own entry point as before.
+- It is a separate entry point from the editing `/api/v1/contents/...` (which needs a Bearer token and also returns drafts; [Content posting API](content-api.md)). The reason is that reusing it for public use would make "not returning drafts" depend on how the implementation is written.
 
-### やらないこと（この設計の範囲外）
+### What It Does Not Do (Outside the Scope of This Design)
 
-- 下書き・プレビューの取得（API キーが要るので、別の設計にする）
-- 検索 API（サイト内検索の `GET /api/v1/search` が既にある）
+- Fetching drafts and previews (an API key would be needed, so it would be a separate design)
+- A search API (the site search `GET /api/v1/search` already exists)
 - GraphQL
-- 書き込み系の API
+- Write APIs
 
 ---
 
-## 2. 構成
+## 2. Structure
 
 ```text
- クライアント ──▶ サーバー（認証なしのルート・レート制限・CORS・キャッシュのヘッダー）
+ Client ──▶ Server (unauthenticated route, rate limit, CORS, cache headers)
                     │
                     ▼
-              aegis-headless（新しいクレート）
-              絞り込みの引数の検証 / スキーマに従う整形 / カーソル / ETag
-                    │  使えるのは「公開版の読み取り」だけ
+              aegis-headless (a new crate)
+              Validating filter arguments / shaping per the schema / cursors / ETag
+                    │  Only "reading the published version" is available
                     ▼
-              aegis-db（get_published_content / list_published_contents_page）
+              aegis-db (get_published_content / list_published_contents_page)
 ```
 
-### 2.1 クレート `aegis-headless`
+### 2.1 The `aegis-headless` Crate
 
-検索（`aegis-search`）と同じ作り方にします。サーバーの Cargo の feature `headless` で組み込みます。
+It is built the same way as search (`aegis-search`). It is built in with the server's Cargo feature `headless`.
 
-- **依存**: `aegis-core`・`aegis-schema` と、DB の読み取りの入口だけです。サーバーの内部状態（`AppState`）には依存しません。
-- **DB の入口を絞る**: クレートは `dyn DatabaseAdapter` を受け取らず、公開版の取得だけを持つ小さなトレイト（仮に `PublishedSource`）を受け取ります。サーバーがアダプターに対して実装します。編集用のメソッドが型として見えないので、下書きを返す処理を書けません。
-- **持つもの（純粋なロジック）**:
-  - 一覧の引数（`limit`・`cursor`・`category`・`tag`）の検証と、上限の丸め
-  - スキーマに従ったレコードの整形（公開するフィールドだけを選ぶ）
-  - カーソルの符号化・復号（改ざんされたら 400）
-  - `ETag` の計算
-- **サーバー側の担当**: ルートの登録、レート制限、CORS、`Cache-Control`、CDN のキャッシュタグ、設定の読み込み。他のクレート（commerce・comments）と同じ分担です。
+- **Dependencies**: only `aegis-core`, `aegis-schema`, and the DB's read entry points. It does not depend on the server's internal state (`AppState`).
+- **Narrowing the DB entry point**: the crate does not accept a `dyn DatabaseAdapter`; it accepts a small trait that has only fetching of published versions (tentatively `PublishedSource`). The server implements it on top of the adapter. The editing methods are not visible as a type, so code that returns drafts cannot be written.
+- **What it holds (pure logic)**:
+  - Validating list arguments (`limit`, `cursor`, `category`, `tag`) and clamping to limits
+  - Shaping records per the schema (selecting only the public fields)
+  - Encoding and decoding cursors (400 if tampered with)
+  - Computing the `ETag`
+- **The server's responsibilities**: registering routes, rate limiting, CORS, `Cache-Control`, CDN cache tags, and loading settings. The same division as the other crates (commerce, comments).
 
-### 2.2 既存の仕組みの再利用（新しい問い合わせは足さない）
+### 2.2 Reusing Existing Mechanisms (No New Queries Are Added)
 
-| 用途 | 使うもの | 補足 |
+| Purpose | What is used | Notes |
 |---|---|---|
-| 1 件 | `get_published_content(schema, slug_or_id)` | |
-| 一覧 | `list_published_contents_page(schema, &ContentListQuery)` | `status`・`limit`/`offset`・キーセット（`cursor_*`）・`tag_id`・`category_id` の絞り込みが対応。公開の記録の列と索引で SQL に任せているので、記事数に依らない |
-| リレーションの解決 | `resolve_published_relations` | 公開版の記録（`_aegis_content_publications`）から**公開中のものだけ**を `id` / `slug` で引く。編集用の `resolve_relations` はコンテンツ本体のテーブルを引き、未公開のタイトルや下書きも返すので使わない。値が空のフィールドは問い合わせない |
-| キャッシュの消去 | `cdn::content_invalidation_tags`・`purge_content` | 公開ページと同じタグを付ければ、更新時に同じ仕組みで消える |
+| One item | `get_published_content(schema, slug_or_id)` | |
+| List | `list_published_contents_page(schema, &ContentListQuery)` | Filtering by `status`, `limit`/`offset`, keyset (`cursor_*`), `tag_id`, and `category_id` is supported. It is left to SQL with the published record's columns and indexes, so it does not depend on the number of articles |
+| Resolving relations | `resolve_published_relations` | Looks up **only published ones** by `id` / `slug` from the published version records (`_aegis_content_publications`). The editing `resolve_relations` reads the content's own table and would also return unpublished titles and drafts, so it is not used. Fields with empty values are not queried |
+| Cache clearing | `cdn::content_invalidation_tags`, `purge_content` | With the same tags as public pages, they are cleared on update by the same mechanism |
 
-公開版の一覧は、追加の問い合わせを増やさない範囲だけを使います。**追加フィールドでの絞り込みや部分一致は対応しません**（先に検討して見送った項目と同じ理由です）。
+The published list uses only what needs no additional queries. **Filtering and partial matching on extra fields are not supported** (for the same reason as items considered and set aside earlier).
 
 ---
 
-## 3. エンドポイント
+## 3. Endpoints
 
-すべて `GET`、認証なしです。
+All are `GET`, unauthenticated.
 
-| パス | 内容 |
+| Path | Description |
 |---|---|
-| `/api/v1/public/contents/{type}` | 公開済みの一覧 |
-| `/api/v1/public/contents/{type}/{slug}` | 公開済みの 1 件 |
-| `/api/v1/public/openapi.json` | 公開する型だけの OpenAPI |
+| `/api/v1/public/contents/{type}` | A list of published content |
+| `/api/v1/public/contents/{type}/{slug}` | One published item |
+| `/api/v1/public/openapi.json` | OpenAPI for only the public kinds |
 
-### 3.1 一覧のクエリ
+### 3.1 List Query
 
-| 引数 | 内容 |
+| Argument | Description |
 |---|---|
-| `limit` | 1 ページの件数。既定 20、上限 `max_page_size`（既定 100） |
-| `cursor` | 前のページの `next_cursor`。中身は不透明（クライアントは解釈しない） |
-| `category` | カテゴリの ID。未分類は `none` |
-| `tag` | タグの slug |
+| `limit` | Items per page. Default 20, up to `max_page_size` (default 100) |
+| `cursor` | The previous page's `next_cursor`. The contents are opaque (clients do not interpret them) |
+| `category` | The category's ID. `none` for uncategorized |
+| `tag` | The tag's slug |
 
-### 3.2 応答の形
+### 3.2 Response Shape
 
-一覧:
+List:
 
 ```json
 {
-  "items": [ { "...": "1 件の形" } ],
+  "items": [ { "...": "the shape of one item" } ],
   "next_cursor": "opaque-string-or-null",
   "total": 123
 }
 ```
 
-1 件（`items` の要素、および単体の応答）:
+One item (an element of `items`, and a single-item response):
 
 ```json
 {
@@ -138,80 +140,80 @@ fields:
 }
 ```
 
-- 一覧の要素は要約（`blocks` なし）、単体は `blocks` を含めます（編集用 API の `view=summary` と同じ分け方）。
-- **返さない標準の項目**: `author_id`（内部のユーザー ID）、`status`、`unpublish_at`、`comments_open`、`rendered_html`（§6 の 2）。
-- `fields` の値は、編集用 API と同じ形です（jsonb はオブジェクト、リレーションは `relations` に解決済み）。
+- List elements are summaries (without `blocks`), and a single item includes `blocks` (the same split as `view=summary` of the editing API).
+- **Standard items not returned**: `author_id` (the internal user ID), `status`, `unpublish_at`, `comments_open`, `rendered_html` (§6, item 2).
+- The values of `fields` have the same shape as the editing API (jsonb is an object, and relations are resolved in `relations`).
 
 ---
 
-## 4. スキーマで決まること
+## 4. What Is Decided by the Schema
 
-### 4.1 どの型を公開するか
+### 4.1 Which Kinds Are Public
 
-設定の許可リストで決めます。**既定は記事と固定ページだけ**です。商品の在庫など、内部向けの値を持つ型は、明示しない限り出ません。許可リストにない型は `404` です（存在しない型と区別しない）。
+Decided by the settings' allowlist. **The default is only articles and static pages.** Kinds with internal values, such as a product's inventory, are not returned unless explicitly specified. A kind not on the allowlist is `404` (not distinguished from a nonexistent kind).
 
-### 4.2 どのフィールドを返すか
+### 4.2 Which Fields Are Returned
 
-フィールドに公開の可否を持たせます。
+A field carries whether it is public.
 
 ```yaml
 fields:
   - name: internal_note
     type: string
-    public: false      # 配信 API に出さない
+    public: false      # not returned by the delivery API
 ```
 
-- `public` の既定は「公開」です（§6 の 1）。非公開にしたいフィールドにだけ `public: false` を書きます。
-- 標準の項目（タイトル・スラッグ・日時・本文）は、上の §3.2 の決まりどおりで、スキーマで変えられません。
-- `category_id`（組み込みのフィールド）は常に公開します。
+- The default of `public` is "public" (§6, item 1). Write `public: false` only on fields you want to hide.
+- Standard items (title, slug, dates, body) follow §3.2 above and cannot be changed by the schema.
+- `category_id` (the built-in field) is always public.
 
-### 4.3 OpenAPI と型
+### 4.3 OpenAPI and Types
 
-既存の `OpenApiGenerator`・`TypeScriptGenerator` を使い、公開する型・フィールドだけの定義を `GET /api/v1/public/openapi.json` で配信します（稼働中の設定が反映される）。
-
----
-
-## 5. 安全性
-
-- **公開済みだけを返す**: DB の入口が公開版（`published` のスナップショット）に限られます。下書き・レビュー待ち・予約中・アーカイブは取れません。
-- **期限切れを返さない**: 公開ページと同じく、リクエスト時に `unpublish_at` を確かめます（スケジューラのアーカイブ化を待たない）。1 件は `404`、一覧は結果から除きます（除いてもカーソルは途切れない）。読めない日時は公開していないものとして扱います。一覧の `total` は DB の件数なので、アーカイブ化まで（最大 30 秒）は期限切れの分を含みます。
-- **関連コンテンツは公開版だけ**: `relations` の参照先は公開版の記録から引き、下書き・編集中のタイトル・予約中は出ません。参照先の型が公開する型に入っているかは問いません（返すのは `id`・`content_type`・`title`・`slug` だけで、公開済みならサイトで見える情報です）。
-- **本文のブロックは保存されたまま返す**: `core/html` などのブロックは、保存された HTML をそのまま含みます（サニタイズは描画時）。クライアントが DOM に差し込むときは自分でサニタイズするか、サニタイズ済みの `?include=html` を使ってください。
-- **レート制限**: 認証なしなので、IP ごとの制限をかけます（既存のキャッシュバックエンドの方式。実装時に問い合わせ受付などに合わせる）。
-- **CORS**: `/api/v1/public/` と `/api/v1/search` の `GET` は、全オリジンに `Access-Control-Allow-Origin: *` を返します（読み取り専用の公開データ）。認証が要る API は、`[server].cors_origins` に書いたオリジンにだけ許します（[configuration.md の 4.3.1](configuration.md)）。
-- **入力**: `limit` は上限で丸め、`cursor` は署名か検証つきの符号化で、改ざんされたら `400`。型名・slug は既存の識別子の検証を通します。
-- **エラーメッセージは英語のみ**（規約）。
-
-### 5.1 キャッシュ
-
-- `Cache-Control: public, max-age=<秒>`（設定。既定 60）と、`ETag`（`updated_at` と id から計算）。`If-None-Match` で `304`。
-- 公開ページと同じキャッシュタグ（`[cdn]`）を付け、コンテンツの更新・公開・非公開で既存の仕組みが消去する。
+Using the existing `OpenApiGenerator` and `TypeScriptGenerator`, definitions for only the public kinds and fields are delivered at `GET /api/v1/public/openapi.json` (the running settings are reflected).
 
 ---
 
-## 6. 決めたこと
+## 5. Safety
 
-1. **`public` の既定は公開**。隠すものだけ `public: false` と書く。型ごとの許可リスト（§4.1）が一段目の守りになっており、同梱のスキーマは全フィールドを公開しても問題ないため。商品を公開する場合は、内部向けのフィールドに `public: false` を書く。
-2. **本文は `blocks`（AST）を返す**。描画済みの HTML は `?include=html` のときだけ。描画はプラグイン（Wasm）を呼ぶので、既定のコストに入れない。
-3. **一覧の並びは既定のみ**（作成日時の新しい順）。公開日時順（`PublishedOrder`）は要望が出てから。
-4. **商品は対象外**。価格・在庫の見せ方（在庫数を出さず有無だけにする、など）は、需要が出てから別に設計する。
-5. **設定は `[headless]`**。
+- **Only published content is returned**: the DB entry point is limited to published versions (the `published` snapshot). Drafts, awaiting review, scheduled, and archived items cannot be fetched.
+- **Expired content is not returned**: as with public pages, `unpublish_at` is checked at request time (without waiting for the scheduler to archive). A single item gives `404`, and in lists it is removed from the results (the cursor does not break even when removed). An unreadable date and time is treated as not published. The list's `total` is the DB count, so until archiving (up to 30 seconds) it includes expired items.
+- **Related content is published versions only**: the targets of `relations` are looked up from the published version records, and drafts, titles being edited, and scheduled items do not appear. Whether the target kind is among the public kinds is not checked (only `id`, `content_type`, `title`, and `slug` are returned, which is information visible on the site if published).
+- **Body blocks are returned as stored**: blocks such as `core/html` include the stored HTML as is (sanitization happens at render time). When a client inserts it into the DOM, it should sanitize on its own or use the sanitized `?include=html`.
+- **Rate limit**: it is unauthenticated, so a per-IP limit is applied (the existing cache backend's method; to be aligned with contact intake and the like at implementation).
+- **CORS**: `GET` on `/api/v1/public/` and `/api/v1/search` returns `Access-Control-Allow-Origin: *` for all origins (read-only public data). APIs that require authentication are allowed only for the origins written in `[server].cors_origins` ([configuration.md 4.3.1](configuration.md)).
+- **Input**: `limit` is clamped to the limit, `cursor` is an encoding with a signature or validation and gives `400` if tampered with. Kind names and slugs go through the existing identifier validation.
+- **Error messages are English only** (convention).
+
+### 5.1 Caching
+
+- `Cache-Control: public, max-age=<seconds>` (setting; default 60), and an `ETag` (computed from `updated_at` and the id). `If-None-Match` gives `304`.
+- The same cache tags as public pages (`[cdn]`) are attached, and the existing mechanism clears them on content update, publish, and unpublish.
+
+---
+
+## 6. Decisions Made
+
+1. **The default of `public` is public.** Write `public: false` only for what to hide. The per-kind allowlist (§4.1) is the first line of defense, and the bundled schemas have no problem making all fields public. When publishing products, write `public: false` on internal fields.
+2. **The body returns `blocks` (the AST).** Rendered HTML only with `?include=html`. Rendering calls plugins (Wasm), so it is not included in the default cost.
+3. **List ordering is the default only** (newest creation date first). Publication date order (`PublishedOrder`) waits until requested.
+4. **Products are out of scope.** How to show price and inventory (for example, showing only availability without the stock count) will be designed separately when demand appears.
+5. **The setting is `[headless]`.**
 
 ```toml
 [headless]
-enabled = false                         # 既定は無効
-content_types = ["article", "page"]     # 公開する型
+enabled = false                         # disabled by default
+content_types = ["article", "page"]     # kinds to publish
 max_page_size = 100
-cache_max_age = 60                      # Cache-Control の max-age（秒）
+cache_max_age = 60                      # Cache-Control max-age (seconds)
 ```
 
 ---
 
-## 7. テスト方針
+## 7. Test Policy
 
-- **漏れないこと**（最優先）: 下書き・レビュー待ち・予約中・アーカイブ・`unpublish_at` を過ぎた公開、がどれも一覧と単体で返らない。許可リストにない型が `404`。
-- **返さない項目**: `author_id`・`status`・`public: false` のフィールドが応答にない。
-- **入力**: `limit` の上限、改ざんしたカーソルが `400`。
-- **キャッシュ**: `ETag` と `If-None-Match` の `304`、更新後に `ETag` が変わる。
-- **性能**: 配信 API は新しい問い合わせを足さず、公開版の一覧（公開の記録の列と索引）をそのまま使うので、記事数に依らない作りです。配信 API としての計測はしていません。
-- 実機の PostgreSQL / MySQL を使う確認は、ローカルの品質チェックで行う（[開発ガイド 7](development.md#7-データベース実機検証-postgresql--mysql)）。
+- **No leaks** (top priority): drafts, awaiting review, scheduled, archived, and published items past `unpublish_at` are all not returned in lists or singles. A kind not on the allowlist is `404`.
+- **Items not returned**: `author_id`, `status`, and fields with `public: false` are absent from the response.
+- **Input**: the `limit` cap, and a tampered cursor gives `400`.
+- **Cache**: `ETag` and `304` for `If-None-Match`, and the `ETag` changes after an update.
+- **Performance**: the delivery API adds no new queries and uses the published list (the published record's columns and indexes) as is, so it is built not to depend on the number of articles. It has not been measured as a delivery API.
+- Checks using real PostgreSQL / MySQL are done in the local quality checks ([Development guide 7](development.md#7-real-database-verification-postgresql--mysql)).

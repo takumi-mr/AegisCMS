@@ -1,84 +1,86 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# Cookie の同意バナー
+**English** | [日本語](consent.ja.md)
 
-広告・アクセス解析・外部の動画や地図など、訪問者の同意が要る Cookie やスクリプトを使うサイトのために、同意を聞くバナーを出します(`[consent]`)。訪問者の選択を first-party の Cookie に残し、**同意が要るスクリプトや iframe を、同意があるまで実行しません**。
+# Cookie Consent Banner
 
-AegisCMS 自体は、サイトを動かすための Cookie(管理画面のセッションなど)しか使いません。アクセス解析(`[analytics]`)も Cookie を使いません。このバナーは、**あなたが足す**広告・解析・埋め込みの同意を管理するためのものです。
+Shows a banner that asks for consent, for sites that use cookies or scripts requiring visitor consent, such as ads, analytics, and external videos or maps (`[consent]`). It keeps the visitor's choice in a first-party cookie and **does not run scripts or iframes that need consent until consent is given**.
 
-バナーの **HTML と文言はテーマのテンプレート `consent.html`** で決まります(テーマが持たなければ組み込みのもの)。**表示のしかた**(形・位置・背景・遅れ)は設定で変えられます。
+AegisCMS itself uses only the cookies needed to run the site (such as the admin session). Analytics (`[analytics]`) uses no cookies either. This banner is for managing consent for the ads, analytics, and embeds **that you add**.
+
+The banner's **HTML and wording are decided by the theme's template `consent.html`** (the built-in one if the theme has none). **How it is displayed** (shape, position, backdrop, delay) can be changed in the settings.
 
 ```text
- 公開ページに、サーバーが差し込む(テーマに関係なく、404 ページにも付く)
-   <head> ─ <link>   /_aegis/consent.css       組み込みの consent.html 用のスタイル
-          ─ <script type="application/json" id="aegis-consent-config">  動きの設定(実行されないデータ)
+ Inserted into public pages by the server (regardless of the theme; also on the 404 page)
+   <head> ─ <link>   /_aegis/consent.css       Styles for the built-in consent.html
+          ─ <script type="application/json" id="aegis-consent-config">  Behavior settings (data, not executed)
           ─ <script src="/_aegis/consent.js" defer>
-   </body> の前 ─ バナーの HTML      テーマの templates/consent.html(無ければ組み込み)を描いたもの
+   Before </body> ─ the banner's HTML      The theme's templates/consent.html (or the built-in one) rendered
         │
-        ├─ 選択が無い／区分が変わった ──▶ バナーを表示（すべて拒否 / 選択する / すべて許可）
-        └─ 選択がある ──▶ 許可した区分のスクリプト・iframe を実行（data-aegis-consent）
+        ├─ No choice yet / the categories changed ──▶ show the banner (Reject all / Choose / Accept all)
+        └─ A choice exists ──▶ run the scripts and iframes of the allowed categories (data-aegis-consent)
 ```
 
 ---
 
-## 1. 有効にする
+## 1. Enabling It
 
 ```toml
 [consent]
 enabled = true
-policy_url = "/privacy"        # プライバシーポリシーへのリンク（任意）
+policy_url = "/privacy"        # link to the privacy policy (optional)
 ```
 
-サーバーを再起動すると、すべての公開ページにバナーが出ます。文言は `[theme].locale`(`en` / `ja`)の言語で、区分を決めないときは `analytics`(アクセス解析)と `marketing`(マーケティング)の 2 つです。
+After restarting the server, the banner appears on all public pages. The wording is in the `[theme].locale` language (`en` / `ja`), and if you do not decide the categories, they are `analytics` (analytics) and `marketing` (marketing).
 
 ```toml
 [consent]
 enabled = true
-layout = "box"                 # banner（画面の端の帯）/ box（隅のカード）/ modal（中央。背景を暗くする）
-position = "bottom-left"       # 形ごとの位置。省略すると形の既定
-backdrop = false               # 背景を暗くしてページを操作できなくする。省略時は modal だけ true
-delay_ms = 1500                # 表示を遅らせる（ミリ秒）
-cookie_days = 180              # 選択を残す日数（1〜395）
+layout = "box"                 # banner (a strip at the screen edge) / box (a card in a corner) / modal (centered; dims the background)
+position = "bottom-left"       # position per shape. If omitted, the shape's default
+backdrop = false               # dim the background and make the page non-interactive. If omitted, true for modal only
+delay_ms = 1500                # delay the display (milliseconds)
+cookie_days = 180              # days to keep the choice (1–395)
 policy_url = "/privacy"
-message = ""                   # 説明文を変えるとき（空ならテーマの既定の文）
-reopen_button = true           # 選択したあとの「Cookie の設定」ボタン
-revision = 1                   # 全員にもう一度聞きたいときに増やす
+message = ""                   # when changing the description (if empty, the theme's default text)
+reopen_button = true           # the "Cookie settings" button after a choice is made
+revision = 1                   # increase it when you want to ask everyone again
 
 [[consent.categories]]
-id = "analytics"               # 名前と説明は組み込みのものを使う
+id = "analytics"               # uses the built-in name and description
 [[consent.categories]]
 id = "marketing"
 [[consent.categories]]
-id = "video"                   # 組み込みの名前が無い区分は label が要る
-label = "埋め込みの動画"
-description = "YouTube などの動画を表示します。"
+id = "video"                   # categories without a built-in name need a label
+label = "Embedded videos"
+description = "Shows videos such as YouTube."
 ```
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` でバナーを出す |
-| `layout` | string | `"banner"` | バナーの形。`banner` / `box` / `modal` |
-| `position` | string | 形の既定 | 位置。`banner`: `bottom`(既定)/ `top`、`box`: `bottom-right`(既定)/ `bottom-left` / `top-right` / `top-left`、`modal`: `center` |
-| `backdrop` | bool | `modal` だけ `true` | 背景を暗くして、ページを操作できなくする |
-| `delay_ms` | integer | `0` | 表示を遅らせる時間(0〜10000) |
-| `cookie_days` | integer | `180` | 選択を残す日数(1〜395) |
-| `policy_url` | string | `""` | プライバシーポリシーの URL(`/` で始まるパスか `http(s)://`)。空ならリンクを出さない |
-| `message` | string | `""` | 説明文(600 文字まで)。空ならテーマの既定の文 |
-| `reopen_button` | bool | `true` | 選択したあとに出す、設定を開き直す小さなボタン |
-| `revision` | integer | `1` | 増やすと、保存済みの選択が無効になって、もう一度聞く |
-| `categories` | table[] | `analytics` と `marketing` | 同意の対象にする区分(10 個まで) |
+| `enabled` | bool | `false` | `true` shows the banner |
+| `layout` | string | `"banner"` | The banner's shape. `banner` / `box` / `modal` |
+| `position` | string | The shape's default | Position. `banner`: `bottom` (default) / `top`; `box`: `bottom-right` (default) / `bottom-left` / `top-right` / `top-left`; `modal`: `center` |
+| `backdrop` | bool | `true` for `modal` only | Dim the background and make the page non-interactive |
+| `delay_ms` | integer | `0` | Time to delay the display (0–10000) |
+| `cookie_days` | integer | `180` | Days to keep the choice (1–395) |
+| `policy_url` | string | `""` | URL of the privacy policy (a path starting with `/` or `http(s)://`). If empty, no link is shown |
+| `message` | string | `""` | The description (up to 600 characters). If empty, the theme's default text |
+| `reopen_button` | bool | `true` | A small button shown after a choice, to reopen the settings |
+| `revision` | integer | `1` | Increasing it invalidates saved choices and asks again |
+| `categories` | table[] | `analytics` and `marketing` | The categories to ask consent for (up to 10) |
 
-- 区分の `id` は英小文字で始まり、英小文字・数字・`-`・`_`(32 文字以内)。`necessary`(必須)は常にオンで、定義できません。
-- `analytics`・`marketing`・`preferences`・`functional` には、テーマの言語の名前と説明が付きます。ほかの `id` は `label`(60 文字まで)が必要です。`description` は 300 文字までです。
-- **区分の `id` の並びか `revision` が変わると、全員にもう一度聞きます**(名前・説明・形を変えただけでは聞き直しません)。
-- 値が不正なときはサーバーが起動しません(位置が形に合わない、など)。
+- A category `id` starts with a lowercase letter, then lowercase letters, digits, `-`, and `_` (up to 32 characters). `necessary` (required) is always on and cannot be defined.
+- `analytics`, `marketing`, `preferences`, and `functional` get a name and description in the theme's language. Other `id`s need a `label` (up to 60 characters). `description` is up to 300 characters.
+- **If the sequence of category `id`s or the `revision` changes, everyone is asked again** (changing only a name, description, or shape does not ask again).
+- If a value is invalid, the server does not start (for example, a position that does not fit the shape).
 
-## 2. 同意が要るスクリプトを書く
+## 2. Writing Scripts That Need Consent
 
-テーマのテンプレートや、プラグインが `extra_head` / 本文に出す HTML で、同意が要るものを**実行しない形**で書きます。同意があると、スクリプトが実行され、iframe に `src` が入ります。
+In theme templates, and in the HTML a plugin outputs to `extra_head` / the body, write anything that needs consent in a form that **does not run**. When consent is given, scripts run and iframes get their `src`.
 
 ```html
-<!-- type を text/plain にして、data-aegis-consent に区分を書く -->
+<!-- make type text/plain and write the category in data-aegis-consent -->
 <script type="text/plain" data-aegis-consent="analytics"
         src="https://analytics.example.com/tag.js" async></script>
 
@@ -86,109 +88,109 @@ description = "YouTube などの動画を表示します。"
   window.adQueue = window.adQueue || [];
 </script>
 
-<!-- iframe は src ではなく data-src に書く -->
+<!-- write iframes in data-src, not src -->
 <iframe data-aegis-consent="video" data-src="https://www.youtube-nocookie.com/embed/ID"
-        width="560" height="315" title="動画"></iframe>
+        width="560" height="315" title="Video"></iframe>
 ```
 
-- 同意が**ない間は何も実行・読み込みされません**。バナーのスクリプトが読み込めなくても(ブロックされても)、テーマに `consent.html` が壊れていても、同意が要るものは動きません。
-- 属性(`src`・`async`・`data-*` など)は、実行するときに引き継ぎます。インラインのスクリプトはそのまま実行します。
-- **許可を取り消したとき**(設定を開き直して、許可していた区分をオフにしたとき)は、すでに動いたスクリプトを止められないので、ページを読み込み直します。
-- 公式プラグインの例: [`official-ads`](../plugins/official-ads/)（広告。区分 `marketing`）と [`official-clarity`](../plugins/official-clarity/)（ヒートマップ・画面録画。区分 `analytics`）は、この形で出します。
-- プラグインから出すときは、`on-render-page` の **`scripts`（構造化した注入）の `consent` に区分を入れる**だけです。ホストが上の形のタグを作ります（プラグインが HTML を組み立てる必要はなく、`extra_head` などに書いた `<script>` はホストが取り除きます。[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）。同意の仕組みをプラグインが知る必要はありません。
+- **Nothing runs or loads while consent is absent.** Even if the banner's script cannot be loaded (blocked), or the theme's `consent.html` is broken, things that need consent do not run.
+- Attributes (`src`, `async`, `data-*`, etc.) are carried over when running. Inline scripts are run as is.
+- **When permission is withdrawn** (when you reopen the settings and turn off a category that was allowed), scripts that already ran cannot be stopped, so the page is reloaded.
+- Official plugin examples: [`official-ads`](../plugins/official-ads/) (ads; category `marketing`) and [`official-clarity`](../plugins/official-clarity/) (heatmaps and session recording; category `analytics`) output in this form.
+- From a plugin, just put the category in the **`consent` of `scripts` (structured injection)** of `on-render-page`. The host builds the tag in the form above (the plugin does not need to assemble HTML, and the host strips `<script>` written in `extra_head` and the like; [ABI specification 5.3.3a](plugin_abi_specification.md#533a-adding-scripts-in-on_render_page-scripts-abi-2)). The plugin does not need to know about the consent mechanism.
 
-### 2.1 JavaScript から
+### 2.1 From JavaScript
 
 ```js
-window.AegisConsent.has('marketing');        // 許可されているか
-window.AegisConsent.get();                   // { analytics: true, marketing: false }。まだ選んでいなければ null
-window.AegisConsent.onChange((choices) => {  // 選択が分かったとき・変わったときに呼ぶ（分かっていれば今すぐ 1 回）
+window.AegisConsent.has('marketing');        // whether it is allowed
+window.AegisConsent.get();                   // { analytics: true, marketing: false }. null if not yet chosen
+window.AegisConsent.onChange((choices) => {  // called when the choice becomes known or changes (once right now if already known)
   if (choices.analytics) startTracking();
 });
 document.addEventListener('aegis:consent', (e) => console.log(e.detail.categories));
-window.AegisConsent.open();                  // 設定を開く
+window.AegisConsent.open();                  // open the settings
 ```
 
-### 2.2 設定を開き直すリンク
+### 2.2 A Link to Reopen the Settings
 
-フッターなどに、`data-aegis-consent-open` を付けたリンクかボタンを置くと、クリックで設定が開きます。
+Place a link or button with `data-aegis-consent-open` in the footer or elsewhere, and clicking it opens the settings.
 
 ```html
-<a href="#" data-aegis-consent-open>Cookie の設定</a>
+<a href="#" data-aegis-consent-open>Cookie settings</a>
 ```
 
-## 3. テーマでバナーを作る(`templates/consent.html`)
+## 3. Building the Banner in a Theme (`templates/consent.html`)
 
-テーマに `templates/consent.html` を置くと、バナーの HTML・文言・見た目を丸ごと決められます。組み込みのテンプレートは `base.html` を継承しない**断片**で、サーバーが各ページの `</body>` の前に差し込みます(`base.html` を `extends` しないでください)。
+Placing `templates/consent.html` in a theme lets you decide the banner's HTML, wording, and look entirely. The built-in template is a **fragment** that does not extend `base.html`, and the server inserts it before `</body>` of each page (do not `extends` `base.html`).
 
-### 3.1 テンプレートに渡る値
+### 3.1 Values Passed to the Template
 
-| 値 | 内容 |
+| Value | Description |
 | --- | --- |
 | `fields.consent.layout` | `banner` / `box` / `modal` |
-| `fields.consent.position` | 位置(`bottom`・`top`・`bottom-right`・`bottom-left`・`top-right`・`top-left`・`center`) |
-| `fields.consent.backdrop` | 背景を暗くするか(`true` / `false`) |
-| `fields.consent.policy_url` | プライバシーポリシーの URL(無ければ空) |
-| `fields.consent.reopen_button` | 設定を開き直すボタンを出すか |
-| `fields.consent.delay_ms` / `cookie_days` | 表示の遅れ・選択を残す日数 |
-| `fields.message` | `[consent].message`(空なら、テーマの `t("consent.message")` など自分の文を使う) |
-| `fields.categories` | 区分の一覧。`id`・`label`・`description`(組み込みの区分は、名前を決めていなければ空) |
-| `fields.preview` | テーマ開発サーバーのプレビューのとき `true`(最初から表示する) |
-| `site_title`, `locale`, `base_path`, `t("...")` | ほかのテンプレートと同じ(`t("consent.title")` などの組み込みの文言も使える) |
+| `fields.consent.position` | Position (`bottom`, `top`, `bottom-right`, `bottom-left`, `top-right`, `top-left`, `center`) |
+| `fields.consent.backdrop` | Whether to dim the background (`true` / `false`) |
+| `fields.consent.policy_url` | URL of the privacy policy (empty if none) |
+| `fields.consent.reopen_button` | Whether to show the button to reopen the settings |
+| `fields.consent.delay_ms` / `cookie_days` | The display delay and the days to keep the choice |
+| `fields.message` | `[consent].message` (if empty, use your own text such as the theme's `t("consent.message")`) |
+| `fields.categories` | The list of categories. `id`, `label`, `description` (for built-in categories, empty if no name is decided) |
+| `fields.preview` | `true` in the theme dev server's preview (shown from the start) |
+| `site_title`, `locale`, `base_path`, `t("...")` | Same as other templates (built-in strings such as `t("consent.title")` can be used too) |
 
-### 3.2 スクリプトと結びつける属性
+### 3.2 Attributes That Tie Into the Script
 
-スクリプトは、次の属性で要素を見つけて動かします。**見た目や構造は自由**ですが、これらの属性は残してください。
+The script finds and operates elements by the following attributes. **The look and structure are free**, but keep these attributes.
 
-| 属性 | 役目 |
+| Attribute | Role |
 | --- | --- |
-| `data-aegis-consent-root` | ダイアログ全体。**最初は `hidden`**(スクリプトが表示する)。開いている間 `data-aegis-consent-state="ask"`(最初の質問)または `"details"`(区分の選択)になる |
-| `data-aegis-consent-action="reject-all"` / `"accept-all"` | すべて拒否 / すべて許可して閉じる。**最初のフォーカスは `reject-all`** に入る |
-| `data-aegis-consent-action="customize"` | 区分の選択を開く(開くと自分は隠れる) |
-| `data-aegis-consent-details` | 区分のチェックボックスを入れる部分。**最初は `hidden`** |
-| `input[data-aegis-consent-category="<区分の ID>"]` | 区分ごとのチェックボックス(スクリプトが今の選択で埋める) |
-| `data-aegis-consent-action="save"` | 選択した区分で保存して閉じる。**最初は `hidden`** |
-| `data-aegis-consent-reopen` | 選択したあとに出る、設定を開き直すボタン。**最初は `hidden`** |
+| `data-aegis-consent-root` | The whole dialog. **`hidden` at first** (the script shows it). While open, `data-aegis-consent-state="ask"` (the first question) or `"details"` (choosing categories) |
+| `data-aegis-consent-action="reject-all"` / `"accept-all"` | Reject all / accept all and close. **The initial focus goes to `reject-all`** |
+| `data-aegis-consent-action="customize"` | Opens the category selection (it hides itself when opened) |
+| `data-aegis-consent-details` | The part that holds the category checkboxes. **`hidden` at first** |
+| `input[data-aegis-consent-category="<category ID>"]` | The checkbox per category (the script fills it with the current choice) |
+| `data-aegis-consent-action="save"` | Saves with the chosen categories and closes. **`hidden` at first** |
+| `data-aegis-consent-reopen` | The button shown after a choice to reopen the settings. **`hidden` at first** |
 
-- 「選択する」(`customize` / `details` / `save`)を持たない、2 つのボタンだけのバナーも作れます。その場合、`accept-all` は全区分の許可、`reject-all` は全区分の拒否になります。
-- `layout` が `modal` のときは、スクリプトが Tab キーのフォーカスをダイアログの中に閉じ込めます(`role="dialog"`、`aria-modal="true"` と、見出し・説明への `aria-labelledby` / `aria-describedby` を付けてください)。
-- Escape で閉じられるのは、選択が済んでいるときだけです(最初の質問は、答えるまで閉じません)。
-- `data-aegis-consent-root` が無いテンプレートでは、バナーは出ません(同意が要るものは動かないままです。ブラウザーのコンソールに警告が出ます)。
+- You can also build a banner with only two buttons, without "Choose" (`customize` / `details` / `save`). In that case `accept-all` allows all categories and `reject-all` rejects all categories.
+- When `layout` is `modal`, the script traps Tab key focus inside the dialog (add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` / `aria-describedby` pointing to the heading and description).
+- Escape closes it only when a choice has been made (the first question does not close until answered).
+- In a template without `data-aegis-consent-root`, the banner does not appear (things that need consent remain not running; a warning appears in the browser console).
 
-### 3.3 例: 2 つのボタンだけのバナー
+### 3.3 Example: A Banner with Only Two Buttons
 
 ```html
 <aside data-aegis-consent-root hidden class="cookie-notice cookie-notice--{{ fields.consent.layout }}"
        role="dialog" aria-labelledby="cn-title">
-  <p id="cn-title">{{ fields.message or "このサイトでは Cookie を使います。" }}</p>
-  <button type="button" data-aegis-consent-action="reject-all">使わない</button>
-  <button type="button" data-aegis-consent-action="accept-all">許可する</button>
+  <p id="cn-title">{{ fields.message or "This site uses cookies." }}</p>
+  <button type="button" data-aegis-consent-action="reject-all">Don't use</button>
+  <button type="button" data-aegis-consent-action="accept-all">Allow</button>
 </aside>
 ```
 
-### 3.4 見た目
+### 3.4 Appearance
 
-組み込みのテンプレートのスタイルは `/_aegis/consent.css` で、すべて詳細度 0 の `:where()` です。テーマの CSS で、`.aegis-consent-*` を指定すれば上書きできます。自分のテンプレートを作るときは、このファイルのクラスを使わず、テーマの CSS に書いてかまいません。
+The built-in template's styles are in `/_aegis/consent.css`, all with zero-specificity `:where()`. You can override them by specifying `.aegis-consent-*` in the theme's CSS. When building your own template, you may write in the theme's CSS without using this file's classes.
 
-| クラス | 部分 |
+| Class | Part |
 | --- | --- |
-| `.aegis-consent` / `.aegis-consent-layout-<形>` / `.aegis-consent-pos-<位置>` / `.aegis-consent-backdrop` | 外枠(形・位置・背景) |
-| `.aegis-consent-body` | 本体のカード |
-| `.aegis-consent-title` / `.aegis-consent-message` / `.aegis-consent-policy` | 見出し・説明・ポリシーへのリンク |
-| `.aegis-consent-details` / `.aegis-consent-category` | 区分の一覧・1 つの区分 |
-| `.aegis-consent-actions` / `.aegis-consent-button` | ボタンの並び・ボタン(拒否と許可は同じ見た目) |
-| `.aegis-consent-reopen` | 選択したあとの「Cookie の設定」ボタン |
+| `.aegis-consent` / `.aegis-consent-layout-<shape>` / `.aegis-consent-pos-<position>` / `.aegis-consent-backdrop` | The outer frame (shape, position, backdrop) |
+| `.aegis-consent-body` | The main card |
+| `.aegis-consent-title` / `.aegis-consent-message` / `.aegis-consent-policy` | The heading, description, and link to the policy |
+| `.aegis-consent-details` / `.aegis-consent-category` | The list of categories and a single category |
+| `.aegis-consent-actions` / `.aegis-consent-button` | The row of buttons and a button (reject and accept look the same) |
+| `.aegis-consent-reopen` | The "Cookie settings" button after a choice |
 
-### 3.5 作りながら確かめる
+### 3.5 Checking While You Build
 
-`aegis-server theme dev`(と Theme Builder)では、`templates/consent.html` を `consent` のサンプルとして表示します。バナーは最初から表示され(`fields.preview`)、組み込みのスタイルが付きます。サンプルは `samples/consent.json` で変えられます(`{"fields": {...}}` と書きます。`fields` ごと置き換わるので、使う値はすべて書いてください)。実際の動き(ボタンの働き)は、サイトに差し込まれたときにスクリプトが付けるので、プレビューでは見た目の確認までです。
+`aegis-server theme dev` (and Theme Builder) displays `templates/consent.html` as the `consent` sample. The banner is shown from the start (`fields.preview`) with the built-in styles. The sample can be changed in `samples/consent.json` (write `{"fields": {...}}`; `fields` is replaced as a whole, so write all the values you use). The actual behavior (what the buttons do) is attached by the script when it is inserted into the site, so the preview only checks the look.
 
-## 4. 仕組みと注意
+## 4. Mechanism and Notes
 
-- **CSP に強い**: スクリプトと CSS は外部ファイル(`/_aegis/consent.js` / `consent.css`。`/_<namespace>/` の名前は `[server].namespace` で変わる)、設定は実行しない JSON(`type="application/json"`)なので、`script-src 'self'` だけの CSP でも動きます。`[server].base_path` がある場合は URL に付きます。
-- **差し込み**: `text/html` の `GET` 応答の `</head>` の前と、最後の `</body>` の前に足します。API(`/api/`)、Admin Studio、アップロード、`/_aegis/` は触りません。`[consent].enabled = false` なら何もしません(本文も読みません)。`consent.html` を描けないとき(テンプレートの誤り)は、バナーだけを出さず、ページはそのまま返します(ログにエラーを出します)。
-- **選択の保存**: Cookie `aegis_consent`(`Path=/`、`SameSite=Lax`、HTTPS では `Secure`、`cookie_days` 日)。値は `{"r": 版, "c": {区分: true/false}}` です。サーバーには送るだけで、保存や記録はしません(同意の記録が法的に必要な場合は、別途用意してください)。
-- **Global Privacy Control**: 初期状態は常に「すべてオフ」で、勝手に許可することはありません。
-- **設定を変えたとき**: サーバーを再起動してください。`[cdn]` でページをキャッシュしているときは、差し込んだ設定(JSON)とバナーの HTML もキャッシュされているので、再起動のあとに CDN のキャッシュをパージしてください。
-- 設定は設定ファイルだけです(Admin Studio には画面がありません)。
-- 法的な要件(対象の国、記録、Cookie の一覧の開示など)は、サイトごとに確かめてください。このバナーは、「同意の前に実行しない」「拒否が許可と同じくらい簡単」「いつでも変えられる」を満たすための部品です。
+- **CSP-friendly**: the script and CSS are external files (`/_aegis/consent.js` / `consent.css`; the `/_<namespace>/` name changes with `[server].namespace`), and the settings are non-executed JSON (`type="application/json"`), so it works even with a CSP of only `script-src 'self'`. When there is a `[server].base_path`, it is added to the URLs.
+- **Insertion**: added before `</head>` and before the last `</body>` of `text/html` `GET` responses. It does not touch the API (`/api/`), Admin Studio, uploads, or `/_aegis/`. With `[consent].enabled = false` it does nothing (it does not even read the body). If `consent.html` cannot be rendered (a template error), only the banner is not shown and the page is returned as is (an error is logged).
+- **Storing the choice**: the cookie `aegis_consent` (`Path=/`, `SameSite=Lax`, `Secure` on HTTPS, `cookie_days` days). The value is `{"r": revision, "c": {category: true/false}}`. It is only sent to the server and not stored or recorded (if recording consent is legally required, arrange that separately).
+- **Global Privacy Control**: the initial state is always "all off", and it never allows anything on its own.
+- **When you change the settings**: restart the server. When pages are cached with `[cdn]`, the inserted settings (JSON) and banner HTML are cached too, so purge the CDN cache after restarting.
+- The settings are in the config file only (there is no screen in Admin Studio).
+- Check the legal requirements (target countries, records, disclosing the list of cookies, etc.) per site. This banner is a component for satisfying "do not run before consent", "rejecting is as easy as accepting", and "can be changed at any time".

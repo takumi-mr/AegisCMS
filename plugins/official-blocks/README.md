@@ -2,7 +2,7 @@
 
 **English** | [日本語](README.ja.md)
 
-An official plugin that adds blocks you can place in the body: button, link card, video, audio, file, map, image gallery, FAQ, steps, columns, image and text, image with caption, timeline, chat bubbles, tabs, stats, definition list, and rating (review). It is also a model example for building custom blocks with plugins (the [`render-blocks` hook](../../docs/plugin_hooks.md#110-render-blocks); for video, [embedding external pages](../../docs/plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed). Both links are Japanese documents).
+An official plugin that adds blocks you can place in the body: button, link card, video, audio, file, map, image gallery, FAQ, steps, columns, image and text, image with caption, timeline, chat bubbles, tabs, stats, definition list, and rating (review). It is also a model example for building custom blocks with plugins (the [`render-blocks` hook](../../docs/plugin_hooks.md#110-render-blocks); for video, [embedding external pages](../../docs/plugin_hooks.md#32-embedding-external-pages-capabilitiesembed). Both links are Japanese documents).
 
 | Block | Input fields | Display |
 | --- | --- | --- |

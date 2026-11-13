@@ -84,7 +84,5 @@ Place the built `target/wasm32-unknown-unknown/release/my_aegis_plugin.wasm` tog
 
 ## Documentation
 
-These documents are in Japanese.
-
 - [Plugin development guide](../../docs/plugin_sdk_guide.md)
 - [Plugin ABI specification](../../docs/plugin_abi_specification.md)

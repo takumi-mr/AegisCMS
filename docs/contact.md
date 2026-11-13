@@ -1,220 +1,222 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# 問い合わせフォーム
+**English** | [日本語](contact.ja.md)
 
-公開サイトに問い合わせフォームを置き、届いたメッセージを Admin Studio の **問い合わせ**（Inbox）タブで読めるようにします（`[contact]`）。フォームの項目は設定ファイルで決め、`/contact` のページか、本文のブロック（`core/contact-form`）で表示します。届いたことは運営者にメールで知らせ、送信した人への自動返信もフォームごとに選べます（[通知](notifications.md)）。
+# Contact Form
 
-機能はクレート `aegis-contact` にあります。
+Place a contact form on the public site and read the messages that arrive in Admin Studio's **Contact** (Inbox) tab (`[contact]`). The form's fields are decided in the config file and displayed on the `/contact` page or with a body block (`core/contact-form`). Operators are notified by email when one arrives, and an auto-reply to the sender can be chosen per form ([Notifications](notifications.md)).
+
+The feature lives in the `aegis-contact` crate.
 
 ```text
- 閲覧者（/contact/{form} のフォーム、または本文のブロック）
-        │  POST /contact/{form}（JavaScript なしで動く）／ POST /api/v1/contact/forms/{form}（JSON）
+ Visitor (the form at /contact/{form}, or a body block)
+        │  POST /contact/{form} (works without JavaScript) / POST /api/v1/contact/forms/{form} (JSON)
         ▼
- ボット除けの見えない欄に値がある → 受け付けたふりをして保存しない
+ The invisible bot-trap field has a value → pretend to accept and do not save
         │
- 入力の検査（必須・長さ・メールアドレス・電話番号・選択肢・添付ファイル）→ 誤りはフォームに出して返す
+ Input validation (required, length, email address, phone number, options, attachments) → errors are shown on the form and returned
         │
- CAPTCHA（[captcha] の targets に contact があるときだけ）のトークンを検証 → 通らなければ 400、検証サービスに届かなければ 503
+ Verify the CAPTCHA token (only when `contact` is in [captcha] targets) → 400 if it fails, 503 if the verification service cannot be reached
         │
- IP ごとの送信数（max_per_ip_per_hour）を超えた → 429
+ Over the per-IP submission count (max_per_ip_per_hour) → 429
         │
- スパムの語・リンクの数 ──▶ spam として保存（誰にも知らせない）
+ Spam words / link count ──▶ saved as spam (nobody is notified)
         │
-        └──▶ new として保存 → 運営者に contact.received、フォームの auto_reply なら送信者に contact.auto_reply
-             → 送信者には「?sent=1」のページ（送信後の文言）
+        └──▶ saved as new → contact.received to operators, and contact.auto_reply to the sender if the form has auto_reply
+             → the sender gets the "?sent=1" page (the after-submission text)
 ```
 
 ---
 
-## 1. 有効にする
+## 1. Enabling It
 
 ```toml
 [contact]
 enabled = true
 ```
 
-これだけで、名前・メールアドレス・件名・本文の `default` フォームが `/contact` に出ます。運営者へのメールには `[notifications]`（[通知](notifications.md)）が要ります（無くても受信箱には届きます）。
+With just this, a `default` form with name, email address, subject, and body appears at `/contact`. Emailing operators needs `[notifications]` ([Notifications](notifications.md)) (without it, messages still reach the inbox).
 
-フォームと項目を自分で決めるとき:
+When deciding the forms and fields yourself:
 
 ```toml
 [contact]
 enabled = true
-retention_days = 365        # 届いた問い合わせを残す日数（0 で消さない）
-max_per_ip_per_hour = 5     # 同じ IP からの 1 時間あたりの送信数（0 で無制限）
-locale = "ja"               # 入力の誤りなど組み込みの文言の言語（en / ja）
-max_links = 3               # リンクがこれより多いとスパム
-spam_words = ["casino"]     # 含むとスパム（大文字・小文字を区別しない）
-notify_staff = true         # 届いたら運営者に知らせる
-max_attachment_mb = 5       # 添付ファイル 1 つの大きさの上限（1〜50）
-attachment_extensions = ["jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "docx", "xlsx"]  # 添付できる拡張子（既定）
+retention_days = 365        # days to keep received inquiries (0 never deletes)
+max_per_ip_per_hour = 5     # submissions per hour from the same IP (0 is unlimited)
+locale = "en"               # language of built-in text such as input errors (en / ja)
+max_links = 3               # more links than this is spam
+spam_words = ["casino"]     # containing one is spam (case-insensitive)
+notify_staff = true         # notify operators when one arrives
+max_attachment_mb = 5       # upper limit on the size of one attachment (1–50)
+attachment_extensions = ["jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "docx", "xlsx"]  # attachable extensions (default)
 
 [[contact.forms]]
-name = "default"            # /contact/default（/contact はこのフォーム）
-title = "お問い合わせ"
-description = "2 営業日以内にお返事します。"
-submit_label = "送信する"
-success_message = "お問い合わせありがとうございます。内容を確認してご連絡します。"
-auto_reply = true           # 送信した人に受付のメールを送る
-subject_field = "topic"     # 受信箱・通知で件名にする項目（既定 "subject"）
+name = "default"            # /contact/default (/contact is this form)
+title = "Contact us"
+description = "We will reply within 2 business days."
+submit_label = "Send"
+success_message = "Thank you for contacting us. We will review it and get back to you."
+auto_reply = true           # send the sender a receipt email
+subject_field = "topic"     # the field used as the subject in the inbox and notifications (default "subject")
 
 [[contact.forms.fields]]
 name = "name"
-label = "お名前"
+label = "Your name"
 required = true
 
 [[contact.forms.fields]]
 name = "email"
-label = "メールアドレス"
+label = "Email address"
 type = "email"
 required = true
 
 [[contact.forms.fields]]
 name = "topic"
-label = "ご用件"
+label = "Topic"
 type = "select"
-options = ["導入のご相談", "不具合の報告", "その他"]
+options = ["Consultation on adoption", "Bug report", "Other"]
 required = true
 
 [[contact.forms.fields]]
 name = "message"
-label = "お問い合わせ内容"
+label = "Message"
 type = "textarea"
 required = true
 max_length = 3000
 
 [[contact.forms.fields]]
 name = "privacy"
-label = "プライバシーポリシーに同意する"
+label = "I agree to the privacy policy"
 type = "checkbox"
 required = true
 ```
 
-### 1.1 項目
+### 1.1 Fields
 
-| キー | 内容 |
+| Key | Description |
 | --- | --- |
-| `name` | 送信される名前（英小文字・数字・`_`。`website` はボット除けに使うので使えない） |
-| `label` | 表示名（受信箱・通知にもこの名前で出る） |
-| `type` | `text`（既定）/ `email` / `tel` / `textarea` / `select` / `checkbox` / `file`（[添付ファイル](#13-添付ファイル)） |
-| `required` | 必須（チェックボックスなら、チェックが必須） |
-| `placeholder` | 入力欄の例（`select` では未選択の項目の文言） |
-| `options` | `select` の選択肢（必須） |
-| `max_length` | 最大文字数（既定は `textarea` が 5000、それ以外は 200） |
+| `name` | The submitted name (lowercase letters, digits, `_`. `website` is used for bot protection and cannot be used) |
+| `label` | The display name (it appears under this name in the inbox and notifications too) |
+| `type` | `text` (default) / `email` / `tel` / `textarea` / `select` / `checkbox` / `file` ([Attachments](#13-attachments)) |
+| `required` | Required (for a checkbox, it must be checked) |
+| `placeholder` | An example for the input (for `select`, the text of the unselected item) |
+| `options` | The choices of a `select` (required) |
+| `max_length` | Maximum number of characters (default 5000 for `textarea`, 200 otherwise) |
 
-- 名前が `name` の項目は送信者の名前、`subject_field`（既定 `subject`）の項目は件名として受信箱の一覧と通知に出ます。最初の `type = "email"` の項目が送信者のメールアドレスです（返信と自動返信の宛先）。
-- フォームの `title`・`submit_label`・`success_message` を省くと、`locale` の言語の既定の文言（「お問い合わせ」「送信する」など）になります。`fields` を省くと、名前・メールアドレス・件名・本文の 4 項目（同じく `locale` の言語）になります。
-- 入力の誤り（「「お名前」を入力してください」など）と、送信できなかったときの知らせも `locale` の言語です。
-- `auto_reply = true` のフォームには、必須のメールアドレスの項目が要ります。
-- 設定が正しくない（名前が重なる、`select` に選択肢が無いなど）とサーバーが起動しません。
+- The field named `name` is shown as the sender's name, and the `subject_field` field (default `subject`) as the subject, in the inbox list and notifications. The first field with `type = "email"` is the sender's email address (the destination for replies and auto-replies).
+- If you omit a form's `title`, `submit_label`, and `success_message`, they become the defaults in the `locale` language ("Contact", "Send", etc.). If you omit `fields`, they become the 4 fields of name, email address, subject, and body (also in the `locale` language).
+- Input errors (such as "Please enter 'Your name'") and the notice when sending fails are also in the `locale` language.
+- A form with `auto_reply = true` needs a required email address field.
+- If the settings are invalid (duplicate names, a `select` with no options, etc.), the server does not start.
 
-### 1.2 CAPTCHA（任意）
+### 1.2 CAPTCHA (Optional)
 
-ボットが多いときだけ、CAPTCHA を足せます。書かなければ何も変わりません（見えない欄・IP ごとの送信数・スパムの語の対策は常に働きます）。CAPTCHA は問い合わせ専用の設定ではなく、共通の `[captcha]` に書き、`targets` でかける送信先（`contact`・`newsletter`・`comments`・`forum`）を選びます。
+You can add CAPTCHA only when there are many bots. If you do not write it, nothing changes (the invisible field, per-IP submission count, and spam word measures always work). CAPTCHA is not a contact-specific setting; you write it in the shared `[captcha]` and choose with `targets` the destinations to apply it to (`contact`, `newsletter`, `comments`, `forum`).
 
 ```toml
 [captcha]
 targets = ["contact"]                  # contact | newsletter | comments | forum
 provider = "turnstile"                 # turnstile | hcaptcha | recaptcha | custom
-site_key = "0x4AAAA..."                # 公開してよい
-secret = "env:TURNSTILE_SECRET"        # 環境変数から読む（設定ファイルに直接書いてもよい）
-# fail_open = false                    # 検証サービスに届かないとき、通すか（既定は断る）
-# timeout_secs = 5                     # 検証サービスの応答を待つ秒数（1〜30）
+site_key = "0x4AAAA..."                # may be public
+secret = "env:TURNSTILE_SECRET"        # read from an environment variable (you may also write it directly in the config file)
+# fail_open = false                    # whether to let it through when the verification service cannot be reached (default is to refuse)
+# timeout_secs = 5                     # seconds to wait for the verification service's response (1–30)
 ```
 
-Cloudflare Turnstile・hCaptcha・reCAPTCHA は、どれも「ウィジェットがフォームにトークンを足す → サーバーが `secret` とトークンを `siteverify` に送って `success` を確かめる」という同じ仕組みなので、`provider` を選ぶだけで足ります。reCAPTCHA は v2（チェックボックス）に対応しています。
+Cloudflare Turnstile, hCaptcha, and reCAPTCHA all use the same mechanism ("the widget adds a token to the form → the server sends the `secret` and token to `siteverify` and checks `success`"), so choosing the `provider` is enough. reCAPTCHA supports v2 (checkbox).
 
-| `provider` | トークンの欄 | 検証の URL |
+| `provider` | Token field | Verification URL |
 | --- | --- | --- |
 | `turnstile` | `cf-turnstile-response` | `https://challenges.cloudflare.com/turnstile/v0/siteverify` |
 | `hcaptcha` | `h-captcha-response` | `https://api.hcaptcha.com/siteverify` |
 | `recaptcha` | `g-recaptcha-response` | `https://www.google.com/recaptcha/api/siteverify` |
 | `custom` | `response_field` | `verify_url` |
 
-同じ形の別のサービスは `provider = "custom"` にして、`verify_url`・`script_url`・`widget_class`（ウィジェットの `div` の class）・`response_field` をすべて書きます。`provider` が上の 3 つのときも、これらを書くと既定値を置き換えられます。`verify_url` は秘密を送る先なので `https://` だけです（手元の `localhost` / `127.0.0.1` への `http://` は開発用に認めます）。
+For another service of the same shape, set `provider = "custom"` and write all of `verify_url`, `script_url`, `widget_class` (the class of the widget's `div`), and `response_field`. Even when `provider` is one of the three above, writing these replaces the defaults. `verify_url` is where the secret is sent, so it must be `https://` only (`http://` to a local `localhost` / `127.0.0.1` is allowed for development).
 
-- **検証サービスが落ちたとき**: 既定では断ります（fail-closed。HTML のフォームには「確認を行えませんでした」を `503` で、API には `503 {"code": "captcha_unavailable"}`）。サービスの障害で問い合わせが止まるより、ボットを通すほうが困らないときは `fail_open = true` にします。サービスが「違う」と答えたトークンは、`fail_open` でも通しません。
-- **HTML のフォームが対象**です。ウィジェットはフォーム（`/contact/{form}`・本文のブロック）の送信ボタンの前に入り、ブラウザーで JavaScript が動く必要があります。JSON の API（`POST /api/v1/contact/forms/{form}`）にも同じ検査がかかり、トークンの欄が無いと `400 {"code": "captcha_failed"}` になります（API 向けにトークンを取る仕組みは用意しません）。
-- **見えない欄・入力の誤りで落ちたものは検証サービスに聞きません**。IP ごとの送信数を数える前に検証するので、ボットが枠を使い切って、同じ IP の人が送れなくなることもありません。
-- **CSP**: ウィジェットのスクリプト・iframe・通信が止められないよう、設定した提供元のホスト（Turnstile は `challenges.cloudflare.com`）を、公開ページの Content-Security-Policy の `script-src` / `frame-src` / `connect-src` / `style-src` に自動で足します（`'none'` や `*` を管理者が書いているディレクティブは変えません）。
-- **`secret` は API では返しません**。`env:` の環境変数が未設定のときは、起動時にエラーになります。
-- Cloudflare などの前段（WAF・Bot 対策）でフォームの `POST` を守っているなら、この設定は要りません。
+- **When the verification service is down**: by default it refuses (fail-closed; for an HTML form, "Could not verify" with `503`, and for the API `503 {"code": "captcha_unavailable"}`). When letting bots through is less of a problem than inquiries stopping because of a service outage, set `fail_open = true`. A token the service answers "no" to is not let through even with `fail_open`.
+- **HTML forms are covered.** The widget goes before the submit button of the form (`/contact/{form}`, body blocks), and requires JavaScript to run in the browser. The same check applies to the JSON API (`POST /api/v1/contact/forms/{form}`), and without the token field it gives `400 {"code": "captcha_failed"}` (no mechanism for obtaining tokens for the API is provided).
+- **Submissions that fail on the invisible field or input errors are not sent to the verification service.** Verification happens before counting submissions per IP, so a bot cannot use up the quota and prevent people on the same IP from sending.
+- **CSP**: so the widget's scripts, iframes, and connections are not blocked, the configured provider's hosts (`challenges.cloudflare.com` for Turnstile) are added automatically to the public pages' Content-Security-Policy `script-src` / `frame-src` / `connect-src` / `style-src` (directives where an administrator wrote `'none'` or `*` are not changed).
+- **The `secret` is not returned by the API.** If the `env:` environment variable is unset, it is an error at startup.
+- If you protect the form's `POST` with a front layer such as Cloudflare (WAF, bot protection), this setting is not needed.
 
-### 1.3 添付ファイル
+### 1.3 Attachments
 
-`type = "file"` の項目を置くと、フォームにファイルを添付できます（`required` で必須にもできます）。
+Placing a `type = "file"` field lets a file be attached to the form (it can be required with `required`).
 
 ```toml
 [[contact.forms.fields]]
 name = "attachment"
-label = "添付ファイル"
+label = "Attachment"
 type = "file"
 ```
 
-- フォームは `multipart/form-data` で送ります（JavaScript なしで動く）。JSON の API（`POST /api/v1/contact/forms/{form}`）では添付できません。
-- 1 つの項目につき 1 ファイル。大きさは `max_attachment_mb`、種類は `attachment_extensions`（拡張子。大文字・小文字を区別しない）で制限します。HTML・SVG・スクリプトなど、開くと実行されうる形式は既定に含めていません。拡張子の追加は、開く側のリスクを理解したうえで行ってください。
-- 入力の誤りの `code` は、ファイルが無い `required`、大きすぎる `file_too_large`、許可されない拡張子の `invalid_file_type` です。
-- 添付は `contact/{問い合わせの id}/` の下に保存します（[ストレージ](architecture.md)）。**公開 URL はありません**。ローカルストレージの `/uploads/contact/...` は 404 を返し、Admin Studio の受信箱（editor 以上）から、認証付きの API でダウンロードします（常に `attachment` として返し、`nosniff` を付けます）。S3 互換ストレージでは、バケットを公開設定にしないでください（`contact/` のオブジェクトが URL で読めるようになります）。
-- 問い合わせを削除したとき、保存期間（`retention_days`）で消えたときは、添付ファイルも消えます。スパムと判定された問い合わせの添付も保存します（受信箱の「スパム」から確認・削除できます）。
-- 通知メールには、添付のファイル名だけが入ります（ファイルそのものは付けません）。
+- The form is sent as `multipart/form-data` (works without JavaScript). Attachments are not possible with the JSON API (`POST /api/v1/contact/forms/{form}`).
+- One file per field. The size is limited by `max_attachment_mb` and the type by `attachment_extensions` (extensions; case-insensitive). Formats that could execute when opened, such as HTML, SVG, and scripts, are not in the default. Add extensions only after understanding the risk on the side that opens them.
+- The `code`s for input errors are `required` for a missing file that is `required`, `file_too_large` for too large, and `invalid_file_type` for a disallowed extension.
+- Attachments are stored under `contact/{inquiry id}/` ([Storage](architecture.md)). **There is no public URL.** `/uploads/contact/...` on local storage returns 404, and files are downloaded through an authenticated API from Admin Studio's inbox (editor and above) (always returned as `attachment` with `nosniff`). With S3-compatible storage, do not make the bucket public (objects under `contact/` would become readable by URL).
+- When an inquiry is deleted, or removed by the retention period (`retention_days`), its attachments are deleted too. Attachments of inquiries judged to be spam are also stored (you can check and delete them from "Spam" in the inbox).
+- Notification emails include only the attachment's file name (the file itself is not attached).
 
-## 2. フォームを置く
+## 2. Placing the Form
 
-![公開ページの問い合わせフォーム](images/contact-form.png)
+![The contact form on a public page](images/contact-form.png)
 
-- **ページ**: `/contact`（`default`、無ければ最初のフォーム）と `/contact/{name}`。テーマの `contact.html`（無ければ組み込みのテンプレート）で描きます。ヘッダー・フッターのメニューからリンクしてください。
-- **本文のブロック**: Admin Studio のブロックの追加ボタン「問い合わせフォーム」で置き、どのフォームを出すかを選びます。Markdown では `[CONTACT]`（`default`）・`[CONTACT form="sales"]` と書きます。本文のトップレベルに置いたものだけを描きます（折りたたみなどの中には置けません）。送信すると `/contact/{name}?sent=1` に移ります。
+- **Page**: `/contact` (`default`, or the first form if absent) and `/contact/{name}`. Rendered with the theme's `contact.html` (or the built-in template if absent). Link to it from the header and footer menus.
+- **Body block**: place it with the "Contact form" add-block button in Admin Studio and choose which form to show. In Markdown, write `[CONTACT]` (`default`) or `[CONTACT form="sales"]`. Only those placed at the top level of the body are rendered (they cannot be placed inside collapsibles and the like). After submitting, it moves to `/contact/{name}?sent=1`.
 
-フォームは JavaScript を使わない普通の HTML のフォーム（[CAPTCHA](#12-captcha任意) を設定したときだけ、ウィジェットのために JavaScript が要ります）で、入力の誤りは項目の下に出し、入力した値を残して返します。項目の HTML とクラス（`.aegis-contact-form`・`.aegis-contact-field`・`.aegis-contact-error`・`.aegis-contact-required`・`.aegis-contact-submit`）には最低限のスタイルが組み込まれています（[blocks.md 3](blocks.md#3-見た目)。テーマの CSS が優先されます）。
+The form is a plain HTML form without JavaScript (JavaScript is needed only for the widget when [CAPTCHA](#12-captcha-optional) is configured), shows input errors under the fields, and returns with the entered values kept. Minimal styles are built in for the fields' HTML and classes (`.aegis-contact-form`, `.aegis-contact-field`, `.aegis-contact-error`, `.aegis-contact-required`, `.aegis-contact-submit`) ([blocks.md 3](blocks.md#3-appearance); the theme's CSS takes precedence).
 
-### 2.1 テーマのテンプレート（`contact.html`）
+### 2.1 The Theme Template (`contact.html`)
 
-| 値 | 内容 |
+| Value | Description |
 | --- | --- |
-| `title` | フォームの見出し（`title`） |
-| `fields.form_html` | 組み込みのフォームの HTML（エスケープ済み。`{{ fields.form_html \| safe }}`） |
-| `fields.sent` | 送信した後のページ（`?sent=1`）なら `true` |
-| `fields.form` | フォームの設定（`name`・`title`・`description`・`submit_label`・`success_message`・`fields`・`action`・`honeypot`・`captcha_html`）。自分でフォームを組み立てるときに使う |
-| `fields.values` / `fields.errors` | 送信に失敗したときの入力と誤り（`[{field, code, message}]`） |
-| `fields.notice` | 送信できなかったときの知らせ（入力の誤り・送信が多すぎるなど。`locale` の言語） |
+| `title` | The form's heading (`title`) |
+| `fields.form_html` | The built-in form's HTML (escaped; `{{ fields.form_html \| safe }}`) |
+| `fields.sent` | `true` on the page after submission (`?sent=1`) |
+| `fields.form` | The form's settings (`name`, `title`, `description`, `submit_label`, `success_message`, `fields`, `action`, `honeypot`, `captcha_html`). Used when building the form yourself |
+| `fields.values` / `fields.errors` | The input and errors when submission failed (`[{field, code, message}]`) |
+| `fields.notice` | A notice when it could not be sent (input errors, too many submissions, etc.; in the `locale` language) |
 
-自分でフォームを組み立てるときは、`fields.form.action` に `POST` し、`fields.form.honeypot`（`website`）の名前の見えない欄を必ず入れてください（人には見えないように隠す）。[CAPTCHA](#12-captcha任意) を設定しているときは、`<form>` の中の送信ボタンの前に `{{ fields.form.captcha_html | safe }}` も置いてください（設定が無ければ空です）。
+When building the form yourself, `POST` to `fields.form.action` and always include an invisible field with the name `fields.form.honeypot` (`website`) (hidden so people cannot see it). When [CAPTCHA](#12-captcha-optional) is configured, also place `{{ fields.form.captcha_html | safe }}` before the submit button inside the `<form>` (empty if not configured).
 
-## 3. 受信箱（Admin Studio）
+## 3. The Inbox (Admin Studio)
 
-![Admin Studio の問い合わせ受信箱](images/contact-inbox.png)
+![The Admin Studio contact inbox](images/contact-inbox.png)
 
-**問い合わせ** タブ（editor 以上。`[contact].enabled = true` のときだけ表示）で、新着・既読・対応済み・スパムに分けて一覧できます。
+In the **Contact** tab (editor and above; shown only when `[contact].enabled = true`), you can list messages split into new, read, handled, and spam.
 
-- 上の検索欄で、名前・メールアドレス・件名・各項目の入力・添付のファイル名を、空白区切りの語がすべて含まれるもので絞り込めます（大文字・小文字を区別しない。状態・フォームの絞り込みと併用できます）。検索は絞り込んだ問い合わせをサーバー側で走査するので、保存期間（`retention_days`）で件数を抑えた運用を想定しています。
-- 添付ファイルのある問い合わせには一覧にクリップが付き、開くとファイルをダウンロードできます。
-- 開くとすべての項目が見られ、新着は既読になります。「メールで返信」でメールアプリが開きます（宛先と `Re: 件名`）。
-- 対応済み・スパム・新着に戻す・削除を、1 件ずつかまとめて行えます（監査ログ `contact.update` / `contact.delete`）。
-- 保存期間（`retention_days`）を過ぎた問い合わせは、1 日に 1 回消します。
+- With the search box at the top, you can narrow by name, email address, subject, the input of each field, and attachment file names, matching those that contain all the words separated by spaces (case-insensitive; can be combined with the status and form filters). Search scans the narrowed inquiries on the server side, so it assumes operation that keeps the count down with the retention period (`retention_days`).
+- Inquiries with attachments get a paperclip in the list, and opening one lets you download the files.
+- Opening shows all fields, and new ones become read. "Reply by email" opens your mail app (the recipient and `Re: subject`).
+- Marking as handled or spam, returning to new, and deleting can be done one at a time or in bulk (audit log `contact.update` / `contact.delete`).
+- Inquiries past the retention period (`retention_days`) are deleted once a day.
 
-> 返信は Admin Studio から送らず、メールクライアントに任せます。CMS から訪問者へ直接送ると、送信ドメインの認証（SPF・DKIM・DMARC）やバウンス処理、スレッド・署名・添付といったメールクライアントの機能を CMS が抱えることになり、送信 API の悪用リスクも増えるためです。受信箱は「メールで返信」で投稿者宛ての新規メールを開き、対応状況は上の状態（対応済みなど）で管理します。
+> Replies are not sent from Admin Studio but left to the mail client. If the CMS sent directly to visitors, the CMS would have to carry sending-domain authentication (SPF, DKIM, DMARC), bounce handling, and the features of mail clients such as threading, signatures, and attachments, and the risk of abuse of the sending API would increase too. The inbox opens a new email addressed to the poster with "Reply by email", and the handling status is managed by the statuses above (such as handled).
 
-## 4. 通知
+## 4. Notifications
 
-| 種類 | 宛先 | 内容 |
+| Kind | Recipient | Description |
 | --- | --- | --- |
-| `contact.received` | 運営者（`notify_staff`） | フォーム、入力されたすべての項目、IP アドレス、受信箱を開く URL（`admin_url`） |
-| `contact.auto_reply` | 送信した人（フォームの `auto_reply`） | 受け付けたことと、入力した内容 |
+| `contact.received` | Operators (`notify_staff`) | The form, all entered fields, the IP address, and the URL to open the inbox (`admin_url`) |
+| `contact.auto_reply` | The sender (the form's `auto_reply`) | That it was received, and what was entered |
 
-文面は Admin Studio の **設定 › 通知** で編集できます。スパムと判定したものは、どちらも送りません。
+The text can be edited in Admin Studio's **Settings › Notifications**. Neither is sent for items judged to be spam.
 
 > [!WARNING]
-> 自動返信は、フォームに入力されたアドレスにメールを送ります。他人のアドレスを入れて送りつける使い方を防ぐため、本文には入力された内容しか入れず、送信数は IP ごとに制限しています。必要なときだけ有効にしてください。
+> The auto-reply sends email to the address entered in the form. To prevent its use for sending mail to other people by entering their address, the body contains only what was entered, and the number of submissions is limited per IP. Enable it only when needed.
 
 ## 5. API
 
-| メソッド・パス | 権限 | 内容 |
+| Method and path | Permission | Description |
 | --- | --- | --- |
-| `GET /api/v1/contact/forms` | なし | フォームと項目の一覧 |
-| `POST /api/v1/contact/forms/{form}` | なし | JSON で送信（`{"name": "...", "email": "...", ...}`。チェックボックスは `true`）。`201 {"status": "received"}`、入力の誤りは `400 {"error", "errors": [{field, code, message}]}`、送信が多すぎると `429` |
-| `GET /api/v1/contact/messages?status=new&form=default&q=見積&limit=50&offset=0` | editor | 受信箱（新しい順）と状態ごとの件数（`counts`）。`q` は全文検索 |
-| `GET /api/v1/contact/messages/{id}/attachments/{field}` | editor | 添付ファイルのダウンロード（`{field}` は項目の名前） |
-| `GET` / `PATCH` / `DELETE /api/v1/contact/messages/{id}` | editor | 1 件の取得・状態の変更（`{"status": "done"}`）・削除 |
-| `POST /api/v1/contact/messages/bulk` | editor | まとめて（`{"ids": [...], "action": "read" \| "done" \| "spam" \| "new" \| "delete"}`） |
+| `GET /api/v1/contact/forms` | None | The list of forms and fields |
+| `POST /api/v1/contact/forms/{form}` | None | Submit as JSON (`{"name": "...", "email": "...", ...}`; `true` for checkboxes). `201 {"status": "received"}`; input errors are `400 {"error", "errors": [{field, code, message}]}`; too many submissions give `429` |
+| `GET /api/v1/contact/messages?status=new&form=default&q=quote&limit=50&offset=0` | editor | The inbox (newest first) and counts per status (`counts`). `q` is full-text search |
+| `GET /api/v1/contact/messages/{id}/attachments/{field}` | editor | Download an attachment (`{field}` is the field's name) |
+| `GET` / `PATCH` / `DELETE /api/v1/contact/messages/{id}` | editor | Get one, change its status (`{"status": "done"}`), or delete it |
+| `POST /api/v1/contact/messages/bulk` | editor | In bulk (`{"ids": [...], "action": "read" \| "done" \| "spam" \| "new" \| "delete"}`) |
 
-入力の誤りの `code` は `required` / `too_long` / `invalid_email` / `invalid_tel` / `invalid_option` / `invalid_text`（添付ファイルは `file_too_large` / `invalid_file_type`）です（`message` は `[contact].locale` の言語）。
+The `code`s for input errors are `required` / `too_long` / `invalid_email` / `invalid_tel` / `invalid_option` / `invalid_text` (for attachments `file_too_large` / `invalid_file_type`) (`message` is in the `[contact].locale` language).

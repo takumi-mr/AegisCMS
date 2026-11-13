@@ -1,66 +1,68 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# お知らせバナー
+**English** | [日本語](notices.ja.md)
 
-メンテナンスやセールの告知を、期間を決めて公開ページの上部に出します。Admin Studio の **設定 › お知らせ** で、メッセージ・リンク・種類・表示期間・閉じるボタンの有無を編集します(設定ファイルは要りません)。
+# Notice Banners
+
+Shows announcements such as maintenance or sales at the top of public pages for a set period. In Admin Studio's **Settings › Notices**, you edit the message, link, kind, display period, and whether there is a close button (no config file is needed).
 
 ```text
- 公開ページに、サーバーが差し込む(テーマに関係なく、404 ページにも付く)
-   <head> ─ <link>   /_aegis/notices.css    組み込みの notices.html 用のスタイル
+ Inserted into public pages by the server (regardless of the theme; also on the 404 page)
+   <head> ─ <link>   /_aegis/notices.css    Styles for the built-in notices.html
           ─ <script src="/_aegis/notices.js" defer>
-   <body> の直後 ─ お知らせの HTML   テーマの templates/notices.html(無ければ組み込み)を描いたもの
+   Right after <body> ─ the notices' HTML   The theme's templates/notices.html (or the built-in one) rendered
 ```
 
-表示中のお知らせが無いページには、何も差し込みません(CSS・スクリプトも読み込みません)。
+Nothing is inserted into pages with no active notice (neither CSS nor script is loaded).
 
 ---
 
-## 1. お知らせの項目
+## 1. Notice Fields
 
-| 項目 | 説明 |
+| Field | Description |
 | --- | --- |
-| メッセージ | 1 行、500 文字まで(HTML は使えません。出力時にエスケープします) |
-| リンク / リンクの文字 | 任意。`/` で始まるパスか `http(s)://`。文字を省略すると「詳しく見る」(`[theme].locale` の言語) |
-| 種類 | `info` / `success` / `warning` / `alert`。`warning`・`alert` は `role="alert"`、ほかは `role="status"` |
-| 表示期間 | 開始(含む)と終了(含まない)。どちらも省略でき、省略した側は期限なし。画面の入力はブラウザーのローカル時間で、サーバーには UTC で渡る |
-| 訪問者が閉じられる | `true` で閉じるボタンを出す |
-| 有効 | `false` で期間内でも出さない(下書き) |
+| Message | One line, up to 500 characters (HTML cannot be used; it is escaped on output) |
+| Link / link text | Optional. A path starting with `/` or `http(s)://`. If the text is omitted, "Learn more" (in the `[theme].locale` language) is used |
+| Kind | `info` / `success` / `warning` / `alert`. `warning` and `alert` get `role="alert"`; the others get `role="status"` |
+| Display period | Start (inclusive) and end (exclusive). Either can be omitted, and an omitted side has no limit. Input on the screen is in the browser's local time and is passed to the server in UTC |
+| Dismissible by visitors | `true` shows a close button |
+| Enabled | `false` keeps it hidden even within the period (a draft) |
 
-- 最大 20 件まで登録でき、**同時に出るのは作成順で先頭の 3 件**です。
-- 状態は **表示中 / 予定 / 終了 / 無効** で、期間は表示のたびに判定します(期限が来ても再起動や操作は要りません。ただしキャッシュ済みのページは、キャッシュが切れるまで古いままです)。
-- 訪問者が閉じたお知らせは `localStorage`(`aegis_notices`)に版つきで覚え、**お知らせを編集すると版が変わって、もう一度出ます**。ストレージが使えない環境では、そのページを見ている間だけ閉じます。JavaScript が無効なら閉じるボタンは出ず、お知らせは出たままです。
+- Up to 20 can be registered, and **the first 3 in creation order are shown at the same time**.
+- The status is **Showing / Scheduled / Ended / Disabled**, and the period is evaluated at each display (no restart or action is needed when a period arrives; pages already cached stay stale until the cache expires).
+- A notice a visitor closed is remembered with a revision in `localStorage` (`aegis_notices`), and **editing the notice changes the revision so it appears again**. In environments where storage is unavailable, it stays closed only while viewing that page. With JavaScript disabled, no close button appears and the notice stays shown.
 
 ## 2. API
 
-すべて `admin` ロールが必要です。エラーの `error` は英語、`code` は `invalid_notice`(`field` に不正な項目)/ `too_many_notices` / `notice_not_found` です。
+All require the `admin` role. The error's `error` is in English, and `code` is `invalid_notice` (with the invalid field in `field`) / `too_many_notices` / `notice_not_found`.
 
-| メソッド | パス | 説明 |
+| Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/v1/notices` | 一覧(`status` つき) |
-| `POST` | `/api/v1/notices` | 追加(201) |
-| `PUT` | `/api/v1/notices/{id}` | 変更 |
-| `DELETE` | `/api/v1/notices/{id}` | 削除(204) |
+| `GET` | `/api/v1/notices` | List (with `status`) |
+| `POST` | `/api/v1/notices` | Add (201) |
+| `PUT` | `/api/v1/notices/{id}` | Update |
+| `DELETE` | `/api/v1/notices/{id}` | Delete (204) |
 
-保存はサイト設定(`_aegis_settings` の `notices.items`)に JSON で持つので、DB のテーブルは増えず、バックアップにも含まれます。変更は監査ログ(`notice.create` / `notice.update` / `notice.delete`)に残り、クラスターの他ノードと CDN のキャッシュに反映されます。
+They are stored as JSON in the site settings (`notices.items` in `_aegis_settings`), so no DB table is added, and they are included in backups. Changes are recorded in the audit log (`notice.create` / `notice.update` / `notice.delete`) and reflected to the other nodes in the cluster and the CDN cache.
 
-## 3. テーマでお知らせを作る(`templates/notices.html`)
+## 3. Building Notices in a Theme (`templates/notices.html`)
 
-テーマが `templates/notices.html` を持つと、組み込みの代わりに使います(`base.html` を継承しない断片です)。`fields.notices` の各要素が次の値を持ちます。
+If a theme has `templates/notices.html`, it is used instead of the built-in one (it is a fragment that does not extend `base.html`). Each element of `fields.notices` has the following values.
 
-| 値 | 説明 |
+| Value | Description |
 | --- | --- |
-| `id` / `rev` | お知らせの ID と版(閉じた記録に使う) |
-| `message` / `link_url` / `link_label` | 本文とリンク(`link_label` は空のことがある) |
+| `id` / `rev` | The notice's ID and revision (used for the dismissed record) |
+| `message` / `link_url` / `link_label` | The body and link (`link_label` may be empty) |
 | `style` | `info` / `success` / `warning` / `alert` |
-| `dismissible` | 閉じられるか |
+| `dismissible` | Whether it can be closed |
 
-スクリプトは次の属性で要素を見つけます。**これを残せば構造も見た目も自由**です。
+The script finds elements by the following attributes. **If you keep these, the structure and look are free.**
 
-| 属性 | 場所 |
+| Attribute | Where |
 | --- | --- |
-| `data-aegis-notice="{{ notice.id }}"` と `data-aegis-notice-rev="{{ notice.rev }}"` | 1 件分の要素 |
-| `data-aegis-notice-close` | 閉じるボタン(`hidden` を付けておく。スクリプトが表示する) |
+| `data-aegis-notice="{{ notice.id }}"` and `data-aegis-notice-rev="{{ notice.rev }}"` | The element for one notice |
+| `data-aegis-notice-close` | The close button (give it `hidden`; the script shows it) |
 
-閉じるボタンの無い要素は常に残ります。最後の 1 件が閉じられると、親の空の要素も取り除きます。`t("notice.label")` / `t("notice.more")` / `t("notice.close")` で文言を引けます。組み込みの CSS(`:where()` で詳細度ゼロ)は、テーマの CSS で簡単に上書きできます。
+Elements without a close button always remain. When the last one is closed, the empty parent element is removed too. You can look up the text with `t("notice.label")` / `t("notice.more")` / `t("notice.close")`. The built-in CSS (zero specificity with `:where()`) is easy to override in the theme's CSS.
 
-テーマ開発サーバー(`aegis-server theme dev`)は、サンプルのお知らせで `notices.html` をプレビューします。
+The theme dev server (`aegis-server theme dev`) previews `notices.html` with sample notices.

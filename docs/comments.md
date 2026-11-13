@@ -1,171 +1,173 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# コメント
+**English** | [日本語](comments.ja.md)
 
-公開サイトの記事・固定ページ・商品ページに、読者がコメントを書けるようにします（`[comments]`）。投稿は WordPress と同じ考え方で審査し（承認制・承認済みの投稿者の自動承認・NG ワード・リンク数）、Admin Studio の **Comments** タブで承認・スパム判定・返信を行います。コメントが付いたこと・承認待ちがあること・返信があったこと・自分のコメントが承認されたことはメールで知らせます（[通知](notifications.md)）。
+# Comments
+
+Lets readers write comments on articles, static pages, and product pages on the public site (`[comments]`). Submissions are moderated with the same thinking as WordPress (an approval workflow, auto-approval of already-approved posters, banned words, and link counts), and in Admin Studio's **Comments** tab you approve, mark as spam, and reply. Email notifies you of new comments, of items awaiting approval, of replies, and of your comment being approved ([Notifications](notifications.md)).
 
 ```text
- 読者（公開ページのフォーム）
+ Reader (the form on a public page)
         │  POST /api/v1/contents/{type}/{slug}/comments
         ▼
- 検査: 必須項目・長さ → 受付中か → ハニーポット（ボットは保存しない）→ IP ごとの投稿数 → 同じ本文の連投
+ Checks: required fields and length → is it open → honeypot (bots are not saved) → posts per IP → consecutive identical bodies
         │
- 最初の状態: NG ワード・リンク数 → 承認制（承認済みの投稿者は自動承認）→ check-comment プラグイン
+ Initial status: banned words and link count → approval workflow (already-approved posters are auto-approved) → check-comment plugin
         │
-        ├── approved ──▶ 公開ページに表示。著者に comment.posted、返信先の投稿者に comment.replied
-        ├── pending ───▶ 著者と運営者に comment.pending → Admin Studio で承認 → 投稿者に comment.approved、返信先の投稿者に comment.replied
-        └── spam ──────▶ 誰にも知らせない（投稿者には「承認待ち」と見せる）
+        ├── approved ──▶ shown on the public page. comment.posted to the author, comment.replied to the poster of the replied-to comment
+        ├── pending ───▶ comment.pending to the author and operators → approve in Admin Studio → comment.approved to the poster, comment.replied to the poster of the replied-to comment
+        └── spam ──────▶ nobody is notified (the poster is shown "awaiting approval")
 ```
 
 > [!NOTE]
-> 商品レビュー（★の評価・購入者だけが書けるレビュー）はコメントとは別の機能として、顧客アカウントと一緒に作る予定です。審査の仕組み（承認制・スパム対策・通知）はコメントと共有します（[architecture.md 13](architecture.md#13-コメント-aegis-comments)）。
+> Product reviews (star ratings, reviews that only purchasers can write) are planned as a separate feature from comments, to be built together with customer accounts. The moderation mechanism (approval workflow, spam protection, notifications) will be shared with comments ([architecture.md 13](architecture.md#13-comments-aegis-comments)).
 
 ---
 
-## 1. 有効にする
+## 1. Enabling It
 
 ```toml
 [comments]
 enabled = true
-content_types = ["article"]   # コメントを受け付けるコンテンツの種類（商品なら "product" も）
-max_depth = 3                 # 返信の深さ（0 で返信なし）
-close_after_days = 0          # 公開からこの日数でコメントを閉じる（0 で閉じない）
+content_types = ["article"]   # content kinds that accept comments (also "product" for products)
+max_depth = 3                 # reply depth (0 for no replies)
+close_after_days = 0          # close comments this many days after publication (0 never closes)
 
 [comments.moderation]
-require_approval = true       # 承認してから公開する（Admin Studio から切り替えられる）
-auto_approve_known = true     # 承認済みのコメントがある人は承認を待たずに公開する（同上）
-max_links = 2                 # リンクがこれより多いと承認待ち
-hold_words = []               # 含むと承認待ちにする語
-spam_words = []               # 含むとスパムにする語
-max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿数
+require_approval = true       # publish after approval (can be switched from Admin Studio)
+auto_approve_known = true     # people with an approved comment are published without waiting for approval (same)
+max_links = 2                 # more links than this awaits approval
+hold_words = []               # words that put a comment awaiting approval
+spam_words = []               # words that make a comment spam
+max_per_ip_per_hour = 10      # posts per hour from the same IP
 ```
 
-そのほかの `[comments]` の項目: `avatars`（[3.1](#31-アバター)）、`reject_duplicates`（[2.3](#23-ボット連投への対策)）。
+Other `[comments]` items: `avatars` ([3.1](#31-avatars)) and `reject_duplicates` ([2.3](#23-protection-against-bots-and-consecutive-posts)).
 
-- 設定項目の一覧は [設定リファレンス](configuration.md#215-comments--コメント) を参照してください。
-- `content_types` のスキーマが無いとサーバーは起動しません。
-- 通知を送るには `[notifications]` も有効にします。返信通知の停止リンクと本文中の URL は `[commerce].public_url` から作ります（無ければリンクを入れません）。
+- For the list of settings, see the [Configuration reference](configuration.md#215-comments--comments).
+- If the schema for a kind in `content_types` is missing, the server does not start.
+- To send notifications, also enable `[notifications]`. The unsubscribe link for reply notifications and the URLs in the body are built from `[commerce].public_url` (without it, no links are included).
 
 ---
 
-## 2. 承認とスパム対策
+## 2. Approval and Spam Protection
 
-### 2.1 最初の状態の決め方
+### 2.1 How the Initial Status Is Decided
 
-投稿は次の順で状態が決まり、後の段は前の段より厳しくだけできます。
+A post's status is decided in the following order, and later steps can only be stricter than earlier ones.
 
-| 順 | 条件 | 状態 |
+| Order | Condition | Status |
 | --- | --- | --- |
-| 1 | 名前・メールアドレス・本文に `spam_words` の語がある | `spam` |
-| 2 | `hold_words` の語がある、またはリンク（`http://` / `https://` / `www.`）が `max_links` より多い | `pending` |
-| 3 | 承認制（`require_approval`）で、同じ名前とメールアドレスの承認済みコメントが無い（または `auto_approve_known` がオフ） | `pending` |
-| 4 | それ以外 | `approved` |
-| 5 | `check-comment` プラグインが `hold` / `spam` を返した（[6](#6-プラグインで審査する)）。プラグインが失敗したら `pending` | `pending` / `spam` |
+| 1 | The name, email address, or body contains a word from `spam_words` | `spam` |
+| 2 | It has a word from `hold_words`, or more links (`http://` / `https://` / `www.`) than `max_links` | `pending` |
+| 3 | With the approval workflow (`require_approval`), there is no approved comment with the same name and email address (or `auto_approve_known` is off) | `pending` |
+| 4 | Otherwise | `approved` |
+| 5 | The `check-comment` plugin returned `hold` / `spam` ([6](#6-moderating-with-plugins)). If the plugin fails, `pending` | `pending` / `spam` |
 
-- 語の判定は大文字・小文字を区別しない部分一致です。
-- スパムとハニーポットに掛かった投稿にも、投稿者には「承認待ち」と同じ応答を返します（判定を悟らせないため）。
-- 状態は `pending`（承認待ち）/ `approved`（公開）/ `spam` / `trash`（ゴミ箱）の 4 つです。公開ページに出るのは `approved` だけです。
+- Word matching is a case-insensitive substring match.
+- Posts caught as spam or by the honeypot also get the same response as "awaiting approval" for the poster (so as not to reveal the judgment).
+- There are 4 statuses: `pending` (awaiting approval) / `approved` (published) / `spam` / `trash`. Only `approved` appears on the public page.
 
-### 2.2 承認制の切り替え
+### 2.2 Switching the Approval Workflow
 
-**Comments** タブ上部の「承認の設定」で、承認制（`require_approval`）と承認済みの投稿者の自動承認（`auto_approve_known`）を切り替えられます（`admin` のみ。`editor` は見るだけ）。値は DB（`_aegis_settings` の `comments.require_approval` / `comments.auto_approve_known`）に保存され、再起動せずに次の投稿から効きます。投稿のたびに DB から読むので、複数のサーバーで動かしていてもすべてに効きます。「設定ファイルの値に戻す」で設定ファイルの値に戻ります。
+With "Approval settings" at the top of the **Comments** tab, you can switch the approval workflow (`require_approval`) and auto-approval of approved posters (`auto_approve_known`) (`admin` only; `editor` can only view). The values are stored in the DB (`comments.require_approval` / `comments.auto_approve_known` in `_aegis_settings`) and take effect from the next post without a restart. They are read from the DB on every post, so they apply to all servers even when running several. "Reset to config file values" returns them to the config file's values.
 
-### 2.3 ボット・連投への対策
+### 2.3 Protection Against Bots and Consecutive Posts
 
-- **ハニーポット**: フォームには人には見えない欄（`website`）があり、値が入っていたらボットとして保存も通知もしません。
-- **IP ごとの投稿数**: `max_per_ip_per_hour` を超えると `429` です（`[cache]` で数える）。リバースプロキシの配下では `[audit].trust_forwarded_for = true` にしないと全員が同じ IP として数えられます。
-- **同じ本文の連投**: 同じコンテンツに、同じ人（メールアドレスか IP アドレスが同じ）が同じ本文をすでに投稿していると `409` で断ります（二重送信・連投の防止。`reject_duplicates = false` で止められます）。ゴミ箱のコメントは数えません。MySQL は文字列の比較が大文字・小文字を区別しない設定が多く、その場合は大文字・小文字だけの違いも重複になります。本文は空白の違い（前後・改行コードの差）を除いて完全に一致したものだけを重複とします。IP アドレスで見るため、同じ回線（会社・学校など）の別の人が「ありがとう」のような短い一言を同じコンテンツに書くと断られることがあります。
-- **CAPTCHA（任意）**: 共通の `[captcha]` の `targets` に `comments` を入れると、投稿フォームにウィジェットが入り、サーバーが検証します（設定は[設定リファレンス 2.24](configuration.md#224-captcha--共通の-captcha)、仕組みは[問い合わせフォーム 1.2](contact.md#12-captcha任意)）。組み込みのテンプレートは自動で対応します。自前のテンプレートでは、`<form>` の中に `{{ comments.captcha_html | safe }}` を置き、投稿の JSON に `captcha_token`（`comments.captcha_field` の名前の欄の値）を足してください。通らなければ `400 {"code": "captcha_failed"}`、検証サービスに届かなければ `503 {"code": "captcha_unavailable"}` です。見えない欄（ハニーポット）に値があるものは検証サービスに聞きません。
-- **プラグイン**: 外部のスパム判定サービス（Akismet など）は `check-comment` フックで使えます。
+- **Honeypot**: the form has a field invisible to people (`website`), and if it has a value the post is treated as a bot and neither saved nor notified.
+- **Posts per IP**: exceeding `max_per_ip_per_hour` gives `429` (counted in `[cache]`). Behind a reverse proxy, unless you set `[audit].trust_forwarded_for = true`, everyone is counted as the same IP.
+- **Consecutive identical bodies**: if the same person (same email address or IP address) has already posted the same body on the same content, it is refused with `409` (preventing double submission and spamming; `reject_duplicates = false` turns it off). Comments in the trash are not counted. MySQL is often configured so that string comparison is case-insensitive, and in that case differences only in case also count as duplicates. A body counts as a duplicate only when it matches exactly apart from whitespace differences (leading/trailing and line-ending differences). Because it goes by IP address, a different person on the same connection (a company, a school, etc.) writing a short remark such as "thanks" on the same content may be refused.
+- **CAPTCHA (optional)**: putting `comments` in the shared `[captcha]` `targets` puts a widget in the post form and the server verifies it (for settings see [Configuration reference 2.24](configuration.md#224-captcha--shared-captcha), for the mechanism [Contact form 1.2](contact.md#12-captcha-optional)). The built-in templates support it automatically. In your own template, place `{{ comments.captcha_html | safe }}` inside the `<form>` and add `captcha_token` (the value of the field named `comments.captcha_field`) to the post JSON. If it fails, it is `400 {"code": "captcha_failed"}`, and if the verification service cannot be reached, `503 {"code": "captcha_unavailable"}`. Posts with a value in the invisible field (honeypot) are not sent to the verification service.
+- **Plugins**: external spam detection services (Akismet, etc.) can be used through the `check-comment` hook.
 
 ---
 
-## 3. 公開サイト
+## 3. Public Site
 
-`content_types` の種類の公開ページ（`article.html` / `page.html` / `product.html`）には、テンプレート変数 `comments` が渡ります。組み込みテンプレートと同梱のテーマは、本文の後に組み込みのコメント欄 `comments.html` を読み込みます。
+The public pages (`article.html` / `page.html` / `product.html`) of the kinds in `content_types` are given the template variable `comments`. The built-in templates and the bundled themes include the built-in comment section `comments.html` after the body.
 
 ```jinja
 {% if comments %}{% include "comments.html" %}{% endif %}
 ```
 
-| 変数 | 内容 |
+| Variable | Description |
 | --- | --- |
-| `comments.count` | 承認済みのコメント数 |
-| `comments["items"]` | 承認済みのコメント（スレッドの順。返信は親の直後） |
-| `comments.open` | 新しいコメントを受け付けているか（`close_after_days`・Admin Studio での受付の停止） |
-| `comments.post_url` | 投稿先（`POST`、ベースパス込み） |
-| `comments.content_id` | コンテンツの ID |
-| `comments.max_depth` / `comments.max_length` | 返信できる深さ / 本文の最大文字数 |
+| `comments.count` | The number of approved comments |
+| `comments["items"]` | Approved comments (in thread order; replies right after their parent) |
+| `comments.open` | Whether new comments are accepted (`close_after_days`, stopping acceptance in Admin Studio) |
+| `comments.post_url` | The post destination (`POST`, including the base path) |
+| `comments.content_id` | The content's ID |
+| `comments.max_depth` / `comments.max_length` | The depth replies can go / the maximum number of characters in the body |
 
-`items` の各要素は `id` / `parent_id` / `author_name` / `body_html`（エスケープ済みの本文。段落と改行だけ）/ `created_at` / `depth`（0 から。`max_depth` まで）/ `staff`（Admin Studio からの返信）/ `avatar_url`（[3.1](#31-アバター)。無ければ `null`）です。メールアドレス・IP アドレスはテンプレートに渡りません。`items` は Jinja の辞書のメソッド名と重なるため `comments["items"]` で参照します。
+Each element of `items` has `id` / `parent_id` / `author_name` / `body_html` (the escaped body; paragraphs and line breaks only) / `created_at` / `depth` (from 0, up to `max_depth`) / `staff` (a reply from Admin Studio) / `avatar_url` ([3.1](#31-avatars); `null` if none). Email addresses and IP addresses are not passed to the template. `items` overlaps with a Jinja dict method name, so reference it as `comments["items"]`.
 
-- 組み込みのコメント欄は、フォームの送信をスクリプトで行います（`Content-Type: application/json`）。承認済みになったらそのコメントの位置（`#comment-<id>`）で再読み込みし、承認待ちなら案内を表示します。名前とメールアドレスはブラウザ（`localStorage`）に覚えます。
-- テーマで見た目を変える場合は、テーマの `templates/comments.html` に同名のテンプレートを置きます（[テーマの作り方](theme_authoring_guide.md)）。独自のフォームから送る場合は [5.1](#51-公開ログイン不要) の API を使います。
-- 返信通知のメールの停止リンクは `/comments/unsubscribe?id=...&token=...` で、テーマの `page.html` で「通知を停止しました」と表示します。返信の通知と承認の通知は同じ希望（フォームのチェックボックス）で、停止リンクで両方止まります。
+- The built-in comment section submits the form with a script (`Content-Type: application/json`). When the comment becomes approved, it reloads at that comment's position (`#comment-<id>`), and if awaiting approval it shows a notice. The name and email address are remembered in the browser (`localStorage`).
+- To change the look in a theme, place a template of the same name at the theme's `templates/comments.html` ([How to build themes](theme_authoring_guide.md)). To submit from your own form, use the API in [5.1](#51-public-no-login-needed).
+- The unsubscribe link in reply notification emails is `/comments/unsubscribe?id=...&token=...`, and the theme's `page.html` shows "Notifications stopped". Reply notifications and approval notifications are the same preference (the form's checkbox), and the unsubscribe link stops both.
 
-### 3.1 アバター
+### 3.1 Avatars
 
-`[comments].avatars = "gravatar"` にすると、`avatar_url` に [Gravatar](https://gravatar.com/) の画像の URL が入り、組み込みのコメント欄は名前の横に表示します。
+With `[comments].avatars = "gravatar"`, `avatar_url` holds the URL of a [Gravatar](https://gravatar.com/) image, and the built-in comment section shows it next to the name.
 
-![公開ページのコメント欄（スタッフの返信つき）](images/comments-public.png)
+![The comment section on a public page (with a staff reply)](images/comments-public.png)
 
-- URL はメールアドレス（小文字・前後の空白なし）の SHA-256 から作ります（`https://www.gravatar.com/avatar/<ハッシュ>?s=96&d=<avatar_default>&r=g`）。メールアドレスそのものは URL にもページにも出ません。
-- 画像は**読者のブラウザが gravatar.com から取得します**（読者の IP アドレスが Gravatar に渡ります）。外部への接続を避けたいサイトは既定の `none` のままにしてください。
-- Gravatar に画像が無い人は `avatar_default`（`identicon` など）の画像になります。`404` にすると画像が無いので表示は崩れます（テーマで `onerror` などで隠す場合のみ）。
-- テーマの `comments.html` を自作している場合は `{% if c.avatar_url %}<img src="{{ c.avatar_url }}" alt="" width="28" height="28" loading="lazy" referrerpolicy="no-referrer">{% endif %}` のように使います。
+- The URL is built from the SHA-256 of the email address (lowercase, no surrounding whitespace) (`https://www.gravatar.com/avatar/<hash>?s=96&d=<avatar_default>&r=g`). The email address itself appears neither in the URL nor on the page.
+- The image is **fetched from gravatar.com by the reader's browser** (the reader's IP address is passed to Gravatar). Sites that want to avoid external connections should leave the default `none`.
+- People without an image on Gravatar get the `avatar_default` image (such as `identicon`). With `404` there is no image and the display breaks (use it only if you hide it in the theme with `onerror` or the like).
+- If you write your own theme `comments.html`, use it like `{% if c.avatar_url %}<img src="{{ c.avatar_url }}" alt="" width="28" height="28" loading="lazy" referrerpolicy="no-referrer">{% endif %}`.
 
 ---
 
 ## 4. Admin Studio
 
-![Admin Studio のコメント管理（承認待ち・承認済み・スパム）](images/comments-admin.png)
+![Admin Studio comment management (awaiting approval, approved, spam)](images/comments-admin.png)
 
-**Comments** タブ（`editor` 以上。`[comments].enabled = false` なら出ません）で次の操作ができます。通知メールのリンク（Admin Studio の URL + `#comments`）からもこのタブが開きます。
+In the **Comments** tab (`editor` and above; not shown if `[comments].enabled = false`) you can do the following. The links in notification emails (Admin Studio's URL + `#comments`) also open this tab.
 
-- 状態ごとの一覧（承認待ち・承認済み・スパム・ゴミ箱・すべて。件数付き）。投稿者の名前・メールアドレス・IP アドレス、本文、コメントが付いたコンテンツ（公開ページへのリンク）。
-- 承認・承認の取り消し（承認待ちに戻す）・スパム・ゴミ箱・完全に削除。チェックボックスでまとめて操作できます（最大 200 件）。承認待ち（・スパム）から承認すると、投稿時に「メールで知らせる」を選んだ投稿者に `comment.approved` を送ります。
-- 本文の編集（鉛筆のボタン）: どの状態のコメントも直せます。公開ページにはすぐ反映されます。誤字の訂正や、公開したくない個人情報の削除に使います。編集は監査ログに残ります（文字数だけで、本文は残しません）。投稿者には知らせません。
-- コンテンツごとの受付の切り替え（コメントの行のボタン、またはコンテンツ・商品の編集画面のボタン）: そのコンテンツへの新しいコメントを止める・再開します。止めている間もすでに付いたコメントは公開ページに残り、フォームの代わりに「Comments are closed.」と出ます。コンテンツの行や編集画面に「受付停止中」と出ます（コメントが 0 件のコンテンツも編集画面から切り替えられます）。コンテンツを削除すると、この設定も消えます。
-- 返信: Admin Studio のユーザーの表示名で、承認済みとしてすぐに公開されます（公開ページに「Staff」の印）。承認待ちのコメントに返信すると、そのコメントも承認されます。
-- 承認の設定（[2.2](#22-承認制の切り替え)）。
+- A list per status (awaiting approval, approved, spam, trash, all; with counts). The poster's name, email address, and IP address, the body, and the content the comment was left on (a link to the public page).
+- Approve, unapprove (return to awaiting approval), mark as spam, trash, and delete permanently. Checkboxes let you operate in bulk (up to 200). Approving from awaiting approval (or spam) sends `comment.approved` to posters who chose "notify me by email" when posting.
+- Editing the body (the pencil button): comments of any status can be fixed. It is reflected on the public page immediately. Use it to correct typos or remove personal information you do not want published. Edits are recorded in the audit log (only the character count, not the body). The poster is not notified.
+- Switching acceptance per content (the button on the comment row, or the button on the content or product edit screen): stops or resumes new comments on that content. Even while stopped, existing comments remain on the public page, and "Comments are closed." appears in place of the form. "Acceptance stopped" is shown on the content row and the edit screen (content with 0 comments can also be switched from the edit screen). Deleting the content also removes this setting.
+- Reply: under the Admin Studio user's display name, published immediately as approved (with a "Staff" badge on the public page). Replying to a comment awaiting approval approves that comment too.
+- Approval settings ([2.2](#22-switching-the-approval-workflow)).
 
-コンテンツを削除すると、そのコメントも削除されます。
+Deleting content also deletes its comments.
 
 ---
 
 ## 5. API
 
-### 5.1 公開（ログイン不要）
+### 5.1 Public (No Login Needed)
 
-| メソッド・パス | 内容 |
+| Method and path | Description |
 | --- | --- |
-| `GET /api/v1/contents/{type}/{slug または id}/comments` | 承認済みのコメント（テンプレートの `comments` と同じ形） |
-| `POST /api/v1/contents/{type}/{slug または id}/comments` | 投稿。本文は `name` / `email` / `body`（必須）、`parent_id`（返信先）、`notify_replies`（返信・承認をメールで知らせる）、`website`（ハニーポット。空にする） |
-| `GET /comments/unsubscribe?id=...&token=...` | 返信通知を止める（通知メールのリンク。HTML） |
+| `GET /api/v1/contents/{type}/{slug or id}/comments` | Approved comments (the same shape as the template's `comments`) |
+| `POST /api/v1/contents/{type}/{slug or id}/comments` | Post. The body is `name` / `email` / `body` (required), `parent_id` (the reply target), `notify_replies` (notify by email of replies and approval), and `website` (the honeypot; leave empty) |
+| `GET /comments/unsubscribe?id=...&token=...` | Stop reply notifications (the link in notification emails; HTML) |
 
-投稿の応答は、公開されたら `201` と `{"status": "approved", "comment": {...}}`、承認待ち（スパム・ハニーポットを含む）なら `202` と `{"status": "pending"}` です。エラーは `400`（入力の不備・返信先が無い・深すぎる）、`403`（コメントを閉じた。`close_after_days` を過ぎた・Admin Studio で止めた）、`404`（公開中でない・コメントを受け付けない種類）、`409`（同じ本文をすでに投稿している）、`422`（プラグインが断った。`error` は投稿者に見せる文）、`429`（投稿が多すぎる）です。
+The response to a post is `201` with `{"status": "approved", "comment": {...}}` when published, and `202` with `{"status": "pending"}` when awaiting approval (including spam and honeypot). Errors are `400` (invalid input, no reply target, too deep), `403` (comments closed: `close_after_days` passed or stopped in Admin Studio), `404` (not published, or a kind that does not accept comments), `409` (the same body was already posted), `422` (a plugin refused it; `error` is text to show the poster), and `429` (too many posts).
 
-### 5.2 管理
+### 5.2 Administration
 
-| メソッド・パス | ロール | 内容 |
+| Method and path | Role | Description |
 | --- | --- | --- |
-| `GET /api/v1/comments` | `editor` | 一覧（新しい順）。`status` / `content_type` / `content_id` / `limit`（既定 50、最大 200）/ `offset`。応答は `comments`・`total`・状態ごとの件数 `counts` |
-| `PATCH /api/v1/comments/{id}` | `editor` | 状態を変える（`{"status": "approved"}` など）、本文を直す（`{"body": "..."}`）。両方同時でもよい（本文を先に直す）。どちらも無いと `400` |
-| `GET /api/v1/contents/{type}/{id}/comments/state` | `editor` | そのコンテンツへの新しいコメントの受付状態を取得する。`id` は ID か slug。応答は `{"content_type", "content_id", "open"}` |
-| `PUT /api/v1/contents/{type}/{id}/comments/state` | `editor` | そのコンテンツへの新しいコメントの受付を止める・再開する（`{"open": false}`）。`id` は ID か slug。応答は `{"content_type", "content_id", "open"}` |
-| `DELETE /api/v1/comments/{id}` | `editor` | 完全に削除する |
-| `POST /api/v1/comments/bulk` | `editor` | まとめて操作する（`{"ids": [...], "action": "approved" \| "pending" \| "spam" \| "trash" \| "delete"}`）。応答は `{"count": 変えた件数}` |
-| `POST /api/v1/comments/{id}/replies` | `editor` | 返信する（`{"body": "..."}`） |
-| `GET /api/v1/comments/settings` | `editor` | 承認の設定（`policy`: 実際の値、`overrides`: Admin Studio で変えた値、`defaults`: 設定ファイルの値） |
-| `PUT /api/v1/comments/settings` | `admin` | 承認の設定を変える（`{"require_approval": false, "auto_approve_known": null}`。`null` は設定ファイルの値に戻す） |
+| `GET /api/v1/comments` | `editor` | A list (newest first). `status` / `content_type` / `content_id` / `limit` (default 50, max 200) / `offset`. The response is `comments`, `total`, and the counts per status `counts` |
+| `PATCH /api/v1/comments/{id}` | `editor` | Change the status (such as `{"status": "approved"}`) or fix the body (`{"body": "..."}`). Both at once is fine (the body is fixed first). Neither gives `400` |
+| `GET /api/v1/contents/{type}/{id}/comments/state` | `editor` | Get the acceptance state of new comments on that content. `id` is an ID or slug. The response is `{"content_type", "content_id", "open"}` |
+| `PUT /api/v1/contents/{type}/{id}/comments/state` | `editor` | Stop or resume new comments on that content (`{"open": false}`). `id` is an ID or slug. The response is `{"content_type", "content_id", "open"}` |
+| `DELETE /api/v1/comments/{id}` | `editor` | Delete permanently |
+| `POST /api/v1/comments/bulk` | `editor` | Operate in bulk (`{"ids": [...], "action": "approved" \| "pending" \| "spam" \| "trash" \| "delete"}`). The response is `{"count": number changed}` |
+| `POST /api/v1/comments/{id}/replies` | `editor` | Reply (`{"body": "..."}`) |
+| `GET /api/v1/comments/settings` | `editor` | Approval settings (`policy`: the actual values, `overrides`: values changed in Admin Studio, `defaults`: the config file's values) |
+| `PUT /api/v1/comments/settings` | `admin` | Change the approval settings (`{"require_approval": false, "auto_approve_known": null}`; `null` returns to the config file's value) |
 
-監査ログには `comment.create`（Admin Studio からの返信）/ `comment.moderate` / `comment.update`（本文の編集）/ `comment.delete` / `comment.settings_update`（承認の設定・コンテンツごとの受付の切り替え）が残ります（[監査ログ](audit.md)）。
+The audit log records `comment.create` (a reply from Admin Studio) / `comment.moderate` / `comment.update` (editing the body) / `comment.delete` / `comment.settings_update` (approval settings and the per-content acceptance switch) ([Audit log](audit.md)).
 
 ---
 
-## 6. プラグインで審査する
+## 6. Moderating with Plugins
 
-`check-comment` フックを宣言したプラグインは、公開サイトからの投稿を保存する前に受け取り、`allow`（そのまま）/ `hold`（承認待ち）/ `spam` を返せます。エラー（Rust SDK の `PluginError::Rejected`）を返すと投稿を断り、メッセージを投稿者に見せます。詳細は [フック一覧](plugin_hooks.md#19-check-comment) を参照してください。
+A plugin that declares the `check-comment` hook receives posts from the public site before they are saved, and can return `allow` (as is) / `hold` (awaiting approval) / `spam`. Returning an error (`PluginError::Rejected` in the Rust SDK) refuses the post and shows the message to the poster. For details, see the [hook list](plugin_hooks.md#19-check-comment).
 
 ```rust
 fn check_comment(&mut self, comment: CommentSubmission) -> Result<CommentVerdict> {
@@ -178,11 +180,11 @@ fn check_comment(&mut self, comment: CommentSubmission) -> Result<CommentVerdict
 
 ---
 
-## 7. セキュリティと制限事項
+## 7. Security and Limitations
 
-- **本文はプレーンテキスト**: HTML・Markdown は解釈せず、すべてエスケープして段落と改行だけにします。リンクも自動ではリンクにしません（スパムの動機を減らすため）。
-- **個人情報**: メールアドレス・IP アドレス・ブラウザ（User-Agent）は Admin Studio（`editor` 以上）と、著者・運営者への承認待ちの通知にだけ出ます。返信通知（読者宛て）には返信した人のメールアドレスを入れません。
-- **返信通知の停止リンク**: コメントごとの推測できないトークンで、停止ページは `Referrer-Policy: no-referrer` です。
-- 公開ページに出すのは 1 つのコンテンツにつき古い順に 1,000 件までです。
-- コメントの本文の翻訳（コメント欄の翻訳）はありません。
-- 本文を編集しても、公開ページの編集済みの印や編集履歴は残りません（監査ログには編集の事実と文字数が残ります）。
+- **The body is plain text**: HTML and Markdown are not interpreted; everything is escaped and reduced to paragraphs and line breaks only. Links are not turned into links automatically either (to reduce the motive for spam).
+- **Personal information**: email addresses, IP addresses, and browsers (User-Agent) appear only in Admin Studio (`editor` and above) and in the awaiting-approval notifications to authors and operators. Reply notifications (to readers) do not include the replier's email address.
+- **Unsubscribe link for reply notifications**: an unguessable per-comment token, and the unsubscribe page has `Referrer-Policy: no-referrer`.
+- Up to 1,000 comments per content item, oldest first, appear on the public page.
+- There is no translation of comment bodies (translating the comment section).
+- Even if you edit a body, no "edited" mark or edit history remains on the public page (the audit log records the fact of the edit and the character count).

@@ -2,7 +2,7 @@
 
 [English](README.md) | **日本語**
 
-コードブロックに**行番号**と**ファイル名の見出し**を足す公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.md)）。
+コードブロックに**行番号**と**ファイル名の見出し**を足す公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.ja.md)）。
 
 ```text
  ┌ src/main.rs ─────────────┐   ← ファイル名（コードブロックの filename）

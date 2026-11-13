@@ -2,7 +2,7 @@
 
 [English](README.md) | **日本語**
 
-記事・固定ページに**「トップへ戻る」ボタン**を足す公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.md)）。
+記事・固定ページに**「トップへ戻る」ボタン**を足す公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.ja.md)）。
 
 | `style` | 動き |
 | --- | --- |

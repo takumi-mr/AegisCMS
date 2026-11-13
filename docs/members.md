@@ -1,517 +1,519 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# 会員アカウント
+**English** | [日本語](members.ja.md)
 
-サイトの訪問者が作るアカウントです。**CMS の管理アカウント（`_aegis_users`）とは完全に別**で、テーブルも、セッションも、権限も共有しません。ショップ（[EC](commerce.md)）の購入者は、注文履歴の確認、商品レビューの投稿、配送先の保存に使います。**掲示板（[forum](forum.md)）でも同じアカウントを使えるようにする**予定です（§12）。
+# Member Accounts
+
+Accounts that site visitors create. They are **completely separate from the CMS's admin accounts (`_aegis_users`)**, and share no tables, sessions, or permissions. Purchasers in the shop ([E-commerce](commerce.md)) use them to check order history, post product reviews, and save shipping addresses. **The same accounts are planned to be usable in the forum ([forum](forum.md)) too** (§12).
 
 > [!NOTE]
-> **現状と設計**。会員アカウント（§1〜§10）は実装済みです。以前は「顧客アカウント」として `[commerce.customers]` にありましたが、`[members]` に移り、ショップが無効でも使えます（§11。互換は残していません）。掲示板への組み込み・公開名（`nickname`）は設計だけで、**未実装**です（§12〜§14）。
+> **Current state and design.** Member accounts (§1–§10) are implemented. They used to be "customer accounts" under `[commerce.customers]`, but moved to `[members]` and can be used even when the shop is disabled (§11; no compatibility was kept). Integration into the forum and public names (`nickname`) were only designs and were **not implemented** (§12–§14).
 
 ---
 
-## 1. 現状（実装済み）
+## 1. Current State (Implemented)
 
-`[members].enabled = true` のとき、会員アカウントが有効になります（設定は §3）。注文履歴・配送先・レビューは、ショップ（`[commerce].enabled = true`）も有効なときに使えます。
+When `[members].enabled = true`, member accounts are enabled (settings are in §3). Order history, shipping addresses, and reviews can be used when the shop (`[commerce].enabled = true`) is also enabled.
 
-| API | 内容 |
+| API | Description |
 |---|---|
-| `POST /api/v1/members/register` | 会員登録（メール・パスワード・名前。電話・配送先は任意） |
-| `POST /api/v1/members/login` | ログイン。`{ "token": "mses_...", "expires_at": ..., "member": {...} }` を返す |
-| `POST /api/v1/members/logout` | ログアウト |
-| `GET` / `PUT /api/v1/members/me` | 自分の情報の取得・更新（パスワード変更は現在のパスワードが要る） |
-| `PUT` / `DELETE /api/v1/members/me/avatar` | プロフィール画像の設定・解除（§13a） |
-| `GET /api/v1/members/orders`・`/orders/{id}` | 自分の注文履歴（ログイン中に注文すると、注文が会員に紐づく） |
-| `GET /api/v1/members/reviews` | 自分のレビュー |
-| `GET` / `POST /api/v1/products/{product_id}/reviews` | 商品のレビュー（公開済みの一覧・投稿） |
-| `GET /api/v1/admin/members`・`/{id}`、`PATCH` | 会員の一覧・詳細・状態（`active` / `suspended`）の変更（`editor` 以上） |
-| `PUT /api/v1/admin/members/{id}/level` | 会員の権限レベルの変更（`admin` のみ。§15） |
-| `/api/v1/admin/reviews`・`/settings`・`/bulk`・`/{id}`・`/{id}/reply` | レビューの管理（承認・一括・返信・設定） |
-| `POST` / `GET /api/v1/members/purchases` | 記事の購入を始める・自分の購入の一覧（`[members.purchase].enabled` のとき。§16） |
-| `GET /api/v1/members/plans`、`POST` / `GET /api/v1/members/subscriptions`、`POST /api/v1/members/billing-portal` | プランの一覧、契約を始める・自分の契約、解約・カード変更の画面（Stripe の Customer Portal）の URL（§16） |
-| `POST /api/v1/admin/members/{id}/purchases`、`POST /api/v1/admin/purchases/{id}/revoke` / `refund`、`POST /api/v1/admin/subscriptions/{id}/cancel` | 無料の付与、権利の取り消し、返金、契約の解約（`admin` のみ。§16） |
-| `POST /api/v1/members/webhooks/stripe` | 購入の入金・返金の通知（Stripe の署名つき。§16） |
+| `POST /api/v1/members/register` | Member sign-up (email, password, name; phone and shipping address optional) |
+| `POST /api/v1/members/login` | Login. Returns `{ "token": "mses_...", "expires_at": ..., "member": {...} }` |
+| `POST /api/v1/members/logout` | Logout |
+| `GET` / `PUT /api/v1/members/me` | Get and update your own information (changing the password needs the current password) |
+| `PUT` / `DELETE /api/v1/members/me/avatar` | Set and remove the profile image (§13a) |
+| `GET /api/v1/members/orders`, `/orders/{id}` | Your own order history (an order placed while logged in is linked to the member) |
+| `GET /api/v1/members/reviews` | Your own reviews |
+| `GET` / `POST /api/v1/products/{product_id}/reviews` | A product's reviews (list of published ones, and posting) |
+| `GET /api/v1/admin/members`, `/{id}`, `PATCH` | List and details of members, and changing the status (`active` / `suspended`) (`editor` and above) |
+| `PUT /api/v1/admin/members/{id}/level` | Change a member's permission level (`admin` only; §15) |
+| `/api/v1/admin/reviews`, `/settings`, `/bulk`, `/{id}`, `/{id}/reply` | Review management (approval, bulk, reply, settings) |
+| `POST` / `GET /api/v1/members/purchases` | Start purchasing an article, and list your own purchases (when `[members.purchase].enabled`; §16) |
+| `GET /api/v1/members/plans`, `POST` / `GET /api/v1/members/subscriptions`, `POST /api/v1/members/billing-portal` | The plan list, starting a subscription and your own subscriptions, and the URL of the screen for cancelling and changing cards (Stripe's Customer Portal) (§16) |
+| `POST /api/v1/admin/members/{id}/purchases`, `POST /api/v1/admin/purchases/{id}/revoke` / `refund`, `POST /api/v1/admin/subscriptions/{id}/cancel` | Free grants, revoking entitlements, refunds, and cancelling subscriptions (`admin` only; §16) |
+| `POST /api/v1/members/webhooks/stripe` | Notifications of purchase payments and refunds (with a Stripe signature; §16) |
 
-- 認証は `Authorization: Bearer mses_...`（API のクライアント向け）。セッションはキャッシュに置き、既定で 30 日。
-- パスワードは Argon2id。登録済みのメールでの登録は `409`。
-- レビューは「購入者（Verified Purchase）」だけが、1 注文につき 1 件、★1〜5 で投稿できる。**ゲスト購入の人も、注文のアクセストークンでレビューできる**（アカウントは要らない）。審査（承認待ち・スパム判定）は `[comments.moderation]` の仕組みを共有する。
+- Authentication is `Authorization: Bearer mses_...` (for API clients). Sessions are kept in the cache, 30 days by default.
+- Passwords use Argon2id. Registering with an already registered email gives `409`.
+- Reviews can be posted only by "purchasers (Verified Purchase)", one per order, with ★1–5. **People who purchased as guests can also review with the order's access token** (no account needed). Moderation (awaiting approval, spam judgment) shares the `[comments.moderation]` mechanism.
 
-### 足りないもの
+### What Is Missing
 
-1. 購入者が使う**画面**（ログイン・会員登録・マイページ・商品ページのレビュー欄）がない。API を直接呼ぶしかない。
-2. 管理画面に、会員とレビューの**画面**がない。
-3. パスワードを忘れたときの**再設定**と、登録したメールアドレスの**確認**がない。
-4. **退会**（自分のアカウントの削除）がない。
-5. 新規登録を止める、メール確認を必須にする、などの**設定**がない。
-
----
-
-## 2. 範囲
-
-- ゲスト購入は残します（アカウントなしで注文できる。注文の確認は今までどおり URL のトークン）。アカウントは任意です。
-- 会員のアカウントで、CMS の管理画面には入れません（逆も同じ）。
-- ソーシャルログイン、ポイント・クーポンの会員別管理、複数の配送先、ウィッシュリストは範囲外です。
+1. There are no **screens** for purchasers (login, sign-up, My Page, the review section on product pages). You can only call the API directly.
+2. The admin screen has no **screens** for members and reviews.
+3. There are no **reset** for forgotten passwords or **confirmation** of registered email addresses.
+4. There is no **withdrawal** (deleting your own account).
+5. There are no **settings** such as stopping new registrations or requiring email confirmation.
 
 ---
 
-## 3. 設定
+## 2. Scope
+
+- Guest purchases remain (orders can be placed without an account; order confirmation is by the URL's token as before). Accounts are optional.
+- A member account cannot enter the CMS admin screen (and vice versa).
+- Social login, per-member management of points and coupons, multiple shipping addresses, and wishlists are out of scope.
+
+---
+
+## 3. Settings
 
 ```toml
 [members]
-enabled = true                      # 会員アカウントを使う（既定 false。使うサイトだけが true にする）
-registration = "open"               # "open" | "closed"（closed は新規登録だけを止める。既存の会員はログインできる）
-session_days = 30                   # ログインの有効期間（1〜365）
-password_reset = true               # パスワードの再設定を使う（要 [notifications] のメールと public_url）
-require_email_verification = false  # true は、メールの確認リンクを開くまでログインできない（同上）
-public_url = ""                     # メールのリンクの元（例 "https://example.com"）。空だと、メールを使う機能は動かない
+enabled = true                      # use member accounts (default false. Only sites that use them set true)
+registration = "open"               # "open" | "closed" (closed stops only new registrations. Existing members can log in)
+session_days = 30                   # login validity (1–365)
+password_reset = true               # use password reset (requires [notifications] email and public_url)
+require_email_verification = false  # true: cannot log in until the email confirmation link is opened (same requirement)
+public_url = ""                     # base of email links (e.g. "https://example.com"). If empty, email-based features do not work
 ```
 
-設定は実装済みです（[設定リファレンス](configuration.md#members)）。`registration = "closed"` の新規登録は `403` です。
+The settings are implemented ([Configuration reference](configuration.md#212a-members--member-accounts)). A new registration with `registration = "closed"` is `403`.
 
-- `enabled = false` なら、会員の API と画面は 404 です（ゲスト購入とレビューは使えます）。
-- `require_email_verification = true` で `[notifications]` のメールが使えないときは、確認メールを送れず誰もログインできなくなるので、**起動時にエラー**にします。
+- With `enabled = false`, the member API and screens are 404 (guest purchases and reviews can be used).
+- When `require_email_verification = true` and `[notifications]` email cannot be used, confirmation emails cannot be sent and no one can log in, so it is a **startup error**.
 
 ---
 
-## 4. 購入者向けの画面
+## 4. Purchaser-Facing Screens
 
-### 4.1 ルート
+### 4.1 Routes
 
-| パス | 内容 |
+| Path | Description |
 |---|---|
-| `/account` | マイページ（ログイン中: 注文履歴・自分のレビュー・登録情報。未ログイン: ログイン画面へ） |
-| `/account/login` | ログイン |
-| `/account/register` | 会員登録（`registration = "closed"` なら 404） |
-| `/account/forgot` | パスワードを忘れたとき（再設定メールの申し込み） |
-| `/account/reset?token=...` | 新しいパスワードの設定 |
-| `/account/verify?token=...` | メールアドレスの確認 |
+| `/account` | My Page (logged in: order history, your own reviews, registration info. Not logged in: to the login screen) |
+| `/account/login` | Login |
+| `/account/register` | Member sign-up (404 if `registration = "closed"`) |
+| `/account/forgot` | When you forgot your password (applying for a reset email) |
+| `/account/reset?token=...` | Setting a new password |
+| `/account/verify?token=...` | Confirming the email address |
 
-### 4.2 ログインの持ち方
+### 4.2 How Login Is Held
 
-画面（ブラウザ）では、ログインすると **HttpOnly の Cookie** にセッションを持たせます。JavaScript はトークンに触れません（XSS で盗まれにくい）。API のクライアントは、今までどおり `Authorization: Bearer` を使います。会員の API は、どちらの形でも受け付けます（`Authorization` があればそちらを使う）。ログインの応答の本文には、従来どおりトークンも入ります。
+In screens (the browser), logging in keeps the session in an **HttpOnly cookie**. JavaScript cannot touch the token (hard to steal via XSS). API clients use `Authorization: Bearer` as before. The member API accepts both forms (if `Authorization` is present, it is used). The login response body still includes the token as before.
 
-- Cookie: 名前は `{名前空間}_member`（既定は `cms_member`。`[server]` の名前空間から作るので、管理画面のものと混ざらない）。`HttpOnly`、`SameSite=Lax`、`Path=/`、`Max-Age` はログインの有効期間（`session_days`）、HTTPS のとき（`X-Forwarded-Proto: https` または `[members].public_url` が `https://`）は `Secure`。ログアウトで `Max-Age=0` にして消す。
-- **CSRF**: 状態を変える API は JSON（`Content-Type: application/json`）だけを受け付けます（今のまま）。`SameSite=Lax` で他のサイトからの POST には Cookie が付かず、CORS は認証情報つきの要求を許さない（今のまま）ので、他のサイトから操作できません。
-- ログイン中に注文すると、注文が会員に紐づきます（Cookie でも Bearer でも同じ）。
-- 会員のトークン（`mses_...`）は管理画面の API では通らず、管理者のトークンは会員の API で通らない。
+- Cookie: the name is `{namespace}_member` (default `cms_member`; built from the `[server]` namespace, so it does not mix with the admin screen's). `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age` is the login validity (`session_days`), and `Secure` over HTTPS (`X-Forwarded-Proto: https` or `[members].public_url` is `https://`). Logout clears it with `Max-Age=0`.
+- **CSRF**: APIs that change state accept only JSON (`Content-Type: application/json`) (as now). With `SameSite=Lax` the cookie is not attached to POSTs from other sites, and CORS does not allow requests with credentials (as now), so it cannot be operated from other sites.
+- An order placed while logged in is linked to the member (the same with a cookie or a Bearer).
+- A member token (`mses_...`) does not pass the admin screen's API, and an administrator's token does not pass the member API.
 
-マイページは、ほかのショップのページ（カート・注文確認）と同じ作りです。サーバーはログインの状態だけを見て（未ログインなら `/account/login` へ、ログイン済みなら `/account` へ転送）、**骨組みのページ**を返します。中身は、スクリプト（`/shop/account.js`）が API を呼んで作ります（注文履歴は最初の応答には入らない）。どの応答も `Cache-Control: private, no-store` で、共有のキャッシュに載りません。
+My Page is built the same way as the other shop pages (cart, order confirmation). The server looks only at the login state (not logged in is forwarded to `/account/login`, logged in to `/account`) and returns a **skeleton page**. The contents are built by a script (`/shop/account.js`) calling the API (order history is not in the first response). Every response has `Cache-Control: private, no-store` and does not go into shared caches.
 
-### 4.3 テーマ
+### 4.3 Theme
 
-- 組み込みのテンプレート `account.html` を用意しています（テーマに `account.html` がなければ、これを使う）。同梱のテーマは、何も変えなくても動きます。
-- テーマ制作者は `account.html` を上書きできます。`slug` が表示（`home` / `login` / `register`）、`theme_vars` に次が入ります: `account_enabled`（`"true"` / `"false"`）、`account_url`、`account_login_url`、`account_register_url`（登録を止めているときは空）、`account_script`、`account_api`、`account_min_password`。
-- 組み込みの `account.html` は、`<div id="aegis-account" data-view="{{ slug }}">` をスクリプトが埋める作りです。上書きするときは、この要素と、`account_*` を `data-*` に渡すスクリプトの読み込みを残してください（スクリプトの文言は `[theme].locale` の言語）。見た目は、`.aegis-account-*` と `.aegis-field`・`.aegis-button` などのクラスで変えられます。
-- ショップのナビゲーション（`shop_common.html`）に、会員アカウントを使うときだけ「アカウント」のリンクが出ます。
+- A built-in template `account.html` is provided (used if the theme has no `account.html`). The bundled themes work without any change.
+- Theme authors can override `account.html`. `slug` is the view (`home` / `login` / `register`), and `theme_vars` contains: `account_enabled` (`"true"` / `"false"`), `account_url`, `account_login_url`, `account_register_url` (empty when registration is stopped), `account_script`, `account_api`, and `account_min_password`.
+- The built-in `account.html` is built so that a script fills `<div id="aegis-account" data-view="{{ slug }}">`. When overriding, keep this element and the loading of the script that passes `account_*` to `data-*` (the script's text is in the `[theme].locale` language). The look can be changed with the classes `.aegis-account-*`, `.aegis-field`, `.aegis-button`, and so on.
+- In the shop navigation (`shop_common.html`), an "Account" link appears only when member accounts are used.
 
-### 4.4 商品ページのレビュー
+### 4.4 Reviews on Product Pages
 
-組み込みの `product.html` が、レビュー欄（`reviews.html`）を商品の本文とコメントの間に出します。同梱のテーマは何も変えなくても動きます。
+The built-in `product.html` shows the review section (`reviews.html`) between the product's body and the comments. The bundled themes work without any change.
 
-- **一覧と平均**: 承認済みのレビュー（★・タイトル・本文・投稿者名・「購入済み」の印・運営の返信・日付）と、平均・件数を、スクリプト（`/shop/reviews.js`）が API から取って出します（`GET /api/v1/products/{id}/reviews`）。
-- **検索結果の星**: 承認済みのレビューがあるときだけ、商品ページの `<head>` に構造化データ（JSON-LD の `Product` + `aggregateRating`。`ratingValue`・`reviewCount`・`bestRating`・`worstRating`）を出します。`<` はエスケープしてあり、商品名で `</script>` を閉じられません。レビューの承認・削除で、ページのキャッシュが更新されます。
-- **書けるのは購入者だけ**（サーバーが注文を確かめる。支払い済み以降の注文で、1 注文 1 商品につき 1 件）。
-  - **ログイン中の会員**: その商品を含む支払い済みの注文が複数あれば、どの注文のレビューかを選ぶ。書き済みの注文は選べない。
-  - **ゲスト購入の人**: 注文確認のページ（`/orders/{id}?token=...`）の各明細に「レビューを書く」のリンクが出る。リンク先は商品ページ（`?review_order=...&token=...`）で、スクリプトが読んだ直後にアドレスバーからトークンを消す。
-  - どちらでもない人には、ログインのリンクと、購入者だけが書けるという説明を出す。
-- 投稿後の文は、公開されたか承認待ちかで変わる（`POST` の応答の `status` が `approved` / `pending`）。審査は `[comments.moderation]` に従う。
-- テーマ制作者は、`theme_vars.reviews_enabled`（`"true"` のとき）で `reviews.html` を読み込みます。上書きするときは、`<div id="aegis-reviews">` と、`reviews_*` / `account_*` を `data-*` に渡すスクリプトの読み込みを残してください。
+- **List and average**: approved reviews (★, title, body, poster name, a "purchased" mark, the operator's reply, date) and the average and count are fetched from the API and shown by a script (`/shop/reviews.js`) (`GET /api/v1/products/{id}/reviews`).
+- **Stars in search results**: only when there are approved reviews, structured data (JSON-LD `Product` + `aggregateRating`; `ratingValue`, `reviewCount`, `bestRating`, `worstRating`) is output in the product page's `<head>`. `<` is escaped, so a product name cannot close `</script>`. Approving or deleting reviews updates the page cache.
+- **Only purchasers can write** (the server checks orders; orders that are paid or beyond, one review per product per order).
+  - **Logged-in members**: if there are multiple paid orders containing that product, choose which order the review is for. Orders already reviewed cannot be chosen.
+  - **Guest purchasers**: a "Write a review" link appears on each line of the order confirmation page (`/orders/{id}?token=...`). The link goes to the product page (`?review_order=...&token=...`), and the script removes the token from the address bar right after reading it.
+  - For anyone else, a login link and an explanation that only purchasers can write are shown.
+- The text after posting changes depending on whether it was published or is awaiting approval (the `status` of the `POST` response is `approved` / `pending`). Moderation follows `[comments.moderation]`.
+- Theme authors load `reviews.html` with `theme_vars.reviews_enabled` (when `"true"`). When overriding, keep `<div id="aegis-reviews">` and the loading of the script that passes `reviews_*` / `account_*` to `data-*`.
 
 ---
 
-## 5. パスワードの再設定とメールの確認
+## 5. Password Reset and Email Confirmation
 
-### 5.1 パスワードの再設定（実装済み）
+### 5.1 Password Reset (Implemented)
 
-管理アカウントの再設定（`/api/v1/auth/password-reset`）と同じ作りです（トークンはキャッシュにハッシュで保存し、1 回だけ使える）。
+It is built the same way as the admin account reset (`/api/v1/auth/password-reset`) (the token is stored in the cache as a hash and can be used only once).
 
-| API | 内容 |
+| API | Description |
 | --- | --- |
-| `POST /api/v1/members/password-reset` | `{ "email" }`。登録の有無によらず、メールアドレスの形が正しければ**常に `202`**。登録があり停止中でなければ、再設定のリンクをメールで送る。有効 1 時間 |
-| `POST /api/v1/members/password-reset/complete` | `{ "token", "password" }`。パスワードを変え、その会員の**すべてのセッションを失効**させる。リンクは 1 回だけ。無効・期限切れ・使用済みは `400` |
+| `POST /api/v1/members/password-reset` | `{ "email" }`. Regardless of registration, **always `202`** if the email address's form is valid. If registered and not suspended, a reset link is sent by email. Valid for 1 hour |
+| `POST /api/v1/members/password-reset/complete` | `{ "token", "password" }`. Changes the password and **revokes all of that member's sessions**. The link is single-use. Invalid, expired, or used gives `400` |
 
-- **画面**: `/account/forgot`（メールアドレスを入れる）、`/account/reset?token=...`（新しいパスワード。読んだ直後に、アドレスバーからトークンを消す）。ログイン画面に「パスワードをお忘れの方」のリンクが出る。
-- **使える条件**: `[notifications]` が有効（メールを送れる）で、`[members].public_url` が設定されていること（`[members].password_reset = false` で止められる）。メールのリンクは、**リクエストの `Host` ではなく `public_url` から作る**（`Host` は偽装できるので、攻撃者が被害者に偽のリンクを届けられてしまう）。使えない設定では、API もページも 404 で、ログイン画面はリンクを出さない。
-- **制限**: 同じ IP からの申し込みは 1 時間に 5 回まで（登録の有無によらず数える。超えると `429`）。同じ宛先へのメールは 1 時間に 3 通まで（超えた分は、応答は同じで、送らない）。
-- **通知**: `member.password_reset`（日本語・英語。文面は `[notifications]` の仕組みで編集できる）。監査ログ: `member.password_reset`（完了したとき）。
+- **Screens**: `/account/forgot` (enter the email address) and `/account/reset?token=...` (the new password; the token is removed from the address bar right after reading). A "Forgot your password?" link appears on the login screen.
+- **Conditions for use**: `[notifications]` is enabled (email can be sent) and `[members].public_url` is set (can be stopped with `[members].password_reset = false`). The email link is **built from `public_url`, not the request's `Host`** (since `Host` can be spoofed, an attacker could deliver a fake link to a victim). With settings where it cannot be used, the API and pages are 404, and the login screen does not show the link.
+- **Limits**: applications from the same IP are limited to 5 per hour (counted regardless of registration; exceeding gives `429`). Emails to the same recipient are limited to 3 per hour (the excess gets the same response and is not sent).
+- **Notification**: `member.password_reset` (Japanese and English; the text can be edited through the `[notifications]` mechanism). Audit log: `member.password_reset` (on completion).
 
-### 5.2 セッションの失効（実装済み）
+### 5.2 Session Revocation (Implemented)
 
-会員のセッションは、次のときにすべて終わります。セッションごとには消さず、会員ごとに「この時刻より前に作ったセッションは無効」の印をキャッシュに置きます（Redis でも全サーバーで効く）。
+A member's sessions all end in the following cases. Rather than deleting per session, a "sessions created before this time are invalid" mark is placed in the cache per member (it works across all servers even with Redis).
 
-- 管理者が会員を**停止**したとき（以前は、停止してもログイン中のセッションは使えたままだった）。再開しても、停止前のセッションは戻らない。
-- **パスワードを変えた**とき（マイページ・再設定）。マイページで変えた本人のブラウザには、新しい Cookie が渡るので、そのまま使い続けられる。
+- When an administrator **suspends** a member (previously, sessions already logged in remained usable even after suspension). Even on reinstatement, sessions from before the suspension do not return.
+- When the **password is changed** (My Page, reset). The browser of the person who changed it on My Page receives a new cookie, so they can keep using it.
 
-### 5.3 メールアドレスの確認（実装済み）
+### 5.3 Email Address Confirmation (Implemented)
 
-`[members].require_email_verification = true` で、会員登録のあと、確認メールのリンクを開くまでログインできません。
+With `[members].require_email_verification = true`, after sign-up you cannot log in until you open the link in the confirmation email.
 
-| API | 内容 |
+| API | Description |
 | --- | --- |
-| `POST /api/v1/members/register` | 確認が必須のときは `202` `{ "status": "verification_sent" }`。会員は `unverified` で作り、確認メールを送る。**登録済みのアドレスでも同じ応答**（メールは送らない）。ログインのトークンは返さない |
-| `POST /api/v1/members/verify` | `{ "token" }`。メールアドレスを確認して、会員を `active` にする。リンクは 48 時間・1 回だけ。無効・期限切れ・使用済みは `400` |
-| `POST /api/v1/members/verify/resend` | `{ "email" }`。確認メールを送り直す。**常に `202`**（確認待ちのアドレスにだけ送る）。同じ IP から 1 時間に 5 回まで |
-| `POST /api/v1/members/login` | パスワードが合っていて確認が済んでいないときは `403` `{ "code": "email_not_verified" }`。パスワードが違うときは、確認待ちかどうかを教えない（`401`） |
+| `POST /api/v1/members/register` | When confirmation is required, `202` `{ "status": "verification_sent" }`. The member is created as `unverified` and a confirmation email is sent. **The same response even for a registered address** (no email is sent). No login token is returned |
+| `POST /api/v1/members/verify` | `{ "token" }`. Confirms the email address and makes the member `active`. The link is valid for 48 hours and single-use. Invalid, expired, or used gives `400` |
+| `POST /api/v1/members/verify/resend` | `{ "email" }`. Resends the confirmation email. **Always `202`** (sent only to addresses awaiting confirmation). Up to 5 per hour from the same IP |
+| `POST /api/v1/members/login` | If the password is correct but confirmation is not done, `403` `{ "code": "email_not_verified" }`. If the password is wrong, it does not reveal whether confirmation is pending (`401`) |
 
-- **画面**: 会員登録のあと「確認メールを送りました」と案内する（ログインはしない）。ログイン画面は、`email_not_verified` のとき「確認メールを送り直す」を出す。`/account/verify?token=...` が確認のページで、トークンを読んだ直後にアドレスバーから消す。無効なリンクのときは、送り直しの申し込みを出す。
-- **状態は `unverified`**（`active` / `suspended` に加わる）。**テーブルの列は増やさない**（古い DB を拒否する対象を増やさないため。状態は文字列の列にそのまま入る）。管理者が会員の状態を `active` にすれば、確認を待たずに使える。
-- **先回りの乗っ取りを防ぐ**: 他人のアドレスで先に（自分のパスワードで）登録されても、確認が済むまでそのアカウントは使えない。本人が同じアドレスで登録し直すと、確認待ちの登録の名前とパスワードは**本人のものに置き換わる**（後から登録した人が勝つ）。確認が済んだアドレスでの登録は、何も変えない。
-- **パスワードの再設定でも確認になる**: 確認待ちの会員が再設定のリンクを開けたら、アドレスの確認にもなる（`active` になる）。
-- **メールのリンクは `[members].public_url` から作る**（`Host` ヘッダーは使わない。再設定と同じ）。同じ宛先へのメールは 1 時間に 3 通まで（登録・再送を合わせて）。
-- **起動時の確認**: `require_email_verification = true` で `[notifications]` が無効、または `public_url` が空だと、確認メールを送れず誰もログインできなくなるので、**サーバーは起動しない**。
-- 通知 `member.verify`（日本語・英語）。監査ログ `member.verify`（確認が済んだとき）。確認が必須でない既存の会員（`active`）は、設定を変えても、そのまま使える。
+- **Screens**: after sign-up, "We sent a confirmation email" is shown (it does not log in). The login screen shows "Resend the confirmation email" on `email_not_verified`. `/account/verify?token=...` is the confirmation page, and the token is removed from the address bar right after being read. For an invalid link, an application to resend is shown.
+- **The status is `unverified`** (added to `active` / `suspended`). **No table column is added** (so as not to increase what is rejected for old DBs; the status goes straight into a string column). If an administrator sets a member's status to `active`, it can be used without waiting for confirmation.
+- **Preventing pre-emptive takeover**: even if someone registers first (with their own password) using another person's address, that account cannot be used until confirmation is done. If the real owner registers again with the same address, the name and password of the pending registration are **replaced with the owner's** (the later registrant wins). Registration with an already confirmed address changes nothing.
+- **A password reset also counts as confirmation**: if a member awaiting confirmation can open the reset link, it also confirms the address (they become `active`).
+- **Email links are built from `[members].public_url`** (the `Host` header is not used; same as the reset). Emails to the same recipient are limited to 3 per hour (registration and resend combined).
+- **Startup check**: with `require_email_verification = true`, if `[notifications]` is disabled or `public_url` is empty, confirmation emails cannot be sent and no one can log in, so **the server does not start**.
+- The notification `member.verify` (Japanese and English). Audit log `member.verify` (when confirmation is done). Existing members (`active`) for whom confirmation was not required can keep being used as is even if you change the setting.
 
 ---|---|
-| `POST /api/v1/members/password-reset` | `{ "email" }`。**常に `202`**（登録の有無を応答で教えない）。登録があれば再設定のリンクをメールで送る。有効 1 時間 |
-| `POST /api/v1/members/password-reset/complete` | `{ "token", "password" }`。パスワードを変え、**すべてのセッションを失効**させる |
-| `POST /api/v1/members/verify` | `{ "token" }`。メールアドレスを確認する。有効 48 時間 |
-| `POST /api/v1/members/verify/resend` | `{ "email" }`。**常に `202`**。確認メールを送り直す |
+| `POST /api/v1/members/password-reset` | `{ "email" }`. **Always `202`** (the response does not reveal registration). If registered, a reset link is sent by email. Valid for 1 hour |
+| `POST /api/v1/members/password-reset/complete` | `{ "token", "password" }`. Changes the password and **revokes all sessions** |
+| `POST /api/v1/members/verify` | `{ "token" }`. Confirms the email address. Valid for 48 hours |
+| `POST /api/v1/members/verify/resend` | `{ "email" }`. **Always `202`**. Resends the confirmation email |
 
-- 確認が必要な会員の状態は、新しい `unverified`（`active` / `suspended` に加わる）。ログインは `403`（確認を促すメッセージ）。確認すると `active` になる。**テーブルの列は増やさない**（古い DB を拒否する対象を増やさないため。状態は文字列の列にそのまま入る）。
-- 通知のテンプレートを足す: `member.verify`・`member.password_reset`（日本語・英語）。メールの文面は `[notifications]` の仕組みで編集できる。
-- 申し込みは IP と宛先のメールごとに回数を制限する。
+- The status of a member who needs confirmation is the new `unverified` (added to `active` / `suspended`). Login is `403` (with a message urging confirmation). Confirming makes it `active`. **No table column is added** (so as not to increase what is rejected for old DBs; the status goes straight into a string column).
+- Add notification templates: `member.verify` and `member.password_reset` (Japanese and English). The email text can be edited through the `[notifications]` mechanism.
+- Applications are rate-limited per IP and per recipient email.
 
 ---
 
-## 6. 退会（実装済み）
+## 6. Withdrawal (Implemented)
 
-`DELETE /api/v1/members/me`（`{ "password" }`）で、自分のアカウントを削除できます。パスワードで本人を確かめる（違えば `401` で、何も変えない）。成功すると `204` で、ログインの Cookie も消えます。
+With `DELETE /api/v1/members/me` (`{ "password" }`), you can delete your own account. Identity is confirmed with the password (a wrong one gives `401` and changes nothing). On success it is `204`, and the login cookie is cleared too.
 
-| 対象 | 退会したあと |
+| Target | After withdrawal |
 | --- | --- |
-| 会員の行・ログイン・セッション | **削除**。セッションはその場で使えなくなる |
-| **注文** | **残す**（会計の記録）。会員との紐づき（`member_id`）だけを外す。明細・金額・注文時のメールアドレス・氏名・配送先は、注文の記録として残る（注文確認ページの URL は、今までどおり使える） |
-| **レビュー** | **残す**（評価・本文・運営の返信・状態）。会員との紐づき・投稿者名・メールアドレス・IP・User-Agent を消す。公開ページでは投稿者名が「退会したお客様」と出る。星の集計は変わらない |
-| 監査ログ | `member.delete` を記録する（**メールアドレスは記録しない**） |
+| The member's row, logins, sessions | **Deleted**. Sessions become unusable on the spot |
+| **Orders** | **Kept** (accounting records). Only the link to the member (`member_id`) is removed. Lines, amounts, and the email address, name, and shipping address at the time of the order remain as the order's record (the order confirmation page's URL can still be used as before) |
+| **Reviews** | **Kept** (rating, body, operator reply, status). The link to the member, poster name, email address, IP, and User-Agent are removed. On public pages the poster name appears as "Former customer". Star aggregates do not change |
+| Audit log | `member.delete` is recorded (**the email address is not recorded**) |
 
-- 同じメールアドレスで、あらためて登録できる（新しい会員。過去の注文は結びつかない）。
-- 公開の商品ページに出ていた投稿者名が変わるので、その商品のキャッシュ（`reviews-{商品}`）を更新する。
-- 途中で失敗しても、同じ手順をやり直せる（紐づきを外す・匿名にする更新は繰り返しても同じ）。会員の行を最後に消す。
-- **画面**: マイページの下の「退会する」。パスワードを入れて押すと、確認のダイアログを通ったときだけ送る。成功するとログイン画面に戻る。
-- 注文の `member_id` は、紐づきが無いとき（ゲスト購入・退会後）は `None` として読めるようにした（`String` として読むと、NULL が空文字になっていた）。
-
----
-
-## 7. 管理画面
-
-Admin Studio の「ショップ」に 2 つの画面を足します（API は実装済み）。
-
-- **会員**（`editor` 以上、**実装済み**）: Admin Studio の「会員」タブ（`[members].enabled` のときだけ出る。`GET /api/v1/shop/config` の `members_enabled`）。一覧（名前・メール・状態・登録日・最終ログイン。新しい順、25 件ずつ）、詳細（連絡先・保存している配送先・掲示板の投稿数・注文の一覧と支払い済みの合計）、状態の変更（`active` ⇄ `suspended`。停止するとセッションを失効させる）。メール未確認（`unverified`）の会員は、状態を変えられない（確認が済むまで使えない）。
-  - 詳細の「掲示板」は、その会員が立てたスレッドの数と、書いたレスの数（スレッドの 1 つ目の投稿を含む）。`GET /api/v1/admin/members/{id}` の `forum`（`{threads, posts}`。掲示板が無効なら `null` で、欄も出ない）。種類と ID の組で数えるので、同じ ID のスタッフの分は入らない。退会した会員の投稿は匿名なので数えない。
-  - 掲示板の管理画面は、スレッドとレスの投稿者が会員なら「会員」の印と「会員を開く」のリンクを出す（スタッフは「スタッフ」の印）。リンクは、この会員の詳細を開く（会員の画面を見られる立場のときだけ）。退会した会員や匿名の投稿は、名前が空なら「退会したユーザー」と出す。
-  - 詳細の注文は、番号・状態・金額・日時だけを返す（注文確認ページのトークンのハッシュなどは載せない）。
-  - 検索は、まだ無い（API が一覧のページ送りだけのため）。
-  - 「会員」タブは、ショップが無効でも出る（会員のアカウントはショップに依存しない）。ショップが無効のときは、詳細に注文の欄を出さない。
-
-  ![Admin Studio の会員の一覧](images/members-admin.png)
-
-  ![会員の詳細（掲示板の投稿数）](images/members-detail.png)
-- **レビュー**（`editor` 以上、**実装済み**）: 「レビュー」タブ（ショップが有効なときだけ出る。`reviews_enabled`）。状態での絞り込み（承認待ち・承認済み・非承認・スパム・すべて）、一括の承認・保留・非承認・スパム・削除、本文・評価・購入者の印の確認、ショップからの返信（書く・直す・消す）。非承認とスパムでは、理由（任意）を聞いて、レビューに記録する（投稿者には見せない）。
-  - 退会した会員のレビューは、投稿者名が空で、「退会したお客様」と出る。
-  - 承認制の設定（`/api/v1/admin/reviews/settings`）の画面は、まだ無い（API は実装済み。有効な値と既定値を返す形にしてから画面を作る）。
+- You can register again with the same email address (a new member; past orders are not linked).
+- The poster name shown on public product pages changes, so that product's cache (`reviews-{product}`) is updated.
+- Even if it fails partway, the same procedure can be redone (the updates that remove links and anonymize give the same result when repeated). The member's row is deleted last.
+- **Screen**: "Withdraw" at the bottom of My Page. After entering the password and pressing, it is sent only if it passes the confirmation dialog. On success it returns to the login screen.
+- An order's `member_id` can now be read as `None` when there is no link (guest purchase, after withdrawal) (reading it as a `String` had turned NULL into an empty string).
 
 ---
 
-## 8. 安全性
+## 7. Admin Screens
 
-- **登録の有無を教えない**: パスワードの再設定と確認メールの再送は、常に `202`。ログインの失敗も、メールが無い場合とパスワードが違う場合を区別しない（今のまま）。
-- **登録時の重複**: 登録済みのメールでの登録は `409` のまま。`require_email_verification = true` のときは、登録の応答を一律にして（確認メールを送ったとだけ伝える）、登録済みかどうかを漏らさない。
-- **レート制限**: 登録・ログイン・再設定・再送を、IP ごとに制限する（既存のキャッシュのカウンター）。
-- **セッション**: パスワードを変えたら、ほかのセッションをすべて失効させる。会員を停止したときも失効させる。
-- **管理アカウントと混ざらない**: 会員のトークン（`mses_...`）は、管理画面の API では通らない。逆も同じ。
-- **個人情報**: 会員の API の応答にパスワードのハッシュは含めない。退会で削除できる。バックアップ（`task dump`）には会員も入る。
+Two screens are added to Admin Studio's "Shop" (the API is implemented).
 
----
+- **Members** (`editor` and above, **implemented**): Admin Studio's "Members" tab (shown only when `[members].enabled`; `members_enabled` of `GET /api/v1/shop/config`). A list (name, email, status, registration date, last login; newest first, 25 at a time), details (contact, saved shipping address, number of forum posts, list of orders and the total of paid ones), and changing the status (`active` ⇄ `suspended`; suspending revokes sessions). Members with unconfirmed email (`unverified`) cannot have their status changed (they cannot be used until confirmation is done).
+  - "Forum" in the details is the number of threads that member started and the number of replies they wrote (including a thread's first post). The `forum` of `GET /api/v1/admin/members/{id}` (`{threads, posts}`; `null` and no field shown if the forum is disabled). It is counted by the pair of kind and ID, so a staff member with the same ID is not included. Posts by withdrawn members are anonymous and not counted.
+  - The forum admin screen shows a "member" badge and an "Open member" link if a thread's or reply's poster is a member (staff get a "staff" badge). The link opens that member's details (only for those who may view the members screen). For posts by withdrawn members or anonymous ones, if the name is empty, "Former user" is shown.
+  - The orders in the details return only number, status, amount, and date and time (such as the hash of the order confirmation page's token is not included).
+  - Search does not exist yet (because the API has only list paging).
+  - The "Members" tab is shown even when the shop is disabled (member accounts do not depend on the shop). When the shop is disabled, the orders field is not shown in the details.
 
-## 9. テスト方針
+  ![Admin Studio member list](images/members-admin.png)
 
-- 会員の登録・ログイン・Cookie・ログアウト・停止の流れ（Cookie と Bearer の両方）。
-- 他人の注文・レビューが見えないこと。管理アカウントのトークンと会員のトークンが互いに通らないこと。
-- 再設定・確認のトークン: 期限切れ・再利用・改ざんの拒否、申し込みが常に `202` であること、レート制限。
-- 退会後に、注文が残って会員との紐づきだけが外れること。レビューの匿名化。
-- 画面: 組み込みの `account.html` が各 `view` で描画されること。ゲスト購入が今までどおり動くこと。
-- 管理画面: Storybook と Playwright の E2E。
+  ![Member details (forum post counts)](images/members-detail.png)
+- **Reviews** (`editor` and above, **implemented**): the "Reviews" tab (shown only when the shop is enabled; `reviews_enabled`). Filtering by status (awaiting approval, approved, not approved, spam, all), bulk approve, hold, disapprove, spam, and delete, checking the body, rating, and purchaser mark, and replies from the shop (write, fix, delete). For disapproval and spam, it asks for a reason (optional) and records it on the review (not shown to the poster).
+  - Reviews by withdrawn members have an empty poster name and appear as "Former customer".
+  - A screen for the approval settings (`/api/v1/admin/reviews/settings`) does not exist yet (the API is implemented; the screen will be built after making it return actual values and defaults).
 
 ---
 
-## 10. 実装の分け方（顧客アカウントのとき）
+## 8. Safety
 
-1. 設定 `[members]`（`enabled`・`registration`・`session_days`）と、このドキュメント、`commerce.md` の誤りの修正。**済**
-2. Cookie のセッションと、購入者向けの画面（`/account`、`account.js`、`account.html`）、商品ページのレビュー欄（`reviews.js`、`reviews.html`、JSON-LD）。**済**
-3. パスワードの再設定、セッションの失効、メールアドレスの確認。**済**
-4. 退会。**済**
-5. 管理画面の会員・レビュー。**済**
+- **Not revealing registration**: password reset and resending confirmation emails are always `202`. Login failures also do not distinguish between no email and a wrong password (as now).
+- **Duplicates at registration**: registering with an already registered email stays `409`. When `require_email_verification = true`, the registration response is made uniform (it only says a confirmation email was sent) so as not to leak whether it was already registered.
+- **Rate limits**: sign-up, login, reset, and resend are limited per IP (the existing cache counters).
+- **Sessions**: when a password is changed, all other sessions are revoked. They are also revoked when a member is suspended.
+- **Not mixing with admin accounts**: a member token (`mses_...`) does not pass the admin screen's API. The same the other way.
+- **Personal information**: member API responses do not include the password hash. It can be deleted by withdrawal. Backups (`task dump`) include members.
 
 ---
 
-## 11. 顧客アカウントからの切り出し（実装済み）
+## 9. Test Policy
 
-以前は「顧客アカウント」として `[commerce]` の中にあり、ショップの購入者だけが使えました。これを **`[members]` に切り出し**、ショップ・掲示板が同じアカウントを使えるようにしました。**後方互換は残していません**（破壊的変更）。
+- The flow of member sign-up, login, cookies, logout, and suspension (both cookie and Bearer).
+- That other people's orders and reviews are not visible. That admin account tokens and member tokens do not pass each other.
+- Reset and confirmation tokens: rejection of expired, reused, and tampered ones, that applications are always `202`, and rate limits.
+- After withdrawal, that orders remain with only the link to the member removed. Anonymization of reviews.
+- Screens: that the built-in `account.html` renders in each `view`. That guest purchases still work as before.
+- Admin screens: Storybook and Playwright E2E.
 
-### 11.1 呼び方
+---
 
-内部は **member に統一**し、訪問者に見える文言だけを画面の種類で変えます。
+## 10. How the Work Was Split (for Customer Accounts)
 
-| 層 | 呼び方 |
+1. The `[members]` settings (`enabled`, `registration`, `session_days`), this document, and fixing errors in `commerce.md`. **Done**
+2. Cookie sessions and purchaser-facing screens (`/account`, `account.js`, `account.html`), and the review section on product pages (`reviews.js`, `reviews.html`, JSON-LD). **Done**
+3. Password reset, session revocation, and email address confirmation. **Done**
+4. Withdrawal. **Done**
+5. Admin screens for members and reviews. **Done**
+
+---
+
+## 11. Split from Customer Accounts (Implemented)
+
+They used to be "customer accounts" inside `[commerce]` and could be used only by shop purchasers. We **split this out into `[members]`** so the shop and the forum can use the same accounts. **No backward compatibility was kept** (a breaking change).
+
+### 11.1 Naming
+
+Internally everything is **unified as member**, and only the text visitors see changes by screen kind.
+
+| Layer | Name |
 | --- | --- |
-| 設定・API・DB・コード・監査ログ・通知 | `member`（`[members]`、`/api/v1/members/*`、`_aegis_members`、`MemberService`、`member.*`） |
-| 管理画面 | タブは「会員」 |
-| 訪問者に見える文言 | ショップの画面（注文履歴・レビュー）は「お客様」、掲示板の画面は「ユーザー」。メッセージのキー（`js.*`）で出し分け、`[theme].locale` の言語で出す |
+| Settings, API, DB, code, audit log, notifications | `member` (`[members]`, `/api/v1/members/*`, `_aegis_members`, `MemberService`, `member.*`) |
+| Admin screen | The tab is "Members" |
+| Text visitors see | "Customer" on shop screens (order history, reviews), "User" on forum screens. Split by message keys (`js.*`) and shown in the `[theme].locale` language |
 
-ページのパスは変えません（`/account`、`/account/login` …）。
+Page paths are not changed (`/account`, `/account/login`, ...).
 
-### 11.2 変わったもの
+### 11.2 What Changed
 
-| 変わったもの | 移行 |
+| What changed | Migration |
 | --- | --- |
-| 設定 `[commerce.customers]` | `[members]` に移す（`enabled = true` を書く。**既定は `false`**）。古いキーが残っていると、**起動時に移行を案内してエラー**になる |
-| メールのリンクの元 | `[members].public_url`（注文確認のリンクは今までどおり `[commerce].public_url`）。`require_email_verification = true` で空なら起動しない |
-| `/api/v1/customers/*`・`/api/v1/admin/customers/*` | `/api/v1/members/*`・`/api/v1/admin/members/*`（古いパスは 404） |
-| 表 `_aegis_customers`、注文・レビューの `customer_id` | `_aegis_members`、`member_id`。起動時の列の確認が古い DB を拒否する（下の SQL で直す） |
-| セッションのトークン・Cookie | `cses_...` → `mses_...`、`{名前空間}_customer` → `{名前空間}_member`。**全員がログアウト**になる |
-| キャッシュのキー | `customer_session:` など → `member_session:` など |
-| 監査ログ `customer.*`、通知テンプレート `customer.*` | `member.*`（過去の監査ログの行はそのまま読める。通知テンプレートを上書きしているサイトは、ファイル名を `member.password_reset.txt` などに直す） |
-| 管理 API の `shop/config` | `customers_enabled` → `members_enabled` |
-| バックアップ（`task dump`） | 会員は `database/members.json`、購入は `database/purchases.json`（古いバックアップには無い）。**古いバックアップ（`database/customers.json`、注文・レビューの `customer_id`）も復元できる** |
+| The setting `[commerce.customers]` | Move to `[members]` (write `enabled = true`; **the default is `false`**). If old keys remain, **startup errors with guidance on migrating** |
+| The base of email links | `[members].public_url` (order confirmation links are `[commerce].public_url` as before). With `require_email_verification = true` and an empty value, it does not start |
+| `/api/v1/customers/*`, `/api/v1/admin/customers/*` | `/api/v1/members/*`, `/api/v1/admin/members/*` (the old paths are 404) |
+| The table `_aegis_customers`, `customer_id` of orders and reviews | `_aegis_members`, `member_id`. The startup column check rejects old DBs (fix with the SQL below) |
+| Session tokens and cookies | `cses_...` → `mses_...`, `{namespace}_customer` → `{namespace}_member`. **Everyone is logged out** |
+| Cache keys | `customer_session:` etc. → `member_session:` etc. |
+| Audit log `customer.*`, notification templates `customer.*` | `member.*` (past audit log rows can still be read. Sites that override notification templates should rename the files to `member.password_reset.txt`, etc.) |
+| The admin API's `shop/config` | `customers_enabled` → `members_enabled` |
+| Backups (`task dump`) | Members are in `database/members.json` and purchases in `database/purchases.json` (absent in old backups). **Old backups (`database/customers.json`, `customer_id` of orders and reviews) can be restored too** |
 
-古い DB の移行は、列と表の名前を直す SQL を実行します（自動では直しません。システム表を途中まで更新しない方針は今までと同じ）。
+Migrating an old DB runs SQL that fixes column and table names (it is not fixed automatically; the policy of not partially updating system tables is the same as before).
 
 ```sql
 ALTER TABLE _aegis_customers RENAME TO _aegis_members;
-ALTER TABLE _aegis_members ADD COLUMN nickname VARCHAR(255);    -- 公開名（§13）。SQLite は TEXT
+ALTER TABLE _aegis_members ADD COLUMN nickname VARCHAR(255);    -- public name (§13). TEXT for SQLite
 ALTER TABLE _aegis_orders RENAME COLUMN customer_id TO member_id;
 ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
--- 索引の名前（idx_aegis_customers_*、idx_aegis_orders_customer、idx_aegis_reviews_customer）は
--- 古いままでも動く。起動時に新しい名前の索引が作られる
+-- Index names (idx_aegis_customers_*, idx_aegis_orders_customer, idx_aegis_reviews_customer)
+-- work even if left old. Indexes with the new names are created at startup
 ```
 
-または、前のバージョンで `task dump` を取り、新しい DB に `task restore` します。
+Or take a `task dump` on the previous version and `task restore` into the new DB.
 
-### 11.3 ショップとの関係
+### 11.3 Relation to the Shop
 
-- 注文履歴（`GET /api/v1/members/orders`）・会員のレビュー・配送先の保存は、ショップが有効なときに使える。ゲスト購入は残す。会員は任意。
-- 会員のサービスは独立したクレート `aegis-members` にあり、注文もレビューも知りません。会員の注文履歴と、退会のときの後始末（注文の紐づきを外す・レビューを匿名にする）は `aegis-commerce` の `member_data` が受け持ち、サーバーが順に呼びます（本人の確認 → 各機能の後始末 → 会員の行の削除）。掲示板の投稿の匿名化も、同じ場所に足します。
+- Order history (`GET /api/v1/members/orders`), member reviews, and saving shipping addresses can be used when the shop is enabled. Guest purchases remain. Membership is optional.
+- The member service is in the standalone crate `aegis-members` and knows neither orders nor reviews. A member's order history, and cleanup on withdrawal (detaching orders and anonymizing reviews), are handled by `aegis-commerce`'s `member_data`, and the server calls them in order (confirming identity → each feature's cleanup → deleting the member's row). Anonymizing forum posts is added to the same place.
 
 ---
 
-## 12. 掲示板への組み込み（実装済み）
+## 12. Integration into the Forum (Implemented)
 
-掲示板は、スタッフ（CMS のアカウント）に加えて、会員のアカウントで投稿できます。仕様は [掲示板 4.0](forum.md)。ここには、会員の側の決めごとを書きます。
+The forum lets people post with member accounts in addition to staff (CMS accounts). For the specification, see [Forum 4.0](forum.md). Here we write the member side's decisions.
 
-- 投稿者の種類 **`author_kind`（`staff` / `member`。匿名は空）** を、スレッドとレスに持つ。`author_id` の接頭辞では区別しない（ユーザー名が会員の ID と同じになりうるため）。
-- `author_name` は投稿時の表示名のコピー（会員は公開名。§13）。投稿者が後から名前を変えても、過去の投稿は変わらない。
-- 掲示板の表は別の DB に置ける（`[forum].database_url`）ので、`author_id` は会員の表への外部キーにしない（今のスタッフも同じ）。
-- `[forum].posting`（`"anyone"` / `"members"`）と、カテゴリごとの公開範囲 `visibility`（`public` / `members` / `staff`）。見られない人には、カテゴリもスレッドも「無い」。
-- 会員が自分の投稿を**編集・削除**することは、まだできない（モデレーションの履歴を保つ。スタッフは今までどおり）。要望が出たら別に設計する。
-- 退会しても、掲示板の投稿は**残して匿名にする**（スレッドが途切れないように）。`author_id` と `author_kind` を空にし、`author_name` を空にして（画面には「退会したユーザー」）、投稿の IP と User-Agent を消す。退会の手順は §11.3（本人の確認 → ショップの後始末 → 掲示板の後始末 → 会員の行の削除）。掲示板が無効のとき（`[forum].enabled = false`）は、後始末を行わない。
-- **古い DB の移行**（§11.2 の SQL に加えて）: カテゴリの `is_private` を `visibility` にし、投稿に `author_kind` を足す。
+- A poster kind **`author_kind` (`staff` / `member`; anonymous is empty)** is held on threads and replies. They are not distinguished by an `author_id` prefix (because a username could be the same as a member's ID).
+- `author_name` is a copy of the display name at posting time (for members, the public name; §13). Even if the poster later changes their name, past posts do not change.
+- The forum's tables can be placed in a separate DB (`[forum].database_url`), so `author_id` is not a foreign key to the members table (the same as for staff now).
+- `[forum].posting` (`"anyone"` / `"members"`) and the per-category visibility `visibility` (`public` / `members` / `staff`). For people who cannot see them, the category and its threads are "nonexistent".
+- Members **editing or deleting** their own posts is not yet possible (to keep the moderation history; staff as before). Design separately if requested.
+- Even on withdrawal, forum posts are **kept and made anonymous** (so threads do not break). `author_id` and `author_kind` are cleared, `author_name` is emptied (the screen shows "Former user"), and the post's IP and User-Agent are removed. The withdrawal procedure is §11.3 (confirming identity → shop cleanup → forum cleanup → deleting the member's row). When the forum is disabled (`[forum].enabled = false`), the cleanup is not performed.
+- **Migrating old DBs** (in addition to §11.2's SQL): change the category's `is_private` into `visibility` and add `author_kind` to posts.
 
   ```sql
   ALTER TABLE _aegis_forum_categories ADD COLUMN visibility VARCHAR(255) NOT NULL DEFAULT 'public';
   UPDATE _aegis_forum_categories SET visibility = 'staff' WHERE is_private = 1;
-  ALTER TABLE _aegis_forum_categories DROP COLUMN is_private;      -- SQLite 3.35 以降。それ以前は、バックアップから復元する
+  ALTER TABLE _aegis_forum_categories DROP COLUMN is_private;      -- SQLite 3.35 and later. Before that, restore from a backup
   ALTER TABLE _aegis_forum_threads ADD COLUMN author_kind VARCHAR(255);
   ALTER TABLE _aegis_forum_posts ADD COLUMN author_kind VARCHAR(255);
   UPDATE _aegis_forum_threads SET author_kind = 'staff' WHERE author_id IS NOT NULL;
   UPDATE _aegis_forum_posts SET author_kind = 'staff' WHERE author_id IS NOT NULL;
   ```
 
-  または、前のバージョンで `task dump` を取り、新しい DB に `task restore` する（`is_private` と `author_kind` の無いバックアップは、上と同じ規則で読み替える）。
+  Or take a `task dump` on the previous version and `task restore` into the new DB (backups without `is_private` and `author_kind` are read with the same rules as above).
 
 ---
 
-## 13. 公開名 `nickname`（実装済み）
+## 13. Public Name `nickname` (Implemented)
 
-会員の `name` は配送先にも使う本名で、そのまま掲示板に出すと本名が出てしまいます。そこで、公開の場に出す名前を別に持ちます。
+A member's `name` is the real name also used for shipping, and showing it as is in the forum would expose the real name. So a separate name is held to show in public.
 
-- 会員に **`nickname`（公開名）** の列を足した（未設定なら `null`）。`PUT /api/v1/members/me` の `nickname` で設定する（空文字で消す）。1〜30 文字で、改行などの制御文字は使えない（`400`）。**同じ公開名は重複できる**（なりすまし対策は、掲示板の側で考える）。
-- 公開の場には、**公開名があればそれ、なければ `name`** を出す（`MemberResponse::public_name()`）。いまはレビューの投稿者名が使う。投稿のときの値のコピーを保存するので、あとから公開名を変えても、過去のレビューは変わらない。掲示板では**公開名を必須**にする（未設定なら、最初の投稿の前に決めてもらう。§12）。
-- **画面**: マイページの登録情報に「公開名（任意）」の欄。管理画面の会員の詳細にも出る。
-- 古い DB は `ALTER TABLE _aegis_members ADD COLUMN nickname VARCHAR(255);`（型は他の短い文字列の列に合わせる）。起動時の列の確認が、列が無い DB を断る。
+- A **`nickname` (public name)** column was added to members (`null` if unset). It is set with `nickname` of `PUT /api/v1/members/me` (an empty string clears it). It is 1–30 characters, and control characters such as line breaks cannot be used (`400`). **The same public name can be duplicated** (countermeasures against impersonation are to be considered on the forum side).
+- In public, **the public name if there is one, otherwise `name`** is shown (`MemberResponse::public_name()`). Currently the review poster's name uses it. A copy of the value at posting time is stored, so even if the public name is changed later, past reviews do not change. In the forum, the **public name is required** (if unset, they are asked to decide before the first post; §12).
+- **Screen**: a "Public name (optional)" field in My Page's registration info. It is shown in the admin screen's member details too.
+- For old DBs, `ALTER TABLE _aegis_members ADD COLUMN nickname VARCHAR(255);` (match the type to other short string columns). The startup column check rejects DBs without the column.
 
-## 13a. アバター画像（プロフィール画像）
+## 13a. Avatar Image (Profile Image)
 
-- 会員に **`avatar_key`**（ストレージのキー `avatars/{会員 ID}-{ランダム 8 桁}.{拡張子}`）の列を足した（未設定なら `null`）。管理ユーザーのアバター（[authentication.md](authentication.md#3-ユーザー管理-api)）と同じ保存先・同じ検査で、PNG / JPEG / GIF / WebP、2 MB まで。形式はファイルの先頭バイトで判定し、SVG は `415`、2 MB 超は `413`。差し替えるたびにキーを変え、以前の画像を削除する。
-- `PUT /api/v1/members/me/avatar`（multipart の `file`）で設定、`DELETE /api/v1/members/me/avatar` で外す。応答は会員情報で、`avatar_url`（公開 URL。未設定なら `null`）を含む。`avatar_key` は応答に載せない。`GET /api/v1/members/me` と管理画面の会員 API（`/api/v1/admin/members*`）にも `avatar_url` が出る。
-- Cookie だけで認証した multipart は他のサイトのフォームから送れてしまうので、`Origin` / `Referer` がこのサイトのものに限る（違えば `403`。`Authorization` ヘッダーで認証した場合は対象外）。
-- 退会（`DELETE /api/v1/members/me`）では画像のファイルも消す。ストレージ API で、会員が使っている画像を消そうとすると `409`（参照元は `content_type: "member"`）。`?force=true` なら消して、会員の `avatar_key` を外す。
-- **掲示板・レビューへの出し方**: 投稿の行にコピーを持たず、表示のたびに投稿者（会員 ID）から**今の** `avatar_key` を引く（重複を除いて、1 回の `SELECT ... WHERE id IN (...)` でまとめて引く。500 件ごとに区切る）。画像を変えれば過去の投稿にも反映され、古いファイルを消してもリンクが切れない。退会した会員の投稿は匿名なので画像も出ない。画像を変えたら掲示板のキャッシュ（`collection:forum` タグ）をパージする。レビューの公開 API は `avatar_url` を返し、`member_id` は返さない。
-- **画面**: マイページの登録情報に「プロフィール画像」（選ぶとすぐ保存、「画像を外す」ボタン）。管理画面の会員の詳細、掲示板の投稿者（画像が無ければ頭文字の丸）、商品レビューの投稿者にも出る。
-- 古い DB は `ALTER TABLE _aegis_members ADD COLUMN avatar_key VARCHAR(255);`。起動時の列の確認が、列が無い DB を断る。
-
----
-
-## 14. 実装の分け方（会員アカウント）
-
-1. 設計書。**済**
-2. **切り出しと改名**（振る舞いは変えない）。**済**（§11）。`[members]`・API・表・列・Cookie・通知・監査ログ・管理画面・バックアップ・テスト・docs。
-3. **`aegis-members` クレートへの切り出し**。**済**（ショップのクレートは会員に依存しない）。
-4. **公開名（`nickname`）**（§13）。**済**
-5. **掲示板を会員に対応**（§12）: `author_kind`、`posting`、`visibility`、会員の投稿、フォームの CSRF 対策、画面のログイン導線、退会時の匿名化、テスト。**済**
-6. **管理画面**: 会員の詳細に掲示板の投稿数を出す、掲示板の管理画面に会員の印とリンクを出す（§7）。**済**
+- An **`avatar_key`** column (the storage key `avatars/{member ID}-{random 8 chars}.{extension}`) was added to members (`null` if unset). It has the same storage location and the same checks as admin users' avatars ([authentication.md](authentication.md#3-user-management-api)): PNG / JPEG / GIF / WebP, up to 2 MB. The format is determined by the file's first bytes, SVG gives `415`, and over 2 MB gives `413`. Each replacement changes the key and deletes the previous image.
+- Set with `PUT /api/v1/members/me/avatar` (the multipart `file`) and remove with `DELETE /api/v1/members/me/avatar`. The response is the member information, including `avatar_url` (the public URL; `null` if unset). `avatar_key` is not in the response. `avatar_url` also appears in `GET /api/v1/members/me` and the admin screen's member API (`/api/v1/admin/members*`).
+- A multipart request authenticated only by cookie could be sent from another site's form, so `Origin` / `Referer` must be this site's (otherwise `403`; requests authenticated with an `Authorization` header are not covered).
+- On withdrawal (`DELETE /api/v1/members/me`), the image file is deleted too. In the storage API, trying to delete an image a member uses gives `409` (the referrer is `content_type: "member"`). With `?force=true` it is deleted and the member's `avatar_key` is removed.
+- **How it appears in the forum and reviews**: posts' rows hold no copy; on each display, the **current** `avatar_key` is looked up from the poster (the member ID) (duplicates removed and looked up together with one `SELECT ... WHERE id IN (...)`, split by 500). Changing the image is reflected in past posts too, and deleting old files does not break links. Posts by withdrawn members are anonymous, so no image appears. When an image is changed, the forum's cache (the `collection:forum` tag) is purged. The reviews' public API returns `avatar_url` and does not return `member_id`.
+- **Screen**: "Profile image" in My Page's registration info (saved as soon as chosen, with a "Remove image" button). It also appears in the admin screen's member details, forum posters (a circle with the initial if no image), and product review posters.
+- For old DBs, `ALTER TABLE _aegis_members ADD COLUMN avatar_key VARCHAR(255);`. The startup column check rejects DBs without the column.
 
 ---
 
-## 15. 閲覧の制限（会員レベル）
+## 14. How the Work Was Split (Member Accounts)
 
-有料メンバー限定のページや、「ここから先は有料」の記事を作る仕組みです。**閲覧の制御**（このページ）と**レベルを付ける手段**（決済・商品購入との連動）は切り離し、先に前者を作ります。
+1. The design document. **Done**
+2. **Splitting out and renaming** (no behavior change). **Done** (§11). `[members]`, API, tables, columns, cookies, notifications, audit log, admin screen, backups, tests, docs.
+3. **Splitting out to the `aegis-members` crate**. **Done** (the shop crate does not depend on members).
+4. **Public name (`nickname`)** (§13). **Done**
+5. **Making the forum member-aware** (§12): `author_kind`, `posting`, `visibility`, member posts, CSRF protection for forms, login paths on screens, anonymization on withdrawal, tests. **Done**
+6. **Admin screens**: showing forum post counts in member details, and showing the member mark and link in the forum admin screen (§7). **Done**
 
-### 15.1 決めたこと
+---
 
-- **会員に権限レベルを持たせる**。まずは管理画面から手動で付与する。決済や商品購入との連動は、付与の入口として後から足す（制御の仕組みは変えない）。
-- **制限の単位は、記事・ページごと＋本文の「ここから先」**。カテゴリ単位は範囲外（掲示板のカテゴリの公開範囲 `visibility` とは別の話）。
-- 管理アカウント（`_aegis_users`）とは別のまま。管理者・編集者は、レベルによらず全文を見られる（プレビュー・保存済みの確認のため）。
+## 15. Viewing Restrictions (Member Levels)
 
-### 15.2 モデル
+A mechanism for making paid-member-only pages and "paid from here" articles. **Controlling viewing** (this page) is separated from **the means of granting levels** (integration with payments and product purchases), and the former is built first.
 
-- 会員に `level`（文字列。未設定は `free`）を持たせる。取りうる値は `[members].levels`（例 `["free", "paid"]`。順番が低→高）で決め、**高いレベルは低いレベルの内容も見られる**。
-- 記事・ページに `access`（必要なレベル。未設定・`public` は誰でも）と `access_from`（「ここから先」を置いたブロックの位置。未設定は全体を制限）を持たせる。
-- 閲覧者は 3 種類: **ゲスト**（未ログイン）、**会員（レベル付き）**、**スタッフ**（管理者・編集者）。
+### 15.1 Decisions
 
-### 15.3 本文の「ここから先」
+- **Give members a permission level.** At first it is granted manually from the admin screen. Integration with payments and product purchases will be added later as an entry point for granting (the control mechanism does not change).
+- **The unit of restriction is per article/page, plus "from here on" in the body.** Per-category is out of scope (a different matter from the forum category's visibility `visibility`).
+- It stays separate from admin accounts (`_aegis_users`). Administrators and editors can see the full text regardless of level (for preview and checking what is saved).
 
-- **区切りのブロック `core/paywall`**（実装済み）。Markdown では **`<!-- paywall -->`**（HTML のコメント）。GitHub ではコメントとして何も表示されないので、区切りを書いた文書も GitHub でそのまま読め、**新しい記法の例外にはならない**（GitHub が上限という方針の内側）。
-- **効くのは、記事・ページに `access` があるときだけ**。`access` が無ければ区切りは何も出さず、全文が見える。区切りは、最初の**最上位**のものだけを数える（2 つ目以降と、入れ子の中のものは数えない。数えると、区切りの前後を取り違えて隠すべき本文を出しかねない）。
-- 必要なレベルがない閲覧者には、**区切りより前のブロック**（`aegis_ast::public_blocks`）と、そのあとに案内（ログイン・アップグレードのリンク。`[theme].locale` で多言語）を出す。**区切りが無ければ、本文は全部隠す**（案内だけ）。
-- 読める閲覧者には、区切りは何も出さない（線も出さない）。
-- **隠す側は、HTML に出さない**（CSS で隠すだけにしない）。区切りより前を、フィード・検索の索引・一覧の要約・ヘッドレス API も使う（`excerpt` を書かなくても、区切りの前から要約ができる）。
-- ブロックの置き場所が core なのは、読める人を決めるのが**サーバーの制御**で（プラグインのブロックは閲覧者を知らず、ページは共有キャッシュに載りうる）、切り出しがすべての面に及ぶため。[architecture.md 3.1a](architecture.md#31a-core-ブロックの範囲github-でできることが上限)にも書いた。
-- **管理画面**: ブロックの追加に「会員向けの区切り」（会員アカウントが有効なときだけ）。エディターには破線の帯で出る。Markdown との往復は `markdown.test.ts`。
+### 15.2 Model
 
-### 15.4 漏れる面（すべて同じ判定を通す）
+- Members have a `level` (a string; `free` if unset). The possible values are decided by `[members].levels` (e.g. `["free", "paid"]`; ordered low → high), and **a higher level can also view the content of lower levels**.
+- Articles and pages have `access` (the required level; unset or `public` means anyone) and `access_from` (the position of the block where "from here on" was placed; unset restricts the whole).
+- There are 3 kinds of viewers: **guests** (not logged in), **members (with a level)**, and **staff** (administrators and editors).
 
-閲覧者の種類によって本文が変わると、本文を出すところ**すべて**が漏れ口になる。1 か所の判定を共通にして、次をすべて通す。
+### 15.3 "From Here On" in the Body
 
-| 面 | 扱い |
+- **The divider block `core/paywall`** (implemented). In Markdown, **`<!-- paywall -->`** (an HTML comment). On GitHub it is a comment and shows nothing, so a document with the divider can be read on GitHub as is, and **it is not an exception to new syntax** (within the policy that GitHub is the upper limit).
+- **It takes effect only when the article/page has `access`.** If there is no `access`, the divider outputs nothing and the full text is visible. Only the first **top-level** divider is counted (the second and later ones and ones inside nesting are not counted; counting them could mix up before and after the divider and expose body text that should be hidden).
+- To viewers without the required level, **the blocks before the divider** (`aegis_ast::public_blocks`) are shown, followed by a notice (links for login and upgrade; multilingual via `[theme].locale`). **If there is no divider, the whole body is hidden** (only the notice).
+- To viewers who can read, the divider outputs nothing (not even a line).
+- **The hidden side is not output into HTML** (it is not merely hidden with CSS). Feeds, search indexing, list summaries, and the headless API also use what is before the divider (even if you don't write `excerpt`, a summary is made from before the divider).
+- The block lives in core because who may read is decided by **server control** (plugin blocks do not know the viewer, and pages can go into shared caches), and cutting applies to every surface. It is also written in [architecture.md 3.1a](architecture.md#31a-the-scope-of-core-blocks-githubs-capabilities-are-the-upper-limit).
+- **Admin screen**: "Members-only divider" in adding blocks (only when member accounts are enabled). It appears in the editor as a dashed band. Round trips with Markdown are in `markdown.test.ts`.
+
+### 15.4 Surfaces That Can Leak (All Go Through the Same Decision)
+
+If the body changes by viewer kind, **every** place that outputs the body becomes a leak point. One decision is shared and everything below goes through it.
+
+| Surface | Handling |
 |---|---|
-| 記事・ページの公開ページ | 閲覧者のレベルで本文を切る。**共有キャッシュ・CDN**に載せるのは「ゲスト向け（切った版）」だけ。会員の Cookie があるときは `Cache-Control: private, no-store`（マイページと同じ）で、全文を共有キャッシュに載せない |
-| フィード（`/feed.xml` など） | 切った版（抜粋まで）。全文を出さない。要約は書き手の `excerpt`（無ければ本文の先頭を使わず空） |
-| 検索（`/search`・`/api/v1/search`） | 索引に入れる本文・スニペットは、制限より前の部分だけ。制限した部分の語では当たらない |
-| 関連記事・一覧の抜粋 | 制限より前の部分から作る |
-| ヘッドレス API（公開側の読み取り） | 同じ判定。`blocks` も切る |
-| コメントの API | 本文と同じ判定。見られない閲覧者には `403`（`access_restricted`） |
-| `oEmbed`・サイトマップ | oEmbed は `excerpt` フィールドだけ、サイトマップは URL だけなので、そのままでよい（`llms.txt` は無い） |
-| 構造化データ | 制限したページに schema.org の `isAccessibleForFree: false`（JSON-LD）を付ける。本文はゲスト・クローラーにも出さないので、隠した本文を見せる「クローキング」にならず、`hasPart` の `cssSelector` は要らない |
+| Public pages of articles and pages | The body is cut by the viewer's level. Only the "guest version (cut)" goes into **shared caches and the CDN**. When there is a member cookie, `Cache-Control: private, no-store` (same as My Page) so the full text does not go into shared caches |
+| Feeds (`/feed.xml`, etc.) | The cut version (up to the excerpt). The full text is not output. The summary is the author's `excerpt` (if absent, empty without using the start of the body) |
+| Search (`/search`, `/api/v1/search`) | The body and snippets entered in the index are only the part before the restriction. Words in the restricted part do not match |
+| Related articles and list excerpts | Made from the part before the restriction |
+| Headless API (public-side reads) | The same decision. `blocks` are cut too |
+| Comments API | The same decision as the body. Viewers who cannot see get `403` (`access_restricted`) |
+| `oEmbed` and sitemap | oEmbed is only the `excerpt` field and the sitemap only URLs, so they can stay as they are (there is no `llms.txt`) |
+| Structured data | `isAccessibleForFree: false` of schema.org (JSON-LD) is attached to restricted pages. The body is not output to guests and crawlers either, so it is not "cloaking" that shows hidden body text, and the `cssSelector` of `hasPart` is not needed |
 
-### 15.5 キャッシュ
+### 15.5 Caching
 
-- **`access` のある記事・ページは、ゲストの応答も含めて、いつも `Cache-Control: private, no-store`**（`Cache-Tag` も付けない）。ゲスト向けの案内を共有キャッシュ・CDN が覚えると、同じ URL に来た会員（Cookie を見ない CDN）にも案内が返ってしまうため。`Vary: Cookie` で分ける方法もあるが、CDN の設定と相性が悪いので、まずはこちらにする。
-- `access` が無い（または `public` の）記事・ページは、これまでどおり共有キャッシュに載せる。
-- 保存すると、これまでどおり記事・ページのキャッシュタグがパージされるので、`access` を足した・外した直後に古い応答が残らない。
+- **Articles and pages with `access` always get `Cache-Control: private, no-store`, including guest responses** (and no `Cache-Tag`). This is because if a shared cache or CDN remembered the guest notice, a member coming to the same URL (through a CDN that doesn't look at cookies) would also get the notice. Splitting with `Vary: Cookie` is possible too, but it doesn't get along with CDN configurations, so this comes first.
+- Articles and pages with no `access` (or `public`) go into shared caches as before.
+- On save, the article/page cache tags are purged as before, so no stale response remains right after `access` is added or removed.
 
-### 15.6 プレビューとの関係
+### 15.6 Relation to Preview
 
-管理画面のプレビューで、**どの種類の読者として見るか**を選べる（実装済み）。本物の会員になりすますのではなく、「その種類の読者に見える姿」を、公開ページと同じ判定（`handlers::access::decide`）で描画するだけなので、会員のセッションも個人情報も使わない。
+In the admin screen's preview you can choose **which kind of reader to view as** (implemented). It does not impersonate a real member; it only renders "how it looks to that kind of reader" with the same decision as the public page (`handlers::access::decide`), so no member session or personal information is used.
 
-- `POST /api/v1/preview` の要求に **`viewer`**: `staff`（省略したときの既定。全文）・`guest`・`member:<レベル>`。ほかの値や `[members].levels` にないレベルは `400`（`invalid_viewer`）。要求の `fields.access` が制限しているときだけ効く（制限がなければ、どの読者も同じ）。
-- `guest` と、足りないレベルの会員は、区切りより前と案内（公開ページと同じ HTML）。読めるレベルの会員とスタッフは全文。本文（`html`）も、テーマ適用ページ（`page_html`）も同じ。ブロック AST のタブは編集中の全ブロックのまま。
-- **画面**: プレビューの上に「見る人」の選択（スタッフ・ゲスト・会員のレベルごと）。記事・ページに「閲覧できる人」を設定していて、会員アカウントが有効なときだけ出る。
+- The request of `POST /api/v1/preview` gets **`viewer`**: `staff` (the default when omitted; the full text), `guest`, or `member:<level>`. Other values, and levels not in `[members].levels`, give `400` (`invalid_viewer`). It takes effect only when the request's `fields.access` is restricting (without a restriction, every reader is the same).
+- `guest` and members of an insufficient level get the part before the divider and the notice (the same HTML as the public page). Members of a readable level and staff get the full text. The body (`html`) and the theme-applied page (`page_html`) are the same. The block AST tab remains all the blocks being edited.
+- **Screen**: a "Viewer" selector above the preview (staff, guest, per member level). It is shown only when the article/page has "who can view" set and member accounts are enabled.
 
-### 15.7 実装の分け方
+### 15.7 How the Work Was Split
 
-1. **判定の核**（会員側は**済**）: `[members].levels`、会員の `level`（列 `_aegis_members.level`・API の応答・`PUT /api/v1/admin/members/{id}/level`・管理画面の会員の詳細で付与）、判定の関数 `aegis_members::may_view`（`Viewer` と必要なレベルから見られるかを返す。設定にないレベルは見せない）。記事・ページの `access` の欄と、閲覧者の種類の判定（Cookie / Bearer から）は 2 で、公開ページに効かせるときに足す。
-2. **公開ページ**（**済**）: 記事・ページを閲覧者で切る（全体の制限）、案内の表示、キャッシュの扱い（15.5）、テスト。`crates/aegis-server/src/handlers/access.rs` の `gate` が、`fields["access"]` と閲覧者（会員の Cookie / Bearer）から `Open`（制限なし）・`Allowed`・`Denied` を返す。`Denied` は本文を**描画せず**（HTML に出さない）、案内（`<div class="aegis-access-notice">`）を本文の代わりに出し、コメント欄・関連記事・前後の記事も出さない。ゲストにはログインと会員登録（`/account/login?next=<この記事のパス>`。ログイン後にこの記事へ戻る。`next` はサイト内のパスだけ受け付ける）、レベルが足りない会員には必要なレベルと、`[members].upgrade_url` があればそのリンクを出す。会員アカウントが無効なサイトでは、ログインのリンクを出さない。
-   - **保存時の検査**: `access` は `public`・空・`null`（=誰でも）か、`[members].levels` にあるレベルだけ。設定にない値は `400`（`code: unknown_access_level`。メッセージに選べるレベルを入れる）で断る（作成も更新も）。タイポでだれも読めなくなるのを防ぐため。レベルを `levels` から消したあと、そのレベルを指した記事を保存し直すときも、付け替えるまで 400 になる。
-   - **`access` は組み込みのフィールド**（`category_id` と同じ。`SchemaDefinition::with_builtin_fields` が全コンテンツ型に差し込み、起動時の `ALTER TABLE ... ADD COLUMN` で列が足される）。YAML に書く必要はなく、書いても組み込みの定義（`string`・最大 32 文字・公開）で置き換わるので、書き忘れや型の書き違いで制限が外れない。制限が効くのは、いまは記事とページだけ（ほかの型に値を入れても何もしない）。
-3. **「ここから先」**（**済**）: 区切りのブロック `core/paywall`（Markdown は `<!-- paywall -->`。往復テスト・エディター）、本文の切り出し（15.3）。
-4. **漏れ口を塞ぐ**（**済**）: 15.4 の表の面を、すべて同じ約束にそろえた。本文を閲覧者によらず出す面（フィード・検索・一覧・関連記事・タグ・ヘッドレス API）は `aegis_ast::public_blocks`（だれにでも見せてよい部分。いまは無し。3 で区切りより前を返す）と `handlers::access::summary_excerpt`（書き手の `excerpt` を優先）を通す。制限した記事のコメントの API は、本文と同じ判定（見られないなら `403`・`access_restricted`）。制限したページの `<head>` に `isAccessibleForFree: false` の JSON-LD を出す。回帰テスト（`access_tests.rs`）は、制限した本文がどの面にも出ないこと、制限していない記事は従来どおりなことを確かめる。管理画面の記事・ページの編集に「閲覧できる人」の選択を足した（会員アカウントが有効なときだけ。選択肢は `GET /api/v1/shop/config` の `member_levels`）。
-5. **プレビューの閲覧者切り替え**（**済**。15.6）。
-6. **付与の入口**: 購入（記事の単独購入・サブスク）。§16。
+1. **The core of the decision** (the member side is **done**): `[members].levels`, a member's `level` (the column `_aegis_members.level`, the API response, `PUT /api/v1/admin/members/{id}/level`, and granting in the admin screen's member details), and the decision function `aegis_members::may_view` (returns whether one may view, from a `Viewer` and the required level; levels not in the settings are not shown). The article/page `access` field and determining the viewer kind (from a cookie / Bearer) are added in 2, when making it take effect on public pages.
+2. **Public pages** (**done**): cutting articles and pages by viewer (whole-body restriction), showing the notice, the cache handling (15.5), tests. `gate` in `crates/aegis-server/src/handlers/access.rs` returns `Open` (no restriction), `Allowed`, or `Denied` from `fields["access"]` and the viewer (the member's cookie / Bearer). `Denied` **does not render** the body (it is not output into HTML), outputs a notice (`<div class="aegis-access-notice">`) in place of the body, and does not output the comment section, related articles, or previous/next articles. Guests get login and sign-up (`/account/login?next=<this article's path>`; after login they return to this article; `next` accepts only paths within the site), and members of an insufficient level get the required level and, if `[members].upgrade_url` exists, that link. On sites where member accounts are disabled, the login link is not shown.
+   - **Check at save time**: `access` is either `public`, empty, or `null` (= anyone), or only a level in `[members].levels`. A value not in the settings is refused with `400` (`code: unknown_access_level`; the message includes the selectable levels), for both create and update. This is to prevent no one being able to read because of a typo. Even when re-saving an article that pointed to a level after removing that level from `levels`, it is 400 until it is reassigned.
+   - **`access` is a built-in field** (like `category_id`; `SchemaDefinition::with_builtin_fields` inserts it into all content types, and the column is added by `ALTER TABLE ... ADD COLUMN` at startup). You need not write it in YAML, and even if you do it is replaced by the built-in definition (`string`, max 32 characters, public), so the restriction doesn't come off because of forgetting or mistyping the type. The restriction currently takes effect only on articles and pages (putting a value in other types does nothing).
+3. **"From here on"** (**done**): the divider block `core/paywall` (`<!-- paywall -->` in Markdown; round-trip tests and the editor), and cutting the body (15.3).
+4. **Closing the leak points** (**done**): the surfaces in the 15.4 table were all brought to the same promise. Surfaces that output the body regardless of the viewer (feeds, search, lists, related articles, tags, headless API) go through `aegis_ast::public_blocks` (the part that may be shown to anyone; currently nothing; 3 makes it return what is before the divider) and `handlers::access::summary_excerpt` (the author's `excerpt` takes priority). The restricted article's comments API uses the same decision as the body (`403` and `access_restricted` if it cannot be seen). JSON-LD with `isAccessibleForFree: false` is output in restricted pages' `<head>`. Regression tests (`access_tests.rs`) verify that the restricted body appears on none of the surfaces, and that unrestricted articles are as before. A "Who can view" selection was added to the admin screen's article and page editing (only when member accounts are enabled; the choices are `member_levels` of `GET /api/v1/shop/config`).
+5. **Switching viewers in the preview** (**done**; 15.6).
+6. **The entry point for granting**: purchase (single article purchases and subscriptions). §16.
 
 ---
 
-## 16. 購入（記事の単独購入・サブスク）
+## 16. Purchases (Single Article Purchases and Subscriptions)
 
-会員に閲覧の権利を付ける**入口**です。閲覧を決める判定（§15 の `decide`）は変えず、「権利がある」と判定される条件を 2 つ足します。
+The **entry points** that grant a member viewing entitlement. The decision that determines viewing (§15's `decide`) does not change; 2 conditions are added for "entitled" to be judged.
 
-- **記事単独購入**: その記事だけを一度の支払いで読めるようにする。
-- **サブスク**: 自動更新の支払いで、会員レベル（`[members].levels`）を得る。支払いの単位（月・年・N か月など）は設定で決める。
+- **Single article purchase**: makes only that article readable for a one-time payment.
+- **Subscription**: gets a member level (`[members].levels`) with auto-renewing payments. The unit of payment (month, year, N months, etc.) is decided in the settings.
 
-### 16.1 決めたこと
+### 16.1 Decisions
 
-- 決済は **Stripe Checkout**（カード情報は AegisCMS を通らない）。ほかの決済サービスは、需要が出てから抽象を切る。
-- 買えるのは**会員だけ**。ゲストが買うと、権利を結びつける先がない（メールアドレスだけの購入は、ほかの端末で読めない・取り戻せない）。ゲストには、ログイン・登録のあとで購入へ進む案内を出す。
-- **ショップ（`[commerce]`）の注文とは独立**。購入は注文・在庫・カートを使わず、`[commerce].enabled = false` でも動く。会計の画面（Orders）にも出ない。
-- **金額はサーバーが決める**。購入を始めるリクエストは記事（型とスラッグ）やプランの ID だけを送り、金額・通貨は送らない。入金の通知（Webhook）で、金額と通貨が購入の記録と一致するときだけ権利を付ける。
-- **会員の `level` は書き換えない**。手動で付けたレベルと、サブスクで得たレベルの**高いほう**を、判定のときに使う。サブスクが切れても、手動のレベルは残る。
-- 権利が効くのは、記事・ページに **`access` があるとき**だけ（`access` が無ければ、もともと全員が読める）。`purchase_price` だけを入れても何も起きない。
+- Payment is **Stripe Checkout** (card information does not pass through AegisCMS). Other payment services will have an abstraction cut once demand appears.
+- **Only members can buy.** If a guest bought, there would be nothing to tie the entitlement to (a purchase by email address alone cannot be read on another device or recovered). Guests are shown a notice to proceed to purchase after logging in or registering.
+- **Independent of the shop (`[commerce]`) orders.** Purchases use no orders, inventory, or cart, and work even with `[commerce].enabled = false`. They do not appear in the accounting screen (Orders) either.
+- **The server decides the amount.** The request to start a purchase sends only the article (kind and slug) or the plan ID, and does not send amount or currency. Entitlement is granted only when the amount and currency in the payment notification (webhook) match the purchase record.
+- **A member's `level` is not rewritten.** The **higher** of the manually granted level and the level gained by subscription is used at decision time. Even if the subscription lapses, the manual level remains.
+- The entitlement takes effect only when the article/page **has `access`** (without `access`, everyone could read it in the first place). Entering just `purchase_price` does nothing.
 
-### 16.2 設定
+### 16.2 Settings
 
 ```toml
 [members.purchase]
-enabled = false          # 購入を使う（要 [members].enabled と [members].public_url）
-currency = "jpy"         # 記事の購入に使う通貨（ISO 4217 の小文字）。金額は最小単位の整数
+enabled = false          # use purchases (requires [members].enabled and [members].public_url)
+currency = "jpy"         # currency for article purchases (ISO 4217 lowercase). Amounts are integers in the smallest unit
 
 [members.purchase.stripe]
-secret_key = ""          # 空なら環境変数 AEGIS_STRIPE_SECRET_KEY
-webhook_secret = ""      # 空なら環境変数 AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET
-# api_base = "https://api.stripe.com"   # テスト用のモックだけ変える
+secret_key = ""          # if empty, the environment variable AEGIS_STRIPE_SECRET_KEY
+webhook_secret = ""      # if empty, the environment variable AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET
+# api_base = "https://api.stripe.com"   # change only for test mocks
 
-# サブスクのプラン。interval × interval_count が支払いの単位
+# Subscription plans. interval × interval_count is the unit of payment
 [[members.purchase.plans]]
 id = "monthly"
 label = "Monthly"
-level = "paid"           # 契約中に得るレベル（[members].levels のどれか）
+level = "paid"           # the level gained while subscribed (one of [members].levels)
 amount = 800
 interval = "month"       # "day" | "week" | "month" | "year"
-interval_count = 1       # 3 で「3 か月ごと」
+interval_count = 1       # 3 means "every 3 months"
 ```
 
-- ショップの Webhook（`/api/v1/shop/webhooks/stripe`）とは**別のエンドポイント**（`/api/v1/members/webhooks/stripe`）を Stripe に登録する。Stripe はエンドポイントごとに署名シークレットを発行するので、環境変数も分ける（キー本体 `AEGIS_STRIPE_SECRET_KEY` は同じアカウントなので共有してよい）。
-- 起動時の検査: `enabled` なのに会員アカウントが無効、`public_url` が空、キーが無い、通貨が不正、プランの `level` が `levels` に無い・`id` の重複・`amount` が 0 以下・`interval_count` が 1〜（Stripe の上限: 日 365 / 週 52 / 月 12 / 年 1）の外、はエラーにする。
-- 記事の戻り先 URL は `[members].public_url` から作る（Host ヘッダーを信用しない）。
+- Register an **endpoint separate** from the shop's webhook (`/api/v1/shop/webhooks/stripe`) with Stripe (`/api/v1/members/webhooks/stripe`). Stripe issues a signing secret per endpoint, so the environment variable is separate too (the key itself `AEGIS_STRIPE_SECRET_KEY` is the same account, so it can be shared).
+- Startup checks: these are errors — `enabled` while member accounts are disabled, an empty `public_url`, missing keys, an invalid currency, a plan's `level` not in `levels`, a duplicate `id`, an `amount` of 0 or less, and an `interval_count` outside 1– (Stripe's limits: day 365 / week 52 / month 12 / year 1).
+- The article's return URL is built from `[members].public_url` (the Host header is not trusted).
 
-### 16.3 モデル
+### 16.3 Model
 
-記事・ページに組み込みのフィールド **`purchase_price`**（整数・最小単位・未設定は単独では売らない・公開）を足す。`access` と同じく全コンテンツ型に差し込む。商品の `price`（ショップ）とは別の名前にして、商品型の定義を上書きしない。
+Add a built-in field **`purchase_price`** (integer, smallest unit; unset means not sold individually; public) to articles and pages. Like `access`, it is inserted into all content types. It has a different name from the product's `price` (shop) so as not to overwrite the product type's definition.
 
-購入の記録 `_aegis_purchases`（第 2 段）:
+The purchase record `_aegis_purchases` (stage 2):
 
-| 列 | 内容 |
+| Column | Description |
 |---|---|
-| `id` | 購入の ID |
-| `member_id` | 会員 ID（退会で `NULL`。会計の記録として行は残す） |
-| `content_type` / `content_id` | 買った記事・ページ |
-| `amount` / `currency` | 始めた時点の金額（Webhook で照合する） |
-| `status` | `pending`（決済ページを作った）/ `paid` / `refunded` / `cancelled`（期限切れ・失敗） |
-| `provider_ref` | Checkout Session の ID（一意） |
-| `transaction_id` | Payment Intent の ID（返金の突き合わせ） |
+| `id` | The purchase ID |
+| `member_id` | The member ID (`NULL` on withdrawal. The row remains as an accounting record) |
+| `content_type` / `content_id` | The article/page bought |
+| `amount` / `currency` | The amount at the time it was started (checked by the webhook) |
+| `status` | `pending` (a payment page was created) / `paid` / `refunded` / `cancelled` (expired or failed) |
+| `provider_ref` | The Checkout Session ID (unique) |
+| `transaction_id` | The Payment Intent ID (to match refunds) |
 | `created_at` / `paid_at` / `updated_at` | |
 
-サブスクの記録 `_aegis_subscriptions`: `member_id`・`plan_id`・`level`・`status`（`active` / `past_due` / `cancelled`）・Stripe の customer / subscription ID・`current_period_end`・`cancel_at_period_end`。**有効なレベル = `member.level` と、契約中のプランの `level` の高いほう**。契約中とは、状態が `active` / `past_due` で、`current_period_end` を過ぎていない（Webhook の遅れに備えて 3 日の猶予がある）こと。`level` は契約した時点のプランのレベルを写し、プランを設定から消しても契約中は変わらない。レベルが `[members].levels` から消えたときは無視する（制限が外れない）。
+The subscription record `_aegis_subscriptions`: `member_id`, `plan_id`, `level`, `status` (`active` / `past_due` / `cancelled`), Stripe's customer / subscription IDs, `current_period_end`, and `cancel_at_period_end`. **The effective level = the higher of `member.level` and the `level` of the plan being subscribed to.** "Being subscribed" means the status is `active` / `past_due` and `current_period_end` has not passed (with a 3-day grace to allow for webhook delays). `level` copies the plan's level at the time of subscribing, and does not change during the subscription even if the plan is removed from the settings. A level that has disappeared from `[members].levels` is ignored (the restriction does not come off).
 
-### 16.4 記事単独購入の流れ
+### 16.4 Flow of a Single Article Purchase
 
-1. 会員が、案内の「購入」リンク（`GET /account/purchase?content_type=..&slug=..`）または `POST /api/v1/members/purchases`（`{ "content_type", "slug" }`。API のクライアント向け）で始める。リンクにしているのは、既定の CSP の `form-action 'self'` が、フォームの送信先から外部の決済ページへのリダイレクトを止めるため。GET で決済ページを作るだけで入金されなければ何も起きず、Cookie は `SameSite=Lax`。ログインしていなければ、ログインのあとにここへ戻る。公開済み・`access` あり・`purchase_price` が 1 以上・まだ買っていない、を確かめる（外れたら `404` / `409`）。
-2. `pending` の行を作り、Checkout Session（`mode=payment`、`price_data` はサーバーの金額、`client_reference_id` = 購入の ID）を作って、決済ページの URL を返す。戻り先は記事のパス（成功・中止とも）。
-3. Webhook（署名と時刻を検証。ショップと同じ方式）:
-   - `checkout.session.completed`（`payment_status = paid`）・`async_payment_succeeded`: 購入の ID・Session の ID・**金額と通貨が一致**するときだけ `pending` → `paid`（条件付き UPDATE。再送で二重に動かない）。不一致は `paid` にせず、監査ログに残す。
-   - `expired` / `async_payment_failed`: `pending` → `cancelled`。
-   - `charge.refunded`: 全額の返金で `paid` → `refunded`（権利を外す）。一部返金は権利を残す。
-4. 同じ記事を二重に払った（2 つの決済ページを開いた）場合は、どちらも `paid` にし、監査ログに `duplicate_payment` を残す（返金は管理者が判断する）。
-5. Webhook は数秒遅れうる。戻ってすぐの記事に案内が残ることがあるので、購入のリンクのそばに「お支払いの確認まで数秒かかることがある」旨を添える。再読み込みで読める。
+1. A member starts it from the notice's "Purchase" link (`GET /account/purchase?content_type=..&slug=..`) or `POST /api/v1/members/purchases` (`{ "content_type", "slug" }`; for API clients). It is a link because the default CSP's `form-action 'self'` stops a redirect from a form's destination to an external payment page. A GET only creates a payment page, and if there is no payment nothing happens, and the cookie is `SameSite=Lax`. If not logged in, they come back here after logging in. It checks that the article is published, has `access`, has a `purchase_price` of 1 or more, and has not been bought yet (otherwise `404` / `409`).
+2. It creates a `pending` row, creates a Checkout Session (`mode=payment`, with `price_data` being the server's amount and `client_reference_id` = the purchase ID), and returns the payment page's URL. The return destination is the article's path (for both success and cancel).
+3. The webhook (signature and time verified; same method as the shop):
+   - `checkout.session.completed` (`payment_status = paid`) and `async_payment_succeeded`: only when the purchase ID, the Session ID, and **the amount and currency match**, `pending` → `paid` (a conditional UPDATE; a resend does not run it twice). A mismatch does not make it `paid` and is left in the audit log.
+   - `expired` / `async_payment_failed`: `pending` → `cancelled`.
+   - `charge.refunded`: on a full refund, `paid` → `refunded` (removing the entitlement). A partial refund keeps the entitlement.
+4. If the same article was paid twice (two payment pages were opened), both are made `paid` and `duplicate_payment` is left in the audit log (an administrator decides on refunds).
+5. The webhook can be several seconds late. The notice may remain on the article right after returning, so next to the purchase link a note is added that "payment confirmation may take a few seconds". It becomes readable on reload.
 
-### 16.5 判定への組み込み
+### 16.5 Integration into the Decision
 
-`decide` は、(1) スタッフ、(2) レベル（手動 + サブスク）が足りる、(3) その記事を `paid` で買っている、のどれかで `Allowed`。それ以外は `Denied` で、案内に次を出す。
+`decide` gives `Allowed` if any of: (1) staff, (2) the level (manual + subscription) is sufficient, (3) the article was bought as `paid`. Otherwise `Denied`, and the notice shows the following.
 
-- ゲスト: ログイン・登録（購入のあとで戻る先つき）。
-- レベルが足りない会員: `purchase_price` があり購入が有効なら「この記事を購入（金額）」、プランがあれば「プランを見る」、`upgrade_url` があればそのリンク。
+- Guests: login and sign-up (with a destination to return to after purchase).
+- Members of an insufficient level: if there is a `purchase_price` and purchases are enabled, "Purchase this article (amount)"; if there are plans, "See plans"; and if there is an `upgrade_url`, that link.
 
-共有キャッシュには載せない（`access` のある記事は、もともと常に `private, no-store`。§15.5）。フィード・検索・一覧・API・コメント API は、いまのとおり同じ判定を通すので、購入で漏れ口は増えない（購入した会員が読める面は、公開ページとコメント API だけ）。
+It is not put in shared caches (articles with `access` are always `private, no-store` in the first place; §15.5). Feeds, search, lists, the API, and the comments API go through the same decision as now, so purchases add no leak points (the surfaces a member who purchased can read are only public pages and the comments API).
 
-### 16.6 安全性
+### 16.6 Safety
 
-- 金額・通貨は設定と記事の値だけから作る。リクエストの値を使わない。
-- Webhook は署名（HMAC-SHA256、時刻の許容 5 分）を検証してから読む。記録に無い購入の ID は何もせず `200`（Stripe の再送を止める）。
-- 退会: `member_id` を外して会計の記録として残す（権利は外れる）。契約中のサブスクは、先に Stripe で解約する（課金が続かないように。解約できなければ退会を断る `502`）。契約の記録は `member_id` を外して残す。
-- 監査ログに `purchase.create`（決済ページの作成。契約の開始は `resource_type = subscription`）・`purchase.update`（`paid` / `refunded` / `cancelled` / `revoked`・契約の状態の変化・問題）を残す（[audit.md](audit.md)）。
-- サブスクの開始は、Webhook の金額・通貨がプランと合い、会員が存在するときだけ記録する。期間の終わりと状態は、通知の内容でなく Stripe に聞き直す（通知の順序は保証されない）。
+- The amount and currency are built only from the settings and the article's values. Request values are not used.
+- The webhook's signature (HMAC-SHA256, time tolerance 5 minutes) is verified before reading. A purchase ID not in the records is ignored with `200` (to stop Stripe's resends).
+- Withdrawal: `member_id` is removed and kept as an accounting record (the entitlement is removed). A subscription in progress is first cancelled at Stripe (so billing does not continue; if it cannot be cancelled, withdrawal is refused with `502`). The subscription record is kept with `member_id` removed.
+- The audit log records `purchase.create` (creating a payment page; the start of a subscription has `resource_type = subscription`) and `purchase.update` (`paid` / `refunded` / `cancelled` / `revoked`, changes in a subscription's state, problems) ([audit.md](audit.md)).
+- The start of a subscription is recorded only when the webhook's amount and currency match the plan and the member exists. The end of the period and the status are asked again of Stripe, not taken from the notification's contents (the order of notifications is not guaranteed).
 
-### 16.7 実装の分け方
+### 16.7 How the Work Was Split
 
-1. 設計書。**済**
-2. **記事単独購入**（**済**）: 設定 `[members.purchase]`、`purchase_price`、`_aegis_purchases`（3 つの DB のマイグレーション・バックアップ・退会）、購入の開始、Webhook、判定と案内、監査ログ、記事の編集画面の価格の入力、テスト。コードは `crates/aegis-server/src/handlers/purchase.rs`（購入と Webhook）・`access.rs`（判定と案内）、`crates/aegis-db/src/purchases.rs`（保存）、`crates/aegis-commerce/src/stripe.rs` の `StripeClient` / `verify_webhook_event`（ショップと共有する Stripe の部品。`aegis-commerce` は `aegis-members` に依存するので、会員側のクレートからは使えず、サーバーが呼ぶ）。
-3. **サブスク**（**済**）: プラン `[[members.purchase.plans]]`、`_aegis_subscriptions`（マイグレーション・バックアップ・退会）、`mode=subscription` の Checkout（`POST /api/v1/members/subscriptions`・リンク `GET /account/subscribe?plan=..`）、Webhook（`checkout.session.completed` で開始、`customer.subscription.updated` / `deleted` で更新・解約。更新の支払いの失敗は `updated` の `past_due` で分かるので、`invoice.*` は受けない）、有効なレベル（`access.rs` の `member_session` が手動のレベルと契約のレベルの高いほうを使う）、解約・カード変更は Stripe の Customer Portal へ（`POST /api/v1/members/billing-portal`・リンク `GET /account/billing`。Stripe のダッシュボードでポータルを有効にしておく）。コードは `handlers/subscription.rs`、`aegis-db/src/subscriptions.rs`。
-4. **管理画面**（**済**）: 会員の詳細に購入・契約の一覧、無料の付与（`POST /api/v1/admin/members/{id}/purchases`）、権利の取り消し（`.../purchases/{id}/revoke`）、全額の返金（`.../purchases/{id}/refund`。Stripe の返金 API）、契約の即時解約（`.../subscriptions/{id}/cancel`）。いずれも `admin` だけ。会員の詳細の API（`GET /api/v1/admin/members/{id}`）が `purchases` / `subscriptions` を返す。
-5. **会員の画面**（**済**）: マイページ（`/account`）に「メンバーシップ」（プランの一覧と契約・解約へのリンク）と「購入した記事」。レベルが足りない会員への案内は、`upgrade_url` が無くプランがあれば、プランへのリンクを出す。
+1. The design document. **Done**
+2. **Single article purchases** (**done**): the settings `[members.purchase]`, `purchase_price`, `_aegis_purchases` (migrations for the 3 DBs, backups, withdrawal), starting a purchase, the webhook, the decision and notice, the audit log, a price input in the article edit screen, and tests. The code is in `crates/aegis-server/src/handlers/purchase.rs` (purchases and the webhook), `access.rs` (decision and notice), `crates/aegis-db/src/purchases.rs` (storage), and `StripeClient` / `verify_webhook_event` in `crates/aegis-commerce/src/stripe.rs` (the Stripe components shared with the shop. `aegis-commerce` depends on `aegis-members`, so the members-side crate cannot use it, and the server calls it).
+3. **Subscriptions** (**done**): the plans `[[members.purchase.plans]]`, `_aegis_subscriptions` (migrations, backups, withdrawal), Checkout with `mode=subscription` (`POST /api/v1/members/subscriptions` and the link `GET /account/subscribe?plan=..`), the webhook (start with `checkout.session.completed`, update and cancel with `customer.subscription.updated` / `deleted`; a failed renewal payment is known from `past_due` in `updated`, so `invoice.*` is not received), the effective level (`member_session` in `access.rs` uses the higher of the manual level and the subscription level), and cancelling and changing cards go to Stripe's Customer Portal (`POST /api/v1/members/billing-portal` and the link `GET /account/billing`; enable the portal in the Stripe dashboard). The code is in `handlers/subscription.rs` and `aegis-db/src/subscriptions.rs`.
+4. **Admin screens** (**done**): in a member's details, the list of purchases and subscriptions, free grants (`POST /api/v1/admin/members/{id}/purchases`), revoking entitlements (`.../purchases/{id}/revoke`), full refunds (`.../purchases/{id}/refund`; Stripe's refund API), and immediate cancellation of subscriptions (`.../subscriptions/{id}/cancel`). All are `admin` only. The member details API (`GET /api/v1/admin/members/{id}`) returns `purchases` / `subscriptions`.
+5. **Member screens** (**done**): "Membership" (the plan list and links to subscribe and cancel) and "Purchased articles" on My Page (`/account`). For the notice to members of an insufficient level, if there is no `upgrade_url` and there are plans, a link to the plans is shown.

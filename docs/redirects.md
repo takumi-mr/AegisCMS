@@ -1,70 +1,72 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# リダイレクト
+**English** | [日本語](redirects.ja.md)
 
-古い URL を開いた訪問者を新しい URL へ転送します（301 / 302）。Admin Studio の **Settings › Redirects**（`admin`）で規則を管理します。公開中のページの slug を変えたときは、旧 URL からの規則を自動で残します。
+# Redirects
+
+Forwards visitors who open an old URL to a new URL (301 / 302). Manage the rules in Admin Studio's **Settings › Redirects** (`admin`). When you change the slug of a published page, a rule from the old URL is kept automatically.
 
 ```text
  GET /old-page?utm=1
         │
- ページを探す ── 見つかった → そのまま表示（規則があっても奪わない）
+ Look up the page ── found → shown as is (a rule never takes it over)
         │
-        └─ 404 になった → 規則に一致する？ ── はい → 301 / 302  Location: /articles/new?utm=1
-                                              └─ いいえ → 404 ページ
+        └─ 404 → does a rule match? ── yes → 301 / 302  Location: /articles/new?utm=1
+                                       └─ no → 404 page
 ```
 
-## 1. 規則
+## 1. Rules
 
-| 項目 | 説明 |
+| Field | Description |
 | --- | --- |
-| `from` | 旧 URL のパス。`/` で始める（`[server].base_path` は含めない）。クエリ（`?`）・フラグメント（`#`）・空白は書けない。`/` 自体、`/api`・管理画面（`[server].admin_path`）・`/uploads` の下は置けない |
-| `to` | 新しい URL。`/` で始まるこのサイトのパス（`base_path` を付けて返す）か、`http://` / `https://` の URL（ユーザー情報は不可）。`//` で始まるものは不可 |
-| `status` | `301`（恒久。既定）か `302`（一時） |
+| `from` | The path of the old URL. Start it with `/` (do not include `[server].base_path`). Query (`?`), fragment (`#`), and whitespace cannot be written. `/` itself, and anything under `/api`, the admin screen (`[server].admin_path`), and `/uploads` cannot be used |
+| `to` | The new URL. Either a path on this site starting with `/` (returned with `base_path` added), or an `http://` / `https://` URL (no user info). One starting with `//` is not allowed |
+| `status` | `301` (permanent; default) or `302` (temporary) |
 
-- **一致のしかた**: URL のパスをパーセントエンコードを戻して比べ、末尾の `/` は無視します（`/old/` と `/old` は同じ。`/%E8%A8%98%E4%BA%8B` は `/記事`）。大文字・小文字は区別します。
-- **ページが 404 のときだけ使います**。生きているページの URL（記事・固定ページ・商品・カテゴリなど）に規則を置いても、そのページが表示されます。ページを消したあとに規則が効き始めるので、あとから足しても安全です。`GET` / `HEAD` だけが対象です。
-- **クエリ文字列は引き継ぎます**（`?utm_source=x` など）。ただし `to` に `?` があるときは `to` のものを使います。`#フラグメント` は `to` のものを最後に付けます。
-- **ループは作れません**: 規則をたどって `from` に戻る規則（A → B、B → A）や自分への転送は断ります（`400 redirect_loop`）。同じ `from` の規則は 1 つだけです（`409 duplicate_redirect`）。
-- **上限は 2,000 件**です。
-- **Cache-Control**: 301 は `public, max-age=3600`、302 は `no-cache` を付けます。
+- **How matching works**: URL paths are compared after percent-decoding, and a trailing `/` is ignored (`/old/` and `/old` are the same; `/%E8%A8%98%E4%BA%8B` is `/記事`). Case is distinguished.
+- **It is used only when the page is a 404.** Even if you put a rule on the URL of a live page (article, static page, product, category, etc.), that page is displayed. The rule starts working after the page is removed, so adding one beforehand is safe. Only `GET` / `HEAD` are covered.
+- **The query string is carried over** (such as `?utm_source=x`). However, if `to` contains `?`, the one in `to` is used. A `#fragment` from `to` is appended last.
+- **Loops cannot be created**: a rule that follows rules back to its `from` (A → B, B → A) or redirects to itself is refused (`400 redirect_loop`). There is only one rule per `from` (`409 duplicate_redirect`).
+- **The limit is 2,000 rules.**
+- **Cache-Control**: 301 gets `public, max-age=3600`, and 302 gets `no-cache`.
 
-## 2. slug を変えたときの自動の規則
+## 2. Automatic Rules When a Slug Changes
 
-公開中の URL が変わったとき、旧 URL から新しい URL への 301 を自動で足します（Admin Studio では「自動」の印が付きます）。**訪問者が使う URL は公開版の slug** なので、次のときに働きます。
+When a published URL changes, a 301 from the old URL to the new one is added automatically (in Admin Studio it gets an "auto" mark). **The URL visitors use is the published version's slug**, so this works in these cases:
 
-- 編集画面で **公開**（`publish: true`）して、公開版の slug が変わったとき
-- 予約公開の時刻になって、公開版の slug が変わったとき
+- When you **publish** (`publish: true`) in the edit screen and the published version's slug changes
+- When the scheduled publication time arrives and the published version's slug changes
 
-保存しただけ（公開版を切り替えていない）のときは、旧 URL がまだ公開中なので何もしません。下書きに戻した・アーカイブしたときも作りません（新しい URL も 404 になるため）。
+If you only save (the published version is not switched), nothing happens, because the old URL is still published. It is also not created when you revert to draft or archive (because the new URL would be a 404 too).
 
-| 種類 | 旧 URL → 新しい URL |
+| Kind | Old URL → new URL |
 | --- | --- |
-| 記事（`article`） | `/articles/{旧}` → `/articles/{新}`、`/{旧}` → `/{新}` |
-| 固定ページ（`page`） | `/{旧}` → `/{新}` |
-| 商品（`[commerce].product_type`） | `/products/{旧}` → `/products/{新}` |
+| Article (`article`) | `/articles/{old}` → `/articles/{new}`, `/{old}` → `/{new}` |
+| Static page (`page`) | `/{old}` → `/{new}` |
+| Product (`[commerce].product_type`) | `/products/{old}` → `/products/{new}` |
 
-- **連なりを作りません**: slug を続けて変えても、旧 URL はすべて最新の URL へ向かいます（`a → b`、`b → c` ではなく、`a → c`、`b → c`）。元の slug に戻したときは、今は生きている URL を `from` にしていた規則を消します。
-- 数が上限のときは、いちばん古い自動の規則を消して入れます（手で作った規則は消しません）。
-- 自動の規則を Admin Studio で編集すると、手で管理する規則になります。
-- 規則の保存に失敗しても、コンテンツの保存・公開は止めません（警告をログに残します）。
+- **No chains are created**: even if you change the slug repeatedly, all old URLs point to the latest URL (`a → c`, `b → c`, not `a → b`, `b → c`). When you return to the original slug, the rules whose `from` is a URL that is live now are removed.
+- When the count is at the limit, the oldest automatic rule is removed to make room (rules made by hand are not removed).
+- If you edit an automatic rule in Admin Studio, it becomes a manually managed rule.
+- Even if saving a rule fails, saving or publishing the content is not stopped (a warning is logged).
 
 ## 3. API
 
-すべて `admin` 権限です。エラーは英語で、機械が読む `code` を付けます。
+All require `admin` permission. Errors are in English and carry a machine-readable `code`.
 
-| API | 説明 |
+| API | Description |
 | --- | --- |
-| `GET /api/v1/redirects?q=&limit=&offset=` | 一覧（新しい順）と総数 `{"redirects": [...], "total": 12}`。`q` は `from` / `to` への部分一致（大文字・小文字を区別しない）。`limit` は 1〜200（既定 50） |
-| `POST /api/v1/redirects` | `{"from": "/old", "to": "/new", "status": 301}` で足す（`201`） |
-| `PUT /api/v1/redirects/{id}` | 同じ形で変える |
-| `DELETE /api/v1/redirects/{id}` | 消す（`204`） |
+| `GET /api/v1/redirects?q=&limit=&offset=` | A list (newest first) and the total `{"redirects": [...], "total": 12}`. `q` is a substring match (case-insensitive) on `from` / `to`. `limit` is 1–200 (default 50) |
+| `POST /api/v1/redirects` | Add with `{"from": "/old", "to": "/new", "status": 301}` (`201`) |
+| `PUT /api/v1/redirects/{id}` | Update with the same shape |
+| `DELETE /api/v1/redirects/{id}` | Delete (`204`) |
 
-誤りは `400 {"error", "code": "invalid_redirect", "field": "from" | "to" | "status"}`、`409 duplicate_redirect`、`400 redirect_loop`、`400 too_many_redirects`、`404 redirect_not_found` です。操作は監査ログ（`redirect.create` / `redirect.update` / `redirect.delete`。自動の規則は `details.auto = true`）に残ります。
+Mistakes are `400 {"error", "code": "invalid_redirect", "field": "from" | "to" | "status"}`, `409 duplicate_redirect`, `400 redirect_loop`, `400 too_many_redirects`, and `404 redirect_not_found`. Operations are recorded in the audit log (`redirect.create` / `redirect.update` / `redirect.delete`; automatic rules have `details.auto = true`).
 
-## 4. 保存先と複数台
+## 4. Storage and Multiple Instances
 
-規則は DB の設定（`_aegis_settings` の `redirects.rules`、JSON）に入り、バックアップに含まれます。起動時にメモリへ読み込み、変更するとイベントバス（`[cache]`）で知らせて、ほかのサーバーも DB から読み直します。
+The rules are in the DB settings (`redirects.rules` in `_aegis_settings`, as JSON) and included in backups. They are loaded into memory at startup, and when changed, the event bus (`[cache]`) notifies the other servers, which reload from the DB.
 
 ## 5. CDN
 
-リダイレクトのレスポンスには `Cache-Tag` を付けません。規則を変えたあとも 301 は最大 1 時間（`max-age=3600`）ブラウザーや CDN に残ることがあります。誤って足した 301 を消したいときは、先に 302 に変えて様子を見てください。
+No `Cache-Tag` is added to redirect responses. After you change a rule, a 301 may remain in browsers and CDNs for up to 1 hour (`max-age=3600`). If you want to remove a 301 you added by mistake, first change it to a 302 and watch what happens.

@@ -2,7 +2,7 @@
 
 **English** | [日本語](README.ja.md)
 
-A sample online coffee bean shop built with AegisCMS's e-commerce feature ([docs/commerce.md](../../docs/commerce.md), in Japanese). The products, orders, and shop name are all fictional. The sample content (product names, article text) is in Japanese.
+A sample online coffee bean shop built with AegisCMS's e-commerce feature ([docs/commerce.md](../../docs/commerce.md)). The products, orders, and shop name are all fictional. The sample content (product names, article text) is in Japanese.
 
 ![Product list page of the sample shop "Asanagi Coffee"](../../docs/images/commerce-storefront.png)
 
@@ -67,7 +67,7 @@ To start over, stop the server and delete `shop.db*` and `uploads/` in `examples
 
 ## Switching to Card Payments (Stripe)
 
-Changing `[commerce]` in `aegis.toml` as follows makes payment go through Stripe Checkout (you can try it with test-mode keys). For details, see [docs/commerce.md "4.2 stripe"](../../docs/commerce.md) (in Japanese).
+Changing `[commerce]` in `aegis.toml` as follows makes payment go through Stripe Checkout (you can try it with test-mode keys). For details, see [docs/commerce.md "4.2 stripe"](../../docs/commerce.md).
 
 ```toml
 [commerce]

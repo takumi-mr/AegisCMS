@@ -1,75 +1,77 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# タグ
+**English** | [日本語](tags.ja.md)
 
-記事・固定ページ・商品など、**どの種類のコンテンツにも**付けられるタグです（`[tags]`）。タグは名前・slug・説明を持つ独立したもので、先に作っておき、コンテンツには選んで付けます（公開サイトのページは [§6](#6-公開サイト)）。
+# Tags
 
-機能はクレート `aegis-tags` にあり、表は `_aegis_tags`（タグ）と `_aegis_content_tags`（タグとコンテンツの結びつき）です。結びつきは `(content_type, content_id, tag_id)` なので、コンテンツの種類を選びません。コメント（`_aegis_comments`）と同じ作りです。
+Tags that can be attached to **any kind of content**, such as articles, static pages, and products (`[tags]`). A tag is an independent item with a name, slug, and description; you create it first and then choose to attach it to content (for pages on the public site, see [§6](#6-public-site)).
+
+The feature lives in the `aegis-tags` crate, and the tables are `_aegis_tags` (tags) and `_aegis_content_tags` (the links between tags and content). The link is `(content_type, content_id, tag_id)`, so it does not depend on the kind of content. It is built the same way as comments (`_aegis_comments`).
 
 ---
 
-## 1. 設定
+## 1. Settings
 
-既定で有効です。
+Enabled by default.
 
 ```toml
 [tags]
 enabled = true
-max_per_content = 20   # 1 つのコンテンツに付けられる数（1〜100）
+max_per_content = 20   # how many can be attached to one content item (1–100)
 ```
 
-`enabled = false` にすると API は `404` を返し、Admin Studio の「Settings → Tags」とエディタのタグ欄が消えます。付けたタグは DB に残ります。設定の一覧は [設定リファレンス](configuration.md#221-tags--タグ) を参照してください。
+With `enabled = false`, the API returns `404`, and "Settings → Tags" in Admin Studio and the editor's tag field disappear. Attached tags remain in the DB. For the list of settings, see the [Configuration reference](configuration.md#221-tags--tags).
 
-## 2. タグのルール
+## 2. Tag Rules
 
-- **名前**: 50 文字まで。前後の空白と連続する空白は 1 つにまとめます。**大文字小文字を区別せず**、同じ名前のタグは作れません（`409`）。
-- **slug**: 半角の小文字・数字とハイフン（64 文字まで）。重複できません（`409`）。作るときに省略すると名前から作ります（`Rust Lang` → `rust-lang`）。半角英数字を含まない名前（日本語だけなど）のときは `tag-` と乱数の slug になるので、URL に使いたいときは自分で決めてください。
-- **更新**: slug を省略すると**今のまま**です（名前を変えても URL は変わりません）。
-- **削除**: タグを消すと、付いていたすべてのコンテンツから外れます。コンテンツを消したときも、そのタグの結びつきを消します（`[tags].enabled = false` でも）。
-- **説明**: 500 文字までで、省略できます。
+- **Name**: up to 50 characters. Leading and trailing whitespace is trimmed and consecutive whitespace is collapsed into one. **It is case-insensitive**, and tags with the same name cannot be created (`409`).
+- **Slug**: ASCII lowercase letters, digits, and hyphens (up to 64 characters). Duplicates are not allowed (`409`). If omitted when creating, it is made from the name (`Rust Lang` → `rust-lang`). For names with no ASCII alphanumerics (such as Japanese only), the slug is `tag-` plus a random value, so decide it yourself if you want to use it in a URL.
+- **Update**: if you omit the slug, it **stays as it is** (changing the name does not change the URL).
+- **Delete**: deleting a tag detaches it from all content that had it. When content is deleted, that content's tag links are removed too (even with `[tags].enabled = false`).
+- **Description**: up to 500 characters; can be omitted.
 
 ## 3. Admin Studio
 
-![Admin Studio のタグ管理（Settings → Tags）](images/tags-admin.png)
+![Admin Studio tag management (Settings → Tags)](images/tags-admin.png)
 
-- **Settings → Tags**: 一覧（名前順・25 件ずつ・名前か slug で検索）、付いているコンテンツの数、作成・編集・削除。作成・変更は `editor` 以上、閲覧は全員です。
-- **エディタ（記事・固定ページ）と商品の編集**: 「Tags」欄で、名前を入力して既存のタグを探して付けます。合うタグが無ければ、その場で作って付けられます（`editor` 以上）。タグは**コンテンツを保存するときに**保存します（タグだけの保存に失敗しても、コンテンツの保存は取り消しません）。
-- **コンテンツ一覧（Articles / Pages）**: 上部の「Tag」ドロップダウンで、特定のタグが付いたコンテンツを絞り込めます（タグの slug または ID。存在しないタグのときは空の一覧を表示）。
+- **Settings → Tags**: a list (by name, 25 at a time, search by name or slug), the number of content items attached, and create, edit, and delete. Creating and changing require `editor` or above; viewing is for everyone.
+- **Editor (articles, static pages) and product editing**: in the "Tags" field, type a name to find and attach an existing tag. If no tag matches, you can create one on the spot and attach it (`editor` or above). Tags are saved **when the content is saved** (even if saving the tags alone fails, the content save is not rolled back).
+- **Content list (Articles / Pages)**: the "Tag" dropdown at the top filters content that has a specific tag (the tag's slug or ID; for a nonexistent tag, an empty list is shown).
 
 ## 4. API
 
-認可は、一覧と読み取りが `viewer` 以上、作成・更新・削除・付け外しが `editor` 以上です。
+For authorization, listing and reading need `viewer` or above, and creating, updating, deleting, and attaching/detaching need `editor` or above.
 
-| メソッドとパス | 内容 |
+| Method and path | Description |
 | --- | --- |
-| `GET /api/v1/tags?q=&limit=&offset=` | タグの一覧（名前の昇順）。`q` は名前・slug への部分一致、`limit` は既定 50・最大 200。各タグに付いているコンテンツの数 `usage` を含む |
-| `POST /api/v1/tags` | 作成。`{"name": "Rust", "slug": "rust", "description": "…"}`（`slug`・`description` は省略可）。`201` |
-| `PUT /api/v1/tags/{id}` | 名前・slug・説明の変更。`name` は必須、`slug` を省略したら今のまま |
-| `DELETE /api/v1/tags/{id}` | 削除。`204` |
-| `GET /api/v1/contents/{type}/{slug_or_id}/tags` | そのコンテンツのタグ（名前の昇順） |
-| `PUT /api/v1/contents/{type}/{slug_or_id}/tags` | そのコンテンツのタグを置き換える。`{"tag_ids": ["…"]}`（空なら全部外す。重複は 1 つにまとめる。存在しないタグ・`max_per_content` を超える数は `400`） |
-| `GET /api/v1/contents/{type}?tag={slug_or_id}` | コンテンツ一覧のタグ絞り込み。タグの slug または ID で指定。`[tags].enabled = false` 時は `404` |
+| `GET /api/v1/tags?q=&limit=&offset=` | A list of tags (ascending by name). `q` is a substring match on name and slug, and `limit` is 50 by default and 200 at most. Each tag includes `usage`, the number of content items attached |
+| `POST /api/v1/tags` | Create. `{"name": "Rust", "slug": "rust", "description": "…"}` (`slug` and `description` can be omitted). `201` |
+| `PUT /api/v1/tags/{id}` | Change the name, slug, and description. `name` is required, and if `slug` is omitted it stays as is |
+| `DELETE /api/v1/tags/{id}` | Delete. `204` |
+| `GET /api/v1/contents/{type}/{slug_or_id}/tags` | The content's tags (ascending by name) |
+| `PUT /api/v1/contents/{type}/{slug_or_id}/tags` | Replace the content's tags. `{"tag_ids": ["…"]}` (empty detaches all; duplicates are merged into one; nonexistent tags and a count over `max_per_content` return `400`) |
+| `GET /api/v1/contents/{type}?tag={slug_or_id}` | Tag filtering of the content list. Specify the tag's slug or ID. Returns `404` when `[tags].enabled = false` |
 
-エラーは英語の `error` で返します（[実装規約](../CLAUDE.md#1a-実装規約)）。
+Errors are returned with an English `error` ([Implementation conventions](../CLAUDE.md#1a-実装規約)).
 
-## 5. 監査ログとバックアップ
+## 5. Audit Log and Backups
 
-- 監査ログ: `tag.create` / `tag.update` / `tag.delete`（タグの作成・変更・削除）と、`content.tags`（コンテンツのタグの変更。タグの slug の一覧を記録）。
-- バックアップ: `database/tags.json` と `database/content_tags.json` に入り、リストアで戻ります（slug が別のタグと重なる場合は、上書きの指定があってもエラーにします）。
+- Audit log: `tag.create` / `tag.update` / `tag.delete` (creating, changing, and deleting tags) and `content.tags` (changing a content's tags; records the list of tag slugs).
+- Backups: they go into `database/tags.json` and `database/content_tags.json` and come back on restore (if a slug overlaps with another tag, it is an error even with an overwrite option).
 
-## 6. 公開サイト
+## 6. Public Site
 
-`[tags].enabled = true` のとき、公開サイトに次のページが加わります。`[tags].enabled = false` ではどれも `404` です。
+When `[tags].enabled = true`, the following pages are added to the public site. With `[tags].enabled = false`, all of them are `404`.
 
-| URL | 内容 |
+| URL | Description |
 | --- | --- |
-| `/tags/{slug}` | そのタグが付いた**公開中の**記事・固定ページ・商品（EC が有効なとき）を、公開日時の新しい順に並べる。`?page=N` でページ送り（`[theme].posts_per_page` 件ずつ）。テンプレートは `tag.html` |
-| `/tags` | 公開中のコンテンツが 1 件以上付いているタグの一覧（名前順）と、その件数。テンプレートは `tags.html` |
-| `/tags/{slug}/feed.xml` | そのタグが付いた**記事**の Atom フィード（固定ページ・商品は載せない） |
-| `/sitemap.xml` | `/tags` と、公開中のコンテンツが付いているタグのページを含む |
+| `/tags/{slug}` | **Published** articles, static pages, and products (when e-commerce is enabled) with that tag, newest publication date first. `?page=N` pages through them (`[theme].posts_per_page` at a time). The template is `tag.html` |
+| `/tags` | A list of tags that have one or more published content items (by name) and their counts. The template is `tags.html` |
+| `/tags/{slug}/feed.xml` | The Atom feed of **articles** with that tag (static pages and products are not included) |
+| `/sitemap.xml` | Includes `/tags` and the pages of tags that have published content |
 
-- **記事・固定ページ・商品のページ**と、記事の一覧（トップ・`/articles`・カテゴリ）の各記事には、付いているタグが `fields.tags` で渡されます。各タグは `id`・`slug`・`name`・`description`・`url`（`base_path` 込みのタグのページ）です。スキーマに `tags` という名前のフィールドがあるときは、そちらを優先して `fields.tags` を上書きしません。
-- **組み込みのテンプレート**（`tag.html`・`tags.html`）と、組み込みの記事・固定ページのテンプレート、同梱テーマ 5 種の `article.html` は、タグへのリンク（`rel="tag"`）を出します。独自のテーマでは、次のように書けます。
+- **Article, static page, and product pages**, and each article in article lists (top, `/articles`, categories), get their tags in `fields.tags`. Each tag has `id`, `slug`, `name`, `description`, and `url` (the tag's page, including `base_path`). If the schema has a field named `tags`, that one takes priority and `fields.tags` is not overwritten.
+- **The built-in templates** (`tag.html`, `tags.html`), the built-in article and static page templates, and the `article.html` of the 5 bundled themes output links to the tags (`rel="tag"`). In your own theme you can write:
 
 ```html
 {% if fields.tags %}
@@ -81,11 +83,11 @@ max_per_content = 20   # 1 つのコンテンツに付けられる数（1〜100�
 {% endif %}
 ```
 
-- **キャッシュ**: ページは依存タグ `tag-<id>`（と `tag-<slug>`）を持ちます。タグの名前・slug の変更・削除、コンテンツへの付け外しで、そのタグのページ・フィード・一覧・サイトマップ・タグを表示しているページの `[cdn]` のキャッシュ（Cache-Tag）を消します。
-- **一覧の取り方**: タグのページは、公開中のコンテンツを種類ごとに読んでからタグで絞って並べ替えます（カテゴリの記事一覧と同じ方法）。公開中のコンテンツが数万件を超える規模では、SQL での絞り込みに移すことを検討してください。
-- **ページと衝突しない**: `/tags` は固定ページの `/{slug}` より先に使われるので、`[tags].enabled = true` のとき slug が `tags` の固定ページは表示されません。
+- **Cache**: pages have the dependency tags `tag-<id>` (and `tag-<slug>`). Changing a tag's name or slug, deleting it, or attaching/detaching it to content clears the `[cdn]` cache (Cache-Tag) of that tag's page, feed, list, sitemap, and the pages that display the tag.
+- **How lists are fetched**: the tag page reads published content per kind and then filters by tag and sorts (the same method as the category article list). At a scale beyond tens of thousands of published content items, consider moving the filtering to SQL.
+- **No collision with pages**: `/tags` takes precedence over a static page's `/{slug}`, so with `[tags].enabled = true`, a static page whose slug is `tags` is not displayed.
 
-## 7. 関連機能
+## 7. Related Features
 
-- **サイト内検索**: `GET /api/v1/search?q=...&tag={slug}` でタグ絞り込みが可能です（[サイト内検索](search.md)）。
-- **Admin Studio**: コンテンツ一覧（Articles / Pages）でのタグ絞り込みに対応しています。
+- **Site search**: tag filtering is possible with `GET /api/v1/search?q=...&tag={slug}` ([Site search](search.md)).
+- **Admin Studio**: tag filtering in the content list (Articles / Pages) is supported.

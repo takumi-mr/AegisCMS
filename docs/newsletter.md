@@ -1,58 +1,60 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# ニュースレター
+**English** | [日本語](newsletter.ja.md)
 
-読者がメールアドレスを登録し、新しい記事のお知らせをメールで受け取れるようにします（`[newsletter]`）。申し込むと確認のメールが届き、**そのリンクを開いて初めて**購読が始まります（ダブルオプトイン）。メールにはそれぞれ配信停止のリンクが付きます。管理者は Admin Studio の **Settings › Newsletter** で、公開中の記事を購読者全員に送れます。
+# Newsletter
 
-機能はクレート `aegis-newsletter` にあります。メールは `[notifications]` の送信待ち（[通知](notifications.md)）で送るので、**SMTP の設定が先に要ります**。
+Lets readers register their email address and receive notices of new articles by email (`[newsletter]`). After signing up, a confirmation email arrives, and the subscription starts **only once they open its link** (double opt-in). Each email includes an unsubscribe link. In Admin Studio's **Settings › Newsletter**, administrators can send a published article to all subscribers.
+
+The feature lives in the `aegis-newsletter` crate. Emails are sent through the `[notifications]` outbox ([Notifications](notifications.md)), so **SMTP must be configured first**.
 
 ```text
- 読者 ── /newsletter のフォーム（または POST /api/v1/newsletter/subscribe）
-        │  メールアドレス
+ Reader ── the form at /newsletter (or POST /api/v1/newsletter/subscribe)
+        │  email address
         ▼
- ボット除けの見えない欄／CAPTCHA（`[captcha]` の `targets` に `newsletter`）／IP ごとの申し込み数 ── 断る・成功と同じに見せて捨てる
+ Invisible bot-trap field / CAPTCHA (`newsletter` in `[captcha]` `targets`) / sign-ups per IP ── refuse, or discard while looking like success
         │
- 新しいアドレス・解除したアドレス ──▶ 確認待ち（pending）で保存 → 確認メール newsletter.confirm
- 登録済み・確認待ち（1 分以内）   ──▶ 何も送らない（どの状態かは応答から分からない）
-        │  メールのリンク /newsletter/confirm?token=…（開くとボタン。押すと確定）
+ New address, or an unsubscribed one ──▶ saved as pending → confirmation email newsletter.confirm
+ Registered, or pending (within 1 minute) ──▶ nothing is sent (the response does not reveal which state it is)
+        │  link in the email /newsletter/confirm?token=… (opens a page with a button; pressing it confirms)
         ▼
- 購読中（active） ◀── 管理者が記事を選んで送る ── 購読者 1 人ずつに newsletter.issue（解除のリンク付き）
-        │  メールのリンク /newsletter/unsubscribe?token=…（開くとボタン。押すと停止）
+ Subscribed (active) ◀── the administrator picks an article and sends ── newsletter.issue to each subscriber one by one (with an unsubscribe link)
+        │  link in the email /newsletter/unsubscribe?token=… (opens a page with a button; pressing it stops)
         ▼
- 停止（unsubscribed）
+ Stopped (unsubscribed)
 ```
 
 ---
 
-## 1. 有効にする
+## 1. Enabling It
 
 ```toml
 [commerce]
-public_url = "https://example.com"   # メールのリンクに使う公開サイトの URL（必須）
+public_url = "https://example.com"   # URL of the public site used in email links (required)
 
 [notifications]
-enabled = true                        # 確認メールと配信をメールで送る（SMTP の設定は通知のドキュメント）
+enabled = true                        # send confirmation emails and deliveries by email (for SMTP settings, see the notifications document)
 channels = ["email"]
 
 [newsletter]
 enabled = true
-locale = "ja"                         # 申し込み・確認・停止のページの言語（en / ja）
+locale = "ja"                         # language of the sign-up, confirmation, and unsubscribe pages (en / ja)
 ```
 
-- `[newsletter].enabled = true` で `/newsletter`・API・Admin Studio の画面が有効になります。`[commerce].public_url` が空だと、メールのリンクが作れないので**サーバーが起動しません**。`[notifications]` が無効のときは、起動はしますが、確認メールも配信も送れません（警告をログに出します）。
-- メールの文面（件名・本文）は通知のテンプレート `newsletter.confirm` / `newsletter.issue` です。Admin Studio の **Settings › Notifications** で編集・テスト送信できます（[通知 6](notifications.md#6-admin-studio-から管理する)）。
-- 申し込みページ `/newsletter`、確認 `/newsletter/confirm`、停止 `/newsletter/unsubscribe` のパスは変えられません。`/newsletter` は `admin_path` にも使えません。
+- With `[newsletter].enabled = true`, `/newsletter`, the API, and the Admin Studio screen become active. If `[commerce].public_url` is empty, email links cannot be built, so **the server does not start**. When `[notifications]` is disabled, it starts but can send neither confirmation emails nor deliveries (a warning is logged).
+- The email text (subject and body) is the notification templates `newsletter.confirm` / `newsletter.issue`. They can be edited and test-sent in Admin Studio's **Settings › Notifications** ([Notifications 6](notifications.md#6-managing-from-admin-studio)).
+- The paths of the sign-up page `/newsletter`, confirmation `/newsletter/confirm`, and unsubscribe `/newsletter/unsubscribe` cannot be changed. `/newsletter` cannot be used for `admin_path` either.
 
-| キー | 型 | 既定値 | 説明 |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で有効にする |
-| `max_per_ip_per_hour` | integer | `10` | 同じ IP からの 1 時間あたりの申し込みの数（0 で無制限。`[cache]` で数える） |
-| `confirm_ttl_hours` | integer | `48` | 確認リンクの有効期限（時間。1〜336）。過ぎたら同じアドレスでもう一度申し込む |
-| `locale` | string | `"en"` | 申し込み・確認・停止のページの文言の言語。`en` / `ja` |
+| `enabled` | bool | `false` | `true` enables it |
+| `max_per_ip_per_hour` | integer | `10` | Number of sign-ups per hour from the same IP (0 is unlimited; counted in `[cache]`) |
+| `confirm_ttl_hours` | integer | `48` | Expiry of the confirmation link (hours; 1–336). After it passes, sign up again with the same address |
+| `locale` | string | `"en"` | Language of the text on the sign-up, confirmation, and unsubscribe pages. `en` / `ja` |
 
-## 2. CAPTCHA（任意）
+## 2. CAPTCHA (Optional)
 
-申し込みフォームがボットに狙われるときだけ、CAPTCHA を足せます。書き方・fail-closed の既定・CSP の自動追加は問い合わせフォームと同じです（[問い合わせフォーム 1.2](contact.md#12-captcha任意)）。
+Add CAPTCHA only if the sign-up form is being targeted by bots. How to write it, the fail-closed default, and the automatic CSP additions are the same as for the contact form ([Contact form 1.2](contact.md#12-captcha-optional)).
 
 ```toml
 [captcha]
@@ -62,13 +64,13 @@ site_key = "0x4AAAA..."
 secret = "env:TURNSTILE_SECRET"
 ```
 
-JSON の API にも同じ検査がかかり、トークンの欄（`cf-turnstile-response` など）が無いと `400 captcha_failed` になります。
+The same check applies to the JSON API, and without the token field (such as `cf-turnstile-response`) it returns `400 captcha_failed`.
 
-## 3. 申し込みのページ
+## 3. The Sign-Up Page
 
-`/newsletter` は、テーマの `page.html`（本文に説明とフォームを入れて描きます）で表示されます。見た目は `page.html` を変えるか、CSS で `.aegis-newsletter-form`・`.aegis-newsletter-submit`・`.aegis-newsletter-notice`・`.aegis-newsletter-sent` を指定します（最低限のスタイルは詳細度 0 で付くので、テーマの CSS が優先されます）。メニューやフッターからリンクしてください。
+`/newsletter` is displayed with the theme's `page.html` (rendered with the description and form in the body). To change the look, change `page.html`, or specify `.aegis-newsletter-form`, `.aegis-newsletter-submit`, `.aegis-newsletter-notice`, and `.aegis-newsletter-sent` in CSS (the minimal styles are applied with zero specificity, so the theme's CSS takes precedence). Link to it from the menu or footer.
 
-自分でフォームを置くときは、次の形で `POST /newsletter/subscribe` に送ります。**見えない欄 `website` は必ず入れ、人に見えないように隠してください**（ボットが埋めると、成功と同じ応答で捨てます）。
+When placing your own form, submit it to `POST /newsletter/subscribe` in this shape. **Always include the invisible field `website`, and hide it so people cannot see it** (if a bot fills it, the request is discarded with the same response as success).
 
 ```html
 <form method="post" action="/newsletter/subscribe">
@@ -80,48 +82,48 @@ JSON の API にも同じ検査がかかり、トークンの欄（`cf-turnstile
 </form>
 ```
 
-受け付けると `/newsletter?sent=1`（「確認のメールを送りました」）へ移ります。`[server].base_path` があるときは、`action` にも付けてください。
+When accepted, it moves to `/newsletter?sent=1` ("We sent a confirmation email"). When there is a `[server].base_path`, add it to `action` too.
 
-### 3.1 確認と停止のリンク
+### 3.1 Confirmation and Unsubscribe Links
 
-メールのリンクを開くと、**ボタンのあるページ**が出ます。ボタンを押すと（`POST`）実行します。メールを自動で開くセキュリティソフトやプレビューに、購読の確定や停止を勝手に実行させないためです。
+Opening a link in an email shows **a page with a button**. Pressing the button (`POST`) carries it out. This is so that security software or previews that open emails automatically cannot confirm or stop a subscription on their own.
 
-- 確認リンクの有効期限は `confirm_ttl_hours`。期限切れ・使用済み・存在しないリンクは、どれも同じ「無効か期限切れ」のページ（404）です。
-- 停止すると、同じ購読者の古い確認リンクは使えません。停止した人がもう一度申し込むと、確認からやり直し（新しいリンク）になります。
-- 確認待ちのまま 7 日たった申し込みは、1 日に 1 回の掃除で消えます。
+- The confirmation link's expiry is `confirm_ttl_hours`. Expired, used, or nonexistent links all show the same "invalid or expired" page (404).
+- Once unsubscribed, the same subscriber's old confirmation links cannot be used. If a person who unsubscribed signs up again, it starts over from confirmation (with a new link).
+- Sign-ups that stay pending for 7 days are removed by a cleanup that runs once a day.
 
-## 4. 申し込みの扱い（プライバシー）
+## 4. Handling of Sign-Ups (Privacy)
 
-- **登録済みかどうかは分かりません**: 申し込みの応答は、新しいアドレス・登録済み・確認待ち・停止済みのどれでも同じです。登録済みのアドレスには何も送りません（他人のアドレスを入力して、その人に迷惑メールを送らせることを難しくします）。
-- 確認待ちのアドレスには、前の確認メールから **1 分以上**たってからでないと、確認メールを送り直しません。IP ごとの申し込みの数（`max_per_ip_per_hour`）も効きます。
-- 保存するのは、メールアドレス・状態・確認と停止のリンクのトークン・申し込み時の IP アドレス・日時です。IP アドレスは Admin Studio の一覧にだけ出ます。トークンは API にも画面にも出しません。
-- 購読者はバックアップ（`database/newsletter_subscribers.json`・`newsletter_issues.json`）に含まれます。個人情報なので、バックアップの扱いに注意してください。
+- **It does not reveal whether someone is registered**: the response to a sign-up is the same for a new address, a registered one, a pending one, and an unsubscribed one. Nothing is sent to an already registered address (this makes it harder to have someone enter another person's address and cause spam to be sent to them).
+- A pending address gets another confirmation email only **at least 1 minute** after the previous one. The per-IP sign-up count (`max_per_ip_per_hour`) applies too.
+- What is stored is the email address, status, the tokens for the confirmation and unsubscribe links, the IP address at sign-up, and the time. The IP address appears only in Admin Studio's list. Tokens appear neither in the API nor on screen.
+- Subscribers are included in backups (`database/newsletter_subscribers.json`, `newsletter_issues.json`). It is personal information, so be careful with how backups are handled.
 
-## 5. Admin Studio（Settings › Newsletter、`admin`）
+## 5. Admin Studio (Settings › Newsletter, `admin`)
 
-- **状態ごとの人数**（購読中・確認待ち・停止）。
-- **コンテンツを送る**: 公開中の記事を選び、要約（空なら記事の `excerpt` フィールド、無ければ最初の段落）を確かめ、**先に自分へテスト送信**して、購読者全員に送ります。送った記録（履歴）が残り、同じ記事をもう一度送ろうとすると、確認してから送り直せます。
-  - メールにはタイトル・要約・記事の URL・購読者ごとの停止リンクが入ります。
-  - 送るのは**今公開されている版**です（保存しただけで公開していない変更は含まれません）。
-  - 送信は通知の送信待ちに入り、サーバーを再起動しても失われません。購読者の数だけメールを送るので、SMTP サーバーの 1 日の送信上限を確かめてください。
-- **購読者**: 一覧（登録の新しい順・状態で絞り込み・メールアドレスで検索）、削除（記録ごと消す）、**CSV の書き出し**（配信する人のメールアドレス）。
-- **送信履歴**: 送った記事と宛先の数。
+- **Counts per status** (subscribed, awaiting confirmation, stopped).
+- **Sending content**: choose a published article, check the summary (if empty, the article's `excerpt` field, or else the first paragraph), **send a test to yourself first**, and then send to all subscribers. A record (history) of what was sent is kept, and if you try to send the same article again, you can resend after confirming.
+  - The email contains the title, summary, the article's URL, and a per-subscriber unsubscribe link.
+  - What is sent is the **version currently published** (changes that are only saved and not published are not included).
+  - Sending goes into the notification outbox and is not lost even if the server restarts. Because one email is sent per subscriber, check your SMTP server's daily sending limit.
+- **Subscribers**: a list (newest sign-ups first, filter by status, search by email address), delete (removes the record entirely), and **CSV export** (the email addresses of people who receive deliveries).
+- **Send history**: the articles sent and the number of recipients.
 
 ## 6. API
 
-| API | 権限 | 説明 |
+| API | Permission | Description |
 | --- | --- | --- |
-| `POST /api/v1/newsletter/subscribe` | なし | `{"email": "...", "website": ""}`。受け付けたら `202 {"status": "pending"}`（登録済みでも同じ）。誤りは `400 invalid_email`、`429 rate_limited`、CAPTCHA は `400 captcha_failed` / `503 captcha_unavailable` |
-| `GET /api/v1/newsletter/subscribers?status=&q=&limit=&offset=` | admin | 購読者（登録の新しい順）と総数、状態ごとの人数 `counts`。トークンは含めない |
-| `POST /api/v1/newsletter/subscribers/delete` | admin | `{"ids": [...]}`（1〜500 件）。`{"count": n}` |
-| `GET /api/v1/newsletter/subscribers/export` | admin | 配信する人のメールアドレスの CSV（`text/csv`、ダウンロード） |
-| `GET /api/v1/newsletter/issues?limit=&offset=` | admin | 送信履歴（新しい順）と総数 |
-| `POST /api/v1/newsletter/issues` | admin | `{"content_type": "article", "slug_or_id": "...", "summary": "", "test_to": "", "force": false}`。`test_to` を付けるとそのアドレスにだけ送る（`202`、履歴に残さない）。購読者全員に送ると `201`（履歴の 1 件）。送信済みは `409 already_sent`（`force: true` で送り直す）、購読者がいないと `409 no_subscribers`、公開していないと `400 content_not_published` |
+| `POST /api/v1/newsletter/subscribe` | None | `{"email": "...", "website": ""}`. When accepted, `202 {"status": "pending"}` (the same even if already registered). Mistakes are `400 invalid_email` and `429 rate_limited`; CAPTCHA gives `400 captcha_failed` / `503 captcha_unavailable` |
+| `GET /api/v1/newsletter/subscribers?status=&q=&limit=&offset=` | admin | Subscribers (newest sign-ups first), the total, and the counts per status `counts`. Tokens are not included |
+| `POST /api/v1/newsletter/subscribers/delete` | admin | `{"ids": [...]}` (1–500 items). `{"count": n}` |
+| `GET /api/v1/newsletter/subscribers/export` | admin | A CSV of the email addresses of people who receive deliveries (`text/csv`, as a download) |
+| `GET /api/v1/newsletter/issues?limit=&offset=` | admin | The send history (newest first) and the total |
+| `POST /api/v1/newsletter/issues` | admin | `{"content_type": "article", "slug_or_id": "...", "summary": "", "test_to": "", "force": false}`. With `test_to`, it sends only to that address (`202`, not recorded in history). Sending to all subscribers returns `201` (one history entry). An already sent one returns `409 already_sent` (resend with `force: true`), no subscribers returns `409 no_subscribers`, and unpublished content returns `400 content_not_published` |
 
-エラーは英語で、機械が読む `code` を付けます。配信と削除は監査ログ（`newsletter.send` / `newsletter.delete`）に残ります。
+Errors are in English and carry a machine-readable `code`. Sending and deleting are recorded in the audit log (`newsletter.send` / `newsletter.delete`).
 
-## 7. 動作の決まり
+## 7. Behavior Rules
 
-- **同じ記事を同時に 2 回送りません**（ボタンの二度押し・複数の管理者）。ほかで送っている間は `503 unavailable` です。
-- 配信は購読者を 500 人ずつ読み込みながら通知に渡すので、購読者が多くてもメモリを使い切りません。途中でサーバーが止まった場合、通知の送信待ちに入った分は再起動後に送られますが、まだ渡していない購読者には届きません（履歴は最後に残すので、その場合は `force` で送り直せます。届いた人には重複して届きます）。
-- 解除の URL はメールの本文だけに出ます。`List-Unsubscribe` ヘッダー（ワンクリック解除）は付けません（メールのチャネルがヘッダーの追加に対応していないため）。
+- **The same article is never sent twice at once** (double-clicking the button, multiple administrators). While another send is in progress, it returns `503 unavailable`.
+- Delivery loads subscribers 500 at a time while handing them to notifications, so memory is not exhausted even with many subscribers. If the server stops partway, the ones already in the notification outbox are sent after restart, but subscribers not yet handed over do not receive it (the history is recorded at the end, so in that case you can resend with `force`; people who already received it get a duplicate).
+- The unsubscribe URL appears only in the email body. The `List-Unsubscribe` header (one-click unsubscribe) is not added (because the email channel does not support adding headers).

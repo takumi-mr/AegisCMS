@@ -84,5 +84,5 @@ cargo build --target wasm32-unknown-unknown --release
 
 ## ドキュメント
 
-- [プラグイン開発ガイド](../../docs/plugin_sdk_guide.md)
-- [プラグイン ABI 仕様書](../../docs/plugin_abi_specification.md)
+- [プラグイン開発ガイド](../../docs/plugin_sdk_guide.ja.md)
+- [プラグイン ABI 仕様書](../../docs/plugin_abi_specification.ja.md)

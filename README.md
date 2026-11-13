@@ -3,7 +3,7 @@
 **English** | [日本語](README.ja.md)
 
 > [!NOTE]
-> The READMEs are available in English and Japanese (`README.md` / `README.ja.md` in each directory). The detailed documents under [`docs/`](docs) are currently written in Japanese only.
+> The READMEs are available in English and Japanese (`README.md` / `README.ja.md` in each directory). The detailed documents under [`docs/`](docs) are in English (`*.md`), with Japanese copies (`*.ja.md`) kept as a snapshot.
 
 > [!TIP]
 >
@@ -239,7 +239,7 @@ The official SDK that lets third-party developers build WebAssembly plugins safe
 - **Official templates & multi-language packages**: [`sdk/templates/rust`](sdk/templates/rust) to start developing immediately (to add a block that can be placed in the body, use [`sdk/templates/rust-block`](sdk/templates/rust-block); AssemblyScript / TinyGo versions are also bundled in `sdk/templates/`). Official GitHub-centered packages are published and distributed for each language (Rust: the GitHub Git dependency `aegis-plugin-sdk`, AssemblyScript: GitHub Packages `@takumi-mr/plugin-sdk`, TinyGo: Go Modules `github.com/takumi-mr/AegisCMS/sdk/tinygo`). See the [Wasm Plugin Development Guide](docs/plugin_sdk_guide.md) for details.
 
 > [!TIP]
-> Documentation index (the documents under `docs/` are in Japanese):
+> Documentation index:
 >
 > - **[Documentation portal (`docs/README.md`)](docs/README.md)** (the index and map of all documents)
 > - Design and development: [Internal design (`docs/architecture.md`)](docs/architecture.md) / [Development guide (`docs/development.md`)](docs/development.md) / [Admin Studio (`admin/README.md`)](admin/README.md)

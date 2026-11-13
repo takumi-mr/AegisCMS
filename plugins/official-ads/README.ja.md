@@ -62,4 +62,4 @@ content_types = "article"                    # 広告を配信するコンテン
 
 ## `custom_head_code` で使えるタグ
 
-`custom_head_code`（管理画面の「カスタムヘッダータグ」）に書いた HTML は、`<head>` にそのまま入りますが、**`<script>` と `on*` 属性（`onload` など）はホストが取り除きます**。スクリプトは、プラグインが宣言したホストのものだけ、プラグイン自身が足せます（AdSense のスクリプトは `client_id` から足されます）。`<meta>`・`<link>`・`<style>` は使えます。経緯は [CSP の方針](../../docs/csp.md)。
+`custom_head_code`（管理画面の「カスタムヘッダータグ」）に書いた HTML は、`<head>` にそのまま入りますが、**`<script>` と `on*` 属性（`onload` など）はホストが取り除きます**。スクリプトは、プラグインが宣言したホストのものだけ、プラグイン自身が足せます（AdSense のスクリプトは `client_id` から足されます）。`<meta>`・`<link>`・`<style>` は使えます。経緯は [CSP の方針](../../docs/csp.ja.md)。

@@ -3,7 +3,7 @@
 **English** | [日本語](README.ja.md)
 
 > [!NOTE]
-> The documents listed below are currently written in Japanese only. This index is provided in English and Japanese.
+> Each document also has a Japanese copy (`*.ja.md`). The Japanese copies are a snapshot from when the documents were translated and are not kept in sync with the English documents.
 
 The official collection of documents on AegisCMS's design, configuration, feature specifications, extension development (themes and plugins), and operations.  
 Refer to the most suitable document for what you want to know and for your role (site operator, theme author, plugin developer, core developer).

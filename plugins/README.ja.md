@@ -15,10 +15,10 @@ plugins/
     └── plugin.wasm
 ```
 
-プラグインの作り方は [docs/plugin_sdk_guide.md](../docs/plugin_sdk_guide.md)、テンプレートとサンプルは [`sdk/`](../sdk) にあります。本文に置けるブロックを作るなら、[最初のブロックプラグインを作る](../docs/plugin_block_tutorial.md)（テンプレート [`sdk/templates/rust-block`](../sdk/templates/rust-block)）から始めると早いです。
+プラグインの作り方は [docs/plugin_sdk_guide.ja.md](../docs/plugin_sdk_guide.ja.md)、テンプレートとサンプルは [`sdk/`](../sdk) にあります。本文に置けるブロックを作るなら、[最初のブロックプラグインを作る](../docs/plugin_block_tutorial.ja.md)（テンプレート [`sdk/templates/rust-block`](../sdk/templates/rust-block)）から始めると早いです。
 
 > [!NOTE]
-> このリポジトリの中（`plugins/<name>/`）に Rust のプラグインを新しく作ると、ルートの `Cargo.toml` のワークスペースに含まれていないため、`cargo build` が `current package believes it's in a workspace when it's not` で失敗します。公式プラグインとして取り込むなら、ルートの `[workspace] members` に足します。個人のプラグインなら、プラグインの `Cargo.toml` の末尾に空の `[workspace]` を書いて独立した crate にします（[SDK ガイド 2.1](../docs/plugin_sdk_guide.md#21-テンプレートの準備)）。
+> このリポジトリの中（`plugins/<name>/`）に Rust のプラグインを新しく作ると、ルートの `Cargo.toml` のワークスペースに含まれていないため、`cargo build` が `current package believes it's in a workspace when it's not` で失敗します。公式プラグインとして取り込むなら、ルートの `[workspace] members` に足します。個人のプラグインなら、プラグインの `Cargo.toml` の末尾に空の `[workspace]` を書いて独立した crate にします（[SDK ガイド 2.1](../docs/plugin_sdk_guide.ja.md#21-テンプレートの準備とひな形生成-task-pluginnew)）。
 
 ## 公式プラグイン
 
@@ -27,10 +27,10 @@ plugins/
 | [`official-code-enhancer`](official-code-enhancer/) | `transform-content-ast`, `on-render-page` | コードのシンタックスハイライト（Prism.js）・外部テーマ・コピーボタン・インラインコードの整形。テーマは Admin Studio の Settings › Plugins で選ぶ。コードの無いページには何も足さない |
 | [`official-mermaid`](official-mermaid/) | `on-render-page` | ` ```mermaid ` のコードブロックを Mermaid の図にする。図のあるページだけ Mermaid を読み込む。テーマ・セキュリティレベル・スクリプトの URL は Admin Studio の Settings › Plugins で変える |
 | [`official-plantuml`](official-plantuml/) | `on-render-page` | ` ```plantuml ` のコードブロックを、PlantUML サーバーが描く図の画像にする（ページにスクリプトを入れない）。サーバーの URL・画像の形式は Admin Studio の Settings › Plugins で変える |
-| [`official-shop-rules`](official-shop-rules/) | `calculate-order`, `on-order-status-changed` | EC の送料（送料無料の条件）・クーポン（利用回数の上限）・税（[EC](../docs/commerce.md#71-公式プラグイン)） |
+| [`official-shop-rules`](official-shop-rules/) | `calculate-order`, `on-order-status-changed` | EC の送料（送料無料の条件）・クーポン（利用回数の上限）・税（[EC](../docs/commerce.ja.md#71-公式プラグイン)） |
 | [`official-order-notifier`](official-order-notifier/) | `on-order-status-changed` | 注文の作成・状態の変化を Slack / Webhook に通知（`http::fetch`） |
-| [`official-blocks`](official-blocks/) | `render-blocks` | 本文に置けるボタン・リンクカード・動画（YouTube・Vimeo）のブロック（[本文のブロック](../docs/blocks.md#4-プラグインのブロック)）。カスタムブロックのお手本 |
-| [`official-link-embed`](official-link-embed/) | `transform-content-ast`, `render-blocks` | URL だけの段落を、そのページの OGP / oEmbed から作ったリンクカードにする（保存時にサンドボックス内で取得してブロックに保存。表示時は通信しない）。取得先は `extra_allowed_domains` で足せる（[本文のブロック](../docs/blocks.md#5-ogp--oembed)） |
+| [`official-blocks`](official-blocks/) | `render-blocks` | 本文に置けるボタン・リンクカード・動画（YouTube・Vimeo）のブロック（[本文のブロック](../docs/blocks.ja.md#4-プラグインのブロック)）。カスタムブロックのお手本 |
+| [`official-link-embed`](official-link-embed/) | `transform-content-ast`, `render-blocks` | URL だけの段落を、そのページの OGP / oEmbed から作ったリンクカードにする（保存時にサンドボックス内で取得してブロックに保存。表示時は通信しない）。取得先は `extra_allowed_domains` で足せる（[本文のブロック](../docs/blocks.ja.md#5-ogp--oembed)） |
 | [`official-page-toc`](official-page-toc/) | `on-render-page` | 記事・固定ページの横に、見出しへのリンク（目次）とスクロールの進捗を出す。位置・色・階層などは `[plugins.settings.official-page-toc]` で変えられる |
 | [`official-back-to-top`](official-back-to-top/) | `on-render-page` | 本文の末尾（または画面に固定）に「トップへ戻る」ボタンを出す。形・色・位置などは `[plugins.settings.official-back-to-top]` で変えられる |
 | [`official-share-buttons`](official-share-buttons/) | `on-render-page` | 記事・固定ページの末尾（または上部/両方）に SNS 共有ボタン（X・LINE・URLコピーなど）を出す。表示先やカスタム共有先の設定が可能 |

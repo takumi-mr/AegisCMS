@@ -62,4 +62,4 @@ In the editor's add-block menu, choose "Ad / Banner" (`official-ads/display`).
 
 ## Tags Usable in `custom_head_code`
 
-HTML written in `custom_head_code` (the admin screen's "Custom header tags") goes into `<head>` as is, but **the host strips `<script>` and `on*` attributes (such as `onload`)**. Scripts can only be added by the plugin itself, and only from hosts the plugin has declared (the AdSense script is added from `client_id`). `<meta>`, `<link>`, and `<style>` can be used. For the background, see the [CSP policy](../../docs/csp.md) (in Japanese).
+HTML written in `custom_head_code` (the admin screen's "Custom header tags") goes into `<head>` as is, but **the host strips `<script>` and `on*` attributes (such as `onload`)**. Scripts can only be added by the plugin itself, and only from hosts the plugin has declared (the AdSense script is added from `client_id`). `<meta>`, `<link>`, and `<style>` can be used. For the background, see the [CSP policy](../../docs/csp.md).

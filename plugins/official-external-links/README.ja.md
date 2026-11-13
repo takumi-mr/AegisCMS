@@ -2,7 +2,7 @@
 
 [English](README.md) | **日本語**
 
-本文の**外部リンク**の扱いをそろえる公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.md)）。
+本文の**外部リンク**の扱いをそろえる公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.ja.md)）。
 
 | 付けるもの | 内容 |
 | --- | --- |

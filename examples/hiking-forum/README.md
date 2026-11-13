@@ -2,7 +2,7 @@
 
 **English** | [日本語](README.ja.md)
 
-A sample hiking community site built with AegisCMS's forum ([docs/forum.md](../../docs/forum.md), in Japanese). The posts, people, and meetups are all fictional. The sample content (posts, article text) is in Japanese.
+A sample hiking community site built with AegisCMS's forum ([docs/forum.md](../../docs/forum.md)). The posts, people, and meetups are all fictional. The sample content (posts, article text) is in Japanese.
 
 ![Top page of the sample forum "Yamabiko"](../../docs/images/forum-public.png)
 

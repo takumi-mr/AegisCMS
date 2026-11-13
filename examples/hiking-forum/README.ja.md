@@ -2,7 +2,7 @@
 
 [English](README.md) | **日本語**
 
-AegisCMS の掲示板（[docs/forum.md](../../docs/forum.md)）で作った、山歩きのコミュニティサイトのサンプルです。投稿・人物・オフ会はすべて架空のものです。
+AegisCMS の掲示板（[docs/forum.ja.md](../../docs/forum.ja.md)）で作った、山歩きのコミュニティサイトのサンプルです。投稿・人物・オフ会はすべて架空のものです。
 
 ![サンプル掲示板「やまびこ」のトップページ](../../docs/images/forum-public.png)
 

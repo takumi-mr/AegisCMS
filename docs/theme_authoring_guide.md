@@ -1,53 +1,55 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# テーマ作成ガイド
+**English** | [日本語](theme_authoring_guide.ja.md)
 
-公開サイトの見た目（テーマ）の作り方をまとめます。テーマエンジンの仕組み（テンプレートの探索順、プラグインによる書き換え）は [コンテンツ公開 & テーマエンジン開発ガイド](./theme_and_publishing_guide.md) を参照してください。
+# Theme Authoring Guide
 
-お手本には `themes/roastery`（サンプルショップ「朝凪珈琲」のテーマ）が一番よくまとまっています。ショップのページまで含めてテーマの色で表示され、スマートフォンの幅にも対応しています。
+Collects how to build the public site's look (themes). For how the theme engine works (the template search order, rewriting by plugins), see the [Content publishing & theme engine development guide](./theme_and_publishing_guide.md).
+
+As a model, `themes/roastery` (the theme of the sample shop "Asanagi Coffee") is the best put together. Even the shop pages are displayed in the theme's colors, and it supports smartphone widths.
 
 ---
 
-## 1. テーマのひな形生成 (`task theme:new`)
+## 1. Generating a Theme Scaffold (`task theme:new`)
 
-新しいテーマを作成する際は、`task theme:new` コマンドを使用することで、すぐに動作するテンプレート群（`base.html`, `index.html`, `article.html`, `page.html`, `404.html`）、レスポンシブな `style.css`、プレビュー用 SVG、および `theme.json` を一括生成できます。
+When creating a new theme, the `task theme:new` command generates in one go a set of working templates (`base.html`, `index.html`, `article.html`, `page.html`, `404.html`), a responsive `style.css`, a preview SVG, and `theme.json`.
 
 ```bash
-# 新規テーマのひな形を生成 (themes/my-theme/)
+# Generate a scaffold for a new theme (themes/my-theme/)
 task theme:new -- my-theme
 
-# 表示名や既存テーマをベースに指定して生成
+# Generate with a display name or an existing theme as the base
 task theme:new -- coffee-craft --title "Coffee Craft"
 task theme:new -- custom-trailhead --from trailhead
 ```
 
 ---
 
-## 2. ディレクトリ構成
+## 2. Directory Layout
 
-テーマは `[paths].themes_dir`（既定は `themes/`）の下に、テーマの ID と同じ名前のディレクトリとして置きます。
+Place a theme under `[paths].themes_dir` (default `themes/`) as a directory with the same name as the theme's ID.
 
 ```text
 themes/my-theme/
-├── theme.json          # マニフェスト（必須）
-├── preview.svg         # Admin Studio のテーマ一覧に出すプレビュー画像（preview.png / .webp / .jpg でも可）
+├── theme.json          # manifest (required)
+├── preview.svg         # preview image shown in Admin Studio's theme list (preview.png / .webp / .jpg also work)
 ├── templates/
-│   ├── base.html       # 全ページ共通の骨組み（必須）
-│   ├── index.html      # 記事一覧（トップページが記事一覧のときはトップも）
-│   ├── front.html      # トップページ（[theme].front_page = "template" のとき）
-│   ├── category.html   # カテゴリの記事一覧
-│   ├── search.html     # サイト内検索の結果
-│   ├── contact.html    # 問い合わせフォーム
-│   ├── article.html    # 記事
-│   ├── page.html       # 固定ページ
-│   └── 404.html        # 見つからない・非公開のページ
+│   ├── base.html       # the skeleton common to all pages (required)
+│   ├── index.html      # article list (also the top when the top page is the article list)
+│   ├── front.html      # top page (when [theme].front_page = "template")
+│   ├── category.html   # a category's article list
+│   ├── search.html     # site search results
+│   ├── contact.html    # contact form
+│   ├── article.html    # article
+│   ├── page.html       # static page
+│   └── 404.html        # not found / unpublished page
 └── assets/
-    └── style.css       # /theme/assets/style.css で配信される
+    └── style.css       # served at /theme/assets/style.css
 ```
 
-- `templates/` に無いテンプレートは組み込みのテンプレートで描画されます。最初は `base.html` だけを作り、他は組み込みのまま確かめていく進め方もできます。
-- ただし将来のテーママーケットプレイスでの配布に使う検証（`validate_theme_package`）は、`theme.json` と `templates/base.html` が無いと通りません。
-- `assets/` の中身は `{{ base_path }}/theme/assets/<パス>` で配信されます（画像・フォント・JS も置けます）。
+- Templates missing from `templates/` are rendered with the built-in templates. You can start by making only `base.html` and checking with the built-in ones for the rest.
+- However, the validation used for distribution in a future theme marketplace (`validate_theme_package`) does not pass without `theme.json` and `templates/base.html`.
+- The contents of `assets/` are served at `{{ base_path }}/theme/assets/<path>` (images, fonts, and JS can be placed too).
 
 ## 3. `theme.json`
 
@@ -56,7 +58,7 @@ themes/my-theme/
   "id": "my-theme",
   "name": "My Theme",
   "version": "1.0.0",
-  "description": "テーマの説明。Admin Studio のテーマ一覧に表示されます。",
+  "description": "The theme's description. Shown in Admin Studio's theme list.",
   "author": { "name": "Your Name", "url": "https://example.com" },
   "license": "MIT",
   "preview_image": "preview.svg",
@@ -66,114 +68,114 @@ themes/my-theme/
 }
 ```
 
-| キー | 必須 | 内容 |
+| Key | Required | Description |
 |---|---|---|
-| `id` | ○ | テーマの ID（kebab-case）。ディレクトリ名と同じにする。空ならディレクトリ名を使う |
-| `name` | ○ | 表示名 |
-| `version` | | セマンティックバージョン（既定 `1.0.0`） |
-| `description` | | 説明文 |
-| `author` | | 文字列、または `{ "name", "email", "url" }` |
-| `license` / `homepage` / `repository` / `min_aegis_version` | | 配布用の情報 |
-| `preview_image` | | プレビュー画像のファイル名。無ければ `preview.svg` → `.png` → `.webp` → `.jpg` の順に探す |
-| `tags` | | 分類用のタグ |
+| `id` | ✓ | The theme's ID (kebab-case). Make it the same as the directory name. If empty, the directory name is used |
+| `name` | ✓ | Display name |
+| `version` | | Semantic version (default `1.0.0`) |
+| `description` | | Description text |
+| `author` | | A string, or `{ "name", "email", "url" }` |
+| `license` / `homepage` / `repository` / `min_aegis_version` | | Information for distribution |
+| `preview_image` | | The preview image's file name. If absent, `preview.svg` → `.png` → `.webp` → `.jpg` are tried in order |
+| `tags` | | Tags for classification |
 
-`theme.json` が無い・JSON として読めない場合は、ディレクトリ名から作った名前（`my-theme` → `My Theme`）と既定の説明で一覧に出ます（読めないときはサーバーのログに警告が出ます）。
+If `theme.json` is missing or cannot be read as JSON, the theme appears in the list with a name made from the directory name (`my-theme` → `My Theme`) and a default description (when unreadable, a warning appears in the server log).
 
-## 4. テンプレート
+## 4. Templates
 
-テンプレートは [MiniJinja](https://docs.rs/minijinja)（Jinja2 互換）で書きます。`.html` のテンプレートでは変数が自動で HTML エスケープされます。
+Templates are written in [MiniJinja](https://docs.rs/minijinja) (Jinja2-compatible). In `.html` templates, variables are HTML-escaped automatically.
 
-### 3.1 どの URL でどのテンプレートが使われるか
+### 3.1 Which Template Is Used at Which URL
 
-| URL | テンプレート | 主な変数 |
+| URL | Template | Main variables |
 |---|---|---|
-| `/`（`[theme].front_page = "posts"`、既定） | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
-| `/`（`front_page = "template"`） | `front.html` | `content_type`（`front`）、`items`（最新の記事 `posts_per_page` 件）、`pagination`（続きは `/articles?page=2`） |
-| `/`（`front_page = "page:<slug>"`） | 固定ページと同じ（`page.html` など） | 固定ページと同じ。canonical などの URL は `/` |
-| `/articles` | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
-| `/category/{slug}` | `category.html` | `title`（カテゴリ名）、`slug`、`fields`（カテゴリのフィールド。`description` など）、`items`、`pagination` |
-| `/tags/{slug}` | `tag.html` | `title`（タグの名前）、`slug`、`fields`（`description`）、`items`（記事・固定ページ・商品を新しい順。公開ページの URL は `item.fields.url`）、`pagination`（[タグ](tags.md#6-公開サイト)） |
-| `/tags` | `tags.html` | `items`（公開中のコンテンツが付いたタグ。`item.title` が名前、`item.fields.url`・`item.fields.count`・`item.fields.description`）（[タグ](tags.md#6-公開サイト)） |
-| `/search` | `search.html` | [サイト内検索](search.md#3-検索ページsearch)（`fields.query`、`items`、`pagination`） |
-| （各ページの `</body>` の前に差し込む） | `consent.html` | [Cookie の同意バナー](consent.md#3-テーマでバナーを作るtemplatesconsenthtml)（`base.html` を継承しない断片。`fields.consent`・`fields.categories`・`fields.message`。`data-aegis-consent-*` の属性でスクリプトが動かす） |
-| （各ページの `<body>` の直後に差し込む） | `notices.html` | [お知らせバナー](notices.md#3-テーマでお知らせを作るtemplatesnoticeshtml)（`base.html` を継承しない断片。`fields.notices`。`data-aegis-notice-*` の属性でスクリプトが動かす） |
-| `/newsletter`、`/newsletter/confirm`、`/newsletter/unsubscribe` | `page.html` | [ニュースレター](newsletter.md#3-申し込みのページ)（`content_html` に説明とフォーム・確認や停止のボタン・結果が入る。`slug` は `newsletter`） |
-| `/contact`、`/contact/{name}` | `contact.html` | [問い合わせフォーム](contact.md#21-テーマのテンプレートcontacthtml)（`fields.form_html`、`fields.sent`、`fields.form`） |
-| `/articles/{slug}` | `article.html` | `title`、`content_html`、`author`、`published_at`、`updated_at`、`fields`、`relations`、`comments`（[コメント](#6-コメント欄)） |
-| `/{slug}` | `page.html`（固定ページ）または `article.html` | 同上 |
-| `/{slug}`（固定ページの `layout` が `blank`） | `blank.html` | 同上。ヘッダー・フッター・幅の制約の無い白紙のページ（LP 向け）。`layout` にほかの名前（例: `landing`）を入れると、テーマの `landing.html` を使う |
-| `/forum` 以下 | `forum_index.html` / `forum_category.html` / `forum_thread.html` | [掲示板](forum.md#2-公開サイト) |
-| 見つからない・非公開 | `404.html` | `title`（`Page Not Found`）、`content_html`（理由の一文） |
-| `/products` | `products.html` | `title`、`items`、`pagination`、`theme_vars` |
-| `/products/{slug}` | `product.html` | `title`、`content_html`、`fields`（`price` / `stock` など）、`relations`、`theme_vars`（`reviews_*` を含む。レビュー欄は [会員アカウント 4.4](members.md#44-商品ページのレビュー)） |
+| `/` (`[theme].front_page = "posts"`, the default) | `index.html` | `title` (`Latest Stories`), `items`, `pagination` |
+| `/` (`front_page = "template"`) | `front.html` | `content_type` (`front`), `items` (the latest `posts_per_page` articles), `pagination` (continues at `/articles?page=2`) |
+| `/` (`front_page = "page:<slug>"`) | Same as a static page (`page.html`, etc.) | Same as a static page. URLs such as canonical are `/` |
+| `/articles` | `index.html` | `title` (`Latest Stories`), `items`, `pagination` |
+| `/category/{slug}` | `category.html` | `title` (category name), `slug`, `fields` (the category's fields, such as `description`), `items`, `pagination` |
+| `/tags/{slug}` | `tag.html` | `title` (tag name), `slug`, `fields` (`description`), `items` (articles, static pages, and products, newest first; the public page URL is `item.fields.url`), `pagination` ([Tags](tags.md#6-public-site)) |
+| `/tags` | `tags.html` | `items` (tags that have published content; `item.title` is the name, with `item.fields.url`, `item.fields.count`, `item.fields.description`) ([Tags](tags.md#6-public-site)) |
+| `/search` | `search.html` | [Site search](search.md#3-the-search-page-search) (`fields.query`, `items`, `pagination`) |
+| (inserted before `</body>` of each page) | `consent.html` | [Cookie consent banner](consent.md#3-building-the-banner-in-a-theme-templatesconsenthtml) (a fragment that does not extend `base.html`. `fields.consent`, `fields.categories`, `fields.message`. The script operates it with `data-aegis-consent-*` attributes) |
+| (inserted right after `<body>` of each page) | `notices.html` | [Notice banners](notices.md#3-building-notices-in-a-theme-templatesnoticeshtml) (a fragment that does not extend `base.html`. `fields.notices`. The script operates it with `data-aegis-notice-*` attributes) |
+| `/newsletter`, `/newsletter/confirm`, `/newsletter/unsubscribe` | `page.html` | [Newsletter](newsletter.md#3-the-sign-up-page) (`content_html` holds the description and form, confirm and unsubscribe buttons, and results. `slug` is `newsletter`) |
+| `/contact`, `/contact/{name}` | `contact.html` | [Contact form](contact.md#21-the-theme-template-contacthtml) (`fields.form_html`, `fields.sent`, `fields.form`) |
+| `/articles/{slug}` | `article.html` | `title`, `content_html`, `author`, `published_at`, `updated_at`, `fields`, `relations`, `comments` ([Comments](#6-comment-section)) |
+| `/{slug}` | `page.html` (static page) or `article.html` | Same as above |
+| `/{slug}` (a static page whose `layout` is `blank`) | `blank.html` | Same as above. A blank page with no header, footer, or width constraints (for landing pages). If you put another name in `layout` (e.g. `landing`), the theme's `landing.html` is used |
+| Under `/forum` | `forum_index.html` / `forum_category.html` / `forum_thread.html` | [Forum](forum.md#2-public-site) |
+| Not found / unpublished | `404.html` | `title` (`Page Not Found`), `content_html` (a sentence of reason) |
+| `/products` | `products.html` | `title`, `items`, `pagination`, `theme_vars` |
+| `/products/{slug}` | `product.html` | `title`, `content_html`, `fields` (`price` / `stock`, etc.), `relations`, `theme_vars` (including `reviews_*`; for the review section see [Member accounts 4.4](members.md#44-reviews-on-product-pages)) |
 | `/cart` | `cart.html` | `theme_vars` |
-| `/orders/{id}` | `order.html` | `slug`（注文 ID）、`theme_vars` |
-| `/account`・`/account/login`・`/account/register` | `account.html` | `slug`（`home` / `login` / `register`）、`theme_vars`（`account_*`。[会員アカウント 4.3](members.md#43-テーマ)） |
+| `/orders/{id}` | `order.html` | `slug` (the order ID), `theme_vars` |
+| `/account`, `/account/login`, `/account/register` | `account.html` | `slug` (`home` / `login` / `register`), `theme_vars` (`account_*`; [Member accounts 4.3](members.md#43-theme)) |
 
-### 3.1.1 トップページ（`[theme].front_page`）
+### 3.1.1 The Top Page (`[theme].front_page`)
 
-| 値 | `/` に出すもの | 記事一覧 |
+| Value | What is shown at `/` | Article list |
 |---|---|---|
-| `"posts"`（既定） | 記事一覧（`index.html`） | `/` と `/articles` の両方。テンプレートの中では区別できないので、ヒーローなどトップだけに出したい要素も `/articles` に表示される |
-| `"template"` | テーマの `front.html`。ランディングページ向け。最新の記事が `items` に入るので、「お知らせ」の欄などに使える。テーマに無ければ `index.html` と同じ表示 | `/articles` |
-| `"page:<slug>"` | 固定ページ（Admin Studio で編集できる。「ブランク LP」のレイアウトも使える）。ページが無い・非公開なら記事一覧 | `/articles` |
+| `"posts"` (default) | The article list (`index.html`) | Both `/` and `/articles`. Inside the template they cannot be told apart, so elements you want only on the top, like a hero, also appear on `/articles` |
+| `"template"` | The theme's `front.html`. For landing pages. The latest articles go into `items`, so you can use them for a "news" section and the like. If the theme has none, the same display as `index.html` | `/articles` |
+| `"page:<slug>"` | A static page (editable in Admin Studio; the "Blank LP" layout can be used too). If the page does not exist or is unpublished, the article list | `/articles` |
 
-`"posts"` 以外にするときは、テーマのナビゲーションの記事一覧へのリンクを `{{ base_path }}/articles` にしてください。
+When using anything other than `"posts"`, make the theme navigation's link to the article list `{{ base_path }}/articles`.
 
-### 3.1.2 カテゴリの記事一覧とフィード
+### 3.1.2 A Category's Article List and Feeds
 
-- `/category/{slug}` は、記事のスキーマの `target: category.<フィールド>` の関係フィールド（`category_id` は全コンテンツ型に組み込みで、YAML に書かなくても使えます）がそのカテゴリを指す記事を並べます。テーマに `category.html` が無ければ組み込みのテンプレートを使います。カテゴリへのリンクは `{{ base_path }}/category/{{ item.relations.category_id.slug }}` のように書けます。
-- Atom フィードは `/feed.xml`（新しい記事）と `/category/{slug}/feed.xml`（カテゴリの記事）。どちらも最新 20 件で、本文の HTML も含みます。自動検出用の `<link rel="alternate" type="application/atom+xml">` はサーバーが `extra_head` に入れるので、テーマで出力する必要はありません（カテゴリのページにはカテゴリのフィードも入ります）。
-- フィードの URL は Admin Studio の **Settings › SEO** の canonical URL を基準にします。未設定ならリクエストの Host（とリバースプロキシの `X-Forwarded-Proto`）から作ります。
+- `/category/{slug}` lists articles whose relation field of `target: category.<field>` in the article schema (`category_id` is built into all content types and can be used without writing it in YAML) points to that category. If the theme has no `category.html`, the built-in template is used. A link to a category can be written like `{{ base_path }}/category/{{ item.relations.category_id.slug }}`.
+- Atom feeds are `/feed.xml` (new articles) and `/category/{slug}/feed.xml` (a category's articles). Both are the latest 20 and include the body HTML. The discovery `<link rel="alternate" type="application/atom+xml">` is put into `extra_head` by the server, so the theme does not need to output it (category pages also get the category's feed).
+- Feed URLs are based on the canonical URL in Admin Studio's **Settings › SEO**. If unset, they are built from the request's Host (and the reverse proxy's `X-Forwarded-Proto`).
 
-ショップのテンプレート（`products.html` 以降）は、テーマに無くても組み込みのテンプレートがテーマの `base.html` の中に描画されます（[5. ショップのページ](#5-ショップのページ)）。`blank.html` と掲示板のテンプレートも組み込みのものがあり、テーマに同じ名前のファイルを置くと置き換えられます。
+For the shop templates (`products.html` onward), even if the theme has none, the built-in templates are rendered inside the theme's `base.html` ([5. Shop pages](#5-shop-pages)). `blank.html` and the forum templates also have built-in versions, and placing a file with the same name in the theme replaces them.
 
-固定ページのレイアウトは Admin Studio のエディタ（「テーマ標準」/「ブランク LP」）で選び、スキーマ `page` の `layout` フィールドに保存されます。ブランク LP の中身は「カスタム HTML」ブロック（`core/html`）で自由に書けます。このブロックの HTML はエスケープせずにそのまま出力します（`[security]` のリンク・画像の属性の付与だけが掛かり、`<script>` も残ります）。
+A static page's layout is chosen in Admin Studio's editor ("Theme default" / "Blank LP") and saved in the `layout` field of the `page` schema. The contents of a Blank LP can be written freely in a "Custom HTML" block (`core/html`). This block's HTML is output as is without escaping (only the `[security]` link and image attribute additions apply, and `<script>` remains too).
 
-### 3.2 変数
+### 3.2 Variables
 
-すべてのページで使える変数:
+Variables usable on all pages:
 
-| 変数 | 内容 |
+| Variable | Description |
 |---|---|
-| `base_path` | サイトを公開しているパス（例: `/cms`。ルートで公開しているときは空文字）。**サイト内のリンクとアセットには必ず先頭に付ける** |
-| `site_title` / `site_description` | サイト名（Admin Studio の **Settings › Site** で変更した値、無ければ `[theme].site_title`）/ `[theme].site_description` |
-| `title` / `slug` | ページのタイトル・スラッグ |
-| `content_type` | `index` / `article` / `page` / `error` など |
-| `extra_css` | `[theme].custom_css` とプラグインが足した CSS |
-| `extra_head` | `<head>` に足す HTML（サイトの favicon の `<link rel="icon">` と、プラグインが足したもの）。**`<head>` の中で必ず `{{ extra_head \| safe }}` を出力する** |
-| `theme_vars` | プラグインやショップが渡す文字列の辞書 |
-| `locale` | 表示言語（`[theme].locale`、`en` / `ja`）。`<html lang="{{ locale }}">` に使う |
-| `t("キー", ...)` | 組み込みの文言を表示言語で返す関数（`{{ t("nav.home") }}`。キーは `crates/aegis-theme/src/messages.rs`）。独自の文言はテーマに直接書いてよい。ループ変数に `t` を使わない（この関数を隠してしまう） |
-| `admin_url` | Admin Studio へのリンクの URL（`base_path` と `[server].admin_path` 込み）。**出さない設定のときは空文字**なので `{% if admin_url %}...{% endif %}` で囲む。`/admin/` を直接書かない |
-| `show_powered_by` | フッターに「Powered by AegisCMS」などの表記を出すか（`[theme].show_powered_by`、既定は `true`）。表記は `{% if show_powered_by %}...{% endif %}` で囲む |
+| `base_path` | The path where the site is published (e.g. `/cms`; an empty string when published at the root). **Always prefix links within the site and assets with it** |
+| `site_title` / `site_description` | The site name (the value changed in Admin Studio's **Settings › Site**, or else `[theme].site_title`) / `[theme].site_description` |
+| `title` / `slug` | The page's title and slug |
+| `content_type` | `index` / `article` / `page` / `error`, etc. |
+| `extra_css` | `[theme].custom_css` and CSS added by plugins |
+| `extra_head` | HTML to add to `<head>` (the site's favicon `<link rel="icon">` and what plugins added). **Always output `{{ extra_head \| safe }}` inside `<head>`** |
+| `theme_vars` | A dictionary of strings passed by plugins and the shop |
+| `locale` | The display language (`[theme].locale`, `en` / `ja`). Used for `<html lang="{{ locale }}">` |
+| `t("key", ...)` | A function that returns built-in text in the display language (`{{ t("nav.home") }}`; keys are in `crates/aegis-theme/src/messages.rs`). Write your own text directly in the theme. Do not use `t` as a loop variable (it would hide this function) |
+| `admin_url` | The URL of the link to Admin Studio (including `base_path` and `[server].admin_path`). **It is an empty string when the setting is not to show it**, so wrap it in `{% if admin_url %}...{% endif %}`. Do not write `/admin/` directly |
+| `show_powered_by` | Whether to show a notice such as "Powered by AegisCMS" in the footer (`[theme].show_powered_by`, default `true`). Wrap the notice in `{% if show_powered_by %}...{% endif %}` |
 
 > [!NOTE]
-> 組み込みの機能が出す名前（`aegis-consent-*`、`data-aegis-*`、`/_aegis/consent.js` など）は、応答が返る直前に `[server].namespace`（既定 `cms`）の接頭辞へ置き換わります。テンプレートや CSS には `aegis-` と書いたままでよく、HTML・CSS・JS で同じ置き換えが掛かるので食い違いません。ブラウザの開発者ツールやサイト上では `cms-consent-*` などの名前で見えます（[configuration.md 4.6](configuration.md#46-使っている-cms-を特定されにくくする)）。
+> Names that built-in features output (`aegis-consent-*`, `data-aegis-*`, `/_aegis/consent.js`, etc.) are replaced with the prefix of `[server].namespace` (default `cms`) just before the response is returned. In templates and CSS you can keep writing `aegis-`, and since the same replacement applies to HTML, CSS, and JS they do not disagree. In the browser's developer tools and on the site they are visible under names such as `cms-consent-*` ([configuration.md 4.6](configuration.md#46-making-it-harder-to-identify-the-cms-in-use)).
 
-一覧（`items` の各要素）: `title`、`slug`、`excerpt`（本文の先頭 140 文字）、`published_at`、`created_at`、`content_type`、`fields`（カスタムフィールド）、`relations`（解決済みのリレーション。例: `item.relations.category_id.title`）。
+List (each element of `items`): `title`, `slug`, `excerpt` (the first 140 characters of the body), `published_at`, `created_at`, `content_type`, `fields` (custom fields), `relations` (resolved relations; e.g. `item.relations.category_id.title`).
 
-宣言的クエリの結果（グローバル変数 `queries`）: `queries/<name>.yaml` で宣言した集計・一覧を、ページに依らず `{% for r in queries.by_brand %}{{ r.brand }}: {{ r.n }}{% endfor %}` のように読めます（どのページでも使えます）。定義の書き方は [queries.md](queries.md)。結果の文字列は利用者が入力した値なので、`safe` は付けないでください。
+Results of declarative queries (the global variable `queries`): the aggregations and lists declared in `queries/<name>.yaml` can be read regardless of the page, like `{% for r in queries.by_brand %}{{ r.brand }}: {{ r.n }}{% endfor %}` (usable on every page). For how to write definitions, see [queries.md](queries.md). Strings in results are values that users entered, so do not add `safe`.
 
-ページ送り（`pagination`）: `page`、`per_page`、`total_items`、`total_pages`、`prev_url` / `next_url`（`base_path` 込み。無ければ空）。
+Paging (`pagination`): `page`, `per_page`, `total_items`, `total_pages`, `prev_url` / `next_url` (including `base_path`; empty if none).
 
-### 3.3 フィルター
+### 3.3 Filters
 
-| フィルター | 例 | 結果 |
+| Filter | Example | Result |
 |---|---|---|
-| `date_short` | `{{ published_at \| date_short }}` | `2026-10-23`（先頭 10 文字） |
-| `datetime_short` | `{{ created_at \| datetime_short }}` | `2026-10-23 14:05`（分まで。UTC のまま、`T` を空白に） |
-| `truncate(n)` | `{{ item.excerpt \| truncate(90) }}` | n 文字を超えたら切って `...` を付ける（文字数で数えるので日本語でも安全） |
-| `money(通貨)` | `{{ fields.price \| money(theme_vars.currency) }}` | `¥1,780`（金額は最小単位の整数） |
-| `safe` | `{{ content_html \| safe }}` | エスケープしない |
+| `date_short` | `{{ published_at \| date_short }}` | `2026-10-23` (the first 10 characters) |
+| `datetime_short` | `{{ created_at \| datetime_short }}` | `2026-10-23 14:05` (to the minute; still UTC, with `T` turned into a space) |
+| `truncate(n)` | `{{ item.excerpt \| truncate(90) }}` | Cuts past n characters and appends `...` (counted in characters, so safe for Japanese too) |
+| `money(currency)` | `{{ fields.price \| money(theme_vars.currency) }}` | `¥1,780` (amounts are integers in the smallest unit) |
+| `safe` | `{{ content_html \| safe }}` | Do not escape |
 
-`safe` を付けてよいのは `content_html`（サーバーがサニタイズ済み）、`extra_css`、`extra_head` だけです。カスタムフィールドなど、利用者が入力した値には付けないでください。
+`safe` may be added only to `content_html` (already sanitized by the server), `extra_css`, and `extra_head`. Do not add it to values users entered, such as custom fields.
 
-### 3.4 `base.html` に必ず入れるもの
+### 3.4 What `base.html` Must Contain
 
 ```html
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -199,12 +201,12 @@ themes/my-theme/
 </html>
 ```
 
-- **`viewport` の meta**: 無いとスマートフォンで PC 幅のまま縮小表示されます。
-- **`base_path`**: 付けなくてもルート公開では動きますが、サブパス公開（[設定リファレンス](./configuration.md#42-サブパスで公開する)）でリンクが切れます。
-- **`extra_css | safe`**: `safe` を付けないと `"` や `>` がエスケープされ、`[theme].custom_css` の CSS が壊れます。
-- **`{% block content %}`**: 他のテンプレート（組み込みのショップのテンプレートを含む）はこのブロックに中身を入れます。名前を変えないでください。
+- **The `viewport` meta**: without it, smartphones show the PC width scaled down.
+- **`base_path`**: without it things work when published at the root, but links break with subpath publishing ([Configuration reference](./configuration.md#42-publishing-under-a-subpath)).
+- **`extra_css | safe`**: without `safe`, `"` and `>` are escaped and the `[theme].custom_css` CSS breaks.
+- **`{% block content %}`**: other templates (including the built-in shop templates) put their contents in this block. Do not rename it.
 
-他のテンプレートは `base.html` を継承します。
+Other templates extend `base.html`.
 
 ```html
 {% extends "base.html" %}
@@ -218,24 +220,24 @@ themes/my-theme/
 {% endblock %}
 ```
 
-## 4. CSS の書き方
+## 4. Writing CSS
 
-### 4.1 色は CSS 変数にまとめ、`--accent` を定義する
+### 4.1 Put Colors in CSS Variables and Define `--accent`
 
 ```css
 :root {
   --my-bg: #fbf8f3;
   --my-text: #2b211b;
   --my-accent: #a4552c;
-  --accent: var(--my-accent); /* ショップのボタン・バッジの色 */
+  --accent: var(--my-accent); /* the color of shop buttons and badges */
 }
 ```
 
-組み込みのショップのページは、ボタンなどの色に `--accent` を使います（無ければ紫 `#6366f1`）。それ以外の線や背景は半透明のグレーなので、明るいテーマでも暗いテーマでもそのまま読めます。
+The built-in shop pages use `--accent` for colors such as buttons (purple `#6366f1` if absent). Other lines and backgrounds are translucent gray, so they are readable as is on both light and dark themes.
 
-### 4.2 リセットで消したものは戻す
+### 4.2 Restore What a Reset Removed
 
-`* { margin: 0; padding: 0; }` のリセットを使うと、本文のリストの字下げや段落の余白も消えます。記事・固定ページの本文（`content_html` を入れる要素）には、見出し・段落・リスト・引用・コード・画像のスタイルを書いてください。
+Using a `* { margin: 0; padding: 0; }` reset also removes the indentation of lists and the spacing of paragraphs in the body. For the body of articles and static pages (the element that holds `content_html`), write styles for headings, paragraphs, lists, quotes, code, and images.
 
 ```css
 .prose p { margin-bottom: 1.5rem; }
@@ -246,17 +248,17 @@ themes/my-theme/
 .prose pre { overflow-x: auto; }
 ```
 
-商品ページの本文（組み込みの `product.html` の `.prose`）には、詳細度 0 の最低限の余白と字下げが組み込まれています。テーマの `.prose` の指定があればそちらが優先されます。
+The product page body (the `.prose` of the built-in `product.html`) has minimal zero-specificity spacing and indentation built in. If the theme has `.prose` rules, they take precedence.
 
-### 4.3 本文のブロック（表・目次・注記・引用・折りたたみ）
+### 4.3 Body Blocks (Tables, Table of Contents, Notes, Quotes, Collapsibles)
 
-本文の表・目次・注記・引用の出典・折りたたみには、詳細度 0 の最低限のスタイルが組み込まれています（[本文のブロック 3](blocks.md#3-見た目)）。テーマで見た目を変えるときは `.aegis-table`・`.aegis-toc`・`.aegis-callout`（種類ごとの色は `--aegis-callout`）などを指定します。テーマの `.prose table` などの指定があれば、そちらが優先されます。
+Minimal zero-specificity styles are built in for the body's tables, table of contents, notes, quote sources, and collapsibles ([Body blocks 3](blocks.md#3-appearance)). To change the look in a theme, specify `.aegis-table`, `.aegis-toc`, `.aegis-callout` (the color per kind is `--aegis-callout`), and so on. If the theme has rules such as `.prose table`, they take precedence.
 
-### 4.4 スマートフォン（幅 320〜390px）で崩さない
+### 4.4 Do Not Break on Smartphones (Width 320–390px)
 
-実際に起きた崩れから、気をつける点をまとめます。
+A summary of points to watch from breakages that actually happened.
 
-- **ヘッダーは折り返せるようにし、サイト名は折り返さない**。日本語は文字ごとに改行できるので、横並びのメニューに押されるとサイト名が 1 文字ずつ縦に並びます。
+- **Let the header wrap, and do not let the site name wrap.** Japanese can break between characters, so when pushed by a horizontal menu the site name lines up vertically one character at a time.
 
   ```css
   .header-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem 1.5rem; }
@@ -264,144 +266,144 @@ themes/my-theme/
   .nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
   ```
 
-- **グリッドの最小幅は `min(..., 100%)` で包む**。`minmax(320px, 1fr)` は、画面から余白を引いた幅が 320px 未満になると横にはみ出します。
+- **Wrap a grid's minimum width in `min(..., 100%)`.** `minmax(320px, 1fr)` overflows horizontally when the screen width minus margins is under 320px.
 
   ```css
   .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
   ```
 
-- **横に並べた入力欄には `min-width: 0` を付ける**。`flex: 1` の `<input>` にはブラウザが決めた最小幅があり、隣のボタンを画面の外へ押し出します。
-- **固定の `width` を避ける**。`width: 900px` ではなく `max-width: 900px; width: 100%` にします。装飾用の大きな要素（背景の光など）は `position: fixed` か `overflow: hidden` の親の中に置きます。
-- **余白は狭い画面で減らす**。左右 `1.5rem` の余白は 320px 幅では大きいので、`@media (max-width: 600px)` で `1rem` 程度にします。
+- **Add `min-width: 0` to inputs placed side by side.** A `flex: 1` `<input>` has a minimum width set by the browser and pushes the neighboring button off the screen.
+- **Avoid fixed `width`s.** Use `max-width: 900px; width: 100%` rather than `width: 900px`. Put large decorative elements (such as background glows) inside a parent with `position: fixed` or `overflow: hidden`.
+- **Reduce margins on narrow screens.** Left and right margins of `1.5rem` are large at 320px width, so make them about `1rem` with `@media (max-width: 600px)`.
 
-## 5. ショップのページ
+## 5. Shop Pages
 
-`[commerce].enabled = true` のとき、`/products`・`/products/{slug}`・`/cart`・`/orders/{id}` が使えます。テーマに `products.html` などが無ければ組み込みのテンプレートを使います。組み込みのテンプレートはテーマの `base.html` の `content` ブロックの中に描画され、色は 4.1 の `--accent` に合わせます。多くのテーマはショップのテンプレートを書かなくても足ります。
+When `[commerce].enabled = true`, `/products`, `/products/{slug}`, `/cart`, and `/orders/{id}` are available. If the theme has no `products.html` and the like, the built-in templates are used. The built-in templates are rendered inside the `content` block of the theme's `base.html`, with colors matched to `--accent` in 4.1. Many themes are fine without writing shop templates.
 
-見た目を変えたいときは、まず CSS で組み込みのクラス（`.aegis-shop`、`.aegis-card`、`.aegis-button`、`.aegis-product` など）を上書きしてください。テンプレートを自分で書く場合は、組み込みのテンプレート（`crates/aegis-theme/src/builtins.rs` の `PRODUCTS_TEMPLATE` など）を写して始めます。その際は次の 2 点を守ってください。
+When you want to change the look, first override the built-in classes (`.aegis-shop`, `.aegis-card`, `.aegis-button`, `.aegis-product`, etc.) with CSS. When writing templates yourself, start by copying the built-in templates (such as `PRODUCTS_TEMPLATE` in `crates/aegis-theme/src/builtins.rs`). In doing so, keep these 2 points.
 
-- `{% include "shop_common.html" %}` を残す。カートのスクリプト（`/shop/cart.js`）と、カートの件数を出すナビゲーションがここに入っています。
-- カートに入れるボタンは、組み込みと同じ `data-aegis-add-to-cart` などの属性を付ける。カート・注文確認の中身（`#aegis-cart`、`#aegis-order`）はスクリプトが描画します。
+- Keep `{% include "shop_common.html" %}`. The cart script (`/shop/cart.js`) and the navigation that shows the cart count are in it.
+- Give the add-to-cart button the same attributes as the built-in one, such as `data-aegis-add-to-cart`. The contents of the cart and order confirmation (`#aegis-cart`, `#aegis-order`) are rendered by the script.
 
-ショップで使える `theme_vars`: `shop_enabled`（`"true"` / `"false"`）、`currency`、`products_url`、`cart_url`、`shop_api`、`cart_script`（どれも `base_path` 込み）。
+`theme_vars` usable in the shop: `shop_enabled` (`"true"` / `"false"`), `currency`, `products_url`, `cart_url`, `shop_api`, `cart_script` (all including `base_path`).
 
-## 6. コメント欄
+## 6. Comment Section
 
-`[comments].enabled = true` で、`[comments].content_types` の種類のページ（`article.html` / `page.html` / `product.html`）に変数 `comments` が渡ります（[コメント](comments.md#3-公開サイト)）。本文の後（`</article>` の前など）に組み込みのコメント欄を読み込んでください。コメントを受け付けないページでは `comments` が無いので、何も出ません。
+With `[comments].enabled = true`, the variable `comments` is passed to pages (`article.html` / `page.html` / `product.html`) of the kinds in `[comments].content_types` ([Comments](comments.md#3-public-site)). Load the built-in comment section after the body (such as before `</article>`). On pages that do not accept comments there is no `comments`, so nothing is shown.
 
 ```jinja
 {% if comments %}{% include "comments.html" %}{% endif %}
 ```
 
-- 組み込みのコメント欄は、色をテーマの文字色を基準にした半透明と `--accent` で指定しているので、多くのテーマはそのまま使えます。見た目は CSS で `.aegis-comments`、`.aegis-comment`、`.aegis-comment-form` などを上書きします。
-- 自分で書く場合は、テーマの `templates/comments.html` に置きます（組み込みの `COMMENTS_TEMPLATE` を写して始める）。一覧は `comments["items"]`（`.items` は辞書のメソッド名と重なる）、各コメントの本文は `{{ c.body_html | safe }}`（エスケープ済み）、返信の字下げは `c.depth` です。フォームは `comments.post_url` に JSON で送ります。ハニーポットの欄（`website`）を残してください。
+- The built-in comment section specifies colors with translucency based on the theme's text color and `--accent`, so many themes can use it as is. Override the look in CSS with `.aegis-comments`, `.aegis-comment`, `.aegis-comment-form`, and so on.
+- To write your own, place it at the theme's `templates/comments.html` (start by copying the built-in `COMMENTS_TEMPLATE`). The list is `comments["items"]` (`.items` overlaps with a dict method name), each comment's body is `{{ c.body_html | safe }}` (escaped), and the reply indent is `c.depth`. The form submits JSON to `comments.post_url`. Keep the honeypot field (`website`).
 
-## 6a. スクリプトの書き方（インラインを書かない）
+## 6a. How to Write Scripts (Do Not Write Inline)
 
-公開ページの CSP は、**既定で Strict**（`script-src` に `'unsafe-inline'` が無い。`[security].strict_csp = "on"`。[csp.md](csp.md)）です。テンプレートに直接書いた **`<script>…</script>`（`src` の無いもの）と `onclick` などの `on*` 属性は動きません**。次のように書いてください（前の動きに戻すには `[security].strict_csp = "off"`）。
+The public page CSP is **Strict by default** (no `'unsafe-inline'` in `script-src`; `[security].strict_csp = "on"`; [csp.md](csp.md)). **`<script>…</script>` written directly in templates (without `src`) and `on*` attributes such as `onclick` do not run.** Write them as follows (to return to the previous behavior, `[security].strict_csp = "off"`).
 
-- **スクリプトは `themes/{名前}/assets/*.js` に置いて、`<script src="{{ base_path }}/theme/assets/x.js" defer></script>` で読む**（自分のオリジンのファイルなので、CSP で止まりません）。
-- **`on*` 属性は使わず、スクリプトの側で `addEventListener` を使う**（例: `<button data-scroll-top>` を、外部のスクリプトで結ぶ。ただのページ内リンク `<a href="#">` で足りることもあります）。
-- **どうしてもインラインにするときは、`{{ inline_script("コード") }}`** で出します（`{{ inline_script("コード", consent="analytics") }}` なら、同意のあとに実行する形）。ホストがタグを作り、本文のハッシュを CSP に登録します（`[security].strict_csp` が `on` のときも動く）。`<script>` を直接書いたものは、ハッシュが無いので動きません。`</script` と `<!--` は自動で無害にします。
-- 値をスクリプトに渡すときは、`data-*` 属性か `<script type="application/json">`（データのブロック。実行されないので CSP に当たりません）を使います。
-- **同梱のテーマと組み込みのテンプレートは、すでにインラインのコードを出しません**（`aegis-theme` のテストが、全テンプレートを描画して確かめています）。組み込みのコメント欄・初期セットアップ画面・アクセス解析のビーコンは、`/_aegis/…js` の外部ファイルです。
-- プラグインのスクリプトは、プラグイン側が構造化して足します（[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）。テーマが気にすることはありません。
+- **Put scripts in `themes/{name}/assets/*.js` and load them with `<script src="{{ base_path }}/theme/assets/x.js" defer></script>`** (it is a file of your own origin, so the CSP does not block it).
+- **Do not use `on*` attributes; use `addEventListener` on the script side** (for example, bind `<button data-scroll-top>` from an external script. A plain in-page link `<a href="#">` is sometimes enough).
+- **When it must be inline, output it with `{{ inline_script("code") }}`** (`{{ inline_script("code", consent="analytics") }}` makes it run after consent). The host builds the tag and registers the body's hash in the CSP (it works when `[security].strict_csp` is `on` too). A directly written `<script>` has no hash and does not run. `</script` and `<!--` are neutralized automatically.
+- To pass values to a script, use `data-*` attributes or `<script type="application/json">` (a data block; it is not executed, so it does not hit the CSP).
+- **The bundled themes and built-in templates already output no inline code** (the `aegis-theme` test renders all templates to verify). The built-in comment section, initial setup screen, and analytics beacon are external files at `/_aegis/…js`.
+- Plugin scripts are added by plugins in structured form ([ABI specification 5.3.3a](plugin_abi_specification.md#533a-adding-scripts-in-on_render_page-scripts-abi-2)). The theme does not need to worry about them.
 
-### 6a-2. `<style>` の書き方
+### 6a-2. How to Write `<style>`
 
-`style-src` からも `'unsafe-inline'` が無い（Strict）ので、テンプレートに直接書いた `<style>…</style>` は止まります。**`{% filter inline_style %}…{% endfilter %}`** で包むか（`{{ inline_style("CSS") }}` でもよい）、`assets/*.css` を `<link>` で読んでください。ホストがタグを作り、本文のハッシュを CSP に登録します。**`style="…"` 属性も止まります**（CSP の `style-src` が属性にも効く）。クラスにして、`<style>`（`inline_style`）かスタイルシートに書いてください。値が動的なときは、値ごとのクラスを用意するか、`data-*` 属性と CSS の `attr()`／クラスの切り替えにします。同梱のテーマは `assets/style.css` のクラス（`ts-<番号>`）に置き換え済みです（[csp.md の 6.1](csp.md#61-スタイルstyle-はハッシュstyle-属性は使わない)）。
+`style-src` also lacks `'unsafe-inline'` (Strict), so `<style>…</style>` written directly in templates is blocked. Wrap it in **`{% filter inline_style %}…{% endfilter %}`** (`{{ inline_style("CSS") }}` also works), or load `assets/*.css` with `<link>`. The host builds the tag and registers the body's hash in the CSP. **`style="…"` attributes are blocked too** (the CSP's `style-src` also applies to attributes). Make them classes and write them in `<style>` (`inline_style`) or a stylesheet. When the value is dynamic, prepare a class per value, or use `data-*` attributes with CSS `attr()` or switching classes. The bundled themes have already been replaced with classes (`ts-<number>`) in `assets/style.css` ([csp.md 6.1](csp.md#61-styles-style-by-hash-no-style-attributes)).
 
-## 6b. フォント（外部のスタイルシートは CSP に止められる）
+## 6b. Fonts (External Stylesheets Are Blocked by the CSP)
 
-公開ページの CSP は、`fonts.googleapis.com` のような外部のスタイルシートを許しません。次のどちらかにします（詳しくは [csp.md の 8](csp.md#8-テーマのフォント外部のスタイルthemejson-の-csp)）。
+The public page CSP does not allow external stylesheets such as `fonts.googleapis.com`. Do one of the following (for details see [csp.md 8](csp.md#8-theme-fonts-and-external-styles-csp-in-themejson)).
 
-- **フォントをテーマに入れる**: woff2 を `themes/{名前}/assets/fonts/` に置き、`style.css` の `@font-face` で読む（`url('../assets/fonts/x.woff2')` ではなく、`{{ base_path }}/theme/assets/fonts/x.woff2` のテンプレート側で出すか、`style.css` の相対パス）。外部に頼らないので、CSP も訪問者の IP も気にしなくてよい。
-- **`theme.json` に `csp` を書く**: `"csp": { "style_domains": ["fonts.googleapis.com"], "font_domains": ["fonts.gstatic.com"] }`。日本語のウェブフォントなど、自分で配信しにくいとき。管理画面のテーマのカードに、外部のホストが出る。
+- **Put the font in the theme**: place woff2 in `themes/{name}/assets/fonts/` and load it with `@font-face` in `style.css` (not `url('../assets/fonts/x.woff2')` — either output `{{ base_path }}/theme/assets/fonts/x.woff2` from the template side, or use a relative path in `style.css`). It depends on nothing external, so you need not worry about the CSP or visitors' IPs.
+- **Write `csp` in `theme.json`**: `"csp": { "style_domains": ["fonts.googleapis.com"], "font_domains": ["fonts.gstatic.com"] }`. For when it is hard to serve them yourself, such as Japanese web fonts. The external hosts appear on the admin screen's theme card.
 
-組み込みの default テーマは、Plus Jakarta Sans と JetBrains Mono の Latin のサブセットを自分で配信しています（日本語は、システムのフォント）。
+The built-in default theme serves the Latin subsets of Plus Jakarta Sans and JetBrains Mono itself (Japanese uses system fonts).
 
-## 7. 開発の流れ
+## 7. Development Flow
 
-1. `themes/` に既存のテーマ（`roastery` など）をコピーし、ディレクトリ名と `theme.json` の `id` を変える。
-2. 設定で `[theme].reload_templates = true` にする。描画のたびにテンプレートを読み直すので、サーバーを再起動せずに確かめられます（本番では `false`）。CSS などのアセットは毎回ファイルから配信されます。
-3. テーマを切り替える。Admin Studio の **Settings → Themes**、`PUT /api/v1/themes/active`（`{"theme_id": "my-theme"}`、admin のみ）、または `[theme].active` で切り替えます。
-4. 中身のあるサイトで確かめる。サンプルショップ（`task demo:shop` と、別のターミナルで `task demo:shop:seed`。手順は [examples/coffee-shop](../examples/coffee-shop)）を使うと、記事・固定ページ・商品・カテゴリが揃います。
+1. Copy an existing theme (such as `roastery`) into `themes/` and change the directory name and the `id` in `theme.json`.
+2. Set `[theme].reload_templates = true` in the settings. Templates are reread on every render, so you can check without restarting the server (`false` in production). Assets such as CSS are served from files each time.
+3. Switch to the theme. Switch in Admin Studio's **Settings → Themes**, with `PUT /api/v1/themes/active` (`{"theme_id": "my-theme"}`, admin only), or with `[theme].active`.
+4. Check with a site that has content. Using the sample shop (`task demo:shop`, and `task demo:shop:seed` in another terminal; for steps see [examples/coffee-shop](../examples/coffee-shop)) gives you articles, static pages, products, and categories.
 
-### `theme dev`（DB なしで素早く確かめる）
+### `theme dev` (Check Quickly Without a DB)
 
 ```bash
-task dev:theme -- themes/my-theme      # = cargo run -p aegis-theme-dev -- themes/my-theme（http://127.0.0.1:8090/）
+task dev:theme -- themes/my-theme      # = cargo run -p aegis-theme-dev -- themes/my-theme (http://127.0.0.1:8090/)
 ```
 
-開発サーバーは独立した軽量クレート `aegis-theme-dev` に分離されており、初回でも数秒〜十数秒で高速に起動します。テーマのフォルダーを直接読み、DB・プラグイン・ログインなしでサンプルのデータを描画します。`templates/`・`assets/`・`samples/` のファイルを保存すると、開いているページが自動で読み込み直されます。テンプレートの文法エラーは、ページ上に理由を表示します（直して保存すれば、そのまま戻ります）。エディターは自由に選べます。
+The dev server is split into the standalone lightweight crate `aegis-theme-dev` and starts quickly, in seconds to over ten seconds, even the first time. It reads the theme folder directly and renders sample data without a DB, plugins, or login. When you save files in `templates/`, `assets/`, and `samples/`, the open page is reloaded automatically. Template syntax errors show the reason on the page (fix and save, and it comes right back). You can choose any editor.
 
-- **サンプル**: `templates/` の `base.html` 以外すべてに、既定のデータ（タイトル・本文・一覧の記事 3 件・ページ送り）で `/preview/<名前>`（`index.html` なら `/preview/index`）が用意されます。
-- **データを変える・増やす**: `samples/<名前>.json` に `PageRenderContext` の項目（[3.2 変数](#32-変数)）を書くと、既定のデータの上書きになります（最上位のキー単位）。既定に無い名前なら、ページが増えます。`"template": "article.html"` で使うテンプレートを選べます（省くと `<名前>.html`）。`samples/` はインストール時に使われないので、そのまま置いておけます。
-- **CSP（Strict）**: プレビューのページには、公開サイトの既定の CSP（[csp.md](csp.md)）が付きます。直接書いたインラインの `<script>`・`<style>`・`on*` 属性など、公開したら動かなくなるものは、ページの右下に理由と直し方つきで出ます（`theme.json` の `csp` で宣言したホストは許されます）。強制しないなら `--csp report-only`、付けないなら `--csp off`。
-- **アセット**: `/theme/assets/...` と `/themes/<id>/assets/...` で配信します。
-- **宣言的クエリ（`queries`）のサンプル**: テンプレートが `queries.<name>`（[queries.md](queries.md)）を読むときは、`samples/queries.json` に**クエリ名 → 結果の配列**を書きます。ページのサンプルではなく、全ページの `queries` になります（保存すると次の描画に反映。Theme Builder では保存していない編集中の内容でも描画できます）。無い名前は未定義になり、`queries.x[0]` のような読み方は描画のエラーになります。結果は配列でなければならず（集計は行の配列、`select` を省いた一覧は `items` と同じ形）、違うとエラーに出ます。サイトの定義から雛形を作るには:
+- **Samples**: for everything in `templates/` other than `base.html`, `/preview/<name>` (`/preview/index` for `index.html`) is provided with default data (title, body, 3 articles in the list, paging).
+- **Changing and adding data**: writing items of `PageRenderContext` ([3.2 Variables](#32-variables)) in `samples/<name>.json` overrides the default data (per top-level key). If the name is not among the defaults, a page is added. `"template": "article.html"` chooses the template to use (if omitted, `<name>.html`). `samples/` is not used at install time, so you can leave it in place.
+- **CSP (Strict)**: the preview page gets the public site's default CSP ([csp.md](csp.md)). Things that would stop working once published, such as directly written inline `<script>`, `<style>`, and `on*` attributes, appear at the bottom right of the page with the reason and how to fix it (hosts declared in `theme.json`'s `csp` are allowed). To not enforce, use `--csp report-only`; to not attach, use `--csp off`.
+- **Assets**: served at `/theme/assets/...` and `/themes/<id>/assets/...`.
+- **Samples for declarative queries (`queries`)**: when a template reads `queries.<name>` ([queries.md](queries.md)), write **query name → array of results** in `samples/queries.json`. It becomes the `queries` for all pages, not a page sample (saving reflects it in the next render; Theme Builder can render even unsaved content being edited). A name that does not exist is undefined, and reads such as `queries.x[0]` are rendering errors. Results must be arrays (aggregations are an array of rows, and a list with `select` omitted has the same shape as `items`), and anything else shows as an error. To make a scaffold from the site's definitions:
 
   ```bash
   cargo run -p aegis-theme-dev -- themes/my-theme --init-queries --queries-dir ../site/queries --schemas-dir ../site/schemas
   ```
 
-  クエリは実行せず、定義の形に合う決まった値（集計は 3 行、一覧は最大 3 件）を `samples/queries.json` に書いて終わります（サーバーは起動しません）。すでにあるクエリの結果は残し、足りない名前だけを足します（`--force` で作り直し）。値に意味は無いので、空の結果・長い文字列・0 など、確かめたい場面に合わせて手で直してください。実際のクエリは、`theme dev` では発行しません（DB を使わないため）。
-- **公開サイトとの違い**: プラグインの `on-render-page`、コメント欄・ショップ・フォーラムのデータ、`[theme]` の設定（`theme_vars`・`custom_css`）は反映されません。必要なら `samples/*.json` に書いてください。最終確認は、実際のサイトで行います。
-- **待ち受けと表示言語**: 既定は `127.0.0.1:8090`（`--host`・`--port`）。表示言語は `--locale <LOCALE>`（`-l`、既定 `en`。例: `-l ja`）で指定できます。テンプレートは任意のコードを実行できる開発用の機能なので、公開するネットワークには出さないでください。
-- **エラーの場所**: 失敗したときは、どのテンプレートの何行目かが分かります（`{% include %}`・`{% extends %}` の先で起きたときは、その先のファイルと行）。
-- **JSON API**（Theme Builder の UI 用）:
-  - `GET /__dev/api/theme`: マニフェスト・テンプレート・サンプルの一覧
-  - `GET /__dev/api/samples/<名前>`: 描画データ
-  - `GET /__dev/api/check`: 全サンプルを描画して、失敗（`error` に `message`・`template`・`line`）を返す。CI にも使えます
-  - `GET /__dev/api/package/validate`: テーマパッケージとしての適合性（マニフェスト必須項目、base.html、署名状態）を検証する
-  - `POST /__dev/api/package/sign`: テーマパッケージのダイジェストを計算し Ed25519 署名ファイル（`signature.json`）を生成・保存する（鍵ペアの自動生成または秘密鍵指定）
-  - `GET /__dev/api/package/export`: 配布用 ZIP アーカイブ（`samples/` や隠しファイルを除外）をダウンロードする
-  - `GET /__dev/api/files`、`GET`・`PUT`・`DELETE /__dev/api/files/<パス>`、`POST /__dev/api/rename`: ファイルの一覧・読み出し・保存・削除・改名。対象は `theme.json`（削除・改名不可）と、`templates/`・`samples/`・`assets/` の下のテキストファイル（`.html`・`.css`・`.js`・`.json`・`.svg` など、1MiB まで）です。`..`・隠しファイル・フォルダーの外は拒否します
-  - `POST /__dev/api/render`: 保存していない内容（`templates` に名前 → 中身、`samples` に名前 → JSON、オプショナルで `block` にブロック名）を反映して描画し、利用可能な `blocks` 一覧を返す。何も書き込みません
-  - 書き込み（`PUT`・`POST`）は、ループバックで待ち受けているときだけ使えます。ヘッダー `x-aegis-dev` が必要で、`Host` がループバックの名前でないリクエストは拒否します（ほかのサイトのページからの書き込みと、DNS リバインディングを防ぐため）。CORS は許可しません
+  It does not run queries; it writes fixed values matching the definitions' shapes (3 rows for aggregations, up to 3 items for lists) to `samples/queries.json` and finishes (the server is not started). Results of existing queries are kept, and only missing names are added (`--force` recreates). The values have no meaning, so edit them by hand to fit the situations you want to check, such as empty results, long strings, and 0. `theme dev` does not issue real queries (because it uses no DB).
+- **Differences from the public site**: plugins' `on-render-page`, the data of the comment section, shop, and forum, and the `[theme]` settings (`theme_vars`, `custom_css`) are not reflected. Write them in `samples/*.json` if needed. Do the final check on a real site.
+- **Listening and display language**: the default is `127.0.0.1:8090` (`--host`, `--port`). The display language can be specified with `--locale <LOCALE>` (`-l`, default `en`; e.g. `-l ja`). Templates are a development feature that can run arbitrary code, so do not expose it to a public network.
+- **Error location**: when it fails, you can tell which line of which template (when it happens beyond an `{% include %}` or `{% extends %}`, the file and line beyond).
+- **JSON API** (for the Theme Builder UI):
+  - `GET /__dev/api/theme`: the manifest, templates, and list of samples
+  - `GET /__dev/api/samples/<name>`: the rendering data
+  - `GET /__dev/api/check`: renders all samples and returns failures (`message`, `template`, `line` in `error`). Usable in CI
+  - `GET /__dev/api/package/validate`: validates conformance as a theme package (required manifest items, base.html, signature status)
+  - `POST /__dev/api/package/sign`: computes the theme package digest and generates and saves an Ed25519 signature file (`signature.json`) (automatic key pair generation or specifying a private key)
+  - `GET /__dev/api/package/export`: downloads a ZIP archive for distribution (excluding `samples/` and hidden files)
+  - `GET /__dev/api/files`, `GET`, `PUT`, `DELETE /__dev/api/files/<path>`, `POST /__dev/api/rename`: list, read, save, delete, and rename files. The targets are `theme.json` (cannot be deleted or renamed) and text files under `templates/`, `samples/`, and `assets/` (`.html`, `.css`, `.js`, `.json`, `.svg`, etc., up to 1MiB). `..`, hidden files, and anything outside the folder are rejected
+  - `POST /__dev/api/render`: renders reflecting unsaved content (`templates` as name → contents, `samples` as name → JSON, and optionally `block` for a block name), and returns the list of available `blocks`. It writes nothing
+  - Writes (`PUT`, `POST`) are available only when listening on loopback. The header `x-aegis-dev` is required, and requests whose `Host` is not a loopback name are rejected (to prevent writes from other sites' pages and DNS rebinding). CORS is not allowed
 
-### Theme Builder（エディター + ライブプレビュー）
+### Theme Builder (Editor + Live Preview)
 
 ```bash
-task dev:theme -- themes/my-theme      # 1 つ目のターミナル: 開発サーバー（:8090）
-task dev:theme-builder                 # 2 つ目のターミナル: Theme Builder（http://localhost:5174/、初回は npm --prefix theme-builder ci）
+task dev:theme -- themes/my-theme      # first terminal: dev server (:8090)
+task dev:theme-builder                 # second terminal: Theme Builder (http://localhost:5174/, the first time npm --prefix theme-builder ci)
 ```
 
-左にファイル、中央にエディター（Jinja・HTML・CSS・JSON の色分け）、右にプレビューが並びます。
+Files are on the left, the editor (with syntax coloring for Jinja, HTML, CSS, and JSON) is in the center, and the preview is on the right.
 
-![Theme Builder: 左にファイル、中央にエディター、右にライブプレビュー](images/theme-builder.png)
+![Theme Builder: files on the left, the editor in the center, the live preview on the right](images/theme-builder.png)
 
-- **未保存のままプレビュー**: 打ち込むと、約 0.25 秒後に保存前の内容で描画し直します（テンプレートとサンプルは `POST /__dev/api/render`、CSS はプレビューに追記）。保存（`Ctrl+S`、または「すべて保存」）するまで、ファイルは書き換わりません。
-- **エラー**: 描画に失敗すると、エディターのその行に波線と印が付き、「問題」の一覧に出ます（クリックでその行へ移動）。プレビューは、直前に描画できた表示を薄くして残します。
-- **ページと幅**: プレビューするページ（サンプル）と、幅（幅に合わせる・1280・768・390・320px）を切り替えます。編集中のファイルに合うページに、自動で切り替わります。
-- **確認**: 「すべてのサンプルを確認」は、保存済みのファイルで全サンプルを描画します。
-- **ほかのエディターとの併用**: VS Code などで保存したファイルは、編集していなければ自動で読み込み直します。編集中のファイルが変わったときは、通知が出ます。
-- **ファイルの作成・改名・削除**: 「新しいファイル」で `templates/`・`samples/`・`assets/` の下に作成でき、ファイル一覧のアイコンから改名（インライン編集）および削除（確認付き）ができます（`theme.json` は保護のため改名・削除不可）。ファイルの改行（LF / CRLF）は、そのファイルのものを保つので、開くだけでは差分になりません。
-- **theme.json のフォーム編集**: `theme.json` を開くと、マニフェスト（ID・テーマ名・バージョン・説明文・作者情報・ライセンス・タグ・リポジトリ・対応 Aegis バージョンなど）を直感的に編集できるフォーム UI が表示されます。エディタ右上の切り替えボタン（「フォーム」「JSON」）で生 JSON のコードエディタと自由に切り替えられ、未保存バッファや `Ctrl+S` での保存とも完全に同期します。構文エラーがある場合は警告と生 JSON での修正導線が表示されます。
-- **ブロック単位プレビュー**: プレビュー上部の「ブロック」ドロップダウンから、テンプレートや親テンプレートで定義されているブロック（`content`、`header` など）を選択して、そのブロック単体の HTML をテーマのスタイルが当たった状態で独立プレビューできます（「（ページ全体）」を選べば通常のページ表示に戻ります）。
-- **プレビュー要素から該当行へのジャンプ**: プレビューツールバーの「ジャンプ」ボタンを有効にするか、または `Alt` キー（Mac は `Option`）を押しながらプレビュー内の任意の要素をクリックすると、テンプレート内の該当行にエディタのカーソルが瞬時に移動してフォーカスされます。ホバー時には点線枠とハイライトが表示されます。
-- **ZIP パッケージ書き出しと署名**: ヘッダーの「パッケージ書き出し」ボタンからモーダルを開き、パッケージ適合性検証（マニフェスト、必須テンプレート、署名）、Ed25519 鍵ペアのワンクリック自動生成・パッケージ署名（`signature.json` の作成）、および配布用 ZIP アーカイブのエクスポート（ダウンロード）を実行できます。
-- プレビューは `sandbox` つきの `iframe`（`allow-same-origin` なし）で表示し、リンクを押してもページから出ません。画面の文言は日本語のみです。
+- **Preview while unsaved**: as you type, after about 0.25 seconds it renders again with the unsaved content (templates and samples through `POST /__dev/api/render`, CSS appended to the preview). Files are not rewritten until you save (`Ctrl+S`, or "Save all").
+- **Errors**: when rendering fails, a squiggle and a mark appear on that line of the editor and it shows in the "Problems" list (clicking jumps to the line). The preview keeps the last successfully rendered display, dimmed.
+- **Pages and widths**: switch the page (sample) to preview and the width (fit to width, 1280, 768, 390, 320px). It switches automatically to the page that fits the file being edited.
+- **Check**: "Check all samples" renders all samples with the saved files.
+- **Using it with other editors**: files saved in VS Code or the like are reloaded automatically if you have not edited them. When the file you are editing changes, a notification appears.
+- **Creating, renaming, and deleting files**: "New file" creates under `templates/`, `samples/`, and `assets/`, and the icons in the file list let you rename (inline editing) and delete (with confirmation) (`theme.json` cannot be renamed or deleted, for protection). A file's line endings (LF / CRLF) are kept as that file's, so merely opening does not produce a diff.
+- **Form editing of theme.json**: opening `theme.json` shows a form UI for intuitively editing the manifest (ID, theme name, version, description, author information, license, tags, repository, supported Aegis version, etc.). The toggle buttons at the top right of the editor ("Form" / "JSON") let you switch freely to the raw JSON code editor, and it stays fully in sync with unsaved buffers and saving with `Ctrl+S`. If there is a syntax error, a warning and a path to fix it in raw JSON are shown.
+- **Block-level preview**: from the "Block" dropdown at the top of the preview, choose a block defined in the template or a parent template (such as `content` or `header`) and preview just that block's HTML on its own with the theme's styles applied (choosing "(whole page)" returns to normal page display).
+- **Jumping from a preview element to its line**: enable the "Jump" button on the preview toolbar, or click any element in the preview while holding the `Alt` key (`Option` on Mac), and the editor's cursor instantly moves to and focuses that line in the template. On hover, a dotted outline and highlight are shown.
+- **ZIP package export and signing**: open the modal from the "Export package" button in the header to run package conformance validation (manifest, required templates, signature), one-click automatic Ed25519 key pair generation and package signing (creating `signature.json`), and export (download) of a ZIP archive for distribution.
+- The preview is shown in a `sandbox`ed `iframe` (without `allow-same-origin`), and clicking a link does not leave the page. The screen text is Japanese only.
 
-![theme.json のフォーム編集](images/theme-builder-manifest.png)
+![Form editing of theme.json](images/theme-builder-manifest.png)
 
-![ZIP パッケージの書き出しと署名](images/theme-builder-export.png)
+![Exporting and signing a ZIP package](images/theme-builder-export.png)
 
-### 確認するページと幅
+### Pages and Widths to Check
 
-| ページ | URL の例（サンプルショップ） |
+| Page | Example URL (sample shop) |
 |---|---|
-| トップ・記事一覧 | `/`、`/articles` |
-| 記事（見出し・リスト入り） | `/articles/how-to-brew-pour-over` |
-| 固定ページ | `/about` |
-| 商品一覧・商品 | `/products`、`/products/ethiopia-yirgacheffe` |
-| カート（空 / 商品を入れた状態） | `/cart` |
+| Top / article list | `/`, `/articles` |
+| An article (with headings and lists) | `/articles/how-to-brew-pour-over` |
+| A static page | `/about` |
+| Product list / product | `/products`, `/products/ethiopia-yirgacheffe` |
+| Cart (empty / with items) | `/cart` |
 | 404 | `/no-such-page` |
 
-幅 **320 / 360 / 390px**（スマートフォン）と **1280px**（PC）で確かめます。ブラウザの開発者ツールでもよいですし、Playwright などで次の値を比べると、横スクロールが出るかを機械的に調べられます。
+Check at widths **320 / 360 / 390px** (smartphones) and **1280px** (PC). Browser developer tools are fine, and with Playwright or the like you can compare the following values to check mechanically whether horizontal scrolling appears.
 
 ```js
-document.documentElement.scrollWidth > document.documentElement.clientWidth // true なら横にはみ出している
+document.documentElement.scrollWidth > document.documentElement.clientWidth // true means it overflows horizontally
 ```
 
-サイト名・タイトルは日本語と英語の両方で確かめてください。日本語は文字ごとに折り返すので、英語では問題ない配置でも崩れることがあります。
+Check the site name and titles in both Japanese and English. Japanese wraps between characters, so a layout that is fine in English can still break.

@@ -199,29 +199,29 @@ HTTP に依存しない機能ごとの実装です。各クレートは自分の
 - **`aegis-db`**: `DatabaseAdapter` トレイトに基づくマルチ RDBMS 具象実装（`SqliteAdapter`, `PostgresAdapter`, `MySqlAdapter`）。YAML のスキーマにだけ、既存テーブルへの未反映カラムを自動追加するスキーマ進化（`ALTER TABLE ... ADD COLUMN`）を持つ。システムテーブルは古い版の DB を書き換えず、必要な列が無ければ移行の手順（v0.3.x で一度起動 → `task dump` → `task restore`）を示して起動を止める。注文・在庫の永続化（`orders`）もここに置きます。
 - **`aegis-storage`**: `StorageBackend` トレイトに基づくマルチストレージ具象実装。ローカルディスク・ブロックストレージ対応の `LocalStorageBackend` と、AWS S3 / Cloudflare R2 / MinIO 対応の `S3StorageBackend`（ネイティブ AWS SigV4 認証署名エンジン内蔵）。
 - **`aegis-cache`**: `CacheBackend` トレイトに基づくキャッシュ具象実装。TTL 有効期限管理を備えたデフォルトのインメモリキャッシュ `MemoryCacheBackend` と、分散環境・マルチサーバー構成対応の `RedisCacheBackend`（オプショナル）。
-- **`aegis-audit`**: 監査イベントを設定された出力先へ配送する `AuditService`、操作元（IP・User-Agent）を表す `AuditOrigin`、メトリクス（[docs/audit.md](docs/audit.md)）。
-- **`aegis-auth`**: ユーザー管理 `UserService`、Argon2id パスワード、`CacheBackend` をバックストアとするセッション管理 `SessionService`、ログイン試行制限、OpenID Connect（feature `oidc`）・SAML 2.0（feature `saml`。XML 署名の検証は純 Rust）（[docs/authentication.md](docs/authentication.md)）。
-- **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文（プレーンテキストと HTML）を作り、DB の送信待ち（`_aegis_notification_queue`。再起動しても失われず、複数台では 1 台だけが送る）から配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。Admin Studio からのテンプレート編集・テスト送信・再送。条件に合う監査イベント（管理者のログイン・ログインのロックなど）の通知（`AuditNotificationSink`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.md](docs/notifications.md)）。
-- **`aegis-members`**: 訪問者の会員アカウント `MemberService`（登録・ログイン・Cookie / Bearer のセッション・パスワードの再設定・メールの確認・停止・退会）。管理アカウントとは別で、注文やレビューなど機能ごとのデータは扱わない（[docs/members.md](docs/members.md)）。
-- **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.md](docs/commerce.md)）。DB・プラグイン・監査・通知は `CommerceDeps` で受け取ります。
-- **`aegis-tags`**: どの種類のコンテンツにも付けられる、名前と slug を持つ管理されたタグ（作成・更新・削除・付け外し）を扱う `TagService`（[docs/tags.md](docs/tags.md)）。表は `aegis-db` の `TagStorage`（`_aegis_tags` / `_aegis_content_tags`）。
-- **`aegis-comments`**: 読者のコメントの投稿・審査（WordPress と同じ承認制・承認済みの投稿者の自動承認・NG ワード・リンク数・IP ごとの投稿数・ハニーポット・`check-comment` プラグイン）・スレッド表示・通知を扱う `CommentService`（[docs/comments.md](docs/comments.md)）。審査の仕組み（`moderation`）は今後の商品レビューと共有します。
-- **`aegis-forum`**: カテゴリ・スレッド・レスの掲示板 `ForumService`（キーセット方式のページ送り・連投の制限・ピン留め・ロック・自動ロック）。`[forum].database_url` で本体と別の DB に置けます（[docs/forum.md](docs/forum.md)）。
-- **`aegis-contact`**: 問い合わせフォーム `ContactService`（項目は設定ファイルの `[[contact.forms]]`。ボット除けの見えない欄・任意の CAPTCHA（共通の `[captcha]`）・IP ごとの送信数・スパムの語とリンク数・運営者への通知と自動返信・Admin Studio の受信箱・保存期間）。`/contact` と本文のブロック `core/contact-form` で表示します（[docs/contact.md](docs/contact.md)）。
-- **`aegis-newsletter`**: ニュースレター `NewsletterService`（`/newsletter` の申し込み → 確認メールのリンクで購読が始まるダブルオプトイン・メールごとの停止リンク・公開中の記事を購読者に 1 通ずつ送る配信と履歴。送信は `aegis-notify` の送信待ちを使い、CAPTCHA は任意）。Admin Studio の Settings › Newsletter から管理します（[docs/newsletter.md](docs/newsletter.md)）。
-- **`aegis-search`**: 公開中のコンテンツの全文検索（tantivy。日本語は辞書なしで 2 文字ずつに分けて索引）。サーバーの feature `search`（既定で有効）で組み込み、`/search` と `GET /api/v1/search` を出します（[docs/search.md](docs/search.md)）。
-- **`aegis-headless`**: 認証なしで公開済みのコンテンツだけを JSON で返す読み取り専用の API（`GET /api/v1/public/contents/{type}`）。返すフィールドはスキーマ（`public`）が決め、DB は公開版の読み取りだけを持つトレイト越しに読むので、下書きや編集中の内容は返せない。サーバーの feature `headless`（既定で組み込み、設定 `[headless]` は既定で無効）。詳細は [docs/headless.md](docs/headless.md)。
-- **`aegis-analytics`**: Cookie を使わないアクセス解析（日ごとに変わるハッシュで訪問者を見分け、DB には日ごとの集計だけを残す）。サーバーの feature `analytics` で組み込み、Admin Studio の Analytics タブで見られます（[docs/analytics.md](docs/analytics.md)）。
+- **`aegis-audit`**: 監査イベントを設定された出力先へ配送する `AuditService`、操作元（IP・User-Agent）を表す `AuditOrigin`、メトリクス（[docs/audit.ja.md](docs/audit.ja.md)）。
+- **`aegis-auth`**: ユーザー管理 `UserService`、Argon2id パスワード、`CacheBackend` をバックストアとするセッション管理 `SessionService`、ログイン試行制限、OpenID Connect（feature `oidc`）・SAML 2.0（feature `saml`。XML 署名の検証は純 Rust）（[docs/authentication.ja.md](docs/authentication.ja.md)）。
+- **`aegis-notify`**: 通知の配信 `NotificationService`。宛先ごとにテンプレート（MiniJinja、組み込みは en / ja）から件名・本文（プレーンテキストと HTML）を作り、DB の送信待ち（`_aegis_notification_queue`。再起動しても失われず、複数台では 1 台だけが送る）から配信チャネル `NotificationChannel`（外部の SMTP サーバーへのメール・ログ）で送る。一時的な失敗の再試行と監査ログ（`notification.send`）。Admin Studio からのテンプレート編集・テスト送信・再送。条件に合う監査イベント（管理者のログイン・ログインのロックなど）の通知（`AuditNotificationSink`）。チャネルを足せば Slack・SMS などにも広げられる（[docs/notifications.ja.md](docs/notifications.ja.md)）。
+- **`aegis-members`**: 訪問者の会員アカウント `MemberService`（登録・ログイン・Cookie / Bearer のセッション・パスワードの再設定・メールの確認・停止・退会）。管理アカウントとは別で、注文やレビューなど機能ごとのデータは扱わない（[docs/members.ja.md](docs/members.ja.md)）。
+- **`aegis-commerce`**: 見積もり・注文・在庫引当・状態遷移・決済（手動 / Stripe）を扱う `CommerceService`（[docs/commerce.ja.md](docs/commerce.ja.md)）。DB・プラグイン・監査・通知は `CommerceDeps` で受け取ります。
+- **`aegis-tags`**: どの種類のコンテンツにも付けられる、名前と slug を持つ管理されたタグ（作成・更新・削除・付け外し）を扱う `TagService`（[docs/tags.ja.md](docs/tags.ja.md)）。表は `aegis-db` の `TagStorage`（`_aegis_tags` / `_aegis_content_tags`）。
+- **`aegis-comments`**: 読者のコメントの投稿・審査（WordPress と同じ承認制・承認済みの投稿者の自動承認・NG ワード・リンク数・IP ごとの投稿数・ハニーポット・`check-comment` プラグイン）・スレッド表示・通知を扱う `CommentService`（[docs/comments.ja.md](docs/comments.ja.md)）。審査の仕組み（`moderation`）は今後の商品レビューと共有します。
+- **`aegis-forum`**: カテゴリ・スレッド・レスの掲示板 `ForumService`（キーセット方式のページ送り・連投の制限・ピン留め・ロック・自動ロック）。`[forum].database_url` で本体と別の DB に置けます（[docs/forum.ja.md](docs/forum.ja.md)）。
+- **`aegis-contact`**: 問い合わせフォーム `ContactService`（項目は設定ファイルの `[[contact.forms]]`。ボット除けの見えない欄・任意の CAPTCHA（共通の `[captcha]`）・IP ごとの送信数・スパムの語とリンク数・運営者への通知と自動返信・Admin Studio の受信箱・保存期間）。`/contact` と本文のブロック `core/contact-form` で表示します（[docs/contact.ja.md](docs/contact.ja.md)）。
+- **`aegis-newsletter`**: ニュースレター `NewsletterService`（`/newsletter` の申し込み → 確認メールのリンクで購読が始まるダブルオプトイン・メールごとの停止リンク・公開中の記事を購読者に 1 通ずつ送る配信と履歴。送信は `aegis-notify` の送信待ちを使い、CAPTCHA は任意）。Admin Studio の Settings › Newsletter から管理します（[docs/newsletter.ja.md](docs/newsletter.ja.md)）。
+- **`aegis-search`**: 公開中のコンテンツの全文検索（tantivy。日本語は辞書なしで 2 文字ずつに分けて索引）。サーバーの feature `search`（既定で有効）で組み込み、`/search` と `GET /api/v1/search` を出します（[docs/search.ja.md](docs/search.ja.md)）。
+- **`aegis-headless`**: 認証なしで公開済みのコンテンツだけを JSON で返す読み取り専用の API（`GET /api/v1/public/contents/{type}`）。返すフィールドはスキーマ（`public`）が決め、DB は公開版の読み取りだけを持つトレイト越しに読むので、下書きや編集中の内容は返せない。サーバーの feature `headless`（既定で組み込み、設定 `[headless]` は既定で無効）。詳細は [docs/headless.ja.md](docs/headless.ja.md)。
+- **`aegis-analytics`**: Cookie を使わないアクセス解析（日ごとに変わるハッシュで訪問者を見分け、DB には日ごとの集計だけを残す）。サーバーの feature `analytics` で組み込み、Admin Studio の Analytics タブで見られます（[docs/analytics.ja.md](docs/analytics.ja.md)）。
 
 #### 6. `crates/aegis-server` (HTTP Gateway & Admin SPA 配信)
 
 Axum を基盤とした REST API Gateway サーバーです。ドメインクレートを組み立て、HTTP の入出力と認可だけを担当します。
 
-- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`・削除 `DELETE /api/v1/storage/objects/{key}`（[docs/media.md](docs/media.md)）、エディタのプレビュー `POST /api/v1/preview`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン）・OpenID Connect によるシングルサインオン `GET /api/v1/auth/oidc/login`・SAML 2.0 によるシングルサインオン `GET /api/v1/auth/saml/login` / `POST /api/v1/auth/saml/acs` / `GET /api/v1/auth/saml/metadata`（[docs/authentication.md](docs/authentication.md)）、ショップ API・公開ページ、動的 robots.txt `GET /robots.txt`・サイトマップ `GET /sitemap.xml`・SEO 設定 API `GET/PUT /api/v1/seo`、ヘルスチェック）。
+- **`handlers`**: RESTful API エンドポイント群（コンテンツ CRUD・リレーション自動解決、スキーマ情報、動的 OpenAPI 仕様配信、マルチパートファイルアップロード `POST /api/v1/storage/upload`、アップロード済みファイル一覧 `GET /api/v1/storage/objects`・削除 `DELETE /api/v1/storage/objects/{key}`（[docs/media.ja.md](docs/media.ja.md)）、エディタのプレビュー `POST /api/v1/preview`、セッション認証 `POST/GET/DELETE /api/v1/auth/session`（ユーザー名 / パスワードでログイン）・OpenID Connect によるシングルサインオン `GET /api/v1/auth/oidc/login`・SAML 2.0 によるシングルサインオン `GET /api/v1/auth/saml/login` / `POST /api/v1/auth/saml/acs` / `GET /api/v1/auth/saml/metadata`（[docs/authentication.ja.md](docs/authentication.ja.md)）、ショップ API・公開ページ、動的 robots.txt `GET /robots.txt`・サイトマップ `GET /sitemap.xml`・SEO 設定 API `GET/PUT /api/v1/seo`、ヘルスチェック）。
 - **`auth`**: リクエストからのセッション抽出、ロールに基づく認可、プラグインの認証フック。
 - **`audit`**: リクエストから操作者と操作元を取り出す `AuditContext` エクストラクタ。
 - **`state`**: `DatabaseAdapter`、`StorageBackend`、`CacheBackend`、`SessionService`、`CommerceService`、スキーマ定義、プラグインスーパーバイザーを保持する共有状態 `AppState`。
-- **`config`**: 各クレートの設定セクションを束ねる `AegisConfig`（`config/*.toml` からの読み込みおよび環境変数オーバーライド。[docs/configuration.md](docs/configuration.md)）。
+- **`config`**: 各クレートの設定セクションを束ねる `AegisConfig`（`config/*.toml` からの読み込みおよび環境変数オーバーライド。[docs/configuration.ja.md](docs/configuration.ja.md)）。
 - **`main`**: CLI サブコマンド（サーバー起動 `run`、マイグレーション実行 `migrate`、型生成 `codegen`、バックアップ生成 `dump`、データ復元 `restore`、ユーザー管理 `user add|passwd|role|disable|enable|list|link-oidc|link-saml`、プラグインの状態 `plugin list`、通知のテスト `notify test`）および Admin Studio SPA の配信（`/admin/`）。
 
 #### 7. `crates/aegis-plugin-sdk` & `crates/aegis-plugin-macros` (公式 Wasm プラグイン SDK)
@@ -232,16 +232,16 @@ Axum を基盤とした REST API Gateway サーバーです。ドメインクレ
 - **`Plugin` トレイト**: ライフサイクルフック（記事保存前 `on_before_save`、コンテンツ AST 変換 `transform_content_ast`）の型安全な実装インターフェース。
 - **`host` API**: ホスト側ロガー（`log_info!`, `log_warn!`）、ネットワークアクセス事前検証（`net::is_allowed`）、ネームスペース分離 KVS 操作（`kv::set`）をラップした型安全関数群。
 - **ネイティブテストモック内蔵**: Wasm 環境にビルドせずとも通常の `cargo test` でプラグインのビジネスロジックを単体テスト可能。
-- **公式テンプレート & マルチ言語パッケージ**: 即座に開発を開始できる [`sdk/templates/rust`](sdk/templates/rust)（本文に置けるブロックを足すなら [`sdk/templates/rust-block`](sdk/templates/rust-block)。AssemblyScript / TinyGo 版も `sdk/templates/` に同梱）。各言語向けに GitHub を中心とした公式パッケージ（Rust: GitHub Git 依存 `aegis-plugin-sdk`, AssemblyScript: GitHub Packages `@takumi-mr/plugin-sdk`, TinyGo: Go Modules `github.com/takumi-mr/AegisCMS/sdk/tinygo`）を公開・配布（詳細は [Wasm プラグイン開発ガイド](docs/plugin_sdk_guide.md) を参照）。
+- **公式テンプレート & マルチ言語パッケージ**: 即座に開発を開始できる [`sdk/templates/rust`](sdk/templates/rust)（本文に置けるブロックを足すなら [`sdk/templates/rust-block`](sdk/templates/rust-block)。AssemblyScript / TinyGo 版も `sdk/templates/` に同梱）。各言語向けに GitHub を中心とした公式パッケージ（Rust: GitHub Git 依存 `aegis-plugin-sdk`, AssemblyScript: GitHub Packages `@takumi-mr/plugin-sdk`, TinyGo: Go Modules `github.com/takumi-mr/AegisCMS/sdk/tinygo`）を公開・配布（詳細は [Wasm プラグイン開発ガイド](docs/plugin_sdk_guide.ja.md) を参照）。
 
 > [!TIP]
 > ドキュメント一覧:
 >
 > - **[総合ドキュメントポータル (`docs/README.md`)](docs/README.ja.md)**（全ドキュメントのインデックスとマップ)
-> - 設計・開発: [内部設計 (`docs/architecture.md`)](docs/architecture.md) / [開発ガイド (`docs/development.md`)](docs/development.md) / [Admin Studio (`admin/README.md`)](admin/README.ja.md)
-> - 運用・機能: [設定リファレンス](docs/configuration.md) / [認証 & ユーザー管理](docs/authentication.md) / [監査ログ](docs/audit.md) / [メディア](docs/media.md) / [EC](docs/commerce.md) / [通知](docs/notifications.md) / [コメント](docs/comments.md) / [掲示板](docs/forum.md) / [問い合わせフォーム](docs/contact.md) / [サイト内検索](docs/search.md) / [アクセス解析](docs/analytics.md)
-> - テーマ・本文: [公開 & テーマエンジン](docs/theme_and_publishing_guide.md) / [テーマ作成ガイド](docs/theme_authoring_guide.md) / [本文のブロック & Markdown](docs/blocks.md)
-> - プラグイン: [開発ガイド](docs/plugin_sdk_guide.md) / [開発サーバー & Plugin Builder](docs/plugin_dev_server.md) / [フック & ホスト API](docs/plugin_hooks.md) / [ABI 仕様](docs/plugin_abi_specification.md) / [公式プラグイン](plugins/README.ja.md)
+> - 設計・開発: [内部設計 (`docs/architecture.md`)](docs/architecture.ja.md) / [開発ガイド (`docs/development.md`)](docs/development.ja.md) / [Admin Studio (`admin/README.md`)](admin/README.ja.md)
+> - 運用・機能: [設定リファレンス](docs/configuration.ja.md) / [認証 & ユーザー管理](docs/authentication.ja.md) / [監査ログ](docs/audit.ja.md) / [メディア](docs/media.ja.md) / [EC](docs/commerce.ja.md) / [通知](docs/notifications.ja.md) / [コメント](docs/comments.ja.md) / [掲示板](docs/forum.ja.md) / [問い合わせフォーム](docs/contact.ja.md) / [サイト内検索](docs/search.ja.md) / [アクセス解析](docs/analytics.ja.md)
+> - テーマ・本文: [公開 & テーマエンジン](docs/theme_and_publishing_guide.ja.md) / [テーマ作成ガイド](docs/theme_authoring_guide.ja.md) / [本文のブロック & Markdown](docs/blocks.ja.md)
+> - プラグイン: [開発ガイド](docs/plugin_sdk_guide.ja.md) / [開発サーバー & Plugin Builder](docs/plugin_dev_server.ja.md) / [フック & ホスト API](docs/plugin_hooks.ja.md) / [ABI 仕様](docs/plugin_abi_specification.ja.md) / [公式プラグイン](plugins/README.ja.md)
 > - 未着手のタスク: [TODO.md](TODO.md)
 
 ---

@@ -1,169 +1,171 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# Content-Security-Policy（CSP）の方針
+**English** | [日本語](csp.ja.md)
 
-公開サイトと Admin Studio の CSP の、現状と、公開ページを Strict CSP（インラインのスクリプトを許さない）にする設計です。
+# Content-Security-Policy (CSP) Policy
+
+The current state of the CSP for the public site and Admin Studio, and the design for making public pages a Strict CSP (which does not allow inline scripts).
 
 > [!NOTE]
-> すべて実装済みです（実装の分け方は §7。フォントは §8）。**既定は `strict_csp = "on"`（破壊的変更）**。前の動きに戻すには `"off"`。
+> Everything is implemented (how the work was split is in §7; fonts are in §8). **The default is `strict_csp = "on"` (a breaking change)**. To return to the previous behavior, use `"off"`.
 
 ---
 
-## 1. 現状（実装済み）
+## 1. Current State (Implemented)
 
-| 対象 | `script-src` | 備考 |
+| Target | `script-src` | Notes |
 |---|---|---|
-| 公開ページ・API | `'self' 'unsafe-inline'` | `'unsafe-eval'` は入れていない（`eval` を使う機能が無いため）。プラグインが宣言したホスト（`capabilities.csp.script_domains` など）と、CAPTCHA のホストが足される |
-| Admin Studio（`/admin/`） | `'self'` | `unsafe-inline` なし。`style-src` も `'self'` だけ（§1.1） |
-| テーマ適用ページのプレビュー | 公開ページと同じ | `GET /api/v1/preview/frame/{key}` が、`sandbox allow-scripts` を足して返す。Strict のときは、ページを置いたときに集めたハッシュも CSP に足す |
-| 公開ページ（`[security].strict_csp = "on"`。**既定**） | `'self'` + ページのインラインのスクリプトのハッシュ + 宣言したホスト | `'unsafe-inline'`・`'unsafe-eval'` なし（§6）。`style-src` は `'self'` + ページの `<style>` のハッシュ（`unsafe-inline` なし。`style=""` 属性も止まる。§6.1） |
+| Public pages and API | `'self' 'unsafe-inline'` | `'unsafe-eval'` is not included (no feature uses `eval`). Hosts declared by plugins (`capabilities.csp.script_domains`, etc.) and CAPTCHA hosts are added |
+| Admin Studio (`/admin/`) | `'self'` | No `unsafe-inline`. `style-src` is also only `'self'` (§1.1) |
+| Preview of theme-applied pages | Same as public pages | `GET /api/v1/preview/frame/{key}` returns it with `sandbox allow-scripts` added. When Strict, the hashes collected when the page was placed are added to the CSP too |
+| Public pages (`[security].strict_csp = "on"`; **the default**) | `'self'` + hashes of the page's inline scripts + declared hosts | No `'unsafe-inline'` or `'unsafe-eval'` (§6). `style-src` is `'self'` + hashes of the page's `<style>` (no `unsafe-inline`; `style=""` attributes are stopped too; §6.1) |
 
-- 既定の値は `headers::DEFAULT_CONTENT_SECURITY_POLICY`（`aegis_core::csp::DEFAULT_PUBLIC_CSP`。**`'unsafe-inline'` を持たない**）・`ADMIN_CONTENT_SECURITY_POLICY`。`strict_csp` が `off` / `report-only` のときだけ、`aegis_core::csp::with_legacy_inline` が `script-src` と `style-src` に `'unsafe-inline'` を足して強制する（前の動き）。管理者が「設定 › ヘッダー」で CSP を上書きしているときは、その値をそのまま使う。
-- `admin/e2e/csp.spec.ts` が、Admin Studio と公開ページの主な画面を既定の CSP で動かし、止められたスクリプトとスクリプトのエラーを検出する。
-- 詳しい経緯は [architecture.md の「デフォルト防御ヘッダー値」](architecture.md)。
-
----
-
-### 1.1 Admin Studio の `style-src`
-
-Admin Studio は、スタイルのインライン（`<style>` 要素・`style` 属性）を使いません。React の `style` は CSSOM（`element.style`）で設定するので、`style-src` に当たりません。そこで、`style-src` も `'self'` だけにしました。
-
-- **HTML を表示する 3 か所は、画面の中に直接入れず、サーバーが置いた別の文書（`iframe`）で見せる**: 本文の HTML（「HTML 出力」のタブ。プラグインのブロックは自分の `<style>` を持つ）、テーマ適用ページ、通知のメールのプレビュー（メールはインラインのスタイルが前提）。`srcdoc` や直接の挿入は、Admin Studio の CSP を引き継いで、これらのスタイルを止めてしまうため。
-- サーバーが `GET /api/v1/preview/frame/{key}` で返す（`POST /api/v1/preview` の `frame_key`・`body_frame_key`、`POST /api/v1/notifications/preview` の `frame_key`）。公開ページと同じ CSP に `sandbox allow-scripts` を足すので、中身のスクリプトも管理画面のセッションに届かない。本文の文書には、読みやすい最小限のスタイルを付ける。
-- 副産物: 本文の HTML を、管理画面のオリジンの DOM に入れなくなった（`dangerouslySetInnerHTML` をやめた）。
-- Admin Studio が読み込んでいた Google Fonts（`fonts.googleapis.com`）は、もともと CSP に止められて読めていなかったので、`index.html` から外した（フォントは、システムのフォントに倒れる）。
-
-## 2. 公開ページに `unsafe-inline` が残っていた理由（§6 で外した）
-
-インラインの `<script>` や `onclick` を、HTML に直接出すものがあるため。
-
-- 公式プラグイン（`page-toc`・`back-to-top`・`share-buttons`・`lightbox`・`external-links`・`code-lines`・`code-enhancer`・`mermaid`・`ads`・`clarity`）の `extra_head`
-- 組み込みのテンプレート（コメント欄のフォームのスクリプト、`onclick`）とセットアップ画面
-- 第三者のテーマ
-
-`'unsafe-inline'` があると、サニタイズをすり抜けたスクリプトも動く。サニタイズが唯一の防御になっている。
+- The default values are `headers::DEFAULT_CONTENT_SECURITY_POLICY` (`aegis_core::csp::DEFAULT_PUBLIC_CSP`; **it has no `'unsafe-inline'`**) and `ADMIN_CONTENT_SECURITY_POLICY`. Only when `strict_csp` is `off` / `report-only`, `aegis_core::csp::with_legacy_inline` adds `'unsafe-inline'` to `script-src` and `style-src` and enforces it (the previous behavior). When an administrator has overridden the CSP in "Settings › Headers", that value is used as is.
+- `admin/e2e/csp.spec.ts` runs Admin Studio and the main public pages with the default CSP and detects blocked scripts and script errors.
+- For the detailed background, see [architecture.md "Default defense header values"](architecture.md).
 
 ---
 
-## 3. 目標（設計）
+### 1.1 Admin Studio's `style-src`
 
-公開ページの `script-src` を、**信頼できる出どころのスクリプトだけ**を許す形にする。
+Admin Studio does not use inline styles (`<style>` elements or `style` attributes). React's `style` is set through the CSSOM (`element.style`), so it does not hit `style-src`. So `style-src` was also made `'self'` only.
+
+- **The 3 places that display HTML are not inserted directly into the screen but shown in a separate document (`iframe`) that the server placed**: the body HTML (the "HTML output" tab; plugin blocks have their own `<style>`), the theme-applied page, and the notification email preview (emails assume inline styles). `srcdoc` and direct insertion would inherit Admin Studio's CSP and block these styles.
+- The server returns them at `GET /api/v1/preview/frame/{key}` (the `frame_key` and `body_frame_key` of `POST /api/v1/preview`, and the `frame_key` of `POST /api/v1/notifications/preview`). It adds `sandbox allow-scripts` to the same CSP as public pages, so even scripts inside cannot reach the admin session. The body document gets minimal styles for readability.
+- A by-product: body HTML is no longer put into the admin origin's DOM (`dangerouslySetInnerHTML` was dropped).
+- The Google Fonts (`fonts.googleapis.com`) that Admin Studio had been loading were being blocked by the CSP and not loading anyway, so they were removed from `index.html` (fonts fall back to system fonts).
+
+## 2. Why `unsafe-inline` Remained on Public Pages (Removed in §6)
+
+Because some things output inline `<script>` and `onclick` directly into the HTML.
+
+- The `extra_head` of the official plugins (`page-toc`, `back-to-top`, `share-buttons`, `lightbox`, `external-links`, `code-lines`, `code-enhancer`, `mermaid`, `ads`, `clarity`)
+- The built-in templates (the comment form's script, `onclick`) and the setup screen
+- Third-party themes
+
+With `'unsafe-inline'`, scripts that slip through sanitization also run. Sanitization is the only defense.
+
+---
+
+## 3. Goal (Design)
+
+Make a public page's `script-src` allow **only scripts from trustworthy sources**.
 
 ```
-script-src 'self' 'sha256-<ページごとのインラインのスクリプトのハッシュ>' https://<マニフェストで宣言したホスト>
+script-src 'self' 'sha256-<hash of each page's inline script>' https://<hosts declared in the manifest>
 ```
 
-### 3.1 nonce ではなくハッシュにする理由
+### 3.1 Why Hashes Instead of Nonces
 
-- nonce は、リクエストごとに違う値が要る。公開ページは CDN・リバースプロキシが HTML を応答ごと共有キャッシュに置く（`[cdn]` が `Cache-Control: public` と `Cache-Tag` を付ける）。キャッシュされた応答のヘッダーと本文に同じ nonce が入り、多くの訪問者に使い回されるので、nonce が予測不能でなくなり、守りにならない。
-- ハッシュは**ページの内容で決まる**ので、キャッシュされても変わらない。ヘッダーと本文が同じ応答に入っていれば、常に一致する。
-- `'strict-dynamic'` は使わない。使うと、ブラウザーは `'self'` とホストの指定を無視し、nonce 付きのスクリプトが読み込む子スクリプトを、ホストの確認なしに信頼してしまう。マニフェストで宣言した `script_domains` を、ブラウザーが強制し続けるようにする（Clarity の起動コードが `www.clarity.ms` を読む、のような動的な読み込みも、宣言したホストなら通る）。
+- A nonce needs a different value for every request. Public pages have CDNs and reverse proxies put the HTML in shared caches per response (`[cdn]` adds `Cache-Control: public` and `Cache-Tag`). The same nonce would be in the cached response's header and body and reused for many visitors, so the nonce would no longer be unpredictable and would give no protection.
+- A hash is **decided by the page's content**, so it does not change when cached. As long as the header and body are in the same response, it always matches.
+- `'strict-dynamic'` is not used. If used, the browser ignores `'self'` and host specifications and trusts child scripts loaded by a nonce'd script without checking the host. We keep the browser enforcing the `script_domains` declared in the manifest (dynamic loading, such as Clarity's startup code loading `www.clarity.ms`, passes too if the host is declared).
 
-### 3.2 「信頼できる出どころ」でだけハッシュを計算する
+### 3.2 Compute Hashes Only for "Trustworthy Sources"
 
-**最終の HTML にある `<script>` を全部ハッシュする方式は、守りにならない。** 攻撃者が差し込んだスクリプトも、一緒にハッシュされて許可されるため。ハッシュは、次の出どころで、**出すときに**計算する。
+**The approach of hashing every `<script>` in the final HTML gives no protection.** Because a script an attacker inserted would be hashed and allowed along with the rest. Hashes are computed **at the time of output**, from the following sources.
 
-1. **プラグイン**: 構造化した注入（§4）で受け取ったインラインのスクリプト
-2. **テンプレート**: 組み込みのテンプレートは、インラインのスクリプトを外部ファイル（`'self'`）にして、ハッシュを要らなくする。テーマが出すインラインのスクリプトは、テンプレート関数（§5）で出し、そのときにハッシュを登録する
-3. **本文（`content_html`）**: ハッシュしない。スクリプトはサニタイズで取り除かれる。万一残っても、CSP で止まる
+1. **Plugins**: inline scripts received through structured injection (§4)
+2. **Templates**: the built-in templates make inline scripts into external files (`'self'`) so no hash is needed. Inline scripts a theme outputs are emitted with a template function (§5), and the hash is registered at that time
+3. **The body (`content_html`)**: not hashed. Scripts are removed by sanitization. Even if one somehow remained, the CSP stops it
 
 ---
 
-## 4. プラグインの ABI（破壊的変更）
+## 4. The Plugin ABI (Breaking Change)
 
-プラグインは、生の HTML 文字列に `<script>` を書いて返すのをやめ、**構造化したデータ**で返す。ホストが検査して、タグを作り、ハッシュを計算する。プラグインはハッシュも nonce も知らない。
+Plugins stop writing `<script>` in raw HTML strings and return **structured data** instead. The host validates it, builds the tag, and computes the hash. Plugins know neither hashes nor nonces.
 
 ```rust
 // aegis-core
 pub struct InjectedScript {
     pub source: ScriptSource,
-    /// 同意の区分（`analytics` など）。あれば、ホストが `type="text/plain" data-aegis-consent="..."` の形で出す
+    /// Consent category (such as `analytics`). If present, the host outputs it as `type="text/plain" data-aegis-consent="..."`
     pub consent: Option<String>,
 }
 
 pub enum ScriptSource {
     /// `<script src="https://..." async defer>`
     External { url: String, async_load: bool, defer: bool, crossorigin: bool },
-    /// `<script>コード</script>`
+    /// `<script>code</script>`
     Inline { code: String },
 }
 ```
 
-- `PageRenderContext` に `scripts: Vec<InjectedScript>` を足す（`on-render-page` が返す。位置は `<head>` だけ）。ABI のバージョンを上げる（`abi_version` 2）。外部のスクリプトの URL は、このサイトのパスも宣言なしで通す（`/assets/x.js`）。
-- **`extra_head` / `append_content` / `prepend_content` の中の `<script>` は、ホストが取り除く**（lol-html で解析して落とす。`on*` 属性も落とす）。`<link>`・`<meta>`・`<style>` などは今までどおり。
-- **ホストの検査**（`on-render-page` の結果に対して、タグを作る前）:
-  - `External`: `https://` の URL で、ホストがマニフェストの `capabilities.csp.script_domains` にある。属性は、ホストが決めた `src`・`async`・`defer` だけ（`onload` などを書けない。URL は属性として正しくエスケープする）
-  - `Inline`: マニフェストに **`capabilities.inline_scripts: true`** の宣言がある（最小権限。宣言がなければ捨てて、警告を残す）。大きさの上限（既定 64 KB）
-  - 区分の文字列は、`[a-z0-9_-]{1,32}` だけ
-  - 違反したスクリプトは捨てる。ページは壊さず、`render` の警告と監査ログに残す
-- **ハッシュ**: ホストが、出したインラインのスクリプトの本文（`type="text/plain"` で出すものも、同意のあとに `consent.js` が同じ本文で実行するので同じ）の SHA-256 を `sha256-<base64>` にして、応答の CSP に足す。
-- **`on-render-page` の結果のキャッシュ**（`[runtime].render_cache_mb`）は、これまでどおり。ハッシュは結果から決まるので、キャッシュしてよい。
+- Add `scripts: Vec<InjectedScript>` to `PageRenderContext` (returned by `on-render-page`; the position is `<head>` only). The ABI version is raised (`abi_version` 2). For external script URLs, this site's paths also pass without declaration (`/assets/x.js`).
+- **The host removes `<script>` inside `extra_head` / `append_content` / `prepend_content`** (parsed and dropped with lol-html; `on*` attributes are dropped too). `<link>`, `<meta>`, `<style>`, and the like are as before.
+- **The host's validation** (on the result of `on-render-page`, before building the tag):
+  - `External`: an `https://` URL whose host is in the manifest's `capabilities.csp.script_domains`. The only attributes are `src`, `async`, and `defer`, decided by the host (`onload` and the like cannot be written; the URL is escaped correctly as an attribute)
+  - `Inline`: the manifest must declare **`capabilities.inline_scripts: true`** (least privilege; without the declaration it is dropped and a warning is left). A size limit (default 64 KB)
+  - The category string is only `[a-z0-9_-]{1,32}`
+  - Scripts that violate this are dropped. The page is not broken, and it is recorded in the `render` warnings and the audit log
+- **Hashes**: the host takes the SHA-256 of the body of each inline script it output (those output as `type="text/plain"` too, because `consent.js` runs the same body after consent) as `sha256-<base64>` and adds it to the response's CSP.
+- **Caching the result of `on-render-page`** (`[runtime].render_cache_mb`) is as before. The hashes are determined by the result, so caching is fine.
 
 ---
 
-## 5. テーマとテンプレート
+## 5. Themes and Templates
 
-- **組み込みのテンプレート**: インラインのスクリプトと `onclick` をやめる。コメント欄のフォームのスクリプトは外部ファイル（`/_aegis/comments.js` のように、`consent.js` と同じ配信）にし、セットアップ画面も外部ファイルにする。`onclick="window.scrollTo..."` は、外部のスクリプトでイベントを結ぶ。
-- **第三者のテーマ**: `<script>` のインラインと `on*` 属性は、Strict のときに動かなくなる（破壊的変更）。直し方は 2 つ（2 つ目は 4 で足す）。
-  - スクリプトを `themes/{名前}/assets/*.js` にして、`<script src>` で読む（`'self'`）。
-  - どうしてもインラインにするものは、テンプレート関数 `{{ inline_script("コード") }}` で出す。ホストがタグを作り、ハッシュを登録する。
+- **Built-in templates**: stop using inline scripts and `onclick`. The comment form's script becomes an external file (served like `consent.js`, as with `/_aegis/comments.js`), and the setup screen also becomes an external file. `onclick="window.scrollTo..."` becomes binding events from an external script.
+- **Third-party themes**: inline `<script>` and `on*` attributes stop working under Strict (a breaking change). There are 2 ways to fix it (the second is added in 4).
+  - Make the script `themes/{name}/assets/*.js` and load it with `<script src>` (`'self'`).
+  - For things that must be inline, output them with the template function `{{ inline_script("code") }}`. The host builds the tag and registers the hash.
 
 ---
 
-## 6. 切り替え（`[security].strict_csp`）
+## 6. Switching (`[security].strict_csp`)
 
-**既定は `"on"`**（破壊的変更）。
+**The default is `"on"`** (a breaking change).
 
-| 値 | 動き |
+| Value | Behavior |
 |---|---|
-| `"on"`（既定） | Strict の CSP を強制する（`'unsafe-inline'` を外し、信頼できる出どころのインラインのスクリプトはハッシュで許す） |
-| `"report-only"` | 前の CSP（`script-src 'self' 'unsafe-inline'`）のまま、Strict の CSP を `Content-Security-Policy-Report-Only` でも出す。ブラウザーのコンソールで、止まるものを確かめられる。移行の確認用 |
-| `"off"` | 前の CSP に戻す。ただし §4 の検査と、`<script>` の取り除きは常に効く（ABI v2 の約束） |
+| `"on"` (default) | Enforces the Strict CSP (removes `'unsafe-inline'` and allows inline scripts from trustworthy sources by hash) |
+| `"report-only"` | Keeps the previous CSP (`script-src 'self' 'unsafe-inline'`) and also outputs the Strict CSP as `Content-Security-Policy-Report-Only`. You can check what would be blocked in the browser console. For checking migration |
+| `"off"` | Returns to the previous CSP. However, §4's validation and the removal of `<script>` always apply (the ABI v2 promise) |
 
-**`on` で動かなくなるもの**: テーマ自身の、直接書いたインラインの `<script>`・`on*` 属性（外部ファイルか `{{ inline_script() }}` にする。[テーマの書き方 6a](theme_authoring_guide.md#6a-スクリプトの書き方インラインを書かない)）、HTML の断片に直接書いた `<script>`（`core/html` の通常のモードなどはもともとサニタイズで除かれる）、`'unsafe-inline'` が要る外部サービスの貼り付けコード（AdSense・解析・CAPTCHA のうち、インラインの起動コードを持つもの。公式プラグイン `official-ads`・`official-clarity` は、構造化した注入で対応済み）。
+**What stops working with `on`**: the theme's own directly written inline `<script>` and `on*` attributes (make them external files or `{{ inline_script() }}`; [Theme authoring 6a](theme_authoring_guide.md#6a-how-to-write-scripts-do-not-write-inline)), `<script>` written directly in HTML fragments (the normal mode of `core/html` and the like are removed by sanitization anyway), and pasted code of external services that need `'unsafe-inline'` (those among AdSense, analytics, and CAPTCHA that have inline startup code; the official plugins `official-ads` and `official-clarity` are already handled with structured injection).
 
-- 管理者が CSP を上書きしているときは、その値が優先で、`strict_csp` は効かない。
-- 公開ページの `style-src` も同じ仕組みで Strict になる（§6.1）。Admin Studio は §1.1。
+- When an administrator has overridden the CSP, that value takes priority and `strict_csp` has no effect.
+- Public pages' `style-src` becomes Strict with the same mechanism (§6.1). For Admin Studio, see §1.1.
 
-### 6.1 スタイル（`<style>` はハッシュ、`style=""` 属性は使わない）
+### 6.1 Styles (`<style>` by Hash, No `style=""` Attributes)
 
-`strict_csp = "on"` では、`style-src` からも `'unsafe-inline'` を外し、**信頼できる出どころが出した `<style>` 要素の本文のハッシュ**を足します（スクリプトと同じ仕組み。`aegis_core::csp::record_inline_style` / `record_styles_in`。名前空間の置き換えのあとの本文で取る）。ハッシュを登録するのは次の出どころだけです。
+With `strict_csp = "on"`, `'unsafe-inline'` is also removed from `style-src`, and **the hash of the body of `<style>` elements that trustworthy sources output** is added (the same mechanism as scripts; `aegis_core::csp::record_inline_style` / `record_styles_in`; taken from the body after namespace replacement). Hashes are registered only from the following sources.
 
-- 組み込みのテンプレート: `{% filter inline_style %}…{% endfilter %}`（または `{{ inline_style("CSS") }}`）で出したもの。**テーマも同じ書き方で `<style>` を書ける**（直接書いた `<style>` は止まる）。`extra_css`（プラグインの CSS・サイトのカスタム CSS）もこの中に入る。
-- 組み込みのブロックのスタイル（`BLOCK_STYLES`）、管理者が書いたヘッダーの `<style>`（`custom_head_code`）、組み込みのページ（初期セットアップ・メンテナンス・メルマガの申し込み）。
-- プラグインが `on-render-page`（`extra_head`・`prepend_content`・`append_content`）と `render-blocks` で返した `<style>`（ホストが信頼してハッシュを登録する。プラグインのコードはインストールした管理者が信頼したもの）。**ユーザーが書いた本文の `<style>`（`core/html` の通常のモード）は、ハッシュを登録しないので止まる**。
-- `core/html` の**サンドボックスのモード**（`<iframe srcdoc>`）は、親の CSP を引き継ぐので、中のインラインの `<style>` と `<script>`（管理者が書いたものと、高さを同期する組み込みのもの）のハッシュも登録する。外部のホストのスクリプトは、親の CSP が許すものだけ。中の `style="…"` 属性も止まる（`<style>` に書く）。
+- Built-in templates: what is output with `{% filter inline_style %}…{% endfilter %}` (or `{{ inline_style("CSS") }}`). **Themes can write `<style>` the same way** (a directly written `<style>` is stopped). `extra_css` (plugin CSS and the site's custom CSS) goes into this too.
+- The built-in block styles (`BLOCK_STYLES`), the `<style>` in headers written by administrators (`custom_head_code`), and built-in pages (initial setup, maintenance, newsletter sign-up).
+- `<style>` that plugins return in `on-render-page` (`extra_head`, `prepend_content`, `append_content`) and `render-blocks` (the host trusts it and registers the hash; a plugin's code is trusted by the administrator who installed it). **`<style>` in a user-written body (the normal mode of `core/html`) does not get a hash registered, so it is stopped.**
+- The **sandbox mode** of `core/html` (`<iframe srcdoc>`) inherits the parent's CSP, so the hashes of the inline `<style>` and `<script>` inside (those the administrator wrote, and the built-in one that syncs height) are registered too. Scripts from external hosts are only those the parent's CSP allows. `style="…"` attributes inside are also stopped (write them in `<style>`).
 
-**`style=""` 属性は使えません**（`style-src` が属性にも効く）。組み込みのテンプレート（約 160 か所）・レンダラー（表の `text-align`・サンドボックスの `iframe`）・問い合わせとメルマガのハニーポット・公式プラグイン（`official-share-buttons` はサービスごとの色を `extra_css` のクラスで、`official-ads` は既存の CSS で）は、クラスに置き換えました。組み込みテンプレートのクラスは `aegis-s<番号>`（`aegis_theme::UTILITY_STYLES`。元の `style` 属性と同じく優先するよう `!important`）、同梱のテーマは各テーマの `assets/style.css` の `ts-<番号>` です。動的な値（コメントの字下げ `--depth`）は `aegis-depth-0`〜`4` のクラスにしました。HTML メールは `style` 属性で作るもの（メール本体は CSP と関係しない）なので、管理画面のメールのプレビュー（`/api/v1/preview/frame/…`）だけ、`style-src-attr 'unsafe-inline'` を足します。
+**`style=""` attributes cannot be used** (`style-src` also applies to attributes). The built-in templates (about 160 places), the renderer (the table's `text-align`, the sandbox's `iframe`), the contact and newsletter honeypots, and the official plugins (`official-share-buttons` uses classes in `extra_css` for per-service colors, and `official-ads` uses existing CSS) were replaced with classes. The built-in templates' classes are `aegis-s<number>` (`aegis_theme::UTILITY_STYLES`; `!important` so that they take precedence like the original `style` attributes), and for the bundled themes `ts-<number>` in each theme's `assets/style.css`. Dynamic values (the comment indent `--depth`) became the classes `aegis-depth-0` to `4`. HTML emails are built with `style` attributes (the email body has nothing to do with CSP), so only the admin screen's email preview (`/api/v1/preview/frame/…`) gets `style-src-attr 'unsafe-inline'` added.
 
-**動かなくなるもの**: テーマ・プラグインが書いた `style="…"` 属性（クラスと `<style>` / `extra_css` に）、テーマが直接書いた `<style>`（`inline_style` に包む。または `assets/*.css` を `<link>` で読む）、ユーザーが `core/html` の通常のモードで書いた `<style>`（サンドボックスのモードか、テーマの CSS に）。前の動きは `strict_csp = "off"`、確かめるだけなら `"report-only"`。
-
----
-
-## 7. 実装の分け方
-
-1. **設計書**（このページ）。
-2. **ABI v2**（**済**）: `InjectedScript`・`capabilities.inline_scripts`、ホストの検査（`aegis_runtime::scripts`。lol-html で `<script>` と `on*` 属性を取り除く・タグを作る）、SDK（Rust・AssemblyScript・TinyGo）、公式プラグイン（`page-toc`・`back-to-top`・`share-buttons`・`lightbox`・`external-links`・`code-lines`・`code-enhancer`・`mermaid`・`ads`・`clarity`）の移行、プラグイン開発サーバーのプレビュー、[plugin_abi_specification.md](plugin_abi_specification.md)・[plugin_hooks.md](plugin_hooks.md)・[versioning.md](versioning.md) の更新。CSP はまだ変えない。
-   - 移行で変わったこと: `official-mermaid` の `script_url` は、このサイトのパスか `cdn.jsdelivr.net` の `https://` だけ（ほかのホストはホストが捨てる）。`official-ads` の `custom_head_code` の `<script>` は使えなくなった（`<meta>`・`<link>` などは使える。スクリプトの安全な足し方は未決）。`official-code-enhancer` の Prism は、`<script data-manual>` の代わりに `window.Prism.manual = true` を先に実行する。
-3. **組み込みテンプレートの外部化**（**済**）: コメント欄のスクリプト（`/_aegis/comments.js`。URL は `CommentSection.script_url`）、初期セットアップ画面（`/_aegis/setup.js`）、アクセス解析のビーコン（`/_aegis/analytics.js`。受け口は `data-endpoint`）を外部ファイルにし、記事の「トップへ戻る」の `onclick` はページ内リンク（`<a href='#'>`。滑らかなスクロールは CSS の `scroll-behavior`）にした。組み込みのテンプレートと同梱のテーマ 5 つが、インラインのコードを出さないことを `aegis-theme` のテスト（全テンプレートを描画して `<script>`（`src` なし）と `on*` を探す）と、E2E（`script-src 'self'` だけの CSP でコメントを投稿する）で確かめる。テーマの作り方（[theme_authoring_guide.md の 6a](theme_authoring_guide.md#6a-スクリプトの書き方インラインを書かない)）に、インラインを書かない方針を追記した。`inline_script()`（§5）は、ハッシュの登録の仕組みと一緒に 4 で足す。
-4. **ハッシュの収集と CSP**（**済**）: 信頼できる出どころ（プラグインの `scripts` のインライン、テンプレートの `inline_script()`）が出すときに、本文の SHA-256 を `aegis_core::csp::record_inline_script` で記録する。記録の受け口は、`security_headers_middleware` がリクエストごとに作る（`tokio::task_local`。受け口の外では何もしない）。応答の本文は名前空間（`aegis-` → `cms-`）の置き換えを受けるので、**ハッシュも置き換えたあとの本文で取る**（受け口に、同じ置き換えを渡す）。`headers::strict_script_csp` が、`script-src` から `'unsafe-inline'`・`'unsafe-eval'` を外してハッシュを足す（宣言したホストは残し、`strict-dynamic` は使わない）。`[security].strict_csp` は `off`（既定）/ `report-only`（今の CSP に加えて `Content-Security-Policy-Report-Only`）/ `on`。管理者が CSP を上書きしているときは、その値が優先。Admin Studio（`/admin/`）は、もともと `unsafe-inline` が無い。`admin/e2e/aegis.e2e.toml` は `on` で、全 E2E が Strict の下で動く。
-6. **公開ページの `style-src` から `'unsafe-inline'` を外す**（**済**。破壊的変更。§6.1）。`<style>` はハッシュ、`style=""` 属性は使わない（クラスに置き換えた）。`core/html` のサンドボックス（`srcdoc`）は、これまでの Strict でもスクリプトが止まっていた（親の CSP を引き継ぐため）ので、中身のハッシュを登録して直した。
-5. **既定を `on` に**（**済**。破壊的変更）。`[security].strict_csp` の既定を `"on"` にした。前の動きは `"off"`、確かめるだけなら `"report-only"`。あわせて Admin Studio の `style-src` を `'self'` だけにした（§1.1）。
-
-### 7.1 決めたこと・決めていないこと
-
-- 決めた: ハッシュ方式（共有キャッシュと両立するため）、`strict-dynamic` を使わない、プラグインに nonce・ハッシュを見せない、ABI の破壊的変更を許す。
-- 決めた（4 で）: `inline_script()` は、テンプレート関数が `aegis_core::csp::inline_script_tag` を呼んでタグを作り、本文のハッシュをリクエストの受け口に記録する。`report-only` の報告の受け口は持たない（ブラウザーのコンソールで確かめる）。
-- 決めた（5 で）: 既定を `on` にする（移行の期間は置かず、破壊的変更として出す）。`aegis-server theme dev`（テーマの開発サーバー）も、プレビューのページに公開サイトの既定の CSP（Strict）を付ける（**済**）。止められたもの（インラインの `<script>`・`<style>`・`on*` 属性、宣言していないホストのフォント・画像）は、ページの右下に理由と直し方つきで出る。`--csp report-only`（強制しない）・`--csp off` もある。テーマが `inline_script` / `inline_style` で出したものと、開発サーバー自身のスクリプトだけがハッシュで許される。
+**What stops working**: `style="…"` attributes written by themes and plugins (change them to classes and `<style>` / `extra_css`), `<style>` written directly by themes (wrap it in `inline_style`, or load `assets/*.css` with `<link>`), and `<style>` that users write in the normal mode of `core/html` (use the sandbox mode, or the theme's CSS). The previous behavior is `strict_csp = "off"`, and for checking only, `"report-only"`.
 
 ---
 
-## 8. テーマのフォント・外部のスタイル（`theme.json` の `csp`）
+## 7. How the Work Was Split
 
-公開ページの CSP の `style-src` は `'self'` と `<style>` のハッシュ（§6.1）、`font-src` は `'self' data: https:` です。そのため、**外部のスタイルシート（Google Fonts の `fonts.googleapis.com` など）は、CSP に止められます**（以前は、組み込みの default テーマも同梱の 4 つのテーマも、Google Fonts を読んでいて、止められて代わりの書体になっていました）。直し方は 2 つです。
+1. **The design document** (this page).
+2. **ABI v2** (**done**): `InjectedScript` and `capabilities.inline_scripts`, the host's validation (`aegis_runtime::scripts`; removing `<script>` and `on*` attributes with lol-html and building tags), the SDKs (Rust, AssemblyScript, TinyGo), migration of the official plugins (`page-toc`, `back-to-top`, `share-buttons`, `lightbox`, `external-links`, `code-lines`, `code-enhancer`, `mermaid`, `ads`, `clarity`), the plugin dev server's preview, and updates to [plugin_abi_specification.md](plugin_abi_specification.md), [plugin_hooks.md](plugin_hooks.md), and [versioning.md](versioning.md). The CSP is not changed yet.
+   - What changed in the migration: `official-mermaid`'s `script_url` is only this site's path or an `https://` URL on `cdn.jsdelivr.net` (the host drops other hosts). `<script>` in `official-ads`'s `custom_head_code` can no longer be used (`<meta>`, `<link>`, etc. can; a safe way to add scripts is undecided). `official-code-enhancer`'s Prism runs `window.Prism.manual = true` first instead of `<script data-manual>`.
+3. **Externalizing the built-in templates** (**done**): the comment section's script (`/_aegis/comments.js`; the URL is `CommentSection.script_url`), the initial setup screen (`/_aegis/setup.js`), and the analytics beacon (`/_aegis/analytics.js`; the endpoint is `data-endpoint`) became external files, and the `onclick` of an article's "Back to top" became an in-page link (`<a href='#'>`; smooth scrolling is CSS `scroll-behavior`). That the built-in templates and the 5 bundled themes output no inline code is checked by an `aegis-theme` test (render all templates and look for `<script>` (without `src`) and `on*`) and an E2E (posting a comment with a CSP of only `script-src 'self'`). The policy of not writing inline code was added to how to build themes ([theme_authoring_guide.md 6a](theme_authoring_guide.md#6a-how-to-write-scripts-do-not-write-inline)). `inline_script()` (§5) is added in 4 along with the hash registration mechanism.
+4. **Collecting hashes and the CSP** (**done**): when a trustworthy source (a plugin's inline `scripts`, the template's `inline_script()`) outputs, the SHA-256 of the body is recorded with `aegis_core::csp::record_inline_script`. The recording sink is created per request by `security_headers_middleware` (`tokio::task_local`; it does nothing outside the sink). The response body undergoes namespace replacement (`aegis-` → `cms-`), so **hashes are also taken from the body after replacement** (the same replacement is passed to the sink). `headers::strict_script_csp` removes `'unsafe-inline'` and `'unsafe-eval'` from `script-src` and adds the hashes (declared hosts are kept, and `strict-dynamic` is not used). `[security].strict_csp` is `off` (default) / `report-only` (adds `Content-Security-Policy-Report-Only` in addition to the current CSP) / `on`. When an administrator has overridden the CSP, that value takes priority. Admin Studio (`/admin/`) never had `unsafe-inline`. `admin/e2e/aegis.e2e.toml` is `on`, and all E2E runs under Strict.
+6. **Removing `'unsafe-inline'` from public pages' `style-src`** (**done**; a breaking change; §6.1). `<style>` by hash, no `style=""` attributes (replaced with classes). The `core/html` sandbox (`srcdoc`) had its scripts blocked even under the earlier Strict (because it inherits the parent's CSP), so it was fixed by registering the hashes of the contents.
+5. **Making `on` the default** (**done**; a breaking change). The default of `[security].strict_csp` was made `"on"`. The previous behavior is `"off"`, and for checking only, `"report-only"`. At the same time, Admin Studio's `style-src` was made `'self'` only (§1.1).
 
-- **フォントを自分で配信する**（組み込みの default テーマの方式）: woff2 を自分のサイトに置き、`@font-face` で読む。外部に何も頼らないので、CSP に足すものがなく、訪問者の IP アドレスも外に出ない。組み込みの `base.html` は、Plus Jakarta Sans と JetBrains Mono の **Latin のサブセット**を、`/_aegis/fonts/<ファイル>`（バイナリに埋め込み。ライセンスは SIL OFL 1.1。[`crates/aegis-server/assets/fonts/README.md`](../crates/aegis-server/assets/fonts/README.ja.md)）から配信する。日本語など、ほかの文字は、システムのフォントに倒れる。
-- **外部のホストを `theme.json` で宣言する**（日本語のウェブフォントのように、自分で配信できないとき）: テーマの `theme.json` に `csp` を書くと、そのテーマが有効な間、サーバーが公開ページの CSP に足す。
+### 7.1 Decided and Not Decided
+
+- Decided: the hash approach (to coexist with shared caches), not using `strict-dynamic`, not showing nonces or hashes to plugins, and allowing a breaking ABI change.
+- Decided (in 4): for `inline_script()`, the template function calls `aegis_core::csp::inline_script_tag` to build the tag and records the body's hash in the request's sink. There is no sink for `report-only` reports (check in the browser console).
+- Decided (in 5): make `on` the default (no transition period; shipped as a breaking change). `aegis-server theme dev` (the theme dev server) also attaches the public site's default CSP (Strict) to the preview page (**done**). What was blocked (inline `<script>`, `<style>`, `on*` attributes, and fonts and images from undeclared hosts) is shown at the bottom right of the page with the reason and how to fix it. There are also `--csp report-only` (does not enforce) and `--csp off`. Only what the theme output with `inline_script` / `inline_style` and the dev server's own script are allowed by hash.
+
+---
+
+## 8. Theme Fonts and External Styles (`csp` in `theme.json`)
+
+The public page CSP's `style-src` is `'self'` and the `<style>` hashes (§6.1), and `font-src` is `'self' data: https:`. As a result, **external stylesheets (such as `fonts.googleapis.com` for Google Fonts) are blocked by the CSP** (previously, the built-in default theme and the 4 bundled themes loaded Google Fonts, were blocked, and fell back to a substitute typeface). There are 2 ways to fix it.
+
+- **Serve fonts yourself** (the built-in default theme's approach): place woff2 on your own site and load it with `@font-face`. It depends on nothing external, so there is nothing to add to the CSP, and the visitor's IP address does not leave the site. The built-in `base.html` serves the **Latin subsets** of Plus Jakarta Sans and JetBrains Mono from `/_aegis/fonts/<file>` (embedded in the binary; the license is SIL OFL 1.1; [`crates/aegis-server/assets/fonts/README.md`](../crates/aegis-server/assets/fonts/README.md)). Other characters, such as Japanese, fall back to system fonts.
+- **Declare external hosts in `theme.json`** (when you cannot serve them yourself, like Japanese web fonts): writing `csp` in the theme's `theme.json` makes the server add them to public pages' CSP while that theme is active.
 
 ```json
 {
@@ -175,27 +177,27 @@ pub enum ScriptSource {
 }
 ```
 
-  - 書けるのは `style_domains`（`style-src`）・`font_domains`（`font-src`）・`img_domains`（`img-src`）。**スクリプトのホストは宣言できない**（テーマのスクリプトは、自分のファイルか `inline_script()`）。
-  - ホスト名だけ（ワイルドカード・スキーム・ポート・パスは不可）、一覧ごとに 10 個まで。誤りのあるテーマは導入できず、動いているテーマの誤りは無視する（警告を出す）。
-  - 管理画面の「テーマ」のカードに、「ほかのサイトから読み込む: …（訪問者の IP アドレスが送られます）」と出る。外部のフォントの CDN には、訪問者の IP アドレスが届くので、プライバシーポリシーに書く。
-  - 同梱のテーマのうち、Google Fonts を読む `emerald-luxury`・`minimal-editorial`・`roastery`・`trailhead` が宣言している（`cyber-neon` は読まない）。
+  - What you can write is `style_domains` (`style-src`), `font_domains` (`font-src`), and `img_domains` (`img-src`). **Script hosts cannot be declared** (a theme's scripts are its own files or `inline_script()`).
+  - Host names only (no wildcards, schemes, ports, or paths), up to 10 per list. A theme with errors cannot be installed, and errors in a running theme are ignored (with a warning).
+  - The admin screen's "Themes" card shows "Loads from other sites: … (visitors' IP addresses are sent)". Visitors' IP addresses reach external font CDNs, so mention it in your privacy policy.
+  - Among the bundled themes, `emerald-luxury`, `minimal-editorial`, `roastery`, and `trailhead`, which load Google Fonts, declare it (`cyber-neon` does not load them).
 
-管理者が管理画面で CSP を上書きしているときも、宣言したホストは足される（プラグインの `capabilities.csp` と同じ）。
+Even when an administrator has overridden the CSP in the admin screen, the declared hosts are added (the same as a plugin's `capabilities.csp`).
 
 ---
 
-## 9. 性能への影響（2026-11-09 の計測）
+## 9. Performance Impact (Measured 2026-11-09)
 
-Strict CSP・`style` 属性の廃止・ABI v2・CORS の見直しなど、セキュリティの強化による性能の変化を、強化を始める前（#297 の直後）と現在で比べた。同じ設定（SQLite・記事 2,000 件・公式プラグイン 6 つ）・同じ負荷（`scripts/benchmark.mjs`、並行 50、各 6 秒、4 ラウンドを交互に実行した中央値）、release ビルド。
+We compared the performance change from security hardening (Strict CSP, removing `style` attributes, ABI v2, the CORS review, etc.) between before the hardening began (right after #297) and now. Same settings (SQLite, 2,000 articles, 6 official plugins), same load (`scripts/benchmark.mjs`, 50 concurrent, 6 seconds each, the median of 4 alternating rounds), release build.
 
-| シナリオ | 強化前 | 現在 | 差 |
+| Scenario | Before hardening | Now | Difference |
 | --- | ---: | ---: | ---: |
-| ルーティングのみ（health） | 8,501 req/s | 8,382 req/s | -1.4% |
-| トップページ | 3,744 | 3,577 | -4.5% |
-| 記事ページ | 1,931 | 1,784 | -7.6% |
-| 認証つき API（一覧） | 541 | 538 | -0.5% |
-| 管理画面のプレビュー | 1,642 | 1,348 | -17.9% |
+| Routing only (health) | 8,501 req/s | 8,382 req/s | -1.4% |
+| Top page | 3,744 | 3,577 | -4.5% |
+| Article page | 1,931 | 1,784 | -7.6% |
+| Authenticated API (list) | 541 | 538 | -0.5% |
+| Admin screen preview | 1,642 | 1,348 | -17.9% |
 
-- 公開ページの低下は、1 リクエストあたり 0.1〜0.5ms ほど。HTML が約 11% 増えた（クラス化したスタイル・自前フォントの `@font-face`）ことと、ハッシュの収集・名前空間の置き換え・CSP ヘッダーの組み立てによる。API は変わらない。
-- 最初の計測（トップ -22%・プレビュー -51%）では、毎リクエストで 30 KB ほどの CSS を SHA-256 にかけ、`<style>` を探すために断片を小文字に複製し、組み込みのスタイル（約 16 KB）が `on-render-page` のプラグインごとの `<script>` の取り除きの走査を受けていた。次のように直した: ①本文のハッシュを使い回す（`aegis_core::csp` の本文 → ハッシュのキャッシュ）、②受け口がないとき・`<` がないときは走査・エスケープをしない、③組み込みのスタイルは、プラグインを通さず、テーマの描画の最後に `</head>` の前へ足す（`ThemeEngine::render`）。
-- プレビューは管理者が使う POST で、テーマ適用ページの描画とプラグインの処理を毎回行うため、公開ページより差が出る（公開サイトの性能には関係しない）。
+- The decrease on public pages is about 0.1–0.5 ms per request. It comes from the HTML growing by about 11% (classed styles, the self-hosted font's `@font-face`) and from collecting hashes, namespace replacement, and building the CSP header. The API is unchanged.
+- In the first measurement (top -22%, preview -51%), about 30 KB of CSS was run through SHA-256 on every request, fragments were duplicated in lowercase to look for `<style>`, and the built-in styles (about 16 KB) went through the scan that removes `<script>` for each `on-render-page` plugin. It was fixed as follows: (1) reuse body hashes (a body → hash cache in `aegis_core::csp`), (2) skip scanning and escaping when there is no sink or no `<`, and (3) the built-in styles bypass plugins and are added before `</head>` at the end of the theme's rendering (`ThemeEngine::render`).
+- The preview is a POST used by administrators and renders the theme-applied page and runs plugin processing every time, so the difference shows more than for public pages (it has nothing to do with the public site's performance).

@@ -1,372 +1,374 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# 開発ガイド (Development)
+**English** | [日本語](development.ja.md)
 
-AegisCMS の開発環境、検証、ビルド、CI、Docker イメージについてまとめます。ブランチ・コミット・PR の規約は [AGENTS.md](../AGENTS.md)、内部設計は [architecture.md](architecture.md) を参照してください。
+# Development Guide
+
+Collects AegisCMS's development environment, verification, builds, CI, and Docker image. For branch, commit, and PR conventions, see [AGENTS.md](../AGENTS.md); for the internal design, see [architecture.md](architecture.md).
 
 ---
 
-## 1. タスク (`Taskfile.yml`)
+## 1. Tasks (`Taskfile.yml`)
 
-ルートで [go-task](https://taskfile.dev/) の `task` を使います（`task` だけで一覧）。
+At the root, use [go-task](https://taskfile.dev/)'s `task` (`task` alone lists them).
 
-| タスク | 内容 |
+| Task | Description |
 | --- | --- |
-| `task dev` / `task dev:admin` | サーバー（ポート 8080）/ Admin Studio の開発サーバー |
-| `task check` | PR 前の検証一式: `fmt:check`・`fmt:admin:check`・`lint`・`lint:admin`・`test`・`build:admin` |
-| `task migrate` | スキーマのマイグレーション |
-| `task dump` / `task restore` | データベースとアップロードストレージの一括バックアップ ZIP の生成 / 復元 |
-| `task codegen`（`codegen:ts` / `codegen:openapi`） | `schemas/*.yaml` から `admin/src/types/schemas.ts` と `docs/openapi.json` を生成。スキーマを変えたら実行する |
-| `task build` / `build:server` / `build:admin` | 本番ビルド |
-| `task test:admin` | Admin Studio のユニットテスト（Vitest。[8.1](#81-ユニットテスト-vitestadminsrctests)） |
-| `task test:e2e` | Admin Studio の E2E テスト（Playwright。[8.2](#82-e2e-テスト-playwrightadmine2e)） |
-| `task storybook` / `build:storybook` | Admin Studio の Storybook（ポート 6006）/ 静的ビルド |
-| `task plugin:build*` | プラグインの Wasm ビルド（[4](#4-プラグインのビルド)） |
-| `task bench:plugins` | プラグインのフック 1 回あたりの所要時間と同時実行時のスループット（`crates/aegis-runtime/examples/plugin_profile.rs`） |
-| `task bench:http`（`bench`） | サーバーの HTTP パフォーマンスベンチマーク（トップページ、記事、API、プレビュー、見積もり。`scripts/benchmark.mjs`） |
-| `task bench:all` | プラグイン性能計測と HTTP ベンチマークを一括実行 |
-| `task bench:dbs` | SQLite / PostgreSQL / MySQL の 3 エンジン間でベンチマーク比較を実行（[6.3](#63-データベース別パフォーマンス比較-task-benchdbs--scriptscompare-dbsmjs)） |
-| `task demo:shop` / `demo:shop:seed` | サンプルショップの起動 / データ投入（[examples/coffee-shop](../examples/coffee-shop)） |
-| `task demo:forum` / `demo:forum:seed` | サンプル掲示板の起動 / データ投入（[examples/hiking-forum](../examples/hiking-forum)） |
-| `task docs:screenshots` | `docs/images/` のスクリーンショットを撮り直す（サンプルのデータで使い捨てのサーバーを立て、Playwright で撮る。`scripts/capture-docs-screenshots.mjs`。画面を変えたら実行して差分をコミットする） |
-| `task docker:build` / `docker:run` / `docker:stop` / `docker:logs` | Docker イメージ（[5](#5-docker-イメージ)） |
-| `task docker:dbs:up` / `docker:dbs:down` | 実機検証用コンテナ（PostgreSQL 16 / MySQL 8.0 / Redis 7）の起動 / 停止（[7](#7-データベース実機検証-postgresql--mysql)） |
-| `task test:dbs` | 実機コンテナ環境での注文・在庫の統合テストを一括実行 |
+| `task dev` / `task dev:admin` | The server (port 8080) / Admin Studio's dev server |
+| `task check` | The full set of pre-PR verification: `fmt:check`, `fmt:admin:check`, `lint`, `lint:admin`, `test`, `build:admin` |
+| `task migrate` | Schema migration |
+| `task dump` / `task restore` | Create / restore a one-shot backup ZIP of the database and upload storage |
+| `task codegen` (`codegen:ts` / `codegen:openapi`) | Generate `admin/src/types/schemas.ts` and `docs/openapi.json` from `schemas/*.yaml`. Run it when you change schemas |
+| `task build` / `build:server` / `build:admin` | Production builds |
+| `task test:admin` | Admin Studio unit tests (Vitest; [8.1](#81-unit-tests-vitest-adminsrctestts)) |
+| `task test:e2e` | Admin Studio E2E tests (Playwright; [8.2](#82-e2e-tests-playwright-admine2e)) |
+| `task storybook` / `build:storybook` | Admin Studio's Storybook (port 6006) / static build |
+| `task plugin:build*` | Wasm builds of plugins ([4](#4-building-plugins)) |
+| `task bench:plugins` | Time per plugin hook call and throughput under concurrency (`crates/aegis-runtime/examples/plugin_profile.rs`) |
+| `task bench:http` (`bench`) | The server's HTTP performance benchmark (top page, article, API, preview, quote; `scripts/benchmark.mjs`) |
+| `task bench:all` | Run plugin performance measurement and the HTTP benchmark together |
+| `task bench:dbs` | Run a benchmark comparison across the 3 engines SQLite / PostgreSQL / MySQL ([6.3](#63-per-database-performance-comparison-task-benchdbs--scriptscompare-dbsmjs)) |
+| `task demo:shop` / `demo:shop:seed` | Start the sample shop / load data ([examples/coffee-shop](../examples/coffee-shop)) |
+| `task demo:forum` / `demo:forum:seed` | Start the sample forum / load data ([examples/hiking-forum](../examples/hiking-forum)) |
+| `task docs:screenshots` | Retake the screenshots in `docs/images/` (starts a disposable server with sample data and takes them with Playwright; `scripts/capture-docs-screenshots.mjs`. Run it after changing screens and commit the diff) |
+| `task docker:build` / `docker:run` / `docker:stop` / `docker:logs` | Docker image ([5](#5-docker-image)) |
+| `task docker:dbs:up` / `docker:dbs:down` | Start / stop the real-database verification containers (PostgreSQL 16 / MySQL 8.0 / Redis 7) ([7](#7-real-database-verification-postgresql--mysql)) |
+| `task test:dbs` | Run the order and inventory integration tests in the real-container environment together |
 
 ---
 
-## 2. 検証とリント
+## 2. Verification and Linting
 
-- **Rust**: `cargo fmt --check`、`cargo clippy --workspace -- -D warnings`（警告ゼロ。`[workspace.lints]`）、`cargo test --workspace`。
-  - `--all-targets` を付けると `sdk/templates/rust` のテストで `default_constructed_unit_structs` が出る（CI / `task check` は `--all-targets` なしなので未対応）。
-- **Admin Studio**: Prettier（`format:check`）、oxlint（`--deny-warnings`。訳し漏れの検査 `scripts/check-locales.mjs` も `npm run lint` で実行）、`npm run build`（型検査を含む）。
-- **Prettier と VS Code**:
-  - Prettier は `.editorconfig` のインデントを読む。`[*]` の 4 スペースが CSS / HTML に効かないよう、`[*.{ts,tsx,js,jsx,css,html}]` を 2 にしている。
-  - VS Code の Prettier 拡張は既定でワークスペース直下の `.prettierignore` を探すため、`.vscode/settings.json` で `prettier.ignorePath` を `admin/.prettierignore` に向けている。`prettier.requireConfig` で `admin/` 外の JSON などは整形しない。
-  - `src/types/schemas.ts`（生成物）と Markdown は整形しない。
-- **見た目を変えないリファクタリングの検証**: Playwright で全画面の `getComputedStyle`（約 90 プロパティ × 全要素）を取り、前後を比較する（CSS Modules への分割で使った）。
-- **公開サイトのスマートフォン表示**: テーマを変えたら幅 320 / 360 / 390px で主要ページの横スクロールの有無を確かめる（手順は [テーマ作成ガイド 6](theme_authoring_guide.md#7-開発の流れ)）。
+- **Rust**: `cargo fmt --check`, `cargo clippy --workspace -- -D warnings` (zero warnings; `[workspace.lints]`), `cargo test --workspace`.
+  - With `--all-targets`, `default_constructed_unit_structs` appears in the `sdk/templates/rust` tests (CI / `task check` run without `--all-targets`, so it is not addressed).
+- **Admin Studio**: Prettier (`format:check`), oxlint (`--deny-warnings`; the missing-translation check `scripts/check-locales.mjs` also runs in `npm run lint`), `npm run build` (including type checking).
+- **Prettier and VS Code**:
+  - Prettier reads `.editorconfig` indentation. So that the 4 spaces of `[*]` do not apply to CSS / HTML, `[*.{ts,tsx,js,jsx,css,html}]` is set to 2.
+  - The VS Code Prettier extension by default looks for `.prettierignore` directly under the workspace, so `.vscode/settings.json` points `prettier.ignorePath` at `admin/.prettierignore`. `prettier.requireConfig` leaves JSON and the like outside `admin/` unformatted.
+  - `src/types/schemas.ts` (generated) and Markdown are not formatted.
+- **Verifying refactors that do not change appearance**: with Playwright, take `getComputedStyle` of all screens (about 90 properties × all elements) and compare before and after (used for the split into CSS Modules).
+- **The public site's smartphone display**: when you change a theme, check at widths 320 / 360 / 390px whether the main pages scroll horizontally (for the steps, see [Theme authoring guide 6](theme_authoring_guide.md#7-development-flow)).
 
 ---
 
 ## 3. CI (`.github/workflows/ci.yml`)
 
-`main` への push と PR で次を実行します。
+On pushes and PRs to `main`, it runs the following.
 
-| ジョブ | 内容 |
+| Job | Description |
 | --- | --- |
 | `rust-ci` | `cargo fmt --check` → `cargo clippy --workspace -- -D warnings` → `cargo test --workspace` |
-| `frontend-ci` | `npm ci` → Prettier → oxlint → 型検査とビルド → Storybook のビルド |
-| `admin-e2e` | サーバーと Admin Studio をビルドして Playwright の E2E テスト（失敗時はレポートを成果物に残す） |
-| `docker-ci` | Docker イメージをビルド（上の 2 つと並列。GitHub Actions キャッシュ `type=gha`、プロファイル `ci-release`） |
+| `frontend-ci` | `npm ci` → Prettier → oxlint → type check and build → Storybook build |
+| `admin-e2e` | Build the server and Admin Studio and run the Playwright E2E tests (on failure, the report is kept as an artifact) |
+| `docker-ci` | Build the Docker image (in parallel with the above two; GitHub Actions cache `type=gha`, profile `ci-release`) |
 
-- `docker-ci` はビルドできるかの検証なので、LTO を省いた `ci-release` プロファイル（`--build-arg CARGO_PROFILE=ci-release`。最適化レベルは release と同じ）でビルドする。本番 release プロファイルは `lto = "thin"` / `codegen-units = 16`（Thin LTO）を採用しており、Fat LTO に比べてリンク・最適化時間を大幅に短縮しつつ本番同等の実行速度を維持する。
-- dev / test プロファイルのデバッグ情報は `line-tables-only`（バックトレースの行番号は残る）。フルのデバッグ情報だと `aegis-server` のテストバイナリの PDB が約 500 MB になる（`line-tables-only` で約 200 MB。Windows で `aegis-server` を変えたときの再ビルドが約 10 秒 → 6.5 秒）。デバッガで変数を見たいときは `CARGO_PROFILE_DEV_DEBUG=true` で上書きする（依存も再ビルドされる）。
+- `docker-ci` verifies that it can build, so it builds with the `ci-release` profile that omits LTO (`--build-arg CARGO_PROFILE=ci-release`; the optimization level is the same as release). The production release profile uses `lto = "thin"` / `codegen-units = 16` (Thin LTO), which greatly shortens link and optimization time compared with Fat LTO while keeping production-equivalent execution speed.
+- Debug info for the dev / test profiles is `line-tables-only` (line numbers in backtraces remain). With full debug info, the PDB of the `aegis-server` test binary is about 500 MB (about 200 MB with `line-tables-only`; the rebuild when changing `aegis-server` on Windows goes from about 10 seconds to 6.5 seconds). When you want to see variables in a debugger, override with `CARGO_PROFILE_DEV_DEBUG=true` (dependencies are rebuilt too).
 
 ---
 
-## 4. プラグインのビルド
+## 4. Building Plugins
 
-| タスク | 対象 | 必要なもの |
+| Task | Target | What you need |
 | --- | --- | --- |
 | `task plugin:build` | `sdk/templates/rust/plugin.wasm` | `rustup target add wasm32-unknown-unknown` |
-| `task plugin:build:as` | `sdk/templates/assemblyscript/plugin.wasm` | Node.js（`npm install`） |
-| `task plugin:build:tinygo` | `sdk/templates/tinygo/plugin.wasm` | TinyGo 0.31+ と `wasm-opt`（下記） |
-| `task plugin:build:tinygo-hooks` | `sdk/tinygo/examples/hooks/plugin.wasm`（同上の TinyGo 版。`sdk_hook_examples.rs` が実ホストで検証） | TinyGo 0.31+ と `wasm-opt`（下記） |
-| `task plugin:build:as-hooks` | `sdk/examples/assemblyscript-hooks/plugin.wasm`（注文・通知・コメント・ブロックのフックの例） | Node.js（`npm install`） |
-| `task plugin:build:code-enhancer` | `plugins/official-code-enhancer/plugin.wasm` | 同上（Rust） |
-| `task plugin:build:mermaid` | `plugins/official-mermaid/plugin.wasm` | 同上（Rust） |
-| `task plugin:build:plantuml` | `plugins/official-plantuml/plugin.wasm` | 同上（Rust） |
-| `task plugin:build:shop` | `plugins/official-shop-rules` / `official-order-notifier` | 同上（Rust） |
-| `task build:wasm` | `sdk/examples/slack-notifier/plugin.wasm`（手書きの WAT から） | — |
+| `task plugin:build:as` | `sdk/templates/assemblyscript/plugin.wasm` | Node.js (`npm install`) |
+| `task plugin:build:tinygo` | `sdk/templates/tinygo/plugin.wasm` | TinyGo 0.31+ and `wasm-opt` (below) |
+| `task plugin:build:tinygo-hooks` | `sdk/tinygo/examples/hooks/plugin.wasm` (the TinyGo version of the same; `sdk_hook_examples.rs` verifies it on a real host) | TinyGo 0.31+ and `wasm-opt` (below) |
+| `task plugin:build:as-hooks` | `sdk/examples/assemblyscript-hooks/plugin.wasm` (examples of the order, notification, comment, and block hooks) | Node.js (`npm install`) |
+| `task plugin:build:code-enhancer` | `plugins/official-code-enhancer/plugin.wasm` | Same (Rust) |
+| `task plugin:build:mermaid` | `plugins/official-mermaid/plugin.wasm` | Same (Rust) |
+| `task plugin:build:plantuml` | `plugins/official-plantuml/plugin.wasm` | Same (Rust) |
+| `task plugin:build:shop` | `plugins/official-shop-rules` / `official-order-notifier` | Same (Rust) |
+| `task build:wasm` | `sdk/examples/slack-notifier/plugin.wasm` (from hand-written WAT) | — |
 
-TinyGo のビルドには、TinyGo 本体のほかに binaryen の `wasm-opt` が必要です（無いと `could not find wasm-opt, set the WASMOPT environment variable to override` で失敗します）。binaryen をインストールして PATH に入れるか、`WASMOPT` 環境変数に `wasm-opt` のパスを指定してください。Windows で実行ファイルが無いときは、`sdk/assemblyscript` で `npm ci` すると入る npm 版の `node_modules/binaryen/bin/wasm-opt`（Node.js のスクリプト）を `node` 経由で呼ぶ `.cmd` を作り、`WASMOPT` にそのパスを指定する方法もあります。
+Building with TinyGo needs binaryen's `wasm-opt` in addition to TinyGo itself (without it, it fails with `could not find wasm-opt, set the WASMOPT environment variable to override`). Install binaryen and put it on PATH, or specify the path of `wasm-opt` in the `WASMOPT` environment variable. On Windows with no executable, you can also make a `.cmd` that calls, via `node`, the npm version's `node_modules/binaryen/bin/wasm-opt` (a Node.js script) that comes with `npm ci` in `sdk/assemblyscript`, and specify that path in `WASMOPT`.
 
-ビルド済みの `plugin.wasm` はコミットしています。`crates/aegis-runtime/tests/sdk_plugins.rs` が全テンプレートを実ホストで実行するので、**SDK・テンプレート・公式プラグインを変えたら再ビルドしてコミット**してください（slack-notifier は SDK と無関係）。
+Built `plugin.wasm` files are committed. `crates/aegis-runtime/tests/sdk_plugins.rs` runs all templates on a real host, so **when you change the SDKs, templates, or official plugins, rebuild and commit** (slack-notifier is unrelated to the SDKs).
 
-`sdk/` はテンプレートとサンプル、`plugins/` はインストール先です。`plugins/` に置いただけでは読み込まれず、`[plugins].enabled` に書いたものだけが有効になります（[architecture.md 10.2](architecture.md#102-インストールと有効化-wasmpluginloader)）。
-
----
-
-## 5. Docker イメージ
-
-- マルチステージビルド: `node:22.22-alpine`（Admin Studio）→ `rust:1.99.1-slim-bookworm`（サーバー）→ `debian:bookworm-slim`（実行）。約 163 MB。
-- ベースイメージはバージョンを固定している（`latest` は Rust のリリースごとに変わってレイヤーキャッシュが無効になり、実行環境の bookworm とも OS がずれるため）。Rust を更新するときは `Dockerfile` のタグを上げる。
-- Rust は cargo-chef で「依存クレートのビルド（`cargo chef cook`）」と「ワークスペースのビルド」を分けており、`Cargo.toml` / `Cargo.lock` が変わらない限り依存のレイヤー（約 1.7 GB）は CI のキャッシュから再利用される。本番 release プロファイルは Thin LTO（`lto = "thin"` / `codegen-units = 16`）でビルドされる。
-- ビルドプロファイルは `ARG CARGO_PROFILE`（既定 `release`）で切り替えられる。CI の検証では `ci-release` を渡す（[3](#3-ci-githubworkflowsciyml)）。
-- ワークスペースのメンバー（`crates/`・`sdk/`・`plugins/`）は `cargo chef prepare` と `cargo build` の時点でコンテキストに必要（`COPY plugins/ ./plugins/` など）。実行環境には `themes/` も置く。
-- UID 10001 の非 root ユーザー `aegis` で実行し、HEALTHCHECK を持つ。データは `/app/data` をボリュームにする（例: `-v aegis-data:/app/data`）。
-- 本番の公開（Caddy で HTTPS、複数サイト）は [`deploy/`](../deploy)。`aegis-server deploy generate`（`crates/aegis-server/src/deploy.rs`）が `deploy/sites.toml` から `compose.yaml`・`Caddyfile`・サイトごとの `aegis.toml` を作る。手元では `task deploy:generate` で `deploy/sites.toml` から生成できる（組み込みのテーマ・プラグインはリポジトリの `themes/`・`plugins/` で確かめる）。
-- 設定は `config/docker.toml`（`host = "0.0.0.0"`, `port = 8080`）。`AEGIS_CONFIG`・`HOST`・`PORT` で上書きできる。Admin Studio の API 接続先を別にする場合は `--build-arg VITE_AEGIS_SERVER_URL=...`（[configuration.md 4.3](configuration.md#43-admin-studio-の接続先)）。
+`sdk/` is for templates and samples, and `plugins/` is the installation destination. Placing something in `plugins/` alone does not load it, and only those written in `[plugins].enabled` are enabled ([architecture.md 10.2](architecture.md#102-installation-and-enabling-wasmpluginloader)).
 
 ---
 
-## 6. パフォーマンスベンチマーク
+## 5. Docker Image
 
-AegisCMS では、HTTP サーバー全体の負荷耐性と Wasm プラグイン単体のオーバーヘッドの双方を検証するベンチマーク環境を提供しています。
+- Multi-stage build: `node:22.22-alpine` (Admin Studio) → `rust:1.99.1-slim-bookworm` (server) → `debian:bookworm-slim` (runtime). About 163 MB.
+- Base image versions are pinned (`latest` changes with every Rust release and invalidates the layer cache, and the OS also drifts from the runtime's bookworm). When updating Rust, raise the tag in the `Dockerfile`.
+- Rust uses cargo-chef to separate "building dependency crates (`cargo chef cook`)" from "building the workspace", and unless `Cargo.toml` / `Cargo.lock` change, the dependency layer (about 1.7 GB) is reused from the CI cache. The production release profile is built with Thin LTO (`lto = "thin"` / `codegen-units = 16`).
+- The build profile can be switched with `ARG CARGO_PROFILE` (default `release`). CI verification passes `ci-release` ([3](#3-ci-githubworkflowsciyml)).
+- Workspace members (`crates/`, `sdk/`, `plugins/`) are needed in the context at the time of `cargo chef prepare` and `cargo build` (`COPY plugins/ ./plugins/`, etc.). `themes/` is also placed in the runtime.
+- It runs as the non-root user `aegis` with UID 10001 and has a HEALTHCHECK. Data uses `/app/data` as a volume (e.g. `-v aegis-data:/app/data`).
+- Production publishing (HTTPS with Caddy, multiple sites) is [`deploy/`](../deploy). `aegis-server deploy generate` (`crates/aegis-server/src/deploy.rs`) creates `compose.yaml`, `Caddyfile`, and a per-site `aegis.toml` from `deploy/sites.toml`. Locally, `task deploy:generate` can generate from `deploy/sites.toml` (check built-in themes and plugins with the repository's `themes/` and `plugins/`).
+- The configuration is `config/docker.toml` (`host = "0.0.0.0"`, `port = 8080`). It can be overridden with `AEGIS_CONFIG`, `HOST`, and `PORT`. To use a different API target for Admin Studio, use `--build-arg VITE_AEGIS_SERVER_URL=...` ([configuration.md 4.3](configuration.md#43-admin-studios-connection-target)).
 
-### 6.1 HTTP エンドポイントのベンチマーク (`scripts/benchmark.mjs`)
+---
 
-Node.js 18+ の標準機能（外部依存なし）で動作し、トップページ、記事詳細、コンテンツ一覧 API、プレビュー、EC 見積もりなどの主要エンドポイントのスループット（req/s）およびレイテンシ（p50, p90, p99, max）を計測します。
+## 6. Performance Benchmarks
+
+AegisCMS provides benchmark environments that verify both the load tolerance of the whole HTTP server and the overhead of Wasm plugins alone.
+
+### 6.1 HTTP Endpoint Benchmark (`scripts/benchmark.mjs`)
+
+It runs on Node.js 18+ standard features (no external dependencies) and measures the throughput (req/s) and latency (p50, p90, p99, max) of the main endpoints such as the top page, article details, the content list API, preview, and the e-commerce quote.
 
 ```bash
-# 1. サーバーを起動（別ターミナル）
+# 1. Start the server (in another terminal)
 task dev
-# または最適化されたリリースバイナリで起動
+# Or start with an optimized release binary
 cargo run --release -p aegis-server -- run
 
-# 2. ベンチマークを実行（既定: 並行 50、各エンドポイント 5 秒）
+# 2. Run the benchmark (default: 50 concurrent, 5 seconds per endpoint)
 task bench:http
 
-# 3. オプション指定（クイック実行・高負荷・ターゲット指定など）
-task bench:http:quick                    # 並行 20、各 2 秒
-task bench:http:stress                   # 並行 100、各 10 秒
-node scripts/benchmark.mjs -t index      # トップページのみ
-node scripts/benchmark.mjs -t api        # 一覧 API のみ
-node scripts/benchmark.mjs --auto-server # サーバーを自動起動して計測後終了
-node scripts/benchmark.mjs --json        # 結果を JSON 形式で出力
+# 3. Options (quick run, high load, specifying targets, etc.)
+task bench:http:quick                    # 20 concurrent, 2 seconds
+task bench:http:stress                   # 100 concurrent, 10 seconds
+node scripts/benchmark.mjs -t index      # top page only
+node scripts/benchmark.mjs -t api        # list API only
+node scripts/benchmark.mjs --auto-server # start the server automatically, measure, then exit
+node scripts/benchmark.mjs --json        # output the result as JSON
 
-# 一覧 API とプレビューも計測する（Viewer 以上のユーザーでログイン）
+# Also measure the list API and preview (log in as a user of Viewer or above)
 AEGIS_BENCH_PASSWORD=... node scripts/benchmark.mjs --user admin
-node scripts/benchmark.mjs --token <セッション ID>   # 環境変数 AEGIS_BENCH_TOKEN でも可
+node scripts/benchmark.mjs --token <session ID>   # the environment variable AEGIS_BENCH_TOKEN works too
 ```
 
-- **一覧 API（`api`）とプレビュー（`preview`）は Viewer 以上のセッションが必要**です。`--user` / `--token` を指定しない場合、この 2 つは計測しません（`-t api` などで個別に指定するとエラー）。セッションなしで回すと、本来の処理ではなく 401 の応答と、拒否を記録する監査ログ（`access.denied`）の書き込みを測ることになるためです。記事ページに使う slug の検索にも同じセッションを使います。
-- **カート見積もり（`quote`）は `[commerce].enabled = true` かつ公開中の商品が必要**です。ショップが無効、または商品が無い場合は計測しません（`-t quote` で明示指定した場合は理由を表示して終了）。ショップが無効（404）や商品が存在しない（404）状態で回すと、本来の見積もり・プラグインフック処理ではなくエラー応答を測ることになるためです。商品は API または公開の `/products` から自動で探して使用します。
-- 記事が多い状態で測るには、先に `scripts/seed-benchmark.mjs`（`task bench:seed`）でデータを入れます。カテゴリ 20 件と記事 1 万件（約 10 ブロック・約 4KB、カテゴリへのリレーションつき、10 件に 1 件は下書き）を API 経由で作り、投入の速さ（件数/秒）も表示します。同じ接頭辞（`--prefix`、既定 `bench`）で 2 回流すと slug が重複して失敗するので、測り直すときは DB を作り直してください。
+- **The list API (`api`) and preview (`preview`) need a session of Viewer or above.** Without specifying `--user` / `--token`, these two are not measured (specifying them individually, such as `-t api`, is an error). This is because running without a session would measure 401 responses and the audit log writes (`access.denied`) that record the refusals, not the real processing. The same session is also used to find the slug used for the article page.
+- **The cart quote (`quote`) needs `[commerce].enabled = true` and a published product.** If the shop is disabled or there are no products, it is not measured (if explicitly specified with `-t quote`, it shows the reason and exits). This is because running with the shop disabled (404) or no products (404) would measure error responses, not the real quote and plugin hook processing. The product is found automatically from the API or the public `/products`.
+- To measure with many articles, first load data with `scripts/seed-benchmark.mjs` (`task bench:seed`). It creates 20 categories and 10,000 articles (about 10 blocks, about 4KB, with a relation to the category, 1 in 10 a draft) through the API, and also shows the loading speed (items/second). Running it twice with the same prefix (`--prefix`, default `bench`) fails because of duplicate slugs, so recreate the DB when measuring again.
 
   ```bash
   export AEGIS_BENCH_PASSWORD=...
-  task bench:seed -- --user admin            # 記事 1 万件（-n で件数、-c で並行数）
+  task bench:seed -- --user admin            # 10,000 articles (-n for the count, -c for concurrency)
   task bench:http -- --user admin
   ```
 
-- 4xx / 5xx の応答が混ざったシナリオは ⚠️ と応答の内訳（例: `HTTP 422 x 32106`）を表示します。この数字はエンドポイント本来の性能ではありません。
+- Scenarios mixed with 4xx / 5xx responses show ⚠️ and a breakdown of responses (e.g. `HTTP 422 x 32106`). Those numbers are not the endpoint's real performance.
 
-### 6.2 Wasm プラグインのプロファイリング (`task bench:plugins`)
+### 6.2 Profiling Wasm Plugins (`task bench:plugins`)
 
-Wasm プラグイン（`sdk/` および `plugins/` 内のモジュール）を対象に、フック 1 回あたりの段階別所要時間（Store 作成、インスタンス化、入力書き込み、呼び出し、出力読み出し）と同時実行時のスループットを計測します（[architecture.md 12](architecture.md#12-性能の記録)）。
+For Wasm plugins (modules in `sdk/` and `plugins/`), it measures the per-stage time per hook call (Store creation, instantiation, input writing, call, output reading) and the throughput under concurrency ([architecture.md 12](architecture.md#12-performance-records)).
 
 ```bash
 task bench:plugins
 ```
 
-`on-render-page` が本文のサイズ（1KB〜1MB）でどう変わるかは、`plugins/` の公式プラグインを対象に次のコマンドで計測します。ホストの JSON 化・Wasm への書き込み・呼び出し・読み出しと、`on_render_page` 全体の所要時間（`e2e`。結果のキャッシュなし）、キャッシュを使う場合の所要時間（`cached`）を表示します（`crates/aegis-runtime/examples/plugin_payload_profile.rs`。結果の読み方は [architecture.md 10.7](architecture.md#107-on-render-page-の入力の軽量化-aegis-runtimesrcplugin-rs-wasminstancers)）。
+How `on-render-page` changes with body size (1KB–1MB) is measured for the official plugins in `plugins/` with the following command. It shows the host's JSON conversion, writing to Wasm, call, reading, and the time of the whole `on_render_page` (`e2e`; without the result cache), and the time when the cache is used (`cached`) (`crates/aegis-runtime/examples/plugin_payload_profile.rs`; for how to read the results, see [architecture.md 10.7](architecture.md#107-lightening-the-input-of-on-render-page-aegis-runtimesrcpluginrs-wasminstancers)).
 
 ```bash
 cargo run --release -p aegis-runtime --example plugin_payload_profile
 ```
 
-両方を一括実行する場合は `task bench:all` を使用します。
+To run both together, use `task bench:all`.
 
-### 6.3 データベース別パフォーマンス比較 (`task bench:dbs` / `scripts/compare-dbs.mjs`)
+### 6.3 Per-Database Performance Comparison (`task bench:dbs` / `scripts/compare-dbs.mjs`)
 
-同一のリリースバイナリ（LTO 有効化・最適化済み）を用いて、組み込み **SQLite (WAL モード)**、Docker 上の **PostgreSQL 16**、および **MySQL 8.0** の 3 つのデータベースエンジン間で主要エンドポイントの負荷耐性とスループットを計測・比較します。
+Using the same release binary (LTO enabled, optimized), it measures and compares the load tolerance and throughput of the main endpoints across 3 database engines: the embedded **SQLite (WAL mode)**, **PostgreSQL 16** on Docker, and **MySQL 8.0**.
 
 ```bash
-# 事前にテスト用 DB コンテナを起動（ヘルスチェック待機付き）
+# Start the test DB containers beforehand (with health check waiting)
 task docker:dbs:up
 
-# 3 つの DB に対する自動比較ベンチマーク（ビルド、マイグレーション、データ投入、測定、比較レポート出力）を一括実行
+# Run the automatic comparison benchmark against the 3 DBs (build, migration, data loading, measurement, comparison report output) together
 task bench:dbs
 ```
 
-#### 実測ベンチマーク結果（Windows 11 / AMD Ryzen 7 / Docker Desktop、並行度 50）
+#### Measured Benchmark Results (Windows 11 / AMD Ryzen 7 / Docker Desktop, concurrency 50)
 
-##### 1. 監査ログ DB 書き込み除外（推奨運用構成: `[audit] sinks = []` または `sinks = ["log"]`）
+##### 1. Excluding audit log DB writes (recommended operating setup: `[audit] sinks = []` or `sinks = ["log"]`)
 
-監査ログを DB に同期書き込みせず、標準出力/ログ転送に逃がした場合の純粋な Web / DB パフォーマンスです。
+Pure web / DB performance when audit logs are not written synchronously to the DB but sent to standard output / log forwarding.
 
-| エンドポイント / ワークロード | SQLite (WAL) | PostgreSQL 16 (Docker) | MySQL 8.0 (Docker) | 特性と分析 |
+| Endpoint / workload | SQLite (WAL) | PostgreSQL 16 (Docker) | MySQL 8.0 (Docker) | Characteristics and analysis |
 | :--- | :--- | :--- | :--- | :--- |
-| **公開トップページ** (`GET /`)<br>*(参照中心・キャッシュ・テンプレート描画)* | **1,178 req/s**<br>(p50: 41.0ms / p99: 63.1ms) | **510 req/s**<br>(p50: 94.8ms / p99: 174.0ms) | **514 req/s**<br>(p50: 92.0ms / p99: 148.2ms) | SQLite はインプロセス・ゼロコピーアクセスのため約 2.3 倍高速。外部 RDBMS は TCP ループバックと接続プール（既定 10）によるオーバーヘッドが支配的。 |
-| **未認証アクセス** (`GET /api/v1/contents/article`)<br>*(401 Unauthorized / 監査ログ DB 書込なし)* | **1,744 req/s**<br>(p50: 28.1ms / p99: 43.4ms) | **2,025 req/s**<br>(p50: 24.1ms / p99: 37.4ms) | **2,047 req/s**<br>(p50: 23.8ms / p99: 32.2ms) | 監査ログの DB 同期 INSERT を除外すると、MySQL の 401 応答は 230 req/s から約 2,050 req/s（約 8.9 倍）へ急上昇し、3 つのエンジンとも極めて高速な HTTP 拒否応答性能（1,700〜2,050 req/s）に揃う。 |
-| **コンテンツ一覧 API** (`GET /api/v1/contents/article`)<br>*(認証済 200 OK: DB クエリ + リレーション解決)* | **1,590 req/s**<br>(p50: 30.6ms / p99: 46.1ms) | **887 req/s**<br>(p50: 53.2ms / p99: 85.9ms) | **809 req/s**<br>(p50: 58.3ms / p99: 128.4ms) | 純粋な DB 読み込み API では、MySQL / PostgreSQL ともに 800〜890 req/s を安定して発揮。SQLite は 1,590 req/s と約 1.8〜2.0 倍高速。 |
-| **セッションログイン** (`POST /api/v1/auth/session`)<br>*(Argon2id 検証 + セッション発行)* | **106 req/s**<br>(p50: 185.3ms / p99: 243.5ms) | **102 req/s**<br>(p50: 192.7ms / p99: 256.6ms) | **99 req/s**<br>(p50: 197.3ms / p99: 253.1ms) | Argon2id の計算コスト（メモリ 64MB / 反復 3 回）がボトルネックとなり、全 DB エンジンで約 100 req/s（p50 約 190ms）と均等。 |
+| **Public top page** (`GET /`)<br>*(read-centric, cache, template rendering)* | **1,178 req/s**<br>(p50: 41.0ms / p99: 63.1ms) | **510 req/s**<br>(p50: 94.8ms / p99: 174.0ms) | **514 req/s**<br>(p50: 92.0ms / p99: 148.2ms) | SQLite is about 2.3 times faster thanks to in-process, zero-copy access. For external RDBMSs, the overhead of TCP loopback and the connection pool (default 10) dominates. |
+| **Unauthenticated access** (`GET /api/v1/contents/article`)<br>*(401 Unauthorized / no audit log DB write)* | **1,744 req/s**<br>(p50: 28.1ms / p99: 43.4ms) | **2,025 req/s**<br>(p50: 24.1ms / p99: 37.4ms) | **2,047 req/s**<br>(p50: 23.8ms / p99: 32.2ms) | Excluding the audit log's synchronous DB INSERT, MySQL's 401 responses jump from 230 req/s to about 2,050 req/s (about 8.9 times), and all 3 engines line up at extremely fast HTTP rejection performance (1,700–2,050 req/s). |
+| **Content list API** (`GET /api/v1/contents/article`)<br>*(authenticated 200 OK: DB query + relation resolution)* | **1,590 req/s**<br>(p50: 30.6ms / p99: 46.1ms) | **887 req/s**<br>(p50: 53.2ms / p99: 85.9ms) | **809 req/s**<br>(p50: 58.3ms / p99: 128.4ms) | For a pure DB-reading API, MySQL and PostgreSQL both steadily deliver 800–890 req/s. SQLite is about 1.8–2.0 times faster at 1,590 req/s. |
+| **Session login** (`POST /api/v1/auth/session`)<br>*(Argon2id verification + session issuance)* | **106 req/s**<br>(p50: 185.3ms / p99: 243.5ms) | **102 req/s**<br>(p50: 192.7ms / p99: 256.6ms) | **99 req/s**<br>(p50: 197.3ms / p99: 253.1ms) | The computational cost of Argon2id (memory 64MB / 3 iterations) is the bottleneck, so all DB engines are even at about 100 req/s (p50 about 190ms). |
 
-##### 2. 参考: 監査ログ同期 INSERT 有効時（`[audit] sinks = ["database"]`）
+##### 2. Reference: With Synchronous Audit Log INSERT Enabled (`[audit] sinks = ["database"]`)
 
-未認証アクセス（401）ごとに `_aegis_audit_logs` への同期 INSERT が発生する構成での測定値です。
+Measurements for a setup where each unauthenticated access (401) triggers a synchronous INSERT into `_aegis_audit_logs`.
 
-| エンドポイント / ワークロード | SQLite (WAL) | PostgreSQL 16 (Docker) | MySQL 8.0 (Docker) | 特性と分析 |
+| Endpoint / workload | SQLite (WAL) | PostgreSQL 16 (Docker) | MySQL 8.0 (Docker) | Characteristics and analysis |
 | :--- | :--- | :--- | :--- | :--- |
-| **未認証アクセス (401 + 監査ログ同期 INSERT)** | **2,014 req/s**<br>(p50: 16.4ms / p99: 89.8ms) | **992 req/s**<br>(p50: 45.2ms / p99: 138.7ms) | **230 req/s**<br>(p50: 178.7ms / p99: 675.1ms) | SQLite は `synchronous = NORMAL` により高速。PostgreSQL も MVCC/WAL が優秀。MySQL は InnoDB トランザクションコミットの fsync とプール枯渇で急激にスループットが低下。 |
+| **Unauthenticated access (401 + synchronous audit log INSERT)** | **2,014 req/s**<br>(p50: 16.4ms / p99: 89.8ms) | **992 req/s**<br>(p50: 45.2ms / p99: 138.7ms) | **230 req/s**<br>(p50: 178.7ms / p99: 675.1ms) | SQLite is fast thanks to `synchronous = NORMAL`. PostgreSQL's MVCC/WAL is also excellent. MySQL's throughput drops sharply because of the fsync of InnoDB transaction commits and pool exhaustion. |
 
-#### 設計上の考察と示唆
-1. **読み込み性能**: SQLite はプロセス内メモリ・ローカルファイル直結のため圧倒的な性能（1,100〜1,500+ req/s）を誇ります。外部 DB ではコネクションプールのチューニング（`max_connections` の拡大など）を行わない限り、接続待ちによるレイテンシが増加しますが、それでも純粋な API 参照では 800 req/s 超を安定して維持できます。
-2. **監査ログの同期 INSERT によるボトルネックの解消**: `database` シンクを有効にした場合、MySQL では同期トランザクション書き込みの待ち時間により 401 応答が 230 req/s まで制限されていました。しかし監査ログ DB 書き込みを除外し、推奨設定である `log` シンク（または DB 書き込み除外）に逃がすことで、MySQL でも 401 応答は約 1,965 req/s、コンテンツ一覧取得 API は約 858 req/s と本来の高速なパフォーマンスを発揮します。高トラフィック運用では監査ログを `database` ではなく `log` シンク（ファイル/stdout 出力 + Fluentd/Logstash 転送）に設定することが改めて実証されました（[audit.md 1.1](audit.md#11-出力先の選び方)）。
+#### Design Observations and Implications
+1. **Read performance**: SQLite has overwhelming performance (1,100–1,500+ req/s) because it connects directly to in-process memory and local files. With external DBs, unless you tune the connection pool (such as raising `max_connections`), latency from waiting for connections increases, but even so, pure API reads steadily maintain over 800 req/s.
+2. **Removing the bottleneck of the synchronous audit log INSERT**: with the `database` sink enabled, MySQL's 401 responses were limited to 230 req/s by the wait of synchronous transaction writes. But by excluding audit log DB writes and sending them to the recommended `log` sink (or excluding DB writes), MySQL also delivers its true high performance: about 1,965 req/s for 401 responses and about 858 req/s for the content list API. It was demonstrated again that for high-traffic operation you should configure audit logs not as `database` but as the `log` sink (file/stdout output + Fluentd/Logstash forwarding) ([audit.md 1.1](audit.md#11-choosing-a-destination)).
 
-### 6.4 掲示板のベンチマーク (`task bench:forum` / `scripts/benchmark-forum.mjs`)
+### 6.4 Forum Benchmark (`task bench:forum` / `scripts/benchmark-forum.mjs`)
 
-掲示板（[forum](forum.md)）が「どれぐらいのリクエストまで耐えられるか」を測ります。専用の設定 `config/bench-forum.toml`（SQLite・監査ログなし・連投制限なし・自動ロックなし・運営者通知なし）でサーバーを起動し、API で 200 スレッド（人気スレッド 1 つは 1,000 レス）を投入してから、並行数を 10 → 800 と上げながら各シナリオを計測します。**p99 が目標（既定 500ms）以内でエラーなしに捌けた最大の req/s** を「耐えられた」とみなして、最後に表にします。
+Measures "how many requests the forum ([forum](forum.md)) can withstand". It starts the server with the dedicated settings `config/bench-forum.toml` (SQLite, no audit log, no rate limit on consecutive posts, no auto-lock, no operator notifications), loads 200 threads (one popular thread with 1,000 replies) through the API, and then measures each scenario while raising concurrency from 10 to 800. It treats **the highest req/s handled with p99 within the target (default 500ms) and no errors** as "withstood", and tabulates it at the end.
 
 ```bash
-cargo build --release -p aegis-server   # 先にリリースバイナリを作る
-task bench:forum                        # 既定: 並行 10,50,100,200,400,800 × 各 5 秒
+cargo build --release -p aegis-server   # build the release binary first
+task bench:forum                        # default: concurrency 10,50,100,200,400,800 × 5 seconds each
 task bench:forum -- --levels 50,200 -d 3 --slo-p99 200
 ```
 
-#### 実測結果（Windows 11 / AMD Ryzen 7、SQLite (WAL)、負荷をかける Node.js も同じマシン）
+#### Measured Results (Windows 11 / AMD Ryzen 7, SQLite (WAL), with the load-generating Node.js on the same machine)
 
-| シナリオ | 最大 req/s | そのときの p50 / p99 |
+| Scenario | Max req/s | p50 / p99 at that point |
 | :--- | ---: | ---: |
-| 掲示板トップ (`GET /forum`) | 約 1,900 | 5.1ms / 9.9ms |
-| スレッド一覧 (`GET /forum/{slug}`) | 約 1,700 | 5.6ms / 11.3ms |
-| スレッド表示（数レス） | 約 3,300 | 57ms / 111ms |
-| 人気スレッド（1,000 レス・ランダムなページ） | 約 1,100 | 43ms / 70ms |
-| 返信の投稿（匿名・スレッドに分散） | 約 880 | 206ms / 380ms |
-| 返信の投稿（1 スレッドに集中） | 約 940 | 94ms / 196ms |
-| 閲覧 95% + 投稿 5% | 約 900 | 11ms / 27ms |
+| Forum top (`GET /forum`) | about 1,900 | 5.1ms / 9.9ms |
+| Thread list (`GET /forum/{slug}`) | about 1,700 | 5.6ms / 11.3ms |
+| Viewing a thread (a few replies) | about 3,300 | 57ms / 111ms |
+| Popular thread (1,000 replies, random pages) | about 1,100 | 43ms / 70ms |
+| Posting a reply (anonymous, spread over threads) | about 880 | 206ms / 380ms |
+| Posting a reply (concentrated on one thread) | about 940 | 94ms / 196ms |
+| 95% viewing + 5% posting | about 900 | 11ms / 27ms |
 
-- 閲覧はどのシナリオも並行 800 まで**エラーなしでスループットがほぼ横ばい**（落ちない）。並行数を増やすと待ち行列が伸びてレイテンシだけが増える（p99 は並行 400 で 230〜560ms、800 で 670〜1,200ms）ので、実際の上限は「p99 をどこまで許すか」で決まる。
-- 書き込みは SQLite の単一ライターが上限で、約 900〜1,000 req/s で頭打ち（並行 800 でも失敗は 0。p99 だけ 1 秒を超える）。
-- スレッドとカテゴリのページは、表示する分だけを DB から読む（`LIMIT / OFFSET`）。総数（ページ数の計算用）は `COUNT(*)` で数える。先頭からページ番号ぶんを読んで切り出す作りだと、レスが多いスレッドの後ろのページほど遅くなり、1,000 レスのスレッドは約 100 req/s で頭打ちになる。
-- 数値は実行ごとに 1 割ほどぶれる（同じマシンで負荷をかけるため）。
+- Viewing in every scenario has **no errors and throughput roughly flat** up to concurrency 800 (it does not fall). As concurrency increases the queue grows and only latency increases (p99 is 230–560ms at concurrency 400 and 670–1,200ms at 800), so the real limit is decided by how much p99 you allow.
+- Writes are capped by SQLite's single writer, topping out at about 900–1,000 req/s (zero failures even at concurrency 800; only p99 exceeds 1 second).
+- Thread and category pages read only what is displayed from the DB (`LIMIT / OFFSET`). The total (for computing the page count) is counted with `COUNT(*)`. With a design that reads from the start up to the page number and slices, later pages of threads with many replies get slower, and a 1,000-reply thread tops out at about 100 req/s.
+- Numbers vary by about 10% between runs (because the load is generated on the same machine).
  
 ---
 
-## 7. データベース実機検証 (PostgreSQL / MySQL)
+## 7. Real-Database Verification (PostgreSQL / MySQL)
 
-SQLite（`sqlite::memory:`）以外の実機 RDBMS 環境（PostgreSQL 16 / MySQL 8.0）での注文・在庫トランザクションやスキーママイグレーションの動作確認を行うため、専用の Docker Compose 構成（[`docker-compose.test-dbs.yml`](../docker-compose.test-dbs.yml)）とテストスイートを提供しています。
+To check the behavior of order and inventory transactions and schema migrations on real RDBMS environments other than SQLite (`sqlite::memory:`) (PostgreSQL 16 / MySQL 8.0), a dedicated Docker Compose setup ([`docker-compose.test-dbs.yml`](../docker-compose.test-dbs.yml)) and test suite are provided.
 
 ```bash
-# 1. テスト用 DB コンテナを起動（ヘルスチェック待機付き）
+# 1. Start the test DB containers (with health check waiting)
 task docker:dbs:up
 
-# 2. 統合テストを一括実行（aegis-db 単体トランザクション検証 + aegis-server E2E API 検証）
+# 2. Run the integration tests together (aegis-db standalone transaction verification + aegis-server E2E API verification)
 task test:dbs
 
-# 3. テスト完了後にコンテナとボリュームを破棄
+# 3. Discard the containers and volumes after the tests finish
 task docker:dbs:down
 ```
 
-- **自動スキップ機能**: コンテナが起動していない通常開発時（`task test` や `task check`）は、TCP ポートプローブ（タイムアウト 150ms）により実機テストが即座にスキップされ、全体のテスト実行速度を損ないません。
-- **CI では実行しない**: CI は PostgreSQL / MySQL を起動しないので、実機テストはすべてスキップされる。実機での確認はローカルの品質チェック（`task docker:dbs:up` のうえで `task test`）で行う。
-- **テストは共有の DB を直列に使う**: 実機テストは同じ `aegis_test` のテーブルを作り直すので、同じ DB を使うテストが並列に動くと互いのテーブルを壊す。aegis-server のテストは `test_support::POSTGRES_TEST_LOCK` / `MYSQL_TEST_LOCK` を握って 1 つずつ動かす。実機の DB を使うテストを足すときは、同じロックを取る。
-- **検証項目**:
-  - `_aegis_orders` テーブルおよびインデックスの初期化
-  - 注文作成時のアトミックな在庫減算（`stock >= quantity`）
-  - 部分的な在庫不足時のトランザクション自動ロールバック（複数行中 1 行でも不足なら全件破棄）
-  - 無制限在庫（`stock IS NULL`）商品の取り扱い
-  - 注文キャンセル時の在庫返却（`restock`）
-  - 注文確認ページ・スタッフ用注文一覧/詳細 API・状態変更 API の E2E 動作
-  - バックアップ → 復元の、DB の種類をまたぐ往復（`aegis-backup` の `cross_db_roundtrip`。SQLite → PostgreSQL → MySQL → SQLite と渡し、日本語・絵文字・長文・真偽値・数値のカスタムフィールド・コメント・タグ・掲示板・アップロードしたファイルが同じ値で戻ること。PostgreSQL・MySQL の片方だけでも動く）
-  - Redis の Pub/Sub によるサーバー間のイベントバス（2 台分の接続で送受信、購読を切ったあとの再接続と `Resync`。`REDIS_URL` で接続先を変えられます）
+- **Automatic skipping**: in ordinary development where the containers are not running (`task test` and `task check`), a TCP port probe (timeout 150ms) skips the real-database tests immediately and does not hurt overall test execution speed.
+- **Not run in CI**: CI does not start PostgreSQL / MySQL, so all real-database tests are skipped. Verification on real databases is done in local quality checks (`task test` after `task docker:dbs:up`).
+- **Tests use the shared DB serially**: the real-database tests recreate the same `aegis_test` tables, so if tests using the same DB run in parallel they break each other's tables. aegis-server's tests hold `test_support::POSTGRES_TEST_LOCK` / `MYSQL_TEST_LOCK` and run one at a time. When adding a test that uses a real DB, take the same lock.
+- **Verification items**:
+  - Initialization of the `_aegis_orders` table and indexes
+  - Atomic inventory decrement at order creation (`stock >= quantity`)
+  - Automatic transaction rollback on partial inventory shortage (if even one of multiple lines is short, everything is discarded)
+  - Handling of unlimited-inventory (`stock IS NULL`) products
+  - Inventory return (`restock`) on order cancellation
+  - E2E behavior of the order confirmation page, the staff order list/detail API, and the status change API
+  - Round trips of backup → restore across database kinds (`cross_db_roundtrip` in `aegis-backup`. It passes SQLite → PostgreSQL → MySQL → SQLite, and verifies that Japanese, emoji, long text, boolean and numeric custom fields, comments, tags, forum, and uploaded files come back with the same values. It also runs with only one of PostgreSQL and MySQL)
+  - The inter-server event bus over Redis Pub/Sub (send and receive with two servers' connections, reconnection after dropping the subscription, and `Resync`. The target can be changed with `REDIS_URL`)
 
-### 7.1 システムテーブルの定義を変えるとき
+### 7.1 When Changing System Table Definitions
 
-システムテーブル（`_aegis_*`）の定義は、`crates/aegis-db/migrations/` の SQL ファイルで変えます（方針は [versioning.md の 6](versioning.md#6-テーブル定義の更新方針)）。
+The definitions of system tables (`_aegis_*`) are changed with SQL files in `crates/aegis-db/migrations/` (for the policy, see [versioning.md 6](versioning.md#6-policy-for-updating-table-definitions)).
 
-1. `sqlite/`・`postgres/`・`mysql/` のそれぞれに、同じ番号・同じ名前の新しい手順（`NNNN_説明.sql`。前の番号の次）を足す。**公開した手順のファイルは書き換えない**。
-2. 方言の違いに注意する（型、`AUTOINCREMENT` 相当、索引の書き方。MySQL は `CREATE INDEX IF NOT EXISTS` が無く、DDL を途中で戻せない）。
-3. `cargo test -p aegis-db` で、3 つの方言の手順がそろっていることを確かめる。そのうえで **`task docker:dbs:up` → `task test:dbs` で、PostgreSQL・MySQL の実機でも流す**（CI は実機を起動しないので、実機の確認はここでしかできない）。
-4. 統合テストで実機 DB を初期化して `init` で作り直すときは、`aegis_db::test_support::cleanup_postgres` / `cleanup_mysql` を実行する（`_sqlx_migrations` だけでなくマイグレーション管理下の全システムテーブルを一括で消すことで、マイグレーション 2 以降を再実行した際に列の重複エラーになるのを防ぐ）。
+1. Add a new step with the same number and the same name (`NNNN_description.sql`; the next after the previous number) to each of `sqlite/`, `postgres/`, and `mysql/`. **Do not rewrite the file of a published step.**
+2. Mind the dialect differences (types, the equivalent of `AUTOINCREMENT`, index syntax. MySQL has no `CREATE INDEX IF NOT EXISTS` and cannot roll back DDL partway).
+3. Run `cargo test -p aegis-db` to verify the steps of the 3 dialects line up. Then **run them on real PostgreSQL and MySQL too, with `task docker:dbs:up` → `task test:dbs`** (CI does not start real databases, so this is the only place real-database verification can be done).
+4. When an integration test initializes a real DB and recreates it with `init`, run `aegis_db::test_support::cleanup_postgres` / `cleanup_mysql` (dropping not only `_sqlx_migrations` but all migration-managed system tables at once prevents duplicate column errors when migrations 2 and later are rerun).
 
 ---
 
-## 8. Admin Studio のテストと Storybook
+## 8. Admin Studio Tests and Storybook
 
-### 8.1 ユニットテスト (Vitest、`admin/src/**/*.test.ts`)
+### 8.1 Unit Tests (Vitest, `admin/src/**/*.test.ts`)
 
 ```bash
 task test:admin                 # = npm --prefix admin run test:unit
-npm --prefix admin run test:unit:watch # ファイル変更監視モード
+npm --prefix admin run test:unit:watch # file watch mode
 ```
 
-- **高速なユーティリティおよびロジックの検証**: `src/utils/`（Markdown パーサー・シリアライザー、通貨フォーマッター、権限判定、日付フォーマット、SSO / 認証リダイレクト等）や `src/api/` のヘルパー・クラスを対象に、Vite 設定と連動した Vitest で実行します。
-- **CI / task check への統合**: `task check` および GitHub Actions の `frontend-ci` ジョブ内で自動実行されます。
+- **Fast verification of utilities and logic**: runs with Vitest linked to the Vite config, targeting `src/utils/` (the Markdown parser and serializer, currency formatter, permission checks, date formatting, SSO / authentication redirects, etc.) and the helpers and classes in `src/api/`.
+- **Integration with CI / task check**: runs automatically in `task check` and in the GitHub Actions `frontend-ci` job.
 
-### 8.2 E2E テスト (Playwright、`admin/e2e/`)
+### 8.2 E2E Tests (Playwright, `admin/e2e/`)
 
 ```bash
 task test:e2e                      # = npm --prefix admin run test:e2e
-npm --prefix admin run test:e2e -- --ui   # Playwright の UI モード
+npm --prefix admin run test:e2e -- --ui   # Playwright's UI mode
 ```
 
-- **実サーバーに対して動かす**（API はモックしない）。`playwright.config.ts` の `webServer` が `e2e/start-server.mjs` を起動し、Admin Studio と `aegis-server` をビルドしてから、`target/e2e/` を消し、admin ユーザー（`e2e/credentials.mjs`）を作って、`e2e/aegis.e2e.toml` でポート 18080 に立てる。API の形と画面の型の食い違い（プラグイン画面で実際にあった）はモックでは見つからないため。
-- **包括的なテストスイート（全 17 テスト）**:
-  - `auth.spec.ts`: ログイン成功、サインアウト（セッション破棄・リダイレクト）、誤ったパスワード時のエラー表示、レートリミットによるアカウント一時ロック（3回連続失敗後の 429 応答）。
-  - `content.spec.ts`: 記事新規作成、下書き（Draft）保存とサイドバー一覧反映、公開（Published）切り替え、リロード時の永続化検証、Markdown モードと Blocks モードの相互変換。
-  - `themes.spec.ts`: インストール済みテーマ一覧表示、アクティブテーマ切り替え（Aegis Horizon ↔ Nordic Minimal Editorial）、トースト通知およびリロード永続化検証。
-  - `users.spec.ts`: 既存管理者表示、新規ユーザー作成（エディターロール追加）、メール招待（`InviteUserModal` による招待リンク発行）。
-  - `commerce.spec.ts`: EC 有効環境（`[commerce].enabled = true`）での商品作成（価格・在庫設定）とカタログ一覧表示、注文一覧・ステータスフィルター画面の動作検証。
-  - `responsive.spec.ts`: モバイルビューポート（375x667）におけるハンバーガーメニュー開閉・ビュー遷移、エディタ画面の 3 ペイン（記事一覧 / 編集 / プレビュー）タブ切り替え。
-  - `plugins.spec.ts`: プラグイン一覧・フック表示、無停止での有効化・無効化、設定値の保存、フック実行順序の変更と設定ファイル復帰。
-- 初回はサーバーのコンパイルで数分かかる。ビルド済みなら `E2E_SKIP_BUILD=1` で省ける。ローカルでは起動済みのサーバー（18080）を使い回す（`reuseExistingServer`）。サーバーのログは `RUST_LOG=warn`（`RUST_LOG=debug` で全リクエスト）。
-- テストはサーバーの DB を共有するので 1 本ずつ動かす（`workers: 1`）。状態を変えたテストは元に戻すか、他のテストが前提にしない状態にする（ランダムサフィックス等を活用）。
-- プラグインはリポジトリの `plugins/`（公式プラグインのビルド済み Wasm）を使い、どれも無効の状態から始める。
-- 画面の要素は役割と名前（`getByRole`）で探す。英語（`locale: 'en-US'`）で動かす。プラグインのカードは表示名で名前の付いた `article`。
+- **Run against a real server** (the API is not mocked). The `webServer` in `playwright.config.ts` starts `e2e/start-server.mjs`, which builds Admin Studio and `aegis-server`, clears `target/e2e/`, creates the admin user (`e2e/credentials.mjs`), and brings the server up on port 18080 with `e2e/aegis.e2e.toml`. This is because mismatches between the API's shape and the screens' types (which actually happened on the plugin screen) cannot be found with mocks.
+- **A comprehensive test suite (17 tests in all)**:
+  - `auth.spec.ts`: successful login, sign-out (session discard and redirect), the error display on a wrong password, and temporary account lockout by rate limiting (a 429 response after 3 consecutive failures).
+  - `content.spec.ts`: creating a new article, saving a draft (Draft) and its reflection in the sidebar list, switching to published (Published), persistence verification on reload, and mutual conversion between Markdown mode and Blocks mode.
+  - `themes.spec.ts`: displaying the installed theme list, switching the active theme (Aegis Horizon ↔ Nordic Minimal Editorial), and toast notification and reload persistence verification.
+  - `users.spec.ts`: displaying the existing administrator, creating a new user (adding an editor role), and email invitation (issuing an invitation link with `InviteUserModal`).
+  - `commerce.spec.ts`: creating a product (setting price and inventory) and the catalog list in an e-commerce-enabled environment (`[commerce].enabled = true`), and verifying the behavior of the order list and status filter screens.
+  - `responsive.spec.ts`: opening and closing the hamburger menu and view transitions on a mobile viewport (375x667), and switching the editor screen's 3-pane (article list / edit / preview) tabs.
+  - `plugins.spec.ts`: the plugin list and hook display, enabling and disabling without downtime, saving settings values, changing hook execution order, and returning to the config file.
+- The first time takes several minutes for compiling the server. If already built, `E2E_SKIP_BUILD=1` skips it. Locally, an already running server (18080) is reused (`reuseExistingServer`). The server's log is `RUST_LOG=warn` (`RUST_LOG=debug` for all requests).
+- Tests share the server's DB, so they run one at a time (`workers: 1`). Tests that changed state either restore it or leave a state that other tests do not depend on (making use of random suffixes, etc.).
+- Plugins use the repository's `plugins/` (the built Wasm of the official plugins), starting with all of them disabled.
+- Find screen elements by role and name (`getByRole`). Run in English (`locale: 'en-US'`). A plugin's card is an `article` named by the display name.
 
-### 8.3 Storybook (`admin/.storybook/`、`src/**/*.stories.tsx`)
+### 8.3 Storybook (`admin/.storybook/`, `src/**/*.stories.tsx`)
 
 ```bash
 task storybook          # http://localhost:6006
-task build:storybook    # admin/storybook-static/（CI でもビルド）
+task build:storybook    # admin/storybook-static/ (also built in CI)
 ```
 
-- 自分でデータを読み込む画面（`PluginManager` など）は、`.storybook/mockApi.ts` の `mockApi` で `/api/v1/*` への `fetch` を差し替えて表示する（ストーリーの `beforeEach` で呼び、戻り値の関数で元に戻す）。サーバーと同じ応答の形にする。
-- ツールバーの Language で英語・日本語を切り替えられる。
-- **コンポーネント & インタラクションテスト (`task test:storybook`)**: `@storybook/addon-vitest`（Vitest Browser Mode + Playwright Chromium）により、すべてのストーリーと `play` 関数をヘッドレスブラウザで自動検証します。`task check` および CI（`frontend-ci`）内で自動実行されます。
-- バージョンは固定（`--save-exact`）。公開から 2 週間以上たったものを選ぶ（脆弱性の修正版は除く。10.6.2 は GHSA-f2ph-cmg5-wxc8 の修正）。
+- Screens that load their own data (such as `PluginManager`) are shown with `fetch` to `/api/v1/*` replaced by `mockApi` in `.storybook/mockApi.ts` (call it in the story's `beforeEach` and restore with the returned function). Make it the same response shape as the server.
+- You can switch between English and Japanese with Language in the toolbar.
+- **Component & interaction tests (`task test:storybook`)**: with `@storybook/addon-vitest` (Vitest Browser Mode + Playwright Chromium), all stories and `play` functions are verified automatically in a headless browser. It runs automatically in `task check` and in CI (`frontend-ci`).
+- Versions are pinned (`--save-exact`). Choose ones published at least 2 weeks ago (except vulnerability fixes; 10.6.2 is the fix for GHSA-f2ph-cmg5-wxc8).
 
-### 8.4 依存パッケージを追加したとき（`package-lock.json`）
+### 8.4 When Adding Dependencies (`package-lock.json`)
 
-Windows の npm 11 で `npm install` すると、他のプラットフォーム向けの任意依存（`@oxc-parser/binding-wasm32-wasi` などが使う `@emnapi/*`）がロックファイルに書かれないことがあります。ローカルでは動いても、CI と Docker（Linux・Node 22 の npm 10）の `npm ci` が `package.json and package-lock.json ... are in sync` / `Missing: @emnapi/core@... from lock file` で失敗します（#74 で起きた）。
+When you `npm install` with npm 11 on Windows, optional dependencies for other platforms (the `@emnapi/*` used by `@oxc-parser/binding-wasm32-wasi` and the like) may not be written to the lock file. Even if it works locally, `npm ci` in CI and Docker (Linux, npm 10 on Node 22) fails with `package.json and package-lock.json ... are in sync` / `Missing: @emnapi/core@... from lock file` (this happened in #74).
 
-- 依存を足したら、CI と同じ npm 10 で `npm ci` が通るか確かめる（ローカルの `npm ci --dry-run` は npm 11 の判定なので足りない）:
+- After adding a dependency, check that `npm ci` passes with the same npm 10 as CI (local `npm ci --dry-run` uses npm 11's judgment and is not enough):
 
   ```bash
-  # リポジトリのルートで。admin/ の package.json と package-lock.json だけを空のディレクトリに置いて確かめる
+  # At the repository root. Check by placing only admin/'s package.json and package-lock.json in an empty directory
   docker run --rm -v "$PWD/admin:/src:ro" node:22.22-alpine sh -c \
     "mkdir /app && cp /src/package.json /src/package-lock.json /app/ && cd /app && npm ci --ignore-scripts && echo NPM_CI_OK"
-  # Windows の Git Bash ではパスが変換されるので: MSYS_NO_PATHCONV=1 docker run ... -v "$(pwd -W)/admin:/src:ro" ...
+  # In Git Bash on Windows paths get converted, so: MSYS_NO_PATHCONV=1 docker run ... -v "$(pwd -W)/admin:/src:ro" ...
   ```
 
-- 失敗したら、同じイメージの中で `npm install --ignore-scripts` してできた `package-lock.json` を使う（足りない記録だけが補われる）。`main` の `package-lock.json` と比べて、既存のパッケージのバージョンが変わっていないことを確かめる。
-- `npm ci` の出力を捨てない（`>/dev/null` で失敗に気づかず、古い `node_modules` のまま検証してしまう）。
+- If it fails, use the `package-lock.json` produced by `npm install --ignore-scripts` in the same image (only the missing records are filled in). Compare with `main`'s `package-lock.json` and confirm that the versions of existing packages have not changed.
+- Do not throw away `npm ci`'s output (with `>/dev/null` you miss the failure and verify with an old `node_modules`).
 
 
 ---
 
-## 9. CLI サブコマンドリファレンス (`aegis`)
+## 9. CLI Subcommand Reference (`aegis`)
 
-`aegis-server` バイナリ（`cargo run -p aegis-server -- <command>` またはインストール済み `aegis`）で利用可能な主要サブコマンドです。
+The main subcommands available in the `aegis-server` binary (`cargo run -p aegis-server -- <command>` or the installed `aegis`).
 
 ```bash
-# 全体ヘルプ
+# Overall help
 aegis-server --help
 
-# サーバー起動 (既定: ポート 8080)
+# Start the server (default: port 8080)
 aegis-server run [--port <PORT>] [--host <HOST>]
 
-# 初期セットアップ (マイグレーション、管理者作成、初期サンプルデータ投入を一括実行)
+# Initial setup (runs migration, administrator creation, and loading of initial sample data together)
 aegis-server init
-# 非対話型での実行 (CI / 自動構築環境向け)
+# Non-interactive run (for CI / automated build environments)
 aegis-server init --site-title "My Site" --admin-user admin --admin-password <PASSWORD> --non-interactive
 
-# データベーススキーマのマイグレーション実行
+# Run the database schema migration
 aegis-server migrate
 
-# バックアップアーカイブの生成 (DB + アップロードストレージ)
+# Create a backup archive (DB + upload storage)
 aegis-server dump --output backup.zip
-# DB のみバックアップ (ストレージ除外)
+# DB-only backup (excluding storage)
 aegis-server dump --output db_only.zip --no-storage
-# ストレージのみバックアップ (DB 除外)
+# Storage-only backup (excluding the DB)
 aegis-server dump --output storage_only.zip --no-database
 
-# バックアップの整合性・チェックサム事前検証 (復元は行わない)
+# Pre-verify a backup's integrity and checksums (does not restore)
 aegis-server restore --input backup.zip --verify-only
 
-# バックアップアーカイブからの復元
+# Restore from a backup archive
 aegis-server restore --input backup.zip
-# 既存レコードと衝突する場合は上書き置換して復元
+# Restore by overwriting when it conflicts with existing records
 aegis-server restore --input backup.zip --overwrite
 
-# TypeScript 型定義 / OpenAPI 3.1 仕様書の生成
+# Generate TypeScript type definitions / the OpenAPI 3.1 specification
 aegis-server codegen --target typescript --output admin/src/types/schemas.ts
 aegis-server codegen --target openapi --output docs/openapi.json
 
-# ユーザー管理
+# User management
 aegis-server user add <username> --role admin [--email <email>]
 aegis-server user passwd <username>
 aegis-server user list
@@ -376,28 +378,28 @@ aegis-server user enable <username>
 aegis-server user link-oidc <username> <sub_claim>
 aegis-server user link-saml <username> <name_id>
 
-# プラグイン一覧と稼働状況の確認
+# Check the list of plugins and their operating status
 aegis-server plugin list
 
-# 通知設定と配信チャネルのテスト
+# Test notification settings and delivery channels
 aegis-server notify test --to <email> [--staff]
 ```
 
 
 ---
 
-## 10. トラブルシューティング & 開発Tips
+## 10. Troubleshooting & Development Tips
 
-### 10.1 ビルド時のディスク容量対策
-クラウド開発環境や CI コンテナ等でディスク容量が逼迫する場合（`target/debug` のインクリメンタルコンパイル成果物が 30GB 近くまで膨らむことがあります）、以下の対策を行ってください：
+### 10.1 Dealing with Disk Space During Builds
+When disk space gets tight in cloud development environments, CI containers, and the like (the incremental compilation artifacts of `target/debug` can swell to nearly 30GB), do the following:
 ```bash
-# インクリメンタルコンパイルを無効化してビルド
+# Build with incremental compilation disabled
 CARGO_INCREMENTAL=0 cargo build
 
-# または不要になったインクリメンタルキャッシュを削除
+# Or delete the incremental cache that is no longer needed
 rm -rf target/debug/incremental
 ```
 
-### 10.2 Storybook / Playwright 実行環境の注意点
-- **ブラウザシェルの互換性**: Linux / クラウド環境において Playwright のバージョンと `/opt/pw-browsers` 内のヘッドレスシェルバージョンが一致しないとブラウザが起動しない場合があります。その場合はシンボリックリンク等で利用可能なバージョンへエイリアスを設定してください。
-- **Storybook mockApi での 204 応答**: `.storybook/mockApi.ts` において `204 No Content` をモックする際は、必ず本文（body）なしでレスポンスを返却してください（本文付きの 204 はブラウザの `Response` オブジェクトが例外をスローします）。
+### 10.2 Notes on the Storybook / Playwright Environment
+- **Browser shell compatibility**: on Linux / cloud environments, the browser may fail to start if the Playwright version and the version of the headless shell in `/opt/pw-browsers` do not match. In that case, alias to an available version with a symbolic link or the like.
+- **204 responses in Storybook mockApi**: when mocking `204 No Content` in `.storybook/mockApi.ts`, always return the response with no body (a 204 with a body makes the browser's `Response` object throw an exception).

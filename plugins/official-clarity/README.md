@@ -7,7 +7,7 @@ An official Wasm plugin that adds [Microsoft Clarity](https://clarity.microsoft.
 ## What It Does
 
 - **`on-render-page`** puts Clarity's standard startup code into `<head>`.
-- **Waits for cookie consent**: By default it is emitted as `type="text/plain"` with `data-aegis-consent="analytics"`, and the consent banner's (`[consent]`) script runs it after the visitor consents ([consent.md](../../docs/consent.md), in Japanese). **Clarity does not run unless `[consent].enabled = true`**. Set `require_consent = false` only on sites that need no consent.
+- **Waits for cookie consent**: By default it is emitted as `type="text/plain"` with `data-aegis-consent="analytics"`, and the consent banner's (`[consent]`) script runs it after the visitor consents ([consent.md](../../docs/consent.md)). **Clarity does not run unless `[consent].enabled = true`**. Set `require_consent = false` only on sites that need no consent.
 - **Adds the CSP automatically**: When the plugin is enabled, the following hosts from Clarity's official guidance ([Clarity Content Security Policy](https://learn.microsoft.com/en-us/clarity/clarity-csp)) are added to the CSP. You do not need to rewrite the site-wide CSP.
   - `script-src`: `www.clarity.ms`, `scripts.clarity.ms`
   - `connect-src`: `www.clarity.ms`, `scripts.clarity.ms`, `a.clarity.ms` to `z.clarity.ms`, `c.bing.com`

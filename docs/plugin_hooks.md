@@ -1,89 +1,91 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# AegisCMS プラグインフック & ホスト API リファレンス
+**English** | [日本語](plugin_hooks.ja.md)
 
-Wasm プラグインから利用できるフック、マニフェスト項目、ホスト API の一覧です。
-プラグイン開発の手順そのものは [Wasm プラグイン開発公式ガイド](./plugin_sdk_guide.md) を参照してください。
+# AegisCMS Plugin Hooks & Host API Reference
 
-関連ソース:
+A list of the hooks, manifest items, and host APIs available to Wasm plugins.
+For the plugin development steps themselves, see the [Official Wasm plugin development guide](./plugin_sdk_guide.md).
 
-- フックのディスパッチ: [`crates/aegis-runtime/src/plugin.rs`](../crates/aegis-runtime/src/plugin.rs) (`PluginSupervisor`)
-- Wasm 呼び出し: [`crates/aegis-runtime/src/wasm/instance.rs`](../crates/aegis-runtime/src/wasm/instance.rs)
-- ホスト API: [`crates/aegis-runtime/src/wasm/engine.rs`](../crates/aegis-runtime/src/wasm/engine.rs)
-- 権限チェック: [`crates/aegis-runtime/src/guard.rs`](../crates/aegis-runtime/src/guard.rs)
-- 共通 ABI 仕様書: [`docs/plugin_abi_specification.md`](./plugin_abi_specification.md)
+Related sources:
+
+- Hook dispatch: [`crates/aegis-runtime/src/plugin.rs`](../crates/aegis-runtime/src/plugin.rs) (`PluginSupervisor`)
+- Wasm calls: [`crates/aegis-runtime/src/wasm/instance.rs`](../crates/aegis-runtime/src/wasm/instance.rs)
+- Host API: [`crates/aegis-runtime/src/wasm/engine.rs`](../crates/aegis-runtime/src/wasm/engine.rs)
+- Permission checks: [`crates/aegis-runtime/src/guard.rs`](../crates/aegis-runtime/src/guard.rs)
+- Common ABI specification: [`docs/plugin_abi_specification.md`](./plugin_abi_specification.md)
 - Rust SDK: [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk)
-- AssemblyScript テンプレート: [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript)
-- TinyGo テンプレート: [`sdk/templates/tinygo`](../sdk/templates/tinygo)
+- AssemblyScript template: [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript)
+- TinyGo template: [`sdk/templates/tinygo`](../sdk/templates/tinygo)
 
 ---
 
-## 1. フック一覧
+## 1. Hook List
 
-| マニフェストのフック名 | Wasm エクスポート名 | SDK トレイトメソッド | 入力 | 出力 | 状態 |
+| Hook name in the manifest | Wasm export name | SDK trait method | Input | Output | Status |
 | --- | --- | --- | --- | --- | --- |
-| `transform-content-ast` | `transform_content_ast` | `Plugin::transform_content_ast` | `BlockNode[]` | `BlockNode[]` | ✅ 実装済み |
-| `on-before-save` | `on_before_save` | `Plugin::on_before_save` | `PostContext` | `PostContext` | ✅ 実装済み（`title` / `slug` / 本文の変更、保存の拒否） |
-| `on-user-authenticated` | `on_user_authenticated` | `Plugin::on_user_authenticated` | `UserAuthContext` | `UserAuthContext` | ✅ 実装済み（ロールマッピング、属性の補完、ログインの拒否） |
-| `calculate-order` | `calculate_order` | `Plugin::calculate_order` | `OrderContext` | `OrderContext` | ✅ 実装済み（送料・税・割引の追加、注文の拒否。[EC](commerce.md)） |
-| `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange` | なし | ✅ 実装済み（注文の作成・状態の変化の通知） |
-| `send-notification` | `send_notification` | `Plugin::send_notification` | `NotificationMessage` | `Delivery` | ✅ 実装済み（通知の配信チャネル。Slack・SMS など。[通知](notifications.md#5-配信方法を加える)） |
-| `on-content-published` | `on_content_published` | `Plugin::on_content_published` | `PublishedContent` | なし | ✅ 実装済み（予約公開などコンテンツ公開時の通知） |
-| `check-comment` | `check_comment` | `Plugin::check_comment` | `CommentSubmission` | `CommentVerdict` | ✅ 実装済み（コメントの審査。スパム判定・承認待ち・投稿の拒否。[コメント](comments.md)） |
-| `render-blocks` | `render_blocks` | `Plugin::render_blocks` | `BlockNode[]`（このプラグインのブロック） | `Option<String>[]`（HTML） | ✅ 実装済み（本文のカスタムブロックの描画。[1.10](#110-render-blocks)） |
+| `transform-content-ast` | `transform_content_ast` | `Plugin::transform_content_ast` | `BlockNode[]` | `BlockNode[]` | ✅ Implemented |
+| `on-before-save` | `on_before_save` | `Plugin::on_before_save` | `PostContext` | `PostContext` | ✅ Implemented (changing `title` / `slug` / body, refusing saves) |
+| `on-user-authenticated` | `on_user_authenticated` | `Plugin::on_user_authenticated` | `UserAuthContext` | `UserAuthContext` | ✅ Implemented (role mapping, supplementing attributes, refusing login) |
+| `calculate-order` | `calculate_order` | `Plugin::calculate_order` | `OrderContext` | `OrderContext` | ✅ Implemented (adding shipping, tax, discounts; refusing orders; [E-commerce](commerce.md)) |
+| `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange` | None | ✅ Implemented (notification of order creation and status changes) |
+| `send-notification` | `send_notification` | `Plugin::send_notification` | `NotificationMessage` | `Delivery` | ✅ Implemented (a notification delivery channel; Slack, SMS, etc.; [Notifications](notifications.md#5-adding-delivery-methods)) |
+| `on-content-published` | `on_content_published` | `Plugin::on_content_published` | `PublishedContent` | None | ✅ Implemented (notification when content is published, such as by scheduled publication) |
+| `check-comment` | `check_comment` | `Plugin::check_comment` | `CommentSubmission` | `CommentVerdict` | ✅ Implemented (comment moderation; spam judgment, awaiting approval, refusing posts; [Comments](comments.md)) |
+| `render-blocks` | `render_blocks` | `Plugin::render_blocks` | `BlockNode[]` (this plugin's blocks) | `Option<String>[]` (HTML) | ✅ Implemented (rendering custom body blocks; [1.10](#110-render-blocks)) |
 
-- フックを有効にするには、**マニフェストの `capabilities.hooks` にフック名（ケバブケース）を列挙**する必要があります。列挙されていないフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
-- 逆に、マニフェストに列挙されていても該当の関数がエクスポートされていない場合は、入力がそのまま次へ渡されます（エラーにはなりません）。
-- SDK の `#[aegis_plugin]` マクロ（または `register_plugin!`）はすべてのフックのエクスポートを常に生成します。実装しなかったメソッドはトレイトの既定実装（入力をそのまま返す）になります。
+- To enable a hook, you must **list the hook name (kebab-case) in the manifest's `capabilities.hooks`**. Hooks not listed are not called even if the Wasm side exports the function.
+- Conversely, if a hook is listed in the manifest but the corresponding function is not exported, the input is passed on as is (it is not an error).
+- The SDK's `#[aegis_plugin]` macro (or `register_plugin!`) always generates the exports for all hooks. Methods you did not implement fall back to the trait's default implementation (returning the input as is).
 
-### 1.1 実行タイミングと順序
+### 1.1 Execution Timing and Order
 
-`transform-content-ast` / `on-before-save` が呼ばれるのは **コンテンツ作成 API `POST /api/v1/contents/{content_type}`** と、`transform-content-ast` のみ **エディタのプレビュー API `POST /api/v1/preview`** です（一覧・取得 API や公開ページの表示では呼ばれず、保存済みのブロックを手順 4・5 だけでレンダリングします）。処理順は以下のとおりです。
+`transform-content-ast` / `on-before-save` are called by **the content creation API `POST /api/v1/contents/{content_type}`**, and only `transform-content-ast` by **the editor's preview API `POST /api/v1/preview`** (they are not called by list and get APIs or the display of public pages, which render saved blocks with steps 4 and 5 only). The processing order is as follows.
 
 ```
-リクエストの blocks
+The request's blocks
   │
-  ├─ 1. 組み込み AST パイプライン (HeadingIdTransformer: 見出しに id を付与)
-  ├─ 2. transform-content-ast  … 全プラグインを順に連鎖適用
-  ├─ 3. on-before-save         … 全プラグインを順に連鎖適用（title / slug / 本文の変更、保存の拒否）
-  ├─ 4. HTML レンダリング (HtmlRenderer)
-  ├─ 5. ストリーミング HTML リライター ([security] 設定)
-  └─ 6. データベースへ保存
+  ├─ 1. Built-in AST pipeline (HeadingIdTransformer: assigns ids to headings)
+  ├─ 2. transform-content-ast  … chained through all plugins in order
+  ├─ 3. on-before-save         … chained through all plugins in order (changing title / slug / body, refusing saves)
+  ├─ 4. HTML rendering (HtmlRenderer)
+  ├─ 5. Streaming HTML rewriter ([security] settings)
+  └─ 6. Save to the database
 ```
 
-- プレビュー API は手順 1・2・4・5 を実行し（保存・`on-before-save` はなし）、保存して公開ページで表示した場合と同じ HTML を返します。テーマを適用したページ全体（`page_html`）のため、`on-render-page` フック（[テーマガイド](theme_and_publishing_guide.md)）もプレビューのたびに呼ばれます。
-- 保存済みの記事を開いて再保存・プレビューすると、`transform-content-ast` は保存済み（変換済み）のブロックに再度適用されます。ブロックを追加するプラグインは、すでに追加済みなら追加しない（冪等な）実装にしてください。
-- 複数プラグインがある場合、前のプラグインの出力が次のプラグインの入力になります。
-- プラグインの実行順は有効化リストの順（設定ファイルの `[plugins].enabled` に書いた順。Admin Studio で有効にしたものは最後）です（[設定リファレンス](configuration.md#plugins--プラグインの有効化)、[7.1](#71-admin-studio-からの有効無効の切り替え)）。
+- The preview API runs steps 1, 2, 4, and 5 (no saving and no `on-before-save`) and returns the same HTML as when saved and displayed on the public page. For the whole theme-applied page (`page_html`), the `on-render-page` hook ([Theme guide](theme_and_publishing_guide.md)) is also called on every preview.
+- When a saved article is opened and re-saved or previewed, `transform-content-ast` is applied again to the saved (transformed) blocks. A plugin that adds blocks should be implemented so as not to add again if already added (idempotent).
+- With multiple plugins, the previous plugin's output becomes the next plugin's input.
+- The plugin execution order is the order of the enabled list (the order written in `[plugins].enabled` in the config file; ones enabled in Admin Studio come last) ([Configuration reference](configuration.md#plugins--enabling-plugins), [7.1](#71-toggling-on-and-off-from-admin-studio)).
 
 ### 1.2 `transform-content-ast`
 
-本文のブロック AST を変換します。見出しへのアンカー付与、ショートコード展開、ブロックの追加・削除などに使います。
+Transforms the body's block AST. Use it for adding anchors to headings, expanding shortcodes, adding and removing blocks, and so on.
 
 ```rust
 fn transform_content_ast(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<BlockNode>>;
 ```
 
-- 入力: 組み込みパイプライン適用後のブロック配列（トップレベルのみの配列。子ブロックは `children` に入る）
-- 出力: 変換後のブロック配列。**これがそのまま保存・HTML レンダリングされます。**
-- エラー時の挙動: いずれかのプラグインでホスト側エラー（トラップ、タイムアウト、Fuel 枯渇、不正な JSON の返却など）が発生すると、**このフック全体の結果が破棄**され、手順 1 の結果のまま保存処理が続行されます（リクエストは失敗しません）。プレビューでは同じ場合に `warnings` として返し、エディタに表示します（監査ログには記録しません）。
-- **副作用を持たせないでください**: エディタのプレビューは編集のたび（入力が 300ms 止まるごと）にこのフックを呼びます。KVS への書き込みや外部通知など、保存時に一度だけ行いたい処理は `on-before-save` に置いてください。
+- Input: the block array after the built-in pipeline (an array of top level only; child blocks go in `children`)
+- Output: the transformed block array. **This is saved and rendered to HTML as is.**
+- Behavior on error: if a host-side error occurs in any plugin (trap, timeout, fuel exhaustion, returning invalid JSON, etc.), **the result of this hook as a whole is discarded** and saving continues with the result of step 1 (the request does not fail). In the preview, the same case is returned as `warnings` and shown in the editor (it is not recorded in the audit log).
+- **Do not give it side effects**: the editor's preview calls this hook on every edit (each time input pauses for 300ms). Put processing you want done only once at save time, such as KVS writes and external notifications, in `on-before-save`.
 
 ### 1.3 `on-before-save`
 
-保存直前の記事情報を受け取ります。バリデーション（保存の拒否）、保存値の補正、外部通知などに使います。プレビューでは呼ばれないため、保存時に一度だけ行いたい副作用はここに置きます。
+Receives the article information right before saving. Use it for validation (refusing saves), correcting saved values, external notifications, and so on. It is not called in the preview, so put side effects you want done only once at save time here.
 
 ```rust
 fn on_before_save(&mut self, post: PostContext) -> Result<PostContext>;
 ```
 
-- 入力: `PostContext`（`blocks_json` は `transform-content-ast` 適用後の内容）
-- 出力: `PostContext`。次のプラグインへの入力になり、最後のプラグインの出力が保存されます。
-  - **`title` / `slug` / `blocks_json` の変更は保存に反映されます**（API の応答も変更後の値。Admin Studio は保存後に保存された内容をエディタに表示します）。
-  - `id` と `author_id` の変更は無視されます（警告ログのみ）。プラグインが著者を差し替えることはできません。
-  - `blocks_json` を変更した場合、組み込み AST パイプライン（見出しの id 付与）を再度適用してから保存します。HTML のレンダリングとセキュリティリライターは通常どおり適用されます。`transform-content-ast` は再実行されません。
-  - 空の `slug`、`BlockNode[]` としてパースできない `blocks_json` を返すとプラグインエラーとして保存を中止します（`blocks_json` を空文字列にした場合は空の本文）。
-- **保存の拒否**: SDK でトレイトメソッドから `Err(...)` を返すと保存は中止され、API は `422 Unprocessable Entity` と `{"error": "Rejected by plugin: <プラグイン名>: <メッセージ>"}` を返します（Admin Studio ではエラーのトーストに表示）。利用者に見せるメッセージには `PluginError::Rejected` を使ってください（他のバリアントは `Execution error: ...` のように種別が前に付きます）。監査ログには `content.create`（`denied`）だけを記録します。
+- Input: `PostContext` (`blocks_json` is the content after `transform-content-ast`)
+- Output: `PostContext`. It becomes the next plugin's input, and the last plugin's output is saved.
+  - **Changes to `title` / `slug` / `blocks_json` are reflected in the save** (the API's response also has the changed values. Admin Studio shows the saved contents in the editor after saving).
+  - Changes to `id` and `author_id` are ignored (only a warning log). A plugin cannot swap the author.
+  - If `blocks_json` is changed, the built-in AST pipeline (assigning heading ids) is applied again before saving. HTML rendering and the security rewriter apply as usual. `transform-content-ast` is not rerun.
+  - Returning an empty `slug`, or a `blocks_json` that cannot be parsed as `BlockNode[]`, aborts the save as a plugin error (an empty string for `blocks_json` is an empty body).
+- **Refusing a save**: returning `Err(...)` from the trait method in the SDK aborts the save, and the API returns `422 Unprocessable Entity` with `{"error": "Rejected by plugin: <plugin name>: <message>"}` (shown as an error toast in Admin Studio). For messages to show users, use `PluginError::Rejected` (other variants get the kind prefixed, like `Execution error: ...`). Only `content.create` (`denied`) is recorded in the audit log.
 
   ```rust
   fn on_before_save(&mut self, post: PostContext) -> Result<PostContext> {
@@ -94,26 +96,26 @@ fn on_before_save(&mut self, post: PostContext) -> Result<PostContext>;
   }
   ```
 
-- **プラグインの失敗**: パニック（Wasm トラップ）、タイムアウト、Fuel 枯渇、メモリ上限超過、不正な JSON の返却などでも保存は中止され、API は `500 Internal Server Error` と `{"error": "Plugin hook failed: ..."}` を返します。監査ログには `plugin.error` と `content.create`（`denied`）を記録します。
+- **Plugin failure**: a panic (Wasm trap), timeout, fuel exhaustion, memory limit exceeded, returning invalid JSON, and the like also abort the save, and the API returns `500 Internal Server Error` with `{"error": "Plugin hook failed: ..."}`. `plugin.error` and `content.create` (`denied`) are recorded in the audit log.
 
 ### 1.4 `on-user-authenticated`
 
-ログイン（`POST /api/v1/auth/session`）で認証プロバイダが資格情報を確認した**後**、セッションを発行する**前**に呼ばれます。IdP のグループからのロールマッピング、表示名・属性の補完、ドメインや時間帯によるログインの制限、ログイン通知などに使います。資格情報の検証そのもの（パスワード・IdP の署名の確認）はプラグインには開放されません。
+Called at login (`POST /api/v1/auth/session`) **after** the authentication provider has verified the credentials and **before** the session is issued. Use it for role mapping from an IdP's groups, supplementing display names and attributes, restricting login by domain or time of day, login notifications, and so on. Verification of the credentials themselves (checking passwords and IdP signatures) is not opened to plugins.
 
 ```rust
 fn on_user_authenticated(&mut self, ctx: UserAuthContext) -> Result<UserAuthContext>;
 ```
 
-- 入力: `UserAuthContext`（[2.3](#23-userauthcontext)）。`role` はユーザーアカウント（ローカル認証）またはプロバイダが決めたロールです。
-- 出力: `UserAuthContext`。次のプラグインへの入力になり、最後のプラグインの出力でセッションを発行します。
-  - `role` / `display_name` / `email` / `metadata` の変更はセッションに反映されます。`metadata` はセッションの `metadata` に入ります（`provider` / `display_name` / `email` のキーはサーバーが設定するため上書きできません）。
-  - `provider` と `user_id` の変更は無視されます（警告ログのみ）。
-  - `role` は `admin` / `editor` / `viewer` のいずれかでなければならず、それ以外を返すとプラグインエラーとしてログインは失敗します。
-  - ロールを変更した場合は、監査ログ `session.create`（`success`）の `details.role_mapped` に `{ "from": 元のロール, "to": 新しいロール }` を記録します。
-- **ログインの拒否**: `Err(PluginError::Rejected("..."))` を返すと、API は `403 Forbidden` と `{"error": "Rejected by plugin: <プラグイン名>: <メッセージ>"}` を返し、セッションは発行されません。監査ログは `session.create`（`denied`、`details.error = "plugin_rejected"`）です。
-- **プラグインの失敗**: トラップ・タイムアウト・不正な JSON・不明なロールなどでもログインは失敗します（安全側に倒す）。API は `500` を返し、監査ログに `plugin.error` と `session.create`（`failure`、`details.error = "plugin_failed"`）を記録します。
-- 拒否・失敗はどちらもログイン試行の失敗回数（[レート制限](authentication.md#5-セキュリティ上の挙動)）には数えません（資格情報は正しいため）。
-- ログインのたびに呼ばれます。外部への通知など時間のかかる処理は `execution_timeout_ms` に収まるようにしてください。
+- Input: `UserAuthContext` ([2.3](#23-userauthcontext)). `role` is the role decided by the user account (local authentication) or the provider.
+- Output: `UserAuthContext`. It becomes the next plugin's input, and the last plugin's output issues the session.
+  - Changes to `role` / `display_name` / `email` / `metadata` are reflected in the session. `metadata` goes into the session's `metadata` (the keys `provider` / `display_name` / `email` are set by the server and cannot be overwritten).
+  - Changes to `provider` and `user_id` are ignored (only a warning log).
+  - `role` must be one of `admin` / `editor` / `viewer`; returning anything else makes login fail as a plugin error.
+  - When the role is changed, `{ "from": original role, "to": new role }` is recorded in `details.role_mapped` of the audit log `session.create` (`success`).
+- **Refusing login**: returning `Err(PluginError::Rejected("..."))` makes the API return `403 Forbidden` with `{"error": "Rejected by plugin: <plugin name>: <message>"}`, and no session is issued. The audit log is `session.create` (`denied`, `details.error = "plugin_rejected"`).
+- **Plugin failure**: traps, timeouts, invalid JSON, unknown roles, and the like also make login fail (erring on the safe side). The API returns `500`, and `plugin.error` and `session.create` (`failure`, `details.error = "plugin_failed"`) are recorded in the audit log.
+- Neither refusals nor failures count toward the login attempt failure count ([rate limiting](authentication.md#5-security-behavior)) (because the credentials are correct).
+- It is called on every login. Keep time-consuming processing such as external notifications within `execution_timeout_ms`.
 
 ```rust
 fn on_user_authenticated(&mut self, mut ctx: UserAuthContext) -> Result<UserAuthContext> {
@@ -130,39 +132,39 @@ fn on_user_authenticated(&mut self, mut ctx: UserAuthContext) -> Result<UserAuth
 
 ### 1.5 `calculate-order`
 
-EC（`[commerce]`、[EC ドキュメント](commerce.md)）のカートの見積もり（`POST /api/v1/shop/quote`）と注文の確定（`POST /api/v1/shop/checkout`）のたびに呼ばれます。送料・税・割引を `adjustments` に加えます。
+Called for every cart quote (`POST /api/v1/shop/quote`) and order confirmation (`POST /api/v1/shop/checkout`) of e-commerce (`[commerce]`, [E-commerce document](commerce.md)). It adds shipping, tax, and discounts to `adjustments`.
 
 ```rust
 fn calculate_order(&mut self, ctx: OrderContext) -> Result<OrderContext>;
 ```
 
-- 入力: `OrderContext`（[2.5](#25-ordercontext--orderstatuschange)）。`lines` の単価・小計はサーバーが商品から決めた値で、`adjustments` には前のプラグインが加えたものが入っています。
-- 出力: `OrderContext`。**変更が反映されるのは `adjustments` と `metadata` だけ**です。`lines`・`subtotal`・`currency`・顧客・クーポンコードを変えても無視され、`total` はホストが `subtotal + adjustments の合計` で計算し直します（プラグインが価格を書き換えることはできません）。
-- プラグインが新しく加えた `adjustments` の `source` にはホストがプラグイン名を入れます。割引は負の金額です。合計が負になる注文は拒否します。
-- **注文の拒否**: `Err(PluginError::Rejected("..."))` を返すと見積もり・注文は `422` になり、メッセージ（プラグイン名は除く）を顧客に表示します。無効なクーポン、配送できない地域などに使います。失敗（トラップ・タイムアウト）は `500` です。
-- 見積もりのたびに呼ばれるため、`http::fetch` で外部の送料 API などを呼ぶ場合は `execution_timeout_ms` を大きくしてください。
+- Input: `OrderContext` ([2.4](#24-ordercontext--orderstatuschange)). The unit prices and subtotals in `lines` are values the server decided from the products, and `adjustments` holds what previous plugins added.
+- Output: `OrderContext`. **Only `adjustments` and `metadata` are reflected.** Changing `lines`, `subtotal`, `currency`, the customer, or the coupon code is ignored, and the host recomputes `total` as `subtotal + the sum of adjustments` (a plugin cannot rewrite prices).
+- The host puts the plugin name in the `source` of `adjustments` the plugin newly added. Discounts are negative amounts. Orders whose total becomes negative are refused.
+- **Refusing an order**: returning `Err(PluginError::Rejected("..."))` makes the quote or order `422`, and the message (without the plugin name) is shown to the customer. Use it for invalid coupons, regions that cannot be delivered to, and so on. A failure (trap, timeout) is `500`.
+- It is called on every quote, so if you call an external shipping API or the like with `http::fetch`, make `execution_timeout_ms` larger.
 
 ### 1.6 `on-order-status-changed`
 
-注文の作成（`from_status` が `None`）と、状態の変化（支払い済み・発送・完了・取り消し・期限切れ）のたびに呼ばれます。Slack・メール配信サービス・会計ソフトなどへの連携に使います。
+Called on order creation (`from_status` is `None`) and on every status change (paid, shipped, completed, cancelled, expired). Use it for integration with Slack, email delivery services, accounting software, and so on.
 
 ```rust
 fn on_order_status_changed(&mut self, change: OrderStatusChange) -> Result<()>;
 ```
 
-- 状態の変更を保存した**後**に、応答を待たずに（別タスクで）呼ばれます。結果は注文に影響しません。
-- `Err` を返す・失敗した場合は警告ログと監査ログ `plugin.error`（`resource_type: order`）に残ります。ほかのプラグインの呼び出しは続きます。
+- It is called **after** the status change is saved, without waiting for a response (in a separate task). The result does not affect the order.
+- If it returns `Err` or fails, it is left in the warning log and the audit log `plugin.error` (`resource_type: order`). Calls to other plugins continue.
 
 ### 1.7 `send-notification`
 
-プラグインを通知の配信チャネルにします（[通知](notifications.md)）。サーバーの設定で `[notifications].channels` に `"plugin:<プラグイン名>"` と書くと、通知（注文の受付・発送、管理者のログイン・ログインのロックなどの監査イベント）のたびに呼ばれます。件名・本文はホストがテンプレートから作ってあり、プラグインは `http::fetch` で Slack・Teams・Discord・SMS 業者の API などへ送るだけです。
+Makes a plugin a notification delivery channel ([Notifications](notifications.md)). When the server settings write `"plugin:<plugin name>"` in `[notifications].channels`, it is called on every notification (order receipt and shipping, audit events such as administrator logins and login lockouts). The host has built the subject and body from templates, and the plugin only sends them with `http::fetch` to Slack, Teams, Discord, an SMS vendor's API, and so on.
 
 ```rust
 fn send_notification(&mut self, message: NotificationMessage) -> Result<Delivery>;
 
 impl Plugin for SlackPlugin {
     fn send_notification(&mut self, message: NotificationMessage) -> Result<Delivery> {
-        // 運営者向けの通知だけを扱う（顧客向けはメールに任せる）
+        // Handle only notifications for operators (leave customer ones to email)
         if message.recipient != Recipient::Staff {
             return Ok(Delivery::Skipped);
         }
@@ -178,62 +180,62 @@ impl Plugin for SlackPlugin {
 }
 ```
 
-| 返り値 | ホストの扱い |
+| Return value | How the host treats it |
 | --- | --- |
-| `Ok(Delivery::Sent)` | 送信済み。監査ログ `notification.send`（`success`、`channel: plugin:<名前>`） |
-| `Ok(Delivery::Skipped)` | このプラグインが扱わない通知（種類・宛先）。失敗ではなく、監査ログにも残さない |
-| `Err(PluginError::Execution / Host)` | 一時的な失敗。`[notifications].max_attempts` まで間隔を空けて再試行する（タイムアウト・トラップも同じ） |
-| `Err(PluginError::Rejected / Serialization)` | 再試行しても変わらない失敗（設定の不備、相手が 4xx で断ったなど）。再試行しない |
+| `Ok(Delivery::Sent)` | Sent. Audit log `notification.send` (`success`, `channel: plugin:<name>`) |
+| `Ok(Delivery::Skipped)` | A notification (kind, recipient) this plugin does not handle. Not a failure, and not left in the audit log |
+| `Err(PluginError::Execution / Host)` | A transient failure. Retried at intervals up to `[notifications].max_attempts` (timeouts and traps are the same) |
+| `Err(PluginError::Rejected / Serialization)` | A failure that would not change on retry (a configuration defect, the other side refused with 4xx, etc.). Not retried |
 
-- マニフェストの `capabilities.hooks` に `send-notification` が無い・`[plugins].enabled` に無いプラグインを `channels` に書くと、サーバーは起動しません。
-- 再試行・送信数の上限（監査イベントの `max_per_hour`）・監査ログ・テンプレートはホストが行います。宛先の選び分け（運営者向けだけ、`audit.` だけなど）はプラグインが `Skipped` で行います。
-- 送り先のドメインはマニフェストの `capabilities.network.allowed_domains` に含めてください。フックの `execution_timeout_ms` に通信の時間も含まれます。
-- `aegis-server notify test --staff` で、運営者向けのテスト通知をプラグインに送れます。
+- If you write in `channels` a plugin that lacks `send-notification` in the manifest's `capabilities.hooks` or is not in `[plugins].enabled`, the server does not start.
+- Retries, the sending limit (the audit event's `max_per_hour`), the audit log, and templates are handled by the host. Selecting recipients (only for operators, only `audit.`, etc.) is done by the plugin with `Skipped`.
+- Include the destination domain in the manifest's `capabilities.network.allowed_domains`. The hook's `execution_timeout_ms` includes the communication time.
+- With `aegis-server notify test --staff`, you can send a test notification for operators to the plugin.
 
 ### 1.8 `on-content-published`
 
-予約公開などでコンテンツが公開状態になった直後に呼び出されます。外部 Webhook の呼び出し、SNS への自動投稿、静的サイトジェネレーターの再ビルドトリガーなどに使います。
+Called right after content becomes published, such as by scheduled publication. Use it for calling external webhooks, auto-posting to SNS, triggering rebuilds of static site generators, and so on.
 
 ```rust
 fn on_content_published(&mut self, content: PublishedContent) -> Result<()>;
 ```
 
-- 予約日時にスケジューラ（`publish_due_contents`）がコンテンツを `published` に更新し、監査ログ `content.publish` を記録した**後**に呼び出されます。
-- 結果はコンテンツの公開状態に影響しません。
-- プラグインが `Err` を返した（またはトラップ・タイムアウトが発生した）場合は、警告ログおよび監査ログ `plugin.error`（`details.hook = "on-content-published"`）が記録されます。他のプラグインの呼び出しや公開処理はそのまま継続します。
-- 運営者への通知（メール等）は `[[notifications.audit.rules]]` で `action = "content.publish"` を設定すれば自動的に送信できます。
+- It is called **after** the scheduler (`publish_due_contents`) updates the content to `published` at the scheduled time and records the audit log `content.publish`.
+- The result does not affect the content's published state.
+- If a plugin returns `Err` (or a trap or timeout occurs), a warning log and the audit log `plugin.error` (`details.hook = "on-content-published"`) are recorded. Calls to other plugins and the publishing process continue as they are.
+- Notifying operators (by email, etc.) can be sent automatically by setting `action = "content.publish"` in `[[notifications.audit.rules]]`.
 
 ### 1.9 `check-comment`
 
-公開サイトからコメントが投稿され、保存する前に呼び出されます（[コメント](comments.md#6-プラグインで審査する)）。外部のスパム判定サービス（Akismet など）への問い合わせや独自の NG ワードで、承認待ち・スパムに振り分けます。
+Called when a comment is posted from the public site and before it is saved ([Comments](comments.md#6-moderating-with-plugins)). Sort comments into awaiting approval or spam with a query to an external spam detection service (Akismet, etc.) or your own banned words.
 
 ```rust
 fn check_comment(&mut self, comment: CommentSubmission) -> Result<CommentVerdict>;
 ```
 
-- `CommentVerdict::Allow`（ホストの判定のまま）/ `Hold { reason }`（承認待ち）/ `Spam { reason }`（スパム）を返します。ホストの判定（`CommentSubmission.status`）より厳しくだけでき、承認待ちを公開に変えることはできません。
-- `Err(PluginError::Rejected(..))` で投稿を断ります。メッセージは投稿者にそのまま表示されます（`422`）。
-- 複数のプラグインがあれば順に呼び、いちばん厳しい判定を使います（`Spam` が出たらそこで止めます）。
-- トラップ・タイムアウトなどの失敗はコメントを承認待ちにし、警告ログと監査ログ `plugin.error`（`details.hook = "check-comment"`）を残します。
-- NG ワード・リンク数で既にスパムと判定した投稿・ハニーポットに掛かった投稿では呼ばれません。
-- ABI の出力は `{"verdict": "allow" | "hold" | "spam", "reason": "..."}`（何も返さない・`verdict` が無ければ `allow`）、断るときは `{"error": "..."}` です。
+- Return `CommentVerdict::Allow` (keep the host's judgment) / `Hold { reason }` (awaiting approval) / `Spam { reason }` (spam). It can only be stricter than the host's judgment (`CommentSubmission.status`), and cannot change awaiting approval into published.
+- `Err(PluginError::Rejected(..))` refuses the post. The message is shown to the poster as is (`422`).
+- With several plugins, they are called in order and the strictest judgment is used (it stops there once `Spam` is returned).
+- Failures such as traps and timeouts put the comment awaiting approval and leave a warning log and the audit log `plugin.error` (`details.hook = "check-comment"`).
+- It is not called for posts already judged spam by banned words or link counts, or caught by the honeypot.
+- The ABI's output is `{"verdict": "allow" | "hold" | "spam", "reason": "..."}` (returning nothing, or no `verdict`, means `allow`), and to refuse, `{"error": "..."}`.
 
 ### 1.10 `render-blocks`
 
-本文に置けるカスタムブロックを提供します。マニフェストの `blocks`（[3.1](#31-カスタムブロック-blocks)）で宣言したブロックは Admin Studio のツールバーに並び、宣言した入力欄のフォームで編集できます。保存される名前は `<プラグイン名>/<ブロック名>`、入力値は `attributes` です。
+Provides custom blocks that can be placed in the body. Blocks declared in the manifest's `blocks` ([3.1](#31-custom-blocks-blocks)) line up in Admin Studio's toolbar and can be edited with a form of the input fields you declared. The name saved is `<plugin name>/<block name>`, and the input values are `attributes`.
 
 ```rust
 fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>>;
 ```
 
-- **呼ばれるとき**: 公開ページ（記事・固定ページ・商品）・フィード・コンテンツ API の `rendered_html`・エディタのプレビューで、**表示のたび**に呼ばれます。1 回の描画につきプラグインごとに 1 回、そのプラグインのブロックが文書の順にまとめて渡されます（トップレベルのブロックのみ）。
-- **出力**: 入力と同じ数・同じ順の HTML。`None`（や足りない分）のブロックは何も表示しません。入力が足りない・おかしいブロックは `None` にしてください。
-- **HTML はサニタイズされます**: `<script>`・`<iframe>` などと `on*` 属性・`javascript:` などの URL を取り除いたうえで（`<iframe>` は `capabilities.embed.frame_domains` で宣言したホストのものだけ残せます。[3.2](#32-外部のページの埋め込み-capabilitiesembed)）、`<div class="aegis-plugin-block" data-block="<名前>">` に包んで出力します（カスタム HTML ブロックの標準モードと同じ）。Strict CSP（既定）では `style` 属性とインライン `<style>` はブラウザに遮断されるため、見た目はクラス名と `on-render-page` の `extra_css`（`/assets/plugins.css` に配信）で指定してください。スクリプトが必要な場合は `on-render-page` の `scripts`（構造化した注入。[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）で足してください。
-- **見た目**: まとめて渡されるので、`<style>` は最初のブロックに 1 回だけ付けられます。`:where()` で詳細度を 0 にするとテーマの CSS で上書きしやすくなりますが、リンクの色・下線はテーマの本文のリンクの指定（`.prose a` など）に負けるので、クラス 2 つ程度の詳細度にしてください（`official-blocks` を参照）。
-- **失敗**: トラップ・タイムアウト・不正な JSON などのとき、そのプラグインのブロックは何も表示せず、警告ログを残します（ページの表示は続けます）。プレビューでは `warnings` に表示します。
-- **プラグインが無効なとき**: ブロックはそのまま保存され、Admin Studio には「プラグインが無効」と表示されます。公開ページには表示されません（中身の無いカスタム要素になります）。
-- **性能**: 表示のたびに Wasm を呼ぶため、`http::fetch` で外部の API を呼ぶとその分だけ表示が遅くなります。CDN のキャッシュ（[`[cdn]`](configuration.md#217-cdn--on-demand-cache-tag-purge-cdn-エッジキャッシュ連携)）と組み合わせるか、外部のデータは別の手段で用意してください。
-- ABI の入力は `{"blocks": [BlockNode, ...]}`、出力は `{"html": [string | null, ...]}`、失敗は `{"error": "..."}` です。
+- **When it is called**: on public pages (articles, static pages, products), feeds, the content API's `rendered_html`, and the editor's preview, **on every display**. For one render, it is called once per plugin, with that plugin's blocks passed together in document order (top-level blocks only).
+- **Output**: HTML in the same number and order as the input. Blocks with `None` (or missing ones) show nothing. Make blocks with insufficient or odd input `None`.
+- **HTML is sanitized**: after removing `<script>`, `<iframe>`, and the like, `on*` attributes, and URLs such as `javascript:` (an `<iframe>` can remain only from hosts declared in `capabilities.embed.frame_domains`; [3.2](#32-embedding-external-pages-capabilitiesembed)), it is wrapped in `<div class="aegis-plugin-block" data-block="<name>">` and output (the same as the custom HTML block's standard mode). Under the Strict CSP (the default), `style` attributes and inline `<style>` are blocked by the browser, so specify the look with class names and `on-render-page`'s `extra_css` (served at `/assets/plugins.css`). If you need a script, add it with `scripts` of `on-render-page` (structured injection; [ABI specification 5.3.3a](plugin_abi_specification.md#533a-adding-scripts-in-on_render_page-scripts-abi-2)).
+- **Look**: they are passed together, so `<style>` can be attached once, to the first block. Making the specificity 0 with `:where()` makes it easier to override in the theme's CSS, but link colors and underlines lose to the theme's body link rules (such as `.prose a`), so use a specificity of about two classes (see `official-blocks`).
+- **Failure**: on traps, timeouts, invalid JSON, and the like, that plugin's blocks show nothing and a warning log is left (the page display continues). In the preview it is shown in `warnings`.
+- **When the plugin is disabled**: the blocks are saved as is, and Admin Studio shows "Plugin disabled". They are not shown on public pages (they become empty custom elements).
+- **Performance**: Wasm is called on every display, so calling an external API with `http::fetch` slows the display by that much. Combine it with CDN caching ([`[cdn]`](configuration.md#217-cdn--on-demand-cache-tag-purge-cdn-edge-cache-integration)), or prepare external data some other way.
+- The ABI's input is `{"blocks": [BlockNode, ...]}`, the output is `{"html": [string | null, ...]}`, and failure is `{"error": "..."}`.
 
 ```rust
 impl Plugin for MyBlocks {
@@ -253,77 +255,77 @@ impl Plugin for MyBlocks {
 }
 ```
 
-属性の値は利用者が入力したものです。HTML に入れるときは必ずエスケープしてください（サニタイズはスクリプトを取り除くだけで、レイアウトを壊すタグは残ります）。
+Attribute values are what users entered. Always escape them when putting them in HTML (sanitization only removes scripts, and tags that break the layout remain).
 
 ---
 
-## 2. フックに渡されるデータ型
+## 2. Data Types Passed to Hooks
 
-すべて JSON としてゲストのリニアメモリ経由で受け渡されます。
+All are passed as JSON through the guest's linear memory.
 
 ### 2.1 `PostContext`
 
-| フィールド | 型 | 説明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `id` | string | 新規発行されたコンテンツ ID (UUID v4) |
-| `title` | string | タイトル |
-| `slug` | string | スラッグ |
-| `author_id` | string | 著者 ID（未指定時は空文字列） |
-| `blocks_json` | string | ブロック配列を JSON 文字列化したもの |
+| `id` | string | The newly issued content ID (UUID v4) |
+| `title` | string | Title |
+| `slug` | string | Slug |
+| `author_id` | string | Author ID (an empty string if unspecified) |
+| `blocks_json` | string | The block array as a JSON string |
 
-SDK ヘルパー:
+SDK helpers:
 
-| メソッド | 説明 |
+| Method | Description |
 | --- | --- |
-| `PostContext::new(title, slug)` | テスト用コンストラクタ |
-| `post.blocks()` | `blocks_json` を `Vec<BlockNode>` にパース |
-| `post.set_blocks(&blocks)` | `Vec<BlockNode>` を `blocks_json` に書き戻す |
+| `PostContext::new(title, slug)` | A constructor for tests |
+| `post.blocks()` | Parse `blocks_json` into `Vec<BlockNode>` |
+| `post.set_blocks(&blocks)` | Write `Vec<BlockNode>` back to `blocks_json` |
 
 ### 2.2 `BlockNode`
 
 ```json
-{ "name": "core/heading", "attributes": { "level": 2 }, "text": "見出し", "children": [] }
+{ "name": "core/heading", "attributes": { "level": 2 }, "text": "Heading", "children": [] }
 ```
 
-| フィールド | 型 | 説明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `name` | string | ブロック種別（`core/heading`, `core/paragraph`, `core/code`, `core/image`, `core/table` など。一覧と属性は [本文のブロック](blocks.md)） |
-| `attributes` | object \| null | 任意の属性。属性を省略して保存されたブロックは `null` で渡される（SDK は空のマップとして読む） |
-| `text` | string \| null | テキスト内容 |
-| `children` | `BlockNode[]` | 子ブロック |
+| `name` | string | The block kind (`core/heading`, `core/paragraph`, `core/code`, `core/image`, `core/table`, etc.; for the list and attributes see [Body blocks](blocks.md)) |
+| `attributes` | object \| null | Arbitrary attributes. A block saved with attributes omitted is passed as `null` (the SDK reads it as an empty map) |
+| `text` | string \| null | Text content |
+| `children` | `BlockNode[]` | Child blocks |
 
-SDK ヘルパー:
+SDK helpers:
 
-| メソッド | 説明 |
+| Method | Description |
 | --- | --- |
-| `BlockNode::new(name)` | 空のブロックを作成 |
+| `BlockNode::new(name)` | Create an empty block |
 | `BlockNode::paragraph(text)` | `core/paragraph` |
-| `BlockNode::heading(level, text)` | `core/heading`（`level` 属性付き） |
-| `BlockNode::code(language, code)` | `core/code`（`language` 属性付き） |
-| `block.attribute(key)` | 属性を取得 |
-| `block.set_attribute(key, value)` | 属性を設定 |
+| `BlockNode::heading(level, text)` | `core/heading` (with a `level` attribute) |
+| `BlockNode::code(language, code)` | `core/code` (with a `language` attribute) |
+| `block.attribute(key)` | Get an attribute |
+| `block.set_attribute(key, value)` | Set an attribute |
 
 > [!NOTE]
-> SDK の `BlockNode.attributes` は `HashMap<String, serde_json::Value>` です（本体側の `aegis-ast` の `BlockNode` は 1 つの `serde_json::Value` で、型が違います）。プラグインのテストでブロックを作るときは `BlockNode::new(name)` に `set_attribute` で足すか、`HashMap::from([("level".to_string(), json!(2))])` のように書きます。`json!({...})` をそのまま `attributes` に入れるとコンパイルエラーになります。
+> The SDK's `BlockNode.attributes` is a `HashMap<String, serde_json::Value>` (the core's `aegis-ast` `BlockNode` uses a single `serde_json::Value`, which is a different type). When creating blocks in a plugin's tests, add with `set_attribute` to `BlockNode::new(name)`, or write something like `HashMap::from([("level".to_string(), json!(2))])`. Putting `json!({...})` straight into `attributes` is a compile error.
 
 ### 2.3 `UserAuthContext`
 
-| フィールド | 型 | 説明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `provider` | string | 認証したプロバイダ（`local` / `oidc` / `saml`）。変更は無視される |
-| `user_id` | string | セッションの `user_id`（ローカル認証ではユーザー名）。変更は無視される |
-| `email` | string | メールアドレス（未登録なら空文字列） |
-| `display_name` | string \| null | 表示名 |
+| `provider` | string | The provider that authenticated (`local` / `oidc` / `saml`). Changes are ignored |
+| `user_id` | string | The session's `user_id` (the username for local authentication). Changes are ignored |
+| `email` | string | Email address (an empty string if unregistered) |
+| `display_name` | string \| null | Display name |
 | `role` | string | `admin` / `editor` / `viewer` |
-| `metadata` | object | プロバイダ固有の属性。OIDC では `issuer`、`sub`、`claims`（ID トークンのクレーム。`groups` などのマッピングに使える）、SAML では `issuer`、`name_id`、`name_id_format`、`session_index`、`attributes`（属性名 → 値の配列）、ローカル認証では空 |
+| `metadata` | object | Provider-specific attributes. For OIDC, `issuer`, `sub`, and `claims` (the ID token's claims; usable for mapping `groups`, etc.); for SAML, `issuer`, `name_id`, `name_id_format`, `session_index`, and `attributes` (attribute name → array of values); empty for local authentication |
 
 ### 2.4 `OrderContext` / `OrderStatusChange`
 
-金額はすべて通貨の最小単位の整数です（JPY なら円、USD ならセント）。
+All amounts are integers in the currency's smallest unit (yen for JPY, cents for USD).
 
 ```json
 {
-  "order_id": "8f0c…（見積もり中は null）",
+  "order_id": "8f0c… (null during a quote)",
   "order_number": "261023-U6D3F6",
   "currency": "jpy",
   "lines": [
@@ -346,61 +348,61 @@ SDK ヘルパー:
 }
 ```
 
-`OrderStatusChange` は `{ "order": OrderContext, "from_status": "pending_payment" | null, "to_status": "paid", "occurred_at": "RFC 3339" }` です。状態は `pending_payment` / `paid` / `shipped` / `completed` / `cancelled`。
+`OrderStatusChange` is `{ "order": OrderContext, "from_status": "pending_payment" | null, "to_status": "paid", "occurred_at": "RFC 3339" }`. The statuses are `pending_payment` / `paid` / `shipped` / `completed` / `cancelled`.
 
-### 2.5 `NotificationMessage` / `Recipient` / `Delivery`（`send-notification`）
+### 2.5 `NotificationMessage` / `Recipient` / `Delivery` (`send-notification`)
 
-| フィールド | 型 | 説明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `kind` | string | 通知の種類（`order.placed` / `order.paid` / `order.shipped` / `order.cancelled` / `audit.<操作>` / `test`） |
-| `recipient` | object | `{"type": "staff"}`（運営者）または `{"type": "person", "email": "...", "name": "..."}` |
-| `subject` | string | 件名（テンプレートから作ったもの） |
-| `body` | string | 本文（プレーンテキスト） |
-| `html` | string（省略可） | HTML の本文（`[notifications].html = true` のとき。メール配信 API へ送るチャネル向け。[通知 3.1](notifications.md#31-html-メール)） |
-| `data` | object | テンプレートに渡した値（`order` / `audit` / `site_name` / `site_url` / `admin_url` / `kind` など。[通知 3](notifications.md#3-テンプレート)） |
+| `kind` | string | The notification kind (`order.placed` / `order.paid` / `order.shipped` / `order.cancelled` / `audit.<operation>` / `test`) |
+| `recipient` | object | `{"type": "staff"}` (operators) or `{"type": "person", "email": "...", "name": "..."}` |
+| `subject` | string | The subject (built from a template) |
+| `body` | string | The body (plain text) |
+| `html` | string (optional) | The HTML body (when `[notifications].html = true`; for channels that send to email delivery APIs; [Notifications 3.1](notifications.md#31-html-email)) |
+| `data` | object | The values passed to the template (`order` / `audit` / `site_name` / `site_url` / `admin_url` / `kind`, etc.; [Notifications 3](notifications.md#3-templates)) |
 
-`Delivery` は `Sent`（送った）/ `Skipped`（扱わない）。
+`Delivery` is `Sent` (sent) or `Skipped` (not handled).
 
-### 2.6 `PluginError`（SDK）
+### 2.6 `PluginError` (SDK)
 
-| バリアント | 用途 |
+| Variant | Use |
 | --- | --- |
-| `PluginError::Rejected(String)` | 入力を受け付けない（`on_before_save` の保存拒否、`on_user_authenticated` のログイン拒否）。メッセージがそのまま API の応答に出る |
-| `PluginError::Execution(String)` | プラグインロジックのエラー |
-| `PluginError::Serialization(String)` | JSON 変換エラー（`serde_json::Error` から自動変換） |
-| `PluginError::Host(String)` | ホスト API 呼び出しのエラー |
+| `PluginError::Rejected(String)` | Does not accept the input (refusing a save in `on_before_save`, refusing login in `on_user_authenticated`). The message appears as is in the API's response |
+| `PluginError::Execution(String)` | An error in plugin logic |
+| `PluginError::Serialization(String)` | A JSON conversion error (converted automatically from `serde_json::Error`) |
+| `PluginError::Host(String)` | An error from a host API call |
 
-### 2.7 `PublishedContent`（`on-content-published`）
+### 2.7 `PublishedContent` (`on-content-published`)
 
-| フィールド | 型 | 説明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `id` | string | 公開されたコンテンツ ID (UUID v4) |
-| `content_type` | string | スキーマ名（`articles`, `news` など） |
-| `title` | string | タイトル |
-| `slug` | string | スラッグ |
-| `published_at` | string | 公開日時 (RFC 3339) |
-| `author_id` | string \| null | 著者 ID（未指定時は null） |
-| `fields` | object | カスタムフィールド値のマップ |
+| `id` | string | The ID of the published content (UUID v4) |
+| `content_type` | string | The schema name (`articles`, `news`, etc.) |
+| `title` | string | Title |
+| `slug` | string | Slug |
+| `published_at` | string | Publication time (RFC 3339) |
+| `author_id` | string \| null | Author ID (null if unspecified) |
+| `fields` | object | A map of custom field values |
 
-### 2.8 `CommentSubmission` / `CommentVerdict`（`check-comment`）
+### 2.8 `CommentSubmission` / `CommentVerdict` (`check-comment`)
 
-| フィールド | 型 | 説明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `content_type` / `content_id` | string | コメントが付くコンテンツの種類と ID |
-| `content_title` / `content_slug` | string | コンテンツのタイトルとスラッグ |
-| `parent_id` | string \| null | 返信先のコメント ID |
-| `author_name` / `author_email` | string | 投稿者の名前とメールアドレス（小文字） |
-| `body` | string | 本文（プレーンテキスト） |
-| `ip` / `user_agent` | string \| null | 投稿者の IP アドレスとブラウザ |
-| `status` | string | ホストの判定（`approved` / `pending`） |
+| `content_type` / `content_id` | string | The kind and ID of the content the comment is on |
+| `content_title` / `content_slug` | string | The content's title and slug |
+| `parent_id` | string \| null | The ID of the comment being replied to |
+| `author_name` / `author_email` | string | The poster's name and email address (lowercase) |
+| `body` | string | The body (plain text) |
+| `ip` / `user_agent` | string \| null | The poster's IP address and browser |
+| `status` | string | The host's judgment (`approved` / `pending`) |
 
-`CommentVerdict` は `{"verdict": "allow"}`、`{"verdict": "hold", "reason": "..."}`、`{"verdict": "spam", "reason": "..."}` のいずれかです（`reason` はログに残す理由。省略可）。
+`CommentVerdict` is one of `{"verdict": "allow"}`, `{"verdict": "hold", "reason": "..."}`, and `{"verdict": "spam", "reason": "..."}` (`reason` is the reason left in the log; optional).
 
 ---
 
-## 3. マニフェスト (`plugin.manifest.json`)
+## 3. Manifest (`plugin.manifest.json`)
 
-各プラグインは `plugins_dir` 直下の `<name>/`（`<name>` はマニフェストの `name`）に配置し、`plugin.manifest.json` を置きます。配置しただけでは読み込まれず、`[plugins].enabled` に名前を追加すると有効になります（[5. インストールと有効化](#5-インストールと有効化)）。
+Each plugin is placed in `<name>/` directly under `plugins_dir` (`<name>` is the manifest's `name`) and has a `plugin.manifest.json`. Placing it alone does not load it; adding the name to `[plugins].enabled` enables it ([7. Installation and enabling](#7-installation-and-enabling)).
 
 ```json
 {
@@ -420,27 +422,27 @@ SDK ヘルパー:
 }
 ```
 
-| キー | 型 | 必須 | 説明 |
+| Key | Type | Required | Description |
 | --- | --- | --- | --- |
-| `name` | string | ✅ | プラグインの識別子。英小文字・数字で始まり、英小文字・数字・`-`・`_` のみ（64 文字以内）。インストール先のディレクトリ名・`[plugins].enabled`・ログのタグ (`[Wasm:<name>]`) に使用 |
-| `version` | string | ✅ | バージョン |
-| `entrypoint` | string | ✅ | Wasm バイナリのパス（マニフェストからの相対） |
-| `display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version` | | | ストアや一覧表示用のメタデータ（テーマの `theme.json` と同じ項目。`author` は文字列または `{"name", "email", "url"}`）。動作には影響しない |
-| `capabilities.network.allowed_domains` | string[] | | `net::is_allowed` で許可するドメイン。完全一致またはサブドメイン一致 |
-| `capabilities.storage.kv_namespace` | string | | KVS のネームスペース。未宣言の場合 `kv::set` は権限エラー |
-| `capabilities.hooks` | string[] | | 有効にするフック名（[1. フック一覧](#1-フック一覧)） |
-| `capabilities.csp.script_domains` / `style_domains` / `connect_domains` / `frame_domains` / `img_domains` | string[] | | 外部のスクリプト・CSS・通信先・フレーム・画像のホスト。有効にしている間、サーバーが CSP の `script-src` / `style-src` / `connect-src` / `frame-src` / `img-src` に足す。**CDN などから `<script>` を読み込むプラグインは、そのホストを宣言する**（宣言が無いと、既定の CSP が遮断する）。ホスト名だけ（スキームなし）。Admin Studio のプラグインの一覧の「機能・権限」に表示される |
-| `capabilities.inline_scripts` | boolean | `false` | `on-render-page` の `scripts`（構造化した注入）でインラインのスクリプトを足す宣言。宣言がないとホストが捨てる。外部のスクリプトのホストは上の `script_domains`（[ABI 仕様 5.3.3a](plugin_abi_specification.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)） |
-| `capabilities.embed.frame_domains` | string[] | | カスタムブロックに埋め込める `<iframe>` の配信元のホスト（[3.2](#32-外部のページの埋め込み-capabilitiesembed)） |
-| `blocks` | object[] | | 本文に置けるカスタムブロックの宣言（[3.1](#31-カスタムブロック-blocks)） |
-| `settings` | object[] | | 設定項目の宣言。Admin Studio のプラグイン設定に入力欄として出て、保存時に値を検査する（[3.3](#33-設定項目-settings)） |
-| `resource_limits` | object | | 省略した項目（または全体）はサーバー設定 `[runtime].default_*` で補われる（下記） |
+| `name` | string | ✅ | The plugin's identifier. Starts with a lowercase letter or digit, and only lowercase letters, digits, `-`, and `_` (up to 64 characters). Used for the installation directory name, `[plugins].enabled`, and the log tag (`[Wasm:<name>]`) |
+| `version` | string | ✅ | Version |
+| `entrypoint` | string | ✅ | The path of the Wasm binary (relative to the manifest) |
+| `display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version` | | | Metadata for stores and list display (the same items as a theme's `theme.json`; `author` is a string or `{"name", "email", "url"}`). Does not affect behavior |
+| `capabilities.network.allowed_domains` | string[] | | Domains allowed by `net::is_allowed`. Exact or subdomain match |
+| `capabilities.storage.kv_namespace` | string | | The KVS namespace. If undeclared, `kv::set` is a permission error |
+| `capabilities.hooks` | string[] | | Hook names to enable ([1. Hook list](#1-hook-list)) |
+| `capabilities.csp.script_domains` / `style_domains` / `connect_domains` / `frame_domains` / `img_domains` | string[] | | Hosts of external scripts, CSS, connections, frames, and images. While enabled, the server adds them to the CSP's `script-src` / `style-src` / `connect-src` / `frame-src` / `img-src`. **A plugin that loads `<script>` from a CDN or the like declares that host** (without the declaration, the default CSP blocks it). Host names only (no scheme). Shown in "Capabilities & permissions" in Admin Studio's plugin list |
+| `capabilities.inline_scripts` | boolean | `false` | A declaration for adding inline scripts with `scripts` (structured injection) of `on-render-page`. Without the declaration the host drops them. The hosts of external scripts are in `script_domains` above ([ABI specification 5.3.3a](plugin_abi_specification.md#533a-adding-scripts-in-on_render_page-scripts-abi-2)) |
+| `capabilities.embed.frame_domains` | string[] | | The source hosts of `<iframe>`s that can be embedded in custom blocks ([3.2](#32-embedding-external-pages-capabilitiesembed)) |
+| `blocks` | object[] | | The declaration of custom blocks that can be placed in the body ([3.1](#31-custom-blocks-blocks)) |
+| `settings` | object[] | | The declaration of settings items. They appear as input fields in Admin Studio's plugin settings and have their values validated on save ([3.3](#33-settings-items-settings)) |
+| `resource_limits` | object | | Omitted items (or the whole) are filled in by the server settings `[runtime].default_*` (below) |
 
-有効にしたプラグインのマニフェストが読めない、`name` とディレクトリ名が違う、`entrypoint` のファイルが無い、ホストに無い関数をインポートしている（[ABI 仕様](plugin_abi_specification.md#3-ホスト-api-インポート仕様-host-モジュール)）場合は、**サーバーが起動しません**。アクセス制限などを実装したプラグインが黙って外れたまま動き続けることを防ぐためです。有効にしていないプラグインの不備は警告ログと `aegis-server plugin list` に表示されます。
+If an enabled plugin's manifest cannot be read, `name` differs from the directory name, the file for `entrypoint` is missing, or it imports a function the host does not have ([ABI specification](plugin_abi_specification.md#3-host-api-import-specification-the-host-module)), **the server does not start**. This is to prevent a plugin that implements access restrictions and the like from silently dropping off while the server keeps running. Defects in plugins that are not enabled are shown in warning logs and `aegis-server plugin list`.
 
-### 3.1 カスタムブロック (`blocks`)
+### 3.1 Custom Blocks (`blocks`)
 
-`render-blocks` フック（[1.10](#110-render-blocks)）で描画するブロックを宣言します。`blocks` があるのに `capabilities.hooks` に `render-blocks` が無いマニフェストは読み込めません。
+Declares blocks rendered by the `render-blocks` hook ([1.10](#110-render-blocks)). A manifest that has `blocks` but no `render-blocks` in `capabilities.hooks` cannot be loaded.
 
 ```json
 "capabilities": { "hooks": ["render-blocks"] },
@@ -459,32 +461,32 @@ SDK ヘルパー:
 ]
 ```
 
-| キー | 説明 |
+| Key | Description |
 | --- | --- |
-| `name` | ブロック名（プラグイン名と同じ形式）。本文には `<プラグイン名>/<name>` で保存する |
-| `label` / `description` | Admin Studio に出す名前・説明。文字列か、言語ごとの `{"en": ..., "ja": ...}`（Admin Studio の言語 → 英語 → 最初のものの順に使う） |
-| `fields[].name` | 属性名（英字で始まり、英数字と `_`）。値は `attributes.<name>` |
-| `fields[].type` | `string`（1 行）/ `text`（複数行）/ `url` / `number` / `boolean` / `select`（`options` が必要）/ `image`（URL。アップロード・メディアライブラリから選べる）/ `list`（項目を増やせる繰り返し。下記） |
-| `fields[].label` / `placeholder` / `help` | 入力欄の名前・プレースホルダー・説明（`label` と同じく言語ごとにできる） |
-| `fields[].required` | 空のとき、エディタに注意を出す（保存は止めない） |
-| `fields[].default` | 新しく置いたブロックの初期値 |
-| `fields[].fields` | `list` の 1 項目の入力欄（上の `fields[]` と同じ形。`list` の中に `list` は置けない）。`list` だけに書ける |
-| `fields[].max_items` | `list` の項目数の上限（1〜100。省略すると 100）。`list` だけに書ける |
-| `refreshable` | `true` にすると、ブロックのフォームに「再取得」ボタンが出る。押すとブロックに `refresh: true` の属性を付けて `transform-content-ast` を通し（保存はしない）、返ってきた属性でフォームを更新する。プラグインは属性を作り直したら `refresh` を外す（`official-link-embed` を参照） |
+| `name` | The block name (the same form as plugin names). Saved in the body as `<plugin name>/<name>` |
+| `label` / `description` | The name and description shown in Admin Studio. A string, or per-language `{"en": ..., "ja": ...}` (used in the order Admin Studio's language → English → the first one) |
+| `fields[].name` | The attribute name (starts with a letter, then alphanumerics and `_`). The value is `attributes.<name>` |
+| `fields[].type` | `string` (one line) / `text` (multi-line) / `url` / `number` / `boolean` / `select` (requires `options`) / `image` (a URL; can be chosen via upload or the media library) / `list` (repeating items that can be added; below) |
+| `fields[].label` / `placeholder` / `help` | The input field's name, placeholder, and description (can be per-language like `label`) |
+| `fields[].required` | When empty, a warning is shown in the editor (saving is not stopped) |
+| `fields[].default` | The initial value of a newly placed block |
+| `fields[].fields` | The input fields of one item of a `list` (the same form as `fields[]` above; a `list` cannot be placed inside a `list`). Can be written only on `list` |
+| `fields[].max_items` | The upper limit of a `list`'s item count (1–100; 100 if omitted). Can be written only on `list` |
+| `refreshable` | If `true`, a "Refetch" button appears in the block's form. Pressing it adds the attribute `refresh: true` to the block and runs it through `transform-content-ast` (without saving), and updates the form with the attributes returned. The plugin removes `refresh` once it has rebuilt the attributes (see `official-link-embed`) |
 
-Admin Studio のフォームが `attributes` に入れる値の型は次のとおりです。API や Markdown から保存されるブロックは任意の JSON を持てるので、プラグインは型の違いにも耐えるようにしてください（`official-blocks` の `attr` や `sdk/templates/rust-block` を参照）。
+The types of values the Admin Studio form puts in `attributes` are as follows. Blocks saved from the API or Markdown can hold arbitrary JSON, so plugins should tolerate type differences (see `attr` in `official-blocks` and `sdk/templates/rust-block`).
 
-| `fields[].type` | `attributes` の値 | 備考 |
+| `fields[].type` | Value in `attributes` | Notes |
 | --- | --- | --- |
-| `string` / `text` / `url` / `image` | 文字列 | 入力が空なら、キーごと無い（または空文字列） |
-| `select` | 文字列（`options[].value`） | `required` でなければ、選ばないと空文字列。数字の選択肢（見出しのレベルなど）も `"3"` のような**文字列**で届く |
-| `number` | JSON の数値 | 空にすると、キーごと無くなる。`default` に書いた数値はそのまま入る |
-| `boolean` | `true` / `false` | 一度も操作していないと、キーが無い（`default` があればその値） |
-| `list` | オブジェクトの配列（`fields[].fields` の `name` をキーにした値）。項目が無いときは空配列か、キーごと無い | 項目の追加・削除・並べ替えができる。`required` は「何か入力した項目が 1 つ以上ある」こと。項目の中の `required` はその項目に注意を出す。`select` と `boolean` だけの項目は「空」として数える。項目の値の型は上の行と同じ |
+| `string` / `text` / `url` / `image` | A string | If the input is empty, the key is absent (or an empty string) |
+| `select` | A string (`options[].value`) | If not `required`, an empty string when none is chosen. Numeric choices (such as heading levels) also arrive as **strings** like `"3"` |
+| `number` | A JSON number | If emptied, the key is absent. A numeric `default` goes in as is |
+| `boolean` | `true` / `false` | If never touched, the key is absent (or the `default` value if there is one) |
+| `list` | An array of objects (values keyed by the `name`s of `fields[].fields`). When there are no items, an empty array or the key is absent | Items can be added, removed, and reordered. `required` means "at least one item has something entered". `required` inside an item shows a warning for that item. Items with only `select` and `boolean` count as "empty". The types of items' values are the same as the rows above |
 
-宣言の不備（名前の形式・重複、選択肢の無い `select`、`fields` の無い `list`・入れ子の `list`、範囲外の `max_items`、知らない `type`）があると、そのプラグインを有効にしたサーバーは起動しません。
+If there is a defect in the declaration (name format or duplicates, a `select` without options, a `list` without `fields` or a nested `list`, an out-of-range `max_items`, an unknown `type`), the server that enabled that plugin does not start.
 
-`list` は、FAQ・ギャラリー・手順のように同じ形の項目を並べるブロック向けです。
+`list` is for blocks that line up items of the same shape, such as FAQs, galleries, and steps.
 
 ```json
 { "name": "items", "type": "list", "label": "Questions", "required": true, "max_items": 30,
@@ -494,11 +496,11 @@ Admin Studio のフォームが `attributes` に入れる値の型は次のと�
   ] }
 ```
 
-保存される属性は `{"items": [{"question": "...", "answer": "..."}, ...]}` です。プラグインは配列の要素がオブジェクトでないこと、キーが無いことを想定して読んでください（API や Markdown から任意の JSON を保存できます）。
+The attributes saved are `{"items": [{"question": "...", "answer": "..."}, ...]}`. Plugins should read on the assumption that an array element may not be an object and keys may be missing (arbitrary JSON can be saved from the API and Markdown).
 
-### 3.2 外部のページの埋め込み (`capabilities.embed`)
+### 3.2 Embedding External Pages (`capabilities.embed`)
 
-動画のプレーヤーなど、外部のページを `<iframe>` でカスタムブロックに埋め込むには、配信元のホストを宣言します。
+To embed an external page such as a video player into a custom block with an `<iframe>`, declare the source host.
 
 ```json
 "capabilities": {
@@ -507,15 +509,15 @@ Admin Studio のフォームが `attributes` に入れる値の型は次のと�
 }
 ```
 
-- **サニタイズ**: そのプラグインのブロックの HTML に限り、`src` が `https://<宣言したホスト>/...` の `<iframe>` を残します。ホストは完全一致です（サブドメイン・ユーザー情報 `user@`・ポートの付いた URL は不可）。残す属性は `src`・`title`・`width`・`height`・`allow`・`allowfullscreen`・`loading`・`referrerpolicy`・`sandbox`・`class`・`style`・`frameborder` だけです（`srcdoc`・`on*` などは取り除きます）。宣言していないホストの `<iframe>`、ほかのプラグインのブロックの `<iframe>`、`<script>` は今までどおり取り除きます。
-- **CSP**: 有効なプラグインが宣言したホストを、すべてのレスポンスの `Content-Security-Policy` の `frame-src` に `https://<ホスト>` として足します。CSP に `frame-src` があればそこに、無ければ iframe に効いている `child-src`（無ければ `default-src`）の値に足した `frame-src` を加えます。管理者が `frame-src 'none'`・`*` と書いた CSP と、iframe を制限していない CSP はそのままです。Admin Studio の **Settings › Headers** で CSP を変えても、この追加は続きます。
-- **書き方**: ホスト名だけ（`www.youtube-nocookie.com`）。英小文字・数字・`-` のラベルを `.` でつなぎ、2 つ以上。スキーム・パス・ポート・ワイルドカードは書けません。`blocks` の無いプラグインには宣言できません。
-- 利用者が書いた HTML をそのまま埋め込むのではなく、入力された URL から ID を取り出してプレーヤーの URL を組み立ててください（`official-blocks` の動画ブロックを参照）。
-- 宣言したホストは Admin Studio のプラグインの一覧の「機能・権限」に表示されます。
+- **Sanitization**: only for that plugin's blocks' HTML, `<iframe>`s whose `src` is `https://<declared host>/...` remain. Hosts are exact matches (URLs with a subdomain, user info `user@`, or a port are not allowed). The only attributes kept are `src`, `title`, `width`, `height`, `allow`, `allowfullscreen`, `loading`, `referrerpolicy`, `sandbox`, `class`, `style`, and `frameborder` (`srcdoc`, `on*`, and the like are removed). `<iframe>`s of undeclared hosts, `<iframe>`s in other plugins' blocks, and `<script>` are removed as before.
+- **CSP**: the hosts declared by enabled plugins are added to the `frame-src` of every response's `Content-Security-Policy` as `https://<host>`. If the CSP has `frame-src`, it is added there; otherwise a `frame-src` is added with the value of `child-src` (or `default-src` if absent) that applies to iframes. A CSP where an administrator wrote `frame-src 'none'` or `*`, and a CSP that does not restrict iframes, are left as is. This addition continues even if you change the CSP in Admin Studio's **Settings › Headers**.
+- **How to write**: host names only (`www.youtube-nocookie.com`). Two or more labels of lowercase letters, digits, and `-` joined with `.`. Schemes, paths, ports, and wildcards cannot be written. It cannot be declared for a plugin without `blocks`.
+- Rather than embedding HTML written by users as is, extract the ID from the entered URL and build the player URL yourself (see `official-blocks`'s video block).
+- The declared hosts are shown in "Capabilities & permissions" in Admin Studio's plugin list.
 
-### 3.3 設定項目 (`settings`)
+### 3.3 Settings Items (`settings`)
 
-プラグインの設定値（`config::get` で読む値）の入力欄を宣言します。宣言した項目は Admin Studio の **Settings › Plugins** の「設定」画面に、種類に合った入力欄（選択肢・スイッチ・数値・色など）として出ます。宣言のないキーは今までどおり、キーと値の一覧に残ります。
+Declares input fields for the plugin's settings values (the values read with `config::get`). Declared items appear in Admin Studio's **Settings › Plugins** "Settings" screen as input fields suited to the type (choices, switches, numbers, colors, etc.). Keys without a declaration remain in the list of keys and values as before.
 
 ```json
 "settings": [
@@ -540,92 +542,92 @@ Admin Studio のフォームが `attributes` に入れる値の型は次のと�
 ]
 ```
 
-| キー | 必須 | 説明 |
+| Key | Required | Description |
 | --- | --- | --- |
-| `key` | ✅ | 設定のキー。英字で始まり、英数字と `_` のみ（64 文字以内）。`config::get(key)` で読む |
-| `type` | ✅ | 入力欄の種類（下の表） |
-| `label` | ✅ | 入力欄の名前。文字列か `{"en": ..., "ja": ...}`（Admin Studio の言語 → 英語 → 最初のものの順に使う） |
-| `description` / `placeholder` | | 入力欄の下の説明・薄い文字。`label` と同じ形式 |
-| `default` | | 未設定のときにプラグインが使う値。入力欄の薄い文字や「既定値（…）」の選択肢に出すだけで、**保存はしない**（プラグイン側でも同じ既定値を使うこと） |
-| `options` | `select` で必須 | `[{"value": "...", "label": ...}]`。`value` は空でなく、重ならない |
-| `min` / `max` | | `number` の下限・上限 |
-| `max_length` | | 文字数の上限（`string` 500、`text` 20000、`url` 2000 が既定） |
+| `key` | ✅ | The setting's key. Starts with a letter, then only alphanumerics and `_` (up to 64 characters). Read with `config::get(key)` |
+| `type` | ✅ | The kind of input field (table below) |
+| `label` | ✅ | The input field's name. A string or `{"en": ..., "ja": ...}` (used in the order Admin Studio's language → English → the first one) |
+| `description` / `placeholder` | | The description under the field and the faint text. The same form as `label` |
+| `default` | | The value the plugin uses when unset. It is only shown as faint text in the field and as a "Default (…)" choice, and **is not saved** (the plugin must use the same default too) |
+| `options` | Required for `select` | `[{"value": "...", "label": ...}]`. `value` is non-empty and unique |
+| `min` / `max` | | The lower and upper bounds of `number` |
+| `max_length` | | The character limit (defaults: `string` 500, `text` 20000, `url` 2000) |
 
-| `type` | 入力欄 | 保存される値の検査 |
+| `type` | Input field | Validation of the saved value |
 | --- | --- | --- |
-| `string` / `text` | 1 行 / 複数行 | 文字数の上限。制御文字は不可（`text` は改行・タブは可） |
-| `url` | 1 行 | `http://`・`https://`、または `/` で始まる相対パス（`//` と空白は不可） |
-| `number` | 数値 | 数値であること、`min`・`max` の範囲 |
-| `boolean` | 既定値 / オン / オフ | `true` か `false` |
-| `select` | 選択肢 | `options` のどれか |
-| `color` | 色の選択と文字 | `#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名（CSS にそのまま入れても安全な形） |
+| `string` / `text` | One line / multi-line | The character limit. Control characters are not allowed (line breaks and tabs are allowed for `text`) |
+| `url` | One line | `http://`, `https://`, or a relative path starting with `/` (`//` and whitespace are not allowed) |
+| `number` | Number | Being a number, and the range of `min` and `max` |
+| `boolean` | Default / on / off | `true` or `false` |
+| `select` | Choices | One of `options` |
+| `color` | Color picker and text | `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name (a form that is safe to put straight into CSS) |
 
-- **値は文字列で保存**します（`boolean` は `"true"` / `"false"`、`number` は 10 進数）。読むときは `config::get` が返す文字列を、プラグインが型に直します。
-- **空欄は「未設定」**です。宣言した項目の空の値は保存せず（キーごと消します）、プラグインは `config::get` が `None` のときの既定値を使います。検査はサーバー（`PUT /api/v1/plugins/{name}/settings`）でも行い、誤りは `400 {"code": "invalid_setting", "errors": [{"key", "message"}]}` で返します（保存は 1 つもしません）。宣言のないキーは検査しません。
-- **設定ファイル（`[plugins.settings.<名前>]`）の値は検査されません**（起動時の設定として読むだけです）。プラグインは、読んだ値を CSS や HTML に入れる前に、自分でも許可する形だけに絞ってください。`default` が自分の検査を通らない宣言や、`select` に選択肢がない宣言は、マニフェストの不備になります。
-- 動く例は [`official-page-toc`](../plugins/official-page-toc/plugin.manifest.json)・[`official-back-to-top`](../plugins/official-back-to-top/plugin.manifest.json)（本文に足す）と、[`official-code-lines`](../plugins/official-code-lines/plugin.manifest.json)・[`official-lightbox`](../plugins/official-lightbox/plugin.manifest.json)・[`official-external-links`](../plugins/official-external-links/plugin.manifest.json)（スクリプトで本文の HTML を整える）です。
+- **Values are stored as strings** (`"true"` / `"false"` for `boolean`, decimal for `number`). When reading, the plugin converts the string `config::get` returns into the type.
+- **A blank means "unset".** Empty values of declared items are not saved (the key is removed), and the plugin uses its default when `config::get` returns `None`. Validation is also done on the server (`PUT /api/v1/plugins/{name}/settings`), and mistakes are returned as `400 {"code": "invalid_setting", "errors": [{"key", "message"}]}` (nothing is saved). Keys without a declaration are not validated.
+- **Values in the config file (`[plugins.settings.<name>]`) are not validated** (they are only read as startup settings). Before putting a value it read into CSS or HTML, the plugin should narrow it itself to only allowed forms. A declaration whose `default` does not pass its own validation, or a `select` with no options, is a manifest defect.
+- Working examples are [`official-page-toc`](../plugins/official-page-toc/plugin.manifest.json) and [`official-back-to-top`](../plugins/official-back-to-top/plugin.manifest.json) (adding to the body), and [`official-code-lines`](../plugins/official-code-lines/plugin.manifest.json), [`official-lightbox`](../plugins/official-lightbox/plugin.manifest.json), and [`official-external-links`](../plugins/official-external-links/plugin.manifest.json) (adjusting the body's HTML with scripts).
 
-## 4. リソース制限 (`resource_limits`)
+## 4. Resource Limits (`resource_limits`)
 
-| キー | 省略時の値 | 説明 |
+| Key | Value if omitted | Description |
 | --- | --- | --- |
-| `max_fuel_units` | `[runtime].default_max_fuel_units`（既定 `100000000`） | フック 1 回あたりの Wasm 命令実行量の上限。超過するとトラップ |
-| `execution_timeout_ms` | `[runtime].default_timeout_ms`（既定 `250`） | フック 1 回あたりの実行時間の上限（最小 50ms に切り上げ） |
-| `max_memory_mb` | `[runtime].default_max_memory_mb`（既定 `16`） | 線形メモリの上限（MiB、最小 1）。`memory.grow` で超えようとするとトラップし、初期メモリが上限を超えるモジュールはインスタンス化に失敗する。Rust の `wasm32-unknown-unknown` ビルドは初期メモリだけで約 1.1 MiB を使うため、2 以上を指定する。インスタンスのプールを使う場合（既定）は `[runtime].pool_max_memory_mb`（既定 `64`）以下にする（超えると読み込み時にエラー） |
+| `max_fuel_units` | `[runtime].default_max_fuel_units` (default `100000000`) | The upper limit of Wasm instructions executed per hook call. Exceeding it traps |
+| `execution_timeout_ms` | `[runtime].default_timeout_ms` (default `250`) | The upper limit of execution time per hook call (rounded up to a minimum of 50ms) |
+| `max_memory_mb` | `[runtime].default_max_memory_mb` (default `16`) | The linear memory limit (MiB, minimum 1). Trying to exceed it with `memory.grow` traps, and a module whose initial memory exceeds the limit fails to instantiate. A Rust `wasm32-unknown-unknown` build uses about 1.1 MiB for initial memory alone, so specify 2 or more. When using the instance pool (the default), keep it at or below `[runtime].pool_max_memory_mb` (default `64`) (exceeding it is an error at load time) |
 
-- 項目ごとに補われるため、`{"max_memory_mb": 8}` のように一部だけ指定できます。
-- 上限超過（トラップ）はプラグインのエラーとして扱われます（各フックのエラー時の挙動に従い、`plugin.error` を監査ログに記録）。
+- They are filled in per item, so you can specify just some, like `{"max_memory_mb": 8}`.
+- Exceeding a limit (a trap) is treated as a plugin error (following each hook's behavior on error, and `plugin.error` is recorded in the audit log).
 
 > [!NOTE]
-> フックは呼び出しごとに新しい Wasm インスタンスで実行されます。プラグイン構造体も毎回 `Default::default()` で生成されるため、**フック呼び出し間でメモリ上の状態は保持されません**。
+> Hooks run in a new Wasm instance on every call. The plugin struct is also created with `Default::default()` each time, so **in-memory state is not kept between hook calls**.
 
 ---
 
-## 5. ホスト API
+## 5. Host API
 
-ホストは `host` モジュールとして以下の関数をインポート提供します。
+The host provides the following functions as imports from the `host` module.
 
-| SDK API | Wasm インポート | シグネチャ | 必要な権限 |
+| SDK API | Wasm import | Signature | Required permission |
 | --- | --- | --- | --- |
-| `log_debug!` / `log_info!` / `log_warn!` / `log_error!` | `host.log` | `(level: i32, ptr: i32, len: i32)` | なし |
+| `log_debug!` / `log_info!` / `log_warn!` / `log_error!` | `host.log` | `(level: i32, ptr: i32, len: i32)` | None |
 | `net::is_allowed(url) -> bool` | `host.http_check_allowed` | `(ptr: i32, len: i32) -> i32` | `capabilities.network` |
 | `kv::set(key, value) -> Result<()>` | `host.kv_set` | `(k_ptr, k_len, v_ptr, v_len) -> i32` | `capabilities.storage` |
-| `kv::set_json(key, &value) -> Result<()>` | `host.kv_set` | 同上（値を JSON 文字列化） | `capabilities.storage` |
+| `kv::set_json(key, &value) -> Result<()>` | `host.kv_set` | Same (the value is turned into a JSON string) | `capabilities.storage` |
 | `kv::get(key) -> Result<Option<String>>` / `kv::get_json` | `host.kv_get` | `(k_ptr, k_len) -> i64` | `capabilities.storage` |
 | `http::fetch(&Request) -> Result<Response>` | `host.http_fetch` | `(req_ptr, req_len) -> i64` | `capabilities.network` |
-| `config::get(key) -> Option<String>` / `config::get_or(key, default)` | `host.config_get` | `(k_ptr, k_len) -> i64` | なし |
+| `config::get(key) -> Option<String>` / `config::get_or(key, default)` | `host.config_get` | `(k_ptr, k_len) -> i64` | None |
 
-`i64` を返す関数は、ホストがゲストの `allocate` で確保した領域に結果を書き込み、`(ptr << 32) | len` を返します（SDK が読み取って解放します）。
+Functions that return `i64` have the host write the result into a region secured with the guest's `allocate` and return `(ptr << 32) | len` (the SDK reads it and frees it).
 
-### 5.1 ログ (`host.log`)
+### 5.1 Logging (`host.log`)
 
-| `level` | SDK マクロ | ホスト側 `tracing` レベル |
+| `level` | SDK macro | Host-side `tracing` level |
 | --- | --- | --- |
 | `0` | `log_debug!` | `debug` |
 | `1` | `log_info!` | `info` |
 | `2` | `log_warn!` | `warn` |
-| `3` 以上 | `log_error!` | `error` |
+| `3` and above | `log_error!` | `error` |
 
-### 5.2 ネットワーク許可チェック (`host.http_check_allowed`)
+### 5.2 Network Permission Check (`host.http_check_allowed`)
 
-- `http://` または `https://` の URL のホスト名が `allowed_domains` と完全一致、またはそのサブドメインであれば `1`、それ以外は `0` を返します。ホスト名は HTTP クライアントと同じ URL パーサーで取り出し（大文字・小文字は区別しない）、ユーザー情報（`user@host`）を含む URL は拒否します。
-- `capabilities.network` が未宣言の場合は常に `0` です。
-- 実際に通信するには `host.http_fetch`（[5.5](#55-http-リクエスト-hosthttp_fetch)）を使います。
+- Returns `1` if the host name of an `http://` or `https://` URL exactly matches `allowed_domains` or is a subdomain of one, and `0` otherwise. The host name is extracted with the same URL parser as the HTTP client (case-insensitive), and URLs containing user info (`user@host`) are rejected.
+- If `capabilities.network` is undeclared, it is always `0`.
+- To actually communicate, use `host.http_fetch` ([5.4](#54-http-requests-hosthttp_fetch)).
 
-### 5.3 KVS 書き込み (`host.kv_set`)
+### 5.3 KVS Write (`host.kv_set`)
 
-| 戻り値 | 意味 | SDK の結果 |
+| Return value | Meaning | SDK result |
 | --- | --- | --- |
-| `0` | 成功 | `Ok(())` |
-| `1` | 権限なし（`capabilities.storage` 未宣言） | `Err(PluginError::Host(...))` |
-| `2` | メモリ読み取り失敗などのエラー | `Err(PluginError::Host(...))` |
+| `0` | Success | `Ok(())` |
+| `1` | No permission (`capabilities.storage` undeclared) | `Err(PluginError::Host(...))` |
+| `2` | An error such as a memory read failure | `Err(PluginError::Host(...))` |
 
-- キーは `{kv_namespace}:{key}` の形でホスト側に保存され、他プラグインのネームスペースとは分離されます。
-- 値はサーバーの `[cache]` のバックエンドにキー `plugin-kv:{kv_namespace}:{key}` で保存します（有効期限なし）。`redis` なら再起動後も残り、全サーバーで共有されます。`memory` ではプロセス内にだけあり、再起動で消えます。
-- 読み取りは `host.kv_get`（SDK の `kv::get` / `kv::get_json`）。戻り値は値の `(ptr << 32) | len`、未設定なら `0`、権限なしは `-1`、エラーは `-2` です。
-- 1 回の読み書きは独立しています（読んで +1 して書くような更新は同時実行で数え漏れることがあります）。
+- Keys are stored on the host side in the form `{kv_namespace}:{key}` and are separated from other plugins' namespaces.
+- Values are stored in the server's `[cache]` backend under the key `plugin-kv:{kv_namespace}:{key}` (no expiry). With `redis` they remain after a restart and are shared by all servers. With `memory` they exist only in the process and vanish on restart.
+- Reading is `host.kv_get` (the SDK's `kv::get` / `kv::get_json`). The return value is the value's `(ptr << 32) | len`; `0` if unset; `-1` for no permission; `-2` for an error.
+- Each read and write is independent (an update such as reading, adding 1, and writing can miss counts under concurrent execution).
 
-### 5.4 HTTP リクエスト (`host.http_fetch`)
+### 5.4 HTTP Requests (`host.http_fetch`)
 
 ```rust
 let request = http::Request::post_json("https://hooks.slack.com/services/…", &json!({ "text": "New order" }))?;
@@ -633,130 +635,130 @@ let response = http::fetch(&request)?;
 if !response.is_success() { /* response.status, response.body */ }
 ```
 
-- 宛先はマニフェストの `capabilities.network.allowed_domains`（とそのサブドメイン）だけです。許可されていない URL は送らずにエラーになります。
-- メソッドは `GET` / `POST` / `PUT` / `PATCH` / `DELETE`。`Host` / `Content-Length` などのヘッダーは指定できません。
-- **リダイレクトは 3 回までホストが追います**。移った先のたびに許可ドメインと下の宛先の制限を確認し、許可されていない先へ移るときは `Err` です（3xx は返りません）。303 と、本文つきの 301/302 は GET に変わり、別のホストへ移るときは `Authorization` / `Cookie` ヘッダーを送りません。
-- **宛先の制限**: `http` / `https` だけで、ポートは `https` が 443、`http` が 80 か 8080 だけです。内部の IP アドレス（ループバック・プライベート・リンクローカル＝クラウドのメタデータなど）や、そこに解決されるホスト名へは、許可ドメインに書いても通信しません。
-- **サイトの設定で許可ドメインを足せます**: `[plugins.settings.<プラグイン名>]` の `extra_allowed_domains`（カンマ区切り、または配列）に書いたドメインは、マニフェストの `allowed_domains` に足して扱います（サブドメインを含む）。プラグインを作り直さずに取得先を足せます（Admin Studio のプラグイン管理画面からも設定できます）。設定するのは管理者なので、プラグインを信用してよいときだけ足してください。
-- 本文は送信・受信とも 1 MiB まで。1 回の通信は最大 10 秒、1 回のフック呼び出しで 8 回まで。フックの `execution_timeout_ms` には通信の待ち時間も含まれるので、通信するプラグインは大きめ（例: 5000〜10000）にしてください。
-- 失敗（許可されていない宛先・接続できない・上限超過）は `Err(PluginError::Host(...))` です。ホストは `{"error": "..."}` の JSON を返します。
+- Destinations are only the manifest's `capabilities.network.allowed_domains` (and their subdomains). URLs not allowed are not sent and give an error.
+- The methods are `GET` / `POST` / `PUT` / `PATCH` / `DELETE`. Headers such as `Host` / `Content-Length` cannot be specified.
+- **The host follows redirects up to 3 times.** At each destination it checks the allowed domains and the destination restrictions below, and moving to a destination that is not allowed is an `Err` (a 3xx is not returned). 303, and 301/302 with a body, change to GET, and when moving to a different host the `Authorization` / `Cookie` headers are not sent.
+- **Destination restrictions**: only `http` / `https`, and ports only 443 for `https` and 80 or 8080 for `http`. It does not connect to internal IP addresses (loopback, private, link-local = cloud metadata, etc.) or host names that resolve to them, even if written in the allowed domains.
+- **Allowed domains can be added in the site's settings**: domains written in `extra_allowed_domains` (comma-separated, or an array) of `[plugins.settings.<plugin name>]` are handled as added to the manifest's `allowed_domains` (including subdomains). You can add fetch destinations without rebuilding the plugin (it can also be set from Admin Studio's plugin management screen). Administrators set it, so add only when you can trust the plugin.
+- Bodies are up to 1 MiB for both sending and receiving. One call takes at most 10 seconds, and up to 8 calls per hook invocation. The hook's `execution_timeout_ms` includes the waiting time for communication, so make it larger (e.g. 5000–10000) for plugins that communicate.
+- A failure (a destination not allowed, cannot connect, limit exceeded) is `Err(PluginError::Host(...))`. The host returns JSON of `{"error": "..."}`.
 
-### 5.5 設定値 (`host.config_get`)
+### 5.5 Settings Values (`host.config_get`)
 
-サーバーの設定ファイルの `[plugins.settings.<プラグイン名>]` の値を読みます（他のプラグインの設定は読めません）。文字列はそのまま、数値・真偽値・配列は JSON の文字列で返ります。
+Reads the values of `[plugins.settings.<plugin name>]` in the server's config file (other plugins' settings cannot be read). Strings are returned as is, and numbers, booleans, and arrays as JSON strings.
 
-また、Admin Studio のプラグイン管理画面（`PUT /api/v1/plugins/{name}/settings`）から設定された動的設定値も即座に反映され、設定ファイルの記述を上書きします（キャッシュに永続化され、再起動後も保持されます）。
+Dynamic settings values set from Admin Studio's plugin management screen (`PUT /api/v1/plugins/{name}/settings`) are also reflected immediately and override what is written in the config file (they are persisted in the cache and kept after restart).
 
 ```toml
 [plugins.settings.official-order-notifier]
-webhook_url = "env:SLACK_WEBHOOK_URL"   # env: で始まる値は環境変数から（API キーを設定ファイルに書かない）
+webhook_url = "env:SLACK_WEBHOOK_URL"   # values starting with env: come from environment variables (do not write API keys in the config file)
 notify_on = "pending_payment,paid,cancelled"
 ```
 
 ```rust
 let url = config::get("webhook_url");             // Option<String>
-let fee: i64 = config::get_or("shipping_fee", 0); // 読めなければ既定値
+let fee: i64 = config::get_or("shipping_fee", 0); // the default if it cannot be read
 ```
 
-### 5.6 ネイティブテスト時のモック
+### 5.6 Mocks for Native Tests
 
-`cargo test` などネイティブターゲット (`not(target_arch = "wasm32")`) でビルドした場合、SDK のホスト API はモックに置き換わります。
+When built for a native target such as `cargo test` (`not(target_arch = "wasm32")`), the SDK's host APIs are replaced with mocks.
 
-| API | モックの挙動 |
+| API | Mock behavior |
 | --- | --- |
-| ログ | 標準出力に `[WasmMock:LEVEL] message` を出力 |
-| `net::is_allowed` | 常に `true`（マニフェストは参照しない） |
-| `kv::set` / `kv::get` | スレッドローカルのメモリに保存・読み出し |
-| `config::get` | `host::mock::set_config(key, value)` で設定した値 |
-| `http::fetch` | 送らずに記録して `200` を返す（`host::mock::take_http_requests()` で取り出す） |
+| Logging | Outputs `[WasmMock:LEVEL] message` to standard output |
+| `net::is_allowed` | Always `true` (does not consult the manifest) |
+| `kv::set` / `kv::get` | Stored and read in thread-local memory |
+| `config::get` | The value set with `host::mock::set_config(key, value)` |
+| `http::fetch` | Records without sending and returns `200` (retrieve with `host::mock::take_http_requests()`) |
 
-`host::mock::reset()` でモックを空にできます。
+`host::mock::reset()` empties the mocks.
 
-権限まわりの挙動は、Wasm にビルドしてランタイム上で確認してください。
+Check permission-related behavior by building to Wasm and running on the runtime.
 
 ---
 
-## 6. 低水準 ABI（SDK を使わない場合）
+## 6. Low-Level ABI (Without the SDK)
 
-| エクスポート | シグネチャ | 必須 | 説明 |
+| Export | Signature | Required | Description |
 | --- | --- | --- | --- |
-| `memory` | memory | ✅ | リニアメモリ |
-| `allocate` | `(len: i32) -> i32` | ✅ | ホストが入力 JSON を書き込む領域を確保し、ポインタを返す |
-| `transform_content_ast` | `(ptr: i32, len: i32) -> i64` | | 入力 `BlockNode[]` JSON、戻り値 `(ptr << 32) \| len` |
-| `on_before_save` | `(ptr: i32, len: i32) -> i64` | | 入力 `PostContext` JSON、戻り値 `(ptr << 32) \| len` |
-| `on_user_authenticated` | `(ptr: i32, len: i32) -> i64` | | 入力 `UserAuthContext` JSON、戻り値 `(ptr << 32) \| len` |
-| `calculate_order` | `(ptr: i32, len: i32) -> i64` | | 入力 `OrderContext` JSON、戻り値 `(ptr << 32) \| len`（`{"error"}` で拒否） |
-| `on_order_status_changed` | `(ptr: i32, len: i32) -> i64` | | 入力 `OrderStatusChange` JSON。戻り値は `0`（成功）か `{"error"}` |
+| `memory` | memory | ✅ | Linear memory |
+| `allocate` | `(len: i32) -> i32` | ✅ | Secures a region for the host to write the input JSON into and returns the pointer |
+| `transform_content_ast` | `(ptr: i32, len: i32) -> i64` | | Input `BlockNode[]` JSON, return `(ptr << 32) \| len` |
+| `on_before_save` | `(ptr: i32, len: i32) -> i64` | | Input `PostContext` JSON, return `(ptr << 32) \| len` |
+| `on_user_authenticated` | `(ptr: i32, len: i32) -> i64` | | Input `UserAuthContext` JSON, return `(ptr << 32) \| len` |
+| `calculate_order` | `(ptr: i32, len: i32) -> i64` | | Input `OrderContext` JSON, return `(ptr << 32) \| len` (refuse with `{"error"}`) |
+| `on_order_status_changed` | `(ptr: i32, len: i32) -> i64` | | Input `OrderStatusChange` JSON. The return is `0` (success) or `{"error"}` |
 
-- 戻り値の `len` が `0` の場合、ホストは入力をそのまま採用します。
-- `on_before_save` で保存を、`on_user_authenticated` でログインを拒否するには、入力の型の代わりに `{"error": "<メッセージ>"}` を返します（SDK の `abi::write_error_to_host`）。`error` キーを持つオブジェクトはすべて拒否として扱います。
-- 返却された JSON が期待する型としてパースできない場合はホスト側エラー（[1.2](#12-transform-content-ast) / [1.3](#13-on-before-save) のエラー時の挙動を参照）になります。
+- If the returned `len` is `0`, the host adopts the input as is.
+- To refuse a save in `on_before_save` or a login in `on_user_authenticated`, return `{"error": "<message>"}` instead of the input type (the SDK's `abi::write_error_to_host`). Every object with an `error` key is treated as a refusal.
+- If the returned JSON cannot be parsed as the expected type, it is a host-side error (see the behavior on error in [1.2](#12-transform-content-ast) / [1.3](#13-on-before-save)).
 
-## 7. インストールと有効化
+## 7. Installation and Enabling
 
-テーマ（`themes/<id>/` + `[theme].active`）と同じく、プラグインも「インストール」と「有効化」を分けて管理します。将来のストアからのインストールもこの形（`plugins/<name>/` への展開）を前提にしています。
+Like themes (`themes/<id>/` + `[theme].active`), plugins also manage "installation" and "enabling" separately. Installation from a future store also assumes this form (extraction into `plugins/<name>/`).
 
-1. **インストール**: `plugin.manifest.json` と `plugin.wasm` を `plugins/<name>/` に置く（`<name>` はマニフェストの `name`）。
-2. **有効化**: Admin Studio のプラグイン画面で「有効にする」を押す（再起動不要）か、設定ファイルの `[plugins].enabled` に `<name>` を追加してサーバーを再起動する。フックは有効化リストの順に実行されます。
+1. **Install**: place `plugin.manifest.json` and `plugin.wasm` in `plugins/<name>/` (`<name>` is the manifest's `name`).
+2. **Enable**: press "Enable" in Admin Studio's plugin screen (no restart needed), or add `<name>` to `[plugins].enabled` in the config file and restart the server. Hooks run in the order of the enabled list.
 
 ```toml
 [plugins]
 enabled = ["seo-tools", "slack-notifier"]
 ```
 
-- インストール済みのプラグインと状態は `aegis-server plugin list`（CLI）または `GET /api/v1/plugins`（admin 権限）で確認できます。
+- The installed plugins and their status can be checked with `aegis-server plugin list` (CLI) or `GET /api/v1/plugins` (admin permission).
 
-### 7.1 Admin Studio からの有効・無効の切り替え
+### 7.1 Toggling On and Off from Admin Studio
 
-Admin Studio のプラグイン画面（`admin` ロールのみ）の「有効にする」「無効にする」で、サーバーを再起動せずに切り替えられます。
+With "Enable" / "Disable" in Admin Studio's plugin screen (`admin` role only), you can switch without restarting the server.
 
-- API: `PUT /api/v1/plugins/{name}/enabled` に `{"enabled": true}` / `{"enabled": false}` を送ります。応答は `GET /api/v1/plugins` と同じ一覧です。監査ログは `plugin.enable` / `plugin.disable`。
-- 有効にしたプラグインは、フックの実行順の**最後**に加わります。順序はプラグイン画面の「フックの実行順」で変えられます（下記）。
-- 切り替えた一覧は DB（`_aegis_settings` の `plugins.enabled`）に保存され、**以後は設定ファイルの `[plugins].enabled` より優先されます**（起動時のログに `Using the plugin list saved from Admin Studio` と出ます）。設定ファイルの値に戻すには「設定ファイルの値に戻す」を使います（下記）。
-- 読み込めないプラグイン（未インストール、マニフェストの不備、ホストに無い関数のインポートなど）は有効にできず `400` を返します。そのときは何も変わりません。
-- `[notifications].channels` に `plugin:<名前>` で使っているプラグインは無効にできません（`409`。先に `channels` から外してください）。
-- `[runtime].enable_wasm_plugins = false` のサーバーでは切り替えられません（`409`）。
-- 複数台で動かしている場合（`[cache].backend = "redis"`）、切り替え・並べ替え・設定値の変更はほかのサーバーにもすぐ反映されます（[7.3](#73-複数台での反映)）。
-- プラグインの設定値（`PUT /api/v1/plugins/{name}/settings`）は有効・無効にかかわらず保持され、有効にした時点から読まれます。
+- API: send `{"enabled": true}` / `{"enabled": false}` to `PUT /api/v1/plugins/{name}/enabled`. The response is the same list as `GET /api/v1/plugins`. The audit logs are `plugin.enable` / `plugin.disable`.
+- A newly enabled plugin joins **last** in the hook execution order. The order can be changed with "Hook execution order" on the plugin screen (below).
+- The toggled list is saved in the DB (`plugins.enabled` in `_aegis_settings`), and **from then on takes precedence over `[plugins].enabled` in the config file** (the startup log shows `Using the plugin list saved from Admin Studio`). To return to the config file's value, use "Return to config file values" (below).
+- A plugin that cannot be loaded (not installed, a manifest defect, importing a function the host lacks, etc.) cannot be enabled and returns `400`. Nothing changes in that case.
+- A plugin used as `plugin:<name>` in `[notifications].channels` cannot be disabled (`409`; first remove it from `channels`).
+- On a server with `[runtime].enable_wasm_plugins = false`, it cannot be switched (`409`).
+- When running multiple servers (`[cache].backend = "redis"`), toggling, reordering, and changing settings values are reflected immediately on the other servers too ([7.3](#73-reflection-across-multiple-servers)).
+- A plugin's settings values (`PUT /api/v1/plugins/{name}/settings`) are kept whether enabled or disabled and are read from the moment it is enabled.
 
-### 7.2 フックの実行順の並べ替えと、設定ファイルの値に戻す
+### 7.2 Reordering Hook Execution and Returning to the Config File's Values
 
-プラグイン画面の上部の「フックの実行順」に、有効なプラグインが実行順に並びます（`admin` ロールのみ操作できます）。上下のボタンで並べ替えると、再起動せずにすぐ反映され、DB に保存されます。
+At the top of the plugin screen, "Hook execution order" lists the enabled plugins in execution order (only the `admin` role can operate it). Reordering with the up and down buttons is reflected immediately without a restart and is saved in the DB.
 
-- API: `GET /api/v1/plugins/order` → `{"enabled": [...], "configured": [...], "customized": true}`。`enabled` は今の実行順、`configured` は設定ファイルの `[plugins].enabled`、`customized` は Admin Studio で変えた一覧を DB に保存しているか。
-- 並べ替え: `PUT /api/v1/plugins/order` に `{"enabled": ["b", "a"]}`。今有効なプラグインをちょうど 1 回ずつ並べます（足りない・余計・重複は `400`。有効・無効は `PUT /api/v1/plugins/{name}/enabled` で切り替えます）。監査ログは `plugin.reorder`。
-- 設定ファイルの値に戻す: `DELETE /api/v1/plugins/order`（画面の「設定ファイルの値に戻す」）。DB に保存した一覧を消し、`[plugins].enabled` のプラグインをその順に読み込み直します（Admin Studio だけで有効にしたものは無効になります）。監査ログは `plugin.reset`。`[plugins].enabled` のプラグインが読み込めなければ `400` で、何も変わりません。
-- 応答はどれも `GET /api/v1/plugins/order` と同じ形です。`[runtime].enable_wasm_plugins = false` なら `409`、通知チャネル（`[notifications].channels` の `plugin:<名前>`）が外れる場合も `409` です。
+- API: `GET /api/v1/plugins/order` → `{"enabled": [...], "configured": [...], "customized": true}`. `enabled` is the current execution order, `configured` is `[plugins].enabled` in the config file, and `customized` is whether a list changed in Admin Studio is saved in the DB.
+- Reordering: `PUT /api/v1/plugins/order` with `{"enabled": ["b", "a"]}`. List the currently enabled plugins exactly once each (missing, extra, or duplicate gives `400`; toggle enabled/disabled with `PUT /api/v1/plugins/{name}/enabled`). The audit log is `plugin.reorder`.
+- Returning to the config file's value: `DELETE /api/v1/plugins/order` (the screen's "Return to config file values"). It deletes the list saved in the DB and reloads the plugins in `[plugins].enabled` in that order (ones enabled only in Admin Studio become disabled). The audit log is `plugin.reset`. If a plugin in `[plugins].enabled` cannot be loaded, it is `400` and nothing changes.
+- All responses have the same shape as `GET /api/v1/plugins/order`. With `[runtime].enable_wasm_plugins = false` it is `409`, and also `409` if a notification channel (`plugin:<name>` in `[notifications].channels`) would be dropped.
 
-### 7.3 複数台での反映
+### 7.3 Reflection Across Multiple Servers
 
-Admin Studio での変更は、キャッシュと同じバックエンドのイベントバスで全サーバーに知らせます。
+Changes in Admin Studio are announced to all servers over the same backend's event bus as the cache.
 
-- `[cache].backend = "redis"`: Redis の Pub/Sub（チャネル `aegis:events`）で知らせ、受け取ったサーバーが DB の一覧（設定値はキャッシュ）を読み直して差し替えます。通常は 1 秒もかからずに揃います。Redis との接続が切れていた間の知らせは、繋ぎ直したときにまとめて読み直して取り戻します。
-- `[cache].backend = "memory"`: 1 台構成専用です（セッションもプロセスの中にしか無いため）。同じ DB で 2 台目を起動すると、起動時に止まります（[設定リファレンス 2.4](./configuration.md#24-cache--キャッシュ--セッション)）。
-- 対象: 有効・無効の切り替え、並べ替え、設定ファイルの値に戻す、プラグインの設定値（`PUT /api/v1/plugins/{name}/settings`）。
-- 新しく有効になったプラグインがそのサーバーで読み込めない（そのサーバーにだけインストールされていない、など）場合は、エラーログを出して今のプラグインのまま動きます。プラグインはすべてのサーバーに同じものを置いてください。
-- `[runtime].enable_wasm_plugins = false` にすると、`enabled` に関係なくすべてのプラグインを読み込みません。
-- テンプレートとサンプルは `sdk/templates/*`・`sdk/examples/*` にあり、`plugins/` には含まれません（既定ではプラグインは 1 つも有効になっていません）。
+- `[cache].backend = "redis"`: announced with Redis Pub/Sub (channel `aegis:events`), and the receiving server rereads the DB's list (settings values are in the cache) and swaps. Usually they line up in under a second. Announcements missed while the connection to Redis was down are recovered by rereading everything when reconnected.
+- `[cache].backend = "memory"`: for single-server setups only (sessions are also only inside the process). Starting a second server on the same DB stops at startup ([Configuration reference 2.4](./configuration.md#24-cache--cache--sessions)).
+- Covered: toggling, reordering, returning to the config file's values, and plugin settings values (`PUT /api/v1/plugins/{name}/settings`).
+- If a newly enabled plugin cannot be loaded on that server (for example, it is not installed only on that server), an error log is written and it keeps running with the current plugins. Place the same plugins on all servers.
+- With `[runtime].enable_wasm_plugins = false`, no plugins are loaded regardless of `enabled`.
+- Templates and samples are in `sdk/templates/*` and `sdk/examples/*` and are not included in `plugins/` (by default no plugins are enabled).
 
-### 7.4 ZIP パッケージからのインストールと署名
+### 7.4 Installing from a ZIP Package and Signatures
 
-Admin Studio のプラグイン画面（ドラッグ＆ドロップ）または `POST /api/v1/plugins/install`（`admin`、multipart の `file` フィールド）で、ZIP をアップロードしてインストールできます。テーマも同じ仕組みで `POST /api/v1/themes/install`（[テーマのガイド](./theme_and_publishing_guide.md#zip-からのインストール)）。
+From Admin Studio's plugin screen (drag and drop) or `POST /api/v1/plugins/install` (`admin`, the multipart `file` field), you can upload a ZIP and install it. Themes use the same mechanism with `POST /api/v1/themes/install` ([Theme guide](./theme_and_publishing_guide.md#installing-from-a-zip)).
 
-1. ZIP を一時ディレクトリに展開します。パスの `..`・絶対パス（ZipSlip）は拒否し、1 ファイル 50MB・合計 100MB・1,000 エントリを超えるものも拒否します。
-2. `plugin.manifest.json` を ZIP の直下か、1 段下のディレクトリから探します。
-3. マニフェストと Wasm を検証し、`min_aegis_version`（semver）が今のバージョン以下かを確かめます。
-4. 署名を確かめます（下記）。
-5. `plugins/<name>/` に配置します。**同じ名前のプラグインがあれば置き換えます**。有効にはしません（[5.1](#51-admin-studio-からの有効無効の切り替え) で有効化）。監査ログは `plugin.install`。
+1. The ZIP is extracted to a temporary directory. Paths with `..` and absolute paths (ZipSlip) are rejected, as are files over 50MB each, 100MB total, or 1,000 entries.
+2. `plugin.manifest.json` is looked for at the ZIP's root or in a directory one level down.
+3. The manifest and Wasm are validated, and it checks that `min_aegis_version` (semver) is at or below the current version.
+4. The signature is checked (below).
+5. It is placed in `plugins/<name>/`. **A plugin of the same name is replaced.** It is not enabled (enable it in [7.1](#71-toggling-on-and-off-from-admin-studio)). The audit log is `plugin.install`.
 
-検証に失敗すると `400` で、何も配置しません。
+If validation fails, it is `400` and nothing is placed.
 
-**署名（`signature.json`）**: パッケージの直下に置きます。
+**Signature (`signature.json`)**: placed at the root of the package.
 
 ```json
-{ "algorithm": "ed25519", "public_key": "<32 バイトの hex>", "signature": "<64 バイトの hex>", "target": "package" }
+{ "algorithm": "ed25519", "public_key": "<32-byte hex>", "signature": "<64-byte hex>", "target": "package" }
 ```
 
-- `target` は `"package"`（既定。省略可）のみで、`signature.json` 以外の全ファイルのパスと SHA-256 を並べたダイジェストに対する署名です（`"manifest"` などの他の値は受け付けません）。Wasm やテンプレートを含め、パッケージ内のどのファイルの改ざんも検出します。
-- `[plugins].require_signatures = true` なら署名の無いパッケージを拒否します。このとき `[plugins].trusted_public_keys` に少なくとも 1 つの公開鍵を設定する必要があります（空だとサーバーが起動せず、パッケージ検証も拒否されます）。`false` でも、`signature.json` があれば確かめます（不正なら拒否）。
-- `[plugins].trusted_public_keys` には信頼する Ed25519 公開鍵（32 バイトの hex）を列挙します（`require_signatures = false` で空のときは、署名が正しければどの鍵でも受け入れます）。テーマは `[theme]` の同名の設定です。
+- `target` is only `"package"` (the default; omittable), and the signature is over a digest that lines up the paths and SHA-256 of all files other than `signature.json` (other values such as `"manifest"` are not accepted). Tampering with any file in the package, including Wasm and templates, is detected.
+- With `[plugins].require_signatures = true`, packages without a signature are rejected. In that case you must set at least one public key in `[plugins].trusted_public_keys` (if empty, the server does not start and package validation is also refused). Even with `false`, if `signature.json` exists it is checked (rejected if invalid).
+- `[plugins].trusted_public_keys` lists trusted Ed25519 public keys (32-byte hex) (when `require_signatures = false` and empty, a key is accepted if the signature is valid with any key). For themes it is the setting of the same name in `[theme]`.
