@@ -159,7 +159,7 @@ pub(crate) async fn build_feed(
             });
         // 制限した記事は、本文を載せない（読めるのは、だれにでも見せてよい部分まで）
         let shared = crate::handlers::access::shared_blocks(&record.custom_fields, blocks);
-        let content_html = render::render_content_html(state, &shared).await;
+        let content_html = render::render_content_html_for_api(state, &shared).await;
 
         entries.push_str("  <entry>\n");
         entries.push_str(&format!(
