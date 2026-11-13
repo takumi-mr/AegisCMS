@@ -28,6 +28,7 @@ curl -X POST "http://localhost:8080/api/v1/auth/session" \
 ```
 
 **Success response (200 OK):**
+
 ```json
 {
   "token": "sess_01HZX...",
@@ -40,6 +41,7 @@ curl -X POST "http://localhost:8080/api/v1/auth/session" \
 ```
 
 In later requests, put the obtained token in the header:
+
 ```http
 Authorization: Bearer sess_01HZX...
 ```
@@ -48,18 +50,19 @@ Authorization: Bearer sess_01HZX...
 
 The roles required for each operation are as follows (for details see [Authentication & user management](authentication.md)).
 
-| Operation | Required role | Notes |
-|---|---|---|
-| Creating a draft (`draft`) / awaiting review (`pending`) | `contributor` | Only content the user is the author of (note: `reviewer` cannot create new content) |
-| Creating new as published (`published`) / scheduled (`scheduled`) | `editor` and above | Immediate publication or publication at a specified time |
-| Proofreading, approving, and sending back articles awaiting review (`pending`) | `reviewer` and above | `reviewer` can only touch up `pending`, approve (`published`/`scheduled`), and send back (`draft`) |
-| Freely changing existing content and publishing directly | `editor` and above | `contributor` can edit only their own `draft` / `pending` |
-| Specifying another user as the author (`author_id`) | `admin` only | If omitted, the logged-in user is the author |
-| Deleting content | `editor` and above | `reviewer` and `contributor` cannot delete |
-| Attaching tags (`PUT .../tags`) | `contributor` and above | `reviewer` can adjust the tags of `pending` articles |
+| Operation                                                                      | Required role           | Notes                                                                                              |
+| ------------------------------------------------------------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------- |
+| Creating a draft (`draft`) / awaiting review (`pending`)                       | `contributor`           | Only content the user is the author of (note: `reviewer` cannot create new content)                |
+| Creating new as published (`published`) / scheduled (`scheduled`)              | `editor` and above      | Immediate publication or publication at a specified time                                           |
+| Proofreading, approving, and sending back articles awaiting review (`pending`) | `reviewer` and above    | `reviewer` can only touch up `pending`, approve (`published`/`scheduled`), and send back (`draft`) |
+| Freely changing existing content and publishing directly                       | `editor` and above      | `contributor` can edit only their own `draft` / `pending`                                          |
+| Specifying another user as the author (`author_id`)                            | `admin` only            | If omitted, the logged-in user is the author                                                       |
+| Deleting content                                                               | `editor` and above      | `reviewer` and `contributor` cannot delete                                                         |
+| Attaching tags (`PUT .../tags`)                                                | `contributor` and above | `reviewer` can adjust the tags of `pending` articles                                               |
 
 > [!TIP]
 > **Best practices for LLM multi-agent automatic posting**
+>
 > - **Writing agent**: use an account with the `contributor` role and submit articles with `status: "pending"` (a safe sandbox where nothing gets published on its own).
 > - **Proofreading/auditing agent**: use an account with the `reviewer` role, inspect and proofread the submitted `pending` articles, approve with `status: "published"` if there is no problem, or send back to `status: "draft"` with a `review_note` if corrections are needed. `reviewer` has no permission to create or delete, so even in case of malfunction or prompt injection, the existing site is not destroyed.
 
@@ -72,8 +75,8 @@ Creates an article of the specified content type (such as `article` or `page`).
 - **Method**: `POST`
 - **Path**: `/api/v1/contents/{content_type}` (e.g. `/api/v1/contents/article`)
 - **Headers**:
-  - `Authorization: Bearer <token>`
-  - `Content-Type: application/json`
+    - `Authorization: Bearer <token>`
+    - `Content-Type: application/json`
 
 ### 2.1 Request Body (JSON)
 
@@ -100,18 +103,18 @@ Creates an article of the specified content type (such as `article` or `page`).
 
 ### 2.2 Parameter Specification
 
-| Field | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `title` | string | **Required** | - | The article's title. |
-| `slug` | string | **Required** | - | URL slug (alphanumerics, hyphens, etc.). Unique within the same `content_type`. |
-| `status` | string | Optional | `"draft"` | Publication status. One of `"draft"`, `"pending"`, `"published"`, `"scheduled"`, `"archived"`. |
-| `blocks` | array | Optional | `[]` | An array of body blocks (see [3. Body block specification](#3-body-block-specification-blocks) below). |
-| `author_id` | string | Optional | (logged-in user) | The author's user ID. Only `admin` can specify someone other than the logged-in user. |
-| `published_at` | string | Conditional | `null` | Publication date and time in RFC 3339 format (e.g. `2026-11-10T12:00:00Z`). Required when `status: "scheduled"`. |
-| `unpublish_at` | string | Optional | `null` | Scheduled unpublish (archive) date and time in RFC 3339 format. Can be specified only with `published` or `scheduled` (must be later than the publication time). |
-| `publish` | boolean | Optional | `false` | A flag that explicitly switches the published version pointer to the latest working version. |
-| `review_note` | string | Optional | `null` | A note for review requests, approvals, and send-backs. Recorded in the audit log and the version history. |
-| `fields` | object | Optional | `{}` | Custom fields defined in the schema (`schemas/*.yaml`) (summary, category, member access rights, etc.). |
+| Field          | Type    | Required     | Default          | Description                                                                                                                                                      |
+| -------------- | ------- | ------------ | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`        | string  | **Required** | -                | The article's title.                                                                                                                                             |
+| `slug`         | string  | **Required** | -                | URL slug (alphanumerics, hyphens, etc.). Unique within the same `content_type`.                                                                                  |
+| `status`       | string  | Optional     | `"draft"`        | Publication status. One of `"draft"`, `"pending"`, `"published"`, `"scheduled"`, `"archived"`.                                                                   |
+| `blocks`       | array   | Optional     | `[]`             | An array of body blocks (see [3. Body block specification](#3-body-block-specification-blocks) below).                                                           |
+| `author_id`    | string  | Optional     | (logged-in user) | The author's user ID. Only `admin` can specify someone other than the logged-in user.                                                                            |
+| `published_at` | string  | Conditional  | `null`           | Publication date and time in RFC 3339 format (e.g. `2026-11-10T12:00:00Z`). Required when `status: "scheduled"`.                                                 |
+| `unpublish_at` | string  | Optional     | `null`           | Scheduled unpublish (archive) date and time in RFC 3339 format. Can be specified only with `published` or `scheduled` (must be later than the publication time). |
+| `publish`      | boolean | Optional     | `false`          | A flag that explicitly switches the published version pointer to the latest working version.                                                                     |
+| `review_note`  | string  | Optional     | `null`           | A note for review requests, approvals, and send-backs. Recorded in the audit log and the version history.                                                        |
+| `fields`       | object  | Optional     | `{}`             | Custom fields defined in the schema (`schemas/*.yaml`) (summary, category, member access rights, etc.).                                                          |
 
 > [!IMPORTANT]
 > **Note on where to write custom fields**  
@@ -143,6 +146,7 @@ AegisCMS manages the article body not as inline HTML but as an array of structur
 ### Representative Blocks
 
 #### Paragraph (`core/paragraph`)
+
 ```json
 {
   "name": "core/paragraph",
@@ -153,7 +157,9 @@ AegisCMS manages the article body not as inline HTML but as an array of structur
 ```
 
 #### Heading (`core/heading`)
+
 Specify 1–6 with `attributes.level` (default 2). The heading's `id` is assigned automatically on save.
+
 ```json
 {
   "name": "core/heading",
@@ -164,6 +170,7 @@ Specify 1–6 with `attributes.level` (default 2). The heading's `id` is assigne
 ```
 
 #### Code Block (`core/code`)
+
 ```json
 {
   "name": "core/code",
@@ -177,7 +184,9 @@ Specify 1–6 with `attributes.level` (default 2). The heading's `id` is assigne
 ```
 
 #### Unordered List (`core/list`)
+
 The children are `core/list-item`s in a row.
+
 ```json
 {
   "name": "core/list",
@@ -190,6 +199,7 @@ The children are `core/list-item`s in a row.
 ```
 
 #### Image (`core/image`)
+
 ```json
 {
   "name": "core/image",
@@ -202,7 +212,9 @@ The children are `core/list-item`s in a row.
 ```
 
 #### Note / Callout (`core/callout`)
+
 Choose `variant` from `"note"`, `"tip"`, `"important"`, `"warning"`, and `"caution"`.
+
 ```json
 {
   "name": "core/callout",
@@ -216,6 +228,7 @@ Choose `variant` from `"note"`, `"tip"`, `"important"`, `"warning"`, and `"cauti
 ```
 
 #### Table (`core/table`)
+
 ```json
 {
   "name": "core/table",
@@ -233,7 +246,9 @@ Choose `variant` from `"note"`, `"tip"`, `"important"`, `"warning"`, and `"cauti
 ```
 
 #### Members-Only Divider (`core/paywall`)
+
 Blocks after this are shown only to members with the permission ([Member accounts](members.md)).
+
 ```json
 {
   "name": "core/paywall",
@@ -273,6 +288,7 @@ In the `fields` object, set the fields defined in the target schema (`schemas/{c
 To insert an image into an article, first call the media upload API to get the storage key and URL (for details see [Media management](media.md)).
 
 ### Upload API
+
 - **Method**: `POST`
 - **Path**: `/api/v1/storage/upload`
 - **Format**: `multipart/form-data`
@@ -285,6 +301,7 @@ curl -X POST "http://localhost:8080/api/v1/storage/upload" \
 ```
 
 **Success response (201 Created):**
+
 ```json
 {
   "key": "media/2026/11/screenshot.png",
@@ -305,14 +322,14 @@ To attach tags to a posted article, call the tag update API (for details see [Ta
 - **Method**: `PUT`
 - **Path**: `/api/v1/contents/{content_type}/{slug_or_id}/tags`
 - **Request body**:
-  ```json
-  {
-    "tag_ids": [
-      "tag-rust-uuid",
-      "tag-api-uuid"
-    ]
-  }
-  ```
+    ```json
+    {
+      "tag_ids": [
+        "tag-rust-uuid",
+        "tag-api-uuid"
+      ]
+    }
+    ```
 
 Note: the list of existing tags can be fetched with `GET /api/v1/tags`. To register a new tag, run `POST /api/v1/tags`.
 
@@ -530,15 +547,15 @@ AegisCMS's REST API returns standard HTTP status codes and English error message
 
 ### Main Status Codes
 
-| Status code | Meaning | Main causes and fixes |
-|---|---|---|
-| `400 Bad Request` | Malformed request | - A required field (`title`, `slug`) is missing<br>- An unknown key is at the top level (put custom fields inside `fields`)<br>- The `published_at` or `unpublish_at` date format (RFC 3339) is invalid<br>- An undefined membership level was specified in `access` |
-| `401 Unauthorized` | Authentication error | - No `Authorization` header, or the token is invalid or expired |
-| `403 Forbidden` | Insufficient permission | - A `contributor` tried to create directly as `published` (only `draft` or `pending` allowed)<br>- A user other than `admin` specified someone else's `author_id`<br>- Tried to edit someone else's content |
-| `404 Not Found` | Resource does not exist | - No schema is registered for the specified `content_type`<br>- The article to update does not exist |
-| `409 Conflict` | Conflict | - The specified `slug` is already used within the same `content_type` |
-| `422 Unprocessable Entity` | Validation / hook refusal | - Saving was refused by the `on-before-save` hook of a registered Wasm plugin |
-| `500 Internal Server Error` | Internal server error | - A database error or unexpected failure |
+| Status code                 | Meaning                   | Main causes and fixes                                                                                                                                                                                                                                                |
+| --------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400 Bad Request`           | Malformed request         | - A required field (`title`, `slug`) is missing<br>- An unknown key is at the top level (put custom fields inside `fields`)<br>- The `published_at` or `unpublish_at` date format (RFC 3339) is invalid<br>- An undefined membership level was specified in `access` |
+| `401 Unauthorized`          | Authentication error      | - No `Authorization` header, or the token is invalid or expired                                                                                                                                                                                                      |
+| `403 Forbidden`             | Insufficient permission   | - A `contributor` tried to create directly as `published` (only `draft` or `pending` allowed)<br>- A user other than `admin` specified someone else's `author_id`<br>- Tried to edit someone else's content                                                          |
+| `404 Not Found`             | Resource does not exist   | - No schema is registered for the specified `content_type`<br>- The article to update does not exist                                                                                                                                                                 |
+| `409 Conflict`              | Conflict                  | - The specified `slug` is already used within the same `content_type`                                                                                                                                                                                                |
+| `422 Unprocessable Entity`  | Validation / hook refusal | - Saving was refused by the `on-before-save` hook of a registered Wasm plugin                                                                                                                                                                                        |
+| `500 Internal Server Error` | Internal server error     | - A database error or unexpected failure                                                                                                                                                                                                                             |
 
 ---
 
@@ -547,10 +564,10 @@ AegisCMS's REST API returns standard HTTP status codes and English error message
 When an article is created or updated with the `published` status, the following is run automatically inside the server.
 
 1. **Cache invalidation**:
-   - The CDN / internal cache of the article's page on the public site, list pages, and feeds (`/feed.atom`) is discarded automatically.
+    - The CDN / internal cache of the article's page on the public site, list pages, and feeds (`/feed.atom`) is discarded automatically.
 2. **Updating the full-text search index (`aegis-search`)**:
-   - The tantivy search engine's index queue is notified, and it is reflected in search results immediately ([Site search](search.md)).
+    - The tantivy search engine's index queue is notified, and it is reflected in search results immediately ([Site search](search.md)).
 3. **Calling plugin hooks**:
-   - Wasm hooks such as `on-content-published` that plugins have registered fire automatically ([Plugin hook specification](plugin_hooks.md)).
+    - Wasm hooks such as `on-content-published` that plugins have registered fire automatically ([Plugin hook specification](plugin_hooks.md)).
 4. **Recording the operation audit log (`aegis-audit`)**:
-   - A `content.create` or `content.update` event is recorded in the audit log with the executing user and IP address ([Audit log](audit.md)).
+    - A `content.create` or `content.update` event is recorded in the audit log with the executing user and IP address ([Audit log](audit.md)).

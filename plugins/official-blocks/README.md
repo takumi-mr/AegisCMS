@@ -4,26 +4,26 @@
 
 An official plugin that adds blocks you can place in the body: button, link card, video, audio, file, map, image gallery, FAQ, steps, columns, image and text, image with caption, timeline, chat bubbles, tabs, stats, definition list, and rating (review). It is also a model example for building custom blocks with plugins (the [`render-blocks` hook](../../docs/plugin_hooks.md#110-render-blocks); for video, [embedding external pages](../../docs/plugin_hooks.md#32-embedding-external-pages-capabilitiesembed). Both links are Japanese documents).
 
-| Block | Input fields | Display |
-| --- | --- | --- |
-| `official-blocks/button` | Text (required), link target (required), look (filled / outlined), position (left / center) | A link shaped like a button |
-| `official-blocks/link-card` | Link target (required), title (required), description, image | A card showing the title, description, image, and the host name for external links |
-| `official-blocks/video` | Video URL (required; YouTube, Vimeo), title (for screen readers), shape (16:9 / 4:3 / 9:16) | A video player |
-| `official-blocks/audio` | Audio URL (required), title | The browser's standard audio player (not loaded until played) |
-| `official-blocks/file` | File URL (required), title (required), description, size (shown as written) | A card for downloading |
-| `official-blocks/map` | Latitude (required), longitude (required), zoom (1–19, default 15), place name | An OpenStreetMap map with a marker |
-| `official-blocks/gallery` | Images and descriptions (required; items can be added), number of columns (2–4, default 3) | An image grid (2 columns on narrow screens) |
-| `official-blocks/faq` | Questions and answers (required; items can be added) | A collapsible FAQ (with schema.org FAQPage microdata) |
-| `official-blocks/steps` | Headings and descriptions (required; items can be added) | Steps connected by numbers and a line |
-| `official-blocks/columns` | Image, heading, text (required; items can be added; up to 4 columns) | Equal-width columns (stacked vertically on narrow screens) |
-| `official-blocks/media-text` | Image (required), image description, heading, text, image position (left / right) | An image and text side by side (stacked vertically on narrow screens) |
-| `official-blocks/figure` | Image (required), image description (alt), caption | An image with a caption below it (`<figcaption>`) |
-| `official-blocks/timeline` | Date, heading, description (required; items can be added) | A timeline connected by a vertical line (history, roadmap) |
-| `official-blocks/chat` | Name, icon, position (left / right), lines of dialogue (required; items can be added) | A conversation in speech bubbles with icons and names |
-| `official-blocks/tabs` | Tab names and contents (required; items can be added; up to 8), format (text / code) | Switchable tabs (no JavaScript) |
-| `official-blocks/stats` | Number, unit, label (required; items can be added; up to 6) | Cards showing big numbers |
-| `official-blocks/definition-list` | Terms and descriptions (required; items can be added) | A `<dl>` list (stacked vertically on narrow screens) |
-| `official-blocks/rating` | Name of the subject (required), type of subject, rating 1–5 (required), summary, reviewer, per-item scores | A star rating box (with schema.org Review microdata) |
+| Block                             | Input fields                                                                                               | Display                                                                            |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `official-blocks/button`          | Text (required), link target (required), look (filled / outlined), position (left / center)                | A link shaped like a button                                                        |
+| `official-blocks/link-card`       | Link target (required), title (required), description, image                                               | A card showing the title, description, image, and the host name for external links |
+| `official-blocks/video`           | Video URL (required; YouTube, Vimeo), title (for screen readers), shape (16:9 / 4:3 / 9:16)                | A video player                                                                     |
+| `official-blocks/audio`           | Audio URL (required), title                                                                                | The browser's standard audio player (not loaded until played)                      |
+| `official-blocks/file`            | File URL (required), title (required), description, size (shown as written)                                | A card for downloading                                                             |
+| `official-blocks/map`             | Latitude (required), longitude (required), zoom (1–19, default 15), place name                             | An OpenStreetMap map with a marker                                                 |
+| `official-blocks/gallery`         | Images and descriptions (required; items can be added), number of columns (2–4, default 3)                 | An image grid (2 columns on narrow screens)                                        |
+| `official-blocks/faq`             | Questions and answers (required; items can be added)                                                       | A collapsible FAQ (with schema.org FAQPage microdata)                              |
+| `official-blocks/steps`           | Headings and descriptions (required; items can be added)                                                   | Steps connected by numbers and a line                                              |
+| `official-blocks/columns`         | Image, heading, text (required; items can be added; up to 4 columns)                                       | Equal-width columns (stacked vertically on narrow screens)                         |
+| `official-blocks/media-text`      | Image (required), image description, heading, text, image position (left / right)                          | An image and text side by side (stacked vertically on narrow screens)              |
+| `official-blocks/figure`          | Image (required), image description (alt), caption                                                         | An image with a caption below it (`<figcaption>`)                                  |
+| `official-blocks/timeline`        | Date, heading, description (required; items can be added)                                                  | A timeline connected by a vertical line (history, roadmap)                         |
+| `official-blocks/chat`            | Name, icon, position (left / right), lines of dialogue (required; items can be added)                      | A conversation in speech bubbles with icons and names                              |
+| `official-blocks/tabs`            | Tab names and contents (required; items can be added; up to 8), format (text / code)                       | Switchable tabs (no JavaScript)                                                    |
+| `official-blocks/stats`           | Number, unit, label (required; items can be added; up to 6)                                                | Cards showing big numbers                                                          |
+| `official-blocks/definition-list` | Terms and descriptions (required; items can be added)                                                      | A `<dl>` list (stacked vertically on narrow screens)                               |
+| `official-blocks/rating`          | Name of the subject (required), type of subject, rating 1–5 (required), summary, reviewer, per-item scores | A star rating box (with schema.org Review microdata)                               |
 
 ## Video
 

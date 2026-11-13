@@ -9,10 +9,10 @@
 - **`on-render-page`** で、`<head>` に Clarity の標準の起動コードを入れる。
 - **Cookie の同意を待つ**: 既定では `type="text/plain"` と `data-aegis-consent="analytics"` の形で出し、同意バナー（`[consent]`）のスクリプトが、訪問者の同意のあとに実行します（[consent.md](../../docs/consent.ja.md)）。**`[consent].enabled = true` にしていないと、Clarity は動きません**。同意が要らないサイトだけ、`require_consent = false` にしてください。
 - **CSP を自動で足す**: プラグインを有効にすると、Clarity の公式の案内（[Clarity Content Security Policy](https://learn.microsoft.com/en-us/clarity/clarity-csp)）にある次のホストが、CSP に加わります。サイト全体の CSP を書き換える必要はありません。
-  - `script-src`: `www.clarity.ms`、`scripts.clarity.ms`
-  - `connect-src`: `www.clarity.ms`、`scripts.clarity.ms`、`a.clarity.ms` 〜 `z.clarity.ms`、`c.bing.com`
-  - `img-src`: `c.clarity.ms`、`c.bing.com`
-  - CSP のホストにワイルドカード（`*.clarity.ms`）は書けないため、公式の案内にある個別のホストを並べています。`scripts.clarity.ms` は公式の案内には無く、利用者の報告（[microsoft/clarity#913](https://github.com/microsoft/clarity/issues/913)）に基づきます。Clarity 側のホストが変わったら、`plugin.manifest.json` の `capabilities.csp` を直してください。
+    - `script-src`: `www.clarity.ms`、`scripts.clarity.ms`
+    - `connect-src`: `www.clarity.ms`、`scripts.clarity.ms`、`a.clarity.ms` 〜 `z.clarity.ms`、`c.bing.com`
+    - `img-src`: `c.clarity.ms`、`c.bing.com`
+    - CSP のホストにワイルドカード（`*.clarity.ms`）は書けないため、公式の案内にある個別のホストを並べています。`scripts.clarity.ms` は公式の案内には無く、利用者の報告（[microsoft/clarity#913](https://github.com/microsoft/clarity/issues/913)）に基づきます。Clarity 側のホストが変わったら、`plugin.manifest.json` の `capabilities.csp` を直してください。
 
 ## 録画しないページ
 

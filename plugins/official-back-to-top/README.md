@@ -4,10 +4,10 @@
 
 An official plugin that adds a **"Back to top" button** to articles and static pages (the [`on-render-page` hook](../../docs/plugin_hooks.md)).
 
-| `style` | Behavior |
-| --- | --- |
+| `style`            | Behavior                                                                                                               |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | `inline` (default) | Places a link at the end of the body. Works without JavaScript (`href="#top"`). Also shows in the Admin Studio preview |
-| `fixed` | Fixed on the screen; appears after scrolling `show_after_px`. Always shown where scripts do not run |
+| `fixed`            | Fixed on the screen; appears after scrolling `show_after_px`. Always shown where scripts do not run                    |
 
 It is placed at the end of the body, so the theme's comment section and footer are below it (use `fixed` if you want it at the very bottom of the page).
 
@@ -26,20 +26,20 @@ The theme must output `extra_head` and `extra_css` (the built-in templates do).
 
 Change them in the "Settings" of Admin Studio's **Settings › Plugins** (input fields appear; the items are declared in the manifest's `settings`, and values are validated on save), or in `[plugins.settings.official-back-to-top]` in the config file. Omitted items and invalid values fall back to the defaults.
 
-| Key | Default | Description |
-| --- | --- | --- |
-| `content_types` | `article,page` | Content types to show it on (comma-separated) |
-| `style` | `inline` | `inline` / `fixed` |
-| `position` | `right` | `right` / `left` / `center` |
-| `shape` | `circle` | `circle` (a circle with only an arrow) / `square` (a rounded square with only an arrow) / `pill` (arrow and text) |
-| `label` | `Back to top` / `トップへ戻る` | The text (`pill`) and the name for screen readers |
-| `locale` | `en` | The default language of `label` (`en` / `ja`) |
-| `bg_color` | The theme's `--accent` | Background color. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name |
-| `fg_color` | The theme's `--accent-contrast` (white if absent) | Color of the arrow and text |
-| `size_px` | `44` | Button size (32–72) |
-| `offset_px` | `24` | Distance from the screen edge when `fixed` (8–96) |
-| `show_after_px` | `400` | When `fixed`, it appears after scrolling this far (0–5000) |
-| `smooth_scroll` | `true` | Scroll smoothly (not when `prefers-reduced-motion` is set) |
+| Key             | Default                                           | Description                                                                                                       |
+| --------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `content_types` | `article,page`                                    | Content types to show it on (comma-separated)                                                                     |
+| `style`         | `inline`                                          | `inline` / `fixed`                                                                                                |
+| `position`      | `right`                                           | `right` / `left` / `center`                                                                                       |
+| `shape`         | `circle`                                          | `circle` (a circle with only an arrow) / `square` (a rounded square with only an arrow) / `pill` (arrow and text) |
+| `label`         | `Back to top` / `トップへ戻る`                    | The text (`pill`) and the name for screen readers                                                                 |
+| `locale`        | `en`                                              | The default language of `label` (`en` / `ja`)                                                                     |
+| `bg_color`      | The theme's `--accent`                            | Background color. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name                                        |
+| `fg_color`      | The theme's `--accent-contrast` (white if absent) | Color of the arrow and text                                                                                       |
+| `size_px`       | `44`                                              | Button size (32–72)                                                                                               |
+| `offset_px`     | `24`                                              | Distance from the screen edge when `fixed` (8–96)                                                                 |
+| `show_after_px` | `400`                                             | When `fixed`, it appears after scrolling this far (0–5000)                                                        |
+| `smooth_scroll` | `true`                                            | Scroll smoothly (not when `prefers-reduced-motion` is set)                                                        |
 
 ```toml
 [plugins.settings.official-back-to-top]

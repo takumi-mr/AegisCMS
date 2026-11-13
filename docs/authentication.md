@@ -16,57 +16,57 @@ Accounts are stored in the DB system table `_aegis_users` (common to SQLite / Po
 
 ![Admin Studio user management (Settings → Users)](images/users-admin.png)
 
-| Column | Description |
-| --- | --- |
-| `id` | UUID |
-| `username` | Login name (unique; alphanumerics and `.` `_` `-` `@`, 1–64 characters). Becomes the session's `user_id` and the audit log's actor |
-| `email` / `display_name` | Optional. Go into the session's `metadata` |
-| `role` | `admin` / `editor` / `reviewer` / `contributor` / `viewer` |
-| `password_hash` | An Argon2id (default parameters) PHC string. Plain text is not stored |
-| `disabled` | If `1`, login is not possible |
-| `avatar_key` | The storage key of the avatar image (`avatars/...`). NULL if unset. The column is added to existing DBs at startup |
-| `pending_approval` | If `1`, the account is awaiting administrator approval after self-registration. It is updated to `0` automatically when an administrator enables it |
-| `totp_secret` | A Base32-encoded TOTP secret (NULL if unset) |
-| `totp_enabled` | If `1`, two-factor authentication is enabled |
-| `backup_codes` | An array of SHA-256 hashes of single-use backup codes (a JSON string) |
-| `created_at` / `updated_at` | RFC 3339 (UTC) |
+| Column                      | Description                                                                                                                                         |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                        | UUID                                                                                                                                                |
+| `username`                  | Login name (unique; alphanumerics and `.` `_` `-` `@`, 1–64 characters). Becomes the session's `user_id` and the audit log's actor                  |
+| `email` / `display_name`    | Optional. Go into the session's `metadata`                                                                                                          |
+| `role`                      | `admin` / `editor` / `reviewer` / `contributor` / `viewer`                                                                                          |
+| `password_hash`             | An Argon2id (default parameters) PHC string. Plain text is not stored                                                                               |
+| `disabled`                  | If `1`, login is not possible                                                                                                                       |
+| `avatar_key`                | The storage key of the avatar image (`avatars/...`). NULL if unset. The column is added to existing DBs at startup                                  |
+| `pending_approval`          | If `1`, the account is awaiting administrator approval after self-registration. It is updated to `0` automatically when an administrator enables it |
+| `totp_secret`               | A Base32-encoded TOTP secret (NULL if unset)                                                                                                        |
+| `totp_enabled`              | If `1`, two-factor authentication is enabled                                                                                                        |
+| `backup_codes`              | An array of SHA-256 hashes of single-use backup codes (a JSON string)                                                                               |
+| `created_at` / `updated_at` | RFC 3339 (UTC)                                                                                                                                      |
 
 ### Roles and API Permissions
 
 The basic strength of roles is `admin` ⊃ `editor` ⊃ `reviewer` ⊃ `contributor` ⊃ `viewer` (a higher role covers the operations of lower roles, but `reviewer` is a least-privilege role specialized for review work, restricted from creating and deleting).
 
-| Role | What it can do |
-| --- | --- |
-| `admin` | Everything (including users, themes, settings, and audit logs) |
-| `editor` | Publishing, scheduling, and archiving content, changing others' content, approving and sending back reviews, and managing categories, tags, the shop, comments, and so on |
-| `reviewer` | Proofreading (touching up body and title), approving (`published` / `scheduled`), and sending back (`draft`) content awaiting review (`pending`), and uploading media for proofreading. Cannot create (POST) or delete (DELETE) on its own, or directly change published content (least privilege for LLM multi-agent proofreading and external reviewers) |
-| `contributor` | Drafts (`draft`) of their own content and requesting review (`pending`), and uploading media. Publishing is done by `editor` / `reviewer` ([Review](theme_and_publishing_guide.md#review-approving-and-publishing-a-contributors-draft)) |
-| `viewer` | Viewing (including drafts) |
+| Role          | What it can do                                                                                                                                                                                                                                                                                                                                             |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `admin`       | Everything (including users, themes, settings, and audit logs)                                                                                                                                                                                                                                                                                             |
+| `editor`      | Publishing, scheduling, and archiving content, changing others' content, approving and sending back reviews, and managing categories, tags, the shop, comments, and so on                                                                                                                                                                                  |
+| `reviewer`    | Proofreading (touching up body and title), approving (`published` / `scheduled`), and sending back (`draft`) content awaiting review (`pending`), and uploading media for proofreading. Cannot create (POST) or delete (DELETE) on its own, or directly change published content (least privilege for LLM multi-agent proofreading and external reviewers) |
+| `contributor` | Drafts (`draft`) of their own content and requesting review (`pending`), and uploading media. Publishing is done by `editor` / `reviewer` ([Review](theme_and_publishing_guide.md#review-approving-and-publishing-a-contributors-draft))                                                                                                                   |
+| `viewer`      | Viewing (including drafts)                                                                                                                                                                                                                                                                                                                                 |
 
-| API | Required role |
-| --- | --- |
-| `GET /api/v1/health` (the product name and version are returned only to an `admin` session), `/metrics` | Not needed (public) |
-| `GET /setup` (the Web installer screen), `GET /api/v1/setup/status`, `POST /api/v1/setup` (initial setup) | Not needed (accepted only when uninitialized; after setup completes, 403 or a redirect) |
-| The public site (`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`), Admin Studio's static files | Not needed (public) |
-| `POST /api/v1/auth/session` (login), `POST /api/v1/auth/session/verify-2fa` ([two-factor authentication](#12-two-factor-authentication-2fa--totp)), `GET` / `DELETE /api/v1/auth/session` | Not needed (decided by credentials, session, or 2FA verification) |
-| `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback` ([Single sign-on](#6-single-sign-on-openid-connect)) | Not needed |
-| `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm` ([Password reset](#9-password-reset)) | Not needed (email confirmation and token verification) |
-| `GET /api/v1/auth/invitations/info`, `POST /api/v1/auth/invitations/accept` ([Invitation links](#10-user-invitation-links)) | Not needed (invitation token verification) |
-| The shop (`/products`, `/cart`, `/orders/{id}`, `/shop/cart.js`, `/api/v1/shop/*`; [E-commerce](commerce.md#61-public-no-login-needed)) | Not needed (order confirmation by token, webhooks by signature) |
-| `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}`, `GET /api/v1/openapi.json` | `viewer` |
-| `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}` (including drafts) | `viewer` |
-| `GET /api/v1/storage/objects` | `viewer` |
-| `POST /api/v1/preview` (the editor's preview; does not save. You can choose a reader kind `viewer` to view, but a real member session is not used) | `viewer` |
-| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug or id}`, `POST .../versions/{revision}/restore`, `PUT .../tags` ([Content posting API](content-api.md)) | `contributor` (their own `draft` / `pending`. For published items they can only submit changes as `pending`, and cannot delete, restore versions, or attach/detach tags. The status can only be `draft` / `pending`). `reviewer` can only proofread `pending`, approve (`published`/`scheduled`), send back (`draft`), and adjust tags (no creating, deleting, or restoring). Freely changing others' content, publishing directly, and deleting require `editor` |
-| `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `POST /api/v1/orders/{id}/status` ([E-commerce](commerce.md#62-administration-editor-and-above)) | `editor` |
-| `POST /api/v1/storage/upload` ([Media](media.md)) | `contributor` (including `reviewer` and above) |
-| `DELETE /api/v1/storage/objects/{key}` ([Media](media.md)) | `editor` |
-| `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`, `POST /api/v1/users/me/2fa/*` ([User management API](#3-user-management-api), [Two-factor authentication](#12-two-factor-authentication-2fa--totp)) | The person themself (`viewer` and above) or `admin` |
-| `GET` / `POST /api/v1/users/me/tokens`, `DELETE /api/v1/users/me/tokens/{id}` ([API tokens](#13-api-tokens)) | The person themself (`viewer` and above). Cannot be called with an API token |
-| `POST /api/v1/users/{username}/2fa/reset` ([Resetting two-factor authentication](#123-removal-and-recovery-by-administrators)) | `admin` |
-| `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}` | `admin` |
-| `POST /api/v1/auth/invitations` ([Invitation links](#10-user-invitation-links)) | `admin` |
-| `GET /api/v1/audit-logs` | `admin` |
+| API                                                                                                                                                                                                                                                                     | Required role                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/health` (the product name and version are returned only to an `admin` session), `/metrics`                                                                                                                                                                 | Not needed (public)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `GET /setup` (the Web installer screen), `GET /api/v1/setup/status`, `POST /api/v1/setup` (initial setup)                                                                                                                                                               | Not needed (accepted only when uninitialized; after setup completes, 403 or a redirect)                                                                                                                                                                                                                                                                                                                                                                           |
+| The public site (`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`), Admin Studio's static files                                                                                                                                                           | Not needed (public)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `POST /api/v1/auth/session` (login), `POST /api/v1/auth/session/verify-2fa` ([two-factor authentication](#12-two-factor-authentication-2fa--totp)), `GET` / `DELETE /api/v1/auth/session`                                                                               | Not needed (decided by credentials, session, or 2FA verification)                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback` ([Single sign-on](#6-single-sign-on-openid-connect))                                                                                                                      | Not needed                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm` ([Password reset](#9-password-reset))                                                                                                                                                    | Not needed (email confirmation and token verification)                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `GET /api/v1/auth/invitations/info`, `POST /api/v1/auth/invitations/accept` ([Invitation links](#10-user-invitation-links))                                                                                                                                             | Not needed (invitation token verification)                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| The shop (`/products`, `/cart`, `/orders/{id}`, `/shop/cart.js`, `/api/v1/shop/*`; [E-commerce](commerce.md#61-public-no-login-needed))                                                                                                                                 | Not needed (order confirmation by token, webhooks by signature)                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}`, `GET /api/v1/openapi.json`                                                                                                                                                                                         | `viewer`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}` (including drafts)                                                                                                                                                                                  | `viewer`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /api/v1/storage/objects`                                                                                                                                                                                                                                           | `viewer`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `POST /api/v1/preview` (the editor's preview; does not save. You can choose a reader kind `viewer` to view, but a real member session is not used)                                                                                                                      | `viewer`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug or id}`, `POST .../versions/{revision}/restore`, `PUT .../tags` ([Content posting API](content-api.md))                                                                                   | `contributor` (their own `draft` / `pending`. For published items they can only submit changes as `pending`, and cannot delete, restore versions, or attach/detach tags. The status can only be `draft` / `pending`). `reviewer` can only proofread `pending`, approve (`published`/`scheduled`), send back (`draft`), and adjust tags (no creating, deleting, or restoring). Freely changing others' content, publishing directly, and deleting require `editor` |
+| `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `POST /api/v1/orders/{id}/status` ([E-commerce](commerce.md#62-administration-editor-and-above))                                                                                                                       | `editor`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `POST /api/v1/storage/upload` ([Media](media.md))                                                                                                                                                                                                                       | `contributor` (including `reviewer` and above)                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `DELETE /api/v1/storage/objects/{key}` ([Media](media.md))                                                                                                                                                                                                              | `editor`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`, `POST /api/v1/users/me/2fa/*` ([User management API](#3-user-management-api), [Two-factor authentication](#12-two-factor-authentication-2fa--totp)) | The person themself (`viewer` and above) or `admin`                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `GET` / `POST /api/v1/users/me/tokens`, `DELETE /api/v1/users/me/tokens/{id}` ([API tokens](#13-api-tokens))                                                                                                                                                            | The person themself (`viewer` and above). Cannot be called with an API token                                                                                                                                                                                                                                                                                                                                                                                      |
+| `POST /api/v1/users/{username}/2fa/reset` ([Resetting two-factor authentication](#123-removal-and-recovery-by-administrators))                                                                                                                                          | `admin`                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}`                                                                                                                                                                                            | `admin`                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `POST /api/v1/auth/invitations` ([Invitation links](#10-user-invitation-links))                                                                                                                                                                                         | `admin`                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `GET /api/v1/audit-logs`                                                                                                                                                                                                                                                | `admin`                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 - With no session, an invalid one, or an expired one, `401` is returned; with an insufficient role, `403`; and `access.denied` (reason, required role, endpoint) is recorded in the audit log ([Audit log](audit.md#2-recorded-events)).
 - When creating content, `author_id` becomes the logged-in user (`user_id`) if omitted. Only `admin` can specify another user as `author_id` (otherwise `403`).
@@ -126,23 +126,23 @@ Admin Studio's "Users" screen (`admin`) and "My profile" opened from the header 
 }
 ```
 
-| API | Description |
-| --- | --- |
-| `GET /api/v1/users` | All users (`{"users": [...]}`, ordered by username) |
-| `POST /api/v1/users` | Create. The body is `username` / `password` / `role` (required) and `email` / `display_name` (optional). `201` |
-| `GET /api/v1/users/{username}` | One person (the person themself or `admin`) |
-| `PATCH /api/v1/users/{username}` | Change. Omitted items stay as they are, and `email` / `display_name` are deleted with an empty string |
-| `DELETE /api/v1/users/{username}` | Delete (also deletes identity links and the avatar image; the content's `author_id` remains). `204` |
-| `PUT /api/v1/users/{username}/avatar` | Set the avatar image (the multipart `file`) |
-| `DELETE /api/v1/users/{username}/avatar` | Remove the avatar image |
+| API                                      | Description                                                                                                    |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/users`                      | All users (`{"users": [...]}`, ordered by username)                                                            |
+| `POST /api/v1/users`                     | Create. The body is `username` / `password` / `role` (required) and `email` / `display_name` (optional). `201` |
+| `GET /api/v1/users/{username}`           | One person (the person themself or `admin`)                                                                    |
+| `PATCH /api/v1/users/{username}`         | Change. Omitted items stay as they are, and `email` / `display_name` are deleted with an empty string          |
+| `DELETE /api/v1/users/{username}`        | Delete (also deletes identity links and the avatar image; the content's `author_id` remains). `204`            |
+| `PUT /api/v1/users/{username}/avatar`    | Set the avatar image (the multipart `file`)                                                                    |
+| `DELETE /api/v1/users/{username}/avatar` | Remove the avatar image                                                                                        |
 
 `PATCH` items and permissions:
 
-| Item | The person themself | `admin` (another user) |
-| --- | --- | --- |
-| `email`, `display_name` | ✓ | ✓ |
-| `password` | ✓ (needs `current_password`; a wrong one gives `403`) | ✓ (no current password needed = reset) |
-| `role`, `disabled` | ✗ (`400` even for `admin` on themselves, `403` otherwise) | ✓ |
+| Item                    | The person themself                                       | `admin` (another user)                 |
+| ----------------------- | --------------------------------------------------------- | -------------------------------------- |
+| `email`, `display_name` | ✓                                                         | ✓                                      |
+| `password`              | ✓ (needs `current_password`; a wrong one gives `403`)     | ✓ (no current password needed = reset) |
+| `role`, `disabled`      | ✗ (`400` even for `admin` on themselves, `403` otherwise) | ✓                                      |
 
 - Access by `viewer` / `editor` to a user other than themselves is refused with `403`, and `access.denied` (`reason: not_own_account`, `resource_type: user`) is recorded.
 - The last active `admin` cannot be demoted, disabled, or deleted (`400`; to prevent everyone being locked out). You also cannot delete yourself. The CLI (such as `aegis-server user role`) does not check, for recovery.
@@ -165,11 +165,11 @@ curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
   -d '{"username":"admin","password":"change-me-please"}'
 ```
 
-| Field | Required | Description |
-| --- | --- | --- |
-| `username` | ✓ | Login name (surrounding whitespace is ignored) |
-| `password` | ✓ | Password |
-| `ttl_secs` | | Expiry (seconds). A value over `[cache].default_ttl_secs` (default 3600) is clipped to the default |
+| Field      | Required | Description                                                                                        |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `username` | ✓        | Login name (surrounding whitespace is ignored)                                                     |
+| `password` | ✓        | Password                                                                                           |
+| `ttl_secs` |          | Expiry (seconds). A value over `[cache].default_ttl_secs` (default 3600) is clipped to the default |
 
 On success it returns `201` with the following. In later requests, attach `Authorization: Bearer <id>` (or `X-Session-Id: <id>`).
 
@@ -184,13 +184,13 @@ On success it returns `201` with the following. In later requests, attach `Autho
 }
 ```
 
-| Status | Condition |
-| --- | --- |
-| `401` | The user does not exist, the password does not match, or the account is disabled (all responses are `Invalid username or password` and not distinguished) |
-| `403` | The credentials are correct but an `on-user-authenticated` plugin refused the login (the body is the plugin's message) |
-| `422` | `username` / `password` is missing (the earlier `{"user_id", "role"}` form is not accepted) |
-| `429` | Locked because login failures continued (the seconds until release are in the `Retry-After` header and the body's `retry_after_secs`; refused even for the correct password) |
-| `500` | DB or cache error, or failure of an `on-user-authenticated` plugin |
+| Status | Condition                                                                                                                                                                    |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `401`  | The user does not exist, the password does not match, or the account is disabled (all responses are `Invalid username or password` and not distinguished)                    |
+| `403`  | The credentials are correct but an `on-user-authenticated` plugin refused the login (the body is the plugin's message)                                                       |
+| `422`  | `username` / `password` is missing (the earlier `{"user_id", "role"}` form is not accepted)                                                                                  |
+| `429`  | Locked because login failures continued (the seconds until release are in the `Retry-After` header and the body's `retry_after_secs`; refused even for the correct password) |
+| `500`  | DB or cache error, or failure of an `on-user-authenticated` plugin                                                                                                           |
 
 ### `GET /api/v1/auth/session` / `DELETE /api/v1/auth/session`
 
@@ -210,12 +210,12 @@ Admin Studio (`/admin`) logs in with this API from the login screen, keeps the t
 - **Audit log**: the success or failure of login is recorded as `session.create`. On failure, `details` keeps `username`, `provider`, and `error` (`unknown_user` / `invalid_password` / `account_disabled` / `unsupported_credentials`). Passwords are not recorded.
 - **CPU load**: Argon2 verification runs with `spawn_blocking` and does not block the async runtime's workers.
 - **Rate limiting of login attempts** (`[auth.login_rate_limit]`): authentication failures (user absent, password mismatch, account disabled) are counted per username and per client IP, and when the limit is reached within `window_secs` (default 15 minutes) (default: 5 for the username / 20 for the IP), they are refused with `429` for `lockout_secs` (default 15 minutes).
-  - While locked, credentials are not verified (refused even with the correct password, and no Argon2 load either). The response does not distinguish whether the lock was by username or IP.
-  - Usernames are counted case-insensitively, and nonexistent usernames are counted the same way (so the presence of a lock cannot be used to guess whether a user exists).
-  - A successful login resets that username's failure count. The IP's failure count is not reset, so that an attacker holding one valid account cannot erase the count.
-  - Failure counts are stored in the `[cache]` backend (keys `login:fail:*` / `login:lock:*`). With `memory` they are per process and vanish on restart, so use `redis` when running multiple instances.
-  - Behind a reverse proxy all requests come from the proxy's IP, so set `[audit].trust_forwarded_for = true` (when enabled `X-Forwarded-For` can be spoofed, so do so only behind a trusted proxy).
-  - A per-username lock can also be used by a third party to fail on purpose and temporarily prevent that user from logging in. If this is a problem in operation, increase `max_failures_per_user` and mainly use the per-IP limit. Releasing a lock is by the CLI only (`aegis-server user unlock <username>` / `user unlock-ip <IP>`; the failure count also returns to 0). It cannot be released from the API or Admin Studio. Locks are in the server's cache, so the CLI can release them only with `redis` (with `memory`, restart the server).
+    - While locked, credentials are not verified (refused even with the correct password, and no Argon2 load either). The response does not distinguish whether the lock was by username or IP.
+    - Usernames are counted case-insensitively, and nonexistent usernames are counted the same way (so the presence of a lock cannot be used to guess whether a user exists).
+    - A successful login resets that username's failure count. The IP's failure count is not reset, so that an attacker holding one valid account cannot erase the count.
+    - Failure counts are stored in the `[cache]` backend (keys `login:fail:*` / `login:lock:*`). With `memory` they are per process and vanish on restart, so use `redis` when running multiple instances.
+    - Behind a reverse proxy all requests come from the proxy's IP, so set `[audit].trust_forwarded_for = true` (when enabled `X-Forwarded-For` can be spoofed, so do so only behind a trusted proxy).
+    - A per-username lock can also be used by a third party to fail on purpose and temporarily prevent that user from logging in. If this is a problem in operation, increase `max_failures_per_user` and mainly use the per-IP limit. Releasing a lock is by the CLI only (`aegis-server user unlock <username>` / `user unlock-ip <IP>`; the failure count also returns to 0). It cannot be released from the API or Admin Studio. Locks are in the server's cache, so the CLI can release them only with `redis` (with `memory`, restart the server).
 
 ---
 
@@ -268,22 +268,21 @@ The fragment (after `#`) does not remain in server logs or `Referer`, which is w
 
 ### 6.4 Reasons for Failure (`login_error`, `error` in the audit log `session.create`)
 
-| Reason | Description |
-| --- | --- |
-| `idp_error` | The IdP returned an error (such as the user cancelled) |
-| `invalid_state` | `state` is missing, expired, or already used |
-| `invalid_token` | Token exchange failed, or ID token verification failed (details in the server's warning log) |
-| `missing_username` | The claim to use as the username is missing or contains unusable characters |
-| `username_taken` | A (not linked) user with the same name already exists |
-| `not_provisioned` | `auto_create_users = false` and there is no linked user |
-| `account_disabled` | The user is disabled |
-| `server_error` | Cannot connect to the IdP, DB error, etc. (details in the server's error log) |
+| Reason             | Description                                                                                  |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| `idp_error`        | The IdP returned an error (such as the user cancelled)                                       |
+| `invalid_state`    | `state` is missing, expired, or already used                                                 |
+| `invalid_token`    | Token exchange failed, or ID token verification failed (details in the server's warning log) |
+| `missing_username` | The claim to use as the username is missing or contains unusable characters                  |
+| `username_taken`   | A (not linked) user with the same name already exists                                        |
+| `not_provisioned`  | `auto_create_users = false` and there is no linked user                                      |
+| `account_disabled` | The user is disabled                                                                         |
+| `server_error`     | Cannot connect to the IdP, DB error, etc. (details in the server's error log)                |
 
 When an `on-user-authenticated` plugin refuses, the plugin's message becomes `login_error`.
 
 > [!NOTE]
 > SSO logins are protected on the IdP side, so they are outside `[auth.login_rate_limit]`. The discovery document (`/.well-known/openid-configuration`) is fetched at the first login and cached in the process, and JWKS is refetched when an unknown `kid` arrives (at minimum 60-second intervals). If you change the IdP's Issuer, restart the server.
-
 
 ## 7. Account Registration
 
@@ -358,8 +357,8 @@ What is supported is **SP-initiated Web Browser SSO** (login started from AegisC
 ### 8.1 IdP-Side Settings
 
 1. Have the IdP load AegisCMS's SP metadata `https://<host>/api/v1/auth/saml/metadata` (obtainable after starting with `enabled = true`), or register the following values by hand.
-   - **Entity ID (identifier)**: the same value as `entity_id`
-   - **ACS (reply URL)**: `https://<host>/api/v1/auth/saml/acs` (the same value as `acs_url`). The binding is HTTP-POST
+    - **Entity ID (identifier)**: the same value as `entity_id`
+    - **ACS (reply URL)**: `https://<host>/api/v1/auth/saml/acs` (the same value as `acs_url`). The binding is HTTP-POST
 2. **Signature**: configure it to sign the assertion (recommended) or the whole response (either one is enough). The signature method is RSA-SHA256 or stronger (SHA-1 is rejected).
 3. **NameID**: use `persistent` (an unchanging ID) or `emailAddress`. `transient`, which changes on every login, is rejected because it cannot identify the user.
 4. Configure the IdP to send the email address, display name, and groups as attributes, and write those attribute names in `email_attribute` and the like.
@@ -411,13 +410,13 @@ The same rules as OpenID Connect (6.3).
 
 ### 8.4 What Is Verified
 
-| Target | Verification |
-| --- | --- |
-| XML | Documents containing a DTD, processing instructions, undeclared namespace prefixes, or duplicate attributes, and responses over 256 KiB, are rejected |
+| Target    | Verification                                                                                                                                                                                                                                                                                         |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| XML       | Documents containing a DTD, processing instructions, undeclared namespace prefixes, or duplicate attributes, and responses over 256 KiB, are rejected                                                                                                                                                |
 | Signature | At least one of the whole response or the assertion needs a signature by a key in `idp_certificates`. The certificate in the response's `KeyInfo` is not used. Only Exclusive C14N and enveloped-signature; RSA-SHA256 / 384 / 512. The `ID` the signature references must be unique in the document |
-| Response | `StatusCode` is `Success` (otherwise `idp_error`), `Destination` is `acs_url`, `Issuer` is `idp_entity_id`, and there is exactly one assertion |
-| Assertion | `Issuer` is `idp_entity_id`, it is within the `Conditions` validity period, `AudienceRestriction` contains `entity_id`, and there is an `AuthnStatement` |
-| Subject | There is a NameID (other than `transient`). The bearer `SubjectConfirmationData`'s `Recipient` is `acs_url`, `NotOnOrAfter` is in the future, and `InResponseTo` is the `ID` of an issued, unused AuthnRequest |
+| Response  | `StatusCode` is `Success` (otherwise `idp_error`), `Destination` is `acs_url`, `Issuer` is `idp_entity_id`, and there is exactly one assertion                                                                                                                                                       |
+| Assertion | `Issuer` is `idp_entity_id`, it is within the `Conditions` validity period, `AudienceRestriction` contains `entity_id`, and there is an `AuthnStatement`                                                                                                                                             |
+| Subject   | There is a NameID (other than `transient`). The bearer `SubjectConfirmationData`'s `Recipient` is `acs_url`, `NotOnOrAfter` is in the future, and `InResponseTo` is the `ID` of an issued, unused AuthnRequest                                                                                       |
 
 A 60-second tolerance is allowed in time verification.
 
@@ -437,6 +436,7 @@ AegisCMS implements standard SP-initiated Web Browser SSO (AuthnRequest, ACS, RS
 Today's enterprise and organizational single sign-on is JSON/REST-based and simple to configure, and **OpenID Connect (OIDC, [6. Single sign-on](#6-single-sign-on-openid-connect))** is the first recommendation, sufficient in more than 95% of cases.
 
 The following advanced SAML extensions are currently unsupported (on hold) to avoid the vulnerability risk and maintenance cost that come with XML encryption and protocol complexity. They will be reconsidered when strong requests arise in real operation, such as for academic authentication federations (GakuNin / Shibboleth) or specific legacy internal rules:
+
 - **Automatic loading from an IdP metadata URL**: currently the Entity ID, SSO URL, and signing certificate are set explicitly in the config file (`aegis.toml`).
 - **Encrypted assertions (`EncryptedAssertion`)**: decrypting encrypted assertions is not supported (only signature verification of plain assertions).
 - **Signing AuthnRequests**: `AuthnRequestsSigned="false"` (IdPs that force signed requests are not supported).
@@ -550,7 +550,6 @@ With self-registration (`[auth.registration]`) and `require_approval = true` (th
 3. When the server enables the user (`disabled = false`), it simultaneously clears `pending_approval = false` and automatically sends an account approval notification email (`account.approved`) to that user's email address.
 4. After confirming the email that arrived, the user can log in immediately. This notification is not sent when updating a user whose `pending_approval` is `false`, such as simply lifting a temporary disablement.
 
-
 ---
 
 ## 12. Two-Factor Authentication (2FA / TOTP)
@@ -584,13 +583,13 @@ In addition to password authentication, AegisCMS supports two-factor authenticat
 If there is a user who can no longer log in because of a lost device or the like, an administrator can remove 2FA in either of the following ways.
 
 1. **Removal from Admin Studio**:
-   - Open **Settings → Users** (`UserManager.tsx`) and check the "2FA" column (enabled badge) of the target user in the list.
-   - Open the user edit modal, click the **Force-remove 2FA** button, and accept the confirmation dialog (`POST /api/v1/users/{username}/2fa/reset`).
+    - Open **Settings → Users** (`UserManager.tsx`) and check the "2FA" column (enabled badge) of the target user in the list.
+    - Open the user edit modal, click the **Force-remove 2FA** button, and accept the confirmation dialog (`POST /api/v1/users/{username}/2fa/reset`).
 2. **Emergency removal from the CLI**:
-   ```bash
-   aegis-server user disable-2fa <username>
-   ```
-   Along with the removal, the target user's existing sessions are revoked immediately, and from next time they can log in with the password alone.
+    ```bash
+    aegis-server user disable-2fa <username>
+    ```
+    Along with the removal, the target user's existing sessions are revoked immediately, and from next time they can log in with the password alone.
 
 ---
 
@@ -624,11 +623,11 @@ A value starting with `aegis_pat_` can be used simply by attaching it to the sam
 
 ### 13.3 API (The Logged-In User Themself; Cannot Be Called with a Token)
 
-| API | Description |
-| --- | --- |
-| `GET /api/v1/users/me/tokens` | The list of your own tokens (`{"tokens": [...]}`, newest first). Does not include hashes or token bodies |
-| `POST /api/v1/users/me/tokens` | Issue. The body is `name` (required, up to 64 characters), `role` (`viewer` / `contributor` / `reviewer` / `editor`; default `viewer`), and `expires_in_days` (default 90, `null` is unlimited). Returns `201` with the list item plus `token` (the body) |
-| `DELETE /api/v1/users/me/tokens/{id}` | Revoke (another person's token is `404`). `204`. It becomes unusable immediately |
+| API                                   | Description                                                                                                                                                                                                                                               |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/users/me/tokens`         | The list of your own tokens (`{"tokens": [...]}`, newest first). Does not include hashes or token bodies                                                                                                                                                  |
+| `POST /api/v1/users/me/tokens`        | Issue. The body is `name` (required, up to 64 characters), `role` (`viewer` / `contributor` / `reviewer` / `editor`; default `viewer`), and `expires_in_days` (default 90, `null` is unlimited). Returns `201` with the list item plus `token` (the body) |
+| `DELETE /api/v1/users/me/tokens/{id}` | Revoke (another person's token is `404`). `204`. It becomes unusable immediately                                                                                                                                                                          |
 
 ```json
 {

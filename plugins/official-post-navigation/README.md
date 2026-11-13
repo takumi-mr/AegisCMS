@@ -7,14 +7,14 @@ An official Wasm plugin that shows navigation links to the "previous article" an
 ## Features
 
 - **Flexible rules for finding the previous / next article**:
-  - `mode = "category"` (default): searches first for the previous / next articles within the same category. If there is no previous / next article in the same category, it can fall back automatically to date order (`fallback_to_all`).
-  - `mode = "date"`: regardless of category, finds the previous / next articles in overall date order (publication date or creation date).
+    - `mode = "category"` (default): searches first for the previous / next articles within the same category. If there is no previous / next article in the same category, it can fall back automatically to date order (`fallback_to_all`).
+    - `mode = "date"`: regardless of category, finds the previous / next articles in overall date order (publication date or creation date).
 - **A polished responsive UI**:
-  - Choose from a two-column left/right layout (default), a vertical stack, or a card style.
-  - Supports showing thumbnail images (`featured_image` / `image`).
-  - Placeholder handling keeps the left/right balance intact even for the first and last articles, where only one side exists.
+    - Choose from a two-column left/right layout (default), a vertical stack, or a card style.
+    - Supports showing thumbnail images (`featured_image` / `image`).
+    - Placeholder handling keeps the left/right balance intact even for the first and last articles, where only one side exists.
 - **Per-item control**:
-  - Setting `hide_post_nav = true` in an article's custom field hides the navigation for that article only.
+    - Setting `hide_post_nav = true` in an article's custom field hides the navigation for that article only.
 
 ## Settings (`[plugins.settings.official-post-navigation]`)
 

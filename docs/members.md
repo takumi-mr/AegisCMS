@@ -15,23 +15,23 @@ Accounts that site visitors create. They are **completely separate from the CMS'
 
 When `[members].enabled = true`, member accounts are enabled (settings are in §3). Order history, shipping addresses, and reviews can be used when the shop (`[commerce].enabled = true`) is also enabled.
 
-| API | Description |
-|---|---|
-| `POST /api/v1/members/register` | Member sign-up (email, password, name; phone and shipping address optional) |
-| `POST /api/v1/members/login` | Login. Returns `{ "token": "mses_...", "expires_at": ..., "member": {...} }` |
-| `POST /api/v1/members/logout` | Logout |
-| `GET` / `PUT /api/v1/members/me` | Get and update your own information (changing the password needs the current password) |
-| `PUT` / `DELETE /api/v1/members/me/avatar` | Set and remove the profile image (§13a) |
-| `GET /api/v1/members/orders`, `/orders/{id}` | Your own order history (an order placed while logged in is linked to the member) |
-| `GET /api/v1/members/reviews` | Your own reviews |
-| `GET` / `POST /api/v1/products/{product_id}/reviews` | A product's reviews (list of published ones, and posting) |
-| `GET /api/v1/admin/members`, `/{id}`, `PATCH` | List and details of members, and changing the status (`active` / `suspended`) (`editor` and above) |
-| `PUT /api/v1/admin/members/{id}/level` | Change a member's permission level (`admin` only; §15) |
-| `/api/v1/admin/reviews`, `/settings`, `/bulk`, `/{id}`, `/{id}/reply` | Review management (approval, bulk, reply, settings) |
-| `POST` / `GET /api/v1/members/purchases` | Start purchasing an article, and list your own purchases (when `[members.purchase].enabled`; §16) |
-| `GET /api/v1/members/plans`, `POST` / `GET /api/v1/members/subscriptions`, `POST /api/v1/members/billing-portal` | The plan list, starting a subscription and your own subscriptions, and the URL of the screen for cancelling and changing cards (Stripe's Customer Portal) (§16) |
-| `POST /api/v1/admin/members/{id}/purchases`, `POST /api/v1/admin/purchases/{id}/revoke` / `refund`, `POST /api/v1/admin/subscriptions/{id}/cancel` | Free grants, revoking entitlements, refunds, and cancelling subscriptions (`admin` only; §16) |
-| `POST /api/v1/members/webhooks/stripe` | Notifications of purchase payments and refunds (with a Stripe signature; §16) |
+| API                                                                                                                                                | Description                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/members/register`                                                                                                                    | Member sign-up (email, password, name; phone and shipping address optional)                                                                                     |
+| `POST /api/v1/members/login`                                                                                                                       | Login. Returns `{ "token": "mses_...", "expires_at": ..., "member": {...} }`                                                                                    |
+| `POST /api/v1/members/logout`                                                                                                                      | Logout                                                                                                                                                          |
+| `GET` / `PUT /api/v1/members/me`                                                                                                                   | Get and update your own information (changing the password needs the current password)                                                                          |
+| `PUT` / `DELETE /api/v1/members/me/avatar`                                                                                                         | Set and remove the profile image (§13a)                                                                                                                         |
+| `GET /api/v1/members/orders`, `/orders/{id}`                                                                                                       | Your own order history (an order placed while logged in is linked to the member)                                                                                |
+| `GET /api/v1/members/reviews`                                                                                                                      | Your own reviews                                                                                                                                                |
+| `GET` / `POST /api/v1/products/{product_id}/reviews`                                                                                               | A product's reviews (list of published ones, and posting)                                                                                                       |
+| `GET /api/v1/admin/members`, `/{id}`, `PATCH`                                                                                                      | List and details of members, and changing the status (`active` / `suspended`) (`editor` and above)                                                              |
+| `PUT /api/v1/admin/members/{id}/level`                                                                                                             | Change a member's permission level (`admin` only; §15)                                                                                                          |
+| `/api/v1/admin/reviews`, `/settings`, `/bulk`, `/{id}`, `/{id}/reply`                                                                              | Review management (approval, bulk, reply, settings)                                                                                                             |
+| `POST` / `GET /api/v1/members/purchases`                                                                                                           | Start purchasing an article, and list your own purchases (when `[members.purchase].enabled`; §16)                                                               |
+| `GET /api/v1/members/plans`, `POST` / `GET /api/v1/members/subscriptions`, `POST /api/v1/members/billing-portal`                                   | The plan list, starting a subscription and your own subscriptions, and the URL of the screen for cancelling and changing cards (Stripe's Customer Portal) (§16) |
+| `POST /api/v1/admin/members/{id}/purchases`, `POST /api/v1/admin/purchases/{id}/revoke` / `refund`, `POST /api/v1/admin/subscriptions/{id}/cancel` | Free grants, revoking entitlements, refunds, and cancelling subscriptions (`admin` only; §16)                                                                   |
+| `POST /api/v1/members/webhooks/stripe`                                                                                                             | Notifications of purchase payments and refunds (with a Stripe signature; §16)                                                                                   |
 
 - Authentication is `Authorization: Bearer mses_...` (for API clients). Sessions are kept in the cache, 30 days by default.
 - Passwords use Argon2id. Registering with an already registered email gives `409`.
@@ -78,14 +78,14 @@ The settings are implemented ([Configuration reference](configuration.md#212a-me
 
 ### 4.1 Routes
 
-| Path | Description |
-|---|---|
-| `/account` | My Page (logged in: order history, your own reviews, registration info. Not logged in: to the login screen) |
-| `/account/login` | Login |
-| `/account/register` | Member sign-up (404 if `registration = "closed"`) |
-| `/account/forgot` | When you forgot your password (applying for a reset email) |
-| `/account/reset?token=...` | Setting a new password |
-| `/account/verify?token=...` | Confirming the email address |
+| Path                        | Description                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `/account`                  | My Page (logged in: order history, your own reviews, registration info. Not logged in: to the login screen) |
+| `/account/login`            | Login                                                                                                       |
+| `/account/register`         | Member sign-up (404 if `registration = "closed"`)                                                           |
+| `/account/forgot`           | When you forgot your password (applying for a reset email)                                                  |
+| `/account/reset?token=...`  | Setting a new password                                                                                      |
+| `/account/verify?token=...` | Confirming the email address                                                                                |
 
 ### 4.2 How Login Is Held
 
@@ -112,9 +112,9 @@ The built-in `product.html` shows the review section (`reviews.html`) between th
 - **List and average**: approved reviews (★, title, body, poster name, a "purchased" mark, the operator's reply, date) and the average and count are fetched from the API and shown by a script (`/shop/reviews.js`) (`GET /api/v1/products/{id}/reviews`).
 - **Stars in search results**: only when there are approved reviews, structured data (JSON-LD `Product` + `aggregateRating`; `ratingValue`, `reviewCount`, `bestRating`, `worstRating`) is output in the product page's `<head>`. `<` is escaped, so a product name cannot close `</script>`. Approving or deleting reviews updates the page cache.
 - **Only purchasers can write** (the server checks orders; orders that are paid or beyond, one review per product per order).
-  - **Logged-in members**: if there are multiple paid orders containing that product, choose which order the review is for. Orders already reviewed cannot be chosen.
-  - **Guest purchasers**: a "Write a review" link appears on each line of the order confirmation page (`/orders/{id}?token=...`). The link goes to the product page (`?review_order=...&token=...`), and the script removes the token from the address bar right after reading it.
-  - For anyone else, a login link and an explanation that only purchasers can write are shown.
+    - **Logged-in members**: if there are multiple paid orders containing that product, choose which order the review is for. Orders already reviewed cannot be chosen.
+    - **Guest purchasers**: a "Write a review" link appears on each line of the order confirmation page (`/orders/{id}?token=...`). The link goes to the product page (`?review_order=...&token=...`), and the script removes the token from the address bar right after reading it.
+    - For anyone else, a login link and an explanation that only purchasers can write are shown.
 - The text after posting changes depending on whether it was published or is awaiting approval (the `status` of the `POST` response is `approved` / `pending`). Moderation follows `[comments.moderation]`.
 - Theme authors load `reviews.html` with `theme_vars.reviews_enabled` (when `"true"`). When overriding, keep `<div id="aegis-reviews">` and the loading of the script that passes `reviews_*` / `account_*` to `data-*`.
 
@@ -126,10 +126,10 @@ The built-in `product.html` shows the review section (`reviews.html`) between th
 
 It is built the same way as the admin account reset (`/api/v1/auth/password-reset`) (the token is stored in the cache as a hash and can be used only once).
 
-| API | Description |
-| --- | --- |
-| `POST /api/v1/members/password-reset` | `{ "email" }`. Regardless of registration, **always `202`** if the email address's form is valid. If registered and not suspended, a reset link is sent by email. Valid for 1 hour |
-| `POST /api/v1/members/password-reset/complete` | `{ "token", "password" }`. Changes the password and **revokes all of that member's sessions**. The link is single-use. Invalid, expired, or used gives `400` |
+| API                                            | Description                                                                                                                                                                        |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/members/password-reset`          | `{ "email" }`. Regardless of registration, **always `202`** if the email address's form is valid. If registered and not suspended, a reset link is sent by email. Valid for 1 hour |
+| `POST /api/v1/members/password-reset/complete` | `{ "token", "password" }`. Changes the password and **revokes all of that member's sessions**. The link is single-use. Invalid, expired, or used gives `400`                       |
 
 - **Screens**: `/account/forgot` (enter the email address) and `/account/reset?token=...` (the new password; the token is removed from the address bar right after reading). A "Forgot your password?" link appears on the login screen.
 - **Conditions for use**: `[notifications]` is enabled (email can be sent) and `[members].public_url` is set (can be stopped with `[members].password_reset = false`). The email link is **built from `public_url`, not the request's `Host`** (since `Host` can be spoofed, an attacker could deliver a fake link to a victim). With settings where it cannot be used, the API and pages are 404, and the login screen does not show the link.
@@ -147,12 +147,12 @@ A member's sessions all end in the following cases. Rather than deleting per ses
 
 With `[members].require_email_verification = true`, after sign-up you cannot log in until you open the link in the confirmation email.
 
-| API | Description |
-| --- | --- |
-| `POST /api/v1/members/register` | When confirmation is required, `202` `{ "status": "verification_sent" }`. The member is created as `unverified` and a confirmation email is sent. **The same response even for a registered address** (no email is sent). No login token is returned |
-| `POST /api/v1/members/verify` | `{ "token" }`. Confirms the email address and makes the member `active`. The link is valid for 48 hours and single-use. Invalid, expired, or used gives `400` |
-| `POST /api/v1/members/verify/resend` | `{ "email" }`. Resends the confirmation email. **Always `202`** (sent only to addresses awaiting confirmation). Up to 5 per hour from the same IP |
-| `POST /api/v1/members/login` | If the password is correct but confirmation is not done, `403` `{ "code": "email_not_verified" }`. If the password is wrong, it does not reveal whether confirmation is pending (`401`) |
+| API                                  | Description                                                                                                                                                                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/members/register`      | When confirmation is required, `202` `{ "status": "verification_sent" }`. The member is created as `unverified` and a confirmation email is sent. **The same response even for a registered address** (no email is sent). No login token is returned |
+| `POST /api/v1/members/verify`        | `{ "token" }`. Confirms the email address and makes the member `active`. The link is valid for 48 hours and single-use. Invalid, expired, or used gives `400`                                                                                        |
+| `POST /api/v1/members/verify/resend` | `{ "email" }`. Resends the confirmation email. **Always `202`** (sent only to addresses awaiting confirmation). Up to 5 per hour from the same IP                                                                                                    |
+| `POST /api/v1/members/login`         | If the password is correct but confirmation is not done, `403` `{ "code": "email_not_verified" }`. If the password is wrong, it does not reveal whether confirmation is pending (`401`)                                                              |
 
 - **Screens**: after sign-up, "We sent a confirmation email" is shown (it does not log in). The login screen shows "Resend the confirmation email" on `email_not_verified`. `/account/verify?token=...` is the confirmation page, and the token is removed from the address bar right after being read. For an invalid link, an application to resend is shown.
 - **The status is `unverified`** (added to `active` / `suspended`). **No table column is added** (so as not to increase what is rejected for old DBs; the status goes straight into a string column). If an administrator sets a member's status to `active`, it can be used without waiting for confirmation.
@@ -178,12 +178,12 @@ With `[members].require_email_verification = true`, after sign-up you cannot log
 
 With `DELETE /api/v1/members/me` (`{ "password" }`), you can delete your own account. Identity is confirmed with the password (a wrong one gives `401` and changes nothing). On success it is `204`, and the login cookie is cleared too.
 
-| Target | After withdrawal |
-| --- | --- |
-| The member's row, logins, sessions | **Deleted**. Sessions become unusable on the spot |
-| **Orders** | **Kept** (accounting records). Only the link to the member (`member_id`) is removed. Lines, amounts, and the email address, name, and shipping address at the time of the order remain as the order's record (the order confirmation page's URL can still be used as before) |
-| **Reviews** | **Kept** (rating, body, operator reply, status). The link to the member, poster name, email address, IP, and User-Agent are removed. On public pages the poster name appears as "Former customer". Star aggregates do not change |
-| Audit log | `member.delete` is recorded (**the email address is not recorded**) |
+| Target                             | After withdrawal                                                                                                                                                                                                                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The member's row, logins, sessions | **Deleted**. Sessions become unusable on the spot                                                                                                                                                                                                                            |
+| **Orders**                         | **Kept** (accounting records). Only the link to the member (`member_id`) is removed. Lines, amounts, and the email address, name, and shipping address at the time of the order remain as the order's record (the order confirmation page's URL can still be used as before) |
+| **Reviews**                        | **Kept** (rating, body, operator reply, status). The link to the member, poster name, email address, IP, and User-Agent are removed. On public pages the poster name appears as "Former customer". Star aggregates do not change                                             |
+| Audit log                          | `member.delete` is recorded (**the email address is not recorded**)                                                                                                                                                                                                          |
 
 - You can register again with the same email address (a new member; past orders are not linked).
 - The poster name shown on public product pages changes, so that product's cache (`reviews-{product}`) is updated.
@@ -198,18 +198,19 @@ With `DELETE /api/v1/members/me` (`{ "password" }`), you can delete your own acc
 Two screens are added to Admin Studio's "Shop" (the API is implemented).
 
 - **Members** (`editor` and above, **implemented**): Admin Studio's "Members" tab (shown only when `[members].enabled`; `members_enabled` of `GET /api/v1/shop/config`). A list (name, email, status, registration date, last login; newest first, 25 at a time), details (contact, saved shipping address, number of forum posts, list of orders and the total of paid ones), and changing the status (`active` ⇄ `suspended`; suspending revokes sessions). Members with unconfirmed email (`unverified`) cannot have their status changed (they cannot be used until confirmation is done).
-  - "Forum" in the details is the number of threads that member started and the number of replies they wrote (including a thread's first post). The `forum` of `GET /api/v1/admin/members/{id}` (`{threads, posts}`; `null` and no field shown if the forum is disabled). It is counted by the pair of kind and ID, so a staff member with the same ID is not included. Posts by withdrawn members are anonymous and not counted.
-  - The forum admin screen shows a "member" badge and an "Open member" link if a thread's or reply's poster is a member (staff get a "staff" badge). The link opens that member's details (only for those who may view the members screen). For posts by withdrawn members or anonymous ones, if the name is empty, "Former user" is shown.
-  - The orders in the details return only number, status, amount, and date and time (such as the hash of the order confirmation page's token is not included).
-  - Search does not exist yet (because the API has only list paging).
-  - The "Members" tab is shown even when the shop is disabled (member accounts do not depend on the shop). When the shop is disabled, the orders field is not shown in the details.
+    - "Forum" in the details is the number of threads that member started and the number of replies they wrote (including a thread's first post). The `forum` of `GET /api/v1/admin/members/{id}` (`{threads, posts}`; `null` and no field shown if the forum is disabled). It is counted by the pair of kind and ID, so a staff member with the same ID is not included. Posts by withdrawn members are anonymous and not counted.
+    - The forum admin screen shows a "member" badge and an "Open member" link if a thread's or reply's poster is a member (staff get a "staff" badge). The link opens that member's details (only for those who may view the members screen). For posts by withdrawn members or anonymous ones, if the name is empty, "Former user" is shown.
+    - The orders in the details return only number, status, amount, and date and time (such as the hash of the order confirmation page's token is not included).
+    - Search does not exist yet (because the API has only list paging).
+    - The "Members" tab is shown even when the shop is disabled (member accounts do not depend on the shop). When the shop is disabled, the orders field is not shown in the details.
 
-  ![Admin Studio member list](images/members-admin.png)
+    ![Admin Studio member list](images/members-admin.png)
 
-  ![Member details (forum post counts)](images/members-detail.png)
+    ![Member details (forum post counts)](images/members-detail.png)
+
 - **Reviews** (`editor` and above, **implemented**): the "Reviews" tab (shown only when the shop is enabled; `reviews_enabled`). Filtering by status (awaiting approval, approved, not approved, spam, all), bulk approve, hold, disapprove, spam, and delete, checking the body, rating, and purchaser mark, and replies from the shop (write, fix, delete). For disapproval and spam, it asks for a reason (optional) and records it on the review (not shown to the poster).
-  - Reviews by withdrawn members have an empty poster name and appear as "Former customer".
-  - A screen for the approval settings (`/api/v1/admin/reviews/settings`) does not exist yet (the API is implemented; the screen will be built after making it return actual values and defaults).
+    - Reviews by withdrawn members have an empty poster name and appear as "Former customer".
+    - A screen for the approval settings (`/api/v1/admin/reviews/settings`) does not exist yet (the API is implemented; the screen will be built after making it return actual values and defaults).
 
 ---
 
@@ -253,27 +254,27 @@ They used to be "customer accounts" inside `[commerce]` and could be used only b
 
 Internally everything is **unified as member**, and only the text visitors see changes by screen kind.
 
-| Layer | Name |
-| --- | --- |
-| Settings, API, DB, code, audit log, notifications | `member` (`[members]`, `/api/v1/members/*`, `_aegis_members`, `MemberService`, `member.*`) |
-| Admin screen | The tab is "Members" |
-| Text visitors see | "Customer" on shop screens (order history, reviews), "User" on forum screens. Split by message keys (`js.*`) and shown in the `[theme].locale` language |
+| Layer                                             | Name                                                                                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Settings, API, DB, code, audit log, notifications | `member` (`[members]`, `/api/v1/members/*`, `_aegis_members`, `MemberService`, `member.*`)                                                              |
+| Admin screen                                      | The tab is "Members"                                                                                                                                    |
+| Text visitors see                                 | "Customer" on shop screens (order history, reviews), "User" on forum screens. Split by message keys (`js.*`) and shown in the `[theme].locale` language |
 
 Page paths are not changed (`/account`, `/account/login`, ...).
 
 ### 11.2 What Changed
 
-| What changed | Migration |
-| --- | --- |
-| The setting `[commerce.customers]` | Move to `[members]` (write `enabled = true`; **the default is `false`**). If old keys remain, **startup errors with guidance on migrating** |
-| The base of email links | `[members].public_url` (order confirmation links are `[commerce].public_url` as before). With `require_email_verification = true` and an empty value, it does not start |
-| `/api/v1/customers/*`, `/api/v1/admin/customers/*` | `/api/v1/members/*`, `/api/v1/admin/members/*` (the old paths are 404) |
-| The table `_aegis_customers`, `customer_id` of orders and reviews | `_aegis_members`, `member_id`. The startup column check rejects old DBs (fix with the SQL below) |
-| Session tokens and cookies | `cses_...` → `mses_...`, `{namespace}_customer` → `{namespace}_member`. **Everyone is logged out** |
-| Cache keys | `customer_session:` etc. → `member_session:` etc. |
-| Audit log `customer.*`, notification templates `customer.*` | `member.*` (past audit log rows can still be read. Sites that override notification templates should rename the files to `member.password_reset.txt`, etc.) |
-| The admin API's `shop/config` | `customers_enabled` → `members_enabled` |
-| Backups (`task dump`) | Members are in `database/members.json` and purchases in `database/purchases.json` (absent in old backups). **Old backups (`database/customers.json`, `customer_id` of orders and reviews) can be restored too** |
+| What changed                                                      | Migration                                                                                                                                                                                                       |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The setting `[commerce.customers]`                                | Move to `[members]` (write `enabled = true`; **the default is `false`**). If old keys remain, **startup errors with guidance on migrating**                                                                     |
+| The base of email links                                           | `[members].public_url` (order confirmation links are `[commerce].public_url` as before). With `require_email_verification = true` and an empty value, it does not start                                         |
+| `/api/v1/customers/*`, `/api/v1/admin/customers/*`                | `/api/v1/members/*`, `/api/v1/admin/members/*` (the old paths are 404)                                                                                                                                          |
+| The table `_aegis_customers`, `customer_id` of orders and reviews | `_aegis_members`, `member_id`. The startup column check rejects old DBs (fix with the SQL below)                                                                                                                |
+| Session tokens and cookies                                        | `cses_...` → `mses_...`, `{namespace}_customer` → `{namespace}_member`. **Everyone is logged out**                                                                                                              |
+| Cache keys                                                        | `customer_session:` etc. → `member_session:` etc.                                                                                                                                                               |
+| Audit log `customer.*`, notification templates `customer.*`       | `member.*` (past audit log rows can still be read. Sites that override notification templates should rename the files to `member.password_reset.txt`, etc.)                                                     |
+| The admin API's `shop/config`                                     | `customers_enabled` → `members_enabled`                                                                                                                                                                         |
+| Backups (`task dump`)                                             | Members are in `database/members.json` and purchases in `database/purchases.json` (absent in old backups). **Old backups (`database/customers.json`, `customer_id` of orders and reviews) can be restored too** |
 
 Migrating an old DB runs SQL that fixes column and table names (it is not fixed automatically; the policy of not partially updating system tables is the same as before).
 
@@ -307,17 +308,17 @@ The forum lets people post with member accounts in addition to staff (CMS accoun
 - Even on withdrawal, forum posts are **kept and made anonymous** (so threads do not break). `author_id` and `author_kind` are cleared, `author_name` is emptied (the screen shows "Former user"), and the post's IP and User-Agent are removed. The withdrawal procedure is §11.3 (confirming identity → shop cleanup → forum cleanup → deleting the member's row). When the forum is disabled (`[forum].enabled = false`), the cleanup is not performed.
 - **Migrating old DBs** (in addition to §11.2's SQL): change the category's `is_private` into `visibility` and add `author_kind` to posts.
 
-  ```sql
-  ALTER TABLE _aegis_forum_categories ADD COLUMN visibility VARCHAR(255) NOT NULL DEFAULT 'public';
-  UPDATE _aegis_forum_categories SET visibility = 'staff' WHERE is_private = 1;
-  ALTER TABLE _aegis_forum_categories DROP COLUMN is_private;      -- SQLite 3.35 and later. Before that, restore from a backup
-  ALTER TABLE _aegis_forum_threads ADD COLUMN author_kind VARCHAR(255);
-  ALTER TABLE _aegis_forum_posts ADD COLUMN author_kind VARCHAR(255);
-  UPDATE _aegis_forum_threads SET author_kind = 'staff' WHERE author_id IS NOT NULL;
-  UPDATE _aegis_forum_posts SET author_kind = 'staff' WHERE author_id IS NOT NULL;
-  ```
+    ```sql
+    ALTER TABLE _aegis_forum_categories ADD COLUMN visibility VARCHAR(255) NOT NULL DEFAULT 'public';
+    UPDATE _aegis_forum_categories SET visibility = 'staff' WHERE is_private = 1;
+    ALTER TABLE _aegis_forum_categories DROP COLUMN is_private;      -- SQLite 3.35 and later. Before that, restore from a backup
+    ALTER TABLE _aegis_forum_threads ADD COLUMN author_kind VARCHAR(255);
+    ALTER TABLE _aegis_forum_posts ADD COLUMN author_kind VARCHAR(255);
+    UPDATE _aegis_forum_threads SET author_kind = 'staff' WHERE author_id IS NOT NULL;
+    UPDATE _aegis_forum_posts SET author_kind = 'staff' WHERE author_id IS NOT NULL;
+    ```
 
-  Or take a `task dump` on the previous version and `task restore` into the new DB (backups without `is_private` and `author_kind` are read with the same rules as above).
+    Or take a `task dump` on the previous version and `task restore` into the new DB (backups without `is_private` and `author_kind` are read with the same rules as above).
 
 ---
 
@@ -383,16 +384,16 @@ A mechanism for making paid-member-only pages and "paid from here" articles. **C
 
 If the body changes by viewer kind, **every** place that outputs the body becomes a leak point. One decision is shared and everything below goes through it.
 
-| Surface | Handling |
-|---|---|
-| Public pages of articles and pages | The body is cut by the viewer's level. Only the "guest version (cut)" goes into **shared caches and the CDN**. When there is a member cookie, `Cache-Control: private, no-store` (same as My Page) so the full text does not go into shared caches |
-| Feeds (`/feed.xml`, etc.) | The cut version (up to the excerpt). The full text is not output. The summary is the author's `excerpt` (if absent, empty without using the start of the body) |
-| Search (`/search`, `/api/v1/search`) | The body and snippets entered in the index are only the part before the restriction. Words in the restricted part do not match |
-| Related articles and list excerpts | Made from the part before the restriction |
-| Headless API (public-side reads) | The same decision. `blocks` are cut too |
-| Comments API | The same decision as the body. Viewers who cannot see get `403` (`access_restricted`) |
-| `oEmbed` and sitemap | oEmbed is only the `excerpt` field and the sitemap only URLs, so they can stay as they are (there is no `llms.txt`) |
-| Structured data | `isAccessibleForFree: false` of schema.org (JSON-LD) is attached to restricted pages. The body is not output to guests and crawlers either, so it is not "cloaking" that shows hidden body text, and the `cssSelector` of `hasPart` is not needed |
+| Surface                              | Handling                                                                                                                                                                                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public pages of articles and pages   | The body is cut by the viewer's level. Only the "guest version (cut)" goes into **shared caches and the CDN**. When there is a member cookie, `Cache-Control: private, no-store` (same as My Page) so the full text does not go into shared caches |
+| Feeds (`/feed.xml`, etc.)            | The cut version (up to the excerpt). The full text is not output. The summary is the author's `excerpt` (if absent, empty without using the start of the body)                                                                                     |
+| Search (`/search`, `/api/v1/search`) | The body and snippets entered in the index are only the part before the restriction. Words in the restricted part do not match                                                                                                                     |
+| Related articles and list excerpts   | Made from the part before the restriction                                                                                                                                                                                                          |
+| Headless API (public-side reads)     | The same decision. `blocks` are cut too                                                                                                                                                                                                            |
+| Comments API                         | The same decision as the body. Viewers who cannot see get `403` (`access_restricted`)                                                                                                                                                              |
+| `oEmbed` and sitemap                 | oEmbed is only the `excerpt` field and the sitemap only URLs, so they can stay as they are (there is no `llms.txt`)                                                                                                                                |
+| Structured data                      | `isAccessibleForFree: false` of schema.org (JSON-LD) is attached to restricted pages. The body is not output to guests and crawlers either, so it is not "cloaking" that shows hidden body text, and the `cssSelector` of `hasPart` is not needed  |
 
 ### 15.5 Caching
 
@@ -412,8 +413,8 @@ In the admin screen's preview you can choose **which kind of reader to view as**
 
 1. **The core of the decision** (the member side is **done**): `[members].levels`, a member's `level` (the column `_aegis_members.level`, the API response, `PUT /api/v1/admin/members/{id}/level`, and granting in the admin screen's member details), and the decision function `aegis_members::may_view` (returns whether one may view, from a `Viewer` and the required level; levels not in the settings are not shown). The article/page `access` field and determining the viewer kind (from a cookie / Bearer) are added in 2, when making it take effect on public pages.
 2. **Public pages** (**done**): cutting articles and pages by viewer (whole-body restriction), showing the notice, the cache handling (15.5), tests. `gate` in `crates/aegis-server/src/handlers/access.rs` returns `Open` (no restriction), `Allowed`, or `Denied` from `fields["access"]` and the viewer (the member's cookie / Bearer). `Denied` **does not render** the body (it is not output into HTML), outputs a notice (`<div class="aegis-access-notice">`) in place of the body, and does not output the comment section, related articles, or previous/next articles. Guests get login and sign-up (`/account/login?next=<this article's path>`; after login they return to this article; `next` accepts only paths within the site), and members of an insufficient level get the required level and, if `[members].upgrade_url` exists, that link. On sites where member accounts are disabled, the login link is not shown.
-   - **Check at save time**: `access` is either `public`, empty, or `null` (= anyone), or only a level in `[members].levels`. A value not in the settings is refused with `400` (`code: unknown_access_level`; the message includes the selectable levels), for both create and update. This is to prevent no one being able to read because of a typo. Even when re-saving an article that pointed to a level after removing that level from `levels`, it is 400 until it is reassigned.
-   - **`access` is a built-in field** (like `category_id`; `SchemaDefinition::with_builtin_fields` inserts it into all content types, and the column is added by `ALTER TABLE ... ADD COLUMN` at startup). You need not write it in YAML, and even if you do it is replaced by the built-in definition (`string`, max 32 characters, public), so the restriction doesn't come off because of forgetting or mistyping the type. The restriction currently takes effect only on articles and pages (putting a value in other types does nothing).
+    - **Check at save time**: `access` is either `public`, empty, or `null` (= anyone), or only a level in `[members].levels`. A value not in the settings is refused with `400` (`code: unknown_access_level`; the message includes the selectable levels), for both create and update. This is to prevent no one being able to read because of a typo. Even when re-saving an article that pointed to a level after removing that level from `levels`, it is 400 until it is reassigned.
+    - **`access` is a built-in field** (like `category_id`; `SchemaDefinition::with_builtin_fields` inserts it into all content types, and the column is added by `ALTER TABLE ... ADD COLUMN` at startup). You need not write it in YAML, and even if you do it is replaced by the built-in definition (`string`, max 32 characters, public), so the restriction doesn't come off because of forgetting or mistyping the type. The restriction currently takes effect only on articles and pages (putting a value in other types does nothing).
 3. **"From here on"** (**done**): the divider block `core/paywall` (`<!-- paywall -->` in Markdown; round-trip tests and the editor), and cutting the body (15.3).
 4. **Closing the leak points** (**done**): the surfaces in the 15.4 table were all brought to the same promise. Surfaces that output the body regardless of the viewer (feeds, search, lists, related articles, tags, headless API) go through `aegis_ast::public_blocks` (the part that may be shown to anyone; currently nothing; 3 makes it return what is before the divider) and `handlers::access::summary_excerpt` (the author's `excerpt` takes priority). The restricted article's comments API uses the same decision as the body (`403` and `access_restricted` if it cannot be seen). JSON-LD with `isAccessibleForFree: false` is output in restricted pages' `<head>`. Regression tests (`access_tests.rs`) verify that the restricted body appears on none of the surfaces, and that unrestricted articles are as before. A "Who can view" selection was added to the admin screen's article and page editing (only when member accounts are enabled; the choices are `member_levels` of `GET /api/v1/shop/config`).
 5. **Switching viewers in the preview** (**done**; 15.6).
@@ -469,16 +470,16 @@ Add a built-in field **`purchase_price`** (integer, smallest unit; unset means n
 
 The purchase record `_aegis_purchases` (stage 2):
 
-| Column | Description |
-|---|---|
-| `id` | The purchase ID |
-| `member_id` | The member ID (`NULL` on withdrawal. The row remains as an accounting record) |
-| `content_type` / `content_id` | The article/page bought |
-| `amount` / `currency` | The amount at the time it was started (checked by the webhook) |
-| `status` | `pending` (a payment page was created) / `paid` / `refunded` / `cancelled` (expired or failed) |
-| `provider_ref` | The Checkout Session ID (unique) |
-| `transaction_id` | The Payment Intent ID (to match refunds) |
-| `created_at` / `paid_at` / `updated_at` | |
+| Column                                  | Description                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `id`                                    | The purchase ID                                                                                |
+| `member_id`                             | The member ID (`NULL` on withdrawal. The row remains as an accounting record)                  |
+| `content_type` / `content_id`           | The article/page bought                                                                        |
+| `amount` / `currency`                   | The amount at the time it was started (checked by the webhook)                                 |
+| `status`                                | `pending` (a payment page was created) / `paid` / `refunded` / `cancelled` (expired or failed) |
+| `provider_ref`                          | The Checkout Session ID (unique)                                                               |
+| `transaction_id`                        | The Payment Intent ID (to match refunds)                                                       |
+| `created_at` / `paid_at` / `updated_at` |                                                                                                |
 
 The subscription record `_aegis_subscriptions`: `member_id`, `plan_id`, `level`, `status` (`active` / `past_due` / `cancelled`), Stripe's customer / subscription IDs, `current_period_end`, and `cancel_at_period_end`. **The effective level = the higher of `member.level` and the `level` of the plan being subscribed to.** "Being subscribed" means the status is `active` / `past_due` and `current_period_end` has not passed (with a 3-day grace to allow for webhook delays). `level` copies the plan's level at the time of subscribing, and does not change during the subscription even if the plan is removed from the settings. A level that has disappeared from `[members].levels` is ignored (the restriction does not come off).
 
@@ -487,9 +488,9 @@ The subscription record `_aegis_subscriptions`: `member_id`, `plan_id`, `level`,
 1. A member starts it from the notice's "Purchase" link (`GET /account/purchase?content_type=..&slug=..`) or `POST /api/v1/members/purchases` (`{ "content_type", "slug" }`; for API clients). It is a link because the default CSP's `form-action 'self'` stops a redirect from a form's destination to an external payment page. A GET only creates a payment page, and if there is no payment nothing happens, and the cookie is `SameSite=Lax`. If not logged in, they come back here after logging in. It checks that the article is published, has `access`, has a `purchase_price` of 1 or more, and has not been bought yet (otherwise `404` / `409`).
 2. It creates a `pending` row, creates a Checkout Session (`mode=payment`, with `price_data` being the server's amount and `client_reference_id` = the purchase ID), and returns the payment page's URL. The return destination is the article's path (for both success and cancel).
 3. The webhook (signature and time verified; same method as the shop):
-   - `checkout.session.completed` (`payment_status = paid`) and `async_payment_succeeded`: only when the purchase ID, the Session ID, and **the amount and currency match**, `pending` → `paid` (a conditional UPDATE; a resend does not run it twice). A mismatch does not make it `paid` and is left in the audit log.
-   - `expired` / `async_payment_failed`: `pending` → `cancelled`.
-   - `charge.refunded`: on a full refund, `paid` → `refunded` (removing the entitlement). A partial refund keeps the entitlement.
+    - `checkout.session.completed` (`payment_status = paid`) and `async_payment_succeeded`: only when the purchase ID, the Session ID, and **the amount and currency match**, `pending` → `paid` (a conditional UPDATE; a resend does not run it twice). A mismatch does not make it `paid` and is left in the audit log.
+    - `expired` / `async_payment_failed`: `pending` → `cancelled`.
+    - `charge.refunded`: on a full refund, `paid` → `refunded` (removing the entitlement). A partial refund keeps the entitlement.
 4. If the same article was paid twice (two payment pages were opened), both are made `paid` and `duplicate_payment` is left in the audit log (an administrator decides on refunds).
 5. The webhook can be several seconds late. The notice may remain on the article right after returning, so next to the purchase link a note is added that "payment confirmation may take a few seconds". It becomes readable on reload.
 

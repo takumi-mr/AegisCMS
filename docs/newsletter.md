@@ -45,12 +45,12 @@ locale = "ja"                         # language of the sign-up, confirmation, a
 - The email text (subject and body) is the notification templates `newsletter.confirm` / `newsletter.issue`. They can be edited and test-sent in Admin Studio's **Settings › Notifications** ([Notifications 6](notifications.md#6-managing-from-admin-studio)).
 - The paths of the sign-up page `/newsletter`, confirmation `/newsletter/confirm`, and unsubscribe `/newsletter/unsubscribe` cannot be changed. `/newsletter` cannot be used for `admin_path` either.
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` enables it |
-| `max_per_ip_per_hour` | integer | `10` | Number of sign-ups per hour from the same IP (0 is unlimited; counted in `[cache]`) |
-| `confirm_ttl_hours` | integer | `48` | Expiry of the confirmation link (hours; 1–336). After it passes, sign up again with the same address |
-| `locale` | string | `"en"` | Language of the text on the sign-up, confirmation, and unsubscribe pages. `en` / `ja` |
+| Key                   | Type    | Default | Description                                                                                          |
+| --------------------- | ------- | ------- | ---------------------------------------------------------------------------------------------------- |
+| `enabled`             | bool    | `false` | `true` enables it                                                                                    |
+| `max_per_ip_per_hour` | integer | `10`    | Number of sign-ups per hour from the same IP (0 is unlimited; counted in `[cache]`)                  |
+| `confirm_ttl_hours`   | integer | `48`    | Expiry of the confirmation link (hours; 1–336). After it passes, sign up again with the same address |
+| `locale`              | string  | `"en"`  | Language of the text on the sign-up, confirmation, and unsubscribe pages. `en` / `ja`                |
 
 ## 2. CAPTCHA (Optional)
 
@@ -103,22 +103,22 @@ Opening a link in an email shows **a page with a button**. Pressing the button (
 
 - **Counts per status** (subscribed, awaiting confirmation, stopped).
 - **Sending content**: choose a published article, check the summary (if empty, the article's `excerpt` field, or else the first paragraph), **send a test to yourself first**, and then send to all subscribers. A record (history) of what was sent is kept, and if you try to send the same article again, you can resend after confirming.
-  - The email contains the title, summary, the article's URL, and a per-subscriber unsubscribe link.
-  - What is sent is the **version currently published** (changes that are only saved and not published are not included).
-  - Sending goes into the notification outbox and is not lost even if the server restarts. Because one email is sent per subscriber, check your SMTP server's daily sending limit.
+    - The email contains the title, summary, the article's URL, and a per-subscriber unsubscribe link.
+    - What is sent is the **version currently published** (changes that are only saved and not published are not included).
+    - Sending goes into the notification outbox and is not lost even if the server restarts. Because one email is sent per subscriber, check your SMTP server's daily sending limit.
 - **Subscribers**: a list (newest sign-ups first, filter by status, search by email address), delete (removes the record entirely), and **CSV export** (the email addresses of people who receive deliveries).
 - **Send history**: the articles sent and the number of recipients.
 
 ## 6. API
 
-| API | Permission | Description |
-| --- | --- | --- |
-| `POST /api/v1/newsletter/subscribe` | None | `{"email": "...", "website": ""}`. When accepted, `202 {"status": "pending"}` (the same even if already registered). Mistakes are `400 invalid_email` and `429 rate_limited`; CAPTCHA gives `400 captcha_failed` / `503 captcha_unavailable` |
-| `GET /api/v1/newsletter/subscribers?status=&q=&limit=&offset=` | admin | Subscribers (newest sign-ups first), the total, and the counts per status `counts`. Tokens are not included |
-| `POST /api/v1/newsletter/subscribers/delete` | admin | `{"ids": [...]}` (1–500 items). `{"count": n}` |
-| `GET /api/v1/newsletter/subscribers/export` | admin | A CSV of the email addresses of people who receive deliveries (`text/csv`, as a download) |
-| `GET /api/v1/newsletter/issues?limit=&offset=` | admin | The send history (newest first) and the total |
-| `POST /api/v1/newsletter/issues` | admin | `{"content_type": "article", "slug_or_id": "...", "summary": "", "test_to": "", "force": false}`. With `test_to`, it sends only to that address (`202`, not recorded in history). Sending to all subscribers returns `201` (one history entry). An already sent one returns `409 already_sent` (resend with `force: true`), no subscribers returns `409 no_subscribers`, and unpublished content returns `400 content_not_published` |
+| API                                                            | Permission | Description                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/v1/newsletter/subscribe`                            | None       | `{"email": "...", "website": ""}`. When accepted, `202 {"status": "pending"}` (the same even if already registered). Mistakes are `400 invalid_email` and `429 rate_limited`; CAPTCHA gives `400 captcha_failed` / `503 captcha_unavailable`                                                                                                                                                                                         |
+| `GET /api/v1/newsletter/subscribers?status=&q=&limit=&offset=` | admin      | Subscribers (newest sign-ups first), the total, and the counts per status `counts`. Tokens are not included                                                                                                                                                                                                                                                                                                                          |
+| `POST /api/v1/newsletter/subscribers/delete`                   | admin      | `{"ids": [...]}` (1–500 items). `{"count": n}`                                                                                                                                                                                                                                                                                                                                                                                       |
+| `GET /api/v1/newsletter/subscribers/export`                    | admin      | A CSV of the email addresses of people who receive deliveries (`text/csv`, as a download)                                                                                                                                                                                                                                                                                                                                            |
+| `GET /api/v1/newsletter/issues?limit=&offset=`                 | admin      | The send history (newest first) and the total                                                                                                                                                                                                                                                                                                                                                                                        |
+| `POST /api/v1/newsletter/issues`                               | admin      | `{"content_type": "article", "slug_or_id": "...", "summary": "", "test_to": "", "force": false}`. With `test_to`, it sends only to that address (`202`, not recorded in history). Sending to all subscribers returns `201` (one history entry). An already sent one returns `409 already_sent` (resend with `force: true`), no subscribers returns `409 no_subscribers`, and unpublished content returns `400 content_not_published` |
 
 Errors are in English and carry a machine-readable `code`. Sending and deleting are recorded in the audit log (`newsletter.send` / `newsletter.delete`).
 

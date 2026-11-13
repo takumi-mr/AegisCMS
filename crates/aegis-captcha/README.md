@@ -13,17 +13,17 @@ The three major services (Turnstile / hCaptcha / reCAPTCHA) all use the same tok
 ## Responsibilities and Features
 
 - **Multi-provider support**:
-  - `cloudflare` / `turnstile`: Cloudflare Turnstile.
-  - `hcaptcha`: hCaptcha.
-  - `recaptcha`: Google reCAPTCHA v2 / v3.
-  - `custom`: any `siteverify`-compatible endpoint.
+    - `cloudflare` / `turnstile`: Cloudflare Turnstile.
+    - `hcaptcha`: hCaptcha.
+    - `recaptcha`: Google reCAPTCHA v2 / v3.
+    - `custom`: any `siteverify`-compatible endpoint.
 - **Verification and security policy**:
-  - Server-side verification of the response token submitted by the client.
-  - **fail-closed** (default): for safety, requests are rejected when the external CAPTCHA API fails or times out.
-  - **fail-open**: with `fail_open = true`, you can run a fallback mode that lets input through during a temporary outage.
+    - Server-side verification of the response token submitted by the client.
+    - **fail-closed** (default): for safety, requests are rejected when the external CAPTCHA API fails or times out.
+    - **fail-open**: with `fail_open = true`, you can run a fallback mode that lets input through during a temporary outage.
 - **Template and header support**:
-  - Generates the client-side `<script>` tag and widget HTML for each provider.
-  - Provides a host list so that the domains each provider needs (`challenges.cloudflare.com`, `hcaptcha.com`, `google.com`, etc.) are added automatically to the Content-Security-Policy (CSP).
+    - Generates the client-side `<script>` tag and widget HTML for each provider.
+    - Provides a host list so that the domains each provider needs (`challenges.cloudflare.com`, `hcaptcha.com`, `google.com`, etc.) are added automatically to the Content-Security-Policy (CSP).
 
 ## Usage Example
 

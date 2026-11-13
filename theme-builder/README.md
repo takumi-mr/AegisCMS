@@ -13,13 +13,13 @@ task dev:theme-builder              # http://localhost:5174/
 
 For usage, the API, and how it is protected, see [docs/theme_authoring_guide.md](../docs/theme_authoring_guide.md#theme-builder-editor--live-preview); for the design, see [docs/architecture.md](../docs/architecture.md#181-theme-builder-theme-builder).
 
-| Command                                 | Description                                              |
-| --------------------------------------- | -------------------------------------------------------- |
-| `npm run dev`                           | Dev server (change the target with `THEME_DEV_URL`)      |
-| `npm run test`                          | Unit tests (Vitest)                                      |
-| `npm run test:e2e`                      | E2E tests (Playwright; see below)                        |
-| `npm run lint` / `npm run format:check` | oxlint (zero warnings) / Prettier                        |
-| `npm run build`                         | Type check and production build (`dist/`)                |
+| Command                                 | Description                                         |
+| --------------------------------------- | --------------------------------------------------- |
+| `npm run dev`                           | Dev server (change the target with `THEME_DEV_URL`) |
+| `npm run test`                          | Unit tests (Vitest)                                 |
+| `npm run test:e2e`                      | E2E tests (Playwright; see below)                   |
+| `npm run lint` / `npm run format:check` | oxlint (zero warnings) / Prettier                   |
+| `npm run build`                         | Type check and production build (`dist/`)           |
 
 ## Structure
 

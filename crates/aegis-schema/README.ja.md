@@ -13,25 +13,25 @@ AegisCMS では、コンテンツタイプ（投稿、商品、イベント、�
 ## 主な責務・提供機能
 
 - **宣言的スキーマ定義 (`definition`)**:
-  - `SchemaDefinition`, `FieldDefinition`, `FieldType`（string, text, integer, boolean, datetime, json, relation 等）。
-  - 標準共通カラム（`id`, `title`, `slug`, `status`, `created_at`, `updated_at`, `published_at` 等）の透過的統合。
-  - リレーション定義 (`RelationTarget`: has_one, has_many, belongs_to)。
+    - `SchemaDefinition`, `FieldDefinition`, `FieldType`（string, text, integer, boolean, datetime, json, relation 等）。
+    - 標準共通カラム（`id`, `title`, `slug`, `status`, `created_at`, `updated_at`, `published_at` 等）の透過的統合。
+    - リレーション定義 (`RelationTarget`: has_one, has_many, belongs_to)。
 - **スキーマローダー (`loader`)**:
-  - `schemas/` ディレクトリ配下の YAML/JSON スキーマファイルを走査・パース・整合性検証。
+    - `schemas/` ディレクトリ配下の YAML/JSON スキーマファイルを走査・パース・整合性検証。
 - **マルチダイアレクトマイグレーション (`migration`)**:
-  - SQLite, PostgreSQL, MySQL の差分検出および自動 DDL 生成 (`CREATE TABLE`, `ALTER TABLE ADD COLUMN`, インデックス作成)。
+    - SQLite, PostgreSQL, MySQL の差分検出および自動 DDL 生成 (`CREATE TABLE`, `ALTER TABLE ADD COLUMN`, インデックス作成)。
 - **コード生成 (`codegen`)**:
-  - **TypeScript Generator**: Admin Studio や外部フロントエンド用の TypeScript インターフェース定義を生成。
-  - **OpenAPI 3.1 Generator**: スキーマ定義に基づく RESTful API エンドポイントおよびスキーマ仕様（JSON/YAML）を自動出力。
+    - **TypeScript Generator**: Admin Studio や外部フロントエンド用の TypeScript インターフェース定義を生成。
+    - **OpenAPI 3.1 Generator**: スキーマ定義に基づく RESTful API エンドポイントおよびスキーマ仕様（JSON/YAML）を自動出力。
 
 ## モジュール構成
 
-| モジュール | 説明 |
-| :--- | :--- |
-| `definition` | スキーマ・フィールド・リレーションのデータ構造定義 |
-| `loader` | ファイルシステムからのスキーマ読み込みと構文検証 (`SchemaLoader`) |
-| `migration` | 各 SQL 方言へのマイグレーション DDL 生成 (`SchemaMigration`, `SqlDialect`) |
-| `codegen` | TypeScript 型定義および OpenAPI 3.1 仕様書生成 (`TypeScriptGenerator`, `OpenApiGenerator`) |
+| モジュール   | 説明                                                                                       |
+| :----------- | :----------------------------------------------------------------------------------------- |
+| `definition` | スキーマ・フィールド・リレーションのデータ構造定義                                         |
+| `loader`     | ファイルシステムからのスキーマ読み込みと構文検証 (`SchemaLoader`)                          |
+| `migration`  | 各 SQL 方言へのマイグレーション DDL 生成 (`SchemaMigration`, `SqlDialect`)                 |
+| `codegen`    | TypeScript 型定義および OpenAPI 3.1 仕様書生成 (`TypeScriptGenerator`, `OpenApiGenerator`) |
 
 ## 使用例
 

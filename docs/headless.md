@@ -73,20 +73,20 @@ It is built the same way as search (`aegis-search`). It is built in with the ser
 - **Dependencies**: only `aegis-core`, `aegis-schema`, and the DB's read entry points. It does not depend on the server's internal state (`AppState`).
 - **Narrowing the DB entry point**: the crate does not accept a `dyn DatabaseAdapter`; it accepts a small trait that has only fetching of published versions (tentatively `PublishedSource`). The server implements it on top of the adapter. The editing methods are not visible as a type, so code that returns drafts cannot be written.
 - **What it holds (pure logic)**:
-  - Validating list arguments (`limit`, `cursor`, `category`, `tag`) and clamping to limits
-  - Shaping records per the schema (selecting only the public fields)
-  - Encoding and decoding cursors (400 if tampered with)
-  - Computing the `ETag`
+    - Validating list arguments (`limit`, `cursor`, `category`, `tag`) and clamping to limits
+    - Shaping records per the schema (selecting only the public fields)
+    - Encoding and decoding cursors (400 if tampered with)
+    - Computing the `ETag`
 - **The server's responsibilities**: registering routes, rate limiting, CORS, `Cache-Control`, CDN cache tags, and loading settings. The same division as the other crates (commerce, comments).
 
 ### 2.2 Reusing Existing Mechanisms (No New Queries Are Added)
 
-| Purpose | What is used | Notes |
-|---|---|---|
-| One item | `get_published_content(schema, slug_or_id)` | |
-| List | `list_published_contents_page(schema, &ContentListQuery)` | Filtering by `status`, `limit`/`offset`, keyset (`cursor_*`), `tag_id`, and `category_id` is supported. It is left to SQL with the published record's columns and indexes, so it does not depend on the number of articles |
-| Resolving relations | `resolve_published_relations` | Looks up **only published ones** by `id` / `slug` from the published version records (`_aegis_content_publications`). The editing `resolve_relations` reads the content's own table and would also return unpublished titles and drafts, so it is not used. Fields with empty values are not queried |
-| Cache clearing | `cdn::content_invalidation_tags`, `purge_content` | With the same tags as public pages, they are cleared on update by the same mechanism |
+| Purpose             | What is used                                              | Notes                                                                                                                                                                                                                                                                                                |
+| ------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One item            | `get_published_content(schema, slug_or_id)`               |                                                                                                                                                                                                                                                                                                      |
+| List                | `list_published_contents_page(schema, &ContentListQuery)` | Filtering by `status`, `limit`/`offset`, keyset (`cursor_*`), `tag_id`, and `category_id` is supported. It is left to SQL with the published record's columns and indexes, so it does not depend on the number of articles                                                                           |
+| Resolving relations | `resolve_published_relations`                             | Looks up **only published ones** by `id` / `slug` from the published version records (`_aegis_content_publications`). The editing `resolve_relations` reads the content's own table and would also return unpublished titles and drafts, so it is not used. Fields with empty values are not queried |
+| Cache clearing      | `cdn::content_invalidation_tags`, `purge_content`         | With the same tags as public pages, they are cleared on update by the same mechanism                                                                                                                                                                                                                 |
 
 The published list uses only what needs no additional queries. **Filtering and partial matching on extra fields are not supported** (for the same reason as items considered and set aside earlier).
 
@@ -96,20 +96,20 @@ The published list uses only what needs no additional queries. **Filtering and p
 
 All are `GET`, unauthenticated.
 
-| Path | Description |
-|---|---|
-| `/api/v1/public/contents/{type}` | A list of published content |
-| `/api/v1/public/contents/{type}/{slug}` | One published item |
-| `/api/v1/public/openapi.json` | OpenAPI for only the public kinds |
+| Path                                    | Description                       |
+| --------------------------------------- | --------------------------------- |
+| `/api/v1/public/contents/{type}`        | A list of published content       |
+| `/api/v1/public/contents/{type}/{slug}` | One published item                |
+| `/api/v1/public/openapi.json`           | OpenAPI for only the public kinds |
 
 ### 3.1 List Query
 
-| Argument | Description |
-|---|---|
-| `limit` | Items per page. Default 20, up to `max_page_size` (default 100) |
-| `cursor` | The previous page's `next_cursor`. The contents are opaque (clients do not interpret them) |
-| `category` | The category's ID. `none` for uncategorized |
-| `tag` | The tag's slug |
+| Argument   | Description                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `limit`    | Items per page. Default 20, up to `max_page_size` (default 100)                            |
+| `cursor`   | The previous page's `next_cursor`. The contents are opaque (clients do not interpret them) |
+| `category` | The category's ID. `none` for uncategorized                                                |
+| `tag`      | The tag's slug                                                                             |
 
 ### 3.2 Response Shape
 

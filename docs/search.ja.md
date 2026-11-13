@@ -54,14 +54,14 @@ content_types = ["article", "page"]  # 検索の対象にするコンテンツ�
 
 テンプレートに渡す値:
 
-| 値 | 内容 |
-| --- | --- |
-| `fields.query` | 検索語 |
-| `fields.category` | 絞り込み中のカテゴリの ID（無ければ空） |
-| `fields.tag` | 絞り込み中のタグ（無ければ空） |
-| `fields.sort` | 並び（`relevance` または `newest`。知らない値は `relevance`） |
-| `items` | 一致したコンテンツ（一致の良い順）。`item.title`、`item.content_type`、`item.published_at`、`item.fields.url`（公開ページの URL、`base_path` 込み）、`item.fields.snippet_html`（本文の抜粋。検索語を `<mark>` で囲んだエスケープ済みの HTML なので `{{ item.fields.snippet_html \| safe }}` で出す） |
-| `pagination` | `total_items`（一致した件数）、`total_pages`、`prev_url` / `next_url` |
+| 値                | 内容                                                                                                                                                                                                                                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fields.query`    | 検索語                                                                                                                                                                                                                                                                                                |
+| `fields.category` | 絞り込み中のカテゴリの ID（無ければ空）                                                                                                                                                                                                                                                               |
+| `fields.tag`      | 絞り込み中のタグ（無ければ空）                                                                                                                                                                                                                                                                        |
+| `fields.sort`     | 並び（`relevance` または `newest`。知らない値は `relevance`）                                                                                                                                                                                                                                         |
+| `items`           | 一致したコンテンツ（一致の良い順）。`item.title`、`item.content_type`、`item.published_at`、`item.fields.url`（公開ページの URL、`base_path` 込み）、`item.fields.snippet_html`（本文の抜粋。検索語を `<mark>` で囲んだエスケープ済みの HTML なので `{{ item.fields.snippet_html \| safe }}` で出す） |
+| `pagination`      | `total_items`（一致した件数）、`total_pages`、`prev_url` / `next_url`                                                                                                                                                                                                                                 |
 
 ```html
 <form role="search" action="{{ base_path }}/search">
@@ -76,21 +76,22 @@ content_types = ["article", "page"]  # 検索の対象にするコンテンツ�
 テーマのヘッダーなどに置く検索欄は、このフォームを `/search` に送るだけで使えます。
 
 ### アクセス解析との連携
+
 アクセス解析（`[analytics]`）が有効な場合、検索ページ（`/search?q=...`）で検索されたキーワードは個人を特定しない形で自動集計されます（1 ページ目のアクセス時のみカウント）。検索結果が 0 件だったキーワードは「該当なし検索」として別枠で記録され、Admin Studio の Analytics ダッシュボードや CSV エクスポートでユーザーのコンテンツ需要分析に活用できます（検索 API `GET /api/v1/search` の呼び出しは集計対象外です）。
 
 ## 4. API
 
 `GET /api/v1/search?q=検索語&type=article,page&category=カテゴリID&tag=タグslug&sort=newest&limit=10&offset=0`（ログイン不要）
 
-| パラメータ | 内容 |
-| --- | --- |
-| `q` | 検索語（200 文字まで。超えると `400`） |
-| `type` | 絞り込むコンテンツの種類（カンマ区切り。`[search].content_types` にあるものだけ） |
-| `category` | 絞り込むカテゴリの ID（空なら絞り込まない） |
-| `tag` | 絞り込むタグの slug または ID（空なら絞り込まない） |
-| `sort` | 並び。`relevance`（一致の良い順。既定）か `newest`（公開日時の新しい順）。知らない値は `400` |
-| `limit` | 件数（既定 10、最大 50） |
-| `offset` | 飛ばす件数 |
+| パラメータ | 内容                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| `q`        | 検索語（200 文字まで。超えると `400`）                                                       |
+| `type`     | 絞り込むコンテンツの種類（カンマ区切り。`[search].content_types` にあるものだけ）            |
+| `category` | 絞り込むカテゴリの ID（空なら絞り込まない）                                                  |
+| `tag`      | 絞り込むタグの slug または ID（空なら絞り込まない）                                          |
+| `sort`     | 並び。`relevance`（一致の良い順。既定）か `newest`（公開日時の新しい順）。知らない値は `400` |
+| `limit`    | 件数（既定 10、最大 50）                                                                     |
+| `offset`   | 飛ばす件数                                                                                   |
 
 ```json
 {

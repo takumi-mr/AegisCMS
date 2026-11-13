@@ -54,6 +54,7 @@ sdk/templates/tinygo/
 公式 SDK パッケージ [`github.com/takumi-mr/AegisCMS/sdk/tinygo`](../../tinygo) をインポートして実装します。
 
 ### マニフェスト (`plugin.manifest.json`)
+
 ゼロ・トラスト実行モデルに基づき、プラグインが必要とする最小限のケイパビリティ（権限）を宣言します。未宣言の操作はホストランタイムによって即座にブロックされます。
 
 ```json
@@ -80,17 +81,17 @@ sdk/templates/tinygo/
 
 ### 利用可能なライフサイクルフック
 
-| エクスポート関数 | 引数 | 戻り値 | 説明 |
-|---|---|---|---|
-| `allocate(size: int32)` | `size: int32` | `uintptr` | メモリアロケータ (必須) |
-| `on_before_save(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | 記事保存前の検証・値補正・保存拒否 |
-| `transform_content_ast(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | 本文ブロック AST 配列の変換 |
-| `on_render_page(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | 公開ページ描画コンテキストの動的更新 |
+| エクスポート関数                                   | 引数          | 戻り値    | 説明                                 |
+| -------------------------------------------------- | ------------- | --------- | ------------------------------------ |
+| `allocate(size: int32)`                            | `size: int32` | `uintptr` | メモリアロケータ (必須)              |
+| `on_before_save(ptr: int32, length: int32)`        | `(ptr, len)`  | `int64`   | 記事保存前の検証・値補正・保存拒否   |
+| `transform_content_ast(ptr: int32, length: int32)` | `(ptr, len)`  | `int64`   | 本文ブロック AST 配列の変換          |
+| `on_render_page(ptr: int32, length: int32)`        | `(ptr, len)`  | `int64`   | 公開ページ描画コンテキストの動的更新 |
 
 ### 利用可能なホスト API
 
-| 関数 | 説明 |
-|---|---|
-| `sdk.LogDebug(msg)`, `sdk.LogInfo(msg)`, `sdk.LogWarn(msg)`, `sdk.LogError(msg)` | ホスト側のロガー経由で安全にログを出力 |
-| `sdk.NetIsAllowed(url)` | アクセス先 URL がマニフェストで許可されているか検証 |
-| `sdk.KVSet(key, value)` | プラグイン専用ネームスペースの KVS へデータを保存 |
+| 関数                                                                             | 説明                                                |
+| -------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `sdk.LogDebug(msg)`, `sdk.LogInfo(msg)`, `sdk.LogWarn(msg)`, `sdk.LogError(msg)` | ホスト側のロガー経由で安全にログを出力              |
+| `sdk.NetIsAllowed(url)`                                                          | アクセス先 URL がマニフェストで許可されているか検証 |
+| `sdk.KVSet(key, value)`                                                          | プラグイン専用ネームスペースの KVS へデータを保存   |

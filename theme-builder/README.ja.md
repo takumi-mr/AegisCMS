@@ -13,13 +13,13 @@ task dev:theme-builder              # http://localhost:5174/
 
 使い方・API・保護の仕組みは [docs/theme_authoring_guide.ja.md](../docs/theme_authoring_guide.ja.md#theme-builderエディター--ライブプレビュー)、設計は [docs/architecture.ja.md](../docs/architecture.ja.md#181-theme-builder-theme-builder) を参照。
 
-| コマンド                                | 内容                                         |
-| --------------------------------------- | -------------------------------------------- |
+| コマンド                                | 内容                                           |
+| --------------------------------------- | ---------------------------------------------- |
 | `npm run dev`                           | 開発サーバー（`THEME_DEV_URL` で接続先を変更） |
-| `npm run test`                          | ユニットテスト（Vitest）                     |
-| `npm run test:e2e`                      | E2E テスト（Playwright。下記）               |
-| `npm run lint` / `npm run format:check` | oxlint（ゼロ警告）/ Prettier                 |
-| `npm run build`                         | 型チェックと本番ビルド（`dist/`）            |
+| `npm run test`                          | ユニットテスト（Vitest）                       |
+| `npm run test:e2e`                      | E2E テスト（Playwright。下記）                 |
+| `npm run lint` / `npm run format:check` | oxlint（ゼロ警告）/ Prettier                   |
+| `npm run build`                         | 型チェックと本番ビルド（`dist/`）              |
 
 ## 構成
 

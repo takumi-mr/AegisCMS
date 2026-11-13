@@ -7,15 +7,15 @@ An official Wasm plugin that analyzes the body of articles and static pages and 
 ## Features
 
 - **Hybrid Japanese and English support**:
-  - CJK characters such as Japanese, Chinese, and Korean are calculated per character (default: 500 characters/minute).
-  - Western text such as English is calculated per space-separated word (default: 200 words/minute).
-  - It calculates an accurate reading time even for mixed text.
+    - CJK characters such as Japanese, Chinese, and Korean are calculated per character (default: 500 characters/minute).
+    - Western text such as English is calculated per space-separated word (default: 200 words/minute).
+    - It calculates an accurate reading time even for mixed text.
 - **Flexible appearance and placement**:
-  - Choose from a pill badge (default), a bordered card, or plain text display.
-  - Can be placed at the start of the body (default), the end, or both.
-  - Comes with a clock icon that follows the theme's `--accent` color.
+    - Choose from a pill badge (default), a bordered card, or plain text display.
+    - Can be placed at the start of the body (default), the end, or both.
+    - Comes with a clock icon that follows the theme's `--accent` color.
 - **Per-article hiding**:
-  - Setting `hide_reading_time = true` in an article's custom field hides it for that article only.
+    - Setting `hide_reading_time = true` in an article's custom field hides it for that article only.
 
 ## Settings (`[plugins.settings.official-reading-time]`)
 

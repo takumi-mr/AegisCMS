@@ -13,25 +13,25 @@ In AegisCMS, content types (posts, products, events, portfolios, etc.) are defin
 ## Responsibilities and Features
 
 - **Declarative schema definitions (`definition`)**:
-  - `SchemaDefinition`, `FieldDefinition`, `FieldType` (string, text, integer, boolean, datetime, json, relation, etc.).
-  - Transparent integration of the standard common columns (`id`, `title`, `slug`, `status`, `created_at`, `updated_at`, `published_at`, etc.).
-  - Relation definitions (`RelationTarget`: has_one, has_many, belongs_to).
+    - `SchemaDefinition`, `FieldDefinition`, `FieldType` (string, text, integer, boolean, datetime, json, relation, etc.).
+    - Transparent integration of the standard common columns (`id`, `title`, `slug`, `status`, `created_at`, `updated_at`, `published_at`, etc.).
+    - Relation definitions (`RelationTarget`: has_one, has_many, belongs_to).
 - **Schema loader (`loader`)**:
-  - Scans, parses, and validates the consistency of YAML/JSON schema files under the `schemas/` directory.
+    - Scans, parses, and validates the consistency of YAML/JSON schema files under the `schemas/` directory.
 - **Multi-dialect migration (`migration`)**:
-  - Diff detection and automatic DDL generation for SQLite, PostgreSQL, and MySQL (`CREATE TABLE`, `ALTER TABLE ADD COLUMN`, index creation).
+    - Diff detection and automatic DDL generation for SQLite, PostgreSQL, and MySQL (`CREATE TABLE`, `ALTER TABLE ADD COLUMN`, index creation).
 - **Code generation (`codegen`)**:
-  - **TypeScript Generator**: Generates TypeScript interface definitions for Admin Studio and external frontends.
-  - **OpenAPI 3.1 Generator**: Automatically outputs RESTful API endpoints and schema specifications (JSON/YAML) based on the schema definitions.
+    - **TypeScript Generator**: Generates TypeScript interface definitions for Admin Studio and external frontends.
+    - **OpenAPI 3.1 Generator**: Automatically outputs RESTful API endpoints and schema specifications (JSON/YAML) based on the schema definitions.
 
 ## Module Layout
 
-| Module | Description |
-| :--- | :--- |
-| `definition` | Data structures for schemas, fields, and relations |
-| `loader` | Loading schemas from the file system and syntax validation (`SchemaLoader`) |
-| `migration` | Migration DDL generation for each SQL dialect (`SchemaMigration`, `SqlDialect`) |
-| `codegen` | TypeScript type definitions and OpenAPI 3.1 specification generation (`TypeScriptGenerator`, `OpenApiGenerator`) |
+| Module       | Description                                                                                                      |
+| :----------- | :--------------------------------------------------------------------------------------------------------------- |
+| `definition` | Data structures for schemas, fields, and relations                                                               |
+| `loader`     | Loading schemas from the file system and syntax validation (`SchemaLoader`)                                      |
+| `migration`  | Migration DDL generation for each SQL dialect (`SchemaMigration`, `SqlDialect`)                                  |
+| `codegen`    | TypeScript type definitions and OpenAPI 3.1 specification generation (`TypeScriptGenerator`, `OpenApiGenerator`) |
 
 ## Usage Example
 

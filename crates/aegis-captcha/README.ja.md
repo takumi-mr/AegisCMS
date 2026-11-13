@@ -13,17 +13,17 @@
 ## 主な責務・提供機能
 
 - **マルチプロバイダ対応**:
-  - `cloudflare` / `turnstile`: Cloudflare Turnstile。
-  - `hcaptcha`: hCaptcha。
-  - `recaptcha`: Google reCAPTCHA v2 / v3。
-  - `custom`: 任意の `siteverify` 互換エンドポイント。
+    - `cloudflare` / `turnstile`: Cloudflare Turnstile。
+    - `hcaptcha`: hCaptcha。
+    - `recaptcha`: Google reCAPTCHA v2 / v3。
+    - `custom`: 任意の `siteverify` 互換エンドポイント。
 - **検証とセキュリティポリシー**:
-  - クライアントから送信されたレスポンストークンのサーバーサイド検証。
-  - **fail-closed** (既定): 外部 CAPTCHA API の障害時やタイムアウト時は安全のため拒否。
-  - **fail-open**: `fail_open = true` で一時的な障害時に入力を通過させるフォールバック運用も可能。
+    - クライアントから送信されたレスポンストークンのサーバーサイド検証。
+    - **fail-closed** (既定): 外部 CAPTCHA API の障害時やタイムアウト時は安全のため拒否。
+    - **fail-open**: `fail_open = true` で一時的な障害時に入力を通過させるフォールバック運用も可能。
 - **テンプレート・ヘッダー支援**:
-  - 各プロバイダに応じたクライアント側 `<script>` タグおよびウィジェット HTML の生成。
-  - プロバイダに必要なドメイン（`challenges.cloudflare.com`, `hcaptcha.com`, `google.com` 等）を Content-Security-Policy (CSP) に自動付与するためのホストリスト提供。
+    - 各プロバイダに応じたクライアント側 `<script>` タグおよびウィジェット HTML の生成。
+    - プロバイダに必要なドメイン（`challenges.cloudflare.com`, `hcaptcha.com`, `google.com` 等）を Content-Security-Policy (CSP) に自動付与するためのホストリスト提供。
 
 ## 使用例
 

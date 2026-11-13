@@ -15,23 +15,23 @@
 
 `[members].enabled = true` のとき、会員アカウントが有効になります（設定は §3）。注文履歴・配送先・レビューは、ショップ（`[commerce].enabled = true`）も有効なときに使えます。
 
-| API | 内容 |
-|---|---|
-| `POST /api/v1/members/register` | 会員登録（メール・パスワード・名前。電話・配送先は任意） |
-| `POST /api/v1/members/login` | ログイン。`{ "token": "mses_...", "expires_at": ..., "member": {...} }` を返す |
-| `POST /api/v1/members/logout` | ログアウト |
-| `GET` / `PUT /api/v1/members/me` | 自分の情報の取得・更新（パスワード変更は現在のパスワードが要る） |
-| `PUT` / `DELETE /api/v1/members/me/avatar` | プロフィール画像の設定・解除（§13a） |
-| `GET /api/v1/members/orders`・`/orders/{id}` | 自分の注文履歴（ログイン中に注文すると、注文が会員に紐づく） |
-| `GET /api/v1/members/reviews` | 自分のレビュー |
-| `GET` / `POST /api/v1/products/{product_id}/reviews` | 商品のレビュー（公開済みの一覧・投稿） |
-| `GET /api/v1/admin/members`・`/{id}`、`PATCH` | 会員の一覧・詳細・状態（`active` / `suspended`）の変更（`editor` 以上） |
-| `PUT /api/v1/admin/members/{id}/level` | 会員の権限レベルの変更（`admin` のみ。§15） |
-| `/api/v1/admin/reviews`・`/settings`・`/bulk`・`/{id}`・`/{id}/reply` | レビューの管理（承認・一括・返信・設定） |
-| `POST` / `GET /api/v1/members/purchases` | 記事の購入を始める・自分の購入の一覧（`[members.purchase].enabled` のとき。§16） |
-| `GET /api/v1/members/plans`、`POST` / `GET /api/v1/members/subscriptions`、`POST /api/v1/members/billing-portal` | プランの一覧、契約を始める・自分の契約、解約・カード変更の画面（Stripe の Customer Portal）の URL（§16） |
-| `POST /api/v1/admin/members/{id}/purchases`、`POST /api/v1/admin/purchases/{id}/revoke` / `refund`、`POST /api/v1/admin/subscriptions/{id}/cancel` | 無料の付与、権利の取り消し、返金、契約の解約（`admin` のみ。§16） |
-| `POST /api/v1/members/webhooks/stripe` | 購入の入金・返金の通知（Stripe の署名つき。§16） |
+| API                                                                                                                                                | 内容                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/members/register`                                                                                                                    | 会員登録（メール・パスワード・名前。電話・配送先は任意）                                                 |
+| `POST /api/v1/members/login`                                                                                                                       | ログイン。`{ "token": "mses_...", "expires_at": ..., "member": {...} }` を返す                           |
+| `POST /api/v1/members/logout`                                                                                                                      | ログアウト                                                                                               |
+| `GET` / `PUT /api/v1/members/me`                                                                                                                   | 自分の情報の取得・更新（パスワード変更は現在のパスワードが要る）                                         |
+| `PUT` / `DELETE /api/v1/members/me/avatar`                                                                                                         | プロフィール画像の設定・解除（§13a）                                                                     |
+| `GET /api/v1/members/orders`・`/orders/{id}`                                                                                                       | 自分の注文履歴（ログイン中に注文すると、注文が会員に紐づく）                                             |
+| `GET /api/v1/members/reviews`                                                                                                                      | 自分のレビュー                                                                                           |
+| `GET` / `POST /api/v1/products/{product_id}/reviews`                                                                                               | 商品のレビュー（公開済みの一覧・投稿）                                                                   |
+| `GET /api/v1/admin/members`・`/{id}`、`PATCH`                                                                                                      | 会員の一覧・詳細・状態（`active` / `suspended`）の変更（`editor` 以上）                                  |
+| `PUT /api/v1/admin/members/{id}/level`                                                                                                             | 会員の権限レベルの変更（`admin` のみ。§15）                                                              |
+| `/api/v1/admin/reviews`・`/settings`・`/bulk`・`/{id}`・`/{id}/reply`                                                                              | レビューの管理（承認・一括・返信・設定）                                                                 |
+| `POST` / `GET /api/v1/members/purchases`                                                                                                           | 記事の購入を始める・自分の購入の一覧（`[members.purchase].enabled` のとき。§16）                         |
+| `GET /api/v1/members/plans`、`POST` / `GET /api/v1/members/subscriptions`、`POST /api/v1/members/billing-portal`                                   | プランの一覧、契約を始める・自分の契約、解約・カード変更の画面（Stripe の Customer Portal）の URL（§16） |
+| `POST /api/v1/admin/members/{id}/purchases`、`POST /api/v1/admin/purchases/{id}/revoke` / `refund`、`POST /api/v1/admin/subscriptions/{id}/cancel` | 無料の付与、権利の取り消し、返金、契約の解約（`admin` のみ。§16）                                        |
+| `POST /api/v1/members/webhooks/stripe`                                                                                                             | 購入の入金・返金の通知（Stripe の署名つき。§16）                                                         |
 
 - 認証は `Authorization: Bearer mses_...`（API のクライアント向け）。セッションはキャッシュに置き、既定で 30 日。
 - パスワードは Argon2id。登録済みのメールでの登録は `409`。
@@ -78,14 +78,14 @@ public_url = ""                     # メールのリンクの元（例 "https:/
 
 ### 4.1 ルート
 
-| パス | 内容 |
-|---|---|
-| `/account` | マイページ（ログイン中: 注文履歴・自分のレビュー・登録情報。未ログイン: ログイン画面へ） |
-| `/account/login` | ログイン |
-| `/account/register` | 会員登録（`registration = "closed"` なら 404） |
-| `/account/forgot` | パスワードを忘れたとき（再設定メールの申し込み） |
-| `/account/reset?token=...` | 新しいパスワードの設定 |
-| `/account/verify?token=...` | メールアドレスの確認 |
+| パス                        | 内容                                                                                     |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| `/account`                  | マイページ（ログイン中: 注文履歴・自分のレビュー・登録情報。未ログイン: ログイン画面へ） |
+| `/account/login`            | ログイン                                                                                 |
+| `/account/register`         | 会員登録（`registration = "closed"` なら 404）                                           |
+| `/account/forgot`           | パスワードを忘れたとき（再設定メールの申し込み）                                         |
+| `/account/reset?token=...`  | 新しいパスワードの設定                                                                   |
+| `/account/verify?token=...` | メールアドレスの確認                                                                     |
 
 ### 4.2 ログインの持ち方
 
@@ -112,9 +112,9 @@ public_url = ""                     # メールのリンクの元（例 "https:/
 - **一覧と平均**: 承認済みのレビュー（★・タイトル・本文・投稿者名・「購入済み」の印・運営の返信・日付）と、平均・件数を、スクリプト（`/shop/reviews.js`）が API から取って出します（`GET /api/v1/products/{id}/reviews`）。
 - **検索結果の星**: 承認済みのレビューがあるときだけ、商品ページの `<head>` に構造化データ（JSON-LD の `Product` + `aggregateRating`。`ratingValue`・`reviewCount`・`bestRating`・`worstRating`）を出します。`<` はエスケープしてあり、商品名で `</script>` を閉じられません。レビューの承認・削除で、ページのキャッシュが更新されます。
 - **書けるのは購入者だけ**（サーバーが注文を確かめる。支払い済み以降の注文で、1 注文 1 商品につき 1 件）。
-  - **ログイン中の会員**: その商品を含む支払い済みの注文が複数あれば、どの注文のレビューかを選ぶ。書き済みの注文は選べない。
-  - **ゲスト購入の人**: 注文確認のページ（`/orders/{id}?token=...`）の各明細に「レビューを書く」のリンクが出る。リンク先は商品ページ（`?review_order=...&token=...`）で、スクリプトが読んだ直後にアドレスバーからトークンを消す。
-  - どちらでもない人には、ログインのリンクと、購入者だけが書けるという説明を出す。
+    - **ログイン中の会員**: その商品を含む支払い済みの注文が複数あれば、どの注文のレビューかを選ぶ。書き済みの注文は選べない。
+    - **ゲスト購入の人**: 注文確認のページ（`/orders/{id}?token=...`）の各明細に「レビューを書く」のリンクが出る。リンク先は商品ページ（`?review_order=...&token=...`）で、スクリプトが読んだ直後にアドレスバーからトークンを消す。
+    - どちらでもない人には、ログインのリンクと、購入者だけが書けるという説明を出す。
 - 投稿後の文は、公開されたか承認待ちかで変わる（`POST` の応答の `status` が `approved` / `pending`）。審査は `[comments.moderation]` に従う。
 - テーマ制作者は、`theme_vars.reviews_enabled`（`"true"` のとき）で `reviews.html` を読み込みます。上書きするときは、`<div id="aegis-reviews">` と、`reviews_*` / `account_*` を `data-*` に渡すスクリプトの読み込みを残してください。
 
@@ -126,10 +126,10 @@ public_url = ""                     # メールのリンクの元（例 "https:/
 
 管理アカウントの再設定（`/api/v1/auth/password-reset`）と同じ作りです（トークンはキャッシュにハッシュで保存し、1 回だけ使える）。
 
-| API | 内容 |
-| --- | --- |
-| `POST /api/v1/members/password-reset` | `{ "email" }`。登録の有無によらず、メールアドレスの形が正しければ**常に `202`**。登録があり停止中でなければ、再設定のリンクをメールで送る。有効 1 時間 |
-| `POST /api/v1/members/password-reset/complete` | `{ "token", "password" }`。パスワードを変え、その会員の**すべてのセッションを失効**させる。リンクは 1 回だけ。無効・期限切れ・使用済みは `400` |
+| API                                            | 内容                                                                                                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/v1/members/password-reset`          | `{ "email" }`。登録の有無によらず、メールアドレスの形が正しければ**常に `202`**。登録があり停止中でなければ、再設定のリンクをメールで送る。有効 1 時間 |
+| `POST /api/v1/members/password-reset/complete` | `{ "token", "password" }`。パスワードを変え、その会員の**すべてのセッションを失効**させる。リンクは 1 回だけ。無効・期限切れ・使用済みは `400`         |
 
 - **画面**: `/account/forgot`（メールアドレスを入れる）、`/account/reset?token=...`（新しいパスワード。読んだ直後に、アドレスバーからトークンを消す）。ログイン画面に「パスワードをお忘れの方」のリンクが出る。
 - **使える条件**: `[notifications]` が有効（メールを送れる）で、`[members].public_url` が設定されていること（`[members].password_reset = false` で止められる）。メールのリンクは、**リクエストの `Host` ではなく `public_url` から作る**（`Host` は偽装できるので、攻撃者が被害者に偽のリンクを届けられてしまう）。使えない設定では、API もページも 404 で、ログイン画面はリンクを出さない。
@@ -147,12 +147,12 @@ public_url = ""                     # メールのリンクの元（例 "https:/
 
 `[members].require_email_verification = true` で、会員登録のあと、確認メールのリンクを開くまでログインできません。
 
-| API | 内容 |
-| --- | --- |
-| `POST /api/v1/members/register` | 確認が必須のときは `202` `{ "status": "verification_sent" }`。会員は `unverified` で作り、確認メールを送る。**登録済みのアドレスでも同じ応答**（メールは送らない）。ログインのトークンは返さない |
-| `POST /api/v1/members/verify` | `{ "token" }`。メールアドレスを確認して、会員を `active` にする。リンクは 48 時間・1 回だけ。無効・期限切れ・使用済みは `400` |
-| `POST /api/v1/members/verify/resend` | `{ "email" }`。確認メールを送り直す。**常に `202`**（確認待ちのアドレスにだけ送る）。同じ IP から 1 時間に 5 回まで |
-| `POST /api/v1/members/login` | パスワードが合っていて確認が済んでいないときは `403` `{ "code": "email_not_verified" }`。パスワードが違うときは、確認待ちかどうかを教えない（`401`） |
+| API                                  | 内容                                                                                                                                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/v1/members/register`      | 確認が必須のときは `202` `{ "status": "verification_sent" }`。会員は `unverified` で作り、確認メールを送る。**登録済みのアドレスでも同じ応答**（メールは送らない）。ログインのトークンは返さない |
+| `POST /api/v1/members/verify`        | `{ "token" }`。メールアドレスを確認して、会員を `active` にする。リンクは 48 時間・1 回だけ。無効・期限切れ・使用済みは `400`                                                                    |
+| `POST /api/v1/members/verify/resend` | `{ "email" }`。確認メールを送り直す。**常に `202`**（確認待ちのアドレスにだけ送る）。同じ IP から 1 時間に 5 回まで                                                                              |
+| `POST /api/v1/members/login`         | パスワードが合っていて確認が済んでいないときは `403` `{ "code": "email_not_verified" }`。パスワードが違うときは、確認待ちかどうかを教えない（`401`）                                             |
 
 - **画面**: 会員登録のあと「確認メールを送りました」と案内する（ログインはしない）。ログイン画面は、`email_not_verified` のとき「確認メールを送り直す」を出す。`/account/verify?token=...` が確認のページで、トークンを読んだ直後にアドレスバーから消す。無効なリンクのときは、送り直しの申し込みを出す。
 - **状態は `unverified`**（`active` / `suspended` に加わる）。**テーブルの列は増やさない**（古い DB を拒否する対象を増やさないため。状態は文字列の列にそのまま入る）。管理者が会員の状態を `active` にすれば、確認を待たずに使える。
@@ -178,12 +178,12 @@ public_url = ""                     # メールのリンクの元（例 "https:/
 
 `DELETE /api/v1/members/me`（`{ "password" }`）で、自分のアカウントを削除できます。パスワードで本人を確かめる（違えば `401` で、何も変えない）。成功すると `204` で、ログインの Cookie も消えます。
 
-| 対象 | 退会したあと |
-| --- | --- |
-| 会員の行・ログイン・セッション | **削除**。セッションはその場で使えなくなる |
-| **注文** | **残す**（会計の記録）。会員との紐づき（`member_id`）だけを外す。明細・金額・注文時のメールアドレス・氏名・配送先は、注文の記録として残る（注文確認ページの URL は、今までどおり使える） |
-| **レビュー** | **残す**（評価・本文・運営の返信・状態）。会員との紐づき・投稿者名・メールアドレス・IP・User-Agent を消す。公開ページでは投稿者名が「退会したお客様」と出る。星の集計は変わらない |
-| 監査ログ | `member.delete` を記録する（**メールアドレスは記録しない**） |
+| 対象                           | 退会したあと                                                                                                                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 会員の行・ログイン・セッション | **削除**。セッションはその場で使えなくなる                                                                                                                                               |
+| **注文**                       | **残す**（会計の記録）。会員との紐づき（`member_id`）だけを外す。明細・金額・注文時のメールアドレス・氏名・配送先は、注文の記録として残る（注文確認ページの URL は、今までどおり使える） |
+| **レビュー**                   | **残す**（評価・本文・運営の返信・状態）。会員との紐づき・投稿者名・メールアドレス・IP・User-Agent を消す。公開ページでは投稿者名が「退会したお客様」と出る。星の集計は変わらない        |
+| 監査ログ                       | `member.delete` を記録する（**メールアドレスは記録しない**）                                                                                                                             |
 
 - 同じメールアドレスで、あらためて登録できる（新しい会員。過去の注文は結びつかない）。
 - 公開の商品ページに出ていた投稿者名が変わるので、その商品のキャッシュ（`reviews-{商品}`）を更新する。
@@ -198,18 +198,19 @@ public_url = ""                     # メールのリンクの元（例 "https:/
 Admin Studio の「ショップ」に 2 つの画面を足します（API は実装済み）。
 
 - **会員**（`editor` 以上、**実装済み**）: Admin Studio の「会員」タブ（`[members].enabled` のときだけ出る。`GET /api/v1/shop/config` の `members_enabled`）。一覧（名前・メール・状態・登録日・最終ログイン。新しい順、25 件ずつ）、詳細（連絡先・保存している配送先・掲示板の投稿数・注文の一覧と支払い済みの合計）、状態の変更（`active` ⇄ `suspended`。停止するとセッションを失効させる）。メール未確認（`unverified`）の会員は、状態を変えられない（確認が済むまで使えない）。
-  - 詳細の「掲示板」は、その会員が立てたスレッドの数と、書いたレスの数（スレッドの 1 つ目の投稿を含む）。`GET /api/v1/admin/members/{id}` の `forum`（`{threads, posts}`。掲示板が無効なら `null` で、欄も出ない）。種類と ID の組で数えるので、同じ ID のスタッフの分は入らない。退会した会員の投稿は匿名なので数えない。
-  - 掲示板の管理画面は、スレッドとレスの投稿者が会員なら「会員」の印と「会員を開く」のリンクを出す（スタッフは「スタッフ」の印）。リンクは、この会員の詳細を開く（会員の画面を見られる立場のときだけ）。退会した会員や匿名の投稿は、名前が空なら「退会したユーザー」と出す。
-  - 詳細の注文は、番号・状態・金額・日時だけを返す（注文確認ページのトークンのハッシュなどは載せない）。
-  - 検索は、まだ無い（API が一覧のページ送りだけのため）。
-  - 「会員」タブは、ショップが無効でも出る（会員のアカウントはショップに依存しない）。ショップが無効のときは、詳細に注文の欄を出さない。
+    - 詳細の「掲示板」は、その会員が立てたスレッドの数と、書いたレスの数（スレッドの 1 つ目の投稿を含む）。`GET /api/v1/admin/members/{id}` の `forum`（`{threads, posts}`。掲示板が無効なら `null` で、欄も出ない）。種類と ID の組で数えるので、同じ ID のスタッフの分は入らない。退会した会員の投稿は匿名なので数えない。
+    - 掲示板の管理画面は、スレッドとレスの投稿者が会員なら「会員」の印と「会員を開く」のリンクを出す（スタッフは「スタッフ」の印）。リンクは、この会員の詳細を開く（会員の画面を見られる立場のときだけ）。退会した会員や匿名の投稿は、名前が空なら「退会したユーザー」と出す。
+    - 詳細の注文は、番号・状態・金額・日時だけを返す（注文確認ページのトークンのハッシュなどは載せない）。
+    - 検索は、まだ無い（API が一覧のページ送りだけのため）。
+    - 「会員」タブは、ショップが無効でも出る（会員のアカウントはショップに依存しない）。ショップが無効のときは、詳細に注文の欄を出さない。
 
-  ![Admin Studio の会員の一覧](images/members-admin.png)
+    ![Admin Studio の会員の一覧](images/members-admin.png)
 
-  ![会員の詳細（掲示板の投稿数）](images/members-detail.png)
+    ![会員の詳細（掲示板の投稿数）](images/members-detail.png)
+
 - **レビュー**（`editor` 以上、**実装済み**）: 「レビュー」タブ（ショップが有効なときだけ出る。`reviews_enabled`）。状態での絞り込み（承認待ち・承認済み・非承認・スパム・すべて）、一括の承認・保留・非承認・スパム・削除、本文・評価・購入者の印の確認、ショップからの返信（書く・直す・消す）。非承認とスパムでは、理由（任意）を聞いて、レビューに記録する（投稿者には見せない）。
-  - 退会した会員のレビューは、投稿者名が空で、「退会したお客様」と出る。
-  - 承認制の設定（`/api/v1/admin/reviews/settings`）の画面は、まだ無い（API は実装済み。有効な値と既定値を返す形にしてから画面を作る）。
+    - 退会した会員のレビューは、投稿者名が空で、「退会したお客様」と出る。
+    - 承認制の設定（`/api/v1/admin/reviews/settings`）の画面は、まだ無い（API は実装済み。有効な値と既定値を返す形にしてから画面を作る）。
 
 ---
 
@@ -253,27 +254,27 @@ Admin Studio の「ショップ」に 2 つの画面を足します（API は実
 
 内部は **member に統一**し、訪問者に見える文言だけを画面の種類で変えます。
 
-| 層 | 呼び方 |
-| --- | --- |
-| 設定・API・DB・コード・監査ログ・通知 | `member`（`[members]`、`/api/v1/members/*`、`_aegis_members`、`MemberService`、`member.*`） |
-| 管理画面 | タブは「会員」 |
-| 訪問者に見える文言 | ショップの画面（注文履歴・レビュー）は「お客様」、掲示板の画面は「ユーザー」。メッセージのキー（`js.*`）で出し分け、`[theme].locale` の言語で出す |
+| 層                                    | 呼び方                                                                                                                                            |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 設定・API・DB・コード・監査ログ・通知 | `member`（`[members]`、`/api/v1/members/*`、`_aegis_members`、`MemberService`、`member.*`）                                                       |
+| 管理画面                              | タブは「会員」                                                                                                                                    |
+| 訪問者に見える文言                    | ショップの画面（注文履歴・レビュー）は「お客様」、掲示板の画面は「ユーザー」。メッセージのキー（`js.*`）で出し分け、`[theme].locale` の言語で出す |
 
 ページのパスは変えません（`/account`、`/account/login` …）。
 
 ### 11.2 変わったもの
 
-| 変わったもの | 移行 |
-| --- | --- |
-| 設定 `[commerce.customers]` | `[members]` に移す（`enabled = true` を書く。**既定は `false`**）。古いキーが残っていると、**起動時に移行を案内してエラー**になる |
-| メールのリンクの元 | `[members].public_url`（注文確認のリンクは今までどおり `[commerce].public_url`）。`require_email_verification = true` で空なら起動しない |
-| `/api/v1/customers/*`・`/api/v1/admin/customers/*` | `/api/v1/members/*`・`/api/v1/admin/members/*`（古いパスは 404） |
-| 表 `_aegis_customers`、注文・レビューの `customer_id` | `_aegis_members`、`member_id`。起動時の列の確認が古い DB を拒否する（下の SQL で直す） |
-| セッションのトークン・Cookie | `cses_...` → `mses_...`、`{名前空間}_customer` → `{名前空間}_member`。**全員がログアウト**になる |
-| キャッシュのキー | `customer_session:` など → `member_session:` など |
-| 監査ログ `customer.*`、通知テンプレート `customer.*` | `member.*`（過去の監査ログの行はそのまま読める。通知テンプレートを上書きしているサイトは、ファイル名を `member.password_reset.txt` などに直す） |
-| 管理 API の `shop/config` | `customers_enabled` → `members_enabled` |
-| バックアップ（`task dump`） | 会員は `database/members.json`、購入は `database/purchases.json`（古いバックアップには無い）。**古いバックアップ（`database/customers.json`、注文・レビューの `customer_id`）も復元できる** |
+| 変わったもの                                          | 移行                                                                                                                                                                                        |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 設定 `[commerce.customers]`                           | `[members]` に移す（`enabled = true` を書く。**既定は `false`**）。古いキーが残っていると、**起動時に移行を案内してエラー**になる                                                           |
+| メールのリンクの元                                    | `[members].public_url`（注文確認のリンクは今までどおり `[commerce].public_url`）。`require_email_verification = true` で空なら起動しない                                                    |
+| `/api/v1/customers/*`・`/api/v1/admin/customers/*`    | `/api/v1/members/*`・`/api/v1/admin/members/*`（古いパスは 404）                                                                                                                            |
+| 表 `_aegis_customers`、注文・レビューの `customer_id` | `_aegis_members`、`member_id`。起動時の列の確認が古い DB を拒否する（下の SQL で直す）                                                                                                      |
+| セッションのトークン・Cookie                          | `cses_...` → `mses_...`、`{名前空間}_customer` → `{名前空間}_member`。**全員がログアウト**になる                                                                                            |
+| キャッシュのキー                                      | `customer_session:` など → `member_session:` など                                                                                                                                           |
+| 監査ログ `customer.*`、通知テンプレート `customer.*`  | `member.*`（過去の監査ログの行はそのまま読める。通知テンプレートを上書きしているサイトは、ファイル名を `member.password_reset.txt` などに直す）                                             |
+| 管理 API の `shop/config`                             | `customers_enabled` → `members_enabled`                                                                                                                                                     |
+| バックアップ（`task dump`）                           | 会員は `database/members.json`、購入は `database/purchases.json`（古いバックアップには無い）。**古いバックアップ（`database/customers.json`、注文・レビューの `customer_id`）も復元できる** |
 
 古い DB の移行は、列と表の名前を直す SQL を実行します（自動では直しません。システム表を途中まで更新しない方針は今までと同じ）。
 
@@ -307,17 +308,17 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 - 退会しても、掲示板の投稿は**残して匿名にする**（スレッドが途切れないように）。`author_id` と `author_kind` を空にし、`author_name` を空にして（画面には「退会したユーザー」）、投稿の IP と User-Agent を消す。退会の手順は §11.3（本人の確認 → ショップの後始末 → 掲示板の後始末 → 会員の行の削除）。掲示板が無効のとき（`[forum].enabled = false`）は、後始末を行わない。
 - **古い DB の移行**（§11.2 の SQL に加えて）: カテゴリの `is_private` を `visibility` にし、投稿に `author_kind` を足す。
 
-  ```sql
-  ALTER TABLE _aegis_forum_categories ADD COLUMN visibility VARCHAR(255) NOT NULL DEFAULT 'public';
-  UPDATE _aegis_forum_categories SET visibility = 'staff' WHERE is_private = 1;
-  ALTER TABLE _aegis_forum_categories DROP COLUMN is_private;      -- SQLite 3.35 以降。それ以前は、バックアップから復元する
-  ALTER TABLE _aegis_forum_threads ADD COLUMN author_kind VARCHAR(255);
-  ALTER TABLE _aegis_forum_posts ADD COLUMN author_kind VARCHAR(255);
-  UPDATE _aegis_forum_threads SET author_kind = 'staff' WHERE author_id IS NOT NULL;
-  UPDATE _aegis_forum_posts SET author_kind = 'staff' WHERE author_id IS NOT NULL;
-  ```
+    ```sql
+    ALTER TABLE _aegis_forum_categories ADD COLUMN visibility VARCHAR(255) NOT NULL DEFAULT 'public';
+    UPDATE _aegis_forum_categories SET visibility = 'staff' WHERE is_private = 1;
+    ALTER TABLE _aegis_forum_categories DROP COLUMN is_private;      -- SQLite 3.35 以降。それ以前は、バックアップから復元する
+    ALTER TABLE _aegis_forum_threads ADD COLUMN author_kind VARCHAR(255);
+    ALTER TABLE _aegis_forum_posts ADD COLUMN author_kind VARCHAR(255);
+    UPDATE _aegis_forum_threads SET author_kind = 'staff' WHERE author_id IS NOT NULL;
+    UPDATE _aegis_forum_posts SET author_kind = 'staff' WHERE author_id IS NOT NULL;
+    ```
 
-  または、前のバージョンで `task dump` を取り、新しい DB に `task restore` する（`is_private` と `author_kind` の無いバックアップは、上と同じ規則で読み替える）。
+    または、前のバージョンで `task dump` を取り、新しい DB に `task restore` する（`is_private` と `author_kind` の無いバックアップは、上と同じ規則で読み替える）。
 
 ---
 
@@ -383,16 +384,16 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 
 閲覧者の種類によって本文が変わると、本文を出すところ**すべて**が漏れ口になる。1 か所の判定を共通にして、次をすべて通す。
 
-| 面 | 扱い |
-|---|---|
-| 記事・ページの公開ページ | 閲覧者のレベルで本文を切る。**共有キャッシュ・CDN**に載せるのは「ゲスト向け（切った版）」だけ。会員の Cookie があるときは `Cache-Control: private, no-store`（マイページと同じ）で、全文を共有キャッシュに載せない |
-| フィード（`/feed.xml` など） | 切った版（抜粋まで）。全文を出さない。要約は書き手の `excerpt`（無ければ本文の先頭を使わず空） |
-| 検索（`/search`・`/api/v1/search`） | 索引に入れる本文・スニペットは、制限より前の部分だけ。制限した部分の語では当たらない |
-| 関連記事・一覧の抜粋 | 制限より前の部分から作る |
-| ヘッドレス API（公開側の読み取り） | 同じ判定。`blocks` も切る |
-| コメントの API | 本文と同じ判定。見られない閲覧者には `403`（`access_restricted`） |
-| `oEmbed`・サイトマップ | oEmbed は `excerpt` フィールドだけ、サイトマップは URL だけなので、そのままでよい（`llms.txt` は無い） |
-| 構造化データ | 制限したページに schema.org の `isAccessibleForFree: false`（JSON-LD）を付ける。本文はゲスト・クローラーにも出さないので、隠した本文を見せる「クローキング」にならず、`hasPart` の `cssSelector` は要らない |
+| 面                                  | 扱い                                                                                                                                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 記事・ページの公開ページ            | 閲覧者のレベルで本文を切る。**共有キャッシュ・CDN**に載せるのは「ゲスト向け（切った版）」だけ。会員の Cookie があるときは `Cache-Control: private, no-store`（マイページと同じ）で、全文を共有キャッシュに載せない |
+| フィード（`/feed.xml` など）        | 切った版（抜粋まで）。全文を出さない。要約は書き手の `excerpt`（無ければ本文の先頭を使わず空）                                                                                                                     |
+| 検索（`/search`・`/api/v1/search`） | 索引に入れる本文・スニペットは、制限より前の部分だけ。制限した部分の語では当たらない                                                                                                                               |
+| 関連記事・一覧の抜粋                | 制限より前の部分から作る                                                                                                                                                                                           |
+| ヘッドレス API（公開側の読み取り）  | 同じ判定。`blocks` も切る                                                                                                                                                                                          |
+| コメントの API                      | 本文と同じ判定。見られない閲覧者には `403`（`access_restricted`）                                                                                                                                                  |
+| `oEmbed`・サイトマップ              | oEmbed は `excerpt` フィールドだけ、サイトマップは URL だけなので、そのままでよい（`llms.txt` は無い）                                                                                                             |
+| 構造化データ                        | 制限したページに schema.org の `isAccessibleForFree: false`（JSON-LD）を付ける。本文はゲスト・クローラーにも出さないので、隠した本文を見せる「クローキング」にならず、`hasPart` の `cssSelector` は要らない        |
 
 ### 15.5 キャッシュ
 
@@ -412,8 +413,8 @@ ALTER TABLE _aegis_reviews RENAME COLUMN customer_id TO member_id;
 
 1. **判定の核**（会員側は**済**）: `[members].levels`、会員の `level`（列 `_aegis_members.level`・API の応答・`PUT /api/v1/admin/members/{id}/level`・管理画面の会員の詳細で付与）、判定の関数 `aegis_members::may_view`（`Viewer` と必要なレベルから見られるかを返す。設定にないレベルは見せない）。記事・ページの `access` の欄と、閲覧者の種類の判定（Cookie / Bearer から）は 2 で、公開ページに効かせるときに足す。
 2. **公開ページ**（**済**）: 記事・ページを閲覧者で切る（全体の制限）、案内の表示、キャッシュの扱い（15.5）、テスト。`crates/aegis-server/src/handlers/access.rs` の `gate` が、`fields["access"]` と閲覧者（会員の Cookie / Bearer）から `Open`（制限なし）・`Allowed`・`Denied` を返す。`Denied` は本文を**描画せず**（HTML に出さない）、案内（`<div class="aegis-access-notice">`）を本文の代わりに出し、コメント欄・関連記事・前後の記事も出さない。ゲストにはログインと会員登録（`/account/login?next=<この記事のパス>`。ログイン後にこの記事へ戻る。`next` はサイト内のパスだけ受け付ける）、レベルが足りない会員には必要なレベルと、`[members].upgrade_url` があればそのリンクを出す。会員アカウントが無効なサイトでは、ログインのリンクを出さない。
-   - **保存時の検査**: `access` は `public`・空・`null`（=誰でも）か、`[members].levels` にあるレベルだけ。設定にない値は `400`（`code: unknown_access_level`。メッセージに選べるレベルを入れる）で断る（作成も更新も）。タイポでだれも読めなくなるのを防ぐため。レベルを `levels` から消したあと、そのレベルを指した記事を保存し直すときも、付け替えるまで 400 になる。
-   - **`access` は組み込みのフィールド**（`category_id` と同じ。`SchemaDefinition::with_builtin_fields` が全コンテンツ型に差し込み、起動時の `ALTER TABLE ... ADD COLUMN` で列が足される）。YAML に書く必要はなく、書いても組み込みの定義（`string`・最大 32 文字・公開）で置き換わるので、書き忘れや型の書き違いで制限が外れない。制限が効くのは、いまは記事とページだけ（ほかの型に値を入れても何もしない）。
+    - **保存時の検査**: `access` は `public`・空・`null`（=誰でも）か、`[members].levels` にあるレベルだけ。設定にない値は `400`（`code: unknown_access_level`。メッセージに選べるレベルを入れる）で断る（作成も更新も）。タイポでだれも読めなくなるのを防ぐため。レベルを `levels` から消したあと、そのレベルを指した記事を保存し直すときも、付け替えるまで 400 になる。
+    - **`access` は組み込みのフィールド**（`category_id` と同じ。`SchemaDefinition::with_builtin_fields` が全コンテンツ型に差し込み、起動時の `ALTER TABLE ... ADD COLUMN` で列が足される）。YAML に書く必要はなく、書いても組み込みの定義（`string`・最大 32 文字・公開）で置き換わるので、書き忘れや型の書き違いで制限が外れない。制限が効くのは、いまは記事とページだけ（ほかの型に値を入れても何もしない）。
 3. **「ここから先」**（**済**）: 区切りのブロック `core/paywall`（Markdown は `<!-- paywall -->`。往復テスト・エディター）、本文の切り出し（15.3）。
 4. **漏れ口を塞ぐ**（**済**）: 15.4 の表の面を、すべて同じ約束にそろえた。本文を閲覧者によらず出す面（フィード・検索・一覧・関連記事・タグ・ヘッドレス API）は `aegis_ast::public_blocks`（だれにでも見せてよい部分。いまは無し。3 で区切りより前を返す）と `handlers::access::summary_excerpt`（書き手の `excerpt` を優先）を通す。制限した記事のコメントの API は、本文と同じ判定（見られないなら `403`・`access_restricted`）。制限したページの `<head>` に `isAccessibleForFree: false` の JSON-LD を出す。回帰テスト（`access_tests.rs`）は、制限した本文がどの面にも出ないこと、制限していない記事は従来どおりなことを確かめる。管理画面の記事・ページの編集に「閲覧できる人」の選択を足した（会員アカウントが有効なときだけ。選択肢は `GET /api/v1/shop/config` の `member_levels`）。
 5. **プレビューの閲覧者切り替え**（**済**。15.6）。
@@ -469,16 +470,16 @@ interval_count = 1       # 3 で「3 か月ごと」
 
 購入の記録 `_aegis_purchases`（第 2 段）:
 
-| 列 | 内容 |
-|---|---|
-| `id` | 購入の ID |
-| `member_id` | 会員 ID（退会で `NULL`。会計の記録として行は残す） |
-| `content_type` / `content_id` | 買った記事・ページ |
-| `amount` / `currency` | 始めた時点の金額（Webhook で照合する） |
-| `status` | `pending`（決済ページを作った）/ `paid` / `refunded` / `cancelled`（期限切れ・失敗） |
-| `provider_ref` | Checkout Session の ID（一意） |
-| `transaction_id` | Payment Intent の ID（返金の突き合わせ） |
-| `created_at` / `paid_at` / `updated_at` | |
+| 列                                      | 内容                                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------------ |
+| `id`                                    | 購入の ID                                                                            |
+| `member_id`                             | 会員 ID（退会で `NULL`。会計の記録として行は残す）                                   |
+| `content_type` / `content_id`           | 買った記事・ページ                                                                   |
+| `amount` / `currency`                   | 始めた時点の金額（Webhook で照合する）                                               |
+| `status`                                | `pending`（決済ページを作った）/ `paid` / `refunded` / `cancelled`（期限切れ・失敗） |
+| `provider_ref`                          | Checkout Session の ID（一意）                                                       |
+| `transaction_id`                        | Payment Intent の ID（返金の突き合わせ）                                             |
+| `created_at` / `paid_at` / `updated_at` |                                                                                      |
 
 サブスクの記録 `_aegis_subscriptions`: `member_id`・`plan_id`・`level`・`status`（`active` / `past_due` / `cancelled`）・Stripe の customer / subscription ID・`current_period_end`・`cancel_at_period_end`。**有効なレベル = `member.level` と、契約中のプランの `level` の高いほう**。契約中とは、状態が `active` / `past_due` で、`current_period_end` を過ぎていない（Webhook の遅れに備えて 3 日の猶予がある）こと。`level` は契約した時点のプランのレベルを写し、プランを設定から消しても契約中は変わらない。レベルが `[members].levels` から消えたときは無視する（制限が外れない）。
 
@@ -487,9 +488,9 @@ interval_count = 1       # 3 で「3 か月ごと」
 1. 会員が、案内の「購入」リンク（`GET /account/purchase?content_type=..&slug=..`）または `POST /api/v1/members/purchases`（`{ "content_type", "slug" }`。API のクライアント向け）で始める。リンクにしているのは、既定の CSP の `form-action 'self'` が、フォームの送信先から外部の決済ページへのリダイレクトを止めるため。GET で決済ページを作るだけで入金されなければ何も起きず、Cookie は `SameSite=Lax`。ログインしていなければ、ログインのあとにここへ戻る。公開済み・`access` あり・`purchase_price` が 1 以上・まだ買っていない、を確かめる（外れたら `404` / `409`）。
 2. `pending` の行を作り、Checkout Session（`mode=payment`、`price_data` はサーバーの金額、`client_reference_id` = 購入の ID）を作って、決済ページの URL を返す。戻り先は記事のパス（成功・中止とも）。
 3. Webhook（署名と時刻を検証。ショップと同じ方式）:
-   - `checkout.session.completed`（`payment_status = paid`）・`async_payment_succeeded`: 購入の ID・Session の ID・**金額と通貨が一致**するときだけ `pending` → `paid`（条件付き UPDATE。再送で二重に動かない）。不一致は `paid` にせず、監査ログに残す。
-   - `expired` / `async_payment_failed`: `pending` → `cancelled`。
-   - `charge.refunded`: 全額の返金で `paid` → `refunded`（権利を外す）。一部返金は権利を残す。
+    - `checkout.session.completed`（`payment_status = paid`）・`async_payment_succeeded`: 購入の ID・Session の ID・**金額と通貨が一致**するときだけ `pending` → `paid`（条件付き UPDATE。再送で二重に動かない）。不一致は `paid` にせず、監査ログに残す。
+    - `expired` / `async_payment_failed`: `pending` → `cancelled`。
+    - `charge.refunded`: 全額の返金で `paid` → `refunded`（権利を外す）。一部返金は権利を残す。
 4. 同じ記事を二重に払った（2 つの決済ページを開いた）場合は、どちらも `paid` にし、監査ログに `duplicate_payment` を残す（返金は管理者が判断する）。
 5. Webhook は数秒遅れうる。戻ってすぐの記事に案内が残ることがあるので、購入のリンクのそばに「お支払いの確認まで数秒かかることがある」旨を添える。再読み込みで読める。
 

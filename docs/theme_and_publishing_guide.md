@@ -14,21 +14,22 @@ Explains AegisCMS's Public Publishing Engine, the theme engine (MiniJinja), and 
 
 AegisCMS safely hosts the Headless API Gateway, the Admin Studio admin screen, and a fast public frontend website in a single binary.
 
-| Path / route | What is served | Notes |
-|---|---|---|
-| `GET /` | The public top page | Switched with `[theme].front_page`: `posts` (default; the article list `index.html`, paged with `?page=N`), `template` (the theme's `front.html`), `page:<slug>` (a static page) |
-| `GET /articles` | The article list | Rendered with the template `index.html`. `[theme].posts_per_page` at a time, paged with `?page=N` (out of range is 404) |
-| `GET /category/{slug}` | A category's article list | Rendered with the template `category.html`. Filtered by the article's relation field to `category` (`category_id`). Paging as above |
-| `GET /feed.xml` | An Atom feed of new articles | The latest 20. A `<link>` for auto-discovery is put in each page's `<head>` |
-| `GET /category/{slug}/feed.xml` | An Atom feed of a category's articles | Same as above |
-| `GET /articles/{slug}` | An article detail page | Rendered with the template `article.html` (only `status == "published"` is public) |
-| `GET /{slug}` | A static page or article detail | Rendered with the template `page.html` or `article.html` |
-| `GET /theme/assets/*` | Theme-specific static assets (CSS/JS/images) | Served faster than `themes/{active}/assets/` |
-| `GET /admin`, `/admin/*` | The Admin Studio admin SPA | The Vite + React admin client |
-| `GET /api/v1/*` | REST API Gateway | Schemas, content CRUD, storage, authentication |
-| `GET /uploads/*` | Local storage assets | Serving uploaded images and media |
+| Path / route                    | What is served                               | Notes                                                                                                                                                                            |
+| ------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /`                         | The public top page                          | Switched with `[theme].front_page`: `posts` (default; the article list `index.html`, paged with `?page=N`), `template` (the theme's `front.html`), `page:<slug>` (a static page) |
+| `GET /articles`                 | The article list                             | Rendered with the template `index.html`. `[theme].posts_per_page` at a time, paged with `?page=N` (out of range is 404)                                                          |
+| `GET /category/{slug}`          | A category's article list                    | Rendered with the template `category.html`. Filtered by the article's relation field to `category` (`category_id`). Paging as above                                              |
+| `GET /feed.xml`                 | An Atom feed of new articles                 | The latest 20. A `<link>` for auto-discovery is put in each page's `<head>`                                                                                                      |
+| `GET /category/{slug}/feed.xml` | An Atom feed of a category's articles        | Same as above                                                                                                                                                                    |
+| `GET /articles/{slug}`          | An article detail page                       | Rendered with the template `article.html` (only `status == "published"` is public)                                                                                               |
+| `GET /{slug}`                   | A static page or article detail              | Rendered with the template `page.html` or `article.html`                                                                                                                         |
+| `GET /theme/assets/*`           | Theme-specific static assets (CSS/JS/images) | Served faster than `themes/{active}/assets/`                                                                                                                                     |
+| `GET /admin`, `/admin/*`        | The Admin Studio admin SPA                   | The Vite + React admin client                                                                                                                                                    |
+| `GET /api/v1/*`                 | REST API Gateway                             | Schemas, content CRUD, storage, authentication                                                                                                                                   |
+| `GET /uploads/*`                | Local storage assets                         | Serving uploaded images and media                                                                                                                                                |
 
 ### Zero-Trust Publication Control
+
 - Content in the draft state (`status: "draft"`), awaiting review (`status: "pending"`), waiting for scheduled publication (`status: "scheduled"`), and archived (`status: "archived"`) is never shown at the public endpoints (`/`, `/articles/{slug}`, `/{slug}`, `/category/{slug}`, `/feed.xml`, `/products`), and the `404 Not Found` template is safely rendered.
 - After deterministic HTML generation by `HtmlRenderer`, the article body passes transparently through Cloudflare's `lol-html` streaming rewriter (`StreamingHtmlRewriter`), which guarantees automatic `rel="noopener noreferrer"` on external links and forced `loading="lazy"` / `decoding="async"` on images.
 
@@ -38,12 +39,13 @@ AegisCMS safely hosts the Headless API Gateway, the Admin Studio admin screen, a
 
 - If you save with `status: "scheduled"` and a publication date and time `published_at` (RFC 3339, with time zone), the server automatically makes it `published` at that time. In Admin Studio, choose "Scheduled" as the status in the editor or product form and enter the publication date and time.
 
-  ```bash
-  curl -X POST http://localhost:8080/api/v1/contents/article \
-    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-    -d '{"title": "New product announcement", "slug": "new-product", "status": "scheduled",
-         "published_at": "2026-11-01T09:00:00+09:00", "blocks": []}'
-  ```
+    ```bash
+    curl -X POST http://localhost:8080/api/v1/contents/article \
+      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+      -d '{"title": "New product announcement", "slug": "new-product", "status": "scheduled",
+           "published_at": "2026-11-01T09:00:00+09:00", "blocks": []}'
+    ```
+
 - The publication time is normalized and stored in UTC (e.g. `2026-11-01T00:00:00Z`), and after publication it stays as the article's `published_at` (publication date).
 - The server checks the scheduled times every 30 seconds, so publication is delayed by up to about 30 seconds from the specified time. Content whose time arrived while the server was stopped is published at the first check after startup.
 - If `published_at` is missing or unreadable, it is `400 Bad Request`. Specifying a past time publishes immediately (`published`, with the publication time being the time of saving). In statuses other than `scheduled`, `published_at` is ignored.
@@ -52,6 +54,7 @@ AegisCMS safely hosts the Headless API Gateway, the Admin Studio admin screen, a
 - If notifications (`[notifications]`) are enabled, the author is notified by email of the publication (`content.published`; [Notifications 2](notifications.md#2-notifications-sent)).
 
 ### Unpublishing on a Schedule (Time-Limited Publication)
+
 - For content that is published (`status: "published"`) or scheduled (`status: "scheduled"`), you can set an unpublish date and time `unpublish_at` (RFC 3339, with time zone). Use it for campaign information, time-limited sale products, and so on.
 - `unpublish_at` must always be later than the publication time (the scheduled `published_at` or the current time) (specifying a past time or one at or before the publication time gives `400 Bad Request`). When reverted to draft (`draft`), `unpublish_at` is cleared automatically.
 - **Defensive check at request time**: the public endpoints (`/`, `/articles/{slug}`, `/products`, etc.) immediately treat content as 404 once `unpublish_at <= now` at the time of the request, without waiting for the scheduler's periodic run (30-second interval).
@@ -61,22 +64,23 @@ AegisCMS safely hosts the Headless API Gateway, the Admin Studio admin screen, a
 
 When you want to separate the person who writes from the person who decides on publication, make the writer's role `contributor` ([Roles](authentication.md#roles-and-api-permissions)). A contributor can only put their own content into draft (`draft`) and awaiting review (`pending`), and publication is done by `editor` and above. There is no workflow with freely composable stages (legal → editor-in-chief → publish, etc.).
 
-| Operation | Who | How to save | Notification ([Notifications 2](notifications.md#2-notifications-sent)) |
-| --- | --- | --- | --- |
-| Request a review | Contributor (`editor` and above can too) | Save with the status **awaiting review** (`pending`) | `content.submitted` to all active users of `editor` and above |
-| Approve | `editor` and above | Save the item awaiting review as **published** (`published`) or **scheduled** (`scheduled`) | `content.approved` to the author |
-| Send back | `editor` and above | Save the item awaiting review as **draft** (`draft`) | `content.returned` to the author |
-| Withdraw | The author | Save one's own item awaiting review as draft | None |
+| Operation        | Who                                      | How to save                                                                                 | Notification ([Notifications 2](notifications.md#2-notifications-sent)) |
+| ---------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Request a review | Contributor (`editor` and above can too) | Save with the status **awaiting review** (`pending`)                                        | `content.submitted` to all active users of `editor` and above           |
+| Approve          | `editor` and above                       | Save the item awaiting review as **published** (`published`) or **scheduled** (`scheduled`) | `content.approved` to the author                                        |
+| Send back        | `editor` and above                       | Save the item awaiting review as **draft** (`draft`)                                        | `content.returned` to the author                                        |
+| Withdraw         | The author                               | Save one's own item awaiting review as draft                                                | None                                                                    |
 
 - When saving with a status change, you can attach a note (`review_note`; up to 2,000 characters). The note is not stored in the content; it remains in the version history's note, the audit log, and notifications. In Admin Studio, a note field appears when you change the status.
 
-  ```bash
-  # An editor sends it back (the body is the same as a normal update)
-  curl -X PUT http://localhost:8080/api/v1/contents/article/spring-sale \
-    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-    -d '{"title": "Spring sale", "slug": "spring-sale", "status": "draft",
-         "review_note": "Please fix the price notation", "blocks": []}'
-  ```
+    ```bash
+    # An editor sends it back (the body is the same as a normal update)
+    curl -X PUT http://localhost:8080/api/v1/contents/article/spring-sale \
+      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+      -d '{"title": "Spring sale", "slug": "spring-sale", "status": "draft",
+           "review_note": "Please fix the price notation", "blocks": []}'
+    ```
+
 - A contributor can change or delete only items where they are the author and that are draft or awaiting review (the same for restoring versions and attaching/detaching tags). Trying to publish, schedule, or archive, or to change someone else's, gives `403`.
 - **Changing something published**: a contributor can put changes to their own published content up for review by saving it with the status `pending` (`draft` or `published` gives `403`; deleting, restoring versions, and attaching/detaching tags are not possible). The published version remains, and visitors do not see the changes until approved (a slug change is also not reflected until approval). Approval (saving as `published`) publishes the new version, and sending back (saving as `draft`) leaves the published version. The publication time stays as the original. The same applies when an editor saves a published item as `pending`. To take it off public pages, use `draft` (when not awaiting review) or `archived`.
 - While changes to a published item are up for review, `unpublish_at` (scheduled unpublish) does not take effect on the published version. To take it off at a deadline, have an editor archive it before approval.
@@ -84,6 +88,7 @@ When you want to separate the person who writes from the person who decides on p
 - In Admin Studio, the number awaiting review appears above the editor's list, and pressing it filters to only those awaiting review. The link in notification emails (`admin_url` + `#review`) opens the same list.
 
 ### Publishing Schedule Calendar
+
 - From the "Calendar" tab at the top of Admin Studio (`GET /api/v1/schedule`), you can check scheduled publications, scheduled unpublications, and published content in a monthly calendar grid and a timeline agenda format.
 - Open the detail modal from a date cell or an agenda card to change or clear the unpublish time directly (quick edit), or jump straight to the editor to fix the body.
 - Filtering by content type (articles, products, etc.) and by schedule kind (scheduled publication, with an unpublish schedule, published) is also supported.
@@ -95,16 +100,18 @@ When you want to separate the person who writes from the person who decides on p
 AegisCMS uses `MiniJinja`, a Jinja2 / Django-compatible template engine that is fast, lightweight, and robust.
 
 ### Three-Layer Fallback for Loading Templates
+
 When resolving a template, it is searched in the following order of priority:
 
 1. **Plugin / dynamically registered templates (highest priority)**:
-   - In-memory templates that Wasm plugins or runtime code registered with `ThemeEngine::register_template(name, content)`.
+    - In-memory templates that Wasm plugins or runtime code registered with `ThemeEngine::register_template(name, content)`.
 2. **File system theme (`themes/{active}/templates/`)**:
-   - HTML templates placed in the theme directory on disk.
+    - HTML templates placed in the theme directory on disk.
 3. **Built-in default templates (fallback)**:
-   - Polished modern-design templates compiled into the core binary (`base.html`, `index.html`, `article.html`, `page.html`, `404.html`). They work beautifully on their own even if no additional files exist.
+    - Polished modern-design templates compiled into the core binary (`base.html`, `index.html`, `article.html`, `page.html`, `404.html`). They work beautifully on their own even if no additional files exist.
 
 ### Standard Template Layout
+
 - `base.html`: HTML5 skeleton, responsive, modern typography, navigation bar, footer, ambient background glow, and CSS/Head injection slots for plugins.
 - `index.html`: extends `base.html`. Hero section, card grid, category badges, publication date, excerpts.
 - `article.html`: extends `base.html`. Breadcrumbs, title, meta information, prose body styles, previous/next navigation.
@@ -112,6 +119,7 @@ When resolving a template, it is searched in the following order of priority:
 - `404.html`: the 404 error page.
 
 ### Global Variables Available in Templates
+
 - `base_path`: the path where the site is published (`[server].base_path`, e.g. `/cms`; an empty string when published at the root). Prefix links within the site and theme assets with it, as in `{{ base_path }}/articles/{{ item.slug }}` and `{{ base_path }}/theme/assets/style.css`. Without it things work when published at the root, but links break under a subpath ([Configuration reference](./configuration.md#42-publishing-under-a-subpath)).
 - `admin_url`: the URL of the link to Admin Studio (including `base_path` and `[server].admin_path`, e.g. `/cms/admin/`). **It is an empty string when the setting is not to show it**, so wrap it like `{% if admin_url %}<a href="{{ admin_url }}">...</a>{% endif %}` (writing `/admin/` directly breaks the link on sites that changed `admin_path`, and also exposes a path you wanted to hide). The condition for showing it is `[theme].show_admin_link`.
 - `locale`: the display language (`[theme].locale`, `en` / `ja`; used for `<html lang="{{ locale }}">`).
@@ -130,6 +138,7 @@ When resolving a template, it is searched in the following order of priority:
 ```
 
 ### Template Cache
+
 Compiled templates are reused and reloaded when the theme is switched (`PUT /api/v1/themes/active`) and when a plugin registers a template. When checking while editing theme files, set `[theme].reload_templates = true` to reload on every render (leave it `false` in production).
 
 ---
@@ -146,6 +155,7 @@ Just before a page is rendered, the plugin's `on_render_page` hook is called, an
 - The preview page is shown in a `sandbox`ed `iframe` (scripts disabled) inside Admin Studio. Scripts injected via `extra_head` and the like do not run in the preview (they run on public pages).
 
 #### Main Properties of `PageRenderContext`
+
 ```rust
 pub struct PageRenderContext {
     pub site_title: String,                  // site title
@@ -173,6 +183,7 @@ pub struct PageRenderContext {
 If you only want to add HTML to the body, it is faster to not rewrite `content_html` and return only the HTML to add in `prepend_content` / `append_content`. A plugin that does not use the body (or uses only some fields) can narrow the fields passed with the manifest's `capabilities.render_page.input`. Both are in [Plugin ABI specification 5.3.2 / 5.3.3](plugin_abi_specification.md#532-adding-before-and-after-the-body-in-on_render_page-prepend_content--append_content).
 
 #### Example with the Rust Plugin SDK
+
 ```rust
 use aegis_plugin_sdk::prelude::*;
 

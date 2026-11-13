@@ -22,17 +22,17 @@ Related sources:
 
 ## 1. Hook List
 
-| Hook name in the manifest | Wasm export name | SDK trait method | Input | Output | Status |
-| --- | --- | --- | --- | --- | --- |
-| `transform-content-ast` | `transform_content_ast` | `Plugin::transform_content_ast` | `BlockNode[]` | `BlockNode[]` | ✅ Implemented |
-| `on-before-save` | `on_before_save` | `Plugin::on_before_save` | `PostContext` | `PostContext` | ✅ Implemented (changing `title` / `slug` / body, refusing saves) |
-| `on-user-authenticated` | `on_user_authenticated` | `Plugin::on_user_authenticated` | `UserAuthContext` | `UserAuthContext` | ✅ Implemented (role mapping, supplementing attributes, refusing login) |
-| `calculate-order` | `calculate_order` | `Plugin::calculate_order` | `OrderContext` | `OrderContext` | ✅ Implemented (adding shipping, tax, discounts; refusing orders; [E-commerce](commerce.md)) |
-| `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange` | None | ✅ Implemented (notification of order creation and status changes) |
-| `send-notification` | `send_notification` | `Plugin::send_notification` | `NotificationMessage` | `Delivery` | ✅ Implemented (a notification delivery channel; Slack, SMS, etc.; [Notifications](notifications.md#5-adding-delivery-methods)) |
-| `on-content-published` | `on_content_published` | `Plugin::on_content_published` | `PublishedContent` | None | ✅ Implemented (notification when content is published, such as by scheduled publication) |
-| `check-comment` | `check_comment` | `Plugin::check_comment` | `CommentSubmission` | `CommentVerdict` | ✅ Implemented (comment moderation; spam judgment, awaiting approval, refusing posts; [Comments](comments.md)) |
-| `render-blocks` | `render_blocks` | `Plugin::render_blocks` | `BlockNode[]` (this plugin's blocks) | `Option<String>[]` (HTML) | ✅ Implemented (rendering custom body blocks; [1.10](#110-render-blocks)) |
+| Hook name in the manifest | Wasm export name          | SDK trait method                  | Input                                | Output                    | Status                                                                                                                          |
+| ------------------------- | ------------------------- | --------------------------------- | ------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `transform-content-ast`   | `transform_content_ast`   | `Plugin::transform_content_ast`   | `BlockNode[]`                        | `BlockNode[]`             | ✅ Implemented                                                                                                                  |
+| `on-before-save`          | `on_before_save`          | `Plugin::on_before_save`          | `PostContext`                        | `PostContext`             | ✅ Implemented (changing `title` / `slug` / body, refusing saves)                                                               |
+| `on-user-authenticated`   | `on_user_authenticated`   | `Plugin::on_user_authenticated`   | `UserAuthContext`                    | `UserAuthContext`         | ✅ Implemented (role mapping, supplementing attributes, refusing login)                                                         |
+| `calculate-order`         | `calculate_order`         | `Plugin::calculate_order`         | `OrderContext`                       | `OrderContext`            | ✅ Implemented (adding shipping, tax, discounts; refusing orders; [E-commerce](commerce.md))                                    |
+| `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange`                  | None                      | ✅ Implemented (notification of order creation and status changes)                                                              |
+| `send-notification`       | `send_notification`       | `Plugin::send_notification`       | `NotificationMessage`                | `Delivery`                | ✅ Implemented (a notification delivery channel; Slack, SMS, etc.; [Notifications](notifications.md#5-adding-delivery-methods)) |
+| `on-content-published`    | `on_content_published`    | `Plugin::on_content_published`    | `PublishedContent`                   | None                      | ✅ Implemented (notification when content is published, such as by scheduled publication)                                       |
+| `check-comment`           | `check_comment`           | `Plugin::check_comment`           | `CommentSubmission`                  | `CommentVerdict`          | ✅ Implemented (comment moderation; spam judgment, awaiting approval, refusing posts; [Comments](comments.md))                  |
+| `render-blocks`           | `render_blocks`           | `Plugin::render_blocks`           | `BlockNode[]` (this plugin's blocks) | `Option<String>[]` (HTML) | ✅ Implemented (rendering custom body blocks; [1.10](#110-render-blocks))                                                       |
 
 - To enable a hook, you must **list the hook name (kebab-case) in the manifest's `capabilities.hooks`**. Hooks not listed are not called even if the Wasm side exports the function.
 - Conversely, if a hook is listed in the manifest but the corresponding function is not exported, the input is passed on as is (it is not an error).
@@ -81,20 +81,20 @@ fn on_before_save(&mut self, post: PostContext) -> Result<PostContext>;
 
 - Input: `PostContext` (`blocks_json` is the content after `transform-content-ast`)
 - Output: `PostContext`. It becomes the next plugin's input, and the last plugin's output is saved.
-  - **Changes to `title` / `slug` / `blocks_json` are reflected in the save** (the API's response also has the changed values. Admin Studio shows the saved contents in the editor after saving).
-  - Changes to `id` and `author_id` are ignored (only a warning log). A plugin cannot swap the author.
-  - If `blocks_json` is changed, the built-in AST pipeline (assigning heading ids) is applied again before saving. HTML rendering and the security rewriter apply as usual. `transform-content-ast` is not rerun.
-  - Returning an empty `slug`, or a `blocks_json` that cannot be parsed as `BlockNode[]`, aborts the save as a plugin error (an empty string for `blocks_json` is an empty body).
+    - **Changes to `title` / `slug` / `blocks_json` are reflected in the save** (the API's response also has the changed values. Admin Studio shows the saved contents in the editor after saving).
+    - Changes to `id` and `author_id` are ignored (only a warning log). A plugin cannot swap the author.
+    - If `blocks_json` is changed, the built-in AST pipeline (assigning heading ids) is applied again before saving. HTML rendering and the security rewriter apply as usual. `transform-content-ast` is not rerun.
+    - Returning an empty `slug`, or a `blocks_json` that cannot be parsed as `BlockNode[]`, aborts the save as a plugin error (an empty string for `blocks_json` is an empty body).
 - **Refusing a save**: returning `Err(...)` from the trait method in the SDK aborts the save, and the API returns `422 Unprocessable Entity` with `{"error": "Rejected by plugin: <plugin name>: <message>"}` (shown as an error toast in Admin Studio). For messages to show users, use `PluginError::Rejected` (other variants get the kind prefixed, like `Execution error: ...`). Only `content.create` (`denied`) is recorded in the audit log.
 
-  ```rust
-  fn on_before_save(&mut self, post: PostContext) -> Result<PostContext> {
-      if post.title.trim().is_empty() {
-          return Err(PluginError::Rejected("title is required".to_string()));
-      }
-      Ok(post)
-  }
-  ```
+    ```rust
+    fn on_before_save(&mut self, post: PostContext) -> Result<PostContext> {
+        if post.title.trim().is_empty() {
+            return Err(PluginError::Rejected("title is required".to_string()));
+        }
+        Ok(post)
+    }
+    ```
 
 - **Plugin failure**: a panic (Wasm trap), timeout, fuel exhaustion, memory limit exceeded, returning invalid JSON, and the like also abort the save, and the API returns `500 Internal Server Error` with `{"error": "Plugin hook failed: ..."}`. `plugin.error` and `content.create` (`denied`) are recorded in the audit log.
 
@@ -108,10 +108,10 @@ fn on_user_authenticated(&mut self, ctx: UserAuthContext) -> Result<UserAuthCont
 
 - Input: `UserAuthContext` ([2.3](#23-userauthcontext)). `role` is the role decided by the user account (local authentication) or the provider.
 - Output: `UserAuthContext`. It becomes the next plugin's input, and the last plugin's output issues the session.
-  - Changes to `role` / `display_name` / `email` / `metadata` are reflected in the session. `metadata` goes into the session's `metadata` (the keys `provider` / `display_name` / `email` are set by the server and cannot be overwritten).
-  - Changes to `provider` and `user_id` are ignored (only a warning log).
-  - `role` must be one of `admin` / `editor` / `viewer`; returning anything else makes login fail as a plugin error.
-  - When the role is changed, `{ "from": original role, "to": new role }` is recorded in `details.role_mapped` of the audit log `session.create` (`success`).
+    - Changes to `role` / `display_name` / `email` / `metadata` are reflected in the session. `metadata` goes into the session's `metadata` (the keys `provider` / `display_name` / `email` are set by the server and cannot be overwritten).
+    - Changes to `provider` and `user_id` are ignored (only a warning log).
+    - `role` must be one of `admin` / `editor` / `viewer`; returning anything else makes login fail as a plugin error.
+    - When the role is changed, `{ "from": original role, "to": new role }` is recorded in `details.role_mapped` of the audit log `session.create` (`success`).
 - **Refusing login**: returning `Err(PluginError::Rejected("..."))` makes the API return `403 Forbidden` with `{"error": "Rejected by plugin: <plugin name>: <message>"}`, and no session is issued. The audit log is `session.create` (`denied`, `details.error = "plugin_rejected"`).
 - **Plugin failure**: traps, timeouts, invalid JSON, unknown roles, and the like also make login fail (erring on the safe side). The API returns `500`, and `plugin.error` and `session.create` (`failure`, `details.error = "plugin_failed"`) are recorded in the audit log.
 - Neither refusals nor failures count toward the login attempt failure count ([rate limiting](authentication.md#5-security-behavior)) (because the credentials are correct).
@@ -180,11 +180,11 @@ impl Plugin for SlackPlugin {
 }
 ```
 
-| Return value | How the host treats it |
-| --- | --- |
-| `Ok(Delivery::Sent)` | Sent. Audit log `notification.send` (`success`, `channel: plugin:<name>`) |
-| `Ok(Delivery::Skipped)` | A notification (kind, recipient) this plugin does not handle. Not a failure, and not left in the audit log |
-| `Err(PluginError::Execution / Host)` | A transient failure. Retried at intervals up to `[notifications].max_attempts` (timeouts and traps are the same) |
+| Return value                                 | How the host treats it                                                                                                |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `Ok(Delivery::Sent)`                         | Sent. Audit log `notification.send` (`success`, `channel: plugin:<name>`)                                             |
+| `Ok(Delivery::Skipped)`                      | A notification (kind, recipient) this plugin does not handle. Not a failure, and not left in the audit log            |
+| `Err(PluginError::Execution / Host)`         | A transient failure. Retried at intervals up to `[notifications].max_attempts` (timeouts and traps are the same)      |
 | `Err(PluginError::Rejected / Serialization)` | A failure that would not change on retry (a configuration defect, the other side refused with 4xx, etc.). Not retried |
 
 - If you write in `channels` a plugin that lacks `send-notification` in the manifest's `capabilities.hooks` or is not in `[plugins].enabled`, the server does not start.
@@ -265,21 +265,21 @@ All are passed as JSON through the guest's linear memory.
 
 ### 2.1 `PostContext`
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | string | The newly issued content ID (UUID v4) |
-| `title` | string | Title |
-| `slug` | string | Slug |
-| `author_id` | string | Author ID (an empty string if unspecified) |
-| `blocks_json` | string | The block array as a JSON string |
+| Field         | Type   | Description                                |
+| ------------- | ------ | ------------------------------------------ |
+| `id`          | string | The newly issued content ID (UUID v4)      |
+| `title`       | string | Title                                      |
+| `slug`        | string | Slug                                       |
+| `author_id`   | string | Author ID (an empty string if unspecified) |
+| `blocks_json` | string | The block array as a JSON string           |
 
 SDK helpers:
 
-| Method | Description |
-| --- | --- |
-| `PostContext::new(title, slug)` | A constructor for tests |
-| `post.blocks()` | Parse `blocks_json` into `Vec<BlockNode>` |
-| `post.set_blocks(&blocks)` | Write `Vec<BlockNode>` back to `blocks_json` |
+| Method                          | Description                                  |
+| ------------------------------- | -------------------------------------------- |
+| `PostContext::new(title, slug)` | A constructor for tests                      |
+| `post.blocks()`                 | Parse `blocks_json` into `Vec<BlockNode>`    |
+| `post.set_blocks(&blocks)`      | Write `Vec<BlockNode>` back to `blocks_json` |
 
 ### 2.2 `BlockNode`
 
@@ -287,37 +287,37 @@ SDK helpers:
 { "name": "core/heading", "attributes": { "level": 2 }, "text": "Heading", "children": [] }
 ```
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `name` | string | The block kind (`core/heading`, `core/paragraph`, `core/code`, `core/image`, `core/table`, etc.; for the list and attributes see [Body blocks](blocks.md)) |
-| `attributes` | object \| null | Arbitrary attributes. A block saved with attributes omitted is passed as `null` (the SDK reads it as an empty map) |
-| `text` | string \| null | Text content |
-| `children` | `BlockNode[]` | Child blocks |
+| Field        | Type           | Description                                                                                                                                                |
+| ------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`       | string         | The block kind (`core/heading`, `core/paragraph`, `core/code`, `core/image`, `core/table`, etc.; for the list and attributes see [Body blocks](blocks.md)) |
+| `attributes` | object \| null | Arbitrary attributes. A block saved with attributes omitted is passed as `null` (the SDK reads it as an empty map)                                         |
+| `text`       | string \| null | Text content                                                                                                                                               |
+| `children`   | `BlockNode[]`  | Child blocks                                                                                                                                               |
 
 SDK helpers:
 
-| Method | Description |
-| --- | --- |
-| `BlockNode::new(name)` | Create an empty block |
-| `BlockNode::paragraph(text)` | `core/paragraph` |
+| Method                            | Description                               |
+| --------------------------------- | ----------------------------------------- |
+| `BlockNode::new(name)`            | Create an empty block                     |
+| `BlockNode::paragraph(text)`      | `core/paragraph`                          |
 | `BlockNode::heading(level, text)` | `core/heading` (with a `level` attribute) |
 | `BlockNode::code(language, code)` | `core/code` (with a `language` attribute) |
-| `block.attribute(key)` | Get an attribute |
-| `block.set_attribute(key, value)` | Set an attribute |
+| `block.attribute(key)`            | Get an attribute                          |
+| `block.set_attribute(key, value)` | Set an attribute                          |
 
 > [!NOTE]
 > The SDK's `BlockNode.attributes` is a `HashMap<String, serde_json::Value>` (the core's `aegis-ast` `BlockNode` uses a single `serde_json::Value`, which is a different type). When creating blocks in a plugin's tests, add with `set_attribute` to `BlockNode::new(name)`, or write something like `HashMap::from([("level".to_string(), json!(2))])`. Putting `json!({...})` straight into `attributes` is a compile error.
 
 ### 2.3 `UserAuthContext`
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `provider` | string | The provider that authenticated (`local` / `oidc` / `saml`). Changes are ignored |
-| `user_id` | string | The session's `user_id` (the username for local authentication). Changes are ignored |
-| `email` | string | Email address (an empty string if unregistered) |
-| `display_name` | string \| null | Display name |
-| `role` | string | `admin` / `editor` / `viewer` |
-| `metadata` | object | Provider-specific attributes. For OIDC, `issuer`, `sub`, and `claims` (the ID token's claims; usable for mapping `groups`, etc.); for SAML, `issuer`, `name_id`, `name_id_format`, `session_index`, and `attributes` (attribute name → array of values); empty for local authentication |
+| Field          | Type           | Description                                                                                                                                                                                                                                                                             |
+| -------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`     | string         | The provider that authenticated (`local` / `oidc` / `saml`). Changes are ignored                                                                                                                                                                                                        |
+| `user_id`      | string         | The session's `user_id` (the username for local authentication). Changes are ignored                                                                                                                                                                                                    |
+| `email`        | string         | Email address (an empty string if unregistered)                                                                                                                                                                                                                                         |
+| `display_name` | string \| null | Display name                                                                                                                                                                                                                                                                            |
+| `role`         | string         | `admin` / `editor` / `viewer`                                                                                                                                                                                                                                                           |
+| `metadata`     | object         | Provider-specific attributes. For OIDC, `issuer`, `sub`, and `claims` (the ID token's claims; usable for mapping `groups`, etc.); for SAML, `issuer`, `name_id`, `name_id_format`, `session_index`, and `attributes` (attribute name → array of values); empty for local authentication |
 
 ### 2.4 `OrderContext` / `OrderStatusChange`
 
@@ -352,49 +352,49 @@ All amounts are integers in the currency's smallest unit (yen for JPY, cents for
 
 ### 2.5 `NotificationMessage` / `Recipient` / `Delivery` (`send-notification`)
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `kind` | string | The notification kind (`order.placed` / `order.paid` / `order.shipped` / `order.cancelled` / `audit.<operation>` / `test`) |
-| `recipient` | object | `{"type": "staff"}` (operators) or `{"type": "person", "email": "...", "name": "..."}` |
-| `subject` | string | The subject (built from a template) |
-| `body` | string | The body (plain text) |
-| `html` | string (optional) | The HTML body (when `[notifications].html = true`; for channels that send to email delivery APIs; [Notifications 3.1](notifications.md#31-html-email)) |
-| `data` | object | The values passed to the template (`order` / `audit` / `site_name` / `site_url` / `admin_url` / `kind`, etc.; [Notifications 3](notifications.md#3-templates)) |
+| Field       | Type              | Description                                                                                                                                                    |
+| ----------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`      | string            | The notification kind (`order.placed` / `order.paid` / `order.shipped` / `order.cancelled` / `audit.<operation>` / `test`)                                     |
+| `recipient` | object            | `{"type": "staff"}` (operators) or `{"type": "person", "email": "...", "name": "..."}`                                                                         |
+| `subject`   | string            | The subject (built from a template)                                                                                                                            |
+| `body`      | string            | The body (plain text)                                                                                                                                          |
+| `html`      | string (optional) | The HTML body (when `[notifications].html = true`; for channels that send to email delivery APIs; [Notifications 3.1](notifications.md#31-html-email))         |
+| `data`      | object            | The values passed to the template (`order` / `audit` / `site_name` / `site_url` / `admin_url` / `kind`, etc.; [Notifications 3](notifications.md#3-templates)) |
 
 `Delivery` is `Sent` (sent) or `Skipped` (not handled).
 
 ### 2.6 `PluginError` (SDK)
 
-| Variant | Use |
-| --- | --- |
-| `PluginError::Rejected(String)` | Does not accept the input (refusing a save in `on_before_save`, refusing login in `on_user_authenticated`). The message appears as is in the API's response |
-| `PluginError::Execution(String)` | An error in plugin logic |
-| `PluginError::Serialization(String)` | A JSON conversion error (converted automatically from `serde_json::Error`) |
-| `PluginError::Host(String)` | An error from a host API call |
+| Variant                              | Use                                                                                                                                                         |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PluginError::Rejected(String)`      | Does not accept the input (refusing a save in `on_before_save`, refusing login in `on_user_authenticated`). The message appears as is in the API's response |
+| `PluginError::Execution(String)`     | An error in plugin logic                                                                                                                                    |
+| `PluginError::Serialization(String)` | A JSON conversion error (converted automatically from `serde_json::Error`)                                                                                  |
+| `PluginError::Host(String)`          | An error from a host API call                                                                                                                               |
 
 ### 2.7 `PublishedContent` (`on-content-published`)
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | string | The ID of the published content (UUID v4) |
-| `content_type` | string | The schema name (`articles`, `news`, etc.) |
-| `title` | string | Title |
-| `slug` | string | Slug |
-| `published_at` | string | Publication time (RFC 3339) |
-| `author_id` | string \| null | Author ID (null if unspecified) |
-| `fields` | object | A map of custom field values |
+| Field          | Type           | Description                                |
+| -------------- | -------------- | ------------------------------------------ |
+| `id`           | string         | The ID of the published content (UUID v4)  |
+| `content_type` | string         | The schema name (`articles`, `news`, etc.) |
+| `title`        | string         | Title                                      |
+| `slug`         | string         | Slug                                       |
+| `published_at` | string         | Publication time (RFC 3339)                |
+| `author_id`    | string \| null | Author ID (null if unspecified)            |
+| `fields`       | object         | A map of custom field values               |
 
 ### 2.8 `CommentSubmission` / `CommentVerdict` (`check-comment`)
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `content_type` / `content_id` | string | The kind and ID of the content the comment is on |
-| `content_title` / `content_slug` | string | The content's title and slug |
-| `parent_id` | string \| null | The ID of the comment being replied to |
-| `author_name` / `author_email` | string | The poster's name and email address (lowercase) |
-| `body` | string | The body (plain text) |
-| `ip` / `user_agent` | string \| null | The poster's IP address and browser |
-| `status` | string | The host's judgment (`approved` / `pending`) |
+| Field                            | Type           | Description                                      |
+| -------------------------------- | -------------- | ------------------------------------------------ |
+| `content_type` / `content_id`    | string         | The kind and ID of the content the comment is on |
+| `content_title` / `content_slug` | string         | The content's title and slug                     |
+| `parent_id`                      | string \| null | The ID of the comment being replied to           |
+| `author_name` / `author_email`   | string         | The poster's name and email address (lowercase)  |
+| `body`                           | string         | The body (plain text)                            |
+| `ip` / `user_agent`              | string \| null | The poster's IP address and browser              |
+| `status`                         | string         | The host's judgment (`approved` / `pending`)     |
 
 `CommentVerdict` is one of `{"verdict": "allow"}`, `{"verdict": "hold", "reason": "..."}`, and `{"verdict": "spam", "reason": "..."}` (`reason` is the reason left in the log; optional).
 
@@ -422,21 +422,21 @@ Each plugin is placed in `<name>/` directly under `plugins_dir` (`<name>` is the
 }
 ```
 
-| Key | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | string | ✅ | The plugin's identifier. Starts with a lowercase letter or digit, and only lowercase letters, digits, `-`, and `_` (up to 64 characters). Used for the installation directory name, `[plugins].enabled`, and the log tag (`[Wasm:<name>]`) |
-| `version` | string | ✅ | Version |
-| `entrypoint` | string | ✅ | The path of the Wasm binary (relative to the manifest) |
-| `display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version` | | | Metadata for stores and list display (the same items as a theme's `theme.json`; `author` is a string or `{"name", "email", "url"}`). Does not affect behavior |
-| `capabilities.network.allowed_domains` | string[] | | Domains allowed by `net::is_allowed`. Exact or subdomain match |
-| `capabilities.storage.kv_namespace` | string | | The KVS namespace. If undeclared, `kv::set` is a permission error |
-| `capabilities.hooks` | string[] | | Hook names to enable ([1. Hook list](#1-hook-list)) |
-| `capabilities.csp.script_domains` / `style_domains` / `connect_domains` / `frame_domains` / `img_domains` | string[] | | Hosts of external scripts, CSS, connections, frames, and images. While enabled, the server adds them to the CSP's `script-src` / `style-src` / `connect-src` / `frame-src` / `img-src`. **A plugin that loads `<script>` from a CDN or the like declares that host** (without the declaration, the default CSP blocks it). Host names only (no scheme). Shown in "Capabilities & permissions" in Admin Studio's plugin list |
-| `capabilities.inline_scripts` | boolean | `false` | A declaration for adding inline scripts with `scripts` (structured injection) of `on-render-page`. Without the declaration the host drops them. The hosts of external scripts are in `script_domains` above ([ABI specification 5.3.3a](plugin_abi_specification.md#533a-adding-scripts-in-on_render_page-scripts-abi-2)) |
-| `capabilities.embed.frame_domains` | string[] | | The source hosts of `<iframe>`s that can be embedded in custom blocks ([3.2](#32-embedding-external-pages-capabilitiesembed)) |
-| `blocks` | object[] | | The declaration of custom blocks that can be placed in the body ([3.1](#31-custom-blocks-blocks)) |
-| `settings` | object[] | | The declaration of settings items. They appear as input fields in Admin Studio's plugin settings and have their values validated on save ([3.3](#33-settings-items-settings)) |
-| `resource_limits` | object | | Omitted items (or the whole) are filled in by the server settings `[runtime].default_*` (below) |
+| Key                                                                                                              | Type     | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------- | -------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                                                                                           | string   | ✅       | The plugin's identifier. Starts with a lowercase letter or digit, and only lowercase letters, digits, `-`, and `_` (up to 64 characters). Used for the installation directory name, `[plugins].enabled`, and the log tag (`[Wasm:<name>]`)                                                                                                                                                                                  |
+| `version`                                                                                                        | string   | ✅       | Version                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `entrypoint`                                                                                                     | string   | ✅       | The path of the Wasm binary (relative to the manifest)                                                                                                                                                                                                                                                                                                                                                                      |
+| `display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version` |          |          | Metadata for stores and list display (the same items as a theme's `theme.json`; `author` is a string or `{"name", "email", "url"}`). Does not affect behavior                                                                                                                                                                                                                                                               |
+| `capabilities.network.allowed_domains`                                                                           | string[] |          | Domains allowed by `net::is_allowed`. Exact or subdomain match                                                                                                                                                                                                                                                                                                                                                              |
+| `capabilities.storage.kv_namespace`                                                                              | string   |          | The KVS namespace. If undeclared, `kv::set` is a permission error                                                                                                                                                                                                                                                                                                                                                           |
+| `capabilities.hooks`                                                                                             | string[] |          | Hook names to enable ([1. Hook list](#1-hook-list))                                                                                                                                                                                                                                                                                                                                                                         |
+| `capabilities.csp.script_domains` / `style_domains` / `connect_domains` / `frame_domains` / `img_domains`        | string[] |          | Hosts of external scripts, CSS, connections, frames, and images. While enabled, the server adds them to the CSP's `script-src` / `style-src` / `connect-src` / `frame-src` / `img-src`. **A plugin that loads `<script>` from a CDN or the like declares that host** (without the declaration, the default CSP blocks it). Host names only (no scheme). Shown in "Capabilities & permissions" in Admin Studio's plugin list |
+| `capabilities.inline_scripts`                                                                                    | boolean  | `false`  | A declaration for adding inline scripts with `scripts` (structured injection) of `on-render-page`. Without the declaration the host drops them. The hosts of external scripts are in `script_domains` above ([ABI specification 5.3.3a](plugin_abi_specification.md#533a-adding-scripts-in-on_render_page-scripts-abi-2))                                                                                                   |
+| `capabilities.embed.frame_domains`                                                                               | string[] |          | The source hosts of `<iframe>`s that can be embedded in custom blocks ([3.2](#32-embedding-external-pages-capabilitiesembed))                                                                                                                                                                                                                                                                                               |
+| `blocks`                                                                                                         | object[] |          | The declaration of custom blocks that can be placed in the body ([3.1](#31-custom-blocks-blocks))                                                                                                                                                                                                                                                                                                                           |
+| `settings`                                                                                                       | object[] |          | The declaration of settings items. They appear as input fields in Admin Studio's plugin settings and have their values validated on save ([3.3](#33-settings-items-settings))                                                                                                                                                                                                                                               |
+| `resource_limits`                                                                                                | object   |          | Omitted items (or the whole) are filled in by the server settings `[runtime].default_*` (below)                                                                                                                                                                                                                                                                                                                             |
 
 If an enabled plugin's manifest cannot be read, `name` differs from the directory name, the file for `entrypoint` is missing, or it imports a function the host does not have ([ABI specification](plugin_abi_specification.md#3-host-api-import-specification-the-host-module)), **the server does not start**. This is to prevent a plugin that implements access restrictions and the like from silently dropping off while the server keeps running. Defects in plugins that are not enabled are shown in warning logs and `aegis-server plugin list`.
 
@@ -461,28 +461,28 @@ Declares blocks rendered by the `render-blocks` hook ([1.10](#110-render-blocks)
 ]
 ```
 
-| Key | Description |
-| --- | --- |
-| `name` | The block name (the same form as plugin names). Saved in the body as `<plugin name>/<name>` |
-| `label` / `description` | The name and description shown in Admin Studio. A string, or per-language `{"en": ..., "ja": ...}` (used in the order Admin Studio's language → English → the first one) |
-| `fields[].name` | The attribute name (starts with a letter, then alphanumerics and `_`). The value is `attributes.<name>` |
-| `fields[].type` | `string` (one line) / `text` (multi-line) / `url` / `number` / `boolean` / `select` (requires `options`) / `image` (a URL; can be chosen via upload or the media library) / `list` (repeating items that can be added; below) |
-| `fields[].label` / `placeholder` / `help` | The input field's name, placeholder, and description (can be per-language like `label`) |
-| `fields[].required` | When empty, a warning is shown in the editor (saving is not stopped) |
-| `fields[].default` | The initial value of a newly placed block |
-| `fields[].fields` | The input fields of one item of a `list` (the same form as `fields[]` above; a `list` cannot be placed inside a `list`). Can be written only on `list` |
-| `fields[].max_items` | The upper limit of a `list`'s item count (1–100; 100 if omitted). Can be written only on `list` |
-| `refreshable` | If `true`, a "Refetch" button appears in the block's form. Pressing it adds the attribute `refresh: true` to the block and runs it through `transform-content-ast` (without saving), and updates the form with the attributes returned. The plugin removes `refresh` once it has rebuilt the attributes (see `official-link-embed`) |
+| Key                                       | Description                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                    | The block name (the same form as plugin names). Saved in the body as `<plugin name>/<name>`                                                                                                                                                                                                                                         |
+| `label` / `description`                   | The name and description shown in Admin Studio. A string, or per-language `{"en": ..., "ja": ...}` (used in the order Admin Studio's language → English → the first one)                                                                                                                                                            |
+| `fields[].name`                           | The attribute name (starts with a letter, then alphanumerics and `_`). The value is `attributes.<name>`                                                                                                                                                                                                                             |
+| `fields[].type`                           | `string` (one line) / `text` (multi-line) / `url` / `number` / `boolean` / `select` (requires `options`) / `image` (a URL; can be chosen via upload or the media library) / `list` (repeating items that can be added; below)                                                                                                       |
+| `fields[].label` / `placeholder` / `help` | The input field's name, placeholder, and description (can be per-language like `label`)                                                                                                                                                                                                                                             |
+| `fields[].required`                       | When empty, a warning is shown in the editor (saving is not stopped)                                                                                                                                                                                                                                                                |
+| `fields[].default`                        | The initial value of a newly placed block                                                                                                                                                                                                                                                                                           |
+| `fields[].fields`                         | The input fields of one item of a `list` (the same form as `fields[]` above; a `list` cannot be placed inside a `list`). Can be written only on `list`                                                                                                                                                                              |
+| `fields[].max_items`                      | The upper limit of a `list`'s item count (1–100; 100 if omitted). Can be written only on `list`                                                                                                                                                                                                                                     |
+| `refreshable`                             | If `true`, a "Refetch" button appears in the block's form. Pressing it adds the attribute `refresh: true` to the block and runs it through `transform-content-ast` (without saving), and updates the form with the attributes returned. The plugin removes `refresh` once it has rebuilt the attributes (see `official-link-embed`) |
 
 The types of values the Admin Studio form puts in `attributes` are as follows. Blocks saved from the API or Markdown can hold arbitrary JSON, so plugins should tolerate type differences (see `attr` in `official-blocks` and `sdk/templates/rust-block`).
 
-| `fields[].type` | Value in `attributes` | Notes |
-| --- | --- | --- |
-| `string` / `text` / `url` / `image` | A string | If the input is empty, the key is absent (or an empty string) |
-| `select` | A string (`options[].value`) | If not `required`, an empty string when none is chosen. Numeric choices (such as heading levels) also arrive as **strings** like `"3"` |
-| `number` | A JSON number | If emptied, the key is absent. A numeric `default` goes in as is |
-| `boolean` | `true` / `false` | If never touched, the key is absent (or the `default` value if there is one) |
-| `list` | An array of objects (values keyed by the `name`s of `fields[].fields`). When there are no items, an empty array or the key is absent | Items can be added, removed, and reordered. `required` means "at least one item has something entered". `required` inside an item shows a warning for that item. Items with only `select` and `boolean` count as "empty". The types of items' values are the same as the rows above |
+| `fields[].type`                     | Value in `attributes`                                                                                                                | Notes                                                                                                                                                                                                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `string` / `text` / `url` / `image` | A string                                                                                                                             | If the input is empty, the key is absent (or an empty string)                                                                                                                                                                                                                       |
+| `select`                            | A string (`options[].value`)                                                                                                         | If not `required`, an empty string when none is chosen. Numeric choices (such as heading levels) also arrive as **strings** like `"3"`                                                                                                                                              |
+| `number`                            | A JSON number                                                                                                                        | If emptied, the key is absent. A numeric `default` goes in as is                                                                                                                                                                                                                    |
+| `boolean`                           | `true` / `false`                                                                                                                     | If never touched, the key is absent (or the `default` value if there is one)                                                                                                                                                                                                        |
+| `list`                              | An array of objects (values keyed by the `name`s of `fields[].fields`). When there are no items, an empty array or the key is absent | Items can be added, removed, and reordered. `required` means "at least one item has something entered". `required` inside an item shows a warning for that item. Items with only `select` and `boolean` count as "empty". The types of items' values are the same as the rows above |
 
 If there is a defect in the declaration (name format or duplicates, a `select` without options, a `list` without `fields` or a nested `list`, an out-of-range `max_items`, an unknown `type`), the server that enabled that plugin does not start.
 
@@ -542,25 +542,25 @@ Declares input fields for the plugin's settings values (the values read with `co
 ]
 ```
 
-| Key | Required | Description |
-| --- | --- | --- |
-| `key` | ✅ | The setting's key. Starts with a letter, then only alphanumerics and `_` (up to 64 characters). Read with `config::get(key)` |
-| `type` | ✅ | The kind of input field (table below) |
-| `label` | ✅ | The input field's name. A string or `{"en": ..., "ja": ...}` (used in the order Admin Studio's language → English → the first one) |
-| `description` / `placeholder` | | The description under the field and the faint text. The same form as `label` |
-| `default` | | The value the plugin uses when unset. It is only shown as faint text in the field and as a "Default (…)" choice, and **is not saved** (the plugin must use the same default too) |
-| `options` | Required for `select` | `[{"value": "...", "label": ...}]`. `value` is non-empty and unique |
-| `min` / `max` | | The lower and upper bounds of `number` |
-| `max_length` | | The character limit (defaults: `string` 500, `text` 20000, `url` 2000) |
+| Key                           | Required              | Description                                                                                                                                                                      |
+| ----------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`                         | ✅                    | The setting's key. Starts with a letter, then only alphanumerics and `_` (up to 64 characters). Read with `config::get(key)`                                                     |
+| `type`                        | ✅                    | The kind of input field (table below)                                                                                                                                            |
+| `label`                       | ✅                    | The input field's name. A string or `{"en": ..., "ja": ...}` (used in the order Admin Studio's language → English → the first one)                                               |
+| `description` / `placeholder` |                       | The description under the field and the faint text. The same form as `label`                                                                                                     |
+| `default`                     |                       | The value the plugin uses when unset. It is only shown as faint text in the field and as a "Default (…)" choice, and **is not saved** (the plugin must use the same default too) |
+| `options`                     | Required for `select` | `[{"value": "...", "label": ...}]`. `value` is non-empty and unique                                                                                                              |
+| `min` / `max`                 |                       | The lower and upper bounds of `number`                                                                                                                                           |
+| `max_length`                  |                       | The character limit (defaults: `string` 500, `text` 20000, `url` 2000)                                                                                                           |
 
-| `type` | Input field | Validation of the saved value |
-| --- | --- | --- |
-| `string` / `text` | One line / multi-line | The character limit. Control characters are not allowed (line breaks and tabs are allowed for `text`) |
-| `url` | One line | `http://`, `https://`, or a relative path starting with `/` (`//` and whitespace are not allowed) |
-| `number` | Number | Being a number, and the range of `min` and `max` |
-| `boolean` | Default / on / off | `true` or `false` |
-| `select` | Choices | One of `options` |
-| `color` | Color picker and text | `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name (a form that is safe to put straight into CSS) |
+| `type`            | Input field           | Validation of the saved value                                                                           |
+| ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------- |
+| `string` / `text` | One line / multi-line | The character limit. Control characters are not allowed (line breaks and tabs are allowed for `text`)   |
+| `url`             | One line              | `http://`, `https://`, or a relative path starting with `/` (`//` and whitespace are not allowed)       |
+| `number`          | Number                | Being a number, and the range of `min` and `max`                                                        |
+| `boolean`         | Default / on / off    | `true` or `false`                                                                                       |
+| `select`          | Choices               | One of `options`                                                                                        |
+| `color`           | Color picker and text | `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name (a form that is safe to put straight into CSS) |
 
 - **Values are stored as strings** (`"true"` / `"false"` for `boolean`, decimal for `number`). When reading, the plugin converts the string `config::get` returns into the type.
 - **A blank means "unset".** Empty values of declared items are not saved (the key is removed), and the plugin uses its default when `config::get` returns `None`. Validation is also done on the server (`PUT /api/v1/plugins/{name}/settings`), and mistakes are returned as `400 {"code": "invalid_setting", "errors": [{"key", "message"}]}` (nothing is saved). Keys without a declaration are not validated.
@@ -569,11 +569,11 @@ Declares input fields for the plugin's settings values (the values read with `co
 
 ## 4. Resource Limits (`resource_limits`)
 
-| Key | Value if omitted | Description |
-| --- | --- | --- |
-| `max_fuel_units` | `[runtime].default_max_fuel_units` (default `100000000`) | The upper limit of Wasm instructions executed per hook call. Exceeding it traps |
-| `execution_timeout_ms` | `[runtime].default_timeout_ms` (default `250`) | The upper limit of execution time per hook call (rounded up to a minimum of 50ms) |
-| `max_memory_mb` | `[runtime].default_max_memory_mb` (default `16`) | The linear memory limit (MiB, minimum 1). Trying to exceed it with `memory.grow` traps, and a module whose initial memory exceeds the limit fails to instantiate. A Rust `wasm32-unknown-unknown` build uses about 1.1 MiB for initial memory alone, so specify 2 or more. When using the instance pool (the default), keep it at or below `[runtime].pool_max_memory_mb` (default `64`) (exceeding it is an error at load time) |
+| Key                    | Value if omitted                                         | Description                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_fuel_units`       | `[runtime].default_max_fuel_units` (default `100000000`) | The upper limit of Wasm instructions executed per hook call. Exceeding it traps                                                                                                                                                                                                                                                                                                                                                  |
+| `execution_timeout_ms` | `[runtime].default_timeout_ms` (default `250`)           | The upper limit of execution time per hook call (rounded up to a minimum of 50ms)                                                                                                                                                                                                                                                                                                                                                |
+| `max_memory_mb`        | `[runtime].default_max_memory_mb` (default `16`)         | The linear memory limit (MiB, minimum 1). Trying to exceed it with `memory.grow` traps, and a module whose initial memory exceeds the limit fails to instantiate. A Rust `wasm32-unknown-unknown` build uses about 1.1 MiB for initial memory alone, so specify 2 or more. When using the instance pool (the default), keep it at or below `[runtime].pool_max_memory_mb` (default `64`) (exceeding it is an error at load time) |
 
 - They are filled in per item, so you can specify just some, like `{"max_memory_mb": 8}`.
 - Exceeding a limit (a trap) is treated as a plugin error (following each hook's behavior on error, and `plugin.error` is recorded in the audit log).
@@ -587,26 +587,26 @@ Declares input fields for the plugin's settings values (the values read with `co
 
 The host provides the following functions as imports from the `host` module.
 
-| SDK API | Wasm import | Signature | Required permission |
-| --- | --- | --- | --- |
-| `log_debug!` / `log_info!` / `log_warn!` / `log_error!` | `host.log` | `(level: i32, ptr: i32, len: i32)` | None |
-| `net::is_allowed(url) -> bool` | `host.http_check_allowed` | `(ptr: i32, len: i32) -> i32` | `capabilities.network` |
-| `kv::set(key, value) -> Result<()>` | `host.kv_set` | `(k_ptr, k_len, v_ptr, v_len) -> i32` | `capabilities.storage` |
-| `kv::set_json(key, &value) -> Result<()>` | `host.kv_set` | Same (the value is turned into a JSON string) | `capabilities.storage` |
-| `kv::get(key) -> Result<Option<String>>` / `kv::get_json` | `host.kv_get` | `(k_ptr, k_len) -> i64` | `capabilities.storage` |
-| `http::fetch(&Request) -> Result<Response>` | `host.http_fetch` | `(req_ptr, req_len) -> i64` | `capabilities.network` |
-| `config::get(key) -> Option<String>` / `config::get_or(key, default)` | `host.config_get` | `(k_ptr, k_len) -> i64` | None |
+| SDK API                                                               | Wasm import               | Signature                                     | Required permission    |
+| --------------------------------------------------------------------- | ------------------------- | --------------------------------------------- | ---------------------- |
+| `log_debug!` / `log_info!` / `log_warn!` / `log_error!`               | `host.log`                | `(level: i32, ptr: i32, len: i32)`            | None                   |
+| `net::is_allowed(url) -> bool`                                        | `host.http_check_allowed` | `(ptr: i32, len: i32) -> i32`                 | `capabilities.network` |
+| `kv::set(key, value) -> Result<()>`                                   | `host.kv_set`             | `(k_ptr, k_len, v_ptr, v_len) -> i32`         | `capabilities.storage` |
+| `kv::set_json(key, &value) -> Result<()>`                             | `host.kv_set`             | Same (the value is turned into a JSON string) | `capabilities.storage` |
+| `kv::get(key) -> Result<Option<String>>` / `kv::get_json`             | `host.kv_get`             | `(k_ptr, k_len) -> i64`                       | `capabilities.storage` |
+| `http::fetch(&Request) -> Result<Response>`                           | `host.http_fetch`         | `(req_ptr, req_len) -> i64`                   | `capabilities.network` |
+| `config::get(key) -> Option<String>` / `config::get_or(key, default)` | `host.config_get`         | `(k_ptr, k_len) -> i64`                       | None                   |
 
 Functions that return `i64` have the host write the result into a region secured with the guest's `allocate` and return `(ptr << 32) | len` (the SDK reads it and frees it).
 
 ### 5.1 Logging (`host.log`)
 
-| `level` | SDK macro | Host-side `tracing` level |
-| --- | --- | --- |
-| `0` | `log_debug!` | `debug` |
-| `1` | `log_info!` | `info` |
-| `2` | `log_warn!` | `warn` |
-| `3` and above | `log_error!` | `error` |
+| `level`       | SDK macro    | Host-side `tracing` level |
+| ------------- | ------------ | ------------------------- |
+| `0`           | `log_debug!` | `debug`                   |
+| `1`           | `log_info!`  | `info`                    |
+| `2`           | `log_warn!`  | `warn`                    |
+| `3` and above | `log_error!` | `error`                   |
 
 ### 5.2 Network Permission Check (`host.http_check_allowed`)
 
@@ -616,11 +616,11 @@ Functions that return `i64` have the host write the result into a region secured
 
 ### 5.3 KVS Write (`host.kv_set`)
 
-| Return value | Meaning | SDK result |
-| --- | --- | --- |
-| `0` | Success | `Ok(())` |
-| `1` | No permission (`capabilities.storage` undeclared) | `Err(PluginError::Host(...))` |
-| `2` | An error such as a memory read failure | `Err(PluginError::Host(...))` |
+| Return value | Meaning                                           | SDK result                    |
+| ------------ | ------------------------------------------------- | ----------------------------- |
+| `0`          | Success                                           | `Ok(())`                      |
+| `1`          | No permission (`capabilities.storage` undeclared) | `Err(PluginError::Host(...))` |
+| `2`          | An error such as a memory read failure            | `Err(PluginError::Host(...))` |
 
 - Keys are stored on the host side in the form `{kv_namespace}:{key}` and are separated from other plugins' namespaces.
 - Values are stored in the server's `[cache]` backend under the key `plugin-kv:{kv_namespace}:{key}` (no expiry). With `redis` they remain after a restart and are shared by all servers. With `memory` they exist only in the process and vanish on restart.
@@ -664,13 +664,13 @@ let fee: i64 = config::get_or("shipping_fee", 0); // the default if it cannot be
 
 When built for a native target such as `cargo test` (`not(target_arch = "wasm32")`), the SDK's host APIs are replaced with mocks.
 
-| API | Mock behavior |
-| --- | --- |
-| Logging | Outputs `[WasmMock:LEVEL] message` to standard output |
-| `net::is_allowed` | Always `true` (does not consult the manifest) |
-| `kv::set` / `kv::get` | Stored and read in thread-local memory |
-| `config::get` | The value set with `host::mock::set_config(key, value)` |
-| `http::fetch` | Records without sending and returns `200` (retrieve with `host::mock::take_http_requests()`) |
+| API                   | Mock behavior                                                                                |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| Logging               | Outputs `[WasmMock:LEVEL] message` to standard output                                        |
+| `net::is_allowed`     | Always `true` (does not consult the manifest)                                                |
+| `kv::set` / `kv::get` | Stored and read in thread-local memory                                                       |
+| `config::get`         | The value set with `host::mock::set_config(key, value)`                                      |
+| `http::fetch`         | Records without sending and returns `200` (retrieve with `host::mock::take_http_requests()`) |
 
 `host::mock::reset()` empties the mocks.
 
@@ -680,15 +680,15 @@ Check permission-related behavior by building to Wasm and running on the runtime
 
 ## 6. Low-Level ABI (Without the SDK)
 
-| Export | Signature | Required | Description |
-| --- | --- | --- | --- |
-| `memory` | memory | ✅ | Linear memory |
-| `allocate` | `(len: i32) -> i32` | ✅ | Secures a region for the host to write the input JSON into and returns the pointer |
-| `transform_content_ast` | `(ptr: i32, len: i32) -> i64` | | Input `BlockNode[]` JSON, return `(ptr << 32) \| len` |
-| `on_before_save` | `(ptr: i32, len: i32) -> i64` | | Input `PostContext` JSON, return `(ptr << 32) \| len` |
-| `on_user_authenticated` | `(ptr: i32, len: i32) -> i64` | | Input `UserAuthContext` JSON, return `(ptr << 32) \| len` |
-| `calculate_order` | `(ptr: i32, len: i32) -> i64` | | Input `OrderContext` JSON, return `(ptr << 32) \| len` (refuse with `{"error"}`) |
-| `on_order_status_changed` | `(ptr: i32, len: i32) -> i64` | | Input `OrderStatusChange` JSON. The return is `0` (success) or `{"error"}` |
+| Export                    | Signature                     | Required | Description                                                                        |
+| ------------------------- | ----------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `memory`                  | memory                        | ✅       | Linear memory                                                                      |
+| `allocate`                | `(len: i32) -> i32`           | ✅       | Secures a region for the host to write the input JSON into and returns the pointer |
+| `transform_content_ast`   | `(ptr: i32, len: i32) -> i64` |          | Input `BlockNode[]` JSON, return `(ptr << 32) \| len`                              |
+| `on_before_save`          | `(ptr: i32, len: i32) -> i64` |          | Input `PostContext` JSON, return `(ptr << 32) \| len`                              |
+| `on_user_authenticated`   | `(ptr: i32, len: i32) -> i64` |          | Input `UserAuthContext` JSON, return `(ptr << 32) \| len`                          |
+| `calculate_order`         | `(ptr: i32, len: i32) -> i64` |          | Input `OrderContext` JSON, return `(ptr << 32) \| len` (refuse with `{"error"}`)   |
+| `on_order_status_changed` | `(ptr: i32, len: i32) -> i64` |          | Input `OrderStatusChange` JSON. The return is `0` (success) or `{"error"}`         |
 
 - If the returned `len` is `0`, the host adopts the input as is.
 - To refuse a save in `on_before_save` or a login in `on_user_authenticated`, return `{"error": "<message>"}` instead of the input type (the SDK's `abi::write_error_to_host`). Every object with an `error` key is treated as a refusal.

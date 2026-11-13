@@ -30,11 +30,11 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 
 ## 2. 公開サイト
 
-| URL | テンプレート | 内容 |
-| --- | --- | --- |
-| `/forum` | `forum_index.html` | カテゴリの一覧と、最近更新されたスレッド |
-| `/forum/{カテゴリの slug}`（`?page=N`） | `forum_category.html` | カテゴリのスレッドの一覧（ピン留め → 最終投稿の新しい順）とスレッドの作成フォーム |
-| `/forum/{カテゴリの slug}/{スレッド ID}` | `forum_thread.html` | レスの一覧（レス番号付き）と返信フォーム |
+| URL                                      | テンプレート          | 内容                                                                              |
+| ---------------------------------------- | --------------------- | --------------------------------------------------------------------------------- |
+| `/forum`                                 | `forum_index.html`    | カテゴリの一覧と、最近更新されたスレッド                                          |
+| `/forum/{カテゴリの slug}`（`?page=N`）  | `forum_category.html` | カテゴリのスレッドの一覧（ピン留め → 最終投稿の新しい順）とスレッドの作成フォーム |
+| `/forum/{カテゴリの slug}/{スレッド ID}` | `forum_thread.html`   | レスの一覧（レス番号付き）と返信フォーム                                          |
 
 ![サンプル掲示板「やまびこ」のトップページ](images/forum-public.png)
 
@@ -64,41 +64,41 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 
 ## 4. API
 
-| API | 権限 | 内容 |
-| --- | --- | --- |
-| `GET /api/v1/forum/categories` | 不要 | カテゴリの一覧 |
-| `GET /api/v1/forum/categories/{slug}` | 不要 | カテゴリ |
-| `POST /api/v1/forum/categories` | `admin` | カテゴリの作成（`201`） |
-| `PUT` / `DELETE /api/v1/forum/categories/{id}` | `admin` | カテゴリの更新・削除 |
-| `GET /api/v1/forum/threads?category_slug=&limit=&cursor_last_post_at=&cursor_id=` | 不要 | スレッドの一覧（`limit` は 1〜100、既定 `default_page_size`） |
-| `GET /api/v1/forum/categories/{slug}/threads` | 不要 | カテゴリのスレッドの一覧（同じクエリ） |
-| `GET /api/v1/forum/threads/{id}` | 不要 | スレッド |
-| `GET /api/v1/forum/threads/{id}/posts?cursor_post_number=&limit=` | 不要 | レスの一覧（`cursor_post_number` より後） |
-| `POST /api/v1/forum/threads` | 不要（`posting = "members"` なら会員かスタッフのログイン） | `{ "category_id", "title", "body", "author_name" }`。`{ "thread", "initial_post" }`（`201`） |
-| `POST /api/v1/forum/posts` | 同上 | `{ "thread_id", "body", "author_name", "reply_to_number" }`。`{ "post" }`（`201`） |
-| `POST /api/v1/forum/threads/{id}/pin` | `editor` | `{ "pinned": true }` |
-| `POST /api/v1/forum/threads/{id}/lock` | `editor` | `{ "locked": true }` |
-| `DELETE /api/v1/forum/threads/{id}` | `editor` | スレッドとレスの削除 |
-| `DELETE /api/v1/forum/posts/{id}` | `editor` | レスの削除（論理削除。レス番号は残る） |
+| API                                                                               | 権限                                                       | 内容                                                                                         |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `GET /api/v1/forum/categories`                                                    | 不要                                                       | カテゴリの一覧                                                                               |
+| `GET /api/v1/forum/categories/{slug}`                                             | 不要                                                       | カテゴリ                                                                                     |
+| `POST /api/v1/forum/categories`                                                   | `admin`                                                    | カテゴリの作成（`201`）                                                                      |
+| `PUT` / `DELETE /api/v1/forum/categories/{id}`                                    | `admin`                                                    | カテゴリの更新・削除                                                                         |
+| `GET /api/v1/forum/threads?category_slug=&limit=&cursor_last_post_at=&cursor_id=` | 不要                                                       | スレッドの一覧（`limit` は 1〜100、既定 `default_page_size`）                                |
+| `GET /api/v1/forum/categories/{slug}/threads`                                     | 不要                                                       | カテゴリのスレッドの一覧（同じクエリ）                                                       |
+| `GET /api/v1/forum/threads/{id}`                                                  | 不要                                                       | スレッド                                                                                     |
+| `GET /api/v1/forum/threads/{id}/posts?cursor_post_number=&limit=`                 | 不要                                                       | レスの一覧（`cursor_post_number` より後）                                                    |
+| `POST /api/v1/forum/threads`                                                      | 不要（`posting = "members"` なら会員かスタッフのログイン） | `{ "category_id", "title", "body", "author_name" }`。`{ "thread", "initial_post" }`（`201`） |
+| `POST /api/v1/forum/posts`                                                        | 同上                                                       | `{ "thread_id", "body", "author_name", "reply_to_number" }`。`{ "post" }`（`201`）           |
+| `POST /api/v1/forum/threads/{id}/pin`                                             | `editor`                                                   | `{ "pinned": true }`                                                                         |
+| `POST /api/v1/forum/threads/{id}/lock`                                            | `editor`                                                   | `{ "locked": true }`                                                                         |
+| `DELETE /api/v1/forum/threads/{id}`                                               | `editor`                                                   | スレッドとレスの削除                                                                         |
+| `DELETE /api/v1/forum/posts/{id}`                                                 | `editor`                                                   | レスの削除（論理削除。レス番号は残る）                                                       |
 
 ページ送りはカーソル方式です。次のページは、前の応答の最後のスレッドの `last_post_at` と `id`（レスは `post_number`）を渡して取ります。
 
-| ステータス | 条件 |
-| --- | --- |
-| `400` | タイトル・本文の長さが範囲外など |
-| `403` | ロックされたスレッドへの投稿、ログインが要る（`posting = "members"`）、そのカテゴリに書ける立場ではない |
-| `404` | カテゴリ・スレッドが無い（見られない公開範囲のカテゴリも「無い」）、掲示板が無効 |
-| `429` | `rate_limit_secs` 以内の連投 |
+| ステータス | 条件                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| `400`      | タイトル・本文の長さが範囲外など                                                                        |
+| `403`      | ロックされたスレッドへの投稿、ログインが要る（`posting = "members"`）、そのカテゴリに書ける立場ではない |
+| `404`      | カテゴリ・スレッドが無い（見られない公開範囲のカテゴリも「無い」）、掲示板が無効                        |
+| `429`      | `rate_limit_secs` 以内の連投                                                                            |
 
 ### 4.0 会員とスタッフの投稿、公開範囲
 
 投稿は、次のどれかの立場で行います。立場は、リクエストに付けたセッションから**サーバーが決めます**（本文の値は読みません）。
 
-| 立場 | 認証 | 名前 | 記録される種類（`author_kind`） |
-| --- | --- | --- | --- |
-| スタッフ | CMS のセッション（`Authorization: Bearer` / `X-Session-Id`） | `author_name` を指定できる（なければ表示名） | `staff` |
-| 会員 | 会員のセッション（`Authorization: Bearer mses_...`、またはブラウザーの Cookie） | **公開名**（`nickname`）。指定は無視する | `member` |
-| 匿名 | なし | `author_name`（なければ `Anonymous`） | なし |
+| 立場     | 認証                                                                            | 名前                                         | 記録される種類（`author_kind`） |
+| -------- | ------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------- |
+| スタッフ | CMS のセッション（`Authorization: Bearer` / `X-Session-Id`）                    | `author_name` を指定できる（なければ表示名） | `staff`                         |
+| 会員     | 会員のセッション（`Authorization: Bearer mses_...`、またはブラウザーの Cookie） | **公開名**（`nickname`）。指定は無視する     | `member`                        |
+| 匿名     | なし                                                                            | `author_name`（なければ `Anonymous`）        | なし                            |
 
 - 会員に**公開名が無いと投稿できません**（`400` `{"code": "nickname_required"}`。本名は出さない）。マイページで決めます（[会員アカウント 13](members.ja.md#13-公開名-nickname実装済み)）。
 - 承認制の「承認済みの投稿がある人は自動承認」は、`(author_kind, author_id)` の組で見ます。同じ ID のスタッフと会員は別の人です。
@@ -108,11 +108,11 @@ auto_lock_post_count = 1000 # この数のレスでスレッドを自動でロ�
 
 **カテゴリの公開範囲 `visibility`**（カテゴリの作成・更新で指定。管理画面の「カテゴリ」でも選べる）:
 
-| 値 | 読める人 | 書ける人 |
-| --- | --- | --- |
-| `public`（既定） | だれでも | `posting` に従う |
-| `members` | 会員とスタッフ | 会員とスタッフ |
-| `staff` | スタッフ（CMS にログインしている人） | スタッフ |
+| 値               | 読める人                             | 書ける人         |
+| ---------------- | ------------------------------------ | ---------------- |
+| `public`（既定） | だれでも                             | `posting` に従う |
+| `members`        | 会員とスタッフ                       | 会員とスタッフ   |
+| `staff`          | スタッフ（CMS にログインしている人） | スタッフ         |
 
 - 見られない人には、そのカテゴリもスレッドも**「無い」ものとして扱います**（`404`。あることも教えない）。一覧にも出ません。
 - 会員限定・スタッフ限定のカテゴリのページは、見る人ごとに変わるので、`Cache-Control: private, no-store` で返し、共有のキャッシュには載せません。会員やスタッフが見るトップ（`/forum`）も、そのカテゴリが入るときは同じです。**公開のカテゴリのページは、今までどおりキャッシュされます**（ログインしているかどうかで変わりません）。

@@ -45,12 +45,12 @@ locale = "ja"                         # 申し込み・確認・停止のペー�
 - メールの文面（件名・本文）は通知のテンプレート `newsletter.confirm` / `newsletter.issue` です。Admin Studio の **Settings › Notifications** で編集・テスト送信できます（[通知 6](notifications.ja.md#6-admin-studio-から管理する)）。
 - 申し込みページ `/newsletter`、確認 `/newsletter/confirm`、停止 `/newsletter/unsubscribe` のパスは変えられません。`/newsletter` は `admin_path` にも使えません。
 
-| キー | 型 | 既定値 | 説明 |
-| --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` で有効にする |
-| `max_per_ip_per_hour` | integer | `10` | 同じ IP からの 1 時間あたりの申し込みの数（0 で無制限。`[cache]` で数える） |
-| `confirm_ttl_hours` | integer | `48` | 確認リンクの有効期限（時間。1〜336）。過ぎたら同じアドレスでもう一度申し込む |
-| `locale` | string | `"en"` | 申し込み・確認・停止のページの文言の言語。`en` / `ja` |
+| キー                  | 型      | 既定値  | 説明                                                                         |
+| --------------------- | ------- | ------- | ---------------------------------------------------------------------------- |
+| `enabled`             | bool    | `false` | `true` で有効にする                                                          |
+| `max_per_ip_per_hour` | integer | `10`    | 同じ IP からの 1 時間あたりの申し込みの数（0 で無制限。`[cache]` で数える）  |
+| `confirm_ttl_hours`   | integer | `48`    | 確認リンクの有効期限（時間。1〜336）。過ぎたら同じアドレスでもう一度申し込む |
+| `locale`              | string  | `"en"`  | 申し込み・確認・停止のページの文言の言語。`en` / `ja`                        |
 
 ## 2. CAPTCHA（任意）
 
@@ -103,22 +103,22 @@ JSON の API にも同じ検査がかかり、トークンの欄（`cf-turnstile
 
 - **状態ごとの人数**（購読中・確認待ち・停止）。
 - **コンテンツを送る**: 公開中の記事を選び、要約（空なら記事の `excerpt` フィールド、無ければ最初の段落）を確かめ、**先に自分へテスト送信**して、購読者全員に送ります。送った記録（履歴）が残り、同じ記事をもう一度送ろうとすると、確認してから送り直せます。
-  - メールにはタイトル・要約・記事の URL・購読者ごとの停止リンクが入ります。
-  - 送るのは**今公開されている版**です（保存しただけで公開していない変更は含まれません）。
-  - 送信は通知の送信待ちに入り、サーバーを再起動しても失われません。購読者の数だけメールを送るので、SMTP サーバーの 1 日の送信上限を確かめてください。
+    - メールにはタイトル・要約・記事の URL・購読者ごとの停止リンクが入ります。
+    - 送るのは**今公開されている版**です（保存しただけで公開していない変更は含まれません）。
+    - 送信は通知の送信待ちに入り、サーバーを再起動しても失われません。購読者の数だけメールを送るので、SMTP サーバーの 1 日の送信上限を確かめてください。
 - **購読者**: 一覧（登録の新しい順・状態で絞り込み・メールアドレスで検索）、削除（記録ごと消す）、**CSV の書き出し**（配信する人のメールアドレス）。
 - **送信履歴**: 送った記事と宛先の数。
 
 ## 6. API
 
-| API | 権限 | 説明 |
-| --- | --- | --- |
-| `POST /api/v1/newsletter/subscribe` | なし | `{"email": "...", "website": ""}`。受け付けたら `202 {"status": "pending"}`（登録済みでも同じ）。誤りは `400 invalid_email`、`429 rate_limited`、CAPTCHA は `400 captcha_failed` / `503 captcha_unavailable` |
-| `GET /api/v1/newsletter/subscribers?status=&q=&limit=&offset=` | admin | 購読者（登録の新しい順）と総数、状態ごとの人数 `counts`。トークンは含めない |
-| `POST /api/v1/newsletter/subscribers/delete` | admin | `{"ids": [...]}`（1〜500 件）。`{"count": n}` |
-| `GET /api/v1/newsletter/subscribers/export` | admin | 配信する人のメールアドレスの CSV（`text/csv`、ダウンロード） |
-| `GET /api/v1/newsletter/issues?limit=&offset=` | admin | 送信履歴（新しい順）と総数 |
-| `POST /api/v1/newsletter/issues` | admin | `{"content_type": "article", "slug_or_id": "...", "summary": "", "test_to": "", "force": false}`。`test_to` を付けるとそのアドレスにだけ送る（`202`、履歴に残さない）。購読者全員に送ると `201`（履歴の 1 件）。送信済みは `409 already_sent`（`force: true` で送り直す）、購読者がいないと `409 no_subscribers`、公開していないと `400 content_not_published` |
+| API                                                            | 権限  | 説明                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/newsletter/subscribe`                            | なし  | `{"email": "...", "website": ""}`。受け付けたら `202 {"status": "pending"}`（登録済みでも同じ）。誤りは `400 invalid_email`、`429 rate_limited`、CAPTCHA は `400 captcha_failed` / `503 captcha_unavailable`                                                                                                                                                   |
+| `GET /api/v1/newsletter/subscribers?status=&q=&limit=&offset=` | admin | 購読者（登録の新しい順）と総数、状態ごとの人数 `counts`。トークンは含めない                                                                                                                                                                                                                                                                                    |
+| `POST /api/v1/newsletter/subscribers/delete`                   | admin | `{"ids": [...]}`（1〜500 件）。`{"count": n}`                                                                                                                                                                                                                                                                                                                  |
+| `GET /api/v1/newsletter/subscribers/export`                    | admin | 配信する人のメールアドレスの CSV（`text/csv`、ダウンロード）                                                                                                                                                                                                                                                                                                   |
+| `GET /api/v1/newsletter/issues?limit=&offset=`                 | admin | 送信履歴（新しい順）と総数                                                                                                                                                                                                                                                                                                                                     |
+| `POST /api/v1/newsletter/issues`                               | admin | `{"content_type": "article", "slug_or_id": "...", "summary": "", "test_to": "", "force": false}`。`test_to` を付けるとそのアドレスにだけ送る（`202`、履歴に残さない）。購読者全員に送ると `201`（履歴の 1 件）。送信済みは `409 already_sent`（`force: true` で送り直す）、購読者がいないと `409 no_subscribers`、公開していないと `400 content_not_published` |
 
 エラーは英語で、機械が読む `code` を付けます。配信と削除は監査ログ（`newsletter.send` / `newsletter.delete`）に残ります。
 

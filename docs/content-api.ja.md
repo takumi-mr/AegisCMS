@@ -28,6 +28,7 @@ curl -X POST "http://localhost:8080/api/v1/auth/session" \
 ```
 
 **成功レスポンス (200 OK):**
+
 ```json
 {
   "token": "sess_01HZX...",
@@ -40,6 +41,7 @@ curl -X POST "http://localhost:8080/api/v1/auth/session" \
 ```
 
 以降のリクエストでは、取得したトークンをヘッダーに指定します：
+
 ```http
 Authorization: Bearer sess_01HZX...
 ```
@@ -48,18 +50,19 @@ Authorization: Bearer sess_01HZX...
 
 操作に必要なロールは以下のとおりです（詳細は [認証 & ユーザー管理](authentication.ja.md) を参照）。
 
-| 操作 | 必要なロール | 備考 |
-|---|---|---|
-| 下書き (`draft`) / レビュー待ち (`pending`) の作成 | `contributor` | 自身が著者となるコンテンツのみ（※`reviewer` は新規作成不可） |
-| 公開 (`published`) / 予約公開 (`scheduled`) での新規作成 | `editor` 以上 | 即時公開または日時指定公開 |
-| レビュー待ち (`pending`) 記事の校正・承認・差し戻し | `reviewer` 以上 | `reviewer` は `pending` の手直し、承認 (`published`/`scheduled`)、差し戻し (`draft`) のみ可能 |
-| 既存コンテンツの自由な変更・直接公開 | `editor` 以上 | `contributor` は自身の `draft` / `pending` のみ編集可能 |
-| 他のユーザーを著者 (`author_id`) に指定 | `admin` のみ | 省略時はログインユーザーが著者になる |
-| コンテンツの削除 | `editor` 以上 | `reviewer` および `contributor` は削除不可 |
-| タグの紐付け (`PUT .../tags`) | `contributor` 以上 | `reviewer` は `pending` 記事のタグ付けを調整可能 |
+| 操作                                                     | 必要なロール       | 備考                                                                                          |
+| -------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------- |
+| 下書き (`draft`) / レビュー待ち (`pending`) の作成       | `contributor`      | 自身が著者となるコンテンツのみ（※`reviewer` は新規作成不可）                                  |
+| 公開 (`published`) / 予約公開 (`scheduled`) での新規作成 | `editor` 以上      | 即時公開または日時指定公開                                                                    |
+| レビュー待ち (`pending`) 記事の校正・承認・差し戻し      | `reviewer` 以上    | `reviewer` は `pending` の手直し、承認 (`published`/`scheduled`)、差し戻し (`draft`) のみ可能 |
+| 既存コンテンツの自由な変更・直接公開                     | `editor` 以上      | `contributor` は自身の `draft` / `pending` のみ編集可能                                       |
+| 他のユーザーを著者 (`author_id`) に指定                  | `admin` のみ       | 省略時はログインユーザーが著者になる                                                          |
+| コンテンツの削除                                         | `editor` 以上      | `reviewer` および `contributor` は削除不可                                                    |
+| タグの紐付け (`PUT .../tags`)                            | `contributor` 以上 | `reviewer` は `pending` 記事のタグ付けを調整可能                                              |
 
 > [!TIP]
 > **LLMマルチエージェント自動投稿のベストプラクティス**
+>
 > - **執筆エージェント**: `contributor` ロールのアカウントを使用し、`status: "pending"` で記事を提出します（勝手に公開されない安全なサンドボックス）。
 > - **校閲・監査エージェント**: `reviewer` ロールのアカウントを使用し、提出された `pending` 記事の内容を検査・校正し、問題なければ `status: "published"` で承認、修正が必要なら `status: "draft"` に `review_note` を添えて差し戻します。`reviewer` には新規作成権限や削除権限がないため、万が一の誤動作やプロンプトインジェクションでも既存サイトが破壊されません。
 
@@ -72,8 +75,8 @@ Authorization: Bearer sess_01HZX...
 - **メソッド**: `POST`
 - **パス**: `/api/v1/contents/{content_type}` (例: `/api/v1/contents/article`)
 - **ヘッダー**:
-  - `Authorization: Bearer <token>`
-  - `Content-Type: application/json`
+    - `Authorization: Bearer <token>`
+    - `Content-Type: application/json`
 
 ### 2.1 リクエストボディ (JSON)
 
@@ -100,18 +103,18 @@ Authorization: Bearer sess_01HZX...
 
 ### 2.2 パラメータ仕様
 
-| フィールド | 型 | 必須 | 既定値 | 説明 |
-|---|---|---|---|---|
-| `title` | string | **必須** | - | 記事のタイトル。 |
-| `slug` | string | **必須** | - | URL スラッグ（英数字・ハイフンなど）。同一 `content_type` 内で一意。 |
-| `status` | string | 任意 | `"draft"` | 公開ステータス。`"draft"`, `"pending"`, `"published"`, `"scheduled"`, `"archived"` のいずれか。 |
-| `blocks` | array | 任意 | `[]` | 本文ブロックの配列（後述の [3. 本文ブロックの仕様](#3-本文ブロックの仕様-blocks) 参照）。 |
-| `author_id` | string | 任意 | (ログインユーザー) | 著者のユーザー ID。ログインユーザー以外を指定できるのは `admin` のみ。 |
-| `published_at` | string | 条件付 | `null` | RFC 3339 形式の公開日時（例: `2026-11-10T12:00:00Z`）。`status: "scheduled"` の場合は必須。 |
-| `unpublish_at` | string | 任意 | `null` | RFC 3339 形式の予約非公開（アーカイブ）日時。`published` または `scheduled` のみ指定可能（公開日時より未来であること）。 |
-| `publish` | boolean | 任意 | `false` | 明示的に公開版ポインターを最新の作業版へ切り替えるフラグ。 |
-| `review_note` | string | 任意 | `null` | レビュー依頼・承認・差し戻しのメモ。監査ログや版の履歴に記録されます。 |
-| `fields` | object | 任意 | `{}` | スキーマ（`schemas/*.yaml`）で定義されたカスタムフィールド（要約、カテゴリ、会員アクセス権など）。 |
+| フィールド     | 型      | 必須     | 既定値             | 説明                                                                                                                     |
+| -------------- | ------- | -------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `title`        | string  | **必須** | -                  | 記事のタイトル。                                                                                                         |
+| `slug`         | string  | **必須** | -                  | URL スラッグ（英数字・ハイフンなど）。同一 `content_type` 内で一意。                                                     |
+| `status`       | string  | 任意     | `"draft"`          | 公開ステータス。`"draft"`, `"pending"`, `"published"`, `"scheduled"`, `"archived"` のいずれか。                          |
+| `blocks`       | array   | 任意     | `[]`               | 本文ブロックの配列（後述の [3. 本文ブロックの仕様](#3-本文ブロックの仕様-blocks) 参照）。                                |
+| `author_id`    | string  | 任意     | (ログインユーザー) | 著者のユーザー ID。ログインユーザー以外を指定できるのは `admin` のみ。                                                   |
+| `published_at` | string  | 条件付   | `null`             | RFC 3339 形式の公開日時（例: `2026-11-10T12:00:00Z`）。`status: "scheduled"` の場合は必須。                              |
+| `unpublish_at` | string  | 任意     | `null`             | RFC 3339 形式の予約非公開（アーカイブ）日時。`published` または `scheduled` のみ指定可能（公開日時より未来であること）。 |
+| `publish`      | boolean | 任意     | `false`            | 明示的に公開版ポインターを最新の作業版へ切り替えるフラグ。                                                               |
+| `review_note`  | string  | 任意     | `null`             | レビュー依頼・承認・差し戻しのメモ。監査ログや版の履歴に記録されます。                                                   |
+| `fields`       | object  | 任意     | `{}`               | スキーマ（`schemas/*.yaml`）で定義されたカスタムフィールド（要約、カテゴリ、会員アクセス権など）。                       |
 
 > [!IMPORTANT]
 > **カスタムフィールドの記述位置に関する注意**  
@@ -143,6 +146,7 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 ### 代表的なブロック一覧
 
 #### 段落 (`core/paragraph`)
+
 ```json
 {
   "name": "core/paragraph",
@@ -153,7 +157,9 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 ```
 
 #### 見出し (`core/heading`)
+
 `attributes.level` で 1〜6 を指定します（既定値は 2）。見出しの `id` は保存時に自動付与されます。
+
 ```json
 {
   "name": "core/heading",
@@ -164,6 +170,7 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 ```
 
 #### コードブロック (`core/code`)
+
 ```json
 {
   "name": "core/code",
@@ -177,7 +184,9 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 ```
 
 #### 順不同リスト (`core/list`)
+
 子は `core/list-item` を並べます。
+
 ```json
 {
   "name": "core/list",
@@ -190,6 +199,7 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 ```
 
 #### 画像 (`core/image`)
+
 ```json
 {
   "name": "core/image",
@@ -202,7 +212,9 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 ```
 
 #### 注記 / コールアウト (`core/callout`)
+
 `variant` は `"note"`, `"tip"`, `"important"`, `"warning"`, `"caution"` から選択します。
+
 ```json
 {
   "name": "core/callout",
@@ -216,6 +228,7 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 ```
 
 #### 表 (`core/table`)
+
 ```json
 {
   "name": "core/table",
@@ -233,7 +246,9 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 ```
 
 #### 会員限定区切り (`core/paywall`)
+
 これ以降のブロックは、権限を持つ会員にのみ表示されます（[会員アカウント](members.ja.md)）。
+
 ```json
 {
   "name": "core/paywall",
@@ -273,6 +288,7 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 記事内に画像を挿入する場合は、先にメディアアップロード API を呼び出してストレージキーや URL を取得します（詳細は [メディア管理](media.ja.md) を参照）。
 
 ### アップロード API
+
 - **メソッド**: `POST`
 - **パス**: `/api/v1/storage/upload`
 - **形式**: `multipart/form-data`
@@ -285,6 +301,7 @@ curl -X POST "http://localhost:8080/api/v1/storage/upload" \
 ```
 
 **成功レスポンス (201 Created):**
+
 ```json
 {
   "key": "media/2026/11/screenshot.png",
@@ -305,14 +322,14 @@ curl -X POST "http://localhost:8080/api/v1/storage/upload" \
 - **メソッド**: `PUT`
 - **パス**: `/api/v1/contents/{content_type}/{slug_or_id}/tags`
 - **リクエストボディ**:
-  ```json
-  {
-    "tag_ids": [
-      "tag-rust-uuid",
-      "tag-api-uuid"
-    ]
-  }
-  ```
+    ```json
+    {
+      "tag_ids": [
+        "tag-rust-uuid",
+        "tag-api-uuid"
+      ]
+    }
+    ```
 
 ※既存のタグ一覧は `GET /api/v1/tags` で取得できます。タグを新規登録する場合は `POST /api/v1/tags` を実行します。
 
@@ -530,15 +547,15 @@ AegisCMS の REST API は、エラー時に標準的な HTTP ステータスコ�
 
 ### 主なステータスコード一覧
 
-| ステータスコード | 意味 | 主な原因と対策 |
-|---|---|---|
-| `400 Bad Request` | リクエスト形式不正 | ・必須フィールド（`title`, `slug`）が欠落している<br>・トップレベルに未知のキーが含まれている（カスタムフィールドは `fields` 内に配置すること）<br>・`published_at` や `unpublish_at` の日時フォーマット（RFC 3339）が不正<br>・`access` に未定義の会員レベルを指定した |
-| `401 Unauthorized` | 認証エラー | ・`Authorization` ヘッダーがない、またはトークンが無効・期限切れ |
-| `403 Forbidden` | 権限不足 | ・`contributor` が直接 `published` で作成しようとした（`draft` または `pending` のみ可）<br>・`admin` 以外のユーザーが他人の `author_id` を指定した<br>・他人のコンテンツを編集しようとした |
-| `404 Not Found` | リソース未存在 | ・指定した `content_type` のスキーマが登録されていない<br>・更新対象の記事が存在しない |
-| `409 Conflict` | 衝突・競合 | ・指定した `slug` が同じ `content_type` 内ですでに使用されている |
-| `422 Unprocessable Entity` | バリデーション / フック拒否 | ・登録された Wasm プラグインの `on-before-save` フックによって保存が拒否された |
-| `500 Internal Server Error` | サーバー内部エラー | ・データベースエラーや予期せぬ障害 |
+| ステータスコード            | 意味                        | 主な原因と対策                                                                                                                                                                                                                                                          |
+| --------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400 Bad Request`           | リクエスト形式不正          | ・必須フィールド（`title`, `slug`）が欠落している<br>・トップレベルに未知のキーが含まれている（カスタムフィールドは `fields` 内に配置すること）<br>・`published_at` や `unpublish_at` の日時フォーマット（RFC 3339）が不正<br>・`access` に未定義の会員レベルを指定した |
+| `401 Unauthorized`          | 認証エラー                  | ・`Authorization` ヘッダーがない、またはトークンが無効・期限切れ                                                                                                                                                                                                        |
+| `403 Forbidden`             | 権限不足                    | ・`contributor` が直接 `published` で作成しようとした（`draft` または `pending` のみ可）<br>・`admin` 以外のユーザーが他人の `author_id` を指定した<br>・他人のコンテンツを編集しようとした                                                                             |
+| `404 Not Found`             | リソース未存在              | ・指定した `content_type` のスキーマが登録されていない<br>・更新対象の記事が存在しない                                                                                                                                                                                  |
+| `409 Conflict`              | 衝突・競合                  | ・指定した `slug` が同じ `content_type` 内ですでに使用されている                                                                                                                                                                                                        |
+| `422 Unprocessable Entity`  | バリデーション / フック拒否 | ・登録された Wasm プラグインの `on-before-save` フックによって保存が拒否された                                                                                                                                                                                          |
+| `500 Internal Server Error` | サーバー内部エラー          | ・データベースエラーや予期せぬ障害                                                                                                                                                                                                                                      |
 
 ---
 
@@ -547,11 +564,10 @@ AegisCMS の REST API は、エラー時に標準的な HTTP ステータスコ�
 記事が `published` ステータスで作成・更新された場合、サーバー内部で以下の処理が自動的に実行されます。
 
 1. **キャッシュのパージ (Cache Invalidation)**:
-   - 公開サイトの該当記事ページ、一覧ページ、フィード（`/feed.atom`）の CDN / 内部キャッシュが自動的に破棄されます。
+    - 公開サイトの該当記事ページ、一覧ページ、フィード（`/feed.atom`）の CDN / 内部キャッシュが自動的に破棄されます。
 2. **全文検索インデックスの更新 (`aegis-search`)**:
-   - tantivy 検索エンジンのインデックスキューに通知され、即座に検索結果へ反映されます（[サイト内検索](search.ja.md)）。
+    - tantivy 検索エンジンのインデックスキューに通知され、即座に検索結果へ反映されます（[サイト内検索](search.ja.md)）。
 3. **プラグインフックの呼び出し**:
-   - プラグインが登録している `on-content-published` などの Wasm フックが自動的に発火します（[プラグインフック仕様](plugin_hooks.ja.md)）。
+    - プラグインが登録している `on-content-published` などの Wasm フックが自動的に発火します（[プラグインフック仕様](plugin_hooks.ja.md)）。
 4. **操作監査ログの記録 (`aegis-audit`)**:
-   - `content.create` または `content.update` イベントが実行ユーザー・IP アドレスとともに監査ログに記録されます（[監査ログ](audit.ja.md)）。
-
+    - `content.create` または `content.update` イベントが実行ユーザー・IP アドレスとともに監査ログに記録されます（[監査ログ](audit.ja.md)）。

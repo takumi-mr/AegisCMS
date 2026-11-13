@@ -13,11 +13,11 @@ The current state of the CSP for the public site and Admin Studio, and the desig
 
 ## 1. Current State (Implemented)
 
-| Target | `script-src` | Notes |
-|---|---|---|
-| Public pages and API | `'self' 'unsafe-inline'` | `'unsafe-eval'` is not included (no feature uses `eval`). Hosts declared by plugins (`capabilities.csp.script_domains`, etc.) and CAPTCHA hosts are added |
-| Admin Studio (`/admin/`) | `'self'` | No `unsafe-inline`. `style-src` is also only `'self'` (§1.1) |
-| Preview of theme-applied pages | Same as public pages | `GET /api/v1/preview/frame/{key}` returns it with `sandbox allow-scripts` added. When Strict, the hashes collected when the page was placed are added to the CSP too |
+| Target                                                         | `script-src`                                                    | Notes                                                                                                                                                                    |
+| -------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Public pages and API                                           | `'self' 'unsafe-inline'`                                        | `'unsafe-eval'` is not included (no feature uses `eval`). Hosts declared by plugins (`capabilities.csp.script_domains`, etc.) and CAPTCHA hosts are added                |
+| Admin Studio (`/admin/`)                                       | `'self'`                                                        | No `unsafe-inline`. `style-src` is also only `'self'` (§1.1)                                                                                                             |
+| Preview of theme-applied pages                                 | Same as public pages                                            | `GET /api/v1/preview/frame/{key}` returns it with `sandbox allow-scripts` added. When Strict, the hashes collected when the page was placed are added to the CSP too     |
 | Public pages (`[security].strict_csp = "on"`; **the default**) | `'self'` + hashes of the page's inline scripts + declared hosts | No `'unsafe-inline'` or `'unsafe-eval'` (§6). `style-src` is `'self'` + hashes of the page's `<style>` (no `unsafe-inline`; `style=""` attributes are stopped too; §6.1) |
 
 - The default values are `headers::DEFAULT_CONTENT_SECURITY_POLICY` (`aegis_core::csp::DEFAULT_PUBLIC_CSP`; **it has no `'unsafe-inline'`**) and `ADMIN_CONTENT_SECURITY_POLICY`. Only when `strict_csp` is `off` / `report-only`, `aegis_core::csp::with_legacy_inline` adds `'unsafe-inline'` to `script-src` and `style-src` and enforces it (the previous behavior). When an administrator has overridden the CSP in "Settings › Headers", that value is used as is.
@@ -94,10 +94,10 @@ pub enum ScriptSource {
 - Add `scripts: Vec<InjectedScript>` to `PageRenderContext` (returned by `on-render-page`; the position is `<head>` only). The ABI version is raised (`abi_version` 2). For external script URLs, this site's paths also pass without declaration (`/assets/x.js`).
 - **The host removes `<script>` inside `extra_head` / `append_content` / `prepend_content`** (parsed and dropped with lol-html; `on*` attributes are dropped too). `<link>`, `<meta>`, `<style>`, and the like are as before.
 - **The host's validation** (on the result of `on-render-page`, before building the tag):
-  - `External`: an `https://` URL whose host is in the manifest's `capabilities.csp.script_domains`. The only attributes are `src`, `async`, and `defer`, decided by the host (`onload` and the like cannot be written; the URL is escaped correctly as an attribute)
-  - `Inline`: the manifest must declare **`capabilities.inline_scripts: true`** (least privilege; without the declaration it is dropped and a warning is left). A size limit (default 64 KB)
-  - The category string is only `[a-z0-9_-]{1,32}`
-  - Scripts that violate this are dropped. The page is not broken, and it is recorded in the `render` warnings and the audit log
+    - `External`: an `https://` URL whose host is in the manifest's `capabilities.csp.script_domains`. The only attributes are `src`, `async`, and `defer`, decided by the host (`onload` and the like cannot be written; the URL is escaped correctly as an attribute)
+    - `Inline`: the manifest must declare **`capabilities.inline_scripts: true`** (least privilege; without the declaration it is dropped and a warning is left). A size limit (default 64 KB)
+    - The category string is only `[a-z0-9_-]{1,32}`
+    - Scripts that violate this are dropped. The page is not broken, and it is recorded in the `render` warnings and the audit log
 - **Hashes**: the host takes the SHA-256 of the body of each inline script it output (those output as `type="text/plain"` too, because `consent.js` runs the same body after consent) as `sha256-<base64>` and adds it to the response's CSP.
 - **Caching the result of `on-render-page`** (`[runtime].render_cache_mb`) is as before. The hashes are determined by the result, so caching is fine.
 
@@ -107,8 +107,8 @@ pub enum ScriptSource {
 
 - **Built-in templates**: stop using inline scripts and `onclick`. The comment form's script becomes an external file (served like `consent.js`, as with `/_aegis/comments.js`), and the setup screen also becomes an external file. `onclick="window.scrollTo..."` becomes binding events from an external script.
 - **Third-party themes**: inline `<script>` and `on*` attributes stop working under Strict (a breaking change). There are 2 ways to fix it (the second is added in 4).
-  - Make the script `themes/{name}/assets/*.js` and load it with `<script src>` (`'self'`).
-  - For things that must be inline, output them with the template function `{{ inline_script("code") }}`. The host builds the tag and registers the hash.
+    - Make the script `themes/{name}/assets/*.js` and load it with `<script src>` (`'self'`).
+    - For things that must be inline, output them with the template function `{{ inline_script("code") }}`. The host builds the tag and registers the hash.
 
 ---
 
@@ -116,11 +116,11 @@ pub enum ScriptSource {
 
 **The default is `"on"`** (a breaking change).
 
-| Value | Behavior |
-|---|---|
-| `"on"` (default) | Enforces the Strict CSP (removes `'unsafe-inline'` and allows inline scripts from trustworthy sources by hash) |
-| `"report-only"` | Keeps the previous CSP (`script-src 'self' 'unsafe-inline'`) and also outputs the Strict CSP as `Content-Security-Policy-Report-Only`. You can check what would be blocked in the browser console. For checking migration |
-| `"off"` | Returns to the previous CSP. However, §4's validation and the removal of `<script>` always apply (the ABI v2 promise) |
+| Value            | Behavior                                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `"on"` (default) | Enforces the Strict CSP (removes `'unsafe-inline'` and allows inline scripts from trustworthy sources by hash)                                                                                                            |
+| `"report-only"`  | Keeps the previous CSP (`script-src 'self' 'unsafe-inline'`) and also outputs the Strict CSP as `Content-Security-Policy-Report-Only`. You can check what would be blocked in the browser console. For checking migration |
+| `"off"`          | Returns to the previous CSP. However, §4's validation and the removal of `<script>` always apply (the ABI v2 promise)                                                                                                     |
 
 **What stops working with `on`**: the theme's own directly written inline `<script>` and `on*` attributes (make them external files or `{{ inline_script() }}`; [Theme authoring 6a](theme_authoring_guide.md#6a-how-to-write-scripts-do-not-write-inline)), `<script>` written directly in HTML fragments (the normal mode of `core/html` and the like are removed by sanitization anyway), and pasted code of external services that need `'unsafe-inline'` (those among AdSense, analytics, and CAPTCHA that have inline startup code; the official plugins `official-ads` and `official-clarity` are already handled with structured injection).
 
@@ -146,11 +146,11 @@ With `strict_csp = "on"`, `'unsafe-inline'` is also removed from `style-src`, an
 
 1. **The design document** (this page).
 2. **ABI v2** (**done**): `InjectedScript` and `capabilities.inline_scripts`, the host's validation (`aegis_runtime::scripts`; removing `<script>` and `on*` attributes with lol-html and building tags), the SDKs (Rust, AssemblyScript, TinyGo), migration of the official plugins (`page-toc`, `back-to-top`, `share-buttons`, `lightbox`, `external-links`, `code-lines`, `code-enhancer`, `mermaid`, `ads`, `clarity`), the plugin dev server's preview, and updates to [plugin_abi_specification.md](plugin_abi_specification.md), [plugin_hooks.md](plugin_hooks.md), and [versioning.md](versioning.md). The CSP is not changed yet.
-   - What changed in the migration: `official-mermaid`'s `script_url` is only this site's path or an `https://` URL on `cdn.jsdelivr.net` (the host drops other hosts). `<script>` in `official-ads`'s `custom_head_code` can no longer be used (`<meta>`, `<link>`, etc. can; a safe way to add scripts is undecided). `official-code-enhancer`'s Prism runs `window.Prism.manual = true` first instead of `<script data-manual>`.
+    - What changed in the migration: `official-mermaid`'s `script_url` is only this site's path or an `https://` URL on `cdn.jsdelivr.net` (the host drops other hosts). `<script>` in `official-ads`'s `custom_head_code` can no longer be used (`<meta>`, `<link>`, etc. can; a safe way to add scripts is undecided). `official-code-enhancer`'s Prism runs `window.Prism.manual = true` first instead of `<script data-manual>`.
 3. **Externalizing the built-in templates** (**done**): the comment section's script (`/_aegis/comments.js`; the URL is `CommentSection.script_url`), the initial setup screen (`/_aegis/setup.js`), and the analytics beacon (`/_aegis/analytics.js`; the endpoint is `data-endpoint`) became external files, and the `onclick` of an article's "Back to top" became an in-page link (`<a href='#'>`; smooth scrolling is CSS `scroll-behavior`). That the built-in templates and the 5 bundled themes output no inline code is checked by an `aegis-theme` test (render all templates and look for `<script>` (without `src`) and `on*`) and an E2E (posting a comment with a CSP of only `script-src 'self'`). The policy of not writing inline code was added to how to build themes ([theme_authoring_guide.md 6a](theme_authoring_guide.md#6a-how-to-write-scripts-do-not-write-inline)). `inline_script()` (§5) is added in 4 along with the hash registration mechanism.
 4. **Collecting hashes and the CSP** (**done**): when a trustworthy source (a plugin's inline `scripts`, the template's `inline_script()`) outputs, the SHA-256 of the body is recorded with `aegis_core::csp::record_inline_script`. The recording sink is created per request by `security_headers_middleware` (`tokio::task_local`; it does nothing outside the sink). The response body undergoes namespace replacement (`aegis-` → `cms-`), so **hashes are also taken from the body after replacement** (the same replacement is passed to the sink). `headers::strict_script_csp` removes `'unsafe-inline'` and `'unsafe-eval'` from `script-src` and adds the hashes (declared hosts are kept, and `strict-dynamic` is not used). `[security].strict_csp` is `off` (default) / `report-only` (adds `Content-Security-Policy-Report-Only` in addition to the current CSP) / `on`. When an administrator has overridden the CSP, that value takes priority. Admin Studio (`/admin/`) never had `unsafe-inline`. `admin/e2e/aegis.e2e.toml` is `on`, and all E2E runs under Strict.
-6. **Removing `'unsafe-inline'` from public pages' `style-src`** (**done**; a breaking change; §6.1). `<style>` by hash, no `style=""` attributes (replaced with classes). The `core/html` sandbox (`srcdoc`) had its scripts blocked even under the earlier Strict (because it inherits the parent's CSP), so it was fixed by registering the hashes of the contents.
-5. **Making `on` the default** (**done**; a breaking change). The default of `[security].strict_csp` was made `"on"`. The previous behavior is `"off"`, and for checking only, `"report-only"`. At the same time, Admin Studio's `style-src` was made `'self'` only (§1.1).
+5. **Removing `'unsafe-inline'` from public pages' `style-src`** (**done**; a breaking change; §6.1). `<style>` by hash, no `style=""` attributes (replaced with classes). The `core/html` sandbox (`srcdoc`) had its scripts blocked even under the earlier Strict (because it inherits the parent's CSP), so it was fixed by registering the hashes of the contents.
+6. **Making `on` the default** (**done**; a breaking change). The default of `[security].strict_csp` was made `"on"`. The previous behavior is `"off"`, and for checking only, `"report-only"`. At the same time, Admin Studio's `style-src` was made `'self'` only (§1.1).
 
 ### 7.1 Decided and Not Decided
 
@@ -177,10 +177,10 @@ The public page CSP's `style-src` is `'self'` and the `<style>` hashes (§6.1), 
 }
 ```
 
-  - What you can write is `style_domains` (`style-src`), `font_domains` (`font-src`), and `img_domains` (`img-src`). **Script hosts cannot be declared** (a theme's scripts are its own files or `inline_script()`).
-  - Host names only (no wildcards, schemes, ports, or paths), up to 10 per list. A theme with errors cannot be installed, and errors in a running theme are ignored (with a warning).
-  - The admin screen's "Themes" card shows "Loads from other sites: … (visitors' IP addresses are sent)". Visitors' IP addresses reach external font CDNs, so mention it in your privacy policy.
-  - Among the bundled themes, `emerald-luxury`, `minimal-editorial`, `roastery`, and `trailhead`, which load Google Fonts, declare it (`cyber-neon` does not load them).
+- What you can write is `style_domains` (`style-src`), `font_domains` (`font-src`), and `img_domains` (`img-src`). **Script hosts cannot be declared** (a theme's scripts are its own files or `inline_script()`).
+- Host names only (no wildcards, schemes, ports, or paths), up to 10 per list. A theme with errors cannot be installed, and errors in a running theme are ignored (with a warning).
+- The admin screen's "Themes" card shows "Loads from other sites: … (visitors' IP addresses are sent)". Visitors' IP addresses reach external font CDNs, so mention it in your privacy policy.
+- Among the bundled themes, `emerald-luxury`, `minimal-editorial`, `roastery`, and `trailhead`, which load Google Fonts, declare it (`cyber-neon` does not load them).
 
 Even when an administrator has overridden the CSP in the admin screen, the declared hosts are added (the same as a plugin's `capabilities.csp`).
 
@@ -190,13 +190,13 @@ Even when an administrator has overridden the CSP in the admin screen, the decla
 
 We compared the performance change from security hardening (Strict CSP, removing `style` attributes, ABI v2, the CORS review, etc.) between before the hardening began (right after #297) and now. Same settings (SQLite, 2,000 articles, 6 official plugins), same load (`scripts/benchmark.mjs`, 50 concurrent, 6 seconds each, the median of 4 alternating rounds), release build.
 
-| Scenario | Before hardening | Now | Difference |
-| --- | ---: | ---: | ---: |
-| Routing only (health) | 8,501 req/s | 8,382 req/s | -1.4% |
-| Top page | 3,744 | 3,577 | -4.5% |
-| Article page | 1,931 | 1,784 | -7.6% |
-| Authenticated API (list) | 541 | 538 | -0.5% |
-| Admin screen preview | 1,642 | 1,348 | -17.9% |
+| Scenario                 | Before hardening |         Now | Difference |
+| ------------------------ | ---------------: | ----------: | ---------: |
+| Routing only (health)    |      8,501 req/s | 8,382 req/s |      -1.4% |
+| Top page                 |            3,744 |       3,577 |      -4.5% |
+| Article page             |            1,931 |       1,784 |      -7.6% |
+| Authenticated API (list) |              541 |         538 |      -0.5% |
+| Admin screen preview     |            1,642 |       1,348 |     -17.9% |
 
 - The decrease on public pages is about 0.1–0.5 ms per request. It comes from the HTML growing by about 11% (classed styles, the self-hosted font's `@font-face`) and from collecting hashes, namespace replacement, and building the CSP header. The API is unchanged.
 - In the first measurement (top -22%, preview -51%), about 30 KB of CSS was run through SHA-256 on every request, fragments were duplicated in lowercase to look for `<style>`, and the built-in styles (about 16 KB) went through the scan that removes `<script>` for each `on-render-page` plugin. It was fixed as follows: (1) reuse body hashes (a body → hash cache in `aegis_core::csp`), (2) skip scanning and escaping when there is no sink or no `<`, and (3) the built-in styles bypass plugins and are added before `</head>` at the end of the theme's rendering (`ThemeEngine::render`).

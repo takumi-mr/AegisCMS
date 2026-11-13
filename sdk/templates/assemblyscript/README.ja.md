@@ -55,6 +55,7 @@ sdk/templates/assemblyscript/
 公式 npm パッケージ [`@takumi-mr/plugin-sdk`](../../assemblyscript) をインポートして実装します。
 
 ### マニフェスト (`plugin.manifest.json`)
+
 ゼロ・トラスト実行モデルに基づき、プラグインが必要とする最小限のケイパビリティ（権限）を宣言します。未宣言の操作はホストランタイムによって即座にブロックされます。
 
 ```json
@@ -81,17 +82,17 @@ sdk/templates/assemblyscript/
 
 ### 利用可能なライフサイクルフック
 
-| エクスポート関数 | 引数 | 戻り値 | 説明 |
-|---|---|---|---|
-| `allocate(len: i32)` | `len: i32` | `i32` | メモリアロケータ (必須) |
-| `on_before_save(ptr: i32, len: i32)` | `(ptr, len)` | `i64` | 記事保存前の検証・値補正・保存拒否 |
-| `transform_content_ast(ptr: i32, len: i32)` | `(ptr, len)` | `i64` | 本文ブロック AST 配列の変換 |
-| `on_render_page(ptr: i32, len: i32)` | `(ptr, len)` | `i64` | 公開ページ描画コンテキストの動的更新 |
+| エクスポート関数                            | 引数         | 戻り値 | 説明                                 |
+| ------------------------------------------- | ------------ | ------ | ------------------------------------ |
+| `allocate(len: i32)`                        | `len: i32`   | `i32`  | メモリアロケータ (必須)              |
+| `on_before_save(ptr: i32, len: i32)`        | `(ptr, len)` | `i64`  | 記事保存前の検証・値補正・保存拒否   |
+| `transform_content_ast(ptr: i32, len: i32)` | `(ptr, len)` | `i64`  | 本文ブロック AST 配列の変換          |
+| `on_render_page(ptr: i32, len: i32)`        | `(ptr, len)` | `i64`  | 公開ページ描画コンテキストの動的更新 |
 
 ### 利用可能なホスト API
 
-| モジュール | 関数 | 説明 |
-|---|---|---|
-| `log` | `log.debug(msg)`, `log.info(msg)`, `log.warn(msg)`, `log.error(msg)` | ホスト側のロガー経由で安全にログを出力 |
-| `net` | `net.isAllowed(url)` | アクセス先 URL がマニフェストで許可されているか検証 |
-| `kv` | `kv.set(key, value)` | プラグイン専用ネームスペースの KVS へデータを保存 |
+| モジュール | 関数                                                                 | 説明                                                |
+| ---------- | -------------------------------------------------------------------- | --------------------------------------------------- |
+| `log`      | `log.debug(msg)`, `log.info(msg)`, `log.warn(msg)`, `log.error(msg)` | ホスト側のロガー経由で安全にログを出力              |
+| `net`      | `net.isAllowed(url)`                                                 | アクセス先 URL がマニフェストで許可されているか検証 |
+| `kv`       | `kv.set(key, value)`                                                 | プラグイン専用ネームスペースの KVS へデータを保存   |

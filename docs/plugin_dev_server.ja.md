@@ -38,6 +38,7 @@ curl http://127.0.0.1:8091/__dev/api/plugin
 ```
 
 **レスポンス例**:
+
 ```json
 {
   "manifest": {
@@ -65,18 +66,18 @@ curl http://127.0.0.1:8091/__dev/api/plugin
 
 全フックの標準の入力を返します。値は、ホストが実際にフックへ渡す JSON そのものです（`{"post": {...}}` のような包みは付きません）。
 
-| フック | 入力（Rust の型） |
-| --- | --- |
-| `on-before-save` | `PostContext` |
-| `transform-content-ast` | `BlockNode` の配列 |
-| `render-blocks` | `{"blocks": [BlockNode, ...]}`（結果は `{"html": ["<div>…</div>", null, ...]}`。`null` はそのプラグインが描かないブロック） |
-| `on-render-page` | `PageRenderContext` |
-| `calculate-order` | `OrderContext` |
-| `on-order-status-changed` | `OrderStatusChange` |
-| `on-content-published` | `PublishedContent` |
-| `check-comment` | `CommentSubmission`（結果は `CommentVerdict`） |
-| `send-notification` | `NotificationMessage` |
-| `on-user-authenticated` | `UserAuthContext` |
+| フック                    | 入力（Rust の型）                                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `on-before-save`          | `PostContext`                                                                                                               |
+| `transform-content-ast`   | `BlockNode` の配列                                                                                                          |
+| `render-blocks`           | `{"blocks": [BlockNode, ...]}`（結果は `{"html": ["<div>…</div>", null, ...]}`。`null` はそのプラグインが描かないブロック） |
+| `on-render-page`          | `PageRenderContext`                                                                                                         |
+| `calculate-order`         | `OrderContext`                                                                                                              |
+| `on-order-status-changed` | `OrderStatusChange`                                                                                                         |
+| `on-content-published`    | `PublishedContent`                                                                                                          |
+| `check-comment`           | `CommentSubmission`（結果は `CommentVerdict`）                                                                              |
+| `send-notification`       | `NotificationMessage`                                                                                                       |
+| `on-user-authenticated`   | `UserAuthContext`                                                                                                           |
 
 型は `aegis-core` / `aegis-ast` にあり、各フィクスチャが型に読み込めることはテストで検査しています。
 
@@ -109,6 +110,7 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
 ```
 
 **レスポンス例**:
+
 ```json
 {
   "success": true,
@@ -183,6 +185,7 @@ curl -X POST http://127.0.0.1:8091/__dev/api/preview \
 ```
 
 **レスポンス例**:
+
 ```json
 {
   "html": "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Plugin Preview</title><style>...</style></head><body><div class=\"preview-wrapper\"><div class=\"rendered-blocks\"><div class=\"block-item\"><div class=\"cta-banner\">Special Offer!</div></div></div></div></body></html>"
@@ -194,12 +197,12 @@ curl -X POST http://127.0.0.1:8091/__dev/api/preview \
 プラグインフォルダーのビルドコマンドを実行し、実行結果・出力ログ（stdout/stderr）・所要時間（ms）を返却します。
 ビルドコマンドは次の順に決まります。
 
-| 優先 | 指定 | 動き |
-| --- | --- | --- |
-| 1 | `--build-command "<コマンド>"` | そのコマンドを実行。**成果物を `entrypoint`（`plugin.wasm`）に置くのはコマンドの役目**（例: `cargo build --target wasm32-unknown-unknown --release && cp ... plugin.wasm`） |
-| 2 | マニフェストの `"dev": { "build_command": "<コマンド>" }` | 同上（プラグインごとに固定したいとき） |
-| 3 | `Cargo.toml`（Rust） | `cargo build --target wasm32-unknown-unknown --release` を実行し、成功したら cdylib の成果物（`target/` の下）を `entrypoint` に**自動でコピー**する。ワークスペースのメンバーでも独立した crate でも動く（`cargo metadata` で成果物を探す）。Fuel を本番と同じ条件で測るため、リリースビルド |
-| 4 | `package.json`（AssemblyScript） | `npm run asbuild`、無ければ `npm run build` |
+| 優先 | 指定                                                      | 動き                                                                                                                                                                                                                                                                                          |
+| ---- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `--build-command "<コマンド>"`                            | そのコマンドを実行。**成果物を `entrypoint`（`plugin.wasm`）に置くのはコマンドの役目**（例: `cargo build --target wasm32-unknown-unknown --release && cp ... plugin.wasm`）                                                                                                                   |
+| 2    | マニフェストの `"dev": { "build_command": "<コマンド>" }` | 同上（プラグインごとに固定したいとき）                                                                                                                                                                                                                                                        |
+| 3    | `Cargo.toml`（Rust）                                      | `cargo build --target wasm32-unknown-unknown --release` を実行し、成功したら cdylib の成果物（`target/` の下）を `entrypoint` に**自動でコピー**する。ワークスペースのメンバーでも独立した crate でも動く（`cargo metadata` で成果物を探す）。Fuel を本番と同じ条件で測るため、リリースビルド |
+| 4    | `package.json`（AssemblyScript）                          | `npm run asbuild`、無ければ `npm run build`                                                                                                                                                                                                                                                   |
 
 ソース（`.rs`・`.ts` など）を保存すると、このコマンドが自動で走り、成功するとページが読み込み直されます。開発サーバーが読むのは `entrypoint` のファイルだけなので、3 以外では上のとおり `entrypoint` が更新されるコマンドにしてください（更新されないと、ビルドは成功しても表示は変わりません）。
 

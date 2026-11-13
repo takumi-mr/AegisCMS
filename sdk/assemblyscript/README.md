@@ -118,21 +118,21 @@ Read the context with `parsePageRenderContext(readString(ptr, len))` and return 
 - **HTML around the article body**: Write to `ctx.prepend_content` / `ctx.append_content` instead of round-tripping `content_html`. Check `ctx.content_length > 0` to see whether the page has body content even when `content_html` is omitted via `capabilities.render_page.input`.
 - **Declarative queries (`ctx.queries`)**: Read query results declared in `capabilities.render_page.queries` via `ctx.queries.get("<query_name>")` (`JsonValue`).
 - **Scripts (`ctx.scripts`)**: Raw `<script>` tags and `on*` attributes in `extra_head`, `prepend_content`, and `append_content` are stripped by the host. Push `InjectedScript` entries to `ctx.scripts` instead:
-  - `InjectedScript.inline("window.init = 1;")` (requires `"inline_scripts": true` in `capabilities`)
-  - `InjectedScript.external("https://cdn.example.com/lib.js").asyncLoad().deferred().withCrossorigin().withConsent("analytics")` (requires `"cdn.example.com"` in `capabilities.csp.script_domains`)
+    - `InjectedScript.inline("window.init = 1;")` (requires `"inline_scripts": true` in `capabilities`)
+    - `InjectedScript.external("https://cdn.example.com/lib.js").asyncLoad().deferred().withCrossorigin().withConsent("analytics")` (requires `"cdn.example.com"` in `capabilities.csp.script_domains`)
 
 ### Commerce, Notification, Comment & Block Hooks
 
 The hooks after `on_render_page` are declared in the manifest's `capabilities.hooks` in kebab-case (`calculate-order`, ...). Their inputs are nested JSON, so read them with `readHookJson(ptr, len)` (returns `null` for invalid JSON) and the typed `fromJson` of each class:
 
-| Hook | Read | Write |
-| --- | --- | --- |
-| `calculate-order` | `OrderContext.fromJson(json)` | push to `order.adjustments`, then `writeOrderResult(order)` (the host applies only `adjustments` and `metadata`) |
-| `on-order-status-changed` | `OrderStatusChange.fromJson(json)` | `writeOk()` |
-| `on-content-published` | `PublishedContent.fromJson(json)` | `writeOk()` |
-| `send-notification` | `NotificationMessage.fromJson(json)` | `writeDelivery(Delivery.Sent)` / `writeDelivery(Delivery.Skipped)` / `writeDeliveryError(message, permanent)` |
-| `check-comment` | `CommentSubmission.fromJson(json)` | `writeVerdict(CommentVerdict.allow())` / `.hold(reason)` / `.spam(reason)` |
-| `render-blocks` | `readBlocks(ptr, len)` | `writeBlocksHtml([...])` (same order as the input; `null` hides the block) |
+| Hook                      | Read                                 | Write                                                                                                            |
+| ------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `calculate-order`         | `OrderContext.fromJson(json)`        | push to `order.adjustments`, then `writeOrderResult(order)` (the host applies only `adjustments` and `metadata`) |
+| `on-order-status-changed` | `OrderStatusChange.fromJson(json)`   | `writeOk()`                                                                                                      |
+| `on-content-published`    | `PublishedContent.fromJson(json)`    | `writeOk()`                                                                                                      |
+| `send-notification`       | `NotificationMessage.fromJson(json)` | `writeDelivery(Delivery.Sent)` / `writeDelivery(Delivery.Skipped)` / `writeDeliveryError(message, permanent)`    |
+| `check-comment`           | `CommentSubmission.fromJson(json)`   | `writeVerdict(CommentVerdict.allow())` / `.hold(reason)` / `.spam(reason)`                                       |
+| `render-blocks`           | `readBlocks(ptr, len)`               | `writeBlocksHtml([...])` (same order as the input; `null` hides the block)                                       |
 
 `writeError(message)` refuses the input (the message is shown as is). `JsonValue` / `parseJson` is a small JSON tree you can use for anything else. A block's `attributes` are strings (non-string values are in their JSON form). See [`sdk/examples/assemblyscript-hooks`](../examples/assemblyscript-hooks) for a complete plugin.
 

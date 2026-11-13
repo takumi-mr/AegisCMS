@@ -32,10 +32,10 @@ AegisCMS --> User : Session
 
 Change them in this plugin's settings screen under Admin Studio's **Settings › Plugins**, or in `[plugins.settings.official-plantuml]`.
 
-| Key | Description | Default |
-| --- | --- | --- |
+| Key          | Description                                                                                                                                                                                                                                                                                                                                                   | Default                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
 | `server_url` | URL of the PlantUML server (up to just before `/svg/…`). `http(s)://` or a path starting with `/`. When placing it under a reverse proxy on the same host, use something like `/plantuml` (it is `'self'`, so no CSP permission is needed). Hosts other than `www.plantuml.com` need to be allowed in the CSP (`[security]`) on sites that narrowed `img-src` | `https://www.plantuml.com/plantuml` |
-| `format` | Image format. `svg` (stays sharp when enlarged) or `png` | `svg` |
+| `format`     | Image format. `svg` (stays sharp when enlarged) or `png`                                                                                                                                                                                                                                                                                                      | `svg`                               |
 
 Invalid values (an unknown format, a URL containing `javascript:` or `?`, etc.) fall back to the default.
 

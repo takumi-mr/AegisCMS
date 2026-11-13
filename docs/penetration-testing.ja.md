@@ -58,6 +58,7 @@ docker run --rm --network aegiscms_lab --memory 1g --cpus 2 --pids-limit 256 `
 Active scan も使い捨て環境に限定して実行できます。未認証スキャンとログイン済み認証スキャンの 2 つのプロファイルが用意されています。
 
 ### 1. 未認証スキャン（Web + API）
+
 リポジトリ内のプラン（`docker/pentest/zap-active.yaml`）は公開 Web ページおよび主要 API エンドポイント（OpenAPI 定義 `docker/pentest/openapi.json` 含む）を対象とし、Low 強度でスキャンを実施します。結果 HTML は `docs/security-reports/zap-active-report.html` に保存されます。
 
 ```powershell
@@ -71,6 +72,7 @@ docker compose -f docker-compose.pentest.yml down
 ```
 
 ### 2. ログイン済み認証スキャン（Medium 強度）
+
 別プロファイル（`docker/pentest/zap-authenticated.yaml`）は、管理者セッション（Bearer トークン / X-Session-Id）を ZAP Replacer で全リクエストに注入し、保護 API や Admin Studio に対して Medium 強度での能動的検査を実施します。結果は `docs/security-reports/zap-authenticated-report.html` に保存されます。
 
 ```powershell

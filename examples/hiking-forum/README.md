@@ -12,12 +12,12 @@ In the admin screen you can moderate threads by pinning, locking, deleting, and 
 
 ![Admin Studio thread moderation](../../docs/images/forum-admin.png)
 
-| Content | Location |
-| --- | --- |
-| Settings (member accounts, forum, dedicated database, rate limiting of consecutive posts, theme) | [`aegis.toml`](aegis.toml) |
-| The "Trailhead" theme (top page, announcements, static pages. The forum pages use the built-in templates with the theme's colors applied) | [`themes/trailhead/`](../../themes/trailhead) |
-| Data to load (4 members, 5 forum categories, 8 threads, 18 replies, 2 announcements, 2 static pages) and the loading script | [`seed.mjs`](seed.mjs) |
-| Databases (not tracked by Git) | `site.db` (articles, users, etc.) and `forum.db` (the forum). Created when you start it |
+| Content                                                                                                                                   | Location                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Settings (member accounts, forum, dedicated database, rate limiting of consecutive posts, theme)                                          | [`aegis.toml`](aegis.toml)                                                              |
+| The "Trailhead" theme (top page, announcements, static pages. The forum pages use the built-in templates with the theme's colors applied) | [`themes/trailhead/`](../../themes/trailhead)                                           |
+| Data to load (4 members, 5 forum categories, 8 threads, 18 replies, 2 announcements, 2 static pages) and the loading script               | [`seed.mjs`](seed.mjs)                                                                  |
+| Databases (not tracked by Git)                                                                                                            | `site.db` (articles, users, etc.) and `forum.db` (the forum). Created when you start it |
 
 ## Starting It
 
@@ -36,9 +36,9 @@ task demo:forum:seed
 
 <http://127.0.0.1:8080/> is the site, <http://127.0.0.1:8080/forum> is the forum, and <http://127.0.0.1:8080/admin/> is the admin screen.
 
-| User | Role | What they can do |
-| --- | --- | --- |
-| `owner` (administrator) | `admin` | Everything. Creating, editing, and deleting forum categories |
+| User                    | Role     | What they can do                                             |
+| ----------------------- | -------- | ------------------------------------------------------------ |
+| `owner` (administrator) | `admin`  | Everything. Creating, editing, and deleting forum categories |
 | `moderator` (moderator) | `editor` | Pinning, locking, and deleting threads, and deleting replies |
 
 Without go-task:
@@ -60,15 +60,15 @@ To start over, stop the server and delete `site.db*` and `forum.db*` in `example
 
 ## What You Can Try
 
-| Feature | How to try it |
-| --- | --- |
-| Forum top | `/forum`. Thread and reply counts per category, and recently updated threads. The two threads in "Announcements" are pinned (PIN), and the how-to thread and the summer Northern Alps thread are locked (LOCKED) |
-| Threads and replies | You can post without logging in from the form at the bottom of a thread page (leave the name empty to post as `Anonymous`). Create threads from the bottom of a category page |
-| Members | Many of the forum posts were written by members (`ゆる登山`, `かもしか`, `そらまめ`, `ライチョウ`; the password for all of them is `sample-password`). The name becomes the member's public name. After logging in at `/account/login`, you can post in the forum form under your public name. You can also read the members' lounge |
-| Members-only category | The "Members' Lounge" (会員ラウンジ) can be read and written only by members and staff (`visibility = "members"`). Without logging in, neither the category nor its threads are visible (`404`) |
-| Staff badge | Posts by logged-in users get **Staff**, such as the moderator's reply in "Is there a mountain you'd recommend for a first climb?" |
-| Locking | A locked thread shows no reply form, and posting through the API returns `403` |
-| Rate limiting of consecutive posts | Posting again from the same IP within 3 seconds (`rate_limit_secs = 3`) causes an error (`429` for the API) |
-| Moderation | In the admin screen's **Forum** tab, log in as `moderator` to pin, lock, and delete. `moderator` sees only the category list; create, edit, and delete as `owner` |
-| Dedicated forum database | Threads and replies go into `forum.db`, and articles, users, and sessions go into `site.db` (`[forum].database_url`) |
-| Audit log | `forum.thread.create` / `forum.post.create` / `forum.thread.pin` / `forum.thread.lock` and so on are recorded in the admin screen's **Settings › Audit Logs** |
+| Feature                            | How to try it                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Forum top                          | `/forum`. Thread and reply counts per category, and recently updated threads. The two threads in "Announcements" are pinned (PIN), and the how-to thread and the summer Northern Alps thread are locked (LOCKED)                                                                                                                     |
+| Threads and replies                | You can post without logging in from the form at the bottom of a thread page (leave the name empty to post as `Anonymous`). Create threads from the bottom of a category page                                                                                                                                                        |
+| Members                            | Many of the forum posts were written by members (`ゆる登山`, `かもしか`, `そらまめ`, `ライチョウ`; the password for all of them is `sample-password`). The name becomes the member's public name. After logging in at `/account/login`, you can post in the forum form under your public name. You can also read the members' lounge |
+| Members-only category              | The "Members' Lounge" (会員ラウンジ) can be read and written only by members and staff (`visibility = "members"`). Without logging in, neither the category nor its threads are visible (`404`)                                                                                                                                      |
+| Staff badge                        | Posts by logged-in users get **Staff**, such as the moderator's reply in "Is there a mountain you'd recommend for a first climb?"                                                                                                                                                                                                    |
+| Locking                            | A locked thread shows no reply form, and posting through the API returns `403`                                                                                                                                                                                                                                                       |
+| Rate limiting of consecutive posts | Posting again from the same IP within 3 seconds (`rate_limit_secs = 3`) causes an error (`429` for the API)                                                                                                                                                                                                                          |
+| Moderation                         | In the admin screen's **Forum** tab, log in as `moderator` to pin, lock, and delete. `moderator` sees only the category list; create, edit, and delete as `owner`                                                                                                                                                                    |
+| Dedicated forum database           | Threads and replies go into `forum.db`, and articles, users, and sessions go into `site.db` (`[forum].database_url`)                                                                                                                                                                                                                 |
+| Audit log                          | `forum.thread.create` / `forum.post.create` / `forum.thread.pin` / `forum.thread.lock` and so on are recorded in the admin screen's **Settings › Audit Logs**                                                                                                                                                                        |
