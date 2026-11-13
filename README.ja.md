@@ -1,12 +1,63 @@
-# 次世代セキュアCMS「AegisCMS」
+<h1 align="center">AegisCMS</h1>
 
-[English](README.md) | **日本語**
+<p align="center"><b>次世代セキュアCMS。単一の Rust バイナリ、サンドボックス化された WebAssembly プラグイン、Git で管理できるスキーマ。</b></p>
 
-> [!TIP]
->
-> - すぐに動かして試すなら、EC のサンプルサイト [`examples/coffee-shop/`](examples/coffee-shop)（`task demo:shop`）か、掲示板のサンプルサイト [`examples/hiking-forum/`](examples/hiking-forum)（`task demo:forum`）をどうぞ。
-> - Docker イメージ（GitHub Container Registry）から直接動かすなら `docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest`。
-> - サーバーで HTTPS 公開するなら [`deploy/`](deploy)（AegisCMS + Caddy。`sites.toml` にドメインを書いて `./deploy.sh up`。複数サイトにも対応）。
+<p align="center">
+  <a href="https://github.com/takumi-mr/AegisCMS/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/takumi-mr/AegisCMS/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/takumi-mr/AegisCMS/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/takumi-mr/AegisCMS?sort=semver"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/takumi-mr/AegisCMS"></a>
+  <a href="https://github.com/takumi-mr/AegisCMS/pkgs/container/aegiscms"><img alt="Docker image" src="https://img.shields.io/badge/ghcr.io-aegiscms-2496ED?logo=docker&logoColor=white"></a>
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-000000?logo=rust&logoColor=white">
+  <img alt="WebAssembly plugins" src="https://img.shields.io/badge/plugins-WebAssembly-654FF0?logo=webassembly&logoColor=white">
+  <img alt="Databases" src="https://img.shields.io/badge/DB-SQLite%20%7C%20PostgreSQL%20%7C%20MySQL-336791?logo=postgresql&logoColor=white">
+  <a href="https://conventionalcommits.org"><img alt="Conventional Commits" src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196?logo=conventionalcommits&logoColor=white"></a>
+</p>
+
+<p align="center"><a href="README.md">English</a> | <b>日本語</b> | <a href="docs/README.ja.md">ドキュメント</a> | <a href="CHANGELOG.md">変更履歴</a></p>
+
+<p align="center">
+  <img src="docs/images/editor-article.png" alt="Admin Studio: block editor" width="860">
+</p>
+
+## 特長
+
+|                                       |                                                                                                                                                                                                      |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🛡️ **ゼロトラストのプラグイン**       | プラグインはすべて Wasmtime のサンドボックスで、燃料とタイムアウトの制限つきで動き、権限の許可リスト（ケイパビリティ）にあるものにしか触れません。プラグインのバグでサイトが落ちることはありません。 |
+| 📦 **単一バイナリ・設定不要**         | コアは単一の Rust バイナリです。そのままで SQLite で起動し、規模が大きくなれば PostgreSQL / MySQL・Redis・S3 に切り替えられます。                                                                    |
+| 🧬 **宣言的で型のあるスキーマ**       | コンテンツモデルは YAML で書きます。テーブルは自動でマイグレーションされ、TypeScript の型と OpenAPI 仕様もスキーマから生成されます。                                                                 |
+| 🌿 **コードとしての設定**             | データベースに入れるのはコンテンツだけです。設定・スキーマ・テーマ・プラグインは Git で管理でき、ステージングと本番を再現できます。                                                                  |
+| 🧱 **AST に基づくブロックエディター** | Admin Studio（React）でブロックを編集し、描画は AST から HTML への決定的な変換です。生の HTML 文字列を書き換えることはしません。                                                                     |
+| 🔐 **既定で安全**                     | 厳格な CSP、監査ログ、Argon2id、二要素認証、OIDC / SAML、CI や LLM 向けの API トークン。                                                                                                             |
+| 🧩 **組み込みのサービス**             | 検索・コメント・会員・EC・掲示板・ニュースレター・問い合わせフォーム・アクセス解析・ヘッドレス API。                                                                                                 |
+| 🎨 **テーマと開発ツール**             | MiniJinja のテーマと、ライブプレビューで開発できる Theme Builder / Plugin Builder。                                                                                                                  |
+
+## クイックスタート
+
+```bash
+# Docker イメージ（GitHub Container Registry）から動かす
+docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest
+
+# ...またはソースからビルドして動かす（ポート 8080）
+task dev
+```
+
+- **サンプルサイトで試す**: EC の [`examples/coffee-shop/`](examples/coffee-shop)（`task demo:shop`）か、掲示板の [`examples/hiking-forum/`](examples/hiking-forum)（`task demo:forum`）。
+- **サーバーで HTTPS 公開する**: [`deploy/`](deploy)（AegisCMS + Caddy）。`sites.toml` にドメインを書いて `./deploy.sh up`。複数サイトにも対応しています。
+- **開発する**: [docs/development.ja.md](docs/development.ja.md) を参照。PR の前に `task check` を実行してください。
+
+## 目次
+
+1. [システム概要と設計思想](#1-システム概要と設計思想)
+2. [システムアーキテクチャ](#2-システムアーキテクチャ)
+3. [プラグイン・サンドボックスアーキテクチャ](#3-プラグインサンドボックスアーキテクチャ)
+4. [コンテンツ・DOM操作パイプライン](#4-コンテンツdom操作パイプライン)
+5. [データモデルと構成管理](#5-データモデルと構成管理)
+6. [技術スタック選定基準](#6-技術スタック選定基準)
+
+## ライセンス
+
+[MIT](LICENSE)
 
 ---
 
