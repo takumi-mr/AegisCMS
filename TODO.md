@@ -15,6 +15,7 @@
 
 ## 技術メモ・申し送り事項
 
+- `cargo audit`（`task audit`・CI の `security-audit.yml`）の例外が [.cargo/audit.toml](.cargo/audit.toml) に 4 件ある（未解消。解消したら例外から消す）: ① **RUSTSEC-2026-0459**（SQLite 本体の CVE。`sqlx` 0.9 の `libsqlite3-sys` 0.37 → 0.39 以上待ち。**同梱の SQLite なので優先度が高い**）② RUSTSEC-2026-0387（`crypto-bigint` 0.5.5 のタイミング。`p256` / `p384` 経由）③ RUSTSEC-2023-0071（`rsa` 0.9.10 の Marvin 攻撃。`aegis-auth`・`jsonwebtoken`。修正版 0.10 は未安定）④ RUSTSEC-2024-0449（`serde_yaml` が使う `unsafe-libyaml` が未保守）。
 - 公式プラグインおよび `sdk/templates/*`・`sdk/examples/*`（`sdk/tinygo/examples/hooks` を含む）の `plugin.wasm` はリポジトリにコミット済みで、バージョンや SDK を変えても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースや SDK を変えたときは各自再生成してから出す。
 - `admin/package.json` の `overrides`（`glob` → `minimatch ^11.0.5`）は、Dependabot の minimatch の警告（11.0.1 未満が対象）を避けるための一時的なもの。`@storybook/react-vite` が固定する `@joshwooding/vite-plugin-react-docgen-typescript@0.7` が `glob@13`（`minimatch ^10`）に依存するため。react-vite が新しい docgen プラグイン（`glob` に依存しない 0.9 系）に上がったら外す。`npm audit` に残る `glob` の警告（moderate）は、修正が react-vite のメジャーダウングレードになるため対応しない。
 

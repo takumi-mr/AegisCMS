@@ -110,6 +110,16 @@ tasks:
     cmds:
       - cargo clippy --workspace -- -D warnings
 
+  audit:
+    desc: 依存クレートの既知の脆弱性を調べる (cargo-audit。`cargo install cargo-audit --locked` が必要)
+    cmds:
+      - cargo audit
+
+  miri:
+    desc: プラグイン SDK の unsafe を Miri で検査 (nightly と miri コンポーネントが必要。rustup +nightly component add miri rust-src)
+    cmds:
+      - cargo +nightly miri test -p aegis-plugin-sdk
+
   lint:admin:
     desc: oxlint による Admin Studio の静的解析を実行 (ゼロ警告ポリシー)
     cmds:

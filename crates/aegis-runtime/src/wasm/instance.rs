@@ -10,6 +10,10 @@ use aegis_core::{
 };
 
 use super::engine::WasmEngine;
+
+/// プラグインがフックの結果として返せるバイト数の上限（線形メモリの上限より大きくはならない）
+const MAX_GUEST_OUTPUT: usize = 64 << 20;
+
 pub use super::host_state::{HostUsage, PluginHostState, PluginLogEntry};
 use super::result_cache::{CachedResult, ResultCache};
 use std::sync::{Arc, Mutex};
@@ -155,6 +159,19 @@ impl WasmPluginInstance {
             AegisError::PluginRuntime("Plugin missing 'memory' export".to_string())
         })?;
 
+        // ゲストが返す `ptr` / `len` は信用しない。確保の前に、負の値・上限・ゲストの線形メモリの範囲を確かめる
+        // （`len` は最大 2 GiB になり得て、先に確保するとホストが確保の失敗で落ちる）
+        let in_range = ptr >= 0
+            && len >= 0
+            && len as usize <= MAX_GUEST_OUTPUT
+            && (ptr as usize)
+                .checked_add(len as usize)
+                .is_some_and(|end| end <= memory.data_size(&*store));
+        if !in_range {
+            return Err(AegisError::PluginRuntime(format!(
+                "Memory read failed: the plugin returned an invalid range (ptr={ptr}, len={len})"
+            )));
+        }
         let mut buffer = vec![0u8; len as usize];
         memory
             .read(&mut *store, ptr as usize, &mut buffer)

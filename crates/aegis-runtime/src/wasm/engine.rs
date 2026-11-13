@@ -19,19 +19,36 @@ pub struct InstancePoolConfig {
 /// ゲストから読み込む文字列（キー・値・HTTP リクエスト）の上限
 const MAX_GUEST_INPUT: usize = 4 << 20;
 
+/// ゲストのメモリからバイト列を読む（範囲外・大きすぎる・負の値は `None`）
+///
+/// ゲストが渡す `ptr` / `len` は信用しない。バッファを確保する前に、負の値・上限
+/// （`MAX_GUEST_INPUT`）・ゲストの線形メモリの範囲を確かめる。確保が先だと、`len` が負（`usize`
+/// では巨大な値）や 2 GiB のとき、ホストのプロセスが確保の失敗で落ちる
+fn read_guest_bytes(
+    caller: &mut Caller<'_, PluginHostState>,
+    ptr: i32,
+    len: i32,
+) -> Option<Vec<u8>> {
+    if ptr < 0 || len < 0 || len as usize > MAX_GUEST_INPUT {
+        return None;
+    }
+    let memory = caller.get_export("memory").and_then(|m| m.into_memory())?;
+    let end = (ptr as usize).checked_add(len as usize)?;
+    if end > memory.data_size(&*caller) {
+        return None;
+    }
+    let mut buffer = vec![0u8; len as usize];
+    memory.read(&*caller, ptr as usize, &mut buffer).ok()?;
+    Some(buffer)
+}
+
 /// ゲストのメモリから UTF-8 文字列を読む（範囲外・大きすぎる・UTF-8 でなければ `None`）
 fn read_guest_string(
     caller: &mut Caller<'_, PluginHostState>,
     ptr: i32,
     len: i32,
 ) -> Option<String> {
-    if ptr < 0 || len < 0 || len as usize > MAX_GUEST_INPUT {
-        return None;
-    }
-    let memory = caller.get_export("memory").and_then(|m| m.into_memory())?;
-    let mut buffer = vec![0u8; len as usize];
-    memory.read(&*caller, ptr as usize, &mut buffer).ok()?;
-    String::from_utf8(buffer).ok()
+    String::from_utf8(read_guest_bytes(caller, ptr, len)?).ok()
 }
 
 /// ゲストの `allocate` で確保した領域に `data` を書き込み、`ptr << 32 | len` を返す（失敗・空なら 0）
@@ -225,12 +242,7 @@ impl WasmEngine {
                 "host",
                 "log",
                 |mut caller: Caller<'_, PluginHostState>, level: i32, ptr: i32, len: i32| {
-                    let memory = match caller.get_export("memory").and_then(|m| m.into_memory()) {
-                        Some(m) => m,
-                        None => return,
-                    };
-                    let mut buffer = vec![0u8; len as usize];
-                    if memory.read(&caller, ptr as usize, &mut buffer).is_ok() {
+                    if let Some(buffer) = read_guest_bytes(&mut caller, ptr, len) {
                         let msg = String::from_utf8_lossy(&buffer);
                         let plugin_name = &caller.data().manifest.name;
                         let level_str = match level {
@@ -265,14 +277,9 @@ impl WasmEngine {
                 "host",
                 "http_check_allowed",
                 |mut caller: Caller<'_, PluginHostState>, ptr: i32, len: i32| -> i32 {
-                    let memory = match caller.get_export("memory").and_then(|m| m.into_memory()) {
-                        Some(m) => m,
-                        None => return 0,
-                    };
-                    let mut buffer = vec![0u8; len as usize];
-                    if memory.read(&caller, ptr as usize, &mut buffer).is_err() {
+                    let Some(buffer) = read_guest_bytes(&mut caller, ptr, len) else {
                         return 0;
-                    }
+                    };
                     let url = String::from_utf8_lossy(&buffer);
                     if caller.data().guard().check_network_access(&url).is_ok() {
                         1

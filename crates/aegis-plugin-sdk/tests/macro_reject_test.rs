@@ -1,3 +1,5 @@
+#![allow(unsafe_code)]
+
 use aegis_plugin_sdk::prelude::*;
 
 /// Rejects posts without a title (the generated exports are per test binary, hence a separate file)

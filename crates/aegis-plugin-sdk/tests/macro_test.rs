@@ -1,3 +1,5 @@
+#![allow(unsafe_code)]
+
 use aegis_plugin_sdk::prelude::*;
 
 #[derive(Default)]

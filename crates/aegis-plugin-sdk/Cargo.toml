@@ -12,8 +12,22 @@ description = "Official Rust SDK for AegisCMS WebAssembly (Wasm) plugins"
 keywords = ["wasm", "webassembly", "cms", "plugin", "sdk"]
 categories = ["wasm", "api-bindings"]
 
-[lints]
-workspace = true
+# ワークスペースの lints は `unsafe_code = "forbid"`（`#[allow]` でも上書きできない）。この SDK だけは Wasm の
+# ABI のために `unsafe` が要るので、ワークスペースの表を写して `unsafe_code` だけ `deny` にしている。
+# `unsafe` を書いてよいのは `#![allow(unsafe_code)]` を明示した所（abi.rs・host.rs・tests/）だけで、
+# ほかの所に混ざるとビルドが落ちる。ワークスペースの lints を変えたら、ここも合わせる
+[lints.rust]
+unsafe_code = "deny"
+unused_imports = "warn"
+unused_variables = "warn"
+dead_code = "warn"
+linker_messages = "allow"
+
+[lints.clippy]
+all = "warn"
+needless_borrow = "warn"
+redundant_clone = "warn"
+clone_on_copy = "warn"
 
 [dependencies]
 serde.workspace = true

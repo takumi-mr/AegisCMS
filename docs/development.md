@@ -65,6 +65,17 @@ On pushes and PRs to `main`, it runs the following.
 - `docker-ci` verifies that it can build, so it builds with the `ci-release` profile that omits LTO (`--build-arg CARGO_PROFILE=ci-release`; the optimization level is the same as release). The production release profile uses `lto = "thin"` / `codegen-units = 16` (Thin LTO), which greatly shortens link and optimization time compared with Fat LTO while keeping production-equivalent execution speed.
 - Debug info for the dev / test profiles is `line-tables-only` (line numbers in backtraces remain). With full debug info, the PDB of the `aegis-server` test binary is about 500 MB (about 200 MB with `line-tables-only`; the rebuild when changing `aegis-server` on Windows goes from about 10 seconds to 6.5 seconds). When you want to see variables in a debugger, override with `CARGO_PROFILE_DEV_DEBUG=true` (dependencies are rebuilt too).
 
+### 3.1 Memory Safety and Dependency Audits
+
+| Workflow             | Runs                                                     | What it checks                                                                                                                                                                                         |
+| -------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `security-audit.yml` | On `Cargo.lock` / `Cargo.toml` changes, and weekly       | `cargo audit --deny warnings`: known vulnerabilities and unmaintained crates in dependencies (RustSec). Exceptions, each with a reason, are in `.cargo/audit.toml`; open ones are tracked in `TODO.md` |
+| `miri.yml`           | On changes to `aegis-plugin-sdk` / `aegis-plugin-macros` | `cargo miri test -p aegis-plugin-sdk`: undefined behavior in the SDK's `unsafe` (out-of-bounds reads, double frees, uninitialized memory)                                                              |
+
+- **`unsafe` is forbidden in the workspace**: `[workspace.lints.rust] unsafe_code = "forbid"` in `Cargo.toml` makes any `unsafe` fail the build, and `#[allow(unsafe_code)]` cannot override `forbid`. The only exception is `aegis-plugin-sdk`, which needs `unsafe` for the Wasm ABI. It has its own `[lints]` table with `unsafe_code = "deny"` (copy the workspace table there when you change it) and allows `unsafe` only in `abi.rs`, `host.rs`, and `tests/`. Write a `// SAFETY:` comment on every `unsafe` block.
+- **Locally**: `task audit` (`cargo install cargo-audit --locked`) and `task miri` (`rustup +nightly component add miri rust-src`).
+- **Where the host trusts the plugin least**: the host never trusts a `ptr` / `len` that a Wasm plugin passes or returns. It checks them against the limit and the guest's linear memory before allocating (`crates/aegis-runtime/src/wasm/engine.rs`, `instance.rs`). The SDK's `deallocate` / `read_bytes_from_host` use a registry of what `allocate` handed out, so a wrong pointer, a wrong length, or a second free does nothing.
+
 ---
 
 ## 4. Building Plugins

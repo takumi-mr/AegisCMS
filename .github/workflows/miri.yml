@@ -1,0 +1,42 @@
+name: Miri
+
+# プラグイン SDK の unsafe（Wasm の ABI。メモリの確保・解放・読み取り）を Miri で検査し、
+# 領域の外の読み取り・二重解放・未初期化メモリの読み取りといった未定義動作を見つける。
+# unsafe を持つのは aegis-plugin-sdk だけ（ほかのクレートは Cargo.toml の lints で unsafe_code = "forbid"）
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "crates/aegis-plugin-sdk/**"
+      - "crates/aegis-plugin-macros/**"
+      - ".github/workflows/miri.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "crates/aegis-plugin-sdk/**"
+      - "crates/aegis-plugin-macros/**"
+      - ".github/workflows/miri.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust nightly with Miri
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri, rust-src
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run tests under Miri
+        run: cargo miri test -p aegis-plugin-sdk
