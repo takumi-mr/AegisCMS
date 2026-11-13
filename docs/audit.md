@@ -1,4 +1,4 @@
-[← ドキュメント一覧に戻る](README.md)
+[← ドキュメント一覧に戻る](README.ja.md)
 
 # AegisCMS 監査ログリファレンス (Audit Log)
 

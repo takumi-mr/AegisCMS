@@ -16,6 +16,7 @@
 ## 1a. 実装規約
 
 - **API レスポンスのエラーメッセージは英語のみ**: REST API が返すエラーメッセージ（JSON の `error` など）は英語を標準とし、多言語対応しません（ロケール設定で切り替えない）。クライアントが言語ごとの文言を出したいときは、`code` などの機械可読な値で自分の側で訳します。訪問者の画面に出す文言（組み込みテンプレートなど）は `[theme].locale` で多言語対応します。詳細は [docs/architecture.md の 19](docs/architecture.md#19-多言語対応の方針)。
+- **README は英語（`README.md`）と日本語（`README.ja.md`）の 2 本立て**: 各ディレクトリの README は、英語を正（`README.md`）、日本語を `README.ja.md` に置き、先頭に言語切替のリンク（`**English** | [日本語](README.ja.md)`）を付けます。内容を変えるときは両方を同じ変更で更新します。日本語の文書（`docs/*.md`、`*.ja.md`、`TODO.md`）から README へのリンクは `README.ja.md` を指します。`docs/*.md` 本体は今のところ日本語のみです。
 
 ---
 

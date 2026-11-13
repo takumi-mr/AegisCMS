@@ -1,4 +1,4 @@
-[← ドキュメント一覧に戻る](README.md)
+[← ドキュメント一覧に戻る](README.ja.md)
 
 # AegisCMS プラグイン開発サーバー (`aegis-server plugin dev`) & Plugin Builder
 

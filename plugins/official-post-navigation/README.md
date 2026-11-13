@@ -1,52 +1,53 @@
 # official-post-navigation
 
-記事詳細ページの末尾（または指定位置）に、「前の記事」「次の記事」へのナビゲーションリンクを表示する公式 Wasm プラグインです（`on-render-page` フック）。
+**English** | [日本語](README.ja.md)
 
-## 特徴
+An official Wasm plugin that shows navigation links to the "previous article" and "next article" at the end of an article detail page (or at a specified position) (the `on-render-page` hook).
 
-- **柔軟な前後記事の算出ルール**:
-  - `mode = "category"`（既定）: 同じカテゴリ内の前後の記事を優先探索。同カテゴリ内に前後の記事がない場合は、日付順の前後に自動フォールバック可能（`fallback_to_all`）。
-  - `mode = "date"`: カテゴリを問わず、全体の日付（公開日または作成日）順で前後の記事を探索。
-- **美しいレスポンシブ UI**:
-  - 左右2カラム分割レイアウト（既定）、上下スタック、カード型スタイルから選択可能。
-  - サムネイル画像（`featured_image` / `image`）の表示に対応。
-  - 先頭・末尾の記事で片方しか存在しない場合でも、左右バランスが崩れないプレースホルダー制御。
-- **個別制御**:
-  - 記事のカスタムフィールドで `hide_post_nav = true` を設定すると、その記事のみナビゲーションを非表示にできます。
+## Features
 
-## 設定 (`[plugins.settings.official-post-navigation]`)
+- **Flexible rules for finding the previous / next article**:
+  - `mode = "category"` (default): searches first for the previous / next articles within the same category. If there is no previous / next article in the same category, it can fall back automatically to date order (`fallback_to_all`).
+  - `mode = "date"`: regardless of category, finds the previous / next articles in overall date order (publication date or creation date).
+- **A polished responsive UI**:
+  - Choose from a two-column left/right layout (default), a vertical stack, or a card style.
+  - Supports showing thumbnail images (`featured_image` / `image`).
+  - Placeholder handling keeps the left/right balance intact even for the first and last articles, where only one side exists.
+- **Per-item control**:
+  - Setting `hide_post_nav = true` in an article's custom field hides the navigation for that article only.
+
+## Settings (`[plugins.settings.official-post-navigation]`)
 
 ```toml
 [plugins.settings.official-post-navigation]
-# 算出モード: "category" (同一カテゴリ優先) / "date" (全体の日付順)
+# Calculation mode: "category" (same category first) / "date" (overall date order)
 mode = "category"
 
-# 同一カテゴリに前後記事が無い場合の全体日付順フォールバック (既定: true)
+# Fall back to overall date order when there is no previous / next article in the same category (default: true)
 fallback_to_all = true
 
-# 並び順の基準: "published_at" (公開日順、既定) / "created_at" (作成日順)
+# Ordering basis: "published_at" (by publication date, default) / "created_at" (by creation date)
 order_by = "published_at"
 
-# 対象コンテンツタイプ (カンマ区切り、既定: "article")
+# Target content types (comma-separated, default: "article")
 content_types = "article"
 
-# 表示位置: "bottom" (末尾) / "top" (先頭) / "both" (両方)
+# Display position: "bottom" (end) / "top" (start) / "both"
 position = "bottom"
 
-# レイアウトスタイル: "split" (左右分割) / "stacked" (上下) / "cards" (カード風)
+# Layout style: "split" (left/right) / "stacked" (vertical) / "cards" (card-like)
 layout = "split"
 
-# ラベルの表示 (既定: true)
+# Show labels (default: true)
 show_labels = true
 
-# カスタムラベル (空欄時は言語に応じた既定文言)
+# Custom labels (when empty, the default text for the language is used)
 prev_label = ""
 next_label = ""
 
-# サムネイル画像の表示 (既定: true)
+# Show thumbnail images (default: true)
 show_thumbnail = true
 
-# アクセントカラー (CSS カラー指定。省略時はテーマの --accent)
+# Accent color (a CSS color. If omitted, the theme's --accent)
 accent_color = ""
 ```
-

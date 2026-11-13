@@ -1,36 +1,38 @@
 # aegis-search
 
-Tantivy を基盤とする高速・省メモリなサイト内全文検索エンジン（`feature = "search"`）。
+**English** | [日本語](README.ja.md)
 
-## 概要
+A fast, memory-efficient on-site full-text search engine built on Tantivy (`feature = "search"`).
 
-`aegis-search` は、公開コンテンツのタイトルや本文ブロック（AST）から平文テキストを抽出し、全文検索インデックスを構築・検索するクレートです。
+## Overview
 
-Rust 製の高性能全文検索ライブラリ `tantivy` をエンジンとして採用し、日本語を含む CJK（中国語・日本語・韓国語）テキストを正確に検索するための 2 文字バイグラム（bi-gram）トークナイザ、タイトルの一致重視スコアリング、および `<mark>` ハイライトスニペット生成を提供します。
+`aegis-search` is the crate that extracts plain text from the titles and body blocks (AST) of published content and builds and queries a full-text search index.
 
-## 主な責務・提供機能
+It uses the high-performance Rust full-text search library `tantivy` as its engine, and provides a 2-character bigram tokenizer for accurately searching CJK (Chinese, Japanese, Korean) text including Japanese, scoring that favors title matches, and `<mark>` highlighted snippet generation.
 
-- **CJK バイグラムトークナイザ (`tokenizer`)**:
-  - 外部の巨大な形態素解析辞書を持たずに、軽量かつ漏れのない日本語全文検索を実現する 2 文字バイグラム分割。
-  - 英単語や記号との適切な境界処理。
-- **インデックス管理 (`SearchIndex`)**:
-  - メモリまたはディスク（`data/search_index/`）上にインデックスを構築。
-  - 記事の公開・更新・削除に連動したリアルタイムインデックス更新。
-  - データベースからいつでも全件再インデックス可能な設計。
-- **柔軟なクエリと絞り込み**:
-  - タイトル一致を本文一致より高く評価するフィールドブースト。
-  - カテゴリ ID やコンテンツタイプによるフィルタリング。
-  - 単語間の AND 検索およびフレーズ検索。
-- **ハイライトスニペット生成 (`snippet`)**:
-  - ヒットしたキーワード周辺の文章を抽出し、`<mark>` タグでハイライトされた検索結果要約文を生成。
-- **AST テキスト抽出 (`text`)**:
-  - ネストされたブロック構文木（`BlockNode`）から、HTML タグを除去したプレーンテキストを高速抽出。
+## Responsibilities and Features
 
-## モジュール構成
+- **CJK bigram tokenizer (`tokenizer`)**:
+  - 2-character bigram splitting that provides lightweight Japanese full-text search without gaps, with no large external morphological analysis dictionary.
+  - Proper boundary handling against English words and symbols.
+- **Index management (`SearchIndex`)**:
+  - Builds the index in memory or on disk (`data/search_index/`).
+  - Real-time index updates tied to publishing, updating, and deleting articles.
+  - Designed so that a full reindex from the database is possible at any time.
+- **Flexible queries and filtering**:
+  - Field boosting that scores title matches higher than body matches.
+  - Filtering by category ID and content type.
+  - AND search across words and phrase search.
+- **Highlighted snippet generation (`snippet`)**:
+  - Extracts the text around the matched keywords and generates a search result summary highlighted with `<mark>` tags.
+- **AST text extraction (`text`)**:
+  - Quickly extracts plain text with HTML tags removed from nested block syntax trees (`BlockNode`).
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `lib` | `SearchIndex` 実装、インデックス構築・クエリ実行 |
-| `tokenizer` | CJK バイグラムトークナイザ |
-| `snippet` | 検索キーワード周辺の抜粋および `<mark>` ハイライト生成 |
-| `text` | ブロック AST からのプレーンテキスト抽出 |
+| `lib` | `SearchIndex` implementation; index building and query execution |
+| `tokenizer` | CJK bigram tokenizer |
+| `snippet` | Excerpts around search keywords and `<mark>` highlight generation |
+| `text` | Plain text extraction from the block AST |

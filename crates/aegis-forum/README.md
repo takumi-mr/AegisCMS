@@ -1,31 +1,33 @@
 # aegis-forum
 
-AegisCMS の掲示板（フォーラム）・ディスカッション・コミュニティ機能クレート（`[forum]`）。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's crate for the forum (bulletin board), discussions, and community features (`[forum]`).
 
-`aegis-forum` は、カテゴリ別スレッド一覧、新規スレッド作成、レス（返信）投稿、ピン留め（Sticky）、スレッドのロック（クローズ）、およびモデレーション機能を提供するコミュニティサブシステムです。
+## Overview
 
-高トラフィックな大規模掲示板運用を考慮し、CMS 本体のコンテンツデータベースとは別の独立した専用データベース（SQLite / PostgreSQL / MySQL）へ接続・分離できるアーキテクチャを備えています。
+`aegis-forum` is a community subsystem that provides per-category thread lists, new thread creation, reply posting, pinning (sticky), thread locking (closing), and moderation.
 
-## 主な責務・提供機能
+With large, high-traffic forums in mind, its architecture lets it connect to, and be separated into, its own dedicated database (SQLite / PostgreSQL / MySQL), independent of the CMS's content database.
 
-- **カテゴリと権限管理**:
-  - 親子構造のカテゴリ定義。
-  - 会員限定書き込み、読み取り専用カテゴリなどの閲覧・投稿ポリシー。
-- **スレッド・レス管理 (`ForumService`)**:
-  - スレッドの新規作成、編集、削除。
-  - レス投稿とページネーション、最終投稿日時やレス数の自動集計。
-  - スレッドの固定表示（ピン留め）および投稿受付停止（ロック）。
-- **モデレーション**:
-  - 不適切投稿の非表示、管理者・モデレーターによるスレッドの移動・統合。
-  - 連続投稿制限（スパム防止）。
-- **専用データベース分離**:
-  - `ForumConfig` で専用のデータベース接続文字列を指定することで、CMS 本体 DB に負荷をかけずに独立した DB への分離運用が可能。
+## Responsibilities and Features
 
-## モジュール構成
+- **Categories and permission management**:
+  - Parent-child category definitions.
+  - Viewing and posting policies such as member-only posting and read-only categories.
+- **Thread and reply management (`ForumService`)**:
+  - Creating, editing, and deleting threads.
+  - Reply posting and pagination, with automatic aggregation of the last post time and reply count.
+  - Pinning threads to the top (sticky) and stopping new posts (lock).
+- **Moderation**:
+  - Hiding inappropriate posts, and moving and merging threads by administrators and moderators.
+  - Limits on consecutive posts (spam prevention).
+- **Separation into a dedicated database**:
+  - By specifying a dedicated database connection string in `ForumConfig`, you can run it in an independent DB without putting load on the CMS's main DB.
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `lib` | `ForumService` 実装、カテゴリ・スレッド・レス操作 |
-| `config` | フォーラム設定 (`ForumConfig`: ページ表示件数、専用 DB 接続設定等) |
+| `lib` | `ForumService` implementation; category, thread, and reply operations |
+| `config` | Forum settings (`ForumConfig`: items per page, dedicated DB connection settings, etc.) |

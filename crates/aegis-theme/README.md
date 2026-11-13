@@ -1,35 +1,37 @@
 # aegis-theme
 
-MiniJinja を基盤とする AegisCMS のテンプレートエンジンおよびテーマシステム。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's template engine and theme system, built on MiniJinja.
 
-`aegis-theme` は、公開サイトの HTML レンダリングを担当するテンプレートエンジンクレートです。Python の Jinja2 / Django テンプレート構文と高い互換性を持つ `minijinja` を採用し、高速かつ安全な SSR (Server-Side Rendering) を実現します。
+## Overview
 
-テーマ制作者は `themes/<theme_name>/` ディレクトリにテンプレートファイル（`.html`, `.jinja`）や静的アセットを配置し、`theme.toml` でテーマ設定や多言語対応、カスタムブロックのレイアウトを定義します。
+`aegis-theme` is the template engine crate responsible for rendering the HTML of the public site. It uses `minijinja`, which is highly compatible with the Jinja2 / Django template syntax of Python, to deliver fast and safe SSR (Server-Side Rendering).
 
-## 主な責務・提供機能
+Theme authors place template files (`.html`, `.jinja`) and static assets in the `themes/<theme_name>/` directory, and define theme settings, localization, and custom block layouts in `theme.toml`.
+
+## Responsibilities and Features
 
 - **ThemeEngine**:
-  - テンプレートの探索・コンパイル・キャッシュ・描画。
-  - レンダリング時の診断・警告収集 (`RenderDiagnostic`)。
-  - 開発モード時のテンプレート自動リロード。
-- **豊富なビルトイン関数・フィルタ (`builtins`)**:
-  - **フォーマット**: 日付フォーマット (`date_format`), 通貨表示 (`format_money`), 数値フォーマット。
-  - **HTML・テキスト操作**: エスケープ、抜粋生成 (`truncate_words`), スラッグ化 (`slugify`), Markdown パース。
-  - **URL 生成**: 投稿パーマリンク (`post_url`), カテゴリ・タグ一覧 URL, メディア公開 URL。
-  - **多言語対応**: `t("key")` によるロケール別メッセージカタログ参照。
-- **テーママニフェスト (`manifest`)**:
-  - `theme.toml` のパースと検証。テーマ名、バージョン、作者、対応テンプレート階層（単一投稿、固定ページ、一覧、404 等）、カスタムオプションの定義。
-- **多言語メッセージ (`messages`)**:
-  - 組み込みの多言語システム文言（ページネーション、投稿日、コメント欄、カート等）の en / ja カタログ提供。
+  - Template discovery, compilation, caching, and rendering.
+  - Collection of diagnostics and warnings during rendering (`RenderDiagnostic`).
+  - Automatic template reloading in development mode.
+- **Rich built-in functions and filters (`builtins`)**:
+  - **Formatting**: date formatting (`date_format`), currency display (`format_money`), number formatting.
+  - **HTML and text handling**: escaping, excerpt generation (`truncate_words`), slugification (`slugify`), Markdown parsing.
+  - **URL generation**: post permalinks (`post_url`), category and tag list URLs, public media URLs.
+  - **Localization**: looking up per-locale message catalogs with `t("key")`.
+- **Theme manifest (`manifest`)**:
+  - Parsing and validation of `theme.toml`. Defines the theme name, version, author, supported template hierarchy (single post, static page, listing, 404, etc.), and custom options.
+- **Localized messages (`messages`)**:
+  - Provides en / ja catalogs for the built-in localized system strings (pagination, post date, comment section, cart, etc.).
 
-## モジュール構成
+## Module Layout
 
-| モジュール | 説明 |
+| Module | Description |
 | :--- | :--- |
-| `engine` | テンプレートの読み込みとレンダリング実行 (`ThemeEngine`) |
-| `builtins` | Jinja2 互換カスタムフィルタ・グローバル関数の登録 |
-| `manifest` | テーマ設定ファイル `theme.toml` の定義と検証 |
-| `messages` | システム標準の多言語メッセージカタログ (en, ja) |
-| `config` | サイトテーマ設定 (`ThemeConfig`, `FrontPage`) |
+| `engine` | Template loading and rendering (`ThemeEngine`) |
+| `builtins` | Registration of Jinja2-compatible custom filters and global functions |
+| `manifest` | Definition and validation of the theme settings file `theme.toml` |
+| `messages` | Standard localized message catalogs for the system (en, ja) |
+| `config` | Site theme settings (`ThemeConfig`, `FrontPage`) |

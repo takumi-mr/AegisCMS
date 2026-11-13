@@ -1,43 +1,45 @@
 # aegis-db
 
-AegisCMS のデータベース抽象化レイヤー (`DatabaseAdapter`) および SQLite / PostgreSQL / MySQL 実装。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's database abstraction layer (`DatabaseAdapter`) and its SQLite / PostgreSQL / MySQL implementations.
 
-`aegis-db` は、コンテンツデータ、システム設定、注文・在庫、コメント、掲示板、タグなどの永続化を担当するデータアクセス層クレートです。
+## Overview
 
-特定の方言に依存しない抽象トレイト `DatabaseAdapter` を提供し、Zero-Config な組み込み SQLite から、大規模運用向けの PostgreSQL および MySQL まで、シームレスな切り替えをサポートします。
+`aegis-db` is the data access layer crate responsible for persisting content data, system settings, orders and inventory, comments, the forum, tags, and more.
 
-## 主な責務・提供機能
+It provides the dialect-independent abstract trait `DatabaseAdapter` and supports seamless switching from the Zero-Config embedded SQLite to PostgreSQL and MySQL for large-scale operation.
 
-- **DatabaseAdapter 抽象トレイト**:
-  - トランザクション制御、動的クエリ実行、スキーママイグレーション実行。
-  - プリペアドステートメントによる SQL インジェクションの完全排除。
-- **マルチ RDBMS アダプタ**:
-  - `SqliteAdapter`: 組み込み SQLite (rusqlite)。Zero-Config でファイルまたはメモリ上で動作。WAL モードおよび外部キー制約を自動有効化。
-  - `PostgresAdapter`: PostgreSQL / TimescaleDB 対応。
-  - `MySqlAdapter`: MySQL / MariaDB 対応。
-- **各種機能のストレージ実装**:
-  - `orders` / `variants`: EC 注文、在庫管理、商品バリアントの永続化。
-  - `comments`: コメント投稿、承認待ち、スレッド階層のクエリ。
-  - `forum`: 掲示板カテゴリ、スレッド、レス、ピン留め、モデレーション。
-  - `tags`: コンテンツ横断タグの紐付け・逆引き。
-  - `contact` / `newsletter`: 問い合わせ受信箱、ニュースレター購読者の管理。
-  - `analytics`: Cookie レス集計データの日次保存。
-  - `notifications`: 通知送信待ちキュー。
+## Responsibilities and Features
 
-## モジュール構成
+- **The DatabaseAdapter abstract trait**:
+  - Transaction control, dynamic query execution, and schema migration execution.
+  - Complete elimination of SQL injection through prepared statements.
+- **Multi-RDBMS adapters**:
+  - `SqliteAdapter`: embedded SQLite (rusqlite). Runs Zero-Config on a file or in memory. WAL mode and foreign key constraints are enabled automatically.
+  - `PostgresAdapter`: supports PostgreSQL / TimescaleDB.
+  - `MySqlAdapter`: supports MySQL / MariaDB.
+- **Storage implementations for each feature**:
+  - `orders` / `variants`: persistence of e-commerce orders, inventory management, and product variants.
+  - `comments`: comment posting, pending approval, and thread hierarchy queries.
+  - `forum`: forum categories, threads, replies, pinning, and moderation.
+  - `tags`: attaching tags across content and reverse lookups.
+  - `contact` / `newsletter`: management of the contact inbox and newsletter subscribers.
+  - `analytics`: daily storage of cookie-less aggregated data.
+  - `notifications`: the notification outbox queue.
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `sqlite` | SQLite アダプタ実装 (`SqliteAdapter`) |
-| `postgres` | PostgreSQL アダプタ実装 (`PostgresAdapter`) |
-| `mysql` | MySQL アダプタ実装 (`MySqlAdapter`) |
-| `orders` / `variants` | 注文・在庫・バリアントのデータアクセス |
-| `comments` | コメントデータの保存・検索・モデレーション |
-| `forum` | フォーラムデータの保存・検索 |
-| `tags` | タグおよびコンテンツ関連付けテーブル操作 |
-| `contact` / `newsletter` | お問い合わせフォームおよびメルマガ購読者データ操作 |
-| `analytics` | 日次アクセス解析データの永続化 |
-| `notifications` | 通知送信キューの永続化 |
-| `config` | データベース接続設定 (`DatabaseConfig`) |
+| `sqlite` | SQLite adapter implementation (`SqliteAdapter`) |
+| `postgres` | PostgreSQL adapter implementation (`PostgresAdapter`) |
+| `mysql` | MySQL adapter implementation (`MySqlAdapter`) |
+| `orders` / `variants` | Data access for orders, inventory, and variants |
+| `comments` | Storing, searching, and moderating comment data |
+| `forum` | Storing and searching forum data |
+| `tags` | Operations on tags and the content association tables |
+| `contact` / `newsletter` | Operations on contact form and newsletter subscriber data |
+| `analytics` | Persistence of daily analytics data |
+| `notifications` | Persistence of the notification outbox queue |
+| `config` | Database connection settings (`DatabaseConfig`) |

@@ -1,43 +1,45 @@
 # official-plantuml
 
-` ```plantuml `（` ```puml ` も可）のコードブロックを、[PlantUML](https://plantuml.com/) の図（シーケンス図・クラス図・アクティビティ図・コンポーネント図など）の画像として表示する公式プラグインです。Mermaid の図は別のプラグイン [`official-mermaid`](../official-mermaid/) です（両方を有効にしても、ぶつかりません）。
+**English** | [日本語](README.ja.md)
+
+An official plugin that displays ` ```plantuml ` (` ```puml ` also works) code blocks as images of [PlantUML](https://plantuml.com/) diagrams (sequence diagrams, class diagrams, activity diagrams, component diagrams, and more). Mermaid diagrams are handled by a separate plugin, [`official-mermaid`](../official-mermaid/) (enabling both causes no conflicts).
 
 ````markdown
 ```plantuml
 @startuml
-title ログインの流れ
-actor 利用者
-利用者 -> AegisCMS : ログイン
-AegisCMS -> AegisCMS : パスワードを確かめる
-AegisCMS --> 利用者 : セッション
+title Login flow
+actor User
+User -> AegisCMS : Log in
+AegisCMS -> AegisCMS : Check the password
+AegisCMS --> User : Session
 @enduml
 ```
 ````
 
-`@startuml` / `@enduml` は省略できます（無ければ包んで送ります）。
+`@startuml` / `@enduml` can be omitted (if absent, they are wrapped around the source before sending).
 
-## 動き
+## How It Works
 
-- サーバー側で、本文の PlantUML のブロックを `<figure class="opu-diagram"><img src="<サーバー>/svg/<符号化した図>"></figure>` に置き換えます。図のソースの符号化（deflate と PlantUML 独自の base64）もこのプラグインが行うので、**ページにスクリプトを入れません**。描くのは PlantUML サーバーで、ブラウザーは画像を読むだけです。
-- 図の無いページには、何も足しません（CSS も入れません）。
-- 画像の代替テキスト（`alt`）は、図の `title` の行です。無ければ「PlantUML diagram」（テーマの `locale` が `ja` なら「PlantUML の図」）。
-- 図は白地で描かれるので、暗いページでも読めるよう、枠の中は白にしています。
-- 符号化した図が長すぎる（約 6000 文字を超える。URL が長すぎて、多くのサーバーが受け付けない）ブロックは、元のコードのまま残します。構文の誤りは、PlantUML サーバーがエラーの画像を返します。
-- 画像は既定で公開の PlantUML サーバー（`www.plantuml.com`）から読みます。**図のソースと、図のあるページを開いた人の IP アドレスなどが、そのサーバーに送られます**。社外に出したくない図は、自分の PlantUML サーバー（[plantuml-server](https://github.com/plantuml/plantuml-server)。Docker の `plantuml/plantuml-server` など）を立てて、下記の `server_url` に設定してください。
-- このプラグインを有効にしている間、サーバーはマニフェストの `capabilities.csp.img_domains`（`www.plantuml.com`）を、CSP の `img-src` に足します（既定の CSP は `img-src` に `https:` を含むので、元から読めます。`img-src` を絞ったサイトのための宣言です）。
+- On the server, it replaces PlantUML blocks in the body with `<figure class="opu-diagram"><img src="<server>/svg/<encoded diagram>"></figure>`. The plugin also encodes the diagram source (deflate and PlantUML's own base64), so **no script is added to the page**. The PlantUML server draws the diagram, and the browser just loads an image.
+- It adds nothing to pages without diagrams (not even CSS).
+- The image's alternative text (`alt`) is the diagram's `title` line. If there is none, it is "PlantUML diagram" ("PlantUML の図" when the theme's `locale` is `ja`).
+- Diagrams are drawn on a white background, so the frame is white to stay readable on dark pages.
+- Blocks whose encoded diagram is too long (over about 6000 characters; the URL gets too long and many servers refuse it) remain as the original code. For syntax errors, the PlantUML server returns an error image.
+- Images are loaded by default from the public PlantUML server (`www.plantuml.com`). **The diagram source and the IP address and other details of people who open a page with a diagram are sent to that server.** For diagrams you do not want to leave your organization, run your own PlantUML server ([plantuml-server](https://github.com/plantuml/plantuml-server), e.g. Docker's `plantuml/plantuml-server`) and set it as the `server_url` below.
+- While this plugin is enabled, the server adds the manifest's `capabilities.csp.img_domains` (`www.plantuml.com`) to the CSP `img-src` (the default CSP includes `https:` in `img-src`, so it could be loaded anyway; the declaration is for sites that narrowed `img-src`).
 
-## 設定
+## Settings
 
-Admin Studio の **Settings › Plugins** のこのプラグインの設定画面か、`[plugins.settings.official-plantuml]` で変えます。
+Change them in this plugin's settings screen under Admin Studio's **Settings › Plugins**, or in `[plugins.settings.official-plantuml]`.
 
-| キー | 内容 | 既定 |
+| Key | Description | Default |
 | --- | --- | --- |
-| `server_url` | PlantUML サーバーの URL（`/svg/…` の手前まで）。`http(s)://` か `/` で始まるパス。同じホストのリバースプロキシの下に置くときは `/plantuml` のようにする（`'self'` なので CSP の許可は要らない）。`www.plantuml.com` 以外のホストは、`img-src` を絞ったサイトでは CSP（`[security]`）で許可が要る | `https://www.plantuml.com/plantuml` |
-| `format` | 画像の形式。`svg`（拡大しても粗くならない）か `png` | `svg` |
+| `server_url` | URL of the PlantUML server (up to just before `/svg/…`). `http(s)://` or a path starting with `/`. When placing it under a reverse proxy on the same host, use something like `/plantuml` (it is `'self'`, so no CSP permission is needed). Hosts other than `www.plantuml.com` need to be allowed in the CSP (`[security]`) on sites that narrowed `img-src` | `https://www.plantuml.com/plantuml` |
+| `format` | Image format. `svg` (stays sharp when enlarged) or `png` | `svg` |
 
-不正な値（知らない形式・`javascript:` や `?` を含む URL など）は、既定の値になります。
+Invalid values (an unknown format, a URL containing `javascript:` or `?`, etc.) fall back to the default.
 
-## ビルド
+## Build
 
 ```bash
 task plugin:build:plantuml

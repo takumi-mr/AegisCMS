@@ -1,42 +1,44 @@
 # aegis-core
 
-AegisCMS の最下層に位置する共有インターフェース・コアデータ型・契約（Contract）定義クレート。
+**English** | [日本語](README.ja.md)
 
-## 概要
+The lowest-level crate of AegisCMS: shared interfaces, core data types, and contract definitions.
 
-`aegis-core` は、AegisCMS の各ドメインクレート（`aegis-db`, `aegis-storage`, `aegis-auth` 等）および WebAssembly プラグイン実行基盤が共有する抽象インターフェース、共通ドメインモデル、マニフェスト定義、統一エラー型を提供します。
+## Overview
 
-このクレート自身は具体的なストレージやデータベース等の外部依存実装を持たず、純粋な共有契約として機能します。
+`aegis-core` provides the abstract interfaces, common domain models, manifest definitions, and unified error type shared by AegisCMS's domain crates (`aegis-db`, `aegis-storage`, `aegis-auth`, etc.) and the WebAssembly plugin runtime.
 
-## 主な責務・提供機能
+The crate itself has no implementation that depends on external systems such as concrete storage or databases; it works purely as a shared contract.
 
-- **抽象トレイト**:
-  - `StorageBackend`: メディアやアセットの保存・取得・削除・公開URL生成の抽象。
-  - `CacheBackend`: キャッシュの取得・保存・削除の抽象。
-  - `AuthProvider`: 外部認証プロバイダ連携の抽象。
-  - `AuditSink`: 監査イベント記録先の抽象。
-  - `Notifier`: メール等の通知配信の抽象。
-- **プラグイン連携型**:
-  - `PostContext`, `PageRenderContext`, `OrderContext`, `CommentSubmission` など、Wasm プラグインとホスト間で受け渡されるコンテキスト型。
-- **プラグインマニフェスト**:
-  - `PluginManifest`: プラグインのメタデータ、要求権限（ネットワークドメイン、KVSネームスペース）、リソース制限（Fuel/メモリ上限）の定義と検証。
-- **パッケージング・署名検証**:
-  - プラグインおよびテーマの ZIP 安全展開（パストラバーサル防止）、Ed25519 デジタル署名の検証・署名ユーティリティ。
-- **統一エラー**:
-  - `AegisError` および `Result<T>` 型エイリアス。
+## Responsibilities and Features
 
-## モジュール構成
+- **Abstract traits**:
+  - `StorageBackend`: abstraction for saving, retrieving, and deleting media and assets, and for generating public URLs.
+  - `CacheBackend`: abstraction for getting, storing, and deleting cache entries.
+  - `AuthProvider`: abstraction for integrating external authentication providers.
+  - `AuditSink`: abstraction for where audit events are recorded.
+  - `Notifier`: abstraction for delivering notifications such as email.
+- **Plugin integration types**:
+  - Context types exchanged between Wasm plugins and the host, such as `PostContext`, `PageRenderContext`, `OrderContext`, and `CommentSubmission`.
+- **Plugin manifest**:
+  - `PluginManifest`: definition and validation of plugin metadata, requested permissions (network domains, KVS namespace), and resource limits (fuel / memory caps).
+- **Packaging and signature verification**:
+  - Safe ZIP extraction for plugins and themes (path traversal prevention), and Ed25519 digital signature verification and signing utilities.
+- **Unified error**:
+  - `AegisError` and the `Result<T>` type alias.
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `audit` | 監査ログのデータモデル (`AuditEvent`, `AuditAction` 等) と `AuditSink` トレイト |
-| `auth` | 外部認証プロバイダ抽象 (`AuthProvider`) と `UserAuthContext` |
-| `cache` | キャッシュ抽象トレイト (`CacheBackend`) |
-| `comments` | コメント審査コンテキスト (`CommentSubmission`, `CommentVerdict`) |
-| `commerce` | EC・注文・通貨計算型 (`OrderContext`, `OrderLine`, `format_money`) |
-| `entity` | コンテンツモデル (`PostContext`, `PageRenderContext`, `PublishedContent`) |
-| `error` | システム統一エラー (`AegisError`) |
-| `manifest` | プラグインマニフェスト定義 (`PluginManifest`, `PluginCapabilities`) |
-| `notify` | 通知抽象 (`Notifier`, `NotificationMessage`, `Recipient`) |
-| `package` | ZIPアーカイブ安全展開・Ed25519署名検証 (`verify_package_signature`) |
-| `storage` | オブジェクトストレージ抽象 (`StorageBackend`, `StorageMeta`) |
+| `audit` | Audit log data model (`AuditEvent`, `AuditAction`, etc.) and the `AuditSink` trait |
+| `auth` | External auth provider abstraction (`AuthProvider`) and `UserAuthContext` |
+| `cache` | Cache abstraction trait (`CacheBackend`) |
+| `comments` | Comment moderation context (`CommentSubmission`, `CommentVerdict`) |
+| `commerce` | E-commerce, order, and currency calculation types (`OrderContext`, `OrderLine`, `format_money`) |
+| `entity` | Content model (`PostContext`, `PageRenderContext`, `PublishedContent`) |
+| `error` | System-wide error (`AegisError`) |
+| `manifest` | Plugin manifest definitions (`PluginManifest`, `PluginCapabilities`) |
+| `notify` | Notification abstraction (`Notifier`, `NotificationMessage`, `Recipient`) |
+| `package` | Safe ZIP extraction and Ed25519 signature verification (`verify_package_signature`) |
+| `storage` | Object storage abstraction (`StorageBackend`, `StorageMeta`) |

@@ -1,4 +1,4 @@
-[← ドキュメント一覧に戻る](README.md)
+[← ドキュメント一覧に戻る](README.ja.md)
 
 # AegisCMS WebAssembly プラグイン 共通 ABI 仕様書 (ABI Specification)
 

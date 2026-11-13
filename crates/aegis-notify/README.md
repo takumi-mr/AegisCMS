@@ -1,36 +1,38 @@
 # aegis-notify
 
-AegisCMS の通知配信エンジン、多言語テンプレート、および送信キューワーカークレート（`[notifications]`）。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's notification delivery engine, localized templates, and outbox queue worker crate (`[notifications]`).
 
-`aegis-notify` は、システム内で発生する各種イベント（新規注文、会員登録、パスワードリセット、コメント通知、問い合わせ受付等）を受信し、適切なチャネル（SMTP メールまたはログ）へ配信する通知サブシステムです。
+## Overview
 
-`aegis_core::Notifier` トレイトを実装し、テンプレートエンジンによる多言語（英語・日本語）かつ HTML/テキストのマルチパートメッセージ生成、データベースを介した永続化送信キュー、およびバックグラウンドリトライワーカーを備えています。
+`aegis-notify` is a notification subsystem that receives the various events that occur in the system (new orders, member registration, password reset, comment notifications, contact form receipts, etc.) and delivers them to the appropriate channel (SMTP email or log).
 
-## 主な責務・提供機能
+It implements the `aegis_core::Notifier` trait and has multipart HTML/text message generation in multiple languages (English and Japanese) through a template engine, a persistent outbox queue backed by the database, and a background retry worker.
+
+## Responsibilities and Features
 
 - **NotificationService**:
-  - `aegis_core::Notifier` のホスト実装。
-  - 送信要求を即時または DB 送信キュー（`_aegis_notifications`）経由で非同期に処理。
-  - バックグラウンドワーカーによる定期的な未送信キューのポーリングと送信再試行。
-- **配信チャネル (`channel`)**:
-  - **SMTP Email (`email`)**: `lettre` クレートによる STARTTLS / TLS 対応の SMTP メール送信。
-  - **Log (`log`)**: 開発・テスト用のログ出力（メール送信を実際に行わず `tracing` ログに出力）。
-- **多言語・マルチパートテンプレート (`templates`, `html`)**:
-  - 英語 (en) および日本語 (ja) の標準システム通知テンプレートを内蔵。
-  - プレーンテキストと見栄えの良いレスポンシブ HTML メールの同時生成。
-  - 注文確定、発送連絡、パスワード再設定、招待、新着コメント等の標準イベントを網羅。
-- **テンプレートプレビュー (`samples`)**:
-  - Admin Studio から通知メールの見た目を確認できるモックサンプルの提供。
+  - The host implementation of `aegis_core::Notifier`.
+  - Processes send requests immediately or asynchronously through the DB outbox queue (`_aegis_notifications`).
+  - A background worker periodically polls the unsent queue and retries sending.
+- **Delivery channels (`channel`)**:
+  - **SMTP Email (`email`)**: SMTP email sending with STARTTLS / TLS support through the `lettre` crate.
+  - **Log (`log`)**: log output for development and testing (writes to the `tracing` log instead of actually sending email).
+- **Localized multipart templates (`templates`, `html`)**:
+  - Built-in standard system notification templates in English (en) and Japanese (ja).
+  - Simultaneous generation of plain text and a polished responsive HTML email.
+  - Covers standard events such as order confirmation, shipping notices, password reset, invitations, and new comments.
+- **Template preview (`samples`)**:
+  - Provides mock samples so you can check how notification emails look from Admin Studio.
 
-## モジュール構成
+## Module Layout
 
-| モジュール | 説明 |
+| Module | Description |
 | :--- | :--- |
-| `lib` | `NotificationService` 実装、送信キューイングとワーカータスク |
-| `email` | `lettre` を用いた SMTP メールトランスポート |
-| `channel` | 配信チャネルの抽象インターフェース (`NotificationChannel`) |
-| `templates` | イベント別・ロケール別テンプレートの定義とレンダリング |
-| `html` | HTML メール向けのレイアウトおよびスタイルインジェクション |
-| `config` | SMTP サーバー接続や送信元アドレス設定 (`NotificationsConfig`) |
+| `lib` | `NotificationService` implementation; send queueing and the worker task |
+| `email` | SMTP email transport using `lettre` |
+| `channel` | Abstract interface for delivery channels (`NotificationChannel`) |
+| `templates` | Definition and rendering of templates per event and locale |
+| `html` | Layout and style injection for HTML emails |
+| `config` | SMTP server connection and sender address settings (`NotificationsConfig`) |

@@ -1,35 +1,37 @@
 # Theme Builder
 
-AegisCMS のテーマを、エディターとライブプレビューで作るための開発ツール（React 19 + Vite + CodeMirror 6）。
-DB もログインも要りません。`aegis-server theme dev` の JSON API につながります。
+**English** | [日本語](README.ja.md)
+
+A development tool for building AegisCMS themes with an editor and a live preview (React 19 + Vite + CodeMirror 6).
+It needs no database and no login. It connects to the JSON API of `aegis-server theme dev`.
 
 ```bash
-task dev:theme -- themes/my-theme   # 開発サーバー（http://127.0.0.1:8090）
-npm --prefix theme-builder ci       # 初回のみ
+task dev:theme -- themes/my-theme   # dev server (http://127.0.0.1:8090)
+npm --prefix theme-builder ci       # first time only
 task dev:theme-builder              # http://localhost:5174/
 ```
 
-使い方・API・保護の仕組みは [docs/theme_authoring_guide.md](../docs/theme_authoring_guide.md#theme-builderエディター--ライブプレビュー)、設計は [docs/architecture.md](../docs/architecture.md#181-theme-builder-theme-builder) を参照。
+For usage, the API, and how it is protected, see [docs/theme_authoring_guide.md](../docs/theme_authoring_guide.md#theme-builderエディター--ライブプレビュー); for the design, see [docs/architecture.md](../docs/architecture.md#181-theme-builder-theme-builder) (both are in Japanese).
 
-| コマンド                                | 内容                                         |
-| --------------------------------------- | -------------------------------------------- |
-| `npm run dev`                           | 開発サーバー（`THEME_DEV_URL` で接続先を変更） |
-| `npm run test`                          | ユニットテスト（Vitest）                     |
-| `npm run test:e2e`                      | E2E テスト（Playwright。下記）               |
-| `npm run lint` / `npm run format:check` | oxlint（ゼロ警告）/ Prettier                 |
-| `npm run build`                         | 型チェックと本番ビルド（`dist/`）            |
+| Command                                 | Description                                              |
+| --------------------------------------- | -------------------------------------------------------- |
+| `npm run dev`                           | Dev server (change the target with `THEME_DEV_URL`)      |
+| `npm run test`                          | Unit tests (Vitest)                                      |
+| `npm run test:e2e`                      | E2E tests (Playwright; see below)                        |
+| `npm run lint` / `npm run format:check` | oxlint (zero warnings) / Prettier                        |
+| `npm run build`                         | Type check and production build (`dist/`)                |
 
-## 構成
+## Structure
 
-- `src/api.ts` — 開発サーバーの API クライアント（書き込みには `x-aegis-dev` ヘッダー）
-- `src/buffers.ts`・`src/previewDoc.ts`・`src/eol.ts` — 画面から切り離した純粋なロジック（ユニットテストあり）
-- `src/components/` — `Editor`（CodeMirror）・`FileTree`・`Preview`・`Problems`
-- `src/App.tsx` — 状態（開いているファイル・描画・ディスクの変更の監視）をまとめる
+- `src/api.ts` — API client for the dev server (the `x-aegis-dev` header is sent with writes)
+- `src/buffers.ts`, `src/previewDoc.ts`, `src/eol.ts` — pure logic separated from the UI (unit-tested)
+- `src/components/` — `Editor` (CodeMirror), `FileTree`, `Preview`, `Problems`
+- `src/App.tsx` — holds the state (open files, rendering, watching for changes on disk)
 
-## E2E テスト
+## E2E Tests
 
-`npm run test:e2e`（または `task test:e2e:theme-builder`）。`e2e/start-servers.mjs` が、`aegis-server theme dev`（ポート 18090）と Vite（ポート 15174）を、`e2e/fixtures/e2e-theme` のコピー（`target/e2e-themes/`）に対して起動するので、`task dev:theme` と同時でも動きます。初回はサーバーをビルドします（`E2E_SKIP_BUILD=1` で省略）。ブラウザーは `npx playwright install chromium` で入れます。テストは 1 つずつ実行し、各テストの前にテーマを元に戻します。
+`npm run test:e2e` (or `task test:e2e:theme-builder`). `e2e/start-servers.mjs` starts `aegis-server theme dev` (port 18090) and Vite (port 15174) against a copy of `e2e/fixtures/e2e-theme` (`target/e2e-themes/`), so it also works alongside `task dev:theme`. The first run builds the server (skip with `E2E_SKIP_BUILD=1`). Install the browser with `npx playwright install chromium`. Tests run one at a time, and the theme is restored before each test.
 
-- `e2e/editing.spec.ts` — ライブプレビュー、保存、エラーの行表示、幅、CSS、外部の変更、ファイルの作成
-- `e2e/line-endings.spec.ts` — CRLF のファイルを開いても差分にならず、保存しても CRLF のまま
-- `e2e/api-guard.spec.ts` — ヘッダーなしの書き込み・フォルダー外のパス・ループバック以外の `Host` を拒否
+- `e2e/editing.spec.ts` — live preview, saving, error line display, width, CSS, external changes, file creation
+- `e2e/line-endings.spec.ts` — opening a CRLF file does not produce a diff, and saving keeps it CRLF
+- `e2e/api-guard.spec.ts` — rejects writes without the header, paths outside the folder, and non-loopback `Host`

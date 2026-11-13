@@ -1,31 +1,33 @@
 # aegis-tags
 
-AegisCMS のタグ管理およびコンテンツ関連付け機能クレート（`[tags]`）。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's crate for tag management and associating tags with content (`[tags]`).
 
-`aegis-tags` は、記事、固定ページ、商品などあらゆるコンテンツタイプに対して横断的に付与できる管理タグ機能を提供します。
+## Overview
 
-タグ名、一意なスラッグ（URL パーマリンク用）、説明文、およびコンテンツとの多対多リレーションを管理し、タグ別の記事一覧取得や集計を効率的に行います。
+`aegis-tags` provides managed tags that can be attached across all content types, such as articles, static pages, and products.
 
-## 主な責務・提供機能
+It manages tag names, unique slugs (for URL permalinks), descriptions, and the many-to-many relation with content, and efficiently retrieves and aggregates article lists per tag.
 
-- **タグの CRUD 管理 (`TagService`)**:
-  - タグの新規登録、更新、削除。
-  - 同一名タグの重複登録防止およびケースインセンシティブな正規化。
-- **URL セーフなスラッグ生成**:
-  - タグ名から半角英数とハイフンで構成されるスラッグ（`/tags/{slug}` 用）を自動導出。
-  - 日本語や非ラテン文字のみのタグ名でも一意なスラッグ（`tag-<hash>` 等）へのフォールバック対応。
-- **コンテンツへのタグ割り当て**:
-  - コンテンツ更新時のタグ一括設定（付け外し）。
-  - コンテンツあたりの最大タグ付与数制限 (`max_per_content`) によるスパム・過度なタグ付け防止。
-- **集計と逆引き**:
-  - タグが紐付けられたコンテンツ数の集計（タグクラウド表示用）。
-  - 指定したタグを持つコンテンツ一覧のページネーション取得。
+## Responsibilities and Features
 
-## モジュール構成
+- **Tag CRUD management (`TagService`)**:
+  - Creating, updating, and deleting tags.
+  - Preventing duplicate registration of tags with the same name, with case-insensitive normalization.
+- **URL-safe slug generation**:
+  - Automatically derives a slug made of ASCII alphanumerics and hyphens (for `/tags/{slug}`) from the tag name.
+  - Falls back to a unique slug (such as `tag-<hash>`) even for tag names made up only of Japanese or other non-Latin characters.
+- **Assigning tags to content**:
+  - Bulk setting (attaching and detaching) of tags when content is updated.
+  - Prevents spam and excessive tagging with a limit on the maximum number of tags per content (`max_per_content`).
+- **Aggregation and reverse lookup**:
+  - Counts the content associated with each tag (for tag cloud display).
+  - Paginated retrieval of the content list that has a given tag.
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `lib` | `TagService` 実装、スラッグ自動生成ロジック、バリデーション |
-| `config` | タグ設定 (`TagsConfig`: 最大付与数、デフォルト並び順等) |
+| `lib` | `TagService` implementation, automatic slug generation logic, validation |
+| `config` | Tag settings (`TagsConfig`: maximum number of tags, default sort order, etc.) |

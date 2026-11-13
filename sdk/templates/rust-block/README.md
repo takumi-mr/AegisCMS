@@ -1,17 +1,19 @@
-# AegisCMS Rust ブロックプラグインのテンプレート
+# AegisCMS Rust Block Plugin Template
 
-本文に置ける**カスタムブロック**を足すプラグインのひな形です（`render-blocks` フック）。ノート（補足・注意の囲み）を 1 つ足す最小の例で、入力欄の宣言（`plugin.manifest.json` の `blocks`）、HTML の作成（`src/lib.rs` の `render_blocks`）、ネイティブの単体テストが入っています。
+**English** | [日本語](README.ja.md)
 
-**手順は [最初のブロックプラグインを作る](../../../docs/plugin_block_tutorial.md) にまとめています**（コピー → 編集 → テスト → ビルド → 開発サーバー → 実サーバーの記事）。
+A template for a plugin that adds a **custom block** that can be placed in the body (the `render-blocks` hook). It is a minimal example that adds one note (a callout for supplementary information or warnings), and includes the input field declaration (`blocks` in `plugin.manifest.json`), HTML generation (`render_blocks` in `src/lib.rs`), and native unit tests.
+
+**The steps are collected in [Creating your first block plugin](../../../docs/plugin_block_tutorial.md)** (a Japanese document: copy → edit → test → build → dev server → an article on a real server).
 
 ```bash
-cargo test                                                    # Wasm なしでテスト
-cargo build --target wasm32-unknown-unknown --release         # ビルド
+cargo test                                                    # test without Wasm
+cargo build --target wasm32-unknown-unknown --release         # build
 cp ../../../target/wasm32-unknown-unknown/release/aegis_plugin_block_template.wasm plugin.wasm
 ```
 
-リポジトリのルートで `task plugin:build:block` を実行すると、ビルドと `plugin.wasm` の配置をまとめて行います。
+Running `task plugin:build:block` at the repository root performs the build and places `plugin.wasm` in one go.
 
-- このフォルダーを `plugins/<name>/` にコピーして使うときは、`aegis-plugin-sdk` の `path` を `../../crates/aegis-plugin-sdk` に直し、独立した crate にするなら `Cargo.toml` の末尾に空の `[workspace]` を足します（チュートリアルの手順 1）。
-- マニフェストの `name` を、コピー先のフォルダー名と同じにします。
-- 利用者の入力は必ず `escape` してから HTML に入れます。
+- When you copy this folder to `plugins/<name>/` to use it, change the `path` of `aegis-plugin-sdk` to `../../crates/aegis-plugin-sdk`, and to make it a standalone crate, add an empty `[workspace]` at the end of `Cargo.toml` (step 1 of the tutorial).
+- Make the manifest's `name` the same as the destination folder name.
+- Always `escape` user input before putting it into HTML.

@@ -1,39 +1,41 @@
 # official-share-buttons
 
-記事・固定ページに **SNS 共有ボタン**（X、LINE、URL コピー、Facebook、はてなブックマーク、Bluesky、Threads、Pocket、LinkedIn、およびカスタム共有先）を足す公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.md)）。
+**English** | [日本語](README.ja.md)
 
-- **標準対応プラットフォーム**: X (Twitter)、LINE、URL コピー、Facebook、はてなブックマーク、Bluesky、Threads、Pocket、LinkedIn
-- **カスタム共有先**: `custom_services` 設定に URL テンプレートを指定することで、任意の Web サービス・SNS をボタンとして追加可能
-- **表示スタイル**: `buttons`（アイコン＋文字）または `icons`（アイコンのみ）、形状（角丸 / カプセル / 四角）
-- **配置**: 本文末尾（`bottom`、既定）、本文先頭（`top`）、両方（`both`）
-- **プライバシー配慮**: 外部トラッキングスクリプトや iframe は一切読み込まず、クリーンなリンクとインライン SVG・クリップボード API のみで動作
+An official plugin that adds **SNS share buttons** (X, LINE, copy URL, Facebook, Hatena Bookmark, Bluesky, Threads, Pocket, LinkedIn, and custom share targets) to articles and static pages (the [`on-render-page` hook](../../docs/plugin_hooks.md)).
 
-## 使い方
+- **Built-in platforms**: X (Twitter), LINE, copy URL, Facebook, Hatena Bookmark, Bluesky, Threads, Pocket, LinkedIn
+- **Custom share targets**: by specifying URL templates in the `custom_services` setting, you can add any web service or SNS as a button
+- **Display style**: `buttons` (icon + text) or `icons` (icon only), and shape (rounded / pill / square)
+- **Placement**: end of the body (`bottom`, default), start of the body (`top`), or both (`both`)
+- **Privacy-conscious**: it loads no external tracking scripts or iframes, and works with only clean links, inline SVG, and the clipboard API
 
-設定ファイルの `[plugins].enabled` に `"official-share-buttons"` を足すか、Admin Studio の **Settings › Plugins** で有効にします。
+## Usage
+
+Add `"official-share-buttons"` to `[plugins].enabled` in the config file, or enable it in Admin Studio's **Settings › Plugins**.
 
 ```toml
 [plugins]
 enabled = ["official-share-buttons"]
 ```
 
-## 設定
+## Settings
 
-Admin Studio の **Settings › Plugins** の「設定」か、設定ファイルの `[plugins.settings.official-share-buttons]` でカスタマイズできます。
+Customize it in the "Settings" of Admin Studio's **Settings › Plugins**, or in `[plugins.settings.official-share-buttons]` in the config file.
 
-| キー | 既定値 | 説明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `content_types` | `article` | 共有ボタンを表示するコンテンツの種類（カンマ区切り） |
-| `platforms` | `x,line,copy` | 表示する共有先（カンマ区切り、表示順）。`x`, `line`, `copy`, `facebook`, `hatena`, `bluesky`, `threads`, `pocket`, `linkedin` が利用可能 |
-| `custom_services` | `""` | 追加のカスタム共有先（1行に1件、形式: `サービス名\|共有URLテンプレート\|背景色`）。使えるプレースホルダー: `{url}`, `{title}` |
-| `position` | `bottom` | 配置位置: `bottom`（本文末尾）/ `top`（本文先頭）/ `both`（先頭と末尾の両方） |
-| `style` | `buttons` | `buttons`（アイコン＋ラベル文字）/ `icons`（アイコンのみ） |
-| `shape` | `rounded` | ボタンの角の丸み: `rounded`（角丸）/ `pill`（カプセル型）/ `square`（四角） |
-| `heading` | `""` | ボタン上部の見出し文（空欄の場合は言語に応じた「この記事をシェアする」/「Share this article」） |
-| `x_via` | `""` | X シェア時の `@ユーザー名`（via パラメータに付与） |
-| `x_hashtags` | `""` | X シェア時のハッシュタグ（#なし、カンマ区切り） |
+| `content_types` | `article` | Content types to show the share buttons on (comma-separated) |
+| `platforms` | `x,line,copy` | Share targets to show (comma-separated, in display order). `x`, `line`, `copy`, `facebook`, `hatena`, `bluesky`, `threads`, `pocket`, `linkedin` are available |
+| `custom_services` | `""` | Additional custom share targets (one per line, format: `service name\|share URL template\|background color`). Available placeholders: `{url}`, `{title}` |
+| `position` | `bottom` | Placement: `bottom` (end of the body) / `top` (start of the body) / `both` (start and end) |
+| `style` | `buttons` | `buttons` (icon + label text) / `icons` (icon only) |
+| `shape` | `rounded` | Corner roundness of the buttons: `rounded` / `pill` / `square` |
+| `heading` | `""` | Heading text above the buttons (when empty, "Share this article" in the language in use) |
+| `x_via` | `""` | `@username` when sharing on X (added to the via parameter) |
+| `x_hashtags` | `""` | Hashtags when sharing on X (without #, comma-separated) |
 
-### 設定例（config.toml）
+### Example (config.toml)
 
 ```toml
 [plugins.settings.official-share-buttons]
@@ -47,7 +49,6 @@ Misskey|https://misskey-hub.net/share?text={title}&url={url}|#86b300
 """
 ```
 
-### 記事ごとの非表示設定
+### Hiding per article
 
-特定の記事で共有ボタンを隠したい場合は、記事のカスタムフィールドに `hide_share_buttons: true` を設定します。
-
+To hide the share buttons on a specific article, set `hide_share_buttons: true` in the article's custom field.

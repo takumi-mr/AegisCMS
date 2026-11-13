@@ -1,8 +1,8 @@
-[← ドキュメント一覧に戻る](README.md)
+[← ドキュメント一覧に戻る](README.ja.md)
 
 # AegisCMS 内部設計 (Architecture)
 
-AegisCMS の実装上の設計判断と、コードを変更するときに守るべき前提をまとめた設計書です。設計思想と全体構成は [README](../README.md)、各機能の使い方・API・設定はリファレンス（下表）を参照してください。本書はそれらに書かれていない「なぜそうなっているか」「どこを変えればよいか」を扱います。
+AegisCMS の実装上の設計判断と、コードを変更するときに守るべき前提をまとめた設計書です。設計思想と全体構成は [README](../README.ja.md)、各機能の使い方・API・設定はリファレンス（下表）を参照してください。本書はそれらに書かれていない「なぜそうなっているか」「どこを変えればよいか」を扱います。
 
 | 文書 | 内容 |
 | --- | --- |
@@ -18,13 +18,13 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 | [theme_and_publishing_guide.md](theme_and_publishing_guide.md) / [theme_authoring_guide.md](theme_authoring_guide.md) | 公開ルーティング・テーマエンジン / テーマの作り方 |
 | [plugin_sdk_guide.md](plugin_sdk_guide.md) / [plugin_hooks.md](plugin_hooks.md) / [plugin_abi_specification.md](plugin_abi_specification.md) | プラグイン開発 / フックとホスト API / 言語共通の ABI |
 | [development.md](development.md) | 開発環境・検証・CI・Docker |
-| [admin/README.md](../admin/README.md) | Admin Studio（構成・i18n・設計メモ） |
+| [admin/README.md](../admin/README.ja.md) | Admin Studio（構成・i18n・設計メモ） |
 
 ---
 
 ## 1. クレート構成
 
-依存の向きは `aegis-core` ← ドメインクレート ← `aegis-server` の一方向です（クレートの一覧と各モジュールは [README 2.3](../README.md#23-クレート構成と各モジュールの責務-crates)）。
+依存の向きは `aegis-core` ← ドメインクレート ← `aegis-server` の一方向です（クレートの一覧と各モジュールは [README 2.3](../README.ja.md#23-クレート構成と各モジュールの責務-crates)）。
 
 - **`aegis-core` は共有契約だけ**: 抽象トレイト（`StorageBackend` / `CacheBackend` / `AuthProvider` / `AuditSink` / `Notifier`）、監査イベントのモデル、プラグインに渡すコンテキスト型、`PluginManifest`、`AegisError`。Wasm プラグイン SDK も依存するため、実装や重い依存を足さないこと。
 - **実装はドメインクレート**: `aegis-db`（アダプタ・注文）、`aegis-storage`、`aegis-cache`、`aegis-audit`（`AuditService`・出力先・メトリクス・`AuditOrigin`）、`aegis-auth`（ユーザー・セッション・レート制限・OIDC・登録。feature `oidc` / `mock-idp`）、`aegis-notify`、`aegis-commerce`、`aegis-comments`、`aegis-tags`、`aegis-forum`、`aegis-theme`、`aegis-runtime`、`aegis-backup`（バックアップ・リストア。feature `backup`）。HTTP には依存しない。
@@ -462,7 +462,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 ## 11. Admin Studio の配信
 
 - `aegis-server` は起動時に `admin/dist/index.html` があれば `/admin/` で SPA を配信する（`ServeDir` + `ServeFile` のフォールバック）。`/` はテーマの公開サイト、`/admin` はスラッシュ付きへ 307。Vite の `base: './'` でアセットを相対参照し、`/admin/assets/*` から配信する。フロントエンドを変えたら `npm --prefix admin run build` だけで反映される（サーバーの再コンパイル不要）。
-- Admin Studio 側の設計（API の接続先、画面構成、モバイル・レスポンシブ設計、i18n、エディタ）は [admin/README.md の設計メモ](../admin/README.md#-設計メモ)。モバイル環境（幅 900px 以下）では 3 列固定からタブ切り替えペイン（一覧・編集・プレビュー）へ動的に切り替え、ビューポートは動的アドレスバーを考慮した `height: 100dvh` を採用。
+- Admin Studio 側の設計（API の接続先、画面構成、モバイル・レスポンシブ設計、i18n、エディタ）は [admin/README.md の設計メモ](../admin/README.ja.md#-設計メモ)。モバイル環境（幅 900px 以下）では 3 列固定からタブ切り替えペイン（一覧・編集・プレビュー）へ動的に切り替え、ビューポートは動的アドレスバーを考慮した `height: 100dvh` を採用。
 
 
 ---
@@ -594,7 +594,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 
 - **理由**: クライアント・プラグイン・監視は、メッセージの文字列ではなく HTTP ステータスと機械可読な値（`code` など）で判断する。メッセージを言語ごとに持つと、翻訳の保守が増え、同じエラーがログ・監査ログ・サポートで言語によって検索できなくなる。
 - **守ること**: エラーを足すときは英語のメッセージだけを書く。`locale` の設定でエラーメッセージを切り替えない。クライアントが言語ごとの文言を出したいときは、`code` など機械可読な値で自分の側で訳す（問い合わせフォームの入力の誤りの `code` がその例。[contact.md](contact.md)）。
-- **範囲**: このルールの対象は **API が返すエラーメッセージ**。Admin Studio がその文字列をそのまま画面に出すことがあり、その場合は英語のまま表示される（画面の文言は Admin Studio 自身の i18n で多言語。[admin/README.md](../admin/README.md)）。訪問者の画面に出す文言は次の [19.2](#192-公開サイトの表示言語themelocale) のとおり多言語対応する。
+- **範囲**: このルールの対象は **API が返すエラーメッセージ**。Admin Studio がその文字列をそのまま画面に出すことがあり、その場合は英語のまま表示される（画面の文言は Admin Studio 自身の i18n で多言語。[admin/README.md](../admin/README.ja.md)）。訪問者の画面に出す文言は次の [19.2](#192-公開サイトの表示言語themelocale) のとおり多言語対応する。
 
 ### 19.2 公開サイトの表示言語（`[theme].locale`）
 

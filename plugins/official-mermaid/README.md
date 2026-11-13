@@ -1,39 +1,41 @@
 # official-mermaid
 
-` ```mermaid ` のコードブロックを、[Mermaid](https://mermaid.js.org/) の図（フローチャート・シーケンス図・ガントチャート・ER 図など）として表示する公式プラグインです。コードのハイライトは別のプラグイン [`official-code-enhancer`](../official-code-enhancer/) です（両方を有効にしても、ぶつかりません）。
+**English** | [日本語](README.ja.md)
+
+An official plugin that displays ` ```mermaid ` code blocks as [Mermaid](https://mermaid.js.org/) diagrams (flowcharts, sequence diagrams, Gantt charts, ER diagrams, and more). Code highlighting is handled by a separate plugin, [`official-code-enhancer`](../official-code-enhancer/) (enabling both causes no conflicts).
 
 ````markdown
 ```mermaid
 graph TD;
-    A[リクエスト] --> B(AegisCMS);
-    B --> C{Wasm プラグイン};
+    A[Request] --> B(AegisCMS);
+    B --> C{Wasm plugin};
 ```
 ````
 
-## 動き
+## How It Works
 
-- 本文に ` ```mermaid ` のブロック（`language-mermaid`）があるページだけ、Mermaid を読み込みます。図の無いページには、スクリプトも CSS も入れません（Mermaid は重いため）。
-- 図にできなかったブロック（構文の誤り・スクリプトが読めない）は、元のコードのまま残ります。ページの表示は止まりません。
-- Mermaid は CDN（既定は `cdn.jsdelivr.net`、バージョンは `10.9.3` に固定）から読みます。**図のあるページを開いた人の IP アドレスなどが、CDN に送られます**。プライバシーポリシーに書くか、自分のサーバーに置いた Mermaid を使ってください（下記の `script_url`）。
-- このプラグインを有効にしている間、サーバーはマニフェストの `capabilities.csp.script_domains`（`cdn.jsdelivr.net`）を、CSP の `script-src` に足します。
+- It loads Mermaid only on pages that have a ` ```mermaid ` block (`language-mermaid`) in the body. It adds neither script nor CSS to pages without diagrams (Mermaid is heavy).
+- Blocks that could not be turned into diagrams (syntax errors, or the script could not be loaded) remain as the original code. Page rendering does not stop.
+- Mermaid is loaded from a CDN (by default `cdn.jsdelivr.net`, with the version pinned to `10.9.3`). **The IP address and other details of people who open a page with a diagram are sent to the CDN.** Mention it in your privacy policy, or use a Mermaid you host on your own server (`script_url` below).
+- While this plugin is enabled, the server adds the manifest's `capabilities.csp.script_domains` (`cdn.jsdelivr.net`) to the CSP `script-src`.
 
-## 設定
+## Settings
 
-Admin Studio の **Settings › Plugins** のこのプラグインの設定画面か、`[plugins.settings.official-mermaid]` で変えます。
+Change them in this plugin's settings screen under Admin Studio's **Settings › Plugins**, or in `[plugins.settings.official-mermaid]`.
 
-| キー | 内容 | 既定 |
+| Key | Description | Default |
 | --- | --- | --- |
-| `theme` | 図のテーマ。`auto`（ページの背景の明るさで、暗ければ `dark`、明るければ `default`）、`default`、`dark`、`neutral`、`forest` | `auto` |
-| `security_level` | `strict`（図の中の HTML・クリック処理を許さない）、`antiscript`、`loose`、`sandbox`。信頼できる人が書く図のときだけ緩める | `strict` |
-| `script_url` | Mermaid のスクリプトの URL。`/` で始まるパス（自分のサイトに置くときは `/assets/mermaid.min.js` のようにする）か、`https://cdn.jsdelivr.net/...`。**ほかのホストの URL は、ホストが捨てる**（スクリプトは、マニフェストで宣言したホストのものだけ足せる。[csp.md](../../docs/csp.md)） | `https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js` |
+| `theme` | Diagram theme. `auto` (by the brightness of the page background: `dark` if dark, `default` if light), `default`, `dark`, `neutral`, `forest` | `auto` |
+| `security_level` | `strict` (disallows HTML and click handling inside diagrams), `antiscript`, `loose`, `sandbox`. Loosen it only for diagrams written by trusted people | `strict` |
+| `script_url` | URL of the Mermaid script. A path starting with `/` (when hosting on your own site, use something like `/assets/mermaid.min.js`), or `https://cdn.jsdelivr.net/...`. **URLs on other hosts are dropped by the host** (scripts can only be added from hosts declared in the manifest. [csp.md](../../docs/csp.md), in Japanese) | `https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js` |
 
-不正な値（知らないテーマ・`javascript:` の URL など）は、既定の値になります。
+Invalid values (an unknown theme, a `javascript:` URL, etc.) fall back to the default.
 
-## `official-code-enhancer` から分かれました
+## Split from `official-code-enhancer`
 
-以前は `official-code-enhancer` が Mermaid の図も扱っていました。分けたので、**Mermaid の図を使うサイトは、このプラグインを有効にしてください**（`[plugins].enabled` に `"official-mermaid"` を足す。同梱の `config/default.toml` は両方を有効にしています）。
+`official-code-enhancer` used to handle Mermaid diagrams too. Since they were split, **sites that use Mermaid diagrams should enable this plugin** (add `"official-mermaid"` to `[plugins].enabled`; the bundled `config/default.toml` enables both).
 
-## ビルド
+## Build
 
 ```bash
 task plugin:build:mermaid

@@ -1,4 +1,4 @@
-[← ドキュメント一覧に戻る](README.md)
+[← ドキュメント一覧に戻る](README.ja.md)
 
 # Content-Security-Policy（CSP）の方針
 
@@ -162,7 +162,7 @@ pub enum ScriptSource {
 
 公開ページの CSP の `style-src` は `'self'` と `<style>` のハッシュ（§6.1）、`font-src` は `'self' data: https:` です。そのため、**外部のスタイルシート（Google Fonts の `fonts.googleapis.com` など）は、CSP に止められます**（以前は、組み込みの default テーマも同梱の 4 つのテーマも、Google Fonts を読んでいて、止められて代わりの書体になっていました）。直し方は 2 つです。
 
-- **フォントを自分で配信する**（組み込みの default テーマの方式）: woff2 を自分のサイトに置き、`@font-face` で読む。外部に何も頼らないので、CSP に足すものがなく、訪問者の IP アドレスも外に出ない。組み込みの `base.html` は、Plus Jakarta Sans と JetBrains Mono の **Latin のサブセット**を、`/_aegis/fonts/<ファイル>`（バイナリに埋め込み。ライセンスは SIL OFL 1.1。[`crates/aegis-server/assets/fonts/README.md`](../crates/aegis-server/assets/fonts/README.md)）から配信する。日本語など、ほかの文字は、システムのフォントに倒れる。
+- **フォントを自分で配信する**（組み込みの default テーマの方式）: woff2 を自分のサイトに置き、`@font-face` で読む。外部に何も頼らないので、CSP に足すものがなく、訪問者の IP アドレスも外に出ない。組み込みの `base.html` は、Plus Jakarta Sans と JetBrains Mono の **Latin のサブセット**を、`/_aegis/fonts/<ファイル>`（バイナリに埋め込み。ライセンスは SIL OFL 1.1。[`crates/aegis-server/assets/fonts/README.md`](../crates/aegis-server/assets/fonts/README.ja.md)）から配信する。日本語など、ほかの文字は、システムのフォントに倒れる。
 - **外部のホストを `theme.json` で宣言する**（日本語のウェブフォントのように、自分で配信できないとき）: テーマの `theme.json` に `csp` を書くと、そのテーマが有効な間、サーバーが公開ページの CSP に足す。
 
 ```json

@@ -1,4 +1,4 @@
-[← ドキュメント一覧に戻る](README.md)
+[← ドキュメント一覧に戻る](README.ja.md)
 
 # AegisCMS 設定リファレンス (Configuration Reference)
 
@@ -1038,7 +1038,7 @@ server {
 
 ### 4.5 Caddy でまとめて公開する（`deploy/`）
 
-[`deploy/`](../deploy) に、AegisCMS と Caddy（Let's Encrypt の証明書を自動で取得・更新）を Docker Compose で起動する構成があります。`deploy/sites.toml` にドメインとサイトの設定を書き、`./deploy.sh up` で起動します。サイトごとに AegisCMS のコンテナを分けるので、`[[sites]]` を足すだけで複数のサイト（ドメイン）を同じサーバーで公開できます。各サイトの `aegis.toml` は `aegis-server deploy generate` が `config/docker.toml` を土台に生成し、`[audit].trust_forwarded_for = true` を設定します。手順は [deploy/README.md](../deploy/README.md)。
+[`deploy/`](../deploy) に、AegisCMS と Caddy（Let's Encrypt の証明書を自動で取得・更新）を Docker Compose で起動する構成があります。`deploy/sites.toml` にドメインとサイトの設定を書き、`./deploy.sh up` で起動します。サイトごとに AegisCMS のコンテナを分けるので、`[[sites]]` を足すだけで複数のサイト（ドメイン）を同じサーバーで公開できます。各サイトの `aegis.toml` は `aegis-server deploy generate` が `config/docker.toml` を土台に生成し、`[audit].trust_forwarded_for = true` を設定します。手順は [deploy/README.md](../deploy/README.ja.md)。
 
 ---
 
@@ -1057,7 +1057,7 @@ server {
 - 変えたパスを `robots.txt` に書かないでください（`Disallow` に書くとパスが公開されます）。既定の `robots.txt` の `Disallow: /admin/` はそのままで構いません。
 - `[auth.oidc]` / `[auth.saml]` の `post_login_redirect` が既定（`/admin/`）のままなら、新しいパスに自動で合わせます。`[auth.registration].admin_url` を書いている場合は新しいパスに直してください。
 - `admin_path` を変えたら、ブックマークや IdP に登録した戻り先 URL も更新してください。
-- `GET /api/v1/health` は製品名とバージョンを `admin` のセッションにだけ返します。あわせてリバースプロキシで `/health`・`/api/v1/health`・`/metrics` を外部から遮断し（`deploy/` の Caddy 構成では既定で遮断。[deploy/README.md](../deploy/README.md#5-運用)）、Admin Studio のパスを IP 制限や VPN で守るとより効果的です。
+- `GET /api/v1/health` は製品名とバージョンを `admin` のセッションにだけ返します。あわせてリバースプロキシで `/health`・`/api/v1/health`・`/metrics` を外部から遮断し（`deploy/` の Caddy 構成では既定で遮断。[deploy/README.md](../deploy/README.ja.md#5-運用)）、Admin Studio のパスを IP 制限や VPN で守るとより効果的です。
 
 ## 5. 管理画面から設定する動的サイト・SEO設定
 
