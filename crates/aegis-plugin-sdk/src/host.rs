@@ -1,3 +1,7 @@
+// この SDK で `unsafe` を許すのは、Wasm の ABI を扱うこのファイルだけ（Cargo.toml の [lints] を参照）。
+// どの `unsafe` ブロックにも、成り立つ理由を `// SAFETY:` で書く
+#![allow(unsafe_code)]
+
 use crate::types::Result;
 use serde::Serialize;
 

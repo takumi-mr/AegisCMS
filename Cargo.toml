@@ -142,6 +142,9 @@ zip = { version = "9.1", default-features = false, features = ["deflate"] }
 
 
 [workspace.lints.rust]
+# メモリ安全でないコードは書かない。`forbid` は `#[allow]` でも上書きできないので、`unsafe` が混ざると
+# ビルドが落ちる。例外は `aegis-plugin-sdk` だけ（Wasm の ABI。自前の lints の表を持つ。docs/development.md）
+unsafe_code = "forbid"
 unused_imports = "warn"
 unused_variables = "warn"
 dead_code = "warn"

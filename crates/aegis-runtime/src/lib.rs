@@ -1367,4 +1367,67 @@ mod tests {
             res.fuel_consumed
         );
     }
+
+    /// ホスト API とフックの結果に、負・巨大・範囲外の `ptr` / `len` を渡すプラグイン。
+    /// ホストは確保の前に検証するので、落ちずに無視するか、エラーで返す
+    fn hostile_plugin(result_ptr: i64, result_len: i64) -> String {
+        format!(
+            r#"
+    (module
+        (import "host" "log" (func $log (param i32 i32 i32)))
+        (import "host" "http_check_allowed" (func $check (param i32 i32) (result i32)))
+        (memory (export "memory") 1)
+        (func (export "allocate") (param i32) (result i32) i32.const 1024)
+        (func (export "on_before_save") (param i32 i32) (result i64)
+            ;; 負の長さ、2 GiB 近い長さ、メモリの外に出る範囲
+            (call $log (i32.const 1) (i32.const 0) (i32.const -1))
+            (call $log (i32.const 1) (i32.const 0) (i32.const 2147483647))
+            (call $log (i32.const 1) (i32.const 65000) (i32.const 4096))
+            (call $log (i32.const 1) (i32.const -5) (i32.const 8))
+            (drop (call $check (i32.const 0) (i32.const -1)))
+            (drop (call $check (i32.const 0) (i32.const 2147483647)))
+            (drop (call $check (i32.const 65000) (i32.const 4096)))
+            (i64.or (i64.shl (i64.const {result_ptr}) (i64.const 32)) (i64.const {result_len}))))
+    "#
+        )
+    }
+
+    async fn run_hostile_plugin(
+        result_ptr: i64,
+        result_len: i64,
+    ) -> aegis_core::Result<PostContext> {
+        let instance = WasmPluginInstance::from_bytes(
+            WasmEngine::new().expect("WasmEngine initialization failed"),
+            make_sample_manifest(vec!["on-before-save".to_string()]),
+            &wat::parse_str(hostile_plugin(result_ptr, result_len)).unwrap(),
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+        .expect("Instance creation failed");
+        instance.on_before_save(post()).await
+    }
+
+    #[tokio::test]
+    async fn test_host_apis_ignore_hostile_pointers_and_lengths() {
+        // 戻り値は空（長さ 0）。ホスト API への不正な引数があっても、プロセスは落ちず、フックは正常に終わる
+        assert!(run_hostile_plugin(0, 0).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_hook_result_with_an_invalid_range_is_an_error_not_a_crash() {
+        // 長さが 2 GiB 近い、メモリの外、境界をまたぐ範囲は、確保の前にエラーになる
+        for (ptr, len) in [
+            (0, 0x7FFF_FFFF),
+            (65000, 4096),
+            (0x7FFF_FFFF, 8),
+            (65535, 2),
+        ] {
+            let err = run_hostile_plugin(ptr, len).await.unwrap_err();
+            assert!(
+                err.to_string().contains("invalid range"),
+                "{ptr}/{len}: {err}"
+            );
+        }
+        // 長さが負（符号つき 32 ビットで）の値は、出力なしとして扱われる
+        assert!(run_hostile_plugin(0, 0xFFFF_FFFF).await.is_ok());
+    }
 }

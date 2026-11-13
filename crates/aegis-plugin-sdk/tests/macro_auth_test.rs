@@ -1,3 +1,5 @@
+#![allow(unsafe_code)]
+
 use aegis_plugin_sdk::prelude::*;
 
 /// Maps the `cms-admins` group to the admin role and refuses users outside example.com
