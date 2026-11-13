@@ -1,32 +1,34 @@
 # aegis-newsletter
 
-AegisCMS のニュースレター（メールマガジン）・ダブルオプトイン購読・一斉配信クレート（`[newsletter]`）。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's crate for newsletters (email magazines), double opt-in subscription, and bulk delivery (`[newsletter]`).
 
-`aegis-newsletter` は、Web サイトの読者に対するニュースレター購読登録、確認メールによるダブルオプトイン、購読解除（Unsubscribe）リンクの管理、および公開コンテンツの一斉メール配信機能を提供するクレートです。
+## Overview
 
-スパムメール規制（CAN-SPAM, GDPR 等）に適合した安全な購読・解除フローと、送信エラーや配信履歴の追跡をサポートします。
+`aegis-newsletter` is the crate that provides newsletter sign-up for website readers, double opt-in through a confirmation email, management of unsubscribe links, and bulk email delivery of published content.
 
-## 主な責務・提供機能
+It supports safe subscribe and unsubscribe flows that comply with anti-spam regulations (CAN-SPAM, GDPR, etc.) and tracking of send errors and delivery history.
 
-- **ダブルオプトイン登録フロー**:
-  - 読者からのメールアドレス登録受付 (`pending`)。
-  - 暗号論的に安全な確認トークンを含む確認メールの送信。
-  - トークン検証による購読確定 (`confirmed`)。
-- **確実な購読解除 (Unsubscribe)**:
-  - 配信メールごとに安全なワンクリック購読解除リンクを生成・付与。
-  - 即時解除およびステータス管理。
-- **コンテンツ一斉配信 (`NewsletterService::broadcast`)**:
-  - 公開済みの記事や新着情報を、有効な全購読者へ向けて一括配信キューに投入。
-  - レートリミットを考慮した安全なバッチ送信。
-- **配信履歴と統計**:
-  - 過去の配信履歴、送信成功数、エラー数の記録。
+## Responsibilities and Features
 
-## モジュール構成
+- **Double opt-in registration flow**:
+  - Accepts email address registrations from readers (`pending`).
+  - Sends a confirmation email containing a cryptographically secure confirmation token.
+  - Confirms the subscription by verifying the token (`confirmed`).
+- **Reliable unsubscribe**:
+  - Generates and attaches a safe one-click unsubscribe link to each delivered email.
+  - Immediate unsubscription and status management.
+- **Bulk content delivery (`NewsletterService::broadcast`)**:
+  - Queues published articles and news for bulk delivery to all active subscribers.
+  - Safe batch sending that takes rate limits into account.
+- **Delivery history and statistics**:
+  - Records past delivery history, the number of successful sends, and the number of errors.
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `lib` | `NewsletterService` 実装、購読・確認・解除・一括配信 |
-| `messages` | 登録確認・解除完了等の多言語メッセージカタログ (en, ja) |
-| `config` | ニュースレター設定 (`NewsletterConfig`: 送信元、確認有効期限等) |
+| `lib` | `NewsletterService` implementation; subscribing, confirming, unsubscribing, and bulk delivery |
+| `messages` | Localized message catalog for sign-up confirmation, unsubscribe completion, etc. (en, ja) |
+| `config` | Newsletter settings (`NewsletterConfig`: sender, confirmation expiry, etc.) |

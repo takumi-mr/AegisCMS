@@ -1,35 +1,37 @@
 # aegis-contact
 
-AegisCMS のお問い合わせフォーム・スパム対策・受信箱管理クレート（`[contact]`）。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's crate for contact forms, spam protection, and inbox management (`[contact]`).
 
-`aegis-contact` は、Web サイト訪問者からのお問い合わせや資料請求を受け付けるフォームエンジンです。
+## Overview
 
-設定ファイル（`aegis.toml`）による柔軟なフォーム定義、入力値の厳格なサーバーサイドバリデーション、ボット対策（ハニーポット、CAPTCHA 連携）、受信箱データベースへの保存、個人情報保護のための保存期間（TTL）自動パージ、および管理者宛て・送信者宛て自動返信メール通知を提供します。
+`aegis-contact` is a form engine that accepts inquiries and document requests from website visitors.
 
-## 主な責務・提供機能
+It provides flexible form definitions through the configuration file (`aegis.toml`), strict server-side input validation, bot protection (honeypot, CAPTCHA integration), storage in the inbox database, automatic purging by retention period (TTL) for privacy protection, and auto-reply email notifications to both administrators and senders.
 
-- **設定駆動フォーム (`form`, `config`)**:
-  - 名前、メールアドレス、件名、種別選択（セレクトボックス / ラジオボタン）、本文などのフィールド定義。
-  - 必須入力検証、文字数制限、メールアドレス構文チェック。
-  - テンプレート用のフォーム HTML およびエラー文言の自動生成。
-- **ボット・スパム防御**:
-  - **Honeypot フィールド**: 人間には見えない隠し入力項目による単純ボットの即時破棄。
-  - **CAPTCHA 連携**: `aegis-captcha` と連動したボット検証。
-  - **レートリミット**: 同一 IP アドレスからの連続送信制限。
-- **受信箱とプライバシー管理 (`ContactService`)**:
-  - 受信したお問い合わせ内容を内部データベース（`_aegis_contact_messages`）に保存。
-  - Admin Studio からの受信メッセージ一覧・詳細閲覧、既読/未読管理。
-  - 個人データ保持期間（`retention_days`）経過後の自動クリーンアップ。
-- **通知連携 (`messages`)**:
-  - 送信完了時のサンクスメール（自動返信）および管理者への着信通知メール配信（`aegis-notify` 経由）。
+## Responsibilities and Features
 
-## モジュール構成
+- **Configuration-driven forms (`form`, `config`)**:
+  - Field definitions for name, email address, subject, type selection (select box / radio buttons), message body, and so on.
+  - Required-field validation, length limits, and email address syntax checks.
+  - Automatic generation of form HTML and error messages for templates.
+- **Bot and spam defense**:
+  - **Honeypot field**: immediately discards simple bots through a hidden input field that humans cannot see.
+  - **CAPTCHA integration**: bot verification in conjunction with `aegis-captcha`.
+  - **Rate limiting**: limits consecutive submissions from the same IP address.
+- **Inbox and privacy management (`ContactService`)**:
+  - Stores received inquiries in the internal database (`_aegis_contact_messages`).
+  - Listing and viewing received messages, and read/unread management, from Admin Studio.
+  - Automatic cleanup after the personal data retention period (`retention_days`).
+- **Notification integration (`messages`)**:
+  - Sends a thank-you email (auto-reply) on completion and an incoming-message notification email to administrators (via `aegis-notify`).
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `lib` | `ContactService` 実装、メッセージの保存・取得・自動削除 |
-| `form` | 入力バリデーション、HTML フォーム生成 |
-| `messages` | 多言語対応エラーメッセージおよび通知用文言 |
-| `config` | 問い合わせフォーム設定 (`ContactConfig`) |
+| `lib` | `ContactService` implementation; storing, retrieving, and automatically deleting messages |
+| `form` | Input validation and HTML form generation |
+| `messages` | Localized error messages and notification text |
+| `config` | Contact form settings (`ContactConfig`) |

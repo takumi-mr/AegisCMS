@@ -1,310 +1,315 @@
 # AegisCMS Admin Studio
 
-**AegisCMS Admin Studio** は、次世代セキュアCMS「AegisCMS」の公式管理画面 SPA（Single Page Application）です。  
-宣言的 YAML スキーマと連動したコンテンツ管理、AST（抽象構文木）ベースのブロックエディタ、および Wasm プラグインによる拡張性を直感的に操作できるモダンな管理インターフェースを提供します。
+**English** | [日本語](README.ja.md)
+
+**AegisCMS Admin Studio** is the official admin SPA (Single Page Application) of AegisCMS, the next-generation secure CMS.  
+It provides a modern admin interface for intuitively working with content management tied to declarative YAML schemas, an AST (abstract syntax tree)-based block editor, and extensibility through Wasm plugins.
+
+> [!NOTE]
+> The documents linked from this README (under `docs/`) are currently written in Japanese only.
 
 ---
 
-## 🌟 主な特徴
+## 🌟 Key Features
 
-- **ゼロトラスト・ブロックエディタ**:
-  - 見出し（H1〜H6）、段落、リスト、コードブロック（シンタックス指定対応）、画像、表（`TableBlockEditor.tsx`。行・列の追加と削除、見出し行、列の揃え）、目次、引用、注記、折りたたみ（Q&A）、区切り線、カスタムHTMLブロックの追加・編集（ブロックの仕様は [本文のブロック](../docs/blocks.md)）。
-  - 有効なプラグインのカスタムブロック（`GET /api/v1/blocks`）もツールバーに並び、マニフェストで宣言された入力欄から作ったフォーム（`PluginBlockEditor.tsx`）で編集する（[本文のブロック 4](../docs/blocks.md#4-プラグインのブロック)）。
-  - 段落・リスト・表のセルなどでは `**太字**`・`*斜体*`・`` `コード` ``・`[リンク](URL)` のインライン書式が使える。
-  - 直感的なブロック並び替え（Up / Down）と安全なノード削除。
-  - AST 構造（`BlockNode`）を直接編集し、生の不正スクリプト注入を構造的に防止。
-- **リアルタイム HTML プレビュー**:
-  - 編集中のブロックをサーバーのプレビュー API（`POST /api/v1/preview`）でレンダリングし、保存して公開ページで表示した場合と同じ HTML（見出しの id、プラグインの AST 変換、リンク・画像の書き換えを含む）を表示。入力が 300ms 止まるごとに更新し、更新待ちの間は前回の結果を薄く表示。
-  - **Themed Page** タブでは、テーマのテンプレートと `on-render-page` フックを適用したページ全体を `iframe`（`src` はサーバーが置いたページの URL、`sandbox="allow-scripts"`。プラグインの Mermaid 描画などのスクリプトは公開ページと同じに動くが、Admin Studio のオリジンには入れない）で表示（タイトル・slug・カテゴリの変更も反映）。
-  - レンダリング結果をタブでプレビューと HTML ソースコード表示に切り替え可能。「HTML 出力」のタブは、本文の HTML を `iframe`（サーバーが置いた文書。`body_frame_key`・`body_url`）で見せる（Admin Studio の CSP は、インラインのスタイルを許さないため。[csp.md の 1.1](../docs/csp.md#11-admin-studio-の-style-src)）。
-  - 記事・ページに「閲覧できる人」（会員レベル）を設定しているときは、プレビューの上の **見る人**（スタッフ・ゲスト・会員のレベル別）で、その読者に見える姿（区切りより前と案内）を確かめられる。本物の会員のセッションは使わず、サーバーが公開ページと同じ判定で描画する（`POST /api/v1/preview` の `viewer`。[members.md 15.6](../docs/members.md#156-プレビューとの関係)）。
-  - タブ右の **全画面表示**（Esc で戻る）と **別ウィンドウで開く**（`iframe` と同じ URL をそのまま開く。その時点のページで、更新は追従しない）。ページは `Content-Security-Policy: sandbox allow-scripts`（不透明なオリジン）つきで返るので、別ウィンドウでもセッショントークンには届かない。
-- **予約公開・予約非公開化**: エディタ・商品フォームの状態で「予約公開」を選び、公開日時（`datetime-local`）を入れて保存すると、その日時にサーバーが公開する。また、公開中・予約公開のコンテンツに非公開予定日時（`unpublish_at`）を指定することで期間限定公開が可能。一覧にはステータスバッジに加え非公開予定アイコン（ツールチップに日時）を表示（[予約公開・予約非公開化](../docs/theme_and_publishing_guide.md#予約公開スケジュール公開)）。
-- **公開スケジュール・カレンダー (Calendar)**: ヘッダーの「カレンダー」タブ（`ScheduleCalendar.tsx`）から、全コンテンツタイプの公開予定・非公開予定・公開中アイテムを月間カレンダーおよびアジェンダ形式で一覧表示。コンテンツタイプ・予定種別による絞り込み、詳細モーダルからの非公開日時のクイック編集・解除、エディタへの直接遷移に対応。
-- **アクセス解析 (Analytics)**: `[analytics].enabled = true` のときだけ出るヘッダーの「アクセス解析」タブ（`AnalyticsView.tsx`）で、過去 7 / 30 / 90 日のページビュー・訪問者の推移（グラフと表。グラフは矢印キーでも読める）、よく見られたページ・参照元・端末を表示（[docs/analytics.md](../docs/analytics.md)）。
-- **問い合わせ (Inbox)**: `[contact].enabled = true` のとき editor 以上に出るヘッダーの「問い合わせ」タブ（`ContactInbox.tsx`）で、問い合わせフォームから届いたメッセージを新着・既読・対応済み・スパムに分けて一覧・詳細表示・メールで返信・まとめて状態の変更・削除。本文には「問い合わせフォーム」ブロック（`core/contact-form`、Markdown では `[CONTACT]`）を置ける（[docs/contact.md](../docs/contact.md)）。
-- **Markdown 編集 & 貼り付け**:
-  - エディタ上部の **Blocks / Markdown** で編集方法を切り替える。ブロックと Markdown は相互に変換され（`utils/markdown.ts` の `blocksToMarkdown` / `markdownToBlocks`。見出し・段落・コード・画像・リスト・表・目次（`[TOC]`）・引用・注記（`> [!NOTE]`・`:::note`）・折りたたみ（`:::details`）・区切り線・プラグインのブロック（`::: <名前> {属性の JSON}`））、どちらで編集してもプレビューと保存は同じブロックから行う。
-  - Markdown エディタ（`MarkdownEditor.tsx`）: 書式の挿入ツールバー、Tab でのインデント、Ctrl+S で保存、行数・文字数・ブロック数の表示。
-  - ブロックエディタに Markdown を貼り付けるとブロックに変換して追加する。**Paste Markdown**（`PasteMarkdownModal.tsx`）ではクリップボードを読み込み、変換結果の内訳を確かめてから末尾に追加か全置換を選ぶ。
-- **商品・注文 (Products / Orders)**: 商品の作成・編集（価格・在庫・SKU・画像）と、商品一覧の検索（名前・スラッグ・SKU・要約）・状態での絞り込み・1 ページ 25 件のページ送り（一覧は要約だけを取得し、開くときに 1 件の全体を取得）、注文の一覧・詳細・状態の変更（入金確認・発送・取り消し）。タブは EC が有効（`[commerce].enabled`）なときだけ表示する（[EC](../docs/commerce.md#33-admin-studio)）。
-- **コメント (Comments)**: 読者のコメントの承認・承認の取り消し・スパム・ゴミ箱・削除（1 件・まとめて）、本文の編集、返信、コンテンツごとの受付の停止・再開、承認制の切り替え（`admin`）。タブはコメントが有効（`[comments].enabled`。`GET /api/v1/comments/settings` が 404 でない）かつ `editor` 以上のときだけ表示する。URL の `#comments`（通知メールのリンク）でこのタブが開く（[コメント](../docs/comments.md#4-admin-studio)）。
-- **サイト (Settings › Site)**: 公開サイトの名前と favicon の変更（`GET` / `PUT /api/v1/site`、`admin` のみ。`SiteManager.tsx`）。favicon はメディアライブラリから選ぶ・アップロードする・URL を入力する。空にして保存すると設定ファイル（`[theme]`）の値に戻る（[テーマと公開](../docs/theme_and_publishing_guide.md#サイト名と-faviconadmin-studio)）。
-- **システム運用設定 (Settings › System)**: メンテナンスモードの切り替え（案内文の編集）、アセットアップロード上限（MB）、CDN/ブラウザキャッシュの有効化とTTL、ユーザー自己登録受付の停止・再開、連続ログイン失敗時のロック回数、コメント受付および掲示板投稿の受付停止・再開をサーバー再起動なしで動的に変更（`GET` / `PUT /api/v1/system/settings`、`admin` のみ。`SystemManager.tsx`。[システム設定](../docs/configuration.md#53-システム運用設定-system)）。既定値へのリセットボタン付き。
-- **通知 (Settings › Notifications)**: 配信の状態（チャネル・形式・送信待ちの保存先）と、送信待ち・送れなかった通知の一覧（再送・破棄）、見本の値でのテスト送信（チャネルごとの結果を表示）、テンプレートの編集（種類と宛先ごとの件名・本文・HTML、共通の部品）と保存前の内容でのプレビュー（HTML は `iframe` の `srcdoc`、`sandbox=""` でスクリプトを動かさない）、元に戻す。`admin` のみ（`NotificationManager.tsx`。[通知 6](../docs/notifications.md#6-admin-studio-から管理する)）。
-- **テーマ (Settings › Themes)**: インストール済みテーマのカード（プレビュー画像・タグ・作者）、ワンクリックでの切り替え（`PUT /api/v1/themes/active`、`admin`）、公開サイトの確認。マーケットプレイスのタブは将来の機能の予告（ZIP の導入は未実装）。
-- **ユーザー管理 (Settings › Users) & プロフィール**:
-  - `admin` はユーザーの一覧・作成・編集・ロール変更・無効化・パスワードのリセット・削除（`UserManager.tsx`、[認証 3](../docs/authentication.md#3-ユーザー管理-api)）。
-  - **ユーザー招待 (Invite user)**: 管理者がメールアドレスとロールを指定して招待メールを送信するモーダル（`InviteUserModal`）を提供（[招待リンク](../docs/authentication.md#10-ユーザー招待リンク)）。
-  - **承認待ちステータス**: 自己登録で承認待ち状態のアカウント（`pending_approval: true`）には専用の「承認待ち (Pending approval)」バッジを表示し、編集モーダルからワンクリックで「承認して有効化」できる。
-  - ヘッダーのアバター + 表示名から **My profile**（`ProfileModal.tsx`）: アバター画像・表示名・メールアドレス・パスワードの変更（SSO のユーザーにはパスワード欄を出さない）。アバターが無い・読めないときはイニシャルを表示（`ui/Avatar.tsx`）。
-- **プレミアム・グラスモフィズム UI**:
-  - TailwindCSS 等のフレームワークに依存せず、ゼロランタイムの CSS Modules と CSS 変数（デザインシステムトークン）で構築。
-  - 目に優しく視認性の高いダークテーマ、美しいすりガラス効果（Glassmorphism）、洗練されたマイクロインタラクション。
-  - タイポグラフィに `Plus Jakarta Sans` / `Outfit` / `JetBrains Mono` を採用。
-- **画像アップロード**:
-  - 画像ブロックにドラッグ＆ドロップ、またはクリックでファイルを選ぶと `/api/v1/storage/upload` へアップロードし、URL をブロックに自動反映（alt が空ならファイル名から補完）。
-  - 画像以外のファイルや、サーバーの上限（`[storage].max_upload_mb`）を超えるファイルはエラーを表示。
-- **メディアライブラリ**:
-  - 画像ブロックの **Choose from media library** で、アップロード済み画像（`GET /api/v1/storage/objects?content_type=image/`）を新しい順にサムネイル一覧表示。ファイル名検索・追加読み込み（24 件ずつ）に対応。
-  - 画像を選ぶと URL をブロックに反映（alt が空ならファイル名から補完）。同じ画像を再アップロードせずに再利用できる。
-- **カテゴリ選択 & 管理**:
-  - 記事エディタでカテゴリ（`category_id` リレーション）をドロップダウンから選択。既存記事を開くと選択状態を復元。
-  - カテゴリの一覧表示（色・説明つき）と新規作成（slug 自動生成、色指定）は **Settings › Categories**。エディタの **Manage** ボタンからも開ける。
-  - サイドバーの記事一覧にカテゴリバッジを表示する。
-- **コンテンツ一覧の検索・絞り込み・ページ送り（サイドバー）**: タイトル・スラッグ・要約（`excerpt`）の検索ボックス（入力が 300ms 止まると検索、Enter ですぐ検索）、カテゴリ（All / Uncategorized / 各カテゴリ。記事のみ）と状態（Draft / Scheduled / Published）の絞り込み、1 ページ 20 件のページ送りに対応。検索・絞り込み・ページ送りはサーバーで行い（`GET /api/v1/contents/{type}?view=summary&q=&category=&status=&limit=&offset=`）、一覧は要約（タイトル・スラッグ・状態・カテゴリ・要約。ブロックと描画済み HTML は含まない）だけを取得する。記事を選ぶと、その 1 件の全体を取得してエディタに開く。種類（記事 / 固定ページ）を切り替えると検索と絞り込みは戻る。
-- **ニュースレター（Settings › Newsletter、`admin`）**: 状態ごとの人数（購読中・確認待ち・停止）、公開中の記事を選んで購読者に送る（要約の編集・自分へのテスト送信・送信前の確認・送信済みの記事は確認してから再送）、購読者の一覧（状態で絞り込み・メールアドレスで検索・削除・CSV の書き出し）、送信履歴（`NewsletterManager.tsx`。[ニュースレター](../docs/newsletter.md)）。`[newsletter].enabled = false` のときは、サーバーの設定が必要という案内を出す。
-- **お知らせ（Settings › Notices、`admin`）**: 全ページの上部に出すお知らせの一覧（状態の印: 表示中・予定・終了・無効）と追加・編集・削除（`NoticeManager.tsx`）。期間はブラウザーのローカル時間で入力して UTC で送る。サーバーの理由は英語なので、`code` と `field` から画面の言語の文言を出す（[お知らせバナー](../docs/notices.md)）。
-- **リダイレクト（Settings › Redirects、`admin`）**: 旧 URL → 新 URL の規則の一覧（新しい順・25 件ずつ・パスで検索）と追加・編集・削除（`RedirectManager.tsx`）。種類は 301（恒久）/ 302（一時）。slug を変えて公開したときに自動で足された規則には「自動」の印が付く。サーバーの理由は英語なので、`code`（`duplicate_redirect` など）から画面の言語の文言を出す（[リダイレクト](../docs/redirects.md)）。
-- **タグ（Settings › Tags、エディタ、商品の編集）**: タグの一覧（名前順・25 件ずつ・名前か slug で検索・付いているコンテンツの数）と作成・編集・削除（作成・変更は `editor` 以上）。記事・固定ページのエディタと商品の編集には「Tags」欄（`TagPicker`）があり、名前を入力して既存のタグを探して付けるか、その場で作って付ける。タグはコンテンツの保存のときに保存する（`PUT /api/v1/contents/{type}/{id}/tags`）。サーバーが `[tags].enabled = false` のときは、Settings の項目とエディタの欄を出さない（[タグ](../docs/tags.md)）。
-- **設定画面 (Settings)**:
-  - サイト全体の管理（サイト名と favicon・SEO・通知・テーマ・プラグイン・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Comments / Settings（Products / Orders は EC が有効かつ `editor` 以上のとき、Comments はコメントが有効かつ `editor` 以上のとき）。
-  - ロールに応じて項目を出し分け: Themes・Plugins・Categories は全員（カテゴリの作成は `editor` 以上）、Site・Users・Audit Logs は `admin` のみ。
-- **監査ログ閲覧画面 (Settings › Audit Logs)**:
-  - 監査ログ（`GET /api/v1/audit-logs`）を一覧表示。action / outcome / actor / resource / 期間での絞り込み、ページ送り、イベント詳細（JSON）の展開に対応。
-  - `admin` ロールでログインした場合のみ表示（詳細は [監査ログリファレンス](../docs/audit.md#6-admin-studio-の閲覧画面)）。
-- **ログイン & ロール**:
-  - 起動時にログイン画面を表示し、ユーザー名 / パスワードで `POST /api/v1/auth/session` にログイン。発行されたトークンはタブを閉じるまで `sessionStorage` に保持し、すべての API 呼び出しに `Authorization: Bearer` として付与する（再読み込みしてもログイン状態を維持）。
-  - ヘッダーに表示名とロールを表示し、ログアウトボタンでセッションを破棄。API が 401（期限切れ・失効）を返したらログイン画面に戻る。
-  - サーバーでアカウント登録（`[auth.registration]`）が有効なら、ログイン画面に「アカウントを作成」を表示（`RegisterForm.tsx`）。確認メールのリンク（`#verify-email=<トークン>`）で開くと、トークンをアドレスバーから消してアカウントを作り、結果（ログインできる / 承認待ち / リンクが無効）を表示する（[認証 7](../docs/authentication.md#7-アカウント登録)）。
-  - **パスワード再設定 (`PasswordResetForms.tsx`)**: `[auth.password_reset]` 有効時、ログイン画面の「パスワードをお忘れですか？」からメールアドレスを送信し、届いた再設定メールのリンク（`#reset-password=<トークン>`）から新パスワードを再設定（[認証 9](../docs/authentication.md#9-パスワードの再設定)）。
-  - **招待承諾 (`AcceptInviteForm.tsx`)**: 管理者から招待されたユーザーはメール内のリンク（`#invite=<トークン>`）を開き、招待情報（メール・ロール）を確認した上でユーザー名・パスワードを設定して即時有効アカウントを開設（[認証 10](../docs/authentication.md#10-ユーザー招待リンク)）。
-  - ロールに応じて操作を制限: `viewer` は Save・画像アップロード・カテゴリ作成が無効、設定画面の Users / Audit Logs は `admin` のみ表示（サーバー側でも同じ権限を検証。[認証 & ユーザー管理](../docs/authentication.md)）。
-  - `contributor`（寄稿者）は自分の下書き・レビュー待ちだけ保存でき、状態は「下書き」「レビュー待ち」だけを選べる（`utils/roles.ts` の `canWrite` / `canChangeContent`）。公開後のもの・他人のものは読み取り専用で、版の復元も出さない。ショップ・コメント・カテゴリの作成などは `editor` 以上（`canEdit`）。
-  - **レビュー**: 状態を変える保存ではメモの欄（`review_note`）が出る。編集者には一覧の上にレビュー待ちの件数が出て、押すと絞り込む。`#review`（依頼の通知メールのリンク）はレビュー待ちに絞った一覧を開く（[レビュー](../docs/theme_and_publishing_guide.md#レビュー寄稿者の下書きを承認して公開する)）。
-- **多言語対応（英語 / 日本語）**:
-  - ヘッダーとログイン画面の言語メニューで切り替え。選んだ言語はブラウザに保存し、初回はブラウザの言語（日本語なら日本語、それ以外は英語）で表示。日付・金額の書式も言語に合わせる。
-  - 文言は [i18next](https://www.i18next.com/) の JSON（`src/locales/<言語>/translation.json`）で、翻訳サービスにそのまま渡せる（[多言語対応](#-多言語対応-i18n)）。
-- **カラーテーマ（ライト / ダーク / システムに合わせる）**:
-  - ヘッダー（スマートフォンではメニュー）とログイン画面のテーマ選択（`ThemeSelect.tsx`）で切り替え。選んだテーマはブラウザに保存（`localStorage` の `aegis.admin.theme`）し、初回は OS の設定（`prefers-color-scheme`）に従う。「システムに合わせる」では OS の切り替えにも追従する。OS がライトを求めているときだけライトにし、設定が読めないブラウザは従来どおりダークで表示する。
-  - 描画前に `public/theme-init.js` が `<html data-theme>` を設定するので、ライトを選んでいても最初にダークが一瞬映ることはない（[カラーテーマの設計](#-設計メモ)）。
-- **Core Engine との透過的連携**:
-  - スキーマ一覧（`/api/v1/schemas`）および記事一覧・詳細・作成（`/api/v1/contents/{content_type}`）とのリアルタイム同期。
-  - バックエンドサーバーのヘルスチェック（`/api/v1/health`）による接続ステータス表示。
-  - 本番ビルド成果物（`dist/`）は、Rust 製コアサーバー（`aegis-server`）から単一ポート（8080）で自動配信。
+- **Zero-trust block editor**:
+  - Add and edit headings (H1–H6), paragraphs, lists, code blocks (with syntax specification), images, tables (`TableBlockEditor.tsx`: adding and removing rows and columns, header rows, column alignment), table of contents, quotes, notes, collapsibles (Q&A), dividers, and custom HTML blocks (for block specifications, see [Body blocks](../docs/blocks.md)).
+  - Custom blocks from enabled plugins (`GET /api/v1/blocks`) also line up in the toolbar and are edited in a form built from the input fields declared in the manifest (`PluginBlockEditor.tsx`) ([Body blocks 4](../docs/blocks.md#4-プラグインのブロック)).
+  - In paragraphs, lists, table cells, and so on, you can use the inline formatting `**bold**`, `*italic*`, `` `code` ``, and `[link](URL)`.
+  - Intuitive block reordering (Up / Down) and safe node deletion.
+  - It edits the AST structure (`BlockNode`) directly, structurally preventing injection of raw malicious scripts.
+- **Real-time HTML preview**:
+  - The block being edited is rendered by the server's preview API (`POST /api/v1/preview`), showing the same HTML as when saved and displayed on the public page (including heading ids, plugin AST transformations, and link and image rewriting). It updates each time input pauses for 300ms, and shows the previous result dimmed while waiting for the update.
+  - The **Themed Page** tab shows the whole page with the theme's templates and the `on-render-page` hook applied in an `iframe` (its `src` is the URL of a page the server placed, with `sandbox="allow-scripts"`; plugin scripts such as Mermaid rendering run as on the public page, but cannot enter the Admin Studio origin). Changes to the title, slug, and category are reflected too.
+  - The rendered result can be switched with tabs between a preview and an HTML source view. The "HTML output" tab shows the body HTML in an `iframe` (a document the server placed; `body_frame_key`, `body_url`) (because Admin Studio's CSP does not allow inline styles; [csp.md 1.1](../docs/csp.md#11-admin-studio-の-style-src)).
+  - When an article or page has "who can view" (membership level) set, the **Viewer** selector above the preview (staff, guest, and per-member-level) lets you check what that reader sees (the part before the divider and the notice). It does not use a real member session; the server renders it with the same decision as the public page (`viewer` in `POST /api/v1/preview`; [members.md 15.6](../docs/members.md#156-プレビューとの関係)).
+  - To the right of the tabs are **Full screen** (return with Esc) and **Open in a new window** (opens the same URL as the `iframe` as is; it is the page at that moment and does not follow updates). The page is returned with `Content-Security-Policy: sandbox allow-scripts` (an opaque origin), so even in a new window it cannot reach the session token.
+- **Scheduled publishing and unpublishing**: Choose "Scheduled" as the status in the editor or product form, enter a publication date and time (`datetime-local`), and save, and the server publishes at that time. You can also give published or scheduled content an unpublish date and time (`unpublish_at`) for time-limited publication. In lists, besides the status badge, an unpublish-scheduled icon (with the date and time in a tooltip) is shown ([Scheduled publishing and unpublishing](../docs/theme_and_publishing_guide.md#予約公開スケジュール公開)).
+- **Publishing schedule calendar (Calendar)**: From the "Calendar" tab in the header (`ScheduleCalendar.tsx`), view the publication schedule, unpublish schedule, and published items of all content types in monthly calendar and agenda formats. It supports filtering by content type and schedule kind, quick editing and clearing of unpublish times from the detail modal, and jumping directly to the editor.
+- **Analytics**: In the "Analytics" tab in the header (`AnalyticsView.tsx`), shown only when `[analytics].enabled = true`, see the trends in page views and visitors over the past 7 / 30 / 90 days (as graphs and tables; the graphs can be read with the arrow keys too), and the most viewed pages, referrers, and devices ([docs/analytics.md](../docs/analytics.md)).
+- **Contact (Inbox)**: In the "Contact" tab in the header (`ContactInbox.tsx`), shown to editor and above when `[contact].enabled = true`, list messages arriving from the contact form by new / read / handled / spam, view details, reply by email, change status in bulk, and delete. You can place the "Contact form" block (`core/contact-form`, `[CONTACT]` in Markdown) in the body ([docs/contact.md](../docs/contact.md)).
+- **Markdown editing & pasting**:
+  - Switch the editing method with **Blocks / Markdown** at the top of the editor. Blocks and Markdown convert to each other (`blocksToMarkdown` / `markdownToBlocks` in `utils/markdown.ts`; headings, paragraphs, code, images, lists, tables, table of contents (`[TOC]`), quotes, notes (`> [!NOTE]`, `:::note`), collapsibles (`:::details`), dividers, and plugin blocks (`::: <name> {attributes JSON}`)), and whichever you edit in, the preview and saving are done from the same blocks.
+  - Markdown editor (`MarkdownEditor.tsx`): a formatting insertion toolbar, indentation with Tab, saving with Ctrl+S, and display of line, character, and block counts.
+  - Pasting Markdown into the block editor converts it to blocks and adds them. **Paste Markdown** (`PasteMarkdownModal.tsx`) reads the clipboard, lets you check the breakdown of the conversion result, and then choose to append at the end or replace everything.
+- **Products / Orders**: Create and edit products (price, inventory, SKU, images); search the product list (name, slug, SKU, summary), filter by status, and page through it 25 at a time (the list fetches summaries only, and the whole item is fetched when you open it); and list orders, view details, and change status (payment confirmation, shipping, cancellation). The tabs are shown only when e-commerce is enabled (`[commerce].enabled`) ([E-commerce](../docs/commerce.md#33-admin-studio)).
+- **Comments**: Approve, unapprove, mark as spam, trash, and delete (one at a time or in bulk) readers' comments, edit the body, reply, stop and resume accepting comments per content, and switch the approval workflow (`admin`). The tab is shown only when comments are enabled (`[comments].enabled`; `GET /api/v1/comments/settings` is not 404) and the role is `editor` or above. The URL `#comments` (the link in notification emails) opens this tab ([Comments](../docs/comments.md#4-admin-studio)).
+- **Site (Settings › Site)**: Change the public site's name and favicon (`GET` / `PUT /api/v1/site`, `admin` only; `SiteManager.tsx`). Choose the favicon from the media library, upload it, or enter a URL. Saving it empty returns to the value in the config file (`[theme]`) ([Themes and publishing](../docs/theme_and_publishing_guide.md#サイト名と-faviconadmin-studio)).
+- **System operation settings (Settings › System)**: Dynamically change, without restarting the server, the maintenance mode toggle (editing the notice text), the asset upload limit (MB), enabling CDN/browser caching and the TTL, stopping and resuming user self-registration, the lockout count for consecutive login failures, and stopping and resuming comment and forum post acceptance (`GET` / `PUT /api/v1/system/settings`, `admin` only; `SystemManager.tsx`; [System settings](../docs/configuration.md#53-システム運用設定-system)). It has a button to reset to defaults.
+- **Notifications (Settings › Notifications)**: The delivery state (channels, format, and where the outbox is stored), the list of pending and failed notifications (resend, discard), test sends with sample values (showing the result per channel), editing templates (subject, body, and HTML per kind and recipient, and shared parts) with previews of the unsaved content (HTML in an `iframe` `srcdoc` with `sandbox=""` so scripts do not run), and restoring defaults. `admin` only (`NotificationManager.tsx`; [Notifications 6](../docs/notifications.md#6-admin-studio-から管理する)).
+- **Themes (Settings › Themes)**: Cards of installed themes (preview image, tags, author), one-click switching (`PUT /api/v1/themes/active`, `admin`), and checking the public site. The marketplace tab is a teaser for a future feature (ZIP installation is not implemented).
+- **User management (Settings › Users) & profile**:
+  - `admin` can list, create, edit, change roles of, disable, reset passwords of, and delete users (`UserManager.tsx`, [Authentication 3](../docs/authentication.md#3-ユーザー管理-api)).
+  - **Invite user**: Provides a modal (`InviteUserModal`) where an administrator specifies an email address and role and sends an invitation email ([Invitation links](../docs/authentication.md#10-ユーザー招待リンク)).
+  - **Pending approval status**: Accounts awaiting approval after self-registration (`pending_approval: true`) show a dedicated "Pending approval" badge, and can be "approved and enabled" in one click from the edit modal.
+  - From the avatar + display name in the header, **My profile** (`ProfileModal.tsx`): change the avatar image, display name, email address, and password (the password field is not shown for SSO users). When there is no avatar or it cannot be read, initials are shown (`ui/Avatar.tsx`).
+- **Premium glassmorphism UI**:
+  - Built with zero-runtime CSS Modules and CSS variables (design system tokens), without depending on frameworks such as TailwindCSS.
+  - An eye-friendly, highly legible dark theme, beautiful frosted-glass effects (glassmorphism), and refined micro-interactions.
+  - Typography uses `Plus Jakarta Sans` / `Outfit` / `JetBrains Mono`.
+- **Image upload**:
+  - Drag and drop onto an image block, or click to choose a file, and it uploads to `/api/v1/storage/upload` and the URL is reflected into the block automatically (if alt is empty, it is filled in from the file name).
+  - Files other than images, and files exceeding the server's limit (`[storage].max_upload_mb`), show an error.
+- **Media library**:
+  - With **Choose from media library** on an image block, uploaded images (`GET /api/v1/storage/objects?content_type=image/`) are shown as a thumbnail list, newest first. It supports file name search and loading more (24 at a time).
+  - Choosing an image reflects its URL into the block (if alt is empty, it is filled in from the file name). You can reuse the same image without uploading it again.
+- **Category selection & management**:
+  - In the article editor, choose a category (the `category_id` relation) from a dropdown. Opening an existing article restores the selection.
+  - The category list (with colors and descriptions) and creation of new ones (automatic slug generation, color specification) are in **Settings › Categories**. They can also be opened from the editor's **Manage** button.
+  - A category badge is shown in the sidebar's article list.
+- **Search, filtering, and pagination of the content list (sidebar)**: A search box for title, slug, and summary (`excerpt`) (searches when input pauses for 300ms, or immediately on Enter), filtering by category (All / Uncategorized / each category; articles only) and status (Draft / Scheduled / Published), and paging 20 per page. Searching, filtering, and paging are done on the server (`GET /api/v1/contents/{type}?view=summary&q=&category=&status=&limit=&offset=`), and the list fetches only summaries (title, slug, status, category, summary; without blocks or rendered HTML). Selecting an article fetches that whole item and opens it in the editor. Switching the kind (article / static page) resets the search and filters.
+- **Newsletter (Settings › Newsletter, `admin`)**: Counts per status (subscribed, awaiting confirmation, stopped); choose a published article and send it to subscribers (edit the summary, send a test to yourself, confirm before sending, and confirm before resending an already-sent article); the subscriber list (filter by status, search by email address, delete, and CSV export); and the send history (`NewsletterManager.tsx`; [Newsletter](../docs/newsletter.md)). When `[newsletter].enabled = false`, it shows a notice that server configuration is required.
+- **Notices (Settings › Notices, `admin`)**: The list of notices shown at the top of all pages (status marks: showing, scheduled, ended, disabled) and adding, editing, and deleting them (`NoticeManager.tsx`). The period is entered in the browser's local time and sent in UTC. The server's reasons are in English, so text in the screen's language is shown from `code` and `field` ([Notice banners](../docs/notices.md)).
+- **Redirects (Settings › Redirects, `admin`)**: The list of old URL → new URL rules (newest first, 25 at a time, search by path) and adding, editing, and deleting them (`RedirectManager.tsx`). The kinds are 301 (permanent) / 302 (temporary). Rules added automatically when a slug was changed and published get an "auto" mark. The server's reasons are in English, so text in the screen's language is shown from `code` (such as `duplicate_redirect`) ([Redirects](../docs/redirects.md)).
+- **Tags (Settings › Tags, editor, product editing)**: The tag list (by name, 25 at a time, search by name or slug, number of content items attached) and creating, editing, and deleting (creating and changing require `editor` or above). The article and page editors and product editing have a "Tags" field (`TagPicker`) where you type a name to find and attach an existing tag, or create one on the spot and attach it. Tags are saved when the content is saved (`PUT /api/v1/contents/{type}/{id}/tags`). When the server has `[tags].enabled = false`, the Settings item and the editor field are not shown ([Tags](../docs/tags.md)).
+- **Settings screen**:
+  - Site-wide management (site name and favicon, SEO, notifications, themes, plugins, categories, users, audit logs) is gathered under **Settings** in the header, switched with the menu on the left. The header tabs are Editor / Products / Orders / Comments / Settings (Products / Orders when e-commerce is enabled and the role is `editor` or above; Comments when comments are enabled and the role is `editor` or above).
+  - Items are shown according to role: Themes, Plugins, and Categories for everyone (creating categories requires `editor` or above); Site, Users, and Audit Logs for `admin` only.
+- **Audit log viewer (Settings › Audit Logs)**:
+  - Lists audit logs (`GET /api/v1/audit-logs`). It supports filtering by action / outcome / actor / resource / period, paging, and expanding the event details (JSON).
+  - Shown only when logged in with the `admin` role (for details, see the [Audit log reference](../docs/audit.md#6-admin-studio-の閲覧画面)).
+- **Login & roles**:
+  - The login screen is shown at startup, and you log in to `POST /api/v1/auth/session` with a username / password. The issued token is kept in `sessionStorage` until the tab is closed and attached to every API call as `Authorization: Bearer` (the logged-in state survives reloads).
+  - The header shows the display name and role, and the logout button discards the session. When the API returns 401 (expired or revoked), it returns to the login screen.
+  - If account registration (`[auth.registration]`) is enabled on the server, "Create an account" is shown on the login screen (`RegisterForm.tsx`). Opening the confirmation email's link (`#verify-email=<token>`) removes the token from the address bar, creates the account, and shows the result (can log in / pending approval / link invalid) ([Authentication 7](../docs/authentication.md#7-アカウント登録)).
+  - **Password reset (`PasswordResetForms.tsx`)**: When `[auth.password_reset]` is enabled, submit your email address from "Forgot your password?" on the login screen, and set a new password from the link in the reset email that arrives (`#reset-password=<token>`) ([Authentication 9](../docs/authentication.md#9-パスワードの再設定)).
+  - **Accepting an invitation (`AcceptInviteForm.tsx`)**: A user invited by an administrator opens the link in the email (`#invite=<token>`), checks the invitation information (email, role), and then sets a username and password to open an immediately active account ([Authentication 10](../docs/authentication.md#10-ユーザー招待リンク)).
+  - Operations are restricted by role: for `viewer`, Save, image upload, and category creation are disabled, and Users / Audit Logs in the settings screen are shown to `admin` only (the server validates the same permissions; [Authentication & user management](../docs/authentication.md)).
+  - A `contributor` can save only their own drafts and items awaiting review, and can choose only "Draft" and "Awaiting review" as the status (`canWrite` / `canChangeContent` in `utils/roles.ts`). Published items and other people's items are read-only, and version restore is not shown. The shop, comments, creating categories, and so on require `editor` or above (`canEdit`).
+  - **Review**: When saving with a status change, a note field (`review_note`) appears. Editors see the number of items awaiting review above the list, and pressing it filters the list. `#review` (the link in the review request notification email) opens the list filtered to items awaiting review ([Review](../docs/theme_and_publishing_guide.md#レビュー寄稿者の下書きを承認して公開する)).
+- **Multilingual (English / Japanese)**:
+  - Switch with the language menu in the header and on the login screen. The chosen language is stored in the browser, and the first time it is shown in the browser's language (Japanese if Japanese, otherwise English). Date and amount formats follow the language too.
+  - The text is [i18next](https://www.i18next.com/) JSON (`src/locales/<language>/translation.json`), which can be handed straight to translation services ([Internationalization](#-internationalization-i18n)).
+- **Color theme (light / dark / follow system)**:
+  - Switch with the theme selector in the header (the menu on smartphones) and on the login screen (`ThemeSelect.tsx`). The chosen theme is stored in the browser (`aegis.admin.theme` in `localStorage`), and the first time it follows the OS setting (`prefers-color-scheme`). "Follow system" also follows OS switches. It becomes light only when the OS asks for light, and browsers that cannot read the setting show dark as before.
+  - Before rendering, `public/theme-init.js` sets `<html data-theme>`, so dark never flashes briefly at first when light is chosen ([Color theme design](#-design-notes)).
+- **Transparent integration with the Core Engine**:
+  - Real-time sync with the schema list (`/api/v1/schemas`) and with article listing, details, and creation (`/api/v1/contents/{content_type}`).
+  - Connection status display through the backend server's health check (`/api/v1/health`).
+  - The production build output (`dist/`) is served automatically on a single port (8080) by the Rust core server (`aegis-server`).
 
 ---
 
-## 🏗️ 技術スタック
+## 🏗️ Tech Stack
 
-| 分類 | 採用技術 | 選定理由 |
+| Category | Technology | Rationale |
 | :--- | :--- | :--- |
-| **フレームワーク** | React 19 + TypeScript | 型安全性と堅牢なコンポーネント指向 UI |
-| **ビルドツール** | Vite 6 | 高速な HMR（Hot Module Replacement）と最小限のバンドルサイズ |
-| **スタイリング** | Vanilla CSS (CSS Variables) | 高いデザイン柔軟性、フレームワーク非依存、ゼロランタイム |
-| **アイコン** | Lucide React | 軽量で一貫性のあるモダンアイコンセット |
-| **多言語対応** | i18next + react-i18next | 翻訳サービス（Crowdin・Lokalise など）が扱える JSON 形式、複数形・差し込み |
+| **Framework** | React 19 + TypeScript | Type safety and a robust component-oriented UI |
+| **Build tool** | Vite 6 | Fast HMR (Hot Module Replacement) and minimal bundle size |
+| **Styling** | Vanilla CSS (CSS Variables) | High design flexibility, framework independence, zero runtime |
+| **Icons** | Lucide React | A lightweight and consistent modern icon set |
+| **Internationalization** | i18next + react-i18next | A JSON format that translation services (Crowdin, Lokalise, etc.) can handle, with plurals and interpolation |
 
 ---
 
-## 📁 ディレクトリ構成
+## 📁 Directory Layout
 
 ```text
 admin/
 ├── src/
 │   ├── api/
-│   │   ├── client.ts       # REST API Gateway 連携クライアント（Bearer 付与・401 通知）
-│   │   └── session.ts      # セッショントークンの保持（sessionStorage）
-│   ├── components/         # 画面単位のコンポーネント（各 *.tsx の隣に同名の *.module.css、Storybook の *.stories.tsx）
-│   │   ├── ui/             # 共通部品
-│   │   │   ├── Button.tsx  # ボタン（primary / secondary / tool / icon）
-│   │   │   ├── Field.tsx   # ラベル付き入力欄 Field と横並びの FieldRow
-│   │   │   ├── Modal.tsx   # モーダル（Escape・外側クリックで閉じる、フォーカストラップ）
-│   │   │   ├── LanguageSelect.tsx # 言語の切り替え
-│   │   │   ├── RoleLabel.tsx # ロールの表示名
-│   │   │   ├── Avatar.tsx  # アバター（画像が無ければイニシャル）
-│   │   │   └── BrandMark.tsx # ロゴマーク
-│   │   ├── Header.tsx      # ヘッダー・画面切り替え・サーバー状態・ログインユーザー
-│   │   ├── LoginView.tsx   # ログイン画面
-│   │   ├── RegisterForm.tsx # アカウント登録（ログイン画面から）
-│   │   ├── PasswordResetForms.tsx # パスワード再設定要求および確定フォーム
-│   │   ├── AcceptInviteForm.tsx # 招待リンク承諾・初期アカウント設定
-│   │   ├── SettingsView.tsx # 設定画面（左メニューで下の各画面を切り替え）
-│   │   ├── SiteManager.tsx # 公開サイトの名前と favicon
-│   │   ├── ThemeManager.tsx # テーマ一覧・切り替え
-│   │   ├── UserManager.tsx # ユーザー管理
-│   │   ├── ProfileModal.tsx # 自分のプロフィール（AvatarPicker.tsx でアバターを選ぶ）
-│   │   ├── ProductManager.tsx # 商品
-│   │   ├── OrderManager.tsx # 注文
-│   │   ├── AnalyticsView.tsx # アクセス解析のダッシュボード
-│   │   ├── ContactInbox.tsx # 問い合わせの受信箱
-│   │   ├── CommentManager.tsx # コメントの審査・返信・承認の設定
-│   │   ├── AuditLogView.tsx # 監査ログ閲覧画面
-│   │   ├── CategoryManager.tsx # カテゴリ一覧・作成
-│   │   ├── MediaLibrary.tsx # アップロード済み画像の選択モーダル
-│   │   ├── ImageUploader.tsx # 画像ブロックのアップロード欄（ドラッグ＆ドロップ）
-│   │   ├── ContentList.tsx # 記事・コンテンツ一覧サイドバー
-│   │   ├── BlockItem.tsx   # 各種 AST ブロックエディタ
-│   │   ├── MarkdownEditor.tsx # Markdown 編集モード
-│   │   ├── PasteMarkdownModal.tsx # Markdown の貼り付け
-│   │   └── Preview.tsx     # リアルタイム HTML / ソースコードプレビュー
-│   ├── i18n/               # i18next の初期化・言語の検出と保存（index.ts）、キーの型（i18next.d.ts）
-│   ├── theme/              # カラーテーマの保存・適用・OS への追従（index.ts）、デザイントークンの検査（tokens.test.ts）
-│   ├── locales/            # 翻訳: en/translation.json（原文）、ja/translation.json
-│   ├── utils/              # カテゴリ・メディア・ロール判定、日付の書式（format.ts）、cx などのヘルパー
+│   │   ├── client.ts       # REST API gateway client (attaches Bearer, notifies on 401)
+│   │   └── session.ts      # Keeping the session token (sessionStorage)
+│   ├── components/         # Screen-level components (next to each *.tsx, a same-named *.module.css and a Storybook *.stories.tsx)
+│   │   ├── ui/             # Shared components
+│   │   │   ├── Button.tsx  # Button (primary / secondary / tool / icon)
+│   │   │   ├── Field.tsx   # Labeled input Field and the side-by-side FieldRow
+│   │   │   ├── Modal.tsx   # Modal (closes with Escape or an outside click, focus trap)
+│   │   │   ├── LanguageSelect.tsx # Language switcher
+│   │   │   ├── RoleLabel.tsx # Display name of a role
+│   │   │   ├── Avatar.tsx  # Avatar (initials if there is no image)
+│   │   │   └── BrandMark.tsx # Logo mark
+│   │   ├── Header.tsx      # Header, screen switching, server status, logged-in user
+│   │   ├── LoginView.tsx   # Login screen
+│   │   ├── RegisterForm.tsx # Account registration (from the login screen)
+│   │   ├── PasswordResetForms.tsx # Password reset request and confirmation forms
+│   │   ├── AcceptInviteForm.tsx # Accepting an invitation link and initial account setup
+│   │   ├── SettingsView.tsx # Settings screen (the menu on the left switches the screens below)
+│   │   ├── SiteManager.tsx # The public site's name and favicon
+│   │   ├── ThemeManager.tsx # Theme list and switching
+│   │   ├── UserManager.tsx # User management
+│   │   ├── ProfileModal.tsx # Your own profile (AvatarPicker.tsx chooses the avatar)
+│   │   ├── ProductManager.tsx # Products
+│   │   ├── OrderManager.tsx # Orders
+│   │   ├── AnalyticsView.tsx # Analytics dashboard
+│   │   ├── ContactInbox.tsx # Contact inbox
+│   │   ├── CommentManager.tsx # Comment moderation, replies, and approval settings
+│   │   ├── AuditLogView.tsx # Audit log viewer
+│   │   ├── CategoryManager.tsx # Category list and creation
+│   │   ├── MediaLibrary.tsx # Modal for choosing uploaded images
+│   │   ├── ImageUploader.tsx # Upload field for image blocks (drag and drop)
+│   │   ├── ContentList.tsx # Article and content list sidebar
+│   │   ├── BlockItem.tsx   # Editors for the various AST blocks
+│   │   ├── MarkdownEditor.tsx # Markdown editing mode
+│   │   ├── PasteMarkdownModal.tsx # Pasting Markdown
+│   │   └── Preview.tsx     # Real-time HTML / source code preview
+│   ├── i18n/               # i18next initialization, language detection and storage (index.ts), key types (i18next.d.ts)
+│   ├── theme/              # Saving, applying, and OS-following of the color theme (index.ts), design token checks (tokens.test.ts)
+│   ├── locales/            # Translations: en/translation.json (source text), ja/translation.json
+│   ├── utils/              # Category, media, and role helpers, date formatting (format.ts), helpers such as cx
 │   ├── types/
-│   │   ├── index.ts        # AST ノード・スキーマ・コンテンツ型定義
-│   │   └── schemas.ts      # スキーマから自動生成された型（task codegen:ts）
-│   ├── App.tsx             # メインアプリケーションコンポーネント
+│   │   ├── index.ts        # AST node, schema, and content type definitions
+│   │   └── schemas.ts      # Types generated automatically from schemas (task codegen:ts)
+│   ├── App.tsx             # Main application component
 │   ├── App.module.css
-│   ├── index.css           # グローバル: デザイントークン（CSS 変数）・リセット・基本要素のみ
-│   └── main.tsx            # エントリーポイント
-├── .storybook/             # Storybook の設定（main.ts・preview.tsx）と API のモック（mockApi.ts）
-├── e2e/                    # Playwright の E2E テスト（*.spec.ts）と使い捨てのサーバーの起動（start-server.mjs）
-├── scripts/check-locales.mjs # 全言語のキーが英語と同じか検証（npm run lint で実行）
-├── index.html              # HTML テンプレート
+│   ├── index.css           # Global: design tokens (CSS variables), reset, and basic elements only
+│   └── main.tsx            # Entry point
+├── .storybook/             # Storybook configuration (main.ts, preview.tsx) and API mocks (mockApi.ts)
+├── e2e/                    # Playwright E2E tests (*.spec.ts) and starting a throwaway server (start-server.mjs)
+├── scripts/check-locales.mjs # Verifies that all languages have the same keys as English (run by npm run lint)
+├── index.html              # HTML template
 ├── package.json
 ├── playwright.config.ts
 └── vite.config.ts
 ```
 
-### スタイルの書き方
+### How to Write Styles
 
-- コンポーネントのスタイルは隣の `*.module.css`（CSS Modules）に書き、`import styles from './X.module.css'` で `className={styles.foo}` と参照します。クラス名はビルド時にファイルごとにスコープされるため、他のコンポーネントと衝突しません。
-- 色・余白・角丸・フォントなどは `index.css` の CSS 変数（`var(--bg-surface)` など）を使います。`style={{...}}` のインライン指定は、カテゴリ色のように実行時に決まる値だけにします。
-- ボタン・入力欄・モーダルは `components/ui/` の共通部品を使います。親から共通部品の見た目を調整するときは、`className` を渡し、親のモジュールで `.parent .child` のように子孫セレクタで指定します（CSS の読み込み順に依存せず上書きできるため）。
-- 複数のクラスの結合には `utils/cx.ts` の `cx(styles.a, active && styles.b)` を使います。
+- Write a component's styles in the neighboring `*.module.css` (CSS Modules), import it with `import styles from './X.module.css'`, and reference it as `className={styles.foo}`. Class names are scoped per file at build time, so they do not collide with other components.
+- For colors, spacing, border radius, fonts, and so on, use the CSS variables in `index.css` (such as `var(--bg-surface)`). Use inline `style={{...}}` only for values decided at runtime, like a category color.
+- For buttons, input fields, and modals, use the shared components in `components/ui/`. To adjust a shared component's appearance from a parent, pass a `className` and specify it in the parent's module with a descendant selector such as `.parent .child` (so that it can be overridden without depending on CSS load order).
+- To combine multiple classes, use `cx(styles.a, active && styles.b)` from `utils/cx.ts`.
 
 ---
 
-## 🌐 多言語対応 (i18n)
+## 🌐 Internationalization (i18n)
 
-画面の文言はコードに直接書かず、`src/locales/<言語>/translation.json` のキーで参照します。英語（`en`）が原文で、ほかの言語はそれを翻訳したものです。
+Screen text is not written directly in code; it is referenced by keys in `src/locales/<language>/translation.json`. English (`en`) is the source, and other languages are translations of it.
 
 ```tsx
 import { useTranslation } from 'react-i18next';
 
 const { t } = useTranslation();
-<span>{t('orders.markPaid')}</span>                        // 支払い済みにする
-t('orders.updated', { number: order.number, status })     // 差し込み: "注文 {{number}}: {{status}}"
-t('media.inUse', { count: 3 })                             // 複数形: media.inUse_one / media.inUse_other
+<span>{t('orders.markPaid')}</span>                        // Mark as paid
+t('orders.updated', { number: order.number, status })     // Interpolation: "Order {{number}}: {{status}}"
+t('media.inUse', { count: 3 })                             // Plurals: media.inUse_one / media.inUse_other
 <Trans i18nKey="profile.signedInAs" values={{ username }} components={{ code: <code /> }} />
 ```
 
-- **キーは型で検査されます**（`src/i18n/i18next.d.ts`）。英語の JSON に無いキーを `t()` に渡すと `npm run build`（`tsc`）が失敗します。
-- **訳し漏れは lint で検出します**。`npm run lint` の最後に `scripts/check-locales.mjs` が、各言語のキーが英語と同じか（無いキー・余分なキー・空の値）を確かめます。複数形は言語ごとに形が違うため（英語は `_one` / `_other`、日本語は `_other` だけ）、まとめて 1 つのキーとして比べます。
-- コンポーネントの外（API クライアントのエラーメッセージなど）では `import i18n from '../i18n'` の `i18n.t()` を使います。`useEffect` の中のエラーメッセージも `i18n.t()` にします（`t` を依存配列に入れると、言語を切り替えたときに読み込み直してしまうため）。
-- 日付は `utils/format.ts` の `formatDate` / `formatDateTime`、金額は `utils/money.ts` の `formatMoney` を使うと、表示中の言語の書式になります。
-- サーバーが返すエラーメッセージ（API の `error`）は英語のまま表示します。画面側で言い換えているのは、ログインの失敗・権限不足・アカウント登録の失敗（API の `code`）など一部だけです。
+- **Keys are type-checked** (`src/i18n/i18next.d.ts`). Passing a key that is not in the English JSON to `t()` makes `npm run build` (`tsc`) fail.
+- **Missing translations are caught by lint**. At the end of `npm run lint`, `scripts/check-locales.mjs` verifies that each language's keys match English (missing keys, extra keys, empty values). Plural forms differ by language (English has `_one` / `_other`, Japanese has only `_other`), so they are compared together as a single key.
+- Outside components (such as API client error messages), use `i18n.t()` from `import i18n from '../i18n'`. Error messages inside `useEffect` should also use `i18n.t()` (putting `t` in the dependency array would reload when the language is switched).
+- For dates, use `formatDate` / `formatDateTime` in `utils/format.ts`, and for amounts, `formatMoney` in `utils/money.ts`, and they use the format of the displayed language.
+- Error messages returned by the server (the API's `error`) are shown in English as they are. The screen rephrases only some of them, such as login failures, insufficient permissions, and account registration failures (the API's `code`).
 
-### 言語を追加する
+### Adding a Language
 
-1. `src/locales/<言語コード>/translation.json` を英語のファイルから作って翻訳する
-2. `src/i18n/index.ts` の `LANGUAGES` と `resources` に加える
-3. `npm run lint` でキーがそろっているか確かめる
+1. Create `src/locales/<language code>/translation.json` from the English file and translate it
+2. Add it to `LANGUAGES` and `resources` in `src/i18n/index.ts`
+3. Run `npm run lint` to check that the keys match
 
-### 翻訳サービスと連携する
+### Integrating with Translation Services
 
-ファイルは i18next の JSON（v4、ネストしたキー）なので、Crowdin・Lokalise・Weblate などの「i18next JSON」形式でそのまま読み書きできます。例えば Crowdin なら:
+The files are i18next JSON (v4, nested keys), so they can be read and written as is in the "i18next JSON" format of Crowdin, Lokalise, Weblate, and others. For example, with Crowdin:
 
 ```yaml
-# crowdin.yml（リポジトリのルート）
+# crowdin.yml (repository root)
 files:
   - source: /admin/src/locales/en/translation.json
     translation: /admin/src/locales/%two_letters_code%/translation.json
 ```
 
-翻訳サービスから戻ってきたファイルは、`npm run format` で整形してから `npm run lint` / `npm run build` を通してください。
+Format files returned from a translation service with `npm run format`, then run them through `npm run lint` / `npm run build`.
 
-### i18n の細かな決まり
+### i18n Details
 
-- 言語は `localStorage` の `aegis.admin.language`、無ければ `navigator.languages`（`ja` 以外は `en`）。`<html lang>` も切り替える。
-- ログイン画面のお知らせ（期限切れ・ログアウト）と SSO のエラーは、文字列ではなく理由のコードで持ち、表示するときに訳す（言語を切り替えても追従する）。
-- 監査ログの action 名・テーマの説明（`theme.json`）・プラグインが付ける明細名（`Coupon WELCOME10` など）はデータなので訳さない。
-- 日本語はラベルが長いため、ヘッダーの要素は `nowrap` にし、幅 1680px 未満でバッジ、1480px 未満でゲートウェイの文言を隠す（状態の点とツールチップは残す）。
-
----
-
-## 🧩 設計メモ
-
-- **カラーテーマ**: 色はすべて `src/index.css` のデザイントークン（CSS 変数）で決める。`:root` がダーク（既定）、`:root[data-theme='light']` がライトで、`<html data-theme>` は `public/theme-init.js`（描画前。CSP の `unsafe-inline` に頼らないよう外部ファイル）と `src/theme`（以降の切り替えと OS への追従）が設定する。両者の決め方は同じで、ユニットテストが `theme-init.js` を実際に動かして `resolveTheme` と突き合わせる。コンポーネントの CSS を書くときは次を守る（`src/theme/tokens.test.ts` が検査する）。
-  - 色はトークンで書く。`rgba(255, 255, 255, 0.08)` のような「白の半透明」は書かず、`rgb(var(--overlay-rgb) / 0.08)`（ダークは白、ライトはスレートになる）。くぼんだ面は `--inset-soft` / `--inset` / `--inset-strong`。
-  - アクセント色の上の淡い文字は `--text-rose` / `--text-amber` / `--text-teal` / `--text-indigo-soft` / `--text-blue`（ダークは淡く、ライトは濃くなる）。塗りつぶしたボタンやバッジの上の白文字だけは `#fff` のままにする。
-  - 使うトークンは `index.css` で定義する（未定義の `var(--x, #fallback)` はフォールバックの色に固定され、テーマに追従しない）。ダークで足したトークンはライトにも値を足す。
-  - グラフの系列色のように、背景に合わせて検証した色はコンポーネントの CSS に置き、ライトの値を `:global(:root[data-theme='light'])` で上書きする（`AnalyticsView.module.css`）。
-  - Storybook はツールバーの **Theme** でライト / ダークを切り替えて見られる（ストーリーのテストはダークで動かす）。
-- **API の接続先**: `src/api/client.ts` の `SERVER_URL`（オリジン + `[server].base_path`）は、ビルド時の `VITE_AEGIS_SERVER_URL` → 開発サーバーなら `http://127.0.0.1:8080` → 本番ビルドはバンドルの URL（`{サーバー}/admin/assets/*.js` から `../../`）の順に決まる。ドメインやベースパスごとに再ビルドする必要はない。サーバーが返すルート起点の URL（アバターなど）は `serverAssetUrl` でオリジンを付けて表示する。
-- **スキーマの追加フィールドの編集**: 専用の入力欄がないフィールドは、`GET /api/v1/schemas` の定義から型ごとの汎用の入力欄（`ExtraFieldsEditor`。string / text / integer / boolean / timestamp / relation（参照先の ID を直接入力）/ jsonb（JSON を直接入力））で出す。対象は `utils/extraFields.ts` の `extraFieldDefs` が決める（`category_id` と、`DEDICATED_FIELDS` に挙げた専用 UI のあるフィールド — 記事の `category_id`、固定ページの `layout`、商品の価格・在庫など — は除く）。サーバーの更新は全フィールドを置き換えるので、追加フィールドは編集していなくても保存のたびにそのまま送り返す（API で入れた値が管理画面の保存で消えない）。空欄は、`nullable` なら `null`、そうでなければ送らない。追加フィールドはコアのロジックには使わない前提で、一覧の検索・絞り込みには反映しない。専用の入力欄を足したフィールドは、`DEDICATED_FIELDS` にも足す。
-- **コンテンツの型**: 自動生成の `types/schemas.ts` は、コンテンツ API の形そのもの。カスタムフィールドは応答も書き込みも `fields`（型ごとの `ArticleFields` など）、解決済みリレーションは `relations`。書き込みのペイロード（`CreateArticlePayload` など）は、標準の項目をトップレベルに、カスタムフィールドを `fields` に入れる。画面では `types/index.ts` の `ContentItem`（`BaseContentItem`）を使う。エディタの一覧は要約（`ContentSummary`。ブロックと描画済み HTML なし）を `listContentSummaries` で 1 ページずつ取得し、カテゴリのような小さな一覧は `getAllContentSummaries` で全件の要約を取る。全体のデータの一覧（ブロックと描画済み HTML つき）は、サーバーが 1 件ごとにブロックを描画するので、画面からは使わない（開くときの 1 件だけ `getContent` で取る）。
-- **保存**: 開いている記事は `PUT`（更新）、新規は `POST`。
-- **Themed Page プレビュー**: `POST /api/v1/preview` に `frame_key`（エディターが作る 32 桁の 16 進の乱数。プレビューごとに 1 つ）を付けると、サーバーが `page_html` をキャッシュに置き（1 時間、同じ名前は上書き）、`page_url`（`/preview/frame/{key}?v=...`）を返す。`iframe` はこれを `src` に読む。**`srcdoc` にしてはいけない**: `srcdoc` の文書は Admin Studio の CSP（`script-src 'self'`。`unsafe-inline` なし）を引き継ぎ、テーマ・プラグインのインラインのスクリプトが動かない。URL から読めば公開ページと同じ CSP で動く。名前を知る人だけが読める（認証なし。128 ビットの乱数）。`sandbox` に `allow-same-origin` を付けてはいけない（付けると、テーマやプラグインが出力したスクリプトから `sessionStorage` のセッショントークンを読める）。サーバーも `sandbox allow-scripts` を CSP で付ける。付けないと文書のオリジンは不透明（`null`）になり、`localStorage` などのストレージに触れると例外になる（`cart.js` は try/catch で受けてメモリ上に持つ）。CDN の通常の `<script>` は読み込めるが、`type="module"` や CORS が要る読み込み（`crossorigin` 付きのフォントなど）はサーバー側で `Access-Control-Allow-Origin` が要る。テーマのアセットやアップロード画像は、ページがサーバー自身から配信されるので、ルート相対のまま読める。
-- **画面の高さとスクロール**: ルートの `.app` は `height: 100vh; overflow: hidden`。全幅の画面（監査ログ・テーマなど）は直下に `flex: 1; overflow-y: auto` のラッパーを置き、下に余白を取ってスクロールさせる。
-- **設定画面 (`SettingsView.tsx`)**: 各項目は既存の画面コンポーネント（`SiteManager` / `SeoManager` / `NotificationManager` / `ThemeManager` / `PluginManager` / `CategoryManager` / `UserManager` / `AuditLogView`）をそのまま表示する。項目を足すときは `SECTIONS` と `settings.sections.<id>` の訳を足す。選んでいる項目は `App` が持つ（エディタの **Manage** から `categories` を開くため）。ロールで見えない項目を選んでいたときは最初の項目を表示する。エディタの状態も `App` にあるので、設定画面へ移って戻っても編集中の内容は消えない。
-- **モバイル・レスポンシブ対応**: 画面幅 900px 以下の狭小端末では、ヘッダーをコンパクト化しハンバーガーメニュー内にタブ・接続状態・言語切替・アカウント操作を統合。エディタ画面は 3 列固定（300px/可変/480px）からペイン切り替えタブ（記事一覧 / 編集 / プレビュー）へと切り替わり、一覧から記事を選択すると自動的に編集ペインへ遷移。フィールド行の折り返し、カレンダーやテーブルの横スクロール、各種管理画面の単一カラム化により、スマートフォン・タブレットでも UI が崩れず直感的に操作できます。
+- The language is `aegis.admin.language` in `localStorage`, or else `navigator.languages` (`en` for anything other than `ja`). `<html lang>` is switched too.
+- Login screen notices (expired, logged out) and SSO errors are held as reason codes instead of strings and translated when displayed (so they follow a language switch).
+- Audit log action names, theme descriptions (`theme.json`), and item names that plugins attach (such as `Coupon WELCOME10`) are data and are not translated.
+- Because Japanese labels are long, header elements are `nowrap`, and the badge is hidden below 1680px width and the gateway text below 1480px (the status dot and tooltip remain).
 
 ---
 
-## 🚀 開発 & ビルド手順
+## 🧩 Design Notes
 
-### 1. 依存パッケージのインストール
+- **Color theme**: All colors are decided by the design tokens (CSS variables) in `src/index.css`. `:root` is dark (the default) and `:root[data-theme='light']` is light, and `<html data-theme>` is set by `public/theme-init.js` (before rendering; an external file so as not to rely on CSP `unsafe-inline`) and `src/theme` (later switches and OS following). Both decide the same way, and a unit test actually runs `theme-init.js` and compares it with `resolveTheme`. When writing component CSS, follow these rules (`src/theme/tokens.test.ts` checks them).
+  - Write colors with tokens. Do not write "translucent white" such as `rgba(255, 255, 255, 0.08)`; use `rgb(var(--overlay-rgb) / 0.08)` (white in dark, slate in light). For recessed surfaces, use `--inset-soft` / `--inset` / `--inset-strong`.
+  - For pale text on accent colors, use `--text-rose` / `--text-amber` / `--text-teal` / `--text-indigo-soft` / `--text-blue` (pale in dark, deep in light). Only white text on filled buttons and badges stays `#fff`.
+  - Define the tokens you use in `index.css` (an undefined `var(--x, #fallback)` is pinned to the fallback color and does not follow the theme). When you add a token for dark, add a value for light too.
+  - Colors verified against the background, like chart series colors, are placed in the component's CSS, and the light value is overridden with `:global(:root[data-theme='light'])` (`AnalyticsView.module.css`).
+  - In Storybook, you can view light / dark by switching **Theme** in the toolbar (story tests run in dark).
+- **API target**: `SERVER_URL` in `src/api/client.ts` (origin + `[server].base_path`) is decided in the order: `VITE_AEGIS_SERVER_URL` at build time → `http://127.0.0.1:8080` for the dev server → for production builds, the bundle's URL (`../../` from `{server}/admin/assets/*.js`). There is no need to rebuild per domain or base path. Root-relative URLs that the server returns (such as avatars) are displayed with the origin prepended by `serverAssetUrl`.
+- **Editing extra schema fields**: Fields without a dedicated input are shown, from the definition in `GET /api/v1/schemas`, with a generic input per type (`ExtraFieldsEditor`: string / text / integer / boolean / timestamp / relation (enter the target ID directly) / jsonb (enter JSON directly)). The targets are decided by `extraFieldDefs` in `utils/extraFields.ts` (excluding `category_id` and fields with a dedicated UI listed in `DEDICATED_FIELDS` — an article's `category_id`, a static page's `layout`, a product's price and inventory, and so on). The server's update replaces all fields, so extra fields are sent back as they are on every save even if not edited (so values set through the API are not lost by saving in the admin screen). An empty value is `null` if `nullable`, and otherwise not sent. Extra fields are assumed not to be used in core logic, and are not reflected in list search and filtering. When you add a dedicated input for a field, add it to `DEDICATED_FIELDS` too.
+- **Content types**: The generated `types/schemas.ts` is the shape of the content API itself. Custom fields are `fields` in both responses and writes (such as `ArticleFields` per type), and resolved relations are `relations`. Write payloads (such as `CreateArticlePayload`) put standard items at the top level and custom fields in `fields`. Screens use `ContentItem` (`BaseContentItem`) from `types/index.ts`. The editor's list fetches summaries (`ContentSummary`, without blocks or rendered HTML) one page at a time with `listContentSummaries`, and small lists like categories fetch all summaries with `getAllContentSummaries`. The listing of whole data (with blocks and rendered HTML) is not used from screens because the server renders the blocks of each item (only the single item being opened is fetched with `getContent`).
+- **Saving**: An open article is saved with `PUT` (update), and a new one with `POST`.
+- **Themed Page preview**: When `POST /api/v1/preview` is given a `frame_key` (a 32-digit hexadecimal random value the editor creates; one per preview), the server places `page_html` in the cache (for 1 hour; the same name is overwritten) and returns `page_url` (`/preview/frame/{key}?v=...`). The `iframe` loads this as its `src`. **Do not use `srcdoc`**: a `srcdoc` document inherits Admin Studio's CSP (`script-src 'self'`, no `unsafe-inline`), so the themes' and plugins' inline scripts do not run. Loaded from a URL, it runs with the same CSP as the public page. Only people who know the name can read it (no authentication; a 128-bit random value). Do not add `allow-same-origin` to `sandbox` (if added, scripts output by themes and plugins could read the session token in `sessionStorage`). The server also adds `sandbox allow-scripts` through the CSP. Without it, the document's origin becomes opaque (`null`), and touching storage such as `localStorage` throws an exception (`cart.js` catches it with try/catch and keeps the data in memory). Ordinary `<script>` loads from CDNs work, but `type="module"` and loads that need CORS (such as fonts with `crossorigin`) need `Access-Control-Allow-Origin` on the server side. Theme assets and uploaded images can be loaded root-relative as is, because the page is served by the server itself.
+- **Screen height and scrolling**: The root `.app` is `height: 100vh; overflow: hidden`. Full-width screens (audit logs, themes, etc.) put a `flex: 1; overflow-y: auto` wrapper directly below, leaving bottom spacing so they scroll.
+- **Settings screen (`SettingsView.tsx`)**: Each item displays the existing screen component as is (`SiteManager` / `SeoManager` / `NotificationManager` / `ThemeManager` / `PluginManager` / `CategoryManager` / `UserManager` / `AuditLogView`). To add an item, add to `SECTIONS` and the translation of `settings.sections.<id>`. The selected item is held by `App` (so that the editor's **Manage** can open `categories`). If an item hidden by role was selected, the first item is shown. The editor's state is also in `App`, so what is being edited does not disappear when you move to the settings screen and come back.
+- **Mobile and responsive support**: On narrow devices with a screen width of 900px or less, the header becomes compact, and the tabs, connection status, language switch, and account actions are integrated into a hamburger menu. The editor screen switches from the fixed 3 columns (300px / flexible / 480px) to pane-switching tabs (article list / edit / preview), and selecting an article from the list moves automatically to the edit pane. With wrapping field rows, horizontal scrolling for calendars and tables, and single-column admin screens, the UI does not break on smartphones and tablets and can be operated intuitively.
+
+---
+
+## 🚀 Development & Build Steps
+
+### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. 開発サーバーの起動 (スタンドアロン開発)
+### 2. Start the Dev Server (Standalone Development)
 
 ```bash
 npm run dev
 ```
 
-デフォルトで `http://localhost:5173/` が起動します。  
-※ 開発サーバーは `http://127.0.0.1:8080` のコアサーバー（`cargo run -p aegis-server -- run`）に接続します（CORS は許可済み）。別の場所のサーバーに接続する場合は `VITE_AEGIS_SERVER_URL=https://example.com/cms npm run dev` のように指定します。
+By default `http://localhost:5173/` starts.  
+* The dev server connects to the core server at `http://127.0.0.1:8080` (`cargo run -p aegis-server -- run`) (CORS is already allowed). To connect to a server elsewhere, specify it like `VITE_AEGIS_SERVER_URL=https://example.com/cms npm run dev`.
 
-### 3. 型検証 & 本番ビルド
+### 3. Type Check & Production Build
 
 ```bash
 npm run build
 ```
 
-TypeScript の型チェック（`tsc -b`）を実行後、最適化された静的アセットが `dist/` に出力されます。  
-生成された `dist/` は、コアサーバー起動時に自動的に読み込まれ、`/admin/` で配信されます。アセットは相対パス（`base: './'`）で参照し、API の接続先はバンドルの URL（`{サーバー}/admin/assets/*.js`）から求めるため、リバースプロキシ配下・任意のサブドメイン・`[server].base_path` のサブパスでも再ビルドせずに動きます。Admin Studio だけを別の場所（`admin.example.com` など）で配信する場合は、ビルド時に `VITE_AEGIS_SERVER_URL` で AegisCMS サーバーの URL を指定してください（[docs/configuration.md](../docs/configuration.md#43-admin-studio-の接続先)）。
+After running the TypeScript type check (`tsc -b`), optimized static assets are written to `dist/`.  
+The generated `dist/` is loaded automatically when the core server starts and served at `/admin/`. Assets are referenced by relative paths (`base: './'`) and the API target is derived from the bundle's URL (`{server}/admin/assets/*.js`), so it works without rebuilding behind a reverse proxy, on any subdomain, and under a `[server].base_path` subpath. To serve Admin Studio alone from a different place (such as `admin.example.com`), specify the AegisCMS server's URL with `VITE_AEGIS_SERVER_URL` at build time ([docs/configuration.md](../docs/configuration.md#43-admin-studio-の接続先)).
 
-### 4. ビルドプレビュー
+### 4. Build Preview
 
 ```bash
 npm run preview
 ```
 
-### 5. 静的解析 (oxlint)
+### 5. Static Analysis (oxlint)
 
 ```bash
-npm run lint   # oxlint --deny-warnings（警告 1 件でも失敗。CI でも実行）
+npm run lint   # oxlint --deny-warnings (fails on even one warning; also run in CI)
 ```
 
-ルールは `.oxlintrc.json`。Rust 側の Clippy（`-D warnings`）と同じくゼロ警告ポリシーです。
+The rules are in `.oxlintrc.json`. Like Rust's Clippy (`-D warnings`), it is a zero-warning policy.
 
-### 6. E2E テスト (Playwright) と Storybook
+### 6. E2E Tests (Playwright) and Storybook
 
 ```bash
-npm run test:e2e         # サーバーと Admin Studio をビルドし、ポート 18080 の使い捨てサーバーでテスト
+npm run test:e2e         # builds the server and Admin Studio, and tests against a throwaway server on port 18080
 npm run storybook        # http://localhost:6006
 npm run build-storybook  # storybook-static/
 ```
 
-初回は `npx playwright install chromium` でブラウザを入れてください。詳しくは [開発ガイド 8](../docs/development.md#8-admin-studio-の-e2e-テストと-storybook)。
+The first time, install the browser with `npx playwright install chromium`. For details, see [Development guide 8](../docs/development.md#8-admin-studio-の-e2e-テストと-storybook).
 
-### 7. コードフォーマット (Prettier)
+### 7. Code Formatting (Prettier)
 
 ```bash
-npm run format        # 整形を適用
-npm run format:check  # 整形済みか検証（CI でも実行）
+npm run format        # apply formatting
+npm run format:check  # verify it is formatted (also run in CI)
 ```
 
-設定は `.prettierrc.json`（シングルクォート、1 行 100 文字、ES5 の末尾カンマ）。インデントは `.editorconfig`（2 スペース）に従います。自動生成ファイル `src/types/schemas.ts` と Markdown は対象外です（`.prettierignore`）。
+The settings are in `.prettierrc.json` (single quotes, 100 characters per line, ES5 trailing commas). Indentation follows `.editorconfig` (2 spaces). The generated file `src/types/schemas.ts` and Markdown are excluded (`.prettierignore`).
 
-**VS Code で保存時に自動整形する**: リポジトリ直下の `.vscode/settings.json` で、TS / TSX / JS / CSS / HTML / JSON の保存時に Prettier で整形するよう設定済みです。
+**Format on save in VS Code**: The `.vscode/settings.json` at the repository root is already set up to format TS / TSX / JS / CSS / HTML / JSON with Prettier on save.
 
-1. 推奨拡張機能 **Prettier - Code formatter**（`esbenp.prettier-vscode`）をインストール（`.vscode/extensions.json` に登録済みのため、開くと推奨表示されます）
-2. `npm install`（Prettier は `admin/node_modules` のものが使われ、バージョンが固定されます）
-3. リポジトリのルート（`AegisCMS/`）を VS Code で開く
+1. Install the recommended extension **Prettier - Code formatter** (`esbenp.prettier-vscode`) (it is registered in `.vscode/extensions.json`, so it is shown as recommended when you open the folder)
+2. `npm install` (Prettier from `admin/node_modules` is used, so the version is pinned)
+3. Open the repository root (`AegisCMS/`) in VS Code
 
-`prettier.requireConfig` を有効にしているため、Prettier 設定の無い `admin/` 外のファイル（`config/` 等の JSON）は整形されません。
+Because `prettier.requireConfig` is enabled, files outside `admin/` that have no Prettier config (such as JSON in `config/`) are not formatted.
 
 ---
 
-## 🔗 関連リンク
+## 🔗 Related Links
 
-- [AegisCMS 全体設計書 (README.md)](../README.md)
-- [エージェント運用規約 (AGENTS.md)](../AGENTS.md)
-- [開発進捗 & TODOリスト (TODO.md)](../TODO.md)
+- [AegisCMS overall design document (README.md)](../README.md)
+- [Agent operating conventions (AGENTS.md)](../AGENTS.md)
+- [Progress & TODO list (TODO.md)](../TODO.md)

@@ -1,35 +1,37 @@
 # aegis-plugin-dev
 
-AegisCMS Wasm プラグイン開発者向けのスタンドアロン・ローカル開発・テストサーバーおよび Plugin Builder 連携 API。
+**English** | [日本語](README.ja.md)
 
-## 概要
+A standalone local development and test server for AegisCMS Wasm plugin developers, plus the API that integrates with Plugin Builder.
 
-`aegis-plugin-dev` は、本体サーバーのセットアップやデータベース、管理者認証を必要とせず、プラグイン単体（`plugin.manifest.json` と `plugin.wasm`）を即座に検証・テスト・デバッグするための開発ツールです。
+## Overview
 
-`aegis-server plugin dev <dir>` コマンド（または本クレートの単体バイナリ）で起動し、Wasmtime サンドボックス上でフック関数を直接実行・検査できるほか、Plugin Builder GUI (`plugin-builder/`) とシームレスに連携します。
+`aegis-plugin-dev` is a development tool for instantly verifying, testing, and debugging a plugin on its own (`plugin.manifest.json` and `plugin.wasm`), without setting up the main server, a database, or administrator authentication.
 
-## 主な責務・提供機能
+Started with the `aegis-server plugin dev <dir>` command (or this crate's standalone binary), it lets you directly run and inspect hook functions in the Wasmtime sandbox, and it integrates seamlessly with the Plugin Builder GUI (`plugin-builder/`).
 
-- **フックのダイレクト実行 (`POST /__dev/api/invoke`)**:
-  - テストペイロード（JSON）を渡して、指定したフック（`on-before-save`, `transform-content-ast`, `calculate-order` 等）を直接実行。
-  - 消費 Fuel（CPU 命令数）、実行時間（ミリ秒）、Wasm ログ出力（`log_*`）をリアルタイムに収集・可視化。
-- **ホスト環境のモックと追跡**:
-  - プラグイン固有 KVS のインメモリシミュレーションと、キー更新履歴の追跡。
-  - 外部 HTTP リクエスト（`http::fetch`）のモック応答設定と、実際の発行履歴検査。
-  - プラグイン設定値（`config::get`）の動的インジェクション。
-- **HTML ライブプレビュー (`POST /__dev/api/preview`)**:
-  - `on-render-page` や `render-blocks` などのフロントエンド系フックについて、サンプルの HTML やブロック AST を入力として即座に描画結果をプレビュー。
-- **自動再コンパイルとホットリロード**:
-  - Wasm バイナリやマニフェストの更新を検知し、インスタンスを自動リロード。
-- **Plugin Builder UI 連携 API**:
-  - ブラウザ上の Plugin Builder（React + Vite）からプラグインのテスト実行やマニフェスト編集を行うための REST API を提供。
+## Responsibilities and Features
 
-## 使い方
+- **Direct hook execution (`POST /__dev/api/invoke`)**:
+  - Passes a test payload (JSON) and runs the specified hook (`on-before-save`, `transform-content-ast`, `calculate-order`, etc.) directly.
+  - Collects and visualizes in real time the fuel consumed (CPU instruction count), execution time (milliseconds), and Wasm log output (`log_*`).
+- **Host environment mocking and tracking**:
+  - In-memory simulation of the plugin-specific KVS and tracking of key update history.
+  - Mock response settings for external HTTP requests (`http::fetch`) and inspection of the requests actually issued.
+  - Dynamic injection of plugin settings (`config::get`).
+- **Live HTML preview (`POST /__dev/api/preview`)**:
+  - For frontend hooks such as `on-render-page` and `render-blocks`, instantly previews the rendered result using sample HTML or a block AST as input.
+- **Automatic recompilation and hot reload**:
+  - Detects updates to the Wasm binary and manifest and reloads the instance automatically.
+- **Plugin Builder UI integration API**:
+  - Provides a REST API for running plugin tests and editing the manifest from Plugin Builder (React + Vite) in the browser.
+
+## Usage
 
 ```bash
-# AegisCMS 統合コマンドから起動
+# Start from the integrated AegisCMS command
 aegis-server plugin dev plugins/my-plugin
 
-# ポート指定
+# Specify a port
 aegis-server plugin dev plugins/my-plugin --port 4000
 ```

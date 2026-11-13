@@ -1,60 +1,62 @@
 # aegis-ast
 
-ブロックコンテンツの抽象構文木 (AST) データ構造、決定論的 HTML レンダラー、および Cloudflare `lol-html` によるストリーミング HTML リライター。
+**English** | [日本語](README.ja.md)
 
-## 概要
+The abstract syntax tree (AST) data structure for block content, a deterministic HTML renderer, and a streaming HTML rewriter based on Cloudflare's `lol-html`.
 
-AegisCMS では、コンテンツを生の HTML 文字列として直接データベースに保存・編集するのではなく、構造化されたブロックツリー (AST) として厳密に管理します。
+## Overview
 
-`aegis-ast` は以下のパイプラインを担当します：
-1. **Block AST 表現**: Gutenberg ライクなブロックデータ構造の表現と操作。
-2. **決定論的 HTML レンダリング**: AST を安全かつ一貫したセマンティック HTML へ変換。
-3. **セキュリティとストリーミングリライト**: Cloudflare の `lol-html` を用いて、外部リンクへの `rel="noopener noreferrer"` 自動付与や XSS 対策タグのサニタイズを低レイテンシ・ストリーミング処理で実行。
+AegisCMS does not store or edit content directly in the database as raw HTML strings; it manages content strictly as a structured block tree (AST).
 
-## 主な責務・提供機能
+`aegis-ast` handles the following pipeline:
+1. **Block AST representation**: Representing and manipulating a Gutenberg-like block data structure.
+2. **Deterministic HTML rendering**: Converting the AST into safe, consistent semantic HTML.
+3. **Security and streaming rewriting**: Using Cloudflare's `lol-html` to automatically add `rel="noopener noreferrer"` to external links and sanitize XSS-prone tags, with low-latency streaming processing.
+
+## Responsibilities and Features
 
 - **BlockNode**:
-  - `core/paragraph`, `core/heading`, `core/image`, `core/table` などの標準ブロックおよびカスタムブロックを表現するツリー構造。
-  - 属性 (`attributes`), インラインマークアップテキスト (`text`), 子ノード (`children`) の保持。
+  - A tree structure that represents standard blocks such as `core/paragraph`, `core/heading`, `core/image`, and `core/table`, as well as custom blocks.
+  - Holds attributes (`attributes`), inline markup text (`text`), and child nodes (`children`).
 - **HtmlRenderer**:
-  - AST から標準 HTML への高速・決定論的レンダリング。
-  - インラインマークアップ（太字、斜体、リンク、コード）のパースとセーフエスケープ。
-  - レンダリング結果からのリンク抽出 (`extract_links`)。
+  - Fast, deterministic rendering from the AST to standard HTML.
+  - Parsing and safe escaping of inline markup (bold, italic, links, code).
+  - Link extraction from the rendered result (`extract_links`).
 - **StreamingHtmlRewriter (`lol-html`)**:
-  - レンダリング済み HTML や外部 HTML に対し、メモリ効率の高いゼロコピー・ストリーミング書き換えを実行。
-  - 外部ドメインリンクへの `rel="noopener noreferrer"` 自動付与。
-  - `target="_blank"` のセキュア化。
+  - Memory-efficient, zero-copy streaming rewriting of rendered or external HTML.
+  - Automatic `rel="noopener noreferrer"` on external-domain links.
+  - Hardening of `target="_blank"`.
 - **AstPipeline / AstTransformer**:
-  - 見出しへの自動 ID 付与 (`HeadingIdTransformer`) や、プラグインによる AST 変換パイプラインの構築。
+  - Automatic ID assignment for headings (`HeadingIdTransformer`) and building AST transformation pipelines with plugins.
 
-## モジュール構成
+## Module Layout
 
-| モジュール | 説明 |
+| Module | Description |
 | :--- | :--- |
-| `node` | ブロック AST の基本構造体 `BlockNode` の定義 |
-| `inline` | インライン HTML マークアップのパースとプレーンテキスト抽出 (`plain_text`, `render_inline`) |
-| `renderer` | AST から HTML への決定論的レンダラー (`HtmlRenderer`) |
-| `rewriter` | `lol-html` を使用したストリーミング HTML 書き換え (`StreamingHtmlRewriter`) |
-| `transform` | AST 走査および変換パイプライン (`AstPipeline`, `AstTransformer`, `HeadingIdTransformer`) |
-| `config` | セキュリティおよび HTML 変換設定 (`SecurityConfig`) |
+| `node` | Definition of `BlockNode`, the basic block AST struct |
+| `inline` | Parsing inline HTML markup and extracting plain text (`plain_text`, `render_inline`) |
+| `renderer` | Deterministic AST-to-HTML renderer (`HtmlRenderer`) |
+| `rewriter` | Streaming HTML rewriting with `lol-html` (`StreamingHtmlRewriter`) |
+| `transform` | AST traversal and transformation pipeline (`AstPipeline`, `AstTransformer`, `HeadingIdTransformer`) |
+| `config` | Security and HTML transformation settings (`SecurityConfig`) |
 
-## 使用例
+## Usage Example
 
 ```rust
 use aegis_ast::{BlockNode, HtmlRenderer, SecurityConfig, StreamingHtmlRewriter};
 
-// 1. AST の構築
+// 1. Build an AST
 let mut heading = BlockNode::heading(2, "Hello AegisCMS");
 heading.attributes.insert("id".into(), "hello".into());
 
 let paragraph = BlockNode::paragraph("Safe and secure CMS.");
 let blocks = vec![heading, paragraph];
 
-// 2. HTML へのレンダリング
+// 2. Render to HTML
 let renderer = HtmlRenderer::new();
 let html = renderer.render(&blocks);
 
-// 3. ストリーミングリライターによるセキュリティ属性の付与
+// 3. Add security attributes with the streaming rewriter
 let config = SecurityConfig::default();
 let rewriter = StreamingHtmlRewriter::new(&config);
 let secured_html = rewriter.rewrite(&html).expect("rewrite failed");

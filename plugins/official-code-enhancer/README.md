@@ -1,68 +1,70 @@
-# AegisCMS 公式 Code Enhancer プラグイン (`official-code-enhancer`)
+# AegisCMS Official Code Enhancer Plugin (`official-code-enhancer`)
 
-コードの **シンタックスハイライト**（[Prism.js](https://prismjs.com/)）、**コードのテーマ**、**コピーボタン**、**インラインコードの整形**を行う公式 WebAssembly プラグインです。Mermaid の図は、別のプラグイン [`official-mermaid`](../official-mermaid/) になりました。
+**English** | [日本語](README.ja.md)
 
----
-
-## 動き
-
-- 本文に `<pre>`（コードブロック）か `` `inline code` `` があるページだけ、スクリプトと CSS を入れます。コードの無いページには何も足しません。
-- ハイライトは Prism.js と、その autoloader（`cdn.jsdelivr.net`）です。言語は、ページに出てきたものだけを、必要になったときに読み込みます（Prism が対応する言語は、コードブロックの言語名を書くだけで使えます。`golang` のような別名は、Prism の言語名（`go`）で書いてください）。
-- ` ```mermaid ` のブロックは、ここでは何もしません（`official-mermaid` が図にします）。
-- **外部 CDN から読むので、コードのあるページを開いた人の IP アドレスなどが CDN に送られます**。
-- このプラグインを有効にしている間、サーバーはマニフェストの `capabilities.csp`（`script_domains`: `cdn.jsdelivr.net`、`style_domains`: 外部テーマ用の `cdn.jsdelivr.net`・`cdnjs.cloudflare.com`・`unpkg.com`）を CSP に足します。
-- コードブロックの右上に、ホバーで「Copy」ボタンが出ます。`` `inline code` `` は、XSS 安全（テキストノードの分割）に `<code>` へ整形します。
+An official WebAssembly plugin that provides **syntax highlighting** for code ([Prism.js](https://prismjs.com/)), **code themes**, a **copy button**, and **inline code styling**. Mermaid diagrams are now handled by a separate plugin, [`official-mermaid`](../official-mermaid/).
 
 ---
 
-## コードのテーマ
+## How It Works
 
-Admin Studio の **Settings › Plugins** のこのプラグインの設定画面で、`code_theme`・`code_theme_url`・`code_theme_css` を設定します。記事ごと、テーマごとに変えたいときは、記事のカスタムフィールドとテーマ変数（`theme_vars`）でも指定できます。
+- It injects its script and CSS only on pages that have a `<pre>` (code block) or `` `inline code` `` in the body. It adds nothing to pages without code.
+- Highlighting uses Prism.js and its autoloader (`cdn.jsdelivr.net`). Languages that appear on the page are loaded only when needed (any language Prism supports works by just writing the language name on the code block. For aliases such as `golang`, write Prism's language name (`go`)).
+- ` ```mermaid ` blocks are left alone here (`official-mermaid` turns them into diagrams).
+- **Because it loads from an external CDN, the IP address and other details of people who open a page with code are sent to the CDN.**
+- While this plugin is enabled, the server adds the manifest's `capabilities.csp` (`script_domains`: `cdn.jsdelivr.net`; `style_domains`: `cdn.jsdelivr.net`, `cdnjs.cloudflare.com`, and `unpkg.com` for external themes) to the CSP.
+- A "Copy" button appears at the top right of a code block on hover. `` `inline code` `` is formatted into `<code>` in an XSS-safe way (by splitting text nodes).
 
-優先順位は「記事のフィールド › テーマ変数 › プラグインの設定 › 既定（`dracula`）」です。
+---
 
-| テーマ ID | テーマ名 | 特徴 |
+## Code Themes
+
+In this plugin's settings screen under Admin Studio's **Settings › Plugins**, set `code_theme`, `code_theme_url`, and `code_theme_css`. To vary it per article or per theme, you can also specify it with an article's custom field and theme variables (`theme_vars`).
+
+The priority is "article field › theme variable › plugin setting › default (`dracula`)".
+
+| Theme ID | Theme name | Characteristics |
 |---|---|---|
-| `dracula` (既定) | Dracula | 上品なダーク背景に鮮やかなピンク・パープル・シアンのアクセント |
-| `github-dark` | GitHub Dark | GitHub の落ち着いたダークブルーグレー |
-| `one-dark` | One Dark Pro | VS Code / Atom の定番のダーク |
-| `nord` | Nord Arctic | 北欧の青と雪白の配色 |
-| `github-light` | GitHub Light | 白基調のライト |
-| `monokai` | Monokai Pro | 高コントラストのクラシック |
+| `dracula` (default) | Dracula | An elegant dark background with vivid pink, purple, and cyan accents |
+| `github-dark` | GitHub Dark | GitHub's calm dark blue-gray |
+| `one-dark` | One Dark Pro | The classic dark of VS Code / Atom |
+| `nord` | Nord Arctic | A Nordic palette of blue and snow white |
+| `github-light` | GitHub Light | A white-based light theme |
+| `monokai` | Monokai Pro | A classic with high contrast |
 
 ```json
 { "code_theme": "nord" }
 ```
 
-### 外部 CSS（CDN）
+### External CSS (CDN)
 
-Prism.js などの任意のテーマの CSS を、URL で読み込みます。
+Load the CSS of any theme, such as Prism.js's, by URL.
 
 ```json
 { "code_theme_url": "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" }
 ```
 
-読めるホストは、マニフェストが宣言した `cdn.jsdelivr.net`・`cdnjs.cloudflare.com`・`unpkg.com` です（ほかのホストは、サイトの CSP で許可が要ります）。
+The hosts it can load from are the ones the manifest declares: `cdn.jsdelivr.net`, `cdnjs.cloudflare.com`, and `unpkg.com` (other hosts need to be allowed in the site's CSP).
 
-### カスタム CSS
+### Custom CSS
 
 ```json
 { "code_theme_css": ".prose code.inline-code-enhanced { background: #ffeaa7; color: #d63031; }" }
 ```
 
-### JavaScript の API
+### JavaScript API
 
-`window.AegisCodeEnhancer.setThemeUrl(url)` で、外部テーマの CSS を差し替えられます（Admin Studio のプレビューなど）。`renderAll()` で、ハイライトなどをやり直せます。
-
----
-
-## Mermaid の図
-
-`official-mermaid` に分かれました。図を使うサイトは、そのプラグインも有効にしてください（`[plugins].enabled` に `"official-mermaid"` を足す。同梱の `config/default.toml` は両方を有効にしています）。
+`window.AegisCodeEnhancer.setThemeUrl(url)` swaps the external theme's CSS (for the Admin Studio preview, for example). `renderAll()` re-runs highlighting and the rest.
 
 ---
 
-## ビルド
+## Mermaid Diagrams
+
+These have been split out into `official-mermaid`. Sites that use diagrams should enable that plugin too (add `"official-mermaid"` to `[plugins].enabled`; the bundled `config/default.toml` enables both).
+
+---
+
+## Build
 
 ```bash
 task plugin:build:code-enhancer

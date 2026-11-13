@@ -1,72 +1,74 @@
-# サンプル掲示板「やまびこ」
+# Sample Forum "Yamabiko" (やまびこ)
 
-AegisCMS の掲示板（[docs/forum.md](../../docs/forum.md)）で作った、山歩きのコミュニティサイトのサンプルです。投稿・人物・オフ会はすべて架空のものです。
+**English** | [日本語](README.ja.md)
 
-![サンプル掲示板「やまびこ」のトップページ](../../docs/images/forum-public.png)
+A sample hiking community site built with AegisCMS's forum ([docs/forum.md](../../docs/forum.md), in Japanese). The posts, people, and meetups are all fictional. The sample content (posts, article text) is in Japanese.
 
-![スレッド（レス番号・返信先・スタッフの印）](../../docs/images/forum-thread.png)
+![Top page of the sample forum "Yamabiko"](../../docs/images/forum-public.png)
 
-管理画面では、スレッドのピン留め・ロック・削除などのモデレーションができます。会員が書いたスレッドには「会員」の印と会員の詳細へのリンクが付きます。
+![A thread (reply numbers, reply targets, staff badge)](../../docs/images/forum-thread.png)
 
-![Admin Studio のスレッド・モデレーション](../../docs/images/forum-admin.png)
+In the admin screen you can moderate threads by pinning, locking, deleting, and so on. Threads written by members get a "member" badge and a link to the member's details.
 
-| 内容 | 場所 |
+![Admin Studio thread moderation](../../docs/images/forum-admin.png)
+
+| Content | Location |
 | --- | --- |
-| 設定（会員アカウント・掲示板・専用のデータベース・連投の制限・テーマ） | [`aegis.toml`](aegis.toml) |
-| テーマ「Trailhead」（トップページ・お知らせ・固定ページ。掲示板のページは組み込みのテンプレートにテーマの色を合わせる） | [`themes/trailhead/`](../../themes/trailhead) |
-| 投入するデータ（会員 4・掲示板のカテゴリ 5・スレッド 8・レス 18、お知らせ 2・固定ページ 2）と投入スクリプト | [`seed.mjs`](seed.mjs) |
-| データベース（Git の管理外） | `site.db`（記事・ユーザーなど）・`forum.db`（掲示板）。起動すると作られる |
+| Settings (member accounts, forum, dedicated database, rate limiting of consecutive posts, theme) | [`aegis.toml`](aegis.toml) |
+| The "Trailhead" theme (top page, announcements, static pages. The forum pages use the built-in templates with the theme's colors applied) | [`themes/trailhead/`](../../themes/trailhead) |
+| Data to load (4 members, 5 forum categories, 8 threads, 18 replies, 2 announcements, 2 static pages) and the loading script | [`seed.mjs`](seed.mjs) |
+| Databases (not tracked by Git) | `site.db` (articles, users, etc.) and `forum.db` (the forum). Created when you start it |
 
-## 起動する
+## Starting It
 
-リポジトリのルートで実行します。Rust・Node.js 18 以上と [go-task](https://taskfile.dev) が必要です。
+Run these at the repository root. Rust, Node.js 18 or later, and [go-task](https://taskfile.dev) are required.
 
 ```bash
-# Admin Studio をビルド（初回のみ）
+# Build Admin Studio (first time only)
 task build:admin
 
-# 管理者 owner とモデレーター moderator（パスワードはどちらも sample-password）を作ってサーバーを起動
+# Create the administrator owner and the moderator moderator (both with password sample-password) and start the server
 task demo:forum
 
-# 別のターミナルでカテゴリ・スレッド・レス・お知らせ・ページを投入（連投の制限があるので 1 分ほどかかる）
+# In another terminal, load the categories, threads, replies, announcements, and pages (takes about a minute because of the rate limit on consecutive posts)
 task demo:forum:seed
 ```
 
-<http://127.0.0.1:8080/> がサイト、<http://127.0.0.1:8080/forum> が掲示板、<http://127.0.0.1:8080/admin/> が管理画面です。
+<http://127.0.0.1:8080/> is the site, <http://127.0.0.1:8080/forum> is the forum, and <http://127.0.0.1:8080/admin/> is the admin screen.
 
-| ユーザー | ロール | できること |
+| User | Role | What they can do |
 | --- | --- | --- |
-| `owner`（管理人） | `admin` | すべて。掲示板のカテゴリの作成・編集・削除 |
-| `moderator`（モデレーター） | `editor` | スレッドのピン留め・ロック・削除、レスの削除 |
+| `owner` (administrator) | `admin` | Everything. Creating, editing, and deleting forum categories |
+| `moderator` (moderator) | `editor` | Pinning, locking, and deleting threads, and deleting replies |
 
-go-task を使わない場合:
+Without go-task:
 
 ```bash
 export AEGIS_USER_PASSWORD=sample-password
 cargo run -p aegis-server -- -c examples/hiking-forum/aegis.toml user add owner --role admin --display-name 管理人
 cargo run -p aegis-server -- -c examples/hiking-forum/aegis.toml user add moderator --role editor --display-name モデレーター
 cargo run -p aegis-server -- -c examples/hiking-forum/aegis.toml run
-node examples/hiking-forum/seed.mjs     # 別のターミナルで
+node examples/hiking-forum/seed.mjs     # in another terminal
 ```
 
-`seed.mjs` は作成済みのカテゴリ（slug）・スレッド（同じカテゴリの同じタイトル）を飛ばすので、何度実行しても構いません。別のサーバーに投入するときは `--url` / `--password`（または環境変数 `AEGIS_SEED_PASSWORD`）を指定します。
+`seed.mjs` skips categories (by slug) and threads (same title in the same category) that already exist, so you can run it as many times as you like. To load into a different server, specify `--url` / `--password` (or the environment variable `AEGIS_SEED_PASSWORD`).
 
-最初からやり直すときは、サーバーを止めて `examples/hiking-forum/` の `site.db*` と `forum.db*` を削除します。
+To start over, stop the server and delete `site.db*` and `forum.db*` in `examples/hiking-forum/`.
 
 > [!NOTE]
-> [コーヒー豆のショップ](../coffee-shop) と同じポート 8080 を使うので、同時には起動できません。
+> It uses the same port 8080 as the [coffee bean shop](../coffee-shop), so the two cannot run at the same time.
 
-## 試せること
+## What You Can Try
 
-| 機能 | 試し方 |
+| Feature | How to try it |
 | --- | --- |
-| 掲示板のトップ | `/forum`。カテゴリごとのスレッド数・レス数と、最近更新されたスレッド。「お知らせ」の 2 つのスレッドはピン留め（PIN）、使い方のスレッドと夏の北アルプスのスレッドはロック（LOCKED） |
-| スレッド・レス | スレッドのページの下のフォームから、ログインしないで書き込める（名前を空にすると `Anonymous`）。スレッドの作成はカテゴリのページの下から |
-| 会員 | 掲示板の書き込みの多くは、会員（`ゆる登山`・`かもしか`・`そらまめ`・`ライチョウ`。パスワードはどれも `sample-password`）が書いたもの。名前は会員の公開名になる。`/account/login` でログインすると、掲示板のフォームに公開名で書き込める。会員ラウンジも読める |
-| 会員限定のカテゴリ | 「会員ラウンジ」は会員とスタッフだけが読み書きできる（`visibility = "members"`）。ログインしていないと、カテゴリもスレッドも見えない（`404`） |
-| スタッフの印 | ログインしているユーザーの書き込みには **Staff** が付く。「はじめての山におすすめの山はありますか？」のモデレーターのレスなど |
-| ロック | ロックしたスレッドには返信フォームが出ず、API で投稿しても `403` |
-| 連投の制限 | 同じ IP から 3 秒以内（`rate_limit_secs = 3`）に続けて書き込むとエラーになる（API は `429`） |
-| モデレーション | 管理画面の **Forum** タブで、`moderator` でログインしてピン留め・ロック・削除。`moderator` にはカテゴリの一覧だけが表示され、作成・編集・削除は `owner` で |
-| 掲示板専用のデータベース | スレッドとレスは `forum.db` に、記事・ユーザー・セッションは `site.db` に入る（`[forum].database_url`） |
-| 監査ログ | 管理画面の **Settings › Audit Logs** に `forum.thread.create` / `forum.post.create` / `forum.thread.pin` / `forum.thread.lock` などが残る |
+| Forum top | `/forum`. Thread and reply counts per category, and recently updated threads. The two threads in "Announcements" are pinned (PIN), and the how-to thread and the summer Northern Alps thread are locked (LOCKED) |
+| Threads and replies | You can post without logging in from the form at the bottom of a thread page (leave the name empty to post as `Anonymous`). Create threads from the bottom of a category page |
+| Members | Many of the forum posts were written by members (`ゆる登山`, `かもしか`, `そらまめ`, `ライチョウ`; the password for all of them is `sample-password`). The name becomes the member's public name. After logging in at `/account/login`, you can post in the forum form under your public name. You can also read the members' lounge |
+| Members-only category | The "Members' Lounge" (会員ラウンジ) can be read and written only by members and staff (`visibility = "members"`). Without logging in, neither the category nor its threads are visible (`404`) |
+| Staff badge | Posts by logged-in users get **Staff**, such as the moderator's reply in "Is there a mountain you'd recommend for a first climb?" |
+| Locking | A locked thread shows no reply form, and posting through the API returns `403` |
+| Rate limiting of consecutive posts | Posting again from the same IP within 3 seconds (`rate_limit_secs = 3`) causes an error (`429` for the API) |
+| Moderation | In the admin screen's **Forum** tab, log in as `moderator` to pin, lock, and delete. `moderator` sees only the category list; create, edit, and delete as `owner` |
+| Dedicated forum database | Threads and replies go into `forum.db`, and articles, users, and sessions go into `site.db` (`[forum].database_url`) |
+| Audit log | `forum.thread.create` / `forum.post.create` / `forum.thread.pin` / `forum.thread.lock` and so on are recorded in the admin screen's **Settings › Audit Logs** |

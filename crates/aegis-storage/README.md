@@ -1,43 +1,45 @@
 # aegis-storage
 
-AegisCMS のファイル・メディアストレージバックエンド実装（ローカルディスク / AWS S3 互換）。
+**English** | [日本語](README.ja.md)
 
-## 概要
+File and media storage backend implementations for AegisCMS (local disk / AWS S3-compatible).
 
-`aegis-storage` は、アップロードされた画像、ドキュメント、アセットファイルの保存・配信・削除を担当するクレートです。`aegis_core::StorageBackend` トレイトを実装し、ローカルファイルシステムと S3 互換オブジェクトストレージを透過的に切り替えて利用できます。
+## Overview
 
-## 主な責務・提供機能
+`aegis-storage` is the crate responsible for storing, serving, and deleting uploaded images, documents, and asset files. It implements the `aegis_core::StorageBackend` trait, so you can switch transparently between the local file system and S3-compatible object storage.
+
+## Responsibilities and Features
 
 - **LocalStorageBackend**:
-  - サーバーのローカルディスク（`data/uploads/` 等）への安全な保存。
-  - パストラバーサル防止（`..` を含む不正パスの検証と正規化）。
-  - ディレクトリ自動生成、MIME タイプ推測、公開 URL プレフィックスの付与。
+  - Safe storage on the server's local disk (`data/uploads/`, etc.).
+  - Path traversal prevention (validation and normalization of invalid paths containing `..`).
+  - Automatic directory creation, MIME type inference, and public URL prefixing.
 - **S3StorageBackend**:
-  - AWS S3 および S3 互換ストレージ（Cloudflare R2, MinIO, Wasabi, Google Cloud Storage 等）に対応。
-  - AWS Signature Version 4 (SigV4) による署名付きリクエストの自前生成（外部重厚 SDK 不要）。
-  - カスタムエンドポイントおよびパススタイル / 仮想ホストスタイルのバケットアクセス。
-- **ファクトリ関数 (`create_storage_backend`)**:
-  - `StorageConfig` の内容に応じて自動的に適切なバックエンドインスタンスを生成。
+  - Supports AWS S3 and S3-compatible storage (Cloudflare R2, MinIO, Wasabi, Google Cloud Storage, etc.).
+  - Builds AWS Signature Version 4 (SigV4) signed requests itself (no heavy external SDK required).
+  - Custom endpoints and path-style / virtual-host-style bucket access.
+- **Factory function (`create_storage_backend`)**:
+  - Automatically creates the appropriate backend instance from the contents of `StorageConfig`.
 
-## モジュール構成
+## Module Layout
 
-| モジュール | 説明 |
+| Module | Description |
 | :--- | :--- |
-| `local` | ローカルファイルシステムストレージ実装 (`LocalStorageBackend`) |
-| `s3` | AWS S3 互換オブジェクトストレージ実装 (`S3StorageBackend`) |
-| `config` | ストレージ設定 (`StorageConfig`, `LocalStorageConfig`, `S3StorageConfig`) |
+| `local` | Local file system storage implementation (`LocalStorageBackend`) |
+| `s3` | AWS S3-compatible object storage implementation (`S3StorageBackend`) |
+| `config` | Storage settings (`StorageConfig`, `LocalStorageConfig`, `S3StorageConfig`) |
 
-## 使用例
+## Usage Example
 
 ```rust
 use aegis_core::StorageBackend;
 use aegis_storage::{create_storage_backend, StorageConfig};
 
-// 設定からバックエンドを生成
-let config = StorageConfig::default(); // ローカルストレージが既定
+// Create a backend from the config
+let config = StorageConfig::default(); // local storage is the default
 let storage = create_storage_backend(&config).expect("failed to initialize storage");
 
-// ファイルの保存
+// Save a file
 let bytes = b"sample image bytes".to_vec();
 let meta = storage.put("media/avatar.png", bytes, "image/png").await.expect("upload failed");
 println!("Uploaded to URL: {}", meta.public_url.unwrap_or_default());

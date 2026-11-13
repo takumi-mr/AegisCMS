@@ -1,39 +1,41 @@
 # aegis-runtime
 
-Wasmtime を基盤とするゼロトラスト WebAssembly (Wasm) プラグイン実行エンジンおよびスーパーバイザー。
+**English** | [日本語](README.ja.md)
 
-## 概要
+A zero-trust WebAssembly (Wasm) plugin execution engine and supervisor built on Wasmtime.
 
-AegisCMS では、従来のモノリシック CMS のようにプラグインがホスト本体やデータベースの生メモリに直接アクセスすることを許しません。すべてのプラグインは Bytecode Alliance の `wasmtime` による独立したリニアメモリ空間内で隔離実行されます。
+## Overview
 
-`aegis-runtime` は、プラグイン Wasm バイナリのロード、インスタンスプール管理、ホスト API 関数のバインド、Fuel（燃料）消費計算やエポック割り込みによるタイムアウト・リソース枯渇監視、およびマニフェストに基づくケイパビリティ検証（Zero-Trust Capability Guard）を提供します。
+AegisCMS does not allow plugins to access the raw memory of the host or the database directly, as traditional monolithic CMSs do. Every plugin runs isolated in its own linear memory space provided by the Bytecode Alliance's `wasmtime`.
 
-## 主な責務・提供機能
+`aegis-runtime` provides loading of plugin Wasm binaries, instance pool management, binding of host API functions, timeout and resource exhaustion monitoring through fuel accounting and epoch interruption, and manifest-based capability validation (the Zero-Trust Capability Guard).
 
-- **Wasm 実行エンジン (`wasm::WasmEngine`)**:
-  - `wasmtime` による JIT コンパイルとインスタンス生成。
-  - Fuel（命令数）制限による CPU バウンドな DoS 対策。
-  - Epoch ベースの割り込みによる確実な実行タイムアウト制御。
-  - メモリ最大割り当てサイズ（線形メモリ制限）の強制。
-  - フック実行結果のキャッシュ機構 (`ResultCache`) によるレンダリング最適化。
-- **ケイパビリティガード (`CapabilityGuard`)**:
-  - プラグインの `plugin.manifest.json` に記述された権限ホワイトリスト（外部許可ドメイン、KVS 名前空間、許可フック等）の実行時検証。
-  - 未許可リソースへのアクセスを即時拒絶。
-- **ホストサービス・API バインディング (`services`, `wasm::host_state`)**:
-  - 構造化ロギング (`log_*` -> ホストの `tracing`)。
-  - プラグイン個別 KVS ストレージアクセス。
-  - ドメイン検証付き HTTP クライアント。
-  - Admin Studio からの設定値読み込み。
-- **プラグインスーパーバイザー (`PluginSupervisor`)**:
-  - `plugins/` ディレクトリ配下の全プラグインのライフサイクル管理、有効化/無効化、順序制御。
-  - 各種フック（`on_before_save`, `on_render_page`, `calculate_order` 等）のオーケストレーション。
+## Responsibilities and Features
 
-## モジュール構成
+- **Wasm execution engine (`wasm::WasmEngine`)**:
+  - JIT compilation and instantiation with `wasmtime`.
+  - CPU-bound DoS protection through fuel (instruction count) limits.
+  - Reliable execution timeout control through epoch-based interruption.
+  - Enforcement of the maximum memory allocation (linear memory limit).
+  - A hook result cache (`ResultCache`) for rendering optimization.
+- **Capability guard (`CapabilityGuard`)**:
+  - Runtime validation of the permission allowlist written in the plugin's `plugin.manifest.json` (allowed external domains, KVS namespace, allowed hooks, etc.).
+  - Immediate rejection of access to unauthorized resources.
+- **Host services and API bindings (`services`, `wasm::host_state`)**:
+  - Structured logging (`log_*` -> the host's `tracing`).
+  - Per-plugin KVS storage access.
+  - An HTTP client with domain validation.
+  - Reading settings configured in Admin Studio.
+- **Plugin supervisor (`PluginSupervisor`)**:
+  - Lifecycle management, enabling/disabling, and ordering of all plugins under the `plugins/` directory.
+  - Orchestration of hooks (`on_before_save`, `on_render_page`, `calculate_order`, etc.).
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `wasm` | Wasmtime エンジン、インスタンスプール、ホストステート、ローダー、キャッシュ |
-| `guard` | マニフェスト権限検証ガード (`CapabilityGuard`) |
-| `plugin` | プラグインライフサイクル・スーパーバイザー (`PluginSupervisor`, `AegisPlugin`) |
-| `services` | ホストが提供する各種サービスインターフェース (`HostServices`, `LocalHostServices`) |
-| `config` | プラグインランタイム設定 (`PluginsConfig`, `RuntimeConfig`) |
+| `wasm` | Wasmtime engine, instance pool, host state, loader, cache |
+| `guard` | Manifest permission validation guard (`CapabilityGuard`) |
+| `plugin` | Plugin lifecycle and supervisor (`PluginSupervisor`, `AegisPlugin`) |
+| `services` | Service interfaces provided by the host (`HostServices`, `LocalHostServices`) |
+| `config` | Plugin runtime settings (`PluginsConfig`, `RuntimeConfig`) |

@@ -1,43 +1,45 @@
 # official-back-to-top
 
-記事・固定ページに**「トップへ戻る」ボタン**を足す公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.md)）。
+**English** | [日本語](README.ja.md)
 
-| `style` | 動き |
+An official plugin that adds a **"Back to top" button** to articles and static pages (the [`on-render-page` hook](../../docs/plugin_hooks.md)).
+
+| `style` | Behavior |
 | --- | --- |
-| `inline`（既定） | 本文の末尾にリンクを置く。JavaScript なしで動く（`href="#top"`）。Admin Studio のプレビューにも出る |
-| `fixed` | 画面に固定表示し、`show_after_px` スクロールしたら現れる。スクリプトが動かない環境では常に表示する |
+| `inline` (default) | Places a link at the end of the body. Works without JavaScript (`href="#top"`). Also shows in the Admin Studio preview |
+| `fixed` | Fixed on the screen; appears after scrolling `show_after_px`. Always shown where scripts do not run |
 
-本文の末尾に置くので、テーマのコメント欄やフッターはその下にあります（ページの最下部に置きたいときは `fixed` を使います）。
+It is placed at the end of the body, so the theme's comment section and footer are below it (use `fixed` if you want it at the very bottom of the page).
 
-## 使い方
+## Usage
 
-設定ファイルの `[plugins].enabled` に `"official-back-to-top"` を足すか、Admin Studio の **Settings › Plugins** で有効にします。
+Add `"official-back-to-top"` to `[plugins].enabled` in the config file, or enable it in Admin Studio's **Settings › Plugins**.
 
 ```toml
 [plugins]
 enabled = ["official-back-to-top"]
 ```
 
-テーマが `extra_head` と `extra_css` を出力している必要があります（組み込みのテンプレートは出力します）。
+The theme must output `extra_head` and `extra_css` (the built-in templates do).
 
-## 設定
+## Settings
 
-Admin Studio の **Settings › Plugins** の「設定」（入力欄が出ます。項目はマニフェストの `settings` で宣言していて、保存時に値を検査します）か、設定ファイルの `[plugins.settings.official-back-to-top]` で変えます。省略した項目・不正な値は既定値になります。
+Change them in the "Settings" of Admin Studio's **Settings › Plugins** (input fields appear; the items are declared in the manifest's `settings`, and values are validated on save), or in `[plugins.settings.official-back-to-top]` in the config file. Omitted items and invalid values fall back to the defaults.
 
-| キー | 既定値 | 説明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `content_types` | `article,page` | 出すコンテンツの種類（カンマ区切り） |
+| `content_types` | `article,page` | Content types to show it on (comma-separated) |
 | `style` | `inline` | `inline` / `fixed` |
 | `position` | `right` | `right` / `left` / `center` |
-| `shape` | `circle` | `circle`（矢印だけの丸）/ `square`（矢印だけの角丸）/ `pill`（矢印と文字） |
-| `label` | `Back to top` / `トップへ戻る` | 文字（`pill`）と読み上げ用の名前 |
-| `locale` | `en` | `label` の既定の言語（`en` / `ja`） |
-| `bg_color` | テーマの `--accent` | 背景色。`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名 |
-| `fg_color` | テーマの `--accent-contrast`（無ければ白） | 矢印と文字の色 |
-| `size_px` | `44` | ボタンの大きさ（32〜72） |
-| `offset_px` | `24` | `fixed` のときの画面の端からの距離（8〜96） |
-| `show_after_px` | `400` | `fixed` のとき、これだけスクロールしたら現れる（0〜5000） |
-| `smooth_scroll` | `true` | なめらかにスクロールする（`prefers-reduced-motion` のときはしない） |
+| `shape` | `circle` | `circle` (a circle with only an arrow) / `square` (a rounded square with only an arrow) / `pill` (arrow and text) |
+| `label` | `Back to top` / `トップへ戻る` | The text (`pill`) and the name for screen readers |
+| `locale` | `en` | The default language of `label` (`en` / `ja`) |
+| `bg_color` | The theme's `--accent` | Background color. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name |
+| `fg_color` | The theme's `--accent-contrast` (white if absent) | Color of the arrow and text |
+| `size_px` | `44` | Button size (32–72) |
+| `offset_px` | `24` | Distance from the screen edge when `fixed` (8–96) |
+| `show_after_px` | `400` | When `fixed`, it appears after scrolling this far (0–5000) |
+| `smooth_scroll` | `true` | Scroll smoothly (not when `prefers-reduced-motion` is set) |
 
 ```toml
 [plugins.settings.official-back-to-top]
@@ -48,15 +50,15 @@ fg_color = "#ffffff"
 locale = "ja"
 ```
 
-記事ごとにやめたいときは、スキーマに真偽値のフィールド `hide_back_to_top` を足して `true` にします。
+To turn it off per article, add a boolean field `hide_back_to_top` to the schema and set it to `true`.
 
-## 見た目を変える
+## Changing the Appearance
 
-ボタンは `<a class="obt obt-inline|obt-fixed obt-{position} obt-{shape}">` です（`inline` は `<div class="obt-row">` の中）。リンクの色・下線は、テーマの本文のリンクの指定に負けないよう `a.obt.obt` で指定しています。設定で足りないところは、それより詳細度の高いセレクタで上書きしてください。CSS に入るのは検査した値だけです。
+The button is `<a class="obt obt-inline|obt-fixed obt-{position} obt-{shape}">` (`inline` is inside `<div class="obt-row">`). The link color and underline are specified with `a.obt.obt` so they do not lose to the theme's body link styles. Where the settings are not enough, override with a selector of higher specificity. Only validated values go into the CSS.
 
-## ビルド
+## Build
 
 ```bash
-task plugin:build:reading   # plugin.wasm を作り直す（要 rustup target add wasm32-unknown-unknown）
+task plugin:build:reading   # rebuild plugin.wasm (requires rustup target add wasm32-unknown-unknown)
 cargo test -p aegis-plugin-back-to-top
 ```

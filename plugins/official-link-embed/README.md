@@ -1,15 +1,17 @@
 # official-link-embed
 
-本文の段落が URL だけのとき、そのページの OGP / oEmbed から作ったリンクカード（`official-link-embed/embed` ブロック）にする公式プラグインです。保存のときに**サンドボックスの中**で取得してブロックの属性に保存するので、公開ページは通信しません。
+**English** | [日本語](README.ja.md)
 
-- 仕様・設定・通信の制限は [docs/blocks.md の 5](../../docs/blocks.md#5-ogp--oembed)。
-- 取得先は、マニフェストの既定（`qiita.com`・`zenn.dev`・`github.com`・`note.com`・`x.com`・`twitter.com`・`publish.twitter.com`）に、`[plugins.settings.official-link-embed]` の `extra_allowed_domains` で足します。内部の IP アドレスへは通信しません。
-- 第三者の HTML は使いません（oEmbed の `html` は読まず、本文のテキストだけを説明にします）。
+An official plugin that, when a paragraph in the body is only a URL, turns it into a link card (an `official-link-embed/embed` block) built from that page's OGP / oEmbed. The data is fetched **inside the sandbox** at save time and stored in the block's attributes, so public pages make no network requests.
 
-## ビルド
+- For the specification, settings, and network restrictions, see [section 5 of docs/blocks.md](../../docs/blocks.md#5-ogp--oembed) (in Japanese).
+- The fetch destinations are the manifest's defaults (`qiita.com`, `zenn.dev`, `github.com`, `note.com`, `x.com`, `twitter.com`, `publish.twitter.com`), plus anything added with `extra_allowed_domains` in `[plugins.settings.official-link-embed]`. It does not connect to internal IP addresses.
+- Third-party HTML is not used (the oEmbed `html` is not read; only the page's body text is used as the description).
+
+## Build
 
 ```bash
-task plugin:build:link-embed   # plugin.wasm を作り直す（要 rustup target add wasm32-unknown-unknown）
+task plugin:build:link-embed   # rebuild plugin.wasm (requires rustup target add wasm32-unknown-unknown)
 cargo test -p aegis-plugin-link-embed
-cargo test -p aegis-runtime --test sdk_plugins link_embed   # ビルド済みの wasm をホストの上で動かす
+cargo test -p aegis-runtime --test sdk_plugins link_embed   # run the built wasm on the host
 ```

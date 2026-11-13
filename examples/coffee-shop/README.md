@@ -1,71 +1,73 @@
-# サンプルショップ「朝凪珈琲」
+# Sample Shop "Asanagi Coffee" (朝凪珈琲)
 
-AegisCMS の EC 機能（[docs/commerce.md](../../docs/commerce.md)）で作った、コーヒー豆のオンラインショップのサンプルです。商品・注文・店名はすべて架空のものです。
+**English** | [日本語](README.ja.md)
 
-![サンプルショップ「朝凪珈琲」の商品一覧ページ](../../docs/images/commerce-storefront.png)
+A sample online coffee bean shop built with AegisCMS's e-commerce feature ([docs/commerce.md](../../docs/commerce.md), in Japanese). The products, orders, and shop name are all fictional. The sample content (product names, article text) is in Japanese.
 
-![商品ページ（値引き前の価格・数量・カートに追加）](../../docs/images/commerce-product.png)
+![Product list page of the sample shop "Asanagi Coffee"](../../docs/images/commerce-storefront.png)
 
-管理画面では、商品の管理と、注文・売上の確認ができます。
+![Product page (pre-discount price, quantity, add to cart)](../../docs/images/commerce-product.png)
 
-![Admin Studio の商品一覧](../../docs/images/commerce-products.png)
+In the admin screen you can manage products and check orders and sales.
 
-![Admin Studio の注文一覧と売上レポート](../../docs/images/commerce-orders.png)
+![Admin Studio product list](../../docs/images/commerce-products.png)
 
-| 内容 | 場所 |
+![Admin Studio order list and sales report](../../docs/images/commerce-orders.png)
+
+| Content | Location |
 | --- | --- |
-| 設定（ショップ・送料とクーポン・テーマ・銀行振込の案内・通知） | [`aegis.toml`](aegis.toml) |
-| テーマ「Roastery」（トップページ・記事・固定ページ。ショップのページは組み込みのテンプレートにテーマの色を合わせる） | [`themes/roastery/`](../../themes/roastery) |
-| 投入するデータ（カテゴリ 4・商品 9・記事 3・固定ページ 2）と投入スクリプト | [`seed.mjs`](seed.mjs) |
-| 商品画像 | [`images/`](images) |
-| データベースとアップロードしたファイル（Git の管理外） | `shop.db`・`uploads/`（起動すると作られる） |
+| Settings (shop, shipping fees and coupons, theme, bank transfer instructions, notifications) | [`aegis.toml`](aegis.toml) |
+| The "Roastery" theme (top page, articles, static pages. The shop pages use the built-in templates with the theme's colors applied) | [`themes/roastery/`](../../themes/roastery) |
+| Data to load (4 categories, 9 products, 3 articles, 2 static pages) and the loading script | [`seed.mjs`](seed.mjs) |
+| Product images | [`images/`](images) |
+| Database and uploaded files (not tracked by Git) | `shop.db`, `uploads/` (created when you start it) |
 
-## 起動する
+## Starting It
 
-リポジトリのルートで実行します。Rust・Node.js 18 以上と [go-task](https://taskfile.dev) が必要です。
+Run these at the repository root. Rust, Node.js 18 or later, and [go-task](https://taskfile.dev) are required.
 
 ```bash
-# Admin Studio をビルド（初回のみ）
+# Build Admin Studio (first time only)
 task build:admin
 
-# 管理者 owner（パスワード sample-password）を作ってサーバーを起動
+# Create the administrator owner (password sample-password) and start the server
 task demo:shop
 
-# 別のターミナルで商品・記事・ページを投入
+# In another terminal, load the products, articles, and pages
 task demo:shop:seed
 ```
 
-<http://127.0.0.1:8080/> がショップ、<http://127.0.0.1:8080/admin/> が管理画面（`owner` / `sample-password`）です。
+<http://127.0.0.1:8080/> is the shop, and <http://127.0.0.1:8080/admin/> is the admin screen (`owner` / `sample-password`).
 
-go-task を使わない場合:
+Without go-task:
 
 ```bash
 AEGIS_USER_PASSWORD=sample-password cargo run -p aegis-server -- -c examples/coffee-shop/aegis.toml user add owner --role admin
 cargo run -p aegis-server -- -c examples/coffee-shop/aegis.toml run
-node examples/coffee-shop/seed.mjs      # 別のターミナルで
+node examples/coffee-shop/seed.mjs      # in another terminal
 ```
 
-`seed.mjs` は作成済みの slug を飛ばすので、何度実行しても構いません。別のサーバーやユーザーに投入するときは `--url` / `--user` / `--password`（または環境変数 `AEGIS_SEED_PASSWORD`）を指定します。
+`seed.mjs` skips slugs that already exist, so you can run it as many times as you like. To load into a different server or user, specify `--url` / `--user` / `--password` (or the environment variable `AEGIS_SEED_PASSWORD`).
 
-最初からやり直すときは、サーバーを止めて `examples/coffee-shop/` の `shop.db*` と `uploads/` を削除します。
+To start over, stop the server and delete `shop.db*` and `uploads/` in `examples/coffee-shop/`.
 
-## 試せること
+## What You Can Try
 
-| 機能 | 試し方 |
+| Feature | How to try it |
 | --- | --- |
-| 商品一覧・商品ページ | `/products`。ハウスブレンドは値引き前の価格（打ち消し線）、デカフェは在庫切れ（Sold out）、ドリップバッグは残りわずか（Only 3 left）の表示 |
-| カート・見積もり | 商品ページの「Add to cart」→ `/cart`。合計はサーバーが計算する |
-| 送料（プラグイン `official-shop-rules`） | 5,000円未満は送料 650円、以上は無料 |
-| クーポン（同上） | `WELCOME10`（10% オフ）、`COFFEE300`（300円引き）。それ以外は 422 で「無効なクーポン」 |
-| 注文と在庫 | 注文すると在庫が減り、注文確認ページに振込先が出る。72 時間支払いがなければ自動で取り消して在庫を戻す |
-| 注文の管理 | 管理画面の **Orders** で支払い済み → 発送 → 完了と進める。顧客の注文確認ページの状態も変わる |
-| 通知（[docs/notifications.md](../../docs/notifications.md)） | 注文・入金確認・発送・取り消しのメールを、サンプルではサーバーのログに出す（`aegis::notify`）。発送にするときのメモ（追跡番号など）は発送のメールに入る。管理者のログインと、パスワードを 5 回間違えたときのログインのロックも知らせる。SMTP サーバーがあれば `channels = ["email"]` で実際に送れる |
-| 商品の管理 | 管理画面の **Products** で価格・在庫・画像を編集 |
-| 監査ログ | 管理画面の **Settings › Audit Logs** に注文（`order.create` / `order.update`）や商品の変更が残る |
+| Product list and product page | `/products`. The House Blend shows its pre-discount price (struck through), the decaf shows out of stock (Sold out), and the drip bags show low stock (Only 3 left) |
+| Cart and quote | "Add to cart" on a product page → `/cart`. The server calculates the total |
+| Shipping (plugin `official-shop-rules`) | Orders under 5,000 yen have a 650 yen shipping fee; orders at or above are free |
+| Coupons (same plugin) | `WELCOME10` (10% off), `COFFEE300` (300 yen off). Anything else returns 422 with "invalid coupon" |
+| Orders and inventory | Placing an order reduces inventory, and the order confirmation page shows the bank transfer details. If there is no payment within 72 hours, the order is cancelled automatically and the inventory is restored |
+| Order management | In the admin screen's **Orders**, move an order from paid → shipped → completed. The status on the customer's order confirmation page changes too |
+| Notifications ([docs/notifications.md](../../docs/notifications.md)) | In the sample, emails for orders, payment confirmation, shipping, and cancellation go to the server log (`aegis::notify`). A note entered when marking an order as shipped (such as a tracking number) goes into the shipping email. Administrator logins and login lockouts after 5 wrong passwords are also reported. With an SMTP server, `channels = ["email"]` lets you actually send them |
+| Product management | Edit prices, inventory, and images in the admin screen's **Products** |
+| Audit log | Orders (`order.create` / `order.update`) and product changes are recorded in the admin screen's **Settings › Audit Logs** |
 
-## カード決済（Stripe）にする
+## Switching to Card Payments (Stripe)
 
-`aegis.toml` の `[commerce]` を次のように変えると、Stripe Checkout で支払うようになります（テストモードのキーで試せます）。詳しくは [docs/commerce.md「4.2 stripe」](../../docs/commerce.md)。
+Changing `[commerce]` in `aegis.toml` as follows makes payment go through Stripe Checkout (you can try it with test-mode keys). For details, see [docs/commerce.md "4.2 stripe"](../../docs/commerce.md) (in Japanese).
 
 ```toml
 [commerce]
@@ -74,7 +76,7 @@ currency = "jpy"
 provider = "stripe"
 
 [commerce.stripe]
-# AEGIS_STRIPE_SECRET_KEY / AEGIS_STRIPE_WEBHOOK_SECRET でも渡せる
+# Can also be passed via AEGIS_STRIPE_SECRET_KEY / AEGIS_STRIPE_WEBHOOK_SECRET
 secret_key = "sk_test_..."
 webhook_secret = "whsec_..."
 ```

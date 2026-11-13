@@ -1,33 +1,35 @@
 # aegis-theme-dev
 
-AegisCMS テーマ制作者向けのスタンドアロン・ローカル開発サーバーおよび Theme Builder 連携 API。
+**English** | [日本語](README.ja.md)
 
-## 概要
+A standalone local development server for AegisCMS theme authors, plus the API that integrates with Theme Builder.
 
-`aegis-theme-dev` は、データベースや認証、プラグイン環境をセットアップすることなく、指定したテーマディレクトリを単体でプレビュー・開発するための軽量な開発サーバーです。
+## Overview
 
-`aegis-server theme dev <dir>` コマンド（または本クレートの単体バイナリ）で起動でき、テンプレートや CSS/アセットの変更を即座にブラウザへ反映するライブプレビュー機能を提供します。また、Theme Builder GUI (`theme-builder/`) と連携するための専用 REST API も備えています。
+`aegis-theme-dev` is a lightweight development server for previewing and developing a given theme directory on its own, without setting up a database, authentication, or a plugin environment.
 
-## 主な責務・提供機能
+It can be started with the `aegis-server theme dev <dir>` command (or this crate's standalone binary), and provides a live preview feature that immediately reflects changes to templates and CSS/assets in the browser. It also has a dedicated REST API for integrating with the Theme Builder GUI (`theme-builder/`).
 
-- **Zero-Config プレビュー**:
-  - 外部 DB なしで動作。組み込みのダミー投稿・固定ページ・カテゴリデータを用いてテンプレートを描画。
-  - `sample-data.json` をテーマフォルダ内に配置することで、制作者独自のモックデータによるプレビューも可能。
-- **ライブプレビュー・ホットリロード**:
-  - テンプレートファイル、アセット、設定ファイルの変更をファイル監視（ファイルポーリング / Last Modified チェック）し、ブラウザを自動リロード。
-- **Theme Builder UI 連携 API (`/__dev/api/*`)**:
-  - テーマ内のファイルツリー取得、ファイル読み込み、保存 API。
-  - エディタ上の未保存内容（ドラフト）を即座にレンダリングするライブプレビュー API。
-  - `theme.toml` の構文検証およびテンプレート構文エラーのリアルタイムフィードバック。
-- **セキュリティ**:
-  - 開発用のため既定では `127.0.0.1` のループバックアドレスでのみ待受。DNS リバインディング攻撃や不正アクセスを防御。
+## Responsibilities and Features
 
-## 使い方
+- **Zero-Config preview**:
+  - Runs without an external DB. Renders templates using built-in dummy posts, static pages, and category data.
+  - Placing a `sample-data.json` in the theme folder also lets you preview with the author's own mock data.
+- **Live preview and hot reload**:
+  - Watches for changes to template files, assets, and settings files (file polling / Last Modified checks) and reloads the browser automatically.
+- **Theme Builder UI integration API (`/__dev/api/*`)**:
+  - APIs to get the file tree of a theme, and to read and save files.
+  - A live preview API that instantly renders unsaved content (drafts) in the editor.
+  - Syntax validation of `theme.toml` and real-time feedback on template syntax errors.
+- **Security**:
+  - Because it is for development, it listens only on the `127.0.0.1` loopback address by default. This guards against DNS rebinding attacks and unauthorized access.
+
+## Usage
 
 ```bash
-# AegisCMS 統合コマンドから起動
+# Start from the integrated AegisCMS command
 aegis-server theme dev themes/my-theme
 
-# ポート指定
+# Specify a port
 aegis-server theme dev themes/my-theme --port 3000
 ```

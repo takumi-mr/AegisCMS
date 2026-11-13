@@ -1,4 +1,4 @@
-[← ドキュメント一覧に戻る](README.md)
+[← ドキュメント一覧に戻る](README.ja.md)
 
 # AegisCMS WebAssembly (Wasm) プラグイン開発公式ガイド
 
@@ -329,7 +329,7 @@ export function on_before_save(ptr: i32, len: i32): i64 {
 
 `asconfig.json` の `"use": ["abort=~lib/@takumi-mr/plugin-sdk/assembly/host/abort"]` は削除しないでください。AssemblyScript は既定で実行時エラーの処理に `env.abort` をインポートしますが、ホストは `host` モジュールしか提供しないため、この設定が無いとプラグインを読み込めません（SDK の `abort` に差し替えて、ログを出してから停止します）。
 
-詳細は [`sdk/templates/assemblyscript/README.md`](../sdk/templates/assemblyscript/README.md) を参照してください。
+詳細は [`sdk/templates/assemblyscript/README.md`](../sdk/templates/assemblyscript/README.ja.md) を参照してください。
 
 ---
 
@@ -385,7 +385,7 @@ func main() {}
 
 ターゲットは `wasm-unknown`（TinyGo 0.30+）を使ってください。`wasi` ターゲットはホストが提供しない WASI の関数をインポートするため読み込めません。`wasm-unknown` のモジュールがエクスポートする `_initialize`（ランタイムとグローバル変数の初期化）は、ホストがフックより先に呼び出します。
 
-詳細は [`sdk/templates/tinygo/README.md`](../sdk/templates/tinygo/README.md) を参照してください。
+詳細は [`sdk/templates/tinygo/README.md`](../sdk/templates/tinygo/README.ja.md) を参照してください。
 
 ---
 

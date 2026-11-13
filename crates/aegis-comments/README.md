@@ -1,32 +1,34 @@
 # aegis-comments
 
-AegisCMS のコメント投稿・階層型スレッド・モデレーション・スパム対策クレート（`[comments]`）。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's crate for comment posting, threaded replies, moderation, and spam protection (`[comments]`).
 
-`aegis-comments` は、公開記事やページに対する読者からのコメント投稿、多段返信（ネストしたスレッド）、管理者の承認制ワークフロー、および高度なスパム対策機能を提供します。
+## Overview
 
-コメントの安全性を保つため、キーワードブラックリスト、過度なリンク数の検出、Wasm プラグインによる外部 AI/スパムチェックフック（`check_comment`）、および通知クレートとの連携を統合しています。
+`aegis-comments` provides reader comment posting on published articles and pages, multi-level replies (nested threads), an administrator approval workflow, and advanced spam protection.
 
-## 主な責務・提供機能
+To keep comments safe, it integrates a keyword blacklist, detection of excessive link counts, an external AI/spam check hook through Wasm plugins (`check_comment`), and integration with the notification crate.
 
-- **コメント投稿・ライフサイクル (`CommentService`)**:
-  - ゲストまたはログインユーザーからのコメント投稿。
-  - 親コメント ID を指定したツリー構造（ネストされた返信）の構築。
-  - ステータス遷移（`pending` 承認待ち, `approved` 公開, `spam` スパム, `trash` ゴミ箱）。
-- **自動モデレーション・スパム判定 (`moderation`)**:
-  - **キーワードブラックリスト**: 禁止単語・表現を含むコメントの自動ブロックまたはスパム分類。
-  - **リンク数制限**: 本文中に含まれる URL の個数が上限を超えた場合の自動保留。
-  - **承認制ポリシー**: 初回投稿者のみ手動承認、全件手動承認、即時公開などの柔軟な設定。
-- **Wasm プラグイン連携**:
-  - `check_comment` フックによる外部スパム検出エンジン（Akismet や LLM 等）との連携。
-- **通知連携**:
-  - 新着コメントや返信があった際の管理者および投稿者へのメール通知（`aegis-notify` 経由）。
+## Responsibilities and Features
 
-## モジュール構成
+- **Comment posting and lifecycle (`CommentService`)**:
+  - Comment posting by guests or logged-in users.
+  - Building a tree structure (nested replies) by specifying a parent comment ID.
+  - Status transitions (`pending` awaiting approval, `approved` published, `spam`, `trash`).
+- **Automatic moderation and spam detection (`moderation`)**:
+  - **Keyword blacklist**: automatically blocks, or classifies as spam, comments that contain banned words and expressions.
+  - **Link count limit**: automatically holds a comment when the number of URLs in the body exceeds the limit.
+  - **Approval policy**: flexible settings such as manual approval for first-time posters only, manual approval for everything, or immediate publication.
+- **Wasm plugin integration**:
+  - Integration with external spam detection engines (Akismet, LLMs, etc.) through the `check_comment` hook.
+- **Notification integration**:
+  - Email notifications to administrators and posters when there are new comments or replies (via `aegis-notify`).
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `lib` | `CommentService` 実装、コメント投稿・取得・ステータス更新 |
-| `moderation` | NG ワードチェック、リンク数カウント、スパムスコア算出ロジック |
-| `config` | コメント設定 (`CommentsConfig`: 承認ポリシー、ネスト深度制限等) |
+| `lib` | `CommentService` implementation; posting, retrieving, and updating the status of comments |
+| `moderation` | Banned word checks, link counting, spam score calculation logic |
+| `config` | Comment settings (`CommentsConfig`: approval policy, nesting depth limit, etc.) |

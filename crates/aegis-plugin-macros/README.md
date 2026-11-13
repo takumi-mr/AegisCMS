@@ -1,23 +1,25 @@
 # aegis-plugin-macros
 
-AegisCMS WebAssembly (Wasm) プラグイン SDK 向け手続き型マクロ。
+**English** | [日本語](README.ja.md)
 
-## 概要
+Procedural macros for the AegisCMS WebAssembly (Wasm) plugin SDK.
 
-`aegis-plugin-macros` は、Rust で AegisCMS プラグインを開発するための属性マクロを提供します。低レベルな WebAssembly リニアメモリの読み書き、メモリ確保・解放フック（`allocate`, `deallocate`）、および AegisCMS ホスト ABI 仕様に準拠した C-ABI エクスポート関数のボイラープレートを自動生成します。
+## Overview
 
-## 使い方
+`aegis-plugin-macros` provides the attribute macro for developing AegisCMS plugins in Rust. It automatically generates the boilerplate for low-level WebAssembly linear memory reads and writes, the memory allocation and deallocation hooks (`allocate`, `deallocate`), and the C-ABI export functions that conform to the AegisCMS host ABI specification.
 
-本クレートは通常、[`aegis-plugin-sdk`](../aegis-plugin-sdk) を通じて利用します。
+## Usage
 
-プラグインの `Cargo.toml`:
+This crate is normally used through [`aegis-plugin-sdk`](../aegis-plugin-sdk).
+
+The plugin's `Cargo.toml`:
 
 ```toml
 [dependencies]
 aegis-plugin-sdk = "0.2.0"
 ```
 
-プラグインの `src/lib.rs`:
+The plugin's `src/lib.rs`:
 
 ```rust
 use aegis_plugin_sdk::prelude::*;
@@ -37,10 +39,10 @@ impl Plugin for MyPlugin {
 }
 ```
 
-## 自動生成される ABI エクスポート
+## Automatically Generated ABI Exports
 
-`#[aegis_plugin]` を付与することで、以下の関数が自動的にエクスポートされます：
+Adding `#[aegis_plugin]` exports the following functions automatically:
 
-- `allocate(len: i32) -> i32`: ホストからのメモリ割り当てエントリポイント。
-- `deallocate(ptr: i32, len: i32)`: ホストからのメモリ解放エントリポイント。
-- 各フックラッパー関数（`on_before_save`, `transform_content_ast`, `on_render_page`, `render_blocks`, `calculate_order`, `on_order_status_changed`, `check_comment`, `send_notification`, `on_user_authenticated`, `on_content_published`, `on_content_deleted` 等）: ホストメモリとの入出力 JSON デシリアライズ・シリアライズおよびエラー伝播を透過的に処理。
+- `allocate(len: i32) -> i32`: the entry point for memory allocation from the host.
+- `deallocate(ptr: i32, len: i32)`: the entry point for memory deallocation from the host.
+- Hook wrapper functions (`on_before_save`, `transform_content_ast`, `on_render_page`, `render_blocks`, `calculate_order`, `on_order_status_changed`, `check_comment`, `send_notification`, `on_user_authenticated`, `on_content_published`, `on_content_deleted`, etc.): transparently handle JSON deserialization and serialization of input and output with host memory, and error propagation.

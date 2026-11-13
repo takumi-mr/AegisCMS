@@ -1,37 +1,39 @@
 # AegisCMS Rust WebAssembly Plugin Template
 
-AegisCMS 公式 Rust Wasm プラグイン開発テンプレートです。  
-高水準マクロ `#[aegis_plugin]` を利用することで、低レイヤーの Wasm メモリ管理や JSON パッキングを意識することなく、型安全なライフサイクルフックとホスト API を実装できます。
+**English** | [日本語](README.ja.md)
+
+The official AegisCMS template for developing Rust Wasm plugins.  
+With the high-level `#[aegis_plugin]` macro, you can implement type-safe lifecycle hooks and host APIs without having to think about low-level Wasm memory management or JSON packing.
 
 ---
 
-## 🚀 クイックスタート
+## 🚀 Quick Start
 
-### 1. 前提条件
+### 1. Prerequisites
 
-Rust ツールチェーンおよび `wasm32-unknown-unknown` ターゲットが必要です。
+The Rust toolchain and the `wasm32-unknown-unknown` target are required.
 
 ```bash
 rustup target add wasm32-unknown-unknown
 ```
 
-### 2. ローカルテスト (ネイティブ実行)
+### 2. Local Testing (Native Execution)
 
-SDK にはネイティブ環境向けのモックバインディングが内蔵されているため、Wasm にコンパイルすることなく通常の `cargo test` でロジックを単体テストできます。
+The SDK has built-in mock bindings for native environments, so you can unit-test your logic with plain `cargo test` without compiling to Wasm.
 
 ```bash
 cargo test
 ```
 
-### 3. WebAssembly バイナリのビルド
+### 3. Build the WebAssembly Binary
 
-リリースプロファイルで `.wasm` を生成します。
+Generate the `.wasm` with the release profile.
 
 ```bash
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-生成されたバイナリを本ディレクトリ直下に `plugin.wasm` として配置します（リポジトリ直下で `task plugin:build` を実行すると、ビルドと配置をまとめて行います）。
+Place the generated binary in this directory as `plugin.wasm` (running `task plugin:build` at the repository root performs the build and placement in one go).
 
 ```bash
 # Windows (PowerShell)
@@ -41,19 +43,19 @@ Copy-Item target/wasm32-unknown-unknown/release/aegis_plugin_template.wasm plugi
 cp target/wasm32-unknown-unknown/release/aegis_plugin_template.wasm plugin.wasm
 ```
 
-### 4. AegisCMS への配置
+### 4. Deploy to AegisCMS
 
-AegisCMS サーバーの `plugins/<name>/`（`<name>` はマニフェストの `name`）に以下のファイルを配置し、設定ファイルの `[plugins].enabled` に `<name>` を追加してサーバーを再起動すると有効になります（配置しただけでは読み込まれません）。
+Place the following files in the AegisCMS server's `plugins/<name>/` (`<name>` is the manifest's `name`), add `<name>` to `[plugins].enabled` in the config file, and restart the server to enable it (placing the files alone does not load the plugin).
 
-- `plugin.manifest.json` (権限・リソース制限・フック定義)
-- `plugin.wasm` (コンパイル済み Wasm バイナリ)
+- `plugin.manifest.json` (permissions, resource limits, hook definitions)
+- `plugin.wasm` (the compiled Wasm binary)
 
 ---
 
-## 🧩 プラグイン構造
+## 🧩 Plugin Structure
 
-### マニフェスト (`plugin.manifest.json`)
-ゼロ・トラスト実行モデルに基づき、プラグインが必要とする最小限のケイパビリティ（権限）を宣言します。未宣言の操作はホストランタイムによって即座にブロックされます。
+### Manifest (`plugin.manifest.json`)
+Based on the zero-trust execution model, declare the minimum capabilities (permissions) the plugin needs. Any undeclared operation is blocked immediately by the host runtime.
 
 ```json
 {
@@ -73,7 +75,7 @@ AegisCMS サーバーの `plugins/<name>/`（`<name>` はマニフェストの `
 }
 ```
 
-### ライフサイクルフック (`Plugin` トレイト)
+### Lifecycle Hooks (the `Plugin` trait)
 
 ```rust
 use aegis_plugin_sdk::prelude::*;
@@ -83,13 +85,13 @@ pub struct MyPlugin;
 
 #[aegis_plugin]
 impl Plugin for MyPlugin {
-    /// 記事保存前フック
+    /// Hook before an article is saved
     fn on_before_save(&mut self, mut post: PostContext) -> Result<PostContext> {
         post.title = format!("[Review] {}", post.title);
         Ok(post)
     }
 
-    /// AST 変換フック（保存済みのブロックにも再適用されるため、冪等に書く）
+    /// AST transformation hook (it is re-applied to already saved blocks, so write it to be idempotent)
     fn transform_content_ast(&mut self, mut blocks: Vec<BlockNode>) -> Result<Vec<BlockNode>> {
         let text = "Appended by plugin";
         if !blocks.iter().any(|b| b.text.as_deref() == Some(text)) {
@@ -100,10 +102,10 @@ impl Plugin for MyPlugin {
 }
 ```
 
-### 利用可能なホスト API
+### Available Host APIs
 
-| モジュール | 関数 | 説明 |
+| Module | Function | Description |
 |---|---|---|
-| `log` | `log_debug!`, `log_info!`, `log_warn!`, `log_error!` | ホスト側のロガー経由で安全にログを出力 |
-| `net` | `net::is_allowed(url)` | アクセス先 URL がマニフェストで許可されているか検証 |
-| `kv` | `kv::set(key, val)`, `kv::set_json(key, val)` | プラグイン専用ネームスペースの KVS へデータを保存 |
+| `log` | `log_debug!`, `log_info!`, `log_warn!`, `log_error!` | Writes logs safely through the host's logger |
+| `net` | `net::is_allowed(url)` | Checks whether the destination URL is allowed by the manifest |
+| `kv` | `kv::set(key, val)`, `kv::set_json(key, val)` | Saves data to the KVS in the plugin's own namespace |

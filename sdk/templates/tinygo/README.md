@@ -1,58 +1,60 @@
 # AegisCMS TinyGo WebAssembly Plugin Template
 
-AegisCMS 公式 TinyGo (Go 言語) WebAssembly プラグイン開発テンプレートです。  
-Go の直感的な構文と軽量 Wasm バイナリ生成能力を活かして、高性能かつ安全な Wasm プラグインを開発できます。
+**English** | [日本語](README.ja.md)
+
+The official AegisCMS template for developing TinyGo (Go language) WebAssembly plugins.  
+Taking advantage of Go's intuitive syntax and its ability to produce lightweight Wasm binaries, you can build high-performance and safe Wasm plugins.
 
 ---
 
-## 🚀 クイックスタート
+## 🚀 Quick Start
 
-### 1. 前提条件
+### 1. Prerequisites
 
-- **Go** (1.21 以上)
-- **TinyGo** (0.31 以上)
+- **Go** (1.21 or later)
+- **TinyGo** (0.31 or later)
 
-TinyGo のインストール手順は [TinyGo 公式ドキュメント](https://tinygo.org/getting-started/install/) を参照してください。
+For how to install TinyGo, see the [official TinyGo documentation](https://tinygo.org/getting-started/install/).
 
-### 2. WebAssembly バイナリのビルド
+### 2. Build the WebAssembly Binary
 
-TinyGo コンパイラを使用して、`wasm-unknown` ターゲットでビルドします（TinyGo 0.30+）。`wasi` ターゲットはホストが提供しない WASI の関数をインポートするため、AegisCMS では読み込めません。ホストはモジュールが `_initialize` をエクスポートしていれば、フックより先に呼び出してランタイムを初期化します。
+Build with the TinyGo compiler for the `wasm-unknown` target (TinyGo 0.30+). The `wasi` target imports WASI functions that the host does not provide, so AegisCMS cannot load it. If the module exports `_initialize`, the host calls it before any hook to initialize the runtime.
 
 ```bash
 tinygo build -target=wasm-unknown -o plugin.wasm main.go
 ```
 
-最適化とサイズ削減を行う場合：
+For optimization and size reduction:
 
 ```bash
 tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go
 ```
 
-コンパイルに成功すると、ディレクトリ直下に `plugin.wasm` が出力されます。
+On success, `plugin.wasm` is written to the directory root.
 
-### 3. AegisCMS への配置
+### 3. Deploy to AegisCMS
 
-AegisCMS サーバーの `plugins/<name>/`（`<name>` はマニフェストの `name`）に以下のファイルを配置し、設定ファイルの `[plugins].enabled` に `<name>` を追加してサーバーを再起動すると有効になります（配置しただけでは読み込まれません）。
+Place the following files in the AegisCMS server's `plugins/<name>/` (`<name>` is the manifest's `name`), add `<name>` to `[plugins].enabled` in the config file, and restart the server to enable it (placing the files alone does not load the plugin).
 
-- `plugin.manifest.json` (権限・リソース制限・フック定義)
-- `plugin.wasm` (コンパイル済み Wasm バイナリ)
+- `plugin.manifest.json` (permissions, resource limits, hook definitions)
+- `plugin.wasm` (the compiled Wasm binary)
 
 ---
 
-## 🧩 プラグイン構造
+## 🧩 Plugin Structure
 
 ```text
 sdk/templates/tinygo/
-├── go.mod                     # Go モジュール定義 (github.com/takumi-mr/AegisCMS/sdk/tinygo を参照)
-├── plugin.manifest.json       # プラグインマニフェスト (権限・フック宣言)
-├── plugin.wasm                # ビルド済み Wasm バイナリ
-└── main.go                    # プラグインのライフサイクルフック実装とエクスポート
+├── go.mod                     # Go module definition (references github.com/takumi-mr/AegisCMS/sdk/tinygo)
+├── plugin.manifest.json       # Plugin manifest (permissions and hook declarations)
+├── plugin.wasm                # Built Wasm binary
+└── main.go                    # Plugin lifecycle hook implementation and exports
 ```
 
-公式 SDK パッケージ [`github.com/takumi-mr/AegisCMS/sdk/tinygo`](../../tinygo) をインポートして実装します。
+Implement against the official SDK package [`github.com/takumi-mr/AegisCMS/sdk/tinygo`](../../tinygo).
 
-### マニフェスト (`plugin.manifest.json`)
-ゼロ・トラスト実行モデルに基づき、プラグインが必要とする最小限のケイパビリティ（権限）を宣言します。未宣言の操作はホストランタイムによって即座にブロックされます。
+### Manifest (`plugin.manifest.json`)
+Based on the zero-trust execution model, declare the minimum capabilities (permissions) the plugin needs. Any undeclared operation is blocked immediately by the host runtime.
 
 ```json
 {
@@ -74,21 +76,21 @@ sdk/templates/tinygo/
 ```
 
 > [!NOTE]
-> `on-render-page` で `<script>` を注入する場合は、`ExtraHead` や `AppendContent` に生の `<script>` タグを書かず（ホストが除去します）、`ctx.Scripts` に `sdk.ExternalScript(...)` / `sdk.InlineScript(...)` を追加してください。外部スクリプトは `capabilities.csp.script_domains`、インラインスクリプトは `capabilities.inline_scripts: true` の宣言が必要です。
+> To inject a `<script>` in `on-render-page`, do not write a raw `<script>` tag in `ExtraHead` or `AppendContent` (the host strips it); add `sdk.ExternalScript(...)` / `sdk.InlineScript(...)` to `ctx.Scripts` instead. External scripts require declaring `capabilities.csp.script_domains`, and inline scripts require `capabilities.inline_scripts: true`.
 
-### 利用可能なライフサイクルフック
+### Available Lifecycle Hooks
 
-| エクスポート関数 | 引数 | 戻り値 | 説明 |
+| Exported function | Arguments | Return | Description |
 |---|---|---|---|
-| `allocate(size: int32)` | `size: int32` | `uintptr` | メモリアロケータ (必須) |
-| `on_before_save(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | 記事保存前の検証・値補正・保存拒否 |
-| `transform_content_ast(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | 本文ブロック AST 配列の変換 |
-| `on_render_page(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | 公開ページ描画コンテキストの動的更新 |
+| `allocate(size: int32)` | `size: int32` | `uintptr` | Memory allocator (required) |
+| `on_before_save(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | Validation, value correction, and rejection before saving an article |
+| `transform_content_ast(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | Transforming the body block AST array |
+| `on_render_page(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | Dynamically updating the public page rendering context |
 
-### 利用可能なホスト API
+### Available Host APIs
 
-| 関数 | 説明 |
+| Function | Description |
 |---|---|
-| `sdk.LogDebug(msg)`, `sdk.LogInfo(msg)`, `sdk.LogWarn(msg)`, `sdk.LogError(msg)` | ホスト側のロガー経由で安全にログを出力 |
-| `sdk.NetIsAllowed(url)` | アクセス先 URL がマニフェストで許可されているか検証 |
-| `sdk.KVSet(key, value)` | プラグイン専用ネームスペースの KVS へデータを保存 |
+| `sdk.LogDebug(msg)`, `sdk.LogInfo(msg)`, `sdk.LogWarn(msg)`, `sdk.LogError(msg)` | Writes logs safely through the host's logger |
+| `sdk.NetIsAllowed(url)` | Checks whether the destination URL is allowed by the manifest |
+| `sdk.KVSet(key, value)` | Saves data to the KVS in the plugin's own namespace |

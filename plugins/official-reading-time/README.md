@@ -1,49 +1,50 @@
 # official-reading-time
 
-記事や固定ページの本文を解析し、推定読了時間と文字数・単語数のインジケーター（バッジ）を表示する公式 Wasm プラグインです（`on-render-page` フック）。
+**English** | [日本語](README.ja.md)
 
-## 特徴
+An official Wasm plugin that analyzes the body of articles and static pages and shows an indicator (badge) with the estimated reading time and the character / word count (the `on-render-page` hook).
 
-- **日本語・英語のハイブリッド対応**:
-  - 日本語・中国語・韓国語などの CJK 文字は文字数単位（既定: 500 文字/分）で計算。
-  - 英語などの欧文はスペース区切りの単語数単位（既定: 200 単語/分）で計算。
-  - 混在テキストでも正確な読了時間を算出します。
-- **柔軟な見た目と配置**:
-  - ピル型バッジ（既定）、枠線付きカード、シンプルなテキスト表示から選択可能。
-  - 本文の先頭（既定）、末尾、または両方に配置可能。
-  - テーマの `--accent` カラーと連動する時計アイコン付き。
-- **記事ごとの個別非表示**:
-  - 記事のカスタムフィールドで `hide_reading_time = true` を設定すると、その記事のみ非表示にできます。
+## Features
 
-## 設定 (`[plugins.settings.official-reading-time]`)
+- **Hybrid Japanese and English support**:
+  - CJK characters such as Japanese, Chinese, and Korean are calculated per character (default: 500 characters/minute).
+  - Western text such as English is calculated per space-separated word (default: 200 words/minute).
+  - It calculates an accurate reading time even for mixed text.
+- **Flexible appearance and placement**:
+  - Choose from a pill badge (default), a bordered card, or plain text display.
+  - Can be placed at the start of the body (default), the end, or both.
+  - Comes with a clock icon that follows the theme's `--accent` color.
+- **Per-article hiding**:
+  - Setting `hide_reading_time = true` in an article's custom field hides it for that article only.
+
+## Settings (`[plugins.settings.official-reading-time]`)
 
 ```toml
 [plugins.settings.official-reading-time]
-# 対象コンテンツタイプ (カンマ区切り、既定: "article")
+# Target content types (comma-separated, default: "article")
 content_types = "article"
 
-# 表示モード: "both" (読了時間と文字数両方) / "time_only" (時間のみ) / "chars_only" (文字数のみ)
+# Display mode: "both" (reading time and character count) / "time_only" (time only) / "chars_only" (character count only)
 display_mode = "both"
 
-# 表示位置: "top" (先頭) / "bottom" (末尾) / "both" (両方)
+# Display position: "top" (start) / "bottom" (end) / "both"
 position = "top"
 
-# バッジのスタイル: "badge" (角丸ピル) / "simple" (シンプルテキスト) / "card" (枠線付きカード)
+# Badge style: "badge" (rounded pill) / "simple" (plain text) / "card" (bordered card)
 badge_style = "badge"
 
-# 時計アイコンの表示 (既定: true)
+# Show the clock icon (default: true)
 show_icon = true
 
-# 読書速度 (単語/分、欧文向け、既定: 200)
+# Reading speed (words/minute, for Western text, default: 200)
 words_per_minute = 200
 
-# 読書速度 (文字/分、CJK向け、既定: 500)
+# Reading speed (characters/minute, for CJK, default: 500)
 chars_per_minute = 500
 
-# アクセントカラー (CSS カラー指定。省略時はテーマの --accent)
+# Accent color (a CSS color. If omitted, the theme's --accent)
 accent_color = ""
 
-# カスタム表示フォーマット ({time}, {chars}, {words} が使用可能。空欄時は自動)
+# Custom display format ({time}, {chars}, {words} can be used. Automatic when empty)
 format = ""
 ```
-

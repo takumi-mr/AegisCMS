@@ -1,45 +1,47 @@
 # official-lightbox
 
-本文の画像を、**クリックで拡大して見られる**ようにする公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.md)）。
+**English** | [日本語](README.ja.md)
 
-- 画像をクリック（またはフォーカスして Enter / Space）すると、画面いっぱいの表示（`<dialog>`）で開きます。**Esc**・背景のクリック・閉じるボタンで閉じ、閉じるとフォーカスが元の画像に戻ります。
-- 本文に画像が複数あれば、**前後の画像へ**（ボタン・← → キー。端でぐるっと回ります）。`alt` を説明文として出せます。
-- **リンクの中の画像**（クリックでリンク先へ行くもの）と、**小さな画像**（`min_width_px` 未満。アイコンなど）は対象にしません。
-- 画像は表示中のもの（`currentSrc`）をそのまま拡大します。より大きな元画像への差し替えはしません。
-- 本文に `<img` が無いページには何も足しません。スクリプトが動かなくても、画像はそのまま見えます。
+An official plugin that lets readers **click to enlarge** images in the body (the [`on-render-page` hook](../../docs/plugin_hooks.md)).
 
-## 使い方
+- Clicking an image (or focusing it and pressing Enter / Space) opens it in a full-screen view (`<dialog>`). It closes with **Esc**, a click on the background, or the close button, and focus returns to the original image.
+- If the body has multiple images, you can go **to the previous / next image** (buttons, ← → keys; it wraps around at the ends). The `alt` can be shown as a caption.
+- **Images inside links** (ones where a click goes to the link target) and **small images** (under `min_width_px`, such as icons) are not targeted.
+- The image shown (`currentSrc`) is enlarged as is. It does not swap in a larger original image.
+- It adds nothing to pages without `<img` in the body. Images remain visible as is even if scripts do not run.
 
-設定ファイルの `[plugins].enabled` に `"official-lightbox"` を足すか、Admin Studio の **Settings › Plugins** で有効にします。
+## Usage
+
+Add `"official-lightbox"` to `[plugins].enabled` in the config file, or enable it in Admin Studio's **Settings › Plugins**.
 
 ```toml
 [plugins]
 enabled = ["official-lightbox"]
 ```
 
-テーマが `extra_head` と `extra_css` を出力している必要があります（組み込みのテンプレートは出力します）。
+The theme must output `extra_head` and `extra_css` (the built-in templates do).
 
-## 設定
+## Settings
 
-Admin Studio の **Settings › Plugins** の「設定」か、設定ファイルの `[plugins.settings.official-lightbox]` で変えます。省略した項目・不正な値は既定値になります。
+Change them in the "Settings" of Admin Studio's **Settings › Plugins**, or in `[plugins.settings.official-lightbox]` in the config file. Omitted items and invalid values fall back to the defaults.
 
-| キー | 既定値 | 説明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `content_types` | `article,page` | 動かすコンテンツの種類（カンマ区切り） |
-| `selector` | `.prose` | 本文の範囲（CSS セレクター。カンマ区切りで複数）。この中の画像だけを対象にする |
-| `min_width_px` | `120` | 対象にする画像の最小の幅（0〜2000） |
-| `show_caption` | `true` | `alt` を説明文として出す |
-| `animate` | `true` | ふわっと表示する（`prefers-reduced-motion` のときはしない） |
-| `bg_color` | `rgba(0,0,0,.88)` | 背景色。`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名 |
-| `locale` | `en` | 読み上げ用の名前の言語（`en` / `ja`） |
+| `content_types` | `article,page` | Content types to run on (comma-separated) |
+| `selector` | `.prose` | The scope of the body (CSS selectors; several separated by commas). Only images inside it are targeted |
+| `min_width_px` | `120` | Minimum width of images to target (0–2000) |
+| `show_caption` | `true` | Show the `alt` as a caption |
+| `animate` | `true` | Fade in on display (not when `prefers-reduced-motion` is set) |
+| `bg_color` | `rgba(0,0,0,.88)` | Background color. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name |
+| `locale` | `en` | Language of the screen-reader names (`en` / `ja`) |
 
-## 見た目を変える
+## Changing the Appearance
 
-拡大表示は `<dialog class="olb">`（画像は `.olb-full`、説明は `.olb-caption`、ボタンは `.olb-btn`）、対象の画像は `img.olb-img` です。設定で足りないところは、テーマの CSS で上書きしてください。
+The enlarged view is `<dialog class="olb">` (the image is `.olb-full`, the caption is `.olb-caption`, and the buttons are `.olb-btn`), and targeted images are `img.olb-img`. Where the settings are not enough, override with the theme's CSS.
 
-## ビルド
+## Build
 
 ```bash
-task plugin:build:content   # plugin.wasm を作り直す（要 rustup target add wasm32-unknown-unknown）
+task plugin:build:content   # rebuild plugin.wasm (requires rustup target add wasm32-unknown-unknown)
 cargo test -p aegis-plugin-lightbox
 ```

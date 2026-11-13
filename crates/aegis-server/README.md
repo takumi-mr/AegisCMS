@@ -1,45 +1,47 @@
 # aegis-server
 
-AegisCMS の HTTP サーバー、CLI エントリポイント、REST API ルーティング、および全体統合クレート。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's HTTP server, CLI entry point, REST API routing, and overall integration crate.
 
-`aegis-server` は、すべてのドメインクレート（`aegis-db`, `aegis-storage`, `aegis-auth`, `aegis-runtime`, `aegis-theme` 等）を統合し、シングルバイナリとして動作する Axum ベースの HTTP サーバーおよび CLI ツールを提供します。
+## Overview
 
-公開 Web サイトの SSR レンダリング、Admin Studio (React SPA) の静的アセット配信、コンテンツ管理 RESTful API、セキュリティヘッダー付与、認可ミドルウェア、定時タスクスケジューラ（公開予約や定期バックアップ）などを統括します。
+`aegis-server` integrates all the domain crates (`aegis-db`, `aegis-storage`, `aegis-auth`, `aegis-runtime`, `aegis-theme`, etc.) and provides an Axum-based HTTP server and CLI tool that runs as a single binary.
 
-## 主な責務・提供機能
+It oversees SSR rendering of the public website, static asset delivery for Admin Studio (a React SPA), the content management RESTful API, security header injection, authorization middleware, and a scheduled task scheduler (scheduled publishing and periodic backups).
 
-- **CLI コマンド (`main.rs`)**:
-  - `aegis-server run`: コアサーバーの起動。
-  - `aegis-server migrate`: スキーマの自動マイグレーション実行。
-  - `aegis-server dump` / `restore`: データベースおよびストレージの一括バックアップと復元。
-  - `aegis-server theme dev`: テーマのローカル開発サーバー起動。
-  - `aegis-server plugin dev`: Wasm プラグインのローカル開発サーバー起動。
-  - 管理者ユーザー作成、パスワードリセットなどの管理ユーティリティ。
-- **HTTP / REST API ルーティング (`app.rs`, `handlers/`)**:
-  - コンテンツ CRUD、メディアアップロード、スキーマ取得、プラグイン設定、コメント、EC 注文、監査ログ等の API。
-- **公開ページレンダリング (`render.rs`)**:
-  - `aegis-theme` による MiniJinja SSR レンダリング、メタタグ/SEO 出力、Wasm プラグインフック（`on_render_page`）の適用。
-- **Admin Studio 配信**:
-  - React ベースの SPA を組み込み配信、HTML5 History API のフォールバック。
-- **セキュリティ・ミドルウェア**:
-  - セキュリティヘッダー（CSP、HSTS、X-Content-Type-Options、X-Frame-Options）。
-  - Cookie / Bearer Token によるセッション認証および RBAC 認可。
-  - レートリミット、CORS、監査ログ（`AuditOrigin`）の自動コンテキスト抽出。
-- **統合設定 (`config::AegisConfig`)**:
-  - `aegis.toml` から全ドメインクレートの設定（DB, ストレージ, キャッシュ, 認証, EC 等）を一元パース・管理。
+## Responsibilities and Features
 
-## モジュール構成
+- **CLI commands (`main.rs`)**:
+  - `aegis-server run`: start the core server.
+  - `aegis-server migrate`: run automatic schema migration.
+  - `aegis-server dump` / `restore`: one-shot backup and restore of the database and storage.
+  - `aegis-server theme dev`: start the local theme development server.
+  - `aegis-server plugin dev`: start the local Wasm plugin development server.
+  - Administration utilities such as creating administrator users and resetting passwords.
+- **HTTP / REST API routing (`app.rs`, `handlers/`)**:
+  - APIs for content CRUD, media upload, schema retrieval, plugin settings, comments, e-commerce orders, audit logs, and more.
+- **Public page rendering (`render.rs`)**:
+  - MiniJinja SSR rendering through `aegis-theme`, meta tag / SEO output, and application of Wasm plugin hooks (`on_render_page`).
+- **Admin Studio delivery**:
+  - Serves the embedded React-based SPA, with an HTML5 History API fallback.
+- **Security middleware**:
+  - Security headers (CSP, HSTS, X-Content-Type-Options, X-Frame-Options).
+  - Session authentication with Cookie / Bearer Token and RBAC authorization.
+  - Rate limiting, CORS, and automatic context extraction for audit logs (`AuditOrigin`).
+- **Integrated configuration (`config::AegisConfig`)**:
+  - Parses and manages the settings of all domain crates (DB, storage, cache, authentication, e-commerce, etc.) from `aegis.toml` in one place.
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `app` | Axum Router の構築、ミドルウェアチェイン設定 |
-| `config` | 全体設定 `AegisConfig` の定義と読み込み |
-| `handlers` | REST API エンドポイントハンドラ群（コンテンツ、ユーザー、メディア、EC 等） |
-| `render` | 公開ページのテンプレート描画・SEO メタ・プラグインフック合成 |
-| `auth` | 認証・認可ミドルウェア、セッション検証 |
-| `audit` | リクエスト情報から監査ログ用コンテキスト (`AuditOrigin`) を抽出 |
-| `scheduler` | 公開予約、ゴミ箱自動パージ等のバックグラウンドタスクスケジューラ |
-| `headers` | Content-Security-Policy や各種セキュリティヘッダーの構築 |
-| `state` | アプリケーション共有状態 (`AppState`) |
+| `app` | Axum Router construction and middleware chain setup |
+| `config` | Definition and loading of the overall settings `AegisConfig` |
+| `handlers` | REST API endpoint handlers (content, users, media, e-commerce, etc.) |
+| `render` | Template rendering of public pages, SEO meta, and plugin hook composition |
+| `auth` | Authentication and authorization middleware, session validation |
+| `audit` | Extracts the audit log context (`AuditOrigin`) from request information |
+| `scheduler` | Background task scheduler for scheduled publishing, automatic trash purging, etc. |
+| `headers` | Construction of Content-Security-Policy and other security headers |
+| `state` | Application shared state (`AppState`) |

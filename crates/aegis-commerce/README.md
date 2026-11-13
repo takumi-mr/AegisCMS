@@ -1,36 +1,38 @@
 # aegis-commerce
 
-AegisCMS の EC（電子商取引）・見積もり・注文ライフサイクル・在庫管理・決済連携クレート（`[commerce]`）。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's crate for e-commerce, quotes, the order lifecycle, inventory management, and payment integration (`[commerce]`).
 
-`aegis-commerce` は、商品バリアントの管理、カート見積もり、注文確定と状態遷移、在庫の排他制御・引き当て、オンライン決済（Stripe）および手動決済（銀行振込・着払い）の処理を提供する E コマースサブシステムです。
+## Overview
 
-Wasm プラグインによる柔軟な価格・税・割引ルールの計算フック（`calculate_order`）や注文状態変更フック（`on_order_status_changed`）と統合されています。
+`aegis-commerce` is an e-commerce subsystem that provides product variant management, cart quotes, order confirmation and state transitions, exclusive locking and reservation of inventory, and processing of online payments (Stripe) and manual payments (bank transfer, cash on delivery).
 
-## 主な責務・提供機能
+It is integrated with Wasm plugin hooks for flexible price, tax, and discount rule calculation (`calculate_order`) and for order status changes (`on_order_status_changed`).
 
-- **見積もりと価格計算 (`CommerceService::quote`)**:
-  - カート内商品（バリアント）の小計計算。
-  - Wasm プラグイン（`calculate_order`）によるクーポン値引き、配送料計算、軽減税率などの動的インジェクション。
-  - 通貨単位に応じた端数処理・フォーマット。
-- **注文ライフサイクルと在庫管理 (`orders`)**:
-  - 注文の作成 (`pending`)、決済完了 (`paid`)、出荷 (`fulfilled`)、キャンセル (`cancelled`)、返金 (`refunded`) の厳格なステートマシン。
-  - 注文作成時の在庫アトミック減算と、キャンセル時の在庫自動復元。
-- **決済プロバイダ連携 (`payment`)**:
-  - **Stripe (`stripe`)**: Stripe Checkout Session の生成、および Stripe Webhook 署名検証とステータス自動反映。
-  - **Manual**: 銀行振込、請求書払い、代金引換などの手動消込フロー。
-- **会員の注文履歴・商品レビュー管理 (`member_data`, `review`)**:
-  - 会員の注文履歴の参照、退会のときの後始末（注文の紐づきを外す・レビューを匿名にする）。会員アカウント自体は `aegis-members`。
-  - 購入者限定の評価・商品レビュー投稿およびモデレーション。
+## Responsibilities and Features
 
-## モジュール構成
+- **Quotes and price calculation (`CommerceService::quote`)**:
+  - Subtotal calculation for the items (variants) in the cart.
+  - Dynamic injection of coupon discounts, shipping fees, reduced tax rates, etc., by Wasm plugins (`calculate_order`).
+  - Rounding and formatting according to the currency unit.
+- **Order lifecycle and inventory management (`orders`)**:
+  - A strict state machine for order creation (`pending`), payment completion (`paid`), shipment (`fulfilled`), cancellation (`cancelled`), and refund (`refunded`).
+  - Atomic inventory decrement at order creation and automatic inventory restoration on cancellation.
+- **Payment provider integration (`payment`)**:
+  - **Stripe (`stripe`)**: creating Stripe Checkout Sessions, verifying Stripe webhook signatures, and reflecting statuses automatically.
+  - **Manual**: manual reconciliation flows such as bank transfer, invoice payment, and cash on delivery.
+- **Member order history and product review management (`member_data`, `review`)**:
+  - Viewing a member's order history, and cleanup on withdrawal (detaching orders from the member and anonymizing reviews). The member account itself is handled by `aegis-members`.
+  - Posting and moderating purchaser-only ratings and product reviews.
 
-| モジュール | 説明 |
+## Module Layout
+
+| Module | Description |
 | :--- | :--- |
-| `lib` | `CommerceService` 実装、見積もり・注文ステートマシン |
-| `payment` | 決済プロバイダ抽象 (`PaymentProvider`) |
-| `stripe` | Stripe API 連携および Webhook 処理 |
-| `member_data` | 会員の注文履歴・退会時の後始末（会員のクレートは注文を知らないので、こちらが結びつける） |
-| `review` | 商品レビュー管理 |
-| `config` | EC 設定 (`CommerceConfig`: 通貨、送料、決済キー等) |
+| `lib` | `CommerceService` implementation; quote and order state machine |
+| `payment` | Payment provider abstraction (`PaymentProvider`) |
+| `stripe` | Stripe API integration and webhook handling |
+| `member_data` | Member order history and cleanup on withdrawal (the members crate does not know about orders, so this crate links them) |
+| `review` | Product review management |
+| `config` | E-commerce settings (`CommerceConfig`: currency, shipping fees, payment keys, etc.) |

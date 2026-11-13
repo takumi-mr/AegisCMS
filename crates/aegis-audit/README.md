@@ -1,30 +1,32 @@
 # aegis-audit
 
-AegisCMS の監査ログ（Audit Log）配送サービスおよび各種出力先シンク実装。
+**English** | [日本語](README.ja.md)
 
-## 概要
+AegisCMS's audit log delivery service and implementations of the various output sinks.
 
-`aegis-audit` は、管理操作、認証イベント、コンテンツ変更、プラグイン実行、設定更新などの監査イベントをキャプチャし、安全に永続化・配送するクレートです。
+## Overview
 
-エンタープライズセキュリティ要件に対応し、改ざん防止、多重シンクへのファンアウト配信、保持期間（TTL）に基づく自動クリーンアップ、Prometheus メトリクス連携を提供します。
+`aegis-audit` is the crate that captures audit events such as admin operations, authentication events, content changes, plugin executions, and settings updates, and persists and delivers them safely.
 
-## 主な責務・提供機能
+To meet enterprise security requirements, it provides tamper resistance, fan-out delivery to multiple sinks, automatic cleanup based on a retention period (TTL), and Prometheus metrics integration.
+
+## Responsibilities and Features
 
 - **AuditService**:
-  - アプリケーション全体からの監査イベント (`AuditEvent`) の非同期受信およびシンクへの一括配送。
-  - 送信元コンテキスト (`AuditOrigin`: IP アドレス、User-Agent、リクエスト ID) の紐付け。
-  - 保持期間（`retention_days`）を過ぎた過去ログの自動パージ。
-- **各種出力先シンク (`AuditSink`)**:
-  - `DatabaseAuditSink`: データベース（`_aegis_audit_logs` テーブル）への構造化永続化。Admin Studio からの検索・閲覧に対応。
-  - `LogAuditSink`: ホストの `tracing` ログ（または syslog / 標準出力）への JSON 形式出力。SIEM 連携に最適。
-  - `PrometheusAuditSink`: 監査イベントの頻度や異常イベント（認証失敗、アクセス拒否等）を Prometheus カウンターメトリクスとして集計・公開。
+  - Asynchronously receives audit events (`AuditEvent`) from across the application and delivers them to the sinks in bulk.
+  - Attaches the origin context (`AuditOrigin`: IP address, User-Agent, request ID).
+  - Automatically purges old logs past the retention period (`retention_days`).
+- **Output sinks (`AuditSink`)**:
+  - `DatabaseAuditSink`: structured persistence in the database (the `_aegis_audit_logs` table). Searchable and viewable from Admin Studio.
+  - `LogAuditSink`: JSON output to the host's `tracing` log (or syslog / stdout). Ideal for SIEM integration.
+  - `PrometheusAuditSink`: aggregates and exposes the frequency of audit events and anomalous events (authentication failures, access denials, etc.) as Prometheus counter metrics.
 
-## モジュール構成
+## Module Layout
 
-| モジュール | 説明 |
+| Module | Description |
 | :--- | :--- |
-| `database` | データベース出力シンク (`DatabaseAuditSink`) |
-| `log` | 構造化ロギング出力シンク (`LogAuditSink`) |
-| `metrics` | Prometheus メトリクス出力シンク (`PrometheusAuditSink`) |
-| `origin` | リクエストコンテキスト抽出 (`AuditOrigin`) |
-| `config` | 監査設定 (`AuditConfig`, `AuditSinkKind`) |
+| `database` | Database output sink (`DatabaseAuditSink`) |
+| `log` | Structured logging output sink (`LogAuditSink`) |
+| `metrics` | Prometheus metrics output sink (`PrometheusAuditSink`) |
+| `origin` | Request context extraction (`AuditOrigin`) |
+| `config` | Audit settings (`AuditConfig`, `AuditSinkKind`) |

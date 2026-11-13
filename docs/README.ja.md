@@ -1,0 +1,94 @@
+# AegisCMS ドキュメントポータル (Documentation Index)
+
+[English](README.md) | **日本語**
+
+AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラグイン）、運用に関する公式ドキュメント集です。  
+知りたい内容や担当ロール（サイト運用者、テーマ制作者、プラグイン開発者、コア開発者）に応じて最適なドキュメントを参照してください。
+
+---
+
+## 🗺️ ドキュメントマップ
+
+### 1. 🏗️ コアアーキテクチャ & 設計
+| ドキュメント | 概要 | 対象 |
+|---|---|---|
+| [アーキテクチャ設計書 (`architecture.md`)](architecture.md) | 全クレート構成、DB抽象化、公開パイプライン、キャッシュ/セッション、Wasmランタイム、バックアップなどシステム全体の詳細設計 | コア開発者・運用者 |
+| [設定ファイルリファレンス (`configuration.md`)](configuration.md) | `config/default.toml` の全項目リファレンス、環境変数オーバーライド、Admin Studio からの動的システム設定（`system.*`） | 運用者・コア開発者 |
+| [開発ガイド (`development.md`)](development.md) | `task` コマンド、ビルド手順、CI、ローカルDB検証、E2Eテスト、Storybook、CLIリファレンス、開発Tips | コア開発者 |
+| [REST API 仕様書 (`openapi.json`)](openapi.json) | OpenAPI 3.0 準拠の REST API 仕様定義ファイル | API連携者・開発者 |
+
+### 2. 🔐 セキュリティ・認証・監査
+| ドキュメント | 概要 | 対象 |
+|---|---|---|
+| [認証 & ユーザー管理 (`authentication.md`)](authentication.md) | ローカル認証（Argon2id）、セッション管理、OpenID Connect、SAML 2.0、アカウント登録・招待フロー、API トークン（LLM・CI 向け） | 運用者・コア開発者 |
+| [監査ログリファレンス (`audit.md`)](audit.md) | 操作監査ログの出力先（DB/ログ/Prometheus）、イベント種別一覧、保持期間、Admin Studio での閲覧 | 運用者・監査者 |
+| [セキュリティ評価レポート (`security-assessment-report.md`)](security-assessment-report.md) | 内部検査、OWASP ZAP スキャン結果、脆弱性対策状況とステータス | セキュリティ担当 |
+| [ペネトレーションテスト手順 (`penetration-testing.md`)](penetration-testing.md) | Docker Compose を用いた安全なローカル検証環境の構築と脆弱性スキャン手順 | セキュリティ担当 |
+| [WordPress との比較ベンチマーク (`benchmark.md`)](benchmark.md) | Docker で AegisCMS と WordPress を同じ条件で動かした比較結果（キャッシュあり・なし）と再現手順 | 運用担当・評価者 |
+
+### 3. 🎨 テーマ開発 & フロントエンド
+| ドキュメント | 概要 | 対象 |
+|---|---|---|
+| [テーマ作成ガイド (`theme_authoring_guide.md`)](theme_authoring_guide.md) | テーマのディレクトリ構成、`theme.json`、テンプレート変数、CSS設計、`theme dev`・Theme Builder の使い方 | テーマ制作者 |
+| [コンテンツ公開 & テーマエンジン開発ガイド (`theme_and_publishing_guide.md`)](theme_and_publishing_guide.md) | MiniJinja 3層フォールバック機構、予約公開/非公開、Atom フィード、公開ルーティング設計 | テーマ制作者・開発者 |
+| [本文ブロック & Markdown リファレンス (`blocks.md`)](blocks.md) | 見出し、段落、表、TOC、コールアウト、カスタム HTML（sanitized / sandbox）、プラグインブロック仕様 | コンテンツ作成者・制作者 |
+
+### 4. 🔌 WebAssembly プラグイン拡張
+| ドキュメント | 概要 | 対象 |
+|---|---|---|
+| [Wasm プラグイン開発公式ガイド (`plugin_sdk_guide.md`)](plugin_sdk_guide.md) | Rust / AssemblyScript / TinyGo SDK によるプラグイン開発、ビルド、テスト、配布・署名手順 | プラグイン開発者 |
+| [最初のブロックプラグインを作る (`plugin_block_tutorial.md`)](plugin_block_tutorial.md) | テンプレートから本文に置けるカスタムブロックのプラグインを作り、実サーバーの記事に表示するまでの手順（15 分） | プラグイン開発者 |
+| [プラグイン開発サーバー & Plugin Builder (`plugin_dev_server.md`)](plugin_dev_server.md) | 軽量開発サーバー（`aegis-server plugin dev`）とリアルタイム検証 UI（Plugin Builder）によるプラグイン開発・デバッグ | プラグイン開発者 |
+| [バージョニングとリリース (`versioning.md`)](versioning.md) | コア・SDK・プラグインのバージョン方針、プラグインの互換性（`min_aegis_version` / `abi_version`）、release-please によるリリース手順 | 開発者・リリース担当 |
+| [プラグインフック & ホスト API リファレンス (`plugin_hooks.md`)](plugin_hooks.md) | 利用可能な全フック仕様、データ構造、マニフェスト定義、ホスト API、動的実行順制御 | プラグイン開発者 |
+| [共通 ABI 仕様書 (`plugin_abi_specification.md`)](plugin_abi_specification.md) | Wasm モジュールとホスト間の低レベル ABI シグネチャ、メモリレイアウト、データ交換規約 | SDK開発者 |
+
+### 5. 🧩 組み込み機能・サービス
+| ドキュメント | 概要 | 対象 |
+|---|---|---|
+| [メディア & ストレージ管理 (`media.md`)](media.md) | アップロード処理、画像最適化、ファイルサイズ制限、ストレージ操作 API | 運用者・開発者 |
+| [サイト内検索 (`search.md`)](search.md) | tantivy を用いた全文検索、インデックス構築・自動更新、検索 API / 画面表示 | 運用者・開発者 |
+| [会員アカウント (`members.md`)](members.md) | 訪問者のアカウント（管理アカウントとは別）。ショップ（注文履歴・レビュー）と掲示板で共通。API、購入者向けの画面、パスワードの再設定とメールの確認、退会、管理画面、設定、顧客アカウントからの移行 | 運用者・テーマ制作者・開発者 |
+| [記事・コンテンツ投稿 API (`content-api.md`)](content-api.md) | 外部ツール・CI/CD・スクリプトから記事を自動投稿・下書き保存・更新・管理する REST API ガイド | 開発者・運用者 |
+| [ヘッドレス配信 API (`headless.md`)](headless.md) | 認証なしで公開済みコンテンツだけを JSON で返す読み取り API。使い方、スキーマ駆動の応答、クレート構成、安全性、キャッシュ | コア開発者 |
+| [アクセス解析 (`analytics.md`)](analytics.md) | Cookie を使用しないプライバシー配慮型軽量アクセス解析、統計収集と Admin Studio 表示 | 運用者 |
+| [問い合わせフォーム (`contact.md`)](contact.md) | 設定ファイルによるフォーム動的生成、ボット対策、通知連携、Admin Studio 受信箱 | 運用者・制作者 |
+| [Cookie の同意バナー (`consent.md`)](consent.md) | 同意が要る広告・解析・埋め込みを、同意があるまで実行しないバナー、`data-aegis-consent` の書き方、JavaScript の API | 運用者・制作者 |
+| [CSP の方針 (`csp.md`)](csp.md) | 公開サイトと Admin Studio の Content-Security-Policy の現状、公開ページを Strict CSP にする設計（ハッシュ方式、プラグインの構造化した注入、`[security].strict_csp`） | 開発者・運用者 |
+| [お知らせバナー (`notices.md`)](notices.md) | 期間を決めて全ページの上部に出す告知（メンテナンス・セール）、閉じるボタン、`notices.html` の書き方、API | 運用者・制作者 |
+| [ニュースレター (`newsletter.md`)](newsletter.md) | メールアドレスの申し込み（ダブルオプトイン）、配信停止リンク、公開中の記事の一斉配信、Admin Studio での管理 | 運用者・制作者 |
+| [リダイレクト (`redirects.md`)](redirects.md) | 旧 URL から新 URL への 301 / 302 転送、slug 変更時の自動の規則、API、Admin Studio での管理 | 運用者・制作者 |
+| [タグ (`tags.md`)](tags.md) | どのコンテンツにも付けられる管理されたタグ、API、Admin Studio での管理と付与、バックアップ | 運用者・制作者・開発者 |
+| [コメント管理 (`comments.md`)](comments.md) | 記事・商品へのコメント受付、モデレーション（承認制・NGワード・IP制限）、通知 | 運用者・制作者 |
+| [掲示板システム (`forum.md`)](forum.md) | スレッド式掲示板、独立 DB 構成、キーセットページネーション、通報・モデレーション | 運用者・制作者 |
+| [EC・コマース機能 (`commerce.md`)](commerce.md) | 商品・バリエーション、カート、在庫引き当て、注文ステータス遷移、決済連携 | 運用者・開発者 |
+| [宣言的クエリ (`queries.md`)](queries.md) | YAML で宣言する集計・条件つき一覧（件数・合計・上位 N 件）。ホストが実行して結果だけをテーマ・プラグインに渡す。`[queries]` の設定、副表（公開側の列）、タイムゾーン | 制作者・開発者 |
+| [通知サービス (`notifications.md`)](notifications.md) | メール（SMTP）および Webhook によるイベント通知、多言語テンプレート、キュー配信 | 運用者・開発者 |
+
+---
+
+## 🎯 ロール別おすすめ読書順
+
+### 👩‍💼 サイト運用者 / 管理者
+1. [設定ファイルリファレンス (`configuration.md`)](configuration.md) - 基本設定および管理画面からの動的設定（`system.*`）
+2. [認証 & ユーザー管理 (`authentication.md`)](authentication.md) - ユーザー登録、ロール権限、SSO 連携
+3. [監査ログ (`audit.md`)](audit.md) / [アクセス解析 (`analytics.md`)](analytics.md) - 運用監視とアクセス統計
+4. [記事・コンテンツ投稿 API (`content-api.md`)](content-api.md) - 外部ツールやスクリプトからの自動投稿・更新フロー
+
+### 🎨 Webデザイナー / テーマ制作者
+1. [テーマ作成ガイド (`theme_authoring_guide.md`)](theme_authoring_guide.md) - テーマ構成と `theme dev` / Theme Builder による高速開発
+2. [本文ブロック & Markdown リファレンス (`blocks.md`)](blocks.md) - 記事本文に挿入される要素と CSS スタイリング
+3. [コンテンツ公開 & テーマエンジン開発ガイド (`theme_and_publishing_guide.md`)](theme_and_publishing_guide.md) - 公開URLルーティングと MiniJinja 詳細仕様
+
+### 🧩 プラグイン拡張開発者
+1. [Wasm プラグイン開発公式ガイド (`plugin_sdk_guide.md`)](plugin_sdk_guide.md) - テンプレートからの開発開始とデバッグ
+2. [プラグイン開発サーバー & Plugin Builder (`plugin_dev_server.md`)](plugin_dev_server.md) - ローカルでの即時検証とインタラクティブテスト
+3. [プラグインフック & ホスト API リファレンス (`plugin_hooks.md`)](plugin_hooks.md) - フックとホスト API の完全仕様
+4. [共通 ABI 仕様書 (`plugin_abi_specification.md`)](plugin_abi_specification.md) - 低レベルメモリ ABI（新言語 SDK 開発時など）
+
+### 🛠️ AegisCMS コア開発者 / コントリビューター
+1. [エージェント運用規約 (`AGENTS.md`)](../AGENTS.md) - ブランチ規約、コミット規約、PR 検証ルール
+2. [開発ガイド (`development.md`)](development.md) - `task` コマンド、テスト実行、ローカル検証環境
+3. [アーキテクチャ設計書 (`architecture.md`)](architecture.md) - システム全体のアーキテクチャと内部構造
+4. [タスク管理 (`TODO.md`)](../TODO.md) - 現在のステータスと未着手タスク
+

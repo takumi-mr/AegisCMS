@@ -1,20 +1,22 @@
 # aegis-members
 
-AegisCMS の会員アカウントのクレート（`[members]`）。ショップ・掲示板などが共通で使う、訪問者のアカウントです。
+**English** | [日本語](README.ja.md)
 
-CMS の管理アカウント（`_aegis_users`）とは、テーブルもセッションも権限も共有しません。注文やレビュー、掲示板の投稿など、機能ごとのデータは扱いません（それぞれの機能のクレートが、会員の ID で結びつけます）。
+AegisCMS's crate for member accounts (`[members]`). These are visitor accounts shared by features such as the shop and the forum.
 
-## 提供するもの
+It shares no tables, sessions, or permissions with the CMS's admin accounts (`_aegis_users`). It does not handle per-feature data such as orders, reviews, or forum posts (each feature's crate links them using the member ID).
 
-- **`MemberService`**: 登録、ログイン、セッション（キャッシュ。ログイン中の端末ごと。パスワードの変更・停止で、その会員の全セッションを失効）、プロフィールの更新、パスワードの再設定、メールアドレスの確認、停止・再開（管理者）、退会。
-- **`MembersConfig`** / `MemberRegistration`: `[members]` の設定と検証。
+## What It Provides
 
-## 退会の手順
+- **`MemberService`**: sign-up, login, sessions (cache-backed; per logged-in device; changing the password or suspending revokes all of that member's sessions), profile updates, password reset, email address verification, suspension and reinstatement (by administrators), and withdrawal.
+- **`MembersConfig`** / `MemberRegistration`: the `[members]` settings and their validation.
 
-`MemberService::delete_account` は、会員の行を消してセッションを失効させるだけです。呼び出す側が次の順に行います（途中で失敗しても、同じ手順をやり直せます）。
+## Withdrawal Procedure
 
-1. `confirm_password`（本人の確認）
-2. 機能ごとの後始末（ショップ: `aegis_commerce::member_data::release_member`）
+`MemberService::delete_account` only deletes the member's row and revokes the sessions. The caller performs the following steps in order (if a step fails partway, the same procedure can be run again).
+
+1. `confirm_password` (confirming the person's identity)
+2. Per-feature cleanup (shop: `aegis_commerce::member_data::release_member`)
 3. `delete_account`
 
-仕様は [docs/members.md](../../docs/members.md)。
+For the specification, see [docs/members.md](../../docs/members.md).

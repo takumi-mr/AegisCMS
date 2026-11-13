@@ -1,9 +1,11 @@
 # aegis-plugin-slack-notifier
 
-AegisCMS サンプルプラグイン。
-記事保存フック (`on-before-save`) を受信してホストにログを出すだけの、WAT で書いた最小のサンプルです（Slack への送信は実装していません）。
+**English** | [日本語](README.ja.md)
 
-## ケイパビリティ
+An AegisCMS sample plugin.
+A minimal sample written in WAT that only receives the article save hook (`on-before-save`) and writes a log to the host (it does not actually send anything to Slack).
+
+## Capabilities
 - Network: `hooks.slack.com`
 - Storage: `slack_notifier_state`
 - Hooks: `on-before-save`, `transform-content-ast`

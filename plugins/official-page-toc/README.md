@@ -1,42 +1,44 @@
 # official-page-toc
 
-記事・固定ページの横に、**見出しへのリンク（目次）**と**スクロールの進捗**を出す公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.md)）。
+**English** | [日本語](README.ja.md)
 
-- 目次はサーバー側で本文の見出し（`<h2 id="...">` など。`id` は組み込みの処理が付けます）から作るので、JavaScript が無くてもリンクとして使えます。
-- 進捗のバーと「いま読んでいる見出し」の強調だけが、`extra_head` に入るインラインのスクリプトで動きます。Admin Studio のプレビューは `sandbox` でスクリプトが動かないため、公開ページでだけ動きます。
-- 画面が狭いとき（既定は 1200px 未満）と印刷では出しません。`prefers-reduced-motion` のときはなめらかなスクロールにしません。
+An official plugin that shows **links to headings (a table of contents)** and **scroll progress** beside articles and static pages (the [`on-render-page` hook](../../docs/plugin_hooks.md)).
 
-## 使い方
+- The table of contents is built on the server from the headings in the body (`<h2 id="...">` etc.; the built-in processing adds the `id`), so the links work even without JavaScript.
+- Only the progress bar and the highlighting of "the heading currently being read" run on an inline script that goes into `extra_head`. The Admin Studio preview is a `sandbox` where scripts do not run, so it works only on public pages.
+- It is not shown when the screen is narrow (under 1200px by default) or when printing. With `prefers-reduced-motion`, scrolling is not smooth.
 
-設定ファイルの `[plugins].enabled` に `"official-page-toc"` を足すか、Admin Studio の **Settings › Plugins** で有効にします。
+## Usage
+
+Add `"official-page-toc"` to `[plugins].enabled` in the config file, or enable it in Admin Studio's **Settings › Plugins**.
 
 ```toml
 [plugins]
 enabled = ["official-page-toc"]
 ```
 
-テーマが `extra_head` と `extra_css` を出力している必要があります（組み込みのテンプレートは出力します）。CSP から `'unsafe-inline'` の `script-src` を外していると、進捗のスクリプトは動きません（目次のリンクは動きます）。
+The theme must output `extra_head` and `extra_css` (the built-in templates do). If you removed `'unsafe-inline'` from the CSP `script-src`, the progress script does not run (the table of contents links still work).
 
-## 設定
+## Settings
 
-Admin Studio の **Settings › Plugins** の「設定」（入力欄が出ます。項目はマニフェストの `settings` で宣言していて、保存時に値を検査します）か、設定ファイルの `[plugins.settings.official-page-toc]` で変えます。省略した項目・不正な値は既定値になります。
+Change them in the "Settings" of Admin Studio's **Settings › Plugins** (input fields appear; the items are declared in the manifest's `settings`, and values are validated on save), or in `[plugins.settings.official-page-toc]` in the config file. Omitted items and invalid values fall back to the defaults.
 
-| キー | 既定値 | 説明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `content_types` | `article,page` | 出すコンテンツの種類（カンマ区切り） |
-| `heading_levels` | `2,3` | 目次に入れる見出しの階層（`1`〜`6`） |
-| `min_headings` | `2` | 見出しがこれより少ないときは目次を出さない（進捗は出す） |
-| `show_toc` | `true` | 目次を出す |
-| `show_progress` | `true` | 進捗のバーを出す |
+| `content_types` | `article,page` | Content types to show it on (comma-separated) |
+| `heading_levels` | `2,3` | Heading levels to include in the table of contents (`1` to `6`) |
+| `min_headings` | `2` | Do not show the table of contents when there are fewer headings than this (progress is still shown) |
+| `show_toc` | `true` | Show the table of contents |
+| `show_progress` | `true` | Show the progress bar |
 | `position` | `right` | `right` / `left` |
-| `accent_color` | テーマの `--accent` | 進捗と現在の見出しの色。`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名 |
-| `top_offset_px` | `96` | 上からの位置。見出しへ移動したときの上の余白（固定ヘッダーの高さ）にも使う（0〜400） |
-| `width_px` | `220` | 目次の幅（120〜480） |
-| `min_viewport_px` | `1200` | これより画面が狭いと出さない（320〜4000） |
-| `smooth_scroll` | `true` | リンクへなめらかにスクロールする |
-| `locale` | `en` | 組み込みの文言の言語（`en` / `ja`） |
-| `title` | `On this page` / `目次` | 目次の見出し |
-| `progress_label` | `Reading progress` / `読了位置` | 進捗バーの読み上げ用の名前 |
+| `accent_color` | The theme's `--accent` | Color of the progress and the current heading. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name |
+| `top_offset_px` | `96` | Position from the top. Also used as the top margin (the height of a fixed header) when jumping to a heading (0–400) |
+| `width_px` | `220` | Width of the table of contents (120–480) |
+| `min_viewport_px` | `1200` | Not shown when the screen is narrower than this (320–4000) |
+| `smooth_scroll` | `true` | Scroll smoothly to links |
+| `locale` | `en` | Language of the built-in text (`en` / `ja`) |
+| `title` | `On this page` / `目次` | Heading of the table of contents |
+| `progress_label` | `Reading progress` / `読了位置` | Screen-reader name of the progress bar |
 
 ```toml
 [plugins.settings.official-page-toc]
@@ -46,15 +48,15 @@ heading_levels = "2,3,4"
 locale = "ja"
 ```
 
-記事ごとにやめたいときは、スキーマに真偽値のフィールド `hide_toc` を足して `true` にします。
+To turn it off per article, add a boolean field `hide_toc` to the schema and set it to `true`.
 
-## 見た目を変える
+## Changing the Appearance
 
-固定配置の `<nav class="apt">`（`.apt-track` / `.apt-fill` が進捗、`.apt-list` が目次、現在の見出しのリンクに `.apt-active`）です。設定で足りないところは、テーマの CSS で上書きできます。CSS に入るのは検査した値だけです（設定の値をそのまま CSS には入れません）。
+It is a fixed-position `<nav class="apt">` (`.apt-track` / `.apt-fill` are the progress, `.apt-list` is the table of contents, and the current heading's link gets `.apt-active`). Where the settings are not enough, you can override with the theme's CSS. Only validated values go into the CSS (setting values are never put into CSS as is).
 
-## ビルド
+## Build
 
 ```bash
-task plugin:build:reading   # plugin.wasm を作り直す（要 rustup target add wasm32-unknown-unknown）
+task plugin:build:reading   # rebuild plugin.wasm (requires rustup target add wasm32-unknown-unknown)
 cargo test -p aegis-plugin-page-toc
 ```
