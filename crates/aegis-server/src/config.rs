@@ -122,9 +122,26 @@ impl AegisConfig {
                     .to_string(),
             ));
         }
-        let config: AegisConfig = toml::from_str(&content)
-            .map_err(|e| AegisError::Config(format!("Failed to parse config file: {}", e)))?;
-        Ok(config)
+        Self::from_toml_value(content, raw, &|name| std::env::var(name).ok())
+    }
+
+    /// `"env:NAME"` の値を環境変数に展開してから `AegisConfig` にする（`lookup` は環境変数の読み出し）。
+    /// 未設定の変数は警告ログを出して、その項目を既定値にする。`env:` が無ければ、位置つきのエラーを
+    /// 出せるよう、元の文字列から直接パースする
+    fn from_toml_value(
+        content: String,
+        mut raw: toml::Value,
+        lookup: &dyn Fn(&str) -> Option<String>,
+    ) -> Result<Self> {
+        let parse_err =
+            |e: String| AegisError::Config(format!("Failed to parse config file: {}", e));
+        // 型の手がかり。作れなくても（None の項目など）、文字列のまま展開するだけ
+        let defaults = toml::Value::try_from(AegisConfig::default()).ok();
+        let report = crate::config_env::expand_env(&mut raw, defaults.as_ref(), lookup);
+        if report.touched() == 0 {
+            return toml::from_str(&content).map_err(|e| parse_err(e.to_string()));
+        }
+        raw.try_into().map_err(|e| parse_err(e.to_string()))
     }
 
     /// 共通の CAPTCHA（`[captcha]`）を検査し、`targets` に挙がった送信先ごとの検証用の [`Captchas`] を作る。
@@ -385,6 +402,23 @@ enabled = true
         assert!(config.members.enabled);
         // 書かなければ使わない
         assert!(!AegisConfig::default().members.enabled);
+    }
+
+    /// `"env:NAME"` は全項目で展開する。未設定なら警告して既定値、型は既定値に合わせる
+    #[test]
+    fn test_env_values_are_expanded_with_default_fallback() {
+        let src = "[server]\nport = \"env:T_PORT\"\nhost = \"env:T_HOST_UNSET\"\n\
+                   [database]\nurl = \"env:T_DB\"\n";
+        let raw: toml::Value = toml::from_str(src).unwrap();
+        let config = AegisConfig::from_toml_value(src.to_string(), raw, &|name| match name {
+            "T_PORT" => Some("9100".to_string()),
+            "T_DB" => Some("sqlite://x.db".to_string()),
+            _ => None,
+        })
+        .unwrap();
+        assert_eq!(config.server.port, 9100);
+        assert_eq!(config.server.host, ServerConfig::default().host);
+        assert_eq!(config.database.url, "sqlite://x.db");
     }
 
     /// `[forum].allow_anonymous` は `posting` に置き換えた。黙って無視せず、断る

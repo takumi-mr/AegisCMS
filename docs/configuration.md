@@ -40,6 +40,10 @@ The log level is controlled with the standard `RUST_LOG` environment variable (w
 - **Every section and item is optional.** Omitted items use the defaults in the tables below.
   - Example: if you write only `port = 9000` in `[server]`, `host` becomes the default `"127.0.0.1"`.
 - **If the file does not exist**, a warning log (`Config file ... not found`) is written and it starts with the built-in defaults.
+- **`"env:NAME"` is replaced by the value of environment variable `NAME`** when the file is loaded. It works on every string value in the file (including array elements; not on table keys), for example `port = "env:PORT"` or `url = "env:DATABASE_URL"`. Use it to keep secrets out of the file.
+  - If the variable is **not set**, a warning log is written and the item is treated as not written, so it takes its default value (an array element is dropped). It is not an error. A variable that is set to an empty string is used as the empty string.
+  - Environment variables are strings, so an item whose default is a number or a boolean converts the value to that type (`true` / `false` for a boolean). If it cannot be converted, a warning is written and the default is used.
+  - The value is not logged. A value that must start with `env:` literally is not supported.
 - **If reading or parsing the file fails** (a wrong type, an unknown `backend` value, etc.), an error message is shown and startup is aborted (exit code 1).
 - Backend kinds (`backend`) in TOML accept only the values listed in the tables below (case-sensitive too). Aliases such as `"r2"` and `"minio"` cannot be used.
 
