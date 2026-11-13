@@ -1,15 +1,66 @@
-# AegisCMS: A Next-Generation Secure CMS
+<h1 align="center">AegisCMS</h1>
 
-**English** | [日本語](README.ja.md)
+<p align="center"><b>A next-generation secure CMS: a single Rust binary, sandboxed WebAssembly plugins, and schemas you keep in Git.</b></p>
+
+<p align="center">
+  <a href="https://github.com/takumi-mr/AegisCMS/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/takumi-mr/AegisCMS/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/takumi-mr/AegisCMS/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/takumi-mr/AegisCMS?sort=semver"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/takumi-mr/AegisCMS"></a>
+  <a href="https://github.com/takumi-mr/AegisCMS/pkgs/container/aegiscms"><img alt="Docker image" src="https://img.shields.io/badge/ghcr.io-aegiscms-2496ED?logo=docker&logoColor=white"></a>
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-000000?logo=rust&logoColor=white">
+  <img alt="WebAssembly plugins" src="https://img.shields.io/badge/plugins-WebAssembly-654FF0?logo=webassembly&logoColor=white">
+  <img alt="Databases" src="https://img.shields.io/badge/DB-SQLite%20%7C%20PostgreSQL%20%7C%20MySQL-336791?logo=postgresql&logoColor=white">
+  <a href="https://conventionalcommits.org"><img alt="Conventional Commits" src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196?logo=conventionalcommits&logoColor=white"></a>
+</p>
+
+<p align="center"><b>English</b> | <a href="README.ja.md">日本語</a> | <a href="docs/README.md">Documentation</a> | <a href="CHANGELOG.md">Changelog</a></p>
+
+<p align="center">
+  <img src="docs/images/editor-article.png" alt="Admin Studio: block editor" width="860">
+</p>
+
+## Highlights
+
+|                                   |                                                                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 🛡️ **Zero-trust plugins**         | Every plugin runs in a Wasmtime sandbox with fuel and timeout limits, and may touch only what its capability allowlist grants. A buggy plugin cannot take down the site. |
+| 📦 **One binary, zero config**    | The core is a single Rust binary. It starts on SQLite out of the box and switches to PostgreSQL or MySQL, Redis, and S3 when you scale.                                  |
+| 🧬 **Declarative, typed schemas** | Content models are YAML. Tables migrate automatically, and TypeScript types and the OpenAPI spec are generated from them.                                                |
+| 🌿 **Code as configuration**      | The database holds only content. Settings, schemas, themes, and plugins live in Git, so staging and production stay reproducible.                                        |
+| 🧱 **Block editor on a real AST** | Admin Studio (React) edits blocks, and rendering is deterministic AST to HTML. Raw HTML strings are never patched in place.                                              |
+| 🔐 **Secure by default**          | Strict CSP, audit logs, Argon2id, two-factor authentication, OIDC and SAML, and API tokens for CI and LLMs.                                                              |
+| 🧩 **Built-in services**          | Search, comments, members, e-commerce, forum, newsletter, contact forms, analytics, and a headless API.                                                                  |
+| 🎨 **Themes and tooling**         | MiniJinja themes, plus Theme Builder and Plugin Builder for live-preview development.                                                                                    |
+
+## Quick Start
+
+```bash
+# Run the Docker image (GitHub Container Registry)
+docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest
+
+# ...or build and run from source (port 8080)
+task dev
+```
+
+- **Try a sample site**: the e-commerce shop [`examples/coffee-shop/`](examples/coffee-shop) (`task demo:shop`) or the forum [`examples/hiking-forum/`](examples/hiking-forum) (`task demo:forum`).
+- **Publish over HTTPS on a server**: use [`deploy/`](deploy) (AegisCMS + Caddy). Write your domains in `sites.toml` and run `./deploy.sh up`. Multiple sites are supported.
+- **Develop**: see [docs/development.md](docs/development.md). Run `task check` before opening a PR.
 
 > [!NOTE]
 > The READMEs are available in English and Japanese (`README.md` / `README.ja.md` in each directory). The detailed documents under [`docs/`](docs) are in English (`*.md`), with Japanese copies (`*.ja.md`) kept as a snapshot.
 
-> [!TIP]
->
-> - To try it right away, use the e-commerce sample site [`examples/coffee-shop/`](examples/coffee-shop) (`task demo:shop`) or the forum sample site [`examples/hiking-forum/`](examples/hiking-forum) (`task demo:forum`).
-> - To run it straight from the Docker image (GitHub Container Registry): `docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest`.
-> - To publish over HTTPS on a server, use [`deploy/`](deploy) (AegisCMS + Caddy. Write your domains in `sites.toml` and run `./deploy.sh up`. Multiple sites are supported).
+## Table of Contents
+
+1. [System Overview and Design Philosophy](#1-system-overview-and-design-philosophy)
+2. [System Architecture](#2-system-architecture)
+3. [Plugin Sandbox Architecture](#3-plugin-sandbox-architecture)
+4. [Content and DOM Manipulation Pipeline](#4-content-and-dom-manipulation-pipeline)
+5. [Data Model and Configuration Management](#5-data-model-and-configuration-management)
+6. [Technology Stack Rationale](#6-technology-stack-rationale)
+
+## License
+
+[MIT](LICENSE)
 
 ---
 
